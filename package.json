@@ -1,0 +1,59 @@
+{
+  "name": "bbn-client",
+  "version": "0.0.0",
+  "license": "MIT",
+  "packageManager": "pnpm@10.19.0+sha512.c9fc7236e92adf5c8af42fd5bf1612df99c2ceb62f27047032f4720b33f8eacdde311865e91c411f2774f618d82f320808ecb51718bfa82c060c4ba7c76a32b8",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "preinstall": "node scripts/preinstall.js",
+    "build": "nx run-many --target=build --all",
+    "lint": "nx run-many --target=lint --all --verbose",
+    "test": "nx run-many --target=test --all --verbose",
+    "knip": "pnpm dlx knip@5.88.1 --workspace packages/babylon-ts-sdk --workspace services/vault",
+    "nx:sync": "nx sync",
+    "visual:diff": "node scripts/visual-diff.mjs",
+    "visual:test": "node --test \"scripts/__tests__/*.test.mjs\"",
+    "prepare": "husky",
+    "ci:release": "nx run @internal/release:run"
+  },
+  "private": true,
+  "pnpm": {
+    "overrides": {
+      "@walletconnect/logger": "3.0.0",
+      "js-yaml": ">=4.1.1",
+      "@sats-connect/core>axios": "1.12.2"
+    }
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^19.8.0",
+    "@commitlint/config-conventional": "^19.8.0",
+    "@nx/eslint": "^21.3.7",
+    "@nx/eslint-plugin": "^21.3.7",
+    "@nx/js": "^21.3.7",
+    "@storybook/addon-docs": "^8.6.15",
+    "@swc-node/register": "~1.9.1",
+    "@swc/core": "~1.5.7",
+    "@swc/helpers": "~0.5.11",
+    "@types/node": "^22.10.2",
+    "@typescript-eslint/eslint-plugin": "^8.44.1",
+    "eslint": "^9.32.0",
+    "eslint-plugin-package-json": "^0.47.0",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "eslint-plugin-react-refresh": "^0.4.20",
+    "eslint-plugin-tailwindcss": "^3.18.2",
+    "husky": "^9.1.7",
+    "jsonc-eslint-parser": "^2.4.0",
+    "nx": "21.3.7",
+    "pixelmatch": "7.2.0",
+    "pngjs": "7.0.0",
+    "prettier": "^3.6.2",
+    "syncpack": "^13.0.4",
+    "tslib": "^2.3.0",
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.44.1",
+    "uuid": "11.1.0"
+  }
+}

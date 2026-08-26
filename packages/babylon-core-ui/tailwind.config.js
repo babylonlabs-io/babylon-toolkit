@@ -1,0 +1,314 @@
+import defaultTheme from "tailwindcss/defaultTheme";
+import { createThemes } from "tw-colors";
+
+/** @type {import('tailwindcss').Config} */
+export default {
+  content: [
+    "./src/**/*.{js,ts,jsx,tsx,css}",
+    "./dist/**/*.{js,ts,jsx,tsx}"
+  ],
+  darkMode: ["class", '[data-mode="dark"]'],
+  safelist: [
+    // Include theme color classes with proper pattern syntax
+    {
+      pattern: /(bg|text|border)-(primary|secondary|accent|surface|error|warning|info|success|neutral|background)-(main|light|dark|secondary|navy|contrast|highlight|strokeLight|strokeDark|100|200)/,
+      variants: ['dark', 'hover', 'focus', 'disabled'],
+    },
+    // Animation patterns
+    {
+      pattern: /animate-(modal|mobile-modal|backdrop)-(in|out)/,
+    },
+    {
+      pattern: /animate-reveal-in/,
+    },
+    // Common opacity values used
+    {
+      pattern: /opacity-(0|30|100)/,
+      variants: ['dark', 'hover'],
+    },
+    // Transform patterns used in dialogs/drawers
+    {
+      pattern: /-?translate-(x|y)-(0|full|1\/2|1\/4)/,
+    },
+    // Critical dark mode and color classes
+    'dark',
+    'bg-[#FFFFFF]',
+    'dark:bg-[#252525]',
+    'dark:bg-[#404040]',
+    'border-[#38708533]',
+    'dark:border-[#404040]',
+    'bg-black/50',
+    // Essential layout classes
+    'fixed',
+    'absolute',
+    'relative',
+    'z-40',
+    'z-50',
+    'z-[9999]',
+    'inset-0',
+    'inset-x-0',
+    'inset-y-0',
+    'top-0',
+    'right-0',
+    'bottom-0',
+    'left-0',
+    // Essential display/flex
+    'hidden',
+    'block',
+    'flex',
+    'inline-block',
+    'inline-flex',
+    'contents',
+    'items-center',
+    'justify-center',
+    'justify-between',
+    // Essential sizing
+    'w-full',
+    'h-full',
+    'min-w-[294px]',
+    'max-w-sm',
+    'max-h-full',
+    // Essential spacing
+    'p-4',
+    'px-4',
+    'pb-4',
+    'pt-12',
+    'mt-4',
+    // Essential borders/rounds
+    'border',
+    'rounded',
+    'rounded-lg',
+    'rounded-t-3xl',
+    'rounded-full',
+    // Essential transitions
+    'transition-opacity',
+    'transition-transform',
+    'transition-colors',
+    'duration-300',
+    'duration-500',
+    // Essential utilities
+    'shadow-lg',
+    'pointer-events-none',
+    'pointer-events-auto',
+    'overflow-hidden',
+    'overflow-y-auto',
+  ],
+  theme: {
+    fontFamily: {
+      sans: ["Px Grotesk", ...defaultTheme.fontFamily.sans],
+      mono: ["Px Grotesk Mono", ...defaultTheme.fontFamily.mono],
+    },
+    fontWeight: {
+      screen: "200",
+      thin: "250",
+      light: "300",
+      normal: "400",
+      medium: "500",
+      semibold: "600",
+      bold: "700",
+      extrabold: "800",
+      black: "900",
+    },
+    letterSpacing: {
+      normal: "0",
+      0.1: "0.1px",
+      0.15: "0.15px",
+      0.25: "0.25px",
+      0.4: "0.4px",
+      0.5: "0.5px",
+      1: "1px",
+    },
+    extend: {
+      opacity: {
+        8: ".08",
+        12: ".12",
+        24: ".24",
+        44: ".44",
+      },
+      keyframes: {
+        "modal-in": {
+          // Default `scale(.96)` preserves legacy modal behavior for non-opted-in
+          // consumers; an app overrides the token (e.g. `translateY(8px)`) to apply
+          // its spec. `none` is the shared identity end-state for either transform.
+          "0%": {
+            transform: "var(--motion-transform-modal-in, scale(.96))",
+            opacity: 0,
+          },
+          "100%": {
+            transform: "none",
+            opacity: 1,
+          },
+        },
+        "modal-out": {
+          "0%": {
+            transform: "none",
+            opacity: 1,
+          },
+          "100%": {
+            transform: "var(--motion-transform-modal-out, scale(.96))",
+            opacity: 0,
+          },
+        },
+        "mobile-modal-in": {
+          "0%": {
+            transform: "translateY(100%)",
+          },
+          "100%": {
+            transform: "translateY(0)",
+          },
+        },
+        "mobile-modal-out": {
+          "0%": {
+            transform: "translateY(0)",
+          },
+          "100%": {
+            transform: "translateY(100%)",
+          },
+        },
+        "backdrop-in": {
+          "0%": {
+            opacity: "0",
+          },
+          "100%": {
+            opacity: "1",
+          },
+        },
+        "backdrop-out": {
+          "0%": {
+            opacity: "1",
+          },
+          "100%": {
+            opacity: "0",
+          },
+        },
+        "reveal-in": {
+          "0%": {
+            opacity: 0,
+            transform: "translateY(var(--motion-shift-reveal, 0px))",
+          },
+          "100%": {
+            opacity: 1,
+            transform: "translateY(0)",
+          },
+        },
+      },
+      animation: {
+        "modal-in": "modal-in var(--motion-duration-modal, 0.5s) var(--motion-ease-modal-in, ease-in-out) forwards",
+        "modal-out": "modal-out var(--motion-duration-modal-out, 0.5s) var(--motion-ease-modal-out, ease-in-out) forwards",
+        "mobile-modal-in": "mobile-modal-in var(--motion-duration-modal, 0.5s) var(--motion-ease-modal-in, ease-in-out) forwards",
+        "mobile-modal-out": "mobile-modal-out var(--motion-duration-modal-out, 0.5s) var(--motion-ease-modal-out, ease-in-out) forwards",
+        "backdrop-in": "backdrop-in var(--motion-duration-backdrop, 0.5s) var(--motion-ease-backdrop, ease-in-out) forwards",
+        "backdrop-out": "backdrop-out var(--motion-duration-backdrop, 0.5s) var(--motion-ease-backdrop, ease-in-out) forwards",
+        "reveal-in": "reveal-in var(--motion-duration-reveal, 0ms) var(--motion-ease-reveal, ease-out) forwards",
+      },
+    },
+  },
+  plugins: [
+    createThemes({
+      light: {
+        transparent: "transparent",
+        surface: "#ffffff",
+        accent: {
+          primary: "#12495E",
+          secondary: "#666666",
+          disabled: "#9ab7c2",
+          contrast: "#ffffff",
+          navy: "#042F40",
+        },
+        background: {
+          secondary: "#F9F9F9",
+          contrast: "#F2F2F2",
+        },
+        neutral: {
+          100: "#F9F9F9",
+          200: "#F2F2F2",
+        },
+        primary: {
+          main: "#042F40",
+          dark: "#12495E",
+          light: "#387085",
+          contrast: "#F5F7F2",
+        },
+        secondary: {
+          main: "#CE6533",
+          highlight: "#F9F9F9",
+          contrast: "#F5F7F2",
+          strokeLight: "#d7e1e7",
+          strokeDark: "#387085",
+        },
+        error: {
+          main: "#D32F2F",
+          dark: "#C62828",
+          light: "#EF5350",
+        },
+        warning: {
+          main: "#EF6C00",
+          dark: "#E65100",
+          light: "#FF9800",
+        },
+        info: {
+          main: "#3465CF",
+          dark: "#213F82",
+          light: "#34C7CF",
+        },
+        success: {
+          main: "#2E7D32",
+          dark: "#518665",
+          light: "#4CAF50",
+        },
+      },
+      dark: {
+        transparent: "transparent",
+        surface: "#121212",
+        accent: {
+          primary: "#F0F0F0",
+          secondary: "#B0B0B0",
+          disabled: "#787878",
+          contrast: "#ffffff",
+          navy: "#042F40",
+        },
+        background: {
+          secondary: "#202020",
+          contrast: "#191919",
+        },
+        neutral: {
+          100: "#252525",
+          200: "#2C2C2C",
+        },
+        primary: {
+          main: "#111111",
+          dark: "#000000",
+          light: "#387085",
+          contrast: "#191919",
+        },
+        secondary: {
+          main: "#CE6533",
+          highlight: "#252525",
+          contrast: "#F5F7F2",
+          strokeLight: "#2F2F2F",
+          strokeDark: "#5A5A5A",
+        },
+        error: {
+          main: "#D32F2F",
+          dark: "#C62828",
+          light: "#EF5350",
+        },
+        warning: {
+          main: "#EF6C00",
+          dark: "#E65100",
+          light: "#FF9800",
+        },
+        info: {
+          main: "#3465CF",
+          dark: "#213F82",
+          light: "#34C7CF",
+        },
+        success: {
+          main: "#2E7D32",
+          dark: "#518665",
+          light: "#4CAF50",
+        },
+      },
+    }),
+  ],
+};

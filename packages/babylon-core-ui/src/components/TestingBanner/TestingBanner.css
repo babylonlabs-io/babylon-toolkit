@@ -1,0 +1,11 @@
+.bbn-testing-banner {
+  @apply flex flex-row items-center justify-between gap-2 bg-[#D5FCE8] px-4 py-3 text-primary-main;
+
+  &-content {
+    @apply flex flex-row items-center gap-2;
+  }
+
+  &-icon {
+    @apply flex-shrink-0;
+  }
+}

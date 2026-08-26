@@ -1,0 +1,82 @@
+/**
+ * Vault data transformation utilities
+ * Converts blockchain/GraphQL vault data to UI-friendly formats
+ */
+
+import { formatSatoshisToBtc } from "@babylonlabs-io/ts-sdk/tbv/core";
+import { calculateBtcTxHash } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
+import type { Hex } from "viem";
+
+import { getNetworkConfigBTC } from "../config";
+import { getPeginState } from "../models/peginStateMachine";
+import type { Vault, VaultActivity } from "../types";
+
+/**
+ * Derive the Pre-PegIn txid from its unsigned hex. Returns undefined when the
+ * input is empty (cross-device "no local tx" marker) or fails to decode — both
+ * cases mean we have no broadcastable Pre-PegIn to link to.
+ */
+export function derivePrePeginTxHash(
+  unsignedPrePeginTx: string | undefined,
+): Hex | undefined {
+  if (!unsignedPrePeginTx) return undefined;
+  try {
+    return calculateBtcTxHash(unsignedPrePeginTx);
+  } catch {
+    return undefined;
+  }
+}
+
+const btcConfig = getNetworkConfigBTC();
+
+/**
+ * Transform Vault data to VaultActivity UI format
+ * For Deposit tab - shows vault status but not full loan details
+ * @param vault - Vault data from GraphQL
+ * @returns VaultActivity object ready for UI rendering (without action handlers - those are attached at component level)
+ */
+export function transformVaultToActivity(vault: Vault): VaultActivity {
+  // Convert amount from satoshis to BTC
+  const btcAmount = formatSatoshisToBtc(vault.amount);
+
+  // Compute display label from state machine
+  const state = getPeginState(vault.status, { isInUse: vault.isInUse });
+
+  // Create VaultActivity object (deposit/collateral info)
+  return {
+    id: vault.id,
+    peginTxHash: vault.peginTxHash,
+    prePeginTxHash: derivePrePeginTxHash(vault.unsignedPrePeginTx),
+    collateral: {
+      amount: btcAmount,
+      symbol: btcConfig.coinSymbol,
+      icon: btcConfig.icon,
+    },
+    contractStatus: vault.status,
+    isInUse: vault.isInUse,
+    displayLabel: state.displayLabel,
+    providers: [
+      {
+        id: vault.vaultProvider,
+      },
+    ],
+    applicationEntryPoint: vault.applicationEntryPoint,
+    timestamp: vault.createdAt,
+    depositorBtcPubkey: vault.depositorBtcPubkey,
+    depositorSignedPeginTx: vault.depositorSignedPeginTx,
+    unsignedPrePeginTx: vault.unsignedPrePeginTx,
+    htlcVout: vault.htlcVout,
+    depositorPayoutBtcAddress: vault.depositorPayoutBtcAddress,
+    depositorWotsPkHash: vault.depositorWotsPkHash,
+    expiredAt: vault.expiredAt,
+    expirationReason: vault.expirationReason,
+    offchainParamsVersion: vault.offchainParamsVersion,
+    // No action handlers - these are attached at the component level
+    action: undefined,
+    // No position details in deposit tab
+    position: undefined,
+    borrowingData: undefined,
+    marketData: undefined,
+    positionDate: undefined,
+  };
+}

@@ -1,0 +1,352 @@
+/* Liquidation charts (Seizure Map + Timeline). Marks are SVG sized in real
+ * pixels from the measured chart width (see chartGeometry.ts); this file only
+ * paints them. Geometry (positions, fonts, dropout thresholds) lives in TS.
+ *
+ * Colour tokens live at :root (light default + dark override) because the
+ * band hover popover renders in a portal outside the chart subtree and must
+ * still inherit them. Neutral chrome (gridlines, axis text, surfaces) tracks
+ * the shared --bbn-chart-* tokens, which carry their own dark override.
+ * Motion uses --motion-* tokens per docs/motion-system.md (fallbacks reproduce
+ * legacy behaviour; reduced-motion handled by the global reset). */
+@import "../charts/chartTokens.css";
+
+:root {
+  --liq-band-1: #dc944d;
+  --liq-band-2: #d1792c;
+  --liq-band-3: #cc1818;
+  --liq-price-line: #387085;
+  --liq-band-text: #ffffff;
+  --liq-candle-up: #00bc64;
+  --liq-candle-down: #ff0020;
+  --liq-gridline: var(--bbn-chart-gridline);
+  --liq-axis-text: var(--bbn-chart-axis-text);
+  --liq-surface: var(--bbn-chart-surface);
+  --liq-surface-text: var(--bbn-chart-surface-text);
+  --liq-surface-muted: var(--bbn-chart-surface-muted);
+  --liq-surface-stroke: var(--bbn-chart-surface-stroke);
+  --liq-surface-stroke-strong: var(--bbn-chart-surface-stroke-strong);
+}
+
+/* ---- Frame ---------------------------------------------------------- */
+.bbn-liq-chart {
+  width: 100%;
+  font-family: "Px Grotesk", sans-serif;
+}
+.bbn-liq-chart__canvas {
+  position: relative;
+}
+/* The old HTML frame let edge labels overflow (top axis tick, price label);
+ * keep that instead of clipping at the SVG viewport. */
+.bbn-liq-chart__svg {
+  display: block;
+  overflow: visible;
+}
+
+.bbn-liq-axis-text {
+  fill: var(--liq-axis-text);
+  /* Sourced from AXIS_LETTER_SPACING_PX (textMeasure.ts), which also sizes
+   * the pills — the fallback only covers renders outside ChartFrame. */
+  letter-spacing: var(--liq-axis-letter-spacing, 0.4px);
+  pointer-events: none;
+}
+
+.bbn-liq-grid line {
+  stroke: var(--liq-gridline);
+  pointer-events: none;
+}
+/* Grid stroke style (ChartGridConfig); visibility is decided in JSX. */
+.bbn-liq-chart--gridstyle-dashed .bbn-liq-grid line {
+  stroke-dasharray: 3 3;
+}
+.bbn-liq-chart--gridstyle-dotted .bbn-liq-grid line {
+  stroke-dasharray: 1 2;
+}
+
+/* Liquidation-level markers (Timeline): dashed tone line + axis pill. */
+.bbn-liq-level-line {
+  stroke: var(--liq-gridline);
+  stroke-dasharray: 3 3;
+  pointer-events: none;
+}
+.bbn-liq-level-line--tone-1 {
+  stroke: var(--liq-band-1);
+}
+.bbn-liq-level-line--tone-2 {
+  stroke: var(--liq-band-2);
+}
+.bbn-liq-level-line--tone-3 {
+  stroke: var(--liq-band-3);
+}
+
+.bbn-liq-pill__rect {
+  fill: var(--liq-surface-muted);
+  pointer-events: none;
+}
+.bbn-liq-pill__rect--tone-1 {
+  fill: var(--liq-band-1);
+}
+.bbn-liq-pill__rect--tone-2 {
+  fill: var(--liq-band-2);
+}
+.bbn-liq-pill__rect--tone-3 {
+  fill: var(--liq-band-3);
+}
+.bbn-liq-pill__rect--current {
+  fill: var(--liq-price-line);
+}
+.bbn-liq-pill__text {
+  fill: var(--liq-band-text);
+  letter-spacing: var(--liq-axis-letter-spacing, 0.4px);
+  pointer-events: none;
+}
+
+.bbn-liq-price-line {
+  stroke: var(--liq-price-line);
+  stroke-width: 2;
+  pointer-events: none;
+}
+/* Plain body text above the rule; `--liq-price-line-label` overrides the colour. */
+.bbn-liq-price-line-text {
+  fill: var(--liq-price-line-label, var(--liq-surface-text));
+  letter-spacing: var(--liq-axis-letter-spacing, 0.4px);
+  pointer-events: none;
+}
+
+/* ---- Top collateral-share legend (Seizure Map) --------------------- */
+.bbn-liq-legend__seg {
+  transition: opacity var(--motion-duration-dropdown, 180ms) var(--motion-ease-dropdown-in, ease-out);
+}
+.bbn-liq-legend__seg--liquidated {
+  opacity: 0.32;
+}
+.bbn-liq-legend__rect--tone-1 {
+  fill: var(--liq-band-1);
+}
+.bbn-liq-legend__rect--tone-2 {
+  fill: var(--liq-band-2);
+}
+.bbn-liq-legend__rect--tone-3 {
+  fill: var(--liq-band-3);
+}
+.bbn-liq-legend__text {
+  fill: var(--liq-band-text);
+}
+
+/* ---- Bands ---------------------------------------------------------- */
+.bbn-liq-band {
+  transition:
+    opacity var(--motion-duration-dropdown, 180ms) var(--motion-ease-dropdown-in, ease-out),
+    filter var(--motion-duration-icon, 180ms) var(--motion-ease-icon, ease-out);
+}
+.bbn-liq-band--liquidated {
+  opacity: 0.32;
+}
+.bbn-liq-band--interactive:hover {
+  filter: brightness(1.06);
+}
+.bbn-liq-band__rect--tone-1 {
+  fill: var(--liq-band-1);
+}
+.bbn-liq-band__rect--tone-2 {
+  fill: var(--liq-band-2);
+}
+.bbn-liq-band__rect--tone-3 {
+  fill: var(--liq-band-3);
+}
+.bbn-liq-band__text text {
+  fill: var(--liq-band-text);
+}
+
+/* ---- Candles + interaction surface (Timeline) ----------------------- */
+.bbn-liq-candle--up .bbn-liq-candle__wick {
+  stroke: var(--liq-candle-up);
+}
+.bbn-liq-candle--down .bbn-liq-candle__wick {
+  stroke: var(--liq-candle-down);
+}
+.bbn-liq-candle--up .bbn-liq-candle__body {
+  fill: var(--liq-candle-up);
+}
+.bbn-liq-candle--down .bbn-liq-candle__body {
+  fill: var(--liq-candle-down);
+}
+
+.bbn-liq-series__line {
+  fill: none;
+  stroke: var(--liq-candle-up);
+  stroke-width: 2;
+}
+.bbn-liq-series__area {
+  fill: var(--liq-candle-up);
+  opacity: 0.14;
+  stroke: none;
+}
+
+.bbn-liq-candles__hit--interactive {
+  cursor: crosshair;
+  touch-action: none;
+}
+.bbn-liq-candles__hit[data-dragging="true"] {
+  cursor: grabbing;
+}
+
+.bbn-liq-crosshair {
+  stroke: var(--liq-axis-text);
+  stroke-dasharray: 3 3;
+  pointer-events: none;
+}
+
+.bbn-liq-zoom {
+  position: absolute;
+  display: flex;
+  gap: 0.25rem;
+}
+.bbn-liq-zoom button {
+  width: 1.75rem;
+  height: 1.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid var(--liq-surface-stroke);
+  border-radius: 2px;
+  background: var(--liq-surface);
+  color: var(--liq-surface-text);
+  font-size: inherit;
+  cursor: pointer;
+  transition: filter var(--motion-duration-icon, 180ms) var(--motion-ease-icon, ease-out);
+}
+.bbn-liq-zoom button:hover {
+  filter: brightness(1.1);
+}
+
+.bbn-liq-readout {
+  position: absolute;
+  transform: translateX(0.5rem);
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-width: 7.5rem;
+  padding: 0.5rem 0.625rem;
+  border: 1px solid var(--liq-surface-stroke);
+  border-radius: 0.375rem;
+  background: var(--liq-surface);
+  color: var(--liq-surface-text);
+  pointer-events: none;
+}
+.bbn-liq-readout--left {
+  transform: translateX(calc(-100% - 0.5rem));
+}
+.bbn-liq-readout__time {
+  color: var(--liq-surface-muted);
+  margin-bottom: 0.125rem;
+}
+.bbn-liq-readout__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.bbn-liq-readout__row span:first-child {
+  color: var(--liq-surface-muted);
+}
+
+/* ---- Safe-zone box in the band gutter (Timeline) ------------------- */
+.bbn-liq-safezone__rect {
+  fill: var(--liq-surface);
+  stroke: var(--liq-surface-stroke);
+}
+.bbn-liq-safezone__title {
+  fill: var(--liq-surface-text);
+}
+.bbn-liq-safezone__line {
+  fill: var(--liq-surface-muted);
+}
+
+/* ---- Hover popover (per the liq-event tooltip design) --------------- */
+.bbn-liq-popover .bbn-popover-content {
+  padding: 0;
+}
+/* Popper positions .bbn-liq-popover (inline transform) → animate opacity here,
+ * translate on the inner wrapper. Reduced-motion zeroes both via global reset. */
+.bbn-liq-popover {
+  animation: bbn-liq-pop-fade var(--motion-duration-tooltip, 140ms) var(--motion-ease-dropdown-in, ease-out) both;
+}
+.bbn-liq-popover__inner {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 15rem;
+  max-width: 18rem;
+  padding: 0.75rem;
+  background: var(--liq-surface);
+  border: 1px solid var(--liq-surface-stroke);
+  border-radius: 0.5rem;
+  color: var(--liq-surface-text);
+  font-family: "Px Grotesk", sans-serif;
+  animation: bbn-liq-pop-rise var(--motion-duration-tooltip, 140ms) var(--motion-ease-dropdown-in, ease-out) both;
+}
+@keyframes bbn-liq-pop-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes bbn-liq-pop-rise {
+  from {
+    transform: translateY(var(--motion-shift-dropdown, 4px));
+  }
+  to {
+    transform: none;
+  }
+}
+.bbn-liq-popover__chip {
+  align-self: flex-start;
+  padding: 0.1875rem 0.875rem;
+  border: 1px solid var(--liq-surface-stroke-strong);
+  border-radius: 999px;
+  font-size: 0.875rem;
+  line-height: 1.43;
+  letter-spacing: 0.17px;
+  color: var(--liq-surface-text);
+}
+.bbn-liq-popover__metrics {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin: 0;
+}
+.bbn-liq-popover__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1.5rem;
+  font-size: 0.75rem;
+  line-height: 1.66;
+  letter-spacing: 0.4px;
+}
+.bbn-liq-popover__row dt {
+  color: var(--liq-surface-muted);
+}
+.bbn-liq-popover__row dd {
+  margin: 0;
+  text-align: right;
+  color: var(--liq-surface-text);
+}
+.bbn-liq-popover__row--footer {
+  margin-top: 0.25rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--liq-surface-stroke);
+}
+/* Element + class ties the plain `dd` rule's specificity; later order wins,
+ * so the tone tint sticks. */
+dd.bbn-liq-popover__value--tone-1 {
+  color: var(--liq-band-1);
+}
+dd.bbn-liq-popover__value--tone-2 {
+  color: var(--liq-band-2);
+}
+dd.bbn-liq-popover__value--tone-3 {
+  color: var(--liq-band-3);
+}

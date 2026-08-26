@@ -1,0 +1,483 @@
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+import { useNavigate } from "react-router";
+import type { Address, Hex } from "viem";
+
+import { usePeginPolling } from "@/context/deposit/PeginPollingContext";
+import { COPY } from "@/copy";
+import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps";
+import { useRequiredPrePeginDepth } from "@/hooks/deposit/useRequiredPrePeginDepth";
+import { deriveSplitVaultProgress } from "@/hooks/deposit/useSplitVaultProgress";
+import {
+  getPeginDisplayStep,
+  getWarningPeginDisplayStep,
+  hasActionableStep,
+  isCandidateVault,
+  isVaultActivated,
+  isVaultPastActivation,
+  PeginAction,
+} from "@/models/peginStateMachine";
+import type { VaultActivity } from "@/types/activity";
+import { type DepositErrorContent, mapDepositError } from "@/utils/errors";
+
+import { ActivationGate } from "./ActivationGate";
+import {
+  type BtcConfirmationDetailData,
+  DepositProgressView,
+} from "./DepositProgressView";
+import {
+  ResumeActivationContent,
+  ResumeBroadcastContent,
+  ResumeSignContent,
+  ResumeWotsContent,
+} from "./ResumeDepositContent";
+import { VaultActivatedView } from "./VaultActivatedView";
+
+// God-mode only: simulated activation content for demo vault ids. Lazy +
+// import.meta.env.DEV so the module (and the demo store it pulls in) is
+// tree-shaken from production builds, mirroring the DashboardPage pattern.
+const DemoActivationContent = import.meta.env.DEV
+  ? lazy(() => import("@/dev/DemoActivationContent"))
+  : null;
+
+interface PostDepositContinuationViewProps {
+  vaultIds: Hex[];
+  activities: VaultActivity[];
+  depositorEthAddress: Address;
+  btcPublicKey: string | undefined;
+  /**
+   * God-mode demo vault ids present in this batch (dev only; empty/undefined in
+   * production). When the driven vault is one of these, the activation branch
+   * runs the SIMULATED activation instead of the real wallet/contract path.
+   */
+  demoVaultIds?: ReadonlySet<string>;
+  onClose: () => void;
+  /**
+   * Advanced escape-hatch entry (activate-and-redeem): routes to the host's
+   * dedicated withdraw modal. Rendered as a muted link in the activation
+   * confirmation only when provided.
+   */
+  onAdvancedWithdraw?: (vaultId: string) => void;
+}
+
+function StatusView({
+  currentStep,
+  onClose,
+  error = null,
+  isComplete = false,
+  isProcessing = false,
+  canContinueInBackground = false,
+  successMessage,
+  btcConfirmationDetail = null,
+  vaultCount = 1,
+  currentVaultIndex = null,
+  perVaultSteps,
+  offchainParamsVersion,
+}: {
+  currentStep: DepositFlowStep;
+  onClose: () => void;
+  error?: DepositErrorContent | null;
+  isComplete?: boolean;
+  isProcessing?: boolean;
+  canContinueInBackground?: boolean;
+  successMessage?: string;
+  btcConfirmationDetail?: BtcConfirmationDetailData | null;
+  vaultCount?: number;
+  currentVaultIndex?: number | null;
+  perVaultSteps?: DepositFlowStep[];
+  offchainParamsVersion?: number;
+}) {
+  return (
+    <DepositProgressView
+      currentStep={currentStep}
+      error={error}
+      isComplete={isComplete}
+      isProcessing={isProcessing}
+      canClose
+      canContinueInBackground={canContinueInBackground}
+      payoutSigningProgress={null}
+      peginSigningProgress={null}
+      vaultCount={vaultCount}
+      currentVaultIndex={currentVaultIndex}
+      perVaultSteps={perVaultSteps}
+      onClose={onClose}
+      successMessage={successMessage}
+      btcConfirmationDetail={btcConfirmationDetail}
+      offchainParamsVersion={offchainParamsVersion}
+    />
+  );
+}
+
+export function PostDepositContinuationView({
+  vaultIds,
+  activities,
+  depositorEthAddress,
+  btcPublicKey,
+  demoVaultIds,
+  onClose,
+  onAdvancedWithdraw,
+}: PostDepositContinuationViewProps) {
+  const { refetch, getPollingResult } = usePeginPolling();
+  const navigate = useNavigate();
+
+  // Refresh the VP poll on open. This used to happen for free: the modal
+  // mounted its own provider, whose query key was scoped to the viewed batch,
+  // so opening it always produced a cache miss and a fresh fetch. Sharing the
+  // app-wide provider means the key no longer changes — and the poll may
+  // already have halted (`refetchInterval` stops once every deposit reports
+  // PendingDepositorSignatures), so without this the user can open the modal
+  // onto a stale snapshot and never see the action they came for.
+  //
+  // One-shot on mount, through a ref. `refetch` is re-created whenever the
+  // provider's context value recomputes — which a refetch itself causes — so
+  // depending on it turns this into a self-sustaining loop at network latency
+  // (refetch → new data → new context identity → effect → refetch), defeating
+  // the `refetchInterval: false` halt the polling design relies on. The ref
+  // keeps the call on the latest refetch without making its identity a dep.
+  const refetchRef = useRef(refetch);
+  refetchRef.current = refetch;
+  useEffect(() => {
+    refetchRef.current();
+  }, []);
+
+  const handleGoToDashboard = useCallback(() => {
+    navigate("/", { replace: true });
+    onClose();
+  }, [navigate, onClose]);
+
+  const isActionable = (id: string): boolean => {
+    const state = getPollingResult(id)?.peginState;
+    return isCandidateVault(state) && hasActionableStep(state, btcPublicKey);
+  };
+
+  // Which vault drives the rendered action branch. Two rules:
+  //
+  // 1. Prefer a vault with a user-actionable step over a sibling merely waiting
+  //    on the VP — otherwise vault[0] in AWAIT_VP_VERIFICATION would stall
+  //    vault[1]'s ready WOTS/payout/activation. Batches diverge because the VP
+  //    processes each vault at its own rate.
+  // 2. Stickiness: keep driving the SAME vault as long as it is still
+  //    actionable. `currentVaultId` keys the rendered branch, so without this a
+  //    polling tick that makes a *different* sibling actionable mid-action would
+  //    flip the selection and unmount an in-flight Resume*Content — dropping a
+  //    wallet-signing in progress. Re-select only once the held vault leaves
+  //    actionable (advanced to a wait, went terminal/warning, or left the
+  //    batch — all captured by `isActionable`).
+  //
+  // The progress columns (`perVaultSteps`) still update live per poll; only the
+  // branch selection is sticky.
+  const [stickyVaultId, setStickyVaultId] = useState<string | null>(null);
+  const heldVaultId =
+    stickyVaultId !== null &&
+    vaultIds.includes(stickyVaultId as Hex) &&
+    isActionable(stickyVaultId)
+      ? stickyVaultId
+      : null;
+  const actionableVaultId = heldVaultId ?? vaultIds.find(isActionable) ?? null;
+
+  const currentVaultIndex =
+    actionableVaultId !== null
+      ? vaultIds.indexOf(actionableVaultId as Hex)
+      : // No sibling is actionable — fall back to the first candidate so its
+        // wait state still renders.
+        vaultIds.findIndex((id) =>
+          isCandidateVault(getPollingResult(id)?.peginState),
+        );
+  const currentVaultId =
+    currentVaultIndex === -1 ? undefined : vaultIds[currentVaultIndex];
+
+  // Remember the actionable vault we're driving so the next render's
+  // stickiness check can hold it. Sync unconditionally — clearing to null when
+  // nothing is actionable — so that re-entering an actionable state from a wait
+  // re-selects fresh (first actionable) rather than resurfacing a stale prior
+  // pick. (Holding mid-action is governed by `heldVaultId` above, which only
+  // sticks while the vault stays continuously actionable, so this never drops a
+  // branch that's in flight.)
+  useEffect(() => {
+    setStickyVaultId(actionableVaultId);
+  }, [actionableVaultId]);
+
+  const pollingResult = currentVaultId
+    ? getPollingResult(currentVaultId)
+    : undefined;
+  const activity = currentVaultId
+    ? activities.find((a) => a.id === currentVaultId)
+    : undefined;
+
+  // Hoisted above the early returns to satisfy Rules of Hooks. When no
+  // vault is selected, showBtcDepthPanel is false and the hook no-ops.
+  // requiredDepth pinned to the deposit's registered offchain-params version.
+  const requiredDepth = useRequiredPrePeginDepth(
+    activity?.offchainParamsVersion,
+  );
+  const peginState = pollingResult?.peginState;
+  const waitStep = peginState
+    ? (getPeginDisplayStep(peginState) ?? DepositFlowStep.ACTIVATE_VAULT)
+    : DepositFlowStep.AWAIT_BTC_CONFIRMATION;
+  const showBtcDepthPanel =
+    waitStep === DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS &&
+    Boolean(activity?.prePeginTxHash);
+
+  // Pass to every branch so split deposits render the multi-column UI with
+  // the current vault highlighted. A single-vault deposit yields vaultCount=1
+  // and the progress view falls back to its original single-column layout.
+  // Cheap copy (not a readonly-laundering cast) so callers can't mutate the prop.
+  const siblingVaultIds: string[] = [...vaultIds];
+  const vaultCount = siblingVaultIds.length || 1;
+
+  if (!currentVaultId) {
+    if (vaultIds.length === 0) {
+      return (
+        <StatusView
+          currentStep={DepositFlowStep.COMPLETED}
+          isComplete
+          onClose={onClose}
+          vaultCount={vaultCount}
+          currentVaultIndex={null}
+        />
+      );
+    }
+
+    const pollingResults = vaultIds.map((id) => getPollingResult(id));
+    const perVaultSteps = pollingResults.map((result) => {
+      if (!result || result.loading) {
+        return DepositFlowStep.AWAIT_BTC_CONFIRMATION;
+      }
+      const displayStep = getPeginDisplayStep(result.peginState);
+      if (displayStep !== null) return displayStep;
+      if (
+        result.peginState.displayVariant === "warning" ||
+        result.peginState.displayVariant === "danger"
+      ) {
+        return getWarningPeginDisplayStep(result.peginState.localStatus);
+      }
+      return isVaultPastActivation(result.peginState)
+        ? DepositFlowStep.COMPLETED
+        : DepositFlowStep.AWAIT_BTC_CONFIRMATION;
+    });
+    const warning = pollingResults
+      .map((result) => result?.peginState)
+      .find(
+        (state) =>
+          state?.displayVariant === "warning" ||
+          state?.displayVariant === "danger",
+      );
+    if (warning) {
+      // Freeze the stepper at the point of failure based on the vault's
+      // last persisted localStatus — `getPeginDisplayStep` is null for
+      // warning states by design, so we map it ourselves.
+      const warningIndex = vaultIds.findIndex(
+        (id) => getPollingResult(id)?.peginState === warning,
+      );
+      return (
+        <StatusView
+          currentStep={getWarningPeginDisplayStep(warning.localStatus)}
+          error={mapDepositError(
+            warning.message ?? COPY.common.somethingWentWrong.body,
+          )}
+          onClose={onClose}
+          vaultCount={vaultCount}
+          currentVaultIndex={warningIndex >= 0 ? warningIndex : null}
+          perVaultSteps={perVaultSteps}
+        />
+      );
+    }
+
+    const hasMissingOrLoadingVault = pollingResults.some(
+      (result) => !result || result.loading,
+    );
+    const allVaultsActivated =
+      pollingResults.length > 0 &&
+      pollingResults.every((result) => isVaultActivated(result?.peginState));
+
+    if (hasMissingOrLoadingVault || !allVaultsActivated) {
+      // Batch siblings share their registration-time params version (one
+      // registration tx for the whole batch), so any sibling is representative.
+      const batchParamsVersion = activities.find(
+        (a) => a.offchainParamsVersion !== undefined,
+      )?.offchainParamsVersion;
+      return (
+        <StatusView
+          currentStep={DepositFlowStep.AWAIT_BTC_CONFIRMATION}
+          isProcessing
+          canContinueInBackground
+          onClose={onClose}
+          vaultCount={vaultCount}
+          currentVaultIndex={null}
+          perVaultSteps={perVaultSteps}
+          offchainParamsVersion={batchParamsVersion}
+        />
+      );
+    }
+    // Terminal success: show only the activated screen — one surface at a time,
+    // so the deposit progress view is replaced rather than layered behind it.
+    return <VaultActivatedView onGoToDashboard={handleGoToDashboard} />;
+  }
+
+  const actions = peginState?.availableActions ?? [];
+
+  // God-mode: a demo vault renders a SAFE view — never the real Resume*Content,
+  // which auto-fires wallet signing / vault-registry reads / on-chain
+  // submission on mount. Activation is the one interactive simulated walk;
+  // every other flow step is a read-only progress preview that tracks the
+  // god-mode step slider live (moving the slider re-renders this at the new
+  // step). Tree-shaken from production: demoVaultIds is empty and
+  // DemoActivationContent is null there, so the whole block drops.
+  if (
+    import.meta.env.DEV &&
+    activity &&
+    currentVaultId &&
+    demoVaultIds?.has(currentVaultId)
+  ) {
+    if (actions.includes(PeginAction.ACTIVATE_VAULT) && DemoActivationContent) {
+      return (
+        <ActivationGate
+          key={`gate-${currentVaultId}`}
+          activity={activity}
+          onClose={onClose}
+        >
+          <Suspense fallback={null}>
+            <DemoActivationContent
+              activity={activity}
+              siblingVaultIds={siblingVaultIds}
+              onClose={onClose}
+            />
+          </Suspense>
+        </ActivationGate>
+      );
+    }
+    const demoStep = pollingResult?.displayStepOverride ?? waitStep;
+    const { perVaultSteps: demoPerVaultSteps } = deriveSplitVaultProgress(
+      getPollingResult,
+      siblingVaultIds,
+      currentVaultId,
+      demoStep,
+    );
+    return (
+      <StatusView
+        currentStep={demoStep}
+        vaultCount={vaultCount}
+        currentVaultIndex={currentVaultIndex >= 0 ? currentVaultIndex : null}
+        perVaultSteps={demoPerVaultSteps}
+        isProcessing
+        canContinueInBackground
+        onClose={onClose}
+      />
+    );
+  }
+
+  // Action-driven branches. Broadcast comes first because it has to happen
+  // before any of the per-vault VP steps; the action availability already
+  // guarantees at most one branch matches.
+  //
+  // Artifact download is NOT auto-invoked: it's a real file download and
+  // silent downloads are user-hostile (the browser may block, the user may
+  // not be ready). The ActivationGate below renders a manual download
+  // button once that step is reached.
+
+  if (activity && actions.includes(PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN)) {
+    return (
+      <ResumeBroadcastContent
+        key={`broadcast-${currentVaultId}`}
+        activity={activity}
+        batchVaultIds={siblingVaultIds}
+        depositorEthAddress={depositorEthAddress}
+        onClose={onClose}
+        onSuccess={refetch}
+      />
+    );
+  }
+
+  if (activity && actions.includes(PeginAction.SUBMIT_WOTS_KEY)) {
+    return (
+      <ResumeWotsContent
+        key={`wots-${currentVaultId}`}
+        activity={activity}
+        siblingVaultIds={siblingVaultIds}
+        onClose={onClose}
+        onSuccess={refetch}
+      />
+    );
+  }
+
+  if (
+    activity &&
+    btcPublicKey &&
+    actions.includes(PeginAction.SIGN_PAYOUT_TRANSACTIONS)
+  ) {
+    return (
+      <ResumeSignContent
+        key={`payout-${currentVaultId}`}
+        activity={activity}
+        btcPublicKey={btcPublicKey}
+        depositorEthAddress={depositorEthAddress}
+        siblingVaultIds={siblingVaultIds}
+        onClose={onClose}
+        onSuccess={refetch}
+      />
+    );
+  }
+
+  if (activity && actions.includes(PeginAction.ACTIVATE_VAULT)) {
+    return (
+      <ActivationGate
+        key={`gate-${currentVaultId}`}
+        activity={activity}
+        onClose={onClose}
+        onAdvancedWithdraw={
+          onAdvancedWithdraw
+            ? () => onAdvancedWithdraw(currentVaultId)
+            : undefined
+        }
+      >
+        <ResumeActivationContent
+          activity={activity}
+          depositorEthAddress={depositorEthAddress}
+          siblingVaultIds={siblingVaultIds}
+          onClose={onClose}
+          onGoToDashboard={handleGoToDashboard}
+        />
+      </ActivationGate>
+    );
+  }
+
+  const btcConfirmationDetail: BtcConfirmationDetailData | null =
+    showBtcDepthPanel && activity?.prePeginTxHash
+      ? {
+          prePeginTxid: activity.prePeginTxHash,
+          requiredDepth,
+          // Pass the whole batch — siblings share this broadcast, and the
+          // container picks the first indexed sibling for coalesced counts.
+          depositIds: vaultIds,
+        }
+      : null;
+
+  // Each sibling column reflects its own polled step (the columns diverge on
+  // resume), with this vault's wait step as the active column.
+  const { perVaultSteps } = deriveSplitVaultProgress(
+    getPollingResult,
+    siblingVaultIds,
+    currentVaultId,
+    waitStep,
+  );
+
+  return (
+    <StatusView
+      currentStep={waitStep}
+      vaultCount={vaultCount}
+      currentVaultIndex={currentVaultIndex >= 0 ? currentVaultIndex : null}
+      perVaultSteps={perVaultSteps}
+      isProcessing
+      canContinueInBackground
+      onClose={onClose}
+      btcConfirmationDetail={btcConfirmationDetail}
+      offchainParamsVersion={activity?.offchainParamsVersion}
+    />
+  );
+}

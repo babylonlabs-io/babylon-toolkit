@@ -1,0 +1,274 @@
+/** Tests for vaultTransactionService. */
+
+import type { DepositTerms } from "@babylonlabs-io/ts-sdk/tbv/core";
+import { beforeEach, describe, expect, it, vi, type Mock } from "vitest";
+
+import {
+  preparePeginTransaction,
+  type PreparePeginParams,
+  type UTXO,
+} from "../vaultTransactionService";
+
+const { mockPreparePegin, MockPeginManager } = vi.hoisted(() => {
+  const mockPreparePegin = vi.fn();
+
+  class MockPeginManager {
+    preparePegin = mockPreparePegin;
+  }
+
+  return { mockPreparePegin, MockPeginManager };
+});
+
+vi.mock("@babylonlabs-io/ts-sdk/tbv/core", () => ({
+  PeginManager: MockPeginManager,
+  ensureHexPrefix: (hex: string) => (hex.startsWith("0x") ? hex : `0x${hex}`),
+  // Strip 0x, slice compressed sec1 prefix, lowercase. Matches the real
+  // primitive's contract for the shapes the tests feed in.
+  processPublicKeyToXOnly: (raw: string) => {
+    const clean = raw.startsWith("0x") ? raw.slice(2) : raw;
+    const normalized =
+      clean.length === 66 && /^0[23]/i.test(clean) ? clean.slice(2) : clean;
+    return normalized.toLowerCase();
+  },
+}));
+
+vi.mock("@/config/network", () => ({
+  getETHChain: vi.fn(() => ({ id: 1, name: "Ethereum" })),
+  getNetworkConfigETH: vi.fn(() => ({
+    chain: { id: 1, name: "Ethereum" },
+    transport: {},
+  })),
+  getNetworkConfigBTC: vi.fn(() => ({
+    network: "mainnet",
+    mempoolApiUrl: "https://mempool.space/api",
+  })),
+}));
+
+vi.mock("../../../clients/btc/config", () => ({
+  getMempoolApiUrl: vi.fn(() => "https://mempool.space/api"),
+}));
+
+vi.mock("../../../config/pegin", () => ({
+  getBTCNetworkForWASM: vi.fn(() => "bitcoin"),
+}));
+
+vi.mock("../../../config/contracts", () => ({
+  CONTRACTS: {
+    BTC_VAULT_REGISTRY: "0xcontract",
+  },
+}));
+
+vi.mock("../../../clients/eth-contract/client", () => ({
+  ETHClient: {
+    getInstance: vi.fn(() => ({
+      getPublicClient: vi.fn(),
+    })),
+  },
+  ethClient: {
+    getPublicClient: vi.fn(() => ({})),
+  },
+}));
+
+describe("vaultTransactionService - preparePeginTransaction", () => {
+  let mockBtcWallet: {
+    getPublicKeyHex: Mock;
+  };
+  let mockEthWallet: {
+    account: { address: string };
+  };
+
+  const mockUTXOs: UTXO[] = [
+    { txid: "txid1", vout: 0, value: 50000, scriptPubKey: "script1" },
+    { txid: "txid2", vout: 1, value: 100000, scriptPubKey: "script2" },
+    { txid: "txid3", vout: 0, value: 75000, scriptPubKey: "script3" },
+    { txid: "txid4", vout: 2, value: 200000, scriptPubKey: "script4" },
+  ];
+
+  const baseParams: PreparePeginParams = {
+    vaultCoreVersion: 1,
+    pegInAmounts: [100000n],
+    protocolFeeRate: 10n,
+    minPeginFeeRate: 20n,
+    mempoolFeeRate: 10,
+    changeAddress: "bc1qtest",
+    vaultProviderBtcPubkey: "pubkey",
+    commissionBps: 100,
+    vaultKeeperBtcPubkeys: ["keeper1"],
+    universalChallengerBtcPubkeys: ["challenger1"],
+    timelockAssert: 100,
+    timelockPegin: 100,
+    timelockRefund: 50,
+    councilQuorum: 2,
+    councilSize: 3,
+    availableUTXOs: mockUTXOs,
+  };
+
+  const mockDepositTerms: DepositTerms = {
+    vaultCoreVersion: 1,
+    protocolFeeRate: 10n,
+    timelockPegin: 100,
+    timelockAssert: 100,
+    timelockRefund: 50,
+    prepeginTxid: "txhash123",
+    prepeginMaxFee: 1000n,
+    vaultKeeperBtcPubkeys: ["keeper1"],
+    universalChallengerBtcPubkeys: ["challenger1"],
+    vaults: [],
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+
+    mockPreparePegin.mockResolvedValue({
+      transaction: {
+        fundedPrePeginTxHex: "0x123abc",
+        selectedUTXOs: [mockUTXOs[0]],
+        fee: 1000n,
+        perVault: [
+          {
+            htlcVout: 0,
+            peginTxid: "txhash123",
+            peginTxHex: "0xpeginHex",
+            peginInputSignature: "a".repeat(128),
+          },
+        ],
+      },
+      depositorBtcPubkey: "a".repeat(64),
+      derivedSecrets: {
+        perVaultWotsKeys: [[]],
+        wotsPkHashes: ["0x" + "00".repeat(32)],
+        htlcSecretHexes: ["00".repeat(32)],
+      },
+      depositTerms: mockDepositTerms,
+    });
+
+    mockBtcWallet = {
+      getPublicKeyHex: vi.fn().mockResolvedValue("02" + "a".repeat(64)),
+    };
+
+    mockEthWallet = {
+      account: { address: "0xdepositor" },
+    };
+  });
+
+  describe("basic functionality", () => {
+    it("should pass all available UTXOs to the SDK", async () => {
+      await preparePeginTransaction(
+        mockBtcWallet as any,
+        mockEthWallet as any,
+        baseParams,
+      );
+
+      expect(mockPreparePegin).toHaveBeenCalledTimes(1);
+      const callArgs = mockPreparePegin.mock.calls[0][0];
+      expect(callArgs.availableUTXOs).toHaveLength(4);
+    });
+
+    it("forwards both fee rates to the SDK without conflating them", async () => {
+      await preparePeginTransaction(
+        mockBtcWallet as any,
+        mockEthWallet as any,
+        baseParams,
+      );
+
+      const callArgs = mockPreparePegin.mock.calls[0][0];
+      // protocolFeeRate (10n) sizes the claim value; minPeginFeeRate (20n)
+      // sizes the PegIn tx fee — distinct values, must not be swapped.
+      expect(callArgs.protocolFeeRate).toBe(baseParams.protocolFeeRate);
+      expect(callArgs.minPeginFeeRate).toBe(baseParams.minPeginFeeRate);
+      expect(callArgs.commissionBps).toBe(baseParams.commissionBps);
+    });
+
+    it("should return batch-shaped result with perVault array", async () => {
+      const result = await preparePeginTransaction(
+        mockBtcWallet as any,
+        mockEthWallet as any,
+        baseParams,
+      );
+
+      expect(result.perVault).toHaveLength(1);
+      expect(result.perVault[0].htlcVout).toBe(0);
+      expect(result.perVault[0].peginTxHash).toBe("0xtxhash123");
+      expect(result.perVault[0].peginTxHex).toBe("0xpeginHex");
+      expect(result.fundedPrePeginTxHex).toBe("0x123abc");
+      expect(result.depositTerms).toBe(mockDepositTerms);
+    });
+
+    it("should handle multi-vault params", async () => {
+      const multiParams: PreparePeginParams = {
+        ...baseParams,
+        pegInAmounts: [100000n, 200000n],
+      };
+
+      mockPreparePegin.mockResolvedValue({
+        transaction: {
+          fundedPrePeginTxHex: "0x123abc",
+          selectedUTXOs: [mockUTXOs[0], mockUTXOs[1]],
+          fee: 2000n,
+          perVault: [
+            {
+              htlcVout: 0,
+              peginTxid: "txhash0",
+              peginTxHex: "peginHex0",
+              peginInputSignature: "a".repeat(128),
+            },
+            {
+              htlcVout: 1,
+              peginTxid: "txhash1",
+              peginTxHex: "peginHex1",
+              peginInputSignature: "b".repeat(128),
+            },
+          ],
+        },
+        depositorBtcPubkey: "a".repeat(64),
+        derivedSecrets: {
+          perVaultWotsKeys: [[], []],
+          wotsPkHashes: ["0x" + "00".repeat(32), "0x" + "11".repeat(32)],
+          htlcSecretHexes: ["00".repeat(32), "11".repeat(32)],
+        },
+      });
+
+      const result = await preparePeginTransaction(
+        mockBtcWallet as any,
+        mockEthWallet as any,
+        multiParams,
+      );
+
+      expect(result.perVault).toHaveLength(2);
+      expect(result.perVault[0].htlcVout).toBe(0);
+      expect(result.perVault[1].htlcVout).toBe(1);
+      expect(mockPreparePegin.mock.calls[0][0].amounts).toEqual([
+        100000n,
+        200000n,
+      ]);
+    });
+  });
+
+  describe("error handling", () => {
+    it("should throw error if ETH wallet has no account", async () => {
+      const noAccountWallet = { account: undefined };
+
+      await expect(
+        preparePeginTransaction(
+          mockBtcWallet as any,
+          noAccountWallet as any,
+          baseParams,
+        ),
+      ).rejects.toThrow("Ethereum wallet account not found");
+    });
+
+    it("should propagate error from preparePegin", async () => {
+      mockPreparePegin.mockRejectedValue(new Error("Network error"));
+
+      await expect(
+        preparePeginTransaction(
+          mockBtcWallet as any,
+          mockEthWallet as any,
+          baseParams,
+        ),
+      ).rejects.toThrow("Network error");
+
+      expect(mockPreparePegin).toHaveBeenCalledTimes(1);
+    });
+  });
+});

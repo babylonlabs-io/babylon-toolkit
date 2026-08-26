@@ -1,0 +1,344 @@
+import { describe, expect, it } from "vitest";
+
+import { COPY } from "@/copy";
+import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps/types";
+
+import {
+  buildStepGroups,
+  buildStepItems,
+  derivePerVaultStep,
+  getStepFillPercent,
+  getStepLabel,
+  getVisualStep,
+  STEP_GROUPS,
+  TOTAL_VISUAL_STEPS,
+} from "../steps";
+
+describe("getStepLabel", () => {
+  it("returns the inclusion-wait label for AWAIT_BTC_CONFIRMATION", () => {
+    expect(getStepLabel(DepositFlowStep.AWAIT_BTC_CONFIRMATION)).toBe(
+      COPY.deposit.steps.confirmingDeposit,
+    );
+  });
+
+  it("returns the reveal-secret label for ACTIVATE_VAULT", () => {
+    expect(getStepLabel(DepositFlowStep.ACTIVATE_VAULT)).toBe(
+      COPY.deposit.steps.revealSecret,
+    );
+  });
+
+  it("returns labels for the inserted wait steps", () => {
+    expect(getStepLabel(DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS)).toBe(
+      COPY.deposit.steps.awaitPayoutTransactions,
+    );
+    expect(getStepLabel(DepositFlowStep.AWAIT_VP_VERIFICATION)).toBe(
+      COPY.deposit.steps.awaitVpVerification,
+    );
+    expect(getStepLabel(DepositFlowStep.AWAIT_ACTIVATION_CONFIRMATION)).toBe(
+      COPY.deposit.steps.awaitActivationConfirmation,
+    );
+  });
+
+  it("returns the recovery-transactions label for SIGN_DEPOSITOR_GRAPH", () => {
+    expect(getStepLabel(DepositFlowStep.SIGN_DEPOSITOR_GRAPH)).toBe(
+      COPY.deposit.steps.signRecoveryTxs,
+    );
+  });
+
+  it("returns the retrieve-secret label for RETRIEVE_SECRET", () => {
+    expect(getStepLabel(DepositFlowStep.RETRIEVE_SECRET)).toBe(
+      COPY.deposit.steps.retrieveSecret,
+    );
+  });
+
+  it("returns the generate-secret label for the first step", () => {
+    expect(getStepLabel(DepositFlowStep.DERIVE_VAULT_SECRET)).toBe(
+      COPY.deposit.steps.generateSecret,
+    );
+  });
+
+  it("aligns the visual step index with the total step count", () => {
+    // The last actionable step must map within the bounds of the label list so
+    // getStepLabel never falls back to an empty string for a real step.
+    expect(getVisualStep(DepositFlowStep.AWAIT_ACTIVATION_CONFIRMATION)).toBe(
+      TOTAL_VISUAL_STEPS,
+    );
+  });
+
+  it("keeps AWAIT_BTC_CONFIRMATION at visual step 6 (VP-ingestion shares it)", () => {
+    expect(getVisualStep(DepositFlowStep.AWAIT_BTC_CONFIRMATION)).toBe(6);
+  });
+
+  it("numbers post-confirmation steps with no gap where VP-ingestion was", () => {
+    expect(getVisualStep(DepositFlowStep.SUBMIT_WOTS_KEYS)).toBe(7);
+    expect(getVisualStep(DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS)).toBe(8);
+    expect(getVisualStep(DepositFlowStep.SIGN_AUTH_ANCHOR)).toBe(9);
+    expect(getVisualStep(DepositFlowStep.SIGN_PAYOUTS)).toBe(10);
+    expect(getVisualStep(DepositFlowStep.SIGN_DEPOSITOR_GRAPH)).toBe(11);
+    expect(getVisualStep(DepositFlowStep.AWAIT_VP_VERIFICATION)).toBe(12);
+    expect(getVisualStep(DepositFlowStep.RETRIEVE_SECRET)).toBe(13);
+    expect(getVisualStep(DepositFlowStep.ACTIVATE_VAULT)).toBe(14);
+    expect(getVisualStep(DepositFlowStep.AWAIT_ACTIVATION_CONFIRMATION)).toBe(
+      15,
+    );
+  });
+});
+
+describe("getStepFillPercent", () => {
+  it("fills by completed steps, not the in-progress current step", () => {
+    // AWAIT_BTC_CONFIRMATION is visual step 6 -> 5 completed of TOTAL.
+    expect(
+      getStepFillPercent(DepositFlowStep.AWAIT_BTC_CONFIRMATION),
+    ).toBeCloseTo(5 / TOTAL_VISUAL_STEPS);
+  });
+
+  it("fills the bar fully on the final awaiting-confirmation step", () => {
+    expect(
+      getStepFillPercent(DepositFlowStep.AWAIT_ACTIVATION_CONFIRMATION),
+    ).toBe(1);
+  });
+
+  it("keeps the bar partial on the last actionable step (activate)", () => {
+    expect(getStepFillPercent(DepositFlowStep.ACTIVATE_VAULT)).toBeLessThan(1);
+  });
+});
+
+describe("buildStepItems payout-signing counters", () => {
+  const signPayouts = (items: ReturnType<typeof buildStepItems>) =>
+    items[getVisualStep(DepositFlowStep.SIGN_PAYOUTS) - 1];
+  const signRecovery = (items: ReturnType<typeof buildStepItems>) =>
+    items[getVisualStep(DepositFlowStep.SIGN_DEPOSITOR_GRAPH) - 1];
+
+  it("puts the counter on the payout step during the claimers phase", () => {
+    const items = buildStepItems({ phase: "claimers", completed: 2, total: 5 });
+    expect(signPayouts(items).description).toBe(
+      COPY.deposit.steps.signingCounter(2, 5),
+    );
+    expect(signRecovery(items).description).toBeUndefined();
+  });
+
+  it("puts the counter on the recovery step during the graph phase", () => {
+    const items = buildStepItems({ phase: "graph", completed: 3, total: 9 });
+    expect(signRecovery(items).description).toBe(
+      COPY.deposit.steps.signingCounter(3, 9),
+    );
+    expect(signPayouts(items).description).toBeUndefined();
+  });
+});
+
+describe("buildStepItems Ethereum confirmation counter", () => {
+  const ethStep = (items: ReturnType<typeof buildStepItems>) =>
+    items[getVisualStep(DepositFlowStep.SUBMIT_PEGIN) - 1];
+
+  it("puts the confirmation counter on the ETH registration step while the gate holds", () => {
+    const items = buildStepItems(null, null, {
+      confirmations: 3,
+      required: 8,
+    });
+    expect(ethStep(items).description).toBe(
+      COPY.deposit.steps.signingCounter(3, 8),
+    );
+  });
+
+  it("leaves the ETH registration step bare outside the gate's window", () => {
+    // Step 4 also covers the wallet popup and the receipt wait, where there is
+    // nothing to count yet.
+    expect(ethStep(buildStepItems(null)).description).toBeUndefined();
+  });
+
+  it("does not add the counter to any other step", () => {
+    const items = buildStepItems(null, null, {
+      confirmations: 3,
+      required: 8,
+    });
+    const withDescription = items
+      .map((item, index) => ({ index, description: item.description }))
+      .filter((entry) => entry.description !== undefined);
+    expect(withDescription).toEqual([
+      {
+        index: getVisualStep(DepositFlowStep.SUBMIT_PEGIN) - 1,
+        description: COPY.deposit.steps.signingCounter(3, 8),
+      },
+    ]);
+  });
+
+  it("keeps the visual step count unchanged", () => {
+    // The counter is a sub-state of an existing step; adding a 16th step would
+    // renumber every consumer of getVisualStep, including the e2e step machine.
+    expect(
+      buildStepItems(null, null, { confirmations: 3, required: 8 }),
+    ).toHaveLength(TOTAL_VISUAL_STEPS);
+  });
+});
+
+describe("STEP_GROUPS", () => {
+  it("covers every visual step from 1..TOTAL_VISUAL_STEPS with no gaps or overlaps", () => {
+    expect(STEP_GROUPS[0].startStep).toBe(1);
+    expect(STEP_GROUPS[STEP_GROUPS.length - 1].endStep).toBe(
+      TOTAL_VISUAL_STEPS,
+    );
+
+    for (let i = 1; i < STEP_GROUPS.length; i++) {
+      // Each group starts exactly one step after the previous group ends.
+      expect(STEP_GROUPS[i].startStep).toBe(STEP_GROUPS[i - 1].endStep + 1);
+    }
+
+    const totalCovered = STEP_GROUPS.reduce(
+      (sum, group) => sum + (group.endStep - group.startStep + 1),
+      0,
+    );
+    expect(totalCovered).toBe(TOTAL_VISUAL_STEPS);
+  });
+
+  it("groups the steps into the four expected sections", () => {
+    expect(STEP_GROUPS.map((g) => [g.title, g.startStep, g.endStep])).toEqual([
+      [COPY.deposit.groups.registerDeposit, 1, 6],
+      [COPY.deposit.groups.signWots, 7, 8],
+      [COPY.deposit.groups.signPayout, 9, 12],
+      [COPY.deposit.groups.activateVault, 13, 15],
+    ]);
+  });
+});
+
+describe("buildStepGroups", () => {
+  it("expands exactly one group for any in-range step", () => {
+    for (let step = 1; step <= TOTAL_VISUAL_STEPS; step++) {
+      const expanded = buildStepGroups(step).filter((g) => g.expanded);
+      expect(expanded).toHaveLength(1);
+    }
+  });
+
+  it("expands the first group and leaves later groups upcoming at step 1", () => {
+    const [register, wots, payout, activate] = buildStepGroups(1);
+
+    expect(register.status).toBe("active");
+    expect(register.expanded).toBe(true);
+    expect(register.completedInGroup).toBe(0);
+    expect(register.totalInGroup).toBe(6);
+
+    expect(wots.status).toBe("upcoming");
+    expect(wots.expanded).toBe(false);
+    expect(payout.status).toBe("upcoming");
+    expect(activate.status).toBe("upcoming");
+  });
+
+  it("marks earlier groups completed and activates the WOTS group at step 7", () => {
+    const [register, wots, payout] = buildStepGroups(7);
+
+    expect(register.status).toBe("completed");
+    expect(register.expanded).toBe(false);
+    expect(register.completedInGroup).toBe(6);
+
+    expect(wots.status).toBe("active");
+    expect(wots.expanded).toBe(true);
+    expect(wots.completedInGroup).toBe(0);
+    expect(wots.totalInGroup).toBe(2);
+
+    expect(payout.status).toBe("upcoming");
+  });
+
+  it("keeps a pre-entry group collapsed and not-started until its work begins", () => {
+    // Pre-entry (started=false) at the WOTS re-offer: earlier work still
+    // reads done, but the current group has nothing of its own finished —
+    // there is nothing in progress to announce, so it reads upcoming and
+    // stays collapsed until the user's click.
+    const [register, wots] = buildStepGroups(7, false);
+
+    expect(register.status).toBe("completed");
+    expect(wots.status).toBe("upcoming");
+    expect(wots.expanded).toBe(false);
+  });
+
+  it("keeps a pre-entry group active when part of its work is already done", () => {
+    // Mid-group pre-entry (visual step 8): the WOTS group holds one finished
+    // sub-step, so it reads active — but still must not expand while the
+    // flow idles awaiting the click.
+    const [, wots] = buildStepGroups(8, false);
+
+    expect(wots.status).toBe("active");
+    expect(wots.expanded).toBe(false);
+    expect(wots.completedInGroup).toBe(1);
+  });
+
+  it("counts completed sub-steps within the active group (mid-group resume)", () => {
+    // Step 12 is the last step of the Sign payout group (9..12): 3 done, 1 active.
+    const payout = buildStepGroups(12).find(
+      (g) => g.title === COPY.deposit.groups.signPayout,
+    );
+
+    expect(payout?.status).toBe("active");
+    expect(payout?.completedInGroup).toBe(3);
+    expect(payout?.totalInGroup).toBe(4);
+  });
+
+  it("marks every group completed and collapsed on completion", () => {
+    const groups = buildStepGroups(TOTAL_VISUAL_STEPS + 1);
+
+    expect(groups.every((g) => g.status === "completed")).toBe(true);
+    expect(groups.every((g) => !g.expanded)).toBe(true);
+    expect(groups.every((g) => g.completedInGroup === g.totalInGroup)).toBe(
+      true,
+    );
+  });
+});
+
+describe("derivePerVaultStep", () => {
+  it("mirrors the shared step for every vault while the flow is in the trunk", () => {
+    // Trunk phase (visual step <= 6) — all vaults track the shared step.
+    expect(derivePerVaultStep(DepositFlowStep.SIGN_PEGIN_BTC, null, 0)).toBe(
+      DepositFlowStep.SIGN_PEGIN_BTC,
+    );
+    expect(derivePerVaultStep(DepositFlowStep.BROADCAST_PRE_PEGIN, 0, 1)).toBe(
+      DepositFlowStep.BROADCAST_PRE_PEGIN,
+    );
+    expect(
+      derivePerVaultStep(DepositFlowStep.AWAIT_BTC_CONFIRMATION, null, 1),
+    ).toBe(DepositFlowStep.AWAIT_BTC_CONFIRMATION);
+  });
+
+  it("advances earlier vaults past WOTS and keeps queued vaults at WOTS", () => {
+    // Flow is signing vault 1's WOTS — vault 0 has finished WOTS, vault 2 is queued.
+    expect(derivePerVaultStep(DepositFlowStep.SUBMIT_WOTS_KEYS, 1, 0)).toBe(
+      DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS,
+    );
+    expect(derivePerVaultStep(DepositFlowStep.SUBMIT_WOTS_KEYS, 1, 1)).toBe(
+      DepositFlowStep.SUBMIT_WOTS_KEYS,
+    );
+    expect(derivePerVaultStep(DepositFlowStep.SUBMIT_WOTS_KEYS, 1, 2)).toBe(
+      DepositFlowStep.SUBMIT_WOTS_KEYS,
+    );
+  });
+
+  it("places earlier vaults at VP verification during the payout phase", () => {
+    // Flow is mid-payout for vault 1 — vault 0 finished payout, vault 2 is queued.
+    expect(derivePerVaultStep(DepositFlowStep.SIGN_PAYOUTS, 1, 0)).toBe(
+      DepositFlowStep.AWAIT_VP_VERIFICATION,
+    );
+    expect(derivePerVaultStep(DepositFlowStep.SIGN_PAYOUTS, 1, 1)).toBe(
+      DepositFlowStep.SIGN_PAYOUTS,
+    );
+    expect(derivePerVaultStep(DepositFlowStep.SIGN_PAYOUTS, 1, 2)).toBe(
+      DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS,
+    );
+  });
+
+  it("places earlier vaults past payout signing during the retrieve-secret/activation phase", () => {
+    // Flow is at RETRIEVE_SECRET for vault 1 — vault 0 is further along
+    // (heading into activation), vault 2 is still waiting on the VP.
+    expect(derivePerVaultStep(DepositFlowStep.RETRIEVE_SECRET, 1, 0)).toBe(
+      DepositFlowStep.ACTIVATE_VAULT,
+    );
+    expect(derivePerVaultStep(DepositFlowStep.RETRIEVE_SECRET, 1, 1)).toBe(
+      DepositFlowStep.RETRIEVE_SECRET,
+    );
+    expect(derivePerVaultStep(DepositFlowStep.RETRIEVE_SECRET, 1, 2)).toBe(
+      DepositFlowStep.AWAIT_VP_VERIFICATION,
+    );
+  });
+
+  it("falls back to the shared step when no vault is active (transitional)", () => {
+    expect(derivePerVaultStep(DepositFlowStep.SUBMIT_WOTS_KEYS, null, 0)).toBe(
+      DepositFlowStep.SUBMIT_WOTS_KEYS,
+    );
+  });
+});

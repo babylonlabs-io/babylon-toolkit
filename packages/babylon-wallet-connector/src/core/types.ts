@@ -1,0 +1,550 @@
+import { ChainInfo, OfflineAminoSigner, OfflineDirectSigner } from "@keplr-wallet/types";
+import { ComponentType } from "react";
+
+export type Fees = {
+  // fee for inclusion in the next block
+  fastestFee: number;
+  // fee for inclusion in a block in 30 mins
+  halfHourFee: number;
+  // fee for inclusion in a block in 1 hour
+  hourFee: number;
+  // economy fee: inclusion not guaranteed
+  economyFee: number;
+  // minimum fee: the minimum fee of the network
+  minimumFee: number;
+};
+
+// UTXO is a structure defining attributes for a UTXO
+export interface UTXO {
+  // hash of transaction that holds the UTXO
+  txid: string;
+  // index of the output in the transaction
+  vout: number;
+  // amount of satoshis the UTXO holds
+  value: number;
+  // the script that the UTXO contains
+  scriptPubKey: string;
+}
+
+export interface InscriptionIdentifier {
+  // hash of transaction that holds the ordinals/brc-2-/runes etc in the UTXO
+  txid: string;
+  // index of the output in the transaction
+  vout: number;
+}
+// supported networks
+export enum Network {
+  MAINNET = "mainnet",
+  TESTNET = "testnet",
+  SIGNET = "signet",
+}
+
+// WalletInfo is a structure defining attributes for a wallet
+export type WalletInfo = {
+  publicKeyHex: string;
+  address: string;
+};
+
+export interface BTCConfig {
+  coinName: string;
+  coinSymbol: string;
+  networkName: string;
+  mempoolApiUrl: string;
+  network: Network;
+}
+
+export type BBNConfig = {
+  chainId: string;
+  rpc: string;
+  chainData: ChainInfo;
+  networkName: string;
+  networkFullName: string;
+  coinSymbol: string;
+};
+
+export interface ETHConfig {
+  chainId: number;
+  chainName: string;
+  rpcUrl: string;
+  explorerUrl: string;
+  nativeCurrency: {
+    name: string;
+    symbol: string;
+    decimals: number;
+  };
+}
+
+// Ethereum specific types
+export interface ETHTransactionRequest {
+  to: string;
+  value?: string;
+  data?: string;
+  gasLimit?: bigint;
+  maxFeePerGas?: bigint;
+  maxPriorityFeePerGas?: bigint;
+  nonce?: number;
+}
+
+export interface ETHTypedData {
+  domain: {
+    name?: string;
+    version?: string;
+    chainId?: number;
+    verifyingContract?: string;
+    salt?: string;
+  };
+  types: Record<string, Array<{ name: string; type: string }>>;
+  primaryType: string;
+  message: Record<string, any>;
+}
+
+export interface NetworkInfo {
+  name: string;
+  chainId: string;
+}
+
+export interface IETHProvider extends IProvider {
+  /**
+   * Signs a human-readable message using personal_sign
+   * @param message - The message to sign
+   * @returns A promise that resolves to the signature
+   */
+  signMessage(message: string): Promise<string>;
+
+  /**
+   * Signs structured data using eth_signTypedData_v4 (EIP-712)
+   * @param typedData - The structured data to sign
+   * @returns A promise that resolves to the signature
+   */
+  signTypedData(typedData: ETHTypedData): Promise<string>;
+
+  /**
+   * Sends a transaction to the blockchain
+   * @param tx - The transaction request
+   * @returns A promise that resolves to the transaction hash
+   */
+  sendTransaction(tx: ETHTransactionRequest): Promise<string>;
+
+  /**
+   * Estimates gas for a transaction
+   * @param tx - The transaction request
+   * @returns A promise that resolves to the estimated gas
+   */
+  estimateGas(tx: ETHTransactionRequest): Promise<bigint>;
+
+  /**
+   * Gets the current chain ID
+   * @returns A promise that resolves to the chain ID
+   */
+  getChainId(): Promise<number>;
+
+  /**
+   * Switches to a different chain
+   * @param chainId - The chain ID to switch to
+   * @returns A promise that resolves when the switch is complete
+   */
+  switchChain(chainId: number): Promise<void>;
+
+  /**
+   * Gets the account balance
+   * @returns A promise that resolves to the balance in wei
+   */
+  getBalance(): Promise<bigint>;
+
+  /**
+   * Gets the account nonce
+   * @returns A promise that resolves to the nonce
+   */
+  getNonce(): Promise<number>;
+
+  /**
+   * Gets network information
+   * @returns A promise that resolves to network info
+   */
+  getNetworkInfo(): Promise<NetworkInfo>;
+
+  /**
+   * Gets the wallet provider name
+   * @returns The name of the wallet provider
+   */
+  getWalletProviderName(): string;
+
+  /**
+   * Gets the wallet provider icon
+   * @returns The icon of the wallet provider
+   */
+  getWalletProviderIcon(): string;
+
+  /**
+   * Registers an event listener for the specified event
+   * @param eventName - The name of the event to listen for
+   * @param handler - The callback function to be executed when the event occurs
+   */
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
+  on(eventName: string, handler: Function): void;
+
+  /**
+   * Unregisters an event listener for the specified event
+   * @param eventName - The name of the event to listen for
+   * @param handler - The callback function to be executed when the event occurs
+   */
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
+  off(eventName: string, handler: Function): void;
+}
+
+export type ProgressReporter = (message?: string, description?: string) => void;
+
+export interface IProvider {
+  connectWallet: (onProgress?: ProgressReporter) => Promise<void>;
+  getAddress: () => Promise<string>;
+  getPublicKeyHex: () => Promise<string>;
+}
+
+export interface IWallet<P extends IProvider = IProvider> {
+  id: string;
+  name: string;
+  icon: string;
+  // Solid brand-color fill shown behind `icon` in the wallet-select list, where
+  // the icon is clipped to a rounded square rather than shown as a raw circle
+  // (see WalletButton). Undefined falls back to no fill (transparent corners).
+  iconBackground?: string;
+  docs: string;
+  installed: boolean;
+  provider: P | null;
+  account: Account | null;
+  label: string;
+  // Explicit hardware-wallet marker. Drives the "available" badge and the
+  // connect-list ordering. Do NOT infer this from `label`: software wallets
+  // (injectable, AppKit) carry labels too, so label truthiness is not a
+  // hardware signal.
+  hardware?: boolean;
+}
+
+/** Every chain the connector can build a wallet connector for. */
+export type ChainId = "BTC" | "BBN" | "ETH";
+
+export interface IChain<K extends string = string, P extends IProvider = IProvider, C = any> {
+  id: K;
+  name: string;
+  icon: string;
+  wallets: IWallet<P>[];
+  config: C;
+}
+
+export interface IConnector<K extends string = string, P extends IProvider = IProvider, C = any>
+  extends IChain<K, P, C> {
+  connect(wallet: string | IWallet<P>): Promise<IWallet<P> | null>;
+  disconnect(): Promise<void>;
+  on(event: string, cb: (wallet: IWallet<P>) => void): () => void;
+}
+
+export interface Account {
+  address: string;
+  publicKeyHex: string;
+}
+
+export interface WalletMetadata<P extends IProvider, C> {
+  id: string;
+  wallet?: string | ((context: any, config: C) => any);
+  label?: string;
+  // Marks the entry as a hardware wallet so the UI shows the "available" badge
+  // and groups it after installed software wallets. Set explicitly per wallet.
+  hardware?: boolean;
+  name: string | ((wallet: any, config: C) => Promise<string>);
+  icon: string | ((wallet: any, config: C) => Promise<string>);
+  // See `IWallet.iconBackground`.
+  iconBackground?: string;
+  docs: string;
+  networks: Network[];
+  createProvider: (wallet: any, config: C) => P;
+}
+
+export interface ChainMetadata<N extends string, P extends IProvider, C> {
+  chain: N;
+  name: string;
+  icon: string;
+  wallets: WalletMetadata<P, C>[];
+}
+
+export interface ExternalWalletProps<P extends IProvider> {
+  id: string;
+  name: string;
+  icon: string;
+  provider: P;
+}
+export interface WalletConnectorProps<N extends string, P extends IProvider, C> {
+  persistent: boolean;
+  metadata: ChainMetadata<N, P, C>;
+  context: any;
+  config: C;
+  accountStorage: HashMap;
+  disabledWallets?: string[];
+}
+
+export interface WalletProps<P extends IProvider, C> {
+  metadata: WalletMetadata<P, C>;
+  context: any;
+  config: C;
+}
+
+export interface WidgetProps<P extends IProvider = IProvider> {
+  id: string;
+  connector: IConnector;
+  createWallet: (props: ExternalWalletProps<P>) => IWallet<P>;
+  onError?: (e: Error) => void;
+}
+
+export type WidgetComponent<P extends IProvider = IProvider> = ComponentType<WidgetProps<P>>;
+
+export interface ExternalConnector<P extends IProvider = IProvider> {
+  id: string;
+  widget: WidgetComponent<P>;
+}
+
+export interface Contract {
+  id: string;
+  params: Record<string, string | number | string[] | number[]>;
+}
+
+export interface Action {
+  name: string;
+}
+
+/**
+ * Options for signing a specific input in a PSBT.
+ */
+export interface SignInputOptions {
+  /** Input index to sign */
+  index: number;
+  /** Address for signing (optional) */
+  address?: string;
+  /** Public key for signing (optional, hex string) */
+  publicKey?: string;
+  /** Sighash types (optional) */
+  sighashTypes?: number[];
+  /**
+   * Whether the wallet should sign with the tweaked (key-path) signer.
+   * Set `false` for Taproot script-path spends, where signing uses the
+   * untweaked internal key. If omitted, the wallet's default behavior
+   * applies.
+   */
+  useTweakedSigner?: boolean;
+  /**
+   * @deprecated Use `useTweakedSigner` instead. `disableTweakSigner: true`
+   * is equivalent to `useTweakedSigner: false`; `useTweakedSigner` takes
+   * precedence when both are set.
+   *
+   * `useTweakedSigner` is the canonical field used by UniSat and newer OKX
+   * wallet versions. Migrating aligns our interface with the wallet-side
+   * convention and avoids the historical divergence in OKX's
+   * `disableTweakSigner` implementation.
+   */
+  disableTweakSigner?: boolean;
+}
+
+export interface SignPsbtOptions {
+  autoFinalized?: boolean;
+  contracts?: Contract[];
+  action?: Action;
+  /**
+   * Specific inputs to sign.
+   * If not provided, wallet will attempt to sign all inputs it can.
+   * Use this to restrict signing to specific inputs (e.g., only depositor's input in payout tx).
+   */
+  signInputs?: SignInputOptions[];
+  /**
+   * Human-readable label for the signing step (e.g. "Transaction 3 of 12").
+   * Honored by wallets that render their own signing UI — Keystone shows it
+   * above the QR code so the user can track progress through a batch. Wallets
+   * that sign in their extension popup ignore it.
+   */
+  displayMessage?: string;
+}
+
+export interface IBTCProvider extends IProvider {
+  /**
+   * Signs the given PSBT in hex format.
+   * @param psbtHex - The hex string of the unsigned PSBT to sign.
+   * @param options - Optional parameters for signing the PSBT.
+   * @returns A promise that resolves to the hex string of the signed PSBT.
+   */
+  signPsbt(psbtHex: string, options?: SignPsbtOptions): Promise<string>;
+
+  /**
+   * Signs multiple PSBTs in hex format.
+   * @param psbtsHexes - The hex strings of the unsigned PSBTs to sign.
+   * @param options - Optional parameters for signing the PSBTs.
+   * @returns A promise that resolves to an array of hex strings, each representing a signed PSBT.
+   */
+  signPsbts(psbtsHexes: string[], options?: SignPsbtOptions[]): Promise<string[]>;
+
+  /**
+   * Gets the network of the current account.
+   * @returns A promise that resolves to the network of the current account.
+   */
+  getNetwork(): Promise<Network>;
+
+  /**
+   * Reads the wallet's live accounts WITHOUT prompting the user
+   * (non-interactive). Implemented only by wallets where an empty result is a
+   * reliable silent-lock signal: UniSat returns [] when the wallet is locked
+   * while a stale cached `getAddress()` still reports the last-known address,
+   * so it can be polled to detect a silent auto-lock that fires no event.
+   * Unlike `connectWallet()` it never surfaces the unlock / connection popup.
+   *
+   * Intentionally omitted by OKX and OneKey: their `getAccounts()` returns the
+   * cached / dApp-authorized address even when the keyring is locked, so an
+   * empty-array read is not a lock signal there. Optional — callers MUST
+   * feature-detect (`typeof provider.getAccounts === "function"`) and treat a
+   * missing method as "lock cannot be probed", never as locked.
+   * @returns A promise that resolves to the active account addresses.
+   */
+  getAccounts?(): Promise<string[]>;
+
+  /**
+   * Requests cancellation of the in-flight signing ceremony
+   * (signPsbt/signPsbts/signMessage). A REQUEST, not a settle: the provider
+   * aborts at its next device exchange boundary, and the sign promise rejects
+   * with `CONNECTION_REJECTED` only then. No-op when nothing is in flight.
+   *
+   * Implemented only by hardware providers whose ceremonies block on a
+   * physical device (currently the Ledger vault provider). Optional — callers
+   * MUST feature-detect (`typeof provider.cancelSigning === "function"`) and
+   * hide the cancel affordance when the method is missing.
+   */
+  cancelSigning?(): void;
+
+  /**
+   * Signs a message using either BIP322-Simple or ECDSA signing method.
+   * @param message - The message to sign.
+   * @param type - The signing method to use.
+   * @returns A promise that resolves to the signed message.
+   */
+  signMessage(message: string, type: "bip322-simple" | "ecdsa"): Promise<string>;
+
+  /**
+   * Retrieves the inscriptions for the connected wallet.
+   * @returns A promise that resolves to an array of inscriptions.
+   */
+  getInscriptions(): Promise<InscriptionIdentifier[]>;
+
+  /**
+   * Registers an event listener for the specified event.
+   * At the moment, only the "accountChanged" event is supported.
+   * @param eventName - The name of the event to listen for.
+   * @param callBack - The callback function to be executed when the event occurs.
+   */
+  on(eventName: string, callBack: () => void): void;
+
+  /**
+   * Unregisters an event listener for the specified event.
+   * @param eventName - The name of the event to listen for.
+   * @param callBack - The callback function to be executed when the event occurs.
+   */
+  off(eventName: string, callBack: () => void): void;
+
+  /**
+   * Gets the name of the wallet provider.
+   * @returns A promise that resolves to the name of the wallet provider.
+   */
+  getWalletProviderName(): Promise<string>;
+
+  /**
+   * Gets the icon of the wallet provider.
+   * @returns A promise that resolves to the icon of the wallet provider.
+   */
+  getWalletProviderIcon(): Promise<string>;
+
+  /**
+   * Gets the version of the wallet provider.
+   * @returns A promise that resolves to the version of the wallet provider.
+   */
+  getVersion?(): Promise<string>;
+
+  /**
+   * Derives a deterministic 32-byte value from the wallet's key material,
+   * an application name, and an application-provided context string.
+   *
+   * Conforms to the `deriveContextHash` wallet API specification
+   * (`docs/specs/derive-context-hash.md`, revision 1.0). Implementations
+   * that do not support this method MUST throw a {@link WalletError}
+   * with code {@link ERROR_CODES.WALLET_METHOD_NOT_SUPPORTED} so the
+   * caller can branch deterministically on capability.
+   *
+   * The wallet itself enforces the spec's input/output validation
+   * (`appName` charset and length, `context` even-length lowercase hex,
+   * 64-char hex output). Adapters forward without re-validating.
+   *
+   * @param appName - Application identifier (1-64 bytes, `[a-z0-9\-]`).
+   *                  Displayed by the wallet in its approval dialog.
+   * @param context - Application-specific context, hex-encoded
+   *                  (even-length, lowercase, no `0x` prefix, non-empty,
+   *                  ≤ 2048 hex chars / 1024 bytes).
+   * @returns 64-char lowercase hex string (32 bytes).
+   * @throws {@link WalletError} with code
+   *   {@link ERROR_CODES.WALLET_METHOD_NOT_SUPPORTED} when the wallet
+   *   does not implement the spec.
+   */
+  deriveContextHash(appName: string, context: string): Promise<string>;
+}
+
+export interface IBBNProvider extends IProvider {
+  /**
+   * Gets the name of the wallet provider.
+   * @returns A promise that resolves to the name of the wallet provider.
+   */
+  getWalletProviderName(): Promise<string>;
+
+  /**
+   * Gets the icon of the wallet provider.
+   * @returns A promise that resolves to the icon of the wallet provider.
+   */
+  getWalletProviderIcon(): Promise<string>;
+
+  /**
+   * Retrieves an offline signer that supports both Amino and Direct signing methods.
+   * This signer is used for signing transactions offline before broadcasting them to the network.
+   *
+   * @returns {Promise<OfflineAminoSigner & OfflineDirectSigner>} A promise that resolves to a signer supporting both Amino and Direct signing
+   * @throws {Error} If wallet connection is not established or signer cannot be retrieved
+   */
+  getOfflineSigner(): Promise<OfflineAminoSigner & OfflineDirectSigner>;
+
+  /**
+   * Retrieves an offline signer that supports either Amino or Direct signing methods.
+   * This is required for compatibility with older wallets and hardware wallets (like Ledger) that do not support both signing methods.
+   * This signer is used for signing transactions offline before broadcasting them to the network.
+   *
+   * @returns {Promise<OfflineAminoSigner & OfflineDirectSigner>} A promise that resolves to a signer supporting either Amino or Direct signing
+   * @throws {Error} If wallet connection is not established or signer cannot be retrieved
+   */
+  getOfflineSignerAuto?(): Promise<OfflineAminoSigner | OfflineDirectSigner>;
+
+  /**
+   * Registers an event listener for the specified event.
+   * At the moment, only the "accountChanged" event is supported.
+   * @param eventName - The name of the event to listen for.
+   * @param callBack - The callback function to be executed when the event occurs.
+   */
+  on(eventName: string, callBack: () => void): void;
+
+  /**
+   * Unregisters an event listener for the specified event.
+   * @param eventName - The name of the event to listen for.
+   * @param callBack - The callback function to be executed when the event occurs.
+   */
+  off(eventName: string, callBack: () => void): void;
+
+  /**
+   * Gets the version of the wallet provider.
+   * @returns A promise that resolves to the version of the wallet provider.
+   */
+  getVersion?(): Promise<string>;
+}
+
+export interface HashMap {
+  get: (key: string) => string | undefined;
+  set: (key: string, value: any) => void;
+  has: (key: string) => boolean;
+  delete: (key: string) => boolean;
+}

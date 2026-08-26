@@ -1,0 +1,152 @@
+name: Verify PR
+
+on:
+  pull_request:
+    branches: [main]
+
+# Cancel any in-flight run when a new commit is pushed to the same PR/branch.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2 https://github.com/actions/checkout/releases/tag/v6.0.2
+        with:
+          fetch-depth: 0
+          # The release rehearsal below resolves every package's current version
+          # from its release tag, so the tags have to be present.
+          fetch-tags: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0 https://github.com/actions/setup-node/releases/tag/v4.4.0
+        with:
+          node-version: '24.2.0'
+
+      - name: Install Corepack
+        run: npm install -g corepack && corepack enable
+
+      - name: Resolve pnpm store path
+        shell: bash
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> "$GITHUB_ENV"
+
+      - name: Cache pnpm store
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0 https://github.com/actions/cache/releases/tag/v4.3.0
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --prefer-offline
+
+      - name: Single Version Policy
+        run: |-
+          # Exit immediately if any command in the script fails
+          set -e
+
+          if pnpm exec syncpack list-mismatches; then
+            echo "✅ Dependency versions are aligned"
+          else
+            # Add an annotation to the Checks tab with a helpful hint
+            echo "::error title=Dependency mismatch::Run 'pnpm exec syncpack list-mismatches' locally (and 'pnpm exec syncpack fix-mismatches' to auto-fix)." >&2
+            exit 1
+          fi
+
+      # Note: a dedicated `nx typecheck` step is intentionally omitted.
+      # The auto-generated `typecheck` target is disabled by @nx/js for
+      # projects with `noEmit: true` in their tsconfig graph (vault, core-ui,
+      # wallet-connector). Each service's `build` script runs
+      # `tsc --noEmit -p tsconfig.lib.json` before bundling, so types are
+      # still validated below. A separate ticket should untangle the
+      # `noEmit` references so a fast typecheck step is possible.
+
+      - name: Build all
+        run: pnpm build
+
+      - name: Typecheck the release driver
+        run: pnpm exec nx run @internal/release:typecheck
+
+      # tsx and vitest both strip types without checking them, and the driver
+      # has no build target, so this is the only place its TypeScript is
+      # verified. Runs the release the way CI will, without publishing or
+      # tagging anything: this is what catches a sibling whose version was
+      # tagged but never published, before that blocks a real release.
+      - name: Rehearse the release
+        env:
+          DRY_RUN: 'true'
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: pnpm run ci:release
+
+      - name: Lint all
+        run: pnpm run lint
+
+      - name: Test affected
+        id: tests
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm exec nx affected --target=test --base=origin/main --verbose 2>&1 | tee /tmp/test-output.log
+
+      - name: Append test summary
+        if: always() && steps.tests.conclusion != 'skipped'
+        shell: bash
+        run: |
+          {
+            echo "## Test results"
+            echo ""
+            if [ "${{ steps.tests.outcome }}" = "success" ]; then
+              echo ":white_check_mark: All affected tests passed."
+            else
+              echo ":x: Tests failed. Tail of output:"
+              echo ""
+              echo '```'
+              tail -n 200 /tmp/test-output.log || true
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # Replaces `docs:validate`, which used --emit none and so never rendered
+      # pages — meaning it could not see the strip or its guard in
+      # typedoc-plugin.mjs. MUST stay after "Build all": docs output depends on
+      # the gitignored babylon-tbv-rust-wasm/dist.
+      - name: Check generated API docs are current
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm --filter @babylonlabs-io/ts-sdk run docs:clean
+
+          # --porcelain, not `git diff`: a file for a newly added module would be
+          # untracked and so invisible to a diff.
+          if [ -z "$(git status --porcelain -- packages/babylon-ts-sdk/docs/api)" ]; then
+            echo "Generated API docs are up to date."
+            exit 0
+          fi
+
+          {
+            echo "## Generated API docs are stale"
+            echo ""
+            echo "The public API changed but \`docs/api/\` was not regenerated. Run:"
+            echo ""
+            echo '```'
+            echo "pnpm --filter @babylonlabs-io/ts-sdk run docs:clean"
+            echo '```'
+            echo ""
+            echo "and commit the result. Diff CI produced:"
+            echo ""
+            echo '```diff'
+            git status --porcelain -- packages/babylon-ts-sdk/docs/api
+            echo ""
+            # sed, not `head -400`: head would SIGPIPE git diff and abort the
+            # step under `set -e -o pipefail`, before the error annotation.
+            git diff -- packages/babylon-ts-sdk/docs/api | sed -n '1,400p'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          echo "::error::Generated API docs are stale — run: pnpm --filter @babylonlabs-io/ts-sdk run docs:clean"
+          exit 1

@@ -1,0 +1,481 @@
+import {
+  IBTCProvider,
+  InscriptionIdentifier,
+  Network,
+  SignPsbtOptions,
+  useChainConnector,
+  useVisibilityCheck,
+  useWalletConnect,
+} from "@babylonlabs-io/wallet-connector";
+import type { networks } from "bitcoinjs-lib";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type PropsWithChildren,
+} from "react";
+
+import { getNetworkConfigBTC } from "@/ui/common/config/network/btc";
+import { useError } from "@/ui/common/context/Error/ErrorProvider";
+import { ClientError, ERROR_CODES } from "@/ui/common/errors";
+import { useLogger } from "@/ui/common/hooks/useLogger";
+import { useSentryUser } from "@/ui/common/hooks/useSentryUser";
+import { Fees } from "@/ui/common/types/fee";
+import {
+  getAddressBalance,
+  getNetworkFees,
+  getTipHeight,
+  pushTx,
+} from "@/ui/common/utils/mempool_api";
+import {
+  getPublicKeyNoCoord,
+  isSupportedAddressType,
+  toNetwork,
+} from "@/ui/common/utils/wallet";
+
+import { useAddressScreeningService } from "../../hooks/services/useAddressScreeningService";
+
+const btcConfig = getNetworkConfigBTC();
+
+interface BTCWalletContextProps {
+  loading: boolean;
+  network?: networks.Network;
+  publicKeyNoCoord: string;
+  address: string;
+  connected: boolean;
+  failedBtcAddressRiskAssessment: boolean;
+  disconnect: () => void;
+  open: () => void;
+  getAddress: () => Promise<string>;
+  getPublicKeyHex: () => Promise<string>;
+  signPsbt: (psbtHex: string, options?: SignPsbtOptions) => Promise<string>;
+  signPsbts: (
+    psbtsHexes: string[],
+    options?: SignPsbtOptions[],
+  ) => Promise<string[]>;
+  getNetwork: () => Promise<Network>;
+  signMessage: (
+    message: string,
+    type: "ecdsa" | "bip322-simple",
+  ) => Promise<string>;
+  getBalance: (address: string) => Promise<number>;
+  getNetworkFees: () => Promise<Fees>;
+  pushTx: (txHex: string) => Promise<string>;
+  getBTCTipHeight: () => Promise<number>;
+  getInscriptions: () => Promise<InscriptionIdentifier[]>;
+}
+
+const BTCWalletContext = createContext<BTCWalletContextProps>({
+  loading: true,
+  network: undefined,
+  connected: false,
+  publicKeyNoCoord: "",
+  address: "",
+  failedBtcAddressRiskAssessment: false,
+  disconnect: () => {},
+  open: () => {},
+  getAddress: async () => "",
+  getPublicKeyHex: async () => "",
+  signPsbt: async () => "",
+  signPsbts: async () => [],
+  getNetwork: async () => ({}) as Network,
+  signMessage: async () => "",
+  getBalance: async () => 0,
+  getNetworkFees: async () => ({}) as Fees,
+  pushTx: async () => "",
+  getBTCTipHeight: async () => 0,
+  getInscriptions: async () => [],
+});
+
+export const BTCWalletProvider = ({ children }: PropsWithChildren) => {
+  const [loading, setLoading] = useState(true);
+  const [btcWalletProvider, setBTCWalletProvider] = useState<IBTCProvider>();
+  const [network, setNetwork] = useState<networks.Network>();
+  const [publicKeyNoCoord, setPublicKeyNoCoord] = useState("");
+  const [address, setAddress] = useState("");
+  const [failedBtcAddressRiskAssessment, setFailedBtcAddressRiskAssessment] =
+    useState(false);
+
+  const { handleError } = useError();
+  const btcConnector = useChainConnector("BTC");
+  const { open = () => {}, disconnect: disconnectAll } = useWalletConnect();
+  const logger = useLogger();
+  const { updateUser } = useSentryUser();
+  const { screenAddress, clearAddressScreeningResult } =
+    useAddressScreeningService();
+
+  // Internal function to clear BTC state only (used by disconnect events)
+  const clearBtcState = useCallback(() => {
+    setBTCWalletProvider(undefined);
+    setNetwork(undefined);
+    setPublicKeyNoCoord("");
+    setAddress("");
+    setFailedBtcAddressRiskAssessment(false);
+
+    updateUser({ btcAddress: null });
+    clearAddressScreeningResult();
+  }, [updateUser, clearAddressScreeningResult]);
+
+  // Public disconnect function - also disconnects other wallets
+  const btcDisconnect = useCallback(() => {
+    clearBtcState();
+    // Also disconnect all other wallets (BBN) since we require both to be connected
+    disconnectAll?.();
+  }, [clearBtcState, disconnectAll]);
+
+  const connectBTC = useCallback(
+    async (walletProvider: IBTCProvider | null) => {
+      if (!walletProvider) return;
+      setLoading(true);
+
+      try {
+        const network = await walletProvider.getNetwork();
+        if (network !== btcConfig.network) {
+          const networkMismatchError = new ClientError(
+            ERROR_CODES.WALLET_CONFIGURATION_ERROR,
+            `BTC wallet network (${network}) does not match configured network (${btcConfig.network}).`,
+          );
+          throw networkMismatchError;
+        }
+
+        const address = await walletProvider.getAddress();
+        if (!address) {
+          const noAddressError = new ClientError(
+            ERROR_CODES.WALLET_CONFIGURATION_ERROR,
+            "BTC wallet provider returned an empty address.",
+          );
+          throw noAddressError;
+        }
+
+        const supportedNetworkMessage =
+          "Only Native SegWit and Taproot addresses are supported. Please switch the address type in your wallet and try again.";
+
+        const supported = isSupportedAddressType(address);
+        if (!supported) {
+          const clientError = new ClientError(
+            ERROR_CODES.WALLET_CONFIGURATION_ERROR,
+            supportedNetworkMessage,
+          );
+          logger.warn(clientError.message);
+          throw clientError;
+        }
+
+        const publicKeyHex = await walletProvider.getPublicKeyHex();
+        if (!publicKeyHex) {
+          const noPubKeyError = new ClientError(
+            ERROR_CODES.WALLET_CONFIGURATION_ERROR,
+            "BTC wallet provider returned an empty public key.",
+          );
+          throw noPubKeyError;
+        }
+
+        const publicKeyBuffer = getPublicKeyNoCoord(publicKeyHex);
+        const publicKeyNoCoordHex = publicKeyBuffer.toString("hex");
+
+        if (!publicKeyNoCoordHex) {
+          const emptyProcessedPubKeyError = new ClientError(
+            ERROR_CODES.WALLET_CONFIGURATION_ERROR,
+            "Processed BTC public key (no coordinates) is empty.",
+          );
+          throw emptyProcessedPubKeyError;
+        }
+        const failedRiskAssessment = await screenAddress(address);
+        setFailedBtcAddressRiskAssessment(failedRiskAssessment);
+
+        setBTCWalletProvider(walletProvider);
+        setNetwork(toNetwork(network));
+        setAddress(address);
+        setPublicKeyNoCoord(publicKeyNoCoordHex);
+        setLoading(false);
+
+        updateUser({ btcAddress: address });
+
+        logger.info("BTC wallet connected", {
+          network,
+          userPublicKey: publicKeyNoCoordHex,
+          btcAddress: address,
+          walletName: await walletProvider.getWalletProviderName(),
+        });
+      } catch (error: unknown) {
+        logger.error(
+          error instanceof Error
+            ? error
+            : new Error("BTC wallet connection failed"),
+        );
+        handleError({
+          error: error instanceof Error ? error : new Error(String(error)),
+          displayOptions: {
+            retryAction: () => connectBTC(walletProvider),
+          },
+          metadata: {
+            userPublicKey: publicKeyNoCoord,
+            btcAddress: address,
+          },
+        });
+      }
+    },
+    [handleError, publicKeyNoCoord, address, logger, updateUser, screenAddress],
+  );
+
+  useEffect(() => {
+    // Ensure loading is cleared even when BTC connector is not configured
+    setLoading(false);
+    if (!btcConnector) return;
+    if (btcConnector.connectedWallet) {
+      connectBTC(btcConnector?.connectedWallet.provider);
+    }
+
+    const unsubscribe = btcConnector?.on("connect", (wallet) => {
+      if (wallet.provider) {
+        connectBTC(wallet.provider);
+      }
+    });
+
+    return unsubscribe;
+  }, [btcConnector, connectBTC]);
+
+  useEffect(() => {
+    if (!btcConnector) return;
+
+    // When connector fires disconnect, only clear local state (avoid infinite loop)
+    // The global disconnect already handles disconnecting all connectors
+    const unsubscribe = btcConnector.on("disconnect", () => {
+      clearBtcState();
+    });
+
+    return unsubscribe;
+  }, [btcConnector, clearBtcState]);
+
+  // Listen for BTC account changes
+  useEffect(() => {
+    if (!btcWalletProvider) return;
+
+    const cb = async () => {
+      try {
+        await btcWalletProvider.connectWallet();
+        connectBTC(btcWalletProvider);
+      } catch (error) {
+        // Connection failed during account change - likely disconnected
+        logger.error(
+          error instanceof Error
+            ? error
+            : new Error("Error handling BTC account change"),
+        );
+        btcDisconnect();
+      }
+    };
+
+    const onDisconnect = () => {
+      btcDisconnect();
+    };
+
+    // Subscribe to both event names as different wallets use different names
+    if (typeof btcWalletProvider.on === "function") {
+      btcWalletProvider.on("accountChanged", cb);
+      btcWalletProvider.on("accountsChanged", cb);
+      btcWalletProvider.on("disconnect", onDisconnect);
+    }
+
+    return () => {
+      if (typeof btcWalletProvider.off === "function") {
+        btcWalletProvider.off("accountChanged", cb);
+        btcWalletProvider.off("accountsChanged", cb);
+        btcWalletProvider.off("disconnect", onDisconnect);
+      }
+    };
+  }, [btcWalletProvider, connectBTC, btcDisconnect, logger]);
+
+  // Fallback: Listen directly to BTC wallet extensions for disconnect events
+  useEffect(() => {
+    if (!address) return; // Only listen when connected
+    if (typeof window === "undefined") return;
+
+    interface BtcWalletExtension {
+      on?: (event: string, handler: (...args: unknown[]) => void) => void;
+      removeListener?: (
+        event: string,
+        handler: (...args: unknown[]) => void,
+      ) => void;
+      off?: (event: string, handler: (...args: unknown[]) => void) => void;
+    }
+
+    const win = window as Window & {
+      okxwallet?: {
+        bitcoin?: BtcWalletExtension;
+        bitcoinTestnet?: BtcWalletExtension;
+        bitcoinSignet?: BtcWalletExtension;
+      };
+      unisat?: BtcWalletExtension;
+      $onekey?: { btc?: BtcWalletExtension };
+      btcwallet?: BtcWalletExtension;
+    };
+
+    const providers: BtcWalletExtension[] = [];
+
+    if (win.okxwallet?.bitcoin) providers.push(win.okxwallet.bitcoin);
+    if (win.okxwallet?.bitcoinTestnet)
+      providers.push(win.okxwallet.bitcoinTestnet);
+    if (win.okxwallet?.bitcoinSignet)
+      providers.push(win.okxwallet.bitcoinSignet);
+
+    if (win.unisat) providers.push(win.unisat);
+
+    if (win.$onekey?.btc) providers.push(win.$onekey.btc);
+
+    if (win.btcwallet) providers.push(win.btcwallet);
+
+    if (providers.length === 0) return;
+
+    const handleDisconnect = () => {
+      btcDisconnect();
+    };
+
+    const handleAccountsChanged = (...args: unknown[]) => {
+      const accounts = args[0] as string | string[] | undefined;
+      const accountsArray = Array.isArray(accounts)
+        ? accounts
+        : accounts
+          ? [accounts]
+          : [];
+      if (accountsArray.length === 0) {
+        btcDisconnect();
+      }
+    };
+
+    // Subscribe to events
+    providers.forEach((provider) => {
+      if (typeof provider.on === "function") {
+        provider.on("disconnect", handleDisconnect);
+        provider.on("accountsChanged", handleAccountsChanged);
+      }
+    });
+
+    return () => {
+      providers.forEach((provider) => {
+        if (typeof provider.removeListener === "function") {
+          provider.removeListener("disconnect", handleDisconnect);
+          provider.removeListener("accountsChanged", handleAccountsChanged);
+        } else if (typeof provider.off === "function") {
+          provider.off("disconnect", handleDisconnect);
+          provider.off("accountsChanged", handleAccountsChanged);
+        }
+      });
+    };
+  }, [address, btcDisconnect]);
+
+  // Check wallet connection when tab becomes visible
+  const checkBTCConnection = useCallback(async () => {
+    if (!btcWalletProvider) return;
+
+    try {
+      await btcWalletProvider.connectWallet();
+      const currentAddress = await btcWalletProvider.getAddress();
+
+      if (!currentAddress) {
+        btcDisconnect();
+      } else if (currentAddress !== address) {
+        // Account changed while tab was in background - reconnect
+        connectBTC(btcWalletProvider);
+      }
+    } catch (error: unknown) {
+      // Connection check failed - wallet likely disconnected
+      logger.error(
+        error instanceof Error
+          ? error
+          : new Error("BTC wallet connection check failed"),
+      );
+      btcDisconnect();
+    }
+  }, [btcWalletProvider, address, btcDisconnect, connectBTC, logger]);
+
+  useVisibilityCheck(checkBTCConnection, {
+    enabled: Boolean(btcWalletProvider && address),
+  });
+
+  useEffect(() => {
+    if (!btcConnector) return;
+
+    const installedWallets = btcConnector.wallets
+      .filter((wallet) => wallet.installed)
+      .reduce(
+        (acc, wallet) => ({ ...acc, [wallet.id]: wallet.name }),
+        {} as Record<string, string>,
+      );
+
+    logger.info("Installed BTC wallets", {
+      installedWallets: Object.values(installedWallets).join(", "),
+    });
+  }, [btcConnector, logger]);
+
+  const btcWalletMethods = useMemo(
+    () => ({
+      getAddress: async () => btcWalletProvider?.getAddress() ?? "",
+      getPublicKeyHex: async () => btcWalletProvider?.getPublicKeyHex() ?? "",
+      signPsbt: async (psbtHex: string, options?: SignPsbtOptions) =>
+        btcWalletProvider?.signPsbt(psbtHex, options) ?? "",
+      signPsbts: async (psbtsHexes: string[], options?: SignPsbtOptions[]) =>
+        btcWalletProvider?.signPsbts(psbtsHexes, options) ?? [],
+      getNetwork: async () =>
+        btcWalletProvider?.getNetwork() ?? ({} as Network),
+      signMessage: async (message: string, type: "ecdsa" | "bip322-simple") =>
+        btcWalletProvider?.signMessage(message, type) ?? "",
+      getBalance: async (address: string) => getAddressBalance(address),
+      getNetworkFees: async () => getNetworkFees(),
+      pushTx: async (txHex: string) => pushTx(txHex),
+      getBTCTipHeight: async () => getTipHeight(),
+      getInscriptions: async (): Promise<InscriptionIdentifier[]> => {
+        if (!btcWalletProvider?.getInscriptions) {
+          const clientError = new ClientError(
+            ERROR_CODES.WALLET_CONFIGURATION_ERROR,
+            "`getInscriptions` method is not provided by the wallet",
+          );
+          logger.warn(clientError.message);
+          throw clientError;
+        }
+
+        return btcWalletProvider.getInscriptions();
+      },
+    }),
+    [btcWalletProvider, logger],
+  );
+
+  const actuallyConnected = useMemo(() => {
+    return !loading && !!btcWalletProvider && !!address && !!publicKeyNoCoord;
+  }, [loading, btcWalletProvider, address, publicKeyNoCoord]);
+
+  const btcContextValue = useMemo(
+    () => ({
+      loading,
+      network,
+      publicKeyNoCoord,
+      address,
+      connected: actuallyConnected,
+      open,
+      disconnect: btcDisconnect,
+      failedBtcAddressRiskAssessment,
+      ...btcWalletMethods,
+    }),
+    [
+      loading,
+      actuallyConnected,
+      network,
+      publicKeyNoCoord,
+      address,
+      open,
+      btcDisconnect,
+      failedBtcAddressRiskAssessment,
+      btcWalletMethods,
+    ],
+  );
+
+  return (
+    <BTCWalletContext.Provider value={btcContextValue}>
+      {children}
+    </BTCWalletContext.Provider>
+  );
+};
+
+export const useBTCWallet = () => useContext(BTCWalletContext);

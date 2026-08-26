@@ -1,0 +1,126 @@
+/**
+ * Hook to fetch vault providers for all applications present in deposits
+ *
+ * Since deposits can belong to different applications, this hook:
+ * 1. Extracts unique applicationEntryPoint addresses from activities
+ * 2. Fetches providers for each application in parallel
+ * 3. Merges results into a single flat list
+ *
+ * Note: Universal challengers are system-wide and should be accessed via
+ * useProtocolParamsContext() instead.
+ *
+ * This enables the centralized polling manager to have all provider URLs
+ * available without needing to fetch per-deposit.
+ */
+
+import { useQueries } from "@tanstack/react-query";
+import { useMemo } from "react";
+
+import { fetchAppProviders } from "../../services/providers";
+import type { VaultKeeper, VaultProvider } from "../../types";
+import type { VaultActivity } from "../../types/activity";
+
+/** Provider data rarely changes, cache for 5 minutes */
+const PROVIDER_STALE_TIME_MS = 5 * 60 * 1000;
+/** Keep provider data in cache for 10 minutes */
+const PROVIDER_GC_TIME_MS = 10 * 60 * 1000;
+
+export interface UseAllDepositProvidersResult {
+  /** All vault providers across all applications */
+  vaultProviders: VaultProvider[];
+  /** All vault keepers across all applications */
+  vaultKeepers: VaultKeeper[];
+  /** Loading state */
+  loading: boolean;
+  /** Error (first error encountered) */
+  error: Error | null;
+  /** Find provider by address (searches all applications) */
+  findProvider: (address: string) => VaultProvider | undefined;
+}
+
+/**
+ * Hook to fetch providers for all applications in the deposits list
+ *
+ * @param activities - List of vault activities to extract applications from
+ * @returns Combined provider data from all applications
+ */
+export function useAllDepositProviders(
+  activities: VaultActivity[],
+): UseAllDepositProvidersResult {
+  // Step 1: Extract unique application controllers from activities
+  const applicationEntryPoints = useMemo(() => {
+    const controllers = new Set<string>();
+    for (const activity of activities) {
+      if (activity.applicationEntryPoint) {
+        controllers.add(activity.applicationEntryPoint);
+      }
+    }
+    return Array.from(controllers);
+  }, [activities]);
+
+  // Step 2: Fetch providers for each application in parallel
+  const queries = useQueries({
+    queries: applicationEntryPoints.map((appController) => ({
+      queryKey: ["providers", appController],
+      queryFn: () => fetchAppProviders(appController),
+      staleTime: PROVIDER_STALE_TIME_MS,
+      gcTime: PROVIDER_GC_TIME_MS,
+      refetchOnMount: false,
+      refetchOnWindowFocus: false,
+    })),
+  });
+
+  // Step 3: Merge results
+  const { vaultProviders, vaultKeepers, loading, error } = useMemo(() => {
+    const allProviders: VaultProvider[] = [];
+    const allVaultKeepers: VaultKeeper[] = [];
+    let isLoading = false;
+    let firstError: Error | null = null;
+
+    for (const query of queries) {
+      if (query.isLoading) {
+        isLoading = true;
+      }
+      if (query.error && !firstError) {
+        firstError = query.error as Error;
+      }
+      if (query.data) {
+        // Dedupe by provider id
+        for (const provider of query.data.vaultProviders) {
+          if (!allProviders.some((p) => p.id === provider.id)) {
+            allProviders.push(provider);
+          }
+        }
+        for (const vaultKeeper of query.data.vaultKeepers) {
+          if (!allVaultKeepers.some((vk) => vk.id === vaultKeeper.id)) {
+            allVaultKeepers.push(vaultKeeper);
+          }
+        }
+      }
+    }
+
+    return {
+      vaultProviders: allProviders,
+      vaultKeepers: allVaultKeepers,
+      loading: isLoading,
+      error: firstError,
+    };
+  }, [queries]);
+
+  // Step 4: Helper to find provider by address
+  const findProvider = useMemo(() => {
+    return (address: string): VaultProvider | undefined => {
+      return vaultProviders.find(
+        (p) => p.id.toLowerCase() === address.toLowerCase(),
+      );
+    };
+  }, [vaultProviders]);
+
+  return {
+    vaultProviders,
+    vaultKeepers,
+    loading,
+    error,
+    findProvider,
+  };
+}

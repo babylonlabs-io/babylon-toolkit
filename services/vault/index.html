@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en" translate="no">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" href="/favicon.ico" type="image/x-icon" sizes="32x32" />
+    <link rel="canonical" href="%NEXT_PUBLIC_CANONICAL%/" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!--
+      Opt out of page translation. Translation extensions replace React-owned
+      text nodes with their own wrappers; React's next commit then calls
+      removeChild on a node that is no longer its child, which throws
+      NotFoundError and unmounts the whole app via the error boundary.
+    -->
+    <meta name="google" content="notranslate" />
+    <meta
+      name="description"
+      content="Borrow against native Bitcoin, trustlessly"
+    />
+    <!--
+      Link-preview cards. The image URLs must be absolute (crawlers do not resolve relative
+      paths), so they are built from %NEXT_PUBLIC_CANONICAL%, which vite.config.ts
+      normalises to an origin with no trailing slash. X is served the square logomark
+      through a `summary` card; every other unfurler reads og:image and gets the wide card.
+    -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Babylon" />
+    <meta property="og:url" content="%NEXT_PUBLIC_CANONICAL%/" />
+    <meta property="og:title" content="Trustless Bitcoin Vaults" />
+    <meta
+      property="og:description"
+      content="Borrow against native Bitcoin, trustlessly"
+    />
+    <meta property="og:image" content="%NEXT_PUBLIC_CANONICAL%/images/og.png" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta
+      property="og:image:alt"
+      content="Babylon Trustless Bitcoin Vaults - borrow against native Bitcoin, trustlessly"
+    />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Trustless Bitcoin Vaults" />
+    <meta
+      name="twitter:description"
+      content="Borrow against native Bitcoin, trustlessly"
+    />
+    <meta
+      name="twitter:image"
+      content="%NEXT_PUBLIC_CANONICAL%/images/og-square.png"
+    />
+    <meta name="twitter:image:alt" content="Babylon Trustless Bitcoin Vaults" />
+    <meta name="version" content="%NEXT_PUBLIC_COMMIT_HASH%" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self' https: wss: http://localhost:* ws://localhost:*; img-src 'self' data: https: blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com https://fonts.reown.com; object-src 'none'; base-uri 'self'; form-action 'self'; worker-src 'self' blob:; frame-src 'self' https://verify.walletconnect.com https://verify.walletconnect.org https://secure.walletconnect.org;"
+    />
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
+    <title>Babylon - Vault</title>
+
+    <script src="/process-polyfill.js"></script>
+  </head>
+
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

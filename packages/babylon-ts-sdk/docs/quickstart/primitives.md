@@ -1,0 +1,261 @@
+# Primitives
+
+Pure functions for Bitcoin PSBT building. No wallet access, no network calls, just data transformation.
+
+> For complete function signatures, see [API Reference](../api/primitives.md).
+
+## What Are Primitives?
+
+Primitives are the lowest-level SDK functions. They:
+
+- Build Bitcoin PSBTs (Partially Signed Bitcoin Transactions)
+- Are pure functions: given inputs → return outputs, no external calls
+- Have zero dependencies on wallets or network
+- Work in Node.js, browsers, serverless, anywhere
+
+## When to Use Primitives
+
+> **Managers** are high-level classes that orchestrate multi-step BTC vault operations with wallet integration. See [Managers Quickstart](./managers.md) for details.
+
+| Use Case                                       | Use            |
+| ---------------------------------------------- | -------------- |
+| Backend services with custom signing (KMS/HSM) | **Primitives** |
+| Need full control over every step              | **Primitives** |
+| Custom wallet integrations                     | **Primitives** |
+| Browser app with standard wallet               | Managers       |
+| Quick integration, less code                   | Managers       |
+
+**Using primitives means YOU implement:**
+
+- Bitcoin wallet signing
+- Ethereum contract calls
+- Vault provider RPC communication
+- Bitcoin transaction broadcasting
+
+---
+
+## Primitives
+
+The full [transaction graph](https://github.com/babylonlabs-io/btc-vault/blob/main/docs/pegin.md#2-transaction-graph-and-presigning) includes additional transaction types (Claim, Assert, ChallengeAssert, NoPayout, WronglyChallenged). When the vault provider acts as claimer, most of these are generated and managed by the vault provider. The SDK provides primitives for operations the **depositor** performs: building the peg-in transaction and signing payout authorizations. When the depositor acts as claimer (depositor-as-claimer path), the SDK also provides builders for the NoPayout and ChallengeAssert PSBTs.
+
+### 1. buildPrePeginPsbt + buildPeginTxFromFundedPrePegin
+
+Peg-in is a **two-step flow** on Bitcoin:
+
+1. `buildPrePeginPsbt()` — build an unfunded **Pre-PegIn** tx with one HTLC output per vault (plus a CPFP anchor). No inputs yet — the caller funds it.
+2. `buildPeginTxFromFundedPrePegin()` — once the Pre-PegIn is funded and its txid is known, derive the **PegIn** tx that spends the HTLC output back to the vault connector.
+
+See the [protocol spec](https://github.com/babylonlabs-io/btc-vault/blob/main/docs/pegin.md) for why this is split.
+
+```typescript
+import {
+  buildPrePeginPsbt,
+  buildPeginTxFromFundedPrePegin,
+} from "@babylonlabs-io/ts-sdk/tbv/core/primitives";
+
+// Step 1: unfunded Pre-PegIn tx
+const prePegin = await buildPrePeginPsbt({
+  depositorPubkey: "abc123...",         // x-only, 64 hex chars, no 0x
+  vaultProviderPubkey: "def456...",
+  vaultKeeperPubkeys: ["ghi789..."],
+  universalChallengerPubkeys: ["jkl012..."],
+  hashlocks: ["aabb...cc"],             // one per vault (64-char hex, no 0x prefix)
+  timelockRefund: 144,                  // CSV blocks for refund path
+  pegInAmounts: [100_000n],             // one per vault (satoshis)
+  feeRate: 10n,                         // sat/vB, from offchain params
+  numLocalChallengers: 0,
+  councilQuorum: 3,
+  councilSize: 5,
+  network: "signet",
+});
+// prePegin.psbtHex is the UNFUNDED tx hex (no inputs yet).
+// Caller funds it (selectUtxosForPegin + fundPeginTransaction), then computes
+// the funded txid.
+
+// Step 2: derive PegIn tx that spends a single HTLC output
+const pegin = await buildPeginTxFromFundedPrePegin({
+  prePeginParams: { /* same params as above */ },
+  timelockPegin: 144,                   // CSV blocks for the PegIn vault output
+  fundedPrePeginTxHex: "0100...",       // Funded Pre-PegIn tx hex (no 0x prefix)
+  htlcVout: 0,                          // Index of the HTLC output to spend
+});
+```
+
+**Full parameter shapes:** see the [API Reference](../api/primitives.md) — both `PrePeginParams` and the return type `PrePeginPsbtResult` expose additional batch fields (one entry per vault).
+
+### 2. buildPayoutPsbt
+
+Builds unsigned Payout PSBT for depositor signing (challenge path - after Assert).
+
+```typescript
+import { buildPayoutPsbt } from "@babylonlabs-io/ts-sdk/tbv/core/primitives";
+
+const result = await buildPayoutPsbt({
+  payoutTxHex: "...",            // From vault provider
+  peginTxHex: "...",             // Your peg-in transaction
+  assertTxHex: "...",            // Assert transaction from VP
+  depositorBtcPubkey: "...",
+  vaultProviderBtcPubkey: "...",
+  vaultKeeperBtcPubkeys: [...],
+  universalChallengerBtcPubkeys: [...],
+  network: "signet",
+});
+
+// Returns:
+// {
+//   psbtHex: "...",  // Sign input 0 with your BTC key
+// }
+```
+
+### 3. extractPayoutSignature
+
+Extracts 64-byte Schnorr signature from a signed PSBT.
+
+```typescript
+import { extractPayoutSignature } from "@babylonlabs-io/ts-sdk/tbv/core/primitives";
+
+const signature = extractPayoutSignature(signedPsbtHex, depositorBtcPubkey);
+
+// Returns: "abc123..." (128 hex chars = 64 bytes)
+```
+
+**Use this to:** Get the signature after signing, then submit to vault provider.
+
+---
+
+## Depositor-as-Claimer Path
+
+When the depositor acts as the claimer (instead of the vault provider), the depositor must sign 3 types of PSBTs per vault:
+
+1. **Payout** (1 per vault) — sign with `buildPayoutPsbt` (section 2 above) with `claimerBtcPubkey` set to the depositor's own key; it validates the output layout and the implicit-fee band before returning the PSBT
+2. **NoPayout** (1 per challenger) — covers the case where the vault expires without a successful claim
+3. **ChallengeAssert** (1 per challenger, with 3 inputs) — covers the challenge-assert spending paths
+
+The vault provider supplies the unsigned transaction hexes. The depositor must
+also supply the parent transactions (peg-in tx for Payout, Assert tx for
+NoPayout / ChallengeAssert) from a trusted source — the builders cross-check
+every signed input's outpoint and prevout against those parents so a malicious
+VP cannot trick the wallet into signing over an attacker-chosen prevout.
+
+```typescript
+import {
+  buildNoPayoutPsbt,
+  buildChallengeAssertPsbt,
+  extractPayoutSignature,
+} from "@babylonlabs-io/ts-sdk/tbv/core/primitives";
+
+const depositorPubkey = "abc123..."; // x-only, 64 hex chars
+
+// 1. Payout (depositor-as-claimer variant): use buildPayoutPsbt (section 2
+// above) with claimerBtcPubkey = depositorPubkey, then sign and extract with
+// extractPayoutSignature as shown there.
+
+// 2. NoPayout (one per challenger)
+// Uses AssertPayoutNoPayoutConnector — input 0 spends Assert:0
+const noPayoutPsbtHex = await buildNoPayoutPsbt({
+  noPayoutTxHex: "...",             // From vault provider
+  assertTxHex: "...",               // Authoritative — input 0 must spend Assert:0
+  challengerPubkey: "def456...",    // This challenger's x-only pubkey
+  connectorParams: {                // AssertPayoutNoPayoutConnector params
+    claimer: depositorPubkey,
+    localChallengers: [],
+    universalChallengers: ["..."],
+    timelockAssert: 144,
+    councilMembers: ["..."],
+    councilQuorum: 3,
+  },
+  // additionalPrevouts: [...]      // Required only if NoPayout has fee inputs beyond input 0
+});
+const signedNoPayout = await wallet.signPsbt(noPayoutPsbtHex);
+const noPayoutSig = extractPayoutSignature(signedNoPayout, depositorPubkey);
+
+// 3. ChallengeAssert (one PSBT per challenger, with 3 inputs)
+// Every input must spend a distinct Assert output; prevouts are derived from assertTxHex.
+const caPsbtHex = await buildChallengeAssertPsbt({
+  challengeAssertTxHex: "...",      // From vault provider
+  assertTxHex: "...",               // Authoritative — every input must spend an Assert output
+  connectorParamsPerInput: [         // One per input (3 total)
+    { claimer: depositorPubkey, challenger: "def456...", claimerWotsKeysJson: "...", gcWotsKeysJson: "..." },
+    { claimer: depositorPubkey, challenger: "def456...", claimerWotsKeysJson: "...", gcWotsKeysJson: "..." },
+    { claimer: depositorPubkey, challenger: "def456...", claimerWotsKeysJson: "...", gcWotsKeysJson: "..." },
+  ],
+});
+const signedCA = await wallet.signPsbt(caPsbtHex);
+// Extract 3 signatures (one per input)
+const caSig0 = extractPayoutSignature(signedCA, depositorPubkey, 0);
+const caSig1 = extractPayoutSignature(signedCA, depositorPubkey, 1);
+const caSig2 = extractPayoutSignature(signedCA, depositorPubkey, 2);
+```
+
+All of these builders use `extractPayoutSignature()` for signature extraction (same Schnorr extraction mechanism). The `extractPayoutSignature` function accepts an optional `inputIndex` parameter (defaults to 0) for extracting signatures from specific inputs.
+
+---
+
+## Utilities
+
+The SDK provides utility functions you'll need when using primitives.
+
+### Transaction Utilities
+
+```typescript
+import {
+  selectUtxosForPegin, // UTXO selection with fee calculation
+  peginOutputCount, // Compute output count for fee estimation
+  calculateBtcTxHash, // Get tx hash from hex
+  fundPeginTransaction, // Add inputs/change to unfunded tx hex
+  P2TR_INPUT_SIZE, // Fee calculation constants
+  BTC_DUST_SAT,
+} from "@babylonlabs-io/ts-sdk/tbv/core";
+```
+
+#### UTXO Selection
+
+```typescript
+const { selectedUTXOs, fee, changeAmount } = selectUtxosForPegin(
+  availableUTXOs, // Your UTXOs
+  amount, // Target amount (satoshis)
+  feeRate, // sat/vB
+  peginOutputCount(vaultCount), // N HTLCs + CPFP anchor
+);
+```
+
+#### Calculate Transaction Hash
+
+```typescript
+const txHash = calculateBtcTxHash(txHex); // Returns "0x..." format
+```
+
+### Data Conversion Helpers
+
+```typescript
+import {
+  toXOnly, // Convert 33-byte to 32-byte pubkey
+  stripHexPrefix, // Remove "0x" prefix
+  hexToUint8Array, // Convert hex string to bytes
+  uint8ArrayToHex, // Convert bytes to hex string
+  validateWalletPubkey, // Validate pubkey format
+} from "@babylonlabs-io/ts-sdk/tbv/core/primitives";
+```
+
+---
+
+## Comparison: Primitives vs Managers
+
+| Aspect                  | Primitives               | Managers                        |
+| ----------------------- | ------------------------ | ------------------------------- |
+| **PSBT Building**       | You use primitives       | Uses primitives internally      |
+| **Wallet Integration**  | You implement            | Built-in (accepts interface)    |
+| **UTXO Selection**      | You call utility         | Built-in                        |
+| **Fee Calculation**     | You call utility         | Built-in                        |
+| **PoP Generation**      | You implement            | Built-in                        |
+| **Ethereum Submission** | You implement            | Built-in                        |
+| **Broadcasting**        | You implement            | Built-in                        |
+| **Use Case**            | Custom backends, KMS/HSM | Browser apps, quick integration |
+
+---
+
+## Next Steps
+
+- **[Managers](./managers.md)** - High-level orchestration (easier)
+- **[Aave Integration](../integrations/aave/README.md)** - Use BTC vaults as collateral
+- **[API Reference](../api/primitives.md)** - Complete function signatures

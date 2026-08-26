@@ -1,0 +1,65 @@
+{
+ "description": "ledger_bitcoin.common.write_varint \u2014 Bitcoin varints, little-endian payloads",
+ "vectors": [
+  {
+   "value": 0,
+   "hex": "00"
+  },
+  {
+   "value": 1,
+   "hex": "01"
+  },
+  {
+   "value": 16,
+   "hex": "10"
+  },
+  {
+   "value": 252,
+   "hex": "fc"
+  },
+  {
+   "value": 253,
+   "hex": "fdfd00"
+  },
+  {
+   "value": 254,
+   "hex": "fdfe00"
+  },
+  {
+   "value": 255,
+   "hex": "fdff00"
+  },
+  {
+   "value": 256,
+   "hex": "fd0001"
+  },
+  {
+   "value": 65535,
+   "hex": "fdffff"
+  },
+  {
+   "value": 65536,
+   "hex": "fe00000100"
+  },
+  {
+   "value": 305419896,
+   "hex": "fe78563412"
+  },
+  {
+   "value": 4294967295,
+   "hex": "feffffffff"
+  },
+  {
+   "value": 4294967296,
+   "hex": "ff0000000001000000"
+  },
+  {
+   "value": 72623859790382856,
+   "hex": "ff0807060504030201"
+  },
+  {
+   "value": 18446744073709551615,
+   "hex": "ffffffffffffffffff"
+  }
+ ]
+}

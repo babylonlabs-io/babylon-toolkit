@@ -1,0 +1,187 @@
+/**
+ * Protocol Params Context
+ *
+ * Provides protocol parameters from the ProtocolParams contract to all child components.
+ * Also provides system-wide data like the latest universal challengers.
+ * Fetches params once when the app loads and caches for 5 minutes.
+ *
+ * This is a BLOCKING provider - children are not rendered until params are loaded.
+ * This ensures all deposit-related components have valid minDeposit values.
+ */
+
+import { Loader } from "@babylonlabs-io/core-ui";
+import type {
+  PegInConfiguration,
+  VersionedOffchainParams,
+} from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+import { useQuery } from "@tanstack/react-query";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useMemo,
+  type ReactNode,
+} from "react";
+
+import { getProtocolParamsReader } from "@/clients/eth-contract/sdk-readers";
+import { offchainParamsQueryOptions } from "@/hooks/useOffchainParams";
+import { fetchAllUniversalChallengers } from "@/services/providers";
+import type { UniversalChallenger } from "@/types";
+
+const PROTOCOL_PARAMS_QUERY_KEY = "protocolParams";
+const STALE_TIME_MS = 5 * 60 * 1000;
+const RETRY_COUNT = 3;
+
+/**
+ * React Query options for the peg-in configuration multicall. Single source of
+ * truth for the key, shared by this blocking provider and the non-blocking
+ * `usePeginPollingProtocolParams`, so both resolve from one fetch.
+ */
+export function pegInConfigQueryOptions() {
+  return {
+    queryKey: [PROTOCOL_PARAMS_QUERY_KEY, "pegInConfig"] as const,
+    queryFn: async (): Promise<PegInConfiguration> => {
+      const reader = await getProtocolParamsReader();
+      return reader.getPegInConfiguration();
+    },
+    staleTime: STALE_TIME_MS,
+    refetchOnWindowFocus: false,
+    retry: RETRY_COUNT,
+  };
+}
+
+interface ProtocolParamsContextValue {
+  /** Peg-in configuration from contract */
+  config: PegInConfiguration;
+  /** Minimum deposit amount in satoshis (from contract) */
+  minDeposit: bigint;
+  /** Maximum deposit amount in satoshis (from contract) */
+  maxDeposit: bigint;
+  /** CSV timelock in blocks for the PegIn vault output (from offchain params) */
+  timelockPegin: number;
+  /** CSV timelock in blocks for the Pre-PegIn HTLC refund path (from offchain params tRefund) */
+  timelockRefund: number;
+  /** Minimum vault provider commission in basis points (e.g., 500 = 5%) */
+  minVpCommissionBps: number;
+  /** Latest universal challengers - use for new peg-ins */
+  latestUniversalChallengers: UniversalChallenger[];
+  /** Get offchain params by version - use for depositor graph signing */
+  getOffchainParamsByVersion: (
+    version: number,
+  ) => VersionedOffchainParams | undefined;
+}
+
+const ProtocolParamsContext = createContext<ProtocolParamsContextValue | null>(
+  null,
+);
+
+interface ProtocolParamsProviderProps {
+  children: ReactNode;
+}
+
+/**
+ * Provider that fetches protocol params on mount and provides them to children.
+ * Wrap this around routes that need deposit validation (min amounts).
+ *
+ * Children are not rendered until params are loaded, ensuring all child
+ * components have access to valid values (no undefined minDeposit).
+ */
+export function ProtocolParamsProvider({
+  children,
+}: ProtocolParamsProviderProps) {
+  const {
+    data: configData,
+    isLoading: configLoading,
+    error: configError,
+  } = useQuery(pegInConfigQueryOptions());
+
+  const {
+    data: ucData,
+    isLoading: ucLoading,
+    error: ucError,
+  } = useQuery({
+    queryKey: [PROTOCOL_PARAMS_QUERY_KEY, "universalChallengers"],
+    queryFn: fetchAllUniversalChallengers,
+    staleTime: STALE_TIME_MS,
+    refetchOnWindowFocus: false,
+    retry: RETRY_COUNT,
+  });
+
+  // Shares the query (and cache) with the non-blocking useOffchainParams hook.
+  const {
+    data: offchainParamsData,
+    isLoading: offchainLoading,
+    error: offchainError,
+  } = useQuery(offchainParamsQueryOptions());
+
+  const latestUniversalChallengers = useMemo(() => {
+    if (!ucData) return [];
+    return ucData.byVersion.get(ucData.latestVersion) ?? [];
+  }, [ucData]);
+
+  const getOffchainParamsByVersion = useCallback(
+    (version: number): VersionedOffchainParams | undefined => {
+      if (!offchainParamsData) return undefined;
+      return offchainParamsData.byVersion.get(version);
+    },
+    [offchainParamsData],
+  );
+
+  const allLoading = configLoading || ucLoading || offchainLoading;
+  const allError = configError || ucError || offchainError;
+
+  if (allLoading) {
+    return (
+      <div className="flex min-h-[400px] items-center justify-center">
+        <Loader size={32} />
+      </div>
+    );
+  }
+
+  if (allError || !configData || configData.minimumPegInAmount === undefined) {
+    return (
+      <div className="flex min-h-[400px] flex-col items-center justify-center gap-4">
+        <p className="text-error">Failed to load protocol parameters</p>
+        <p className="text-secondary text-sm">
+          {allError instanceof Error
+            ? allError.message
+            : "Please refresh the page"}
+        </p>
+      </div>
+    );
+  }
+
+  const value: ProtocolParamsContextValue = {
+    config: configData,
+    minDeposit: configData.minimumPegInAmount,
+    maxDeposit: configData.maxPegInAmount,
+    timelockPegin: configData.timelockPegin,
+    timelockRefund: configData.timelockRefund,
+    minVpCommissionBps: configData.minVpCommissionBps,
+    latestUniversalChallengers,
+    getOffchainParamsByVersion,
+  };
+
+  return (
+    <ProtocolParamsContext.Provider value={value}>
+      {children}
+    </ProtocolParamsContext.Provider>
+  );
+}
+
+/**
+ * Hook to access protocol params from context.
+ * Must be used within a ProtocolParamsProvider.
+ *
+ * Returns guaranteed values (not undefined) since the provider
+ * blocks rendering until params are loaded.
+ */
+export function useProtocolParamsContext(): ProtocolParamsContextValue {
+  const ctx = useContext(ProtocolParamsContext);
+  if (!ctx) {
+    throw new Error(
+      "useProtocolParamsContext must be used within a ProtocolParamsProvider",
+    );
+  }
+  return ctx;
+}

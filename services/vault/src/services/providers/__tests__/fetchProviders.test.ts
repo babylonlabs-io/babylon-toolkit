@@ -1,0 +1,515 @@
+import { describe, expect, it, vi } from "vitest";
+
+import { graphqlClient } from "../../../clients/graphql";
+import { fetchAppProviders, getLatestVersionKeepers } from "../fetchProviders";
+
+vi.mock("../../../clients/graphql", () => ({
+  graphqlClient: {
+    request: vi.fn(),
+  },
+}));
+
+const mockLoggerEvent = vi.hoisted(() => vi.fn());
+vi.mock("@/infrastructure", () => ({
+  logger: { warn: vi.fn(), event: mockLoggerEvent },
+}));
+
+const mockRequest = vi.mocked(graphqlClient.request);
+
+// Valid test addresses and keys
+const VALID_ETH_ADDR_1 = "0x" + "a".repeat(40);
+const VALID_ETH_ADDR_2 = "0x" + "b".repeat(40);
+const VALID_ETH_ADDR_3 = "0x" + "c".repeat(40);
+const VALID_BTC_PUBKEY_1 = "0x" + "d".repeat(66);
+const VALID_BTC_PUBKEY_2 = "0x" + "e".repeat(66);
+const VALID_BTC_PUBKEY_3 = "0x" + "f".repeat(66);
+
+describe("fetchProviders", () => {
+  describe("fetchAppProviders", () => {
+    it("emits onboarding.providers.empty when the indexer knows providers but every row is dropped", async () => {
+      mockLoggerEvent.mockClear();
+      mockRequest.mockResolvedValueOnce({
+        vaultProviders: {
+          items: [
+            // Dropped by the null-rpcUrl filter.
+            {
+              id: VALID_ETH_ADDR_1,
+              btcPubKey: VALID_BTC_PUBKEY_1,
+              name: "a",
+              rpcUrl: null,
+              metadataStatus: null,
+              metadataRejectionReason: null,
+            },
+            // Dropped by validation (malformed id).
+            {
+              id: "not-an-address",
+              btcPubKey: VALID_BTC_PUBKEY_2,
+              name: "b",
+              rpcUrl: "https://vp.example",
+              metadataStatus: null,
+              metadataRejectionReason: null,
+            },
+          ],
+        },
+        vaultKeeperApplications: { items: [] },
+      });
+
+      const result = await fetchAppProviders(VALID_ETH_ADDR_3);
+
+      expect(result.vaultProviders).toEqual([]);
+      expect(mockLoggerEvent).toHaveBeenCalledTimes(1);
+      const [name, ctx] = mockLoggerEvent.mock.calls[0];
+      expect(name).toBe("onboarding.providers.empty");
+      expect(ctx.tags.reason).toBe("all_rows_invalid");
+      expect(ctx.total).toBe(2);
+      expect(ctx.applicationId).toBe("0xcc...cccc");
+    });
+
+    it("does not re-emit onboarding.providers.empty on repeated fetches for the same application", async () => {
+      mockLoggerEvent.mockClear();
+      // Fresh address: the once-per-application gate is module-scoped and
+      // survives across tests in this file.
+      const appAddress = "0x" + "1".repeat(40);
+      const allInvalidResponse = {
+        vaultProviders: {
+          items: [
+            {
+              id: VALID_ETH_ADDR_1,
+              btcPubKey: VALID_BTC_PUBKEY_1,
+              name: "a",
+              rpcUrl: null,
+              metadataStatus: null,
+              metadataRejectionReason: null,
+            },
+          ],
+        },
+        vaultKeeperApplications: { items: [] },
+      };
+      mockRequest.mockResolvedValueOnce(allInvalidResponse);
+      mockRequest.mockResolvedValueOnce(allInvalidResponse);
+
+      await fetchAppProviders(appAddress);
+      await fetchAppProviders(appAddress);
+
+      expect(mockLoggerEvent).toHaveBeenCalledTimes(1);
+    });
+
+    it("treats checksummed and lowercase forms of one application as the same for the emit gate", async () => {
+      mockLoggerEvent.mockClear();
+      const appAddress = "0x" + "Ab".repeat(20);
+      const allInvalidResponse = {
+        vaultProviders: {
+          items: [
+            {
+              id: VALID_ETH_ADDR_1,
+              btcPubKey: VALID_BTC_PUBKEY_1,
+              name: "a",
+              rpcUrl: null,
+              metadataStatus: null,
+              metadataRejectionReason: null,
+            },
+          ],
+        },
+        vaultKeeperApplications: { items: [] },
+      };
+      mockRequest.mockResolvedValueOnce(allInvalidResponse);
+      mockRequest.mockResolvedValueOnce(allInvalidResponse);
+
+      await fetchAppProviders(appAddress);
+      await fetchAppProviders(appAddress.toLowerCase());
+
+      expect(mockLoggerEvent).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not emit onboarding.providers.empty when a provider survives filtering", async () => {
+      mockLoggerEvent.mockClear();
+      mockRequest.mockResolvedValueOnce({
+        vaultProviders: {
+          items: [
+            {
+              id: VALID_ETH_ADDR_1,
+              btcPubKey: VALID_BTC_PUBKEY_1,
+              name: "a",
+              rpcUrl: "https://vp.example",
+              metadataStatus: null,
+              metadataRejectionReason: null,
+            },
+            {
+              id: VALID_ETH_ADDR_2,
+              btcPubKey: VALID_BTC_PUBKEY_2,
+              name: "b",
+              rpcUrl: null,
+              metadataStatus: null,
+              metadataRejectionReason: null,
+            },
+          ],
+        },
+        vaultKeeperApplications: { items: [] },
+      });
+
+      const result = await fetchAppProviders(VALID_ETH_ADDR_3);
+
+      expect(result.vaultProviders).toHaveLength(1);
+      expect(mockLoggerEvent).not.toHaveBeenCalled();
+    });
+
+    it("should return raw keeper items and pre-computed latest keepers", async () => {
+      mockRequest.mockResolvedValueOnce({
+        vaultProviders: { items: [] },
+        vaultKeeperApplications: {
+          items: [
+            {
+              vaultKeeper: VALID_ETH_ADDR_1,
+              version: 1,
+              vaultKeeperInfo: { btcPubKey: VALID_BTC_PUBKEY_1 },
+            },
+            {
+              vaultKeeper: VALID_ETH_ADDR_1,
+              version: 3,
+              vaultKeeperInfo: { btcPubKey: VALID_BTC_PUBKEY_1 },
+            },
+            {
+              vaultKeeper: VALID_ETH_ADDR_2,
+              version: 2,
+              vaultKeeperInfo: { btcPubKey: VALID_BTC_PUBKEY_2 },
+            },
+          ],
+        },
+      });
+
+      const result = await fetchAppProviders("0xAppController");
+
+      expect(result.vaultKeeperItems).toEqual([
+        { id: VALID_ETH_ADDR_1, btcPubKey: VALID_BTC_PUBKEY_1, version: 1 },
+        { id: VALID_ETH_ADDR_1, btcPubKey: VALID_BTC_PUBKEY_1, version: 3 },
+        { id: VALID_ETH_ADDR_2, btcPubKey: VALID_BTC_PUBKEY_2, version: 2 },
+      ]);
+
+      // Pre-computed latest version keepers (version 3 only)
+      expect(result.vaultKeepers).toEqual([
+        { id: VALID_ETH_ADDR_1, btcPubKey: VALID_BTC_PUBKEY_1 },
+      ]);
+    });
+
+    it("should return empty keeper items when no keeper items exist", async () => {
+      mockRequest.mockResolvedValueOnce({
+        vaultProviders: { items: [] },
+        vaultKeeperApplications: { items: [] },
+      });
+
+      const result = await fetchAppProviders("0xAppController");
+
+      expect(result.vaultKeeperItems).toEqual([]);
+      expect(result.vaultKeepers).toEqual([]);
+    });
+
+    it("should only return providers with rpcUrl", async () => {
+      mockRequest.mockResolvedValueOnce({
+        vaultProviders: {
+          items: [
+            {
+              id: VALID_ETH_ADDR_1,
+              btcPubKey: VALID_BTC_PUBKEY_1,
+              name: "provider-1",
+              rpcUrl: "https://rpc.example.com",
+            },
+            {
+              id: VALID_ETH_ADDR_2,
+              btcPubKey: VALID_BTC_PUBKEY_2,
+              name: "provider-2",
+              rpcUrl: null,
+            },
+            {
+              id: VALID_ETH_ADDR_3,
+              btcPubKey: VALID_BTC_PUBKEY_3,
+              name: null,
+              rpcUrl: "https://rpc3.example.com",
+            },
+          ],
+        },
+        vaultKeeperApplications: { items: [] },
+      });
+
+      const result = await fetchAppProviders("0xAppController");
+
+      expect(result.vaultProviders).toEqual([
+        {
+          id: VALID_ETH_ADDR_1,
+          btcPubKey: VALID_BTC_PUBKEY_1,
+          name: "provider-1",
+          url: "https://rpc.example.com",
+          metadataStatus: "ok",
+        },
+        {
+          id: VALID_ETH_ADDR_3,
+          btcPubKey: VALID_BTC_PUBKEY_3,
+          name: undefined,
+          url: "https://rpc3.example.com",
+          metadataStatus: "ok",
+        },
+      ]);
+    });
+
+    it("should lowercase the application controller address", async () => {
+      mockRequest.mockResolvedValueOnce({
+        vaultProviders: { items: [] },
+        vaultKeeperApplications: { items: [] },
+      });
+
+      await fetchAppProviders("0xABCDEF");
+
+      expect(mockRequest).toHaveBeenCalledWith(expect.anything(), {
+        appController: "0xabcdef",
+      });
+    });
+
+    it("should filter out providers with invalid id", async () => {
+      mockRequest.mockResolvedValueOnce({
+        vaultProviders: {
+          items: [
+            {
+              id: "not-an-address",
+              btcPubKey: VALID_BTC_PUBKEY_1,
+              name: "bad-provider",
+              rpcUrl: "https://rpc.example.com",
+            },
+            {
+              id: VALID_ETH_ADDR_1,
+              btcPubKey: VALID_BTC_PUBKEY_1,
+              name: "good-provider",
+              rpcUrl: "https://rpc.example.com",
+            },
+          ],
+        },
+        vaultKeeperApplications: { items: [] },
+      });
+
+      const result = await fetchAppProviders("0xAppController");
+
+      expect(result.vaultProviders).toEqual([
+        {
+          id: VALID_ETH_ADDR_1,
+          btcPubKey: VALID_BTC_PUBKEY_1,
+          name: "good-provider",
+          url: "https://rpc.example.com",
+          metadataStatus: "ok",
+        },
+      ]);
+    });
+
+    it("should filter out providers with invalid btcPubKey", async () => {
+      mockRequest.mockResolvedValueOnce({
+        vaultProviders: {
+          items: [
+            {
+              id: VALID_ETH_ADDR_1,
+              btcPubKey: "0xinvalid",
+              name: "bad-pubkey-provider",
+              rpcUrl: "https://rpc.example.com",
+            },
+            {
+              id: VALID_ETH_ADDR_2,
+              btcPubKey: VALID_BTC_PUBKEY_2,
+              name: "good-provider",
+              rpcUrl: "https://rpc.example.com",
+            },
+          ],
+        },
+        vaultKeeperApplications: { items: [] },
+      });
+
+      const result = await fetchAppProviders("0xAppController");
+
+      expect(result.vaultProviders).toEqual([
+        {
+          id: VALID_ETH_ADDR_2,
+          btcPubKey: VALID_BTC_PUBKEY_2,
+          name: "good-provider",
+          url: "https://rpc.example.com",
+          metadataStatus: "ok",
+        },
+      ]);
+    });
+
+    it("preserves metadataStatus and metadataRejectionReason from indexer", async () => {
+      mockRequest.mockResolvedValueOnce({
+        vaultProviders: {
+          items: [
+            {
+              id: VALID_ETH_ADDR_1,
+              btcPubKey: VALID_BTC_PUBKEY_1,
+              name: "ok-provider",
+              rpcUrl: "https://rpc.example.com",
+              metadataStatus: "ok",
+              metadataRejectionReason: null,
+            },
+            {
+              id: VALID_ETH_ADDR_2,
+              btcPubKey: VALID_BTC_PUBKEY_2,
+              name: "private-host-provider",
+              rpcUrl: "http://10.0.0.1",
+              metadataStatus: "private_host",
+              metadataRejectionReason:
+                "host is a private/loopback/link-local IP: 10.0.0.1",
+            },
+          ],
+        },
+        vaultKeeperApplications: { items: [] },
+      });
+
+      const result = await fetchAppProviders("0xAppController");
+
+      expect(result.vaultProviders).toEqual([
+        {
+          id: VALID_ETH_ADDR_1,
+          btcPubKey: VALID_BTC_PUBKEY_1,
+          name: "ok-provider",
+          url: "https://rpc.example.com",
+          metadataStatus: "ok",
+        },
+        {
+          id: VALID_ETH_ADDR_2,
+          btcPubKey: VALID_BTC_PUBKEY_2,
+          name: "private-host-provider",
+          url: "http://10.0.0.1",
+          metadataStatus: "private_host",
+          metadataRejectionReason:
+            "host is a private/loopback/link-local IP: 10.0.0.1",
+        },
+      ]);
+    });
+
+    it("falls back to metadataStatus 'ok' on null/unknown indexer values", async () => {
+      mockRequest.mockResolvedValueOnce({
+        vaultProviders: {
+          items: [
+            {
+              id: VALID_ETH_ADDR_1,
+              btcPubKey: VALID_BTC_PUBKEY_1,
+              name: "legacy-provider",
+              rpcUrl: "https://rpc.example.com",
+              metadataStatus: null,
+              metadataRejectionReason: null,
+            },
+            {
+              id: VALID_ETH_ADDR_2,
+              btcPubKey: VALID_BTC_PUBKEY_2,
+              name: "future-provider",
+              rpcUrl: "https://rpc.example.com",
+              metadataStatus: "some_future_status",
+              metadataRejectionReason: null,
+            },
+          ],
+        },
+        vaultKeeperApplications: { items: [] },
+      });
+
+      const result = await fetchAppProviders("0xAppController");
+
+      expect(result.vaultProviders.map((p) => p.metadataStatus)).toEqual([
+        "ok",
+        "ok",
+      ]);
+    });
+
+    it("should filter out keeper items with invalid vaultKeeper id", async () => {
+      mockRequest.mockResolvedValueOnce({
+        vaultProviders: { items: [] },
+        vaultKeeperApplications: {
+          items: [
+            {
+              vaultKeeper: "bad-address",
+              version: 1,
+              vaultKeeperInfo: { btcPubKey: VALID_BTC_PUBKEY_1 },
+            },
+            {
+              vaultKeeper: VALID_ETH_ADDR_1,
+              version: 1,
+              vaultKeeperInfo: { btcPubKey: VALID_BTC_PUBKEY_1 },
+            },
+          ],
+        },
+      });
+
+      const result = await fetchAppProviders("0xAppController");
+
+      expect(result.vaultKeeperItems).toEqual([
+        { id: VALID_ETH_ADDR_1, btcPubKey: VALID_BTC_PUBKEY_1, version: 1 },
+      ]);
+    });
+
+    it("should filter out keeper items with invalid btcPubKey", async () => {
+      mockRequest.mockResolvedValueOnce({
+        vaultProviders: { items: [] },
+        vaultKeeperApplications: {
+          items: [
+            {
+              vaultKeeper: VALID_ETH_ADDR_1,
+              version: 1,
+              vaultKeeperInfo: { btcPubKey: "0xshort" },
+            },
+            {
+              vaultKeeper: VALID_ETH_ADDR_2,
+              version: 1,
+              vaultKeeperInfo: { btcPubKey: VALID_BTC_PUBKEY_2 },
+            },
+          ],
+        },
+      });
+
+      const result = await fetchAppProviders("0xAppController");
+
+      expect(result.vaultKeeperItems).toEqual([
+        { id: VALID_ETH_ADDR_2, btcPubKey: VALID_BTC_PUBKEY_2, version: 1 },
+      ]);
+    });
+  });
+
+  describe("getLatestVersionKeepers", () => {
+    it("should filter to latest version only", () => {
+      const items = [
+        { id: "0xkeeper1", btcPubKey: "0xpubkey1", version: 1 },
+        { id: "0xkeeper1", btcPubKey: "0xpubkey1", version: 3 },
+        { id: "0xkeeper2", btcPubKey: "0xpubkey2", version: 2 },
+        { id: "0xkeeper3", btcPubKey: "0xpubkey3", version: 1 },
+        { id: "0xkeeper3", btcPubKey: "0xpubkey3", version: 3 },
+      ];
+
+      const result = getLatestVersionKeepers(items);
+
+      expect(result).toEqual([
+        { id: "0xkeeper1", btcPubKey: "0xpubkey1" },
+        { id: "0xkeeper3", btcPubKey: "0xpubkey3" },
+      ]);
+    });
+
+    it("should deduplicate keepers within the same version", () => {
+      const items = [
+        { id: "0xkeeper1", btcPubKey: "0xpubkey1", version: 2 },
+        { id: "0xkeeper1", btcPubKey: "0xpubkey1", version: 2 },
+      ];
+
+      const result = getLatestVersionKeepers(items);
+
+      expect(result).toEqual([{ id: "0xkeeper1", btcPubKey: "0xpubkey1" }]);
+    });
+
+    it("should return empty array for empty input", () => {
+      expect(getLatestVersionKeepers([])).toEqual([]);
+    });
+
+    it("should return all keepers when only one version exists", () => {
+      const items = [
+        { id: "0xkeeper1", btcPubKey: "0xpubkey1", version: 1 },
+        { id: "0xkeeper2", btcPubKey: "0xpubkey2", version: 1 },
+      ];
+
+      const result = getLatestVersionKeepers(items);
+
+      expect(result).toEqual([
+        { id: "0xkeeper1", btcPubKey: "0xpubkey1" },
+        { id: "0xkeeper2", btcPubKey: "0xpubkey2" },
+      ]);
+    });
+  });
+});

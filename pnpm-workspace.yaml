@@ -1,0 +1,19 @@
+packages:
+  - packages/*
+  - tools/*
+  - services/*
+
+ignoredBuiltDependencies:
+  - '@sentry/cli'
+
+onlyBuiltDependencies:
+  - '@bufbuild/buf'
+  - '@swc/core'
+  - core-js
+  - esbuild
+  - msw
+  - nx
+  - protobufjs
+  - secp256k1
+  - sharp
+  - unrs-resolver

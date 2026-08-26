@@ -1,0 +1,86 @@
+/**
+ * Shared full-screen modal shell for the v3 flows.
+ *
+ * Every v3 overlay (deposit, borrow/repay, reorder, withdraw, and their
+ * success screens) renders through this so they share one header: a close
+ * button on the left and the network chip + settings menu on the right, both
+ * aligned to the same content column the page uses. The card itself is
+ * centered and capped at `contentClassName`.
+ */
+
+import {
+  FullScreenDialog,
+  StandardSettingsMenu,
+} from "@babylonlabs-io/core-ui";
+import { useTheme } from "next-themes";
+import type { ReactNode } from "react";
+import { IoClose } from "react-icons/io5";
+import { twJoin } from "tailwind-merge";
+
+import { NetworkBadge } from "@/components/shared/NetworkBadge";
+import { MODAL_TOP_BAR_GUTTER_CLASS } from "@/components/shared/layoutClasses";
+import { COPY } from "@/copy";
+
+interface V3ModalShellProps {
+  open: boolean;
+  /** Omit to lock dismissal (e.g. while a tx is in flight). */
+  onClose?: () => void;
+  disableEscapeClose?: boolean;
+  /** Max-width (and any extra layout) for the centered card. */
+  contentClassName?: string;
+  children: ReactNode;
+}
+
+export function V3ModalShell({
+  open,
+  onClose,
+  disableEscapeClose,
+  contentClassName,
+  children,
+}: V3ModalShellProps) {
+  const { theme, setTheme } = useTheme();
+
+  return (
+    <FullScreenDialog
+      open={open}
+      onClose={onClose}
+      disableEscapeClose={disableEscapeClose}
+      // The shell renders its own header, so hide FullScreenDialog's fixed
+      // built-in close/back button (onClose is still wired for backdrop +
+      // Escape dismissal).
+      closeButtonClassName="!hidden"
+    >
+      {/* Header row: close on the left, network + settings on the right, on
+          the design's 120px inset so every modal's chrome lands in the same
+          place. As a stretched flex child the row fills the dialog minus that
+          gutter on its own — it needs no width class, which
+          MODAL_TOP_BAR_GUTTER_CLASS explains is just as well. */}
+      <div
+        className={`flex items-center justify-between py-4 ${MODAL_TOP_BAR_GUTTER_CLASS}`}
+      >
+        {onClose ? (
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label={COPY.common.close}
+            className="flex size-10 items-center justify-center text-accent-primary"
+          >
+            <IoClose size={24} />
+          </button>
+        ) : (
+          <span className="size-10" />
+        )}
+        <div className="flex items-center gap-4">
+          <NetworkBadge />
+          <StandardSettingsMenu theme={theme} setTheme={setTheme} />
+        </div>
+      </div>
+
+      <div className="flex flex-1 items-center justify-center px-6 pb-6">
+        <div className={twJoin("mx-auto w-full", contentClassName)}>
+          {children}
+        </div>
+      </div>
+    </FullScreenDialog>
+  );
+}

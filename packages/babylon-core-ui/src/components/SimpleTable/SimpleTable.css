@@ -1,0 +1,38 @@
+/* SimpleTable styles */
+
+/* SubSection spacing for the table container */
+.bbn-simple-table-section {
+  @apply p-6 pt-4;
+}
+
+/* Root container */
+.bbn-simple-table {
+  @apply flex flex-col w-full text-sm;
+}
+
+/* Header row */
+.bbn-simple-table-header {
+  @apply grid items-center gap-4 pb-4 text-accent-secondary;
+}
+
+/* Header cell content */
+.bbn-simple-table-header-cell {
+  @apply px-2.5;
+}
+
+/* Scrollable body wrapper */
+.bbn-simple-table-body {
+  @apply max-h-[calc(100vh-20rem)] overflow-y-auto;
+}
+
+/* Data row */
+.bbn-simple-table-row {
+  @apply grid items-center gap-4 rounded py-1;
+}
+
+/* Data cell */
+.bbn-simple-table-cell {
+  @apply flex w-full items-center gap-2 py-1 px-2.5;
+}
+
+

@@ -1,0 +1,60 @@
+# Default owners
+* @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
+
+# -----------------------------------------------------------------------------
+# CRITICAL PATHS (see CLAUDE.md > "CRITICAL PATHS — HUMAN REVIEW REQUIRED")
+# These entries designate owners for the files/directories that handle
+# irreversible value movement. CODEOWNERS alone does NOT enforce a minimum
+# approval count - it only assigns owners and (when "Require review from
+# Code Owners" is enabled in branch protection) requires at least one
+# code-owner approval. To enforce two approvals specifically on these paths,
+# configure a GitHub ruleset scoped to these path globs with
+# `required_approving_review_count: 2`. Do not weaken ownership here without
+# review.
+# -----------------------------------------------------------------------------
+
+# 1. WASM boundary (value computation)
+/packages/babylon-tbv-rust-wasm/src/index.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
+/packages/babylon-tbv-rust-wasm/src/index-node.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
+/packages/babylon-tbv-rust-wasm/scripts/build-wasm.js @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
+
+# 2. Fee calculation consistency
+/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
+/packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
+/services/vault/src/hooks/deposit/useEstimatedBtcFee.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
+
+# 3. Presigning payout transactions
+/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
+/packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
+/services/vault/src/hooks/deposit/depositFlowSteps/payoutSigning.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
+
+# 4. Vault-secret derivation (frozen on-chain-binding API)
+/packages/babylon-ts-sdk/src/tbv/core/vault-secrets/ @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
+/packages/babylon-ts-sdk/src/tbv/core/wots/blockDerivation.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
+/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
+
+# 5. HTLC secret & vault activation
+/services/vault/src/services/vault/vaultActivationService.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
+
+# 6. Multi-vault split transactions
+/packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
+
+# 7. Ledger vault signer package
+/packages/babylon-ledger-vault-signer/src/ @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
+/packages/babylon-ledger-vault-signer/scripts/ @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
+
+# 8. Non-standard wallet signing options
+/packages/babylon-ts-sdk/src/tbv/core/utils/signing.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
+
+# 9. Dependency-free reimplementations of Bitcoin primitives
+# Registered ahead of the code arriving with the optional-BTC work (#2228),
+# except onChainBtcPubkey.ts, which already exists and is guarded from now.
+/packages/babylon-ts-sdk/src/tbv/core/clients/eth/onChainBtcPubkey.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
+/packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-transaction.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
+/packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-registration-client.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
+/packages/babylon-ts-sdk/src/tbv/core/wasm/ @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
+/packages/babylon-tbv-rust-wasm/src/wasm-loader.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
+/packages/babylon-tbv-rust-wasm/src/wasm-loader-node.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
+/packages/babylon-tbv-rust-wasm/src/raw.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
+/packages/babylon-tbv-rust-wasm/src/raw-node.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
+/services/vault/src/utils/btc/scriptPubKeyAddress.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov

@@ -1,0 +1,16 @@
+.bbn-subsection {
+  @apply flex w-full flex-col rounded-lg p-6 text-accent-primary;
+}
+
+.bbn-subsection-contained {
+  @apply bg-secondary-highlight;
+}
+
+:root.dark .bbn-subsection-contained,
+:root[data-mode="dark"] .bbn-subsection-contained {
+  @apply bg-primary-main;
+}
+
+.bbn-subsection-outlined {
+  @apply border border-current;
+}

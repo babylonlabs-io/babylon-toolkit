@@ -1,0 +1,665 @@
+/**
+ * Tests for Bitcoin utility functions
+ */
+
+import { describe, expect, it } from "vitest";
+import {
+  deriveBip86ScriptPubKeyHex,
+  deriveNativeSegwitAddress,
+  deriveTaprootAddress,
+  ensureHexPrefix,
+  formatSatoshisToBtc,
+  getSortedXOnlyPubkeys,
+  hexToUint8Array,
+  isAddressFromPublicKey,
+  isValidHex,
+  processPublicKeyToXOnly,
+  stripHexPrefix,
+  toXOnly,
+  uint8ArrayToHex,
+  validateWalletPubkey,
+} from "../bitcoin";
+
+describe("Bitcoin Utilities", () => {
+  describe("stripHexPrefix", () => {
+    it("should remove 0x prefix", () => {
+      expect(stripHexPrefix("0xabc123")).toBe("abc123");
+      expect(stripHexPrefix("0xABC123")).toBe("ABC123");
+      expect(stripHexPrefix("0x0")).toBe("0");
+    });
+
+    it("should not modify string without prefix", () => {
+      expect(stripHexPrefix("abc123")).toBe("abc123");
+      expect(stripHexPrefix("ABC123")).toBe("ABC123");
+      expect(stripHexPrefix("0abc")).toBe("0abc");
+    });
+
+    it("should handle empty string", () => {
+      expect(stripHexPrefix("")).toBe("");
+    });
+
+    it("should handle edge cases", () => {
+      expect(stripHexPrefix("0x")).toBe("");
+      expect(stripHexPrefix("0X")).toBe("");
+    });
+  });
+
+  describe("ensureHexPrefix", () => {
+    it("should leave a lowercase 0x prefix untouched", () => {
+      expect(ensureHexPrefix("0xabc123")).toBe("0xabc123");
+    });
+
+    it("should normalize an uppercase 0X prefix to 0x", () => {
+      expect(ensureHexPrefix("0Xabc123")).toBe("0xabc123");
+    });
+
+    it("should add a 0x prefix when missing", () => {
+      expect(ensureHexPrefix("abc123")).toBe("0xabc123");
+    });
+  });
+
+  describe("toXOnly", () => {
+    it("should return 32-byte array unchanged", () => {
+      const bytes32 = new Uint8Array(32).fill(0xaa);
+      const result = toXOnly(bytes32);
+      expect(result).toEqual(bytes32);
+      expect(result.length).toBe(32);
+    });
+
+    it("should extract x-only from 33-byte array", () => {
+      const bytes33 = new Uint8Array(33).fill(0xbb);
+      bytes33[0] = 0x02; // compressed pubkey prefix
+      const result = toXOnly(bytes33);
+      expect(result.length).toBe(32);
+      expect(result[0]).toBe(0xbb); // First byte should be 0xbb, not 0x02
+    });
+
+    it("should handle specific test vectors", () => {
+      // 33-byte compressed pubkey starting with 0x02
+      const compressed = hexToUint8Array("02" + "a".repeat(64));
+      expect(compressed.length).toBe(33);
+
+      const xOnly = toXOnly(compressed);
+      expect(xOnly.length).toBe(32);
+      expect(uint8ArrayToHex(xOnly)).toBe("a".repeat(64));
+    });
+
+    it("should preserve x-only key unchanged", () => {
+      const xOnlyHex =
+        "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798";
+      const xOnly = hexToUint8Array(xOnlyHex);
+      expect(xOnly.length).toBe(32);
+
+      const result = toXOnly(xOnly);
+      expect(uint8ArrayToHex(result)).toBe(xOnlyHex);
+    });
+  });
+
+  describe("processPublicKeyToXOnly", () => {
+    it("should return x-only pubkey unchanged", () => {
+      const xOnly = "a".repeat(64); // 32 bytes = 64 hex chars
+      expect(processPublicKeyToXOnly(xOnly)).toBe(xOnly);
+    });
+
+    it("should convert compressed pubkey to x-only", () => {
+      const compressed = "02" + "a".repeat(64); // 33 bytes = 66 hex chars
+      const result = processPublicKeyToXOnly(compressed);
+      expect(result).toBe("a".repeat(64));
+      expect(result.length).toBe(64);
+    });
+
+    it("should convert uncompressed pubkey to x-only", () => {
+      const uncompressed = "04" + "a".repeat(64) + "b".repeat(64); // 65 bytes = 130 hex chars
+      const result = processPublicKeyToXOnly(uncompressed);
+      expect(result).toBe("a".repeat(64));
+      expect(result.length).toBe(64);
+    });
+
+    it("should handle 0x prefix on x-only key", () => {
+      const xOnly = "0x" + "a".repeat(64);
+      const result = processPublicKeyToXOnly(xOnly);
+      expect(result).toBe("a".repeat(64));
+    });
+
+    it("should handle 0x prefix on compressed key", () => {
+      const compressed = "0x02" + "a".repeat(64);
+      const result = processPublicKeyToXOnly(compressed);
+      expect(result).toBe("a".repeat(64));
+    });
+
+    it("should handle 0x prefix on uncompressed key", () => {
+      const uncompressed = "0x04" + "a".repeat(64) + "b".repeat(64);
+      const result = processPublicKeyToXOnly(uncompressed);
+      expect(result).toBe("a".repeat(64));
+    });
+
+    it("should throw on invalid length", () => {
+      // Use valid hex chars but wrong length
+      expect(() => processPublicKeyToXOnly("aa")).toThrow(
+        "Invalid public key length: 2",
+      );
+      expect(() => processPublicKeyToXOnly("0xaaaa")).toThrow(
+        "Invalid public key length: 4",
+      );
+      expect(() => processPublicKeyToXOnly("a".repeat(60))).toThrow(
+        "Invalid public key length: 60",
+      );
+      expect(() => processPublicKeyToXOnly("a".repeat(70))).toThrow(
+        "Invalid public key length: 70",
+      );
+    });
+
+    it("should handle real test vectors", () => {
+      // Test with actual secp256k1 public keys from test helpers
+      const depositorKey =
+        "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798";
+      const claimerKey =
+        "c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5";
+
+      expect(processPublicKeyToXOnly(depositorKey)).toBe(depositorKey);
+      expect(processPublicKeyToXOnly("0x" + depositorKey)).toBe(depositorKey);
+
+      expect(processPublicKeyToXOnly(claimerKey)).toBe(claimerKey);
+      expect(processPublicKeyToXOnly("0x" + claimerKey)).toBe(claimerKey);
+    });
+
+    it("should handle compressed keys with different prefixes", () => {
+      const key = "a".repeat(64);
+
+      // 0x02 prefix (even y-coordinate)
+      expect(processPublicKeyToXOnly("02" + key)).toBe(key);
+
+      // 0x03 prefix (odd y-coordinate)
+      expect(processPublicKeyToXOnly("03" + key)).toBe(key);
+    });
+
+    it("should throw on invalid hex characters in x-only key", () => {
+      // Invalid characters in 64-char (x-only) key
+      expect(() => processPublicKeyToXOnly("xyz123" + "a".repeat(58))).toThrow(
+        "Invalid hex characters in public key",
+      );
+      expect(() => processPublicKeyToXOnly("gg" + "a".repeat(62))).toThrow(
+        "Invalid hex characters in public key",
+      );
+      expect(() => processPublicKeyToXOnly("z".repeat(64))).toThrow(
+        "Invalid hex characters in public key",
+      );
+    });
+
+    it("should throw on invalid hex characters in compressed key", () => {
+      // Invalid characters in 66-char (compressed) key
+      expect(() => processPublicKeyToXOnly("02" + "x".repeat(64))).toThrow(
+        "Invalid hex characters in public key",
+      );
+      expect(() => processPublicKeyToXOnly("02xyz" + "a".repeat(60))).toThrow(
+        "Invalid hex characters in public key",
+      );
+    });
+
+    it("should throw on invalid hex characters in uncompressed key", () => {
+      // Invalid characters in 130-char (uncompressed) key
+      expect(() =>
+        processPublicKeyToXOnly("04" + "x".repeat(64) + "a".repeat(64)),
+      ).toThrow("Invalid hex characters in public key");
+      expect(() =>
+        processPublicKeyToXOnly("04" + "a".repeat(64) + "z".repeat(64)),
+      ).toThrow("Invalid hex characters in public key");
+    });
+
+    it("should throw on invalid hex characters with 0x prefix", () => {
+      // Invalid characters with 0x prefix
+      expect(() => processPublicKeyToXOnly("0xggg" + "a".repeat(61))).toThrow(
+        "Invalid hex characters in public key",
+      );
+      expect(() =>
+        processPublicKeyToXOnly("0x02" + "xyz" + "a".repeat(61)),
+      ).toThrow("Invalid hex characters in public key");
+    });
+  });
+
+  describe("isValidHex", () => {
+    it("should validate hex strings", () => {
+      expect(isValidHex("abc123")).toBe(true);
+      expect(isValidHex("ABC123")).toBe(true);
+      expect(isValidHex("0123456789abcdefABCDEF")).toBe(true);
+    });
+
+    it("should validate hex with 0x prefix", () => {
+      expect(isValidHex("0xabc123")).toBe(true);
+      expect(isValidHex("0xABC123")).toBe(true);
+    });
+
+    it("should reject invalid characters", () => {
+      expect(isValidHex("xyz")).toBe(false);
+      expect(isValidHex("abcg")).toBe(false);
+      expect(isValidHex("abc xyz")).toBe(false);
+      expect(isValidHex("abc-123")).toBe(false);
+    });
+
+    it("should reject odd length", () => {
+      expect(isValidHex("abc")).toBe(false);
+      expect(isValidHex("a")).toBe(false);
+      expect(isValidHex("0xabc")).toBe(false);
+    });
+
+    it("should handle empty string", () => {
+      expect(isValidHex("")).toBe(true);
+      expect(isValidHex("0x")).toBe(true);
+    });
+
+    it("should validate various lengths", () => {
+      expect(isValidHex("ab")).toBe(true);
+      expect(isValidHex("abcd")).toBe(true);
+      expect(isValidHex("a".repeat(64))).toBe(true);
+      expect(isValidHex("a".repeat(128))).toBe(true);
+    });
+  });
+
+  describe("hexToUint8Array", () => {
+    it("should convert hex string to Uint8Array", () => {
+      const result = hexToUint8Array("abc123");
+      expect(result instanceof Uint8Array).toBe(true);
+      expect(uint8ArrayToHex(result)).toBe("abc123");
+    });
+
+    it("should handle 0x prefix", () => {
+      const result = hexToUint8Array("0xabc123");
+      expect(uint8ArrayToHex(result)).toBe("abc123");
+    });
+
+    it("should handle uppercase hex", () => {
+      const result = hexToUint8Array("ABC123");
+      expect(uint8ArrayToHex(result)).toBe("abc123");
+    });
+
+    it("should handle empty string", () => {
+      const result = hexToUint8Array("");
+      expect(result.length).toBe(0);
+    });
+
+    it("should throw on invalid hex", () => {
+      expect(() => hexToUint8Array("xyz")).toThrow("Invalid hex string");
+      expect(() => hexToUint8Array("abc")).toThrow("Invalid hex string");
+      expect(() => hexToUint8Array("0xabc")).toThrow("Invalid hex string");
+    });
+
+    it("should convert specific values correctly", () => {
+      expect(uint8ArrayToHex(hexToUint8Array("00"))).toBe("00");
+      expect(uint8ArrayToHex(hexToUint8Array("ff"))).toBe("ff");
+      expect(uint8ArrayToHex(hexToUint8Array("0000"))).toBe("0000");
+      expect(uint8ArrayToHex(hexToUint8Array("ffff"))).toBe("ffff");
+    });
+  });
+
+  describe("uint8ArrayToHex", () => {
+    it("should convert Uint8Array to hex string", () => {
+      const bytes = new Uint8Array([0xab, 0xc1, 0x23]);
+      expect(uint8ArrayToHex(bytes)).toBe("abc123");
+    });
+
+    it("should not add 0x prefix", () => {
+      const bytes = new Uint8Array([0xab, 0xc1, 0x23]);
+      const result = uint8ArrayToHex(bytes);
+      expect(result.startsWith("0x")).toBe(false);
+    });
+
+    it("should handle empty array", () => {
+      const bytes = new Uint8Array(0);
+      expect(uint8ArrayToHex(bytes)).toBe("");
+    });
+
+    it("should handle specific values", () => {
+      expect(uint8ArrayToHex(new Uint8Array([0x00]))).toBe("00");
+      expect(uint8ArrayToHex(new Uint8Array([0xff]))).toBe("ff");
+      expect(uint8ArrayToHex(new Uint8Array([0x00, 0xff]))).toBe("00ff");
+    });
+
+    it("should produce lowercase hex", () => {
+      const bytes = new Uint8Array([0xab, 0xcd, 0xef]);
+      const result = uint8ArrayToHex(bytes);
+      expect(result).toBe("abcdef");
+      expect(result).not.toBe("ABCDEF");
+    });
+  });
+
+  describe("Integration: Round-trip conversions", () => {
+    it("should round-trip hex <-> Uint8Array", () => {
+      const original = "abc123def456";
+      const bytes = hexToUint8Array(original);
+      const result = uint8ArrayToHex(bytes);
+      expect(result).toBe(original);
+    });
+
+    it("should round-trip with 0x prefix", () => {
+      const original = "0xabc123def456";
+      const bytes = hexToUint8Array(original);
+      const result = uint8ArrayToHex(bytes);
+      expect(result).toBe("abc123def456"); // prefix removed
+    });
+
+    it("should handle public key conversion workflow", () => {
+      // Compressed pubkey with 0x prefix (from frontend)
+      const compressedWithPrefix = "0x02" + "a".repeat(64);
+
+      // Strip prefix and convert to x-only
+      const xOnly = processPublicKeyToXOnly(compressedWithPrefix);
+      expect(xOnly.length).toBe(64);
+
+      // Convert to Uint8Array for crypto operations
+      const bytes = hexToUint8Array(xOnly);
+      expect(bytes.length).toBe(32);
+
+      // Convert back to hex
+      const hex = uint8ArrayToHex(bytes);
+      expect(hex).toBe("a".repeat(64));
+    });
+  });
+
+  describe("Edge cases", () => {
+    it("should handle all zero values", () => {
+      const zeroHex = "00".repeat(32);
+      const bytes = hexToUint8Array(zeroHex);
+      expect(bytes.length).toBe(32);
+      expect(uint8ArrayToHex(bytes)).toBe(zeroHex);
+    });
+
+    it("should handle all ff values", () => {
+      const ffHex = "ff".repeat(32);
+      const bytes = hexToUint8Array(ffHex);
+      expect(bytes.length).toBe(32);
+      expect(uint8ArrayToHex(bytes)).toBe(ffHex);
+    });
+
+    it("should handle mixed case hex", () => {
+      const mixed = "aBcDeF123456";
+      const bytes = hexToUint8Array(mixed);
+      expect(uint8ArrayToHex(bytes)).toBe("abcdef123456");
+    });
+
+    it("should preserve leading zeros", () => {
+      const withLeadingZeros = "000abc";
+      const bytes = hexToUint8Array(withLeadingZeros);
+      expect(uint8ArrayToHex(bytes)).toBe("000abc");
+      expect(bytes[0]).toBe(0x00);
+    });
+  });
+
+  describe("validateWalletPubkey", () => {
+    const xOnlyPubkey = "a".repeat(64); // 32 bytes x-only
+    const compressedPubkey = "02" + "a".repeat(64); // 33 bytes compressed
+
+    describe("when expected depositor pubkey is provided", () => {
+      it("should pass when wallet pubkey matches expected (both x-only)", () => {
+        const result = validateWalletPubkey(xOnlyPubkey, xOnlyPubkey);
+
+        expect(result.walletPubkeyRaw).toBe(xOnlyPubkey);
+        expect(result.walletPubkeyXOnly).toBe(xOnlyPubkey);
+        expect(result.depositorPubkey).toBe(xOnlyPubkey);
+      });
+
+      it("should pass when compressed wallet pubkey matches x-only expected", () => {
+        const result = validateWalletPubkey(compressedPubkey, xOnlyPubkey);
+
+        expect(result.walletPubkeyRaw).toBe(compressedPubkey);
+        expect(result.walletPubkeyXOnly).toBe(xOnlyPubkey);
+        expect(result.depositorPubkey).toBe(xOnlyPubkey);
+      });
+
+      it("should be case-insensitive", () => {
+        const lowerCase = "abcdef" + "0".repeat(58);
+        const upperCase = "ABCDEF" + "0".repeat(58);
+
+        const result = validateWalletPubkey(lowerCase, upperCase);
+
+        expect(result.depositorPubkey).toBe(upperCase);
+      });
+
+      it("should throw when wallet pubkey does not match expected", () => {
+        const differentPubkey = "b".repeat(64);
+
+        expect(() => validateWalletPubkey(xOnlyPubkey, differentPubkey)).toThrow(
+          /Wallet public key does not match vault depositor/,
+        );
+      });
+
+      it("should throw with helpful error message", () => {
+        const walletPubkey = "a".repeat(64);
+        const expectedPubkey = "b".repeat(64);
+
+        expect(() => validateWalletPubkey(walletPubkey, expectedPubkey)).toThrow(
+          /Please connect the wallet that was used to create this vault/,
+        );
+      });
+    });
+
+    describe("when expected depositor pubkey is missing", () => {
+      // The check would otherwise become a self-comparison (wallet vs wallet),
+      // which silently allows the wrong wallet to sign for a different vault.
+      it("should throw when expectedDepositorPubkey is omitted", () => {
+        expect(() =>
+          (validateWalletPubkey as (a: string) => unknown)(xOnlyPubkey),
+        ).toThrow(/requires expectedDepositorPubkey/);
+      });
+
+      it("should throw when expectedDepositorPubkey is undefined", () => {
+        expect(() =>
+          (
+            validateWalletPubkey as (a: string, b: string | undefined) => unknown
+          )(compressedPubkey, undefined),
+        ).toThrow(/requires expectedDepositorPubkey/);
+      });
+
+      it("should throw when expectedDepositorPubkey is empty string", () => {
+        expect(() => validateWalletPubkey(compressedPubkey, "")).toThrow(
+          /requires expectedDepositorPubkey/,
+        );
+      });
+    });
+
+    describe("edge cases", () => {
+      it("should handle 0x prefixed wallet pubkey", () => {
+        const prefixedPubkey = "0x02" + "a".repeat(64);
+
+        const result = validateWalletPubkey(prefixedPubkey, xOnlyPubkey);
+
+        expect(result.walletPubkeyRaw).toBe(prefixedPubkey);
+        expect(result.walletPubkeyXOnly).toBe(xOnlyPubkey);
+      });
+
+      it("should throw on invalid wallet pubkey format", () => {
+        expect(() => validateWalletPubkey("invalid", xOnlyPubkey)).toThrow();
+      });
+
+      it("should handle real-world pubkey formats", () => {
+        // Simulating UniSat returning compressed pubkey
+        const unisatCompressed =
+          "02" +
+          "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798";
+        const expectedXOnly =
+          "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798";
+
+        const result = validateWalletPubkey(unisatCompressed, expectedXOnly);
+
+        expect(result.walletPubkeyRaw).toBe(unisatCompressed);
+        expect(result.walletPubkeyXOnly).toBe(expectedXOnly);
+        expect(result.depositorPubkey).toBe(expectedXOnly);
+      });
+    });
+  });
+
+  describe("isAddressFromPublicKey", () => {
+    // Using the secp256k1 generator point's x-coordinate (G.x); any valid
+    // 32-byte x-only key would do — the test only depends on derivation
+    // parity, not the value.
+    const xOnly =
+      "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798";
+    const evenParity = `02${xOnly}`;
+    const oddParity = `03${xOnly}`;
+
+    it("matches a P2TR address derived from the same x-only key", () => {
+      const addr = deriveTaprootAddress(xOnly, "signet");
+      expect(isAddressFromPublicKey(addr, xOnly, "signet")).toBe(true);
+    });
+
+    it("matches a P2WPKH address derived from an even-parity compressed key", () => {
+      const addr = deriveNativeSegwitAddress(evenParity, "signet");
+      expect(isAddressFromPublicKey(addr, evenParity, "signet")).toBe(true);
+    });
+
+    it("matches a P2WPKH address derived from an odd-parity compressed key", () => {
+      const addr = deriveNativeSegwitAddress(oddParity, "signet");
+      expect(isAddressFromPublicKey(addr, oddParity, "signet")).toBe(true);
+    });
+
+    it("rejects an opposite-parity P2WPKH address for an even-parity key", () => {
+      const wrongAddr = deriveNativeSegwitAddress(oddParity, "signet");
+      expect(isAddressFromPublicKey(wrongAddr, evenParity, "signet")).toBe(
+        false,
+      );
+    });
+
+    it("rejects an opposite-parity P2WPKH address for an odd-parity key", () => {
+      const wrongAddr = deriveNativeSegwitAddress(evenParity, "signet");
+      expect(isAddressFromPublicKey(wrongAddr, oddParity, "signet")).toBe(
+        false,
+      );
+    });
+
+    it("fails closed when an x-only key is paired with a P2WPKH address", () => {
+      // y-parity is unknowable from x-only; accepting any P2WPKH derived from
+      // 02|x or 03|x would let an attacker bind a script the wallet does not
+      // actually control. Both parities must be rejected.
+      const evenAddr = deriveNativeSegwitAddress(evenParity, "signet");
+      const oddAddr = deriveNativeSegwitAddress(oddParity, "signet");
+      expect(isAddressFromPublicKey(evenAddr, xOnly, "signet")).toBe(false);
+      expect(isAddressFromPublicKey(oddAddr, xOnly, "signet")).toBe(false);
+    });
+
+    it("rejects an unrelated address", () => {
+      const otherXOnly =
+        "0000000000000000000000000000000000000000000000000000000000000001";
+      const unrelated = deriveTaprootAddress(otherXOnly, "signet");
+      expect(isAddressFromPublicKey(unrelated, xOnly, "signet")).toBe(false);
+    });
+  });
+
+  describe("formatSatoshisToBtc", () => {
+    it("should format whole BTC amounts", () => {
+      expect(formatSatoshisToBtc(100_000_000n)).toBe("1");
+      expect(formatSatoshisToBtc(2_100_000_000_000_000n)).toBe("21000000");
+    });
+
+    it("should format fractional amounts and strip trailing zeros", () => {
+      expect(formatSatoshisToBtc(50_000_000n)).toBe("0.5");
+      expect(formatSatoshisToBtc(10_000n)).toBe("0.0001");
+      expect(formatSatoshisToBtc(1n)).toBe("0.00000001");
+    });
+
+    it("should format zero", () => {
+      expect(formatSatoshisToBtc(0n)).toBe("0");
+    });
+
+    it("should handle negative values", () => {
+      expect(formatSatoshisToBtc(-50_000_000n)).toBe("-0.5");
+      expect(formatSatoshisToBtc(-100_000_000n)).toBe("-1");
+    });
+  });
+
+  describe("getSortedXOnlyPubkeys", () => {
+    it("should strip 0x prefix from each pubkey", () => {
+      const result = getSortedXOnlyPubkeys([
+        "0x" + "a".repeat(64),
+        "0x" + "b".repeat(64),
+      ]);
+      expect(result).toEqual(["a".repeat(64), "b".repeat(64)]);
+    });
+
+    it("should sort lexicographically", () => {
+      const result = getSortedXOnlyPubkeys([
+        "c".repeat(64),
+        "a".repeat(64),
+        "b".repeat(64),
+      ]);
+      expect(result).toEqual(["a".repeat(64), "b".repeat(64), "c".repeat(64)]);
+    });
+
+    it("should produce stable order on already-clean already-sorted keys", () => {
+      const sorted = ["a".repeat(64), "b".repeat(64), "c".repeat(64)];
+      expect(getSortedXOnlyPubkeys(sorted)).toEqual(sorted);
+    });
+
+    it("should normalize mixed prefixed and unprefixed inputs before sorting", () => {
+      const result = getSortedXOnlyPubkeys([
+        "0x" + "c".repeat(64),
+        "a".repeat(64),
+        "0x" + "b".repeat(64),
+      ]);
+      expect(result).toEqual(["a".repeat(64), "b".repeat(64), "c".repeat(64)]);
+    });
+
+    it("should return empty array for empty input", () => {
+      expect(getSortedXOnlyPubkeys([])).toEqual([]);
+    });
+  });
+
+  describe("deriveBip86ScriptPubKeyHex", () => {
+    // BIP-86 test vector (first receive address, account 0):
+    // https://github.com/bitcoin/bips/blob/master/bip-0086.mediawiki#test-vectors
+    const bip86InternalKey =
+      "cc8a4bc64d897bddc5fbc2f670f7a8ba0b386779106cf1223c6fc5d7cd6fc115";
+    const bip86ScriptPubKey =
+      "0x5120a60869f0dbcf1dc659c9cecbaf8050135ea9e8cdc487053f1dc6880949dc684c";
+
+    it("should derive the BIP-86 P2TR scriptPubKey from a known x-only pubkey", () => {
+      expect(deriveBip86ScriptPubKeyHex(bip86InternalKey)).toBe(
+        bip86ScriptPubKey,
+      );
+    });
+
+    it("should accept a 0x-prefixed x-only pubkey", () => {
+      expect(deriveBip86ScriptPubKeyHex(`0x${bip86InternalKey}`)).toBe(
+        bip86ScriptPubKey,
+      );
+    });
+
+    it("should be case-insensitive on input hex", () => {
+      expect(deriveBip86ScriptPubKeyHex(bip86InternalKey.toUpperCase())).toBe(
+        bip86ScriptPubKey,
+      );
+    });
+
+    it("should return a 0x-prefixed 34-byte (OP_1 OP_PUSH32 + 32-byte key) script", () => {
+      const result = deriveBip86ScriptPubKeyHex(bip86InternalKey);
+      // 0x + 2 bytes (5120) + 32 bytes (64 hex) = 68 hex chars + "0x" prefix
+      expect(result).toHaveLength(2 + 4 + 64);
+      expect(result.startsWith("0x5120")).toBe(true);
+    });
+
+    it("should reject pubkey with wrong length", () => {
+      expect(() => deriveBip86ScriptPubKeyHex("a".repeat(63))).toThrow(
+        /must be 64 hex characters/,
+      );
+      expect(() => deriveBip86ScriptPubKeyHex("a".repeat(65))).toThrow(
+        /must be 64 hex characters/,
+      );
+      expect(() => deriveBip86ScriptPubKeyHex("a".repeat(66))).toThrow(
+        /must be 64 hex characters/,
+      );
+    });
+
+    it("should reject pubkey with non-hex characters", () => {
+      expect(() => deriveBip86ScriptPubKeyHex("z".repeat(64))).toThrow(
+        /must be 64 hex characters/,
+      );
+      expect(() =>
+        deriveBip86ScriptPubKeyHex("xyz" + "a".repeat(61)),
+      ).toThrow(/must be 64 hex characters/);
+    });
+
+    it("should reject empty string", () => {
+      expect(() => deriveBip86ScriptPubKeyHex("")).toThrow(
+        /must be 64 hex characters/,
+      );
+    });
+  });
+});

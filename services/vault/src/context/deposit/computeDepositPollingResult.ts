@@ -1,0 +1,358 @@
+/**
+ * Pure per-deposit compute: turns a `VaultActivity` + polling inputs
+ * into a `DepositPollingResult`. Provider owns React state; this owns
+ * the rules — so the decision tree is testable without a React render.
+ */
+
+import type { HtlcSpend } from "../../clients/btc/outspend";
+import {
+  ContractStatus,
+  getPeginState,
+  LocalStorageStatus,
+  type RefundMaturityState,
+} from "../../models/peginStateMachine";
+import type { PendingPeginRequest } from "../../storage/peginStorage";
+import type { VaultActivity } from "../../types/activity";
+import type { DepositPollingResult } from "../../types/peginPolling";
+import { isTerminalPollingError } from "../../utils/peginPolling";
+import { canonicalizeTxid } from "../../utils/txid";
+import { isVaultOwnedByWallet } from "../../utils/vaultWarnings";
+
+import { isWotsSubmissionWithinTtl } from "./optimisticDepositState";
+
+/** Optimistic override wins over persisted `pendingPegins` status. */
+function resolveLocalStatus(
+  depositId: string,
+  optimisticStatuses: ReadonlyMap<string, LocalStorageStatus>,
+  pendingPegins: PendingPeginRequest[],
+): LocalStorageStatus | undefined {
+  const pendingPegin = pendingPegins.find((p) => p.id === depositId);
+  const optimistic = optimisticStatuses.get(depositId);
+  return (optimistic ?? pendingPegin?.status) as LocalStorageStatus | undefined;
+}
+
+/**
+ * Anchors the REFUND_BROADCAST suppression TTL. Optimistic timestamp
+ * covers the gap before localStorage is read back.
+ */
+function resolveRefundBroadcastAt(
+  depositId: string,
+  optimisticRefundBroadcastAt: ReadonlyMap<string, number>,
+  pendingPegins: PendingPeginRequest[],
+): number | undefined {
+  return (
+    optimisticRefundBroadcastAt.get(depositId) ??
+    pendingPegins.find((p) => p.id === depositId)?.refundBroadcastAt
+  );
+}
+
+export interface DepositPollingInputs {
+  activity: VaultActivity;
+  pendingPegins: PendingPeginRequest[];
+  pendingDepositorSignatures: Set<string> | undefined;
+  errors: Map<string, Error> | undefined;
+  needsWotsKey: Set<string> | undefined;
+  pendingIngestion: Set<string> | undefined;
+  prePeginConfirmationsByTxid: Map<string, number>;
+  confirmedTxids: Set<string>;
+  matureRefundTxids: Set<string>;
+  /**
+   * Live HTLC spend status keyed by lowercased vault id, from the EXPIRED
+   * `outspend` poll. A spent HTLC means the refund already landed.
+   */
+  htlcRefundByDepositId: Map<string, HtlcSpend>;
+  /**
+   * Lowercased vault ids whose HTLC spend confirmed (cached; dropped from the
+   * live poll). OR'd with the live map so a confirmed refund stays settled
+   * after the txid leaves the poll set.
+   */
+  refundedHtlcVaultIds: Set<string>;
+  /**
+   * Per-vault min depth, pre-resolved from `offchainParamsVersion`.
+   * `undefined` while the protocol params are still loading (or failed) — the
+   * confirmation conclusion is then withheld rather than defaulted, so a
+   * deposit can never read as at-depth on an unknown threshold.
+   */
+  requiredDepth: number | undefined;
+  /**
+   * Protocol-param load failure. Surfaced on every deposit's `error` when no
+   * more specific per-deposit error exists, so a params outage suppresses
+   * actions on every deposit rather than being dropped.
+   *
+   * why this is suppression, not display: `error`'s readers are
+   * `getActionStatus`, which collapses to `noAction`, and the signing
+   * notifications, which mute — so this withholds every CTA and nudge rather
+   * than rendering a message. That is the intended posture. Depth
+   * and `tRefund` maturity gate Broadcast and Refund, and offering an action
+   * derived from params we could not read is worse than offering none. The
+   * user-facing surface for a params outage is `ProtocolParamsProvider`'s own
+   * error panel, which gates on a superset of these same query keys.
+   */
+  protocolParamsError: Error | null;
+  /** Per-vault `tRefund`; `undefined` collapses maturity to `unknown`. */
+  refundTimelock: number | undefined;
+  /**
+   * VERIFIED only: confirmed (Tier-2 chain read) past the on-chain activation
+   * deadline. Gates the Activate CTA. Defaults false (fail-safe) when not a
+   * suspect, the RPC failed, or the vault isn't on chain yet.
+   */
+  activationDeadlinePassed: boolean;
+  /**
+   * VERIFIED only: the chain CONFIRMS this vault is still unactivated, so the
+   * BTC-side stuck evidence can be trusted. Defaults false (fail-safe) when the
+   * read has not returned, failed, or the chain already reports the vault
+   * ACTIVE — the indexer-lag case, where the deposit is healthy and must render
+   * normally. See `useStuckVaultChainConfirm`.
+   */
+  stuckStateConfirmedOnChain: boolean;
+  /**
+   * Blocks left before the on-chain activation floor opens for THIS deposit.
+   * `undefined` = not gated, `null` = gated with an unknown remainder
+   * (fail-closed). Resolved by the caller, mirroring
+   * `activationDeadlinePassed`. See `useActivationFloorGate`.
+   */
+  activationFloorBlocksRemaining: number | null | undefined;
+  isLoading: boolean;
+  optimisticStatuses: ReadonlyMap<string, LocalStorageStatus>;
+  optimisticRefundBroadcastAt: ReadonlyMap<string, number>;
+  /**
+   * When each deposit's WOTS submission resolved in this page session. The VP
+   * poll keeps reporting `needsWotsKey` until the daemon advances, so without
+   * this the row would re-offer "Submit WOTS Key" — and a second click re-runs
+   * the whole derivation, including a fresh wallet popup, for a no-op
+   * submission. The suppression expires; see `isWotsSubmissionWithinTtl`.
+   */
+  wotsSubmittedAt: ReadonlyMap<string, number>;
+  btcPublicKey: string | undefined;
+  /**
+   * Override `Date.now()` for every suppression TTL this compute touches
+   * (testing only): the WOTS window here, and — forwarded into
+   * `getPeginState` — the refund-broadcast window inside it. One injected
+   * clock must drive both, or a single call would judge the two TTLs at
+   * different times. Keeps this module's "pure compute" promise honest —
+   * without it the decision tree reads the wall clock transitively and needs
+   * fake timers to pin.
+   */
+  now?: number;
+}
+
+export function computeDepositPollingResult(
+  inputs: DepositPollingInputs,
+): DepositPollingResult {
+  const {
+    activity,
+    pendingPegins,
+    pendingDepositorSignatures,
+    errors,
+    needsWotsKey,
+    pendingIngestion,
+    prePeginConfirmationsByTxid,
+    confirmedTxids,
+    matureRefundTxids,
+    htlcRefundByDepositId,
+    refundedHtlcVaultIds,
+    requiredDepth,
+    protocolParamsError,
+    refundTimelock,
+    activationDeadlinePassed,
+    stuckStateConfirmedOnChain,
+    activationFloorBlocksRemaining,
+    isLoading,
+    optimisticStatuses,
+    optimisticRefundBroadcastAt,
+    wotsSubmittedAt,
+    btcPublicKey,
+    now,
+  } = inputs;
+  const depositId = activity.id;
+  const depositIdKey = depositId.toLowerCase();
+  const contractStatus = (activity.contractStatus ?? 0) as ContractStatus;
+  const localStatus = resolveLocalStatus(
+    depositId,
+    optimisticStatuses,
+    pendingPegins,
+  );
+  const refundBroadcastAt = resolveRefundBroadcastAt(
+    depositId,
+    optimisticRefundBroadcastAt,
+    pendingPegins,
+  );
+
+  const depositError = errors?.get(depositId);
+  const vpTerminalError =
+    depositError && isTerminalPollingError(depositError)
+      ? depositError.message
+      : undefined;
+
+  const justSignedPayoutsThisSession =
+    optimisticStatuses.get(depositId) === LocalStorageStatus.PAYOUT_SIGNED;
+  const transactionsReady = justSignedPayoutsThisSession
+    ? false
+    : (pendingDepositorSignatures?.has(depositId) ?? false);
+
+  // Same shape as the payout suppression above: a step this session watched
+  // resolve outranks the poll snapshot that has not caught up yet — but only
+  // for as long as daemon lag is the plausible explanation. Past the TTL a VP
+  // still asking is taken at its word, so the action comes back.
+  const justSubmittedWotsThisSession = isWotsSubmissionWithinTtl(
+    wotsSubmittedAt.get(depositId),
+    now,
+  );
+  const stillNeedsWotsKey = justSubmittedWotsThisSession
+    ? false
+    : needsWotsKey?.has(depositId);
+
+  // Cache is OR'd with live count: on refresh, cached txids are
+  // filtered out of polling, so the live map is empty for them.
+  const prePeginCanonical = canonicalizeTxid(activity.prePeginTxHash);
+  const cachedAtDepth = prePeginCanonical
+    ? confirmedTxids.has(prePeginCanonical)
+    : false;
+  const confirmations = prePeginCanonical
+    ? prePeginConfirmationsByTxid.get(prePeginCanonical)
+    : undefined;
+  // An unknown `requiredDepth` can only withhold "confirmed", never assert it:
+  // comparing against a defaulted threshold would claim protocol depth the
+  // chain may not have reached.
+  //
+  // why `cachedAtDepth` short-circuits ahead of that guard, while the count
+  // below withholds on the same input: the two are not the same claim. A cache
+  // entry was only ever written while the threshold WAS known, and depth never
+  // rewinds — so the boolean stays sound without re-reading it. The number is
+  // not recoverable that way: reporting one would mean inventing the very
+  // threshold we are missing. Deliberate asymmetry, not an oversight.
+  const prePeginBroadcastConfirmed =
+    cachedAtDepth ||
+    (confirmations !== undefined &&
+      requiredDepth !== undefined &&
+      confirmations >= requiredDepth);
+  // Chain ground truth that the Pre-PegIn was broadcast at all: a present
+  // confirmation entry — or a cached at-depth observation — means the tx is on
+  // the network. Independent of localStorage, so every tab converges on the
+  // same status instead of re-offering "Broadcast" in a tab that lacks the
+  // local CONFIRMING marker. Self-heals: an evicted/dropped tx drops the entry.
+  const prePeginBroadcastSeen = cachedAtDepth || confirmations !== undefined;
+
+  const isOwnedByCurrentWallet = isVaultOwnedByWallet(
+    activity.depositorBtcPubkey,
+    btcPublicKey,
+  );
+
+  // EXPIRED maturity. Strict: `mature` only when CSV satisfied; missing
+  // inputs → `unknown` (never false-positive). Bypass for unowned (so
+  // action surfaces → ownership-mismatch tooltip takes over) and for
+  // cache-hit (polling drops mature txids, live map is empty on refresh).
+  const cachedMature = prePeginCanonical
+    ? matureRefundTxids.has(prePeginCanonical)
+    : false;
+  let refundMaturityState: RefundMaturityState | undefined;
+  let refundMaturesInBlocks: number | undefined;
+  if (contractStatus === ContractStatus.EXPIRED) {
+    if (!isOwnedByCurrentWallet || cachedMature) {
+      refundMaturityState = "mature";
+    } else if (confirmations !== undefined && refundTimelock !== undefined) {
+      if (confirmations >= refundTimelock) {
+        refundMaturityState = "mature";
+      } else {
+        refundMaturityState = "maturing";
+        refundMaturesInBlocks = refundTimelock - confirmations;
+      }
+    } else {
+      refundMaturityState = "unknown";
+    }
+  }
+
+  // Chain ground truth: has the HTLC output already been spent (refund landed)?
+  // Cached confirmed-refunds OR the live poll. A confirmed spend is terminal;
+  // a spent-but-unconfirmed one is a pending refund. Either way the refund is
+  // no longer available — re-broadcasting would hit Bitcoin's -27/-25.
+  const liveRefund = htlcRefundByDepositId.get(depositIdKey);
+  const refundConfirmed =
+    refundedHtlcVaultIds.has(depositIdKey) || liveRefund?.confirmed === true;
+  const refundPending = !refundConfirmed && liveRefund?.spent === true;
+  const refundSettlement: "confirmed" | "pending" | undefined = refundConfirmed
+    ? "confirmed"
+    : refundPending
+      ? "pending"
+      : undefined;
+
+  // FE-composite: SDK only checks "have unsigned hex?"; we also gate on
+  // CSV maturity so the button never shows for a deposit Bitcoin would reject,
+  // and on the HTLC not already being spent (settled refund).
+  const canRefund =
+    !!activity.unsignedPrePeginTx &&
+    refundMaturityState === "mature" &&
+    refundSettlement === undefined;
+
+  // Stuck-state signal (VERIFIED only): the HTLC outpoint was spent BY THE
+  // PEGIN TX — the VP swept the deposit while the vault has not activated,
+  // meaning the secret was revealed and the collateral moved without the
+  // depositor receiving anything. The spender must be proven, not inferred:
+  // a spent HTLC can equally be the depositor's own CSV refund (the ETH-side
+  // VERIFIED status says nothing about BTC-side timing), and offering the
+  // secret-revealing escape hatch against a refund would burn the secret for
+  // a vault whose funds already came back. A missing `spendingTxid` fails
+  // safe for the same reason: no hatch on ambiguous evidence.
+  // Live probe only: confirmed spends of VERIFIED vaults are deliberately
+  // never added to the refunded cache (see PeginPollingContext).
+  //
+  // `stuckStateConfirmedOnChain` is required, not merely corroborating. The
+  // `contractStatus` above is the INDEXER's, and a successful activation that
+  // the indexer has not yet picked up still reads VERIFIED — with BTC evidence
+  // indistinguishable from the stuck case, because the VP's sweep is what
+  // activation looks like on the BTC side. Trusting the indexer alone raised a
+  // false "Activation incomplete" (and a signing prompt) on any device that had
+  // not written the local reveal marker.
+  const peginTxCanonical = canonicalizeTxid(activity.peginTxHash);
+  const htlcSpentByPeginTx =
+    contractStatus === ContractStatus.VERIFIED &&
+    stuckStateConfirmedOnChain &&
+    liveRefund?.spent === true &&
+    peginTxCanonical !== undefined &&
+    canonicalizeTxid(liveRefund.spendingTxid) === peginTxCanonical;
+
+  const peginState = getPeginState(contractStatus, {
+    localStatus,
+    transactionsReady,
+    isInUse: activity.isInUse,
+    needsWotsKey: stillNeedsWotsKey,
+    pendingIngestion: pendingIngestion?.has(depositId),
+    prePeginBroadcastConfirmed,
+    prePeginBroadcastSeen,
+    expirationReason: activity.expirationReason,
+    expiredAt: activity.expiredAt,
+    activationDeadlinePassed,
+    htlcSpentByPeginTx,
+    activationFloorBlocksRemaining,
+    canRefund,
+    refundMaturityState,
+    refundMaturesInBlocks,
+    refundSettlement,
+    vpTerminalError,
+    refundBroadcastAt,
+    now,
+  });
+
+  // Coalesce cached at-depth observations into the live count: once a tx
+  // crossed `requiredDepth`, polling drops it from the live map (depth never
+  // rewinds), so on refresh `confirmations` is undefined even though the tx
+  // is past depth. Treat that as "at least requiredDepth" so consumers don't
+  // see a regression.
+  const reportedConfirmations =
+    confirmations ??
+    (cachedAtDepth && requiredDepth !== undefined ? requiredDepth : null);
+
+  return {
+    depositId,
+    loading: isLoading,
+    // A per-deposit VP error is more specific, so it wins; the params failure
+    // is the fallback so an outage suppresses actions on every deposit
+    // rather than being dropped (see the input doc above).
+    error: errors?.get(depositId) ?? protocolParamsError,
+    peginState,
+    isOwnedByCurrentWallet,
+    depositorBtcPubkey: activity.depositorBtcPubkey,
+    prePeginConfirmations: reportedConfirmations,
+    requiredPrePeginDepth: requiredDepth,
+  };
+}

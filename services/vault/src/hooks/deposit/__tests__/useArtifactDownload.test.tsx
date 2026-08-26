@@ -1,0 +1,867 @@
+import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
+import {
+  createAuthenticatedVpClient,
+  JsonRpcError,
+  VpResponseValidationError,
+  vpTokenRegistry,
+} from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+import { act, renderHook, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const featureFlagsMock = vi.hoisted(() => ({
+  // The artifact-download override is itself gated on this flag; the
+  // god-mode test flips it on to exercise the gated path.
+  isGodModePanelEnabled: false,
+}));
+vi.mock("@/config/featureFlags", () => ({ default: featureFlagsMock }));
+
+vi.mock("@/services/artifacts", async () => {
+  // Re-export the real cancellation sentinel so the hook's
+  // `err instanceof ArtifactDownloadCancelledError` check matches the
+  // class instances test cases may throw from the mocked fetch.
+  const actual = await vi.importActual<typeof import("@/services/artifacts")>(
+    "@/services/artifacts",
+  );
+  return {
+    ...actual,
+    fetchAndDownloadArtifacts: vi.fn(),
+    openArtifactSaveTarget: vi.fn(),
+  };
+});
+
+vi.mock("@/utils/artifactDownloadStorage", () => ({
+  ARTIFACT_RECEIPT_VERSION: 1,
+  saveArtifactDownloadReceipt: vi.fn(),
+  hasArtifactsDownloaded: vi.fn(() => false),
+  normalizePeginTxid: (txid: string) => txid.toLowerCase(),
+}));
+
+const mockLoggerError = vi.hoisted(() => vi.fn());
+const mockLoggerEvent = vi.hoisted(() => vi.fn());
+vi.mock("@/infrastructure", () => ({
+  logger: {
+    error: mockLoggerError,
+    event: mockLoggerEvent,
+    warn: vi.fn(),
+    info: vi.fn(),
+  },
+}));
+
+vi.mock("@/hooks/deposit/depositFlowSteps/ensureAuthenticatedVpClient", () => ({
+  ensureAuthenticatedVpClient: vi.fn(),
+}));
+
+import { setArtifactDownloadOverride } from "@/overrides/artifactDownload";
+import {
+  ArtifactDownloadCancelledError,
+  type ArtifactDownloadOutcome,
+  ArtifactDownloadTooLargeError,
+  ArtifactFileAccessError,
+  type ArtifactSaveTarget,
+  fetchAndDownloadArtifacts,
+  openArtifactSaveTarget,
+} from "@/services/artifacts";
+import {
+  hasArtifactsDownloaded,
+  saveArtifactDownloadReceipt,
+} from "@/utils/artifactDownloadStorage";
+
+import { ensureAuthenticatedVpClient } from "../depositFlowSteps/ensureAuthenticatedVpClient";
+import { useArtifactDownload } from "../useArtifactDownload";
+
+const fetchMock = vi.mocked(fetchAndDownloadArtifacts);
+const openTargetMock = vi.mocked(openArtifactSaveTarget);
+const ensureAuthMock = vi.mocked(ensureAuthenticatedVpClient);
+const saveReceiptMock = vi.mocked(saveArtifactDownloadReceipt);
+const hasDownloadedMock = vi.mocked(hasArtifactsDownloaded);
+
+/** A completed streaming save, as the service reports one. */
+const OUTCOME: ArtifactDownloadOutcome = {
+  filename: "babylon-vault-artifacts-aaaaaaaa.json",
+  byteLength: 1_048_576,
+  sha256: "9".repeat(64),
+  method: "file-system-access",
+};
+
+const FALLBACK_OUTCOME: ArtifactDownloadOutcome = {
+  ...OUTCOME,
+  method: "browser-download",
+};
+
+const SAVE_TARGET = {
+  method: "file-system-access",
+  filename: OUTCOME.filename,
+  maxBytes: Number.POSITIVE_INFINITY,
+  open: vi.fn(),
+} as unknown as ArtifactSaveTarget;
+
+const PROVIDER_ADDRESS = "0x1234";
+const PEGIN_TXID =
+  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+const DEPOSITOR_PK =
+  "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+const VAULT_ID = "0xdeadbeef" as const;
+const UNSIGNED_PRE_PEGIN_TX_HEX = "0xdeadbeef";
+
+const fakeWallet = {} as BitcoinWallet;
+
+const primeContext = {
+  vaultId: VAULT_ID,
+  unsignedPrePeginTxHex: UNSIGNED_PRE_PEGIN_TX_HEX,
+  btcWallet: fakeWallet,
+};
+
+/** Seed the singleton registry so `peek()` returns a provider (hot cache). */
+function seedHotCache(): void {
+  createAuthenticatedVpClient({
+    baseUrl: "https://vp.test/rpc",
+    peginTxid: PEGIN_TXID,
+    authAnchorHex: "c".repeat(64),
+    pinnedServerPubkey: "ab".repeat(32) as unknown as Parameters<
+      typeof createAuthenticatedVpClient
+    >[0]["pinnedServerPubkey"],
+    depositorBtcPubkey: DEPOSITOR_PK,
+  });
+}
+
+describe("useArtifactDownload — prime then fetch", () => {
+  beforeEach(() => {
+    fetchMock.mockReset();
+    ensureAuthMock.mockReset();
+    featureFlagsMock.isGodModePanelEnabled = false;
+    setArtifactDownloadOverride(null);
+    saveReceiptMock.mockReset();
+    hasDownloadedMock.mockReturnValue(false);
+    openTargetMock.mockReset();
+    openTargetMock.mockResolvedValue(SAVE_TARGET);
+    (vpTokenRegistry as unknown as { clear?: () => void }).clear?.();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    featureFlagsMock.isGodModePanelEnabled = false;
+    setArtifactDownloadOverride(null);
+  });
+
+  it("primes the bearer upfront when the registry is cold, then fetches once", async () => {
+    ensureAuthMock.mockResolvedValueOnce(
+      undefined as unknown as Awaited<
+        ReturnType<typeof ensureAuthenticatedVpClient>
+      >,
+    );
+    fetchMock.mockResolvedValueOnce(OUTCOME);
+
+    const { result } = renderHook(() => useArtifactDownload({ primeContext }));
+
+    await act(async () => {
+      await result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK);
+    });
+
+    await waitFor(() => expect(result.current.downloaded).toBe(true));
+    expect(ensureAuthMock).toHaveBeenCalledTimes(1);
+    expect(ensureAuthMock).toHaveBeenCalledWith({
+      btcWallet: fakeWallet,
+      vaultId: VAULT_ID,
+      unsignedPrePeginTxHex: UNSIGNED_PRE_PEGIN_TX_HEX,
+      peginTxHash: PEGIN_TXID,
+      providerAddress: PROVIDER_ADDRESS,
+      depositorBtcPubkey: DEPOSITOR_PK,
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(result.current.error).toBeNull();
+  });
+
+  it("opens the save picker before prompting the wallet", async () => {
+    // showSaveFilePicker() needs transient user activation, which the wallet
+    // signature prompt would consume first. If a refactor ever reorders these
+    // two, the picker silently stops opening — nothing else catches it.
+    ensureAuthMock.mockResolvedValueOnce(
+      undefined as unknown as Awaited<
+        ReturnType<typeof ensureAuthenticatedVpClient>
+      >,
+    );
+    fetchMock.mockResolvedValueOnce(OUTCOME);
+
+    const { result } = renderHook(() => useArtifactDownload({ primeContext }));
+
+    await act(async () => {
+      await result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK);
+    });
+
+    expect(openTargetMock).toHaveBeenCalledWith(PEGIN_TXID);
+    expect(openTargetMock.mock.invocationCallOrder[0]).toBeLessThan(
+      ensureAuthMock.mock.invocationCallOrder[0],
+    );
+  });
+
+  it("writes a bound receipt once a validated bundle is saved", async () => {
+    seedHotCache();
+    fetchMock.mockResolvedValueOnce(OUTCOME);
+
+    const { result } = renderHook(() =>
+      useArtifactDownload({ vaultId: VAULT_ID, primeContext }),
+    );
+
+    await act(async () => {
+      await result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK);
+    });
+
+    expect(saveReceiptMock).toHaveBeenCalledTimes(1);
+    expect(saveReceiptMock).toHaveBeenCalledWith(VAULT_ID, {
+      version: 1,
+      peginTxid: PEGIN_TXID,
+      filename: OUTCOME.filename,
+      byteLength: OUTCOME.byteLength,
+      sha256: OUTCOME.sha256,
+      savedAt: expect.any(Number),
+      method: "file-system-access",
+    });
+  });
+
+  it("resets without an error when the user dismisses the save picker", async () => {
+    openTargetMock.mockRejectedValueOnce(new ArtifactDownloadCancelledError());
+
+    const { result } = renderHook(() =>
+      useArtifactDownload({ vaultId: VAULT_ID, primeContext }),
+    );
+
+    await act(async () => {
+      await result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK);
+    });
+
+    expect(result.current.error).toBeNull();
+    expect(result.current.loading).toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(saveReceiptMock).not.toHaveBeenCalled();
+  });
+
+  it("surfaces a refused save location without fetching", async () => {
+    openTargetMock.mockRejectedValueOnce(
+      new ArtifactFileAccessError("Could not write to the selected location."),
+    );
+
+    const { result } = renderHook(() =>
+      useArtifactDownload({ vaultId: VAULT_ID, primeContext }),
+    );
+
+    await act(async () => {
+      await result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK);
+    });
+
+    await waitFor(() => expect(result.current.error).not.toBeNull());
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(saveReceiptMock).not.toHaveBeenCalled();
+  });
+
+  it("surfaces a too-large body without retrying or writing a receipt", async () => {
+    seedHotCache();
+    fetchMock.mockRejectedValueOnce(
+      new ArtifactDownloadTooLargeError(2_000_000_000, 536_870_912),
+    );
+
+    const { result } = renderHook(() =>
+      useArtifactDownload({ vaultId: VAULT_ID, primeContext }),
+    );
+
+    await act(async () => {
+      await result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK);
+    });
+
+    await waitFor(() => expect(result.current.error).not.toBeNull());
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(saveReceiptMock).not.toHaveBeenCalled();
+  });
+
+  it("reports the anchor-download fallback as delivered, never downloaded", async () => {
+    // That path only proves a link was clicked — the browser reports nothing
+    // about whether the file reached disk, and it may have been blocked or
+    // the save dialog dismissed. `downloaded` is what the activation gate
+    // reads, so it must stay false; `delivered` carries the "we handed the
+    // browser a file but cannot confirm it" state the card renders.
+    seedHotCache();
+    fetchMock.mockResolvedValueOnce(FALLBACK_OUTCOME);
+
+    const { result } = renderHook(() =>
+      useArtifactDownload({ vaultId: VAULT_ID, primeContext }),
+    );
+
+    await act(async () => {
+      await result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK);
+    });
+
+    await waitFor(() => expect(result.current.delivered).toBe(true));
+    expect(result.current.downloaded).toBe(false);
+    expect(saveReceiptMock).not.toHaveBeenCalled();
+  });
+
+  it("runs a mocked (god-mode) download through a real save target but writes no receipt", async () => {
+    // The mock drives the real validator and file sink, so it opens a save
+    // target like any download. What it must never do is satisfy the risk-ack
+    // gate: the file it wrote is synthetic, so mocking a download on a real
+    // vault must not leave that vault looking recoverable, so it reports
+    // `delivered` (which drives the UI) and never `downloaded`.
+    featureFlagsMock.isGodModePanelEnabled = true;
+    const overrideFn = vi.fn().mockResolvedValueOnce(undefined);
+    setArtifactDownloadOverride(overrideFn);
+
+    const { result } = renderHook(() =>
+      useArtifactDownload({ vaultId: VAULT_ID }),
+    );
+
+    await act(async () => {
+      await result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK);
+    });
+
+    await waitFor(() => expect(result.current.delivered).toBe(true));
+    expect(result.current.downloaded).toBe(false);
+    expect(overrideFn).toHaveBeenCalledTimes(1);
+    expect(overrideFn).toHaveBeenCalledWith(
+      SAVE_TARGET,
+      { peginTxid: PEGIN_TXID, depositorPk: DEPOSITOR_PK },
+      expect.anything(),
+    );
+    expect(openTargetMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(saveReceiptMock).not.toHaveBeenCalled();
+  });
+
+  it("skips the upfront prime when the registry is already hot", async () => {
+    seedHotCache();
+    fetchMock.mockResolvedValueOnce(OUTCOME);
+
+    const { result } = renderHook(() => useArtifactDownload({ primeContext }));
+
+    await act(async () => {
+      await result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK);
+    });
+
+    await waitFor(() => expect(result.current.downloaded).toBe(true));
+    expect(ensureAuthMock).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("surfaces an error and never fetches when cold and no prime context is provided", async () => {
+    const { result } = renderHook(() =>
+      useArtifactDownload({ primeContext: null }),
+    );
+
+    await act(async () => {
+      await result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK);
+    });
+
+    await waitFor(() => expect(result.current.error).not.toBeNull());
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(ensureAuthMock).not.toHaveBeenCalled();
+    expect(result.current.downloaded).toBe(false);
+    expect(result.current.loading).toBe(false);
+  });
+
+  it("surfaces a clean error when the upfront prime throws", async () => {
+    ensureAuthMock.mockRejectedValueOnce(
+      new Error("Pre-PegIn transaction hash mismatch"),
+    );
+
+    const { result } = renderHook(() => useArtifactDownload({ primeContext }));
+
+    await act(async () => {
+      await result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK);
+    });
+
+    await waitFor(() =>
+      expect(result.current.error).toBe("Pre-PegIn transaction hash mismatch"),
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(ensureAuthMock).toHaveBeenCalledTimes(1);
+    expect(result.current.loading).toBe(false);
+    expect(result.current.downloaded).toBe(false);
+  });
+
+  it("does not fetch if the user cancels during the upfront prime", async () => {
+    let resolveEnsure: () => void = () => {};
+    const ensureDeferred = new Promise<unknown>((resolve) => {
+      resolveEnsure = () => resolve(undefined);
+    });
+    ensureAuthMock.mockImplementationOnce(
+      () =>
+        ensureDeferred as unknown as ReturnType<
+          typeof ensureAuthenticatedVpClient
+        >,
+    );
+
+    const { result } = renderHook(() => useArtifactDownload({ primeContext }));
+
+    let downloadPromise: Promise<void> | undefined;
+    act(() => {
+      downloadPromise = result.current.download(
+        PROVIDER_ADDRESS,
+        PEGIN_TXID,
+        DEPOSITOR_PK,
+      );
+    });
+
+    act(() => {
+      result.current.cancel();
+    });
+
+    await act(async () => {
+      resolveEnsure();
+      await downloadPromise;
+    });
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(result.current.downloaded).toBe(false);
+  });
+
+  it("shows the wallet-signature status while the cold-cache prime awaits the wallet", async () => {
+    let resolveEnsure: () => void = () => {};
+    const ensureDeferred = new Promise<unknown>((resolve) => {
+      resolveEnsure = () => resolve(undefined);
+    });
+    ensureAuthMock.mockImplementationOnce(
+      () =>
+        ensureDeferred as unknown as ReturnType<
+          typeof ensureAuthenticatedVpClient
+        >,
+    );
+    fetchMock.mockResolvedValueOnce(OUTCOME);
+
+    const { result } = renderHook(() => useArtifactDownload({ primeContext }));
+
+    let downloadPromise: Promise<void> | undefined;
+    act(() => {
+      downloadPromise = result.current.download(
+        PROVIDER_ADDRESS,
+        PEGIN_TXID,
+        DEPOSITOR_PK,
+      );
+    });
+
+    await waitFor(() =>
+      expect(result.current.progress).toBe("Sign Transaction"),
+    );
+
+    await act(async () => {
+      resolveEnsure();
+      await downloadPromise;
+    });
+
+    expect(result.current.downloaded).toBe(true);
+  });
+
+  it("does not let a cancelled flow parked in the retry sleep clobber a restarted download", async () => {
+    vi.useFakeTimers();
+    try {
+      seedHotCache();
+      // Flow #1: VP still pre-signatures — enters the 10s retry sleep.
+      fetchMock.mockRejectedValueOnce(
+        new Error("Invalid state: PendingBabeSetup"),
+      );
+      // Flow #2 (started after cancelling #1): succeeds.
+      fetchMock.mockResolvedValueOnce(OUTCOME);
+
+      const { result } = renderHook(() =>
+        useArtifactDownload({ primeContext }),
+      );
+
+      let firstDownload: Promise<void> | undefined;
+      act(() => {
+        firstDownload = result.current.download(
+          PROVIDER_ADDRESS,
+          PEGIN_TXID,
+          DEPOSITOR_PK,
+        );
+      });
+      // Let flow #1's rejection reach the catch and start its sleep.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+
+      act(() => {
+        result.current.cancel();
+      });
+
+      let secondDownload: Promise<void> | undefined;
+      act(() => {
+        secondDownload = result.current.download(
+          PROVIDER_ADDRESS,
+          PEGIN_TXID,
+          DEPOSITOR_PK,
+        );
+      });
+
+      // Flow #2 completes; flow #1's sleep then expires and must die
+      // silently instead of re-fetching or wiping flow #2's result.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10_000);
+        await firstDownload;
+        await secondDownload;
+      });
+
+      expect(result.current.downloaded).toBe(true);
+      expect(result.current.error).toBeNull();
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("retries once when the bearer expires mid-flight (hot-but-stale)", async () => {
+    seedHotCache();
+    const seededProvider = vpTokenRegistry.peek(PEGIN_TXID);
+    expect(seededProvider).toBeDefined();
+    const invalidateSpy = vi.spyOn(
+      seededProvider as { invalidate: () => void },
+      "invalidate",
+    );
+
+    fetchMock
+      .mockRejectedValueOnce(
+        new JsonRpcError(
+          -32001,
+          "token expired at 1754300000 (now: 1754300400)",
+          "wire",
+        ),
+      )
+      .mockResolvedValueOnce(OUTCOME);
+    ensureAuthMock.mockResolvedValueOnce(
+      undefined as unknown as Awaited<
+        ReturnType<typeof ensureAuthenticatedVpClient>
+      >,
+    );
+
+    const { result } = renderHook(() => useArtifactDownload({ primeContext }));
+
+    await act(async () => {
+      await result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK);
+    });
+
+    await waitFor(() => expect(result.current.downloaded).toBe(true));
+    expect(invalidateSpy).toHaveBeenCalledTimes(1);
+    // Upfront prime skipped (hot cache); ensureAuth called only on the
+    // retry path after the bearer was rejected.
+    expect(ensureAuthMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("retries at most once - propagates failure when the retry also auth-fails", async () => {
+    seedHotCache();
+    fetchMock
+      .mockRejectedValueOnce(
+        new JsonRpcError(-32001, "missing or malformed Bearer token", "wire"),
+      )
+      .mockRejectedValueOnce(
+        new JsonRpcError(-32001, "missing or malformed Bearer token", "wire"),
+      );
+    ensureAuthMock.mockResolvedValueOnce(
+      undefined as unknown as Awaited<
+        ReturnType<typeof ensureAuthenticatedVpClient>
+      >,
+    );
+
+    const { result } = renderHook(() => useArtifactDownload({ primeContext }));
+
+    await act(async () => {
+      await result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK);
+    });
+
+    await waitFor(() =>
+      expect(result.current.error).toBe("missing or malformed Bearer token"),
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(ensureAuthMock).toHaveBeenCalledTimes(1);
+    expect(result.current.downloaded).toBe(false);
+  });
+
+  it("does not prime on a non-auth wire error", async () => {
+    seedHotCache();
+    // -32603, not -32001: the daemon reserves -32001 for bearer
+    // rejections, so a wire -32001 is by definition an auth failure.
+    fetchMock.mockRejectedValueOnce(
+      new JsonRpcError(-32603, "internal error", "wire"),
+    );
+
+    const { result } = renderHook(() => useArtifactDownload({ primeContext }));
+
+    await act(async () => {
+      await result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK);
+    });
+
+    await waitFor(() => expect(result.current.error).toBe("internal error"));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(ensureAuthMock).not.toHaveBeenCalled();
+    expect(result.current.downloaded).toBe(false);
+  });
+
+  it("does not prime on a local JsonRpcError (transport / SDK failure)", async () => {
+    seedHotCache();
+    fetchMock.mockRejectedValueOnce(
+      new JsonRpcError(-32000, "request timed out", "local"),
+    );
+
+    const { result } = renderHook(() => useArtifactDownload({ primeContext }));
+
+    await act(async () => {
+      await result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK);
+    });
+
+    await waitFor(() => expect(result.current.error).toBe("request timed out"));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(ensureAuthMock).not.toHaveBeenCalled();
+    expect(result.current.downloaded).toBe(false);
+  });
+
+  it("does not prime on a VpResponseValidationError", async () => {
+    seedHotCache();
+    fetchMock.mockRejectedValueOnce(
+      new VpResponseValidationError("shape mismatch"),
+    );
+
+    const { result } = renderHook(() => useArtifactDownload({ primeContext }));
+
+    await act(async () => {
+      await result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK);
+    });
+
+    await waitFor(() => expect(result.current.error).not.toBeNull());
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(ensureAuthMock).not.toHaveBeenCalled();
+    expect(result.current.downloaded).toBe(false);
+  });
+
+  it("aborts the request on cancel and swallows the resulting sentinel without surfacing an error", async () => {
+    seedHotCache();
+    // Mirror the real service: reject with the cancellation sentinel once the
+    // caller aborts the signal. This exercises both the abort wiring and the
+    // hook's `instanceof ArtifactDownloadCancelledError` swallow path.
+    fetchMock.mockImplementationOnce(
+      (_provider, _txid, _pk, _target, options) =>
+        new Promise<ArtifactDownloadOutcome>((_resolve, reject) => {
+          options?.signal?.addEventListener("abort", () =>
+            reject(new ArtifactDownloadCancelledError()),
+          );
+        }),
+    );
+
+    const { result } = renderHook(() => useArtifactDownload({ primeContext }));
+
+    let downloadPromise: Promise<void> | undefined;
+    act(() => {
+      downloadPromise = result.current.download(
+        PROVIDER_ADDRESS,
+        PEGIN_TXID,
+        DEPOSITOR_PK,
+      );
+    });
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+
+    act(() => {
+      result.current.cancel();
+    });
+
+    await act(async () => {
+      await downloadPromise;
+    });
+
+    // cancel() resets UI state; the swallowed sentinel must not surface.
+    expect(result.current.error).toBeNull();
+    expect(result.current.downloaded).toBe(false);
+    expect(result.current.loading).toBe(false);
+  });
+
+  it("propagates received/total bytes from the in-flight progress callback", async () => {
+    seedHotCache();
+    let resolveFetch: () => void = () => {};
+    fetchMock.mockImplementationOnce(
+      (_provider, _txid, _pk, _target, options) => {
+        options?.onProgress?.(500, 1000);
+        return new Promise<ArtifactDownloadOutcome>((resolve) => {
+          resolveFetch = () => resolve(OUTCOME);
+        });
+      },
+    );
+
+    const { result } = renderHook(() => useArtifactDownload({ primeContext }));
+
+    let downloadPromise: Promise<void> | undefined;
+    act(() => {
+      downloadPromise = result.current.download(
+        PROVIDER_ADDRESS,
+        PEGIN_TXID,
+        DEPOSITOR_PK,
+      );
+    });
+
+    await waitFor(() => {
+      expect(result.current.receivedBytes).toBe(500);
+      expect(result.current.totalBytes).toBe(1000);
+    });
+
+    await act(async () => {
+      resolveFetch();
+      await downloadPromise;
+    });
+
+    expect(result.current.downloaded).toBe(true);
+  });
+});
+
+describe("useArtifactDownload — funnel telemetry", () => {
+  beforeEach(() => {
+    fetchMock.mockReset();
+    ensureAuthMock.mockReset();
+    featureFlagsMock.isGodModePanelEnabled = false;
+    setArtifactDownloadOverride(null);
+    saveReceiptMock.mockReset();
+    hasDownloadedMock.mockReset();
+    hasDownloadedMock.mockReturnValue(false);
+    openTargetMock.mockReset();
+    openTargetMock.mockResolvedValue(SAVE_TARGET);
+    mockLoggerError.mockReset();
+    mockLoggerEvent.mockReset();
+    (vpTokenRegistry as unknown as { clear?: () => void }).clear?.();
+  });
+
+  it("captures a terminal download failure with the activation.artifacts stage and scrubbed vaultId", async () => {
+    seedHotCache();
+    fetchMock.mockRejectedValueOnce(new Error("HTTP error: 401 Unauthorized"));
+
+    const { result } = renderHook(() =>
+      useArtifactDownload({ vaultId: VAULT_ID, primeContext }),
+    );
+
+    await act(async () => {
+      await result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK);
+    });
+
+    expect(mockLoggerError).toHaveBeenCalledTimes(1);
+    const [err, ctx] = mockLoggerError.mock.calls[0];
+    expect(err).toBeInstanceOf(Error);
+    expect(ctx.tags.funnelStage).toBe("activation.artifacts");
+    expect(ctx.tags.vaultId).toBe("0xde...beef");
+    expect(ctx.tags.site).toBe("download");
+    expect(result.current.error).toContain("401");
+  });
+
+  it("captures a cold-cache prime failure with site prime", async () => {
+    ensureAuthMock.mockRejectedValueOnce(new Error("prime exploded"));
+
+    const { result } = renderHook(() =>
+      useArtifactDownload({ vaultId: VAULT_ID, primeContext }),
+    );
+
+    await act(async () => {
+      await result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK);
+    });
+
+    expect(mockLoggerError).toHaveBeenCalledTimes(1);
+    expect(mockLoggerError.mock.calls[0][1].tags.site).toBe("prime");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("captures the cold-registry-without-prime-context flow bug", async () => {
+    const { result } = renderHook(() =>
+      useArtifactDownload({ vaultId: VAULT_ID, primeContext: null }),
+    );
+
+    await act(async () => {
+      await result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK);
+    });
+
+    expect(mockLoggerError).toHaveBeenCalledTimes(1);
+    expect(mockLoggerError.mock.calls[0][1].tags.site).toBe("cold_registry");
+  });
+
+  it("does not capture a user-cancelled download", async () => {
+    seedHotCache();
+    fetchMock.mockRejectedValueOnce(new ArtifactDownloadCancelledError());
+
+    const { result } = renderHook(() =>
+      useArtifactDownload({ vaultId: VAULT_ID, primeContext }),
+    );
+
+    await act(async () => {
+      await result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK);
+    });
+
+    expect(mockLoggerError).not.toHaveBeenCalled();
+    expect(mockLoggerEvent).not.toHaveBeenCalled();
+  });
+
+  it("emits the downloaded milestone once, on the first real download only", async () => {
+    seedHotCache();
+    fetchMock.mockResolvedValue(OUTCOME);
+
+    const { result } = renderHook(() =>
+      useArtifactDownload({ vaultId: VAULT_ID, primeContext }),
+    );
+
+    await act(async () => {
+      await result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK);
+    });
+
+    expect(mockLoggerEvent).toHaveBeenCalledTimes(1);
+    const [name, ctx] = mockLoggerEvent.mock.calls[0];
+    expect(name).toBe("activation.artifacts.downloaded");
+    expect(ctx.tags.vaultId).toBe("0xde...beef");
+
+    // Re-download with the gate already satisfied: no second milestone.
+    hasDownloadedMock.mockReturnValue(true);
+    await act(async () => {
+      await result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK);
+    });
+    expect(mockLoggerEvent).toHaveBeenCalledTimes(1);
+  });
+
+  it("emits the stall event once after the VP reports still-processing past the threshold", async () => {
+    vi.useFakeTimers();
+    try {
+      seedHotCache();
+      fetchMock.mockRejectedValue(new Error("Invalid state PendingIngestion"));
+
+      const { result } = renderHook(() =>
+        useArtifactDownload({ vaultId: VAULT_ID, primeContext }),
+      );
+
+      let downloadPromise: Promise<void> | undefined;
+      act(() => {
+        downloadPromise = result.current.download(
+          PROVIDER_ADDRESS,
+          PEGIN_TXID,
+          DEPOSITOR_PK,
+        );
+      });
+
+      // 30 retries at the 10s interval reach the stall threshold.
+      for (let i = 0; i < 31; i++) {
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(10_000);
+        });
+      }
+
+      expect(mockLoggerEvent).toHaveBeenCalledTimes(1);
+      const [name, ctx] = mockLoggerEvent.mock.calls[0];
+      expect(name).toBe("activation.artifacts.stalled");
+      expect(ctx.level).toBe("warning");
+      expect(ctx.tags.vaultId).toBe("0xde...beef");
+
+      // More retries past the threshold do not re-emit.
+      for (let i = 0; i < 5; i++) {
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(10_000);
+        });
+      }
+      expect(mockLoggerEvent).toHaveBeenCalledTimes(1);
+
+      act(() => {
+        result.current.cancel();
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10_000);
+        await downloadPromise;
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});

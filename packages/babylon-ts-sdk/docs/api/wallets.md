@@ -1,0 +1,78 @@
+[@babylonlabs-io/ts-sdk](README.md) / wallets
+
+# wallets
+
+Framework-agnostic BTC wallet interface. ETH uses viem's `WalletClient` directly.
+
+See the [Wallet Interfaces Guide](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/docs/guides/wallet-interfaces.md)
+for adapter patterns and the canonical `deriveContextHash` flow
+(vault root → WOTS / hashlock / auth-anchor secrets).
+
+## Type Aliases
+
+### Hash
+
+```ts
+type Hash = `0x${string}`;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/shared/wallets/interfaces/EthereumWallet.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/shared/wallets/interfaces/EthereumWallet.ts)
+
+Ethereum transaction hash type (hex string with 0x prefix).
+Alias for viem's Hex type, provided for convenience.
+
+## References
+
+### BitcoinNetwork
+
+Re-exports [BitcoinNetwork](managers.md#bitcoinnetwork)
+
+***
+
+### BitcoinWallet
+
+Re-exports [BitcoinWallet](managers.md#bitcoinwallet)
+
+***
+
+### SignInputOptions
+
+Re-exports [SignInputOptions](managers.md#signinputoptions)
+
+***
+
+### SignPsbtOptions
+
+Re-exports [SignPsbtOptions](managers.md#signpsbtoptions)
+
+## Variables
+
+### BitcoinNetworks
+
+```ts
+const BitcoinNetworks: object;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/shared/wallets/interfaces/BitcoinWallet.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/shared/wallets/interfaces/BitcoinWallet.ts)
+
+Bitcoin network constants
+
+#### Type Declaration
+
+##### MAINNET
+
+```ts
+readonly MAINNET: "mainnet" = "mainnet";
+```
+
+##### TESTNET
+
+```ts
+readonly TESTNET: "testnet" = "testnet";
+```
+
+##### SIGNET
+
+```ts
+readonly SIGNET: "signet" = "signet";
+```

@@ -1,0 +1,182 @@
+name: CLAUDE.md Drift Check
+
+on:
+  schedule:
+    - cron: '0 9 * * 1' # Mondays 09:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2 https://github.com/actions/checkout/releases/tag/v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Analyze drift
+        id: analyze
+        run: |
+          set -e
+          # `paths` and `pending` below are one inventory. Keep their union in
+          # sync with SECURITY.md, CLAUDE.md > "CRITICAL PATHS",
+          # .github/CODEOWNERS, and .github/workflows/critical-path-check.yml.
+          paths=(
+            "packages/babylon-tbv-rust-wasm/src/index.ts"
+            "packages/babylon-tbv-rust-wasm/src/index-node.ts"
+            "packages/babylon-tbv-rust-wasm/scripts/build-wasm.js"
+            "packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts"
+            "packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts"
+            "services/vault/src/hooks/deposit/useEstimatedBtcFee.ts"
+            "packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts"
+            "packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts"
+            "services/vault/src/hooks/deposit/depositFlowSteps/payoutSigning.ts"
+            "packages/babylon-ts-sdk/src/tbv/core/vault-secrets/"
+            "packages/babylon-ts-sdk/src/tbv/core/wots/blockDerivation.ts"
+            "packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts"
+            "services/vault/src/services/vault/vaultActivationService.ts"
+            "packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts"
+            "packages/babylon-ts-sdk/src/tbv/core/utils/signing.ts"
+            "packages/babylon-ledger-vault-signer/src/"
+            "packages/babylon-ledger-vault-signer/scripts/"
+            "packages/babylon-ts-sdk/src/tbv/core/clients/eth/onChainBtcPubkey.ts"
+          )
+
+          # Registered in CLAUDE.md > "CRITICAL PATHS" section 9, CODEOWNERS and
+          # critical-path-check.yml ahead of the code arriving (see #2228), so the
+          # guard evaluates the new list rather than the old one for the PR that
+          # moves value-bearing code. They are deliberately kept out of `paths`
+          # above: the existence check below would otherwise report every one of
+          # them as a deleted critical file, every week, until the code lands.
+          # Move an entry up into `paths` in the PR that creates the file.
+          pending=(
+            "packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-transaction.ts"
+            "packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-registration-client.ts"
+            "packages/babylon-ts-sdk/src/tbv/core/wasm/"
+            "packages/babylon-tbv-rust-wasm/src/wasm-loader.ts"
+            "packages/babylon-tbv-rust-wasm/src/wasm-loader-node.ts"
+            "packages/babylon-tbv-rust-wasm/src/raw.ts"
+            "packages/babylon-tbv-rust-wasm/src/raw-node.ts"
+            "services/vault/src/utils/btc/scriptPubKeyAddress.ts"
+          )
+
+          : > missing.txt
+          for p in "${paths[@]}"; do
+            [ -e "$p" ] || echo "$p" >> missing.txt
+          done
+
+          # A pending path that now exists has landed and belongs in `paths`.
+          : > promote.txt
+          for p in "${pending[@]}"; do
+            if [ -e "$p" ]; then
+              echo "$p" >> promote.txt
+            fi
+          done
+
+          since="$(date -u -d '7 days ago' '+%Y-%m-%d' 2>/dev/null || date -u -v-7d '+%Y-%m-%d')"
+          echo "Scanning commits since $since"
+          : > touched.txt
+          for p in "${paths[@]}" "${pending[@]}"; do
+            while IFS='|' read -r hash subject; do
+              [ -z "$hash" ] && continue
+              echo "${p}|${hash}|${subject}" >> touched.txt
+            done < <(git log --since="$since" --pretty=tformat:"%H|%s" origin/main -- "$p")
+          done
+
+          has_signal=false
+          [ -s missing.txt ] && has_signal=true
+          [ -s promote.txt ] && has_signal=true
+          [ -s touched.txt ] && has_signal=true
+          echo "has_signal=${has_signal}" >> "$GITHUB_OUTPUT"
+
+          echo "=== missing paths ==="; cat missing.txt || true
+          echo "=== pending paths that have landed ==="; cat promote.txt || true
+          echo "=== commits touching critical paths ==="; cat touched.txt || true
+
+      - name: Post drift report
+        if: steps.analyze.outputs.has_signal == 'true'
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0 https://github.com/actions/github-script/releases/tag/v7.1.0
+        with:
+          script: |
+            const fs = require('fs');
+            const missing = fs.readFileSync('missing.txt', 'utf8').trim();
+            const promote = fs.readFileSync('promote.txt', 'utf8').trim();
+            const touched = fs.readFileSync('touched.txt', 'utf8').trim();
+            const marker = '<!-- claude-md-drift-tracker -->';
+            const title = 'CLAUDE.md drift tracker';
+            const today = new Date().toISOString().slice(0, 10);
+
+            const sections = [marker, `## Weekly drift report - ${today}`, ''];
+
+            if (missing) {
+              sections.push('### Missing paths');
+              sections.push('Paths referenced in CLAUDE.md / CODEOWNERS / CI no longer exist. Update or restore:');
+              missing.split('\n').forEach(p => sections.push(`- \`${p}\``));
+              sections.push('');
+            }
+
+            if (promote) {
+              sections.push('### Pending paths that have landed');
+              sections.push('Registered in CLAUDE.md / CODEOWNERS / CI ahead of the code, and the files now exist. Move them from `pending` to `paths` in `claude-md-drift.yml`:');
+              promote.split('\n').forEach(p => sections.push(`- \`${p}\``));
+              sections.push('');
+            }
+
+            if (touched) {
+              sections.push('### Merged PRs touching critical paths (last 7 days)');
+              sections.push('Review for drift - renames, new functions needing CLAUDE.md rules, invalidated assumptions.');
+              const byCommit = {};
+              touched.split('\n').forEach(line => {
+                const [path, hash, subject] = line.split('|');
+                const key = `${hash}|${subject}`;
+                (byCommit[key] = byCommit[key] || []).push(path);
+              });
+              for (const [key, paths] of Object.entries(byCommit)) {
+                const [hash, subject] = key.split('|');
+                sections.push(`- \`${hash.slice(0, 8)}\` ${subject}`);
+                paths.forEach(p => sections.push(`  - \`${p}\``));
+              }
+              sections.push('');
+            }
+
+            sections.push('---');
+            sections.push('Run `/update-claude-md` locally for deeper analysis and proposed edits.');
+
+            const body = sections.join('\n');
+
+            const { data: issues } = await github.rest.issues.listForRepo({
+              ...context.repo,
+              state: 'open',
+              per_page: 100,
+            });
+            const tracker = issues.find(i =>
+              i.title === title || (i.body || '').includes(marker)
+            );
+
+            if (!tracker) {
+              const labels = [];
+              try {
+                await github.rest.issues.getLabel({ ...context.repo, name: 'claude-md-drift' });
+                labels.push('claude-md-drift');
+              } catch {
+                core.warning("Label 'claude-md-drift' does not exist; creating issue without it.");
+              }
+              const created = await github.rest.issues.create({
+                ...context.repo,
+                title,
+                body,
+                labels,
+              });
+              core.notice(`Created drift tracker issue #${created.data.number}`);
+            } else {
+              await github.rest.issues.createComment({
+                ...context.repo,
+                issue_number: tracker.number,
+                body,
+              });
+              core.notice(`Posted drift comment on issue #${tracker.number}`);
+            }

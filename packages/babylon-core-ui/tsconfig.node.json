@@ -1,0 +1,31 @@
+{
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.node.tsbuildinfo",
+    "target": "ES2023",
+    // DOM for the visual spec: its `page.evaluate` / `waitForFunction`
+    // callbacks are authored against browser globals even though the file
+    // itself runs in node.
+    "lib": ["ES2023", "DOM"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+
+    /* Bundler mode */
+    "moduleResolution": "Bundler",
+    "allowImportingTsExtensions": true,
+    "isolatedModules": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+
+    /* Linting */
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedSideEffectImports": true
+  },
+  // The visual harness lives here rather than in tsconfig.lib.json: it is
+  // node-side tooling, and lib emits declarations into dist/. Without these
+  // entries the spec and its config sit outside every project and are
+  // typechecked by nothing until CI runs the capture.
+  "include": ["vite.config.ts", "playwright.visual.config.ts", "visual"]
+}

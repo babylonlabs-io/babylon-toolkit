@@ -1,0 +1,72 @@
+import path from "node:path";
+import { defineConfig } from "vite";
+import dts from "vite-plugin-dts";
+
+export default defineConfig({
+  plugins: [
+    dts({
+      tsconfigPath: "./tsconfig.lib.json",
+      insertTypesEntry: true,
+      include: ["src"],
+    }),
+  ],
+  build: {
+    outDir: "dist",
+    sourcemap: true,
+    lib: {
+      entry: {
+        index: path.resolve(__dirname, "src/index.ts"),
+        "tbv/index": path.resolve(__dirname, "src/tbv/index.ts"),
+        "tbv/core/index": path.resolve(__dirname, "src/tbv/core/index.ts"),
+        "tbv/core/primitives/index": path.resolve(
+          __dirname,
+          "src/tbv/core/primitives/index.ts",
+        ),
+        "tbv/core/utils/index": path.resolve(
+          __dirname,
+          "src/tbv/core/utils/index.ts",
+        ),
+        "tbv/core/clients/index": path.resolve(
+          __dirname,
+          "src/tbv/core/clients/index.ts",
+        ),
+        "tbv/core/services/index": path.resolve(
+          __dirname,
+          "src/tbv/core/services/index.ts",
+        ),
+        "tbv/core/managers/index": path.resolve(
+          __dirname,
+          "src/tbv/core/managers/index.ts",
+        ),
+        "tbv/core/contracts/index": path.resolve(
+          __dirname,
+          "src/tbv/core/contracts/index.ts",
+        ),
+        "tbv/core/vault-secrets/index": path.resolve(
+          __dirname,
+          "src/tbv/core/vault-secrets/index.ts",
+        ),
+        "tbv/integrations/aave/index": path.resolve(
+          __dirname,
+          "src/tbv/integrations/aave/index.ts",
+        ),
+        "shared/index": path.resolve(__dirname, "src/shared/index.ts"),
+        "testing/index": path.resolve(__dirname, "src/testing/index.ts"),
+      },
+      formats: ["es", "cjs"],
+    },
+    rollupOptions: {
+      external: [
+        "bitcoinjs-lib",
+        "@bitcoin-js/tiny-secp256k1-asmjs",
+        "@babylonlabs-io/babylon-tbv-rust-wasm",
+        "viem",
+        "buffer",
+      ],
+      output: {
+        sourcemapExcludeSources: false,
+      },
+    },
+  },
+  esbuild: { legalComments: "none" },
+});

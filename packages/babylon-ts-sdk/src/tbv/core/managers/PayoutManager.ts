@@ -1,0 +1,428 @@
+/**
+ * Payout Manager
+ *
+ * High-level manager that orchestrates the payout signing flow by coordinating
+ * SDK primitives ({@link buildPayoutPsbt}, {@link extractPayoutSignature})
+ * with a user-provided Bitcoin wallet.
+ *
+ * The Payout transaction references the Assert transaction (input 1).
+ *
+ * @see {@link PeginManager} - For Steps 1–4 of the peg-in flow
+ * @see {@link buildPayoutPsbt} - Lower-level primitive for custom implementations
+ * @see {@link extractPayoutSignature} - Extract signatures from signed PSBTs
+ *
+ * @module managers/PayoutManager
+ */
+
+import type { BitcoinWallet, SignPsbtOptions } from "../../../shared/wallets";
+import {
+  assertPsbtUnsignedTxMatches,
+  assertScriptPathSchnorrSignature,
+  buildPayoutPsbt,
+  extractPayoutSignature,
+  validateWalletPubkey,
+  type Network,
+} from "../primitives";
+import { DEPOSITOR_SIGNED_INPUT_COUNT } from "../primitives/psbt/constants";
+import { createTaprootScriptPathSignOptions } from "../utils/signing";
+
+/** Payout PSBTs are signed by the depositor on input 0 (Taproot script-path). */
+const PAYOUT_SIGNED_INPUT_INDEX = 0;
+
+/**
+ * Configuration for the PayoutManager.
+ */
+export interface PayoutManagerConfig {
+  /**
+   * Bitcoin network to use for transactions.
+   */
+  network: Network;
+
+  /**
+   * Bitcoin wallet for signing payout transactions.
+   */
+  btcWallet: BitcoinWallet;
+}
+
+/**
+ * Base parameters shared by both payout transaction types.
+ */
+interface SignPayoutBaseParams {
+  /**
+   * Vault core (tx-graph) version the vault was registered under — the
+   * vault's stamped on-chain `vaultCoreVersion`. Forwarded to
+   * {@link buildPayoutPsbt} to derive the matching graph's payout scripts.
+   */
+  vaultCoreVersion: number;
+
+  /**
+   * Peg-in transaction hex.
+   * The original transaction that created the vault output being spent.
+   */
+  peginTxHex: string;
+
+  /**
+   * Vault provider's BTC public key (x-only, 64-char hex).
+   */
+  vaultProviderBtcPubkey: string;
+
+  /**
+   * Vault keeper BTC public keys (x-only, 64-char hex).
+   */
+  vaultKeeperBtcPubkeys: string[];
+
+  /**
+   * Universal challenger BTC public keys (x-only, 64-char hex).
+   */
+  universalChallengerBtcPubkeys: string[];
+
+  /**
+   * CSV timelock in blocks for the PegIn output.
+   */
+  timelockPegin: number;
+  /** btc-vault `timelock_assert`; payout input 1's sequence. */
+  timelockAssert: number;
+
+  /**
+   * Depositor's BTC public key (x-only, 64-char hex). This MUST be the
+   * key registered on-chain for the vault — typically read from
+   * `BTCVaultRegistry.getBtcVaultBasicInfo(...).depositorBtcPubKey`.
+   *
+   * Required: omitting it would degrade `validateWalletPubkey` to a
+   * self-comparison, allowing the wrong wallet to produce a signature
+   * over a script tree that doesn't match the on-chain UTXO.
+   */
+  depositorBtcPubkey: string;
+
+  /**
+   * The on-chain registered depositor payout scriptPubKey (hex, with or without 0x prefix).
+   * Used to validate that the VP-provided payout transaction actually pays to the
+   * correct depositor payout address before signing.
+   */
+  registeredPayoutScriptPubKey: string;
+
+  /**
+   * The claimer's x-only BTC public key for this payout (64-char hex, no prefix).
+   * Forwarded to {@link buildPayoutPsbt} for per-role output validation.
+   */
+  claimerBtcPubkey: string;
+
+  /**
+   * VP commission in basis points (`1..=9999`). Forwarded to {@link buildPayoutPsbt}.
+   */
+  commissionBps: number;
+
+  /**
+   * Version-locked tx-graph fee rate (sat/vB) the graph was built with.
+   * Forwarded to {@link buildPayoutPsbt} for the fee band.
+   */
+  protocolFeeRate: bigint;
+
+  /**
+   * Security council member x-only pubkeys (hex); forwarded to
+   * {@link buildPayoutPsbt} to rebuild the Assert:0 payout leaf and to size the
+   * fee floor (see PayoutParams).
+   */
+  councilMembers: string[];
+
+  /** M-of-N council quorum; shapes the Assert:0 council leaf (see PayoutParams). */
+  councilQuorum: number;
+
+  /**
+   * RFC-006 resolved payout destinations, keyed by lowercased x-only operation
+   * pubkey. Forwarded verbatim to {@link buildPayoutPsbt}; every VK claimer
+   * must be present.
+   */
+  vkClaimerPayoutScriptPubKeys: Readonly<Record<string, string>>;
+  /** RFC-006 VP commission destination. Forwarded to {@link buildPayoutPsbt}. */
+  vpCommissionScriptPubKey: string;
+}
+
+/**
+ * Parameters for signing a Payout transaction.
+ *
+ * Payout is used in the challenge path after Assert, when the claimer proves validity.
+ * Input 1 references the Assert transaction.
+ */
+export interface SignPayoutParams extends SignPayoutBaseParams {
+  /**
+   * Payout transaction hex (unsigned).
+   * This is the transaction from the vault provider that needs depositor signature.
+   */
+  payoutTxHex: string;
+
+  /**
+   * Assert transaction hex.
+   * Payout input 1 references Assert output 0.
+   */
+  assertTxHex: string;
+}
+
+/**
+ * Result of signing a payout transaction.
+ */
+export interface PayoutSignatureResult {
+  /**
+   * 64-byte Schnorr signature (128 hex characters).
+   */
+  signature: string;
+
+  /**
+   * Depositor's BTC public key used for signing.
+   */
+  depositorBtcPubkey: string;
+}
+
+/**
+ * High-level manager for payout transaction signing.
+ *
+ * @remarks
+ * After registering your peg-in on Ethereum (Step 3), the vault provider prepares
+ * claim/payout transaction pairs. You must sign each payout transaction using this
+ * manager and submit the signatures to the vault provider's RPC API.
+ *
+ * **What happens internally:**
+ * 1. Validates your wallet's public key matches the vault's depositor
+ * 2. Builds an unsigned PSBT with taproot script path spend info
+ * 3. Signs input 0 (the vault UTXO) with your wallet
+ * 4. Extracts the 64-byte Schnorr signature
+ *
+ * **Note:** The payout transaction has 2 inputs. PayoutManager only signs input 0
+ * (from the peg-in tx). Input 1 (from the assert tx) is signed by the vault provider.
+ *
+ * @see {@link PeginManager} - For the complete peg-in flow context
+ * @see {@link buildPayoutPsbt} - Lower-level primitive used internally
+ * @see {@link extractPayoutSignature} - Signature extraction primitive
+ */
+export class PayoutManager {
+  private readonly config: PayoutManagerConfig;
+
+  /**
+   * Creates a new PayoutManager instance.
+   *
+   * @param config - Manager configuration including wallet
+   */
+  constructor(config: PayoutManagerConfig) {
+    this.config = config;
+  }
+
+  /**
+   * Signs a Payout transaction and extracts the Schnorr signature.
+   *
+   * Flow:
+   * 1. Vault provider submits Claim transaction
+   * 2. Claimer submits Assert transaction to prove validity
+   * 3. Payout can be executed (references Assert tx)
+   *
+   * This method orchestrates the following steps:
+   * 1. Get wallet's public key and convert to x-only format
+   * 2. Validate wallet pubkey matches on-chain depositor pubkey (if provided)
+   * 3. Build unsigned PSBT using primitives
+   * 4. Sign PSBT via btcWallet.signPsbt()
+   * 5. Extract 64-byte Schnorr signature using primitives
+   *
+   * The returned signature can be submitted to the vault provider API.
+   *
+   * @param params - Payout signing parameters
+   * @returns Signature result with 64-byte Schnorr signature and depositor pubkey
+   * @throws Error if wallet pubkey doesn't match depositor pubkey
+   * @throws Error if wallet operations fail or signature extraction fails
+   */
+  async signPayoutTransaction(
+    params: SignPayoutParams,
+  ): Promise<PayoutSignatureResult> {
+    // Validate wallet pubkey matches depositor and get both formats
+    const walletPubkeyRaw = await this.config.btcWallet.getPublicKeyHex();
+    const { depositorPubkey } = validateWalletPubkey(
+      walletPubkeyRaw,
+      params.depositorBtcPubkey,
+    );
+
+    // Build unsigned PSBT for Payout (uses Assert tx). Per-role output
+    // validation happens inside buildPayoutPsbt against the resolved input
+    // values.
+    const payoutPsbt = await buildPayoutPsbt({
+      vaultCoreVersion: params.vaultCoreVersion,
+      payoutTxHex: params.payoutTxHex,
+      peginTxHex: params.peginTxHex,
+      assertTxHex: params.assertTxHex,
+      depositorBtcPubkey: depositorPubkey,
+      vaultProviderBtcPubkey: params.vaultProviderBtcPubkey,
+      vaultKeeperBtcPubkeys: params.vaultKeeperBtcPubkeys,
+      universalChallengerBtcPubkeys: params.universalChallengerBtcPubkeys,
+      timelockPegin: params.timelockPegin,
+      timelockAssert: params.timelockAssert,
+      network: this.config.network,
+      claimerBtcPubkey: params.claimerBtcPubkey,
+      registeredPayoutScriptPubKey: params.registeredPayoutScriptPubKey,
+      commissionBps: params.commissionBps,
+      protocolFeeRate: params.protocolFeeRate,
+      councilMembers: params.councilMembers,
+      councilQuorum: params.councilQuorum,
+      vkClaimerPayoutScriptPubKeys: params.vkClaimerPayoutScriptPubKeys,
+      vpCommissionScriptPubKey: params.vpCommissionScriptPubKey,
+    });
+
+    // Sign PSBT via wallet (Taproot script-path spend, input 0 only)
+    const signedPsbtHex = await this.config.btcWallet.signPsbt(
+      payoutPsbt.psbtHex,
+      createTaprootScriptPathSignOptions(
+        walletPubkeyRaw,
+        DEPOSITOR_SIGNED_INPUT_COUNT,
+      ),
+    );
+
+    assertPsbtUnsignedTxMatches({
+      requestedPsbtHex: payoutPsbt.psbtHex,
+      returnedPsbtHex: signedPsbtHex,
+    });
+
+    // Extract Schnorr signature
+    const signature = extractPayoutSignature(signedPsbtHex, depositorPubkey);
+    // Critical Path #7: verify the signature against a sighash recomputed from
+    // the PSBT we built, not the wallet-returned one.
+    assertScriptPathSchnorrSignature({
+      requestedPsbtHex: payoutPsbt.psbtHex,
+      signatureHex: signature,
+      signerXOnlyPubkeyHex: depositorPubkey,
+      inputIndex: PAYOUT_SIGNED_INPUT_INDEX,
+    });
+
+    return {
+      signature,
+      depositorBtcPubkey: depositorPubkey,
+    };
+  }
+
+  /**
+   * Gets the configured Bitcoin network.
+   *
+   * @returns The Bitcoin network (mainnet, testnet, signet, regtest)
+   */
+  getNetwork(): Network {
+    return this.config.network;
+  }
+
+  /**
+   * Checks if the wallet supports batch signing (signPsbts).
+   *
+   * @returns true if batch signing is supported
+   */
+  supportsBatchSigning(): boolean {
+    return typeof this.config.btcWallet.signPsbts === "function";
+  }
+
+  /**
+   * Batch signs multiple payout transactions (1 per claimer).
+   * This allows signing all transactions with a single wallet interaction.
+   *
+   * @param transactions - Array of payout params to sign
+   * @returns Array of signature results matching input order
+   * @throws Error if wallet doesn't support batch signing
+   * @throws Error if any signing operation fails
+   */
+  async signPayoutTransactionsBatch(transactions: SignPayoutParams[]): Promise<
+    Array<{
+      payoutSignature: string;
+      depositorBtcPubkey: string;
+    }>
+  > {
+    if (!this.supportsBatchSigning()) {
+      throw new Error(
+        "Wallet does not support batch signing (signPsbts method not available)",
+      );
+    }
+
+    // Get wallet pubkey once
+    const walletPubkeyRaw = await this.config.btcWallet.getPublicKeyHex();
+
+    // Build all PSBTs (1 per claimer)
+    const psbtsToSign: string[] = [];
+    const signOptions: SignPsbtOptions[] = [];
+    const depositorPubkeys: string[] = [];
+
+    for (const tx of transactions) {
+      // Validate wallet pubkey matches depositor
+      const { depositorPubkey } = validateWalletPubkey(
+        walletPubkeyRaw,
+        tx.depositorBtcPubkey,
+      );
+      depositorPubkeys.push(depositorPubkey);
+
+      // Build Payout PSBT (output validation runs inside buildPayoutPsbt
+      // against resolved input values).
+      const payoutPsbt = await buildPayoutPsbt({
+        vaultCoreVersion: tx.vaultCoreVersion,
+        payoutTxHex: tx.payoutTxHex,
+        peginTxHex: tx.peginTxHex,
+        assertTxHex: tx.assertTxHex,
+        depositorBtcPubkey: depositorPubkey,
+        vaultProviderBtcPubkey: tx.vaultProviderBtcPubkey,
+        vaultKeeperBtcPubkeys: tx.vaultKeeperBtcPubkeys,
+        universalChallengerBtcPubkeys: tx.universalChallengerBtcPubkeys,
+        timelockPegin: tx.timelockPegin,
+        timelockAssert: tx.timelockAssert,
+        network: this.config.network,
+        claimerBtcPubkey: tx.claimerBtcPubkey,
+        registeredPayoutScriptPubKey: tx.registeredPayoutScriptPubKey,
+        commissionBps: tx.commissionBps,
+        protocolFeeRate: tx.protocolFeeRate,
+        councilMembers: tx.councilMembers,
+        councilQuorum: tx.councilQuorum,
+        vkClaimerPayoutScriptPubKeys: tx.vkClaimerPayoutScriptPubKeys,
+        vpCommissionScriptPubKey: tx.vpCommissionScriptPubKey,
+      });
+      psbtsToSign.push(payoutPsbt.psbtHex);
+      signOptions.push(
+        createTaprootScriptPathSignOptions(
+          walletPubkeyRaw,
+          DEPOSITOR_SIGNED_INPUT_COUNT,
+        ),
+      );
+    }
+
+    // Batch sign all PSBTs with single wallet interaction
+    const signedPsbts = await this.config.btcWallet.signPsbts!(
+      psbtsToSign,
+      signOptions,
+    );
+
+    // Validate that wallet returned the expected number of signed PSBTs
+    if (signedPsbts.length !== transactions.length) {
+      throw new Error(
+        `Expected ${transactions.length} signed PSBTs but received ${signedPsbts.length}`,
+      );
+    }
+
+    // Extract signatures from signed PSBTs
+    const results: Array<{
+      payoutSignature: string;
+      depositorBtcPubkey: string;
+    }> = [];
+
+    for (let i = 0; i < transactions.length; i++) {
+      const depositorPubkey = depositorPubkeys[i];
+      assertPsbtUnsignedTxMatches({
+        requestedPsbtHex: psbtsToSign[i],
+        returnedPsbtHex: signedPsbts[i],
+      });
+      const payoutSignature = extractPayoutSignature(
+        signedPsbts[i],
+        depositorPubkey,
+      );
+      assertScriptPathSchnorrSignature({
+        requestedPsbtHex: psbtsToSign[i],
+        signatureHex: payoutSignature,
+        signerXOnlyPubkeyHex: depositorPubkey,
+        inputIndex: PAYOUT_SIGNED_INPUT_INDEX,
+      });
+
+      results.push({
+        payoutSignature,
+        depositorBtcPubkey: depositorPubkey,
+      });
+    }
+
+    return results;
+  }
+}

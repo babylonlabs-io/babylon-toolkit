@@ -1,0 +1,792 @@
+import {
+  computeMinClaimValue,
+  computeMinPeginFee,
+  computeNumLocalChallengers,
+  peginOutputCount,
+  peginP2aAnchorOutput,
+} from "@babylonlabs-io/ts-sdk/tbv/core";
+import { useQuery } from "@tanstack/react-query";
+import { useCallback, useEffect, useMemo, useState } from "react";
+
+import type { PriceMetadata } from "@/clients/eth-contract/chainlink";
+import { useBtcPublicKey } from "@/hooks/useBtcPublicKey";
+import type { VaultProviderListItem } from "@/types/vaultProvider";
+import { getSupportedVaultCoreVersions } from "@/utils/vaultCoreVersionSupport";
+
+import { useAaveConfig } from "../../applications/aave/context";
+import { useProtocolParamsContext } from "../../context/ProtocolParamsContext";
+import {
+  useBTCWallet,
+  useConnection,
+  useETHWallet,
+} from "../../context/wallet";
+import { depositService } from "../../services/deposit";
+import { getVpExplorerProviderUrl } from "../../utils/explorer";
+import { formatProviderDisplayName } from "../../utils/formatting";
+import { sortVaultProviders } from "../../utils/sortVaultProviders";
+import { vaultProviderUnavailableReason } from "../../utils/vaultProviderStatus";
+import {
+  assertMinClaimValue,
+  assertMinPeginFee,
+  assertNumLocalChallengers,
+} from "../../utils/wasm";
+import { useApplicationCap } from "../useApplicationCap";
+import { useApplications } from "../useApplications";
+import { usePrice, usePrices } from "../usePrices";
+import { calculateBalance, useUTXOs } from "../useUTXOs";
+import { useVaultProviderCommissions } from "../useVaultProviderCommissions";
+import { useVaultProviderStats } from "../useVaultProviderStats";
+
+import { useAllocationPlanning } from "./useAllocationPlanning";
+import { useDepositFormErrors } from "./useDepositFormErrors";
+import { useDepositValidation } from "./useDepositValidation";
+import { useEstimatedBtcFee } from "./useEstimatedBtcFee";
+import { useVaultProviders } from "./useVaultProviders";
+
+const STALE_TIME_MS = 5 * 60 * 1000;
+
+/**
+ * Per-batch reserve covering the CPFP anchor output value (~330 sats with
+ * standard anchors, 0 with ephemeral) and a safety margin to absorb fee-rate
+ * jitter between Max-click and Pre-PegIn broadcast.
+ *
+ * Sized for the 2-vault split case (~250 vbytes Pre-PegIn): after the ~330
+ * sat CPFP value, ~2,670 sats remain — enough to absorb a ~10 sat/vB
+ * upward mempool spike in the click→broadcast window. 1-vault batches get
+ * more headroom by construction (smaller tx, same buffer).
+ */
+const PRE_PEGIN_SAFETY_BUFFER_SATS = 3_000n;
+
+/**
+ * Normalize a React Query failure into `Error | null`. wasm-bindgen can reject
+ * with a bare string, so a plain `instanceof Error` filter would silently drop
+ * the failure and leave the CTA stuck on "Calculating fees..." instead of
+ * surfacing the terminal fee-error state. Coerce any non-null, non-Error value
+ * into an `Error` so the failure is always preserved.
+ */
+function toError(value: unknown): Error | null {
+  if (value == null) return null;
+  return value instanceof Error ? value : new Error(String(value));
+}
+
+export interface DepositPageFormData {
+  amountBtc: string;
+  selectedProvider: string;
+}
+
+export interface UseDepositPageFormResult {
+  formData: DepositPageFormData;
+  setFormData: (data: Partial<DepositPageFormData>) => void;
+  /**
+   * Sets the amount to the current depositable maximum and pins it there: the
+   * amount tracks `maxDepositSats` as it changes (e.g. when the UTXO split
+   * auto-enables and lowers the max). Any manual amount edit unpins it.
+   */
+  applyMaxAmount: () => void;
+  /** Resolved application: user choice or auto-selected single app */
+  effectiveSelectedApplication: string;
+
+  errors: {
+    amount?: string;
+    application?: string;
+    provider?: string;
+  };
+  isWalletConnected: boolean;
+
+  btcBalance: bigint;
+  btcBalanceFormatted: number;
+  /** Total value of unconfirmed (in-mempool) UTXOs in satoshis. Display-only. */
+  unconfirmedBalance: bigint;
+  /**
+   * True when the confirmed balance is zero but unconfirmed funds exist. Drives
+   * the "pending confirmation" notice in the deposit form.
+   */
+  hasUnconfirmedBalanceOnly: boolean;
+  btcPrice: number;
+  priceMetadata: Record<string, PriceMetadata>;
+  hasStalePrices: boolean;
+  hasPriceFetchError: boolean;
+  applications: Array<{
+    id: string;
+    name: string;
+    type: string;
+    logoUrl: string | null;
+  }>;
+  isLoadingApplications: boolean;
+  /**
+   * Vault providers for the picker — sorted (most recent successful peg-in
+   * first, problematic providers last) and enriched with commission, total
+   * active BTC, health, and explorer link.
+   */
+  providers: VaultProviderListItem[];
+  isLoadingProviders: boolean;
+
+  amountSats: bigint;
+  minDeposit: bigint;
+  maxDeposit: bigint;
+
+  estimatedFeeSats: bigint | null;
+  estimatedFeeRate: number;
+  isLoadingFee: boolean;
+  feeError: string | null;
+  maxDepositSats: bigint | null;
+  /**
+   * Terminal wallet public-key read failure. Without it the depositor pubkey
+   * silently stays undefined, permanently disabling the claim-value query —
+   * consumers must promote it to the wallet-reconnect recovery surface.
+   */
+  btcPublicKeyError: Error | null;
+  /**
+   * Re-read the wallet public key — call (and await) after a successful
+   * reconnect so the reconnecting state holds until the key is fresh.
+   */
+  refetchBtcPublicKey: () => Promise<void>;
+
+  /**
+   * Remaining application supply cap in satoshis. Null = no cap applies, or
+   * the cap read is still loading. Surfaced so the CTA can mirror the same
+   * cap-exceeded / cap-reached rejections that `validateForm` produces.
+   */
+  effectiveRemaining: bigint | null;
+  /**
+   * True when the supply-cap read errored. `validateForm` hard-rejects every
+   * amount in this state; consumers must mirror that in the CTA.
+   */
+  capUnavailable: boolean;
+  /**
+   * Exact per-HTLC PegIn (activation) tx fee in satoshis from the WASM
+   * `computeMinPeginFee` query. Null until vault keepers load and the WASM
+   * query resolves. Consumers must gate the CTA on this so a user can't
+   * submit during the loading window with an inflated Max value.
+   */
+  minPeginFee: bigint | null;
+  /**
+   * Terminal failure from the `computeMinPeginFee` WASM query (WASM init
+   * failure, unsupported signer count, etc.). Surfaced separately from the
+   * null `minPeginFee` "still loading" state so the CTA can show an error
+   * instead of getting stuck on "Calculating fees...".
+   */
+  minPeginFeeError: Error | null;
+  /**
+   * Per-vault P2A anchor value (sats) the HTLC additionally reserves — 0n
+   * for graph versions without an anchor (v1), 240n for v2/v3. Null while the
+   * WASM query loads.
+   */
+  p2aAnchorValueSats: bigint | null;
+  /**
+   * True when the contract's activeVaultCoreVersion is not buildable by this
+   * build's WASM. Terminal: the CTA must fail closed with the
+   * "update the app" state and the fee queries stay disabled.
+   */
+  appVersionUnsupported: boolean;
+
+  /**
+   * True when the ordinals check is still in flight AND the user has
+   * inscription-exclusion enabled. Consumers should block submission until
+   * the check resolves.
+   */
+  ordinalsCheckPending: boolean;
+
+  // Two-vault split (multi-vault) intent
+  isTwoVaultSplit: boolean;
+  setIsTwoVaultSplit: (v: boolean) => void;
+  canSplit: boolean;
+  /** Per-vault amounts when splitting, null when not applicable */
+  vaultAmounts: readonly [bigint, bigint] | null;
+  /** Whether split params are still loading */
+  isSplitLoading: boolean;
+  /** Display label for the split ratio, null when not applicable */
+  splitRatioLabel: string | null;
+  /** Minimum deposit required to split across two vaults, in satoshis */
+  minDepositForSplit: bigint;
+  /** True when the amount is positive but below the two-vault split minimum */
+  isSplitAmountTooLow: boolean;
+  /** Depositor claim value computed from WASM (VK/UC counts + fee). undefined while loading. */
+  depositorClaimValue: bigint | undefined;
+  /**
+   * Terminal failure from the `computeMinClaimValue` WASM query (init
+   * failure, unsupported signer count, or a guard-rejected non-positive
+   * return). Surfaced separately from the undefined "still loading" state so
+   * the CTA reports an actionable error instead of getting stuck
+   * indefinitely on "Calculating fees...".
+   */
+  depositorClaimValueError: Error | null;
+
+  validateForm: () => boolean;
+  validateAmountOnBlur: () => void;
+  resetForm: () => void;
+}
+
+export function useDepositPageForm(): UseDepositPageFormResult {
+  const { address: btcAddress, connected: btcConnected } = useBTCWallet();
+  const { isConnected: isWalletConnected } = useConnection();
+  const {
+    publicKey: depositorBtcPubkey,
+    error: btcPublicKeyError,
+    refetch: refetchBtcPublicKey,
+  } = useBtcPublicKey(btcConnected);
+  const { config, latestUniversalChallengers } = useProtocolParamsContext();
+  const { config: aaveConfig } = useAaveConfig();
+  const btcPriceUSD = usePrice("BTC");
+  const { metadata, hasStalePrices, hasPriceFetchError } = usePrices();
+
+  const [formData, setFormDataInternal] = useState<DepositPageFormData>({
+    amountBtc: "",
+    selectedProvider: "",
+  });
+
+  // True when the amount was set via the "Max" action. While pinned, the
+  // amount follows the depositable maximum as it changes; a manual edit clears
+  // the pin.
+  const [isMaxPinned, setIsMaxPinned] = useState(false);
+
+  const { data: applicationsData, isLoading: isLoadingApplications } =
+    useApplications();
+  const applications = useMemo(() => {
+    return (applicationsData || []).map((app) => ({
+      id: app.id,
+      name: app.name || app.type,
+      type: app.type,
+      logoUrl: app.logoUrl,
+    }));
+  }, [applicationsData]);
+
+  // The application is always the Aave adapter — AaveConfigProvider blocks
+  // rendering until loaded, so adapterAddress is available synchronously.
+  const effectiveSelectedApplication = aaveConfig?.adapterAddress || "";
+
+  // Fetch providers based on selected application. The picker uses the
+  // unfiltered list so runtime-unhealthy VPs can be shown (sorted to the
+  // bottom with a warning) rather than hidden entirely.
+  const {
+    allVaultProviders: rawProviders,
+    unhealthyVpIds,
+    vaultKeepers,
+    loading: isLoadingRegistry,
+  } = useVaultProviders(effectiveSelectedApplication || undefined);
+
+  // Stable VP id list driving the per-VP stats / commission lookups.
+  const vpIds = useMemo(() => rawProviders.map((p) => p.id), [rawProviders]);
+
+  // Selectable subset for validation. Metadata-rejected providers (`unavailable`)
+  // are shown in the picker but disabled — they must not pass `validateForm()`
+  // either, since a previously-selected provider whose metadata later flips to
+  // rejected would otherwise still survive into deposit signing.
+  const selectableProviderIds = useMemo(
+    () =>
+      rawProviders
+        .filter((p) => vaultProviderUnavailableReason(p) === undefined)
+        .map((p) => p.id),
+    [rawProviders],
+  );
+
+  // Activity stats (total active BTC, last successful peg-in) drive the sort
+  // order, so the picker waits for them — rendering before they arrive would
+  // alphabetize first then reshuffle once timestamps land, with rows jumping
+  // under the cursor. Commissions are display-only and merge in when ready.
+  const { statsById, loading: isLoadingStats } = useVaultProviderStats(vpIds);
+  const { commissionsById } = useVaultProviderCommissions(vpIds);
+
+  const isLoadingProviders = isLoadingRegistry || isLoadingStats;
+
+  const providers = useMemo<VaultProviderListItem[]>(() => {
+    const items: VaultProviderListItem[] = rawProviders.map((p) => {
+      const unavailableReason = vaultProviderUnavailableReason(p);
+      const idLower = p.id.toLowerCase();
+      const stats = statsById.get(idLower);
+      return {
+        id: p.id,
+        name: formatProviderDisplayName(p.name, p.id),
+        btcPubkey: p.btcPubKey || "",
+        iconUrl: p.iconUrl,
+        unavailable: unavailableReason !== undefined,
+        unavailableReason,
+        unhealthy: unhealthyVpIds.has(idLower),
+        commissionBps: commissionsById.get(idLower),
+        totalActiveSats: stats?.totalActiveSats,
+        lastSuccessfulPeginAt: stats?.lastSuccessfulPeginAt,
+        explorerUrl: getVpExplorerProviderUrl(p.id),
+      };
+    });
+    return sortVaultProviders(items);
+  }, [rawProviders, unhealthyVpIds, statsById, commissionsById]);
+
+  // Derive selected VP's BTC pubkey and VK BTC pubkeys for challenger count
+  const selectedVpBtcPubkey = useMemo(() => {
+    const provider = providers.find((p) => p.id === formData.selectedProvider);
+    return provider?.btcPubkey;
+  }, [providers, formData.selectedProvider]);
+  const vaultKeeperBtcPubkeys = useMemo(
+    () => vaultKeepers.map((vk) => vk.btcPubKey),
+    [vaultKeepers],
+  );
+  // A settled registry with selectable providers but zero keepers can never
+  // enable the minPeginFee query — surface the stall as a terminal error
+  // instead of letting the CTA spin on "Calculating fees..." forever.
+  const keeperSetError = useMemo(
+    () =>
+      !isLoadingRegistry &&
+      rawProviders.length > 0 &&
+      vaultKeeperBtcPubkeys.length === 0
+        ? new Error("No vault keepers registered for the application")
+        : null,
+    [isLoadingRegistry, rawProviders.length, vaultKeeperBtcPubkeys.length],
+  );
+
+  const { address: ethAddress } = useETHWallet();
+  const { snapshot: capSnapshot, error: capError } = useApplicationCap(
+    isWalletConnected ? ethAddress : undefined,
+  );
+  // Display balance uses `availableUTXOs` so the user sees their real funds
+  // even while the ordinals classifier is loading or has errored. Actual
+  // spending uses `spendableMempoolUTXOs` (fee estimation) and the fail-closed
+  // gate inside `useDepositFlow`, which refuses to submit while classification
+  // is unavailable.
+  const {
+    availableUTXOs,
+    spendableMempoolUTXOs,
+    ordinalsCheckPending,
+    confirmedBalance,
+    unconfirmedBalance,
+  } = useUTXOs(btcAddress);
+  const btcBalance = useMemo(() => {
+    return BigInt(calculateBalance(availableUTXOs || []));
+  }, [availableUTXOs]);
+
+  // True when the address has no confirmed funds at all but does have
+  // unconfirmed (in-mempool) funds. The deposit form uses this to explain why
+  // the wallet shows a balance the app does not — the app only counts confirmed
+  // UTXOs. Keyed on the raw confirmed balance (not the spendable `btcBalance`)
+  // so the notice never fires when confirmed funds exist but are hidden as
+  // inscriptions — that is a different reason for a zero spendable balance.
+  const hasUnconfirmedBalanceOnly = useMemo(
+    () => confirmedBalance === 0n && unconfirmedBalance > 0n,
+    [confirmedBalance, unconfirmedBalance],
+  );
+
+  const btcBalanceFormatted = useMemo(() => {
+    if (!btcBalance) return 0;
+    return Number(depositService.formatSatoshisToBtc(btcBalance));
+  }, [btcBalance]);
+
+  const { errors, setErrors, clearFieldError, resetErrors } =
+    useDepositFormErrors();
+
+  const setFormData = useCallback(
+    (data: Partial<DepositPageFormData>) => {
+      setFormDataInternal((prev) => ({
+        ...prev,
+        ...data,
+      }));
+      // Clear errors when user starts typing (they'll be validated on blur)
+      if (data.amountBtc !== undefined) {
+        clearFieldError("amount");
+        // A manual amount edit detaches the amount from the "Max" pin.
+        setIsMaxPinned(false);
+      }
+      if (data.selectedProvider !== undefined) clearFieldError("provider");
+    },
+    [clearFieldError],
+  );
+
+  const amountSats = useMemo(() => {
+    if (!formData.amountBtc) return 0n;
+    return depositService.parseBtcToSatoshis(formData.amountBtc);
+  }, [formData.amountBtc]);
+
+  // Two-vault split (multi-vault deposit) intent — declared early so the fee
+  // estimate below can account for the batch output count.
+  const [isTwoVaultSplit, setIsTwoVaultSplit] = useState(false);
+
+  // Split planning first: `canSplit` gates the effective vault count below,
+  // which drives the fee/output budgeting. Depends only on `amountSats` + the
+  // raw intent flag (not on fees or `vaultCount`), so it's safe to compute
+  // before the fee estimate without introducing a dependency cycle.
+  const {
+    vaultAmounts: splitVaultAmounts,
+    canSplit,
+    splitRatioLabel,
+    minDepositForSplit,
+    isSplitAmountTooLow,
+    isLoading: isSplitLoading,
+  } = useAllocationPlanning({
+    amountSats,
+    isTwoVaultSplit,
+  });
+
+  // Batch-first: one Pre-PegIn tx with N HTLC outputs + 1 CPFP anchor +
+  // 1 OP_RETURN auth-anchor. When the two-vault split is on, N = 2.
+  // `hasAuthAnchor: true` mirrors the OP_RETURN output that
+  // `PeginManager.preparePegin` will include in its UTXO selection at
+  // signing time, so the Max fee budget here matches the fee the UTXO
+  // selector will later spend. No PSBT is built here — this is integer
+  // vbyte budgeting only.
+  //
+  // Budget for two vaults only when the split is actually in effect (user
+  // wants it AND the amount can split). When the amount drops below the
+  // splittable threshold the deposit falls back to a single vault, so the
+  // Max/fee reserves must follow — otherwise Max is understated and can
+  // falsely read "below the minimum deposit".
+  // Deliberately looser than submit's effective-split condition (which also
+  // requires `allowSplit`): when split intent is on but disallowed, reserving
+  // for 2 vaults only understates Max — conservative, never underfunding.
+  const vaultCount = isTwoVaultSplit && canSplit ? 2 : 1;
+  const numPeginOutputs = peginOutputCount(vaultCount, true);
+
+  const {
+    fee: estimatedFeeSats,
+    feeRate: estimatedFeeRate,
+    isLoading: isLoadingFee,
+    error: feeError,
+    maxDeposit: maxDepositSats,
+  } = useEstimatedBtcFee(amountSats, spendableMempoolUTXOs, numPeginOutputs);
+
+  // Compute depositorClaimValue for UI validation (min deposit check).
+  // Uses {VP} ∪ {VKs} − {depositor} which is >= the transaction builder's
+  // vaultKeepers.length, making this a conservative estimate.
+  const numLocalChallengersResult = useMemo(() => {
+    if (!selectedVpBtcPubkey || !depositorBtcPubkey) {
+      return { value: undefined, error: null };
+    }
+    try {
+      return {
+        value: assertNumLocalChallengers(
+          computeNumLocalChallengers(
+            selectedVpBtcPubkey,
+            vaultKeeperBtcPubkeys,
+            depositorBtcPubkey,
+          ),
+        ),
+        error: null,
+      };
+    } catch (err) {
+      return {
+        value: undefined,
+        error: err instanceof Error ? err : new Error(String(err)),
+      };
+    }
+  }, [selectedVpBtcPubkey, vaultKeeperBtcPubkeys, depositorBtcPubkey]);
+  const numLocalChallengers = numLocalChallengersResult.value;
+  const challengerCountError = numLocalChallengersResult.error;
+
+  // Fail-closed preflight: is the contract's active vault core version
+  // buildable by this build's WASM? Terminal for the whole deposit page when
+  // false — the WASM fee queries below are disabled (they would throw the
+  // raw facade error) and the CTA shows the "update the app" state instead.
+  const { data: supportedVaultCoreVersions, error: supportedVersionsError } =
+    useQuery({
+      queryKey: ["supportedVaultCoreVersions"],
+      queryFn: getSupportedVaultCoreVersions,
+      staleTime: Infinity,
+      refetchOnWindowFocus: false,
+    });
+  const appVersionUnsupported =
+    supportedVaultCoreVersions !== undefined &&
+    !supportedVaultCoreVersions.includes(config.activeVaultCoreVersion);
+  // Positive gate for the WASM fee queries: while the preflight is still
+  // loading, the version is UNKNOWN — treat it like the queries' own loading
+  // state ("Calculating fees..." CTA) rather than letting them race ahead.
+  const appVersionSupported =
+    supportedVaultCoreVersions !== undefined && !appVersionUnsupported;
+
+  const { data: depositorClaimValue, error: depositorClaimValueError } =
+    useQuery({
+      queryKey: [
+        "depositorClaimValue",
+        config.activeVaultCoreVersion,
+        numLocalChallengers,
+        latestUniversalChallengers.length,
+        config.offchainParams.councilQuorum,
+        config.offchainParams.securityCouncilKeys.length,
+        String(config.offchainParams.feeRate),
+      ],
+      queryFn: () =>
+        computeMinClaimValue(
+          // Fee previews must price the graph version fresh deposits build.
+          config.activeVaultCoreVersion,
+          numLocalChallengers!,
+          latestUniversalChallengers.length,
+          config.offchainParams.councilQuorum,
+          config.offchainParams.securityCouncilKeys.length,
+          config.offchainParams.feeRate,
+        ).then(assertMinClaimValue),
+      enabled:
+        latestUniversalChallengers.length > 0 &&
+        numLocalChallengers != null &&
+        appVersionSupported,
+      staleTime: STALE_TIME_MS,
+      refetchOnWindowFocus: false,
+    });
+
+  // Exact per-HTLC PegIn (activation) fee the depositor must reserve inside
+  // each HTLC value. Sourced from the WASM (`compute_min_pegin_fee` in
+  // btc-vault) so the displayed Max budgets the real
+  //   minPeginFee = peginTxVsize(num_vks, num_ucs) × minPeginFeeRate
+  // instead of an upper-bound flat constant. Application-scoped: depends on
+  // VK + UC counts, not on which specific provider the user picks, so this
+  // resolves as soon as `useVaultProviders` returns.
+  //
+  // We capture both `data` and `error` so the CTA can distinguish "still
+  // loading" (data null, error null) from "terminal failure" (data null,
+  // error set) — e.g. WASM init failure or unsupported signer counts. Without
+  // the error surface the CTA gate would be stuck on "Calculating fees..."
+  // with no recovery path.
+  const { data: minPeginFee, error: minPeginFeeError } = useQuery({
+    queryKey: [
+      "minPeginFee",
+      config.activeVaultCoreVersion,
+      vaultKeeperBtcPubkeys.length,
+      latestUniversalChallengers.length,
+      String(config.offchainParams.minPeginFeeRate),
+    ],
+    queryFn: () =>
+      computeMinPeginFee(
+        config.activeVaultCoreVersion,
+        vaultKeeperBtcPubkeys.length,
+        latestUniversalChallengers.length,
+        config.offchainParams.minPeginFeeRate,
+      ).then(assertMinPeginFee),
+    enabled: vaultKeeperBtcPubkeys.length > 0 && appVersionSupported,
+    staleTime: STALE_TIME_MS,
+    refetchOnWindowFocus: false,
+  });
+
+  // Per-vault P2A anchor value each HTLC must additionally reserve for graph
+  // versions whose PegIn carries a pay-to-anchor output (v2/v3: 240 sats; v1
+  // has none → 0n). Version-static, so cache for the session.
+  const { data: p2aAnchorValueSats, error: p2aAnchorError } = useQuery({
+    queryKey: ["peginP2aAnchorValue", config.activeVaultCoreVersion],
+    queryFn: async () => {
+      const anchor = await peginP2aAnchorOutput(config.activeVaultCoreVersion);
+      return anchor?.value ?? 0n;
+    },
+    enabled: appVersionSupported,
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+  });
+
+  // Adjust max deposit to reserve every per-HTLC and per-batch component that
+  // the eventual Pre-PegIn tx will need to fund:
+  //
+  //   - Pre-PegIn network fee — already subtracted by computeMaxDeposit
+  //   - Per-vault depositorClaimValue (depositor's recovery-path budget)
+  //   - Per-vault minPeginFee (the VP's activation tx budget, reserved
+  //     INSIDE each HTLC's value) — computed exactly via the WASM
+  //     `computeMinPeginFee(num_vks, num_ucs, minPeginFeeRate)`
+  //   - Per-vault P2A anchor value (v2/v3 graphs only), also reserved inside
+  //     each HTLC's value
+  //   - Per-batch CPFP anchor output value + safety margin
+  //
+  // Without the per-vault reserves, Max could resolve to an amount the
+  // iterative UTXO selector then rejects: the Pre-PegIn outputs sum to
+  // vaultCount × (peginAmount + claimValue + p2aAnchor + minPeginFee) + CPFP,
+  // which exceeds totalBalance once those reserves are non-zero.
+  const adjustedMaxDepositSats = useMemo(() => {
+    if (maxDepositSats == null) return null;
+    const vaultCountBig = BigInt(vaultCount);
+    // While the WASM queries are still loading, depositorClaimValue,
+    // minPeginFee, and p2aAnchorValueSats can be undefined. Defaulting them
+    // to 0n keeps the cap clamp + flat batch buffer active so the Max button
+    // never shows a value above the supply cap. When the queries resolve,
+    // adjusted may shrink by the real reserves; the isMaxPinned sync
+    // effect auto-updates the form value.
+    const claimReserve = (depositorClaimValue ?? 0n) * vaultCountBig;
+    const peginFeeReserve = (minPeginFee ?? 0n) * vaultCountBig;
+    const anchorReserve = (p2aAnchorValueSats ?? 0n) * vaultCountBig;
+    const balanceBased =
+      maxDepositSats -
+      claimReserve -
+      peginFeeReserve -
+      anchorReserve -
+      PRE_PEGIN_SAFETY_BUFFER_SATS;
+    // Clamp to the application's remaining supply cap when the cap is the
+    // binding ceiling — otherwise the Max button can land the user above the
+    // cap and `validateForm` would silently reject the click.
+    const effectiveRemaining = capSnapshot?.effectiveRemaining ?? null;
+    const adjusted =
+      effectiveRemaining !== null && effectiveRemaining < balanceBased
+        ? effectiveRemaining
+        : balanceBased;
+    return adjusted > 0n ? adjusted : 0n;
+  }, [
+    maxDepositSats,
+    depositorClaimValue,
+    minPeginFee,
+    p2aAnchorValueSats,
+    vaultCount,
+    capSnapshot,
+  ]);
+
+  // Declared after `adjustedMaxDepositSats` so the validator can reject amounts
+  // when the fee-adjusted max is below the protocol minimum (terminal balance
+  // state), keeping the inline/submit path in agreement with the CTA.
+  //
+  // Only block validation when the on-chain cap read has explicitly errored.
+  // During the initial load `capSnapshot` is null but `capError` is not set —
+  // in that window the validator skips the cap check so the user can still
+  // interact with the form. The contract still enforces the cap at submit.
+  const validation = useDepositValidation({
+    availableProviders: selectableProviderIds,
+    effectiveRemaining: capSnapshot?.effectiveRemaining ?? null,
+    capUnavailable: capError !== null,
+    maxDepositSats: adjustedMaxDepositSats,
+  });
+
+  // Validate amount on blur
+  const validateAmountOnBlur = useCallback(() => {
+    if (formData.amountBtc === "") return;
+    const amountResult = validation.validateAmount(formData.amountBtc);
+    if (!amountResult.valid) {
+      setErrors((prev) => ({ ...prev, amount: amountResult.error }));
+    }
+  }, [formData.amountBtc, validation, setErrors]);
+
+  const applyMaxAmount = useCallback(() => {
+    setIsMaxPinned(true);
+    // A zero max is still a real value: the amount must reflect the cap (0)
+    // rather than keep a stale positive value. Only `null` means "not yet
+    // known", in which case the pin lets the sync effect fill it once loaded.
+    if (adjustedMaxDepositSats != null) {
+      setFormDataInternal((prev) => ({
+        ...prev,
+        amountBtc: depositService.formatSatoshisToBtc(adjustedMaxDepositSats),
+      }));
+      clearFieldError("amount");
+    }
+  }, [adjustedMaxDepositSats, clearFieldError]);
+
+  // Keep a pinned "Max" amount in sync with the depositable maximum. The max
+  // shifts after the form opens — most notably when the UTXO split
+  // auto-enables and reserves a second vault's claim value — so a value
+  // captured at click time would otherwise become unfundable. A max that
+  // collapses to zero must also propagate, otherwise a stale positive amount
+  // stays above the cap.
+  useEffect(() => {
+    if (!isMaxPinned) return;
+    if (adjustedMaxDepositSats == null) return;
+    const maxBtc = depositService.formatSatoshisToBtc(adjustedMaxDepositSats);
+    setFormDataInternal((prev) =>
+      prev.amountBtc === maxBtc ? prev : { ...prev, amountBtc: maxBtc },
+    );
+  }, [isMaxPinned, adjustedMaxDepositSats]);
+
+  // When the depositable max resolves or shrinks (cap loads late, UTXO split
+  // auto-enables a second vault's reserve, fees resolve), clamp any amount left
+  // above it down to the max. A value selected against a higher, stale max — a
+  // slider thumb dragged before the real cap loaded — would otherwise strand
+  // above it and read "Insufficient balance". Keyed only on the max so it never
+  // fires mid-typing: a typed over-max amount keeps its validation message.
+  useEffect(() => {
+    if (adjustedMaxDepositSats == null) return;
+    setFormDataInternal((prev) => {
+      if (!prev.amountBtc) return prev;
+      const prevSats = depositService.parseBtcToSatoshis(prev.amountBtc);
+      if (prevSats <= adjustedMaxDepositSats) return prev;
+      return {
+        ...prev,
+        amountBtc: depositService.formatSatoshisToBtc(adjustedMaxDepositSats),
+      };
+    });
+  }, [adjustedMaxDepositSats]);
+
+  const validateForm = useCallback(() => {
+    const newErrors: typeof errors = {};
+
+    const amountResult = validation.validateAmount(formData.amountBtc);
+    if (!amountResult.valid) {
+      newErrors.amount = amountResult.error;
+    }
+
+    if (!effectiveSelectedApplication) {
+      newErrors.application = "Please select an application";
+    }
+
+    if (!formData.selectedProvider) {
+      newErrors.provider = "Please select a vault provider";
+    } else {
+      const providerResult = validation.validateProviders([
+        formData.selectedProvider,
+      ]);
+      if (!providerResult.valid) {
+        newErrors.provider = providerResult.error;
+      }
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  }, [formData, effectiveSelectedApplication, validation, setErrors]);
+
+  const resetForm = useCallback(() => {
+    setFormDataInternal({
+      amountBtc: "",
+      selectedProvider: "",
+    });
+    setIsMaxPinned(false);
+    resetErrors();
+  }, [resetErrors]);
+
+  return {
+    formData,
+    setFormData,
+    applyMaxAmount,
+    effectiveSelectedApplication,
+    errors,
+    isWalletConnected,
+    btcBalance,
+    btcBalanceFormatted,
+    unconfirmedBalance,
+    hasUnconfirmedBalanceOnly,
+    btcPrice: btcPriceUSD,
+    priceMetadata: metadata,
+    hasStalePrices,
+    hasPriceFetchError,
+    applications,
+    isLoadingApplications,
+    providers,
+    isLoadingProviders,
+    amountSats,
+    minDeposit: validation.minDeposit,
+    maxDeposit: validation.maxDeposit,
+    estimatedFeeSats,
+    estimatedFeeRate,
+    isLoadingFee,
+    feeError,
+    btcPublicKeyError,
+    refetchBtcPublicKey,
+    maxDepositSats: adjustedMaxDepositSats,
+    effectiveRemaining: capSnapshot?.effectiveRemaining ?? null,
+    capUnavailable: capError !== null,
+    minPeginFee: minPeginFee ?? null,
+    // The anchor value and the supported-version preflight are part of the
+    // same per-HTLC reserve estimate, so their failures surface through the
+    // same terminal fee-error CTA state. (An UNSUPPORTED version is not an
+    // error here — it has its own CTA state via appVersionUnsupported.)
+    minPeginFeeError:
+      toError(minPeginFeeError) ??
+      toError(p2aAnchorError) ??
+      toError(supportedVersionsError) ??
+      keeperSetError,
+    appVersionUnsupported,
+    p2aAnchorValueSats: p2aAnchorValueSats ?? null,
+    ordinalsCheckPending,
+    isTwoVaultSplit,
+    setIsTwoVaultSplit,
+    canSplit,
+    vaultAmounts: splitVaultAmounts,
+    isSplitLoading,
+    depositorClaimValue,
+    // Fold the local challenger-count guard failure into the same terminal
+    // error: when `assertNumLocalChallengers` throws, `numLocalChallengers`
+    // is undefined, which disables the claim-value query, so its rejection
+    // never fires. Surfacing `challengerCountError` here keeps the CTA from
+    // silently degrading to a zero-reserve Max.
+    depositorClaimValueError:
+      challengerCountError ?? toError(depositorClaimValueError),
+    splitRatioLabel,
+    minDepositForSplit,
+    isSplitAmountTooLow,
+    validateForm,
+    validateAmountOnBlur,
+    resetForm,
+  };
+}

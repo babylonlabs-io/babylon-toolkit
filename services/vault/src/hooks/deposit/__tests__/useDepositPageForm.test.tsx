@@ -1,0 +1,1170 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { act, renderHook, waitFor } from "@testing-library/react";
+import type { ReactNode } from "react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+// Mock env before importing modules that use it
+vi.mock("@/config/env", () => ({
+  ENV: {
+    BTC_VAULT_REGISTRY: "0x1234567890123456789012345678901234567890",
+    AAVE_ADAPTER: "0x1234567890123456789012345678901234567890",
+    GRAPHQL_ENDPOINT: "https://test.example.com/graphql",
+    VP_EXPLORER_URL: "https://explorer.test.example",
+  },
+}));
+
+// Mock the vault network config runtime to avoid requiring env vars / a
+// `configureBabylonConfig` call in tests.
+vi.mock("@/config/network", () => ({
+  getNetworkConfigETH: vi.fn(() => ({
+    chainId: 11155111,
+    name: "sepolia",
+  })),
+  getNetworkConfigBTC: vi.fn(() => ({
+    network: "signet",
+    mempoolApiUrl: "https://mempool.space/signet/api",
+  })),
+  getETHChain: vi.fn(() => ({
+    id: 11155111,
+    name: "Sepolia",
+  })),
+}));
+
+// Mock eth-contract client to avoid viem initialization
+vi.mock("@/clients/eth-contract", () => ({
+  ethClient: {
+    readContract: vi.fn(),
+    getTransactionReceipt: vi.fn(),
+  },
+}));
+
+// useDepositPageForm now pulls in useApplicationCap. The form-level test does
+// not care about cap state — stub the hook to a loaded uncapped snapshot so
+// validation isn't blocked as "cap unknown" and the test's focus stays on
+// form logic (without dragging in the viem public client).
+vi.mock("../../useApplicationCap", () => ({
+  useApplicationCap: vi.fn(() => ({
+    snapshot: {
+      totalCapBTC: 0n,
+      perAddressCapBTC: 0n,
+      totalBTC: 0n,
+      userBTC: null,
+      hasTotalCap: false,
+      hasPerAddressCap: false,
+      remainingTotal: null,
+      remainingForUser: null,
+      effectiveRemaining: null,
+    },
+    isLoading: false,
+    error: null,
+    refetch: vi.fn(),
+  })),
+}));
+
+vi.mock("../../../applications/aave/context", () => ({
+  useAaveConfig: vi.fn(() => ({
+    config: { adapterAddress: "0xAaveAdapter" },
+    isLoading: false,
+    error: null,
+  })),
+}));
+
+import { useApplications } from "../../useApplications";
+import { useBtcPublicKey } from "../../useBtcPublicKey";
+import { useUTXOs } from "../../useUTXOs";
+import { useAllocationPlanning } from "../useAllocationPlanning";
+import { useDepositPageForm } from "../useDepositPageForm";
+import { useEstimatedBtcFee } from "../useEstimatedBtcFee";
+import { useVaultProviders } from "../useVaultProviders";
+
+vi.mock("@babylonlabs-io/ts-sdk/tbv/core", () => ({
+  computeNumLocalChallengers: vi.fn(() => 2),
+  computeMinClaimValue: vi.fn().mockResolvedValue(35_000n),
+  // Mocked to a deterministic, realistic-shape value (~vsize × low rate).
+  // Real WASM call: peginTxVsize(numVks, numUcs) × minPeginFeeRate.
+  computeMinPeginFee: vi.fn().mockResolvedValue(500n),
+  // Mirrors the real peginOutputCount: vaultCount + CPFP + (auth-anchor ? 1 : 0).
+  peginOutputCount: (vaultCount: number, hasAuthAnchor: boolean) =>
+    vaultCount + 1 + (hasAuthAnchor ? 1 : 0),
+  // v1 default: no P2A anchor. Version-2 tests override.
+  peginP2aAnchorOutput: vi.fn(async () => null),
+  supportedTxGraphVersions: vi.fn(async () => [1, 2, 3]),
+}));
+
+vi.mock("@/hooks/useBtcPublicKey", () => ({
+  useBtcPublicKey: vi.fn(() => ({
+    publicKey: "aa".repeat(32), // 64-char mock x-only pubkey
+    error: null,
+    refetch: vi.fn(),
+  })),
+}));
+
+vi.mock("../../../context/ProtocolParamsContext", () => ({
+  useProtocolParamsContext: vi.fn(() => ({
+    config: {
+      activeVaultCoreVersion: 1,
+      offchainParams: {
+        babeInstancesToFinalize: 2,
+        councilQuorum: 1,
+        securityCouncilKeys: ["0xcouncil1"],
+        feeRate: 10n,
+      },
+    },
+    latestUniversalChallengers: [
+      { id: "0xUC1", btcPubKey: "0xUniversalChallengerKey1" },
+    ],
+  })),
+}));
+
+vi.mock("../../../context/wallet", () => ({
+  useBTCWallet: vi.fn(() => ({
+    address: "bc1qtest123",
+    connected: true,
+  })),
+  useETHWallet: vi.fn(() => ({
+    connected: true,
+  })),
+  useConnection: vi.fn(() => ({
+    isConnected: true,
+    btcConnected: true,
+    ethConnected: true,
+  })),
+}));
+
+vi.mock("../../usePrices", () => ({
+  usePrice: vi.fn(() => 95000.5),
+  usePrices: vi.fn(() => ({
+    prices: { BTC: 95000.5 },
+    metadata: {},
+    isLoading: false,
+    error: null,
+    hasStalePrices: false,
+    hasPriceFetchError: false,
+  })),
+}));
+
+vi.mock("../../useUTXOs", () => ({
+  useUTXOs: vi.fn(() => ({
+    allUTXOs: [
+      {
+        txid: "0x123",
+        vout: 0,
+        value: 500000,
+        scriptPubKey: "0xabc",
+        confirmed: true,
+      },
+      {
+        txid: "0x456",
+        vout: 1,
+        value: 300000,
+        scriptPubKey: "0xdef",
+        confirmed: true,
+      },
+    ],
+    confirmedUTXOs: [
+      {
+        txid: "0x123",
+        vout: 0,
+        value: 500000,
+        scriptPubKey: "0xabc",
+        confirmed: true,
+      },
+      {
+        txid: "0x456",
+        vout: 1,
+        value: 300000,
+        scriptPubKey: "0xdef",
+        confirmed: true,
+      },
+    ],
+    availableUTXOs: [
+      { txid: "0x123", vout: 0, value: 500000, scriptPubKey: "0xabc" },
+      { txid: "0x456", vout: 1, value: 300000, scriptPubKey: "0xdef" },
+    ],
+    inscriptionUTXOs: [],
+    spendableUTXOs: [
+      { txid: "0x123", vout: 0, value: 500000, scriptPubKey: "0xabc" },
+      { txid: "0x456", vout: 1, value: 300000, scriptPubKey: "0xdef" },
+    ],
+    spendableMempoolUTXOs: [
+      {
+        txid: "0x123",
+        vout: 0,
+        value: 500000,
+        scriptPubKey: "0xabc",
+        confirmed: true,
+      },
+      {
+        txid: "0x456",
+        vout: 1,
+        value: 300000,
+        scriptPubKey: "0xdef",
+        confirmed: true,
+      },
+    ],
+    confirmedBalance: 800000n,
+    unconfirmedBalance: 0n,
+    isLoading: false,
+    isLoadingOrdinals: false,
+    error: null,
+    ordinalsError: null,
+    ordinalsCheckPending: false,
+    refetch: vi.fn(),
+  })),
+  calculateBalance: vi.fn((utxos) => {
+    return utxos.reduce(
+      (sum: number, utxo: { value: number }) => sum + utxo.value,
+      0,
+    );
+  }),
+}));
+
+vi.mock("../../useApplications", () => ({
+  useApplications: vi.fn(() => ({
+    data: [
+      {
+        id: "0xControllerAddress1",
+        name: "App One",
+        type: "Lending",
+        logoUrl: "https://example.com/logo1.png",
+        registeredAt: "2024-01-01T00:00:00Z",
+        blockNumber: "1000000",
+        transactionHash: "0xabc123",
+        description: "Test app one",
+        websiteUrl: "https://appone.com",
+      },
+      {
+        id: "0xControllerAddress2",
+        name: "App Two",
+        type: "DEX",
+        logoUrl: null,
+        registeredAt: "2024-01-02T00:00:00Z",
+        blockNumber: "1000001",
+        transactionHash: "0xdef456",
+        description: null,
+        websiteUrl: null,
+      },
+    ],
+    isLoading: false,
+  })),
+}));
+
+vi.mock("../useVaultProviders", () => ({
+  useVaultProviders: vi.fn(() => ({
+    allVaultProviders: [
+      {
+        id: "0x1234567890abcdef1234567890abcdef12345678",
+        btcPubKey: "pubkey1",
+      },
+      {
+        id: "0xabcdef1234567890abcdef1234567890abcdef12",
+        btcPubKey: "pubkey2",
+      },
+    ],
+    unhealthyVpIds: new Set<string>(),
+    vaultKeepers: [{ btcPubKey: "0xVaultKeeperKey1" }],
+    loading: false,
+  })),
+}));
+
+// Per-VP stats and commissions load via their own queries; the form-level
+// test does not exercise them, so stub both to empty (matches the
+// "not yet loaded" state — the picker shows placeholders).
+vi.mock("../../useVaultProviderStats", () => ({
+  useVaultProviderStats: vi.fn(() => ({
+    statsById: new Map(),
+    loading: false,
+  })),
+}));
+
+vi.mock("../../useVaultProviderCommissions", () => ({
+  useVaultProviderCommissions: vi.fn(() => ({
+    commissionsById: new Map(),
+    loading: false,
+  })),
+}));
+
+vi.mock("../useAllocationPlanning", () => ({
+  useAllocationPlanning: vi.fn(() => ({
+    vaultAmounts: null,
+    canSplit: false,
+    splitRatioLabel: null,
+    minDepositForSplit: 0n,
+    isSplitAmountTooLow: false,
+    isLoading: false,
+  })),
+}));
+
+vi.mock("../../../utils/formatting", () => ({
+  formatProviderDisplayName: vi.fn(
+    (name: string | undefined, id: string) => name || `${id.slice(0, 6)}...`,
+  ),
+}));
+
+vi.mock("../../../services/deposit", () => ({
+  depositService: {
+    parseBtcToSatoshis: vi.fn((btc: string) => {
+      const num = parseFloat(btc);
+      if (isNaN(num) || num <= 0) return 0n;
+      return BigInt(Math.floor(num * 100000000));
+    }),
+    formatSatoshisToBtc: vi.fn((sats: bigint) => {
+      return (Number(sats) / 100000000).toString();
+    }),
+    isDepositAmountValid: vi.fn(
+      (params: {
+        amountSats: bigint;
+        minDeposit: bigint;
+        btcBalance: bigint;
+        estimatedFeeSats?: bigint;
+        depositorClaimValue?: bigint;
+      }) => {
+        const {
+          amountSats,
+          minDeposit,
+          btcBalance,
+          estimatedFeeSats,
+          depositorClaimValue,
+        } = params;
+        if (amountSats <= 0n) return false;
+        if (amountSats < minDeposit) return false;
+        if (estimatedFeeSats == null || depositorClaimValue == null)
+          return false;
+        const totalRequired =
+          amountSats + estimatedFeeSats + depositorClaimValue;
+        if (totalRequired > btcBalance) return false;
+        return true;
+      },
+    ),
+  },
+}));
+
+const mockValidateAmount = vi.fn((amount: string) => {
+  if (!amount || parseFloat(amount) <= 0) {
+    return { valid: false, error: "Amount must be greater than zero" };
+  }
+  if (parseFloat(amount) < 0.0001) {
+    return { valid: false, error: "Minimum deposit is 0.0001 BTC" };
+  }
+  return { valid: true };
+});
+
+const mockValidateProviders = vi.fn((providers: string[]) => {
+  if (providers.length === 0) {
+    return {
+      valid: false,
+      error: "Please select at least one vault provider",
+    };
+  }
+  return { valid: true };
+});
+
+vi.mock("../useEstimatedBtcFee", () => ({
+  useEstimatedBtcFee: vi.fn(() => ({
+    fee: 1500n,
+    feeRate: 5,
+    isLoading: false,
+    error: null,
+    maxDeposit: 798500n,
+  })),
+}));
+
+vi.mock("../useDepositValidation", () => ({
+  useDepositValidation: vi.fn(() => ({
+    validateAmount: mockValidateAmount,
+    validateProviders: mockValidateProviders,
+    minDeposit: 10000n,
+    maxDeposit: 100_000_000n,
+    availableProviders: [
+      "0x1234567890abcdef1234567890abcdef12345678",
+      "0xabcdef1234567890abcdef1234567890abcdef12",
+    ],
+  })),
+}));
+
+describe("useDepositPageForm", () => {
+  let queryClient: QueryClient;
+
+  beforeEach(() => {
+    queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+      },
+    });
+    vi.clearAllMocks();
+    // Reset fee mock (clearAllMocks only clears call history, not implementations)
+    vi.mocked(useEstimatedBtcFee).mockReturnValue({
+      fee: 1500n,
+      feeRate: 5,
+      isLoading: false,
+      error: null,
+      maxDeposit: 798500n,
+    });
+    // Reset to default applications data
+    vi.mocked(useApplications).mockReturnValue({
+      data: [
+        {
+          id: "0xControllerAddress1",
+          name: "App One",
+          type: "Lending",
+          logoUrl: "https://example.com/logo1.png",
+          registeredAt: "2024-01-01T00:00:00Z",
+          blockNumber: "1000000",
+          transactionHash: "0xabc123",
+          description: "Test app one",
+          websiteUrl: "https://appone.com",
+        },
+        {
+          id: "0xControllerAddress2",
+          name: "App Two",
+          type: "DEX",
+          logoUrl: null,
+          registeredAt: "2024-01-02T00:00:00Z",
+          blockNumber: "1000001",
+          transactionHash: "0xdef456",
+          description: null,
+          websiteUrl: null,
+        },
+      ],
+      isLoading: false,
+      error: null,
+      isError: false,
+      isPending: false,
+      isSuccess: true,
+      status: "success",
+      fetchStatus: "idle",
+      isFetching: false,
+      isRefetching: false,
+      isPaused: false,
+      refetch: vi.fn(),
+      isLoadingError: false,
+      isRefetchError: false,
+      dataUpdatedAt: Date.now(),
+      errorUpdatedAt: 0,
+      failureCount: 0,
+      failureReason: null,
+      errorUpdateCount: 0,
+      isFetched: true,
+      isFetchedAfterMount: true,
+      isInitialLoading: false,
+      isPlaceholderData: false,
+      isStale: false,
+      promise: Promise.resolve([]),
+    } as unknown as ReturnType<typeof useApplications>);
+    // Reset UTXO mock to the default funded address (800000 sats confirmed, no
+    // unconfirmed) so per-test overrides for the unconfirmed-balance cases
+    // don't leak — clearAllMocks keeps mockReturnValue overrides in place.
+    vi.mocked(useUTXOs).mockReturnValue({
+      availableUTXOs: [
+        { txid: "0x123", vout: 0, value: 500000, scriptPubKey: "0xabc" },
+        { txid: "0x456", vout: 1, value: 300000, scriptPubKey: "0xdef" },
+      ],
+      spendableMempoolUTXOs: [
+        {
+          txid: "0x123",
+          vout: 0,
+          value: 500000,
+          scriptPubKey: "0xabc",
+          confirmed: true,
+        },
+        {
+          txid: "0x456",
+          vout: 1,
+          value: 300000,
+          scriptPubKey: "0xdef",
+          confirmed: true,
+        },
+      ],
+      ordinalsCheckPending: false,
+      confirmedBalance: 800000n,
+      unconfirmedBalance: 0n,
+    } as unknown as ReturnType<typeof useUTXOs>);
+  });
+
+  const wrapper = ({ children }: { children: ReactNode }) => {
+    return (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+  };
+
+  describe("initialization", () => {
+    it("should initialize with empty form data", () => {
+      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+
+      expect(result.current.formData).toEqual({
+        amountBtc: "",
+        selectedProvider: "",
+      });
+      expect(result.current.errors).toEqual({});
+    });
+
+    it("fails closed when the active vault core version is unsupported by this build", async () => {
+      const { useProtocolParamsContext } = await import(
+        "../../../context/ProtocolParamsContext"
+      );
+      const ctxMock = vi.mocked(useProtocolParamsContext);
+      const originalImpl = ctxMock.getMockImplementation();
+      ctxMock.mockReturnValue({
+        config: {
+          // Real WASM is mocked to support [1, 2]; 99 must fail closed.
+          activeVaultCoreVersion: 99,
+          offchainParams: {
+            babeInstancesToFinalize: 2,
+            councilQuorum: 1,
+            securityCouncilKeys: ["0xcouncil1"],
+            feeRate: 10n,
+          },
+        },
+        latestUniversalChallengers: [
+          { id: "0xUC1", btcPubKey: "0xUniversalChallengerKey1" },
+        ],
+      } as never);
+
+      try {
+        const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+
+        await waitFor(() =>
+          expect(result.current.appVersionUnsupported).toBe(true),
+        );
+        // The WASM fee previews stay disabled for an unbuildable version.
+        const { computeMinClaimValue } = await import(
+          "@babylonlabs-io/ts-sdk/tbv/core"
+        );
+        expect(vi.mocked(computeMinClaimValue)).not.toHaveBeenCalled();
+      } finally {
+        if (originalImpl) ctxMock.mockImplementation(originalImpl);
+      }
+    });
+
+    it("should resolve application from aave config on mount", () => {
+      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+
+      expect(result.current.effectiveSelectedApplication).toBe("0xAaveAdapter");
+    });
+
+    it("should calculate BTC balance from UTXOs", () => {
+      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+
+      expect(result.current.btcBalance).toBe(800000n);
+    });
+
+    it("should format BTC balance correctly", () => {
+      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+
+      expect(result.current.btcBalanceFormatted).toBe(0.008);
+    });
+
+    it("flags hasUnconfirmedBalanceOnly when confirmed balance is zero but unconfirmed funds exist", () => {
+      vi.mocked(useUTXOs).mockReturnValue({
+        availableUTXOs: [],
+        spendableMempoolUTXOs: [],
+        ordinalsCheckPending: false,
+        confirmedBalance: 0n,
+        unconfirmedBalance: 50000n,
+      } as unknown as ReturnType<typeof useUTXOs>);
+
+      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+
+      expect(result.current.btcBalance).toBe(0n);
+      expect(result.current.unconfirmedBalance).toBe(50000n);
+      expect(result.current.hasUnconfirmedBalanceOnly).toBe(true);
+    });
+
+    it("does not flag hasUnconfirmedBalanceOnly when confirmed balance is non-zero", () => {
+      vi.mocked(useUTXOs).mockReturnValue({
+        availableUTXOs: [
+          { txid: "0x123", vout: 0, value: 500000, scriptPubKey: "0xabc" },
+        ],
+        spendableMempoolUTXOs: [],
+        ordinalsCheckPending: false,
+        confirmedBalance: 500000n,
+        unconfirmedBalance: 50000n,
+      } as unknown as ReturnType<typeof useUTXOs>);
+
+      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+
+      expect(result.current.btcBalance).toBe(500000n);
+      expect(result.current.hasUnconfirmedBalanceOnly).toBe(false);
+    });
+
+    it("does not flag hasUnconfirmedBalanceOnly when confirmed funds exist but are all inscriptions", () => {
+      // Spendable balance is zero because the only confirmed UTXO is an
+      // inscription (excluded from availableUTXOs), yet confirmed funds exist.
+      // The notice must stay hidden — the zero spendable balance is not a
+      // pending-confirmation situation.
+      vi.mocked(useUTXOs).mockReturnValue({
+        availableUTXOs: [],
+        spendableMempoolUTXOs: [],
+        ordinalsCheckPending: false,
+        confirmedBalance: 300000n,
+        unconfirmedBalance: 50000n,
+      } as unknown as ReturnType<typeof useUTXOs>);
+
+      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+
+      expect(result.current.btcBalance).toBe(0n);
+      expect(result.current.unconfirmedBalance).toBe(50000n);
+      expect(result.current.hasUnconfirmedBalanceOnly).toBe(false);
+    });
+
+    it("should load applications", () => {
+      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+
+      expect(result.current.applications).toHaveLength(2);
+      // Hook only exposes id, name, type, logoUrl from Application
+      expect(result.current.applications[0]).toEqual({
+        id: "0xControllerAddress1",
+        name: "App One",
+        type: "Lending",
+        logoUrl: "https://example.com/logo1.png",
+      });
+      expect(result.current.applications[1]).toEqual({
+        id: "0xControllerAddress2",
+        name: "App Two",
+        type: "DEX",
+        logoUrl: null,
+      });
+    });
+
+    it("should load providers", () => {
+      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+
+      expect(result.current.providers).toHaveLength(2);
+      expect(result.current.providers[0].id).toBe(
+        "0x1234567890abcdef1234567890abcdef12345678",
+      );
+      expect(result.current.providers[0].btcPubkey).toBe("pubkey1");
+    });
+
+    it("should expose BTC price", () => {
+      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+
+      expect(result.current.btcPrice).toBe(95000.5);
+    });
+
+    it("should expose estimated fee values from useEstimatedBtcFee", () => {
+      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+
+      expect(result.current.estimatedFeeSats).toBe(1500n);
+      expect(result.current.estimatedFeeRate).toBe(5);
+      expect(result.current.isLoadingFee).toBe(false);
+      expect(result.current.feeError).toBeNull();
+
+      // Without a selected provider AND before the WASM queries resolve,
+      // both depositorClaimValue and minPeginFee default to 0n. Only the
+      // batch buffer is subtracted, so synchronously:
+      //   798_500 (raw) − 0 (claim) − 0 (peginFee) − 3_000 (buffer) = 795_500
+      // The Max-pin sync effect tightens this down once the queries resolve.
+      expect(result.current.maxDepositSats).toBe(795_500n);
+    });
+
+    it("subtracts the per-vault claim + PegIn-fee reserve and the batch buffer from maxDepositSats", async () => {
+      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+
+      // Select a provider so depositorClaimValue query resolves
+      act(() => {
+        result.current.setFormData({
+          selectedProvider: "0x1234567890abcdef1234567890abcdef12345678",
+        });
+      });
+
+      // maxDeposit (mocked) = 798_500
+      // − vaultCount × (depositorClaimValue + minPeginFee from WASM)
+      //   = 1 × (35_000 + 500) = 35_500
+      // − per-batch CPFP + safety buffer = 3_000
+      // = 760_000
+      await waitFor(() => {
+        expect(result.current.maxDepositSats).toBe(760_000n);
+      });
+    });
+
+    it("should propagate fee loading state", () => {
+      vi.mocked(useEstimatedBtcFee).mockReturnValue({
+        fee: null,
+        feeRate: 0,
+        isLoading: true,
+        error: null,
+        maxDeposit: null,
+      });
+
+      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+
+      expect(result.current.isLoadingFee).toBe(true);
+      expect(result.current.estimatedFeeSats).toBeNull();
+    });
+
+    it("should propagate fee error state", () => {
+      vi.mocked(useEstimatedBtcFee).mockReturnValue({
+        fee: null,
+        feeRate: 5,
+        isLoading: false,
+        error: "Insufficient funds: need 900000 sats, have 800000 sats",
+        maxDeposit: 798500n,
+      });
+
+      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+
+      expect(result.current.feeError).toBe(
+        "Insufficient funds: need 900000 sats, have 800000 sats",
+      );
+      expect(result.current.estimatedFeeSats).toBeNull();
+      expect(result.current.estimatedFeeRate).toBe(5);
+    });
+  });
+
+  describe("setFormData", () => {
+    it("should update amount field", () => {
+      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+
+      act(() => {
+        result.current.setFormData({ amountBtc: "0.001" });
+      });
+
+      expect(result.current.formData.amountBtc).toBe("0.001");
+    });
+
+    it("should update provider field", () => {
+      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+
+      act(() => {
+        result.current.setFormData({
+          selectedProvider: "0x1234567890abcdef1234567890abcdef12345678",
+        });
+      });
+
+      expect(result.current.formData.selectedProvider).toBe(
+        "0x1234567890abcdef1234567890abcdef12345678",
+      );
+    });
+
+    it("should clear amount error when amount is updated", () => {
+      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+
+      act(() => {
+        result.current.validateForm();
+      });
+
+      expect(result.current.errors.amount).toBeDefined();
+
+      act(() => {
+        result.current.setFormData({ amountBtc: "0.001" });
+      });
+
+      expect(result.current.errors.amount).toBeUndefined();
+    });
+
+    it("should not set application error when aave config provides default", () => {
+      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+
+      act(() => {
+        result.current.validateForm();
+      });
+
+      // effectiveSelectedApplication falls back to aaveConfig.adapterAddress
+      expect(result.current.errors.application).toBeUndefined();
+    });
+
+    it("should clear provider error when provider is updated", () => {
+      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+
+      act(() => {
+        result.current.validateForm();
+      });
+
+      expect(result.current.errors.provider).toBeDefined();
+
+      act(() => {
+        result.current.setFormData({
+          selectedProvider: "0x1234567890abcdef1234567890abcdef12345678",
+        });
+      });
+
+      expect(result.current.errors.provider).toBeUndefined();
+    });
+  });
+
+  describe("amountSats calculation", () => {
+    it("should return 0 for empty amount", () => {
+      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+
+      expect(result.current.amountSats).toBe(0n);
+    });
+
+    it("should convert BTC to satoshis", () => {
+      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+
+      act(() => {
+        result.current.setFormData({ amountBtc: "0.001" });
+      });
+
+      expect(result.current.amountSats).toBe(100000n);
+    });
+
+    it("should handle decimal amounts", () => {
+      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+
+      act(() => {
+        result.current.setFormData({ amountBtc: "0.00012345" });
+      });
+
+      expect(result.current.amountSats).toBe(12345n);
+    });
+  });
+
+  describe("validateForm", () => {
+    it("should return false and set errors for empty form", () => {
+      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+
+      let isValid: boolean = false;
+      act(() => {
+        isValid = result.current.validateForm();
+      });
+
+      expect(isValid).toBe(false);
+      expect(result.current.errors.amount).toBe(
+        "Amount must be greater than zero",
+      );
+      // Application is resolved via aaveConfig fallback — no error
+      expect(result.current.errors.application).toBeUndefined();
+      expect(result.current.errors.provider).toBe(
+        "Please select a vault provider",
+      );
+    });
+
+    it("should validate amount field", () => {
+      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+
+      act(() => {
+        result.current.setFormData({
+          amountBtc: "0.00001",
+          selectedProvider: "0x1234567890abcdef1234567890abcdef12345678",
+        });
+      });
+
+      let isValid: boolean = false;
+      act(() => {
+        isValid = result.current.validateForm();
+      });
+
+      expect(isValid).toBe(false);
+      expect(result.current.errors.amount).toBe(
+        "Minimum deposit is 0.0001 BTC",
+      );
+    });
+
+    it("should validate provider field", () => {
+      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+
+      act(() => {
+        result.current.setFormData({
+          amountBtc: "0.001",
+        });
+      });
+
+      let isValid: boolean = false;
+      act(() => {
+        isValid = result.current.validateForm();
+      });
+
+      expect(isValid).toBe(false);
+      expect(result.current.errors.provider).toBe(
+        "Please select a vault provider",
+      );
+    });
+
+    it("should return true for valid form", () => {
+      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+
+      act(() => {
+        result.current.setFormData({
+          amountBtc: "0.001",
+          selectedProvider: "0x1234567890abcdef1234567890abcdef12345678",
+        });
+      });
+
+      let isValid: boolean = false;
+      act(() => {
+        isValid = result.current.validateForm();
+      });
+
+      expect(isValid).toBe(true);
+      expect(result.current.errors).toEqual({});
+    });
+
+    it("should call validation functions with correct arguments", () => {
+      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+
+      act(() => {
+        result.current.setFormData({
+          amountBtc: "0.001",
+          selectedProvider: "0x1234567890abcdef1234567890abcdef12345678",
+        });
+      });
+
+      act(() => {
+        result.current.validateForm();
+      });
+
+      expect(mockValidateAmount).toHaveBeenCalledWith("0.001");
+      expect(mockValidateProviders).toHaveBeenCalledWith([
+        "0x1234567890abcdef1234567890abcdef12345678",
+      ]);
+    });
+  });
+
+  describe("resetForm", () => {
+    it("should reset form data to initial state", () => {
+      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+
+      act(() => {
+        result.current.setFormData({
+          amountBtc: "0.001",
+          selectedProvider: "0x1234567890abcdef1234567890abcdef12345678",
+        });
+      });
+
+      expect(result.current.formData.amountBtc).toBe("0.001");
+
+      act(() => {
+        result.current.resetForm();
+      });
+
+      expect(result.current.formData).toEqual({
+        amountBtc: "",
+        selectedProvider: "",
+      });
+    });
+
+    it("should clear all errors", () => {
+      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+
+      act(() => {
+        result.current.validateForm();
+      });
+
+      expect(Object.keys(result.current.errors).length).toBeGreaterThan(0);
+
+      act(() => {
+        result.current.resetForm();
+      });
+
+      expect(result.current.errors).toEqual({});
+    });
+  });
+
+  describe("loading states", () => {
+    it("should expose applications loading state", () => {
+      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+
+      expect(result.current.isLoadingApplications).toBe(false);
+    });
+
+    it("should expose providers loading state", () => {
+      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+
+      expect(result.current.isLoadingProviders).toBe(false);
+    });
+  });
+
+  describe("Max pinning sync with vaultCount", () => {
+    // vaultCount is now the EFFECTIVE split: isTwoVaultSplit && canSplit.
+    // These tests exercise the 1->2 transition, so the amount must be
+    // splittable — override the default canSplit (false) to true.
+    beforeEach(() => {
+      vi.mocked(useAllocationPlanning).mockReturnValue({
+        vaultAmounts: null,
+        canSplit: true,
+        splitRatioLabel: null,
+        minDepositForSplit: 0n,
+        isSplitAmountTooLow: false,
+        isLoading: false,
+      });
+    });
+
+    // Mocks resolve to:
+    //   maxDeposit (fee-adjusted balance)        = 798_500n
+    //   depositorClaimValue                       = 35_000n
+    //   per-vault minPeginFee (mocked WASM)       =    500n
+    //   per-batch CPFP + safety buffer (flat)     =  3_000n
+    // adjustedMaxDepositSats = max − vaultCount × (claim + minPeginFee) − batchBuffer:
+    //   vaultCount 1 -> 798500 − 1*(35000+500) − 3000 = 760_000n  ("0.0076" BTC)
+    //   vaultCount 2 -> 798500 − 2*(35000+500) − 3000 = 724_500n  ("0.007245" BTC)
+    it("keeps a pinned Max amount in sync when partial liquidation enables (vaultCount 1->2)", async () => {
+      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+
+      act(() => {
+        result.current.setFormData({
+          selectedProvider: "0x1234567890abcdef1234567890abcdef12345678",
+        });
+      });
+
+      await waitFor(() => {
+        expect(result.current.maxDepositSats).toBe(760_000n);
+      });
+
+      act(() => {
+        result.current.applyMaxAmount();
+      });
+
+      expect(result.current.formData.amountBtc).toBe("0.0076");
+
+      act(() => {
+        result.current.setIsTwoVaultSplit(true);
+      });
+
+      await waitFor(() => {
+        expect(result.current.maxDepositSats).toBe(724_500n);
+      });
+      expect(result.current.formData.amountBtc).toBe("0.007245");
+    });
+
+    it("detaches the Max pin on a manual amount edit so a later max change does not overwrite it", async () => {
+      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+
+      act(() => {
+        result.current.setFormData({
+          selectedProvider: "0x1234567890abcdef1234567890abcdef12345678",
+        });
+      });
+
+      await waitFor(() => {
+        expect(result.current.maxDepositSats).toBe(760_000n);
+      });
+
+      act(() => {
+        result.current.applyMaxAmount();
+      });
+      expect(result.current.formData.amountBtc).toBe("0.0076");
+
+      act(() => {
+        result.current.setFormData({ amountBtc: "0.001" });
+      });
+      expect(result.current.formData.amountBtc).toBe("0.001");
+
+      act(() => {
+        result.current.setIsTwoVaultSplit(true);
+      });
+
+      await waitFor(() => {
+        expect(result.current.maxDepositSats).toBe(724_500n);
+      });
+      expect(result.current.formData.amountBtc).toBe("0.001");
+    });
+  });
+
+  describe("effective split budgeting", () => {
+    // Set canSplit explicitly (clearAllMocks keeps mockReturnValue, so the
+    // prior describe's canSplit:true would otherwise leak in): the amount is
+    // below the splittable threshold here.
+    beforeEach(() => {
+      vi.mocked(useAllocationPlanning).mockReturnValue({
+        vaultAmounts: null,
+        canSplit: false,
+        splitRatioLabel: null,
+        minDepositForSplit: 0n,
+        isSplitAmountTooLow: false,
+        isLoading: false,
+      });
+    });
+
+    it("budgets a single vault when partial liquidation is on but the amount cannot split", async () => {
+      // Even with the split intent enabled, vaultCount must stay 1 so the Max
+      // is not understated by reserving a second vault's claim + pegin fee.
+      // 798500 − 1*(35000+500) − 3000 = 760_000n (vaultCount 1), NOT 724_500n.
+      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+
+      act(() => {
+        result.current.setFormData({
+          selectedProvider: "0x1234567890abcdef1234567890abcdef12345678",
+        });
+      });
+
+      await waitFor(() => {
+        expect(result.current.maxDepositSats).toBe(760_000n);
+      });
+
+      act(() => {
+        result.current.setIsTwoVaultSplit(true);
+      });
+
+      // Give the effect a chance to (incorrectly) re-budget; it must not.
+      await waitFor(() => {
+        expect(result.current.canSplit).toBe(false);
+      });
+      expect(result.current.maxDepositSats).toBe(760_000n);
+    });
+  });
+
+  describe("silent stall surfacing", () => {
+    afterEach(() => {
+      // Restore module-level defaults — the suite's beforeEach doesn't reset
+      // these two mocks, so overrides here must not leak into later tests.
+      vi.mocked(useVaultProviders).mockReturnValue({
+        allVaultProviders: [
+          {
+            id: "0x1234567890abcdef1234567890abcdef12345678",
+            btcPubKey: "pubkey1",
+          },
+          {
+            id: "0xabcdef1234567890abcdef1234567890abcdef12",
+            btcPubKey: "pubkey2",
+          },
+        ],
+        unhealthyVpIds: new Set<string>(),
+        vaultKeepers: [{ btcPubKey: "0xVaultKeeperKey1" }],
+        loading: false,
+      } as unknown as ReturnType<typeof useVaultProviders>);
+      vi.mocked(useBtcPublicKey).mockReturnValue({
+        publicKey: "aa".repeat(32),
+        error: null,
+        refetch: vi.fn(),
+      });
+    });
+
+    it("surfaces a terminal minPeginFee error when the settled registry has providers but no keepers", () => {
+      vi.mocked(useVaultProviders).mockReturnValue({
+        allVaultProviders: [
+          {
+            id: "0x1234567890abcdef1234567890abcdef12345678",
+            btcPubKey: "pubkey1",
+          },
+        ],
+        unhealthyVpIds: new Set<string>(),
+        vaultKeepers: [],
+        loading: false,
+      } as unknown as ReturnType<typeof useVaultProviders>);
+
+      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+
+      // Zero keeper pubkeys can never enable the minPeginFee query — the hook
+      // must report a terminal error so the CTA doesn't spin forever.
+      expect(result.current.minPeginFeeError).not.toBeNull();
+    });
+
+    it("keeps minPeginFeeError null while the registry is still loading", () => {
+      vi.mocked(useVaultProviders).mockReturnValue({
+        allVaultProviders: [],
+        unhealthyVpIds: new Set<string>(),
+        vaultKeepers: [],
+        loading: true,
+      } as unknown as ReturnType<typeof useVaultProviders>);
+
+      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+
+      expect(result.current.minPeginFeeError).toBeNull();
+    });
+
+    it("exposes the wallet public-key read failure", () => {
+      const walletError = new Error("wallet unresponsive");
+      vi.mocked(useBtcPublicKey).mockReturnValue({
+        publicKey: undefined,
+        error: walletError,
+        refetch: vi.fn(),
+      });
+
+      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+
+      expect(result.current.btcPublicKeyError).toBe(walletError);
+    });
+  });
+});

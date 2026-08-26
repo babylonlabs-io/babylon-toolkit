@@ -1,0 +1,45 @@
+.bbn-dialog {
+  @apply border-secondary-strokeLight bg-surface rounded border p-6;
+
+  &-wrapper {
+    @apply fixed left-1/2 top-1/2 z-50 max-w-full -translate-x-1/2 -translate-y-1/2;
+  }
+
+  &-body {
+    @apply min-h-0 flex-1 overflow-y-auto;
+
+    /* Custom scrollbar styles */
+    &::-webkit-scrollbar {
+      width: 5px;
+      height: 5px;
+    }
+
+    &::-webkit-scrollbar-thumb {
+      @apply bg-accent-primary/80;
+    }
+
+    &::-webkit-scrollbar-track {
+      @apply bg-accent-secondary/15;
+    }
+  }
+
+  &-header {
+    @apply block;
+  }
+
+  &-title {
+    @apply flex items-center justify-between gap-2;
+  }
+
+  &-footer {
+    @apply shrink-0;
+  }
+
+  &-mobile {
+    @apply bg-surface border-secondary-strokeLight fixed inset-x-0 bottom-0 z-50 flex max-h-full flex-col rounded-t-3xl border px-4 pb-4 pt-12;
+  }
+
+  &-fullscreen {
+    @apply fixed inset-0 z-50 bg-surface overflow-y-auto;
+  }
+}

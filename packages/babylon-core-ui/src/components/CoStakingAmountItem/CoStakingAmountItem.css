@@ -1,0 +1,11 @@
+.bbn-co-staking-amount-item {
+  @apply flex flex-col bg-neutral-100;
+}
+
+.bbn-co-staking-amount-item-header {
+  @apply flex justify-between;
+}
+
+.bbn-co-staking-amount-item-caption {
+  @apply text-accent-secondary;
+}

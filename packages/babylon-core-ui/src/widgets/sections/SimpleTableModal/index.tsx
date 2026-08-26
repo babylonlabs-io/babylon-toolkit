@@ -1,0 +1,1 @@
+export { SimpleTableModal } from "./SimpleTableModal";

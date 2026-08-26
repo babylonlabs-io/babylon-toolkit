@@ -1,0 +1,99 @@
+/**
+ * ActivityListWithRefund — the v3 activity feed, plus the expired deposit's
+ * HTLC refund.
+ *
+ * Split out of the page so it is the v3 branch alone that mounts the deposit
+ * lifecycle: `usePendingDeposits`, the protocol params and the refund modals.
+ * v2 renders ActivityList directly and keeps its original behaviour — a
+ * refundable-expired deposit still reads "Pending" there, and none of this
+ * scaffolding is instantiated.
+ *
+ * Peg-in polling is NOT mounted here: `AppPeginPollingProvider` sits above
+ * `<Outlet>` in RootLayout, so this subtree already has it. A second mount
+ * would fork the polling and optimistic-completion state.
+ */
+
+import { useCallback, useMemo } from "react";
+
+import { PendingDepositModals } from "@/components/simple/PendingDepositModals";
+import { ProtocolParamsProvider } from "@/context/ProtocolParamsContext";
+import { usePendingDeposits } from "@/hooks/usePendingDeposits";
+import { usePrices } from "@/hooks/usePrices";
+import type { ActivityRow } from "@/types/activityLog";
+
+import { ActivityList } from "./ActivityList";
+
+interface ActivityListWithRefundProps {
+  activities: ActivityRow[];
+  isConnected: boolean;
+}
+
+export function ActivityListWithRefund({
+  activities,
+  isConnected,
+}: ActivityListWithRefundProps) {
+  const {
+    expiredActivities,
+    ethAddress,
+    broadcastModal,
+    refundModal,
+    reclaimModal,
+    emergencyWithdrawModal,
+  } = usePendingDeposits();
+
+  // Current prices for the rows' USD sub-lines. A row whose symbol has no price
+  // renders no sub-line.
+  const { prices } = usePrices();
+
+  // Deposits that expired before activation and have not been reclaimed yet,
+  // keyed by vault id. Correlate these against a row's `vaultId` and never its
+  // `id`: an indexed row's id is its event, not its vault (see ActivityLog).
+  const refundableVaultIds = useMemo(
+    () => new Set<string>(expiredActivities.map((a) => a.id)),
+    [expiredActivities],
+  );
+
+  const rows = useMemo<ActivityRow[]>(
+    () =>
+      activities.map((row) =>
+        row.kind === "row" && row.vaultId && refundableVaultIds.has(row.vaultId)
+          ? { ...row, isPending: false }
+          : row,
+      ),
+    [activities, refundableVaultIds],
+  );
+
+  const handleWithdraw = useCallback(
+    (vaultId: string) => refundModal.handleRefundClick(vaultId),
+    [refundModal],
+  );
+
+  const list = (
+    <ActivityList
+      activities={rows}
+      isConnected={isConnected}
+      prices={prices}
+      refundableVaultIds={refundableVaultIds}
+      onWithdraw={handleWithdraw}
+    />
+  );
+
+  // No refund to offer: render the feed bare. ProtocolParamsProvider below
+  // BLOCKS its children until the contract params resolve, so mounting it
+  // unconditionally would hold the whole feed — including the disconnected
+  // empty state — behind a network read the feed does not need.
+  if (refundableVaultIds.size === 0) return list;
+
+  return (
+    <ProtocolParamsProvider>
+      {list}
+      <PendingDepositModals
+        broadcastModal={broadcastModal}
+        refundModal={refundModal}
+        reclaimModal={reclaimModal}
+        emergencyWithdrawModal={emergencyWithdrawModal}
+        ethAddress={ethAddress}
+      />
+    </ProtocolParamsProvider>
+  );
+}

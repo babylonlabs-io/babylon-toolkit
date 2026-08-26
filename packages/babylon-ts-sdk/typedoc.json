@@ -1,0 +1,38 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "entryPoints": [
+    "src/tbv/core/primitives/index.ts",
+    "src/tbv/core/services/index.ts",
+    "src/tbv/core/managers/index.ts",
+    "src/tbv/core/deposit-terms/index.ts",
+    "src/tbv/core/utils/index.ts",
+    "src/tbv/core/clients/index.ts",
+    "src/tbv/integrations/aave/index.ts",
+    "src/shared/wallets/index.ts"
+  ],
+  "out": "docs/api",
+  "gitRevision": "main",
+  "plugin": ["typedoc-plugin-markdown", "./typedoc-plugin.mjs"],
+  "hidePageHeader": true,
+  "excludePrivate": true,
+  "excludeInternal": true,
+  "excludeExternals": true,
+  "exclude": ["**/*.abi.json"],
+  "router": "module",
+  "alwaysCreateEntryPointModule": true,
+  "useCodeBlocks": true,
+  "readme": "none",
+  "validation": {
+    "notDocumented": true,
+    "invalidLink": true,
+    "notExported": true
+  },
+  "sort": ["source-order", "alphabetical"],
+  "groupOrder": ["Classes", "Interfaces", "Type Aliases", "Functions"],
+  "searchInComments": true,
+  "searchInDocuments": true,
+  "navigationLinks": {
+    "Quickstart": "../quickstart/",
+    "GitHub": "https://github.com/babylonlabs-io/babylon-toolkit"
+  }
+}

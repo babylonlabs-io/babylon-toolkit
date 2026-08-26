@@ -1,0 +1,19 @@
+import { IBTCProvider, Network, type BTCConfig, type WalletMetadata } from "@/core/types";
+import { MONOCHROME_MARK_BACKGROUND } from "@/core/wallets/constants";
+
+import logo from "./logo.svg";
+import { LedgerProviderV2, WALLET_PROVIDER_NAME } from "./provider";
+
+const metadata: WalletMetadata<IBTCProvider, BTCConfig> = {
+  id: "ledger_btc_v2",
+  name: `${WALLET_PROVIDER_NAME} v2`,
+  icon: logo,
+  iconBackground: MONOCHROME_MARK_BACKGROUND,
+  docs: "https://www.ledger.com/ledger-live",
+  createProvider: (wallet, config) => new LedgerProviderV2(wallet, config),
+  networks: [Network.SIGNET, Network.MAINNET],
+  label: "Hardware wallet",
+  hardware: true,
+};
+
+export default metadata;

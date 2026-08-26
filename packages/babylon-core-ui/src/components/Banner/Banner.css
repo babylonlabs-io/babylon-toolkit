@@ -1,0 +1,19 @@
+.bbn-banner {
+  @apply flex w-full items-center justify-center px-4 text-center text-accent-contrast;
+
+  &-content {
+    @apply flex items-center justify-center gap-4;
+  }
+
+  &-icon {
+    @apply shrink-0;
+  }
+
+  &-critical {
+    @apply bg-error-dark py-2;
+  }
+
+  &-notice {
+    @apply bg-secondary-main py-3;
+  }
+}

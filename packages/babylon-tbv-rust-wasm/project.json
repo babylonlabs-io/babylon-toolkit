@@ -1,0 +1,7 @@
+{
+  "name": "@babylonlabs-io/babylon-tbv-rust-wasm",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "{projectRoot}/src",
+  "projectType": "library",
+  "tags": ["type:package"]
+}

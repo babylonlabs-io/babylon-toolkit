@@ -1,0 +1,285 @@
+/**
+ * Token Service - Manages token metadata and configuration
+ *
+ * Provides centralized access to token information including:
+ * - Token symbols, names, and decimals
+ * - Token icons and display configuration
+ * - Token address validation and lookups
+ */
+
+import type { Address } from "viem";
+import { getAddress, isAddress } from "viem";
+
+import { logger } from "@/infrastructure";
+
+import { getNetworkConfigBTC } from "../../config";
+
+const btcConfig = getNetworkConfigBTC();
+
+/**
+ * Canonical icon path for each known token symbol.
+ * Only include symbols whose image exists under `public/images/` — the
+ * symbol-based fallback in `getCurrencyIconWithFallback` trusts these paths
+ * to load (otherwise the browser would render a broken-image).
+ */
+const TOKEN_ICONS: Record<string, string> = {
+  BTC: btcConfig.icon,
+  SBTC: btcConfig.icon,
+  WBTC: "/images/wbtc.svg",
+  VBTC: btcConfig.icon,
+  USDC: "/images/usdc.svg",
+  USDT: "/images/usdt.svg",
+  DAI: "/images/dai.svg",
+};
+
+/**
+ * Token metadata interface
+ */
+export interface TokenMetadata {
+  /** Token contract address */
+  address: Address;
+  /** Token symbol (e.g., "BTC", "USDC") */
+  symbol: string;
+  /** Full token name */
+  name: string;
+  /** Number of decimals for the token */
+  decimals: number;
+  /** Icon URL or path (undefined if no icon available - Avatar will show fallback) */
+  icon?: string;
+  /** Chain ID where this token exists */
+  chainId?: number;
+}
+
+// Known token configurations
+// In production, this should be fetched from a configuration service or API
+const TOKEN_REGISTRY: Record<string, TokenMetadata> = {
+  // vBTC - Vault BTC (ERC20 representation) - Mainnet/Production
+  "0x03C7054BCB39f7b2e5B2c7AcB37583e32D70Cfa3": {
+    address: "0x03C7054BCB39f7b2e5B2c7AcB37583e32D70Cfa3" as Address,
+    symbol: btcConfig.coinSymbol,
+    name: `Vault ${btcConfig.name}`,
+    decimals: 18, // vBTC uses 18 decimals on Ethereum
+    icon: btcConfig.icon,
+  },
+  // vBTC - Vault BTC (ERC20 representation) - Devnet/Sepolia
+  "0x6044E2e56c1f56EE48360f6F7C25Ee6d4B258024": {
+    address: "0x6044E2e56c1f56EE48360f6F7C25Ee6d4B258024" as Address,
+    symbol: btcConfig.coinSymbol,
+    name: `Vault ${btcConfig.name}`,
+    decimals: 18, // vBTC uses 18 decimals on Ethereum
+    icon: btcConfig.icon,
+  },
+  // USDC - Mainnet/Production
+  "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85": {
+    address: "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85" as Address,
+    symbol: "USDC",
+    name: "USD Coin",
+    decimals: 6,
+    icon: TOKEN_ICONS.USDC,
+  },
+  // USDC - Devnet/Sepolia (Mock)
+  "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238": {
+    address: "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238" as Address,
+    symbol: "USDC",
+    name: "USD Coin",
+    decimals: 6,
+    icon: TOKEN_ICONS.USDC,
+  },
+  // USDC - Vault Devnet (2026-08 redeploy)
+  "0xB588C1bd8A6cd3F114A52a0AD916778B419ECf48": {
+    address: "0xB588C1bd8A6cd3F114A52a0AD916778B419ECf48" as Address,
+    symbol: "USDC",
+    name: "USD Coin",
+    decimals: 6,
+    icon: TOKEN_ICONS.USDC,
+  },
+  // USDT - Vault Devnet (2026-08 redeploy)
+  "0xCFf21358114814258635524588f74521762A6c04": {
+    address: "0xCFf21358114814258635524588f74521762A6c04" as Address,
+    symbol: "USDT",
+    name: "Tether USD",
+    decimals: 6,
+    icon: TOKEN_ICONS.USDT,
+  },
+  // WBTC - Vault Devnet (2026-08 redeploy)
+  "0x504579d0424B7B7cB4b17e16626f6A2f67bCa054": {
+    address: "0x504579d0424B7B7cB4b17e16626f6A2f67bCa054" as Address,
+    symbol: "WBTC",
+    name: "Wrapped BTC",
+    decimals: 8,
+    icon: TOKEN_ICONS.WBTC,
+  },
+  // USDT
+  "0x94b008aA00579c1307B0EF2c499aD98a8ce58e58": {
+    address: "0x94b008aA00579c1307B0EF2c499aD98a8ce58e58" as Address,
+    symbol: "USDT",
+    name: "Tether USD",
+    decimals: 6,
+    icon: TOKEN_ICONS.USDT,
+  },
+  // DAI
+  "0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1": {
+    address: "0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1" as Address,
+    symbol: "DAI",
+    name: "Dai Stablecoin",
+    decimals: 18,
+    icon: "/images/dai.svg",
+  },
+  // WETH
+  "0x4200000000000000000000000000000000000006": {
+    address: "0x4200000000000000000000000000000000000006" as Address,
+    symbol: "WETH",
+    name: "Wrapped Ether",
+    decimals: 18,
+    icon: "/images/eth.png",
+  },
+};
+
+/**
+ * Cache for fetched token metadata (in-memory cache)
+ */
+const tokenMetadataCache = new Map<string, TokenMetadata>();
+
+const tokenBrandColorsMap: Record<string, string> = {
+  BTC: "#F7931A",
+  SBTC: "#F7931A",
+  TBTC: "#F7931A",
+  WBTC: "#F7931A",
+  VBTC: "#F7931A",
+  USDC: "#2775CA",
+  USDT: "#50AF95",
+  DAI: "#F5AC37",
+  ETH: "#627EEA",
+  WETH: "#627EEA",
+};
+
+const defaultTokenBrandColor = "#0B53BF";
+
+/**
+ * Get brand color for a token symbol
+ * Used for UI theming (e.g., slider active colors)
+ *
+ * @param symbol - Token symbol (e.g., "USDC", "BTC")
+ * @returns Hex color code for the token's brand color
+ */
+export function getTokenBrandColor(symbol: string): string {
+  return tokenBrandColorsMap[symbol.toUpperCase()] ?? defaultTokenBrandColor;
+}
+
+/**
+ * Symbol-based icon lookup. Use as a fallback when address-based lookup
+ * misses (e.g. testnet deployments whose contract addresses aren't in
+ * TOKEN_REGISTRY). Returns undefined if the symbol is unknown.
+ */
+export function getTokenIconBySymbol(symbol: string): string | undefined {
+  return TOKEN_ICONS[symbol.toUpperCase()];
+}
+
+/**
+ * Strict address-keyed metadata lookup: cache or registry hit only, never a
+ * placeholder. Use this wherever a wrong label is a security problem rather
+ * than a cosmetic one, so the caller can hard-block on a miss instead of
+ * rendering a fabricated symbol (audit F7).
+ *
+ * @param address - Token contract address
+ * @returns Token metadata, or null when the address is invalid or unknown
+ */
+export function getRegisteredTokenByAddress(
+  address: string,
+): TokenMetadata | null {
+  if (!isAddress(address)) {
+    logger.warn(`[TokenService] Invalid token address: ${address}`);
+    return null;
+  }
+
+  const checksumAddress = getAddress(address);
+
+  return (
+    tokenMetadataCache.get(checksumAddress) ??
+    TOKEN_REGISTRY[checksumAddress] ??
+    null
+  );
+}
+
+/**
+ * Get token metadata by address (sync version for immediate use)
+ * Only checks cache and registry, doesn't fetch from blockchain
+ *
+ * On a miss for a valid address this returns a *placeholder* (truncated
+ * address as the symbol, "Loading..." as the name, 18 decimals) so display
+ * surfaces have something to render. Callers that must not render a fabricated
+ * label — anything on a signing path — should use
+ * {@link getRegisteredTokenByAddress} and hard-block on null instead.
+ *
+ * @param address - Token contract address
+ * @returns Token metadata, a placeholder for unknown valid addresses, or null
+ */
+export function getTokenByAddress(address: string): TokenMetadata | null {
+  const registered = getRegisteredTokenByAddress(address);
+  if (registered) {
+    return registered;
+  }
+  if (!isAddress(address)) {
+    return null;
+  }
+
+  // Return a temporary placeholder
+  const checksumAddress = getAddress(address);
+  const truncatedAddress = `${checksumAddress.slice(0, 6)}...${checksumAddress.slice(-4)}`;
+  return {
+    address: checksumAddress as Address,
+    symbol: truncatedAddress,
+    name: `Loading...`,
+    decimals: 18,
+    // No icon - Avatar component will show fallback (initials)
+    icon: undefined,
+  };
+}
+
+/**
+ * Generate a data URI for a token icon fallback
+ * Creates a circular SVG with the token's first letter
+ *
+ * @param symbol - Token symbol
+ * @returns Data URI for an SVG icon
+ */
+function generateTokenIconFallback(symbol: string): string {
+  const letter = symbol?.charAt(0).toUpperCase() || "?";
+  const color = "#CE6533"; // Use accent color
+
+  const svg = `
+    <svg width="40" height="40" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="20" cy="20" r="20" fill="${color}"/>
+      <text x="20" y="20" font-family="system-ui" font-size="18" font-weight="600" 
+            fill="white" text-anchor="middle" dominant-baseline="central">
+        ${letter}
+      </text>
+    </svg>
+  `.trim();
+
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+}
+
+/**
+ * Look up a canonical icon URL by token symbol (case-insensitive).
+ * Used as a secondary fallback when address-based registry lookup misses —
+ * e.g. for USDC deployed at a testnet address not present in `TOKEN_REGISTRY`.
+ */
+function getIconForSymbol(symbol: string): string | undefined {
+  return TOKEN_ICONS[symbol.toUpperCase()];
+}
+
+/**
+ * Get currency icon with fallback
+ * Returns actual icon URL, or a symbol-based path, or a generated letter SVG.
+ *
+ * @param icon - Icon URL (may be undefined)
+ * @param symbol - Token symbol used for symbol-based and letter fallbacks
+ * @returns Icon URL or fallback data URI
+ */
+export function getCurrencyIconWithFallback(
+  icon: string | undefined,
+  symbol: string,
+): string {
+  return icon || getIconForSymbol(symbol) || generateTokenIconFallback(symbol);
+}

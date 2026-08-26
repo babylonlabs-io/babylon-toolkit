@@ -1,0 +1,159 @@
+# Babylon Vault
+
+The Babylon Vault is a web application for managing Bitcoin-collateralized lending positions. Users can deposit BTC as collateral and borrow stablecoins against it.
+
+## Prerequisites
+
+- Node.js (v18 or higher)
+- pnpm (v8 or higher)
+
+## Local Development
+
+### 1. Install Dependencies
+
+From the repository root:
+
+```bash
+pnpm install
+```
+
+### 2. Environment Setup
+
+Create a `.env` file in the `services/vault` directory:
+
+```bash
+cp .env.example .env
+```
+
+Edit the `.env` file with the required environment variables (see [Environment Variables](#environment-variables) below).
+
+### 3. Run Development Server
+
+From the repository root:
+
+```bash
+pnpm --filter @services/vault dev
+```
+
+Or from the `services/vault` directory:
+
+```bash
+pnpm dev
+```
+
+The application will be available at `http://localhost:5173` (default Vite port).
+
+## Environment Variables
+
+Create a `.env` file with the following variables:
+
+### Required
+
+- `NEXT_PUBLIC_BTC_NETWORK` - Bitcoin network (must be `mainnet` or `signet`)
+  - Use `signet` for devnet/testnet
+  - Use `mainnet` for production
+  - Example: `signet`
+- `NEXT_PUBLIC_ETH_CHAINID` - Ethereum chain ID (must be `1` or `11155111`)
+  - Use `11155111` (Sepolia) for devnet/testnet
+  - Use `1` (Ethereum Mainnet) for production
+  - Example: `11155111`
+- `NEXT_PUBLIC_TBV_GRAPHQL_ENDPOINT` - GraphQL API endpoint for vault data (also provides vault provider RPC URLs)
+  - Example: `https://babylon-vault-indexer-api.vault-devnet.babylonlabs.io`
+- `NEXT_PUBLIC_TBV_BTC_VAULT_REGISTRY` - TBV BTC Vault Registry contract address
+- `NEXT_PUBLIC_TBV_AAVE_ADAPTER` - TBV Aave Integration Adapter contract address
+
+### Optional
+
+- `NEXT_PUBLIC_MEMPOOL_API` - Mempool.space host for Bitcoin node queries
+  - Default: `https://mempool.space` (mainnet) or `https://mempool.space/signet` (signet)
+- `NEXT_PUBLIC_ETH_RPC_URL` - Custom Ethereum RPC URL
+  - Default: `https://cloudflare-eth.com` (mainnet) or `https://rpc.sepolia.org` (sepolia)
+- `NEXT_PUBLIC_COMMIT_HASH` - Git commit hash (usually injected during CI)
+- `NEXT_PUBLIC_CANONICAL` - Canonical URL for the application
+
+### Feature Flags
+
+- `NEXT_PUBLIC_FF_DISABLE_DEPOSIT` - Kill-switch to disable deposit functionality during maintenance or incidents
+  - Default: `false` (deposits are enabled unless explicitly set to `"true"`)
+  - Set to `"true"` to disable deposit functionality
+  - When disabled, users will see "Depositing Unavailable" and the deposit button will be disabled
+
+- `NEXT_PUBLIC_FF_DISABLE_BORROW` - Kill-switch to disable borrowing functionality during maintenance or incidents
+  - Default: `false` (borrowing is enabled unless explicitly set to `"true"`)
+  - Set to `"true"` to disable borrowing functionality
+  - When disabled, users will see "Borrowing Unavailable" and the borrow button will be disabled
+
+- `NEXT_PUBLIC_FF_FORCE_PARTIAL_LIQUIDATION_SPLIT` - Forces partial liquidation split to always be suggested, even with active vaults
+  - Default: `false` (disabled unless explicitly set to `"true"`)
+  - Set to `"true"` to bypass the active-vaults check — useful for dev/QA testing of the split deposit flow
+
+- `NEXT_PUBLIC_FF_PROTOCOL_FROZEN` - Shows the teal "Protocol is frozen" banner and disables new deposits and borrows (Freeze blocks new entry; exits like repay/withdraw/liquidation stay available)
+  - Default: `false` (banner hidden unless explicitly set to `"true"`)
+  - Operator-controlled; the banner reflects the flag (the on-chain Frozen/Paused state exists but isn't read yet)
+
+- `NEXT_PUBLIC_FF_PROTOCOL_PAUSED` - Shows the red "Protocol is paused" banner (the full stop; last-resort emergency)
+  - Default: `false` (banner hidden unless explicitly set to `"true"`)
+  - Takes precedence over `NEXT_PUBLIC_FF_PROTOCOL_FROZEN` when both are set
+
+- `NEXT_PUBLIC_FF_ENABLE_EXPLORE` - Shows the Explore section: the `/explore` page and its sidebar entry
+  - Default: `false` (the route redirects to `/` and the nav item is hidden unless explicitly set to `"true"`)
+  - Off until the partner list is backed by the contributor registry rather than a hand-authored seed list
+
+- `NEXT_PUBLIC_FF_ENABLE_ACTIVATION_DELAY` - Holds Activate closed until the on-chain peg-in activation window has elapsed (`verifiedAt + peginActivationDelay`)
+  - Default: `false` (no floor gate, and no contract read is issued at all)
+  - Only the mint path is gated; "Activate and redeem" stays available during the window, matching the contract's own exemption
+  - Enable per environment only once its `ProtocolParams` exposes `peginActivationDelay()` — verify with `cast call <protocolParams> "peginActivationDelay()(uint256)"`. The gate fails closed, so enabling it where the getter is absent disables Activate for everyone
+
+- `NEXT_PUBLIC_NOTICE_BANNER_MESSAGE` - The single operator message shown to depositors, placed by context (non-boolean config)
+  - Default: empty (the default per-context copy is shown; standalone notice hidden)
+  - When set: fills the frozen/paused status-card body if a status is active, else fills the deposit-disabled banner text if deposits are off, else shows as a standalone top-of-app notice
+
+## Available Scripts
+
+### Development
+
+- `pnpm dev` - Start development server
+- `pnpm watchDeps` - Watch and rebuild dependencies
+
+### Building
+
+- `pnpm build` - Build for production
+- `pnpm preview` - Preview production build locally
+
+### Code Quality
+
+- `pnpm lint` - Run ESLint
+- `pnpm format` - Check code formatting
+- `pnpm format:fix` - Fix code formatting
+- `pnpm sort-imports` - Sort imports
+
+### Other
+
+- `pnpm clean` - Remove node_modules
+
+## Deployment
+
+The application is built using Vite and can be deployed to any static hosting service:
+
+```bash
+pnpm build
+# Output will be in dist/
+```
+
+## Troubleshooting
+
+### Port already in use
+
+If port 5173 is already in use, you can specify a different port:
+
+```bash
+pnpm dev -- --port 3001
+```
+
+### Build memory issues
+
+The build uses increased memory allocation. If you encounter memory issues, adjust `NODE_OPTIONS`:
+
+```bash
+NODE_OPTIONS=--max-old-space-size=16384 pnpm build
+```

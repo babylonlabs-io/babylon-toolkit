@@ -1,0 +1,101 @@
+/**
+ * Loan Context
+ *
+ * Provides user's Aave position data and reserve config to borrow/repay UI.
+ * All USD values come from Aave's on-chain oracle.
+ */
+
+import { createContext, useContext } from "react";
+import type { Address } from "viem";
+
+import type { VaultSplitParams } from "../../hooks/useVaultSplitParams";
+import type {
+  AavePositionWithLiveData,
+  VerifiedReserveIdentity,
+} from "../../services";
+import type { AaveReserveConfig } from "../../services/fetchConfig";
+import type { Asset } from "../../types";
+
+export interface LoanContextValue {
+  /** Collateral value in USD (from Aave oracle) */
+  collateralValueUsd: number;
+  /** Current debt amount for selected reserve in token units */
+  currentDebtAmount: number;
+  /** Total debt value in USD across all reserves (from Aave oracle) */
+  totalDebtValueUsd: number;
+  /** Current health factor (null if no debt) */
+  healthFactor: number | null;
+  /** Liquidation threshold in BPS (e.g., 8000 = 80%) */
+  liquidationThresholdBps: number;
+  /**
+   * Selected reserve to borrow from.
+   *
+   * Its `token` sub-object is indexer-supplied and MUST NOT be read — use
+   * `tokenIdentity` for the address, symbol, name and decimals (audit F7).
+   */
+  selectedReserve: AaveReserveConfig;
+  /**
+   * On-chain-proven identity for `selectedReserve`. Non-optional: the detail
+   * screen hard-blocks rather than mounting this provider without it, so
+   * consumers get proven values with no null handling and no `?? 18` fallback.
+   */
+  tokenIdentity: VerifiedReserveIdentity;
+  /** Asset display config (icon, name, symbol), derived from `tokenIdentity` */
+  assetConfig: Asset;
+  /** User's proxy contract address (for debt queries) */
+  proxyContract: string | undefined;
+  /**
+   * Aave oracle address (cached forever; `Spoke.ORACLE` is immutable).
+   * Null while loading or on lookup error. The Borrow flow gates on this;
+   * Repay does not consume the oracle.
+   */
+  oracleAddress: Address | null;
+  /** Price of the selected borrow token in USD (null when oracle price is temporarily unavailable) */
+  tokenPriceUsd: number | null;
+  /**
+   * True while `tokenPriceUsd` still reflects the previously-selected reserve
+   * during an asset switch. The Borrow form withholds price-derived figures
+   * (available / max) and stays disabled until the fresh price lands.
+   */
+  isPriceStale: boolean;
+  /** Whether position data may be stale (oracle-derived values possibly outdated) */
+  isPositionDataStale: boolean;
+  /** Refetch position data — returns fresh position (or null if unavailable) */
+  refetchPosition: () => Promise<AavePositionWithLiveData | null>;
+  /**
+   * Force a fresh contract round-trip for vault split params (CF / THF / LB).
+   * Used by borrow and repay pre-sign validation to recompute the projected
+   * health factor against current on-chain values rather than the cached ones.
+   */
+  refetchSplitParams: () => Promise<VaultSplitParams | null>;
+  /** Callback when borrow succeeds */
+  onBorrowSuccess: (borrowAmount: number) => void;
+  /** Callback when repay succeeds */
+  onRepaySuccess: (repayAmount: number, withdrawAmount: number) => void;
+  /**
+   * Reports whether a borrow/repay transaction is currently in flight (signing
+   * or submitting). The detail screen uses it to lock the full-screen dialog's
+   * close affordances so the flow can't be dismissed mid-transaction — which
+   * would discard the success screen even though the tx lands on-chain.
+   */
+  onProcessingChange: (processing: boolean) => void;
+}
+
+const LoanContext = createContext<LoanContextValue | null>(null);
+
+interface LoanProviderProps {
+  children: React.ReactNode;
+  value: LoanContextValue;
+}
+
+export function LoanProvider({ children, value }: LoanProviderProps) {
+  return <LoanContext.Provider value={value}>{children}</LoanContext.Provider>;
+}
+
+export function useLoanContext(): LoanContextValue {
+  const ctx = useContext(LoanContext);
+  if (!ctx) {
+    throw new Error("useLoanContext must be used within a LoanProvider");
+  }
+  return ctx;
+}

@@ -1,0 +1,128 @@
+import type { Address, Hex } from "viem";
+import { describe, expect, it, vi } from "vitest";
+
+import { ContractStatus } from "../../models/peginStateMachine";
+import type { Vault } from "../../types/vault";
+import {
+  derivePrePeginTxHash,
+  transformVaultToActivity,
+} from "../vaultTransformers";
+
+vi.mock("../../config", () => ({
+  getNetworkConfigBTC: () => ({
+    coinSymbol: "BTC",
+    icon: "btc-icon.svg",
+  }),
+}));
+
+vi.mock("@babylonlabs-io/ts-sdk/tbv/core/utils", () => ({
+  calculateBtcTxHash: (txHex: string): string => {
+    if (txHex === "0xvalidtx" || txHex === "validtx") {
+      return "0xderivedtxid";
+    }
+    throw new Error("invalid tx hex");
+  },
+}));
+
+function makeVault(overrides: Partial<Vault> = {}): Vault {
+  return {
+    id: "0xvaultid" as Hex,
+    peginTxHash: "0xpegintx" as Hex,
+    depositor: "0xdepositor" as Address,
+    depositorBtcPubkey: "0xpubkey" as Hex,
+    depositorSignedPeginTx: "0xsignedtx" as Hex,
+    amount: 100_000n,
+    vaultProvider: "0xprovider" as Address,
+    htlcVout: 0,
+    status: ContractStatus.PENDING,
+    applicationEntryPoint: "0xapp" as Address,
+    appVaultKeepersVersion: 1,
+    universalChallengersVersion: 1,
+    offchainParamsVersion: 1,
+    createdAt: 1700000000000,
+    isInUse: false,
+    referralCode: 0,
+    depositorPayoutBtcAddress: "0xpayout" as Hex,
+    depositorWotsPkHash: "0x" + "ab".repeat(32),
+    unsignedPrePeginTx: "0xunsignedtx" as Hex,
+    ...overrides,
+  };
+}
+
+describe("vaultTransformers", () => {
+  describe("derivePrePeginTxHash", () => {
+    it("returns the derived txid for a decodable hex", () => {
+      expect(derivePrePeginTxHash("0xvalidtx")).toBe("0xderivedtxid");
+    });
+
+    it("returns undefined when the input is empty", () => {
+      expect(derivePrePeginTxHash("")).toBeUndefined();
+      expect(derivePrePeginTxHash(undefined)).toBeUndefined();
+    });
+
+    it("returns undefined when the input fails to decode", () => {
+      expect(derivePrePeginTxHash("0xgarbage")).toBeUndefined();
+    });
+  });
+
+  describe("transformVaultToActivity", () => {
+    it("maps core vault fields to activity", () => {
+      const vault = makeVault();
+      const activity = transformVaultToActivity(vault);
+
+      expect(activity.id).toBe(vault.id);
+      expect(activity.peginTxHash).toBe(vault.peginTxHash);
+      expect(activity.contractStatus).toBe(ContractStatus.PENDING);
+      expect(activity.isInUse).toBe(false);
+      expect(activity.collateral.symbol).toBe("BTC");
+      expect(activity.providers[0].id).toBe("0xprovider");
+      expect(activity.timestamp).toBe(1700000000000);
+    });
+
+    it("maps depositorWotsPkHash correctly", () => {
+      const hash = "0x" + "cd".repeat(32);
+      const vault = makeVault({ depositorWotsPkHash: hash });
+      const activity = transformVaultToActivity(vault);
+
+      expect(activity.depositorWotsPkHash).toBe(hash);
+    });
+
+    it("maps optional fields from vault", () => {
+      const vault = makeVault({
+        depositorBtcPubkey: "0xmypubkey" as Hex,
+        depositorSignedPeginTx: "0xsigned" as Hex,
+        unsignedPrePeginTx: "0xunsigned" as Hex,
+        expiredAt: 1700001000000,
+        expirationReason: "ack_timeout",
+      });
+      const activity = transformVaultToActivity(vault);
+
+      expect(activity.depositorBtcPubkey).toBe("0xmypubkey");
+      expect(activity.depositorSignedPeginTx).toBe("0xsigned");
+      expect(activity.unsignedPrePeginTx).toBe("0xunsigned");
+      expect(activity.expiredAt).toBe(1700001000000);
+      expect(activity.expirationReason).toBe("ack_timeout");
+    });
+
+    it("labels an expired vault as Expired", () => {
+      const vault = makeVault({
+        status: ContractStatus.EXPIRED,
+        expiredAt: 1700001000000,
+        expirationReason: "ack_timeout",
+      });
+      const activity = transformVaultToActivity(vault);
+
+      expect(activity.contractStatus).toBe(ContractStatus.EXPIRED);
+      expect(activity.displayLabel).toBe("Expired");
+    });
+
+    it("does not include position or borrowing data", () => {
+      const activity = transformVaultToActivity(makeVault());
+
+      expect(activity.position).toBeUndefined();
+      expect(activity.borrowingData).toBeUndefined();
+      expect(activity.marketData).toBeUndefined();
+      expect(activity.action).toBeUndefined();
+    });
+  });
+});

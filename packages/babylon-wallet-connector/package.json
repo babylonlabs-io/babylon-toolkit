@@ -1,0 +1,162 @@
+{
+  "name": "@babylonlabs-io/wallet-connector",
+  "version": "1.69.0",
+  "type": "module",
+  "types": "dist/index.d.ts",
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/babylonlabs-io/babylon-toolkit.git"
+  },
+  "main": "dist/index.cjs.js",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "require": "./dist/index.cjs.js",
+      "import": "./dist/index.es.js"
+    },
+    "./eth": {
+      "types": "./dist/eth.d.ts",
+      "require": "./dist/eth.cjs.js",
+      "import": "./dist/eth.es.js"
+    },
+    "./style.css": "./dist/wallet-connector.css"
+  },
+  "scripts": {
+    "dev": "npm run storybook",
+    "build": "NODE_OPTIONS=--max-old-space-size=8192 tsc -b --noEmit tsconfig.lib.json && NODE_OPTIONS=--max-old-space-size=8192 vite build",
+    "lint": "eslint --fix .",
+    "format": "prettier . --write",
+    "preview": "vite preview",
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build",
+    "release": "npm run build && changeset publish",
+    "extensions:download": "tsx tests/e2e/setup/downloadExtensions.ts",
+    "test:e2e:setup": "npm run extensions:download",
+    "test:e2e": "playwright test --project=e2e",
+    "test:e2e:ui": "playwright test --ui --project=e2e",
+    "test:e2e:debug": "playwright test --debug --project=e2e",
+    "test:e2e:headed": "playwright test --headed --project=e2e",
+    "test:e2e:report": "playwright show-report",
+    "test:e2e:unisat": "playwright test -c playwright.wallets.config.ts unisat",
+    "test:e2e:metamask": "playwright test -c playwright.wallets.config.ts metamask",
+    "test:e2e:okx": "playwright test -c playwright.wallets.config.ts okx",
+    "test:e2e:onekey": "playwright test -c playwright.wallets.config.ts onekey",
+    "test:e2e:wallets": "playwright test -c playwright.wallets.config.ts walletsSession",
+    "test:e2e:wallets:all": "playwright test -c playwright.wallets.config.ts",
+    "test:e2e:codegen": "playwright codegen",
+    "test:unit": "playwright test --project=unit",
+    "test:unit:ui": "playwright test --ui --project=unit",
+    "test:unit:debug": "playwright test --debug --project=unit",
+    "test:all": "npm run test:unit && npm run test:e2e",
+    "test": "vitest run",
+    "visualizer": "pnpm exec vite-bundle-visualizer"
+  },
+  "dependencies": {
+    "@babylonlabs-io/core-ui": "workspace:*",
+    "@babylonlabs-io/ledger-vault-signer": "workspace:*",
+    "@bitcoin-js/tiny-secp256k1-asmjs": "2.2.3",
+    "@cosmjs/proto-signing": "0.36.0",
+    "@cosmjs/stargate": "0.36.0",
+    "@keplr-wallet/provider-extension": "0.12.272",
+    "@keplr-wallet/types": "0.12.272",
+    "@keystonehq/animated-qr": "0.10.0",
+    "@keystonehq/keystone-sdk": "0.12.3",
+    "@keystonehq/sdk": "0.22.1",
+    "@ledgerhq/hw-transport": "6.31.10",
+    "@ledgerhq/hw-transport-webhid": "6.30.6",
+    "@ledgerhq/hw-transport-webusb": "6.29.10",
+    "@reown/appkit": "1.8.12",
+    "@reown/appkit-adapter-bitcoin": "1.8.12",
+    "@reown/appkit-adapter-wagmi": "1.8.12",
+    "@scure/bip32": "1.4.0",
+    "@scure/btc-signer": "1.8.1",
+    "@tomo-inc/ledger-bitcoin-babylon": "0.3.5-alpha.0",
+    "@tomo-inc/wallet-connect-sdk": "1.0.0",
+    "bip174": "2.1.1",
+    "bitcoinjs-lib": "6.1.7",
+    "buffer": "6.0.3",
+    "ledger-bitcoin-babylon-boilerplate": "0.2.8",
+    "nanoevents": "9.1.0",
+    "usehooks-ts": "^3.1.1",
+    "uuid": "11.1.0"
+  },
+  "files": [
+    "dist"
+  ],
+  "peerDependencies": {
+    "@tanstack/react-query": "^5.74.4",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "tailwind-merge": "2.5.4",
+    "viem": "^2.38.2",
+    "wagmi": "2.18.1"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.29.8",
+    "@chromatic-com/storybook": "^3.2.2",
+    "@commitlint/cli": "^19.8.0",
+    "@commitlint/config-conventional": "^19.8.0",
+    "@eslint/js": "^9.31.0",
+    "@internal/eslint-config": "workspace:*",
+    "@playwright/test": "1.56.1",
+    "@semantic-release/github": "^11.0.2",
+    "@semantic-release/npm": "^12.0.1",
+    "@storybook/addon-essentials": "^8.6.15",
+    "@storybook/addon-interactions": "^8.6.15",
+    "@storybook/blocks": "^8.6.15",
+    "@storybook/react": "^8.6.15",
+    "@storybook/react-vite": "^8.6.15",
+    "@storybook/test": "^8.6.15",
+    "@tanstack/react-query": "^5.74.4",
+    "@testing-library/dom": "10.4.0",
+    "@testing-library/react": "16.3.0",
+    "@types/node": "^22.10.2",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@typescript-eslint/eslint-plugin": "^8.44.1",
+    "@vitejs/plugin-react": "^4.4.1",
+    "autoprefixer": "^10.4.20",
+    "dotenv": "^16.4.7",
+    "eslint": "^9.32.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-import": "^2.31.0",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "eslint-plugin-react-refresh": "^0.4.20",
+    "eslint-plugin-storybook": "^0.11.0",
+    "eslint-plugin-tailwindcss": "^3.18.2",
+    "globals": "^16.3.0",
+    "husky": "^9.1.7",
+    "jsdom": "20.0.3",
+    "lint-staged": "^15.5.0",
+    "postcss": "^8.4.47",
+    "prettier": "^3.6.2",
+    "prettier-plugin-organize-imports": "^4.1.0",
+    "prettier-plugin-tailwindcss": "^0.6.8",
+    "semantic-release": "^24.2.3",
+    "storybook": "^8.6.15",
+    "storybook-dark-mode": "^4.0.2",
+    "tailwindcss": "^3.4.14",
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.44.1",
+    "vite": "^6.4.1",
+    "vite-plugin-dts": "^4.3.0",
+    "vite-plugin-node-polyfills": "^0.23.0",
+    "vitest": "4.0.9"
+  },
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx}": [
+      "eslint --quiet --fix",
+      "prettier --write --ignore-unknown"
+    ]
+  },
+  "eslintConfig": {
+    "extends": [
+      "plugin:storybook/recommended"
+    ]
+  }
+}

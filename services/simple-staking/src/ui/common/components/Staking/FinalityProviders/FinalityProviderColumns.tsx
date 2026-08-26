@@ -1,0 +1,94 @@
+import { Hash } from "@/ui/common/components/Hash/Hash";
+import { getNetworkConfigBTC } from "@/ui/common/config/network/btc";
+import {
+  FinalityProvider,
+  FinalityProviderState,
+  FinalityProviderStateLabels,
+} from "@/ui/common/types/finalityProviders";
+import { satoshiToBtc } from "@/ui/common/utils/btc";
+import { formatCommissionPercentage } from "@/ui/common/utils/formatCommissionPercentage";
+import { maxDecimals } from "@/ui/common/utils/maxDecimals";
+
+import { FinalityProviderLogo } from "./FinalityProviderLogo";
+
+const { coinSymbol } = getNetworkConfigBTC();
+
+const mapStatus = (value: FinalityProviderState): string => {
+  return FinalityProviderStateLabels[value] || "Unknown";
+};
+
+export const finalityProviderColumns = [
+  {
+    key: "moniker",
+    header: "Finality Provider",
+    cellClassName: "text-primary-dark",
+    render: (_: unknown, row?: FinalityProvider) => {
+      if (!row) return null;
+
+      return (
+        <span
+          className="inline-flex items-center gap-2"
+          title={row.description?.moniker}
+        >
+          <FinalityProviderLogo
+            logoUrl={row.logo_url}
+            rank={row.rank}
+            moniker={row.description?.moniker}
+          />
+          {row.description?.moniker || "No name provided"}
+        </span>
+      );
+    },
+    sorter: (a?: FinalityProvider, b?: FinalityProvider) => {
+      const monikerA = a?.description?.moniker || "";
+      const monikerB = b?.description?.moniker || "";
+      return monikerA.localeCompare(monikerB);
+    },
+  },
+  {
+    key: "state",
+    header: "Status",
+    render: (value: unknown) => {
+      if (value == null) return "Unknown";
+      return mapStatus(value as FinalityProviderState);
+    },
+  },
+  {
+    key: "btcPk",
+    header: "BTC PK",
+    render: (_: unknown, row?: FinalityProvider) => {
+      if (!row?.btcPk) return null;
+      return <Hash value={row.btcPk} address small noFade />;
+    },
+  },
+  {
+    key: "activeTVLSat",
+    header: "Total Delegation",
+    cellClassName: "text-left",
+    render: (value: unknown) => {
+      const amount = Number(value);
+      if (Number.isNaN(amount)) return "-";
+      return `${maxDecimals(satoshiToBtc(amount), 8)} ${coinSymbol}`;
+    },
+    sorter: (a?: FinalityProvider, b?: FinalityProvider) => {
+      const valueA = a?.activeTVLSat ?? 0;
+      const valueB = b?.activeTVLSat ?? 0;
+      return valueA - valueB;
+    },
+  },
+  {
+    key: "commission",
+    header: "Commission",
+    cellClassName: "text-left",
+    render: (value: unknown) => {
+      const commission = Number(value);
+      if (Number.isNaN(commission)) return "-";
+      return formatCommissionPercentage(commission);
+    },
+    sorter: (a?: FinalityProvider, b?: FinalityProvider) => {
+      const commissionA = Number(a?.commission) || 0;
+      const commissionB = Number(b?.commission) || 0;
+      return commissionA - commissionB;
+    },
+  },
+];

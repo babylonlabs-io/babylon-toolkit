@@ -1,0 +1,315 @@
+@import "react-tooltip/dist/react-tooltip.css";
+@import "react-toastify/dist/ReactToastify.css";
+@import "@babylonlabs-io/core-ui/style.css";
+@import "@babylonlabs-io/wallet-connector/style.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html {
+  @apply bg-surface;
+  -webkit-font-smoothing: antialiased;
+}
+
+:root {
+  --primary: #ff7c2a;
+  --secondary: "#0DB7BF";
+  --toastify-toast-width: 344px;
+  /* Brand success green (Figma foundation/green/a400, #15B768) as RGB channels
+   * so Tailwind alpha modifiers (e.g. bg-success-bright/10) resolve correctly.
+   * Used by the deposit progress bar, the steps-completed pill, and completed
+   * step checks. */
+  --success-bright: 21 183 104;
+  /* v3 risk-card semantic colors as RGB channels (Figma foundation red/a400,
+   * amber/600, green/a400, text/tertiary) so Tailwind alpha modifiers and
+   * `rgb(var(--risk-*))` inline styles both resolve. Dark overrides below. */
+  --risk-red: 255 23 68;
+  --risk-amber: 247 147 26;
+  --risk-green: 21 183 104;
+  --risk-muted: 176 176 176;
+  /* Liquidation status (Figma warning/dark) — the activity feed's partially /
+   * fully liquidated dot. Distinct from --risk-amber, which reads as caution
+   * rather than a liquidation that already happened. */
+  --risk-orange: 248 97 42;
+  /* C2 interest-rate-model chart (Figma 10088-61091): the curve/legend green
+   * and the marker/legend orange. Both values come off the dark frame — when
+   * the design ships light-theme values, override them in the .light block
+   * below. */
+  --chart-irm-series: #518665;
+  --chart-irm-marker: #ce6533;
+  /* Motion spec — Modals (Figma 7831:25100 §1) */
+  --motion-duration-modal: 220ms;
+  --motion-duration-modal-out: 180ms;
+  --motion-duration-backdrop: 220ms;
+  --motion-ease-modal-in: ease-out;
+  --motion-ease-modal-out: ease-in;
+  --motion-ease-backdrop: ease-out;
+  --motion-transform-modal-in: translateY(8px);
+  --motion-transform-modal-out: translateY(4px);
+  /* Motion spec — Progressive Reveal / State Transition (Figma §3, §6) */
+  --motion-duration-reveal: 180ms;
+  --motion-ease-reveal: ease-out;
+  --motion-shift-reveal: 6px;
+  /* Motion spec — Dropdowns / Expandable (Figma §2) */
+  --motion-duration-dropdown: 180ms;
+  --motion-ease-dropdown-in: ease-out;
+  --motion-shift-dropdown: 4px;
+  /* Motion spec — Tooltips / Info (Figma §4) */
+  --motion-duration-tooltip: 140ms;
+  --motion-duration-tooltip-out: 120ms;
+  /* Motion spec — Icons (Figma §7) */
+  --motion-duration-icon: 180ms;
+  --motion-ease-icon: ease-out;
+  --motion-duration-spinner: 1.2s;
+
+  /* Motion spec — Loading / Skeleton (Figma §5) */
+  --motion-duration-skeleton: 1.5s;
+}
+
+/* Palette overrides. core-ui's tw-colors themes are shared with simple-staking,
+ * so the vault re-points the --twc-* HSL triplets here rather than editing that
+ * palette. The --twc-<token> names are tw-colors' output format, coupled to the
+ * exact "tw-colors": "3.3.2" pin and the key names in core-ui's createThemes.
+ * These blocks must stay below the @tailwind directives: tw-colors emits
+ * `.light,[data-theme=light]` at the same specificity, so source order is what
+ * makes the override win. */
+.light,
+[data-theme="light"] {
+  --twc-accent-primary: 0 0% 0%; /* Figma text/primary     #000000 */
+  --twc-secondary-strokeLight: 0 0% 86.7%; /* Figma stroke/secondary #dddddd */
+  --twc-secondary-strokeDark: 0 0% 80%; /* Figma stroke/primary   #cccccc */
+}
+
+/* Dark overrides — Figma dark text/primary #ffffff, plus the risk-card dark
+ * variants. Covers both the `dark` class (tailwind darkMode:"class") and the
+ * [data-theme="dark"] hook. */
+.dark,
+[data-theme="dark"] {
+  --twc-accent-primary: 0 0% 100%; /* Figma text/primary #ffffff */
+  --risk-amber: 255 179 0;
+  --risk-green: 0 230 118;
+  --risk-muted: 124 124 124;
+}
+
+/* Reduced motion is handled globally in core-ui's index.css via a single `*`
+ * animation/transition reset, so there is no per-token zeroing to repeat here. */
+
+@media screen and (min-width: 768px) {
+  :root {
+    --toastify-toast-width: 671px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .container {
+    max-width: 1024px;
+  }
+}
+
+/* disable number input arrows */
+/* Chrome, Safari, Edge, Opera */
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Firefox */
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+[data-theme="dark"] .gradient-primary {
+  background: linear-gradient(
+    97.5deg,
+    rgba(255, 124, 42, 0.2) 2.43%,
+    rgba(153, 74, 25, 0.2) 97.63%
+  );
+}
+
+[data-theme="light"] .gradient-primary {
+  background: linear-gradient(98.35deg, #fff3ea 2.4%, #fff6ef 117.66%);
+}
+
+.shadow-primary {
+  box-shadow: 1px 2px 20px 0px rgba(255, 124, 42, 0.3);
+}
+
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+  width: 0 !important;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.fp-selected {
+  border: 1px solid var(--primary) !important;
+  filter: brightness(0.98);
+}
+
+.no-focus {
+  outline: none !important;
+}
+
+/* tabs selection */
+.tab.tab-active:not(.tab-disabled):not([disabled]),
+.tab:is(input:checked) {
+  border-color: #ff7c2a;
+}
+
+.divider {
+  @apply border-t border-secondary-strokeLight;
+}
+
+.divider:after,
+.divider:before {
+  height: 1px !important;
+  width: 1px !important;
+}
+
+.tooltip-wrap {
+  @apply rounded !bg-surface p-3 !text-accent-secondary !opacity-100 shadow-lg !shadow-[#000000]/20;
+
+  max-width: 25rem;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  height: fit-content !important;
+  z-index: 9999;
+  text-align: left;
+}
+
+.tooltip-wrap[data-popper-placement*="top"] .tooltip-arrow {
+  @apply border-t-surface;
+}
+
+.tooltip-wrap[data-popper-placement*="bottom"] .tooltip-arrow {
+  @apply border-b-surface;
+}
+
+.tooltip-wrap[data-popper-placement*="left"] .tooltip-arrow {
+  @apply border-l-surface;
+}
+
+.tooltip-wrap[data-popper-placement*="right"] .tooltip-arrow {
+  @apply border-r-surface;
+}
+
+@font-face {
+  font-family: "Px Grotesk";
+  src: url("/fonts/Px-Grotesk/Px-Grotesk-Black.eot");
+  src:
+    url("/fonts/Px-Grotesk/Px-Grotesk-Black.eot?#iefix")
+      format("embedded-opentype"),
+    url("/fonts/Px-Grotesk/Px-Grotesk-Black.woff2") format("woff2"),
+    url("/fonts/Px-Grotesk/Px-Grotesk-Black.woff") format("woff");
+  font-weight: 900;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "Px Grotesk";
+  src: url("/fonts/Px-Grotesk/Px-Grotesk-Bold.eot");
+  src:
+    url("/fonts/Px-Grotesk/Px-Grotesk-Bold.eot?#iefix")
+      format("embedded-opentype"),
+    url("/fonts/Px-Grotesk/Px-Grotesk-Bold.woff2") format("woff2"),
+    url("/fonts/Px-Grotesk/Px-Grotesk-Bold.woff") format("woff");
+  font-weight: 700;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "Px Grotesk";
+  src: url("/fonts/Px-Grotesk/Px-Grotesk-Regular.eot");
+  src:
+    url("/fonts/Px-Grotesk/Px-Grotesk-Regular.eot?#iefix")
+      format("embedded-opentype"),
+    url("/fonts/Px-Grotesk/Px-Grotesk-Regular.woff2") format("woff2"),
+    url("/fonts/Px-Grotesk/Px-Grotesk-Regular.woff") format("woff");
+  font-weight: 400;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "Px Grotesk";
+  src: url("/fonts/Px-Grotesk/Px-Grotesk-Light.eot");
+  src:
+    url("/fonts/Px-Grotesk/Px-Grotesk-Light.eot?#iefix")
+      format("embedded-opentype"),
+    url("/fonts/Px-Grotesk/Px-Grotesk-Light.woff2") format("woff2"),
+    url("/fonts/Px-Grotesk/Px-Grotesk-Light.woff") format("woff");
+  font-weight: 300;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "Px Grotesk";
+  src: url("/fonts/Px-Grotesk/Px-Grotesk-Thin.eot");
+  src:
+    url("/fonts/Px-Grotesk/Px-Grotesk-Thin.eot?#iefix")
+      format("embedded-opentype"),
+    url("/fonts/Px-Grotesk/Px-Grotesk-Thin.woff2") format("woff2"),
+    url("/fonts/Px-Grotesk/Px-Grotesk-Thin.woff") format("woff");
+  font-weight: 250;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "Px Grotesk";
+  src: url("/fonts/Px-Grotesk/Px-Grotesk-Screen.eot");
+  src:
+    url("/fonts/Px-Grotesk/Px-Grotesk-Screen.eot?#iefix")
+      format("embedded-opentype"),
+    url("/fonts/Px-Grotesk/Px-Grotesk-Screen.woff2") format("woff2"),
+    url("/fonts/Px-Grotesk/Px-Grotesk-Screen.woff") format("woff");
+  font-weight: 200;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "Px Grotesk Mono";
+  src: url("/fonts/Px-Grotesk-Mono/Px-Grotesk-Mono-Light.eot");
+  src:
+    url("/fonts/Px-Grotesk-Mono/Px-Grotesk-Mono-Light.eot?#iefix")
+      format("embedded-opentype"),
+    url("/fonts/Px-Grotesk-Mono/Px-Grotesk-Mono-Light.woff2") format("woff2"),
+    url("/fonts/Px-Grotesk-Mono/Px-Grotesk-Mono-Light.woff") format("woff");
+  font-weight: 300;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "Px Grotesk Mono";
+  src: url("/fonts/Px-Grotesk-Mono/Px-Grotesk-Mono-Regular.eot");
+  src:
+    url("/fonts/Px-Grotesk-Mono/Px-Grotesk-Mono-Regular.eot?#iefix")
+      format("embedded-opentype"),
+    url("/fonts/Px-Grotesk-Mono/Px-Grotesk-Mono-Regular.woff2") format("woff2"),
+    url("/fonts/Px-Grotesk-Mono/Px-Grotesk-Mono-Regular.woff") format("woff");
+  font-weight: 400;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "Px Grotesk Mono";
+  src: url("/fonts/Px-Grotesk-Mono/Px-Grotesk-Mono-Bold.eot");
+  src:
+    url("/fonts/Px-Grotesk-Mono/Px-Grotesk-Mono-Bold.eot?#iefix")
+      format("embedded-opentype"),
+    url("/fonts/Px-Grotesk-Mono/Px-Grotesk-Mono-Bold.woff2") format("woff2"),
+    url("/fonts/Px-Grotesk-Mono/Px-Grotesk-Mono-Bold.woff") format("woff");
+  font-weight: 700;
+  font-style: normal;
+}

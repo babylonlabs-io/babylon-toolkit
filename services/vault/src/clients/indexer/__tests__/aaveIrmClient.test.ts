@@ -1,0 +1,432 @@
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
+
+const { mockEnv } = vi.hoisted(() => ({
+  mockEnv: { GRAPHQL_ENDPOINT: "https://indexer.test" },
+}));
+vi.mock("../../../config/env", () => ({
+  ENV: mockEnv,
+}));
+
+const mockFetch = vi.fn();
+
+beforeAll(() => {
+  vi.stubGlobal("fetch", mockFetch);
+});
+
+afterEach(() => {
+  mockFetch.mockReset();
+});
+
+afterAll(() => {
+  vi.unstubAllGlobals();
+});
+
+function jsonResponse(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+function validPayload(overrides: Record<string, unknown> = {}) {
+  return {
+    reserveId: "1",
+    kinkUtilizationPercent: 80,
+    maxAprPercent: 64,
+    points: [
+      { utilizationPercent: 0, aprRay: "0", aprPercent: 0 },
+      {
+        utilizationPercent: 80,
+        aprRay: "40000000000000000000000000",
+        aprPercent: 4,
+      },
+      {
+        utilizationPercent: 100,
+        aprRay: "640000000000000000000000000",
+        aprPercent: 64,
+      },
+    ],
+    ...overrides,
+  };
+}
+
+describe("fetchIrmCurve", () => {
+  beforeEach(() => {
+    mockEnv.GRAPHQL_ENDPOINT = "https://indexer.test";
+  });
+
+  it("builds the request URL from a bare-origin endpoint", async () => {
+    mockFetch.mockResolvedValueOnce(jsonResponse(validPayload()));
+    const { fetchIrmCurve } = await import("../aaveIrmClient");
+
+    await fetchIrmCurve({ reserveId: 7n });
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      "https://indexer.test/api/aave/reserves/7/irm",
+      expect.anything(),
+    );
+  });
+
+  it("parses a valid payload into an IrmCurve, dropping aprRay", async () => {
+    mockFetch.mockResolvedValueOnce(jsonResponse(validPayload()));
+    const { fetchIrmCurve } = await import("../aaveIrmClient");
+
+    const result = await fetchIrmCurve({ reserveId: 1n });
+
+    expect(result).toEqual({
+      curve: [
+        { utilizationPercent: 0, aprPercent: 0 },
+        { utilizationPercent: 80, aprPercent: 4 },
+        { utilizationPercent: 100, aprPercent: 64 },
+      ],
+      kinkUtilizationPercent: 80,
+      maxAprPercent: 64,
+    });
+  });
+
+  it("forwards the abort signal to fetch — aborting the caller signal aborts the in-flight request", async () => {
+    let capturedSignal: AbortSignal | undefined;
+    mockFetch.mockImplementationOnce(
+      (_url: string, init: { signal: AbortSignal }) =>
+        new Promise((_resolve, reject) => {
+          capturedSignal = init.signal;
+          init.signal.addEventListener("abort", () => {
+            reject(new DOMException("Aborted", "AbortError"));
+          });
+        }),
+    );
+    const { fetchIrmCurve } = await import("../aaveIrmClient");
+    const controller = new AbortController();
+
+    const promise = fetchIrmCurve({ reserveId: 1n, signal: controller.signal });
+    expect(capturedSignal?.aborted).toBe(false);
+
+    controller.abort();
+
+    await expect(promise).rejects.toThrow(/Aborted/);
+    expect(capturedSignal?.aborted).toBe(true);
+  });
+
+  it("throws a named error on a non-OK response", async () => {
+    mockFetch.mockResolvedValueOnce(jsonResponse({}, 502));
+    const { fetchIrmCurve } = await import("../aaveIrmClient");
+
+    await expect(fetchIrmCurve({ reserveId: 1n })).rejects.toThrow(
+      /aave\/reserves\/1\/irm.*failed with status 502/,
+    );
+  });
+
+  it("throws a parse error — not a network-failure message — on a malformed JSON body", async () => {
+    mockFetch.mockResolvedValueOnce(new Response("not-json{", { status: 200 }));
+    const { fetchIrmCurve } = await import("../aaveIrmClient");
+
+    await expect(fetchIrmCurve({ reserveId: 1n })).rejects.toThrow(
+      /is not valid JSON/,
+    );
+  });
+
+  it("throws when points is missing", async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse(validPayload({ points: undefined })),
+    );
+    const { fetchIrmCurve } = await import("../aaveIrmClient");
+
+    await expect(fetchIrmCurve({ reserveId: 1n })).rejects.toThrow(/points/);
+  });
+
+  it("throws when points is empty — an empty curve is a contract violation", async () => {
+    mockFetch.mockResolvedValueOnce(jsonResponse(validPayload({ points: [] })));
+    const { fetchIrmCurve } = await import("../aaveIrmClient");
+
+    await expect(fetchIrmCurve({ reserveId: 1n })).rejects.toThrow(
+      /empty "points"/,
+    );
+  });
+
+  it("throws when kinkUtilizationPercent is not a finite number", async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse(validPayload({ kinkUtilizationPercent: "80" })),
+    );
+    const { fetchIrmCurve } = await import("../aaveIrmClient");
+
+    await expect(fetchIrmCurve({ reserveId: 1n })).rejects.toThrow(
+      /kinkUtilizationPercent/,
+    );
+  });
+
+  it("throws when maxAprPercent is not a finite number", async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse(validPayload({ maxAprPercent: Number.NaN })),
+    );
+    const { fetchIrmCurve } = await import("../aaveIrmClient");
+
+    await expect(fetchIrmCurve({ reserveId: 1n })).rejects.toThrow(
+      /maxAprPercent/,
+    );
+  });
+
+  it("throws when a point's aprPercent is not a finite number", async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse(
+        validPayload({
+          points: [{ utilizationPercent: 0, aprRay: "0", aprPercent: "0" }],
+        }),
+      ),
+    );
+    const { fetchIrmCurve } = await import("../aaveIrmClient");
+
+    await expect(fetchIrmCurve({ reserveId: 1n })).rejects.toThrow(
+      /aprPercent/,
+    );
+  });
+
+  it("throws when a point's utilizationPercent is not a finite number", async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse(
+        validPayload({
+          points: [
+            { utilizationPercent: Number.NaN, aprRay: "0", aprPercent: 0 },
+          ],
+        }),
+      ),
+    );
+    const { fetchIrmCurve } = await import("../aaveIrmClient");
+
+    await expect(fetchIrmCurve({ reserveId: 1n })).rejects.toThrow(
+      /utilizationPercent/,
+    );
+  });
+
+  it("accepts points with no aprRay — the field is sent but never consumed", async () => {
+    // Requiring a field no client reads would let the indexer blank every IRM
+    // chart by trimming it.
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse(
+        validPayload({
+          points: [
+            { utilizationPercent: 0, aprPercent: 0 },
+            { utilizationPercent: 80, aprPercent: 4 },
+            { utilizationPercent: 100, aprPercent: 64 },
+          ],
+        }),
+      ),
+    );
+    const { fetchIrmCurve } = await import("../aaveIrmClient");
+
+    const result = await fetchIrmCurve({ reserveId: 1n });
+
+    expect(result.curve).toEqual([
+      { utilizationPercent: 0, aprPercent: 0 },
+      { utilizationPercent: 80, aprPercent: 4 },
+      { utilizationPercent: 100, aprPercent: 64 },
+    ]);
+  });
+
+  it("rejects with the timeout error when the response body never settles", async () => {
+    // The timeout has to bound `response.text()`, not just `fetch` — a stalled
+    // body on an otherwise-200 response is exactly the hang it exists for.
+    const { fetchIrmCurve } = await import("../aaveIrmClient");
+    vi.useFakeTimers();
+    try {
+      // Models the browser: a body read on an aborted request rejects with an
+      // AbortError. A mock that simply never settles would hang instead, and
+      // pass whether or not the timeout covers `text()`.
+      mockFetch.mockImplementationOnce(
+        async (_url: string, init: { signal: AbortSignal }) => ({
+          ok: true,
+          status: 200,
+          text: () =>
+            new Promise<string>((_resolve, reject) => {
+              init.signal.addEventListener("abort", () =>
+                reject(
+                  Object.assign(new Error("The operation was aborted."), {
+                    name: "AbortError",
+                  }),
+                ),
+              );
+            }),
+        }),
+      );
+
+      const pending = fetchIrmCurve({ reserveId: 1n });
+      const assertion = expect(pending).rejects.toThrow(/timed out after/);
+
+      await vi.advanceTimersByTimeAsync(30_000 + 1);
+      await assertion;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("throws a named error when fetch itself rejects", async () => {
+    mockFetch.mockRejectedValueOnce(new Error("Network error"));
+    const { fetchIrmCurve } = await import("../aaveIrmClient");
+
+    await expect(fetchIrmCurve({ reserveId: 1n })).rejects.toThrow(
+      /indexer\.test/,
+    );
+  });
+
+  it("throws when a point's utilizationPercent is out of the [0, 100] range", async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse(
+        validPayload({
+          points: [
+            { utilizationPercent: 0, aprRay: "0", aprPercent: 0 },
+            { utilizationPercent: 101, aprRay: "0", aprPercent: 4 },
+          ],
+        }),
+      ),
+    );
+    const { fetchIrmCurve } = await import("../aaveIrmClient");
+
+    await expect(fetchIrmCurve({ reserveId: 1n })).rejects.toThrow(
+      /out-of-range "utilizationPercent"/,
+    );
+  });
+
+  it("throws when points are not strictly ascending", async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse(
+        validPayload({
+          points: [
+            { utilizationPercent: 0, aprRay: "0", aprPercent: 0 },
+            { utilizationPercent: 50, aprRay: "0", aprPercent: 5 },
+            { utilizationPercent: 50, aprRay: "0", aprPercent: 5 },
+            { utilizationPercent: 100, aprRay: "0", aprPercent: 64 },
+          ],
+        }),
+      ),
+    );
+    const { fetchIrmCurve } = await import("../aaveIrmClient");
+
+    await expect(fetchIrmCurve({ reserveId: 1n })).rejects.toThrow(
+      /not strictly ascending/,
+    );
+  });
+
+  it("throws when the first point is not exactly 0% utilization", async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse(
+        validPayload({
+          points: [
+            { utilizationPercent: 5, aprRay: "0", aprPercent: 0 },
+            { utilizationPercent: 100, aprRay: "0", aprPercent: 64 },
+          ],
+        }),
+      ),
+    );
+    const { fetchIrmCurve } = await import("../aaveIrmClient");
+
+    await expect(fetchIrmCurve({ reserveId: 1n })).rejects.toThrow(
+      /does not start at 0% utilization/,
+    );
+  });
+
+  it("throws when the last point is not exactly 100% utilization", async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse(
+        validPayload({
+          points: [
+            { utilizationPercent: 0, aprRay: "0", aprPercent: 0 },
+            { utilizationPercent: 95, aprRay: "0", aprPercent: 64 },
+          ],
+        }),
+      ),
+    );
+    const { fetchIrmCurve } = await import("../aaveIrmClient");
+
+    await expect(fetchIrmCurve({ reserveId: 1n })).rejects.toThrow(
+      /does not end at 100% utilization/,
+    );
+  });
+
+  it("throws when kinkUtilizationPercent is out of the [0, 100] range", async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse(validPayload({ kinkUtilizationPercent: 150 })),
+    );
+    const { fetchIrmCurve } = await import("../aaveIrmClient");
+
+    await expect(fetchIrmCurve({ reserveId: 1n })).rejects.toThrow(
+      /out-of-range "kinkUtilizationPercent"/,
+    );
+  });
+
+  it("throws when kinkUtilizationPercent is not an exact sample in points", async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse(validPayload({ kinkUtilizationPercent: 42 })),
+    );
+    const { fetchIrmCurve } = await import("../aaveIrmClient");
+
+    await expect(fetchIrmCurve({ reserveId: 1n })).rejects.toThrow(
+      /is not an exact sample/,
+    );
+  });
+
+  it("throws when maxAprPercent is negative", async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse(
+        validPayload({
+          maxAprPercent: -1,
+          points: [
+            { utilizationPercent: 0, aprRay: "0", aprPercent: 0 },
+            { utilizationPercent: 80, aprRay: "0", aprPercent: 0 },
+            { utilizationPercent: 100, aprRay: "0", aprPercent: 0 },
+          ],
+        }),
+      ),
+    );
+    const { fetchIrmCurve } = await import("../aaveIrmClient");
+
+    await expect(fetchIrmCurve({ reserveId: 1n })).rejects.toThrow(
+      /negative "maxAprPercent"/,
+    );
+  });
+
+  it("throws when a point's aprPercent is negative", async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse(
+        validPayload({
+          points: [
+            { utilizationPercent: 0, aprRay: "0", aprPercent: -1 },
+            { utilizationPercent: 80, aprRay: "0", aprPercent: 4 },
+            { utilizationPercent: 100, aprRay: "0", aprPercent: 64 },
+          ],
+        }),
+      ),
+    );
+    const { fetchIrmCurve } = await import("../aaveIrmClient");
+
+    await expect(fetchIrmCurve({ reserveId: 1n })).rejects.toThrow(
+      /"aprPercent".*outside \[0, maxAprPercent/,
+    );
+  });
+
+  it("throws when a point's aprPercent exceeds maxAprPercent", async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse(
+        validPayload({
+          points: [
+            { utilizationPercent: 0, aprRay: "0", aprPercent: 0 },
+            { utilizationPercent: 80, aprRay: "0", aprPercent: 4 },
+            { utilizationPercent: 100, aprRay: "0", aprPercent: 65 },
+          ],
+        }),
+      ),
+    );
+    const { fetchIrmCurve } = await import("../aaveIrmClient");
+
+    await expect(fetchIrmCurve({ reserveId: 1n })).rejects.toThrow(
+      /"aprPercent".*outside \[0, maxAprPercent/,
+    );
+  });
+});

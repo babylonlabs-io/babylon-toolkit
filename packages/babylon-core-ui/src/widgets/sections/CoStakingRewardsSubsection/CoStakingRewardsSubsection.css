@@ -1,0 +1,15 @@
+.bbn-co-staking-rewards {
+  @apply flex flex-col gap-4 bg-neutral-200 p-4;
+}
+
+.bbn-co-staking-rewards-header {
+  @apply flex items-center gap-2 text-lg text-accent-primary;
+}
+
+.bbn-co-staking-rewards-items {
+  @apply flex flex-col gap-2;
+}
+
+.bbn-co-staking-rewards-actions {
+  @apply flex gap-2;
+}

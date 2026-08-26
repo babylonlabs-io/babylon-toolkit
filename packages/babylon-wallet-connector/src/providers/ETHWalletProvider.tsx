@@ -1,0 +1,305 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type PropsWithChildren,
+} from "react";
+
+import { useChainConnector } from "@/hooks/useChainConnector";
+import { useVisibilityCheck } from "@/hooks/useVisibilityCheck";
+import { useWalletConnect } from "@/hooks/useWalletConnect";
+import type { IETHProvider } from "@/core/types";
+
+export interface ETHWalletLifecycleCallbacks {
+  onConnect?: (address: string) => void | Promise<void>;
+  onDisconnect?: () => void | Promise<void>;
+  onAddressChange?: (newAddress: string) => void | Promise<void>;
+  onError?: (error: Error, context?: { address?: string }) => void;
+}
+
+interface ETHWalletContextType {
+  loading: boolean;
+  connected: boolean;
+  address: string | undefined;
+  disconnect: () => void;
+  open: () => void;
+}
+
+const ETHWalletContext = createContext<ETHWalletContextType>({
+  loading: true,
+  connected: false,
+  address: undefined,
+  disconnect: () => {},
+  open: () => {},
+});
+
+export interface ETHWalletProviderProps extends PropsWithChildren {
+  callbacks?: ETHWalletLifecycleCallbacks;
+}
+
+export const ETHWalletProvider = ({ children, callbacks }: ETHWalletProviderProps) => {
+  const [loading, setLoading] = useState(true);
+  const [address, setAddress] = useState<string>();
+  const [provider, setProvider] = useState<IETHProvider | null>(null);
+
+  const { open } = useWalletConnect();
+  const ethConnector = useChainConnector("ETH");
+
+  const disconnect = useCallback(async () => {
+    setAddress(undefined);
+    setProvider(null);
+    ethConnector?.disconnect();
+
+    try {
+      await callbacks?.onDisconnect?.();
+    } catch (error) {
+      console.error("Error in onDisconnect callback:", error instanceof Error ? error.message : "Unknown error");
+    }
+  }, [ethConnector, callbacks]);
+
+  const connectETH = useCallback(
+    async (walletAddress: string) => {
+      try {
+        setAddress(walletAddress);
+        setLoading(false);
+
+        await callbacks?.onConnect?.(walletAddress);
+      } catch (error: unknown) {
+        setLoading(false);
+        callbacks?.onError?.(error instanceof Error ? error : new Error("ETH connection failed"), { address: walletAddress });
+      }
+    },
+    [callbacks],
+  );
+
+  // Check for existing connection on mount (handles auto-reconnection)
+  useEffect(() => {
+    setLoading(false);
+    if (!ethConnector) return;
+
+    const checkExistingConnection = async () => {
+      try {
+        // First check if connector already has a connected wallet
+        if (ethConnector.connectedWallet?.provider && !address) {
+          const walletProvider = ethConnector.connectedWallet.provider;
+          const addr = await walletProvider.getAddress();
+          if (addr) {
+            setProvider(walletProvider);
+            connectETH(addr);
+          }
+          return;
+        }
+
+        // If not, try to auto-reconnect using the first available wallet
+        // The AppKitProvider will detect existing wagmi connection and return immediately
+        if (!address && ethConnector.wallets.length > 0) {
+          const wallet = ethConnector.wallets[0]; // AppKit wallet
+          if (wallet.provider) {
+            try {
+              // This will check for existing connection and return immediately if found
+              const addr = await wallet.provider.getAddress();
+              if (addr) {
+                // Found existing connection, trigger manual connect to sync state
+                await ethConnector.connect(wallet);
+              }
+            } catch (error) {
+              // No existing connection, which is fine
+            }
+          }
+        }
+      } catch (error) {
+        // No existing connection, which is fine
+      }
+    };
+
+    checkExistingConnection();
+
+    const unsubscribe = ethConnector.on("connect", async (wallet) => {
+      if (wallet.provider) {
+        try {
+          const addr = await wallet.provider.getAddress();
+          if (addr) {
+            setProvider(wallet.provider);
+            connectETH(addr);
+          }
+        } catch (error) {
+          console.error("Error getting ETH address:", error instanceof Error ? error.message : "Unknown error");
+        }
+      }
+    });
+
+    // Bridge a late wagmi rehydrate into the connector "connect" flow.
+    // checkExistingConnection() above only sees the account wagmi has already
+    // restored by mount time. On reload wagmi often finishes reconnecting from
+    // cookieStorage *after* that: the provider then emits "accountsChanged"
+    // with the restored address, but nothing has called ethConnector.connect()
+    // yet, so connectedWallet / selectedWallets / the connect listener above
+    // never fire and ETH silently fails to re-wire (the AppKit modal shows the
+    // account while the app still shows "Connect"). Listen for that late
+    // address and route it through the connector — a silent no-op when wagmi is
+    // already connected, so it never reopens the modal — which then drives the
+    // connect listener above and the auto-confirm-on-reload effect.
+    const bootstrapWallet = ethConnector.wallets[0];
+    const bootstrapProvider = bootstrapWallet?.provider;
+    // wagmi can emit several `accountsChanged` while it rehydrates, before React
+    // re-renders with the new `address` — without this guard each one would see
+    // `address` empty and fire another `ethConnector.connect`. On success the
+    // address becomes truthy and the effect re-subscribes, so the flag only
+    // needs resetting on failure.
+    let lateReconnectInFlight = false;
+    const onLateReconnect = (accounts?: string[]) => {
+      if (!accounts?.[0] || address || lateReconnectInFlight) return;
+      lateReconnectInFlight = true;
+      void ethConnector
+        .connect(bootstrapWallet)
+        .then((wallet) => {
+          // `connect` catches internally and resolves `null` on failure (it does
+          // not reject), so reset the guard here to allow a retry on the next
+          // accountsChanged. On success the address gets set and the effect
+          // re-subscribes, so the guard naturally stops further calls.
+          if (!wallet) lateReconnectInFlight = false;
+        })
+        .catch((error) => {
+          // Defensive only — `connect` shouldn't reject, but reset on an
+          // unexpected synchronous throw so we don't wedge the guard.
+          lateReconnectInFlight = false;
+          console.error(
+            "ETH late reconnect failed:",
+            error instanceof Error ? error.message : "Unknown error",
+          );
+        });
+    };
+    if (bootstrapProvider && typeof bootstrapProvider.on === "function") {
+      bootstrapProvider.on("accountsChanged", onLateReconnect);
+    }
+
+    return () => {
+      unsubscribe();
+      if (bootstrapProvider && typeof bootstrapProvider.off === "function") {
+        bootstrapProvider.off("accountsChanged", onLateReconnect);
+      }
+    };
+  }, [ethConnector, connectETH, address]);
+
+  useEffect(() => {
+    if (!ethConnector) return;
+
+    const unsubscribe = ethConnector.on("disconnect", () => {
+      disconnect();
+    });
+
+    return unsubscribe;
+  }, [ethConnector, disconnect]);
+
+  // Track previous address to detect changes
+  const prevAddressRef = useRef<string | undefined>(undefined);
+  // Guard against duplicate event processing from provider and window.ethereum
+  const isProcessingChangeRef = useRef(false);
+
+  // Keep the ref in sync with React state
+  useEffect(() => {
+    prevAddressRef.current = address;
+  }, [address]);
+
+  // Listen for ETH account changes on the provider
+  // Using provider state ensures React properly tracks when provider becomes available
+  useEffect(() => {
+    if (!provider) return;
+
+    const onAccountsChanged = async (accounts: string[]) => {
+      // Prevent duplicate processing if both provider and window.ethereum fire events
+      if (isProcessingChangeRef.current) return;
+
+      const newAddress = accounts[0];
+      const previousAddress = prevAddressRef.current;
+
+      if (newAddress && newAddress.toLowerCase() !== previousAddress?.toLowerCase()) {
+        // Account changed - set guard before async operations
+        isProcessingChangeRef.current = true;
+        prevAddressRef.current = newAddress;
+        setAddress(newAddress);
+        try {
+          await callbacks?.onAddressChange?.(newAddress);
+        } catch (error: unknown) {
+          callbacks?.onError?.(error instanceof Error ? error : new Error("ETH address change failed"), { address: newAddress });
+        } finally {
+          isProcessingChangeRef.current = false;
+        }
+      } else if (!newAddress && previousAddress) {
+        disconnect();
+      }
+    };
+
+    if (typeof provider.on === "function") {
+      provider.on("accountsChanged", onAccountsChanged);
+    }
+
+    return () => {
+      if (typeof provider.off === "function") {
+        provider.off("accountsChanged", onAccountsChanged);
+      }
+    };
+  }, [provider, callbacks, disconnect]);
+
+  // NOTE: A previous version also subscribed to window.ethereum.accountsChanged
+  // as a fallback for injected providers. That listener was unscoped — it fired
+  // even when the session used WalletConnect, allowing unrelated wallets to
+  // overwrite the active ETH identity. Removed per audit finding #54.
+  // The provider-specific listener above (via wagmi watchAccount) already handles
+  // account changes for all connector types including injected providers.
+
+  // Check wallet connection when tab becomes visible
+  // This handles the case where user disconnects from extension while tab is in background
+  const checkETHConnection = useCallback(async () => {
+    if (!provider) return;
+
+    try {
+      const currentAddress = await provider.getAddress();
+
+      if (!currentAddress) {
+        // Wallet is disconnected
+        disconnect();
+      } else if (currentAddress.toLowerCase() !== address?.toLowerCase()) {
+        // Account changed while tab was in background
+        prevAddressRef.current = currentAddress;
+        setAddress(currentAddress);
+        await callbacks?.onAddressChange?.(currentAddress);
+      }
+    } catch (error) {
+      // Connection check failed - wallet likely disconnected
+      console.error("ETH wallet connection check failed:", error instanceof Error ? error.message : "Unknown error");
+      disconnect();
+    }
+  }, [provider, address, callbacks, disconnect]);
+
+  useVisibilityCheck(checkETHConnection, {
+    enabled: Boolean(provider && address),
+  });
+
+  const connected = useMemo(
+    () => Boolean(address),
+    [address],
+  );
+
+  return (
+    <ETHWalletContext.Provider
+      value={{
+        loading,
+        connected,
+        address,
+        disconnect,
+        open,
+      }}
+    >
+      {children}
+    </ETHWalletContext.Provider>
+  );
+};
+
+export const useETHWallet = () => useContext(ETHWalletContext);
+

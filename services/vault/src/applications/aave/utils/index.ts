@@ -1,0 +1,59 @@
+// Re-export utilities from SDK
+export {
+  HEALTH_FACTOR_WARNING_THRESHOLD,
+  aaveRayValueToUsd,
+  aaveValueToUsd,
+  calculateHealthFactor,
+  getHealthFactorStatus,
+  getHealthFactorStatusFromValue,
+  hasDebtFromPosition,
+  wadToNumber,
+} from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
+
+export type { HealthFactorStatus } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
+
+// Display utilities (frontend-only, not in SDK)
+export {
+  HEALTH_FACTOR_COLORS,
+  HEALTH_FACTOR_HEALTHY_THRESHOLD,
+  formatHealthFactor,
+  getHealthFactorColor,
+} from "./healthFactorDisplay";
+
+export type { HealthFactorColor } from "./healthFactorDisplay";
+
+// Withdrawal eligibility helpers (frontend-only)
+export {
+  canWithdrawAnyVault,
+  computeProjectedHealthFactor,
+  getWithdrawHfWarningState,
+  isVaultIndividuallyWithdrawable,
+} from "./withdrawEligibility";
+
+export type {
+  PositionSnapshot,
+  WithdrawHfWarningState,
+} from "./withdrawEligibility";
+
+// Withdraw selection normalization (frontend-only)
+export { getEffectiveVaultSelection } from "./withdrawSelection";
+
+export type { EffectiveVaultSelection } from "./withdrawSelection";
+
+// Payout-address derivation for withdraw display (frontend-only)
+export { getUniquePayoutAddresses } from "./payoutAddresses";
+
+// Pre-sign CF freshness check shared by borrow and repay validators
+export { assertCfUnchanged } from "./assertCfUnchanged";
+
+export type {
+  AssertCfUnchangedDeps,
+  AssertCfUnchangedResult,
+} from "./assertCfUnchanged";
+
+export { calculateBorrowCapacityUsd } from "./borrowCapacity";
+
+export type {
+  BorrowCapacityUsd,
+  BorrowCapacityUsdParams,
+} from "./borrowCapacity";

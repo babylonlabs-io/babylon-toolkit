@@ -1,0 +1,170 @@
+/**
+ * Deposit page flow hook
+ *
+ * Encapsulates all the deposit flow logic for the /deposit page,
+ * including wallet state, provider data, and modal flow management.
+ */
+
+import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
+import { useChainConnector } from "@babylonlabs-io/wallet-connector";
+import { useCallback, useMemo } from "react";
+import type { Address } from "viem";
+
+import {
+  DepositStep,
+  useDepositState,
+} from "../../context/deposit/DepositState";
+import { useProtocolParamsContext } from "../../context/ProtocolParamsContext";
+import { useETHWallet } from "../../context/wallet";
+import { VaultStatus } from "../../types/vault";
+import { toCheckedAddress } from "../../utils/addressUtils";
+import { useVaultDeposits } from "../useVaultDeposits";
+import { useVaults } from "../useVaults";
+
+import { useVaultProviders } from "./useVaultProviders";
+
+export interface UseDepositPageFlowResult {
+  // Deposit state
+  depositStep: DepositStep | undefined;
+  depositAmount: bigint;
+  selectedApplication: string;
+  selectedProviders: string[];
+  /** VP commission (bps) frozen at commit time; `undefined` if it hadn't loaded. */
+  quotedCommissionBps: number | undefined;
+  feeRate: number;
+
+  // Wallet data
+  btcWalletProvider: BitcoinWallet | null;
+  ethAddress: Address | undefined;
+
+  // Provider data
+  selectedProviderBtcPubkey: string;
+  vaultKeeperBtcPubkeys: string[];
+  universalChallengerBtcPubkeys: string[];
+
+  // Vault data
+  hasActiveVaults: boolean;
+
+  // Actions
+  resetDeposit: () => void;
+  refetchActivities: () => Promise<void>;
+
+  // Split deposit state
+  isSplitDeposit: boolean;
+  setIsSplitDeposit: (v: boolean) => void;
+  splitVaultAmounts: bigint[] | null;
+  setSplitVaultAmounts: (amounts: bigint[] | null) => void;
+
+  // Primitives (for custom flows like SimpleDeposit)
+  goToStep: (step: DepositStep) => void;
+  setDepositData: (
+    amount: bigint,
+    application: string,
+    providers: string[],
+    quotedCommissionBps: number | undefined,
+  ) => void;
+  setFeeRate: (feeRate: number) => void;
+}
+
+export function useDepositPageFlow(): UseDepositPageFlowResult {
+  // Wallet providers
+  const btcConnector = useChainConnector("BTC");
+  const btcWalletProvider =
+    (btcConnector?.connectedWallet?.provider as BitcoinWallet | undefined) ??
+    null;
+  const { address: ethAddressRaw } = useETHWallet();
+  const ethAddress = toCheckedAddress(ethAddressRaw);
+
+  // Deposit flow state from context
+  const {
+    step: depositStep,
+    amount: depositAmount,
+    selectedApplication,
+    selectedProviders,
+    quotedCommissionBps,
+    feeRate,
+    goToStep,
+    setDepositData,
+    setFeeRate,
+    isSplitDeposit,
+    setIsSplitDeposit,
+    splitVaultAmounts,
+    setSplitVaultAmounts,
+    reset: resetDepositState,
+  } = useDepositState();
+
+  const { vaultKeepers, findProvider } = useVaultProviders(
+    selectedApplication || undefined,
+  );
+  const { latestUniversalChallengers } = useProtocolParamsContext();
+
+  // Get activities refetch function
+  const { refetchActivities } = useVaultDeposits(ethAddress);
+
+  const { data: existingVaults } = useVaults(ethAddress);
+  const hasActiveVaults = useMemo(
+    () => existingVaults?.some((v) => v.status === VaultStatus.ACTIVE) ?? false,
+    [existingVaults],
+  );
+
+  // Get selected provider's BTC public key, vault keepers, and universal challengers
+  const {
+    selectedProviderBtcPubkey,
+    vaultKeeperBtcPubkeys,
+    universalChallengerBtcPubkeys,
+  } = useMemo(() => {
+    if (selectedProviders.length === 0) {
+      return {
+        selectedProviderBtcPubkey: "",
+        vaultKeeperBtcPubkeys: [],
+        universalChallengerBtcPubkeys: [],
+      };
+    }
+
+    // Use findProvider (searches all providers including unhealthy) so that
+    // a VP becoming unhealthy mid-flow doesn't break an in-progress deposit.
+    const selectedProvider = findProvider(selectedProviders[0]);
+
+    return {
+      selectedProviderBtcPubkey: selectedProvider?.btcPubKey || "",
+      vaultKeeperBtcPubkeys: vaultKeepers.map((vk) => vk.btcPubKey),
+      universalChallengerBtcPubkeys: latestUniversalChallengers.map(
+        (uc) => uc.btcPubKey,
+      ),
+    };
+  }, [
+    selectedProviders,
+    findProvider,
+    vaultKeepers,
+    latestUniversalChallengers,
+  ]);
+
+  // Actions
+  const resetDeposit = useCallback(() => {
+    resetDepositState();
+  }, [resetDepositState]);
+
+  return {
+    depositStep,
+    depositAmount,
+    selectedApplication,
+    selectedProviders,
+    quotedCommissionBps,
+    feeRate,
+    btcWalletProvider,
+    ethAddress,
+    selectedProviderBtcPubkey,
+    vaultKeeperBtcPubkeys,
+    universalChallengerBtcPubkeys,
+    hasActiveVaults,
+    isSplitDeposit,
+    setIsSplitDeposit,
+    splitVaultAmounts,
+    setSplitVaultAmounts,
+    resetDeposit,
+    refetchActivities,
+    goToStep,
+    setDepositData,
+    setFeeRate,
+  };
+}

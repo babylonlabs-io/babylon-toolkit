@@ -1,0 +1,118 @@
+/**
+ * Wagmi Configuration for Vault Application
+ *
+ * This file initializes AppKit modal (which creates wagmi config internally)
+ * and exports the wagmi config for use in the application-level WagmiProvider.
+ *
+ * Since the vault uses AppKit for ETH wallet connections, we let AppKit create
+ * the wagmi config to ensure compatibility.
+ */
+
+import {
+  initializeAppKitModal,
+  type AppKitModalConfig,
+} from "@babylonlabs-io/wallet-connector";
+import { createConfig, http } from "wagmi";
+
+import { getETHChain, getNetworkConfigETH } from "@/config/network";
+
+interface WagmiInitResult {
+  wagmiConfig: ReturnType<typeof createConfig>;
+  error: string | null;
+}
+
+/**
+ * Initialize AppKit modal and get the wagmi config it creates
+ *
+ * This must be called before the app renders to ensure wagmi config is available.
+ * If initialization fails, returns a fallback config and tracks the error.
+ */
+function initializeVaultWagmi(): WagmiInitResult {
+  try {
+    const projectId = process.env.NEXT_PUBLIC_REOWN_PROJECT_ID;
+
+    if (!projectId) {
+      return {
+        wagmiConfig: createFallbackConfig(),
+        error:
+          "NEXT_PUBLIC_REOWN_PROJECT_ID environment variable is required. " +
+          "Please set it in your .env file or environment configuration.",
+      };
+    }
+
+    const appKitConfig: AppKitModalConfig = {
+      projectId,
+      metadata: {
+        name: "Babylon Vault",
+        description: "Babylon Vault - Secure Bitcoin Vault Platform",
+        url:
+          typeof window !== "undefined"
+            ? window.location.origin
+            : "https://staking.vault-devnet.babylonlabs.io",
+        icons: [
+          typeof window !== "undefined"
+            ? `${window.location.origin}/favicon.ico`
+            : "https://btcstaking.babylonlabs.io/favicon.ico",
+        ],
+      },
+      eth: {
+        chain: getETHChain(),
+      },
+    };
+
+    const result = initializeAppKitModal(appKitConfig);
+
+    if (!result || !result.wagmiConfig) {
+      return {
+        wagmiConfig: createFallbackConfig(),
+        error: "Failed to initialize AppKit modal or wagmi config not created",
+      };
+    }
+
+    return {
+      wagmiConfig: result.wagmiConfig,
+      error: null,
+    };
+  } catch (err) {
+    const errorMessage =
+      err instanceof Error ? err.message : "Unknown initialization error";
+
+    return {
+      wagmiConfig: createFallbackConfig(),
+      error: errorMessage,
+    };
+  }
+}
+
+/**
+ * Create a minimal fallback wagmi config for error states.
+ *
+ * Uses the env-configured RPC URL rather than viem's stock chain default,
+ * so reads/writes hit the same endpoint that can see the deployed
+ * contracts even when AppKit initialization fails.
+ */
+function createFallbackConfig() {
+  const chain = getETHChain();
+  const { rpcUrl } = getNetworkConfigETH();
+  return createConfig({
+    chains: [chain],
+    transports: {
+      [chain.id]: http(rpcUrl),
+    },
+  });
+}
+
+const initResult = initializeVaultWagmi();
+
+/**
+ * Singleton wagmi config instance
+ * Created by AppKit initialization at module load time
+ *
+ * If initialization failed, this will be a fallback config and wagmiInitError will be set.
+ */
+export const vaultWagmiConfig = initResult.wagmiConfig;
+
+/**
+ * Error message if wagmi initialization failed, null otherwise
+ */
+export const wagmiInitError = initResult.error;

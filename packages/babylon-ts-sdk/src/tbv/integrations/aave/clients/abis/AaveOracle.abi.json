@@ -1,0 +1,33 @@
+[
+  {
+    "inputs": [],
+    "name": "decimals",
+    "outputs": [{ "name": "", "type": "uint8" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [{ "name": "reserveIds", "type": "uint256[]" }],
+    "name": "getReservesPrices",
+    "outputs": [{ "name": "", "type": "uint256[]" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [{ "name": "reserveId", "type": "uint256" }],
+    "name": "getReserveSource",
+    "outputs": [{ "name": "", "type": "address" }],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "type": "error",
+    "name": "InvalidSource",
+    "inputs": [{ "name": "reserveId", "type": "uint256" }]
+  },
+  {
+    "type": "error",
+    "name": "InvalidPrice",
+    "inputs": [{ "name": "reserveId", "type": "uint256" }]
+  }
+]

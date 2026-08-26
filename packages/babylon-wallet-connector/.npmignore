@@ -1,0 +1,6 @@
+tests/
+.storybook/
+.husky/
+node_modules/
+**/*.test.*
+**/__tests__/

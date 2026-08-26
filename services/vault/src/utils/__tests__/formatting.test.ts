@@ -1,0 +1,635 @@
+/**
+ * Tests for formatting utilities
+ */
+
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { getNetworkConfigBTC } from "@/config";
+
+import {
+  formatActivityDateGroup,
+  formatActivityTime,
+  formatAmount,
+  formatAprPercent,
+  formatBasisPointsAsPercent,
+  formatBtcAmount,
+  formatCompactTokenAmount,
+  formatCompactUsd,
+  formatDateTime,
+  formatDuration,
+  formatDurationShort,
+  formatLiquidationDistancePercent,
+  formatMeterLabel,
+  formatOrdinal,
+  formatProviderDisplayName,
+  formatTimeAgo,
+  formatUsd,
+  formatUsdPrice,
+  formatUsdValue,
+} from "../formatting";
+
+const btcConfig = getNetworkConfigBTC();
+
+describe("Formatting Utilities", () => {
+  describe("formatBtcAmount", () => {
+    it("should format positive BTC amount with 8 decimals by default", () => {
+      expect(formatBtcAmount(1.23456789)).toBe(
+        `1.23456789 ${btcConfig.coinSymbol}`,
+      );
+    });
+
+    it("should format whole BTC amount", () => {
+      expect(formatBtcAmount(1)).toBe(`1 ${btcConfig.coinSymbol}`);
+    });
+
+    it("should format small BTC amount", () => {
+      expect(formatBtcAmount(0.00000001)).toBe(
+        `0.00000001 ${btcConfig.coinSymbol}`,
+      );
+    });
+
+    it("should return '0 BTC' for zero amount", () => {
+      expect(formatBtcAmount(0)).toBe(`0 ${btcConfig.coinSymbol}`);
+    });
+
+    it("should return '0 BTC' for negative amount", () => {
+      expect(formatBtcAmount(-1)).toBe(`0 ${btcConfig.coinSymbol}`);
+    });
+
+    it("should respect custom decimal places", () => {
+      expect(formatBtcAmount(1.23456789, 4)).toBe(
+        `1.2346 ${btcConfig.coinSymbol}`,
+      );
+      expect(formatBtcAmount(1.23456789, 2)).toBe(
+        `1.23 ${btcConfig.coinSymbol}`,
+      );
+    });
+
+    it("should handle large BTC amounts", () => {
+      expect(formatBtcAmount(21000000)).toBe(
+        `21000000 ${btcConfig.coinSymbol}`,
+      );
+    });
+  });
+
+  describe("formatAmount", () => {
+    it("preserves a small WBTC amount when the token's 8 decimals are passed", () => {
+      expect(formatAmount(0.00031, 8)).toBe("0.00031");
+    });
+
+    it("rounds the same small amount to '0' with the default 2 decimals", () => {
+      // Regression: borrowed/repaid amounts must pass token decimals, otherwise
+      // sub-0.005 WBTC borrows render as "0".
+      expect(formatAmount(0.00031, 2)).toBe("0");
+    });
+
+    it("trims trailing zeros rather than padding to max decimals", () => {
+      expect(formatAmount(1.5, 8)).toBe("1.5");
+    });
+
+    it("keeps comma grouping for large amounts", () => {
+      expect(formatAmount(1234.5, 6)).toBe("1,234.5");
+    });
+
+    it("clamps decimals above the Intl limit instead of throwing", () => {
+      // uint8 token decimals can reach 255; Intl.NumberFormat rejects >100,
+      // so an unclamped value would throw a RangeError mid-render.
+      expect(() => formatAmount(1.5, 255)).not.toThrow();
+      expect(formatAmount(1.5, 255)).toBe("1.5");
+    });
+
+    it("preserves precision for realistic small amounts after clamping", () => {
+      expect(formatAmount(0.00031, 30)).toBe("0.00031");
+    });
+
+    it("clamps negative decimals to zero instead of throwing", () => {
+      expect(() => formatAmount(123, -1)).not.toThrow();
+      expect(formatAmount(123, -1)).toBe("123");
+    });
+  });
+
+  describe("formatUsdValue", () => {
+    it("should format positive USD value with commas and 2 decimals", () => {
+      expect(formatUsdValue(1234.56)).toBe("$1,234.56 USD");
+    });
+
+    it("should format whole USD value", () => {
+      expect(formatUsdValue(1000)).toBe("$1,000.00 USD");
+    });
+
+    it("should format small USD value", () => {
+      expect(formatUsdValue(0.01)).toBe("$0.01 USD");
+    });
+
+    it("should return '$0 USD' for zero value", () => {
+      expect(formatUsdValue(0)).toBe("$0 USD");
+    });
+
+    it("should return '$0 USD' for negative value", () => {
+      expect(formatUsdValue(-100)).toBe("$0 USD");
+    });
+
+    it("should handle large USD values with commas", () => {
+      expect(formatUsdValue(1000000)).toBe("$1,000,000.00 USD");
+    });
+
+    it("should round to 2 decimal places", () => {
+      expect(formatUsdValue(1234.567)).toBe("$1,234.57 USD");
+    });
+  });
+
+  describe("formatUsd", () => {
+    it("formats positive values with commas and two fractional digits and no suffix", () => {
+      expect(formatUsd(1234.56)).toBe("$1,234.56");
+      expect(formatUsd(1_000_000)).toBe("$1,000,000.00");
+    });
+
+    it("renders $0.00 for zero", () => {
+      expect(formatUsd(0)).toBe("$0.00");
+    });
+
+    it("rounds to two decimal places", () => {
+      expect(formatUsd(1.239)).toBe("$1.24");
+    });
+  });
+
+  describe("formatAprPercent", () => {
+    it("trims trailing zeros after rounding to two decimals", () => {
+      expect(formatAprPercent(3.7)).toBe("3.7%");
+    });
+
+    it("rounds to two decimals", () => {
+      expect(formatAprPercent(5.861)).toBe("5.86%");
+    });
+
+    it("absorbs float noise from the RAY conversion", () => {
+      expect(formatAprPercent(3.6999999999999997)).toBe("3.7%");
+    });
+
+    it("renders a positive rate too small to show at two decimals as <0.01%", () => {
+      expect(formatAprPercent(0.0000957)).toBe("<0.01%");
+    });
+
+    it("renders an absolute zero rate as 0%", () => {
+      expect(formatAprPercent(0)).toBe("0%");
+    });
+  });
+
+  describe("formatUsdPrice", () => {
+    it("rounds to whole dollars with thousands separators", () => {
+      expect(formatUsdPrice(88400)).toBe("$88,400");
+      expect(formatUsdPrice(70000.49)).toBe("$70,000");
+      expect(formatUsdPrice(70000.5)).toBe("$70,001");
+    });
+  });
+
+  describe("formatLiquidationDistancePercent", () => {
+    it("formats a positive buffer to one decimal", () => {
+      expect(formatLiquidationDistancePercent(19.23)).toBe("19.2%");
+    });
+
+    it("clamps a non-positive buffer to 0%", () => {
+      expect(formatLiquidationDistancePercent(0)).toBe("0.0%");
+      expect(formatLiquidationDistancePercent(-4.3)).toBe("0.0%");
+    });
+  });
+
+  describe("formatProviderDisplayName", () => {
+    const longAddress = "0x1234567890abcdef1234567890abcdef12345678";
+
+    it("should return real name when provider has a meaningful name", () => {
+      expect(formatProviderDisplayName("Lombard", longAddress)).toBe("Lombard");
+    });
+
+    it("should append truncated address when includeAddress is true", () => {
+      expect(
+        formatProviderDisplayName("Lombard", longAddress, {
+          includeAddress: true,
+        }),
+      ).toBe("Lombard (0x1234...5678)");
+    });
+
+    it("should return address-based name as-is when name starts with 0x", () => {
+      expect(formatProviderDisplayName("0xabc123", longAddress)).toBe(
+        "0xabc123",
+      );
+    });
+
+    it("should return name as-is when it starts with 'Provider '", () => {
+      expect(
+        formatProviderDisplayName("Provider 0x1234...5678", longAddress),
+      ).toBe("Provider 0x1234...5678");
+    });
+
+    it("should fall back to truncated address when name is undefined", () => {
+      expect(formatProviderDisplayName(undefined, longAddress)).toBe(
+        "0x1234...5678",
+      );
+    });
+
+    it("should fall back to truncated address when name is empty string", () => {
+      expect(formatProviderDisplayName("", longAddress)).toBe("0x1234...5678");
+    });
+  });
+
+  describe("formatOrdinal", () => {
+    it("should format 1st, 2nd, 3rd correctly", () => {
+      expect(formatOrdinal(1)).toBe("1st");
+      expect(formatOrdinal(2)).toBe("2nd");
+      expect(formatOrdinal(3)).toBe("3rd");
+    });
+
+    it("should format 4th-20th with 'th' suffix", () => {
+      expect(formatOrdinal(4)).toBe("4th");
+      expect(formatOrdinal(10)).toBe("10th");
+      expect(formatOrdinal(11)).toBe("11th");
+      expect(formatOrdinal(12)).toBe("12th");
+      expect(formatOrdinal(13)).toBe("13th");
+      expect(formatOrdinal(20)).toBe("20th");
+    });
+
+    it("should handle 21st, 22nd, 23rd pattern", () => {
+      expect(formatOrdinal(21)).toBe("21st");
+      expect(formatOrdinal(22)).toBe("22nd");
+      expect(formatOrdinal(23)).toBe("23rd");
+      expect(formatOrdinal(24)).toBe("24th");
+    });
+
+    it("should handle 111th, 112th, 113th (teen exceptions)", () => {
+      expect(formatOrdinal(111)).toBe("111th");
+      expect(formatOrdinal(112)).toBe("112th");
+      expect(formatOrdinal(113)).toBe("113th");
+    });
+  });
+
+  describe("formatDateTime", () => {
+    it("should format date as YYYY-MM-DD HH:mm:ss", () => {
+      const date = new Date(2024, 0, 15, 9, 5, 30); // Jan 15, 2024 09:05:30
+      expect(formatDateTime(date)).toBe("2024-01-15 09:05:30");
+    });
+
+    it("should pad single digit month, day, hour, minute, second with zeros", () => {
+      const date = new Date(2024, 0, 5, 3, 7, 9); // Jan 5, 2024 03:07:09
+      expect(formatDateTime(date)).toBe("2024-01-05 03:07:09");
+    });
+
+    it("should handle midnight correctly", () => {
+      const date = new Date(2024, 5, 20, 0, 0, 0); // Jun 20, 2024 00:00:00
+      expect(formatDateTime(date)).toBe("2024-06-20 00:00:00");
+    });
+
+    it("should handle end of day correctly", () => {
+      const date = new Date(2024, 11, 31, 23, 59, 59); // Dec 31, 2024 23:59:59
+      expect(formatDateTime(date)).toBe("2024-12-31 23:59:59");
+    });
+
+    it("should handle double digit months and days", () => {
+      const date = new Date(2024, 10, 25, 14, 30, 45); // Nov 25, 2024 14:30:45
+      expect(formatDateTime(date)).toBe("2024-11-25 14:30:45");
+    });
+  });
+
+  describe("formatTimeAgo", () => {
+    const NOW = 1700000000000;
+
+    beforeEach(() => {
+      vi.spyOn(Date, "now").mockReturnValue(NOW);
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it("should return 'just now' for timestamps less than a minute ago", () => {
+      expect(formatTimeAgo(NOW)).toBe("just now");
+      expect(formatTimeAgo(NOW - 30 * 1000)).toBe("just now");
+      expect(formatTimeAgo(NOW - 59 * 1000)).toBe("just now");
+    });
+
+    it("should return 'a minute ago' for exactly 1 minute", () => {
+      expect(formatTimeAgo(NOW - 60 * 1000)).toBe("a minute ago");
+    });
+
+    it("should return plural minutes for 2-59 minutes", () => {
+      expect(formatTimeAgo(NOW - 2 * 60 * 1000)).toBe("2 minutes ago");
+      expect(formatTimeAgo(NOW - 30 * 60 * 1000)).toBe("30 minutes ago");
+      expect(formatTimeAgo(NOW - 59 * 60 * 1000)).toBe("59 minutes ago");
+    });
+
+    it("should return 'an hour ago' for exactly 1 hour", () => {
+      expect(formatTimeAgo(NOW - 60 * 60 * 1000)).toBe("an hour ago");
+    });
+
+    it("should return plural hours for 2-23 hours", () => {
+      expect(formatTimeAgo(NOW - 2 * 60 * 60 * 1000)).toBe("2 hours ago");
+      expect(formatTimeAgo(NOW - 12 * 60 * 60 * 1000)).toBe("12 hours ago");
+      expect(formatTimeAgo(NOW - 23 * 60 * 60 * 1000)).toBe("23 hours ago");
+    });
+
+    it("should return 'a day ago' for exactly 1 day", () => {
+      expect(formatTimeAgo(NOW - 24 * 60 * 60 * 1000)).toBe("a day ago");
+    });
+
+    it("should return plural days for 2-29 days", () => {
+      expect(formatTimeAgo(NOW - 2 * 24 * 60 * 60 * 1000)).toBe("2 days ago");
+      expect(formatTimeAgo(NOW - 15 * 24 * 60 * 60 * 1000)).toBe("15 days ago");
+      expect(formatTimeAgo(NOW - 29 * 24 * 60 * 60 * 1000)).toBe("29 days ago");
+    });
+
+    it("should return 'a month ago' for exactly 1 month (30 days)", () => {
+      expect(formatTimeAgo(NOW - 30 * 24 * 60 * 60 * 1000)).toBe("a month ago");
+    });
+
+    it("should return plural months for 2-11 months", () => {
+      expect(formatTimeAgo(NOW - 60 * 24 * 60 * 60 * 1000)).toBe(
+        "2 months ago",
+      );
+      expect(formatTimeAgo(NOW - 180 * 24 * 60 * 60 * 1000)).toBe(
+        "6 months ago",
+      );
+      expect(formatTimeAgo(NOW - 330 * 24 * 60 * 60 * 1000)).toBe(
+        "11 months ago",
+      );
+    });
+
+    it("should return 'a year ago' for exactly 1 year (365 days)", () => {
+      expect(formatTimeAgo(NOW - 365 * 24 * 60 * 60 * 1000)).toBe("a year ago");
+    });
+
+    it("should return plural years for 2+ years", () => {
+      expect(formatTimeAgo(NOW - 730 * 24 * 60 * 60 * 1000)).toBe(
+        "2 years ago",
+      );
+      expect(formatTimeAgo(NOW - 1825 * 24 * 60 * 60 * 1000)).toBe(
+        "5 years ago",
+      );
+    });
+
+    it("should return 'just now' for future timestamps", () => {
+      expect(formatTimeAgo(NOW + 1000)).toBe("just now");
+      expect(formatTimeAgo(NOW + 60 * 60 * 1000)).toBe("just now");
+      expect(formatTimeAgo(NOW + 365 * 24 * 60 * 60 * 1000)).toBe("just now");
+    });
+  });
+
+  describe("formatCompactUsd", () => {
+    it("returns '$0' for zero", () => {
+      expect(formatCompactUsd(0)).toBe("$0");
+    });
+
+    it("returns '$0' for negative input", () => {
+      expect(formatCompactUsd(-1)).toBe("$0");
+    });
+
+    it("delegates to non-compact format below 1000", () => {
+      expect(formatCompactUsd(999)).toBe("$999.00");
+      expect(formatCompactUsd(99.5)).toBe("$99.50");
+    });
+
+    it("formats thousands as '$Nk' with one decimal", () => {
+      expect(formatCompactUsd(1_000)).toBe("$1k");
+      expect(formatCompactUsd(63_600)).toBe("$63.6k");
+    });
+
+    it("formats millions as '$Nm'", () => {
+      expect(formatCompactUsd(1_500_000)).toBe("$1.5m");
+    });
+
+    it("keeps the magnitude suffix uppercase when asked", () => {
+      expect(formatCompactUsd(1_500_000, true)).toBe("$1.5M");
+      expect(formatCompactUsd(63_600, true)).toBe("$63.6K");
+    });
+  });
+
+  describe("formatBasisPointsAsPercent", () => {
+    it("converts basis points to a percentage", () => {
+      expect(formatBasisPointsAsPercent(50)).toBe("0.5%");
+    });
+
+    it("trims trailing zeros for whole percentages", () => {
+      expect(formatBasisPointsAsPercent(100)).toBe("1%");
+    });
+
+    it("keeps two decimals for the smallest commission step", () => {
+      expect(formatBasisPointsAsPercent(1)).toBe("0.01%");
+    });
+
+    it("formats the protocol-maximum commission", () => {
+      expect(formatBasisPointsAsPercent(9999)).toBe("99.99%");
+    });
+  });
+
+  // Humanized duration for peg-out ETAs: pick the largest sensible unit so a
+  // ~5-day wait reads as "5 days", not "114 hours". Thresholds are on the raw
+  // minutes (< 60 minutes, < 1440 hours, else days); the value within the unit
+  // is rounded to the nearest whole.
+  describe("formatCompactTokenAmount", () => {
+    it("collapses thousands and up into K/M/B suffixes", () => {
+      expect(formatCompactTokenAmount(45200)).toBe("45.2K");
+      expect(formatCompactTokenAmount(1234567)).toBe("1.23M");
+      expect(formatCompactTokenAmount(1500000000)).toBe("1.5B");
+    });
+
+    it("shows amounts below one thousand in full, grouped, up to two decimals", () => {
+      expect(formatCompactTokenAmount(999)).toBe("999");
+      expect(formatCompactTokenAmount(500.25)).toBe("500.25");
+      expect(formatCompactTokenAmount(2.5)).toBe("2.5");
+    });
+
+    it("returns '0' for zero or negative input", () => {
+      expect(formatCompactTokenAmount(0)).toBe("0");
+      expect(formatCompactTokenAmount(-5)).toBe("0");
+    });
+
+    it("rounds to two decimals before the compact threshold so the boundary is consistent", () => {
+      // 999.995 rounds up to 1,000 → compact "1K", not the full "1,000".
+      expect(formatCompactTokenAmount(999.995)).toBe("1K");
+      // Just under the rounding boundary stays in full form.
+      expect(formatCompactTokenAmount(999.99)).toBe("999.99");
+    });
+  });
+
+  describe("formatDuration", () => {
+    it("shows 'less than a minute' at or below zero", () => {
+      expect(formatDuration(0)).toBe("less than a minute");
+      expect(formatDuration(-5)).toBe("less than a minute");
+    });
+
+    it("uses minutes below one hour", () => {
+      expect(formatDuration(1)).toBe("1 minute");
+      expect(formatDuration(45)).toBe("45 minutes");
+      expect(formatDuration(59)).toBe("59 minutes");
+    });
+
+    it("uses hours from one hour up to (but not including) one day", () => {
+      expect(formatDuration(60)).toBe("1 hour");
+      expect(formatDuration(89)).toBe("1 hour"); // round(1.48) = 1
+      expect(formatDuration(90)).toBe("2 hours"); // round(1.5) = 2
+      expect(formatDuration(120)).toBe("2 hours");
+      expect(formatDuration(1439)).toBe("24 hours"); // still < 1 day by threshold
+    });
+
+    it("uses days at one day and above", () => {
+      expect(formatDuration(1440)).toBe("1 day");
+      expect(formatDuration(2880)).toBe("2 days");
+    });
+
+    it("rounds a 684-block assert timelock (~4.75 days) to '5 days'", () => {
+      expect(formatDuration(684 * 10)).toBe("5 days");
+    });
+
+    it("formats a 91-block assert timelock (~15h) in hours", () => {
+      expect(formatDuration(91 * 10)).toBe("15 hours");
+    });
+  });
+
+  describe("formatDurationShort", () => {
+    it("rounds sub-90-minute durations to 5-minute steps", () => {
+      expect(formatDurationShort(30)).toBe("30 min");
+      expect(formatDurationShort(68)).toBe("70 min");
+      expect(formatDurationShort(84)).toBe("85 min");
+    });
+
+    it("switches to half-hour-rounded hours from 90 minutes", () => {
+      expect(formatDurationShort(89)).toBe("1.5 h"); // rounds to 90 → hours
+      expect(formatDurationShort(100)).toBe("1.5 h");
+      expect(formatDurationShort(130)).toBe("2 h");
+      expect(formatDurationShort(170)).toBe("3 h");
+    });
+  });
+});
+
+describe("formatMeterLabel", () => {
+  const labels = {
+    belowOne: "<1% remaining",
+    nearFull: ">99% remaining",
+    exact: (percent: number) => `${percent}% remaining`,
+  };
+
+  it("returns the exact rounded percentage for a mid-range ratio", () => {
+    expect(formatMeterLabel(0.5, labels)).toBe("50% remaining");
+  });
+
+  it("shows the below-one label when a non-zero ratio rounds down to 0%", () => {
+    expect(formatMeterLabel(0.003, labels)).toBe("<1% remaining");
+  });
+
+  it("shows the near-full label when a below-full ratio rounds up to 100%", () => {
+    expect(formatMeterLabel(0.997, labels)).toBe(">99% remaining");
+  });
+
+  it("uses the exact label (not below-one) at exactly 0", () => {
+    expect(formatMeterLabel(0, labels)).toBe("0% remaining");
+  });
+
+  it("uses the exact label (not near-full) at exactly 1", () => {
+    expect(formatMeterLabel(1, labels)).toBe("100% remaining");
+  });
+
+  it("clamps out-of-range ratios before formatting", () => {
+    expect(formatMeterLabel(-0.5, labels)).toBe("0% remaining");
+    expect(formatMeterLabel(1.5, labels)).toBe("100% remaining");
+  });
+});
+
+describe("formatActivityTime", () => {
+  it("formats a date as zero-padded HH:mm:ss (local time)", () => {
+    expect(formatActivityTime(new Date(2025, 8, 8, 9, 5, 3))).toBe("09:05:03");
+  });
+
+  it("handles midnight and end of day", () => {
+    expect(formatActivityTime(new Date(2025, 8, 8, 0, 0, 0))).toBe("00:00:00");
+    expect(formatActivityTime(new Date(2025, 8, 8, 23, 59, 59))).toBe(
+      "23:59:59",
+    );
+  });
+});
+
+describe("formatActivityDateGroup", () => {
+  const labels = {
+    today: "Today",
+    yesterday: "Yesterday",
+    lastWeek: "Last week",
+  };
+  // Reference "now": Sep 8, 2025, mid-afternoon (local time).
+  const reference = new Date(2025, 8, 8, 15, 30, 0);
+
+  it("labels the same calendar day 'Today' regardless of time", () => {
+    expect(
+      formatActivityDateGroup(new Date(2025, 8, 8, 0, 1, 0), reference, labels),
+    ).toBe("Today");
+    expect(
+      formatActivityDateGroup(
+        new Date(2025, 8, 8, 23, 0, 0),
+        reference,
+        labels,
+      ),
+    ).toBe("Today");
+  });
+
+  it("labels the previous calendar day 'Yesterday'", () => {
+    expect(
+      formatActivityDateGroup(
+        new Date(2025, 8, 7, 23, 0, 0),
+        reference,
+        labels,
+      ),
+    ).toBe("Yesterday");
+  });
+
+  it("labels days two to seven back 'Last week'", () => {
+    expect(
+      formatActivityDateGroup(
+        new Date(2025, 8, 6, 12, 0, 0),
+        reference,
+        labels,
+      ),
+    ).toBe("Last week");
+    // Seventh day back is the last one inside the group.
+    expect(
+      formatActivityDateGroup(
+        new Date(2025, 8, 1, 12, 0, 0),
+        reference,
+        labels,
+      ),
+    ).toBe("Last week");
+  });
+
+  it("labels anything older than seven days with the explicit YYYY-MM-DD date", () => {
+    expect(
+      formatActivityDateGroup(
+        new Date(2025, 7, 31, 12, 0, 0),
+        reference,
+        labels,
+      ),
+    ).toBe("2025-08-31");
+    expect(
+      formatActivityDateGroup(
+        new Date(2025, 0, 2, 12, 0, 0),
+        reference,
+        labels,
+      ),
+    ).toBe("2025-01-02");
+  });
+
+  it("dates a future row rather than filing it under 'Last week'", () => {
+    expect(
+      formatActivityDateGroup(
+        new Date(2025, 8, 9, 12, 0, 0),
+        reference,
+        labels,
+      ),
+    ).toBe("2025-09-09");
+  });
+
+  it("groups by calendar day, not elapsed 24h windows", () => {
+    // ~2 hours before the reference but on the previous calendar day → Yesterday.
+    expect(
+      formatActivityDateGroup(
+        new Date(2025, 8, 7, 23, 0, 0),
+        reference,
+        labels,
+      ),
+    ).toBe("Yesterday");
+  });
+});

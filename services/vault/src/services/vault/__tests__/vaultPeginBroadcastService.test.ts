@@ -1,0 +1,518 @@
+import { pushTx } from "@babylonlabs-io/ts-sdk";
+import {
+  DepositTermsRejectedError,
+  type DepositTerms,
+} from "@babylonlabs-io/ts-sdk/tbv/core";
+import {
+  assertPsbtUnsignedTxMatches,
+  assertReturnedKeyPathSignatures,
+} from "@babylonlabs-io/ts-sdk/tbv/core/primitives";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+// Use vi.hoisted so mocks can reference these before module initialization
+const { mockFetchUTXO, mockPsbt, mockSignedPsbt, mockTx, mockInput } =
+  vi.hoisted(() => {
+    const input = {
+      hash: Buffer.from(
+        "abc123def456abc123def456abc123def456abc123def456abc123def456abc1",
+        "hex",
+      ),
+      index: 0,
+      sequence: 0xffffffff,
+    };
+
+    return {
+      mockFetchUTXO: vi
+        .fn()
+        .mockResolvedValue({ scriptPubKey: "0014aabb", value: 100000 }),
+      mockPsbt: {
+        setVersion: vi.fn(),
+        setLocktime: vi.fn(),
+        addInput: vi.fn(),
+        addOutput: vi.fn(),
+        toHex: vi.fn().mockReturnValue("mock-psbt-hex"),
+      },
+      mockSignedPsbt: {
+        finalizeAllInputs: vi.fn(),
+        extractTransaction: vi.fn(() => ({ toHex: vi.fn(() => "signed-hex") })),
+        data: {
+          inputs: [{ finalScriptWitness: Buffer.from("00", "hex") }] as Array<{
+            finalScriptWitness?: Buffer;
+            finalScriptSig?: Buffer;
+          }>,
+        },
+      },
+      mockTx: {
+        ins: [input],
+        outs: [{ script: Buffer.from("0014deadbeef", "hex"), value: 90000 }],
+        version: 2,
+        locktime: 0,
+        // Only the approval-ceremony path reads this; non-approval tests
+        // short-circuit before it.
+        getId: () => "cc".repeat(32),
+      },
+      mockInput: input,
+    };
+  });
+
+vi.mock("@babylonlabs-io/ts-sdk", () => ({
+  pushTx: vi.fn().mockResolvedValue("mock-txid"),
+  HEX_RE: /^[0-9a-fA-F]+$/,
+  TXID_RE: /^[0-9a-fA-F]{64}$/,
+  MAX_REASONABLE_FEE_SATS: 1_000_000n,
+}));
+vi.mock("bitcoinjs-lib", () => {
+  // Psbt must be callable as a constructor (new Psbt())
+  function PsbtCtor() {
+    return mockPsbt;
+  }
+  PsbtCtor.fromHex = vi.fn(() => mockSignedPsbt);
+  return {
+    Psbt: PsbtCtor,
+    Transaction: { fromHex: vi.fn(() => mockTx) },
+  };
+});
+vi.mock("@babylonlabs-io/ts-sdk/tbv/core/utils", async (importOriginal) => {
+  const actual =
+    await importOriginal<
+      typeof import("@babylonlabs-io/ts-sdk/tbv/core/utils")
+    >();
+  return {
+    ...actual,
+    getPsbtInputFields: vi.fn(() => ({ witnessUtxo: {} })),
+  };
+});
+vi.mock(
+  "@babylonlabs-io/ts-sdk/tbv/core/primitives",
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import("@babylonlabs-io/ts-sdk/tbv/core/primitives")
+      >();
+    return {
+      ...actual,
+      assertPsbtUnsignedTxMatches: vi.fn(),
+      // Returns how many inputs it verified; the mocked PSBT carries one, and
+      // the approval-wallet path refuses to broadcast a partial count.
+      assertReturnedKeyPathSignatures: vi.fn(() => 1),
+    };
+  },
+);
+vi.mock("../../../clients/btc/config", () => ({
+  getMempoolApiUrl: vi.fn(() => "https://mempool.test"),
+}));
+vi.mock("../vaultUtxoDerivationService", () => ({
+  fetchUTXOFromMempool: mockFetchUTXO,
+}));
+
+import {
+  broadcastPrePeginTransaction,
+  utxosToExpectedRecord,
+} from "../vaultPeginBroadcastService";
+
+/** Valid 64-hex-char txids for tests */
+const TXID_A =
+  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+const TXID_B =
+  "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+const TXID_UPPER =
+  "AABB00112233445566778899AABB00112233445566778899AABB001122334455";
+
+beforeEach(() => {
+  mockSignedPsbt.finalizeAllInputs.mockReset();
+  mockSignedPsbt.extractTransaction.mockReset();
+  mockSignedPsbt.extractTransaction.mockReturnValue({
+    toHex: vi.fn(() => "signed-hex"),
+  });
+  mockSignedPsbt.data = {
+    inputs: [{ finalScriptWitness: Buffer.from("00", "hex") }],
+  };
+});
+
+describe("utxosToExpectedRecord", () => {
+  it("converts a valid UTXO array to a keyed record", () => {
+    const utxos = [
+      {
+        txid: TXID_A,
+        vout: 0,
+        value: 100000,
+        scriptPubKey: "0014deadbeef",
+      },
+      {
+        txid: TXID_B,
+        vout: 1,
+        value: "200000",
+        scriptPubKey: "5120cafebabe",
+      },
+    ];
+
+    const result = utxosToExpectedRecord(utxos);
+
+    expect(result).toEqual({
+      [`${TXID_A}:0`]: { scriptPubKey: "0014deadbeef", value: 100000 },
+      [`${TXID_B}:1`]: { scriptPubKey: "5120cafebabe", value: 200000 },
+    });
+  });
+
+  it("normalizes txid to lowercase for consistent lookup", () => {
+    const utxos = [
+      {
+        txid: TXID_UPPER,
+        vout: 0,
+        value: 100000,
+        scriptPubKey: "0014deadbeef",
+      },
+    ];
+
+    const result = utxosToExpectedRecord(utxos);
+
+    expect(result[`${TXID_UPPER.toLowerCase()}:0`]).toEqual({
+      scriptPubKey: "0014deadbeef",
+      value: 100000,
+    });
+    expect(result[`${TXID_UPPER}:0`]).toBeUndefined();
+  });
+
+  it("throws on NaN value", () => {
+    const utxos = [
+      { txid: TXID_A, vout: 0, value: "not-a-number", scriptPubKey: "0014" },
+    ];
+    expect(() => utxosToExpectedRecord(utxos)).toThrow("Invalid UTXO value");
+  });
+
+  it("throws on negative value", () => {
+    const utxos = [
+      { txid: TXID_A, vout: 0, value: -100, scriptPubKey: "0014" },
+    ];
+    expect(() => utxosToExpectedRecord(utxos)).toThrow("Invalid UTXO value");
+  });
+
+  it("throws on non-hex txid", () => {
+    const utxos = [
+      { txid: "not-hex!", vout: 0, value: 100, scriptPubKey: "0014" },
+    ];
+    expect(() => utxosToExpectedRecord(utxos)).toThrow("Invalid UTXO txid");
+  });
+
+  it("throws on short txid (not 64 chars)", () => {
+    const utxos = [
+      { txid: "abc123", vout: 0, value: 100, scriptPubKey: "0014" },
+    ];
+    expect(() => utxosToExpectedRecord(utxos)).toThrow("Invalid UTXO txid");
+  });
+
+  it("throws on empty txid", () => {
+    const utxos = [{ txid: "", vout: 0, value: 100, scriptPubKey: "0014" }];
+    expect(() => utxosToExpectedRecord(utxos)).toThrow("Invalid UTXO txid");
+  });
+
+  it("throws on non-hex scriptPubKey", () => {
+    const utxos = [{ txid: TXID_A, vout: 0, value: 100, scriptPubKey: "xyz!" }];
+    expect(() => utxosToExpectedRecord(utxos)).toThrow(
+      "Invalid UTXO scriptPubKey",
+    );
+  });
+});
+
+describe("broadcastPrePeginTransaction — resolveInputUtxo behavior", () => {
+  const basePubkey = "a".repeat(64);
+  const baseParams = {
+    unsignedTxHex: "deadbeef",
+    btcWalletProvider: {
+      signPsbt: vi.fn().mockResolvedValue("mock-signed-psbt-hex"),
+    },
+    depositorBtcPubkey: basePubkey,
+  };
+
+  // The txid derived from mockInput.hash reversed
+  const expectedTxid = Buffer.from(mockInput.hash).reverse().toString("hex");
+
+  it("uses expectedUtxos when all inputs are covered (skips mempool)", async () => {
+    mockFetchUTXO.mockClear();
+
+    const expectedUtxos = {
+      [`${expectedTxid}:0`]: { scriptPubKey: "5120aabb", value: 100000 },
+    };
+
+    await broadcastPrePeginTransaction({ ...baseParams, expectedUtxos });
+
+    expect(mockFetchUTXO).not.toHaveBeenCalled();
+  });
+
+  it("falls back to mempool when expectedUtxos is undefined", async () => {
+    mockFetchUTXO.mockClear();
+
+    await broadcastPrePeginTransaction({
+      ...baseParams,
+      expectedUtxos: undefined,
+    });
+
+    expect(mockFetchUTXO).toHaveBeenCalledWith(expectedTxid, 0);
+  });
+
+  it("throws when expectedUtxos is provided but missing an input entry", async () => {
+    const expectedUtxos = {
+      "wrongtxid:99": { scriptPubKey: "0014", value: 100000 },
+    };
+
+    await expect(
+      broadcastPrePeginTransaction({ ...baseParams, expectedUtxos }),
+    ).rejects.toThrow("missing entry for");
+  });
+
+  it("throws when implied fee exceeds maximum reasonable fee", async () => {
+    // Mock UTXO with hugely inflated value — implies an unreasonable fee
+    const inflatedValue = 2_000_000; // 0.02 BTC, output is 90000, so fee = 1_910_000 > 1_000_000
+    mockFetchUTXO.mockResolvedValueOnce({
+      scriptPubKey: "0014aabb",
+      value: inflatedValue,
+    });
+
+    await expect(
+      broadcastPrePeginTransaction({
+        ...baseParams,
+        expectedUtxos: undefined,
+      }),
+    ).rejects.toThrow(/exceeds maximum reasonable fee/);
+  });
+
+  it("rejects before signing or broadcasting when total input value is less than total output value", async () => {
+    // The single input resolves to fewer sats than the 90000-sat output — the
+    // shape a compromised mempool API would return to underfund the tx. The
+    // guard must fire before any signature is requested or anything broadcast.
+    const underfundedValue = 50_000; // 50000-sat input < 90000-sat output → underfunding
+    mockFetchUTXO.mockResolvedValueOnce({
+      scriptPubKey: "0014aabb",
+      value: underfundedValue,
+    });
+    const signPsbt = vi.fn().mockResolvedValue("mock-signed-psbt-hex");
+    vi.mocked(pushTx).mockClear();
+
+    await expect(
+      broadcastPrePeginTransaction({
+        ...baseParams,
+        btcWalletProvider: { signPsbt },
+        expectedUtxos: undefined,
+      }),
+    ).rejects.toThrow(/less than.*total output value/);
+
+    expect(signPsbt).not.toHaveBeenCalled();
+    expect(pushTx).not.toHaveBeenCalled();
+  });
+
+  it("succeeds when finalizeAllInputs throws but all inputs are already finalized by the wallet", async () => {
+    mockSignedPsbt.finalizeAllInputs.mockImplementationOnce(() => {
+      throw new Error("Already finalized");
+    });
+
+    await expect(
+      broadcastPrePeginTransaction({
+        ...baseParams,
+        expectedUtxos: undefined,
+      }),
+    ).resolves.toBe("mock-txid");
+
+    expect(mockSignedPsbt.extractTransaction).toHaveBeenCalled();
+  });
+
+  it("rebinds the wallet-signed PSBT against the requested PSBT before broadcasting", async () => {
+    vi.mocked(assertPsbtUnsignedTxMatches).mockClear();
+    vi.mocked(pushTx).mockClear();
+
+    const customWallet = {
+      signPsbt: vi.fn().mockResolvedValue("wallet-returned-psbt-hex"),
+    };
+
+    await broadcastPrePeginTransaction({
+      ...baseParams,
+      btcWalletProvider: customWallet,
+      expectedUtxos: undefined,
+    });
+
+    expect(assertPsbtUnsignedTxMatches).toHaveBeenCalledTimes(1);
+    expect(assertPsbtUnsignedTxMatches).toHaveBeenCalledWith({
+      requestedPsbtHex: "mock-psbt-hex",
+      returnedPsbtHex: "wallet-returned-psbt-hex",
+    });
+  });
+
+  it("aborts before broadcast when the rebind helper rejects the wallet's PSBT", async () => {
+    vi.mocked(assertPsbtUnsignedTxMatches).mockImplementationOnce(() => {
+      throw new Error("output 0 script differs");
+    });
+    vi.mocked(pushTx).mockClear();
+
+    await expect(
+      broadcastPrePeginTransaction({
+        ...baseParams,
+        expectedUtxos: undefined,
+      }),
+    ).rejects.toThrow(/output 0 script differs/);
+
+    expect(pushTx).not.toHaveBeenCalled();
+    expect(mockSignedPsbt.extractTransaction).not.toHaveBeenCalled();
+  });
+
+  it("attaches the original wallet error as the broadcast wrapper's cause", async () => {
+    // The cause-walking mappers (user cancellation, method-not-supported)
+    // classify by the inner error's code, which the wrapper message loses.
+    const inner = Object.assign(new Error("nope"), {
+      code: "CONNECTION_REJECTED",
+    });
+    const signPsbt = vi.fn().mockRejectedValue(inner);
+
+    await expect(
+      broadcastPrePeginTransaction({
+        ...baseParams,
+        btcWalletProvider: { signPsbt },
+        expectedUtxos: undefined,
+      }),
+    ).rejects.toMatchObject({
+      message: expect.stringContaining(
+        "Failed to broadcast Pre-PegIn transaction",
+      ),
+      cause: inner,
+    });
+  });
+
+  it("verifies the returned key-path signatures after the rebind, with the requested/returned pair", async () => {
+    vi.mocked(assertReturnedKeyPathSignatures).mockClear();
+    vi.mocked(pushTx).mockClear();
+    const customWallet = {
+      signPsbt: vi.fn().mockResolvedValue("wallet-returned-psbt-hex"),
+    };
+
+    await broadcastPrePeginTransaction({
+      ...baseParams,
+      btcWalletProvider: customWallet,
+      expectedUtxos: undefined,
+    });
+
+    expect(assertReturnedKeyPathSignatures).toHaveBeenCalledTimes(1);
+    expect(assertReturnedKeyPathSignatures).toHaveBeenCalledWith({
+      requestedPsbtHex: "mock-psbt-hex",
+      returnedPsbtHex: "wallet-returned-psbt-hex",
+    });
+  });
+
+  it("aborts before finalize/broadcast when a returned key-path signature does not verify", async () => {
+    vi.mocked(assertReturnedKeyPathSignatures).mockImplementationOnce(() => {
+      throw new Error("key-path signature for input 0 does not verify");
+    });
+    vi.mocked(pushTx).mockClear();
+
+    await expect(
+      broadcastPrePeginTransaction({
+        ...baseParams,
+        expectedUtxos: undefined,
+      }),
+    ).rejects.toThrow(/does not verify/);
+
+    expect(pushTx).not.toHaveBeenCalled();
+    expect(mockSignedPsbt.extractTransaction).not.toHaveBeenCalled();
+  });
+
+  it("preserves PSBT finalization errors when the wallet returns a partially signed PSBT", async () => {
+    mockSignedPsbt.finalizeAllInputs.mockImplementationOnce(() => {
+      throw new Error("Input #1 is not signed");
+    });
+    mockSignedPsbt.data = {
+      inputs: [
+        { finalScriptWitness: Buffer.from("00", "hex") },
+        {} as { finalScriptWitness?: Buffer; finalScriptSig?: Buffer },
+      ],
+    };
+
+    await expect(
+      broadcastPrePeginTransaction({
+        ...baseParams,
+        expectedUtxos: undefined,
+      }),
+    ).rejects.toThrow(
+      "PSBT finalization failed and wallet did not auto-finalize: Error: Input #1 is not signed",
+    );
+
+    expect(mockSignedPsbt.extractTransaction).not.toHaveBeenCalled();
+  });
+});
+
+describe("broadcastPrePeginTransaction — intent-approval ceremony", () => {
+  // Matches mockTx.getId() so the terms bind to the tx being broadcast.
+  const CEREMONY_TXID = "cc".repeat(32);
+  const pubkey = "ab".repeat(32);
+
+  const makeTerms = (): DepositTerms => ({
+    vaultCoreVersion: 2,
+    protocolFeeRate: 2n,
+    timelockPegin: 684,
+    timelockAssert: 684,
+    timelockRefund: 2016,
+    prepeginTxid: CEREMONY_TXID,
+    prepeginMaxFee: 1500n,
+    vaultKeeperBtcPubkeys: ["cc".repeat(32)],
+    universalChallengerBtcPubkeys: ["dd".repeat(32)],
+    vaults: [
+      {
+        htlcVout: 0,
+        vaultProviderBtcPubkey: "ff".repeat(32),
+        peginAmount: 1_000_000n,
+        commissionFee: 10_000n,
+        depositorClaimValue: 20_000n,
+        peginMaxFee: 800n,
+      },
+    ],
+  });
+
+  it("runs the derive→approve ceremony before signing for an approval wallet", async () => {
+    const order: string[] = [];
+    const wallet = {
+      signPsbt: vi.fn(async (psbtHex: string) => {
+        order.push("sign");
+        return psbtHex;
+      }),
+      deriveContextHash: vi.fn(async () => {
+        order.push("derive");
+        return "ab".repeat(32);
+      }),
+      approveDepositTerms: vi.fn(async () => {
+        order.push("approve");
+      }),
+      getChangeAddress: vi.fn(async () => "tb1pledgerchange"),
+    };
+
+    const txid = await broadcastPrePeginTransaction({
+      unsignedTxHex: "deadbeef",
+      btcWalletProvider: wallet,
+      depositorBtcPubkey: pubkey,
+      depositTerms: makeTerms(),
+    });
+
+    expect(order).toEqual(["derive", "approve", "sign"]);
+    expect(wallet.approveDepositTerms).toHaveBeenCalledTimes(1);
+    expect(txid).toBe("mock-txid");
+  });
+
+  it("rethrows a device-envelope rejection unwrapped, without signing", async () => {
+    const signPsbt = vi.fn();
+    const rejection = new DepositTermsRejectedError("user declined on device");
+    const wallet = {
+      signPsbt,
+      deriveContextHash: vi.fn(async () => "ab".repeat(32)),
+      approveDepositTerms: vi.fn(async () => {
+        throw rejection;
+      }),
+      getChangeAddress: vi.fn(async () => "tb1pledgerchange"),
+    };
+
+    await expect(
+      broadcastPrePeginTransaction({
+        unsignedTxHex: "deadbeef",
+        btcWalletProvider: wallet,
+        depositorBtcPubkey: pubkey,
+        depositTerms: makeTerms(),
+      }),
+    ).rejects.toBe(rejection);
+
+    expect(signPsbt).not.toHaveBeenCalled();
+  });
+});

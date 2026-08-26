@@ -1,0 +1,145 @@
+/**
+ * Activity type definitions for vault operations
+ *
+ * VaultActivity represents both pegin/deposit activities and borrowing positions.
+ * Different fields are populated based on the context:
+ * - Pegin/Deposit (VaultDeposit tab): contractStatus, isPending
+ * - Position (VaultPositions tab): position, borrowingData, marketData
+ *
+ * Note: Display status (label/variant) is derived from contractStatus via peginStateMachine,
+ * not stored directly on the activity.
+ */
+
+import type { Hex } from "viem";
+
+import type {
+  ExpirationReason,
+  PeginDisplayLabel,
+} from "../models/peginStateMachine";
+
+/**
+ * Vault activity - represents both deposits and borrowing positions
+ */
+export interface VaultActivity {
+  /** Derived vault ID: keccak256(abi.encode(peginTxHash, depositor)) */
+  id: Hex;
+
+  /** Collateral information */
+  collateral: {
+    amount: string;
+    symbol: string;
+    icon?: string;
+  };
+
+  /** Vault provider addresses */
+  providers: Array<{
+    id: string;
+  }>;
+
+  /** Optional action button */
+  action?: {
+    label: string;
+    onClick: () => void;
+  };
+
+  // === Pegin/Deposit fields (VaultDeposit tab) ===
+
+  /** Raw BTC pegin transaction hash (for VP RPC operations) */
+  peginTxHash?: Hex;
+
+  /**
+   * Pre-PegIn transaction hash — the BTC tx the depositor actually broadcasts
+   * (txid of `unsignedPrePeginTx`). Use this for user-facing explorer links
+   * during pending/verified/expired states, where the peg-in tx has not yet
+   * been broadcast by the vault provider.
+   */
+  prePeginTxHash?: Hex;
+
+  /** Contract status (0=Pending, 1=Verified, 2=Active, 3=Redeemed, 4=Liquidated, 5=Invalid, 6=DepositorWithdrawn, 7=Expired) */
+  contractStatus?: number;
+
+  /** Application usage status - whether vault is in use by an application */
+  isInUse?: boolean;
+
+  /** Display label for UI (derived from contractStatus and isInUse) */
+  displayLabel: PeginDisplayLabel;
+
+  /** Pending peg-in flags */
+  isPending?: boolean;
+  pendingMessage?: string;
+
+  // === Position fields (VaultPositions tab) ===
+
+  /** Position data */
+  position?: {
+    collateral: bigint;
+    borrowShares: bigint;
+    borrowed: bigint;
+    borrowAssets: bigint; // Actual debt including accrued interest
+  };
+
+  /** Enriched borrowing data (calculated from position + market data) */
+  borrowingData?: {
+    borrowedAmount: string; // Formatted borrowed amount (e.g., "1000.50 USDC")
+    borrowedSymbol: string; // Token symbol (e.g., "USDC")
+    currentLTV: number; // Current LTV percentage (e.g., 50.5)
+    maxLTV: number; // Maximum LTV percentage (e.g., 80)
+  };
+
+  /** Market data for borrowing */
+  marketData?: {
+    btcPriceUSD: number; // BTC price in USD
+    lltvPercent: number; // Liquidation LTV percentage
+  };
+
+  /** Position created date */
+  positionDate?: Date;
+
+  // === Shared fields ===
+
+  /** Market ID (for repay/borrow operations) */
+  marketId?: string;
+
+  /** Timestamp (for sorting/ordering) - milliseconds since epoch */
+  timestamp?: number;
+
+  /** Application controller address (for fetching providers/vault keepers/universal challengers) */
+  applicationEntryPoint?: string;
+
+  /** Depositor's BTC public key (x-only, 32 bytes) */
+  depositorBtcPubkey?: string;
+
+  /** Depositor-signed pegin transaction hex */
+  depositorSignedPeginTx?: string;
+
+  /** Unsigned pre-pegin transaction hex (spends depositor's UTXOs — used for UTXO validation and refund) */
+  unsignedPrePeginTx: string;
+
+  /**
+   * Index of this vault's HTLC output in the Pre-PegIn tx. Indexer-provided;
+   * used (display-only) to probe whether the HTLC has already been refunded.
+   * The signing/broadcast path re-reads it from chain, never from here.
+   */
+  htlcVout?: number;
+
+  /** Depositor-specified BTC payout address (raw scriptPubKey hex from indexer) */
+  depositorPayoutBtcAddress?: Hex;
+
+  /** Keccak256 hash of depositor's WOTS public key (committed on-chain) */
+  depositorWotsPkHash: string;
+
+  /** Timestamp when vault expired (milliseconds), undefined if not expired */
+  expiredAt?: number;
+
+  /** Expiration reason, undefined if not expired */
+  expirationReason?: ExpirationReason;
+
+  /**
+   * Offchain params version this vault was registered against. The protocol
+   * gates depth checks (e.g. `minPrepeginDepth`) on this version, not the
+   * latest, so any consumer comparing on-chain confirmation counts must
+   * look up the per-version param via `getOffchainParamsByVersion`. Falls
+   * back to latest if the vault predates the indexer exposing this field.
+   */
+  offchainParamsVersion?: number;
+}

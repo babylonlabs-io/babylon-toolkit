@@ -1,0 +1,35 @@
+/**
+ * Mempool API Client
+ *
+ * Client for interacting with mempool.space API for Bitcoin network operations.
+ *
+ * @module clients/mempool
+ */
+
+export {
+  getAddressTxs,
+  getAddressUtxos,
+  getMempoolApiUrl,
+  getNetworkFees,
+  getOutspend,
+  getTipHeight,
+  getTxHex,
+  getTxInfo,
+  getUtxoInfo,
+  MEMPOOL_API_URLS,
+  pushTx,
+} from "./mempoolApi";
+
+export type { AddressTx } from "./mempoolApi";
+
+export type {
+  MempoolUTXO,
+  NetworkFees,
+  OutspendStatus,
+  TxInfo,
+  TxInput,
+  TxOutput,
+  TxStatus,
+  UtxoInfo,
+} from "./types";
+

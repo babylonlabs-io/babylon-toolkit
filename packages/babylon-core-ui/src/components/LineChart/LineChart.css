@@ -1,0 +1,132 @@
+/* Line chart. Marks are SVG sized in real pixels from the measured chart width
+ * (see charts/chartLayout.ts); this file only paints them.
+ *
+ * Series and marker colours are per-instance knobs the app sets through props
+ * (--bbn-line-chart-series / --bbn-line-chart-marker); neutral chrome comes
+ * from the shared --bbn-chart-* tokens. Motion reads --motion-* tokens per
+ * docs/motion-system.md — knobs here, values in the app; reduced motion is
+ * handled by the global reset in index.css. */
+@import "../charts/chartTokens.css";
+
+:root {
+  --bbn-line-chart-series: #518665;
+}
+
+.bbn-line-chart {
+  width: 100%;
+  font-family: "Px Grotesk", sans-serif;
+}
+.bbn-line-chart__canvas {
+  position: relative;
+}
+/* Edge axis labels are allowed to overflow the SVG viewport rather than clip. */
+.bbn-line-chart__svg {
+  display: block;
+  overflow: visible;
+}
+
+.bbn-line-chart__axis-text {
+  fill: var(--bbn-chart-axis-text);
+  letter-spacing: var(--bbn-chart-axis-letter-spacing, 0.4px);
+  pointer-events: none;
+}
+
+.bbn-line-chart__grid line {
+  stroke: var(--bbn-chart-gridline);
+  pointer-events: none;
+}
+.bbn-line-chart--gridstyle-dashed .bbn-line-chart__grid line {
+  stroke-dasharray: 3 3;
+}
+.bbn-line-chart--gridstyle-dotted .bbn-line-chart__grid line {
+  stroke-dasharray: 1 2;
+}
+
+.bbn-line-chart__series {
+  fill: none;
+  stroke: var(--bbn-line-chart-series);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  pointer-events: none;
+}
+
+/* ---- Annotated markers ---------------------------------------------- */
+.bbn-line-chart__rule {
+  stroke: var(--bbn-line-chart-marker, var(--bbn-chart-axis-text));
+  pointer-events: none;
+}
+.bbn-line-chart__rule--dashed {
+  stroke-dasharray: 3 3;
+}
+.bbn-line-chart__dot {
+  fill: var(--bbn-line-chart-marker, var(--bbn-chart-axis-text));
+  pointer-events: none;
+}
+.bbn-line-chart__callout {
+  fill: var(--bbn-chart-surface);
+  stroke: var(--bbn-line-chart-marker, var(--bbn-chart-surface-stroke));
+  pointer-events: none;
+}
+.bbn-line-chart__callout--dashed {
+  stroke-dasharray: 3 3;
+}
+.bbn-line-chart__callout-title {
+  fill: var(--bbn-chart-surface-text);
+  pointer-events: none;
+}
+.bbn-line-chart__callout-line {
+  fill: var(--bbn-chart-surface-muted);
+  pointer-events: none;
+}
+
+/* ---- Hover ----------------------------------------------------------- */
+/* `pan-y` keeps vertical page scrolling working when a finger lands on the
+ * chart — the plot is tall enough to swallow a scroll gesture otherwise — while
+ * reserving horizontal movement for dragging the readout along the series. */
+.bbn-line-chart__hit {
+  cursor: crosshair;
+  touch-action: pan-y;
+}
+.bbn-line-chart__crosshair {
+  stroke: var(--bbn-chart-axis-text);
+  stroke-dasharray: 3 3;
+  pointer-events: none;
+}
+.bbn-line-chart__hover-dot {
+  fill: var(--bbn-line-chart-series);
+  pointer-events: none;
+}
+
+.bbn-line-chart__tooltip {
+  position: absolute;
+  transform: translateX(0.5rem);
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  padding: 0.5rem 0.625rem;
+  border: 1px solid var(--bbn-chart-surface-stroke);
+  border-radius: 0.375rem;
+  background: var(--bbn-chart-surface);
+  color: var(--bbn-chart-surface-text);
+  white-space: nowrap;
+  pointer-events: none;
+}
+.bbn-line-chart__tooltip--left {
+  transform: translateX(calc(-100% - 0.5rem));
+}
+
+/* ---- Entry animation (opt-in via the `animate` prop) ----------------- */
+.bbn-line-chart__enter {
+  animation: bbn-line-chart-reveal var(--motion-duration-reveal, 180ms) var(--motion-ease-reveal, ease-out) both;
+}
+@keyframes bbn-line-chart-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(var(--motion-shift-reveal, 6px));
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}

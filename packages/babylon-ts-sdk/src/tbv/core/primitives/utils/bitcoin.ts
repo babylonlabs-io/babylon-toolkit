@@ -1,0 +1,488 @@
+/**
+ * Bitcoin Utilities
+ *
+ * Common pure utility functions for Bitcoin operations including:
+ * - Public key conversions (x-only format)
+ * - Hex string manipulation
+ * - Uint8Array conversions and validation
+ * - Address derivation and validation
+ *
+ * All functions are pure (no side effects) and work in Node.js, browsers,
+ * and serverless environments.
+ *
+ * @module primitives/utils/bitcoin
+ */
+
+import { networks, payments } from "bitcoinjs-lib";
+import { Buffer } from "buffer";
+
+import type { Network } from "@babylonlabs-io/babylon-tbv-rust-wasm";
+import type { Hex } from "viem";
+
+/**
+ * BIP-341 Tapscript leaf version for script-path spends.
+ * @see https://github.com/bitcoin/bips/blob/master/bip-0341.mediawiki
+ * @see Rust: bitcoin::taproot::LeafVersion::TapScript
+ */
+export const TAPSCRIPT_LEAF_VERSION = 0xc0;
+
+/**
+ * Hex-string length of a 32-byte BIP-340 x-only public key (taproot,
+ * Schnorr). Doubles the byte count: `2 * 32 = 64`.
+ */
+export const X_ONLY_PUBKEY_HEX_LEN = 64;
+
+/**
+ * Hex-string length of a 33-byte SEC1-compressed secp256k1 public key
+ * (`0x02` or `0x03` prefix + 32-byte x-coordinate). `2 * 33 = 66`.
+ */
+export const COMPRESSED_PUBKEY_HEX_LEN = 66;
+
+/**
+ * Hex-string length of a 65-byte SEC1-uncompressed secp256k1 public
+ * key (`0x04` prefix + 32-byte x + 32-byte y). `2 * 65 = 130`.
+ */
+const UNCOMPRESSED_PUBKEY_HEX_LEN = 130;
+
+/**
+ * Hex-string length of a 64-byte BIP-340 Schnorr signature. `2 * 64 = 128`.
+ */
+export const SCHNORR_SIG_HEX_LEN = 128;
+
+/**
+ * Strip "0x" prefix from hex string if present.
+ *
+ * Bitcoin expects plain hex (no "0x" prefix), but frontend often uses
+ * Ethereum-style "0x"-prefixed hex.
+ *
+ * @param hex - Hex string with or without "0x" prefix
+ * @returns Hex string without "0x" prefix
+ */
+export function stripHexPrefix(hex: string): string {
+  return hex.startsWith("0x") || hex.startsWith("0X") ? hex.slice(2) : hex;
+}
+
+/**
+ * Ensure "0x" prefix on a hex string, returning viem's Hex type.
+ *
+ * Ethereum/viem APIs expect `0x`-prefixed hex, but Bitcoin tooling
+ * typically omits the prefix. This normalises either form.
+ *
+ * @param hex - Hex string with or without "0x" prefix
+ * @returns `0x`-prefixed hex string typed as viem Hex
+ */
+export function ensureHexPrefix(hex: string): Hex {
+  if (hex.startsWith("0x")) return hex as Hex;
+  if (hex.startsWith("0X")) return `0x${hex.slice(2)}` as Hex;
+  return `0x${hex}` as Hex;
+}
+
+/**
+ * Convert hex string to Uint8Array.
+ *
+ * @param hex - Hex string (with or without 0x prefix)
+ * @returns Uint8Array
+ * @throws If hex is invalid
+ */
+export function hexToUint8Array(hex: string): Uint8Array {
+  const cleanHex = stripHexPrefix(hex);
+  if (!isValidHexRaw(cleanHex)) {
+    throw new Error(`Invalid hex string: ${hex}`);
+  }
+  const bytes = new Uint8Array(cleanHex.length / 2);
+  for (let i = 0; i < cleanHex.length; i += 2) {
+    bytes[i / 2] = parseInt(cleanHex.slice(i, i + 2), 16);
+  }
+  return bytes;
+}
+
+/**
+ * Convert Uint8Array to hex string (without 0x prefix).
+ *
+ * @param bytes - Uint8Array to convert
+ * @returns Hex string without 0x prefix
+ */
+export function uint8ArrayToHex(bytes: Uint8Array): string {
+  return Array.from(bytes)
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+/**
+ * Read the prevout txid (big-endian hex) from a bitcoinjs-lib transaction input.
+ *
+ * bitcoinjs-lib stores `hash` in little-endian internal byte order; txids are
+ * displayed in big-endian, so the bytes must be reversed before hex-encoding.
+ *
+ * @param input - Transaction input with a `hash` field (Buffer or Uint8Array)
+ * @returns Prevout txid as a hex string (big-endian, no 0x prefix)
+ */
+export function inputTxidHex(input: { hash: Buffer | Uint8Array }): string {
+  return uint8ArrayToHex(new Uint8Array(input.hash).slice().reverse());
+}
+
+/**
+ * Convert a 33-byte public key to 32-byte x-only format (removes first byte).
+ *
+ * Used for Taproot/Schnorr signatures which only need the x-coordinate.
+ * If the input is already 32 bytes, returns it unchanged.
+ *
+ * @param pubKey - 33-byte or 32-byte public key
+ * @returns 32-byte x-only public key
+ */
+export function toXOnly(pubKey: Uint8Array): Uint8Array {
+  return pubKey.length === 32 ? pubKey : pubKey.slice(1, 33);
+}
+
+/**
+ * Internal helper: Validate hex string format without stripping prefix
+ *
+ * @internal
+ * @param hex - Hex string (must already have prefix stripped)
+ * @returns true if valid hex string
+ */
+function isValidHexRaw(hex: string): boolean {
+  return /^[0-9a-fA-F]*$/.test(hex) && hex.length % 2 === 0;
+}
+
+/**
+ * Process and convert a public key to x-only format (32 bytes hex).
+ *
+ * Handles:
+ * - 0x prefix removal
+ * - Hex character validation
+ * - Length validation
+ * - Conversion to x-only format
+ *
+ * Accepts:
+ * - 64 hex chars (32 bytes) - already x-only
+ * - 66 hex chars (33 bytes) - compressed pubkey
+ * - 130 hex chars (65 bytes) - uncompressed pubkey
+ *
+ * @param publicKeyHex - Public key in hex format (with or without 0x prefix)
+ * @returns X-only public key as 32 bytes hex string (without 0x prefix)
+ * @throws If public key format is invalid or contains invalid hex characters
+ */
+export function processPublicKeyToXOnly(publicKeyHex: string): string {
+  // Remove '0x' prefix if present
+  const cleanHex = stripHexPrefix(publicKeyHex);
+
+  // Validate hex characters early to prevent silent failures
+  if (!isValidHexRaw(cleanHex)) {
+    throw new Error(`Invalid hex characters in public key: ${publicKeyHex}`);
+  }
+
+  // If already 64 chars (32 bytes), it's already x-only format
+  if (cleanHex.length === X_ONLY_PUBKEY_HEX_LEN) {
+    return cleanHex;
+  }
+
+  // Validate public key length (compressed SEC1 or uncompressed SEC1)
+  if (
+    cleanHex.length !== COMPRESSED_PUBKEY_HEX_LEN &&
+    cleanHex.length !== UNCOMPRESSED_PUBKEY_HEX_LEN
+  ) {
+    throw new Error(
+      `Invalid public key length: ${cleanHex.length} (expected ${X_ONLY_PUBKEY_HEX_LEN}, ${COMPRESSED_PUBKEY_HEX_LEN}, or ${UNCOMPRESSED_PUBKEY_HEX_LEN} hex chars)`,
+    );
+  }
+
+  const pubkeyBytes = hexToUint8Array(cleanHex);
+  return uint8ArrayToHex(toXOnly(pubkeyBytes));
+}
+
+/**
+ * Normalize a public key to the one form two keys can be compared in:
+ * lowercase x-only hex, no `0x`.
+ *
+ * `processPublicKeyToXOnly` returns already-x-only input untouched, so it
+ * preserves case on that path — comparing its output directly is a latent
+ * false mismatch for any source that serves uppercase hex. Every comparison
+ * site therefore has to pair it with `.toLowerCase()`, and that pairing is
+ * what this function exists to stop people re-deriving by hand.
+ *
+ * @param publicKeyHex - x-only, compressed, or uncompressed key, `0x` optional
+ * @throws If the key is not valid hex or has an unexpected length
+ */
+export function canonicalizeBtcPubkey(publicKeyHex: string): string {
+  return processPublicKeyToXOnly(publicKeyHex).toLowerCase();
+}
+
+/**
+ * Validate hex string format.
+ *
+ * Checks that the string contains only valid hexadecimal characters (0-9, a-f, A-F)
+ * and has an even length (since each byte is represented by 2 hex characters).
+ *
+ * @param hex - String to validate (with or without 0x prefix)
+ * @returns true if valid hex string
+ */
+export function isValidHex(hex: string): boolean {
+  const cleanHex = stripHexPrefix(hex);
+  return isValidHexRaw(cleanHex);
+}
+
+/**
+ * Result of validating a wallet public key against an expected depositor public key.
+ */
+export interface WalletPubkeyValidationResult {
+  /** Wallet's raw public key (as returned by wallet, may be compressed) */
+  walletPubkeyRaw: string;
+  /** Wallet's public key in x-only format (32 bytes, 64 hex chars) */
+  walletPubkeyXOnly: string;
+  /** The validated depositor public key (x-only format) */
+  depositorPubkey: string;
+}
+
+/**
+ * Validate that a wallet's public key matches the expected depositor public key.
+ *
+ * This function:
+ * 1. Converts the wallet pubkey to x-only format
+ * 2. Validates the wallet x-only pubkey matches the expected depositor pubkey
+ *    (case-insensitive)
+ *
+ * @param walletPubkeyRaw - Raw public key from wallet (may be compressed 66 chars or x-only 64 chars)
+ * @param expectedDepositorPubkey - Expected depositor public key (x-only).
+ *   Required: omitting it would degrade this check to a self-comparison.
+ * @returns Validation result with both pubkey formats
+ * @throws If `expectedDepositorPubkey` is missing/empty
+ * @throws If wallet pubkey doesn't match expected depositor pubkey
+ */
+export function validateWalletPubkey(
+  walletPubkeyRaw: string,
+  expectedDepositorPubkey: string,
+): WalletPubkeyValidationResult {
+  if (!expectedDepositorPubkey) {
+    throw new Error(
+      "validateWalletPubkey requires expectedDepositorPubkey. Pass the on-chain registered depositor pubkey to avoid a self-comparison.",
+    );
+  }
+
+  const walletPubkeyXOnly = processPublicKeyToXOnly(walletPubkeyRaw);
+  const depositorPubkey = expectedDepositorPubkey;
+
+  if (walletPubkeyXOnly.toLowerCase() !== depositorPubkey.toLowerCase()) {
+    throw new Error(
+      `Wallet public key does not match vault depositor. ` +
+        `Expected: ${depositorPubkey}, Got: ${walletPubkeyXOnly}. ` +
+        `Please connect the wallet that was used to create this vault.`,
+    );
+  }
+
+  return { walletPubkeyRaw, walletPubkeyXOnly, depositorPubkey };
+}
+
+// ============================================================================
+// BTC formatting
+// ============================================================================
+
+const SATOSHIS_PER_BTC = 100_000_000n;
+
+/**
+ * Format satoshis as a human-readable BTC string with trailing zeros removed.
+ */
+export function formatSatoshisToBtc(satoshis: bigint): string {
+  if (satoshis < 0n) {
+    return `-${formatSatoshisToBtc(-satoshis)}`;
+  }
+  const whole = satoshis / SATOSHIS_PER_BTC;
+  const fraction = satoshis % SATOSHIS_PER_BTC;
+  let fractionStr = fraction.toString().padStart(8, "0");
+  fractionStr = fractionStr.replace(/0+$/, "");
+  return fractionStr.length > 0 ? `${whole}.${fractionStr}` : whole.toString();
+}
+
+// ============================================================================
+// Address derivation and validation
+// ============================================================================
+
+/**
+ * Assert that the ECC library has been initialized via `initEccLib(ecc)`.
+ *
+ * The consuming application must call `initEccLib(ecc)` from `bitcoinjs-lib`
+ * once at startup before using any SDK function that involves Taproot / P2TR
+ * operations. This guard provides a clear error message when that step was
+ * missed, instead of letting bitcoinjs-lib throw its generic
+ * "No ECC Library provided" error deep in a call stack.
+ */
+export function assertEccInitialized(): void {
+  try {
+    payments.p2tr({ internalPubkey: Buffer.alloc(32, 1) });
+  } catch (e) {
+    if (e instanceof Error && e.message.includes("No ECC Library provided")) {
+      throw new Error(
+        "ECC library not initialized. " +
+          'You must call initEccLib(ecc) from "bitcoinjs-lib" before using the SDK. ' +
+          "See the ts-sdk README for setup instructions.",
+      );
+    }
+    // Any other error means ECC is loaded (e.g. invalid key is fine — ECC worked).
+  }
+}
+
+/**
+ * Map SDK network type to bitcoinjs-lib Network object.
+ *
+ * @param network - Network type ("bitcoin", "testnet", "signet", "regtest")
+ * @returns bitcoinjs-lib Network object
+ */
+export function getNetwork(network: Network): networks.Network {
+  switch (network) {
+    case "bitcoin":
+      return networks.bitcoin;
+    case "testnet":
+    case "signet":
+      return networks.testnet;
+    case "regtest":
+      return networks.regtest;
+    default:
+      throw new Error(`Unknown network: ${network}`);
+  }
+}
+
+/**
+ * Derive a Taproot (P2TR) address from a public key.
+ *
+ * @param publicKeyHex - Compressed (66 hex) or x-only (64 hex) public key
+ * @param network - Bitcoin network
+ * @returns Taproot address (bc1p... / tb1p... / bcrt1p...)
+ */
+export function deriveTaprootAddress(
+  publicKeyHex: string,
+  network: Network,
+): string {
+  assertEccInitialized();
+  const xOnly = hexToUint8Array(processPublicKeyToXOnly(publicKeyHex));
+  const { address } = payments.p2tr({
+    internalPubkey: Buffer.from(xOnly),
+    network: getNetwork(network),
+  });
+  if (!address) {
+    throw new Error("Failed to derive taproot address from public key");
+  }
+  return address;
+}
+
+/**
+ * Strip `0x` prefixes and lex-sort an array of x-only public keys.
+ *
+ * Used to produce the canonical (Rust-parity) keeper / challenger ordering
+ * the protocol expects in payout and refund signing contexts.
+ *
+ * @param pubkeys - Array of x-only public keys (with or without `0x` prefix)
+ * @returns Lex-sorted array of pubkeys with `0x` prefix stripped
+ */
+export function getSortedXOnlyPubkeys(pubkeys: string[]): string[] {
+  return pubkeys.map(stripHexPrefix).sort();
+}
+
+/**
+ * Derive the BIP-86 P2TR scriptPubKey (`0x`-prefixed hex) from an x-only
+ * public key.
+ *
+ * Matches Rust `Bip86KeyConnector::generate_taproot_script_pubkey`: a
+ * keypath-only P2TR output with no script tree. Used to compute the expected
+ * payout address for vault keeper claimers, whose payout goes to their own
+ * BIP-86 address rather than the depositor's registered payout address.
+ *
+ * Network-agnostic: P2TR scriptPubKey bytes are `OP_1 <32-byte tweaked-key>`
+ * regardless of network.
+ *
+ * @param xOnlyPubkeyHex - X-only public key (64 hex chars, with or without `0x` prefix)
+ * @returns `0x`-prefixed P2TR scriptPubKey hex
+ * @throws If `xOnlyPubkeyHex` is not exactly 64 hex chars after prefix stripping
+ */
+export function deriveBip86ScriptPubKeyHex(xOnlyPubkeyHex: string): string {
+  assertEccInitialized();
+  const cleanHex = stripHexPrefix(xOnlyPubkeyHex);
+  if (!/^[0-9a-fA-F]{64}$/.test(cleanHex)) {
+    throw new Error(
+      "Invalid x-only pubkey: must be 64 hex characters (32 bytes, no 0x prefix)",
+    );
+  }
+  const { output } = payments.p2tr({
+    internalPubkey: Buffer.from(cleanHex, "hex"),
+  });
+  if (!output) {
+    throw new Error("Failed to derive BIP-86 P2TR scriptPubKey");
+  }
+  return `0x${output.toString("hex")}`;
+}
+
+/**
+ * Derive a Native SegWit (P2WPKH) address from a compressed public key.
+ *
+ * @param publicKeyHex - Compressed public key (66 hex chars, with or without 0x prefix)
+ * @param network - Bitcoin network
+ * @returns Native SegWit address (bc1q... / tb1q... / bcrt1q...)
+ * @throws If publicKeyHex is not a compressed public key (66 hex chars)
+ */
+export function deriveNativeSegwitAddress(
+  publicKeyHex: string,
+  network: Network,
+): string {
+  const cleanHex = stripHexPrefix(publicKeyHex);
+  if (cleanHex.length !== 66) {
+    throw new Error(
+      `Native SegWit requires a compressed public key (66 hex chars), got ${cleanHex.length}`,
+    );
+  }
+  const { address } = payments.p2wpkh({
+    pubkey: Buffer.from(hexToUint8Array(cleanHex)),
+    network: getNetwork(network),
+  });
+  if (!address) {
+    throw new Error("Failed to derive native segwit address from public key");
+  }
+  return address;
+}
+
+/**
+ * Validate that a BTC address was derived from the given public key.
+ *
+ * Derives Taproot (P2TR) and Native SegWit (P2WPKH) addresses from the
+ * public key and checks if the provided address matches any of them.
+ *
+ * P2WPKH derivation requires the full compressed key with explicit y-parity.
+ * When only an x-only key is supplied, the y-parity is unknown and trying
+ * both `02|x` and `03|x` would let an opposite-parity P2WPKH address — a
+ * script the caller does NOT control — pass validation. We fail closed for
+ * P2WPKH in that case; P2TR (which depends only on the x-coordinate) is
+ * still validated and remains the supported path for Taproot wallets.
+ *
+ * @param address - BTC address to validate
+ * @param publicKeyHex - Public key from the wallet (x-only 64 or compressed 66 hex chars)
+ * @param network - Bitcoin network
+ * @returns true if the address matches the public key
+ */
+export function isAddressFromPublicKey(
+  address: string,
+  publicKeyHex: string,
+  network: Network,
+): boolean {
+  const cleanHex = stripHexPrefix(publicKeyHex);
+
+  // P2TR — works with both x-only and compressed keys
+  try {
+    if (address === deriveTaprootAddress(cleanHex, network)) {
+      return true;
+    }
+  } catch {
+    // derivation failed, continue
+  }
+
+  // P2WPKH — only attempt when the caller supplied a parity-bearing
+  // compressed key. An x-only input is fail-closed here on purpose.
+  if (cleanHex.length === COMPRESSED_PUBKEY_HEX_LEN) {
+    try {
+      if (address === deriveNativeSegwitAddress(cleanHex, network)) {
+        return true;
+      }
+    } catch {
+      // derivation failed, continue
+    }
+  }
+
+  return false;
+}

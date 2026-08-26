@@ -1,0 +1,721 @@
+/**
+ * Fetch vaults via GraphQL
+ *
+ * Plain JS function for fetching vault data that can be used
+ * in both React hooks and Node.js environments.
+ */
+
+import { gql } from "graphql-request";
+import type { Address, Hex } from "viem";
+
+import { logger } from "@/infrastructure";
+
+import { graphqlClient } from "../../clients/graphql/client";
+import type { ExpirationReason } from "../../models/peginStateMachine";
+import { type Vault, VaultStatus } from "../../types/vault";
+import {
+  BTC_PUBKEY_HEX_PATTERN,
+  ETH_ADDRESS_PATTERN,
+  VALID_HEX_PATTERN,
+} from "../../utils/validation";
+
+/**
+ * Common vault fields fragment
+ */
+const VAULT_FIELDS = `
+  id
+  depositor
+  depositorBtcPubKey
+  vaultProvider
+  amount
+  applicationEntryPoint
+  status
+  inUse
+  ackCount
+  depositorSignedPeginTx
+  unsignedPrePeginTx
+  peginTxHash
+  hashlock
+  htlcVout
+  secret
+  peginSigsPostedAt
+  appVaultKeepersVersion
+  universalChallengersVersion
+  offchainParamsVersion
+  currentOwner
+  referralCode
+  depositorPayoutBtcAddress
+  depositorWotsPkHash
+  btcPopSignature
+  pendingAt
+  verifiedAt
+  activatedAt
+  expiredAt
+  expirationReason
+  blockNumber
+  transactionHash
+`;
+
+/**
+ * Page size for the cursor-paginated vault list query. An un-paginated
+ * `vaults` query is capped at the indexer's default page size, which
+ * silently truncates high-volume depositors; 1000 is Ponder's maximum
+ * per-page limit.
+ */
+const VAULTS_PAGE_SIZE = 1000;
+
+/** Backstop against a runaway cursor loop (50 pages × 1000 vaults). */
+const MAX_VAULT_PAGES = 50;
+
+/**
+ * GraphQL queries to fetch vaults by depositor address.
+ *
+ * Two documents (first page / follow-on pages) walk Ponder's cursor
+ * pagination. Truncation here is not cosmetic: a vault dropped from the
+ * list falls back to its localStorage-only activity shape, which lacks
+ * indexer-only fields like `depositorPayoutBtcAddress` and blocks payout
+ * signing for that deposit.
+ */
+const GET_VAULTS_BY_DEPOSITOR_FIRST_PAGE = gql`
+  query GetVaultsByDepositorFirstPage($depositor: String!, $limit: Int!) {
+    vaults(where: { depositor: $depositor }, limit: $limit) {
+      items {
+        ${VAULT_FIELDS}
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+    }
+  }
+`;
+
+const GET_VAULTS_BY_DEPOSITOR_NEXT_PAGE = gql`
+  query GetVaultsByDepositorNextPage(
+    $depositor: String!
+    $limit: Int!
+    $after: String!
+  ) {
+    vaults(where: { depositor: $depositor }, limit: $limit, after: $after) {
+      items {
+        ${VAULT_FIELDS}
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+    }
+  }
+`;
+
+/**
+ * GraphQL query to fetch a single vault by ID
+ */
+const GET_VAULT_BY_ID = gql`
+  query GetVaultById($id: String!) {
+    vault(id: $id) {
+      ${VAULT_FIELDS}
+    }
+  }
+`;
+
+/**
+ * GraphQL vault status values
+ */
+type GraphQLVaultStatus =
+  | "pending"
+  | "signatures_collected"
+  | "verified"
+  | "available"
+  | "redeemed"
+  | "liquidated"
+  | "expired"
+  | "invalid"
+  | "depositor_withdrawn";
+
+/**
+ * Raw vault item from GraphQL
+ */
+interface GraphQLVaultItem {
+  id: string;
+  depositor: string;
+  depositorBtcPubKey: string;
+  vaultProvider: string;
+  amount: string;
+  applicationEntryPoint: string;
+  status: GraphQLVaultStatus;
+  inUse: boolean;
+  ackCount: number;
+  depositorSignedPeginTx: string;
+  unsignedPrePeginTx: string;
+  peginTxHash: string;
+  hashlock: string | null;
+  htlcVout: number;
+  secret: string | null;
+  peginSigsPostedAt: string | null;
+  appVaultKeepersVersion: number;
+  universalChallengersVersion: number;
+  offchainParamsVersion: number;
+  currentOwner: string | null;
+  referralCode: number;
+  depositorPayoutBtcAddress: string;
+  depositorWotsPkHash: string | null;
+  btcPopSignature: string | null;
+  pendingAt: string;
+  verifiedAt: string | null;
+  activatedAt: string | null;
+  expiredAt: string | null;
+  expirationReason: string | null;
+  blockNumber: string;
+  transactionHash: string;
+}
+
+interface GraphQLPageInfo {
+  hasNextPage: boolean;
+  endCursor: string | null;
+}
+
+/**
+ * Raw vault data from GraphQL response (paginated list query)
+ */
+interface VaultsGraphQLResponse {
+  vaults: {
+    items: GraphQLVaultItem[];
+    pageInfo: GraphQLPageInfo;
+  };
+}
+
+/**
+ * Raw vault data from GraphQL response (single query)
+ */
+interface VaultGraphQLResponse {
+  vault: GraphQLVaultItem | null;
+}
+
+/**
+ * Map GraphQL status string to VaultStatus enum
+ */
+function mapGraphQLStatusToVaultStatus(
+  status: GraphQLVaultStatus,
+): VaultStatus {
+  switch (status) {
+    case "pending":
+      return VaultStatus.PENDING;
+    case "signatures_collected":
+      return VaultStatus.PENDING;
+    case "verified":
+      return VaultStatus.VERIFIED;
+    case "available":
+      return VaultStatus.ACTIVE;
+    case "redeemed":
+      return VaultStatus.REDEEMED;
+    case "liquidated":
+      return VaultStatus.LIQUIDATED;
+    case "expired":
+      return VaultStatus.EXPIRED;
+    case "invalid":
+      return VaultStatus.INVALID;
+    case "depositor_withdrawn":
+      return VaultStatus.DEPOSITOR_WITHDRAWN;
+    default:
+      throw new Error(
+        `Unknown GraphQL vault status "${status as string}" — refusing to map to an actionable state`,
+      );
+  }
+}
+
+/**
+ * Validates that a required GraphQL field is non-null and non-undefined.
+ * Throws if the field is nullish, since this indicates a buggy or compromised server response.
+ */
+function validateRequiredField<T>(
+  value: T | null | undefined,
+  fieldName: string,
+  vaultId: string,
+): T {
+  if (value == null) {
+    throw new Error(
+      `Missing required field "${fieldName}" for vault ${vaultId}`,
+    );
+  }
+  return value;
+}
+
+/** Zero-hash constant (32 zero bytes) — treated as "not set" by the indexer */
+const ZERO_HASH =
+  "0x0000000000000000000000000000000000000000000000000000000000000000";
+
+/**
+ * Validates that a required hex field from the indexer is well-formed.
+ * Throws if the value does not match 0x-prefixed hex — this indicates
+ * a buggy or compromised server response.
+ */
+function validateRequiredHex(
+  value: string,
+  fieldName: string,
+  vaultId: string,
+): Hex {
+  if (!VALID_HEX_PATTERN.test(value)) {
+    throw new Error(
+      `Malformed hex in required field "${fieldName}" for vault ${vaultId}: "${value.slice(0, 20)}"`,
+    );
+  }
+  return value as Hex;
+}
+
+/**
+ * Validates that a required BTC public key field from the indexer has a valid
+ * encoding length (x-only 64, compressed 66, or uncompressed 130 hex chars).
+ * Throws on invalid format.
+ */
+function validateRequiredBtcPubkey(
+  value: string,
+  fieldName: string,
+  vaultId: string,
+): Hex {
+  if (!BTC_PUBKEY_HEX_PATTERN.test(value)) {
+    throw new Error(
+      `Invalid BTC public key in field "${fieldName}" for vault ${vaultId}: "${String(value).slice(0, 20)}"`,
+    );
+  }
+  return value as Hex;
+}
+
+/**
+ * Validates that a required address field from the indexer is a well-formed
+ * 20-byte Ethereum address. Throws on invalid format.
+ */
+function validateRequiredAddress(
+  value: string,
+  fieldName: string,
+  vaultId: string,
+): Address {
+  if (!ETH_ADDRESS_PATTERN.test(value)) {
+    throw new Error(
+      `Invalid address in field "${fieldName}" for vault ${vaultId}: "${value.slice(0, 20)}"`,
+    );
+  }
+  return value as Address;
+}
+
+/**
+ * Normalize an optional hex field from the indexer.
+ * Treats null, "0x" (empty bytes), and zero-hash as undefined.
+ */
+function normalizeOptionalHex(value: string | null): Hex | undefined {
+  if (!value || value === "0x" || value === ZERO_HASH) return undefined;
+  if (!VALID_HEX_PATTERN.test(value)) {
+    logger.warn(
+      `[fetchVaults] Malformed hex value from indexer: ${value.slice(0, 20)}...`,
+    );
+    return undefined;
+  }
+  return value as Hex;
+}
+
+const VALID_EXPIRATION_REASONS: ReadonlySet<string> = new Set([
+  "ack_timeout",
+  "proof_timeout",
+  "activation_timeout",
+]);
+
+function isValidExpirationReason(
+  value: string | null | undefined,
+): value is ExpirationReason {
+  return typeof value === "string" && VALID_EXPIRATION_REASONS.has(value);
+}
+
+/**
+ * Transform GraphQL vault item to Vault
+ */
+function transformVaultItem(item: GraphQLVaultItem): Vault {
+  return {
+    id: validateRequiredHex(item.id, "id", item.id),
+    peginTxHash: validateRequiredHex(
+      validateRequiredField(item.peginTxHash, "peginTxHash", item.id),
+      "peginTxHash",
+      item.id,
+    ),
+    depositor: validateRequiredAddress(item.depositor, "depositor", item.id),
+    depositorBtcPubkey: validateRequiredBtcPubkey(
+      item.depositorBtcPubKey,
+      "depositorBtcPubKey",
+      item.id,
+    ),
+    depositorSignedPeginTx: validateRequiredHex(
+      item.depositorSignedPeginTx,
+      "depositorSignedPeginTx",
+      item.id,
+    ),
+    unsignedPrePeginTx: validateRequiredHex(
+      validateRequiredField(
+        item.unsignedPrePeginTx,
+        "unsignedPrePeginTx",
+        item.id,
+      ),
+      "unsignedPrePeginTx",
+      item.id,
+    ),
+    amount: BigInt(item.amount),
+    vaultProvider: validateRequiredAddress(
+      item.vaultProvider,
+      "vaultProvider",
+      item.id,
+    ),
+    hashlock: normalizeOptionalHex(item.hashlock),
+    htlcVout: item.htlcVout,
+    secret: normalizeOptionalHex(item.secret),
+    peginSigsPostedAt: item.peginSigsPostedAt
+      ? parseInt(item.peginSigsPostedAt, 10) * 1000
+      : undefined,
+    status: mapGraphQLStatusToVaultStatus(item.status),
+    applicationEntryPoint: validateRequiredAddress(
+      item.applicationEntryPoint,
+      "applicationEntryPoint",
+      item.id,
+    ),
+    appVaultKeepersVersion: item.appVaultKeepersVersion,
+    universalChallengersVersion: item.universalChallengersVersion,
+    offchainParamsVersion: item.offchainParamsVersion,
+    currentOwner: item.currentOwner
+      ? validateRequiredAddress(item.currentOwner, "currentOwner", item.id)
+      : undefined,
+    referralCode: item.referralCode,
+    depositorPayoutBtcAddress: validateRequiredHex(
+      item.depositorPayoutBtcAddress,
+      "depositorPayoutBtcAddress",
+      item.id,
+    ),
+    depositorWotsPkHash: validateRequiredHex(
+      validateRequiredField(
+        item.depositorWotsPkHash,
+        "depositorWotsPkHash",
+        item.id,
+      ),
+      "depositorWotsPkHash",
+      item.id,
+    ),
+    btcPopSignature: normalizeOptionalHex(item.btcPopSignature),
+    createdAt: parseInt(item.pendingAt, 10) * 1000,
+    expiredAt: item.expiredAt ? parseInt(item.expiredAt, 10) * 1000 : undefined,
+    expirationReason: isValidExpirationReason(item.expirationReason)
+      ? item.expirationReason
+      : undefined,
+    isInUse: item.inUse,
+  };
+}
+
+/**
+ * Fetch vaults by depositor address from GraphQL.
+ *
+ * Walks Ponder's cursor pagination until the indexer reports no more
+ * pages, so depositors with more vaults than one page fit are not
+ * silently truncated.
+ *
+ * @param depositorAddress - Depositor's Ethereum address
+ * @returns Array of vaults
+ */
+export async function fetchVaultsByDepositor(
+  depositorAddress: Address,
+): Promise<Vault[]> {
+  const depositor = depositorAddress.toLowerCase();
+
+  let page = await graphqlClient.request<VaultsGraphQLResponse>(
+    GET_VAULTS_BY_DEPOSITOR_FIRST_PAGE,
+    { depositor, limit: VAULTS_PAGE_SIZE },
+  );
+  const items: GraphQLVaultItem[] = [...page.vaults.items];
+  let pagesFetched = 1;
+
+  while (
+    page.vaults.pageInfo.hasNextPage &&
+    page.vaults.pageInfo.endCursor != null
+  ) {
+    if (pagesFetched >= MAX_VAULT_PAGES) {
+      // Fail closed: returning the accumulated prefix would silently drop
+      // tail vaults, which then fall back to localStorage-only activities
+      // without indexer-only fields — the exact failure pagination exists
+      // to prevent.
+      throw new Error(
+        `Hit MAX_VAULT_PAGES (${MAX_VAULT_PAGES}) while paginating vaults ` +
+          `for ${depositorAddress} with more pages remaining ` +
+          `(accumulated ${items.length}). Refusing to return a partial ` +
+          `vault list.`,
+      );
+    }
+    page = await graphqlClient.request<VaultsGraphQLResponse>(
+      GET_VAULTS_BY_DEPOSITOR_NEXT_PAGE,
+      {
+        depositor,
+        limit: VAULTS_PAGE_SIZE,
+        after: page.vaults.pageInfo.endCursor,
+      },
+    );
+    items.push(...page.vaults.items);
+    pagesFetched += 1;
+  }
+
+  const vaults: Vault[] = [];
+  for (const item of items) {
+    try {
+      vaults.push(transformVaultItem(item));
+    } catch (error) {
+      logger.error(error instanceof Error ? error : new Error(String(error)), {
+        tags: { vaultId: item.id, component: "fetchVaults" },
+        data: { rawStatus: item.status },
+      });
+    }
+  }
+  return vaults;
+}
+
+/**
+ * Fetch a single vault by ID from GraphQL
+ *
+ * @param vaultId - Vault ID (derived: keccak256(abi.encode(peginTxHash, depositor)))
+ * @returns Vault or null if not found
+ */
+export async function fetchVaultById(vaultId: Hex): Promise<Vault | null> {
+  const data = await graphqlClient.request<VaultGraphQLResponse>(
+    GET_VAULT_BY_ID,
+    { id: vaultId.toLowerCase() },
+  );
+
+  if (!data.vault) {
+    return null;
+  }
+
+  return transformVaultItem(data.vault);
+}
+
+/**
+ * Lean enumeration of a depositor's vault IDs for the refund flow.
+ *
+ * The refund path needs to discover sibling vaults that share a batched
+ * Pre-PegIn transaction. All authoritative fields (`hashlock`, `htlcVout`,
+ * `amount`, `prePeginTxHash`) are read from the on-chain contract per
+ * candidate; the indexer is only used to enumerate vault IDs.
+ *
+ * These queries intentionally project **only `id`** so a transient indexer
+ * issue on an unrelated field (e.g. a null `depositorWotsPkHash`) cannot
+ * cause `transformVaultItem` to drop a sibling row and silently produce
+ * an incomplete batch. CLAUDE.md §refund: no silent fallbacks on critical
+ * paths.
+ */
+const GET_VAULT_IDS_BY_DEPOSITOR_FIRST_PAGE = gql`
+  query GetVaultIdsByDepositorFirstPage($depositor: String!, $limit: Int!) {
+    vaults(where: { depositor: $depositor }, limit: $limit) {
+      items {
+        id
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+      totalCount
+    }
+  }
+`;
+
+const GET_VAULT_IDS_BY_DEPOSITOR_NEXT_PAGE = gql`
+  query GetVaultIdsByDepositorNextPage(
+    $depositor: String!
+    $limit: Int!
+    $after: String!
+  ) {
+    vaults(where: { depositor: $depositor }, limit: $limit, after: $after) {
+      items {
+        id
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+    }
+  }
+`;
+
+interface VaultIdsFirstPageGraphQLResponse {
+  vaults: {
+    items: { id: string }[];
+    pageInfo: GraphQLPageInfo;
+    totalCount: number;
+  };
+}
+
+interface VaultIdsNextPageGraphQLResponse {
+  vaults: {
+    items: { id: string }[];
+    pageInfo: GraphQLPageInfo;
+  };
+}
+
+/**
+ * Fetch only the `id` of each vault owned by a depositor. Used by the
+ * refund flow's sibling discovery, where every other field is read
+ * from on-chain. Throws if any returned id is malformed hex — a
+ * malformed id can't be looked up on-chain anyway.
+ *
+ * Walks Ponder's cursor pagination until the indexer reports no more
+ * pages. A truncated list could omit a tail sibling of a batched
+ * Pre-PegIn, so unlike the display-path list query this enumeration
+ * **fails closed**: it throws if the page backstop is hit or the
+ * accumulated ids disagree with the indexer's reported `totalCount`,
+ * instead of returning a partial set.
+ */
+export async function fetchVaultIdsByDepositor(
+  depositorAddress: Address,
+): Promise<Hex[]> {
+  const depositor = depositorAddress.toLowerCase();
+
+  const firstPage =
+    await graphqlClient.request<VaultIdsFirstPageGraphQLResponse>(
+      GET_VAULT_IDS_BY_DEPOSITOR_FIRST_PAGE,
+      { depositor, limit: VAULTS_PAGE_SIZE },
+    );
+  const items = [...firstPage.vaults.items];
+  const { totalCount } = firstPage.vaults;
+  let pageInfo = firstPage.vaults.pageInfo;
+  let pagesFetched = 1;
+
+  while (pageInfo.hasNextPage && pageInfo.endCursor != null) {
+    if (pagesFetched >= MAX_VAULT_PAGES) {
+      throw new Error(
+        `Hit MAX_VAULT_PAGES (${MAX_VAULT_PAGES}) while enumerating vault ` +
+          `ids for ${depositorAddress} with more pages remaining. Refund's ` +
+          `sibling enumeration would be incomplete; refusing to proceed.`,
+      );
+    }
+    const nextPage =
+      await graphqlClient.request<VaultIdsNextPageGraphQLResponse>(
+        GET_VAULT_IDS_BY_DEPOSITOR_NEXT_PAGE,
+        { depositor, limit: VAULTS_PAGE_SIZE, after: pageInfo.endCursor },
+      );
+    items.push(...nextPage.vaults.items);
+    pageInfo = nextPage.vaults.pageInfo;
+    pagesFetched += 1;
+  }
+
+  if (items.length !== totalCount) {
+    throw new Error(
+      `Indexer returned ${items.length} vault ids for ${depositorAddress} ` +
+        `but totalCount=${totalCount}. The paginated response is ` +
+        `inconsistent and refund's sibling enumeration would be ` +
+        `incomplete; refusing to proceed.`,
+    );
+  }
+  return items.map((item) => validateRequiredHex(item.id, "id", item.id));
+}
+
+const GET_VAULT_PAYOUT_SCRIPT = gql`
+  query GetVaultPayoutScript($id: String!) {
+    vault(id: $id) {
+      id
+      depositorPayoutBtcAddress
+    }
+  }
+`;
+
+interface VaultPayoutScriptGraphQLResponse {
+  vault: {
+    id: string;
+    depositorPayoutBtcAddress: string | null;
+  } | null;
+}
+
+/**
+ * Fetch only the registered payout scriptPubKey for a single vault.
+ *
+ * Used by the payout-signing backfill when a localStorage-merged activity
+ * lacks `depositorPayoutBtcAddress`. Projects only the payout field so an
+ * unrelated null or malformed column on the same row (e.g. a transient
+ * `depositorWotsPkHash`) cannot fail the full vault transform and block
+ * signing while the payout address itself is available.
+ *
+ * Returns null when the vault is not indexed (yet) or has no payout
+ * address recorded; throws if the recorded value is malformed hex.
+ */
+export async function fetchVaultPayoutScriptPubKey(
+  vaultId: Hex,
+): Promise<Hex | null> {
+  const data = await graphqlClient.request<VaultPayoutScriptGraphQLResponse>(
+    GET_VAULT_PAYOUT_SCRIPT,
+    { id: vaultId.toLowerCase() },
+  );
+  if (!data.vault?.depositorPayoutBtcAddress) {
+    return null;
+  }
+  return validateRequiredHex(
+    data.vault.depositorPayoutBtcAddress,
+    "depositorPayoutBtcAddress",
+    vaultId,
+  );
+}
+
+/**
+ * Minimal fields needed by the refund flow — excludes unrelated required
+ * fields on the full {@link Vault} projection so that indexer schema drift or
+ * partial responses on non-refund fields (e.g. `depositorWotsPkHash`) cannot
+ * block a critical recovery path.
+ */
+export interface VaultRefundIndexerData {
+  depositorBtcPubkey: Hex;
+  unsignedPrePeginTx: Hex;
+}
+
+const GET_VAULT_REFUND_DATA = gql`
+  query GetVaultRefundData($id: String!) {
+    vault(id: $id) {
+      id
+      depositorBtcPubKey
+      unsignedPrePeginTx
+    }
+  }
+`;
+
+interface VaultRefundGraphQLItem {
+  id: string;
+  depositorBtcPubKey: string;
+  unsignedPrePeginTx: string | null;
+}
+
+interface VaultRefundGraphQLResponse {
+  vault: VaultRefundGraphQLItem | null;
+}
+
+/**
+ * Fetch only the indexer fields the refund flow requires.
+ * Throws if the vault or its `unsignedPrePeginTx` is missing — both are
+ * required to build a refund PSBT.
+ */
+export async function fetchVaultRefundData(
+  vaultId: Hex,
+): Promise<VaultRefundIndexerData | null> {
+  const data = await graphqlClient.request<VaultRefundGraphQLResponse>(
+    GET_VAULT_REFUND_DATA,
+    { id: vaultId.toLowerCase() },
+  );
+
+  if (!data.vault) {
+    return null;
+  }
+
+  const { depositorBtcPubKey, unsignedPrePeginTx } = data.vault;
+  if (!unsignedPrePeginTx) {
+    throw new Error(
+      `Vault ${vaultId} is missing unsignedPrePeginTx; cannot build refund`,
+    );
+  }
+  return {
+    depositorBtcPubkey: validateRequiredBtcPubkey(
+      depositorBtcPubKey,
+      "depositorBtcPubKey",
+      vaultId,
+    ),
+    unsignedPrePeginTx: validateRequiredHex(
+      unsignedPrePeginTx,
+      "unsignedPrePeginTx",
+      vaultId,
+    ),
+  };
+}

@@ -1,0 +1,19 @@
+{
+  "versionGroups": [
+    {
+      "label": "Decoupled SDK packages use pinned npm versions in consumers",
+      "dependencies": [
+        "@babylonlabs-io/ts-sdk",
+        "@babylonlabs-io/babylon-tbv-rust-wasm"
+      ],
+      "dependencyTypes": ["!local"],
+      "isIgnored": true
+    },
+    {
+      "label": "Local packages must be referenced with *",
+      "dependencies": ["$LOCAL"],
+      "dependencyTypes": ["!local"],
+      "pinVersion": "workspace:*"
+    }
+  ]
+}

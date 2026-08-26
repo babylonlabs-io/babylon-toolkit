@@ -1,0 +1,260 @@
+name: vault-publish
+run-name: vault-publish${{ inputs.ENVIRONMENT != '' && inputs.ENVIRONMENT != 'all' && format(' {0}', inputs.ENVIRONMENT) || '' }} by ${{ github.actor }}${{ inputs.CORRELATION_ID != '' && format(' [{0}]', inputs.CORRELATION_ID) || '' }}
+
+on:
+  push:
+    branches:
+      - "main"
+      - "release/v1.x"
+    tags:
+      - "vault/*"
+  workflow_dispatch:
+    inputs:
+      ENVIRONMENT:
+        description: 'Environment to publish. "all" publishes all three (the push/tag default).'
+        required: false
+        default: all
+        type: choice
+        options:
+          - all
+          - vault-devnet
+          - vault-staging-devnet
+          - vault-testnet
+      CORRELATION_ID:
+        description: 'Opaque ID set by an orchestrating workflow (e.g. tbv-deployment unified redeploy) so it can locate this run via run-name. Empty for manual runs.'
+        required: false
+        type: string
+
+# For github OIDC authentication to AWS
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  lint_test:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2 https://github.com/actions/checkout/releases/tag/v6.0.2
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0 https://github.com/actions/setup-node/releases/tag/v4.4.0
+        with:
+          node-version: 24
+
+      - name: Install Corepack
+        run: npm install -g corepack && corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Test
+        run: pnpm run test
+
+      - name: Build
+        run: pnpm run build
+
+  # Resolve which environments this run publishes. A workflow_dispatch run may
+  # scope to a single environment (ENVIRONMENT input); push/tag runs and the
+  # "all" choice publish every environment, preserving the previous behaviour.
+  setup:
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+      multi: ${{ steps.matrix.outputs.multi }}
+    steps:
+      - name: Build publish matrix
+        id: matrix
+        env:
+          ENVIRONMENT: ${{ inputs.ENVIRONMENT }}
+        run: |
+          set -euo pipefail
+          ALL='[
+            {"environment":"vault-devnet","aws_account":"537927626649"},
+            {"environment":"vault-staging-devnet","aws_account":"537927626649"},
+            {"environment":"vault-testnet","aws_account":"615368094160","prod":true}
+          ]'
+          if [ -z "${ENVIRONMENT:-}" ] || [ "$ENVIRONMENT" = "all" ]; then
+            SELECTED=$(echo "$ALL" | jq -c '.')
+          else
+            SELECTED=$(echo "$ALL" | jq -c --arg e "$ENVIRONMENT" '[.[] | select(.environment == $e)]')
+            if [ "$(echo "$SELECTED" | jq 'length')" -eq 0 ]; then
+              VALID=$(echo "$ALL" | jq -r '[.[].environment] + ["all"] | join(", ")')
+              echo "::error::Unknown ENVIRONMENT '$ENVIRONMENT'. Valid: $VALID."
+              exit 1
+            fi
+          fi
+          echo "matrix={\"include\":$SELECTED}" >> "$GITHUB_OUTPUT"
+          # multi=true only when publishing more than one environment. Used to
+          # scope continue-on-error: tolerate a prod OIDC failure in the all-env
+          # run (so it can't block devnet), but fail loud when prod is the only
+          # explicitly requested environment (else a scoped prod dispatch goes
+          # green while publishing nothing).
+          if [ "$(echo "$SELECTED" | jq 'length')" -gt 1 ]; then
+            echo "multi=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "multi=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  s3_publish:
+    needs: [lint_test, setup]
+    permissions:
+      id-token: write # OIDC assume-role for AWS
+      contents: write # publish checksum manifest as a release asset (#253)
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.setup.outputs.matrix) }}
+
+    # Prod OIDC fails on feature branches; tolerate it ONLY in the multi-env run
+    # so it can't block devnet — and only OFF real deploy refs. On main/release/
+    # tags a prod failure must fail the run: a green run with a failed prod
+    # deploy or missing integrity manifest is a silent gap (#253 review). A
+    # scoped single-prod dispatch also fails loud.
+    continue-on-error: ${{ matrix.prod == true && needs.setup.outputs.multi == 'true' && github.ref != 'refs/heads/main' && github.ref != 'refs/heads/release/v1.x' && !startsWith(github.ref, 'refs/tags/') }}
+    # Serialize same-(env, sha) runs. Without this, git push --follow-tags or a
+    # redeploy dispatch can overlap two runs on one sha: S3 is last-write-wins
+    # while the manifest slots are first-create-wins, so the highest slot can
+    # belong to a DIFFERENT build than the bytes in S3 — a false tamper page on
+    # a clean deploy. cancel-in-progress stays false so the second run publishes
+    # its S3 write and its slot strictly after the first (a cancelled queued run
+    # writes neither store, which keeps them consistent).
+    concurrency:
+      group: ${{ github.workflow }}-${{ matrix.environment }}-${{ github.sha }}
+      cancel-in-progress: false
+    environment: ${{ matrix.environment }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2 https://github.com/actions/checkout/releases/tag/v6.0.2
+        with:
+          # Job holds contents:write; don't leave the token in .git/config while
+          # pnpm install / build run untrusted deps.
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0 https://github.com/actions/setup-node/releases/tag/v4.4.0
+        with:
+          node-version: 24
+
+      - name: Configure AWS credentials (assume per-account role)
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1 https://github.com/aws-actions/configure-aws-credentials/releases/tag/v4.3.1
+        with:
+          role-to-assume: arn:aws:iam::${{ matrix.aws_account }}:role/gha-s3-frontend-push
+          role-session-name: gh-babylon-toolkit-vault-push
+          aws-region: ap-east-1
+
+      - name: Install Corepack
+        run: npm install -g corepack && corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build project
+        run: pnpm run build
+        env:
+          NODE_OPTIONS: "--max-old-space-size=8192" # 8GB node memory limit
+          # Bitcoin Network Configuration (Vault)
+          NEXT_PUBLIC_BTC_NETWORK: ${{ vars.NEXT_PUBLIC_BTC_NETWORK }}
+          NEXT_PUBLIC_MEMPOOL_API: ${{ vars.NEXT_PUBLIC_MEMPOOL_API }}
+          # Ethereum Network Configuration (Vault)
+          NEXT_PUBLIC_ETH_CHAINID: ${{ vars.NEXT_PUBLIC_ETH_CHAINID }}
+          NEXT_PUBLIC_ETH_RPC_URL: ${{ vars.NEXT_PUBLIC_ETH_RPC_URL }}
+          # GraphQL Endpoint
+          NEXT_PUBLIC_TBV_GRAPHQL_ENDPOINT: ${{ vars.NEXT_PUBLIC_TBV_GRAPHQL_ENDPOINT }}
+          # Vault Provider Proxy
+          NEXT_PUBLIC_TBV_VP_PROXY_URL: ${{ vars.NEXT_PUBLIC_TBV_VP_PROXY_URL }}
+          NEXT_PUBLIC_TBV_VP_EXPLORER_URL: ${{ vars.NEXT_PUBLIC_TBV_VP_EXPLORER_URL }}
+          # Auxiliary APIs
+          NEXT_PUBLIC_TBV_SIDECAR_API_URL: ${{ vars.NEXT_PUBLIC_TBV_SIDECAR_API_URL }}
+          NEXT_PUBLIC_TBV_ORDINALS_API_URL: ${{ vars.NEXT_PUBLIC_TBV_ORDINALS_API_URL }}
+          NEXT_PUBLIC_TBV_UTILS_API: ${{ vars.NEXT_PUBLIC_TBV_UTILS_API }}
+          # Trustless Bitcoin Vault (TBV) Contracts
+          NEXT_PUBLIC_TBV_BTC_VAULT_REGISTRY: ${{ vars.NEXT_PUBLIC_TBV_BTC_VAULT_REGISTRY }}
+          NEXT_PUBLIC_TBV_AAVE_ADAPTER: ${{ vars.NEXT_PUBLIC_TBV_AAVE_ADAPTER }}
+          NEXT_PUBLIC_TBV_AAVE_ADAPTER_CONFIG: ${{ vars.NEXT_PUBLIC_TBV_AAVE_ADAPTER_CONFIG }}
+          NEXT_PUBLIC_TBV_BTC_PRICE_FEED: ${{ vars.NEXT_PUBLIC_TBV_BTC_PRICE_FEED }}
+          # Build Metadata
+          NEXT_PUBLIC_COMMIT_HASH: ${{ github.sha }}
+          NEXT_PUBLIC_CANONICAL: ${{ vars.NEXT_PUBLIC_CANONICAL }}
+          # Wallet Configuration
+          NEXT_PUBLIC_REOWN_PROJECT_ID: ${{ vars.NEXT_PUBLIC_REOWN_PROJECT_ID }}
+          # Sentry Configuration
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_URL: ${{ vars.SENTRY_URL }}
+          SENTRY_RELEASE: ${{ github.sha }}
+          SENTRY_DIST: ${{ github.run_id }}
+          NEXT_PUBLIC_SENTRY_DSN: ${{ vars.NEXT_PUBLIC_SENTRY_DSN }}
+          # Proxies Sentry events through our own host. Unset, events go directly to
+          # Sentry's ingest host, which the CDN's connect-src does not allow.
+          NEXT_PUBLIC_SENTRY_TUNNEL_URL: ${{ vars.NEXT_PUBLIC_SENTRY_TUNNEL_URL }}
+          NEXT_PUBLIC_RELEASE_ID: ${{ github.sha }}
+          NEXT_PUBLIC_DIST_ID: ${{ github.run_id }}
+          NEXT_PUBLIC_SENTRY_ENVIRONMENT: ${{ matrix.environment }}
+          # Feature Flags
+          NEXT_PUBLIC_FF_DISABLE_VAULT_CAP: ${{ vars.NEXT_PUBLIC_FF_DISABLE_VAULT_CAP }}
+          NEXT_PUBLIC_FF_ENABLE_LIQUIDATION_NOTIFICATIONS: ${{ vars.NEXT_PUBLIC_FF_ENABLE_LIQUIDATION_NOTIFICATIONS }}
+          NEXT_PUBLIC_FF_ENABLE_SIGNING_NOTIFICATIONS: ${{ vars.NEXT_PUBLIC_FF_ENABLE_SIGNING_NOTIFICATIONS }}
+          NEXT_PUBLIC_FF_ENABLE_LEDGER_VAULT_WALLET: ${{ vars.NEXT_PUBLIC_FF_ENABLE_LEDGER_VAULT_WALLET }}
+          NEXT_PUBLIC_FF_ENABLE_EXPLORE: ${{ vars.NEXT_PUBLIC_FF_ENABLE_EXPLORE }}
+          NEXT_PUBLIC_FF_LIQUIDATION_ANALYSIS_CHART: ${{ vars.NEXT_PUBLIC_FF_LIQUIDATION_ANALYSIS_CHART }}
+          NEXT_PUBLIC_FF_DISABLE_DEPOSIT: ${{ vars.NEXT_PUBLIC_FF_DISABLE_DEPOSIT }}
+          NEXT_PUBLIC_FF_DISABLE_BORROW: ${{ vars.NEXT_PUBLIC_FF_DISABLE_BORROW }}
+          NEXT_PUBLIC_FF_PROTOCOL_FROZEN: ${{ vars.NEXT_PUBLIC_FF_PROTOCOL_FROZEN }}
+          NEXT_PUBLIC_FF_PROTOCOL_PAUSED: ${{ vars.NEXT_PUBLIC_FF_PROTOCOL_PAUSED }}
+          NEXT_PUBLIC_FF_FORCE_PARTIAL_LIQUIDATION_SPLIT: ${{ vars.NEXT_PUBLIC_FF_FORCE_PARTIAL_LIQUIDATION_SPLIT }}
+          NEXT_PUBLIC_FF_ENABLE_ACTIVATION_DELAY: ${{ vars.NEXT_PUBLIC_FF_ENABLE_ACTIVATION_DELAY }}
+          NEXT_PUBLIC_TBV_DISABLED_BTC_WALLETS: ${{ vars.NEXT_PUBLIC_TBV_DISABLED_BTC_WALLETS }}
+          # Misc
+          NEXT_PUBLIC_NOTICE_BANNER_MESSAGE: ${{ vars.NEXT_PUBLIC_NOTICE_BANNER_MESSAGE }}
+
+      - name: Copy all index.html to fix path for activity, app/aave
+        run: |
+          cd services/vault/dist
+          cp index.html activity
+          mkdir -p app
+          cp index.html app/aave
+
+      - name: Generate sha256sum checksum
+        run: |
+          cd services/vault/dist
+          FILES_CHECKSUM_PATH="/tmp/vault-${{ matrix.environment }}-${{ github.sha }}-files-checksum.txt"
+          GLOBAL_CHECKSUM_PATH="/tmp/vault-${{ matrix.environment }}-${{ github.sha }}-global-checksum.txt"
+          find . -type f -exec sha256sum {} \; | sort > $FILES_CHECKSUM_PATH # sort is for make sure the order on different OS is the same
+          sha256sum $FILES_CHECKSUM_PATH | cut -d' ' -f1 > $GLOBAL_CHECKSUM_PATH # cut is for remove the filename from the output
+
+      - name: Archive output
+        run: tar -czvf /tmp/vault-${{ matrix.environment }}-${{ github.sha }}.tar.gz -C services/vault/dist .
+
+      - name: Upload to S3 with commit sha
+        run: |
+          aws s3 cp /tmp/vault-${{ matrix.environment }}-${{ github.sha }}.tar.gz s3://${{ vars.S3_PUBLIC_BUCKET_NEW }}/vault/${{ matrix.environment }}/${{ github.sha }}.tar.gz
+          aws s3 cp /tmp/vault-${{ matrix.environment }}-${{ github.sha }}-files-checksum.txt s3://${{ vars.S3_CHECKSUM_BUCKET_NEW }}/vault/${{ matrix.environment }}/${{ github.sha }}-files-checksum.txt
+          aws s3 cp /tmp/vault-${{ matrix.environment }}-${{ github.sha }}-global-checksum.txt s3://${{ vars.S3_CHECKSUM_BUCKET_NEW }}/vault/${{ matrix.environment }}/${{ github.sha }}-global-checksum.txt
+
+      - name: Upload to S3 with Git Tag
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          # Bound via env, not interpolated into run: — git refnames accept
+          # shell metacharacters and this job holds AWS OIDC + contents:write.
+          GIT_TAG: ${{ github.ref_name }}
+        run: |
+          aws s3 cp /tmp/vault-${{ matrix.environment }}-${{ github.sha }}.tar.gz "s3://${{ vars.S3_PUBLIC_BUCKET_NEW }}/vault/${{ matrix.environment }}/${GIT_TAG}.tar.gz"
+          aws s3 cp /tmp/vault-${{ matrix.environment }}-${{ github.sha }}-files-checksum.txt "s3://${{ vars.S3_CHECKSUM_BUCKET_NEW }}/vault/${{ matrix.environment }}/${GIT_TAG}-files-checksum.txt"
+          aws s3 cp /tmp/vault-${{ matrix.environment }}-${{ github.sha }}-global-checksum.txt "s3://${{ vars.S3_CHECKSUM_BUCKET_NEW }}/vault/${{ matrix.environment }}/${GIT_TAG}-global-checksum.txt"
+
+      # Last step: publishing the manifest must not block the S3 uploads above.
+      - name: Publish checksum manifest as an immutable per-sha release
+        # Only real deploy refs (a dispatch from an arbitrary branch must not
+        # notarize builds), and only envs the integrity checker monitors — the
+        # other envs would mint releases+tags nobody ever reads. Extend the env
+        # list together with the checker's targets.json. NOTE: vault matrix env
+        # values are service-prefixed (vault-testnet), so the manifest prefix is
+        # vault-vault-testnet-<sha>; the checker config uses env "vault-testnet"
+        # to derive the same name.
+        if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/release/v1.x' || startsWith(github.ref, 'refs/tags/')) && contains(fromJSON('["vault-testnet"]'), matrix.environment)
+        uses: ./.github/actions/publish-integrity-manifest
+        with:
+          service: vault
+          environment: ${{ matrix.environment }}

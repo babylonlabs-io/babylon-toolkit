@@ -1,0 +1,54 @@
+// GraphQL: Aave config
+export {
+  fetchAaveAppConfig,
+  type AaveAppConfig,
+  type AaveConfig,
+  type AaveReserveConfig,
+} from "./fetchConfig";
+
+// GraphQL: Positions
+export {
+  type AavePosition,
+  type AavePositionCollateral,
+  type AavePositionWithCollaterals,
+} from "./fetchPositions";
+
+// Position service (hybrid indexer + RPC)
+export {
+  getUserPositionsWithLiveData,
+  type AavePositionWithLiveData,
+  type DebtPosition,
+  type GetUserPositionsOptions,
+} from "./positionService";
+
+// Position transactions
+export {
+  borrow,
+  reorderVaultOrder,
+  repayAll,
+  repayPartial,
+  withdrawSelectedCollateral,
+} from "./positionTransactions";
+
+// On-chain integrity guards
+export {
+  ProxyMismatchError,
+  assertProxyMatchesOnChain,
+} from "./assertProxyMatchesOnChain";
+export {
+  PositionChangedError,
+  assertOptimalOrderMatchesOnChain,
+  assertReorderBaseline,
+  assertReorderMembership,
+  type ReorderVerificationContext,
+} from "./assertReorderMatchesOnChain";
+export {
+  ReserveMismatchError,
+  assertReserveMatchesOnChain,
+} from "./assertReserveMatchesOnChain";
+export {
+  UnknownReserveTokenError,
+  isIntegrityFailure,
+  verifyReserveIdentity,
+  type VerifiedReserveIdentity,
+} from "./verifyReserveIdentity";

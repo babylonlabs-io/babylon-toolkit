@@ -1,0 +1,471 @@
+import { parseEther } from "viem";
+import {
+  getAccount,
+  getTransactionCount,
+  estimateGas as wagmiEstimateGas,
+  getBalance as wagmiGetBalance,
+  sendTransaction as wagmiSendTransaction,
+  signMessage as wagmiSignMessage,
+  signTypedData as wagmiSignTypedData,
+  switchChain as wagmiSwitchChain,
+  watchAccount,
+  watchChainId,
+  connect,
+  disconnect as wagmiDisconnect,
+} from "wagmi/actions";
+import { walletConnect } from "wagmi/connectors";
+
+import type { ETHConfig, ETHTransactionRequest, ETHTypedData, IETHProvider, NetworkInfo } from "@/core/types";
+import { APPKIT_OPEN_EVENT } from "@/core/wallets/appkit/constants";
+// Read the modal from the shared singleton rather than from `appKitModal`,
+// which pulls the Bitcoin adapter in with it.
+import { getAppKitModal } from "@/core/wallets/appkit/state";
+
+import { getSharedWagmiConfig, hasSharedWagmiConfig } from "./sharedConfig";
+
+// Grace period after modal close before rejecting as cancelled, to allow
+// async handoffs (WalletConnect deep-link, mobile wallet return) to publish
+// the connected account via watchAccount before we treat the close as a cancel.
+const MODAL_CLOSE_CANCEL_GRACE_MS = 1500;
+
+// Generic Ethereum logo, used only when the active wagmi connector does not
+// expose its own name/icon (e.g. some WalletConnect sessions).
+const ETH_FALLBACK_PROVIDER_NAME = "Ethereum Wallet";
+const ETH_FALLBACK_PROVIDER_ICON =
+  "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8Y2lyY2xlIGN4PSIxNiIgY3k9IjE2IiByPSIxNiIgZmlsbD0iIzYyN0VFQSIvPgogIDxwYXRoIGQ9Ik0xNiA0TDcuNSAxNi4yNUwxNiAyMkwyNC41IDE2LjI1TDE2IDR6IiBmaWxsPSJ3aGl0ZSIvPgogIDxwYXRoIGQ9Ik0xNiAyMi43NUw3LjUgMTdMMTYgMjhMMjQuNSAxN0wxNiAyMi43NXoiIGZpbGw9IndoaXRlIiBmaWxsLW9wYWNpdHk9IjAuNiIvPgo8L3N2Zz4=";
+
+/**
+ * AppKitProvider - ETH wallet provider using AppKit/Wagmi
+ *
+ * This provider integrates with Reown's AppKit to provide:
+ * - Connection to 600+ ETH wallets (MetaMask, Rainbow, WalletConnect, etc.)
+ * - Message signing (personal_sign)
+ * - Typed data signing (eth_signTypedData_v4)
+ * - Transaction sending and gas estimation
+ * - Network switching and information
+ *
+ * IMPORTANT: Requires shared wagmi config to be set via initializeAppKitModal()
+ * before this provider is instantiated. This ensures single wagmi instance.
+ */
+export class AppKitProvider implements IETHProvider {
+  private config: ETHConfig;
+  private address?: string;
+  private chainId?: number;
+  private eventHandlers: Map<string, Set<(...args: any[]) => void>> = new Map();
+  private unwatchFunctions: (() => void)[] = [];
+
+  constructor(config: ETHConfig) {
+    this.config = config;
+    this.ensureEventWatchers();
+  }
+
+  /**
+   * Attach the wagmi watchers exactly once, and only when the shared config
+   * exists. The provider is now constructed unconditionally (it no longer
+   * waits on an injected `window.ethereum`), so construction must not throw
+   * when AppKit init has not run or has fallen back — that would take down the
+   * BTC connector alongside the ETH one. `connectWallet` re-checks and still
+   * surfaces the actionable "AppKit ETH not initialized" error, and calling
+   * this again there picks the watchers up if init landed late.
+   */
+  private ensureEventWatchers(): void {
+    if (this.unwatchFunctions.length > 0) return;
+    if (!hasSharedWagmiConfig()) return;
+    this.setupEventWatchers();
+  }
+
+  /**
+   * Get the shared wagmi config (throws if not set)
+   * This ensures we never create multiple wagmi instances
+   */
+  private getWagmiConfig() {
+    if (!hasSharedWagmiConfig()) {
+      throw new Error(
+        "AppKit ETH not initialized. Ensure AppKit modal is initialized at application startup " +
+        "by calling initializeAppKitModal() with eth config in your app's entry point."
+      );
+    }
+    return getSharedWagmiConfig();
+  }
+
+  private setupEventWatchers(): void {
+    const config = this.getWagmiConfig();
+
+    // Check for existing connection on initialization (for auto-reconnection)
+    const initialAccount = getAccount(config);
+    if (initialAccount.address && initialAccount.status === 'connected') {
+      this.address = initialAccount.address;
+      this.chainId = initialAccount.chainId;
+      // Emit connect event after a short delay to ensure provider is fully initialized
+      setTimeout(() => {
+        this.emit("accountsChanged", [initialAccount.address!]);
+      }, 100);
+    }
+
+    // Watch for account changes
+    const unwatchAccount = watchAccount(config, {
+      onChange: (account) => {
+        const previousAddress = this.address;
+        this.address = account.address;
+        this.chainId = account.chainId;
+
+        if (previousAddress !== account.address) {
+          this.emit("accountsChanged", account.address ? [account.address] : []);
+        }
+      },
+    });
+
+    const unwatchChain = watchChainId(config, {
+      onChange: (chainId) => {
+        const previousChainId = this.chainId;
+        this.chainId = chainId;
+
+        if (previousChainId !== chainId) {
+          this.emit("chainChanged", `0x${chainId.toString(16)}`);
+        }
+      },
+    });
+
+    this.unwatchFunctions.push(unwatchAccount, unwatchChain);
+  }
+
+  private emit(eventName: string, data?: any): void {
+    const handlers = this.eventHandlers.get(eventName);
+    if (handlers) {
+      handlers.forEach((handler) => handler(data));
+    }
+  }
+
+  async connectWallet(): Promise<void> {
+    try {
+      const config = this.getWagmiConfig();
+      // Init may have completed after this provider was constructed.
+      this.ensureEventWatchers();
+
+      // First check if already connected (from previous session)
+      const currentAccount = getAccount(config);
+      if (currentAccount.address) {
+        this.address = currentAccount.address;
+        this.chainId = currentAccount.chainId;
+        return;
+      }
+
+      // Open AppKit modal for manual connection
+      if (typeof window !== "undefined") {
+        const waitForConnection = new Promise<void>((resolve, reject) => {
+          let modalHasOpened = false;
+          let pendingCancellation: ReturnType<typeof setTimeout> | undefined;
+
+          const cleanup = () => {
+            clearTimeout(timeout);
+            if (pendingCancellation) clearTimeout(pendingCancellation);
+            unwatch();
+            unsubscribeModal?.();
+          };
+
+          const timeout = setTimeout(() => {
+            cleanup();
+            reject(new Error("Connection timeout"));
+          }, 60000);
+
+          const unwatch = watchAccount(config, {
+            onChange: (account) => {
+              if (account.address) {
+                this.address = account.address;
+                this.chainId = account.chainId;
+                cleanup();
+                resolve();
+              }
+            },
+          });
+
+          const modal = getAppKitModal();
+          const unsubscribeModal = modal?.subscribeState((state) => {
+            if (state.open) {
+              modalHasOpened = true;
+              if (pendingCancellation) {
+                clearTimeout(pendingCancellation);
+                pendingCancellation = undefined;
+              }
+            } else if (modalHasOpened) {
+              const currentAccount = getAccount(config);
+              if (currentAccount.address) {
+                this.address = currentAccount.address;
+                this.chainId = currentAccount.chainId;
+                cleanup();
+                resolve();
+                return;
+              }
+              // Defer rejection so async handoffs (WalletConnect deep-link) can
+              // still publish the connected account before we treat the close as a cancel.
+              pendingCancellation = setTimeout(() => {
+                const latestAccount = getAccount(config);
+                if (latestAccount.address) {
+                  this.address = latestAccount.address;
+                  this.chainId = latestAccount.chainId;
+                  cleanup();
+                  resolve();
+                } else {
+                  cleanup();
+                  reject(new Error("Connection cancelled"));
+                }
+              }, MODAL_CLOSE_CANCEL_GRACE_MS);
+            }
+          });
+
+          window.dispatchEvent(new CustomEvent(APPKIT_OPEN_EVENT));
+        });
+
+        await waitForConnection;
+        return;
+      }
+
+      // Fallback to direct WalletConnect connection if event system not available
+      const projectId = process.env.NEXT_PUBLIC_REOWN_PROJECT_ID;
+      if (!projectId) {
+        throw new Error("NEXT_PUBLIC_REOWN_PROJECT_ID environment variable is required");
+      }
+
+      const wcConnector = walletConnect({
+        projectId,
+        metadata: {
+          name: "Babylon Vault",
+          description: "",
+          url: "",
+          icons: [""],
+        },
+      });
+
+      const result = await connect(config, { connector: wcConnector });
+      this.address = result.accounts[0];
+      this.chainId = result.chainId;
+    } catch (error) {
+      console.error("Failed to connect wallet:", error instanceof Error ? error.message : "Unknown error");
+      throw new Error(`Failed to connect wallet: ${error instanceof Error ? error.message : "Unknown error"}`);
+    }
+  }
+
+  async disconnect(): Promise<void> {
+    const config = this.getWagmiConfig();
+    try {
+      await wagmiDisconnect(config);
+    } finally {
+      this.address = undefined;
+      this.chainId = undefined;
+    }
+  }
+
+  async getAddress(): Promise<string> {
+    const config = this.getWagmiConfig();
+    const account = getAccount(config);
+    if (account.address) {
+      this.address = account.address;
+      this.chainId = account.chainId;
+      return this.address;
+    }
+
+    if (this.address) {
+      return this.address;
+    }
+
+    throw new Error("Wallet not connected");
+  }
+
+  async getPublicKeyHex(): Promise<string> {
+    // ETH doesn't expose public keys directly like BTC
+    // We return the address as the public identifier
+    return this.getAddress();
+  }
+
+  async signMessage(message: string): Promise<string> {
+    try {
+      const config = this.getWagmiConfig();
+      const address = await this.getAddress();
+      const signature = await wagmiSignMessage(config, {
+        message,
+        account: address as `0x${string}`,
+      });
+      return signature;
+    } catch (error) {
+      throw new Error(`Failed to sign message: ${error}`);
+    }
+  }
+
+  async signTypedData(typedData: ETHTypedData): Promise<string> {
+    try {
+      const config = this.getWagmiConfig();
+      const address = await this.getAddress();
+      const signature = await wagmiSignTypedData(config, {
+        account: address as `0x${string}`,
+        domain: {
+          ...typedData.domain,
+          salt: typedData.domain.salt as `0x${string}` | undefined,
+          verifyingContract: typedData.domain.verifyingContract as `0x${string}` | undefined,
+        },
+        types: typedData.types,
+        primaryType: typedData.primaryType,
+        message: typedData.message,
+      });
+      return signature;
+    } catch (error) {
+      throw new Error(`Failed to sign typed data: ${error}`);
+    }
+  }
+
+  async sendTransaction(tx: ETHTransactionRequest): Promise<string> {
+    try {
+      const config = this.getWagmiConfig();
+      const address = await this.getAddress();
+      const hash = await wagmiSendTransaction(config, {
+        account: address as `0x${string}`,
+        to: tx.to as `0x${string}`,
+        value: tx.value ? parseEther(tx.value) : undefined,
+        data: tx.data as `0x${string}` | undefined,
+        gas: tx.gasLimit,
+        maxFeePerGas: tx.maxFeePerGas,
+        maxPriorityFeePerGas: tx.maxPriorityFeePerGas,
+        nonce: tx.nonce,
+      });
+      return hash;
+    } catch (error) {
+      throw new Error(`Failed to send transaction: ${error}`);
+    }
+  }
+
+  async estimateGas(tx: ETHTransactionRequest): Promise<bigint> {
+    try {
+      const config = this.getWagmiConfig();
+      const address = await this.getAddress();
+      const gas = await wagmiEstimateGas(config, {
+        account: address as `0x${string}`,
+        to: tx.to as `0x${string}`,
+        value: tx.value ? parseEther(tx.value) : undefined,
+        data: tx.data as `0x${string}` | undefined,
+      });
+      return gas;
+    } catch (error) {
+      throw new Error(`Failed to estimate gas: ${error}`);
+    }
+  }
+
+  async getChainId(): Promise<number> {
+    if (this.chainId) {
+      return this.chainId;
+    }
+
+    const config = this.getWagmiConfig();
+    const account = getAccount(config);
+    if (account.chainId) {
+      this.chainId = account.chainId;
+      return this.chainId;
+    }
+
+    return this.config.chainId;
+  }
+
+  async switchChain(chainId: number): Promise<void> {
+    try {
+      const config = this.getWagmiConfig();
+      // Only allow switching to supported chains
+      const supportedChains = [1, 11155111, 31337]; // Mainnet, Sepolia, and Anvil
+      if (!supportedChains.includes(chainId)) {
+        throw new Error(`Unsupported chain ID: ${chainId}`);
+      }
+
+      await wagmiSwitchChain(config, { chainId: chainId as 1 | 11155111 | 31337 });
+      this.chainId = chainId;
+    } catch (error) {
+      throw new Error(`Failed to switch chain: ${error}`);
+    }
+  }
+
+  async getBalance(): Promise<bigint> {
+    try {
+      const config = this.getWagmiConfig();
+      const address = await this.getAddress();
+      const balance = await wagmiGetBalance(config, {
+        address: address as `0x${string}`,
+      });
+      return balance.value;
+    } catch (error) {
+      throw new Error(`Failed to get balance: ${error}`);
+    }
+  }
+
+  async getNonce(): Promise<number> {
+    try {
+      const config = this.getWagmiConfig();
+      const address = await this.getAddress();
+      const nonce = await getTransactionCount(config, {
+        address: address as `0x${string}`,
+      });
+      return nonce;
+    } catch (error) {
+      throw new Error(`Failed to get nonce: ${error}`);
+    }
+  }
+
+  async getNetworkInfo(): Promise<NetworkInfo> {
+    const chainId = await this.getChainId();
+    return {
+      name: this.config.chainName || "Ethereum",
+      chainId: chainId.toString(),
+    };
+  }
+
+  /**
+   * Identity of the wallet the user actually connected through AppKit
+   * (e.g. MetaMask, Rainbow), read from the active wagmi connector. Falls back
+   * to a generic Ethereum identity when the connector doesn't expose its own.
+   */
+  private getActiveConnectorIdentity(): { name?: string; icon?: string } | undefined {
+    // AppKit tracks the actual wallet the user connected (MetaMask, Rainbow, ...)
+    // per chain namespace. The underlying wagmi connector usually reports a
+    // generic "WalletConnect"/"Injected" identity, so prefer AppKit's view.
+    const walletInfo = getAppKitModal()?.getWalletInfo("eip155");
+    if (walletInfo?.name || walletInfo?.icon) {
+      return { name: walletInfo.name, icon: walletInfo.icon };
+    }
+
+    if (!hasSharedWagmiConfig()) return undefined;
+
+    try {
+      const { connector } = getAccount(this.getWagmiConfig());
+      if (!connector) return undefined;
+
+      return { name: connector.name, icon: connector.icon };
+    } catch {
+      return undefined;
+    }
+  }
+
+  getWalletProviderName(): string {
+    const name = this.getActiveConnectorIdentity()?.name;
+    return name?.trim() ? name : ETH_FALLBACK_PROVIDER_NAME;
+  }
+
+  getWalletProviderIcon(): string {
+    const icon = this.getActiveConnectorIdentity()?.icon;
+    return icon?.trim() ? icon : ETH_FALLBACK_PROVIDER_ICON;
+  }
+
+  on(eventName: string, handler: (...args: any[]) => void): void {
+    if (!this.eventHandlers.has(eventName)) {
+      this.eventHandlers.set(eventName, new Set());
+    }
+    this.eventHandlers.get(eventName)!.add(handler);
+  }
+
+  off(eventName: string, handler: (...args: any[]) => void): void {
+    const handlers = this.eventHandlers.get(eventName);
+    if (handlers) {
+      handlers.delete(handler);
+    }
+  }
+
+  // Cleanup method for proper resource management
+  destroy(): void {
+    this.unwatchFunctions.forEach((unwatch) => unwatch());
+    this.eventHandlers.clear();
+  }
+}

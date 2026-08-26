@@ -1,0 +1,426 @@
+/**
+ * Aave Spoke Client - Read operations
+ *
+ * Provides read operations for interacting with Aave v4 Spoke contracts.
+ * Used to fetch live user position data (debt, collateral) from the Core Spoke.
+ *
+ * Note: Reserve data should be fetched from the indexer via fetchReserves.ts
+ * since it doesn't need to be live and benefits from caching.
+ */
+
+import type { Abi, Address, PublicClient } from "viem";
+
+import type {
+  AaveSpokeUserAccountData,
+  AaveSpokeUserPosition,
+} from "../types.js";
+import AaveSpokeABI from "./abis/AaveSpoke.abi.json";
+
+/** Account data result type from contract */
+type AccountDataResult = {
+  riskPremium: bigint;
+  avgCollateralFactor: bigint;
+  healthFactor: bigint;
+  totalCollateralValue: bigint;
+  totalDebtValueRay: bigint;
+  activeCollateralCount: bigint;
+  borrowCount: bigint;
+};
+
+/** Position result type from contract */
+type PositionResult = {
+  drawnShares: bigint;
+  premiumShares: bigint;
+  premiumOffsetRay: bigint;
+  suppliedShares: bigint;
+  dynamicConfigKey: number;
+};
+
+/**
+ * Maps contract result to AaveSpokeUserPosition
+ */
+function mapPositionResult(result: PositionResult): AaveSpokeUserPosition {
+  return {
+    drawnShares: result.drawnShares,
+    premiumShares: result.premiumShares,
+    premiumOffsetRay: result.premiumOffsetRay,
+    suppliedShares: result.suppliedShares,
+    dynamicConfigKey: result.dynamicConfigKey,
+  };
+}
+
+/** Maps contract result to AaveSpokeUserAccountData */
+function mapAccountDataResult(
+  data: AccountDataResult,
+): AaveSpokeUserAccountData {
+  return {
+    riskPremium: data.riskPremium,
+    avgCollateralFactor: data.avgCollateralFactor,
+    healthFactor: data.healthFactor,
+    totalCollateralValue: data.totalCollateralValue,
+    totalDebtValueRay: data.totalDebtValueRay,
+    activeCollateralCount: data.activeCollateralCount,
+    borrowCount: data.borrowCount,
+  };
+}
+
+/**
+ * Get aggregated user account health data from AAVE spoke.
+ *
+ * **Live data** - Fetches real-time account health including health factor, total collateral,
+ * and total debt across all reserves. Values are calculated on-chain using AAVE oracles
+ * and are the authoritative source for liquidation decisions.
+ *
+ * @param publicClient - Viem public client for reading contracts (from `createPublicClient()`)
+ * @param spokeAddress - AAVE Spoke contract address (BTC Vault Core Spoke for vBTC collateral)
+ * @param userAddress - User's proxy contract address (NOT user's wallet address)
+ * @returns User account data with health metrics, collateral, and debt values
+ *
+ * @example
+ * ```typescript
+ * import { getUserAccountData } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
+ * import { createPublicClient, http } from "viem";
+ * import { sepolia } from "viem/chains";
+ *
+ * const publicClient = createPublicClient({
+ *   chain: sepolia,
+ *   transport: http()
+ * });
+ *
+ * const accountData = await getUserAccountData(
+ *   publicClient,
+ *   "0x123...", // AAVE Spoke address
+ *   "0x456..."  // User's AAVE proxy address (from getPosition)
+ * );
+ *
+ * console.log("Health Factor:", accountData.healthFactor);
+ * console.log("Collateral (USD):", accountData.totalCollateralValue);
+ * console.log("Debt (USD):", accountData.totalDebtValueRay);
+ * ```
+ *
+ * @remarks
+ * **Return values:**
+ * - `healthFactor` - WAD format (1e18 = 1.0). Below 1.0 = liquidatable
+ * - `totalCollateralValue` - USD value in base currency (1e26 = $1)
+ * - `totalDebtValueRay` - USD value in RAY-scaled base currency (1e53 = $1)
+ * - `avgCollateralFactor` - Weighted average collateral factor in WAD (1e18 = 100%)
+ * - `riskPremium` - Additional risk premium
+ *
+ * **Use cases:**
+ * - Check liquidation risk before borrowing
+ * - Calculate safe borrow amount
+ * - Monitor position health
+ * - Display UI health indicators
+ */
+export async function getUserAccountData(
+  publicClient: PublicClient,
+  spokeAddress: Address,
+  userAddress: Address,
+): Promise<AaveSpokeUserAccountData> {
+  const result = await publicClient.readContract({
+    address: spokeAddress,
+    abi: AaveSpokeABI,
+    functionName: "getUserAccountData",
+    args: [userAddress],
+  });
+
+  return mapAccountDataResult(result as AccountDataResult);
+}
+
+/**
+ * Read a user's position for one reserve and their aggregate account data in a
+ * single hard-fail multicall. Both reads are required for the live position
+ * view, so a revert on either rejects the whole call (matching the prior
+ * `Promise.all`); the gain is one round-trip instead of two `eth_call`s.
+ */
+export async function getUserPositionAndAccountData(
+  publicClient: PublicClient,
+  spokeAddress: Address,
+  reserveId: bigint,
+  userAddress: Address,
+): Promise<{
+  position: AaveSpokeUserPosition;
+  accountData: AaveSpokeUserAccountData;
+}> {
+  const [positionResult, accountDataResult] = await publicClient.multicall({
+    contracts: [
+      {
+        address: spokeAddress,
+        abi: AaveSpokeABI as Abi,
+        functionName: "getUserPosition" as const,
+        args: [reserveId, userAddress] as const,
+      },
+      {
+        address: spokeAddress,
+        abi: AaveSpokeABI as Abi,
+        functionName: "getUserAccountData" as const,
+        args: [userAddress] as const,
+      },
+    ],
+    allowFailure: false,
+  });
+
+  return {
+    position: mapPositionResult(positionResult as unknown as PositionResult),
+    accountData: mapAccountDataResult(
+      accountDataResult as unknown as AccountDataResult,
+    ),
+  };
+}
+
+/**
+ * Get user position from the Spoke
+ *
+ * This fetches live data from the contract because debt accrues interest
+ * and needs to be current for accurate health factor calculations.
+ *
+ * @param publicClient - Viem public client for reading contracts
+ * @param spokeAddress - Aave Spoke contract address
+ * @param reserveId - Reserve ID
+ * @param userAddress - User's proxy contract address
+ * @returns User position data
+ */
+export async function getUserPosition(
+  publicClient: PublicClient,
+  spokeAddress: Address,
+  reserveId: bigint,
+  userAddress: Address,
+): Promise<AaveSpokeUserPosition> {
+  const result = await publicClient.readContract({
+    address: spokeAddress,
+    abi: AaveSpokeABI,
+    functionName: "getUserPosition",
+    args: [reserveId, userAddress],
+  });
+
+  return mapPositionResult(result as PositionResult);
+}
+
+/**
+ * Get user's exact total debt in a reserve (token units, not shares).
+ *
+ * Returns the Spoke-side amount owed including accrued interest — but NOT the
+ * adapter's uncollected interest fee. Display/routing only; for full repayment
+ * see the remarks below. Debt accrues interest every block, so fetch it live.
+ *
+ * @param publicClient - Viem public client for reading contracts
+ * @param spokeAddress - AAVE Spoke contract address
+ * @param reserveId - Reserve ID for the debt asset (e.g., `2n` for USDC)
+ * @param userAddress - User's proxy contract address
+ * @returns Total debt amount in token units (e.g., for USDC: `100000000n` = 100 USDC)
+ *
+ * @example
+ * ```typescript
+ * import { getUserTotalDebt } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
+ * import { formatUnits } from "viem";
+ *
+ * const totalDebt = await getUserTotalDebt(
+ *   publicClient,
+ *   AAVE_SPOKE_ADDRESS,
+ *   2n, // USDC reserve
+ *   proxyAddress
+ * );
+ *
+ * console.log("Debt:", formatUnits(totalDebt, 6), "USDC");
+ * ```
+ *
+ * @remarks
+ * **Important for full repayment:** do NOT repay a plain amount derived from
+ * this quote — it excludes the adapter's interest fee, and rounding can leave
+ * residual debt shares (dust). Send the repay-all sentinel
+ * (`type(uint256).max`) with an approval sized from the position proxy's
+ * fee-inclusive `getPositionReserveTotalDebt` plus
+ * `FULL_REPAY_BUFFER_DIVISOR` headroom; the adapter pulls only what's owed.
+ * For partial repayment, use any amount less than total debt.
+ */
+export async function getUserTotalDebt(
+  publicClient: PublicClient,
+  spokeAddress: Address,
+  reserveId: bigint,
+  userAddress: Address,
+): Promise<bigint> {
+  const result = await publicClient.readContract({
+    address: spokeAddress,
+    abi: AaveSpokeABI,
+    functionName: "getUserTotalDebt",
+    args: [reserveId, userAddress],
+  });
+
+  return result as bigint;
+}
+
+/**
+ * Probe `getUserPosition` for many reserves in a single multicall.
+ *
+ * Returns one entry per `reserveId` in input order. Per-reserve reverts are
+ * isolated (`allowFailure: true`): that entry is `null` while the rest of the
+ * batch still resolves. Use for debt-reserve discovery, where a failed read
+ * means "treat as no debt", not a fatal error.
+ */
+export async function getUserPositions(
+  publicClient: PublicClient,
+  spokeAddress: Address,
+  reserveIds: bigint[],
+  userAddress: Address,
+): Promise<(AaveSpokeUserPosition | null)[]> {
+  if (reserveIds.length === 0) return [];
+  const results = await publicClient.multicall({
+    contracts: reserveIds.map((reserveId) => ({
+      address: spokeAddress,
+      abi: AaveSpokeABI as Abi,
+      functionName: "getUserPosition" as const,
+      args: [reserveId, userAddress] as const,
+    })),
+    allowFailure: true,
+  });
+  return results.map((r) =>
+    r.status === "success"
+      ? mapPositionResult(r.result as PositionResult)
+      : null,
+  );
+}
+
+/**
+ * Read `getUserTotalDebt` for many reserves in a single multicall.
+ *
+ * Hard-fails (`allowFailure: false`): any reserve's revert rejects the whole
+ * call. Use only for reserves already known to carry debt — there a failed
+ * read is a genuine error, not a "no debt" signal.
+ */
+export async function getUserTotalDebts(
+  publicClient: PublicClient,
+  spokeAddress: Address,
+  reserveIds: bigint[],
+  userAddress: Address,
+): Promise<bigint[]> {
+  if (reserveIds.length === 0) return [];
+  const results = await publicClient.multicall({
+    contracts: reserveIds.map((reserveId) => ({
+      address: spokeAddress,
+      abi: AaveSpokeABI as Abi,
+      functionName: "getUserTotalDebt" as const,
+      args: [reserveId, userAddress] as const,
+    })),
+    allowFailure: false,
+  });
+  return results as unknown as bigint[];
+}
+
+/** Result type from the `getReserve` contract call.
+ *
+ * Matches the on-chain `Reserve` struct defined in `ITBVAaveSpoke.sol`:
+ *   struct Reserve {
+ *     address underlying;
+ *     address hub;
+ *     uint16 assetId;
+ *     uint8 decimals;
+ *     uint24 collateralRisk;
+ *     ReserveFlags flags;   // uint8 bitmap
+ *     uint32 dynamicConfigKey;
+ *   }
+ *
+ * Note: this is the `Reserve` struct, NOT `ReserveConfig` — the contract
+ * exposes both as separate functions and they return different shapes.
+ */
+type ReserveResult = {
+  underlying: Address;
+  hub: Address;
+  assetId: number;
+  decimals: number;
+  collateralRisk: number;
+  flags: number;
+  dynamicConfigKey: number;
+};
+
+/**
+ * Get reserve data from the Core Spoke contract via the `getReserve` selector.
+ *
+ * Returns static reserve properties including the `dynamicConfigKey` needed
+ * for `getDynamicReserveConfig` calls. Use this as a fallback when reserve
+ * data is not available from the GraphQL indexer.
+ *
+ * Do NOT confuse with the contract's separate `getReserveConfig` function,
+ * which returns `{collateralRisk, paused, frozen, borrowable, receiveSharesEnabled}`.
+ *
+ * @param publicClient - Viem public client for reading contracts
+ * @param spokeAddress - Core Spoke contract address
+ * @param reserveId - Reserve ID
+ * @returns Reserve data including `dynamicConfigKey`
+ */
+export async function getReserve(
+  publicClient: PublicClient,
+  spokeAddress: Address,
+  reserveId: bigint,
+): Promise<ReserveResult> {
+  const result = await publicClient.readContract({
+    address: spokeAddress,
+    abi: AaveSpokeABI,
+    functionName: "getReserve",
+    args: [reserveId],
+  });
+  return result as ReserveResult;
+}
+
+/** Result type from getLiquidationConfig contract call */
+type LiquidationConfigResult = {
+  targetHealthFactor: bigint;
+  healthFactorForMaxBonus: bigint;
+  liquidationBonusFactor: bigint;
+};
+
+/** Result type from getDynamicReserveConfig contract call */
+type DynamicReserveConfigResult = {
+  collateralFactor: bigint;
+  maxLiquidationBonus: bigint;
+  liquidationFee: bigint;
+};
+
+/**
+ * Get the target health factor (THF) from the Core Spoke contract.
+ *
+ * Per-spoke governance parameter. After a liquidation, the protocol targets
+ * restoring the position to this health factor.
+ *
+ * @param publicClient - Viem public client for reading contracts
+ * @param spokeAddress - Core Spoke contract address
+ * @returns Target health factor in WAD (1e18 = 1.0). Example: 1.10 = 1_100_000_000_000_000_000n
+ */
+export async function getTargetHealthFactor(
+  publicClient: PublicClient,
+  spokeAddress: Address,
+): Promise<bigint> {
+  const result = await publicClient.readContract({
+    address: spokeAddress,
+    abi: AaveSpokeABI,
+    functionName: "getLiquidationConfig",
+  });
+  const config = result as LiquidationConfigResult;
+  return config.targetHealthFactor;
+}
+
+/**
+ * Get the dynamic reserve config from the Core Spoke contract.
+ *
+ * Returns collateral factor, max liquidation bonus, and liquidation fee
+ * for a specific reserve and dynamic config key.
+ *
+ * @param publicClient - Viem public client for reading contracts
+ * @param spokeAddress - Core Spoke contract address
+ * @param reserveId - Reserve ID (e.g., vBTC reserve ID from indexer config)
+ * @param dynamicConfigKey - Dynamic config key (from reserve data)
+ * @returns Dynamic reserve config with collateralFactor (BPS), maxLiquidationBonus (BPS), liquidationFee (BPS)
+ */
+export async function getDynamicReserveConfig(
+  publicClient: PublicClient,
+  spokeAddress: Address,
+  reserveId: bigint,
+  dynamicConfigKey: number,
+): Promise<DynamicReserveConfigResult> {
+  const result = await publicClient.readContract({
+    address: spokeAddress,
+    abi: AaveSpokeABI,
+    functionName: "getDynamicReserveConfig",
+    args: [reserveId, dynamicConfigKey],
+  });
+  return result as DynamicReserveConfigResult;
+}

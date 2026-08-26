@@ -1,0 +1,100 @@
+/**
+ * Health Factor Utilities for Aave
+ *
+ * Health factor is calculated by Aave on-chain using oracle prices.
+ * A health factor below 1.0 means the position can be liquidated.
+ *
+ * Status thresholds:
+ * - no_debt: No active debt (null health factor)
+ * - danger: < 1.0 (can be liquidated)
+ * - warning: < HEALTH_FACTOR_WARNING_THRESHOLD (at risk)
+ * - safe: >= HEALTH_FACTOR_WARNING_THRESHOLD (healthy)
+ */
+
+import { BPS_SCALE, HEALTH_FACTOR_WARNING_THRESHOLD } from "../constants.js";
+
+export type HealthFactorStatus = "safe" | "warning" | "danger" | "no_debt";
+
+/**
+ * Determine health factor status for UI display
+ *
+ * @param healthFactor - The health factor as a number (null if no debt)
+ * @param hasDebt - Whether the position has active debt
+ * @returns The status classification
+ */
+export function getHealthFactorStatus(
+  healthFactor: number | null,
+  hasDebt: boolean,
+): HealthFactorStatus {
+  if (!hasDebt) return "no_debt";
+  if (healthFactor === null) return "safe";
+  if (healthFactor < 1.0) return "danger";
+  if (healthFactor < HEALTH_FACTOR_WARNING_THRESHOLD) return "warning";
+  return "safe";
+}
+
+/**
+ * Get health factor status from a numeric value.
+ * Used for UI components that work with Infinity for no-debt scenarios.
+ *
+ * @param value - Health factor value (Infinity when no debt)
+ * @returns The status classification
+ */
+export function getHealthFactorStatusFromValue(
+  value: number,
+): HealthFactorStatus {
+  const hasDebt = isFinite(value);
+  const healthFactor = isFinite(value) ? value : null;
+  return getHealthFactorStatus(healthFactor, hasDebt);
+}
+
+/**
+ * Calculate health factor for an AAVE position.
+ *
+ * **Formula:** `HF = (Collateral × Liquidation Threshold) / Total Debt`
+ *
+ * Health factor determines liquidation risk:
+ * - `>= 1.5` - Safe (green)
+ * - `1.0 - 1.5` - Warning (amber)
+ * - `< 1.0` - Danger, position can be liquidated (red)
+ *
+ * @param collateralValueUsd - Total collateral value in USD (as number, not bigint)
+ * @param totalDebtUsd - Total debt value in USD (as number, not bigint)
+ * @param liquidationThresholdBps - Liquidation threshold in basis points (e.g., `8000` = 80%)
+ * @returns Health factor value (e.g., `1.5`), or `Infinity` if no debt
+ *
+ * @example
+ * ```typescript
+ * import { calculateHealthFactor, HEALTH_FACTOR_WARNING_THRESHOLD } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
+ *
+ * // User has $10,000 BTC collateral, $5,000 debt, 80% LT
+ * const hf = calculateHealthFactor(10000, 5000, 8000);
+ * // Result: 1.6 (safe to borrow more)
+ *
+ * if (hf < 1.0) {
+ *   console.error("Position can be liquidated!");
+ * } else if (hf < HEALTH_FACTOR_WARNING_THRESHOLD) {
+ *   console.warn("Position at risk, consider repaying");
+ * } else {
+ *   console.log("Position is safe");
+ * }
+ * ```
+ *
+ * @remarks
+ * **Before borrowing:**
+ * Use this to calculate resulting health factor and ensure it stays above safe threshold.
+ *
+ * **Unit conversions:**
+ * - Convert AAVE base currency (1e26) to USD by dividing by 1e26
+ * - Use `aaveValueToUsd()` helper for automatic conversion
+ */
+export function calculateHealthFactor(
+  collateralValueUsd: number,
+  totalDebtUsd: number,
+  liquidationThresholdBps: number,
+): number {
+  if (totalDebtUsd <= 0) return Infinity;
+  return (
+    (collateralValueUsd * (liquidationThresholdBps / BPS_SCALE)) / totalDebtUsd
+  );
+}

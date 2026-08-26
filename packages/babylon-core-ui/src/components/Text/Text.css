@@ -1,0 +1,25 @@
+.bbn-text {
+  &-body1 {
+    @apply text-base tracking-0.15;
+  }
+
+  &-body2 {
+    @apply text-sm tracking-0.15;
+  }
+
+  &-subtitle1 {
+    @apply text-base leading-7 tracking-0.15;
+  }
+
+  &-subtitle2 {
+    @apply text-sm font-bold leading-normal tracking-0.15;
+  }
+
+  &-overline {
+    @apply text-xs uppercase leading-8 tracking-1;
+  }
+
+  &-caption {
+    @apply text-xs tracking-0.4;
+  }
+}

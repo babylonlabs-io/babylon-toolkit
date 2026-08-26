@@ -1,0 +1,139 @@
+/**
+ * Deposit validation hook
+ *
+ * Handles all validation logic for deposits using pure service functions.
+ * Integrates with wallet data, UTXO queries, protocol params from context,
+ * and (optionally) the configured application supply cap.
+ */
+
+import { useCallback } from "react";
+
+import { useProtocolParamsContext } from "../../context/ProtocolParamsContext";
+import type { ValidationResult } from "../../services/deposit";
+import { depositService } from "../../services/deposit";
+
+export interface UseDepositValidationResult {
+  validateAmount: (amount: string) => ValidationResult;
+  validateProviders: (providers: string[]) => ValidationResult;
+
+  availableProviders: string[];
+  minDeposit: bigint;
+  maxDeposit: bigint;
+  /** Effective remaining supply cap in satoshis, or null when no cap applies. */
+  effectiveRemaining: bigint | null;
+}
+
+export interface UseDepositValidationParams {
+  availableProviders?: string[];
+  /**
+   * Effective remaining application cap in satoshis.
+   * Null means no cap applies (unlimited / unknown).
+   */
+  effectiveRemaining?: bigint | null;
+  /**
+   * True when the supply cap state is unknown — either the on-chain read is
+   * still loading or it errored. When set, amount validation is blocked with
+   * an explicit error rather than silently passing as if no cap applied.
+   */
+  capUnavailable?: boolean;
+  /**
+   * Fee-adjusted depositable maximum in satoshis (balance minus network fee and
+   * protocol reserves), or null while it is still resolving. When this is below
+   * the protocol minimum deposit, no amount is valid; surfacing that keeps the
+   * inline/submit path in agreement with the CTA.
+   */
+  maxDepositSats?: bigint | null;
+}
+
+/**
+ * Hook for deposit validation logic.
+ */
+export function useDepositValidation(
+  params: UseDepositValidationParams = {},
+): UseDepositValidationResult {
+  const {
+    availableProviders = [],
+    effectiveRemaining = null,
+    capUnavailable = false,
+    maxDepositSats = null,
+  } = params;
+
+  const { minDeposit, maxDeposit } = useProtocolParamsContext();
+
+  const validateAmount = useCallback(
+    (amount: string): ValidationResult => {
+      if (capUnavailable) {
+        return {
+          valid: false,
+          error: "Unable to verify supply cap — please try again",
+        };
+      }
+
+      const satoshis = depositService.parseBtcToSatoshis(amount);
+
+      // When the remaining cap is below the protocol minimum, no amount is
+      // valid. Surface that terminal reason before the base min/max check so it
+      // matches the CTA (`getDepositCtaState`) instead of showing a minimum
+      // error the user can never satisfy.
+      if (depositService.capBelowMinimum(effectiveRemaining, minDeposit)) {
+        return {
+          valid: false,
+          error: depositService.capBelowMinimumLabel(
+            effectiveRemaining,
+            minDeposit,
+          ),
+        };
+      }
+
+      // Symmetric state on the balance/fee dimension: the fee-adjusted max is
+      // below the minimum, so no entered amount is valid. Only surface once an
+      // amount is entered, mirroring the CTA's `maxBelowMinimum` branch.
+      if (
+        satoshis > 0n &&
+        depositService.maxBelowMinimum(maxDepositSats, minDeposit)
+      ) {
+        return {
+          valid: false,
+          error: depositService.maxBelowMinimumLabel(minDeposit),
+        };
+      }
+
+      const base = depositService.validateDepositAmount(
+        satoshis,
+        minDeposit,
+        maxDeposit,
+      );
+      if (!base.valid) return base;
+
+      return depositService.validateRemainingCapacity({
+        amount: satoshis,
+        effectiveRemaining,
+      });
+    },
+    [
+      minDeposit,
+      maxDeposit,
+      effectiveRemaining,
+      capUnavailable,
+      maxDepositSats,
+    ],
+  );
+
+  const validateProviders = useCallback(
+    (selectedProviders: string[]): ValidationResult =>
+      depositService.validateProviderSelection(
+        selectedProviders,
+        availableProviders,
+      ),
+    [availableProviders],
+  );
+
+  return {
+    validateAmount,
+    validateProviders,
+    availableProviders,
+    minDeposit,
+    maxDeposit,
+    effectiveRemaining,
+  };
+}

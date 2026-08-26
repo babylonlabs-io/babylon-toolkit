@@ -1,0 +1,407 @@
+/**
+ * Contract error mapping utilities.
+ *
+ * Converts viem contract errors into user-friendly ContractError instances.
+ * Supports decoding custom contract errors using ABIs.
+ */
+
+import { type Abi, type Hash, decodeErrorResult } from "viem";
+
+import { COPY } from "@/copy";
+
+import { COMMON_ERROR_ABI } from "./commonErrorAbi";
+import { CONTRACT_ERROR_MESSAGES } from "./errorMessages";
+import { matchesInsufficientGasFundsMessage } from "./formatting";
+import { ActivationNotPossibleError, ContractError, ErrorCode } from "./types";
+
+/** Minimum length of a revert hex payload: `0x` + a 4-byte (8 hex char) selector. */
+const SELECTOR_HEX_MIN_LENGTH = 10;
+
+/** True when `value` is a hex string long enough to hold a 4-byte selector. */
+function isRevertHex(value: unknown): value is `0x${string}` {
+  return (
+    typeof value === "string" &&
+    value.startsWith("0x") &&
+    value.length >= SELECTOR_HEX_MIN_LENGTH
+  );
+}
+
+/**
+ * Built-in Solidity reverts: `revert("...")` decodes to `Error` and `panic(n)`
+ * to `Panic`, with the real reason in `args`/the viem message. These are NOT
+ * custom errors — returning the name would mask the reason, so callers let the
+ * message-based handling surface it instead.
+ */
+function isBuiltinSolidityError(errorName: string): boolean {
+  return errorName === "Error" || errorName === "Panic";
+}
+
+/**
+ * Read viem's already-decoded custom-error name from the error chain.
+ *
+ * viem's `ContractFunctionRevertedError` decodes the revert with the call's
+ * own ABI and stores the result at `.data.errorName`. Reading it covers call
+ * sites that pass no ABI to the mapper (where the selector isn't in
+ * `COMMON_ERROR_ABI` and re-decoding `.raw` would fail).
+ */
+function findViemDecodedErrorName(obj: unknown, depth = 0): string | undefined {
+  if (depth > 10 || !obj || typeof obj !== "object") {
+    return undefined;
+  }
+
+  const errorObj = obj as Record<string, unknown>;
+
+  const data = errorObj.data;
+  if (data && typeof data === "object") {
+    const errorName = (data as Record<string, unknown>).errorName;
+    if (
+      typeof errorName === "string" &&
+      errorName.length > 0 &&
+      !isBuiltinSolidityError(errorName)
+    ) {
+      return errorName;
+    }
+  }
+
+  if (errorObj.cause) {
+    const found = findViemDecodedErrorName(errorObj.cause, depth + 1);
+    if (found) return found;
+  }
+
+  if (typeof errorObj.walk === "function") {
+    try {
+      let found: string | undefined;
+      (errorObj.walk as (fn: (e: unknown) => boolean) => unknown)((e) => {
+        const name = findViemDecodedErrorName(e, depth + 1);
+        if (name) {
+          found = name;
+          return true;
+        }
+        return false;
+      });
+      if (found) return found;
+    } catch {
+      // walk function failed, continue
+    }
+  }
+
+  return undefined;
+}
+
+/**
+ * Recursively search for error data in a nested error object.
+ *
+ * Viem wraps errors multiple levels deep (CallExecutionError -> ExecutionRevertedError
+ * -> RpcRequestError), and the revert data could be at any level.
+ *
+ * Note: Some RPC providers don't return revert data. Use Alchemy, Infura,
+ * or another provider that supports returning revert reasons.
+ */
+function findErrorData(obj: unknown, depth = 0): `0x${string}` | undefined {
+  if (depth > 10 || !obj || typeof obj !== "object") {
+    return undefined;
+  }
+
+  const errorObj = obj as Record<string, unknown>;
+
+  // Revert hex (4-byte selector + args) may sit on any of these fields.
+  if (isRevertHex(errorObj.data)) return errorObj.data;
+  if (isRevertHex(errorObj.revertData)) return errorObj.revertData;
+
+  // viem's ContractFunctionRevertedError keeps the DECODED result in `.data`
+  // ({ errorName, args }) and the RAW revert hex in `.raw`. The `.data` check
+  // above skips the decoded object (not a string), so read `.raw` here.
+  if (isRevertHex(errorObj.raw)) return errorObj.raw;
+
+  // RPC error structure (error.data from a JSON-RPC response).
+  if (errorObj.error && typeof errorObj.error === "object") {
+    const rpcData = (errorObj.error as Record<string, unknown>).data;
+    if (isRevertHex(rpcData)) return rpcData;
+  }
+
+  // Recursively check cause chain
+  if (errorObj.cause) {
+    const causeData = findErrorData(errorObj.cause, depth + 1);
+    if (causeData) return causeData;
+  }
+
+  // Check walk function (viem's error traversal)
+  if (typeof errorObj.walk === "function") {
+    try {
+      let foundData: `0x${string}` | undefined;
+      (errorObj.walk as (fn: (e: unknown) => boolean) => unknown)((e) => {
+        const data = findErrorData(e, depth + 1);
+        if (data) {
+          foundData = data;
+          return true;
+        }
+        return false;
+      });
+      if (foundData) return foundData;
+    } catch {
+      // walk function failed, continue
+    }
+  }
+
+  return undefined;
+}
+
+/**
+ * Try to decode a custom contract error from the error data.
+ */
+function tryDecodeContractError(
+  error: unknown,
+  abis: Abi[],
+): { errorName: string; args?: readonly unknown[] } | undefined {
+  // Prefer viem's own decode (done with the call's ABI). This maps custom
+  // errors even on call sites that pass no ABI, where re-decoding the raw
+  // bytes below would fail because the selector isn't in COMMON_ERROR_ABI.
+  const viemErrorName = findViemDecodedErrorName(error);
+  if (viemErrorName) {
+    return { errorName: viemErrorName };
+  }
+
+  const errorData = findErrorData(error);
+  if (!isRevertHex(errorData)) {
+    return undefined;
+  }
+
+  // Try provided ABIs + common errors as fallback
+  const allAbis = [...abis, COMMON_ERROR_ABI];
+
+  for (const abi of allAbis) {
+    try {
+      const decoded = decodeErrorResult({ abi, data: errorData });
+      // viem appends solidityError/solidityPanic to every decode, so a
+      // built-in revert("...")/panic resolves to Error/Panic here too — let
+      // the message-based handling surface its reason instead.
+      if (isBuiltinSolidityError(decoded.errorName)) return undefined;
+      return decoded;
+    } catch {
+      continue;
+    }
+  }
+
+  return undefined;
+}
+
+/**
+ * Get user-friendly message for a decoded contract error.
+ */
+function getDecodedErrorMessage(errorName: string): string {
+  const friendlyMessage = CONTRACT_ERROR_MESSAGES[errorName];
+  if (friendlyMessage) {
+    return friendlyMessage;
+  }
+  // Fallback: convert camelCase to readable format
+  return errorName.replace(/([A-Z])/g, " $1").trim();
+}
+
+/**
+ * Get enhanced error message based on pattern matching.
+ */
+function getEnhancedErrorMessage(
+  message: string,
+  operationName: string,
+): string {
+  const lowerMessage = message.toLowerCase();
+
+  if (
+    lowerMessage.includes("paused") ||
+    lowerMessage.includes("whennotpaused")
+  ) {
+    return `${operationName} failed: The market is currently paused. Please try again later.`;
+  }
+  if (lowerMessage.includes("frozen") || lowerMessage.includes("isfrozen")) {
+    return `${operationName} failed: This market is frozen and not accepting operations.`;
+  }
+  if (
+    lowerMessage.includes("insufficient liquidity") ||
+    lowerMessage.includes("not enough")
+  ) {
+    return `${operationName} failed: Insufficient liquidity. Please try a smaller amount.`;
+  }
+  // Supply/borrow caps are protocol-level limits set by Aave governance to manage risk.
+  // They limit the maximum amount of an asset that can be supplied or borrowed.
+  // When a cap is reached, no more deposits/borrows of that asset are allowed until
+  // existing positions are withdrawn or repaid.
+  // Be specific here - don't match unrelated errors like "gas limit cap".
+  if (
+    lowerMessage.includes("supply cap") ||
+    lowerMessage.includes("collateral cap") ||
+    lowerMessage.includes("borrow cap") ||
+    lowerMessage.includes("cap reached") ||
+    lowerMessage.includes("cap exceeded")
+  ) {
+    return `${operationName} failed: The protocol cap for this asset has been reached. Try a smaller amount or wait for capacity to free up.`;
+  }
+  if (
+    lowerMessage.includes("user rejected") ||
+    lowerMessage.includes("denied")
+  ) {
+    return `${operationName} was rejected by the wallet.`;
+  }
+
+  return `${operationName} failed: ${message}`;
+}
+
+/**
+ * Maps viem contract errors to ContractError with appropriate error codes.
+ *
+ * @param error - The error caught from viem contract operations
+ * @param operationName - Name of the operation (for error context)
+ * @param abis - Optional ABIs to decode custom contract errors
+ * @returns ContractError with user-friendly message
+ */
+export function mapViemErrorToContractError(
+  error: unknown,
+  operationName: string,
+  abis?: Abi[],
+): ContractError {
+  const errorMessage = error instanceof Error ? error.message : "Unknown error";
+  const errorName = error instanceof Error ? error.name : "UnknownError";
+  let code: ErrorCode = ErrorCode.CONTRACT_EXECUTION_FAILED;
+  let reason: string | undefined;
+  let transactionHash: string | undefined;
+  let enhancedMessage: string | undefined;
+
+  // Try to decode custom contract error first
+  // Always attempt decoding - COMMON_ERROR_ABI is used as fallback even when no ABIs provided
+  const decoded = tryDecodeContractError(error, abis ?? []);
+  if (decoded) {
+    code = ErrorCode.CONTRACT_REVERT;
+    reason = decoded.errorName;
+    enhancedMessage = getDecodedErrorMessage(decoded.errorName);
+  }
+
+  // Extract additional info from error object
+  if (error && typeof error === "object") {
+    const errorObj = error as Record<string, unknown>;
+
+    if ("shortMessage" in errorObj || "message" in errorObj) {
+      const message =
+        (errorObj.shortMessage as string) ||
+        (errorObj.message as string) ||
+        errorMessage;
+
+      if (
+        errorName === "ContractFunctionRevertedError" ||
+        message.includes("revert") ||
+        message.includes("execution reverted")
+      ) {
+        code = ErrorCode.CONTRACT_REVERT;
+        reason = reason || message;
+      } else if (!decoded && matchesInsufficientGasFundsMessage(message)) {
+        // Wallet can't cover gas * price + value. This fails at send time
+        // (not simulation), so surface friendly copy instead of the raw node
+        // diagnostics dump. Shares the ETH-side matcher with `formatting.ts`
+        // (case-insensitive, one vocabulary). Guarded on `!decoded` so a
+        // genuine contract revert whose wrapper message happens to contain
+        // "insufficient funds" keeps its decoded reason and message rather
+        // than being relabeled as gas.
+        code = ErrorCode.CONTRACT_INSUFFICIENT_GAS;
+        reason = reason || message;
+        enhancedMessage = COPY.common.classifiedErrors.insufficientFunds;
+      } else if (message.includes("gas")) {
+        code = ErrorCode.CONTRACT_INSUFFICIENT_GAS;
+        reason = reason || message;
+      } else if (
+        message.includes("nonce") ||
+        message.includes("replacement transaction underpriced") ||
+        message.includes("already known")
+      ) {
+        code = ErrorCode.CONTRACT_NONCE_ERROR;
+        reason = reason || message;
+      } else if (
+        message.includes("execution failed") ||
+        message.includes("simulation failed") ||
+        message.includes("call exception")
+      ) {
+        code = ErrorCode.CONTRACT_EXECUTION_FAILED;
+        reason = reason || message;
+      }
+
+      if ("cause" in errorObj && errorObj.cause) {
+        reason =
+          reason ||
+          (errorObj.cause instanceof Error
+            ? errorObj.cause.message
+            : String(errorObj.cause));
+      }
+    }
+
+    if ("transactionHash" in errorObj && errorObj.transactionHash) {
+      transactionHash = errorObj.transactionHash as string;
+    }
+
+    if ("hash" in errorObj && errorObj.hash) {
+      transactionHash = (errorObj.hash as Hash) || transactionHash;
+    }
+  }
+
+  const finalMessage =
+    enhancedMessage || getEnhancedErrorMessage(errorMessage, operationName);
+
+  return new ContractError(finalMessage, code, transactionHash, reason, {
+    cause: error,
+  });
+}
+
+/** Context marker for errors raised during pre-flight simulation. */
+const SIMULATION_PHASE = "simulation";
+
+/**
+ * Mark a mapped error as raised during pre-flight simulation — nothing was
+ * signed or broadcast. Retry logic must only auto-retry these: the same error
+ * from a mined revert means the chain itself rejected the call.
+ */
+export function tagSimulationPhase(err: ContractError): ContractError {
+  return new ContractError(
+    err.message,
+    err.code,
+    err.transactionHash,
+    err.reason,
+    {
+      cause: err.cause,
+      context: { ...err.context, phase: SIMULATION_PHASE },
+    },
+  );
+}
+
+/** True when the error was raised at simulation time (see tagSimulationPhase). */
+export function isSimulationPhaseError(err: unknown): err is ContractError {
+  return (
+    err instanceof ContractError && err.context?.phase === SIMULATION_PHASE
+  );
+}
+
+/**
+ * ABI error name from BTCVaultRegistry, surfaced as `ContractError.reason` when
+ * `activateVaultWithSecret` is called after the activation window closed
+ * (contract check `block.number > createdAt + pegInActivationTimeout`).
+ */
+export const ACTIVATION_DEADLINE_EXPIRED_REASON = "ActivationDeadlineExpired";
+
+/**
+ * True when an activation failure is the terminal ActivationDeadlineExpired
+ * revert. Retrying re-runs the identical revert, so the UI must offer Close,
+ * not Retry.
+ */
+export function isActivationDeadlineExpiredError(err: unknown): boolean {
+  return (
+    err instanceof ContractError &&
+    err.reason === ACTIVATION_DEADLINE_EXPIRED_REASON
+  );
+}
+
+/**
+ * True when an activation failure is terminal — retrying would re-run the same
+ * failing path. Covers the on-chain deadline revert and the pre-flight
+ * "vault not in an activatable state" guard. The UI offers Close, not Retry.
+ */
+export function isTerminalActivationError(err: unknown): boolean {
+  return (
+    isActivationDeadlineExpiredError(err) ||
+    err instanceof ActivationNotPossibleError
+  );
+}

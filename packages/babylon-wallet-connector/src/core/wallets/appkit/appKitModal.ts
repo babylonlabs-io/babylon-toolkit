@@ -1,0 +1,154 @@
+import { BitcoinAdapter } from "@reown/appkit-adapter-bitcoin";
+import { WagmiAdapter } from "@reown/appkit-adapter-wagmi";
+import type { AppKitNetwork } from "@reown/appkit/networks";
+import { bitcoin, bitcoinSignet } from "@reown/appkit/networks";
+import { createAppKit } from "@reown/appkit/react";
+import type { Chain } from "viem";
+
+import { ERROR_CODES, WalletError } from "@/error";
+
+import { setSharedBtcAppKitConfig } from "../btc/appkit/sharedConfig";
+import { createETHWagmiAdapter } from "../eth/appkit/modal";
+
+import { getAppKitModal, setAppKitModal } from "./state";
+
+/**
+ * Unified AppKit Modal Configuration
+ *
+ * This file provides a unified initialization point for both ETH and BTC AppKit adapters.
+ * It creates a single AppKit modal instance that supports both chains.
+ */
+
+/**
+ * Minimal AppKit configuration
+ * Supports ETH-only, BTC-only, or unified ETH+BTC wallet connections
+ */
+export interface AppKitModalConfig {
+  projectId?: string;
+  metadata: {
+    name: string;
+    description: string;
+    url: string;
+    icons: string[];
+  };
+  /**
+   * ETH configuration (optional)
+   * Required only if you want to enable ETH wallet connections
+   */
+  eth?: {
+    /**
+     * ETH network chain configuration
+     * Provide from your host application's network config.
+     */
+    chain: Chain;
+  };
+  /**
+   * BTC configuration (optional)
+   * Required only if you want to enable BTC wallet connections
+   */
+  btc?: {
+    /**
+     * BTC network (mainnet or signet)
+     */
+    network: "mainnet" | "signet";
+  };
+}
+
+let wagmiAdapter: WagmiAdapter | null = null;
+let bitcoinAdapter: BitcoinAdapter | null = null;
+
+export { getAppKitModal };
+
+/**
+ * Initialize AppKit modal with ETH and/or BTC support
+ * Creates a single AppKit instance with all configured adapters
+ * This should be called once at the application level
+ * @param config - Configuration including required metadata, optional ETH chain, and optional BTC network
+ */
+export function initializeAppKitModal(config: AppKitModalConfig) {
+  const existingModal = getAppKitModal();
+  // Don't reinitialize if already initialized
+  if (existingModal) {
+    // AppKit allows one modal per page, and its adapters are fixed at creation.
+    // If that modal was built by the Ethereum-only initializer on the `./eth`
+    // entry, it has no Bitcoin adapter and cannot gain one, so returning it for
+    // a config that asks for Bitcoin would hand back a modal that silently
+    // cannot connect a Bitcoin wallet.
+    if (config.btc?.network && !bitcoinAdapter) {
+      throw new WalletError({
+        code: ERROR_CODES.WALLET_INITIALIZATION_FAILED,
+        message:
+          "AppKit was already initialized without Bitcoin support. A page can only have one AppKit modal, so a host that needs Bitcoin must not initialize the Ethereum-only modal first.",
+        chainId: "BTC",
+      });
+    }
+
+    return {
+      modal: existingModal,
+      wagmiConfig: wagmiAdapter?.wagmiConfig,
+      bitcoinAdapter,
+    };
+  }
+
+  // Project ID is required for AppKit to work
+  if (!config.projectId) {
+    return null;
+  }
+
+  const projectId = config.projectId;
+  const metadata = config.metadata;
+
+  const allNetworks: AppKitNetwork[] = [];
+  const adapters: (WagmiAdapter | BitcoinAdapter)[] = [];
+
+  // Create Wagmi Adapter if ETH is configured
+  if (config.eth?.chain) {
+    allNetworks.push(config.eth.chain);
+
+    wagmiAdapter = createETHWagmiAdapter(config.eth.chain, projectId);
+
+    adapters.push(wagmiAdapter);
+  }
+
+  // Create Bitcoin Adapter if BTC is configured
+  if (config.btc?.network) {
+    const btcNetwork =
+      config.btc.network === "mainnet" ? bitcoin : bitcoinSignet;
+    allNetworks.push(btcNetwork);
+
+    bitcoinAdapter = new BitcoinAdapter({
+      networks: [btcNetwork],
+    });
+
+    adapters.push(bitcoinAdapter);
+  }
+
+  // Must have at least one network (ETH or BTC)
+  if (allNetworks.length === 0) {
+    return null;
+  }
+
+  // Create single AppKit modal with all adapters
+  const appKitModal = createAppKit({
+    adapters,
+    networks: allNetworks as [AppKitNetwork, ...AppKitNetwork[]],
+    projectId,
+    metadata,
+  });
+  setAppKitModal(appKitModal);
+
+  // Set the shared BTC AppKit config with the actual modal instance
+  if (bitcoinAdapter && config.btc?.network) {
+    setSharedBtcAppKitConfig({
+      modal: appKitModal,
+      adapter: bitcoinAdapter,
+      network: config.btc.network,
+    });
+  }
+
+  return {
+    modal: appKitModal,
+    wagmiConfig: wagmiAdapter?.wagmiConfig,
+    bitcoinAdapter,
+  };
+}

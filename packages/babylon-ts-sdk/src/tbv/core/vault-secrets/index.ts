@@ -1,0 +1,34 @@
+/**
+ * Vault secrets: HKDF-Expand-based derivation of three domain-separated
+ * secrets (HTLC hashlock preimage, depositor auth anchor, WOTS seed)
+ * from a single 32-byte root.
+ *
+ * Implements `derive-vault-secrets.md` §2.2 and Appendix A. The root is
+ * spec-opaque — callers produce it from `wallet.deriveContextHash` via
+ * {@link deriveVaultRoot} (canonical path), or from any other source
+ * that yields 32 bytes. The SDK is provenance-agnostic and only
+ * consumes the 32 bytes.
+ *
+ * @module tbv/core/vault-secrets
+ */
+
+/** @stability frozen — owned by btc-vault Rust via babylon-tbv-rust-wasm; see CLAUDE.md §4 + wrapper JSDoc for failure modes. */
+export {
+  expandAuthAnchor,
+  expandHashlockSecret,
+  expandWotsSeed,
+} from "@babylonlabs-io/babylon-tbv-rust-wasm";
+
+export { buildFundingOutpointsCommitment, buildVaultContext } from "./context";
+
+export type { FundingOutpoint, VaultContextInput } from "./context";
+
+export {
+  VAULT_APP_NAME,
+  deriveVaultRoot,
+  forwardDeriveContextHash,
+} from "./deriveVaultRoot";
+
+export type { DeriveContextHashCapableWallet } from "./deriveVaultRoot";
+
+export { parseFundingOutpointsFromTx } from "./parseFundingOutpoints";

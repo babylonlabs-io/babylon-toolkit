@@ -1,0 +1,121 @@
+{
+  "name": "@babylonlabs-io/core-ui",
+  "version": "1.109.0",
+  "type": "module",
+  "types": "dist/index.d.ts",
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/babylonlabs-io/babylon-toolkit.git"
+  },
+  "main": "dist/index.cjs.js",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "require": "./dist/index.cjs.js",
+      "import": "./dist/index.es.js"
+    },
+    "./tailwind": "./tailwind.config.js",
+    "./style.css": "./dist/core-ui.css"
+  },
+  "scripts": {
+    "dev": "npm run storybook",
+    "build": "tsc -b --noEmit tsconfig.lib.json tsconfig.node.json && vite build",
+    "format": "prettier . --write",
+    "preview": "vite preview",
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build",
+    "release": "npm run build && changeset publish",
+    "test": "vitest run",
+    "watch": "nodemon --watch src --ext ts,tsx,css --exec \"npm run build\"",
+    "visual:capture": "playwright test --config=playwright.visual.config.ts",
+    "visual:build": "storybook build -o storybook-static --quiet"
+  },
+  "files": [
+    "dist",
+    "./tailwind.config.js"
+  ],
+  "peerDependencies": {
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "tailwind-merge": "2.5.4",
+    "yup": "1.6.1"
+  },
+  "devDependencies": {
+    "@chromatic-com/storybook": "^3.2.2",
+    "@commitlint/cli": "^19.8.0",
+    "@commitlint/config-conventional": "^19.8.0",
+    "@eslint/js": "^9.31.0",
+    "@internal/eslint-config": "workspace:*",
+    "@playwright/test": "1.56.1",
+    "@semantic-release/github": "^11.0.2",
+    "@semantic-release/npm": "^12.0.1",
+    "@storybook/addon-actions": "^8.6.15",
+    "@storybook/addon-essentials": "^8.6.15",
+    "@storybook/addon-interactions": "^8.6.15",
+    "@storybook/addon-onboarding": "^8.6.15",
+    "@storybook/blocks": "^8.6.15",
+    "@storybook/react": "^8.6.15",
+    "@storybook/react-vite": "^8.6.15",
+    "@storybook/test": "^8.6.15",
+    "@testing-library/dom": "10.4.0",
+    "@testing-library/jest-dom": "6.5.0",
+    "@testing-library/react": "16.3.0",
+    "@types/lodash.throttle": "^4.1.9",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@typescript-eslint/eslint-plugin": "^8.44.1",
+    "@visx/event": "4.0.0",
+    "@visx/grid": "4.0.0",
+    "@visx/group": "4.0.0",
+    "@visx/responsive": "4.0.0",
+    "@visx/scale": "4.0.0",
+    "@visx/shape": "4.0.0",
+    "@visx/text": "4.0.0",
+    "@vitejs/plugin-react": "^4.4.1",
+    "autoprefixer": "^10.4.20",
+    "globals": "^16.3.0",
+    "husky": "^9.1.7",
+    "jsdom": "20.0.3",
+    "lint-staged": "^15.5.0",
+    "lodash.throttle": "^4.1.1",
+    "nodemon": "^3.1.0",
+    "postcss": "^8.4.47",
+    "prettier": "^3.6.2",
+    "prettier-plugin-tailwindcss": "^0.6.8",
+    "react-icons": "5.3.0",
+    "semantic-release": "^24.2.3",
+    "storybook": "^8.6.15",
+    "storybook-dark-mode": "^4.0.2",
+    "tailwindcss": "^3.4.14",
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.44.1",
+    "vite": "^6.4.1",
+    "vite-plugin-dts": "^4.3.0",
+    "vite-plugin-node-polyfills": "^0.23.0",
+    "vitest": "4.0.9"
+  },
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx}": [
+      "eslint --quiet --fix",
+      "prettier --write --ignore-unknown"
+    ]
+  },
+  "eslintConfig": {
+    "extends": [
+      "plugin:storybook/recommended"
+    ]
+  },
+  "dependencies": {
+    "@hookform/resolvers": "3.9.1",
+    "@popperjs/core": "2.11.8",
+    "decimal.js-light": "2.5.1",
+    "react-hook-form": "7.54.0",
+    "react-popper": "2.3.0",
+    "react-tooltip": "5.29.1",
+    "tw-colors": "3.3.2"
+  }
+}

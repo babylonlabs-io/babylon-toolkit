@@ -1,0 +1,62 @@
+{
+  "name": "@babylonlabs-io/ledger-vault-signer",
+  "version": "0.5.0",
+  "license": "BUSL-1.1",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "sideEffects": false,
+  "engines": {
+    "node": ">=20.3.0"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "require": "./dist/index.cjs",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b --noEmit tsconfig.lib.json && vite build && node scripts/check-dist-types.cjs",
+    "format": "prettier --check \"src/**/*.ts\"",
+    "format:fix": "prettier --write \"src/**/*.ts\"",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "files": [
+    "dist",
+    "THIRD-PARTY-NOTICES.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/babylonlabs-io/babylon-toolkit.git"
+  },
+  "description": "Host-side client for the Ledger Babylon Vault app: DMK session lifecycle, raw APDU framing, key reads, and the vault intent ceremony",
+  "dependencies": {
+    "@bitcoin-js/tiny-secp256k1-asmjs": "2.2.3",
+    "@ledgerhq/device-management-kit": "1.7.1",
+    "@ledgerhq/device-transport-kit-web-hid": "1.2.4",
+    "@scure/bip32": "1.4.0",
+    "bitcoinjs-lib": "6.1.7",
+    "buffer": "6.0.3",
+    "rxjs": "7.8.2"
+  },
+  "devDependencies": {
+    "@babylonlabs-io/babylon-tbv-rust-wasm": "workspace:*",
+    "@babylonlabs-io/ts-sdk": "workspace:*",
+    "@internal/eslint-config": "workspace:*",
+    "@ledgerhq/device-transport-kit-speculos": "1.2.1",
+    "prettier": "^3.6.2",
+    "prettier-plugin-organize-imports": "^4.1.0",
+    "typescript": "^5.8.3",
+    "vite": "^6.4.1",
+    "vite-plugin-dts": "^4.3.0",
+    "vitest": "4.0.9"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
+}
