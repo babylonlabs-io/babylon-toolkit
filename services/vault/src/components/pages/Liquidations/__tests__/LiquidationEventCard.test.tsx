@@ -15,7 +15,6 @@ import type { LiquidationEventCard as EventCardData } from "../liquidationChartD
 const CARD: EventCardData = {
   key: "0",
   title: "Liq Event 1",
-  badge: "sacrificial",
   tone: "1",
   triggered: false,
   collateralLabel: "0.42 BTC",

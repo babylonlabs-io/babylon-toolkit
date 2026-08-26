@@ -578,7 +578,7 @@ describe("PositionNotificationBanner", () => {
           type: "cliff",
           title: "First liquidation takes everything",
           detail:
-            "With your current BTCvaults, a single liquidation event liquidates all your BTC in collateral.",
+            "With your current BTCVaults, a single liquidation event liquidates all your BTC in collateral.",
           suggestion: "Adding a 0.72 BTCVault enables partial liquidation",
         },
       ],

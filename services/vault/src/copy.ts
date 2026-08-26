@@ -93,7 +93,7 @@ const SIGN_TRANSACTION_LABEL = "Sign Transaction";
 // standalone download dialog and the activate-confirmation dialog so the
 // two can't drift.
 const ARTIFACTS_DOWNLOADED_TITLE = "Artifacts downloaded";
-const ARTIFACTS_DOWNLOADED_BODY = "Keep your artifact files in the safe place!";
+const ARTIFACTS_DOWNLOADED_BODY = "Keep your artifact files in a safe place!";
 
 /**
  * A run of modal body text. `emphasis` segments render in the primary text
@@ -114,7 +114,7 @@ export const COPY = {
       "The maximum percentage of borrowing power from the total collateral value.",
     // Overview position cards, risk card body, borrow / repay detail cards.
     healthFactor:
-      "Indicates the health of your position. If the margin ratio falls below 1.0, your position may be liquidated.",
+      "Indicates the health of your position. If it falls below 1.0, your position may be liquidated.",
   },
   pegin: {
     labels: {
@@ -594,7 +594,7 @@ export const COPY = {
     },
     vaultActivatedSuccess: {
       heading: "BTCVault activated",
-      body: "Your BTCvault is now active and ready for borrowing.",
+      body: "Your BTCVault is now active and ready for borrowing.",
       goToDashboard: "Go to Dashboard",
     },
     recoveryArtifacts: {
@@ -1626,7 +1626,7 @@ export const COPY = {
     interestRateModel: {
       title: "Interest rate model",
       description:
-        "The more liquidity is borrowed, the higher borrowing rate according to the AAVE's Interest rate model on this market.",
+        "The more liquidity is borrowed, the higher the borrowing rate according to Aave's interest rate model on this market.",
     },
     borrowMarkets: {
       title: "Borrow markets",
@@ -1745,7 +1745,7 @@ export const COPY = {
     events: {
       heading: "Liquidation Events",
       subheading:
-        "BTCVaults are seized in order each BTCVault group is one liquidation event. To change the order please open Vaults page.",
+        "BTCVaults are seized in order. Each BTCVault group is one liquidation event. To change the order, open the Vaults page.",
       collateral: "Collateral",
       liqPrice: "Liq Price",
       distance: "% to Liquidation",
@@ -1757,7 +1757,7 @@ export const COPY = {
       overSeizureTooltip:
         "An additional portion of the collateral value that the liquidator may seize due to the nature of indivisible BTC Vaults.",
       estimatedLiquidationSection: "Estimated Liquidation",
-      collateralLiquidated: "BTCVault",
+      collateralLiquidated: "Collateral liquidated",
       debtRepaid: "Debt Repaid",
       liquidatorProfit: "Liquidator profit",
       fairnessDebtRepaid: "Fairness Debt Repaid",
@@ -1993,6 +1993,12 @@ export const COPY = {
     body: "We're unable to provide access from your current region due to regulatory restrictions.",
   },
   reorder: {
+    modalTitle: "Reorder Vaults",
+    modalSubtitle:
+      "This is the liquidation order of your BTCVaults. Drag to change the order.",
+    infoText:
+      "BTCVaults are liquidated in order from first to last. A liquidation event seizes BTCVaults from the front until it covers the amount owed, so the order decides how much of your BTC survives.",
+    networkFeeLabel: "Ethereum network fee",
     confirmButton: "Confirm",
     doneButton: "Done",
     successTitle: "BTC Vault order updated",
@@ -2007,7 +2013,7 @@ export const COPY = {
     minForSplit: {
       label: "Effective Minimum for Split",
       tooltip:
-        "The minimum amount of BTC required to enable partial liquidation via splitting deposit into two BTCVaults.",
+        "The minimum amount of BTC required to enable partial liquidation via splitting a deposit into two BTCVaults.",
     },
     ltv: {
       label: "Collateral Factor",
@@ -2087,7 +2093,7 @@ export const COPY = {
     // what action is feasible.
     cliff: {
       title: "First liquidation takes everything",
-      body: "With your current BTCvaults, a single liquidation event liquidates all your BTC in collateral.",
+      body: "With your current BTCVaults, a single liquidation event liquidates all your BTC in collateral.",
       // Header shown above the suggestion text when there is no actionable CTA
       // (the withdraw/re-deposit and multi-vault cases). Rendered uppercase.
       suggestionLabel: "Suggestion",

@@ -1,4 +1,4 @@
-import { Hint } from "@babylonlabs-io/core-ui";
+import { Hint, InfoIcon } from "@babylonlabs-io/core-ui";
 
 import { COPY } from "@/copy";
 import { computeMaxBorrowUsd } from "@/utils/collateral";
@@ -42,7 +42,11 @@ export function CollateralFactorRow({
           {" "}
           {FORM_COPY.cfParenthetical(percent)}
         </span>
-        <Hint tooltip={COPY.tooltips.collateralFactor} />
+        {/* attach-to-children keeps the markup inline-valid inside this
+            span (a bare Hint would nest a div inside it). */}
+        <Hint tooltip={COPY.tooltips.collateralFactor} attachToChildren>
+          <InfoIcon size={16} className="text-accent-secondary" />
+        </Hint>
       </span>
     </div>
   );

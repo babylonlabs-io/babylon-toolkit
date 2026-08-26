@@ -23,12 +23,6 @@ import { V3ModalShell } from "@/components/shared/V3ModalShell";
 import { COPY } from "@/copy";
 import type { CollateralVaultEntry } from "@/types/collateral";
 
-import {
-  NETWORK_FEE_LABEL,
-  REORDER_INFO_TEXT,
-  REORDER_MODAL_SUBTITLE,
-  REORDER_MODAL_TITLE,
-} from "./constants";
 import { ReorderVaultItem } from "./ReorderVaultItem";
 import { useReorderGasEstimate } from "./useReorderGasEstimate";
 import { useReorderModal } from "./useReorderModal";
@@ -96,10 +90,10 @@ export function ReorderVaultsModal({
             as="h2"
             className="font-normal text-accent-primary"
           >
-            {REORDER_MODAL_TITLE}
+            {COPY.reorder.modalTitle}
           </Heading>
           <Text variant="subtitle1" className="text-accent-secondary">
-            {REORDER_MODAL_SUBTITLE}
+            {COPY.reorder.modalSubtitle}
           </Text>
         </div>
 
@@ -129,7 +123,7 @@ export function ReorderVaultsModal({
 
           {hasOrderChanged && (
             <p className="rounded-lg bg-secondary-contrast/5 p-3 text-sm text-accent-secondary">
-              {REORDER_INFO_TEXT}
+              {COPY.reorder.infoText}
             </p>
           )}
 
@@ -157,7 +151,7 @@ export function ReorderVaultsModal({
             )}
             {hasOrderChanged && (
               <div className="flex items-center justify-between pt-3 text-sm text-accent-secondary">
-                <span>{NETWORK_FEE_LABEL}</span>
+                <span>{COPY.reorder.networkFeeLabel}</span>
                 <span>
                   {feeEth} {feeUsd}
                 </span>

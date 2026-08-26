@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 // Component tests mock core-ui (its dist isn't built in the test run).
 vi.mock("@babylonlabs-io/core-ui", () => ({
   Hint: () => null,
+  InfoIcon: () => null,
 }));
 
 import { CollateralFactorRow } from "../CollateralFactorRow";
