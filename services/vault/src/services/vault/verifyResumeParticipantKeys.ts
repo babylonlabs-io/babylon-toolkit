@@ -56,7 +56,7 @@ function canonicalizeStamped(
     const at = index === undefined ? "" : ` at index ${index}`;
     throw new Error(
       `Cannot verify participant keys: the stamped value for ${label}${at} is ` +
-        `not a readable BTC public key (${key}). The Pre-PegIn was not broadcast.`,
+        `not a readable BTC public key (${key}). The Vault Creation was not broadcast.`,
       { cause },
     );
   }
@@ -82,9 +82,9 @@ function assertSameSet(
     expectedCanonical.some((k, i) => k !== actual[i])
   ) {
     throw new ParticipantKeyDriftError(
-      `Aborting Pre-PegIn broadcast: ${label} changed since this deposit was built ` +
+      `Aborting Vault Creation broadcast: ${label} changed since this deposit was built ` +
         `(expected [${expectedCanonical.join(", ")}], got [${actual.join(", ")}]). ` +
-        `The Pre-PegIn was not broadcast; the registered ETH vault will time out ` +
+        `The Vault Creation was not broadcast; the registered ETH vault will time out ` +
         `per protocol rules.`,
     );
   }
@@ -145,9 +145,9 @@ export async function verifyResumeParticipantKeys(params: {
   );
   if (resolved.vaultProvider.operationBtcPubkey !== expectedVp) {
     throw new ParticipantKeyDriftError(
-      `Aborting Pre-PegIn broadcast: the vault provider's operation key changed ` +
+      `Aborting Vault Creation broadcast: the vault provider's operation key changed ` +
         `since this deposit was built (expected ${expectedVp}, got ` +
-        `${resolved.vaultProvider.operationBtcPubkey}). The Pre-PegIn was not ` +
+        `${resolved.vaultProvider.operationBtcPubkey}). The Vault Creation was not ` +
         `broadcast; the registered ETH vault will time out per protocol rules.`,
     );
   }

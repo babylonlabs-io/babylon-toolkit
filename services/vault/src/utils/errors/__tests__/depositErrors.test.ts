@@ -396,9 +396,12 @@ describe("mapDepositError", () => {
       "DEVICE_CEREMONY_INVALID",
       "The device no longer holds the approved intent (SW_BAD_STATE) — restart the flow from derivation.",
     );
-    const wrapped = new Error("Failed to broadcast Pre-PegIn transaction", {
-      cause: inner,
-    });
+    const wrapped = new Error(
+      "Failed to broadcast Vault Creation transaction",
+      {
+        cause: inner,
+      },
+    );
     expect(mapDepositError(wrapped)).toEqual(ERRORS.deviceCeremonyInvalid);
   });
 

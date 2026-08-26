@@ -64,7 +64,7 @@ export async function deriveHtlcSecretHex(params: {
     const computedTxHash = calculateBtcTxHash(activity.unsignedPrePeginTx);
     if (computedTxHash.toLowerCase() !== onChainPrePeginTxHash.toLowerCase()) {
       throw new Error(
-        `Pre-PegIn transaction hash mismatch: computed ${computedTxHash} from indexer tx, ` +
+        `Vault Creation transaction hash mismatch: computed ${computedTxHash} from indexer tx, ` +
           `but on-chain contract has ${onChainPrePeginTxHash}. ` +
           `Aborting to prevent potential attack.`,
       );

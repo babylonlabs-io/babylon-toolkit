@@ -259,9 +259,12 @@ describe("Error Formatting", () => {
       // Mirrors userCancellation.test.ts: isUserCancellation matches this
       // shape (some wallet adapters reject with a bare string as `cause`),
       // so classifyError must too — both walks share chainMatchesFrame.
-      const err = new Error("Failed to broadcast batch Pre-PegIn transaction", {
-        cause: "User rejected the request",
-      });
+      const err = new Error(
+        "Failed to broadcast batch Vault Creation transaction",
+        {
+          cause: "User rejected the request",
+        },
+      );
       expect(classifyError(err)).toBe("user-rejection");
     });
 

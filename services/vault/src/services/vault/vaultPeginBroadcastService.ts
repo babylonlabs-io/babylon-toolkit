@@ -278,7 +278,7 @@ async function signAndFinalizePsbt(
   const inputCount = Psbt.fromHex(psbtHex).data.inputs.length;
   if (expectAllInputsKeyPath && verifiedInputs !== inputCount) {
     throw new Error(
-      `Key-path verification covered ${verifiedInputs} of ${inputCount} Pre-PegIn inputs; ` +
+      `Key-path verification covered ${verifiedInputs} of ${inputCount} Vault Creation inputs; ` +
         `refusing to broadcast partially verified signatures.`,
     );
   }
@@ -372,8 +372,11 @@ export async function broadcastPrePeginTransaction(
     const message = error == null ? "Unknown error" : formatError(error);
     // `cause` keeps the typed inner error visible to the cause-walking
     // classifiers (user cancellation, method-not-supported) in the mappers.
-    throw new Error(`Failed to broadcast Pre-PegIn transaction: ${message}`, {
-      cause: error,
-    });
+    throw new Error(
+      `Failed to broadcast Vault Creation transaction: ${message}`,
+      {
+        cause: error,
+      },
+    );
   }
 }

@@ -371,7 +371,7 @@ describe("vaultPayoutSignatureService", () => {
           registeredPayoutScriptPubKey: "0xscript",
         }),
       ).rejects.toThrow(
-        `No vault keepers found for version ${ON_CHAIN_VAULT.appVaultKeepersVersion}`,
+        `No Vault Keepers found for version ${ON_CHAIN_VAULT.appVaultKeepersVersion}`,
       );
     });
 

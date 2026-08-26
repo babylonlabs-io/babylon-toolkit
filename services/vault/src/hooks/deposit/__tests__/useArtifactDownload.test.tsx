@@ -358,7 +358,7 @@ describe("useArtifactDownload — prime then fetch", () => {
 
   it("surfaces a clean error when the upfront prime throws", async () => {
     ensureAuthMock.mockRejectedValueOnce(
-      new Error("Pre-PegIn transaction hash mismatch"),
+      new Error("Vault Creation transaction hash mismatch"),
     );
 
     const { result } = renderHook(() => useArtifactDownload({ primeContext }));
@@ -368,7 +368,9 @@ describe("useArtifactDownload — prime then fetch", () => {
     });
 
     await waitFor(() =>
-      expect(result.current.error).toBe("Pre-PegIn transaction hash mismatch"),
+      expect(result.current.error).toBe(
+        "Vault Creation transaction hash mismatch",
+      ),
     );
     expect(fetchMock).not.toHaveBeenCalled();
     expect(ensureAuthMock).toHaveBeenCalledTimes(1);

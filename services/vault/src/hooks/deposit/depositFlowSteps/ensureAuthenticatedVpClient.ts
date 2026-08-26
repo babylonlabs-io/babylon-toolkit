@@ -29,6 +29,7 @@ import { calculateBtcTxHash } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
 import type { Address, Hex } from "viem";
 
 import { getVaultRegistryReader } from "@/clients/eth-contract/sdk-readers";
+import { COPY } from "@/copy";
 import { resolveVpAuthPinnedPubkey } from "@/services/vault/vpAuthPinnedPubkey";
 import { getVpProxyUrl } from "@/utils/rpc";
 
@@ -86,9 +87,10 @@ export async function ensureAuthenticatedVpClient(
   const computedTxHash = calculateBtcTxHash(params.unsignedPrePeginTxHex);
   if (computedTxHash.toLowerCase() !== protocol.prePeginTxHash.toLowerCase()) {
     throw new Error(
-      `Pre-PegIn transaction hash mismatch: computed ${computedTxHash} from indexer tx, ` +
-        `but on-chain contract has ${protocol.prePeginTxHash}. ` +
-        `Aborting to prevent potential attack.`,
+      COPY.deposit.errors.vaultCreationHashMismatch(
+        computedTxHash,
+        protocol.prePeginTxHash,
+      ),
     );
   }
 
