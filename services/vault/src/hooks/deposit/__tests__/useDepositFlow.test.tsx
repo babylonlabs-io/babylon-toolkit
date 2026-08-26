@@ -367,6 +367,16 @@ async function executeDepositFlow(result: {
   return promise;
 }
 
+/** What the Ledger provider rejects with when a requested cancel settles. */
+function signingCanceledError() {
+  return Object.assign(
+    new Error(
+      "Signing canceled after 0 of 1 PSBT(s) — the ceremony restarts from the device approval screens on retry.",
+    ),
+    { code: "CONNECTION_REJECTED" },
+  );
+}
+
 async function setupDefaultMocks() {
   const { useBtcWalletState } = vi.mocked(await import("../useBtcWalletState"));
   const { useProtocolParamsContext } = vi.mocked(
@@ -1535,6 +1545,66 @@ describe("useDepositFlow", () => {
       });
       expect(MOCK_BTC_WALLET.signPsbt).toHaveBeenCalledTimes(2);
     });
+
+    it("peg-in batch ticks update peginSigningProgress per signed PSBT before the batch resolves", async () => {
+      const { preparePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultTransactionService"),
+      );
+      let listener: ((p: { completed: number; total: number }) => void) | null =
+        null;
+      const unsubscribe = vi.fn();
+      const settle: { resolve: (v: string[]) => void } = { resolve: () => {} };
+      const nativeSignPsbts = vi.fn(
+        () =>
+          new Promise<string[]>((resolve) => {
+            settle.resolve = resolve;
+          }),
+      );
+      const batchWallet = {
+        ...MOCK_BTC_WALLET,
+        signPsbts: nativeSignPsbts,
+        subscribeSigningProgress: vi.fn(
+          (cb: (p: { completed: number; total: number }) => void) => {
+            listener = cb;
+            return unsubscribe;
+          },
+        ),
+      };
+      vi.mocked(preparePeginTransaction).mockImplementation(async (wallet) => {
+        await wallet.signPsbts(["psbt0", "psbt1"], [{}, {}]);
+        return MOCK_BATCH_RESULT as any;
+      });
+
+      const { result } = renderHook(() =>
+        useDepositFlow({
+          ...MOCK_PARAMS,
+          btcWalletProvider: batchWallet as any,
+        }),
+      );
+      let flow!: Promise<unknown>;
+      act(() => {
+        flow = result.current.executeDeposit();
+      });
+      await waitFor(() => expect(nativeSignPsbts).toHaveBeenCalledTimes(1));
+
+      await act(async () => {
+        listener?.({ completed: 1, total: 2 });
+      });
+      expect(result.current.peginSigningProgress).toEqual({
+        completed: 1,
+        total: 2,
+      });
+
+      await act(async () => {
+        settle.resolve(["signedPsbt0", "signedPsbt1"]);
+        await flow;
+      });
+      expect(result.current.peginSigningProgress).toEqual({
+        completed: 2,
+        total: 2,
+      });
+      expect(unsubscribe).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe("Device-sign cancellation", () => {
@@ -1562,16 +1632,6 @@ describe("useDepositFlow", () => {
         ...(withCancel ? { cancelSigning } : {}),
       };
       return { wallet, settle, cancelSigning };
-    }
-
-    /** What the Ledger provider rejects with when a requested cancel settles. */
-    function signingCanceledError() {
-      return Object.assign(
-        new Error(
-          "Signing canceled after 0 of 1 PSBT(s) — the ceremony restarts from the device approval screens on retry.",
-        ),
-        { code: "CONNECTION_REJECTED" },
-      );
     }
 
     it("exposes canCancelDeviceSign only while a pre-pegin signPsbt is in flight on a provider with cancelSigning", async () => {
@@ -2477,6 +2537,385 @@ describe("useDepositFlow", () => {
 
       expect(result.current.error).toBeTruthy();
       expect(result.current.resumableVaultIds).toBeNull();
+    });
+  });
+
+  describe("per-ceremony payout progress", () => {
+    // Ledger-shaped provider: signPsbts is held open and the test emits
+    // ticks through the captured subscribeSigningProgress listener.
+    function progressWallet() {
+      let listener: ((p: { completed: number; total: number }) => void) | null =
+        null;
+      const unsubscribe = vi.fn();
+      const settle: {
+        resolve: (v: string[]) => void;
+        reject: (e: unknown) => void;
+      } = {
+        resolve: () => {},
+        reject: () => {},
+      };
+      const signPsbts = vi.fn(
+        () =>
+          new Promise<string[]>((resolve, reject) => {
+            settle.resolve = resolve;
+            settle.reject = reject;
+          }),
+      );
+      const wallet = {
+        ...MOCK_BTC_WALLET,
+        signPsbts,
+        subscribeSigningProgress: vi.fn(
+          (cb: (p: { completed: number; total: number }) => void) => {
+            listener = cb;
+            return unsubscribe;
+          },
+        ),
+      };
+      return {
+        wallet,
+        settle,
+        unsubscribe,
+        tick: (c: number, t: number) => listener?.({ completed: c, total: t }),
+      };
+    }
+
+    // Vault 0 announces the round, then hands the batch over. Vault 1 parks
+    // the flow so vault 0's final progress is readable before the post-loop
+    // reset nulls it; release the park to let the flow finish.
+    async function armPayoutRounds(
+      announced: { completed: number; total: number },
+      psbts: string[],
+    ) {
+      const { signAndSubmitPayouts } = vi.mocked(
+        await import("../depositFlowSteps"),
+      );
+      let release: () => void = () => {};
+      const parked = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      vi.mocked(signAndSubmitPayouts).mockImplementation(
+        async ({ vaultId, btcWallet, onProgress }) => {
+          if (vaultId === "0xVault1Id") {
+            await parked;
+            return;
+          }
+          onProgress?.({ phase: "claimers", ...announced });
+          await btcWallet.signPsbts(psbts);
+        },
+      );
+      return { release };
+    }
+
+    it("claimer ticks update payoutSigningProgress without changing the current step", async () => {
+      const { wallet, settle, tick } = progressWallet();
+      const park = await armPayoutRounds({ completed: 0, total: 5 }, [
+        "payout-0",
+        "payout-1",
+        "payout-2",
+        "payout-3",
+        "payout-4",
+      ]);
+
+      const { result } = renderHook(() =>
+        useDepositFlow({ ...MOCK_PARAMS, btcWalletProvider: wallet as any }),
+      );
+      let flow!: Promise<unknown>;
+      act(() => {
+        flow = result.current.executeDeposit();
+      });
+      await waitFor(() => expect(wallet.signPsbts).toHaveBeenCalledTimes(1));
+      expect(result.current.currentStep).toBe(DepositFlowStep.SIGN_PAYOUTS);
+
+      await act(async () => {
+        tick(2, 5);
+      });
+
+      expect(result.current.payoutSigningProgress).toEqual({
+        phase: "claimers",
+        completed: 2,
+        total: 5,
+      });
+      expect(result.current.currentStep).toBe(DepositFlowStep.SIGN_PAYOUTS);
+
+      await act(async () => {
+        settle.resolve(["a", "b", "c", "d", "e"]);
+        park.release();
+        await flow;
+      });
+    });
+
+    it("depositor-graph ticks update payoutSigningProgress on the SIGN_DEPOSITOR_GRAPH step", async () => {
+      const { wallet, settle, tick } = progressWallet();
+      // The SDK already reported the claimers round complete → the ref flipped.
+      const park = await armPayoutRounds({ completed: 3, total: 3 }, [
+        "payout",
+        "nopayout-1",
+        "nopayout-2",
+      ]);
+
+      const { result } = renderHook(() =>
+        useDepositFlow({ ...MOCK_PARAMS, btcWalletProvider: wallet as any }),
+      );
+      let flow!: Promise<unknown>;
+      act(() => {
+        flow = result.current.executeDeposit();
+      });
+      await waitFor(() => expect(wallet.signPsbts).toHaveBeenCalledTimes(1));
+      expect(result.current.payoutSigningProgress).toEqual({
+        phase: "graph",
+        completed: 0,
+        total: 3,
+      });
+      expect(result.current.currentStep).toBe(
+        DepositFlowStep.SIGN_DEPOSITOR_GRAPH,
+      );
+
+      await act(async () => {
+        tick(1, 3);
+      });
+      expect(result.current.payoutSigningProgress).toEqual({
+        phase: "graph",
+        completed: 1,
+        total: 3,
+      });
+
+      await act(async () => {
+        settle.resolve(["a", "b", "c"]);
+      });
+      expect(result.current.payoutSigningProgress).toEqual({
+        phase: "graph",
+        completed: 3,
+        total: 3,
+      });
+
+      await act(async () => {
+        park.release();
+        await flow;
+      });
+    });
+
+    it("a failed depositor-graph batch keeps the last tick and does not report the batch complete", async () => {
+      const { wallet, settle, tick } = progressWallet();
+      const park = await armPayoutRounds({ completed: 3, total: 3 }, [
+        "payout",
+        "nopayout-1",
+        "nopayout-2",
+      ]);
+
+      const { result } = renderHook(() =>
+        useDepositFlow({ ...MOCK_PARAMS, btcWalletProvider: wallet as any }),
+      );
+      let flow!: Promise<unknown>;
+      act(() => {
+        flow = result.current.executeDeposit();
+      });
+      await waitFor(() => expect(wallet.signPsbts).toHaveBeenCalledTimes(1));
+
+      await act(async () => {
+        tick(1, 3);
+      });
+      await act(async () => {
+        settle.reject(new Error("device gone"));
+      });
+
+      expect(result.current.payoutSigningProgress).toEqual({
+        phase: "graph",
+        completed: 1,
+        total: 3,
+      });
+
+      await act(async () => {
+        park.release();
+        await flow;
+      });
+    });
+
+    it("a failed lone depositor-graph signPsbt keeps 0/1 instead of reporting it complete", async () => {
+      // signPsbt-only wallet: an empty challenger set makes the graph one
+      // PSBT, which the SDK routes to signPsbt rather than the batch wrapper.
+      let rejectGraphSign: (e: unknown) => void = () => {};
+      const signPsbt = vi.fn((hex: string) =>
+        hex === "graphPsbt"
+          ? new Promise<string>((_, reject) => {
+              rejectGraphSign = reject;
+            })
+          : Promise.resolve("mockSignedPsbtHex"),
+      );
+      const wallet = { ...MOCK_BTC_WALLET, signPsbt };
+      const { signAndSubmitPayouts } = vi.mocked(
+        await import("../depositFlowSteps"),
+      );
+      // Vault 1 parks the flow so vault 0's progress is readable before the
+      // post-loop reset nulls it.
+      let release: () => void = () => {};
+      const parked = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      vi.mocked(signAndSubmitPayouts).mockImplementation(
+        async ({ vaultId, btcWallet, onProgress }) => {
+          if (vaultId === "0xVault1Id") {
+            await parked;
+            return;
+          }
+          onProgress?.({ phase: "claimers", completed: 3, total: 3 });
+          await btcWallet.signPsbt("graphPsbt");
+        },
+      );
+
+      const { result } = renderHook(() =>
+        useDepositFlow({ ...MOCK_PARAMS, btcWalletProvider: wallet as any }),
+      );
+      let flow!: Promise<unknown>;
+      act(() => {
+        flow = result.current.executeDeposit();
+      });
+      await waitFor(() =>
+        expect(signPsbt).toHaveBeenCalledWith("graphPsbt", undefined),
+      );
+      await act(async () => {
+        rejectGraphSign(new Error("device gone"));
+      });
+
+      expect(result.current.payoutSigningProgress).toEqual({
+        phase: "graph",
+        completed: 0,
+        total: 1,
+      });
+
+      await act(async () => {
+        release();
+        await flow;
+      });
+    });
+
+    it("the signing-progress subscription is torn down on every settle path", async () => {
+      // Resolve.
+      const resolved = progressWallet();
+      const resolvedPark = await armPayoutRounds({ completed: 3, total: 3 }, [
+        "payout",
+        "nopayout-1",
+        "nopayout-2",
+      ]);
+      const resolvedHook = renderHook(() =>
+        useDepositFlow({
+          ...MOCK_PARAMS,
+          btcWalletProvider: resolved.wallet as any,
+        }),
+      );
+      let resolvedFlow!: Promise<unknown>;
+      act(() => {
+        resolvedFlow = resolvedHook.result.current.executeDeposit();
+      });
+      await waitFor(() =>
+        expect(resolved.wallet.signPsbts).toHaveBeenCalledTimes(1),
+      );
+      await act(async () => {
+        resolved.settle.resolve(["a", "b", "c"]);
+        resolvedPark.release();
+        await resolvedFlow;
+      });
+      expect(resolved.unsubscribe).toHaveBeenCalledTimes(1);
+
+      // Reject.
+      const rejected = progressWallet();
+      const rejectedPark = await armPayoutRounds({ completed: 3, total: 3 }, [
+        "payout",
+        "nopayout-1",
+        "nopayout-2",
+      ]);
+      const rejectedHook = renderHook(() =>
+        useDepositFlow({
+          ...MOCK_PARAMS,
+          btcWalletProvider: rejected.wallet as any,
+        }),
+      );
+      let rejectedFlow!: Promise<unknown>;
+      act(() => {
+        rejectedFlow = rejectedHook.result.current.executeDeposit();
+      });
+      await waitFor(() =>
+        expect(rejected.wallet.signPsbts).toHaveBeenCalledTimes(1),
+      );
+      await act(async () => {
+        rejected.settle.reject(new Error("device gone"));
+        rejectedPark.release();
+        await rejectedFlow;
+      });
+      expect(rejected.unsubscribe).toHaveBeenCalledTimes(1);
+
+      // Cancel: the device cancel is requested, then the provider rejects.
+      const canceled = progressWallet();
+      const cancelWallet = { ...canceled.wallet, cancelSigning: vi.fn() };
+      // The settled cancel stops the loop, so vault 1's park is never reached.
+      await armPayoutRounds({ completed: 3, total: 3 }, [
+        "payout",
+        "nopayout-1",
+        "nopayout-2",
+      ]);
+      const canceledHook = renderHook(() =>
+        useDepositFlow({
+          ...MOCK_PARAMS,
+          btcWalletProvider: cancelWallet as any,
+        }),
+      );
+      let canceledFlow!: Promise<unknown>;
+      act(() => {
+        canceledFlow = canceledHook.result.current.executeDeposit();
+      });
+      await waitFor(() =>
+        expect(canceledHook.result.current.canCancelDeviceSign).toBe(true),
+      );
+      act(() => {
+        canceledHook.result.current.cancelDeviceSign();
+      });
+      await act(async () => {
+        canceled.settle.reject(signingCanceledError());
+        await canceledFlow;
+      });
+      expect(canceled.unsubscribe).toHaveBeenCalledTimes(1);
+    });
+
+    it("wallets without the affordance keep the 0-to-N jump on every batch wrapper", async () => {
+      const { preparePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultTransactionService"),
+      );
+      const signPsbts = vi.fn().mockResolvedValue(["a", "b", "c"]);
+      const wallet = { ...MOCK_BTC_WALLET, signPsbts };
+      vi.mocked(preparePeginTransaction).mockImplementation(async (w) => {
+        await w.signPsbts(["psbt0", "psbt1"], [{}, {}]);
+        return MOCK_BATCH_RESULT as any;
+      });
+      const park = await armPayoutRounds({ completed: 3, total: 3 }, [
+        "payout",
+        "nopayout-1",
+        "nopayout-2",
+      ]);
+
+      const { result } = renderHook(() =>
+        useDepositFlow({ ...MOCK_PARAMS, btcWalletProvider: wallet as any }),
+      );
+      let flow!: Promise<unknown>;
+      act(() => {
+        flow = result.current.executeDeposit();
+      });
+
+      await waitFor(() =>
+        expect(result.current.payoutSigningProgress).toEqual({
+          phase: "graph",
+          completed: 3,
+          total: 3,
+        }),
+      );
+      expect(result.current.peginSigningProgress).toEqual({
+        completed: 2,
+        total: 2,
+      });
+
+      await act(async () => {
+        park.release();
+        await flow;
+      });
+      expect(result.current.error).toBeNull();
     });
   });
 

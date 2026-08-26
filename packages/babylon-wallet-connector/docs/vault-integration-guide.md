@@ -98,6 +98,8 @@ are in [`src/core/types.ts`](../src/core/types.ts).
 | `getNetwork` | `() => Promise<Network>` | Get BTC network. Wallet must operate on the network the dApp is configured for (signet vs mainnet); mismatch must error. |
 | `on` / `off` | `(eventName: string, cb: () => void) => void` | Register/unregister event listener |
 | `getInscriptions` | `() => Promise<InscriptionIdentifier[]>` | Optional. UTXO filtering. |
+| `cancelSigning` | `() => void` | Optional. Requests cancellation of the in-flight ceremony; settles at the next device exchange. Feature-detect. |
+| `subscribeSigningProgress` | `(listener: (p: { completed: number; total: number }) => void) => () => void` | Optional. Per-PSBT ticks inside `signPsbts` for providers that run one device ceremony per PSBT. Fires after each commit, never on rejection. Feature-detect; returns the unsubscribe. |
 
 Reference implementations:
 [Unisat](../src/core/wallets/btc/unisat/provider.ts),

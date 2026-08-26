@@ -100,6 +100,7 @@ import {
 } from "@/utils/errors/userCancellation";
 import { formatBtcValue } from "@/utils/formatting";
 import { getVpProxyUrl } from "@/utils/rpc";
+import { observeSigningProgress } from "@/utils/signingProgress";
 
 import {
   DepositFlowStep,
@@ -551,9 +552,9 @@ export function useDepositFlow(
         advanceStep(DepositFlowStep.DERIVE_VAULT_SECRET);
         // A single peg-in PSBT signs via signPsbt (the SDK's
         // signPsbtsWithFallback routes lone PSBTs there), ticking the counter
-        // once. Multi-vault: one native batch popup when the wallet supports
-        // signPsbts — the (x of n) sub-counter jumps 0 -> N around the one
-        // call — else sequential signPsbt ticks it per signature.
+        // once. Multi-vault: one native batch call when the wallet supports
+        // signPsbts — extension wallets sign it in one popup (counter 0 -> N),
+        // hardware providers tick it per device ceremony.
         const signOnePeginPsbt: typeof confirmedBtcWallet.signPsbt = async (
           psbtHex,
           opts,
@@ -569,21 +570,30 @@ export function useDepositFlow(
           );
           return signed;
         };
-        // Native batch path: one popup; the counter jumps 0 -> N around the call.
+        // Native batch path: per-ceremony ticks where the provider reports
+        // them, else the counter lands at N when the one call returns.
         const signPeginBatch: typeof confirmedBtcWallet.signPsbts = async (
           psbtHexes,
           opts,
         ) => {
           advanceStep(DepositFlowStep.SIGN_PEGIN_BTC);
           setPeginSigningProgress({ completed: 0, total: psbtHexes.length });
-          const signed = await runCancellableSign(confirmedBtcWallet, () =>
-            confirmedBtcWallet.signPsbts!(psbtHexes, opts),
+          const stopObserving = observeSigningProgress(
+            confirmedBtcWallet,
+            (tick) => setPeginSigningProgress(tick),
           );
-          setPeginSigningProgress({
-            completed: psbtHexes.length,
-            total: psbtHexes.length,
-          });
-          return signed;
+          try {
+            const signed = await runCancellableSign(confirmedBtcWallet, () =>
+              confirmedBtcWallet.signPsbts!(psbtHexes, opts),
+            );
+            setPeginSigningProgress({
+              completed: psbtHexes.length,
+              total: psbtHexes.length,
+            });
+            return signed;
+          } finally {
+            stopObserving();
+          }
         };
 
         const phaseTrackingBtcWallet: typeof confirmedBtcWallet &
@@ -1127,7 +1137,9 @@ export function useDepositFlow(
             }
           },
           signPsbt: async (psbtHex, opts) => {
-            if (payoutClaimersDoneRef.current) {
+            // Snapshot: the ref flips only from the SDK's onProgress, after this call returns.
+            const isGraph = payoutClaimersDoneRef.current;
+            if (isGraph) {
               advanceStep(DepositFlowStep.SIGN_DEPOSITOR_GRAPH);
               setPayoutSigningProgress({
                 phase: "graph",
@@ -1137,45 +1149,57 @@ export function useDepositFlow(
             }
             setIsWaiting(false);
             try {
-              return await runCancellableSign(confirmedBtcWallet, () =>
+              const signed = await runCancellableSign(confirmedBtcWallet, () =>
                 confirmedBtcWallet.signPsbt(psbtHex, opts),
               );
-            } finally {
-              setIsWaiting(true);
-              if (payoutClaimersDoneRef.current) {
+              if (isGraph) {
                 setPayoutSigningProgress({
                   phase: "graph",
                   completed: 1,
                   total: 1,
                 });
               }
+              return signed;
+            } finally {
+              setIsWaiting(true);
             }
           },
           ...(confirmedBtcWallet.signPsbts
             ? {
                 signPsbts: async (psbtHexes, opts) => {
-                  if (payoutClaimersDoneRef.current) {
+                  // Snapshot: the ref flips only from the SDK's onProgress, after this call returns.
+                  const phase = payoutClaimersDoneRef.current
+                    ? "graph"
+                    : "claimers";
+                  if (phase === "graph") {
                     advanceStep(DepositFlowStep.SIGN_DEPOSITOR_GRAPH);
                     setPayoutSigningProgress({
-                      phase: "graph",
+                      phase,
                       completed: 0,
                       total: psbtHexes.length,
                     });
                   }
+                  const stopObserving = observeSigningProgress(
+                    confirmedBtcWallet,
+                    (tick) => setPayoutSigningProgress({ phase, ...tick }),
+                  );
                   setIsWaiting(false);
                   try {
-                    return await runCancellableSign(confirmedBtcWallet, () =>
-                      confirmedBtcWallet.signPsbts!(psbtHexes, opts),
+                    const signed = await runCancellableSign(
+                      confirmedBtcWallet,
+                      () => confirmedBtcWallet.signPsbts!(psbtHexes, opts),
                     );
-                  } finally {
-                    setIsWaiting(true);
-                    if (payoutClaimersDoneRef.current) {
+                    if (phase === "graph") {
                       setPayoutSigningProgress({
-                        phase: "graph",
+                        phase,
                         completed: psbtHexes.length,
                         total: psbtHexes.length,
                       });
                     }
+                    return signed;
+                  } finally {
+                    setIsWaiting(true);
+                    stopObserving();
                   }
                 },
               }
