@@ -6,15 +6,16 @@ import { LedgerVaultProvider, WALLET_PROVIDER_NAME } from "./provider";
 
 /**
  * Ledger's dedicated vault app over the DMK — separate from the `ledger_btc*`
- * staking adapters. Nothing is injected into the page; the `wallet` probe
- * reports installed only where WebHID exists (`navigator.hid` — Chromium,
- * secure context; the DMK web-hid transport needs it). Hidden unless
- * `NEXT_PUBLIC_FF_ENABLE_LEDGER_VAULT_WALLET` is "true" — gating lives in the
- * consuming app, where env access exists.
+ * staking adapters. Nothing is injected into the page, so like the other
+ * hardware entries there is no `wallet` probe: `installed: false` would not
+ * remove a `hardware` row from the connect list (`Wallets` filters on it only
+ * for `injectable`), it would just leave a clickable row that throws
+ * "Provider not found". Availability gating — the feature flag AND WebHID
+ * (`navigator.hid`, which the DMK web-hid transport needs) — lives in the
+ * consuming app's disabled-wallets list, where env access exists.
  */
 const metadata: WalletMetadata<IBTCProvider, BTCConfig> = {
   id: "ledger_btc_vault",
-  wallet: (context) => (context?.navigator?.hid ? context : null),
   name: WALLET_PROVIDER_NAME,
   icon: logo,
   iconBackground: MONOCHROME_MARK_BACKGROUND,

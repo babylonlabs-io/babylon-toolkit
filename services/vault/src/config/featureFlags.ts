@@ -137,6 +137,10 @@ export default {
    * so the wallet ships per environment — it must stay invisible
    * everywhere by default while Ledger can switch it on in a test environment
    * without a code change or a release.
+   * Necessary but not sufficient: the entry also needs WebHID
+   * (`navigator.hid` — Chromium only, and only in a secure context, so it is
+   * absent on Firefox/Safari and on plain-http LAN origins). Without it the
+   * wallet stays hidden regardless of this flag.
    * Default: false (hidden unless explicitly set to "true")
    */
   get isLedgerVaultWalletEnabled() {
