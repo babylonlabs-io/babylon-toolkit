@@ -192,9 +192,15 @@ export interface PrepareSignPsbtParams {
   readonly depositorXOnlyHex: string;
   /**
    * Input indices the caller asked to sign, narrowing TAPSCRIPT expectations
-   * without relaxing any structural gate. Inert under `walletPolicy`: key-path
-   * expectations are never narrowed, because the base app signs every internal
-   * input. See {@link buildExpectedSignatureTable}; omit for pre-#2281 behaviour.
+   * without relaxing any classification gate. Under `walletPolicy` it narrows
+   * nothing — key-path expectations are never narrowed, because the base app
+   * signs every internal input — but the indices are still range-checked.
+   *
+   * The two table-driven prepare gates below (`assertDefaultSighashTypes`,
+   * `assertNoConflictingSignatures`) iterate the NARROWED table, so they scope
+   * to the inputs this round signs, which is what their own contracts say.
+   *
+   * See {@link buildExpectedSignatureTable}; omit for pre-#2281 behaviour.
    */
   readonly signInputIndexes?: readonly number[];
   /**

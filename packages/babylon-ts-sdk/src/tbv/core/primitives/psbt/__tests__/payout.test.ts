@@ -12,15 +12,22 @@ import {
   getAssertPayoutScriptInfo,
   type Network,
 } from "@babylonlabs-io/babylon-tbv-rust-wasm";
+import { prepareSignPsbt } from "@babylonlabs-io/ledger-vault-signer";
 import { Psbt, Transaction } from "bitcoinjs-lib";
 import { beforeAll, describe, expect, it } from "vitest";
+import { createTaprootScriptPathSignOptions } from "../../../utils/signing";
 import { deriveLocalChallengers } from "../../challengers";
+import { createPayoutScript } from "../../scripts/payout";
 import {
   deriveBip86ScriptPubKeyHex,
   hexToUint8Array,
 } from "../../utils/bitcoin";
 import { computeTaprootScriptPubKey } from "../../utils/taproot";
-import { PAYOUT_ANCHOR_DUST_SATS, PAYOUT_TX_VERSION } from "../constants";
+import {
+  DEPOSITOR_SIGNED_INPUT_COUNT,
+  PAYOUT_ANCHOR_DUST_SATS,
+  PAYOUT_TX_VERSION,
+} from "../constants";
 import {
   buildPayoutPsbt,
   extractPayoutSignature,
@@ -1906,5 +1913,104 @@ describe("buildPayoutPsbt — fee-band and domain wiring", () => {
         vpCommissionScriptPubKey: CANONICAL_VP_COMMISSION_SCRIPT_HEX,
       }),
     ).rejects.toThrow(/outputs \(200000 sats\) exceed inputs/);
+  });
+});
+
+/**
+ * The two halves of the Ledger payout contract meet nowhere else in the repo:
+ * the signer package cannot see this builder, and its fixtures are pinned to a
+ * pre-#2281 commit. #2281 put a leaf on input 1 so the device can display the
+ * terms; the signer's expectation table arms on leaf presence, so it expected a
+ * signature the firmware never produces and the ceremony died after the
+ * one-shot payout slot was spent (#2321). These tests fail on the builder
+ * change itself, which a fixture cannot.
+ */
+describe("buildPayoutPsbt — Ledger expected-signature contract", () => {
+  beforeAll(async () => {
+    await initializeWasmForTests();
+  });
+
+  /**
+   * Exactly what the provider derives from the SDK's own sign options, using
+   * the constant every production payout signer passes.
+   */
+  function signInputIndexesFor(publicKey: string): number[] {
+    const options = createTaprootScriptPathSignOptions(
+      publicKey,
+      DEPOSITOR_SIGNED_INPUT_COUNT,
+    );
+    return options.signInputs!.map((input) => input.index);
+  }
+
+  /**
+   * The real PegIn taproot output for {@link baseParams}. The shared harness
+   * pays a dummy P2TR, which the signer rejects on the control-block gate —
+   * that gate is exactly what these tests must exercise, so pay the real one.
+   */
+  async function peginOutputScriptPubKey(): Promise<Buffer> {
+    const params = baseParams({});
+    const { payoutScript, payoutControlBlock } = await createPayoutScript({
+      vaultCoreVersion: params.vaultCoreVersion,
+      depositor: params.depositorBtcPubkey,
+      vaultProvider: params.vaultProviderBtcPubkey,
+      vaultKeepers: params.vaultKeeperBtcPubkeys,
+      universalChallengers: params.universalChallengerBtcPubkeys,
+      timelockPegin: params.timelockPegin,
+      network: params.network,
+    });
+    return computeTaprootScriptPubKey({
+      leafVersion: TAPSCRIPT_LEAF_VERSION,
+      script: hexToUint8Array(payoutScript),
+      controlBlock: hexToUint8Array(payoutControlBlock),
+    });
+  }
+
+  /** PegIn tx whose output 0 is the real vault taproot output. */
+  async function realPeginTxHex(): Promise<string> {
+    const tx = new Transaction();
+    tx.addInput(NULL_TXID, 0xffffffff, SEQUENCE_MAX);
+    tx.addOutput(await peginOutputScriptPubKey(), Number(TEST_PEGIN_VALUE));
+    return tx.toHex();
+  }
+
+  /** The real post-#2281 Payout PSBT, built end-to-end from WASM-derived scripts. */
+  async function buildRealPayoutPsbtHex(): Promise<string> {
+    const peginTxHex = await realPeginTxHex();
+    const assertTxHex = await createTestAssertTransaction();
+    const payoutTxHex = createTestPayoutTransaction(peginTxHex, assertTxHex);
+    const { psbtHex } = await buildPayoutPsbt(
+      baseParams({ payoutTxHex, peginTxHex, assertTxHex }),
+    );
+    return psbtHex;
+  }
+
+  it("expects a signature on input 0 alone under the sign options the SDK passes", async () => {
+    const psbtHex = await buildRealPayoutPsbtHex();
+
+    const { table } = prepareSignPsbt({
+      psbtHex,
+      depositorXOnlyHex: TEST_KEYS.DEPOSITOR,
+      signInputIndexes: signInputIndexesFor(TEST_KEYS.DEPOSITOR),
+    });
+
+    expect([...table.byInput.keys()]).toEqual([0]);
+    expect(table.expectedYieldCount).toBe(1);
+  });
+
+  it("classifies both inputs as tapscript, so input 1 stays fully gated", async () => {
+    // The narrowing only removes an expectation. Input 1's control block, leaf
+    // version and witnessUtxo are still checked, and the flow is still tapscript.
+    const psbtHex = await buildRealPayoutPsbtHex();
+
+    const { table } = prepareSignPsbt({
+      psbtHex,
+      depositorXOnlyHex: TEST_KEYS.DEPOSITOR,
+      signInputIndexes: signInputIndexesFor(TEST_KEYS.DEPOSITOR),
+    });
+
+    expect([...table.classifiedByInput.keys()]).toEqual([0, 1]);
+    for (const expectation of table.classifiedByInput.values()) {
+      expect(expectation.kind).toBe("tapscript");
+    }
   });
 });
