@@ -58,6 +58,8 @@
     "wagmi": "2.18.1"
   },
   "devDependencies": {
+    "@babylonlabs-io/babylon-tbv-rust-wasm": "workspace:*",
+    "@babylonlabs-io/ledger-vault-signer": "workspace:*",
     "@eslint/js": "^9.31.0",
     "@playwright/test": "1.56.1",
     "@sentry/vite-plugin": "^2.22.6",
