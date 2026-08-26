@@ -99,7 +99,7 @@ are in [`src/core/types.ts`](../src/core/types.ts).
 | `on` / `off` | `(eventName: string, cb: () => void) => void` | Register/unregister event listener |
 | `getInscriptions` | `() => Promise<InscriptionIdentifier[]>` | Optional. UTXO filtering. |
 | `cancelSigning` | `() => void` | Optional. Requests cancellation of the in-flight ceremony; settles at the next device exchange. Feature-detect. |
-| `subscribeSigningProgress` | `(listener: (p: { completed: number; total: number }) => void) => () => void` | Optional. Per-PSBT ticks inside `signPsbts` for providers that run one device ceremony per PSBT. Fires after each commit, never on rejection. Feature-detect; returns the unsubscribe. |
+| `subscribeSigningProgress` | `(listener: (p: { completed: number; total: number }) => void) => () => void` | Optional. Per-PSBT ticks inside `signPsbts` for providers that run one device ceremony per PSBT. Fires after each committed ceremony; a failed ceremony emits no tick and earlier ticks stand. Feature-detect; returns the unsubscribe. |
 
 Reference implementations:
 [Unisat](../src/core/wallets/btc/unisat/provider.ts),
