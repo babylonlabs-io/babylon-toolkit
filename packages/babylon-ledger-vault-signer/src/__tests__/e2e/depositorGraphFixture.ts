@@ -336,5 +336,5 @@ function leafHashOfPsbtInput(psbtHex: string, inputIndex: number): string {
   if (leaves === undefined || leaves.length !== 1) {
     throw new Error(`payout PSBT input ${inputIndex} must carry exactly one tapLeafScript`);
   }
-  return tapLeafHash(TAPSCRIPT_LEAF_VERSION, leaves[0].script).toString("hex");
+  return tapLeafHash(leaves[0].leafVersion, leaves[0].script).toString("hex");
 }

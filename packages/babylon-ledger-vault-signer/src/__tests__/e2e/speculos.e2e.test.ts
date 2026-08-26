@@ -279,8 +279,8 @@ describe.skipIf(SPECULOS_URL === "")("Speculos end-to-end vault signing", () => 
       );
       // A terminal status word from the loop is classified into LedgerDeviceError
       // (`rawApdu.ts classifyStatusWord`, `signPsbtLoop.ts:159-171`).
-      expect(isLedgerDeviceError(failure)).toBe(true);
-      expect((failure as { statusWord: number }).statusWord).toBe(SW_INCORRECT_DATA);
+      if (!isLedgerDeviceError(failure)) throw new Error("expected a LedgerDeviceError");
+      expect(failure.statusWord).toBe(SW_INCORRECT_DATA);
       // Session and intent survive a validation failure: the next stage signs
       // the same Pre-PegIn under the same intent.
       expect(await getMasterFingerprintHex(send)).toBe(masterFingerprintHex);
@@ -609,8 +609,8 @@ describe.skipIf(SPECULOS_URL === "")("Speculos end-to-end vault signing", () => 
           // compute — so every honest NoPayout dies here at this tip.
           // When Ledger fixes the routing (KB Q16, asked 2026-08-25) this MUST
           // flip to a verified sign, and `firmwareShapedPsbtHex` + its stages go.
-          expect(isLedgerDeviceError(failure)).toBe(true);
-          expect((failure as { statusWord: number }).statusWord).toBe(SW_INCORRECT_DATA);
+          if (!isLedgerDeviceError(failure)) throw new Error("expected a LedgerDeviceError");
+          expect(failure.statusWord).toBe(SW_INCORRECT_DATA);
         }
         // Intent-survival proof, not a liveness probe: `_validate_nopayout` runs
         // only in VAULT_STATE_INTENT_LOADED (`sign_psbt_validate.c:2000-2003`),
@@ -699,8 +699,8 @@ describe.skipIf(SPECULOS_URL === "")("Speculos end-to-end vault signing", () => 
           () => null,
           (error: unknown) => error,
         );
-        expect(isLedgerDeviceError(eaten)).toBe(true);
-        expect((eaten as { statusWord: number }).statusWord).toBe(SW_INCORRECT_DATA);
+        if (!isLedgerDeviceError(eaten)) throw new Error("expected a LedgerDeviceError");
+        expect(eaten.statusWord).toBe(SW_INCORRECT_DATA);
         // …and exactly one: the same read now answers normally.
         expect(await getMasterFingerprintHex(send)).toBe(masterFingerprintHex);
       },
@@ -720,8 +720,8 @@ describe.skipIf(SPECULOS_URL === "")("Speculos end-to-end vault signing", () => 
           () => null,
           (error: unknown) => error,
         );
-        expect(isLedgerDeviceError(failure)).toBe(true);
-        expect((failure as { statusWord: number }).statusWord).toBe(SW_CAP_EXCEEDED);
+        if (!isLedgerDeviceError(failure)) throw new Error("expected a LedgerDeviceError");
+        expect(failure.statusWord).toBe(SW_CAP_EXCEEDED);
       },
       SIGNING_TIMEOUT_MS,
     );
