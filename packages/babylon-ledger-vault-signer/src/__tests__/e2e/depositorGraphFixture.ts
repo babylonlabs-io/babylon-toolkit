@@ -19,23 +19,20 @@
  *    (`test_sign_psbt_validate.py:2997`) because `_validate_nopayout` resolves
  *    the vault group by matching that txid (`sign_psbt_validate.c:2196-2219`).
  *  The suite pins the divergence: production shape rejected, firmware shape signs.
+ *  When Ledger fixes that routing (KB Q16, asked 2026-08-25) the production
+ *  shape MUST sign and `firmwareShapedPsbtHex` is deleted.
  *
  * Conscious call on the §7 audit boundary: importing the SDK/WASM builders here
- * makes them devDependencies, so `build`/`test` for this package now need them
- * built first (they never enter `dist` — the vite lib build excludes tests).
- * The alternative — committing pre-generated vectors — was rejected because a
- * stale vector would silently stop matching what the dApp actually sends.
+ * makes them devDependencies, so `build` (its typecheck) needs them built first
+ * (they never enter `dist` — the vite lib build excludes tests). `test` does
+ * not: the imports are lazy, so the ungated unit run loads this file without
+ * their dist output. The alternative — committing pre-generated vectors — was
+ * rejected because a stale vector would silently stop matching what the dApp
+ * actually sends.
  *
  * @module ledger-vault-signer/__tests__/e2e/depositorGraphFixture
  */
 
-import {
-  computePayoutFeeFloor,
-  getAssertNoPayoutScriptInfo,
-  getAssertPayoutScriptInfo,
-  type AssertPayoutNoPayoutConnectorParams,
-} from "@babylonlabs-io/babylon-tbv-rust-wasm";
-import { buildNoPayoutPsbt, buildPayoutPsbt } from "@babylonlabs-io/ts-sdk/tbv/core/primitives";
 import * as ecc from "@bitcoin-js/tiny-secp256k1-asmjs";
 import { crypto as bcrypto, initEccLib, payments, Psbt, Transaction } from "bitcoinjs-lib";
 import { Buffer } from "buffer";
@@ -55,6 +52,12 @@ import {
 
 // `payments.p2tr` (challenger sink) needs the ecc backend; idempotent.
 initEccLib(ecc);
+
+// Lazy on purpose: both resolve dist output the ungated unit run may lack, and
+// `nx/enforce-module-boundaries` forbids static imports of lazily loaded libraries.
+const loadWasm = () => import("@babylonlabs-io/babylon-tbv-rust-wasm");
+const loadSdkPrimitives = () => import("@babylonlabs-io/ts-sdk/tbv/core/primitives");
+type ConnectorParams = Parameters<Awaited<ReturnType<typeof loadWasm>>["getAssertPayoutScriptInfo"]>[0];
 
 /** BIP-341 tapscript leaf version — matches `TAPSCRIPT_LEAF_VERSION` in the SDK builders. */
 const TAPSCRIPT_LEAF_VERSION = 0xc0;
@@ -131,7 +134,7 @@ export interface DepositorGraphFixture {
   readonly payoutPsbtHex: string;
   /** Input 0's Vault-UTXO leaf hash — the single yield the firmware produces. */
   readonly payoutInput0LeafHashHex: string;
-  /** Input 1's Assert:0 payout leaf hash — the yield the HOST table also expects. */
+  /** Input 1's Assert:0 payout leaf hash (WASM-built) — display-only on-device, never signed (#2321). */
   readonly payoutInput1LeafHashHex: string;
   readonly perChallenger: readonly NoPayoutChallengerFixture[];
 }
@@ -175,9 +178,13 @@ function buildParentTx(prevoutFill: number, outputs: readonly { script: Buffer; 
  *   Vault-UTXO prevout the firmware recomputes from the intent)
  */
 export async function buildDepositorGraphFixture(peginTxHex: string): Promise<DepositorGraphFixture> {
+  const [
+    { computePayoutFeeFloor, getAssertNoPayoutScriptInfo, getAssertPayoutScriptInfo },
+    { buildNoPayoutPsbt, buildPayoutPsbt },
+  ] = await Promise.all([loadWasm(), loadSdkPrimitives()]);
   const peginTx = Transaction.fromHex(peginTxHex);
 
-  const connectorParams: AssertPayoutNoPayoutConnectorParams = {
+  const connectorParams: ConnectorParams = {
     txGraphVersion: VAULT_CORE_VERSION,
     claimer: DEPOSITOR_XONLY_HEX,
     // Depositor-as-claimer local challengers = keepers only (VP excluded).

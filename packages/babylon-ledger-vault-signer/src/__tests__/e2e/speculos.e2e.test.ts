@@ -14,8 +14,9 @@
  *   10. BIP-322 PoP, last among the intent stages, so it signs while the
  *       intent is still loaded — the path that exercises the firmware's
  *       intent-key check (`sign_psbt_validate.c:2764-2769`).
- *   11. depositor-graph presign (T7 stage a): Payout + NoPayout against a
- *       production-SDK-built graph fixture, still under the stage-4 intent.
+ *   11. depositor-graph presign (T7 stage a): Payout (under the production
+ *       `signInputIndexes: [0]`) + NoPayout against a production-SDK-built
+ *       graph fixture, still under the stage-4 intent.
  *   12. abort/dispatcher recovery (T7 stage b): interrupt SIGN_PSBT mid-loop,
  *       pin the eaten-APDU behavior and the full re-ceremony recovery. Runs
  *       LAST — it re-derives, which resets the vault session.
@@ -26,7 +27,8 @@
  * Requires a running container with the vault app (nanosp, testnet build,
  * firmware-test mnemonic) built from ELF commit `29beb88d5` (stages 1-10 also
  * pass at `e2d0c45b`; stages 11-12 cite `29beb88d5` line numbers). Skipped
- * unless SPECULOS_URL is set:
+ * unless SPECULOS_URL is set (SPECULOS_REQUIRED turns that skip into a
+ * failure — CI):
  *
  *   SPECULOS_URL=http://127.0.0.1:5055 pnpm exec vitest run src/__tests__/e2e/
  *
@@ -34,26 +36,19 @@
  * between runs.
  */
 
-import { assertScriptPathSchnorrSignature } from "@babylonlabs-io/ts-sdk/tbv/core/primitives";
 import { Psbt, Transaction } from "bitcoinjs-lib";
 import { Buffer } from "buffer";
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 
 import { getExtendedPublicKey, getMasterFingerprintHex } from "../../derivation";
 import { assertDepositTermsDeviceCompatible } from "../../envelope";
-import {
-  isLedgerDeviceError,
-  isLedgerSignPsbtAbortedError,
-  isLedgerSignPsbtIncompleteError,
-  type LedgerSignPsbtAbortedError,
-  type LedgerSignPsbtIncompleteError,
-} from "../../errors";
+import { isLedgerDeviceError, isLedgerSignPsbtAbortedError, type LedgerSignPsbtAbortedError } from "../../errors";
 import { bip86OutputScript } from "../../expectedSignatures";
 import { augmentPsbtForWalletPolicy, deriveChangeXOnlyHex } from "../../policyPsbt";
 import { bip322ToSpendTxid, buildPopPsbtHex } from "../../popPsbt";
 import { SW_CAP_EXCEEDED } from "../../rawApdu";
 import { signPreparedVaultPsbt, signVaultPsbt, type SignVaultPsbtResult } from "../../signPsbt";
-import { getPreparedSignPsbtState, prepareSignPsbt, type PreparedSignPsbt } from "../../signPsbtPrepare";
+import { prepareSignPsbt, type PreparedSignPsbt } from "../../signPsbtPrepare";
 import { approveVaultIntent, deriveContextHash } from "../../vaultCommands";
 import { buildDefaultTaprootPolicy, type DefaultTaprootWalletPolicy } from "../../walletPolicy";
 import { buildDepositorGraphFixture, type DepositorGraphFixture } from "./depositorGraphFixture";
@@ -81,10 +76,21 @@ import {
   createSpeculosRawApduSender,
   getAppAndVersion,
   readScreenText,
+  readSpeculosUrl,
   sleep,
 } from "./speculosClient";
 
-const SPECULOS_URL = process.env.SPECULOS_URL ?? "";
+const SPECULOS_URL = readSpeculosUrl();
+
+/**
+ * The SDK's script-path verifier, loaded inside the gated suite only: it
+ * resolves the ts-sdk dist, which the ungated unit run must not need (same
+ * boundary as `depositorGraphFixture.ts`; nx forbids a static import here).
+ */
+async function loadSdkVerifier() {
+  return (await import("@babylonlabs-io/ts-sdk/tbv/core/primitives")).assertScriptPathSchnorrSignature;
+}
+type SdkVerifier = Awaited<ReturnType<typeof loadSdkVerifier>>;
 
 /** Live-verified nanosp review-screen texts (reference driver `lsk_ceremony2.py`). */
 const DERIVE_APPROVAL_TEXT = "Allow derivation";
@@ -107,6 +113,15 @@ const SCHNORR_SIG_BYTES = 64;
 
 /** Depositor-graph challengers = VKs + UCs (VP excluded): 1 keeper + 1 universal in the fixture roster. */
 const DEPOSITOR_GRAPH_CHALLENGER_COUNT = 2;
+/**
+ * Payout input 0 (Vault UTXO) is the one the depositor signs — production
+ * narrows the table to it (ts-sdk `signDepositorGraph` DEPOSITOR_SIGNED_INPUT_COUNT
+ * → `signInputIndexes: [0]`, #2321); input 1 (Assert:0) is display-only.
+ */
+const PAYOUT_VAULT_UTXO_INPUT = 0;
+const PAYOUT_ASSERT_INPUT = 1;
+/** NoPayout input 0 spends Assert:0 (btc-vault nopayout.rs:146-155) — the one prevout the two fixture shapes differ in. */
+const NOPAYOUT_ASSERT_INPUT = 0;
 /** Stage 12 aborts after the FIRST yield — validation (and the Pre-PegIn cap bump) is over, signing is not. */
 const ABORT_AFTER_YIELD_COUNT = 1;
 
@@ -467,11 +482,17 @@ describe.skipIf(SPECULOS_URL === "")("Speculos end-to-end vault signing", () => 
 
   describe("(11) depositor-graph presign (Payout + NoPayout) under the loaded intent", () => {
     let graph: DepositorGraphFixture | undefined;
+    let assertScriptPathSchnorrSignature: SdkVerifier | undefined;
+
+    beforeAll(async () => {
+      assertScriptPathSchnorrSignature = await loadSdkVerifier();
+    });
 
     it(
       "builds the graph fixture with the production SDK builders, bound to the signed PegIn",
       async () => {
         expect(fixture, "PegIn stage must have built its fixture").toBeDefined();
+        expect(assertScriptPathSchnorrSignature, "the SDK verifier must have loaded").toBeDefined();
         const peginTxHex = Transaction.fromBuffer(
           Psbt.fromHex((fixture as PeginPsbtFixture).psbtHex).data.globalMap.unsignedTx.toBuffer(),
         ).toHex();
@@ -482,46 +503,87 @@ describe.skipIf(SPECULOS_URL === "")("Speculos end-to-end vault signing", () => 
     );
 
     it(
-      "Payout: the device yields ONE signature (input 0, Vault-UTXO leaf) — the host table also expects input 1, pinning the completion gap",
+      "NoPayout fixture shapes differ ONLY in input 0's prevout txid — the firmware reject below is attributable to group routing alone",
+      () => {
+        expect(graph, "fixture stage must have built the graph").toBeDefined();
+        for (const challenger of (graph as DepositorGraphFixture).perChallenger) {
+          const production = Psbt.fromHex(challenger.productionPsbtHex);
+          const firmwareShaped = Psbt.fromHex(challenger.firmwareShapedPsbtHex);
+          const productionTx = Transaction.fromBuffer(production.data.globalMap.unsignedTx.toBuffer());
+          const firmwareShapedTx = Transaction.fromBuffer(firmwareShaped.data.globalMap.unsignedTx.toBuffer());
+          expect(
+            firmwareShapedTx.ins[NOPAYOUT_ASSERT_INPUT].hash.equals(productionTx.ins[NOPAYOUT_ASSERT_INPUT].hash),
+          ).toBe(false);
+          // Normalise the one intended difference, then demand byte-identity of
+          // the unsigned tx and field-identity of every map (the prevout lives
+          // nowhere but the tx — no non-witness UTXOs are attached).
+          firmwareShapedTx.ins[NOPAYOUT_ASSERT_INPUT].hash = productionTx.ins[NOPAYOUT_ASSERT_INPUT].hash;
+          expect(firmwareShapedTx.toBuffer().equals(productionTx.toBuffer())).toBe(true);
+          expect(firmwareShaped.data.inputs).toEqual(production.data.inputs);
+          expect(firmwareShaped.data.outputs).toEqual(production.data.outputs);
+          expect(firmwareShaped.data.globalMap.unknownKeyVals).toEqual(production.data.globalMap.unknownKeyVals);
+        }
+      },
+      SANITY_TIMEOUT_MS,
+    );
+
+    it(
+      "Payout: the device signs input 0 alone under signInputIndexes [0]; input 1 stays classified but unsigned",
       async () => {
         expect(graph, "fixture stage must have built the graph").toBeDefined();
         const g = graph as DepositorGraphFixture;
-        const prepared = prepareSignPsbt({ psbtHex: g.payoutPsbtHex, depositorXOnlyHex: DEPOSITOR_XONLY_HEX });
-        // The host table counts every leaf-carrying input (expectedSignatures.ts
-        // buildExpectedSignatureTable) — inputs 0 AND 1 here…
-        expect(prepared.table.expectedYieldCount).toBe(2);
-        const { collector } = getPreparedSignPsbtState(prepared);
-        const failure = await signPreparedVaultPsbt(sendRaw, prepared, {
-          signal: AbortSignal.timeout(SIGNING_ABORT_MS),
-        }).then(
-          () => null,
-          (error: unknown) => error,
-        );
-        // …but the firmware signs Payout input 0 ONLY and answers SW_OK
-        // (`sign_custom_inputs.c:345-424`; fw test_sign_psbt_payout_vk asserts a
-        // single sig for the depositor claimer). Input 1 belongs to the separate
-        // PayoutFinalize flow. The host's set-equal completion therefore fails
-        // AFTER the device signed — package gap to fix before the payout stage
-        // ships; this stage pins both sides.
-        expect(isLedgerSignPsbtIncompleteError(failure)).toBe(true);
-        expect((failure as LedgerSignPsbtIncompleteError).missing).toEqual([`1:${g.payoutInput1LeafHashHex}`]);
+        // #2321: the table is narrowed to what the firmware signs — the literal
+        // input 0 (`fw:sign_custom_inputs.c:347,413` @ 29beb88d5), never input 1.
+        const prepared = prepareSignPsbt({
+          psbtHex: g.payoutPsbtHex,
+          depositorXOnlyHex: DEPOSITOR_XONLY_HEX,
+          signInputIndexes: [PAYOUT_VAULT_UTXO_INPUT],
+        });
+        expect(prepared.table.expectedYieldCount).toBe(1);
+        expect([...prepared.table.byInput.keys()]).toEqual([PAYOUT_VAULT_UTXO_INPUT]);
+        // Input 1 is still classified and gated: a zero-I/O prepare requesting
+        // it passes the same structural gates, and its SDK-attached leaf is the
+        // WASM payout leaf (the SDK↔WASM cross-check).
+        const assertInput = prepareSignPsbt({
+          psbtHex: g.payoutPsbtHex,
+          depositorXOnlyHex: DEPOSITOR_XONLY_HEX,
+          signInputIndexes: [PAYOUT_ASSERT_INPUT],
+        }).table.byInput.get(PAYOUT_ASSERT_INPUT);
+        expect(assertInput?.kind).toBe("tapscript");
+        if (assertInput?.kind !== "tapscript") throw new Error("unreachable");
+        expect([...assertInput.expectedLeafHashHexes]).toEqual([g.payoutInput1LeafHashHex]);
 
-        expect(collector.yields).toHaveLength(1);
-        const yielded = collector.yields[0];
+        // Payout signing is silent on-device under the loaded intent.
+        const result = await signPreparedVaultPsbt(sendRaw, prepared, {
+          signal: AbortSignal.timeout(SIGNING_ABORT_MS),
+        });
+        expect(result.yields).toHaveLength(1);
+        const yielded = result.yields[0];
         expect(yielded.kind).toBe("tapscript");
         if (yielded.kind !== "tapscript") throw new Error("unreachable");
-        expect(yielded.inputIndex).toBe(0);
+        expect(yielded.inputIndex).toBe(PAYOUT_VAULT_UTXO_INPUT);
         expect(yielded.signerXOnlyHex).toBe(DEPOSITOR_XONLY_HEX);
         expect(yielded.leafHashHex).toBe(g.payoutInput0LeafHashHex);
         expect(yielded.signature).toHaveLength(SCHNORR_SIG_BYTES);
         // Far side, via the SDK's own verifier: recompute the BIP-341
         // script-path sighash from the PSBT WE built and check the Schnorr.
-        assertScriptPathSchnorrSignature({
+        (assertScriptPathSchnorrSignature as SdkVerifier)({
           requestedPsbtHex: g.payoutPsbtHex,
           signatureHex: Buffer.from(yielded.signature).toString("hex"),
           signerXOnlyPubkeyHex: DEPOSITOR_XONLY_HEX,
-          inputIndex: 0,
+          inputIndex: PAYOUT_VAULT_UTXO_INPUT,
         });
+
+        // Merge writes input 0's tapScriptSig for the depositor key and leaves
+        // input 1 untouched.
+        const merged = Psbt.fromHex(result.signedPsbtHex);
+        const tapScriptSig = merged.data.inputs[PAYOUT_VAULT_UTXO_INPUT].tapScriptSig;
+        expect(tapScriptSig).toHaveLength(1);
+        const entry = (tapScriptSig ?? [])[0];
+        expect(entry.pubkey.toString("hex")).toBe(DEPOSITOR_XONLY_HEX);
+        expect(entry.leafHash.toString("hex")).toBe(g.payoutInput0LeafHashHex);
+        expect(entry.signature).toHaveLength(SCHNORR_SIG_BYTES);
+        expect(merged.data.inputs[PAYOUT_ASSERT_INPUT].tapScriptSig).toBeUndefined();
       },
       SIGNING_TIMEOUT_MS,
     );
@@ -545,6 +607,8 @@ describe.skipIf(SPECULOS_URL === "")("Speculos end-to-end vault signing", () => 
           // protocol's NoPayout spends Assert:0 (btc-vault nopayout.rs:146-155;
           // HLD v22 §4.9.8 "Prevout Assert:0"), whose txid the device cannot
           // compute — so every honest NoPayout dies here at this tip.
+          // When Ledger fixes the routing (KB Q16, asked 2026-08-25) this MUST
+          // flip to a verified sign, and `firmwareShapedPsbtHex` + its stages go.
           expect(isLedgerDeviceError(failure)).toBe(true);
           expect((failure as { statusWord: number }).statusWord).toBe(SW_INCORRECT_DATA);
         }
@@ -572,11 +636,11 @@ describe.skipIf(SPECULOS_URL === "")("Speculos end-to-end vault signing", () => 
     /**
      * Sign the firmware-shaped NoPayout — the shape the firmware's own tests
      * build (test_sign_psbt_validate.py:2997), differing from production ONLY
-     * in input 0's prevout txid. Its completing isolates the production-shape
-     * rejection to the prevout routing alone: leaf, control block, witness
-     * band and sink all pass. NOT an endorsed scenario: a signature over the
-     * PegIn-txid prevout is unusable on the real Assert:0 (sighash commits
-     * the outpoint).
+     * in input 0's prevout txid (asserted host-side above). Its completing
+     * isolates the production-shape rejection to the prevout routing alone:
+     * leaf, control block, witness band and sink all pass. NOT an endorsed
+     * scenario: a signature over the PegIn-txid prevout is unusable on the real
+     * Assert:0 (sighash commits the outpoint). Deleted with the Q16 fix.
      */
     async function signAndVerifyFirmwareShapedNoPayout(
       challenger: DepositorGraphFixture["perChallenger"][number],
@@ -590,14 +654,14 @@ describe.skipIf(SPECULOS_URL === "")("Speculos end-to-end vault signing", () => 
       const yielded = result.yields[0];
       expect(yielded.kind).toBe("tapscript");
       if (yielded.kind !== "tapscript") throw new Error("unreachable");
-      expect(yielded.inputIndex).toBe(0);
+      expect(yielded.inputIndex).toBe(NOPAYOUT_ASSERT_INPUT);
       expect(yielded.signerXOnlyHex).toBe(DEPOSITOR_XONLY_HEX);
       expect(yielded.leafHashHex).toBe(challenger.noPayoutLeafHashHex);
-      assertScriptPathSchnorrSignature({
+      (assertScriptPathSchnorrSignature as SdkVerifier)({
         requestedPsbtHex: challenger.firmwareShapedPsbtHex,
         signatureHex: Buffer.from(yielded.signature).toString("hex"),
         signerXOnlyPubkeyHex: DEPOSITOR_XONLY_HEX,
-        inputIndex: 0,
+        inputIndex: NOPAYOUT_ASSERT_INPUT,
       });
     }
   });

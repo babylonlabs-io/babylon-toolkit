@@ -7,7 +7,7 @@
  * the only coverage of the transport seam actually carrying APDUs.
  *
  * Runs against the same container as that suite, and is skipped unless
- * SPECULOS_URL is set:
+ * SPECULOS_URL is set (SPECULOS_REQUIRED turns that skip into a failure — CI):
  *
  *   SPECULOS_URL=http://127.0.0.1:5055 pnpm exec vitest run src/__tests__/e2e/
  *
@@ -23,8 +23,9 @@ import { speculosIdentifier, speculosTransportFactory } from "@ledgerhq/device-t
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { closeDmk, connectDmkSession, disconnectDmkSession, setDmkTransportOverride } from "../../dmkSession";
+import { readSpeculosUrl } from "./speculosClient";
 
-const SPECULOS_URL = process.env.SPECULOS_URL ?? "";
+const SPECULOS_URL = readSpeculosUrl();
 
 /**
  * `isE2E` skips SpeculosTransport's disconnect watcher — a 2 s `setInterval`

@@ -21,12 +21,45 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { LEDGER_USER_REFUSED_ERROR_NAME } from "../../errors";
 import type { Apdu, RawApduSender } from "../../rawApdu";
-import { createSpeculosApduSender, createSpeculosRawApduSender, getAppAndVersion, SW_OK } from "./speculosClient";
+import {
+  createSpeculosApduSender,
+  createSpeculosRawApduSender,
+  getAppAndVersion,
+  readSpeculosUrl,
+  SW_OK,
+} from "./speculosClient";
 
 /** A sender that answers success with the given response body. */
 function senderReturning(dataHex: string): RawApduSender {
   return async () => ({ sw: SW_OK, data: Buffer.from(dataHex, "hex") });
 }
+
+describe("readSpeculosUrl", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("returns an empty string when SPECULOS_URL is unset, so the e2e files skip", () => {
+    vi.stubEnv("SPECULOS_URL", "");
+    vi.stubEnv("SPECULOS_REQUIRED", "");
+
+    expect(readSpeculosUrl()).toBe("");
+  });
+
+  it("returns SPECULOS_URL when it is set", () => {
+    vi.stubEnv("SPECULOS_URL", "http://127.0.0.1:5055");
+    vi.stubEnv("SPECULOS_REQUIRED", "1");
+
+    expect(readSpeculosUrl()).toBe("http://127.0.0.1:5055");
+  });
+
+  it("throws when SPECULOS_REQUIRED is set but SPECULOS_URL is empty, instead of letting the e2e files skip", () => {
+    vi.stubEnv("SPECULOS_URL", "");
+    vi.stubEnv("SPECULOS_REQUIRED", "1");
+
+    expect(() => readSpeculosUrl()).toThrow(/SPECULOS_REQUIRED is set but SPECULOS_URL is empty/);
+  });
+});
 
 describe("getAppAndVersion", () => {
   it("asks for the BOLOS GET_APP_AND_VERSION with no data", async () => {
