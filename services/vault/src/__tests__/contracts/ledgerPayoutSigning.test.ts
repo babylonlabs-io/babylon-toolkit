@@ -1,8 +1,15 @@
 // @vitest-environment node
-// The Ledger payout contract has two halves — the SDK's Payout PSBT plus the
-// sign options PayoutManager passes, and the signer's expected-signature table.
-// No package may depend on both without an nx cycle (ts-sdk <-> signer), so the
-// vault, which already depends on both, is where the halves meet.
+// Ledger payout signing contract: the SDK's Payout PSBT + sign options
+// (ts-sdk) meet the signer's expected-signature table. wallet-connector
+// (signer, no ts-sdk) could host this cycle-free too; the vault is chosen as
+// the composition root whose runtime graph already carries both halves, next
+// to the LedgerVaultProvider the stubs below mirror. Cost: standalone package
+// consumers never run it, and a vault-only CI run goes red for an SDK bug.
+//
+// The `contracts` project in services/vault/vitest.config.ts aliases ts-sdk
+// and the signer to their src/, so a source regression fails this file without
+// a rebuild; only the WASM package is consumed built. Run it with
+// `pnpm --filter vault test:run` (`test` alone is vitest watch mode).
 
 import {
   createPayoutConnector,
@@ -13,7 +20,10 @@ import {
   prepareSignPsbt,
   type ExpectedSignatureTable,
 } from "@babylonlabs-io/ledger-vault-signer";
-import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
+import type {
+  BitcoinWallet,
+  SignPsbtOptions,
+} from "@babylonlabs-io/ts-sdk/shared";
 import {
   PayoutManager,
   type SignPayoutParams,
@@ -49,6 +59,8 @@ const PEGIN_VALUE_SATS = 100_000;
 const ASSERT_VALUE_SATS = 50_000;
 const VP_COMMISSION_SATS = 1_000;
 const CPFP_ANCHOR_SATS = 546;
+// Fee band for this shape (assertPayoutFeeBand.ts:141-148,160): floor 4,080
+// (WASM computePayoutFeeFloor, out1Len 22) <= 5,000 <= 10 x (500 + 55 x 2) = 6,100.
 const PAYOUT_FEE_SATS = 5_000;
 const DEPOSITOR_PAYOUT_SATS =
   PEGIN_VALUE_SATS +
@@ -79,7 +91,10 @@ function councilKeys(count: number, offset: number): string[] {
   return keys.sort();
 }
 
-/** BIP-341 fold of a (leaf, control block) pair to the P2TR output it spends. */
+// BIP-341 fold of (leaf, control block) to the P2TR output it spends. A second
+// implementation on purpose: buildPayoutPsbt binds the leaf with the SDK's own
+// computeTaprootScriptPubKey (primitives/utils/taproot.ts:103), so the oracle is
+// bitcoinjs' bip341 deep import (precedent: signer tapLeafHash.test.ts:8).
 function taprootOutputFor(scriptHex: string, controlBlockHex: string): Buffer {
   const controlBlock = Buffer.from(controlBlockHex, "hex");
   const leafHash = tapleafHash({
@@ -96,32 +111,56 @@ function taprootOutputFor(scriptHex: string, controlBlockHex: string): Buffer {
 
 const STOP_AFTER_PREPARE = new Error("stop: table captured");
 
-/**
- * A wallet that does what LedgerVaultProvider does with the SDK's options —
- * hand the requested input indices to prepareSignPsbt — then bails out, so the
- * manager never reaches signature extraction.
- */
-function ledgerTableCapturingWallet(
+// BitcoinWallet requires every method; the ones a test does not drive throw.
+function notExercised(): never {
+  throw new Error("not exercised by this test");
+}
+
+// Mirrors LedgerVaultProvider.stagePsbt: only the requested indices are honoured.
+function captureTable(
+  psbtHex: string,
+  options: SignPsbtOptions | undefined,
+  tables: ExpectedSignatureTable[],
+): void {
+  const signInputIndexes = options?.signInputs?.map((input) => input.index);
+  const { table } = prepareSignPsbt({
+    psbtHex,
+    depositorXOnlyHex: DEPOSITOR,
+    signInputIndexes,
+  });
+  tables.push(table);
+}
+
+/** signPsbt does what LedgerVaultProvider.signPsbt does up to the table, then bails so extraction never runs. */
+function ledgerSequentialWallet(
   tables: ExpectedSignatureTable[],
 ): BitcoinWallet {
-  const notExercised = () => {
-    throw new Error("not exercised by this test");
-  };
   return {
     getPublicKeyHex: async () => DEPOSITOR,
     signPsbt: async (psbtHex, options) => {
-      // Mirrors LedgerVaultProvider.stagePsbt: only the indices are honoured.
-      const signInputIndexes = options?.signInputs?.map((input) => input.index);
-      const { table } = prepareSignPsbt({
-        psbtHex,
-        depositorXOnlyHex: DEPOSITOR,
-        signInputIndexes,
-      });
-      tables.push(table);
+      captureTable(psbtHex, options, tables);
+      throw STOP_AFTER_PREPARE;
+    },
+    signPsbts: notExercised,
+    getAddress: notExercised,
+    signMessage: notExercised,
+    getNetwork: notExercised,
+    deriveContextHash: notExercised,
+  };
+}
+
+/** signPsbts mirrors only LedgerVaultProvider.signPsbts' index -> options[k] mapping (not its intra-batch duplicate guard), then bails. */
+function ledgerBatchWallet(tables: ExpectedSignatureTable[]): BitcoinWallet {
+  return {
+    getPublicKeyHex: async () => DEPOSITOR,
+    signPsbt: notExercised,
+    signPsbts: async (psbtsHexes, options) => {
+      for (const [index, hex] of psbtsHexes.entries()) {
+        captureTable(hex, options?.[index], tables);
+      }
       throw STOP_AFTER_PREPARE;
     },
     getAddress: notExercised,
-    signPsbts: notExercised,
     signMessage: notExercised,
     getNetwork: notExercised,
     deriveContextHash: notExercised,
@@ -220,7 +259,7 @@ describe("Ledger payout signing contract", () => {
     const tables: ExpectedSignatureTable[] = [];
     const manager = new PayoutManager({
       network: "signet",
-      btcWallet: ledgerTableCapturingWallet(tables),
+      btcWallet: ledgerSequentialWallet(tables),
     });
 
     await expect(manager.signPayoutTransaction(params)).rejects.toBe(
@@ -236,7 +275,7 @@ describe("Ledger payout signing contract", () => {
     const tables: ExpectedSignatureTable[] = [];
     const manager = new PayoutManager({
       network: "signet",
-      btcWallet: ledgerTableCapturingWallet(tables),
+      btcWallet: ledgerSequentialWallet(tables),
     });
 
     await expect(manager.signPayoutTransaction(params)).rejects.toBe(
@@ -247,6 +286,31 @@ describe("Ledger payout signing contract", () => {
     expect([...tables[0].classifiedByInput.keys()]).toEqual([0, 1]);
     for (const expectation of tables[0].classifiedByInput.values()) {
       expect(expectation.kind).toBe("tapscript");
+    }
+  });
+
+  // The production presign path (runDepositorPresignFlow) takes this branch
+  // whenever the wallet has signPsbts, which the Ledger provider does.
+  it("PayoutManager's batch path asks the Ledger signer for input 0 alone on every real Payout PSBT", async () => {
+    const tables: ExpectedSignatureTable[] = [];
+    const manager = new PayoutManager({
+      network: "signet",
+      btcWallet: ledgerBatchWallet(tables),
+    });
+
+    // Two elements on purpose: element k must be staged with options[k].
+    await expect(
+      manager.signPayoutTransactionsBatch([params, params]),
+    ).rejects.toBe(STOP_AFTER_PREPARE);
+
+    expect(tables).toHaveLength(2);
+    for (const table of tables) {
+      expect([...table.byInput.keys()]).toEqual([0]);
+      expect(table.expectedYieldCount).toBe(1);
+      expect([...table.classifiedByInput.keys()]).toEqual([0, 1]);
+      for (const expectation of table.classifiedByInput.values()) {
+        expect(expectation.kind).toBe("tapscript");
+      }
     }
   });
 });
