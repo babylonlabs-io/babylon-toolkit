@@ -502,7 +502,7 @@ from the same derivation.
 
 ### FinalizeScriptPathWithSignaturesParams
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/finalizeScriptPathWithSignatures.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/finalizeScriptPathWithSignatures.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/finalizeScriptPathWithSignatures.ts)
 
 #### Properties
 
@@ -512,7 +512,7 @@ Defined in: packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/finalizeScriptP
 requestedPsbtHex: string;
 ```
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/finalizeScriptPathWithSignatures.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/finalizeScriptPathWithSignatures.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/finalizeScriptPathWithSignatures.ts)
 
 Hex of the PSBT built locally and sent to the wallet — the sole source of
 every per-input field. NOT the wallet-returned PSBT.
@@ -523,7 +523,7 @@ every per-input field. NOT the wallet-returned PSBT.
 signaturesHex: readonly string[];
 ```
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/finalizeScriptPathWithSignatures.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/finalizeScriptPathWithSignatures.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/finalizeScriptPathWithSignatures.ts)
 
 Verified 64-byte Schnorr signatures, one per input, index-aligned with the
 PSBT's inputs. Each must already have passed
@@ -536,7 +536,7 @@ it only decides which bytes are allowed to reach the witness.
 signerXOnlyPubkeyHex: string;
 ```
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/finalizeScriptPathWithSignatures.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/finalizeScriptPathWithSignatures.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/finalizeScriptPathWithSignatures.ts)
 
 X-only pubkey (64 hex chars) the signatures are attributed to.
 
@@ -2174,7 +2174,7 @@ which has no need of the spend material.
 function finalizeScriptPathWithSignatures(params): string;
 ```
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/finalizeScriptPathWithSignatures.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/finalizeScriptPathWithSignatures.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/finalizeScriptPathWithSignatures.ts)
 
 Attach `signaturesHex` to the locally built PSBT's script-path inputs,
 finalize, and return the extracted transaction hex.

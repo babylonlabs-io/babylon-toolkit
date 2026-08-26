@@ -149,6 +149,42 @@ describe("finalizeScriptPathWithSignatures", () => {
     expect(Transaction.fromHex(txHex).ins[0].witness).toHaveLength(3);
   });
 
+  it("matches the old finalize-the-wallet's-PSBT result when the wallet is honest", () => {
+    // The two paths are only meant to differ when the returned PSBT differs. An
+    // honest wallet returns the same per-input metadata it was given, and for
+    // that case this must be byte-for-byte what finalizing the wallet's copy
+    // produced — otherwise the change would be altering more than the trust
+    // boundary it set out to move.
+    const psbtHex = buildRequestedPsbtHex();
+    const signature = signInput(psbtHex, 0);
+
+    const honestWalletReturn = Psbt.fromHex(psbtHex);
+    honestWalletReturn.updateInput(0, {
+      tapScriptSig: [
+        {
+          pubkey: Buffer.from(DEPOSITOR_XONLY, "hex"),
+          leafHash: computeTapLeafHash(
+            honestWalletReturn.data.inputs[0].tapLeafScript![0].leafVersion,
+            honestWalletReturn.data.inputs[0].tapLeafScript![0].script,
+          ),
+          signature: Buffer.from(signature, "hex"),
+        },
+      ],
+    });
+    const previousBehaviour = honestWalletReturn
+      .finalizeAllInputs()
+      .extractTransaction()
+      .toHex();
+
+    const current = finalizeScriptPathWithSignatures({
+      requestedPsbtHex: psbtHex,
+      signaturesHex: [signature],
+      signerXOnlyPubkeyHex: DEPOSITOR_XONLY,
+    });
+
+    expect(current).toBe(previousBehaviour);
+  });
+
   it("refuses when a signature is missing for some input", () => {
     const psbtHex = buildRequestedPsbtHex();
 

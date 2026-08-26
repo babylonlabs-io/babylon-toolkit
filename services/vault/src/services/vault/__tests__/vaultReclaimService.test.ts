@@ -145,6 +145,74 @@ describe("buildAndBroadcastReclaimTransaction", () => {
     ).resolves.toBe("swept_txid");
   });
 
+  it("re-checks at the signing boundary, not just before preparing", async () => {
+    // Between the first check and the wallet prompt the service recomputes the
+    // reserve value, re-reads the vault and probes the UTXO, and the SDK then
+    // runs its fee caps, PSBT build and vault-id derivation. A reorg inside
+    // that window has to be caught, or the depositor signs away a live vault's
+    // recovery material.
+    let probeRound = 0;
+    (getOutspend as Mock).mockImplementation(
+      async (_txid: string, vout: number) => {
+        if (vout !== PEGIN_VAULT_VOUT) return { spent: false };
+        probeRound += 1;
+        // Settled on the first read; the payout has been reorged out by the
+        // time the signing boundary re-reads it.
+        return probeRound === 1
+          ? {
+              spent: true,
+              status: { confirmed: true, block_height: DEEP_PAYOUT_HEIGHT },
+            }
+          : { spent: false };
+      },
+    );
+    const walletSign = vi.fn().mockResolvedValue("signedpsbt");
+    mockBuildAndBroadcastReclaim.mockImplementation(
+      async (input: {
+        signPsbt: (p: string, o: unknown) => Promise<string>;
+      }) => {
+        await input.signPsbt("70736274ff", {});
+        return { txId: "swept_txid" };
+      },
+    );
+
+    await expect(
+      buildAndBroadcastReclaimTransaction({
+        ...broadcastParams,
+        signPsbt: walletSign,
+      }),
+    ).rejects.toBeInstanceOf(ReclaimNoLongerEligibleError);
+    // The SDK got as far as asking for a signature; the gate stopped it there.
+    expect(mockBuildAndBroadcastReclaim).toHaveBeenCalled();
+    expect(walletSign).not.toHaveBeenCalled();
+  });
+
+  it("reads the chain tip before the outspends it is compared against", async () => {
+    // Issued concurrently, a tip fetched after a new block could be paired with
+    // a payout read from before it and overstate the depth by one — the wrong
+    // direction for a gate that exists to keep a shallow payout out.
+    const order: string[] = [];
+    (getTipHeight as Mock).mockImplementation(async () => {
+      order.push("tip");
+      return TIP_HEIGHT;
+    });
+    (getOutspend as Mock).mockImplementation(
+      async (_txid: string, vout: number) => {
+        order.push(`outspend:${vout}`);
+        return vout === PEGIN_VAULT_VOUT
+          ? {
+              spent: true,
+              status: { confirmed: true, block_height: DEEP_PAYOUT_HEIGHT },
+            }
+          : { spent: false };
+      },
+    );
+
+    await getReclaimPreview(VAULT_ID);
+
+    expect(order[0]).toBe("tip");
+  });
+
   it("refuses to sign when the payout is no longer spent", async () => {
     // The row was enabled off a poll up to 60s old. A reorg since then has
     // restored the vault UTXO, which makes the depositor's recovery graph live

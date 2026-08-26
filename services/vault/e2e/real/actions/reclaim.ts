@@ -75,6 +75,7 @@ const ENCLOSING_MAX_DEPTH = 8;
 async function enclosingText(
   locator: Locator,
   minChars: number,
+  log: (m: string) => void,
 ): Promise<string> {
   let best = "";
   for (let depth = 1; depth <= ENCLOSING_MAX_DEPTH; depth++) {
@@ -82,7 +83,12 @@ async function enclosingText(
       await locator
         .locator(`xpath=ancestor::*[${depth}]`)
         .innerText()
-        .catch(() => "")
+        .catch((error: unknown) => {
+          // Running off the top of the tree is expected; anything else means the DOM path this
+          // harness relies on has moved, which is worth seeing in the log rather than hiding.
+          log(`  (ancestor[${depth}] innerText failed: ${String(error)})`);
+          return "";
+        })
     )
       .replace(/\s+/g, " ")
       .trim();
@@ -185,7 +191,7 @@ export const reclaimAction: Action = {
 
       // Record what the row said before touching it — the reclaimable figure and the vault's own
       // identifiers are the human-readable cross-check against the transaction we verify later.
-      rowSummary = await enclosingText(reclaimButton, ROW_TEXT_MIN_CHARS);
+      rowSummary = await enclosingText(reclaimButton, ROW_TEXT_MIN_CHARS, log);
       log(`Reclaimable row: ${rowSummary || "(row text unavailable)"}`);
 
       currentStep = "open-review";
@@ -208,25 +214,35 @@ export const reclaimAction: Action = {
       const reviewText = await enclosingText(
         confirmButton,
         MODAL_TEXT_MIN_CHARS,
+        log,
       );
       log(`Review screen: ${reviewText || "(modal text unavailable)"}`);
 
       // The preview has now probed the chain, so the PegIn txid is on the wire. Snapshot the gate's
       // inputs before authorising anything.
+      //
+      // Without it there is nothing to bind the broadcast to: the witness shape, weight and value
+      // conservation all hold for a sweep of ANY of this depositor's vaults, so a run that could not
+      // observe the PegIn would spend real money and then report a pass it had not earned. Refuse
+      // rather than proceed — nothing has been signed at this point.
       const [peginTxid] = watcher.peginTxids();
-      if (peginTxid) {
-        gate = await snapshotGate(mempoolApiBase, peginTxid);
-        log(
-          `Gate at authorisation: PegIn ${peginTxid} · payout spent=${gate.payoutSpend.spent} ` +
-            `confirmed=${gate.payoutSpend.confirmed} depth=${gate.payoutConfirmations ?? "?"} · ` +
-            `reserve spent=${gate.reserveSpend.spent} value=${gate.reserveValueSats ?? "?"} sats · ` +
-            `tip=${gate.tipHeight}`,
+      if (!peginTxid) {
+        throw new Error(
+          "Could not observe the PegIn txid on the wire, so the sweep cannot be bound to the " +
+            "selected vault. Refusing to sign: the remaining checks would pass for any reserve " +
+            "this depositor owns.",
         );
-      } else {
-        log(
-          "⚠️  Could not observe the PegIn txid on the wire — the gate snapshot will be skipped. " +
-            "The post-broadcast shape checks still run.",
-        );
+      }
+
+      gate = await snapshotGate(mempoolApiBase, peginTxid);
+      log(
+        `Gate at authorisation: PegIn ${peginTxid} · payout spent=${gate.payoutSpend.spent} ` +
+          `confirmed=${gate.payoutSpend.confirmed} depth=${gate.payoutConfirmations ?? "?"} · ` +
+          `reserve spent=${gate.reserveSpend.spent} value=${gate.reserveValueSats ?? "?"} sats · ` +
+          `tip=${gate.tipHeight}`,
+      );
+      if (gate.reserveValueError) {
+        log(`⚠️  Reserve value lookup: ${gate.reserveValueError}`);
       }
 
       if (dryRun) {
@@ -289,7 +305,11 @@ export const reclaimAction: Action = {
           `${verification.feeRateSatsVb ?? "?"} sat/vB)`,
       );
 
-      await doneButton.click().catch(() => undefined);
+      // The verification above has already run, so a stuck Done button does not invalidate the
+      // result — but it does mean the completion path is broken, which must not pass silently.
+      await doneButton.click().catch((error: unknown) => {
+        log(`⚠️  Done button did not accept a click: ${String(error)}`);
+      });
 
       if (!verification.allPassed) {
         throw new Error(

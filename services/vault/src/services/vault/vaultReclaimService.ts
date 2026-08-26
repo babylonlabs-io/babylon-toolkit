@@ -126,6 +126,13 @@ export function derivePeginTxid(depositorSignedPeginTx: Hex): string {
  *
  * Both outpoints are probed: vout 0 decides whether the Payout has landed
  * (the gate), vout 1 whether the reserve is still there to sweep.
+ *
+ * The tip is read **before** the outspends, not alongside them. Issued
+ * concurrently, a tip response from after a new block could be paired with a
+ * payout response from before it, overstating the confirmation depth by a
+ * block — the wrong direction for a gate that exists to keep a shallow Payout
+ * out. Reading it first can only ever understate. `useReclaimStatus` orders its
+ * reads the same way and for the same reason.
  */
 export async function readReclaimChainState(
   vaultId: Hex,
@@ -134,13 +141,13 @@ export async function readReclaimChainState(
   const peginTxid = derivePeginTxid(onChainVault.depositorSignedPeginTx);
   const apiUrl = getMempoolApiUrl();
 
-  const [payoutOutspend, reserveOutspend, tipHeight, reserveUtxo] =
-    await Promise.all([
-      getOutspend(peginTxid, PEGIN_VAULT_VOUT, apiUrl),
-      getOutspend(peginTxid, PEGIN_DEPOSITOR_CLAIM_VOUT, apiUrl),
-      getTipHeight(apiUrl),
-      getUtxoInfo(peginTxid, PEGIN_DEPOSITOR_CLAIM_VOUT, apiUrl),
-    ]);
+  const tipHeight = await getTipHeight(apiUrl);
+
+  const [payoutOutspend, reserveOutspend, reserveUtxo] = await Promise.all([
+    getOutspend(peginTxid, PEGIN_VAULT_VOUT, apiUrl),
+    getOutspend(peginTxid, PEGIN_DEPOSITOR_CLAIM_VOUT, apiUrl),
+    getUtxoInfo(peginTxid, PEGIN_DEPOSITOR_CLAIM_VOUT, apiUrl),
+  ]);
 
   return {
     peginTxid,
@@ -288,10 +295,10 @@ export async function buildAndBroadcastReclaimTransaction(
 ): Promise<string> {
   const { vaultId, depositorBtcPubkey, feeRate, signPsbt, signal } = params;
 
-  // Re-probe immediately before signing. The modal may have been open a while,
-  // and both halves of the gate matter here: an already-spent reserve is a
-  // guaranteed broadcast failure after a pointless wallet prompt, and an
-  // unsettled Payout means signing would destroy live recovery material.
+  // Re-probe before doing any work. The modal may have been open a while, and
+  // both halves of the gate matter: an already-spent reserve is a guaranteed
+  // broadcast failure after a pointless wallet prompt, and an unsettled Payout
+  // means signing would destroy live recovery material.
   const chainState = await readReclaimChainState(vaultId);
   assertReclaimStillEligible(chainState);
 
@@ -320,6 +327,20 @@ export async function buildAndBroadcastReclaimTransaction(
     },
   ];
 
+  // …and again at the signing boundary itself. Everything between the check
+  // above and this point is preparation — recomputing the reserve value from
+  // frozen parameters, re-reading the vault, the UTXO probe, then the SDK's own
+  // fee caps, PSBT build and vault-id derivation (which initialises WASM on a
+  // cold load). That is seconds, not milliseconds, and this is a safety control
+  // on an irreversible spend: the only reading that means anything is the one
+  // taken immediately before the wallet is asked to sign. The extra probe costs
+  // one round trip on an action a depositor performs once per vault.
+  const gatedSignPsbt: typeof signPsbt = async (psbtHex, opts) => {
+    signal?.throwIfAborted();
+    assertReclaimStillEligible(await readReclaimChainState(vaultId));
+    return signPsbt(psbtHex, opts);
+  };
+
   try {
     const { txId } = await buildAndBroadcastReclaim({
       vaultIds: [vaultId],
@@ -327,7 +348,7 @@ export async function buildAndBroadcastReclaimTransaction(
       depositorBtcPubkey,
       readVaults,
       feeRate,
-      signPsbt,
+      signPsbt: gatedSignPsbt,
       broadcastTx: async (signedTxHex: string) => ({
         txId: await pushTx(signedTxHex, apiUrl),
       }),

@@ -109,6 +109,11 @@ export interface ReclaimGateSnapshot {
   payoutConfirmations: number | null;
   reserveSpend: OutspendState;
   reserveValueSats: number | null;
+  /**
+   * Why `reserveValueSats` is null, when it is. Without this the artifact cannot tell a PegIn with
+   * no output at vout 1 apart from an API call that failed — very different diagnoses.
+   */
+  reserveValueError: string | null;
 }
 
 /**
@@ -127,15 +132,20 @@ export async function snapshotGate(
     fetchOutspend(mempoolApiBase, peginTxid, RECLAIM_INPUT_VOUT),
   ]);
 
+  // Best-effort: the value is also on the row and in the review screen, so a failure here must not
+  // stop the run — but it is recorded rather than swallowed.
   let reserveValueSats: number | null = null;
+  let reserveValueError: string | null = null;
   try {
     const peginTx = await getJson<EsploraTx>(
       `${mempoolApiBase}/tx/${peginTxid}`,
     );
     reserveValueSats = peginTx.vout[RECLAIM_INPUT_VOUT]?.value ?? null;
-  } catch {
-    // Best-effort: the value is also visible on the row, and its absence must not fail the run.
-    reserveValueSats = null;
+    if (reserveValueSats === null) {
+      reserveValueError = `PegIn ${peginTxid} has no output at vout ${RECLAIM_INPUT_VOUT}`;
+    }
+  } catch (error) {
+    reserveValueError = error instanceof Error ? error.message : String(error);
   }
 
   const payoutConfirmations =
@@ -150,6 +160,7 @@ export async function snapshotGate(
     payoutConfirmations,
     reserveSpend,
     reserveValueSats,
+    reserveValueError,
   };
 }
 
@@ -181,14 +192,16 @@ export interface ReclaimVerification {
 /**
  * Read the broadcast sweep back off the chain and check its shape.
  *
- * `expectedPeginTxid` is optional: when the run knows which PegIn the row belonged to we assert the
- * input against it, and when it does not we still record what was spent. The structural checks do not
- * depend on it.
+ * Both expected identities are REQUIRED, and an unavailable one becomes a failed check rather than an
+ * absent one. The structural checks below — witness shape, weight, value conservation — hold for any
+ * reclaim of any of this depositor's vaults, so on their own they cannot show that *this* sweep took
+ * *this* vault's reserve to *this* wallet. Letting either identity be skipped would let `allPassed`
+ * report a verification stronger than the one actually performed.
  */
 export async function verifyReclaimTx(
   mempoolApiBase: string,
   txid: string,
-  expected: { peginTxid?: string; depositorAddress?: string },
+  expected: { peginTxid: string; depositorAddress: string },
 ): Promise<ReclaimVerification> {
   const tx = await getJson<EsploraTx>(`${mempoolApiBase}/tx/${txid}`);
   const checks: ReclaimCheck[] = [];
@@ -213,14 +226,12 @@ export async function verifyReclaimTx(
     `vout ${vin?.vout}`,
   );
 
-  if (expected.peginTxid) {
-    check(
-      "spends the reserve of the expected PegIn",
-      vin?.txid === expected.peginTxid,
-      expected.peginTxid,
-      vin?.txid ?? "(none)",
-    );
-  }
+  check(
+    "spends the reserve of the expected PegIn",
+    Boolean(expected.peginTxid) && vin?.txid === expected.peginTxid,
+    expected.peginTxid || "(no expected PegIn supplied)",
+    vin?.txid ?? "(none)",
+  );
 
   // The one that matters most: a wallet-supplied key-path signature would finalize to a single
   // witness item against the NUMS internal key, which cannot be spent.
@@ -280,15 +291,16 @@ export async function verifyReclaimTx(
     `${tx.weight} WU`,
   );
 
+  // esplora omits `scriptpubkey_address` for shapes it cannot render, so an absent address is an
+  // unproven destination, not a passing one.
   const destinationAddress = tx.vout[0]?.scriptpubkey_address ?? null;
-  if (expected.depositorAddress && destinationAddress) {
-    check(
-      "pays the connected wallet's own address",
+  check(
+    "pays the connected wallet's own address",
+    Boolean(expected.depositorAddress) &&
       destinationAddress === expected.depositorAddress,
-      expected.depositorAddress,
-      destinationAddress,
-    );
-  }
+    expected.depositorAddress || "(no expected address supplied)",
+    destinationAddress ?? "(address not reported by esplora)",
+  );
 
   const vsize = Math.ceil(tx.weight / WEIGHT_UNITS_PER_VBYTE);
 
