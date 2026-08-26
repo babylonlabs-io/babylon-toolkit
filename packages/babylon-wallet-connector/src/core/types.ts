@@ -422,8 +422,8 @@ export interface IBTCProvider extends IProvider {
 
   /**
    * Subscribes to per-PSBT progress inside `signPsbts`: fires after each
-   * device ceremony commits, with `completed` = signatures the call will
-   * return so far and `total` = the batch length. Never fires for `signPsbt`
+   * device ceremony commits, with `completed` = PSBT ceremonies committed
+   * so far and `total` = the batch length. Never fires for `signPsbt`
    * or before the first ceremony. A ceremony that fails emits no tick, while
    * ticks for ceremonies that committed before a later rejection stand — the
    * promise settle is the terminal signal. Listener throws are swallowed.
