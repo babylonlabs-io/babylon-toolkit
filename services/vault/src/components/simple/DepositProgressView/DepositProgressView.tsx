@@ -161,6 +161,10 @@ export interface DepositProgressViewProps {
   cancelSigningRequested?: boolean;
   /** Requests cancellation of the in-flight device signing ceremony. */
   onCancelSigning?: () => void;
+  /** Inline fee-rate panel rendered in the pre-sign entry state (`!started`). */
+  preSignFeeSelector?: ReactNode;
+  /** Disables the pre-sign entry CTA (e.g. an invalid custom fee rate). */
+  signDisabled?: boolean;
 }
 
 /**
@@ -265,6 +269,8 @@ export function DepositProgressView(props: DepositProgressViewProps) {
     canCancelSigning = false,
     cancelSigningRequested = false,
     onCancelSigning,
+    preSignFeeSelector,
+    signDisabled = false,
   } = props;
 
   // Every flow that renders this view requires the BTC wallet, so surface a
@@ -481,7 +487,7 @@ export function DepositProgressView(props: DepositProgressViewProps) {
                   ? cancelSigningRequested
                   : started
                     ? !canClose && !isTerminalSuccess
-                    : false
+                    : signDisabled
             }
             variant="contained"
             color="secondary"
@@ -570,6 +576,8 @@ export function DepositProgressView(props: DepositProgressViewProps) {
             started={started}
           />
         )}
+
+        {!started && preSignFeeSelector}
 
         {/* Persist through errors: a retry still needs signing, so the nudge
             stays useful. Only a finished deposit (complete / terminal success)

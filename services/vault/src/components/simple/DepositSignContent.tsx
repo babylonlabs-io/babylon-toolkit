@@ -19,6 +19,7 @@ import { useDepositFlow } from "@/hooks/deposit/useDepositFlow";
 import { useDepositSigningNotification } from "@/hooks/deposit/useDepositSigningNotification";
 
 import { DepositProgressView } from "./DepositProgressView";
+import { FeeRateSelector } from "./DepositProgressView/FeeRateSelector";
 import { PostDepositContinuationContent } from "./PostDepositContinuationContent";
 
 interface DepositSignContentProps {
@@ -37,6 +38,8 @@ interface DepositSignContentProps {
   overlappingPendingVaultCount?: number | null;
   onClose: () => void;
   onRefetchActivities?: () => Promise<void>;
+  /** Persists a user-chosen pre-sign fee rate (sat/vB) into DepositState. */
+  onFeeRateChange: (rate: number) => void;
 }
 
 export function DepositSignContent({
@@ -44,6 +47,7 @@ export function DepositSignContent({
   onRefetchActivities,
   vaultAmounts,
   overlappingPendingVaultCount = null,
+  onFeeRateChange,
   ...flowParams
 }: DepositSignContentProps) {
   const {
@@ -78,6 +82,10 @@ export function DepositSignContent({
   // pre-sign entry state (started=false) and the depositor begins signing by
   // clicking "Sign Transaction". Once started, the live stepper takes over.
   const [started, setStarted] = useState(false);
+
+  // Tracks the pre-sign fee-rate selector's validity (e.g. an out-of-range
+  // custom rate, or a fee estimate error). Gates the pre-sign Sign CTA.
+  const [feeRateValid, setFeeRateValid] = useState(true);
 
   // Notify the depositor (if they've tabbed away) when the active flow reaches
   // a signing step. Gated on `started` so the initial DERIVE_VAULT_SECRET value
@@ -216,6 +224,15 @@ export function DepositSignContent({
         canCancelSigning={canCancelDeviceSign}
         cancelSigningRequested={deviceCancelRequested}
         onCancelSigning={cancelDeviceSign}
+        signDisabled={!feeRateValid}
+        preSignFeeSelector={
+          <FeeRateSelector
+            vaultAmounts={vaultAmounts}
+            feeRate={flowParams.mempoolFeeRate}
+            onFeeRateChange={onFeeRateChange}
+            onValidityChange={setFeeRateValid}
+          />
+        }
       />
     </>
   );

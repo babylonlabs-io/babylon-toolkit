@@ -545,6 +545,7 @@ function SimpleDepositContent({
                   : [depositAmount]
               }
               mempoolFeeRate={feeRate}
+              onFeeRateChange={setFeeRate}
               btcWalletProvider={btcWalletProvider}
               depositorEthAddress={ethAddress}
               selectedApplication={selectedApplication}
