@@ -83,8 +83,12 @@ export const DERIVE_CONTEXT = Uint8Array.from(Array.from({ length: 72 }, (_, i) 
 export const VAULT_APP_NAME = "babylon-btc-vault";
 
 const HARDENED = 0x80000000;
-/** m/86'/1'/0'/0/0 — depositor_path(coin_type=1) (vault_client.py:279). */
-export const DEPOSITOR_PATH: readonly number[] = [HARDENED | 86, HARDENED | 1, HARDENED | 0, 0, 0];
+/**
+ * m/86'/1'/0'/0/0 — depositor_path(coin_type=1) (vault_client.py:279). Levels
+ * use `+` (unsigned, provider.ts:205-212): `|` yields negative int32s that
+ * `assertBip86Path` rejects; the wire bytes are identical (`>>> 0` serializers).
+ */
+export const DEPOSITOR_PATH: readonly number[] = [86 + HARDENED, 1 + HARDENED, 0 + HARDENED, 0, 0];
 const TESTNET_COIN_TYPE = 1;
 
 /** P2A anchor scriptPubKey `51 02 4e 73` (test_sign_psbt_validate.py:349). */
