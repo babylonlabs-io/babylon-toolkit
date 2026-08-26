@@ -566,7 +566,7 @@ describe("PositionNotificationBanner", () => {
     expect(screen.queryByTestId("position-notification-banner")).toBeNull();
   });
 
-  it("keeps the cliff Add Collateral CTA (secondary) when a single-vault cliff is also urgent", () => {
+  it("keeps the cliff add-vault CTA (secondary) when a single-vault cliff is also urgent", () => {
     const result = makeBaseResult({
       warnings: [
         {
@@ -588,13 +588,11 @@ describe("PositionNotificationBanner", () => {
 
     const banner = screen.getByTestId("position-notification-banner");
     expect(banner.dataset.severity).toBe("red");
-    // Safety actions still lead, and the pre-filled cliff CTA is still offered
-    // — it shares the "Add Collateral" label with the urgent CTA per Figma,
-    // so both buttons render with identical text.
-    const addCollateralButtons = screen.getAllByText("Add Collateral");
-    expect(addCollateralButtons).toHaveLength(2);
+    // Safety actions still lead, and the pre-filled cliff CTA rides along with
+    // its amount in the label so the two buttons stay distinguishable.
+    expect(screen.getByText("Add Collateral")).toBeTruthy();
     expect(screen.getByText("Repay Debt")).toBeTruthy();
-    fireEvent.click(addCollateralButtons[1]);
+    fireEvent.click(screen.getByText("Add 0.72 BTC"));
     expect(onDeposit).toHaveBeenCalledWith("0.72");
   });
 });
@@ -640,7 +638,8 @@ describe("PositionNotificationBanner v3", () => {
           type: "cliff",
           title: "First liquidation takes everything",
           detail: "A single liquidation event seizes all your BTC.",
-          suggestion: "Adding a 0.14 BTCVault enables partial liquidation",
+          suggestion:
+            "Adding a new BTCVault of 0.14 BTC enables partial liquidation.",
         },
       ],
       suggestedNewVaultBtc: 0.12,
@@ -649,10 +648,8 @@ describe("PositionNotificationBanner v3", () => {
 
     const banner = screen.getByTestId("position-notification-banner");
     expect(banner.dataset.tone).toBe("cliff");
-    expect(
-      screen.getByText(/Adding a 0.14 BTCVault enables partial liquidation/),
-    ).toBeTruthy();
-    expect(screen.getByText("Add Collateral")).toBeTruthy();
+    expect(screen.getByText(/Adding a new BTCVault of 0.14 BTC/)).toBeTruthy();
+    expect(screen.getByText("Add 0.12 BTC")).toBeTruthy();
     expect(screen.queryByText("Suggestion")).toBeNull();
   });
 

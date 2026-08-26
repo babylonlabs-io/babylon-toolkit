@@ -62,7 +62,7 @@ export interface LiquidationEventCard {
   debtRepaidLabel: string;
   liquidatorProfitLabel: string;
   /** Full group shows a wBTC fairness payment; safe groups show fairness debt repaid. */
-  fairness: { label: string; value: string; tooltip?: string };
+  fairness: { label: string; value: string; tooltip: string };
   btcRemainingLabel: string;
   debtRemainingLabel: string;
   hfAfterLabel: string;
@@ -426,6 +426,9 @@ export function buildLiquidationChartData(
     return {
       key: String(i),
       label: COPY.liquidations.eventTitle(i + 1),
+      accessibleDetail: COPY.liquidations.containVaults(
+        group.vaults.map((v) => v.name.toLowerCase()).join(", "),
+      ),
       amountLabel: formatBtcAmount(group.combinedBtc),
       priceTop: group.liquidationPrice,
       priceBottom,

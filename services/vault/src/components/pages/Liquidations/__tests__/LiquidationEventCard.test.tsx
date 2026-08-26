@@ -57,7 +57,7 @@ describe("LiquidationEventCard", () => {
     ).toBeInTheDocument();
   });
 
-  it("shows no fairness tooltip when the card supplies none", () => {
+  it("shows the debt-repaid fairness tooltip on a non-full liquidation", () => {
     render(
       <LiquidationEventCard
         card={{
@@ -65,13 +65,14 @@ describe("LiquidationEventCard", () => {
           fairness: {
             label: COPY.liquidations.events.fairnessDebtRepaid,
             value: "$50",
+            tooltip: COPY.liquidations.events.fairnessDebtRepaidTooltip,
           },
         }}
       />,
     );
 
     expect(
-      screen.queryByText(COPY.liquidations.events.fairnessPaymentTooltip),
-    ).not.toBeInTheDocument();
+      screen.getByText(COPY.liquidations.events.fairnessDebtRepaidTooltip),
+    ).toBeInTheDocument();
   });
 });

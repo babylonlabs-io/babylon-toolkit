@@ -126,11 +126,9 @@ export function LiquidationEventCard({ card }: { card: EventCardData }) {
         TONE_BORDER[card.tone],
       )}
     >
-      <div className="flex items-center justify-between">
-        <h3 className="text-xl leading-[1.6] tracking-[0.15px] text-accent-primary">
-          {card.title}
-        </h3>
-      </div>
+      <h3 className="text-xl leading-[1.6] tracking-[0.15px] text-accent-primary">
+        {card.title}
+      </h3>
 
       <div className="flex gap-16">
         <Stat

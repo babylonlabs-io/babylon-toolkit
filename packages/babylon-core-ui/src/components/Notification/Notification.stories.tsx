@@ -108,14 +108,13 @@ export const WarningNoIconWithLabel: Story = {
     variant: "warning",
     icon: null,
     title: "First liquidation takes everything",
-    children:
-      "With your current BTCVaults, a single liquidation event liquidates all your BTC in collateral.",
+    children: "With your current BTCVaults, a single liquidation event liquidates all your BTC in collateral.",
     suggestion: (
       <>
         <SuggestionLabel>Suggestion</SuggestionLabel>
         <Text variant="body2" as="div" className="text-accent-secondary">
-          To enable partial liquidation, withdraw your 0.70 BTC and re-deposit
-          as two smaller vaults: 0.40 BTC + 0.30 BTC.
+          To enable partial liquidation, withdraw your 0.70 BTC and re-deposit as two smaller BTCVaults: 0.40 BTC + 0.30
+          BTC.
         </Text>
       </>
     ),

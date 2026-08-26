@@ -38,6 +38,12 @@ export interface LiquidationBand {
   /** Secondary label, e.g. "(contain vault 1)". Hidden in compact / tight bands. */
   sublabel?: string;
   /**
+   * Extra detail folded into the focusable rect's accessible name, for callers
+   * that render no `sublabel` but still need its content read out — e.g. the
+   * vault names behind an event.
+   */
+  accessibleDetail?: string;
+  /**
    * Collateral seized in this event, pre-formatted, e.g. "0.6 BTC". Rendered
    * as its own line when the band is tall enough. Omit when the caller has
    * already folded the amount into `label`.

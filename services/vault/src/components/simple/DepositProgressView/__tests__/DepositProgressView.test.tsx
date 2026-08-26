@@ -506,9 +506,7 @@ describe("DepositProgressView", () => {
       );
 
       expect(
-        screen.getByRole("button", {
-          name: "You can close and come back later",
-        }),
+        screen.getByRole("button", { name: "Close & continue later" }),
       ).toBeInTheDocument();
     });
 

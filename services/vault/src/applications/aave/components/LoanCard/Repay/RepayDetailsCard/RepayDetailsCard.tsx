@@ -1,4 +1,4 @@
-import { SubSection } from "@babylonlabs-io/core-ui";
+import { Hint, SubSection } from "@babylonlabs-io/core-ui";
 
 import {
   getHealthFactorColor,
@@ -46,9 +46,7 @@ export function RepayDetailsCard({
   return (
     <SubSection className="w-full flex-col gap-4 !bg-secondary-highlight">
       <div className={ROW_CLASS}>
-        <div className="flex items-center gap-1 text-accent-secondary">
-          {COPY.loans.debtLabel}
-        </div>
+        <span className="text-accent-secondary">{COPY.loans.debtLabel}</span>
         <span className="text-accent-primary">
           {debtOriginal ? (
             <span className="flex items-center gap-2">
@@ -67,6 +65,7 @@ export function RepayDetailsCard({
       <div className={ROW_CLASS}>
         <div className="flex items-center gap-1 text-accent-secondary">
           {COPY.loans.healthFactorLabel}
+          <Hint tooltip={COPY.tooltips.healthFactor} />
         </div>
         <span className="flex items-center gap-2 text-accent-primary">
           {healthFactorOriginal && originalColor ? (
