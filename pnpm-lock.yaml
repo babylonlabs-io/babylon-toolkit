@@ -413,6 +413,9 @@ importers:
         specifier: 6.0.3
         version: 6.0.3
     devDependencies:
+      '@babylonlabs-io/ledger-vault-signer':
+        specifier: workspace:*
+        version: link:../babylon-ledger-vault-signer
       '@internal/eslint-config':
         specifier: workspace:*
         version: link:../../tools/eslint-config

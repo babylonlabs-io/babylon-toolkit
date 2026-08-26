@@ -29,7 +29,7 @@ import {
   type CollectedYieldRef,
   type LedgerYieldMismatchKind,
 } from "../errors";
-import { createYieldCollector, type ExpectedSignatureTable } from "../expectedSignatures";
+import { createYieldCollector, type ExpectedSignatureTable, type InputSigExpectation } from "../expectedSignatures";
 import type { Apdu, RawApduSender } from "../rawApdu";
 import { runSignPsbtLoop, type RunSignPsbtLoopOptions, type SignPsbtProgress } from "../signPsbtLoop";
 import {
@@ -208,19 +208,17 @@ describe("happy-path trace replay through the loop (T1, T11, T12)", () => {
 
     // Hand-built prepared state: the loop only needs interpreter + collector.
     const fakeLeafHex = "ef".repeat(32);
-    const table: ExpectedSignatureTable = {
-      byInput: new Map([
-        [
-          0,
-          {
-            kind: "tapscript",
-            expectedLeafHashHexes: new Set([fakeLeafHex]),
-            expectedSignerXOnlyHex: TEST_DEPOSITOR_KEY_HEX,
-          },
-        ],
-      ]),
-      expectedYieldCount: 1,
-    };
+    const byInput = new Map<number, InputSigExpectation>([
+      [
+        0,
+        {
+          kind: "tapscript",
+          expectedLeafHashHexes: new Set([fakeLeafHex]),
+          expectedSignerXOnlyHex: TEST_DEPOSITOR_KEY_HEX,
+        },
+      ],
+    ]);
+    const table: ExpectedSignatureTable = { byInput, classifiedByInput: byInput, expectedYieldCount: 1 };
     const collector = createYieldCollector(table);
     const interpreter = new ClientCommandInterpreter(undefined, (payload) => collector.assertAndRecord(payload));
     interpreter.addKnownList(elements);

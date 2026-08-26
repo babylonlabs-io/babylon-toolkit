@@ -115,17 +115,47 @@ const approveApdus = () => h.sent.filter((a) => a.ins === INS_APPROVE_VAULT_INTE
  * signer's discriminant so a rename breaks this file's compile), the request
  * identity, and the merge source the device mock echoes back.
  */
-function fakePrepared(psbtHex: string, unsignedTxid?: string) {
-  const expectation: InputSigExpectation = {
+function tapscriptExpectation(leafByte: string): InputSigExpectation {
+  return {
     kind: "tapscript",
-    expectedLeafHashHexes: new Set(["ef".repeat(32)]),
+    expectedLeafHashHexes: new Set([leafByte.repeat(32)]),
     expectedSignerXOnlyHex: "ab".repeat(32),
   };
+}
+
+function fakePrepared(psbtHex: string, unsignedTxid?: string) {
+  const classifiedByInput = new Map([[0, tapscriptExpectation("ef")]]);
   return {
     originalPsbtHex: psbtHex,
     // Case-insensitive like the real txid (decoded bytes, not hex casing).
     unsignedTxid: unsignedTxid ?? `txid-${psbtHex.toLowerCase()}`,
-    table: { byInput: new Map([[0, expectation]]), expectedYieldCount: 1 },
+    table: { byInput: new Map(classifiedByInput), classifiedByInput, expectedYieldCount: 1 },
+  };
+}
+
+/** Two leaf inputs classified; expectation narrowed to input 0, as `signInputs: [{index: 0}]` does. */
+function fakePreparedNarrowedToInput0(psbtHex: string) {
+  const classifiedByInput = new Map([
+    [0, tapscriptExpectation("ef")],
+    [1, tapscriptExpectation("cd")],
+  ]);
+  return {
+    originalPsbtHex: psbtHex,
+    unsignedTxid: `txid-${psbtHex.toLowerCase()}`,
+    table: { byInput: new Map([[0, classifiedByInput.get(0)!]]), classifiedByInput, expectedYieldCount: 1 },
+  };
+}
+
+/** The same PSBT with no requested set: both leaf inputs classified AND expected. */
+function fakePreparedUnnarrowed(psbtHex: string) {
+  const classifiedByInput = new Map([
+    [0, tapscriptExpectation("ef")],
+    [1, tapscriptExpectation("cd")],
+  ]);
+  return {
+    originalPsbtHex: psbtHex,
+    unsignedTxid: `txid-${psbtHex.toLowerCase()}`,
+    table: { byInput: new Map(classifiedByInput), classifiedByInput, expectedYieldCount: 2 },
   };
 }
 
@@ -561,6 +591,47 @@ describe("LedgerVaultProvider", () => {
       return psbt.toHex();
     }
 
+    it("rejects a mixed key-path/tapscript PSBT even when only the key-path input is requested", async () => {
+      // The requested set must not be able to hide an input from the flow gate:
+      // narrowing the tapscript entry away would leave a lone key-path kind,
+      // route into policy mode, and die in assertComplete AFTER on-device approval.
+      const { prepareSignPsbt: realPrepare } = await actualSigner();
+      signMock.prepareSignPsbt.mockImplementation(realPrepare);
+      const p = await approved();
+
+      const leaf = { output: Buffer.from([0x51]), version: 0xc0 };
+      const tapscriptInput = payments.p2tr({
+        internalPubkey: Buffer.from(DEVICE_XONLY, "hex"),
+        scriptTree: leaf,
+        redeem: leaf,
+      });
+      const psbt = new Psbt();
+      psbt.addInput({
+        hash: Buffer.alloc(32, 1),
+        index: 0,
+        witnessUtxo: { script: bip86Script(DEVICE_XONLY), value: 100_000 },
+        tapInternalKey: Buffer.from(DEVICE_XONLY, "hex"),
+      });
+      psbt.addInput({
+        hash: Buffer.alloc(32, 2),
+        index: 0,
+        witnessUtxo: { script: tapscriptInput.output!, value: 100_000 },
+        tapLeafScript: [
+          {
+            leafVersion: 0xc0,
+            script: leaf.output,
+            controlBlock: tapscriptInput.witness![tapscriptInput.witness!.length - 1],
+          },
+        ],
+      });
+      psbt.addOutput({ script: HTLC_SCRIPT, value: 190_000 });
+
+      await expect(
+        p.signPsbt(psbt.toHex(), { autoFinalized: false, signInputs: [{ index: 0, publicKey: DEVICE_XONLY }] }),
+      ).rejects.toThrow(/mixed inputs are not a vault flow/);
+      expect(signMock.signPreparedVaultPsbt).not.toHaveBeenCalled();
+    });
+
     it("routes an all-key-path PSBT through wallet-policy mode with derivation fields added", async () => {
       const { prepareSignPsbt: realPrepare } = await actualSigner();
       signMock.prepareSignPsbt.mockImplementation(realPrepare);
@@ -574,6 +645,9 @@ describe("LedgerVaultProvider", () => {
 
       const [prepareArgs] = signMock.prepareSignPsbt.mock.calls.at(-1)!;
       expect(prepareArgs.walletPolicy?.keyInfo).toMatch(/^\[73c5da0a\/86'\/1'\/0'\]tpubDDKYE6B/);
+      // Narrowing must never reach the policy prepare: the base app signs every
+      // internal input, so a narrowed table would under-expect after approval.
+      expect(prepareArgs.signInputIndexes).toBeUndefined();
       const augmented = Psbt.fromHex(prepareArgs.psbtHex);
       expect(augmented.data.inputs[0].tapBip32Derivation?.[0].path).toBe("m/86'/1'/0'/0/0");
       expect(Buffer.from(augmented.data.inputs[0].tapBip32Derivation![0].masterFingerprint).toString("hex")).toBe(
@@ -599,6 +673,9 @@ describe("LedgerVaultProvider", () => {
 
       const [prepareArgs] = signMock.prepareSignPsbt.mock.calls.at(-1)!;
       expect(prepareArgs.walletPolicy?.keyInfo).toMatch(/^\[73c5da0a\/86'\/1'\/0'\]tpubDDKYE6B/);
+      // Narrowing must never reach the policy prepare: the base app signs every
+      // internal input, so a narrowed table would under-expect after approval.
+      expect(prepareArgs.signInputIndexes).toBeUndefined();
       const augmented = Psbt.fromHex(prepareArgs.psbtHex);
       expect(augmented.data.inputs[0].tapBip32Derivation?.[0].path).toBe("m/86'/1'/0'/0/0");
       expect(augmented.data.outputs.every((out) => !out.tapBip32Derivation)).toBe(true);
@@ -651,22 +728,20 @@ describe("LedgerVaultProvider", () => {
     });
 
     it("rejects a PSBT mixing key-path and tapscript inputs before any device I/O", async () => {
+      const mixed = new Map<number, InputSigExpectation>([
+        [0, { kind: "taproot-keypath", expectedOutputKeyHex: "00".repeat(32) }],
+        [
+          1,
+          {
+            kind: "tapscript",
+            expectedLeafHashHexes: new Set(["11".repeat(32)]),
+            expectedSignerXOnlyHex: DEVICE_XONLY,
+          },
+        ],
+      ]);
       signMock.prepareSignPsbt.mockImplementation(({ psbtHex }: { psbtHex: string }) => ({
         ...fakePrepared(psbtHex),
-        table: {
-          byInput: new Map([
-            [0, { kind: "taproot-keypath", expectedOutputKeyHex: "00".repeat(32) }],
-            [
-              1,
-              {
-                kind: "tapscript",
-                expectedLeafHashHexes: new Set(["11".repeat(32)]),
-                expectedSignerXOnlyHex: DEVICE_XONLY,
-              },
-            ],
-          ]),
-          expectedYieldCount: 2,
-        },
+        table: { byInput: mixed, classifiedByInput: mixed, expectedYieldCount: 2 },
       }));
       const p = await approved();
 
@@ -818,6 +893,18 @@ describe("LedgerVaultProvider", () => {
       signMock.prepareSignPsbt.mockImplementationOnce(() => fakePrepared(PSBT_B, `txid-${PSBT_A}`));
 
       await expect(provider.signPsbt(PSBT_B)).rejects.toThrow(/already signed/);
+      expect(signMock.signPreparedVaultPsbt).toHaveBeenCalledTimes(1);
+    });
+
+    it("a resubmission that differs only in the requested input set is still blocked", async () => {
+      // Request identity is a property of the PSBT: narrowing the expectation
+      // must not mint a fresh fingerprint and let the same request sign twice.
+      const provider = await approved();
+      signMock.prepareSignPsbt.mockImplementationOnce(() => fakePreparedNarrowedToInput0(PSBT_A));
+      await provider.signPsbt(PSBT_A, { autoFinalized: false, signInputs: [{ index: 0, publicKey: "ab".repeat(32) }] });
+      signMock.prepareSignPsbt.mockImplementationOnce(() => fakePreparedUnnarrowed(PSBT_A));
+
+      await expect(provider.signPsbt(PSBT_A, { autoFinalized: false })).rejects.toThrow(/already signed/);
       expect(signMock.signPreparedVaultPsbt).toHaveBeenCalledTimes(1);
     });
 

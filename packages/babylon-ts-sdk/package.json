@@ -120,6 +120,7 @@
     "viem": "^2.38.2"
   },
   "devDependencies": {
+    "@babylonlabs-io/ledger-vault-signer": "workspace:*",
     "@internal/eslint-config": "workspace:*",
     "@vitest/coverage-v8": "^4.0.8",
     "@vitest/ui": "^4.0.8",

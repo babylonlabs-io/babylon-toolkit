@@ -210,6 +210,11 @@ Vector provenance (`__tests__/vectors/signpsbt/`):
 - The outer inputs/outputs maps-roots hash each serialized per-map commitment as
   a `0x00`-prefixed leaf (`element_hash`) — a distinct byte treatment from the
   inner keys/values trees.
+- The pinned fixtures predate #2281, so no Payout vector carries a leaf on
+  input 1. `expectedSignatures.test.ts`'s "input 0 tapscript, other inputs
+  absent" case reads on that pin — a bump that adds the leaf must update it, and
+  the post-#2281 contract is covered against the real builder by
+  `babylon-ts-sdk` `payout.test.ts` ("Ledger expected-signature contract").
 - The v0 pegin fixtures carry zero-entry per-output maps pre-normalization; the
   `psbtv2` gate parses through them and pins that `normalizeToV2` synthesizes
   AMOUNT/SCRIPT into empty maps. (`deposit-flow__pegin__0` is a stale pre-v22

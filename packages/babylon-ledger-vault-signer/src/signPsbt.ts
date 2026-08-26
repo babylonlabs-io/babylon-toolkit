@@ -28,9 +28,10 @@ export interface SignVaultPsbtParams {
   readonly depositorXOnlyHex: string;
   /**
    * Input indices to sign, narrowing TAPSCRIPT expectations without relaxing any
-   * structural gate — a Payout must pass `[0]`, since its input 1 carries a leaf
-   * the device displays but never signs. Inert for key-path/policy signing, where
-   * the base app signs every internal input. See {@link prepareSignPsbt}.
+   * classification gate — a Payout must pass `[0]`, since its input 1 carries a
+   * leaf the device displays but never signs. Narrows nothing for key-path/policy
+   * signing, where the base app signs every internal input. See
+   * {@link prepareSignPsbt}.
    */
   readonly signInputIndexes?: readonly number[];
   /**

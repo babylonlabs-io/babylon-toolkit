@@ -104,9 +104,13 @@ interface StagedPsbt {
   readonly label: string;
 }
 
-/** Request identity for the replay guard: unsigned txid + the expectation pairs. */
+/**
+ * Request identity for the replay guard: unsigned txid + the expectation pairs.
+ * Keyed on the UNNARROWED classification — identity is a property of the PSBT,
+ * so re-submitting the same one with different `signInputs` cannot mint a new key.
+ */
 function signingRequestKey(prepared: PreparedSignPsbt): string {
-  const pairs = [...prepared.table.byInput.entries()]
+  const pairs = [...prepared.table.classifiedByInput.entries()]
     .map(([inputIndex, expectation]) =>
       expectation.kind === "tapscript"
         ? [...expectation.expectedLeafHashHexes]
@@ -820,6 +824,9 @@ export class LedgerVaultProvider implements IBTCProvider {
     }
     // Carrying a leaf is not the same as being signed: since #2281 Payout input 1
     // carries the Assert payout leaf only so the device can display the terms.
+    // Only the indices are honoured: `publicKey` is inert because the table pins
+    // on the device-read key instead, and `useTweakedSigner` is inert because the
+    // device picks tweaking from the spend type (`base:sign_input.c:430-433`).
     const signInputIndexes = options?.signInputs?.map((input) => input.index);
     let prepared: PreparedSignPsbt;
     try {
@@ -827,7 +834,9 @@ export class LedgerVaultProvider implements IBTCProvider {
     } catch (error) {
       throw toStagingWalletError(error, `${label} rejected before device I/O`);
     }
-    const kinds = new Set(Array.from(prepared.table.byInput.values(), (expectation) => expectation.kind));
+    // Unnarrowed: the flow a PSBT belongs to is not something the caller's
+    // requested set gets to change, or a key-path input could hide behind it.
+    const kinds = new Set(Array.from(prepared.table.classifiedByInput.values(), (expectation) => expectation.kind));
     if (kinds.has("taproot-keypath")) {
       if (kinds.size > 1) {
         throw new WalletError({
