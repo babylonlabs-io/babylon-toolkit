@@ -70,7 +70,7 @@ const DEPOSIT_CTA_LABEL = "Deposit"; // enabled DepositForm CTA (fluid button)
 // at-cap position fails fast with a clear message instead of hitting the 90s CTA-enable timeout.
 const MAX_VAULTS_CTA_LABEL = "Maximum BTC Vaults reached"; // COPY.deposit.maxVaultsReached.cta
 const VAULT_COUNT_UNAVAILABLE_CTA_LABEL =
-  "Unable to verify BTC Vault count — please try again"; // COPY.deposit.maxVaultsReached.unavailableCta
+  "Unable to verify BTCVault count — please try again"; // COPY.deposit.maxVaultsReached.unavailableCta
 const SIGN_TRANSACTION_LABEL = "Sign Transaction"; // COPY.deposit.progress.buttons.signTransaction
 // Two-vault split: the UtxoSplitSelector is an Accordion with NO testids (rows are `role="button"`
 // divs), so it's driven by role + visible text. The selector header shows "Do not split" while

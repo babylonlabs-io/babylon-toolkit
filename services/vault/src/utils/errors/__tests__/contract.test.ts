@@ -335,7 +335,7 @@ describe("Contract Error Mapping", () => {
       expect(result.code).toBe(ErrorCode.CONTRACT_REVERT);
       expect(result.reason).toBe("ActivationDeadlineExpired");
       expect(result.message).toBe(
-        "The activation deadline has passed. The BTC Vault can no longer be activated.",
+        "The activation deadline has passed. The BTCVault can no longer be activated.",
       );
     });
 
@@ -442,7 +442,7 @@ describe("Contract Error Mapping", () => {
 
       expect(result.reason).toBe("PositionAboveMaximum");
       expect(result.message).toBe(
-        "Your total BTC Vault amount exceeds the maximum position size.",
+        "Your total BTCVault amount exceeds the maximum position size.",
       );
     });
 
@@ -541,7 +541,7 @@ describe("Contract Error Mapping", () => {
       expect(isActivationDeadlineExpiredError(new Error("boom"))).toBe(false);
       expect(
         isActivationDeadlineExpiredError(
-          "The activation deadline has passed. The BTC Vault can no longer be activated.",
+          "The activation deadline has passed. The BTCVault can no longer be activated.",
         ),
       ).toBe(false);
       expect(isActivationDeadlineExpiredError(null)).toBe(false);

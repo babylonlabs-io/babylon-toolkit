@@ -375,14 +375,14 @@ describe("peginStateMachine", () => {
       const state = getPeginState(ContractStatus.EXPIRED);
       expect(state.displayLabel).toBe(PEGIN_DISPLAY_LABELS.EXPIRED);
       expect(state.displayVariant).toBe("warning");
-      expect(state.message).toBe("This BTC Vault has expired.");
+      expect(state.message).toBe("This BTCVault has expired.");
     });
 
     it("shows only the heading for an ack_timeout expiry", () => {
       const state = getPeginState(ContractStatus.EXPIRED, {
         expirationReason: "ack_timeout",
       });
-      expect(state.message).toBe("This BTC Vault has expired.");
+      expect(state.message).toBe("This BTCVault has expired.");
     });
 
     it("shows expired with proof_timeout reason", () => {
