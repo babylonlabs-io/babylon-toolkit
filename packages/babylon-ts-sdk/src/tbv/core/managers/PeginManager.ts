@@ -80,8 +80,8 @@ import {
   isAddressFromPublicKey,
   stripHexPrefix,
   uint8ArrayToHex,
-  X_ONLY_PUBKEY_HEX_LEN,
 } from "../primitives/utils/bitcoin";
+import { X_ONLY_PUBKEY_HEX_LEN } from "../utils/validation";
 import {
   calculateBtcTxHash,
   fundPeginTransaction,

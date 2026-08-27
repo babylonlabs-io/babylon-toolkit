@@ -18,7 +18,7 @@
  * @see btc-vault crates/vault/src/transactions/nopayout.rs - NoPayout structure
  */
 
-import { type Network } from "@babylonlabs-io/babylon-tbv-rust-wasm";
+import type { Network } from "@babylonlabs-io/babylon-tbv-rust-wasm";
 import { Transaction } from "bitcoinjs-lib";
 
 import type {

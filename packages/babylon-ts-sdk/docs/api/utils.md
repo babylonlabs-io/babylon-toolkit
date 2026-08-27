@@ -1740,6 +1740,30 @@ Bitcoin txid: exactly 64 hex characters (32 bytes).
 
 ***
 
+### X\_ONLY\_PUBKEY\_HEX\_LEN
+
+```ts
+const X_ONLY_PUBKEY_HEX_LEN: 64 = 64;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/validation.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/validation.ts)
+
+Hex-string length of a 32-byte BIP-340 x-only public key.
+
+***
+
+### COMPRESSED\_PUBKEY\_HEX\_LEN
+
+```ts
+const COMPRESSED_PUBKEY_HEX_LEN: 66 = 66;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/validation.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/validation.ts)
+
+Hex-string length of a 33-byte SEC1-compressed secp256k1 public key.
+
+***
+
 ### BITCOIN\_ADDRESS\_RE
 
 ```ts

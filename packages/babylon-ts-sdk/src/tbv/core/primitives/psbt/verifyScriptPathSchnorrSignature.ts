@@ -34,10 +34,10 @@ import { Psbt, Transaction } from "bitcoinjs-lib";
 
 import { Buffer } from "buffer";
 
+import { X_ONLY_PUBKEY_HEX_LEN } from "../../utils/validation";
 import {
   SCHNORR_SIG_HEX_LEN,
   TAPSCRIPT_LEAF_VERSION,
-  X_ONLY_PUBKEY_HEX_LEN,
   hexToUint8Array,
   stripHexPrefix,
 } from "../utils/bitcoin";

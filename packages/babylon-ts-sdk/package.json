@@ -39,6 +39,16 @@
       "require": "./dist/tbv/core/clients/index.cjs",
       "import": "./dist/tbv/core/clients/index.js"
     },
+    "./tbv/core/clients/vault-provider/status": {
+      "types": "./dist/tbv/core/clients/vault-provider/status/index.d.ts",
+      "require": "./dist/tbv/core/clients/vault-provider/status/index.cjs",
+      "import": "./dist/tbv/core/clients/vault-provider/status/index.js"
+    },
+    "./tbv/core/wasm": {
+      "types": "./dist/tbv/core/wasm/index.d.ts",
+      "require": "./dist/tbv/core/wasm/index.cjs",
+      "import": "./dist/tbv/core/wasm/index.js"
+    },
     "./tbv/core/services": {
       "types": "./dist/tbv/core/services/index.d.ts",
       "require": "./dist/tbv/core/services/index.cjs",
