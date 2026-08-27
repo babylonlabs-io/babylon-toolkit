@@ -128,7 +128,7 @@ export function assertBatchLifecycleStatus(
       // The broadcast message is load-bearing: mapDepositError buckets on the
       // word "broadcast" — keep it byte-identical.
       lifecycle === "broadcast"
-        ? `A vault in this Vault Creation batch is no longer awaiting broadcast ` +
+        ? `A vault in this Pre-PegIn batch is no longer awaiting broadcast ` +
           `(on-chain status ${member.vault.status}); the batch cannot be broadcast ` +
           `as one transaction. Resume refused.`
         : `Vault ${member.vaultId} is no longer awaiting payout signatures ` +
@@ -154,7 +154,7 @@ export function assertSiblingBatchHomogeneous(
     for (const field of SIBLING_HOMOGENEOUS_FIELDS) {
       if (sib[field] !== target[field]) {
         throw new Error(
-          `Sibling vaults of this Vault Creation disagree on ${field} ` +
+          `Sibling vaults of this Pre-PegIn disagree on ${field} ` +
             `(${String(sib[field])} vs ${String(target[field])}); the batch ` +
             `cannot be described by one set of deposit terms. Resume refused.`,
         );
@@ -163,7 +163,7 @@ export function assertSiblingBatchHomogeneous(
     for (const field of ["applicationEntryPoint", "vaultProvider"] as const) {
       if (sib[field].toLowerCase() !== target[field].toLowerCase()) {
         throw new Error(
-          `Sibling vaults of this Vault Creation disagree on ${field} ` +
+          `Sibling vaults of this Pre-PegIn disagree on ${field} ` +
             `(${sib[field]} vs ${target[field]}); the batch cannot be ` +
             `described by one set of deposit terms. Resume refused.`,
         );

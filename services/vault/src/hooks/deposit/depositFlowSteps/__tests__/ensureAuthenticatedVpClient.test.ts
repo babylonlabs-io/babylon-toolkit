@@ -109,7 +109,7 @@ describe("ensureAuthenticatedVpClient", () => {
         providerAddress: PROVIDER_ADDRESS,
         depositorBtcPubkey: "ab".repeat(32),
       }),
-    ).rejects.toThrow(/Vault Creation transaction hash mismatch/);
+    ).rejects.toThrow(/Pre-PegIn transaction hash mismatch/);
 
     expect(mockGetVaultProtocolInfo).toHaveBeenCalledOnce();
     expect(deriveVaultRoot).not.toHaveBeenCalled();

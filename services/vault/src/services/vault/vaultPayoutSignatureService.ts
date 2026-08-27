@@ -235,7 +235,7 @@ export async function prepareSigningContext(
   );
   if (vaultKeepers.length === 0) {
     throw new Error(
-      `No Vault Keepers found for version ${vault.appVaultKeepersVersion}`,
+      `No vault keepers found for version ${vault.appVaultKeepersVersion}`,
     );
   }
 

@@ -75,7 +75,7 @@ export const CONTRACT_ERROR_MESSAGES: Record<string, string> = {
   InvalidProviderStatus: "Invalid vault provider status.",
   NoUniversalChallengersConfigured: "No universal challengers are configured.",
   NoAppVaultKeepersConfigured: "No app vault keepers are configured.",
-  EmptyVaultKeepers: "Vault Keepers list cannot be empty.",
+  EmptyVaultKeepers: "Vault keepers list cannot be empty.",
   VaultKeeperNotAuthorized: "Vault keeper is not authorized.",
 
   // ============================================================================

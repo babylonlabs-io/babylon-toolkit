@@ -369,7 +369,7 @@ describe("broadcastPrePeginTransaction — resolveInputUtxo behavior", () => {
       }),
     ).rejects.toMatchObject({
       message: expect.stringContaining(
-        "Failed to broadcast Vault Creation transaction",
+        "Failed to broadcast Pre-PegIn transaction",
       ),
       cause: inner,
     });
