@@ -1,4 +1,4 @@
-import { Avatar, Hint } from "@babylonlabs-io/core-ui";
+import { Avatar } from "@babylonlabs-io/core-ui";
 
 import { COPY } from "@/copy";
 
@@ -57,11 +57,8 @@ export function BorrowMarketsTable({ rows }: { rows: BorrowMarketRow[] }) {
             <div className={`${DATA_COLUMN_CLASS} ${HEADER_TEXT_CLASS}`}>
               {columns.borrowApr}
             </div>
-            <div
-              className={`${DATA_COLUMN_CLASS} flex items-center gap-1 ${HEADER_TEXT_CLASS}`}
-            >
+            <div className={`${DATA_COLUMN_CLASS} ${HEADER_TEXT_CLASS}`}>
               {columns.available}
-              <Hint tooltip={columns.availableTooltip} />
             </div>
             <div className={`${DATA_COLUMN_CLASS} ${HEADER_TEXT_CLASS}`}>
               {columns.utilization}

@@ -1094,7 +1094,7 @@ export function useDepositFlow(
           ...confirmedBtcWallet,
           // `isWaiting` flips to `false` while a popup is open and back
           // to `true` after it closes, so the SDK polling that follows
-          // remains "Close & continue later"-able.
+          // remains "You can close and come back later"-able.
           deriveContextHash: async (appName, context) => {
             const returnStep = baseStep;
             if (baseStep === DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS) {

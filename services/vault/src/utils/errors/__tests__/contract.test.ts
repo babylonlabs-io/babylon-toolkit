@@ -420,7 +420,7 @@ describe("Contract Error Mapping", () => {
       expect(result.code).toBe(ErrorCode.CONTRACT_REVERT);
       expect(result.reason).toBe("VaultCountExceedsMaximum");
       expect(result.message).toBe(
-        "You have reached the maximum number of BTC Vaults per position.",
+        "You have reached the maximum number of BTCVaults per position.",
       );
     });
 
@@ -466,7 +466,7 @@ describe("Contract Error Mapping", () => {
 
       expect(result.reason).not.toBe("VaultCountExceedsMaximum");
       expect(result.message).not.toBe(
-        "You have reached the maximum number of BTC Vaults per position.",
+        "You have reached the maximum number of BTCVaults per position.",
       );
     });
   });

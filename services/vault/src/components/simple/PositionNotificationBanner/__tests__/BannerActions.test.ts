@@ -27,6 +27,7 @@ function makeResult(
 }
 
 interface GateOpts {
+  onDeposit?: (initialAmountBtc?: string) => void;
   reorderBlocked?: boolean;
   orderVerifiable?: boolean;
   depositBlocked?: boolean;
@@ -41,7 +42,7 @@ function build(
   return buildBannerActions({
     result,
     bannerState,
-    onDeposit: vi.fn(),
+    onDeposit: gate.onDeposit ?? vi.fn(),
     onRepay: vi.fn(),
     onApplyOrder: vi.fn(),
     isReordering: false,
@@ -139,7 +140,7 @@ describe("buildBannerActions — urgent CTA gating", () => {
     ).toBe(false);
   });
 
-  it("disables the cliff Add-sacrificial-vault CTA when deposits are blocked", () => {
+  it("disables the cliff add-vault CTA when deposits are blocked", () => {
     const cliffState: BannerState = {
       severity: "yellow",
       primaryWarning: {
@@ -163,14 +164,51 @@ describe("buildBannerActions — urgent CTA gating", () => {
 
     expect(
       build(cliffState, cliffResult).find(
-        (a) => a.label === COPY.banner.addSacrificialVault,
+        (a) => a.label === COPY.banner.addVaultOfSize("0.14"),
       )?.disabled,
     ).toBe(false);
 
     expect(
       build(cliffState, cliffResult, { depositBlocked: true }).find(
-        (a) => a.label === COPY.banner.addSacrificialVault,
+        (a) => a.label === COPY.banner.addVaultOfSize("0.14"),
       )?.disabled,
     ).toBe(true);
+  });
+
+  it("gives the urgent and cliff CTAs distinct labels and payloads", () => {
+    const onDeposit = vi.fn();
+    const urgentCliffState: BannerState = {
+      severity: "red",
+      primaryWarning: {
+        type: "urgent",
+        title: "Liquidation risk",
+        detail: "…",
+      },
+      secondaryWarnings: [],
+      suggestReorder: false,
+    };
+    const urgentCliffResult = makeResult({
+      warnings: [
+        { type: "urgent", title: "Liquidation risk", detail: "…" },
+        {
+          type: "cliff",
+          title: "First liquidation takes everything",
+          detail: "…",
+        },
+      ],
+      suggestedNewVaultBtc: 0.72,
+    });
+
+    const actions = build(urgentCliffState, urgentCliffResult, { onDeposit });
+    const labels = actions.map((a) => a.label);
+    expect(new Set(labels).size).toBe(labels.length);
+
+    actions.find((a) => a.label === COPY.banner.addCollateral)?.onClick();
+    expect(onDeposit).toHaveBeenLastCalledWith();
+
+    actions
+      .find((a) => a.label === COPY.banner.addVaultOfSize("0.72"))
+      ?.onClick();
+    expect(onDeposit).toHaveBeenLastCalledWith("0.72");
   });
 });

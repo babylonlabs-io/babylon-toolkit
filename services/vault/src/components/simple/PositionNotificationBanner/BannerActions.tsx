@@ -32,9 +32,9 @@ interface BuildBannerActionsArgs {
  * `Notification` `actions` slot:
  * - urgent: "Add Collateral" (primary, filled) + "Repay Debt" (secondary,
  *   outlined) — the core safety actions, matching the Figma callout.
- * - cliff with an affordable sacrificial size: "Add sacrificial vault" (generic
- *   label per Figma; the amount lives in the suggestion text) — opens the
- *   deposit flow with that amount pre-filled.
+ * - cliff with an affordable actionable size: "Add <amount> BTC" — opens the
+ *   deposit flow with that amount pre-filled. The amount sits in the label so
+ *   the button stays distinguishable from the urgent "Add Collateral" CTA.
  * - optimal reorder available: "Apply Optimal Order" — filled (primary) on the
  *   standalone reorder card, secondary when it accompanies the urgent callout.
  *
@@ -79,17 +79,17 @@ export function buildBannerActions({
     );
   }
 
-  // Add-sacrificial-vault CTA on a cliff when the calculator produced an
-  // actionable size — "add a sacrificial vault of this exact size". When an
-  // urgent warning is primary it rides along as a secondary action so the
-  // safety actions lead. The calculator guarantees the amount is positive and
-  // no larger than the position. Generic "Add sacrificial vault" label (the
-  // amount lives in the suggestion text per Figma).
+  // Add-vault CTA on a cliff when the calculator produced an actionable size
+  // — "add a vault of this exact size". When an urgent warning is primary it
+  // rides along as a secondary action so the safety actions lead. The
+  // calculator guarantees the amount is positive and no larger than the
+  // position. The amount sits in the label so this button never collides
+  // with the urgent "Add Collateral" CTA when both warnings are active.
   const hasCliffWarning = result.warnings.some((w) => w.type === "cliff");
   if (hasCliffWarning && result.suggestedNewVaultBtc !== null) {
     const amountBtc = result.suggestedNewVaultBtc.toFixed(2);
     actions.push({
-      label: COPY.banner.addSacrificialVault,
+      label: COPY.banner.addVaultOfSize(amountBtc),
       onClick: () => onDeposit(amountBtc),
       emphasis: isUrgent ? "secondary" : "primary",
       // Adding a vault is a deposit — blocked under a protocol Freeze/Pause.

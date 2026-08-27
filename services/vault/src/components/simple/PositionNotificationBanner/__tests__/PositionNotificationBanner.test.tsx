@@ -566,7 +566,7 @@ describe("PositionNotificationBanner", () => {
     expect(screen.queryByTestId("position-notification-banner")).toBeNull();
   });
 
-  it("keeps the sacrificial CTA (secondary) when a single-vault cliff is also urgent", () => {
+  it("keeps the cliff add-vault CTA (secondary) when a single-vault cliff is also urgent", () => {
     const result = makeBaseResult({
       warnings: [
         {
@@ -578,9 +578,8 @@ describe("PositionNotificationBanner", () => {
           type: "cliff",
           title: "First liquidation takes everything",
           detail:
-            "With your current BTC Vaults, a single liquidation event seizes all your BTC — nothing remains protected behind it.",
-          suggestion:
-            "Adding a sacrificial 0.72 BTCVault creates a buffer — it gets liquidated first, your existing BTC survives.",
+            "With your current BTCVaults, a single liquidation event liquidates all your BTC in collateral.",
+          suggestion: "Adding a 0.72 BTCVault enables partial liquidation",
         },
       ],
       suggestedNewVaultBtc: 0.72,
@@ -589,10 +588,11 @@ describe("PositionNotificationBanner", () => {
 
     const banner = screen.getByTestId("position-notification-banner");
     expect(banner.dataset.severity).toBe("red");
-    // Safety actions still lead, and the pre-filled cliff CTA is still offered.
+    // Safety actions still lead, and the pre-filled cliff CTA rides along with
+    // its amount in the label so the two buttons stay distinguishable.
     expect(screen.getByText("Add Collateral")).toBeTruthy();
     expect(screen.getByText("Repay Debt")).toBeTruthy();
-    fireEvent.click(screen.getByText("Add sacrificial BTCVault"));
+    fireEvent.click(screen.getByText("Add 0.72 BTC"));
     expect(onDeposit).toHaveBeenCalledWith("0.72");
   });
 });
@@ -638,7 +638,8 @@ describe("PositionNotificationBanner v3", () => {
           type: "cliff",
           title: "First liquidation takes everything",
           detail: "A single liquidation event seizes all your BTC.",
-          suggestion: "Adding a 0.14 BTC sacrificial vault creates a buffer.",
+          suggestion:
+            "Adding a new BTCVault of 0.14 BTC enables partial liquidation.",
         },
       ],
       suggestedNewVaultBtc: 0.12,
@@ -647,10 +648,8 @@ describe("PositionNotificationBanner v3", () => {
 
     const banner = screen.getByTestId("position-notification-banner");
     expect(banner.dataset.tone).toBe("cliff");
-    expect(
-      screen.getByText(/Adding a 0.14 BTC sacrificial vault/),
-    ).toBeTruthy();
-    expect(screen.getByText("Add sacrificial BTCVault")).toBeTruthy();
+    expect(screen.getByText(/Adding a new BTCVault of 0.14 BTC/)).toBeTruthy();
+    expect(screen.getByText("Add 0.12 BTC")).toBeTruthy();
     expect(screen.queryByText("Suggestion")).toBeNull();
   });
 
@@ -673,7 +672,7 @@ describe("PositionNotificationBanner v3", () => {
     expect(banner.dataset.tone).toBe("cliff");
     expect(screen.getByText("Suggestion")).toBeTruthy();
     expect(screen.getByText(/withdraw your 1 BTC/)).toBeTruthy();
-    expect(screen.queryByText("Add sacrificial BTCVault")).toBeNull();
+    expect(screen.queryByText("Add Collateral")).toBeNull();
   });
 
   it("renders the dust advisory as a dismissible v3 card that stays dismissed", () => {

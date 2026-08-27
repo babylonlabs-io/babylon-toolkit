@@ -93,7 +93,7 @@ export const CONTRACT_ERROR_MESSAGES: Record<string, string> = {
   // Aave Adapter position limits
   // ============================================================================
   VaultCountExceedsMaximum:
-    "You have reached the maximum number of BTC Vaults per position.",
+    "You have reached the maximum number of BTCVaults per position.",
   PositionAboveMaximum:
     "Your total BTCVault amount exceeds the maximum position size.",
 

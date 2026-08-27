@@ -68,7 +68,7 @@ const SELECT_VP_LABEL = "Select vault provider"; // COPY.deposit.form.selectVaul
 const DEPOSIT_CTA_LABEL = "Deposit"; // enabled DepositForm CTA (fluid button)
 // The fluid CTA also renders these at-cap states (COPY.deposit.maxVaultsReached) — detect them so an
 // at-cap position fails fast with a clear message instead of hitting the 90s CTA-enable timeout.
-const MAX_VAULTS_CTA_LABEL = "Maximum BTC Vaults reached"; // COPY.deposit.maxVaultsReached.cta
+const MAX_VAULTS_CTA_LABEL = "Maximum BTCVaults reached"; // COPY.deposit.maxVaultsReached.cta
 const VAULT_COUNT_UNAVAILABLE_CTA_LABEL =
   "Unable to verify BTCVault count — please try again"; // COPY.deposit.maxVaultsReached.unavailableCta
 const SIGN_TRANSACTION_LABEL = "Sign Transaction"; // COPY.deposit.progress.buttons.signTransaction

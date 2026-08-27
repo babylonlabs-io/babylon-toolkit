@@ -526,7 +526,7 @@ export function ResumeWotsContent({
       if (mountedRef.current) {
         setLoading(false);
         // Refetch dashboard activities so the next action surfaces while
-        // the modal stays parked on "Close & continue later".
+        // the modal stays parked on "You can close and come back later".
         onSuccess();
       }
     } catch (err) {
@@ -602,8 +602,8 @@ export function ResumeWotsContent({
 
   // Advance off the WOTS step once the local submit resolves OR the polled VP
   // status confirms acceptance. Then the modal sits on the next step as a
-  // closeable background wait ("Close & continue later"), matching the other
-  // resume waits — no separate success banner needed.
+  // closeable background wait ("You can close and come back later"),
+  // matching the other resume waits — no separate success banner needed.
   //
   // `started` gates the local half: a re-offer sits idle (not loading, no
   // error) until the user clicks, and without this that idle state would read

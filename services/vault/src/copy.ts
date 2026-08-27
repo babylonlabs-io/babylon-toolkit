@@ -94,7 +94,7 @@ const SIGN_TRANSACTION_LABEL = "Sign Transaction";
 // two can't drift.
 const ARTIFACTS_DOWNLOADED_TITLE = "Artifacts downloaded";
 const ARTIFACTS_DOWNLOADED_BODY =
-  "Your files are stored locally and never uploaded.";
+  "Your files are stored locally and never uploaded. Keep them somewhere safe.";
 
 /**
  * A run of modal body text. `emphasis` segments render in the primary text
@@ -112,7 +112,7 @@ export const COPY = {
   tooltips: {
     // Risk card, markets collateral card, protocol parameters (LTV).
     collateralFactor:
-      "The maximum percentage of borrowing power from the total collateral value.",
+      "The maximum percentage of your total collateral value that can be borrowed.",
     // Overview position cards, risk card body, borrow / repay detail cards.
     healthFactor:
       "Indicates the health of your position. If it falls below 1.0, your position may be liquidated.",
@@ -199,7 +199,7 @@ export const COPY = {
         `Opens in ${blocks} ${blocks === 1 ? "block" : "blocks"} (~${minutes} min)`,
       activationWindowSubtextUnknown: "Waiting for the activation window",
       // Error-slot framing of the same wait. `activationWindowOpening` leads
-      // with "Your BTC Vault is verified", which reads as a status line rather
+      // with "Your BTCVault is verified", which reads as a status line rather
       // than a failure when it lands in the red error callout after a click.
       activationWindowNotOpen: (blocks: number, minutes: number) =>
         `Activation is not open yet — ${blocks} Ethereum ${
@@ -288,7 +288,7 @@ export const COPY = {
         "New deposits are paused for maintenance and will resume shortly.",
     },
     maxVaultsReached: {
-      cta: "Maximum BTC Vaults reached",
+      cta: "Maximum BTCVaults reached",
       unavailableCta: "Unable to verify BTCVault count — please try again",
       splitUnavailable: (used: number, cap: number) =>
         `${used} of ${cap} BTCVaults used. BTCVault split unavailable.`,
@@ -395,7 +395,7 @@ export const COPY = {
       summary: {
         estimate: (duration: string) => `~${duration}`,
         description:
-          "Each step is divided into several wallet signature confirmations. The progress counter shows how many are completed. Your Bitcoin will only be locked once the BTCVault is activated.",
+          "Each step is divided into several wallet signature confirmations. The progress counter shows how many are completed. Your Bitcoin will only be locked once your BTCVault is activated, and you will be able to borrow assets from that point.",
       },
       stepsCompleted: (completed: number, total: number) =>
         `${completed} of ${total} steps completed`,
@@ -405,7 +405,7 @@ export const COPY = {
         `Step ${current} of ${total}`,
       defaultSuccessMessage: PRE_PEGIN_BROADCAST_CONFIRMATION_MESSAGE,
       doNotSpendWarning:
-        "To ensure a seamless deposit, do not spend the BTC allocated for this process until the transaction is confirmed.",
+        "Do not spend the BTC used for this deposit until the transactions are confirmed.",
       splitVaultColumnLabel: (vaultNumber: number) => `BTCVault ${vaultNumber}`,
       buttons: {
         closeContinueLater: "Close & continue later",
@@ -531,12 +531,12 @@ export const COPY = {
       cancelDownloadButton: CANCEL_DOWNLOAD_LABEL,
       // Advanced entry into the activate-and-redeem escape hatch, rendered as
       // a muted link under the activation confirmation so it is always
-      // reachable on a Verified BTC Vault without competing with the primary
+      // reachable on a Verified BTCVault without competing with the primary
       // activation path.
       advancedWithdrawLink: "Unable to activate? Withdraw without activating",
     },
     // Activate-and-redeem escape hatch: reveals the HTLC secret and redeems
-    // the BTC Vault in one transaction, skipping application activation. Two
+    // the BTCVault in one transaction, skipping application activation. Two
     // body variants: `bodyStuck` when the stuck state was detected on-chain
     // (peg-in swept while the vault is still Verified), `bodyAdvanced` when
     // the user reached it via the advanced link and waiting for expiry +
@@ -594,8 +594,8 @@ export const COPY = {
       doneButton: "Done",
     },
     vaultActivatedSuccess: {
-      heading: "Vault activated",
-      body: "Your vault is now active and ready for borrowing.",
+      heading: "BTCVault activated",
+      body: "Your BTCVault is now active and ready for borrowing.",
       goToDashboard: "Go to Dashboard",
     },
     recoveryArtifacts: {
@@ -722,7 +722,7 @@ export const COPY = {
       providerExplorerLinkLabel: "View vault provider on explorer",
       // Split-option title. "Two-vault split" (not "UTXO split") because the
       // UTXO concept is never introduced to the depositor; the ratio (e.g.
-      // "26/74") shows how the deposit is divided across the two BTC Vaults.
+      // "26/74") shows how the deposit is divided across the two BTCVaults.
       splitOptionLabel: (splitRatioLabel: string | null) =>
         splitRatioLabel
           ? `${TWO_VAULT_SPLIT_NAME} - ${splitRatioLabel}`
@@ -755,7 +755,7 @@ export const COPY = {
         };
       },
       splitOptionDescription:
-        "Split your BTC into two BTC Vaults to enable partial liquidation.",
+        "Split your BTC into two BTCVaults to enable partial liquidation.",
       noSplitOptionDescription:
         "Your BTC will be deposited into a single BTCVault.",
       // "Learn more here." link appended to the split-option description in
@@ -1241,7 +1241,7 @@ export const COPY = {
         `Add ${symbol} as collateral so you can begin borrowing assets.`,
     },
   },
-  // Links to the Babylon BTC Vault explorer (Xangle). Only rendered when
+  // Links to the Babylon BTCVault explorer (Xangle). Only rendered when
   // NEXT_PUBLIC_TBV_VP_EXPLORER_URL is set; icon links use these as the
   // accessible name + tooltip.
   explorer: {
@@ -1442,8 +1442,6 @@ export const COPY = {
     borrowAprTooltip: "Borrow APR currently offered on this market",
     utilizationTooltip:
       "Percentage of deposited assets currently being borrowed on this market.",
-    debtTooltip:
-      "The total amount you currently owe for this asset, including accrued interest.",
     borrowingUnavailable:
       "Borrowing is temporarily unavailable. Please check back later.",
     priceUnavailable:
@@ -1486,7 +1484,7 @@ export const COPY = {
       title: "Select asset",
       columnAsset: "Asset",
       columnPrice: "Price",
-      columnAvailable: "Available",
+      columnAvailable: "Available Liquidity",
       columnBorrowApr: "Borrow APR",
       loading: "Loading assets...",
       emptyBorrow: "No borrowable assets available",
@@ -1631,7 +1629,7 @@ export const COPY = {
     interestRateModel: {
       title: "Interest rate model",
       description:
-        "The more liquidity is borrowed, the higher the rate — this keeps the market balanced.",
+        "The more liquidity is borrowed, the higher the borrowing rate according to Aave's interest rate model on this market.",
     },
     borrowMarkets: {
       title: "Borrow markets",
@@ -1640,9 +1638,7 @@ export const COPY = {
       columns: {
         market: "Market",
         borrowApr: "Borrow APR",
-        available: "Available",
-        availableTooltip:
-          "Liquidity still borrowable from this market right now.",
+        available: "Available Liquidity",
         utilization: "Utilization",
         borrowed: "Borrowed",
         supplied: "Supplied",
@@ -1740,6 +1736,8 @@ export const COPY = {
     },
     reset: "Reset",
     eventTitle: (eventNumber: number) => `Liq Event ${eventNumber}`,
+    // Screen-reader-only. The band no longer draws this line, but the vault
+    // names still belong in the focusable rect's accessible name.
     containVaults: (names: string) => `(contain ${names})`,
     cumulativeSeized: (percent: number) => `${percent}% seized`,
     popover: {
@@ -1753,9 +1751,7 @@ export const COPY = {
     events: {
       heading: "Liquidation Events",
       subheading:
-        "Vaults are seized in order — each vault group is one liquidation event.",
-      badgeSacrificial: "Sacrificial",
-      badgeProtected: "Protected",
+        "BTCVaults are seized in order. Each BTCVault group is one liquidation event. To change the order, open the Vaults page.",
       collateral: "Collateral",
       liqPrice: "Liq Price",
       distance: "Distance",
@@ -1763,19 +1759,21 @@ export const COPY = {
       targetSeizure: "Target seizure",
       targetSeizureTooltip:
         "The collateral value that the liquidator may receive during the liquidation process.",
-      overSeizure: "Over seizure",
+      overSeizure: "Over-seizure",
       overSeizureTooltip:
-        "An additional portion of the collateral value that the liquidator may seize due to the nature of indivisible BTC Vaults.",
+        "An additional portion of the collateral value that the liquidator may seize due to the nature of indivisible BTCVaults.",
       estimatedLiquidationSection: "Estimated Liquidation",
       collateralLiquidated: "Collateral liquidated",
       debtRepaid: "Debt Repaid",
       liquidatorProfit: "Liquidator profit",
       fairnessDebtRepaid: "Fairness Debt Repaid",
+      // Additional debt the liquidator repays because indivisible BTCVaults
+      // forced an over-seizure; pairs with fairnessPaymentTooltip below.
+      fairnessDebtRepaidTooltip:
+        "Additional repayment of debt by the liquidator due to over-seizure of collateral.",
       fairnessPaymentWbtc: "Fairness Payment (wBTC)",
-      // Describes the payment variant only; the debt-repaid variant of the
-      // row carries no tooltip.
       fairnessPaymentTooltip:
-        "Payment by the liquidator to the user's wallet due to over seizure of collateral.",
+        "Payment by the liquidator to the user's wallet due to over-seizure of collateral.",
       positionAfterSection: "Position After Liquidation",
       btcRemaining: "BTC remaining",
       debtRemaining: "Debt remaining",
@@ -1798,8 +1796,6 @@ export const COPY = {
     positionTitle: "Position",
     healthFactorLabel: "Health factor",
     totalCollateralValueLabel: "Total collateral value",
-    totalCollateralValueTooltip:
-      "The total value of assets used as collateral.",
     totalBorrowedLabel: "Total borrowed",
     availableToBorrowLabel: "Available to borrow",
     depositAction: "Deposit",
@@ -1872,15 +1868,15 @@ export const COPY = {
   },
   vaults: {
     empty: {
-      title: "Your BTC Vaults will appear here",
+      title: "Your BTCVaults will appear here",
       description:
         "Deposit BTC to create your first BTCVault and unlock borrowing power without selling your Bitcoin.",
       // Disconnected: title-only prompt, matching the Loans and Activity tabs.
-      disconnected: connectToView("BTC Vaults"),
+      disconnected: connectToView("BTCVaults"),
       depositAction: "Deposit",
     },
     loadError:
-      "We couldn't load your BTC Vaults. Check your connection and try again.",
+      "We couldn't load your BTCVaults. Check your connection and try again.",
     partialLoadError: {
       title: "Some of your BTCVault data couldn't be loaded",
       body: "Totals or deposits shown may be incomplete. Refresh the page to try again.",
@@ -1986,7 +1982,7 @@ export const COPY = {
     // gets the Refund chip and a dimmed row.
     emptyV3Title: "No activity yet",
     emptyV3Body:
-      "Your account activity will appear here once you start using Babylon",
+      "Your account activity will appear here after your first transaction",
     pendingLabel: "Pending",
     refundChip: "Refund",
     dateToday: "Today",
@@ -1995,41 +1991,50 @@ export const COPY = {
   },
   banner: {
     addCollateral: "Add Collateral",
+    // Cliff CTA. Carries the amount so it cannot collide with the urgent
+    // "Add Collateral" button when both warnings render together.
+    addVaultOfSize: (btc: string) => `Add ${btc} BTC`,
     repayDebt: "Repay Debt",
     applyOptimalOrder: "Apply Optimal Order",
-    addSacrificialVault: "Add sacrificial BTCVault",
   },
   geoBlock: {
     title: "Service unavailable in your region",
     body: "We're unable to provide access from your current region due to regulatory restrictions.",
   },
   reorder: {
+    modalTitle: "Reorder Vaults",
+    modalSubtitle:
+      "This is the liquidation order of your BTCVaults. Drag to change the order.",
+    infoText:
+      "BTCVaults are liquidated in order from first to last. A liquidation event seizes BTCVaults from the front until it covers that event's target seizure amount, so the order decides how much of your BTC survives.",
+    networkFeeLabel: "Ethereum network fee",
     confirmButton: "Confirm",
     doneButton: "Done",
     successTitle: "BTCVault order updated",
-    successText: "The liquidation order of your BTC Vaults has been updated.",
+    successText: "The liquidation order of your BTCVaults has been updated.",
   },
   protocolFees: {
     sectionTitle: "Protocol Parameters",
     minDeposit: {
-      label: "Min deposit",
+      label: "Min Deposit",
       tooltip: "The minimum amount of BTC required to make a deposit.",
     },
     minForSplit: {
-      label: "Effective minimum for split",
+      label: "Effective Minimum for Split",
       tooltip:
-        "The minimum amount of BTC required to enable partial liquidation by splitting a deposit into two BTC Vaults.",
+        "The minimum amount of BTC required to enable partial liquidation via splitting a deposit into two BTCVaults.",
     },
     ltv: {
-      label: "LTV / Collateral Factor",
+      label: "Collateral Factor",
     },
     liquidationThreshold: {
-      label: "Liquidation threshold (THF)",
+      label: "Target Health Factor",
       tooltip: "The ideal health factor to restore during liquidation",
     },
-    liquidationBonus: {
-      label: "Liquidation Bonus (LB)",
-      tooltip: "Bonus percentage awarded to liquidators on seized collateral.",
+    maxLiquidationPenalty: {
+      label: "Max Liquidation Penalty",
+      tooltip:
+        "The maximum penalty applied to seized collateral during liquidation. The actual penalty scales with how far the health factor has fallen.",
     },
   },
   // Operator-controlled protocol governance-status banners (Freeze / Pause). The
@@ -2075,8 +2080,8 @@ export const COPY = {
         "Add more BTC or repay debt immediately to bring your health factor back above 1.0.",
       approachingTitle: (distancePct: string) =>
         `Liquidation is ${distancePct}% away`,
-      approachingDetail: (liqPriceUsd: string, distancePct: string) =>
-        `A drop to $${liqPriceUsd} (just ${distancePct}% lower than now) triggers your first liquidation event.`,
+      approachingDetail: (liqPriceUsd: string) =>
+        `BTC price drop to $${liqPriceUsd} triggers liquidation.`,
       approachingSuggestion:
         "Add collateral or repay part of the debt to reduce your liquidation risk.",
     },
@@ -2086,7 +2091,7 @@ export const COPY = {
     // the calculator finds a strictly safer order than the current one; the
     // suggested order is rendered as chips from `optimalVaultOrder`, not text.
     reorder: {
-      title: "Reorder BTC Vaults to lose less",
+      title: "Reorder BTCVaults to lose less",
       detail:
         "A different BTCVault order makes the first liquidation event smaller — less BTC seized when it triggers.",
       suggestedOrderLabel: "Suggested order",
@@ -2098,14 +2103,14 @@ export const COPY = {
     // what action is feasible.
     cliff: {
       title: "First liquidation takes everything",
-      body: "With your current BTC Vaults, a single liquidation event seizes all your BTC — nothing remains protected behind it.",
+      body: "With your current BTCVaults, a single liquidation event liquidates all your BTC in collateral.",
       // Header shown above the suggestion text when there is no actionable CTA
       // (the withdraw/re-deposit and multi-vault cases). Rendered uppercase.
       suggestionLabel: "Suggestion",
       // Variant A (#1948): an affordable sacrificial vault buffers the existing
       // position. The amount lives here; the CTA label stays generic.
       addSacrificialSuggestion: (sacrificialBtc: string) =>
-        `Adding a sacrificial ${sacrificialBtc} BTCVault creates a buffer — it gets liquidated first, your existing BTC survives.`,
+        `Adding a new BTCVault of ${sacrificialBtc} BTC enables partial liquidation.`,
       // Variant B (#1949): the single vault is too large to buffer cheaply —
       // withdraw it and re-deposit as two smaller vaults instead.
       withdrawResplitSuggestion: (
@@ -2113,7 +2118,7 @@ export const COPY = {
         sacrificialBtc: string,
         protectedBtc: string,
       ) =>
-        `To enable partial liquidation, withdraw your ${withdrawBtc} BTC and re-deposit as two smaller BTC Vaults: ${sacrificialBtc} BTC sacrificial + ${protectedBtc} BTC protected. Alternatively: add collateral or repay debt to manage the liquidation.`,
+        `To enable partial liquidation, withdraw your ${withdrawBtc} BTC and re-deposit as two smaller BTCVaults: ${sacrificialBtc} BTC + ${protectedBtc} BTC. Alternatively: add collateral or repay debt to manage the liquidation.`,
       // Protocol params disallow splitting entirely — no re-split is possible.
       noSplitSuggestion:
         "Current protocol parameters do not allow BTCVault splitting as a protection strategy. Add collateral or repay part of the debt to keep this position safe.",
@@ -2124,7 +2129,7 @@ export const COPY = {
         enablePartial: (deficitBtc: string, largestName: string) =>
           `To enable partial liquidation, add ≥ ${deficitBtc} BTC alongside ${largestName}. `,
         suggestion: (targetSeizureBtc: string, enablePartialStr: string) =>
-          `Neither BTCVault alone covers the target seizure (${targetSeizureBtc} BTC). ${enablePartialStr}You can also add collateral or repay part of the debt to keep this position safe. Alternatively: repay the loan, split BTC into optimal UTXOs, and re-open with a sacrificial BTCVault.`,
+          `Neither BTCVault alone covers the target seizure (${targetSeizureBtc} BTC). ${enablePartialStr}You can also add collateral or repay part of the debt to keep this position safe. Alternatively: repay the loan, split BTC into optimal UTXOs, and re-open with a new BTCVault.`,
       },
       multiVault: {
         suggestion: (
@@ -2133,30 +2138,30 @@ export const COPY = {
           orderStr: string,
         ) =>
           hasReorderFix
-            ? `All ${nVaults} BTC Vaults land in the first liquidation group. Reordering BTC Vaults will fix this — suggested order: ${orderStr}.`
-            : `All ${nVaults} BTC Vaults land in the first liquidation group, and no combination of BTC Vaults covers the target seizure alone. Add collateral or repay part of the debt to keep this position safe.`,
+            ? `All ${nVaults} BTCVaults land in the first liquidation group. Reordering BTCVaults will fix this — suggested order: ${orderStr}.`
+            : `All ${nVaults} BTCVaults land in the first liquidation group, and no combination of BTCVaults covers the target seizure alone. Add collateral or repay part of the debt to keep this position safe.`,
       },
     },
     // Too many vaults: beyond the optimizer cap, ordering falls back to a
     // largest-first heuristic and the reorder suggestion is no longer optimal.
     // Copy matches Figma 7048-61969 (count + cap stay interpolated).
     tooManyVaults: {
-      title: "Too many BTC Vaults to optimize",
+      title: "Too many BTCVaults to optimize",
       detail: (nVaults: number, cap: number) =>
-        `You have ${nVaults} BTC Vaults. Beyond ${cap}, the optimizer can't guarantee the best liquidation order — it falls back to a simpler largest-first approach. Your liquidation risk data is still accurate, but the order may not be optimal.`,
+        `You have ${nVaults} BTCVaults. Beyond ${cap}, the optimizer can't guarantee the best liquidation order — it falls back to a simpler largest-first approach. Your liquidation risk data is still accurate, but the order may not be optimal.`,
       suggestion:
-        "Consider consolidating smaller BTC Vaults into fewer larger ones — fewer BTC Vaults means lower fees and better optimization.",
+        "Consider consolidating smaller BTCVaults into fewer larger ones — fewer BTCVaults means lower fees and better optimization.",
     },
     maxVaults: {
       // Figma v3 §9 verbatim: the title drops the "BTC" qualifier the body keeps.
       titleV3: "Maximum vaults reached",
       detail: (cap: number) =>
-        `This position already has the maximum number of BTC Vaults (${cap}).`,
+        `This position already has the maximum number of BTCVaults (${cap}).`,
     },
     dust: {
-      title: "Position too small for BTCVault analysis",
+      title: "Small position - simplified view",
       detail:
-        "Below $1,000 the cascade simplifies — all BTC Vaults are shown as one liquidation event. Small positions don't have meaningful multi-event behavior.",
+        "Below $1,000 the cascade simplifies — all BTCVaults are shown as one liquidation event. Small positions don't have meaningful multi-event behavior.",
     },
     weirdParams: {
       title: "Protocol parameters don't compute",
