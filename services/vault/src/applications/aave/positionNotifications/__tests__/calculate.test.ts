@@ -355,7 +355,7 @@ describe("golden vectors (reference scenario suite)", () => {
   it("C1 — [0.35, 0.65] wrong order: reorder notification, single group", () => {
     const result = calculate(makeParams([v(0.35), v(0.65)]));
     const reorder = getWarning(result.warnings, "reorder");
-    expect(reorder?.title).toBe("Reorder BTC Vaults to lose less");
+    expect(reorder?.title).toBe("Reorder BTCVaults to lose less");
     expect(result.optimalVaultOrder).not.toBeNull();
     expect(result.groups).toHaveLength(1);
   });
@@ -371,7 +371,7 @@ describe("golden vectors (reference scenario suite)", () => {
     const cliff = getWarning(result.warnings, "cliff");
     expect(cliff?.title).toBe("First liquidation takes everything");
     // The deficit detail moved into the suggestion now that the body is shared.
-    expect(cliff?.suggestion).toContain("Neither BTC Vault");
+    expect(cliff?.suggestion).toContain("Neither BTCVault");
     expect(hasWarning(result.warnings, "reorder")).toBe(false);
     expect(result.groups).toHaveLength(1);
   });
@@ -408,7 +408,7 @@ describe("golden vectors (reference scenario suite)", () => {
     const vaults = Array.from({ length: 18 }, (_, idx) => v(0.2 + idx * 0.01));
     const result = calculate(makeParams(vaults));
     expect(getWarning(result.warnings, "too-many-vaults")?.title).toContain(
-      "Too many BTC Vaults",
+      "Too many BTCVaults",
     );
     expect(result.optimalVaultOrder).toBeNull();
   });

@@ -497,7 +497,7 @@ describe("PositionNotificationBanner", () => {
       warnings: [
         {
           type: "dust",
-          title: "Position too small for BTC Vault analysis",
+          title: "Position too small for BTCVault analysis",
           detail:
             "Below $1,000 the cascade simplifies — all vaults are shown as one liquidation event.",
         },
@@ -549,7 +549,7 @@ describe("PositionNotificationBanner", () => {
       warnings: [
         {
           type: "dust",
-          title: "Position too small for BTC Vault analysis",
+          title: "Position too small for BTCVault analysis",
           detail:
             "Below $1,000 the cascade simplifies — all vaults are shown as one liquidation event.",
         },
@@ -680,7 +680,7 @@ describe("PositionNotificationBanner v3", () => {
       warnings: [
         {
           type: "dust",
-          title: "Position too small for BTC Vault analysis",
+          title: "Position too small for BTCVault analysis",
           detail: "Below $1,000 the cascade simplifies.",
           tone: "soft",
         },

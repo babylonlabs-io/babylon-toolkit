@@ -77,7 +77,7 @@ describe("MaxVaultsNotification", () => {
     );
     expect(screen.getByText("Maximum vaults reached")).toBeInTheDocument();
     expect(
-      screen.getByText(/maximum number of BTC Vaults \(10\)/),
+      screen.getByText(/maximum number of BTCVaults \(10\)/),
     ).toBeInTheDocument();
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
@@ -94,7 +94,7 @@ describe("MaxVaultsNotification", () => {
     );
     expect(
       screen.getByText(
-        new RegExp(`maximum number of BTC Vaults \\(${FORCED_MAX_VAULTS}\\)`),
+        new RegExp(`maximum number of BTCVaults \\(${FORCED_MAX_VAULTS}\\)`),
       ),
     ).toBeInTheDocument();
   });

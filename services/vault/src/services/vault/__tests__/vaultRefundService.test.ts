@@ -449,7 +449,7 @@ describe("vaultRefundService - adapter wiring", () => {
         feeRate: 10,
       }),
     ).rejects.toThrow(
-      `No vault keepers found for version ${ON_CHAIN_VAULT.appVaultKeepersVersion}`,
+      `No Vault Keepers found for version ${ON_CHAIN_VAULT.appVaultKeepersVersion}`,
     );
   });
 
