@@ -1,6 +1,12 @@
 import type { BitcoinAdapter } from "@reown/appkit-adapter-bitcoin";
 import type { createAppKit } from "@reown/appkit/react";
 
+import {
+  __resetManualAppKitConfigForTests,
+  getAppKitState,
+  registerManualAppKitConfig,
+} from "@/core/wallets/appkit/state";
+
 /**
  * Shared Bitcoin AppKit config singleton
  *
@@ -44,16 +50,16 @@ export interface SharedBtcAppKitConfigInput {
  * the cached connected address/pubkey.
  */
 export interface SharedBtcAppKitConfig {
-  modal: ReturnType<typeof createAppKit>;
-  adapter: BitcoinAdapter;
-  network: "mainnet" | "signet";
-  connectionEvents: EventTarget;
+  readonly modal: ReturnType<typeof createAppKit>;
+  readonly adapter: BitcoinAdapter;
+  readonly network: "mainnet" | "signet";
+  readonly connectionEvents: EventTarget;
 }
 
 let sharedBtcAppKitConfig: SharedBtcAppKitConfig | null = null;
 
 export function setSharedBtcAppKitConfig(config: SharedBtcAppKitConfigInput): void {
-  sharedBtcAppKitConfig = {
+  const resolvedConfig = {
     modal: config.modal,
     adapter: config.adapter,
     network: config.network,
@@ -66,9 +72,21 @@ export function setSharedBtcAppKitConfig(config: SharedBtcAppKitConfigInput): vo
     connectionEvents:
       config.connectionEvents ?? sharedBtcAppKitConfig?.connectionEvents ?? new EventTarget(),
   };
+
+  registerManualAppKitConfig("Bitcoin");
+  sharedBtcAppKitConfig = resolvedConfig;
 }
 
 export function getSharedBtcAppKitConfig(): SharedBtcAppKitConfig {
+  const initializedState = getAppKitState();
+  if (initializedState) {
+    if (!initializedState.btcConfig) {
+      throw new Error("AppKit was initialized without Bitcoin support.");
+    }
+
+    return initializedState.btcConfig;
+  }
+
   if (!sharedBtcAppKitConfig) {
     throw new Error(
       "Shared BTC AppKit config not initialized. " +
@@ -79,7 +97,8 @@ export function getSharedBtcAppKitConfig(): SharedBtcAppKitConfig {
 }
 
 export function hasSharedBtcAppKitConfig(): boolean {
-  return sharedBtcAppKitConfig !== null;
+  const initializedState = getAppKitState();
+  return initializedState ? initializedState.btcConfig !== undefined : sharedBtcAppKitConfig !== null;
 }
 
 /**
@@ -90,4 +109,5 @@ export function hasSharedBtcAppKitConfig(): boolean {
  */
 export function __resetSharedBtcAppKitConfigForTests(): void {
   sharedBtcAppKitConfig = null;
+  __resetManualAppKitConfigForTests("Bitcoin");
 }
