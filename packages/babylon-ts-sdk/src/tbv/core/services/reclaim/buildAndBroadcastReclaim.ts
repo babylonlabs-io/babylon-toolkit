@@ -20,7 +20,6 @@
  * @module services/reclaim
  */
 
-import { deriveVaultId } from "@babylonlabs-io/babylon-tbv-rust-wasm";
 import type { Address, Hex } from "viem";
 
 import type { SignPsbtOptions } from "../../../../shared/wallets/interfaces/BitcoinWallet";
@@ -39,6 +38,7 @@ import {
   stripHexPrefix,
 } from "../../primitives/utils/bitcoin";
 import { createTaprootScriptPathSignOptions } from "../../utils/signing";
+import { deriveVaultId } from "../../wasm";
 import { calculateBtcTxHash } from "../../utils/transaction/btcTxHash";
 // The BTC broadcast transport types are shared with the refund service rather
 // than redeclared — `services/index.ts` re-exports both modules flat, so a

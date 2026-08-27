@@ -56,13 +56,11 @@ vi.mock("../../../utils/transaction/btcTxHash", () => ({
 
 // The vault-id bind hashes the PegIn back to the id that was requested. The
 // derivation itself is golden-vector tested against the Rust reference in
-// `primitives/__tests__/deriveVaultId.test.ts`; here it is stubbed so the tests
-// can drive agreement and disagreement directly.
-vi.mock("@babylonlabs-io/babylon-tbv-rust-wasm", async (importOriginal) => {
-  const actual =
-    await importOriginal<
-      typeof import("@babylonlabs-io/babylon-tbv-rust-wasm")
-    >();
+// `primitives/__tests__/deriveVaultId.test.ts`; here it is stubbed at the lazy
+// WASM boundary the service imports so the tests can drive agreement and
+// disagreement directly.
+vi.mock("../../../wasm", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../../wasm")>();
   return {
     ...actual,
     deriveVaultId: vi.fn().mockResolvedValue(`0x${"11".repeat(32)}`),
@@ -73,9 +71,7 @@ const { buildReclaimPsbt } = await import("../../../primitives/psbt/reclaim");
 const { finalizeScriptPathWithSignatures } = await import(
   "../../../primitives/psbt/finalizeScriptPathWithSignatures"
 );
-const { deriveVaultId } = await import(
-  "@babylonlabs-io/babylon-tbv-rust-wasm"
-);
+const { deriveVaultId } = await import("../../../wasm");
 const { assertScriptPathSchnorrSignature } = await import(
   "../../../primitives/psbt/verifyScriptPathSchnorrSignature"
 );

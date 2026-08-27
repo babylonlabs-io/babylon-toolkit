@@ -26,10 +26,9 @@ const DEPOSITOR_ETH = `0x${"33".repeat(20)}` as Address;
 
 // The vault-id bind goes through WASM, which these tests do not need to exercise — the golden
 // vector for that derivation lives in `primitives/__tests__/deriveVaultId.test.ts`.
-vi.mock("@babylonlabs-io/babylon-tbv-rust-wasm", async (importOriginal) => ({
-  ...(await importOriginal<
-    typeof import("@babylonlabs-io/babylon-tbv-rust-wasm")
-  >()),
+// Mocked at the lazy WASM boundary the service imports, not at the engine package.
+vi.mock("../../../wasm", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../../wasm")>()),
   // Literal, not the VAULT_ID constant: `vi.mock` factories are hoisted above it.
   deriveVaultId: vi.fn().mockResolvedValue(`0x${"aa".repeat(32)}`),
 }));
