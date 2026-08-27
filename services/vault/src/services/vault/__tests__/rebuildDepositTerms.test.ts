@@ -131,7 +131,7 @@ describe("assertBatchLifecycleStatus", () => {
     // Byte-identical to the pre-typed-error string: mapDepositError buckets
     // this refusal on the word "broadcast".
     expect((caught as VaultLifecycleStateError).message).toBe(
-      "A vault in this Vault Creation batch is no longer awaiting broadcast " +
+      "A vault in this Pre-PegIn batch is no longer awaiting broadcast " +
         "(on-chain status 4); the batch cannot be broadcast as one " +
         "transaction. Resume refused.",
     );

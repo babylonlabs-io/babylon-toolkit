@@ -333,7 +333,7 @@ describe("ResumeWotsContent — Pre-PegIn tx hash trust boundary", () => {
 
     await waitFor(() => {
       expect(getByTestId("progress-view").textContent).toContain(
-        "Vault Creation transaction hash mismatch",
+        "Pre-PegIn transaction hash mismatch",
       );
     });
 
@@ -635,7 +635,7 @@ describe("ResumeActivationContent — Pre-PegIn tx hash trust boundary", () => {
 
     await waitFor(() => {
       expect(getByTestId("progress-view").textContent).toContain(
-        "Vault Creation transaction hash mismatch",
+        "Pre-PegIn transaction hash mismatch",
       );
     });
 

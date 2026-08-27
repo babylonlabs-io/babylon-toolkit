@@ -287,7 +287,10 @@ export function useVaultActions(): UseVaultActionsReturn {
       if (
         computedHash.toLowerCase() !== onChainVault.prePeginTxHash.toLowerCase()
       ) {
-        throw new Error(COPY.deposit.errors.vaultCreationIntegrityMismatch);
+        throw new Error(
+          "Transaction integrity check failed: the Pre-PegIn transaction " +
+            "does not match the hash stored on-chain. Aborting to prevent a potential attack.",
+        );
       }
 
       // Gate on a fresh on-chain status read. The GraphQL pre-check above is

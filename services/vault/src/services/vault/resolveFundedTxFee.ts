@@ -50,13 +50,13 @@ export async function resolveFundedTxFeeAndUtxos(
   const fundedTxFee = totalInputValue - totalOutputValue;
   if (fundedTxFee <= 0n) {
     throw new Error(
-      `The funded Vault Creation transaction's inputs do not cover its outputs ` +
+      `The funded Pre-PegIn transaction's inputs do not cover its outputs ` +
         `plus a fee (computed fee: ${fundedTxFee} sats). Refusing to resume.`,
     );
   }
   if (fundedTxFee > MAX_REASONABLE_FEE_SATS) {
     throw new Error(
-      `The funded Vault Creation transaction's computed fee (${fundedTxFee} sats) ` +
+      `The funded Pre-PegIn transaction's computed fee (${fundedTxFee} sats) ` +
         `exceeds the maximum reasonable fee (${MAX_REASONABLE_FEE_SATS} sats). ` +
         `This may indicate the mempool API returned manipulated UTXO data. ` +
         `Refusing to resume.`,

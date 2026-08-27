@@ -445,10 +445,9 @@ export function ResumeWotsContent({
         computedTxHash.toLowerCase() !== onChainPrePeginTxHash.toLowerCase()
       ) {
         throw new Error(
-          COPY.deposit.errors.vaultCreationHashMismatch(
-            computedTxHash,
-            onChainPrePeginTxHash,
-          ),
+          `Pre-PegIn transaction hash mismatch: computed ${computedTxHash} from indexer tx, ` +
+            `but on-chain contract has ${onChainPrePeginTxHash}. ` +
+            `Aborting to prevent potential attack.`,
         );
       }
 
