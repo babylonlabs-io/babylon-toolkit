@@ -31,11 +31,6 @@ import {
  *    — the event's own trigger price, not the simulated price, since the
  *    fairness payment is a property of that liquidation, not of wherever the
  *    simulator currently sits.
- *  - Sacrificial vs Protected badge: no backing field exists. `calculate.ts`
- *    emits groups in seizure order but with a 1-based `index` field, so
- *    "first group" is the group's POSITION in the `groups` array (position 0),
- *    never `group.index` itself. The first-position group is the sacrificial
- *    one; the rest are protected.
  */
 
 const TONES: LiquidationBandTone[] = ["1", "2", "3"];
@@ -50,21 +45,15 @@ export interface AmountParts {
 export interface LiquidationEventCard {
   key: string;
   title: string;
-  badge: "sacrificial" | "protected";
   /** Matches the band's colour lane — drives the card's top rule. */
   tone: LiquidationBandTone;
-  /**
-   * The price has fallen to or through this event's trigger. Distinct from
-   * `badge`, which is the event's fixed role in the cascade (position 0 is
-   * sacrificial) and does not move with the simulator.
-   */
+  /** The price has fallen to or through this event's trigger. */
   triggered: boolean;
   collateralLabel: string;
   liqPriceLabel: string;
   distanceLabel: string;
   /** Sign of the distance, so a consumer can tint it without re-parsing
-   *  `distanceLabel`. The overview cards tint negative distances; the
-   *  dashboard-page cards tint by `badge` instead. */
+   *  `distanceLabel`. The overview cards tint negative distances. */
   distanceNegative: boolean;
   seizedVaults: ({ name: string } & AmountParts)[];
   targetSeizure: AmountParts;
@@ -73,7 +62,7 @@ export interface LiquidationEventCard {
   debtRepaidLabel: string;
   liquidatorProfitLabel: string;
   /** Full group shows a wBTC fairness payment; safe groups show fairness debt repaid. */
-  fairness: { label: string; value: string; tooltip?: string };
+  fairness: { label: string; value: string; tooltip: string };
   btcRemainingLabel: string;
   debtRemainingLabel: string;
   hfAfterLabel: string;
@@ -356,8 +345,8 @@ function hfAfter(group: LiquidationGroup, cf: number): string {
 }
 
 // `position` is the group's array index: `calculate()` emits 1-based
-// `group.index`, so array position is the only safe identity for titles,
-// badges, and keys. Aftermath figures are priced at the event's own trigger —
+// `group.index`, so array position is the only safe identity for titles
+// and keys. Aftermath figures are priced at the event's own trigger —
 // the price at which the liquidation actually executes — never the ambient
 // (possibly simulated) price.
 function toCard(
@@ -366,7 +355,6 @@ function toCard(
   cf: number,
   btcPrice: number,
 ): LiquidationEventCard {
-  const sacrificial = position === 0;
   const fairness = group.isFullLiquidation
     ? {
         label: COPY.liquidations.events.fairnessPaymentWbtc,
@@ -376,12 +364,12 @@ function toCard(
     : {
         label: COPY.liquidations.events.fairnessDebtRepaid,
         value: formatUsd(group.fairnessDebtRepay),
+        tooltip: COPY.liquidations.events.fairnessDebtRepaidTooltip,
       };
 
   return {
     key: String(position),
     title: COPY.liquidations.eventTitle(position + 1),
-    badge: sacrificial ? "sacrificial" : "protected",
     // Same rule as a band's `state`, so a card and its band can never
     // disagree about whether the event has fired.
     triggered: btcPrice <= group.liquidationPrice,
@@ -438,7 +426,7 @@ export function buildLiquidationChartData(
     return {
       key: String(i),
       label: COPY.liquidations.eventTitle(i + 1),
-      sublabel: COPY.liquidations.containVaults(
+      accessibleDetail: COPY.liquidations.containVaults(
         group.vaults.map((v) => v.name.toLowerCase()).join(", "),
       ),
       amountLabel: formatBtcAmount(group.combinedBtc),

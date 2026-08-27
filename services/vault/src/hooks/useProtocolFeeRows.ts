@@ -73,9 +73,9 @@ function buildFeeRows(
 
     const bonusPercent = (LB - 1) * PERCENT_SCALE;
     rows.push({
-      label: COPY.protocolFees.liquidationBonus.label,
+      label: COPY.protocolFees.maxLiquidationPenalty.label,
       value: `${bonusPercent.toFixed(0)}%`,
-      tooltip: COPY.protocolFees.liquidationBonus.tooltip,
+      tooltip: COPY.protocolFees.maxLiquidationPenalty.tooltip,
     });
   }
 
