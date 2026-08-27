@@ -1,10 +1,10 @@
 import { FullScreenDialog } from "@babylonlabs-io/core-ui";
-import { useCallback, useRef, type ReactNode } from "react";
+import { useCallback, useLayoutEffect, useRef, type ReactNode } from "react";
 
-import { useChainProviders } from "@/context/Chain.context";
+import { useChainProviders, type Connectors } from "@/context/Chain.context";
 import { useLifeCycleHooks, type WalletLifecycleConnection } from "@/context/LifecycleHooks.context";
 import { createConfirmationReceipt, WALLET_CONFIRMATION_RECEIPT_KEY } from "@/core/confirmationReceipt";
-import type { ChainId, HashMap, IWallet } from "@/core/types";
+import type { ChainId, HashMap, IBTCProvider, IETHProvider, IWallet } from "@/core/types";
 import { useWalletConnectors } from "@/hooks/useWalletConnectors";
 import { useWalletWidgets } from "@/hooks/useWalletWidgets";
 import { useWidgetState } from "@/hooks/useWidgetState";
@@ -13,8 +13,7 @@ import { Screen } from "./Screen";
 
 /**
  * Picks the identity the terms-of-service hook is called with. Required chains
- * are walked in the host's declared order — iterating `selectedWallets` instead
- * would key the identity off whichever wallet the user happened to connect first.
+ * are walked in the host's declared order. Connector order can differ from it.
  */
 function findPrimaryConnection(
   connections: WalletLifecycleConnection[],
@@ -28,12 +27,102 @@ function findPrimaryConnection(
   return connections[0];
 }
 
-function collectConnections(
-  selectedWallets: Record<string, IWallet | undefined>,
-): WalletLifecycleConnection[] {
-  return Object.entries(selectedWallets).flatMap<WalletLifecycleConnection>(([chain, wallet]) =>
-    wallet?.account ? [{ chain: chain as ChainId, wallet, account: wallet.account }] : [],
+function collectConnections(connectors: Connectors): WalletLifecycleConnection[] {
+  return Object.entries(connectors).flatMap<WalletLifecycleConnection>(([chain, connector]) => {
+    const wallet = connector?.connectedWallet;
+    return wallet?.account ? [{ chain: chain as ChainId, wallet, account: { ...wallet.account } }] : [];
+  });
+}
+
+function freezeConnections(connections: WalletLifecycleConnection[]): WalletLifecycleConnection[] {
+  return Object.freeze(
+    connections.map(({ chain, wallet, account }) => {
+      const frozenAccount = Object.freeze({ ...account });
+      const frozenWallet = Object.freeze<IWallet>({
+        id: wallet.id,
+        name: wallet.name,
+        icon: wallet.icon,
+        iconBackground: wallet.iconBackground,
+        docs: wallet.docs,
+        installed: wallet.installed,
+        provider: wallet.provider,
+        account: frozenAccount,
+        label: wallet.label,
+        hardware: wallet.hardware,
+      });
+
+      return Object.freeze({ chain, wallet: frozenWallet, account: frozenAccount });
+    }),
+  ) as unknown as WalletLifecycleConnection[];
+}
+
+interface ConnectionAuthority {
+  chain: ChainId;
+  wallet: IWallet;
+  provider: IWallet["provider"];
+}
+
+function collectAuthority(connections: WalletLifecycleConnection[]): ConnectionAuthority[] {
+  return connections.map(({ chain, wallet }) => ({ chain, wallet, provider: wallet.provider }));
+}
+
+function hasSameAuthority(left: readonly ConnectionAuthority[], right: readonly ConnectionAuthority[]): boolean {
+  return (
+    left.length === right.length &&
+    left.every(({ chain, wallet, provider }) => {
+      const match = right.find((authority) => authority.chain === chain);
+      return match?.wallet === wallet && match.provider === provider;
+    })
   );
+}
+
+async function createConfirmationSnapshot(getConnectors: () => Connectors): Promise<{
+  receipt: string;
+  connections: WalletLifecycleConnection[];
+  authority: readonly ConnectionAuthority[];
+}> {
+  const connectors = getConnectors();
+  const connections = collectConnections(connectors);
+  const authority = collectAuthority(connections);
+  const receipt = createConfirmationReceipt(connections, connectors);
+  const networks: Partial<Record<ChainId, string | number>> = {};
+
+  await Promise.all(
+    connections.map(async ({ chain, wallet }) => {
+      if (!wallet.provider) {
+        throw new Error(`Connected ${chain} wallet has no provider`);
+      }
+
+      if (chain === "ETH") {
+        const network = await (wallet.provider as IETHProvider).getChainId();
+        if (network === undefined || network === null) throw new Error("Wallet did not report its network");
+        networks[chain] = network;
+      } else if (chain === "BTC") {
+        const network = await (wallet.provider as IBTCProvider).getNetwork();
+        if (!network) throw new Error("Wallet did not report its network");
+        networks[chain] = network;
+      }
+    }),
+  );
+
+  const settledConnectors = getConnectors();
+  const settledConnections = collectConnections(settledConnectors);
+  const stable =
+    createConfirmationReceipt(settledConnections, settledConnectors) === receipt &&
+    hasSameAuthority(authority, collectAuthority(settledConnections));
+
+  if (!stable) {
+    throw new Error("Wallet changed while confirming");
+  }
+
+  const liveReceipt = createConfirmationReceipt(connections, connectors, networks);
+  if (liveReceipt !== receipt) {
+    throw new Error("Wallet network does not match the configured network");
+  }
+
+  // Restore stays synchronous until #2351 adds live session checks. Store this
+  // configured receipt only after it equals the live network identity.
+  return { receipt, connections: freezeConnections(connections), authority: Object.freeze(authority) };
 }
 
 interface WalletDialogProps {
@@ -58,41 +147,94 @@ export function WalletDialog({
   closeButtonClassName,
   actionsClassName,
 }: WalletDialogProps) {
-  const { visible, screen, confirmed, selectedWallets, requiredChainIds, close, confirm, displayChains, displayError } =
+  const { visible, screen, confirmed, requiredChainIds, close, confirm, displayChains, displayError } =
     useWidgetState();
   const { acceptTermsOfService, onConfirm } = useLifeCycleHooks();
   const connectors = useChainProviders();
   const walletWidgets = useWalletWidgets(connectors, config, onError);
   const { connect } = useWalletConnectors({ persistent, accountStorage: storage, onError });
 
-  // Read inside `handleConfirm` after awaiting the host's hooks, so the
-  // confirmation reflects the connections as they stand then.
-  const selectedWalletsRef = useRef(selectedWallets);
-  selectedWalletsRef.current = selectedWallets;
+  const connectorsRef = useRef(connectors);
+  const attemptGenerationRef = useRef(0);
+  const activeAttemptRef = useRef<number | null>(null);
+  const mountedRef = useRef(false);
+  const visibleRef = useRef(visible);
+
+  const invalidateAttempt = useCallback(() => {
+    attemptGenerationRef.current += 1;
+    activeAttemptRef.current = null;
+  }, []);
+
+  useLayoutEffect(() => {
+    connectorsRef.current = connectors;
+    if (visibleRef.current && !visible) invalidateAttempt();
+    visibleRef.current = visible;
+  }, [connectors, invalidateAttempt, visible]);
+
+  useLayoutEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      invalidateAttempt();
+    };
+  }, [invalidateAttempt]);
 
   // Closing without confirming leaves the connectors connected, so the user can
   // reopen and finish where they left off. The receipt written on confirm is
   // the single gate that lets a later reload auto-confirm — no receipt, no
   // silent restore — so leaving the connection up grants nothing on its own.
   const handleClose = useCallback(() => {
+    invalidateAttempt();
     close?.();
-  }, [close]);
+  }, [close, invalidateAttempt]);
 
   const handleConfirm = useCallback(async () => {
+    if (activeAttemptRef.current !== null || !mountedRef.current || !visibleRef.current) return;
+
+    const generation = attemptGenerationRef.current + 1;
+    attemptGenerationRef.current = generation;
+    activeAttemptRef.current = generation;
+    const isCurrentAttempt = () =>
+      activeAttemptRef.current === generation &&
+      attemptGenerationRef.current === generation &&
+      mountedRef.current &&
+      visibleRef.current;
+
     try {
       if (!confirmed) {
-        const connections = collectConnections(selectedWallets);
+        const confirmationSnapshot = await createConfirmationSnapshot(() => connectorsRef.current);
+        if (!isCurrentAttempt()) return;
+        const { connections } = confirmationSnapshot;
 
-        // A required chain whose wallet is selected but has no account would
+        // A required chain whose connector has no active account would
         // otherwise drop silently out of `connections` and be confirmed with
         // nothing recorded for it, leaving the next reload to ask again with no
         // signal that anything went wrong.
         const uncovered = requiredChainIds.filter((chainId) => !connections.some(({ chain }) => chain === chainId));
         if (uncovered.length > 0) {
-          throw new Error(`No connected account for required chain${uncovered.length > 1 ? "s" : ""}: ${uncovered.join(", ")}`);
+          throw new Error(
+            `No connected account for required chain${uncovered.length > 1 ? "s" : ""}: ${uncovered.join(", ")}`,
+          );
         }
 
         const primary = findPrimaryConnection(connections, requiredChainIds);
+        const checkIdentity = async () => {
+          if (!isCurrentAttempt()) return false;
+
+          const currentSnapshot = await createConfirmationSnapshot(() => connectorsRef.current);
+          if (!isCurrentAttempt()) return false;
+
+          if (
+            currentSnapshot.receipt !== confirmationSnapshot.receipt ||
+            !hasSameAuthority(currentSnapshot.authority, confirmationSnapshot.authority)
+          ) {
+            throw new Error("Wallet changed while confirming");
+          }
+
+          return true;
+        };
+
+        if (!(await checkIdentity())) return;
 
         if (primary) {
           await acceptTermsOfService?.({
@@ -101,29 +243,29 @@ export function WalletDialog({
             chain: primary.chain,
             connections,
           });
+          if (!isCurrentAttempt()) return;
+          if (!(await checkIdentity())) return;
         }
         await onConfirm?.(connections);
-
-        // The host's hooks are awaited, and a required wallet can disconnect
-        // while they run. Re-read the live selection rather than confirming
-        // against the snapshot taken before the await, which would recreate an
-        // approval for a wallet that is no longer there.
-        const settled = collectConnections(selectedWalletsRef.current);
-        const lost = requiredChainIds.filter((chainId) => !settled.some(({ chain }) => chain === chainId));
-        if (lost.length > 0) {
-          throw new Error(`Wallet disconnected while confirming: ${lost.join(", ")}`);
-        }
+        if (!isCurrentAttempt()) return;
+        if (!(await checkIdentity())) return;
 
         if (persistent) {
-          storage.set(WALLET_CONFIRMATION_RECEIPT_KEY, createConfirmationReceipt(settled, connectors));
+          if (!isCurrentAttempt()) return;
+          storage.set(WALLET_CONFIRMATION_RECEIPT_KEY, confirmationSnapshot.receipt);
         }
       }
 
+      if (!isCurrentAttempt()) return;
       confirm?.();
+      if (!isCurrentAttempt()) return;
       close?.();
     } catch (error) {
+      if (!isCurrentAttempt()) return;
+
       const normalizedError = error instanceof Error ? error : new Error("Wallet confirmation failed");
       onError?.(normalizedError);
+      if (!isCurrentAttempt()) return;
       displayError?.({
         title: "Connection Failed",
         description: normalizedError.message,
@@ -131,20 +273,22 @@ export function WalletDialog({
         cancelButton: "Done",
         onCancel: displayChains,
       });
+    } finally {
+      if (attemptGenerationRef.current === generation && activeAttemptRef.current === generation) {
+        activeAttemptRef.current = null;
+      }
     }
   }, [
     acceptTermsOfService,
     close,
     confirm,
     confirmed,
-    connectors,
     displayChains,
     displayError,
     onConfirm,
     onError,
     persistent,
     requiredChainIds,
-    selectedWallets,
     storage,
   ]);
 

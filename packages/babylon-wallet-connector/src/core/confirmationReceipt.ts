@@ -33,11 +33,15 @@ function connectorFor(connectors: Connectors, chain: ChainId) {
  * must not restore a session against mainnet, so this participates in the
  * match alongside the account identity.
  */
-function networkIdentity(connectors: Connectors, chain: ChainId): string {
+function networkIdentity(
+  connectors: Connectors,
+  chain: ChainId,
+  networks?: Partial<Record<ChainId, string | number>>,
+): string {
   const config = connectorFor(connectors, chain)?.config as
     | { chainId?: string | number; network?: string | number }
     | undefined;
-  const value = chain === "BTC" ? config?.network : config?.chainId;
+  const value = networks?.[chain] ?? (chain === "BTC" ? config?.network : config?.chainId);
 
   return value === undefined ? "" : String(value);
 }
@@ -71,6 +75,7 @@ function isReceiptEntry(value: unknown): value is ConfirmationReceiptEntry {
 export function createConfirmationReceipt(
   connections: readonly ConfirmationConnection[],
   connectors: Connectors,
+  networks?: Partial<Record<ChainId, string | number>>,
 ): string {
   const entries = connections
     .filter((connection) => connection.account && connectorFor(connectors, connection.chain))
@@ -79,7 +84,7 @@ export function createConfirmationReceipt(
       walletId: connection.wallet.id,
       address: connection.account.address,
       publicKeyHex: connection.account.publicKeyHex,
-      network: networkIdentity(connectors, connection.chain),
+      network: networkIdentity(connectors, connection.chain, networks),
     }))
     .sort((left, right) => left.chain.localeCompare(right.chain));
 
@@ -114,7 +119,11 @@ export function isValidConfirmationReceipt(
 
   const receipt = parsed as Partial<ConfirmationReceipt>;
 
-  if (receipt.version !== RECEIPT_VERSION || !Array.isArray(receipt.entries) || !receipt.entries.every(isReceiptEntry)) {
+  if (
+    receipt.version !== RECEIPT_VERSION ||
+    !Array.isArray(receipt.entries) ||
+    !receipt.entries.every(isReceiptEntry)
+  ) {
     return false;
   }
 
