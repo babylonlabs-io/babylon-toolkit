@@ -587,6 +587,42 @@ describe("useDepositPageForm", () => {
       expect(result.current.hasUnconfirmedBalanceOnly).toBe(false);
     });
 
+    it("flags hasUnconfirmedBalance when unconfirmed funds sit alongside confirmed funds", () => {
+      // A wallet holding 0.00329262 confirmed and 0.025 unconfirmed reads about
+      // ten times lower in the form than in the wallet. The notice has to fire
+      // here, not only when the confirmed balance is zero.
+      vi.mocked(useUTXOs).mockReturnValue({
+        availableUTXOs: [
+          { txid: "0x123", vout: 0, value: 329262, scriptPubKey: "0xabc" },
+        ],
+        spendableMempoolUTXOs: [],
+        ordinalsCheckPending: false,
+        confirmedBalance: 329262n,
+        unconfirmedBalance: 2_500_000n,
+      } as unknown as ReturnType<typeof useUTXOs>);
+
+      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+
+      expect(result.current.hasUnconfirmedBalance).toBe(true);
+      expect(result.current.hasUnconfirmedBalanceOnly).toBe(false);
+    });
+
+    it("does not flag hasUnconfirmedBalance when there are no unconfirmed funds", () => {
+      vi.mocked(useUTXOs).mockReturnValue({
+        availableUTXOs: [
+          { txid: "0x123", vout: 0, value: 500000, scriptPubKey: "0xabc" },
+        ],
+        spendableMempoolUTXOs: [],
+        ordinalsCheckPending: false,
+        confirmedBalance: 500000n,
+        unconfirmedBalance: 0n,
+      } as unknown as ReturnType<typeof useUTXOs>);
+
+      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+
+      expect(result.current.hasUnconfirmedBalance).toBe(false);
+    });
+
     it("does not flag hasUnconfirmedBalanceOnly when confirmed funds exist but are all inscriptions", () => {
       // Spendable balance is zero because the only confirmed UTXO is an
       // inscription (excluded from availableUTXOs), yet confirmed funds exist.

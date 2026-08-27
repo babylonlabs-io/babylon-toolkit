@@ -37,9 +37,14 @@ export interface DepositAmountState {
   /** Total value of unconfirmed (in-mempool) UTXOs in satoshis. Display-only. */
   unconfirmedBalance: bigint;
   /**
-   * True when the confirmed balance is zero but unconfirmed funds exist. Shows
-   * an inline "pending confirmation" notice so the user understands why the
-   * form reads zero while their wallet shows a balance.
+   * True whenever unconfirmed funds exist. Shows an inline "pending
+   * confirmation" notice so the user understands why the form reads a lower
+   * balance than their wallet.
+   */
+  hasUnconfirmedBalance: boolean;
+  /**
+   * True when the confirmed balance is zero but unconfirmed funds exist, so the
+   * depositable maximum is zero and the "Max" tooltip has nothing to describe.
    */
   hasUnconfirmedBalanceOnly: boolean;
   minDeposit: bigint;
@@ -206,6 +211,7 @@ export function DepositForm({
     amountSats,
     btcBalance,
     unconfirmedBalance,
+    hasUnconfirmedBalance,
     hasUnconfirmedBalanceOnly,
     minDeposit,
     maxDeposit,
@@ -313,12 +319,12 @@ export function DepositForm({
     })} USD`;
   }, [amount, btcPrice, hasPriceFetchError]);
 
-  // When the confirmed balance reads zero but unconfirmed funds exist, show a
-  // "pending confirmation" note in the slider's right slot (where the USD value
-  // would sit — empty at a zero balance). The InfoIcon is wrapped with an
-  // attach-to-children Hint so the markup stays inline-valid inside the slider's
-  // right cell (a bare Hint would nest a div inside a span).
-  const pendingConfirmationField = hasUnconfirmedBalanceOnly ? (
+  // When unconfirmed funds exist, show a "pending confirmation" note in the
+  // slider's left slot, where the USD value would sit — it is only rendered
+  // while no amount is entered, so the two never compete. The InfoIcon is
+  // wrapped with an attach-to-children Hint so the markup stays inline-valid
+  // inside the slider's cell (a bare Hint would nest a div inside a span).
+  const pendingConfirmationField = hasUnconfirmedBalance ? (
     <span className="inline-flex items-center gap-1 text-accent-secondary">
       {COPY.deposit.form.pendingConfirmationNotice(
         `${Number(depositService.formatSatoshisToBtc(unconfirmedBalance))} ${btcConfig.coinSymbol}`,
