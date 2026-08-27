@@ -165,7 +165,7 @@ function readFundedHtlcValueSats(
   const htlcOutput = fundedTx.outs[htlcVout];
   if (!htlcOutput) {
     throw new Error(
-      `Funded Pre-PegIn tx has no output at htlcVout ${htlcVout} ` +
+      `Funded Vault Creation tx has no output at htlcVout ${htlcVout} ` +
         `(it has ${fundedTx.outs.length} outputs). Cannot preview the ` +
         `refund amount.`,
     );
@@ -240,7 +240,7 @@ async function readTargetVault(vaultId: Hex): Promise<TargetVaultData> {
     computedTxHash.toLowerCase() !== onChainVault.prePeginTxHash.toLowerCase()
   ) {
     throw new Error(
-      `Pre-PegIn transaction hash mismatch: computed ${computedTxHash} from indexer tx, ` +
+      `Vault Creation transaction hash mismatch: computed ${computedTxHash} from indexer tx, ` +
         `but on-chain contract has ${onChainVault.prePeginTxHash}. ` +
         `Aborting refund to prevent potential attack.`,
     );
@@ -421,7 +421,7 @@ async function readPrePeginContext(
   }
   if (vaultKeepers.length === 0) {
     throw new Error(
-      `No vault keepers found for version ${vault.appVaultKeepersVersion}`,
+      `No Vault Keepers found for version ${vault.appVaultKeepersVersion}`,
     );
   }
   if (universalChallengersList.length === 0) {

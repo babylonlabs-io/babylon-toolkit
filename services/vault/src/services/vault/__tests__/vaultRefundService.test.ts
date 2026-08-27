@@ -404,7 +404,7 @@ describe("vaultRefundService - adapter wiring", () => {
         depositorBtcPubkey: DEPOSITOR_PUBKEY,
         feeRate: 10,
       }),
-    ).rejects.toThrow("Pre-PegIn transaction hash mismatch");
+    ).rejects.toThrow("Vault Creation transaction hash mismatch");
   });
 
   it("throws when vault is not found in indexer", async () => {
@@ -449,7 +449,7 @@ describe("vaultRefundService - adapter wiring", () => {
         feeRate: 10,
       }),
     ).rejects.toThrow(
-      `No vault keepers found for version ${ON_CHAIN_VAULT.appVaultKeepersVersion}`,
+      `No Vault Keepers found for version ${ON_CHAIN_VAULT.appVaultKeepersVersion}`,
     );
   });
 

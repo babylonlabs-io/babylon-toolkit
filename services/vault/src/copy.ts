@@ -922,6 +922,19 @@ export const COPY = {
         title: "Broadcast failed",
         body: "We couldn't broadcast your Bitcoin transaction to the network. Please try again.",
       },
+      vaultCreationHashMismatch: (
+        computedTxHash: string,
+        onChainTxHash: string,
+      ) =>
+        `Vault Creation transaction hash mismatch: computed ${computedTxHash} from indexer tx, ` +
+        `but on-chain contract has ${onChainTxHash}. ` +
+        "Aborting to prevent potential attack.",
+      vaultCreationIntegrityMismatch:
+        "Transaction integrity check failed: the Vault Creation transaction does not match the hash stored on-chain. Aborting to prevent a potential attack.",
+      vaultCreationSigningCanceled:
+        "Signing canceled - the signed Vault Creation was not broadcast",
+      vaultCreationBroadcastFailed: (message: string) =>
+        `Failed to broadcast batch Vault Creation transaction: ${message}`,
       providerNotFound: {
         title: "Vault provider not found",
         body: "The selected vault provider could not be found. Please refresh and try again.",
@@ -932,7 +945,7 @@ export const COPY = {
       },
       participantKeyDrift: {
         title: "Vault operator keys changed",
-        body: "A vault operator rotated its Bitcoin key while your deposit was being registered, so the registered vault no longer matches the transaction we prepared. Your Pre-PegIn was not broadcast and no Bitcoin was spent. The registered vault will time out on its own — please start a new deposit.",
+        body: "A vault operator rotated its Bitcoin key while your deposit was being registered, so the registered vault no longer matches the transaction we prepared. Your Vault Creation was not broadcast and no Bitcoin was spent. The registered vault will time out on its own — please start a new deposit.",
       },
       wrongWalletAccount: {
         title: "Wrong wallet account",
