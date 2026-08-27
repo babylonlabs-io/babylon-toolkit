@@ -25,6 +25,8 @@ export default defineConfig([
       "src/tbv/core/primitives/psbt/payout.ts",
       "src/tbv/core/vault-secrets/**/*.ts",
       "src/tbv/core/wasm/**/*.ts",
+      "src/tbv/core/clients/eth/pegin-transaction.ts",
+      "src/tbv/core/clients/eth/onChainBtcPubkey.ts",
       "src/tbv/integrations/aave/utils/vaultSplit.ts",
       "src/tbv/core/utils/signing.ts",
     ],
