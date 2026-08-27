@@ -1,15 +1,14 @@
 import { defineConfig } from "vitest/config";
 
+import { TEST_TIMEOUT_MS } from "../../vitest.shared";
+
 export default defineConfig({
   test: {
     globals: true,
     environment: "node",
     setupFiles: ["./src/test/setup.ts"],
     exclude: ["**/node_modules/**", "**/dist/**"],
-    // 5s (vitest's default) is too tight for a suite whose tests dynamically
-    // import heavy mocked packages on a shared CI runner. Raised so a slow
-    // runner reports a slow test rather than a failed one.
-    testTimeout: 20_000,
+    testTimeout: TEST_TIMEOUT_MS,
     // Use forked processes for test execution to handle WASM initialization properly.
     // WASM loading is stateful - once initialized in a process, it remains loaded.
     // The babylon-tbv-rust-wasm package uses a singleton initWasm() pattern that
