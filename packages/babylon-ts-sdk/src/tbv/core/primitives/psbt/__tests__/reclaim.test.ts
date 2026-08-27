@@ -58,14 +58,20 @@ function makePeginTxHex({
   return tx.toHex();
 }
 
+/** Txid of the PegIn `makeInput` builds at its default seed. */
+const DEFAULT_PEGIN_TXID = Transaction.fromHex(makePeginTxHex()).getId();
+
 function makeInput(
   overrides: Partial<ReclaimReserve> = {},
   seed = 7,
 ): ReclaimReserve {
   const { scriptPubKey } = deriveDepositorClaimDescriptor(DEPOSITOR);
+  const peginTxHex = makePeginTxHex({ seed });
   return {
-    depositorSignedPeginTxHex: makePeginTxHex({ seed }),
+    depositorSignedPeginTxHex: peginTxHex,
     observed: {
+      txid: Transaction.fromHex(peginTxHex).getId(),
+      vout: PEGIN_DEPOSITOR_CLAIM_VOUT,
       scriptPubKey: scriptPubKey.toString("hex"),
       value: CLAIM_VALUE,
     },
@@ -131,10 +137,21 @@ describe("buildReclaimPsbt", () => {
 
   it("rejects a reserve that pays a different wallet's claim script", () => {
     // The PegIn belongs to OTHER_DEPOSITOR; the connected wallet is DEPOSITOR.
+    // The observation is consistent with that PegIn, so the wrong-wallet bind
+    // is what has to catch it.
+    const otherWalletPeginTxHex = makePeginTxHex({
+      depositorPubkey: OTHER_DEPOSITOR,
+    });
     const input = makeInput({
-      depositorSignedPeginTxHex: makePeginTxHex({
-        depositorPubkey: OTHER_DEPOSITOR,
-      }),
+      depositorSignedPeginTxHex: otherWalletPeginTxHex,
+      observed: {
+        txid: Transaction.fromHex(otherWalletPeginTxHex).getId(),
+        vout: PEGIN_DEPOSITOR_CLAIM_VOUT,
+        scriptPubKey: deriveDepositorClaimDescriptor(
+          OTHER_DEPOSITOR,
+        ).scriptPubKey.toString("hex"),
+        value: CLAIM_VALUE,
+      },
     });
 
     expect(() =>
@@ -149,6 +166,8 @@ describe("buildReclaimPsbt", () => {
   it("rejects when the observed UTXO script disagrees with the contract's PegIn", () => {
     const input = makeInput({
       observed: {
+        txid: DEFAULT_PEGIN_TXID,
+        vout: PEGIN_DEPOSITOR_CLAIM_VOUT,
         scriptPubKey: deriveDepositorClaimDescriptor(
           OTHER_DEPOSITOR,
         ).scriptPubKey.toString("hex"),
@@ -165,9 +184,56 @@ describe("buildReclaimPsbt", () => {
     ).toThrow(/chain state disagrees with the contract's PegIn/);
   });
 
+  it("rejects when the observation is of a different vault's PegIn", () => {
+    // The script and value are byte-identical across every vault this
+    // depositor owns, so only the outpoint distinguishes them.
+    const otherVaultPeginTxHex = makePeginTxHex({ seed: 99 });
+    const input = makeInput({
+      observed: {
+        txid: Transaction.fromHex(otherVaultPeginTxHex).getId(),
+        vout: PEGIN_DEPOSITOR_CLAIM_VOUT,
+        scriptPubKey: deriveDepositorClaimDescriptor(
+          DEPOSITOR,
+        ).scriptPubKey.toString("hex"),
+        value: CLAIM_VALUE,
+      },
+    });
+
+    expect(() =>
+      buildReclaimPsbt({
+        depositorPubkey: DEPOSITOR,
+        inputs: [input],
+        feeSats: 645n,
+      }),
+    ).toThrow(/the reserve that was looked up is not the one being swept/);
+  });
+
+  it("rejects when the observation is of the vault output rather than the reserve", () => {
+    const input = makeInput({
+      observed: {
+        txid: DEFAULT_PEGIN_TXID,
+        vout: 0,
+        scriptPubKey: deriveDepositorClaimDescriptor(
+          DEPOSITOR,
+        ).scriptPubKey.toString("hex"),
+        value: CLAIM_VALUE,
+      },
+    });
+
+    expect(() =>
+      buildReclaimPsbt({
+        depositorPubkey: DEPOSITOR,
+        inputs: [input],
+        feeSats: 645n,
+      }),
+    ).toThrow(/the depositor-claim reserve is at vout 1/);
+  });
+
   it("rejects when the observed value disagrees with the contract's PegIn", () => {
     const input = makeInput({
       observed: {
+        txid: DEFAULT_PEGIN_TXID,
+        vout: PEGIN_DEPOSITOR_CLAIM_VOUT,
         scriptPubKey: deriveDepositorClaimDescriptor(
           DEPOSITOR,
         ).scriptPubKey.toString("hex"),

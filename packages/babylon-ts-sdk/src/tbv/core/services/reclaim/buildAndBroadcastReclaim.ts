@@ -2,10 +2,11 @@
  * Reclaim orchestration — sweep the depositor-claim reserve (PegIn vout 1)
  * back to the depositor after their vault has terminally settled.
  *
- * The SDK owns the sequence: read → fee caps → PSBT build → sign → verify →
- * finalize → broadcast. Interactive transports (`signPsbt`, `broadcastTx`) and
- * the data read stay as injected callbacks, so the caller keeps its transport
- * choice and error decoding. Mirrors `services/refund/buildAndBroadcastRefund`.
+ * The SDK owns the sequence: read → vault-id bind → fee caps → PSBT build →
+ * sign → verify → finalize → broadcast. Interactive transports (`signPsbt`,
+ * `broadcastTx`) and the data read stay as injected callbacks, so the caller
+ * keeps its transport choice and error decoding. Mirrors
+ * `services/refund/buildAndBroadcastRefund`.
  *
  * > **Eligibility is the caller's job, and it is a safety control.** The claim
  * > leaf carries no timelock, so this service will sweep a reserve whose vault
@@ -19,11 +20,11 @@
  * @module services/reclaim
  */
 
-import { Psbt } from "bitcoinjs-lib";
-import type { Hex } from "viem";
+import type { Address, Hex } from "viem";
 
 import type { SignPsbtOptions } from "../../../../shared/wallets/interfaces/BitcoinWallet";
 import { assertPsbtUnsignedTxMatches } from "../../primitives/psbt/assertPsbtUnsignedTxMatches";
+import { finalizeScriptPathWithSignatures } from "../../primitives/psbt/finalizeScriptPathWithSignatures";
 import { extractPayoutSignature } from "../../primitives/psbt/payout";
 import {
   buildReclaimPsbt,
@@ -31,8 +32,14 @@ import {
   type ReclaimReserve,
 } from "../../primitives/psbt/reclaim";
 import { assertScriptPathSchnorrSignature } from "../../primitives/psbt/verifyScriptPathSchnorrSignature";
-import { processPublicKeyToXOnly } from "../../primitives/utils/bitcoin";
+import {
+  ensureHexPrefix,
+  processPublicKeyToXOnly,
+  stripHexPrefix,
+} from "../../primitives/utils/bitcoin";
 import { createTaprootScriptPathSignOptions } from "../../utils/signing";
+import { deriveVaultId } from "../../wasm";
+import { calculateBtcTxHash } from "../../utils/transaction/btcTxHash";
 // The BTC broadcast transport types are shared with the refund service rather
 // than redeclared — `services/index.ts` re-exports both modules flat, so a
 // second declaration would collide on the barrel.
@@ -84,8 +91,17 @@ export interface ReclaimVaultData {
    * never the indexer. Its `outs[1]` is one leg of the three-way bind.
    */
   depositorSignedPeginTxHex: string;
-  /** Independent chain observation of `peginTxid:1`. */
-  observed: { scriptPubKey: string; value: bigint };
+  /**
+   * Independent chain observation of `peginTxid:1`, including the outpoint the
+   * lookup was issued against — see `ReclaimReserve.observed` for why the
+   * script and value alone cannot identify a reserve.
+   */
+  observed: {
+    txid: string;
+    vout: number;
+    scriptPubKey: string;
+    value: bigint;
+  };
   /** This vault's reserve value, recomputed via `computeMinClaimValue`. */
   expectedClaimValue: bigint;
 }
@@ -94,6 +110,12 @@ export interface ReclaimInput<
   R extends BtcBroadcastResult = BtcBroadcastResult,
 > {
   vaultIds: Hex[];
+  /**
+   * The depositor's Ethereum address — the second preimage of every vault id.
+   * Used to re-derive each requested id from the PegIn bytes `readVaults`
+   * returned, so a reserve can be tied to the vault it was asked for.
+   */
+  depositorEthAddress: Address;
   /**
    * The **connected wallet's live** BTC pubkey — compressed sec1 or x-only.
    * Never the indexer's `depositorBtcPubkey`: re-deriving the claim script
@@ -116,19 +138,42 @@ export interface ReclaimInput<
   signal?: AbortSignal;
 }
 
-function finalizeAndExtract(signedPsbtHex: string): string {
-  const psbt = Psbt.fromHex(signedPsbtHex);
-  try {
-    psbt.finalizeAllInputs();
-  } catch (e: unknown) {
-    // Some wallets (e.g. Keystone) finalize during signPsbt; bitcoinjs then
-    // throws "Input is already finalized". Treat that case as a no-op.
-    const message = e instanceof Error ? e.message : String(e);
-    if (!message.includes("already finalized")) {
-      throw new Error(`Failed to finalize reclaim PSBT: ${message}`);
+/**
+ * Assert every reserve belongs to the vault it was requested for.
+ *
+ * The PSBT builder's binds all compare a script or a value, and both repeat
+ * across every vault a depositor owns under the same protocol parameters — so
+ * none of them can tell one of their vaults from another. Re-deriving the
+ * vault id from the PegIn bytes closes that: it is the same
+ * `keccak256(abi.encode(peginTxHash, depositor))` the registry keys on.
+ *
+ * This binds the reserve to the id that was asked for. It cannot detect an id
+ * that was wrong to begin with — if the caller resolved the wrong vault id
+ * upstream, every read follows that vault consistently and this agrees.
+ */
+async function assertReservesMatchVaultIds(
+  vaults: readonly ReclaimVaultData[],
+  vaultIds: readonly Hex[],
+  depositorEthAddress: Address,
+): Promise<void> {
+  for (let i = 0; i < vaults.length; i++) {
+    const peginTxHash = calculateBtcTxHash(vaults[i].depositorSignedPeginTxHex);
+    const derivedVaultId = ensureHexPrefix(
+      await deriveVaultId(
+        stripHexPrefix(peginTxHash),
+        stripHexPrefix(depositorEthAddress),
+      ),
+    ).toLowerCase();
+
+    if (derivedVaultId !== vaultIds[i].toLowerCase()) {
+      throw new Error(
+        `Reserve ${i} belongs to vault ${derivedVaultId}, not the requested ` +
+          `${vaultIds[i].toLowerCase()}. Refusing to sweep a reserve whose ` +
+          `vault is not the one the caller asked for — the reserve funds that ` +
+          `vault's claim transaction and cannot be replaced.`,
+      );
     }
   }
-  return psbt.extractTransaction().toHex();
 }
 
 /**
@@ -145,6 +190,7 @@ export async function buildAndBroadcastReclaim<
 >(input: ReclaimInput<R>): Promise<R> {
   const {
     vaultIds,
+    depositorEthAddress,
     depositorBtcPubkey,
     readVaults,
     feeRate,
@@ -180,6 +226,13 @@ export async function buildAndBroadcastReclaim<
         `vault id(s); refusing to sweep a set that does not match the request.`,
     );
   }
+
+  // Cardinality alone proves nothing about *which* vaults came back, and
+  // `readVaults` is documented as ordered but never checked. Derive each id
+  // back from the PegIn bytes so an out-of-order, substituted or otherwise
+  // mismatched set is rejected before any of it reaches a PSBT.
+  await assertReservesMatchVaultIds(vaults, vaultIds, depositorEthAddress);
+  signal?.throwIfAborted();
 
   // x-only for script derivation and signature verification; the raw form is
   // kept for the wallet's own sign call below.
@@ -236,7 +289,7 @@ export async function buildAndBroadcastReclaim<
   // every input against a sighash recomputed from the PSBT we built, before
   // finalizing — not just input 0, or a batch could broadcast with one good
   // signature and the rest garbage.
-  reserves.forEach((_reserve, inputIndex) => {
+  const signatures = reserves.map((_reserve, inputIndex) => {
     const signature = extractPayoutSignature(
       signedPsbtHex,
       xOnlyDepositorPubkey,
@@ -248,9 +301,17 @@ export async function buildAndBroadcastReclaim<
       signerXOnlyPubkeyHex: xOnlyDepositorPubkey,
       inputIndex,
     });
+    return signature;
   });
 
-  const signedTxHex = finalizeAndExtract(signedPsbtHex);
+  // Finalize the PSBT we built, not the one the wallet returned: only the
+  // verified signatures above cross over. See the primitive's header for what
+  // finalizing the wallet's copy would let through.
+  const signedTxHex = finalizeScriptPathWithSignatures({
+    requestedPsbtHex: psbtHex,
+    signaturesHex: signatures,
+    signerXOnlyPubkeyHex: xOnlyDepositorPubkey,
+  });
   signal?.throwIfAborted();
 
   return broadcastTx(signedTxHex);

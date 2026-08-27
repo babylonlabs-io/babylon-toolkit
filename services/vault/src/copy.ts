@@ -1322,6 +1322,11 @@ export const COPY = {
       walletNotConnected: "BTC wallet not connected",
       missingVaultId: "Missing BTCVault ID",
       invalidFeeRate: "Fee rate must be a positive number",
+      // The pre-signing re-check found the withdrawal no longer settled deeply
+      // enough on Bitcoin. Rare, and it clears on its own as blocks arrive, so
+      // the copy says plainly that nothing is at risk and retrying later works.
+      payoutNotConfirmed:
+        "The withdrawal that made this reserve reclaimable is no longer confirmed on Bitcoin. Your reserve is safe where it is — try again once it settles.",
       // Fallback when the failure carries no message of its own.
       generic: "Reclaim transaction failed",
     },

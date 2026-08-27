@@ -6,6 +6,7 @@ import { COPY } from "@/copy";
 import { logger } from "@/infrastructure";
 import {
   ReclaimAlreadySettledError,
+  ReclaimNoLongerEligibleError,
   buildAndBroadcastReclaimTransaction,
 } from "@/services/vault/vaultReclaimService";
 import type { VaultActivity } from "@/types/activity";
@@ -135,6 +136,15 @@ export function useReclaimState({
           logger.error(err instanceof Error ? err : new Error(String(err)), {
             data: { context: "Reclaim failed", vaultId },
           });
+          if (err instanceof ReclaimNoLongerEligibleError) {
+            // A reorg deep enough to unwind the withdrawal's confirmations. The
+            // reserve is intact and must stay that way, so this is an ordinary
+            // retryable failure — the review screen's callout and "Retry", with
+            // copy that says the money is not at risk.
+            setError(COPY.reclaim.errors.payoutNotConfirmed);
+            setReclaiming(false);
+            return;
+          }
           setError(
             err instanceof Error ? err.message : COPY.reclaim.errors.generic,
           );
