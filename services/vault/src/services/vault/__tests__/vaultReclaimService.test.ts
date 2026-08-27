@@ -7,6 +7,7 @@
  * chain moved in between, this is the only place left to notice.
  */
 
+import { pushTx } from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
   getOutspend,
   getTipHeight,
@@ -185,6 +186,46 @@ describe("buildAndBroadcastReclaimTransaction", () => {
     // The SDK got as far as asking for a signature; the gate stopped it there.
     expect(mockBuildAndBroadcastReclaim).toHaveBeenCalled();
     expect(walletSign).not.toHaveBeenCalled();
+  });
+
+  it("refuses to broadcast when the payout is reorged out during the wallet prompt", async () => {
+    // `signPsbt` is an interactive approval that can sit open for minutes, so a
+    // check taken before it says nothing about the chain by the time it
+    // returns. The payout is settled at entry and at the pre-prompt check, and
+    // gone only by the time the signed transaction is about to be broadcast.
+    let payoutProbe = 0;
+    (getOutspend as Mock).mockImplementation(
+      async (_txid: string, vout: number) => {
+        if (vout !== PEGIN_VAULT_VOUT) return { spent: false };
+        payoutProbe += 1;
+        return payoutProbe <= 2
+          ? {
+              spent: true,
+              status: { confirmed: true, block_height: DEEP_PAYOUT_HEIGHT },
+            }
+          : { spent: false };
+      },
+    );
+    const walletSign = vi.fn().mockResolvedValue("signedpsbt");
+    mockBuildAndBroadcastReclaim.mockImplementation(
+      async (input: {
+        signPsbt: (p: string, o: unknown) => Promise<string>;
+        broadcastTx: (hex: string) => Promise<{ txId: string }>;
+      }) => {
+        const signed = await input.signPsbt("70736274ff", {});
+        return input.broadcastTx(signed);
+      },
+    );
+
+    await expect(
+      buildAndBroadcastReclaimTransaction({
+        ...broadcastParams,
+        signPsbt: walletSign,
+      }),
+    ).rejects.toBeInstanceOf(ReclaimNoLongerEligibleError);
+    // The depositor did approve — the gate stopped the broadcast, not the sign.
+    expect(walletSign).toHaveBeenCalled();
+    expect(pushTx).not.toHaveBeenCalled();
   });
 
   it("reads the chain tip before the outspends it is compared against", async () => {

@@ -92,13 +92,20 @@ export async function fetchOutspend(
   };
 }
 
+/**
+ * The digit check alone is not enough: a long enough run of digits passes it
+ * and then parses to `Infinity` or to a finite-but-unsafe integer, either of
+ * which makes the recorded confirmation depth meaningless. Same bound as the
+ * SDK's `getTipHeight`, kept in step so this copy cannot drift back.
+ */
 export async function fetchTipHeight(mempoolApiBase: string): Promise<number> {
   const res = await fetch(`${mempoolApiBase}/blocks/tip/height`);
   const raw = (await res.text()).trim();
-  if (!/^\d+$/.test(raw)) {
+  const height = /^\d+$/.test(raw) ? Number.parseInt(raw, 10) : NaN;
+  if (!Number.isSafeInteger(height) || height < 0) {
     throw new Error(`Unexpected tip height response: "${raw}"`);
   }
-  return Number.parseInt(raw, 10);
+  return height;
 }
 
 /** What the gate saw at the moment the sweep was authorised. Recorded, not asserted. */

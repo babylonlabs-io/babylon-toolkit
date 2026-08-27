@@ -5771,6 +5771,14 @@ Get the current block tip height.
 Source: mempool.space API — `GET /api/blocks/tip/height` returns the height
 of the most recent block as a plain-text integer.
 
+The digit check alone is not enough to honour the contract below. A long
+enough run of digits passes `/^\d+$/` and then parses to a value no caller
+can use: 400 digits yields `Infinity`, and 20 digits yields a finite but
+unsafe integer. Callers subtract this from a confirmed block height to get a
+confirmation depth, so either one produces an enormous depth and clears any
+threshold it is compared against. Bound it to a safe integer here rather
+than leaving each caller to discover the gap.
+
 #### Parameters
 
 ##### apiUrl
@@ -5787,7 +5795,7 @@ The height of the most recent block
 
 #### Throws
 
-Error if the response is not a whole number
+Error if the response is not a whole number a caller can compute on
 
 ***
 

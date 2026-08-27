@@ -203,6 +203,37 @@ describe("getReclaimEligibility", () => {
     ).toEqual({ type: "absent" });
   });
 
+  // The tip is the other operand of `tipHeight - blockHeight + 1`. A value that
+  // parses but is not a usable height inflates the depth past the six-block bar
+  // regardless of how deep the payout actually is.
+  it("hides the reclaim when the chain tip is Infinity", () => {
+    expect(getReclaimEligibility(makeInput({ tipHeight: Infinity }))).toEqual({
+      type: "absent",
+    });
+  });
+
+  it("hides the reclaim when the chain tip is beyond the safe integer range", () => {
+    // 1e20 satisfies Number.isInteger, so an isInteger guard would pass it and
+    // compute a depth around 1e20. This case is what pins isSafeInteger.
+    expect(getReclaimEligibility(makeInput({ tipHeight: 1e20 }))).toEqual({
+      type: "absent",
+    });
+  });
+
+  it("hides the reclaim when the chain tip is a numeric string", () => {
+    expect(
+      getReclaimEligibility(
+        makeInput({ tipHeight: String(TIP_HEIGHT) as unknown as number }),
+      ),
+    ).toEqual({ type: "absent" });
+  });
+
+  it("hides the reclaim when the chain tip is negative", () => {
+    expect(getReclaimEligibility(makeInput({ tipHeight: -1 }))).toEqual({
+      type: "absent",
+    });
+  });
+
   it("hides the reclaim while the chain tip has not loaded", () => {
     expect(getReclaimEligibility(makeInput({ tipHeight: undefined }))).toEqual({
       type: "absent",
@@ -285,6 +316,17 @@ describe("isPayoutSettled", () => {
 
   it("fails closed when the payout read is missing", () => {
     expect(isPayoutSettled(undefined, TIP_HEIGHT)).toBe(false);
+  });
+
+  it("fails closed on a tip height that is not a usable height", () => {
+    for (const tip of [Infinity, 1e20, -1, NaN]) {
+      expect(
+        isPayoutSettled(
+          { spent: true, confirmed: true, blockHeight: DEEP_PAYOUT_HEIGHT },
+          tip,
+        ),
+      ).toBe(false);
+    }
   });
 
   it("fails closed when the tip height is unknown", () => {

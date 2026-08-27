@@ -159,6 +159,47 @@ export async function readReclaimChainState(
 }
 
 /**
+ * The chain-derived inputs to the gate, without the material only the initial
+ * read needs. Re-checks want exactly these three.
+ */
+export type ReclaimGateState = Pick<
+  ReclaimChainState,
+  "payoutSpend" | "reserveSpend" | "tipHeight"
+>;
+
+/**
+ * Re-read just the gate's inputs, against a PegIn txid already in hand.
+ *
+ * `readReclaimChainState` costs an Ethereum read plus four Bitcoin reads,
+ * and the re-checks need neither the vault record nor the reserve's value —
+ * only the two spends and the tip. Skipping the Ethereum round trip matters
+ * most for the check that runs after the depositor approves in their wallet,
+ * when they are watching a spinner.
+ *
+ * Reusing the txid is sound: `depositorSignedPeginTx` is fixed at registration,
+ * and the SDK re-derives the vault id from those same bytes on every sweep, so
+ * a substituted vault is caught there rather than here.
+ */
+async function readReclaimGateState(
+  peginTxid: string,
+): Promise<ReclaimGateState> {
+  const apiUrl = getMempoolApiUrl();
+
+  // Tip first, for the same reason as `readReclaimChainState`.
+  const tipHeight = await getTipHeight(apiUrl);
+  const [payoutOutspend, reserveOutspend] = await Promise.all([
+    getOutspend(peginTxid, PEGIN_VAULT_VOUT, apiUrl),
+    getOutspend(peginTxid, PEGIN_DEPOSITOR_CLAIM_VOUT, apiUrl),
+  ]);
+
+  return {
+    payoutSpend: toOutpointSpend(payoutOutspend),
+    reserveSpend: toOutpointSpend(reserveOutspend),
+    tipHeight,
+  };
+}
+
+/**
  * Re-assert the chain-derived half of the reclaim gate against a fresh read.
  *
  * The row's eligibility is decided in the render path, off a poller with a
@@ -175,9 +216,7 @@ export async function readReclaimChainState(
  * Ownership in particular is re-proved far more strongly inside the SDK, which
  * re-derives the claim script from the connected wallet's live key.
  */
-export function assertReclaimStillEligible(
-  chainState: ReclaimChainState,
-): void {
+export function assertReclaimStillEligible(chainState: ReclaimGateState): void {
   if (chainState.reserveSpend.spent) {
     throw new ReclaimAlreadySettledError(undefined);
   }
@@ -327,17 +366,18 @@ export async function buildAndBroadcastReclaimTransaction(
     },
   ];
 
-  // …and again at the signing boundary itself. Everything between the check
-  // above and this point is preparation — recomputing the reserve value from
-  // frozen parameters, re-reading the vault, the UTXO probe, then the SDK's own
-  // fee caps, PSBT build and vault-id derivation (which initialises WASM on a
-  // cold load). That is seconds, not milliseconds, and this is a safety control
-  // on an irreversible spend: the only reading that means anything is the one
-  // taken immediately before the wallet is asked to sign. The extra probe costs
-  // one round trip on an action a depositor performs once per vault.
+  // …and again just before the wallet is asked to sign. Everything between the
+  // check above and this point is preparation — recomputing the reserve value
+  // from frozen parameters, re-reading the vault, the UTXO probe, then the
+  // SDK's own fee caps, PSBT build and vault-id derivation (which initialises
+  // WASM on a cold load). That is seconds, not milliseconds. This check does
+  // not make the sweep safe on its own; it avoids raising a wallet prompt for
+  // a sweep that is already doomed.
   const gatedSignPsbt: typeof signPsbt = async (psbtHex, opts) => {
     signal?.throwIfAborted();
-    assertReclaimStillEligible(await readReclaimChainState(vaultId));
+    assertReclaimStillEligible(
+      await readReclaimGateState(chainState.peginTxid),
+    );
     return signPsbt(psbtHex, opts);
   };
 
@@ -349,9 +389,23 @@ export async function buildAndBroadcastReclaimTransaction(
       readVaults,
       feeRate,
       signPsbt: gatedSignPsbt,
-      broadcastTx: async (signedTxHex: string) => ({
-        txId: await pushTx(signedTxHex, apiUrl),
-      }),
+      // The real boundary. `signPsbt` above is an interactive approval that can
+      // sit open for minutes, so a check taken before it says nothing about the
+      // chain by the time it returns — a reorg while the depositor is deciding
+      // would otherwise be broadcast against a live vault. Broadcasting is the
+      // irreversible act, so the last reading before it is the one that counts.
+      //
+      // This does not defend against a hostile wallet, which already holds the
+      // signature and can broadcast without us. It stops *this app* completing
+      // an honest race. A transient RPC failure here aborts a transaction that
+      // was already signed rather than broadcasting it — fail-closed, and the
+      // right direction when the reserve cannot be recovered once spent.
+      broadcastTx: async (signedTxHex: string) => {
+        assertReclaimStillEligible(
+          await readReclaimGateState(chainState.peginTxid),
+        );
+        return { txId: await pushTx(signedTxHex, apiUrl) };
+      },
       signal,
     });
     return txId;

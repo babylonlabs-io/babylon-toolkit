@@ -9,7 +9,7 @@
 import { stripHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { getOutspend } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 
-import { normalizeBlockHeight } from "@/models/reclaimEligibility";
+import { normalizeChainHeight } from "@/models/reclaimEligibility";
 
 export interface HtlcSpend {
   /** True when the HTLC output has been spent (in the mempool or a block). */
@@ -46,6 +46,6 @@ export async function fetchHtlcSpend(
     spendingTxid: res.txid,
     // `getOutspend` returns the parsed body verbatim, so the declared
     // `number | undefined` is not a guarantee about the value.
-    blockHeight: normalizeBlockHeight(res.status?.block_height),
+    blockHeight: normalizeChainHeight(res.status?.block_height),
   };
 }

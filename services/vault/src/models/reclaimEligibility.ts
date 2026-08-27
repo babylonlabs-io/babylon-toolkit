@@ -47,21 +47,24 @@ export interface RawOutspend {
 }
 
 /**
- * Coerce an esplora `block_height` to a height this module can do arithmetic
- * on, or `undefined`.
+ * Coerce a chain height — a spend's `block_height` or the chain tip — to a
+ * value this module can do arithmetic on, or `undefined`.
  *
- * The SDK's `getOutspend` validates its arguments but returns the parsed JSON
- * body verbatim, so `block_height: number | undefined` is a claim about the
- * declared type rather than about the value. Canonical mempool/electrs omits
- * the field when a spend is unconfirmed, but the mempool endpoint is
- * configurable, and a `null`, a numeric string or a negative height all reach
- * here as-is. Each of those would otherwise flow into
- * `tipHeight - blockHeight + 1` and coerce to an enormous confirmation count —
- * `null` alone yields roughly `tipHeight + 1`, clearing the deep-confirmation
- * bar this module exists to enforce.
+ * Both operands of `tipHeight - blockHeight + 1` need this, and for the same
+ * reason: neither arrives validated. The SDK's `getOutspend` returns the
+ * parsed JSON body verbatim, so `block_height: number | undefined` describes
+ * the declared type rather than the value, and a `null`, a numeric string or a
+ * negative height all reach here as-is. The mempool endpoint is configurable,
+ * so a self-hosted or proxied response is untrusted on both halves.
+ *
+ * `Number.isSafeInteger` rather than `Number.isInteger` is load-bearing: a
+ * finite-but-unsafe height such as `1e20` satisfies `isInteger`, and as a tip
+ * it yields a confirmation depth around `1e20` that clears any threshold.
+ * Real heights sit near 9e5 against a 9e15 bound, so nothing legitimate is
+ * excluded.
  */
-export function normalizeBlockHeight(value: unknown): number | undefined {
-  return typeof value === "number" && Number.isInteger(value) && value >= 0
+export function normalizeChainHeight(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0
     ? value
     : undefined;
 }
@@ -78,7 +81,7 @@ export function toOutpointSpend(res: RawOutspend): OutpointSpend {
   return {
     spent: res.spent === true,
     confirmed: res.spent === true && res.status?.confirmed === true,
-    blockHeight: normalizeBlockHeight(res.status?.block_height),
+    blockHeight: normalizeChainHeight(res.status?.block_height),
   };
 }
 
@@ -179,8 +182,13 @@ export function getReclaimEligibility(
   // wallet's pubkey, so there is nothing this wallet could sign.
   if (!isOwnedByWallet) return { type: "absent" };
 
-  // Any read not yet in hand leaves the action hidden rather than offered.
-  if (!payoutSpend || !reserveSpend || tipHeight === undefined) {
+  // Any read not yet in hand — or not usable as a height — leaves the action
+  // hidden rather than offered.
+  if (
+    !payoutSpend ||
+    !reserveSpend ||
+    normalizeChainHeight(tipHeight) === undefined
+  ) {
     return { type: "absent" };
   }
 
@@ -252,12 +260,12 @@ export function isPayoutSettled(
   payoutSpend: OutpointSpend | undefined,
   tipHeight: number | undefined,
 ): boolean {
-  if (!payoutSpend || tipHeight === undefined) return false;
+  const tip = normalizeChainHeight(tipHeight);
+  if (!payoutSpend || tip === undefined) return false;
   return (
     payoutSpend.spent &&
     payoutSpend.confirmed &&
-    payoutConfirmations(payoutSpend, tipHeight) >=
-      RECLAIM_MIN_PAYOUT_CONFIRMATIONS
+    payoutConfirmations(payoutSpend, tip) >= RECLAIM_MIN_PAYOUT_CONFIRMATIONS
   );
 }
 
@@ -275,7 +283,7 @@ function payoutConfirmations(
   payoutSpend: OutpointSpend,
   tipHeight: number,
 ): number {
-  const blockHeight = normalizeBlockHeight(payoutSpend.blockHeight);
+  const blockHeight = normalizeChainHeight(payoutSpend.blockHeight);
   if (blockHeight === undefined) return 1;
   return tipHeight - blockHeight + 1;
 }
