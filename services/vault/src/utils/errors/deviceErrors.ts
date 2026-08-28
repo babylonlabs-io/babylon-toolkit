@@ -44,12 +44,3 @@ export function isDeviceLockedError(error: unknown): boolean {
 export function isDeviceWrongAppError(error: unknown): boolean {
   return chainCarriesCode(error, DEVICE_WRONG_APP_CODE);
 }
-
-/** Device states the user can fix in place, then retry: unlock, open the app, re-approve. */
-export function isDeviceRecoverableError(error: unknown): boolean {
-  return (
-    isDeviceLockedError(error) ||
-    isDeviceWrongAppError(error) ||
-    isDeviceCeremonyInvalidError(error)
-  );
-}

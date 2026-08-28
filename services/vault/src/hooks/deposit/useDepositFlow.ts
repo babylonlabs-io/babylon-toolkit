@@ -90,10 +90,10 @@ import { satoshiToBtcNumber } from "@/utils/btcConversion";
 import { supportsCancelSigning } from "@/utils/cancelSigning";
 import {
   COMMISSION_UNAVAILABLE_ERROR,
+  isResumableDepositError,
   mapDepositError,
   type DepositErrorContent,
 } from "@/utils/errors";
-import { isDeviceRecoverableError } from "@/utils/errors/deviceErrors";
 import {
   isUserCancellation,
   WALLET_CONNECTION_REJECTED_CODE,
@@ -1532,37 +1532,35 @@ export function useDepositFlow(
 
         // Don't show error if flow was aborted (user intentionally closed modal)
         if (!signal.aborted) {
-          // A settled self-cancel gets its own copy: the generic mapper reads
-          // the wallet's CONNECTION_REJECTED as "You rejected the request in
-          // your wallet. Click Retry" — misattributed, and naming a button
-          // this surface doesn't render. Post-registration cancels get the
-          // variant pointing at the resume path — vaults are already on-chain.
-          // Post-registration device trouble (locked / wrong app / approval
-          // dropped) or a self-cancel: the deposit is on-chain, so offer the
+          const selfCanceled =
+            deviceCancelSettledRef.current && isUserCancellation(err);
+          // A settled self-cancel gets its own copy — the generic mapper reads
+          // the wallet's CONNECTION_REJECTED as "You rejected the request",
+          // which misattributes it. Post-registration copy names the Retry
+          // offered below; pre-registration copy names no button (none is).
+          const content: DepositErrorContent = selfCanceled
+            ? registeredVaultIds !== null
+              ? {
+                  title:
+                    COPY.deposit.errors.signingCanceledAfterRegistration.title,
+                  body: COPY.deposit.errors.signingCanceledAfterRegistration
+                    .body,
+                }
+              : {
+                  title: COPY.deposit.errors.signingCanceled.title,
+                  body: COPY.deposit.errors.signingCanceled.body,
+                }
+            : mapDepositError(err);
+          // Post-registration the vaults are on-chain, so a self-cancel or a
+          // mapped resumable bucket (device trouble, wallet reject) offers the
           // in-modal resume.
           if (
             registeredVaultIds !== null &&
-            (isDeviceRecoverableError(err) ||
-              (deviceCancelSettledRef.current && isUserCancellation(err)))
+            (selfCanceled || isResumableDepositError(content))
           ) {
             setResumableVaultIds(registeredVaultIds);
           }
-          setError(
-            deviceCancelSettledRef.current && isUserCancellation(err)
-              ? registeredVaultIds !== null
-                ? {
-                    title:
-                      COPY.deposit.errors.signingCanceledAfterRegistration
-                        .title,
-                    body: COPY.deposit.errors.signingCanceledAfterRegistration
-                      .body,
-                  }
-                : {
-                    title: COPY.deposit.errors.signingCanceled.title,
-                    body: COPY.deposit.errors.signingCanceled.body,
-                  }
-              : mapDepositError(err),
-          );
+          setError(content);
           logger.error(err instanceof Error ? err : new Error(String(err)), {
             tags: { depositStep: DepositFlowStep[currentStepRef.current] },
             data: {

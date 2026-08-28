@@ -36,20 +36,21 @@ export class LedgerUserRefusedError extends Error {
   }
 }
 
-/** The device is locked; the refused APDU never reached the app. */
+/** The device is locked and refused the APDU. */
 export class LedgerDeviceLockedError extends Error {
   readonly statusWord: number;
   /**
-   * false: the initial SIGN_PSBT was refused before dispatch (app state untouched).
-   * true: a CONTINUE was refused after earlier rounds ran (caps may be committed).
+   * true only when the sign loop proved the refused APDU was the initial
+   * SIGN_PSBT (no round ran). false = unproven — a CONTINUE after earlier
+   * rounds, or any other exchange — so the adapter must assume the worst.
    */
-  readonly midCeremony: boolean;
+  readonly preDispatch: boolean;
 
-  constructor(statusWord: number, options?: { midCeremony?: boolean }) {
+  constructor(statusWord: number, options?: { preDispatch?: boolean }) {
     super(`The Ledger device is locked — unlock it and retry (0x${hex4(statusWord)})`);
     this.name = LEDGER_DEVICE_LOCKED_ERROR_NAME;
     this.statusWord = statusWord;
-    this.midCeremony = options?.midCeremony ?? false;
+    this.preDispatch = options?.preDispatch ?? false;
   }
 }
 

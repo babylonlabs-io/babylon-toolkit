@@ -20,10 +20,8 @@
 import { Buffer } from "buffer";
 
 import {
-  LedgerDeviceLockedError,
   LedgerSignPsbtAbortedError,
   LedgerSignPsbtProtocolError,
-  isLedgerDeviceLockedError,
   isLedgerSignPsbtProtocolError,
   isLedgerYieldMismatchError,
   toCollectedYieldRefs,
@@ -144,6 +142,9 @@ export async function runSignPsbtLoop(
       ...opts.appIdentity,
       ins: lastSentApdu.ins,
       p1: lastSentApdu.p1,
+      // Only the initial APDU's refusal proves no round ran; a lock on a
+      // CONTINUE leaves caps possibly committed, so it stays unproven.
+      preDispatch: lastSentApdu === signPsbtApdu,
     });
     // classifyStatusWord is undefined only for 0x9000, excluded above.
     if (terminal === undefined) {
@@ -151,11 +152,6 @@ export async function runSignPsbtLoop(
         `status word 0x${response.sw.toString(16)} escaped classification`,
         toCollectedYieldRefs(collector.yields),
       );
-    }
-    // A lock on a CONTINUE lands after the app ran earlier rounds; the adapter
-    // must not treat it like the pre-dispatch refusal of the initial APDU.
-    if (isLedgerDeviceLockedError(terminal) && lastSentApdu.ins === INS_CONTINUE) {
-      throw new LedgerDeviceLockedError(terminal.statusWord, { midCeremony: true });
     }
     throw terminal;
   }

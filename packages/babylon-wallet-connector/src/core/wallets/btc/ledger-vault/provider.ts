@@ -1,3 +1,13 @@
+/**
+ * Ledger Vault adapter over `@babylonlabs-io/ledger-vault-signer`.
+ *
+ * Citation legend — `base:` = LedgerHQ/app-bitcoin `baseapp` @ `e400d8d8` (the
+ * vault app's submodule pin, paths under `src/`); `sdk:` = LedgerHQ/ledger-secure-sdk
+ * @ `v26.6.0` — the SDK the app's CI image compiles in (`ledger-app-builder-lite:latest`,
+ * `lite/Dockerfile:3-7` @ 786151a7f; run 32839601193 for eacb873b6); unprefixed `.c`
+ * paths are LedgerHQ/app-babylon-vault @ `eacb873b6`.
+ */
+
 import {
   approveVaultIntent,
   assertDepositTermsDeviceCompatible,
@@ -900,7 +910,21 @@ export class LedgerVaultProvider implements IBTCProvider {
     return { prepared, fingerprintKey, label };
   }
 
-  /** One device ceremony; every failure is classified against the mirror. */
+  /**
+   * One device ceremony; every failure is classified against the mirror.
+   *
+   * Locked-device words on the INITIAL SIGN_PSBT keep the intent because the app
+   * never ran it: 0x5515 is sent only by the SDK IO layer before dispatch
+   * (`sdk:io_legacy/src/os_io_legacy.c:396-406`, inside the `io_exchange` receive
+   * loop `:243-245` that the base app reads from, `base:src/boilerplate/dispatcher.c:74`);
+   * 0x6982 exists in the SDK only under ENABLE_ADDRESS_BOOK
+   * (`sdk:Makefile.standard_app:78-82`, unset in both Makefiles) and 0x5303 is not
+   * defined at all; neither the app nor `base:` ever sends any of the three
+   * (`base:src/boilerplate/sw.h:16-18` is a #define + _Static_assert only). Only the
+   * sign loop proves the initial APDU was the refused one (`preDispatch`); a lock on
+   * a CONTINUE or any other exchange is unproven — rounds may have run, caps may be
+   * committed — and takes the pessimistic reset below.
+   */
   private async signStaged(staged: StagedPsbt, ctx: SignContext, controller: AbortController): Promise<string> {
     const { prepared, fingerprintKey, label } = staged;
     const { session, rawSend, generation } = ctx;
@@ -919,9 +943,9 @@ export class LedgerVaultProvider implements IBTCProvider {
       const walletError = this.classifySignFailure(error, generation, label);
       // Mirror reset is signPsbt-only (PoP failures don't invalidate the vault
       // context); stale rejections and cancels were already handled in classify.
-      // Initial-APDU lock: the OS refused pre-dispatch (os_io_legacy.c:396-405 @ SDK v26.6.0); the classifier
-      // set {0x5515,0x6982,0x5303} is never emitted by the vault app/base pin e400d8d8. Mid-ceremony: caps may be committed.
-      const lockedBeforeDispatch = isLedgerDeviceLockedError(error) && !error.midCeremony;
+      // Pre-dispatch lock keeps the intent (provenance in the method doc); an
+      // unproven lock is treated like any other sign failure.
+      const lockedBeforeDispatch = isLedgerDeviceLockedError(error) && error.preDispatch === true;
       if (generation === this.connectionGeneration && !isLedgerSignPsbtAbortedError(error) && !lockedBeforeDispatch) {
         // Pessimistically assume the device dropped the intent (error-path
         // invalidation is mixed in firmware — never assume survival).

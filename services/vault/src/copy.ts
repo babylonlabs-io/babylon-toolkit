@@ -65,7 +65,7 @@ const DEVICE_CEREMONY_INVALID_BODY =
   "Your signing device no longer holds this deposit's approval. Try again to restart from the device approval screens.";
 const DEVICE_LOCKED_TITLE = "Signing device locked";
 const DEVICE_LOCKED_BODY =
-  "Your signing device is locked. Unlock it with your PIN and retry.";
+  "Your signing device is locked. Unlock it with your PIN and try again.";
 const DEVICE_WRONG_APP_TITLE = "Wrong app on device";
 // Network-agnostic on purpose: the app is named "Babylon Vault" on mainnet
 // and "Babylon Vault Testnet" on test networks.
@@ -889,7 +889,7 @@ export const COPY = {
       },
       signingRejected: {
         title: "Signing rejected",
-        body: "You rejected the request in your wallet. Click Retry to approve it and continue.",
+        body: "You rejected the request in your wallet. Try again to approve it and continue.",
       },
       // Self-requested cancel (the in-app "Cancel signing" affordance), as
       // opposed to a rejection on the wallet/device itself. Names no button:
@@ -901,10 +901,11 @@ export const COPY = {
       },
       // A cancel settling after the Ethereum registration is mined: gas is
       // spent and the vaults await the Pre-PegIn, so point at the in-modal
-      // Retry instead of implying nothing happened. No Bitcoin has moved.
+      // Retry and the dashboard resume instead of implying nothing happened.
+      // No Bitcoin has moved.
       signingCanceledAfterRegistration: {
         title: "Signing canceled",
-        body: "You canceled the signature request. No Bitcoin was spent, but your deposit is already registered on Ethereum. Retry to continue signing, or the registration will expire on its own.",
+        body: "You canceled the signature request. No Bitcoin was spent, but your deposit is already registered on Ethereum. Retry to continue signing, or resume it later from your dashboard — otherwise the registration will expire on its own.",
       },
       walletNotConnected: {
         title: "Wallet not connected",

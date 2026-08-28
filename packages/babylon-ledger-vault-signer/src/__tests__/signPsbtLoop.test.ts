@@ -290,12 +290,16 @@ describe("terminal status words mid-loop (T6)", () => {
     expect(sent()).toBe(2);
   });
 
-  it("a locked status word on a CONTINUE throws with midCeremony true", async () => {
+  it.each([
+    ["5515", 0x5515],
+    ["6982", 0x6982],
+    ["5303", 0x5303],
+  ])("locked word 0x%s on a CONTINUE throws with preDispatch false", async (_hex, sw) => {
     // The app already ran the first round, so caps/dedup may be committed —
-    // the flag tells the adapter this lock is NOT a pre-dispatch refusal.
+    // the lock stays unproven so the adapter cannot keep the intent.
     const traceFile = loadJson<TraceFile>(join(TRACES_DIR, "generated__deposit-flow__pegin__0.json"));
     const prepared = prepareFromVector(traceFile.vector_id);
-    const script = firstRoundScript(prepared, traceFile.traces[0], 0x5515);
+    const script = firstRoundScript(prepared, traceFile.traces[0], sw);
     const { send, sent } = createScriptedSender(script);
 
     const outcome = await runSignPsbtLoop(send, prepared, { signal: NEVER_ABORTED }).then(
@@ -303,21 +307,25 @@ describe("terminal status words mid-loop (T6)", () => {
       (error: unknown) => error,
     );
     expect(isLedgerDeviceLockedError(outcome)).toBe(true);
-    expect(outcome).toMatchObject({ name: LedgerDeviceLockedError.name, statusWord: 0x5515, midCeremony: true });
+    expect(outcome).toMatchObject({ name: LedgerDeviceLockedError.name, statusWord: sw, preDispatch: false });
     expect(sent()).toBe(2);
   });
 
-  it("a locked status word on the initial SIGN_PSBT throws a LedgerDeviceLockedError with midCeremony false", async () => {
+  it.each([
+    ["5515", 0x5515],
+    ["6982", 0x6982],
+    ["5303", 0x5303],
+  ])("locked word 0x%s on the initial SIGN_PSBT throws with preDispatch true", async (_hex, sw) => {
     const prepared = prepareFromVector("generated__deposit-flow__pegin__0");
     const script: ScriptedExchange[] = [
-      { expectApduHex: initialApduHexOf(prepared), respondSw: 0x5515, respondDataHex: "" },
+      { expectApduHex: initialApduHexOf(prepared), respondSw: sw, respondDataHex: "" },
     ];
     const { send, sent } = createScriptedSender(script);
 
     await expect(runSignPsbtLoop(send, prepared, { signal: NEVER_ABORTED })).rejects.toMatchObject({
       name: LedgerDeviceLockedError.name,
-      statusWord: 0x5515,
-      midCeremony: false,
+      statusWord: sw,
+      preDispatch: true,
     });
     expect(sent()).toBe(1);
   });

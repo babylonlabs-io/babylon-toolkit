@@ -2393,6 +2393,30 @@ describe("useDepositFlow", () => {
       ]);
     });
 
+    it("exposes resumableVaultIds when the Pre-PegIn sign is rejected on the device after registration", async () => {
+      const { broadcastPrePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultPeginBroadcastService"),
+      );
+      // A Reject on the device (no in-app Cancel) surfaces as the wallet's
+      // CONNECTION_REJECTED under the broadcast wrapper.
+      vi.mocked(broadcastPrePeginTransaction).mockRejectedValueOnce(
+        new Error("Failed to broadcast Pre-PegIn transaction: refused", {
+          cause: Object.assign(new Error("User rejected"), {
+            code: "CONNECTION_REJECTED",
+          }),
+        }),
+      );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      await executeDepositFlow(result);
+
+      expect(result.current.error).toEqual(DEPOSIT_ERRORS.signingRejected);
+      expect(result.current.resumableVaultIds).toEqual([
+        "0xVault0Id",
+        "0xVault1Id",
+      ]);
+    });
+
     it("leaves resumableVaultIds null for a device-locked error before registration", async () => {
       const { preparePeginTransaction } = vi.mocked(
         await import("@/services/vault/vaultTransactionService"),

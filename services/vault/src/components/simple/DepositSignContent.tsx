@@ -82,8 +82,9 @@ export function DepositSignContent({
 
   // Notify the depositor (if they've tabbed away) when the active flow reaches
   // a signing step. Gated on `started` so the initial DERIVE_VAULT_SECRET value
-  // can't notify before the user clicks Sign.
-  useDepositSigningNotification(currentStep, started);
+  // can't notify before the user clicks Sign, and stood down once the
+  // continuation owns signing — the pending-deposit observer takes over.
+  useDepositSigningNotification(currentStep, started && !continuationVaultIds);
 
   // While the flow is running it owns notifications in-modal; tell the
   // pending-deposit observer to stand down so it can't double-notify.
@@ -200,6 +201,12 @@ export function DepositSignContent({
     );
   }
 
+  // Offer Retry only when the continuation branch above can take the handoff.
+  const canResume =
+    resumableVaultIds !== null &&
+    resumableVaultIds.length > 0 &&
+    flowParams.depositorEthAddress !== undefined;
+
   return (
     <>
       {banner}
@@ -218,7 +225,7 @@ export function DepositSignContent({
         currentVaultIndex={currentVaultIndex}
         perVaultSteps={perVaultSteps}
         onClose={handleClose}
-        onRetry={resumableVaultIds ? handleResume : undefined}
+        onRetry={canResume ? handleResume : undefined}
         started={started}
         onSign={handleSign}
         btcConfirmationDetail={btcConfirmationDetail}
