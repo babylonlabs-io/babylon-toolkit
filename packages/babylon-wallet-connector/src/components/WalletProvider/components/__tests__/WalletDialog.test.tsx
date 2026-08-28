@@ -320,7 +320,7 @@ describe("confirming the dialog", () => {
     expect(store.has(WALLET_CONFIRMATION_RECEIPT_KEY)).toBe(false);
   });
 
-  it.each(["ETH", "BTC", "BBN"] as const)("rejects an active %s wallet that has no provider", async (chain) => {
+  it.each(["ETH", "BTC", "BBN"] as const)("requires a provider only for an active %s network read", async (chain) => {
     const connectedWallet = wallet(
       chain === "ETH" ? "metamask" : chain === "BTC" ? "unisat" : "keplr",
       chain === "ETH" ? ETH_ACCOUNT : chain === "BTC" ? BTC_ACCOUNT : BBN_ACCOUNT,
@@ -343,10 +343,11 @@ describe("confirming the dialog", () => {
       screen.getByText("confirm").click();
     });
 
-    expect(acceptTermsOfService).not.toHaveBeenCalled();
-    expect(onConfirm).not.toHaveBeenCalled();
-    expect(confirm).not.toHaveBeenCalled();
-    expect(store.has(WALLET_CONFIRMATION_RECEIPT_KEY)).toBe(false);
+    const expectedConfirmations = chain === "BBN" ? 1 : 0;
+    expect(acceptTermsOfService).toHaveBeenCalledTimes(expectedConfirmations);
+    expect(onConfirm).toHaveBeenCalledTimes(expectedConfirmations);
+    expect(confirm).toHaveBeenCalledTimes(expectedConfirmations);
+    expect(store.has(WALLET_CONFIRMATION_RECEIPT_KEY)).toBe(chain === "BBN");
   });
 
   it("passes one immutable connection snapshot to both hooks", async () => {

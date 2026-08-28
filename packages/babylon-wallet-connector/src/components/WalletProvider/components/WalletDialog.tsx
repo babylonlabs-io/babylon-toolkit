@@ -11,6 +11,9 @@ import { useWidgetState } from "@/hooks/useWidgetState";
 
 import { Screen } from "./Screen";
 
+const WALLET_CHANGED_ERROR_MESSAGE = "Wallet changed while confirming";
+const WALLET_NETWORK_MISSING_ERROR_MESSAGE = "Wallet did not report its network";
+
 /**
  * Picks the identity the terms-of-service hook is called with. Required chains
  * are walked in the host's declared order. Connector order can differ from it.
@@ -38,18 +41,7 @@ function freezeConnections(connections: WalletLifecycleConnection[]): WalletLife
   return Object.freeze(
     connections.map(({ chain, wallet, account }) => {
       const frozenAccount = Object.freeze({ ...account });
-      const frozenWallet = Object.freeze<IWallet>({
-        id: wallet.id,
-        name: wallet.name,
-        icon: wallet.icon,
-        iconBackground: wallet.iconBackground,
-        docs: wallet.docs,
-        installed: wallet.installed,
-        provider: wallet.provider,
-        account: frozenAccount,
-        label: wallet.label,
-        hardware: wallet.hardware,
-      });
+      const frozenWallet = Object.freeze<IWallet>({ ...wallet, account: frozenAccount });
 
       return Object.freeze({ chain, wallet: frozenWallet, account: frozenAccount });
     }),
@@ -89,17 +81,17 @@ async function createConfirmationSnapshot(getConnectors: () => Connectors): Prom
 
   await Promise.all(
     connections.map(async ({ chain, wallet }) => {
-      if (!wallet.provider) {
+      if ((chain === "ETH" || chain === "BTC") && !wallet.provider) {
         throw new Error(`Connected ${chain} wallet has no provider`);
       }
 
       if (chain === "ETH") {
         const network = await (wallet.provider as IETHProvider).getChainId();
-        if (network === undefined || network === null) throw new Error("Wallet did not report its network");
+        if (network === undefined || network === null) throw new Error(WALLET_NETWORK_MISSING_ERROR_MESSAGE);
         networks[chain] = network;
       } else if (chain === "BTC") {
         const network = await (wallet.provider as IBTCProvider).getNetwork();
-        if (!network) throw new Error("Wallet did not report its network");
+        if (!network) throw new Error(WALLET_NETWORK_MISSING_ERROR_MESSAGE);
         networks[chain] = network;
       }
     }),
@@ -112,7 +104,7 @@ async function createConfirmationSnapshot(getConnectors: () => Connectors): Prom
     hasSameAuthority(authority, collectAuthority(settledConnections));
 
   if (!stable) {
-    throw new Error("Wallet changed while confirming");
+    throw new Error(WALLET_CHANGED_ERROR_MESSAGE);
   }
 
   const liveReceipt = createConfirmationReceipt(connections, connectors, networks);
@@ -228,7 +220,7 @@ export function WalletDialog({
             currentSnapshot.receipt !== confirmationSnapshot.receipt ||
             !hasSameAuthority(currentSnapshot.authority, confirmationSnapshot.authority)
           ) {
-            throw new Error("Wallet changed while confirming");
+            throw new Error(WALLET_CHANGED_ERROR_MESSAGE);
           }
 
           return true;
