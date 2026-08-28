@@ -1,3 +1,4 @@
+import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import { describe, expect, it, vi } from "vitest";
 
 import { observeSigningProgress } from "../signingProgress";
@@ -8,7 +9,10 @@ describe("observeSigningProgress", () => {
     const subscribeSigningProgress = vi.fn(() => unsubscribe);
     const listener = vi.fn();
 
-    const stop = observeSigningProgress({ subscribeSigningProgress }, listener);
+    const stop = observeSigningProgress(
+      { subscribeSigningProgress } as unknown as BitcoinWallet,
+      listener,
+    );
 
     expect(subscribeSigningProgress).toHaveBeenCalledWith(listener);
     expect(stop).toBe(unsubscribe);
@@ -25,7 +29,10 @@ describe("observeSigningProgress", () => {
     const provider = new PrototypeProvider();
     const listener = vi.fn();
 
-    const stop = observeSigningProgress(provider, listener);
+    const stop = observeSigningProgress(
+      provider as unknown as BitcoinWallet,
+      listener,
+    );
 
     expect(provider.listeners.has(listener)).toBe(true);
     stop();
@@ -33,14 +40,24 @@ describe("observeSigningProgress", () => {
   });
 
   it("returns a no-op for a provider without the affordance", () => {
-    const stop = observeSigningProgress({ signPsbt: vi.fn() }, vi.fn());
+    const stop = observeSigningProgress(
+      { signPsbt: vi.fn() } as unknown as BitcoinWallet,
+      vi.fn(),
+    );
 
     expect(() => stop()).not.toThrow();
   });
 
-  it("returns a no-op for a null provider", () => {
-    const stop = observeSigningProgress(null, vi.fn());
-
-    expect(() => stop()).not.toThrow();
+  it("throws at subscribe time when the affordance returns no unsubscribe function", () => {
+    expect(() =>
+      observeSigningProgress(
+        {
+          subscribeSigningProgress: () => undefined,
+        } as unknown as BitcoinWallet,
+        vi.fn(),
+      ),
+    ).toThrow(
+      "provider.subscribeSigningProgress must return an unsubscribe function; got undefined",
+    );
   });
 });

@@ -1648,11 +1648,8 @@ describe("usePayoutSigningState", () => {
     });
 
     it("progress ticks do not flip the claimers-done ref before the SDK reports the round complete", async () => {
-      // A full-count tick during Phase 3 must still be labelled "claimers";
-      // only the SDK's own (N,N) flips the phase. Pin this by re-entering
-      // signPsbts a second time BEFORE the SDK ever reports the round
-      // complete: an implementation that flips the ref from inside the tick
-      // listener would mislabel the second entry as "graph".
+      // Real Phase 3 is one signPsbts call (signPayoutTransactions → signPayoutTransactionsBatch),
+      // where a ref flipped inside the tick listener is invisible; the second entry is a synthetic probe.
       const { settle, tick, signPsbts } = connectProgressWallet();
       mockSignAndSubmitPayouts.mockImplementation(
         async ({
@@ -1666,7 +1663,7 @@ describe("usePayoutSigningState", () => {
         }) => {
           onProgress({ phase: "claimers", completed: 0, total: 2 });
           await btcWallet.signPsbts(["payout-0", "payout-1"]);
-          // Second ceremony, still before the SDK's own (N,N).
+          // Synthetic second entry the SDK never makes, still before its own (N,N).
           await btcWallet.signPsbts(["payout-2", "payout-3"]);
           onProgress({ phase: "claimers", completed: 2, total: 2 });
           onProgress(null);
@@ -1693,18 +1690,9 @@ describe("usePayoutSigningState", () => {
       });
       await waitFor(() => expect(signPsbts).toHaveBeenCalledTimes(2));
 
-      // The second entry must still snapshot "claimers" — not the "graph"
-      // a ref flipped inside the tick listener would have produced.
-      expect(result.current.progress).not.toEqual({
-        phase: "graph",
-        completed: 0,
-        total: 2,
-      });
-      expect(result.current.progress).toEqual({
-        phase: "claimers",
-        completed: 2,
-        total: 2,
-      });
+      // The second entry must still snapshot "claimers"; the count is the stale
+      // last tick and not under test.
+      expect(result.current.progress.phase).toBe("claimers");
 
       await act(async () => {
         settle.resolve(["c", "d"]);
@@ -1712,7 +1700,7 @@ describe("usePayoutSigningState", () => {
       });
     });
 
-    it("does not subscribe on a wallet without the affordance", async () => {
+    it("a wallet without the affordance keeps the SDK-driven 0-to-N jump", async () => {
       const signPsbts = vi.fn().mockResolvedValue(["a", "b"]);
       mockBtcConnector = {
         connectedWallet: {
@@ -1730,6 +1718,11 @@ describe("usePayoutSigningState", () => {
       // Extension-wallet path unchanged: the SDK's own (N,N) lands the counter.
       expect(signPsbts).toHaveBeenCalledTimes(1);
       expect(result.current.isComplete).toBe(true);
+      expect(result.current.progress).toEqual({
+        phase: "claimers",
+        completed: 2,
+        total: 2,
+      });
     });
   });
 });

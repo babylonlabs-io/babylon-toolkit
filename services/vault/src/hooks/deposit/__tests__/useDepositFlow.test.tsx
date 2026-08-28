@@ -2788,91 +2788,88 @@ describe("useDepositFlow", () => {
       });
     });
 
-    it("the signing-progress subscription is torn down on every settle path", async () => {
-      // Resolve.
-      const resolved = progressWallet();
-      const resolvedPark = await armPayoutRounds({ completed: 3, total: 3 }, [
+    it("unsubscribes from signing progress after the payout batch resolves", async () => {
+      const { wallet, settle, unsubscribe } = progressWallet();
+      const park = await armPayoutRounds({ completed: 3, total: 3 }, [
         "payout",
         "nopayout-1",
         "nopayout-2",
       ]);
-      const resolvedHook = renderHook(() =>
-        useDepositFlow({
-          ...MOCK_PARAMS,
-          btcWalletProvider: resolved.wallet as any,
-        }),
-      );
-      let resolvedFlow!: Promise<unknown>;
-      act(() => {
-        resolvedFlow = resolvedHook.result.current.executeDeposit();
-      });
-      await waitFor(() =>
-        expect(resolved.wallet.signPsbts).toHaveBeenCalledTimes(1),
-      );
-      await act(async () => {
-        resolved.settle.resolve(["a", "b", "c"]);
-        resolvedPark.release();
-        await resolvedFlow;
-      });
-      expect(resolved.unsubscribe).toHaveBeenCalledTimes(1);
 
-      // Reject.
-      const rejected = progressWallet();
-      const rejectedPark = await armPayoutRounds({ completed: 3, total: 3 }, [
+      const { result } = renderHook(() =>
+        useDepositFlow({ ...MOCK_PARAMS, btcWalletProvider: wallet as any }),
+      );
+      let flow!: Promise<unknown>;
+      act(() => {
+        flow = result.current.executeDeposit();
+      });
+      await waitFor(() => expect(wallet.signPsbts).toHaveBeenCalledTimes(1));
+      await act(async () => {
+        settle.resolve(["a", "b", "c"]);
+        park.release();
+        await flow;
+      });
+
+      expect(unsubscribe).toHaveBeenCalledTimes(1);
+    });
+
+    it("unsubscribes from signing progress when the payout batch rejects", async () => {
+      const { wallet, settle, unsubscribe } = progressWallet();
+      const park = await armPayoutRounds({ completed: 3, total: 3 }, [
         "payout",
         "nopayout-1",
         "nopayout-2",
       ]);
-      const rejectedHook = renderHook(() =>
-        useDepositFlow({
-          ...MOCK_PARAMS,
-          btcWalletProvider: rejected.wallet as any,
-        }),
-      );
-      let rejectedFlow!: Promise<unknown>;
-      act(() => {
-        rejectedFlow = rejectedHook.result.current.executeDeposit();
-      });
-      await waitFor(() =>
-        expect(rejected.wallet.signPsbts).toHaveBeenCalledTimes(1),
-      );
-      await act(async () => {
-        rejected.settle.reject(new Error("device gone"));
-        rejectedPark.release();
-        await rejectedFlow;
-      });
-      expect(rejected.unsubscribe).toHaveBeenCalledTimes(1);
 
-      // Cancel: the device cancel is requested, then the provider rejects.
-      const canceled = progressWallet();
-      const cancelWallet = { ...canceled.wallet, cancelSigning: vi.fn() };
+      const { result } = renderHook(() =>
+        useDepositFlow({ ...MOCK_PARAMS, btcWalletProvider: wallet as any }),
+      );
+      let flow!: Promise<unknown>;
+      act(() => {
+        flow = result.current.executeDeposit();
+      });
+      await waitFor(() => expect(wallet.signPsbts).toHaveBeenCalledTimes(1));
+      await act(async () => {
+        settle.reject(new Error("device gone"));
+        park.release();
+        await flow;
+      });
+
+      expect(unsubscribe).toHaveBeenCalledTimes(1);
+    });
+
+    it("unsubscribes from signing progress when a requested cancel settles", async () => {
+      const { wallet, settle, unsubscribe } = progressWallet();
+      const cancelWallet = { ...wallet, cancelSigning: vi.fn() };
       // The settled cancel stops the loop, so vault 1's park is never reached.
       await armPayoutRounds({ completed: 3, total: 3 }, [
         "payout",
         "nopayout-1",
         "nopayout-2",
       ]);
-      const canceledHook = renderHook(() =>
+
+      const { result } = renderHook(() =>
         useDepositFlow({
           ...MOCK_PARAMS,
           btcWalletProvider: cancelWallet as any,
         }),
       );
-      let canceledFlow!: Promise<unknown>;
+      let flow!: Promise<unknown>;
       act(() => {
-        canceledFlow = canceledHook.result.current.executeDeposit();
+        flow = result.current.executeDeposit();
       });
       await waitFor(() =>
-        expect(canceledHook.result.current.canCancelDeviceSign).toBe(true),
+        expect(result.current.canCancelDeviceSign).toBe(true),
       );
       act(() => {
-        canceledHook.result.current.cancelDeviceSign();
+        result.current.cancelDeviceSign();
       });
       await act(async () => {
-        canceled.settle.reject(signingCanceledError());
-        await canceledFlow;
+        settle.reject(signingCanceledError());
+        await flow;
       });
-      expect(canceled.unsubscribe).toHaveBeenCalledTimes(1);
+
+      expect(unsubscribe).toHaveBeenCalledTimes(1);
     });
 
     it("wallets without the affordance keep the 0-to-N jump on every batch wrapper", async () => {

@@ -1069,6 +1069,20 @@ describe("LedgerVaultProvider", () => {
         expect(ticks).toEqual([]);
       });
 
+      it("a subscriber from before disconnect receives nothing from the next connection's batch", async () => {
+        const provider = await approved();
+        const ticks: SigningProgress[] = [];
+        provider.subscribeSigningProgress((progress) => ticks.push(progress));
+
+        await provider.disconnect();
+        await provider.connectWallet();
+        await provider.deriveContextHash("app", "aa".repeat(32));
+        await provider.approveDepositTerms(TERMS);
+        await provider.signPsbts([PSBT_B]);
+
+        expect(ticks).toEqual([]);
+      });
+
       it("signPsbt never emits signing progress", async () => {
         const provider = await approved();
         const ticks: SigningProgress[] = [];
@@ -1089,6 +1103,28 @@ describe("LedgerVaultProvider", () => {
         expect(signMock.signPreparedVaultPsbt).toHaveBeenCalledTimes(2);
       });
 
+      it("every registered listener receives every tick, even when one between them throws", async () => {
+        const provider = await approved();
+        const before: SigningProgress[] = [];
+        const after: SigningProgress[] = [];
+        provider.subscribeSigningProgress((progress) => before.push(progress));
+        provider.subscribeSigningProgress(() => {
+          throw new Error("display bug");
+        });
+        provider.subscribeSigningProgress((progress) => after.push(progress));
+
+        await provider.signPsbts([PSBT_A, PSBT_B]);
+
+        expect(before).toEqual([
+          { completed: 1, total: 2 },
+          { completed: 2, total: 2 },
+        ]);
+        expect(after).toEqual([
+          { completed: 1, total: 2 },
+          { completed: 2, total: 2 },
+        ]);
+      });
+
       it("the returned unsubscribe stops further ticks and is idempotent", async () => {
         const provider = await approved();
         const ticks: SigningProgress[] = [];
@@ -1100,6 +1136,18 @@ describe("LedgerVaultProvider", () => {
         await provider.signPsbts([PSBT_B]);
 
         expect(ticks).toEqual([{ completed: 1, total: 1 }]);
+      });
+
+      it("a listener subscribed inside a tick first hears the next tick", async () => {
+        const provider = await approved();
+        const lateTicks: SigningProgress[] = [];
+        provider.subscribeSigningProgress(({ completed }) => {
+          if (completed === 1) provider.subscribeSigningProgress((progress) => lateTicks.push(progress));
+        });
+
+        await provider.signPsbts([PSBT_A, PSBT_B]);
+
+        expect(lateTicks).toEqual([{ completed: 2, total: 2 }]);
       });
 
       it("is an own property that survives the dApp's object spread into a wrapper", async () => {

@@ -580,7 +580,7 @@ export function useDepositFlow(
           setPeginSigningProgress({ completed: 0, total: psbtHexes.length });
           const stopObserving = observeSigningProgress(
             confirmedBtcWallet,
-            (tick) => setPeginSigningProgress(tick),
+            (tick) => setPeginSigningProgress({ ...tick }),
           );
           try {
             const signed = await runCancellableSign(confirmedBtcWallet, () =>

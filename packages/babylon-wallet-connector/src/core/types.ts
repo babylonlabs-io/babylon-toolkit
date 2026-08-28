@@ -426,8 +426,13 @@ export interface IBTCProvider extends IProvider {
    * so far and `total` = the batch length. Never fires for `signPsbt`
    * or before the first ceremony. A ceremony that fails emits no tick, while
    * ticks for ceremonies that committed before a later rejection stand — the
-   * promise settle is the terminal signal. Listener throws are swallowed.
-   * Returns the unsubscribe.
+   * promise settle is the terminal signal. Listeners run synchronously inside
+   * the signing loop: a throw is swallowed, a returned promise is neither
+   * awaited nor observed. Ticks carry no batch identity, so implementers MUST
+   * reject an overlapping `signPsbts` rather than queue it. Returns the
+   * unsubscribe. The subscription outlives a batch but not the session —
+   * teardown (disconnect or dead-session cleanup) drops every listener, so
+   * subscribe per sign call.
    *
    * Implemented only by hardware providers that run one device ceremony per
    * PSBT (currently the Ledger vault provider). Optional — callers MUST
