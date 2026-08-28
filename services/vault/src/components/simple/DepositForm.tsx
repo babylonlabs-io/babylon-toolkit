@@ -312,19 +312,20 @@ export function DepositForm({
     })} USD`;
   }, [amount, btcPrice, hasPriceFetchError]);
 
-  const pendingConfirmationField = unconfirmedBalance > 0n ? (
-    <span className="inline-flex items-center gap-1 text-accent-secondary">
-      {COPY.deposit.form.pendingConfirmationNotice(
-        `${depositService.formatSatoshisToBtc(unconfirmedBalance)} ${btcConfig.coinSymbol}`,
-      )}
-      <Hint
-        tooltip={COPY.deposit.form.pendingConfirmationTooltip}
-        attachToChildren
-      >
-        <InfoIcon size={16} className="text-accent-secondary" />
-      </Hint>
-    </span>
-  ) : null;
+  const pendingConfirmationField =
+    unconfirmedBalance > 0n ? (
+      <span className="inline-flex items-center gap-1 text-accent-secondary">
+        {COPY.deposit.form.pendingConfirmationNotice(
+          `${depositService.formatSatoshisToBtc(unconfirmedBalance)} ${btcConfig.coinSymbol}`,
+        )}
+        <Hint
+          tooltip={COPY.deposit.form.pendingConfirmationTooltip}
+          attachToChildren
+        >
+          <InfoIcon size={16} className="text-accent-secondary" />
+        </Hint>
+      </span>
+    ) : null;
 
   const maxTooltip = hasUnconfirmedBalanceOnly
     ? undefined
