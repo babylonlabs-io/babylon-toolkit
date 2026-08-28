@@ -78,7 +78,7 @@ export function setSharedBtcAppKitConfig(config: SharedBtcAppKitConfigInput): vo
 }
 
 export function getSharedBtcAppKitConfig(): SharedBtcAppKitConfig {
-  const initializedState = getAppKitState();
+  const initializedState = getAppKitState<SharedBtcAppKitConfig>();
   if (initializedState) {
     if (!initializedState.btcConfig) {
       throw new Error("AppKit was initialized without Bitcoin support.");
@@ -97,7 +97,7 @@ export function getSharedBtcAppKitConfig(): SharedBtcAppKitConfig {
 }
 
 export function hasSharedBtcAppKitConfig(): boolean {
-  const initializedState = getAppKitState();
+  const initializedState = getAppKitState<SharedBtcAppKitConfig>();
   return initializedState ? initializedState.btcConfig !== undefined : sharedBtcAppKitConfig !== null;
 }
 

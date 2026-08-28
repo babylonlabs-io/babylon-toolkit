@@ -4,8 +4,6 @@ import type { Config } from "wagmi";
 
 import { ERROR_CODES, WalletError } from "@/error";
 
-import type { SharedBtcAppKitConfig } from "../btc/appkit/sharedConfig";
-
 export type AppKitModal = ReturnType<typeof createAppKit>;
 
 interface AppKitMetadata {
@@ -22,14 +20,15 @@ export interface AppKitCapabilities {
   readonly btcNetwork?: "mainnet" | "signet";
 }
 
-export interface AppKitState extends AppKitCapabilities {
+export interface AppKitState<BtcConfig = never> extends AppKitCapabilities {
   readonly modal: AppKitModal;
   readonly wagmiConfig?: Config;
-  readonly btcConfig?: SharedBtcAppKitConfig;
+  readonly btcConfig?: BtcConfig;
 }
 
+const INITIAL_CONFIG_FUNCTION_ID = 1;
 const configFunctionIds = new WeakMap<object, number>();
-let nextConfigFunctionId = 1;
+let nextConfigFunctionId = INITIAL_CONFIG_FUNCTION_ID;
 
 function getConfigFunctionId(value: object): number {
   const existingId = configFunctionIds.get(value);
@@ -91,15 +90,15 @@ export function createAppKitCapabilities({
  * observe the same singleton without the Ethereum-only one having to import
  * the Bitcoin adapter through its sibling.
  */
-let appKitState: AppKitState | null = null;
+let appKitState: AppKitState<unknown> | null = null;
 const manualAppKitCapabilities = new Set<"Ethereum" | "Bitcoin">();
 
 function failInitialization(message: string, chainId?: string): never {
   throw new WalletError({ code: ERROR_CODES.WALLET_INITIALIZATION_FAILED, message, chainId });
 }
 
-export function getAppKitState(): AppKitState | null {
-  return appKitState;
+export function getAppKitState<BtcConfig = never>(): AppKitState<BtcConfig> | null {
+  return appKitState as AppKitState<BtcConfig> | null;
 }
 
 export function getAppKitModal(): AppKitModal | null {
@@ -141,7 +140,7 @@ export function validateAppKitInitialization(projectId?: string): projectId is s
   return true;
 }
 
-export function setAppKitState(state: AppKitState): AppKitState {
+export function setAppKitState<BtcConfig>(state: AppKitState<BtcConfig>): AppKitState<BtcConfig> {
   if (appKitState) {
     failInitialization("AppKit is already initialized. Reuse the shared AppKit state instead of replacing it.");
   }
@@ -151,7 +150,7 @@ export function setAppKitState(state: AppKitState): AppKitState {
   }
 
   appKitState = Object.freeze({ ...state, btcConfig: state.btcConfig ? Object.freeze({ ...state.btcConfig }) : undefined });
-  return appKitState;
+  return appKitState as AppKitState<BtcConfig>;
 }
 
 export function assertAppKitCapabilities(existing: AppKitCapabilities, requested: AppKitCapabilities): void {

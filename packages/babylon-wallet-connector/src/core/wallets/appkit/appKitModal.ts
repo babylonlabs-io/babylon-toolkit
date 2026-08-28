@@ -5,6 +5,7 @@ import { bitcoin, bitcoinSignet } from "@reown/appkit/networks";
 import { createAppKit } from "@reown/appkit/react";
 import type { Chain } from "viem";
 
+import type { SharedBtcAppKitConfig } from "../btc/appkit/sharedConfig";
 import { createETHWagmiAdapter } from "../eth/appkit/modal";
 
 import {
@@ -77,7 +78,7 @@ export function initializeAppKitModal(config: AppKitModalConfig) {
     ethChain: config.eth?.chain,
     btcNetwork: config.btc?.network,
   });
-  const existingState = getAppKitState();
+  const existingState = getAppKitState<SharedBtcAppKitConfig>();
 
   if (existingState) {
     assertAppKitCapabilities(existingState, capabilities);
