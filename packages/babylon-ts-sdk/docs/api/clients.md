@@ -6101,8 +6101,11 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-transaction.
 
 Derive the Solidity vault ID without loading the Rust/WASM package.
 
-Inputs accept an optional `0x` prefix. Address validation stays strict.
-The synchronous result is lowercase hex without a prefix.
+Inputs accept an optional `0x` prefix to match the current PeginManager
+call sites. Address validation stays strict: lowercase and valid EIP-55
+addresses pass, while uppercase and incorrectly checksummed mixed-case
+addresses fail. The synchronous result is lowercase hex without a prefix,
+matching the WASM helper that this function replaces.
 
 #### Parameters
 
