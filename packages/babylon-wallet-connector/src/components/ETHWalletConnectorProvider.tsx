@@ -61,33 +61,35 @@ export function WalletProvider({
   );
   const storage = useMemo(() => createAccountStorage(ttl, networkMap), [ttl, networkMap]);
 
-  const appKitInitializationError = useMemo(() => {
+  const appKitInitializationFailure = useMemo(() => {
     if (!appKitConfig) return null;
 
     try {
       initializeAppKitModal(appKitConfig);
       return null;
     } catch (error) {
-      return error instanceof Error
-        ? error
-        : new Error("Failed to initialize the Ethereum AppKit modal", { cause: error });
+      return {
+        error:
+          error instanceof Error
+            ? error
+            : new Error("Failed to initialize the Ethereum AppKit modal", { cause: error }),
+      };
     }
   }, [appKitConfig]);
 
-  const reportedAppKitError = useRef<string | null>(null);
+  const reportedAppKitFailure = useRef<typeof appKitInitializationFailure>(null);
 
   useEffect(() => {
-    if (!appKitInitializationError) {
-      reportedAppKitError.current = null;
+    if (!appKitInitializationFailure) {
+      reportedAppKitFailure.current = null;
       return;
     }
 
-    const errorKey = `${appKitInitializationError.name}:${appKitInitializationError.message}`;
-    if (!onError || reportedAppKitError.current === errorKey) return;
+    if (!onError || reportedAppKitFailure.current === appKitInitializationFailure) return;
 
-    reportedAppKitError.current = errorKey;
-    onError(appKitInitializationError);
-  }, [appKitInitializationError, onError]);
+    reportedAppKitFailure.current = appKitInitializationFailure;
+    onError(appKitInitializationFailure.error);
+  }, [appKitInitializationFailure, onError]);
 
   useAppKitOpenListener();
 

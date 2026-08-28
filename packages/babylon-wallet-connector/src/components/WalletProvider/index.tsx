@@ -87,7 +87,7 @@ export function WalletProvider({
 
   // Initialize unified AppKit modal synchronously before render (only if config provided)
   // This ensures both wagmi and bitcoin configs are available before children mount
-  const appKitInitializationError = useMemo(() => {
+  const appKitInitializationFailure = useMemo(() => {
     if (!appKitConfig) {
       return null;
     }
@@ -98,32 +98,32 @@ export function WalletProvider({
       initializeAppKitModal(appKitConfig);
       return null;
     } catch (error) {
-      return error instanceof Error ? error : new Error("Failed to initialize AppKit modal", { cause: error });
+      return {
+        error: error instanceof Error ? error : new Error("Failed to initialize AppKit modal", { cause: error }),
+      };
     }
   }, [appKitConfig]);
 
-  const reportedAppKitError = useRef<string | null>(null);
-  const loggedAppKitError = useRef<string | null>(null);
+  const reportedAppKitFailure = useRef<typeof appKitInitializationFailure>(null);
+  const loggedAppKitFailure = useRef<typeof appKitInitializationFailure>(null);
 
   useEffect(() => {
-    if (!appKitInitializationError) {
-      reportedAppKitError.current = null;
-      loggedAppKitError.current = null;
+    if (!appKitInitializationFailure) {
+      reportedAppKitFailure.current = null;
+      loggedAppKitFailure.current = null;
       return;
     }
 
-    const errorKey = `${appKitInitializationError.name}:${appKitInitializationError.message}`;
-    if (loggedAppKitError.current !== errorKey) {
-      loggedAppKitError.current = errorKey;
-      console.error("Failed to initialize AppKit modal:", appKitInitializationError.message);
+    if (loggedAppKitFailure.current !== appKitInitializationFailure) {
+      loggedAppKitFailure.current = appKitInitializationFailure;
+      console.error("Failed to initialize AppKit modal:", appKitInitializationFailure.error.message);
     }
 
-    if (!onError || reportedAppKitError.current === errorKey) return;
+    if (!onError || reportedAppKitFailure.current === appKitInitializationFailure) return;
 
-    reportedAppKitError.current = errorKey;
-    onError(appKitInitializationError);
-  }, [appKitInitializationError, onError]);
-
+    reportedAppKitFailure.current = appKitInitializationFailure;
+    onError(appKitInitializationFailure.error);
+  }, [appKitInitializationFailure, onError]);
 
   // Listen for requests to open the AppKit modal (triggered by connectors)
   // This hook gracefully handles cases where AppKit is not initialized

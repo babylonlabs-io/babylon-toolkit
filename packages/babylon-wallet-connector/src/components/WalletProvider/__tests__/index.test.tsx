@@ -65,6 +65,8 @@ const ethChain = {
 };
 const unifiedAppKitConfig = { projectId: "project", metadata };
 const ethAppKitConfig = { ...unifiedAppKitConfig, eth: { chain: ethChain } };
+const nextUnifiedAppKitConfig = { ...unifiedAppKitConfig, projectId: "next-project" };
+const nextEthAppKitConfig = { ...ethAppKitConfig, projectId: "next-project" };
 
 function ErrorHost({
   children,
@@ -73,11 +75,11 @@ function ErrorHost({
   children: (onError?: (error: Error) => void) => ReactNode;
   enabled?: boolean;
 }) {
-  const [message, setMessage] = useState("");
+  const [messages, setMessages] = useState<string[]>([]);
   return (
     <>
-      {children(enabled ? (error) => setMessage(error.message) : undefined)}
-      <output>{message}</output>
+      {children(enabled ? (error) => setMessages((current) => [...current, error.message]) : undefined)}
+      <output>{messages.join("|")}</output>
     </>
   );
 }
@@ -92,17 +94,17 @@ describe("WalletProvider AppKit initialization", () => {
     vi.restoreAllMocks();
   });
 
-  it("reports a unified initialization failure after commit", async () => {
+  it("reports each unified initialization failure after commit", async () => {
     const errorMessage = "AppKit capability mismatch";
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
     mocks.initializeUnifiedAppKitModal.mockImplementation(() => {
       throw new Error(errorMessage);
     });
 
-    render(
+    const view = render(
       <ErrorHost>
         {(onError) => (
-          <WalletProvider config={[]} appKitConfig={{ ...unifiedAppKitConfig }} disableTomo onError={onError}>
+          <WalletProvider config={[]} appKitConfig={unifiedAppKitConfig} disableTomo onError={onError}>
             child
           </WalletProvider>
         )}
@@ -110,12 +112,26 @@ describe("WalletProvider AppKit initialization", () => {
     );
 
     expect(await screen.findByText(errorMessage)).toBeTruthy();
-    expect(mocks.initializeUnifiedAppKitModal).toHaveBeenCalledTimes(2);
+    expect(mocks.initializeUnifiedAppKitModal).toHaveBeenCalledTimes(1);
     expect(consoleError).toHaveBeenCalledWith("Failed to initialize AppKit modal:", errorMessage);
     expect(consoleError).toHaveBeenCalledTimes(1);
+
+    view.rerender(
+      <ErrorHost>
+        {(onError) => (
+          <WalletProvider config={[]} appKitConfig={nextUnifiedAppKitConfig} disableTomo onError={onError}>
+            child
+          </WalletProvider>
+        )}
+      </ErrorHost>,
+    );
+
+    expect(await screen.findByText(`${errorMessage}|${errorMessage}`)).toBeTruthy();
+    expect(mocks.initializeUnifiedAppKitModal).toHaveBeenCalledTimes(2);
+    expect(consoleError).toHaveBeenCalledTimes(2);
   });
 
-  it("reports an Ethereum-only initialization failure after commit", async () => {
+  it("reports each Ethereum-only initialization failure after commit", async () => {
     const error = new Error("Ethereum AppKit capability mismatch");
     const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
     mocks.initializeEthAppKitModal.mockImplementation(() => {
@@ -148,5 +164,18 @@ describe("WalletProvider AppKit initialization", () => {
     expect(await screen.findByText(error.message)).toBeTruthy();
     expect(mocks.initializeEthAppKitModal).toHaveBeenCalledTimes(1);
     expect(consoleError).not.toHaveBeenCalled();
+
+    view.rerender(
+      <ErrorHost>
+        {(onError) => (
+          <ETHWalletProvider config={[]} appKitConfig={nextEthAppKitConfig} onError={onError}>
+            child
+          </ETHWalletProvider>
+        )}
+      </ErrorHost>,
+    );
+
+    expect(await screen.findByText(`${error.message}|${error.message}`)).toBeTruthy();
+    expect(mocks.initializeEthAppKitModal).toHaveBeenCalledTimes(2);
   });
 });
