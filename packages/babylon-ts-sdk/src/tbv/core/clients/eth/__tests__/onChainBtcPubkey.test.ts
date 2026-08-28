@@ -7,6 +7,8 @@ import { assertOnChainBtcPubkey } from "../onChainBtcPubkey";
 const FIELD_DIFFERENTIAL_SEED = 0xa90f72ec;
 const FIELD_DIFFERENTIAL_FIXTURE_COUNT = 256;
 const SCALAR_SWEEP_COUNT = 256;
+const GENERATOR_X =
+  "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798";
 /**
  * The scalar sweep spends its time in the asm.js oracle, not in the code under
  * test: `ecc.pointFromScalar` runs 256 curve multiplications in pure
@@ -44,10 +46,10 @@ describe("assertOnChainBtcPubkey", () => {
       "fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2e",
       "fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2f",
       "fffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc30",
-      "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+      GENERATOR_X,
       "c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5",
-      ...Array.from({ length: 32 }, (_, index) =>
-        index.toString(16).padStart(64, String(index % 10)),
+      ...Array.from({ length: 31 }, (_, index) =>
+        (index + 1).toString(16).padStart(64, String((index + 1) % 10)),
       ),
     ];
 
@@ -61,6 +63,24 @@ describe("assertOnChainBtcPubkey", () => {
         expect(validate).toThrow(/not on the secp256k1 curve/);
       }
     }
+  });
+
+  it.each([
+    ["missing prefix", GENERATOR_X],
+    ["wrong length", `0x${GENERATOR_X.slice(2)}`],
+  ])("rejects a value with a %s", (_case, value) => {
+    expect(() => assertOnChainBtcPubkey(value as Hex, "test key")).toThrow(
+      /unexpected value/,
+    );
+  });
+
+  it("normalizes uppercase input to lowercase unprefixed hex", () => {
+    expect(
+      assertOnChainBtcPubkey(
+        `0x${GENERATOR_X.toUpperCase()}` as Hex,
+        "test key",
+      ),
+    ).toBe(GENERATOR_X);
   });
 
   it("matches tiny-secp256k1 across fixed-seed randomized x-coordinates", () => {

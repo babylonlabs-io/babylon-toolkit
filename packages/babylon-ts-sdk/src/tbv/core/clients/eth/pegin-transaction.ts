@@ -1,3 +1,13 @@
+/**
+ * Dependency-free Bitcoin txid and vault-ID helpers for the registration
+ * client in #2336.
+ *
+ * This module stays test-only until that follow-up replaces the PeginManager
+ * consumers. At that swap, transaction hex and vault-ID inputs accept an
+ * optional `0x` prefix. Depositor addresses use strict EIP-55 validation.
+ * Vault IDs return synchronously as lowercase hex without a prefix.
+ */
+
 import { sha256 } from "@noble/hashes/sha2.js";
 import {
   encodeAbiParameters,
@@ -7,6 +17,7 @@ import {
   type Hex,
 } from "viem";
 
+/** Decode an optional-prefixed, even-length hex string. */
 function decodeHex(value: string, label: string): Uint8Array {
   const clean = value.startsWith("0x") ? value.slice(2) : value;
   if (clean.length === 0 || clean.length % 2 !== 0) {
@@ -23,12 +34,14 @@ function decodeHex(value: string, label: string): Uint8Array {
   return bytes;
 }
 
+/** Encode bytes as lowercase hex without a prefix. */
 function encodeHex(bytes: Uint8Array): string {
   return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join(
     "",
   );
 }
 
+/** Concatenate byte chunks without a buffer dependency. */
 function concatBytes(chunks: readonly Uint8Array[]): Uint8Array {
   const result = new Uint8Array(
     chunks.reduce((length, chunk) => length + chunk.length, 0),
@@ -159,27 +172,44 @@ function serializeWithoutWitness(transaction: Uint8Array): Uint8Array {
 }
 
 /** Calculate a Bitcoin txid without importing bitcoinjs-lib. */
-export function calculatePeginTxHash(transactionHex: string): Hex {
+export function calculateBtcTxHash(transactionHex: string): Hex {
   const serialized = serializeWithoutWitness(
-    decodeHex(transactionHex, "depositorSignedPeginTx"),
+    decodeHex(transactionHex, "transactionHex"),
   );
   const digest = sha256(sha256(serialized));
   digest.reverse();
   return `0x${encodeHex(digest)}`;
 }
 
-/** Derive the Solidity vault ID without loading the Rust/WASM package. */
-export function derivePeginVaultId(peginTxHash: Hex, depositor: Address): Hex {
-  if (!/^0x[0-9a-fA-F]{64}$/.test(peginTxHash)) {
+/**
+ * Derive the Solidity vault ID without loading the Rust/WASM package.
+ *
+ * Inputs accept an optional `0x` prefix to match the current PeginManager
+ * call sites. Address validation stays strict: lowercase and valid EIP-55
+ * addresses pass, while uppercase and incorrectly checksummed mixed-case
+ * addresses fail. The synchronous result is lowercase hex without a prefix,
+ * matching the WASM helper that this function replaces.
+ */
+export function derivePeginVaultId(
+  peginTxHash: string,
+  depositor: string,
+): string {
+  const normalizedPeginTxHash = peginTxHash.startsWith("0x")
+    ? peginTxHash
+    : `0x${peginTxHash}`;
+  if (!/^0x[0-9a-fA-F]{64}$/.test(normalizedPeginTxHash)) {
     throw new Error("peginTxHash must be a 32-byte hex value");
   }
-  if (!isAddress(depositor)) {
+  const normalizedDepositor = depositor.startsWith("0x")
+    ? depositor
+    : `0x${depositor}`;
+  if (!isAddress(normalizedDepositor, { strict: true })) {
     throw new Error(`Invalid depositor Ethereum address: ${depositor}`);
   }
   return keccak256(
     encodeAbiParameters(
       [{ type: "bytes32" }, { type: "address" }],
-      [peginTxHash, depositor],
+      [normalizedPeginTxHash as Hex, normalizedDepositor as Address],
     ),
-  );
+  ).slice(2);
 }

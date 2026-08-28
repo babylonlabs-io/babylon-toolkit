@@ -5,8 +5,8 @@ import { Buffer } from "buffer";
 import { bytesToHex, getAddress, type Address, type Hex } from "viem";
 import { describe, expect, it } from "vitest";
 
-import { calculateBtcTxHash } from "../../../utils/transaction/btcTxHash";
-import { calculatePeginTxHash, derivePeginVaultId } from "../pegin-transaction";
+import { calculateBtcTxHash as calculateBitcoinJsTxHash } from "../../../utils/transaction/btcTxHash";
+import { calculateBtcTxHash, derivePeginVaultId } from "../pegin-transaction";
 
 const GOLDEN_PEGIN_TX_HASH: Hex = `0x${"ab".repeat(32)}`;
 const GOLDEN_DEPOSITOR: Address = "0x1234567890abcdef1234567890abcdef12345678";
@@ -45,6 +45,46 @@ const NON_CANONICAL_INPUT_COUNT_ENCODINGS = {
   "0xfe": "fe01000000",
   "0xff": "ff0100000000000000",
 } as const;
+const NON_CANONICAL_COMPACT_SIZE_POSITIONS = [
+  {
+    name: "input script length",
+    withWitness: false,
+    canonical: "0300000000ffffffff",
+    nonCanonical: "03000000fd0000ffffffff",
+    error: /Non-canonical input 0 script length/,
+  },
+  {
+    name: "output count",
+    withWitness: false,
+    canonical: `ffffffff01${TEST_TRANSACTION_OUTPUT_VALUE_HEX}`,
+    nonCanonical: `fffffffffd0100${TEST_TRANSACTION_OUTPUT_VALUE_HEX}`,
+    error: /Non-canonical output count/,
+  },
+  {
+    name: "output script length",
+    withWitness: false,
+    canonical: `${TEST_TRANSACTION_OUTPUT_VALUE_HEX}22${"cd".repeat(34)}`,
+    nonCanonical: `${TEST_TRANSACTION_OUTPUT_VALUE_HEX}fd2200${"cd".repeat(34)}`,
+    error: /Non-canonical output 0 script length/,
+  },
+  {
+    name: "witness item count",
+    withWitness: true,
+    canonical: `0240${"11".repeat(64)}21${"22".repeat(33)}`,
+    nonCanonical: `fd020040${"11".repeat(64)}21${"22".repeat(33)}`,
+    error: /Non-canonical input 0 witness item count/,
+  },
+  {
+    name: "witness item length",
+    withWitness: true,
+    canonical: `0240${"11".repeat(64)}21${"22".repeat(33)}`,
+    nonCanonical: `02fd4000${"11".repeat(64)}21${"22".repeat(33)}`,
+    error: /Non-canonical input 0 witness item 0 length/,
+  },
+] as const;
+const ZERO_INPUT_OUTPUT_TX_HEX = "02000000000000000000";
+const ONE_INPUT_ZERO_OUTPUT_TX_HEX =
+  `0200000001${"ab".repeat(32)}0300000000ffffffff0000000000`;
 // The Bitcoin genesis block's coinbase transaction and its published id. An
 // oracle-independent anchor: bitcoinjs-lib neither produced this hex nor
 // supplied the expected id.
@@ -233,37 +273,44 @@ describe("ETH-only pegin transaction derivation", () => {
   // way. The vault-id half has the Rust golden vector and the curve half has the
   // generator point; this is the txid half's equivalent.
   it("reproduces the published txid of the Bitcoin genesis coinbase", () => {
-    expect(calculatePeginTxHash(GENESIS_COINBASE_TX_HEX)).toBe(
+    expect(calculateBtcTxHash(GENESIS_COINBASE_TX_HEX)).toBe(
       GENESIS_COINBASE_TXID,
     );
   });
 
   it("matches bitcoinjs-lib txid calculation for a legacy transaction", () => {
     const txHex = testTransaction(false);
-    expect(calculatePeginTxHash(txHex)).toBe(calculateBtcTxHash(txHex));
+    expect(calculateBtcTxHash(txHex)).toBe(calculateBitcoinJsTxHash(txHex));
+  });
+
+  it.each([
+    ["zero-input, zero-output", ZERO_INPUT_OUTPUT_TX_HEX],
+    ["one-input, zero-output", ONE_INPUT_ZERO_OUTPUT_TX_HEX],
+  ])("matches bitcoinjs-lib for a %s transaction", (_case, txHex) => {
+    expect(calculateBtcTxHash(txHex)).toBe(calculateBitcoinJsTxHash(txHex));
   });
 
   it("strips witness data and matches bitcoinjs-lib for a SegWit transaction", () => {
     const txHex = testTransaction(true);
-    expect(calculatePeginTxHash(txHex)).toBe(calculateBtcTxHash(txHex));
+    expect(calculateBtcTxHash(txHex)).toBe(calculateBitcoinJsTxHash(txHex));
   });
 
   it("matches bitcoinjs-lib for a multi-input, multi-output legacy transaction", () => {
     const txHex = multiInputOutputTransaction(false);
-    expect(calculatePeginTxHash(txHex)).toBe(calculateBtcTxHash(txHex));
+    expect(calculateBtcTxHash(txHex)).toBe(calculateBitcoinJsTxHash(txHex));
   });
 
   it("matches bitcoinjs-lib for a multi-input SegWit transaction with a partly empty witness", () => {
     const txHex = multiInputOutputTransaction(true);
-    expect(calculatePeginTxHash(txHex)).toBe(calculateBtcTxHash(txHex));
+    expect(calculateBtcTxHash(txHex)).toBe(calculateBitcoinJsTxHash(txHex));
   });
 
   it("matches bitcoinjs-lib across fixed-seed randomized transactions", () => {
     for (const [fixture, txHex] of seededTransactionCorpus().entries()) {
       expect(
-        calculatePeginTxHash(txHex),
+        calculateBtcTxHash(txHex),
         `seed 0x${TXID_DIFFERENTIAL_SEED.toString(16)}, fixture ${fixture}`,
-      ).toBe(calculateBtcTxHash(txHex));
+      ).toBe(calculateBitcoinJsTxHash(txHex));
     }
   });
 
@@ -279,9 +326,9 @@ describe("ETH-only pegin transaction derivation", () => {
         for (const withWitness of [false, true]) {
           const txHex = fixedCountTransaction(count, withWitness);
           expect(
-            calculatePeginTxHash(txHex),
+            calculateBtcTxHash(txHex),
             `${count} inputs and outputs, witness ${withWitness}`,
-          ).toBe(calculateBtcTxHash(txHex));
+          ).toBe(calculateBitcoinJsTxHash(txHex));
         }
       }
     },
@@ -289,23 +336,25 @@ describe("ETH-only pegin transaction derivation", () => {
 
   it("rejects a SegWit marker whose witness stacks are all empty, as bitcoinjs-lib does", () => {
     const txHex = segwitMarkerWithEmptyWitnessesTransaction();
-    expect(() => calculateBtcTxHash(txHex)).toThrow(/superfluous witness data/);
-    expect(() => calculatePeginTxHash(txHex)).toThrow(
+    expect(() => calculateBitcoinJsTxHash(txHex)).toThrow(
+      /superfluous witness data/,
+    );
+    expect(() => calculateBtcTxHash(txHex)).toThrow(
       /superfluous witness marker/,
     );
   });
 
   it("rejects a transaction that ends before the parser has read every field", () => {
-    expect(() => calculatePeginTxHash("deadbeef")).toThrow(/Truncated/);
+    expect(() => calculateBtcTxHash("deadbeef")).toThrow(/Truncated/);
   });
 
   it("rejects trailing bytes after a complete transaction", () => {
-    expect(() => calculatePeginTxHash(`${testTransaction(false)}00`)).toThrow(
+    expect(() => calculateBtcTxHash(`${testTransaction(false)}00`)).toThrow(
       /trailing byte/,
     );
   });
 
-  // The two cases below are the only input classes found where this parser and
+  // The two groups below are the input classes where this parser and
   // bitcoinjs-lib do not agree. Both are pinned rather than left implicit: a
   // divergence nobody wrote down is the exact failure CLAUDE.md section 9
   // exists to catch. Neither is reachable by a transaction that can confirm on
@@ -324,26 +373,43 @@ describe("ETH-only pegin transaction derivation", () => {
   // txid the oracle does not produce - with nothing else in the suite failing.
   it("rejects an input count encoded in more bytes than it needs, where bitcoinjs-lib accepts it", () => {
     const legacy = testTransaction(false);
-    const canonicalTxid = calculateBtcTxHash(legacy);
+    const canonicalTxid = calculateBitcoinJsTxHash(legacy);
 
     for (const [prefix, encoded] of Object.entries(
       NON_CANONICAL_INPUT_COUNT_ENCODINGS,
     )) {
       const txHex = `${legacy.slice(0, VERSION_HEX_LENGTH)}${encoded}${legacy.slice(VERSION_HEX_LENGTH + CANONICAL_INPUT_COUNT_HEX_LENGTH)}`;
-      expect(() => calculatePeginTxHash(txHex), prefix).toThrow(
+      expect(() => calculateBtcTxHash(txHex), prefix).toThrow(
         /Non-canonical input count/,
       );
-      expect(calculateBtcTxHash(txHex), prefix).toBe(canonicalTxid);
+      expect(calculateBitcoinJsTxHash(txHex), prefix).toBe(canonicalTxid);
     }
   });
+
+  // Witness compact sizes do not enter the txid. Rejecting their non-canonical
+  // form is a strict parser contract, not a byte-equality requirement.
+  for (const fixture of NON_CANONICAL_COMPACT_SIZE_POSITIONS) {
+    it(`rejects a non-canonical ${fixture.name}, where bitcoinjs-lib accepts it`, () => {
+      const canonical = testTransaction(fixture.withWitness);
+      const txHex = canonical.replace(
+        fixture.canonical,
+        fixture.nonCanonical,
+      );
+      expect(txHex).not.toBe(canonical);
+      expect(() => calculateBtcTxHash(txHex)).toThrow(fixture.error);
+      expect(calculateBitcoinJsTxHash(txHex)).toBe(
+        calculateBitcoinJsTxHash(canonical),
+      );
+    });
+  }
 
   // The registration path always passes prefixed hex - PeginManager.ts:1416
   // hashes `ensureHexPrefix(depositorSignedPeginTx)` - and no generated fixture
   // carries a prefix, because Transaction.toHex() never emits one.
   it("accepts the 0x-prefixed hex the registration path passes", () => {
     const legacy = testTransaction(false);
-    expect(calculatePeginTxHash(`0x${legacy}`)).toBe(
-      calculateBtcTxHash(legacy),
+    expect(calculateBtcTxHash(`0x${legacy}`)).toBe(
+      calculateBitcoinJsTxHash(legacy),
     );
   });
 
@@ -359,10 +425,10 @@ describe("ETH-only pegin transaction derivation", () => {
       "ffffffffffffffff",
     );
     expect(aboveOracleReadLimit).not.toBe(legacy);
-    expect(() => calculateBtcTxHash(aboveOracleReadLimit)).toThrow(
+    expect(() => calculateBitcoinJsTxHash(aboveOracleReadLimit)).toThrow(
       /value out of range/,
     );
-    expect(calculatePeginTxHash(aboveOracleReadLimit)).toMatch(
+    expect(calculateBtcTxHash(aboveOracleReadLimit)).toMatch(
       /^0x[0-9a-f]{64}$/,
     );
   });
@@ -375,8 +441,8 @@ describe("ETH-only pegin transaction derivation", () => {
       TEST_TRANSACTION_OUTPUT_VALUE_HEX,
       MAX_MONEY_SATOSHIS_LE_HEX,
     );
-    expect(calculatePeginTxHash(atMoneyCap)).toBe(
-      calculateBtcTxHash(atMoneyCap),
+    expect(calculateBtcTxHash(atMoneyCap)).toBe(
+      calculateBitcoinJsTxHash(atMoneyCap),
     );
   });
 
@@ -386,7 +452,27 @@ describe("ETH-only pegin transaction derivation", () => {
   // WASM engine is pinned to in primitives/__tests__/deriveVaultId.test.ts.
   it("matches the Solidity/Rust vault-ID golden vector", () => {
     expect(derivePeginVaultId(GOLDEN_PEGIN_TX_HASH, GOLDEN_DEPOSITOR)).toBe(
-      GOLDEN_VAULT_ID,
+      GOLDEN_VAULT_ID.slice(2),
+    );
+  });
+
+  it("accepts unprefixed inputs and returns lowercase unprefixed hex synchronously", () => {
+    const vaultId = derivePeginVaultId(
+      GOLDEN_PEGIN_TX_HASH.slice(2),
+      getAddress(GOLDEN_DEPOSITOR).slice(2),
+    );
+
+    expect(typeof vaultId).toBe("string");
+    expect(vaultId).toBe(GOLDEN_VAULT_ID.slice(2));
+    expect(vaultId).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it.each([
+    ["uppercase", `0x${GOLDEN_DEPOSITOR.slice(2).toUpperCase()}`],
+    ["bad mixed case", "0x1234567890Abcdef1234567890abcdef12345678"],
+  ])("rejects an %s depositor address", (_case, depositor) => {
+    expect(() => derivePeginVaultId(GOLDEN_PEGIN_TX_HASH, depositor)).toThrow(
+      /Invalid depositor Ethereum address/,
     );
   });
 
@@ -398,8 +484,8 @@ describe("ETH-only pegin transaction derivation", () => {
 
     for (const { peginTxHash, depositor } of fixtures) {
       const engineVaultId = await deriveVaultId(peginTxHash, depositor);
-      expect(derivePeginVaultId(peginTxHash, depositor).toLowerCase()).toBe(
-        `0x${engineVaultId.toLowerCase()}`,
+      expect(derivePeginVaultId(peginTxHash, depositor)).toBe(
+        engineVaultId.toLowerCase(),
       );
     }
   });

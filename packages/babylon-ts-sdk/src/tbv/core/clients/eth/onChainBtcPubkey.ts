@@ -18,14 +18,7 @@ const SECP256K1_FIELD_PRIME =
 /** secp256k1's curve coefficient `b`, from `y^2 = x^3 + b`. */
 const SECP256K1_CURVE_B = 7n;
 
-/**
- * Modular exponentiation without a crypto-library dependency.
- *
- * secp256k1's field prime is congruent to 3 mod 4, so an x-coordinate is on
- * the curve iff `(x^3 + 7)^((p + 1) / 4)` squares back to `x^3 + 7` modulo
- * p. This is the same curve-membership condition used by x-only key parsers;
- * it deliberately does not merely validate length/range.
- */
+/** Modular exponentiation without a crypto-library dependency. */
 function modPow(base: bigint, exponent: bigint, modulus: bigint): bigint {
   let result = 1n;
   let factor = base % modulus;
@@ -42,6 +35,14 @@ function modPow(base: bigint, exponent: bigint, modulus: bigint): bigint {
   return result;
 }
 
+/**
+ * secp256k1's field prime is congruent to 3 mod 4, so an x-coordinate is on
+ * the curve iff `(x^3 + 7)^((p + 1) / 4)` squares back to `x^3 + 7` modulo
+ * p. This is the same curve-membership condition used by x-only key parsers;
+ * it deliberately does not merely validate length/range.
+ * `x^3 + 7` cannot be zero because `-7` is not a cubic residue in this field,
+ * so the zero square-root edge case is unreachable.
+ */
 function isSecp256k1XCoordinate(value: string): boolean {
   const x = BigInt(`0x${value}`);
   if (x >= SECP256K1_FIELD_PRIME) return false;
