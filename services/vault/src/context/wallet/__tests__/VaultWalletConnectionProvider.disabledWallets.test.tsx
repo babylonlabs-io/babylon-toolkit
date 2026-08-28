@@ -128,13 +128,16 @@ describe("WalletConnectionProvider — Ledger vault wallet opt-in", () => {
 
   it("hides it without WebHID even when the flag is on", async () => {
     // jsdom default: no navigator.hid — the Firefox/Safari case, where the
-    // entry would otherwise render as a dead hardware row.
+    // entry would otherwise render clickable and fail only on connect.
     await renderWithFlag("true");
     expect(h.captured.disabledWallets).toContain("ledger_btc_vault");
   });
 
-  it("keeps the legacy staking Ledger adapters hidden either way", async () => {
+  it("keeps the legacy staking Ledger adapters hidden even when the vault wallet is revealed", async () => {
+    stubWebHid();
     await renderWithFlag("true");
+    // Precondition: this is the revealed quadrant, so the stub is load-bearing.
+    expect(h.captured.disabledWallets).not.toContain("ledger_btc_vault");
     expect(h.captured.disabledWallets).toEqual(
       expect.arrayContaining(["ledger_btc", "ledger_btc_v2"]),
     );
