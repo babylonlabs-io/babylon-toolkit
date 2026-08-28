@@ -1831,14 +1831,13 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-registration
 ##### depositorPayoutScriptPubKey
 
 ```ts
-depositorPayoutScriptPubKey: VerifiedPayoutScriptPubKey;
+depositorPayoutScriptPubKey: string;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-registration-client.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-registration-client.ts)
 
-Bitcoin output script bytes, not an address. Mint it with
-[markPayoutScriptVerifiedAgainstPopKey](#markpayoutscriptverifiedagainstpopkey) at the BTC preparation
-boundary, which is the only place able to bind the script to the PoP key.
+Bitcoin output script bytes, not an address. The client verifies that the
+script pays the proof-of-possession key before it submits the transaction.
 
 ##### quotedCommissionBps?
 
@@ -1915,14 +1914,13 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-registration
 ##### depositorPayoutScriptPubKey
 
 ```ts
-depositorPayoutScriptPubKey: VerifiedPayoutScriptPubKey;
+depositorPayoutScriptPubKey: string;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-registration-client.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-registration-client.ts)
 
-Bitcoin output script bytes, not an address. Mint it with
-[markPayoutScriptVerifiedAgainstPopKey](#markpayoutscriptverifiedagainstpopkey) at the BTC preparation
-boundary, which is the only place able to bind the script to the PoP key.
+Bitcoin output script bytes, not an address. The client verifies that the
+script pays the proof-of-possession key before it submits the transaction.
 
 ##### depositorWotsPkHash
 
@@ -5845,28 +5843,6 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.t
 
 ## Type Aliases
 
-### VerifiedPayoutScriptPubKey
-
-```ts
-type VerifiedPayoutScriptPubKey = Hex & object;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-registration-client.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-registration-client.ts)
-
-Bitcoin output script bytes that a Bitcoin-aware boundary has already bound
-to the depositor's proof-of-possession key. Minted only by
-[markPayoutScriptVerifiedAgainstPopKey](#markpayoutscriptverifiedagainstpopkey).
-
-#### Type Declaration
-
-##### \[verifiedPayoutScriptPubKeyBrand\]
-
-```ts
-readonly [verifiedPayoutScriptPubKeyBrand]: true;
-```
-
-***
-
 ### OnChainBtcPubkey
 
 ```ts
@@ -6038,34 +6014,6 @@ with no bonded key surfaces as an error rather than a silent all-zero key.
 #### Returns
 
 [`OnChainBtcPubkey`](#onchainbtcpubkey)
-
-***
-
-### markPayoutScriptVerifiedAgainstPopKey()
-
-```ts
-function markPayoutScriptVerifiedAgainstPopKey(scriptPubKey): VerifiedPayoutScriptPubKey;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-registration-client.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-registration-client.ts)
-
-Mint a [VerifiedPayoutScriptPubKey](#verifiedpayoutscriptpubkey) from raw output script bytes,
-after checking the encoding and the length bound the registry accepts.
-
-Call this only from a Bitcoin-aware boundary that has already checked the
-script pays the proof-of-possession key. What it mints is an irreversible
-on-chain payout destination, and this wallet-free ETH client cannot
-re-derive the script to check it again.
-
-#### Parameters
-
-##### scriptPubKey
-
-`string`
-
-#### Returns
-
-[`VerifiedPayoutScriptPubKey`](#verifiedpayoutscriptpubkey)
 
 ***
 

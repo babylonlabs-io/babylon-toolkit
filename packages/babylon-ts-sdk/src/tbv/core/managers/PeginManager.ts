@@ -46,12 +46,7 @@ import type {
   Hash,
   SignPsbtOptions,
 } from "../../../shared/wallets";
-import {
-  markPayoutScriptVerifiedAgainstPopKey,
-  ViemPeginRegistrationClient,
-  type PopSignature,
-  type VerifiedPayoutScriptPubKey,
-} from "../clients/eth";
+import { ViemPeginRegistrationClient, type PopSignature } from "../clients/eth";
 import { getUtxoInfo, pushTx, type UtxoInfo } from "../clients/mempool";
 import type { WotsBlockPublicKey } from "../clients/vault-provider/types";
 import { BTCVaultRegistryABI } from "../contracts";
@@ -1414,13 +1409,12 @@ export class PeginManager {
     const verifiedBtcPubkeyRaw = await this.assertPopMatchesBtcWallet(
       params.popSignature,
     );
-    const resolvedPayoutScripts: VerifiedPayoutScriptPubKey[] =
-      params.requests.map((request) =>
-        this.resolvePayoutScriptPubKey(
-          verifiedBtcPubkeyRaw,
-          request.depositorPayoutBtcAddress,
-        ),
-      );
+    const resolvedPayoutScripts = params.requests.map((request) =>
+      this.resolvePayoutScriptPubKey(
+        verifiedBtcPubkeyRaw,
+        request.depositorPayoutBtcAddress,
+      ),
+    );
     return this.createRegistrationClient().registerPeginBatchOnChain({
       vaultProvider: params.vaultProvider,
       unsignedPrePeginTx: params.unsignedPrePeginTx,
@@ -1467,7 +1461,7 @@ export class PeginManager {
   private resolvePayoutScriptPubKey(
     verifiedDepositorBtcPubkeyRaw: string,
     address: string,
-  ): VerifiedPayoutScriptPubKey {
+  ): string {
     if (
       !isAddressFromPublicKey(
         address,
@@ -1511,7 +1505,7 @@ export class PeginManager {
           `Please provide a valid Bitcoin address for the ${this.config.btcNetwork} network.`,
       );
     }
-    return markPayoutScriptVerifiedAgainstPopKey(outputScript);
+    return outputScript;
   }
 
   /**

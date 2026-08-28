@@ -101,7 +101,8 @@
     }
   },
   "scripts": {
-    "build": "tsc -b --noEmit tsconfig.lib.json && vite build && node scripts/check-eth-build.js",
+    "build": "tsc -b --noEmit tsconfig.lib.json && vite build && node scripts/check-eth-build.js && pnpm check:packed-consumer",
+    "check:packed-consumer": "node scripts/check-packed-consumer.js",
     "format": "prettier --check \"src/**/*.ts\"",
     "format:fix": "prettier --write \"src/**/*.ts\"",
     "lint": "eslint .",
@@ -135,6 +136,7 @@
   "license": "ISC",
   "description": "TypeScript SDK for Babylon protocol integrations",
   "dependencies": {
+    "@noble/curves": "1.9.7",
     "@noble/hashes": "2.0.1",
     "buffer": "6.0.3"
   },
@@ -146,6 +148,12 @@
   },
   "peerDependenciesMeta": {
     "@babylonlabs-io/babylon-tbv-rust-wasm": {
+      "optional": true
+    },
+    "@bitcoin-js/tiny-secp256k1-asmjs": {
+      "optional": true
+    },
+    "bitcoinjs-lib": {
       "optional": true
     }
   },

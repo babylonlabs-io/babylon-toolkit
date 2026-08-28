@@ -56,30 +56,29 @@ targets — see the [Troubleshooting Guide](./docs/get-started/troubleshooting.m
 
 ### Install
 
-The root barrels statically import `bitcoinjs-lib` and
-`@bitcoin-js/tiny-secp256k1-asmjs`, so both stay required peers alongside
-`viem`:
+`viem ^2.38.2` is the only required peer. An Ethereum-only consumer installs
+the SDK and viem:
 
 ```bash
-# npm
-npm install @babylonlabs-io/ts-sdk viem bitcoinjs-lib @bitcoin-js/tiny-secp256k1-asmjs
-
-# yarn
-yarn add @babylonlabs-io/ts-sdk viem bitcoinjs-lib @bitcoin-js/tiny-secp256k1-asmjs
-
-# pnpm
-pnpm add @babylonlabs-io/ts-sdk viem bitcoinjs-lib @bitcoin-js/tiny-secp256k1-asmjs
+pnpm add @babylonlabs-io/ts-sdk viem
 ```
 
-The WASM engine is the one optional peer, because it is loaded lazily. Add it
-only when your application builds or signs Bitcoin transactions:
+The Bitcoin peers are optional. Add their exact supported versions before you
+import a root or Bitcoin entry:
+
+```bash
+pnpm add bitcoinjs-lib@6.1.7 @bitcoin-js/tiny-secp256k1-asmjs@2.2.3
+```
+
+The WASM engine is also optional. Add it only for Bitcoin construction and
+signing paths:
 
 ```bash
 pnpm add @babylonlabs-io/babylon-tbv-rust-wasm
 ```
 
-The Ethereum-only entry points listed below resolve to viem alone. They stay
-importable without the Bitcoin peers installed.
+The source manifest uses `workspace:*` for the WASM peer. The release process
+replaces it with the exact engine version used in the release rehearsal.
 
 ### ECC Library Initialization (Bitcoin flows only)
 
@@ -192,10 +191,9 @@ import {
 `ViemPeginRegistrationClient` owns only the Ethereum submission half of a
 peg-in. It accepts a signed PegIn transaction, PoP, and
 `depositorPayoutScriptPubKey` prepared earlier, and never asks for a BTC
-wallet. The preparation boundary must validate that payout script against the
-PoP key before passing it to this low-level client. `PeginManager` remains the
-backward-compatible high-level API and performs that wallet/address binding
-before delegating to the ETH client.
+wallet. It validates the payout script against the PoP key before any contract
+read or wallet call. `PeginManager` also checks the wallet address before it
+delegates to the ETH client.
 
 ## Where to start
 

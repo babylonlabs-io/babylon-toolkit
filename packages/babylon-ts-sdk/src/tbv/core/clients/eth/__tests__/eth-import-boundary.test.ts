@@ -73,12 +73,10 @@ function runtimeClosure(entry: string): Map<string, RuntimeClosureEntry> {
 }
 
 function runtimeBoundaryViolations(entry: string): string[] {
-  return Array.from(
-    runtimeClosure(entry).values(),
-    ({ chain, specifiers }) =>
-      Array.from(specifiers)
-        .filter(isBannedRuntimeImport)
-        .map((specifier) => [...chain, specifier].join(" -> ")),
+  return Array.from(runtimeClosure(entry).values(), ({ chain, specifiers }) =>
+    Array.from(specifiers)
+      .filter(isBannedRuntimeImport)
+      .map((specifier) => [...chain, specifier].join(" -> ")),
   ).flat();
 }
 
@@ -135,16 +133,27 @@ describe("dependency-clean package subpath boundaries", () => {
     }
   });
 
-  it("marks only the lazily loaded WASM engine as an optional peer", () => {
+  it("pins the required and optional peer policy", () => {
     const packageJson = JSON.parse(
       readFileSync(
         resolve(currentDirectory, "../../../../../../package.json"),
         "utf8",
       ),
-    ) as { peerDependenciesMeta: Record<string, { optional?: boolean }> };
+    ) as {
+      peerDependencies: Record<string, string>;
+      peerDependenciesMeta: Record<string, { optional?: boolean }>;
+    };
 
+    expect(packageJson.peerDependencies).toEqual({
+      "@babylonlabs-io/babylon-tbv-rust-wasm": "workspace:*",
+      "@bitcoin-js/tiny-secp256k1-asmjs": "2.2.3",
+      "bitcoinjs-lib": "6.1.7",
+      viem: "^2.38.2",
+    });
     expect(packageJson.peerDependenciesMeta).toEqual({
       "@babylonlabs-io/babylon-tbv-rust-wasm": { optional: true },
+      "@bitcoin-js/tiny-secp256k1-asmjs": { optional: true },
+      "bitcoinjs-lib": { optional: true },
     });
   });
 });

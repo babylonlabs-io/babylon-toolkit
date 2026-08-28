@@ -147,26 +147,29 @@ Each maps to a public subpath like `@babylonlabs-io/ts-sdk/tbv/core/<name>` (see
 
 ### Packages
 
-The root barrels statically import `bitcoinjs-lib` and
-`@bitcoin-js/tiny-secp256k1-asmjs`, so both stay required peers alongside
-`viem`:
+`viem ^2.38.2` is the only required peer. Install this pair for an
+Ethereum-only consumer:
 
 ```bash
-npm install @babylonlabs-io/ts-sdk viem bitcoinjs-lib @bitcoin-js/tiny-secp256k1-asmjs
+pnpm add @babylonlabs-io/ts-sdk viem
 ```
 
-The WASM engine is the one optional peer, because it is loaded lazily. Add it
-only when your application builds or signs Bitcoin transactions:
+The Bitcoin peers are optional and use exact versions. Add them before you
+import a root or Bitcoin entry:
 
 ```bash
-npm install @babylonlabs-io/babylon-tbv-rust-wasm
+pnpm add bitcoinjs-lib@6.1.7 @bitcoin-js/tiny-secp256k1-asmjs@2.2.3
 ```
 
-The Ethereum-only entry points resolve to viem alone. They stay importable
-without the Bitcoin peers installed.
+The WASM engine is an optional peer. Add it for Bitcoin construction and
+signing paths:
 
-`bitcoinjs-lib` and `@bitcoin-js/tiny-secp256k1-asmjs` are pinned to exact
-versions; `viem` is range-pinned (`^2.x`).
+```bash
+pnpm add @babylonlabs-io/babylon-tbv-rust-wasm
+```
+
+The source manifest uses `workspace:*` for the WASM peer. The release process
+replaces it with the exact engine version used in the release rehearsal.
 
 ### Bitcoin-only setup at application startup
 

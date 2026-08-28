@@ -15,9 +15,9 @@ import {
   capMaxAcceptableCommissionBps,
   COMMISSION_BPS_HEADROOM,
 } from "../../deposit-terms/commissionCeiling";
-import { MAX_PAYOUT_SCRIPT_LEN } from "../../primitives/psbt/constants";
 import { waitForTransactionReceiptSmartAware } from "../../utils/eth";
 import { assertOnChainBtcPubkey } from "./onChainBtcPubkey";
+import { assertPayoutScriptMatchesPopKey } from "./payout-script";
 import { calculateBtcTxHash, derivePeginVaultId } from "./pegin-transaction";
 import { ViemVaultRegistryReader } from "./vault-registry-reader";
 
@@ -46,38 +46,6 @@ function assertHtlcVout(value: number): void {
   if (!Number.isInteger(value) || value < 0 || value > 255) {
     throw new Error(`htlcVout must be a uint8, got ${value}`);
   }
-}
-
-declare const verifiedPayoutScriptPubKeyBrand: unique symbol;
-
-/**
- * Bitcoin output script bytes that a Bitcoin-aware boundary has already bound
- * to the depositor's proof-of-possession key. Minted only by
- * {@link markPayoutScriptVerifiedAgainstPopKey}.
- */
-export type VerifiedPayoutScriptPubKey = Hex & {
-  readonly [verifiedPayoutScriptPubKeyBrand]: true;
-};
-
-/**
- * Mint a {@link VerifiedPayoutScriptPubKey} from raw output script bytes,
- * after checking the encoding and the length bound the registry accepts.
- *
- * Call this only from a Bitcoin-aware boundary that has already checked the
- * script pays the proof-of-possession key. What it mints is an irreversible
- * on-chain payout destination, and this wallet-free ETH client cannot
- * re-derive the script to check it again.
- */
-export function markPayoutScriptVerifiedAgainstPopKey(
-  scriptPubKey: string,
-): VerifiedPayoutScriptPubKey {
-  const payoutScript = ensureHex(scriptPubKey, "depositorPayoutScriptPubKey");
-  if ((payoutScript.length - 2) / 2 > MAX_PAYOUT_SCRIPT_LEN) {
-    throw new Error(
-      `depositorPayoutScriptPubKey exceeds ${MAX_PAYOUT_SCRIPT_LEN} bytes`,
-    );
-  }
-  return payoutScript as VerifiedPayoutScriptPubKey;
 }
 
 /** A PoP prepared by a Bitcoin wallet, reusable by the ETH submit client. */
@@ -115,11 +83,10 @@ export interface RegisterPeginOnChainParams {
   popSignature: PopSignature;
   htlcVout: number;
   /**
-   * Bitcoin output script bytes, not an address. Mint it with
-   * {@link markPayoutScriptVerifiedAgainstPopKey} at the BTC preparation
-   * boundary, which is the only place able to bind the script to the PoP key.
+   * Bitcoin output script bytes, not an address. The client verifies that the
+   * script pays the proof-of-possession key before it submits the transaction.
    */
-  depositorPayoutScriptPubKey: VerifiedPayoutScriptPubKey;
+  depositorPayoutScriptPubKey: string;
   quotedCommissionBps?: number;
 }
 
@@ -134,11 +101,10 @@ export interface BatchPeginRegistrationItem {
   hashlock: Hex;
   htlcVout: number;
   /**
-   * Bitcoin output script bytes, not an address. Mint it with
-   * {@link markPayoutScriptVerifiedAgainstPopKey} at the BTC preparation
-   * boundary, which is the only place able to bind the script to the PoP key.
+   * Bitcoin output script bytes, not an address. The client verifies that the
+   * script pays the proof-of-possession key before it submits the transaction.
    */
-  depositorPayoutScriptPubKey: VerifiedPayoutScriptPubKey;
+  depositorPayoutScriptPubKey: string;
   depositorWotsPkHash: Hex;
 }
 
@@ -179,7 +145,12 @@ export class ViemPeginRegistrationClient {
       params.popSignature.btcPopSignature,
       "btcPopSignature",
     );
-    const normalized = this.normalizeRequest(params, depositor);
+    const normalized = this.normalizeRequest(
+      params,
+      depositor,
+      depositorBtcPubkey,
+      btcPopSignature,
+    );
 
     await this.assertVaultDoesNotExist(
       normalized.vaultId,
@@ -245,15 +216,13 @@ export class ViemPeginRegistrationClient {
           vaultProvider: params.vaultProvider,
         },
         depositor,
+        depositorBtcPubkey,
+        btcPopSignature,
       );
       if (seenVaultIds.has(normalized.vaultId)) {
         throw new Error(`Duplicate vault in batch: ${normalized.vaultId}`);
       }
       seenVaultIds.add(normalized.vaultId);
-      await this.assertVaultDoesNotExist(
-        normalized.vaultId,
-        normalized.peginTxHash,
-      );
       vaults.push({
         vaultId: normalized.vaultId,
         peginTxHash: normalized.peginTxHash,
@@ -269,6 +238,9 @@ export class ViemPeginRegistrationClient {
         depositorPayoutBtcAddress: normalized.payoutScript,
         depositorWotsPkHash: request.depositorWotsPkHash,
       });
+    }
+    for (const vault of vaults) {
+      await this.assertVaultDoesNotExist(vault.vaultId, vault.peginTxHash);
     }
 
     const peginFee = await this.readPeginFee(params.vaultProvider);
@@ -328,6 +300,8 @@ export class ViemPeginRegistrationClient {
   private normalizeRequest(
     params: Omit<RegisterPeginOnChainParams, "popSignature">,
     depositor: Address,
+    depositorBtcPubkey: Hex,
+    btcPopSignature: Hex,
   ) {
     assertBytes32(params.hashlock, "hashlock");
     assertBytes32(params.depositorWotsPkHash, "depositorWotsPkHash");
@@ -344,7 +318,11 @@ export class ViemPeginRegistrationClient {
     return {
       unsignedPrePeginTx,
       depositorSignedPeginTx,
-      payoutScript: params.depositorPayoutScriptPubKey,
+      payoutScript: assertPayoutScriptMatchesPopKey(
+        params.depositorPayoutScriptPubKey,
+        depositorBtcPubkey,
+        btcPopSignature,
+      ),
       peginTxHash,
       vaultId: ensureHex(derivePeginVaultId(peginTxHash, depositor), "vaultId"),
     };

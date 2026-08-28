@@ -406,6 +406,9 @@ importers:
 
   packages/babylon-ts-sdk:
     dependencies:
+      '@noble/curves':
+        specifier: 1.9.7
+        version: 1.9.7
       '@bitcoin-js/tiny-secp256k1-asmjs':
         specifier: 2.2.3
         version: 2.2.3

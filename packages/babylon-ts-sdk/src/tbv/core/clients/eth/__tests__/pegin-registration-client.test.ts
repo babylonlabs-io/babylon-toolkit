@@ -6,14 +6,13 @@ import { describe, expect, it, vi } from "vitest";
 
 import { MockEthereumWallet } from "../../../../../testing/MockEthereumWallet";
 import { BTCVaultRegistryABI } from "../../../contracts";
-import {
-  markPayoutScriptVerifiedAgainstPopKey,
-  ViemPeginRegistrationClient,
-} from "../pegin-registration-client";
+import { ViemPeginRegistrationClient } from "../pegin-registration-client";
 
 const REGISTRY = "0x742d35cc6634c0532925a3b844bc9e7595f0beb0" as Address;
 const BTC_KEY =
   "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798";
+const PAYOUT_SCRIPT =
+  "0x5120da4710964f7852695de2da025290e24af6d8c281de5a0b902b7135fd9fd74d21";
 
 function signedPeginTransaction(): string {
   const transaction = new Transaction();
@@ -65,9 +64,7 @@ describe("ViemPeginRegistrationClient", () => {
         btcPopSignature: "0x0102",
       },
       htlcVout: 0,
-      depositorPayoutScriptPubKey: markPayoutScriptVerifiedAgainstPopKey(
-        `0x5120${BTC_KEY}`,
-      ),
+      depositorPayoutScriptPubKey: PAYOUT_SCRIPT,
       quotedCommissionBps: 100,
     });
 
@@ -78,7 +75,7 @@ describe("ViemPeginRegistrationClient", () => {
       data: send.mock.calls[0][0].data!,
     });
     expect(decoded.functionName).toBe("submitPeginRequest");
-    expect((decoded.args as readonly unknown[])[9]).toBe(`0x5120${BTC_KEY}`);
+    expect((decoded.args as readonly unknown[])[9]).toBe(PAYOUT_SCRIPT);
   });
 
   it("refuses to register without a commission quote when one is required", async () => {
@@ -97,9 +94,7 @@ describe("ViemPeginRegistrationClient", () => {
           btcPopSignature: "0x0102",
         },
         htlcVout: 0,
-        depositorPayoutScriptPubKey: markPayoutScriptVerifiedAgainstPopKey(
-          `0x5120${BTC_KEY}`,
-        ),
+        depositorPayoutScriptPubKey: PAYOUT_SCRIPT,
       }),
     ).rejects.toThrow(/quotedCommissionBps is required/);
     expect(publicClient.readContract).not.toHaveBeenCalled();
@@ -122,9 +117,7 @@ describe("ViemPeginRegistrationClient", () => {
             depositorSignedPeginTx: signedPeginTransaction(),
             hashlock: `0x${"cd".repeat(32)}`,
             htlcVout: 0,
-            depositorPayoutScriptPubKey: markPayoutScriptVerifiedAgainstPopKey(
-              `0x5120${BTC_KEY}`,
-            ),
+            depositorPayoutScriptPubKey: PAYOUT_SCRIPT,
             depositorWotsPkHash: `0x${"ef".repeat(32)}`,
           },
         ],
@@ -149,9 +142,7 @@ describe("ViemPeginRegistrationClient", () => {
         btcPopSignature: "0x0102",
       },
       htlcVout: 0,
-      depositorPayoutScriptPubKey: markPayoutScriptVerifiedAgainstPopKey(
-        `0x5120${BTC_KEY}`,
-      ),
+      depositorPayoutScriptPubKey: PAYOUT_SCRIPT,
     });
 
     const decoded = decodeFunctionData({
@@ -176,9 +167,7 @@ describe("ViemPeginRegistrationClient", () => {
           btcPopSignature: "0x0102",
         },
         htlcVout: 0,
-        depositorPayoutScriptPubKey: markPayoutScriptVerifiedAgainstPopKey(
-          `0x5120${BTC_KEY}`,
-        ),
+        depositorPayoutScriptPubKey: PAYOUT_SCRIPT,
       }),
     ).rejects.toThrow(/Proof of possession/);
   });

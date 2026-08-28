@@ -7,10 +7,7 @@ export {
   ViemOperationKeyReader,
   type OperationKeyContracts,
 } from "./operation-key-reader";
-export {
-  ViemPeginRegistrationClient,
-  markPayoutScriptVerifiedAgainstPopKey,
-} from "./pegin-registration-client";
+export { ViemPeginRegistrationClient } from "./pegin-registration-client";
 export type {
   BatchPeginRegistrationItem,
   BatchPeginRegistrationResultItem,
@@ -19,7 +16,6 @@ export type {
   PopSignature,
   RegisterPeginBatchOnChainParams,
   RegisterPeginOnChainParams,
-  VerifiedPayoutScriptPubKey,
   ViemPeginRegistrationClientConfig,
 } from "./pegin-registration-client";
 export { calculateBtcTxHash, derivePeginVaultId } from "./pegin-transaction";
