@@ -98,11 +98,6 @@ export interface UseDepositPageFormResult {
   /** Total value of unconfirmed (in-mempool) UTXOs in satoshis. Display-only. */
   unconfirmedBalance: bigint;
   /**
-   * True whenever unconfirmed funds exist, with or without confirmed funds.
-   * Drives the "pending confirmation" notice in the deposit form.
-   */
-  hasUnconfirmedBalance: boolean;
-  /**
    * True when the confirmed balance is zero but unconfirmed funds exist, so the
    * form reads a zero maximum. Drives the suppression of the "Max" tooltip.
    */
@@ -357,17 +352,6 @@ export function useDepositPageForm(): UseDepositPageFormResult {
   const btcBalance = useMemo(() => {
     return BigInt(calculateBalance(availableUTXOs || []));
   }, [availableUTXOs]);
-
-  // True whenever the address holds unconfirmed (in-mempool) funds. The deposit
-  // form uses this to explain why the wallet shows a balance the app does not —
-  // the app only counts confirmed UTXOs. Confirmed funds elsewhere on the
-  // address do not make that gap any smaller, so this must NOT require a zero
-  // confirmed balance: a wallet holding 0.003 confirmed and 0.025 unconfirmed
-  // reads ~10x lower in the form than in the wallet, with nothing to explain it.
-  const hasUnconfirmedBalance = useMemo(
-    () => unconfirmedBalance > 0n,
-    [unconfirmedBalance],
-  );
 
   // The narrower case: no confirmed funds at all, so the depositable maximum is
   // zero and the "Max" tooltip (which describes fee buffer and inscription
@@ -751,7 +735,6 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     btcBalance,
     btcBalanceFormatted,
     unconfirmedBalance,
-    hasUnconfirmedBalance,
     hasUnconfirmedBalanceOnly,
     btcPrice: btcPriceUSD,
     priceMetadata: metadata,

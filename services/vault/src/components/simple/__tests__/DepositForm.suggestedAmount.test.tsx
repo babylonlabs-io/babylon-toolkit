@@ -24,7 +24,14 @@ vi.mock("@/config", () => ({
 // and short-circuit the CTA state machine so the form renders deterministically.
 vi.mock("@/services/deposit", () => ({
   depositService: {
-    formatSatoshisToBtc: (sats: bigint) => (Number(sats) / 1e8).toString(),
+    formatSatoshisToBtc: (sats: bigint) => {
+      const whole = sats / 100_000_000n;
+      const fraction = (sats % 100_000_000n)
+        .toString()
+        .padStart(8, "0")
+        .replace(/0+$/, "");
+      return fraction ? `${whole}.${fraction}` : whole.toString();
+    },
     getDepositCtaState: () => ({ disabled: false, label: "Deposit" }),
   },
 }));
@@ -51,7 +58,6 @@ function amountState(
     amountSats: 0n,
     btcBalance: 100_000_000n,
     unconfirmedBalance: 0n,
-    hasUnconfirmedBalance: false,
     hasUnconfirmedBalanceOnly: false,
     minDeposit: 10_000n,
     maxDeposit: 100_000_000n,
@@ -160,5 +166,18 @@ describe("DepositForm suggested amount", () => {
       ),
     });
     expect(offer).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("keeps the exact pending amount visible after amount entry", () => {
+    renderForm({
+      amount: "0.001",
+      amountSats: 100_000n,
+      btcBalance: 329_262n,
+      unconfirmedBalance: 1n,
+    });
+
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "0.00000001 BTC pending confirmation",
+    );
   });
 });

@@ -37,12 +37,6 @@ export interface DepositAmountState {
   /** Total value of unconfirmed (in-mempool) UTXOs in satoshis. Display-only. */
   unconfirmedBalance: bigint;
   /**
-   * True whenever unconfirmed funds exist. Shows an inline "pending
-   * confirmation" notice so the user understands why the form reads a lower
-   * balance than their wallet.
-   */
-  hasUnconfirmedBalance: boolean;
-  /**
    * True when the confirmed balance is zero but unconfirmed funds exist, so the
    * depositable maximum is zero and the "Max" tooltip has nothing to describe.
    */
@@ -211,7 +205,6 @@ export function DepositForm({
     amountSats,
     btcBalance,
     unconfirmedBalance,
-    hasUnconfirmedBalance,
     hasUnconfirmedBalanceOnly,
     minDeposit,
     maxDeposit,
@@ -319,15 +312,10 @@ export function DepositForm({
     })} USD`;
   }, [amount, btcPrice, hasPriceFetchError]);
 
-  // When unconfirmed funds exist, show a "pending confirmation" note in the
-  // slider's left slot, where the USD value would sit — it is only rendered
-  // while no amount is entered, so the two never compete. The InfoIcon is
-  // wrapped with an attach-to-children Hint so the markup stays inline-valid
-  // inside the slider's cell (a bare Hint would nest a div inside a span).
-  const pendingConfirmationField = hasUnconfirmedBalance ? (
+  const pendingConfirmationField = unconfirmedBalance > 0n ? (
     <span className="inline-flex items-center gap-1 text-accent-secondary">
       {COPY.deposit.form.pendingConfirmationNotice(
-        `${Number(depositService.formatSatoshisToBtc(unconfirmedBalance))} ${btcConfig.coinSymbol}`,
+        `${depositService.formatSatoshisToBtc(unconfirmedBalance)} ${btcConfig.coinSymbol}`,
       )}
       <Hint
         tooltip={COPY.deposit.form.pendingConfirmationTooltip}
@@ -425,9 +413,7 @@ export function DepositForm({
           sliderVariant="primary"
           // Figma row: USD value on the left, balance + Max pill on the right.
           leftField={{
-            value: !hasAmount
-              ? (pendingConfirmationField ?? COPY.common.zeroUsdValue)
-              : usdValue,
+            value: !hasAmount ? COPY.common.zeroUsdValue : usdValue,
           }}
           rightField={{
             label: COPY.deposit.form.balanceLabel,
@@ -438,6 +424,15 @@ export function DepositForm({
           onMaxClick={onMaxClick}
           inputClassName="h-10 w-auto rounded-lg bg-primary-contrast px-4 [field-sizing:content]"
         />
+        {pendingConfirmationField && (
+          <p
+            className="flex flex-wrap items-center gap-1 text-sm"
+            role="status"
+            aria-live="polite"
+          >
+            {pendingConfirmationField}
+          </p>
+        )}
         <CollateralFactorRow
           collateralFactor={collateralFactor}
           amountBtc={amount}
