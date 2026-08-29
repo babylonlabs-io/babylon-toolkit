@@ -139,7 +139,7 @@ function signingRequestKey(prepared: PreparedSignPsbt): string {
  * `ledger_btc*` staking adapters: different device app, different transport,
  * intent ceremony instead of wallet policies.
  *
- * Ships behind `NEXT_PUBLIC_FF_ENABLE_LEDGER_VAULT_WALLET` (default off).
+ * Consumers gate availability by wallet id (see `./index.ts`).
  * Covers connect, the key read, the intent ceremony, SIGN_PSBT for the
  * no-policy tapscript flows (#2219), the BIP-322 PoP under the default wallet
  * policy (#2221), and key-path Pre-PegIn signing under that same policy (#2222).
