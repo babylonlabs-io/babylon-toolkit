@@ -1,12 +1,24 @@
 name: Critical Path Check
 
+# The `detect` job below is a required status check on main and release/*
+# (repository ruleset "critical-pr-safety-checks"). When a PR touches a
+# critical path it stays red until two code-owner approvals exist on the
+# PR's current head commit, so the ruleset's one-approval floor is raised to
+# two only for the PRs that need it. It re-runs on every review so the check
+# flips as approvals arrive or are dismissed.
 on:
   pull_request:
-    branches: [main]
+    branches: [main, 'release/**']
+  pull_request_review:
+    types: [submitted, dismissed]
 
 permissions:
   contents: read
   pull-requests: write
+
+env:
+  # CLAUDE.md > "CRITICAL PATHS — HUMAN REVIEW REQUIRED": two reviewers.
+  REQUIRED_CRITICAL_APPROVALS: 2
 
 jobs:
   detect:
@@ -16,9 +28,16 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2 https://github.com/actions/checkout/releases/tag/v6.0.2
         with:
           fetch-depth: 0
+          # pull_request_review runs resolve the same merge ref as
+          # pull_request runs; pin it so both events see the PR's changes.
+          ref: refs/pull/${{ github.event.pull_request.number }}/merge
 
       - name: Detect critical-path files
         id: detect
+        env:
+          # GITHUB_BASE_REF is only populated for pull_request events; the
+          # review event has to read the base branch from the payload.
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: |
           set -e
           # Keep in sync with SECURITY.md, CLAUDE.md > "CRITICAL PATHS",
@@ -52,8 +71,8 @@ jobs:
             "services/vault/src/utils/btc/scriptPubKeyAddress.ts"
           )
 
-          git fetch origin main || true
-          changed=$(git diff --name-only "origin/${GITHUB_BASE_REF}...HEAD")
+          git fetch origin "$BASE_REF"
+          changed=$(git diff --name-only "origin/${BASE_REF}...HEAD")
 
           matched=()
           for f in $changed; do
@@ -92,7 +111,7 @@ jobs:
               ...matched.map(m => `- \`${m}\``),
               '',
               '**Required before merge:**',
-              '- Two code-owner approvals',
+              `- ${process.env.REQUIRED_CRITICAL_APPROVALS} code-owner approvals on the current head commit (enforced by the \`detect\` check; pushing a new commit resets them)`,
               '- Author can walk every changed line without an AI assistant open (generated golden vectors: reviewer-repeated re-derivation instead — see the per-path rule)',
               '- Per-path rule in CLAUDE.md is satisfied',
             ].join('\n');
@@ -124,4 +143,94 @@ jobs:
               });
             } catch (err) {
               core.warning(`Could not add 'critical-path' label: ${err.message}. Create the label in repo settings to enable auto-labelling.`);
+            }
+
+      - name: Require code-owner approvals
+        if: steps.detect.outputs.matched == 'true'
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0 https://github.com/actions/github-script/releases/tag/v7.1.0
+        with:
+          script: |
+            const fs = require('fs');
+            const required = Number(process.env.REQUIRED_CRITICAL_APPROVALS);
+            const pr = context.payload.pull_request;
+            const matched = fs.readFileSync('matched.txt', 'utf8').trim().split('\n');
+
+            // Qualified reviewers are the CODEOWNERS owners of the matched
+            // files. Same resolution rule as GitHub: for each file the last
+            // matching pattern wins. Patterns in this file are `*`, `/dir/`
+            // or `/path/to/file`; anything else is a CODEOWNERS change that
+            // has to extend this matcher.
+            const rules = fs.readFileSync('.github/CODEOWNERS', 'utf8')
+              .split('\n')
+              .map(line => line.trim())
+              .filter(line => line && !line.startsWith('#'))
+              .map(line => {
+                const [pattern, ...owners] = line.split(/\s+/);
+                return { pattern, owners };
+              });
+            const patternMatches = (pattern, file) => {
+              if (pattern === '*') return true;
+              if (pattern.includes('*')) {
+                throw new Error(`Unsupported CODEOWNERS glob "${pattern}"; extend the matcher in critical-path-check.yml`);
+              }
+              const bare = pattern.replace(/^\//, '');
+              if (bare.endsWith('/')) return file.startsWith(bare);
+              return file === bare || file.startsWith(`${bare}/`);
+            };
+            const qualified = new Set();
+            for (const file of matched) {
+              let owners = [];
+              for (const rule of rules) {
+                if (patternMatches(rule.pattern, file)) owners = rule.owners;
+              }
+              for (const owner of owners) {
+                if (!owner.startsWith('@') || owner.includes('/')) {
+                  throw new Error(`Only @user owners are supported for critical paths, got "${owner}" for ${file}`);
+                }
+                qualified.add(owner.slice(1).toLowerCase());
+              }
+            }
+            if (qualified.size < required) {
+              throw new Error(`Only ${qualified.size} code owner(s) cover the matched paths; ${required} approvals can never be reached`);
+            }
+
+            const reviews = await github.paginate(github.rest.pulls.listReviews, {
+              ...context.repo,
+              pull_number: pr.number,
+              per_page: 100,
+            });
+            // Latest non-comment review per user is that user's standing
+            // verdict (a later COMMENTED review does not withdraw an approval).
+            const author = pr.user.login.toLowerCase();
+            const standing = new Map();
+            for (const review of reviews) {
+              if (!review.user || review.state === 'COMMENTED') continue;
+              const login = review.user.login.toLowerCase();
+              if (login === author) continue;
+              standing.set(login, review);
+            }
+
+            const approvers = [];
+            const stale = [];
+            for (const [login, review] of standing) {
+              if (review.state !== 'APPROVED' || !qualified.has(login)) continue;
+              // Only approvals of the commit under review count: a push after
+              // approval is a material change that needs a fresh look.
+              if (review.commit_id === pr.head.sha) approvers.push(login);
+              else stale.push(login);
+            }
+
+            const summary = [
+              '## Critical-path approvals',
+              '',
+              `Required: ${required} code-owner approvals on \`${pr.head.sha}\``,
+              `Qualified reviewers: ${[...qualified].map(l => `@${l}`).join(', ')}`,
+              `Current: ${approvers.length} (${approvers.map(l => `@${l}`).join(', ') || 'none'})`,
+              stale.length ? `Approvals of an earlier commit (do not count): ${stale.map(l => `@${l}`).join(', ')}` : '',
+            ].filter(Boolean).join('\n');
+            fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${summary}\n`);
+            core.info(summary);
+
+            if (approvers.length < required) {
+              core.setFailed(`Critical-path PR has ${approvers.length}/${required} code-owner approvals on the current head commit`);
             }
