@@ -92,6 +92,21 @@ export interface DepositErrorContent {
 
 const ERRORS = COPY.deposit.errors;
 
+/**
+ * Mapped buckets a registered deposit can resume from in the modal. Keyed by
+ * identity: mapDepositError returns these COPY references, never copies.
+ */
+const RESUMABLE_AFTER_REGISTRATION: ReadonlySet<DepositErrorContent> = new Set([
+  ERRORS.deviceLocked,
+  ERRORS.deviceWrongApp,
+  ERRORS.deviceCeremonyInvalid,
+  ERRORS.signingRejected,
+]);
+
+export function isResumableDepositError(content: DepositErrorContent): boolean {
+  return RESUMABLE_AFTER_REGISTRATION.has(content);
+}
+
 /** BtcWalletLivenessError bodies, matched (lowercased) by bucket 5b. */
 const LIVENESS_BODIES = [
   COPY.wallet.liveness.unresponsive,

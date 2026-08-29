@@ -2306,6 +2306,180 @@ describe("useDepositFlow", () => {
     });
   });
 
+  describe("Post-registration resume", () => {
+    // Once the ETH batch registration is mined the vaults exist on-chain, so a
+    // device failure or self-cancel at the Pre-PegIn sign is resumable in the
+    // modal; `resumableVaultIds` carries the registered ids to that handoff.
+
+    /** What the Ledger provider rejects with when the device auto-locked. */
+    function deviceLockedError() {
+      return Object.assign(
+        new Error("The Ledger device is locked — unlock it and retry (0x5515)"),
+        { code: "DEVICE_LOCKED" },
+      );
+    }
+
+    it("exposes resumableVaultIds when a device-locked Pre-PegIn sign follows Ethereum registration", async () => {
+      const { broadcastPrePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultPeginBroadcastService"),
+      );
+      // Mirrors the real service: the sign failure surfaces as the wrapper's cause.
+      vi.mocked(broadcastPrePeginTransaction).mockRejectedValueOnce(
+        new Error("Failed to broadcast Pre-PegIn transaction: locked", {
+          cause: deviceLockedError(),
+        }),
+      );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      await executeDepositFlow(result);
+
+      expect(result.current.error).toEqual(DEPOSIT_ERRORS.deviceLocked);
+      expect(result.current.resumableVaultIds).toEqual([
+        "0xVault0Id",
+        "0xVault1Id",
+      ]);
+    });
+
+    it("exposes resumableVaultIds when the user cancels after registration", async () => {
+      const { broadcastPrePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultPeginBroadcastService"),
+      );
+      let rejectSign: (e: unknown) => void = () => {};
+      const wallet = {
+        ...MOCK_BTC_WALLET,
+        signPsbt: vi.fn(
+          () =>
+            new Promise<string>((_, reject) => {
+              rejectSign = reject;
+            }),
+        ),
+        cancelSigning: vi.fn(),
+      };
+      vi.mocked(broadcastPrePeginTransaction).mockImplementation(
+        async ({ btcWalletProvider }) => {
+          await btcWalletProvider.signPsbt("fundedPrePegin");
+          return "mockBroadcastTxId";
+        },
+      );
+
+      const { result } = renderHook(() =>
+        useDepositFlow({ ...MOCK_PARAMS, btcWalletProvider: wallet as any }),
+      );
+      let flowPromise!: Promise<unknown>;
+      act(() => {
+        flowPromise = result.current.executeDeposit();
+      });
+      await waitFor(() =>
+        expect(result.current.canCancelDeviceSign).toBe(true),
+      );
+      act(() => {
+        result.current.cancelDeviceSign();
+      });
+      await act(async () => {
+        rejectSign(
+          Object.assign(new Error("Signing canceled after 0 of 1 PSBT(s)"), {
+            code: "CONNECTION_REJECTED",
+          }),
+        );
+        await flowPromise;
+      });
+
+      expect(result.current.error).toEqual(
+        DEPOSIT_ERRORS.signingCanceledAfterRegistration,
+      );
+      expect(result.current.resumableVaultIds).toEqual([
+        "0xVault0Id",
+        "0xVault1Id",
+      ]);
+    });
+
+    it("exposes resumableVaultIds when the Pre-PegIn sign is rejected on the device after registration", async () => {
+      const { broadcastPrePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultPeginBroadcastService"),
+      );
+      // A Reject on the device (no in-app Cancel) surfaces as the wallet's
+      // CONNECTION_REJECTED under the broadcast wrapper.
+      vi.mocked(broadcastPrePeginTransaction).mockRejectedValueOnce(
+        new Error("Failed to broadcast Pre-PegIn transaction: refused", {
+          cause: Object.assign(new Error("User rejected"), {
+            code: "CONNECTION_REJECTED",
+          }),
+        }),
+      );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      await executeDepositFlow(result);
+
+      expect(result.current.error).toEqual(DEPOSIT_ERRORS.signingRejected);
+      expect(result.current.resumableVaultIds).toEqual([
+        "0xVault0Id",
+        "0xVault1Id",
+      ]);
+    });
+
+    it("leaves resumableVaultIds null for a device-locked error before registration", async () => {
+      const { preparePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultTransactionService"),
+      );
+      // The Pre-PegIn build signs nothing on-chain yet: nothing to resume.
+      vi.mocked(preparePeginTransaction).mockRejectedValueOnce(
+        deviceLockedError(),
+      );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      await executeDepositFlow(result);
+
+      expect(result.current.error).toEqual(DEPOSIT_ERRORS.deviceLocked);
+      expect(result.current.resumableVaultIds).toBeNull();
+    });
+
+    it("leaves resumableVaultIds null for a non-device broadcast failure after registration", async () => {
+      const { broadcastPrePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultPeginBroadcastService"),
+      );
+      vi.mocked(broadcastPrePeginTransaction).mockRejectedValueOnce(
+        new Error("Bitcoin RPC unreachable"),
+      );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      await executeDepositFlow(result);
+
+      expect(result.current.error).toEqual(DEPOSIT_ERRORS.broadcastFailed);
+      expect(result.current.resumableVaultIds).toBeNull();
+    });
+
+    it("resets resumableVaultIds when a new run starts", async () => {
+      const { broadcastPrePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultPeginBroadcastService"),
+      );
+      const { preparePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultTransactionService"),
+      );
+      vi.mocked(broadcastPrePeginTransaction).mockRejectedValueOnce(
+        new Error("Failed to broadcast Pre-PegIn transaction: locked", {
+          cause: deviceLockedError(),
+        }),
+      );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      await executeDepositFlow(result);
+      expect(result.current.resumableVaultIds).toEqual([
+        "0xVault0Id",
+        "0xVault1Id",
+      ]);
+
+      // The second run fails before registration, so the only way the ids
+      // clear is the reset at the start of the run.
+      vi.mocked(preparePeginTransaction).mockRejectedValueOnce(
+        new Error("WASM error: invalid params"),
+      );
+      await executeDepositFlow(result);
+
+      expect(result.current.error).toBeTruthy();
+      expect(result.current.resumableVaultIds).toBeNull();
+    });
+  });
+
   describe("Soft warnings", () => {
     it("populates lastWarnings when addPendingPegin throws on persist failure", async () => {
       const { addPendingPegin } = vi.mocked(

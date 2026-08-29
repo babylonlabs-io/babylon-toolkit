@@ -90,6 +90,7 @@ import { satoshiToBtcNumber } from "@/utils/btcConversion";
 import { supportsCancelSigning } from "@/utils/cancelSigning";
 import {
   COMMISSION_UNAVAILABLE_ERROR,
+  isResumableDepositError,
   mapDepositError,
   type DepositErrorContent,
 } from "@/utils/errors";
@@ -162,6 +163,12 @@ export interface UseDepositFlowReturn {
   processing: boolean;
   /** Mapped error content (title + body) if any step failed */
   error: DepositErrorContent | null;
+  /**
+   * Registered vault ids when `error` is a post-registration device failure or
+   * self-cancel — the deposit is on-chain, so the modal can resume in place.
+   * `null` otherwise.
+   */
+  resumableVaultIds: Hex[] | null;
   /**
    * Structured soft warnings from the most recent flow (e.g. a per-vault WOTS
    * readiness timeout, or "couldn't save a local copy"). Empty until the flow
@@ -287,6 +294,9 @@ export function useDepositFlow(
   );
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<DepositErrorContent | null>(null);
+  const [resumableVaultIds, setResumableVaultIds] = useState<Hex[] | null>(
+    null,
+  );
   const [isWaiting, setIsWaiting] = useState(false);
   // Soft warnings accumulated during the most recent run (per-vault payout
   // failures, localStorage write failures, etc.). Exposed so the UI can
@@ -411,6 +421,7 @@ export function useDepositFlow(
 
       setProcessing(true);
       setError(null);
+      setResumableVaultIds(null);
       setLastWarnings([]);
       setPeginSigningProgress(null);
       deviceCancelSettledRef.current = false;
@@ -430,9 +441,9 @@ export function useDepositFlow(
       // user-cancel (bound `authAnchorHex` lifetime to the flow).
       const primedRegistryTxids: string[] = [];
 
-      // Flips once the ETH batch registration is mined: a cancel after that
-      // point gets the after-registration copy pointing at the resume path.
-      let registeredOnEth = false;
+      // Set once the ETH batch registration is mined: a later cancel gets the
+      // after-registration copy, a later device failure gets the in-modal resume.
+      let registeredVaultIds: Hex[] | null = null;
 
       try {
         // Deposit (pegin) is a protocol-scope ENTRY action. The dialog-open is
@@ -731,7 +742,9 @@ export function useDepositFlow(
           popSignature,
           quotedCommissionBps,
         });
-        registeredOnEth = true;
+        registeredVaultIds = batchRegistration.vaults.map(
+          (vault) => vault.vaultId,
+        );
 
         // 3f. Build pegin results from batch response
         const peginResults: PeginCreationResult[] =
@@ -1519,27 +1532,35 @@ export function useDepositFlow(
 
         // Don't show error if flow was aborted (user intentionally closed modal)
         if (!signal.aborted) {
-          // A settled self-cancel gets its own copy: the generic mapper reads
-          // the wallet's CONNECTION_REJECTED as "You rejected the request in
-          // your wallet. Click Retry" — misattributed, and naming a button
-          // this surface doesn't render. Post-registration cancels get the
-          // variant pointing at the resume path — vaults are already on-chain.
-          setError(
-            deviceCancelSettledRef.current && isUserCancellation(err)
-              ? registeredOnEth
-                ? {
-                    title:
-                      COPY.deposit.errors.signingCanceledAfterRegistration
-                        .title,
-                    body: COPY.deposit.errors.signingCanceledAfterRegistration
-                      .body,
-                  }
-                : {
-                    title: COPY.deposit.errors.signingCanceled.title,
-                    body: COPY.deposit.errors.signingCanceled.body,
-                  }
-              : mapDepositError(err),
-          );
+          const selfCanceled =
+            deviceCancelSettledRef.current && isUserCancellation(err);
+          // A settled self-cancel gets its own copy — the generic mapper reads
+          // the wallet's CONNECTION_REJECTED as "You rejected the request",
+          // which misattributes it. Post-registration copy names the Retry
+          // offered below; pre-registration copy names no button (none is).
+          const content: DepositErrorContent = selfCanceled
+            ? registeredVaultIds !== null
+              ? {
+                  title:
+                    COPY.deposit.errors.signingCanceledAfterRegistration.title,
+                  body: COPY.deposit.errors.signingCanceledAfterRegistration
+                    .body,
+                }
+              : {
+                  title: COPY.deposit.errors.signingCanceled.title,
+                  body: COPY.deposit.errors.signingCanceled.body,
+                }
+            : mapDepositError(err);
+          // Post-registration the vaults are on-chain, so a self-cancel or a
+          // mapped resumable bucket (device trouble, wallet reject) offers the
+          // in-modal resume.
+          if (
+            registeredVaultIds !== null &&
+            (selfCanceled || isResumableDepositError(content))
+          ) {
+            setResumableVaultIds(registeredVaultIds);
+          }
+          setError(content);
           logger.error(err instanceof Error ? err : new Error(String(err)), {
             tags: { depositStep: DepositFlowStep[currentStepRef.current] },
             data: {
@@ -1619,6 +1640,7 @@ export function useDepositFlow(
     currentVaultIndex,
     processing,
     error,
+    resumableVaultIds,
     /** Soft warnings from the most recent flow (empty until completion). */
     lastWarnings,
     isWaiting,
