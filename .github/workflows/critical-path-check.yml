@@ -2,10 +2,20 @@ name: Critical Path Check
 
 # The `detect` job below is a required status check on main and release/*
 # (repository ruleset "critical-pr-safety-checks"). When a PR touches a
-# critical path it stays red until two code-owner approvals exist on the
-# PR's current head commit, so the ruleset's one-approval floor is raised to
-# two only for the PRs that need it. It re-runs on every review so the check
+# critical path it stays red until enough code-owner approvals exist on the
+# PR's current head commit, so the ruleset's one-approval floor is raised
+# only for the PRs that need it. It re-runs on every review so the check
 # flips as approvals arrive or are dismissed.
+#
+# Trust boundary. The approval count comes from the repository Actions
+# variable CRITICAL_PATH_REQUIRED_APPROVALS (repo admins only) and the
+# qualified reviewers come from CODEOWNERS on the PR's BASE branch, so a PR
+# cannot lower the bar or appoint its own reviewers by editing those. What a
+# PR *can* still do is edit this file: pull_request workflows run the PR's
+# copy, so a PR that deletes the gate step passes `detect`. Reviewers must
+# treat any change to this workflow as a critical-path change. Closing that
+# hole needs the gate hosted outside the repo and required via a ruleset
+# `workflows` rule (as enforce-pinned-actions-hashes does).
 on:
   pull_request:
     branches: [main, 'release/**']
@@ -15,10 +25,6 @@ on:
 permissions:
   contents: read
   pull-requests: write
-
-env:
-  # CLAUDE.md > "CRITICAL PATHS — HUMAN REVIEW REQUIRED": two reviewers.
-  REQUIRED_CRITICAL_APPROVALS: 2
 
 jobs:
   detect:
@@ -73,6 +79,9 @@ jobs:
 
           git fetch origin "$BASE_REF"
           changed=$(git diff --name-only "origin/${BASE_REF}...HEAD")
+          # Ownership is resolved from the base branch, not the PR: a PR
+          # must not be able to appoint the reviewers that approve it.
+          git show "origin/${BASE_REF}:.github/CODEOWNERS" > base-codeowners.txt
 
           matched=()
           for f in $changed; do
@@ -96,6 +105,8 @@ jobs:
       - name: Comment on PR
         if: steps.detect.outputs.matched == 'true'
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0 https://github.com/actions/github-script/releases/tag/v7.1.0
+        env:
+          REQUIRED_APPROVALS: ${{ vars.CRITICAL_PATH_REQUIRED_APPROVALS }}
         with:
           script: |
             const fs = require('fs');
@@ -111,7 +122,7 @@ jobs:
               ...matched.map(m => `- \`${m}\``),
               '',
               '**Required before merge:**',
-              `- ${process.env.REQUIRED_CRITICAL_APPROVALS} code-owner approvals on the current head commit (enforced by the \`detect\` check; pushing a new commit resets them)`,
+              `- ${process.env.REQUIRED_APPROVALS} code-owner approvals on the current head commit (enforced by the \`detect\` check; pushing a new commit resets them)`,
               '- Author can walk every changed line without an AI assistant open (generated golden vectors: reviewer-repeated re-derivation instead — see the per-path rule)',
               '- Per-path rule in CLAUDE.md is satisfied',
             ].join('\n');
@@ -148,19 +159,28 @@ jobs:
       - name: Require code-owner approvals
         if: steps.detect.outputs.matched == 'true'
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0 https://github.com/actions/github-script/releases/tag/v7.1.0
+        env:
+          # Repository Actions variable, settable by repo admins only. Policy
+          # source: CLAUDE.md > "CRITICAL PATHS — HUMAN REVIEW REQUIRED".
+          REQUIRED_APPROVALS: ${{ vars.CRITICAL_PATH_REQUIRED_APPROVALS }}
         with:
           script: |
             const fs = require('fs');
-            const required = Number(process.env.REQUIRED_CRITICAL_APPROVALS);
+            const required = Number.parseInt(process.env.REQUIRED_APPROVALS, 10);
+            if (!Number.isInteger(required) || required < 1) {
+              throw new Error(`Repository variable CRITICAL_PATH_REQUIRED_APPROVALS must be a positive integer, got "${process.env.REQUIRED_APPROVALS}"`);
+            }
             const pr = context.payload.pull_request;
             const matched = fs.readFileSync('matched.txt', 'utf8').trim().split('\n');
 
             // Qualified reviewers are the CODEOWNERS owners of the matched
-            // files. Same resolution rule as GitHub: for each file the last
-            // matching pattern wins. Patterns in this file are `*`, `/dir/`
-            // or `/path/to/file`; anything else is a CODEOWNERS change that
-            // has to extend this matcher.
-            const rules = fs.readFileSync('.github/CODEOWNERS', 'utf8')
+            // files, read from the base branch (base-codeowners.txt). Same
+            // resolution rule as GitHub: for each file the last matching
+            // pattern wins. Pattern syntax follows the CODEOWNERS docs:
+            // gitignore-style, where `*` does not cross `/`, `**` does, a
+            // leading `/` anchors to the repo root, a pattern without `/`
+            // matches at any depth, and a trailing `/` matches a directory.
+            const rules = fs.readFileSync('base-codeowners.txt', 'utf8')
               .split('\n')
               .map(line => line.trim())
               .filter(line => line && !line.startsWith('#'))
@@ -168,15 +188,31 @@ jobs:
                 const [pattern, ...owners] = line.split(/\s+/);
                 return { pattern, owners };
               });
-            const patternMatches = (pattern, file) => {
-              if (pattern === '*') return true;
-              if (pattern.includes('*')) {
-                throw new Error(`Unsupported CODEOWNERS glob "${pattern}"; extend the matcher in critical-path-check.yml`);
+            const globToRegex = (pattern) => {
+              const anchored = pattern.startsWith('/');
+              const anyDepth = !anchored && !pattern.slice(0, -1).includes('/');
+              let body = pattern.replace(/^\//, '');
+              const directory = body.endsWith('/');
+              if (directory) body = body.slice(0, -1);
+              let source = '';
+              for (let i = 0; i < body.length; i += 1) {
+                const ch = body[i];
+                if (ch === '*' && body[i + 1] === '*') {
+                  source += '.*';
+                  i += 1;
+                } else if (ch === '*') {
+                  source += '[^/]*';
+                } else if (ch === '?') {
+                  source += '[^/]';
+                } else {
+                  source += ch.replace(/[.+^${}()|[\]\\]/g, '\\$&');
+                }
               }
-              const bare = pattern.replace(/^\//, '');
-              if (bare.endsWith('/')) return file.startsWith(bare);
-              return file === bare || file.startsWith(`${bare}/`);
+              const prefix = anyDepth ? '(?:^|.*/)' : '^';
+              // A file or directory pattern also owns everything beneath it.
+              return new RegExp(`${prefix}${source}(?:/.*)?$`);
             };
+            const patternMatches = (pattern, file) => pattern === '*' || globToRegex(pattern).test(file);
             const qualified = new Set();
             for (const file of matched) {
               let owners = [];

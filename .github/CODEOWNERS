@@ -10,9 +10,11 @@
 # Branch rulesets cannot be scoped by path, so the two-approval requirement
 # is enforced by .github/workflows/critical-path-check.yml: its `detect` job
 # is a required status check (repository ruleset "critical-pr-safety-checks")
-# and reads the owners of the touched critical paths from THIS file, so only
-# `@user` owners are supported on the entries below (no teams, no globs
-# other than `*`). Do not weaken ownership here without review.
+# and reads the owners of the touched critical paths from THIS file as it is
+# on the PR's base branch, with the approval count taken from the repository
+# Actions variable CRITICAL_PATH_REQUIRED_APPROVALS. Only `@user` owners are
+# supported on the critical entries below (no teams). Do not weaken
+# ownership here without review.
 # -----------------------------------------------------------------------------
 
 # 1. WASM boundary (value computation)
