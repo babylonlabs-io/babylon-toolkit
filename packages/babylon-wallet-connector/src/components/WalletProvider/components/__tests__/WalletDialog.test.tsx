@@ -3,7 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { TermsOfServiceParams } from "@/context/LifecycleHooks.context";
 import { WALLET_CONFIRMATION_RECEIPT_KEY } from "@/core/confirmationReceipt";
-import type { HashMap, IWallet } from "@/core/types";
+import type { Account, HashMap, IWallet } from "@/core/types";
+import { Wallet } from "@/core/Wallet";
 
 import { WalletDialog } from "../WalletDialog";
 
@@ -46,8 +47,18 @@ const ETH_ACCOUNT = { address: "0xdepositor", publicKeyHex: `04${"b".repeat(64)}
 const BTC_ACCOUNT = { address: "bc1pdepositor", publicKeyHex: `02${"a".repeat(64)}` };
 const BBN_ACCOUNT = { address: "bbn1depositor", publicKeyHex: `03${"c".repeat(64)}` };
 
-function wallet(id: string, account: { address: string; publicKeyHex: string }): IWallet {
-  return { id, name: id, account } as IWallet;
+function wallet(id: string, account: Account | null): IWallet {
+  const connectedWallet: IWallet = new Wallet({
+    id,
+    name: id,
+    icon: `${id}-icon`,
+    docs: `${id}-docs`,
+    networks: [],
+    origin: null,
+    provider: null,
+  });
+  connectedWallet.account = account;
+  return connectedWallet;
 }
 
 function ethWallet(id: string, account: { address: string; publicKeyHex: string }): IWallet {
@@ -299,6 +310,36 @@ describe("confirming the dialog", () => {
     expect(store.has(WALLET_CONFIRMATION_RECEIPT_KEY)).toBe(false);
   });
 
+  it("stops when the provider changes during the first live network read", async () => {
+    const networkRead = deferred<number>();
+    const getChainId = vi.fn().mockReturnValue(networkRead.promise);
+    const connectedWallet = wallet("metamask", ETH_ACCOUNT);
+    connectedWallet.provider = { getChainId } as unknown as IWallet["provider"];
+    harness.connectors = {
+      ...harness.connectors,
+      ETH: { config: { chainId: 11155111 }, connectedWallet, disconnect: disconnectEth },
+    };
+    setup({ selectedWallets: { ETH: connectedWallet } });
+
+    act(() => {
+      screen.getByText("confirm").click();
+    });
+    await waitFor(() => {
+      expect(getChainId).toHaveBeenCalledTimes(1);
+    });
+
+    connectedWallet.provider = {
+      getChainId: vi.fn().mockResolvedValue(11155111),
+    } as unknown as IWallet["provider"];
+    await act(async () => {
+      networkRead.resolve(11155111);
+    });
+
+    expect(acceptTermsOfService).not.toHaveBeenCalled();
+    expect(onConfirm).not.toHaveBeenCalled();
+    expect(confirm).not.toHaveBeenCalled();
+  });
+
   it("rejects a stable live network that differs from the configured network", async () => {
     const connectedWallet = wallet("metamask", ETH_ACCOUNT);
     connectedWallet.provider = {
@@ -350,15 +391,12 @@ describe("confirming the dialog", () => {
     expect(store.has(WALLET_CONFIRMATION_RECEIPT_KEY)).toBe(chain === "BBN");
   });
 
-  it("passes one immutable connection snapshot to both hooks", async () => {
+  it("passes complete mutable wallet copies to both hooks", async () => {
     acceptTermsOfService.mockImplementation(async ({ connections }: TermsOfServiceParams) => {
-      expect(Object.isFrozen(connections)).toBe(true);
-      expect(Object.isFrozen(connections[0])).toBe(true);
-      expect(Object.isFrozen(connections[0].account)).toBe(true);
-      expect(Object.isFrozen(connections[0].wallet)).toBe(true);
-      expect(() => {
-        connections[0].account.address = "0xchanged";
-      }).toThrow();
+      expect(Object.isFrozen(connections)).toBe(false);
+      expect(Object.isFrozen(connections[0])).toBe(false);
+      connections[0].account.address = "0xchanged";
+      connections[0].wallet.name = "changed";
     });
     setup();
 
@@ -366,8 +404,22 @@ describe("confirming the dialog", () => {
       screen.getByText("confirm").click();
     });
 
-    expect(onConfirm.mock.calls[0][0]).toBe(acceptTermsOfService.mock.calls[0][0].connections);
-    expect(onConfirm.mock.calls[0][0][0].account.address).toBe(ETH_ACCOUNT.address);
+    const termsConnections = acceptTermsOfService.mock.calls[0][0].connections;
+    const confirmationConnections = onConfirm.mock.calls[0][0];
+    expect(confirmationConnections).not.toBe(termsConnections);
+    expect(confirmationConnections[0].account.address).toBe(ETH_ACCOUNT.address);
+    expect(confirmationConnections[0].wallet.name).toBe("metamask");
+    const liveWallet = (harness.connectors.ETH as { connectedWallet: IWallet }).connectedWallet;
+    expect(liveWallet).toBeInstanceOf(Wallet);
+    expect(liveWallet.account?.address).toBe(ETH_ACCOUNT.address);
+
+    for (const connections of [termsConnections, confirmationConnections]) {
+      const hookWallet = connections[0].wallet;
+      expect(hookWallet.icon).toBe("metamask-icon");
+      expect(hookWallet.docs).toBe("metamask-docs");
+      expect(hookWallet.installed).toBe(true);
+      expect(hookWallet.label).toBe("Installed");
+    }
     expect(confirm).toHaveBeenCalledTimes(1);
   });
 
@@ -509,10 +561,45 @@ describe("confirming the dialog", () => {
     });
 
     expect(onConfirm).toHaveBeenCalledTimes(1);
-    expect(onConfirm.mock.calls[0][0]).toBe(acceptTermsOfService.mock.calls[0][0].connections);
     expect(confirm).toHaveBeenCalledTimes(1);
     expect(close).toHaveBeenCalledTimes(1);
   });
+
+  it.each(["required chains", "persistence", "storage"] as const)(
+    "invalidates an awaited confirmation when %s change",
+    async (change) => {
+      const pending = deferred();
+      acceptTermsOfService.mockReturnValue(pending.promise);
+      const view = setup();
+
+      act(() => {
+        screen.getByText("confirm").click();
+      });
+      await waitFor(() => {
+        expect(acceptTermsOfService).toHaveBeenCalledTimes(1);
+      });
+
+      let nextPersistent = true;
+      let nextStorage = storage;
+      if (change === "required chains") {
+        harness.widgetState = { ...harness.widgetState, requiredChainIds: ["ETH", "BTC"] };
+      } else if (change === "persistence") {
+        nextPersistent = false;
+      } else {
+        nextStorage = { ...storage } as HashMap;
+      }
+      view.rerender(<WalletDialog persistent={nextPersistent} storage={nextStorage} config={[]} />);
+
+      await act(async () => {
+        pending.resolve();
+      });
+
+      expect(onConfirm).not.toHaveBeenCalled();
+      expect(confirm).not.toHaveBeenCalled();
+      expect(close).not.toHaveBeenCalled();
+      expect(store.has(WALLET_CONFIRMATION_RECEIPT_KEY)).toBe(false);
+    },
+  );
 
   it("does not confirm when the user closes the dialog during a hook", async () => {
     const pending = deferred();
@@ -698,13 +785,53 @@ describe("confirming the dialog", () => {
     ).toEqual(["BTC", "ETH"]);
   });
 
+  it.each(["network read fails", "identity changes during the read"] as const)(
+    "excludes an optional wallet when its %s",
+    async (change) => {
+      const optionalWallet = btcWallet("unisat", BTC_ACCOUNT);
+      let networkReads = 0;
+      optionalWallet.provider = {
+        getNetwork:
+          change === "network read fails"
+            ? vi.fn().mockRejectedValue(new Error("wallet unavailable"))
+            : vi.fn(async () => {
+                networkReads += 1;
+                optionalWallet.account = { ...BTC_ACCOUNT, address: `bc1pchanged${networkReads}` };
+                return "signet";
+              }),
+      } as unknown as IWallet["provider"];
+      harness.connectors = {
+        ...harness.connectors,
+        BTC: { config: { network: "signet" }, connectedWallet: optionalWallet, disconnect: vi.fn() },
+      };
+      setup({
+        requiredChainIds: ["ETH"],
+        selectedWallets: { BTC: optionalWallet, ETH: wallet("metamask", ETH_ACCOUNT) },
+      });
+
+      await act(async () => {
+        screen.getByText("confirm").click();
+      });
+
+      expect(acceptTermsOfService.mock.calls[0][0].connections.map(({ chain }: { chain: string }) => chain)).toEqual([
+        "ETH",
+      ]);
+      expect(onConfirm.mock.calls[0][0].map(({ chain }: { chain: string }) => chain)).toEqual(["ETH"]);
+      expect(JSON.parse(store.get(WALLET_CONFIRMATION_RECEIPT_KEY)!).entries).toEqual([
+        expect.objectContaining({ chain: "ETH" }),
+      ]);
+      expect(confirm).toHaveBeenCalledTimes(1);
+    },
+  );
+
   it("refuses to confirm a required chain whose wallet has no account, rather than confirming with nothing recorded", async () => {
     const onError = vi.fn();
+    const connectedWallet = wallet("metamask", null);
     harness.connectors = {
       ...harness.connectors,
       ETH: {
         config: { chainId: 11155111 },
-        connectedWallet: { id: "metamask", name: "metamask", account: null } as IWallet,
+        connectedWallet,
         disconnect: disconnectEth,
       },
     };
@@ -712,7 +839,7 @@ describe("confirming the dialog", () => {
       visible: true,
       screen: { type: "CHAINS" },
       confirmed: false,
-      selectedWallets: { ETH: { id: "metamask", name: "metamask" } as IWallet },
+      selectedWallets: { ETH: connectedWallet },
       requiredChainIds: ["ETH"],
       close,
       confirm,
