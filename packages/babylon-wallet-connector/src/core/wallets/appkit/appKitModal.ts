@@ -17,6 +17,8 @@ import {
   validateAppKitInitialization,
 } from "./state";
 
+const BITCOIN_MAINNET = "mainnet";
+
 /**
  * Unified AppKit Modal Configuration
  *
@@ -107,7 +109,7 @@ export function initializeAppKitModal(config: AppKitModalConfig) {
 
   // Create Bitcoin Adapter if BTC is configured
   if (config.btc?.network) {
-    const btcNetwork = config.btc.network === "mainnet" ? bitcoin : bitcoinSignet;
+    const btcNetwork = config.btc.network === BITCOIN_MAINNET ? bitcoin : bitcoinSignet;
     allNetworks.push(btcNetwork);
 
     bitcoinAdapter = new BitcoinAdapter({

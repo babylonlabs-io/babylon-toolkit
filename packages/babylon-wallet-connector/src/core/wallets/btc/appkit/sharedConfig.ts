@@ -7,6 +7,9 @@ import {
   registerManualAppKitConfig,
 } from "@/core/wallets/appkit/state";
 
+const BITCOIN_CAPABILITY = "Bitcoin";
+const MISSING_BITCOIN_SUPPORT_ERROR = "AppKit was initialized without Bitcoin support.";
+
 /**
  * Shared Bitcoin AppKit config singleton
  *
@@ -69,11 +72,10 @@ export function setSharedBtcAppKitConfig(config: SharedBtcAppKitConfigInput): vo
     // while the bridge dispatches on the new one — account-change events
     // would silently stop propagating. An explicit caller override still
     // wins for tests that need a deterministic instance.
-    connectionEvents:
-      config.connectionEvents ?? sharedBtcAppKitConfig?.connectionEvents ?? new EventTarget(),
+    connectionEvents: config.connectionEvents ?? sharedBtcAppKitConfig?.connectionEvents ?? new EventTarget(),
   };
 
-  registerManualAppKitConfig("Bitcoin");
+  registerManualAppKitConfig(BITCOIN_CAPABILITY);
   sharedBtcAppKitConfig = resolvedConfig;
 }
 
@@ -81,7 +83,7 @@ export function getSharedBtcAppKitConfig(): SharedBtcAppKitConfig {
   const initializedState = getAppKitState<SharedBtcAppKitConfig>();
   if (initializedState) {
     if (!initializedState.btcConfig) {
-      throw new Error("AppKit was initialized without Bitcoin support.");
+      throw new Error(MISSING_BITCOIN_SUPPORT_ERROR);
     }
 
     return initializedState.btcConfig;
@@ -109,5 +111,5 @@ export function hasSharedBtcAppKitConfig(): boolean {
  */
 export function __resetSharedBtcAppKitConfigForTests(): void {
   sharedBtcAppKitConfig = null;
-  __resetManualAppKitConfigForTests("Bitcoin");
+  __resetManualAppKitConfigForTests(BITCOIN_CAPABILITY);
 }

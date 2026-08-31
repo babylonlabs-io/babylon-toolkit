@@ -101,12 +101,9 @@ describe("shared AppKit initialization", () => {
     expect(mocks.createAppKit).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps the combined modal and adapter configs authoritative for each entry point", async () => {
+  it("reuses the combined modal and adapter configs through each entry point", async () => {
     const combined = await import("../appKitModal");
     const eth = await import("../../eth/appkit/modal");
-    const ethShared = await import("../../eth/appkit/sharedConfig");
-    const btcShared = await import("../../btc/appkit/sharedConfig");
-    const state = await import("../state");
 
     const first = combined.initializeAppKitModal(combinedConfig());
     const ethOnly = eth.initializeAppKitModal(ethConfig());
@@ -115,10 +112,51 @@ describe("shared AppKit initialization", () => {
     expect(ethOnly?.modal).toBe(first?.modal);
     expect(ethOnly?.wagmiConfig).toBe(first?.wagmiConfig);
     expect(btcOnly?.bitcoinAdapter).toBe(first?.bitcoinAdapter);
+  });
+
+  it("exposes the canonical adapter configs through the shared getters", async () => {
+    const combined = await import("../appKitModal");
+    const ethShared = await import("../../eth/appkit/sharedConfig");
+    const btcShared = await import("../../btc/appkit/sharedConfig");
+
+    const first = combined.initializeAppKitModal(combinedConfig());
+    const btcConfig = btcShared.getSharedBtcAppKitConfig();
+
     expect(ethShared.getSharedWagmiConfig()).toBe(first?.wagmiConfig);
-    expect(btcShared.getSharedBtcAppKitConfig().adapter).toBe(first?.bitcoinAdapter);
+    expect(btcConfig.modal).toBe(first?.modal);
+    expect(btcConfig.adapter).toBe(first?.bitcoinAdapter);
+    expect(btcConfig.network).toBe("signet");
+    expect(btcConfig.connectionEvents).toBeInstanceOf(EventTarget);
+  });
+
+  it("reuses the canonical Bitcoin connection event bus", async () => {
+    const combined = await import("../appKitModal");
+    const btcShared = await import("../../btc/appkit/sharedConfig");
+
+    combined.initializeAppKitModal(combinedConfig());
+    const btcConfig = btcShared.getSharedBtcAppKitConfig();
+
+    expect(btcShared.getSharedBtcAppKitConfig().connectionEvents).toBe(btcConfig.connectionEvents);
+  });
+
+  it("freezes the canonical AppKit state", async () => {
+    const combined = await import("../appKitModal");
+    const state = await import("../state");
+
+    combined.initializeAppKitModal(combinedConfig());
+
     expect(Object.isFrozen(state.getAppKitState())).toBe(true);
     expect(Object.isFrozen(state.getAppKitState()?.btcConfig)).toBe(true);
+  });
+
+  it("creates one modal for compatible entry point calls", async () => {
+    const combined = await import("../appKitModal");
+    const eth = await import("../../eth/appkit/modal");
+
+    combined.initializeAppKitModal(combinedConfig());
+    eth.initializeAppKitModal(ethConfig());
+    combined.initializeAppKitModal(btcConfig());
+
     expect(mocks.createAppKit).toHaveBeenCalledTimes(1);
   });
 
@@ -217,10 +255,7 @@ describe("shared AppKit initialization", () => {
   });
 
   it.each([
-    [
-      "RPC configuration",
-      { ...ethChain, rpcUrls: { default: { http: ["https://other-rpc.example.com"] } } },
-    ],
+    ["RPC configuration", { ...ethChain, rpcUrls: { default: { http: ["https://other-rpc.example.com"] } } }],
     ["native currency", { ...ethChain, nativeCurrency: { ...ethChain.nativeCurrency, symbol: "TEST" } }],
   ])("rejects a different Ethereum %s", async (_name, requestedChain) => {
     const eth = await import("../../eth/appkit/modal");
@@ -240,7 +275,7 @@ describe("shared AppKit initialization", () => {
     expect(() => combined.initializeAppKitModal(btcConfig("mainnet"))).toThrow("different Bitcoin network");
   });
 
-  it("rejects a different project or application metadata", async () => {
+  it("rejects a different project ID", async () => {
     const eth = await import("../../eth/appkit/modal");
 
     eth.initializeAppKitModal(ethConfig());
@@ -248,9 +283,16 @@ describe("shared AppKit initialization", () => {
     expect(() => eth.initializeAppKitModal({ ...ethConfig(), projectId: "other-project" })).toThrow(
       "different project ID",
     );
-    expect(() =>
-      eth.initializeAppKitModal({ ...ethConfig(), metadata: { ...metadata, name: "Other App" } }),
-    ).toThrow("different metadata");
+  });
+
+  it("rejects different application metadata", async () => {
+    const eth = await import("../../eth/appkit/modal");
+
+    eth.initializeAppKitModal(ethConfig());
+
+    expect(() => eth.initializeAppKitModal({ ...ethConfig(), metadata: { ...metadata, name: "Other App" } })).toThrow(
+      "different metadata",
+    );
   });
 
   it("allows a first missing project ID but rejects it after initialization", async () => {

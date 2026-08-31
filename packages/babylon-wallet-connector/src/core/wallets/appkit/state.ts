@@ -26,6 +26,9 @@ export interface AppKitState<BtcConfig = never> extends AppKitCapabilities {
   readonly btcConfig?: BtcConfig;
 }
 
+const BIGINT_FINGERPRINT_TYPE = "bigint";
+const FUNCTION_FINGERPRINT_TYPE = "function";
+const CONFIG_FINGERPRINT_SERIALIZATION_ERROR = "AppKit configuration cannot be serialized.";
 const INITIAL_CONFIG_FUNCTION_ID = 1;
 const configFunctionIds = new WeakMap<object, number>();
 let nextConfigFunctionId = INITIAL_CONFIG_FUNCTION_ID;
@@ -41,12 +44,12 @@ function getConfigFunctionId(value: object): number {
 
 function createConfigFingerprint(value: object): string {
   const fingerprint = JSON.stringify(value, (_key, nestedValue) => {
-    if (typeof nestedValue === "bigint") {
-      return { type: "bigint", value: nestedValue.toString() };
+    if (typeof nestedValue === BIGINT_FINGERPRINT_TYPE) {
+      return { type: BIGINT_FINGERPRINT_TYPE, value: nestedValue.toString() };
     }
 
-    if (typeof nestedValue === "function") {
-      return { type: "function", value: getConfigFunctionId(nestedValue) };
+    if (typeof nestedValue === FUNCTION_FINGERPRINT_TYPE) {
+      return { type: FUNCTION_FINGERPRINT_TYPE, value: getConfigFunctionId(nestedValue) };
     }
 
     if (nestedValue && typeof nestedValue === "object" && !Array.isArray(nestedValue)) {
@@ -59,7 +62,7 @@ function createConfigFingerprint(value: object): string {
   });
 
   if (fingerprint === undefined) {
-    throw new TypeError("AppKit configuration cannot be serialized.");
+    throw new TypeError(CONFIG_FINGERPRINT_SERIALIZATION_ERROR);
   }
 
   return fingerprint;
@@ -149,7 +152,10 @@ export function setAppKitState<BtcConfig>(state: AppKitState<BtcConfig>): AppKit
     failInitialization("Cannot publish AppKit state after a manual shared configuration was set.");
   }
 
-  appKitState = Object.freeze({ ...state, btcConfig: state.btcConfig ? Object.freeze({ ...state.btcConfig }) : undefined });
+  appKitState = Object.freeze({
+    ...state,
+    btcConfig: state.btcConfig ? Object.freeze({ ...state.btcConfig }) : undefined,
+  });
   return appKitState as AppKitState<BtcConfig>;
 }
 
