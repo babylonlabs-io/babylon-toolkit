@@ -353,12 +353,8 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     return BigInt(calculateBalance(availableUTXOs || []));
   }, [availableUTXOs]);
 
-  // The narrower case: no confirmed funds at all, so the depositable maximum is
-  // zero and the "Max" tooltip (which describes fee buffer and inscription
-  // adjustments to a non-zero maximum) has nothing to describe. Keyed on the raw
-  // confirmed balance (not the spendable `btcBalance`) so it never fires when
-  // confirmed funds exist but are hidden as inscriptions — that is a different
-  // reason for a zero spendable balance.
+  // No confirmed funds exist, so the depositable maximum has no "Max" tooltip.
+  // Use the raw balance because funds hidden as inscriptions have another cause.
   const hasUnconfirmedBalanceOnly = useMemo(
     () => confirmedBalance === 0n && unconfirmedBalance > 0n,
     [confirmedBalance, unconfirmedBalance],

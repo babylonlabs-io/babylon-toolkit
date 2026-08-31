@@ -20,21 +20,18 @@ vi.mock("@/config", () => ({
   }),
 }));
 
-// Format satoshis the same way the real service does for the amounts under test,
-// and short-circuit the CTA state machine so the form renders deterministically.
-vi.mock("@/services/deposit", () => ({
-  depositService: {
-    formatSatoshisToBtc: (sats: bigint) => {
-      const whole = sats / 100_000_000n;
-      const fraction = (sats % 100_000_000n)
-        .toString()
-        .padStart(8, "0")
-        .replace(/0+$/, "");
-      return fraction ? `${whole}.${fraction}` : whole.toString();
+vi.mock("@/services/deposit", async () => {
+  const actual = await vi.importActual<typeof import("@/services/deposit")>(
+    "@/services/deposit",
+  );
+  return {
+    ...actual,
+    depositService: {
+      ...actual.depositService,
+      getDepositCtaState: () => ({ disabled: false, label: "Deposit" }),
     },
-    getDepositCtaState: () => ({ disabled: false, label: "Deposit" }),
-  },
-}));
+  };
+});
 
 vi.mock("../DepositFeesBreakdown", () => ({
   DepositFeesBreakdown: () => null,
@@ -176,8 +173,15 @@ describe("DepositForm suggested amount", () => {
       unconfirmedBalance: 1n,
     });
 
-    expect(screen.getByRole("status")).toHaveTextContent(
+    const notice = screen.getByText("0.00000001 BTC pending confirmation");
+    expect(notice.closest('[role="status"]')).toHaveTextContent(
       "0.00000001 BTC pending confirmation",
     );
+  });
+
+  it("does not show a pending notice for a confirmed balance", () => {
+    renderForm({});
+
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
   });
 });

@@ -312,12 +312,13 @@ export function DepositForm({
     })} USD`;
   }, [amount, btcPrice, hasPriceFetchError]);
 
-  const pendingConfirmationField =
+  const pendingConfirmationNotice =
     unconfirmedBalance > 0n ? (
       <span className="inline-flex items-center gap-1 text-accent-secondary">
         {COPY.deposit.form.pendingConfirmationNotice(
           `${depositService.formatSatoshisToBtc(unconfirmedBalance)} ${btcConfig.coinSymbol}`,
         )}
+        {/* A bare Hint renders a div, which is invalid inside the p container. */}
         <Hint
           tooltip={COPY.deposit.form.pendingConfirmationTooltip}
           attachToChildren
@@ -425,15 +426,13 @@ export function DepositForm({
           onMaxClick={onMaxClick}
           inputClassName="h-10 w-auto rounded-lg bg-primary-contrast px-4 [field-sizing:content]"
         />
-        {pendingConfirmationField && (
-          <p
-            className="flex flex-wrap items-center gap-1 text-sm"
-            role="status"
-            aria-live="polite"
-          >
-            {pendingConfirmationField}
-          </p>
-        )}
+        <p
+          className={pendingConfirmationNotice ? "text-sm" : "sr-only"}
+          role="status"
+          aria-live="polite"
+        >
+          {pendingConfirmationNotice}
+        </p>
         <CollateralFactorRow
           collateralFactor={collateralFactor}
           amountBtc={amount}
