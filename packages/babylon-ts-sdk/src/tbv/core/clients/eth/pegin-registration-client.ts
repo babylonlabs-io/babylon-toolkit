@@ -138,15 +138,19 @@ export class ViemPeginRegistrationClient {
   async registerPeginOnChain(
     params: RegisterPeginOnChainParams,
   ): Promise<PeginRegistrationResult> {
-    this.assertQuotedCommissionPresentWhenRequired(params.quotedCommissionBps);
-    const depositor = this.assertPopMatchesEthAccount(params.popSignature);
-    const depositorBtcPubkey = this.normalizeBtcPubkey(params.popSignature);
+    const request = {
+      ...params,
+      popSignature: { ...params.popSignature },
+    };
+    this.assertQuotedCommissionPresentWhenRequired(request.quotedCommissionBps);
+    const depositor = this.assertPopMatchesEthAccount(request.popSignature);
+    const depositorBtcPubkey = this.normalizeBtcPubkey(request.popSignature);
     const btcPopSignature = ensureHex(
-      params.popSignature.btcPopSignature,
+      request.popSignature.btcPopSignature,
       "btcPopSignature",
     );
     const normalized = this.normalizeRequest(
-      params,
+      request,
       depositor,
       depositorBtcPubkey,
       btcPopSignature,
@@ -156,10 +160,10 @@ export class ViemPeginRegistrationClient {
       normalized.vaultId,
       normalized.peginTxHash,
     );
-    const peginFee = await this.readPeginFee(params.vaultProvider);
+    const peginFee = await this.readPeginFee(request.vaultProvider);
     const maxCommission = await this.resolveMaxAcceptableCommissionBps(
-      params.vaultProvider,
-      params.quotedCommissionBps,
+      request.vaultProvider,
+      request.quotedCommissionBps,
     );
     const callData = encodeFunctionData({
       abi: BTCVaultRegistryABI,
@@ -170,16 +174,21 @@ export class ViemPeginRegistrationClient {
         btcPopSignature,
         normalized.unsignedPrePeginTx,
         normalized.depositorSignedPeginTx,
-        params.vaultProvider,
+        request.vaultProvider,
         maxCommission,
-        params.hashlock,
-        params.htlcVout,
+        request.hashlock,
+        request.htlcVout,
         normalized.payoutScript,
-        params.depositorWotsPkHash,
+        request.depositorWotsPkHash,
       ],
     });
 
-    const ethTxHash = await this.sendAndWait(callData, peginFee, false);
+    const ethTxHash = await this.sendAndWait(
+      callData,
+      peginFee,
+      false,
+      depositor,
+    );
     return {
       ethTxHash,
       vaultId: normalized.vaultId,
@@ -190,30 +199,35 @@ export class ViemPeginRegistrationClient {
   async registerPeginBatchOnChain(
     params: RegisterPeginBatchOnChainParams,
   ): Promise<PeginBatchRegistrationResult> {
-    if (params.requests.length === 0) {
+    const batch = {
+      ...params,
+      popSignature: { ...params.popSignature },
+      requests: params.requests.map((request) => ({ ...request })),
+    };
+    if (batch.requests.length === 0) {
       throw new Error("Batch pegin requires at least one request");
     }
-    this.assertQuotedCommissionPresentWhenRequired(params.quotedCommissionBps);
-    const depositor = this.assertPopMatchesEthAccount(params.popSignature);
+    this.assertQuotedCommissionPresentWhenRequired(batch.quotedCommissionBps);
+    const depositor = this.assertPopMatchesEthAccount(batch.popSignature);
     const unsignedPrePeginTx = ensureHex(
-      params.unsignedPrePeginTx,
+      batch.unsignedPrePeginTx,
       "unsignedPrePeginTx",
     );
-    const depositorBtcPubkey = this.normalizeBtcPubkey(params.popSignature);
+    const depositorBtcPubkey = this.normalizeBtcPubkey(batch.popSignature);
     const btcPopSignature = ensureHex(
-      params.popSignature.btcPopSignature,
+      batch.popSignature.btcPopSignature,
       "btcPopSignature",
     );
 
     const vaults: BatchPeginRegistrationResultItem[] = [];
     const requests = [];
     const seenVaultIds = new Set<string>();
-    for (const request of params.requests) {
+    for (const request of batch.requests) {
       const normalized = this.normalizeRequest(
         {
           ...request,
-          unsignedPrePeginTx: params.unsignedPrePeginTx,
-          vaultProvider: params.vaultProvider,
+          unsignedPrePeginTx: batch.unsignedPrePeginTx,
+          vaultProvider: batch.vaultProvider,
         },
         depositor,
         depositorBtcPubkey,
@@ -243,20 +257,21 @@ export class ViemPeginRegistrationClient {
       await this.assertVaultDoesNotExist(vault.vaultId, vault.peginTxHash);
     }
 
-    const peginFee = await this.readPeginFee(params.vaultProvider);
+    const peginFee = await this.readPeginFee(batch.vaultProvider);
     const maxCommission = await this.resolveMaxAcceptableCommissionBps(
-      params.vaultProvider,
-      params.quotedCommissionBps,
+      batch.vaultProvider,
+      batch.quotedCommissionBps,
     );
     const callData = encodeFunctionData({
       abi: BTCVaultRegistryABI,
       functionName: "submitPeginRequestBatch",
-      args: [depositor, params.vaultProvider, maxCommission, requests],
+      args: [depositor, batch.vaultProvider, maxCommission, requests],
     });
     const ethTxHash = await this.sendAndWait(
       callData,
-      peginFee * BigInt(params.requests.length),
+      peginFee * BigInt(batch.requests.length),
       true,
+      depositor,
     );
     return { ethTxHash, vaults };
   }
@@ -276,11 +291,15 @@ export class ViemPeginRegistrationClient {
   }
 
   private assertPopMatchesEthAccount(pop: PopSignature): Address {
+    return this.assertEthAccount(pop.depositorEthAddress);
+  }
+
+  private assertEthAccount(expectedDepositor: Address): Address {
     const account = this.config.ethWallet.account;
     if (!account) throw new Error("Ethereum wallet account not found");
-    if (!isAddressEqual(pop.depositorEthAddress, account.address)) {
+    if (!isAddressEqual(expectedDepositor, account.address)) {
       throw new Error(
-        `Proof of possession was signed for ${pop.depositorEthAddress} ` +
+        `Proof of possession was signed for ${expectedDepositor} ` +
           `but the Ethereum wallet is currently connected to ${account.address}. ` +
           `Reconnect the original account or sign a new proof of possession.`,
       );
@@ -398,21 +417,22 @@ export class ViemPeginRegistrationClient {
     data: Hex,
     value: bigint,
     batch: boolean,
+    depositor: Address,
   ): Promise<Hex> {
-    const account = this.config.ethWallet.account;
-    if (!account) throw new Error("Ethereum wallet account not found");
+    let account = this.assertEthAccount(depositor);
     let gas: bigint;
     try {
       gas = await this.config.publicClient.estimateGas({
         to: this.config.btcVaultRegistry,
         data,
         value,
-        account: account.address,
+        account,
       });
     } catch (error) {
       handleContractError(error);
     }
 
+    account = this.assertEthAccount(depositor);
     let submittedHash: Hex;
     try {
       submittedHash = await this.config.ethWallet.sendTransaction({
@@ -428,7 +448,7 @@ export class ViemPeginRegistrationClient {
     }
     const receipt = await waitForTransactionReceiptSmartAware({
       publicClient: this.config.publicClient,
-      walletAddress: account.address,
+      walletAddress: depositor,
       hash: submittedHash,
       timeout: this.config.receiptTimeoutMs ?? RECEIPT_TIMEOUT_MS,
     });
