@@ -20,6 +20,7 @@ import { useMemo } from "react";
 import { getMempoolApiUrl } from "@/clients/btc/config";
 import {
   PEGIN_VAULT_VOUT,
+  toOutpointSpend,
   type OutpointSpend,
 } from "@/models/reclaimEligibility";
 import { mapWithConcurrency } from "@/utils/concurrency";
@@ -39,6 +40,22 @@ export interface ReclaimStatus {
   reserveSpend: OutpointSpend;
   /** The reserve's value, for the row's "reclaimable" figure. */
   reserveValueSats: bigint;
+  /**
+   * Tip height read in the same tick as the spends above, and frozen with them.
+   *
+   * The confirmation-depth check must not pair a fresh tip with stale spend
+   * data. The tip is fetched on its own request and the per-vault probes on
+   * theirs, so one can keep succeeding while the other fails — and on failure
+   * the catch below carries the previous observation forward. Without this
+   * stamp, `tipHeight - blockHeight + 1` would keep growing on a Payout that is
+   * no longer being observed and could cross the six-confirmation bar purely
+   * from the chain advancing. Frozen together, an unrefreshed entry can only
+   * ever keep or lose eligibility, never gain it.
+   *
+   * `undefined` when the tip read failed, which the gate treats as "not yet
+   * known" and withholds the action.
+   */
+  observedTipHeight: number | undefined;
 }
 
 /** One candidate vault to probe. */
@@ -52,8 +69,6 @@ export interface ReclaimOutpoint {
 export interface ReclaimStatusResult {
   /** Vault id (lowercased) → reserve state. Missing = not yet polled. */
   statusByDepositId: Map<string, ReclaimStatus>;
-  /** Current Bitcoin tip height, for the confirmation-depth check. */
-  tipHeight: number | undefined;
 }
 
 // Stable identity for the no-data render; a fresh Map per render would defeat
@@ -62,18 +77,6 @@ const EMPTY_STATUSES = new Map<string, ReclaimStatus>();
 
 interface ReclaimBatch {
   statuses: Map<string, ReclaimStatus>;
-  tipHeight: number | undefined;
-}
-
-function toOutpointSpend(res: {
-  spent?: boolean;
-  status?: { confirmed?: boolean; block_height?: number };
-}): OutpointSpend {
-  return {
-    spent: res.spent === true,
-    confirmed: res.spent === true && res.status?.confirmed === true,
-    blockHeight: res.status?.block_height,
-  };
 }
 
 export function useReclaimStatus(
@@ -118,6 +121,11 @@ export function useReclaimStatus(
       // The tip is shared across the batch, and a failure to read it must not
       // drop the whole poll — the gate treats an absent tip as "not yet known"
       // and simply withholds the action.
+      //
+      // Read before the per-vault fan-out below, so every spend it is stamped
+      // onto was observed at or after this height. The stamp can therefore
+      // undercount confirmations by the fan-out's duration but never overcount,
+      // which is the direction that matters.
       const tipHeight = await getTipHeight(apiUrl).catch(() => undefined);
 
       const entries = await mapWithConcurrency(
@@ -136,12 +144,17 @@ export function useReclaimStatus(
                 payoutSpend: toOutpointSpend(payout),
                 reserveSpend: toOutpointSpend(reserve),
                 reserveValueSats: BigInt(reserveUtxo.value),
+                observedTipHeight: tipHeight,
               },
             ];
           } catch {
             // Carry the prior status forward so a transient 429 doesn't drop a
             // row for a cycle. No prior means the row stays actionless, which
             // is the fail-closed direction.
+            //
+            // The prior carries its own `observedTipHeight`, so a carried entry
+            // keeps being measured against the tip it was actually read at —
+            // it cannot age into eligibility while nothing is refreshing it.
             const priorStatus = prior.get(o.depositId);
             return priorStatus !== undefined
               ? [o.depositId, priorStatus]
@@ -154,13 +167,11 @@ export function useReclaimStatus(
         statuses: new Map(
           entries.filter((e): e is [string, ReclaimStatus] => e !== null),
         ),
-        tipHeight,
       };
     },
   });
 
   return {
     statusByDepositId: query.data?.statuses ?? EMPTY_STATUSES,
-    tipHeight: query.data?.tipHeight,
   };
 }

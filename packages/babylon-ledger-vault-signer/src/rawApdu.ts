@@ -107,6 +107,8 @@ export interface AppIdentity {
 export interface StatusWordContext extends AppIdentity {
   readonly ins: number;
   readonly p1: number;
+  /** SIGN_PSBT loop only: the refused APDU was the initial SIGN_PSBT, before any round ran. */
+  readonly preDispatch?: boolean;
 }
 
 /**
@@ -129,7 +131,7 @@ export function classifyStatusWord(
     return new LedgerUserRefusedError(sw);
   }
   if (SW_DEVICE_LOCKED.has(sw)) {
-    return new LedgerDeviceLockedError(sw);
+    return new LedgerDeviceLockedError(sw, { preDispatch: context.preDispatch === true });
   }
   const known = STATUS_WORDS[sw];
   // Name the app seen at connect ("BOLOS" = dashboard); the user may have

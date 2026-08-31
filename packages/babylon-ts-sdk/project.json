@@ -10,9 +10,10 @@
       "cache": true
     },
     "test": {
+      "dependsOn": ["build"],
       "executor": "nx:run-commands",
       "options": {
-        "command": "pnpm test",
+        "command": "pnpm test:built",
         "cwd": "{projectRoot}"
       },
       "cache": true

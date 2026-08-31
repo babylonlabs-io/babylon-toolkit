@@ -889,7 +889,7 @@ export const COPY = {
       },
       signingRejected: {
         title: "Signing rejected",
-        body: "You rejected the request in your wallet. Click Retry to approve it and continue.",
+        body: "You rejected the request in your wallet. Try again to approve it and continue.",
       },
       // Self-requested cancel (the in-app "Cancel signing" affordance), as
       // opposed to a rejection on the wallet/device itself. Names no button:
@@ -900,11 +900,12 @@ export const COPY = {
         body: "You canceled the signature request, so the deposit did not continue. No Bitcoin was spent.",
       },
       // A cancel settling after the Ethereum registration is mined: gas is
-      // spent and the vaults await the Pre-PegIn, so point at the resume path
-      // instead of implying nothing happened. No Bitcoin has moved.
+      // spent and the vaults await the Pre-PegIn, so point at the in-modal
+      // Retry and the dashboard resume instead of implying nothing happened.
+      // No Bitcoin has moved.
       signingCanceledAfterRegistration: {
         title: "Signing canceled",
-        body: "You canceled the signature request. No Bitcoin was spent, but your deposit is already registered on Ethereum. Resume it from your dashboard to broadcast, or the registration will expire on its own.",
+        body: "You canceled the signature request. No Bitcoin was spent, but your deposit is already registered on Ethereum. Retry to continue signing, or resume it later from your dashboard — otherwise the registration will expire on its own.",
       },
       walletNotConnected: {
         title: "Wallet not connected",
@@ -1322,6 +1323,11 @@ export const COPY = {
       walletNotConnected: "BTC wallet not connected",
       missingVaultId: "Missing BTCVault ID",
       invalidFeeRate: "Fee rate must be a positive number",
+      // The pre-signing re-check found the withdrawal no longer settled deeply
+      // enough on Bitcoin. Rare, and it clears on its own as blocks arrive, so
+      // the copy says plainly that nothing is at risk and retrying later works.
+      payoutNotConfirmed:
+        "The withdrawal that made this reserve reclaimable is no longer confirmed on Bitcoin. Your reserve is safe where it is — try again once it settles.",
       // Fallback when the failure carries no message of its own.
       generic: "Reclaim transaction failed",
     },

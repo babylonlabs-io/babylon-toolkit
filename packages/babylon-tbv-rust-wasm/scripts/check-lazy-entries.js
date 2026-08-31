@@ -242,12 +242,7 @@ try {
     recursive: true,
   });
   const wasmBytes = readFileSync(
-    join(
-      browserRacePackage,
-      'dist',
-      'generated',
-      'vault_wasm_bg.wasm',
-    ),
+    join(browserRacePackage, 'dist', 'generated', 'vault_wasm_bg.wasm'),
   );
   let fetchCalls = 0;
   globalThis.fetch = async () => {
@@ -291,7 +286,9 @@ try {
     );
   }
   if (payoutScriptAfter !== payoutScriptBefore) {
-    throw new Error('Concurrent browser initialization invalidated a raw object');
+    throw new Error(
+      'Concurrent browser initialization invalidated a raw object',
+    );
   }
   browserRaceCompleted = true;
 } finally {
@@ -305,46 +302,50 @@ try {
 
 // Concurrent browser-facade calls with different parameters must each return
 // their own complete result. That is what per-call connector ownership buys:
-// neither call can free or overwrite the object the other is reading. The
-// generated module is initialized through the Node raw entry first so this
-// file://-based check does not rely on fetch(file://...).
-const rawNodeUrl = pathToFileURL(
-  resolve(packageRoot, 'dist', 'raw-node.js'),
-).href;
-const rawNode = await import(`${rawNodeUrl}?concurrent-connector-init`);
-await rawNode.initWasm();
-
-const browserFacadeUrl = pathToFileURL(
-  resolve(packageRoot, 'dist', 'index.js'),
-).href;
-const browserFacade = await import(
-  `${browserFacadeUrl}?concurrent-connector-facade`
+// neither call can free or overwrite the object the other is reading.
+const concurrentWasmBytes = readFileSync(
+  resolve(packageRoot, 'dist', 'generated', 'vault_wasm_bg.wasm'),
 );
-const concurrentConnectorResults = await Promise.all([
-  browserFacade.getAssertPayoutScriptInfo(connectorParams),
-  browserFacade.getAssertPayoutScriptInfo({
-    ...connectorParams,
-    timelockAssert: 145,
-  }),
-]);
-for (const result of concurrentConnectorResults) {
-  if (!result.payoutScript || !result.payoutControlBlock) {
-    throw new Error('Concurrent connector facade returned empty script data');
-  }
-}
-// The two calls differ only in `timelockAssert`, so their script data must
-// differ too. Truthiness alone would pass a cache that hands both callers the
-// same connector — the wrong taproot leaf, fully populated.
-const [firstConnectorResult, secondConnectorResult] =
-  concurrentConnectorResults;
-if (
-  firstConnectorResult.payoutScript === secondConnectorResult.payoutScript ||
-  firstConnectorResult.payoutControlBlock ===
-    secondConnectorResult.payoutControlBlock
-) {
-  throw new Error(
-    'Concurrent connector facade returned aliased script data for different timelockAssert values',
+try {
+  globalThis.fetch = async () =>
+    new Response(concurrentWasmBytes, {
+      headers: { 'Content-Type': 'application/wasm' },
+    });
+
+  const browserFacadeUrl = pathToFileURL(
+    resolve(packageRoot, 'dist', 'index.js'),
+  ).href;
+  const browserFacade = await import(
+    `${browserFacadeUrl}?concurrent-connector-facade`
   );
+  const concurrentConnectorResults = await Promise.all([
+    browserFacade.getAssertPayoutScriptInfo(connectorParams),
+    browserFacade.getAssertPayoutScriptInfo({
+      ...connectorParams,
+      timelockAssert: 145,
+    }),
+  ]);
+  for (const result of concurrentConnectorResults) {
+    if (!result.payoutScript || !result.payoutControlBlock) {
+      throw new Error('Concurrent connector facade returned empty script data');
+    }
+  }
+  // The two calls differ only in `timelockAssert`, so their script data must
+  // differ too. Truthiness alone would pass a cache that hands both callers the
+  // same connector - the wrong taproot leaf, fully populated.
+  const [firstConnectorResult, secondConnectorResult] =
+    concurrentConnectorResults;
+  if (
+    firstConnectorResult.payoutScript === secondConnectorResult.payoutScript ||
+    firstConnectorResult.payoutControlBlock ===
+      secondConnectorResult.payoutControlBlock
+  ) {
+    throw new Error(
+      'Concurrent connector facade returned aliased script data for different timelockAssert values',
+    );
+  }
+} finally {
+  globalThis.fetch = originalFetch;
 }
 
 console.log('Lazy WASM facade boundary verified (browser, node, and raw).');

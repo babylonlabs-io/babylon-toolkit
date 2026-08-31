@@ -28,7 +28,8 @@ import { isUserCancellation } from "@/utils/errors/userCancellation";
 // of the connect UI. Every other wallet is on by default; which ones are hidden per environment —
 // experimental wallets not yet ready for production (onekey, utila) and any wallet we need to pull
 // during an incident — is controlled entirely by NEXT_PUBLIC_TBV_DISABLED_BTC_WALLETS, so no code
-// change or redeploy is needed to toggle one.
+// change or redeploy is needed to toggle one. The one exception is `ledger_btc_vault`, which has
+// its own two-term gate below.
 const ALWAYS_DISABLED_WALLETS: string[] = [
   APPKIT_BTC_CONNECTOR_ID,
   "injectable",
@@ -36,10 +37,6 @@ const ALWAYS_DISABLED_WALLETS: string[] = [
   "ledger_btc_v2",
 ];
 
-// `ledger_btc_vault` is the DMK-based vault provider (#2109), built ahead of
-// Ledger's firmware being final. Opt-in rather than opt-out: the env disable
-// list defaults to empty, so a new provider would otherwise be visible in any
-// environment that has not listed it.
 /**
  * Wallet id of the Ledger BTC Vault app. Exported because the reclaim flow
  * gates on it too — the device firmware cannot sign that transaction shape
@@ -47,9 +44,20 @@ const ALWAYS_DISABLED_WALLETS: string[] = [
  */
 export const LEDGER_VAULT_WALLET_ID = "ledger_btc_vault";
 
+// `ledger_btc_vault` (DMK-based vault provider, #2109) is opt-in via the feature
+// flag while Ledger's firmware is still in review — the env disable list defaults
+// to empty, so a new provider would otherwise show wherever nobody listed it.
+// The flag is necessary but not sufficient: the DMK web-hid transport needs
+// WebHID (`navigator.hid` — desktop Chromium only, secure context); without it
+// the entry still renders clickable and only fails on connect, so hide it up
+// front. `in` check because TS's DOM lib does not declare `Navigator.hid`.
+const isWebHidAvailable = "hid" in navigator;
+
 const DISABLED_WALLETS: string[] = [
   ...ALWAYS_DISABLED_WALLETS,
-  ...(featureFlags.isLedgerVaultWalletEnabled ? [] : [LEDGER_VAULT_WALLET_ID]),
+  ...(featureFlags.isLedgerVaultWalletEnabled && isWebHidAvailable
+    ? []
+    : [LEDGER_VAULT_WALLET_ID]),
   ...featureFlags.disabledBtcWallets,
 ];
 

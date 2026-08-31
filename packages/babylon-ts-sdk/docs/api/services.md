@@ -2472,7 +2472,21 @@ observed: object;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/reclaim/buildAndBroadcastReclaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/reclaim/buildAndBroadcastReclaim.ts)
 
-Independent chain observation of `peginTxid:1`.
+Independent chain observation of `peginTxid:1`, including the outpoint the
+lookup was issued against — see `ReclaimReserve.observed` for why the
+script and value alone cannot identify a reserve.
+
+###### txid
+
+```ts
+txid: string;
+```
+
+###### vout
+
+```ts
+vout: number;
+```
 
 ###### scriptPubKey
 
@@ -2517,6 +2531,18 @@ vaultIds: `0x${string}`[];
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/reclaim/buildAndBroadcastReclaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/reclaim/buildAndBroadcastReclaim.ts)
+
+##### depositorEthAddress
+
+```ts
+depositorEthAddress: `0x${string}`;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/reclaim/buildAndBroadcastReclaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/reclaim/buildAndBroadcastReclaim.ts)
+
+The depositor's Ethereum address — the second preimage of every vault id.
+Used to re-derive each requested id from the PegIn bytes `readVaults`
+returned, so a reserve can be tied to the vault it was asked for.
 
 ##### depositorBtcPubkey
 
