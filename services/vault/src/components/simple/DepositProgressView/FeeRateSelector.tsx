@@ -13,7 +13,6 @@ import { peginOutputCount } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { IoClose } from "react-icons/io5";
 
-import { getNetworkConfigBTC } from "@/config";
 import { MIN_RELAY_FEE_RATE_SATS_VB } from "@/constants";
 import { useBTCWallet } from "@/context/wallet";
 import { COPY } from "@/copy";
@@ -25,7 +24,6 @@ import { getFeeRateBounds } from "@/utils/feeRateBounds";
 import { formatBtcAmount } from "@/utils/formatting";
 
 const FEE_SELECTOR_COPY = COPY.deposit.feeSelector;
-const btcConfig = getNetworkConfigBTC();
 
 type TierKey = "slow" | "avg" | "fast" | "custom";
 
@@ -202,21 +200,23 @@ export function FeeRateSelector({
         </Text>
       </div>
 
-      <div className="grid grid-cols-4 gap-2.5">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         {tiers.map((tier) => (
           <button
             key={tier.key}
             type="button"
             aria-pressed={selectedKey === tier.key}
             onClick={() => setSelectedKey(tier.key)}
-            className={`flex flex-col items-center gap-1 rounded border p-2 text-center ${
+            className={`flex flex-col items-center gap-0.5 rounded border px-1.5 py-1.5 text-center ${
               selectedKey === tier.key
                 ? "border-accent-primary bg-accent-primary/10"
                 : "border-secondary-strokeLight"
             }`}
           >
-            <Text variant="body2">{tier.label}</Text>
-            <Text variant="caption">
+            <Text variant="caption" className="font-medium">
+              {tier.label}
+            </Text>
+            <Text variant="caption" className="whitespace-nowrap">
               <span className="text-accent-primary">
                 {tier.rate} {FEE_SELECTOR_COPY.cardUnit}
               </span>{" "}
@@ -228,13 +228,15 @@ export function FeeRateSelector({
           type="button"
           aria-pressed={selectedKey === "custom"}
           onClick={() => setSelectedKey("custom")}
-          className={`flex items-center justify-center rounded border p-2 ${
+          className={`flex items-center justify-center rounded border px-2 py-1.5 ${
             selectedKey === "custom"
               ? "border-accent-primary bg-accent-primary/10"
               : "border-secondary-strokeLight"
           }`}
         >
-          <Text variant="body2">{FEE_SELECTOR_COPY.customLabel}</Text>
+          <Text variant="caption" className="font-medium">
+            {FEE_SELECTOR_COPY.customLabel}
+          </Text>
         </button>
       </div>
 
@@ -248,7 +250,7 @@ export function FeeRateSelector({
               value={customValue}
               onChange={(e) => setCustomValue(e.currentTarget.value)}
               suffix={
-                <Text as="span" variant="body2">
+                <Text as="span" variant="body2" className="whitespace-nowrap">
                   {FEE_SELECTOR_COPY.customInputSuffix}
                 </Text>
               }
@@ -265,8 +267,7 @@ export function FeeRateSelector({
           </div>
           {!estimatedFee.error && estimatedFee.fee !== null && (
             <Text variant="caption" className="text-accent-secondary">
-              {formatBtcAmount(satoshiToBtcNumber(estimatedFee.fee))}{" "}
-              {btcConfig.coinSymbol}
+              {formatBtcAmount(satoshiToBtcNumber(estimatedFee.fee))}
             </Text>
           )}
         </div>

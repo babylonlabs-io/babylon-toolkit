@@ -32,6 +32,7 @@ import { useDepositPageFlow } from "../../hooks/deposit/useDepositPageFlow";
 import { useDepositPageForm } from "../../hooks/deposit/useDepositPageForm";
 
 import { DepositForm } from "./DepositForm";
+import { DEPOSIT_VIEW_MAX_WIDTH_CLASS } from "./DepositProgressView/layout";
 import { DepositSignContent } from "./DepositSignContent";
 import { FadeTransition } from "./FadeTransition";
 import { ResumeBroadcastContent } from "./ResumeDepositContent";
@@ -537,7 +538,7 @@ function SimpleDepositContent({
         )}
 
         {renderedStep === DepositStep.SIGN && btcWalletProvider && (
-          <div className="mx-auto w-full max-w-[520px]">
+          <div className={`mx-auto w-full ${DEPOSIT_VIEW_MAX_WIDTH_CLASS}`}>
             <DepositSignContent
               vaultAmounts={
                 isSplitDeposit && splitVaultAmounts
@@ -580,7 +581,7 @@ export default function SimpleDeposit(props: SimpleDepositProps) {
         <V3ModalShell
           open={open}
           onClose={onClose}
-          contentClassName="max-w-[520px]"
+          contentClassName={DEPOSIT_VIEW_MAX_WIDTH_CLASS}
         >
           <ResumeBroadcastContent
             activity={props.activity}

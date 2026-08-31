@@ -266,7 +266,15 @@ describe("DepositProgressView", () => {
       expect(
         screen.getByText(COPY.deposit.steps.signAndBroadcastPrePegin),
       ).toBeInTheDocument();
-      expect(screen.getByText("fee selector")).toBeInTheDocument();
+      const selector = screen.getByText("fee selector");
+      expect(selector).toBeInTheDocument();
+
+      // The selector renders as a sibling of the Pre-PegIn step row, not
+      // nested in its indented detail column.
+      const stepRow = screen
+        .getByText(COPY.deposit.steps.signAndBroadcastPrePegin)
+        .closest("div.flex.gap-3");
+      expect(selector.parentElement).toBe(stepRow?.parentElement);
 
       // Only the Pre-PegIn row opens — the rest of the group stays folded.
       expect(

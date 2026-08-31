@@ -508,6 +508,14 @@ export const COPY = {
       retryButton: "Retry",
       confirmButton: "Confirm",
     },
+    // The tier hints are static: they name the confirmation target of the
+    // mempool.space field each tile reads (hourFee / halfHourFee / fastestFee),
+    // not a live estimate of the current queue. simple-staking's FeeModal does
+    // the same ("Next Block" / "Estimated 30mins" / "Estimated 60mins"). On a
+    // quiet signet all three fields return the 1 sat/vB floor, so one rate ends
+    // up wearing three different time promises. Follow-up: port staking's
+    // per-tile `warning={tierRate < defaultFeeRate}` flag, which marks the tiles
+    // that are genuinely too cheap instead of hiding the hints.
     feeSelector: {
       title: "Network Fee Rate",
       headerUnit: "sats/vB",
@@ -519,7 +527,7 @@ export const COPY = {
       fastHint: "~10 min",
       customLabel: "Custom",
       cardUnit: "sat/vB",
-      customInputSuffix: "sats vB",
+      customInputSuffix: "sats/vB",
       clearCustomAria: "Clear custom fee rate",
       lowFeeWarning: "Fees are low; inclusion is not guaranteed",
     },

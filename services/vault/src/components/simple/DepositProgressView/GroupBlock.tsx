@@ -55,10 +55,10 @@ export function GroupBlock({
   preSignDetail,
 }: GroupBlockProps) {
   // Pre-sign entry: this group owns the Pre-PegIn step, so it opens into the
-  // card and shows that one row carrying the fee selector. The other rows stay
-  // hidden — the entry screen is about the one decision left to make, not the
-  // whole group. The row reads active (that is what `StepRow` gates its detail
-  // on) even though nothing is running yet.
+  // card and shows that one row with the fee selector rendered below it as a
+  // sibling. The other rows stay hidden — the entry screen is about the one
+  // decision left to make, not the whole group. The row reads active even
+  // though nothing is running yet.
   const showPreSignDetail =
     !group.expanded &&
     Boolean(preSignDetail) &&
@@ -95,15 +95,17 @@ export function GroupBlock({
         <div className="border-t border-secondary-strokeLight" />
         <div className="flex flex-col gap-2 px-2">
           {showPreSignDetail ? (
-            <StepRow
-              state="active"
-              number={PRE_PEGIN_VISUAL_STEP - group.startStep + 1}
-              ariaNumber={PRE_PEGIN_VISUAL_STEP}
-              label={steps[PRE_PEGIN_VISUAL_STEP - 1]?.label ?? ""}
-              detail={preSignDetail}
-              compact={compact}
-              inCard
-            />
+            <>
+              <StepRow
+                state="active"
+                number={PRE_PEGIN_VISUAL_STEP - group.startStep + 1}
+                ariaNumber={PRE_PEGIN_VISUAL_STEP}
+                label={steps[PRE_PEGIN_VISUAL_STEP - 1]?.label ?? ""}
+                compact={compact}
+                inCard
+              />
+              {preSignDetail}
+            </>
           ) : (
             stepNumbers.map((globalStepNum, subIndex) => {
               const step = steps[globalStepNum - 1];
