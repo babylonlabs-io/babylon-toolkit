@@ -3,5 +3,15 @@
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
   "sourceRoot": "{projectRoot}/src",
   "projectType": "library",
-  "tags": ["type:package"]
+  "tags": ["type:package"],
+  "targets": {
+    "test": {
+      "dependsOn": ["build"],
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "node --test tests/wasm-loader.test.mjs",
+        "cwd": "{projectRoot}"
+      }
+    }
+  }
 }

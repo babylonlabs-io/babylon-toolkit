@@ -18,22 +18,37 @@ async function importGeneratedBindings(): Promise<WasmBindings> {
   return import('./generated/vault_wasm.js');
 }
 
+async function fetchGeneratedWasm(): Promise<ArrayBuffer> {
+  try {
+    const response = await fetch(
+      new URL('./generated/vault_wasm_bg.wasm', import.meta.url),
+    );
+    if (!response.ok) {
+      throw new Error(`HTTP status ${response.status}`);
+    }
+    return await response.arrayBuffer();
+  } catch (cause) {
+    throw new Error('The browser WASM asset could not be fetched.', { cause });
+  }
+}
+
 /** Load and initialize browser WASM only when a facade operation is invoked. */
 export function getWasmBindings(): Promise<WasmBindings> {
   bindingsPromise ??= (async () => {
     let bindings: WasmBindings;
+    let wasmModule: WebAssembly.Module;
     try {
       bindings = await importGeneratedBindings();
+      wasmModule = await WebAssembly.compile(await fetchGeneratedWasm());
     } catch (error) {
-      // A failed resolve initializes nothing, so a later call can still work.
+      // Generated initialization has not started, so a later call can retry.
       bindingsPromise = null;
       throw error;
     }
-    // The glue sets `wasm = instance.exports` before it runs
-    // `__wbindgen_start()`, and its own `if (wasm !== undefined) return wasm`
-    // guard would then hand that half-started module to a retry. Keep this
-    // rejection latched: only a fresh module graph can safely retry.
-    await bindings.default();
+    // The generated glue assigns its module before it runs
+    // `__wbindgen_start()`. The error class cannot show whether that assignment
+    // happened, so every rejection from generated initialization stays latched.
+    await bindings.default({ module_or_path: wasmModule });
     return bindings;
   })();
   return bindingsPromise;
