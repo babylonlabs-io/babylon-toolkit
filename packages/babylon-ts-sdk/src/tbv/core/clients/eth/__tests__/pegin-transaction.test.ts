@@ -386,8 +386,8 @@ describe("ETH-only pegin transaction derivation", () => {
     }
   });
 
-  // Witness compact sizes do not enter the txid. Rejecting their non-canonical
-  // form is a strict parser contract, not a byte-equality requirement.
+  // The first three positions use the byte-equality rule above. The two witness
+  // positions use a strict parser contract because they do not enter the txid.
   for (const fixture of NON_CANONICAL_COMPACT_SIZE_POSITIONS) {
     it(`rejects a non-canonical ${fixture.name}, where bitcoinjs-lib accepts it`, () => {
       const canonical = testTransaction(fixture.withWitness);

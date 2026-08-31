@@ -5,7 +5,7 @@
  * This module stays test-only until that follow-up replaces the PeginManager
  * consumers. At that swap, transaction hex and vault-ID inputs accept an
  * optional `0x` prefix. Depositor addresses use strict EIP-55 validation.
- * Vault IDs return synchronously as lowercase hex without a prefix.
+ * Txids use a `0x` prefix. Vault IDs use no prefix. Both use lowercase hex.
  */
 
 import { sha256 } from "@noble/hashes/sha2.js";
