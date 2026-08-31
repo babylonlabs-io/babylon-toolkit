@@ -20,8 +20,7 @@ const metadata: ChainMetadata<"BTC", IBTCProvider, BTCConfig> = {
   name: "Bitcoin",
   icon,
   // deriveContextHash-capable wallets (UniSat, OneKey, OKX, Utila) lead the list.
-  // ledgerVault is registered but hidden unless the consuming app enables it
-  // (NEXT_PUBLIC_FF_ENABLE_LEDGER_VAULT_WALLET) — see #2109.
+  // ledgerVault is registered here; consumers gate it by id via disabledWallets — see #2109.
   wallets: [unisat, onekey, utila, okx, injectable, appkit, ledger, ledgerV2, ledgerVault, keystone],
 };
 

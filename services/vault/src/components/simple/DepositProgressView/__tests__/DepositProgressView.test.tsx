@@ -523,6 +523,49 @@ describe("DepositProgressView", () => {
     });
   });
 
+  describe("error CTA", () => {
+    it("labels the button Retry and runs onRetry, not onClose, on a retryable error", () => {
+      const onRetry = vi.fn();
+      const onClose = vi.fn();
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.SIGN_PEGIN_BTC}
+          error={{ title: "Signing device locked", body: "boom" }}
+          onRetry={onRetry}
+          onClose={onClose}
+        />,
+      );
+
+      const button = screen.getByRole("button", {
+        name: COPY.deposit.progress.buttons.retry,
+      });
+      expect(button).toBeEnabled();
+      fireEvent.click(button);
+      expect(onRetry).toHaveBeenCalledTimes(1);
+      expect(onClose).not.toHaveBeenCalled();
+    });
+
+    it("labels the button Close and runs onClose when the error has no retry", () => {
+      const onClose = vi.fn();
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.SIGN_PEGIN_BTC}
+          error={{ title: "Transaction failed", body: "boom" }}
+          onClose={onClose}
+        />,
+      );
+
+      const button = screen.getByRole("button", {
+        name: COPY.deposit.progress.buttons.close,
+      });
+      expect(button).toBeEnabled();
+      fireEvent.click(button);
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe("complete state", () => {
     it("hides all groups and fills the progress bar on completion", () => {
       render(

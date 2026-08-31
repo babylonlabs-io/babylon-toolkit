@@ -43,6 +43,23 @@ export interface DmkSessionHandle {
 let dmkInstance: DeviceManagementKit | undefined;
 let dmkPromise: Promise<DmkBuild> | undefined;
 
+// One in-flight import() per specifier: under vitest a second concurrent import()
+// of a vi.mock'ed module resolves to the REAL package (4.0.9 startModuleRunner.js:461-472).
+function memoizedImport<T>(load: () => Promise<T>): () => Promise<T> {
+  let pending: Promise<T> | undefined;
+  return () => {
+    if (!pending) {
+      pending = load().catch((error: unknown) => {
+        pending = undefined;
+        throw error;
+      });
+    }
+    return pending;
+  };
+}
+const importDmk = memoizedImport(() => import("@ledgerhq/device-management-kit"));
+const importWebHid = memoizedImport(() => import("@ledgerhq/device-transport-kit-web-hid"));
+
 /** A DMK paired with the transport identifier its OWN build registered. */
 interface DmkBuild {
   readonly dmk: DeviceManagementKit;
@@ -127,13 +144,13 @@ function getDmk(): Promise<DmkBuild> {
       // No .addLogger() on either path: DMK's own send/error logs include
       // full APDU payload bytes.
       if (override) {
-        const { DeviceManagementKitBuilder } = await import("@ledgerhq/device-management-kit");
+        const { DeviceManagementKitBuilder } = await importDmk();
         const dmk = new DeviceManagementKitBuilder().addTransport(override.transportFactory).build();
         return publish({ dmk, transportIdentifier: override.transportIdentifier });
       }
       const [{ DeviceManagementKitBuilder }, { webHidTransportFactory, webHidIdentifier }] = await Promise.all([
-        import("@ledgerhq/device-management-kit"),
-        import("@ledgerhq/device-transport-kit-web-hid"),
+        importDmk(),
+        importWebHid(),
       ]);
       const dmk = new DeviceManagementKitBuilder().addTransport(webHidTransportFactory).build();
       return publish({ dmk, transportIdentifier: webHidIdentifier });
@@ -186,7 +203,7 @@ async function readAppAndVersion(
   sessionId: DeviceSessionId,
 ): Promise<{ appName?: string; appVersion?: string }> {
   try {
-    const { GetAppAndVersionCommand, isSuccessCommandResult } = await import("@ledgerhq/device-management-kit");
+    const { GetAppAndVersionCommand, isSuccessCommandResult } = await importDmk();
     const result = await dmk.sendCommand({ sessionId, command: new GetAppAndVersionCommand() });
     if (!isSuccessCommandResult(result)) return {};
     return { appName: result.data.name, appVersion: result.data.version };

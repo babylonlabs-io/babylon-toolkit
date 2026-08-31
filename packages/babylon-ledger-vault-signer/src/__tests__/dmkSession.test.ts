@@ -8,10 +8,8 @@ import type { TransportFactory } from "@ledgerhq/device-management-kit";
 import { of } from "rxjs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-// Prime vitest's mock registry at file load: the module under test resolves
-// these mocks via CONCURRENT dynamic imports, and the registry's interception
-// races when the first resolution happens in parallel.
-import "@ledgerhq/device-management-kit";
+// The mocked modules' own values, asserted against below.
+import { GetAppAndVersionCommand } from "@ledgerhq/device-management-kit";
 import { webHidTransportFactory } from "@ledgerhq/device-transport-kit-web-hid";
 
 const built = vi.hoisted(() => ({
@@ -139,15 +137,20 @@ describe("connectDmkSession", () => {
   it("builds exactly one DMK for CONCURRENT connects", async () => {
     // check-then-act across the builder's awaits would let both callers
     // build; the loser's transport would keep live WebHID listeners forever.
-    // Warm the module cache first — vitest's mock registry itself races on
-    // parallel dynamic imports, which is not the behavior under test.
-    await connectDmkSession();
-    closeDmk();
-    built.count = 0;
-
     await Promise.all([connectDmkSession(), connectDmkSession()]);
 
     expect(built.count).toBe(1);
+  });
+
+  it("runs both concurrent preflights against one shared DMK module import", async () => {
+    // Two in-flight import()s of the mocked DMK from dmkSession resolve the
+    // loser to the REAL package under vitest — its preflight then constructs
+    // the real command (191 inlined files; the CI timeout behind this test).
+    await Promise.all([connectDmkSession(), connectDmkSession()]);
+
+    const commands = dmkStub.sendCommand.mock.calls.map(([call]) => call.command);
+    expect(commands).toHaveLength(2);
+    expect(commands.every((command) => command instanceof GetAppAndVersionCommand)).toBe(true);
   });
 
   it("builds a fresh DMK after the singleton is closed", async () => {
