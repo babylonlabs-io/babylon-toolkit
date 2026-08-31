@@ -101,7 +101,7 @@
     }
   },
   "scripts": {
-    "build": "tsc -b --noEmit tsconfig.lib.json && vite build && node scripts/check-eth-build.js && pnpm check:packed-consumer",
+    "build": "tsc -b --noEmit tsconfig.lib.json && vite build && node scripts/check-eth-build.js",
     "check:packed-consumer": "node scripts/check-packed-consumer.js",
     "format": "prettier --check \"src/**/*.ts\"",
     "format:fix": "prettier --write \"src/**/*.ts\"",

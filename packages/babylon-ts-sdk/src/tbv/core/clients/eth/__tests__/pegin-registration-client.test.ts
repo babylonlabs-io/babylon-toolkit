@@ -17,8 +17,10 @@ const OTHER_ACCOUNT = "0x1111111111111111111111111111111111111111" as Address;
 const OTHER_PROVIDER = "0x2222222222222222222222222222222222222222" as Address;
 const BTC_KEY =
   "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798";
-const PAYOUT_SCRIPT =
-  "0x5120da4710964f7852695de2da025290e24af6d8c281de5a0b902b7135fd9fd74d21";
+const COMPRESSED_BTC_KEY = `02${BTC_KEY}`;
+const OTHER_COMPRESSED_BTC_KEY =
+  "02c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5";
+const PAYOUT_SCRIPT = "0x0014751e76e8199196d454941c45d1b3a323f1433bd6";
 const HASHLOCK = `0x${"cd".repeat(32)}` as Hex;
 const WOTS_PK_HASH = `0x${"ef".repeat(32)}` as Hex;
 
@@ -68,6 +70,7 @@ function singleParams(depositor: Address): RegisterPeginOnChainParams {
       depositorBtcPubkey: BTC_KEY,
       btcPopSignature: "0x0102",
     },
+    depositorBtcPubkeyRaw: COMPRESSED_BTC_KEY,
     htlcVout: 0,
     depositorPayoutScriptPubKey: PAYOUT_SCRIPT,
     quotedCommissionBps: 100,
@@ -80,6 +83,7 @@ function batchParams(depositor: Address): RegisterPeginBatchOnChainParams {
     vaultProvider: single.vaultProvider,
     unsignedPrePeginTx: single.unsignedPrePeginTx,
     popSignature: single.popSignature,
+    depositorBtcPubkeyRaw: single.depositorBtcPubkeyRaw,
     quotedCommissionBps: single.quotedCommissionBps,
     requests: [
       {
@@ -112,7 +116,7 @@ function defer<T>() {
 }
 
 const INVALID_SINGLE_PARAMS: Array<
-  [string, Partial<RegisterPeginOnChainParams>]
+  [string, Partial<RegisterPeginOnChainParams>, RegExp?]
 > = [
   ["a malformed hashlock", { hashlock: "0x01" }],
   ["a malformed depositor WOTS key hash", { depositorWotsPkHash: "0x01" }],
@@ -121,6 +125,16 @@ const INVALID_SINGLE_PARAMS: Array<
   ["htlcVout 1.5", { htlcVout: 1.5 }],
   ["htlcVout NaN", { htlcVout: Number.NaN }],
   ["htlcVout 256", { htlcVout: 256 }],
+  [
+    "an off-curve payout BTC pubkey",
+    { depositorBtcPubkeyRaw: `02${"00".repeat(32)}` },
+    /not a valid BTC pubkey/,
+  ],
+  [
+    "a payout BTC pubkey for another key",
+    { depositorBtcPubkeyRaw: OTHER_COMPRESSED_BTC_KEY },
+    /does not match the proof of possession BTC pubkey/,
+  ],
 ];
 
 describe("ViemPeginRegistrationClient", () => {
@@ -139,6 +153,14 @@ describe("ViemPeginRegistrationClient", () => {
     });
     expect(decoded.functionName).toBe("submitPeginRequest");
     expect((decoded.args as readonly unknown[])[9]).toBe(PAYOUT_SCRIPT);
+  });
+
+  it("accepts an uppercase hex prefix on the PoP BTC pubkey", async () => {
+    const { client, ethWallet } = setup();
+    const params = singleParams(ethWallet.account.address);
+    params.popSignature.depositorBtcPubkey = `0X${BTC_KEY.toUpperCase()}`;
+
+    await expect(client.registerPeginOnChain(params)).resolves.toBeDefined();
   });
 
   it("refuses to register without a commission quote when one is required", async () => {
@@ -317,7 +339,7 @@ describe("ViemPeginRegistrationClient", () => {
 
   it.each(INVALID_SINGLE_PARAMS)(
     "rejects %s before all RPC and wallet calls",
-    async (_name, invalid) => {
+    async (_name, invalid, expectedError) => {
       const { client, ethWallet, publicClient } = setup();
       const params = Object.assign(
         singleParams(ethWallet.account.address),
@@ -325,7 +347,9 @@ describe("ViemPeginRegistrationClient", () => {
       );
       const send = vi.spyOn(ethWallet, "sendTransaction");
 
-      await expect(client.registerPeginOnChain(params)).rejects.toThrow();
+      await expect(client.registerPeginOnChain(params)).rejects.toThrow(
+        expectedError,
+      );
       expect(publicClient.readContract).not.toHaveBeenCalled();
       expect(publicClient.estimateGas).not.toHaveBeenCalled();
       expect(publicClient.getCode).not.toHaveBeenCalled();

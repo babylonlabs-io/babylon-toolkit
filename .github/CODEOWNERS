@@ -52,6 +52,7 @@
 /packages/babylon-ts-sdk/src/tbv/core/clients/eth/onChainBtcPubkey.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
 /packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-transaction.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
 /packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-registration-client.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
+/packages/babylon-ts-sdk/src/tbv/core/clients/eth/payout-script.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
 /packages/babylon-ts-sdk/src/tbv/core/wasm/ @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
 /packages/babylon-tbv-rust-wasm/src/wasm-loader.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
 /packages/babylon-tbv-rust-wasm/src/wasm-loader-node.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov

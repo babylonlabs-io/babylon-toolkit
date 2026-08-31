@@ -32,6 +32,7 @@ export default defineConfig([
       "src/tbv/core/utils/signing.ts",
       "src/tbv/core/clients/eth/pegin-transaction.ts",
       "src/tbv/core/clients/eth/pegin-registration-client.ts",
+      "src/tbv/core/clients/eth/payout-script.ts",
       "src/tbv/core/clients/eth/onChainBtcPubkey.ts",
       "src/tbv/core/wasm/**/*.ts",
     ],

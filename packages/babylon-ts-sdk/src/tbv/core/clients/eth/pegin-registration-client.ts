@@ -21,7 +21,10 @@ import { assertPayoutScriptMatchesPopKey } from "./payout-script";
 import { calculateBtcTxHash, derivePeginVaultId } from "./pegin-transaction";
 import { ViemVaultRegistryReader } from "./vault-registry-reader";
 
-const NO_REFERRAL_CODE = 0;
+/** Referral code sent with peg-in registration. Zero means no referral. */
+export const NO_REFERRAL_CODE = 0;
+const UINT8_MAX = 255;
+// Match the prior vault-service timeout. A dropped transaction must not wait forever.
 const RECEIPT_TIMEOUT_MS = 120_000;
 
 function ensureHex(value: string, label: string): Hex {
@@ -43,7 +46,7 @@ function assertBytes32(value: Hex, label: string): void {
 }
 
 function assertHtlcVout(value: number): void {
-  if (!Number.isInteger(value) || value < 0 || value > 255) {
+  if (!Number.isInteger(value) || value < 0 || value > UINT8_MAX) {
     throw new Error(`htlcVout must be a uint8, got ${value}`);
   }
 }
@@ -81,6 +84,8 @@ export interface RegisterPeginOnChainParams {
   hashlock: Hex;
   depositorWotsPkHash: Hex;
   popSignature: PopSignature;
+  /** Raw x-only, compressed, or uncompressed BTC pubkey from the PoP wallet. */
+  depositorBtcPubkeyRaw: string;
   htlcVout: number;
   /**
    * Bitcoin output script bytes, not an address. The client verifies that the
@@ -113,6 +118,8 @@ export interface RegisterPeginBatchOnChainParams {
   unsignedPrePeginTx: string;
   requests: BatchPeginRegistrationItem[];
   popSignature: PopSignature;
+  /** Raw x-only, compressed, or uncompressed BTC pubkey from the PoP wallet. */
+  depositorBtcPubkeyRaw: string;
   quotedCommissionBps?: number;
 }
 
@@ -153,7 +160,6 @@ export class ViemPeginRegistrationClient {
       request,
       depositor,
       depositorBtcPubkey,
-      btcPopSignature,
     );
 
     await this.assertVaultDoesNotExist(
@@ -228,10 +234,10 @@ export class ViemPeginRegistrationClient {
           ...request,
           unsignedPrePeginTx: batch.unsignedPrePeginTx,
           vaultProvider: batch.vaultProvider,
+          depositorBtcPubkeyRaw: batch.depositorBtcPubkeyRaw,
         },
         depositor,
         depositorBtcPubkey,
-        btcPopSignature,
       );
       if (seenVaultIds.has(normalized.vaultId)) {
         throw new Error(`Duplicate vault in batch: ${normalized.vaultId}`);
@@ -309,9 +315,7 @@ export class ViemPeginRegistrationClient {
 
   private normalizeBtcPubkey(pop: PopSignature): Hex {
     return `0x${assertOnChainBtcPubkey(
-      (pop.depositorBtcPubkey.startsWith("0x")
-        ? pop.depositorBtcPubkey
-        : `0x${pop.depositorBtcPubkey}`) as Hex,
+      ensureHex(pop.depositorBtcPubkey, "Proof of possession BTC pubkey"),
       "Proof of possession BTC pubkey",
     )}`;
   }
@@ -320,7 +324,6 @@ export class ViemPeginRegistrationClient {
     params: Omit<RegisterPeginOnChainParams, "popSignature">,
     depositor: Address,
     depositorBtcPubkey: Hex,
-    btcPopSignature: Hex,
   ) {
     assertBytes32(params.hashlock, "hashlock");
     assertBytes32(params.depositorWotsPkHash, "depositorWotsPkHash");
@@ -340,7 +343,7 @@ export class ViemPeginRegistrationClient {
       payoutScript: assertPayoutScriptMatchesPopKey(
         params.depositorPayoutScriptPubKey,
         depositorBtcPubkey,
-        btcPopSignature,
+        params.depositorBtcPubkeyRaw,
       ),
       peginTxHash,
       vaultId: ensureHex(derivePeginVaultId(peginTxHash, depositor), "vaultId"),

@@ -1820,6 +1820,16 @@ popSignature: PopSignature;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-registration-client.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-registration-client.ts)
 
+##### depositorBtcPubkeyRaw
+
+```ts
+depositorBtcPubkeyRaw: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-registration-client.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-registration-client.ts)
+
+Raw x-only, compressed, or uncompressed BTC pubkey from the PoP wallet.
+
 ##### htlcVout
 
 ```ts
@@ -1969,6 +1979,16 @@ popSignature: PopSignature;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-registration-client.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-registration-client.ts)
+
+##### depositorBtcPubkeyRaw
+
+```ts
+depositorBtcPubkeyRaw: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-registration-client.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-registration-client.ts)
+
+Raw x-only, compressed, or uncompressed BTC pubkey from the PoP wallet.
 
 ##### quotedCommissionBps?
 

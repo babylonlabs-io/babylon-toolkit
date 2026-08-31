@@ -27,4 +27,5 @@ export * from "./services";
 export * from "./vault-secrets";
 export * from "./deposit-terms";
 export * from "./recovery";
-export { calculateBtcTxHash } from "./clients/eth";
+// Keep the lenient utility on the core barrel. The ETH subpath has the strict parser.
+export { calculateBtcTxHash } from "./utils";

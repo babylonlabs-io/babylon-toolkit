@@ -5,14 +5,16 @@ import { bytesToHex, hexToBytes } from "@noble/hashes/utils.js";
 import type { Hex } from "viem";
 
 import { MAX_PAYOUT_SCRIPT_LEN } from "../../primitives/psbt/constants";
-import { decodeWitnessStack } from "../../utils/witness/witnessStack";
 import { assertOnChainBtcPubkey } from "./onChainBtcPubkey";
 
 const P2TR_SCRIPT_PREFIX = "5120";
 const P2WPKH_SCRIPT_PREFIX = "0014";
+const HASH160_BYTES = 20;
 const COMPRESSED_PUBKEY_BYTES = 33;
+const UNCOMPRESSED_PUBKEY_BYTES = 65;
 const SEC1_EVEN_Y_PREFIX = 0x02;
 const SEC1_ODD_Y_PREFIX = 0x03;
+const SEC1_UNCOMPRESSED_PREFIX = 0x04;
 
 function normalizeHex(value: string, label: string): Hex {
   const body =
@@ -41,37 +43,40 @@ function deriveP2trScript(xOnlyPubkey: string): Hex {
   )}`;
 }
 
-function deriveP2wpkhScript(btcPopSignature: Hex, xOnlyPubkey: string): Hex {
-  const witness = decodeWitnessStack(
-    hexToBytes(btcPopSignature.slice(2)),
-    "proof of possession witness",
-  );
-  if (witness.length !== 2) {
-    throw new Error(
-      "A P2WPKH payout requires a two-item proof of possession witness",
-    );
+function normalizePayoutPubkey(value: string): {
+  xOnlyPubkey: string;
+  compressedPubkey?: Uint8Array;
+} {
+  const normalized = normalizeHex(value, "depositorBtcPubkeyRaw");
+  const pubkey = hexToBytes(normalized.slice(2));
+  if (pubkey.length === 32) {
+    return {
+      xOnlyPubkey: assertOnChainBtcPubkey(normalized, "Payout BTC pubkey"),
+    };
   }
-  const pubkey = witness[1];
-  if (
-    pubkey.length !== COMPRESSED_PUBKEY_BYTES ||
-    (pubkey[0] !== SEC1_EVEN_Y_PREFIX && pubkey[0] !== SEC1_ODD_Y_PREFIX)
-  ) {
+  const isCompressed =
+    pubkey.length === COMPRESSED_PUBKEY_BYTES &&
+    (pubkey[0] === SEC1_EVEN_Y_PREFIX || pubkey[0] === SEC1_ODD_Y_PREFIX);
+  const isUncompressed =
+    pubkey.length === UNCOMPRESSED_PUBKEY_BYTES &&
+    pubkey[0] === SEC1_UNCOMPRESSED_PREFIX;
+  if (!isCompressed && !isUncompressed) {
     throw new Error(
-      "The proof of possession witness must contain a compressed BTC pubkey",
+      "depositorBtcPubkeyRaw must be x-only, compressed, or uncompressed",
     );
   }
   try {
     secp256k1.Point.fromBytes(pubkey);
   } catch {
-    throw new Error(
-      "The proof of possession witness contains an invalid BTC pubkey",
-    );
+    throw new Error("depositorBtcPubkeyRaw is not a valid BTC pubkey");
   }
-  if (bytesToHex(pubkey.subarray(1)) !== xOnlyPubkey) {
-    throw new Error(
-      "The proof of possession witness pubkey does not match its BTC pubkey",
-    );
-  }
+  return {
+    xOnlyPubkey: bytesToHex(pubkey.subarray(1, COMPRESSED_PUBKEY_BYTES)),
+    compressedPubkey: isCompressed ? pubkey : undefined,
+  };
+}
+
+function deriveP2wpkhScript(pubkey: Uint8Array): Hex {
   return `0x${P2WPKH_SCRIPT_PREFIX}${bytesToHex(ripemd160(sha256(pubkey)))}`;
 }
 
@@ -79,7 +84,7 @@ function deriveP2wpkhScript(btcPopSignature: Hex, xOnlyPubkey: string): Hex {
 export function assertPayoutScriptMatchesPopKey(
   scriptPubKey: string,
   depositorBtcPubkey: string,
-  btcPopSignature: Hex,
+  depositorBtcPubkeyRaw: string,
 ): Hex {
   const payoutScript = normalizeHex(
     scriptPubKey,
@@ -98,15 +103,27 @@ export function assertPayoutScriptMatchesPopKey(
     `0x${keyBody}` as Hex,
     "Proof of possession BTC pubkey",
   );
+  const payoutPubkey = normalizePayoutPubkey(depositorBtcPubkeyRaw);
+  if (payoutPubkey.xOnlyPubkey !== xOnlyPubkey) {
+    throw new Error(
+      "depositorBtcPubkeyRaw does not match the proof of possession BTC pubkey",
+    );
+  }
 
   if (payoutScript === deriveP2trScript(xOnlyPubkey)) {
     return payoutScript;
   }
   if (
-    /^0x0014[0-9a-f]{40}$/.test(payoutScript) &&
-    payoutScript === deriveP2wpkhScript(btcPopSignature, xOnlyPubkey)
+    payoutScript.startsWith(`0x${P2WPKH_SCRIPT_PREFIX}`) &&
+    payoutScript.length ===
+      2 + P2WPKH_SCRIPT_PREFIX.length + HASH160_BYTES * 2
   ) {
-    return payoutScript;
+    if (!payoutPubkey.compressedPubkey) {
+      throw new Error("A P2WPKH payout requires a compressed BTC pubkey");
+    }
+    if (payoutScript === deriveP2wpkhScript(payoutPubkey.compressedPubkey)) {
+      return payoutScript;
+    }
   }
   throw new Error(
     "depositorPayoutScriptPubKey does not match the proof of possession BTC pubkey",

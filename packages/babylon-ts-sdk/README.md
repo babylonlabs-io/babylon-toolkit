@@ -189,11 +189,11 @@ import {
 ```
 
 `ViemPeginRegistrationClient` owns only the Ethereum submission half of a
-peg-in. It accepts a signed PegIn transaction, PoP, and
-`depositorPayoutScriptPubKey` prepared earlier, and never asks for a BTC
-wallet. It validates the payout script against the PoP key before any contract
-read or wallet call. `PeginManager` also checks the wallet address before it
-delegates to the ETH client.
+peg-in. It accepts a signed PegIn transaction, PoP,
+`depositorPayoutScriptPubKey`, and `depositorBtcPubkeyRaw` prepared earlier. It
+never asks for a BTC wallet. It validates the payout script against the raw key
+and the PoP key before any contract read or wallet call. `PeginManager` also
+checks the wallet address before it delegates to the ETH client.
 
 ## Where to start
 

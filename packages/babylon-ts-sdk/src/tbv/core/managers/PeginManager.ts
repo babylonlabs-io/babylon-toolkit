@@ -46,7 +46,11 @@ import type {
   Hash,
   SignPsbtOptions,
 } from "../../../shared/wallets";
-import { ViemPeginRegistrationClient, type PopSignature } from "../clients/eth";
+import {
+  NO_REFERRAL_CODE,
+  ViemPeginRegistrationClient,
+  type PopSignature,
+} from "../clients/eth/pegin-registration-client";
 import { getUtxoInfo, pushTx, type UtxoInfo } from "../clients/mempool";
 import type { WotsBlockPublicKey } from "../clients/vault-provider/types";
 import { BTCVaultRegistryABI } from "../contracts";
@@ -94,9 +98,6 @@ import {
   expandAuthAnchor,
   type FundingOutpoint,
 } from "../vault-secrets";
-
-/** Referral code sent with pegin registration — 0 means no referral. */
-const NO_REFERRAL_CODE = 0;
 
 /**
  * 32-byte zero hex used as a placeholder during the sizing pass for any
@@ -1368,6 +1369,7 @@ export class PeginManager {
       hashlock: params.hashlock,
       htlcVout: params.htlcVout,
       depositorPayoutScriptPubKey: payoutScriptPubKey,
+      depositorBtcPubkeyRaw: verifiedBtcPubkeyRaw,
       depositorWotsPkHash: params.depositorWotsPkHash,
       popSignature: params.popSignature,
       quotedCommissionBps: params.quotedCommissionBps,
@@ -1419,6 +1421,7 @@ export class PeginManager {
       vaultProvider: params.vaultProvider,
       unsignedPrePeginTx: params.unsignedPrePeginTx,
       popSignature: params.popSignature,
+      depositorBtcPubkeyRaw: verifiedBtcPubkeyRaw,
       quotedCommissionBps: params.quotedCommissionBps,
       requests: params.requests.map((request, index) => ({
         depositorSignedPeginTx: request.depositorSignedPeginTx,

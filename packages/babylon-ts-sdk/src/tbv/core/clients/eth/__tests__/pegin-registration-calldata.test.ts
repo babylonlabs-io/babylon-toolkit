@@ -15,8 +15,8 @@ const VAULT_PROVIDER = "0x3333333333333333333333333333333333333333" as Address;
 const BTC_KEY =
   "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798";
 const BTC_KEY_HEX = `0x${BTC_KEY}` as Hex;
-const PAYOUT_SCRIPT =
-  "0x5120da4710964f7852695de2da025290e24af6d8c281de5a0b902b7135fd9fd74d21" as Hex;
+const COMPRESSED_BTC_KEY = `02${BTC_KEY}`;
+const PAYOUT_SCRIPT = "0x0014751e76e8199196d454941c45d1b3a323f1433bd6" as Hex;
 const FOREIGN_PAYOUT_SCRIPT =
   "0x5120cafd90c7026f0b6ab98df89490d02732881f2f4b5900856358dddff4679c2ffb" as Hex;
 const POP_SIGNATURE = "0x0102" as Hex;
@@ -83,6 +83,7 @@ describe("ViemPeginRegistrationClient calldata", () => {
       hashlock: HASHLOCK_A,
       depositorWotsPkHash: WOTS_A,
       popSignature: popSignature(),
+      depositorBtcPubkeyRaw: COMPRESSED_BTC_KEY,
       htlcVout: 0,
       depositorPayoutScriptPubKey: PAYOUT_SCRIPT,
       quotedCommissionBps: 100,
@@ -135,6 +136,7 @@ describe("ViemPeginRegistrationClient calldata", () => {
       vaultProvider: VAULT_PROVIDER,
       unsignedPrePeginTx: UNSIGNED_PRE_PEGIN,
       popSignature: popSignature(),
+      depositorBtcPubkeyRaw: COMPRESSED_BTC_KEY,
       quotedCommissionBps: 100,
       requests: [
         {
@@ -209,6 +211,7 @@ describe("ViemPeginRegistrationClient calldata", () => {
         vaultProvider: VAULT_PROVIDER,
         unsignedPrePeginTx: UNSIGNED_PRE_PEGIN,
         popSignature: popSignature(),
+        depositorBtcPubkeyRaw: COMPRESSED_BTC_KEY,
         quotedCommissionBps: 100,
         requests: [],
       }),
@@ -225,6 +228,7 @@ describe("ViemPeginRegistrationClient calldata", () => {
         vaultProvider: VAULT_PROVIDER,
         unsignedPrePeginTx: UNSIGNED_PRE_PEGIN,
         popSignature: popSignature(),
+        depositorBtcPubkeyRaw: COMPRESSED_BTC_KEY,
         quotedCommissionBps: 100,
         requests: [
           {
@@ -259,6 +263,7 @@ describe("ViemPeginRegistrationClient calldata", () => {
         hashlock: HASHLOCK_A,
         depositorWotsPkHash: WOTS_A,
         popSignature: popSignature(),
+        depositorBtcPubkeyRaw: COMPRESSED_BTC_KEY,
         htlcVout: 0,
         depositorPayoutScriptPubKey: FOREIGN_PAYOUT_SCRIPT,
         quotedCommissionBps: 100,
@@ -276,6 +281,7 @@ describe("ViemPeginRegistrationClient calldata", () => {
         vaultProvider: VAULT_PROVIDER,
         unsignedPrePeginTx: UNSIGNED_PRE_PEGIN,
         popSignature: popSignature(),
+        depositorBtcPubkeyRaw: COMPRESSED_BTC_KEY,
         quotedCommissionBps: 100,
         requests: [
           {

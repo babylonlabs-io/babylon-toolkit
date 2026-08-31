@@ -244,13 +244,13 @@ not only at the estimator — an estimator that agrees with itself proves nothin
 The real SDK model and dApp estimator are covered by
 [`.github/CODEOWNERS`](.github/CODEOWNERS) and
 [`.github/workflows/critical-path-check.yml`](.github/workflows/critical-path-check.yml). The
-critical-path inventory is hand-maintained in five places: this file, CLAUDE.md, CODEOWNERS,
-`critical-path-check.yml`, and `claude-md-drift.yml`. Update all five together when a path moves or
-is added. The scheduled drift workflow checks that listed paths exist and reports missing entries to
-a tracker issue, but it does not block a pull request. A group may be registered before its files
-exist. Section 9 registers `pegin-registration-client.ts` and `scriptPubKeyAddress.ts` ahead of the
-remaining optional-BTC work (#2228), so the guard evaluates the new list on the pull request that
-moves the code. Those paths stay in the drift workflow's `pending` list until the files land.
+critical-path inventory is hand-maintained in six places: this file, CLAUDE.md, CODEOWNERS, the SDK
+ESLint config, `critical-path-check.yml`, and `claude-md-drift.yml`. Update all six together when a
+path moves or is added. The scheduled drift workflow checks that listed paths exist and reports
+missing entries to a tracker issue, but it does not block a pull request. Section 9 includes
+`pegin-registration-client.ts` and `payout-script.ts` in the tree. It registers
+`scriptPubKeyAddress.ts` ahead of the remaining optional-BTC work (#2228). That path stays in the
+drift workflow's `pending` list until the file lands.
 
 ### Presigning the depositor graph
 
@@ -765,7 +765,7 @@ only repository-local safeguards.
 | ------------------- | --------- | --------------------------------------------------------------------------------- | ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
 | WASM boundary       | F/—       | A WASM getter returns `0n` or a wrong value and reaches a signed tx               | **User fund loss**                                                      | `assertWasmBigint` / `assertPositiveBigintArray` at the facade; call-site cross-checks on `/raw`                | `babylon-tbv-rust-wasm` value-guard tests                         |
 | Fee model           | —         | SDK and dApp fee models diverge; the tx is underfunded                            | User fund loss (stuck / failed deposit)                                 | Shared `peginFeeMath`; cross-check at broadcast                                                                 | SDK fee + `selectUtxos` tests                                     |
-| Critical-path guard | G         | A critical path moves but one hand-maintained inventory keeps the stale path      | Integrity (process)                                                     | Sections 1-8 are aligned; section 9 has two paths pre-registered ahead of #2228; existence does not gate merges | SECURITY.md, CLAUDE.md, CODEOWNERS, both critical-path workflows  |
+| Critical-path guard | G         | A critical path moves but one hand-maintained inventory keeps the stale path      | Integrity (process)                                                     | Sections 1-8 are aligned; section 9 has one path pre-registered ahead of #2228; existence does not gate merges  | SECURITY.md, CLAUDE.md, CODEOWNERS, both critical-path workflows  |
 | Presigning          | A         | VP supplies PSBT metadata making a signature valid for a different spend          | **User fund loss**                                                      | PSBTs built locally from on-chain connector data only                                                           | `signDepositorGraph` tests                                        |
 | Presigning          | A         | VP returns a challenger set with an extra or missing key                          | Recovery material missing / signature to an unrecognised key            | `deriveLocalChallengers` + exact `local ∪ universal` equality assert                                            | `signDepositorGraph` tests                                        |
 | Wallet signing      | E         | Wallet ignores `useTweakedSigner: false`, returns an invalid signature as success | User fund loss (silent)                                                 | Sighash verification of every produced signature                                                                | `verifyScriptPathSchnorrSignature` tests                          |

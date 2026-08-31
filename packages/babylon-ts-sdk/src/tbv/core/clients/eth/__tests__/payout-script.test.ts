@@ -14,10 +14,6 @@ const P2TR_SCRIPT =
 const P2WPKH_SCRIPT = "0x0014751e76e8199196d454941c45d1b3a323f1433bd6" as Hex;
 const RANDOM_VECTOR_COUNT = 64;
 
-function twoItemWitness(compressedPubkey: string): Hex {
-  return `0x02010021${compressedPubkey}`;
-}
-
 function randomPrivateKey(index: number): Buffer {
   const privateKey = Buffer.from(
     sha256(Buffer.from(`payout-script-random-vector-${index}`)),
@@ -43,20 +39,35 @@ describe("assertPayoutScriptMatchesPopKey", () => {
         assertPayoutScriptMatchesPopKey(
           output.toString("hex"),
           xOnly.toString("hex"),
-          "0x0100",
+          xOnly.toString("hex"),
         ),
       ).toBe(`0x${output.toString("hex")}`);
     }
   });
 
-  it("matches a compressed P2WPKH key from the PoP witness", () => {
+  it("matches a compressed P2WPKH key supplied by the caller", () => {
     expect(
       assertPayoutScriptMatchesPopKey(
         P2WPKH_SCRIPT,
         X_ONLY_KEY,
-        twoItemWitness(`02${X_ONLY_KEY}`),
+        `02${X_ONLY_KEY}`,
       ),
     ).toBe(P2WPKH_SCRIPT);
+  });
+
+  it("matches a P2TR key supplied in uncompressed form", () => {
+    const privateKey = Buffer.alloc(32);
+    privateKey[31] = 1;
+    const uncompressed = ecc.pointFromScalar(privateKey, false);
+    if (!uncompressed) throw new Error("Test scalar did not produce a point");
+
+    expect(
+      assertPayoutScriptMatchesPopKey(
+        P2TR_SCRIPT,
+        X_ONLY_KEY,
+        Buffer.from(uncompressed).toString("hex"),
+      ),
+    ).toBe(P2TR_SCRIPT);
   });
 
   it("matches randomized BIP-86 scripts from the Bitcoin implementation", () => {
@@ -71,7 +82,7 @@ describe("assertPayoutScriptMatchesPopKey", () => {
         assertPayoutScriptMatchesPopKey(
           output.toString("hex"),
           xOnly.toString("hex"),
-          "0x0100",
+          xOnly.toString("hex"),
         ),
       ).toBe(`0x${output.toString("hex")}`);
     }
@@ -92,7 +103,7 @@ describe("assertPayoutScriptMatchesPopKey", () => {
         assertPayoutScriptMatchesPopKey(
           output.toString("hex"),
           xOnly.toString("hex"),
-          twoItemWitness(pubkey.toString("hex")),
+          pubkey.toString("hex"),
         ),
       ).toBe(`0x${output.toString("hex")}`);
     }
@@ -104,7 +115,7 @@ describe("assertPayoutScriptMatchesPopKey", () => {
       assertPayoutScriptMatchesPopKey(
         "0x5120cafd90c7026f0b6ab98df89490d02732881f2f4b5900856358dddff4679c2ffb",
         X_ONLY_KEY,
-        "0x0100",
+        X_ONLY_KEY,
       ),
     ).toThrow(/does not match/);
   });
@@ -114,33 +125,37 @@ describe("assertPayoutScriptMatchesPopKey", () => {
       assertPayoutScriptMatchesPopKey(
         P2WPKH_SCRIPT,
         X_ONLY_KEY,
-        twoItemWitness(`03${X_ONLY_KEY}`),
+        `03${X_ONLY_KEY}`,
       ),
     ).toThrow(/does not match/);
   });
 
-  it("rejects P2WPKH without a compressed key in the PoP", () => {
+  it("rejects P2WPKH without a compressed key", () => {
     expect(() =>
-      assertPayoutScriptMatchesPopKey(P2WPKH_SCRIPT, X_ONLY_KEY, "0x0100"),
-    ).toThrow(/two-item proof of possession witness/);
+      assertPayoutScriptMatchesPopKey(P2WPKH_SCRIPT, X_ONLY_KEY, X_ONLY_KEY),
+    ).toThrow(/requires a compressed BTC pubkey/);
   });
 
   it("rejects unsupported and over-length scripts", () => {
     expect(() =>
-      assertPayoutScriptMatchesPopKey("0x51", X_ONLY_KEY, "0x0100"),
+      assertPayoutScriptMatchesPopKey("0x51", X_ONLY_KEY, X_ONLY_KEY),
     ).toThrow(/does not match/);
     expect(() =>
       assertPayoutScriptMatchesPopKey(
         `0x${"00".repeat(129)}`,
         X_ONLY_KEY,
-        "0x0100",
+        X_ONLY_KEY,
       ),
     ).toThrow(/exceeds 128 bytes/);
   });
 
   it("rejects a public key that is not on secp256k1", () => {
     expect(() =>
-      assertPayoutScriptMatchesPopKey(P2TR_SCRIPT, "00".repeat(32), "0x0100"),
+      assertPayoutScriptMatchesPopKey(
+        P2TR_SCRIPT,
+        "00".repeat(32),
+        "00".repeat(32),
+      ),
     ).toThrow(/not on the secp256k1 curve/);
   });
 });

@@ -1,11 +1,8 @@
 /**
- * Dependency-free Bitcoin txid and vault-ID helpers for the registration
- * client in #2336.
- *
- * This module stays test-only until that follow-up replaces the PeginManager
- * consumers. At that swap, transaction hex and vault-ID inputs accept an
- * optional `0x` prefix. Depositor addresses use strict EIP-55 validation.
- * Vault IDs return synchronously as lowercase hex without a prefix.
+ * Dependency-free Bitcoin txid and vault-ID helpers for Ethereum-only clients.
+ * Transaction hex and vault-ID inputs accept an optional `0x` prefix.
+ * Depositor addresses use strict EIP-55 validation. Vault IDs return
+ * synchronously as lowercase hex without a prefix.
  */
 
 import { sha256 } from "@noble/hashes/sha2.js";

@@ -109,6 +109,7 @@ Separating the Ethereum-only paths from the Bitcoin stack reimplements some prim
 - Files (all are in the tree except `scriptPubKeyAddress.ts`, which is registered ahead of the remaining optional-BTC work):
   - `packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-transaction.ts` — transaction-id parsing and vault-id derivation, replacing the bitcoinjs and WASM implementations
   - `packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-registration-client.ts` — Ethereum-side registration extracted from `PeginManager`
+  - `packages/babylon-ts-sdk/src/tbv/core/clients/eth/payout-script.ts` - payout-script derivation without the Bitcoin stack
   - `packages/babylon-ts-sdk/src/tbv/core/wasm/` — the lazy boundary every WASM-computed value now crosses
   - `packages/babylon-tbv-rust-wasm/src/wasm-loader.ts`, `wasm-loader-node.ts`, `raw.ts`, `raw-node.ts` — the restructured engine entry surface (the `@stability frozen` rules in section 4 still apply)
   - `services/vault/src/utils/btc/scriptPubKeyAddress.ts` - hand-written bech32, bech32m and base58check encoding; registered ahead of arrival

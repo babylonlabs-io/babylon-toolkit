@@ -179,7 +179,7 @@ try {
     `const hash = "0x" + "11".repeat(32);\n` +
     `const depositor = "0x1111111111111111111111111111111111111111";\n` +
     `if (typeof sdk.ViemPeginRegistrationClient !== "function") throw new Error("Missing client");\n` +
-    `if ("markPayoutScriptVerifiedAgainstPopKey" in sdk) throw new Error("Unsafe payout marker is public");\n` +
+    `if ("assertPayoutScriptMatchesPopKey" in sdk) throw new Error("Internal payout assertion is public");\n` +
     `if (!/^[0-9a-f]{64}$/.test(sdk.derivePeginVaultId(hash, depositor))) throw new Error("Bad vault ID");\n`;
   const esmFixture = join(consumerRoot, "check-esm.mjs");
   writeFileSync(
