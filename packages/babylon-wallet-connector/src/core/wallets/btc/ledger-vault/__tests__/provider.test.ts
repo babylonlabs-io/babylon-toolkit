@@ -1378,6 +1378,164 @@ describe("LedgerVaultProvider", () => {
     });
   });
 
+  describe("standalone refund (#2371)", () => {
+    const NUMS_XONLY_HEX = "50929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfee9ace803ac0";
+    const OP_CHECKSIGVERIFY = 0xad;
+    const OP_CSV = 0xb2;
+    const LEAF_VERSION = 0xc0;
+    /** Internal-order prevout of {@link TERMS}'s Pre-PegIn — the loaded intent's vault. */
+    const INTENT_TXID_INTERNAL = Buffer.from(TERMS.prepeginTxid, "hex").reverse();
+
+    /** Minimal positive CScriptNum push (opcode-length form, like the WASM builder emits). */
+    function csvPush(value: number): Buffer {
+      const bytes: number[] = [];
+      for (let v = value; v > 0; v >>= 8) bytes.push(v & 0xff);
+      if ((bytes[bytes.length - 1] & 0x80) !== 0) bytes.push(0);
+      return Buffer.from([bytes.length, ...bytes]);
+    }
+
+    /** SDK-shaped refund PSBT: 1-in (refund leaf, NUMS internal key), 1-out (depositor BIP-86). */
+    function refundPsbtHex(
+      overrides: { leafKeyHex?: string; csv?: number; prevHashInternal?: Buffer } = {},
+    ): string {
+      initEccLib(ecc);
+      const leafKeyHex = overrides.leafKeyHex ?? DEVICE_XONLY;
+      const csv = overrides.csv ?? TERMS.timelockRefund;
+      const leaf = Buffer.concat([
+        Buffer.from([0x20]),
+        Buffer.from(leafKeyHex, "hex"),
+        Buffer.from([OP_CHECKSIGVERIFY]),
+        csvPush(csv),
+        Buffer.from([OP_CSV]),
+      ]);
+      const nums = Buffer.from(NUMS_XONLY_HEX, "hex");
+      const psbt = new Psbt();
+      psbt.setVersion(2);
+      psbt.setLocktime(0);
+      psbt.addInput({
+        hash: overrides.prevHashInternal ?? INTENT_TXID_INTERNAL,
+        index: 0,
+        sequence: csv,
+        witnessUtxo: { script: Buffer.concat([Buffer.from([0x51, 0x20]), Buffer.alloc(32, 0x22)]), value: 1_000_000 },
+        tapLeafScript: [
+          { leafVersion: LEAF_VERSION, script: leaf, controlBlock: Buffer.concat([Buffer.from([LEAF_VERSION]), nums]) },
+        ],
+        tapInternalKey: nums,
+      });
+      psbt.addOutput({
+        script: payments.p2tr({ internalPubkey: Buffer.from(DEVICE_XONLY, "hex") }).output!,
+        value: 990_000,
+      });
+      return psbt.toHex();
+    }
+
+    async function approved() {
+      const provider = await derived();
+      await provider.approveDepositTerms(TERMS);
+      return provider;
+    }
+
+    it("signs a standalone refund with NO approved intent — the device accepts a no-intent refund", async () => {
+      const provider = await connected();
+
+      const hex = refundPsbtHex();
+      await expect(provider.signPsbt(hex)).resolves.toMatch(/^signed:/);
+      expect(signMock.signPreparedVaultPsbt).toHaveBeenCalledTimes(1);
+    });
+
+    it("stages the AUGMENTED hex: input 0 keyed by the untweaked depositor key, output 0 by the tweaked output key", async () => {
+      const provider = await connected();
+
+      await provider.signPsbt(refundPsbtHex());
+
+      const staged = Psbt.fromHex(signMock.prepareSignPsbt.mock.calls[0][0].psbtHex);
+      const inputDeriv = staged.data.inputs[0].tapBip32Derivation;
+      expect(inputDeriv).toHaveLength(1);
+      expect(inputDeriv![0].pubkey.toString("hex")).toBe(DEVICE_XONLY);
+      expect(inputDeriv![0].masterFingerprint.toString("hex")).toBe("73c5da0a");
+      // SIGNET provider → coin type 1: m/86'/1'/0'/0/0.
+      expect(inputDeriv![0].path).toBe("m/86'/1'/0'/0/0");
+      const outputDeriv = staged.data.outputs[0].tapBip32Derivation;
+      expect(outputDeriv).toHaveLength(1);
+      const outputScript = Buffer.from(staged.txOutputs[0].script);
+      expect(outputDeriv![0].pubkey).toEqual(outputScript.subarray(2));
+      expect(outputDeriv![0].pubkey.toString("hex")).not.toBe(DEVICE_XONLY);
+    });
+
+    it("rejects a refund whose leaf key is not this device's depositor key, before any device I/O", async () => {
+      const provider = await connected();
+
+      await expect(provider.signPsbt(refundPsbtHex({ leafKeyHex: "ab".repeat(32) }))).rejects.toMatchObject({
+        code: ERROR_CODES.INVALID_PARAMS,
+      });
+      expect(signMock.prepareSignPsbt).not.toHaveBeenCalled();
+      expect(signMock.signPreparedVaultPsbt).not.toHaveBeenCalled();
+    });
+
+    it("refuses a refund for a DIFFERENT vault while an intent is loaded — a typed error instead of the device's opaque reject", async () => {
+      const provider = await approved();
+
+      // Wrong timelock and wrong prevout each pin to the loaded intent on-device.
+      await expect(provider.signPsbt(refundPsbtHex({ csv: 144 }))).rejects.toMatchObject({
+        code: ERROR_CODES.DEVICE_CEREMONY_INVALID,
+      });
+      await expect(provider.signPsbt(refundPsbtHex({ prevHashInternal: Buffer.alloc(32, 0x77) }))).rejects.toMatchObject({
+        code: ERROR_CODES.DEVICE_CEREMONY_INVALID,
+      });
+      expect(signMock.prepareSignPsbt).not.toHaveBeenCalled();
+      expect(signMock.signPreparedVaultPsbt).not.toHaveBeenCalled();
+      // The rejection ran before any ceremony: the loaded intent is untouched.
+      await expect(provider.holdsApprovedDepositTerms(TERMS)).resolves.toBe(true);
+    });
+
+    it("signs a refund matching the loaded intent's vault", async () => {
+      const provider = await approved();
+
+      await expect(provider.signPsbt(refundPsbtHex())).resolves.toMatch(/^signed:/);
+    });
+
+    it("a no-intent refund can be re-signed — there is no loaded intent to nullify on the device", async () => {
+      const provider = await connected();
+      const hex = refundPsbtHex();
+
+      await expect(provider.signPsbt(hex)).resolves.toMatch(/^signed:/);
+      await expect(provider.signPsbt(hex)).resolves.toMatch(/^signed:/);
+      expect(signMock.signPreparedVaultPsbt).toHaveBeenCalledTimes(2);
+    });
+
+    it("a refund can be re-signed under the loaded intent too — the standalone path consumes no device mask", async () => {
+      const provider = await approved();
+      const hex = refundPsbtHex();
+
+      await expect(provider.signPsbt(hex)).resolves.toMatch(/^signed:/);
+      await expect(provider.signPsbt(hex)).resolves.toMatch(/^signed:/);
+      expect(signMock.signPreparedVaultPsbt).toHaveBeenCalledTimes(2);
+      // Refund signs never touch the intent mirror or the replay guard.
+      await expect(provider.holdsApprovedDepositTerms(TERMS)).resolves.toBe(true);
+    });
+
+    it("rejects a no-intent refund whose CSV is below the device floor of 72, before any device I/O", async () => {
+      const provider = await connected();
+
+      await expect(provider.signPsbt(refundPsbtHex({ csv: 71 }))).rejects.toMatchObject({
+        code: ERROR_CODES.INVALID_PARAMS,
+      });
+      expect(signMock.prepareSignPsbt).not.toHaveBeenCalled();
+      expect(signMock.signPreparedVaultPsbt).not.toHaveBeenCalled();
+    });
+
+    it("signPsbts refuses a batched refund before any ceremony — refunds sign standalone via signPsbt", async () => {
+      const provider = await approved();
+
+      await expect(provider.signPsbts(["aa".repeat(40), refundPsbtHex()])).rejects.toMatchObject({
+        code: ERROR_CODES.INVALID_PARAMS,
+      });
+      expect(signMock.signPreparedVaultPsbt).not.toHaveBeenCalled();
+      // The whole batch was refused at staging: the loaded intent is untouched.
+      await expect(provider.holdsApprovedDepositTerms(TERMS)).resolves.toBe(true);
+    });
+  });
+
   describe("getChangeAddress", () => {
     it("returns the P2TR address of m/86'/coin'/0'/1/0 derived from the device's account xpub", async () => {
       const p = await connected();

@@ -47,6 +47,7 @@ import { bip86OutputScript } from "../../expectedSignatures";
 import { augmentPsbtForWalletPolicy, deriveChangeXOnlyHex } from "../../policyPsbt";
 import { bip322ToSpendTxid, buildPopPsbtHex } from "../../popPsbt";
 import { SW_CAP_EXCEEDED } from "../../rawApdu";
+import { augmentPsbtForRefund } from "../../refundPsbt";
 import { signPreparedVaultPsbt, signVaultPsbt, type SignVaultPsbtResult } from "../../signPsbt";
 import { prepareSignPsbt, type PreparedSignPsbt } from "../../signPsbtPrepare";
 import { approveVaultIntent, deriveContextHash } from "../../vaultCommands";
@@ -56,7 +57,9 @@ import {
   buildDepositTerms,
   buildPeginPsbt,
   buildPrePeginPsbt,
+  buildRefundPsbtFixture,
   computePeginSighash,
+  computeRefundSighash,
   DEPOSITOR_PATH,
   DEPOSITOR_XONLY_HEX,
   DERIVE_CONTEXT,
@@ -69,6 +72,7 @@ import {
   verifySchnorrSignature,
   type PeginPsbtFixture,
   type PrePeginPsbtFixture,
+  type RefundPsbtFixture,
 } from "./peginFixture";
 import {
   approveOnScreen,
@@ -759,6 +763,140 @@ describe.skipIf(SPECULOS_URL === "")("Speculos end-to-end vault signing", () => 
             ),
           ).toBe(true);
         }
+      },
+      CEREMONY_TIMEOUT_MS,
+    );
+  });
+
+  describe("(13) standalone Refund (#2371): Leaf 1 back to the depositor, with and without a loaded intent", () => {
+    /** "Sign refund\ntransaction?" is the finish page (`display.c:134-136`); the
+     * review intro is the same words WITHOUT the "?" — target the unique "?". */
+    const REFUND_APPROVAL_TEXT = "transaction?";
+    const REFUND_INPUT = 0;
+    /** A prevout txid the loaded intent does NOT hold — the no-intent discriminator. */
+    const FOREIGN_PREPEGIN_TXID_INTERNAL = Buffer.alloc(32, 0x99);
+    let refund: RefundPsbtFixture | undefined;
+    let augmentedRefundHex: string | undefined;
+    let foreignRefund: RefundPsbtFixture | undefined;
+    let augmentedForeignRefundHex: string | undefined;
+
+    /** Fresh prepare over an augmented refund — prepared objects are single-use. */
+    function prepareAugmentedRefund(psbtHex: string): PreparedSignPsbt {
+      // `signInputIndexes: [0]` mirrors the SDK's script-path sign options.
+      return prepareSignPsbt({
+        psbtHex,
+        depositorXOnlyHex: DEPOSITOR_XONLY_HEX,
+        signInputIndexes: [REFUND_INPUT],
+      });
+    }
+
+    /** One refund ceremony: drive the review screens, then verify the yield far-side. */
+    async function signRefundWithApproval(psbtHex: string, fixture: RefundPsbtFixture): Promise<void> {
+      await waitForIdleScreen();
+      const signPending = signPreparedVaultPsbt(sendRaw, prepareAugmentedRefund(psbtHex), {
+        signal: AbortSignal.timeout(SIGNING_ABORT_MS),
+      });
+      signPending.catch(() => undefined); // handled at the await below
+      const refundScreens = await approveOnScreen(SPECULOS_URL, REFUND_APPROVAL_TEXT);
+      const result = await signPending;
+      console.log(`[speculos-e2e] refund screens: ${refundScreens.join(" || ")}`);
+
+      expect(result.yields).toHaveLength(1);
+      const yielded = result.yields[0];
+      expect(yielded.kind).toBe("tapscript");
+      if (yielded.kind !== "tapscript") throw new Error("stage (13) asserted tapscript");
+      expect(yielded.inputIndex).toBe(REFUND_INPUT);
+      expect(yielded.signerXOnlyHex).toBe(DEPOSITOR_XONLY_HEX);
+      expect(yielded.leafHashHex).toBe(fixture.leaf1Hash.toString("hex"));
+      expect(yielded.signature).toHaveLength(SCHNORR_SIG_BYTES);
+      const sighash = computeRefundSighash(psbtHex, fixture);
+      expect(verifySchnorrSignature(sighash, DEPOSITOR_XONLY_HEX, yielded.signature)).toBe(true);
+      // Merge writes input 0's tapScriptSig for the depositor key over Leaf 1.
+      const merged = Psbt.fromHex(result.signedPsbtHex);
+      const tapScriptSig = merged.data.inputs[REFUND_INPUT].tapScriptSig;
+      expect(tapScriptSig).toHaveLength(1);
+      expect((tapScriptSig ?? [])[0].pubkey.toString("hex")).toBe(DEPOSITOR_XONLY_HEX);
+    }
+
+    it(
+      "builds the SDK-shaped refund and augments it with the two ASYMMETRIC derivation entries",
+      () => {
+        expect(contextRoot, "derive stage must have produced a root").toBeDefined();
+        expect(prePegin, "policy-context stage must have built the Pre-PegIn").toBeDefined();
+        expect(masterFingerprintHex, "policy-context stage must have read the fingerprint").toBeDefined();
+        refund = buildRefundPsbtFixture(
+          vaultHashlock(contextRoot as Uint8Array, HTLC_VOUT),
+          (prePegin as PrePeginPsbtFixture).txidInternal,
+        );
+        augmentedRefundHex = augmentPsbtForRefund({
+          psbtHex: refund.psbtHex,
+          depositorXOnlyHex: DEPOSITOR_XONLY_HEX,
+          masterFingerprintHex: masterFingerprintHex as string,
+          depositorPath: DEPOSITOR_PATH,
+        });
+        // Same refund shape over a prevout the intent does NOT hold: signable
+        // ONLY with no intent loaded — the no-intent proof for the last test.
+        foreignRefund = buildRefundPsbtFixture(
+          vaultHashlock(contextRoot as Uint8Array, HTLC_VOUT),
+          FOREIGN_PREPEGIN_TXID_INTERNAL,
+        );
+        augmentedForeignRefundHex = augmentPsbtForRefund({
+          psbtHex: foreignRefund.psbtHex,
+          depositorXOnlyHex: DEPOSITOR_XONLY_HEX,
+          masterFingerprintHex: masterFingerprintHex as string,
+          depositorPath: DEPOSITOR_PATH,
+        });
+        const augmented = Psbt.fromHex(augmentedRefundHex);
+        // Input 0: the UNTWEAKED depositor key; output 0: the TWEAKED witness
+        // program from the scriptPubKey (`fw:sign_psbt_validate.c:905-950,1005-1057`).
+        expect(augmented.data.inputs[REFUND_INPUT].tapBip32Derivation![0].pubkey.toString("hex")).toBe(
+          DEPOSITOR_XONLY_HEX,
+        );
+        expect(augmented.data.outputs[0].tapBip32Derivation![0].pubkey).toEqual(
+          Buffer.from(augmented.txOutputs[0].script).subarray(P2TR_WITNESS_PROGRAM_OFFSET),
+        );
+      },
+      SANITY_TIMEOUT_MS,
+    );
+
+    it(
+      "signs under the still-loaded intent (same vault): leaf CSV and prevout match the approved terms",
+      async () => {
+        expect(augmentedRefundHex, "refund fixture stage must have augmented the PSBT").toBeDefined();
+        await signRefundWithApproval(augmentedRefundHex as string, refund as RefundPsbtFixture);
+      },
+      CEREMONY_TIMEOUT_MS,
+    );
+
+    it(
+      "the refund left the intent loaded and its caps alone: a Pre-PegIn resubmission still answers SW_CAP_EXCEEDED (which nullifies the session)",
+      async () => {
+        // CAP_EXCEEDED (not a state reject) proves the validator ran under
+        // INTENT_LOADED — the refund ceremony above kept the intent. Its
+        // failure path invalidates the session (`sign_psbt_validate.c:728-730`
+        // @ ff1e1ce17); the foreign-prevout refund below independently proves
+        // the nullification either way.
+        const failure = await signPreparedVaultPsbt(sendRaw, prepareAugmentedPrePegin(), {
+          signal: AbortSignal.timeout(SIGNING_ABORT_MS),
+        }).then(
+          () => null,
+          (error: unknown) => error,
+        );
+        if (!isLedgerDeviceError(failure)) throw new Error("expected a LedgerDeviceError");
+        expect(failure.statusWord).toBe(SW_CAP_EXCEEDED);
+      },
+      SIGNING_TIMEOUT_MS,
+    );
+
+    it(
+      "signs with NO intent loaded — the intent requirement was host-side only (#2371 blocker 1)",
+      async () => {
+        expect(augmentedForeignRefundHex, "refund fixture stage must have augmented the foreign PSBT").toBeDefined();
+        // The discriminator: under INTENT_LOADED the device pins input 0's
+        // prevout to the intent's txid (`sign_psbt_validate.c:1076-1081`) and
+        // would reject this foreign-prevout refund — so this ceremony
+        // completing proves the IDLE/HASH_DERIVED branch (`:898-903`) signed it.
+        await signRefundWithApproval(augmentedForeignRefundHex as string, foreignRefund as RefundPsbtFixture);
       },
       CEREMONY_TIMEOUT_MS,
     );
