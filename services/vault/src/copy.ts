@@ -70,7 +70,7 @@ const DEVICE_WRONG_APP_TITLE = "Wrong app on device";
 // Network-agnostic on purpose: the app is named "Babylon Vault" on mainnet
 // and "Babylon Vault Testnet" on test networks.
 const DEVICE_WRONG_APP_BODY =
-  "A different app is open on your signing device. Open the Babylon Vault app for this network and try again.";
+  "A different app is open on your signing device. Open the BTCVault app for this network and try again.";
 // Action-required labels shared between the in-app badges
 // (`pegin.actionRequiredBadges`) and the browser-notification titles so the two
 // surfaces can't drift.
