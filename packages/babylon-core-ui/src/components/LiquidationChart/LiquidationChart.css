@@ -171,10 +171,25 @@
   fill: var(--liq-candle-down);
 }
 
+/* The price series is a mark, never a target: with the bands across the plot
+ * a painted candle body sits ABOVE them and would otherwise swallow the hover
+ * of the band it covers. Hover/pan/zoom ride the interaction rect instead. */
+.bbn-liq-candle__wick,
+.bbn-liq-candle__body,
+.bbn-liq-series__line,
+.bbn-liq-series__area {
+  pointer-events: none;
+}
+
 .bbn-liq-series__line {
   fill: none;
   stroke: var(--liq-candle-up);
   stroke-width: 2;
+}
+/* Traced OVER the candles rather than replacing them: the up-green would read
+ * as a bullish mark, so the close line takes the price-line colour. */
+.bbn-liq-series__line--over-candles {
+  stroke: var(--liq-price-line);
 }
 .bbn-liq-series__area {
   fill: var(--liq-candle-up);

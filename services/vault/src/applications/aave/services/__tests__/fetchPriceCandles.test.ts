@@ -118,7 +118,7 @@ describe("fetchPriceCandles", () => {
   it("throws on a non-numeric price", async () => {
     mockFeedThenCandles([{ ...CANDLE_ROW, close: "not-a-price" }]);
 
-    await expect(fetchDaily()).rejects.toThrow(/non-finite "close"/);
+    await expect(fetchDaily()).rejects.toThrow(/invalid "close"/);
   });
 
   // `Number("")` is 0 and finite, so a blank field has to be rejected on its
@@ -126,18 +126,40 @@ describe("fetchPriceCandles", () => {
   it("throws on a blank price instead of plotting zero", async () => {
     mockFeedThenCandles([{ ...CANDLE_ROW, low: "  " }]);
 
-    await expect(fetchDaily()).rejects.toThrow(/non-finite "low"/);
+    await expect(fetchDaily()).rejects.toThrow(/invalid "low"/);
   });
 
   it("throws on a blank bucket start", async () => {
     mockFeedThenCandles([{ ...CANDLE_ROW, bucketStart: "" }]);
 
-    await expect(fetchDaily()).rejects.toThrow(/non-finite bucketStart/);
+    await expect(fetchDaily()).rejects.toThrow(/invalid bucketStart/);
   });
 
   it("throws on invalid decimals rather than guessing a scale", async () => {
     mockFeedThenCandles([{ ...CANDLE_ROW, decimals: -1 }]);
 
     await expect(fetchDaily()).rejects.toThrow(/invalid decimals/);
+  });
+
+  // `10 ** 400` is Infinity, so every price divides to a finite ZERO — it
+  // clears an is-finite check and blanks the chart instead of failing.
+  it("throws on decimals large enough to scale every price to zero", async () => {
+    mockFeedThenCandles([{ ...CANDLE_ROW, decimals: 400 }]);
+
+    await expect(fetchDaily()).rejects.toThrow(/invalid decimals/);
+  });
+
+  it("throws on a non-positive price", async () => {
+    mockFeedThenCandles([{ ...CANDLE_ROW, low: "0" }]);
+
+    await expect(fetchDaily()).rejects.toThrow(/invalid "low"/);
+  });
+
+  // Finite in seconds, but past the exact-integer range once scaled to ms:
+  // the candle would sit under the wrong axis tick.
+  it("throws on a bucket start that loses precision in milliseconds", async () => {
+    mockFeedThenCandles([{ ...CANDLE_ROW, bucketStart: "10000000000000" }]);
+
+    await expect(fetchDaily()).rejects.toThrow(/invalid bucketStart/);
   });
 });

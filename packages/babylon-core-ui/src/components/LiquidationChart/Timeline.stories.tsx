@@ -23,7 +23,7 @@ const meta: Meta<typeof Timeline> = {
   argTypes: {
     seriesStyle: {
       control: { type: "inline-radio" },
-      options: ["candles", "line", "area"],
+      options: ["candles", "line", "area", "candles+line"],
       description: "Price-series render mode",
     },
     grid: {
@@ -89,7 +89,7 @@ export const Simulator: StoryObj<SimulatorArgs> = {
   argTypes: {
     btcPrice: { control: { type: "range", min: 3000, max: 95000, step: 100 } },
     candleCount: { control: { type: "range", min: 1, max: 160, step: 1 } },
-    seriesStyle: { control: "inline-radio", options: ["candles", "line", "area"] },
+    seriesStyle: { control: "inline-radio", options: ["candles", "line", "area", "candles+line"] },
   },
   parameters: {
     controls: { include: ["btcPrice", "candleCount", "seriesStyle", "crosshair", "pan", "zoom"] },
@@ -154,9 +154,25 @@ export const Zoomable: Story = {
   },
 };
 
-/** Candles take the full width when the seizure-map gutter is unplugged. */
-export const NoGutter: Story = {
-  args: { bandGutter: false },
+/** Candles take the full width when the seizure map is unplugged. */
+export const NoBands: Story = {
+  args: { bandPlacement: "none" },
+};
+
+/**
+ * Bands across the full plot width with the candles drawn over them — the
+ * in-flow liquidation preview (issue #2318). No safe-zone callout, a shorter
+ * event row so five events leave the candles room, and the close line traced
+ * over the candles.
+ */
+export const PlotWidthBands: Story = {
+  args: {
+    bandPlacement: "plot",
+    safeZone: undefined,
+    eventRowPx: 24,
+    aspectRatio: 538 / 240,
+    seriesStyle: "candles+line",
+  },
 };
 
 /** All band text hidden — for dense or preview surfaces. */
@@ -224,9 +240,9 @@ export const TwoTickAxis: Story = {
   },
 };
 
-/** Full-width line series with the gutter unplugged. */
-export const NoGutterLineSeries: Story = {
-  args: { bandGutter: false, seriesStyle: "line" },
+/** Full-width line series with the seizure map unplugged. */
+export const NoBandsLineSeries: Story = {
+  args: { bandPlacement: "none", seriesStyle: "line" },
 };
 
 export const Narrow: Story = {

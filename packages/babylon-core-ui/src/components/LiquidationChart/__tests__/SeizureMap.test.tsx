@@ -168,11 +168,24 @@ describe("SeizureMap", () => {
         sublabel: "(vault C)",
         amountLabel: "0.1 BTC",
         priceTop: 45000,
-        priceBottom: 35000, // ~32.7px -> content ~24.7px -> no text at all
+        priceBottom: 35000, // ~32.7px -> content ~24.7px -> label only
         shareStart: 0.7,
-        shareEnd: 1,
+        shareEnd: 0.9,
         state: "live",
         tone: "3",
+      },
+      {
+        key: "sliver",
+        label: "Event D",
+        sublabel: "(vault D)",
+        amountLabel: "0.1 BTC",
+        // ~16.3px -> content ~8.3px, under the ~16px label line box -> no text
+        priceTop: 35000,
+        priceBottom: 30000,
+        shareStart: 0.9,
+        shareEnd: 1,
+        state: "live",
+        tone: "1",
       },
     ];
     const { container } = renderMap({
@@ -191,7 +204,12 @@ describe("SeizureMap", () => {
     expect(chart.queryByText("(vault B)")).not.toBeInTheDocument();
     expect(chart.queryByText("0.5 BTC")).not.toBeInTheDocument();
 
-    expect(chart.queryByText("Event C")).not.toBeInTheDocument();
+    // The label has no fixed threshold — it survives while its own line box
+    // fits, and only a band too short for one line goes unnamed.
+    expect(chart.getByText("Event C")).toBeInTheDocument();
+    expect(chart.queryByText("(vault C)")).not.toBeInTheDocument();
+
+    expect(chart.queryByText("Event D")).not.toBeInTheDocument();
   });
 
   it("opens the event tooltip on band hover", () => {

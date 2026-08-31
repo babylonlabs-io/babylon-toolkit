@@ -167,8 +167,20 @@ export interface TimelineInteractions {
   zoom?: boolean;
 }
 
-/** How the Timeline renders the price series. */
-export type TimelineSeriesStyle = "candles" | "line" | "area";
+/**
+ * How the Timeline renders the price series. `"candles+line"` draws the close
+ * line over the candles — both are the same series, so use it only where the
+ * design calls for the emphasised price trace.
+ */
+export type TimelineSeriesStyle = "candles" | "line" | "area" | "candles+line";
+
+/**
+ * Where the liquidation bands are drawn.
+ *  - `gutter`: a column on the left of the plot, candles beside it.
+ *  - `plot`:   full plot width, candles drawn over them.
+ *  - `none`:   no bands; candles take the full width.
+ */
+export type TimelineBandPlacement = "gutter" | "plot" | "none";
 
 export interface TimelineProps extends LiquidationChartBase {
   /** Empty until the price-history ticket lands. */
@@ -180,10 +192,18 @@ export interface TimelineProps extends LiquidationChartBase {
   /** Price-series render mode. Default `"candles"`. */
   seriesStyle?: TimelineSeriesStyle;
   /**
-   * Render the seizure-map gutter (safe zone + liquidation bands) on the
-   * left. Default true; `false` unplugs it and candles take the full width.
+   * Where the seizure map (safe zone + liquidation bands) is drawn. Default
+   * `"gutter"`. See {@link TimelineBandPlacement}.
    */
-  bandGutter?: boolean;
+  bandPlacement?: TimelineBandPlacement;
+  /** Plot width / plot height. Defaults to the shared chart aspect ratio. */
+  aspectRatio?: number;
+  /**
+   * Height of every liquidation-event row, px. The default suits a tall
+   * chart; a short one (an in-flow preview) needs a smaller row or the event
+   * budget crowds the candle region down to its floor.
+   */
+  eventRowPx?: number;
   /** With `pan`, how many candles are visible at once. Default: all candles. */
   visibleCandles?: number;
   /** Formats the crosshair readout price. Default: `$` + grouped integer. */

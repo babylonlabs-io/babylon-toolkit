@@ -178,6 +178,86 @@ describe("Timeline", () => {
     expect(within(container).getByText("Liq Event 2")).toBeInTheDocument();
   });
 
+  it("honours a caller's event-row height", () => {
+    renderTimeline({ eventRowPx: 24 });
+    const h1 = Number.parseFloat(screen.getByTestId("liq-band-1").getAttribute("height") ?? "0");
+    expect(h1).toBeCloseTo(24, 2);
+  });
+
+  // The borrow-flow preview draws its bands across the whole plot with the
+  // candles over them, rather than in a column beside them.
+  it("spans the bands across the plot and keeps the candles full width", () => {
+    const plotWidth = 1016 - 68; // chart width minus the fluid axis gutter
+    const { container } = renderTimeline({ bandPlacement: "plot", safeZone: undefined, candles: makeCandles(4) });
+
+    const band = screen.getByTestId("liq-band-1");
+    expect(Number.parseFloat(band.getAttribute("x") ?? "-1")).toBe(0);
+    expect(Number.parseFloat(band.getAttribute("width") ?? "0")).toBeCloseTo(plotWidth, 2);
+
+    // Bands paint first so the candles read on top of them.
+    const painted = Array.from(container.querySelectorAll("[data-testid]")).map((el) =>
+      el.getAttribute("data-testid"),
+    );
+    expect(painted.indexOf("liq-band-1")).toBeLessThan(painted.indexOf("liq-candle"));
+  });
+
+  // Everything painted over a plot-width band would otherwise intercept its
+  // hover: SVG marks hit-test by default, and a transparent rect still does.
+  // jsdom does no hit-testing, so this asserts the two structural conditions
+  // the browser behaviour rests on — no bare interaction rect, and the price
+  // series carrying the classes the stylesheet makes `pointer-events: none`.
+  it("leaves nothing over plot-width bands that could intercept their hover", () => {
+    const { container } = renderTimeline({
+      bandPlacement: "plot",
+      safeZone: undefined,
+      candles: makeCandles(4),
+      seriesStyle: "candles+line",
+      bands: [{ ...bands[0], popoverMetrics: [{ label: "At price", value: "$77,682" }] }],
+    });
+
+    expect(container.querySelector(".bbn-liq-candles__hit")).toBeNull();
+    expect(container.querySelector(".bbn-liq-candle__body")).toBeTruthy();
+    expect(container.querySelector(".bbn-liq-candle__wick")).toBeTruthy();
+    expect(container.querySelector(".bbn-liq-series__line")).toBeTruthy();
+
+    fireEvent.mouseEnter(screen.getByTestId("liq-band-1"));
+    expect(screen.getByText("At price")).toBeInTheDocument();
+  });
+
+  it("keeps the interaction rect when an interaction is enabled", () => {
+    const { container } = renderTimeline({ candles: makeCandles(4), interactions: { crosshair: true } });
+    expect(container.querySelector(".bbn-liq-candles__hit")).toBeTruthy();
+  });
+
+  it("reserves a band column when the bands sit in the gutter", () => {
+    const plotWidth = 1016 - 68;
+    renderTimeline();
+    expect(Number.parseFloat(screen.getByTestId("liq-band-1").getAttribute("width") ?? "0")).toBeCloseTo(
+      0.22 * plotWidth,
+      2,
+    );
+  });
+
+  it("draws no bands at all when the seizure map is unplugged", () => {
+    renderTimeline({ bandPlacement: "none" });
+    expect(screen.queryByTestId("liq-band-1")).toBeNull();
+  });
+
+  // Both marks come from the same series, so the close line takes the
+  // price-line colour instead of the bullish green it uses on its own.
+  it("traces the close line over the candles in the combined series style", () => {
+    const { container } = renderTimeline({ seriesStyle: "candles+line", candles: makeCandles(6) });
+    expect(screen.getAllByTestId("liq-candle")).toHaveLength(6);
+    expect(container.querySelector(".bbn-liq-series__line--over-candles")).toBeTruthy();
+  });
+
+  it("replaces the candles when the series is a line on its own", () => {
+    const { container } = renderTimeline({ seriesStyle: "line", candles: makeCandles(6) });
+    expect(screen.queryAllByTestId("liq-candle")).toHaveLength(0);
+    expect(container.querySelector(".bbn-liq-series__line")).toBeTruthy();
+    expect(container.querySelector(".bbn-liq-series__line--over-candles")).toBeNull();
+  });
+
   it("dims exactly the gutter blocks the price line has passed", () => {
     // With the anchored scale, $48,900 sits inside event 1's block (between
     // the $77,682 and $40,283 anchors), so only event 1 reads as passed.

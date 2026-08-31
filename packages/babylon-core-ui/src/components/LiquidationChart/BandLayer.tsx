@@ -9,7 +9,6 @@ import {
   BAND_PAD_X_PX,
   BAND_PAD_Y_PX,
   DROP_AMOUNT_MAX_PX,
-  DROP_LABEL_MAX_PX,
   DROP_SUBLABEL_MAX_PX,
 } from "./chartGeometry";
 import { TEXT_LINE_HEIGHT } from "../charts/chartLayout";
@@ -67,7 +66,13 @@ function visibleBandLines(
   if (hideAll) return [];
   const contentHeight = heightPx - 2 * BAND_PAD_Y_PX;
   const lines: BandTextLine[] = [];
-  if (contentHeight > DROP_LABEL_MAX_PX) lines.push({ kind: "label", text: band.label, fontSize: fontLabel });
+  // The label is a band's minimum content, so it renders whenever its own
+  // line box fits — not at a fixed threshold sized for the full label +
+  // sublabel + amount stack, which would leave a compact event row (the
+  // in-flow borrow preview draws 24px rows) silently unnamed.
+  if (contentHeight >= Math.round(fontLabel * TEXT_LINE_HEIGHT)) {
+    lines.push({ kind: "label", text: band.label, fontSize: fontLabel });
+  }
   if (band.state === "liquidated" && liquidatedLabel) {
     if (contentHeight > DROP_AMOUNT_MAX_PX) {
       lines.push({ kind: "liquidated", text: liquidatedLabel, fontSize: fontLabel });

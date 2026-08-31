@@ -165,6 +165,10 @@ const TIMELINE_AXIS_TICK_TARGET = 4;
 /** Guards the tick loop against a degenerate step; never reached in practice. */
 const TIMELINE_AXIS_MAX_TICKS = 24;
 
+/** Span of a degenerate two-tick axis, USD. Nothing is plotted between them;
+ *  they only have to differ so the price scale stays strictly descending. */
+const DEGENERATE_AXIS_SPAN_USD = 1;
+
 /**
  * A round step covering `span` in roughly `target` intervals — the 1/2/2.5/5/10
  * ladder, so the ticks land on prices a depositor reads at a glance.
@@ -207,7 +211,15 @@ export function buildTimelinePriceAxis(
   const toFloorTick = (value: number): PriceAxisTick => ({ value, label: "" });
 
   if (!Number.isFinite(topPrice) || topPrice <= floorPrice) {
-    return [toTick(Math.max(topPrice, floorPrice)), toFloorTick(floorPrice)];
+    // Degenerate input — a broken price feed, or a floor at or above the live
+    // price. The two ticks still have to be strictly descending: `Math.max`
+    // propagates NaN, and a NaN or duplicated tick trips the chart's axis
+    // assertion, taking the whole card down with it.
+    const top =
+      firstTrigger > floorPrice
+        ? firstTrigger
+        : floorPrice + DEGENERATE_AXIS_SPAN_USD;
+    return [toTick(top), toFloorTick(floorPrice)];
   }
 
   // Below the first trigger the scale is compressed per event, so the ticks
@@ -261,6 +273,19 @@ export function formatCandleDate(timeMs: number): string {
   });
 }
 
+/**
+ * Time-axis label for a weekly candle: the month, and the year at the start of
+ * one. Matches the borrow preview's locked one-year window, whose axis reads
+ * Aug / Oct / 2025 / Feb — `formatCandleDate`'s day numbers say nothing at that
+ * span.
+ */
+export function formatCandleMonth(timeMs: number): string {
+  const date = new Date(timeMs);
+  return date.getUTCMonth() === 0
+    ? String(date.getUTCFullYear())
+    : date.toLocaleDateString("en-US", { month: "short", timeZone: "UTC" });
+}
+
 /** The hovered candle's own date. Spelled out, because the axis label under it
  *  lacks only the year. */
 export function formatCandleTimestamp(timeMs: number): string {
@@ -286,6 +311,34 @@ export function withAmountInBandLabel(
     label: band.amountLabel
       ? `${band.label} (${band.amountLabel})`
       : band.label,
+    amountLabel: undefined,
+  }));
+}
+
+/** Decimals a preview band prints its per-BTCVault amounts to. Enough to keep
+ *  a small vault from reading as "0", short enough for a one-line band. */
+const PREVIEW_VAULT_DECIMALS = 4;
+
+/**
+ * Bands labelled the way the borrow flow's liquidation preview names them: the
+ * full event title and the BTCVaults the event seizes, e.g.
+ * "Liquidation Event 1 | 0.1 + 0.3 BTCVaults". The bands there span the whole
+ * plot width, so the vault sizes fit inline; `sublabel` and `amountLabel` are
+ * dropped so each event stays one line.
+ */
+export function withVaultAmountsInBandLabel(
+  bands: LiquidationBand[],
+  groups: LiquidationGroup[],
+): LiquidationBand[] {
+  return bands.map((band, index) => ({
+    ...band,
+    label: COPY.liquidations.preview.bandLabel(
+      index + 1,
+      (groups[index]?.vaults ?? [])
+        .map((vault) => formatBtcValue(vault.btc, PREVIEW_VAULT_DECIMALS))
+        .join(" + "),
+    ),
+    sublabel: undefined,
     amountLabel: undefined,
   }));
 }
