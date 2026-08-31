@@ -3,7 +3,7 @@ import { useCallback, useLayoutEffect, useRef, type ReactNode } from "react";
 
 import { useChainProviders, type Connectors } from "@/context/Chain.context";
 import { useLifeCycleHooks, type WalletLifecycleConnection } from "@/context/LifecycleHooks.context";
-import { createConfirmationReceipt, WALLET_CONFIRMATION_RECEIPT_KEY } from "@/core/confirmationReceipt";
+import { createConfirmationReceipt, sameIdentity, WALLET_CONFIRMATION_RECEIPT_KEY } from "@/core/confirmationReceipt";
 import type { ChainId, HashMap, IBTCProvider, IETHProvider, IWallet } from "@/core/types";
 import { useWalletConnectors } from "@/hooks/useWalletConnectors";
 import { useWalletWidgets } from "@/hooks/useWalletWidgets";
@@ -13,6 +13,8 @@ import { Screen } from "./Screen";
 
 const WALLET_CHANGED_ERROR_MESSAGE = "Wallet changed while confirming";
 const WALLET_NETWORK_MISSING_ERROR_MESSAGE = "Wallet did not report its network";
+const WALLET_NETWORK_MISMATCH_ERROR_MESSAGE = "Wallet network does not match the configured network";
+const WALLET_PROVIDER_MISSING_ERROR_MESSAGE = "Connected wallet has no provider";
 
 /**
  * Picks the identity the terms-of-service hook is called with. Required chains
@@ -57,29 +59,34 @@ function copyConnections(connections: WalletLifecycleConnection[]): WalletLifecy
   });
 }
 
-interface ConnectionAuthority {
+interface ConnectionIdentity {
   chain: ChainId;
   wallet: IWallet;
   provider: IWallet["provider"];
+  receipt: string;
 }
 
-function hasSameAuthority(left: readonly ConnectionAuthority[], right: readonly ConnectionAuthority[]): boolean {
-  return (
-    left.length === right.length &&
-    left.every(({ chain, wallet, provider }) => {
-      const match = right.find((authority) => authority.chain === chain);
-      return match?.wallet === wallet && match.provider === provider;
-    })
-  );
+function hasSameIdentity(
+  expected: readonly ConnectionIdentity[],
+  current: readonly ConnectionIdentity[],
+  requiredChainIds: readonly string[],
+): boolean {
+  return expected.every(({ chain, wallet, provider, receipt }) => {
+    const match = current.find((identity) => identity.chain === chain);
+    if (!match) return !requiredChainIds.includes(chain);
+
+    return match.wallet === wallet && match.provider === provider && match.receipt === receipt;
+  });
 }
 
 async function createConfirmationSnapshot(
   getConnectors: () => Connectors,
   requiredChainIds: readonly string[],
+  onOptionalError?: (error: Error) => void,
 ): Promise<{
   receipt: string;
   connections: WalletLifecycleConnection[];
-  authority: readonly ConnectionAuthority[];
+  identities: readonly ConnectionIdentity[];
 }> {
   const connectors = getConnectors();
   const candidates = collectConnections(connectors).map((connection) => ({
@@ -92,27 +99,47 @@ async function createConfirmationSnapshot(
     candidates.map(async (candidate) => {
       const { chain } = candidate.connection;
       const { provider } = candidate;
-      if (chain !== "ETH" && chain !== "BTC") return candidate;
 
       try {
-        if (!provider) throw new Error(`Connected ${chain} wallet has no provider`);
+        if (!provider) throw new Error(`${WALLET_PROVIDER_MISSING_ERROR_MESSAGE}: ${chain}`);
 
-        const network =
-          chain === "ETH"
-            ? await (provider as IETHProvider).getChainId()
-            : await (provider as IBTCProvider).getNetwork();
-        if (network === undefined || network === null || !String(network)) {
-          throw new Error(WALLET_NETWORK_MISSING_ERROR_MESSAGE);
+        let network: string | number | undefined;
+        if (chain === "ETH" || chain === "BTC") {
+          // Fixed-network providers report their operational network here. They
+          // have no independent wallet network that the user can switch.
+          network =
+            chain === "ETH"
+              ? await (provider as IETHProvider).getChainId()
+              : await (provider as IBTCProvider).getNetwork();
+          if (network === undefined || network === null || !String(network)) {
+            throw new Error(WALLET_NETWORK_MISSING_ERROR_MESSAGE);
+          }
+
+          const liveReceipt = createConfirmationReceipt([candidate.connection], connectors, { [chain]: network });
+          if (liveReceipt !== candidate.receipt) {
+            throw new Error(WALLET_NETWORK_MISMATCH_ERROR_MESSAGE);
+          }
         }
 
-        const liveReceipt = createConfirmationReceipt([candidate.connection], connectors, { [chain]: network });
-        if (liveReceipt !== candidate.receipt) {
-          throw new Error("Wallet network does not match the configured network");
+        const [address, publicKeyHex] = await Promise.all([provider.getAddress(), provider.getPublicKeyHex()]);
+        if (
+          !address ||
+          !publicKeyHex ||
+          !sameIdentity(address, candidate.connection.account.address) ||
+          !sameIdentity(publicKeyHex, candidate.connection.account.publicKeyHex)
+        ) {
+          throw new Error(WALLET_CHANGED_ERROR_MESSAGE);
         }
 
-        return candidate;
+        // IBBNProvider has no network getter. Its live account identity is
+        // still checked above.
+        return {
+          ...candidate,
+          connection: { ...candidate.connection, account: { address, publicKeyHex } },
+        };
       } catch (error) {
         if (requiredChainIds.includes(chain)) throw error;
+        onOptionalError?.(error instanceof Error ? error : new Error("Optional wallet verification failed"));
         return null;
       }
     }),
@@ -135,13 +162,15 @@ async function createConfirmationSnapshot(
 
     if (stable) return [candidate];
     if (requiredChainIds.includes(connection.chain)) throw new Error(WALLET_CHANGED_ERROR_MESSAGE);
+    onOptionalError?.(new Error(WALLET_CHANGED_ERROR_MESSAGE));
     return [];
   });
   const connections = stableCandidates.map(({ connection }) => connection);
-  const authority = stableCandidates.map(({ connection, provider }) => ({
+  const identities = stableCandidates.map(({ connection, provider, receipt }) => ({
     chain: connection.chain,
     wallet: connection.wallet,
     provider,
+    receipt,
   }));
 
   // Restore stays synchronous until #2351 adds live session checks. Store this
@@ -149,7 +178,7 @@ async function createConfirmationSnapshot(
   return {
     receipt: createConfirmationReceipt(connections, settledConnectors),
     connections,
-    authority: Object.freeze(authority),
+    identities: Object.freeze(identities),
   };
 }
 
@@ -243,7 +272,11 @@ export function WalletDialog({
 
     try {
       if (!confirmed) {
-        const confirmationSnapshot = await createConfirmationSnapshot(() => connectorsRef.current, requiredChainIds);
+        const confirmationSnapshot = await createConfirmationSnapshot(
+          () => connectorsRef.current,
+          requiredChainIds,
+          onError,
+        );
         if (!isCurrentAttempt()) return;
         const { connections } = confirmationSnapshot;
 
@@ -262,20 +295,19 @@ export function WalletDialog({
         const checkIdentity = async () => {
           if (!isCurrentAttempt()) return false;
 
-          const currentSnapshot = await createConfirmationSnapshot(() => connectorsRef.current, requiredChainIds);
+          const currentSnapshot = await createConfirmationSnapshot(
+            () => connectorsRef.current,
+            requiredChainIds,
+            onError,
+          );
           if (!isCurrentAttempt()) return false;
 
-          if (
-            currentSnapshot.receipt !== confirmationSnapshot.receipt ||
-            !hasSameAuthority(currentSnapshot.authority, confirmationSnapshot.authority)
-          ) {
+          if (!hasSameIdentity(confirmationSnapshot.identities, currentSnapshot.identities, requiredChainIds)) {
             throw new Error(WALLET_CHANGED_ERROR_MESSAGE);
           }
 
           return true;
         };
-
-        if (!(await checkIdentity())) return;
 
         if (primary) {
           await acceptTermsOfService?.({
@@ -284,20 +316,16 @@ export function WalletDialog({
             chain: primary.chain,
             connections: copyConnections(connections),
           });
-          if (!isCurrentAttempt()) return;
           if (!(await checkIdentity())) return;
         }
         await onConfirm?.(copyConnections(connections));
-        if (!isCurrentAttempt()) return;
         if (!(await checkIdentity())) return;
 
         if (persistent) {
-          if (!isCurrentAttempt()) return;
           storage.set(WALLET_CONFIRMATION_RECEIPT_KEY, confirmationSnapshot.receipt);
         }
       }
 
-      if (!isCurrentAttempt()) return;
       confirm?.();
       if (!isCurrentAttempt()) return;
       close?.();

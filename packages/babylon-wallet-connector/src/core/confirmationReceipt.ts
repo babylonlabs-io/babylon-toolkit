@@ -46,7 +46,7 @@ function networkIdentity(
   return value === undefined ? "" : String(value);
 }
 
-function sameIdentity(left: string, right: string): boolean {
+export function sameIdentity(left: string, right: string): boolean {
   return left.toLowerCase() === right.toLowerCase();
 }
 

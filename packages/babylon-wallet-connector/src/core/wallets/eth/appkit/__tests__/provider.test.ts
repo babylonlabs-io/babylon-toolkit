@@ -114,4 +114,16 @@ describe("AppKitProvider — constructed after AppKit init (shared wagmi config 
 
     provider.destroy();
   });
+
+  it("rejects when wagmi has no live chain", async () => {
+    vi.resetModules();
+    const { setSharedWagmiConfig } = await import("../sharedConfig");
+    const { AppKitProvider } = await import("../provider");
+
+    setSharedWagmiConfig({} as Config);
+    const provider = new AppKitProvider(ethConfig);
+
+    await expect(provider.getChainId()).rejects.toThrow("Wallet not connected");
+    provider.destroy();
+  });
 });
