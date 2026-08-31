@@ -53,7 +53,7 @@ import {
   type SignVaultPsbtResult,
 } from "@babylonlabs-io/ledger-vault-signer";
 
-import type { IBTCProvider, InscriptionIdentifier, SignPsbtOptions } from "@/core/types";
+import type { IBTCProvider, InscriptionIdentifier, SigningProgress, SignPsbtOptions } from "@/core/types";
 import { Network } from "@/core/types";
 import { getTaprootAddress, toNetwork } from "@/core/utils/wallet";
 import { ERROR_CODES, WalletError } from "@/error";
@@ -192,6 +192,8 @@ export class LedgerVaultProvider implements IBTCProvider {
   private activeOperation: symbol | undefined;
   /** Abort handle into the in-flight signing loop; fired by teardown (B3's only abort source). */
   private signAbortController: AbortController | undefined;
+  /** Connection-scoped like the fields above: cleared in teardownSession. */
+  private readonly signingProgressListeners = new Set<(progress: SigningProgress) => void>();
 
   constructor(private readonly network: Network = Network.MAINNET) {}
 
@@ -345,6 +347,8 @@ export class LedgerVaultProvider implements IBTCProvider {
     this.pubkeyHexPromise = undefined;
     this.policyContextPromise = undefined;
     this.signedFingerprints = new Set();
+    // A subscriber abandoned by a stale batch must not see the next connection's ticks.
+    this.signingProgressListeners.clear();
     // Release the ceremony lock and stop an in-flight signing loop NOW — the
     // stale call's finally only releases its own token, and its rejection
     // commits nothing (the generation just changed).
@@ -735,6 +739,9 @@ export class LedgerVaultProvider implements IBTCProvider {
           }
           this.assertSameConnection(ctx.generation);
           signed.push(await this.signStaged(one, ctx, controller));
+          // After signStaged's commit (generation checked, fingerprint
+          // recorded), so a stale or failed ceremony never ticks.
+          this.emitSigningProgress({ completed: signed.length, total: psbtsHexes.length });
         }
         return signed;
       }),
@@ -749,6 +756,27 @@ export class LedgerVaultProvider implements IBTCProvider {
   cancelSigning = (): void => {
     this.signAbortController?.abort();
   };
+
+  /** Optional affordance (see `IBTCProvider`): per-ceremony ticks out of a `signPsbts` batch. */
+  subscribeSigningProgress = (listener: (progress: SigningProgress) => void): (() => void) => {
+    this.signingProgressListeners.add(listener);
+    return () => {
+      this.signingProgressListeners.delete(listener);
+    };
+  };
+
+  // Display-only: a listener bug must not abort a non-idempotent ceremony
+  // (same contract as the signer's per-YIELD onProgress).
+  private emitSigningProgress(progress: SigningProgress): void {
+    // Snapshot: a listener that (un)subscribes inside a tick must not extend this loop.
+    for (const listener of [...this.signingProgressListeners]) {
+      try {
+        listener(progress);
+      } catch {
+        // Swallowed on purpose — progress is cosmetic.
+      }
+    }
+  }
 
   /**
    * ONE AbortController per public sign call (plan D1) — it spans a whole
