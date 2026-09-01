@@ -4,6 +4,22 @@ import { dirname, extname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const packageManifest = JSON.parse(
+  readFileSync(resolve(packageRoot, 'package.json'), 'utf8'),
+);
+if (
+  JSON.stringify(Object.keys(packageManifest.exports).sort()) !==
+  JSON.stringify(['.', './raw'])
+) {
+  throw new Error('WASM package exports must contain only . and ./raw');
+}
+for (const entry of ['.', './raw']) {
+  for (const condition of ['node', 'default']) {
+    if (!packageManifest.exports[entry]?.[condition]?.types) {
+      throw new Error(`${entry} ${condition} export must include types`);
+    }
+  }
+}
 // The third alternative matches a bare side-effect import (`import './x.js'`),
 // which has no `from` clause. Without it the closure walks past an eager edge.
 const staticSpecifier =

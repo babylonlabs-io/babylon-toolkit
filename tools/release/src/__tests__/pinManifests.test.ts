@@ -93,6 +93,68 @@ describe('materializeAndPinManifests', () => {
     );
   });
 
+  it('pins an optional WASM peer and preserves its optional policy', async () => {
+    const writeManifest = vi.fn();
+    const peerMeta = {
+      '@babylonlabs-io/babylon-tbv-rust-wasm': { optional: true },
+    };
+
+    await materializeAndPinManifests({
+      projectsToPublish: ['@babylonlabs-io/ts-sdk'],
+      projectsVersionData: {
+        '@babylonlabs-io/ts-sdk': {
+          currentVersion: '0.62.1',
+          newVersion: '0.62.2',
+        },
+        '@babylonlabs-io/babylon-tbv-rust-wasm': {
+          currentVersion: '0.15.0',
+          newVersion: null,
+        },
+      },
+      releasePackages: new Map([
+        releasePackage(
+          '@babylonlabs-io/ts-sdk',
+          '/packages/babylon-ts-sdk/package.json',
+          {
+            name: '@babylonlabs-io/ts-sdk',
+            version: '0.62.1',
+            peerDependencies: {
+              '@babylonlabs-io/babylon-tbv-rust-wasm': 'workspace:*',
+              viem: '^2.38.2',
+            },
+            peerDependenciesMeta: peerMeta,
+          }
+        ),
+        releasePackage(
+          '@babylonlabs-io/babylon-tbv-rust-wasm',
+          '/packages/babylon-tbv-rust-wasm/package.json',
+          { name: '@babylonlabs-io/babylon-tbv-rust-wasm', version: '0.15.0' }
+        ),
+      ]),
+      registry: registryWith({
+        '@babylonlabs-io/babylon-tbv-rust-wasm': ['0.15.0'],
+      }),
+      releaseTags: releaseTagsFor({
+        '@babylonlabs-io/babylon-tbv-rust-wasm': ['0.15.0'],
+      }),
+      writeManifest,
+      dryRun: false,
+    });
+
+    expect(writeManifest).toHaveBeenCalledWith(
+      '/packages/babylon-ts-sdk/package.json',
+      {
+        name: '@babylonlabs-io/ts-sdk',
+        version: '0.62.2',
+        peerDependencies: {
+          '@babylonlabs-io/babylon-tbv-rust-wasm': '0.15.0',
+          viem: '^2.38.2',
+        },
+        peerDependenciesMeta: peerMeta,
+      }
+    );
+  });
+
   it('writes nothing during a dry run', async () => {
     const writeManifest = vi.fn();
 

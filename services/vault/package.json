@@ -29,6 +29,7 @@
     "visual:capture": "playwright test --config=playwright.visual.config.ts"
   },
   "dependencies": {
+    "@babylonlabs-io/babylon-tbv-rust-wasm": "workspace:*",
     "@babylonlabs-io/core-ui": "workspace:*",
     "@babylonlabs-io/ts-sdk": "workspace:*",
     "@babylonlabs-io/wallet-connector": "workspace:*",
@@ -58,7 +59,6 @@
     "wagmi": "2.18.1"
   },
   "devDependencies": {
-    "@babylonlabs-io/babylon-tbv-rust-wasm": "workspace:*",
     "@babylonlabs-io/ledger-vault-signer": "workspace:*",
     "@eslint/js": "^9.31.0",
     "@playwright/test": "1.56.1",
