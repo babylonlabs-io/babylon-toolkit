@@ -1,4 +1,4 @@
-import { type PropsWithChildren, createContext, useEffect, useMemo, useRef, useState } from "react";
+import { type PropsWithChildren, createContext, useEffect, useInsertionEffect, useMemo, useRef, useState } from "react";
 
 import { WALLET_MODAL_OPEN_EVENT } from "@/constants/walletEvents";
 import { WALLET_CONFIRMATION_RECEIPT_KEY } from "@/core/confirmationReceipt";
@@ -17,6 +17,8 @@ export type Screens =
 
 export interface State {
   confirmed: boolean;
+  /** The wallet identity that the user approved for this live session. */
+  confirmationReceipt?: string;
   visible: boolean;
   screen: Screens;
   selectedWallets: Record<string, IWallet | undefined>;
@@ -46,9 +48,9 @@ export interface Actions {
   }) => void;
   selectWallet?: (chain: string, wallet: IWallet) => void;
   removeWallet?: (chain: string) => void;
-  confirm?: () => void;
+  confirm?: (receipt: string) => void;
   /** Withdraws the confirmation without disconnecting anything. */
-  unconfirm?: () => void;
+  unconfirm?: (keepReceipt?: boolean) => void;
   reset?: () => void;
 }
 
@@ -89,22 +91,31 @@ export function StateProvider({ children, chains, requiredChainIds, storage }: P
     chains: chains.reduce((acc, chain) => ({ ...acc, [chain.id]: chain }), {}),
     requiredChainIds: [...requiredChainIds],
   }));
-  const stateRef = useRef(state);
-  stateRef.current = state;
-
-  // A change to the requirement set is not itself a consent change. Hosts that
-  // derive requirements per route narrow and widen this list as the user
-  // navigates, and tearing the confirmation down here would sign them out on
-  // routine navigation. Whether the stored approval still covers the new set is
-  // decided in `useWalletConnectors`, which can see the live connections.
+  const requirementsExpanded = requiredChainIds.some((chainId) => !state.requiredChainIds.includes(chainId));
+  const renderedState = useMemo(
+    () => ({
+      ...state,
+      confirmed: requirementsExpanded ? false : state.confirmed,
+      requiredChainIds: [...requiredChainIds],
+    }),
+    [requiredChainIds, requirementsExpanded, state],
+  );
+  const requiredChainIdsRef = useRef(requiredChainIds);
+  useInsertionEffect(() => {
+    requiredChainIdsRef.current = requiredChainIds;
+  }, [requiredChainIds]);
+  // Expose new requirements as unconfirmed during render. This prevents a
+  // child from observing one approved commit before live validation starts.
   useEffect(() => {
     setState((state) => {
       const newChains = chains.reduce((acc, chain) => ({ ...acc, [chain.id]: chain }), {});
       const validChainIds = new Set(chains.map((chain) => chain.id));
       const filteredWallets = filterWalletsByValidChains(state.selectedWallets, validChainIds);
+      const requirementsExpanded = requiredChainIds.some((chainId) => !state.requiredChainIds.includes(chainId));
 
       return {
         ...state,
+        confirmed: requirementsExpanded ? false : state.confirmed,
         chains: newChains,
         selectedWallets: filteredWallets,
         requiredChainIds: [...requiredChainIds],
@@ -158,7 +169,8 @@ export function StateProvider({ children, chains, requiredChainIds, storage }: P
       },
 
       removeWallet: (chain: string) => {
-        if (stateRef.current.requiredChainIds.includes(chain)) {
+        const required = requiredChainIdsRef.current.includes(chain);
+        if (required) {
           storage?.delete(WALLET_CONFIRMATION_RECEIPT_KEY);
         }
         setState((state) => ({
@@ -166,17 +178,22 @@ export function StateProvider({ children, chains, requiredChainIds, storage }: P
           // Losing an optional chain must not tear down a confirmed session.
           // Losing a required one does invalidate the confirmation, so
           // reconnecting cannot silently restore it.
-          confirmed: state.requiredChainIds.includes(chain) ? false : state.confirmed,
+          confirmed: required ? false : state.confirmed,
+          confirmationReceipt: required ? undefined : state.confirmationReceipt,
           selectedWallets: { ...state.selectedWallets, [chain]: undefined },
         }));
       },
 
-      confirm: () => {
-        setState((state) => ({ ...state, confirmed: true }));
+      confirm: (confirmationReceipt: string) => {
+        setState((state) => ({ ...state, confirmed: true, confirmationReceipt }));
       },
 
-      unconfirm: () => {
-        setState((state) => (state.confirmed ? { ...state, confirmed: false } : state));
+      unconfirm: (keepReceipt = false) => {
+        setState((state) => ({
+          ...state,
+          confirmed: false,
+          confirmationReceipt: keepReceipt ? state.confirmationReceipt : undefined,
+        }));
       },
     }),
     [storage],
@@ -184,10 +201,10 @@ export function StateProvider({ children, chains, requiredChainIds, storage }: P
 
   const context = useMemo(
     () => ({
-      ...state,
+      ...renderedState,
       ...actions,
     }),
-    [state, actions],
+    [renderedState, actions],
   );
 
   return <StateContext.Provider value={context}>{children}</StateContext.Provider>;

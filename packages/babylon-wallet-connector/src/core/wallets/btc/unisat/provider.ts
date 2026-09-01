@@ -1,7 +1,20 @@
 import { Psbt, address as btcAddress, networks } from "bitcoinjs-lib";
 
-import { isAccountChangeEvent, DISCONNECT_EVENT, removeProviderListener } from "@/constants/walletEvents";
-import type { BTCConfig, IBTCProvider, InscriptionIdentifier, ProgressReporter, SignPsbtOptions, WalletInfo } from "@/core/types";
+import {
+  DISCONNECT_EVENT,
+  NETWORK_CHANGE_EVENT,
+  isAccountChangeEvent,
+  removeProviderListener,
+  trackProviderIdentityChanges,
+} from "@/constants/walletEvents";
+import type {
+  BTCConfig,
+  IBTCProvider,
+  InscriptionIdentifier,
+  ProgressReporter,
+  SignPsbtOptions,
+  WalletInfo,
+} from "@/core/types";
 import { Network } from "@/core/types";
 import { initBTCCurve } from "@/core/utils/initBTCCurve";
 import { resolveUseTweakedSigner } from "@/core/utils/psbtOptionsMapper";
@@ -67,6 +80,10 @@ export class UnisatProvider implements IBTCProvider {
   private provider: any;
   private walletInfo: WalletInfo | undefined;
   private config: BTCConfig;
+  private identityVersion = 0;
+  private walletInfoIdentityVersion = -1;
+  private tracksIdentityChanges = false;
+  private identityEventsTracked = false;
 
   constructor(wallet: any, config: BTCConfig) {
     this.config = config;
@@ -134,8 +151,13 @@ export class UnisatProvider implements IBTCProvider {
       "Finalizing connection",
       didSwitchChain ? "Approve the connection request in your Unisat extension" : undefined,
     );
-    const accounts: string[] = await withTimeout(this.provider.requestAccounts(), UNISAT_PROMPT_TIMEOUT_MS, () =>
+    await withTimeout(this.provider.requestAccounts(), UNISAT_PROMPT_TIMEOUT_MS, () =>
       this.timeoutError("requesting accounts"),
+    );
+    this.trackIdentityChanges();
+    const identityVersion = this.identityVersion;
+    const accounts: string[] = await withTimeout(this.provider.getAccounts(), UNISAT_RPC_TIMEOUT_MS, () =>
+      this.timeoutError("reading accounts"),
     );
     const address = accounts[0];
     const publicKeyHex: string = await withTimeout(this.provider.getPublicKey(), UNISAT_RPC_TIMEOUT_MS, () =>
@@ -147,6 +169,7 @@ export class UnisatProvider implements IBTCProvider {
         publicKeyHex,
         address,
       };
+      this.walletInfoIdentityVersion = identityVersion;
     } else {
       throw new WalletError({
         code: ERROR_CODES.CONNECTION_FAILED,
@@ -154,6 +177,17 @@ export class UnisatProvider implements IBTCProvider {
         wallet: WALLET_PROVIDER_NAME,
       });
     }
+  };
+
+  isIdentityCurrent = (): boolean =>
+    this.identityEventsTracked && this.walletInfoIdentityVersion === this.identityVersion;
+
+  private trackIdentityChanges = (): void => {
+    if (this.tracksIdentityChanges) return;
+    this.identityEventsTracked = trackProviderIdentityChanges(this.provider, () => {
+      this.identityVersion += 1;
+    });
+    this.tracksIdentityChanges = this.identityEventsTracked;
   };
 
   private ensureSupportedVersion = async (): Promise<void> => {
@@ -585,6 +619,10 @@ export class UnisatProvider implements IBTCProvider {
       return this.provider.on("accountsChanged", callBack);
     }
 
+    if (eventName === NETWORK_CHANGE_EVENT) {
+      return this.provider.on(NETWORK_CHANGE_EVENT, callBack);
+    }
+
     if (eventName === DISCONNECT_EVENT) {
       return this.provider.on(DISCONNECT_EVENT, callBack);
     }
@@ -601,6 +639,10 @@ export class UnisatProvider implements IBTCProvider {
     // Unisat uses "accountsChanged" for account change events
     if (isAccountChangeEvent(eventName)) {
       return removeProviderListener(this.provider, "accountsChanged", callBack);
+    }
+
+    if (eventName === NETWORK_CHANGE_EVENT) {
+      return removeProviderListener(this.provider, NETWORK_CHANGE_EVENT, callBack);
     }
 
     if (eventName === DISCONNECT_EVENT) {

@@ -1,4 +1,10 @@
-import { isAccountChangeEvent, DISCONNECT_EVENT, removeProviderListener } from "@/constants/walletEvents";
+import {
+  DISCONNECT_EVENT,
+  NETWORK_CHANGE_EVENT,
+  isAccountChangeEvent,
+  removeProviderListener,
+  trackProviderIdentityChanges,
+} from "@/constants/walletEvents";
 import type { IBTCProvider, InscriptionIdentifier, SignPsbtOptions, WalletInfo } from "@/core/types";
 import { Network } from "@/core/types";
 import { withTimeout } from "@/core/utils/withTimeout";
@@ -31,6 +37,10 @@ const UTILA_PROMPT_TIMEOUT_MS = 60_000;
 export class UtilaProvider implements IBTCProvider {
   private provider: IBTCProvider;
   private walletInfo: WalletInfo | undefined;
+  private identityVersion = 0;
+  private walletInfoIdentityVersion = -1;
+  private tracksIdentityChanges = false;
+  private identityEventsTracked = false;
 
   constructor(wallet?: { bitcoin?: IBTCProvider }) {
     // The injected object may be absent if the extension isn't installed.
@@ -70,9 +80,7 @@ export class UtilaProvider implements IBTCProvider {
 
   connectWallet = async (): Promise<void> => {
     try {
-      await withTimeout(this.provider.connectWallet(), UTILA_PROMPT_TIMEOUT_MS, () =>
-        this.timeoutError("connecting"),
-      );
+      await withTimeout(this.provider.connectWallet(), UTILA_PROMPT_TIMEOUT_MS, () => this.timeoutError("connecting"));
     } catch (error) {
       if (error instanceof WalletError) throw error;
       if (isUserRejectionMessage((error as Error | undefined)?.message)) {
@@ -89,6 +97,8 @@ export class UtilaProvider implements IBTCProvider {
       });
     }
 
+    this.trackIdentityChanges();
+    const identityVersion = this.identityVersion;
     const address = await withTimeout<string>(this.provider.getAddress(), UTILA_RPC_TIMEOUT_MS, () =>
       this.timeoutError("reading the address"),
     );
@@ -101,6 +111,7 @@ export class UtilaProvider implements IBTCProvider {
         publicKeyHex,
         address,
       };
+      this.walletInfoIdentityVersion = identityVersion;
     } else {
       throw new WalletError({
         code: ERROR_CODES.CONNECTION_FAILED,
@@ -108,6 +119,17 @@ export class UtilaProvider implements IBTCProvider {
         wallet: WALLET_PROVIDER_NAME,
       });
     }
+  };
+
+  isIdentityCurrent = (): boolean =>
+    this.identityEventsTracked && this.walletInfoIdentityVersion === this.identityVersion;
+
+  private trackIdentityChanges = (): void => {
+    if (this.tracksIdentityChanges) return;
+    this.identityEventsTracked = trackProviderIdentityChanges(this.provider, () => {
+      this.identityVersion += 1;
+    });
+    this.tracksIdentityChanges = this.identityEventsTracked;
   };
 
   getAddress = async (): Promise<string> => {
@@ -238,6 +260,9 @@ export class UtilaProvider implements IBTCProvider {
     if (isAccountChangeEvent(eventName)) {
       return this.provider.on("accountsChanged", callBack);
     }
+    if (eventName === NETWORK_CHANGE_EVENT) {
+      return this.provider.on(NETWORK_CHANGE_EVENT, callBack);
+    }
     if (eventName === DISCONNECT_EVENT) {
       return this.provider.on(DISCONNECT_EVENT, callBack);
     }
@@ -252,6 +277,9 @@ export class UtilaProvider implements IBTCProvider {
       });
     if (isAccountChangeEvent(eventName)) {
       return removeProviderListener(this.provider, "accountsChanged", callBack);
+    }
+    if (eventName === NETWORK_CHANGE_EVENT) {
+      return removeProviderListener(this.provider, NETWORK_CHANGE_EVENT, callBack);
     }
     if (eventName === DISCONNECT_EVENT) {
       return removeProviderListener(this.provider, DISCONNECT_EVENT, callBack);

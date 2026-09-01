@@ -3,7 +3,13 @@ import { useCallback, useLayoutEffect, useRef, type ReactNode } from "react";
 
 import { useChainProviders, type Connectors } from "@/context/Chain.context";
 import { useLifeCycleHooks, type WalletLifecycleConnection } from "@/context/LifecycleHooks.context";
-import { createConfirmationReceipt, sameIdentity, WALLET_CONFIRMATION_RECEIPT_KEY } from "@/core/confirmationReceipt";
+import {
+  confirmedChains,
+  createConfirmationReceipt,
+  sameIdentity,
+  subscribeToConfirmationIdentityChanges,
+  WALLET_CONFIRMATION_RECEIPT_KEY,
+} from "@/core/confirmationReceipt";
 import type { ChainId, HashMap, IBTCProvider, IETHProvider, IWallet } from "@/core/types";
 import { useWalletConnectors } from "@/hooks/useWalletConnectors";
 import { useWalletWidgets } from "@/hooks/useWalletWidgets";
@@ -103,6 +109,10 @@ async function createConfirmationSnapshot(
       try {
         if (!provider) throw new Error(`${WALLET_PROVIDER_MISSING_ERROR_MESSAGE}: ${chain}`);
 
+        if (provider.isIdentityCurrent?.() === false) {
+          throw new Error(WALLET_CHANGED_ERROR_MESSAGE);
+        }
+
         let network: string | number | undefined;
         if (chain === "ETH" || chain === "BTC") {
           // Fixed-network providers report their operational network here. They
@@ -128,6 +138,10 @@ async function createConfirmationSnapshot(
           !sameIdentity(address, candidate.connection.account.address) ||
           !sameIdentity(publicKeyHex, candidate.connection.account.publicKeyHex)
         ) {
+          throw new Error(WALLET_CHANGED_ERROR_MESSAGE);
+        }
+
+        if (provider.isIdentityCurrent?.() === false) {
           throw new Error(WALLET_CHANGED_ERROR_MESSAGE);
         }
 
@@ -204,7 +218,7 @@ export function WalletDialog({
   closeButtonClassName,
   actionsClassName,
 }: WalletDialogProps) {
-  const { visible, screen, confirmed, requiredChainIds, close, confirm, displayChains, displayError } =
+  const { visible, screen, confirmed, requiredChainIds, close, confirm, unconfirm, displayChains, displayError } =
     useWidgetState();
   const { acceptTermsOfService, onConfirm } = useLifeCycleHooks();
   const connectors = useChainProviders();
@@ -214,20 +228,26 @@ export function WalletDialog({
   const connectorsRef = useRef(connectors);
   const attemptGenerationRef = useRef(0);
   const activeAttemptRef = useRef<number | null>(null);
+  const activeIdentitySubscriptionRef = useRef<(() => void) | null>(null);
   const mountedRef = useRef(false);
   const visibleRef = useRef(visible);
+  const confirmedRef = useRef(confirmed);
   const confirmationInputsRef = useRef({ persistent, requiredChainIds: [...requiredChainIds], storage });
 
   const invalidateAttempt = useCallback(() => {
+    const stopWatchingIdentity = activeIdentitySubscriptionRef.current;
+    activeIdentitySubscriptionRef.current = null;
     attemptGenerationRef.current += 1;
     activeAttemptRef.current = null;
+    stopWatchingIdentity?.();
   }, []);
 
   useLayoutEffect(() => {
     connectorsRef.current = connectors;
-    if (visibleRef.current && !visible) invalidateAttempt();
+    if ((visibleRef.current && !visible) || (!confirmedRef.current && confirmed)) invalidateAttempt();
     visibleRef.current = visible;
-  }, [connectors, invalidateAttempt, visible]);
+    confirmedRef.current = confirmed;
+  }, [confirmed, connectors, invalidateAttempt, visible]);
 
   useLayoutEffect(() => {
     mountedRef.current = true;
@@ -269,9 +289,35 @@ export function WalletDialog({
       attemptGenerationRef.current === generation &&
       mountedRef.current &&
       visibleRef.current;
+    let stopWatchingIdentity = () => {};
+    let confirmationHandoffPending = false;
 
     try {
       if (!confirmed) {
+        const initialConnectors = connectorsRef.current;
+        const initialReceipt = createConfirmationReceipt(collectConnections(initialConnectors), initialConnectors);
+        const unsubscribeIdentity = subscribeToConfirmationIdentityChanges(
+          initialReceipt,
+          confirmedChains(initialReceipt),
+          initialConnectors,
+          () => {
+            invalidateAttempt();
+            storage.delete(WALLET_CONFIRMATION_RECEIPT_KEY);
+            unconfirm?.();
+          },
+        );
+        let watchingIdentity = true;
+        stopWatchingIdentity = () => {
+          if (!watchingIdentity) return;
+          watchingIdentity = false;
+          unsubscribeIdentity();
+        };
+        if (!isCurrentAttempt()) {
+          stopWatchingIdentity();
+          return;
+        }
+        activeIdentitySubscriptionRef.current = stopWatchingIdentity;
+
         const confirmationSnapshot = await createConfirmationSnapshot(
           () => connectorsRef.current,
           requiredChainIds,
@@ -324,9 +370,13 @@ export function WalletDialog({
         if (persistent) {
           storage.set(WALLET_CONFIRMATION_RECEIPT_KEY, confirmationSnapshot.receipt);
         }
+
+        if (!isCurrentAttempt()) return;
+        confirm?.(confirmationSnapshot.receipt);
+        if (!isCurrentAttempt()) return;
+        confirmationHandoffPending = Boolean(confirm);
       }
 
-      confirm?.();
       if (!isCurrentAttempt()) return;
       close?.();
     } catch (error) {
@@ -343,8 +393,14 @@ export function WalletDialog({
         onCancel: displayChains,
       });
     } finally {
-      if (attemptGenerationRef.current === generation && activeAttemptRef.current === generation) {
-        activeAttemptRef.current = null;
+      if (!confirmationHandoffPending) {
+        stopWatchingIdentity();
+        if (activeIdentitySubscriptionRef.current === stopWatchingIdentity) {
+          activeIdentitySubscriptionRef.current = null;
+        }
+        if (attemptGenerationRef.current === generation && activeAttemptRef.current === generation) {
+          activeAttemptRef.current = null;
+        }
       }
     }
   }, [
@@ -354,11 +410,13 @@ export function WalletDialog({
     confirmed,
     displayChains,
     displayError,
+    invalidateAttempt,
     onConfirm,
     onError,
     persistent,
     requiredChainIds,
     storage,
+    unconfirm,
   ]);
 
   const onBack = screen.type === "WALLETS" ? displayChains : undefined;

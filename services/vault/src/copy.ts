@@ -507,6 +507,29 @@ export const COPY = {
       retryButton: "Retry",
       confirmButton: "Confirm",
     },
+    // The tier hints are static: they name the confirmation target of the
+    // mempool.space field each tile reads (hourFee / halfHourFee / fastestFee),
+    // not a live estimate of the current queue. simple-staking's FeeModal does
+    // the same ("Next Block" / "Estimated 30mins" / "Estimated 60mins"). On a
+    // quiet signet all three fields return the 1 sat/vB floor, so one rate ends
+    // up wearing three different time promises. Follow-up: port staking's
+    // per-tile `warning={tierRate < defaultFeeRate}` flag, which marks the tiles
+    // that are genuinely too cheap instead of hiding the hints.
+    feeSelector: {
+      title: "Network Fee Rate",
+      headerUnit: "sats/vB",
+      slowLabel: "Slow",
+      slowHint: "~1 hour",
+      avgLabel: "Avg",
+      avgHint: "~30 min",
+      fastLabel: "Fast",
+      fastHint: "~10 min",
+      customLabel: "Custom",
+      cardUnit: "sat/vB",
+      customInputSuffix: "sats/vB",
+      clearCustomAria: "Clear custom fee rate",
+      lowFeeWarning: "Fees are low; inclusion is not guaranteed",
+    },
     activateConfirmation: {
       title: "Activate your BTCVault",
       // The download instruction is emphasized (primary text color) per the
@@ -709,6 +732,12 @@ export const COPY = {
       // Fee-breakdown lines (DepositFeesBreakdown) shown before the user
       // submits. The commission label appends the percent, e.g. "VP commission
       // (2.50%)"; net payout is the deposit minus that commission.
+      networkFeeRateLabel: "Network Fee Rate",
+      networkFeeRateTooltip:
+        "Bitcoin network fee rate for your pre-pegin funding transaction. Raise it during congestion so the transaction confirms sooner.",
+      btcNetworkFeeLabel: "BTC Network Fee",
+      btcNetworkFeeTooltip:
+        "Estimated Bitcoin miner fee for the pre-pegin funding transaction at the selected fee rate.",
       vpCommissionLabel: "VP commission",
       vpCommissionTooltip:
         "The vault provider's fee, deducted from your payout when you redeem. Set by the vault provider and shown here before you deposit.",

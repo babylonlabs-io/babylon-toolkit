@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { Connectors } from "@/context/Chain.context";
 import {
   createConfirmationReceipt,
+  isLiveConfirmationReceiptValid,
   isValidConfirmationReceipt,
   type ConfirmationConnection,
 } from "@/core/confirmationReceipt";
@@ -127,5 +128,74 @@ describe("isValidConfirmationReceipt", () => {
     const disconnected = connectors({ ethWallet: wallet("metamask", ETH_ACCOUNT) });
 
     expect(isValidConfirmationReceipt(receipt, ["BTC", "ETH"], disconnected)).toBe(false);
+  });
+});
+
+describe("isLiveConfirmationReceiptValid", () => {
+  function liveWallet(
+    id: string,
+    approved: Account,
+    current: { account: Account; network: string | number; identityCurrent?: boolean },
+  ): IWallet {
+    return {
+      ...wallet(id, approved),
+      provider: {
+        connectWallet: async () => {},
+        getAddress: async () => current.account.address,
+        getPublicKeyHex: async () => current.account.publicKeyHex,
+        getNetwork: async () => current.network,
+        getChainId: async () => current.network,
+        isIdentityCurrent: () => current.identityCurrent !== false,
+      },
+    } as IWallet;
+  }
+
+  it("rejects a live account change that the connector cache has not received", async () => {
+    const current = { account: BTC_ACCOUNT, network: "signet" };
+    const btcWallet = liveWallet("unisat", BTC_ACCOUNT, current);
+    const live = connectors({ btcWallet });
+    const receipt = createConfirmationReceipt([connection("BTC", "unisat", BTC_ACCOUNT)], live);
+
+    current.account = { address: "bc1psomeoneelse", publicKeyHex: `02${"c".repeat(64)}` };
+
+    await expect(isLiveConfirmationReceiptValid(receipt, ["BTC"], live)).resolves.toBe(false);
+  });
+
+  it("rejects an adapter cache invalidated by a provider event", async () => {
+    const current = { account: BTC_ACCOUNT, network: "signet", identityCurrent: true };
+    const btcWallet = liveWallet("unisat", BTC_ACCOUNT, current);
+    const live = connectors({ btcWallet });
+    const receipt = createConfirmationReceipt([connection("BTC", "unisat", BTC_ACCOUNT)], live);
+
+    current.identityCurrent = false;
+
+    await expect(isLiveConfirmationReceiptValid(receipt, ["BTC"], live)).resolves.toBe(false);
+  });
+
+  it("rejects a live network change", async () => {
+    const current = { account: ETH_ACCOUNT, network: 11155111 };
+    const ethWallet = liveWallet("metamask", ETH_ACCOUNT, current);
+    const live = connectors({ ethWallet });
+    const receipt = createConfirmationReceipt([connection("ETH", "metamask", ETH_ACCOUNT)], live);
+
+    current.network = 1;
+
+    await expect(isLiveConfirmationReceiptValid(receipt, ["ETH"], live)).resolves.toBe(false);
+  });
+
+  it("ignores a changed optional wallet", async () => {
+    const btc = { account: BTC_ACCOUNT, network: "signet" };
+    const eth = { account: ETH_ACCOUNT, network: 11155111 };
+    const btcWallet = liveWallet("unisat", BTC_ACCOUNT, btc);
+    const ethWallet = liveWallet("metamask", ETH_ACCOUNT, eth);
+    const live = connectors({ btcWallet, ethWallet });
+    const receipt = createConfirmationReceipt(
+      [connection("BTC", "unisat", BTC_ACCOUNT), connection("ETH", "metamask", ETH_ACCOUNT)],
+      live,
+    );
+
+    btc.account = { address: "bc1psomeoneelse", publicKeyHex: `02${"c".repeat(64)}` };
+
+    await expect(isLiveConfirmationReceiptValid(receipt, ["ETH"], live)).resolves.toBe(true);
   });
 });
