@@ -15,8 +15,33 @@ export function isAccountChangeEvent(eventName: string): eventName is AccountCha
   return ACCOUNT_CHANGE_EVENTS.includes(eventName as AccountChangeEvent);
 }
 
+export const NETWORK_CHANGE_EVENT = "networkChanged" as const;
+
 /** Event name for disconnect */
 export const DISCONNECT_EVENT = "disconnect" as const;
+
+export function trackProviderIdentityChanges(
+  provider: { on?: (event: string, callback: () => void) => void },
+  callback: () => void,
+): boolean {
+  if (typeof provider.on !== "function") return false;
+
+  try {
+    provider.on("accountsChanged", callback);
+  } catch {
+    return false;
+  }
+
+  [NETWORK_CHANGE_EVENT, DISCONNECT_EVENT].forEach((event) => {
+    try {
+      provider.on?.(event, callback);
+    } catch {
+      // Some wallet providers reject event names that they do not support.
+    }
+  });
+
+  return true;
+}
 
 /**
  * Window event dispatched when the wallet-selection modal opens.

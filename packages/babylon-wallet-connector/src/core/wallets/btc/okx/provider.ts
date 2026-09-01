@@ -1,10 +1,16 @@
-import { isAccountChangeEvent, DISCONNECT_EVENT, removeProviderListener } from "@/constants/walletEvents";
+import {
+  DISCONNECT_EVENT,
+  NETWORK_CHANGE_EVENT,
+  isAccountChangeEvent,
+  removeProviderListener,
+  trackProviderIdentityChanges,
+} from "@/constants/walletEvents";
 import type { BTCConfig, InscriptionIdentifier, SignPsbtOptions, WalletInfo } from "@/core/types";
 import { IBTCProvider, Network } from "@/core/types";
 import { mapSignInputsToToSignInputs } from "@/core/utils/psbtOptionsMapper";
 import { withTimeout } from "@/core/utils/withTimeout";
-import { ERROR_CODES, WalletError, isUserRejectionMessage } from "@/error";
 import logo from "@/core/wallets/icons/okx.svg";
+import { ERROR_CODES, WalletError, isUserRejectionMessage } from "@/error";
 
 import { MIN_OKX_VERSION, checkOKXVersion } from "./version";
 
@@ -25,6 +31,10 @@ export class OKXProvider implements IBTCProvider {
   private wallet: any;
   private walletInfo: WalletInfo | undefined;
   private config: BTCConfig;
+  private identityVersion = 0;
+  private walletInfoIdentityVersion = -1;
+  private tracksIdentityChanges = false;
+  private identityEventsTracked = false;
 
   constructor(wallet: any, config: BTCConfig) {
     this.config = config;
@@ -57,6 +67,8 @@ export class OKXProvider implements IBTCProvider {
     // Fail fast on an out-of-date OKX here, not at deposit time.
     await this.ensureSupportedVersion();
 
+    this.trackIdentityChanges();
+    const identityVersion = this.identityVersion;
     let result;
     try {
       result = await this.provider.connect();
@@ -83,6 +95,7 @@ export class OKXProvider implements IBTCProvider {
         publicKeyHex: compressedPublicKey,
         address,
       };
+      this.walletInfoIdentityVersion = identityVersion;
     } else {
       throw new WalletError({
         code: ERROR_CODES.CONNECTION_FAILED,
@@ -90,6 +103,17 @@ export class OKXProvider implements IBTCProvider {
         wallet: WALLET_PROVIDER_NAME,
       });
     }
+  };
+
+  isIdentityCurrent = (): boolean =>
+    this.identityEventsTracked && this.walletInfoIdentityVersion === this.identityVersion;
+
+  private trackIdentityChanges = (): void => {
+    if (this.tracksIdentityChanges) return;
+    this.identityEventsTracked = trackProviderIdentityChanges(this.provider, () => {
+      this.identityVersion += 1;
+    });
+    this.tracksIdentityChanges = this.identityEventsTracked;
   };
 
   private timeoutError = (operation: string): WalletError =>
@@ -313,6 +337,10 @@ export class OKXProvider implements IBTCProvider {
       return this.provider.on("accountsChanged", callBack);
     }
 
+    if (eventName === NETWORK_CHANGE_EVENT) {
+      return this.provider.on(NETWORK_CHANGE_EVENT, callBack);
+    }
+
     if (eventName === DISCONNECT_EVENT) {
       return this.provider.on(DISCONNECT_EVENT, callBack);
     }
@@ -329,6 +357,10 @@ export class OKXProvider implements IBTCProvider {
     // OKX uses "accountsChanged" for account change events
     if (isAccountChangeEvent(eventName)) {
       return removeProviderListener(this.provider, "accountsChanged", callBack);
+    }
+
+    if (eventName === NETWORK_CHANGE_EVENT) {
+      return removeProviderListener(this.provider, NETWORK_CHANGE_EVENT, callBack);
     }
 
     if (eventName === DISCONNECT_EVENT) {

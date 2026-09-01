@@ -1,4 +1,5 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
+import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { TermsOfServiceParams } from "@/context/LifecycleHooks.context";
@@ -88,6 +89,45 @@ function bbnWallet(id: string, account: { address: string; publicKeyHex: string 
     getPublicKeyHex: vi.fn().mockResolvedValue(account.publicKeyHex),
   } as unknown as IWallet["provider"];
   return connectedWallet;
+}
+
+function eventWallet(
+  id: string,
+  cachedAccount: { address: string; publicKeyHex: string },
+  liveAccount = cachedAccount,
+  tracksCachedIdentity = false,
+) {
+  const handlers = new Map<string, Set<(...args: unknown[]) => void>>();
+  let currentAccount = liveAccount;
+  let identityCurrent = true;
+  const provider = {
+    getAddress: vi.fn(async () => currentAccount.address),
+    getPublicKeyHex: vi.fn(async () => currentAccount.publicKeyHex),
+    getChainId: vi.fn().mockResolvedValue(11155111),
+    getNetwork: vi.fn().mockResolvedValue("signet"),
+    isIdentityCurrent: vi.fn(() => identityCurrent),
+    on: vi.fn((event: string, handler: (...args: unknown[]) => void) => {
+      const eventHandlers = handlers.get(event) ?? new Set();
+      eventHandlers.add(handler);
+      handlers.set(event, eventHandlers);
+    }),
+    off: vi.fn((event: string, handler: (...args: unknown[]) => void) => {
+      handlers.get(event)?.delete(handler);
+    }),
+    changeAccount(account: { address: string; publicKeyHex: string }) {
+      currentAccount = account;
+    },
+    emit(event: string, ...args: unknown[]) {
+      if (tracksCachedIdentity && (event === "accountsChanged" || event === "networkChanged")) {
+        identityCurrent = false;
+      }
+      handlers.get(event)?.forEach((handler) => handler(...args));
+    },
+  };
+  const connectedWallet = wallet(id, cachedAccount);
+  connectedWallet.provider = provider as unknown as IWallet["provider"];
+
+  return { connectedWallet, provider };
 }
 
 let store: Map<string, string>;
@@ -232,10 +272,12 @@ describe("confirming the dialog", () => {
       screen.getByText("confirm").click();
     });
 
-    expect(JSON.parse(store.get(WALLET_CONFIRMATION_RECEIPT_KEY)!)).toMatchObject({
+    const receipt = store.get(WALLET_CONFIRMATION_RECEIPT_KEY)!;
+    expect(JSON.parse(receipt)).toMatchObject({
       version: 2,
       entries: [{ chain: "ETH", walletId: "metamask", network: "11155111" }],
     });
+    expect(confirm).toHaveBeenCalledWith(receipt);
   });
 
   it("stores no receipt when sessions are not persisted", async () => {
@@ -246,7 +288,10 @@ describe("confirming the dialog", () => {
     });
 
     expect(store.has(WALLET_CONFIRMATION_RECEIPT_KEY)).toBe(false);
-    expect(confirm).toHaveBeenCalled();
+    expect(JSON.parse(confirm.mock.calls[0][0])).toMatchObject({
+      version: 2,
+      entries: [{ chain: "ETH", walletId: "metamask", network: "11155111" }],
+    });
   });
 
   it("skips the terms hook when the session is already confirmed", async () => {
@@ -530,6 +575,169 @@ describe("confirming the dialog", () => {
     expect(confirm).not.toHaveBeenCalled();
     expect(close).not.toHaveBeenCalled();
     expect(store.has(WALLET_CONFIRMATION_RECEIPT_KEY)).toBe(false);
+  });
+
+  it("rejects a stale adapter cache after an earlier identity event", async () => {
+    const { connectedWallet: btc, provider } = eventWallet("unisat", BTC_ACCOUNT, BTC_ACCOUNT, true);
+    provider.emit("accountsChanged", ["bc1psomeoneelse"]);
+    harness.connectors = {
+      ETH: null,
+      BTC: { config: { network: "signet" }, connectedWallet: btc, disconnect: vi.fn() },
+      BBN: null,
+    };
+    setup({ requiredChainIds: ["BTC"] });
+
+    await act(async () => {
+      screen.getByText("confirm").click();
+    });
+
+    expect(acceptTermsOfService).not.toHaveBeenCalled();
+    expect(onConfirm).not.toHaveBeenCalled();
+    expect(confirm).not.toHaveBeenCalled();
+  });
+
+  it("does not expose a confirmed render when identity changes during the session handoff", async () => {
+    const confirmedRenders: boolean[] = [];
+    const { connectedWallet: btc, provider } = eventWallet("unisat", BTC_ACCOUNT);
+    harness.connectors = {
+      ETH: null,
+      BTC: { config: { network: "signet" }, connectedWallet: btc, disconnect: vi.fn() },
+      BBN: null,
+    };
+
+    function HandoffHarness() {
+      const [dialogState, setDialogState] = useState({ confirmed: false, visible: true });
+      confirmedRenders.push(dialogState.confirmed);
+      harness.widgetState = {
+        visible: dialogState.visible,
+        screen: { type: "CHAINS" },
+        confirmed: dialogState.confirmed,
+        requiredChainIds: ["BTC"],
+        close: () => setDialogState((state) => ({ ...state, visible: false })),
+        confirm: () => {
+          setDialogState((state) => ({ ...state, confirmed: true }));
+          provider.emit("disconnect");
+        },
+        unconfirm: () => setDialogState((state) => ({ ...state, confirmed: false })),
+        displayChains: vi.fn(),
+        displayError: vi.fn(),
+      };
+
+      return <WalletDialog persistent storage={storage} config={[]} />;
+    }
+
+    render(<HandoffHarness />);
+    await act(async () => {
+      screen.getByText("confirm").click();
+    });
+
+    expect(confirmedRenders).not.toContain(true);
+    expect(store.has(WALLET_CONFIRMATION_RECEIPT_KEY)).toBe(false);
+  });
+
+  it("stops an active attempt when the provider emits an identity change", async () => {
+    const pending = deferred();
+    const { connectedWallet, provider } = eventWallet("metamask", ETH_ACCOUNT);
+    acceptTermsOfService.mockReturnValue(pending.promise);
+    harness.connectors = {
+      ...harness.connectors,
+      ETH: { config: { chainId: 11155111 }, connectedWallet, disconnect: disconnectEth },
+    };
+    setup();
+
+    act(() => {
+      screen.getByText("confirm").click();
+    });
+    await waitFor(() => expect(acceptTermsOfService).toHaveBeenCalledTimes(1));
+
+    act(() => {
+      provider.emit("accountsChanged", ["0xnewaccount"]);
+    });
+    await act(async () => pending.resolve());
+
+    expect(onConfirm).not.toHaveBeenCalled();
+    expect(confirm).not.toHaveBeenCalled();
+  });
+
+  it("stops when an optional wallet emits an identity change during confirmation", async () => {
+    const pending = deferred();
+    const eth = ethWallet("metamask", ETH_ACCOUNT);
+    const { connectedWallet: btc, provider: btcProvider } = eventWallet("unisat", BTC_ACCOUNT);
+    acceptTermsOfService.mockReturnValue(pending.promise);
+    harness.connectors = {
+      ETH: { config: { chainId: 11155111 }, connectedWallet: eth, disconnect: disconnectEth },
+      BTC: { config: { network: "signet" }, connectedWallet: btc, disconnect: vi.fn() },
+      BBN: null,
+    };
+    setup({ requiredChainIds: ["ETH"] });
+
+    act(() => {
+      screen.getByText("confirm").click();
+    });
+    await waitFor(() => expect(acceptTermsOfService).toHaveBeenCalledTimes(1));
+
+    act(() => {
+      btcProvider.emit("accountsChanged", ["bc1psomeoneelse"]);
+    });
+    await act(async () => pending.resolve());
+
+    expect(onConfirm).not.toHaveBeenCalled();
+    expect(confirm).not.toHaveBeenCalled();
+  });
+
+  it("stops an active attempt when required chains change", async () => {
+    const pending = deferred();
+    acceptTermsOfService.mockReturnValue(pending.promise);
+    const view = setup({ requiredChainIds: ["ETH"] });
+
+    act(() => {
+      screen.getByText("confirm").click();
+    });
+    await waitFor(() => expect(acceptTermsOfService).toHaveBeenCalledTimes(1));
+
+    harness.widgetState = { ...harness.widgetState, requiredChainIds: ["ETH", "BTC"] };
+    view.rerender(<WalletDialog persistent storage={storage} config={[]} />);
+    await act(async () => pending.resolve());
+
+    expect(onConfirm).not.toHaveBeenCalled();
+    expect(confirm).not.toHaveBeenCalled();
+  });
+
+  it("removes an old requirement listener before a new attempt starts", async () => {
+    const oldHook = deferred();
+    const newHook = deferred();
+    const { connectedWallet: eth, provider: ethProvider } = eventWallet("metamask", ETH_ACCOUNT);
+    const btc = btcWallet("unisat", BTC_ACCOUNT);
+    acceptTermsOfService.mockReturnValueOnce(oldHook.promise).mockReturnValueOnce(newHook.promise);
+    harness.connectors = {
+      ETH: { config: { chainId: 11155111 }, connectedWallet: eth, disconnect: disconnectEth },
+      BTC: { config: { network: "signet" }, connectedWallet: btc, disconnect: vi.fn() },
+      BBN: null,
+    };
+    const view = setup({ requiredChainIds: ["ETH"] });
+
+    act(() => {
+      screen.getByText("confirm").click();
+    });
+    await waitFor(() => expect(acceptTermsOfService).toHaveBeenCalledTimes(1));
+
+    harness.connectors = { ...harness.connectors, ETH: null };
+    harness.widgetState = { ...harness.widgetState, requiredChainIds: ["BTC"] };
+    view.rerender(<WalletDialog persistent storage={storage} config={[]} />);
+    act(() => {
+      screen.getByText("confirm").click();
+    });
+    await waitFor(() => expect(acceptTermsOfService).toHaveBeenCalledTimes(2));
+
+    act(() => {
+      ethProvider.emit("accountsChanged", ["0xoldattemptchange"]);
+    });
+    await act(async () => newHook.resolve());
+
+    expect(onConfirm).toHaveBeenCalledTimes(1);
+    expect(confirm).toHaveBeenCalledTimes(1);
+
+    await act(async () => oldHook.resolve());
   });
 
   it("runs one confirmation when the user submits twice", async () => {
