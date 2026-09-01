@@ -17,6 +17,7 @@ describe("applyPerDepositStatus", () => {
     applyPerDepositStatus(
       {
         pegin_txid: "txid",
+        vault_id: `0x${"ab".repeat(32)}`,
         status: DaemonStatus.INGESTION_REJECTED,
         progress: {},
         health_info: "ok",
