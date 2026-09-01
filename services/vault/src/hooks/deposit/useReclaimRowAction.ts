@@ -43,10 +43,11 @@ export interface ReclaimRowAction {
 }
 
 export interface UseReclaimRowActionInput {
-  /** This vault's reserve state from the batched poller. */
+  /**
+   * This vault's reserve state from the batched poller, carrying the tip height
+   * its spends were observed against.
+   */
   status: ReclaimStatus | undefined;
-  /** Bitcoin tip height from the same poll. */
-  tipHeight: number | undefined;
   /** Live `BTCVaultStatus` from the contract. */
   onChainStatus: number | undefined;
   /** The vault's depositor BTC pubkey, for the ownership check. */
@@ -74,7 +75,6 @@ function isOwnedByConnectedWallet(
 
 export function useReclaimRowAction({
   status,
-  tipHeight,
   onChainStatus,
   depositorBtcPubkey,
   isReclaimInFlight,
@@ -98,7 +98,9 @@ export function useReclaimRowAction({
         onChainStatus,
         payoutSpend: status?.payoutSpend,
         reserveSpend: status?.reserveSpend,
-        tipHeight,
+        // The tip these spends were read against, never a fresher one — see
+        // `ReclaimStatus.observedTipHeight`.
+        tipHeight: status?.observedTipHeight,
         isOwnedByWallet,
         isLedgerWallet,
         isWithdrawBlocked: withdrawBlocked,
@@ -107,7 +109,6 @@ export function useReclaimRowAction({
     [
       onChainStatus,
       status,
-      tipHeight,
       isOwnedByWallet,
       isLedgerWallet,
       withdrawBlocked,

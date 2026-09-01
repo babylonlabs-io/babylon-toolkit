@@ -18,6 +18,7 @@ import { useEffect } from "react";
 
 import type { ProtocolStatus } from "@/components/shared/protocolStatus";
 import featureFlags from "@/config/featureFlags";
+import { COPY } from "@/copy";
 import {
   setMaxVaultsOverride,
   setProtocolStatusOverride,
@@ -81,7 +82,7 @@ function NotificationOverrideControls() {
       <div className={PANEL_SECTION_TITLE_CLASS}>Notifications</div>
 
       <label className="flex cursor-pointer items-center justify-between gap-2 text-sm">
-        <span>Maximum vaults reached</span>
+        <span>{COPY.liquidationWarnings.maxVaults.titleV3}</span>
         <input
           type="checkbox"
           checked={maxVaultsOverride !== null}

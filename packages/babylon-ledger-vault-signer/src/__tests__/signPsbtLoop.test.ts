@@ -18,6 +18,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   LedgerDeviceError,
+  LedgerDeviceLockedError,
   LedgerSignPsbtAbortedError,
   LedgerSignPsbtProtocolError,
   LedgerUserRefusedError,
@@ -289,17 +290,44 @@ describe("terminal status words mid-loop (T6)", () => {
     expect(sent()).toBe(2);
   });
 
-  it("0x5515 on a CONTINUE surfaces as a locked device", async () => {
+  it.each([
+    ["5515", 0x5515],
+    ["6982", 0x6982],
+    ["5303", 0x5303],
+  ])("locked word 0x%s on a CONTINUE throws with preDispatch false", async (_hex, sw) => {
+    // The app already ran the first round, so caps/dedup may be committed —
+    // the lock stays unproven so the adapter cannot keep the intent.
     const traceFile = loadJson<TraceFile>(join(TRACES_DIR, "generated__deposit-flow__pegin__0.json"));
     const prepared = prepareFromVector(traceFile.vector_id);
-    const script = firstRoundScript(prepared, traceFile.traces[0], 0x5515);
-    const { send } = createScriptedSender(script);
+    const script = firstRoundScript(prepared, traceFile.traces[0], sw);
+    const { send, sent } = createScriptedSender(script);
 
     const outcome = await runSignPsbtLoop(send, prepared, { signal: NEVER_ABORTED }).then(
       () => undefined,
       (error: unknown) => error,
     );
     expect(isLedgerDeviceLockedError(outcome)).toBe(true);
+    expect(outcome).toMatchObject({ name: LedgerDeviceLockedError.name, statusWord: sw, preDispatch: false });
+    expect(sent()).toBe(2);
+  });
+
+  it.each([
+    ["5515", 0x5515],
+    ["6982", 0x6982],
+    ["5303", 0x5303],
+  ])("locked word 0x%s on the initial SIGN_PSBT throws with preDispatch true", async (_hex, sw) => {
+    const prepared = prepareFromVector("generated__deposit-flow__pegin__0");
+    const script: ScriptedExchange[] = [
+      { expectApduHex: initialApduHexOf(prepared), respondSw: sw, respondDataHex: "" },
+    ];
+    const { send, sent } = createScriptedSender(script);
+
+    await expect(runSignPsbtLoop(send, prepared, { signal: NEVER_ABORTED })).rejects.toMatchObject({
+      name: LedgerDeviceLockedError.name,
+      statusWord: sw,
+      preDispatch: true,
+    });
+    expect(sent()).toBe(1);
   });
 
   it("names the connect-time app on 0x6E00 when the caller supplied one", async () => {

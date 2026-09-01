@@ -77,6 +77,7 @@ jobs:
       changed_count: ${{ steps.diff.outputs.changed_count }}
       compared_surfaces: ${{ steps.diff.outputs.compared_surfaces }}
       missing_surfaces: ${{ steps.diff.outputs.missing_surfaces }}
+      incomplete_surfaces: ${{ steps.diff.outputs.incomplete_surfaces }}
       diff_outcome: ${{ steps.diff.outcome }}
       embed_outcome: ${{ steps.embed.outcome }}
 
@@ -267,6 +268,7 @@ jobs:
           TOTAL_CHANGED=0
           COMPARED=0
           MISSING=""
+          INCOMPLETE=""
           for SURFACE in ${VISUAL_SURFACES}; do
             BASE="${{ runner.temp }}/visual/baseline/${SURFACE}"
             CAND="${{ runner.temp }}/visual/candidate/${SURFACE}"
@@ -305,12 +307,21 @@ jobs:
             # otherwise land on the ":white_check_mark: No visual changes"
             # branch. Both sides run the same stashed harness, which makes
             # that symmetry the normal shape of a capture failure rather than
-            # an unlucky one. Folded into MISSING because that channel is
-            # already wired to every consumer: the embed gate, the job
-            # summary, the PR comment and this job's outputs.
+            # an unlucky one.
+            #
+            # Its OWN channel, not MISSING. The two are different failures and
+            # only one of them makes pictures impossible: MISSING means the
+            # surface produced no comparison at all, so there is nothing to
+            # illustrate, while this means the surface compared fine and some
+            # of its screens were never photographed. Folding the second into
+            # the first is what let two broken screens out of twenty suppress
+            # the before/after images for the eighteen that worked - on every
+            # pull request, for as long as those two stay broken. What the
+            # reader loses in that trade is the entire evidence for a change
+            # the run DID detect, to be told about it in prose instead.
             SHORT="$(node -e "const s=require('${OUT}/summary.json'); console.log(s.expectedCount === null ? 'unknown' : s.absentScreens.length)")"
             if [ "${SHORT}" != "0" ]; then
-              MISSING="${MISSING}${MISSING:+ }${SURFACE}"
+              INCOMPLETE="${INCOMPLETE}${INCOMPLETE:+ }${SURFACE}"
             fi
           done
           echo "changed_count=${TOTAL_CHANGED}" >> "$GITHUB_OUTPUT"
@@ -321,6 +332,12 @@ jobs:
           # count alone is not enough: one surface capturing empty on both
           # sides would hide behind the other's COMPARED and read as green.
           echo "missing_surfaces=${MISSING}" >> "$GITHUB_OUTPUT"
+          # Names every surface that DID compare but cannot account for every
+          # screen: some were never captured, or no manifest exists to check
+          # against. Blocks the affirmative ":white_check_mark:" - a screen
+          # nobody photographed cannot be reported as unchanged - and nothing
+          # else.
+          echo "incomplete_surfaces=${INCOMPLETE}" >> "$GITHUB_OUTPUT"
 
       # The reviewer-facing half of the change: stitch each of the
       # most-changed screens into one before/after PNG and write the comment
@@ -328,10 +345,16 @@ jobs:
       # percentages is only actionable to someone willing to download and
       # unzip the artifact below, which in practice is nobody.
       #
-      # Gated on a clean, complete comparison. The partial and failed
-      # variants of the comment are warnings about the run itself, and
-      # illustrating them with pictures of the surface that did work would
-      # undercut the warning.
+      # Gated on a comparison having happened at all, not on the run being
+      # flawless. A surface that produced NO comparison leaves nothing to
+      # illustrate, so `missing_surfaces` still blocks this. A surface that
+      # compared and is short some screens does not: the change it did find
+      # is real, and the reviewer needs to see it.
+      #
+      # The warning is not dropped in that case, it is moved next to the
+      # evidence. The comment step prints the incomplete notice ABOVE the
+      # pictures, and `diff-output.txt` - which names each absent screen -
+      # is already carried inside the body scripts/visual-embed.mjs writes.
       - name: Compose before/after images
         id: embed
         if: >-
@@ -388,6 +411,7 @@ jobs:
           CHANGED: ${{ steps.diff.outputs.changed_count }}
           COMPARED: ${{ steps.diff.outputs.compared_surfaces }}
           MISSING: ${{ steps.diff.outputs.missing_surfaces }}
+          INCOMPLETE: ${{ steps.diff.outputs.incomplete_surfaces }}
         shell: bash
         run: |
           {
@@ -409,7 +433,16 @@ jobs:
             # comparison at all, and folding that into the other surface's
             # green would report "no changes" for screens nobody looked at.
             elif [ -n "${MISSING}" ]; then
-              echo ":warning: No comparisons were produced for: ${MISSING}. The result below covers the remaining surface(s) only - this run is not a full comparison."
+              echo ":warning: No comparisons were produced for: ${MISSING}.${INCOMPLETE:+ Nor was every screen compared for: ${INCOMPLETE}.} The result below covers the remaining surface(s) only - this run is not a full comparison."
+              echo ""
+              echo '```'
+              cat "${{ runner.temp }}/visual/payload/diff-output.txt" 2>/dev/null || true
+              echo '```'
+            # A screen nobody photographed cannot be reported as unchanged,
+            # so an incomplete surface forfeits the affirmative tick. It does
+            # not forfeit a result that WAS found - that case falls through.
+            elif [ "${CHANGED}" = "0" ] && [ -n "${INCOMPLETE}" ]; then
+              echo ":warning: Nothing changed among the screens that were compared, but not every screen was compared for: ${INCOMPLETE}."
               echo ""
               echo '```'
               cat "${{ runner.temp }}/visual/payload/diff-output.txt" 2>/dev/null || true
@@ -417,6 +450,10 @@ jobs:
             elif [ "${CHANGED}" = "0" ]; then
               echo ":white_check_mark: No visual changes detected."
             else
+              if [ -n "${INCOMPLETE}" ]; then
+                echo ":warning: Not every screen was compared for: ${INCOMPLETE}. What the run did find:"
+                echo ""
+              fi
               echo ":framed_picture: **${CHANGED} screen(s) changed.**"
               echo ""
               echo '```'
@@ -692,6 +729,7 @@ jobs:
           CHANGED: ${{ needs.visual.outputs.changed_count }}
           COMPARED: ${{ needs.visual.outputs.compared_surfaces }}
           MISSING: ${{ needs.visual.outputs.missing_surfaces }}
+          INCOMPLETE: ${{ needs.visual.outputs.incomplete_surfaces }}
           PUBLISH_OUTCOME: ${{ steps.publish.outcome }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -748,13 +786,27 @@ jobs:
             elif [ -n "${MISSING}" ]; then
               echo "### Visual regression"
               echo ""
-              echo ":warning: No comparisons were produced ${AT_SHA} for: ${MISSING}. The remaining surface(s) alone do not make this a clean run."
+              echo ":warning: No comparisons were produced ${AT_SHA} for: ${MISSING}.${INCOMPLETE:+ Nor was every screen compared for: ${INCOMPLETE}.} The remaining surface(s) alone do not make this a clean run."
               echo ""
               echo '```'
               head -c "${MAX_DIFF_TEXT_BYTES}" "${PAYLOAD_DIR}/diff-output.txt" || true
               echo '```'
               echo ""
               echo "[Open the run](${RUN_URL}) to see why that capture came up empty."
+            # A screen nobody photographed cannot be reported as unchanged,
+            # so an incomplete surface forfeits the affirmative tick - and
+            # only that. Where the run DID find something, the branches below
+            # keep it and carry the warning alongside.
+            elif [ "${CHANGED}" = "0" ] && [ -n "${INCOMPLETE}" ]; then
+              echo "### Visual regression"
+              echo ""
+              echo ":warning: Nothing changed ${AT_SHA} among the screens that were compared, but not every screen was compared for: ${INCOMPLETE} - so this is not a clean run."
+              echo ""
+              echo '```'
+              head -c "${MAX_DIFF_TEXT_BYTES}" "${PAYLOAD_DIR}/diff-output.txt" || true
+              echo '```'
+              echo ""
+              echo "[Open the run](${RUN_URL}) to see why those screens came up empty."
             elif [ "${CHANGED}" = "0" ]; then
               echo "### Visual regression"
               echo ""
@@ -765,10 +817,28 @@ jobs:
             elif [ "${PUBLISH_OUTCOME}" = "success" ] \
               && [ -s "${PAYLOAD_DIR}/comment-images.md" ] \
               && [ "$(wc -c < "${PAYLOAD_DIR}/comment-images.md")" -le "${MAX_COMMENT_BYTES}" ]; then
+              # Above the pictures, not instead of them. A blockquote rather
+              # than a heading because the composed body brings its own - and
+              # its own sha, so this line carries no AT_SHA - and because
+              # this has to read as a caveat ON that report.
+              #
+              # "what it could not compare", not "which screens": the absent
+              # ones are listed by name only when a manifest existed to name
+              # them against. With no manifest the same channel says only
+              # that completeness is unknown, and promising a list there
+              # sends the reader looking for one that was never printed.
+              if [ -n "${INCOMPLETE}" ]; then
+                echo "> :warning: Not every screen was compared for: ${INCOMPLETE}, so this is not a full comparison. What it could not compare is in the full list at the end."
+                echo ""
+              fi
               cat "${PAYLOAD_DIR}/comment-images.md"
             else
               echo "### Visual regression"
               echo ""
+              if [ -n "${INCOMPLETE}" ]; then
+                echo ":warning: Not every screen was compared for: ${INCOMPLETE}, so this is not a full comparison. What the run did find:"
+                echo ""
+              fi
               echo ":framed_picture: **${CHANGED} screen(s) changed** ${AT_SHA} against the merge-base."
               echo ""
               echo '```'

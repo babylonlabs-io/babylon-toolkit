@@ -40,6 +40,51 @@ export interface OutpointSpend {
   blockHeight?: number;
 }
 
+/** An esplora `/outspend` response, as `getOutspend` returns it: unvalidated. */
+export interface RawOutspend {
+  spent?: boolean;
+  status?: { confirmed?: boolean; block_height?: number };
+}
+
+/**
+ * Coerce a chain height — a spend's `block_height` or the chain tip — to a
+ * value this module can do arithmetic on, or `undefined`.
+ *
+ * Both operands of `tipHeight - blockHeight + 1` need this, and for the same
+ * reason: neither arrives validated. The SDK's `getOutspend` returns the
+ * parsed JSON body verbatim, so `block_height: number | undefined` describes
+ * the declared type rather than the value, and a `null`, a numeric string or a
+ * negative height all reach here as-is. The mempool endpoint is configurable,
+ * so a self-hosted or proxied response is untrusted on both halves.
+ *
+ * `Number.isSafeInteger` rather than `Number.isInteger` is load-bearing: a
+ * finite-but-unsafe height such as `1e20` satisfies `isInteger`, and as a tip
+ * it yields a confirmation depth around `1e20` that clears any threshold.
+ * Real heights sit near 9e5 against a 9e15 bound, so nothing legitimate is
+ * excluded.
+ */
+export function normalizeChainHeight(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0
+    ? value
+    : undefined;
+}
+
+/**
+ * Normalise an esplora outspend response into an `OutpointSpend`.
+ *
+ * `spent` and `confirmed` compare strictly against `true`, so anything
+ * malformed reads as "not spent" — the fail-closed direction. `blockHeight` is
+ * the only field consumed arithmetically, which is why it needs the coercion
+ * above rather than a comparison.
+ */
+export function toOutpointSpend(res: RawOutspend): OutpointSpend {
+  return {
+    spent: res.spent === true,
+    confirmed: res.spent === true && res.status?.confirmed === true,
+    blockHeight: normalizeChainHeight(res.status?.block_height),
+  };
+}
+
 export interface ReclaimEligibilityInput {
   /**
    * Live `BTCVaultStatus` from the contract. Necessary but never sufficient —
@@ -50,7 +95,16 @@ export interface ReclaimEligibilityInput {
   payoutSpend: OutpointSpend | undefined;
   /** Spend status of `peginTxid:1` — the reserve itself. */
   reserveSpend: OutpointSpend | undefined;
-  /** Current Bitcoin tip height, for the confirmation-depth check. */
+  /**
+   * The Bitcoin tip height **the spends above were observed against**, not the
+   * current one.
+   *
+   * Those are two different numbers whenever a poll carries a previous
+   * observation forward past a failed read, and pairing a fresh tip with stale
+   * spend data would let confirmations accrue on a Payout nobody is watching
+   * any more. `useReclaimStatus` stamps each status with the tip of the tick
+   * that produced it for exactly this reason.
+   */
   tipHeight: number | undefined;
   /** Whether the vault belongs to the connected wallet. */
   isOwnedByWallet: boolean;
@@ -128,18 +182,19 @@ export function getReclaimEligibility(
   // wallet's pubkey, so there is nothing this wallet could sign.
   if (!isOwnedByWallet) return { type: "absent" };
 
-  // Any read not yet in hand leaves the action hidden rather than offered.
-  if (!payoutSpend || !reserveSpend || tipHeight === undefined) {
+  // Any read not yet in hand — or not usable as a height — leaves the action
+  // hidden rather than offered.
+  if (
+    !payoutSpend ||
+    !reserveSpend ||
+    normalizeChainHeight(tipHeight) === undefined
+  ) {
     return { type: "absent" };
   }
 
   // The gate. An unspent vault UTXO means the peg-out has not settled on
   // Bitcoin and the depositor's claim right still matters.
-  const payoutSettled =
-    payoutSpend.spent &&
-    payoutSpend.confirmed &&
-    payoutConfirmations(payoutSpend, tipHeight) >=
-      RECLAIM_MIN_PAYOUT_CONFIRMATIONS;
+  const payoutSettled = isPayoutSettled(payoutSpend, tipHeight);
 
   if (reserveSpend.spent) {
     // Spent but not yet mined, on a vault that had passed the gate: this is a
@@ -191,16 +246,44 @@ export function getReclaimEligibility(
 }
 
 /**
+ * Whether the Payout has landed on Bitcoin and settled deeply enough to make
+ * the depositor's recourse graph redundant.
+ *
+ * This is *the* safety condition — sweeping the reserve before it holds
+ * destroys recovery material that cannot be rebuilt. Exported so the pre-sign
+ * re-check in `services/vault/vaultReclaimService` enforces the same predicate
+ * the row is rendered from, rather than a second copy of it that can drift.
+ *
+ * Fails closed on every missing input.
+ */
+export function isPayoutSettled(
+  payoutSpend: OutpointSpend | undefined,
+  tipHeight: number | undefined,
+): boolean {
+  const tip = normalizeChainHeight(tipHeight);
+  if (!payoutSpend || tip === undefined) return false;
+  return (
+    payoutSpend.spent &&
+    payoutSpend.confirmed &&
+    payoutConfirmations(payoutSpend, tip) >= RECLAIM_MIN_PAYOUT_CONFIRMATIONS
+  );
+}
+
+/**
  * Confirmation depth of the Payout, counting the containing block as one.
  *
- * A spend confirmed but missing its height is treated as one confirmation —
- * enough to be real, not enough to clear the deep-confirmation bar — so a
- * partial esplora response delays the offer instead of waving it through.
+ * A spend confirmed but missing a usable height is treated as one confirmation
+ * — enough to be real, not enough to clear the deep-confirmation bar — so a
+ * partial or malformed esplora response delays the offer instead of waving it
+ * through. The height is re-normalised here rather than trusted from the
+ * caller: this function is the safety control, and it should not be correct
+ * only because some mapper upstream happened to be.
  */
 function payoutConfirmations(
   payoutSpend: OutpointSpend,
   tipHeight: number,
 ): number {
-  if (payoutSpend.blockHeight === undefined) return 1;
-  return tipHeight - payoutSpend.blockHeight + 1;
+  const blockHeight = normalizeChainHeight(payoutSpend.blockHeight);
+  if (blockHeight === undefined) return 1;
+  return tipHeight - blockHeight + 1;
 }

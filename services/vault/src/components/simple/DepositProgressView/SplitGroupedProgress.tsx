@@ -59,6 +59,11 @@ interface SplitGroupedProgressProps {
    * (see the per-column gate below).
    */
   started?: boolean;
+  /**
+   * Pre-sign entry panel. Goes on the shared trunk only — one Pre-PegIn
+   * transaction, one fee rate, however many vaults the deposit splits into.
+   */
+  preSignDetail?: ReactNode;
 }
 
 /** One group list per vault, rendered as the new filled-card / header blocks. */
@@ -123,6 +128,7 @@ export function SplitGroupedProgress({
   renderStepDetail,
   perVaultSteps,
   started = true,
+  preSignDetail,
 }: SplitGroupedProgressProps) {
   // Shared trunk groups (Register deposit). Keep original 1-based numbers, hide
   // completed groups (they fold into the steps-completed pill).
@@ -145,6 +151,7 @@ export function SplitGroupedProgress({
             hasError={hasError}
             // Trunk is full-width → inline detail (e.g. the pegin-fee notice).
             activeStepDetail={renderStepDetail?.(rawStep, { stacked: false })}
+            preSignDetail={preSignDetail}
           />
           <StepConnector />
         </div>
