@@ -64,6 +64,10 @@ vi.mock("@/components/deposit/DepositSignModal/depositStepHelpers", () => ({
   }),
 }));
 
+vi.mock("../DepositProgressView/FeeRateSelector", () => ({
+  FeeRateSelector: () => null,
+}));
+
 vi.mock("../PostDepositContinuationContent", () => ({
   PostDepositContinuationContent: ({ vaultIds }: { vaultIds: string[] }) => (
     <div data-testid="continuation" data-count={vaultIds.length} />
@@ -128,6 +132,7 @@ function renderContent(
       universalChallengerBtcPubkeys={["0xchallenger"]}
       onClose={vi.fn()}
       onRefetchActivities={overrides.onRefetchActivities}
+      onFeeRateChange={vi.fn()}
     />,
   );
 }

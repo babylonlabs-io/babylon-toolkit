@@ -36,6 +36,7 @@ import {
   PRIMARY_ROW_BUTTON_CLASS,
 } from "@/components/shared/buttonClasses";
 import { ProgressBar } from "@/components/simple/DepositProgressView/ProgressBar";
+import { DEPOSIT_VIEW_MAX_WIDTH_CLASS } from "@/components/simple/DepositProgressView/layout";
 import {
   getStepFillPercent,
   getVisualStep,
@@ -735,7 +736,7 @@ export function VaultsLifecycleSections({
 
       {viewingBatch && ethAddress && (
         <V3ModalShell open onClose={handleViewingClose}>
-          <div className="mx-auto w-full max-w-[520px]">
+          <div className={`mx-auto w-full ${DEPOSIT_VIEW_MAX_WIDTH_CLASS}`}>
             <PostDepositContinuationContent
               vaultIds={viewingBatch}
               depositorEthAddress={ethAddress as Address}

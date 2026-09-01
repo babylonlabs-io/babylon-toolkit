@@ -26,6 +26,8 @@ interface GroupedProgressProps {
   hasError?: boolean;
   /** False in the pre-entry state — no group expands (see buildStepGroups). */
   started?: boolean;
+  /** Pre-sign entry panel, rendered under the Pre-PegIn step (see GroupBlock). */
+  preSignDetail?: ReactNode;
 }
 
 export function GroupedProgress({
@@ -34,6 +36,7 @@ export function GroupedProgress({
   activeStepDetail,
   hasError = false,
   started = true,
+  preSignDetail,
 }: GroupedProgressProps) {
   const groups = buildStepGroups(currentStep, started);
 
@@ -58,6 +61,7 @@ export function GroupedProgress({
               currentStep={currentStep}
               hasError={hasError}
               activeStepDetail={activeStepDetail}
+              preSignDetail={preSignDetail}
             />
 
             {!isLastGroup && <StepConnector />}
