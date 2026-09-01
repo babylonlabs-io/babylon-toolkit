@@ -1,9 +1,10 @@
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import { act, fireEvent, render } from "@testing-library/react";
-import type { Address } from "viem";
+import type { Address, Hex } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { COPY } from "@/copy";
+import type { DepositErrorContent } from "@/utils/errors";
 
 import type { DepositProgressViewProps } from "../DepositProgressView";
 import { DepositSignContent } from "../DepositSignContent";
@@ -15,12 +16,24 @@ const deviceCancelState = vi.hoisted(() => ({
   canCancel: false,
   requested: false,
 }));
+// Mutable so tests can drive the flow's error / in-modal resume seam.
+const flowErrorState = vi.hoisted(() => ({
+  error: null as DepositErrorContent | null,
+  resumableVaultIds: null as Hex[] | null,
+}));
 // Captures the latest `onSign` handed to DepositProgressView so a test can
 // invoke it twice synchronously — the real double-click race that happens
 // before the `started` re-render flips the button out of the pre-sign state.
 const signHolder = vi.hoisted(() => ({ onSign: null as null | (() => void) }));
 const lastProgressProps = vi.hoisted(() => ({
   current: {} as Partial<DepositProgressViewProps>,
+}));
+// Captures the in-flow notification observer's `enabled` argument so a test
+// can pin when the content stands it down.
+const mockUseDepositSigningNotification = vi.hoisted(() => vi.fn());
+
+vi.mock("@/hooks/deposit/useDepositSigningNotification", () => ({
+  useDepositSigningNotification: mockUseDepositSigningNotification,
 }));
 
 vi.mock("@/hooks/deposit/useDepositFlow", () => ({
@@ -29,7 +42,8 @@ vi.mock("@/hooks/deposit/useDepositFlow", () => ({
     abort: vi.fn(),
     currentStep: "DERIVE_VAULT_SECRET",
     processing: false,
-    error: null,
+    error: flowErrorState.error,
+    resumableVaultIds: flowErrorState.resumableVaultIds,
     lastWarnings: [],
     isWaiting: false,
     payoutSigningProgress: null,
@@ -50,6 +64,10 @@ vi.mock("@/components/deposit/DepositSignModal/depositStepHelpers", () => ({
   }),
 }));
 
+vi.mock("../DepositProgressView/FeeRateSelector", () => ({
+  FeeRateSelector: () => null,
+}));
+
 vi.mock("../PostDepositContinuationContent", () => ({
   PostDepositContinuationContent: ({ vaultIds }: { vaultIds: string[] }) => (
     <div data-testid="continuation" data-count={vaultIds.length} />
@@ -59,12 +77,27 @@ vi.mock("../PostDepositContinuationContent", () => ({
 // DepositProgressView now owns both the pre-sign entry state (started=false,
 // renders the "Sign Transaction" CTA) and the in-flight stepper (started=true).
 // The mock captures `onSign` so the double-click race can be exercised, and
-// renders a stable marker so tests can tell the two states apart.
+// renders a stable marker so tests can tell the two states apart. On an error
+// it mirrors the real view's button choice: Retry when `onRetry` is handed in,
+// Close otherwise.
 vi.mock("../DepositProgressView", () => ({
   DepositProgressView: (props: DepositProgressViewProps) => {
     lastProgressProps.current = props;
     if (props.started) {
-      return <div data-testid="progress" />;
+      return (
+        <div data-testid="progress">
+          {props.error &&
+            (props.onRetry ? (
+              <button type="button" data-testid="retry" onClick={props.onRetry}>
+                {COPY.deposit.progress.buttons.retry}
+              </button>
+            ) : (
+              <button type="button" data-testid="close" onClick={props.onClose}>
+                {COPY.deposit.progress.buttons.close}
+              </button>
+            ))}
+        </div>
+      );
     }
     signHolder.onSign = props.onSign ?? null;
     return (
@@ -76,14 +109,21 @@ vi.mock("../DepositProgressView", () => ({
 }));
 
 function renderContent(
-  overrides: Partial<{ onRefetchActivities: () => Promise<void> }> = {},
+  overrides: {
+    onRefetchActivities?: () => Promise<void>;
+    depositorEthAddress?: Address | undefined;
+  } = {},
 ) {
   return render(
     <DepositSignContent
       vaultAmounts={[100000n]}
       mempoolFeeRate={1}
       btcWalletProvider={{} as unknown as BitcoinWallet}
-      depositorEthAddress={"0xeth" as Address}
+      depositorEthAddress={
+        "depositorEthAddress" in overrides
+          ? overrides.depositorEthAddress
+          : ("0xeth" as Address)
+      }
       selectedApplication="0xapp"
       selectedProviders={["0xprovider"]}
       quotedCommissionBps={250}
@@ -92,6 +132,7 @@ function renderContent(
       universalChallengerBtcPubkeys={["0xchallenger"]}
       onClose={vi.fn()}
       onRefetchActivities={overrides.onRefetchActivities}
+      onFeeRateChange={vi.fn()}
     />,
   );
 }
@@ -103,6 +144,104 @@ describe("DepositSignContent", () => {
     lastProgressProps.current = {};
     deviceCancelState.canCancel = false;
     deviceCancelState.requested = false;
+    flowErrorState.error = null;
+    flowErrorState.resumableVaultIds = null;
+  });
+
+  it("renders Retry and switches to the continuation view after a post-registration device error", async () => {
+    mockExecuteDeposit.mockResolvedValue(null);
+    flowErrorState.error = COPY.deposit.errors.deviceLocked;
+    flowErrorState.resumableVaultIds = ["0xv0", "0xv1"] as Hex[];
+    const onRefetchActivities = vi.fn().mockResolvedValue(undefined);
+
+    const { findByTestId, getByTestId, queryByTestId } = renderContent({
+      onRefetchActivities,
+    });
+    fireEvent.click(getByTestId("summary-sign"));
+    await findByTestId("progress");
+
+    expect(getByTestId("retry").textContent).toBe(
+      COPY.deposit.progress.buttons.retry,
+    );
+    expect(queryByTestId("close")).toBeNull();
+
+    fireEvent.click(getByTestId("retry"));
+
+    // The resume is the same handoff the success path takes: the polling
+    // continuation for the registered vaults, not a re-run of the flow.
+    const continuation = await findByTestId("continuation");
+    expect(continuation.getAttribute("data-count")).toBe("2");
+    expect(onRefetchActivities).toHaveBeenCalledTimes(1);
+    expect(mockExecuteDeposit).toHaveBeenCalledTimes(1);
+  });
+
+  it("stands the in-flow signing observer down once the continuation owns signing", async () => {
+    mockExecuteDeposit.mockResolvedValue(null);
+    flowErrorState.error = COPY.deposit.errors.deviceLocked;
+    flowErrorState.resumableVaultIds = ["0xv0"] as Hex[];
+
+    const { findByTestId, getByTestId } = renderContent();
+    fireEvent.click(getByTestId("summary-sign"));
+    await findByTestId("progress");
+    expect(mockUseDepositSigningNotification).toHaveBeenLastCalledWith(
+      expect.anything(),
+      true,
+    );
+
+    fireEvent.click(getByTestId("retry"));
+    await findByTestId("continuation");
+
+    // The pending-deposit observer takes over; two live observers would
+    // double-notify on the same signing step.
+    expect(mockUseDepositSigningNotification).toHaveBeenLastCalledWith(
+      expect.anything(),
+      false,
+    );
+  });
+
+  it("keeps Close when the error is not resumable", async () => {
+    mockExecuteDeposit.mockResolvedValue(null);
+    flowErrorState.error = COPY.deposit.errors.broadcastFailed;
+
+    const { findByTestId, getByTestId, queryByTestId } = renderContent();
+    fireEvent.click(getByTestId("summary-sign"));
+    await findByTestId("progress");
+
+    expect(lastProgressProps.current.onRetry).toBeUndefined();
+    expect(getByTestId("close").textContent).toBe(
+      COPY.deposit.progress.buttons.close,
+    );
+    expect(queryByTestId("retry")).toBeNull();
+  });
+
+  it("keeps Close when there is no registered vault to resume", async () => {
+    mockExecuteDeposit.mockResolvedValue(null);
+    flowErrorState.error = COPY.deposit.errors.deviceLocked;
+    flowErrorState.resumableVaultIds = [];
+
+    const { findByTestId, getByTestId, queryByTestId } = renderContent();
+    fireEvent.click(getByTestId("summary-sign"));
+    await findByTestId("progress");
+
+    expect(lastProgressProps.current.onRetry).toBeUndefined();
+    expect(getByTestId("close")).toBeTruthy();
+    expect(queryByTestId("retry")).toBeNull();
+  });
+
+  it("keeps Close when the Ethereum address is gone, since the continuation could not take the handoff", async () => {
+    mockExecuteDeposit.mockResolvedValue(null);
+    flowErrorState.error = COPY.deposit.errors.deviceLocked;
+    flowErrorState.resumableVaultIds = ["0xv0"] as Hex[];
+
+    const { findByTestId, getByTestId, queryByTestId } = renderContent({
+      depositorEthAddress: undefined,
+    });
+    fireEvent.click(getByTestId("summary-sign"));
+    await findByTestId("progress");
+
+    expect(lastProgressProps.current.onRetry).toBeUndefined();
+    expect(getByTestId("close")).toBeTruthy();
+    expect(queryByTestId("retry")).toBeNull();
   });
 
   it("plumbs the flow's device-cancel seam into DepositProgressView", () => {

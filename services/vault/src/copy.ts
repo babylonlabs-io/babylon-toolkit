@@ -507,6 +507,29 @@ export const COPY = {
       retryButton: "Retry",
       confirmButton: "Confirm",
     },
+    // The tier hints are static: they name the confirmation target of the
+    // mempool.space field each tile reads (hourFee / halfHourFee / fastestFee),
+    // not a live estimate of the current queue. simple-staking's FeeModal does
+    // the same ("Next Block" / "Estimated 30mins" / "Estimated 60mins"). On a
+    // quiet signet all three fields return the 1 sat/vB floor, so one rate ends
+    // up wearing three different time promises. Follow-up: port staking's
+    // per-tile `warning={tierRate < defaultFeeRate}` flag, which marks the tiles
+    // that are genuinely too cheap instead of hiding the hints.
+    feeSelector: {
+      title: "Network Fee Rate",
+      headerUnit: "sats/vB",
+      slowLabel: "Slow",
+      slowHint: "~1 hour",
+      avgLabel: "Avg",
+      avgHint: "~30 min",
+      fastLabel: "Fast",
+      fastHint: "~10 min",
+      customLabel: "Custom",
+      cardUnit: "sat/vB",
+      customInputSuffix: "sats/vB",
+      clearCustomAria: "Clear custom fee rate",
+      lowFeeWarning: "Fees are low; inclusion is not guaranteed",
+    },
     activateConfirmation: {
       title: "Activate your BTCVault",
       // The download instruction is emphasized (primary text color) per the
@@ -709,6 +732,12 @@ export const COPY = {
       // Fee-breakdown lines (DepositFeesBreakdown) shown before the user
       // submits. The commission label appends the percent, e.g. "VP commission
       // (2.50%)"; net payout is the deposit minus that commission.
+      networkFeeRateLabel: "Network Fee Rate",
+      networkFeeRateTooltip:
+        "Bitcoin network fee rate for your pre-pegin funding transaction. Raise it during congestion so the transaction confirms sooner.",
+      btcNetworkFeeLabel: "BTC Network Fee",
+      btcNetworkFeeTooltip:
+        "Estimated Bitcoin miner fee for the pre-pegin funding transaction at the selected fee rate.",
       vpCommissionLabel: "VP commission",
       vpCommissionTooltip:
         "The vault provider's fee, deducted from your payout when you redeem. Set by the vault provider and shown here before you deposit.",
@@ -889,7 +918,7 @@ export const COPY = {
       },
       signingRejected: {
         title: "Signing rejected",
-        body: "You rejected the request in your wallet. Click Retry to approve it and continue.",
+        body: "You rejected the request in your wallet. Try again to approve it and continue.",
       },
       // Self-requested cancel (the in-app "Cancel signing" affordance), as
       // opposed to a rejection on the wallet/device itself. Names no button:
@@ -900,11 +929,12 @@ export const COPY = {
         body: "You canceled the signature request, so the deposit did not continue. No Bitcoin was spent.",
       },
       // A cancel settling after the Ethereum registration is mined: gas is
-      // spent and the vaults await the Pre-PegIn, so point at the resume path
-      // instead of implying nothing happened. No Bitcoin has moved.
+      // spent and the vaults await the Pre-PegIn, so point at the in-modal
+      // Retry and the dashboard resume instead of implying nothing happened.
+      // No Bitcoin has moved.
       signingCanceledAfterRegistration: {
         title: "Signing canceled",
-        body: "You canceled the signature request. No Bitcoin was spent, but your deposit is already registered on Ethereum. Resume it from your dashboard to broadcast, or the registration will expire on its own.",
+        body: "You canceled the signature request. No Bitcoin was spent, but your deposit is already registered on Ethereum. Retry to continue signing, or resume it later from your dashboard — otherwise the registration will expire on its own.",
       },
       walletNotConnected: {
         title: "Wallet not connected",
@@ -1322,6 +1352,11 @@ export const COPY = {
       walletNotConnected: "BTC wallet not connected",
       missingVaultId: "Missing BTCVault ID",
       invalidFeeRate: "Fee rate must be a positive number",
+      // The pre-signing re-check found the withdrawal no longer settled deeply
+      // enough on Bitcoin. Rare, and it clears on its own as blocks arrive, so
+      // the copy says plainly that nothing is at risk and retrying later works.
+      payoutNotConfirmed:
+        "The withdrawal that made this reserve reclaimable is no longer confirmed on Bitcoin. Your reserve is safe where it is — try again once it settles.",
       // Fallback when the failure carries no message of its own.
       generic: "Reclaim transaction failed",
     },

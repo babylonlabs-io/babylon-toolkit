@@ -33,7 +33,6 @@ function info(overrides: Partial<VaultProtocolInfo> = {}): VaultProtocolInfo {
     depositorPopSignature: "0x00" as Hex,
     prePeginTxHash: "0x00" as Hex,
     vaultProviderCommissionBps: 0,
-    claimExpiredUntil: 0n,
     vaultCoreVersion: 1,
     ...overrides,
   };

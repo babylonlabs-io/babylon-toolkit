@@ -1,3 +1,13 @@
+/**
+ * Ledger Vault adapter over `@babylonlabs-io/ledger-vault-signer`.
+ *
+ * Citation legend — `base:` = LedgerHQ/app-bitcoin `baseapp` @ `e400d8d8` (the
+ * vault app's submodule pin, paths under `src/`); `sdk:` = LedgerHQ/ledger-secure-sdk
+ * @ `v26.6.0` — the SDK the app's CI image compiles in (`ledger-app-builder-lite:latest`,
+ * `lite/Dockerfile:3-7` @ 786151a7f; run 32839601193 for eacb873b6); unprefixed `.c`
+ * paths are LedgerHQ/app-babylon-vault @ `eacb873b6`.
+ */
+
 import {
   approveVaultIntent,
   assertDepositTermsDeviceCompatible,
@@ -43,7 +53,7 @@ import {
   type SignVaultPsbtResult,
 } from "@babylonlabs-io/ledger-vault-signer";
 
-import type { IBTCProvider, InscriptionIdentifier, SignPsbtOptions } from "@/core/types";
+import type { IBTCProvider, InscriptionIdentifier, SigningProgress, SignPsbtOptions } from "@/core/types";
 import { Network } from "@/core/types";
 import { getTaprootAddress, toNetwork } from "@/core/utils/wallet";
 import { ERROR_CODES, WalletError } from "@/error";
@@ -129,7 +139,7 @@ function signingRequestKey(prepared: PreparedSignPsbt): string {
  * `ledger_btc*` staking adapters: different device app, different transport,
  * intent ceremony instead of wallet policies.
  *
- * Ships behind `NEXT_PUBLIC_FF_ENABLE_LEDGER_VAULT_WALLET` (default off).
+ * Consumers gate availability by wallet id (see `./index.ts`).
  * Covers connect, the key read, the intent ceremony, SIGN_PSBT for the
  * no-policy tapscript flows (#2219), the BIP-322 PoP under the default wallet
  * policy (#2221), and key-path Pre-PegIn signing under that same policy (#2222).
@@ -182,6 +192,8 @@ export class LedgerVaultProvider implements IBTCProvider {
   private activeOperation: symbol | undefined;
   /** Abort handle into the in-flight signing loop; fired by teardown (B3's only abort source). */
   private signAbortController: AbortController | undefined;
+  /** Connection-scoped like the fields above: cleared in teardownSession. */
+  private readonly signingProgressListeners = new Set<(progress: SigningProgress) => void>();
 
   constructor(private readonly network: Network = Network.MAINNET) {}
 
@@ -335,6 +347,8 @@ export class LedgerVaultProvider implements IBTCProvider {
     this.pubkeyHexPromise = undefined;
     this.policyContextPromise = undefined;
     this.signedFingerprints = new Set();
+    // A subscriber abandoned by a stale batch must not see the next connection's ticks.
+    this.signingProgressListeners.clear();
     // Release the ceremony lock and stop an in-flight signing loop NOW — the
     // stale call's finally only releases its own token, and its rejection
     // commits nothing (the generation just changed).
@@ -725,6 +739,9 @@ export class LedgerVaultProvider implements IBTCProvider {
           }
           this.assertSameConnection(ctx.generation);
           signed.push(await this.signStaged(one, ctx, controller));
+          // After signStaged's commit (generation checked, fingerprint
+          // recorded), so a stale or failed ceremony never ticks.
+          this.emitSigningProgress({ completed: signed.length, total: psbtsHexes.length });
         }
         return signed;
       }),
@@ -739,6 +756,27 @@ export class LedgerVaultProvider implements IBTCProvider {
   cancelSigning = (): void => {
     this.signAbortController?.abort();
   };
+
+  /** Optional affordance (see `IBTCProvider`): per-ceremony ticks out of a `signPsbts` batch. */
+  subscribeSigningProgress = (listener: (progress: SigningProgress) => void): (() => void) => {
+    this.signingProgressListeners.add(listener);
+    return () => {
+      this.signingProgressListeners.delete(listener);
+    };
+  };
+
+  // Display-only: a listener bug must not abort a non-idempotent ceremony
+  // (same contract as the signer's per-YIELD onProgress).
+  private emitSigningProgress(progress: SigningProgress): void {
+    // Snapshot: a listener that (un)subscribes inside a tick must not extend this loop.
+    for (const listener of [...this.signingProgressListeners]) {
+      try {
+        listener(progress);
+      } catch {
+        // Swallowed on purpose — progress is cosmetic.
+      }
+    }
+  }
 
   /**
    * ONE AbortController per public sign call (plan D1) — it spans a whole
@@ -900,7 +938,21 @@ export class LedgerVaultProvider implements IBTCProvider {
     return { prepared, fingerprintKey, label };
   }
 
-  /** One device ceremony; every failure is classified against the mirror. */
+  /**
+   * One device ceremony; every failure is classified against the mirror.
+   *
+   * Locked-device words on the INITIAL SIGN_PSBT keep the intent because the app
+   * never ran it: 0x5515 is sent only by the SDK IO layer before dispatch
+   * (`sdk:io_legacy/src/os_io_legacy.c:396-406`, inside the `io_exchange` receive
+   * loop `:243-245` that the base app reads from, `base:src/boilerplate/dispatcher.c:74`);
+   * 0x6982 exists in the SDK only under ENABLE_ADDRESS_BOOK
+   * (`sdk:Makefile.standard_app:78-82`, unset in both Makefiles) and 0x5303 is not
+   * defined at all; neither the app nor `base:` ever sends any of the three
+   * (`base:src/boilerplate/sw.h:16-18` is a #define + _Static_assert only). Only the
+   * sign loop proves the initial APDU was the refused one (`preDispatch`); a lock on
+   * a CONTINUE or any other exchange is unproven — rounds may have run, caps may be
+   * committed — and takes the pessimistic reset below.
+   */
   private async signStaged(staged: StagedPsbt, ctx: SignContext, controller: AbortController): Promise<string> {
     const { prepared, fingerprintKey, label } = staged;
     const { session, rawSend, generation } = ctx;
@@ -919,7 +971,10 @@ export class LedgerVaultProvider implements IBTCProvider {
       const walletError = this.classifySignFailure(error, generation, label);
       // Mirror reset is signPsbt-only (PoP failures don't invalidate the vault
       // context); stale rejections and cancels were already handled in classify.
-      if (generation === this.connectionGeneration && !isLedgerSignPsbtAbortedError(error)) {
+      // Pre-dispatch lock keeps the intent (provenance in the method doc); an
+      // unproven lock is treated like any other sign failure.
+      const lockedBeforeDispatch = isLedgerDeviceLockedError(error) && error.preDispatch === true;
+      if (generation === this.connectionGeneration && !isLedgerSignPsbtAbortedError(error) && !lockedBeforeDispatch) {
         // Pessimistically assume the device dropped the intent (error-path
         // invalidation is mixed in firmware — never assume survival).
         this.deviceState = { phase: "idle" };

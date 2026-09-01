@@ -36,6 +36,7 @@ import {
   PRIMARY_ROW_BUTTON_CLASS,
 } from "@/components/shared/buttonClasses";
 import { ProgressBar } from "@/components/simple/DepositProgressView/ProgressBar";
+import { DEPOSIT_VIEW_MAX_WIDTH_CLASS } from "@/components/simple/DepositProgressView/layout";
 import {
   getStepFillPercent,
   getVisualStep,
@@ -312,7 +313,6 @@ function InactiveRow({
   onRefund,
   onReclaim,
   reclaimStatus,
-  reclaimTipHeight,
   reclaimOnChainStatus,
   isReclaimInFlight,
 }: {
@@ -322,7 +322,6 @@ function InactiveRow({
   onReclaim: (depositId: string) => void;
   /** Reserve state from the section's batched poll; undefined for expired rows. */
   reclaimStatus: ReclaimStatus | undefined;
-  reclaimTipHeight: number | undefined;
   reclaimOnChainStatus: number | undefined;
   isReclaimInFlight: boolean;
 }) {
@@ -348,7 +347,6 @@ function InactiveRow({
     reclaimableSats,
   } = useReclaimRowAction({
     status: reclaimStatus,
-    tipHeight: reclaimTipHeight,
     onChainStatus: reclaimOnChainStatus,
     depositorBtcPubkey: activity.depositorBtcPubkey,
     isReclaimInFlight,
@@ -561,7 +559,7 @@ export function VaultsLifecycleSections({
         ),
     [reclaimableCandidates, reclaimChainData],
   );
-  const { statusByDepositId, tipHeight } = useReclaimStatus(reclaimOutpoints);
+  const { statusByDepositId } = useReclaimStatus(reclaimOutpoints);
 
   // Settled vaults join the expired ones in the Inactive section rather than
   // getting a section of their own, so the heading count and action-required
@@ -716,7 +714,6 @@ export function VaultsLifecycleSections({
                 onRefund={handleRefund}
                 onReclaim={handleReclaim}
                 reclaimStatus={statusByDepositId.get(activity.id.toLowerCase())}
-                reclaimTipHeight={tipHeight}
                 reclaimOnChainStatus={
                   reclaimChainData.get(activity.id.toLowerCase())?.onChainStatus
                 }
@@ -739,7 +736,7 @@ export function VaultsLifecycleSections({
 
       {viewingBatch && ethAddress && (
         <V3ModalShell open onClose={handleViewingClose}>
-          <div className="mx-auto w-full max-w-[520px]">
+          <div className={`mx-auto w-full ${DEPOSIT_VIEW_MAX_WIDTH_CLASS}`}>
             <PostDepositContinuationContent
               vaultIds={viewingBatch}
               depositorEthAddress={ethAddress as Address}

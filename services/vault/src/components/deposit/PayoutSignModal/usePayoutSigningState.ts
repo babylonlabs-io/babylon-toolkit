@@ -49,6 +49,7 @@ import { supportsCancelSigning } from "../../../utils/cancelSigning";
 import { formatPayoutSignatureError } from "../../../utils/errors/formatting";
 import { isUserCancellation } from "../../../utils/errors/userCancellation";
 import { isVaultLifecycleStateError } from "../../../utils/errors/vaultLifecycleStateError";
+import { observeSigningProgress } from "../../../utils/signingProgress";
 
 export interface SigningError {
   title: string;
@@ -319,39 +320,45 @@ export function usePayoutSigningState({
             }
           },
           signPsbt: async (hex, opts) => {
-            if (claimersDoneRef.current) {
+            // Snapshot: the ref flips only from the SDK's onProgress, after this call returns.
+            const isGraph = claimersDoneRef.current;
+            if (isGraph) {
               setProgress({ phase: "graph", completed: 0, total: 1 });
             }
-            try {
-              return await withDeviceWindow(() => wallet.signPsbt(hex, opts));
-            } finally {
-              if (claimersDoneRef.current) {
-                setProgress({ phase: "graph", completed: 1, total: 1 });
-              }
+            const signed = await withDeviceWindow(() =>
+              wallet.signPsbt(hex, opts),
+            );
+            if (isGraph) {
+              setProgress({ phase: "graph", completed: 1, total: 1 });
             }
+            return signed;
           },
           ...(wallet.signPsbts
             ? {
                 signPsbts: async (hexes, opts) => {
-                  if (claimersDoneRef.current) {
-                    setProgress({
-                      phase: "graph",
-                      completed: 0,
-                      total: hexes.length,
-                    });
+                  // Snapshot: the ref flips only from the SDK's onProgress, after this call returns.
+                  const phase = claimersDoneRef.current ? "graph" : "claimers";
+                  if (phase === "graph") {
+                    setProgress({ phase, completed: 0, total: hexes.length });
                   }
+                  // Per-ceremony ticks from hardware providers; a no-op elsewhere.
+                  const stopObserving = observeSigningProgress(wallet, (tick) =>
+                    setProgress({ phase, ...tick }),
+                  );
                   try {
-                    return await withDeviceWindow(() =>
+                    const signed = await withDeviceWindow(() =>
                       wallet.signPsbts!(hexes, opts),
                     );
-                  } finally {
-                    if (claimersDoneRef.current) {
+                    if (phase === "graph") {
                       setProgress({
-                        phase: "graph",
+                        phase,
                         completed: hexes.length,
                         total: hexes.length,
                       });
                     }
+                    return signed;
+                  } finally {
+                    stopObserving();
                   }
                 },
               }
