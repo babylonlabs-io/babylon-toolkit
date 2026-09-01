@@ -1410,4 +1410,319 @@ describe("usePayoutSigningState", () => {
       expect(result.current.isComplete).toBe(false);
     });
   });
+
+  describe("per-ceremony signing progress", () => {
+    // Ledger-shaped provider: signPsbts is held open and the test emits
+    // ticks through the captured subscribeSigningProgress listener.
+    function connectProgressWallet() {
+      let listener: ((p: { completed: number; total: number }) => void) | null =
+        null;
+      const unsubscribe = vi.fn();
+      const settle: {
+        resolve: (v: string[]) => void;
+        reject: (e: unknown) => void;
+      } = {
+        resolve: () => {},
+        reject: () => {},
+      };
+      const signPsbts = vi.fn(
+        () =>
+          new Promise<string[]>((resolve, reject) => {
+            settle.resolve = resolve;
+            settle.reject = reject;
+          }),
+      );
+      mockBtcConnector = {
+        connectedWallet: {
+          account: { address: "tb1test" },
+          provider: {
+            signPsbt: vi.fn(),
+            signPsbts,
+            subscribeSigningProgress: vi.fn(
+              (cb: (p: { completed: number; total: number }) => void) => {
+                listener = cb;
+                return unsubscribe;
+              },
+            ),
+          },
+        },
+      };
+      const tick = (completed: number, total: number) =>
+        listener?.({ completed, total });
+      return { settle, tick, unsubscribe, signPsbts };
+    }
+
+    // The SDK's Phase-3 shape: announce the round, then hand the batch over.
+    function armClaimerBatch(total: number) {
+      mockSignAndSubmitPayouts.mockImplementation(
+        async ({
+          btcWallet,
+          onProgress,
+        }: {
+          btcWallet: { signPsbts: (hexes: string[]) => Promise<string[]> };
+          onProgress: (
+            p: { phase: string; completed: number; total: number } | null,
+          ) => void;
+        }) => {
+          onProgress({ phase: "claimers", completed: 0, total });
+          await btcWallet.signPsbts(
+            Array.from({ length: total }, (_, i) => `payout-${i}`),
+          );
+          onProgress({ phase: "claimers", completed: total, total });
+          onProgress(null);
+        },
+      );
+    }
+
+    it('renders claimer ticks from the provider as phase "claimers" while the SDK batch is in flight', async () => {
+      const { settle, tick } = connectProgressWallet();
+      armClaimerBatch(5);
+      const { result } = renderHookWithProps();
+      let done: Promise<void> = Promise.resolve();
+      await act(async () => {
+        done = result.current.handleSign();
+      });
+
+      await act(async () => {
+        tick(2, 5);
+      });
+
+      expect(result.current.progress).toEqual({
+        phase: "claimers",
+        completed: 2,
+        total: 5,
+      });
+      await act(async () => {
+        settle.resolve(["a", "b", "c", "d", "e"]);
+        await done;
+      });
+    });
+
+    it('renders depositor-graph ticks as phase "graph" once the claimers round has completed', async () => {
+      const { settle, tick } = connectProgressWallet();
+      mockSignAndSubmitPayouts.mockImplementation(
+        async ({
+          btcWallet,
+          onProgress,
+        }: {
+          btcWallet: { signPsbts: (hexes: string[]) => Promise<string[]> };
+          onProgress: (
+            p: { phase: string; completed: number; total: number } | null,
+          ) => void;
+        }) => {
+          // Claimers round already reported complete by the SDK → the ref flipped.
+          onProgress({ phase: "claimers", completed: 3, total: 3 });
+          await btcWallet.signPsbts(["payout", "nopayout-1", "nopayout-2"]);
+          onProgress(null);
+        },
+      );
+      const { result } = renderHookWithProps();
+      let done: Promise<void> = Promise.resolve();
+      await act(async () => {
+        done = result.current.handleSign();
+      });
+      expect(result.current.progress).toEqual({
+        phase: "graph",
+        completed: 0,
+        total: 3,
+      });
+
+      await act(async () => {
+        tick(1, 3);
+      });
+
+      expect(result.current.progress).toEqual({
+        phase: "graph",
+        completed: 1,
+        total: 3,
+      });
+      await act(async () => {
+        settle.resolve(["a", "b", "c"]);
+        await done;
+      });
+      expect(result.current.progress).toEqual({
+        phase: "graph",
+        completed: 3,
+        total: 3,
+      });
+    });
+
+    it("unsubscribes from signing progress after the batch resolves", async () => {
+      const { settle, unsubscribe } = connectProgressWallet();
+      armClaimerBatch(2);
+      const { result } = renderHookWithProps();
+      let done: Promise<void> = Promise.resolve();
+      // Separate act blocks: signPsbts (and its settle.resolve reassignment)
+      // only exists once handleSign's own internal awaits have run.
+      await act(async () => {
+        done = result.current.handleSign();
+      });
+      await act(async () => {
+        settle.resolve(["a", "b"]);
+        await done;
+      });
+
+      expect(unsubscribe).toHaveBeenCalledTimes(1);
+    });
+
+    it("unsubscribes from signing progress when the batch rejects", async () => {
+      const { settle, unsubscribe } = connectProgressWallet();
+      armClaimerBatch(2);
+      const { result } = renderHookWithProps();
+      let done: Promise<void> = Promise.resolve();
+      await act(async () => {
+        done = result.current.handleSign();
+      });
+      await act(async () => {
+        settle.reject(new Error("device gone"));
+        await done;
+      });
+
+      expect(unsubscribe).toHaveBeenCalledTimes(1);
+    });
+
+    it("a failed depositor-graph batch keeps the last tick instead of reporting the batch complete", async () => {
+      const { settle, tick } = connectProgressWallet();
+      mockSignAndSubmitPayouts.mockImplementation(
+        async ({
+          btcWallet,
+          onProgress,
+        }: {
+          btcWallet: { signPsbts: (hexes: string[]) => Promise<string[]> };
+          onProgress: (
+            p: { phase: string; completed: number; total: number } | null,
+          ) => void;
+        }) => {
+          onProgress({ phase: "claimers", completed: 3, total: 3 });
+          await btcWallet.signPsbts(["payout", "nopayout-1", "nopayout-2"]);
+        },
+      );
+      const { result } = renderHookWithProps();
+      let done: Promise<void> = Promise.resolve();
+      await act(async () => {
+        done = result.current.handleSign();
+      });
+      await act(async () => {
+        tick(1, 3);
+        settle.reject(new Error("device gone"));
+        await done;
+      });
+
+      // Read the state the wrapper left behind, not the modal's error view.
+      expect(result.current.progress).toEqual({
+        phase: "graph",
+        completed: 1,
+        total: 3,
+      });
+    });
+
+    it("a failed lone depositor-graph signPsbt keeps 0/1 instead of reporting it complete", async () => {
+      // setupHappyPath's signPsbt-only wallet: an empty challenger set makes
+      // the graph a single PSBT, which the SDK routes to signPsbt.
+      BTC_WALLET.signPsbt.mockRejectedValueOnce(new Error("device gone"));
+      mockSignAndSubmitPayouts.mockImplementation(
+        async ({
+          btcWallet,
+          onProgress,
+        }: {
+          btcWallet: { signPsbt: (hex: string) => Promise<string> };
+          onProgress: (
+            p: { phase: string; completed: number; total: number } | null,
+          ) => void;
+        }) => {
+          onProgress({ phase: "claimers", completed: 3, total: 3 });
+          await btcWallet.signPsbt("payout");
+        },
+      );
+      const { result } = renderHookWithProps();
+
+      await act(async () => {
+        await result.current.handleSign();
+      });
+
+      expect(result.current.progress).toEqual({
+        phase: "graph",
+        completed: 0,
+        total: 1,
+      });
+    });
+
+    it("progress ticks do not flip the claimers-done ref before the SDK reports the round complete", async () => {
+      // Real Phase 3 is one signPsbts call (signPayoutTransactions → signPayoutTransactionsBatch),
+      // where a ref flipped inside the tick listener is invisible; the second entry is a synthetic probe.
+      const { settle, tick, signPsbts } = connectProgressWallet();
+      mockSignAndSubmitPayouts.mockImplementation(
+        async ({
+          btcWallet,
+          onProgress,
+        }: {
+          btcWallet: { signPsbts: (hexes: string[]) => Promise<string[]> };
+          onProgress: (
+            p: { phase: string; completed: number; total: number } | null,
+          ) => void;
+        }) => {
+          onProgress({ phase: "claimers", completed: 0, total: 2 });
+          await btcWallet.signPsbts(["payout-0", "payout-1"]);
+          // Synthetic second entry the SDK never makes, still before its own (N,N).
+          await btcWallet.signPsbts(["payout-2", "payout-3"]);
+          onProgress({ phase: "claimers", completed: 2, total: 2 });
+          onProgress(null);
+        },
+      );
+      const { result } = renderHookWithProps();
+      let done: Promise<void> = Promise.resolve();
+      await act(async () => {
+        done = result.current.handleSign();
+      });
+
+      await act(async () => {
+        tick(2, 2);
+      });
+
+      expect(result.current.progress).toEqual({
+        phase: "claimers",
+        completed: 2,
+        total: 2,
+      });
+
+      await act(async () => {
+        settle.resolve(["a", "b"]);
+      });
+      await waitFor(() => expect(signPsbts).toHaveBeenCalledTimes(2));
+
+      // The second entry must still snapshot "claimers"; the count is the stale
+      // last tick and not under test.
+      expect(result.current.progress.phase).toBe("claimers");
+
+      await act(async () => {
+        settle.resolve(["c", "d"]);
+        await done;
+      });
+    });
+
+    it("a wallet without the affordance keeps the SDK-driven 0-to-N jump", async () => {
+      const signPsbts = vi.fn().mockResolvedValue(["a", "b"]);
+      mockBtcConnector = {
+        connectedWallet: {
+          account: { address: "tb1test" },
+          provider: { signPsbt: vi.fn(), signPsbts },
+        },
+      };
+      armClaimerBatch(2);
+      const { result } = renderHookWithProps();
+
+      await act(async () => {
+        await result.current.handleSign();
+      });
+
+      // Extension-wallet path unchanged: the SDK's own (N,N) lands the counter.
+      expect(signPsbts).toHaveBeenCalledTimes(1);
+      expect(result.current.isComplete).toBe(true);
+      expect(result.current.progress).toEqual({
+        phase: "claimers",
+        completed: 2,
+        total: 2,
+      });
+    });
+  });
 });

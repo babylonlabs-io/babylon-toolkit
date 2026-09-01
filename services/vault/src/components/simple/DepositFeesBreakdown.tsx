@@ -32,6 +32,10 @@ interface DepositFeesBreakdownProps {
    * `undefined` while a two-vault split's per-vault amounts are loading.
    */
   commissionBaseValues?: readonly bigint[];
+  /** BTC network fee rate (sat/vB) used for the pre-pegin funding tx. */
+  networkFeeRate?: number;
+  /** Estimated funding fee in satoshis at {@link networkFeeRate}. */
+  networkFeeSats?: bigint | null;
 }
 
 export function DepositFeesBreakdown({
@@ -44,6 +48,8 @@ export function DepositFeesBreakdown({
   amountSats,
   commissionBps,
   commissionBaseValues,
+  networkFeeRate,
+  networkFeeSats,
 }: DepositFeesBreakdownProps) {
   // Format a satoshi value as a BTC amount plus an optional "($X USD)" suffix,
   // matching the existing fee-line presentation. `null` sats render as the
@@ -67,6 +73,10 @@ export function DepositFeesBreakdown({
 
   const transactionReserve = formatSatsLine(
     depositorClaimValue === undefined ? null : depositorClaimValue,
+  );
+
+  const networkFee = formatSatsLine(
+    networkFeeSats === undefined ? null : networkFeeSats,
   );
 
   // The protocol charges commission on the vault deposit amount only —
@@ -98,8 +108,24 @@ export function DepositFeesBreakdown({
       ? FORM_COPY.vpCommissionLabel
       : `${FORM_COPY.vpCommissionLabel} (${formatBasisPointsAsPercent(commissionBps)})`;
 
+  const networkFeeRateValue =
+    networkFeeRate !== undefined && networkFeeRate > 0
+      ? `${networkFeeRate} sats/vB`
+      : METRIC_PLACEHOLDER;
+
   return (
     <div className="flex flex-col gap-2">
+      <FeeDetailRow
+        label={FORM_COPY.networkFeeRateLabel}
+        tooltip={FORM_COPY.networkFeeRateTooltip}
+        value={networkFeeRateValue}
+      />
+      <FeeDetailRow
+        label={FORM_COPY.btcNetworkFeeLabel}
+        tooltip={FORM_COPY.btcNetworkFeeTooltip}
+        value={networkFee.amount}
+        secondaryValue={networkFee.price}
+      />
       <FeeDetailRow
         label={FORM_COPY.transactionReserveLabel}
         tooltip={FORM_COPY.transactionReserveTooltip}

@@ -361,6 +361,12 @@ export interface SignPsbtOptions {
   displayMessage?: string;
 }
 
+/** One committed device ceremony inside a `signPsbts` batch. Counts only — never payload. */
+export interface SigningProgress {
+  readonly completed: number;
+  readonly total: number;
+}
+
 export interface IBTCProvider extends IProvider {
   /**
    * Signs the given PSBT in hex format.
@@ -413,6 +419,27 @@ export interface IBTCProvider extends IProvider {
    * hide the cancel affordance when the method is missing.
    */
   cancelSigning?(): void;
+
+  /**
+   * Subscribes to per-PSBT progress inside `signPsbts`: fires after each
+   * device ceremony commits, with `completed` = PSBT ceremonies committed
+   * so far and `total` = the batch length. Never fires for `signPsbt`
+   * or before the first ceremony. A ceremony that fails emits no tick, while
+   * ticks for ceremonies that committed before a later rejection stand — the
+   * promise settle is the terminal signal. Listeners run synchronously inside
+   * the signing loop: a throw is swallowed, a returned promise is neither
+   * awaited nor observed. Ticks carry no batch identity, so implementers MUST
+   * reject an overlapping `signPsbts` rather than queue it. Returns the
+   * unsubscribe. The subscription outlives a batch but not the session —
+   * teardown (disconnect or dead-session cleanup) drops every listener, so
+   * subscribe per sign call.
+   *
+   * Implemented only by hardware providers that run one device ceremony per
+   * PSBT (currently the Ledger vault provider). Optional — callers MUST
+   * feature-detect (`typeof provider.subscribeSigningProgress === "function"`)
+   * and fall back to the batch settle when the method is missing.
+   */
+  subscribeSigningProgress?(listener: (progress: SigningProgress) => void): () => void;
 
   /**
    * Signs a message using either BIP322-Simple or ECDSA signing method.
