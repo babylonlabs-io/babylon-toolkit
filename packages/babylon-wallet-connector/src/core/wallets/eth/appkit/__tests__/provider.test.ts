@@ -38,6 +38,7 @@ vi.mock("wagmi/connectors", () => ({
 vi.mock("@/core/wallets/appkit/state", () => ({
   getAppKitState: vi.fn(() => null),
   getAppKitModal: vi.fn(() => null),
+  // This provider test bypasses mode exclusivity. Initialization tests cover this guard.
   registerManualAppKitConfig: vi.fn(),
 }));
 

@@ -2,15 +2,15 @@ import { BitcoinAdapter } from "@reown/appkit-adapter-bitcoin";
 import { WagmiAdapter } from "@reown/appkit-adapter-wagmi";
 import type { AppKitNetwork } from "@reown/appkit/networks";
 import { bitcoin, bitcoinSignet } from "@reown/appkit/networks";
-import { createAppKit } from "@reown/appkit/react";
+import { createAppKit, modal as reownAppKitModal } from "@reown/appkit/react";
 import type { Chain } from "viem";
 
-import type { SharedBtcAppKitConfig } from "../btc/appkit/sharedConfig";
 import { createETHWagmiAdapter } from "../eth/appkit/modal";
 
 import {
   assertAppKitCapabilities,
   createAppKitCapabilities,
+  failInitialization,
   getAppKitModal,
   getAppKitState,
   setAppKitState,
@@ -80,7 +80,7 @@ export function initializeAppKitModal(config: AppKitModalConfig) {
     ethChain: config.eth?.chain,
     btcNetwork: config.btc?.network,
   });
-  const existingState = getAppKitState<SharedBtcAppKitConfig>();
+  const existingState = getAppKitState();
 
   if (existingState) {
     assertAppKitCapabilities(existingState, capabilities);
@@ -91,6 +91,9 @@ export function initializeAppKitModal(config: AppKitModalConfig) {
       bitcoinAdapter: existingState.btcConfig?.adapter ?? null,
     };
   }
+
+  if (reownAppKitModal)
+    failInitialization("Reown AppKit was initialized outside this package. Use only this package to initialize it.");
 
   const allNetworks: AppKitNetwork[] = [];
   const adapters: (WagmiAdapter | BitcoinAdapter)[] = [];

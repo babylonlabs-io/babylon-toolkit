@@ -3,12 +3,12 @@ import type { createAppKit } from "@reown/appkit/react";
 
 import {
   __resetManualAppKitConfigForTests,
+  failInitialization,
   getAppKitState,
   registerManualAppKitConfig,
 } from "@/core/wallets/appkit/state";
 
 const BITCOIN_CAPABILITY = "Bitcoin";
-const MISSING_BITCOIN_SUPPORT_ERROR = "AppKit was initialized without Bitcoin support.";
 
 /**
  * Shared Bitcoin AppKit config singleton
@@ -16,9 +16,10 @@ const MISSING_BITCOIN_SUPPORT_ERROR = "AppKit was initialized without Bitcoin su
  * This allows the AppKitBTCProvider (class-based) to access the AppKit modal
  * and Bitcoin adapter that's provided by the application-level initialization.
  *
- * Usage:
- * 1. Application sets the config: setSharedBtcAppKitConfig({ modal, adapter, network })
- * 2. AppKitBTCProvider uses: getSharedBtcAppKitConfig()
+ * Use `initializeAppKitModal` for canonical initialization. Use
+ * `setSharedBtcAppKitConfig` only when another owner initializes AppKit. Do
+ * not combine these modes on the same page. `AppKitBTCProvider` reads either
+ * mode through `getSharedBtcAppKitConfig`.
  */
 
 /**
@@ -80,10 +81,10 @@ export function setSharedBtcAppKitConfig(config: SharedBtcAppKitConfigInput): vo
 }
 
 export function getSharedBtcAppKitConfig(): SharedBtcAppKitConfig {
-  const initializedState = getAppKitState<SharedBtcAppKitConfig>();
+  const initializedState = getAppKitState();
   if (initializedState) {
     if (!initializedState.btcConfig) {
-      throw new Error(MISSING_BITCOIN_SUPPORT_ERROR);
+      failInitialization("AppKit was initialized without Bitcoin support. Initialize it with Bitcoin support.", "BTC");
     }
 
     return initializedState.btcConfig;
@@ -92,20 +93,20 @@ export function getSharedBtcAppKitConfig(): SharedBtcAppKitConfig {
   if (!sharedBtcAppKitConfig) {
     throw new Error(
       "Shared BTC AppKit config not initialized. " +
-        "Make sure to call setSharedBtcAppKitConfig() in your app before using AppKit BTC.",
+        "Initialize AppKit with Bitcoin support, or use setSharedBtcAppKitConfig() as an exclusive manual alternative.",
     );
   }
   return sharedBtcAppKitConfig;
 }
 
 export function hasSharedBtcAppKitConfig(): boolean {
-  const initializedState = getAppKitState<SharedBtcAppKitConfig>();
+  const initializedState = getAppKitState();
   return initializedState ? initializedState.btcConfig !== undefined : sharedBtcAppKitConfig !== null;
 }
 
 /**
- * Test-only helper that wipes the singleton between tests. Not part of
- * the public API surface.
+ * Test-only helper that resets the manual Bitcoin config and registry entry.
+ * It does not reset canonical state or Reown modal. Use module isolation.
  *
  * @internal
  */

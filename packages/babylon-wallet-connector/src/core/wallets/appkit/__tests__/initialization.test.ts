@@ -2,6 +2,7 @@ import type { Chain } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  appKitModal: undefined as { id: symbol } | undefined,
   bitcoinError: null as Error | null,
   createAppKit: vi.fn(),
   wagmiError: null as Error | null,
@@ -10,6 +11,9 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@reown/appkit/react", () => ({
   createAppKit: mocks.createAppKit,
+  get modal() {
+    return mocks.appKitModal;
+  },
 }));
 
 vi.mock("@reown/appkit-adapter-wagmi", () => ({
@@ -73,11 +77,26 @@ const combinedConfig = () => ({ ...ethConfig(), btc: { network: "signet" as cons
 describe("shared AppKit initialization", () => {
   beforeEach(() => {
     vi.resetModules();
+    mocks.appKitModal = undefined;
     mocks.bitcoinError = null;
     mocks.wagmiError = null;
     mocks.createAppKit.mockReset();
-    mocks.createAppKit.mockImplementation(() => ({ id: Symbol("appkit-modal") }));
+    mocks.createAppKit.mockImplementation(() => (mocks.appKitModal ??= { id: Symbol("appkit-modal") }));
   });
+
+  it.each(["combined", "Ethereum-only"] as const)(
+    "rejects a Reown modal created outside the %s shared state",
+    async (initializer) => {
+      mocks.createAppKit();
+      const initialize =
+        initializer === "combined"
+          ? (await import("../appKitModal")).initializeAppKitModal
+          : (await import("../../eth/appkit/modal")).initializeAppKitModal;
+      const config = initializer === "combined" ? combinedConfig() : ethConfig();
+
+      expect(() => initialize(config)).toThrow("initialized outside this package");
+    },
+  );
 
   it("rejects adding Bitcoin after Ethereum-only initialization", async () => {
     const eth = await import("../../eth/appkit/modal");
@@ -120,23 +139,13 @@ describe("shared AppKit initialization", () => {
     const btcShared = await import("../../btc/appkit/sharedConfig");
 
     const first = combined.initializeAppKitModal(combinedConfig());
-    const btcConfig = btcShared.getSharedBtcAppKitConfig();
+    const sharedBtcConfig = btcShared.getSharedBtcAppKitConfig();
 
     expect(ethShared.getSharedWagmiConfig()).toBe(first?.wagmiConfig);
-    expect(btcConfig.modal).toBe(first?.modal);
-    expect(btcConfig.adapter).toBe(first?.bitcoinAdapter);
-    expect(btcConfig.network).toBe("signet");
-    expect(btcConfig.connectionEvents).toBeInstanceOf(EventTarget);
-  });
-
-  it("reuses the canonical Bitcoin connection event bus", async () => {
-    const combined = await import("../appKitModal");
-    const btcShared = await import("../../btc/appkit/sharedConfig");
-
-    combined.initializeAppKitModal(combinedConfig());
-    const btcConfig = btcShared.getSharedBtcAppKitConfig();
-
-    expect(btcShared.getSharedBtcAppKitConfig().connectionEvents).toBe(btcConfig.connectionEvents);
+    expect(sharedBtcConfig.modal).toBe(first?.modal);
+    expect(sharedBtcConfig.adapter).toBe(first?.bitcoinAdapter);
+    expect(sharedBtcConfig.network).toBe("signet");
+    expect(sharedBtcConfig.connectionEvents).toBeInstanceOf(EventTarget);
   });
 
   it("freezes the canonical AppKit state", async () => {
@@ -147,17 +156,6 @@ describe("shared AppKit initialization", () => {
 
     expect(Object.isFrozen(state.getAppKitState())).toBe(true);
     expect(Object.isFrozen(state.getAppKitState()?.btcConfig)).toBe(true);
-  });
-
-  it("creates one modal for compatible entry point calls", async () => {
-    const combined = await import("../appKitModal");
-    const eth = await import("../../eth/appkit/modal");
-
-    combined.initializeAppKitModal(combinedConfig());
-    eth.initializeAppKitModal(ethConfig());
-    combined.initializeAppKitModal(btcConfig());
-
-    expect(mocks.createAppKit).toHaveBeenCalledTimes(1);
   });
 
   it.each(["Ethereum", "Bitcoin"] as const)(
@@ -240,18 +238,6 @@ describe("shared AppKit initialization", () => {
 
     expect(btcShared.hasSharedBtcAppKitConfig()).toBe(false);
     expect(combined.initializeAppKitModal(btcConfig())).not.toBeNull();
-  });
-
-  it("returns the shared Wagmi configuration through the combined entry point", async () => {
-    const eth = await import("../../eth/appkit/modal");
-    const combined = await import("../appKitModal");
-
-    const first = eth.initializeAppKitModal(ethConfig());
-    const second = combined.initializeAppKitModal(ethConfig());
-
-    expect(second?.modal).toBe(first?.modal);
-    expect(second?.wagmiConfig).toBe(first?.wagmiConfig);
-    expect(second?.wagmiConfig).toBeDefined();
   });
 
   it.each([

@@ -1,5 +1,5 @@
 import { WagmiAdapter } from "@reown/appkit-adapter-wagmi";
-import { createAppKit } from "@reown/appkit/react";
+import { createAppKit, modal as reownAppKitModal } from "@reown/appkit/react";
 import { http, type Chain } from "viem";
 import { cookieStorage, createStorage } from "wagmi";
 import { baseAccount } from "wagmi/connectors";
@@ -7,10 +7,13 @@ import { baseAccount } from "wagmi/connectors";
 import {
   assertAppKitCapabilities,
   createAppKitCapabilities,
+  failInitialization,
   getAppKitState,
   setAppKitState,
   validateAppKitInitialization,
 } from "@/core/wallets/appkit/state";
+
+import { getSharedWagmiConfig } from "./sharedConfig";
 
 export interface AppKitMetadata {
   name: string;
@@ -75,8 +78,11 @@ export function initializeAppKitModal(config: AppKitModalConfig) {
 
   if (existingState) {
     assertAppKitCapabilities(existingState, capabilities);
-    return { modal: existingState.modal, wagmiConfig: existingState.wagmiConfig! };
+    return { modal: existingState.modal, wagmiConfig: getSharedWagmiConfig() };
   }
+
+  if (reownAppKitModal)
+    failInitialization("Reown AppKit was initialized outside this package. Use only this package to initialize it.");
 
   const wagmiAdapter = createETHWagmiAdapter(chain, config.projectId);
 
@@ -88,5 +94,5 @@ export function initializeAppKitModal(config: AppKitModalConfig) {
   });
   const initializedState = setAppKitState({ modal, ...capabilities, wagmiConfig: wagmiAdapter.wagmiConfig });
 
-  return { modal: initializedState.modal, wagmiConfig: initializedState.wagmiConfig! };
+  return { modal: initializedState.modal, wagmiConfig: wagmiAdapter.wagmiConfig };
 }

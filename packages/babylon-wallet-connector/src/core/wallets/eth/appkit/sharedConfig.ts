@@ -1,9 +1,8 @@
 import type { Config } from "wagmi";
 
-import { getAppKitState, registerManualAppKitConfig } from "@/core/wallets/appkit/state";
+import { failInitialization, getAppKitState, registerManualAppKitConfig } from "@/core/wallets/appkit/state";
 
 const ETHEREUM_CAPABILITY = "Ethereum";
-const MISSING_ETHEREUM_SUPPORT_ERROR = "AppKit was initialized without Ethereum support.";
 const SHARED_WAGMI_REPLACEMENT_WARNING =
   "Shared wagmi config is being replaced. This might indicate multiple initializations.";
 
@@ -13,9 +12,10 @@ const SHARED_WAGMI_REPLACEMENT_WARNING =
  * This allows the AppKitProvider (class-based) to access the wagmi config
  * that's provided by the application-level WagmiProvider.
  *
- * Usage:
- * 1. Application sets the config: setSharedWagmiConfig(wagmiConfig)
- * 2. AppKitProvider uses: getSharedWagmiConfig()
+ * Use `initializeAppKitModal` for canonical initialization. Use
+ * `setSharedWagmiConfig` only when another owner initializes AppKit. Do not
+ * combine these modes on the same page. `AppKitProvider` reads either mode
+ * through `getSharedWagmiConfig`.
  */
 
 let sharedWagmiConfig: Config | null = null;
@@ -33,7 +33,7 @@ export function getSharedWagmiConfig(): Config {
   const initializedState = getAppKitState();
   if (initializedState) {
     if (!initializedState.wagmiConfig) {
-      throw new Error(MISSING_ETHEREUM_SUPPORT_ERROR);
+      failInitialization("AppKit was initialized without Ethereum support. Initialize it with Ethereum support.", "ETH");
     }
 
     return initializedState.wagmiConfig;
@@ -42,7 +42,7 @@ export function getSharedWagmiConfig(): Config {
   if (!sharedWagmiConfig) {
     throw new Error(
       "Shared wagmi config not initialized. " +
-        "Make sure to call setSharedWagmiConfig() in your app before using AppKit.",
+        "Initialize AppKit with Ethereum support, or use setSharedWagmiConfig() as an exclusive manual alternative.",
     );
   }
   return sharedWagmiConfig;
