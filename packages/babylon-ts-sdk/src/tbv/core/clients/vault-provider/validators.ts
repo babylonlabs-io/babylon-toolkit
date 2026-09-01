@@ -58,6 +58,29 @@ export class VpResponseValidationError extends Error {
 /** Expected length (in hex chars) of a Bitcoin transaction ID (32 bytes). */
 const TXID_HEX_LEN = 64;
 
+/** Expected length (in hex chars) of a vault id (keccak256, 32 bytes). */
+const VAULT_ID_HEX_LEN = 64;
+
+/**
+ * Assert a vault id: 64 hex chars, `0x` prefix optional. The server emits
+ * `0x`-prefixed ids in status payloads and echoes request ids verbatim in
+ * batch envelopes, so both encodings are accepted.
+ */
+function assertVaultId(value: unknown, field: string): void {
+  const unprefixed =
+    typeof value === "string" && value.startsWith("0x")
+      ? value.slice(2)
+      : value;
+  if (
+    !isNonEmptyHex(unprefixed) ||
+    unprefixed.length !== VAULT_ID_HEX_LEN
+  ) {
+    throw new VpResponseValidationError(
+      `VP response validation failed: "${field}" must be a ${VAULT_ID_HEX_LEN}-char hex string (vault id, "0x" prefix optional), got ${preview(value)}`,
+    );
+  }
+}
+
 function isNonEmptyHex(value: unknown): value is string {
   return typeof value === "string" && value.length > 0 && HEX_RE.test(value);
 }
@@ -143,7 +166,7 @@ function validatePresigningProgressFields(
 }
 
 /**
- * Validate a getPeginStatus response.
+ * Validate a getPeginStatusByVaultId response.
  *
  * Throws if the status field is not a recognized DaemonStatus value.
  */
@@ -152,7 +175,7 @@ export function validateGetPeginStatusResponse(
 ): asserts response is GetPeginStatusResponse {
   if (response === null || typeof response !== "object") {
     throw new VpResponseValidationError(
-      `VP response validation failed: getPeginStatus response is not an object`,
+      `VP response validation failed: getPeginStatusByVaultId response is not an object`,
     );
   }
 
@@ -163,6 +186,8 @@ export function validateGetPeginStatusResponse(
       `VP response validation failed: "pegin_txid" must be a ${TXID_HEX_LEN}-char hex string (txid), got ${preview(r.pegin_txid)}`,
     );
   }
+
+  assertVaultId(r.vault_id, "vault_id");
 
   if (typeof r.status !== "string") {
     throw new VpResponseValidationError(
@@ -417,6 +442,8 @@ export function validateGetPegoutStatusResponse(
     );
   }
 
+  assertVaultId(r.vault_id, "vault_id");
+
   if (typeof r.found !== "boolean") {
     throw new VpResponseValidationError(
       `VP response validation failed: "found" must be a boolean, got ${preview(r.found)}`,
@@ -507,25 +534,25 @@ function assertNullableString(value: unknown, field: string): void {
 }
 
 /**
- * Validate a `batchGetPeginStatus` response. Per-result envelope shape:
- * `{ pegin_txid, result: GetPeginStatusResponse | null, error: string | null }`.
+ * Validate a `batchGetPeginStatusByVaultId` response. Per-result envelope:
+ * `{ vault_id, result: GetPeginStatusResponse | null, error: string | null }`.
  * The inner result (when non-null) is validated via the single-item validator.
  */
 export function validateBatchGetPeginStatusResponse(
   response: unknown,
 ): asserts response is BatchGetPeginStatusResponse {
-  validateBatchEnvelope(response, "batchGetPeginStatus", (entry) => {
+  validateBatchEnvelope(response, "batchGetPeginStatusByVaultId", (entry) => {
     if (entry.result !== null) {
       validateGetPeginStatusResponse(entry.result);
     }
   });
 }
 
-/** Validate a `batchGetPegoutStatus` response. Same envelope as peginStatus. */
+/** Validate a `batchGetPegoutStatusByVaultId` response. Same envelope as peginStatus. */
 export function validateBatchGetPegoutStatusResponse(
   response: unknown,
 ): asserts response is BatchGetPegoutStatusResponse {
-  validateBatchEnvelope(response, "batchGetPegoutStatus", (entry) => {
+  validateBatchEnvelope(response, "batchGetPegoutStatusByVaultId", (entry) => {
     if (entry.result !== null) {
       validateGetPegoutStatusResponse(entry.result);
     }
@@ -533,7 +560,7 @@ export function validateBatchGetPegoutStatusResponse(
 }
 
 interface BatchResultEnvelope {
-  pegin_txid: string;
+  vault_id: string;
   result: unknown;
   error: string | null;
 }
@@ -562,14 +589,7 @@ function validateBatchEnvelope(
       );
     }
     const e = entry as Record<string, unknown>;
-    if (
-      !isNonEmptyHex(e.pegin_txid) ||
-      e.pegin_txid.length !== TXID_HEX_LEN
-    ) {
-      throw new VpResponseValidationError(
-        `VP response validation failed: "${rpcName}.results[${i}].pegin_txid" must be a ${TXID_HEX_LEN}-char hex string, got ${preview(e.pegin_txid)}`,
-      );
-    }
+    assertVaultId(e.vault_id, `${rpcName}.results[${i}].vault_id`);
     if (e.error !== null && typeof e.error !== "string") {
       throw new VpResponseValidationError(
         `VP response validation failed: "${rpcName}.results[${i}].error" must be a string or null, got ${preview(e.error)}`,

@@ -4,15 +4,16 @@
  * Wraps {@link attributeBatchResults} with chunking and per-callback
  * dispatch so the FE polling hooks (and any future SDK consumer) only
  * have to declare per-item handlers — chunking by `VP_BATCH_MAX_SIZE`,
- * lowercase txid normalization, missing/duplicate/unexpected
- * surfacing, and the duplicate-skip invariant in the byTxid loop are
- * all owned here.
+ * vault-id normalization (strip `0x`, lowercase), missing/duplicate/
+ * unexpected surfacing, and the duplicate-skip invariant in the
+ * byVaultId loop are all owned here.
  *
  * @module tbv/core/clients/vault-provider/batchPoll
  */
 
 import {
   attributeBatchResults,
+  normalizeVaultId,
   type BatchResultEntry,
 } from "./batchAttribution";
 import { VP_BATCH_MAX_SIZE } from "./types";
@@ -20,21 +21,22 @@ import { VP_BATCH_MAX_SIZE } from "./types";
 export interface BatchPollByProviderOptions<TItem, TResult> {
   /** Items to poll for this provider, e.g. `DepositToPoll[]`. */
   items: TItem[];
-  /** Extract the canonical txid for each item. Helper lowercases it. */
-  getTxid: (item: TItem) => string;
+  /** Extract the on-chain vault id for each item. Helper normalizes it. */
+  getVaultId: (item: TItem) => string;
   /**
-   * Per-chunk RPC call. Receives lowercased txids; returns the batch
-   * envelope. Caller wraps `rpcClient.batchGet*Status({ pegin_txids })`.
+   * Per-chunk RPC call. Receives normalized (unprefixed, lowercase)
+   * vault ids; returns the batch envelope. Caller wraps
+   * `rpcClient.batchGet*StatusByVaultId({ vault_ids })`.
    */
   batchCall: (
-    txids: string[],
+    vaultIds: string[],
   ) => Promise<{ results: ReadonlyArray<BatchResultEntry<TResult>> }>;
   /**
    * Handle a per-item envelope. Exactly one of `result` / `error` is
    * populated (validator invariant). Caller decides UI state, logging,
-   * etc. Not invoked for txids surfaced via {@link onDuplicate}.
+   * etc. Not invoked for vault ids surfaced via {@link onDuplicate}.
    *
-   * Note: `envelope.pegin_txid` is the lowercased txid the helper
+   * Note: `envelope.vault_id` is the normalized vault id the helper
    * sent in the request, not whatever case/encoding the server echoed.
    */
   onItem: (item: TItem, envelope: BatchResultEntry<TResult>) => void;
@@ -56,12 +58,12 @@ export interface BatchPollByProviderOptions<TItem, TResult> {
    */
   onWholeBatchError: (chunk: TItem[], error: unknown) => void;
   /**
-   * Server returned txids that were not in the request. Caller
+   * Server returned vault ids that were not in the request. Caller
    * typically logs the count for observability — there's no recovery
    * action since the original request items are unaffected. Optional;
    * defaults to no-op.
    */
-  onUnexpected?: (echoedTxids: string[]) => void;
+  onUnexpected?: (echoedVaultIds: string[]) => void;
   /**
    * Maximum items per RPC call. Defaults to {@link VP_BATCH_MAX_SIZE}.
    * Exposed for tests so chunking can be exercised without 50+
@@ -75,7 +77,7 @@ export async function batchPollByProvider<TItem, TResult>(
 ): Promise<void> {
   const {
     items,
-    getTxid,
+    getVaultId,
     batchCall,
     onItem,
     onMissing,
@@ -94,12 +96,12 @@ export async function batchPollByProvider<TItem, TResult>(
 
   for (let i = 0; i < items.length; i += batchSize) {
     const chunk = items.slice(i, i + batchSize);
-    const txidToItem = new Map<string, TItem>();
-    const txids: string[] = [];
+    const vaultIdToItem = new Map<string, TItem>();
+    const vaultIds: string[] = [];
     for (const item of chunk) {
-      const lowerTxid = getTxid(item).toLowerCase();
-      txidToItem.set(lowerTxid, item);
-      txids.push(lowerTxid);
+      const normalized = normalizeVaultId(getVaultId(item));
+      vaultIdToItem.set(normalized, item);
+      vaultIds.push(normalized);
     }
 
     // Both the RPC call and attribution sit inside the same try/catch
@@ -107,8 +109,8 @@ export async function batchPollByProvider<TItem, TResult>(
     // `onWholeBatchError` rather than aborting the polling pass.
     let attribution;
     try {
-      const response = await batchCall(txids);
-      attribution = attributeBatchResults<TResult>(txids, response.results);
+      const response = await batchCall(vaultIds);
+      attribution = attributeBatchResults<TResult>(vaultIds, response.results);
     } catch (error) {
       onWholeBatchError(chunk, error);
       continue;
@@ -118,25 +120,25 @@ export async function batchPollByProvider<TItem, TResult>(
       onUnexpected(attribution.unexpected);
     }
 
-    const duplicateTxids = new Set(attribution.duplicate);
-    for (const txid of duplicateTxids) {
-      const item = txidToItem.get(txid);
+    const duplicateVaultIds = new Set(attribution.duplicate);
+    for (const vaultId of duplicateVaultIds) {
+      const item = vaultIdToItem.get(vaultId);
       if (item) onDuplicate(item);
     }
-    if (onDuplicateBatch && duplicateTxids.size > 0) {
-      onDuplicateBatch(duplicateTxids.size);
+    if (onDuplicateBatch && duplicateVaultIds.size > 0) {
+      onDuplicateBatch(duplicateVaultIds.size);
     }
-    for (const txid of attribution.missing) {
-      const item = txidToItem.get(txid);
+    for (const vaultId of attribution.missing) {
+      const item = vaultIdToItem.get(vaultId);
       if (item) onMissing(item);
     }
-    for (const [txid, envelope] of attribution.byTxid) {
+    for (const [vaultId, envelope] of attribution.byVaultId) {
       // Skip duplicates — already dispatched via onDuplicate above.
-      if (duplicateTxids.has(txid)) continue;
-      const item = txidToItem.get(txid);
+      if (duplicateVaultIds.has(vaultId)) continue;
+      const item = vaultIdToItem.get(vaultId);
       if (!item) continue;
       onItem(item, {
-        pegin_txid: txid,
+        vault_id: vaultId,
         result: envelope.result,
         error: envelope.error,
       });

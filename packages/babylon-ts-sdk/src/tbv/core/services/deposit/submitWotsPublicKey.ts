@@ -1,7 +1,7 @@
 /**
  * Submit pre-derived WOTS public keys to the vault provider.
  *
- * Polls `getPeginStatus` until the VP reaches `PendingDepositorWotsPK`,
+ * Polls `getPeginStatusByVaultId` until the VP reaches `PendingDepositorWotsPK`,
  * then submits the keys. If the VP has already moved past WOTS step
  * (e.g., resume flow), submission is skipped.
  *
@@ -32,7 +32,9 @@ export interface SubmitWotsPublicKeyParams {
   statusReader: PeginStatusReader;
   /** VP client implementing the WOTS key submission interface */
   wotsSubmitter: WotsKeySubmitter;
-  /** BTC pegin transaction ID (unprefixed hex, 64 chars) */
+  /** On-chain vault id (hex, `0x` prefix optional) — addresses status polling */
+  vaultId: string;
+  /** BTC pegin transaction ID (unprefixed hex, 64 chars) — used by the write RPC */
   peginTxid: string;
   /** Depositor's x-only BTC public key (unprefixed hex, 64 chars) */
   depositorPk: string;
@@ -55,6 +57,7 @@ export async function submitWotsPublicKey(
   const {
     statusReader,
     wotsSubmitter,
+    vaultId,
     peginTxid,
     depositorPk,
     wotsPublicKeys,
@@ -67,7 +70,7 @@ export async function submitWotsPublicKey(
   // Wait until VP has ingested the pegin and is ready for the WOTS key.
   const status = await waitForPeginStatus({
     statusReader,
-    peginTxid,
+    vaultId,
     targetStatuses: TARGET_STATUSES,
     timeoutMs,
     signal,

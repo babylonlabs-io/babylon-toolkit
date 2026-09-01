@@ -2,14 +2,13 @@
  * Hook for polling peg-in transactions from vault providers
  *
  * Manages the React Query polling loop for fetching the per-deposit VP daemon
- * status. The cheap, unauthenticated `getPeginStatus` RPC is the readiness
- * signal — once the daemon reports `PendingDepositorSignatures`, the deposit
+ * status. The cheap, unauthenticated `getPeginStatusByVaultId` RPC is the
+ * readiness signal — once the daemon reports `PendingDepositorSignatures`, the deposit
  * is marked ready and the heavy auth-gated `requestDepositorPresignTransactions`
  * is deferred to the actual signing flow (`runDepositorPresignFlow`), which
  * re-fetches it at click-time.
  */
 
-import { stripHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
 import type { GetPeginStatusResponse } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import {
   batchPollByProvider,
@@ -87,7 +86,7 @@ interface UsePeginPollingQueryResult {
 }
 
 /**
- * Fetch status from a single vault provider via `batchGetPeginStatus`,
+ * Fetch status from a single vault provider via `batchGetPeginStatusByVaultId`,
  * chunked at `VP_BATCH_MAX_SIZE`. Defensive attribution + duplicate-skip
  * + per-item dispatch live in the SDK's `batchPollByProvider`; this
  * function only declares the per-item handlers.
@@ -106,8 +105,9 @@ async function fetchFromProvider(
   const rpcClient = createVpClient(providerAddress);
   await batchPollByProvider<DepositToPoll, GetPeginStatusResponse>({
     items: deposits,
-    getTxid: (deposit) => stripHexPrefix(deposit.activity.peginTxHash!),
-    batchCall: (pegin_txids) => rpcClient.batchGetPeginStatus({ pegin_txids }),
+    getVaultId: (deposit) => deposit.activity.id,
+    batchCall: (vault_ids) =>
+      rpcClient.batchGetPeginStatusByVaultId({ vault_ids }),
     onItem: (deposit, envelope) => {
       const depositId = deposit.activity.id;
       if (envelope.error !== null) {
@@ -144,7 +144,7 @@ async function fetchFromProvider(
       ),
     onDuplicateBatch: (count) =>
       logger.warn(
-        `VP ${providerAddress} returned ${count} duplicate pegin txid(s); marking those deposits errored`,
+        `VP ${providerAddress} returned ${count} duplicate vault id(s); marking those deposits errored`,
       ),
     onWholeBatchError: (chunk, error) => {
       const errorObj =
@@ -163,7 +163,7 @@ async function fetchFromProvider(
     },
     onUnexpected: (echoed) =>
       logger.warn(
-        `VP ${providerAddress} returned ${echoed.length} unexpected pegin txid(s); ignoring`,
+        `VP ${providerAddress} returned ${echoed.length} unexpected vault id(s); ignoring`,
       ),
   });
 }

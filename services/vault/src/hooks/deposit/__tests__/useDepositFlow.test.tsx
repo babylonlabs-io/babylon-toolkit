@@ -1099,16 +1099,7 @@ describe("useDepositFlow", () => {
       expect(waitForWotsReadiness).toHaveBeenCalledWith(
         expect.objectContaining({
           providerAddress: "0xProvider123",
-          vaults: [
-            {
-              vaultId: "0xVault0Id",
-              peginTxHash: "0xVault0BtcTxHash",
-            },
-            {
-              vaultId: "0xVault1Id",
-              peginTxHash: "0xVault1BtcTxHash",
-            },
-          ],
+          vaults: [{ vaultId: "0xVault0Id" }, { vaultId: "0xVault1Id" }],
         }),
       );
       expect(waitForWotsReadiness.mock.invocationCallOrder[0]).toBeLessThan(

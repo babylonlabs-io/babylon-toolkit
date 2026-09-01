@@ -5,13 +5,13 @@ import { VP_BATCH_MAX_SIZE } from "../types";
 
 interface Item {
   id: string;
-  txid: string;
+  vaultId: string;
 }
 
-const A: Item = { id: "a", txid: "a".repeat(64) };
-const B: Item = { id: "b", txid: "b".repeat(64) };
-const C: Item = { id: "c", txid: "c".repeat(64) };
-const UNKNOWN_TXID = "f".repeat(64);
+const A: Item = { id: "a", vaultId: "a".repeat(64) };
+const B: Item = { id: "b", vaultId: "b".repeat(64) };
+const C: Item = { id: "c", vaultId: "c".repeat(64) };
+const UNKNOWN_VAULT_ID = "f".repeat(64);
 
 function makeHandlers() {
   return {
@@ -29,7 +29,7 @@ describe("batchPollByProvider", () => {
     const h = makeHandlers();
     await batchPollByProvider<Item, unknown>({
       items: [],
-      getTxid: (i) => i.txid,
+      getVaultId: (i) => i.vaultId,
       batchCall,
       ...h,
     });
@@ -41,13 +41,13 @@ describe("batchPollByProvider", () => {
     const h = makeHandlers();
     const batchCall = vi.fn().mockResolvedValue({
       results: [
-        { pegin_txid: A.txid, result: { v: 1 }, error: null },
-        { pegin_txid: B.txid, result: null, error: "PegIn not found" },
+        { vault_id: A.vaultId, result: { v: 1 }, error: null },
+        { vault_id: B.vaultId, result: null, error: "PegIn not found" },
       ],
     });
     await batchPollByProvider<Item, { v: number }>({
       items: [A, B],
-      getTxid: (i) => i.txid,
+      getVaultId: (i) => i.vaultId,
       batchCall,
       ...h,
     });
@@ -68,23 +68,23 @@ describe("batchPollByProvider", () => {
       .fn()
       .mockResolvedValueOnce({
         results: [
-          { pegin_txid: A.txid, result: { v: 1 }, error: null },
-          { pegin_txid: B.txid, result: { v: 2 }, error: null },
+          { vault_id: A.vaultId, result: { v: 1 }, error: null },
+          { vault_id: B.vaultId, result: { v: 2 }, error: null },
         ],
       })
       .mockResolvedValueOnce({
-        results: [{ pegin_txid: C.txid, result: { v: 3 }, error: null }],
+        results: [{ vault_id: C.vaultId, result: { v: 3 }, error: null }],
       });
     await batchPollByProvider<Item, { v: number }>({
       items: [A, B, C],
-      getTxid: (i) => i.txid,
+      getVaultId: (i) => i.vaultId,
       batchCall,
       batchSize: 2,
       ...h,
     });
     expect(batchCall).toHaveBeenCalledTimes(2);
-    expect(batchCall).toHaveBeenNthCalledWith(1, [A.txid, B.txid]);
-    expect(batchCall).toHaveBeenNthCalledWith(2, [C.txid]);
+    expect(batchCall).toHaveBeenNthCalledWith(1, [A.vaultId, B.vaultId]);
+    expect(batchCall).toHaveBeenNthCalledWith(2, [C.vaultId]);
     expect(h.onItem).toHaveBeenCalledTimes(3);
   });
 
@@ -95,11 +95,11 @@ describe("batchPollByProvider", () => {
       .fn()
       .mockRejectedValueOnce(boom)
       .mockResolvedValueOnce({
-        results: [{ pegin_txid: C.txid, result: { v: 3 }, error: null }],
+        results: [{ vault_id: C.vaultId, result: { v: 3 }, error: null }],
       });
     await batchPollByProvider<Item, { v: number }>({
       items: [A, B, C],
-      getTxid: (i) => i.txid,
+      getVaultId: (i) => i.vaultId,
       batchCall,
       batchSize: 2,
       ...h,
@@ -115,11 +115,11 @@ describe("batchPollByProvider", () => {
   it("invokes onMissing for items the server omitted", async () => {
     const h = makeHandlers();
     const batchCall = vi.fn().mockResolvedValue({
-      results: [{ pegin_txid: A.txid, result: { v: 1 }, error: null }],
+      results: [{ vault_id: A.vaultId, result: { v: 1 }, error: null }],
     });
     await batchPollByProvider<Item, { v: number }>({
       items: [A, B],
-      getTxid: (i) => i.txid,
+      getVaultId: (i) => i.vaultId,
       batchCall,
       ...h,
     });
@@ -129,17 +129,17 @@ describe("batchPollByProvider", () => {
     expect(h.onItem).toHaveBeenCalledTimes(1);
   });
 
-  it("invokes onDuplicate and skips onItem for duplicated txids", async () => {
+  it("invokes onDuplicate and skips onItem for duplicated vault ids", async () => {
     const h = makeHandlers();
     const batchCall = vi.fn().mockResolvedValue({
       results: [
-        { pegin_txid: A.txid, result: { v: 1 }, error: null },
-        { pegin_txid: A.txid, result: { v: 2 }, error: null },
+        { vault_id: A.vaultId, result: { v: 1 }, error: null },
+        { vault_id: A.vaultId, result: { v: 2 }, error: null },
       ],
     });
     await batchPollByProvider<Item, { v: number }>({
       items: [A],
-      getTxid: (i) => i.txid,
+      getVaultId: (i) => i.vaultId,
       batchCall,
       ...h,
     });
@@ -148,18 +148,18 @@ describe("batchPollByProvider", () => {
     expect(h.onItem).not.toHaveBeenCalled();
   });
 
-  it("fires onDuplicate exactly once per unique duplicated txid (triple echo)", async () => {
+  it("fires onDuplicate exactly once per unique duplicated vault id (triple echo)", async () => {
     const h = makeHandlers();
     const batchCall = vi.fn().mockResolvedValue({
       results: [
-        { pegin_txid: A.txid, result: { v: 1 }, error: null },
-        { pegin_txid: A.txid, result: { v: 2 }, error: null },
-        { pegin_txid: A.txid, result: { v: 3 }, error: null },
+        { vault_id: A.vaultId, result: { v: 1 }, error: null },
+        { vault_id: A.vaultId, result: { v: 2 }, error: null },
+        { vault_id: A.vaultId, result: { v: 3 }, error: null },
       ],
     });
     await batchPollByProvider<Item, { v: number }>({
       items: [A],
-      getTxid: (i) => i.txid,
+      getVaultId: (i) => i.vaultId,
       batchCall,
       ...h,
     });
@@ -171,14 +171,14 @@ describe("batchPollByProvider", () => {
     const h = makeHandlers();
     const batchCall = vi.fn().mockResolvedValue({
       results: [
-        { pegin_txid: A.txid, result: { v: 1 }, error: null },
-        { pegin_txid: A.txid, result: { v: 2 }, error: null },
-        { pegin_txid: B.txid, result: { v: 3 }, error: null },
+        { vault_id: A.vaultId, result: { v: 1 }, error: null },
+        { vault_id: A.vaultId, result: { v: 2 }, error: null },
+        { vault_id: B.vaultId, result: { v: 3 }, error: null },
       ],
     });
     await batchPollByProvider<Item, { v: number }>({
       items: [A, B],
-      getTxid: (i) => i.txid,
+      getVaultId: (i) => i.vaultId,
       batchCall,
       ...h,
     });
@@ -198,15 +198,15 @@ describe("batchPollByProvider", () => {
     };
     const batchCall = vi.fn().mockResolvedValue({
       results: [
-        { pegin_txid: A.txid, result: { v: 1 }, error: null },
-        { pegin_txid: A.txid, result: { v: 2 }, error: null },
-        { pegin_txid: B.txid, result: { v: 3 }, error: null },
-        { pegin_txid: B.txid, result: { v: 4 }, error: null },
+        { vault_id: A.vaultId, result: { v: 1 }, error: null },
+        { vault_id: A.vaultId, result: { v: 2 }, error: null },
+        { vault_id: B.vaultId, result: { v: 3 }, error: null },
+        { vault_id: B.vaultId, result: { v: 4 }, error: null },
       ],
     });
     await batchPollByProvider<Item, { v: number }>({
       items: [A, B],
-      getTxid: (i) => i.txid,
+      getVaultId: (i) => i.vaultId,
       batchCall,
       ...handlers,
     });
@@ -214,26 +214,26 @@ describe("batchPollByProvider", () => {
     expect(handlers.onDuplicateBatch).toHaveBeenCalledWith(2);
   });
 
-  it("invokes onUnexpected with echoed-but-unrequested txids", async () => {
+  it("invokes onUnexpected with echoed-but-unrequested vault ids", async () => {
     const h = makeHandlers();
     const batchCall = vi.fn().mockResolvedValue({
       results: [
-        { pegin_txid: A.txid, result: { v: 1 }, error: null },
-        { pegin_txid: UNKNOWN_TXID, result: { v: 99 }, error: null },
+        { vault_id: A.vaultId, result: { v: 1 }, error: null },
+        { vault_id: UNKNOWN_VAULT_ID, result: { v: 99 }, error: null },
       ],
     });
     await batchPollByProvider<Item, { v: number }>({
       items: [A],
-      getTxid: (i) => i.txid,
+      getVaultId: (i) => i.vaultId,
       batchCall,
       ...h,
     });
-    expect(h.onUnexpected).toHaveBeenCalledWith([UNKNOWN_TXID]);
+    expect(h.onUnexpected).toHaveBeenCalledWith([UNKNOWN_VAULT_ID]);
     expect(h.onItem).toHaveBeenCalledWith(A, expect.anything());
     expect(h.onItem).toHaveBeenCalledTimes(1);
   });
 
-  it("silently drops unexpected txids when onUnexpected is not provided", async () => {
+  it("silently drops unexpected vault ids when onUnexpected is not provided", async () => {
     const handlers = {
       onItem: vi.fn(),
       onMissing: vi.fn(),
@@ -242,14 +242,14 @@ describe("batchPollByProvider", () => {
     };
     const batchCall = vi.fn().mockResolvedValue({
       results: [
-        { pegin_txid: A.txid, result: { v: 1 }, error: null },
-        { pegin_txid: UNKNOWN_TXID, result: { v: 99 }, error: null },
+        { vault_id: A.vaultId, result: { v: 1 }, error: null },
+        { vault_id: UNKNOWN_VAULT_ID, result: { v: 99 }, error: null },
       ],
     });
     await expect(
       batchPollByProvider<Item, { v: number }>({
         items: [A],
-        getTxid: (i) => i.txid,
+        getVaultId: (i) => i.vaultId,
         batchCall,
         ...handlers,
       }),
@@ -263,7 +263,7 @@ describe("batchPollByProvider", () => {
       { length: VP_BATCH_MAX_SIZE + 1 },
       (_, i) => ({
         id: `id-${i}`,
-        txid: i.toString(16).padStart(64, "0"),
+        vaultId: i.toString(16).padStart(64, "0"),
       }),
     );
     const batchCall = vi
@@ -272,7 +272,7 @@ describe("batchPollByProvider", () => {
       .mockResolvedValueOnce({ results: [] });
     await batchPollByProvider<Item, unknown>({
       items,
-      getTxid: (i) => i.txid,
+      getVaultId: (i) => i.vaultId,
       batchCall,
       ...h,
     });
@@ -286,7 +286,7 @@ describe("batchPollByProvider", () => {
     await expect(
       batchPollByProvider<Item, unknown>({
         items: [A],
-        getTxid: (i) => i.txid,
+        getVaultId: (i) => i.vaultId,
         batchCall: vi.fn(),
         batchSize: 0,
         ...h,
@@ -295,7 +295,7 @@ describe("batchPollByProvider", () => {
     await expect(
       batchPollByProvider<Item, unknown>({
         items: [A],
-        getTxid: (i) => i.txid,
+        getVaultId: (i) => i.vaultId,
         batchCall: vi.fn(),
         batchSize: -1,
         ...h,
@@ -306,20 +306,20 @@ describe("batchPollByProvider", () => {
   it("routes attribution-time errors through onWholeBatchError", async () => {
     const h = makeHandlers();
     // Forge a response shape that breaks `attributeBatchResults` by
-    // having a non-string `pegin_txid`. The helper must not abort the
+    // having a non-string `vault_id`. The helper must not abort the
     // polling pass — the caller should see the error via
     // `onWholeBatchError` and subsequent chunks should still execute.
     const batchCall = vi
       .fn()
       .mockResolvedValueOnce({
-        results: [{ pegin_txid: 123, result: { v: 1 }, error: null } as never],
+        results: [{ vault_id: 123, result: { v: 1 }, error: null } as never],
       })
       .mockResolvedValueOnce({
-        results: [{ pegin_txid: B.txid, result: { v: 2 }, error: null }],
+        results: [{ vault_id: B.vaultId, result: { v: 2 }, error: null }],
       });
     await batchPollByProvider<Item, { v: number }>({
       items: [A, B],
-      getTxid: (i) => i.txid,
+      getVaultId: (i) => i.vaultId,
       batchCall,
       batchSize: 1,
       ...h,
@@ -332,19 +332,19 @@ describe("batchPollByProvider", () => {
     );
   });
 
-  it("normalizes mixed-case txids to lowercase before calling the RPC", async () => {
+  it("normalizes mixed-case, 0x-prefixed vault ids before calling the RPC", async () => {
     const h = makeHandlers();
-    const upperItem: Item = { id: "u", txid: A.txid.toUpperCase() };
+    const upperItem: Item = { id: "u", vaultId: `0x${A.vaultId.toUpperCase()}` };
     const batchCall = vi.fn().mockResolvedValue({
-      results: [{ pegin_txid: A.txid, result: { v: 1 }, error: null }],
+      results: [{ vault_id: A.vaultId, result: { v: 1 }, error: null }],
     });
     await batchPollByProvider<Item, { v: number }>({
       items: [upperItem],
-      getTxid: (i) => i.txid,
+      getVaultId: (i) => i.vaultId,
       batchCall,
       ...h,
     });
-    expect(batchCall).toHaveBeenCalledWith([A.txid]);
+    expect(batchCall).toHaveBeenCalledWith([A.vaultId]);
     expect(h.onItem).toHaveBeenCalledWith(upperItem, expect.anything());
   });
 });

@@ -12,6 +12,7 @@ import {
 } from "../validators";
 
 const VALID_TXID = "a".repeat(64);
+const VALID_VAULT_ID = `0x${"1".repeat(64)}`;
 const VALID_PUBKEY = "b".repeat(64);
 const VALID_COMPRESSED_PUBKEY = "02" + "c".repeat(64);
 
@@ -19,6 +20,7 @@ describe("VP Response Validators", () => {
   describe("validateGetPeginStatusResponse", () => {
     const validResponse = {
       pegin_txid: VALID_TXID,
+      vault_id: VALID_VAULT_ID,
       status: DaemonStatus.ACTIVATED,
       progress: {},
       health_info: "ok",
@@ -78,6 +80,33 @@ describe("VP Response Validators", () => {
         validateGetPeginStatusResponse({
           ...validResponse,
           pegin_txid: "z".repeat(64),
+        }),
+      ).toThrow(VpResponseValidationError);
+    });
+
+    it("accepts an unprefixed vault_id", () => {
+      expect(() =>
+        validateGetPeginStatusResponse({
+          ...validResponse,
+          vault_id: VALID_VAULT_ID.slice(2),
+        }),
+      ).not.toThrow();
+    });
+
+    it("rejects a missing vault_id", () => {
+      expect(() =>
+        validateGetPeginStatusResponse({
+          ...validResponse,
+          vault_id: undefined,
+        }),
+      ).toThrow(VpResponseValidationError);
+    });
+
+    it("rejects a wrong-length vault_id", () => {
+      expect(() =>
+        validateGetPeginStatusResponse({
+          ...validResponse,
+          vault_id: "0xabcd",
         }),
       ).toThrow(VpResponseValidationError);
     });
@@ -498,6 +527,7 @@ describe("VP Response Validators", () => {
     it("accepts a valid not-found response (null claimer, empty challengers)", () => {
       expect(() =>
         validateGetPegoutStatusResponse({
+          vault_id: VALID_VAULT_ID,
           pegin_txid: VALID_TXID,
           found: false,
           claimer: null,
@@ -509,6 +539,7 @@ describe("VP Response Validators", () => {
     it("accepts a valid response with claimer and one challenger", () => {
       expect(() =>
         validateGetPegoutStatusResponse({
+          vault_id: VALID_VAULT_ID,
           pegin_txid: VALID_TXID,
           found: true,
           claimer: VALID_CLAIMER,
@@ -526,6 +557,7 @@ describe("VP Response Validators", () => {
     it("rejects invalid pegin_txid", () => {
       expect(() =>
         validateGetPegoutStatusResponse({
+          vault_id: VALID_VAULT_ID,
           pegin_txid: "short",
           found: false,
           claimer: null,
@@ -537,6 +569,7 @@ describe("VP Response Validators", () => {
     it("rejects non-boolean found field", () => {
       expect(() =>
         validateGetPegoutStatusResponse({
+          vault_id: VALID_VAULT_ID,
           pegin_txid: VALID_TXID,
           found: "yes",
           claimer: null,
@@ -548,6 +581,7 @@ describe("VP Response Validators", () => {
     it("rejects claimer with missing mandatory fields", () => {
       expect(() =>
         validateGetPegoutStatusResponse({
+          vault_id: VALID_VAULT_ID,
           pegin_txid: VALID_TXID,
           found: true,
           claimer: { ...VALID_CLAIMER, claim_txid: undefined },
@@ -559,6 +593,7 @@ describe("VP Response Validators", () => {
     it("rejects claimer with non-numeric created_at (Rust returns i64)", () => {
       expect(() =>
         validateGetPegoutStatusResponse({
+          vault_id: VALID_VAULT_ID,
           pegin_txid: VALID_TXID,
           found: true,
           claimer: { ...VALID_CLAIMER, created_at: "1700000000" },
@@ -570,6 +605,7 @@ describe("VP Response Validators", () => {
     it("rejects challengers when not an array", () => {
       expect(() =>
         validateGetPegoutStatusResponse({
+          vault_id: VALID_VAULT_ID,
           pegin_txid: VALID_TXID,
           found: true,
           claimer: null,
@@ -582,6 +618,7 @@ describe("VP Response Validators", () => {
       const bad = { ...VALID_CHALLENGER, status: undefined };
       expect(() =>
         validateGetPegoutStatusResponse({
+          vault_id: VALID_VAULT_ID,
           pegin_txid: VALID_TXID,
           found: true,
           claimer: null,
@@ -593,6 +630,7 @@ describe("VP Response Validators", () => {
     it("accepts the optional split-assert txid fields when present", () => {
       expect(() =>
         validateGetPegoutStatusResponse({
+          vault_id: VALID_VAULT_ID,
           pegin_txid: VALID_TXID,
           found: true,
           claimer: null,
@@ -759,6 +797,7 @@ describe("VP Response Validators", () => {
   describe("validateBatchGetPeginStatusResponse", () => {
     const validInner = {
       pegin_txid: VALID_TXID,
+      vault_id: VALID_VAULT_ID,
       status: DaemonStatus.ACTIVATED,
       progress: {},
       health_info: "ok",
@@ -774,7 +813,7 @@ describe("VP Response Validators", () => {
       expect(() =>
         validateBatchGetPeginStatusResponse({
           results: [
-            { pegin_txid: VALID_TXID, result: validInner, error: null },
+            { vault_id: VALID_VAULT_ID, result: validInner, error: null },
           ],
         }),
       ).not.toThrow();
@@ -784,7 +823,7 @@ describe("VP Response Validators", () => {
       expect(() =>
         validateBatchGetPeginStatusResponse({
           results: [
-            { pegin_txid: VALID_TXID, result: null, error: "PegIn not found" },
+            { vault_id: VALID_VAULT_ID, result: null, error: "PegIn not found" },
           ],
         }),
       ).not.toThrow();
@@ -808,7 +847,7 @@ describe("VP Response Validators", () => {
       ).toThrow(VpResponseValidationError);
     });
 
-    it("rejects entry with missing pegin_txid", () => {
+    it("rejects entry with missing vault_id", () => {
       expect(() =>
         validateBatchGetPeginStatusResponse({
           results: [{ result: null, error: "boom" }],
@@ -816,10 +855,10 @@ describe("VP Response Validators", () => {
       ).toThrow(VpResponseValidationError);
     });
 
-    it("rejects entry with wrong-length pegin_txid", () => {
+    it("rejects entry with wrong-length vault_id", () => {
       expect(() =>
         validateBatchGetPeginStatusResponse({
-          results: [{ pegin_txid: "abcd", result: null, error: "boom" }],
+          results: [{ vault_id: "abcd", result: null, error: "boom" }],
         }),
       ).toThrow(VpResponseValidationError);
     });
@@ -828,7 +867,7 @@ describe("VP Response Validators", () => {
       expect(() =>
         validateBatchGetPeginStatusResponse({
           results: [
-            { pegin_txid: VALID_TXID, result: validInner, error: "boom" },
+            { vault_id: VALID_VAULT_ID, result: validInner, error: "boom" },
           ],
         }),
       ).toThrow(VpResponseValidationError);
@@ -837,7 +876,7 @@ describe("VP Response Validators", () => {
     it("rejects entry where neither result nor error is populated", () => {
       expect(() =>
         validateBatchGetPeginStatusResponse({
-          results: [{ pegin_txid: VALID_TXID, result: null, error: null }],
+          results: [{ vault_id: VALID_VAULT_ID, result: null, error: null }],
         }),
       ).toThrow(VpResponseValidationError);
     });
@@ -845,7 +884,7 @@ describe("VP Response Validators", () => {
     it("rejects entry where error is not a string-or-null", () => {
       expect(() =>
         validateBatchGetPeginStatusResponse({
-          results: [{ pegin_txid: VALID_TXID, result: null, error: 42 }],
+          results: [{ vault_id: VALID_VAULT_ID, result: null, error: 42 }],
         }),
       ).toThrow(VpResponseValidationError);
     });
@@ -855,9 +894,10 @@ describe("VP Response Validators", () => {
         validateBatchGetPeginStatusResponse({
           results: [
             {
-              pegin_txid: VALID_TXID,
+              vault_id: VALID_VAULT_ID,
               result: {
                 pegin_txid: VALID_TXID,
+                vault_id: VALID_VAULT_ID,
                 status: "BogusStatus",
                 progress: {},
                 health_info: "ok",
@@ -873,6 +913,7 @@ describe("VP Response Validators", () => {
   describe("validateBatchGetPegoutStatusResponse", () => {
     const validInner = {
       pegin_txid: VALID_TXID,
+      vault_id: VALID_VAULT_ID,
       found: false,
       claimer: null,
       challengers: [],
@@ -882,7 +923,7 @@ describe("VP Response Validators", () => {
       expect(() =>
         validateBatchGetPegoutStatusResponse({
           results: [
-            { pegin_txid: VALID_TXID, result: validInner, error: null },
+            { vault_id: VALID_VAULT_ID, result: validInner, error: null },
           ],
         }),
       ).not.toThrow();
@@ -891,7 +932,7 @@ describe("VP Response Validators", () => {
     it("rejects entry where both result and error are null", () => {
       expect(() =>
         validateBatchGetPegoutStatusResponse({
-          results: [{ pegin_txid: VALID_TXID, result: null, error: null }],
+          results: [{ vault_id: VALID_VAULT_ID, result: null, error: null }],
         }),
       ).toThrow(VpResponseValidationError);
     });
@@ -901,7 +942,7 @@ describe("VP Response Validators", () => {
         validateBatchGetPegoutStatusResponse({
           results: [
             {
-              pegin_txid: VALID_TXID,
+              vault_id: VALID_VAULT_ID,
               result: { ...validInner, challengers: undefined },
               error: null,
             },
