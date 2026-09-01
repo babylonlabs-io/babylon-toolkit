@@ -21,9 +21,10 @@ vi.mock("@/config", () => ({
 }));
 
 vi.mock("@/services/deposit", async () => {
-  const actual = await vi.importActual<typeof import("@/services/deposit")>(
-    "@/services/deposit",
-  );
+  const actual =
+    await vi.importActual<typeof import("@/services/deposit")>(
+      "@/services/deposit",
+    );
   return {
     ...actual,
     depositService: {
@@ -181,7 +182,6 @@ describe("DepositForm suggested amount", () => {
 
   it("does not show a pending notice for a confirmed balance", () => {
     renderForm({});
-
     expect(screen.getByRole("status")).toBeEmptyDOMElement();
   });
 });

@@ -353,8 +353,7 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     return BigInt(calculateBalance(availableUTXOs || []));
   }, [availableUTXOs]);
 
-  // No confirmed funds exist, so the depositable maximum has no "Max" tooltip.
-  // Use the raw balance because funds hidden as inscriptions have another cause.
+  // The raw confirmed balance controls a "Max" tooltip that has no value at zero.
   const hasUnconfirmedBalanceOnly = useMemo(
     () => confirmedBalance === 0n && unconfirmedBalance > 0n,
     [confirmedBalance, unconfirmedBalance],
