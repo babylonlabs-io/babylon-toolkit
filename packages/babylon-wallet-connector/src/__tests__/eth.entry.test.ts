@@ -42,7 +42,7 @@ const BITCOIN_SOURCE_DIRS = [path.join(SRC, "core", "wallets", "btc"), path.join
  */
 const BITCOIN_CRYPTO_PACKAGES_PENDING_LAZY_ENGINE = ["@bitcoin-js/tiny-secp256k1-asmjs", "@scure/bip32", "bitcoinjs-lib"];
 
-const IMPORT_PATTERN = /(?:^|\n)\s*(?:import|export)\s[^;]*?from\s*["']([^"']+)["']/g;
+const IMPORT_PATTERN = /(?:^|\n)\s*(?:import|export)(?!\s+type\b)\s[^;]*?from\s*["']([^"']+)["']/g;
 const BARE_IMPORT_PATTERN = /(?:^|\n)\s*import\s*["']([^"']+)["']/g;
 
 function resolveModule(specifier: string, fromFile: string): string | null {
@@ -67,7 +67,7 @@ function resolveModule(specifier: string, fromFile: string): string | null {
   return null;
 }
 
-/** Walks the static import graph of an entry, following only in-package modules. */
+/** Walks the runtime import graph of an entry, following only in-package modules. */
 function moduleGraph(entry: string): { files: Set<string>; packages: Set<string> } {
   const files = new Set<string>();
   const packages = new Set<string>();

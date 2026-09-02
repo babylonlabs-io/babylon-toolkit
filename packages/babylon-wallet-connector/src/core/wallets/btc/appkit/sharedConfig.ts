@@ -1,15 +1,25 @@
 import type { BitcoinAdapter } from "@reown/appkit-adapter-bitcoin";
 import type { createAppKit } from "@reown/appkit/react";
 
+import {
+  __resetManualAppKitConfigForTests,
+  failInitialization,
+  getAppKitState,
+  registerManualAppKitConfig,
+} from "@/core/wallets/appkit/state";
+
+const BITCOIN_CAPABILITY = "Bitcoin";
+
 /**
  * Shared Bitcoin AppKit config singleton
  *
  * This allows the AppKitBTCProvider (class-based) to access the AppKit modal
  * and Bitcoin adapter that's provided by the application-level initialization.
  *
- * Usage:
- * 1. Application sets the config: setSharedBtcAppKitConfig({ modal, adapter, network })
- * 2. AppKitBTCProvider uses: getSharedBtcAppKitConfig()
+ * Use `initializeAppKitModal` for canonical initialization. Use
+ * `setSharedBtcAppKitConfig` only when another owner initializes AppKit. Do
+ * not combine these modes on the same page. `AppKitBTCProvider` reads either
+ * mode through `getSharedBtcAppKitConfig`.
  */
 
 /**
@@ -44,16 +54,16 @@ export interface SharedBtcAppKitConfigInput {
  * the cached connected address/pubkey.
  */
 export interface SharedBtcAppKitConfig {
-  modal: ReturnType<typeof createAppKit>;
-  adapter: BitcoinAdapter;
-  network: "mainnet" | "signet";
-  connectionEvents: EventTarget;
+  readonly modal: ReturnType<typeof createAppKit>;
+  readonly adapter: BitcoinAdapter;
+  readonly network: "mainnet" | "signet";
+  readonly connectionEvents: EventTarget;
 }
 
 let sharedBtcAppKitConfig: SharedBtcAppKitConfig | null = null;
 
 export function setSharedBtcAppKitConfig(config: SharedBtcAppKitConfigInput): void {
-  sharedBtcAppKitConfig = {
+  const resolvedConfig = {
     modal: config.modal,
     adapter: config.adapter,
     network: config.network,
@@ -63,31 +73,44 @@ export function setSharedBtcAppKitConfig(config: SharedBtcAppKitConfigInput): vo
     // while the bridge dispatches on the new one — account-change events
     // would silently stop propagating. An explicit caller override still
     // wins for tests that need a deterministic instance.
-    connectionEvents:
-      config.connectionEvents ?? sharedBtcAppKitConfig?.connectionEvents ?? new EventTarget(),
+    connectionEvents: config.connectionEvents ?? sharedBtcAppKitConfig?.connectionEvents ?? new EventTarget(),
   };
+
+  registerManualAppKitConfig(BITCOIN_CAPABILITY);
+  sharedBtcAppKitConfig = resolvedConfig;
 }
 
 export function getSharedBtcAppKitConfig(): SharedBtcAppKitConfig {
+  const initializedState = getAppKitState();
+  if (initializedState) {
+    if (!initializedState.btcConfig) {
+      failInitialization("AppKit was initialized without Bitcoin support. Initialize it with Bitcoin support.", "BTC");
+    }
+
+    return initializedState.btcConfig;
+  }
+
   if (!sharedBtcAppKitConfig) {
     throw new Error(
       "Shared BTC AppKit config not initialized. " +
-        "Make sure to call setSharedBtcAppKitConfig() in your app before using AppKit BTC.",
+        "Initialize AppKit with Bitcoin support, or use setSharedBtcAppKitConfig() as an exclusive manual alternative.",
     );
   }
   return sharedBtcAppKitConfig;
 }
 
 export function hasSharedBtcAppKitConfig(): boolean {
-  return sharedBtcAppKitConfig !== null;
+  const initializedState = getAppKitState();
+  return initializedState ? initializedState.btcConfig !== undefined : sharedBtcAppKitConfig !== null;
 }
 
 /**
- * Test-only helper that wipes the singleton between tests. Not part of
- * the public API surface.
+ * Test-only helper that resets the manual Bitcoin config and registry entry.
+ * It does not reset canonical state or Reown modal. Use module isolation.
  *
  * @internal
  */
 export function __resetSharedBtcAppKitConfigForTests(): void {
   sharedBtcAppKitConfig = null;
+  __resetManualAppKitConfigForTests(BITCOIN_CAPABILITY);
 }
