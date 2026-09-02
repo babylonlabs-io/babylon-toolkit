@@ -27,6 +27,7 @@ import { getSharedWagmiConfig, hasSharedWagmiConfig } from "./sharedConfig";
 // async handoffs (WalletConnect deep-link, mobile wallet return) to publish
 // the connected account via watchAccount before we treat the close as a cancel.
 const MODAL_CLOSE_CANCEL_GRACE_MS = 1500;
+const WALLET_NOT_CONNECTED_ERROR_MESSAGE = "Wallet not connected";
 
 // Generic Ethereum logo, used only when the active wagmi connector does not
 // expose its own name/icon (e.g. some WalletConnect sessions).
@@ -268,7 +269,7 @@ export class AppKitProvider implements IETHProvider {
       return this.address;
     }
 
-    throw new Error("Wallet not connected");
+    throw new Error(WALLET_NOT_CONNECTED_ERROR_MESSAGE);
   }
 
   async getPublicKeyHex(): Promise<string> {
@@ -360,7 +361,7 @@ export class AppKitProvider implements IETHProvider {
       return this.chainId;
     }
 
-    return this.config.chainId;
+    throw new Error(WALLET_NOT_CONNECTED_ERROR_MESSAGE);
   }
 
   async switchChain(chainId: number): Promise<void> {

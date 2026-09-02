@@ -198,6 +198,7 @@ export interface IProvider {
   connectWallet: (onProgress?: ProgressReporter) => Promise<void>;
   getAddress: () => Promise<string>;
   getPublicKeyHex: () => Promise<string>;
+  isIdentityCurrent?: () => boolean;
 }
 
 export interface IWallet<P extends IProvider = IProvider> {

@@ -1,6 +1,7 @@
 import type { BitcoinAdapter } from "@reown/appkit-adapter-bitcoin";
 import { Psbt } from "bitcoinjs-lib";
 
+import { NETWORK_CHANGE_EVENT } from "@/constants/walletEvents";
 import type { BTCConfig, IBTCProvider, InscriptionIdentifier, SignPsbtOptions } from "@/core/types";
 import { Network } from "@/core/types";
 import { resolveUseTweakedSigner } from "@/core/utils/psbtOptionsMapper";
@@ -10,7 +11,7 @@ import { ERROR_CODES, WalletError, isUserRejectionMessage } from "@/error";
 
 import { APPKIT_BTC_CONNECTED_EVENT } from "./constants";
 import icon from "./icon.svg";
-import { resolveLiveNetwork } from "./network";
+import { getCaipNetworkForNetwork, resolveLiveNetwork } from "./network";
 import { getSharedBtcAppKitConfig, hasSharedBtcAppKitConfig } from "./sharedConfig";
 
 const APPKIT_PROVIDER_NAME = "AppKit";
@@ -58,6 +59,8 @@ export class AppKitBTCProvider implements IBTCProvider {
   private eventHandlers: Map<string, Set<(...args: unknown[]) => void>> = new Map();
   private listeningForChanges = false;
   private boundHandleAccountChange: ((event: Event) => void) | null = null;
+  private unsubscribeNetwork: (() => void) | null = null;
+  private lastBtcNetworkId?: string;
   /**
    * The {@link EventTarget} we currently have a persistent listener on.
    * Captured at registration time so we always remove the listener from
@@ -104,7 +107,7 @@ export class AppKitBTCProvider implements IBTCProvider {
     if (this.listeningForChanges) return;
     if (!hasSharedBtcAppKitConfig()) return;
 
-    const { connectionEvents } = getSharedBtcAppKitConfig();
+    const { connectionEvents, modal } = getSharedBtcAppKitConfig();
 
     this.boundHandleAccountChange = (event: Event) => {
       const detail = (event as BtcConnectedEvent).detail;
@@ -129,6 +132,17 @@ export class AppKitBTCProvider implements IBTCProvider {
 
     connectionEvents.addEventListener(APPKIT_BTC_CONNECTED_EVENT, this.boundHandleAccountChange);
     this.boundConnectionEventsTarget = connectionEvents;
+    const configuredNetwork = this.config.network === Network.MAINNET ? "mainnet" : "signet";
+    this.lastBtcNetworkId = getCaipNetworkForNetwork(configuredNetwork).caipNetworkId;
+    this.unsubscribeNetwork = modal.subscribeNetwork(({ caipNetwork }) => {
+      if (caipNetwork?.chainNamespace !== "bip122") return;
+
+      const networkId = caipNetwork.caipNetworkId;
+      if (networkId === this.lastBtcNetworkId) return;
+
+      this.lastBtcNetworkId = networkId;
+      this.emit(NETWORK_CHANGE_EVENT, networkId);
+    });
     this.listeningForChanges = true;
   }
 
@@ -143,6 +157,9 @@ export class AppKitBTCProvider implements IBTCProvider {
     );
     this.boundHandleAccountChange = null;
     this.boundConnectionEventsTarget = null;
+    this.unsubscribeNetwork?.();
+    this.unsubscribeNetwork = null;
+    this.lastBtcNetworkId = undefined;
     this.listeningForChanges = false;
   }
 
