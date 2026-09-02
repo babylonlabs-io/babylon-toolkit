@@ -62,6 +62,39 @@ describe("batchPollByProvider", () => {
     );
   });
 
+  it("errors an item with a malformed vault id without sending it", async () => {
+    const h = makeHandlers();
+    const BAD: Item = { id: "bad", vaultId: "not-a-vault-id" };
+    const batchCall = vi.fn().mockResolvedValue({
+      results: [{ vault_id: A.vaultId, result: { v: 1 }, error: null }],
+    });
+    await batchPollByProvider<Item, { v: number }>({
+      items: [BAD, A],
+      getVaultId: (i) => i.vaultId,
+      batchCall,
+      ...h,
+    });
+    expect(batchCall).toHaveBeenCalledWith([A.vaultId]);
+    expect(h.onItem).toHaveBeenCalledWith(
+      BAD,
+      expect.objectContaining({ result: null, error: expect.stringContaining("Invalid vault id") }),
+    );
+    expect(h.onMissing).not.toHaveBeenCalled();
+  });
+
+  it("does not call the RPC when every item in a chunk has a malformed vault id", async () => {
+    const h = makeHandlers();
+    const batchCall = vi.fn();
+    await batchPollByProvider<Item, unknown>({
+      items: [{ id: "bad", vaultId: "" }],
+      getVaultId: (i) => i.vaultId,
+      batchCall,
+      ...h,
+    });
+    expect(batchCall).not.toHaveBeenCalled();
+    expect(h.onItem).toHaveBeenCalledOnce();
+  });
+
   it("chunks by batchSize and calls the RPC once per chunk", async () => {
     const h = makeHandlers();
     const batchCall = vi

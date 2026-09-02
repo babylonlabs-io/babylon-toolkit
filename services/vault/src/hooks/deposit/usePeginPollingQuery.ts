@@ -40,6 +40,7 @@ import {
   TerminalPeginPollingError,
 } from "../../utils/peginPolling";
 import { createVpClient } from "../../utils/rpc";
+import { canonicalizeTxid } from "../../utils/txid";
 
 interface UsePeginPollingQueryParams {
   activities: VaultActivity[];
@@ -122,6 +123,25 @@ async function fetchFromProvider(
           needsWotsKey,
           pendingIngestion,
         });
+        return;
+      }
+      // The envelope's vault id is our own request string echoed back, so it
+      // cannot show which row answered. `pegin_txid` is a server-side DB
+      // lookup — comparing it to the txid we already hold is what actually
+      // catches a status paired to the wrong vault.
+      const expectedTxid = deposit.activity.peginTxHash;
+      if (
+        expectedTxid !== undefined &&
+        canonicalizeTxid(envelope.result!.pegin_txid) !==
+          canonicalizeTxid(expectedTxid)
+      ) {
+        logger.warn(`Deposit ${depositId} got a status for another peg-in`, {
+          error: `returned pegin_txid ${envelope.result!.pegin_txid}`,
+        });
+        errors.set(
+          depositId,
+          new Error("Provider returned another peg-in's status entry"),
+        );
         return;
       }
       // envelope.result is non-null here by the validator's XOR invariant.

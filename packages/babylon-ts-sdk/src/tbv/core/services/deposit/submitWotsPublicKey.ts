@@ -71,6 +71,7 @@ export async function submitWotsPublicKey(
   const status = await waitForPeginStatus({
     statusReader,
     vaultId,
+    peginTxid,
     targetStatuses: TARGET_STATUSES,
     timeoutMs,
     signal,

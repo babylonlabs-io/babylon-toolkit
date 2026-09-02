@@ -435,6 +435,7 @@ export async function runDepositorPresignFlow(
   const status = await waitForPeginStatus({
     statusReader,
     vaultId,
+    peginTxid,
     targetStatuses: TARGET_STATUS,
     timeoutMs,
     signal,

@@ -3990,6 +3990,11 @@ etc. Not invoked for vault ids surfaced via [onDuplicate](#onduplicate).
 Note: `envelope.vault_id` is the normalized vault id the helper
 sent in the request, not whatever case/encoding the server echoed.
 
+Also dispatched with a locally-produced `error` for an item whose
+`getVaultId` is not a well-formed vault id. Such an item is never
+sent, because an unattributable id comes back as `missing` and would
+blame the provider for a caller-side defect.
+
 ###### Parameters
 
 ###### item

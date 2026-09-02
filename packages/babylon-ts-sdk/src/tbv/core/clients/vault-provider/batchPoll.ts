@@ -17,6 +17,7 @@ import {
   type BatchResultEntry,
 } from "./batchAttribution";
 import { VP_BATCH_MAX_SIZE } from "./types";
+import { isVaultIdHex } from "./validators";
 
 export interface BatchPollByProviderOptions<TItem, TResult> {
   /** Items to poll for this provider, e.g. `DepositToPoll[]`. */
@@ -38,6 +39,11 @@ export interface BatchPollByProviderOptions<TItem, TResult> {
    *
    * Note: `envelope.vault_id` is the normalized vault id the helper
    * sent in the request, not whatever case/encoding the server echoed.
+   *
+   * Also dispatched with a locally-produced `error` for an item whose
+   * `getVaultId` is not a well-formed vault id. Such an item is never
+   * sent, because an unattributable id comes back as `missing` and would
+   * blame the provider for a caller-side defect.
    */
   onItem: (item: TItem, envelope: BatchResultEntry<TResult>) => void;
   /** Server omitted this item from the response. */
@@ -98,11 +104,25 @@ export async function batchPollByProvider<TItem, TResult>(
     const chunk = items.slice(i, i + batchSize);
     const vaultIdToItem = new Map<string, TItem>();
     const vaultIds: string[] = [];
+    // Only the items actually sent — an item rejected below already got its
+    // own `onItem` error and must not be re-reported by `onWholeBatchError`.
+    const polled: TItem[] = [];
     for (const item of chunk) {
-      const normalized = normalizeVaultId(getVaultId(item));
+      const rawVaultId = getVaultId(item);
+      if (!isVaultIdHex(rawVaultId)) {
+        onItem(item, {
+          vault_id: String(rawVaultId),
+          result: null,
+          error: `Invalid vault id "${String(rawVaultId)}" — not a 64-char hex string`,
+        });
+        continue;
+      }
+      const normalized = normalizeVaultId(rawVaultId);
       vaultIdToItem.set(normalized, item);
       vaultIds.push(normalized);
+      polled.push(item);
     }
+    if (vaultIds.length === 0) continue;
 
     // Both the RPC call and attribution sit inside the same try/catch
     // so a malformed-batch validator throw is routed through
@@ -112,7 +132,7 @@ export async function batchPollByProvider<TItem, TResult>(
       const response = await batchCall(vaultIds);
       attribution = attributeBatchResults<TResult>(vaultIds, response.results);
     } catch (error) {
-      onWholeBatchError(chunk, error);
+      onWholeBatchError(polled, error);
       continue;
     }
 

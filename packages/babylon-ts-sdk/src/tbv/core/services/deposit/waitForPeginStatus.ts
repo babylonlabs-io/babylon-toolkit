@@ -22,6 +22,14 @@ export interface WaitForPeginStatusParams {
   statusReader: PeginStatusReader;
   /** On-chain vault id (hex, `0x` prefix optional) */
   vaultId: string;
+  /**
+   * BTC pegin transaction ID (unprefixed hex, 64 chars) of the same vault.
+   * The VP echoes `vault_id` verbatim from the request, so that field alone
+   * cannot show the response describes the row we asked about. `pegin_txid`
+   * is a DB lookup on the server, so it is the attested identifier — and it
+   * is the identifier the presign and WOTS writes are addressed by.
+   */
+  peginTxid: string;
   /** Set of acceptable statuses — polling stops when the VP reports one of these */
   targetStatuses: ReadonlySet<DaemonStatus>;
   /** Maximum time to wait in milliseconds */
@@ -46,6 +54,7 @@ export async function waitForPeginStatus(
   const {
     statusReader,
     vaultId,
+    peginTxid,
     targetStatuses,
     timeoutMs,
     pollIntervalMs = DEFAULT_POLL_INTERVAL_MS,
@@ -77,6 +86,15 @@ export async function waitForPeginStatus(
       if (normalizeVaultId(response.vault_id) !== normalizeVaultId(vaultId)) {
         throw new Error(
           `getPeginStatusByVaultId returned status for vault ${response.vault_id.slice(0, 10)}…, requested ${vaultId.slice(0, 10)}…`,
+        );
+      }
+
+      // Reject a response whose attested pegin txid names another vault. The
+      // echo check above catches a mangled response; this catches a mispaired
+      // one, where the row that answered is not the row we asked about.
+      if (response.pegin_txid.toLowerCase() !== peginTxid.toLowerCase()) {
+        throw new Error(
+          `getPeginStatusByVaultId returned status for pegin ${response.pegin_txid.slice(0, 8)}…, requested ${peginTxid.slice(0, 8)}…`,
         );
       }
 

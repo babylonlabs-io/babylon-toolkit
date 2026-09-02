@@ -43,6 +43,16 @@ const TXID_B3 = "b3".repeat(32);
 const TXID_LIVE = "cd".repeat(32);
 const TXID_PRE = "ef".repeat(32);
 
+// Vault ids are keccak256 hashes; the batch poller rejects anything that is
+// not 64 hex chars before it reaches the wire. `*_WIRE` is what the poller
+// actually sends: `0x` stripped, lowercased.
+const V1 = `0x${"11".repeat(32)}`;
+const V2 = `0x${"22".repeat(32)}`;
+const V3 = `0x${"33".repeat(32)}`;
+const V1_WIRE = V1.slice(2);
+const V2_WIRE = V2.slice(2);
+const V3_WIRE = V3.slice(2);
+
 function claimer(claim_txid: string, status: string = "PayoutBroadcast") {
   return {
     status,
@@ -66,11 +76,11 @@ describe("resolveRedeemClaimTxids", () => {
 
   it("bounds each VP call with a short timeout and no retries so a slow VP can't stall the tab", async () => {
     const lookup = new Map<string, RedeemVaultLookup>([
-      ["0xv1", { vaultProvider: VP_A }],
+      [V1, { vaultProvider: VP_A }],
     ]);
     batchGetPegoutStatusByVaultId.mockResolvedValueOnce({ results: [] });
 
-    await resolveRedeemClaimTxids([{ vaultId: "0xv1" }], lookup);
+    await resolveRedeemClaimTxids([{ vaultId: V1 }], lookup);
 
     expect(createVpClient).toHaveBeenCalledWith(VP_A, {
       timeout: CLAIM_TX_RPC_TIMEOUT_MS,
@@ -86,17 +96,17 @@ describe("resolveRedeemClaimTxids", () => {
 
   it("batches calls per vault provider and maps vaultId -> claim_txid", async () => {
     const lookup = new Map<string, RedeemVaultLookup>([
-      ["0xv1", { vaultProvider: VP_A }],
-      ["0xv2", { vaultProvider: VP_A }],
-      ["0xv3", { vaultProvider: VP_B }],
+      [V1, { vaultProvider: VP_A }],
+      [V2, { vaultProvider: VP_A }],
+      [V3, { vaultProvider: VP_B }],
     ]);
 
     batchGetPegoutStatusByVaultId.mockImplementation(({ vault_ids }) => {
-      if (vault_ids.includes("v1") && vault_ids.includes("v2")) {
+      if (vault_ids.includes(V1_WIRE) && vault_ids.includes(V2_WIRE)) {
         return Promise.resolve({
           results: [
             {
-              vault_id: "v1",
+              vault_id: V1_WIRE,
               result: {
                 pegin_txid: "pegin1",
                 found: true,
@@ -106,7 +116,7 @@ describe("resolveRedeemClaimTxids", () => {
               error: null,
             },
             {
-              vault_id: "v2",
+              vault_id: V2_WIRE,
               result: {
                 pegin_txid: "pegin2",
                 found: true,
@@ -121,7 +131,7 @@ describe("resolveRedeemClaimTxids", () => {
       return Promise.resolve({
         results: [
           {
-            vault_id: "v3",
+            vault_id: V3_WIRE,
             result: {
               pegin_txid: "pegin3",
               found: true,
@@ -135,25 +145,25 @@ describe("resolveRedeemClaimTxids", () => {
     });
 
     const map = await resolveRedeemClaimTxids(
-      [{ vaultId: "0xv1" }, { vaultId: "0xv2" }, { vaultId: "0xv3" }],
+      [{ vaultId: V1 }, { vaultId: V2 }, { vaultId: V3 }],
       lookup,
     );
 
-    expect(map.get("0xv1")).toBe(TXID_A1);
-    expect(map.get("0xv2")).toBe(TXID_A2);
-    expect(map.get("0xv3")).toBe(TXID_B3);
+    expect(map.get(V1)).toBe(TXID_A1);
+    expect(map.get(V2)).toBe(TXID_A2);
+    expect(map.get(V3)).toBe(TXID_B3);
     expect(batchGetPegoutStatusByVaultId).toHaveBeenCalledTimes(2);
   });
 
   it("omits vaults whose claimer is null or unfound (pending state)", async () => {
     const lookup = new Map<string, RedeemVaultLookup>([
-      ["0xv1", { vaultProvider: VP_A }],
+      [V1, { vaultProvider: VP_A }],
     ]);
 
     batchGetPegoutStatusByVaultId.mockResolvedValueOnce({
       results: [
         {
-          vault_id: "v1",
+          vault_id: V1_WIRE,
           result: {
             pegin_txid: "pegin1",
             found: false,
@@ -165,20 +175,20 @@ describe("resolveRedeemClaimTxids", () => {
       ],
     });
 
-    const map = await resolveRedeemClaimTxids([{ vaultId: "0xv1" }], lookup);
+    const map = await resolveRedeemClaimTxids([{ vaultId: V1 }], lookup);
 
-    expect(map.has("0xv1")).toBe(false);
+    expect(map.has(V1)).toBe(false);
   });
 
   it("omits claim txids that are not yet broadcast on Bitcoin (ClaimEventReceived)", async () => {
     const lookup = new Map<string, RedeemVaultLookup>([
-      ["0xv1", { vaultProvider: VP_A }],
+      [V1, { vaultProvider: VP_A }],
     ]);
 
     batchGetPegoutStatusByVaultId.mockResolvedValueOnce({
       results: [
         {
-          vault_id: "v1",
+          vault_id: V1_WIRE,
           result: {
             pegin_txid: "pegin1",
             found: true,
@@ -190,20 +200,20 @@ describe("resolveRedeemClaimTxids", () => {
       ],
     });
 
-    const map = await resolveRedeemClaimTxids([{ vaultId: "0xv1" }], lookup);
+    const map = await resolveRedeemClaimTxids([{ vaultId: V1 }], lookup);
 
-    expect(map.has("0xv1")).toBe(false);
+    expect(map.has(V1)).toBe(false);
   });
 
   it("includes the claim txid once the claim tx is broadcast (ClaimBroadcast)", async () => {
     const lookup = new Map<string, RedeemVaultLookup>([
-      ["0xv1", { vaultProvider: VP_A }],
+      [V1, { vaultProvider: VP_A }],
     ]);
 
     batchGetPegoutStatusByVaultId.mockResolvedValueOnce({
       results: [
         {
-          vault_id: "v1",
+          vault_id: V1_WIRE,
           result: {
             pegin_txid: "pegin1",
             found: true,
@@ -215,20 +225,20 @@ describe("resolveRedeemClaimTxids", () => {
       ],
     });
 
-    const map = await resolveRedeemClaimTxids([{ vaultId: "0xv1" }], lookup);
+    const map = await resolveRedeemClaimTxids([{ vaultId: V1 }], lookup);
 
-    expect(map.get("0xv1")).toBe(TXID_LIVE);
+    expect(map.get(V1)).toBe(TXID_LIVE);
   });
 
   it("drops claim txids that are not valid 64-char hex", async () => {
     const lookup = new Map<string, RedeemVaultLookup>([
-      ["0xv1", { vaultProvider: VP_A }],
+      [V1, { vaultProvider: VP_A }],
     ]);
 
     batchGetPegoutStatusByVaultId.mockResolvedValueOnce({
       results: [
         {
-          vault_id: "v1",
+          vault_id: V1_WIRE,
           result: {
             pegin_txid: "pegin1",
             found: true,
@@ -240,21 +250,21 @@ describe("resolveRedeemClaimTxids", () => {
       ],
     });
 
-    const map = await resolveRedeemClaimTxids([{ vaultId: "0xv1" }], lookup);
+    const map = await resolveRedeemClaimTxids([{ vaultId: V1 }], lookup);
 
-    expect(map.has("0xv1")).toBe(false);
+    expect(map.has(V1)).toBe(false);
   });
 
   it("skips vaults with a malformed provider address without calling the VP", async () => {
     const lookup = new Map<string, RedeemVaultLookup>([
-      ["0xv1", { vaultProvider: "0xnot-an-address" }],
-      ["0xv2", { vaultProvider: VP_A }],
+      [V1, { vaultProvider: "0xnot-an-address" }],
+      [V2, { vaultProvider: VP_A }],
     ]);
 
     batchGetPegoutStatusByVaultId.mockResolvedValueOnce({
       results: [
         {
-          vault_id: "v2",
+          vault_id: V2_WIRE,
           result: {
             pegin_txid: "pegin2",
             found: true,
@@ -267,20 +277,20 @@ describe("resolveRedeemClaimTxids", () => {
     });
 
     const map = await resolveRedeemClaimTxids(
-      [{ vaultId: "0xv1" }, { vaultId: "0xv2" }],
+      [{ vaultId: V1 }, { vaultId: V2 }],
       lookup,
     );
 
-    expect(map.has("0xv1")).toBe(false);
-    expect(map.get("0xv2")).toBe(TXID_A2);
+    expect(map.has(V1)).toBe(false);
+    expect(map.get(V2)).toBe(TXID_A2);
     expect(createVpClient).toHaveBeenCalledTimes(1);
     expect(createVpClient).toHaveBeenCalledWith(VP_A, expect.anything());
   });
 
   it("soft-fails a provider whose client construction throws, keeping other providers", async () => {
     const lookup = new Map<string, RedeemVaultLookup>([
-      ["0xv1", { vaultProvider: VP_A }],
-      ["0xv2", { vaultProvider: VP_B }],
+      [V1, { vaultProvider: VP_A }],
+      [V2, { vaultProvider: VP_B }],
     ]);
 
     createVpClient.mockImplementation((address: string) => {
@@ -290,7 +300,7 @@ describe("resolveRedeemClaimTxids", () => {
     batchGetPegoutStatusByVaultId.mockResolvedValueOnce({
       results: [
         {
-          vault_id: "v2",
+          vault_id: V2_WIRE,
           result: {
             pegin_txid: "pegin2",
             found: true,
@@ -303,26 +313,26 @@ describe("resolveRedeemClaimTxids", () => {
     });
 
     const map = await resolveRedeemClaimTxids(
-      [{ vaultId: "0xv1" }, { vaultId: "0xv2" }],
+      [{ vaultId: V1 }, { vaultId: V2 }],
       lookup,
     );
 
-    expect(map.has("0xv1")).toBe(false);
-    expect(map.get("0xv2")).toBe(TXID_B3);
+    expect(map.has(V1)).toBe(false);
+    expect(map.get(V2)).toBe(TXID_B3);
   });
 
   it("treats VP errors as soft failures and returns the partial map", async () => {
     const lookup = new Map<string, RedeemVaultLookup>([
-      ["0xv1", { vaultProvider: VP_A }],
-      ["0xv2", { vaultProvider: VP_B }],
+      [V1, { vaultProvider: VP_A }],
+      [V2, { vaultProvider: VP_B }],
     ]);
 
     batchGetPegoutStatusByVaultId.mockImplementation(({ vault_ids }) => {
-      if (vault_ids.includes("v1")) {
+      if (vault_ids.includes(V1_WIRE)) {
         return Promise.resolve({
           results: [
             {
-              vault_id: "v1",
+              vault_id: V1_WIRE,
               result: {
                 pegin_txid: "pegin1",
                 found: true,
@@ -338,12 +348,12 @@ describe("resolveRedeemClaimTxids", () => {
     });
 
     const map = await resolveRedeemClaimTxids(
-      [{ vaultId: "0xv1" }, { vaultId: "0xv2" }],
+      [{ vaultId: V1 }, { vaultId: V2 }],
       lookup,
     );
 
-    expect(map.get("0xv1")).toBe(TXID_A1);
-    expect(map.has("0xv2")).toBe(false);
+    expect(map.get(V1)).toBe(TXID_A1);
+    expect(map.has(V2)).toBe(false);
   });
 
   it("skips redeem refs whose vault metadata is unknown", async () => {

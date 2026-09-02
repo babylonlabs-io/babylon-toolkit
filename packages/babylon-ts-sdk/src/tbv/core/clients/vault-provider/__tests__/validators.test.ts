@@ -855,10 +855,21 @@ describe("VP Response Validators", () => {
       ).toThrow(VpResponseValidationError);
     });
 
-    it("rejects entry with wrong-length vault_id", () => {
+    it("accepts a per-item error entry whose echoed vault_id is malformed", () => {
+      // The server answers an unparseable vault id with a populated per-item
+      // `error`. Throwing on the echoed id would error every other vault in
+      // the same chunk; attribution drops this one entry as unexpected.
       expect(() =>
         validateBatchGetPeginStatusResponse({
           results: [{ vault_id: "abcd", result: null, error: "boom" }],
+        }),
+      ).not.toThrow();
+    });
+
+    it("rejects entry with a non-string vault_id", () => {
+      expect(() =>
+        validateBatchGetPeginStatusResponse({
+          results: [{ vault_id: 42, result: null, error: "boom" }],
         }),
       ).toThrow(VpResponseValidationError);
     });

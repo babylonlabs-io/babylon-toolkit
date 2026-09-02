@@ -62,19 +62,22 @@ const TXID_HEX_LEN = 64;
 const VAULT_ID_HEX_LEN = 64;
 
 /**
- * Assert a vault id: 64 hex chars, `0x` prefix optional. The server emits
+ * A vault id: 64 hex chars, `0x` prefix optional. The server emits
  * `0x`-prefixed ids in status payloads and echoes request ids verbatim in
- * batch envelopes, so both encodings are accepted.
+ * batch envelopes, so both encodings are accepted. Exported so the request
+ * side (`batchPollByProvider`) can reject a malformed id before it goes on
+ * the wire, rather than waiting for it to come back unattributable.
  */
-function assertVaultId(value: unknown, field: string): void {
+export function isVaultIdHex(value: unknown): value is string {
   const unprefixed =
     typeof value === "string" && value.startsWith("0x")
       ? value.slice(2)
       : value;
-  if (
-    !isNonEmptyHex(unprefixed) ||
-    unprefixed.length !== VAULT_ID_HEX_LEN
-  ) {
+  return isNonEmptyHex(unprefixed) && unprefixed.length === VAULT_ID_HEX_LEN;
+}
+
+function assertVaultId(value: unknown, field: string): void {
+  if (!isVaultIdHex(value)) {
     throw new VpResponseValidationError(
       `VP response validation failed: "${field}" must be a ${VAULT_ID_HEX_LEN}-char hex string (vault id, "0x" prefix optional), got ${preview(value)}`,
     );
@@ -589,7 +592,15 @@ function validateBatchEnvelope(
       );
     }
     const e = entry as Record<string, unknown>;
-    assertVaultId(e.vault_id, `${rpcName}.results[${i}].vault_id`);
+    // Shape only, not a vault-id format check. This field is our own request
+    // string echoed back, and the server answers a malformed id with a
+    // populated per-item `error` — the whole point of the per-result
+    // envelope. Asserting the format here would turn one bad id into a
+    // whole-chunk throw, erroring every vault in the batch. A non-matching
+    // echo is classified as `unexpected` by `attributeBatchResults`, which
+    // degrades the one affected item. The nested `result.vault_id` is still
+    // format-checked by the inner validator.
+    assertNonEmptyString(e.vault_id, `${rpcName}.results[${i}].vault_id`);
     if (e.error !== null && typeof e.error !== "string") {
       throw new VpResponseValidationError(
         `VP response validation failed: "${rpcName}.results[${i}].error" must be a string or null, got ${preview(e.error)}`,
