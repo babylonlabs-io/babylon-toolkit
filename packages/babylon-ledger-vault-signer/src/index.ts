@@ -57,6 +57,7 @@ export {
 } from "./policyPsbt";
 export { buildPopPsbtHex, type BuildPopPsbtParams } from "./popPsbt";
 export {
+  assertRefundPsbtSignable,
   augmentPsbtForRefund,
   classifyRefundPsbt,
   type AugmentPsbtForRefundParams,

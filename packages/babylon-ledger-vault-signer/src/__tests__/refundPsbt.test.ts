@@ -18,7 +18,12 @@ import { Buffer } from "buffer";
 import { describe, expect, it } from "vitest";
 
 import { HARDENED } from "../bip86Path";
-import { augmentPsbtForRefund, classifyRefundPsbt, parseRefundLeafScript } from "../refundPsbt";
+import {
+  assertRefundPsbtSignable,
+  augmentPsbtForRefund,
+  classifyRefundPsbt,
+  parseRefundLeafScript,
+} from "../refundPsbt";
 
 initEccLib(ecc);
 
@@ -64,20 +69,25 @@ function buildRefundShapedPsbt(
     leaves?: readonly Buffer[];
     leafVersion?: number;
     outScript?: Buffer;
+    outValue?: number;
     extraOutput?: boolean;
     extraInput?: boolean;
     dropLeaf?: boolean;
+    dropWitnessUtxo?: boolean;
+    version?: number;
+    locktime?: number;
+    sequence?: number;
   } = {},
 ): string {
   const leaf = overrides.leaf ?? refundLeaf(DEPOSITOR_XONLY, PUSH_2016);
   const psbt = new Psbt();
-  psbt.setVersion(2);
-  psbt.setLocktime(0);
+  psbt.setVersion(overrides.version ?? 2);
+  psbt.setLocktime(overrides.locktime ?? 0);
   psbt.addInput({
     hash: PREV_HASH,
     index: 0,
-    sequence: CSV_2016,
-    witnessUtxo: { script: htlcSpk, value: HTLC_VALUE_SATS },
+    sequence: overrides.sequence ?? CSV_2016,
+    ...(overrides.dropWitnessUtxo ? {} : { witnessUtxo: { script: htlcSpk, value: HTLC_VALUE_SATS } }),
     ...(overrides.dropLeaf
       ? {}
       : {
@@ -107,7 +117,7 @@ function buildRefundShapedPsbt(
       tapInternalKey: Buffer.from(NUMS_XONLY, "hex"),
     });
   }
-  psbt.addOutput({ script: overrides.outScript ?? depositorSpk, value: REFUND_VALUE_SATS });
+  psbt.addOutput({ script: overrides.outScript ?? depositorSpk, value: overrides.outValue ?? REFUND_VALUE_SATS });
   if (overrides.extraOutput) {
     psbt.addOutput({ script: depositorSpk, value: 1_000 });
   }
@@ -210,7 +220,7 @@ describe("parseRefundLeafScript (firmware-grammar mirror)", () => {
 describe("classifyRefundPsbt", () => {
   it("classifies a 1-in/1-out PSBT carrying one refund leaf, returning the leaf terms and prevout txid", () => {
     const classified = classifyRefundPsbt(buildRefundShapedPsbt());
-    expect(classified).toEqual({
+    expect(classified).toMatchObject({
       leafKeyHex: DEPOSITOR_XONLY,
       csv: 2016,
       inputTxidInternalHex: PREV_HASH.toString("hex"),
@@ -224,14 +234,78 @@ describe("classifyRefundPsbt", () => {
     ["two TAP_LEAF_SCRIPT entries", { leaves: [refundLeaf(DEPOSITOR_XONLY, PUSH_2016), refundLeaf(FOREIGN_XONLY, PUSH_2016)] }],
     ["a non-refund leaf script", { leaf: Buffer.from([OP_PUSHBYTES_32, ...Buffer.alloc(32, 5), 0xac]) }],
     ["a non-tapscript leaf version", { leafVersion: 0xc2 }],
+    ["a version-1 transaction (the device requires version >= 2)", { version: 1 }],
+    ["a non-zero locktime", { locktime: 1 }],
   ] as const)("returns undefined for %s", (_label, overrides) => {
     expect(classifyRefundPsbt(buildRefundShapedPsbt(overrides))).toBeUndefined();
+  });
+
+  it("carries the sequence, witnessUtxo and output terms the validator pins", () => {
+    const classified = classifyRefundPsbt(buildRefundShapedPsbt());
+    expect(classified?.sequence).toBe(CSV_2016);
+    expect(classified?.witnessUtxo).toEqual({ scriptLength: 34, value: HTLC_VALUE_SATS });
+    expect(classified?.outputScriptHex).toBe(depositorSpk.toString("hex"));
+    expect(classified?.outputValue).toBe(REFUND_VALUE_SATS);
   });
 
   it("returns undefined for malformed hex instead of throwing (error precedence stays with the caller)", () => {
     expect(classifyRefundPsbt("zz")).toBeUndefined();
     expect(classifyRefundPsbt("abcd")).toBeUndefined();
     expect(classifyRefundPsbt("")).toBeUndefined();
+  });
+});
+
+describe("assertRefundPsbtSignable", () => {
+  function classified(overrides: Parameters<typeof buildRefundShapedPsbt>[0] = {}) {
+    const c = classifyRefundPsbt(buildRefundShapedPsbt(overrides));
+    if (c === undefined) throw new Error("fixture must classify as a refund");
+    return c;
+  }
+
+  it("accepts the canonical refund terms", () => {
+    expect(() => assertRefundPsbtSignable(classified())).not.toThrow();
+  });
+
+  it("accepts the device floor exactly (CSV 72)", () => {
+    expect(() =>
+      assertRefundPsbtSignable(classified({ leaf: refundLeaf(DEPOSITOR_XONLY, Buffer.from([0x01, 0x48])), sequence: 72 })),
+    ).not.toThrow();
+  });
+
+  it("rejects a CSV below the device floor of 72", () => {
+    expect(() =>
+      assertRefundPsbtSignable(classified({ leaf: refundLeaf(DEPOSITOR_XONLY, Buffer.from([0x01, 0x47])), sequence: 71 })),
+    ).toThrow(/72/);
+  });
+
+  it("rejects a sequence with the BIP-68 disable flag set", () => {
+    expect(() => assertRefundPsbtSignable(classified({ sequence: 0x80000000 + CSV_2016 }))).toThrow(/sequence/);
+  });
+
+  it("rejects a sequence with the BIP-68 time-based flag set", () => {
+    expect(() => assertRefundPsbtSignable(classified({ sequence: 0x00400000 + CSV_2016 }))).toThrow(/sequence/);
+  });
+
+  it("rejects a sequence that does not encode exactly the leaf CSV", () => {
+    expect(() => assertRefundPsbtSignable(classified({ sequence: 144 }))).toThrow(/sequence/);
+  });
+
+  it("rejects an input without a witnessUtxo", () => {
+    expect(() => assertRefundPsbtSignable(classified({ dropWitnessUtxo: true }))).toThrow(/witnessUtxo/);
+  });
+
+  it("rejects an output value above the HTLC value", () => {
+    expect(() => assertRefundPsbtSignable(classified({ outValue: HTLC_VALUE_SATS + 1 }))).toThrow(/exceed/);
+  });
+
+  it("rejects an output paying a FOREIGN P2TR address — ownership, not just shape", () => {
+    const foreignSpk = payments.p2tr({ internalPubkey: Buffer.from(FOREIGN_XONLY, "hex") }).output!;
+    expect(() => assertRefundPsbtSignable(classified({ outScript: foreignSpk }))).toThrow(/BIP-86/);
+  });
+
+  it("rejects a non-P2TR output", () => {
+    const p2wpkh = Buffer.concat([Buffer.from([0x00, 0x14]), Buffer.alloc(20, 7)]);
+    expect(() => assertRefundPsbtSignable(classified({ outScript: p2wpkh }))).toThrow(/BIP-86/);
   });
 });
 
@@ -273,8 +347,14 @@ describe("augmentPsbtForRefund", () => {
   });
 
   it("throws when the refund leaf key is not the depositor key", () => {
+    // A coherent foreign refund: leaf AND destination belong to the foreign key,
+    // so only the depositor-equality check can be what rejects it.
+    const foreignSpk = payments.p2tr({ internalPubkey: Buffer.from(FOREIGN_XONLY, "hex") }).output!;
     expect(() =>
-      augmentPsbtForRefund({ ...params, psbtHex: buildRefundShapedPsbt({ leaf: refundLeaf(FOREIGN_XONLY, PUSH_2016) }) }),
+      augmentPsbtForRefund({
+        ...params,
+        psbtHex: buildRefundShapedPsbt({ leaf: refundLeaf(FOREIGN_XONLY, PUSH_2016), outScript: foreignSpk }),
+      }),
     ).toThrow(/depositor/);
   });
 
@@ -284,10 +364,10 @@ describe("augmentPsbtForRefund", () => {
     );
   });
 
-  it("throws when output 0 is not P2TR (the device compares against the witness program)", () => {
+  it("runs the signability validator — an unowned output is rejected here too", () => {
     const p2wpkh = Buffer.concat([Buffer.from([0x00, 0x14]), Buffer.alloc(20, 7)]);
     expect(() => augmentPsbtForRefund({ ...params, psbtHex: buildRefundShapedPsbt({ outScript: p2wpkh }) })).toThrow(
-      /P2TR/,
+      /BIP-86/,
     );
   });
 
@@ -305,7 +385,7 @@ describe("augmentPsbtForRefund", () => {
     expect(() =>
       augmentPsbtForRefund({
         ...params,
-        psbtHex: buildRefundShapedPsbt({ leaf: refundLeaf(DEPOSITOR_XONLY, Buffer.from([0x01, 0x47])) }),
+        psbtHex: buildRefundShapedPsbt({ leaf: refundLeaf(DEPOSITOR_XONLY, Buffer.from([0x01, 0x47])), sequence: 71 }),
       }),
     ).toThrow(/72/);
   });
@@ -314,7 +394,7 @@ describe("augmentPsbtForRefund", () => {
     expect(() =>
       augmentPsbtForRefund({
         ...params,
-        psbtHex: buildRefundShapedPsbt({ leaf: refundLeaf(DEPOSITOR_XONLY, Buffer.from([0x01, 0x48])) }),
+        psbtHex: buildRefundShapedPsbt({ leaf: refundLeaf(DEPOSITOR_XONLY, Buffer.from([0x01, 0x48])), sequence: 72 }),
       }),
     ).not.toThrow();
   });

@@ -1385,6 +1385,8 @@ describe("LedgerVaultProvider", () => {
     const LEAF_VERSION = 0xc0;
     /** Internal-order prevout of {@link TERMS}'s Pre-PegIn — the loaded intent's vault. */
     const INTENT_TXID_INTERNAL = Buffer.from(TERMS.prepeginTxid, "hex").reverse();
+    /** A generic (non-refund) PSBT that signs under the loaded intent. */
+    const PSBT_UNDER_INTENT = "ab".repeat(40);
 
     /** Minimal positive CScriptNum push (opcode-length form, like the WASM builder emits). */
     function csvPush(value: number): Buffer {
@@ -1472,21 +1474,23 @@ describe("LedgerVaultProvider", () => {
       expect(signMock.signPreparedVaultPsbt).not.toHaveBeenCalled();
     });
 
-    it("refuses a refund for a DIFFERENT vault while an intent is loaded — a typed error instead of the device's opaque reject", async () => {
-      const provider = await approved();
+    it.each([
+      ["a mismatched refund timelock", { csv: 144 }],
+      ["a mismatched Pre-PegIn txid", { prevHashInternal: Buffer.alloc(32, 0x77) }],
+    ] as const)(
+      "refuses a refund with %s while an intent is loaded — a typed error instead of the device's opaque reject",
+      async (_label, overrides) => {
+        const provider = await approved();
 
-      // Wrong timelock and wrong prevout each pin to the loaded intent on-device.
-      await expect(provider.signPsbt(refundPsbtHex({ csv: 144 }))).rejects.toMatchObject({
-        code: ERROR_CODES.DEVICE_CEREMONY_INVALID,
-      });
-      await expect(provider.signPsbt(refundPsbtHex({ prevHashInternal: Buffer.alloc(32, 0x77) }))).rejects.toMatchObject({
-        code: ERROR_CODES.DEVICE_CEREMONY_INVALID,
-      });
-      expect(signMock.prepareSignPsbt).not.toHaveBeenCalled();
-      expect(signMock.signPreparedVaultPsbt).not.toHaveBeenCalled();
-      // The rejection ran before any ceremony: the loaded intent is untouched.
-      await expect(provider.holdsApprovedDepositTerms(TERMS)).resolves.toBe(true);
-    });
+        await expect(provider.signPsbt(refundPsbtHex(overrides))).rejects.toMatchObject({
+          code: ERROR_CODES.DEVICE_CEREMONY_INVALID,
+        });
+        expect(signMock.prepareSignPsbt).not.toHaveBeenCalled();
+        expect(signMock.signPreparedVaultPsbt).not.toHaveBeenCalled();
+        // The rejection ran before any ceremony: the loaded intent is untouched.
+        await expect(provider.holdsApprovedDepositTerms(TERMS)).resolves.toBe(true);
+      },
+    );
 
     it("signs a refund matching the loaded intent's vault", async () => {
       const provider = await approved();
@@ -1514,25 +1518,51 @@ describe("LedgerVaultProvider", () => {
       await expect(provider.holdsApprovedDepositTerms(TERMS)).resolves.toBe(true);
     });
 
-    it("rejects a no-intent refund whose CSV is below the device floor of 72, before any device I/O", async () => {
+    it("rejects a no-intent refund whose CSV is below the device floor of 72 with ZERO device I/O — not even the liveness probe", async () => {
       const provider = await connected();
+      dmkSessionMock.isSessionAlive.mockClear();
+      derivationMock.getMasterFingerprintHex.mockClear();
 
       await expect(provider.signPsbt(refundPsbtHex({ csv: 71 }))).rejects.toMatchObject({
         code: ERROR_CODES.INVALID_PARAMS,
       });
+      expect(dmkSessionMock.isSessionAlive).not.toHaveBeenCalled();
+      expect(derivationMock.getMasterFingerprintHex).not.toHaveBeenCalled();
       expect(signMock.prepareSignPsbt).not.toHaveBeenCalled();
       expect(signMock.signPreparedVaultPsbt).not.toHaveBeenCalled();
+    });
+
+    it("a device-side refund failure leaves the loaded intent and the replay guard untouched", async () => {
+      const provider = await approved();
+      // Arm the replay guard with an intent-bound PSBT so its survival is observable.
+      await provider.signPsbt(PSBT_UNDER_INTENT);
+      signMock.signPreparedVaultPsbt.mockRejectedValueOnce(new LedgerUserRefusedError(0x6985));
+
+      await expect(provider.signPsbt(refundPsbtHex())).rejects.toMatchObject({
+        code: ERROR_CODES.CONNECTION_REJECTED,
+      });
+      // The refund path never invalidates the device's vault context, so the
+      // mirror must not drop either: the intent still holds…
+      await expect(provider.holdsApprovedDepositTerms(TERMS)).resolves.toBe(true);
+      // …and the armed fingerprint still blocks its replay.
+      await expect(provider.signPsbt(PSBT_UNDER_INTENT)).rejects.toThrow(/already signed/);
     });
 
     it("signPsbts refuses a batched refund before any ceremony — refunds sign standalone via signPsbt", async () => {
       const provider = await approved();
 
-      await expect(provider.signPsbts(["aa".repeat(40), refundPsbtHex()])).rejects.toMatchObject({
-        code: ERROR_CODES.INVALID_PARAMS,
-      });
+      await expect(provider.signPsbts(["aa".repeat(40), refundPsbtHex()])).rejects.toThrow(/standalone via signPsbt/);
       expect(signMock.signPreparedVaultPsbt).not.toHaveBeenCalled();
       // The whole batch was refused at staging: the loaded intent is untouched.
       await expect(provider.holdsApprovedDepositTerms(TERMS)).resolves.toBe(true);
+    });
+
+    it("signPsbts refuses a batched refund with the refund-specific error even when NO intent is loaded", async () => {
+      const provider = await connected();
+
+      await expect(provider.signPsbts([refundPsbtHex()])).rejects.toThrow(/standalone via signPsbt/);
+      expect(signMock.prepareSignPsbt).not.toHaveBeenCalled();
+      expect(signMock.signPreparedVaultPsbt).not.toHaveBeenCalled();
     });
   });
 

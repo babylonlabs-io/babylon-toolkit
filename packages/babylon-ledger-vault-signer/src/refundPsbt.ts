@@ -21,6 +21,7 @@ import { Buffer } from "buffer";
 
 import { assertBip86Path, bip86PathToString } from "./bip86Path";
 import { DEVICE_TIMELOCK_MIN_BLOCKS } from "./deviceCaps";
+import { bip86OutputScript } from "./expectedSignatures";
 
 const X_ONLY_HEX_RE = /^[0-9a-f]{64}$/;
 const MASTER_FINGERPRINT_HEX_RE = /^[0-9a-f]{8}$/;
@@ -50,11 +51,22 @@ const SCRIPT_NUM_SIGN_BIT = 0x80;
 /** `OP_PUSHBYTES_32 ‖ key(32) ‖ OP_CHECKSIGVERIFY ‖ push(1) ‖ OP_CSV` (`fw:…helpers.c:33-34`). */
 const REFUND_SCRIPT_MIN_LEN = 1 + X_ONLY_KEY_BYTES + 1 + 1 + 1;
 
-/** P2TR scriptPubKey: OP_1 ‖ push-32 ‖ witness program(32) (BIP-341). */
-const P2TR_SCRIPT_BYTES = 34;
-const P2TR_OP_1 = 0x51;
-const P2TR_PUSH_32 = 0x20;
+/** P2TR scriptPubKey: OP_1 ‖ push-32 ‖ witness program(32); program starts here. */
 const P2TR_WITNESS_PROGRAM_OFFSET = 2;
+/** The device requires the refund's witnessUtxo scriptPubKey to be exactly this
+ * long — `VAULT_P2TR_SCRIPTPUBKEY_LEN` (`fw:sign_psbt_validate.c:836-854`). */
+const P2TR_SCRIPT_BYTES = 34;
+
+// BIP-68 sequence semantics the device pins on the refund input
+// (`fw:sign_psbt_validate.c:956-979`; values from `fw:vault_constants.h:126-128`).
+const BIP68_DISABLE_FLAG = 0x80000000;
+const BIP68_TIME_BASED_FLAG = 0x00400000;
+const BIP68_SEQUENCE_MASK = 0x0000ffff;
+
+/** Refund transactions are v2 with locktime 0 (`fw:sign_psbt_validate.c:806-809`);
+ * version 0 never even reaches refund dispatch — it routes to PoP (`:3551`). */
+const MIN_REFUND_TX_VERSION = 2;
+const REFUND_TX_LOCKTIME = 0;
 
 /** The terms a refund leaf commits to: signer key and CSV timelock. */
 export interface RefundLeafTerms {
@@ -69,6 +81,13 @@ export interface RefundLeafTerms {
  * OP_PUSHDATA1 and a non-minimal positive CScriptNum are accepted, because a
  * host grammar stricter than the device's would strand a refund the device
  * would sign. Returns `undefined` where the firmware returns false.
+ *
+ * NOTE: the device's DISPATCH is looser still — it routes any conforming
+ * prefix whose last byte is `OP_CSV` to the refund validator
+ * (`fw:sign_psbt_validate.c:3643-3691`) and only then runs this grammar. Using
+ * the full grammar for host classification (see {@link classifyRefundPsbt}) is
+ * the deliberate, fail-safe divergence: under-classification falls back to
+ * requiring an approved intent.
  */
 export function parseRefundLeafScript(script: Uint8Array): RefundLeafTerms | undefined {
   if (script.length < REFUND_SCRIPT_MIN_LEN) return undefined;
@@ -111,20 +130,38 @@ export function parseRefundLeafScript(script: Uint8Array): RefundLeafTerms | und
   return { leafKeyHex, csv };
 }
 
-/** What {@link classifyRefundPsbt} pins: the leaf terms plus input 0's prevout. */
+/** What {@link classifyRefundPsbt} pins: the leaf terms plus every transaction
+ * field the device validates on the refund path. */
 export interface RefundPsbtClassification extends RefundLeafTerms {
   /** Input 0's previous txid in INTERNAL byte order (lowercase hex) — the
    * order the device compares against the loaded intent's `prepegin_txid`
    * (`fw:sign_psbt_validate.c:1076-1081`). */
   readonly inputTxidInternalHex: string;
+  /** Input 0's nSequence as encoded in the unsigned transaction. */
+  readonly sequence: number;
+  /** Input 0's witnessUtxo terms, when the map carries one. */
+  readonly witnessUtxo: { readonly scriptLength: number; readonly value: number } | undefined;
+  /** Output 0's scriptPubKey (lowercase hex). */
+  readonly outputScriptHex: string;
+  readonly outputValue: number;
 }
 
 /**
  * Classify a PSBT as a standalone refund from the PROVIDER'S OWN PARSE —
- * never from a caller flag: exactly 1 input and 1 output, and input 0 carries
- * exactly one tapscript leaf matching the firmware's refund grammar. Anything
- * else — including hex that does not parse — returns `undefined`, so the
- * caller's ordinary gates keep their error precedence.
+ * never from a caller flag: version ≥ 2 with locktime 0, exactly 1 input and
+ * 1 output, and input 0 carrying exactly one tapscript leaf matching the
+ * firmware's refund grammar. Anything else — including hex that does not
+ * parse — returns `undefined`, so the caller's ordinary gates keep their
+ * error precedence.
+ *
+ * DELIBERATELY a strict subset of the device's own routing: the firmware
+ * dispatches on the leaf's shape prefix and terminal `OP_CSV` byte alone
+ * (`fw:sign_psbt_validate.c:3643-3691`) and only then validates the full
+ * grammar, version and locktime inside the refund validator. Host
+ * under-classification is the fail-safe direction — an unrecognised PSBT
+ * falls back to requiring an approved intent, so neither the intent gate nor
+ * the replay guard can be waived for something the device would not treat as
+ * a conforming refund.
  */
 export function classifyRefundPsbt(psbtHex: string): RefundPsbtClassification | undefined {
   let psbt: Psbt;
@@ -133,13 +170,66 @@ export function classifyRefundPsbt(psbtHex: string): RefundPsbtClassification | 
   } catch {
     return undefined;
   }
+  if (psbt.version < MIN_REFUND_TX_VERSION || psbt.locktime !== REFUND_TX_LOCKTIME) return undefined;
   if (psbt.data.inputs.length !== 1 || psbt.data.outputs.length !== 1) return undefined;
-  const leaves = psbt.data.inputs[0].tapLeafScript ?? [];
+  const input = psbt.data.inputs[0];
+  const leaves = input.tapLeafScript ?? [];
   if (leaves.length !== 1) return undefined;
   if (leaves[0].leafVersion !== TAPSCRIPT_LEAF_VERSION) return undefined;
   const terms = parseRefundLeafScript(leaves[0].script);
   if (terms === undefined) return undefined;
-  return { ...terms, inputTxidInternalHex: Buffer.from(psbt.txInputs[0].hash).toString("hex") };
+  return {
+    ...terms,
+    inputTxidInternalHex: Buffer.from(psbt.txInputs[0].hash).toString("hex"),
+    sequence: psbt.txInputs[0].sequence ?? 0,
+    witnessUtxo: input.witnessUtxo
+      ? { scriptLength: input.witnessUtxo.script.length, value: input.witnessUtxo.value }
+      : undefined,
+    outputScriptHex: Buffer.from(psbt.txOutputs[0].script).toString("hex"),
+    outputValue: psbt.txOutputs[0].value,
+  };
+}
+
+/**
+ * Pure signability pins for a classified refund — every term the device
+ * validates that needs NO device data, so a caller can reject before any
+ * device I/O (not even a liveness probe). Mirrors, in order: the witnessUtxo
+ * requirement (`fw:sign_psbt_validate.c:836-854`), the output-value cap
+ * (`:1059-1062`), destination ownership (the device derives, BIP-86-tweaks
+ * and compares — `:1005-1057`; host-side the leaf key is the derivation
+ * anchor, so the output must pay ITS BIP-86 address), the no-intent CSV floor
+ * (`:898-903`, `vault_constants.h:103`), and the BIP-68 sequence pins
+ * (`:956-979` — present, flags clear, low bits encoding exactly the CSV).
+ */
+export function assertRefundPsbtSignable(refund: RefundPsbtClassification): void {
+  if (refund.witnessUtxo === undefined || refund.witnessUtxo.scriptLength !== P2TR_SCRIPT_BYTES) {
+    throw new Error(
+      "refund input must carry a P2TR witnessUtxo — the device rejects a missing or non-34-byte scriptPubKey",
+    );
+  }
+  if (refund.outputValue > refund.witnessUtxo.value) {
+    throw new Error(
+      `refund output value ${refund.outputValue} exceeds the HTLC value ${refund.witnessUtxo.value} — the device rejects it`,
+    );
+  }
+  if (refund.outputScriptHex !== bip86OutputScript(refund.leafKeyHex).toString("hex")) {
+    throw new Error("refund output does not pay the refund leaf key's own BIP-86 address");
+  }
+  if (refund.csv < DEVICE_TIMELOCK_MIN_BLOCKS) {
+    throw new Error(
+      `refund leaf CSV ${refund.csv} is below the device's timelock floor of ${DEVICE_TIMELOCK_MIN_BLOCKS} blocks`,
+    );
+  }
+  if ((refund.sequence & BIP68_DISABLE_FLAG) !== 0 || (refund.sequence & BIP68_TIME_BASED_FLAG) !== 0) {
+    throw new Error(
+      "refund input sequence must be a plain block-count relative timelock (BIP-68 disable/time flags clear)",
+    );
+  }
+  if ((refund.sequence & BIP68_SEQUENCE_MASK) !== (refund.csv & BIP68_SEQUENCE_MASK)) {
+    throw new Error(
+      `refund input sequence ${refund.sequence} must encode exactly the leaf CSV ${refund.csv} — a mismatch signs but can never broadcast`,
+    );
+  }
 }
 
 export interface AugmentPsbtForRefundParams {
@@ -173,26 +263,13 @@ export function augmentPsbtForRefund(params: AugmentPsbtForRefundParams): string
   if (classified === undefined) {
     throw new Error("not a refund-shaped PSBT (expected 1 input, 1 output, and one refund tapscript leaf)");
   }
+  assertRefundPsbtSignable(classified);
   if (classified.leafKeyHex !== depositorXOnlyHex) {
     throw new Error("refund leaf key does not equal the depositor key — this device cannot sign this refund");
   }
-  // The device never signs a refund below this floor in any state
-  // (`fw:sign_psbt_validate.c:898-903`, IDLE/HASH_DERIVED branch;
-  // `vault_constants.h:103`) — pre-empt its opaque SW_INCORRECT_DATA.
-  if (classified.csv < DEVICE_TIMELOCK_MIN_BLOCKS) {
-    throw new Error(
-      `refund leaf CSV ${classified.csv} is below the device's timelock floor of ${DEVICE_TIMELOCK_MIN_BLOCKS} blocks`,
-    );
-  }
   const psbt = Psbt.fromHex(psbtHex);
+  // Validated by {@link assertRefundPsbtSignable}: the depositor's own BIP-86 P2TR.
   const outScript = Buffer.from(psbt.txOutputs[0].script);
-  if (
-    outScript.length !== P2TR_SCRIPT_BYTES ||
-    outScript[0] !== P2TR_OP_1 ||
-    outScript[1] !== P2TR_PUSH_32
-  ) {
-    throw new Error("refund output is not P2TR — the device compares its derivation entry against the witness program");
-  }
   const masterFingerprint = Buffer.from(masterFingerprintHex, "hex");
   const path = bip86PathToString(depositorPath);
   psbt.updateInput(0, {

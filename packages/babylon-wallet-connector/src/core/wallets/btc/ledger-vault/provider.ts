@@ -11,6 +11,7 @@
 import {
   approveVaultIntent,
   assertDepositTermsDeviceCompatible,
+  assertRefundPsbtSignable,
   augmentPsbtForRefund,
   augmentPsbtForWalletPolicy,
   buildDefaultTaprootPolicy,
@@ -126,8 +127,13 @@ interface StagedPsbt {
   readonly prepared: PreparedSignPsbt;
   readonly fingerprintKey: string;
   readonly label: string;
-  /** Whether success arms the replay guard — false only for a no-intent standalone refund. */
-  readonly guardReplay: boolean;
+  /**
+   * True for ANY classified refund, intent loaded or not: the device's
+   * standalone path consumes no dedup mask or cap in any vault state, and no
+   * failure on it invalidates the vault context — so the refund skips the
+   * replay guard and the pessimistic mirror reset.
+   */
+  readonly standaloneRefund: boolean;
 }
 
 /**
@@ -706,14 +712,17 @@ export class LedgerVaultProvider implements IBTCProvider {
     this.withDeviceOperation("signPsbt", () =>
       this.withSignAbort(async (controller) => {
         const refund = classifyRefundPsbt(psbtHex);
+        if (refund !== undefined) {
+          // Pure term pins first — this rejection really is zero device I/O,
+          // not even the liveness probe or a cold derivation read.
+          try {
+            assertRefundPsbtSignable(refund);
+          } catch (error) {
+            throw toStagingWalletError(error, "signPsbt rejected before any device I/O");
+          }
+        }
         const ctx = await this.gateSignContext(refund === undefined);
         let stagingHex = psbtHex;
-        // A refund routes to the device's standalone sign path in EVERY vault
-        // state (`sign_psbt_validate.c:3552-3618` fall-through dispatch), and
-        // that path consumes no dedup mask or cap (`sign_custom_inputs.c`,
-        // standalone section — contrast PegIn `:183` and Payout `:400`), so
-        // re-signing one is always a fresh user-approved ceremony.
-        const guardReplay = refund === undefined;
         if (refund !== undefined) {
           this.assertRefundSignable(refund, ctx.depositorXOnlyHex);
           const { masterFingerprintHex } = await this.getPolicyContext();
@@ -726,7 +735,9 @@ export class LedgerVaultProvider implements IBTCProvider {
               depositorPath: this.depositorPath,
             });
           } catch (error) {
-            throw toStagingWalletError(error, "signPsbt rejected before device I/O");
+            // The policy read above may have exchanged APDUs on a cold cache —
+            // "before the ceremony", not "before device I/O".
+            throw toStagingWalletError(error, "signPsbt rejected before the signing ceremony");
           }
         }
         const staged = await this.stagePsbt(
@@ -735,7 +746,12 @@ export class LedgerVaultProvider implements IBTCProvider {
           "signPsbt",
           new Set(),
           ctx.depositorXOnlyHex,
-          guardReplay,
+          // A refund routes to the device's standalone sign path in EVERY vault
+          // state (`sign_psbt_validate.c:3691` dispatch), and that path consumes
+          // no dedup mask or cap (`sign_custom_inputs.c`, standalone section —
+          // contrast PegIn `:184` and Payout `:401`), so re-signing one is
+          // always a fresh user-approved ceremony.
+          refund !== undefined,
         );
         // Staging awaits the policy read; a reconnect during it would leave the
         // captured sender stale (signPsbts guards the same way per element).
@@ -795,13 +811,12 @@ export class LedgerVaultProvider implements IBTCProvider {
             wallet: WALLET_PROVIDER_NAME,
           });
         }
-        const ctx = await this.gateSignContext();
-        const stagedKeys = new Set<string>();
-        const staged: StagedPsbt[] = [];
+        // A refund is a standalone single-PSBT ceremony — signPsbt classifies
+        // and augments it. Staged unaugmented here it would start a ceremony
+        // the device rejects (missing derivation entries). The scan is pure,
+        // so it runs BEFORE the intent gate: a no-intent caller must get this
+        // actionable refusal, not "restart the flow from derivation".
         for (const [index, hex] of psbtsHexes.entries()) {
-          // A refund is a standalone single-PSBT ceremony — signPsbt classifies
-          // and augments it. Staged unaugmented here it would start a ceremony
-          // the device rejects (missing derivation entries). Refuse at zero I/O.
           if (classifyRefundPsbt(hex) !== undefined) {
             throw new WalletError({
               code: ERROR_CODES.INVALID_PARAMS,
@@ -809,6 +824,11 @@ export class LedgerVaultProvider implements IBTCProvider {
               wallet: WALLET_PROVIDER_NAME,
             });
           }
+        }
+        const ctx = await this.gateSignContext();
+        const stagedKeys = new Set<string>();
+        const staged: StagedPsbt[] = [];
+        for (const [index, hex] of psbtsHexes.entries()) {
           const one = await this.stagePsbt(
             hex,
             options?.[index],
@@ -941,7 +961,7 @@ export class LedgerVaultProvider implements IBTCProvider {
     label: string,
     stagedKeys: ReadonlySet<string>,
     depositorXOnlyHex: string,
-    guardReplay = true,
+    standaloneRefund = false,
   ): Promise<StagedPsbt> {
     // Never finalize, and never silently ignore a request to — the SDK
     // extracts signatures and finalizes itself.
@@ -1027,7 +1047,7 @@ export class LedgerVaultProvider implements IBTCProvider {
         wallet: WALLET_PROVIDER_NAME,
       });
     }
-    if (guardReplay && this.signedFingerprints.has(fingerprintKey)) {
+    if (!standaloneRefund && this.signedFingerprints.has(fingerprintKey)) {
       throw new WalletError({
         code: ERROR_CODES.INVALID_PARAMS,
         message:
@@ -1037,7 +1057,7 @@ export class LedgerVaultProvider implements IBTCProvider {
         wallet: WALLET_PROVIDER_NAME,
       });
     }
-    return { prepared, fingerprintKey, label, guardReplay };
+    return { prepared, fingerprintKey, label, standaloneRefund };
   }
 
   /**
@@ -1056,7 +1076,7 @@ export class LedgerVaultProvider implements IBTCProvider {
    * committed — and takes the pessimistic reset below.
    */
   private async signStaged(staged: StagedPsbt, ctx: SignContext, controller: AbortController): Promise<string> {
-    const { prepared, fingerprintKey, label, guardReplay } = staged;
+    const { prepared, fingerprintKey, label, standaloneRefund } = staged;
     const { session, rawSend, generation } = ctx;
     try {
       const result = await signPreparedVaultPsbt(rawSend, prepared, {
@@ -1066,9 +1086,10 @@ export class LedgerVaultProvider implements IBTCProvider {
       });
       this.assertSameConnection(generation);
       // Success never consumes the intent: further (different) PSBTs sign
-      // under the same approval; this one never again. No-intent standalone
-      // refunds are exempt — the device holds no masks to consult there.
-      if (guardReplay) this.signedFingerprints.add(fingerprintKey);
+      // under the same approval; this one never again. Any standalone refund
+      // is exempt — the device's standalone path consumes no dedup mask or
+      // cap in any vault state (`sign_custom_inputs.c`, standalone section).
+      if (!standaloneRefund) this.signedFingerprints.add(fingerprintKey);
       return result.signedPsbtHex;
     } catch (error) {
       const walletError = this.classifySignFailure(error, generation, label);
@@ -1077,7 +1098,20 @@ export class LedgerVaultProvider implements IBTCProvider {
       // Pre-dispatch lock keeps the intent (provenance in the method doc); an
       // unproven lock is treated like any other sign failure.
       const lockedBeforeDispatch = isLedgerDeviceLockedError(error) && error.preDispatch === true;
-      if (generation === this.connectionGeneration && !isLedgerSignPsbtAbortedError(error) && !lockedBeforeDispatch) {
+      if (
+        generation === this.connectionGeneration &&
+        !isLedgerSignPsbtAbortedError(error) &&
+        !lockedBeforeDispatch &&
+        // Refunds keep the mirror: NOTHING on the device's refund path
+        // invalidates the vault context — not the validator's rejects
+        // (`sign_psbt_validate.c:798-1104` holds none of the file's six
+        // invalidate sites), not the standalone sign section, not the review
+        // screen's SW_DENY, and not the base app's PSBT-phase failures
+        // (zero vault references in `base:sign_psbt.c` and its phases).
+        // INTENT_LOADED is terminal until an explicit invalidate
+        // (`vault_context.c:44-47`). The abort branch above stays uniform.
+        !standaloneRefund
+      ) {
         // Pessimistically assume the device dropped the intent (error-path
         // invalidation is mixed in firmware — never assume survival).
         this.deviceState = { phase: "idle" };

@@ -61,6 +61,7 @@ import {
   computePeginSighash,
   computeRefundSighash,
   DEPOSITOR_PATH,
+  HTLC_VALUE_SATS,
   DEPOSITOR_XONLY_HEX,
   DERIVE_CONTEXT,
   HTLC_VOUT,
@@ -780,6 +781,11 @@ describe.skipIf(SPECULOS_URL === "")("Speculos end-to-end vault signing", () => 
     let foreignRefund: RefundPsbtFixture | undefined;
     let augmentedForeignRefundHex: string | undefined;
 
+    /** Satoshis → the device's BTC display string: 8 decimals, trailing zeros trimmed. */
+    function formatSats(sats: number): string {
+      return (sats / 1e8).toFixed(8).replace(/0+$/, "").replace(/\.$/, "");
+    }
+
     /** Fresh prepare over an augmented refund — prepared objects are single-use. */
     function prepareAugmentedRefund(psbtHex: string): PreparedSignPsbt {
       // `signInputIndexes: [0]` mirrors the SDK's script-path sign options.
@@ -800,6 +806,15 @@ describe.skipIf(SPECULOS_URL === "")("Speculos end-to-end vault signing", () => 
       const refundScreens = await approveOnScreen(SPECULOS_URL, REFUND_APPROVAL_TEXT);
       const result = await signPending;
       console.log(`[speculos-e2e] refund screens: ${refundScreens.join(" || ")}`);
+
+      // The review flow is the only control on a no-intent refund: pin that the
+      // reclaimed amount and the implied fee the device computed from the PSBT
+      // actually appeared on-screen (display units: sBTC with trimmed zeros).
+      const psbt = Psbt.fromHex(psbtHex);
+      const outValue = psbt.txOutputs[0].value;
+      const allScreens = refundScreens.join(" || ");
+      expect(allScreens).toContain(formatSats(outValue));
+      expect(allScreens).toContain(formatSats(HTLC_VALUE_SATS - outValue));
 
       expect(result.yields).toHaveLength(1);
       const yielded = result.yields[0];
