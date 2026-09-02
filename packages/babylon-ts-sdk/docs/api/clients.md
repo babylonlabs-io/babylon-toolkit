@@ -52,7 +52,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/operation-key-read
 ##### getCurrentOperationKeys()
 
 ```ts
-getCurrentOperationKeys(query): Promise<RawOperationKeys>;
+getCurrentOperationKeys(query, blockNumber?): Promise<RawOperationKeys>;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/operation-key-reader.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/operation-key-reader.ts)
@@ -68,6 +68,10 @@ fallback, so an operator that never rotated yields its registration key.
 ###### query
 
 [`OperationKeyQuery`](#operationkeyquery)
+
+###### blockNumber?
+
+`bigint`
 
 ###### Returns
 
@@ -308,7 +312,7 @@ If the deployment does not expose `peginActivationDelay()`, or
 ##### getPegInConfiguration()
 
 ```ts
-getPegInConfiguration(): Promise<PegInConfiguration>;
+getPegInConfiguration(blockNumber?): Promise<PegInConfiguration>;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/protocol-params-reader.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/protocol-params-reader.ts)
@@ -318,6 +322,17 @@ label atomically via multicall. The version is paired with the params so
 that a governance update between separate reads cannot let JS build BTC
 scripts with version N params while the contract registers the vault
 under version N+1.
+
+That guarantee holds only within this multicall. A caller that also reads
+participant keys — every fresh peg-in build does — must pass the same
+`blockNumber` here and to those reads, or the two describe different
+blocks and the pairing above buys nothing across the seam.
+
+###### Parameters
+
+###### blockNumber?
+
+`bigint`
 
 ###### Returns
 
@@ -403,7 +418,10 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/signer-set-reader.
 ##### getVaultKeepersByVersion()
 
 ```ts
-getVaultKeepersByVersion(appEntryPoint, version): Promise<AddressBTCKeyPair[]>;
+getVaultKeepersByVersion(
+   appEntryPoint, 
+   version, 
+blockNumber?): Promise<AddressBTCKeyPair[]>;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/signer-set-reader.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/signer-set-reader.ts)
@@ -417,6 +435,10 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/signer-set-reader.
 ###### version
 
 `number`
+
+###### blockNumber?
+
+`bigint`
 
 ###### Returns
 
@@ -451,7 +473,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/signer-set-reader.
 ##### getCurrentVaultKeepersVersion()
 
 ```ts
-getCurrentVaultKeepersVersion(appEntryPoint): Promise<number>;
+getCurrentVaultKeepersVersion(appEntryPoint, blockNumber?): Promise<number>;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/signer-set-reader.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/signer-set-reader.ts)
@@ -461,6 +483,10 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/signer-set-reader.
 ###### appEntryPoint
 
 `` `0x${string}` ``
+
+###### blockNumber?
+
+`bigint`
 
 ###### Returns
 
@@ -515,7 +541,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/signer-set-reader.
 ##### getUniversalChallengersByVersion()
 
 ```ts
-getUniversalChallengersByVersion(version): Promise<AddressBTCKeyPair[]>;
+getUniversalChallengersByVersion(version, blockNumber?): Promise<AddressBTCKeyPair[]>;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/signer-set-reader.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/signer-set-reader.ts)
@@ -525,6 +551,10 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/signer-set-reader.
 ###### version
 
 `number`
+
+###### blockNumber?
+
+`bigint`
 
 ###### Returns
 
@@ -553,10 +583,16 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/signer-set-reader.
 ##### getLatestUniversalChallengersVersion()
 
 ```ts
-getLatestUniversalChallengersVersion(): Promise<number>;
+getLatestUniversalChallengersVersion(blockNumber?): Promise<number>;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/signer-set-reader.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/signer-set-reader.ts)
+
+###### Parameters
+
+###### blockNumber?
+
+`bigint`
 
 ###### Returns
 
@@ -611,7 +647,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/vault-registry-rea
 ##### getVaultProviderGenesisBtcPubKey()
 
 ```ts
-getVaultProviderGenesisBtcPubKey(vpAddress): Promise<OnChainBtcPubkey>;
+getVaultProviderGenesisBtcPubKey(vpAddress, blockNumber?): Promise<OnChainBtcPubkey>;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/vault-registry-reader.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/vault-registry-reader.ts)
@@ -643,6 +679,10 @@ the brand. Returns 64-char lowercase hex without the `0x` prefix.
 ###### vpAddress
 
 `` `0x${string}` ``
+
+###### blockNumber?
+
+`bigint`
 
 ###### Returns
 
@@ -1967,7 +2007,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://
 ##### getVaultProviderGenesisBtcPubKey()
 
 ```ts
-getVaultProviderGenesisBtcPubKey(vpAddress): Promise<OnChainBtcPubkey>;
+getVaultProviderGenesisBtcPubKey(vpAddress, blockNumber?): Promise<OnChainBtcPubkey>;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts)
@@ -1987,6 +2027,10 @@ RFC-006 registry — as does every caller.
 ###### vpAddress
 
 `` `0x${string}` ``
+
+###### blockNumber?
+
+`bigint`
 
 ###### Returns
 
@@ -2521,10 +2565,20 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://
 ##### getPegInConfiguration()
 
 ```ts
-getPegInConfiguration(): Promise<PegInConfiguration>;
+getPegInConfiguration(blockNumber?): Promise<PegInConfiguration>;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts)
+
+Pass `blockNumber` when the result will shape a Bitcoin lock, so this
+multicall and the participant-key reads describe the same block. Omit it
+for display-only reads, where a slightly stale value is harmless.
+
+###### Parameters
+
+###### blockNumber?
+
+`bigint`
 
 ###### Returns
 
@@ -2608,12 +2662,29 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://
 
 Interface for reading vault keepers from the ApplicationRegistry contract.
 
+The reads used to build a peg-in — here and on the sibling reader interfaces
+— take an optional `blockNumber` that pins them to one block instead of
+`latest`. Omitting it, the historical behaviour, is correct for every read
+that resolves against a vault's already-frozen epochs, because those are
+immutable once stamped. It is NOT correct for a fresh peg-in build: the
+participant keys, roster versions and protocol params that shape the Bitcoin
+lock must all describe the same block, or the lock commits to a mixture of
+chain states that never existed at once. See
+`services/deposit/validateOnChainParticipantKeys`.
+
+The `getCurrent*` roster reads are the exception and take no block. Nothing
+on the build path uses them — it resolves rosters by version instead — so
+they were left alone rather than given a pin no caller would pass.
+
 #### Methods
 
 ##### getVaultKeepersByVersion()
 
 ```ts
-getVaultKeepersByVersion(appEntryPoint, version): Promise<AddressBTCKeyPair[]>;
+getVaultKeepersByVersion(
+   appEntryPoint, 
+   version, 
+blockNumber?): Promise<AddressBTCKeyPair[]>;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts)
@@ -2627,6 +2698,10 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://
 ###### version
 
 `number`
+
+###### blockNumber?
+
+`bigint`
 
 ###### Returns
 
@@ -2653,7 +2728,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://
 ##### getCurrentVaultKeepersVersion()
 
 ```ts
-getCurrentVaultKeepersVersion(appEntryPoint): Promise<number>;
+getCurrentVaultKeepersVersion(appEntryPoint, blockNumber?): Promise<number>;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts)
@@ -2663,6 +2738,10 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://
 ###### appEntryPoint
 
 `` `0x${string}` ``
+
+###### blockNumber?
+
+`bigint`
 
 ###### Returns
 
@@ -2681,7 +2760,7 @@ Interface for reading universal challengers from the ProtocolParams contract.
 ##### getUniversalChallengersByVersion()
 
 ```ts
-getUniversalChallengersByVersion(version): Promise<AddressBTCKeyPair[]>;
+getUniversalChallengersByVersion(version, blockNumber?): Promise<AddressBTCKeyPair[]>;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts)
@@ -2691,6 +2770,10 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://
 ###### version
 
 `number`
+
+###### blockNumber?
+
+`bigint`
 
 ###### Returns
 
@@ -2711,10 +2794,16 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://
 ##### getLatestUniversalChallengersVersion()
 
 ```ts
-getLatestUniversalChallengersVersion(): Promise<number>;
+getLatestUniversalChallengersVersion(blockNumber?): Promise<number>;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts)
+
+###### Parameters
+
+###### blockNumber?
+
+`bigint`
 
 ###### Returns
 
@@ -2871,7 +2960,7 @@ builds a lock no counterparty agrees with.
 ##### getCurrentOperationKeys()
 
 ```ts
-getCurrentOperationKeys(query): Promise<RawOperationKeys>;
+getCurrentOperationKeys(query, blockNumber?): Promise<RawOperationKeys>;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts)
@@ -2887,6 +2976,10 @@ fallback, so an operator that never rotated yields its registration key.
 ###### query
 
 [`OperationKeyQuery`](#operationkeyquery)
+
+###### blockNumber?
+
+`bigint`
 
 ###### Returns
 
