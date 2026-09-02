@@ -103,10 +103,12 @@ export class ViemOperationKeyReader implements OperationKeyReader {
     keeperCount: number,
     challengerCount: number,
     label: string,
+    blockNumber?: bigint,
   ) {
     const results = (await this.publicClient.multicall({
       contracts: calls,
       allowFailure: false,
+      blockNumber,
     })) as readonly T[];
 
     assertMulticallLength(
@@ -120,6 +122,7 @@ export class ViemOperationKeyReader implements OperationKeyReader {
 
   async getCurrentOperationKeys(
     query: OperationKeyQuery,
+    blockNumber?: bigint,
   ): Promise<RawOperationKeys> {
     const calls: Call[] = [
       {
@@ -147,6 +150,7 @@ export class ViemOperationKeyReader implements OperationKeyReader {
       query.vaultKeepers.length,
       query.universalChallengers.length,
       "getCurrentOperationKeys",
+      blockNumber,
     );
   }
 

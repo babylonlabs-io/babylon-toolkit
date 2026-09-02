@@ -51,6 +51,7 @@ import { JsonRpcError } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { type ReactNode } from "react";
 
 import { COPY } from "@/copy";
+import { isBuildConfigDriftError } from "@/services/vault/buildConfigConsistency";
 
 import { isDepositorWalletMismatchError } from "./depositorWalletMismatch";
 import {
@@ -165,6 +166,15 @@ export function mapDepositError(err: unknown): DepositErrorContent {
 
   // 3. Protocol-parameter version mismatch (registered vault drifted).
   if (isRegisteredVaultVersionMismatchError(err)) {
+    return ERRORS.versionMismatch;
+  }
+
+  // 3a. The same drift caught earlier: the cached snapshot the form gated and
+  // sized against no longer matches the pinned read the build would use.
+  // Shares the copy above because the depositor's situation is identical —
+  // parameters moved mid-deposit, start again — and here it is strictly
+  // cheaper, since nothing has been signed, broadcast or paid.
+  if (isBuildConfigDriftError(err)) {
     return ERRORS.versionMismatch;
   }
 

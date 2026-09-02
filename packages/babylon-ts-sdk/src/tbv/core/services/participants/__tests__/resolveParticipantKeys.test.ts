@@ -15,6 +15,9 @@ import {
   epochsAt,
 } from "./fixtures/rotation";
 
+/** Current-key resolution is always pinned; there is no unpinned path. */
+const TEST_BLOCK = 9_000_001n;
+
 describe("resolveParticipantKeysAtEpochs", () => {
   it("resolves every participant to its genesis key at epoch 0", async () => {
     // The proof that epoch-aware resolution is a no-op before anyone rotates:
@@ -191,6 +194,7 @@ describe("resolveCurrentParticipantKeys", () => {
     const current = await resolveCurrentParticipantKeys({
       operationKeyReader: currentReader,
       query: buildQuery(),
+      blockNumber: TEST_BLOCK,
     });
 
     const atLatest = await resolveParticipantKeysAtEpochs({
@@ -233,6 +237,7 @@ describe("resolveCurrentParticipantKeys", () => {
       resolveCurrentParticipantKeys({
         operationKeyReader: shortReader,
         query: buildQuery(),
+        blockNumber: TEST_BLOCK,
       }),
     ).rejects.toThrow(/for a roster of/i);
   });

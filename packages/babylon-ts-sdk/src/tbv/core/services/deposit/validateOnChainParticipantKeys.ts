@@ -45,6 +45,26 @@ export interface ValidateOnChainParticipantKeysParams {
    * immediately before the throw.
    */
   onIndexerHintsInconsistent?: (message: string) => void;
+  /**
+   * Block to resolve every read against, so the roster versions, the roster
+   * members and their operation keys all describe one chain state.
+   *
+   * This function reads in three dependent rounds — versions, then the members
+   * at those versions, then those members' operation keys — because each round
+   * needs the previous round's output. Left unpinned, each round lands on
+   * whatever `latest` happens to be, and a rotation between rounds yields a key
+   * set that no single block ever held. The Bitcoin lock built from it would
+   * commit to that mixture, and no counterparty would agree with it.
+   *
+   * Required rather than optional, and deliberately so. This function exists
+   * only for the fresh-deposit path, where an unpinned read is never correct —
+   * an optional pin would be a silent fallback to `latest`-per-round on a path
+   * that builds a Bitcoin lock. Callers must pass the same block to
+   * `ProtocolParamsReader.getPegInConfiguration`; the reader interfaces keep
+   * their pin optional because their other callers resolve against a vault's
+   * already-frozen epochs, where pinning is meaningless.
+   */
+  blockNumber: bigint;
 }
 
 export interface ValidatedOnChainParticipantKeys {
@@ -88,6 +108,7 @@ export async function validateOnChainParticipantKeys(
     operationKeyReader,
     onIndexerServingOperationKeys,
     onIndexerHintsInconsistent,
+    blockNumber,
   } = params;
 
   const [
@@ -97,18 +118,24 @@ export async function validateOnChainParticipantKeys(
   ] = await Promise.all([
     vaultRegistryReader.getVaultProviderGenesisBtcPubKey(
       vaultProviderEthAddress,
+      blockNumber,
     ),
-    vaultKeeperReader.getCurrentVaultKeepersVersion(applicationEntryPoint),
-    universalChallengerReader.getLatestUniversalChallengersVersion(),
+    vaultKeeperReader.getCurrentVaultKeepersVersion(
+      applicationEntryPoint,
+      blockNumber,
+    ),
+    universalChallengerReader.getLatestUniversalChallengersVersion(blockNumber),
   ]);
 
   const [onChainKeepers, onChainChallengers] = await Promise.all([
     vaultKeeperReader.getVaultKeepersByVersion(
       applicationEntryPoint,
       expectedAppVaultKeepersVersion,
+      blockNumber,
     ),
     universalChallengerReader.getUniversalChallengersByVersion(
       expectedUniversalChallengersVersion,
+      blockNumber,
     ),
   ]);
 
@@ -135,6 +162,7 @@ export async function validateOnChainParticipantKeys(
         vaultKeepers: onChainKeepers,
         universalChallengers: onChainChallengers,
       },
+      blockNumber,
     });
 
   const operationKeys = {
