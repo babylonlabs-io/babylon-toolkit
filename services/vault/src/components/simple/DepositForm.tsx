@@ -37,9 +37,8 @@ export interface DepositAmountState {
   /** Total value of unconfirmed (in-mempool) UTXOs in satoshis. Display-only. */
   unconfirmedBalance: bigint;
   /**
-   * True when the confirmed balance is zero but unconfirmed funds exist. Shows
-   * an inline "pending confirmation" notice so the user understands why the
-   * form reads zero while their wallet shows a balance.
+   * True when the confirmed balance is zero but unconfirmed funds exist, so the
+   * depositable maximum is zero and the "Max" tooltip has nothing to describe.
    */
   hasUnconfirmedBalanceOnly: boolean;
   minDeposit: bigint;
@@ -313,24 +312,21 @@ export function DepositForm({
     })} USD`;
   }, [amount, btcPrice, hasPriceFetchError]);
 
-  // When the confirmed balance reads zero but unconfirmed funds exist, show a
-  // "pending confirmation" note in the slider's right slot (where the USD value
-  // would sit — empty at a zero balance). The InfoIcon is wrapped with an
-  // attach-to-children Hint so the markup stays inline-valid inside the slider's
-  // right cell (a bare Hint would nest a div inside a span).
-  const pendingConfirmationField = hasUnconfirmedBalanceOnly ? (
-    <span className="inline-flex items-center gap-1 text-accent-secondary">
-      {COPY.deposit.form.pendingConfirmationNotice(
-        `${Number(depositService.formatSatoshisToBtc(unconfirmedBalance))} ${btcConfig.coinSymbol}`,
-      )}
-      <Hint
-        tooltip={COPY.deposit.form.pendingConfirmationTooltip}
-        attachToChildren
-      >
-        <InfoIcon size={16} className="text-accent-secondary" />
-      </Hint>
-    </span>
-  ) : null;
+  const pendingConfirmationNotice =
+    unconfirmedBalance > 0n ? (
+      <span className="inline-flex items-center gap-1 text-accent-secondary">
+        {COPY.deposit.form.pendingConfirmationNotice(
+          `${depositService.formatSatoshisToBtc(unconfirmedBalance)} ${btcConfig.coinSymbol}`,
+        )}
+        {/* A bare Hint renders a div, which is invalid inside the p container. */}
+        <Hint
+          tooltip={COPY.deposit.form.pendingConfirmationTooltip}
+          attachToChildren
+        >
+          <InfoIcon size={16} className="text-accent-secondary" />
+        </Hint>
+      </span>
+    ) : null;
 
   const maxTooltip = hasUnconfirmedBalanceOnly
     ? undefined
@@ -419,9 +415,7 @@ export function DepositForm({
           sliderVariant="primary"
           // Figma row: USD value on the left, balance + Max pill on the right.
           leftField={{
-            value: !hasAmount
-              ? (pendingConfirmationField ?? COPY.common.zeroUsdValue)
-              : usdValue,
+            value: !hasAmount ? COPY.common.zeroUsdValue : usdValue,
           }}
           rightField={{
             label: COPY.deposit.form.balanceLabel,
@@ -432,6 +426,13 @@ export function DepositForm({
           onMaxClick={onMaxClick}
           inputClassName="h-10 w-auto rounded-lg bg-primary-contrast px-4 [field-sizing:content]"
         />
+        <p
+          className={pendingConfirmationNotice ? "text-sm" : "sr-only"}
+          role="status"
+          aria-live="polite"
+        >
+          {pendingConfirmationNotice}
+        </p>
         <CollateralFactorRow
           collateralFactor={collateralFactor}
           amountBtc={amount}

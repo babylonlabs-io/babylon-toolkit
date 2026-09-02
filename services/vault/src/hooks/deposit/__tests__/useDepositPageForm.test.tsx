@@ -590,8 +590,8 @@ describe("useDepositPageForm", () => {
     it("does not flag hasUnconfirmedBalanceOnly when confirmed funds exist but are all inscriptions", () => {
       // Spendable balance is zero because the only confirmed UTXO is an
       // inscription (excluded from availableUTXOs), yet confirmed funds exist.
-      // The notice must stay hidden — the zero spendable balance is not a
-      // pending-confirmation situation.
+      // The unconfirmed-only flag stays false because the Max tooltip must
+      // still explain the inscription adjustment.
       vi.mocked(useUTXOs).mockReturnValue({
         availableUTXOs: [],
         spendableMempoolUTXOs: [],
