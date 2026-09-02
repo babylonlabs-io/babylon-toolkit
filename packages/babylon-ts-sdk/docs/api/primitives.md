@@ -2669,7 +2669,9 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/refund.ts](htt
 Build a PSBT for signing the refund transaction.
 
 The refund transaction spends the Pre-PegIn HTLC output via leaf 1
-(the refund script: `<timelockRefund> CSV DROP <depositorPubkey> CHECKSIG`).
+(the refund script: `<depositorPubkey> OP_CHECKSIGVERIFY <timelockRefund>
+OP_CHECKSEQUENCEVERIFY` — btc-vault `connectors/prepegin_htlc.rs`
+`generate_refund_script`).
 The PSBT includes the tapLeafScript entry so the depositor's wallet can
 sign using Taproot script-path spending.
 
