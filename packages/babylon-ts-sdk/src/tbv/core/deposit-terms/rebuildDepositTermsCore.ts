@@ -17,7 +17,7 @@ import {
   computeMinPeginFee,
   getPrePeginHtlcConnectorInfo,
   peginP2aAnchorOutput,
-} from "@babylonlabs-io/babylon-tbv-rust-wasm";
+} from "../wasm";
 import { Transaction } from "bitcoinjs-lib";
 
 import { findAuthAnchorOpReturn } from "../managers/pegin/assertAuthAnchorOpReturn";

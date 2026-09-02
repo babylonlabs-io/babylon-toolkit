@@ -21,7 +21,7 @@ import {
   peginP2aAnchorOutput,
   validatePeginP2aAnchor,
   type Network,
-} from "@babylonlabs-io/babylon-tbv-rust-wasm";
+} from "../../wasm";
 import { Transaction } from "bitcoinjs-lib";
 
 import { parseUnfundedWasmTransaction } from "../../utils/transaction/fundPeginTransaction";

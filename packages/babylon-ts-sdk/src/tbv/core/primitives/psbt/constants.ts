@@ -17,6 +17,14 @@
  */
 export const DEPOSITOR_PAYOUT_INPUT_COUNT = 2;
 
+/**
+ * Inputs the depositor signs per Payout / NoPayout PSBT: input 0 only. The
+ * other inputs are in the SIGHASH_DEFAULT sighash but carry no depositor
+ * signature — the Ledger host expects exactly this many yields, so a drift
+ * here re-arms an input the device never signs.
+ */
+export const DEPOSITOR_SIGNED_INPUT_COUNT = 1;
+
 /** PegIn vault output index spent by the depositor's Payout input 0. */
 export const PEGIN_VAULT_OUTPUT_INDEX = 0;
 

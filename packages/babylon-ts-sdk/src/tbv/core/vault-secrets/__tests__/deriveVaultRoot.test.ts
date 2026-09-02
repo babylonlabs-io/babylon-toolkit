@@ -16,6 +16,7 @@ import { uint8ArrayToHex } from "../../primitives/utils/bitcoin";
 import { buildVaultContext, type FundingOutpoint } from "../context";
 import {
   deriveVaultRoot,
+  forwardDeriveContextHash,
   VAULT_APP_NAME,
   type DeriveContextHashCapableWallet,
 } from "../deriveVaultRoot";
@@ -37,6 +38,44 @@ function makeMockWallet(
 ): DeriveContextHashCapableWallet {
   return { deriveContextHash: vi.fn(override) };
 }
+
+describe("forwardDeriveContextHash", () => {
+  class ReceiverAwareWallet implements DeriveContextHashCapableWallet {
+    readonly calls: [string, string][] = [];
+
+    constructor(private readonly rootHex: string) {}
+
+    async deriveContextHash(appName: string, context: string): Promise<string> {
+      this.calls.push([appName, context]);
+      return this.rootHex;
+    }
+  }
+
+  it("preserves the wallet receiver", async () => {
+    const forwarded = forwardDeriveContextHash(
+      new ReceiverAwareWallet(VALID_ROOT_HEX),
+    );
+    if (!forwarded.deriveContextHash) {
+      throw new Error("deriveContextHash was not forwarded");
+    }
+
+    await expect(forwarded.deriveContextHash("app", "context")).resolves.toBe(
+      VALID_ROOT_HEX,
+    );
+  });
+
+  it("forwards both appName and context to the wallet unchanged", async () => {
+    const wallet = new ReceiverAwareWallet(VALID_ROOT_HEX);
+    const forwarded = forwardDeriveContextHash(wallet);
+    if (!forwarded.deriveContextHash) {
+      throw new Error("deriveContextHash was not forwarded");
+    }
+
+    await forwarded.deriveContextHash(VAULT_APP_NAME, "aabbcc");
+
+    expect(wallet.calls).toEqual([[VAULT_APP_NAME, "aabbcc"]]);
+  });
+});
 
 describe("deriveVaultRoot — happy path wiring", () => {
   it("forwards the canonical appName 'babylon-btc-vault'", async () => {

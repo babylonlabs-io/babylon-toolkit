@@ -63,7 +63,7 @@ export function validateVaultAmounts(
   if (amounts?.length > 2) {
     return {
       valid: false,
-      error: "Maximum 2 BTC Vaults supported",
+      error: "Maximum 2 BTCVaults supported",
     };
   }
   return sdkValidateVaultAmounts(amounts, minDeposit, maxDeposit);
@@ -85,7 +85,7 @@ export function validateMultiVaultDepositInputs(
     throw new Error("Multiple providers not yet supported");
   }
   if (params.vaultAmounts.length > 2) {
-    throw new Error("Maximum 2 BTC Vaults supported");
+    throw new Error("Maximum 2 BTCVaults supported");
   }
 
   sdkValidateMultiVaultDepositInputs(params);
@@ -371,7 +371,7 @@ export function getDepositCtaState(params: DepositCtaParams): DepositCtaState {
   ) {
     return {
       disabled: true,
-      label: `BTC Vault size exceeds remaining capacity (${formatSatoshisToBtc(params.effectiveRemaining)} BTC)`,
+      label: `BTCVault size exceeds remaining capacity (${formatSatoshisToBtc(params.effectiveRemaining)} BTC)`,
     };
   }
 

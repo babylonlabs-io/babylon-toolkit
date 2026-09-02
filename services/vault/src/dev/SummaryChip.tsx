@@ -11,6 +11,8 @@
  *
  * Theme is a preview convenience, not an override — excluded on purpose.
  */
+import { COPY } from "@/copy";
+
 import {
   setDebugBorrowCapacityStateOverride,
   setDebugHealthFactorOverride,
@@ -88,7 +90,7 @@ function useActiveOverrides(): ActiveOverride[] {
   if (maxVaultsOverride !== null) {
     items.push({
       id: "max-vaults",
-      label: "Maximum vaults reached",
+      label: COPY.liquidationWarnings.maxVaults.titleV3,
       clear: () => setDebugMaxVaultsOverride(null),
     });
   }

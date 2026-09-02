@@ -526,6 +526,8 @@ export function DepositForm({
         amountSats={amountSats}
         commissionBps={selectedProviderCommissionBps}
         commissionBaseValues={commissionBaseValues}
+        networkFeeRate={estimatedFeeRate}
+        networkFeeSats={estimatedFeeSats}
       />
 
       {/* Protocol & risk parameters */}

@@ -12,12 +12,11 @@
  */
 
 import {
-  assertPositiveBigintArray,
   getPrePeginHtlcConnectorInfo,
-  initWasm,
+  loadRawTbvWasm,
   tapInternalPubkey,
-  WasmPrePeginTx,
-} from "@babylonlabs-io/babylon-tbv-rust-wasm";
+} from "../../wasm";
+import { assertPositiveBigintArray } from "../../wasm/value-guards";
 import { Buffer } from "buffer";
 import { Psbt, Transaction } from "bitcoinjs-lib";
 
@@ -58,7 +57,9 @@ export interface BuildRefundPsbtResult {
  * Build a PSBT for signing the refund transaction.
  *
  * The refund transaction spends the Pre-PegIn HTLC output via leaf 1
- * (the refund script: `<timelockRefund> CSV DROP <depositorPubkey> CHECKSIG`).
+ * (the refund script: `<depositorPubkey> OP_CHECKSIGVERIFY <timelockRefund>
+ * OP_CHECKSEQUENCEVERIFY` — btc-vault `connectors/prepegin_htlc.rs`
+ * `generate_refund_script`).
  * The PSBT includes the tapLeafScript entry so the depositor's wallet can
  * sign using Taproot script-path spending.
  *
@@ -74,7 +75,7 @@ export interface BuildRefundPsbtResult {
 export async function buildRefundPsbt(
   params: BuildRefundPsbtParams,
 ): Promise<BuildRefundPsbtResult> {
-  await initWasm();
+  const { WasmPrePeginTx } = await loadRawTbvWasm();
 
   const { prePeginParams, fundedPrePeginTxHex, htlcVout, refundFee, hashlock } =
     params;
@@ -114,7 +115,7 @@ export async function buildRefundPsbt(
     normalizedAuthAnchorHash,
   );
 
-  let fundedTx: WasmPrePeginTx | null = null;
+  let fundedTx: typeof unfundedTx | null = null;
   try {
     // Cross-check the reconstructed unfunded template against the funded
     // transaction: the WASM template's HTLC scriptPubKey at `htlcVout`

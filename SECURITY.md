@@ -85,7 +85,8 @@ rubric below.
   Ethereum, Bitcoin, an indexer, and a vault provider; it writes only through the user's wallet.
 - **Security boundaries to preserve:**
   - Assertion of every WASM-returned value before it reaches a signed transaction
-    (`packages/babylon-tbv-rust-wasm/src/value-guards.ts`, `.../src/index.ts`)
+    (`packages/babylon-tbv-rust-wasm/src/value-guards.ts`, `.../src/index.ts`,
+    `packages/babylon-ts-sdk/src/tbv/core/wasm/value-guards.ts`)
   - Agreement between the SDK fee model and the dApp estimate
     (`packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts`,
     `.../utils/utxo/selectUtxos.ts`, `services/vault/src/hooks/deposit/useEstimatedBtcFee.ts`)
@@ -197,21 +198,34 @@ _why_ they exist. Both documents must be updated together.
 
 ### The WASM value boundary
 
-`packages/babylon-tbv-rust-wasm/src/index.ts` is the JS surface over a Rust/WASM module that computes
-`htlcValue = peginAmount + depositorClaimValue + p2aAnchorValue + minPeginFee` internally. JavaScript
-receives numbers with no inherent validation: `wasm-bindgen` will happily hand back `0n`, and a
-`0n` HTLC value silently produces a transaction that funds nothing.
+`packages/babylon-tbv-rust-wasm/src/index.ts` is the guarded JS surface over a Rust/WASM module that
+computes `htlcValue = peginAmount + depositorClaimValue + p2aAnchorValue + minPeginFee` internally.
+JavaScript receives numbers with no inherent validation: `wasm-bindgen` will happily hand back `0n`,
+and a `0n` HTLC value silently produces a transaction that funds nothing. SDK callers reach that
+surface through a lazy boundary, `packages/babylon-ts-sdk/src/tbv/core/wasm/index.ts`, which forwards
+without adding guards of its own — the facade's guards still apply.
+
+There is a second crossing, and it is unguarded. The
+`@babylonlabs-io/babylon-tbv-rust-wasm/raw` subpath (`src/raw.ts`, `src/raw-node.ts`) hands out the
+wasm-bindgen classes directly, so no value is checked at the export. Every `/raw` consumer must
+cross-check at the call site instead. The only SDK consumer is
+`packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/refund.ts`.
 
 The mitigation is `assertWasmBigint` / `assertPositiveBigintArray`
 (`packages/babylon-tbv-rust-wasm/src/value-guards.ts`), applied to every value crossing the boundary
-before it is used. Reviewer rule, restated from CLAUDE.md:
+before it is used. The input guard is duplicated at
+`packages/babylon-ts-sdk/src/tbv/core/wasm/value-guards.ts` for callers that must not statically
+import the WASM engine. The two copies are pinned to identical behaviour by
+`packages/babylon-ts-sdk/src/tbv/core/wasm/__tests__/value-guards.test.ts` and must be changed
+together. Reviewer rule, restated from CLAUDE.md:
 
 > **Every WASM output consumed by JS must be asserted against expected bounds before use.** If a
 > WASM-returned value feeds a signed transaction, cross-check it against an independently computed
 > expected value.
 
-Adding a new WASM getter without a guard is the easiest way to introduce a silent-wrong-value bug in
-this repository. The guard is not defence in depth here — it is the only check.
+Adding a new WASM getter without a guard, or a new `/raw` consumer without call-site cross-checks, is
+the easiest way to introduce a silent-wrong-value bug in this repository. On the facade crossing the
+guard is not defence in depth — it is the only check.
 
 ### Fee model consistency
 
@@ -749,7 +763,7 @@ only repository-local safeguards.
 
 | Area                | Adversary | Scenario                                                                          | Impact                                                                  | Mitigation                                                                                                      | Test / evidence                                                   |
 | ------------------- | --------- | --------------------------------------------------------------------------------- | ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| WASM boundary       | F/—       | A WASM getter returns `0n` or a wrong value and reaches a signed tx               | **User fund loss**                                                      | `assertWasmBigint` / `assertPositiveBigintArray` on every crossing; independent cross-check                     | `babylon-tbv-rust-wasm` value-guard tests                         |
+| WASM boundary       | F/—       | A WASM getter returns `0n` or a wrong value and reaches a signed tx               | **User fund loss**                                                      | `assertWasmBigint` / `assertPositiveBigintArray` at the facade; call-site cross-checks on `/raw`                | `babylon-tbv-rust-wasm` value-guard tests                         |
 | Fee model           | —         | SDK and dApp fee models diverge; the tx is underfunded                            | User fund loss (stuck / failed deposit)                                 | Shared `peginFeeMath`; cross-check at broadcast                                                                 | SDK fee + `selectUtxos` tests                                     |
 | Critical-path guard | G         | A critical path moves but one hand-maintained inventory keeps the stale path      | Integrity (process)                                                     | Sections 1-8 are aligned; section 9 is pre-registered ahead of #2228; the existence check does not gate merges  | SECURITY.md, CLAUDE.md, CODEOWNERS, both critical-path workflows  |
 | Presigning          | A         | VP supplies PSBT metadata making a signature valid for a different spend          | **User fund loss**                                                      | PSBTs built locally from on-chain connector data only                                                           | `signDepositorGraph` tests                                        |

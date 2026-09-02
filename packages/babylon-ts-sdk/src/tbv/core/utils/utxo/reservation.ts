@@ -16,7 +16,7 @@ import { Buffer } from "buffer";
 import { stripHexPrefix } from "../../primitives/utils/bitcoin";
 import { ContractStatus } from "../../services/deposit/peginState";
 
-import { type UtxoRef } from "./availability";
+import type { UtxoRef } from "./availability";
 
 /** Locally-known pending pegin. `id` is the bytes32 vault id. */
 export interface PendingPeginLike {

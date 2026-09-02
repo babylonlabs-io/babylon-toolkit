@@ -19,24 +19,17 @@ import { Buffer } from "buffer";
 import type { Network } from "@babylonlabs-io/babylon-tbv-rust-wasm";
 import type { Hex } from "viem";
 
+import {
+  COMPRESSED_PUBKEY_HEX_LEN,
+  X_ONLY_PUBKEY_HEX_LEN,
+} from "../../utils/validation";
+
 /**
  * BIP-341 Tapscript leaf version for script-path spends.
  * @see https://github.com/bitcoin/bips/blob/master/bip-0341.mediawiki
  * @see Rust: bitcoin::taproot::LeafVersion::TapScript
  */
 export const TAPSCRIPT_LEAF_VERSION = 0xc0;
-
-/**
- * Hex-string length of a 32-byte BIP-340 x-only public key (taproot,
- * Schnorr). Doubles the byte count: `2 * 32 = 64`.
- */
-export const X_ONLY_PUBKEY_HEX_LEN = 64;
-
-/**
- * Hex-string length of a 33-byte SEC1-compressed secp256k1 public key
- * (`0x02` or `0x03` prefix + 32-byte x-coordinate). `2 * 33 = 66`.
- */
-export const COMPRESSED_PUBKEY_HEX_LEN = 66;
 
 /**
  * Hex-string length of a 65-byte SEC1-uncompressed secp256k1 public

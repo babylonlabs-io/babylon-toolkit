@@ -90,6 +90,7 @@ import { satoshiToBtcNumber } from "@/utils/btcConversion";
 import { supportsCancelSigning } from "@/utils/cancelSigning";
 import {
   COMMISSION_UNAVAILABLE_ERROR,
+  isResumableDepositError,
   mapDepositError,
   type DepositErrorContent,
 } from "@/utils/errors";
@@ -99,6 +100,7 @@ import {
 } from "@/utils/errors/userCancellation";
 import { formatBtcValue } from "@/utils/formatting";
 import { getVpProxyUrl } from "@/utils/rpc";
+import { observeSigningProgress } from "@/utils/signingProgress";
 
 import {
   DepositFlowStep,
@@ -162,6 +164,12 @@ export interface UseDepositFlowReturn {
   processing: boolean;
   /** Mapped error content (title + body) if any step failed */
   error: DepositErrorContent | null;
+  /**
+   * Registered vault ids when `error` is a post-registration device failure or
+   * self-cancel — the deposit is on-chain, so the modal can resume in place.
+   * `null` otherwise.
+   */
+  resumableVaultIds: Hex[] | null;
   /**
    * Structured soft warnings from the most recent flow (e.g. a per-vault WOTS
    * readiness timeout, or "couldn't save a local copy"). Empty until the flow
@@ -287,6 +295,9 @@ export function useDepositFlow(
   );
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<DepositErrorContent | null>(null);
+  const [resumableVaultIds, setResumableVaultIds] = useState<Hex[] | null>(
+    null,
+  );
   const [isWaiting, setIsWaiting] = useState(false);
   // Soft warnings accumulated during the most recent run (per-vault payout
   // failures, localStorage write failures, etc.). Exposed so the UI can
@@ -411,6 +422,7 @@ export function useDepositFlow(
 
       setProcessing(true);
       setError(null);
+      setResumableVaultIds(null);
       setLastWarnings([]);
       setPeginSigningProgress(null);
       deviceCancelSettledRef.current = false;
@@ -430,9 +442,9 @@ export function useDepositFlow(
       // user-cancel (bound `authAnchorHex` lifetime to the flow).
       const primedRegistryTxids: string[] = [];
 
-      // Flips once the ETH batch registration is mined: a cancel after that
-      // point gets the after-registration copy pointing at the resume path.
-      let registeredOnEth = false;
+      // Set once the ETH batch registration is mined: a later cancel gets the
+      // after-registration copy, a later device failure gets the in-modal resume.
+      let registeredVaultIds: Hex[] | null = null;
 
       try {
         // Deposit (pegin) is a protocol-scope ENTRY action. The dialog-open is
@@ -540,9 +552,9 @@ export function useDepositFlow(
         advanceStep(DepositFlowStep.DERIVE_VAULT_SECRET);
         // A single peg-in PSBT signs via signPsbt (the SDK's
         // signPsbtsWithFallback routes lone PSBTs there), ticking the counter
-        // once. Multi-vault: one native batch popup when the wallet supports
-        // signPsbts — the (x of n) sub-counter jumps 0 -> N around the one
-        // call — else sequential signPsbt ticks it per signature.
+        // once. Multi-vault: one native batch call when the wallet supports
+        // signPsbts — extension wallets sign it in one popup (counter 0 -> N),
+        // hardware providers tick it per device ceremony.
         const signOnePeginPsbt: typeof confirmedBtcWallet.signPsbt = async (
           psbtHex,
           opts,
@@ -558,21 +570,30 @@ export function useDepositFlow(
           );
           return signed;
         };
-        // Native batch path: one popup; the counter jumps 0 -> N around the call.
+        // Native batch path: per-ceremony ticks where the provider reports
+        // them, else the counter lands at N when the one call returns.
         const signPeginBatch: typeof confirmedBtcWallet.signPsbts = async (
           psbtHexes,
           opts,
         ) => {
           advanceStep(DepositFlowStep.SIGN_PEGIN_BTC);
           setPeginSigningProgress({ completed: 0, total: psbtHexes.length });
-          const signed = await runCancellableSign(confirmedBtcWallet, () =>
-            confirmedBtcWallet.signPsbts!(psbtHexes, opts),
+          const stopObserving = observeSigningProgress(
+            confirmedBtcWallet,
+            (tick) => setPeginSigningProgress({ ...tick }),
           );
-          setPeginSigningProgress({
-            completed: psbtHexes.length,
-            total: psbtHexes.length,
-          });
-          return signed;
+          try {
+            const signed = await runCancellableSign(confirmedBtcWallet, () =>
+              confirmedBtcWallet.signPsbts!(psbtHexes, opts),
+            );
+            setPeginSigningProgress({
+              completed: psbtHexes.length,
+              total: psbtHexes.length,
+            });
+            return signed;
+          } finally {
+            stopObserving();
+          }
         };
 
         const phaseTrackingBtcWallet: typeof confirmedBtcWallet &
@@ -731,7 +752,9 @@ export function useDepositFlow(
           popSignature,
           quotedCommissionBps,
         });
-        registeredOnEth = true;
+        registeredVaultIds = batchRegistration.vaults.map(
+          (vault) => vault.vaultId,
+        );
 
         // 3f. Build pegin results from batch response
         const peginResults: PeginCreationResult[] =
@@ -1094,7 +1117,7 @@ export function useDepositFlow(
           ...confirmedBtcWallet,
           // `isWaiting` flips to `false` while a popup is open and back
           // to `true` after it closes, so the SDK polling that follows
-          // remains "Close & continue later"-able.
+          // remains "You can close and come back later"-able.
           deriveContextHash: async (appName, context) => {
             const returnStep = baseStep;
             if (baseStep === DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS) {
@@ -1114,7 +1137,9 @@ export function useDepositFlow(
             }
           },
           signPsbt: async (psbtHex, opts) => {
-            if (payoutClaimersDoneRef.current) {
+            // Snapshot: the ref flips only from the SDK's onProgress, after this call returns.
+            const isGraph = payoutClaimersDoneRef.current;
+            if (isGraph) {
               advanceStep(DepositFlowStep.SIGN_DEPOSITOR_GRAPH);
               setPayoutSigningProgress({
                 phase: "graph",
@@ -1124,45 +1149,57 @@ export function useDepositFlow(
             }
             setIsWaiting(false);
             try {
-              return await runCancellableSign(confirmedBtcWallet, () =>
+              const signed = await runCancellableSign(confirmedBtcWallet, () =>
                 confirmedBtcWallet.signPsbt(psbtHex, opts),
               );
-            } finally {
-              setIsWaiting(true);
-              if (payoutClaimersDoneRef.current) {
+              if (isGraph) {
                 setPayoutSigningProgress({
                   phase: "graph",
                   completed: 1,
                   total: 1,
                 });
               }
+              return signed;
+            } finally {
+              setIsWaiting(true);
             }
           },
           ...(confirmedBtcWallet.signPsbts
             ? {
                 signPsbts: async (psbtHexes, opts) => {
-                  if (payoutClaimersDoneRef.current) {
+                  // Snapshot: the ref flips only from the SDK's onProgress, after this call returns.
+                  const phase = payoutClaimersDoneRef.current
+                    ? "graph"
+                    : "claimers";
+                  if (phase === "graph") {
                     advanceStep(DepositFlowStep.SIGN_DEPOSITOR_GRAPH);
                     setPayoutSigningProgress({
-                      phase: "graph",
+                      phase,
                       completed: 0,
                       total: psbtHexes.length,
                     });
                   }
+                  const stopObserving = observeSigningProgress(
+                    confirmedBtcWallet,
+                    (tick) => setPayoutSigningProgress({ phase, ...tick }),
+                  );
                   setIsWaiting(false);
                   try {
-                    return await runCancellableSign(confirmedBtcWallet, () =>
-                      confirmedBtcWallet.signPsbts!(psbtHexes, opts),
+                    const signed = await runCancellableSign(
+                      confirmedBtcWallet,
+                      () => confirmedBtcWallet.signPsbts!(psbtHexes, opts),
                     );
-                  } finally {
-                    setIsWaiting(true);
-                    if (payoutClaimersDoneRef.current) {
+                    if (phase === "graph") {
                       setPayoutSigningProgress({
-                        phase: "graph",
+                        phase,
                         completed: psbtHexes.length,
                         total: psbtHexes.length,
                       });
                     }
+                    return signed;
+                  } finally {
+                    setIsWaiting(true);
+                    stopObserving();
                   }
                 },
               }
@@ -1517,27 +1554,35 @@ export function useDepositFlow(
 
         // Don't show error if flow was aborted (user intentionally closed modal)
         if (!signal.aborted) {
-          // A settled self-cancel gets its own copy: the generic mapper reads
-          // the wallet's CONNECTION_REJECTED as "You rejected the request in
-          // your wallet. Click Retry" — misattributed, and naming a button
-          // this surface doesn't render. Post-registration cancels get the
-          // variant pointing at the resume path — vaults are already on-chain.
-          setError(
-            deviceCancelSettledRef.current && isUserCancellation(err)
-              ? registeredOnEth
-                ? {
-                    title:
-                      COPY.deposit.errors.signingCanceledAfterRegistration
-                        .title,
-                    body: COPY.deposit.errors.signingCanceledAfterRegistration
-                      .body,
-                  }
-                : {
-                    title: COPY.deposit.errors.signingCanceled.title,
-                    body: COPY.deposit.errors.signingCanceled.body,
-                  }
-              : mapDepositError(err),
-          );
+          const selfCanceled =
+            deviceCancelSettledRef.current && isUserCancellation(err);
+          // A settled self-cancel gets its own copy — the generic mapper reads
+          // the wallet's CONNECTION_REJECTED as "You rejected the request",
+          // which misattributes it. Post-registration copy names the Retry
+          // offered below; pre-registration copy names no button (none is).
+          const content: DepositErrorContent = selfCanceled
+            ? registeredVaultIds !== null
+              ? {
+                  title:
+                    COPY.deposit.errors.signingCanceledAfterRegistration.title,
+                  body: COPY.deposit.errors.signingCanceledAfterRegistration
+                    .body,
+                }
+              : {
+                  title: COPY.deposit.errors.signingCanceled.title,
+                  body: COPY.deposit.errors.signingCanceled.body,
+                }
+            : mapDepositError(err);
+          // Post-registration the vaults are on-chain, so a self-cancel or a
+          // mapped resumable bucket (device trouble, wallet reject) offers the
+          // in-modal resume.
+          if (
+            registeredVaultIds !== null &&
+            (selfCanceled || isResumableDepositError(content))
+          ) {
+            setResumableVaultIds(registeredVaultIds);
+          }
+          setError(content);
           logger.error(err instanceof Error ? err : new Error(String(err)), {
             tags: { depositStep: DepositFlowStep[currentStepRef.current] },
             data: {
@@ -1617,6 +1662,7 @@ export function useDepositFlow(
     currentVaultIndex,
     processing,
     error,
+    resumableVaultIds,
     /** Soft warnings from the most recent flow (empty until completion). */
     lastWarnings,
     isWaiting,

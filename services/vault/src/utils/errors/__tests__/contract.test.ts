@@ -335,7 +335,7 @@ describe("Contract Error Mapping", () => {
       expect(result.code).toBe(ErrorCode.CONTRACT_REVERT);
       expect(result.reason).toBe("ActivationDeadlineExpired");
       expect(result.message).toBe(
-        "The activation deadline has passed. The BTC Vault can no longer be activated.",
+        "The activation deadline has passed. The BTCVault can no longer be activated.",
       );
     });
 
@@ -420,7 +420,7 @@ describe("Contract Error Mapping", () => {
       expect(result.code).toBe(ErrorCode.CONTRACT_REVERT);
       expect(result.reason).toBe("VaultCountExceedsMaximum");
       expect(result.message).toBe(
-        "You have reached the maximum number of BTC Vaults per position.",
+        "You have reached the maximum number of BTCVaults per position.",
       );
     });
 
@@ -442,7 +442,7 @@ describe("Contract Error Mapping", () => {
 
       expect(result.reason).toBe("PositionAboveMaximum");
       expect(result.message).toBe(
-        "Your total BTC Vault amount exceeds the maximum position size.",
+        "Your total BTCVault amount exceeds the maximum position size.",
       );
     });
 
@@ -466,7 +466,7 @@ describe("Contract Error Mapping", () => {
 
       expect(result.reason).not.toBe("VaultCountExceedsMaximum");
       expect(result.message).not.toBe(
-        "You have reached the maximum number of BTC Vaults per position.",
+        "You have reached the maximum number of BTCVaults per position.",
       );
     });
   });
@@ -541,7 +541,7 @@ describe("Contract Error Mapping", () => {
       expect(isActivationDeadlineExpiredError(new Error("boom"))).toBe(false);
       expect(
         isActivationDeadlineExpiredError(
-          "The activation deadline has passed. The BTC Vault can no longer be activated.",
+          "The activation deadline has passed. The BTCVault can no longer be activated.",
         ),
       ).toBe(false);
       expect(isActivationDeadlineExpiredError(null)).toBe(false);
@@ -565,7 +565,7 @@ describe("Contract Error Mapping", () => {
 
     it("returns true for an ActivationNotPossibleError (e.g. already EXPIRED)", () => {
       const err = new ActivationNotPossibleError(
-        "Cannot activate: BTC Vault is in EXPIRED state.",
+        "Cannot activate: BTCVault is in EXPIRED state.",
       );
 
       expect(isTerminalActivationError(err)).toBe(true);

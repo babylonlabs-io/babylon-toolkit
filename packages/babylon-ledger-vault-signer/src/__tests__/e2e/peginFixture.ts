@@ -83,8 +83,12 @@ export const DERIVE_CONTEXT = Uint8Array.from(Array.from({ length: 72 }, (_, i) 
 export const VAULT_APP_NAME = "babylon-btc-vault";
 
 const HARDENED = 0x80000000;
-/** m/86'/1'/0'/0/0 — depositor_path(coin_type=1) (vault_client.py:279). */
-export const DEPOSITOR_PATH: readonly number[] = [HARDENED | 86, HARDENED | 1, HARDENED | 0, 0, 0];
+/**
+ * m/86'/1'/0'/0/0 — depositor_path(coin_type=1) (vault_client.py:279). Levels
+ * use `+` (unsigned, provider.ts:205-212): `|` yields negative int32s that
+ * `assertBip86Path` rejects; the wire bytes are identical (`>>> 0` serializers).
+ */
+export const DEPOSITOR_PATH: readonly number[] = [86 + HARDENED, 1 + HARDENED, 0 + HARDENED, 0, 0];
 const TESTNET_COIN_TYPE = 1;
 
 /** P2A anchor scriptPubKey `51 02 4e 73` (test_sign_psbt_validate.py:349). */
@@ -471,6 +475,74 @@ export function computePeginSighash(psbtHex: string, fixture: PeginPsbtFixture):
     [HTLC_VALUE_SATS],
     Transaction.SIGHASH_DEFAULT,
     fixture.leaf0Hash,
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Refund PSBT (#2371) — Leaf 1 spend back to the depositor's BIP-86 address
+// ---------------------------------------------------------------------------
+
+const REFUND_FEE_SATS = 10_000;
+
+export interface RefundPsbtFixture {
+  readonly psbtHex: string;
+  readonly htlcScriptPubKey: Buffer;
+  readonly leaf1Script: Buffer;
+  readonly leaf1Hash: Buffer;
+}
+
+/**
+ * Refund PSBTv0, SDK-shaped (ts-sdk `buildRefundPsbt`): tx v2, locktime 0, ONE
+ * input spending the HTLC at (prepegin_txid, vout 0) via Leaf 1 with
+ * sequence = {@link HTLC_REFUND_TIMELOCK}, ONE output paying the depositor's
+ * own BIP-86 P2TR. Derivation fields are NOT set here — the augmentation under
+ * test ({@link import("../../refundPsbt").augmentPsbtForRefund}) adds them.
+ */
+export function buildRefundPsbtFixture(hashlock: Buffer, prepeginTxidInternal: Buffer): RefundPsbtFixture {
+  const depositor = hexToBuffer(DEPOSITOR_XONLY_HEX);
+  const vp = hexToBuffer(VP_KEY_HEX);
+  const keepers = [hexToBuffer(KEEPER_KEY_HEX)];
+  const challengers = [hexToBuffer(CHALLENGER_KEY_HEX)];
+
+  const leaf0 = htlcLeaf0(depositor, vp, keepers, challengers, hashlock);
+  const leaf1 = htlcLeaf1(depositor, HTLC_REFUND_TIMELOCK);
+  const leaf0Hash = tapLeafHash(TAPSCRIPT_LEAF_VERSION, leaf0);
+  const leaf1Hash = tapLeafHash(TAPSCRIPT_LEAF_VERSION, leaf1);
+  const merkleRoot = tapBranch(leaf0Hash, leaf1Hash);
+  const { parity, xOnly: htlcTweaked } = tweakNums(merkleRoot);
+  const htlcScriptPubKey = Buffer.concat([Buffer.from([0x51, PUSH_32]), htlcTweaked]);
+  // Control block for spending Leaf 1: sibling hash is Leaf 0's hash.
+  const controlBlock = Buffer.concat([Buffer.from([TAPSCRIPT_LEAF_VERSION | parity]), NUMS_XONLY, leaf0Hash]);
+
+  const psbt = new Psbt();
+  psbt.setVersion(2);
+  psbt.setLocktime(0);
+  psbt.addInput({
+    hash: prepeginTxidInternal,
+    index: HTLC_VOUT,
+    sequence: HTLC_REFUND_TIMELOCK,
+    witnessUtxo: { script: htlcScriptPubKey, value: HTLC_VALUE_SATS },
+    tapInternalKey: NUMS_XONLY,
+    tapLeafScript: [{ leafVersion: TAPSCRIPT_LEAF_VERSION, script: leaf1, controlBlock }],
+  });
+  psbt.addOutput({
+    script: payments.p2tr({ internalPubkey: depositor }).output!,
+    value: HTLC_VALUE_SATS - REFUND_FEE_SATS,
+  });
+
+  return { psbtHex: psbt.toHex(), htlcScriptPubKey, leaf1Script: leaf1, leaf1Hash };
+}
+
+/** BIP-341 script-path sighash for the refund's single input at SIGHASH_DEFAULT. */
+export function computeRefundSighash(psbtHex: string, fixture: RefundPsbtFixture): Buffer {
+  const psbt = Psbt.fromHex(psbtHex);
+  const tx = Transaction.fromBuffer(psbt.data.globalMap.unsignedTx.toBuffer());
+  return tx.hashForWitnessV1(
+    0,
+    [fixture.htlcScriptPubKey],
+    [HTLC_VALUE_SATS],
+    Transaction.SIGHASH_DEFAULT,
+    fixture.leaf1Hash,
   );
 }
 

@@ -39,6 +39,16 @@
       "require": "./dist/tbv/core/clients/index.cjs",
       "import": "./dist/tbv/core/clients/index.js"
     },
+    "./tbv/core/clients/vault-provider/status": {
+      "types": "./dist/tbv/core/clients/vault-provider/status/index.d.ts",
+      "require": "./dist/tbv/core/clients/vault-provider/status/index.cjs",
+      "import": "./dist/tbv/core/clients/vault-provider/status/index.js"
+    },
+    "./tbv/core/wasm": {
+      "types": "./dist/tbv/core/wasm/index.d.ts",
+      "require": "./dist/tbv/core/wasm/index.cjs",
+      "import": "./dist/tbv/core/wasm/index.js"
+    },
     "./tbv/core/services": {
       "types": "./dist/tbv/core/services/index.d.ts",
       "require": "./dist/tbv/core/services/index.cjs",
@@ -81,7 +91,8 @@
     "format:fix": "prettier --write \"src/**/*.ts\"",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "test": "vitest run",
+    "test": "pnpm build && pnpm test:built",
+    "test:built": "vitest run && node --test tests/wasm-facade.node.mjs",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest run --coverage",

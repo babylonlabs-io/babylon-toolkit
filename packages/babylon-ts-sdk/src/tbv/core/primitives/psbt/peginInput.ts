@@ -15,7 +15,7 @@ import {
   getPrePeginHtlcConnectorInfo,
   tapInternalPubkey,
   type Network,
-} from "@babylonlabs-io/babylon-tbv-rust-wasm";
+} from "../../wasm";
 import { Psbt, Transaction, payments } from "bitcoinjs-lib";
 import { Buffer } from "buffer";
 import {

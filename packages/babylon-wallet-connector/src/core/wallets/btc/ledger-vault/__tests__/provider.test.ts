@@ -23,6 +23,7 @@ import * as ecc from "@bitcoin-js/tiny-secp256k1-asmjs";
 import { initEccLib, payments, Psbt } from "bitcoinjs-lib";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { SigningProgress } from "@/core/types";
 import { Network } from "@/core/types";
 import { getTaprootAddress, toNetwork } from "@/core/utils/wallet";
 import { ERROR_CODES, WalletError } from "@/error";
@@ -115,17 +116,47 @@ const approveApdus = () => h.sent.filter((a) => a.ins === INS_APPROVE_VAULT_INTE
  * signer's discriminant so a rename breaks this file's compile), the request
  * identity, and the merge source the device mock echoes back.
  */
-function fakePrepared(psbtHex: string, unsignedTxid?: string) {
-  const expectation: InputSigExpectation = {
+function tapscriptExpectation(leafByte: string): InputSigExpectation {
+  return {
     kind: "tapscript",
-    expectedLeafHashHexes: new Set(["ef".repeat(32)]),
+    expectedLeafHashHexes: new Set([leafByte.repeat(32)]),
     expectedSignerXOnlyHex: "ab".repeat(32),
   };
+}
+
+function fakePrepared(psbtHex: string, unsignedTxid?: string) {
+  const classifiedByInput = new Map([[0, tapscriptExpectation("ef")]]);
   return {
     originalPsbtHex: psbtHex,
     // Case-insensitive like the real txid (decoded bytes, not hex casing).
     unsignedTxid: unsignedTxid ?? `txid-${psbtHex.toLowerCase()}`,
-    table: { byInput: new Map([[0, expectation]]), expectedYieldCount: 1 },
+    table: { byInput: new Map(classifiedByInput), classifiedByInput, expectedYieldCount: 1 },
+  };
+}
+
+/** Two leaf inputs classified; expectation narrowed to input 0, as `signInputs: [{index: 0}]` does. */
+function fakePreparedNarrowedToInput0(psbtHex: string) {
+  const classifiedByInput = new Map([
+    [0, tapscriptExpectation("ef")],
+    [1, tapscriptExpectation("cd")],
+  ]);
+  return {
+    originalPsbtHex: psbtHex,
+    unsignedTxid: `txid-${psbtHex.toLowerCase()}`,
+    table: { byInput: new Map([[0, classifiedByInput.get(0)!]]), classifiedByInput, expectedYieldCount: 1 },
+  };
+}
+
+/** The same PSBT with no requested set: both leaf inputs classified AND expected. */
+function fakePreparedUnnarrowed(psbtHex: string) {
+  const classifiedByInput = new Map([
+    [0, tapscriptExpectation("ef")],
+    [1, tapscriptExpectation("cd")],
+  ]);
+  return {
+    originalPsbtHex: psbtHex,
+    unsignedTxid: `txid-${psbtHex.toLowerCase()}`,
+    table: { byInput: new Map(classifiedByInput), classifiedByInput, expectedYieldCount: 2 },
   };
 }
 
@@ -561,6 +592,47 @@ describe("LedgerVaultProvider", () => {
       return psbt.toHex();
     }
 
+    it("rejects a mixed key-path/tapscript PSBT even when only the key-path input is requested", async () => {
+      // The requested set must not be able to hide an input from the flow gate:
+      // narrowing the tapscript entry away would leave a lone key-path kind,
+      // route into policy mode, and die in assertComplete AFTER on-device approval.
+      const { prepareSignPsbt: realPrepare } = await actualSigner();
+      signMock.prepareSignPsbt.mockImplementation(realPrepare);
+      const p = await approved();
+
+      const leaf = { output: Buffer.from([0x51]), version: 0xc0 };
+      const tapscriptInput = payments.p2tr({
+        internalPubkey: Buffer.from(DEVICE_XONLY, "hex"),
+        scriptTree: leaf,
+        redeem: leaf,
+      });
+      const psbt = new Psbt();
+      psbt.addInput({
+        hash: Buffer.alloc(32, 1),
+        index: 0,
+        witnessUtxo: { script: bip86Script(DEVICE_XONLY), value: 100_000 },
+        tapInternalKey: Buffer.from(DEVICE_XONLY, "hex"),
+      });
+      psbt.addInput({
+        hash: Buffer.alloc(32, 2),
+        index: 0,
+        witnessUtxo: { script: tapscriptInput.output!, value: 100_000 },
+        tapLeafScript: [
+          {
+            leafVersion: 0xc0,
+            script: leaf.output,
+            controlBlock: tapscriptInput.witness![tapscriptInput.witness!.length - 1],
+          },
+        ],
+      });
+      psbt.addOutput({ script: HTLC_SCRIPT, value: 190_000 });
+
+      await expect(
+        p.signPsbt(psbt.toHex(), { autoFinalized: false, signInputs: [{ index: 0, publicKey: DEVICE_XONLY }] }),
+      ).rejects.toThrow(/mixed inputs are not a vault flow/);
+      expect(signMock.signPreparedVaultPsbt).not.toHaveBeenCalled();
+    });
+
     it("routes an all-key-path PSBT through wallet-policy mode with derivation fields added", async () => {
       const { prepareSignPsbt: realPrepare } = await actualSigner();
       signMock.prepareSignPsbt.mockImplementation(realPrepare);
@@ -574,6 +646,9 @@ describe("LedgerVaultProvider", () => {
 
       const [prepareArgs] = signMock.prepareSignPsbt.mock.calls.at(-1)!;
       expect(prepareArgs.walletPolicy?.keyInfo).toMatch(/^\[73c5da0a\/86'\/1'\/0'\]tpubDDKYE6B/);
+      // Narrowing must never reach the policy prepare: the base app signs every
+      // internal input, so a narrowed table would under-expect after approval.
+      expect(prepareArgs.signInputIndexes).toBeUndefined();
       const augmented = Psbt.fromHex(prepareArgs.psbtHex);
       expect(augmented.data.inputs[0].tapBip32Derivation?.[0].path).toBe("m/86'/1'/0'/0/0");
       expect(Buffer.from(augmented.data.inputs[0].tapBip32Derivation![0].masterFingerprint).toString("hex")).toBe(
@@ -599,6 +674,9 @@ describe("LedgerVaultProvider", () => {
 
       const [prepareArgs] = signMock.prepareSignPsbt.mock.calls.at(-1)!;
       expect(prepareArgs.walletPolicy?.keyInfo).toMatch(/^\[73c5da0a\/86'\/1'\/0'\]tpubDDKYE6B/);
+      // Narrowing must never reach the policy prepare: the base app signs every
+      // internal input, so a narrowed table would under-expect after approval.
+      expect(prepareArgs.signInputIndexes).toBeUndefined();
       const augmented = Psbt.fromHex(prepareArgs.psbtHex);
       expect(augmented.data.inputs[0].tapBip32Derivation?.[0].path).toBe("m/86'/1'/0'/0/0");
       expect(augmented.data.outputs.every((out) => !out.tapBip32Derivation)).toBe(true);
@@ -651,22 +729,20 @@ describe("LedgerVaultProvider", () => {
     });
 
     it("rejects a PSBT mixing key-path and tapscript inputs before any device I/O", async () => {
+      const mixed = new Map<number, InputSigExpectation>([
+        [0, { kind: "taproot-keypath", expectedOutputKeyHex: "00".repeat(32) }],
+        [
+          1,
+          {
+            kind: "tapscript",
+            expectedLeafHashHexes: new Set(["11".repeat(32)]),
+            expectedSignerXOnlyHex: DEVICE_XONLY,
+          },
+        ],
+      ]);
       signMock.prepareSignPsbt.mockImplementation(({ psbtHex }: { psbtHex: string }) => ({
         ...fakePrepared(psbtHex),
-        table: {
-          byInput: new Map([
-            [0, { kind: "taproot-keypath", expectedOutputKeyHex: "00".repeat(32) }],
-            [
-              1,
-              {
-                kind: "tapscript",
-                expectedLeafHashHexes: new Set(["11".repeat(32)]),
-                expectedSignerXOnlyHex: DEVICE_XONLY,
-              },
-            ],
-          ]),
-          expectedYieldCount: 2,
-        },
+        table: { byInput: mixed, classifiedByInput: mixed, expectedYieldCount: 2 },
       }));
       const p = await approved();
 
@@ -715,6 +791,79 @@ describe("LedgerVaultProvider", () => {
       await provider.deriveContextHash("app", "aa".repeat(32));
       await provider.approveDepositTerms(TERMS);
       await expect(provider.signPsbt(PSBT_A)).resolves.toBe(`signed:${PSBT_A}`);
+    });
+
+    it("a pre-dispatch locked-device sign failure keeps the approved intent, so the retry signs without a re-ceremony", async () => {
+      // The sign loop proved the initial SIGN_PSBT was the refused APDU, so the
+      // intent on the device is intact — contrast the SW_BAD_STATE drop above.
+      const provider = await approved();
+      const approvalsBefore = approveApdus().length;
+      signMock.signPreparedVaultPsbt.mockRejectedValueOnce(new LedgerDeviceLockedError(0x5515, { preDispatch: true }));
+
+      await expect(provider.signPsbt(PSBT_A)).rejects.toMatchObject({ code: ERROR_CODES.DEVICE_LOCKED });
+      await expect(provider.holdsApprovedDepositTerms(TERMS)).resolves.toBe(true);
+
+      await expect(provider.signPsbt(PSBT_A)).resolves.toBe(`signed:${PSBT_A}`);
+      expect(approveApdus().length).toBe(approvalsBefore);
+    });
+
+    function lockAfterFirstBatchElement() {
+      signMock.signPreparedVaultPsbt
+        .mockImplementationOnce(async (_send, prepared: { originalPsbtHex: string }) => ({
+          signedPsbtHex: `signed:${prepared.originalPsbtHex}`,
+          yields: [],
+        }))
+        .mockRejectedValueOnce(new LedgerDeviceLockedError(0x5515, { preDispatch: true }));
+    }
+
+    it("a pre-dispatch lock inside a batch keeps the approved intent", async () => {
+      const provider = await approved();
+      const approvalsBefore = approveApdus().length;
+      lockAfterFirstBatchElement();
+
+      await expect(provider.signPsbts([PSBT_A, PSBT_B])).rejects.toMatchObject({ code: ERROR_CODES.DEVICE_LOCKED });
+
+      await expect(provider.holdsApprovedDepositTerms(TERMS)).resolves.toBe(true);
+      expect(approveApdus().length).toBe(approvalsBefore);
+    });
+
+    it("a pre-dispatch lock inside a batch keeps the already-signed fingerprints, so resubmitting the full batch is refused before device I/O", async () => {
+      // Production callers resubmit the whole list; the element signed before
+      // the lock must not reach the device again under the same intent.
+      const provider = await approved();
+      lockAfterFirstBatchElement();
+
+      await expect(provider.signPsbts([PSBT_A, PSBT_B])).rejects.toMatchObject({ code: ERROR_CODES.DEVICE_LOCKED });
+
+      await expect(provider.signPsbts([PSBT_A, PSBT_B])).rejects.toMatchObject({
+        code: ERROR_CODES.INVALID_PARAMS,
+        message: expect.stringMatching(/already signed/),
+      });
+      expect(signMock.signPreparedVaultPsbt).toHaveBeenCalledTimes(2);
+    });
+
+    it("the production retry — re-derive, re-approve, resubmit the full batch — signs after a batch lock", async () => {
+      // Mirrors payoutSigning's requireFreshDeviceCeremony: deriving resets
+      // the mirror and the fingerprints, so the full list stages again.
+      const provider = await approved();
+      lockAfterFirstBatchElement();
+      await expect(provider.signPsbts([PSBT_A, PSBT_B])).rejects.toMatchObject({ code: ERROR_CODES.DEVICE_LOCKED });
+
+      await provider.deriveContextHash("app", "aa".repeat(32));
+      await provider.approveDepositTerms(TERMS);
+      await expect(provider.signPsbts([PSBT_A, PSBT_B])).resolves.toEqual([`signed:${PSBT_A}`, `signed:${PSBT_B}`]);
+    });
+
+    it("an unproven lock drops the intent like any other sign failure", async () => {
+      // No options = no proof the initial APDU was the refused one (a CONTINUE
+      // after rounds ran, or an older signer build): caps may be committed on
+      // the device, so the mirror cannot assume the intent survived.
+      const provider = await approved();
+      signMock.signPreparedVaultPsbt.mockRejectedValueOnce(new LedgerDeviceLockedError(0x5515));
+
+      await expect(provider.signPsbt(PSBT_A)).rejects.toMatchObject({ code: ERROR_CODES.DEVICE_LOCKED });
+      await expect(provider.signPsbt(PSBT_A)).rejects.toMatchObject({ code: ERROR_CODES.DEVICE_CEREMONY_INVALID });
+      await expect(provider.holdsApprovedDepositTerms(TERMS)).resolves.toBe(false);
     });
 
     it("an aborted sign classifies as the user's cancel and forces the full re-ceremony", async () => {
@@ -810,6 +959,210 @@ describe("LedgerVaultProvider", () => {
       expect(signMock.signPreparedVaultPsbt).not.toHaveBeenCalled();
     });
 
+    describe("subscribeSigningProgress", () => {
+      it("emits {completed,total} once per committed PSBT, in batch order, with total equal to the batch length", async () => {
+        const provider = await approved();
+        const ticks: SigningProgress[] = [];
+        provider.subscribeSigningProgress((progress) => ticks.push(progress));
+
+        await provider.signPsbts([PSBT_A, PSBT_B, PSBT_C]);
+
+        expect(ticks).toEqual([
+          { completed: 1, total: 3 },
+          { completed: 2, total: 3 },
+          { completed: 3, total: 3 },
+        ]);
+      });
+
+      it("a tick is observed before the next ceremony starts", async () => {
+        // The counter must not run ahead of the device: at tick k exactly k
+        // ceremonies have been started.
+        const provider = await approved();
+        const ceremoniesAtTick: number[] = [];
+        provider.subscribeSigningProgress(({ completed }) => {
+          ceremoniesAtTick.push(signMock.signPreparedVaultPsbt.mock.calls.length - completed);
+        });
+
+        await provider.signPsbts([PSBT_A, PSBT_B]);
+
+        expect(ceremoniesAtTick).toEqual([0, 0]);
+      });
+
+      it("emits nothing before the first ceremony and nothing after the last commit", async () => {
+        const provider = await approved();
+        const ticks: SigningProgress[] = [];
+        provider.subscribeSigningProgress((progress) => ticks.push(progress));
+
+        await provider.signPsbts([PSBT_A]);
+
+        expect(ticks).toEqual([{ completed: 1, total: 1 }]);
+      });
+
+      it("a failing element emits no tick; the ticks already committed stand", async () => {
+        const provider = await approved();
+        signMock.signPreparedVaultPsbt
+          .mockImplementationOnce(async (_send, prepared: { originalPsbtHex: string }) => ({
+            signedPsbtHex: `signed:${prepared.originalPsbtHex}`,
+            yields: [],
+          }))
+          .mockRejectedValueOnce(new LedgerDeviceError(0xb00a, "SW_CAP_EXCEEDED"));
+        const ticks: SigningProgress[] = [];
+        provider.subscribeSigningProgress((progress) => ticks.push(progress));
+
+        await expect(provider.signPsbts([PSBT_A, PSBT_B, PSBT_C])).rejects.toMatchObject({
+          code: ERROR_CODES.DEVICE_CEREMONY_INVALID,
+        });
+
+        expect(ticks).toEqual([{ completed: 1, total: 3 }]);
+      });
+
+      it("cancelSigning mid-element still emits the committed element before the batch rejects", async () => {
+        const provider = await approved();
+        signMock.signPreparedVaultPsbt.mockImplementationOnce(async (_send, prepared: { originalPsbtHex: string }) => {
+          provider.cancelSigning();
+          return { signedPsbtHex: `signed:${prepared.originalPsbtHex}`, yields: [] };
+        });
+        const ticks: SigningProgress[] = [];
+        provider.subscribeSigningProgress((progress) => ticks.push(progress));
+
+        await expect(provider.signPsbts([PSBT_A, PSBT_B])).rejects.toMatchObject({
+          code: ERROR_CODES.CONNECTION_REJECTED,
+          message: expect.stringMatching(/after 1 of 2/),
+        });
+
+        expect(ticks).toEqual([{ completed: 1, total: 2 }]);
+      });
+
+      it("a batch rejected before the first ceremony emits nothing", async () => {
+        const provider = await approved();
+        const ticks: SigningProgress[] = [];
+        provider.subscribeSigningProgress((progress) => ticks.push(progress));
+
+        await expect(provider.signPsbts([PSBT_A, PSBT_A])).rejects.toThrow(/duplicated within the batch/);
+        await expect(provider.signPsbts([PSBT_A, PSBT_B], [{}, { autoFinalized: true }])).rejects.toThrow(
+          /signPsbts\[1\]/,
+        );
+
+        expect(ticks).toEqual([]);
+      });
+
+      it("a stale batch settling after reconnect emits nothing", async () => {
+        const provider = await approved();
+        let resolveStale: (value: { signedPsbtHex: string; yields: never[] }) => void = () => {};
+        signMock.signPreparedVaultPsbt.mockImplementationOnce(
+          () =>
+            new Promise<{ signedPsbtHex: string; yields: never[] }>((resolve) => {
+              resolveStale = resolve;
+            }),
+        );
+        const ticks: SigningProgress[] = [];
+        provider.subscribeSigningProgress((progress) => ticks.push(progress));
+        const stale = provider.signPsbts([PSBT_A]);
+        stale.catch(() => {});
+        await vi.waitFor(() => expect(signMock.signPreparedVaultPsbt).toHaveBeenCalledTimes(1));
+
+        await provider.disconnect();
+        await provider.connectWallet();
+        resolveStale({ signedPsbtHex: `signed:${PSBT_A}`, yields: [] });
+        await expect(stale).rejects.toThrow(/connection changed/);
+
+        expect(ticks).toEqual([]);
+      });
+
+      it("a subscriber from before disconnect receives nothing from the next connection's batch", async () => {
+        const provider = await approved();
+        const ticks: SigningProgress[] = [];
+        provider.subscribeSigningProgress((progress) => ticks.push(progress));
+
+        await provider.disconnect();
+        await provider.connectWallet();
+        await provider.deriveContextHash("app", "aa".repeat(32));
+        await provider.approveDepositTerms(TERMS);
+        await provider.signPsbts([PSBT_B]);
+
+        expect(ticks).toEqual([]);
+      });
+
+      it("signPsbt never emits signing progress", async () => {
+        const provider = await approved();
+        const ticks: SigningProgress[] = [];
+        provider.subscribeSigningProgress((progress) => ticks.push(progress));
+
+        await provider.signPsbt(PSBT_A);
+
+        expect(ticks).toEqual([]);
+      });
+
+      it("a listener that throws neither aborts the batch nor changes what it returns", async () => {
+        const provider = await approved();
+        provider.subscribeSigningProgress(() => {
+          throw new Error("display bug");
+        });
+
+        await expect(provider.signPsbts([PSBT_A, PSBT_B])).resolves.toEqual([`signed:${PSBT_A}`, `signed:${PSBT_B}`]);
+        expect(signMock.signPreparedVaultPsbt).toHaveBeenCalledTimes(2);
+      });
+
+      it("every registered listener receives every tick, even when one between them throws", async () => {
+        const provider = await approved();
+        const before: SigningProgress[] = [];
+        const after: SigningProgress[] = [];
+        provider.subscribeSigningProgress((progress) => before.push(progress));
+        provider.subscribeSigningProgress(() => {
+          throw new Error("display bug");
+        });
+        provider.subscribeSigningProgress((progress) => after.push(progress));
+
+        await provider.signPsbts([PSBT_A, PSBT_B]);
+
+        expect(before).toEqual([
+          { completed: 1, total: 2 },
+          { completed: 2, total: 2 },
+        ]);
+        expect(after).toEqual([
+          { completed: 1, total: 2 },
+          { completed: 2, total: 2 },
+        ]);
+      });
+
+      it("the returned unsubscribe stops further ticks and is idempotent", async () => {
+        const provider = await approved();
+        const ticks: SigningProgress[] = [];
+        const stop = provider.subscribeSigningProgress((progress) => ticks.push(progress));
+        await provider.signPsbts([PSBT_A]);
+        stop();
+        stop();
+
+        await provider.signPsbts([PSBT_B]);
+
+        expect(ticks).toEqual([{ completed: 1, total: 1 }]);
+      });
+
+      it("a listener subscribed inside a tick first hears the next tick", async () => {
+        const provider = await approved();
+        const lateTicks: SigningProgress[] = [];
+        provider.subscribeSigningProgress(({ completed }) => {
+          if (completed === 1) provider.subscribeSigningProgress((progress) => lateTicks.push(progress));
+        });
+
+        await provider.signPsbts([PSBT_A, PSBT_B]);
+
+        expect(lateTicks).toEqual([{ completed: 2, total: 2 }]);
+      });
+
+      it("is an own property that survives the dApp's object spread into a wrapper", async () => {
+        // The dApp wrappers spread the provider; a prototype method would be dropped.
+        const provider = await approved();
+        const copy = { ...provider };
+        const ticks: SigningProgress[] = [];
+        copy.subscribeSigningProgress((progress) => ticks.push(progress));
+
+        await provider.signPsbts([PSBT_A]);
+
+        expect(ticks).toEqual([{ completed: 1, total: 1 }]);
+      });
+    });
+
     it("a byte-variant serialization of a signed request is still blocked", async () => {
       const provider = await approved();
       await provider.signPsbt(PSBT_A);
@@ -818,6 +1171,18 @@ describe("LedgerVaultProvider", () => {
       signMock.prepareSignPsbt.mockImplementationOnce(() => fakePrepared(PSBT_B, `txid-${PSBT_A}`));
 
       await expect(provider.signPsbt(PSBT_B)).rejects.toThrow(/already signed/);
+      expect(signMock.signPreparedVaultPsbt).toHaveBeenCalledTimes(1);
+    });
+
+    it("a resubmission that differs only in the requested input set is still blocked", async () => {
+      // Request identity is a property of the PSBT: narrowing the expectation
+      // must not mint a fresh fingerprint and let the same request sign twice.
+      const provider = await approved();
+      signMock.prepareSignPsbt.mockImplementationOnce(() => fakePreparedNarrowedToInput0(PSBT_A));
+      await provider.signPsbt(PSBT_A, { autoFinalized: false, signInputs: [{ index: 0, publicKey: "ab".repeat(32) }] });
+      signMock.prepareSignPsbt.mockImplementationOnce(() => fakePreparedUnnarrowed(PSBT_A));
+
+      await expect(provider.signPsbt(PSBT_A, { autoFinalized: false })).rejects.toThrow(/already signed/);
       expect(signMock.signPreparedVaultPsbt).toHaveBeenCalledTimes(1);
     });
 
@@ -1010,6 +1375,194 @@ describe("LedgerVaultProvider", () => {
       await provider.approveDepositTerms(TERMS);
 
       await expect(provider.signPsbt(PSBT_A)).resolves.toBe(`signed:${PSBT_A}`);
+    });
+  });
+
+  describe("standalone refund (#2371)", () => {
+    const NUMS_XONLY_HEX = "50929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfee9ace803ac0";
+    const OP_CHECKSIGVERIFY = 0xad;
+    const OP_CSV = 0xb2;
+    const LEAF_VERSION = 0xc0;
+    /** Internal-order prevout of {@link TERMS}'s Pre-PegIn — the loaded intent's vault. */
+    const INTENT_TXID_INTERNAL = Buffer.from(TERMS.prepeginTxid, "hex").reverse();
+    /** A generic (non-refund) PSBT that signs under the loaded intent. */
+    const PSBT_UNDER_INTENT = "ab".repeat(40);
+
+    /** Minimal positive CScriptNum push (opcode-length form, like the WASM builder emits). */
+    function csvPush(value: number): Buffer {
+      const bytes: number[] = [];
+      for (let v = value; v > 0; v >>= 8) bytes.push(v & 0xff);
+      if ((bytes[bytes.length - 1] & 0x80) !== 0) bytes.push(0);
+      return Buffer.from([bytes.length, ...bytes]);
+    }
+
+    /** SDK-shaped refund PSBT: 1-in (refund leaf, NUMS internal key), 1-out (depositor BIP-86). */
+    function refundPsbtHex(
+      overrides: { leafKeyHex?: string; csv?: number; prevHashInternal?: Buffer } = {},
+    ): string {
+      initEccLib(ecc);
+      const leafKeyHex = overrides.leafKeyHex ?? DEVICE_XONLY;
+      const csv = overrides.csv ?? TERMS.timelockRefund;
+      const leaf = Buffer.concat([
+        Buffer.from([0x20]),
+        Buffer.from(leafKeyHex, "hex"),
+        Buffer.from([OP_CHECKSIGVERIFY]),
+        csvPush(csv),
+        Buffer.from([OP_CSV]),
+      ]);
+      const nums = Buffer.from(NUMS_XONLY_HEX, "hex");
+      const psbt = new Psbt();
+      psbt.setVersion(2);
+      psbt.setLocktime(0);
+      psbt.addInput({
+        hash: overrides.prevHashInternal ?? INTENT_TXID_INTERNAL,
+        index: 0,
+        sequence: csv,
+        witnessUtxo: { script: Buffer.concat([Buffer.from([0x51, 0x20]), Buffer.alloc(32, 0x22)]), value: 1_000_000 },
+        tapLeafScript: [
+          { leafVersion: LEAF_VERSION, script: leaf, controlBlock: Buffer.concat([Buffer.from([LEAF_VERSION]), nums]) },
+        ],
+        tapInternalKey: nums,
+      });
+      psbt.addOutput({
+        script: payments.p2tr({ internalPubkey: Buffer.from(DEVICE_XONLY, "hex") }).output!,
+        value: 990_000,
+      });
+      return psbt.toHex();
+    }
+
+    async function approved() {
+      const provider = await derived();
+      await provider.approveDepositTerms(TERMS);
+      return provider;
+    }
+
+    it("signs a standalone refund with NO approved intent — the device accepts a no-intent refund", async () => {
+      const provider = await connected();
+
+      const hex = refundPsbtHex();
+      await expect(provider.signPsbt(hex)).resolves.toMatch(/^signed:/);
+      expect(signMock.signPreparedVaultPsbt).toHaveBeenCalledTimes(1);
+    });
+
+    it("stages the AUGMENTED hex: input 0 keyed by the untweaked depositor key, output 0 by the tweaked output key", async () => {
+      const provider = await connected();
+
+      await provider.signPsbt(refundPsbtHex());
+
+      const staged = Psbt.fromHex(signMock.prepareSignPsbt.mock.calls[0][0].psbtHex);
+      const inputDeriv = staged.data.inputs[0].tapBip32Derivation;
+      expect(inputDeriv).toHaveLength(1);
+      expect(inputDeriv![0].pubkey.toString("hex")).toBe(DEVICE_XONLY);
+      expect(inputDeriv![0].masterFingerprint.toString("hex")).toBe("73c5da0a");
+      // SIGNET provider → coin type 1: m/86'/1'/0'/0/0.
+      expect(inputDeriv![0].path).toBe("m/86'/1'/0'/0/0");
+      const outputDeriv = staged.data.outputs[0].tapBip32Derivation;
+      expect(outputDeriv).toHaveLength(1);
+      const outputScript = Buffer.from(staged.txOutputs[0].script);
+      expect(outputDeriv![0].pubkey).toEqual(outputScript.subarray(2));
+      expect(outputDeriv![0].pubkey.toString("hex")).not.toBe(DEVICE_XONLY);
+    });
+
+    it("rejects a refund whose leaf key is not this device's depositor key, before any device I/O", async () => {
+      const provider = await connected();
+
+      await expect(provider.signPsbt(refundPsbtHex({ leafKeyHex: "ab".repeat(32) }))).rejects.toMatchObject({
+        code: ERROR_CODES.INVALID_PARAMS,
+      });
+      expect(signMock.prepareSignPsbt).not.toHaveBeenCalled();
+      expect(signMock.signPreparedVaultPsbt).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ["a mismatched refund timelock", { csv: 144 }],
+      ["a mismatched Pre-PegIn txid", { prevHashInternal: Buffer.alloc(32, 0x77) }],
+    ] as const)(
+      "refuses a refund with %s while an intent is loaded — a typed error instead of the device's opaque reject",
+      async (_label, overrides) => {
+        const provider = await approved();
+
+        await expect(provider.signPsbt(refundPsbtHex(overrides))).rejects.toMatchObject({
+          code: ERROR_CODES.DEVICE_CEREMONY_INVALID,
+        });
+        expect(signMock.prepareSignPsbt).not.toHaveBeenCalled();
+        expect(signMock.signPreparedVaultPsbt).not.toHaveBeenCalled();
+        // The rejection ran before any ceremony: the loaded intent is untouched.
+        await expect(provider.holdsApprovedDepositTerms(TERMS)).resolves.toBe(true);
+      },
+    );
+
+    it("signs a refund matching the loaded intent's vault", async () => {
+      const provider = await approved();
+
+      await expect(provider.signPsbt(refundPsbtHex())).resolves.toMatch(/^signed:/);
+    });
+
+    it("a no-intent refund can be re-signed — there is no loaded intent to nullify on the device", async () => {
+      const provider = await connected();
+      const hex = refundPsbtHex();
+
+      await expect(provider.signPsbt(hex)).resolves.toMatch(/^signed:/);
+      await expect(provider.signPsbt(hex)).resolves.toMatch(/^signed:/);
+      expect(signMock.signPreparedVaultPsbt).toHaveBeenCalledTimes(2);
+    });
+
+    it("a refund can be re-signed under the loaded intent too — the standalone path consumes no device mask", async () => {
+      const provider = await approved();
+      const hex = refundPsbtHex();
+
+      await expect(provider.signPsbt(hex)).resolves.toMatch(/^signed:/);
+      await expect(provider.signPsbt(hex)).resolves.toMatch(/^signed:/);
+      expect(signMock.signPreparedVaultPsbt).toHaveBeenCalledTimes(2);
+      // Refund signs never touch the intent mirror or the replay guard.
+      await expect(provider.holdsApprovedDepositTerms(TERMS)).resolves.toBe(true);
+    });
+
+    it("rejects a no-intent refund whose CSV is below the device floor of 72 with ZERO device I/O — not even the liveness probe", async () => {
+      const provider = await connected();
+      dmkSessionMock.isSessionAlive.mockClear();
+      derivationMock.getMasterFingerprintHex.mockClear();
+
+      await expect(provider.signPsbt(refundPsbtHex({ csv: 71 }))).rejects.toMatchObject({
+        code: ERROR_CODES.INVALID_PARAMS,
+      });
+      expect(dmkSessionMock.isSessionAlive).not.toHaveBeenCalled();
+      expect(derivationMock.getMasterFingerprintHex).not.toHaveBeenCalled();
+      expect(signMock.prepareSignPsbt).not.toHaveBeenCalled();
+      expect(signMock.signPreparedVaultPsbt).not.toHaveBeenCalled();
+    });
+
+    it("a device-side refund failure leaves the loaded intent and the replay guard untouched", async () => {
+      const provider = await approved();
+      // Arm the replay guard with an intent-bound PSBT so its survival is observable.
+      await provider.signPsbt(PSBT_UNDER_INTENT);
+      signMock.signPreparedVaultPsbt.mockRejectedValueOnce(new LedgerUserRefusedError(0x6985));
+
+      await expect(provider.signPsbt(refundPsbtHex())).rejects.toMatchObject({
+        code: ERROR_CODES.CONNECTION_REJECTED,
+      });
+      // The refund path never invalidates the device's vault context, so the
+      // mirror must not drop either: the intent still holds…
+      await expect(provider.holdsApprovedDepositTerms(TERMS)).resolves.toBe(true);
+      // …and the armed fingerprint still blocks its replay.
+      await expect(provider.signPsbt(PSBT_UNDER_INTENT)).rejects.toThrow(/already signed/);
+    });
+
+    it("signPsbts refuses a batched refund before any ceremony — refunds sign standalone via signPsbt", async () => {
+      const provider = await approved();
+
+      await expect(provider.signPsbts(["aa".repeat(40), refundPsbtHex()])).rejects.toThrow(/standalone via signPsbt/);
+      expect(signMock.signPreparedVaultPsbt).not.toHaveBeenCalled();
+      // The whole batch was refused at staging: the loaded intent is untouched.
+      await expect(provider.holdsApprovedDepositTerms(TERMS)).resolves.toBe(true);
+    });
+
+    it("signPsbts refuses a batched refund with the refund-specific error even when NO intent is loaded", async () => {
+      const provider = await connected();
+
+      await expect(provider.signPsbts([refundPsbtHex()])).rejects.toThrow(/standalone via signPsbt/);
+      expect(signMock.prepareSignPsbt).not.toHaveBeenCalled();
+      expect(signMock.signPreparedVaultPsbt).not.toHaveBeenCalled();
     });
   });
 

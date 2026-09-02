@@ -247,6 +247,69 @@ describe("DepositProgressView", () => {
       ).toHaveLength(4);
     });
 
+    it("renders the fee selector under the Pre-PegIn step inside the Register deposit card", () => {
+      // The rate pays for the Pre-PegIn broadcast, so the entry screen opens
+      // that group and hangs the selector off that one step — not off the CTA.
+      render(
+        <DepositProgressView
+          {...baseProps}
+          started={false}
+          onSign={vi.fn()}
+          currentStep={DepositFlowStep.DERIVE_VAULT_SECRET}
+          preSignFeeSelector={<div>fee selector</div>}
+        />,
+      );
+
+      expect(
+        screen.getByText(COPY.deposit.groups.registerDeposit),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(COPY.deposit.steps.signAndBroadcastPrePegin),
+      ).toBeInTheDocument();
+      const selector = screen.getByText("fee selector");
+      expect(selector).toBeInTheDocument();
+
+      // The selector renders as a sibling of the Pre-PegIn step row, not
+      // nested in its indented detail column.
+      const stepRow = screen
+        .getByText(COPY.deposit.steps.signAndBroadcastPrePegin)
+        .closest("div.flex.gap-3");
+      expect(selector.parentElement).toBe(stepRow?.parentElement);
+
+      // Only the Pre-PegIn row opens — the rest of the group stays folded.
+      expect(
+        screen.queryByText(COPY.deposit.steps.generateSecret),
+      ).not.toBeInTheDocument();
+    });
+
+    it("renders the fee selector once on a split deposit's shared trunk", () => {
+      // One Pre-PegIn transaction, one rate — however many vaults.
+      render(
+        <DepositProgressView
+          {...baseProps}
+          started={false}
+          onSign={vi.fn()}
+          currentStep={DepositFlowStep.DERIVE_VAULT_SECRET}
+          vaultCount={2}
+          preSignFeeSelector={<div>fee selector</div>}
+        />,
+      );
+
+      expect(screen.getAllByText("fee selector")).toHaveLength(1);
+    });
+
+    it("drops the fee selector once signing has started", () => {
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.BROADCAST_PRE_PEGIN}
+          preSignFeeSelector={<div>fee selector</div>}
+        />,
+      );
+
+      expect(screen.queryByText("fee selector")).not.toBeInTheDocument();
+    });
+
     it("keeps a sibling vault's live progress expanded on a split re-offer", () => {
       // The gate is about the flow's own un-started action. A sibling lane
       // sitting on a different step is driven by its own polled state — its
@@ -506,9 +569,7 @@ describe("DepositProgressView", () => {
       );
 
       expect(
-        screen.getByRole("button", {
-          name: "Close & continue later",
-        }),
+        screen.getByRole("button", { name: "Close & continue later" }),
       ).toBeInTheDocument();
     });
 
@@ -522,6 +583,49 @@ describe("DepositProgressView", () => {
       );
 
       expect(screen.getByRole("button", { name: "Done" })).toBeInTheDocument();
+    });
+  });
+
+  describe("error CTA", () => {
+    it("labels the button Retry and runs onRetry, not onClose, on a retryable error", () => {
+      const onRetry = vi.fn();
+      const onClose = vi.fn();
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.SIGN_PEGIN_BTC}
+          error={{ title: "Signing device locked", body: "boom" }}
+          onRetry={onRetry}
+          onClose={onClose}
+        />,
+      );
+
+      const button = screen.getByRole("button", {
+        name: COPY.deposit.progress.buttons.retry,
+      });
+      expect(button).toBeEnabled();
+      fireEvent.click(button);
+      expect(onRetry).toHaveBeenCalledTimes(1);
+      expect(onClose).not.toHaveBeenCalled();
+    });
+
+    it("labels the button Close and runs onClose when the error has no retry", () => {
+      const onClose = vi.fn();
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.SIGN_PEGIN_BTC}
+          error={{ title: "Transaction failed", body: "boom" }}
+          onClose={onClose}
+        />,
+      );
+
+      const button = screen.getByRole("button", {
+        name: COPY.deposit.progress.buttons.close,
+      });
+      expect(button).toBeEnabled();
+      fireEvent.click(button);
+      expect(onClose).toHaveBeenCalledTimes(1);
     });
   });
 

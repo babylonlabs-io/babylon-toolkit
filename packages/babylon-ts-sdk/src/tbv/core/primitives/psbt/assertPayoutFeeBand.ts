@@ -12,7 +12,7 @@
  * @module primitives/psbt/assertPayoutFeeBand
  */
 
-import { computePayoutFeeFloor } from "@babylonlabs-io/babylon-tbv-rust-wasm";
+import { computePayoutFeeFloor } from "../../wasm";
 
 /**
  * Floor-model limit, NOT a protocol bound: vault-wasm seeds dummy keys from a

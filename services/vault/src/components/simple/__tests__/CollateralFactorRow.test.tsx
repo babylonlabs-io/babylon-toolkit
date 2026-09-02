@@ -1,5 +1,13 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+import { COPY } from "@/copy";
+
+// The mock surfaces the tooltip text so it can be asserted against its row.
+vi.mock("@babylonlabs-io/core-ui", () => ({
+  Hint: ({ tooltip }: { tooltip?: string }) => <span>{tooltip}</span>,
+  InfoIcon: () => null,
+}));
 
 import { CollateralFactorRow } from "../CollateralFactorRow";
 
@@ -55,6 +63,20 @@ describe("CollateralFactorRow", () => {
     );
     expect(screen.getByText("(CF=72%)")).toBeInTheDocument();
     expect(screen.getByText(/\$63\.6k USD/)).toBeInTheDocument();
+  });
+
+  it("explains the collateral factor in a tooltip on the row", () => {
+    render(
+      <CollateralFactorRow
+        collateralFactor={0.72}
+        amountBtc="1"
+        btcPrice={88_400}
+        hasPriceFetchError={false}
+      />,
+    );
+    expect(
+      screen.getByText(COPY.tooltips.collateralFactor),
+    ).toBeInTheDocument();
   });
 
   it("shows -- for max-to-borrow when hasPriceFetchError is true", () => {

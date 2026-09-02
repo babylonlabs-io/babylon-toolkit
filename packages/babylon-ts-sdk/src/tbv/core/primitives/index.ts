@@ -87,14 +87,14 @@ export {
   peginP2aAnchorOutput,
   supportedTxGraphVersions,
   validatePeginP2aAnchor,
-} from "@babylonlabs-io/babylon-tbv-rust-wasm";
+} from "../wasm";
 export type {
   AssertPayoutNoPayoutConnectorParams,
   ChallengeAssertConnectorParams,
   Network,
   PayoutConnectorParams,
   PeginP2aAnchorInfo,
-} from "@babylonlabs-io/babylon-tbv-rust-wasm";
+} from "../wasm";
 
 /**
  * 0x-prefixed bytes32, keccak256(abi.encode(peginTxHash, depositor)).
@@ -162,6 +162,9 @@ export type { AssertPsbtUnsignedTxMatchesParams } from "./psbt/assertPsbtUnsigne
 
 export { assertScriptPathSchnorrSignature } from "./psbt/verifyScriptPathSchnorrSignature";
 export type { VerifyScriptPathSchnorrSignatureParams } from "./psbt/verifyScriptPathSchnorrSignature";
+
+export { finalizeScriptPathWithSignatures } from "./psbt/finalizeScriptPathWithSignatures";
+export type { FinalizeScriptPathWithSignaturesParams } from "./psbt/finalizeScriptPathWithSignatures";
 
 export {
   assertKeyPathSchnorrSignature,

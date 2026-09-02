@@ -50,7 +50,6 @@ export function PositionOverview({
     () => [
       {
         label: COPY.liquidations.position.totalCollateralValue,
-        tooltip: COPY.overview.totalCollateralValueTooltip,
         value: formatBtcAmount(collateralBtc),
         caption:
           collateralValueUsd !== null

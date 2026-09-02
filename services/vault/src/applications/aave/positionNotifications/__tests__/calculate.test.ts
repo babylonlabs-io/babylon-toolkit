@@ -290,7 +290,7 @@ describe("golden vectors (reference scenario suite)", () => {
     // existing vault becomes protected.
     expect(result.suggestedNewVaultBtc).toBe(0.72);
     expect(getWarning(result.warnings, "cliff")?.suggestion).toContain(
-      "sacrificial 0.72 BTC Vault creates a buffer",
+      "Adding a new BTCVault of 0.72 BTC enables partial liquidation.",
     );
   });
 
@@ -299,11 +299,10 @@ describe("golden vectors (reference scenario suite)", () => {
     const cliff = getWarning(result.warnings, "cliff");
     expect(cliff?.title).toBe("First liquidation takes everything");
     // The needed add exceeds the position, so there is no actionable CTA; the
-    // fix is to withdraw and re-split. sacrificial + protected === withdraw.
+    // fix is to withdraw and re-split. The two parts sum to the withdraw.
     expect(result.suggestedNewVaultBtc).toBeNull();
     expect(cliff?.suggestion).toContain("withdraw your 2.00 BTC");
-    expect(cliff?.suggestion).toContain("1.28 BTC sacrificial");
-    expect(cliff?.suggestion).toContain("0.72 BTC protected");
+    expect(cliff?.suggestion).toContain("1.28 BTC + 0.72 BTC");
   });
 
   it("A9 — non-cent-aligned vault: the three re-deposit amounts reconcile", () => {
@@ -312,7 +311,7 @@ describe("golden vectors (reference scenario suite)", () => {
     const result = calculate(makeParams([v(1.045)], { THF: 1.4 }));
     const suggestion = getWarning(result.warnings, "cliff")?.suggestion ?? "";
     const match = suggestion.match(
-      /withdraw your ([\d.]+) BTC.*?([\d.]+) BTC sacrificial \+ ([\d.]+) BTC protected/,
+      /withdraw your ([\d.]+) BTC.*?([\d.]+) BTC \+ ([\d.]+) BTC/,
     );
     expect(match).not.toBeNull();
     const [, withdraw, sacrificial, protectedAmt] = match!;
@@ -356,7 +355,7 @@ describe("golden vectors (reference scenario suite)", () => {
   it("C1 — [0.35, 0.65] wrong order: reorder notification, single group", () => {
     const result = calculate(makeParams([v(0.35), v(0.65)]));
     const reorder = getWarning(result.warnings, "reorder");
-    expect(reorder?.title).toBe("Reorder BTC Vaults to lose less");
+    expect(reorder?.title).toBe("Reorder BTCVaults to lose less");
     expect(result.optimalVaultOrder).not.toBeNull();
     expect(result.groups).toHaveLength(1);
   });
@@ -372,7 +371,7 @@ describe("golden vectors (reference scenario suite)", () => {
     const cliff = getWarning(result.warnings, "cliff");
     expect(cliff?.title).toBe("First liquidation takes everything");
     // The deficit detail moved into the suggestion now that the body is shared.
-    expect(cliff?.suggestion).toContain("Neither BTC Vault");
+    expect(cliff?.suggestion).toContain("Neither BTCVault");
     expect(hasWarning(result.warnings, "reorder")).toBe(false);
     expect(result.groups).toHaveLength(1);
   });
@@ -409,7 +408,7 @@ describe("golden vectors (reference scenario suite)", () => {
     const vaults = Array.from({ length: 18 }, (_, idx) => v(0.2 + idx * 0.01));
     const result = calculate(makeParams(vaults));
     expect(getWarning(result.warnings, "too-many-vaults")?.title).toContain(
-      "Too many BTC Vaults",
+      "Too many BTCVaults",
     );
     expect(result.optimalVaultOrder).toBeNull();
   });

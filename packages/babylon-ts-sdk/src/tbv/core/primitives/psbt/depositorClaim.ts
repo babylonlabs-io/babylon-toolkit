@@ -23,7 +23,7 @@
  * @module primitives/psbt/depositorClaim
  */
 
-import { tapInternalPubkey } from "@babylonlabs-io/babylon-tbv-rust-wasm";
+import { tapInternalPubkey } from "../../wasm";
 import { Buffer } from "buffer";
 import { payments, script as bscript, opcodes } from "bitcoinjs-lib";
 
