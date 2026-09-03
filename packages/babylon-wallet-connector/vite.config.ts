@@ -13,7 +13,7 @@ export default defineConfig({
       include: ["src"],
       exclude: ["src/**/*.stories.tsx", "src/**/*.test.ts", "src/**/*.test.tsx", "src/__fixtures__/**"],
     }),
-    nodePolyfills(),
+    nodePolyfills({ include: ["crypto"] }),
   ],
   build: {
     outDir: "dist",
