@@ -1190,6 +1190,42 @@ Number of inputs to sign. Generates entries
 
 ***
 
+### createTaprootScriptPathSignOptionsForInput()
+
+```ts
+function createTaprootScriptPathSignOptionsForInput(publicKey, inputIndex): SignPsbtOptions;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/signing.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/signing.ts)
+
+Create SignPsbtOptions for a Taproot script-path PSBT whose signing input
+is not input 0 — the delegated-claim Payout, where input 0 is the PegIn
+UTXO and the claimer signs the Assert connector at input 1.
+
+Same flags and the same caveat as
+[createTaprootScriptPathSignOptions](#createtaprootscriptpathsignoptions): the produced signature must be
+validated before the PSBT is treated as signed.
+
+#### Parameters
+
+##### publicKey
+
+`string`
+
+Signer's BTC public key (hex), compressed or x-only.
+
+##### inputIndex
+
+`number`
+
+Index of the single input to sign.
+
+#### Returns
+
+[`SignPsbtOptions`](managers.md#signpsbtoptions)
+
+***
+
 ### calculateBtcTxHash()
 
 ```ts
