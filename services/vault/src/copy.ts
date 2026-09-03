@@ -684,7 +684,7 @@ export const COPY = {
     },
     form: {
       computingAllocation: "Computing allocation...",
-      transactionReserveLabel: "Reserve Claimer UTXO",
+      transactionReserveLabel: "Depositor Claim Output",
       // Describes the real mechanism, and deliberately shares wording with
       // COPY.reclaim.review.description so the promise made at deposit time
       // and the action offered after settlement read as the same thing. Until
@@ -692,13 +692,8 @@ export const COPY = {
       // unused", which nothing in the app could actually do.
       transactionReserveTooltip:
         "A small portion of your deposit is reserved in a dedicated output to fund a future protocol claim transaction. If it goes unused, you can reclaim it from your BTCVault once the vault has settled.",
-      // The depositable maximum is labelled as the balance, with `maxTooltip`
-      // explaining the fee buffer / cap adjustments.
+      // The depositable maximum is labelled as the balance.
       balanceLabel: "Balance",
-      maxTooltip: (opts: { hasSupplyCap: boolean }) =>
-        opts.hasSupplyCap
-          ? "Reserves a fee buffer, excludes inscription UTXOs, and stays within the supply cap."
-          : "Reserves a fee buffer and excludes inscription UTXOs.",
       pendingConfirmationNotice: (amount: string) =>
         `${amount} pending confirmation`,
       pendingConfirmationTooltip:
@@ -730,15 +725,16 @@ export const COPY = {
       providerLastDepositLabel: "Last deposit",
       providerStatusActive: "Active",
       // Fee-breakdown lines (DepositFeesBreakdown) shown before the user
-      // submits. The commission label appends the percent, e.g. "VP commission
-      // (2.50%)"; net payout is the deposit minus that commission.
+      // submits. The commission label appends the percent, e.g. "Vault
+      // Provider commission (2.50%)"; net payout is the deposit minus that
+      // commission.
       networkFeeRateLabel: "Network Fee Rate",
       networkFeeRateTooltip:
-        "Bitcoin network fee rate for your pre-pegin funding transaction. Raise it during congestion so the transaction confirms sooner.",
+        "Bitcoin network fee rate for your Pre-Pegin funding transaction. Raise it during congestion so the transaction confirms sooner.",
       btcNetworkFeeLabel: "BTC Network Fee",
       btcNetworkFeeTooltip:
-        "Estimated Bitcoin miner fee for the pre-pegin funding transaction at the selected fee rate.",
-      vpCommissionLabel: "VP commission",
+        "Estimated Bitcoin miner fee for the Pre-Pegin funding transaction at the selected fee rate.",
+      vpCommissionLabel: "Vault Provider commission",
       vpCommissionTooltip:
         "The vault provider's fee, deducted from your payout when you redeem. Set by the vault provider and shown here before you deposit.",
       netPayoutLabel: "Net payout",
@@ -2057,14 +2053,15 @@ export const COPY = {
     minForSplit: {
       label: "Effective Minimum for Split",
       tooltip:
-        "The minimum amount of BTC required to enable partial liquidation via splitting a deposit into two BTCVaults.",
+        "The minimum amount of BTC required to enable partial-position liquidation via splitting a deposit into two BTCVaults.",
     },
     ltv: {
       label: "Collateral Factor",
     },
     liquidationThreshold: {
       label: "Target Health Factor",
-      tooltip: "The ideal health factor to restore during liquidation",
+      tooltip:
+        "The health factor the protocol aims to restore after partial-position liquidation.",
     },
     maxLiquidationPenalty: {
       label: "Max Liquidation Penalty",
