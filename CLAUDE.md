@@ -48,14 +48,21 @@ These paths handle irreversible value movement. An AI-generated mistake here is 
 
 ### 1. WASM boundary (value computation)
 
-- File: `packages/babylon-tbv-rust-wasm/src/index.ts`
-- The Rust/WASM layer computes `htlcValue = peginAmount + depositorClaimValue + p2aAnchorValue + minPeginFee` internally (the anchor term is 0 for tx-graph v1, 240 sats for v2 and v3). JS receives outputs with no runtime validation.
+- Files:
+  - `packages/babylon-tbv-rust-wasm/src/index.ts`
+  - `packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/assertWasmPeginSizing.ts`
+  - `packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/constants.ts` - protocol transaction layout constants
+  - `packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts`
+  - `packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/peginInput.ts`
+  - `packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/refund.ts`
+- The Rust/WASM layer computes `htlcValue = peginAmount + depositorClaimValue + p2aAnchorValue + minPeginFee` internally (the anchor term is 0 for tx-graph v1, 240 sats for v2 and v3). TypeScript independently derives each canonical Pre-PegIn HTLC output and rejects a transaction or signing field that does not match.
 - **Rule:** Every WASM output consumed by JS must be asserted against expected bounds before use. If a WASM-returned value feeds a signed transaction, cross-check it against an independently computed expected value.
-- The package exports a second crossing at `@babylonlabs-io/babylon-tbv-rust-wasm/raw` (`src/raw.ts`, `src/raw-node.ts`, registered in section 9). It hands out the wasm-bindgen classes with no facade value guards, so the rule above binds at the call site, not at the export. The only SDK consumer is `packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/refund.ts`. It guards `pegInAmounts` with `assertPositiveBigintArray`, compares the reconstructed template's HTLC scriptPubKey and HTLC value with the funded transaction output at `htlcVout`, and re-parses the built refund transaction to assert exactly 1 input (Pre-PegIn txid, index `htlcVout`) and exactly 1 output (the depositor's BIP-86 scriptPubKey, value `htlcValue - refundFee`) before it emits the PSBT. Every new `/raw` consumer must do equivalent cross-checks.
+- The package exports a second crossing at `@babylonlabs-io/babylon-tbv-rust-wasm/raw` (`src/raw.ts`, `src/raw-node.ts`, registered in section 9). It hands out the wasm-bindgen classes with no facade value guards, so the rule above binds at the call site, not at the export. The only SDK consumer is `packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/refund.ts`. It guards `pegInAmounts` with `assertPositiveBigintArray`, derives the canonical HTLC and signing data in TypeScript, compares the WASM template's script and value with the funded output, and checks the final refund input and output before it emits the PSBT. Every new `/raw` consumer must do equivalent cross-checks.
 
 ### 2. Fee calculation consistency
 
 - Files:
+  - `packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts` - shared transaction sizing and safety limits
   - `packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts` — UTXO selection with iterative fee recalculation
   - `packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts` — shared Pre-PegIn vsize/fee model
   - `services/vault/src/hooks/deposit/useEstimatedBtcFee.ts` — dApp-side estimate (delegates to the SDK model)

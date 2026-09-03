@@ -37,6 +37,49 @@ export const ASSERT_PAYOUT_OUTPUT_INDEX = 0;
  */
 export const PAYOUT_ANCHOR_DUST_SATS = 546;
 
+/** Minimum number of HTLC outputs in a Pre-PegIn transaction. */
+export const PRE_PEGIN_MIN_HTLC_OUTPUT_COUNT = 1;
+
+/** Canonical value in sats for the optional Pre-PegIn auth output. */
+export const PRE_PEGIN_AUTH_OUTPUT_VALUE_SATS = 0;
+
+/**
+ * Hex prefix for `OP_RETURN PUSH32`. This matches
+ * `ScriptBuf::new_op_return(hash)` in
+ * `btc-vault crates/vault/src/transactions/prepegin.rs`.
+ */
+export const PRE_PEGIN_AUTH_SCRIPT_PREFIX = "6a20";
+
+/**
+ * Value in sats for the Pre-PegIn CPFP anchor output. Matches `DUST_AMOUNT`
+ * in `btc-vault crates/vault/src/lib.rs`.
+ */
+export const PRE_PEGIN_CPFP_VALUE_SATS = 546;
+
+/**
+ * Canonical Pre-PegIn transaction version. Matches `Version::TWO` in
+ * `btc-vault crates/vault/src/transactions/prepegin.rs`.
+ */
+export const PRE_PEGIN_TX_VERSION = 2;
+
+/**
+ * Canonical Pre-PegIn transaction locktime. Matches `LockTime::ZERO` in
+ * `btc-vault crates/vault/src/transactions/prepegin.rs`.
+ */
+export const PRE_PEGIN_TX_LOCKTIME = 0;
+
+/** Vault Core 1 PegIn nVersion from `PegInTx::expected_tx_version`. */
+export const PEGIN_TX_VERSION_CORE_1 = 2;
+
+/** Vault Core 2 and 3 PegIn nVersion from `PegInTx::expected_tx_version`. */
+export const PEGIN_TX_VERSION_CORE_2_AND_3 = 3;
+
+/** PegIn locktime from `PegInTx::new_from_prepegin` (`LockTime::ZERO`). */
+export const PEGIN_TX_LOCKTIME = 0;
+
+/** PegIn input sequence from `PegInTx::new_from_prepegin`. */
+export const PEGIN_INPUT_SEQUENCE = 0xfffffffe;
+
 /**
  * Payout transaction literals btc-vault builds deterministically
  * (`crates/vault/src/transactions/payout.rs`: `Version::TWO`,

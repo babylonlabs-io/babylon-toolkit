@@ -22,11 +22,18 @@ jobs:
         run: |
           set -e
           # Keep in sync with SECURITY.md, CLAUDE.md > "CRITICAL PATHS",
-          # .github/CODEOWNERS, and .github/workflows/claude-md-drift.yml.
+          # .github/CODEOWNERS, packages/babylon-ts-sdk/eslint.config.mjs,
+          # and .github/workflows/claude-md-drift.yml.
           paths=(
             "packages/babylon-tbv-rust-wasm/src/index.ts"
             "packages/babylon-tbv-rust-wasm/src/index-node.ts"
             "packages/babylon-tbv-rust-wasm/scripts/build-wasm.js"
+            "packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/assertWasmPeginSizing.ts"
+            "packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/constants.ts"
+            "packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts"
+            "packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/peginInput.ts"
+            "packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/refund.ts"
+            "packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts"
             "packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts"
             "packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts"
             "services/vault/src/hooks/deposit/useEstimatedBtcFee.ts"
