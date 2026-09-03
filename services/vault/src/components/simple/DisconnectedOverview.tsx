@@ -3,9 +3,8 @@
  *
  * Entry / landing screen rendered when no wallet is connected. Left column:
  * stat chips, product pitch, the live borrow-APR row under a "Current Borrowing
- * Rates" heading, and the Connect CTA. Right column: one bordered panel of
- * feature rows separated by hairline dividers; only two rows expand, with
- * single-open accordion behavior.
+ * Rates" heading, and the Connect CTA. Right column: one unbordered panel of
+ * feature rows; only one row expands, with single-open accordion behavior.
  */
 
 import { Avatar } from "@babylonlabs-io/core-ui";
@@ -31,11 +30,9 @@ import {
 } from "@/utils/formatting";
 
 import { CompetitiveRatesIcon } from "./DisconnectedFeatureCards/CompetitiveRatesIcon";
-import { FastAccessIcon } from "./DisconnectedFeatureCards/FastAccessIcon";
 import { FeatureCard } from "./DisconnectedFeatureCards/FeatureCard";
 import { PartialLiquidationIcon } from "./DisconnectedFeatureCards/PartialLiquidationIcon";
 import { SelfCustodialIcon } from "./DisconnectedFeatureCards/SelfCustodialIcon";
-import { TrustlessIcon } from "./DisconnectedFeatureCards/TrustlessIcon";
 import { useLandingBorrowAprs } from "./useLandingBorrowAprs";
 
 const COPY_OVERVIEW = COPY.overview.disconnected;
@@ -235,20 +232,9 @@ export function DisconnectedOverview({
         expandable: true,
       },
       {
-        icon: <FastAccessIcon />,
-        title: features.fastAccess.title,
-        body: features.fastAccess.body,
-      },
-      {
         icon: <PartialLiquidationIcon />,
         title: features.partialLiquidation.title,
         body: features.partialLiquidation.body,
-      },
-      {
-        icon: <TrustlessIcon />,
-        title: features.trustless.title,
-        body: features.trustless.body,
-        expandable: true,
       },
     ];
   }, []);
@@ -264,7 +250,7 @@ export function DisconnectedOverview({
 
         <h1
           aria-label={HERO_TITLE_TEXT}
-          className="mt-6 text-[clamp(2rem,5vw,3rem)] font-normal leading-[1.167] text-accent-primary"
+          className="mt-[26.67px] text-[clamp(2rem,5vw,3rem)] font-normal leading-[1.167] text-accent-primary"
         >
           {HERO_TITLE.lead}
           <span className="whitespace-nowrap">
@@ -298,7 +284,7 @@ export function DisconnectedOverview({
         </div>
       </div>
 
-      <div className="divide-y divide-secondary-strokeLight overflow-hidden rounded-lg border border-secondary-strokeLight bg-background-secondary">
+      <div className="w-full max-w-[420px] overflow-hidden rounded-lg bg-background-secondary md:self-center md:justify-self-center">
         {featureCards.map((card) => (
           <FeatureCard
             key={card.title}

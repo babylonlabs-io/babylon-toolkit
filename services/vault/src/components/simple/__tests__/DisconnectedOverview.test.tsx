@@ -122,8 +122,8 @@ describe("DisconnectedOverview", () => {
     expect(screen.getByText("3.7%").parentElement).toHaveTextContent(
       `3.7% ${COPY_OVERVIEW.aprSuffix}`,
     );
-    // An unresolved APR shows the empty marker and drops the "p.a." suffix
-    // rather than reading "— p.a.".
+    // An unresolved APR shows the empty marker and drops the "APR" suffix
+    // rather than reading "— APR".
     expect(
       screen.getByText(COPY_OVERVIEW.aprLabels.wbtc).parentElement,
     ).toHaveTextContent(COPY.common.emptyValue);
@@ -139,9 +139,7 @@ describe("DisconnectedOverview", () => {
     const titles = [
       features.competitiveRates.title,
       features.selfCustodial.title,
-      features.fastAccess.title,
       features.partialLiquidation.title,
-      features.trustless.title,
     ];
     const rendered = titles.map((title) => screen.getByText(title));
 
@@ -151,7 +149,7 @@ describe("DisconnectedOverview", () => {
           Node.DOCUMENT_POSITION_FOLLOWING,
       ).toBeTruthy();
     }
-    expect(screen.getAllByRole("button", { expanded: false })).toHaveLength(2);
+    expect(screen.getAllByRole("button", { expanded: false })).toHaveLength(1);
   });
 
   it("falls back to the empty marker when the cap and split params are absent", () => {
