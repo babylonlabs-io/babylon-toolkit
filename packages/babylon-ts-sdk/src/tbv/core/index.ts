@@ -11,6 +11,8 @@
  * - WOTS: Winternitz one-time signature utilities
  * - Vault Secrets: HKDF-Expand pipeline producing hashlock / auth-anchor /
  *   wots-seed from a spec-opaque 32-byte root.
+ * - Peg-in Fingerprint: the commitment over the protocol state a Pre-PegIn was
+ *   built against, which the registry re-checks when the request is included.
  * - Recovery: reconstruction of a Pre-PegIn whose Ethereum registration was
  *   lost to a reorg, from the wallet and the transaction alone.
  *
@@ -25,6 +27,7 @@ export * from "./contracts";
 export * from "./wots";
 export * from "./services";
 export * from "./vault-secrets";
+export * from "./pegin-fingerprint";
 export * from "./deposit-terms";
 export * from "./recovery";
 // Keep the lenient utility on the core barrel. The ETH subpath has the strict parser.
