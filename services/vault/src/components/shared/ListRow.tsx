@@ -19,45 +19,31 @@ import { CARD_SHELL_CLASS } from "@/components/shared/layoutClasses";
  * cell and opening a gap before the trailing action button.
  *
  * The basis is the widest cell's intrinsic content — the status cell's 12px
- * dot, 108px label and 16px info icon with their 4px gaps. Keeping it that
- * tight matters: `flex-wrap` breaks lines on the basis and never shrinks to
- * avoid a break, so every extra pixel here raises the viewport width at which
- * the action button drops onto a second line. 120px is the floor below which
- * wrapping is preferable to squashing.
+ * dot and 108px label with their 4px gap. `min-w-0` is what lets the cell
+ * shrink below that basis: the lifecycle rows are `xl:flex-nowrap`, so from
+ * `xl` up the columns absorb any shortfall rather than breaking the action
+ * button onto a second line.
  */
-export const LIST_ROW_COLUMN_CLASS = "min-w-[120px] grow basis-[144px]";
+export const LIST_ROW_COLUMN_CLASS = "min-w-0 grow basis-[144px]";
 
 /**
- * The status cell. Same basis as a plain data column — so the viewport width at
- * which the action button wraps is unchanged — but it takes a double share of
- * the leftover slack, matching the leading cell.
- *
- * Slack was previously split 2:1:1:1 between the leading, status, provider and
- * hash cells, which left the leading cell roomy while the status label wrapped:
- * the basis above is sized for a 108px label, and the longest status is now
- * `COPY.pegin.statusLabel.AWAITING_ACTIVATION_WINDOW`. Widening the basis would
- * have fixed the wrap at every width but raised the action button's wrap
- * threshold, which the comment above deliberately keeps as low as possible.
- * Grow factors divide only the surplus, so they cost nothing at narrow widths.
+ * The status cell. Same basis as a plain data column, but it takes a double
+ * share of the leftover slack, matching the leading cell — the longest status
+ * (`COPY.pegin.statusLabel.AWAITING_ACTIVATION_WINDOW`) wraps to two lines
+ * otherwise. Grow factors divide only the surplus, so they cost nothing once
+ * the row is narrow enough that every column is shrinking instead.
  */
-export const LIST_ROW_STATUS_COLUMN_CLASS =
-  "min-w-[120px] grow-[2] basis-[144px]";
+export const LIST_ROW_STATUS_COLUMN_CLASS = "min-w-0 grow-[2] basis-[144px]";
 
 /**
- * The leading cell — a logo beside a two-line amount / sub-line block. Its
- * basis fits the longest sub-line the rows produce (the refund-maturity
- * notice from `COPY.vaults.statusHints.refundMaturing`, measured at 343px in
- * the app's 12px face) plus the 32px logo and its 8px gap, so that copy reads
- * in full rather than ellipsing. It takes a double share of any remaining
- * slack.
- *
- * That 343px is one measurement of an interpolated string — the block count,
- * the hours and the block/blocks plural all vary — so a longer combination
- * ellipses again. `copy.ts` points back here for that reason; re-measure both
- * together.
+ * The leading cell — a 32px coin avatar beside a two-line amount / sub-line
+ * block. The basis fits the amount and the sub-lines the rows produce in the
+ * common case; longer interpolated sub-lines (notably
+ * `COPY.vaults.statusHints.refundMaturing`) truncate rather than widen the
+ * cell, since from `xl` up the row may not wrap. It takes a double share of
+ * any remaining slack.
  */
-export const LIST_ROW_LEADING_COLUMN_CLASS =
-  "min-w-[120px] grow-[2] basis-[384px]";
+export const LIST_ROW_LEADING_COLUMN_CLASS = "min-w-0 grow-[2] basis-[240px]";
 
 /**
  * Trailing action cell. Every lifecycle and activity row routes its action
@@ -96,7 +82,8 @@ export const LIST_ROW_MIN_HEIGHT_CLASS = "min-h-[78px]";
 /**
  * Bordered row card shared by the vault, activity and loan lists. `className`
  * carries per-surface layout — the vault lifecycle rows pass
- * `LIST_ROW_MIN_HEIGHT_CLASS`; the single-line lists pass nothing.
+ * `LIST_ROW_MIN_HEIGHT_CLASS` and `xl:flex-nowrap`; the single-line lists pass
+ * nothing and keep the wrapping default.
  */
 export function ListRowCard({
   children,

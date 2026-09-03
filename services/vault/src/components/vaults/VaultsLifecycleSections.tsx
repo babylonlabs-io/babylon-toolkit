@@ -15,7 +15,13 @@
  * is instantiated once.
  */
 
-import { Heading, Hint, InfoIcon, Loader } from "@babylonlabs-io/core-ui";
+import {
+  Avatar,
+  Heading,
+  Hint,
+  InfoIcon,
+  Loader,
+} from "@babylonlabs-io/core-ui";
 import { useCallback, useMemo, useState, type ReactNode } from "react";
 import type { Address, Hex } from "viem";
 
@@ -36,14 +42,12 @@ import {
   PRIMARY_ROW_BUTTON_CLASS,
 } from "@/components/shared/buttonClasses";
 import { ProgressBar } from "@/components/simple/DepositProgressView/ProgressBar";
+import { pendingActivationEstimateMinutes } from "@/components/simple/DepositProgressView/btcConfirmationProgress";
 import { DEPOSIT_VIEW_MAX_WIDTH_CLASS } from "@/components/simple/DepositProgressView/layout";
-import {
-  getStepFillPercent,
-  getVisualStep,
-  TOTAL_VISUAL_STEPS,
-} from "@/components/simple/DepositProgressView/steps";
+import { getStepFillPercent } from "@/components/simple/DepositProgressView/steps";
 import { PendingDepositModals } from "@/components/simple/PendingDepositModals";
 import { PostDepositContinuationContent } from "@/components/simple/PostDepositContinuationContent";
+import { getNetworkConfigBTC } from "@/config";
 import { ProtocolParamsProvider } from "@/context/ProtocolParamsContext";
 import { useDepositPollingResult } from "@/context/deposit/PeginPollingContext";
 import { COPY } from "@/copy";
@@ -64,7 +68,7 @@ import type { VaultProvider } from "@/types/vaultProvider";
 import { truncateHash } from "@/utils/addressUtils";
 import { getBatchSiblings } from "@/utils/batchedPegin";
 import { getBtcExplorerTxUrl } from "@/utils/explorer";
-import { formatSats } from "@/utils/formatting";
+import { formatDurationShort, formatSats } from "@/utils/formatting";
 
 /** Step-progress bar fill — the pending amber, matching the status dot. */
 const PROGRESS_FILL_COLOR = "rgb(var(--risk-amber))";
@@ -152,6 +156,19 @@ function PendingRow({
       : null;
   const fillPercent = step !== null ? getStepFillPercent(step) : null;
 
+  const activationEstimate =
+    peginState?.displayVariant !== "pending" ||
+    result?.requiredPrePeginDepth === undefined
+      ? null
+      : COPY.vaults.pendingActivationEstimate(
+          formatDurationShort(
+            pendingActivationEstimateMinutes(
+              result.prePeginConfirmations,
+              result.requiredPrePeginDepth,
+            ),
+          ),
+        );
+
   const actionStatus: ReturnType<typeof getActionStatus> = result
     ? getActionStatus(result)
     : { type: "noAction" };
@@ -181,34 +198,27 @@ function PendingRow({
     // element. The harness scopes a --txid resume to one row through it.
     <div
       data-testid="pending-deposit-row"
-      className={`${LIST_ROW_MIN_HEIGHT_CLASS} flex w-full flex-wrap items-center gap-x-4 gap-y-3 rounded-lg border border-secondary-strokeLight p-4`}
+      className={`${LIST_ROW_MIN_HEIGHT_CLASS} flex w-full flex-wrap items-center gap-x-4 gap-y-3 rounded-lg border border-secondary-strokeLight p-4 xl:flex-nowrap`}
     >
-      {/* Amount + step position */}
+      {/* Amount + activation estimate */}
       <div
         className={`flex items-center gap-2 ${LIST_ROW_LEADING_COLUMN_CLASS}`}
       >
-        <ApplicationLogo
-          logoUrl={provider?.iconUrl ?? null}
-          name={providerName}
-          size="small"
+        <Avatar
+          size="medium"
+          url={getNetworkConfigBTC().icon}
+          alt={activity.collateral.symbol}
+          className="shrink-0"
         />
         <div className="flex min-w-0 flex-col">
           <span className="truncate text-base leading-6 tracking-[0.15px] text-accent-primary">
             {activity.collateral.amount} {activity.collateral.symbol}
           </span>
           <span className="truncate text-xs leading-[1.66] tracking-[0.4px] text-accent-secondary">
-            {/* Subtext wins when a state sets one: it is state-specific
-                (e.g. an activation-window countdown) and therefore more
-                informative than the generic step position. States that set it
-                and still have a step are exactly the ones that need it. */}
-            {peginState?.inlineSubtext
-              ? peginState.inlineSubtext
-              : step !== null
-                ? COPY.deposit.progress.stepPrefix(
-                    getVisualStep(step),
-                    TOTAL_VISUAL_STEPS,
-                  )
-                : ""}
+            {/* Subtext wins when a state sets one: it is state-specific (e.g.
+                an activation-window countdown) and therefore sharper than the
+                block-depth estimate, which only models the common wait. */}
+            {peginState?.inlineSubtext ?? activationEstimate ?? ""}
           </span>
         </div>
       </div>
@@ -223,12 +233,6 @@ function PendingRow({
             <span className="text-sm leading-[1.43] tracking-[0.17px] text-accent-primary">
               {peginState.displayLabel}
             </span>
-            {peginState.message && (
-              <Hint
-                tooltip={peginState.message}
-                icon={<InfoIcon size={16} className="text-accent-secondary" />}
-              />
-            )}
           </span>
         ) : (
           <Loader size={16} />
@@ -365,15 +369,16 @@ function InactiveRow({
   const hash = activity.prePeginTxHash ?? activity.peginTxHash;
 
   return (
-    <ListRowCard className={LIST_ROW_MIN_HEIGHT_CLASS}>
+    <ListRowCard className={`${LIST_ROW_MIN_HEIGHT_CLASS} xl:flex-nowrap`}>
       {/* Amount + refund maturity */}
       <div
         className={`flex items-center gap-2 ${LIST_ROW_LEADING_COLUMN_CLASS}`}
       >
-        <ApplicationLogo
-          logoUrl={provider?.iconUrl ?? null}
-          name={providerName}
-          size="small"
+        <Avatar
+          size="medium"
+          url={getNetworkConfigBTC().icon}
+          alt={activity.collateral.symbol}
+          className="shrink-0"
         />
         <div className="flex min-w-0 flex-col">
           <span className="truncate text-base leading-6 tracking-[0.15px] text-accent-primary">

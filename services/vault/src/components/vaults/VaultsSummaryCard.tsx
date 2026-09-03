@@ -84,7 +84,6 @@ export function VaultsSummaryCard({
           <HeartIcon color={healthFactorColor} className="size-6" />
         </span>
       ),
-      caption: COPY.vaults.summary.healthFactorCaption,
     },
   ];
 
