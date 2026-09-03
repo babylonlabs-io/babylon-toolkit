@@ -59,6 +59,7 @@ import { useReclaimVaultChainData } from "@/hooks/useReclaimVaultChainData";
 import {
   canPerformAction,
   getPeginDisplayStep,
+  hasActionableStep,
   PeginAction,
   type PeginState,
 } from "@/models/peginStateMachine";
@@ -156,22 +157,31 @@ function PendingRow({
       : null;
   const fillPercent = step !== null ? getStepFillPercent(step) : null;
 
-  const activationEstimate =
-    peginState?.displayVariant !== "pending" ||
-    result?.requiredPrePeginDepth === undefined
-      ? null
-      : COPY.vaults.pendingActivationEstimate(
-          formatDurationShort(
-            pendingActivationEstimateMinutes(
-              result.prePeginConfirmations,
-              result.requiredPrePeginDepth,
-            ),
-          ),
-        );
-
   const actionStatus: ReturnType<typeof getActionStatus> = result
     ? getActionStatus(result)
     : { type: "noAction" };
+
+  const estimateMinutes =
+    peginState?.displayVariant === "pending" &&
+    !hasActionableStep(peginState, result?.depositorBtcPubkey) &&
+    result?.requiredPrePeginDepth !== undefined
+      ? pendingActivationEstimateMinutes(
+          result.prePeginConfirmations,
+          result.requiredPrePeginDepth,
+        )
+      : null;
+  const activationEstimate =
+    estimateMinutes === null
+      ? null
+      : COPY.vaults.pendingActivationEstimate(
+          formatDurationShort(estimateMinutes),
+        );
+  const subLine =
+    peginState?.inlineSubtext ||
+    activationEstimate ||
+    (peginState?.displayVariant === "pending" ? peginState.message : "") ||
+    "";
+
   const routeAction = (action: PeginAction) => {
     if (action === PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN) {
       onBroadcast(activity.id);
@@ -214,11 +224,14 @@ function PendingRow({
           <span className="truncate text-base leading-6 tracking-[0.15px] text-accent-primary">
             {activity.collateral.amount} {activity.collateral.symbol}
           </span>
-          <span className="truncate text-xs leading-[1.66] tracking-[0.4px] text-accent-secondary">
+          <span
+            title={subLine}
+            className="truncate text-xs leading-[1.66] tracking-[0.4px] text-accent-secondary"
+          >
             {/* Subtext wins when a state sets one: it is state-specific (e.g.
                 an activation-window countdown) and therefore sharper than the
                 block-depth estimate, which only models the common wait. */}
-            {peginState?.inlineSubtext ?? activationEstimate ?? ""}
+            {subLine}
           </span>
         </div>
       </div>
@@ -233,6 +246,12 @@ function PendingRow({
             <span className="text-sm leading-[1.43] tracking-[0.17px] text-accent-primary">
               {peginState.displayLabel}
             </span>
+            {peginState.displayVariant !== "pending" && peginState.message && (
+              <Hint
+                tooltip={peginState.message}
+                icon={<InfoIcon size={16} className="text-accent-secondary" />}
+              />
+            )}
           </span>
         ) : (
           <Loader size={16} />
@@ -384,7 +403,10 @@ function InactiveRow({
           <span className="truncate text-base leading-6 tracking-[0.15px] text-accent-primary">
             {activity.collateral.amount} {activity.collateral.symbol}
           </span>
-          <span className="truncate text-xs leading-[1.66] tracking-[0.4px] text-accent-secondary">
+          <span
+            title={peginState?.inlineSubtext}
+            className="truncate text-xs leading-[1.66] tracking-[0.4px] text-accent-secondary"
+          >
             {peginState?.inlineSubtext ?? ""}
           </span>
         </div>

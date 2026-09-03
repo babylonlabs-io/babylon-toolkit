@@ -67,8 +67,8 @@ describe("computeTotalEstimateMinutes", () => {
 });
 
 describe("pendingActivationEstimateMinutes", () => {
-  it("estimates the full total when no poll result has landed yet", () => {
-    expect(pendingActivationEstimateMinutes(null, 6)).toBe(70);
+  it("has no estimate when no poll result has landed yet", () => {
+    expect(pendingActivationEstimateMinutes(null, 6)).toBeNull();
   });
 
   it("deducts ten minutes for each confirmation already accrued", () => {

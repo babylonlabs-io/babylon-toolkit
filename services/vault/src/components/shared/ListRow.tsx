@@ -19,17 +19,17 @@ import { CARD_SHELL_CLASS } from "@/components/shared/layoutClasses";
  * cell and opening a gap before the trailing action button.
  *
  * The basis is the widest cell's intrinsic content — the status cell's 12px
- * dot and 108px label with their 4px gap. `min-w-0` is what lets the cell
- * shrink below that basis: the lifecycle rows are `xl:flex-nowrap`, so from
- * `xl` up the columns absorb any shortfall rather than breaking the action
- * button onto a second line.
+ * dot and 108px label with their 4px gap. The bases are the lever that fits a
+ * lifecycle row on one line: they sum (with the gaps and the action slot) to
+ * less than the row's width from `xl` up, where the rows are
+ * `xl:flex-nowrap`. Below `xl` the row wraps instead.
  */
 export const LIST_ROW_COLUMN_CLASS = "min-w-0 grow basis-[144px]";
 
 /**
  * The status cell. Same basis as a plain data column, but it takes a double
  * share of the leftover slack, matching the leading cell — the longest status
- * (`COPY.pegin.statusLabel.AWAITING_ACTIVATION_WINDOW`) wraps to two lines
+ * (`COPY.pegin.labels.AWAITING_ACTIVATION_WINDOW`) wraps to two lines
  * otherwise. Grow factors divide only the surplus, so they cost nothing once
  * the row is narrow enough that every column is shrinking instead.
  */
@@ -39,9 +39,9 @@ export const LIST_ROW_STATUS_COLUMN_CLASS = "min-w-0 grow-[2] basis-[144px]";
  * The leading cell — a 32px coin avatar beside a two-line amount / sub-line
  * block. The basis fits the amount and the sub-lines the rows produce in the
  * common case; longer interpolated sub-lines (notably
- * `COPY.vaults.statusHints.refundMaturing`) truncate rather than widen the
- * cell, since from `xl` up the row may not wrap. It takes a double share of
- * any remaining slack.
+ * `COPY.pegin.messages.refundMaturing`) truncate rather than widen the cell,
+ * because widening it would push the bases past the row's width and break the
+ * one-line fit from `xl` up. It takes a double share of any remaining slack.
  */
 export const LIST_ROW_LEADING_COLUMN_CLASS = "min-w-0 grow-[2] basis-[240px]";
 
