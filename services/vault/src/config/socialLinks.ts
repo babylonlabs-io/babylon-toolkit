@@ -5,7 +5,6 @@
  * pairs are shared here.
  */
 export const SOCIAL_LINK_URLS = {
-  github: "https://github.com/babylonlabs-io",
   // Matches the org convention used elsewhere (countdown, tbv-faucet,
   // coming-soon) — babylonlabs_io is an unrelated ~200-subscriber channel.
   telegram: "https://t.me/babylonofficialcommunity",

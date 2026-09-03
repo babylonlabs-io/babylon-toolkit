@@ -74,7 +74,9 @@ export function AppSidebar() {
   return (
     <Sidebar
       className="top-[var(--tbv-top-banner-height,0px)] h-[calc(100svh_-_var(--tbv-top-banner-height,0px))]"
-      brand={<SidebarBrandLockup className="text-black dark:text-white" />}
+      brand={
+        <SidebarBrandLockup className="text-black dark:text-white [&_#Logo]:text-secondary-main dark:[&_#Logo]:text-accent-primary" />
+      }
       footer={<SidebarFooter />}
     >
       <V3NavLinks />

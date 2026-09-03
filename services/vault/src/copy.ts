@@ -1836,12 +1836,6 @@ export const COPY = {
     depositAction: "Deposit",
     borrowAction: "Borrow",
     repayAction: "Repay",
-    availableMeterLabel: (percent: number) => `${percent}% remaining`,
-    borrowedMeterLabel: (percent: number) => `${percent}% borrowed`,
-    availableMeterNearFullLabel: ">99% remaining",
-    borrowedMeterBelowOneLabel: "<1% borrowed",
-    availableMeterBelowOneLabel: "<1% remaining",
-    borrowedMeterNearFullLabel: ">99% borrowed",
     liquidationPriceLabel: "Liquidation price",
     pctToLiquidationLabel: "% to liquidation",
     disconnected: {

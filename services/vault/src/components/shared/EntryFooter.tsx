@@ -18,8 +18,8 @@ interface EntryFooterSocialLink {
   Icon: ComponentType<{ size?: number; className?: string; title?: string }>;
 }
 
-// The entry frame's own set, which drops the GitHub link the v3 sidebar
-// carries. URLs are shared with every other surface via `config/socialLinks`.
+// The entry frame's own set. URLs are shared with every other surface via
+// `config/socialLinks`.
 const ENTRY_SOCIAL_LINKS: EntryFooterSocialLink[] = [
   { name: "Telegram", url: SOCIAL_LINK_URLS.telegram, Icon: TelegramIcon },
   { name: "LinkedIn", url: SOCIAL_LINK_URLS.linkedin, Icon: LinkedinIcon },

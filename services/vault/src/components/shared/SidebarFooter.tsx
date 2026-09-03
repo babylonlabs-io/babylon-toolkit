@@ -1,6 +1,5 @@
 import {
   DiscordIcon,
-  GithubIcon,
   LinkedinIcon,
   MailIcon,
   TelegramIcon,
@@ -17,12 +16,11 @@ interface SidebarSocialLink {
   Icon: ComponentType<{ size?: number; className?: string; title?: string }>;
 }
 
-// Matches Figma's Social Links block exactly (icon order + Terms/Privacy
-// text). Name+URL pairs are shared with the page footer (`config/socialLinks`)
-// so a handle change can't drift between the two; only the icons differ
-// (Figma-exact here vs react-icons in the v2 footer).
+// Figma's Social Links block (icon order + Terms/Privacy text), minus the
+// GitHub link. Name+URL pairs are shared with the entry footer
+// (`config/socialLinks`) so a handle change can't drift between the two; only
+// the per-surface presentation (icon size, hover color) differs.
 const SIDEBAR_SOCIAL_LINKS: SidebarSocialLink[] = [
-  { name: "GitHub", url: SOCIAL_LINK_URLS.github, Icon: GithubIcon },
   { name: "Telegram", url: SOCIAL_LINK_URLS.telegram, Icon: TelegramIcon },
   { name: "LinkedIn", url: SOCIAL_LINK_URLS.linkedin, Icon: LinkedinIcon },
   { name: "Email", url: SOCIAL_LINK_URLS.email, Icon: MailIcon },

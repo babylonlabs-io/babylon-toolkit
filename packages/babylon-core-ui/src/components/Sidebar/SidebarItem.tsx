@@ -23,7 +23,7 @@ export const SidebarItem = ({
       "flex h-10 items-center gap-2 rounded py-2 text-base tracking-[0.15px] transition-colors",
       isActive
         ? "text-accent-primary"
-        : "text-accent-secondary hover:text-accent-primary",
+        : "text-accent-secondary hover:text-secondary-main",
       className,
     )}
   >

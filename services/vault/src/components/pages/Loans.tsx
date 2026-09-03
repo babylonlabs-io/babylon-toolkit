@@ -37,7 +37,6 @@ export default function Loans() {
 
   const {
     debtValueUsd,
-    maxTotalDebtUsd,
     availableToBorrowUsd,
     canBorrow,
     healthFactor,
@@ -147,27 +146,17 @@ export default function Loans() {
 
   // Display-only totals: when the demo changes the rendered rows, the summary
   // must total what is on screen — otherwise it reads "$0 borrowed" above a mock
-  // row. With no real borrow capacity to scale against (the usual demo case:
-  // no position at all), the mock debt itself becomes the meter's denominator,
-  // so the bar reads fully-borrowed rather than empty. The values passed to the
-  // borrow/repay actions stay demo-unaware.
+  // row. The values passed to the borrow/repay actions stay demo-unaware.
   const shownDebtUsd = demoAffectsLoans
     ? (demoLoans?.debtUsd ?? 0) + (demoLoans?.hideReal ? 0 : debtValueUsd)
     : debtValueUsd;
-  const meterBaseUsd = maxTotalDebtUsd > 0 ? maxTotalDebtUsd : shownDebtUsd;
-  const availableMeterPercent =
-    meterBaseUsd > 0 ? availableToBorrowUsd / meterBaseUsd : 0;
-  const borrowedMeterPercent =
-    meterBaseUsd > 0 ? shownDebtUsd / meterBaseUsd : 0;
 
   return (
     <Container className={`${PAGE_CONTENT_CLASS} pb-6`}>
       <div className="space-y-6">
         <LoansSummary
           availableToBorrow={formatUsdValue(availableToBorrowUsd)}
-          availableMeterPercent={availableMeterPercent}
           totalBorrowed={formatUsdValue(shownDebtUsd)}
-          borrowedMeterPercent={borrowedMeterPercent}
           borrowCapacityLoading={shownCapacityLoading}
           borrowCapacityError={shownCapacityError}
           healthFactor={shownHealthFactor}

@@ -21,8 +21,6 @@ interface PositionOverviewProps {
    *  caption, not a fabricated "$0.00 USD". */
   collateralValueUsd: number | null;
   debtUsd: number;
-  /** Debt as a share of the maximum borrowable, [0,1]. */
-  borrowedRatio: number;
   /** `null` before debt exists — mirrors `useDashboardState`'s live shape. */
   healthFactor: number | null;
   healthFactorStatus: HealthFactorStatus;
@@ -34,7 +32,6 @@ export function PositionOverview({
   collateralBtc,
   collateralValueUsd,
   debtUsd,
-  borrowedRatio,
   healthFactor,
   healthFactorStatus,
   onDeposit,
@@ -61,12 +58,6 @@ export function PositionOverview({
       {
         label: COPY.liquidations.position.totalBorrowed,
         value: `${formatUsd(debtUsd)} USD`,
-        meter: {
-          percent: borrowedRatio,
-          label: COPY.overview.borrowedMeterLabel(
-            Math.round(Math.min(1, Math.max(0, borrowedRatio)) * 100),
-          ),
-        },
         actionLabel: COPY.liquidations.position.repay,
         onAction: onRepay,
       },
@@ -86,7 +77,6 @@ export function PositionOverview({
       collateralBtc,
       collateralValueUsd,
       debtUsd,
-      borrowedRatio,
       healthFactorText,
       healthFactorColor,
       onDeposit,

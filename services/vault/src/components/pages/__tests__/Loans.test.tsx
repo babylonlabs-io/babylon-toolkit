@@ -112,7 +112,6 @@ import Loans from "../Loans";
 
 const CONNECTED_LOADED = {
   debtValueUsd: 0,
-  maxTotalDebtUsd: 0,
   availableToBorrowUsd: 0,
   canBorrow: false,
   healthFactor: 0,
