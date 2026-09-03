@@ -1,3 +1,5 @@
+import { COPY } from "@/copy";
+
 /**
  * Aave wordmark, drawn as a `currentColor` glyph so it inherits the lockup's
  * text colour instead of shipping its own brand purple.
@@ -9,7 +11,7 @@ export function AaveWordmark({ className }: { className?: string }) {
       fill="currentColor"
       xmlns="http://www.w3.org/2000/svg"
       role="img"
-      aria-label="Aave"
+      aria-label={COPY.common.aaveWordmark}
       className={className}
     >
       <path d="M99.9914 14.2768C97.6532 14.2768 95.5755 12.6003 95.0404 10.2855H108.923C108.923 10.2855 108.997 9.44679 108.997 9.15008C108.997 4.23709 104.958 0.239063 99.9939 0.239063C95.0295 0.239063 90.9905 4.23627 90.9905 9.15008C90.9905 14.064 95.0069 17.9683 99.9939 17.9683C104.981 17.9683 107.893 14.3324 108.62 11.7002H104.388C104.388 11.7002 103.042 14.2768 99.9914 14.2768ZM99.9939 3.92879C102.236 3.92879 104.182 5.39407 104.849 7.57789H95.1391C95.8034 5.39407 97.7504 3.92879 99.9939 3.92879Z" />

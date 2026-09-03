@@ -1192,6 +1192,7 @@ export const COPY = {
     checking: "Checking...",
     transactionFailedTitle: "Transaction failed",
     dismissNotification: "Dismiss notification",
+    aaveWordmark: "Aave",
     somethingWentWrong: {
       heading: SOMETHING_WENT_WRONG_HEADING,
       body: "Please close this and try again in a moment.",
