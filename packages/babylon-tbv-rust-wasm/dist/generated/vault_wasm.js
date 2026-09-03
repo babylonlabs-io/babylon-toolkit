@@ -1324,6 +1324,205 @@ export class WasmPrePeginTx {
 if (Symbol.dispose) WasmPrePeginTx.prototype[Symbol.dispose] = WasmPrePeginTx.prototype.free;
 
 /**
+ * Creates the claimer's Assert signing PSBT (base64) for wallet signing.
+ * @param {number} tx_graph_version
+ * @param {string} graph_json
+ * @returns {string}
+ */
+export function buildAssertClaimerPsbt(tx_graph_version, graph_json) {
+    let deferred3_0;
+    let deferred3_1;
+    try {
+        const ptr0 = passStringToWasm0(graph_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.buildAssertClaimerPsbt(tx_graph_version, ptr0, len0);
+        var ptr2 = ret[0];
+        var len2 = ret[1];
+        if (ret[3]) {
+            ptr2 = 0; len2 = 0;
+            throw takeFromExternrefTable0(ret[2]);
+        }
+        deferred3_0 = ptr2;
+        deferred3_1 = len2;
+        return getStringFromWasm0(ptr2, len2);
+    } finally {
+        wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
+    }
+}
+
+/**
+ * Creates the depositor's Claim signing PSBT (base64) for wallet signing.
+ * @param {number} tx_graph_version
+ * @param {string} graph_json
+ * @returns {string}
+ */
+export function buildClaimPsbt(tx_graph_version, graph_json) {
+    let deferred3_0;
+    let deferred3_1;
+    try {
+        const ptr0 = passStringToWasm0(graph_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.buildClaimPsbt(tx_graph_version, ptr0, len0);
+        var ptr2 = ret[0];
+        var len2 = ret[1];
+        if (ret[3]) {
+            ptr2 = 0; len2 = 0;
+            throw takeFromExternrefTable0(ret[2]);
+        }
+        deferred3_0 = ptr2;
+        deferred3_1 = len2;
+        return getStringFromWasm0(ptr2, len2);
+    } finally {
+        wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
+    }
+}
+
+/**
+ * Creates the claimer's Payout signing PSBT (input 1, base64) for wallet
+ * signing.
+ * @param {number} tx_graph_version
+ * @param {string} graph_json
+ * @returns {string}
+ */
+export function buildPayoutClaimerPsbt(tx_graph_version, graph_json) {
+    let deferred3_0;
+    let deferred3_1;
+    try {
+        const ptr0 = passStringToWasm0(graph_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.buildPayoutClaimerPsbt(tx_graph_version, ptr0, len0);
+        var ptr2 = ret[0];
+        var len2 = ret[1];
+        if (ret[3]) {
+            ptr2 = 0; len2 = 0;
+            throw takeFromExternrefTable0(ret[2]);
+        }
+        deferred3_0 = ptr2;
+        deferred3_1 = len2;
+        return getStringFromWasm0(ptr2, len2);
+    } finally {
+        wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
+    }
+}
+
+/**
+ * Creates the depositor's Payout signing PSBT (input 0, base64) for wallet
+ * signing. Only needed when the graph does not already carry the
+ * presign-phase depositor Payout signature (see `extractDepositorPayoutSig`).
+ * @param {number} tx_graph_version
+ * @param {string} graph_json
+ * @returns {string}
+ */
+export function buildPayoutDepositorPsbt(tx_graph_version, graph_json) {
+    let deferred3_0;
+    let deferred3_1;
+    try {
+        const ptr0 = passStringToWasm0(graph_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.buildPayoutDepositorPsbt(tx_graph_version, ptr0, len0);
+        var ptr2 = ret[0];
+        var len2 = ret[1];
+        if (ret[3]) {
+            ptr2 = 0; len2 = 0;
+            throw takeFromExternrefTable0(ret[2]);
+        }
+        deferred3_0 = ptr2;
+        deferred3_1 = len2;
+        return getStringFromWasm0(ptr2, len2);
+    } finally {
+        wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
+    }
+}
+
+/**
+ * Assembles (and fully verifies) the watchtower `artifacts.json` content
+ * the `vaultd vp wt` CLI consumes. Every claimer-side signature and the
+ * graph's own presign set are verified before bundling, so a broken
+ * artifact surfaces while the signer is still on the page.
+ *
+ * See the upstream binding for the full argument contract; `verifying_key`
+ * and `babe_sessions` pass through opaquely.
+ * @param {number} tx_graph_version
+ * @param {string} graph_json
+ * @param {string} signed_claim_tx_hex
+ * @param {string} assert_claimer_sig_hex
+ * @param {string} payout_claimer_sig_hex
+ * @param {string} wrongly_challenged_sigs_json
+ * @param {string | null | undefined} depositor_payout_sig_hex
+ * @param {string} verifying_key_hex
+ * @param {bigint} claimable_event_block_number
+ * @param {number} prover_circuit_version
+ * @param {string} vault_id_hex
+ * @param {string | null} [babe_sessions_json]
+ * @returns {string}
+ */
+export function buildWatchtowerArtifacts(tx_graph_version, graph_json, signed_claim_tx_hex, assert_claimer_sig_hex, payout_claimer_sig_hex, wrongly_challenged_sigs_json, depositor_payout_sig_hex, verifying_key_hex, claimable_event_block_number, prover_circuit_version, vault_id_hex, babe_sessions_json) {
+    let deferred11_0;
+    let deferred11_1;
+    try {
+        const ptr0 = passStringToWasm0(graph_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(signed_claim_tx_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ptr2 = passStringToWasm0(assert_claimer_sig_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len2 = WASM_VECTOR_LEN;
+        const ptr3 = passStringToWasm0(payout_claimer_sig_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len3 = WASM_VECTOR_LEN;
+        const ptr4 = passStringToWasm0(wrongly_challenged_sigs_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len4 = WASM_VECTOR_LEN;
+        var ptr5 = isLikeNone(depositor_payout_sig_hex) ? 0 : passStringToWasm0(depositor_payout_sig_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        var len5 = WASM_VECTOR_LEN;
+        const ptr6 = passStringToWasm0(verifying_key_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len6 = WASM_VECTOR_LEN;
+        const ptr7 = passStringToWasm0(vault_id_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len7 = WASM_VECTOR_LEN;
+        var ptr8 = isLikeNone(babe_sessions_json) ? 0 : passStringToWasm0(babe_sessions_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        var len8 = WASM_VECTOR_LEN;
+        const ret = wasm.buildWatchtowerArtifacts(tx_graph_version, ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3, ptr4, len4, ptr5, len5, ptr6, len6, claimable_event_block_number, prover_circuit_version, ptr7, len7, ptr8, len8);
+        var ptr10 = ret[0];
+        var len10 = ret[1];
+        if (ret[3]) {
+            ptr10 = 0; len10 = 0;
+            throw takeFromExternrefTable0(ret[2]);
+        }
+        deferred11_0 = ptr10;
+        deferred11_1 = len10;
+        return getStringFromWasm0(ptr10, len10);
+    } finally {
+        wasm.__wbindgen_free(deferred11_0, deferred11_1, 1);
+    }
+}
+
+/**
+ * Creates the claimer's `WronglyChallenged` signing PSBTs for every
+ * challenger and garbled circuit index. Returns a JSON object mapping each
+ * hex challenger public key to an array of base64 PSBTs ordered by GC index.
+ * @param {number} tx_graph_version
+ * @param {string} graph_json
+ * @returns {string}
+ */
+export function buildWronglyChallengedPsbts(tx_graph_version, graph_json) {
+    let deferred3_0;
+    let deferred3_1;
+    try {
+        const ptr0 = passStringToWasm0(graph_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.buildWronglyChallengedPsbts(tx_graph_version, ptr0, len0);
+        var ptr2 = ret[0];
+        var len2 = ret[1];
+        if (ret[3]) {
+            ptr2 = 0; len2 = 0;
+            throw takeFromExternrefTable0(ret[2]);
+        }
+        deferred3_0 = ptr2;
+        deferred3_1 = len2;
+        return getStringFromWasm0(ptr2, len2);
+    } finally {
+        wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
+    }
+}
+
+/**
  * Computes the Assert claimer sighashes over a serialized TxGraph under
  * `tx_graph_version`.
  * @param {number} tx_graph_version
@@ -1337,6 +1536,34 @@ export function computeAssertClaimerSighashes(tx_graph_version, graph_json) {
         const ptr0 = passStringToWasm0(graph_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
         const ret = wasm.computeAssertClaimerSighashes(tx_graph_version, ptr0, len0);
+        var ptr2 = ret[0];
+        var len2 = ret[1];
+        if (ret[3]) {
+            ptr2 = 0; len2 = 0;
+            throw takeFromExternrefTable0(ret[2]);
+        }
+        deferred3_0 = ptr2;
+        deferred3_1 = len2;
+        return getStringFromWasm0(ptr2, len2);
+    } finally {
+        wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
+    }
+}
+
+/**
+ * Computes the sighash for the depositor's Claim signature (raw-sighash
+ * alternative to `buildClaimPsbt`). Returns hex.
+ * @param {number} tx_graph_version
+ * @param {string} graph_json
+ * @returns {string}
+ */
+export function computeClaimDepositorSighash(tx_graph_version, graph_json) {
+    let deferred3_0;
+    let deferred3_1;
+    try {
+        const ptr0 = passStringToWasm0(graph_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.computeClaimDepositorSighash(tx_graph_version, ptr0, len0);
         var ptr2 = ret[0];
         var len2 = ret[1];
         if (ret[3]) {
@@ -1550,6 +1777,36 @@ export function computePeginInputSighash(tx_graph_version, pegin_json, htlc_conn
 }
 
 /**
+ * Computes the claimer's `WronglyChallenged` sighashes for every challenger
+ * and garbled circuit index (raw-sighash alternative to
+ * `buildWronglyChallengedPsbts`). Returns a JSON object mapping each hex
+ * challenger public key to an array of hex sighashes ordered by GC index.
+ * @param {number} tx_graph_version
+ * @param {string} graph_json
+ * @returns {string}
+ */
+export function computeWronglyChallengedClaimerSighashes(tx_graph_version, graph_json) {
+    let deferred3_0;
+    let deferred3_1;
+    try {
+        const ptr0 = passStringToWasm0(graph_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.computeWronglyChallengedClaimerSighashes(tx_graph_version, ptr0, len0);
+        var ptr2 = ret[0];
+        var len2 = ret[1];
+        if (ret[3]) {
+            ptr2 = 0; len2 = 0;
+            throw takeFromExternrefTable0(ret[2]);
+        }
+        deferred3_0 = ptr2;
+        deferred3_1 = len2;
+        return getStringFromWasm0(ptr2, len2);
+    } finally {
+        wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
+    }
+}
+
+/**
  * Derive the on-chain vault identifier matching the Solidity logic:
  *
  * ```solidity
@@ -1643,6 +1900,96 @@ export function expandWotsSeed(root, htlc_vout) {
 }
 
 /**
+ * Extracts the presign-phase depositor Payout signature stored on the
+ * graph, verified against the payout leaf. Errors when absent — callers
+ * then collect a fresh signature via `buildPayoutDepositorPsbt`.
+ * @param {number} tx_graph_version
+ * @param {string} graph_json
+ * @returns {string}
+ */
+export function extractDepositorPayoutSig(tx_graph_version, graph_json) {
+    let deferred3_0;
+    let deferred3_1;
+    try {
+        const ptr0 = passStringToWasm0(graph_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.extractDepositorPayoutSig(tx_graph_version, ptr0, len0);
+        var ptr2 = ret[0];
+        var len2 = ret[1];
+        if (ret[3]) {
+            ptr2 = 0; len2 = 0;
+            throw takeFromExternrefTable0(ret[2]);
+        }
+        deferred3_0 = ptr2;
+        deferred3_1 = len2;
+        return getStringFromWasm0(ptr2, len2);
+    } finally {
+        wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
+    }
+}
+
+/**
+ * Extract the single taproot script-path signature from a signed PSBT
+ * input, enforcing the 64-byte `SIGHASH_DEFAULT` form (version-agnostic
+ * PSBT utility). Returns the hex-encoded signature.
+ * @param {string} psbt_base64
+ * @param {number} input_index
+ * @returns {string}
+ */
+export function extractTapScriptSig(psbt_base64, input_index) {
+    let deferred3_0;
+    let deferred3_1;
+    try {
+        const ptr0 = passStringToWasm0(psbt_base64, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.extractTapScriptSig(ptr0, len0, input_index);
+        var ptr2 = ret[0];
+        var len2 = ret[1];
+        if (ret[3]) {
+            ptr2 = 0; len2 = 0;
+            throw takeFromExternrefTable0(ret[2]);
+        }
+        deferred3_0 = ptr2;
+        deferred3_1 = len2;
+        return getStringFromWasm0(ptr2, len2);
+    } finally {
+        wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
+    }
+}
+
+/**
+ * Applies the depositor's signature to the Claim transaction (verifying it
+ * first) and returns the fully signed transaction hex — the `claim_tx` the
+ * artifacts carry.
+ * @param {number} tx_graph_version
+ * @param {string} graph_json
+ * @param {string} depositor_sig_hex
+ * @returns {string}
+ */
+export function finalizeClaimTx(tx_graph_version, graph_json, depositor_sig_hex) {
+    let deferred4_0;
+    let deferred4_1;
+    try {
+        const ptr0 = passStringToWasm0(graph_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(depositor_sig_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ret = wasm.finalizeClaimTx(tx_graph_version, ptr0, len0, ptr1, len1);
+        var ptr3 = ret[0];
+        var len3 = ret[1];
+        if (ret[3]) {
+            ptr3 = 0; len3 = 0;
+            throw takeFromExternrefTable0(ret[2]);
+        }
+        deferred4_0 = ptr3;
+        deferred4_1 = len3;
+        return getStringFromWasm0(ptr3, len3);
+    } finally {
+        wasm.__wbindgen_free(deferred4_0, deferred4_1, 1);
+    }
+}
+
+/**
  * Initialize panic hook for better error messages in the browser console.
  */
 export function init_panic_hook() {
@@ -1715,6 +2062,25 @@ export function validateTxGraphParams(tx_graph_version, params_json) {
 }
 
 /**
+ * Validates that a WOTS keypair (the `keypair` field of
+ * `wotsKeypairFromSeed`) matches the WOTS public keys the graph's Claim
+ * commits to — the gate before the keypair leaves the browser.
+ * @param {number} tx_graph_version
+ * @param {string} keypair_json
+ * @param {string} graph_json
+ */
+export function validateWotsKeypairAgainstGraph(tx_graph_version, keypair_json, graph_json) {
+    const ptr0 = passStringToWasm0(keypair_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passStringToWasm0(graph_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ret = wasm.validateWotsKeypairAgainstGraph(tx_graph_version, ptr0, len0, ptr1, len1);
+    if (ret[1]) {
+        throw takeFromExternrefTable0(ret[0]);
+    }
+}
+
+/**
  * Verifies claimer presignatures over a serialized TxGraph under
  * `tx_graph_version`.
  * @param {number} tx_graph_version
@@ -1780,6 +2146,51 @@ export function verifyP2trScriptSpendSignature(tx_graph_version, tx_hex, input_i
     const ret = wasm.verifyP2trScriptSpendSignature(tx_graph_version, ptr0, len0, input_index, ptr1, len1, ptr2, len2, ptr3, len3, ptr4, len4);
     if (ret[1]) {
         throw takeFromExternrefTable0(ret[0]);
+    }
+}
+
+/**
+ * Re-verifies every claimer-side signature inside an `artifacts.json`
+ * against its embedded graph — the pre-handoff self-check.
+ * @param {number} tx_graph_version
+ * @param {string} artifacts_json
+ */
+export function verifyWatchtowerArtifacts(tx_graph_version, artifacts_json) {
+    const ptr0 = passStringToWasm0(artifacts_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.verifyWatchtowerArtifacts(tx_graph_version, ptr0, len0);
+    if (ret[1]) {
+        throw takeFromExternrefTable0(ret[0]);
+    }
+}
+
+/**
+ * Derive the depositor's WOTS keypair from the 64-byte `wotsSeed` (frozen,
+ * on-chain-binding: `HASH160(seed || block index)` block seeds). Returns
+ * `{ keypair, public_keys, pk_hash }`, where `keypair` is exactly the
+ * `wots_keypair.json` the `vaultd vp wt` watchtower CLI accepts. The secret
+ * chains are single-use and must never be persisted beyond the claim.
+ * @param {Uint8Array} wots_seed
+ * @returns {string}
+ */
+export function wotsKeypairFromSeed(wots_seed) {
+    let deferred3_0;
+    let deferred3_1;
+    try {
+        const ptr0 = passArray8ToWasm0(wots_seed, wasm.__wbindgen_malloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.wotsKeypairFromSeed(ptr0, len0);
+        var ptr2 = ret[0];
+        var len2 = ret[1];
+        if (ret[3]) {
+            ptr2 = 0; len2 = 0;
+            throw takeFromExternrefTable0(ret[2]);
+        }
+        deferred3_0 = ptr2;
+        deferred3_1 = len2;
+        return getStringFromWasm0(ptr2, len2);
+    } finally {
+        wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
     }
 }
 function __wbg_get_imports() {

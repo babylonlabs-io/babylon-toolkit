@@ -24,6 +24,10 @@ import type {
   PeginTxResult,
   PrePeginParams,
   PrePeginResult,
+  WatchtowerArtifactsInputs,
+  WotsKeypairDerivation,
+  WronglyChallengedPsbts,
+  WronglyChallengedSigs,
 } from "@babylonlabs-io/babylon-tbv-rust-wasm";
 
 export { TAP_INTERNAL_KEY, tapInternalPubkey } from "./constants";
@@ -395,6 +399,140 @@ export async function deriveVaultId(
   return (await loadTbvWasm()).deriveVaultId(peginTxHash, depositor);
 }
 
+// ============================================================================
+// Delegated claim (depositor-as-claimer) — assembly surface
+// ============================================================================
+//
+// The forwarding hop for the WASM exports that assemble the two files the
+// `vaultd vp wt` watchtower CLI consumes. Claim-time execution is not here
+// and is not in the engine: it stays with that CLI.
+
+/** Depositor's Claim signing PSBT (base64) — spends PegIn:1, script path. */
+export async function buildClaimPsbt(
+  txGraphVersion: number,
+  graphJson: string,
+): Promise<string> {
+  return (await loadTbvWasm()).buildClaimPsbt(txGraphVersion, graphJson);
+}
+
+/** Claimer's Assert signing PSBT (base64) — the single WOTS input. */
+export async function buildAssertClaimerPsbt(
+  txGraphVersion: number,
+  graphJson: string,
+): Promise<string> {
+  return (await loadTbvWasm()).buildAssertClaimerPsbt(
+    txGraphVersion,
+    graphJson,
+  );
+}
+
+/** Claimer's Payout signing PSBT (base64) — input 1, Assert connector path. */
+export async function buildPayoutClaimerPsbt(
+  txGraphVersion: number,
+  graphJson: string,
+): Promise<string> {
+  return (await loadTbvWasm()).buildPayoutClaimerPsbt(
+    txGraphVersion,
+    graphJson,
+  );
+}
+
+/** Depositor's Payout signing PSBT (base64) — input 0, the PegIn UTXO spend. */
+export async function buildPayoutDepositorPsbt(
+  txGraphVersion: number,
+  graphJson: string,
+): Promise<string> {
+  return (await loadTbvWasm()).buildPayoutDepositorPsbt(
+    txGraphVersion,
+    graphJson,
+  );
+}
+
+/** Claimer's WronglyChallenged signing PSBTs, per challenger and GC index. */
+export async function buildWronglyChallengedPsbts(
+  txGraphVersion: number,
+  graphJson: string,
+): Promise<WronglyChallengedPsbts> {
+  return (await loadTbvWasm()).buildWronglyChallengedPsbts(
+    txGraphVersion,
+    graphJson,
+  );
+}
+
+/** Applies the depositor signature to the Claim tx, returning consensus hex. */
+export async function finalizeClaimTx(
+  txGraphVersion: number,
+  graphJson: string,
+  depositorSigHex: string,
+): Promise<string> {
+  return (await loadTbvWasm()).finalizeClaimTx(
+    txGraphVersion,
+    graphJson,
+    depositorSigHex,
+  );
+}
+
+/** Extracts the presign-phase depositor Payout signature from the graph. */
+export async function extractDepositorPayoutSig(
+  txGraphVersion: number,
+  graphJson: string,
+): Promise<string> {
+  return (await loadTbvWasm()).extractDepositorPayoutSig(
+    txGraphVersion,
+    graphJson,
+  );
+}
+
+/** Extracts a signed PSBT input's taproot script-path signature (hex). */
+export async function extractTapScriptSig(
+  psbtBase64: string,
+  inputIndex: number,
+): Promise<string> {
+  return (await loadTbvWasm()).extractTapScriptSig(psbtBase64, inputIndex);
+}
+
+/**
+ * Derive the depositor's WOTS keypair from the 64-byte `wotsSeed`.
+ * @stability frozen — `HASH160(seed || block index)` binds on-chain through
+ * `depositorWotsPkHash`; see CLAUDE.md §4.
+ */
+export async function wotsKeypairFromSeed(
+  wotsSeed: Uint8Array,
+): Promise<WotsKeypairDerivation> {
+  return (await loadTbvWasm()).wotsKeypairFromSeed(wotsSeed);
+}
+
+/** Throws unless the keypair matches the WOTS keys the graph's Claim commits to. */
+export async function validateWotsKeypairAgainstGraph(
+  txGraphVersion: number,
+  keypair: unknown,
+  graphJson: string,
+): Promise<void> {
+  return (await loadTbvWasm()).validateWotsKeypairAgainstGraph(
+    txGraphVersion,
+    keypair,
+    graphJson,
+  );
+}
+
+/** Assembles the watchtower `artifacts.json` content, verifying every signature. */
+export async function buildWatchtowerArtifacts(
+  inputs: WatchtowerArtifactsInputs,
+): Promise<string> {
+  return (await loadTbvWasm()).buildWatchtowerArtifacts(inputs);
+}
+
+/** Re-verifies every claimer-side signature in an `artifacts.json`. */
+export async function verifyWatchtowerArtifacts(
+  txGraphVersion: number,
+  artifactsJson: string,
+): Promise<void> {
+  return (await loadTbvWasm()).verifyWatchtowerArtifacts(
+    txGraphVersion,
+    artifactsJson,
+  );
+}
+
 export type {
   AssertNoPayoutScriptInfo,
   AssertPayoutNoPayoutConnectorParams,
@@ -410,4 +548,8 @@ export type {
   PeginTxResult,
   PrePeginParams,
   PrePeginResult,
+  WatchtowerArtifactsInputs,
+  WotsKeypairDerivation,
+  WronglyChallengedPsbts,
+  WronglyChallengedSigs,
 };

@@ -15,12 +15,16 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // the binary that produces the frozen on-chain-binding secrets — re-run the
 // golden-vector gate (src/__tests__ frozen vectors) before shipping.
 const VAULT_WASM_REPO_URL = 'git@github.com:babylonlabs-io/vault-wasm.git';
-const VAULT_WASM_BRANCH = 'main';
-// main incl. PR #4 (tx graph v3 / Vault Core 3); bundles btc-vault
-// v1 @ 2c1177ec (tag v0.6.1), v2 @ 27c0062b (tag v0.8.0), v3 @ e1e50f66.
-// v3 pins the release/v0.9.x head — btc-vault has not tagged v0.9.0 yet;
-// re-pin once upstream moves it to the tag rev.
-const VAULT_WASM_COMMIT = '3accd8f614bab7b8018e40013322afe02b3ac80e';
+const VAULT_WASM_BRANCH = 'gai/delegated-claim-assembly-exports';
+// vault-wasm PR #6 (delegated-claim assembly exports, graph v3 only) on top
+// of PR #4 (tx graph v3 / Vault Core 3); bundles btc-vault
+// v1 @ 2c1177ec (tag v0.6.1), v2 @ 27c0062b (tag v0.8.0), v3 @ 729fc3da.
+//
+// TEMPORARY PIN. Both upstream PRs are open: vault-wasm#6 is a draft and its
+// v3 rev is btc-vault#2655's head, which becomes unreachable once that PR
+// squash-merges. Re-pin to vault-wasm main (or the v0.9.0 tag) before this
+// package is published.
+const VAULT_WASM_COMMIT = '1c16496bd7d3a8e1eeb664816eef0a2930a6d6b4';
 const REQUIRED_RUSTC_VERSION = '1.94';
 
 const REPO_DIR = path.join(__dirname, '..', 'vault-wasm-temp');

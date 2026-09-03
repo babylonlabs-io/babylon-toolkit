@@ -406,10 +406,57 @@ export class WasmPrePeginTx {
 }
 
 /**
+ * Creates the claimer's Assert signing PSBT (base64) for wallet signing.
+ */
+export function buildAssertClaimerPsbt(tx_graph_version: number, graph_json: string): string;
+
+/**
+ * Creates the depositor's Claim signing PSBT (base64) for wallet signing.
+ */
+export function buildClaimPsbt(tx_graph_version: number, graph_json: string): string;
+
+/**
+ * Creates the claimer's Payout signing PSBT (input 1, base64) for wallet
+ * signing.
+ */
+export function buildPayoutClaimerPsbt(tx_graph_version: number, graph_json: string): string;
+
+/**
+ * Creates the depositor's Payout signing PSBT (input 0, base64) for wallet
+ * signing. Only needed when the graph does not already carry the
+ * presign-phase depositor Payout signature (see `extractDepositorPayoutSig`).
+ */
+export function buildPayoutDepositorPsbt(tx_graph_version: number, graph_json: string): string;
+
+/**
+ * Assembles (and fully verifies) the watchtower `artifacts.json` content
+ * the `vaultd vp wt` CLI consumes. Every claimer-side signature and the
+ * graph's own presign set are verified before bundling, so a broken
+ * artifact surfaces while the signer is still on the page.
+ *
+ * See the upstream binding for the full argument contract; `verifying_key`
+ * and `babe_sessions` pass through opaquely.
+ */
+export function buildWatchtowerArtifacts(tx_graph_version: number, graph_json: string, signed_claim_tx_hex: string, assert_claimer_sig_hex: string, payout_claimer_sig_hex: string, wrongly_challenged_sigs_json: string, depositor_payout_sig_hex: string | null | undefined, verifying_key_hex: string, claimable_event_block_number: bigint, prover_circuit_version: number, vault_id_hex: string, babe_sessions_json?: string | null): string;
+
+/**
+ * Creates the claimer's `WronglyChallenged` signing PSBTs for every
+ * challenger and garbled circuit index. Returns a JSON object mapping each
+ * hex challenger public key to an array of base64 PSBTs ordered by GC index.
+ */
+export function buildWronglyChallengedPsbts(tx_graph_version: number, graph_json: string): string;
+
+/**
  * Computes the Assert claimer sighashes over a serialized TxGraph under
  * `tx_graph_version`.
  */
 export function computeAssertClaimerSighashes(tx_graph_version: number, graph_json: string): string;
+
+/**
+ * Computes the sighash for the depositor's Claim signature (raw-sighash
+ * alternative to `buildClaimPsbt`). Returns hex.
+ */
+export function computeClaimDepositorSighash(tx_graph_version: number, graph_json: string): string;
 
 /**
  * Computes the minimum depositor claim value under `tx_graph_version`.
@@ -474,6 +521,14 @@ export function computePayoutFeeFloor(tx_graph_version: number, num_vault_keeper
 export function computePeginInputSighash(tx_graph_version: number, pegin_json: string, htlc_connector_json: string, prepegin_htlc_output_json: string): string;
 
 /**
+ * Computes the claimer's `WronglyChallenged` sighashes for every challenger
+ * and garbled circuit index (raw-sighash alternative to
+ * `buildWronglyChallengedPsbts`). Returns a JSON object mapping each hex
+ * challenger public key to an array of hex sighashes ordered by GC index.
+ */
+export function computeWronglyChallengedClaimerSighashes(tx_graph_version: number, graph_json: string): string;
+
+/**
  * Derive the on-chain vault identifier matching the Solidity logic:
  *
  * ```solidity
@@ -503,6 +558,27 @@ export function expandHashlockSecret(root: Uint8Array, htlc_vout: number): Uint8
  * Derive the 64-byte `wotsSeed` for HTLC `htlcVout` (frozen, on-chain-binding).
  */
 export function expandWotsSeed(root: Uint8Array, htlc_vout: number): Uint8Array;
+
+/**
+ * Extracts the presign-phase depositor Payout signature stored on the
+ * graph, verified against the payout leaf. Errors when absent — callers
+ * then collect a fresh signature via `buildPayoutDepositorPsbt`.
+ */
+export function extractDepositorPayoutSig(tx_graph_version: number, graph_json: string): string;
+
+/**
+ * Extract the single taproot script-path signature from a signed PSBT
+ * input, enforcing the 64-byte `SIGHASH_DEFAULT` form (version-agnostic
+ * PSBT utility). Returns the hex-encoded signature.
+ */
+export function extractTapScriptSig(psbt_base64: string, input_index: number): string;
+
+/**
+ * Applies the depositor's signature to the Claim transaction (verifying it
+ * first) and returns the fully signed transaction hex — the `claim_tx` the
+ * artifacts carry.
+ */
+export function finalizeClaimTx(tx_graph_version: number, graph_json: string, depositor_sig_hex: string): string;
 
 /**
  * Initialize panic hook for better error messages in the browser console.
@@ -543,6 +619,13 @@ export function validatePeginP2aAnchor(tx_graph_version: number, tx_hex: string)
 export function validateTxGraphParams(tx_graph_version: number, params_json: string): void;
 
 /**
+ * Validates that a WOTS keypair (the `keypair` field of
+ * `wotsKeypairFromSeed`) matches the WOTS public keys the graph's Claim
+ * commits to — the gate before the keypair leaves the browser.
+ */
+export function validateWotsKeypairAgainstGraph(tx_graph_version: number, keypair_json: string, graph_json: string): void;
+
+/**
  * Verifies claimer presignatures over a serialized TxGraph under
  * `tx_graph_version`.
  */
@@ -559,10 +642,47 @@ export function verifyDepositorSignature(tx_graph_version: number, graph_json: s
  */
 export function verifyP2trScriptSpendSignature(tx_graph_version: number, tx_hex: string, input_index: number, prevouts_json: string, script_hex: string, pubkey_hex: string, signature_hex: string): void;
 
+/**
+ * Re-verifies every claimer-side signature inside an `artifacts.json`
+ * against its embedded graph — the pre-handoff self-check.
+ */
+export function verifyWatchtowerArtifacts(tx_graph_version: number, artifacts_json: string): void;
+
+/**
+ * Derive the depositor's WOTS keypair from the 64-byte `wotsSeed` (frozen,
+ * on-chain-binding: `HASH160(seed || block index)` block seeds). Returns
+ * `{ keypair, public_keys, pk_hash }`, where `keypair` is exactly the
+ * `wots_keypair.json` the `vaultd vp wt` watchtower CLI accepts. The secret
+ * chains are single-use and must never be persisted beyond the claim.
+ */
+export function wotsKeypairFromSeed(wots_seed: Uint8Array): string;
+
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
+    readonly __wbg_wasmassertchallengeassertconnector_free: (a: number, b: number) => void;
+    readonly wasmassertchallengeassertconnector_getAddress: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly wasmassertchallengeassertconnector_getControlBlock: (a: number) => [number, number, number, number];
+    readonly wasmassertchallengeassertconnector_getScript: (a: number) => [number, number, number, number];
+    readonly wasmassertchallengeassertconnector_getTxGraphVersion: (a: number) => number;
+    readonly wasmassertchallengeassertconnector_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => [number, number, number];
+    readonly __wbg_peginp2aanchoroutput_free: (a: number, b: number) => void;
+    readonly __wbg_wasmpegintx_free: (a: number, b: number) => void;
+    readonly computeMinPeginFee: (a: number, b: number, c: number, d: bigint) => [bigint, number, number];
+    readonly computePeginInputSighash: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number, number];
+    readonly peginP2aAnchorOutput: (a: number) => [number, number, number];
+    readonly peginp2aanchoroutput_scriptPubKey: (a: number) => [number, number];
+    readonly peginp2aanchoroutput_value: (a: number) => bigint;
+    readonly peginp2aanchoroutput_vout: (a: number) => number;
+    readonly validatePeginP2aAnchor: (a: number, b: number, c: number) => [number, number];
+    readonly wasmpegintx_fromJson: (a: number, b: number, c: number) => [number, number, number];
+    readonly wasmpegintx_getTxGraphVersion: (a: number) => number;
+    readonly wasmpegintx_getTxid: (a: number) => [number, number];
+    readonly wasmpegintx_getVaultScriptPubKey: (a: number) => [number, number];
+    readonly wasmpegintx_getVaultValue: (a: number) => bigint;
+    readonly wasmpegintx_toHex: (a: number) => [number, number];
+    readonly wasmpegintx_toJson: (a: number) => [number, number, number, number];
     readonly __wbg_wasmpayouttx_free: (a: number, b: number) => void;
     readonly computePayoutClaimerSighash: (a: number, b: number, c: number) => [number, number, number, number];
     readonly computePayoutDepositorSighash: (a: number, b: number, c: number) => [number, number, number, number];
@@ -575,6 +695,10 @@ export interface InitOutput {
     readonly wasmpayouttx_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: bigint, i: number, j: number, k: number, l: number) => [number, number, number];
     readonly wasmpayouttx_toHex: (a: number) => [number, number];
     readonly wasmpayouttx_toJson: (a: number) => [number, number, number, number];
+    readonly supportedTxGraphVersions: () => [number, number];
+    readonly validateTxGraphParams: (a: number, b: number, c: number) => [number, number];
+    readonly verifyClaimerPresignatures: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number];
+    readonly verifyP2trScriptSpendSignature: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number) => [number, number];
     readonly __wbg_wasmprepegintx_free: (a: number, b: number) => void;
     readonly computeMinClaimValue: (a: number, b: number, c: number, d: number, e: number, f: bigint) => [bigint, number, number];
     readonly wasmprepegintx_buildPeginTx: (a: number, b: number, c: number) => [number, number, number];
@@ -590,16 +714,36 @@ export interface InitOutput {
     readonly wasmprepegintx_getTxid: (a: number) => [number, number];
     readonly wasmprepegintx_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number, o: bigint, p: bigint, q: number, r: number, s: number, t: number, u: number, v: number, w: number) => [number, number, number];
     readonly wasmprepegintx_toHex: (a: number) => [number, number];
-    readonly __wbg_wasmassertchallengeassertconnector_free: (a: number, b: number) => void;
-    readonly supportedTxGraphVersions: () => [number, number];
-    readonly validateTxGraphParams: (a: number, b: number, c: number) => [number, number];
-    readonly verifyClaimerPresignatures: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number];
-    readonly verifyP2trScriptSpendSignature: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number) => [number, number];
-    readonly wasmassertchallengeassertconnector_getAddress: (a: number, b: number, c: number) => [number, number, number, number];
-    readonly wasmassertchallengeassertconnector_getControlBlock: (a: number) => [number, number, number, number];
-    readonly wasmassertchallengeassertconnector_getScript: (a: number) => [number, number, number, number];
-    readonly wasmassertchallengeassertconnector_getTxGraphVersion: (a: number) => number;
-    readonly wasmassertchallengeassertconnector_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => [number, number, number];
+    readonly __wbg_wasmassertpayoutnopayoutconnector_free: (a: number, b: number) => void;
+    readonly computeAssertClaimerSighashes: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly computeNoPayoutClaimerSighash: (a: number, b: number, c: number, d: number, e: number) => [number, number, number, number];
+    readonly deriveVaultId: (a: number, b: number, c: number, d: number) => [number, number, number, number];
+    readonly expandAuthAnchor: (a: number, b: number) => [number, number, number, number];
+    readonly expandHashlockSecret: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly expandWotsSeed: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly extractTapScriptSig: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly wasmassertpayoutnopayoutconnector_getAddress: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly wasmassertpayoutnopayoutconnector_getNoPayoutControlBlock: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly wasmassertpayoutnopayoutconnector_getNoPayoutScript: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly wasmassertpayoutnopayoutconnector_getPayoutControlBlock: (a: number) => [number, number, number, number];
+    readonly wasmassertpayoutnopayoutconnector_getPayoutScript: (a: number) => [number, number];
+    readonly wasmassertpayoutnopayoutconnector_getScriptPubKey: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly wasmassertpayoutnopayoutconnector_getTxGraphVersion: (a: number) => number;
+    readonly wasmassertpayoutnopayoutconnector_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number) => [number, number, number];
+    readonly wotsKeypairFromSeed: (a: number, b: number) => [number, number, number, number];
+    readonly init_panic_hook: () => void;
+    readonly buildAssertClaimerPsbt: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly buildClaimPsbt: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly buildPayoutClaimerPsbt: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly buildPayoutDepositorPsbt: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly buildWatchtowerArtifacts: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number, o: number, p: bigint, q: number, r: number, s: number, t: number, u: number) => [number, number, number, number];
+    readonly buildWronglyChallengedPsbts: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly computeClaimDepositorSighash: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly computeWronglyChallengedClaimerSighashes: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly extractDepositorPayoutSig: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly finalizeClaimTx: (a: number, b: number, c: number, d: number, e: number) => [number, number, number, number];
+    readonly validateWotsKeypairAgainstGraph: (a: number, b: number, c: number, d: number, e: number) => [number, number];
+    readonly verifyWatchtowerArtifacts: (a: number, b: number, c: number) => [number, number];
     readonly __wbg_wasmpeginpayoutconnector_free: (a: number, b: number) => void;
     readonly __wbg_wasmprepeginhtlcconnector_free: (a: number, b: number) => void;
     readonly wasmpeginpayoutconnector_getAddress: (a: number, b: number, c: number) => [number, number, number, number];
@@ -617,38 +761,6 @@ export interface InitOutput {
     readonly wasmprepeginhtlcconnector_getScriptPubKey: (a: number, b: number, c: number) => [number, number, number, number];
     readonly wasmprepeginhtlcconnector_getTxGraphVersion: (a: number) => number;
     readonly wasmprepeginhtlcconnector_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number) => [number, number, number];
-    readonly __wbg_wasmassertpayoutnopayoutconnector_free: (a: number, b: number) => void;
-    readonly computeAssertClaimerSighashes: (a: number, b: number, c: number) => [number, number, number, number];
-    readonly computeNoPayoutClaimerSighash: (a: number, b: number, c: number, d: number, e: number) => [number, number, number, number];
-    readonly deriveVaultId: (a: number, b: number, c: number, d: number) => [number, number, number, number];
-    readonly expandAuthAnchor: (a: number, b: number) => [number, number, number, number];
-    readonly expandHashlockSecret: (a: number, b: number, c: number) => [number, number, number, number];
-    readonly expandWotsSeed: (a: number, b: number, c: number) => [number, number, number, number];
-    readonly wasmassertpayoutnopayoutconnector_getAddress: (a: number, b: number, c: number) => [number, number, number, number];
-    readonly wasmassertpayoutnopayoutconnector_getNoPayoutControlBlock: (a: number, b: number, c: number) => [number, number, number, number];
-    readonly wasmassertpayoutnopayoutconnector_getNoPayoutScript: (a: number, b: number, c: number) => [number, number, number, number];
-    readonly wasmassertpayoutnopayoutconnector_getPayoutControlBlock: (a: number) => [number, number, number, number];
-    readonly wasmassertpayoutnopayoutconnector_getPayoutScript: (a: number) => [number, number];
-    readonly wasmassertpayoutnopayoutconnector_getScriptPubKey: (a: number, b: number, c: number) => [number, number, number, number];
-    readonly wasmassertpayoutnopayoutconnector_getTxGraphVersion: (a: number) => number;
-    readonly wasmassertpayoutnopayoutconnector_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number) => [number, number, number];
-    readonly init_panic_hook: () => void;
-    readonly __wbg_peginp2aanchoroutput_free: (a: number, b: number) => void;
-    readonly __wbg_wasmpegintx_free: (a: number, b: number) => void;
-    readonly computeMinPeginFee: (a: number, b: number, c: number, d: bigint) => [bigint, number, number];
-    readonly computePeginInputSighash: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number, number];
-    readonly peginP2aAnchorOutput: (a: number) => [number, number, number];
-    readonly peginp2aanchoroutput_scriptPubKey: (a: number) => [number, number];
-    readonly peginp2aanchoroutput_value: (a: number) => bigint;
-    readonly peginp2aanchoroutput_vout: (a: number) => number;
-    readonly validatePeginP2aAnchor: (a: number, b: number, c: number) => [number, number];
-    readonly wasmpegintx_fromJson: (a: number, b: number, c: number) => [number, number, number];
-    readonly wasmpegintx_getTxGraphVersion: (a: number) => number;
-    readonly wasmpegintx_getTxid: (a: number) => [number, number];
-    readonly wasmpegintx_getVaultScriptPubKey: (a: number) => [number, number];
-    readonly wasmpegintx_getVaultValue: (a: number) => bigint;
-    readonly wasmpegintx_toHex: (a: number) => [number, number];
-    readonly wasmpegintx_toJson: (a: number) => [number, number, number, number];
     readonly rustsecp256k1_v0_10_0_context_create: (a: number) => number;
     readonly rustsecp256k1_v0_10_0_context_destroy: (a: number) => void;
     readonly rustsecp256k1_v0_10_0_default_error_callback_fn: (a: number, b: number) => void;
