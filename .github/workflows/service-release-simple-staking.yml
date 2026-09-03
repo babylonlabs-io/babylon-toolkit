@@ -19,10 +19,10 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2 https://github.com/actions/checkout/releases/tag/v6.0.2
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0 https://github.com/actions/setup-node/releases/tag/v4.4.0
         with:
           node-version: 24
 
@@ -34,6 +34,10 @@ jobs:
 
       - name: Test
         run: pnpm run test
+        env:
+          # See package-release.yml: `--all` on a 4-vCPU runner oversubscribes
+          # at nx's default of 3 projects and trips vitest's per-test timeout.
+          NX_PARALLEL: "1"
 
       - name: Build
         run: pnpm run build
@@ -45,41 +49,54 @@ jobs:
       contents: write # publish checksum manifest as a release asset (#253)
     runs-on: ubuntu-24.04
     strategy:
+      fail-fast: false
       matrix:
         include:
-          - environment: vault-devnet
-            aws_account: 537927626649
           - environment: canon-devnet
             aws_account: 537927626649
           - environment: btc-mainnet-devnet
             aws_account: 537927626649
-          - environment: edge-devnet
-            aws_account: 537927626649
           - environment: testnet
             aws_account: 615368094160
+            prod: true
           - environment: mainnet
             aws_account: 490721144737
+            prod: true
 
+    # Prod environments will fail OIDC on feature branches; allow failure there
+    # so devnet jobs aren't blocked. On real deploy refs (main/release/tags) a
+    # prod failure must fail the run — a green run with a failed prod deploy or
+    # missing integrity manifest is a silent gap (#253 review).
+    continue-on-error: ${{ matrix.prod == true && github.ref != 'refs/heads/main' && github.ref != 'refs/heads/release/v1.x' && !startsWith(github.ref, 'refs/tags/') }}
+    # Serialize same-(env, sha) runs. Without this, git push --follow-tags or a
+    # redeploy dispatch can overlap two runs on one sha: S3 is last-write-wins
+    # while the manifest slots are first-create-wins, so the highest slot can
+    # belong to a DIFFERENT build than the bytes in S3 — a false tamper page on
+    # a clean deploy. cancel-in-progress stays false so the second run publishes
+    # its S3 write and its slot strictly after the first (a cancelled queued run
+    # writes neither store, which keeps them consistent).
     concurrency:
       group: ${{ github.workflow }}-${{ matrix.environment }}-${{ github.sha }}
       cancel-in-progress: false
     environment: ${{ matrix.environment }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2 https://github.com/actions/checkout/releases/tag/v6.0.2
         with:
+          # Job holds contents:write; don't leave the token in .git/config while
+          # pnpm install / build run untrusted deps.
           persist-credentials: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0 https://github.com/actions/setup-node/releases/tag/v4.4.0
         with:
           node-version: 24
 
       - name: Configure AWS credentials (assume per-account role)
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1 https://github.com/aws-actions/configure-aws-credentials/releases/tag/v4.3.1
         with:
-          role-to-assume: arn:aws:iam::${{ matrix.aws_account }}:role/gha-deployment
-          role-session-name: gh-terragrunt-plan
+          role-to-assume: arn:aws:iam::${{ matrix.aws_account }}:role/gha-s3-frontend-push
+          role-session-name: gh-babylon-toolkit-simple-staking-push
           aws-region: ap-east-1
 
       - name: Install Corepack
@@ -115,7 +132,6 @@ jobs:
           SENTRY_URL: ${{ vars.SENTRY_URL }}
           SENTRY_RELEASE: ${{ github.sha }}
           SENTRY_DIST: ${{ github.run_id }}
-          SENTRY_ENVIRONMENT: ${{ matrix.environment }}
           NEXT_PUBLIC_RELEASE_ID: ${{ github.sha }}
           NEXT_PUBLIC_DIST_ID: ${{ github.run_id }}
           NEXT_PUBLIC_SENTRY_ENVIRONMENT: ${{ matrix.environment }}
