@@ -64,8 +64,16 @@ export const SPLIT_ALLOCATION_TIMEOUT_MS = 30_000;
  * dwells with no UI transition), Pre-PegIn inclusion (~10 min/block), the WOTS-key gate (~20 min),
  * and the payout gate (~3 min) — so a real peg-in runs 30 min–2 hr. Budgeted generously; the action
  * imposes NO short per-step timeout, which is what lets those dwells pass without a special case.
+ *
+ * Raised from 2.5 h after a testnet run exhausted it while the deposit was still healthy. The gate
+ * that overran was Pre-PegIn inclusion: signet targets 10 min/block but, unlike mainnet, does not
+ * hold that average, and the run took 2 h 13 min to collect 10 of the 11 blocks it needed — roughly
+ * 13 min/block. Only ~30% slower than the estimate above, and that was enough, because the budget
+ * covers the whole machine rather than allowing per-gate: time spent in the early steps is time the
+ * confirmation wait no longer has. 3.5 h absorbs that without masking a real hang, since a genuinely
+ * failing transaction aborts on PEGIN_TX_FAILURE_RETRY_LIMIT long before this deadline.
  */
-export const PEGIN_STEP_MACHINE_BUDGET_MS = 2.5 * 60 * 60 * 1_000;
+export const PEGIN_STEP_MACHINE_BUDGET_MS = 3.5 * 60 * 60 * 1_000;
 /** How often to poll the progress UI (advance the step log, handle the Activate/Skip dapp gates). */
 export const PEGIN_POLL_INTERVAL_MS = 3_000;
 /**

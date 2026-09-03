@@ -22,11 +22,19 @@ export default defineConfig([
   {
     files: [
       "src/tbv/core/utils/utxo/selectUtxos.ts",
+      "src/tbv/core/utils/fee/peginFeeMath.ts",
       "src/tbv/core/primitives/psbt/payout.ts",
+      "src/tbv/core/services/deposit/signDepositorGraph.ts",
       "src/tbv/core/vault-secrets/**/*.ts",
-      "src/tbv/core/wasm/**/*.ts",
+      "src/tbv/core/wots/blockDerivation.ts",
+      "src/tbv/core/managers/PeginManager.ts",
       "src/tbv/integrations/aave/utils/vaultSplit.ts",
       "src/tbv/core/utils/signing.ts",
+      "src/tbv/core/clients/eth/pegin-transaction.ts",
+      "src/tbv/core/clients/eth/pegin-registration-client.ts",
+      "src/tbv/core/clients/eth/payout-script.ts",
+      "src/tbv/core/clients/eth/onChainBtcPubkey.ts",
+      "src/tbv/core/wasm/**/*.ts",
     ],
     ignores: ["**/__tests__/**", "**/*.test.{ts,tsx}"],
     rules: {

@@ -34,10 +34,25 @@
       "require": "./dist/tbv/core/utils/index.cjs",
       "import": "./dist/tbv/core/utils/index.js"
     },
+    "./tbv/core/utils/eth": {
+      "types": "./dist/tbv/core/utils/eth/index.d.ts",
+      "require": "./dist/tbv/core/utils/eth/index.cjs",
+      "import": "./dist/tbv/core/utils/eth/index.js"
+    },
     "./tbv/core/clients": {
       "types": "./dist/tbv/core/clients/index.d.ts",
       "require": "./dist/tbv/core/clients/index.cjs",
       "import": "./dist/tbv/core/clients/index.js"
+    },
+    "./tbv/core/clients/eth": {
+      "types": "./dist/tbv/core/clients/eth/index.d.ts",
+      "require": "./dist/tbv/core/clients/eth/index.cjs",
+      "import": "./dist/tbv/core/clients/eth/index.js"
+    },
+    "./tbv/core/clients/mempool": {
+      "types": "./dist/tbv/core/clients/mempool/index.d.ts",
+      "require": "./dist/tbv/core/clients/mempool/index.cjs",
+      "import": "./dist/tbv/core/clients/mempool/index.js"
     },
     "./tbv/core/clients/vault-provider/status": {
       "types": "./dist/tbv/core/clients/vault-provider/status/index.d.ts",
@@ -86,7 +101,8 @@
     }
   },
   "scripts": {
-    "build": "tsc -b --noEmit tsconfig.lib.json && vite build",
+    "build": "tsc -b --noEmit tsconfig.lib.json && vite build && node scripts/check-eth-build.js",
+    "check:packed-consumer": "node scripts/check-packed-consumer.js",
     "format": "prettier --check \"src/**/*.ts\"",
     "format:fix": "prettier --write \"src/**/*.ts\"",
     "lint": "eslint .",
@@ -121,16 +137,29 @@
   "license": "ISC",
   "description": "TypeScript SDK for Babylon protocol integrations",
   "dependencies": {
-    "@babylonlabs-io/babylon-tbv-rust-wasm": "workspace:*",
+    "@noble/curves": "1.9.7",
     "@noble/hashes": "2.0.1",
     "buffer": "6.0.3"
   },
   "peerDependencies": {
+    "@babylonlabs-io/babylon-tbv-rust-wasm": "workspace:*",
     "@bitcoin-js/tiny-secp256k1-asmjs": "2.2.3",
     "bitcoinjs-lib": "6.1.7",
     "viem": "^2.38.2"
   },
+  "peerDependenciesMeta": {
+    "@babylonlabs-io/babylon-tbv-rust-wasm": {
+      "optional": true
+    },
+    "@bitcoin-js/tiny-secp256k1-asmjs": {
+      "optional": true
+    },
+    "bitcoinjs-lib": {
+      "optional": true
+    }
+  },
   "devDependencies": {
+    "@babylonlabs-io/babylon-tbv-rust-wasm": "workspace:*",
     "@internal/eslint-config": "workspace:*",
     "@vitest/coverage-v8": "^4.0.8",
     "@vitest/ui": "^4.0.8",
