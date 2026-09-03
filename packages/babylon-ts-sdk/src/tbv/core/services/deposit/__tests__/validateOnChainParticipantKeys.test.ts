@@ -48,6 +48,9 @@ const VP_ETH_ADDRESS = "0xVP" as Address;
 const KEEPERS_VERSION = 7;
 const CHALLENGERS_VERSION = 11;
 
+/** Every read must resolve against the caller's block; there is no unpinned path. */
+const TEST_BLOCK = 9_000_001n;
+
 function pair(btcPubKey: string): AddressBTCKeyPair {
   // The registry always returns roster keys 0x-prefixed; the bare constants in
   // this file are for readability only.
@@ -126,6 +129,55 @@ describe("validateOnChainParticipantKeys", () => {
     vi.clearAllMocks();
   });
 
+  it("resolves every read against the caller's block when one is given", async () => {
+    const readers = buildReaders();
+    const operationKeyReader: OperationKeyReader = {
+      ...readers.operationKeyReader,
+      getCurrentOperationKeys: vi.fn(async (query: OperationKeyQuery) => ({
+        vaultProvider: query.vaultProviderGenesisBtcPubkey,
+        vaultKeepers: query.vaultKeepers.map((k) => k.btcPubKey),
+        universalChallengers: query.universalChallengers.map(
+          (c) => c.btcPubKey,
+        ),
+      })),
+    };
+    const blockNumber = 4_242_042n;
+
+    await validateOnChainParticipantKeys({
+      ...readers,
+      operationKeyReader,
+      vaultProviderEthAddress: VP_ETH_ADDRESS,
+      applicationEntryPoint: APP_ENTRY_POINT,
+      expectedVaultProviderBtcPubkey: VP_KEY,
+      expectedVaultKeeperBtcPubkeys: [KEEPER_1, KEEPER_2],
+      expectedUniversalChallengerBtcPubkeys: [CHALLENGER_1, CHALLENGER_2],
+      blockNumber,
+    });
+
+    // The three rounds are dependent — versions, then members at those
+    // versions, then those members' operation keys — so an unpinned read in any
+    // one of them reopens the window this parameter exists to close.
+    expect(
+      readers.vaultRegistryReader.getVaultProviderGenesisBtcPubKey,
+    ).toHaveBeenCalledWith(VP_ETH_ADDRESS, blockNumber);
+    expect(
+      readers.vaultKeeperReader.getCurrentVaultKeepersVersion,
+    ).toHaveBeenCalledWith(APP_ENTRY_POINT, blockNumber);
+    expect(
+      readers.universalChallengerReader.getLatestUniversalChallengersVersion,
+    ).toHaveBeenCalledWith(blockNumber);
+    expect(
+      readers.vaultKeeperReader.getVaultKeepersByVersion,
+    ).toHaveBeenCalledWith(APP_ENTRY_POINT, KEEPERS_VERSION, blockNumber);
+    expect(
+      readers.universalChallengerReader.getUniversalChallengersByVersion,
+    ).toHaveBeenCalledWith(CHALLENGERS_VERSION, blockNumber);
+    expect(operationKeyReader.getCurrentOperationKeys).toHaveBeenCalledWith(
+      expect.anything(),
+      blockNumber,
+    );
+  });
+
   it("returns canonical lowercase sorted sets and the on-chain versions on the happy path", async () => {
     const readers = buildReaders();
 
@@ -136,6 +188,7 @@ describe("validateOnChainParticipantKeys", () => {
       expectedVaultProviderBtcPubkey: VP_KEY,
       expectedVaultKeeperBtcPubkeys: [KEEPER_1, KEEPER_2],
       expectedUniversalChallengerBtcPubkeys: [CHALLENGER_1, CHALLENGER_2],
+      blockNumber: TEST_BLOCK,
     });
 
     expect(result.vaultProviderBtcPubkeyXOnly).toBe(VP_KEY);
@@ -161,6 +214,7 @@ describe("validateOnChainParticipantKeys", () => {
         expectedVaultProviderBtcPubkey: VP_KEY,
         expectedVaultKeeperBtcPubkeys: [KEEPER_1, KEEPER_2],
         expectedUniversalChallengerBtcPubkeys: [CHALLENGER_1, CHALLENGER_2],
+        blockNumber: TEST_BLOCK,
       }),
     ).rejects.toThrow(/Vault provider BTC pubkey/);
   });
@@ -182,6 +236,7 @@ describe("validateOnChainParticipantKeys", () => {
         expectedVaultProviderBtcPubkey: VP_KEY,
         expectedVaultKeeperBtcPubkeys: [KEEPER_1, KEEPER_2],
         expectedUniversalChallengerBtcPubkeys: [CHALLENGER_1, CHALLENGER_2],
+        blockNumber: TEST_BLOCK,
       }),
     ).rejects.toThrow("has no registered BTC pubkey on-chain");
   });
@@ -199,6 +254,7 @@ describe("validateOnChainParticipantKeys", () => {
         expectedVaultProviderBtcPubkey: VP_KEY,
         expectedVaultKeeperBtcPubkeys: [KEEPER_1, KEEPER_2],
         expectedUniversalChallengerBtcPubkeys: [CHALLENGER_1, CHALLENGER_2],
+        blockNumber: TEST_BLOCK,
       }),
     ).rejects.toThrow(/keeper.*does not match/i);
   });
@@ -214,6 +270,7 @@ describe("validateOnChainParticipantKeys", () => {
         expectedVaultProviderBtcPubkey: VP_KEY,
         expectedVaultKeeperBtcPubkeys: [KEEPER_1, KEEPER_2],
         expectedUniversalChallengerBtcPubkeys: [CHALLENGER_1, CHALLENGER_2],
+        blockNumber: TEST_BLOCK,
       }),
     ).rejects.toThrow(/keeper.*does not match/i);
   });
@@ -231,6 +288,7 @@ describe("validateOnChainParticipantKeys", () => {
         expectedVaultProviderBtcPubkey: VP_KEY,
         expectedVaultKeeperBtcPubkeys: [KEEPER_1, KEEPER_2],
         expectedUniversalChallengerBtcPubkeys: [CHALLENGER_1, CHALLENGER_2],
+        blockNumber: TEST_BLOCK,
       }),
     ).rejects.toThrow(/challenger.*does not match/i);
   });
@@ -245,6 +303,7 @@ describe("validateOnChainParticipantKeys", () => {
       expectedVaultProviderBtcPubkey: VP_KEY_COMPRESSED,
       expectedVaultKeeperBtcPubkeys: [KEEPER_1, KEEPER_2],
       expectedUniversalChallengerBtcPubkeys: [CHALLENGER_1, CHALLENGER_2],
+      blockNumber: TEST_BLOCK,
     });
 
     expect(result.vaultProviderBtcPubkeyXOnly).toBe(VP_KEY);
@@ -263,6 +322,7 @@ describe("validateOnChainParticipantKeys", () => {
       expectedVaultProviderBtcPubkey: VP_KEY,
       expectedVaultKeeperBtcPubkeys: [KEEPER_2, KEEPER_3, KEEPER_1],
       expectedUniversalChallengerBtcPubkeys: [CHALLENGER_1, CHALLENGER_2],
+      blockNumber: TEST_BLOCK,
     });
 
     expect(result.vaultKeeperBtcPubkeysSorted).toEqual([
@@ -286,6 +346,7 @@ describe("validateOnChainParticipantKeys", () => {
       expectedVaultProviderBtcPubkey: VP_KEY_UPPERCASE,
       expectedVaultKeeperBtcPubkeys: [KEEPER_1, KEEPER_2],
       expectedUniversalChallengerBtcPubkeys: [CHALLENGER_1, CHALLENGER_2],
+      blockNumber: TEST_BLOCK,
     });
 
     expect(result.vaultProviderBtcPubkeyXOnly).toBe(VP_KEY);
@@ -358,6 +419,7 @@ describe("validateOnChainParticipantKeys with operation-key resolution", () => {
       expectedVaultProviderBtcPubkey: REGISTRATION.vp,
       expectedVaultKeeperBtcPubkeys: REGISTRATION.keepers,
       expectedUniversalChallengerBtcPubkeys: REGISTRATION.challengers,
+      blockNumber: TEST_BLOCK,
     });
 
     expect(result.vaultProviderBtcPubkeyXOnly).toBe(OPERATION.vp);
@@ -381,6 +443,7 @@ describe("validateOnChainParticipantKeys with operation-key resolution", () => {
         expectedVaultKeeperBtcPubkeys: REGISTRATION.keepers,
         expectedUniversalChallengerBtcPubkeys: REGISTRATION.challengers,
         onIndexerServingOperationKeys,
+        blockNumber: TEST_BLOCK,
       }),
     ).resolves.toBeDefined();
 
@@ -398,6 +461,7 @@ describe("validateOnChainParticipantKeys with operation-key resolution", () => {
         expectedVaultKeeperBtcPubkeys: OPERATION.keepers,
         expectedUniversalChallengerBtcPubkeys: OPERATION.challengers,
         onIndexerServingOperationKeys,
+        blockNumber: TEST_BLOCK,
       }),
     ).resolves.toBeDefined();
 
@@ -416,6 +480,7 @@ describe("validateOnChainParticipantKeys with operation-key resolution", () => {
         expectedVaultProviderBtcPubkey: REGISTRATION.vp,
         expectedVaultKeeperBtcPubkeys: REGISTRATION.keepers,
         expectedUniversalChallengerBtcPubkeys: OPERATION.challengers,
+        blockNumber: TEST_BLOCK,
       }),
     ).rejects.toThrow(/internally inconsistent/i);
   });
@@ -433,6 +498,7 @@ describe("validateOnChainParticipantKeys with operation-key resolution", () => {
         expectedVaultKeeperBtcPubkeys: REGISTRATION.keepers,
         expectedUniversalChallengerBtcPubkeys: OPERATION.challengers,
         onIndexerHintsInconsistent,
+        blockNumber: TEST_BLOCK,
       }),
     ).rejects.toThrow(/internally inconsistent/i);
 
@@ -451,6 +517,7 @@ describe("validateOnChainParticipantKeys with operation-key resolution", () => {
         expectedVaultProviderBtcPubkey: KEYS.outsider,
         expectedVaultKeeperBtcPubkeys: REGISTRATION.keepers,
         expectedUniversalChallengerBtcPubkeys: REGISTRATION.challengers,
+        blockNumber: TEST_BLOCK,
       }),
     ).rejects.toThrow(/Vault provider BTC pubkey/);
   });

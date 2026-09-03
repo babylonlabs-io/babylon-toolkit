@@ -38,8 +38,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import type { Address, Hex } from "viem";
 
+import { resolvePinnedReadBlock } from "@/clients/eth-contract/pinnedReadBlock";
 import {
   getOperationKeyReader,
+  getProtocolParamsReader,
   getUniversalChallengerReader,
   getVaultKeeperReader,
   getVaultRegistryReader,
@@ -61,6 +63,7 @@ import {
 } from "@/infrastructure/telemetryEvents";
 import { LocalStorageStatus } from "@/models/peginStateMachine";
 import { validateMultiVaultDepositInputs } from "@/services/deposit/validations";
+import { assertBuildConfigMatchesForm } from "@/services/vault/buildConfigConsistency";
 import {
   waitForEthRegistrationDepth,
   type RegistrationDepthProgress,
@@ -407,8 +410,18 @@ export function useDepositFlow(
   const queryClient = useQueryClient();
   const gate = useProtocolGateState();
   const { findProvider } = useVaultProviders(selectedApplication);
-  const { config, timelockPegin, timelockRefund, minDeposit, maxDeposit } =
-    useProtocolParamsContext();
+  // Nothing the Pre-PegIn commits to comes from this context. Those values are
+  // re-read inside `executeDeposit`, pinned to one block: the cached copy is
+  // refreshed on nothing and is additionally frozen at the render that started
+  // the flow. In particular the peg-in and refund timelocks live on the same
+  // cached object and go straight into the PegIn output and the HTLC refund
+  // leaf, so they must come from the pinned read like everything else.
+  //
+  // `config` is still taken, for one purpose: it is the snapshot this page
+  // gated and sized against, and the build asserts the pinned read agrees with
+  // it before building. Being frozen at the starting render is correct there —
+  // it is precisely the value the form validated the amount against.
+  const { config, minDeposit, maxDeposit } = useProtocolParamsContext();
 
   // ============================================================================
   // Main Execution Function
@@ -622,11 +635,35 @@ export function useDepositFlow(
           vaultKeeperReader,
           universalChallengerReader,
           operationKeyReader,
+          protocolParamsReader,
         ] = await Promise.all([
           getVaultKeeperReader(),
           getUniversalChallengerReader(),
           getOperationKeyReader(),
+          getProtocolParamsReader(),
         ]);
+
+        // Everything the Pre-PegIn commits to is read against this one block:
+        // the participant keys below and the peg-in configuration beside them.
+        // Unpinned, these are several successive `latest` observations, and the
+        // params in particular would otherwise come from the React Query cache
+        // that backs the UI — a snapshot taken when the modal opened and never
+        // refreshed, so potentially minutes old and closed over at render.
+        // Building a Bitcoin lock from a mixture of chain states is exactly the
+        // failure the post-registration guards further down exist to catch, and
+        // they can only catch it if the baseline they compare against was
+        // internally consistent to begin with.
+        const pinnedBlock = await resolvePinnedReadBlock();
+        const buildConfig =
+          await protocolParamsReader.getPegInConfiguration(pinnedBlock);
+
+        // The page gated the "update the app" check and sized the amount
+        // against the cached snapshot; the lock is about to be built from this
+        // pinned one. If a governance change landed in between they are
+        // different parameter sets, and the amount the depositor approved was
+        // validated against the wrong one. Stop here, where restarting is free.
+        assertBuildConfigMatchesForm(buildConfig, config);
+
         const validatedKeys = await validateOnChainParticipantKeys({
           vaultRegistryReader: getVaultRegistryReader(),
           vaultKeeperReader,
@@ -637,6 +674,7 @@ export function useDepositFlow(
           expectedVaultProviderBtcPubkey: vaultProviderBtcPubkey,
           expectedVaultKeeperBtcPubkeys: vaultKeeperBtcPubkeys,
           expectedUniversalChallengerBtcPubkeys: universalChallengerBtcPubkeys,
+          blockNumber: pinnedBlock,
           onIndexerServingOperationKeys: (message) => logger.info(message),
           onIndexerHintsInconsistent: (message) =>
             logger.error(new Error(message), {
@@ -668,10 +706,10 @@ export function useDepositFlow(
             // the post-registration verifyRegisteredVaultVersions call
             // asserts the stamp matches this build-time value before the
             // BTC broadcast.
-            vaultCoreVersion: config.activeVaultCoreVersion,
+            vaultCoreVersion: buildConfig.activeVaultCoreVersion,
             pegInAmounts: vaultAmounts,
-            protocolFeeRate: config.offchainParams.feeRate,
-            minPeginFeeRate: config.offchainParams.minPeginFeeRate,
+            protocolFeeRate: buildConfig.offchainParams.feeRate,
+            minPeginFeeRate: buildConfig.offchainParams.minPeginFeeRate,
             mempoolFeeRate,
             changeAddress: prePeginChangeAddress,
             vaultProviderBtcPubkey: validatedKeys.vaultProviderBtcPubkeyXOnly,
@@ -679,11 +717,13 @@ export function useDepositFlow(
             vaultKeeperBtcPubkeys: validatedKeys.vaultKeeperBtcPubkeysSorted,
             universalChallengerBtcPubkeys:
               validatedKeys.universalChallengerBtcPubkeysSorted,
-            timelockPegin,
-            timelockAssert: Number(config.offchainParams.timelockAssert),
-            timelockRefund,
-            councilQuorum: config.offchainParams.councilQuorum,
-            councilSize: config.offchainParams.securityCouncilKeys.length,
+            // `timelockPegin` is `Number(timelockAssert)` — the same contract
+            // field the line below reads. Both must come off the same snapshot.
+            timelockPegin: buildConfig.timelockPegin,
+            timelockAssert: Number(buildConfig.offchainParams.timelockAssert),
+            timelockRefund: buildConfig.timelockRefund,
+            councilQuorum: buildConfig.offchainParams.councilQuorum,
+            councilSize: buildConfig.offchainParams.securityCouncilKeys.length,
             availableUTXOs: spendableUTXOs,
           },
         );
@@ -841,12 +881,12 @@ export function useDepositFlow(
             // compare against, since both could drift to the same new value
             // while the BTC scripts stayed pinned to the construction-time
             // version.
-            buildOffchainParamsVersion: config.offchainParamsVersion,
+            buildOffchainParamsVersion: buildConfig.offchainParamsVersion,
             buildAppVaultKeepersVersion:
               validatedKeys.expectedAppVaultKeepersVersion,
             buildUniversalChallengersVersion:
               validatedKeys.expectedUniversalChallengersVersion,
-            buildVaultCoreVersion: config.activeVaultCoreVersion,
+            buildVaultCoreVersion: buildConfig.activeVaultCoreVersion,
             // RFC-006: pin the keys the scripts were actually built with, so a
             // rotation landing before a later resume can't be broadcast over.
             buildParticipantOperationKeys: {
@@ -915,12 +955,12 @@ export function useDepositFlow(
           await verifyRegisteredVaultVersions({
             vaultRegistryReader: getVaultRegistryReader(),
             vaultIds: batchRegistration.vaults.map((v) => v.vaultId as Hex),
-            expectedOffchainParamsVersion: config.offchainParamsVersion,
+            expectedOffchainParamsVersion: buildConfig.offchainParamsVersion,
             expectedAppVaultKeepersVersion:
               validatedKeys.expectedAppVaultKeepersVersion,
             expectedUniversalChallengersVersion:
               validatedKeys.expectedUniversalChallengersVersion,
-            expectedVaultCoreVersion: config.activeVaultCoreVersion,
+            expectedVaultCoreVersion: buildConfig.activeVaultCoreVersion,
           });
         } catch (err) {
           // Only a confirmed mismatch removes pending entries — transient RPC
@@ -1106,7 +1146,7 @@ export function useDepositFlow(
         // values here at broadcast time.
         setBtcConfirmationDetail({
           prePeginTxid: prePeginBroadcastTxid,
-          requiredDepth: config.offchainParams.minPrepeginDepth,
+          requiredDepth: buildConfig.offchainParams.minPrepeginDepth,
           depositIds: broadcastedResults.map((r) => r.vaultId),
         });
         setIsWaiting(true);
@@ -1624,8 +1664,6 @@ export function useDepositFlow(
       vaultProviderBtcPubkey,
       vaultKeeperBtcPubkeys,
       universalChallengerBtcPubkeys,
-      timelockPegin,
-      timelockRefund,
       config,
       minDeposit,
       maxDeposit,

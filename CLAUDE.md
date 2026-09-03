@@ -27,9 +27,18 @@ pnpm run build                        # Build all packages
 pnpm run lint                         # Lint all packages
 pnpm run test                         # Run all tests (vitest)
 pnpm --filter vault run dev           # Dev server for vault service
+
+# Regenerate the checked-in ts-sdk API docs. Required whenever the SDK's public
+# surface changes — a signature, a parameter, an exported type, or the JSDoc on
+# any of them.
+pnpm --filter @babylonlabs-io/ts-sdk run docs:clean
 ```
 
-Run `pnpm run lint` and `pnpm run test` in the affected service before considering work done.
+Run `pnpm run lint` and `pnpm run test` in the affected service before considering work done. If the change touched `packages/babylon-ts-sdk`'s public surface, run `docs:clean` as well and commit the regenerated `docs/api/` output.
+
+The `verify` CI job regenerates those docs and diffs them against what is committed, failing with *"Generated API docs are stale"*. It is easy to miss locally: `docs:clean` is not part of `build`, `lint` or `test`, so a change can be green on all three and still fail CI. Note also that the generator prints hundreds of pre-existing warnings about undocumented symbols — those are not the failure; only staleness is.
+
+Run the SDK's own `test` script rather than `vitest` directly when checking that package. `pnpm --filter @babylonlabs-io/ts-sdk run test` is `build && vitest run && node --test tests/wasm-facade.node.mjs`; invoking `vitest` alone skips the build and the WASM-facade pin check that CI runs.
 
 ---
 

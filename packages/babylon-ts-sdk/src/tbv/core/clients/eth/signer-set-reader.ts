@@ -43,12 +43,14 @@ export class ViemVaultKeeperReader implements VaultKeeperReader {
   async getVaultKeepersByVersion(
     appEntryPoint: Address,
     version: number,
+    blockNumber?: bigint,
   ): Promise<AddressBTCKeyPair[]> {
     const result = (await this.publicClient.readContract({
       address: this.contractAddress,
       abi: ApplicationRegistryABI,
       functionName: "getVaultKeepersByVersion",
       args: [appEntryPoint, version],
+      blockNumber,
     })) as readonly { ethAddress: Address; btcPubKey: Hex }[];
 
     return mapKeyPairs(result);
@@ -69,12 +71,14 @@ export class ViemVaultKeeperReader implements VaultKeeperReader {
 
   async getCurrentVaultKeepersVersion(
     appEntryPoint: Address,
+    blockNumber?: bigint,
   ): Promise<number> {
     const result = (await this.publicClient.readContract({
       address: this.contractAddress,
       abi: ApplicationRegistryABI,
       functionName: "getCurrentVaultKeepersVersion",
       args: [appEntryPoint],
+      blockNumber,
     })) as number;
 
     return result;
@@ -98,12 +102,14 @@ export class ViemUniversalChallengerReader implements UniversalChallengerReader 
 
   async getUniversalChallengersByVersion(
     version: number,
+    blockNumber?: bigint,
   ): Promise<AddressBTCKeyPair[]> {
     const result = (await this.publicClient.readContract({
       address: this.contractAddress,
       abi: ProtocolParamsABI,
       functionName: "getUniversalChallengersByVersion",
       args: [version],
+      blockNumber,
     })) as readonly { ethAddress: Address; btcPubKey: Hex }[];
 
     return mapKeyPairs(result);
@@ -119,11 +125,14 @@ export class ViemUniversalChallengerReader implements UniversalChallengerReader 
     return mapKeyPairs(result);
   }
 
-  async getLatestUniversalChallengersVersion(): Promise<number> {
+  async getLatestUniversalChallengersVersion(
+    blockNumber?: bigint,
+  ): Promise<number> {
     const result = (await this.publicClient.readContract({
       address: this.contractAddress,
       abi: ProtocolParamsABI,
       functionName: "latestUniversalChallengersVersion",
+      blockNumber,
     })) as number;
 
     return result;

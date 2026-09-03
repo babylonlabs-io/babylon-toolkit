@@ -126,6 +126,7 @@ export interface VaultRegistryReader {
    */
   getVaultProviderGenesisBtcPubKey(
     vpAddress: Address,
+    blockNumber?: bigint,
   ): Promise<OnChainBtcPubkey>;
   /** Read the protocol pegin fee (in wei) for a given vault provider. */
   getPegInFee(vaultProvider: Address): Promise<bigint>;
@@ -268,7 +269,12 @@ export interface ProtocolParamsReader {
   getLatestOffchainParams(): Promise<VersionedOffchainParams>;
   getLatestOffchainParamsVersion(): Promise<number>;
   getTimelockPeginByVersion(version: number): Promise<number>;
-  getPegInConfiguration(): Promise<PegInConfiguration>;
+  /**
+   * Pass `blockNumber` when the result will shape a Bitcoin lock, so this
+   * multicall and the participant-key reads describe the same block. Omit it
+   * for display-only reads, where a slightly stale value is harmless.
+   */
+  getPegInConfiguration(blockNumber?: bigint): Promise<PegInConfiguration>;
   /**
    * Observation window enforced between a vault's final ACK and its
    * activation, in ETH blocks measured from `verifiedAt`. `0` disables it.
@@ -300,23 +306,44 @@ export interface AddressBTCKeyPair {
   btcPubKey: Hex;
 }
 
-/** Interface for reading vault keepers from the ApplicationRegistry contract. */
+/**
+ * Interface for reading vault keepers from the ApplicationRegistry contract.
+ *
+ * The reads used to build a peg-in — here and on the sibling reader interfaces
+ * — take an optional `blockNumber` that pins them to one block instead of
+ * `latest`. Omitting it, the historical behaviour, is correct for every read
+ * that resolves against a vault's already-frozen epochs, because those are
+ * immutable once stamped. It is NOT correct for a fresh peg-in build: the
+ * participant keys, roster versions and protocol params that shape the Bitcoin
+ * lock must all describe the same block, or the lock commits to a mixture of
+ * chain states that never existed at once. See
+ * `services/deposit/validateOnChainParticipantKeys`.
+ *
+ * The `getCurrent*` roster reads are the exception and take no block. Nothing
+ * on the build path uses them — it resolves rosters by version instead — so
+ * they were left alone rather than given a pin no caller would pass.
+ */
 export interface VaultKeeperReader {
   getVaultKeepersByVersion(
     appEntryPoint: Address,
     version: number,
+    blockNumber?: bigint,
   ): Promise<AddressBTCKeyPair[]>;
   getCurrentVaultKeepers(appEntryPoint: Address): Promise<AddressBTCKeyPair[]>;
-  getCurrentVaultKeepersVersion(appEntryPoint: Address): Promise<number>;
+  getCurrentVaultKeepersVersion(
+    appEntryPoint: Address,
+    blockNumber?: bigint,
+  ): Promise<number>;
 }
 
 /** Interface for reading universal challengers from the ProtocolParams contract. */
 export interface UniversalChallengerReader {
   getUniversalChallengersByVersion(
     version: number,
+    blockNumber?: bigint,
   ): Promise<AddressBTCKeyPair[]>;
   getCurrentUniversalChallengers(): Promise<AddressBTCKeyPair[]>;
-  getLatestUniversalChallengersVersion(): Promise<number>;
+  getLatestUniversalChallengersVersion(blockNumber?: bigint): Promise<number>;
 }
 
 // ============================================================================
@@ -387,7 +414,10 @@ export interface OperationKeyReader {
    * each registry's `getCurrentOperationBtcKey` resolves its own genesis
    * fallback, so an operator that never rotated yields its registration key.
    */
-  getCurrentOperationKeys(query: OperationKeyQuery): Promise<RawOperationKeys>;
+  getCurrentOperationKeys(
+    query: OperationKeyQuery,
+    blockNumber?: bigint,
+  ): Promise<RawOperationKeys>;
   /**
    * Resolve every participant's operation key bonded at a vault's frozen
    * epochs. Used for every existing-vault path (resume, payout, refund).

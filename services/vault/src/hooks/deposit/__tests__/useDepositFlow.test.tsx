@@ -35,6 +35,68 @@ vi.mock("@/utils/rpc", async (importOriginal) => ({
   getVpProxyUrl: (address: string) => `https://proxy.test/rpc/${address}`,
 }));
 
+// Two protocol-parameter snapshots, hoisted so the mocks below and the
+// assertions further down share one source of truth.
+//
+// They hold deliberately DIFFERENT values. `peginConfig` is what the pinned
+// chain read returns and is the only thing the Bitcoin lock may be built from;
+// `cachedConfig` is what the React Query context holds and stands in for a
+// stale cache. Backing both mocks with one object would make every downstream
+// assertion blind to which source a value came from — and that blindness is
+// exactly how a build value sourced from the cache can ship green.
+const chainMocks = vi.hoisted(() => {
+  const peginConfig = {
+    // Non-default on purpose: a literal version in useDepositFlow would
+    // fail the preparePeginTransaction assertion.
+    activeVaultCoreVersion: 3,
+    timelockPegin: 111,
+    timelockRefund: 222,
+    offchainParams: {
+      babeInstancesToFinalize: 2,
+      councilQuorum: 1,
+      securityCouncilKeys: ["0xcouncil1"],
+      feeRate: 10n,
+      timelockAssert: 111n,
+      minPeginFeeRate: 3n,
+      minPrepeginDepth: 6,
+    },
+    offchainParamsVersion: 7,
+  };
+  // Every field the lock commits to differs, so an assertion on any of them
+  // discriminates between the two sources. The two version labels deliberately
+  // match: `assertBuildConfigMatchesForm` compares only those, so making them
+  // differ would abort the flow before the build and these tests would assert
+  // nothing.
+  //
+  // That combination — same version, different values — is a chain state the
+  // protocol cannot actually produce, since a versioned struct means one
+  // version is one parameter set. It is a fixture built to isolate *which
+  // object a value was read from*, not a scenario. Real drift moves the version
+  // too and is caught by the guard; this catches the wiring mistake underneath.
+  const cachedConfig = {
+    ...peginConfig,
+    timelockPegin: 999,
+    timelockRefund: 888,
+    offchainParams: {
+      ...peginConfig.offchainParams,
+      timelockAssert: 999n,
+      feeRate: 77n,
+      minPeginFeeRate: 88n,
+    },
+  };
+  return {
+    peginConfig,
+    cachedConfig,
+    /** Block the flow pins its protocol-state reads to. */
+    pinnedBlock: 4_242_042n,
+    getPegInConfiguration: vi.fn(async () => peginConfig),
+  };
+});
+
+vi.mock("@/clients/eth-contract/pinnedReadBlock", () => ({
+  resolvePinnedReadBlock: vi.fn(async () => chainMocks.pinnedBlock),
+}));
+
 vi.mock("@/clients/eth-contract/sdk-readers", () => ({
   getVaultRegistryReader: vi.fn(() => ({
     getVaultProviderGenesisBtcPubKey: vi.fn(async () => "ab".repeat(32)),
@@ -42,6 +104,9 @@ vi.mock("@/clients/eth-contract/sdk-readers", () => ({
   getVaultKeeperReader: vi.fn(async () => ({})),
   getUniversalChallengerReader: vi.fn(async () => ({})),
   getOperationKeyReader: vi.fn(async () => ({})),
+  getProtocolParamsReader: vi.fn(async () => ({
+    getPegInConfiguration: chainMocks.getPegInConfiguration,
+  })),
 }));
 
 vi.mock("@babylonlabs-io/wallet-connector", () => ({
@@ -407,20 +472,12 @@ async function setupDefaultMocks() {
   } as any);
 
   vi.mocked(useProtocolParamsContext).mockReturnValue({
-    config: {
-      // Non-default on purpose: a literal version in useDepositFlow would
-      // fail the preparePeginTransaction assertion.
-      activeVaultCoreVersion: 3,
-      offchainParams: {
-        babeInstancesToFinalize: 2,
-        councilQuorum: 1,
-        securityCouncilKeys: ["0xcouncil1"],
-        feeRate: 10n,
-      },
-      offchainParamsVersion: 7,
-    },
-    timelockPegin: 100,
-    timelockRefund: 50,
+    // Deliberately the stale snapshot. The flow must build from the pinned
+    // chain read instead, so any build value that matches these numbers came
+    // from the wrong source.
+    config: chainMocks.cachedConfig,
+    timelockPegin: chainMocks.cachedConfig.timelockPegin,
+    timelockRefund: chainMocks.cachedConfig.timelockRefund,
     getOffchainParamsByVersion: vi.fn(() => ({
       timelockAssert: 100n,
       securityCouncilKeys: ["0xcouncil1"],
@@ -871,6 +928,107 @@ describe("useDepositFlow", () => {
           buildUniversalChallengersVersion: 5,
         }),
       );
+    });
+
+    it("reads the peg-in config and the participant keys at the same pinned block", async () => {
+      const { validateOnChainParticipantKeys } = vi.mocked(
+        await import("@babylonlabs-io/ts-sdk/tbv/core"),
+      );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+
+      await executeDepositFlow(result);
+
+      await waitFor(() => {
+        expect(validateOnChainParticipantKeys).toHaveBeenCalled();
+      });
+
+      // Both halves of the build snapshot must name the same block. Pinning
+      // only one of them is no better than pinning neither: the lock would
+      // still commit to params from one chain state and keys from another.
+      expect(chainMocks.getPegInConfiguration).toHaveBeenCalledWith(
+        chainMocks.pinnedBlock,
+      );
+      expect(validateOnChainParticipantKeys).toHaveBeenCalledWith(
+        expect.objectContaining({ blockNumber: chainMocks.pinnedBlock }),
+      );
+
+      // Resolved once for the whole build. Resolving per read would hand each
+      // one a different block and reinstate exactly the skew being closed —
+      // and because the mock returns a constant, nothing else here would
+      // notice.
+      const { resolvePinnedReadBlock } = vi.mocked(
+        await import("@/clients/eth-contract/pinnedReadBlock"),
+      );
+      expect(resolvePinnedReadBlock).toHaveBeenCalledTimes(1);
+    });
+
+    it("builds from the pinned snapshot, not the cached one, for every parameter the lock commits to", async () => {
+      const { preparePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultTransactionService"),
+      );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+
+      await executeDepositFlow(result);
+
+      await waitFor(() => {
+        expect(preparePeginTransaction).toHaveBeenCalled();
+      });
+
+      // The cached snapshot holds a different number for every field asserted
+      // here, so a build value sourced from the context instead of the chain
+      // fails rather than passing silently. `timelockPegin` is `timelockAssert`
+      // narrowed to a number, so the two must agree with each other as well.
+      //
+      // `vaultCoreVersion` is deliberately absent: the two snapshots must share
+      // it or the drift guard aborts before the build, so an assertion on it
+      // would pass whichever source was read and would only look like coverage.
+      expect(preparePeginTransaction).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.anything(),
+        expect.objectContaining({
+          timelockPegin: chainMocks.peginConfig.timelockPegin,
+          timelockRefund: chainMocks.peginConfig.timelockRefund,
+          timelockAssert: Number(
+            chainMocks.peginConfig.offchainParams.timelockAssert,
+          ),
+          protocolFeeRate: chainMocks.peginConfig.offchainParams.feeRate,
+          minPeginFeeRate:
+            chainMocks.peginConfig.offchainParams.minPeginFeeRate,
+        }),
+      );
+    });
+
+    it("aborts before building when the pinned config disagrees with the one the form used", async () => {
+      const { useProtocolParamsContext } = vi.mocked(
+        await import("@/context/ProtocolParamsContext"),
+      );
+      const { preparePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultTransactionService"),
+      );
+      const previous = vi.mocked(useProtocolParamsContext)();
+
+      // The page gated and sized against an older core version than the chain
+      // now reports. The form's own "update the app" check reads the cached
+      // value and cannot see this.
+      vi.mocked(useProtocolParamsContext).mockReturnValue({
+        ...previous,
+        config: { ...chainMocks.cachedConfig, activeVaultCoreVersion: 2 },
+      } as ReturnType<typeof useProtocolParamsContext>);
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+
+      await executeDepositFlow(result);
+
+      await waitFor(() => {
+        expect(result.current.error?.title).toBe(
+          COPY.deposit.errors.versionMismatch.title,
+        );
+      });
+      // Nothing signed, nothing broadcast — restarting costs the depositor
+      // nothing at this point, which is why the guard sits here.
+      expect(preparePeginTransaction).not.toHaveBeenCalled();
     });
 
     it("aborts before any side effects when validateOnChainParticipantKeys rejects", async () => {

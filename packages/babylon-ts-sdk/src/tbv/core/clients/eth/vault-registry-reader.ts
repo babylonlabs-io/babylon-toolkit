@@ -194,12 +194,14 @@ export class ViemVaultRegistryReader implements VaultRegistryReader {
    */
   async getVaultProviderGenesisBtcPubKey(
     vpAddress: Address,
+    blockNumber?: bigint,
   ): Promise<OnChainBtcPubkey> {
     const result = (await this.publicClient.readContract({
       address: this.contractAddress,
       abi: BTCVaultRegistryABI,
       functionName: "getOperationBtcKeyAtEpoch",
       args: [vpAddress, VP_GENESIS_KEY_EPOCH],
+      blockNumber,
     })) as Hex;
     return assertOnChainBtcPubkey(
       result,
