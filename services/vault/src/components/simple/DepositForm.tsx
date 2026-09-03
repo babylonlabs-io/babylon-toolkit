@@ -36,11 +36,6 @@ export interface DepositAmountState {
   btcBalance: bigint;
   /** Total value of unconfirmed (in-mempool) UTXOs in satoshis. Display-only. */
   unconfirmedBalance: bigint;
-  /**
-   * True when the confirmed balance is zero but unconfirmed funds exist, so the
-   * depositable maximum is zero and the "Max" tooltip has nothing to describe.
-   */
-  hasUnconfirmedBalanceOnly: boolean;
   minDeposit: bigint;
   maxDeposit?: bigint;
   /**
@@ -205,7 +200,6 @@ export function DepositForm({
     amountSats,
     btcBalance,
     unconfirmedBalance,
-    hasUnconfirmedBalanceOnly,
     minDeposit,
     maxDeposit,
     maxDepositSats,
