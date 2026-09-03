@@ -202,7 +202,6 @@ vi.mock("../../useUTXOs", () => ({
         confirmed: true,
       },
     ],
-    confirmedBalance: 800000n,
     unconfirmedBalance: 0n,
     isLoading: false,
     isLoadingOrdinals: false,
@@ -476,7 +475,6 @@ describe("useDepositPageForm", () => {
         },
       ],
       ordinalsCheckPending: false,
-      confirmedBalance: 800000n,
       unconfirmedBalance: 0n,
     } as unknown as ReturnType<typeof useUTXOs>);
   });
@@ -546,6 +544,36 @@ describe("useDepositPageForm", () => {
       const { result } = renderHook(() => useDepositPageForm(), { wrapper });
 
       expect(result.current.btcBalance).toBe(800000n);
+    });
+
+    it("derives btcBalance from availableUTXOs only", () => {
+      vi.mocked(useUTXOs).mockReturnValue({
+        allUTXOs: [
+          {
+            txid: "0x789",
+            vout: 0,
+            value: 900000,
+            scriptPubKey: "0xaaa",
+            confirmed: false,
+          },
+        ],
+        availableUTXOs: [],
+        spendableMempoolUTXOs: [
+          {
+            txid: "0x789",
+            vout: 0,
+            value: 900000,
+            scriptPubKey: "0xaaa",
+            confirmed: true,
+          },
+        ],
+        ordinalsCheckPending: false,
+        unconfirmedBalance: 900000n,
+      } as unknown as ReturnType<typeof useUTXOs>);
+
+      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+
+      expect(result.current.btcBalance).toBe(0n);
     });
 
     it("should format BTC balance correctly", () => {
