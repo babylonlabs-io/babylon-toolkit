@@ -9,7 +9,7 @@ Callers own the wallet; services own the orchestration.
 
 ### ArtifactsVaultMismatchError
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/readWatchtowerArtifacts.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/readWatchtowerArtifacts.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/readWatchtowerArtifacts.ts)
 
 Thrown when an artifacts file does not describe the vault being claimed.
 
@@ -25,7 +25,7 @@ Thrown when an artifacts file does not describe the vault being claimed.
 new ArtifactsVaultMismatchError(expectedVaultId, actualVaultId): ArtifactsVaultMismatchError;
 ```
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/readWatchtowerArtifacts.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/readWatchtowerArtifacts.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/readWatchtowerArtifacts.ts)
 
 ###### Parameters
 
@@ -55,7 +55,7 @@ Error.constructor
 readonly expectedVaultId: string;
 ```
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/readWatchtowerArtifacts.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/readWatchtowerArtifacts.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/readWatchtowerArtifacts.ts)
 
 ##### actualVaultId
 
@@ -63,7 +63,7 @@ Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/readWa
 readonly actualVaultId: string;
 ```
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/readWatchtowerArtifacts.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/readWatchtowerArtifacts.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/readWatchtowerArtifacts.ts)
 
 ***
 
@@ -619,7 +619,7 @@ cancellation support for that window.
 
 ### AssembleWatchtowerArtifactsParams
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/assembleWatchtowerArtifacts.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/assembleWatchtowerArtifacts.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/assembleWatchtowerArtifacts.ts)
 
 #### Properties
 
@@ -629,7 +629,7 @@ Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/assemb
 btcWallet: BitcoinWallet;
 ```
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/assembleWatchtowerArtifacts.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/assembleWatchtowerArtifacts.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/assembleWatchtowerArtifacts.ts)
 
 Wallet holding the depositor key the graph was built with.
 
@@ -639,7 +639,7 @@ Wallet holding the depositor key the graph was built with.
 depositorPublicKey: string;
 ```
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/assembleWatchtowerArtifacts.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/assembleWatchtowerArtifacts.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/assembleWatchtowerArtifacts.ts)
 
 Depositor's BTC public key (compressed or x-only hex).
 
@@ -649,7 +649,7 @@ Depositor's BTC public key (compressed or x-only hex).
 source: ClaimerArtifactsSource;
 ```
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/assembleWatchtowerArtifacts.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/assembleWatchtowerArtifacts.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/assembleWatchtowerArtifacts.ts)
 
 Graph and verifying key as the vault provider returned them.
 
@@ -659,7 +659,7 @@ Graph and verifying key as the vault provider returned them.
 vault: DelegatedClaimVaultContext;
 ```
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/assembleWatchtowerArtifacts.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/assembleWatchtowerArtifacts.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/assembleWatchtowerArtifacts.ts)
 
 ##### babeSessionsJson?
 
@@ -667,7 +667,7 @@ Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/assemb
 optional babeSessionsJson: string;
 ```
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/assembleWatchtowerArtifacts.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/assembleWatchtowerArtifacts.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/assembleWatchtowerArtifacts.ts)
 
 Per-challenger BaBe sessions as `{"<pk>": {"decryptor_artifacts_hex":
 "..."}}`, passed through into the file unchanged.
@@ -680,7 +680,7 @@ one string — join them into the file downstream instead.
 
 ### DeriveClaimerWotsKeypairParams
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/deriveClaimerWotsKeypair.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/deriveClaimerWotsKeypair.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/deriveClaimerWotsKeypair.ts)
 
 #### Properties
 
@@ -690,7 +690,7 @@ Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/derive
 btcWallet: BitcoinWallet;
 ```
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/deriveClaimerWotsKeypair.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/deriveClaimerWotsKeypair.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/deriveClaimerWotsKeypair.ts)
 
 Must implement `deriveContextHash` — the only wallet prompt in the claim.
 
@@ -700,7 +700,7 @@ Must implement `deriveContextHash` — the only wallet prompt in the claim.
 vaultContext: VaultContextInput;
 ```
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/deriveClaimerWotsKeypair.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/deriveClaimerWotsKeypair.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/deriveClaimerWotsKeypair.ts)
 
 Same context that produced this vault's secrets at deposit time.
 
@@ -710,7 +710,7 @@ Same context that produced this vault's secrets at deposit time.
 htlcVout: number;
 ```
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/deriveClaimerWotsKeypair.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/deriveClaimerWotsKeypair.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/deriveClaimerWotsKeypair.ts)
 
 HTLC output index of this vault within the Pre-PegIn transaction.
 
@@ -720,7 +720,7 @@ HTLC output index of this vault within the Pre-PegIn transaction.
 txGraphJson: string;
 ```
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/deriveClaimerWotsKeypair.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/deriveClaimerWotsKeypair.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/deriveClaimerWotsKeypair.ts)
 
 JSON-serialized TxGraph the keypair must match.
 
@@ -730,7 +730,7 @@ JSON-serialized TxGraph the keypair must match.
 txGraphVersion: number;
 ```
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/deriveClaimerWotsKeypair.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/deriveClaimerWotsKeypair.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/deriveClaimerWotsKeypair.ts)
 
 Graph version. Delegated claim requires 3.
 
@@ -738,7 +738,7 @@ Graph version. Delegated claim requires 3.
 
 ### ClaimerWotsKeypair
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/deriveClaimerWotsKeypair.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/deriveClaimerWotsKeypair.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/deriveClaimerWotsKeypair.ts)
 
 #### Properties
 
@@ -748,7 +748,7 @@ Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/derive
 wotsKeypairJson: string;
 ```
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/deriveClaimerWotsKeypair.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/deriveClaimerWotsKeypair.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/deriveClaimerWotsKeypair.ts)
 
 Content of `wots_keypair.json`, ready to write verbatim. Secret and
 single-use: never log it, never persist it beyond the claim, and never
@@ -760,7 +760,7 @@ reuse it — reuse across claims leaks the WOTS key.
 pkHash: string;
 ```
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/deriveClaimerWotsKeypair.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/deriveClaimerWotsKeypair.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/deriveClaimerWotsKeypair.ts)
 
 `0x`-prefixed hash of the public keys, matching `depositorWotsPkHash`.
 
@@ -768,7 +768,7 @@ Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/derive
 
 ### AssertArtifactsUsableParams
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/readWatchtowerArtifacts.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/readWatchtowerArtifacts.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/readWatchtowerArtifacts.ts)
 
 #### Properties
 
@@ -778,7 +778,7 @@ Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/readWa
 artifactsJson: string;
 ```
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/readWatchtowerArtifacts.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/readWatchtowerArtifacts.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/readWatchtowerArtifacts.ts)
 
 ##### expectedVaultId
 
@@ -786,7 +786,7 @@ Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/readWa
 expectedVaultId: string;
 ```
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/readWatchtowerArtifacts.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/readWatchtowerArtifacts.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/readWatchtowerArtifacts.ts)
 
 Vault the caller intends to claim, `0x`-prefixed or bare hex.
 
@@ -796,7 +796,7 @@ Vault the caller intends to claim, `0x`-prefixed or bare hex.
 optional txGraphVersion: number;
 ```
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/readWatchtowerArtifacts.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/readWatchtowerArtifacts.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/readWatchtowerArtifacts.ts)
 
 Graph version to verify under. Defaults to the only version the format
 exists for; pass it explicitly to fail loudly on a mismatched vault.
@@ -805,7 +805,7 @@ exists for; pass it explicitly to fail loudly on a mismatched vault.
 
 ### WatchtowerArtifactsSummary
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts)
 
 The small, non-opaque fields of an `artifacts.json` file.
 
@@ -817,7 +817,7 @@ The small, non-opaque fields of an `artifacts.json` file.
 optional vaultCoreVersion: number;
 ```
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts)
 
 Graph version the file was assembled under. Delegated claim requires 3.
 
@@ -827,7 +827,7 @@ Graph version the file was assembled under. Delegated claim requires 3.
 vaultId: string;
 ```
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts)
 
 32-byte on-chain vault id, as the file records it.
 
@@ -837,7 +837,7 @@ Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.
 claimTxid: string;
 ```
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts)
 
 Txid of the fully signed Claim transaction the file carries.
 
@@ -847,7 +847,7 @@ Txid of the fully signed Claim transaction the file carries.
 proverCircuitVersion: number;
 ```
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts)
 
 ##### claimableEventBlockNumber
 
@@ -855,7 +855,7 @@ Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.
 claimableEventBlockNumber: number;
 ```
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts)
 
 Block of the finalized `VaultClaimableBy` event, or 0 when the file was
 assembled before the Ethereum withdrawal was initiated. A claim run
@@ -867,7 +867,7 @@ against 0 proves the wrong block and fails before Assert.
 babeSessionChallengerPubkeys: string[];
 ```
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts)
 
 Hex challenger public keys the file carries BaBe sessions for.
 
@@ -875,7 +875,7 @@ Hex challenger public keys the file carries BaBe sessions for.
 
 ### ClaimerArtifactsSource
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts)
 
 Inputs the vault provider supplies for artifact assembly.
 
@@ -887,7 +887,7 @@ Inputs the vault provider supplies for artifact assembly.
 txGraphJson: string;
 ```
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts)
 
 `tx_graph_json` from `requestDepositorClaimerArtifacts`.
 
@@ -897,7 +897,7 @@ Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.
 verifyingKeyHex: string;
 ```
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts)
 
 `verifying_key_hex` from the same response.
 
@@ -905,7 +905,7 @@ Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.
 
 ### DelegatedClaimVaultContext
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts)
 
 On-chain facts the assembled artifacts commit to.
 
@@ -917,7 +917,7 @@ On-chain facts the assembled artifacts commit to.
 vaultId: `0x${string}`;
 ```
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts)
 
 ##### txGraphVersion
 
@@ -925,7 +925,7 @@ Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.
 txGraphVersion: number;
 ```
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts)
 
 Graph (vault core) version of the vault. Delegated claim requires 3.
 
@@ -935,7 +935,7 @@ Graph (vault core) version of the vault. Delegated claim requires 3.
 proverCircuitVersion: number;
 ```
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts)
 
 ##### claimableEventBlockNumber
 
@@ -943,7 +943,7 @@ Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.
 claimableEventBlockNumber: bigint;
 ```
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts)
 
 Block of the finalized `VaultClaimableBy` event. Pass `0n` when the
 withdrawal has not been initiated yet; whoever runs the claim must
@@ -3691,7 +3691,7 @@ whatever the injected `writeContract` throws
 function assembleWatchtowerArtifacts(params): Promise<string>;
 ```
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/assembleWatchtowerArtifacts.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/assembleWatchtowerArtifacts.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/assembleWatchtowerArtifacts.ts)
 
 Signs the delegated-claim set and returns the `artifacts.json` content,
 ready to write verbatim.
@@ -3724,7 +3724,7 @@ If the graph is not version 3, if the wallet returns a signature
 function deriveClaimerWotsKeypair(params): Promise<ClaimerWotsKeypair>;
 ```
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/deriveClaimerWotsKeypair.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/deriveClaimerWotsKeypair.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/deriveClaimerWotsKeypair.ts)
 
 Re-derives the depositor's WOTS keypair and checks it against the graph.
 
@@ -3756,7 +3756,7 @@ If the wallet's derivation does not match the WOTS public keys the
 function summarizeWatchtowerArtifacts(artifactsJson): WatchtowerArtifactsSummary;
 ```
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/readWatchtowerArtifacts.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/readWatchtowerArtifacts.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/readWatchtowerArtifacts.ts)
 
 Reads the small, self-describing fields of an artifacts file.
 
@@ -3788,7 +3788,7 @@ If the file is not JSON, or lacks the fields every artifacts file
 function assertArtifactsUsableForVault(params): Promise<WatchtowerArtifactsSummary>;
 ```
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/readWatchtowerArtifacts.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/readWatchtowerArtifacts.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/readWatchtowerArtifacts.ts)
 
 Verifies an artifacts file and confirms it is the one for this vault.
 
@@ -5062,7 +5062,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/pegout/state.ts](http
 const DELEGATED_CLAIM_TX_GRAPH_VERSION: 3 = 3;
 ```
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/readWatchtowerArtifacts.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/readWatchtowerArtifacts.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/readWatchtowerArtifacts.ts)
 
 Graph version the delegated-claim artifacts format exists for. Vaults on
 graph v1 and v2 predate it and have no artifacts path at all.

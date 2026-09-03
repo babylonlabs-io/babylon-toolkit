@@ -15,6 +15,8 @@
  * @module services/delegated-claim/assembleWatchtowerArtifacts
  */
 
+import { Buffer } from "buffer";
+
 import type { BitcoinWallet } from "../../../../shared/wallets/interfaces";
 import { signPsbtsWithFallback } from "../../managers/pegin/signPsbtsWithFallback";
 import { createTaprootScriptPathSignOptionsForInput } from "../../utils/signing";
