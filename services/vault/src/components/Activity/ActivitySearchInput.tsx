@@ -21,7 +21,7 @@ export function ActivitySearchInput({
   onChange,
 }: ActivitySearchInputProps) {
   return (
-    <label className="flex w-full max-w-[360px] items-center gap-2 rounded-lg border border-secondary-strokeDark bg-secondary-highlight py-2 pl-4 pr-3">
+    <label className="flex w-full max-w-[360px] items-center gap-2 rounded-lg border border-secondary-strokeDark bg-secondary-highlight py-2 pl-4 pr-3 focus-within:border-accent-primary">
       <RiSearchLine
         size={SEARCH_ICON_SIZE}
         aria-hidden
