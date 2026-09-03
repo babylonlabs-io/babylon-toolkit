@@ -13,17 +13,23 @@ interface GroupHeaderProps {
   status: GroupStatus;
   completedInGroup: number;
   totalInGroup: number;
+  /** True when this group's current step failed — render title + circle red. */
+  hasError?: boolean;
 }
 
 function GroupIndicator({
   status,
   number,
+  hasError,
 }: {
   status: GroupStatus;
   number: number;
+  hasError: boolean;
 }) {
   const base = "flex h-8 w-8 shrink-0 items-center justify-center rounded-full";
-  const ariaLabel = COPY.deposit.a11y.groupStatus[status];
+  const ariaLabel = hasError
+    ? COPY.deposit.a11y.groupStatus.failed
+    : COPY.deposit.a11y.groupStatus[status];
 
   if (status === "completed") {
     return (
@@ -38,13 +44,21 @@ function GroupIndicator({
 
   return (
     <div
-      className={twMerge(base, "border-2 border-accent-primary")}
+      className={twMerge(
+        base,
+        hasError
+          ? "border-2 border-error-main"
+          : "border-2 border-secondary-strokeDark",
+      )}
       aria-label={ariaLabel}
     >
       <Text
         as="span"
         variant="body2"
-        className="font-medium text-accent-primary"
+        className={twMerge(
+          "font-medium",
+          hasError ? "text-error-main" : "text-accent-primary",
+        )}
       >
         {number}
       </Text>
@@ -58,14 +72,18 @@ export function GroupHeader({
   status,
   completedInGroup,
   totalInGroup,
+  hasError = false,
 }: GroupHeaderProps) {
   return (
     <div className="flex items-center gap-3">
-      <GroupIndicator status={status} number={number} />
+      <GroupIndicator status={status} number={number} hasError={hasError} />
       <Text
         as="span"
         variant="body1"
-        className="flex-1 font-medium text-accent-primary"
+        className={twMerge(
+          "flex-1 font-medium",
+          hasError ? "text-error-main" : "text-accent-primary",
+        )}
       >
         {title}
       </Text>

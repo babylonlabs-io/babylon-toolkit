@@ -40,7 +40,7 @@ export function ProviderWaitDetail({
     : "flex items-center justify-between gap-2";
 
   return (
-    <div className="mt-3 flex flex-col gap-2 rounded-lg bg-secondary-highlight p-3">
+    <div className="mt-3 flex flex-col gap-2 rounded-lg border border-secondary-strokeLight bg-primary-contrast p-3">
       <div className={rowClass}>
         <Text as="span" variant="body2" className="text-accent-secondary">
           {copy.status}:

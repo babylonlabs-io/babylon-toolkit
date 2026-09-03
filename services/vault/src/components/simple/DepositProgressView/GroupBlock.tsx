@@ -2,10 +2,10 @@
  * GroupBlock
  *
  * Renders one step group with the deposit-progress design: the active group
- * expands into a filled card (header → divider → sub-steps), while a collapsed
- * (upcoming) group renders as a single header row. Shared by the single-vault
- * stepper ({@link GroupedProgress}) and each lane of the split stepper
- * ({@link SplitGroupedProgress}) so both look identical.
+ * expands into a filled card (header → divider → sub-steps), while an
+ * un-started (pre-entry) group renders as a single header row. Shared by the
+ * single-vault stepper ({@link GroupedProgress}) and each lane of the split
+ * stepper ({@link SplitGroupedProgress}) so both look identical.
  */
 
 import type { StepperItem } from "@babylonlabs-io/core-ui";
@@ -65,6 +65,8 @@ export function GroupBlock({
     group.startStep <= PRE_PEGIN_VISUAL_STEP &&
     PRE_PEGIN_VISUAL_STEP <= group.endStep;
 
+  const headerHasError = hasError && group.status === "active";
+
   if (!group.expanded && !showPreSignDetail) {
     return (
       <GroupHeader
@@ -73,6 +75,7 @@ export function GroupBlock({
         status={group.status}
         completedInGroup={group.completedInGroup}
         totalInGroup={group.totalInGroup}
+        hasError={headerHasError}
       />
     );
   }
@@ -91,6 +94,7 @@ export function GroupBlock({
           status={group.status}
           completedInGroup={group.completedInGroup}
           totalInGroup={group.totalInGroup}
+          hasError={headerHasError}
         />
         <div className="border-t border-secondary-strokeLight" />
         <div className="flex flex-col gap-2 px-2">

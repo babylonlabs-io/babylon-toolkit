@@ -46,7 +46,7 @@ describe("SplitGroupedProgress", () => {
     expect(trunkHeaders).toHaveLength(1);
   });
 
-  it("renders each post-trunk group once per vault column", () => {
+  it("renders each lane's own current group once per vault column", () => {
     render(
       <SplitGroupedProgress
         steps={steps}
@@ -57,11 +57,108 @@ describe("SplitGroupedProgress", () => {
       />,
     );
 
+    // Both lanes sit on the WOTS step → one card each, and nothing later.
     expect(screen.getAllByText(COPY.deposit.groups.signWots)).toHaveLength(2);
-    expect(screen.getAllByText(COPY.deposit.groups.signPayout)).toHaveLength(2);
-    expect(screen.getAllByText(COPY.deposit.groups.activateVault)).toHaveLength(
-      2,
+    expect(
+      screen.queryByText(COPY.deposit.groups.signPayout),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(COPY.deposit.groups.activateVault),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps a queued vault visible once the trunk folds away", () => {
+    // The flow parks every lane on AWAIT_BTC_CONFIRMATION, then advances only
+    // the vault it is processing. The queued lane is still on the trunk's last
+    // step, but the trunk has folded into the pill — its column must show its
+    // next group rather than vanish.
+    render(
+      <SplitGroupedProgress
+        steps={steps}
+        currentStep={getVisualStep(DepositFlowStep.SUBMIT_WOTS_KEYS)}
+        vaultCount={2}
+        currentVaultIndex={0}
+        rawStep={DepositFlowStep.SUBMIT_WOTS_KEYS}
+        perVaultSteps={[
+          DepositFlowStep.SUBMIT_WOTS_KEYS,
+          DepositFlowStep.AWAIT_BTC_CONFIRMATION,
+        ]}
+      />,
     );
+
+    expect(
+      screen.getByText(COPY.deposit.progress.splitVaultColumnLabel(2)),
+    ).toBeInTheDocument();
+    // Both lanes show the "Set up claim" group: the active one expanded, the
+    // queued one as a not-started header with nothing done inside it.
+    expect(screen.getAllByText(COPY.deposit.groups.signWots)).toHaveLength(2);
+    expect(
+      screen.getByLabelText(COPY.deposit.a11y.groupStatus.upcoming),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps a finished vault visible while a sibling still runs", () => {
+    render(
+      <SplitGroupedProgress
+        steps={steps}
+        currentStep={getVisualStep(DepositFlowStep.SIGN_PAYOUTS)}
+        vaultCount={2}
+        currentVaultIndex={1}
+        rawStep={DepositFlowStep.SIGN_PAYOUTS}
+        perVaultSteps={[
+          DepositFlowStep.COMPLETED,
+          DepositFlowStep.SIGN_PAYOUTS,
+        ]}
+      />,
+    );
+
+    // The finished lane keeps its last group, marked completed.
+    expect(
+      screen.getByText(COPY.deposit.groups.activateVault),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByLabelText(COPY.deposit.a11y.groupStatus.completed),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(COPY.deposit.progress.splitVaultColumnLabel(1)),
+    ).toBeInTheDocument();
+  });
+
+  it("renders no vault columns while the shared trunk is still running", () => {
+    render(
+      <SplitGroupedProgress
+        steps={steps}
+        currentStep={getVisualStep(DepositFlowStep.SIGN_PEGIN_BTC)}
+        vaultCount={2}
+        currentVaultIndex={null}
+        rawStep={DepositFlowStep.SIGN_PEGIN_BTC}
+      />,
+    );
+
+    // Every lane is still on the shared Register-deposit group, so the columns
+    // (labels included) stay out of the tree until the lanes diverge.
+    expect(
+      screen.queryByText(COPY.deposit.progress.splitVaultColumnLabel(1)),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps the trunk's Pre-PegIn fee selector on the un-started entry", () => {
+    render(
+      <SplitGroupedProgress
+        steps={steps}
+        currentStep={getVisualStep(DepositFlowStep.DERIVE_VAULT_SECRET)}
+        vaultCount={2}
+        currentVaultIndex={null}
+        rawStep={DepositFlowStep.DERIVE_VAULT_SECRET}
+        started={false}
+        preSignDetail={<div data-testid="pre-sign-detail" />}
+      />,
+    );
+
+    expect(screen.getAllByTestId("pre-sign-detail")).toHaveLength(1);
+    expect(
+      screen.getByText(COPY.deposit.groups.registerDeposit),
+    ).toBeInTheDocument();
   });
 
   it("expands each column at its own active step when the vaults diverge", () => {

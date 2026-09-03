@@ -9,19 +9,23 @@ import { buildStepItems } from "../steps";
 const steps = buildStepItems(null);
 
 describe("GroupedProgress", () => {
-  it("renders all four group headers before any group completes", () => {
+  it("renders only the group holding the current step", () => {
     render(<GroupedProgress steps={steps} currentStep={1} />);
 
     expect(
       screen.getByText(COPY.deposit.groups.registerDeposit),
     ).toBeInTheDocument();
-    expect(screen.getByText(COPY.deposit.groups.signWots)).toBeInTheDocument();
+
+    // Every later group is hidden until its own turn.
     expect(
-      screen.getByText(COPY.deposit.groups.signPayout),
-    ).toBeInTheDocument();
+      screen.queryByText(COPY.deposit.groups.signWots),
+    ).not.toBeInTheDocument();
     expect(
-      screen.getByText(COPY.deposit.groups.activateVault),
-    ).toBeInTheDocument();
+      screen.queryByText(COPY.deposit.groups.signPayout),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(COPY.deposit.groups.activateVault),
+    ).not.toBeInTheDocument();
   });
 
   it("expands only the active group and hides other groups' sub-steps", () => {
@@ -38,9 +42,12 @@ describe("GroupedProgress", () => {
       screen.queryByText(COPY.deposit.steps.generateSecret),
     ).not.toBeInTheDocument();
 
-    // An upcoming group's sub-step (Sign payouts) stays collapsed.
+    // An upcoming group is not rendered at all — neither header nor sub-step.
     expect(
       screen.queryByText(COPY.deposit.steps.signPayouts),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(COPY.deposit.groups.signPayout),
     ).not.toBeInTheDocument();
   });
 
@@ -58,19 +65,21 @@ describe("GroupedProgress", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders completed sub-steps without a step number inside the active group", () => {
+  it("renders the active group's sub-steps by state, not by number", () => {
     // Step 11 -> "Sign payout" group (9-12) active; steps 9-10 are already done.
     render(<GroupedProgress steps={steps} currentStep={11} />);
 
-    // Completed sub-step label is shown...
+    // Completed sub-step label is shown as a checkmark row, not a numbered one.
     expect(
       screen.getByText(COPY.deposit.steps.authenticateSession),
     ).toBeInTheDocument();
-    // ...but rendered as a checkmark row, not the numbered pending row "1".
     expect(screen.queryByText("1")).not.toBeInTheDocument();
 
-    // The remaining pending sub-step carries its per-group number (4 within the group).
-    expect(screen.getByText("4")).toBeInTheDocument();
+    // The remaining sub-step reads pending; only the group circle is numbered.
+    expect(
+      screen.getByLabelText(COPY.deposit.a11y.stepPending(12)),
+    ).toBeInTheDocument();
+    expect(screen.getByText("3")).toBeInTheDocument();
   });
 
   it("mounts the active-step detail panel inside the active step", () => {
@@ -103,6 +112,53 @@ describe("GroupedProgress", () => {
     ).not.toBeInTheDocument();
   });
 
+  describe("pre-sign entry (started=false)", () => {
+    it("renders the Pre-PegIn group with its fee selector", () => {
+      render(
+        <GroupedProgress
+          steps={steps}
+          currentStep={1}
+          started={false}
+          preSignDetail={<div data-testid="pre-sign-detail" />}
+        />,
+      );
+
+      expect(
+        screen.getByText(COPY.deposit.groups.registerDeposit),
+      ).toBeInTheDocument();
+      expect(screen.getByTestId("pre-sign-detail")).toBeInTheDocument();
+      expect(
+        screen.queryByText(COPY.deposit.groups.signWots),
+      ).not.toBeInTheDocument();
+    });
+
+    it("renders the current group's header when re-entering un-started mid-flow", () => {
+      // WOTS re-offer: no group is `active` (nothing has started), so the
+      // rendered group is the one holding the current step — and the finished
+      // Register-deposit group must not come back with it.
+      render(<GroupedProgress steps={steps} currentStep={7} started={false} />);
+
+      expect(
+        screen.getByText(COPY.deposit.groups.signWots),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText(COPY.deposit.groups.registerDeposit),
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  it("marks the group title as failed when the current step errors", () => {
+    render(<GroupedProgress steps={steps} currentStep={8} hasError />);
+
+    expect(screen.getByText(COPY.deposit.groups.signWots).className).toContain(
+      "text-error-main",
+    );
+    // The failed sub-step label turns red too.
+    expect(
+      screen.getByText(COPY.deposit.steps.awaitPayoutTransactions).className,
+    ).toContain("text-error-main");
+  });
+
   describe("accessibility", () => {
     it("labels the active sub-step for screen readers with the global step number", () => {
       // Step 8 -> "Set up claim" group active; screen reader gets global step 8,
@@ -124,20 +180,20 @@ describe("GroupedProgress", () => {
       ).toBeInTheDocument();
     });
 
-    it("exposes visible groups' status to screen readers (completed groups are hidden)", () => {
+    it("exposes only the rendered group's status to screen readers", () => {
       render(<GroupedProgress steps={steps} currentStep={8} />);
 
       // Register deposit is done and therefore hidden — no completed indicator.
       expect(
         screen.queryByLabelText(COPY.deposit.a11y.groupStatus.completed),
       ).not.toBeInTheDocument();
-      // Set up claim is active; Sign payout and Activate vault are upcoming.
+      // Set up claim is the only group left in the tree, and it is active.
       expect(
         screen.getByLabelText(COPY.deposit.a11y.groupStatus.active),
       ).toBeInTheDocument();
       expect(
-        screen.getAllByLabelText(COPY.deposit.a11y.groupStatus.upcoming),
-      ).toHaveLength(2);
+        screen.queryByLabelText(COPY.deposit.a11y.groupStatus.upcoming),
+      ).not.toBeInTheDocument();
     });
   });
 });
