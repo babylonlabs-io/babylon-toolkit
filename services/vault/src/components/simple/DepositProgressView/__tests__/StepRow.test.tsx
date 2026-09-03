@@ -1,6 +1,8 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
+import { COPY } from "@/copy";
+
 import { StepRow } from "../StepRow";
 
 describe("StepRow — sub-counter layout", () => {
@@ -28,12 +30,22 @@ describe("StepRow — sub-counter layout", () => {
 });
 
 describe("StepRow — failed step", () => {
-  it("renders the label in the error colour when the step failed", () => {
-    render(<StepRow state="error" number={1} label="Submit WOTS key" />);
+  it("announces the failure to screen readers, not by colour alone", () => {
+    render(
+      <StepRow
+        state="error"
+        number={1}
+        ariaNumber={8}
+        label="Submit WOTS key"
+      />,
+    );
 
-    const label = screen.getByText("Submit WOTS key");
-    expect(label.className).toContain("text-error-main");
-    expect(label.className).not.toContain("text-accent-secondary");
+    expect(
+      screen.getByLabelText(COPY.deposit.a11y.stepFailed(8)),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByLabelText(COPY.deposit.a11y.stepActive(8)),
+    ).not.toBeInTheDocument();
   });
 
   it("keeps the label muted while the step is still pending", () => {

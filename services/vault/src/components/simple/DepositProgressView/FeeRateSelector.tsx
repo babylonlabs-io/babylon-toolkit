@@ -13,6 +13,7 @@ import { peginOutputCount } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { IoClose } from "react-icons/io5";
 
+import { DETAIL_PANEL_CLASS } from "@/components/shared/layoutClasses";
 import { MIN_RELAY_FEE_RATE_SATS_VB } from "@/constants";
 import { useBTCWallet } from "@/context/wallet";
 import { COPY } from "@/copy";
@@ -190,7 +191,7 @@ export function FeeRateSelector({
   ];
 
   return (
-    <div className="flex flex-col gap-2 rounded-lg border border-secondary-strokeLight bg-primary-contrast p-3">
+    <div className={DETAIL_PANEL_CLASS}>
       <div className="flex items-center justify-between">
         <Text variant="body2" className="text-accent-primary">
           {FEE_SELECTOR_COPY.title}

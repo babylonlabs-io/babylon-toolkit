@@ -1,5 +1,5 @@
 import { Text } from "@babylonlabs-io/core-ui";
-import { IoCheckmarkSharp } from "react-icons/io5";
+import { IoCheckmarkSharp, IoCloseSharp } from "react-icons/io5";
 import { twMerge } from "tailwind-merge";
 
 import { COPY } from "@/copy";
@@ -42,23 +42,29 @@ function GroupIndicator({
     );
   }
 
+  if (hasError) {
+    return (
+      <div
+        className={twMerge(base, "border-2 border-error-main")}
+        aria-label={ariaLabel}
+      >
+        <IoCloseSharp size={16} className="text-error-main" />
+      </div>
+    );
+  }
+
   return (
     <div
       className={twMerge(
         base,
-        hasError
-          ? "border-2 border-error-main"
-          : "border-2 border-secondary-strokeDark",
+        "border-2 border-accent-secondary dark:border-secondary-strokeDark",
       )}
       aria-label={ariaLabel}
     >
       <Text
         as="span"
         variant="body2"
-        className={twMerge(
-          "font-medium",
-          hasError ? "text-error-main" : "text-accent-primary",
-        )}
+        className="font-medium text-accent-primary"
       >
         {number}
       </Text>
