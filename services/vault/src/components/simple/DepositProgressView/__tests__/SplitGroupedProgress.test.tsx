@@ -142,6 +142,32 @@ describe("SplitGroupedProgress", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("holds the columns back while the trunk runs, even for a lane past the end", () => {
+    render(
+      <SplitGroupedProgress
+        steps={steps}
+        currentStep={getVisualStep(DepositFlowStep.SIGN_PEGIN_BTC)}
+        vaultCount={2}
+        currentVaultIndex={null}
+        rawStep={DepositFlowStep.SIGN_PEGIN_BTC}
+        perVaultSteps={[
+          DepositFlowStep.COMPLETED,
+          DepositFlowStep.SIGN_PEGIN_BTC,
+        ]}
+      />,
+    );
+
+    expect(
+      screen.getByText(COPY.deposit.groups.registerDeposit),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(COPY.deposit.progress.splitVaultColumnLabel(1)),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(COPY.deposit.groups.activateVault),
+    ).not.toBeInTheDocument();
+  });
+
   it("keeps the trunk's Pre-PegIn fee selector on the un-started entry", () => {
     render(
       <SplitGroupedProgress

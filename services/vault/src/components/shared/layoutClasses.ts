@@ -48,3 +48,6 @@ export const SUMMARY_CARD_CLASS = "w-full border-0 !py-[34px]";
  */
 export const CARD_SHELL_CLASS =
   "w-full overflow-hidden rounded-lg border border-secondary-strokeLight bg-secondary-highlight dark:bg-[#202020]";
+
+export const DETAIL_PANEL_CLASS =
+  "flex flex-col gap-2 rounded-lg border border-secondary-strokeLight bg-primary-contrast p-3";

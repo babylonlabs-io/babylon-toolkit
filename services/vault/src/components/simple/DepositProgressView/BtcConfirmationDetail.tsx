@@ -1,6 +1,7 @@
 import { Loader, Text } from "@babylonlabs-io/core-ui";
 
 import { CopyableHash } from "@/components/shared/CopyableHash";
+import { DETAIL_PANEL_CLASS } from "@/components/shared/layoutClasses";
 import { COPY } from "@/copy";
 import { getBtcExplorerTxUrl } from "@/utils/explorer";
 
@@ -47,7 +48,7 @@ export function BtcConfirmationDetail({
     : "flex items-center justify-between gap-2";
 
   return (
-    <div className="mt-3 flex flex-col gap-2 rounded-lg border border-secondary-strokeLight bg-primary-contrast p-3">
+    <div className={`mt-3 ${DETAIL_PANEL_CLASS}`}>
       <div className={rowClass}>
         <Text as="span" variant="body2" className="text-accent-secondary">
           {depthReached ? COPY.deposit.waitDetails.status : copy.estRemaining}:

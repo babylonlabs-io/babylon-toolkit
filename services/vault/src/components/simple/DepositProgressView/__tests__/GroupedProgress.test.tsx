@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { COPY } from "@/copy";
@@ -147,16 +147,37 @@ describe("GroupedProgress", () => {
     });
   });
 
-  it("marks the group title as failed when the current step errors", () => {
+  it("marks the group and its failing sub-step as failed when the current step errors", () => {
     render(<GroupedProgress steps={steps} currentStep={8} hasError />);
 
-    expect(screen.getByText(COPY.deposit.groups.signWots).className).toContain(
-      "text-error-main",
+    const failed = screen.getAllByLabelText(
+      COPY.deposit.a11y.groupStatus.failed,
     );
-    // The failed sub-step label turns red too.
+    expect(failed).toHaveLength(1);
+
+    const header = failed[0].parentElement as HTMLElement;
     expect(
-      screen.getByText(COPY.deposit.steps.awaitPayoutTransactions).className,
-    ).toContain("text-error-main");
+      within(header).getByText(COPY.deposit.groups.signWots),
+    ).toBeInTheDocument();
+
+    for (const status of ["active", "completed", "upcoming"] as const) {
+      expect(
+        screen.queryByLabelText(COPY.deposit.a11y.groupStatus[status]),
+      ).not.toBeInTheDocument();
+    }
+
+    // The failing sub-step announces itself too.
+    expect(
+      screen.getByLabelText(COPY.deposit.a11y.stepFailed(8)),
+    ).toBeInTheDocument();
+  });
+
+  it("swaps the group number for the close glyph on a failed header", () => {
+    render(<GroupedProgress steps={steps} currentStep={8} hasError />);
+
+    const circle = screen.getByLabelText(COPY.deposit.a11y.groupStatus.failed);
+    expect(within(circle).queryByText("2")).not.toBeInTheDocument();
+    expect(circle.querySelector("svg")).toBeInTheDocument();
   });
 
   describe("accessibility", () => {

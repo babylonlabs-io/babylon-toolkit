@@ -15,7 +15,7 @@ import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps/types";
 
 import { GroupHeader } from "./GroupHeader";
 import { StepRow, type StepRowState } from "./StepRow";
-import { getVisualStep, type StepGroupView } from "./steps";
+import { getVisualStep, groupContainsStep, type StepGroupView } from "./steps";
 
 /** The step whose transaction the pre-sign fee rate pays for. */
 const PRE_PEGIN_VISUAL_STEP = getVisualStep(
@@ -65,7 +65,7 @@ export function GroupBlock({
     group.startStep <= PRE_PEGIN_VISUAL_STEP &&
     PRE_PEGIN_VISUAL_STEP <= group.endStep;
 
-  const headerHasError = hasError && group.status === "active";
+  const headerHasError = hasError && groupContainsStep(group, currentStep);
 
   if (!group.expanded && !showPreSignDetail) {
     return (
@@ -101,12 +101,11 @@ export function GroupBlock({
           {showPreSignDetail ? (
             <>
               <StepRow
-                state="active"
+                state={headerHasError ? "error" : "active"}
                 number={PRE_PEGIN_VISUAL_STEP - group.startStep + 1}
                 ariaNumber={PRE_PEGIN_VISUAL_STEP}
                 label={steps[PRE_PEGIN_VISUAL_STEP - 1]?.label ?? ""}
                 compact={compact}
-                inCard
               />
               {preSignDetail}
             </>
@@ -133,9 +132,7 @@ export function GroupBlock({
                   label={step.label}
                   description={step.description}
                   detail={activeStepDetail}
-                  hasNext={subIndex < stepNumbers.length - 1}
                   compact={compact}
-                  inCard
                 />
               );
             })
