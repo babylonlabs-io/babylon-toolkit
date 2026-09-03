@@ -84,7 +84,7 @@ function StepCircle({
   if (state === "active") {
     return (
       <div
-        className={twMerge(base, "border-2 border-primary-light")}
+        className={twMerge(base, "border-2 border-secondary-strokeDark")}
         aria-label={COPY.deposit.a11y.stepActive(ariaNumber ?? number)}
       >
         <Loader size={16} className="text-primary-light" />
@@ -189,9 +189,11 @@ export function StepRow({
             as="span"
             variant="body2"
             className={
-              isActive
-                ? "font-medium text-accent-primary"
-                : "text-accent-secondary"
+              state === "error"
+                ? "font-medium text-error-main"
+                : isActive
+                  ? "font-medium text-accent-primary"
+                  : "text-accent-secondary"
             }
           >
             {label}

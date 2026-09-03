@@ -26,3 +26,21 @@ describe("StepRow — sub-counter layout", () => {
     expect(wrapper?.className).not.toContain("flex-col");
   });
 });
+
+describe("StepRow — failed step", () => {
+  it("renders the label in the error colour when the step failed", () => {
+    render(<StepRow state="error" number={1} label="Submit WOTS key" />);
+
+    const label = screen.getByText("Submit WOTS key");
+    expect(label.className).toContain("text-error-main");
+    expect(label.className).not.toContain("text-accent-secondary");
+  });
+
+  it("keeps the label muted while the step is still pending", () => {
+    render(<StepRow state="pending" number={1} label="Submit WOTS key" />);
+
+    expect(screen.getByText("Submit WOTS key").className).toContain(
+      "text-accent-secondary",
+    );
+  });
+});

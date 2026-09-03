@@ -190,7 +190,7 @@ export function FeeRateSelector({
   ];
 
   return (
-    <div className="flex flex-col gap-2 rounded-lg border border-secondary-strokeLight bg-secondary-highlight p-3">
+    <div className="flex flex-col gap-2 rounded-lg border border-secondary-strokeLight bg-primary-contrast p-3">
       <div className="flex items-center justify-between">
         <Text variant="body2" className="text-accent-primary">
           {FEE_SELECTOR_COPY.title}

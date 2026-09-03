@@ -385,6 +385,7 @@ export const COPY = {
         completed: "Completed",
         active: "In progress",
         upcoming: "Not started",
+        failed: "Failed",
       },
     },
     progress: {
@@ -404,8 +405,6 @@ export const COPY = {
       stepPrefix: (current: number, total: number) =>
         `Step ${current} of ${total}`,
       defaultSuccessMessage: PRE_PEGIN_BROADCAST_CONFIRMATION_MESSAGE,
-      doNotSpendWarning:
-        "Do not spend the BTC used for this deposit until the transactions are confirmed.",
       splitVaultColumnLabel: (vaultNumber: number) => `BTCVault ${vaultNumber}`,
       buttons: {
         closeContinueLater: "Close & continue later",

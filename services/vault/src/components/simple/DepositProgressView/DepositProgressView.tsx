@@ -355,9 +355,8 @@ export function DepositProgressView(props: DepositProgressViewProps) {
   // a current group with none of its own work done reads not-started, so
   // nothing spins or announces progress while the flow idles awaiting the
   // click. Flows entering at step 1 have nothing completed, so they render
-  // as no bar, no pill, and collapsed not-started headers — except the group
-  // owning the Pre-PegIn step, which opens to carry the fee selector on its
-  // one relevant row (see GroupBlock).
+  // as no bar and no pill — just the group owning the Pre-PegIn step, opened
+  // to carry the fee selector on its one relevant row (see GroupBlock).
   const visualStep = isComplete
     ? TOTAL_VISUAL_STEPS + 1
     : getVisualStep(currentStep);
@@ -545,14 +544,6 @@ export function DepositProgressView(props: DepositProgressViewProps) {
             )}
           </Button>
         </div>
-      }
-      footnote={
-        <Text
-          variant="body2"
-          className="text-center text-xs text-accent-secondary"
-        >
-          {COPY.deposit.progress.doNotSpendWarning}
-        </Text>
       }
     >
       <div className="flex flex-col gap-6">
