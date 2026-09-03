@@ -11,7 +11,8 @@ export interface SidebarItemProps {
 // Exact row from Figma Sidebar nav items (node 10084:23112): 40px row height,
 // 24px icon, 16px/0.15px-tracking label, 8px gap. Active state is a text-color
 // change only (text/primary vs text/secondary) — Figma defines no background
-// or border treatment for the active row.
+// or border treatment for the active row. Inactive rows additionally hover to
+// secondary-main (babylonlabs-io/babylon-toolkit#2340 item 8).
 export const SidebarItem = ({
   icon,
   label,

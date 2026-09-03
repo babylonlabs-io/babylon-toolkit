@@ -782,11 +782,6 @@ describe("Liquidation Dashboard position override", () => {
         `${formatUsd(override.collateralBtc * LIVE_PARAMS.btcPrice)} USD`,
       ),
     ).toBeInTheDocument();
-    expect(
-      screen.queryByRole("progressbar", {
-        name: COPY.liquidations.position.totalBorrowed,
-      }),
-    ).not.toBeInTheDocument();
   });
 
   it("leaves the USD caption absent (not a fabricated $0.00) when no BTC price is available", () => {

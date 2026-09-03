@@ -7,8 +7,8 @@ export interface PositionStatCard {
   label: string;
   tooltip?: string;
   value: string;
-  /** Custom value rendering (e.g. colored health factor + heart). Overrides
-   *  `value` when set; `value` is still used for accessibility fallbacks. */
+  /** Custom value rendering (e.g. colored health factor + heart). When set it
+   *  is rendered in place of `value`, and `value` is not rendered at all. */
   valueNode?: ReactNode;
   caption?: string;
   /** Action button. Omit all three to render a card with no button. */

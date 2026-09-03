@@ -1,32 +1,8 @@
-import {
-  DiscordIcon,
-  LinkedinIcon,
-  LogoMark,
-  MailIcon,
-  TelegramIcon,
-  XIcon,
-} from "@babylonlabs-io/core-ui";
-import type { ComponentType } from "react";
+import { LogoMark } from "@babylonlabs-io/core-ui";
 
 import { ENTRY_CONTENT_CLASS } from "@/components/shared/layoutClasses";
-import { LEGAL_LINK_URLS, SOCIAL_LINK_URLS } from "@/config/socialLinks";
+import { LEGAL_LINK_URLS, SOCIAL_LINKS } from "@/config/socialLinks";
 import { COPY } from "@/copy";
-
-interface EntryFooterSocialLink {
-  name: string;
-  url: string;
-  Icon: ComponentType<{ size?: number; className?: string; title?: string }>;
-}
-
-// The entry frame's own set. URLs are shared with every other surface via
-// `config/socialLinks`.
-const ENTRY_SOCIAL_LINKS: EntryFooterSocialLink[] = [
-  { name: "Telegram", url: SOCIAL_LINK_URLS.telegram, Icon: TelegramIcon },
-  { name: "LinkedIn", url: SOCIAL_LINK_URLS.linkedin, Icon: LinkedinIcon },
-  { name: "Email", url: SOCIAL_LINK_URLS.email, Icon: MailIcon },
-  { name: "Discord", url: SOCIAL_LINK_URLS.discord, Icon: DiscordIcon },
-  { name: "X", url: SOCIAL_LINK_URLS.x, Icon: XIcon },
-];
 
 const LINK_CLASS = "transition-colors hover:text-secondary-main";
 
@@ -51,7 +27,7 @@ export function EntryFooter() {
 
         <div className="flex flex-col gap-2 sm:items-end">
           <div className="flex items-center gap-4">
-            {ENTRY_SOCIAL_LINKS.map(({ name, url, Icon }) => (
+            {SOCIAL_LINKS.map(({ name, url, Icon }) => (
               <a
                 key={name}
                 href={url}
