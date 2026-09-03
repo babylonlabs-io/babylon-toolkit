@@ -5,6 +5,7 @@ import { test } from "node:test";
 import {
   deriveVaultId,
   getAssertNoPayoutScriptInfo,
+  getAssertPayoutScriptInfo,
   getChallengeAssertScriptInfo,
 } from "@babylonlabs-io/ts-sdk/tbv/core/wasm";
 
@@ -47,16 +48,18 @@ test("pins the built public WASM facade", async () => {
     "f8d22e64c72a84a3dacdedb7d8b42e285bf06bd25850da911398c51d5a6c2dba",
   );
 
+  const assertConnectorParams = {
+    txGraphVersion: 3,
+    claimer: CLAIMER,
+    localChallengers: [LOCAL_CHALLENGER],
+    universalChallengers: [UNIVERSAL_CHALLENGER],
+    timelockAssert: 100,
+    councilMembers: COUNCIL,
+    councilQuorum: 1,
+  };
+
   const noPayout = await getAssertNoPayoutScriptInfo(
-    {
-      txGraphVersion: 3,
-      claimer: CLAIMER,
-      localChallengers: [LOCAL_CHALLENGER],
-      universalChallengers: [UNIVERSAL_CHALLENGER],
-      timelockAssert: 100,
-      councilMembers: COUNCIL,
-      councilQuorum: 1,
-    },
+    assertConnectorParams,
     LOCAL_CHALLENGER,
   );
 
@@ -70,6 +73,21 @@ test("pins the built public WASM facade", async () => {
         "7476f487ae7d44694bfb9165d6731001e2002e75d49186f67391951a82593367",
       controlBlock:
         "ab1667d20d7072fb5ff5377bb965ed1232e5f0478f7c19064cf554a6e03c3bf0",
+    },
+  );
+
+  const payout = await getAssertPayoutScriptInfo(assertConnectorParams);
+
+  assert.deepEqual(
+    {
+      script: sha256Text(payout.payoutScript),
+      controlBlock: sha256Text(payout.payoutControlBlock),
+    },
+    {
+      script:
+        "24e978f39a1df9a00d6b6780269461c926e44332793f91a0be68e712b8ccf904",
+      controlBlock:
+        "30478926dc4893bbbb405de4d225bdaa8d1942c3bcafb5c4644ae31ef63dc177",
     },
   );
 

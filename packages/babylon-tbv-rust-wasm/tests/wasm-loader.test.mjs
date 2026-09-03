@@ -50,6 +50,14 @@ const connectorParams = {
   councilMembers: xOnlyKeys.slice(3),
   councilQuorum: 2,
 };
+const payoutConnectorParams = {
+  txGraphVersion: 1,
+  depositor: xOnlyKeys[0],
+  vaultProvider: xOnlyKeys[1],
+  vaultKeepers: [xOnlyKeys[2]],
+  universalChallengers: [xOnlyKeys[3]],
+  timelockPegin: 1008,
+};
 
 function wotsPublicKey(messageDigits, fill) {
   const terminal = () => Array(20).fill(fill);
@@ -262,6 +270,66 @@ test('pins getChallengeAssertScriptInfo through the browser entry', async () => 
             '3e6de1e5ce5ebb76b05659e7040befe3e2398ab4c809f8195fb271815cedfb76',
           controlBlock:
             '7ece40ba5cd9386d50ae395585c102cb123776238e8d6bd17e6ea1359a294f1a',
+        },
+      );
+    },
+  );
+});
+
+test('pins getAssertPayoutScriptInfo through the browser entry', async () => {
+  await withBrowserFacade(
+    async () =>
+      new Response(wasmBytes, {
+        headers: { 'Content-Type': 'application/wasm' },
+      }),
+    async (facade) => {
+      const result = await facade.getAssertPayoutScriptInfo(connectorParams);
+      assert.deepEqual(
+        {
+          script: sha256Text(result.payoutScript),
+          controlBlock: sha256Text(result.payoutControlBlock),
+        },
+        {
+          script:
+            '4b6fa03aad6f737be6e8c960f3c69e369242a54893db38d95457eb73bebcbbec',
+          controlBlock:
+            '33fa9421213d024727a823ea9d0bbd7f52a47668a7e6d782d81f7d5e0705d590',
+        },
+      );
+    },
+  );
+});
+
+test('pins createPayoutConnector through the browser entry', async () => {
+  await withBrowserFacade(
+    async () =>
+      new Response(wasmBytes, {
+        headers: { 'Content-Type': 'application/wasm' },
+      }),
+    async (facade) => {
+      const result = await facade.createPayoutConnector(
+        payoutConnectorParams,
+        'signet',
+      );
+      assert.deepEqual(
+        {
+          script: sha256Text(result.payoutScript),
+          controlBlock: sha256Text(result.payoutControlBlock),
+          taprootScriptHash: result.taprootScriptHash,
+          scriptPubKey: result.scriptPubKey,
+          address: result.address,
+        },
+        {
+          script:
+            'd851c37a211d3e4c55b2bae8a2a3262e2960de9f1015e43986f76ce5c8628991',
+          controlBlock:
+            'ad3fbafee86756217d31e7d7c1d30411abc7c57bb62393231b24693d46af2b40',
+          taprootScriptHash:
+            '82c0e27be3e706b67c07953fa18ed9b9854ea1cebbc1040f535b130f38f72c73',
+          scriptPubKey:
+            '5120f168b9531c9ace8d638245e004e2550756b996300391337e169c7fb5c354d61d',
+          address:
+            'tb1p795tj5cunt8g6cuzghsqfcj4qattn93sqwgnxlskn3lmts656cwsk4p9uy',
         },
       );
     },
