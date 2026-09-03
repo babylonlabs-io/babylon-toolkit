@@ -235,6 +235,7 @@ export function DisconnectedOverview({
         icon: <PartialLiquidationIcon />,
         title: features.partialLiquidation.title,
         body: features.partialLiquidation.body,
+        expandable: true,
       },
     ];
   }, []);

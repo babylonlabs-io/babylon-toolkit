@@ -14,7 +14,7 @@ export function BrandLockup() {
     <NavLink to="/" className="flex items-center gap-3">
       <LogoMark className="h-8 w-auto text-secondary-main dark:text-accent-primary" />
       <div className="h-8 w-px bg-secondary-strokeLight" />
-      <AaveWordmark className="h-[18px] w-[109px] text-accent-primary" />
+      <AaveWordmark className="text-accent-primary" />
     </NavLink>
   );
 }

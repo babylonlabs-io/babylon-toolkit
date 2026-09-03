@@ -1885,11 +1885,11 @@ export const COPY = {
         },
         partialLiquidation: {
           title: "Partial liquidation supported",
-          body: "Splitting your deposit between two Bitcoin vaults in accordance with AAVE's parameters will allow you to retain part of your position during the first liquidation.",
+          body: "Splitting your deposit between two Bitcoin vaults in accordance with Aave's parameters will allow you to retain part of your position during the first liquidation.",
         },
         selfCustodial: {
           title: "Native, trustless, and self-custodial",
-          body: "No bridging. No wrapping. No pooled custody. Your native Bitcoin stays in a self-custodial vault, without third party able to move it.",
+          body: "No bridging. No wrapping. No pooled custody. Your native Bitcoin stays in a self-custodial vault, with no third party able to move it.",
         },
       },
     },

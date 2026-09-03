@@ -17,7 +17,7 @@ export function NetworkBadge() {
       <Text
         as="span"
         variant="caption"
-        className="text-primary-main dark:text-[rgb(var(--risk-amber))]"
+        className="text-primary-main dark:text-risk-amber"
       >
         {COPY.header.networkBadge}
       </Text>

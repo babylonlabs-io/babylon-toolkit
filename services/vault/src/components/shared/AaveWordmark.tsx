@@ -7,6 +7,8 @@ import { COPY } from "@/copy";
 export function AaveWordmark({ className }: { className?: string }) {
   return (
     <svg
+      width="109"
+      height="18"
       viewBox="0 0 109 18"
       fill="currentColor"
       xmlns="http://www.w3.org/2000/svg"
