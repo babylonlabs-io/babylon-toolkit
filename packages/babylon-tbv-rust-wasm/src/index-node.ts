@@ -5,6 +5,7 @@
 // loading, which does not work in Node.js environments, and does not require
 // a separate wasm-pack --target nodejs build step.
 
+import { createDelegatedClaimApi } from './delegatedClaim.js';
 import {
   getWasmBindings,
   initWasm as initializeWasm,
@@ -566,6 +567,10 @@ export type {
   AssertNoPayoutScriptInfo,
   ChallengeAssertConnectorParams,
   ChallengeAssertScriptInfo,
+  WatchtowerArtifactsInputs,
+  WotsKeypairDerivation,
+  WronglyChallengedPsbts,
+  WronglyChallengedSigs,
 } from './types.js';
 
 // Export constants
@@ -573,3 +578,21 @@ export { TAP_INTERNAL_KEY, tapInternalPubkey } from './constants.js';
 
 // Export boundary value guards (input validation for callers)
 export { assertPositiveBigintArray } from './value-guards.js';
+
+// The delegated-claim assembly surface (graph v3 only). Claim-time execution
+// stays with the `vaultd vp wt` watchtower CLI, which reads the files these
+// produce.
+export const {
+  buildAssertClaimerPsbt,
+  buildClaimPsbt,
+  buildPayoutClaimerPsbt,
+  buildPayoutDepositorPsbt,
+  buildWatchtowerArtifacts,
+  buildWronglyChallengedPsbts,
+  extractDepositorPayoutSig,
+  extractTapScriptSig,
+  finalizeClaimTx,
+  validateWotsKeypairAgainstGraph,
+  verifyWatchtowerArtifacts,
+  wotsKeypairFromSeed,
+} = createDelegatedClaimApi(getWasmBindings);
