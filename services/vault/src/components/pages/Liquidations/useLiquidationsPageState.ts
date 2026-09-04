@@ -1,16 +1,11 @@
 import { useMemo } from "react";
 
-import {
-  BPS_SCALE,
-  MIN_HEALTH_FACTOR_FOR_BORROW,
-} from "@/applications/aave/constants";
 import { usePositionNotifications } from "@/applications/aave/hooks/usePositionNotifications";
 import type {
   CalculatorParams,
   CalculatorResult,
 } from "@/applications/aave/positionNotifications";
 import {
-  calculateBorrowCapacityUsd,
   getHealthFactorStatusFromValue,
   type HealthFactorStatus,
 } from "@/applications/aave/utils";
@@ -22,7 +17,6 @@ export interface LiquidationsPagePosition {
   collateralBtc: number;
   collateralValueUsd: number | null;
   debtValueUsd: number;
-  maxTotalDebtUsd: number;
   healthFactor: number | null;
   healthFactorStatus: HealthFactorStatus;
 }
@@ -52,7 +46,6 @@ export function useLiquidationsPageState(
     collateralBtc,
     collateralValueUsd,
     debtValueUsd,
-    maxTotalDebtUsd,
     healthFactor,
     healthFactorStatus,
   } = useDashboardState(account);
@@ -100,22 +93,12 @@ export function useLiquidationsPageState(
       // Price: the active cascade's if Manual Mode is on, else the live oracle
       // price — `params` already resolves that precedence. No price available
       // = an absent caption, not a fabricated "$0.00 USD".
-      // `maxTotalDebtUsd = debtUsd * HF / MIN_HEALTH_FACTOR_FOR_BORROW` mirrors
-      // `calculateBorrowCapacityUsd`: live HF = collateralValueUsd * LT /
-      // (BPS_SCALE * debtUsd), and maxTotalDebtUsd = collateralValueUsd * LT /
-      // BPS_SCALE / MIN_HEALTH_FACTOR_FOR_BORROW, so substituting collapses to
-      // this — guarded so a non-positive HF can't divide by zero or produce a
-      // negative denominator.
       const btcPrice = params?.btcPrice ?? null;
       return {
         collateralBtc: overrideCollateralBtc,
         collateralValueUsd:
           btcPrice !== null ? overrideCollateralBtc * btcPrice : null,
         debtValueUsd: debtUsd,
-        maxTotalDebtUsd:
-          overrideHealthFactor > 0
-            ? (debtUsd * overrideHealthFactor) / MIN_HEALTH_FACTOR_FOR_BORROW
-            : 0,
         healthFactor: overrideHealthFactor,
         healthFactorStatus:
           getHealthFactorStatusFromValue(overrideHealthFactor),
@@ -126,22 +109,15 @@ export function useLiquidationsPageState(
         collateralBtc,
         collateralValueUsd,
         debtValueUsd,
-        maxTotalDebtUsd,
         healthFactor,
         healthFactorStatus,
       };
     }
     const { result: gmResult, params: gmParams } = godMode;
-    const { maxTotalDebtUsd: gmMaxTotalDebtUsd } = calculateBorrowCapacityUsd({
-      collateralValueUsd: gmResult.collateralValue,
-      currentDebtUsd: gmParams.totalDebtUsd,
-      liquidationThresholdBps: Math.round(gmParams.CF * BPS_SCALE),
-    });
     return {
       collateralBtc: gmParams.vaults.reduce((sum, v) => sum + v.btc, 0),
       collateralValueUsd: gmResult.collateralValue,
       debtValueUsd: gmParams.totalDebtUsd,
-      maxTotalDebtUsd: gmMaxTotalDebtUsd,
       healthFactor: gmResult.currentHF,
       healthFactorStatus: getHealthFactorStatusFromValue(gmResult.currentHF),
     };
@@ -152,7 +128,6 @@ export function useLiquidationsPageState(
     collateralBtc,
     collateralValueUsd,
     debtValueUsd,
-    maxTotalDebtUsd,
     healthFactor,
     healthFactorStatus,
   ]);

@@ -21,9 +21,7 @@ import {
 
 interface LoansSummaryProps {
   availableToBorrow: string;
-  availableMeterPercent: number;
   totalBorrowed: string;
-  borrowedMeterPercent: number;
   borrowCapacityLoading: boolean;
   borrowCapacityError: Error | null;
   healthFactor: number | null;
@@ -36,9 +34,7 @@ interface LoansSummaryProps {
 
 export function LoansSummary({
   availableToBorrow,
-  availableMeterPercent,
   totalBorrowed,
-  borrowedMeterPercent,
   borrowCapacityLoading,
   borrowCapacityError,
   healthFactor,
@@ -57,9 +53,7 @@ export function LoansSummary({
   const cards = [
     ...buildBorrowCapacityCards({
       availableToBorrow,
-      availableMeterPercent,
       totalBorrowed,
-      borrowedMeterPercent,
       borrowCapacityLoading,
       borrowCapacityError,
       onBorrow,

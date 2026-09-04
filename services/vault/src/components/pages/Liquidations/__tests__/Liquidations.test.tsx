@@ -1,7 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { MIN_HEALTH_FACTOR_FOR_BORROW } from "@/applications/aave/constants";
 import { calculate } from "@/applications/aave/positionNotifications";
 import type { CalculatorParams } from "@/applications/aave/positionNotifications/types";
 import { formatHealthFactor } from "@/applications/aave/utils";
@@ -124,7 +123,6 @@ const CONNECTED_WITH_CASCADE = {
   collateralBtc: 1,
   collateralValueUsd: 61_722.5,
   debtValueUsd: 44_287.72,
-  maxTotalDebtUsd: 46_291.88,
   healthFactor: LIVE_RESULT.currentHF,
   healthFactorStatus: "safe" as const,
   hasCollateral: true,
@@ -769,20 +767,12 @@ describe("Liquidation Dashboard position override", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("derives the USD caption and the borrowed-meter percentage from the override and the live BTC price", () => {
-    // maxTotalDebtUsd = debtUsd * HF / MIN_HEALTH_FACTOR_FOR_BORROW (mirrors
-    // calculateBorrowCapacityUsd — see the comment on that derivation), so
-    // borrowedRatio = debtUsd / maxTotalDebtUsd = MIN_HEALTH_FACTOR_FOR_BORROW
-    // / HF, computed here from the real constant rather than a hardcoded
-    // percentage so this test tracks it if it ever changes.
+  it("derives the USD caption from the override and the live BTC price", () => {
     const override: LiquidationPositionOverride = {
       collateralBtc: 2,
       debtUsd: 44_287.72,
       healthFactor: 1.1,
     };
-    const expectedBorrowedPercent = Math.round(
-      (MIN_HEALTH_FACTOR_FOR_BORROW / override.healthFactor) * 100,
-    );
     useLiquidationPositionOverrideMock.mockReturnValue(override);
 
     render(<Liquidations />);
@@ -790,11 +780,6 @@ describe("Liquidation Dashboard position override", () => {
     expect(
       screen.getByText(
         `${formatUsd(override.collateralBtc * LIVE_PARAMS.btcPrice)} USD`,
-      ),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        COPY.overview.borrowedMeterLabel(expectedBorrowedPercent),
       ),
     ).toBeInTheDocument();
   });

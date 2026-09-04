@@ -54,7 +54,7 @@ export function useDashboardState(connectedAddress: string | undefined) {
   const liquidationThresholdBps = splitParams
     ? Math.round(splitParams.CF * BPS_SCALE)
     : 0;
-  const { maxTotalDebtUsd, availableToBorrowUsd } = calculateBorrowCapacityUsd({
+  const { availableToBorrowUsd } = calculateBorrowCapacityUsd({
     collateralValueUsd,
     currentDebtUsd: debtValueUsd,
     liquidationThresholdBps,
@@ -173,7 +173,6 @@ export function useDashboardState(connectedAddress: string | undefined) {
     displayCollateralBtc,
     collateralValueUsd,
     debtValueUsd,
-    maxTotalDebtUsd,
     availableToBorrowUsd,
     canBorrow,
     collateralFactorBps: splitParams ? liquidationThresholdBps : null,

@@ -221,17 +221,11 @@ export default function Liquidations() {
     );
   }
 
-  const borrowedRatio =
-    position.maxTotalDebtUsd > 0
-      ? position.debtValueUsd / position.maxTotalDebtUsd
-      : 0;
-
   const positionOverview = (
     <PositionOverview
       collateralBtc={position.collateralBtc}
       collateralValueUsd={position.collateralValueUsd}
       debtUsd={position.debtValueUsd}
-      borrowedRatio={borrowedRatio}
       healthFactor={position.healthFactor}
       healthFactorStatus={position.healthFactorStatus}
       onDeposit={() => openDeposit()}
