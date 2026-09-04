@@ -5,11 +5,6 @@ import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps/types";
 
 interface ProviderWaitDetailProps {
   step: DepositFlowStep;
-  /**
-   * Stack each row's label above its value instead of side-by-side. Used in the
-   * narrow split-deposit columns, where the inline label/value layout collapses.
-   */
-  stacked?: boolean;
 }
 
 function getWaitStatus(step: DepositFlowStep): string {
@@ -27,21 +22,13 @@ function getWaitStatus(step: DepositFlowStep): string {
   }
 }
 
-export function ProviderWaitDetail({
-  step,
-  stacked = false,
-}: ProviderWaitDetailProps) {
+export function ProviderWaitDetail({ step }: ProviderWaitDetailProps) {
   const copy = COPY.deposit.waitDetails;
   const status = getWaitStatus(step);
-  // Stacked: label on its own line above the value (narrow split columns).
-  // Inline: label left / value right (full-width single-column flow).
-  const rowClass = stacked
-    ? "flex flex-col gap-0.5"
-    : "flex items-center justify-between gap-2";
 
   return (
     <div className="mt-3 flex flex-col gap-2 rounded-lg bg-secondary-highlight p-3">
-      <div className={rowClass}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <Text as="span" variant="body2" className="text-accent-secondary">
           {copy.status}:
         </Text>

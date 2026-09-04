@@ -12,9 +12,9 @@
  *
  * With `--split` (`ctx.config.split`) the same flow runs a TWO-VAULT split deposit: the form's
  * "Two-vault split" option is selected (one provider, two HTLC outputs), and from the per-vault phase
- * the progress view fans into two columns — so there are more signing pop-ups and TWO Activate-Vault
+ * the progress view shows a lane per vault — so there are more signing pop-ups and TWO Activate-Vault
  * ETH txs. The step machine handles both (the approver + re-armed Activate/Skip gates), and finishes
- * only when both columns reach the shared activated view.
+ * only when both lanes reach the shared activated view.
  *
  * The 15-step machine is walked by AWAITING UI transitions (the `role="progressbar"` and the active
  * step's `aria-label="Step N active"`), never fixed sleeps, and tolerates the multi-minute on-chain

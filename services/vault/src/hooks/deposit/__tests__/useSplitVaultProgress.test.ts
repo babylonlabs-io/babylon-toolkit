@@ -7,7 +7,7 @@ import { deriveSplitVaultProgress } from "../useSplitVaultProgress";
 
 // `deriveSplitVaultProgress` is pure (the caller passes `getPollingResult`), so
 // it needs neither the polling context nor the logger. Mock peginStateMachine
-// with controllable stubs — the branch this test exercises is the per-column
+// with controllable stubs — the branch this test exercises is the per-lane
 // glue (done sibling → COMPLETED, not the active vault's step), not the real
 // getPeginDisplayStep/isVaultPastActivation (covered by their own tests).
 vi.mock("@/context/deposit/PeginPollingContext", () => ({
@@ -181,7 +181,7 @@ describe("deriveSplitVaultProgress", () => {
   it("honors a sibling's displayStepOverride (god-mode demo) over its polled state", () => {
     // In a batched demo the slider sets displayStepOverride on every simulated
     // vault. A non-active sibling's base peginState would derive
-    // AWAIT_BTC_CONFIRMATION, but the override must win so the column tracks the
+    // AWAIT_BTC_CONFIRMATION, but the override must win so the lane tracks the
     // slider instead of falling back to the base state. (Real polling never sets
     // displayStepOverride, so this branch is inert in production.)
     const getPollingResult = (id: string): DepositPollingResult | undefined => {

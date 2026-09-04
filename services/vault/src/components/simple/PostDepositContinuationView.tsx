@@ -170,7 +170,7 @@ export function PostDepositContinuationView({
   //    actionable (advanced to a wait, went terminal/warning, or left the
   //    batch — all captured by `isActionable`).
   //
-  // The progress columns (`perVaultSteps`) still update live per poll; only the
+  // The progress lanes (`perVaultSteps`) still update live per poll; only the
   // branch selection is sticky.
   const [stickyVaultId, setStickyVaultId] = useState<string | null>(null);
   const heldVaultId =
@@ -224,9 +224,9 @@ export function PostDepositContinuationView({
     waitStep === DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS &&
     Boolean(activity?.prePeginTxHash);
 
-  // Pass to every branch so split deposits render the multi-column UI with
-  // the current vault highlighted. A single-vault deposit yields vaultCount=1
-  // and the progress view falls back to its original single-column layout.
+  // Pass to every branch so split deposits render the stacked per-vault UI
+  // with the current vault highlighted. A single-vault deposit yields
+  // vaultCount=1 and the progress view falls back to its single-vault layout.
   // Cheap copy (not a readonly-laundering cast) so callers can't mutate the prop.
   const siblingVaultIds: string[] = [...vaultIds];
   const vaultCount = siblingVaultIds.length || 1;
@@ -458,8 +458,8 @@ export function PostDepositContinuationView({
         }
       : null;
 
-  // Each sibling column reflects its own polled step (the columns diverge on
-  // resume), with this vault's wait step as the active column.
+  // Each sibling lane reflects its own polled step (the lanes diverge on
+  // resume), with this vault's wait step as the active lane.
   const { perVaultSteps } = deriveSplitVaultProgress(
     getPollingResult,
     siblingVaultIds,

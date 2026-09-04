@@ -33,7 +33,7 @@ const DEMO_ACTIVATION_SUBMIT_MS = 1800;
 
 interface DemoActivationContentProps {
   activity: VaultActivity;
-  /** Sibling vault IDs sharing this demo batch (drives the split columns). */
+  /** Sibling vault IDs sharing this demo batch (drives the split lanes). */
   siblingVaultIds?: string[];
   onClose: () => void;
 }
