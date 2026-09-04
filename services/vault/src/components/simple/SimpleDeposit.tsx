@@ -9,7 +9,10 @@ import { V3ModalShell } from "@/components/shared/V3ModalShell";
 import { FeatureFlags } from "@/config";
 import { useAddressScreening } from "@/context/addressScreening";
 import { useGeoFencing } from "@/context/geofencing";
-import { ProtocolParamsProvider } from "@/context/ProtocolParamsContext";
+import {
+  ProtocolParamsProvider,
+  useProtocolParamsContext,
+} from "@/context/ProtocolParamsContext";
 import { useBTCWallet, useETHWallet } from "@/context/wallet";
 import { COPY } from "@/copy";
 import { useBtcWalletState } from "@/hooks/deposit/useBtcWalletState";
@@ -177,6 +180,8 @@ function SimpleDepositContent({
     setFeeRate,
   } = useDepositPageFlow();
 
+  const { config } = useProtocolParamsContext();
+
   // Per-position BTC Vault cap (on-chain). Always-on value-protection guard:
   // block the deposit when even a single vault won't fit (`isAtCap`), force a
   // single vault when a split would overflow (`isSplitUnavailable`), and fail
@@ -189,11 +194,12 @@ function SimpleDepositContent({
     currentCount: collateralizableVaultCount,
     capUnavailable: vaultCountCapUnavailable,
   } = useVaultCountCap(connectedEthAddress);
-  const { isAtCap: isVaultCapReached, isSplitUnavailable: isSplitCapReached } =
+  const { isAtCap: isVaultCapReached, splitUnavailableReason } =
     resolveVaultCapState({
       existingVaultCount: collateralizableVaultCount,
       maxVaultsPerPosition: maxVaults,
       enabled: true,
+      maxHtlcOutputCount: config.maxHtlcOutputCount,
     });
 
   const isSupplementalDeposit = !!initialAmountBtc;
@@ -202,7 +208,7 @@ function SimpleDepositContent({
     : null;
   const allowSplit =
     !isSupplementalDeposit &&
-    !isSplitCapReached &&
+    splitUnavailableReason === null &&
     (!hasActiveVaults || FeatureFlags.isForcePartialLiquidationSplit);
 
   // Effective split = the same condition handleDeposit uses at submit
@@ -518,9 +524,13 @@ function SimpleDepositContent({
                   ordinalsCheckPending,
                   isVaultCapReached,
                   vaultCountCapUnavailable,
-                  vaultCapSplitUnavailable: isSplitCapReached,
+                  splitUnavailableReason,
+                  // Usage figures only make sense for the per-position cap; the
+                  // protocol cap can bite with an empty position and an unknown
+                  // per-position cap, so its hint quotes no numbers.
                   vaultCapUsage:
-                    isSplitCapReached && maxVaults != null
+                    splitUnavailableReason === "per-position" &&
+                    maxVaults != null
                       ? {
                           used: collateralizableVaultCount,
                           cap: maxVaults,

@@ -47,7 +47,10 @@ import {
   getVaultRegistryReader,
 } from "@/clients/eth-contract/sdk-readers";
 import { isDepositBlocked } from "@/components/shared/protocolStatus";
-import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
+import {
+  pegInConfigQueryOptions,
+  useProtocolParamsContext,
+} from "@/context/ProtocolParamsContext";
 import {
   markPayoutSignCanceled,
   markWotsSubmitted,
@@ -63,11 +66,18 @@ import {
 } from "@/infrastructure/telemetryEvents";
 import { LocalStorageStatus } from "@/models/peginStateMachine";
 import { validateMultiVaultDepositInputs } from "@/services/deposit/validations";
-import { assertBuildConfigMatchesForm } from "@/services/vault/buildConfigConsistency";
+import {
+  assertBuildConfigMatchesForm,
+  isBuildConfigDriftError,
+} from "@/services/vault/buildConfigConsistency";
 import {
   waitForEthRegistrationDepth,
   type RegistrationDepthProgress,
 } from "@/services/vault/ethConfirmationGate";
+import {
+  assertBuildWithinPinnedLimits,
+  isBuildLimitsDriftError,
+} from "@/services/vault/pinnedBuildLimits";
 import type { PayoutSigningProgress } from "@/services/vault/vaultPayoutSignatureService";
 import {
   broadcastPrePeginTransaction,
@@ -662,7 +672,45 @@ export function useDepositFlow(
         // pinned one. If a governance change landed in between they are
         // different parameter sets, and the amount the depositor approved was
         // validated against the wrong one. Stop here, where restarting is free.
-        assertBuildConfigMatchesForm(buildConfig, config);
+        try {
+          assertBuildConfigMatchesForm(buildConfig, config);
+
+          // The guard above only sees the two version labels, and the deposit
+          // bounds carry none — they come from the `getTBVProtocolParams` half
+          // of the read, which is unversioned. So a tightened minimum or
+          // maximum, or a lowered HTLC output cap, passes it untouched.
+          // Re-check what the depositor actually approved against the pinned
+          // numbers.
+          assertBuildWithinPinnedLimits(vaultAmounts, buildConfig);
+        } catch (driftError) {
+          // Both aborts tell the depositor to start again, and the only way to
+          // do that is to close and reopen the form, which reads the cached
+          // configuration — five minute `staleTime`, nothing invalidates it. So
+          // a restart would hand back the same snapshot that just caused this
+          // and fail identically. Overwrite it with the pinned read.
+          //
+          // The justification is NOT that the pinned read is fresher: it is
+          // `head - 2`, and `resolvePinnedReadBlock` says freshness is
+          // explicitly not its goal, so a cache entry refilled at `latest`
+          // moments ago can legitimately be newer. It is that this particular
+          // value is the one the build just proved the cache disagrees with, on
+          // the axis that failed. Overwriting rather than invalidating avoids a
+          // refetch race where the form renders the stale bounds first.
+          //
+          // Gated on the drift predicates, not on reaching the catch at all: an
+          // unrelated throw from either assert must not rewrite a cache the
+          // blocking ProtocolParamsProvider and the polling hook also read.
+          if (
+            isBuildConfigDriftError(driftError) ||
+            isBuildLimitsDriftError(driftError)
+          ) {
+            queryClient.setQueryData(
+              pegInConfigQueryOptions().queryKey,
+              buildConfig,
+            );
+          }
+          throw driftError;
+        }
 
         const validatedKeys = await validateOnChainParticipantKeys({
           vaultRegistryReader: getVaultRegistryReader(),
