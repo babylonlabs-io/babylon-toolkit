@@ -15,19 +15,29 @@ import type { Page } from "@playwright/test";
 import fs from "node:fs/promises";
 import path from "node:path";
 
+import { MOCK_ENV_VARS } from "../../playwright.config";
 import { VISUAL_OUTPUT_DIR } from "../../playwright.visual.config";
 import { expect } from "../fixtures";
+import type { PageWalletConfig } from "../fixtures/pageWallets";
 import {
   installRecordedBackend,
   type ReplayBackend,
   type ReplayOptions,
 } from "../fixtures/replay";
+import {
+  RECORDED_DEPLOYMENT,
+  RECORDED_DEPOSITOR,
+} from "../fixtures/replay/contracts";
 import type { RecordedBackend } from "../fixtures/replay/recording";
 
 import { installVisualDeterminism, waitForVisualStability } from "./stabilize";
 import {
+  DEPOSIT_FLOW_STEPS,
   DEPOSIT_FLOW_STOPS,
+  DEPOSIT_PROGRESS_STOPS,
+  depositProgressStepStop,
   flowScreenshotFileName,
+  LIQUIDATION_CHART_STOP,
   screenshotFileName,
   VISUAL_TARGETS,
   VISUAL_VIEWPORTS,
@@ -62,6 +72,24 @@ const DESKTOP_LAYOUT_MIN_WIDTH_PX = 768;
 const MOBILE_MENU_BUTTON = 'button[aria-label="Open menu"]';
 
 /**
+ * The accessible name of the god-mode panel's collapsed launcher
+ * (src/dev/GodModePanel.tsx). The capture config turns the panel on so the
+ * deposit-progress walk can seed demo deposits through it, and
+ * `stabilize.ts` hides this launcher before every photograph.
+ */
+const GOD_MODE_LAUNCHER_NAME = "God mode";
+
+/**
+ * The deposit progress view's step markers, by the accessible label every
+ * row carries (`COPY.deposit.a11y.stepActive` and its siblings) - the same
+ * seam the real-wallet step machine reads (`e2e/real/actions/stepMachine.ts`).
+ * The view's own progress bar carries no role, and every pending row on the
+ * page behind a modal has a bar of its own, so "a progress bar is visible"
+ * never proved the stepper rendered. A marker does: nothing else renders one.
+ */
+export const STEP_MARKER = '[aria-label^="Step "]';
+
+/**
  * Name of the manifest each capture writes beside its PNGs, listing the
  * screens that side INTENDED to produce. Read by `scripts/visual-diff.mjs`
  * (`--expected-baseline` / `--expected-candidate`) and referenced by name in
@@ -74,14 +102,16 @@ export const EXPECTED_SCREENS_MANIFEST = "expected-screens.txt";
 /**
  * Seal the page off the network.
  *
- * Registered before the recorded backend so the backend's handlers win -
- * Playwright gives precedence to the most recently registered match. What
- * this catches is everything the recording does not cover: it fails closed
- * instead of reaching a live host, which would make a capture vary run to run
- * and, on a fork PR, leak the request.
+ * Registered on the CONTEXT, and before the recorded backend: the backend's
+ * page-level handlers win, because Playwright gives a page route precedence
+ * over a context route. What this catches is everything the recording does
+ * not cover: it fails closed instead of reaching a live host, which would
+ * make a capture vary run to run and, on a fork PR, leak the request. The
+ * context scope is what also seals a window the page opens - the god-mode
+ * panel's pop-out - which has no page route of its own.
  */
 async function blockOffsiteRequests(page: Page): Promise<void> {
-  await page.route("**/*", (route) => {
+  await page.context().route("**/*", (route) => {
     const { hostname } = new URL(route.request().url());
     const isLocal = hostname === "localhost" || hostname === "127.0.0.1";
     return isLocal ? route.continue() : route.abort();
@@ -100,6 +130,27 @@ export async function preparePage(
   const backend = await installRecordedBackend(page, replay);
   await installVisualDeterminism(page);
   return backend;
+}
+
+/**
+ * The injected wallets, presenting the recorded depositor on the recorded
+ * chain.
+ *
+ * One function rather than a literal in each connected walk: the recording
+ * only answers for this address, and only on this chain. A wallet presenting
+ * anything else connects fine and then renders an empty dashboard - or a
+ * "wrong network" banner across every screen - which is a photograph of
+ * nothing, and a second copy of these fields is exactly how that drifts in.
+ * The chain id is the recording's own, as the hex quantity a wallet reports.
+ */
+export function recordedPageWallets(): PageWalletConfig {
+  return {
+    btcAddress: RECORDED_DEPOSITOR.BTC_ADDRESS,
+    btcPublicKeyHex: RECORDED_DEPOSITOR.BTC_PUBLIC_KEY,
+    ethAddress: RECORDED_DEPOSITOR.ETH_ADDRESS,
+    ethChainIdHex: `0x${Number(RECORDED_DEPLOYMENT.ETH_CHAIN_ID).toString(16)}`,
+    ethRpcUrl: MOCK_ENV_VARS.NEXT_PUBLIC_ETH_RPC_URL,
+  };
 }
 
 /**
@@ -192,6 +243,32 @@ async function assertLayoutMatchesViewport(
 }
 
 /**
+ * Refuse to photograph dev chrome.
+ *
+ * The god-mode panel is on for the whole capture (see
+ * `playwright.visual.config.ts`), and its launcher is a pill fixed in the
+ * bottom-right corner of every screen. `stabilize.ts` hides it by its own
+ * classes because it carries no testid, and a testid added in `src/` would not
+ * exist on the merge-base side anyway. Those classes can move; when they do,
+ * the pill lands in every picture on BOTH sides and diffs clean against itself
+ * forever. This is what turns that into a red build.
+ *
+ * Passes when the launcher is absent altogether - a merge-base that predates
+ * the panel, or a local run with the flag off - because "not in the
+ * photograph" is the whole claim.
+ */
+async function assertNoDevChrome(page: Page, label: string): Promise<void> {
+  await expect(
+    page.getByRole("button", { name: GOD_MODE_LAUNCHER_NAME, exact: true }),
+    `${label} would photograph the god-mode launcher. The capture turns the ` +
+      `panel on so the deposit-progress walk can seed demo deposits, and ` +
+      `stabilize.ts hides its launcher by its classes - those classes have ` +
+      `changed. Update HIDE_GOD_MODE_LAUNCHER_CSS rather than accepting dev ` +
+      `chrome in the corner of every screen.`,
+  ).toBeHidden();
+}
+
+/**
  * Assert the recording actually answered what the walk asked of it.
  *
  * The half of the gating that must be DEFERRED to the end, because both
@@ -278,6 +355,7 @@ export async function capture(
   await assertNoErrorSurface(page, fileName);
   // Nor is settled the same as correct: a latched mobile layout is stable too.
   await assertLayoutMatchesViewport(page, fileName);
+  await assertNoDevChrome(page, fileName);
   const buffer = await page.screenshot({ fullPage: true });
   expect(
     buffer.byteLength,
@@ -312,9 +390,9 @@ export async function writeCaptures(
  * builds its name set from the union of the two sides, so a screen absent from
  * BOTH never enters the comparison at all. Both sides run the same stashed
  * harness against the same committed fixture, so every fixture- or
- * harness-caused failure is symmetric BY CONSTRUCTION: the eight deposit-flow
+ * harness-caused failure is symmetric BY CONSTRUCTION: the ten deposit-flow
  * shots vanish from both sides, the twelve route shots still land, and the run
- * reports "No visual changes" for a comparison that never looked at 8 of 20
+ * reports "No visual changes" for a comparison that never looked at 10 of 58
  * screens.
  *
  * Written at collection time rather than derived at diff time on purpose: it
@@ -333,10 +411,19 @@ export async function ensureOutputDir(): Promise<void> {
         flowScreenshotFileName(stop, viewport),
       ),
     ),
+    ...[
+      ...Object.values(DEPOSIT_PROGRESS_STOPS),
+      ...DEPOSIT_FLOW_STEPS.map(depositProgressStepStop),
+      LIQUIDATION_CHART_STOP,
+    ].flatMap((stop) =>
+      VISUAL_VIEWPORTS.map((viewport) =>
+        flowScreenshotFileName(stop, viewport),
+      ),
+    ),
   ].sort();
 
-  // Both specs call this from `test.beforeAll`, and the config pins
-  // `workers: 1, fullyParallel: false`, so the two writes are sequential and
+  // Every spec calls this from `test.beforeAll`, and the config pins
+  // `workers: 1, fullyParallel: false`, so the writes are sequential and
   // byte-identical. Declaring the flow stops here even when only the routes
   // spec is collected is the correct direction: it fails loud, not silent.
   await fs.writeFile(
