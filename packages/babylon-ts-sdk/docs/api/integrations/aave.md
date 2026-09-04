@@ -595,7 +595,7 @@ Safety margin multiplier (e.g. 1.05)
 ### HealthFactorStatus
 
 ```ts
-type HealthFactorStatus = "safe" | "warning" | "danger" | "no_debt";
+type HealthFactorStatus = "safe" | "warning" | "risky" | "danger" | "no_debt";
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/healthFactor.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/healthFactor.ts)
@@ -1857,8 +1857,9 @@ Calculate health factor for an AAVE position.
 **Formula:** `HF = (Collateral × Liquidation Threshold) / Total Debt`
 
 Health factor determines liquidation risk:
-- `>= 1.5` - Safe (green)
-- `1.0 - 1.5` - Warning (amber)
+- `> 2.0` - Safe (green)
+- `1.1 - 2.0` - Warning (amber)
+- `1.0 - 1.1` - Risky (red)
 - `< 1.0` - Danger, position can be liquidated (red)
 
 #### Parameters
@@ -1894,11 +1895,11 @@ import { calculateHealthFactor, HEALTH_FACTOR_WARNING_THRESHOLD } from "@babylon
 
 // User has $10,000 BTC collateral, $5,000 debt, 80% LT
 const hf = calculateHealthFactor(10000, 5000, 8000);
-// Result: 1.6 (safe to borrow more)
+// Result: 1.6 (warning: at or below the warning threshold)
 
 if (hf < 1.0) {
   console.error("Position can be liquidated!");
-} else if (hf < HEALTH_FACTOR_WARNING_THRESHOLD) {
+} else if (hf <= HEALTH_FACTOR_WARNING_THRESHOLD) {
   console.warn("Position at risk, consider repaying");
 } else {
   console.log("Position is safe");
@@ -2312,16 +2313,30 @@ Reference: IAaveSpoke.sol UserAccountData.totalDebtValueRay
 
 ***
 
-### HEALTH\_FACTOR\_WARNING\_THRESHOLD
+### HEALTH\_FACTOR\_RISKY\_THRESHOLD
 
 ```ts
-const HEALTH_FACTOR_WARNING_THRESHOLD: 1.5 = 1.5;
+const HEALTH_FACTOR_RISKY_THRESHOLD: 1.1 = 1.1;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts)
 
-Health factor warning threshold
-Positions below this are considered at risk of liquidation
+Health factor risky threshold.
+A position from 1.0 up to and including this value is "risky".
+
+***
+
+### HEALTH\_FACTOR\_WARNING\_THRESHOLD
+
+```ts
+const HEALTH_FACTOR_WARNING_THRESHOLD: 2 = 2.0;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts)
+
+Health factor warning threshold.
+A position above HEALTH_FACTOR_RISKY_THRESHOLD and up to and including this
+value is "warning". A position above this value is "safe".
 
 ***
 

@@ -59,14 +59,20 @@ describe("healthFactor", () => {
       expect(getHealthFactorStatus(0.5, true)).toBe("danger");
     });
 
-    it("should return warning when health factor < 1.5 (threshold)", () => {
-      expect(getHealthFactorStatus(1.0, true)).toBe("warning");
-      expect(getHealthFactorStatus(1.49, true)).toBe("warning");
+    it("should return risky when health factor is from 1.0 to 1.1 inclusive", () => {
+      expect(getHealthFactorStatus(1.0, true)).toBe("risky");
+      expect(getHealthFactorStatus(1.05, true)).toBe("risky");
+      expect(getHealthFactorStatus(1.1, true)).toBe("risky");
     });
 
-    it("should return safe when health factor >= 1.5", () => {
-      expect(getHealthFactorStatus(1.5, true)).toBe("safe");
-      expect(getHealthFactorStatus(2.0, true)).toBe("safe");
+    it("should return warning when health factor is above 1.1 and at most 2.0", () => {
+      expect(getHealthFactorStatus(1.11, true)).toBe("warning");
+      expect(getHealthFactorStatus(1.5, true)).toBe("warning");
+      expect(getHealthFactorStatus(2.0, true)).toBe("warning");
+    });
+
+    it("should return safe when health factor > 2.0", () => {
+      expect(getHealthFactorStatus(2.01, true)).toBe("safe");
       expect(getHealthFactorStatus(10.0, true)).toBe("safe");
     });
   });
@@ -81,14 +87,20 @@ describe("healthFactor", () => {
       expect(getHealthFactorStatusFromValue(0.5)).toBe("danger");
     });
 
-    it("should return warning when value >= 1.0 and < 1.5", () => {
-      expect(getHealthFactorStatusFromValue(1.0)).toBe("warning");
-      expect(getHealthFactorStatusFromValue(1.49)).toBe("warning");
+    it("should return risky when value is from 1.0 to 1.1 inclusive", () => {
+      expect(getHealthFactorStatusFromValue(1.0)).toBe("risky");
+      expect(getHealthFactorStatusFromValue(1.05)).toBe("risky");
+      expect(getHealthFactorStatusFromValue(1.1)).toBe("risky");
     });
 
-    it("should return safe when value >= 1.5", () => {
-      expect(getHealthFactorStatusFromValue(1.5)).toBe("safe");
-      expect(getHealthFactorStatusFromValue(2.0)).toBe("safe");
+    it("should return warning when value is above 1.1 and at most 2.0", () => {
+      expect(getHealthFactorStatusFromValue(1.11)).toBe("warning");
+      expect(getHealthFactorStatusFromValue(1.5)).toBe("warning");
+      expect(getHealthFactorStatusFromValue(2.0)).toBe("warning");
+    });
+
+    it("should return safe when value > 2.0", () => {
+      expect(getHealthFactorStatusFromValue(2.01)).toBe("safe");
       expect(getHealthFactorStatusFromValue(10.0)).toBe("safe");
     });
   });

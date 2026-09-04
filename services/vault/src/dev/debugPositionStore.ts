@@ -216,12 +216,14 @@ export const DEBUG_FORCED_MAX_VAULTS = 10;
 export type DebugBorrowCapacityState = "loading" | "error";
 
 /** Health-factor values the panel offers, one per production band — safe
- *  (>= HEALTH_FACTOR_WARNING_THRESHOLD), warning (>= 1.0), danger (< 1.0, i.e.
- *  liquidatable). See `getHealthFactorStatus`; a test asserts these three still
- *  land in three distinct bands. */
+ *  (> HEALTH_FACTOR_WARNING_THRESHOLD), warning (> HEALTH_FACTOR_RISKY_THRESHOLD),
+ *  risky (>= 1.0), danger (< 1.0, i.e. liquidatable). See
+ *  `getHealthFactorStatus`; a test asserts these four still land in four
+ *  distinct bands. */
 export const DEBUG_HEALTH_FACTORS = [
   { value: 2.4, label: "Safe" },
   { value: 1.25, label: "Warning" },
+  { value: 1.05, label: "Risky" },
   { value: 0.95, label: "Danger" },
 ] as const;
 

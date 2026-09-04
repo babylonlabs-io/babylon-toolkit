@@ -20,6 +20,7 @@ export function getHealthFactorColor(
       return HEALTH_FACTOR_COLORS.GREEN;
     case "warning":
       return HEALTH_FACTOR_COLORS.AMBER;
+    case "risky":
     case "danger":
       return HEALTH_FACTOR_COLORS.RED;
     case "no_debt":

@@ -54,10 +54,17 @@ export const AAVE_BASE_CURRENCY_RAY_DECIMALS = 53;
 export const WAD_DECIMALS = 18;
 
 /**
- * Health factor warning threshold
- * Positions below this are considered at risk of liquidation
+ * Health factor risky threshold.
+ * A position from 1.0 up to and including this value is "risky".
  */
-export const HEALTH_FACTOR_WARNING_THRESHOLD = 1.5;
+export const HEALTH_FACTOR_RISKY_THRESHOLD = 1.1;
+
+/**
+ * Health factor warning threshold.
+ * A position above HEALTH_FACTOR_RISKY_THRESHOLD and up to and including this
+ * value is "warning". A position above this value is "safe".
+ */
+export const HEALTH_FACTOR_WARNING_THRESHOLD = 2.0;
 
 /**
  * Minimum health factor allowed for borrowing. Collateral factor doubles as the
