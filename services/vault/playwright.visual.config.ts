@@ -78,8 +78,15 @@ const VISUAL_ENV_VARS = {
   NEXT_PUBLIC_SENTRY_DSN: "",
   NEXT_PUBLIC_SENTRY_TUNNEL_URL: "",
   NEXT_PUBLIC_FF_ENABLE_EXPLORE: "true",
-  // Dev-only panel; would overlay every screen it mounts on.
-  NEXT_PUBLIC_FF_GOD_MODE_PANEL: "false",
+  // The dev-only god-mode panel, ON. Its demo gallery is how the deposit
+  // progress stepper is reached (`e2e/visual/depositProgress.visual.spec.ts`):
+  // the injected wallets never sign and the recording holds no pending
+  // deposit, so nothing past the pre-sign entry is reachable any other way.
+  // Its launcher would sit in the corner of every screen; `e2e/visual/
+  // stabilize.ts` hides it and `e2e/visual/capture.ts` refuses to photograph
+  // it. Nothing else changes with the flag: the demo is inert until the
+  // panel's own "Inject demo" toggle opts in.
+  NEXT_PUBLIC_FF_GOD_MODE_PANEL: "true",
 };
 
 export default defineConfig({

@@ -113,7 +113,66 @@ export const DEPOSIT_FLOW_STOPS = {
   amountEntered: "deposit-amount-entered",
   /** The split selector expanded, showing both options. */
   splitOptions: "deposit-split-options",
+  /**
+   * The form submitted: the progress view's pre-sign entry, fee-rate selector
+   * open, nothing signed. The last stop the injected wallets can reach - the
+   * next click asks them to sign, and they never do.
+   */
+  signEntry: "deposit-sign-entry",
 } as const;
+
+/**
+ * The deposit progress view's captured stops.
+ *
+ * Everything past the pre-sign entry sits behind a signature or a wait the
+ * capture cannot supply: the injected wallets never sign, and the recorded
+ * depositor has no pending deposit to resume. So the stepper's mid-flow
+ * states - and `SplitGroupedProgress`, the per-vault lanes of a two-vault
+ * deposit - had no coverage at all, and a change that restacked those lanes
+ * reported "no visual changes".
+ *
+ * These are reached through the god-mode demo gallery instead
+ * (`src/dev/demoDeposit.ts`). Its deposits are built by the real state
+ * machine, listed by the real pending rows and opened in the real stepper;
+ * only the polling result behind each one is simulated. See
+ * `depositProgress.visual.spec.ts` for the walk.
+ */
+export const DEPOSIT_PROGRESS_STOPS = {
+  /** /vaults with pending deposits: the rows, their badges, bars and CTAs. */
+  pending: "vaults-pending",
+  /** The stepper for a two-vault batch whose lanes sit on different steps. */
+  split: "deposit-progress-split",
+} as const;
+
+/**
+ * How many steps the deposit flow has, in the stepper's own 1-based visual
+ * numbering (`TOTAL_VISUAL_STEPS` in
+ * `src/components/simple/DepositProgressView/steps.ts`). Written out for the
+ * same reason the routes above are: importing app source pulls the network
+ * config singleton into the runner. The gallery walk pins each seeded step
+ * against the panel's own readout, so a flow that grows or shrinks fails the
+ * walk loudly at the mismatch rather than photographing the wrong step.
+ */
+export const DEPOSIT_FLOW_STEP_COUNT = 15;
+
+/** Every flow step, so the manifest and the walk enumerate the same set. */
+export const DEPOSIT_FLOW_STEPS: readonly number[] = Array.from(
+  { length: DEPOSIT_FLOW_STEP_COUNT },
+  (_, index) => index + 1,
+);
+
+/**
+ * The stop for one flow step of a single-vault deposit. Zero-padded so the
+ * report lists the steps in order. Two steps photograph what the flow puts in
+ * front of the stepper there rather than the stepper itself: step 13 opens
+ * onto the activation gate (the stand-in that would render the stepper behind
+ * it advances the demo on a timer, so it is not a stable frame), and step 15
+ * - the activation submitted - already counts as activated, so the success
+ * view replaces the stepper.
+ */
+export function depositProgressStepStop(step: number): string {
+  return `deposit-progress-step-${String(step).padStart(2, "0")}`;
+}
 
 export function screenshotFileName(
   target: VisualTarget,
