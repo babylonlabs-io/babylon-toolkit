@@ -35,7 +35,9 @@ describe("DepositFeesBreakdown commission disclosure", () => {
       />,
     );
 
-    expect(screen.getByText("VP commission (2.5%)")).toBeInTheDocument();
+    expect(
+      screen.getByText("Vault Provider commission (2.5%)"),
+    ).toBeInTheDocument();
     expect(screen.getByText("Net payout")).toBeInTheDocument();
     expect(screen.getByText(/0\.025/)).toBeInTheDocument();
     expect(screen.getByText(/0\.975/)).toBeInTheDocument();
@@ -53,8 +55,10 @@ describe("DepositFeesBreakdown commission disclosure", () => {
     );
 
     // Label has no percent suffix when the commission hasn't loaded.
-    expect(screen.getByText("VP commission")).toBeInTheDocument();
-    expect(screen.queryByText(/VP commission \(/)).not.toBeInTheDocument();
+    expect(screen.getByText("Vault Provider commission")).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Vault Provider commission \(/),
+    ).not.toBeInTheDocument();
     // Both the commission and net-payout cells render the "--" placeholder.
     expect(screen.getAllByText("--").length).toBeGreaterThanOrEqual(2);
   });
@@ -73,7 +77,9 @@ describe("DepositFeesBreakdown commission disclosure", () => {
     // Percent is still shown (it's just the bps), but the sats can't be
     // sized until the split's per-vault amounts resolve, so commission and
     // net payout stay as "--".
-    expect(screen.getByText("VP commission (2.5%)")).toBeInTheDocument();
+    expect(
+      screen.getByText("Vault Provider commission (2.5%)"),
+    ).toBeInTheDocument();
     expect(screen.getAllByText("--").length).toBeGreaterThanOrEqual(2);
   });
 

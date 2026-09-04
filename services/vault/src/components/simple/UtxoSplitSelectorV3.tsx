@@ -122,7 +122,7 @@ export function UtxoSplitSelectorV3({
               role="button"
               tabIndex={splitDisabled ? -1 : 0}
               aria-disabled={splitDisabled}
-              className={`flex w-full items-start justify-between gap-3 text-left ${splitDisabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"} ${optionBox(twoVaultSplit.isEnabled)}`}
+              className={`flex w-full items-center justify-between gap-3 text-left ${splitDisabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"} ${optionBox(twoVaultSplit.isEnabled)}`}
               onClick={handleSelectSplit}
               onKeyDown={(event) => {
                 if (event.key === "Enter" || event.key === " ") {
@@ -174,7 +174,7 @@ export function UtxoSplitSelectorV3({
             <div
               role="button"
               tabIndex={0}
-              className={`flex w-full cursor-pointer items-start justify-between gap-3 text-left ${optionBox(!twoVaultSplit.isEnabled)}`}
+              className={`flex w-full cursor-pointer items-center justify-between gap-3 text-left ${optionBox(!twoVaultSplit.isEnabled)}`}
               onClick={handleSelectNoSplit}
               onKeyDown={(event) => {
                 if (event.key === "Enter" || event.key === " ") {

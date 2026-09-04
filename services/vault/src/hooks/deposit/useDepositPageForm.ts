@@ -97,11 +97,6 @@ export interface UseDepositPageFormResult {
   btcBalanceFormatted: number;
   /** Total value of unconfirmed (in-mempool) UTXOs in satoshis. Display-only. */
   unconfirmedBalance: bigint;
-  /**
-   * True when the confirmed balance is zero but unconfirmed funds exist, so the
-   * form reads a zero maximum. Drives the suppression of the "Max" tooltip.
-   */
-  hasUnconfirmedBalanceOnly: boolean;
   btcPrice: number;
   priceMetadata: Record<string, PriceMetadata>;
   hasStalePrices: boolean;
@@ -346,18 +341,11 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     availableUTXOs,
     spendableMempoolUTXOs,
     ordinalsCheckPending,
-    confirmedBalance,
     unconfirmedBalance,
   } = useUTXOs(btcAddress);
   const btcBalance = useMemo(() => {
     return BigInt(calculateBalance(availableUTXOs || []));
   }, [availableUTXOs]);
-
-  // The raw confirmed balance controls a "Max" tooltip that has no value at zero.
-  const hasUnconfirmedBalanceOnly = useMemo(
-    () => confirmedBalance === 0n && unconfirmedBalance > 0n,
-    [confirmedBalance, unconfirmedBalance],
-  );
 
   const btcBalanceFormatted = useMemo(() => {
     if (!btcBalance) return 0;
@@ -730,7 +718,6 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     btcBalance,
     btcBalanceFormatted,
     unconfirmedBalance,
-    hasUnconfirmedBalanceOnly,
     btcPrice: btcPriceUSD,
     priceMetadata: metadata,
     hasStalePrices,

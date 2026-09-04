@@ -694,7 +694,7 @@ export const COPY = {
     },
     form: {
       computingAllocation: "Computing allocation...",
-      transactionReserveLabel: "Reserve Claimer UTXO",
+      transactionReserveLabel: "Depositor claim output",
       // Describes the real mechanism, and deliberately shares wording with
       // COPY.reclaim.review.description so the promise made at deposit time
       // and the action offered after settlement read as the same thing. Until
@@ -702,13 +702,10 @@ export const COPY = {
       // unused", which nothing in the app could actually do.
       transactionReserveTooltip:
         "A small portion of your deposit is reserved in a dedicated output to fund a future protocol claim transaction. If it goes unused, you can reclaim it from your BTCVault once the vault has settled.",
-      // The depositable maximum is labelled as the balance, with `maxTooltip`
-      // explaining the fee buffer / cap adjustments.
-      balanceLabel: "Balance",
-      maxTooltip: (opts: { hasSupplyCap: boolean }) =>
-        opts.hasSupplyCap
-          ? "Reserves a fee buffer, excludes inscription UTXOs, and stays within the supply cap."
-          : "Reserves a fee buffer and excludes inscription UTXOs.",
+      // Labeled "Available", not "Balance": the field shows the depositable
+      // maximum — the wallet balance net of the fee buffer, inscription UTXOs
+      // and the supply cap — not the raw wallet balance.
+      balanceLabel: "Available",
       pendingConfirmationNotice: (amount: string) =>
         `${amount} pending confirmation`,
       pendingConfirmationTooltip:
@@ -740,15 +737,16 @@ export const COPY = {
       providerLastDepositLabel: "Last deposit",
       providerStatusActive: "Active",
       // Fee-breakdown lines (DepositFeesBreakdown) shown before the user
-      // submits. The commission label appends the percent, e.g. "VP commission
-      // (2.50%)"; net payout is the deposit minus that commission.
+      // submits. The commission label appends the percent, e.g. "Vault
+      // Provider commission (2.50%)"; net payout is the deposit minus that
+      // commission.
       networkFeeRateLabel: "Network Fee Rate",
       networkFeeRateTooltip:
-        "Bitcoin network fee rate for your pre-pegin funding transaction. Raise it during congestion so the transaction confirms sooner.",
+        "Bitcoin network fee rate for your Pre-Pegin funding transaction. Raise it during congestion so the transaction confirms sooner.",
       btcNetworkFeeLabel: "BTC Network Fee",
       btcNetworkFeeTooltip:
-        "Estimated Bitcoin miner fee for the pre-pegin funding transaction at the selected fee rate.",
-      vpCommissionLabel: "VP commission",
+        "Estimated Bitcoin miner fee for the Pre-Pegin funding transaction at the selected fee rate.",
+      vpCommissionLabel: "Vault Provider commission",
       vpCommissionTooltip:
         "The vault provider's fee, deducted from your payout when you redeem. Set by the vault provider and shown here before you deposit.",
       netPayoutLabel: "Net payout",
@@ -794,7 +792,7 @@ export const COPY = {
         };
       },
       splitOptionDescription:
-        "Split your BTC into two BTCVaults to enable partial liquidation.",
+        "Split your BTC into two BTCVaults to enable partial-position liquidation.",
       noSplitOptionDescription:
         "Your BTC will be deposited into a single BTCVault.",
       // "Learn more here." link appended to the split-option description in
@@ -997,7 +995,7 @@ export const COPY = {
       },
       participantKeyDrift: {
         title: "Vault operator keys changed",
-        body: "A vault operator rotated its Bitcoin key while your deposit was being registered, so the registered vault no longer matches the transaction we prepared. Your Pre-PegIn was not broadcast and no Bitcoin was spent. The registered vault will time out on its own — please start a new deposit.",
+        body: "A vault operator rotated its Bitcoin key while your deposit was being registered, so the registered vault no longer matches the transaction we prepared. Your Pre-Pegin was not broadcast and no Bitcoin was spent. The registered vault will time out on its own — please start a new deposit.",
       },
       wrongWalletAccount: {
         title: "Wrong wallet account",
@@ -2092,14 +2090,15 @@ export const COPY = {
     minForSplit: {
       label: "Effective Minimum for Split",
       tooltip:
-        "The minimum amount of BTC required to enable partial liquidation via splitting a deposit into two BTCVaults.",
+        "The minimum amount of BTC required to enable partial-position liquidation via splitting a deposit into two BTCVaults.",
     },
     ltv: {
       label: "Collateral Factor",
     },
     liquidationThreshold: {
       label: "Target Health Factor",
-      tooltip: "The ideal health factor to restore during liquidation",
+      tooltip:
+        "The health factor the protocol aims to restore after partial-position liquidation.",
     },
     maxLiquidationPenalty: {
       label: "Max Liquidation Penalty",
@@ -2180,7 +2179,7 @@ export const COPY = {
       // Variant A (#1948): an affordable sacrificial vault buffers the existing
       // position. The amount lives here; the CTA label stays generic.
       addSacrificialSuggestion: (sacrificialBtc: string) =>
-        `Adding a new BTCVault of ${sacrificialBtc} BTC enables partial liquidation.`,
+        `Adding a new BTCVault of ${sacrificialBtc} BTC enables partial-position liquidation.`,
       // Variant B (#1949): the single vault is too large to buffer cheaply —
       // withdraw it and re-deposit as two smaller vaults instead.
       withdrawResplitSuggestion: (
@@ -2188,7 +2187,7 @@ export const COPY = {
         sacrificialBtc: string,
         protectedBtc: string,
       ) =>
-        `To enable partial liquidation, withdraw your ${withdrawBtc} BTC and re-deposit as two smaller BTCVaults: ${sacrificialBtc} BTC + ${protectedBtc} BTC. Alternatively: add collateral or repay debt to manage the liquidation.`,
+        `To enable partial-position liquidation, withdraw your ${withdrawBtc} BTC and re-deposit as two smaller BTCVaults: ${sacrificialBtc} BTC + ${protectedBtc} BTC. Alternatively: add collateral or repay debt to manage the liquidation.`,
       // Protocol params disallow splitting entirely — no re-split is possible.
       noSplitSuggestion:
         "Current protocol parameters do not allow BTCVault splitting as a protection strategy. Add collateral or repay part of the debt to keep this position safe.",
@@ -2197,7 +2196,7 @@ export const COPY = {
       // apply when you already hold multiple vaults.
       twoVault: {
         enablePartial: (deficitBtc: string, largestName: string) =>
-          `To enable partial liquidation, add ≥ ${deficitBtc} BTC alongside ${largestName}. `,
+          `To enable partial-position liquidation, add ≥ ${deficitBtc} BTC alongside ${largestName}. `,
         suggestion: (targetSeizureBtc: string, enablePartialStr: string) =>
           `Neither BTCVault alone covers the target seizure (${targetSeizureBtc} BTC). ${enablePartialStr}You can also add collateral or repay part of the debt to keep this position safe. Alternatively: repay the loan, split BTC into optimal UTXOs, and re-open with a new BTCVault.`,
       },
