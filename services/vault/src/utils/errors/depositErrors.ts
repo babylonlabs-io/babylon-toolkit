@@ -52,6 +52,10 @@ import { type ReactNode } from "react";
 
 import { COPY } from "@/copy";
 import { isBuildConfigDriftError } from "@/services/vault/buildConfigConsistency";
+import {
+  isBuildLimitsDriftError,
+  isBuildPreconditionError,
+} from "@/services/vault/pinnedBuildLimits";
 
 import { isDepositorWalletMismatchError } from "./depositorWalletMismatch";
 import {
@@ -171,11 +175,39 @@ export function mapDepositError(err: unknown): DepositErrorContent {
 
   // 3a. The same drift caught earlier: the cached snapshot the form gated and
   // sized against no longer matches the pinned read the build would use.
-  // Shares the copy above because the depositor's situation is identical —
-  // parameters moved mid-deposit, start again — and here it is strictly
-  // cheaper, since nothing has been signed, broadcast or paid.
+  // Deliberately NOT the copy above. That one fires after registration, where
+  // the ETH fee is spent and the vault is stranded until it times out; this one
+  // fires before anything is signed, broadcast or paid, and the copy says so.
+  // Rendering the free failure as if it were the expensive one costs the
+  // depositor nothing but tells them nothing either.
   if (isBuildConfigDriftError(err)) {
-    return ERRORS.versionMismatch;
+    return ERRORS.versionMismatchBeforeSigning;
+  }
+
+  // 3a''. The build guard was handed amounts it cannot judge — a bug in our
+  // own code, not a chain change. Mapped so the internal message stays on the
+  // error for the bug report instead of becoming the callout body, which is
+  // what the final bucket would do with an unrecognised error.
+  if (isBuildPreconditionError(err)) {
+    return {
+      title: ERRORS.defaultTitle,
+      body: ERRORS.genericBody,
+      diagnostics: formatErrorDiagnostics(err),
+    };
+  }
+
+  // 3a'. Same pre-signing point, but an unversioned limit moved rather than a
+  // version label — so something the depositor chose has to change, and the
+  // copy has to say which. The amount and the BTCVault count need opposite
+  // instructions, hence two callouts rather than one covering both badly.
+  // The reason is read defensively: an error that crossed a realm boundary
+  // matches by `name` but may have lost its fields, and the amount-bounds copy
+  // is both the far likelier case and the safe thing to show when the tag is
+  // unreadable — it sends the depositor back to the form either way.
+  if (isBuildLimitsDriftError(err)) {
+    return err.reason === "vault-count"
+      ? ERRORS.vaultCountLimitChanged
+      : ERRORS.depositLimitsChanged;
   }
 
   // 3b. RFC-006 participant key drift. Distinct from the version mismatch
