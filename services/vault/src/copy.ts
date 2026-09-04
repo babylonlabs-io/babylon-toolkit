@@ -1227,6 +1227,7 @@ export const COPY = {
     checking: "Checking...",
     transactionFailedTitle: "Transaction failed",
     dismissNotification: "Dismiss notification",
+    aaveWordmark: "Aave",
     somethingWentWrong: {
       heading: SOMETHING_WENT_WRONG_HEADING,
       body: "Please close this and try again in a moment.",
@@ -1895,10 +1896,10 @@ export const COPY = {
         rest: " trustlessly.",
       },
       heroBody:
-        "Powered by Babylon Trustless Bitcoin Vaults protocol, collateralize native Bitcoin and borrow stablecoins or WBTC directly from Aave V4.",
+        "Powered by Babylon Trustless Bitcoin Vaults protocol, collateralize native Bitcoin and borrow supported assets directly from Aave V4.",
       connectButton: "Connect Wallet",
       aprHeading: "Current Borrowing Rates",
-      aprSuffix: "p.a.",
+      aprSuffix: "APR",
       aprLabels: {
         usdt: "USDT",
         usdc: "USDC",
@@ -1917,21 +1918,13 @@ export const COPY = {
           title: "Competitive borrowing rates",
           body: "Access to Aave V4 liquidity & its transparent, market-based variable rates.",
         },
-        fastAccess: {
-          title: "Fast access to liquidity",
-          body: "Vault setup and borrowing complete in about 3 hours.",
-        },
         partialLiquidation: {
           title: "Partial liquidation supported",
-          body: "for any loan position backed by multiple trustless Bitcoin vaults.",
+          body: "Splitting your deposit between two Bitcoin vaults in accordance with Aave's parameters will allow you to retain part of your position during the first liquidation.",
         },
         selfCustodial: {
           title: "Native, trustless, and self-custodial",
-          body: "No bridging. No wrapping. No pooled custody. Your native Bitcoin stays in a self-custodial vault — with no third party or signing quorum able to move or rehypothecate it.",
-        },
-        trustless: {
-          title: "Verifiable, permissionless execution",
-          body: "Collateral rules are enforced by code and cryptographic proofs — not by discretionary gatekeepers, committees, or off-chain liquidation decisions.",
+          body: "No bridging. No wrapping. No pooled custody. Your native Bitcoin stays in a self-custodial vault, with no third party able to move it.",
         },
       },
     },
