@@ -1012,6 +1012,28 @@ export const COPY = {
         title: "Vault operator keys changed",
         body: "A vault operator rotated its Bitcoin key while your deposit was being registered, so the registered vault no longer matches the transaction we prepared. Your Pre-Pegin was not broadcast and no Bitcoin was spent. The registered vault will time out on its own — please start a new deposit.",
       },
+      // The contract's own fingerprint check. It sits between the two cases
+      // around it: unlike the pre-signing aborts it cannot claim
+      // NOTHING_SIGNED_OR_SPENT, because the depositor has already approved the
+      // peg-in signatures by this point; unlike participantKeyDrift there is no
+      // stranded vault to explain.
+      //
+      // Every claim below has to hold on BOTH paths this revert takes — the gas
+      // estimate, where nothing was sent, and a rotation landing between that
+      // estimate and inclusion, which mines and so costs gas. Only the mapped
+      // estimate path reaches this copy today (see #2498), but wording it for
+      // one path would leave a false statement behind the moment the other is
+      // routed here. So: no "before it was submitted", and no "no fee was
+      // paid". What does hold either way is that the Pre-Pegin has not been
+      // broadcast and no Bitcoin has moved — registration precedes broadcast —
+      // and that is the reassurance that matters, since the Bitcoin is the
+      // depositor's principal and the gas is noise beside it.
+      //
+      // The two fingerprints go to diagnostics, never to the depositor.
+      peginFingerprintChanged: {
+        title: "Protocol configuration changed",
+        body: "The protocol configuration changed while your deposit was being prepared, so the contract rejected the registration. Your Pre-Pegin has not been broadcast and no Bitcoin was spent — but the signatures you just approved no longer match the protocol and cannot be reused. Please start the deposit again.",
+      },
       wrongWalletAccount: {
         title: "Wrong wallet account",
         body: WRONG_WALLET_BODY,
