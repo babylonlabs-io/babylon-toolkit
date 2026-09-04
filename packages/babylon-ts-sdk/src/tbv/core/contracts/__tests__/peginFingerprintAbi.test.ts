@@ -7,9 +7,18 @@
  * re-derived from our own ABI — a re-derivation would only prove the ABI agrees
  * with itself, which is true of any ABI including a wrong one.
  *
- * Source: https://github.com/babylonlabs-io/vault-contracts-aave-v4/pull/555,
- * read at head `ec62ac62`. `expectedFingerprint` is argument 4 of the batch
- * function — before `requests` — and appended last on both singular overloads.
+ * Source: https://github.com/babylonlabs-io/vault-contracts-aave-v4/pull/555.
+ * `expectedFingerprint` is argument 4 of the batch function — before `requests`
+ * — and appended last on both singular overloads.
+ *
+ * Every literal below is cross-checked against `snapshots/selectors.md` at head
+ * `86577e40`, which upstream generates from its own contracts. That makes these
+ * values an independent oracle rather than a transcription: the snapshot lists
+ * `submitPeginRequestBatch(...)  0x3e62a2ba`, both singular overloads at
+ * `0x564feec1` / `0x1c3c4606`, and `PeginFingerprintChanged(bytes32,bytes32)`
+ * at `0x846c25bb`. The fingerprint half of that PR is byte-identical between
+ * `ec62ac62` (when this was first written) and `86577e40`; the head moved only
+ * because `main` was merged in.
  */
 
 import { keccak256, toFunctionSignature, toHex } from "viem";

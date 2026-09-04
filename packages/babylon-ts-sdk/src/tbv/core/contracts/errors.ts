@@ -14,8 +14,9 @@ import { decodeAbiParameters, type Hex } from "viem";
  *
  * Re-derived rather than copied: `keccak256("PeginFingerprintChanged(bytes32,bytes32)")`
  * begins `0x846c25bb`. Source is
- * https://github.com/babylonlabs-io/vault-contracts-aave-v4/pull/555 at head
- * ec62ac62; `BTCVaultRegistry.abi.ts` carries the matching error entry, and a
+ * https://github.com/babylonlabs-io/vault-contracts-aave-v4/pull/555, and the
+ * value matches that repo's generated `snapshots/selectors.md` at head
+ * 86577e40. `BTCVaultRegistry.abi.ts` carries the matching error entry, and a
  * test asserts the two agree.
  */
 export const PEGIN_FINGERPRINT_CHANGED_SELECTOR = "0x846c25bb";

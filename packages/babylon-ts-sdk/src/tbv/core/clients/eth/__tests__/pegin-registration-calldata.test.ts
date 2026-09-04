@@ -111,13 +111,14 @@ describe("ViemPeginRegistrationClient calldata", () => {
         FINGERPRINT,
       ],
     });
-    // Hardcoded from the contract source, not re-derived from our own ABI:
-    // re-deriving would only prove the ABI agrees with itself. This literal is
-    // the sole independent check that our argument list matches the deployed
-    // signature. `submitPeginRequest(address,bytes32,bytes,bytes,bytes,address,
-    // uint16,bytes32,uint8,bytes,bytes32,bytes32)` per
+    // Hardcoded from upstream, not re-derived from our own ABI: re-deriving
+    // would only prove the ABI agrees with itself. This literal is the
+    // independent check that our argument list matches the deployed signature.
+    // `submitPeginRequest(address,bytes32,bytes,bytes,bytes,address,uint16,
+    // bytes32,uint8,bytes,bytes32,bytes32)`, listed at 0x564feec1 in the
+    // generated `snapshots/selectors.md` of
     // https://github.com/babylonlabs-io/vault-contracts-aave-v4/pull/555 at
-    // head ec62ac62; it was 0x67df3144 before the fingerprint was appended.
+    // head 86577e40. It was 0x67df3144 before the fingerprint was appended.
     //
     // It also guards an overload hazard: the no-referral overload now has 12
     // inputs and the referral overload 13, so viem still disambiguates on
@@ -207,7 +208,8 @@ describe("ViemPeginRegistrationClient calldata", () => {
     });
     // Hardcoded from the contract source; see the note on the singular pin
     // above. `submitPeginRequestBatch(address,address,uint16,bytes32,(...)[])`
-    // per #555 at head ec62ac62; it was 0x68d177ac before the fingerprint.
+    // per #555's generated snapshots/selectors.md at head 86577e40; it was
+    // 0x68d177ac before the fingerprint.
     expect(data.slice(0, 10)).toBe("0x3e62a2ba");
     expect(publicClient.estimateGas).toHaveBeenCalledWith({
       to: REGISTRY,

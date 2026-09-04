@@ -671,8 +671,9 @@ export const BTCVaultRegistryABI = [
   // one axis wider: the depositor commits to the whole protocol resolution the
   // Pre-Pegin was built against, and the registry rejects a submission whose
   // resolution moved. Newer than the block header's source commit — it arrives
-  // with https://github.com/babylonlabs-io/vault-contracts-aave-v4/pull/555,
-  // read at head ec62ac62.
+  // with https://github.com/babylonlabs-io/vault-contracts-aave-v4/pull/555.
+  // Selector 0x846c25bb, confirmed against that repo's generated
+  // snapshots/selectors.md at head 86577e40.
   {
     type: "error",
     name: "PeginFingerprintChanged",
