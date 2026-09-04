@@ -61,6 +61,11 @@ const chainMocks = vi.hoisted(() => {
       minPrepeginDepth: 6,
     },
     offchainParamsVersion: 7,
+    // Unversioned half of the read. These bounds ACCEPT the 100000n-per-vault
+    // fixtures below; the cached copy's deliberately do not (see there).
+    minimumPegInAmount: 10_000n,
+    maxPegInAmount: 10_000_000n,
+    maxHtlcOutputCount: 5,
   };
   // Every field the lock commits to differs, so an assertion on any of them
   // discriminates between the two sources. The two version labels deliberately
@@ -83,6 +88,16 @@ const chainMocks = vi.hoisted(() => {
       feeRate: 77n,
       minPeginFeeRate: 88n,
     },
+    // Bounds that would REJECT the fixtures: 100000n is below this minimum and
+    // above this maximum, and the default deposit asks for two vaults against a
+    // cap of one. So the happy-path tests below pass only while
+    // `assertBuildWithinPinnedLimits` reads the pinned config. Point it at the
+    // cached one and they fail — which is the whole point of keeping two
+    // objects, since the bounds carry no version label for the drift guard to
+    // compare.
+    minimumPegInAmount: 500_000n,
+    maxPegInAmount: 900_000n,
+    maxHtlcOutputCount: 1,
   };
   return {
     peginConfig,
@@ -132,10 +147,16 @@ vi.mock("@/hooks/useProtocolGate", () => ({
 }));
 
 // Avoid threading a real QueryClientProvider through every renderHook —
-// `useDepositFlow` only uses the client to invalidate the UTXO query
-// after broadcast; a stub is sufficient for adapter-wiring tests.
+// `useDepositFlow` uses the client for two things: invalidating the UTXO query
+// after broadcast, and seeding the peg-in config cache when a drift guard
+// aborts. Hoisted rather than inline so the seed can be asserted.
+const queryClientMocks = vi.hoisted(() => ({
+  invalidateQueries: vi.fn(),
+  setQueryData: vi.fn(),
+}));
+
 vi.mock("@tanstack/react-query", () => ({
-  useQueryClient: () => ({ invalidateQueries: vi.fn() }),
+  useQueryClient: () => queryClientMocks,
 }));
 
 vi.mock("../useBtcWalletState", () => ({
@@ -150,8 +171,25 @@ vi.mock("@/config/pegin", () => ({
   getBTCNetworkForWASM: vi.fn(() => "testnet"),
 }));
 
-vi.mock("@/context/ProtocolParamsContext", () => ({
+// Real implementation by default; one test overrides it to throw a non-drift
+// error, to pin that the cache seed is gated on drift rather than on reaching
+// the catch at all.
+vi.mock("@/services/vault/pinnedBuildLimits", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@/services/vault/pinnedBuildLimits")>();
+  return {
+    ...actual,
+    assertBuildWithinPinnedLimits: vi.fn(actual.assertBuildWithinPinnedLimits),
+  };
+});
+
+vi.mock("@/context/ProtocolParamsContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/context/ProtocolParamsContext")>()),
   useProtocolParamsContext: vi.fn(),
+  // `pegInConfigQueryOptions` is deliberately NOT stubbed. The drift path seeds
+  // the cache under its key, and a hand-written copy of that key would keep
+  // passing if the real one were renamed, while production seeded a key nothing
+  // reads. It is a pure factory and pulls in no chain client at call time.
 }));
 
 // Mock btc utils (btcAddressToScriptPubKeyHex needs valid address + bitcoinjs-lib)
@@ -1022,12 +1060,130 @@ describe("useDepositFlow", () => {
       await executeDepositFlow(result);
 
       await waitFor(() => {
-        expect(result.current.error?.title).toBe(
-          COPY.deposit.errors.versionMismatch.title,
+        // Asserted on the whole callout, not the title: the pre-signing and
+        // post-registration callouts share a title, so a title-only assertion
+        // cannot tell the free failure from the expensive one.
+        expect(result.current.error).toEqual(
+          COPY.deposit.errors.versionMismatchBeforeSigning,
         );
       });
       // Nothing signed, nothing broadcast — restarting costs the depositor
       // nothing at this point, which is why the guard sits here.
+      expect(preparePeginTransaction).not.toHaveBeenCalled();
+    });
+
+    it("aborts before building when a pinned bound excludes the chosen amount", async () => {
+      const { preparePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultTransactionService"),
+      );
+
+      // A governance change raised the minimum above the 100000n-per-vault the
+      // depositor already approved. No version label moves with it, so the
+      // sibling drift guard passes and only this check can stop the build.
+      chainMocks.getPegInConfiguration.mockResolvedValueOnce({
+        ...chainMocks.peginConfig,
+        minimumPegInAmount: 500_000n,
+      });
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+
+      await executeDepositFlow(result);
+
+      await waitFor(() => {
+        expect(result.current.error).toEqual(
+          COPY.deposit.errors.depositLimitsChanged,
+        );
+      });
+      expect(preparePeginTransaction).not.toHaveBeenCalled();
+    });
+
+    it("seeds the config cache with the pinned read so a restart cannot repeat the same failure", async () => {
+      // Both aborts tell the depositor to start again, and restarting means
+      // closing and reopening the form. That form reads the cached config,
+      // which has a five minute staleTime and which nothing invalidates — so
+      // without this seed the restart re-reads the snapshot that just failed.
+      const pinned = {
+        ...chainMocks.peginConfig,
+        minimumPegInAmount: 500_000n,
+      };
+      chainMocks.getPegInConfiguration.mockResolvedValueOnce(pinned);
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+
+      await executeDepositFlow(result);
+
+      await waitFor(() => {
+        expect(result.current.error).toEqual(
+          COPY.deposit.errors.depositLimitsChanged,
+        );
+      });
+      // Key comes from the real factory, not a literal: a rename must break
+      // this test rather than leave it green while production seeds a dead key.
+      const { pegInConfigQueryOptions } = await vi.importActual<
+        typeof import("@/context/ProtocolParamsContext")
+      >("@/context/ProtocolParamsContext");
+      expect(queryClientMocks.setQueryData).toHaveBeenCalledWith(
+        pegInConfigQueryOptions().queryKey,
+        pinned,
+      );
+    });
+
+    it("does not touch the config cache when the abort is not drift", async () => {
+      // The seed overwrites a key the blocking ProtocolParamsProvider and the
+      // polling hook both read. A TypeError from the guard establishes nothing
+      // about the chain, so it must not rewrite that cache on its way out.
+      const { assertBuildWithinPinnedLimits } = vi.mocked(
+        await import("@/services/vault/pinnedBuildLimits"),
+      );
+      assertBuildWithinPinnedLimits.mockImplementationOnce(() => {
+        throw new TypeError("not a drift error");
+      });
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+
+      await executeDepositFlow(result);
+
+      await waitFor(() => {
+        expect(result.current.error).not.toBeNull();
+      });
+      expect(queryClientMocks.setQueryData).not.toHaveBeenCalled();
+    });
+
+    it("leaves the config cache alone when the build succeeds", async () => {
+      // The seed is a drift-path repair, not something the happy path does —
+      // otherwise this assertion would pass no matter where the call sat.
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+
+      await executeDepositFlow(result);
+
+      await waitFor(() => {
+        expect(chainMocks.getPegInConfiguration).toHaveBeenCalled();
+      });
+      expect(queryClientMocks.setQueryData).not.toHaveBeenCalled();
+    });
+
+    it("aborts before building when the pinned HTLC output cap is below the vault count", async () => {
+      const { preparePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultTransactionService"),
+      );
+
+      // The default deposit asks for two vaults, so two HTLC outputs.
+      chainMocks.getPegInConfiguration.mockResolvedValueOnce({
+        ...chainMocks.peginConfig,
+        maxHtlcOutputCount: 1,
+      });
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+
+      await executeDepositFlow(result);
+
+      await waitFor(() => {
+        // Not the deposit-limits callout: this one has to say "stop splitting",
+        // not "change your amount".
+        expect(result.current.error).toEqual(
+          COPY.deposit.errors.vaultCountLimitChanged,
+        );
+      });
       expect(preparePeginTransaction).not.toHaveBeenCalled();
     });
 

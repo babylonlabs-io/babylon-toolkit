@@ -51,6 +51,10 @@ const connectToView = (subject: string) =>
   `Connect your wallet to view your ${subject}`;
 // Generic deposit-failure title; shared so per-bucket titles can't drift.
 const TRANSACTION_FAILED_TITLE = "Transaction failed";
+// The reassurance every pre-signing abort carries. It is the load-bearing half
+// of those messages — it is what distinguishes them from the post-registration
+// failures, which have spent an Ethereum fee — so it lives in one place.
+const NOTHING_SIGNED_OR_SPENT = "Nothing was signed and no funds were spent";
 // Shared between the resume WOTS error string and the mapped callout body so
 // the wording stays in one place.
 const WRONG_WALLET_BODY =
@@ -292,6 +296,12 @@ export const COPY = {
       unavailableCta: "Unable to verify BTCVault count — please try again",
       splitUnavailable: (used: number, cap: number) =>
         `${used} of ${cap} BTCVaults used. BTCVault split unavailable.`,
+      // The protocol's own cap on BTCVaults per transaction, which is a
+      // separate limit from the per-position one above. It quotes no usage
+      // figures: it can apply with an empty position, where "0 of 10 used"
+      // would name a cause that is not the reason.
+      splitUnavailableProtocolLimit:
+        "The protocol currently allows one BTCVault per transaction. BTCVault split unavailable.",
     },
     steps: {
       generateSecret: "Generate secret for the deposit",
@@ -956,9 +966,34 @@ export const COPY = {
         title: "Vault provider not found",
         body: "The selected vault provider could not be found. Please refresh and try again.",
       },
+      // Post-registration: the ETH vault is already on-chain and its fee is
+      // spent, so this is the expensive version of "parameters moved". Keep it
+      // distinct from the two pre-signing cases below, which cost nothing.
       versionMismatch: {
         title: "Protocol parameters changed",
         body: "The protocol parameters changed while preparing your deposit. Please restart the deposit.",
+      },
+      // Pre-signing: caught before the build, so nothing has been signed,
+      // broadcast or paid. Says so, rather than sharing the copy above and
+      // leaving the depositor to wonder what it cost them. "No funds", not "no
+      // Bitcoin" as in participantKeyDrift below — that one has already spent
+      // the Ethereum fee, and this one has spent nothing on either chain.
+      versionMismatchBeforeSigning: {
+        title: "Protocol parameters changed",
+        body: `The protocol parameters changed while we were preparing your deposit. ${NOTHING_SIGNED_OR_SPENT} — please start the deposit again.`,
+      },
+      // Pre-signing, and specifically the deposit bounds moved, so the amount
+      // itself is what needs to change. Reopening the form shows the new range.
+      depositLimitsChanged: {
+        title: "Deposit limits changed",
+        body: `The minimum or maximum deposit changed while we were preparing your deposit, and your amount is now outside the allowed range. ${NOTHING_SIGNED_OR_SPENT} — please start the deposit again with an amount in the new range.`,
+      },
+      // Pre-signing, and the cap on BTCVaults per transaction dropped below
+      // what this deposit asked for. Splitting is the thing to change here, not
+      // the amount, so this cannot share the copy above.
+      vaultCountLimitChanged: {
+        title: "BTCVault limit changed",
+        body: `The number of BTCVaults allowed in a single transaction changed while we were preparing your deposit, and this deposit asks for more than the new limit. ${NOTHING_SIGNED_OR_SPENT} — please start the deposit again without splitting across BTCVaults.`,
       },
       participantKeyDrift: {
         title: "Vault operator keys changed",
