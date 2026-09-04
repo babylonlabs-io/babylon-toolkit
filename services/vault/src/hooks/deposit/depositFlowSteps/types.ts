@@ -116,6 +116,12 @@ export interface PeginBatchRegisterParams {
    * commission drifted upward beyond the SDK's headroom since the quote.
    */
   quotedCommissionBps: number;
+  /**
+   * Peg-in configuration fingerprint over the block-pinned protocol state the
+   * Pre-Pegin was built from, from `computeBuildPeginFingerprint`. The registry
+   * re-derives it at inclusion and reverts if the state moved in between.
+   */
+  expectedFingerprint: Hex;
 }
 
 export interface PeginBatchRegisterResult {

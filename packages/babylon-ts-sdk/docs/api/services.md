@@ -85,6 +85,57 @@ Error.constructor
 
 ***
 
+### ApplicationEntryPointMismatchError
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts)
+
+The application entry point the caller passed cannot be used, either because
+the registry says this vault provider serves a different one, or because the
+value is not a well-formed address so no comparison is possible.
+
+Both are a deployment or configuration fault — not chain drift, and not
+anything a depositor can act on. One class covers both because the caller's
+recovery is identical and the distinction only matters in a bug report, which
+the message carries.
+
+It is typed only so the consuming app can recognise it and show its own
+generic copy: the messages name addresses and the protocol values at stake,
+which belongs in that bug report rather than in front of a depositor. An
+untyped `Error` would be rendered verbatim as the callout body by the
+mapper's last-resort bucket.
+
+#### Extends
+
+- `Error`
+
+#### Constructors
+
+##### Constructor
+
+```ts
+new ApplicationEntryPointMismatchError(message): ApplicationEntryPointMismatchError;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts)
+
+###### Parameters
+
+###### message
+
+`string`
+
+###### Returns
+
+[`ApplicationEntryPointMismatchError`](#applicationentrypointmismatcherror)
+
+###### Overrides
+
+```ts
+Error.constructor
+```
+
+***
+
 ### ParticipantKeyDriftError
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredParticipantKeys.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredParticipantKeys.ts)
@@ -1649,6 +1700,18 @@ applicationEntryPoint: `0x${string}`;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts)
 
+The application entry point the caller believes the provider serves — a
+*hint*, checked against the registry, in the same sense as
+`expectedVaultProviderBtcPubkey` below.
+
+The registry's own `getVaultProviderApplication(vp)` is authoritative: it
+is what the peg-in submit path resolves internally, and it selects the
+keeper roster, the roster version and the keeper key epoch a deposit is
+bonded to. This value comes from the dApp's configuration instead. They
+agree today, so the check is normally a no-op — but if they ever diverge,
+building against the configured one would bond the vault to an application
+the caller never chose, and nothing downstream would say so.
+
 ##### expectedVaultProviderBtcPubkey
 
 ```ts
@@ -1742,9 +1805,11 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnCha
 Block to resolve every read against, so the roster versions, the roster
 members and their operation keys all describe one chain state.
 
-This function reads in three dependent rounds — versions, then the members
-at those versions, then those members' operation keys — because each round
-needs the previous round's output. Left unpinned, each round lands on
+This function reads in four dependent rounds — the application entry point
+and the challenger axis, then the keeper version and epoch keyed on that
+entry point, then the roster members at those versions, then those members'
+operation keys — because each round needs the previous round's output.
+Left unpinned, each round lands on
 whatever `latest` happens to be, and a rotation between rounds yields a key
 set that no single block ever held. The Bitcoin lock built from it would
 commit to that mixture, and no counterparty would agree with it.
@@ -1803,6 +1868,31 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnCha
 
 ```ts
 expectedUniversalChallengersVersion: number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts)
+
+##### appKeeperKeyEpoch
+
+```ts
+appKeeperKeyEpoch: bigint;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts)
+
+The two operation-key epochs the peg-in config fingerprint commits to, as
+`bigint` (`uint64` on-chain).
+
+They live here rather than beside the protocol params because they label
+the very keys this function resolves: `appKeeperKeyEpoch` is the epoch the
+keeper operation keys above were read at, and `ucKeyEpoch` the same for the
+challengers. Reading them anywhere else would create a second place for the
+epoch and the keys it names to come from different blocks.
+
+##### ucKeyEpoch
+
+```ts
+ucKeyEpoch: bigint;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts)
@@ -3549,6 +3639,26 @@ Submit WOTS public keys to the vault provider.
 #### Throws
 
 Error on timeout, abort, or RPC error
+
+***
+
+### isApplicationEntryPointMismatchError()
+
+```ts
+function isApplicationEntryPointMismatchError(err): err is ApplicationEntryPointMismatchError;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/validateOnChainParticipantKeys.ts)
+
+#### Parameters
+
+##### err
+
+`unknown`
+
+#### Returns
+
+`err is ApplicationEntryPointMismatchError`
 
 ***
 

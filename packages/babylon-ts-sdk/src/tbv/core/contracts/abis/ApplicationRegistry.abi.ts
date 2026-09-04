@@ -75,6 +75,29 @@ export const ApplicationRegistryABI = [
     ],
     stateMutability: "view",
   },
+  // One counter per application, bumped by any keeper's operation-key or
+  // payout-script append. It is what the peg-in config fingerprint commits to
+  // on the keeper axis, in place of the N resolved keeper keys — see
+  // `pegin-fingerprint`. `uint64`, and it must stay a `bigint` end to end.
+  {
+    type: "function",
+    name: "appKeeperKeyEpochCurrent",
+    inputs: [
+      {
+        name: "appEntryPoint",
+        type: "address",
+        internalType: "address",
+      },
+    ],
+    outputs: [
+      {
+        name: "",
+        type: "uint64",
+        internalType: "uint64",
+      },
+    ],
+    stateMutability: "view",
+  },
   {
     type: "function",
     name: "getCurrentVaultKeepersVersion",

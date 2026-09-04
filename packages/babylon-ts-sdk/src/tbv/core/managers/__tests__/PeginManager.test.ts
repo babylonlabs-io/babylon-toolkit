@@ -175,6 +175,11 @@ const MOCK_WOTS_PK_HASH = `0x${"ab".repeat(32)}` as `0x${string}`;
 // Mock hashlock for HTLC (bytes32)
 const MOCK_HASHLOCK = `0x${"cd".repeat(32)}` as `0x${string}`;
 
+// Peg-in config fingerprint. Distinct from the other bytes32 mocks above so a
+// slot mix-up cannot pass. PeginManager only forwards it — the encoding and
+// the calldata position are covered in the eth-client calldata tests.
+const FINGERPRINT = `0x${"7c".repeat(32)}` as `0x${string}`;
+
 function mockDepositorSignedPeginTx(prevoutByte: number): string {
   const transaction = new bitcoin.Transaction();
   transaction.version = 2;
@@ -1567,6 +1572,7 @@ describe("PeginManager", () => {
         depositorPayoutBtcAddress: TEST_PAYOUT_ADDRESS,
         depositorWotsPkHash: MOCK_WOTS_PK_HASH,
         popSignature,
+        expectedFingerprint: FINGERPRINT,
       });
 
       expect(sendTxSpy).toHaveBeenCalled();
@@ -1598,6 +1604,7 @@ describe("PeginManager", () => {
           depositorPayoutBtcAddress: TEST_PAYOUT_ADDRESS,
           depositorWotsPkHash: MOCK_WOTS_PK_HASH,
           popSignature,
+          expectedFingerprint: FINGERPRINT,
           // quotedCommissionBps deliberately omitted
         }),
       ).rejects.toThrow(/quotedCommissionBps is required/);
@@ -1621,6 +1628,7 @@ describe("PeginManager", () => {
           depositorPayoutBtcAddress: TEST_PAYOUT_ADDRESS,
           depositorWotsPkHash: MOCK_WOTS_PK_HASH,
           popSignature,
+          expectedFingerprint: FINGERPRINT,
         }),
       ).rejects.toThrow(/Proof of possession/i);
     });
@@ -1642,6 +1650,7 @@ describe("PeginManager", () => {
           depositorPayoutBtcAddress: TEST_PAYOUT_ADDRESS,
           depositorWotsPkHash: MOCK_WOTS_PK_HASH,
           popSignature,
+          expectedFingerprint: FINGERPRINT,
         }),
       ).rejects.toThrow(/BTC wallet is currently connected/i);
     });
@@ -1676,6 +1685,7 @@ describe("PeginManager", () => {
           depositorPayoutBtcAddress: TEST_PAYOUT_ADDRESS,
           depositorWotsPkHash: MOCK_WOTS_PK_HASH,
           popSignature,
+          expectedFingerprint: FINGERPRINT,
         }),
       ).rejects.toThrow(/Mock transaction failed/);
     });
@@ -1693,6 +1703,7 @@ describe("PeginManager", () => {
         depositorPayoutBtcAddress: TEST_PAYOUT_ADDRESS,
         depositorWotsPkHash: MOCK_WOTS_PK_HASH,
         popSignature,
+        expectedFingerprint: FINGERPRINT,
       });
       expect(sendTxSpy).toHaveBeenCalled();
 
@@ -1706,6 +1717,7 @@ describe("PeginManager", () => {
         depositorPayoutBtcAddress: TEST_PAYOUT_ADDRESS,
         depositorWotsPkHash: MOCK_WOTS_PK_HASH,
         popSignature,
+        expectedFingerprint: FINGERPRINT,
       });
       expect(sendTxSpy).toHaveBeenCalled();
 
@@ -1719,6 +1731,7 @@ describe("PeginManager", () => {
         depositorPayoutBtcAddress: TEST_PAYOUT_ADDRESS,
         depositorWotsPkHash: MOCK_WOTS_PK_HASH,
         popSignature,
+        expectedFingerprint: FINGERPRINT,
       });
       expect(sendTxSpy).toHaveBeenCalled();
     });
@@ -1743,6 +1756,7 @@ describe("PeginManager", () => {
           depositorPayoutBtcAddress: TEST_PAYOUT_ADDRESS,
           depositorWotsPkHash: MOCK_WOTS_PK_HASH,
           popSignature,
+          expectedFingerprint: FINGERPRINT,
         }),
       ).rejects.toThrow(/Transaction reverted/);
     });
@@ -1795,6 +1809,7 @@ describe("PeginManager", () => {
           depositorPayoutBtcAddress: TEST_PAYOUT_ADDRESS,
           depositorWotsPkHash: MOCK_WOTS_PK_HASH,
           popSignature,
+          expectedFingerprint: FINGERPRINT,
           quotedCommissionBps,
         });
 
@@ -1857,6 +1872,7 @@ describe("PeginManager", () => {
             depositorPayoutBtcAddress: TEST_PAYOUT_ADDRESS,
             depositorWotsPkHash: MOCK_WOTS_PK_HASH,
             popSignature,
+            expectedFingerprint: FINGERPRINT,
             quotedCommissionBps: 100,
           }),
         ).rejects.toThrow(/commission changed since quote/);
@@ -1899,6 +1915,7 @@ describe("PeginManager", () => {
           vaultProvider: TEST_CONTRACT_ADDRESS,
           unsignedPrePeginTx: BASE_UNSIGNED_PRE_PEGIN,
           popSignature,
+          expectedFingerprint: FINGERPRINT,
           requests: [
             {
               ...baseRequest,
@@ -1941,6 +1958,7 @@ describe("PeginManager", () => {
           vaultProvider: TEST_CONTRACT_ADDRESS,
           unsignedPrePeginTx: BASE_UNSIGNED_PRE_PEGIN,
           popSignature,
+          expectedFingerprint: FINGERPRINT,
           requests: [
             {
               ...baseRequest,
@@ -1981,6 +1999,7 @@ describe("PeginManager", () => {
         vaultProvider: TEST_CONTRACT_ADDRESS,
         unsignedPrePeginTx: BASE_UNSIGNED_PRE_PEGIN,
         popSignature,
+        expectedFingerprint: FINGERPRINT,
         requests: [
           {
             ...baseRequest,
@@ -2808,6 +2827,7 @@ describe("PeginManager", () => {
           depositorPayoutBtcAddress: FOREIGN_BTC_ADDRESS,
           depositorWotsPkHash: MOCK_WOTS_PK_HASH,
           popSignature,
+          expectedFingerprint: FINGERPRINT,
         }),
       ).rejects.toThrow(
         /BTC payout address .* is not derived from the connected wallet/i,
@@ -2852,6 +2872,7 @@ describe("PeginManager", () => {
           depositorPayoutBtcAddress: oddParityWrongAddress,
           depositorWotsPkHash: MOCK_WOTS_PK_HASH,
           popSignature,
+          expectedFingerprint: FINGERPRINT,
         }),
       ).rejects.toThrow(
         /BTC payout address .* is not derived from the connected wallet/i,
@@ -2893,6 +2914,7 @@ describe("PeginManager", () => {
             depositorPayoutBtcAddress: addr,
             depositorWotsPkHash: MOCK_WOTS_PK_HASH,
             popSignature,
+            expectedFingerprint: FINGERPRINT,
           }),
         ).rejects.toThrow(/P2WPKH .* x-only public key.*Use a P2TR/i);
       }
@@ -2934,6 +2956,7 @@ describe("PeginManager", () => {
           depositorPayoutBtcAddress: p2wshAddress,
           depositorWotsPkHash: MOCK_WOTS_PK_HASH,
           popSignature,
+          expectedFingerprint: FINGERPRINT,
         }),
       ).rejects.toThrow(
         /BTC payout address .* is not derived from the connected wallet/i,
@@ -2948,6 +2971,7 @@ describe("PeginManager", () => {
           vaultProvider: TEST_CONTRACT_ADDRESS,
           unsignedPrePeginTx: "0100000000010000000000",
           popSignature,
+          expectedFingerprint: FINGERPRINT,
           requests: [
             {
               depositorSignedPeginTx: MOCK_DEPOSITOR_SIGNED_PEGIN_TX,

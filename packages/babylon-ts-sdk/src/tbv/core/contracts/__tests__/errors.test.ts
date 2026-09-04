@@ -2,14 +2,24 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   CONTRACT_ERRORS,
+  PEGIN_FINGERPRINT_CHANGED_SELECTOR,
+  PeginFingerprintChangedError,
   extractErrorData,
   getContractErrorMessage,
   handleContractError,
   isKnownContractError,
+  isPeginFingerprintChangedError,
 } from "../errors";
 
 const DUPLICATE_HASHLOCK_SELECTOR = "0x70f7d5e2";
 const INVALID_PEGIN_FEE_SELECTOR = "0x979f4518";
+
+const EXPECTED_FINGERPRINT = `0x${"11".repeat(32)}`;
+const ACTUAL_FINGERPRINT = `0x${"22".repeat(32)}`;
+const FINGERPRINT_REVERT_DATA =
+  PEGIN_FINGERPRINT_CHANGED_SELECTOR +
+  "11".repeat(32) +
+  "22".repeat(32);
 
 describe("extractErrorData", () => {
   it("returns undefined for null", () => {
@@ -201,6 +211,66 @@ describe("CONTRACT_ERRORS table", () => {
     expect(CONTRACT_ERRORS[DUPLICATE_HASHLOCK_SELECTOR]).toMatch(
       /Duplicate deposit/i,
     );
+  });
+
+  it("has no PeginFingerprintChanged entry: it is typed, not a message", () => {
+    // The consuming app branches on the typed error rather than rendering a
+    // string, so an entry here would be a second, unused representation that
+    // could silently drift from the copy the depositor actually sees.
+    expect(
+      CONTRACT_ERRORS[PEGIN_FINGERPRINT_CHANGED_SELECTOR],
+    ).toBeUndefined();
+  });
+});
+
+describe("PeginFingerprintChanged", () => {
+  it("throws the typed error with both fingerprints decoded", () => {
+    let caught: unknown;
+    try {
+      handleContractError({ data: FINGERPRINT_REVERT_DATA });
+    } catch (err) {
+      caught = err;
+    }
+
+    expect(isPeginFingerprintChangedError(caught)).toBe(true);
+    const err = caught as PeginFingerprintChangedError;
+    // Distinct values, so a swap between the two would fail here.
+    expect(err.expected).toBe(EXPECTED_FINGERPRINT);
+    expect(err.actual).toBe(ACTUAL_FINGERPRINT);
+  });
+
+  it("still classifies when the revert data carries only the selector", () => {
+    // viem hands back a decoded `signature` rather than raw data in some
+    // shapes. Classification must survive that; only the diagnostics are lost.
+    let caught: unknown;
+    try {
+      handleContractError({ data: PEGIN_FINGERPRINT_CHANGED_SELECTOR });
+    } catch (err) {
+      caught = err;
+    }
+
+    expect(isPeginFingerprintChangedError(caught)).toBe(true);
+    const err = caught as PeginFingerprintChangedError;
+    expect(err.expected).toBeUndefined();
+    expect(err.actual).toBeUndefined();
+  });
+
+  it("does not classify a different selector as a fingerprint change", () => {
+    expect(() =>
+      handleContractError({ data: DUPLICATE_HASHLOCK_SELECTOR }),
+    ).toThrow(/Duplicate deposit/i);
+  });
+
+  it("recognizes a cross-realm copy by name, not by message", () => {
+    // The predicate must key on the error's identity. An Error carrying the
+    // same words but a different name is not this error, and matching it would
+    // let a substring check masquerade as a typed one.
+    const crossRealm = new Error("Peg-in configuration fingerprint changed");
+    crossRealm.name = "PeginFingerprintChangedError";
+    expect(isPeginFingerprintChangedError(crossRealm)).toBe(true);
+
+    const lookalike = new Error("Peg-in configuration fingerprint changed");
+    expect(isPeginFingerprintChangedError(lookalike)).toBe(false);
   });
 });
 

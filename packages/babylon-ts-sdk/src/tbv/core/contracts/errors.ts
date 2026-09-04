@@ -7,6 +7,84 @@
  * @module contracts/errors
  */
 
+import { decodeAbiParameters, type Hex } from "viem";
+
+/**
+ * `PeginFingerprintChanged(bytes32 expected, bytes32 actual)`.
+ *
+ * Re-derived rather than copied: `keccak256("PeginFingerprintChanged(bytes32,bytes32)")`
+ * begins `0x846c25bb`. Source is
+ * https://github.com/babylonlabs-io/vault-contracts-aave-v4/pull/555 at head
+ * ec62ac62; `BTCVaultRegistry.abi.ts` carries the matching error entry, and a
+ * test asserts the two agree.
+ */
+export const PEGIN_FINGERPRINT_CHANGED_SELECTOR = "0x846c25bb";
+
+/** `"0x"` + 4-byte selector + two abi-encoded `bytes32` words. */
+const FINGERPRINT_REVERT_DATA_LENGTH = 2 + 8 + 64 * 2;
+
+/**
+ * The registry rejected a peg-in registration because the protocol state it
+ * resolves at inclusion no longer matches the state the Pre-Pegin was built
+ * against.
+ *
+ * Typed rather than one more entry in {@link CONTRACT_ERRORS} because the
+ * consuming app has to branch on it — this is the one contract revert on the
+ * peg-in path with a specific recovery, and matching an English message across
+ * a package boundary to find it would be a string nobody can safely reword.
+ *
+ * `expected` and `actual` are the depositor's fingerprint and the registry's.
+ * They are diagnostics only — the difference between "the chain moved" and
+ * "our encoder is wrong" — and must never be shown to a depositor.
+ */
+export class PeginFingerprintChangedError extends Error {
+  readonly expected?: Hex;
+  readonly actual?: Hex;
+
+  constructor(message: string, fingerprints?: { expected: Hex; actual: Hex }) {
+    super(message);
+    this.name = "PeginFingerprintChangedError";
+    this.expected = fingerprints?.expected;
+    this.actual = fingerprints?.actual;
+  }
+}
+
+// `instanceof` alone fails across module boundaries (duplicate copies, test
+// mocks). Fall back to the name field, as the sibling drift guards do.
+export function isPeginFingerprintChangedError(
+  err: unknown,
+): err is PeginFingerprintChangedError {
+  return (
+    err instanceof PeginFingerprintChangedError ||
+    (err instanceof Error && err.name === "PeginFingerprintChangedError")
+  );
+}
+
+/**
+ * Recover the two fingerprints from the revert payload, when there is one.
+ *
+ * `extractErrorData` sometimes yields only the 4-byte selector — a viem
+ * `ContractFunctionRevertedError` that has already decoded the error exposes
+ * its signature, not its raw data. Classification has already happened on that
+ * selector by the time this runs, so returning `undefined` here loses a
+ * diagnostic and nothing else. That is why this may return `undefined` on a
+ * critical path and the selector match may not.
+ */
+function decodeFingerprints(
+  errorData: string,
+): { expected: Hex; actual: Hex } | undefined {
+  if (errorData.length !== FINGERPRINT_REVERT_DATA_LENGTH) return undefined;
+  try {
+    const [expected, actual] = decodeAbiParameters(
+      [{ type: "bytes32" }, { type: "bytes32" }],
+      `0x${errorData.slice(10)}` as Hex,
+    );
+    return { expected, actual };
+  } catch {
+    return undefined;
+  }
+}
+
 /**
  * Known contract error signatures mapped to user-friendly messages.
  *
@@ -168,6 +246,11 @@ function walkForErrorData(
 /**
  * Get a user-friendly error message for a contract error.
  *
+ * Reads {@link CONTRACT_ERRORS} only, so it reports `PeginFingerprintChanged`
+ * as unrecognised even though {@link handleContractError} throws a typed error
+ * for it. That revert deliberately has no message-table entry: consumers branch
+ * on {@link PeginFingerprintChangedError} and supply their own copy.
+ *
  * @param error - The error object from a contract call
  * @returns A user-friendly error message, or undefined if error is not recognized
  */
@@ -185,6 +268,11 @@ export function getContractErrorMessage(error: unknown): string | undefined {
 
 /**
  * Check if an error is a known contract error.
+ *
+ * "Known" means present in {@link CONTRACT_ERRORS}, so this returns `false` for
+ * `PeginFingerprintChanged` — see {@link getContractErrorMessage} for why that
+ * revert is typed instead of tabled. Use
+ * {@link isPeginFingerprintChangedError} to recognise it.
  *
  * @param error - The error object to check
  * @returns True if the error is a known contract error
@@ -216,6 +304,23 @@ export function handleContractError(error: unknown): never {
   // Check for known contract error signatures (exact match or 4-byte selector prefix)
   if (errorData) {
     const selector = errorData.substring(0, 10);
+
+    // Typed ahead of the message map: the peg-in path branches on this one
+    // rather than rendering it, and the two fingerprints are worth keeping.
+    //
+    // Lowercased before comparing because `extractErrorData` accepts mixed-case
+    // hex — its last-resort message regex matches `[a-fA-F0-9]`, and `err.data`
+    // from an arbitrary RPC provider carries no casing guarantee. viem returns
+    // lowercase in practice, so this is belt-and-braces; but the app branches
+    // on this selector, and a silent miss would drop the whole recovery path.
+    if (selector.toLowerCase() === PEGIN_FINGERPRINT_CHANGED_SELECTOR) {
+      throw new PeginFingerprintChangedError(
+        "Peg-in configuration fingerprint changed: the protocol state resolved " +
+          "at inclusion differs from the state this deposit was built against.",
+        decodeFingerprints(errorData),
+      );
+    }
+
     const knownError = CONTRACT_ERRORS[errorData] ?? CONTRACT_ERRORS[selector];
     if (knownError) {
       console.error("[Contract Error] Known error:", knownError);

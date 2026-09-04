@@ -565,6 +565,40 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/signer-set-reader.
 
 [`VaultKeeperReader`](#vaultkeeperreader).[`getCurrentVaultKeepersVersion`](#getcurrentvaultkeepersversion-2)
 
+##### getCurrentAppKeeperKeyEpoch()
+
+```ts
+getCurrentAppKeeperKeyEpoch(appEntryPoint, blockNumber?): Promise<bigint>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/signer-set-reader.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/signer-set-reader.ts)
+
+Read the application's current vault-keeper operation-key epoch.
+
+One counter for the whole application, bumped by any keeper's
+operation-key or payout-script append. The peg-in config fingerprint
+commits to it in place of the N resolved keeper keys, so it must be read
+at the same block as the roster it labels. Returned as `bigint`; the
+contract encodes it as `uint64` and a `Number` would truncate.
+
+###### Parameters
+
+###### appEntryPoint
+
+`` `0x${string}` ``
+
+###### blockNumber?
+
+`bigint`
+
+###### Returns
+
+`Promise`\<`bigint`\>
+
+###### Implementation of
+
+[`VaultKeeperReader`](#vaultkeeperreader).[`getCurrentAppKeeperKeyEpoch`](#getcurrentappkeeperkeyepoch-2)
+
 ***
 
 ### ViemUniversalChallengerReader
@@ -671,6 +705,35 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/signer-set-reader.
 
 [`UniversalChallengerReader`](#universalchallengerreader).[`getLatestUniversalChallengersVersion`](#getlatestuniversalchallengersversion-2)
 
+##### getCurrentUcKeyEpoch()
+
+```ts
+getCurrentUcKeyEpoch(blockNumber?): Promise<bigint>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/signer-set-reader.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/signer-set-reader.ts)
+
+Read the protocol's current universal-challenger operation-key epoch.
+
+The challenger-axis counterpart to
+[VaultKeeperReader.getCurrentAppKeeperKeyEpoch](#getcurrentappkeeperkeyepoch-2): one protocol-wide
+counter the fingerprint commits to in place of the M resolved challenger
+keys. Returned as `bigint` for the same `uint64` reason.
+
+###### Parameters
+
+###### blockNumber?
+
+`bigint`
+
+###### Returns
+
+`Promise`\<`bigint`\>
+
+###### Implementation of
+
+[`UniversalChallengerReader`](#universalchallengerreader).[`getCurrentUcKeyEpoch`](#getcurrentuckeyepoch-2)
+
 ***
 
 ### ViemVaultRegistryReader
@@ -760,6 +823,42 @@ the brand. Returns 64-char lowercase hex without the `0x` prefix.
 ###### Implementation of
 
 [`VaultRegistryReader`](#vaultregistryreader).[`getVaultProviderGenesisBtcPubKey`](#getvaultprovidergenesisbtcpubkey)
+
+##### getVaultProviderApplication()
+
+```ts
+getVaultProviderApplication(vpAddress, blockNumber?): Promise<`0x${string}`>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/vault-registry-reader.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/vault-registry-reader.ts)
+
+Read the application entry point a vault provider is registered for.
+
+This is the registry's own `vaultProviders[vp].applicationEntryPoint`, and
+it is the value the peg-in submit path resolves internally — it selects
+which application's vault-keeper roster, roster version and keeper key
+epoch a deposit is bonded to. The dApp separately carries an entry point
+from its own configuration; the two agree today, but they are different
+sources of truth, so the build path reads this one and asserts the
+configured value matches it rather than trusting either alone.
+
+###### Parameters
+
+###### vpAddress
+
+`` `0x${string}` ``
+
+###### blockNumber?
+
+`bigint`
+
+###### Returns
+
+`Promise`\<`` `0x${string}` ``\>
+
+###### Implementation of
+
+[`VaultRegistryReader`](#vaultregistryreader).[`getVaultProviderApplication`](#getvaultproviderapplication)
 
 ##### getCurrentVaultProviderOperationBtcKey()
 
@@ -1897,6 +1996,23 @@ optional quotedCommissionBps: number;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-registration-client.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-registration-client.ts)
 
+##### expectedFingerprint
+
+```ts
+expectedFingerprint: `0x${string}`;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-registration-client.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-registration-client.ts)
+
+`keccak256(abi.encode(...))` over the protocol state the Pre-PegIn was
+built against — see the SDK's `pegin-fingerprint` module.
+
+The registry recomputes it live at inclusion and reverts with
+`PeginFingerprintChanged` on any difference, so it must be computed from
+the same block-pinned snapshot that shaped the Bitcoin scripts. Required,
+with no default: a fingerprint the caller did not resolve is not a
+fingerprint, and the registry has no way to tell the two apart.
+
 ***
 
 ### PeginRegistrationResult
@@ -2037,6 +2153,18 @@ optional quotedCommissionBps: number;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-registration-client.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-registration-client.ts)
+
+##### expectedFingerprint
+
+```ts
+expectedFingerprint: `0x${string}`;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-registration-client.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-registration-client.ts)
+
+See [RegisterPeginOnChainParams.expectedFingerprint](#expectedfingerprint). One value for
+the whole batch: the fingerprint takes no per-request input and a batch
+fixes one vault provider, so every entry would resolve the same value.
 
 ***
 
@@ -2563,6 +2691,35 @@ provider has never rotated.
 ###### Returns
 
 `Promise`\<[`OnChainBtcPubkey`](#onchainbtcpubkey)\>
+
+##### getVaultProviderApplication()
+
+```ts
+getVaultProviderApplication(vpAddress, blockNumber?): Promise<`0x${string}`>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts)
+
+Read the application entry point a vault provider is registered for.
+
+The peg-in submit path resolves this internally and uses it to pick the
+keeper roster, the roster version and the keeper key epoch a deposit is
+bonded to. Pass `blockNumber` when the result will shape a Bitcoin lock,
+so it describes the same block as the roster reads that follow it.
+
+###### Parameters
+
+###### vpAddress
+
+`` `0x${string}` ``
+
+###### blockNumber?
+
+`bigint`
+
+###### Returns
+
+`Promise`\<`` `0x${string}` ``\>
 
 ***
 
@@ -3162,6 +3319,36 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://
 
 `Promise`\<`number`\>
 
+##### getCurrentAppKeeperKeyEpoch()
+
+```ts
+getCurrentAppKeeperKeyEpoch(appEntryPoint, blockNumber?): Promise<bigint>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts)
+
+Read the application's current vault-keeper operation-key epoch.
+
+One counter for the whole application, bumped by any keeper's
+operation-key or payout-script append. The peg-in config fingerprint
+commits to it in place of the N resolved keeper keys, so it must be read
+at the same block as the roster it labels. Returned as `bigint`; the
+contract encodes it as `uint64` and a `Number` would truncate.
+
+###### Parameters
+
+###### appEntryPoint
+
+`` `0x${string}` ``
+
+###### blockNumber?
+
+`bigint`
+
+###### Returns
+
+`Promise`\<`bigint`\>
+
 ***
 
 ### UniversalChallengerReader
@@ -3223,6 +3410,31 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://
 ###### Returns
 
 `Promise`\<`number`\>
+
+##### getCurrentUcKeyEpoch()
+
+```ts
+getCurrentUcKeyEpoch(blockNumber?): Promise<bigint>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts)
+
+Read the protocol's current universal-challenger operation-key epoch.
+
+The challenger-axis counterpart to
+[VaultKeeperReader.getCurrentAppKeeperKeyEpoch](#getcurrentappkeeperkeyepoch-2): one protocol-wide
+counter the fingerprint commits to in place of the M resolved challenger
+keys. Returned as `bigint` for the same `uint64` reason.
+
+###### Parameters
+
+###### blockNumber?
+
+`bigint`
+
+###### Returns
+
+`Promise`\<`bigint`\>
 
 ***
 

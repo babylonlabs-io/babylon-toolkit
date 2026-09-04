@@ -999,6 +999,17 @@ export const COPY = {
         title: "Vault operator keys changed",
         body: "A vault operator rotated its Bitcoin key while your deposit was being registered, so the registered vault no longer matches the transaction we prepared. Your Pre-PegIn was not broadcast and no Bitcoin was spent. The registered vault will time out on its own — please start a new deposit.",
       },
+      // The contract's own fingerprint check, rejected before the registration
+      // is submitted. It sits between the two cases above and below it: unlike
+      // the pre-signing aborts it cannot claim NOTHING_SIGNED_OR_SPENT, because
+      // the depositor has already approved the peg-in signatures by this point;
+      // unlike participantKeyDrift nothing reached either chain, so there is no
+      // stranded vault and no fee to explain. Say exactly that, and no more —
+      // the two fingerprints go to diagnostics, never to the depositor.
+      peginFingerprintChanged: {
+        title: "Protocol configuration changed",
+        body: "The protocol configuration changed while your deposit was being prepared, so the contract declined the registration before it was submitted. Your Pre-Pegin has not been broadcast, no Bitcoin was spent and no fee was paid — but the signatures you just approved no longer match the protocol and cannot be reused. Please start the deposit again.",
+      },
       wrongWalletAccount: {
         title: "Wrong wallet account",
         body: WRONG_WALLET_BODY,

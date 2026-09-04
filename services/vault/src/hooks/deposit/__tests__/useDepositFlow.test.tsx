@@ -14,6 +14,8 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import type { Address, Hex } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { CONTRACTS } from "@/config/contracts";
+import { getETHChain } from "@/config/network";
 import {
   getOptimisticDepositState,
   hasPayoutSignCancelRecord,
@@ -269,26 +271,61 @@ vi.mock("@/infrastructure", () => ({
   },
 }));
 
-const { MockRegisteredVaultVersionMismatchError } = vi.hoisted(() => ({
-  MockRegisteredVaultVersionMismatchError: class extends Error {
-    constructor(message: string) {
-      super(message);
-      this.name = "RegisteredVaultVersionMismatchError";
-    }
+// The registry address is a fingerprint input, and the encoder rejects the
+// zero address — which is what `ENV` falls back to when
+// NEXT_PUBLIC_TBV_BTC_VAULT_REGISTRY is unset, as it is under vitest. Mock it
+// with a real address, as the other config-reading suites do, so the value the
+// assertions use is visible here rather than depending on ambient env.
+vi.mock("@/config/contracts", () => ({
+  CONTRACTS: {
+    BTC_VAULT_REGISTRY:
+      "0x2222222222222222222222222222222222222222" as `0x${string}`,
+    AAVE_ADAPTER: "0x3333333333333333333333333333333333333333" as `0x${string}`,
+    AAVE_ADAPTER_CONFIG:
+      "0x4444444444444444444444444444444444444444" as `0x${string}`,
   },
 }));
+
+const { MockRegisteredVaultVersionMismatchError, RESOLVED_VP_KEY } = vi.hoisted(
+  () => ({
+    MockRegisteredVaultVersionMismatchError: class extends Error {
+      constructor(message: string) {
+        super(message);
+        this.name = "RegisteredVaultVersionMismatchError";
+      }
+    },
+    /**
+     * The vault provider's RESOLVED operation key — what
+     * `validateOnChainParticipantKeys` returns and what the build must use.
+     *
+     * Deliberately different from the indexer hint in MOCK_PARAMS ("ab" x32).
+     * The two diverge in reality the moment a provider rotates, and keeping
+     * them distinct here is the only thing that lets an assertion say which of
+     * the two a value came from. While they shared one literal, an assertion
+     * naming the hint passed whichever source the code actually read.
+     */
+    RESOLVED_VP_KEY: "cd".repeat(32),
+  }),
+);
 
 vi.mock("@babylonlabs-io/ts-sdk/tbv/core", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@babylonlabs-io/ts-sdk/tbv/core")>()),
   RegisteredVaultVersionMismatchError: MockRegisteredVaultVersionMismatchError,
   validateOnChainParticipantKeys: vi.fn().mockResolvedValue({
-    vaultProviderBtcPubkeyXOnly: "ab".repeat(32),
+    vaultProviderBtcPubkeyXOnly: RESOLVED_VP_KEY,
     vaultKeeperBtcPubkeysSorted: ["keeper1pubkey"],
     universalChallengerBtcPubkeysSorted: ["uc1pubkey"],
-    expectedAppVaultKeepersVersion: 3,
+    // 2 and 5 here, 7 and 3 on the pinned config: all four uint16 slots the
+    // fingerprint encodes hold different values, so swapping any pair of them
+    // changes the hash. Two slots sharing a value would encode identically and
+    // the differential test below would not notice the swap.
+    expectedAppVaultKeepersVersion: 2,
     expectedUniversalChallengersVersion: 5,
+    // Distinct from each other and from those two, on the same reasoning.
+    appKeeperKeyEpoch: 13n,
+    ucKeyEpoch: 17n,
     participantKeys: {
-      vaultProvider: { operationBtcPubkey: "ab".repeat(32) },
+      vaultProvider: { operationBtcPubkey: RESOLVED_VP_KEY },
       vaultKeepers: [{ operationBtcPubkey: "keeper1pubkey" }],
       vaultKeeperOperationKeysSorted: ["keeper1pubkey"],
       universalChallengerOperationKeysSorted: ["uc1pubkey"],
@@ -642,7 +679,12 @@ describe("useDepositFlow", () => {
             // would keep building v1 graphs after governance flips to v2.
             vaultCoreVersion: 3,
             pegInAmounts: [100000n, 100000n],
-            vaultProviderBtcPubkey: MOCK_PARAMS.vaultProviderBtcPubkey,
+            // The RESOLVED operation key, not the indexer hint in MOCK_PARAMS.
+            // The lock commits to whatever key the chain currently bonds the
+            // provider to; the hint is only cross-checked. This named the hint
+            // while both were the same literal, so it could not tell the two
+            // apart — see RESOLVED_VP_KEY.
+            vaultProviderBtcPubkey: RESOLVED_VP_KEY,
             vaultKeeperBtcPubkeys: MOCK_PARAMS.vaultKeeperBtcPubkeys,
             universalChallengerBtcPubkeys:
               MOCK_PARAMS.universalChallengerBtcPubkeys,
@@ -962,7 +1004,7 @@ describe("useDepositFlow", () => {
         "0xEthAddress123",
         expect.objectContaining({
           buildOffchainParamsVersion: 7,
-          buildAppVaultKeepersVersion: 3,
+          buildAppVaultKeepersVersion: 2,
           buildUniversalChallengersVersion: 5,
         }),
       );
@@ -1185,6 +1227,82 @@ describe("useDepositFlow", () => {
         );
       });
       expect(preparePeginTransaction).not.toHaveBeenCalled();
+    });
+
+    it("sends a fingerprint built from the pinned snapshot, not the indexer hint", async () => {
+      const { computePeginFingerprint } = await import(
+        "@babylonlabs-io/ts-sdk/tbv/core"
+      );
+      const { registerPeginBatchAndWait } = vi.mocked(
+        await import("../depositFlowSteps"),
+      );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      await executeDepositFlow(result);
+
+      await waitFor(() => {
+        expect(registerPeginBatchAndWait).toHaveBeenCalled();
+      });
+
+      // Recomputed here from the values the mocked pinned reads returned. The
+      // resolved VP key ("cd" x32) differs from the indexer hint in
+      // MOCK_PARAMS ("ab" x32), and the two epochs differ from the two roster
+      // versions, so this hash only matches if every field was taken from the
+      // right source. A constant, a stale value, or a field read off `config`
+      // instead of the pinned `buildConfig` all fail here.
+      expect(registerPeginBatchAndWait).toHaveBeenCalledWith(
+        expect.objectContaining({
+          expectedFingerprint: computePeginFingerprint({
+            chainId: BigInt(getETHChain().id),
+            registryAddress: CONTRACTS.BTC_VAULT_REGISTRY,
+            vaultProviderBtcKey: `0x${RESOLVED_VP_KEY}`,
+            appKeeperKeyEpoch: 13n,
+            ucKeyEpoch: 17n,
+            appVaultKeepersVersion: 2,
+            universalChallengersVersion: 5,
+            offchainParamsVersion: 7,
+            vaultCoreVersion: 3,
+          }),
+        }),
+      );
+    });
+
+    it("moves the fingerprint when the pinned protocol state moves", async () => {
+      const { validateOnChainParticipantKeys } = vi.mocked(
+        await import("@babylonlabs-io/ts-sdk/tbv/core"),
+      );
+      const { registerPeginBatchAndWait } = vi.mocked(
+        await import("../depositFlowSteps"),
+      );
+
+      const { result: first } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      await executeDepositFlow(first);
+      await waitFor(() => {
+        expect(registerPeginBatchAndWait).toHaveBeenCalled();
+      });
+      const before =
+        registerPeginBatchAndWait.mock.calls[0][0].expectedFingerprint;
+
+      // Exactly one field moves — the keeper key epoch, which is what a routine
+      // keeper payout-script rotation bumps. If the fingerprint did not commit
+      // to it, the contract would accept a registration whose HTLC leaf was
+      // built against the old keeper keys.
+      registerPeginBatchAndWait.mockClear();
+      const base = await validateOnChainParticipantKeys.mock.results[0].value;
+      validateOnChainParticipantKeys.mockResolvedValueOnce({
+        ...base,
+        appKeeperKeyEpoch: 14n,
+      });
+
+      const { result: second } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      await executeDepositFlow(second);
+      await waitFor(() => {
+        expect(registerPeginBatchAndWait).toHaveBeenCalled();
+      });
+      const after =
+        registerPeginBatchAndWait.mock.calls[0][0].expectedFingerprint;
+
+      expect(after).not.toBe(before);
     });
 
     it("aborts before any side effects when validateOnChainParticipantKeys rejects", async () => {

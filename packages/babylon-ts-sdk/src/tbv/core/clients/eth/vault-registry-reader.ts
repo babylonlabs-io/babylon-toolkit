@@ -210,6 +210,30 @@ export class ViemVaultRegistryReader implements VaultRegistryReader {
   }
 
   /**
+   * Read the application entry point a vault provider is registered for.
+   *
+   * This is the registry's own `vaultProviders[vp].applicationEntryPoint`, and
+   * it is the value the peg-in submit path resolves internally — it selects
+   * which application's vault-keeper roster, roster version and keeper key
+   * epoch a deposit is bonded to. The dApp separately carries an entry point
+   * from its own configuration; the two agree today, but they are different
+   * sources of truth, so the build path reads this one and asserts the
+   * configured value matches it rather than trusting either alone.
+   */
+  async getVaultProviderApplication(
+    vpAddress: Address,
+    blockNumber?: bigint,
+  ): Promise<Address> {
+    return (await this.publicClient.readContract({
+      address: this.contractAddress,
+      abi: BTCVaultRegistryABI,
+      functionName: "getVaultProviderApplication",
+      args: [vpAddress],
+      blockNumber,
+    })) as Address;
+  }
+
+  /**
    * Read a vault provider's *current* RFC-006 operation BTC key.
    *
    * Falls back on-chain to the registration key when the provider has never
