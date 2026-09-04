@@ -311,10 +311,13 @@ test('pins createPayoutConnector through the browser entry', async () => {
         payoutConnectorParams,
         'signet',
       );
+      // The control block is pinned raw: a single leaf makes it one
+      // version/parity byte plus the NUMS internal key, readable in a
+      // failure diff.
       assert.deepEqual(
         {
           script: sha256Text(result.payoutScript),
-          controlBlock: sha256Text(result.payoutControlBlock),
+          controlBlock: result.payoutControlBlock,
           taprootScriptHash: result.taprootScriptHash,
           scriptPubKey: result.scriptPubKey,
           address: result.address,
@@ -323,7 +326,7 @@ test('pins createPayoutConnector through the browser entry', async () => {
           script:
             'd851c37a211d3e4c55b2bae8a2a3262e2960de9f1015e43986f76ce5c8628991',
           controlBlock:
-            'ad3fbafee86756217d31e7d7c1d30411abc7c57bb62393231b24693d46af2b40',
+            'c050929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfee9ace803ac0',
           taprootScriptHash:
             '82c0e27be3e706b67c07953fa18ed9b9854ea1cebbc1040f535b130f38f72c73',
           scriptPubKey:
@@ -331,6 +334,27 @@ test('pins createPayoutConnector through the browser entry', async () => {
           address:
             'tb1p795tj5cunt8g6cuzghsqfcj4qattn93sqwgnxlskn3lmts656cwsk4p9uy',
         },
+      );
+    },
+  );
+});
+
+test('createPayoutConnector forwards the network to the address through the browser entry', async () => {
+  await withBrowserFacade(
+    async () =>
+      new Response(wasmBytes, {
+        headers: { 'Content-Type': 'application/wasm' },
+      }),
+    async (facade) => {
+      // Signet and testnet share the `tb` prefix, so the signet pin above
+      // cannot tell them apart. Mainnet can.
+      const result = await facade.createPayoutConnector(
+        payoutConnectorParams,
+        'bitcoin',
+      );
+      assert.equal(
+        result.address,
+        'bc1p795tj5cunt8g6cuzghsqfcj4qattn93sqwgnxlskn3lmts656cwspah2xt',
       );
     },
   );
