@@ -11,23 +11,22 @@
  * @module primitives/psbt/refund
  */
 
-import {
-  getPrePeginHtlcConnectorInfo,
-  loadRawTbvWasm,
-  tapInternalPubkey,
-} from "../../wasm";
-import { assertPositiveBigintArray } from "../../wasm/value-guards";
-import { Buffer } from "buffer";
 import { Psbt, Transaction } from "bitcoinjs-lib";
+import { Buffer } from "buffer";
+import { loadRawTbvWasm, tapInternalPubkey } from "../../wasm";
+import { assertPositiveBigintArray } from "../../wasm/value-guards";
 
 import {
   TAPSCRIPT_LEAF_VERSION,
   deriveBip86ScriptPubKeyHex,
-  hexToUint8Array,
   stripHexPrefix,
   uint8ArrayToHex,
 } from "../utils/bitcoin";
+import { deriveExpectedPrePeginHtlc } from "./assertWasmPeginSizing";
 import { normalizeAuthAnchorHash, type PrePeginParams } from "./pegin";
+
+const REFUND_TX_VERSION = 2;
+const REFUND_TX_LOCKTIME = 0;
 
 /**
  * Parameters for building a refund PSBT
@@ -117,17 +116,24 @@ export async function buildRefundPsbt(
 
   let fundedTx: typeof unfundedTx | null = null;
   try {
-    // Cross-check the reconstructed unfunded template against the funded
-    // transaction: the WASM template's HTLC scriptPubKey at `htlcVout`
-    // must equal the bytes the funded tx carries at the same output.
+    // Cross-check the reconstructed unfunded template against an independent
+    // TypeScript derivation and the funded transaction bytes.
     // If they disagree, the template was reconstructed from the wrong
     // (hashlocks, amounts) vector — signing it would produce a refund
     // that does not spend the on-chain HTLC the depositor expects.
     // This is the explicit invariant the audit recommends: never sign a
     // refund whose template doesn't match the on-chain output bytes.
-    const expectedHtlcScriptPubKey = unfundedTx
+    const wasmHtlcScriptPubKey = unfundedTx
       .getHtlcScriptPubKey(htlcVout)
       .toLowerCase();
+    const expectedHtlc = deriveExpectedPrePeginHtlc(prePeginParams, hashlock);
+    const expectedHtlcScriptPubKey = expectedHtlc.scriptPubKey.toString("hex");
+    if (wasmHtlcScriptPubKey !== expectedHtlcScriptPubKey) {
+      throw new Error(
+        `WASM HTLC scriptPubKey ${wasmHtlcScriptPubKey} does not match the ` +
+          `independently derived scriptPubKey ${expectedHtlcScriptPubKey}.`,
+      );
+    }
     // The reconstructed template's HTLC output value at `htlcVout`,
     // sized by WASM from the supplied `pegInAmounts` via the protocol
     // formula `htlcValue = peginAmount + depositorClaimValue + minPeginFee`.
@@ -138,17 +144,6 @@ export async function buildRefundPsbt(
     fundedTx = unfundedTx.fromFundedTransaction(fundedPrePeginTxHex);
 
     const refundTxHex = fundedTx.buildRefundTx(refundFee, htlcVout);
-
-    const htlcConnector = await getPrePeginHtlcConnectorInfo({
-      txGraphVersion: prePeginParams.vaultCoreVersion,
-      depositorPubkey: prePeginParams.depositorPubkey,
-      vaultProviderPubkey: prePeginParams.vaultProviderPubkey,
-      vaultKeeperPubkeys: prePeginParams.vaultKeeperPubkeys,
-      universalChallengerPubkeys: prePeginParams.universalChallengerPubkeys,
-      hashlock,
-      timelockRefund: prePeginParams.timelockRefund,
-      network: prePeginParams.network,
-    });
 
     const cleanPrePeginHex = fundedPrePeginTxHex.startsWith("0x")
       ? fundedPrePeginTxHex.slice(2)
@@ -194,6 +189,19 @@ export async function buildRefundPsbt(
 
     const refundTx = Transaction.fromHex(refundTxHex);
 
+    if (refundTx.version !== REFUND_TX_VERSION) {
+      throw new Error(
+        `Refund transaction version ${refundTx.version} does not match ` +
+          `protocol version ${REFUND_TX_VERSION}.`,
+      );
+    }
+    if (refundTx.locktime !== REFUND_TX_LOCKTIME) {
+      throw new Error(
+        `Refund transaction locktime ${refundTx.locktime} does not match ` +
+          `protocol locktime ${REFUND_TX_LOCKTIME}.`,
+      );
+    }
+
     if (refundTx.ins.length !== 1) {
       throw new Error(
         `Refund transaction must have exactly 1 input, got ${refundTx.ins.length}`,
@@ -218,6 +226,12 @@ export async function buildRefundPsbt(
         `Refund input index ${refundInput.index} does not match expected htlcVout ${htlcVout}`,
       );
     }
+    if (refundInput.sequence !== prePeginParams.timelockRefund) {
+      throw new Error(
+        `Refund input sequence ${refundInput.sequence} does not match ` +
+          `timelockRefund ${prePeginParams.timelockRefund}.`,
+      );
+    }
 
     const psbt = new Psbt();
     psbt.setVersion(refundTx.version);
@@ -234,13 +248,12 @@ export async function buildRefundPsbt(
       tapLeafScript: [
         {
           leafVersion: TAPSCRIPT_LEAF_VERSION,
-          script: Buffer.from(hexToUint8Array(htlcConnector.refundScript)),
-          controlBlock: Buffer.from(
-            hexToUint8Array(htlcConnector.refundControlBlock),
-          ),
+          script: expectedHtlc.refundScript,
+          controlBlock: expectedHtlc.refundControlBlock,
         },
       ],
       tapInternalKey: Buffer.from(tapInternalPubkey),
+      tapMerkleRoot: expectedHtlc.tapMerkleRoot,
     });
 
     // Output side: pin the single refund output to the depositor's own

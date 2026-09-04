@@ -1,17 +1,16 @@
 /**
  * Negative-path tests for the PegIn shape assertion inside
- * `buildPeginTxFromFundedPrePegin`: every bind (input outpoint, output
- * count, vault value/script, txid, depositor-claim value/script, anchor
- * validation) must reject a doctored WASM result. The WASM boundary is
- * mocked so each dimension can be corrupted independently; the happy path
- * against the real binary is covered by the golden vectors in
- * `pegin.test.ts`.
+ * `buildPeginTxFromFundedPrePegin`: every bind (header, input, output count,
+ * vault value/script, txid, depositor-claim value/script, anchor validation)
+ * must reject a doctored WASM result. The WASM boundary is mocked so each
+ * dimension can be corrupted independently; the happy path against the real
+ * binary is covered by the golden vectors in `pegin.test.ts`.
  */
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { Buffer } from "buffer";
 import * as bitcoin from "bitcoinjs-lib";
+import { Buffer } from "buffer";
 
 const {
   buildPeginTxFromPrePeginMock,
@@ -39,9 +38,9 @@ import { TEST_AMOUNTS, TEST_KEYS } from "./helpers";
 const CLAIM_VALUE = 20_000n;
 const VAULT_SCRIPT = "5120" + "ee".repeat(32);
 
-function makePrePeginParams(): PrePeginParams {
+function makePrePeginParams(vaultCoreVersion = 1): PrePeginParams {
   return {
-    vaultCoreVersion: 1,
+    vaultCoreVersion,
     depositorPubkey: TEST_KEYS.DEPOSITOR,
     vaultProviderPubkey: TEST_KEYS.VAULT_PROVIDER,
     vaultKeeperPubkeys: [TEST_KEYS.VAULT_KEEPER_1],
@@ -86,9 +85,14 @@ function makeFundedPrePeginHex(): string {
 interface DoctorOptions {
   metadataVaultValue?: bigint;
   metadataTxidByte?: string;
+  txVersion?: number;
+  txLocktime?: number;
   extraInput?: boolean;
   prevoutTxidByte?: number;
   inputVout?: number;
+  inputSequence?: number;
+  inputScriptSig?: Buffer;
+  inputWitness?: Buffer[];
   extraOutput?: boolean;
   encodedVaultValue?: number;
   encodedVaultScript?: string;
@@ -97,8 +101,12 @@ interface DoctorOptions {
 }
 
 /** Build the PegIn tx bytes + WASM-reported metadata, honest by default. */
-function makeWasmResult(fundedHex: string, doctor: DoctorOptions = {}) {
-  const params = makePrePeginParams();
+function makeWasmResult(
+  fundedHex: string,
+  doctor: DoctorOptions = {},
+  vaultCoreVersion = 1,
+) {
+  const params = makePrePeginParams(vaultCoreVersion);
   const fundedTxid = bitcoin.Transaction.fromHex(fundedHex).getId();
   const prevoutHash = Buffer.from(fundedTxid, "hex").reverse();
   if (doctor.prevoutTxidByte !== undefined) {
@@ -106,8 +114,17 @@ function makeWasmResult(fundedHex: string, doctor: DoctorOptions = {}) {
   }
 
   const tx = new bitcoin.Transaction();
-  tx.version = 2;
-  tx.addInput(prevoutHash, doctor.inputVout ?? 0);
+  tx.version = doctor.txVersion ?? (vaultCoreVersion === 1 ? 2 : 3);
+  tx.locktime = doctor.txLocktime ?? 0;
+  tx.addInput(
+    prevoutHash,
+    doctor.inputVout ?? 0,
+    doctor.inputSequence ?? 0xfffffffe,
+    doctor.inputScriptSig,
+  );
+  if (doctor.inputWitness) {
+    tx.setWitness(0, doctor.inputWitness);
+  }
   if (doctor.extraInput) tx.addInput(Buffer.alloc(32, 0xbb), 1);
 
   tx.addOutput(
@@ -118,6 +135,9 @@ function makeWasmResult(fundedHex: string, doctor: DoctorOptions = {}) {
     doctor.claimScriptOverride ?? claimScript(params.depositorPubkey),
     doctor.claimValue ?? Number(CLAIM_VALUE),
   );
+  if (vaultCoreVersion !== 1) {
+    tx.addOutput(Buffer.from("51024e73", "hex"), 240);
+  }
   if (doctor.extraOutput) {
     tx.addOutput(Buffer.from(VAULT_SCRIPT, "hex"), 330);
   }
@@ -133,12 +153,16 @@ function makeWasmResult(fundedHex: string, doctor: DoctorOptions = {}) {
   };
 }
 
-async function buildWith(fundedHex: string, doctor: DoctorOptions = {}) {
+async function buildWith(
+  fundedHex: string,
+  doctor: DoctorOptions = {},
+  vaultCoreVersion = 1,
+) {
   buildPeginTxFromPrePeginMock.mockResolvedValue(
-    makeWasmResult(fundedHex, doctor),
+    makeWasmResult(fundedHex, doctor, vaultCoreVersion),
   );
   return buildPeginTxFromFundedPrePegin({
-    prePeginParams: makePrePeginParams(),
+    prePeginParams: makePrePeginParams(vaultCoreVersion),
     timelockPegin: 100,
     fundedPrePeginTxHex: fundedHex,
     htlcVout: 0,
@@ -151,13 +175,36 @@ describe("assertPeginTxShape (via buildPeginTxFromFundedPrePegin)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     computeMinClaimValueMock.mockResolvedValue(CLAIM_VALUE);
-    peginP2aAnchorOutputMock.mockResolvedValue(null); // v1: no anchor
+    peginP2aAnchorOutputMock.mockImplementation(async (version: number) =>
+      version === 1 ? null : { value: 240n, vout: 2, scriptPubKey: "51024e73" },
+    );
     validatePeginP2aAnchorMock.mockResolvedValue(undefined);
   });
 
   it("accepts an honest result (harness sanity)", async () => {
     const result = await buildWith(fundedHex);
     expect(result.vaultValue).toBe(TEST_AMOUNTS.PEGIN);
+  });
+
+  it.each([
+    [3, 1, 2],
+    [2, 2, 3],
+    [2, 3, 3],
+  ] as const)(
+    "rejects tx version %i for Vault Core %i, which requires version %i",
+    async (txVersion, vaultCoreVersion, expectedVersion) => {
+      await expect(
+        buildWith(fundedHex, { txVersion }, vaultCoreVersion),
+      ).rejects.toThrow(
+        `vaultCoreVersion ${vaultCoreVersion}; expected ${expectedVersion}`,
+      );
+    },
+  );
+
+  it("rejects a non-zero transaction locktime", async () => {
+    await expect(buildWith(fundedHex, { txLocktime: 1 })).rejects.toThrow(
+      /locktime 1 .* canonical locktime 0/,
+    );
   });
 
   it("rejects a PegIn with more than one input", async () => {
@@ -178,6 +225,24 @@ describe("assertPeginTxShape (via buildPeginTxFromFundedPrePegin)", () => {
     );
   });
 
+  it("rejects a non-canonical input sequence", async () => {
+    await expect(
+      buildWith(fundedHex, { inputSequence: 0xffffffff }),
+    ).rejects.toThrow(/input sequence .* canonical sequence 4294967294/);
+  });
+
+  it("rejects a non-empty input scriptSig", async () => {
+    await expect(
+      buildWith(fundedHex, { inputScriptSig: Buffer.from([0x51]) }),
+    ).rejects.toThrow(/input scriptSig must be empty/);
+  });
+
+  it("rejects a pre-existing input witness", async () => {
+    await expect(
+      buildWith(fundedHex, { inputWitness: [Buffer.from([0x01])] }),
+    ).rejects.toThrow(/input witness must be empty before signing/);
+  });
+
   it("rejects an unexpected output count for the version", async () => {
     await expect(buildWith(fundedHex, { extraOutput: true })).rejects.toThrow(
       /expected exactly 2 for vaultCoreVersion 1/,
@@ -186,7 +251,9 @@ describe("assertPeginTxShape (via buildPeginTxFromFundedPrePegin)", () => {
 
   it("rejects an encoded vault value that differs from the metadata", async () => {
     await expect(
-      buildWith(fundedHex, { encodedVaultValue: Number(TEST_AMOUNTS.PEGIN) - 1 }),
+      buildWith(fundedHex, {
+        encodedVaultValue: Number(TEST_AMOUNTS.PEGIN) - 1,
+      }),
     ).rejects.toThrow(/does not match the WASM-reported vaultValue/);
   });
 

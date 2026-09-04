@@ -86,9 +86,13 @@ rubric below.
 - **Security boundaries to preserve:**
   - Assertion of every WASM-returned value before it reaches a signed transaction
     (`packages/babylon-tbv-rust-wasm/src/value-guards.ts`, `.../src/index.ts`,
-    `packages/babylon-ts-sdk/src/tbv/core/wasm/value-guards.ts`)
+    `packages/babylon-ts-sdk/src/tbv/core/wasm/value-guards.ts`,
+    `.../primitives/psbt/assertWasmPeginSizing.ts`, `.../primitives/psbt/constants.ts`,
+    `.../primitives/psbt/pegin.ts`, `.../primitives/psbt/peginInput.ts`,
+    `.../primitives/psbt/refund.ts`)
   - Agreement between the SDK fee model and the dApp estimate
-    (`packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts`,
+    (`packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts`,
+    `.../utils/fee/peginFeeMath.ts`,
     `.../utils/utxo/selectUtxos.ts`, `services/vault/src/hooks/deposit/useEstimatedBtcFee.ts`)
   - Local construction of every PSBT the depositor signs, from on-chain-sourced connector data
     (`packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts`)
@@ -205,11 +209,17 @@ and a `0n` HTLC value silently produces a transaction that funds nothing. SDK ca
 surface through a lazy boundary, `packages/babylon-ts-sdk/src/tbv/core/wasm/index.ts`, which forwards
 without adding guards of its own — the facade's guards still apply.
 
+The Pre-PegIn path adds an independent TypeScript check. It derives every canonical HTLC output and
+the Taproot signing data before it creates a PSBT. It rejects a WASM transaction or signing field
+that does not match. The canonical transaction constants for this check are in
+`packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/constants.ts`.
+
 There is a second crossing, and it is unguarded. The
 `@babylonlabs-io/babylon-tbv-rust-wasm/raw` subpath (`src/raw.ts`, `src/raw-node.ts`) hands out the
 wasm-bindgen classes directly, so no value is checked at the export. Every `/raw` consumer must
 cross-check at the call site instead. The only SDK consumer is
 `packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/refund.ts`.
+It derives the canonical HTLC and signing data in TypeScript before it emits a refund PSBT.
 
 The mitigation is `assertWasmBigint` / `assertPositiveBigintArray`
 (`packages/babylon-tbv-rust-wasm/src/value-guards.ts`), applied to every value crossing the boundary
@@ -224,13 +234,16 @@ together. Reviewer rule, restated from CLAUDE.md:
 > expected value.
 
 Adding a new WASM getter without a guard, or a new `/raw` consumer without call-site cross-checks, is
-the easiest way to introduce a silent-wrong-value bug in this repository. On the facade crossing the
-guard is not defence in depth — it is the only check.
+the easiest way to introduce a silent wrong-value bug in this repository. A facade guard can be the
+only check on a path that does not feed a signed transaction. The independent Pre-PegIn checks must
+remain in place for transaction outputs and signing data.
 
 ### Fee model consistency
 
 Two independent implementations must agree before broadcast:
 
+- `packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts` - shared transaction sizing and
+  safety limits
 - `packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts` — the shared Pre-PegIn vsize/fee
   model
 - `packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts` — UTXO selection with iterative
@@ -245,9 +258,11 @@ The real SDK model and dApp estimator are covered by
 [`.github/CODEOWNERS`](.github/CODEOWNERS) and
 [`.github/workflows/critical-path-check.yml`](.github/workflows/critical-path-check.yml). The
 critical-path inventory is hand-maintained in six places: this file, CLAUDE.md, CODEOWNERS, the SDK
-ESLint config, `critical-path-check.yml`, and `claude-md-drift.yml`. Update all six together when a
-path moves or is added. The scheduled drift workflow checks that listed paths exist and reports
-missing entries to a tracker issue, but it does not block a pull request. Section 9 includes
+ESLint config, `critical-path-check.yml`, and `claude-md-drift.yml`. The SDK ESLint config contains
+only SDK paths because it applies package-level rules. The other five inventories cover the full
+repository. Update each applicable inventory when a path moves or is added. The scheduled drift
+workflow checks that listed paths exist and reports missing entries to a tracker issue, but it does
+not block a pull request. Section 9 includes
 `pegin-registration-client.ts` and `payout-script.ts` in the tree. It registers
 `scriptPubKeyAddress.ts` ahead of the remaining optional-BTC work (#2228). That path stays in the
 drift workflow's `pending` list until the file lands.
@@ -763,9 +778,9 @@ only repository-local safeguards.
 
 | Area                | Adversary | Scenario                                                                          | Impact                                                                  | Mitigation                                                                                                      | Test / evidence                                                   |
 | ------------------- | --------- | --------------------------------------------------------------------------------- | ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| WASM boundary       | F/—       | A WASM getter returns `0n` or a wrong value and reaches a signed tx               | **User fund loss**                                                      | `assertWasmBigint` / `assertPositiveBigintArray` at the facade; call-site cross-checks on `/raw`                | `babylon-tbv-rust-wasm` value-guard tests                         |
+| WASM boundary       | F/-       | WASM returns a wrong Pre-PegIn value, output, or Taproot signing field            | **User fund loss**                                                      | Bounds guards plus independent TypeScript derivation of the output layout and signing data                      | WASM guards; Pre-PegIn, PegIn input, and refund tests             |
 | Fee model           | —         | SDK and dApp fee models diverge; the tx is underfunded                            | User fund loss (stuck / failed deposit)                                 | Shared `peginFeeMath`; cross-check at broadcast                                                                 | SDK fee + `selectUtxos` tests                                     |
-| Critical-path guard | G         | A critical path moves but one hand-maintained inventory keeps the stale path      | Integrity (process)                                                     | Sections 1-8 are aligned; section 9 has one path pre-registered ahead of #2228; existence does not gate merges  | SECURITY.md, CLAUDE.md, CODEOWNERS, both critical-path workflows  |
+| Critical-path guard | G         | A critical path moves but one hand-maintained inventory keeps the stale path      | Integrity (process)                                                     | Five full inventories align; SDK ESLint mirrors its SDK subset; existence does not gate merges                  | SECURITY, CLAUDE, CODEOWNERS, ESLint, two workflows               |
 | Presigning          | A         | VP supplies PSBT metadata making a signature valid for a different spend          | **User fund loss**                                                      | PSBTs built locally from on-chain connector data only                                                           | `signDepositorGraph` tests                                        |
 | Presigning          | A         | VP returns a challenger set with an extra or missing key                          | Recovery material missing / signature to an unrecognised key            | `deriveLocalChallengers` + exact `local ∪ universal` equality assert                                            | `signDepositorGraph` tests                                        |
 | Wallet signing      | E         | Wallet ignores `useTweakedSigner: false`, returns an invalid signature as success | User fund loss (silent)                                                 | Sighash verification of every produced signature                                                                | `verifyScriptPathSchnorrSignature` tests                          |
@@ -919,8 +934,9 @@ When changing this repository, explicitly consider:
   gate — MUST update the corresponding section and the severity anchors.
 - This file, [CLAUDE.md](CLAUDE.md), [`.github/CODEOWNERS`](.github/CODEOWNERS),
   [`.github/workflows/critical-path-check.yml`](.github/workflows/critical-path-check.yml), and
-  [`.github/workflows/claude-md-drift.yml`](.github/workflows/claude-md-drift.yml) contain five
-  hand-maintained critical-path inventories. **Change them together.** They have drifted before.
+  [`.github/workflows/claude-md-drift.yml`](.github/workflows/claude-md-drift.yml) contain the full
+  critical-path inventory. The SDK ESLint config mirrors only the SDK subset. **Change each
+  applicable inventory together.** They have drifted before.
 - Security-relevant PRs SHOULD reference the relevant attack-matrix row(s); if a row is missing, add
   it.
 - The **Bug severity classification** section is shared across repositories. Changes to it must be

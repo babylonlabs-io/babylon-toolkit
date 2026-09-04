@@ -22,7 +22,13 @@ export default defineConfig([
   {
     files: [
       "src/tbv/core/utils/utxo/selectUtxos.ts",
+      "src/tbv/core/utils/fee/constants.ts",
       "src/tbv/core/utils/fee/peginFeeMath.ts",
+      "src/tbv/core/primitives/psbt/assertWasmPeginSizing.ts",
+      "src/tbv/core/primitives/psbt/constants.ts",
+      "src/tbv/core/primitives/psbt/pegin.ts",
+      "src/tbv/core/primitives/psbt/peginInput.ts",
+      "src/tbv/core/primitives/psbt/refund.ts",
       "src/tbv/core/primitives/psbt/payout.ts",
       "src/tbv/core/services/deposit/signDepositorGraph.ts",
       "src/tbv/core/vault-secrets/**/*.ts",
