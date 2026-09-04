@@ -2,7 +2,7 @@ name: Verify PR
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, 'release/**']
 
 # Cancel any in-flight run when a new commit is pushed to the same PR/branch.
 concurrency:
@@ -94,7 +94,7 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          pnpm exec nx affected --target=test --base=origin/main --verbose 2>&1 | tee /tmp/test-output.log
+          pnpm exec nx affected --target=test --base="origin/${GITHUB_BASE_REF}" --verbose 2>&1 | tee /tmp/test-output.log
 
       - name: Append test summary
         if: always() && steps.tests.conclusion != 'skipped'
