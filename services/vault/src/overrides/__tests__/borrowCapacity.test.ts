@@ -24,8 +24,8 @@ describe("resolveShownHealthFactor", () => {
       healthFactor: 1.25,
       healthFactorStatus: "warning",
     });
-    expect(resolveShownHealthFactor(2.0, null, "no_debt")).toEqual({
-      healthFactor: 2.0,
+    expect(resolveShownHealthFactor(2.5, null, "no_debt")).toEqual({
+      healthFactor: 2.5,
       healthFactorStatus: "safe",
     });
   });

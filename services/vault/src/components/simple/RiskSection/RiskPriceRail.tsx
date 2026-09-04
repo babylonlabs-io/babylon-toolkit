@@ -104,7 +104,7 @@ export function RiskPriceRail({
     Math.abs(currentPct - liquidationPct) >= GAP_MIN_SEPARATION_PCT;
 
   const currentRingClass =
-    state === "liquidatable"
+    state === "liquidatable" || state === "risky"
       ? "border-risk-red"
       : state === "moderate"
         ? "border-risk-amber"

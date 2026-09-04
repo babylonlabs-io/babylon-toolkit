@@ -38,8 +38,9 @@ When using BTC vaults as collateral in this integration:
 
 | Health Factor | Status  | Action                      |
 | ------------- | ------- | --------------------------- |
-| ≥ 1.5         | Safe    | Healthy position            |
-| 1.0 - 1.5     | Warning | Consider repaying debt      |
+| > 2.0         | Safe    | Healthy position            |
+| 1.1 - 2.0     | Warning | Consider repaying debt      |
+| 1.0 - 1.1     | Risky   | Repay debt                  |
 | < 1.0         | Danger  | Position will be liquidated |
 
 ---
@@ -74,7 +75,7 @@ Pure calculations and helpers.
 | -------------------------- | ------------------------------------------ |
 | `hasDebtFromPosition()`    | Check if a fetched position carries debt   |
 | `calculateHealthFactor()`  | Calculate HF from values                   |
-| `getHealthFactorStatus()`  | Get status (safe/warning/danger)           |
+| `getHealthFactorStatus()`  | Get status (safe/warning/risky/danger)     |
 | `aaveValueToUsd()`         | Convert Aave base currency to USD          |
 
 ---

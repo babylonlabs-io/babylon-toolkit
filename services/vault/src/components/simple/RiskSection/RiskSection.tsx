@@ -40,6 +40,10 @@ const STATE_STYLE: Record<
     textClass: "text-risk-amber",
     colorCss: "rgb(var(--risk-amber))",
   },
+  risky: {
+    textClass: "text-risk-red",
+    colorCss: "rgb(var(--risk-red))",
+  },
   liquidatable: {
     textClass: "text-risk-red",
     colorCss: "rgb(var(--risk-red))",

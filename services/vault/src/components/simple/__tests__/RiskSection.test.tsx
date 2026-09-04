@@ -38,8 +38,8 @@ describe("getRiskDisplayState", () => {
     expect(getRiskDisplayState("safe", 2, false)).toBe("noPosition");
   });
 
-  it("maps no_debt to noPosition", () => {
-    expect(getRiskDisplayState("no_debt", null, true)).toBe("noPosition");
+  it("maps a no_debt position to verySafe", () => {
+    expect(getRiskDisplayState("no_debt", null, true)).toBe("verySafe");
   });
 
   it("treats a safe status above the healthy threshold as verySafe", () => {
@@ -52,8 +52,9 @@ describe("getRiskDisplayState", () => {
     expect(getRiskDisplayState("safe", 2.1, true)).toBe("safe");
   });
 
-  it("maps warning to moderate and danger to liquidatable", () => {
+  it("maps warning to moderate, risky to risky, and danger to liquidatable", () => {
     expect(getRiskDisplayState("warning", 1.14, true)).toBe("moderate");
+    expect(getRiskDisplayState("risky", 1.05, true)).toBe("risky");
     expect(getRiskDisplayState("danger", 0.94, true)).toBe("liquidatable");
   });
 });
@@ -99,7 +100,7 @@ describe("RiskSection rendering", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders a 0-borrowed (no_debt) position as the muted No Position state", () => {
+  it("renders a 0-borrowed (no_debt) position as Very Safe with the infinity glyph", () => {
     renderSection({
       healthFactorStatus: "no_debt",
       healthFactor: null,
@@ -107,13 +108,36 @@ describe("RiskSection rendering", () => {
       liquidationPriceUsd: null,
     });
 
-    expect(screen.getByText(COPY.risk.status.noPosition)).toBeInTheDocument();
+    expect(screen.getByText(COPY.risk.status.verySafe)).toBeInTheDocument();
     expect(
-      screen.queryByText(COPY.risk.healthFactorInfinity),
+      screen.getByText(COPY.risk.healthFactorInfinity),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(COPY.risk.status.noPosition),
     ).not.toBeInTheDocument();
     expect(
       screen.queryByText(COPY.overview.pctToLiquidationLabel),
     ).not.toBeInTheDocument();
+  });
+
+  it("renders the risky state in red with both price markers", () => {
+    renderSection({
+      healthFactorStatus: "risky",
+      healthFactor: 1.05,
+      btcPriceUsd: 78118,
+      liquidationPriceUsd: 74067,
+      liquidationPriceText: "$74,067",
+      btcPriceText: "$78,118",
+      pctToLiquidationText: "5.2%",
+    });
+
+    expect(screen.getByText(COPY.risk.status.risky)).toBeInTheDocument();
+    expect(screen.getByText("1.05")).toBeInTheDocument();
+    expect(screen.getByTestId("risk-marker-current").className).toContain(
+      "border-risk-red",
+    );
+    expect(screen.getByTestId("risk-marker-liquidation")).toBeInTheDocument();
+    expect(screen.getByText("5.2%")).toBeInTheDocument();
   });
 
   it("shows the loader for collateral factor while borrow data is loading", () => {
@@ -230,7 +254,7 @@ describe("computeRailLayout", () => {
 
   it("keeps a readable ramp, still green under the marker, when liquidation is far below", () => {
     // Health factor ~9: $63,488 current vs a $6,962 liquidation price. The
-    // truthful safe-threshold stop lands under 6% — it gets stretched.
+    // truthful safe-threshold stop lands around 10% — it gets stretched.
     const layout = computeRailLayout(63488, 6962);
     const redStop = Number(/risk-red\)\) ([\d.]+)%/.exec(layout.gradient!)![1]);
     const greenStop = Number(

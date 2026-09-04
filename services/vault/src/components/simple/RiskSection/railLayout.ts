@@ -9,6 +9,7 @@ export type RiskDisplayState =
   | "verySafe"
   | "safe"
   | "moderate"
+  | "risky"
   | "liquidatable";
 
 export function getRiskDisplayState(
@@ -19,7 +20,7 @@ export function getRiskDisplayState(
   if (!hasPosition) return "noPosition";
   switch (status) {
     case "no_debt":
-      return "noPosition";
+      return "verySafe";
     case "safe":
       return healthFactor === null ||
         !isFinite(healthFactor) ||
@@ -28,6 +29,8 @@ export function getRiskDisplayState(
         : "safe";
     case "warning":
       return "moderate";
+    case "risky":
+      return "risky";
     case "danger":
       return "liquidatable";
   }
@@ -48,8 +51,8 @@ const MAX_TICKS = 8;
 // the liquidation price and green at the price clearing the safe threshold.
 // Far from liquidation that ramp collapses to a hairline, hence the minimum —
 // which trades truthfulness for legibility: once it engages the stops no longer
-// mark the HF bands. At HF 9 ($63,488 / $6,962) the honest green stop is 5.3%
-// but lands at 45.3%, so ~40pp of rail reads amber for comfortably safe prices.
+// mark the HF bands. At HF 9 ($63,488 / $6,962) the honest green stop is 10.3%
+// but lands at 45.3%, so ~35pp of rail reads amber for comfortably safe prices.
 // The marker keeps its own colour (from `state`), so it still reads green.
 const GRADIENT_MIN_RAMP_PCT = 45;
 
