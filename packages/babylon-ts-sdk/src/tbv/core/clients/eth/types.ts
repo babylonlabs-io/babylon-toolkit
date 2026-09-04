@@ -159,6 +159,18 @@ export interface VaultRegistryReader {
   getCurrentVaultProviderOperationBtcKey(
     vpAddress: Address,
   ): Promise<OnChainBtcPubkey>;
+  /**
+   * Read the application entry point a vault provider is registered for.
+   *
+   * The peg-in submit path resolves this internally and uses it to pick the
+   * keeper roster, the roster version and the keeper key epoch a deposit is
+   * bonded to. Pass `blockNumber` when the result will shape a Bitcoin lock,
+   * so it describes the same block as the roster reads that follow it.
+   */
+  getVaultProviderApplication(
+    vpAddress: Address,
+    blockNumber?: bigint,
+  ): Promise<Address>;
 }
 
 // ============================================================================
@@ -334,6 +346,19 @@ export interface VaultKeeperReader {
     appEntryPoint: Address,
     blockNumber?: bigint,
   ): Promise<number>;
+  /**
+   * Read the application's current vault-keeper operation-key epoch.
+   *
+   * One counter for the whole application, bumped by any keeper's
+   * operation-key or payout-script append. The peg-in config fingerprint
+   * commits to it in place of the N resolved keeper keys, so it must be read
+   * at the same block as the roster it labels. Returned as `bigint`; the
+   * contract encodes it as `uint64` and a `Number` would truncate.
+   */
+  getCurrentAppKeeperKeyEpoch(
+    appEntryPoint: Address,
+    blockNumber?: bigint,
+  ): Promise<bigint>;
 }
 
 /** Interface for reading universal challengers from the ProtocolParams contract. */
@@ -344,6 +369,15 @@ export interface UniversalChallengerReader {
   ): Promise<AddressBTCKeyPair[]>;
   getCurrentUniversalChallengers(): Promise<AddressBTCKeyPair[]>;
   getLatestUniversalChallengersVersion(blockNumber?: bigint): Promise<number>;
+  /**
+   * Read the protocol's current universal-challenger operation-key epoch.
+   *
+   * The challenger-axis counterpart to
+   * {@link VaultKeeperReader.getCurrentAppKeeperKeyEpoch}: one protocol-wide
+   * counter the fingerprint commits to in place of the M resolved challenger
+   * keys. Returned as `bigint` for the same `uint64` reason.
+   */
+  getCurrentUcKeyEpoch(blockNumber?: bigint): Promise<bigint>;
 }
 
 // ============================================================================

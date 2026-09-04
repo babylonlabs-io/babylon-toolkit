@@ -18,7 +18,10 @@ import {
   buildQuery,
   xOnlyFromSeed,
 } from "../../participants/__tests__/fixtures/rotation";
-import { validateOnChainParticipantKeys } from "../validateOnChainParticipantKeys";
+import {
+  isApplicationEntryPointMismatchError,
+  validateOnChainParticipantKeys,
+} from "../validateOnChainParticipantKeys";
 
 // Real secp256k1 x-only keys: operation-key resolution asserts every roster
 // key is a curve point, so placeholder hex will not survive it. Keeper and
@@ -42,11 +45,20 @@ const [CHALLENGER_1, CHALLENGER_2, CHALLENGER_OTHER] = [
   xOnlyFromSeed(109),
 ].sort();
 
-const APP_ENTRY_POINT = "0xApp" as Address;
-const VP_ETH_ADDRESS = "0xVP" as Address;
+// Real 20-byte addresses: the application entry point is now compared with
+// `isAddressEqual`, which parses its arguments and rejects a placeholder.
+const APP_ENTRY_POINT = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" as Address;
+const VP_ETH_ADDRESS = "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" as Address;
+const OTHER_APP_ENTRY_POINT =
+  "0xcccccccccccccccccccccccccccccccccccccccc" as Address;
 
+// Four distinct values across the two roster axes, so a swapped assignment
+// between a version and an epoch — or between the keeper and challenger sides
+// — changes an assertion rather than hiding behind an equal value.
 const KEEPERS_VERSION = 7;
 const CHALLENGERS_VERSION = 11;
+const APP_KEEPER_KEY_EPOCH = 13n;
+const UC_KEY_EPOCH = 17n;
 
 /** Every read must resolve against the caller's block; there is no unpinned path. */
 const TEST_BLOCK = 9_000_001n;
@@ -64,10 +76,12 @@ function buildReaders({
   vpKey = VP_KEY,
   keeperKeys = [KEEPER_1, KEEPER_2],
   challengerKeys = [CHALLENGER_1, CHALLENGER_2],
+  registryApplicationEntryPoint = APP_ENTRY_POINT,
 }: {
   vpKey?: string;
   keeperKeys?: string[];
   challengerKeys?: string[];
+  registryApplicationEntryPoint?: Address;
 } = {}) {
   const vaultRegistryReader: VaultRegistryReader = {
     getVaultBasicInfo: vi.fn(),
@@ -82,11 +96,17 @@ function buildReaders({
     getVaultKeyEpochs: vi.fn(),
     getVaultKeyEpochsBatch: vi.fn(),
     getCurrentVaultProviderOperationBtcKey: vi.fn(),
+    getVaultProviderApplication: vi
+      .fn()
+      .mockResolvedValue(registryApplicationEntryPoint),
   };
   const vaultKeeperReader: VaultKeeperReader = {
     getVaultKeepersByVersion: vi.fn().mockResolvedValue(keeperKeys.map(pair)),
     getCurrentVaultKeepers: vi.fn(),
     getCurrentVaultKeepersVersion: vi.fn().mockResolvedValue(KEEPERS_VERSION),
+    getCurrentAppKeeperKeyEpoch: vi
+      .fn()
+      .mockResolvedValue(APP_KEEPER_KEY_EPOCH),
   };
   const universalChallengerReader: UniversalChallengerReader = {
     getUniversalChallengersByVersion: vi
@@ -96,6 +116,7 @@ function buildReaders({
     getLatestUniversalChallengersVersion: vi
       .fn()
       .mockResolvedValue(CHALLENGERS_VERSION),
+    getCurrentUcKeyEpoch: vi.fn().mockResolvedValue(UC_KEY_EPOCH),
   };
   return {
     vaultRegistryReader,
@@ -176,6 +197,18 @@ describe("validateOnChainParticipantKeys", () => {
       expect.anything(),
       blockNumber,
     );
+    // The application entry point and the two key epochs feed the peg-in
+    // fingerprint, which the registry re-derives at inclusion. An unpinned read
+    // here would commit to a block the Bitcoin scripts were never built from.
+    expect(
+      readers.vaultRegistryReader.getVaultProviderApplication,
+    ).toHaveBeenCalledWith(VP_ETH_ADDRESS, blockNumber);
+    expect(
+      readers.vaultKeeperReader.getCurrentAppKeeperKeyEpoch,
+    ).toHaveBeenCalledWith(APP_ENTRY_POINT, blockNumber);
+    expect(
+      readers.universalChallengerReader.getCurrentUcKeyEpoch,
+    ).toHaveBeenCalledWith(blockNumber);
   });
 
   it("returns canonical lowercase sorted sets and the on-chain versions on the happy path", async () => {
@@ -201,6 +234,142 @@ describe("validateOnChainParticipantKeys", () => {
     expect(result.expectedUniversalChallengersVersion).toBe(
       CHALLENGERS_VERSION,
     );
+    expect(result.appKeeperKeyEpoch).toBe(APP_KEEPER_KEY_EPOCH);
+    expect(result.ucKeyEpoch).toBe(UC_KEY_EPOCH);
+  });
+
+  it("returns the key epochs as bigint, never narrowed to number", async () => {
+    const readers = buildReaders();
+
+    const result = await validateOnChainParticipantKeys({
+      ...readers,
+      vaultProviderEthAddress: VP_ETH_ADDRESS,
+      applicationEntryPoint: APP_ENTRY_POINT,
+      expectedVaultProviderBtcPubkey: VP_KEY,
+      expectedVaultKeeperBtcPubkeys: [KEEPER_1, KEEPER_2],
+      expectedUniversalChallengerBtcPubkeys: [CHALLENGER_1, CHALLENGER_2],
+      blockNumber: TEST_BLOCK,
+    });
+
+    // The contract encodes both as `uint64`. A `Number` round-trip is lossless
+    // for the small values a fixture uses and lossy above 2^53, so the type is
+    // asserted rather than only the value.
+    expect(typeof result.appKeeperKeyEpoch).toBe("bigint");
+    expect(typeof result.ucKeyEpoch).toBe("bigint");
+  });
+
+  it("rejects when the registry's application entry point differs from the caller's", async () => {
+    const readers = buildReaders({
+      registryApplicationEntryPoint: OTHER_APP_ENTRY_POINT,
+    });
+
+    await expect(
+      validateOnChainParticipantKeys({
+        ...readers,
+        vaultProviderEthAddress: VP_ETH_ADDRESS,
+        applicationEntryPoint: APP_ENTRY_POINT,
+        expectedVaultProviderBtcPubkey: VP_KEY,
+        expectedVaultKeeperBtcPubkeys: [KEEPER_1, KEEPER_2],
+        expectedUniversalChallengerBtcPubkeys: [CHALLENGER_1, CHALLENGER_2],
+        blockNumber: TEST_BLOCK,
+      }),
+    ).rejects.toThrow(/is registered to application/);
+  });
+
+  it("types the entry-point mismatch so a consumer can substitute its own copy", async () => {
+    // The message names two addresses and the three protocol values at stake.
+    // That belongs in a bug report, not in a callout — so the error has to be
+    // recognisable rather than land in a mapper's raw-message fallback.
+    const readers = buildReaders({
+      registryApplicationEntryPoint: OTHER_APP_ENTRY_POINT,
+    });
+
+    const thrown = await validateOnChainParticipantKeys({
+      ...readers,
+      vaultProviderEthAddress: VP_ETH_ADDRESS,
+      applicationEntryPoint: APP_ENTRY_POINT,
+      expectedVaultProviderBtcPubkey: VP_KEY,
+      expectedVaultKeeperBtcPubkeys: [KEEPER_1, KEEPER_2],
+      expectedUniversalChallengerBtcPubkeys: [CHALLENGER_1, CHALLENGER_2],
+      blockNumber: TEST_BLOCK,
+    }).catch((err: unknown) => err);
+
+    expect(isApplicationEntryPointMismatchError(thrown)).toBe(true);
+  });
+
+  it("names the malformed entry point rather than letting viem's parser throw", async () => {
+    // Callers reach this with a plain `string` cast to `Address`. Comparing
+    // parses both sides, so without the shape check first the depositor would
+    // get viem's InvalidAddressError instead of the error written for this.
+    const readers = buildReaders();
+
+    const thrown = await validateOnChainParticipantKeys({
+      ...readers,
+      vaultProviderEthAddress: VP_ETH_ADDRESS,
+      applicationEntryPoint: "0xAppController" as Address,
+      expectedVaultProviderBtcPubkey: VP_KEY,
+      expectedVaultKeeperBtcPubkeys: [KEEPER_1, KEEPER_2],
+      expectedUniversalChallengerBtcPubkeys: [CHALLENGER_1, CHALLENGER_2],
+      blockNumber: TEST_BLOCK,
+    }).catch((err: unknown) => err);
+
+    expect(isApplicationEntryPointMismatchError(thrown)).toBe(true);
+    expect((thrown as Error).message).toMatch(/not a valid address/);
+  });
+
+  it("fails closed on an entry-point mismatch, before any roster is read", async () => {
+    const readers = buildReaders({
+      registryApplicationEntryPoint: OTHER_APP_ENTRY_POINT,
+    });
+
+    await expect(
+      validateOnChainParticipantKeys({
+        ...readers,
+        vaultProviderEthAddress: VP_ETH_ADDRESS,
+        applicationEntryPoint: APP_ENTRY_POINT,
+        expectedVaultProviderBtcPubkey: VP_KEY,
+        expectedVaultKeeperBtcPubkeys: [KEEPER_1, KEEPER_2],
+        expectedUniversalChallengerBtcPubkeys: [CHALLENGER_1, CHALLENGER_2],
+        blockNumber: TEST_BLOCK,
+      }),
+    ).rejects.toThrow();
+
+    // The point of the check is that it precedes every read keyed on the entry
+    // point. Throwing after the rosters were fetched would still surface the
+    // fault, but it would mean the wrong application had already been queried.
+    expect(
+      readers.vaultKeeperReader.getCurrentVaultKeepersVersion,
+    ).not.toHaveBeenCalled();
+    expect(
+      readers.vaultKeeperReader.getCurrentAppKeeperKeyEpoch,
+    ).not.toHaveBeenCalled();
+    expect(
+      readers.vaultKeeperReader.getVaultKeepersByVersion,
+    ).not.toHaveBeenCalled();
+  });
+
+  it("accepts an entry point that matches but differs in EIP-55 casing", async () => {
+    // The two values reach this function from different sources and need not
+    // agree on checksum casing, so the comparison must parse addresses rather
+    // than compare strings.
+    const readers = buildReaders({
+      registryApplicationEntryPoint: APP_ENTRY_POINT.toUpperCase().replace(
+        "0X",
+        "0x",
+      ) as Address,
+    });
+
+    const result = await validateOnChainParticipantKeys({
+      ...readers,
+      vaultProviderEthAddress: VP_ETH_ADDRESS,
+      applicationEntryPoint: APP_ENTRY_POINT,
+      expectedVaultProviderBtcPubkey: VP_KEY,
+      expectedVaultKeeperBtcPubkeys: [KEEPER_1, KEEPER_2],
+      expectedUniversalChallengerBtcPubkeys: [CHALLENGER_1, CHALLENGER_2],
+      blockNumber: TEST_BLOCK,
+    });
+
+    expect(result.expectedAppVaultKeepersVersion).toBe(KEEPERS_VERSION);
   });
 
   it("rejects when on-chain VP key differs from the indexer hint", async () => {
@@ -392,11 +561,15 @@ describe("validateOnChainParticipantKeys with operation-key resolution", () => {
         getVaultKeyEpochs: vi.fn(),
         getVaultKeyEpochsBatch: vi.fn(),
         getCurrentVaultProviderOperationBtcKey: vi.fn(),
+        getVaultProviderApplication: vi
+          .fn()
+          .mockResolvedValue(ADDRESSES.applicationEntryPoint),
       } as VaultRegistryReader,
       vaultKeeperReader: {
         getVaultKeepersByVersion: vi.fn().mockResolvedValue(query.vaultKeepers),
         getCurrentVaultKeepers: vi.fn(),
         getCurrentVaultKeepersVersion: vi.fn().mockResolvedValue(3),
+        getCurrentAppKeeperKeyEpoch: vi.fn().mockResolvedValue(2n),
       } as VaultKeeperReader,
       universalChallengerReader: {
         getUniversalChallengersByVersion: vi
@@ -404,6 +577,7 @@ describe("validateOnChainParticipantKeys with operation-key resolution", () => {
           .mockResolvedValue(query.universalChallengers),
         getCurrentUniversalChallengers: vi.fn(),
         getLatestUniversalChallengersVersion: vi.fn().mockResolvedValue(5),
+        getCurrentUcKeyEpoch: vi.fn().mockResolvedValue(4n),
       } as UniversalChallengerReader,
       operationKeyReader: new FakeOperationKeyReader(),
       vaultProviderEthAddress: ADDRESSES.vaultProvider,

@@ -41,6 +41,8 @@ export {
   type SubmitWotsPublicKeyParams,
 } from "./submitWotsPublicKey";
 export {
+  ApplicationEntryPointMismatchError,
+  isApplicationEntryPointMismatchError,
   validateOnChainParticipantKeys,
   type ValidateOnChainParticipantKeysParams,
   type ValidatedOnChainParticipantKeys,

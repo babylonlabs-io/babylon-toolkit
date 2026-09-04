@@ -71,6 +71,13 @@ export const BTCVaultRegistryABI = [
         type: "bytes32",
         internalType: "bytes32",
       },
+      // Appended last on both singular overloads, unlike the batch entry where
+      // it sits before `requests`. Order is the signature, so it is the ABI.
+      {
+        name: "expectedFingerprint",
+        type: "bytes32",
+        internalType: "bytes32",
+      },
     ],
     outputs: [
       {
@@ -145,6 +152,11 @@ export const BTCVaultRegistryABI = [
         type: "bytes32",
         internalType: "bytes32",
       },
+      {
+        name: "expectedFingerprint",
+        type: "bytes32",
+        internalType: "bytes32",
+      },
     ],
     outputs: [
       {
@@ -165,6 +177,14 @@ export const BTCVaultRegistryABI = [
         name: "maxAcceptableCommissionBps",
         type: "uint16",
         internalType: "uint16",
+      },
+      // The fingerprint is argument 4, BEFORE `requests` — not appended, as it
+      // is on the two singular overloads. It takes no per-request input and the
+      // batch fixes one vault provider, so one value covers every entry.
+      {
+        name: "expectedFingerprint",
+        type: "bytes32",
+        internalType: "bytes32",
       },
       {
         name: "requests",
@@ -326,6 +346,13 @@ export const BTCVaultRegistryABI = [
     name: "getVaultProviderCommission",
     inputs: [{ name: "vpAddr", type: "address", internalType: "address" }],
     outputs: [{ name: "", type: "uint16", internalType: "uint16" }],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "getVaultProviderApplication",
+    inputs: [{ name: "vpAddr", type: "address", internalType: "address" }],
+    outputs: [{ name: "", type: "address", internalType: "address" }],
     stateMutability: "view",
   },
   {
@@ -638,6 +665,21 @@ export const BTCVaultRegistryABI = [
     inputs: [
       { name: "maxAcceptable", type: "uint16", internalType: "uint16" },
       { name: "actual", type: "uint16", internalType: "uint16" },
+    ],
+  },
+  // The same intent-binding shape as VaultProviderCommissionExceeded above,
+  // one axis wider: the depositor commits to the whole protocol resolution the
+  // Pre-Pegin was built against, and the registry rejects a submission whose
+  // resolution moved. Newer than the block header's source commit — it arrives
+  // with https://github.com/babylonlabs-io/vault-contracts-aave-v4/pull/555.
+  // Selector 0x846c25bb, confirmed against that repo's generated
+  // snapshots/selectors.md at head 86577e40.
+  {
+    type: "error",
+    name: "PeginFingerprintChanged",
+    inputs: [
+      { name: "expected", type: "bytes32", internalType: "bytes32" },
+      { name: "actual", type: "bytes32", internalType: "bytes32" },
     ],
   },
   { type: "error", name: "VaultProviderNotRegistered", inputs: [] },

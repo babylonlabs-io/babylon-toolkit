@@ -116,6 +116,70 @@ describe("mapDepositError", () => {
     expect(mapDepositError(err)).toEqual(ERRORS.versionMismatchBeforeSigning);
   });
 
+  it("maps a fingerprint change to its own callout, with both hashes in diagnostics", () => {
+    const expected = `0x${"11".repeat(32)}`;
+    const actual = `0x${"22".repeat(32)}`;
+    const err = Object.assign(
+      new Error("Peg-in configuration fingerprint changed"),
+      { name: "PeginFingerprintChangedError", expected, actual },
+    );
+
+    const content = mapDepositError(err);
+
+    expect(content.title).toBe(ERRORS.peginFingerprintChanged.title);
+    expect(content.body).toBe(ERRORS.peginFingerprintChanged.body);
+    // The hashes belong in a bug report, not in front of a depositor.
+    expect(content.diagnostics).toContain(expected);
+    expect(content.diagnostics).toContain(actual);
+    expect(content.body).not.toContain(expected);
+  });
+
+  it("still maps a fingerprint change whose revert data carried no hashes", () => {
+    const err = new Error("Peg-in configuration fingerprint changed");
+    err.name = "PeginFingerprintChangedError";
+
+    const content = mapDepositError(err);
+
+    expect(content.title).toBe(ERRORS.peginFingerprintChanged.title);
+    expect(content.diagnostics).toMatch(/carried no fingerprints/);
+  });
+
+  it("does not treat a same-worded error with another name as a fingerprint change", () => {
+    // The bucket is typed on purpose. If someone replaces the predicate with a
+    // substring match on the message, this starts returning the fingerprint
+    // copy and fails — which is the point.
+    const lookalike = new Error("Peg-in configuration fingerprint changed");
+
+    expect(mapDepositError(lookalike).title).not.toBe(
+      ERRORS.peginFingerprintChanged.title,
+    );
+  });
+
+  it.each([
+    [
+      "ApplicationEntryPointMismatchError",
+      "is registered to application 0xabc",
+    ],
+    // Real wording from the encoder's `assertUnsignedRange`, so the fixture
+    // does not teach a reader a width the code never checks.
+    [
+      "PeginFingerprintInputError",
+      "appKeeperKeyEpoch must be a bigint (Solidity uint64), got undefined",
+    ],
+  ])("hides a %s message behind the generic callout", (name, message) => {
+    // Both name internals — two addresses and three protocol values, or a
+    // field and the width it overflowed. Without a bucket, the mapper's last
+    // resort renders the message verbatim as the depositor-facing body.
+    const err = new Error(message);
+    err.name = name;
+
+    const mapped = mapDepositError(err);
+
+    expect(mapped.body).toBe(ERRORS.genericBody);
+    expect(mapped.body).not.toContain(message);
+    expect(mapped.diagnostics).toContain(message);
+  });
+
   it("maps an amount-bounds drift to the deposit-limits callout", () => {
     const err = Object.assign(new Error("Deposit limits changed"), {
       name: "BuildLimitsDriftError",

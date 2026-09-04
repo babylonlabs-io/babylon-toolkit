@@ -23,6 +23,9 @@ const OTHER_COMPRESSED_BTC_KEY =
 const PAYOUT_SCRIPT = "0x0014751e76e8199196d454941c45d1b3a323f1433bd6";
 const HASHLOCK = `0x${"cd".repeat(32)}` as Hex;
 const WOTS_PK_HASH = `0x${"ef".repeat(32)}` as Hex;
+// Distinct from the other bytes32 fixtures, so an assertion on the wrong
+// argument slot fails instead of matching a neighbour.
+const FINGERPRINT = `0x${"7c".repeat(32)}` as Hex;
 
 function signedPeginTransaction(seed = 0xab): string {
   const transaction = new Transaction();
@@ -74,6 +77,7 @@ function singleParams(depositor: Address): RegisterPeginOnChainParams {
     htlcVout: 0,
     depositorPayoutScriptPubKey: PAYOUT_SCRIPT,
     quotedCommissionBps: 100,
+    expectedFingerprint: FINGERPRINT,
   };
 }
 
@@ -85,6 +89,7 @@ function batchParams(depositor: Address): RegisterPeginBatchOnChainParams {
     popSignature: single.popSignature,
     depositorBtcPubkeyRaw: single.depositorBtcPubkeyRaw,
     quotedCommissionBps: single.quotedCommissionBps,
+    expectedFingerprint: single.expectedFingerprint,
     requests: [
       {
         depositorSignedPeginTx: single.depositorSignedPeginTx,
@@ -263,7 +268,12 @@ describe("ViemPeginRegistrationClient", () => {
     const args = decoded.args as readonly unknown[];
     expect((args[1] as string).toLowerCase()).toBe(REGISTRY);
     expect(args[2]).toBe(125);
-    expect(args[3]).toHaveLength(1);
+    // These indexes are positional and TypeScript does not check them — `args`
+    // is widened to `readonly unknown[]`. The fingerprint sits at 3 and pushed
+    // `requests` to 4, so assert both: without the first line, a future
+    // renumbering slip reads the wrong slot and stays green.
+    expect(args[3]).toBe(FINGERPRINT);
+    expect(args[4]).toHaveLength(1);
     expect(transaction.value).toBe(3n);
     expect(publicClient.readContract).toHaveBeenCalledWith(
       expect.objectContaining({

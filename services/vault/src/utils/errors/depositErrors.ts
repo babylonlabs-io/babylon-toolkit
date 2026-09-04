@@ -17,6 +17,14 @@
  *    EIP-1193 4001 / viem UserRejectedRequestError / CONNECTION_REJECTED; or,
  *    later and cause-walking, "user rejected" / "denied" wording).
  *  - Registered-version mismatch — protocol params rotated mid-deposit.
+ *  - Peg-in fingerprint changed — the registry re-derived the protocol
+ *    configuration at inclusion and it differed from the one the Pre-Pegin was
+ *    built against. Raised from the gas estimate, so nothing reached either
+ *    chain; carries both fingerprints as diagnostics.
+ *  - Application entry-point mismatch / fingerprint input rejected — a
+ *    deployment or configuration fault and an internal bug respectively. Both
+ *    carry messages naming internals, so both land on the generic callout with
+ *    the detail kept in diagnostics.
  *  - Ethereum registration finality — the registration never reached the
  *    required confirmation depth, or disappeared from chain state entirely.
  *  - Deposit-terms rejection — the signing device's envelope refused the
@@ -41,8 +49,11 @@
  */
 
 import {
+  isApplicationEntryPointMismatchError,
   isDepositTermsRejectedError,
   isParticipantKeyDriftError,
+  isPeginFingerprintChangedError,
+  isPeginFingerprintInputError,
   isPeginRegistrationMissingError,
   isPeginRegistrationNotFinalError,
   isRegisteredVaultVersionMismatchError,
@@ -196,6 +207,24 @@ export function mapDepositError(err: unknown): DepositErrorContent {
     };
   }
 
+  // 3a'''. Same shape, from the fingerprint half of the build: the vault
+  // provider is registered to a different application than we were configured
+  // for, or the encoder rejected one of its nine inputs. Both are our bug or a
+  // deployment fault, not chain drift — a depositor can do nothing with either,
+  // and both messages name internals (two addresses and three protocol values;
+  // a field name and the width it overflowed). Mapped here for the same reason
+  // as 3a'' above: the final bucket would print those messages as the callout.
+  if (
+    isApplicationEntryPointMismatchError(err) ||
+    isPeginFingerprintInputError(err)
+  ) {
+    return {
+      title: ERRORS.defaultTitle,
+      body: ERRORS.genericBody,
+      diagnostics: formatErrorDiagnostics(err),
+    };
+  }
+
   // 3a'. Same pre-signing point, but an unversioned limit moved rather than a
   // version label — so something the depositor chose has to change, and the
   // copy has to say which. The amount and the BTCVault count need opposite
@@ -216,6 +245,25 @@ export function mapDepositError(err: unknown): DepositErrorContent {
   // inviting a retry.
   if (isParticipantKeyDriftError(err)) {
     return ERRORS.participantKeyDrift;
+  }
+
+  // 3b'. The registry's own fingerprint check, raised from the gas estimate
+  // that precedes the registration transaction — so nothing reached either
+  // chain, unlike 3b above. Deliberately not resumable: there is no registered
+  // vault to resume, and the prepared signatures commit to protocol state that
+  // has moved, so the only way forward is a fresh deposit.
+  //
+  // The two hashes ride along as diagnostics rather than copy. Their whole
+  // value is telling "the chain moved" apart from "our encoder is wrong", and
+  // that is a question for a bug report, not for the depositor.
+  if (isPeginFingerprintChangedError(err)) {
+    return {
+      ...ERRORS.peginFingerprintChanged,
+      diagnostics:
+        err.expected && err.actual
+          ? `PeginFingerprintChanged expected=${err.expected} actual=${err.actual}`
+          : "PeginFingerprintChanged (revert data carried no fingerprints)",
+    };
   }
 
   // 3c. Ethereum registration finality gate. Both cases stop the flow BEFORE
