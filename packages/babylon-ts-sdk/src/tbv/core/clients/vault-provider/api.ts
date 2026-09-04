@@ -19,11 +19,11 @@ import {
   type JsonRpcClientConfig,
 } from "./json-rpc-client";
 import type {
-  BatchGetPeginStatusParams,
+  BatchGetPeginStatusByVaultIdParams,
   BatchGetPeginStatusResponse,
-  BatchGetPegoutStatusParams,
+  BatchGetPegoutStatusByVaultIdParams,
   BatchGetPegoutStatusResponse,
-  GetPeginStatusParams,
+  GetPeginStatusByVaultIdParams,
   GetPeginStatusResponse,
   RequestDepositorClaimerArtifactsParams,
   RequestDepositorClaimerArtifactsResponse,
@@ -49,8 +49,8 @@ export interface VaultProviderRpcClientOptions {
   retryDelay?: number;
   /**
    * Custom retry predicate. Default retries only the idempotent read
-   * methods: `getPeginStatus`, `batchGetPeginStatus`, `batchGetPegoutStatus`,
-   * `requestDepositorPresignTransactions`.
+   * methods: `getPeginStatusByVaultId`, `batchGetPeginStatusByVaultId`,
+   * `batchGetPegoutStatusByVaultId`, `requestDepositorPresignTransactions`.
    */
   retryableFor?: (method: string) => boolean;
   /** Custom headers. */
@@ -73,7 +73,7 @@ const DEFAULT_TIMEOUT_MS = 60_000;
  * Usage:
  * ```ts
  * const client = new VaultProviderRpcClient("https://vp.example.com/rpc");
- * const status = await client.getPeginStatus({ pegin_txid: "abc..." });
+ * const status = await client.getPeginStatusByVaultId({ vault_id: "0xabc..." });
  * ```
  */
 export class VaultProviderRpcClient
@@ -158,49 +158,51 @@ export class VaultProviderRpcClient
     return response;
   }
 
-  /** Get the current pegin status from the vault provider daemon. */
-  async getPeginStatus(
-    params: GetPeginStatusParams,
+  /**
+   * Get the current pegin status from the vault provider daemon,
+   * addressed by the depositor-bound `vault_id`.
+   */
+  async getPeginStatusByVaultId(
+    params: GetPeginStatusByVaultIdParams,
     signal?: AbortSignal,
   ): Promise<GetPeginStatusResponse> {
-    const response = await this.client.call<GetPeginStatusParams, unknown>(
-      "vaultProvider_getPeginStatus",
-      params,
-      signal,
-    );
+    const response = await this.client.call<
+      GetPeginStatusByVaultIdParams,
+      unknown
+    >("vaultProvider_getPeginStatusByVaultId", params, signal);
     validateGetPeginStatusResponse(response);
     return response;
   }
 
   /**
-   * Get pegin status for many txids in one round trip. Per-result envelope
-   * isolates per-pegin failures from the overall RPC. Caller must chunk
-   * inputs at `VP_BATCH_MAX_SIZE`.
+   * Get pegin status for many vault ids in one round trip. Per-result
+   * envelope isolates per-vault failures from the overall RPC. Caller must
+   * chunk inputs at `VP_BATCH_MAX_SIZE`.
    */
-  async batchGetPeginStatus(
-    params: BatchGetPeginStatusParams,
+  async batchGetPeginStatusByVaultId(
+    params: BatchGetPeginStatusByVaultIdParams,
     signal?: AbortSignal,
   ): Promise<BatchGetPeginStatusResponse> {
     const response = await this.client.call<
-      BatchGetPeginStatusParams,
+      BatchGetPeginStatusByVaultIdParams,
       unknown
-    >("vaultProvider_batchGetPeginStatus", params, signal);
+    >("vaultProvider_batchGetPeginStatusByVaultId", params, signal);
     validateBatchGetPeginStatusResponse(response);
     return response;
   }
 
   /**
-   * Get pegout status for many txids in one round trip. Same per-result
-   * envelope semantics as `batchGetPeginStatus`.
+   * Get pegout status for many vault ids in one round trip. Same per-result
+   * envelope semantics as `batchGetPeginStatusByVaultId`.
    */
-  async batchGetPegoutStatus(
-    params: BatchGetPegoutStatusParams,
+  async batchGetPegoutStatusByVaultId(
+    params: BatchGetPegoutStatusByVaultIdParams,
     signal?: AbortSignal,
   ): Promise<BatchGetPegoutStatusResponse> {
     const response = await this.client.call<
-      BatchGetPegoutStatusParams,
+      BatchGetPegoutStatusByVaultIdParams,
       unknown
-    >("vaultProvider_batchGetPegoutStatus", params, signal);
+    >("vaultProvider_batchGetPegoutStatusByVaultId", params, signal);
     validateBatchGetPegoutStatusResponse(response);
     return response;
   }

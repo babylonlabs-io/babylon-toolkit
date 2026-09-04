@@ -1,14 +1,14 @@
 /**
  * Hook for polling pegout status from vault providers.
  *
- * Issues one `vaultProvider_batchGetPegoutStatus` per provider per cycle
+ * Issues one `vaultProvider_batchGetPegoutStatusByVaultId` per provider per
+ * cycle
  * (chunked at `VP_BATCH_MAX_SIZE`), grouping redeemed vaults by their
  * vault provider. Stops polling when all vaults reach a terminal status
  * (PayoutBroadcast or Failed) or exceed consecutive failure /
  * unknown-status thresholds.
  */
 
-import { stripHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
   batchPollByProvider,
   VpResponseValidationError,
@@ -35,6 +35,7 @@ import {
   type PegoutDisplayState,
 } from "@/models/pegoutStateMachine";
 import { createVpClient } from "@/utils/rpc";
+import { canonicalizeTxid } from "@/utils/txid";
 
 import {
   collectPegoutTerminalEvents,
@@ -105,13 +106,34 @@ async function fetchPegoutStatusesFromProvider(
   const rpcClient = createVpClient(providerAddress);
   await batchPollByProvider<VaultToPoll, GetPegoutStatusResponse>({
     items: vaults,
-    getTxid: (entry) => stripHexPrefix(entry.vault.peginTxHash),
-    batchCall: (pegin_txids) => rpcClient.batchGetPegoutStatus({ pegin_txids }),
+    getVaultId: (entry) => entry.vault.id,
+    batchCall: (vault_ids) =>
+      rpcClient.batchGetPegoutStatusByVaultId({ vault_ids }),
     onItem: (entry, envelope) => {
       const vaultId = entry.vault.id;
       if (envelope.error !== null) {
+        // "PegIn not found" is a routine pre-ingest signal, not a fault — the
+        // VP has no row for this vault yet. Mirrors usePeginPollingQuery.
+        if (envelope.error.includes("PegIn not found")) {
+          applyPegoutNotIngested(vaultId, results, counters);
+          return;
+        }
         logger.warn(`Failed to poll pegout status for ${vaultId}`, {
           data: { error: envelope.error },
+        });
+        applyPegoutFailure(vaultId, results, counters);
+        return;
+      }
+      // The envelope's vault id is our own request string echoed back, so it
+      // cannot show which row answered. `pegin_txid` is a server-side DB
+      // lookup — comparing it to the txid we already hold is what actually
+      // catches a status paired to the wrong vault.
+      if (
+        canonicalizeTxid(envelope.result!.pegin_txid) !==
+        canonicalizeTxid(entry.vault.peginTxHash)
+      ) {
+        logger.warn(`Vault ${vaultId} got a pegout status for another peg-in`, {
+          data: { returnedPeginTxid: envelope.result!.pegin_txid },
         });
         applyPegoutFailure(vaultId, results, counters);
         return;
@@ -124,7 +146,7 @@ async function fetchPegoutStatusesFromProvider(
       applyPegoutFailure(entry.vault.id, results, counters),
     onDuplicateBatch: (count) =>
       logger.warn(
-        `VP ${providerAddress} returned ${count} duplicate pegout txid(s); marking those vaults as failed`,
+        `VP ${providerAddress} returned ${count} duplicate vault id(s); marking those vaults as failed`,
       ),
     onWholeBatchError: (chunk, error) => {
       const message = error instanceof Error ? error.message : String(error);
@@ -140,7 +162,7 @@ async function fetchPegoutStatusesFromProvider(
     },
     onUnexpected: (echoed) =>
       logger.warn(
-        `VP ${providerAddress} returned ${echoed.length} unexpected pegout txid(s); ignoring`,
+        `VP ${providerAddress} returned ${echoed.length} unexpected vault id(s); ignoring`,
       ),
   });
 }
@@ -167,6 +189,38 @@ function applyPegoutFailure(
       displayState: getPegoutDisplayState(undefined, false),
     });
   }
+}
+
+/**
+ * The VP has no pegout row for this vault yet. The RPC itself succeeded, so
+ * the transport-failure counter resets; the unknown-status counter still
+ * advances so a vault that never gets ingested still times out — the path the
+ * deprecated txid RPC took when it answered this case with `found: false`.
+ */
+export function applyPegoutNotIngested(
+  vaultId: string,
+  results: Map<string, PegoutPollingResult>,
+  counters: VaultPollCounters,
+): void {
+  counters.failureCounts.set(vaultId, 0);
+
+  const newUnknown = (counters.unknownCounts.get(vaultId) ?? 0) + 1;
+  counters.unknownCounts.set(vaultId, newUnknown);
+
+  if (newUnknown >= PEGOUT_MAX_UNKNOWN_STATUS_POLLS) {
+    logger.warn(
+      `Pegout polling for ${vaultId} timed out after ${newUnknown} consecutive polls with no VP pegin row`,
+    );
+    results.set(vaultId, {
+      displayState: TIMED_OUT_STATE,
+      timeoutReason: "unknown_status",
+    });
+    return;
+  }
+
+  results.set(vaultId, {
+    displayState: getPegoutDisplayState(undefined, false),
+  });
 }
 
 function applyPegoutResult(

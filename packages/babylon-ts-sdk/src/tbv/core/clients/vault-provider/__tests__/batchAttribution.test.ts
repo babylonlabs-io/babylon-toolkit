@@ -1,73 +1,91 @@
 import { describe, expect, it } from "vitest";
 
-import { attributeBatchResults } from "../batchAttribution";
+import { attributeBatchResults, normalizeVaultId } from "../batchAttribution";
 
-const TXID_A = "a".repeat(64);
-const TXID_B = "b".repeat(64);
-const TXID_C = "c".repeat(64);
+const VAULT_A = "a".repeat(64);
+const VAULT_B = "b".repeat(64);
+const VAULT_C = "c".repeat(64);
 
 describe("attributeBatchResults", () => {
   it("attributes happy-path one-to-one results", () => {
-    const out = attributeBatchResults([TXID_A, TXID_B], [
-      { pegin_txid: TXID_A, result: { v: 1 }, error: null },
-      { pegin_txid: TXID_B, result: { v: 2 }, error: null },
+    const out = attributeBatchResults([VAULT_A, VAULT_B], [
+      { vault_id: VAULT_A, result: { v: 1 }, error: null },
+      { vault_id: VAULT_B, result: { v: 2 }, error: null },
     ]);
-    expect(out.byTxid.get(TXID_A)?.result).toEqual({ v: 1 });
-    expect(out.byTxid.get(TXID_B)?.result).toEqual({ v: 2 });
+    expect(out.byVaultId.get(VAULT_A)?.result).toEqual({ v: 1 });
+    expect(out.byVaultId.get(VAULT_B)?.result).toEqual({ v: 2 });
     expect(out.missing).toEqual([]);
     expect(out.duplicate).toEqual([]);
     expect(out.unexpected).toEqual([]);
   });
 
   it("normalizes case on both sides", () => {
-    const out = attributeBatchResults([TXID_A.toUpperCase()], [
-      { pegin_txid: TXID_A, result: { v: 1 }, error: null },
+    const out = attributeBatchResults([VAULT_A.toUpperCase()], [
+      { vault_id: VAULT_A, result: { v: 1 }, error: null },
     ]);
-    expect(out.byTxid.get(TXID_A)?.result).toEqual({ v: 1 });
+    expect(out.byVaultId.get(VAULT_A)?.result).toEqual({ v: 1 });
     expect(out.missing).toEqual([]);
   });
 
-  it("flags requested txids missing from response", () => {
-    const out = attributeBatchResults([TXID_A, TXID_B], [
-      { pegin_txid: TXID_A, result: { v: 1 }, error: null },
+  it("normalizes a 0x prefix on both sides", () => {
+    const out = attributeBatchResults([`0x${VAULT_A}`], [
+      { vault_id: VAULT_A, result: { v: 1 }, error: null },
     ]);
-    expect(out.missing).toEqual([TXID_B]);
+    expect(out.byVaultId.get(VAULT_A)?.result).toEqual({ v: 1 });
+    expect(out.missing).toEqual([]);
   });
 
-  it("flags duplicate echoed txids and keeps first", () => {
-    const out = attributeBatchResults([TXID_A], [
-      { pegin_txid: TXID_A, result: { v: 1 }, error: null },
-      { pegin_txid: TXID_A, result: { v: 2 }, error: null },
+  it("flags requested vault ids missing from response", () => {
+    const out = attributeBatchResults([VAULT_A, VAULT_B], [
+      { vault_id: VAULT_A, result: { v: 1 }, error: null },
     ]);
-    expect(out.byTxid.get(TXID_A)?.result).toEqual({ v: 1 });
-    expect(out.duplicate).toEqual([TXID_A]);
+    expect(out.missing).toEqual([VAULT_B]);
   });
 
-  it("flags unexpected echoed txids and drops them", () => {
-    const out = attributeBatchResults([TXID_A], [
-      { pegin_txid: TXID_A, result: { v: 1 }, error: null },
-      { pegin_txid: TXID_C, result: { v: 99 }, error: null },
+  it("flags duplicate echoed vault ids and keeps first", () => {
+    const out = attributeBatchResults([VAULT_A], [
+      { vault_id: VAULT_A, result: { v: 1 }, error: null },
+      { vault_id: VAULT_A, result: { v: 2 }, error: null },
     ]);
-    expect(out.byTxid.size).toBe(1);
-    expect(out.byTxid.has(TXID_C)).toBe(false);
-    expect(out.unexpected).toEqual([TXID_C]);
+    expect(out.byVaultId.get(VAULT_A)?.result).toEqual({ v: 1 });
+    expect(out.duplicate).toEqual([VAULT_A]);
+  });
+
+  it("flags unexpected echoed vault ids and drops them", () => {
+    const out = attributeBatchResults([VAULT_A], [
+      { vault_id: VAULT_A, result: { v: 1 }, error: null },
+      { vault_id: VAULT_C, result: { v: 99 }, error: null },
+    ]);
+    expect(out.byVaultId.size).toBe(1);
+    expect(out.byVaultId.has(VAULT_C)).toBe(false);
+    expect(out.unexpected).toEqual([VAULT_C]);
   });
 
   it("preserves error envelope when result is null", () => {
-    const out = attributeBatchResults([TXID_A], [
-      { pegin_txid: TXID_A, result: null, error: "PegIn not found" },
+    const out = attributeBatchResults([VAULT_A], [
+      { vault_id: VAULT_A, result: null, error: "PegIn not found" },
     ]);
-    expect(out.byTxid.get(TXID_A)).toEqual({
+    expect(out.byVaultId.get(VAULT_A)).toEqual({
       result: null,
       error: "PegIn not found",
     });
   });
 
-  it("dedups requested txids", () => {
-    const out = attributeBatchResults([TXID_A, TXID_A], [
-      { pegin_txid: TXID_A, result: { v: 1 }, error: null },
+  it("dedups requested vault ids", () => {
+    const out = attributeBatchResults([VAULT_A, VAULT_A], [
+      { vault_id: VAULT_A, result: { v: 1 }, error: null },
     ]);
-    expect(out.byTxid.size).toBe(1);
+    expect(out.byVaultId.size).toBe(1);
     expect(out.missing).toEqual([]);
+  });
+});
+
+describe("normalizeVaultId", () => {
+  it("strips a 0x prefix and lowercases", () => {
+    expect(normalizeVaultId(`0x${VAULT_A.toUpperCase()}`)).toBe(VAULT_A);
+  });
+
+  it("leaves an unprefixed lowercase id unchanged", () => {
+    expect(normalizeVaultId(VAULT_A)).toBe(VAULT_A);
   });
 });

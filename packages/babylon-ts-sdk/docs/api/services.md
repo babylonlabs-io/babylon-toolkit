@@ -565,10 +565,10 @@ Read-only VP operations needed by polling/status functions.
 
 #### Methods
 
-##### getPeginStatus()
+##### getPeginStatusByVaultId()
 
 ```ts
-getPeginStatus(params, signal?): Promise<GetPeginStatusResponse>;
+getPeginStatusByVaultId(params, signal?): Promise<GetPeginStatusResponse>;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/interfaces.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/interfaces.ts)
@@ -577,7 +577,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/interfaces.ts
 
 ###### params
 
-###### pegin_txid
+###### vault_id
 
 `string`
 
@@ -1223,6 +1223,16 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorP
 
 Bitcoin wallet for signing
 
+##### vaultId
+
+```ts
+vaultId: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts)
+
+On-chain vault id (hex, `0x` prefix optional) — addresses status polling
+
 ##### peginTxid
 
 ```ts
@@ -1231,7 +1241,7 @@ peginTxid: string;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts)
 
-BTC pegin transaction ID (unprefixed hex, 64 chars)
+BTC pegin transaction ID (unprefixed hex, 64 chars) — used by the presign RPCs
 
 ##### depositorPk
 
@@ -1551,6 +1561,16 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/submitWotsPub
 
 VP client implementing the WOTS key submission interface
 
+##### vaultId
+
+```ts
+vaultId: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/submitWotsPublicKey.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/submitWotsPublicKey.ts)
+
+On-chain vault id (hex, `0x` prefix optional) — addresses status polling
+
 ##### peginTxid
 
 ```ts
@@ -1559,7 +1579,7 @@ peginTxid: string;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/submitWotsPublicKey.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/submitWotsPublicKey.ts)
 
-BTC pegin transaction ID (unprefixed hex, 64 chars)
+BTC pegin transaction ID (unprefixed hex, 64 chars) — used by the write RPC
 
 ##### depositorPk
 
@@ -2180,6 +2200,16 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/waitForPeginS
 
 VP client implementing the status reader interface
 
+##### vaultId
+
+```ts
+vaultId: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/waitForPeginStatus.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/waitForPeginStatus.ts)
+
+On-chain vault id (hex, `0x` prefix optional)
+
 ##### peginTxid
 
 ```ts
@@ -2188,7 +2218,11 @@ peginTxid: string;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/waitForPeginStatus.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/waitForPeginStatus.ts)
 
-BTC pegin transaction ID (unprefixed hex, 64 chars)
+BTC pegin transaction ID (unprefixed hex, 64 chars) of the same vault.
+The VP echoes `vault_id` verbatim from the request, so that field alone
+cannot show the response describes the row we asked about. `pegin_txid`
+is a DB lookup on the server, so it is the attested identifier — and it
+is the identifier the presign and WOTS writes are addressed by.
 
 ##### targetStatuses
 
@@ -3852,7 +3886,7 @@ function waitForPeginStatus(params): Promise<DaemonStatus>;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/waitForPeginStatus.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/waitForPeginStatus.ts)
 
-Poll `getPeginStatus` until the VP reaches one of the target statuses.
+Poll `getPeginStatusByVaultId` until the VP reaches one of the target statuses.
 
 #### Parameters
 

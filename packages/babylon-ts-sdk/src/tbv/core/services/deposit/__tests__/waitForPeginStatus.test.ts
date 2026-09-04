@@ -6,21 +6,25 @@ import type { PeginStatusReader } from "../interfaces";
 import { waitForPeginStatus } from "../waitForPeginStatus";
 
 const VALID_TXID = "a".repeat(64);
+const VALID_VAULT_ID = `0x${"1".repeat(64)}`;
 const TEST_TIMEOUT_MS = 60_000;
 const TEST_POLL_INTERVAL_MS = 100;
 /** Enough mock responses to outlast the timeout in timeout tests */
 const MOCK_RESPONSES_COUNT = 100;
 
 function createMockStatusReader(
-  responses: Array<{ status: string; pegin_txid?: string } | Error>,
+  responses: Array<
+    { status: string; vault_id?: string; pegin_txid?: string } | Error
+  >,
 ): PeginStatusReader {
   let callIdx = 0;
   return {
-    getPeginStatus: vi.fn(async () => {
+    getPeginStatusByVaultId: vi.fn(async () => {
       const response = responses[callIdx++];
       if (response instanceof Error) throw response;
       return {
         pegin_txid: response.pegin_txid ?? VALID_TXID,
+        vault_id: response.vault_id ?? VALID_VAULT_ID,
         status: response.status,
         progress: {},
         health_info: "ok",
@@ -45,13 +49,14 @@ describe("waitForPeginStatus", () => {
 
     const result = await waitForPeginStatus({
       statusReader: reader,
+      vaultId: VALID_VAULT_ID,
       peginTxid: VALID_TXID,
       targetStatuses: new Set([DaemonStatus.PENDING_DEPOSITOR_SIGNATURES]),
       timeoutMs: TEST_TIMEOUT_MS,
     });
 
     expect(result).toBe(DaemonStatus.PENDING_DEPOSITOR_SIGNATURES);
-    expect(reader.getPeginStatus).toHaveBeenCalledOnce();
+    expect(reader.getPeginStatusByVaultId).toHaveBeenCalledOnce();
   });
 
   it("polls until target status is reached", async () => {
@@ -63,6 +68,7 @@ describe("waitForPeginStatus", () => {
 
     const resultPromise = waitForPeginStatus({
       statusReader: reader,
+      vaultId: VALID_VAULT_ID,
       peginTxid: VALID_TXID,
       targetStatuses: new Set([DaemonStatus.PENDING_DEPOSITOR_SIGNATURES]),
       timeoutMs: TEST_TIMEOUT_MS,
@@ -74,7 +80,7 @@ describe("waitForPeginStatus", () => {
 
     const result = await resultPromise;
     expect(result).toBe(DaemonStatus.PENDING_DEPOSITOR_SIGNATURES);
-    expect(reader.getPeginStatus).toHaveBeenCalledTimes(3);
+    expect(reader.getPeginStatusByVaultId).toHaveBeenCalledTimes(3);
   });
 
   it("treats PEGIN_NOT_FOUND RPC error code as transient and keeps polling", async () => {
@@ -85,6 +91,7 @@ describe("waitForPeginStatus", () => {
 
     const resultPromise = waitForPeginStatus({
       statusReader: reader,
+      vaultId: VALID_VAULT_ID,
       peginTxid: VALID_TXID,
       targetStatuses: new Set([DaemonStatus.PENDING_DEPOSITOR_WOTS_PK]),
       timeoutMs: TEST_TIMEOUT_MS,
@@ -95,7 +102,7 @@ describe("waitForPeginStatus", () => {
 
     const result = await resultPromise;
     expect(result).toBe(DaemonStatus.PENDING_DEPOSITOR_WOTS_PK);
-    expect(reader.getPeginStatus).toHaveBeenCalledTimes(2);
+    expect(reader.getPeginStatusByVaultId).toHaveBeenCalledTimes(2);
   });
 
   it("throws non-transient errors immediately", async () => {
@@ -104,6 +111,7 @@ describe("waitForPeginStatus", () => {
     await expect(
       waitForPeginStatus({
         statusReader: reader,
+        vaultId: VALID_VAULT_ID,
         peginTxid: VALID_TXID,
         targetStatuses: new Set([DaemonStatus.PENDING_DEPOSITOR_SIGNATURES]),
         timeoutMs: TEST_TIMEOUT_MS,
@@ -120,6 +128,7 @@ describe("waitForPeginStatus", () => {
     // Attach .catch() immediately to prevent unhandled rejection during timer advancement
     const resultPromise = waitForPeginStatus({
       statusReader: reader,
+      vaultId: VALID_VAULT_ID,
       peginTxid: VALID_TXID,
       targetStatuses: new Set([DaemonStatus.PENDING_DEPOSITOR_SIGNATURES]),
       timeoutMs: shortTimeoutMs,
@@ -131,7 +140,7 @@ describe("waitForPeginStatus", () => {
     const error = await resultPromise;
     expect(error).toBeInstanceOf(Error);
     expect((error as Error).message).toContain("Polling timeout");
-    expect((error as Error).message).toContain(VALID_TXID.slice(0, 8));
+    expect((error as Error).message).toContain(VALID_VAULT_ID.slice(0, 10));
   });
 
   it("throws on abort signal", async () => {
@@ -143,6 +152,7 @@ describe("waitForPeginStatus", () => {
     // Attach .catch() immediately to prevent unhandled rejection during abort
     const resultPromise = waitForPeginStatus({
       statusReader: reader,
+      vaultId: VALID_VAULT_ID,
       peginTxid: VALID_TXID,
       targetStatuses: new Set([DaemonStatus.PENDING_DEPOSITOR_SIGNATURES]),
       timeoutMs: TEST_TIMEOUT_MS,
@@ -158,7 +168,7 @@ describe("waitForPeginStatus", () => {
     const error = await resultPromise;
     expect(error).toBeInstanceOf(Error);
     expect((error as Error).message).toContain("Polling aborted");
-    expect((error as Error).message).toContain(VALID_TXID.slice(0, 8));
+    expect((error as Error).message).toContain(VALID_VAULT_ID.slice(0, 10));
   });
 
   it("throws immediately when VP reaches a terminal status", async () => {
@@ -169,6 +179,7 @@ describe("waitForPeginStatus", () => {
 
     const resultPromise = waitForPeginStatus({
       statusReader: reader,
+      vaultId: VALID_VAULT_ID,
       peginTxid: VALID_TXID,
       targetStatuses: new Set([DaemonStatus.PENDING_DEPOSITOR_SIGNATURES]),
       timeoutMs: TEST_TIMEOUT_MS,
@@ -193,6 +204,7 @@ describe("waitForPeginStatus", () => {
 
     const resultPromise = waitForPeginStatus({
       statusReader: reader,
+      vaultId: VALID_VAULT_ID,
       peginTxid: VALID_TXID,
       targetStatuses: new Set([DaemonStatus.PENDING_DEPOSITOR_WOTS_PK]),
       timeoutMs: TEST_TIMEOUT_MS,
@@ -214,6 +226,7 @@ describe("waitForPeginStatus", () => {
 
     const result = await waitForPeginStatus({
       statusReader: reader,
+      vaultId: VALID_VAULT_ID,
       peginTxid: VALID_TXID,
       targetStatuses: new Set([DaemonStatus.EXPIRED_CLEANED_UP]),
       timeoutMs: TEST_TIMEOUT_MS,
@@ -229,6 +242,7 @@ describe("waitForPeginStatus", () => {
 
     const result = await waitForPeginStatus({
       statusReader: reader,
+      vaultId: VALID_VAULT_ID,
       peginTxid: VALID_TXID,
       targetStatuses: new Set([
         DaemonStatus.PENDING_DEPOSITOR_SIGNATURES,
@@ -240,7 +254,31 @@ describe("waitForPeginStatus", () => {
     expect(result).toBe(DaemonStatus.ACTIVATED);
   });
 
-  it("rejects post-WOTS status echoed for the wrong pegin txid (audit #310)", async () => {
+  it("rejects post-WOTS status echoed for the wrong vault id", async () => {
+    const OTHER_VAULT_ID = `0x${"2".repeat(64)}`;
+    const reader = createMockStatusReader([
+      {
+        status: DaemonStatus.PENDING_DEPOSITOR_SIGNATURES,
+        vault_id: OTHER_VAULT_ID,
+      },
+    ]);
+
+    await expect(
+      waitForPeginStatus({
+        statusReader: reader,
+        vaultId: VALID_VAULT_ID,
+        peginTxid: VALID_TXID,
+        targetStatuses: new Set([DaemonStatus.PENDING_DEPOSITOR_SIGNATURES]),
+        timeoutMs: TEST_TIMEOUT_MS,
+        pollIntervalMs: TEST_POLL_INTERVAL_MS,
+      }),
+    ).rejects.toThrow(/returned status for vault/);
+    // Polling must abort on the first mismatch, not retry — guards
+    // against a future regression that catches and re-polls.
+    expect(reader.getPeginStatusByVaultId).toHaveBeenCalledOnce();
+  });
+
+  it("rejects a status whose attested pegin txid names another pegin", async () => {
     const OTHER_TXID = "b".repeat(64);
     const reader = createMockStatusReader([
       {
@@ -252,33 +290,33 @@ describe("waitForPeginStatus", () => {
     await expect(
       waitForPeginStatus({
         statusReader: reader,
+        vaultId: VALID_VAULT_ID,
         peginTxid: VALID_TXID,
         targetStatuses: new Set([DaemonStatus.PENDING_DEPOSITOR_SIGNATURES]),
         timeoutMs: TEST_TIMEOUT_MS,
         pollIntervalMs: TEST_POLL_INTERVAL_MS,
       }),
     ).rejects.toThrow(/returned status for pegin/);
-    // Polling must abort on the first mismatch, not retry — guards
-    // against a future regression that catches and re-polls.
-    expect(reader.getPeginStatus).toHaveBeenCalledOnce();
+    expect(reader.getPeginStatusByVaultId).toHaveBeenCalledOnce();
   });
 
-  it("rejects post-payout status echoed for the wrong pegin txid (audit #310)", async () => {
-    const OTHER_TXID = "c".repeat(64);
+  it("rejects post-payout status echoed for the wrong vault id", async () => {
+    const OTHER_VAULT_ID = `0x${"3".repeat(64)}`;
     const reader = createMockStatusReader([
-      { status: DaemonStatus.ACTIVATED, pegin_txid: OTHER_TXID },
+      { status: DaemonStatus.ACTIVATED, vault_id: OTHER_VAULT_ID },
     ]);
 
     await expect(
       waitForPeginStatus({
         statusReader: reader,
+        vaultId: VALID_VAULT_ID,
         peginTxid: VALID_TXID,
         targetStatuses: new Set([DaemonStatus.ACTIVATED]),
         timeoutMs: TEST_TIMEOUT_MS,
         pollIntervalMs: TEST_POLL_INTERVAL_MS,
       }),
-    ).rejects.toThrow(/returned status for pegin/);
-    expect(reader.getPeginStatus).toHaveBeenCalledOnce();
+    ).rejects.toThrow(/returned status for vault/);
+    expect(reader.getPeginStatusByVaultId).toHaveBeenCalledOnce();
   });
 
   it("returns ACTIVATED as success-via-overshoot when target was an earlier state", async () => {
@@ -291,25 +329,27 @@ describe("waitForPeginStatus", () => {
 
     const result = await waitForPeginStatus({
       statusReader: reader,
+      vaultId: VALID_VAULT_ID,
       peginTxid: VALID_TXID,
       targetStatuses: new Set([DaemonStatus.PENDING_ACTIVATION]),
       timeoutMs: TEST_TIMEOUT_MS,
     });
 
     expect(result).toBe(DaemonStatus.ACTIVATED);
-    expect(reader.getPeginStatus).toHaveBeenCalledOnce();
+    expect(reader.getPeginStatusByVaultId).toHaveBeenCalledOnce();
   });
 
-  it("matches case-insensitively on echoed pegin txid", async () => {
+  it("matches on echoed vault id regardless of case and 0x prefix", async () => {
     const reader = createMockStatusReader([
       {
         status: DaemonStatus.ACTIVATED,
-        pegin_txid: VALID_TXID.toUpperCase(),
+        vault_id: VALID_VAULT_ID.slice(2).toUpperCase(),
       },
     ]);
 
     const result = await waitForPeginStatus({
       statusReader: reader,
+      vaultId: VALID_VAULT_ID,
       peginTxid: VALID_TXID,
       targetStatuses: new Set([DaemonStatus.ACTIVATED]),
       timeoutMs: TEST_TIMEOUT_MS,

@@ -1,4 +1,3 @@
-import { stripHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
   batchPollByProvider,
   type DaemonStatus,
@@ -16,7 +15,6 @@ export type BatchReadinessStatus = "ready" | "waiting" | "terminal";
 
 export interface BatchReadinessVault {
   vaultId: Hex;
-  peginTxHash: Hex;
 }
 
 export interface BatchReadinessResult {
@@ -79,9 +77,9 @@ export async function waitForBatchReadiness({
 
     await batchPollByProvider<BatchReadinessVault, GetPeginStatusResponse>({
       items: pendingVaults,
-      getTxid: (vault) => stripHexPrefix(vault.peginTxHash),
-      batchCall: (pegin_txids) =>
-        rpcClient.batchGetPeginStatus({ pegin_txids }),
+      getVaultId: (vault) => vault.vaultId,
+      batchCall: (vault_ids) =>
+        rpcClient.batchGetPeginStatusByVaultId({ vault_ids }),
       onItem: (vault, envelope) => {
         if (envelope.error !== null) {
           if (!envelope.error.includes("PegIn not found")) {
@@ -107,7 +105,7 @@ export async function waitForBatchReadiness({
           vaultId: vault.vaultId,
         }),
       onDuplicateBatch: (count) =>
-        logger.warn(`${logLabel} poll returned duplicate txids`, { count }),
+        logger.warn(`${logLabel} poll returned duplicate vault ids`, { count }),
       onWholeBatchError: (_chunk, error) => {
         const detail =
           error instanceof VpResponseValidationError
@@ -118,7 +116,7 @@ export async function waitForBatchReadiness({
         logger.warn(`${logLabel} poll failed for batch`, { error: detail });
       },
       onUnexpected: (echoed) =>
-        logger.warn(`${logLabel} poll returned unexpected txids`, {
+        logger.warn(`${logLabel} poll returned unexpected vault ids`, {
           count: echoed.length,
         }),
     });
