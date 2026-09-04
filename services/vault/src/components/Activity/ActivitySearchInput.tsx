@@ -21,7 +21,7 @@ export function ActivitySearchInput({
   onChange,
 }: ActivitySearchInputProps) {
   return (
-    <label className="flex w-full max-w-[360px] items-center gap-2 rounded-lg border border-secondary-strokeLight bg-primary-contrast py-2 pl-4 pr-3 dark:bg-transparent">
+    <label className="flex w-full max-w-[360px] items-center gap-2 rounded-lg border border-secondary-strokeDark bg-secondary-highlight py-2 pl-4 pr-3 focus-within:border-accent-primary">
       <RiSearchLine
         size={SEARCH_ICON_SIZE}
         aria-hidden
@@ -33,7 +33,7 @@ export function ActivitySearchInput({
         aria-label={COPY.activity.searchLabel}
         placeholder={COPY.activity.searchPlaceholder}
         onChange={(event) => onChange(event.target.value)}
-        className="w-full bg-transparent text-sm leading-[1.43] tracking-[0.17px] text-accent-primary outline-none placeholder:text-accent-disabled"
+        className="w-full bg-transparent text-sm leading-[1.43] tracking-[0.17px] text-accent-primary outline-none placeholder:text-accent-secondary"
       />
     </label>
   );
