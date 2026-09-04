@@ -24,8 +24,10 @@
  * Usage (from services/vault):
  *   node scripts/topup-replay-fixture.mjs
  *
- * Idempotent: an operation the fixture already answers is skipped, so a second
- * run appends nothing. Delete the appended lines and re-run to refresh them.
+ * Idempotent, and offline once complete: an operation the fixture already
+ * answers is neither asked again nor appended, and its recorded answer feeds
+ * the operations that depend on it, so a second run touches no network and
+ * appends nothing. Delete the appended lines and re-run to refresh them.
  */
 
 import fs from "node:fs";
@@ -149,13 +151,16 @@ async function main() {
     .filter((line) => line.trim() !== "")
     .map((line) => JSON.parse(line));
   const url = recordedIndexerUrl(entries);
-  const known = new Set(
-    entries
-      .filter((entry) => entry.method === "POST" && entry.url === url)
-      .map((entry) =>
-        graphqlKey(entry.method, new URL(entry.url).pathname, entry.reqBody),
-      ),
-  );
+  // Recorded answers by the key the replay looks them up under. Last one
+  // wins, as in the replay itself.
+  const recorded = new Map();
+  for (const entry of entries) {
+    if (entry.method !== "POST" || entry.url !== url) continue;
+    recorded.set(
+      graphqlKey(entry.method, new URL(entry.url).pathname, entry.reqBody),
+      entry,
+    );
+  }
 
   const answers = {};
   const appended = [];
@@ -167,6 +172,14 @@ async function main() {
       operationName: operation.operationName,
     });
     const key = graphqlKey("POST", new URL(url).pathname, reqBody);
+
+    const known = recorded.get(key);
+    if (known !== undefined) {
+      answers[operation.operationName] = parseJson(known.resBody);
+      console.log(`skip   ${key} (already in the fixture)`);
+      continue;
+    }
+
     const response = await fetch(url, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -180,10 +193,6 @@ async function main() {
       );
     }
     answers[operation.operationName] = parsed;
-    if (known.has(key)) {
-      console.log(`skip   ${key} (already in the fixture)`);
-      continue;
-    }
     appended.push(
       JSON.stringify({
         t: new Date().toISOString(),

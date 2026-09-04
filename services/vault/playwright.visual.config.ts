@@ -87,6 +87,13 @@ const VISUAL_ENV_VARS = {
   // it. Nothing else changes with the flag: the demo is inert until the
   // panel's own "Inject demo" toggle opts in.
   NEXT_PUBLIC_FF_GOD_MODE_PANEL: "true",
+  // Both ON for the panel's cascade simulator, which is how the liquidations
+  // chart is reached (`e2e/visual/liquidationChart.visual.spec.ts`): the
+  // recorded depositor holds no position, so no wallet can chart anything.
+  // The notifications flag also unhides the dashboard's liquidation banner
+  // surface, which stays empty for a depositor with no position.
+  NEXT_PUBLIC_FF_ENABLE_LIQUIDATION_NOTIFICATIONS: "true",
+  NEXT_PUBLIC_FF_POSITION_DEBUG_PANEL: "true",
 };
 
 export default defineConfig({

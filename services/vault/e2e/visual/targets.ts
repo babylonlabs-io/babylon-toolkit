@@ -145,6 +145,15 @@ export const DEPOSIT_PROGRESS_STOPS = {
 } as const;
 
 /**
+ * The liquidations chart, charted from the god-mode cascade simulator over
+ * the recorded price candles. The route capture above photographs
+ * /liquidations disconnected - its "connect your wallet" state - and the
+ * recorded depositor holds no position, so no wallet reaches the chart. See
+ * `liquidationChart.visual.spec.ts`.
+ */
+export const LIQUIDATION_CHART_STOP = "liquidations-chart";
+
+/**
  * How many steps the deposit flow has, in the stepper's own 1-based visual
  * numbering (`TOTAL_VISUAL_STEPS` in
  * `src/components/simple/DepositProgressView/steps.ts`). Written out for the

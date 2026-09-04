@@ -37,6 +37,7 @@ import {
   DEPOSIT_PROGRESS_STOPS,
   depositProgressStepStop,
   flowScreenshotFileName,
+  LIQUIDATION_CHART_STOP,
   screenshotFileName,
   VISUAL_TARGETS,
   VISUAL_VIEWPORTS,
@@ -101,14 +102,16 @@ export const EXPECTED_SCREENS_MANIFEST = "expected-screens.txt";
 /**
  * Seal the page off the network.
  *
- * Registered before the recorded backend so the backend's handlers win -
- * Playwright gives precedence to the most recently registered match. What
- * this catches is everything the recording does not cover: it fails closed
- * instead of reaching a live host, which would make a capture vary run to run
- * and, on a fork PR, leak the request.
+ * Registered on the CONTEXT, and before the recorded backend: the backend's
+ * page-level handlers win, because Playwright gives a page route precedence
+ * over a context route. What this catches is everything the recording does
+ * not cover: it fails closed instead of reaching a live host, which would
+ * make a capture vary run to run and, on a fork PR, leak the request. The
+ * context scope is what also seals a window the page opens - the god-mode
+ * panel's pop-out - which has no page route of its own.
  */
 async function blockOffsiteRequests(page: Page): Promise<void> {
-  await page.route("**/*", (route) => {
+  await page.context().route("**/*", (route) => {
     const { hostname } = new URL(route.request().url());
     const isLocal = hostname === "localhost" || hostname === "127.0.0.1";
     return isLocal ? route.continue() : route.abort();
@@ -389,7 +392,7 @@ export async function writeCaptures(
  * harness against the same committed fixture, so every fixture- or
  * harness-caused failure is symmetric BY CONSTRUCTION: the ten deposit-flow
  * shots vanish from both sides, the twelve route shots still land, and the run
- * reports "No visual changes" for a comparison that never looked at 10 of 56
+ * reports "No visual changes" for a comparison that never looked at 10 of 58
  * screens.
  *
  * Written at collection time rather than derived at diff time on purpose: it
@@ -411,6 +414,7 @@ export async function ensureOutputDir(): Promise<void> {
     ...[
       ...Object.values(DEPOSIT_PROGRESS_STOPS),
       ...DEPOSIT_FLOW_STEPS.map(depositProgressStepStop),
+      LIQUIDATION_CHART_STOP,
     ].flatMap((stop) =>
       VISUAL_VIEWPORTS.map((viewport) =>
         flowScreenshotFileName(stop, viewport),
