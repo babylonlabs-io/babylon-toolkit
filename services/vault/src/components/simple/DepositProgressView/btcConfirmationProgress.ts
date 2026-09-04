@@ -52,3 +52,21 @@ export function computeRemainingEstimateMinutes(
 export function computeTotalEstimateMinutes(requiredDepth: number): number {
   return requiredDepth * BTC_BLOCK_TIME_MINS + DEPOSIT_PIPELINE_OVERHEAD_MINS;
 }
+
+/**
+ * Estimated minutes until the deposit activates, for the /vaults pending row.
+ * Same model as {@link computeTotalEstimateMinutes}, less the depth already
+ * confirmed: it floors at the pipeline overhead once the required depth is
+ * met, and never goes negative. `null` confirmations (no poll result yet)
+ * returns `null` — there is no estimate until the first poll lands.
+ */
+export function pendingActivationEstimateMinutes(
+  confirmations: number | null,
+  requiredDepth: number,
+): number | null {
+  if (confirmations === null) return null;
+  return (
+    (computeRemainingEstimateMinutes(confirmations, requiredDepth) ?? 0) +
+    DEPOSIT_PIPELINE_OVERHEAD_MINS
+  );
+}

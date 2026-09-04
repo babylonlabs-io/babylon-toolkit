@@ -35,7 +35,7 @@ interface VaultsEmptyStateProps {
 /** The section-placement surface: same bordered fill as the summary card and
  *  the lifecycle rows, at the empty state's larger 16px radius. */
 const SECTION_CARD_CLASS =
-  "w-full rounded-2xl border border-secondary-strokeLight bg-secondary-highlight dark:bg-[#202020]";
+  "w-full rounded-2xl border border-secondary-strokeLight bg-secondary-highlight p-6 dark:bg-[#202020]";
 
 export function VaultsEmptyState({
   isConnected,

@@ -183,8 +183,9 @@ export const COPY = {
       // recoverable. Lead with that before explaining what happened.
       activationIncomplete:
         "Your BTC is not lost. The peg-in was completed on Bitcoin, but the BTCVault was never activated. Click 'Withdraw' and the vault provider will send your BTC to your payout address.",
-      // Always-visible one-liner under the amount (the message above is
-      // tooltip-only); same reassuring tone.
+      // Always-visible one-liner under the amount; same reassuring tone. The
+      // full sentence above is tooltip-only, and the /vaults pending row no
+      // longer renders that tooltip.
       activationIncompleteSubtext:
         "Your BTC is not lost — withdraw to receive it back.",
       // Activation floor. Blocks lead because they are the fact the contract
@@ -197,8 +198,9 @@ export const COPY = {
       activationWindowTooltip:
         "Activation opens a short time after verification. This is a protocol requirement.",
       // Compact form for the always-visible slot under the amount. The full
-      // sentence stays in `message` (the info-icon tooltip); this is what a
-      // depositor sees without interacting, so it must survive `truncate`.
+      // sentence stays in `message`, which the /vaults pending row no longer
+      // surfaces, so this is the only form a depositor sees there and it must
+      // survive `truncate`.
       activationWindowSubtext: (blocks: number, minutes: number) =>
         `Opens in ${blocks} ${blocks === 1 ? "block" : "blocks"} (~${minutes} min)`,
       activationWindowSubtextUnknown: "Waiting for the activation window",
@@ -224,9 +226,9 @@ export const COPY = {
         "Refund transaction has been broadcast to Bitcoin. Waiting for on-chain confirmation...",
       refundComplete:
         "Your refund has been confirmed on Bitcoin. The locked BTC has returned to your wallet.",
-      // Longest sub-line the lifecycle rows render, so it sizes
-      // LIST_ROW_LEADING_COLUMN_CLASS's basis (components/shared/ListRow.tsx).
-      // Lengthening it here ellipses that cell unless the basis moves too.
+      // Longest sub-line the lifecycle rows render. It exceeds
+      // LIST_ROW_LEADING_COLUMN_CLASS's basis (components/shared/ListRow.tsx),
+      // so that cell truncates it rather than widening.
       refundMaturing: (blocks: number, hours: number) =>
         `Your refund will be claimable in ~${blocks} Bitcoin ${blocks === 1 ? "block" : "blocks"} (~${hours}h).`,
       refundMaturingUnknown: "Checking when your refund will be claimable...",
@@ -409,10 +411,6 @@ export const COPY = {
       },
       stepsCompleted: (completed: number, total: number) =>
         `${completed} of ${total} steps completed`,
-      // Inline prefix for the pending-deposit card's active-step label
-      // (e.g. "Step 6 of 15"). Sits before the bolded step label.
-      stepPrefix: (current: number, total: number) =>
-        `Step ${current} of ${total}`,
       defaultSuccessMessage: PRE_PEGIN_BROADCAST_CONFIRMATION_MESSAGE,
       doNotSpendWarning:
         "Do not spend the BTC used for this deposit until the transactions are confirmed.",
@@ -1945,6 +1943,10 @@ export const COPY = {
       disconnected: connectToView("BTCVaults"),
       depositAction: "Deposit",
     },
+    // Sub-line under a pending row's amount: the machine-paced wait left
+    // before the deposit activates.
+    pendingActivationEstimate: (duration: string) =>
+      `Activates in ~${duration}`,
     loadError:
       "We couldn't load your BTCVaults. Check your connection and try again.",
     partialLoadError: {
@@ -1955,8 +1957,6 @@ export const COPY = {
       totalCollateralLabel: "Total Collateral Value",
       activeVaultsLabel: "Active Vaults",
       healthFactorLabel: "Health Factor",
-      healthFactorCaption:
-        "When the ratio falls below 1.0, liquidation may occur.",
       vaultCount: (count: number) =>
         count === 1 ? "1 Vault" : `${count} Vaults`,
       // e.g. "Order: 0.6 → 0.2 → 0.4 sBTC" — liquidation order, seized-first

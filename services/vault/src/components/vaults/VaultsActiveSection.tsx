@@ -9,7 +9,7 @@
  * optimistic (`isActivating`) rows never reach an action flow.
  */
 
-import { Heading, Loader } from "@babylonlabs-io/core-ui";
+import { Avatar, Heading, Loader } from "@babylonlabs-io/core-ui";
 import type { ReactNode } from "react";
 
 import { ApplicationLogo } from "@/components/ApplicationLogo";
@@ -22,6 +22,7 @@ import {
   LIST_ROW_MIN_HEIGHT_CLASS,
   ListRowCard,
 } from "@/components/shared/ListRow";
+import { getNetworkConfigBTC } from "@/config";
 import { COPY } from "@/copy";
 import type { CollateralVaultEntry } from "@/types/collateral";
 import { getBtcExplorerTxUrl } from "@/utils/explorer";
@@ -48,6 +49,7 @@ function ActiveVaultRow({
   // Peg-in first: once a vault is active the peg-in tx is the canonical
   // on-Bitcoin one (pending/inactive rows prefer the opposite).
   const hash = vault.peginTxHash ?? vault.prePeginTxHash;
+  const btcConfig = getNetworkConfigBTC();
 
   return (
     // This row's data-testid is a real-wallet E2E hook
@@ -56,16 +58,17 @@ function ActiveVaultRow({
     // which is what the withdraw flow selects on.
     <ListRowCard
       testId={`vault-row-${vault.vaultId}`}
-      className={LIST_ROW_MIN_HEIGHT_CLASS}
+      className={`${LIST_ROW_MIN_HEIGHT_CLASS} xl:flex-nowrap`}
     >
       {/* Amount + liquidation ordinal */}
       <div
         className={`flex items-center gap-2 ${LIST_ROW_LEADING_COLUMN_CLASS}`}
       >
-        <ApplicationLogo
-          logoUrl={vault.providerIconUrl ?? null}
-          name={vault.providerName}
-          size="small"
+        <Avatar
+          size="medium"
+          url={btcConfig.icon}
+          alt={btcConfig.coinSymbol}
+          className="shrink-0"
         />
         <span className="min-w-0 truncate">
           <span className="text-base leading-6 tracking-[0.15px] text-accent-primary">
