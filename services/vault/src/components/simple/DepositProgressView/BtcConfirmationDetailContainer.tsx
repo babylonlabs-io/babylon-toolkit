@@ -22,15 +22,12 @@ interface BtcConfirmationDetailContainerProps {
   requiredDepth: number;
   /** Candidate deposit ids that share this Pre-PegIn broadcast. */
   depositIds: readonly string[];
-  /** Stack rows (label above value) for the narrow split-deposit columns. */
-  stacked?: boolean;
 }
 
 export function BtcConfirmationDetailContainer({
   prePeginTxid,
   requiredDepth,
   depositIds,
-  stacked,
 }: BtcConfirmationDetailContainerProps) {
   const polling = useFirstIndexedDepositPollingResult(depositIds);
   // Direct poll only runs while the polling result is missing — once the
@@ -47,7 +44,6 @@ export function BtcConfirmationDetailContainer({
       prePeginTxid={prePeginTxid}
       confirmations={confirmations}
       requiredDepth={requiredDepth}
-      stacked={stacked}
     />
   );
 }

@@ -89,9 +89,9 @@ export interface ResumeSignContentProps {
   depositorEthAddress: Hex;
   /**
    * Every vault ID sharing this deposit's Pre-PegIn (the split-pegin
-   * siblings). When length > 1 the progress view renders the multi-column
-   * split UI with this vault highlighted. Defaults to just this vault, so
-   * standalone deposits render as a single column.
+   * siblings). When length > 1 the progress view renders the stacked
+   * per-vault split UI with this vault highlighted. Defaults to just this
+   * vault, so standalone deposits render as a single vault.
    */
   siblingVaultIds?: string[];
   onClose: () => void;
@@ -297,7 +297,7 @@ export function ResumeBroadcastContent({
 
   // During the trunk (broadcast) phase every sibling is at the same shared
   // step, so the active-vault index is irrelevant — what matters is that the
-  // multi-column UI lights up when the deposit is a split.
+  // per-vault split UI lights up when the deposit is a split.
   const { vaultCount, currentVaultIndex, perVaultSteps } =
     useSplitVaultProgress(batchVaultIds, activity.id, step);
 

@@ -2,13 +2,13 @@
  * Split-vault progress derivation for the resume path.
  *
  * A batched deposit funds several vaults from one Pre-PegIn; after broadcast
- * each vault advances on its own VP-paced timeline, so the multistepper columns
+ * each vault advances on its own VP-paced timeline, so the per-vault lanes
  * genuinely diverge (one already activated, another still on WOTS). Given the
- * sibling vault IDs (in column order), the vault this modal is currently
+ * sibling vault IDs (in lane order), the vault this modal is currently
  * driving, and that vault's live render step, this resolves:
- *  - `vaultCount` / `currentVaultIndex` for the multi-column layout, and
- *  - `perVaultSteps`, one step per column derived from each sibling's OWN
- *    polled state (the active column uses the finer-grained live step).
+ *  - `vaultCount` / `currentVaultIndex` for the stacked split layout, and
+ *  - `perVaultSteps`, one step per lane derived from each sibling's OWN
+ *    polled state (the active lane uses the finer-grained live step).
  *
  * The live initial-deposit flow does NOT use this: there the vaults aren't
  * registered/polled yet and progression is strictly sequential, so the view
@@ -31,9 +31,9 @@ import {
 
 export interface SplitVaultProgress {
   vaultCount: number;
-  /** Active column index, or null when the deposit isn't a split / can't be resolved. */
+  /** Active lane index, or null when the deposit isn't a split / can't be resolved. */
   currentVaultIndex: number | null;
-  /** Per-column steps (resume path). Undefined for standalone deposits. */
+  /** Per-lane steps (resume path). Undefined for standalone deposits. */
   perVaultSteps?: DepositFlowStep[];
 }
 
@@ -51,7 +51,7 @@ export function deriveSplitVaultProgress(
   activeStep: DepositFlowStep,
 ): SplitVaultProgress {
   // A standalone deposit (or a single-element batch) renders the original
-  // single-column layout — no per-vault steps needed.
+  // single-vault layout — no per-vault steps needed.
   if (!siblingVaultIds || siblingVaultIds.length <= 1) {
     return { vaultCount: 1, currentVaultIndex: null };
   }
@@ -60,8 +60,8 @@ export function deriveSplitVaultProgress(
 
   // The active vault must be one of its own siblings. A miss is a mis-wired
   // prop, not transient state — surface it (No Silent Fallbacks) rather than
-  // quietly collapsing the active column, but don't crash the resume modal
-  // over a display concern; fall back to the columns with no active highlight.
+  // quietly collapsing the active lane, but don't crash the resume modal
+  // over a display concern; fall back to the lanes with no active highlight.
   if (currentVaultIndex === -1) {
     logger.error(
       new Error("deriveSplitVaultProgress: active vault not in sibling set"),
@@ -71,13 +71,13 @@ export function deriveSplitVaultProgress(
   }
 
   const perVaultSteps = siblingVaultIds.map((id, index) => {
-    // The active column tracks the live render step (e.g. mid-signing), which
+    // The active lane tracks the live render step (e.g. mid-signing), which
     // is finer-grained than the polled display step.
     if (index === currentVaultIndex) return activeStep;
     const result = getPollingResult(id);
     // God-mode demo: a simulated sibling carries the slider's step directly via
     // `displayStepOverride`, which the real polling path never sets. Honor it so
-    // batched demo columns track the slider instead of the base polled state.
+    // batched demo lanes track the slider instead of the base polled state.
     if (result?.displayStepOverride != null) return result.displayStepOverride;
     const state = result?.peginState;
     // Unpolled non-active sibling: cap at the shared-trunk floor once the active
@@ -97,7 +97,7 @@ export function deriveSplitVaultProgress(
     // before `isVaultPastActivation`, which also matches LIQUIDATED and would
     // otherwise render a seized vault as COMPLETED. A finished sibling must
     // render COMPLETED (all groups ✓) — NOT fall back to the active vault's
-    // step, which would otherwise reset an already-activated column to
+    // step, which would otherwise reset an already-activated lane to
     // whatever the active vault is doing.
     if (
       state.displayVariant === "warning" ||

@@ -27,14 +27,12 @@ interface GroupBlockProps {
   /** 1-based group number shown in the circle (original group position). */
   number: number;
   steps: StepperItem[];
-  /** Current visual step for this lane (shared trunk or per-vault column). */
+  /** Current visual step for this lane (shared trunk or per-vault lane). */
   currentStep: number;
   /** When true, this lane's current step failed — render it as an error. */
   hasError?: boolean;
   /** Detail panel rendered under the active sub-step. */
   activeStepDetail?: ReactNode;
-  /** Narrow per-vault column → stack each row's sub-counter below its label. */
-  compact?: boolean;
   /**
    * Pre-sign entry panel (the fee-rate selector). Passed only while the flow
    * has not started; renders inside this group's card under the Pre-PegIn
@@ -51,7 +49,6 @@ export function GroupBlock({
   currentStep,
   hasError = false,
   activeStepDetail,
-  compact = false,
   preSignDetail,
 }: GroupBlockProps) {
   // Pre-sign entry: this group owns the Pre-PegIn step, so it opens into the
@@ -101,7 +98,6 @@ export function GroupBlock({
                 number={PRE_PEGIN_VISUAL_STEP - group.startStep + 1}
                 ariaNumber={PRE_PEGIN_VISUAL_STEP}
                 label={steps[PRE_PEGIN_VISUAL_STEP - 1]?.label ?? ""}
-                compact={compact}
                 inCard
               />
               {preSignDetail}
@@ -130,7 +126,6 @@ export function GroupBlock({
                   description={step.description}
                   detail={activeStepDetail}
                   hasNext={subIndex < stepNumbers.length - 1}
-                  compact={compact}
                   inCard
                 />
               );

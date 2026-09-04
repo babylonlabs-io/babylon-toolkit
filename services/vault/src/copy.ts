@@ -416,7 +416,7 @@ export const COPY = {
       defaultSuccessMessage: PRE_PEGIN_BROADCAST_CONFIRMATION_MESSAGE,
       doNotSpendWarning:
         "Do not spend the BTC used for this deposit until the transactions are confirmed.",
-      splitVaultColumnLabel: (vaultNumber: number) => `BTCVault ${vaultNumber}`,
+      splitVaultLabel: (vaultNumber: number) => `BTCVault ${vaultNumber}`,
       buttons: {
         closeContinueLater: "Close & continue later",
         retry: "Retry",

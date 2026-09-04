@@ -120,7 +120,7 @@ export const STEP_GROUPS: StepGroup[] = [
  * Visual step at which the deposit flow stops being shared across all vaults
  * in a split deposit. Everything through AWAIT_BTC_CONFIRMATION (visual step 6)
  * is a single shared Pre-PegIn broadcast; from SUBMIT_WOTS_KEYS onward each
- * vault progresses on its own VP-paced timeline and earns a dedicated column
+ * vault progresses on its own VP-paced timeline and earns a dedicated lane
  * in the multi-vault stepper.
  */
 export const TRUNK_END_VISUAL_STEP = 6;
@@ -132,7 +132,7 @@ export const TRUNK_END_VISUAL_STEP = 6;
  * vaults — at any point one vault is the "active" one
  * (tracked by `currentVaultIndex`) while siblings have either finished the
  * active phase or are queued for their turn. This function maps that shared
- * state into a per-vault step so each column in the split UI shows the right
+ * state into a per-vault step so each lane in the split UI shows the right
  * row as active, completed, or pending.
  */
 export function derivePerVaultStep(

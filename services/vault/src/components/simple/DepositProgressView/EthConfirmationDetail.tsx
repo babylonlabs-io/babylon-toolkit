@@ -9,11 +9,6 @@ interface EthConfirmationDetailProps {
   confirmations: number;
   /** Required depth before the Pre-PegIn may broadcast. */
   required: number;
-  /**
-   * Stack each row's label above its value instead of side-by-side. Used in the
-   * narrow split-deposit columns, where the inline layout collapses.
-   */
-  stacked?: boolean;
 }
 
 /**
@@ -27,20 +22,16 @@ interface EthConfirmationDetailProps {
 export function EthConfirmationDetail({
   confirmations,
   required,
-  stacked = false,
 }: EthConfirmationDetailProps) {
   const copy = COPY.deposit.ethConfirmation;
   const remainingSeconds = computeRemainingEthEstimateSeconds(
     confirmations,
     required,
   );
-  const rowClass = stacked
-    ? "flex flex-col gap-0.5"
-    : "flex items-center justify-between gap-2";
 
   return (
     <div className="mt-3 flex flex-col gap-2 rounded-lg bg-secondary-highlight p-3">
-      <div className={rowClass}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <Text as="span" variant="body2" className="text-accent-secondary">
           {copy.confirmations}:
         </Text>
@@ -49,7 +40,7 @@ export function EthConfirmationDetail({
         </Text>
       </div>
 
-      <div className={rowClass}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <Text as="span" variant="body2" className="text-accent-secondary">
           {remainingSeconds === null
             ? COPY.deposit.waitDetails.status
