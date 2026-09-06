@@ -14,7 +14,11 @@ export function NetworkBadge() {
 
   return (
     <span className="flex items-center rounded-full bg-secondary-highlight px-2.5 py-1">
-      <Text as="span" variant="caption" className="text-warning-main">
+      <Text
+        as="span"
+        variant="caption"
+        className="text-primary-main dark:text-risk-amber"
+      >
         {COPY.header.networkBadge}
       </Text>
     </span>
