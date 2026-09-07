@@ -39,7 +39,6 @@ vi.mock("@/hooks/useDashboardState", () => ({
     displayCollateralBtc: 0,
     collateralValueUsd: 0,
     debtValueUsd: 0,
-    maxTotalDebtUsd: 0,
     availableToBorrowUsd: 0,
     collateralFactorBps: 7800,
     isBorrowCapacityLoading: false,

@@ -14,7 +14,6 @@ const cards: PositionStatCard[] = [
   {
     label: "Available to borrow",
     value: "$5,000",
-    meter: { percent: 0.75, label: "75% remaining" },
     actionLabel: "Borrow",
     onAction: () => {},
   },
@@ -47,7 +46,7 @@ describe("PositionStatCards", () => {
     expect(label).not.toHaveClass("whitespace-nowrap");
   });
 
-  it("compresses gaps, the action button, and the meter bar only in the 1280-1439px band, so the row fits between the sidebar and 1440px without clipping", () => {
+  it("compresses gaps and the action button only in the 1280-1439px band, so the row fits between the sidebar and 1440px without clipping", () => {
     render(<PositionStatCards cards={cards} />);
 
     const row = screen.getByText("$10,000").closest("div.flex.flex-col.gap-6");
@@ -59,11 +58,5 @@ describe("PositionStatCards", () => {
     const depositButton = screen.getByRole("button", { name: "Deposit" });
     expect(depositButton).toHaveClass("xl:max-[1439px]:w-[100px]");
     expect(depositButton).toHaveClass("w-[120px]");
-
-    const meterBar = screen.getByRole("progressbar", {
-      name: "Available to borrow",
-    });
-    expect(meterBar).toHaveClass("xl:max-[1439px]:w-[48px]");
-    expect(meterBar).toHaveClass("w-[68px]");
   });
 });

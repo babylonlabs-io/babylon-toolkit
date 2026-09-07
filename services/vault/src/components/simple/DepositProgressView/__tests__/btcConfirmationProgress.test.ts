@@ -4,6 +4,7 @@ import {
   computeConfirmations,
   computeRemainingEstimateMinutes,
   computeTotalEstimateMinutes,
+  pendingActivationEstimateMinutes,
 } from "../btcConfirmationProgress";
 
 describe("computeConfirmations", () => {
@@ -62,5 +63,20 @@ describe("computeTotalEstimateMinutes", () => {
   it("scales with the on-chain confirmation depth", () => {
     expect(computeTotalEstimateMinutes(2)).toBe(30);
     expect(computeTotalEstimateMinutes(12)).toBe(130);
+  });
+});
+
+describe("pendingActivationEstimateMinutes", () => {
+  it("has no estimate when no poll result has landed yet", () => {
+    expect(pendingActivationEstimateMinutes(null, 6)).toBeNull();
+  });
+
+  it("deducts ten minutes for each confirmation already accrued", () => {
+    expect(pendingActivationEstimateMinutes(4, 6)).toBe(30);
+  });
+
+  it("floors at the pipeline overhead at and past the required depth", () => {
+    expect(pendingActivationEstimateMinutes(6, 6)).toBe(10);
+    expect(pendingActivationEstimateMinutes(8, 6)).toBe(10);
   });
 });

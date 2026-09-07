@@ -26,7 +26,7 @@
  *
  * These providers connect and read. They do not sign: every signing method
  * throws, so a test that walks into a signing step fails there rather than
- * appearing to succeed. Captures stop at the deposit form for exactly that
+ * appearing to succeed. Captures stop at the pre-sign entry for exactly that
  * reason.
  */
 
