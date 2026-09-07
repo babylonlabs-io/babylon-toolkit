@@ -100,7 +100,7 @@ async function readStoryIds(): Promise<string[]> {
 }
 
 /**
- * Block until the rendered frame stops changing.
+ * Return the captured frame after it stops changing.
  *
  * Compares the actual rendered bytes rather than a cheaper proxy. Two
  * cheaper proxies were tried and both let real flake through:
@@ -117,7 +117,7 @@ async function readStoryIds(): Promise<string[]> {
  * in one check, and costs one extra screenshot for the ~98% of stories
  * that are already settled on the first comparison.
  */
-async function waitForFrameSettled(page: Page): Promise<void> {
+async function waitForFrameSettled(page: Page): Promise<Buffer> {
   const deadline = Date.now() + FRAME_SETTLE_TIMEOUT_MS;
   let previous = await page.screenshot({ fullPage: true });
   let matches = 0;
@@ -127,7 +127,7 @@ async function waitForFrameSettled(page: Page): Promise<void> {
     const current = await page.screenshot({ fullPage: true });
     if (current.equals(previous)) {
       matches += 1;
-      if (matches >= FRAME_SETTLE_CONSECUTIVE_MATCHES) return;
+      if (matches >= FRAME_SETTLE_CONSECUTIVE_MATCHES) return current;
     } else {
       matches = 0;
     }
@@ -237,9 +237,7 @@ for (const storyId of storyIds) {
         ),
       );
     });
-    await waitForFrameSettled(page);
-
-    const buffer = await page.screenshot({ fullPage: true });
+    const buffer = await waitForFrameSettled(page);
     await fs.writeFile(path.join(OUTPUT_DIR, `${storyId}.png`), buffer);
 
     expect(buffer.byteLength).toBeGreaterThan(100);

@@ -215,7 +215,7 @@ export function Timeline({
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
-  }, [zoomEnabled]);
+  }, [zoomEnabled, collapsed]);
 
   // Only mark liquidation levels that fall within the visible price domain;
   // off-scale levels would clamp to the floor and collide with each other.
@@ -308,7 +308,7 @@ export function Timeline({
   const hovered = hoverIndex != null ? (candleGeom[hoverIndex] ?? null) : null;
   const interactive = crosshairEnabled || panEnabled || zoomEnabled;
 
-  if (collapsed) return null;
+  if (collapsed) return <div ref={parentRef} className={className} style={{ width: "100%" }} />;
 
   return (
     <ChartFrame
