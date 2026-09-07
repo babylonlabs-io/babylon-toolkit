@@ -8,7 +8,7 @@ import {
 import { calculateBorrowCapacityUsd } from "../borrowCapacity";
 
 describe("calculateBorrowCapacityUsd", () => {
-  it("computes max total debt and available borrow from collateral and LT", () => {
+  it("subtracts current debt from the capacity implied by collateral and LT", () => {
     const result = calculateBorrowCapacityUsd({
       collateralValueUsd: 10000,
       currentDebtUsd: 2000,
@@ -18,7 +18,6 @@ describe("calculateBorrowCapacityUsd", () => {
     const expectedMaxTotalDebtUsd =
       ((10000 * 8000) / BPS_SCALE / MIN_HEALTH_FACTOR_FOR_BORROW) *
       (1 - BORROW_CAPACITY_HEADROOM);
-    expect(result.maxTotalDebtUsd).toBe(expectedMaxTotalDebtUsd);
     expect(result.availableToBorrowUsd).toBe(expectedMaxTotalDebtUsd - 2000);
   });
 
@@ -29,10 +28,6 @@ describe("calculateBorrowCapacityUsd", () => {
       liquidationThresholdBps: 8000,
     });
 
-    const expectedMaxTotalDebtUsd =
-      ((10000 * 8000) / BPS_SCALE / MIN_HEALTH_FACTOR_FOR_BORROW) *
-      (1 - BORROW_CAPACITY_HEADROOM);
-    expect(result.maxTotalDebtUsd).toBe(expectedMaxTotalDebtUsd);
     expect(result.availableToBorrowUsd).toBe(0);
   });
 
@@ -40,7 +35,7 @@ describe("calculateBorrowCapacityUsd", () => {
     const collateralValueUsd = 10000;
     const liquidationThresholdBps = 8000;
 
-    const { maxTotalDebtUsd } = calculateBorrowCapacityUsd({
+    const { availableToBorrowUsd } = calculateBorrowCapacityUsd({
       collateralValueUsd,
       currentDebtUsd: 0,
       liquidationThresholdBps,
@@ -52,7 +47,7 @@ describe("calculateBorrowCapacityUsd", () => {
     const projectedHealthFactor =
       (collateralValueUsd * liquidationThresholdBps) /
       BPS_SCALE /
-      maxTotalDebtUsd;
+      availableToBorrowUsd;
 
     expect(projectedHealthFactor).toBeGreaterThan(MIN_HEALTH_FACTOR_FOR_BORROW);
   });
@@ -64,7 +59,6 @@ describe("calculateBorrowCapacityUsd", () => {
       liquidationThresholdBps: 8000,
     });
 
-    expect(result.maxTotalDebtUsd).toBe(0);
     expect(result.availableToBorrowUsd).toBe(0);
   });
 
@@ -75,7 +69,6 @@ describe("calculateBorrowCapacityUsd", () => {
       liquidationThresholdBps: 0,
     });
 
-    expect(result.maxTotalDebtUsd).toBe(0);
     expect(result.availableToBorrowUsd).toBe(0);
   });
 
@@ -86,10 +79,9 @@ describe("calculateBorrowCapacityUsd", () => {
       liquidationThresholdBps: 7500,
     });
 
-    const expectedMaxTotalDebtUsd =
+    const expectedAvailableToBorrowUsd =
       ((10000 * 7500) / BPS_SCALE / MIN_HEALTH_FACTOR_FOR_BORROW) *
       (1 - BORROW_CAPACITY_HEADROOM);
-    expect(result.maxTotalDebtUsd).toBe(expectedMaxTotalDebtUsd);
-    expect(result.availableToBorrowUsd).toBe(expectedMaxTotalDebtUsd);
+    expect(result.availableToBorrowUsd).toBe(expectedAvailableToBorrowUsd);
   });
 });

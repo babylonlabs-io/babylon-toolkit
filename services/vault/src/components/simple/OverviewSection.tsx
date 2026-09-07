@@ -21,8 +21,6 @@ interface OverviewSectionProps {
   totalBorrowed: string;
   availableToBorrow: string;
   collateralBtc: string;
-  availableMeterPercent: number;
-  borrowedMeterPercent: number;
   borrowCapacityLoading: boolean;
   borrowCapacityError: Error | null;
   onDeposit: () => void;
@@ -39,8 +37,6 @@ export function OverviewSection({
   totalBorrowed,
   availableToBorrow,
   collateralBtc,
-  availableMeterPercent,
-  borrowedMeterPercent,
   borrowCapacityLoading,
   borrowCapacityError,
   onDeposit,
@@ -61,16 +57,21 @@ export function OverviewSection({
       {
         label: COPY.overview.totalCollateralValueLabel,
         value: totalCollateralValue,
-        caption: collateralBtc,
+        valueNode: (
+          <span>
+            {totalCollateralValue}{" "}
+            <span className="text-sm leading-[1.43] tracking-[0.17px] text-accent-secondary">
+              {collateralBtc}
+            </span>
+          </span>
+        ),
         actionLabel: COPY.overview.depositAction,
         onAction: onDeposit,
         actionDisabled: isDepositDisabled,
       },
       ...buildBorrowCapacityCards({
         availableToBorrow,
-        availableMeterPercent,
         totalBorrowed,
-        borrowedMeterPercent,
         borrowCapacityLoading,
         borrowCapacityError,
         onBorrow,
@@ -85,13 +86,11 @@ export function OverviewSection({
       onDeposit,
       isDepositDisabled,
       availableToBorrow,
-      availableMeterPercent,
       borrowCapacityLoading,
       borrowCapacityError,
       onBorrow,
       canBorrow,
       totalBorrowed,
-      borrowedMeterPercent,
       onRepay,
       canRepay,
     ],

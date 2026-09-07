@@ -202,7 +202,6 @@ vi.mock("../../useUTXOs", () => ({
         confirmed: true,
       },
     ],
-    confirmedBalance: 800000n,
     unconfirmedBalance: 0n,
     isLoading: false,
     isLoadingOrdinals: false,
@@ -476,7 +475,6 @@ describe("useDepositPageForm", () => {
         },
       ],
       ordinalsCheckPending: false,
-      confirmedBalance: 800000n,
       unconfirmedBalance: 0n,
     } as unknown as ReturnType<typeof useUTXOs>);
   });
@@ -548,63 +546,40 @@ describe("useDepositPageForm", () => {
       expect(result.current.btcBalance).toBe(800000n);
     });
 
+    it("derives btcBalance from availableUTXOs only", () => {
+      vi.mocked(useUTXOs).mockReturnValue({
+        allUTXOs: [
+          {
+            txid: "0x789",
+            vout: 0,
+            value: 900000,
+            scriptPubKey: "0xaaa",
+            confirmed: false,
+          },
+        ],
+        availableUTXOs: [],
+        spendableMempoolUTXOs: [
+          {
+            txid: "0x789",
+            vout: 0,
+            value: 900000,
+            scriptPubKey: "0xaaa",
+            confirmed: true,
+          },
+        ],
+        ordinalsCheckPending: false,
+        unconfirmedBalance: 900000n,
+      } as unknown as ReturnType<typeof useUTXOs>);
+
+      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+
+      expect(result.current.btcBalance).toBe(0n);
+    });
+
     it("should format BTC balance correctly", () => {
       const { result } = renderHook(() => useDepositPageForm(), { wrapper });
 
       expect(result.current.btcBalanceFormatted).toBe(0.008);
-    });
-
-    it("flags hasUnconfirmedBalanceOnly when confirmed balance is zero but unconfirmed funds exist", () => {
-      vi.mocked(useUTXOs).mockReturnValue({
-        availableUTXOs: [],
-        spendableMempoolUTXOs: [],
-        ordinalsCheckPending: false,
-        confirmedBalance: 0n,
-        unconfirmedBalance: 50000n,
-      } as unknown as ReturnType<typeof useUTXOs>);
-
-      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
-
-      expect(result.current.btcBalance).toBe(0n);
-      expect(result.current.unconfirmedBalance).toBe(50000n);
-      expect(result.current.hasUnconfirmedBalanceOnly).toBe(true);
-    });
-
-    it("does not flag hasUnconfirmedBalanceOnly when confirmed balance is non-zero", () => {
-      vi.mocked(useUTXOs).mockReturnValue({
-        availableUTXOs: [
-          { txid: "0x123", vout: 0, value: 500000, scriptPubKey: "0xabc" },
-        ],
-        spendableMempoolUTXOs: [],
-        ordinalsCheckPending: false,
-        confirmedBalance: 500000n,
-        unconfirmedBalance: 50000n,
-      } as unknown as ReturnType<typeof useUTXOs>);
-
-      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
-
-      expect(result.current.btcBalance).toBe(500000n);
-      expect(result.current.hasUnconfirmedBalanceOnly).toBe(false);
-    });
-
-    it("does not flag hasUnconfirmedBalanceOnly when confirmed funds exist but are all inscriptions", () => {
-      // Spendable balance is zero because the only confirmed UTXO is an
-      // inscription (excluded from availableUTXOs), yet confirmed funds exist.
-      // The unconfirmed-only flag stays false because the Max tooltip must
-      // still explain the inscription adjustment.
-      vi.mocked(useUTXOs).mockReturnValue({
-        availableUTXOs: [],
-        spendableMempoolUTXOs: [],
-        ordinalsCheckPending: false,
-        confirmedBalance: 300000n,
-        unconfirmedBalance: 50000n,
-      } as unknown as ReturnType<typeof useUTXOs>);
-
-      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
-
-      expect(result.current.btcBalance).toBe(0n);
-      expect(result.current.unconfirmedBalance).toBe(50000n);
-      expect(result.current.hasUnconfirmedBalanceOnly).toBe(false);
     });
 
     it("should load applications", () => {

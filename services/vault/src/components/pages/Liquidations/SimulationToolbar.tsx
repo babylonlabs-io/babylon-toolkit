@@ -63,7 +63,7 @@ function PriceInput({
       onKeyDown={(e) => {
         if (e.key === "Enter") e.currentTarget.blur();
       }}
-      className="h-10 w-[110px] shrink-0 rounded-lg bg-secondary-highlight text-center text-base leading-[1.5] tracking-[0.15px] text-accent-primary outline-none focus:ring-1 focus:ring-secondary-strokeLight disabled:cursor-not-allowed disabled:text-accent-disabled"
+      className="h-10 w-[110px] shrink-0 rounded-lg bg-secondary-highlight text-center text-base leading-[1.5] tracking-[0.15px] text-accent-primary outline-none focus:ring-1 focus:ring-secondary-strokeLight disabled:cursor-not-allowed disabled:text-accent-secondary"
     />
   );
 }
@@ -147,7 +147,7 @@ export function SimulationToolbar({
         type="button"
         onClick={() => onPriceChange(livePrice)}
         disabled={!isSimulating}
-        className="h-10 w-[110px] shrink-0 rounded-lg bg-secondary-highlight text-base leading-[1.5] tracking-[0.15px] text-accent-primary transition-[filter] enabled:hover:brightness-110 disabled:cursor-not-allowed disabled:text-accent-disabled"
+        className="h-10 w-[110px] shrink-0 rounded-lg bg-secondary-highlight text-base leading-[1.5] tracking-[0.15px] text-accent-primary transition-[filter] enabled:hover:brightness-110 disabled:cursor-not-allowed disabled:text-accent-secondary"
       >
         {COPY.liquidations.reset}
       </button>

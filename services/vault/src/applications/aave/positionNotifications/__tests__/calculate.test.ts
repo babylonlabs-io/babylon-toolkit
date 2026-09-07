@@ -290,7 +290,7 @@ describe("golden vectors (reference scenario suite)", () => {
     // existing vault becomes protected.
     expect(result.suggestedNewVaultBtc).toBe(0.72);
     expect(getWarning(result.warnings, "cliff")?.suggestion).toContain(
-      "Adding a new BTCVault of 0.72 BTC enables partial liquidation.",
+      "Adding a new BTCVault of 0.72 BTC enables partial-position liquidation.",
     );
   });
 

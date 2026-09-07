@@ -183,8 +183,9 @@ export const COPY = {
       // recoverable. Lead with that before explaining what happened.
       activationIncomplete:
         "Your BTC is not lost. The peg-in was completed on Bitcoin, but the BTCVault was never activated. Click 'Withdraw' and the vault provider will send your BTC to your payout address.",
-      // Always-visible one-liner under the amount (the message above is
-      // tooltip-only); same reassuring tone.
+      // Always-visible one-liner under the amount; same reassuring tone. The
+      // full sentence above is tooltip-only, and the /vaults pending row no
+      // longer renders that tooltip.
       activationIncompleteSubtext:
         "Your BTC is not lost — withdraw to receive it back.",
       // Activation floor. Blocks lead because they are the fact the contract
@@ -197,8 +198,9 @@ export const COPY = {
       activationWindowTooltip:
         "Activation opens a short time after verification. This is a protocol requirement.",
       // Compact form for the always-visible slot under the amount. The full
-      // sentence stays in `message` (the info-icon tooltip); this is what a
-      // depositor sees without interacting, so it must survive `truncate`.
+      // sentence stays in `message`, which the /vaults pending row no longer
+      // surfaces, so this is the only form a depositor sees there and it must
+      // survive `truncate`.
       activationWindowSubtext: (blocks: number, minutes: number) =>
         `Opens in ${blocks} ${blocks === 1 ? "block" : "blocks"} (~${minutes} min)`,
       activationWindowSubtextUnknown: "Waiting for the activation window",
@@ -224,9 +226,9 @@ export const COPY = {
         "Refund transaction has been broadcast to Bitcoin. Waiting for on-chain confirmation...",
       refundComplete:
         "Your refund has been confirmed on Bitcoin. The locked BTC has returned to your wallet.",
-      // Longest sub-line the lifecycle rows render, so it sizes
-      // LIST_ROW_LEADING_COLUMN_CLASS's basis (components/shared/ListRow.tsx).
-      // Lengthening it here ellipses that cell unless the basis moves too.
+      // Longest sub-line the lifecycle rows render. It exceeds
+      // LIST_ROW_LEADING_COLUMN_CLASS's basis (components/shared/ListRow.tsx),
+      // so that cell truncates it rather than widening.
       refundMaturing: (blocks: number, hours: number) =>
         `Your refund will be claimable in ~${blocks} Bitcoin ${blocks === 1 ? "block" : "blocks"} (~${hours}h).`,
       refundMaturingUnknown: "Checking when your refund will be claimable...",
@@ -409,10 +411,6 @@ export const COPY = {
       },
       stepsCompleted: (completed: number, total: number) =>
         `${completed} of ${total} steps completed`,
-      // Inline prefix for the pending-deposit card's active-step label
-      // (e.g. "Step 6 of 15"). Sits before the bolded step label.
-      stepPrefix: (current: number, total: number) =>
-        `Step ${current} of ${total}`,
       defaultSuccessMessage: PRE_PEGIN_BROADCAST_CONFIRMATION_MESSAGE,
       doNotSpendWarning:
         "Do not spend the BTC used for this deposit until the transactions are confirmed.",
@@ -694,7 +692,7 @@ export const COPY = {
     },
     form: {
       computingAllocation: "Computing allocation...",
-      transactionReserveLabel: "Reserve Claimer UTXO",
+      transactionReserveLabel: "Depositor claim output",
       // Describes the real mechanism, and deliberately shares wording with
       // COPY.reclaim.review.description so the promise made at deposit time
       // and the action offered after settlement read as the same thing. Until
@@ -702,13 +700,10 @@ export const COPY = {
       // unused", which nothing in the app could actually do.
       transactionReserveTooltip:
         "A small portion of your deposit is reserved in a dedicated output to fund a future protocol claim transaction. If it goes unused, you can reclaim it from your BTCVault once the vault has settled.",
-      // The depositable maximum is labelled as the balance, with `maxTooltip`
-      // explaining the fee buffer / cap adjustments.
-      balanceLabel: "Balance",
-      maxTooltip: (opts: { hasSupplyCap: boolean }) =>
-        opts.hasSupplyCap
-          ? "Reserves a fee buffer, excludes inscription UTXOs, and stays within the supply cap."
-          : "Reserves a fee buffer and excludes inscription UTXOs.",
+      // Labeled "Available", not "Balance": the field shows the depositable
+      // maximum — the wallet balance net of the fee buffer, inscription UTXOs
+      // and the supply cap — not the raw wallet balance.
+      balanceLabel: "Available",
       pendingConfirmationNotice: (amount: string) =>
         `${amount} pending confirmation`,
       pendingConfirmationTooltip:
@@ -740,15 +735,16 @@ export const COPY = {
       providerLastDepositLabel: "Last deposit",
       providerStatusActive: "Active",
       // Fee-breakdown lines (DepositFeesBreakdown) shown before the user
-      // submits. The commission label appends the percent, e.g. "VP commission
-      // (2.50%)"; net payout is the deposit minus that commission.
+      // submits. The commission label appends the percent, e.g. "Vault
+      // Provider commission (2.50%)"; net payout is the deposit minus that
+      // commission.
       networkFeeRateLabel: "Network Fee Rate",
       networkFeeRateTooltip:
-        "Bitcoin network fee rate for your pre-pegin funding transaction. Raise it during congestion so the transaction confirms sooner.",
+        "Bitcoin network fee rate for your Pre-Pegin funding transaction. Raise it during congestion so the transaction confirms sooner.",
       btcNetworkFeeLabel: "BTC Network Fee",
       btcNetworkFeeTooltip:
-        "Estimated Bitcoin miner fee for the pre-pegin funding transaction at the selected fee rate.",
-      vpCommissionLabel: "VP commission",
+        "Estimated Bitcoin miner fee for the Pre-Pegin funding transaction at the selected fee rate.",
+      vpCommissionLabel: "Vault Provider commission",
       vpCommissionTooltip:
         "The vault provider's fee, deducted from your payout when you redeem. Set by the vault provider and shown here before you deposit.",
       netPayoutLabel: "Net payout",
@@ -794,7 +790,7 @@ export const COPY = {
         };
       },
       splitOptionDescription:
-        "Split your BTC into two BTCVaults to enable partial liquidation.",
+        "Split your BTC into two BTCVaults to enable partial-position liquidation.",
       noSplitOptionDescription:
         "Your BTC will be deposited into a single BTCVault.",
       // "Learn more here." link appended to the split-option description in
@@ -997,7 +993,7 @@ export const COPY = {
       },
       participantKeyDrift: {
         title: "Vault operator keys changed",
-        body: "A vault operator rotated its Bitcoin key while your deposit was being registered, so the registered vault no longer matches the transaction we prepared. Your Pre-PegIn was not broadcast and no Bitcoin was spent. The registered vault will time out on its own — please start a new deposit.",
+        body: "A vault operator rotated its Bitcoin key while your deposit was being registered, so the registered vault no longer matches the transaction we prepared. Your Pre-Pegin was not broadcast and no Bitcoin was spent. The registered vault will time out on its own — please start a new deposit.",
       },
       wrongWalletAccount: {
         title: "Wrong wallet account",
@@ -1227,6 +1223,7 @@ export const COPY = {
     checking: "Checking...",
     transactionFailedTitle: "Transaction failed",
     dismissNotification: "Dismiss notification",
+    aaveWordmark: "Aave",
     somethingWentWrong: {
       heading: SOMETHING_WENT_WRONG_HEADING,
       body: "Please close this and try again in a moment.",
@@ -1871,12 +1868,6 @@ export const COPY = {
     depositAction: "Deposit",
     borrowAction: "Borrow",
     repayAction: "Repay",
-    availableMeterLabel: (percent: number) => `${percent}% remaining`,
-    borrowedMeterLabel: (percent: number) => `${percent}% borrowed`,
-    availableMeterNearFullLabel: ">99% remaining",
-    borrowedMeterBelowOneLabel: "<1% borrowed",
-    availableMeterBelowOneLabel: "<1% remaining",
-    borrowedMeterNearFullLabel: ">99% borrowed",
     liquidationPriceLabel: "Liquidation price",
     pctToLiquidationLabel: "% to liquidation",
     disconnected: {
@@ -1895,10 +1886,10 @@ export const COPY = {
         rest: " trustlessly.",
       },
       heroBody:
-        "Powered by Babylon Trustless Bitcoin Vaults protocol, collateralize native Bitcoin and borrow stablecoins or WBTC directly from Aave V4.",
+        "Powered by Babylon Trustless Bitcoin Vaults protocol, collateralize native Bitcoin and borrow supported assets directly from Aave V4.",
       connectButton: "Connect Wallet",
       aprHeading: "Current Borrowing Rates",
-      aprSuffix: "p.a.",
+      aprSuffix: "APR",
       aprLabels: {
         usdt: "USDT",
         usdc: "USDC",
@@ -1917,21 +1908,13 @@ export const COPY = {
           title: "Competitive borrowing rates",
           body: "Access to Aave V4 liquidity & its transparent, market-based variable rates.",
         },
-        fastAccess: {
-          title: "Fast access to liquidity",
-          body: "Vault setup and borrowing complete in about 3 hours.",
-        },
         partialLiquidation: {
           title: "Partial liquidation supported",
-          body: "for any loan position backed by multiple trustless Bitcoin vaults.",
+          body: "Splitting your deposit between two Bitcoin vaults in accordance with Aave's parameters will allow you to retain part of your position during the first liquidation.",
         },
         selfCustodial: {
           title: "Native, trustless, and self-custodial",
-          body: "No bridging. No wrapping. No pooled custody. Your native Bitcoin stays in a self-custodial vault — with no third party or signing quorum able to move or rehypothecate it.",
-        },
-        trustless: {
-          title: "Verifiable, permissionless execution",
-          body: "Collateral rules are enforced by code and cryptographic proofs — not by discretionary gatekeepers, committees, or off-chain liquidation decisions.",
+          body: "No bridging. No wrapping. No pooled custody. Your native Bitcoin stays in a self-custodial vault, with no third party able to move it.",
         },
       },
     },
@@ -1945,6 +1928,10 @@ export const COPY = {
       disconnected: connectToView("BTCVaults"),
       depositAction: "Deposit",
     },
+    // Sub-line under a pending row's amount: the machine-paced wait left
+    // before the deposit activates.
+    pendingActivationEstimate: (duration: string) =>
+      `Activates in ~${duration}`,
     loadError:
       "We couldn't load your BTCVaults. Check your connection and try again.",
     partialLoadError: {
@@ -1955,8 +1942,6 @@ export const COPY = {
       totalCollateralLabel: "Total Collateral Value",
       activeVaultsLabel: "Active Vaults",
       healthFactorLabel: "Health Factor",
-      healthFactorCaption:
-        "When the ratio falls below 1.0, liquidation may occur.",
       vaultCount: (count: number) =>
         count === 1 ? "1 Vault" : `${count} Vaults`,
       // e.g. "Order: 0.6 → 0.2 → 0.4 sBTC" — liquidation order, seized-first
@@ -2092,14 +2077,15 @@ export const COPY = {
     minForSplit: {
       label: "Effective Minimum for Split",
       tooltip:
-        "The minimum amount of BTC required to enable partial liquidation via splitting a deposit into two BTCVaults.",
+        "The minimum amount of BTC required to enable partial-position liquidation via splitting a deposit into two BTCVaults.",
     },
     ltv: {
       label: "Collateral Factor",
     },
     liquidationThreshold: {
       label: "Target Health Factor",
-      tooltip: "The ideal health factor to restore during liquidation",
+      tooltip:
+        "The health factor the protocol aims to restore after partial-position liquidation.",
     },
     maxLiquidationPenalty: {
       label: "Max Liquidation Penalty",
@@ -2180,7 +2166,7 @@ export const COPY = {
       // Variant A (#1948): an affordable sacrificial vault buffers the existing
       // position. The amount lives here; the CTA label stays generic.
       addSacrificialSuggestion: (sacrificialBtc: string) =>
-        `Adding a new BTCVault of ${sacrificialBtc} BTC enables partial liquidation.`,
+        `Adding a new BTCVault of ${sacrificialBtc} BTC enables partial-position liquidation.`,
       // Variant B (#1949): the single vault is too large to buffer cheaply —
       // withdraw it and re-deposit as two smaller vaults instead.
       withdrawResplitSuggestion: (
@@ -2188,7 +2174,7 @@ export const COPY = {
         sacrificialBtc: string,
         protectedBtc: string,
       ) =>
-        `To enable partial liquidation, withdraw your ${withdrawBtc} BTC and re-deposit as two smaller BTCVaults: ${sacrificialBtc} BTC + ${protectedBtc} BTC. Alternatively: add collateral or repay debt to manage the liquidation.`,
+        `To enable partial-position liquidation, withdraw your ${withdrawBtc} BTC and re-deposit as two smaller BTCVaults: ${sacrificialBtc} BTC + ${protectedBtc} BTC. Alternatively: add collateral or repay debt to manage the liquidation.`,
       // Protocol params disallow splitting entirely — no re-split is possible.
       noSplitSuggestion:
         "Current protocol parameters do not allow BTCVault splitting as a protection strategy. Add collateral or repay part of the debt to keep this position safe.",
@@ -2197,7 +2183,7 @@ export const COPY = {
       // apply when you already hold multiple vaults.
       twoVault: {
         enablePartial: (deficitBtc: string, largestName: string) =>
-          `To enable partial liquidation, add ≥ ${deficitBtc} BTC alongside ${largestName}. `,
+          `To enable partial-position liquidation, add ≥ ${deficitBtc} BTC alongside ${largestName}. `,
         suggestion: (targetSeizureBtc: string, enablePartialStr: string) =>
           `Neither BTCVault alone covers the target seizure (${targetSeizureBtc} BTC). ${enablePartialStr}You can also add collateral or repay part of the debt to keep this position safe. Alternatively: repay the loan, split BTC into optimal UTXOs, and re-open with a new BTCVault.`,
       },

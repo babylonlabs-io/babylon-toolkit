@@ -37,11 +37,6 @@ export interface DepositAmountState {
   btcBalance: bigint;
   /** Total value of unconfirmed (in-mempool) UTXOs in satoshis. Display-only. */
   unconfirmedBalance: bigint;
-  /**
-   * True when the confirmed balance is zero but unconfirmed funds exist, so the
-   * depositable maximum is zero and the "Max" tooltip has nothing to describe.
-   */
-  hasUnconfirmedBalanceOnly: boolean;
   minDeposit: bigint;
   maxDeposit?: bigint;
   /**
@@ -207,7 +202,6 @@ export function DepositForm({
     amountSats,
     btcBalance,
     unconfirmedBalance,
-    hasUnconfirmedBalanceOnly,
     minDeposit,
     maxDeposit,
     maxDepositSats,
@@ -330,12 +324,6 @@ export function DepositForm({
       </span>
     ) : null;
 
-  const maxTooltip = hasUnconfirmedBalanceOnly
-    ? undefined
-    : COPY.deposit.form.maxTooltip({
-        hasSupplyCap: effectiveRemaining !== null,
-      });
-
   // Commission (bps) shown for the selected provider. Drives the fee breakdown
   // and gates the CTA: a selected provider whose commission hasn't loaded
   // cannot be quoted, so the deposit must wait for it.
@@ -422,7 +410,6 @@ export function DepositForm({
           rightField={{
             label: COPY.deposit.form.balanceLabel,
             value: maxDepositLabel,
-            tooltip: maxTooltip,
           }}
           maxPosition="right"
           onMaxClick={onMaxClick}
