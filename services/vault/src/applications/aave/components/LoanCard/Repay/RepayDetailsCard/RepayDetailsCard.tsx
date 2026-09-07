@@ -46,10 +46,7 @@ export function RepayDetailsCard({
   return (
     <SubSection className="w-full flex-col gap-4 !bg-secondary-highlight">
       <div className={ROW_CLASS}>
-        <div className="flex items-center gap-1 text-accent-secondary">
-          {COPY.loans.debtLabel}
-          <Hint tooltip={COPY.loans.debtTooltip} />
-        </div>
+        <span className="text-accent-secondary">{COPY.loans.debtLabel}</span>
         <span className="text-accent-primary">
           {debtOriginal ? (
             <span className="flex items-center gap-2">

@@ -1,4 +1,10 @@
-import { isAccountChangeEvent, DISCONNECT_EVENT, removeProviderListener } from "@/constants/walletEvents";
+import {
+  DISCONNECT_EVENT,
+  NETWORK_CHANGE_EVENT,
+  isAccountChangeEvent,
+  removeProviderListener,
+  trackProviderIdentityChanges,
+} from "@/constants/walletEvents";
 import type { BTCConfig, IBTCProvider, InscriptionIdentifier, SignPsbtOptions, WalletInfo } from "@/core/types";
 import { Network } from "@/core/types";
 import { mapSignInputsToToSignInputs } from "@/core/utils/psbtOptionsMapper";
@@ -34,6 +40,10 @@ export class OneKeyProvider implements IBTCProvider {
   private versionChecked = false;
   private walletInfo: WalletInfo | undefined;
   private config: BTCConfig;
+  private identityVersion = 0;
+  private walletInfoIdentityVersion = -1;
+  private tracksIdentityChanges = false;
+  private identityEventsTracked = false;
 
   constructor(wallet: any, config: BTCConfig) {
     this.config = config;
@@ -63,9 +73,7 @@ export class OneKeyProvider implements IBTCProvider {
 
   connectWallet = async (): Promise<void> => {
     try {
-      await withTimeout(this.provider.connectWallet(), ONEKEY_PROMPT_TIMEOUT_MS, () =>
-        this.timeoutError("connecting"),
-      );
+      await withTimeout(this.provider.connectWallet(), ONEKEY_PROMPT_TIMEOUT_MS, () => this.timeoutError("connecting"));
     } catch (error) {
       if (error instanceof WalletError) throw error;
 
@@ -98,6 +106,8 @@ export class OneKeyProvider implements IBTCProvider {
     // prompt in the connect UI rather than failing later mid-deposit.
     await this.ensureSupportedVersion();
 
+    this.trackIdentityChanges();
+    const identityVersion = this.identityVersion;
     const address = await withTimeout<string>(this.provider.getAddress(), ONEKEY_RPC_TIMEOUT_MS, () =>
       this.timeoutError("reading the address"),
     );
@@ -110,6 +120,7 @@ export class OneKeyProvider implements IBTCProvider {
         publicKeyHex,
         address,
       };
+      this.walletInfoIdentityVersion = identityVersion;
     } else {
       throw new WalletError({
         code: ERROR_CODES.CONNECTION_FAILED,
@@ -117,6 +128,17 @@ export class OneKeyProvider implements IBTCProvider {
         wallet: WALLET_PROVIDER_NAME,
       });
     }
+  };
+
+  isIdentityCurrent = (): boolean =>
+    this.identityEventsTracked && this.walletInfoIdentityVersion === this.identityVersion;
+
+  private trackIdentityChanges = (): void => {
+    if (this.tracksIdentityChanges) return;
+    this.identityEventsTracked = trackProviderIdentityChanges(this.provider, () => {
+      this.identityVersion += 1;
+    });
+    this.tracksIdentityChanges = this.identityEventsTracked;
   };
 
   // Reads the OneKey app/extension version from `$onekey.$walletInfo.version`.
@@ -379,6 +401,10 @@ export class OneKeyProvider implements IBTCProvider {
       return this.provider.on("accountsChanged", callBack);
     }
 
+    if (eventName === NETWORK_CHANGE_EVENT) {
+      return this.provider.on(NETWORK_CHANGE_EVENT, callBack);
+    }
+
     if (eventName === DISCONNECT_EVENT) {
       return this.provider.on(DISCONNECT_EVENT, callBack);
     }
@@ -395,6 +421,10 @@ export class OneKeyProvider implements IBTCProvider {
     // OneKey uses "accountsChanged" for account change events
     if (isAccountChangeEvent(eventName)) {
       return removeProviderListener(this.provider, "accountsChanged", callBack);
+    }
+
+    if (eventName === NETWORK_CHANGE_EVENT) {
+      return removeProviderListener(this.provider, NETWORK_CHANGE_EVENT, callBack);
     }
 
     if (eventName === DISCONNECT_EVENT) {
@@ -449,14 +479,10 @@ export class OneKeyProvider implements IBTCProvider {
       // imported, and watch-only accounts reject before the approval dialog with
       // methodNotSupported. Surface the typed capability error so callers branch
       // on it deterministically instead of the raw "Method not supported." string.
-      if (
-        (error as { code?: number } | undefined)?.code ===
-        ONEKEY_METHOD_NOT_SUPPORTED_CODE
-      ) {
+      if ((error as { code?: number } | undefined)?.code === ONEKEY_METHOD_NOT_SUPPORTED_CODE) {
         throw new WalletError({
           code: ERROR_CODES.WALLET_METHOD_NOT_SUPPORTED,
-          message:
-            "This OneKey account does not support deriveContextHash. Connect a OneKey app (HD) wallet account.",
+          message: "This OneKey account does not support deriveContextHash. Connect a OneKey app (HD) wallet account.",
           wallet: WALLET_PROVIDER_NAME,
         });
       }

@@ -114,7 +114,7 @@ export const DEBUG_PRESETS: DebugPreset[] = [
     },
   },
   {
-    label: "Too many vaults",
+    label: "Too many BTCVaults",
     expectedSeverity: "yellow",
     params: {
       btcPrice: 90000,

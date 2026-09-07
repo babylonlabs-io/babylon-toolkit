@@ -31,14 +31,6 @@ vi.mock("@babylonlabs-io/babylon-tbv-rust-wasm", () => ({
   createPrePeginTransaction: vi.fn(),
   peginP2aAnchorOutput: peginP2aAnchorOutputMock,
   validatePeginP2aAnchor: validatePeginP2aAnchorMock,
-  // Real NUMS constant (BIP-341 lift_x example) — the claim-script
-  // derivation under test must use the byte-identical internal key.
-  tapInternalPubkey: new Uint8Array(
-    Buffer.from(
-      "50929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfee9ace803ac0",
-      "hex",
-    ),
-  ),
 }));
 
 import { buildPeginTxFromFundedPrePegin, type PrePeginParams } from "../pegin";

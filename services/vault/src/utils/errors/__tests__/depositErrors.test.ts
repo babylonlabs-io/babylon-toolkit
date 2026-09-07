@@ -110,6 +110,66 @@ describe("mapDepositError", () => {
     expect(mapDepositError(err)).toEqual(ERRORS.versionMismatch);
   });
 
+  it("maps a pre-signing config drift to the nothing-was-spent callout", () => {
+    const err = new Error("Protocol parameters changed while preparing");
+    err.name = "BuildConfigDriftError";
+    expect(mapDepositError(err)).toEqual(ERRORS.versionMismatchBeforeSigning);
+  });
+
+  it("maps an amount-bounds drift to the deposit-limits callout", () => {
+    const err = Object.assign(new Error("Deposit limits changed"), {
+      name: "BuildLimitsDriftError",
+      reason: "amount-bounds",
+    });
+    expect(mapDepositError(err)).toEqual(ERRORS.depositLimitsChanged);
+  });
+
+  it("maps a vault-count drift to the BTCVault-limit callout", () => {
+    // Different instruction: stop splitting, rather than change the amount.
+    const err = Object.assign(new Error("Deposit limits changed"), {
+      name: "BuildLimitsDriftError",
+      reason: "vault-count",
+    });
+    expect(mapDepositError(err)).toEqual(ERRORS.vaultCountLimitChanged);
+  });
+
+  it("falls back to the amount-bounds callout when the reason did not survive", () => {
+    // A structurally-cloned error matches by name but loses its fields. Both
+    // callouts send the depositor back to the form, so the common case is the
+    // safe default — but it must be a decision, not an accident.
+    const err = new Error("Deposit limits changed while preparing");
+    err.name = "BuildLimitsDriftError";
+    expect(mapDepositError(err)).toEqual(ERRORS.depositLimitsChanged);
+  });
+
+  it("hides an internal precondition message behind the generic callout", () => {
+    // The message names a function; the depositor must not see it, but a bug
+    // report still needs it, so it survives in diagnostics.
+    const err = new Error(
+      "assertBuildWithinPinnedLimits requires at least one vault amount",
+    );
+    err.name = "BuildPreconditionError";
+    const mapped = mapDepositError(err);
+    expect(mapped.body).toBe(ERRORS.genericBody);
+    expect(mapped.body).not.toContain("assertBuildWithinPinnedLimits");
+    expect(mapped.diagnostics).toContain("assertBuildWithinPinnedLimits");
+  });
+
+  it("keeps the two pre-signing aborts distinct from the post-registration one", () => {
+    // The post-registration mismatch has already spent the ETH fee and left a
+    // vault stranded until it times out; the two above have spent nothing.
+    // Sharing one callout across all three would tell the depositor the cheap
+    // failure cost them what the expensive one does.
+    const registered = new Error("on-chain version differs");
+    registered.name = "RegisteredVaultVersionMismatchError";
+    const preSigning = new Error("parameters changed");
+    preSigning.name = "BuildConfigDriftError";
+
+    expect(mapDepositError(registered)).not.toEqual(
+      mapDepositError(preSigning),
+    );
+  });
+
   it("maps a wallet account change to the account-changed callout", () => {
     const err = new Error(
       "BTC wallet account changed during deposit flow. Please restart.",

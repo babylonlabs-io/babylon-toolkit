@@ -3,12 +3,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { ETHConfig } from "@/core/types";
 
-// The provider is constructed eagerly by `createWallet` (metadata has
-// `wallet: undefined`), so its constructor must tolerate AppKit init not
-// having run yet. The wagmi actions are mocked so the tests can observe
-// whether the constructor attached the account/chain watchers; the AppKit
-// modal module is mocked to keep the heavy `@reown/appkit` graph out of the
-// unit-test environment.
+// `createWallet` constructs the provider before AppKit initialization.
+// The mocks show whether the constructor attached the watchers.
+// They also keep the heavy `@reown/appkit` graph out of this test.
 const wagmiActions = vi.hoisted(() => ({
   getAccount: vi.fn(() => ({
     address: undefined,
@@ -39,7 +36,10 @@ vi.mock("wagmi/connectors", () => ({
 }));
 
 vi.mock("@/core/wallets/appkit/state", () => ({
+  getAppKitState: vi.fn(() => null),
   getAppKitModal: vi.fn(() => null),
+  // This provider test bypasses mode exclusivity. Initialization tests cover this guard.
+  registerManualAppKitConfig: vi.fn(),
 }));
 
 const ethConfig: ETHConfig = {
@@ -112,6 +112,18 @@ describe("AppKitProvider — constructed after AppKit init (shared wagmi config 
       expect.objectContaining({ onChange: expect.any(Function) }),
     );
 
+    provider.destroy();
+  });
+
+  it("rejects when wagmi has no live chain", async () => {
+    vi.resetModules();
+    const { setSharedWagmiConfig } = await import("../sharedConfig");
+    const { AppKitProvider } = await import("../provider");
+
+    setSharedWagmiConfig({} as Config);
+    const provider = new AppKitProvider(ethConfig);
+
+    await expect(provider.getChainId()).rejects.toThrow("Wallet not connected");
     provider.destroy();
   });
 });

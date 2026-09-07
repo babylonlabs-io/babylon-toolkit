@@ -14,7 +14,7 @@ import {
   getAssertPayoutScriptInfo,
   tapInternalPubkey,
   type Network,
-} from "@babylonlabs-io/babylon-tbv-rust-wasm";
+} from "../../wasm";
 import { Psbt, Transaction, type TxInput, type TxOutput } from "bitcoinjs-lib";
 import { Buffer } from "buffer";
 import { deriveLocalChallengers } from "../challengers";

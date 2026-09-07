@@ -135,7 +135,7 @@ describe("RootLayout — header wiring", () => {
     const heading = screen.getByRole("heading", { level: 1 });
     expect(heading).toHaveTextContent(COPY.nav.overview);
     // The logo slot is the page title, not the BrandLockup wordmark.
-    expect(screen.queryByAltText("Aave")).not.toBeInTheDocument();
+    expect(screen.queryByRole("img", { name: "Aave" })).not.toBeInTheDocument();
     // Mainnet: NetworkBadge renders null.
     expect(
       screen.queryByText(COPY.header.networkBadge),
@@ -166,10 +166,9 @@ describe("RootLayout — header wiring", () => {
 
     expect(document.querySelector("aside")).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { level: 1 })).not.toBeInTheDocument();
-    // Aave rides in as its own image so it keeps its brand colours rather than
-    // inheriting the Babylon wordmark's `currentColor`. It appears nowhere
-    // else on this screen, so it also pins the lockup to the header.
-    expect(screen.getByAltText("Aave")).toBeInTheDocument();
+    // The Aave wordmark appears nowhere else on this screen, so it pins the
+    // lockup to the header.
+    expect(screen.getByRole("img", { name: "Aave" })).toBeInTheDocument();
     // Without a sidebar column to fill, the navbar takes the capped entry box.
     expect(
       container.querySelector(".\\!max-w-\\[1280px\\]"),

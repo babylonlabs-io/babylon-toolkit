@@ -26,9 +26,29 @@ export default defineConfig({
           __dirname,
           "src/tbv/core/utils/index.ts",
         ),
+        "tbv/core/utils/eth/index": path.resolve(
+          __dirname,
+          "src/tbv/core/utils/eth/index.ts",
+        ),
         "tbv/core/clients/index": path.resolve(
           __dirname,
           "src/tbv/core/clients/index.ts",
+        ),
+        "tbv/core/clients/eth/index": path.resolve(
+          __dirname,
+          "src/tbv/core/clients/eth/index.ts",
+        ),
+        "tbv/core/clients/mempool/index": path.resolve(
+          __dirname,
+          "src/tbv/core/clients/mempool/index.ts",
+        ),
+        "tbv/core/clients/vault-provider/status/index": path.resolve(
+          __dirname,
+          "src/tbv/core/clients/vault-provider/status/index.ts",
+        ),
+        "tbv/core/wasm/index": path.resolve(
+          __dirname,
+          "src/tbv/core/wasm/index.ts",
         ),
         "tbv/core/services/index": path.resolve(
           __dirname,
@@ -60,6 +80,7 @@ export default defineConfig({
         "bitcoinjs-lib",
         "@bitcoin-js/tiny-secp256k1-asmjs",
         "@babylonlabs-io/babylon-tbv-rust-wasm",
+        "@babylonlabs-io/babylon-tbv-rust-wasm/raw",
         "viem",
         "buffer",
       ],

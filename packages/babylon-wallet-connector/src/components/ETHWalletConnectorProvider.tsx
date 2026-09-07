@@ -1,4 +1,4 @@
-import { useMemo, type PropsWithChildren, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, type PropsWithChildren, type ReactNode } from "react";
 
 import { WalletDialog } from "@/components/WalletProvider/components/WalletDialog";
 import { ONE_HOUR } from "@/constants";
@@ -61,15 +61,35 @@ export function WalletProvider({
   );
   const storage = useMemo(() => createAccountStorage(ttl, networkMap), [ttl, networkMap]);
 
-  useMemo(() => {
-    if (!appKitConfig) return;
+  const appKitInitializationFailure = useMemo(() => {
+    if (!appKitConfig) return null;
 
     try {
       initializeAppKitModal(appKitConfig);
+      return null;
     } catch (error) {
-      onError?.(error instanceof Error ? error : new Error("Failed to initialize the Ethereum AppKit modal"));
+      return {
+        error:
+          error instanceof Error
+            ? error
+            : new Error("Failed to initialize the Ethereum AppKit modal", { cause: error }),
+      };
     }
-  }, [appKitConfig, onError]);
+  }, [appKitConfig]);
+
+  const reportedAppKitFailure = useRef<typeof appKitInitializationFailure>(null);
+
+  useEffect(() => {
+    if (!appKitInitializationFailure) {
+      reportedAppKitFailure.current = null;
+      return;
+    }
+
+    if (!onError || reportedAppKitFailure.current === appKitInitializationFailure) return;
+
+    reportedAppKitFailure.current = appKitInitializationFailure;
+    onError(appKitInitializationFailure.error);
+  }, [appKitInitializationFailure, onError]);
 
   useAppKitOpenListener();
 

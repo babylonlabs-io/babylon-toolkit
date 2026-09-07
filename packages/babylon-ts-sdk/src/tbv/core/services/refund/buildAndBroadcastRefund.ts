@@ -11,12 +11,13 @@
  */
 
 import type { Network } from "@babylonlabs-io/babylon-tbv-rust-wasm";
-import { Psbt, Transaction } from "bitcoinjs-lib";
+import { Transaction } from "bitcoinjs-lib";
 import type { Address, Hex } from "viem";
 
 import type { SignPsbtOptions } from "../../../../shared/wallets/interfaces/BitcoinWallet";
 import { findAuthAnchorOpReturn } from "../../managers/pegin";
 import { assertPsbtUnsignedTxMatches } from "../../primitives/psbt/assertPsbtUnsignedTxMatches";
+import { finalizeScriptPathWithSignatures } from "../../primitives/psbt/finalizeScriptPathWithSignatures";
 import { extractPayoutSignature } from "../../primitives/psbt/payout";
 import { buildRefundPsbt } from "../../primitives/psbt/refund";
 import { assertScriptPathSchnorrSignature } from "../../primitives/psbt/verifyScriptPathSchnorrSignature";
@@ -370,21 +371,6 @@ function validateRefundPrePeginContext(c: RefundPrePeginContext): void {
   }
 }
 
-function finalizeAndExtract(signedPsbtHex: string): string {
-  const psbt = Psbt.fromHex(signedPsbtHex);
-  try {
-    psbt.finalizeAllInputs();
-  } catch (e: unknown) {
-    // Some wallets (e.g. Keystone) finalize during signPsbt; bitcoinjs then
-    // throws "Input is already finalized". Treat that case as a no-op.
-    const message = e instanceof Error ? e.message : String(e);
-    if (!message.includes("already finalized")) {
-      throw new Error(`Failed to finalize refund PSBT: ${message}`);
-    }
-  }
-  return psbt.extractTransaction().toHex();
-}
-
 /**
  * Build, sign, and broadcast a refund transaction for an expired vault.
  *
@@ -570,7 +556,14 @@ export async function buildAndBroadcastRefund<
     inputIndex: REFUND_SIGNED_INPUT_INDEX,
   });
 
-  const signedTxHex = finalizeAndExtract(signedPsbtHex);
+  // Finalize the PSBT we built, not the one the wallet returned: only the
+  // verified signature above crosses over. See the primitive's header for what
+  // finalizing the wallet's copy would let through.
+  const signedTxHex = finalizeScriptPathWithSignatures({
+    requestedPsbtHex: psbtHex,
+    signaturesHex: [refundSignature],
+    signerXOnlyPubkeyHex: xOnlyDepositorPubkey,
+  });
   signal?.throwIfAborted();
 
   try {

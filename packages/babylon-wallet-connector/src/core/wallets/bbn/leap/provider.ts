@@ -88,8 +88,11 @@ export class LeapProvider implements IBBNProvider {
         }
       }
     }
-    const key = await this.wallet.getKey(this.chainId);
+    this.walletInfo = await this.getLiveWalletInfo();
+  }
 
+  private async getLiveWalletInfo(): Promise<WalletInfo> {
+    const key = await this.wallet.getKey(this.chainId!);
     if (!key)
       throw new WalletError({
         code: ERROR_CODES.FAILED_TO_GET_KEY,
@@ -100,7 +103,7 @@ export class LeapProvider implements IBBNProvider {
     const { bech32Address, pubKey } = key;
 
     if (bech32Address && pubKey) {
-      this.walletInfo = {
+      return {
         publicKeyHex: Buffer.from(key.pubKey).toString("hex"),
         address: bech32Address,
       };
@@ -120,7 +123,7 @@ export class LeapProvider implements IBBNProvider {
         message: "Wallet not connected",
         wallet: WALLET_PROVIDER_NAME,
       });
-    return this.walletInfo.address;
+    return (await this.getLiveWalletInfo()).address;
   }
 
   async getPublicKeyHex(): Promise<string> {
@@ -130,7 +133,7 @@ export class LeapProvider implements IBBNProvider {
         message: "Wallet not connected",
         wallet: WALLET_PROVIDER_NAME,
       });
-    return this.walletInfo.publicKeyHex;
+    return (await this.getLiveWalletInfo()).publicKeyHex;
   }
 
   async getWalletProviderName(): Promise<string> {

@@ -27,9 +27,18 @@ pnpm run build                        # Build all packages
 pnpm run lint                         # Lint all packages
 pnpm run test                         # Run all tests (vitest)
 pnpm --filter vault run dev           # Dev server for vault service
+
+# Regenerate the checked-in ts-sdk API docs. Required whenever the SDK's public
+# surface changes — a signature, a parameter, an exported type, or the JSDoc on
+# any of them.
+pnpm --filter @babylonlabs-io/ts-sdk run docs:clean
 ```
 
-Run `pnpm run lint` and `pnpm run test` in the affected service before considering work done.
+Run `pnpm run lint` and `pnpm run test` in the affected service before considering work done. If the change touched `packages/babylon-ts-sdk`'s public surface, run `docs:clean` as well and commit the regenerated `docs/api/` output.
+
+The `verify` CI job regenerates those docs and diffs them against what is committed, failing with *"Generated API docs are stale"*. It is easy to miss locally: `docs:clean` is not part of `build`, `lint` or `test`, so a change can be green on all three and still fail CI. Note also that the generator prints hundreds of pre-existing warnings about undocumented symbols — those are not the failure; only staleness is.
+
+Run the SDK's own `test` script rather than `vitest` directly when checking that package. `pnpm --filter @babylonlabs-io/ts-sdk run test` is `build && vitest run && node --test tests/wasm-facade.node.mjs`; invoking `vitest` alone skips the build and the WASM-facade pin check that CI runs.
 
 ---
 
@@ -37,11 +46,16 @@ Run `pnpm run lint` and `pnpm run test` in the affected service before consideri
 
 These paths handle irreversible value movement. An AI-generated mistake here is silent: code compiles, tests pass, wrong BTC amount ships. **Any change touching these files requires two reviewers, and the author must be able to explain every changed line without an AI assistant open.**
 
+The same rule covers `.github/CODEOWNERS` and `.github/workflows/critical-path-check.yml`.
+Each changed critical path requires two qualified code-owner approvals on the current commit.
+The required check reads owners from the base branch. #2359 stays open until a trusted external gate is required and verified.
+
 ### 1. WASM boundary (value computation)
 
-- File: `packages/babylon-tbv-rust-wasm/src/index.ts`
+- Files: `packages/babylon-tbv-rust-wasm/src/index.ts`, `packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/refund.ts`
 - The Rust/WASM layer computes `htlcValue = peginAmount + depositorClaimValue + p2aAnchorValue + minPeginFee` internally (the anchor term is 0 for tx-graph v1, 240 sats for v2 and v3). JS receives outputs with no runtime validation.
 - **Rule:** Every WASM output consumed by JS must be asserted against expected bounds before use. If a WASM-returned value feeds a signed transaction, cross-check it against an independently computed expected value.
+- The package exports a second crossing at `@babylonlabs-io/babylon-tbv-rust-wasm/raw` (`src/raw.ts`, `src/raw-node.ts`, registered in section 9). It hands out the wasm-bindgen classes with no facade value guards, so the rule above binds at the call site, not at the export. The only SDK consumer is `packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/refund.ts`. It guards `pegInAmounts` with `assertPositiveBigintArray`, compares the reconstructed template's HTLC scriptPubKey and HTLC value with the funded transaction output at `htlcVout`, and re-parses the built refund transaction to assert exactly 1 input (Pre-PegIn txid, index `htlcVout`) and exactly 1 output (the depositor's BIP-86 scriptPubKey, value `htlcValue - refundFee`) before it emits the PSBT. Every new `/raw` consumer must do equivalent cross-checks.
 
 ### 2. Fee calculation consistency
 
@@ -66,7 +80,8 @@ These paths handle irreversible value movement. An AI-generated mistake here is 
 - Files (all marked `@stability frozen` in JSDoc):
   - `packages/babylon-ts-sdk/src/tbv/core/vault-secrets/context.ts` — `buildVaultContext`, `buildFundingOutpointsCommitment`
   - `packages/babylon-ts-sdk/src/tbv/core/vault-secrets/deriveVaultRoot.ts` — `deriveVaultRoot`, `VAULT_APP_NAME`
-  - `packages/babylon-ts-sdk/src/tbv/core/vault-secrets/index.ts` — re-exports `expandAuthAnchor`, `expandHashlockSecret`, `expandWotsSeed` from the WASM package
+  - `packages/babylon-ts-sdk/src/tbv/core/vault-secrets/index.ts` — re-exports `expandAuthAnchor`, `expandHashlockSecret`, `expandWotsSeed` from the SDK's lazy WASM boundary
+  - `packages/babylon-ts-sdk/src/tbv/core/wasm/index.ts` — the lazy boundary's async wrappers for the three expanders; every SDK caller now reaches the WASM package through this hop (also registered in section 9)
   - `packages/babylon-tbv-rust-wasm/src/index.ts` — browser-side async wrappers for the three expanders
   - `packages/babylon-tbv-rust-wasm/src/index-node.ts` — node-side async wrappers for the three expanders
   - `packages/babylon-tbv-rust-wasm/scripts/build-wasm.js` — `VAULT_WASM_COMMIT` pin (the vault-wasm facade at this commit, and the btc-vault revs it bundles, are the byte-level source of truth for the HKDF `info` encoding, labels, and i2osp prefixes)
@@ -102,15 +117,16 @@ These paths handle irreversible value movement. An AI-generated mistake here is 
 
 ### 9. Dependency-free reimplementations of Bitcoin primitives
 
-These paths are registered ahead of the reimplementations landing (see #2228 / #2229). Separating the Ethereum-only paths from the Bitcoin stack means some primitives get reimplemented without `bitcoinjs-lib`, `tiny-secp256k1` or the WASM engine. Each one is small, and each one fails silently: the code compiles, the tests pass, and a wrong address or a wrong on-chain identifier ships.
+Separating the Ethereum-only paths from the Bitcoin stack reimplements some primitives without `bitcoinjs-lib`, `tiny-secp256k1` or the WASM engine (see #2228 / #2229). Each one is small, and each one fails silently: the code compiles, the tests pass, and a wrong address or a wrong on-chain identifier ships.
 
-- Files (all but the last arrive with the optional-BTC work):
+- Files (all are in the tree except `scriptPubKeyAddress.ts`, which is registered ahead of the remaining optional-BTC work):
   - `packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-transaction.ts` — transaction-id parsing and vault-id derivation, replacing the bitcoinjs and WASM implementations
   - `packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-registration-client.ts` — Ethereum-side registration extracted from `PeginManager`
+  - `packages/babylon-ts-sdk/src/tbv/core/clients/eth/payout-script.ts` - payout-script derivation without the Bitcoin stack
   - `packages/babylon-ts-sdk/src/tbv/core/wasm/` — the lazy boundary every WASM-computed value now crosses
   - `packages/babylon-tbv-rust-wasm/src/wasm-loader.ts`, `wasm-loader-node.ts`, `raw.ts`, `raw-node.ts` — the restructured engine entry surface (the `@stability frozen` rules in section 4 still apply)
-  - `services/vault/src/utils/btc/scriptPubKeyAddress.ts` — hand-written bech32, bech32m and base58check encoding
-  - `packages/babylon-ts-sdk/src/tbv/core/clients/eth/onChainBtcPubkey.ts` — already in the tree, and guarded from now rather than on arrival: it is the sole validator minting `OnChainBtcPubkey`, and the optional-BTC work replaces its `ecc.isXOnlyPoint` curve-membership check with hand-rolled field arithmetic
+  - `services/vault/src/utils/btc/scriptPubKeyAddress.ts` - hand-written bech32, bech32m and base58check encoding; registered ahead of arrival
+  - `packages/babylon-ts-sdk/src/tbv/core/clients/eth/onChainBtcPubkey.ts` - the sole validator minting `OnChainBtcPubkey`; the optional-BTC work replaced its `ecc.isXOnlyPoint` curve-membership check with hand-rolled field arithmetic
 - **Rule:** A reimplementation may not land without a differential test asserting byte-for-byte equality against the implementation it replaces, over the existing golden vectors **plus** randomised inputs. A single hardcoded vector is not sufficient — it pins one input, not the function. If the original is being deleted in the same change, the differential must run against it before deletion, and the vectors it produced must be committed as fixtures.
 
 ---

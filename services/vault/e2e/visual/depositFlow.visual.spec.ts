@@ -13,16 +13,21 @@
  * and that the same stop is photographed on both sides of the comparison.
  */
 
-import { test } from "../fixtures";
-import { connectInjectedWallets, injectPageWallets } from "../fixtures/pageWallets";
-import { RECORDED_DEPOSITOR } from "../fixtures/replay/contracts";
+import { expect, test } from "../fixtures";
+import {
+  connectInjectedWallets,
+  injectPageWallets,
+} from "../fixtures/pageWallets";
+import { FLUID_CTA_SELECTOR } from "../real/actions/selectors";
 
 import {
   assertRecordingCovered,
   capture,
   ensureOutputDir,
   preparePage,
+  recordedPageWallets,
   type StagedShot,
+  STEP_MARKER,
   writeCaptures,
 } from "./capture";
 import {
@@ -30,15 +35,6 @@ import {
   flowScreenshotFileName,
   VISUAL_VIEWPORTS,
 } from "./targets";
-
-import { MOCK_ENV_VARS } from "../../playwright.config";
-
-/**
- * Sepolia, as a hex quantity. Matches the chain the recording was made on and
- * the chain id the capture pins - a wallet reporting anything else puts a
- * "wrong network" banner across every screen below.
- */
-const SEPOLIA_CHAIN_ID_HEX = "0xaa36a7";
 
 /**
  * The amount typed into the form.
@@ -51,6 +47,27 @@ const SEPOLIA_CHAIN_ID_HEX = "0xaa36a7";
  */
 const AMOUNT_BELOW_SPLIT_MINIMUM_BTC = "0.005";
 
+/**
+ * The amount the form is submitted with.
+ *
+ * Above the deployment's 0.01 sBTC minimum deposit so the CTA enables - the
+ * hint amount above is below it, which is fine for a hint and not for a
+ * submit - below the balance so the form accepts it, and still below the
+ * two-vault minimum so the deposit stays a single vault. A split at this stop
+ * would need a balance the recording does not hold.
+ */
+const AMOUNT_TO_SUBMIT_BTC = "0.02";
+
+/**
+ * The provider accordion's header and its option rows, matched the way the
+ * real-wallet CLI matches them (`e2e/real/actions/pegin.ts`): the form has no
+ * testids, the header's accessible name is its copy
+ * (`COPY.deposit.form.selectVaultProvider`), and each row is a
+ * `button[aria-pressed]` that carries `disabled` when the app rejects it.
+ */
+const SELECT_PROVIDER_LABEL = "Select vault provider";
+const SELECTABLE_PROVIDER_ROW = "button[aria-pressed]:not([disabled])";
+
 for (const viewport of VISUAL_VIEWPORTS) {
   test(`capture the deposit flow at ${viewport.name}`, async ({ page }) => {
     await page.setViewportSize({
@@ -59,13 +76,7 @@ for (const viewport of VISUAL_VIEWPORTS) {
     });
 
     const backend = await preparePage(page);
-    await injectPageWallets(page, {
-      btcAddress: RECORDED_DEPOSITOR.BTC_ADDRESS,
-      btcPublicKeyHex: RECORDED_DEPOSITOR.BTC_PUBLIC_KEY,
-      ethAddress: RECORDED_DEPOSITOR.ETH_ADDRESS,
-      ethChainIdHex: SEPOLIA_CHAIN_ID_HEX,
-      ethRpcUrl: MOCK_ENV_VARS.NEXT_PUBLIC_ETH_RPC_URL,
-    });
+    await injectPageWallets(page, recordedPageWallets());
 
     const shots: StagedShot[] = [];
 
@@ -116,9 +127,31 @@ for (const viewport of VISUAL_VIEWPORTS) {
       ),
     );
 
+    // The last stop the injected wallets can reach. Submitting runs the
+    // wallet-liveness probe - a `requestAccounts` round-trip the fake UniSat
+    // answers - and opens the progress view in its pre-sign entry state; the
+    // "Sign Transaction" click that would follow is the first thing they
+    // refuse. The CTA relabels as the form validates and estimates fees and
+    // stays disabled throughout, so enabled is the one signal it is
+    // submittable; the first step marker is the progress view having taken
+    // the dialog over from the form.
+    await amountInput.fill(AMOUNT_TO_SUBMIT_BTC);
+    await dialog.getByRole("button", { name: SELECT_PROVIDER_LABEL }).click();
+    await dialog.locator(SELECTABLE_PROVIDER_ROW).first().click();
+    const submit = dialog.locator(FLUID_CTA_SELECTOR);
+    await expect(submit).toBeEnabled();
+    await submit.click();
+    await dialog.locator(STEP_MARKER).first().waitFor();
+    shots.push(
+      await capture(
+        page,
+        flowScreenshotFileName(DEPOSIT_FLOW_STOPS.signEntry, viewport),
+      ),
+    );
+
     // Deferred to the end because these two accumulate across the walk, where
     // the error-surface gates cannot and so run inside `capture()` per stop.
-    // Nothing has reached disk yet, so a failure here withholds all four
+    // Nothing has reached disk yet, so a failure here withholds all five
     // stops - which is what makes the capture step's `continue-on-error` safe.
     //
     // All four boundaries are named because this walk genuinely needs all

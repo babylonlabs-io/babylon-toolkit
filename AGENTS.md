@@ -21,3 +21,19 @@
 - The `nx-generate` skill handles generator discovery internally - don't call nx_docs just to look up generator syntax
 
 <!-- nx configuration end-->
+
+# GitHub writing
+
+Apply these rules to epics, issues, and pull request descriptions.
+
+- Write for a reader who is new to the codebase.
+- Put the outcome and current status first.
+- Use short sentences and common terms.
+- Keep one behavior or risk in each issue or pull request.
+- Link to details. Do not copy long technical context.
+- Use tables only for status, dependencies, or test results.
+- Keep parent trackers short. Link to focused child issues.
+- For issues, use: Outcome, Problem, Scope, Complete when, and Dependencies.
+- For pull requests, use: Outcome, Change, Safety, Verification, and Links.
+- Write `Tracks #N. #N stays open.` when the pull request is only part of the work.
+- Write `Closes #N` only when the pull request meets every completion condition.

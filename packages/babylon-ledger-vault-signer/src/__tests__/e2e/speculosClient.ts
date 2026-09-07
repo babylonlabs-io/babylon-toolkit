@@ -37,6 +37,19 @@ const EVENTS_POLL_TIMEOUT_MS = 10_000;
 /** The vault app's idle dashboard shows this line ("… app is ready"). */
 const IDLE_SCREEN_TEXT = "app is ready";
 
+/**
+ * SPECULOS_URL, or "" when unset — the value the e2e files' `skipIf` gates on.
+ * Under SPECULOS_REQUIRED (CI) an empty URL throws at module load instead, so
+ * a missing emulator fails the run rather than silently skipping it.
+ */
+export function readSpeculosUrl(): string {
+  const url = process.env.SPECULOS_URL ?? "";
+  if (url === "" && (process.env.SPECULOS_REQUIRED ?? "") !== "") {
+    throw new Error("SPECULOS_REQUIRED is set but SPECULOS_URL is empty — the Speculos e2e files cannot run");
+  }
+  return url;
+}
+
 function toHex(bytes: Uint8Array): string {
   return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
 }

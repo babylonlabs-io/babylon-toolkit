@@ -1,6 +1,4 @@
-// @ts-expect-error - WASM files are in dist/generated/ (checked into git), not src/generated/
-import { WasmAssertChallengeAssertConnector } from "./generated/vault_wasm.js";
-import { initWasm } from "./index.js";
+import { getWasmBindings } from "./wasm-loader.js";
 import type {
   ChallengeAssertConnectorParams,
   ChallengeAssertScriptInfo,
@@ -21,7 +19,7 @@ import type {
 export async function getChallengeAssertScriptInfo(
   params: ChallengeAssertConnectorParams,
 ): Promise<ChallengeAssertScriptInfo> {
-  await initWasm();
+  const { WasmAssertChallengeAssertConnector } = await getWasmBindings();
 
   const conn = new WasmAssertChallengeAssertConnector(
     params.txGraphVersion,

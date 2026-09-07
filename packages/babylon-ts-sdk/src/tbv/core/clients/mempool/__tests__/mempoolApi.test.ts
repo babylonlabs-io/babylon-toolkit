@@ -542,6 +542,28 @@ describe("getTipHeight", () => {
       /block tip height/i,
     );
   });
+
+  // Callers subtract this height from a confirmed block height to get a
+  // confirmation depth, so a value that parses but cannot be computed on is
+  // worse than a parse failure — it silently clears any depth threshold.
+  it("throws on a digit string that parses to Infinity", async () => {
+    mockFetch.mockResolvedValueOnce(textResponse("1".repeat(400)));
+    await expect(getTipHeight(API_URL)).rejects.toThrow(/block tip height/i);
+  });
+
+  it("throws on a digit string that parses beyond the safe integer range", async () => {
+    // 1e20 satisfies Number.isInteger, so an isInteger check would let it
+    // through and yield a confirmation depth around 1e20.
+    mockFetch.mockResolvedValueOnce(textResponse("9".repeat(20)));
+    await expect(getTipHeight(API_URL)).rejects.toThrow(/block tip height/i);
+  });
+
+  it("accepts a height at the top of the safe integer range", async () => {
+    mockFetch.mockResolvedValueOnce(
+      textResponse(String(Number.MAX_SAFE_INTEGER)),
+    );
+    await expect(getTipHeight(API_URL)).resolves.toBe(Number.MAX_SAFE_INTEGER);
+  });
 });
 
 describe("request timeout", () => {

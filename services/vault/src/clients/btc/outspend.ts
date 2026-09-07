@@ -9,6 +9,8 @@
 import { stripHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { getOutspend } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 
+import { normalizeChainHeight } from "@/models/reclaimEligibility";
+
 export interface HtlcSpend {
   /** True when the HTLC output has been spent (in the mempool or a block). */
   spent: boolean;
@@ -16,6 +18,12 @@ export interface HtlcSpend {
   confirmed: boolean;
   /** Spending (refund) transaction id, when spent. */
   spendingTxid?: string;
+  /**
+   * Height of the block containing the spending tx, when confirmed. Used by
+   * the reclaim gate, which needs confirmation depth rather than a boolean —
+   * see `models/reclaimEligibility`.
+   */
+  blockHeight?: number;
 }
 
 /**
@@ -36,5 +44,8 @@ export async function fetchHtlcSpend(
     spent: res.spent === true,
     confirmed: res.spent === true && res.status?.confirmed === true,
     spendingTxid: res.txid,
+    // `getOutspend` returns the parsed body verbatim, so the declared
+    // `number | undefined` is not a guarantee about the value.
+    blockHeight: normalizeChainHeight(res.status?.block_height),
   };
 }

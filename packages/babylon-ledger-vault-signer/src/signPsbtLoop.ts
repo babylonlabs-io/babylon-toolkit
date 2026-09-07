@@ -142,6 +142,9 @@ export async function runSignPsbtLoop(
       ...opts.appIdentity,
       ins: lastSentApdu.ins,
       p1: lastSentApdu.p1,
+      // Only the initial APDU's refusal proves no round ran; a lock on a
+      // CONTINUE leaves caps possibly committed, so it stays unproven.
+      preDispatch: lastSentApdu === signPsbtApdu,
     });
     // classifyStatusWord is undefined only for 0x9000, excluded above.
     if (terminal === undefined) {

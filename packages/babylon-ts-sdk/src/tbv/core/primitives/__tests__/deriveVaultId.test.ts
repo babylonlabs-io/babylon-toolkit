@@ -3,16 +3,11 @@
  * keccak256(abi.encode(peginTxHash, depositor))
  */
 
-import { beforeAll, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
-import { deriveVaultId } from "@babylonlabs-io/babylon-tbv-rust-wasm";
-import { initializeWasmForTests } from "../psbt/__tests__/helpers";
+import { deriveVaultId } from "../../wasm";
 
 describe("deriveVaultId", () => {
-  beforeAll(async () => {
-    await initializeWasmForTests();
-  });
-
   // Golden vector from btc-vault Rust tests (crates/eth-client/src/vault_id.rs)
   // peginTxHash = [0xab; 32], depositor = 0x1234567890abcdef1234567890abcdef12345678
   it("matches Solidity keccak256(abi.encode(peginTxHash, depositor)) golden vector", async () => {
@@ -78,7 +73,10 @@ describe("deriveVaultId", () => {
 
   it("throws on non-hex characters", async () => {
     await expect(
-      deriveVaultId("zz".repeat(32), "1234567890abcdef1234567890abcdef12345678"),
+      deriveVaultId(
+        "zz".repeat(32),
+        "1234567890abcdef1234567890abcdef12345678",
+      ),
     ).rejects.toThrow("Invalid hex string");
   });
 
@@ -98,8 +96,8 @@ describe("deriveVaultId", () => {
 
   it("throws when depositor is not 20 bytes", async () => {
     const shortAddr = "1234567890abcdef1234"; // 10 bytes
-    await expect(
-      deriveVaultId("ab".repeat(32), shortAddr),
-    ).rejects.toThrow("depositor must be 20 bytes, got 10");
+    await expect(deriveVaultId("ab".repeat(32), shortAddr)).rejects.toThrow(
+      "depositor must be 20 bytes, got 10",
+    );
   });
 });

@@ -12,11 +12,10 @@
 import { CHALLENGE_ASSERT_CONNECTORS_PER_CHALLENGER } from "../../primitives/psbt/constants";
 import {
   COMPRESSED_PUBKEY_HEX_LEN,
+  HEX_RE,
   X_ONLY_PUBKEY_HEX_LEN,
-} from "../../primitives/utils/bitcoin";
-import { HEX_RE } from "../../utils/validation";
+} from "../../utils/validation";
 
-import { DaemonStatus } from "./types";
 import type {
   BatchGetPeginStatusResponse,
   BatchGetPegoutStatusResponse,
@@ -25,6 +24,7 @@ import type {
   RequestDepositorClaimerArtifactsResponse,
   RequestDepositorPresignTransactionsResponse,
 } from "./types";
+import { DaemonStatus } from "./types";
 
 const DAEMON_STATUS_VALUES = new Set<string>(Object.values(DaemonStatus));
 

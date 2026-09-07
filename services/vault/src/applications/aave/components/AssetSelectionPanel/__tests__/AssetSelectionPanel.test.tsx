@@ -100,7 +100,7 @@ describe("AssetSelectionPanel", () => {
     expect(screen.getByText("Select asset")).toBeInTheDocument();
     // Borrow-only columns are present.
     expect(screen.getByText("Borrow APR")).toBeInTheDocument();
-    expect(screen.getByText("Available")).toBeInTheDocument();
+    expect(screen.getByText("Available Liquidity")).toBeInTheDocument();
     // Live data: a reserve row with its real (formatted) borrow APR.
     expect(screen.getByText("USD Coin")).toBeInTheDocument();
     expect(screen.getByText("3.5%")).toBeInTheDocument();
@@ -111,7 +111,7 @@ describe("AssetSelectionPanel", () => {
     expect(screen.getByText("1.23M WBTC")).toBeInTheDocument();
   });
 
-  it("hides the Available and Borrow APR columns in repay mode", () => {
+  it("hides the Available Liquidity and Borrow APR columns in repay mode", () => {
     renderPanel(
       <AssetSelectionPanel
         onSelectAsset={vi.fn()}
@@ -131,7 +131,7 @@ describe("AssetSelectionPanel", () => {
     expect(screen.getByText("Select asset")).toBeInTheDocument();
     expect(screen.getByText("USD Coin")).toBeInTheDocument();
     expect(screen.queryByText("Borrow APR")).not.toBeInTheDocument();
-    expect(screen.queryByText("Available")).not.toBeInTheDocument();
+    expect(screen.queryByText("Available Liquidity")).not.toBeInTheDocument();
   });
 
   it("omits the Market Info button in repay mode, which has no market data", () => {

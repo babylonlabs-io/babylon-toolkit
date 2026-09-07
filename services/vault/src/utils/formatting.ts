@@ -68,6 +68,21 @@ const BTC_FRACTIONAL_DIGITS = SATS_PER_BTC.toString().length - 1;
  *
  * @param sats - Total in satoshis. Zero or negative returns "0 BTC/sBTC".
  */
+/**
+ * Format a satoshi-denominated bigint as a grouped integer, e.g. `33,000`.
+ *
+ * Sub-BTC amounts like the depositor-claim reserve read better in whole sats
+ * than as `0.00033 BTC`. The unit itself lives in `copy.ts`, not here.
+ * Grouping is done on the bigint's own digits so totals beyond the JS
+ * safe-integer range stay exact.
+ */
+export function formatSats(sats: bigint): string {
+  const negative = sats < 0n;
+  const digits = (negative ? -sats : sats).toString();
+  const grouped = digits.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return negative ? `-${grouped}` : grouped;
+}
+
 export function formatBtcFromSats(sats: bigint): string {
   if (sats <= 0n) return `0 ${btcConfig.coinSymbol}`;
   const whole = sats / SATS_PER_BTC;
@@ -249,28 +264,6 @@ export function formatDisplayAmount(
   displayDecimals: number,
 ): string {
   return formatAmount(amount, amount >= 1 ? 2 : displayDecimals);
-}
-
-/**
- * Label for a progress meter whose fill is a 0–1 ratio, guarding the two
- * rounding edges so the text can't contradict a partial bar:
- *  - a non-zero ratio that rounds down to 0%   → `belowOne` (e.g. "<1% …")
- *  - a below-full ratio that rounds up to 100%  → `nearFull` (e.g. ">99% …")
- *  - otherwise the exact rounded percentage.
- */
-export function formatMeterLabel(
-  ratio: number,
-  labels: {
-    belowOne: string;
-    nearFull: string;
-    exact: (percent: number) => string;
-  },
-): string {
-  const percent = Math.round(Math.min(1, Math.max(0, ratio)) * 100);
-  const isPartial = ratio > 0 && ratio < 1;
-  if (isPartial && percent === 0) return labels.belowOne;
-  if (isPartial && percent === 100) return labels.nearFull;
-  return labels.exact(percent);
 }
 
 /**

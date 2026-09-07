@@ -84,6 +84,13 @@ export type InputSigExpectation =
 export interface ExpectedSignatureTable {
   /** inputIndex → expectation. Inputs absent here must never appear in a YIELD. */
   readonly byInput: ReadonlyMap<number, InputSigExpectation>;
+  /**
+   * The same classification BEFORE `signInputIndexes` narrowing — what the PSBT
+   * *is*, independent of what the caller asked to sign. Flow identity reads this
+   * (mixed-input gate, replay fingerprint) so a caller cannot reshape either by
+   * varying its options; expectations read {@link byInput}.
+   */
+  readonly classifiedByInput: ReadonlyMap<number, InputSigExpectation>;
   /** Σ over inputs: tapscript → |expectedLeafHashHexes|; keypath → 1. */
   readonly expectedYieldCount: number;
 }
@@ -126,6 +133,14 @@ export interface BuildExpectedSignatureTableParams {
   readonly psbt: ExpectedSignaturePsbt;
   /** Connected depositor x-only key (64 lowercase hex) — pins the table. */
   readonly depositorXOnlyHex: string;
+  /**
+   * Input indices the caller asked to sign. Narrows TAPSCRIPT expectations
+   * only: key-path expectations are never narrowed, because under a policy the
+   * base app picks the set. Every gate in this file still runs on EVERY input,
+   * and the indices themselves are range-checked. Omit to expect every
+   * device-signable input (the pre-#2281 behaviour); an empty array is rejected.
+   */
+  readonly signInputIndexes?: readonly number[];
 }
 
 /**
@@ -222,11 +237,43 @@ function assertControlBlockCommitsToLeaf(
  * spec §3.1; BIP-371 key types verified against `base:psbt.h:37-42`).
  * Throws `LedgerSignPsbtProtocolError` on any rule violation — all before any
  * device I/O.
+ *
+ * Carrying signing metadata is NOT the same as being signed: since #2281 Payout
+ * input 1 carries the Assert payout leaf purely so the device can display the
+ * terms, and the device never signs it. `signInputIndexes` separates the two.
+ *
+ * The signed index is a property of the loaded ceremony, NOT of the PSBT shape:
+ * `sign_custom_inputs` signs exactly ONE literal index per branch with no loop —
+ * 0 for PegIn/NoPayout/Payout/standalone (`fw:sign_custom_inputs.c:167,256,334,611`)
+ * but 1 for PayoutFinalize (`:467`), which is byte-identical in shape to a
+ * depositor Payout (2-in/2-out) and separated only by device state. So the
+ * requested set must come from the caller that knows the flow — it cannot be
+ * inferred here, and it must not be pinned to a constant.
+ * (`LedgerHQ/app-babylon-vault` @ `develop` 0468801138.)
  */
 export function buildExpectedSignatureTable(params: BuildExpectedSignatureTableParams): ExpectedSignatureTable {
-  const { psbt, depositorXOnlyHex } = params;
+  const { psbt, depositorXOnlyHex, signInputIndexes } = params;
   const byInput = new Map<number, InputSigExpectation>();
+  const classifiedByInput = new Map<number, InputSigExpectation>();
   const inputCount = psbt.getGlobalInputCount();
+  const requestedInputs = signInputIndexes === undefined ? undefined : new Set(signInputIndexes);
+  const isRequested = (inputIndex: number): boolean => requestedInputs === undefined || requestedInputs.has(inputIndex);
+  // "Sign nothing" is never a request a caller means: narrowing everything away
+  // would otherwise surface as "this PSBT has nothing to sign" and blame the PSBT.
+  if (requestedInputs?.size === 0) {
+    throw new LedgerSignPsbtProtocolError(
+      "signInputIndexes is empty — pass the indices to sign, or omit it to sign every device-signable input",
+    );
+  }
+  // Out of range is a different bug from "the builder left out metadata", and
+  // the requested-vs-classified loop below cannot tell them apart.
+  for (const inputIndex of requestedInputs ?? []) {
+    if (!Number.isInteger(inputIndex) || inputIndex < 0 || inputIndex >= inputCount) {
+      throw new LedgerSignPsbtProtocolError(
+        `input ${inputIndex} was requested for signing but this PSBT has ${inputCount} input(s)`,
+      );
+    }
+  }
 
   // Precompute the depositor-owned scriptPubKeys once for the ownership scan.
   const depositorP2trScript = bip86OutputScript(depositorXOnlyHex);
@@ -271,11 +318,17 @@ export function buildExpectedSignatureTable(params: BuildExpectedSignatureTableP
       const leafHash = tapLeafHash(TAPSCRIPT_LEAF_VERSION, script);
       // BIP-371 keyData of a TAP_LEAF_SCRIPT entry IS the control block.
       assertControlBlockCommitsToLeaf(inputIndex, leafEntries[0].keyData, leafHash, leafWitnessUtxo.scriptPubKey);
-      byInput.set(inputIndex, {
+      // Gated AFTER every structural gate above: a leaf we never sign is still
+      // a leaf the spent output must have committed to.
+      const tapscript: InputSigExpectation = {
         kind: "tapscript",
         expectedLeafHashHexes: new Set([leafHash.toString("hex")]),
         expectedSignerXOnlyHex: depositorXOnlyHex,
-      });
+      };
+      classifiedByInput.set(inputIndex, tapscript);
+      if (isRequested(inputIndex)) {
+        byInput.set(inputIndex, tapscript);
+      }
       continue;
     }
 
@@ -303,14 +356,18 @@ export function buildExpectedSignatureTable(params: BuildExpectedSignatureTableP
           `input ${inputIndex} witnessUtxo is not the BIP-86 P2TR of the depositor key`,
         );
       }
-      byInput.set(inputIndex, {
+      // NEVER narrowed: under a policy the base app signs every internal input
+      // (`base:sign_psbt.c:142-148`), so the device picks the set, not the caller.
+      const keypath: InputSigExpectation = {
         kind: "taproot-keypath",
         expectedOutputKeyHex: script.subarray(P2TR_SCRIPT_PREFIX.length).toString("hex"),
-      });
+      };
+      classifiedByInput.set(inputIndex, keypath);
+      byInput.set(inputIndex, keypath);
       continue;
     }
 
-    // Not signed by the device (Payout input 1, NoPayout inputs 1-2 today).
+    // No taproot signing metadata at all (NoPayout inputs 1-2 today).
     // Ownership scan: a depositor-owned UTXO here means our builder dropped
     // the device-required metadata — fail before burning a ceremony. Deliberately
     // limited to these inputs: a Pre-PegIn keypath input legitimately IS the
@@ -330,6 +387,16 @@ export function buildExpectedSignatureTable(params: BuildExpectedSignatureTableP
     }
   }
 
+  // An in-range requested index with no expectation means the caller and the
+  // builder disagree about the PSBT — a host bug, caught at zero device I/O.
+  for (const inputIndex of requestedInputs ?? []) {
+    if (!byInput.has(inputIndex)) {
+      throw new LedgerSignPsbtProtocolError(
+        `input ${inputIndex} was requested for signing but carries no signing metadata`,
+      );
+    }
+  }
+
   if (byInput.size === 0) {
     // A signPsbt call with nothing to sign is a host bug — thrown before ANY APDU.
     throw new LedgerSignPsbtProtocolError("PSBT contains no depositor-signable input");
@@ -339,7 +406,7 @@ export function buildExpectedSignatureTable(params: BuildExpectedSignatureTableP
   for (const expectation of byInput.values()) {
     expectedYieldCount += expectation.kind === "tapscript" ? expectation.expectedLeafHashHexes.size : 1;
   }
-  return { byInput, expectedYieldCount };
+  return { byInput, classifiedByInput, expectedYieldCount };
 }
 
 export interface YieldCollector {

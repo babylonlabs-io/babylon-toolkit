@@ -14,7 +14,7 @@ import {
   type Network,
   getAssertNoPayoutScriptInfo,
   tapInternalPubkey,
-} from "@babylonlabs-io/babylon-tbv-rust-wasm";
+} from "../../wasm";
 import { Buffer } from "buffer";
 import { Psbt, Transaction, payments } from "bitcoinjs-lib";
 

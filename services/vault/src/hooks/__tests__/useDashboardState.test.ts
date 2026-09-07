@@ -264,7 +264,6 @@ describe("useDashboardState", () => {
         BPS_SCALE /
         MIN_HEALTH_FACTOR_FOR_BORROW) *
       (1 - BORROW_CAPACITY_HEADROOM);
-    expect(result.current.maxTotalDebtUsd).toBe(expectedMaxTotalDebtUsd);
     expect(result.current.availableToBorrowUsd).toBe(
       expectedMaxTotalDebtUsd - 2000,
     );
@@ -278,7 +277,6 @@ describe("useDashboardState", () => {
 
     const { result } = renderHook(() => useDashboardState("0xabc"));
 
-    expect(result.current.maxTotalDebtUsd).toBe(0);
     expect(result.current.availableToBorrowUsd).toBe(0);
   });
 

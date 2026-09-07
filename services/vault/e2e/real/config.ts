@@ -22,7 +22,8 @@ export type ActionId =
   | "repay"
   | "withdraw"
   | "resume"
-  | "recover";
+  | "recover"
+  | "reclaim";
 
 /** Maps our lowercase wallet ids to the connector's SupportedWallet keys. */
 export const BTC_WALLET_TO_CONNECTOR: Record<BtcWalletId, SupportedWallet> = {
@@ -124,6 +125,11 @@ export const ACTIONS: ActionOption[] = [
   { id: "repay", label: "Repay", enabled: true },
   { id: "withdraw", label: "Withdraw", enabled: true },
   { id: "resume", label: "Resume (an interrupted peg-in)", enabled: true },
+  {
+    id: "reclaim",
+    label: "Reclaim (sweep the depositor-claim reserve of a settled vault)",
+    enabled: true,
+  },
 ];
 
 /** A fully-resolved run: what the user chose (interactively or via flags). */
@@ -203,6 +209,12 @@ export interface RunConfig {
    * in stages (verify on-chain it reaches "Submit WOTS Key", then re-run with `--txid=<its Pre-PegIn>`).
    */
   interruptOnly?: boolean;
+  /**
+   * Reclaim only: stop after the review screen without signing (`--dry-run`). Exercises the
+   * eligibility gate and the fee/dust checks while spending nothing — the sweep itself is
+   * irreversible, so this is the safe way to rehearse it.
+   */
+  reclaimDryRun?: boolean;
 }
 
 /** Resolve the target URL a run should open. */

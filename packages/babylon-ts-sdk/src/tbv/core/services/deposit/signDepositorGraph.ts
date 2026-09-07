@@ -18,7 +18,7 @@
  * @see btc-vault crates/vault/src/transactions/nopayout.rs - NoPayout structure
  */
 
-import { type Network } from "@babylonlabs-io/babylon-tbv-rust-wasm";
+import type { Network } from "@babylonlabs-io/babylon-tbv-rust-wasm";
 import { Transaction } from "bitcoinjs-lib";
 
 import type {
@@ -37,6 +37,7 @@ import {
   assertPsbtUnsignedTxMatches,
   type AssertPsbtUnsignedTxMatchesParams,
 } from "../../primitives/psbt/assertPsbtUnsignedTxMatches";
+import { DEPOSITOR_SIGNED_INPUT_COUNT } from "../../primitives/psbt/constants";
 import {
   assertNoPayoutOutputMatchesChallenger,
   buildNoPayoutPsbt,
@@ -52,16 +53,6 @@ import {
   validateWalletPubkey,
 } from "../../primitives/utils/bitcoin";
 import { createTaprootScriptPathSignOptions } from "../../utils/signing";
-
-/**
- * The depositor signs exactly one input (index 0) per payout/nopayout PSBT.
- * Used to construct SignPsbtOptions for wallet.signPsbt(). PSBTs may carry
- * additional inputs (the payout PSBT includes the assert prevout; the nopayout
- * PSBT includes the two ChallengeAssert prevouts) so the Taproot SIGHASH_DEFAULT
- * sighash commits to all prevouts, but those inputs are not signed by the
- * depositor.
- */
-const DEPOSITOR_SIGNED_INPUT_COUNT = 1;
 
 /**
  * commissionBps placeholder for the depositor-as-claimer path — `buildPayoutPsbt`

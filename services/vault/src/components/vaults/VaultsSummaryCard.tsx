@@ -52,7 +52,6 @@ export function VaultsSummaryCard({
   const cards: PositionStatCard[] = [
     {
       label: COPY.vaults.summary.totalCollateralLabel,
-      tooltip: COPY.overview.totalCollateralValueTooltip,
       value: totalCollateralBtc,
       caption: totalCollateralUsd,
       actionLabel: COPY.vaults.empty.depositAction,
@@ -85,7 +84,6 @@ export function VaultsSummaryCard({
           <HeartIcon color={healthFactorColor} className="size-6" />
         </span>
       ),
-      caption: COPY.vaults.summary.healthFactorCaption,
     },
   ];
 

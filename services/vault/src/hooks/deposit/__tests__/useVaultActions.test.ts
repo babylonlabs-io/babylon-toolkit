@@ -1041,7 +1041,7 @@ describe("useVaultActions — handleActivation hashlock source", () => {
     // Distinct error from the generic "Invalid secret" path so the user
     // isn't misled into re-entering a correct secret.
     expect(result.current.activationError).toBe(
-      "BTC Vault hashlock not found. The BTC Vault may not support activation.",
+      "BTCVault hashlock not found. The BTCVault may not support activation.",
     );
   });
 

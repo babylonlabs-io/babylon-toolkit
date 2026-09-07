@@ -421,7 +421,7 @@ async function readPrePeginContext(
   }
   if (vaultKeepers.length === 0) {
     throw new Error(
-      `No vault keepers found for version ${vault.appVaultKeepersVersion}`,
+      `No Vault Keepers found for version ${vault.appVaultKeepersVersion}`,
     );
   }
   if (universalChallengersList.length === 0) {

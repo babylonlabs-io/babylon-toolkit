@@ -185,7 +185,7 @@ describe("buildLiquidationChartData", () => {
     expect(bands[1].cumulativeLabel).toBe("100% seized");
   });
 
-  it("keys titles and badges off array position, not the calculator's 1-based index", () => {
+  it("keys titles off array position, not the calculator's 1-based index", () => {
     // calculate() emits group.index starting at 1.
     const result = makeResult([
       makeGroup(1, { liquidationPrice: 77_682 }),
@@ -199,8 +199,7 @@ describe("buildLiquidationChartData", () => {
 
     expect(bands[0].label).toBe("Liq Event 1");
     expect(cards[0].title).toBe("Liq Event 1");
-    expect(cards[0].badge).toBe("sacrificial");
-    expect(cards[1].badge).toBe("protected");
+    expect(cards[1].title).toBe("Liq Event 2");
   });
 
   it("prices each event's aftermath at its own trigger, not the simulated price", () => {
@@ -382,9 +381,9 @@ describe("buildLiquidationChartData", () => {
   });
 
   // Group `index` fields are 1-based and unrelated to array position (a real
-  // cascade never emits index 0 — see calculate.ts). Badge, title, and tone
-  // must all key off the group's POSITION in the array, not `group.index`.
-  it("badges only the first-seized group (by array position, not group.index) as sacrificial", () => {
+  // cascade never emits index 0 — see calculate.ts). Title and tone must both
+  // key off the group's POSITION in the array, not `group.index`.
+  it("titles and tones groups by array position, not group.index", () => {
     const result = makeResult([makeGroup(1), makeGroup(2), makeGroup(3)]);
     const { cards } = buildLiquidationChartData(result, {
       vaultsTotal: vaultCount(result),
@@ -392,11 +391,12 @@ describe("buildLiquidationChartData", () => {
       collateralFactor: CF,
     });
 
-    expect(cards.map((c) => c.badge)).toEqual([
-      "sacrificial",
-      "protected",
-      "protected",
+    expect(cards.map((c) => c.title)).toEqual([
+      "Liq Event 1",
+      "Liq Event 2",
+      "Liq Event 3",
     ]);
+    expect(cards.map((c) => c.tone)).toEqual(["1", "2", "3"]);
   });
 
   it("titles the first event 'Liq Event 1' regardless of the group's index field", () => {
@@ -430,7 +430,7 @@ describe("buildLiquidationChartData", () => {
   // Drives the assertions from a REAL calculate() cascade (not hand-built
   // groups), so these fixtures can't drift from the calculator's actual index
   // base the way the hand-built ones once did.
-  it("badges, titles, and tones the first real-cascade group as sacrificial from a real calculate() result", () => {
+  it("titles and tones groups by array position from a real calculate() result", () => {
     const result = realCascadeResult();
     expect(result.groups).toHaveLength(3);
     // Confirms the fixture still exercises the bug: calculate() emits 1-based
@@ -443,11 +443,6 @@ describe("buildLiquidationChartData", () => {
       collateralFactor: REAL_CF,
     });
 
-    expect(cards.map((c) => c.badge)).toEqual([
-      "sacrificial",
-      "protected",
-      "protected",
-    ]);
     expect(cards[0].title).toBe("Liq Event 1");
     expect(cards.map((c) => c.tone)).toEqual(bands.map((b) => b.tone));
     expect(cards.map((c) => c.key)).toEqual(bands.map((b) => b.key));
@@ -476,9 +471,10 @@ describe("buildLiquidationChartData", () => {
     expect(cards[0].fairness.value).toContain("0.002");
   });
 
-  // The tooltip describes a payment to the user's wallet, which only the
-  // full-liquidation variant makes — the debt-repaid row must not claim it.
-  it("carries the fairness tooltip on the payment variant only", () => {
+  // Each fairness variant carries its own tooltip: the payment variant
+  // describes a payment to the user's wallet, the debt-repaid variant
+  // describes the liquidator's additional debt repayment.
+  it("carries the matching fairness tooltip per variant", () => {
     const paymentResult = makeResult([
       makeGroup(1, { isFullLiquidation: true, fairnessPaymentUsd: 81 }),
     ]);
@@ -498,13 +494,12 @@ describe("buildLiquidationChartData", () => {
     expect(
       buildLiquidationChartData(debtRepaidResult, options).cards[0].fairness
         .tooltip,
-    ).toBeUndefined();
+    ).toBe(COPY.liquidations.events.fairnessDebtRepaidTooltip);
   });
 
-  // The card colour used to key off `badge` (array position), so a protected
-  // event stayed green under a "Protected" pill even after the price had
-  // fallen through its trigger.
-  it("marks a card triggered on the same rule that flips its band, regardless of badge", () => {
+  // The card colour used to key off array position, so a later event stayed
+  // green even after the price had fallen through its trigger.
+  it("marks a card triggered on the same rule that flips its band", () => {
     const result = makeResult([
       makeGroup(1, { liquidationPrice: 77_682 }),
       makeGroup(2, { liquidationPrice: 40_283 }),
@@ -521,8 +516,7 @@ describe("buildLiquidationChartData", () => {
     expect(cards.map((c) => c.triggered)).toEqual(
       bands.map((b) => b.state === "liquidated"),
     );
-    // Position 1 onwards is "protected", yet it has demonstrably triggered.
-    expect(cards[1].badge).toBe("protected");
+    // A later-position event has demonstrably triggered.
     expect(cards[1].triggered).toBe(true);
   });
 

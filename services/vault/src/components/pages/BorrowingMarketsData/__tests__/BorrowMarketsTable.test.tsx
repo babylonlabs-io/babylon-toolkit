@@ -52,7 +52,7 @@ describe("BorrowMarketsTable", () => {
 
     expect(screen.getByText("Market")).toBeInTheDocument();
     expect(screen.getByText("Borrow APR")).toBeInTheDocument();
-    expect(screen.getByText("Available")).toBeInTheDocument();
+    expect(screen.getByText("Available Liquidity")).toBeInTheDocument();
     expect(screen.getByText("Utilization")).toBeInTheDocument();
     expect(screen.getByText("Borrowed")).toBeInTheDocument();
     expect(screen.getByText("Supplied")).toBeInTheDocument();

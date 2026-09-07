@@ -87,14 +87,14 @@ export {
   peginP2aAnchorOutput,
   supportedTxGraphVersions,
   validatePeginP2aAnchor,
-} from "@babylonlabs-io/babylon-tbv-rust-wasm";
+} from "../wasm";
 export type {
   AssertPayoutNoPayoutConnectorParams,
   ChallengeAssertConnectorParams,
   Network,
   PayoutConnectorParams,
   PeginP2aAnchorInfo,
-} from "@babylonlabs-io/babylon-tbv-rust-wasm";
+} from "../wasm";
 
 /**
  * 0x-prefixed bytes32, keccak256(abi.encode(peginTxHash, depositor)).
@@ -133,6 +133,24 @@ export type {
   BuildRefundPsbtResult,
 } from "./psbt/refund";
 
+export {
+  PEGIN_DEPOSITOR_CLAIM_VOUT,
+  deriveDepositorClaimDescriptor,
+  deriveDepositorClaimScriptPubKey,
+} from "./psbt/depositorClaim";
+export type { DepositorClaimDescriptor } from "./psbt/depositorClaim";
+
+export {
+  buildReclaimPsbt,
+  estimateReclaimFeeSats,
+  reclaimVsize,
+} from "./psbt/reclaim";
+export type {
+  BuildReclaimPsbtParams,
+  BuildReclaimPsbtResult,
+  ReclaimReserve,
+} from "./psbt/reclaim";
+
 export { buildPayoutPsbt, extractPayoutSignature } from "./psbt/payout";
 export type { PayoutParams, PayoutPsbtResult } from "./psbt/payout";
 
@@ -144,6 +162,9 @@ export type { AssertPsbtUnsignedTxMatchesParams } from "./psbt/assertPsbtUnsigne
 
 export { assertScriptPathSchnorrSignature } from "./psbt/verifyScriptPathSchnorrSignature";
 export type { VerifyScriptPathSchnorrSignatureParams } from "./psbt/verifyScriptPathSchnorrSignature";
+
+export { finalizeScriptPathWithSignatures } from "./psbt/finalizeScriptPathWithSignatures";
+export type { FinalizeScriptPathWithSignaturesParams } from "./psbt/finalizeScriptPathWithSignatures";
 
 export {
   assertKeyPathSchnorrSignature,

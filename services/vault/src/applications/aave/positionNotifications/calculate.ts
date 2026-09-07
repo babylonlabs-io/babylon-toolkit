@@ -398,7 +398,7 @@ export function calculate(params: CalculatorParams): CalculatorResult {
       warnings.push({
         type: "urgent",
         title: urgent.approachingTitle(distAbs.toFixed(1)),
-        detail: urgent.approachingDetail(liqPriceStr, distAbs.toFixed(2)),
+        detail: urgent.approachingDetail(liqPriceStr),
         suggestion: urgent.approachingSuggestion,
       });
     }

@@ -85,7 +85,8 @@ rubric below.
   Ethereum, Bitcoin, an indexer, and a vault provider; it writes only through the user's wallet.
 - **Security boundaries to preserve:**
   - Assertion of every WASM-returned value before it reaches a signed transaction
-    (`packages/babylon-tbv-rust-wasm/src/value-guards.ts`, `.../src/index.ts`)
+    (`packages/babylon-tbv-rust-wasm/src/value-guards.ts`, `.../src/index.ts`,
+    `packages/babylon-ts-sdk/src/tbv/core/wasm/value-guards.ts`)
   - Agreement between the SDK fee model and the dApp estimate
     (`packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts`,
     `.../utils/utxo/selectUtxos.ts`, `services/vault/src/hooks/deposit/useEstimatedBtcFee.ts`)
@@ -197,21 +198,34 @@ _why_ they exist. Both documents must be updated together.
 
 ### The WASM value boundary
 
-`packages/babylon-tbv-rust-wasm/src/index.ts` is the JS surface over a Rust/WASM module that computes
-`htlcValue = peginAmount + depositorClaimValue + p2aAnchorValue + minPeginFee` internally. JavaScript
-receives numbers with no inherent validation: `wasm-bindgen` will happily hand back `0n`, and a
-`0n` HTLC value silently produces a transaction that funds nothing.
+`packages/babylon-tbv-rust-wasm/src/index.ts` is the guarded JS surface over a Rust/WASM module that
+computes `htlcValue = peginAmount + depositorClaimValue + p2aAnchorValue + minPeginFee` internally.
+JavaScript receives numbers with no inherent validation: `wasm-bindgen` will happily hand back `0n`,
+and a `0n` HTLC value silently produces a transaction that funds nothing. SDK callers reach that
+surface through a lazy boundary, `packages/babylon-ts-sdk/src/tbv/core/wasm/index.ts`, which forwards
+without adding guards of its own — the facade's guards still apply.
+
+There is a second crossing, and it is unguarded. The
+`@babylonlabs-io/babylon-tbv-rust-wasm/raw` subpath (`src/raw.ts`, `src/raw-node.ts`) hands out the
+wasm-bindgen classes directly, so no value is checked at the export. Every `/raw` consumer must
+cross-check at the call site instead. The only SDK consumer is
+`packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/refund.ts`.
 
 The mitigation is `assertWasmBigint` / `assertPositiveBigintArray`
 (`packages/babylon-tbv-rust-wasm/src/value-guards.ts`), applied to every value crossing the boundary
-before it is used. Reviewer rule, restated from CLAUDE.md:
+before it is used. The input guard is duplicated at
+`packages/babylon-ts-sdk/src/tbv/core/wasm/value-guards.ts` for callers that must not statically
+import the WASM engine. The two copies are pinned to identical behaviour by
+`packages/babylon-ts-sdk/src/tbv/core/wasm/__tests__/value-guards.test.ts` and must be changed
+together. Reviewer rule, restated from CLAUDE.md:
 
 > **Every WASM output consumed by JS must be asserted against expected bounds before use.** If a
 > WASM-returned value feeds a signed transaction, cross-check it against an independently computed
 > expected value.
 
-Adding a new WASM getter without a guard is the easiest way to introduce a silent-wrong-value bug in
-this repository. The guard is not defence in depth here — it is the only check.
+Adding a new WASM getter without a guard, or a new `/raw` consumer without call-site cross-checks, is
+the easiest way to introduce a silent-wrong-value bug in this repository. On the facade crossing the
+guard is not defence in depth — it is the only check.
 
 ### Fee model consistency
 
@@ -230,13 +244,13 @@ not only at the estimator — an estimator that agrees with itself proves nothin
 The real SDK model and dApp estimator are covered by
 [`.github/CODEOWNERS`](.github/CODEOWNERS) and
 [`.github/workflows/critical-path-check.yml`](.github/workflows/critical-path-check.yml). The
-critical-path inventory is hand-maintained in five places: this file, CLAUDE.md, CODEOWNERS,
-`critical-path-check.yml`, and `claude-md-drift.yml`. Update all five together when a path moves or
-is added. The scheduled drift workflow checks that listed paths exist and reports missing entries to
-a tracker issue, but it does not block a pull request. A group may be registered before its files
-exist — section 9 is registered ahead of the optional-BTC work (#2228) — so that the guard evaluates
-the new list on the pull request that moves the code; those paths stay in the drift workflow's
-`pending` list until the files land.
+critical-path inventory is hand-maintained in six places: this file, CLAUDE.md, CODEOWNERS, the SDK
+ESLint config, `critical-path-check.yml`, and `claude-md-drift.yml`. Update all six together when a
+path moves or is added. The scheduled drift workflow checks that listed paths exist and reports
+missing entries to a tracker issue, but it does not block a pull request. Section 9 includes
+`pegin-registration-client.ts` and `payout-script.ts` in the tree. It registers
+`scriptPubKeyAddress.ts` ahead of the remaining optional-BTC work (#2228). That path stays in the
+drift workflow's `pending` list until the file lands.
 
 ### Presigning the depositor graph
 
@@ -687,10 +701,12 @@ roles have different review requirements. Satisfy both.
 - `verify.yml` runs syncpack, a full build, lint, and `nx affected --target=test`. Note that tests
   are **affected-scoped** while build and lint are not — a change that alters behaviour without
   touching a project Nx considers affected runs fewer tests than a full sweep.
-- `critical-path-check.yml` comments and labels PRs touching critical paths but **does not block**.
-  Enforcement of the two-approval rule requires a GitHub ruleset scoped to those path globs with
-  `required_approving_review_count: 2` — CODEOWNERS alone cannot express it, as the comment in
-  `.github/CODEOWNERS` notes. Verify that ruleset exists; the file cannot.
+- The repository ruleset requires `verify`, `detect`, thread resolution, and fresh approval after changes.
+  `critical-path-check.yml` requires current code-owner approvals for each touched critical path.
+  It reads owners from the base branch and the count from `CRITICAL_PATH_REQUIRED_APPROVALS`.
+  The inventory includes `.github/CODEOWNERS`, `.github/workflows/critical-path-check.yml`, and
+  `packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/refund.ts`.
+  A PR can still edit the gate. #2359 stays open until a trusted external gate is required and verified.
 - `service-release-vault.yml` assumes an AWS role via OIDC per environment and writes the built
   bundle to S3. Note `continue-on-error` is set for the production environment in multi-env runs so
   a prod OIDC failure cannot block devnet — deliberate, and worth knowing when reading a green run.
@@ -749,9 +765,9 @@ only repository-local safeguards.
 
 | Area                | Adversary | Scenario                                                                          | Impact                                                                  | Mitigation                                                                                                      | Test / evidence                                                   |
 | ------------------- | --------- | --------------------------------------------------------------------------------- | ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| WASM boundary       | F/—       | A WASM getter returns `0n` or a wrong value and reaches a signed tx               | **User fund loss**                                                      | `assertWasmBigint` / `assertPositiveBigintArray` on every crossing; independent cross-check                     | `babylon-tbv-rust-wasm` value-guard tests                         |
+| WASM boundary       | F/—       | A WASM getter returns `0n` or a wrong value and reaches a signed tx               | **User fund loss**                                                      | `assertWasmBigint` / `assertPositiveBigintArray` at the facade; call-site cross-checks on `/raw`                | `babylon-tbv-rust-wasm` value-guard tests                         |
 | Fee model           | —         | SDK and dApp fee models diverge; the tx is underfunded                            | User fund loss (stuck / failed deposit)                                 | Shared `peginFeeMath`; cross-check at broadcast                                                                 | SDK fee + `selectUtxos` tests                                     |
-| Critical-path guard | G         | A critical path moves but one hand-maintained inventory keeps the stale path      | Integrity (process)                                                     | Sections 1-8 are aligned; section 9 is pre-registered ahead of #2228; the existence check does not gate merges  | SECURITY.md, CLAUDE.md, CODEOWNERS, both critical-path workflows  |
+| Critical-path guard | G         | A critical path moves but one hand-maintained inventory keeps the stale path      | Integrity (process)                                                     | Sections 1-8 are aligned; section 9 has one path pre-registered ahead of #2228; existence does not gate merges  | SECURITY.md, CLAUDE.md, CODEOWNERS, both critical-path workflows  |
 | Presigning          | A         | VP supplies PSBT metadata making a signature valid for a different spend          | **User fund loss**                                                      | PSBTs built locally from on-chain connector data only                                                           | `signDepositorGraph` tests                                        |
 | Presigning          | A         | VP returns a challenger set with an extra or missing key                          | Recovery material missing / signature to an unrecognised key            | `deriveLocalChallengers` + exact `local ∪ universal` equality assert                                            | `signDepositorGraph` tests                                        |
 | Wallet signing      | E         | Wallet ignores `useTweakedSigner: false`, returns an invalid signature as success | User fund loss (silent)                                                 | Sighash verification of every produced signature                                                                | `verifyScriptPathSchnorrSignature` tests                          |

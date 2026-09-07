@@ -48,32 +48,21 @@ vi.mock("../../../primitives/psbt/verifyScriptPathSchnorrSignature", () => ({
   assertScriptPathSchnorrSignature: vi.fn(),
 }));
 
-// Finalize + extract uses bitcoinjs-lib. We stub Psbt.fromHex to return an
-// object with controllable `finalizeAllInputs` / `extractTransaction`.
-// `Transaction` is kept real because the orchestrator also parses the
-// funded Pre-PegIn hex via `findAuthAnchorOpReturn` to extract the
-// auth-anchor commitment.
-vi.mock("bitcoinjs-lib", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("bitcoinjs-lib")>();
-  const psbtInstance = {
-    finalizeAllInputs: vi.fn(),
-    extractTransaction: vi.fn(() => ({
-      toHex: () => "signedtxhex",
-    })),
-  };
-  return {
-    ...actual,
-    Psbt: {
-      fromHex: vi.fn(() => psbtInstance),
-    },
-  };
-});
+// Finalization has its own suite against a real PSBT; here it is stubbed so
+// these tests stay about orchestration. bitcoinjs-lib itself is left real —
+// the orchestrator parses the funded Pre-PegIn hex via `findAuthAnchorOpReturn`
+// to extract the auth-anchor commitment.
+vi.mock(
+  "../../../primitives/psbt/finalizeScriptPathWithSignatures",
+  () => ({
+    finalizeScriptPathWithSignatures: vi.fn(() => "signedtxhex"),
+  }),
+);
 
-import { Psbt } from "bitcoinjs-lib";
+import { finalizeScriptPathWithSignatures } from "../../../primitives/psbt/finalizeScriptPathWithSignatures";
 import { buildRefundPsbt } from "../../../primitives/psbt/refund";
 
 const mockedBuildRefundPsbt = vi.mocked(buildRefundPsbt);
-const mockedFromHex = vi.mocked(Psbt.fromHex);
 
 const VAULT_ID = ("0x" + "aa".repeat(32)) as Hex;
 const HASHLOCK =
@@ -172,7 +161,7 @@ describe("buildAndBroadcastRefund", () => {
     broadcastTx = vi.fn().mockResolvedValue({ txId: "0xrefundtxid" });
     mockedBuildRefundPsbt.mockClear();
     mockedBuildRefundPsbt.mockResolvedValue({ psbtHex: "70736274ff01mock" });
-    mockedFromHex.mockClear();
+    vi.mocked(finalizeScriptPathWithSignatures).mockClear();
   });
 
   it("calls readVault, readPrePeginContext, signPsbt, broadcastTx in order", async () => {
@@ -1060,53 +1049,22 @@ describe("buildAndBroadcastRefund", () => {
       expect(broadcastTx).not.toHaveBeenCalled();
     });
 
-    it("tolerates already-finalized PSBT (Keystone wallets)", async () => {
-      const psbtInstance = {
-        finalizeAllInputs: vi.fn(() => {
-          throw new Error("Input is already finalized");
-        }),
-        extractTransaction: vi.fn(() => ({ toHex: () => "signedtxhex" })),
-      };
-      mockedFromHex.mockReturnValueOnce(
-        psbtInstance as unknown as ReturnType<typeof Psbt.fromHex>,
-      );
+    it("finalizes the PSBT it built rather than the one the wallet returned", async () => {
+      await buildAndBroadcastRefund({
+        vaultId: VAULT_ID,
+        readVault,
+        readPrePeginContext,
+        feeRate: FEE_RATE,
+        signPsbt,
+        broadcastTx,
+      });
 
-      await expect(
-        buildAndBroadcastRefund({
-          vaultId: VAULT_ID,
-          readVault,
-          readPrePeginContext,
-          feeRate: FEE_RATE,
-          signPsbt,
-          broadcastTx,
-        }),
-      ).resolves.toEqual({ txId: "0xrefundtxid" });
-      expect(psbtInstance.extractTransaction).toHaveBeenCalledOnce();
+      expect(finalizeScriptPathWithSignatures).toHaveBeenCalledWith({
+        requestedPsbtHex: "70736274ff01mock",
+        signaturesHex: ["ab".repeat(64)],
+        signerXOnlyPubkeyHex: DEPOSITOR_PUBKEY,
+      });
       expect(broadcastTx).toHaveBeenCalledWith("signedtxhex");
-    });
-
-    it("throws on unrelated finalize errors", async () => {
-      const psbtInstance = {
-        finalizeAllInputs: vi.fn(() => {
-          throw new Error("bad witness");
-        }),
-        extractTransaction: vi.fn(),
-      };
-      mockedFromHex.mockReturnValueOnce(
-        psbtInstance as unknown as ReturnType<typeof Psbt.fromHex>,
-      );
-
-      await expect(
-        buildAndBroadcastRefund({
-          vaultId: VAULT_ID,
-          readVault,
-          readPrePeginContext,
-          feeRate: FEE_RATE,
-          signPsbt,
-          broadcastTx,
-        }),
-      ).rejects.toThrow(/Failed to finalize refund PSBT: bad witness/);
-      expect(broadcastTx).not.toHaveBeenCalled();
     });
 
     it("aborts before any work when signal is pre-aborted", async () => {

@@ -34,6 +34,14 @@ describe("classifyStatusWord", () => {
     expect(error?.message).toMatch(/locked/);
   });
 
+  it("marks a locked device preDispatch when the context proves it", () => {
+    expect(classifyStatusWord(0x5515, { ...context, preDispatch: true })).toMatchObject({ preDispatch: true });
+  });
+
+  it("leaves a locked device unproven (preDispatch false) when the context carries no proof", () => {
+    expect(classifyStatusWord(0x5515, context)).toMatchObject({ preDispatch: false });
+  });
+
   it.each([
     [0x6a80, /rejected the data as invalid/],
     [0xb007, /not in the expected state/],

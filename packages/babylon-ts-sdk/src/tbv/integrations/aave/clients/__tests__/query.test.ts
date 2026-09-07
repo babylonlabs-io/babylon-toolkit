@@ -8,7 +8,7 @@
  * reported as "no position" would be a silent wrong answer.
  */
 
-import { type Address, type Hex, type PublicClient } from "viem";
+import type { Address, Hex, PublicClient } from "viem";
 import { describe, expect, it, vi } from "vitest";
 
 import { getPosition } from "../query.js";

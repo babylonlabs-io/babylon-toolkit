@@ -161,7 +161,9 @@ export function BandLayer({
               // the rect names itself.
               tabIndex={hoverable ? 0 : undefined}
               aria-label={
-                hoverable ? [band.label, band.sublabel, band.amountLabel].filter(Boolean).join(" ") : undefined
+                hoverable
+                  ? [band.label, band.sublabel ?? band.accessibleDetail, band.amountLabel].filter(Boolean).join(" ")
+                  : undefined
               }
               onMouseEnter={(e) => {
                 cancelClose();

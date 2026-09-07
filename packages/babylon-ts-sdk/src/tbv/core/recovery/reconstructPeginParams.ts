@@ -16,12 +16,7 @@
  * @module recovery/reconstructPeginParams
  */
 
-import {
-  computeMinClaimValue,
-  computeMinPeginFee,
-  peginP2aAnchorOutput,
-  type Network,
-} from "@babylonlabs-io/babylon-tbv-rust-wasm";
+import type { Network } from "@babylonlabs-io/babylon-tbv-rust-wasm";
 import { Transaction } from "bitcoinjs-lib";
 
 import type { DepositTerms } from "../deposit-terms/depositTerms";
@@ -33,6 +28,11 @@ import {
   stripHexPrefix,
 } from "../primitives/utils/bitcoin";
 import { calculateBtcTxHash } from "../utils/transaction/btcTxHash";
+import {
+  computeMinClaimValue,
+  computeMinPeginFee,
+  peginP2aAnchorOutput,
+} from "../wasm";
 
 import {
   describePeginParamsCandidate,

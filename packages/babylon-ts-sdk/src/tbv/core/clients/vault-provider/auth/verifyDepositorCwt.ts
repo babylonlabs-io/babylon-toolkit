@@ -16,12 +16,14 @@ import * as ecc from "@bitcoin-js/tiny-secp256k1-asmjs";
 import { sha256 } from "@noble/hashes/sha2.js";
 
 import {
-  COMPRESSED_PUBKEY_HEX_LEN,
   hexToUint8Array,
   stripHexPrefix,
-  X_ONLY_PUBKEY_HEX_LEN,
 } from "../../../primitives/utils/bitcoin";
-import { HEX_RE } from "../../../utils/validation";
+import {
+  COMPRESSED_PUBKEY_HEX_LEN,
+  HEX_RE,
+  X_ONLY_PUBKEY_HEX_LEN,
+} from "../../../utils/validation";
 
 import { CborReader, decodeCbor } from "./cborDecode";
 

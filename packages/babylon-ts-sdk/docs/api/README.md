@@ -33,6 +33,7 @@
 - [clients](clients.md)
 - [deposit-terms](deposit-terms.md)
 - [managers](managers.md)
+- [pegin-fingerprint](pegin-fingerprint.md)
 - [primitives](primitives.md)
 - [services](services.md)
 - [utils](utils.md)

@@ -1,3 +1,22 @@
+/**
+ * Hook to calculate estimated BTC transaction fee using iterative UTXO selection.
+ *
+ * When UTXOs are provided, uses the SDK's selectUtxosForPegin for accurate
+ * fee calculation that accounts for the actual number of inputs needed.
+ *
+ * The algorithm iteratively:
+ * 1. Adds UTXOs (sorted by value, largest first)
+ * 2. Recalculates fee based on current inputs
+ * 3. Checks if change output needed (affects fee)
+ * 4. Continues until accumulated >= amount + fee
+ *
+ * @param amount - Amount to peg in (in satoshis)
+ * @param utxos - Available UTXOs for fee calculation
+ * @param numOutputs - Number of outputs before change (e.g. N HTLCs + 1 CPFP anchor)
+ * @param feeRateOverride - Optional sat/vB rate; when > 0, replaces mempool default
+ * @returns Estimated fee, fee rate, loading state, and error
+ */
+
 import type { MempoolUTXO } from "@babylonlabs-io/ts-sdk";
 import {
   computeMaxDeposit,
@@ -20,45 +39,37 @@ export interface EstimatedBtcFeeResult {
   maxDeposit: bigint | null;
 }
 
-/**
- * Hook to calculate estimated BTC transaction fee using iterative UTXO selection.
- *
- * When UTXOs are provided, uses the SDK's selectUtxosForPegin for accurate
- * fee calculation that accounts for the actual number of inputs needed.
- *
- * The algorithm iteratively:
- * 1. Adds UTXOs (sorted by value, largest first)
- * 2. Recalculates fee based on current inputs
- * 3. Checks if change output needed (affects fee)
- * 4. Continues until accumulated >= amount + fee
- *
- * @param amount - Amount to peg in (in satoshis)
- * @param utxos - Available UTXOs for fee calculation
- * @param numOutputs - Number of outputs before change (e.g. N HTLCs + 1 CPFP anchor)
- * @returns Estimated fee, fee rate, loading state, and error
- */
 export function useEstimatedBtcFee(
   amount: bigint,
   utxos: MempoolUTXO[] | undefined,
   numOutputs: number,
+  feeRateOverride?: number,
 ): EstimatedBtcFeeResult {
   const { defaultFeeRate, isLoading, error: feeError } = useNetworkFees();
 
+  // Prefer a positive caller override (user-adjusted rate); otherwise mempool.
+  const feeRate =
+    feeRateOverride !== undefined &&
+    Number.isFinite(feeRateOverride) &&
+    feeRateOverride > 0
+      ? feeRateOverride
+      : defaultFeeRate;
+
   // Max deposit only depends on UTXOs + fee rate, not the user's amount
   const maxDeposit = useMemo(() => {
-    if (isLoading || defaultFeeRate === 0 || !utxos?.length) return null;
+    if (isLoading || feeRate === 0 || !utxos?.length) return null;
     const totalBalance = utxos.reduce((sum, u) => sum + BigInt(u.value), 0n);
     return computeMaxDeposit({
       numInputs: utxos.length,
       numOutputs,
       totalBalance,
-      feeRate: defaultFeeRate,
+      feeRate,
     });
-  }, [utxos, defaultFeeRate, numOutputs, isLoading]);
+  }, [utxos, feeRate, numOutputs, isLoading]);
 
   const result = useMemo((): EstimatedBtcFeeResult => {
-    // Still loading fee rates
-    if (isLoading) {
+    // Still loading fee rates — and no usable override yet
+    if (isLoading && feeRate === 0) {
       return {
         fee: null,
         feeRate: 0,
@@ -69,7 +80,7 @@ export function useEstimatedBtcFee(
     }
 
     // Fee rate not available
-    if (defaultFeeRate === 0) {
+    if (feeRate === 0) {
       return {
         fee: null,
         feeRate: 0,
@@ -83,7 +94,7 @@ export function useEstimatedBtcFee(
     if (!utxos || utxos.length === 0) {
       return {
         fee: null,
-        feeRate: defaultFeeRate,
+        feeRate,
         isLoading: false,
         error: null,
         maxDeposit,
@@ -94,7 +105,7 @@ export function useEstimatedBtcFee(
     if (amount === 0n) {
       return {
         fee: null,
-        feeRate: defaultFeeRate,
+        feeRate,
         isLoading: false,
         error: null,
         maxDeposit,
@@ -102,43 +113,28 @@ export function useEstimatedBtcFee(
     }
 
     try {
-      // Use SDK's iterative UTXO selection with fee calculation
-      const { fee } = selectUtxosForPegin(
-        utxos,
-        amount,
-        defaultFeeRate,
-        numOutputs,
-      );
+      const { fee } = selectUtxosForPegin(utxos, amount, feeRate, numOutputs);
 
       return {
         fee,
-        feeRate: defaultFeeRate,
+        feeRate,
         isLoading: false,
         error: null,
         maxDeposit,
       };
     } catch (err) {
-      // Handle insufficient funds or other errors
       const errorMessage =
         err instanceof Error ? err.message : "Failed to estimate fee";
 
       return {
         fee: null,
-        feeRate: defaultFeeRate,
+        feeRate,
         isLoading: false,
         error: errorMessage,
         maxDeposit,
       };
     }
-  }, [
-    amount,
-    utxos,
-    defaultFeeRate,
-    numOutputs,
-    isLoading,
-    feeError,
-    maxDeposit,
-  ]);
+  }, [amount, utxos, feeRate, numOutputs, isLoading, feeError, maxDeposit]);
 
   return result;
 }

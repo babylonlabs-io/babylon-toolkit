@@ -84,7 +84,7 @@ describe("NotificationCard", () => {
   it("sizes the action button per tone", () => {
     const actions = [{ label: "Go", onClick: vi.fn() }];
 
-    // Cliff's "Add sacrificial vault" is 40px tall with 16px text.
+    // Cliff's "Add Collateral" is 40px tall with 16px text.
     const cliff = render(
       <NotificationCard
         tone="cliff"

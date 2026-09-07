@@ -555,7 +555,7 @@ describe("ResumeWotsContent — polled-status terminal", () => {
 
   it("advances to a closeable background wait once the VP is past WOTS", async () => {
     // VP has accepted the WOTS key and advanced; the modal moves off the WOTS
-    // step to the next step as a "Close & continue later" background wait —
+    // step to the next step as a "You can close and come back later" background wait —
     // no separate success banner.
     mockUseDepositPollingResult.mockReturnValue({
       peginState: { contractStatus: 0 },
@@ -584,7 +584,7 @@ describe("ResumeWotsContent — polled-status terminal", () => {
     const { getByTestId } = renderWots();
 
     // The submit auto-fires; once it resolves the modal advances to the next
-    // step as a "Close & continue later" background wait with no terminal
+    // step as a "You can close and come back later" background wait with no terminal
     // banner — even though the polled state has not yet confirmed acceptance.
     await waitFor(() =>
       expect(mockSubmitWotsPublicKey).toHaveBeenCalledTimes(1),

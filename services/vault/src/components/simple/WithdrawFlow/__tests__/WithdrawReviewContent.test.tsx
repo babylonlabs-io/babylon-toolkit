@@ -13,7 +13,11 @@ import { HEALTH_FACTOR_COLORS } from "@/applications/aave/utils";
 import { WithdrawReviewContent } from "../WithdrawReviewContent";
 
 vi.mock("@/hooks/useNetworkFees", () => ({
-  useNetworkFees: () => ({ defaultFeeRate: 3 }),
+  useNetworkFees: () => ({
+    defaultFeeRate: 3,
+    halfHourFeeRate: 2,
+    hourFeeRate: 1,
+  }),
 }));
 
 vi.mock("@/context/ProtocolParamsContext", () => ({

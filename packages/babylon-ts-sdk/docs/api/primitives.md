@@ -446,6 +446,102 @@ Per-input connector params (one per input/segment, determines the taproot script
 
 ***
 
+### DepositorClaimDescriptor
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/depositorClaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/depositorClaim.ts)
+
+The single-leaf taptree's spend material for one depositor key.
+
+#### Properties
+
+##### scriptPubKey
+
+```ts
+scriptPubKey: Buffer;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/depositorClaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/depositorClaim.ts)
+
+P2TR scriptPubKey the PegIn pays at [PEGIN\_DEPOSITOR\_CLAIM\_VOUT](#pegin_depositor_claim_vout).
+
+##### leafScript
+
+```ts
+leafScript: Buffer;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/depositorClaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/depositorClaim.ts)
+
+The one tapleaf: `<depositor> OP_CHECKSIG`, 34 bytes.
+
+##### controlBlock
+
+```ts
+controlBlock: Buffer;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/depositorClaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/depositorClaim.ts)
+
+Control block for that leaf: `[leafVersion | outputKeyParity] || NUMS`,
+33 bytes. The tree has a single leaf at depth 0, so it carries no sibling
+hashes.
+
+##### internalKey
+
+```ts
+internalKey: Buffer;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/depositorClaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/depositorClaim.ts)
+
+The NUMS internal key the taptree commits to — the PSBT's `tapInternalKey`.
+Carried here so an input's internal key and control block provably come
+from the same derivation.
+
+***
+
+### FinalizeScriptPathWithSignaturesParams
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/finalizeScriptPathWithSignatures.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/finalizeScriptPathWithSignatures.ts)
+
+#### Properties
+
+##### requestedPsbtHex
+
+```ts
+requestedPsbtHex: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/finalizeScriptPathWithSignatures.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/finalizeScriptPathWithSignatures.ts)
+
+Hex of the PSBT built locally and sent to the wallet — the sole source of
+every per-input field. NOT the wallet-returned PSBT.
+
+##### signaturesHex
+
+```ts
+signaturesHex: readonly string[];
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/finalizeScriptPathWithSignatures.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/finalizeScriptPathWithSignatures.ts)
+
+Verified 64-byte Schnorr signatures, one per input, index-aligned with the
+PSBT's inputs. Each must already have passed
+`assertScriptPathSchnorrSignature` — this function does not re-verify them,
+it only decides which bytes are allowed to reach the witness.
+
+##### signerXOnlyPubkeyHex
+
+```ts
+signerXOnlyPubkeyHex: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/finalizeScriptPathWithSignatures.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/finalizeScriptPathWithSignatures.ts)
+
+X-only pubkey (64 hex chars) the signatures are attributed to.
+
+***
+
 ### NoPayoutParams
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/noPayout.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/noPayout.ts)
@@ -1282,6 +1378,173 @@ PSBT hex for the depositor to sign
 
 ***
 
+### ReclaimReserve
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/reclaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/reclaim.ts)
+
+One depositor-claim reserve to sweep, with the material to bind it.
+
+#### Properties
+
+##### depositorSignedPeginTxHex
+
+```ts
+depositorSignedPeginTxHex: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/reclaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/reclaim.ts)
+
+The contract's own copy of the depositor-signed PegIn transaction
+(`VaultProtocolInfo.depositorSignedPeginTx`). Authoritative: its SegWit
+txid equals the broadcast PegIn's, and its `outs[1]` carries the reserve's
+script and value at no extra RPC cost.
+
+##### observed
+
+```ts
+observed: object;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/reclaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/reclaim.ts)
+
+Independent chain observation of `peginTxid:1` (esplora UTXO lookup).
+
+###### txid
+
+```ts
+txid: string;
+```
+
+The outpoint the caller actually issued its chain lookup against, so the
+observation below can be tied to the input this builder adds.
+
+Without it the script and value binds prove only that *some* UTXO has
+this shape — the claim script is a pure function of the depositor key and
+so is byte-identical across every vault they own, and the value is a pure
+function of protocol parameters. Neither distinguishes one of the
+depositor's vaults from another.
+
+Txid in display order, 64 hex chars, with or without `0x` prefix.
+
+###### vout
+
+```ts
+vout: number;
+```
+
+Vout the lookup was issued against. Must be the claim vout.
+
+###### scriptPubKey
+
+```ts
+scriptPubKey: string;
+```
+
+scriptPubKey hex, with or without `0x` prefix.
+
+###### value
+
+```ts
+value: bigint;
+```
+
+Output value in satoshis.
+
+##### expectedValue
+
+```ts
+expectedValue: bigint;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/reclaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/reclaim.ts)
+
+The reserve value recomputed from this vault's protocol parameters via
+`computeMinClaimValue`. Bound so a doctored PegIn that agrees with itself
+and with a compromised indexer still fails.
+
+***
+
+### BuildReclaimPsbtParams
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/reclaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/reclaim.ts)
+
+#### Properties
+
+##### depositorPubkey
+
+```ts
+depositorPubkey: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/reclaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/reclaim.ts)
+
+The **connected wallet's live** x-only pubkey, 64-char hex. Never the
+indexer's `depositorBtcPubkey`: re-deriving from the live key is what
+proves the wallet about to sign is the wallet that can spend, and rejects
+the wrong-wallet case with an error instead of an unspendable broadcast.
+
+##### inputs
+
+```ts
+inputs: ReclaimReserve[];
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/reclaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/reclaim.ts)
+
+Reserves to sweep. An array so batching several vaults into one
+transaction is a later change rather than a rewrite; today the app passes
+exactly one.
+
+##### feeSats
+
+```ts
+feeSats: bigint;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/reclaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/reclaim.ts)
+
+Absolute fee in satoshis. The caller sizes it; see `reclaimVsize`.
+
+***
+
+### BuildReclaimPsbtResult
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/reclaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/reclaim.ts)
+
+#### Properties
+
+##### psbtHex
+
+```ts
+psbtHex: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/reclaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/reclaim.ts)
+
+PSBT hex ready for depositor signing.
+
+##### outputValue
+
+```ts
+outputValue: bigint;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/reclaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/reclaim.ts)
+
+Value of the single output — what the depositor actually receives.
+
+##### totalInputValue
+
+```ts
+totalInputValue: bigint;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/reclaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/reclaim.ts)
+
+Sum of the swept reserves, before fee.
+
+***
+
 ### BuildRefundPsbtParams
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/refund.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/refund.ts)
@@ -1723,215 +1986,6 @@ Derive with `deriveVaultId(peginTxHash, depositorAddress)`.
 
 ## Functions
 
-### computeMinClaimValue()
-
-```ts
-function computeMinClaimValue(
-   txGraphVersion, 
-   numLocalChallengers, 
-   numUniversalChallengers, 
-   councilQuorum, 
-   councilSize, 
-feeRate): Promise<bigint>;
-```
-
-Defined in: packages/babylon-tbv-rust-wasm/dist/index.d.ts
-
-Compute the minimum depositor claim value (PegIn output 1) in satoshis.
-
-This covers the full downstream tx graph cost (Claim → Assert → Payout)
-based on the protocol parameters.
-
-#### Parameters
-
-##### txGraphVersion
-
-`number`
-
-##### numLocalChallengers
-
-`number`
-
-##### numUniversalChallengers
-
-`number`
-
-##### councilQuorum
-
-`number`
-
-##### councilSize
-
-`number`
-
-##### feeRate
-
-`bigint`
-
-#### Returns
-
-`Promise`\<`bigint`\>
-
-***
-
-### computeMinPeginFee()
-
-```ts
-function computeMinPeginFee(
-   txGraphVersion, 
-   numVks, 
-   numUcs, 
-minPeginFeeRate): Promise<bigint>;
-```
-
-Defined in: packages/babylon-tbv-rust-wasm/dist/index.d.ts
-
-Compute the minimum PegIn (activation) transaction fee in satoshis.
-
-`minPeginFee = peginTxVsize(numVks, numUcs) × minPeginFeeRate`. Each HTLC
-the depositor funds in the Pre-PegIn tx must reserve at least this fee
-inside its value (`htlcValue = peginAmount + depositorClaimValue +
-minPeginFee`), otherwise the VP cannot afford to broadcast the PegIn at
-activation. The vsize comes from a Taproot script-path-spend weight
-prediction whose witness shape depends on the VK + UC signer count.
-
-#### Parameters
-
-##### txGraphVersion
-
-`number`
-
-##### numVks
-
-`number`
-
-##### numUcs
-
-`number`
-
-##### minPeginFeeRate
-
-`bigint`
-
-#### Returns
-
-`Promise`\<`bigint`\>
-
-***
-
-### peginP2aAnchorOutput()
-
-```ts
-function peginP2aAnchorOutput(txGraphVersion): Promise<PeginP2aAnchorInfo | null>;
-```
-
-Defined in: packages/babylon-tbv-rust-wasm/dist/index.d.ts
-
-The PegIn transaction's P2A (pay-to-anchor) output for a graph version, or
-`null` when that version's PegIn carries no anchor (v1). The facade returns
-one record per version — never a zero-valued placeholder — so an absent
-anchor can't be mistaken for a real output. For v2/v3: 240 sats at vout 2,
-script `51024e73`.
-
-#### Parameters
-
-##### txGraphVersion
-
-`number`
-
-#### Returns
-
-`Promise`\<[`PeginP2aAnchorInfo`](#peginp2aanchorinfo) \| `null`\>
-
-***
-
-### validatePeginP2aAnchor()
-
-```ts
-function validatePeginP2aAnchor(txGraphVersion, txHex): Promise<void>;
-```
-
-Defined in: packages/babylon-tbv-rust-wasm/dist/index.d.ts
-
-Validate a PegIn transaction's P2A anchor against a graph version's rules:
-v2 requires the exact anchor (240 sats, vout 2, P2A script) and v1 requires
-that NO output carries the P2A script. Throws on any mismatch — a v2 PegIn
-checked as v1 fails closed, and vice versa.
-
-#### Parameters
-
-##### txGraphVersion
-
-`number`
-
-##### txHex
-
-`string`
-
-#### Returns
-
-`Promise`\<`void`\>
-
-***
-
-### supportedTxGraphVersions()
-
-```ts
-function supportedTxGraphVersions(): Promise<number[]>;
-```
-
-Defined in: packages/babylon-tbv-rust-wasm/dist/index.d.ts
-
-Tx graph versions the shipped vault-wasm binary can build. Callers must
-preflight the required version (fresh: active; resume: stamped) against
-this list and fail closed instead of hitting per-call errors mid-flow.
-
-Note: the facade constructors themselves fail closed on unsupported
-versions, and derived objects carry the version they were built with —
-value-level cross-checks live in `assertWasmPeginSizing` and the golden
-byte-parity tests, not in a per-call version echo.
-
-#### Returns
-
-`Promise`\<`number`[]\>
-
-***
-
-### deriveVaultId()
-
-```ts
-function deriveVaultId(peginTxHash, depositor): Promise<string>;
-```
-
-Defined in: packages/babylon-tbv-rust-wasm/dist/index.d.ts
-
-Derives the vault ID from a PegIn transaction hash and depositor ETH address.
-
-Vault ID = keccak256(abi.encode(peginTxHash, depositor))
-This matches the Solidity-side derivation in BTCVaultRegistry.
-
-#### Parameters
-
-##### peginTxHash
-
-`string`
-
-32-byte PegIn tx hash in display order (big-endian), hex encoded
-
-##### depositor
-
-`string`
-
-20-byte Ethereum address of the depositor, hex encoded
-
-#### Returns
-
-`Promise`\<`string`\>
-
-Hex-encoded vault ID (32 bytes)
-
-***
-
 ### computeNumLocalChallengers()
 
 ```ts
@@ -2054,6 +2108,93 @@ If any referenced Assert output is missing
 #### Throws
 
 If two inputs reference the same Assert output index
+
+***
+
+### deriveDepositorClaimDescriptor()
+
+```ts
+function deriveDepositorClaimDescriptor(depositorPubkey): DepositorClaimDescriptor;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/depositorClaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/depositorClaim.ts)
+
+Derive the depositor-claim output's spend material in JS, independently of
+WASM — the Rust `SingleKeyConnector` has no WASM wrapper, so this is the
+only derivation available on the JS side.
+
+Takes no graph version: the connector is identical across v1/v2/v3. A future
+`VAULT_WASM_COMMIT` bump that changed it would break `assertPeginTxShape` at
+peg-in build time, which is where that regression should surface.
+
+#### Parameters
+
+##### depositorPubkey
+
+`string`
+
+x-only depositor pubkey, 64-char hex (no 0x prefix)
+
+#### Returns
+
+[`DepositorClaimDescriptor`](#depositorclaimdescriptor)
+
+#### Throws
+
+If bitcoinjs cannot derive the P2TR output or its control block
+
+***
+
+### deriveDepositorClaimScriptPubKey()
+
+```ts
+function deriveDepositorClaimScriptPubKey(depositorPubkey): Buffer;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/depositorClaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/depositorClaim.ts)
+
+The depositor-claim output's scriptPubKey alone — the peg-in validation path,
+which has no need of the spend material.
+
+#### Parameters
+
+##### depositorPubkey
+
+`string`
+
+#### Returns
+
+`Buffer`
+
+***
+
+### finalizeScriptPathWithSignatures()
+
+```ts
+function finalizeScriptPathWithSignatures(params): string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/finalizeScriptPathWithSignatures.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/finalizeScriptPathWithSignatures.ts)
+
+Attach `signaturesHex` to the locally built PSBT's script-path inputs,
+finalize, and return the extracted transaction hex.
+
+#### Parameters
+
+##### params
+
+[`FinalizeScriptPathWithSignaturesParams`](#finalizescriptpathwithsignaturesparams)
+
+#### Returns
+
+`string`
+
+#### Throws
+
+If the signature count does not match the input count, any signature
+  or the signer key is malformed, any input does not carry exactly one
+  tapscript leaf at the expected leaf version, any input already carries a
+  key-path signature, or bitcoinjs-lib cannot finalize.
 
 ***
 
@@ -2424,6 +2565,99 @@ Depositor-signed PegIn transaction hex with full taproot witness stack
 
 ***
 
+### reclaimVsize()
+
+```ts
+function reclaimVsize(numInputs): number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/reclaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/reclaim.ts)
+
+Virtual size of an N-in/1-out reclaim transaction.
+
+`REFUND_VSIZE = 160` does not generalise to N inputs, and
+`computePeginBaseFeeSats` is wrong for this shape entirely — its
+`P2TR_INPUT_SIZE = 58` is a *key-path* input and under-fees a script-path
+spend by roughly a quarter.
+
+N=1 → 129 vB; each additional input adds 75 vB.
+
+#### Parameters
+
+##### numInputs
+
+`number`
+
+#### Returns
+
+`number`
+
+***
+
+### estimateReclaimFeeSats()
+
+```ts
+function estimateReclaimFeeSats(feeRateSatsVb, numInputs): bigint;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/reclaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/reclaim.ts)
+
+Absolute fee in satoshis for an N-in/1-out reclaim at a given rate.
+
+#### Parameters
+
+##### feeRateSatsVb
+
+`number`
+
+##### numInputs
+
+`number`
+
+#### Returns
+
+`bigint`
+
+***
+
+### buildReclaimPsbt()
+
+```ts
+function buildReclaimPsbt(params): BuildReclaimPsbtResult;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/reclaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/reclaim.ts)
+
+Build the N-in/1-out reclaim PSBT.
+
+Every input is bound three ways before it reaches the PSBT: the contract's
+PegIn bytes, the chain observation, and a JS re-derivation from the live
+wallet key must agree on both script and value. Any disagreement throws.
+The observation must also name the outpoint it was taken from, since script
+and value alone repeat across all of a depositor's vaults.
+
+Binding the input to the *vault* that was asked for is a further step, and
+it belongs to the service: it needs the vault id derivation, which is async.
+See `services/reclaim/buildAndBroadcastReclaim`.
+
+#### Parameters
+
+##### params
+
+[`BuildReclaimPsbtParams`](#buildreclaimpsbtparams)
+
+#### Returns
+
+[`BuildReclaimPsbtResult`](#buildreclaimpsbtresult)
+
+#### Throws
+
+If `inputs` is empty, the fee is non-positive, any input fails its
+  outpoint, script or value bind, or the resulting output would be at or
+  below dust.
+
+***
+
 ### buildRefundPsbt()
 
 ```ts
@@ -2435,7 +2669,9 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/refund.ts](htt
 Build a PSBT for signing the refund transaction.
 
 The refund transaction spends the Pre-PegIn HTLC output via leaf 1
-(the refund script: `<timelockRefund> CSV DROP <depositorPubkey> CHECKSIG`).
+(the refund script: `<depositorPubkey> OP_CHECKSIGVERIFY <timelockRefund>
+OP_CHECKSEQUENCEVERIFY` — btc-vault `connectors/prepegin_htlc.rs`
+`generate_refund_script`).
 The PSBT includes the tapLeafScript entry so the depositor's wallet can
 sign using Taproot script-path spending.
 
@@ -3145,3 +3381,228 @@ Where the value came from, for the error message
 #### Returns
 
 `void`
+
+***
+
+### computeMinClaimValue()
+
+```ts
+function computeMinClaimValue(
+   txGraphVersion, 
+   numLocalChallengers, 
+   numUniversalChallengers, 
+   councilQuorum, 
+   councilSize, 
+feeRate): Promise<bigint>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/wasm/index.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/wasm/index.ts)
+
+Compute the minimum depositor claim value (PegIn output 1) in satoshis.
+
+This covers the full downstream tx graph cost (Claim → Assert → Payout)
+based on the protocol parameters.
+
+#### Parameters
+
+##### txGraphVersion
+
+`number`
+
+##### numLocalChallengers
+
+`number`
+
+##### numUniversalChallengers
+
+`number`
+
+##### councilQuorum
+
+`number`
+
+##### councilSize
+
+`number`
+
+##### feeRate
+
+`bigint`
+
+#### Returns
+
+`Promise`\<`bigint`\>
+
+***
+
+### computeMinPeginFee()
+
+```ts
+function computeMinPeginFee(
+   txGraphVersion, 
+   numVks, 
+   numUcs, 
+minPeginFeeRate): Promise<bigint>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/wasm/index.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/wasm/index.ts)
+
+Compute the minimum PegIn (activation) transaction fee in satoshis.
+
+`minPeginFee = peginTxVsize(numVks, numUcs) × minPeginFeeRate`. Each HTLC
+the depositor funds in the Pre-PegIn tx must reserve at least this fee
+inside its value (`htlcValue = peginAmount + depositorClaimValue +
+minPeginFee`), otherwise the VP cannot afford to broadcast the PegIn at
+activation. The vsize comes from a Taproot script-path-spend weight
+prediction whose witness shape depends on the VK + UC signer count.
+
+#### Parameters
+
+##### txGraphVersion
+
+`number`
+
+##### numVks
+
+`number`
+
+##### numUcs
+
+`number`
+
+##### minPeginFeeRate
+
+`bigint`
+
+#### Returns
+
+`Promise`\<`bigint`\>
+
+***
+
+### supportedTxGraphVersions()
+
+```ts
+function supportedTxGraphVersions(): Promise<number[]>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/wasm/index.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/wasm/index.ts)
+
+Tx graph versions the shipped vault-wasm binary can build. Callers must
+preflight the required version (fresh: active; resume: stamped) against
+this list and fail closed instead of hitting per-call errors mid-flow.
+
+Note: the facade constructors themselves fail closed on unsupported
+versions, and derived objects carry the version they were built with —
+value-level cross-checks live in `assertWasmPeginSizing` and the golden
+byte-parity tests, not in a per-call version echo.
+
+#### Returns
+
+`Promise`\<`number`[]\>
+
+***
+
+### peginP2aAnchorOutput()
+
+```ts
+function peginP2aAnchorOutput(txGraphVersion): Promise<PeginP2aAnchorInfo | null>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/wasm/index.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/wasm/index.ts)
+
+The PegIn transaction's P2A (pay-to-anchor) output for a graph version, or
+`null` when that version's PegIn carries no anchor (v1). The facade returns
+one record per version — never a zero-valued placeholder — so an absent
+anchor can't be mistaken for a real output. For v2/v3: 240 sats at vout 2,
+script `51024e73`.
+
+#### Parameters
+
+##### txGraphVersion
+
+`number`
+
+#### Returns
+
+`Promise`\<[`PeginP2aAnchorInfo`](#peginp2aanchorinfo) \| `null`\>
+
+***
+
+### validatePeginP2aAnchor()
+
+```ts
+function validatePeginP2aAnchor(txGraphVersion, txHex): Promise<void>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/wasm/index.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/wasm/index.ts)
+
+Validate a PegIn transaction's P2A anchor against a graph version's rules:
+v2 and v3 require the exact anchor (240 sats, vout 2, P2A script) and v1
+requires that NO output carries the P2A script. Throws on any mismatch — a
+v2 PegIn checked as v1 fails closed, and vice versa.
+
+#### Parameters
+
+##### txGraphVersion
+
+`number`
+
+##### txHex
+
+`string`
+
+#### Returns
+
+`Promise`\<`void`\>
+
+***
+
+### deriveVaultId()
+
+```ts
+function deriveVaultId(peginTxHash, depositor): Promise<string>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/wasm/index.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/wasm/index.ts)
+
+Derives the vault ID from a PegIn transaction hash and depositor ETH address.
+
+Vault ID = keccak256(abi.encode(peginTxHash, depositor))
+This matches the Solidity-side derivation in BTCVaultRegistry.
+
+#### Parameters
+
+##### peginTxHash
+
+`string`
+
+32-byte PegIn tx hash in display order (big-endian), hex encoded
+
+##### depositor
+
+`string`
+
+20-byte Ethereum address of the depositor, hex encoded
+
+#### Returns
+
+`Promise`\<`string`\>
+
+Hex-encoded vault ID (32 bytes)
+
+## Variables
+
+### PEGIN\_DEPOSITOR\_CLAIM\_VOUT
+
+```ts
+const PEGIN_DEPOSITOR_CLAIM_VOUT: 1 = 1;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/depositorClaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/depositorClaim.ts)
+
+Vout of the depositor-claim output in every PegIn version (btc-vault: vault
+at 0, depositor claim at 1, optional P2A anchor appended after).
+
+Version-invariant: the graph version dispatches only the trailing P2A anchor
+(absent in v1, 240 sats at vout 2 in v2/v3). Nothing touches vout 1.

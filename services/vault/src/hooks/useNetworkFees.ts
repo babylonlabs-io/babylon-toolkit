@@ -8,6 +8,10 @@ const NETWORK_FEES_KEY = "NETWORK_FEES";
 export interface FeeRates {
   /** Default fee rate for next-block confirmation (fastestFee from mempool) */
   defaultFeeRate: number;
+  /** ~30 minute confirmation estimate (halfHourFee) */
+  halfHourFeeRate: number;
+  /** ~60 minute confirmation estimate (hourFee) */
+  hourFeeRate: number;
   /** Whether fee rates are still loading */
   isLoading: boolean;
   /** Error if fee rates could not be fetched */
@@ -17,11 +21,9 @@ export interface FeeRates {
 /**
  * Fetches Bitcoin network fee recommendations from mempool.space API.
  *
- * Returns the fastestFee rate for next-block confirmation.
- * Auto-refetches every 60 seconds with retry logic (3 attempts).
- * Globally cached - all components share the same data.
- *
- * @returns Fee rate with loading/error state
+ * Defaults to fastestFee for next-block confirmation; also exposes slower
+ * tiers for fee-rate pickers. Auto-refetches every 60 seconds with retry
+ * logic (3 attempts). Globally cached — all components share the same data.
  */
 export function useNetworkFees(): FeeRates {
   const query = useQuery({
@@ -36,6 +38,8 @@ export function useNetworkFees(): FeeRates {
   if (query.data) {
     return {
       defaultFeeRate: query.data.fastestFee,
+      halfHourFeeRate: query.data.halfHourFee,
+      hourFeeRate: query.data.hourFee,
       isLoading: false,
       error: null,
     };
@@ -43,6 +47,8 @@ export function useNetworkFees(): FeeRates {
 
   return {
     defaultFeeRate: 0,
+    halfHourFeeRate: 0,
+    hourFeeRate: 0,
     isLoading: query.isLoading,
     error: query.error ?? null,
   };

@@ -6,6 +6,9 @@
  *  - expiredActivities: refundable expired deposits (contractStatus 7=EXPIRED with
  *    unsignedPrePeginTx — the only indexer-sourced field required to build the
  *    refund PSBT; hashlock and htlcVout come from the on-chain contract).
+ *  - reclaimableCandidates: settled deposits (contractStatus 6=DEPOSITOR_WITHDRAWN)
+ *    whose depositor-claim reserve may still be unspent. Candidates only —
+ *    eligibility is decided on Bitcoin, not from this status.
  * Provides wallet state and modal handlers for broadcast/refund actions on
  * pending and expired deposits. The post-broadcast actions (WOTS, payout
  * signing, activation, artifact download) are owned by the deposit
@@ -21,6 +24,7 @@ import { useBTCWallet, useETHWallet } from "@/context/wallet";
 import { useAllDepositProviders } from "@/hooks/deposit/useAllDepositProviders";
 import { useBroadcastModal } from "@/hooks/deposit/useBroadcastModal";
 import { useEmergencyWithdrawModal } from "@/hooks/deposit/useEmergencyWithdrawModal";
+import { useReclaimModal } from "@/hooks/deposit/useReclaimModal";
 import { useRefundModal } from "@/hooks/deposit/useRefundModal";
 import { useVaultDeposits } from "@/hooks/useVaultDeposits";
 import { ContractStatus } from "@/models/peginStateMachine";
@@ -65,6 +69,26 @@ export function usePendingDeposits() {
     return [...demo.expiredActivities, ...(demo.hideReal ? [] : real)];
   }, [activities, demo]);
 
+  // Settled vaults whose depositor-claim reserve may still be sitting at PegIn
+  // vout 1. Candidates only: this is the cheap pre-filter that decides which
+  // vaults are worth probing on Bitcoin. Whether the reserve is actually
+  // reclaimable is decided by `getReclaimEligibility` against the chain reads,
+  // and gating on the contract status alone would be unsafe — see the warning
+  // in `models/reclaimEligibility`.
+  //
+  // `depositorSignedPeginTx` here is the indexer's copy, used only to derive
+  // the txid the poller probes. The signing path re-reads it from the contract
+  // (`vaultReclaimService`); a wrong value here can at worst mislabel a row.
+  const reclaimableCandidates = useMemo(
+    () =>
+      activities.filter(
+        (a) =>
+          a.contractStatus === ContractStatus.DEPOSITOR_WITHDRAWN &&
+          !!a.depositorSignedPeginTx,
+      ),
+    [activities],
+  );
+
   const mergedVaultProviders = useMemo(
     () => (demo ? [demo.provider, ...vaultProviders] : vaultProviders),
     [demo, vaultProviders],
@@ -80,6 +104,11 @@ export function usePendingDeposits() {
     onSuccess: refetchActivities,
   });
 
+  const reclaimModal = useReclaimModal({
+    allActivities: activities,
+    onSuccess: refetchActivities,
+  });
+
   const emergencyWithdrawModal = useEmergencyWithdrawModal({
     allActivities: activities,
     onSuccess: refetchActivities,
@@ -88,6 +117,7 @@ export function usePendingDeposits() {
   return {
     pendingActivities,
     expiredActivities,
+    reclaimableCandidates,
     allActivities: activities,
     vaultProviders: mergedVaultProviders,
     btcAddress,
@@ -100,6 +130,7 @@ export function usePendingDeposits() {
     refetchActivities,
     broadcastModal,
     refundModal,
+    reclaimModal,
     emergencyWithdrawModal,
     // God-mode demo aggregate (null in production). Only the activation-walk
     // click routing reads it; every other consumer uses the real lists above.

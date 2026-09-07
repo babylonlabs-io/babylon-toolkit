@@ -66,6 +66,25 @@ const FREEZE_SPINNER_CSS = `
   }
 `;
 
+/**
+ * Hides the god-mode panel's collapsed launcher.
+ *
+ * The capture config turns the panel on (`NEXT_PUBLIC_FF_GOD_MODE_PANEL`) so
+ * `depositProgress.visual.spec.ts` can seed demo deposits through it, and the
+ * panel then renders a "God mode" pill fixed in the bottom-right corner of
+ * every screen. It is dev chrome that never ships, so it is hidden rather
+ * than photographed. Matched by its own classes (src/dev/GodModePanel.tsx)
+ * because the launcher carries no testid, and a testid added in `src/` would
+ * not exist on the merge-base side anyway; `capture.ts` asserts the launcher
+ * is gone before every shot, so a class change fails loud instead of quietly
+ * putting the pill in every picture.
+ */
+const HIDE_GOD_MODE_LAUNCHER_CSS = `
+  button.fixed.bottom-4.right-4.z-\\[9999\\] {
+    display: none !important;
+  }
+`;
+
 /** How long the frame must stay byte-identical before we trust it. */
 const STABILITY_QUIET_MS = 300;
 /** Consecutive identical frames required. */
@@ -167,7 +186,9 @@ export async function waitForVisualStability(page: Page): Promise<void> {
     { timeout: RENDER_TIMEOUT_MS },
   );
 
-  await page.addStyleTag({ content: FREEZE_SPINNER_CSS });
+  await page.addStyleTag({
+    content: FREEZE_SPINNER_CSS + HIDE_GOD_MODE_LAUNCHER_CSS,
+  });
   await page.evaluate(async () => {
     await document.fonts.ready;
   });

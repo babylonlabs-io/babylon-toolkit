@@ -60,7 +60,7 @@ const SURFACE_CONTRAST = "bg-background-contrast";
 // deviate per card.
 const ACTION_RADIUS = "rounded-lg";
 const ACTION_SIZE_DEFAULT = "";
-const ACTION_SIZE_TALL = "h-10 text-base"; // "Add sacrificial vault" (§3)
+const ACTION_SIZE_TALL = "h-10 text-base"; // Cliff's "Add Collateral" (§3)
 const ACTION_SIZE_WIDE = "h-9 px-6"; // "Apply Optimal Order" (§5)
 
 // Outlined actions take Figma's `stroke/primary` (#5A5A5A in dark), not the

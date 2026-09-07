@@ -37,6 +37,13 @@
  * pegin → borrow → repay → withdraw cycle. `--withdraw-all` releases every selectable vault (default = a
  * single vault, keeping the position alive).
  *
+ * Reclaim sweeps the depositor-claim reserve (PegIn output 1) of a settled vault back to the depositor —
+ * one BTC signature, no Ethereum transaction. It is offered only once the withdrawal has settled on
+ * Bitcoin (PegIn output 0 spent, six confirmations deep), because the reserve funds the depositor's
+ * pre-signed emergency claim and spending it early destroys that recovery material permanently. The run
+ * reads the broadcast transaction back off the chain and asserts its shape, writing the results to
+ * `reclaim.json`. `--dry-run` stops before the signature, exercising the gate without spending.
+ *
  * Resume recovers an interrupted peg-in from the dashboard's Pending Deposits UI (Submit WOTS Key → Sign
  * Payouts → Activate). By default it resumes an already-pending deposit (`--txid=<prePeginTxid>` targets a
  * specific one, else the first actionable); `--interrupt-fresh` pegs in a fresh deposit, reloads after
@@ -615,6 +622,10 @@ async function resolveConfig(
     const withdrawAll =
       action === "withdraw" && flagBool(flags["withdraw-all"]);
 
+    // Reclaim extra: stop after the review screen without signing. The sweep is irreversible, so a
+    // rehearsal that exercises the gate and the fee/dust checks but spends nothing is worth having.
+    const reclaimDryRun = action === "reclaim" && flagBool(flags["dry-run"]);
+
     return {
       target,
       network,
@@ -639,6 +650,7 @@ async function resolveConfig(
       recoverTxid,
       interruptFresh,
       interruptOnly,
+      reclaimDryRun,
     };
   } finally {
     rl.close();

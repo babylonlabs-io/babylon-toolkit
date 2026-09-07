@@ -150,13 +150,22 @@ function finalize(
  *
  * Use for a peg-in being built now. Issues no epoch read, so it never touches
  * the extended `getBtcVaultProtocolInfo` ABI.
+ *
+ * `blockNumber` pins the resolution to one block, and is required. Pass the
+ * same block the rosters in `query` were read at: the roster supplies each
+ * participant's address and genesis key, and this call resolves what that
+ * participant has rotated to. Reading the two at different blocks can pair a
+ * roster member with a key from a different chain state, so there is no
+ * correct unpinned call and no default worth having.
  */
 export async function resolveCurrentParticipantKeys(params: {
   operationKeyReader: OperationKeyReader;
   query: OperationKeyQuery;
+  blockNumber: bigint;
 }): Promise<ParticipantKeySet> {
   const raw = await params.operationKeyReader.getCurrentOperationKeys(
     params.query,
+    params.blockNumber,
   );
   return finalize(params.query, raw, { mode: "current" });
 }

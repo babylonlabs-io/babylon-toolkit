@@ -227,19 +227,28 @@ export async function getTxInfo(txid: string, apiUrl: string): Promise<TxInfo> {
  * Source: mempool.space API — `GET /api/blocks/tip/height` returns the height
  * of the most recent block as a plain-text integer.
  *
+ * The digit check alone is not enough to honour the contract below. A long
+ * enough run of digits passes `/^\d+$/` and then parses to a value no caller
+ * can use: 400 digits yields `Infinity`, and 20 digits yields a finite but
+ * unsafe integer. Callers subtract this from a confirmed block height to get a
+ * confirmation depth, so either one produces an enormous depth and clears any
+ * threshold it is compared against. Bound it to a safe integer here rather
+ * than leaving each caller to discover the gap.
+ *
  * @param apiUrl - Mempool API base URL
  * @returns The height of the most recent block
- * @throws Error if the response is not a whole number
+ * @throws Error if the response is not a whole number a caller can compute on
  */
 export async function getTipHeight(apiUrl: string): Promise<number> {
   const raw = await fetchApi<string>(`${apiUrl}/blocks/tip/height`);
   const trimmed = raw.trim();
-  if (!/^\d+$/.test(trimmed)) {
+  const height = /^\d+$/.test(trimmed) ? Number.parseInt(trimmed, 10) : NaN;
+  if (!Number.isSafeInteger(height) || height < 0) {
     throw new Error(
       `Mempool API returned an invalid block tip height: "${raw}"`,
     );
   }
-  return Number.parseInt(trimmed, 10);
+  return height;
 }
 
 /**

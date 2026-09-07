@@ -9,7 +9,10 @@ import { V3ModalShell } from "@/components/shared/V3ModalShell";
 import { FeatureFlags } from "@/config";
 import { useAddressScreening } from "@/context/addressScreening";
 import { useGeoFencing } from "@/context/geofencing";
-import { ProtocolParamsProvider } from "@/context/ProtocolParamsContext";
+import {
+  ProtocolParamsProvider,
+  useProtocolParamsContext,
+} from "@/context/ProtocolParamsContext";
 import { useBTCWallet, useETHWallet } from "@/context/wallet";
 import { COPY } from "@/copy";
 import { useBtcWalletState } from "@/hooks/deposit/useBtcWalletState";
@@ -32,6 +35,7 @@ import { useDepositPageFlow } from "../../hooks/deposit/useDepositPageFlow";
 import { useDepositPageForm } from "../../hooks/deposit/useDepositPageForm";
 
 import { DepositForm } from "./DepositForm";
+import { DEPOSIT_VIEW_MAX_WIDTH_CLASS } from "./DepositProgressView/layout";
 import { DepositSignContent } from "./DepositSignContent";
 import { FadeTransition } from "./FadeTransition";
 import { ResumeBroadcastContent } from "./ResumeDepositContent";
@@ -106,7 +110,6 @@ function SimpleDepositContent({
     isWalletConnected,
     btcBalance,
     unconfirmedBalance,
-    hasUnconfirmedBalanceOnly,
     btcPrice,
     hasPriceFetchError,
     applications,
@@ -176,6 +179,8 @@ function SimpleDepositContent({
     setFeeRate,
   } = useDepositPageFlow();
 
+  const { config } = useProtocolParamsContext();
+
   // Per-position BTC Vault cap (on-chain). Always-on value-protection guard:
   // block the deposit when even a single vault won't fit (`isAtCap`), force a
   // single vault when a split would overflow (`isSplitUnavailable`), and fail
@@ -188,11 +193,12 @@ function SimpleDepositContent({
     currentCount: collateralizableVaultCount,
     capUnavailable: vaultCountCapUnavailable,
   } = useVaultCountCap(connectedEthAddress);
-  const { isAtCap: isVaultCapReached, isSplitUnavailable: isSplitCapReached } =
+  const { isAtCap: isVaultCapReached, splitUnavailableReason } =
     resolveVaultCapState({
       existingVaultCount: collateralizableVaultCount,
       maxVaultsPerPosition: maxVaults,
       enabled: true,
+      maxHtlcOutputCount: config.maxHtlcOutputCount,
     });
 
   const isSupplementalDeposit = !!initialAmountBtc;
@@ -201,7 +207,7 @@ function SimpleDepositContent({
     : null;
   const allowSplit =
     !isSupplementalDeposit &&
-    !isSplitCapReached &&
+    splitUnavailableReason === null &&
     (!hasActiveVaults || FeatureFlags.isForcePartialLiquidationSplit);
 
   // Effective split = the same condition handleDeposit uses at submit
@@ -456,7 +462,6 @@ function SimpleDepositContent({
                   amountSats,
                   btcBalance,
                   unconfirmedBalance,
-                  hasUnconfirmedBalanceOnly,
                   minDeposit,
                   maxDeposit,
                   maxDepositSats,
@@ -517,9 +522,13 @@ function SimpleDepositContent({
                   ordinalsCheckPending,
                   isVaultCapReached,
                   vaultCountCapUnavailable,
-                  vaultCapSplitUnavailable: isSplitCapReached,
+                  splitUnavailableReason,
+                  // Usage figures only make sense for the per-position cap; the
+                  // protocol cap can bite with an empty position and an unknown
+                  // per-position cap, so its hint quotes no numbers.
                   vaultCapUsage:
-                    isSplitCapReached && maxVaults != null
+                    splitUnavailableReason === "per-position" &&
+                    maxVaults != null
                       ? {
                           used: collateralizableVaultCount,
                           cap: maxVaults,
@@ -537,7 +546,7 @@ function SimpleDepositContent({
         )}
 
         {renderedStep === DepositStep.SIGN && btcWalletProvider && (
-          <div className="mx-auto w-full max-w-[520px]">
+          <div className={`mx-auto w-full ${DEPOSIT_VIEW_MAX_WIDTH_CLASS}`}>
             <DepositSignContent
               vaultAmounts={
                 isSplitDeposit && splitVaultAmounts
@@ -545,6 +554,7 @@ function SimpleDepositContent({
                   : [depositAmount]
               }
               mempoolFeeRate={feeRate}
+              onFeeRateChange={setFeeRate}
               btcWalletProvider={btcWalletProvider}
               depositorEthAddress={ethAddress}
               selectedApplication={selectedApplication}
@@ -579,7 +589,7 @@ export default function SimpleDeposit(props: SimpleDepositProps) {
         <V3ModalShell
           open={open}
           onClose={onClose}
-          contentClassName="max-w-[520px]"
+          contentClassName={DEPOSIT_VIEW_MAX_WIDTH_CLASS}
         >
           <ResumeBroadcastContent
             activity={props.activity}

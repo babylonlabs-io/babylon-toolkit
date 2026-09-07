@@ -35,7 +35,9 @@ describe("DepositFeesBreakdown commission disclosure", () => {
       />,
     );
 
-    expect(screen.getByText("VP commission (2.5%)")).toBeInTheDocument();
+    expect(
+      screen.getByText("Vault Provider commission (2.5%)"),
+    ).toBeInTheDocument();
     expect(screen.getByText("Net payout")).toBeInTheDocument();
     expect(screen.getByText(/0\.025/)).toBeInTheDocument();
     expect(screen.getByText(/0\.975/)).toBeInTheDocument();
@@ -53,8 +55,10 @@ describe("DepositFeesBreakdown commission disclosure", () => {
     );
 
     // Label has no percent suffix when the commission hasn't loaded.
-    expect(screen.getByText("VP commission")).toBeInTheDocument();
-    expect(screen.queryByText(/VP commission \(/)).not.toBeInTheDocument();
+    expect(screen.getByText("Vault Provider commission")).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Vault Provider commission \(/),
+    ).not.toBeInTheDocument();
     // Both the commission and net-payout cells render the "--" placeholder.
     expect(screen.getAllByText("--").length).toBeGreaterThanOrEqual(2);
   });
@@ -73,7 +77,9 @@ describe("DepositFeesBreakdown commission disclosure", () => {
     // Percent is still shown (it's just the bps), but the sats can't be
     // sized until the split's per-vault amounts resolve, so commission and
     // net payout stay as "--".
-    expect(screen.getByText("VP commission (2.5%)")).toBeInTheDocument();
+    expect(
+      screen.getByText("Vault Provider commission (2.5%)"),
+    ).toBeInTheDocument();
     expect(screen.getAllByText("--").length).toBeGreaterThanOrEqual(2);
   });
 
@@ -89,14 +95,33 @@ describe("DepositFeesBreakdown commission disclosure", () => {
     );
 
     // The shared fee row hangs the tooltip off core-ui's info icon rather than
-    // the bare label, so each of the four lines carries its own trigger.
+    // the bare label, so each of the six lines carries its own trigger.
     const tooltips = Array.from(
       document.querySelectorAll("[data-tooltip-content]"),
     ).map((node) => node.getAttribute("data-tooltip-content"));
 
-    expect(tooltips).toHaveLength(4);
+    expect(tooltips).toHaveLength(6);
     expect(tooltips.every((content) => Boolean(content))).toBe(true);
-    expect(new Set(tooltips).size).toBe(4);
+    expect(new Set(tooltips).size).toBe(6);
+  });
+
+  it("renders the network fee rate as a read-only row", () => {
+    render(
+      <DepositFeesBreakdown
+        {...baseProps}
+        amountSats={100_000_000n}
+        depositorClaimValue={3_000_000n}
+        commissionBaseValues={[100_000_000n]}
+        commissionBps={250}
+        networkFeeRate={12}
+        networkFeeSats={1500n}
+      />,
+    );
+
+    expect(screen.getByText("Network Fee Rate")).toBeInTheDocument();
+    expect(screen.getByText("BTC Network Fee")).toBeInTheDocument();
+    expect(screen.getByText("12 sats/vB")).toBeInTheDocument();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 
   it("floors commission per vault for split deposits", () => {

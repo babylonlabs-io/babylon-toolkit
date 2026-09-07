@@ -21,7 +21,7 @@
 import {
   createPayoutConnector,
   type Network,
-} from "@babylonlabs-io/babylon-tbv-rust-wasm";
+} from "../../wasm";
 
 /**
  * Parameters for creating a payout script.

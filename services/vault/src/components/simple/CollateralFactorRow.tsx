@@ -1,3 +1,5 @@
+import { Hint, InfoIcon } from "@babylonlabs-io/core-ui";
+
 import { COPY } from "@/copy";
 import { computeMaxBorrowUsd } from "@/utils/collateral";
 import { formatCompactUsd } from "@/utils/formatting";
@@ -30,16 +32,18 @@ export function CollateralFactorRow({
   return (
     <div className="flex items-center justify-between text-sm">
       <span className="text-accent-primary">{FORM_COPY.maxToBorrowLabel}</span>
-      <span>
+      <span className="inline-flex items-center gap-1">
         <span className="text-accent-primary">
           {maxBorrowUsd !== null
             ? `${formatCompactUsd(maxBorrowUsd)} USD`
             : "--"}
         </span>
         <span className="text-accent-secondary">
-          {" "}
           {FORM_COPY.cfParenthetical(percent)}
         </span>
+        <Hint tooltip={COPY.tooltips.collateralFactor} attachToChildren>
+          <InfoIcon size={16} className="text-accent-secondary" />
+        </Hint>
       </span>
     </div>
   );

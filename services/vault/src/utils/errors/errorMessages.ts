@@ -13,7 +13,7 @@ export const CONTRACT_ERROR_MESSAGES: Record<string, string> = {
   PositionNotFound: "Position not found. You may not have an active position.",
   PositionAlreadyExists: "A position already exists for this account.",
   NoCollateralToLiquidate: "No collateral available for liquidation.",
-  VaultAlreadyInPosition: "This BTC Vault is already being used in a position.",
+  VaultAlreadyInPosition: "This BTCVault is already being used in a position.",
   InvalidProxyContract: "Invalid proxy contract address.",
   ProxyMismatch: "Proxy contract mismatch.",
   NoDebtToLiquidate: "No debt available to liquidate.",
@@ -25,34 +25,34 @@ export const CONTRACT_ERROR_MESSAGES: Record<string, string> = {
   // ============================================================================
   // BTCVaultRegistry errors
   // ============================================================================
-  BTCVaultNotFound: "BTC Vault not found. The BTC Vault ID may be invalid.",
-  VaultNotActive: "This BTC Vault is not active.",
-  VaultAlreadyRedeemed: "This BTC Vault has already been redeemed.",
-  VaultAlreadyExists: "A BTC Vault with this ID already exists.",
+  BTCVaultNotFound: "BTCVault not found. The BTCVault ID may be invalid.",
+  VaultNotActive: "This BTCVault is not active.",
+  VaultAlreadyRedeemed: "This BTCVault has already been redeemed.",
+  VaultAlreadyExists: "A BTCVault with this ID already exists.",
   InvalidVaultStatus:
-    "The BTC Vault is in an invalid status for this operation.",
+    "The BTCVault is in an invalid status for this operation.",
   InvalidBTCVaultStatus:
-    "The BTC Vault is in an invalid status for this operation.",
+    "The BTCVault is in an invalid status for this operation.",
   ActivationDeadlineExpired:
-    "The activation deadline has passed. The BTC Vault can no longer be activated.",
+    "The activation deadline has passed. The BTCVault can no longer be activated.",
   // The opposite bound to ActivationDeadlineExpired: too early, not too late.
   // Resolves by waiting, so the copy asks for a retry rather than closing the
   // flow. Normally unreachable — the UI holds Activate closed for the window —
   // so this is the fallback for a governance change mid-flow.
   ActivationDelayNotElapsed:
-    "The BTC Vault activation window has not opened yet. The deposit list shows how long is left.",
+    "The BTCVault activation window has not opened yet. The deposit list shows how long is left.",
   InvalidSecret:
-    "The secret does not match the BTC Vault's hashlock. Please verify your secret and try again.",
-  InvalidHashlock: "The BTC Vault does not have a valid hashlock configured.",
+    "The secret does not match the BTCVault's hashlock. Please verify your secret and try again.",
+  InvalidHashlock: "The BTCVault does not have a valid hashlock configured.",
   // Fires at vault REGISTRATION (per-depositor hashlock uniqueness in
   // BTCVaultRegistry). Hashlocks are deterministic from BTC wallet +
   // selected UTXOs, so reusing the same UTXOs from the same wallet
   // produces the same hashlock and reverts here. Kept in sync with the
   // SDK selector-keyed copy in `babylon-ts-sdk/src/tbv/core/contracts/errors.ts`.
   DuplicateHashlock:
-    "Duplicate deposit: a BTC Vault with this hashlock is already registered to your wallet. Hashlocks are derived from your BTC wallet and selected UTXOs — use different UTXOs to create a unique deposit.",
-  VaultNotEscrowed: "The BTC Vault is not in escrow.",
-  VaultSwapNotSet: "BTC Vault swap is not configured.",
+    "Duplicate deposit: a BTCVault with this hashlock is already registered to your wallet. Hashlocks are derived from your BTC wallet and selected UTXOs — use different UTXOs to create a unique deposit.",
+  VaultNotEscrowed: "The BTCVault is not in escrow.",
+  VaultSwapNotSet: "BTCVault swap is not configured.",
   InvalidBTCPublicKey: "Invalid BTC public key format.",
   InvalidBTCProofOfPossession: "Invalid BTC proof of possession signature.",
   BtcKeyMismatch: "BTC key mismatch.",
@@ -62,9 +62,9 @@ export const CONTRACT_ERROR_MESSAGES: Record<string, string> = {
     "Bitcoin inclusion proof verification failed.",
   BitcoinTransactionParsingFailed: "Failed to parse Bitcoin transaction.",
   PrePeginOutputAlreadyUsed:
-    "This Pre-Pegin output has already been used to activate another BTC Vault.",
+    "This Pre-Pegin output has already been used to activate another BTCVault.",
   PeginTransactionAlreadyUsed:
-    "This peg-in transaction has already been used to activate another BTC Vault.",
+    "This peg-in transaction has already been used to activate another BTCVault.",
 
   // ============================================================================
   // Vault Provider errors
@@ -75,7 +75,7 @@ export const CONTRACT_ERROR_MESSAGES: Record<string, string> = {
   InvalidProviderStatus: "Invalid vault provider status.",
   NoUniversalChallengersConfigured: "No universal challengers are configured.",
   NoAppVaultKeepersConfigured: "No app vault keepers are configured.",
-  EmptyVaultKeepers: "Vault keepers list cannot be empty.",
+  EmptyVaultKeepers: "Vault Keepers list cannot be empty.",
   VaultKeeperNotAuthorized: "Vault keeper is not authorized.",
 
   // ============================================================================
@@ -93,9 +93,9 @@ export const CONTRACT_ERROR_MESSAGES: Record<string, string> = {
   // Aave Adapter position limits
   // ============================================================================
   VaultCountExceedsMaximum:
-    "You have reached the maximum number of BTC Vaults per position.",
+    "You have reached the maximum number of BTCVaults per position.",
   PositionAboveMaximum:
-    "Your total BTC Vault amount exceeds the maximum position size.",
+    "Your total BTCVault amount exceeds the maximum position size.",
 
   // ============================================================================
   // Aave Spoke errors
@@ -108,7 +108,7 @@ export const CONTRACT_ERROR_MESSAGES: Record<string, string> = {
   EscrowNotEmpty: "Escrow is not empty.",
   FairnessPaymentTokenNotSet: "Fairness payment token is not set.",
   FeeRecipientNotConfigured: "Fee recipient is not configured.",
-  DuplicateVaultId: "Duplicate BTC Vault ID.",
+  DuplicateVaultId: "Duplicate BTCVault ID.",
 
   // ============================================================================
   // Bitcoin verification errors
@@ -148,7 +148,7 @@ export const CONTRACT_ERROR_MESSAGES: Record<string, string> = {
   InsufficientBalance: "Insufficient balance for this operation.",
   ZeroAddress: "Address cannot be zero.",
   ZeroAmount: "Amount cannot be zero.",
-  InvalidVault: "Invalid BTC Vault.",
+  InvalidVault: "Invalid BTCVault.",
   FailedDeployment: "Contract deployment failed.",
   ProxyDeploymentFailed: "Proxy deployment failed.",
   TransferFailed: "Token transfer failed.",
@@ -229,11 +229,11 @@ export const CONTRACT_ERROR_MESSAGES: Record<string, string> = {
   // simulation failure (nothing signed or sent) and a mined revert, so it must
   // not assert anything about whether a transaction reached the chain.
   ApplicationNotActive:
-    "The application this BTC Vault is registered with is not active on the vault registry, so this operation cannot proceed.",
+    "The application this BTCVault is registered with is not active on the vault registry, so this operation cannot proceed.",
   BlocklistedVaultKeeper:
     "This vault keeper has been blocklisted and cannot perform this action.",
   PostExpiryGraceWindowElapsed:
-    "The grace window to refund this expired BTC Vault has elapsed.",
+    "The grace window to refund this expired BTCVault has elapsed.",
   BtcKeyAlreadyRegistered: "This Bitcoin public key is already registered.",
   CommissionAboveMaximum:
     "The proposed commission exceeds the protocol maximum.",

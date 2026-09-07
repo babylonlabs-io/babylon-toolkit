@@ -284,21 +284,35 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
       disconnect();
     };
 
-    // Add listeners if provider supports events
-    // Different wallets use different event names
+    const registeredAccountEvents: (typeof ACCOUNT_CHANGE_EVENTS)[number][] = [];
+    let disconnectRegistered = false;
+
     if (typeof btcWalletProvider.on === "function") {
       ACCOUNT_CHANGE_EVENTS.forEach((event) => {
-        btcWalletProvider.on(event, onAccountsChanged);
+        try {
+          btcWalletProvider.on(event, onAccountsChanged);
+          registeredAccountEvents.push(event);
+        } catch {
+          // Some wallet providers reject event names that they do not support.
+        }
       });
-      btcWalletProvider.on(DISCONNECT_EVENT, onDisconnect);
+
+      try {
+        btcWalletProvider.on(DISCONNECT_EVENT, onDisconnect);
+        disconnectRegistered = true;
+      } catch {
+        // Some wallet providers reject event names that they do not support.
+      }
     }
 
     return () => {
       if (typeof btcWalletProvider.off === "function") {
-        ACCOUNT_CHANGE_EVENTS.forEach((event) => {
+        registeredAccountEvents.forEach((event) => {
           btcWalletProvider.off(event, onAccountsChanged);
         });
-        btcWalletProvider.off(DISCONNECT_EVENT, onDisconnect);
+        if (disconnectRegistered) {
+          btcWalletProvider.off(DISCONNECT_EVENT, onDisconnect);
+        }
       }
     };
   }, [btcWalletProvider, address, callbacks, disconnect]);
@@ -627,4 +641,3 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
 };
 
 export const useBTCWallet = () => useContext(BTCWalletContext);
-

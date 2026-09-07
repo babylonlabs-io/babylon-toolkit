@@ -214,9 +214,17 @@ export class ViemProtocolParamsReader implements ProtocolParamsReader {
    * that a governance update between separate reads cannot let JS build BTC
    * scripts with version N params while the contract registers the vault
    * under version N+1.
+   *
+   * That guarantee holds only within this multicall. A caller that also reads
+   * participant keys — every fresh peg-in build does — must pass the same
+   * `blockNumber` here and to those reads, or the two describe different
+   * blocks and the pairing above buys nothing across the seam.
    */
-  async getPegInConfiguration(): Promise<PegInConfiguration> {
+  async getPegInConfiguration(
+    blockNumber?: bigint,
+  ): Promise<PegInConfiguration> {
     const results = await this.publicClient.multicall({
+      blockNumber,
       contracts: [
         {
           address: this.contractAddress,

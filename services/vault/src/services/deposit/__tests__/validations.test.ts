@@ -133,7 +133,7 @@ describe("Deposit Validations", () => {
           ...validInputs,
           vaultAmounts: [30_000n, 30_000n, 30_000n],
         }),
-      ).toThrow("Maximum 2 BTC Vaults supported");
+      ).toThrow("Maximum 2 BTCVaults supported");
     });
 
     it("throws when BTC wallet is not connected", () => {
@@ -662,7 +662,7 @@ describe("Deposit Validations", () => {
       });
       expect(result).toEqual({
         disabled: true,
-        label: "BTC Vault size exceeds remaining capacity (0.005 BTC)",
+        label: "BTCVault size exceeds remaining capacity (0.005 BTC)",
       });
     });
 
@@ -712,7 +712,7 @@ describe("Deposit Validations", () => {
       });
     });
 
-    it("returns 'BTC Vault size exceeds remaining capacity' when amount > effectiveRemaining", () => {
+    it("returns 'BTCVault size exceeds remaining capacity' when amount > effectiveRemaining", () => {
       // Amount + fee + claim (806_000) still fits readyParams.btcBalance
       // (1_000_000), so this test isolates the cap branch from the balance
       // check. effectiveRemaining 500_000 sats = "0.005" via
@@ -724,7 +724,7 @@ describe("Deposit Validations", () => {
       });
       expect(result).toEqual({
         disabled: true,
-        label: "BTC Vault size exceeds remaining capacity (0.005 BTC)",
+        label: "BTCVault size exceeds remaining capacity (0.005 BTC)",
       });
     });
 

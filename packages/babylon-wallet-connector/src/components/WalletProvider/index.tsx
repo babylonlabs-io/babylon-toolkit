@@ -1,4 +1,4 @@
-import { useMemo, type PropsWithChildren, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, type PropsWithChildren, type ReactNode } from "react";
 
 import { ONE_HOUR } from "@/constants";
 import { ChainConfigArr, ChainProvider, type ChainMetadataMap } from "@/context/Chain.context";
@@ -87,20 +87,43 @@ export function WalletProvider({
 
   // Initialize unified AppKit modal synchronously before render (only if config provided)
   // This ensures both wagmi and bitcoin configs are available before children mount
-  useMemo(() => {
+  const appKitInitializationFailure = useMemo(() => {
     if (!appKitConfig) {
-      return;
+      return null;
     }
 
     try {
       // Initialize AppKit with the unified config
       // Config may have eth and/or btc properties
       initializeAppKitModal(appKitConfig);
+      return null;
     } catch (error) {
-      console.error("Failed to initialize AppKit modal:", error instanceof Error ? error.message : "Unknown error");
+      return {
+        error: error instanceof Error ? error : new Error("Failed to initialize AppKit modal", { cause: error }),
+      };
     }
   }, [appKitConfig]);
 
+  const reportedAppKitFailure = useRef<typeof appKitInitializationFailure>(null);
+  const loggedAppKitFailure = useRef<typeof appKitInitializationFailure>(null);
+
+  useEffect(() => {
+    if (!appKitInitializationFailure) {
+      reportedAppKitFailure.current = null;
+      loggedAppKitFailure.current = null;
+      return;
+    }
+
+    if (loggedAppKitFailure.current !== appKitInitializationFailure) {
+      loggedAppKitFailure.current = appKitInitializationFailure;
+      console.error("Failed to initialize AppKit modal:", appKitInitializationFailure.error.message);
+    }
+
+    if (!onError || reportedAppKitFailure.current === appKitInitializationFailure) return;
+
+    reportedAppKitFailure.current = appKitInitializationFailure;
+    onError(appKitInitializationFailure.error);
+  }, [appKitInitializationFailure, onError]);
 
   // Listen for requests to open the AppKit modal (triggered by connectors)
   // This hook gracefully handles cases where AppKit is not initialized

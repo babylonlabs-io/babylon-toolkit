@@ -64,6 +64,9 @@ jobs:
       - name: Build all
         run: pnpm exec nx run-many --target=build --all
 
+      - name: Check packed SDK consumer
+        run: pnpm exec nx run @babylonlabs-io/ts-sdk:check:packed-consumer
+
       - name: Typecheck the release driver
         run: pnpm exec nx run @internal/release:typecheck
 
@@ -72,6 +75,12 @@ jobs:
 
       - name: Test all
         run: pnpm exec nx run-many --target=test --all
+        env:
+          # One project at a time. nx defaults to 3, and each project's vitest
+          # then spawns a worker per core, which oversubscribes the 4-vCPU runner
+          # and trips vitest's 5s per-test timeout. PRs escape it by testing only
+          # affected projects; `--all` on main does not.
+          NX_PARALLEL: "1"
 
       # Must stay last for its event: the release resolves `workspace:*` deps to
       # concrete versions on disk, which makes the specifiers recorded in
