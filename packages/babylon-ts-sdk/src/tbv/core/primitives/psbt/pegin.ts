@@ -14,6 +14,7 @@
  * @module primitives/psbt/pegin
  */
 
+import { Transaction } from "bitcoinjs-lib";
 import {
   buildPeginTxFromPrePegin,
   computeMinClaimValue,
@@ -22,15 +23,20 @@ import {
   validatePeginP2aAnchor,
   type Network,
 } from "../../wasm";
-import { Transaction } from "bitcoinjs-lib";
 
 import { parseUnfundedWasmTransaction } from "../../utils/transaction/fundPeginTransaction";
 import { stripHexPrefix, uint8ArrayToHex } from "../utils/bitcoin";
 
 import {
-  assertEncodedHtlcOutputsMatch,
+  assertUnfundedPrePeginOutputLayout,
   assertWasmPeginSizing,
 } from "./assertWasmPeginSizing";
+import {
+  PEGIN_INPUT_SEQUENCE,
+  PEGIN_TX_LOCKTIME,
+  PEGIN_TX_VERSION_CORE_1,
+  PEGIN_TX_VERSION_CORE_2_AND_3,
+} from "./constants";
 import {
   PEGIN_DEPOSITOR_CLAIM_VOUT,
   deriveDepositorClaimScriptPubKey,
@@ -207,19 +213,22 @@ export async function buildPrePeginPsbt(
   // PegIn registration. Both the sizing and commit passes route through here.
   const minPeginFee = await assertWasmPeginSizing(result, params);
 
-  // Parse the unfunded tx to sum all output values
+  // Parse the unfunded tx before summing all output values
   // (HTLCs + optional OP_RETURN + CPFP anchor). This is the amount
   // UTXOs must cover before adding network fees.
   const parsed = parseUnfundedWasmTransaction(result.txHex);
 
-  // Bind the validated metadata to the bytes that get funded and signed:
-  // the encoded HTLC outputs must carry exactly the values/scripts the
-  // cross-check above validated. Otherwise a tx whose real outputs differ
-  // from the checked metadata could still be funded and signed.
-  assertEncodedHtlcOutputsMatch(
+  // Bind the validated metadata to the bytes that get funded and signed.
+  // Reject a wrong count, a wrong auth or CPFP output, or an HTLC that does
+  // not match the request before UTXO selection uses the output values.
+  assertUnfundedPrePeginOutputLayout(
     parsed.outputs,
     result.htlcValues,
     result.htlcScriptPubKeys,
+    params,
+    authAnchorHash,
+    parsed.version,
+    parsed.locktime,
   );
 
   const totalOutputValue = parsed.outputs.reduce(
@@ -328,8 +337,8 @@ export async function buildPeginTxFromFundedPrePegin(
 const PEGIN_BASE_OUTPUT_COUNT = 2;
 
 /**
- * Cross-check the WASM-built PegIn transaction's bytes against the request
- * and the version's expected output layout before the depositor signs it.
+ * Cross-check the WASM-built PegIn transaction's header, input, and outputs
+ * against the request before the depositor signs it.
  *
  * CLAUDE.md critical path #1: the metadata (`vaultValue`, `txid`,
  * `vaultScriptPubKey`) and the tx bytes both come from WASM — bind them to
@@ -340,8 +349,8 @@ const PEGIN_BASE_OUTPUT_COUNT = 2;
  * (exact value/vout/script for v2; complete absence for v1) is enforced by
  * the version-dispatched `validatePeginP2aAnchor`.
  *
- * @throws If the encoded outputs disagree with the metadata, the requested
- *   amount, or the version's anchor rules.
+ * @throws If the encoded transaction disagrees with the request, metadata,
+ *   or canonical shape for its Vault Core version.
  */
 async function assertPeginTxShape(
   result: {
@@ -353,6 +362,15 @@ async function assertPeginTxShape(
   params: BuildPeginTxParams,
 ): Promise<void> {
   const version = params.prePeginParams.vaultCoreVersion;
+  const expectedTxVersion =
+    version === 1
+      ? PEGIN_TX_VERSION_CORE_1
+      : version === 2 || version === 3
+        ? PEGIN_TX_VERSION_CORE_2_AND_3
+        : undefined;
+  if (expectedTxVersion === undefined) {
+    throw new Error(`Unsupported vaultCoreVersion ${version} for PegIn tx.`);
+  }
 
   await validatePeginP2aAnchor(version, result.txHex);
 
@@ -360,6 +378,19 @@ async function assertPeginTxShape(
   const expectedOutputCount = PEGIN_BASE_OUTPUT_COUNT + (anchor ? 1 : 0);
 
   const peginTx = Transaction.fromHex(stripHexPrefix(result.txHex));
+
+  if (peginTx.version !== expectedTxVersion) {
+    throw new Error(
+      `PegIn tx version ${peginTx.version} does not match ` +
+        `vaultCoreVersion ${version}; expected ${expectedTxVersion}.`,
+    );
+  }
+  if (peginTx.locktime !== PEGIN_TX_LOCKTIME) {
+    throw new Error(
+      `PegIn tx locktime ${peginTx.locktime} does not match the canonical ` +
+        `locktime ${PEGIN_TX_LOCKTIME}.`,
+    );
+  }
 
   // Input bind: the PegIn must spend EXACTLY the requested HTLC outpoint
   // (fundedPrePeginTxid, htlcVout). Without this, a doctored tx could spend
@@ -391,6 +422,18 @@ async function assertPeginTxShape(
         `expected the requested HTLC vout ${params.htlcVout}.`,
     );
   }
+  if (peginTx.ins[0].sequence !== PEGIN_INPUT_SEQUENCE) {
+    throw new Error(
+      `PegIn input sequence ${peginTx.ins[0].sequence} does not match the ` +
+        `canonical sequence ${PEGIN_INPUT_SEQUENCE}.`,
+    );
+  }
+  if (peginTx.ins[0].script.length !== 0) {
+    throw new Error("PegIn input scriptSig must be empty.");
+  }
+  if (peginTx.ins[0].witness.length !== 0) {
+    throw new Error("PegIn input witness must be empty before signing.");
+  }
 
   if (peginTx.outs.length !== expectedOutputCount) {
     throw new Error(
@@ -400,8 +443,7 @@ async function assertPeginTxShape(
     );
   }
 
-  const requestedAmount =
-    params.prePeginParams.pegInAmounts[params.htlcVout];
+  const requestedAmount = params.prePeginParams.pegInAmounts[params.htlcVout];
   if (result.vaultValue !== requestedAmount) {
     throw new Error(
       `PegIn vault output value ${result.vaultValue} does not match the ` +
@@ -474,4 +516,3 @@ async function assertPeginTxShape(
     );
   }
 }
-
