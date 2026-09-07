@@ -232,7 +232,6 @@ describe("useUTXOs", () => {
       const { result } = renderHook(() => useUTXOs(testAddress));
 
       expect(result.current.unconfirmedBalance).toBe(250000n);
-      expect(result.current.confirmedBalance).toBe(100000n);
     });
 
     it("should report zero unconfirmedBalance when all UTXOs are confirmed", () => {
@@ -258,33 +257,6 @@ describe("useUTXOs", () => {
       const { result } = renderHook(() => useUTXOs(testAddress));
 
       expect(result.current.unconfirmedBalance).toBe(0n);
-      expect(result.current.confirmedBalance).toBe(400000n);
-    });
-
-    it("should report zero confirmedBalance when all UTXOs are unconfirmed", () => {
-      const unconfirmedOnly: MempoolUTXO[] = [
-        createMempoolUtxo("unconfirmed1", 0, 200000, false),
-        createMempoolUtxo("unconfirmed2", 1, 50000, false),
-      ];
-
-      mockUseQuery.mockReturnValue({
-        data: unconfirmedOnly,
-        isLoading: false,
-        error: null,
-        refetch: vi.fn(),
-      });
-
-      mockUseOrdinals.mockReturnValue({
-        inscriptions: [],
-        isLoading: false,
-        error: null,
-        refetch: vi.fn(),
-      });
-
-      const { result } = renderHook(() => useUTXOs(testAddress));
-
-      expect(result.current.confirmedBalance).toBe(0n);
-      expect(result.current.unconfirmedBalance).toBe(250000n);
     });
   });
 });

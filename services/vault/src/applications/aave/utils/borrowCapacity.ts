@@ -11,7 +11,6 @@ export interface BorrowCapacityUsdParams {
 }
 
 export interface BorrowCapacityUsd {
-  maxTotalDebtUsd: number;
   availableToBorrowUsd: number;
 }
 
@@ -29,7 +28,6 @@ export function calculateBorrowCapacityUsd({
       MIN_HEALTH_FACTOR_FOR_BORROW) *
     (1 - BORROW_CAPACITY_HEADROOM);
   return {
-    maxTotalDebtUsd,
     availableToBorrowUsd: Math.max(0, maxTotalDebtUsd - currentDebtUsd),
   };
 }

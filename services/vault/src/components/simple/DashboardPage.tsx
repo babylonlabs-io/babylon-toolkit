@@ -81,7 +81,6 @@ export function DashboardPage() {
     collateralBtc,
     collateralValueUsd,
     debtValueUsd,
-    maxTotalDebtUsd,
     availableToBorrowUsd,
     canBorrow,
     collateralFactorBps,
@@ -134,11 +133,6 @@ export function DashboardPage() {
     liquidationCardOverride,
     { hasCollateral: hasDisplayCollateral, hasLoans },
   );
-
-  const availableMeterPercent =
-    maxTotalDebtUsd > 0 ? availableToBorrowUsd / maxTotalDebtUsd : 0;
-  const borrowedMeterPercent =
-    maxTotalDebtUsd > 0 ? debtValueUsd / maxTotalDebtUsd : 0;
 
   // Liquidation-risk gauge stats. Liquidation price and distance-to-liquidation
   // come from the first group of the position cascade (the price at which the
@@ -248,10 +242,8 @@ export function DashboardPage() {
           totalBorrowed={totalBorrowed}
           availableToBorrow={availableToBorrow}
           collateralBtc={collateralBtcText}
-          availableMeterPercent={availableMeterPercent}
           borrowCapacityLoading={isBorrowCapacityLoading}
           borrowCapacityError={borrowCapacityError}
-          borrowedMeterPercent={borrowedMeterPercent}
           onDeposit={openDeposit}
           isDepositDisabled={isDepositBlocked(gate)}
           onBorrow={openBorrowPicker}

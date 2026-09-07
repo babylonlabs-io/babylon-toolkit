@@ -56,7 +56,6 @@ function amountState(
     amountSats: 0n,
     btcBalance: 100_000_000n,
     unconfirmedBalance: 0n,
-    hasUnconfirmedBalanceOnly: false,
     minDeposit: 10_000n,
     maxDeposit: 100_000_000n,
     maxDepositSats: 100_000_000n,
