@@ -89,7 +89,7 @@ rubric below.
     `packages/babylon-ts-sdk/src/tbv/core/wasm/value-guards.ts`,
     `.../primitives/psbt/assertWasmPeginSizing.ts`, `.../primitives/psbt/constants.ts`,
     `.../primitives/psbt/pegin.ts`, `.../primitives/psbt/peginInput.ts`,
-    `.../primitives/psbt/refund.ts`)
+    `.../primitives/psbt/refund.ts`, `.../utils/transaction/fundPeginTransaction.ts`)
   - Agreement between the SDK fee model and the dApp estimate
     (`packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts`,
     `.../utils/fee/peginFeeMath.ts`,

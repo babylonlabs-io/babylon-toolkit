@@ -29,6 +29,7 @@ export default defineConfig([
       "src/tbv/core/primitives/psbt/pegin.ts",
       "src/tbv/core/primitives/psbt/peginInput.ts",
       "src/tbv/core/primitives/psbt/refund.ts",
+      "src/tbv/core/utils/transaction/fundPeginTransaction.ts",
       "src/tbv/core/primitives/psbt/payout.ts",
       "src/tbv/core/services/deposit/signDepositorGraph.ts",
       "src/tbv/core/vault-secrets/**/*.ts",

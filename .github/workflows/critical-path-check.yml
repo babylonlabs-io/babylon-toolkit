@@ -33,6 +33,7 @@ jobs:
             "packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts"
             "packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/peginInput.ts"
             "packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/refund.ts"
+            "packages/babylon-ts-sdk/src/tbv/core/utils/transaction/fundPeginTransaction.ts"
             "packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts"
             "packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts"
             "packages/babylon-ts-sdk/src/tbv/core/utils/fee/peginFeeMath.ts"

@@ -22,6 +22,7 @@
 /packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
 /packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/peginInput.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
 /packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/refund.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
+/packages/babylon-ts-sdk/src/tbv/core/utils/transaction/fundPeginTransaction.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
 
 # 2. Fee calculation consistency
 /packages/babylon-ts-sdk/src/tbv/core/utils/fee/constants.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov

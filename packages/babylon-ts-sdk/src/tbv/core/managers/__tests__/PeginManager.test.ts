@@ -33,7 +33,10 @@ import {
   deriveNativeSegwitAddress,
   deriveTaprootAddress,
 } from "../../primitives";
-import { initializeWasmForTests } from "../../primitives/psbt/__tests__/helpers";
+import {
+  TEST_KEYS,
+  initializeWasmForTests,
+} from "../../primitives/psbt/__tests__/helpers";
 import type { UTXO } from "../../utils";
 import { parseUnfundedWasmTransaction } from "../../utils/transaction/fundPeginTransaction";
 import { PeginManager, type PeginManagerConfig } from "../PeginManager";
@@ -169,21 +172,6 @@ const TEST_PUBLIC_CLIENT = {
       return Promise.resolve({ depositor: zeroAddress });
     }),
 } as unknown as PublicClient;
-
-// Test constants - use valid secp256k1 x-only public keys
-const TEST_KEYS = {
-  // Must stay = MockBitcoinWallet's default privkey-1 pubkey (G.x): the PoP
-  // tests sign with the mock's default key.
-  DEPOSITOR: "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
-  VAULT_PROVIDER:
-    "c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5",
-  VAULT_KEEPER_1:
-    "f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9",
-  VAULT_KEEPER_2:
-    "e493dbf1c10d80f3581e4904930b1404cc6c13900ee0758474fa94abe8c4cd13",
-  UNIVERSAL_CHALLENGER_1:
-    "2f8bde4d1a07209355b4a7250a5c5128e88b84bddc619ab7cba8d569b240efe4",
-} as const;
 
 // Mock depositor WOTS public key hash (bytes32)
 const MOCK_WOTS_PK_HASH = `0x${"ab".repeat(32)}` as `0x${string}`;
@@ -637,7 +625,7 @@ describe("PeginManager", () => {
       expect(tx.changeAmount).toBeGreaterThanOrEqual(0n);
     });
 
-    it("should handle multiple vault keepers and universal challengers", async () => {
+    it("accepts unsorted vault keepers and universal challengers from real WASM", async () => {
       const btcWallet = new MockBitcoinWallet({
         publicKeyHex: TEST_KEYS.DEPOSITOR,
       });
@@ -659,6 +647,10 @@ describe("PeginManager", () => {
         vaultKeeperBtcPubkeys: [
           TEST_KEYS.VAULT_KEEPER_1,
           TEST_KEYS.VAULT_KEEPER_2,
+        ],
+        universalChallengerBtcPubkeys: [
+          TEST_KEYS.UNIVERSAL_CHALLENGER_2,
+          TEST_KEYS.UNIVERSAL_CHALLENGER_1,
         ],
       });
 

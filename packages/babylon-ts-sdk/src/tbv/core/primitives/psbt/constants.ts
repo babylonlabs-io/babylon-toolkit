@@ -81,6 +81,13 @@ export const PEGIN_TX_LOCKTIME = 0;
 export const PEGIN_INPUT_SEQUENCE = 0xfffffffe;
 
 /**
+ * Refund version and locktime match `WasmPrePeginTx::build_refund_tx`
+ * (`Version::TWO`, `LockTime::ZERO`) in `btc-vault crates/vault/src/wasm/api.rs`.
+ */
+export const REFUND_TX_VERSION = 2;
+export const REFUND_TX_LOCKTIME = 0;
+
+/**
  * Payout transaction literals btc-vault builds deterministically
  * (`crates/vault/src/transactions/payout.rs`: `Version::TWO`,
  * `LockTime::ZERO`). The depositor's signature commits to both, so a

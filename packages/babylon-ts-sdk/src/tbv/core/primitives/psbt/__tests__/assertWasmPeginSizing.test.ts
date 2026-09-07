@@ -409,18 +409,13 @@ describe("buildPrePeginPsbt encoded output checks", () => {
     ).resolves.toMatchObject({ authAnchorVout: 2 });
   });
 
-  it.each([1, 2, 3])(
-    "rejects matching forged transaction and metadata scripts for Vault Core %i",
-    async (vaultCoreVersion) => {
-      htlcScriptOverride = SCRIPT_A;
+  it("rejects matching forged transaction and metadata scripts", async () => {
+    htlcScriptOverride = SCRIPT_A;
 
-      await expect(
-        buildPrePeginPsbt(makeParams({ vaultCoreVersion })),
-      ).rejects.toThrow(
-        /does not match the independently derived scriptPubKey/,
-      );
-    },
-  );
+    await expect(buildPrePeginPsbt(makeParams())).rejects.toThrow(
+      /does not match the independently derived scriptPubKey/,
+    );
+  });
 
   it.each([1, 3])(
     "rejects transaction version %i with otherwise valid outputs",

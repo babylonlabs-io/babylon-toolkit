@@ -23,10 +23,8 @@ import {
   uint8ArrayToHex,
 } from "../utils/bitcoin";
 import { deriveExpectedPrePeginHtlc } from "./assertWasmPeginSizing";
+import { REFUND_TX_LOCKTIME, REFUND_TX_VERSION } from "./constants";
 import { normalizeAuthAnchorHash, type PrePeginParams } from "./pegin";
-
-const REFUND_TX_VERSION = 2;
-const REFUND_TX_LOCKTIME = 0;
 
 /**
  * Parameters for building a refund PSBT
