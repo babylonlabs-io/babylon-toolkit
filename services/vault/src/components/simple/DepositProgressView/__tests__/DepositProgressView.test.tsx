@@ -58,7 +58,7 @@ const baseProps = {
 
 describe("DepositProgressView", () => {
   describe("grouped sections", () => {
-    it("always renders the four group headers", () => {
+    it("renders only the group holding the current step", () => {
       render(
         <DepositProgressView
           {...baseProps}
@@ -70,14 +70,14 @@ describe("DepositProgressView", () => {
         screen.getByText(COPY.deposit.groups.registerDeposit),
       ).toBeInTheDocument();
       expect(
-        screen.getByText(COPY.deposit.groups.signWots),
-      ).toBeInTheDocument();
+        screen.queryByText(COPY.deposit.groups.signWots),
+      ).not.toBeInTheDocument();
       expect(
-        screen.getByText(COPY.deposit.groups.signPayout),
-      ).toBeInTheDocument();
+        screen.queryByText(COPY.deposit.groups.signPayout),
+      ).not.toBeInTheDocument();
       expect(
-        screen.getByText(COPY.deposit.groups.activateVault),
-      ).toBeInTheDocument();
+        screen.queryByText(COPY.deposit.groups.activateVault),
+      ).not.toBeInTheDocument();
     });
 
     it("expands only the section containing the current step", () => {
@@ -220,8 +220,8 @@ describe("DepositProgressView", () => {
 
     it("keeps the step-1 entry fully collapsed with no progress affordances", () => {
       // DepositSignContent's entry state: nothing is completed, so the
-      // pre-entry render must look exactly as it always has — four collapsed
-      // group headers, no bar, no pill, no expanded sub-steps.
+      // pre-entry render shows the current group's collapsed header alone —
+      // no bar, no pill, no expanded sub-steps.
       render(
         <DepositProgressView
           {...baseProps}
@@ -240,11 +240,11 @@ describe("DepositProgressView", () => {
       expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
       expect(screen.queryByText(/steps completed/)).not.toBeInTheDocument();
 
-      // All four groups read not-started — including the first, whose flow
-      // position is "current" but whose work has not begun.
+      // The one rendered group reads not-started — its flow position is
+      // "current" but its work has not begun.
       expect(
         screen.getAllByLabelText(COPY.deposit.a11y.groupStatus.upcoming),
-      ).toHaveLength(4);
+      ).toHaveLength(1);
     });
 
     it("renders the fee selector under the Pre-PegIn step inside the Register deposit card", () => {

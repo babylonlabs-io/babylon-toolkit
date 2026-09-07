@@ -157,30 +157,25 @@ test("pins getChallengeAssertScriptInfo through the built WASM facade", async ()
 });
 
 test("pins createPayoutConnector through the built WASM facade", async () => {
-  const result = await createPayoutConnector(
-    {
-      txGraphVersion: 1,
-      depositor: DEPOSITOR,
-      vaultProvider: VAULT_PROVIDER,
-      vaultKeepers: [VAULT_KEEPER],
-      universalChallengers: [PAYOUT_UNIVERSAL_CHALLENGER],
-      timelockPegin: 1008,
-    },
-    "signet",
-  );
+  const params = {
+    txGraphVersion: 1,
+    depositor: DEPOSITOR,
+    vaultProvider: VAULT_PROVIDER,
+    vaultKeepers: [VAULT_KEEPER],
+    universalChallengers: [PAYOUT_UNIVERSAL_CHALLENGER],
+    timelockPegin: 1008,
+  };
+  const result = await createPayoutConnector(params, "signet");
 
   assert.deepEqual(
     {
-      script: sha256Text(result.payoutScript),
-      controlBlock: result.payoutControlBlock,
-      taprootScriptHash: result.taprootScriptHash,
-      scriptPubKey: result.scriptPubKey,
-      address: result.address,
+      ...result,
+      payoutScript: sha256Text(result.payoutScript),
     },
     {
-      script:
+      payoutScript:
         "d851c37a211d3e4c55b2bae8a2a3262e2960de9f1015e43986f76ce5c8628991",
-      controlBlock:
+      payoutControlBlock:
         "c050929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfee9ace803ac0",
       taprootScriptHash:
         "82c0e27be3e706b67c07953fa18ed9b9854ea1cebbc1040f535b130f38f72c73",
@@ -188,6 +183,10 @@ test("pins createPayoutConnector through the built WASM facade", async () => {
         "5120f168b9531c9ace8d638245e004e2550756b996300391337e169c7fb5c354d61d",
       address: "tb1p795tj5cunt8g6cuzghsqfcj4qattn93sqwgnxlskn3lmts656cwsk4p9uy",
     },
+  );
+  assert.deepEqual(
+    await createPayoutConnector({ ...params, txGraphVersion: 3 }, "signet"),
+    result,
   );
 });
 
