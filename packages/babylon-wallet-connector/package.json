@@ -11,16 +11,16 @@
     "type": "git",
     "url": "https://github.com/babylonlabs-io/babylon-toolkit.git"
   },
-  "main": "dist/index.cjs.js",
+  "main": "dist/index.cjs",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "require": "./dist/index.cjs.js",
+      "require": "./dist/index.cjs",
       "import": "./dist/index.es.js"
     },
     "./eth": {
       "types": "./dist/eth.d.ts",
-      "require": "./dist/eth.cjs.js",
+      "require": "./dist/eth.cjs",
       "import": "./dist/eth.es.js"
     },
     "./style.css": "./dist/wallet-connector.css"

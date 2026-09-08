@@ -151,12 +151,7 @@ try {
     }
     const specifier = `${manifest.name}${mode === "eth" ? "/eth" : ""}`;
     const exports = manifest.exports[mode === "eth" ? "./eth" : "."];
-    for (const condition of ["types", "import", "require"]) {
-      assert(
-        exports[condition] && existsSync(resolve(installedRoot, exports[condition])),
-        `Missing ${specifier} ${condition} export`,
-      );
-    }
+    assert(existsSync(resolve(installedRoot, exports.types)), `Missing ${specifier} types export`);
     const runtimeCheck = join(consumerRoot, "check-runtime.mjs");
     writeFileSync(
       runtimeCheck,
@@ -165,7 +160,9 @@ import { createRequire } from "node:module";
 import * as wallet from ${JSON.stringify(specifier)};
 const require = createRequire(import.meta.url);
 const walletRequire = createRequire(${JSON.stringify(join(installedRoot, "package.json"))});
-for (const name of ["WalletProvider", "createWalletConfig"]) assert.equal(typeof wallet[name], "function");
+for (const entry of [wallet, require(${JSON.stringify(specifier)})]) {
+  for (const name of ["WalletProvider", "createWalletConfig"]) assert.equal(typeof entry[name], "function");
+}
 for (const name of ${JSON.stringify(optionalPeers)}) {
   ${
     mode === "eth"
@@ -218,7 +215,7 @@ root.render(createElement(wallet.WalletProvider, {
         "--noEmit",
         "--strict",
         "--skipLibCheck",
-        "true",
+        "true", // Reown declarations fail strict checks for big.js and ViemUtil.
         "--target",
         "ES2022",
         "--module",

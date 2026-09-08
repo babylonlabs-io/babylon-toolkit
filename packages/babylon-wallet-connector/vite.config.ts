@@ -33,7 +33,7 @@ export default defineConfig({
         eth: path.resolve(__dirname, "src/eth.ts"),
       },
       formats: ["es", "cjs"],
-      fileName: (format, entryName) => `${entryName}.${format}.js`,
+      fileName: (format, entryName) => format === "cjs" ? `${entryName}.cjs` : `${entryName}.${format}.js`,
       // Pinned because a multi-entry lib build otherwise names the stylesheet
       // after the package, changing the published `./style.css` target.
       cssFileName: "wallet-connector",

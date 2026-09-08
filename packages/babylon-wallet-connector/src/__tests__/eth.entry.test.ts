@@ -156,7 +156,7 @@ describe("the ./eth entry point", () => {
   it("is published as a subpath export", () => {
     expect(packageJson.exports?.["./eth"]).toEqual({
       types: "./dist/eth.d.ts",
-      require: "./dist/eth.cjs.js",
+      require: "./dist/eth.cjs",
       import: "./dist/eth.es.js",
     });
   });
