@@ -308,7 +308,7 @@ export function Timeline({
   const hovered = hoverIndex != null ? (candleGeom[hoverIndex] ?? null) : null;
   const interactive = crosshairEnabled || panEnabled || zoomEnabled;
 
-  if (collapsed) return <div ref={parentRef} className={className} style={{ width: "100%" }} />;
+  if (collapsed) return <div ref={parentRef} style={{ width: "100%" }} />;
 
   return (
     <ChartFrame
