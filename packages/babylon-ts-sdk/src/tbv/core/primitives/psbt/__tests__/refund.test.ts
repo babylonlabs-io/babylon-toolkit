@@ -10,15 +10,18 @@
  */
 
 import type { Network } from "@babylonlabs-io/babylon-tbv-rust-wasm";
+import * as ecc from "@bitcoin-js/tiny-secp256k1-asmjs";
 import * as bitcoin from "bitcoinjs-lib";
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 
+import { fundPeginTransaction } from "../../../utils/transaction/fundPeginTransaction";
+import { loadRawTbvWasm, tapInternalPubkey } from "../../../wasm";
 import {
   deriveBip86ScriptPubKeyHex,
   stripHexPrefix,
   uint8ArrayToHex,
 } from "../../utils/bitcoin";
-import { fundPeginTransaction } from "../../../utils/transaction/fundPeginTransaction";
+import { deriveExpectedPrePeginHtlc } from "../assertWasmPeginSizing";
 import { buildPrePeginPsbt, type PrePeginParams } from "../pegin";
 import { buildRefundPsbt } from "../refund";
 
@@ -75,6 +78,33 @@ async function buildFundedPrePegin(overrides?: Partial<PrePeginParams>) {
   return { txHex: fundedTxHex, params, psbtResult: result };
 }
 
+async function withMutatedRawRefundTx(
+  mutate: (tx: bitcoin.Transaction) => void,
+  run: () => Promise<void>,
+): Promise<void> {
+  const { WasmPrePeginTx } = await loadRawTbvWasm();
+  const originalBuildRefundTx = WasmPrePeginTx.prototype.buildRefundTx;
+  const spy = vi
+    .spyOn(WasmPrePeginTx.prototype, "buildRefundTx")
+    .mockImplementation(function (
+      this: InstanceType<typeof WasmPrePeginTx>,
+      refundFee: bigint,
+      htlcVout: number,
+    ) {
+      const tx = bitcoin.Transaction.fromHex(
+        originalBuildRefundTx.call(this, refundFee, htlcVout),
+      );
+      mutate(tx);
+      return tx.toHex();
+    });
+
+  try {
+    await run();
+  } finally {
+    spy.mockRestore();
+  }
+}
+
 describe("buildRefundPsbt", () => {
   beforeAll(async () => {
     await initializeWasmForTests();
@@ -108,6 +138,8 @@ describe("buildRefundPsbt", () => {
       expect(refundTx.ins[0].index).toBe(0);
       // CSV sequence comes from the WASM and equals `timelockRefund`.
       expect(refundTx.ins[0].sequence).toBe(TEST_TIMELOCK_REFUND);
+      expect(refundTx.version).toBe(2);
+      expect(refundTx.locktime).toBe(0);
     });
 
     it("builds a valid refund PSBT for a legacy non-auth-anchored Pre-PegIn", async () => {
@@ -152,6 +184,174 @@ describe("buildRefundPsbt", () => {
     });
   });
 
+  describe("raw WASM refund transaction checks", () => {
+    it("rejects a refund transaction with the wrong version", async () => {
+      const { txHex, params } = await buildFundedPrePegin();
+
+      await withMutatedRawRefundTx(
+        (refundTx) => {
+          refundTx.version = 1;
+        },
+        async () => {
+          await expect(
+            buildRefundPsbt({
+              prePeginParams: params,
+              fundedPrePeginTxHex: txHex,
+              htlcVout: 0,
+              refundFee: TEST_REFUND_FEE,
+              hashlock: TEST_HASH_H,
+            }),
+          ).rejects.toThrow(/version/i);
+        },
+      );
+    });
+
+    it("rejects a refund transaction with a non-zero locktime", async () => {
+      const { txHex, params } = await buildFundedPrePegin();
+
+      await withMutatedRawRefundTx(
+        (refundTx) => {
+          refundTx.locktime = 1;
+        },
+        async () => {
+          await expect(
+            buildRefundPsbt({
+              prePeginParams: params,
+              fundedPrePeginTxHex: txHex,
+              htlcVout: 0,
+              refundFee: TEST_REFUND_FEE,
+              hashlock: TEST_HASH_H,
+            }),
+          ).rejects.toThrow(/locktime/i);
+        },
+      );
+    });
+
+    it("rejects a refund transaction with the wrong input sequence", async () => {
+      const { txHex, params } = await buildFundedPrePegin();
+
+      await withMutatedRawRefundTx(
+        (refundTx) => {
+          refundTx.ins[0].sequence = TEST_TIMELOCK_REFUND + 1;
+        },
+        async () => {
+          await expect(
+            buildRefundPsbt({
+              prePeginParams: params,
+              fundedPrePeginTxHex: txHex,
+              htlcVout: 0,
+              refundFee: TEST_REFUND_FEE,
+              hashlock: TEST_HASH_H,
+            }),
+          ).rejects.toThrow(/sequence/i);
+        },
+      );
+    });
+
+    it("rejects a refund transaction with the wrong input index", async () => {
+      const { txHex, params } = await buildFundedPrePegin();
+
+      await withMutatedRawRefundTx(
+        (refundTx) => {
+          refundTx.ins[0].index = 1;
+        },
+        async () => {
+          await expect(
+            buildRefundPsbt({
+              prePeginParams: params,
+              fundedPrePeginTxHex: txHex,
+              htlcVout: 0,
+              refundFee: TEST_REFUND_FEE,
+              hashlock: TEST_HASH_H,
+            }),
+          ).rejects.toThrow(/input index/i);
+        },
+      );
+    });
+
+    it("rejects a refund transaction that redirects the output", async () => {
+      const { txHex, params } = await buildFundedPrePegin();
+
+      await withMutatedRawRefundTx(
+        (refundTx) => {
+          refundTx.outs[0].script = Buffer.from("6a", "hex");
+        },
+        async () => {
+          await expect(
+            buildRefundPsbt({
+              prePeginParams: params,
+              fundedPrePeginTxHex: txHex,
+              htlcVout: 0,
+              refundFee: TEST_REFUND_FEE,
+              hashlock: TEST_HASH_H,
+            }),
+          ).rejects.toThrow(/output scriptPubKey/i);
+        },
+      );
+    });
+
+    it("rejects a refund transaction that reduces the refund value", async () => {
+      const { txHex, params } = await buildFundedPrePegin();
+
+      await withMutatedRawRefundTx(
+        (refundTx) => {
+          refundTx.outs[0].value -= 1;
+        },
+        async () => {
+          await expect(
+            buildRefundPsbt({
+              prePeginParams: params,
+              fundedPrePeginTxHex: txHex,
+              htlcVout: 0,
+              refundFee: TEST_REFUND_FEE,
+              hashlock: TEST_HASH_H,
+            }),
+          ).rejects.toThrow(/output value/i);
+        },
+      );
+    });
+  });
+
+  describe("independent refund signing data", () => {
+    it("uses the independently derived refund leaf and signs it", async () => {
+      const { txHex, params } = await buildFundedPrePegin();
+      const { psbtHex } = await buildRefundPsbt({
+        prePeginParams: params,
+        fundedPrePeginTxHex: txHex,
+        htlcVout: 0,
+        refundFee: TEST_REFUND_FEE,
+        hashlock: TEST_HASH_H,
+      });
+      const expected = deriveExpectedPrePeginHtlc(params, TEST_HASH_H);
+      const psbt = bitcoin.Psbt.fromHex(psbtHex);
+      const input = psbt.data.inputs[0];
+      const leaf = input.tapLeafScript?.[0];
+
+      expect(leaf?.script.equals(expected.refundScript)).toBe(true);
+      expect(leaf?.controlBlock.equals(expected.refundControlBlock)).toBe(true);
+      expect(input.tapMerkleRoot?.equals(expected.tapMerkleRoot)).toBe(true);
+      expect(input.tapInternalKey?.equals(Buffer.from(tapInternalPubkey))).toBe(
+        true,
+      );
+
+      const depositorPrivateKey = Buffer.alloc(32);
+      depositorPrivateKey[31] = 1;
+      psbt.signTaprootInput(0, {
+        publicKey: Buffer.concat([
+          Buffer.from([0x02]),
+          Buffer.from(TEST_KEYS.DEPOSITOR, "hex"),
+        ]),
+        sign: () => {
+          throw new Error("ECDSA signing is not valid for this input.");
+        },
+        signSchnorr: (hash: Buffer) =>
+          Buffer.from(ecc.signSchnorr(hash, depositorPrivateKey)),
+      });
+
+      expect(psbt.data.inputs[0].tapScriptSig?.[0].signature).toHaveLength(64);
+    });
+  });
+
   describe("authAnchorHash normalization (parity with peg-in primitives)", () => {
     // PrePeginParams is shared with buildPrePeginPsbt and
     // buildPeginTxFromFundedPrePegin, both of which normalize
@@ -166,7 +366,10 @@ describe("buildRefundPsbt", () => {
       });
 
       const result = await buildRefundPsbt({
-        prePeginParams: { ...params, authAnchorHash: `0x${TEST_AUTH_ANCHOR_HASH}` },
+        prePeginParams: {
+          ...params,
+          authAnchorHash: `0x${TEST_AUTH_ANCHOR_HASH}`,
+        },
         fundedPrePeginTxHex: txHex,
         htlcVout: 0,
         refundFee: TEST_REFUND_FEE,
@@ -183,7 +386,10 @@ describe("buildRefundPsbt", () => {
       });
 
       const result = await buildRefundPsbt({
-        prePeginParams: { ...params, authAnchorHash: TEST_AUTH_ANCHOR_HASH.toUpperCase() },
+        prePeginParams: {
+          ...params,
+          authAnchorHash: TEST_AUTH_ANCHOR_HASH.toUpperCase(),
+        },
         fundedPrePeginTxHex: txHex,
         htlcVout: 0,
         refundFee: TEST_REFUND_FEE,

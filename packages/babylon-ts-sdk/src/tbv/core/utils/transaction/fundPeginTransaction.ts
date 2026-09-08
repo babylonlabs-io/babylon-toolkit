@@ -113,6 +113,13 @@ export function parseUnfundedWasmTransaction(
     outputs.push({ value, script });
   }
 
+  const locktimeOffset = unfundedTxHex.length - 8;
+  if (pos !== locktimeOffset) {
+    throw new Error(
+      "WASM transaction outputs do not end immediately before locktime",
+    );
+  }
+
   return { version, locktime, outputs };
 }
 
