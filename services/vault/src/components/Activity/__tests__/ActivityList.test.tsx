@@ -120,6 +120,27 @@ describe("ActivityList", () => {
     expect(within(items[0]).getByText("Borrow")).toBeInTheDocument();
   });
 
+  it("includes Pending Deposit rows when filtering by Deposit", () => {
+    const rows = [
+      makeRow({ id: "a", type: "Deposit" }),
+      makeRow({ id: "b", type: "Pending Deposit", isPending: true }),
+      makeRow({
+        id: "c",
+        type: "Borrow",
+        amount: { value: "100", symbol: "USDC" },
+      }),
+    ];
+    renderList({ activities: rows, isConnected: true });
+
+    fireEvent.click(screen.getByRole("button", { name: /show all/i }));
+    fireEvent.click(screen.getByRole("option", { name: "Deposits" }));
+
+    const items = screen.getAllByRole("listitem");
+    expect(items).toHaveLength(2);
+    expect(within(items[0]).getByText("Deposit")).toBeInTheDocument();
+    expect(within(items[1]).getByText("Deposit")).toBeInTheDocument();
+  });
+
   it("shows a minimal empty state without the deposit CTA when a filter hides all rows", () => {
     const rows = [makeRow({ id: "a", type: "Deposit" })];
     renderList({ activities: rows, isConnected: true });
