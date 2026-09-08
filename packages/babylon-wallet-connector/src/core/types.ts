@@ -224,6 +224,9 @@ export interface IWallet<P extends IProvider = IProvider> {
 /** Every chain the connector can build a wallet connector for. */
 export type ChainId = "BTC" | "BBN" | "ETH";
 
+/** `"chain"` asks the provider to disconnect only this connector's chain. `"all"` is an explicit disconnect-everything request. */
+export type DisconnectScope = "chain" | "all";
+
 export interface IChain<K extends string = string, P extends IProvider = IProvider, C = any> {
   id: K;
   name: string;
@@ -235,7 +238,7 @@ export interface IChain<K extends string = string, P extends IProvider = IProvid
 export interface IConnector<K extends string = string, P extends IProvider = IProvider, C = any>
   extends IChain<K, P, C> {
   connect(wallet: string | IWallet<P>): Promise<IWallet<P> | null>;
-  disconnect(): Promise<void>;
+  disconnect(scope?: DisconnectScope): Promise<void>;
   on(event: string, cb: (wallet: IWallet<P>) => void): () => void;
 }
 

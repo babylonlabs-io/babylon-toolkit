@@ -68,8 +68,14 @@ export function ChainsContainer(props: ContainerProps) {
         const appkitBtcWallet = btcConnector?.wallets.find(w => w.id === APPKIT_BTC_CONNECTOR_ID);
 
         if (appkitBtcWallet && btcConnector?.wallets.length === 1) {
-          // Already connected: reopen the AppKit modal so the user can switch/disconnect.
           if (btcConnector.connectedWallet) {
+            const { btcDisconnectWouldDropEthereum } = await import("@/core/wallets/btc/appkit/sharedConfig");
+            if (btcDisconnectWouldDropEthereum()) {
+              await btcConnector.disconnect().catch(() => undefined);
+              return;
+            }
+
+            // Already connected: reopen the AppKit modal so the user can switch/disconnect.
             openAppKitModal();
             return;
           }

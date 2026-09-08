@@ -104,6 +104,17 @@ export function hasSharedBtcAppKitConfig(): boolean {
   return initializedState ? initializedState.btcConfig !== undefined : sharedBtcAppKitConfig !== null;
 }
 
+export function btcDisconnectWouldDropEthereum(): boolean {
+  if (!hasSharedBtcAppKitConfig()) {
+    return false;
+  }
+
+  const { modal } = getSharedBtcAppKitConfig();
+  const btcProviderType = modal.getProviderType("bip122");
+  const sharesSession = btcProviderType === "WALLET_CONNECT" || btcProviderType === "AUTH";
+  return sharesSession && modal.getAccount("eip155")?.isConnected === true;
+}
+
 /**
  * Test-only helper that resets the manual Bitcoin config and registry entry.
  * It does not reset canonical state or Reown modal. Use module isolation.

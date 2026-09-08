@@ -1,10 +1,10 @@
 import { createNanoEvents } from "nanoevents";
 
 import { Wallet } from "@/core/Wallet";
-import type { IConnector, IProvider } from "@/core/types";
+import type { DisconnectScope, IConnector, IProvider } from "@/core/types";
 import { ERROR_CODES, WalletError } from "@/error";
 
-type DisconnectableProvider = IProvider & { disconnect?: () => Promise<void> };
+type DisconnectableProvider = IProvider & { disconnect?: (scope: DisconnectScope) => Promise<void> };
 
 export interface ConnectorEvents<P extends IProvider> {
   connecting: (message?: string, description?: string) => void;
@@ -54,19 +54,20 @@ export class WalletConnector<N extends string, P extends IProvider, C> implement
     }
   }
 
-  async disconnect() {
-    if (this._connectedWallet) {
-      const provider = this._connectedWallet.provider as DisconnectableProvider | null;
-      if (provider?.disconnect && typeof provider.disconnect === "function") {
-        try {
-          await provider.disconnect();
-        } catch {
-          // ignore provider disconnect errors
-        }
+  async disconnect(scope: DisconnectScope = "chain") {
+    if (!this._connectedWallet) return;
+
+    const provider = this._connectedWallet.provider as DisconnectableProvider | null;
+    if (provider?.disconnect) {
+      try {
+        await provider.disconnect(scope);
+      } catch (error) {
+        this._ee.emit("error", error instanceof Error ? error : new Error(String(error)));
+        if (scope === "chain") throw error;
       }
-      this._ee.emit("disconnect", this._connectedWallet);
-      this._connectedWallet = null;
     }
+    this._ee.emit("disconnect", this._connectedWallet);
+    this._connectedWallet = null;
   }
 
   clone() {

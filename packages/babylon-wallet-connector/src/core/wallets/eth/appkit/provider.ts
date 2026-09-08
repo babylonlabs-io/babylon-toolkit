@@ -248,12 +248,9 @@ export class AppKitProvider implements IETHProvider {
 
   async disconnect(): Promise<void> {
     const config = this.getWagmiConfig();
-    try {
-      await wagmiDisconnect(config);
-    } finally {
-      this.address = undefined;
-      this.chainId = undefined;
-    }
+    await wagmiDisconnect(config);
+    this.address = undefined;
+    this.chainId = undefined;
   }
 
   async getAddress(): Promise<string> {

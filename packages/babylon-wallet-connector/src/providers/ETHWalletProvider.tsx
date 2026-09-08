@@ -53,7 +53,9 @@ export const ETHWalletProvider = ({ children, callbacks }: ETHWalletProviderProp
   const disconnect = useCallback(async () => {
     setAddress(undefined);
     setProvider(null);
-    ethConnector?.disconnect();
+    ethConnector?.disconnect().catch((error) => {
+      console.error("Failed to disconnect ETH connector:", error instanceof Error ? error.message : "Unknown error");
+    });
 
     try {
       await callbacks?.onDisconnect?.();
