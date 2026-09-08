@@ -91,15 +91,14 @@ export function useWalletConnectors({ persistent, accountStorage, onError, btcVa
     (chainId) => connectors[chainId as ChainId]?.connectedWallet,
   );
 
-  const dropRejectedWallet = (connector: Pick<IConnector, "id" | "disconnect">) => {
+  const dropRejectedWallet = (connector: Pick<IConnector, "id" | "disconnect">, wallet: IWallet) => {
+    wallet.account = null;
     connector.disconnect().catch((error) => {
       if (error instanceof WalletError && error.code === ERROR_CODES.SHARED_SESSION_DISCONNECT_REFUSED) return;
       console.error("Failed to disconnect rejected wallet:", error instanceof Error ? error.message : "Unknown error");
     });
     removeWallet?.(connector.id);
-    if (persistent) {
-      accountStorage.delete(connector.id);
-    }
+    if (persistent) accountStorage.delete(connector.id);
   };
 
   // Connecting event
@@ -152,7 +151,7 @@ export function useWalletConnectors({ persistent, accountStorage, onError, btcVa
                 "The Bitcoin address and Public Key for this wallet do not match. Please contact your wallet provider for support.",
               onSubmit: goToNextScreen,
               onCancel: () => {
-                dropRejectedWallet(connector);
+                dropRejectedWallet(connector, connectedWallet);
                 displayChains?.();
               },
             });
@@ -168,7 +167,7 @@ export function useWalletConnectors({ persistent, accountStorage, onError, btcVa
               submitButton: "",
               cancelButton: "Done",
               onCancel: async () => {
-                dropRejectedWallet(connector);
+                dropRejectedWallet(connector, connectedWallet);
                 displayChains?.();
               },
             });
@@ -178,7 +177,7 @@ export function useWalletConnectors({ persistent, accountStorage, onError, btcVa
 
           goToNextScreen();
         } catch (e: any) {
-          dropRejectedWallet(connector);
+          dropRejectedWallet(connector, connectedWallet);
           displayError?.({
             title: "Connection Failed",
             description: e.message,
@@ -219,7 +218,7 @@ export function useWalletConnectors({ persistent, accountStorage, onError, btcVa
     );
 
     connectorArr.forEach((connector) => {
-      const connectedWallet = connector.connectedWallet;
+      const connectedWallet = connector.connectedWallet?.account ? connector.connectedWallet : null;
       if (connector.id === "ETH" && connectedWallet) {
         void resolveEthDisplayWallet(connectedWallet).then((wallet) => selectWallet?.(connector.id, wallet));
         return;

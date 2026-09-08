@@ -18,16 +18,17 @@ function createWallet(provider: Record<string, unknown>) {
 }
 
 describe("WalletConnector disconnect", () => {
-  it("keeps the wallet and emits only error when the provider refuses to disconnect", async () => {
+  it("keeps a refused wallet until its account is rejected", async () => {
     const refusal = new WalletError({
       code: ERROR_CODES.SHARED_SESSION_DISCONNECT_REFUSED,
       message: "Bitcoin and Ethereum share one wallet session.",
     });
+    const disconnect = vi.fn().mockRejectedValue(refusal);
     const wallet = createWallet({
       connectWallet: vi.fn().mockResolvedValue(undefined),
       getAddress: vi.fn().mockResolvedValue("bc1p"),
       getPublicKeyHex: vi.fn().mockResolvedValue("02ab"),
-      disconnect: vi.fn().mockRejectedValue(refusal),
+      disconnect,
     });
     const connector = new WalletConnector("BTC", "Bitcoin", "icon", [wallet], {});
     await connector.connect(wallet);
@@ -42,6 +43,11 @@ describe("WalletConnector disconnect", () => {
     expect(onError).toHaveBeenCalledWith(refusal);
     expect(onDisconnect).not.toHaveBeenCalled();
     expect(connector.connectedWallet).toBe(wallet);
+    wallet.account = null;
+    await connector.disconnect();
+    expect(disconnect).toHaveBeenLastCalledWith("chain");
+    expect(onDisconnect).toHaveBeenCalledWith(wallet);
+    expect(connector.connectedWallet).toBeNull();
   });
 
   it("emits disconnect and clears the wallet when the provider disconnects", async () => {

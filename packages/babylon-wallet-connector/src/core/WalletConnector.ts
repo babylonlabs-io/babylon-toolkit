@@ -63,7 +63,7 @@ export class WalletConnector<N extends string, P extends IProvider, C> implement
         await provider.disconnect(scope);
       } catch (error) {
         this._ee.emit("error", error instanceof Error ? error : new Error(String(error)));
-        if (scope === "chain") throw error;
+        if (scope === "chain" && this._connectedWallet?.account !== null) throw error;
       }
     }
     this._ee.emit("disconnect", this._connectedWallet);

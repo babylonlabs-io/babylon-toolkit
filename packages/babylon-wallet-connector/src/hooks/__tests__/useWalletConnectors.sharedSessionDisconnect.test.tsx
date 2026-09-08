@@ -14,6 +14,8 @@ type ErrorHandler = (error: Error) => void;
 const harness = vi.hoisted(() => ({
   connectHandler: null as ConnectHandler | null,
   errorHandler: null as ErrorHandler | null,
+  connectedWallet: null as IWallet | null,
+  visible: true,
   disconnect: vi.fn(),
   selectWallet: vi.fn(),
   removeWallet: vi.fn(),
@@ -26,7 +28,7 @@ vi.mock("@/context/Chain.context", () => ({
     BTC: {
       id: "BTC",
       config: { network: Network.MAINNET },
-      connectedWallet: null,
+      connectedWallet: harness.connectedWallet,
       disconnect: harness.disconnect,
       on: (event: string, handler: ConnectHandler | ErrorHandler) => {
         if (event === "connect") harness.connectHandler = handler as ConnectHandler;
@@ -43,16 +45,12 @@ vi.mock("@/context/LifecycleHooks.context", () => ({
 
 vi.mock("@/hooks/useWidgetState", () => ({
   useWidgetState: () => ({
-    visible: true,
+    visible: harness.visible,
     selectWallet: harness.selectWallet,
     removeWallet: harness.removeWallet,
-    displayLoader: vi.fn(),
     displayChains: harness.displayChains,
     displayError: harness.displayError,
     confirm: vi.fn(),
-    close: vi.fn(),
-    reset: vi.fn(),
-    chains: {},
   }),
 }));
 
@@ -70,12 +68,6 @@ function fakeAccountStorage(): HashMap & { store: Map<string, string> } {
 function connectedWalletWith(publicKeyHex: string): IWallet {
   return {
     id: "unisat",
-    name: "UniSat",
-    icon: "",
-    docs: "",
-    installed: true,
-    provider: null,
-    label: "",
     account: { address: TAPROOT_ADDRESS, publicKeyHex },
   } as IWallet;
 }
@@ -92,27 +84,30 @@ function sharedSessionRefusal(): WalletError {
 beforeEach(() => {
   harness.connectHandler = null;
   harness.errorHandler = null;
+  harness.connectedWallet = null;
+  harness.visible = true;
   vi.clearAllMocks();
   harness.disconnect.mockResolvedValue(undefined);
 });
 
 describe("BTC validation failure with a refused shared-session disconnect", () => {
-  it("still removes the wallet locally and clears persisted storage", async () => {
+  it("keeps the rejected wallet removed after the dialog closes and opens", async () => {
     const accountStorage = fakeAccountStorage();
-    accountStorage.store.set("BTC", "unisat");
+    harness.connectedWallet = connectedWalletWith(OTHER_COMPRESSED_PUBLIC_KEY);
     harness.disconnect.mockRejectedValueOnce(sharedSessionRefusal());
-
-    renderHook(() => useWalletConnectors({ persistent: true, accountStorage }));
-    await waitFor(() => expect(harness.connectHandler).not.toBeNull());
-    await harness.connectHandler?.(connectedWalletWith(OTHER_COMPRESSED_PUBLIC_KEY));
-
-    await waitFor(() => expect(harness.displayError).toHaveBeenCalled());
-    const { onCancel } = harness.displayError.mock.calls[0][0];
-    await onCancel();
-
+    const { rerender } = renderHook(() => useWalletConnectors({ persistent: true, accountStorage }));
+    await harness.connectHandler!(harness.connectedWallet);
+    await harness.displayError.mock.calls[0][0].onCancel();
     expect(harness.disconnect).toHaveBeenCalled();
     expect(harness.removeWallet).toHaveBeenCalledWith("BTC");
     expect(accountStorage.store.has("BTC")).toBe(false);
+    expect(harness.connectedWallet.account).toBeNull();
+    harness.selectWallet.mockClear();
+    harness.visible = false;
+    rerender();
+    harness.visible = true;
+    rerender();
+    expect(harness.selectWallet).not.toHaveBeenCalledWith("BTC", harness.connectedWallet);
   });
 });
 
