@@ -1978,6 +1978,7 @@ export const COPY = {
       verySafe: "Very Safe",
       safe: "Safe",
       moderate: "Moderate",
+      risky: "Risky",
       liquidatable: "Liquidatable",
     },
     liquidationBtcPriceLabel: "Liquidation BTC Price",
