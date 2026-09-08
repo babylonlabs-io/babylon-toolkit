@@ -11,20 +11,21 @@
  * @module primitives/psbt/peginInput
  */
 
+import { Psbt, Transaction } from "bitcoinjs-lib";
+import { Buffer } from "buffer";
 import {
   getPrePeginHtlcConnectorInfo,
   tapInternalPubkey,
   type Network,
 } from "../../wasm";
-import { Psbt, Transaction, payments } from "bitcoinjs-lib";
-import { Buffer } from "buffer";
 import {
   TAPSCRIPT_LEAF_VERSION,
-  assertEccInitialized,
   hexToUint8Array,
   stripHexPrefix,
   uint8ArrayToHex,
 } from "../utils/bitcoin";
+
+import { deriveExpectedPrePeginHtlc } from "./assertWasmPeginSizing";
 
 /**
  * Parameters for building the PegIn input PSBT
@@ -95,7 +96,9 @@ export async function buildPeginInputPsbt(
   const peginTxHex = stripHexPrefix(params.peginTxHex);
   const fundedPrePeginTxHex = stripHexPrefix(params.fundedPrePeginTxHex);
 
-  const htlcConnector = await getPrePeginHtlcConnectorInfo({
+  // Keep the facade's graph-version and input checks. Do not use its scripts
+  // or control block as signing data.
+  await getPrePeginHtlcConnectorInfo({
     txGraphVersion: params.vaultCoreVersion,
     depositorPubkey: params.depositorPubkey,
     vaultProviderPubkey: params.vaultProviderPubkey,
@@ -105,6 +108,7 @@ export async function buildPeginInputPsbt(
     timelockRefund: params.timelockRefund,
     network: params.network,
   });
+  const expectedHtlc = deriveExpectedPrePeginHtlc(params, params.hashlock);
 
   const peginTx = Transaction.fromHex(peginTxHex);
   const prePeginTx = Transaction.fromHex(fundedPrePeginTxHex);
@@ -138,28 +142,9 @@ export async function buildPeginInputPsbt(
     );
   }
 
-  const hashlockScript = hexToUint8Array(htlcConnector.hashlockScript);
-  const hashlockControlBlock = hexToUint8Array(
-    htlcConnector.hashlockControlBlock,
-  );
-
-  // Merkle root recomputed from the two connector leaves — inert for extension
-  // wallets, byte-compared by hardware that recomputes it. The closed loop
-  // below (derived P2TR == the funded HTLC spk) is what makes it trustworthy.
-  assertEccInitialized();
-  const htlcTaptree = payments.p2tr({
-    internalPubkey: Buffer.from(tapInternalPubkey),
-    scriptTree: [
-      { output: Buffer.from(hashlockScript), version: TAPSCRIPT_LEAF_VERSION },
-      {
-        output: Buffer.from(hexToUint8Array(htlcConnector.refundScript)),
-        version: TAPSCRIPT_LEAF_VERSION,
-      },
-    ],
-  });
-  if (!htlcTaptree.output?.equals(htlcOutput.script) || !htlcTaptree.hash) {
+  if (!expectedHtlc.scriptPubKey.equals(htlcOutput.script)) {
     throw new Error(
-      "PegIn HTLC taptree mismatch: the recomputed 2-leaf tree does not " +
+      "PegIn HTLC taptree mismatch: the independent 2-leaf tree does not " +
         "reproduce the funded Pre-PegIn HTLC scriptPubKey; refusing to sign.",
     );
   }
@@ -183,12 +168,12 @@ export async function buildPeginInputPsbt(
     tapLeafScript: [
       {
         leafVersion: TAPSCRIPT_LEAF_VERSION,
-        script: Buffer.from(hashlockScript),
-        controlBlock: Buffer.from(hashlockControlBlock),
+        script: expectedHtlc.hashlockScript,
+        controlBlock: expectedHtlc.hashlockControlBlock,
       },
     ],
     tapInternalKey: Buffer.from(tapInternalPubkey),
-    tapMerkleRoot: htlcTaptree.hash,
+    tapMerkleRoot: expectedHtlc.tapMerkleRoot,
     // sighashType omitted — defaults to SIGHASH_DEFAULT (0x00) for Taproot
   });
 

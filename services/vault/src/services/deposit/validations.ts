@@ -8,9 +8,11 @@ import { formatSatoshisToBtc } from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
   validateMultiVaultDepositInputs as sdkValidateMultiVaultDepositInputs,
   validateProviderSelection as sdkValidateProviderSelection,
+  validateRemainingCapacity as sdkValidateRemainingCapacity,
   validateVaultAmounts as sdkValidateVaultAmounts,
   type DepositFormValidityParams,
   type MultiVaultDepositFlowInputs,
+  type RemainingCapacityParams,
   type ValidationResult,
 } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 
@@ -20,7 +22,6 @@ import { getBtcSymbol } from "@/utils/formatting";
 export {
   isDepositAmountValid,
   validateDepositAmount,
-  validateRemainingCapacity,
   validateVaultProviderPubkey,
 } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 
@@ -226,7 +227,10 @@ export function capBelowMinimumLabel(
   effectiveRemaining: bigint,
   minDeposit: bigint,
 ): string {
-  return `Remaining capacity (${formatSatoshisToBtc(effectiveRemaining)} BTC) is below the minimum deposit (${formatSatoshisToBtc(minDeposit)} BTC)`;
+  return COPY.deposit.errors.capBelowMinimum(
+    formatSatoshisToBtc(effectiveRemaining),
+    formatSatoshisToBtc(minDeposit),
+  );
 }
 
 /**
@@ -250,6 +254,25 @@ export function maxBelowMinimum(
 
 export function maxBelowMinimumLabel(minDeposit: bigint): string {
   return `Minimum deposit is ${formatSatoshisToBtc(minDeposit)} ${getBtcSymbol()}`;
+}
+
+export function validateRemainingCapacity(
+  params: RemainingCapacityParams,
+): ValidationResult {
+  const result = sdkValidateRemainingCapacity(params);
+  if (
+    result.valid ||
+    params.effectiveRemaining === null ||
+    params.effectiveRemaining === 0n
+  ) {
+    return result;
+  }
+  return {
+    valid: false,
+    error: COPY.deposit.errors.exceedsCap(
+      formatSatoshisToBtc(params.effectiveRemaining),
+    ),
+  };
 }
 
 export function getDepositButtonLabel(
@@ -326,13 +349,12 @@ export function getDepositCtaState(params: DepositCtaParams): DepositCtaState {
     };
   }
 
-  // Mirror `validateRemainingCapacity` from the SDK. The message strings must
-  // match exactly so users see the same wording whether the block surfaces via
-  // the CTA or via a future inline error. These run before the generic
-  // `amountExceedsMax` check below: `maxDepositSats` is itself clamped to the
-  // supply cap, so a cap-bound amount also trips `amountExceedsMax` — and
-  // "Insufficient balance" would be wrong when the wallet has ample balance but
-  // the supply cap is the real limiter.
+  // Mirrors `validateRemainingCapacity` from the SDK's cap-exhaustion logic.
+  // These run before the generic `amountExceedsMax` check below:
+  // `maxDepositSats` is itself clamped to the supply cap, so a cap-bound
+  // amount also trips `amountExceedsMax` — and "Insufficient balance" would
+  // be wrong when the wallet has ample balance but the supply cap is the
+  // real limiter.
   if (params.effectiveRemaining === 0n) {
     return {
       disabled: true,
@@ -371,7 +393,9 @@ export function getDepositCtaState(params: DepositCtaParams): DepositCtaState {
   ) {
     return {
       disabled: true,
-      label: `BTCVault size exceeds remaining capacity (${formatSatoshisToBtc(params.effectiveRemaining)} BTC)`,
+      label: COPY.deposit.errors.exceedsCap(
+        formatSatoshisToBtc(params.effectiveRemaining),
+      ),
     };
   }
 
