@@ -58,13 +58,58 @@ describe("Connect current wallet requirements", () => {
     wallet.confirmed = true;
   });
 
-  it.each([
-    { btcConnected: false, ethConnected: false, confirmed: false },
-    { btcConnected: false, ethConnected: true, confirmed: true },
-    { btcConnected: true, ethConnected: false, confirmed: true },
-    { btcConnected: true, ethConnected: true, confirmed: false },
-  ])("keeps the connect prompt for %j", (state) => {
-    Object.assign(wallet, state);
+  it("keeps the connect prompt when both wallets are missing", () => {
+    wallet.btcConnected = false;
+    wallet.ethConnected = false;
+    wallet.confirmed = false;
+
+    render(<Connect />);
+
+    expect(screen.queryByTestId("wallet-menu-trigger")).not.toBeInTheDocument();
+    expect(wallet.useUTXOs).toHaveBeenLastCalledWith("", { enabled: false });
+    expect(wallet.open).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Connect" }));
+
+    expect(wallet.open).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the connect prompt when Bitcoin is missing", () => {
+    wallet.btcConnected = false;
+    wallet.ethConnected = true;
+    wallet.confirmed = true;
+
+    render(<Connect />);
+
+    expect(screen.queryByTestId("wallet-menu-trigger")).not.toBeInTheDocument();
+    expect(wallet.useUTXOs).toHaveBeenLastCalledWith("", { enabled: false });
+    expect(wallet.open).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Connect" }));
+
+    expect(wallet.open).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the connect prompt when Ethereum is missing", () => {
+    wallet.btcConnected = true;
+    wallet.ethConnected = false;
+    wallet.confirmed = true;
+
+    render(<Connect />);
+
+    expect(screen.queryByTestId("wallet-menu-trigger")).not.toBeInTheDocument();
+    expect(wallet.useUTXOs).toHaveBeenLastCalledWith("", { enabled: false });
+    expect(wallet.open).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Connect" }));
+
+    expect(wallet.open).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the connect prompt before wallet confirmation", () => {
+    wallet.btcConnected = true;
+    wallet.ethConnected = true;
+    wallet.confirmed = false;
 
     render(<Connect />);
 

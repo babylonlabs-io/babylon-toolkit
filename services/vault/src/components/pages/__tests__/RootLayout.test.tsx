@@ -161,18 +161,15 @@ describe("RootLayout — header wiring", () => {
     expect(screen.getByText(COPY.header.networkBadge)).toBeInTheDocument();
   });
 
-  it.each([
-    { btcConnected: false, ethConnected: false },
-    { btcConnected: true, ethConnected: false },
-    { btcConnected: false, ethConnected: true },
-  ])("shows the entry layout with wallet state %j", (wallets) => {
+  it("shows the entry layout when both wallets are missing", () => {
     walletMock.btcConnected = true;
     walletMock.ethConnected = true;
     const { unmount } = renderRootLayout();
     expect(document.querySelector("aside")).toBeInTheDocument();
     unmount();
 
-    Object.assign(walletMock, wallets);
+    walletMock.btcConnected = false;
+    walletMock.ethConnected = false;
     const { container } = renderRootLayout();
 
     expect(document.querySelector("aside")).not.toBeInTheDocument();
@@ -181,6 +178,44 @@ describe("RootLayout — header wiring", () => {
     // lockup to the header.
     expect(screen.getByRole("img", { name: "Aave" })).toBeInTheDocument();
     // Without a sidebar column to fill, the navbar takes the capped entry box.
+    expect(
+      container.querySelector(".\\!max-w-\\[1280px\\]"),
+    ).toBeInTheDocument();
+  });
+
+  it("shows the entry layout when only Bitcoin is connected", () => {
+    walletMock.btcConnected = true;
+    walletMock.ethConnected = true;
+    const { unmount } = renderRootLayout();
+    expect(document.querySelector("aside")).toBeInTheDocument();
+    unmount();
+
+    walletMock.btcConnected = true;
+    walletMock.ethConnected = false;
+    const { container } = renderRootLayout();
+
+    expect(document.querySelector("aside")).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { level: 1 })).not.toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Aave" })).toBeInTheDocument();
+    expect(
+      container.querySelector(".\\!max-w-\\[1280px\\]"),
+    ).toBeInTheDocument();
+  });
+
+  it("shows the entry layout when only Ethereum is connected", () => {
+    walletMock.btcConnected = true;
+    walletMock.ethConnected = true;
+    const { unmount } = renderRootLayout();
+    expect(document.querySelector("aside")).toBeInTheDocument();
+    unmount();
+
+    walletMock.btcConnected = false;
+    walletMock.ethConnected = true;
+    const { container } = renderRootLayout();
+
+    expect(document.querySelector("aside")).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { level: 1 })).not.toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Aave" })).toBeInTheDocument();
     expect(
       container.querySelector(".\\!max-w-\\[1280px\\]"),
     ).toBeInTheDocument();

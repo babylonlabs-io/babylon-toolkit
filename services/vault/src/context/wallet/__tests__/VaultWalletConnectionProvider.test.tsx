@@ -117,17 +117,23 @@ describe("WalletConnectionProvider wallet resets", () => {
     expect(h.disconnectAll).toHaveBeenCalledTimes(1);
   });
 
-  it.each(["btc", "eth"] as const)(
-    "resets both wallets immediately when the %s address changes",
-    async (chain) => {
-      h.visible = true;
-      renderProvider();
+  it("resets both wallets immediately when the Bitcoin address changes", async () => {
+    h.visible = true;
+    renderProvider();
 
-      await act(() => h.captured[chain]!.onAddressChange());
+    await act(() => h.captured.btc!.onAddressChange());
 
-      expect(h.disconnectAll).toHaveBeenCalledTimes(1);
-    },
-  );
+    expect(h.disconnectAll).toHaveBeenCalledTimes(1);
+  });
+
+  it("resets both wallets immediately when the Ethereum address changes", async () => {
+    h.visible = true;
+    renderProvider();
+
+    await act(() => h.captured.eth!.onAddressChange());
+
+    expect(h.disconnectAll).toHaveBeenCalledTimes(1);
+  });
 
   it("does not tear down both wallets for a disconnect before BTC ever connected", async () => {
     renderProvider();

@@ -174,12 +174,31 @@ beforeEach(() => {
 });
 
 describe("DashboardPage composition", () => {
-  it.each([
-    { btcConnected: false, ethConnected: false },
-    { btcConnected: true, ethConnected: false },
-    { btcConnected: false, ethConnected: true },
-  ])("shows the landing page with wallet state %j", (wallets) => {
-    Object.assign(walletMock, wallets);
+  it("shows the landing page when both wallets are missing", () => {
+    walletMock.btcConnected = false;
+    walletMock.ethConnected = false;
+
+    render(<DashboardPage />);
+
+    expect(screen.getByTestId("disconnected-overview")).toBeInTheDocument();
+    expect(screen.queryByTestId("overview-section")).not.toBeInTheDocument();
+    expect(useDashboardState).toHaveBeenCalledWith(undefined);
+  });
+
+  it("shows the landing page when only Bitcoin is connected", () => {
+    walletMock.btcConnected = true;
+    walletMock.ethConnected = false;
+
+    render(<DashboardPage />);
+
+    expect(screen.getByTestId("disconnected-overview")).toBeInTheDocument();
+    expect(screen.queryByTestId("overview-section")).not.toBeInTheDocument();
+    expect(useDashboardState).toHaveBeenCalledWith(undefined);
+  });
+
+  it("shows the landing page when only Ethereum is connected", () => {
+    walletMock.btcConnected = false;
+    walletMock.ethConnected = true;
 
     render(<DashboardPage />);
 

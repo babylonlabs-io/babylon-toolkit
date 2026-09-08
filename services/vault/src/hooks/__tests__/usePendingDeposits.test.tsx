@@ -133,31 +133,43 @@ describe("usePendingDeposits", () => {
     expect(result.current.ethAddress).toBe("0xethtest");
   });
 
-  it.each([true, false])(
-    "keeps deposit records but gates their flags when Bitcoin is connected: %s",
-    (connected) => {
-      mockActivities.mockReturnValue([
-        makeActivity("a1", ContractStatus.PENDING),
-        makeActivity("a2", ContractStatus.EXPIRED, "0.1", "0200000001abcd"),
-        makeActivity("a3", ContractStatus.EXPIRED, "0.1"),
-      ]);
+  it("keeps deposit records and enables their flags when Bitcoin is connected", () => {
+    mockActivities.mockReturnValue([
+      makeActivity("a1", ContractStatus.PENDING),
+      makeActivity("a2", ContractStatus.EXPIRED, "0.1", "0200000001abcd"),
+      makeActivity("a3", ContractStatus.EXPIRED, "0.1"),
+    ]);
 
-      const wallet = vi.mocked(useBTCWallet);
-      const currentWallet = wallet();
-      wallet.mockReturnValue({ ...currentWallet, connected });
-      const { result } = renderHook(() => usePendingDeposits());
+    const wallet = vi.mocked(useBTCWallet);
+    const currentWallet = wallet();
+    wallet.mockReturnValue({ ...currentWallet, connected: true });
+    const { result } = renderHook(() => usePendingDeposits());
 
-      expect(result.current.pendingActivities.map((a: any) => a.id)).toEqual([
-        "a1",
-      ]);
-      expect(result.current.expiredActivities.map((a: any) => a.id)).toEqual([
-        "a2",
-      ]);
-      expect(result.current.hasPendingDeposits).toBe(connected);
-      expect(result.current.hasExpiredDeposits).toBe(connected);
-      expect(useVaultDeposits).toHaveBeenCalledWith("0xethtest");
-    },
-  );
+    expect(result.current.pendingActivities.map((a) => a.id)).toEqual(["a1"]);
+    expect(result.current.expiredActivities.map((a) => a.id)).toEqual(["a2"]);
+    expect(result.current.hasPendingDeposits).toBe(true);
+    expect(result.current.hasExpiredDeposits).toBe(true);
+    expect(useVaultDeposits).toHaveBeenCalledWith("0xethtest");
+  });
+
+  it("keeps deposit records and disables their flags when Bitcoin is disconnected", () => {
+    mockActivities.mockReturnValue([
+      makeActivity("a1", ContractStatus.PENDING),
+      makeActivity("a2", ContractStatus.EXPIRED, "0.1", "0200000001abcd"),
+      makeActivity("a3", ContractStatus.EXPIRED, "0.1"),
+    ]);
+
+    const wallet = vi.mocked(useBTCWallet);
+    const currentWallet = wallet();
+    wallet.mockReturnValue({ ...currentWallet, connected: false });
+    const { result } = renderHook(() => usePendingDeposits());
+
+    expect(result.current.pendingActivities.map((a) => a.id)).toEqual(["a1"]);
+    expect(result.current.expiredActivities.map((a) => a.id)).toEqual(["a2"]);
+    expect(result.current.hasPendingDeposits).toBe(false);
+    expect(result.current.hasExpiredDeposits).toBe(false);
+    expect(useVaultDeposits).toHaveBeenCalledWith("0xethtest");
+  });
 
   it("returns the broadcast modal handler", () => {
     const { result } = renderHook(() => usePendingDeposits());

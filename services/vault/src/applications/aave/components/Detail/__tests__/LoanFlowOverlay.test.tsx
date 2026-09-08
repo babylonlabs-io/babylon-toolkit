@@ -119,25 +119,35 @@ describe("LoanFlowOverlay", () => {
     useAaveUserPositionMock.mockClear();
   });
 
-  it.each([false, true])(
-    "gates the position query when connected is %s",
-    (isConnected) => {
-      walletState.isConnected = isConnected;
-      renderOverlay(
-        <LoanFlowOverlay
-          picker={LOAN_TAB.REPAY}
-          reserveId={null}
-          tab={LOAN_TAB.REPAY}
-        />,
-      );
+  it("omits the position query address while disconnected", () => {
+    walletState.isConnected = false;
+    renderOverlay(
+      <LoanFlowOverlay
+        picker={LOAN_TAB.REPAY}
+        reserveId={null}
+        tab={LOAN_TAB.REPAY}
+      />,
+    );
 
-      expect(useAaveUserPositionMock).toHaveBeenCalledWith(
-        isConnected ? "0xabc" : undefined,
-      );
-      expect(screen.getByTestId("picker-repay")).toBeInTheDocument();
-      expect(screen.queryByTestId("form")).not.toBeInTheDocument();
-    },
-  );
+    expect(useAaveUserPositionMock).toHaveBeenCalledWith(undefined);
+    expect(screen.getByTestId("picker-repay")).toBeInTheDocument();
+    expect(screen.queryByTestId("form")).not.toBeInTheDocument();
+  });
+
+  it("queries the position for the connected Ethereum address", () => {
+    walletState.isConnected = true;
+    renderOverlay(
+      <LoanFlowOverlay
+        picker={LOAN_TAB.REPAY}
+        reserveId={null}
+        tab={LOAN_TAB.REPAY}
+      />,
+    );
+
+    expect(useAaveUserPositionMock).toHaveBeenCalledWith("0xabc");
+    expect(screen.getByTestId("picker-repay")).toBeInTheDocument();
+    expect(screen.queryByTestId("form")).not.toBeInTheDocument();
+  });
 
   it("shows the picker step and no form when only the picker param is set", () => {
     renderOverlay(
