@@ -62,6 +62,7 @@ for (const entry of ['raw', 'raw-node']) {
     };
     const service = ts.createLanguageService({
       ...ts.sys,
+      useCaseSensitiveFileNames: () => ts.sys.useCaseSensitiveFileNames,
       getScriptFileNames: () => [consumerFile],
       getScriptVersion: () => '0',
       getScriptSnapshot(file) {
