@@ -58,8 +58,6 @@ export interface BTCAddressValidation {
   validateAddressWithPK(address: string, publicKey: string, network: Network): boolean;
 }
 
-const ignoreReportedDisconnectError = () => {};
-
 interface Props {
   persistent: boolean;
   accountStorage: HashMap;
@@ -94,7 +92,10 @@ export function useWalletConnectors({ persistent, accountStorage, onError, btcVa
   );
 
   const dropRejectedWallet = (connector: Pick<IConnector, "id" | "disconnect">) => {
-    connector.disconnect().catch(ignoreReportedDisconnectError);
+    connector.disconnect().catch((error) => {
+      if (error instanceof WalletError && error.code === ERROR_CODES.SHARED_SESSION_DISCONNECT_REFUSED) return;
+      console.error("Failed to disconnect rejected wallet:", error instanceof Error ? error.message : "Unknown error");
+    });
     removeWallet?.(connector.id);
     if (persistent) {
       accountStorage.delete(connector.id);
