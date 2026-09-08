@@ -6,6 +6,7 @@ import { LifeCycleHooksProvider, type LifeCycleHooksProps } from "@/context/Life
 import { TomoConnectionProvider } from "@/context/TomoProvider";
 import { createAccountStorage } from "@/core/storage";
 import type { BBNConfig, BTCConfig, ChainId, ETHConfig } from "@/core/types";
+import { validateAddress, validateAddressWithPK } from "@/core/utils/wallet";
 import chainMetadata from "@/core/wallets";
 import { initializeAppKitModal, type AppKitModalConfig } from "@/core/wallets/appkit/appKitModal";
 import { useAppKitOpenListener } from "@/hooks/appkit/useAppKitOpenListener";
@@ -35,6 +36,7 @@ function deriveNetworkMap(config: Readonly<ChainConfigArr>): Record<string, stri
 }
 
 const metadata: ChainMetadataMap = chainMetadata;
+const btcValidation = { validateAddress, validateAddressWithPK };
 
 export interface WalletProviderProps {
   ttl?: number;
@@ -149,6 +151,7 @@ export function WalletProvider({
           </>
         )}
         <WalletDialog
+          btcValidation={btcValidation}
           persistent={persistent}
           storage={storage}
           config={config}

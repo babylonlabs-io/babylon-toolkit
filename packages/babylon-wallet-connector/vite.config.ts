@@ -4,6 +4,8 @@ import { defineConfig } from "vite";
 import dts from "vite-plugin-dts";
 import { nodePolyfills } from "vite-plugin-node-polyfills";
 
+import { requiredExternals, walletExternals } from "./scripts/package-boundary.js";
+
 export default defineConfig({
   plugins: [
     react(),
@@ -31,35 +33,18 @@ export default defineConfig({
         eth: path.resolve(__dirname, "src/eth.ts"),
       },
       formats: ["es", "cjs"],
-      fileName: (format, entryName) => `${entryName}.${format}.js`,
+      fileName: (format, entryName) => format === "cjs" ? `${entryName}.cjs` : `${entryName}.${format}.js`,
       // Pinned because a multi-entry lib build otherwise names the stylesheet
       // after the package, changing the published `./style.css` target.
       cssFileName: "wallet-connector",
     },
     rollupOptions: {
-      external: [
-        "react",
-        "react-dom",
-        "react/jsx-runtime",
-        "tailwind-merge",
-        "wagmi",
-        "viem",
-        "@cosmjs/stargate",
-        "@babylonlabs-io/core-ui",
-        "@babylonlabs-io/ledger-vault-signer",
-        "bitcoinjs-lib",
-        "@keystonehq/animated-qr",
-        // Issues linking with Next.js
-        // "@keystonehq/keystone-sdk",
-        "@keystonehq/sdk",
-        // @reown packages that use viem internally
-        "@reown/appkit",
-        "@reown/appkit-adapter-wagmi",
-        "@reown/appkit-adapter-bitcoin",
-        /^@reown\//, // Match all @reown/* packages
-        // React Query must be external to share context with consuming app
-        "@tanstack/react-query",
-      ],
+      // Bundle BitcoinJS deep imports so Node ESM does not receive extensionless paths.
+      external: (id) =>
+        [...requiredExternals, ...walletExternals].some(
+          (name) => id === name || (name !== "bitcoinjs-lib" && id.startsWith(`${name}/`)),
+        ) ||
+        id.startsWith("@reown/"),
       output: {
         sourcemapExcludeSources: false,
       },

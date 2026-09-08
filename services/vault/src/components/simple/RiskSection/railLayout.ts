@@ -9,6 +9,7 @@ export type RiskDisplayState =
   | "verySafe"
   | "safe"
   | "moderate"
+  | "risky"
   | "liquidatable";
 
 export function getRiskDisplayState(
@@ -19,7 +20,7 @@ export function getRiskDisplayState(
   if (!hasPosition) return "noPosition";
   switch (status) {
     case "no_debt":
-      return "noPosition";
+      return "verySafe";
     case "safe":
       return healthFactor === null ||
         !isFinite(healthFactor) ||
@@ -28,6 +29,8 @@ export function getRiskDisplayState(
         : "safe";
     case "warning":
       return "moderate";
+    case "risky":
+      return "risky";
     case "danger":
       return "liquidatable";
   }
@@ -44,13 +47,8 @@ export interface RailLayout {
 
 const MARKER_EDGE_MARGIN_PCT = 1.5;
 const MAX_TICKS = 8;
-// On this axis the health factor is price / liquidationPrice, so red sits at
-// the liquidation price and green at the price clearing the safe threshold.
-// Far from liquidation that ramp collapses to a hairline, hence the minimum —
-// which trades truthfulness for legibility: once it engages the stops no longer
-// mark the HF bands. At HF 9 ($63,488 / $6,962) the honest green stop is 5.3%
-// but lands at 45.3%, so ~40pp of rail reads amber for comfortably safe prices.
-// The marker keeps its own colour (from `state`), so it still reads green.
+// The price rail uses the liquidation price and the global warning threshold.
+// A minimum ramp keeps distant liquidation prices visible.
 const GRADIENT_MIN_RAMP_PCT = 45;
 
 function isUsablePrice(price: number | null): price is number {
@@ -117,14 +115,8 @@ export function computeRailLayout(
   const currentPct = toPct(currentPriceUsd);
   const liquidationPct = hasLiquidation ? toPct(liquidationPriceUsd) : null;
 
-  // Both stops are derived from the liquidation price, so the red one always
-  // lands exactly on the liquidation marker. That deliberately keeps the rail
-  // internally consistent rather than agreeing with the health factor labelling
-  // the card: the label reads on-chain `accountData.healthFactor` while this
-  // price comes from the cascade (indexed vault rows + the BTC feed). When
-  // those sources diverge the bands can drift from the label by that much —
-  // anchoring the stops on the label instead would move the red stop off the
-  // marker, which is the more visible of the two errors.
+  // Keep the red stop on the liquidation marker. The price feed can differ
+  // from the on-chain health factor used by the status label.
   let gradient: string | null = null;
   if (hasLiquidation) {
     const stopPct = (price: number) => clamp(pct(price), 0, 100);

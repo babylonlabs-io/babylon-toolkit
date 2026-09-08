@@ -48,6 +48,14 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # Vault bundles the SDK. Release workflows run independently, so this
+      # workflow must keep the SDK browser gate.
+      - name: Install Chromium for browser tests
+        run: pnpm --filter @babylonlabs-io/ts-sdk exec playwright install --with-deps chromium
+
+      - name: Test SDK in Chromium
+        run: pnpm exec nx run @babylonlabs-io/ts-sdk:test-browser
+
       - name: Test
         run: pnpm run test
         env:

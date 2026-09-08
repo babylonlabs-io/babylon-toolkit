@@ -2,10 +2,26 @@ import { defineConfig, devices } from "@playwright/test";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { RECORDED_DEPLOYMENT } from "./e2e/fixtures/replay/contracts";
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const PORT_MISSING_ENV = 5173;
 const PORT_FULL_ENV = 5175;
+/**
+ * Full mock env plus the dev-only god-mode panel. Its own server because the
+ * panel mounts a fixed launcher on every screen, which the behavioural specs
+ * on `PORT_FULL_ENV` must not have to click around. See
+ * `e2e/deposit-progress-layout.spec.ts` for the one suite that drives it.
+ */
+const PORT_GOD_MODE = 5176;
+const GOD_MODE_SPEC = "**/deposit-progress-layout.spec.ts";
+/**
+ * A project-level `testIgnore` replaces the top-level one rather than adding
+ * to it, so the visual exclusion documented on `testIgnore` below has to be
+ * repeated wherever a project narrows its own file set.
+ */
+const BEHAVIOURAL_TEST_IGNORE = ["**/visual/**", GOD_MODE_SPEC];
 
 /**
  * Mock backend the e2e suite pins so no spec reaches a live host. Exported
@@ -51,6 +67,23 @@ export const MOCK_ENV_VARS = {
   NEXT_PUBLIC_E2E_MODE: "1",
 };
 
+/**
+ * Point the app at the deployment the replayed recording was captured
+ * against. `MOCK_ENV_VARS` uses 0x…0001/2/3 placeholders, which are fine for
+ * the behavioural suite (it asserts on what the app DOES with a response) and
+ * useless against the recording: a replayed read is answered by the address it
+ * was aimed at, so a placeholder matches nothing and every screen falls back
+ * to the error boundary. See `e2e/fixtures/replay/contracts.ts`. Shared by
+ * the god-mode server below and `playwright.visual.config.ts`.
+ */
+export const RECORDED_DEPLOYMENT_ENV = {
+  NEXT_PUBLIC_TBV_BTC_VAULT_REGISTRY: RECORDED_DEPLOYMENT.BTC_VAULT_REGISTRY,
+  NEXT_PUBLIC_TBV_AAVE_ADAPTER: RECORDED_DEPLOYMENT.AAVE_ADAPTER,
+  NEXT_PUBLIC_TBV_AAVE_ADAPTER_CONFIG: RECORDED_DEPLOYMENT.AAVE_ADAPTER_CONFIG,
+  NEXT_PUBLIC_TBV_BTC_PRICE_FEED: RECORDED_DEPLOYMENT.BTC_PRICE_FEED,
+  NEXT_PUBLIC_ETH_CHAINID: RECORDED_DEPLOYMENT.ETH_CHAIN_ID,
+};
+
 export default defineConfig({
   testDir: path.join(__dirname, "e2e"),
   // Match only Playwright specs. The fixtures themselves have
@@ -81,9 +114,18 @@ export default defineConfig({
   projects: [
     {
       name: "chromium",
+      testIgnore: BEHAVIOURAL_TEST_IGNORE,
       use: {
         ...devices["Desktop Chrome"],
         baseURL: `http://localhost:${PORT_FULL_ENV}`,
+      },
+    },
+    {
+      name: "chromium-god-mode",
+      testMatch: GOD_MODE_SPEC,
+      use: {
+        ...devices["Desktop Chrome"],
+        baseURL: `http://localhost:${PORT_GOD_MODE}`,
       },
     },
   ],
@@ -108,6 +150,17 @@ export default defineConfig({
       reuseExistingServer: true,
       env: {
         ...MOCK_ENV_VARS,
+      },
+    },
+    {
+      command: `pnpm exec vite --port ${PORT_GOD_MODE}`,
+      url: `http://localhost:${PORT_GOD_MODE}`,
+      timeout: 120_000,
+      reuseExistingServer: true,
+      env: {
+        ...MOCK_ENV_VARS,
+        ...RECORDED_DEPLOYMENT_ENV,
+        NEXT_PUBLIC_FF_GOD_MODE_PANEL: "true",
       },
     },
   ],

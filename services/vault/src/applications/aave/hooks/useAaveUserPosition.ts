@@ -181,7 +181,7 @@ export function useAaveUserPosition(
         collateralValueUsd: aaveValueToUsd(accountData.totalCollateralValue),
         debtValueUsd: aaveRayValueToUsd(accountData.totalDebtValueRay),
         healthFactor:
-          accountData.borrowCount > 0n
+          accountData.totalDebtValueRay > 0n
             ? wadToNumber(accountData.healthFactor)
             : null,
       };

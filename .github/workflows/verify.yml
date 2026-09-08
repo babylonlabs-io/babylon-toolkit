@@ -89,6 +89,15 @@ jobs:
       - name: Lint all
         run: pnpm run lint
 
+      - name: Install Chromium for browser tests
+        run: pnpm --filter @babylonlabs-io/ts-sdk exec playwright install --with-deps chromium
+
+      - name: Check packed wallet consumer
+        run: pnpm exec nx run @babylonlabs-io/wallet-connector:check:packed-consumer
+
+      - name: Test SDK in Chromium
+        run: pnpm exec nx run @babylonlabs-io/ts-sdk:test-browser
+
       - name: Test affected
         id: tests
         shell: bash

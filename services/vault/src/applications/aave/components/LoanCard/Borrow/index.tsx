@@ -225,7 +225,7 @@ export function Borrow() {
   );
   const showAtRiskCallout =
     hasProjection &&
-    (projectedHealthStatus === "warning" || projectedHealthStatus === "danger");
+    (projectedHealthStatus === "risky" || projectedHealthStatus === "danger");
 
   const handleBorrow = async () => {
     // Defensive: the disabled prop already gates on `oracleAddress == null`.

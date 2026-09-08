@@ -146,7 +146,7 @@ describe("useDepositValidation", () => {
 
       expect(validationResult.valid).toBe(false);
       expect(validationResult.error).toBe(
-        "Remaining capacity (0.00005 BTC) is below the minimum deposit (0.0001 BTC)",
+        "Peg-in TVL cap reached — only 0.00005 BTC remains, below the minimum deposit of 0.0001 BTC",
       );
     });
 
@@ -316,7 +316,7 @@ describe("useDepositValidation", () => {
       const validationResult = result.current.validateAmount("0.001");
 
       expect(validationResult.valid).toBe(false);
-      expect(validationResult.error).toMatch(/exceeds remaining capacity/i);
+      expect(validationResult.error).toMatch(/Peg-in TVL cap reached/);
     });
 
     it("returns the supply-cap-reached error when remaining is zero", () => {

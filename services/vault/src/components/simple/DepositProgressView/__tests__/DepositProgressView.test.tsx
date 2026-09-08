@@ -978,7 +978,7 @@ describe("DepositProgressView", () => {
       ).not.toBeInTheDocument();
     });
 
-    it("shows the hint only under the active vault's column in a split deposit", () => {
+    it("shows the hint only under the active vault's lane in a split deposit", () => {
       render(
         <DepositProgressView
           {...baseProps}

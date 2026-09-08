@@ -2,14 +2,12 @@ import type { StepperItem } from "@babylonlabs-io/core-ui";
 
 import { COPY } from "@/copy";
 import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps/types";
-import type { RegistrationDepthProgress } from "@/services/vault/ethConfirmationGate";
 import type { PayoutSigningProgress } from "@/services/vault/vaultPayoutSignatureService";
 import type { PeginSigningProgress } from "@/services/vault/vaultTransactionService";
 
 export function buildStepItems(
   progress: PayoutSigningProgress | null,
   peginProgress: PeginSigningProgress | null = null,
-  ethConfirmationProgress: RegistrationDepthProgress | null = null,
 ): StepperItem[] {
   const payoutCounter =
     progress?.phase === "claimers" && progress.total > 0
@@ -31,15 +29,6 @@ export function buildStepItems(
         )
       : undefined;
 
-  // Ethereum finality gate depth. Absent outside the gate's window, so the
-  // step reads normally during the wallet popup and the receipt wait.
-  const ethConfirmationCounter = ethConfirmationProgress
-    ? COPY.deposit.steps.signingCounter(
-        ethConfirmationProgress.confirmations,
-        ethConfirmationProgress.required,
-      )
-    : undefined;
-
   return [
     {
       label: COPY.deposit.steps.generateSecret,
@@ -53,7 +42,6 @@ export function buildStepItems(
     },
     {
       label: COPY.deposit.steps.signAndBroadcastEth,
-      description: ethConfirmationCounter,
     },
     {
       label: COPY.deposit.steps.signAndBroadcastPrePegin,
@@ -120,7 +108,7 @@ export const STEP_GROUPS: StepGroup[] = [
  * Visual step at which the deposit flow stops being shared across all vaults
  * in a split deposit. Everything through AWAIT_BTC_CONFIRMATION (visual step 6)
  * is a single shared Pre-PegIn broadcast; from SUBMIT_WOTS_KEYS onward each
- * vault progresses on its own VP-paced timeline and earns a dedicated column
+ * vault progresses on its own VP-paced timeline and earns a dedicated lane
  * in the multi-vault stepper.
  */
 export const TRUNK_END_VISUAL_STEP = 6;
@@ -140,7 +128,7 @@ export function groupContainsStep(
  * vaults — at any point one vault is the "active" one
  * (tracked by `currentVaultIndex`) while siblings have either finished the
  * active phase or are queued for their turn. This function maps that shared
- * state into a per-vault step so each column in the split UI shows the right
+ * state into a per-vault step so each lane in the split UI shows the right
  * row as active, completed, or pending.
  */
 export function derivePerVaultStep(

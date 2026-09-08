@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import { HEALTH_FACTOR_DISPLAY_CAP } from "../../constants";
 import {
   formatHealthFactor,
+  getHealthFactorColor,
+  HEALTH_FACTOR_COLORS,
   HEALTH_FACTOR_HEALTHY_THRESHOLD,
 } from "../healthFactorDisplay";
 
@@ -46,4 +48,9 @@ describe("formatHealthFactor", () => {
     );
     expect(formatHealthFactor(100)).toBe("100.00");
   });
+});
+
+it("shows Risky in red and no debt in green", () => {
+  expect(getHealthFactorColor("risky")).toBe(HEALTH_FACTOR_COLORS.RED);
+  expect(getHealthFactorColor("no_debt")).toBe(HEALTH_FACTOR_COLORS.GREEN);
 });
