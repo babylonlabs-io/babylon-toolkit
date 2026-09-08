@@ -154,9 +154,36 @@ describe("disconnect", () => {
 
     await result.current.disconnect();
 
-    expect(disconnectBtc).toHaveBeenCalled();
-    expect(disconnectEth).toHaveBeenCalled();
+    expect(disconnectBtc).toHaveBeenCalledWith("all");
+    expect(disconnectEth).toHaveBeenCalledWith("all");
+    expect(disconnectBtc.mock.invocationCallOrder[0]).toBeLessThan(disconnectEth.mock.invocationCallOrder[0]);
     expect(reset).toHaveBeenCalled();
+  });
+
+  it("rejects a refused single-chain disconnect and leaves the other chain and the widget state alone", async () => {
+    const { result } = setup({
+      requiredChainIds: ["ETH"],
+      selectedWallets: { BTC: btcWallet, ETH: ethWallet },
+      confirmed: true,
+    });
+    disconnectBtc.mockRejectedValueOnce(new Error("refused"));
+
+    await expect(result.current.disconnect("BTC")).rejects.toThrow("refused");
+
+    expect(disconnectEth).not.toHaveBeenCalled();
+    expect(reset).not.toHaveBeenCalled();
+  });
+
+  it("passes the chain scope when disconnecting a single chain", async () => {
+    const { result } = setup({
+      requiredChainIds: ["ETH"],
+      selectedWallets: { BTC: btcWallet, ETH: ethWallet },
+      confirmed: true,
+    });
+
+    await result.current.disconnect("BTC");
+
+    expect(disconnectBtc).toHaveBeenCalledWith();
   });
 
   it("treats a click event as disconnect-all rather than as a chain", async () => {

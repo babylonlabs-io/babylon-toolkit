@@ -26,6 +26,8 @@ describe("AppKitBTCProvider network events", () => {
     let networkListener: ((state: NetworkState) => void) | undefined;
     const modal = {
       disconnect: vi.fn().mockResolvedValue(undefined),
+      getProviderType: vi.fn(() => "INJECTED"),
+      getAccount: vi.fn(() => undefined),
       subscribeNetwork: vi.fn((listener: (state: NetworkState) => void) => {
         networkListener = listener;
         return unsubscribeNetwork;
@@ -58,7 +60,7 @@ describe("AppKitBTCProvider network events", () => {
     networkListener?.({ caipNetwork: { chainNamespace: "bip122", caipNetworkId: mainnetId } });
     expect(onNetworkChanged).toHaveBeenCalledWith(mainnetId);
 
-    await provider.disconnect();
+    await provider.disconnect("chain");
     expect(unsubscribeNetwork).toHaveBeenCalledTimes(1);
   });
 });

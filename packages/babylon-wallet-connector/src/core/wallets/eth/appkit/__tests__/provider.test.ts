@@ -7,13 +7,16 @@ import type { ETHConfig } from "@/core/types";
 // The mocks show whether the constructor attached the watchers.
 // They also keep the heavy `@reown/appkit` graph out of this test.
 const wagmiActions = vi.hoisted(() => ({
-  getAccount: vi.fn(() => ({
-    address: undefined,
-    chainId: undefined,
-    status: "disconnected" as const,
-  })),
+  getAccount: vi.fn(
+    (): { address?: `0x${string}`; chainId?: number; status: "connected" | "disconnected" } => ({
+      address: undefined,
+      chainId: undefined,
+      status: "disconnected",
+    }),
+  ),
   watchAccount: vi.fn(() => () => {}),
   watchChainId: vi.fn(() => () => {}),
+  disconnect: vi.fn(),
 }));
 
 vi.mock("wagmi/actions", () => ({
@@ -28,7 +31,7 @@ vi.mock("wagmi/actions", () => ({
   watchAccount: wagmiActions.watchAccount,
   watchChainId: wagmiActions.watchChainId,
   connect: vi.fn(),
-  disconnect: vi.fn(),
+  disconnect: wagmiActions.disconnect,
 }));
 
 vi.mock("wagmi/connectors", () => ({
@@ -124,6 +127,44 @@ describe("AppKitProvider — constructed after AppKit init (shared wagmi config 
     const provider = new AppKitProvider(ethConfig);
 
     await expect(provider.getChainId()).rejects.toThrow("Wallet not connected");
+    provider.destroy();
+  });
+
+  it("disconnect() rejects and keeps the cached address when wagmiDisconnect rejects", async () => {
+    vi.resetModules();
+    const { setSharedWagmiConfig } = await import("../sharedConfig");
+    const { AppKitProvider } = await import("../provider");
+
+    setSharedWagmiConfig({} as Config);
+    const provider = new AppKitProvider(ethConfig);
+
+    wagmiActions.getAccount.mockReturnValueOnce({ address: "0xabc", chainId: 1, status: "connected" });
+    await provider.connectWallet();
+
+    wagmiActions.disconnect.mockRejectedValueOnce(new Error("disconnect failed"));
+
+    await expect(provider.disconnect()).rejects.toThrow("disconnect failed");
+    await expect(provider.getAddress()).resolves.toBe("0xabc");
+
+    provider.destroy();
+  });
+
+  it("disconnect() clears the cached address when wagmiDisconnect resolves", async () => {
+    vi.resetModules();
+    const { setSharedWagmiConfig } = await import("../sharedConfig");
+    const { AppKitProvider } = await import("../provider");
+
+    setSharedWagmiConfig({} as Config);
+    const provider = new AppKitProvider(ethConfig);
+
+    wagmiActions.getAccount.mockReturnValueOnce({ address: "0xabc", chainId: 1, status: "connected" });
+    await provider.connectWallet();
+
+    wagmiActions.disconnect.mockResolvedValueOnce(undefined);
+
+    await provider.disconnect();
+    await expect(provider.getAddress()).rejects.toThrow("Wallet not connected");
+
     provider.destroy();
   });
 });

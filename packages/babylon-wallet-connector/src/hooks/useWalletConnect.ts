@@ -59,7 +59,7 @@ export function useWalletConnect() {
       for (const connector of Object.values(connectors)) {
         if (!connector) continue;
 
-        await connector.disconnect();
+        await connector.disconnect("all");
       }
 
       reset?.();

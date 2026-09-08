@@ -2,7 +2,7 @@ import type { BitcoinAdapter } from "@reown/appkit-adapter-bitcoin";
 import { Psbt } from "bitcoinjs-lib";
 
 import { NETWORK_CHANGE_EVENT } from "@/constants/walletEvents";
-import type { BTCConfig, IBTCProvider, InscriptionIdentifier, SignPsbtOptions } from "@/core/types";
+import type { BTCConfig, DisconnectScope, IBTCProvider, InscriptionIdentifier, SignPsbtOptions } from "@/core/types";
 import { Network } from "@/core/types";
 import { resolveUseTweakedSigner } from "@/core/utils/psbtOptionsMapper";
 import { APPKIT_OPEN_EVENT } from "@/core/wallets/appkit/constants";
@@ -12,7 +12,11 @@ import { ERROR_CODES, WalletError, isUserRejectionMessage } from "@/error";
 import { APPKIT_BTC_CONNECTED_EVENT } from "./constants";
 import icon from "./icon.svg";
 import { getCaipNetworkForNetwork, resolveLiveNetwork } from "./network";
-import { getSharedBtcAppKitConfig, hasSharedBtcAppKitConfig } from "./sharedConfig";
+import {
+  btcDisconnectWouldDropEthereum,
+  getSharedBtcAppKitConfig,
+  hasSharedBtcAppKitConfig,
+} from "./sharedConfig";
 
 const APPKIT_PROVIDER_NAME = "AppKit";
 
@@ -229,15 +233,35 @@ export class AppKitBTCProvider implements IBTCProvider {
     }
   }
 
-  async disconnect(): Promise<void> {
+  async disconnect(scope: DisconnectScope): Promise<void> {
+    const { modal } = this.getAppKitConfig();
+
+    if (scope === "chain") {
+      if (btcDisconnectWouldDropEthereum()) {
+        throw new WalletError({
+          code: ERROR_CODES.SHARED_SESSION_DISCONNECT_REFUSED,
+          message:
+            "Bitcoin and Ethereum share one wallet session. Disconnecting Bitcoin alone would also disconnect Ethereum. Disconnect all wallets instead.",
+          wallet: APPKIT_PROVIDER_NAME,
+          chainId: "BTC",
+        });
+      }
+      await modal.disconnect("bip122");
+      this.clearSession();
+      return;
+    }
+
     try {
-      const { modal } = this.getAppKitConfig();
       await modal.disconnect();
     } finally {
-      this.stopListeningForAccountChanges();
-      this.address = undefined;
-      this.publicKey = undefined;
+      this.clearSession();
     }
+  }
+
+  private clearSession(): void {
+    this.stopListeningForAccountChanges();
+    this.address = undefined;
+    this.publicKey = undefined;
   }
 
   async getAddress(): Promise<string> {

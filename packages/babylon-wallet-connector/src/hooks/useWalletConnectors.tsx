@@ -10,7 +10,7 @@ import {
   subscribeToConfirmationIdentityChanges,
   WALLET_CONFIRMATION_RECEIPT_KEY,
 } from "@/core/confirmationReceipt";
-import { ChainId, HashMap, IChain, IETHProvider, IWallet, Network } from "@/core/types";
+import { ChainId, HashMap, IChain, IConnector, IETHProvider, IWallet, Network } from "@/core/types";
 import { resolveFirstPartyIcon } from "@/core/wallets/firstPartyIcons";
 import { ERROR_CODES, WalletError } from "@/error";
 
@@ -58,6 +58,8 @@ export interface BTCAddressValidation {
   validateAddressWithPK(address: string, publicKey: string, network: Network): boolean;
 }
 
+const ignoreReportedDisconnectError = () => {};
+
 interface Props {
   persistent: boolean;
   accountStorage: HashMap;
@@ -90,6 +92,14 @@ export function useWalletConnectors({ persistent, accountStorage, onError, btcVa
   const requiredConnectorsReady = requiredChainIds.every(
     (chainId) => connectors[chainId as ChainId]?.connectedWallet,
   );
+
+  const dropRejectedWallet = (connector: Pick<IConnector, "id" | "disconnect">) => {
+    connector.disconnect().catch(ignoreReportedDisconnectError);
+    removeWallet?.(connector.id);
+    if (persistent) {
+      accountStorage.delete(connector.id);
+    }
+  };
 
   // Connecting event
   useEffect(() => {
@@ -141,8 +151,7 @@ export function useWalletConnectors({ persistent, accountStorage, onError, btcVa
                 "The Bitcoin address and Public Key for this wallet do not match. Please contact your wallet provider for support.",
               onSubmit: goToNextScreen,
               onCancel: () => {
-                connector.disconnect();
-                removeWallet?.(connector.id);
+                dropRejectedWallet(connector);
                 displayChains?.();
               },
             });
@@ -158,8 +167,7 @@ export function useWalletConnectors({ persistent, accountStorage, onError, btcVa
               submitButton: "",
               cancelButton: "Done",
               onCancel: async () => {
-                connector.disconnect();
-                removeWallet?.(connector.id);
+                dropRejectedWallet(connector);
                 displayChains?.();
               },
             });
@@ -169,8 +177,7 @@ export function useWalletConnectors({ persistent, accountStorage, onError, btcVa
 
           goToNextScreen();
         } catch (e: any) {
-          connector.disconnect();
-          removeWallet?.(connector.id);
+          dropRejectedWallet(connector);
           displayError?.({
             title: "Connection Failed",
             description: e.message,
@@ -285,6 +292,23 @@ export function useWalletConnectors({ persistent, accountStorage, onError, btcVa
             title: `Update ${walletName}`,
             description:
               error.message || `${walletName} needs to be updated before you can connect.`,
+            submitButton: "",
+            cancelButton: "Done",
+            onCancel: () => {
+              displayChains?.();
+            },
+          });
+          return;
+        }
+
+        if (
+          error instanceof WalletError &&
+          error.code === ERROR_CODES.SHARED_SESSION_DISCONNECT_REFUSED &&
+          displayError
+        ) {
+          displayError({
+            title: "Wallets share one session",
+            description: error.message,
             submitButton: "",
             cancelButton: "Done",
             onCancel: () => {
