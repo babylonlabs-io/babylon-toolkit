@@ -2,6 +2,7 @@ import { useCallback, useMemo } from "react";
 
 import { useChainProviders } from "@/context/Chain.context";
 import type { ChainId } from "@/core/types";
+import { isSharedSessionRefusal } from "@/error";
 
 import { useWidgetState } from "./useWidgetState";
 
@@ -13,6 +14,7 @@ export function useWalletConnect() {
     selectedWallets,
     open: openModal,
     displayChains,
+    displayError,
     displayWallets,
     reset,
   } = useWidgetState();
@@ -45,6 +47,10 @@ export function useWalletConnect() {
   /**
    * Disconnects a single chain, or every chain when called without one.
    *
+   * A single-chain disconnect the provider refuses (the chain shares its
+   * wallet session with another chain) is explained in the dialog and still
+   * rejects, so the caller knows nothing was disconnected.
+   *
    * Membership is tested rather than truthiness because React's bivariant
    * handler types let `onClick={disconnect}` pass a MouseEvent in here, which
    * must not be mistaken for a chain and silently skip the disconnect-all path.
@@ -52,7 +58,22 @@ export function useWalletConnect() {
   const disconnect = useCallback(
     async (chain?: ChainId) => {
       if (chain !== undefined && Object.prototype.hasOwnProperty.call(connectors, chain)) {
-        await connectors[chain]?.disconnect();
+        try {
+          await connectors[chain]?.disconnect("chain");
+        } catch (error) {
+          if (isSharedSessionRefusal(error)) {
+            displayError?.({
+              title: "Wallets share one session",
+              description: error.message,
+              submitButton: "",
+              cancelButton: "Done",
+              onCancel: () => {
+                displayChains?.();
+              },
+            });
+          }
+          throw error;
+        }
         return;
       }
 
@@ -64,7 +85,7 @@ export function useWalletConnect() {
 
       reset?.();
     },
-    [connectors, reset],
+    [connectors, displayChains, displayError, reset],
   );
 
   const selected = useMemo(
