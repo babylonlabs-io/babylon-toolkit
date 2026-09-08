@@ -12,11 +12,7 @@ import { ERROR_CODES, WalletError, isUserRejectionMessage } from "@/error";
 import { APPKIT_BTC_CONNECTED_EVENT } from "./constants";
 import icon from "./icon.svg";
 import { getCaipNetworkForNetwork, resolveLiveNetwork } from "./network";
-import {
-  btcDisconnectWouldDropEthereum,
-  getSharedBtcAppKitConfig,
-  hasSharedBtcAppKitConfig,
-} from "./sharedConfig";
+import { btcDisconnectWouldDropEthereum, getSharedBtcAppKitConfig, hasSharedBtcAppKitConfig } from "./sharedConfig";
 
 const APPKIT_PROVIDER_NAME = "AppKit";
 
@@ -40,11 +36,7 @@ interface AppKitBtcWalletProvider {
     signInputs?: AppKitSignInput[];
     broadcast: boolean;
   }) => Promise<{ psbt: string; txid?: string }>;
-  signMessage?: (params: {
-    message: string;
-    address: string;
-    protocol: string;
-  }) => Promise<string>;
+  signMessage?: (params: { message: string; address: string; protocol: string }) => Promise<string>;
 }
 
 interface AdapterConnection {
@@ -155,10 +147,7 @@ export class AppKitBTCProvider implements IBTCProvider {
       return;
     }
 
-    this.boundConnectionEventsTarget.removeEventListener(
-      APPKIT_BTC_CONNECTED_EVENT,
-      this.boundHandleAccountChange,
-    );
+    this.boundConnectionEventsTarget.removeEventListener(APPKIT_BTC_CONNECTED_EVENT, this.boundHandleAccountChange);
     this.boundHandleAccountChange = null;
     this.boundConnectionEventsTarget = null;
     this.unsubscribeNetwork?.();
@@ -174,7 +163,7 @@ export class AppKitBTCProvider implements IBTCProvider {
     if (!hasSharedBtcAppKitConfig()) {
       throw new Error(
         "AppKit BTC not initialized. Ensure AppKit modal is initialized at application startup " +
-        "by calling initializeAppKitModal() with btc config in your app's entry point."
+          "by calling initializeAppKitModal() with btc config in your app's entry point.",
       );
     }
     return getSharedBtcAppKitConfig();
@@ -228,12 +217,29 @@ export class AppKitBTCProvider implements IBTCProvider {
       await waitForConnection;
       this.startListeningForAccountChanges();
     } catch (error) {
-      console.error("[AppKit Provider] Failed to connect Bitcoin wallet:", error instanceof Error ? error.message : "Unknown error");
+      console.error(
+        "[AppKit Provider] Failed to connect Bitcoin wallet:",
+        error instanceof Error ? error.message : "Unknown error",
+      );
       throw new Error(`Failed to connect Bitcoin wallet: ${error instanceof Error ? error.message : "Unknown error"}`);
     }
   }
 
+  /**
+   * `"local"` releases only this provider's cached session: the bridge calls
+   * it once AppKit already reports bip122 disconnected, and the dialog calls
+   * it for a wallet it rejected. `"chain"` disconnects only the bip122
+   * namespace and refuses when AppKit would widen that to eip155 (WalletConnect
+   * and Auth share one connector across namespaces). Local state clears only
+   * after AppKit resolves: when AppKit rejects, its bip122 session is still
+   * up. `"all"` is never refused and always clears local state.
+   */
   async disconnect(scope: DisconnectScope): Promise<void> {
+    if (scope === "local") {
+      this.clearSession();
+      return;
+    }
+
     const { modal } = this.getAppKitConfig();
 
     if (scope === "chain") {

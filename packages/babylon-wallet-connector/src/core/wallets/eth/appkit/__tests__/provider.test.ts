@@ -1,5 +1,5 @@
-import type { Config } from "wagmi";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { Config } from "wagmi";
 
 import type { ETHConfig } from "@/core/types";
 
@@ -7,13 +7,11 @@ import type { ETHConfig } from "@/core/types";
 // The mocks show whether the constructor attached the watchers.
 // They also keep the heavy `@reown/appkit` graph out of this test.
 const wagmiActions = vi.hoisted(() => ({
-  getAccount: vi.fn(
-    (): { address?: `0x${string}`; chainId?: number; status: "connected" | "disconnected" } => ({
-      address: undefined,
-      chainId: undefined,
-      status: "disconnected",
-    }),
-  ),
+  getAccount: vi.fn((): { address?: `0x${string}`; chainId?: number; status: "connected" | "disconnected" } => ({
+    address: undefined,
+    chainId: undefined,
+    status: "disconnected",
+  })),
   watchAccount: vi.fn(() => () => {}),
   watchChainId: vi.fn(() => () => {}),
   disconnect: vi.fn(),
@@ -143,7 +141,7 @@ describe("AppKitProvider — constructed after AppKit init (shared wagmi config 
 
     wagmiActions.disconnect.mockRejectedValueOnce(new Error("disconnect failed"));
 
-    await expect(provider.disconnect()).rejects.toThrow("disconnect failed");
+    await expect(provider.disconnect("chain")).rejects.toThrow("disconnect failed");
     await expect(provider.getAddress()).resolves.toBe("0xabc");
 
     provider.destroy();
@@ -162,7 +160,7 @@ describe("AppKitProvider — constructed after AppKit init (shared wagmi config 
 
     wagmiActions.disconnect.mockResolvedValueOnce(undefined);
 
-    await provider.disconnect();
+    await provider.disconnect("chain");
     await expect(provider.getAddress()).rejects.toThrow("Wallet not connected");
 
     provider.destroy();

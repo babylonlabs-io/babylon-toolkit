@@ -1,3 +1,5 @@
+import { ERROR_CODES } from "./codes";
+
 interface ErrorParams {
   code: string;
   message: string;
@@ -36,6 +38,15 @@ export function isUserRejectionMessage(message: string | undefined): boolean {
     lower.includes("user cancelled") ||
     lower.includes("user canceled")
   );
+}
+
+/**
+ * Returns true when a provider refused a chain-scoped disconnect because that
+ * chain shares its wallet session with another chain. The refusal is a
+ * designed answer, not a fault: nothing was disconnected.
+ */
+export function isSharedSessionRefusal(error: unknown): error is WalletError {
+  return error instanceof WalletError && error.code === ERROR_CODES.SHARED_SESSION_DISCONNECT_REFUSED;
 }
 
 export * from "./codes";

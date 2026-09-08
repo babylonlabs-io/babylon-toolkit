@@ -23,12 +23,12 @@ async function connect(provider: AppKitBTCProvider, connectionEvents: EventTarge
 }
 
 describe("AppKitBTCProvider disconnect", () => {
-  it("disconnects only the bitcoin namespace for an injected wallet while ethereum stays connected", async () => {
+  it("disconnects only the bitcoin namespace for an announced extension while ethereum stays connected", async () => {
     const connectionEvents = new EventTarget();
     const unsubscribeNetwork = vi.fn();
     const modal = {
       disconnect: vi.fn().mockResolvedValue(undefined),
-      getProviderType: vi.fn(() => "INJECTED"),
+      getProviderType: vi.fn(() => "ANNOUNCED"),
       getAccount: vi.fn(() => ({ isConnected: true })),
       subscribeNetwork: vi.fn(() => unsubscribeNetwork),
     };
@@ -154,11 +154,11 @@ describe("AppKitBTCProvider disconnect", () => {
     expect(modal.disconnect).toHaveBeenCalledWith("bip122");
   });
 
-  it("disconnects an injected bitcoin wallet even when ethereum uses walletconnect", async () => {
+  it("disconnects an announced bitcoin extension even when ethereum uses walletconnect", async () => {
     const connectionEvents = new EventTarget();
     const modal = {
       disconnect: vi.fn().mockResolvedValue(undefined),
-      getProviderType: vi.fn(() => "INJECTED"),
+      getProviderType: vi.fn((namespace: string) => (namespace === "bip122" ? "ANNOUNCED" : "WALLET_CONNECT")),
       getAccount: vi.fn(() => ({ isConnected: true })),
       subscribeNetwork: vi.fn(() => vi.fn()),
     };
@@ -173,7 +173,40 @@ describe("AppKitBTCProvider disconnect", () => {
 
     await provider.disconnect("chain");
 
+    expect(modal.getProviderType).toHaveBeenCalledWith("bip122");
     expect(modal.disconnect).toHaveBeenCalledWith("bip122");
+  });
+
+  it("clears only local state on a local disconnect and never calls appkit", async () => {
+    const connectionEvents = new EventTarget();
+    const unsubscribeNetwork = vi.fn();
+    const modal = {
+      disconnect: vi.fn().mockResolvedValue(undefined),
+      getProviderType: vi.fn(() => "WALLET_CONNECT"),
+      getAccount: vi.fn(() => ({ isConnected: true })),
+      subscribeNetwork: vi.fn(() => unsubscribeNetwork),
+    };
+    setSharedBtcAppKitConfig({
+      modal: modal as never,
+      adapter: {} as never,
+      network: "signet",
+      connectionEvents,
+    });
+    const provider = new AppKitBTCProvider({ network: Network.SIGNET } as BTCConfig);
+    await connect(provider, connectionEvents, "bc1pdepositor");
+
+    await provider.disconnect("local");
+
+    expect(modal.disconnect).not.toHaveBeenCalled();
+    expect(modal.getProviderType).not.toHaveBeenCalled();
+    expect(unsubscribeNetwork).toHaveBeenCalledTimes(1);
+    await expect(provider.getAddress()).rejects.toThrow("Bitcoin wallet not connected");
+  });
+
+  it("completes a local disconnect before appkit is initialized", async () => {
+    const provider = new AppKitBTCProvider({ network: Network.SIGNET } as BTCConfig);
+
+    await expect(provider.disconnect("local")).resolves.toBeUndefined();
   });
 
   it("disconnects every chain on an explicit disconnect-all even over a shared walletconnect session", async () => {
@@ -227,12 +260,12 @@ describe("AppKitBTCProvider disconnect", () => {
     expect(unsubscribeNetwork).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps local state when appkit fails to disconnect", async () => {
+  it("keeps local state when appkit fails to disconnect bitcoin", async () => {
     const connectionEvents = new EventTarget();
     const unsubscribeNetwork = vi.fn();
     const modal = {
       disconnect: vi.fn().mockRejectedValue(new Error("boom")),
-      getProviderType: vi.fn(() => "INJECTED"),
+      getProviderType: vi.fn(() => "ANNOUNCED"),
       getAccount: vi.fn(() => undefined),
       subscribeNetwork: vi.fn(() => unsubscribeNetwork),
     };

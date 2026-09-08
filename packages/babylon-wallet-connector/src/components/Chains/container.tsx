@@ -4,14 +4,11 @@ import type { IChain } from "@/core/types";
 // Connector ids come from the shared constants module, not from each chain's
 // wallet metadata — importing the metadata here would put every Bitcoin wallet
 // adapter into the `./eth` graph, since this screen is part of the dialog.
-import {
-  APPKIT_BTC_CONNECTOR_ID,
-  APPKIT_ETH_CONNECTOR_ID,
-  APPKIT_OPEN_EVENT,
-} from "@/core/wallets/appkit/constants";
+import { useChainProviders } from "@/context/Chain.context";
+import { APPKIT_BTC_CONNECTOR_ID, APPKIT_ETH_CONNECTOR_ID, APPKIT_OPEN_EVENT } from "@/core/wallets/appkit/constants";
+import { isSharedSessionRefusal } from "@/error";
 import { useWalletConnect } from "@/hooks/useWalletConnect";
 import { useWidgetState } from "@/hooks/useWidgetState";
-import { useChainProviders } from "@/context/Chain.context";
 
 import { Chains } from "./index";
 
@@ -32,7 +29,7 @@ interface ContainerProps {
 
 export function ChainsContainer(props: ContainerProps) {
   const { chains, requiredChainIds, selectedWallets, displayWallets } = useWidgetState();
-  const { selected } = useWalletConnect();
+  const { selected, disconnect } = useWalletConnect();
   const connectors = useChainProviders();
 
   const chainArr = useMemo(() => Object.values(chains), [chains]);
@@ -42,7 +39,7 @@ export function ChainsContainer(props: ContainerProps) {
       // Special handling for ETH chain with only AppKit wallet
       if (chain.id === "ETH") {
         const ethConnector = connectors.ETH;
-        const appkitWallet = ethConnector?.wallets.find(w => w.id === APPKIT_ETH_CONNECTOR_ID);
+        const appkitWallet = ethConnector?.wallets.find((w) => w.id === APPKIT_ETH_CONNECTOR_ID);
 
         if (appkitWallet && ethConnector?.wallets.length === 1) {
           // Already connected: reopen the AppKit modal so the user can switch/disconnect.
@@ -65,18 +62,24 @@ export function ChainsContainer(props: ContainerProps) {
       // Special handling for BTC chain with only AppKit wallet
       if (chain.id === "BTC") {
         const btcConnector = connectors.BTC;
-        const appkitBtcWallet = btcConnector?.wallets.find(w => w.id === APPKIT_BTC_CONNECTOR_ID);
+        const appkitBtcWallet = btcConnector?.wallets.find((w) => w.id === APPKIT_BTC_CONNECTOR_ID);
 
         if (appkitBtcWallet && btcConnector?.wallets.length === 1) {
+          // Already connected: disconnect through the connector rather than
+          // reopening Reown, whose own Disconnect control drops a shared
+          // session for every chain. A shared session is refused and the
+          // dialog explains why; the row can be clicked again to connect.
           if (btcConnector.connectedWallet) {
-            const { btcDisconnectWouldDropEthereum } = await import("@/core/wallets/btc/appkit/sharedConfig");
-            if (btcDisconnectWouldDropEthereum()) {
-              await btcConnector.disconnect().catch(() => undefined);
-              return;
+            try {
+              await disconnect("BTC");
+            } catch (error) {
+              if (!isSharedSessionRefusal(error)) {
+                console.error(
+                  "Failed to disconnect AppKit BTC:",
+                  error instanceof Error ? error.message : "Unknown error",
+                );
+              }
             }
-
-            // Already connected: reopen the AppKit modal so the user can switch/disconnect.
-            openAppKitModal();
             return;
           }
 
@@ -94,7 +97,7 @@ export function ChainsContainer(props: ContainerProps) {
       // Normal flow for other chains or if chain has multiple wallets
       displayWallets?.(chain.id);
     },
-    [displayWallets, connectors],
+    [displayWallets, connectors, disconnect],
   );
 
   return (

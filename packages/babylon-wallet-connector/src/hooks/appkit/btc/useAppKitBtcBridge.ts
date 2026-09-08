@@ -1,11 +1,11 @@
 import { useAppKitAccount } from "@reown/appkit/react";
 import { useCallback, useEffect, useRef } from "react";
 
+import { APPKIT_OPEN_EVENT } from "@/core/wallets/appkit/constants";
 import { APPKIT_BTC_CONNECTOR_ID } from "@/core/wallets/btc/appkit";
 import { APPKIT_BTC_CONNECTED_EVENT } from "@/core/wallets/btc/appkit/constants";
 import { getCaipNetworkForNetwork } from "@/core/wallets/btc/appkit/network";
 import { getSharedBtcAppKitConfig } from "@/core/wallets/btc/appkit/sharedConfig";
-import { APPKIT_OPEN_EVENT } from "@/core/wallets/appkit/constants";
 import { useChainConnector } from "@/hooks/useChainConnector";
 
 interface UseAppKitBtcBridgeOptions {
@@ -61,7 +61,10 @@ export const useAppKitBtcBridge = ({ onError }: UseAppKitBtcBridgeOptions = {}) 
             console.warn("[AppKit BTC Bridge] Public key not available in current account");
           }
         } catch (pkError) {
-          console.error("[AppKit BTC Bridge] Error fetching public key:", pkError instanceof Error ? pkError.message : "Unknown error");
+          console.error(
+            "[AppKit BTC Bridge] Error fetching public key:",
+            pkError instanceof Error ? pkError.message : "Unknown error",
+          );
         }
 
         // Dispatch on the private EventTarget so AppKitBTCProvider can pick
@@ -77,7 +80,10 @@ export const useAppKitBtcBridge = ({ onError }: UseAppKitBtcBridgeOptions = {}) 
         // Mark this address as dispatched to prevent duplicate events
         lastDispatchedAddress.current = currentAddress;
       } catch (error) {
-        console.error("[AppKit BTC Bridge] Failed to process connection:", error instanceof Error ? error.message : "Unknown error");
+        console.error(
+          "[AppKit BTC Bridge] Failed to process connection:",
+          error instanceof Error ? error.message : "Unknown error",
+        );
         onError?.(error as Error);
         // Mark this address as "handled" so the effect at the bottom of
         // the hook does not re-fire `dispatchConnectionEvent` on every
@@ -124,8 +130,11 @@ export const useAppKitBtcBridge = ({ onError }: UseAppKitBtcBridgeOptions = {}) 
       // Reset the last dispatched address when disconnecting
       lastDispatchedAddress.current = null;
 
-      btcConnector.disconnect().catch((error) => {
-        console.error("Failed to disconnect from babylon-wallet-connector:", error instanceof Error ? error.message : "Unknown error");
+      btcConnector.disconnect("local").catch((error) => {
+        console.error(
+          "Failed to disconnect from babylon-wallet-connector:",
+          error instanceof Error ? error.message : "Unknown error",
+        );
       });
     }
   }, [isConnected, address, btcConnector, onError, dispatchConnectionEvent]);

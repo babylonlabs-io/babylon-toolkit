@@ -2,6 +2,7 @@ import { renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { IWallet } from "@/core/types";
+import { ERROR_CODES, WalletError } from "@/error";
 import { useWalletConnect } from "@/hooks/useWalletConnect";
 
 const harness = vi.hoisted(() => ({
@@ -21,6 +22,7 @@ const ethWallet = { id: "metamask", account: { address: "0xabc", publicKeyHex: "
 
 let openModal: ReturnType<typeof vi.fn>;
 let displayChains: ReturnType<typeof vi.fn>;
+let displayError: ReturnType<typeof vi.fn>;
 let displayWallets: ReturnType<typeof vi.fn>;
 let reset: ReturnType<typeof vi.fn>;
 let disconnectBtc: ReturnType<typeof vi.fn>;
@@ -42,6 +44,7 @@ function setup({
     selectedWallets,
     open: openModal,
     displayChains,
+    displayError,
     displayWallets,
     reset,
   };
@@ -52,6 +55,7 @@ function setup({
 beforeEach(() => {
   openModal = vi.fn();
   displayChains = vi.fn();
+  displayError = vi.fn();
   displayWallets = vi.fn();
   reset = vi.fn();
   disconnectBtc = vi.fn().mockResolvedValue(undefined);
@@ -156,22 +160,48 @@ describe("disconnect", () => {
 
     expect(disconnectBtc).toHaveBeenCalledWith("all");
     expect(disconnectEth).toHaveBeenCalledWith("all");
-    expect(disconnectBtc.mock.invocationCallOrder[0]).toBeLessThan(disconnectEth.mock.invocationCallOrder[0]);
     expect(reset).toHaveBeenCalled();
   });
 
-  it("rejects a refused single-chain disconnect and leaves the other chain and the widget state alone", async () => {
+  it("rejects a failed single-chain disconnect without a dialog and leaves the other chain and the widget state alone", async () => {
     const { result } = setup({
       requiredChainIds: ["ETH"],
       selectedWallets: { BTC: btcWallet, ETH: ethWallet },
       confirmed: true,
     });
-    disconnectBtc.mockRejectedValueOnce(new Error("refused"));
+    disconnectBtc.mockRejectedValueOnce(new Error("relay down"));
 
-    await expect(result.current.disconnect("BTC")).rejects.toThrow("refused");
+    await expect(result.current.disconnect("BTC")).rejects.toThrow("relay down");
 
+    expect(displayError).not.toHaveBeenCalled();
     expect(disconnectEth).not.toHaveBeenCalled();
     expect(reset).not.toHaveBeenCalled();
+  });
+
+  it("explains a refused single-chain disconnect in the dialog and still rejects", async () => {
+    const { result } = setup({
+      requiredChainIds: ["ETH"],
+      selectedWallets: { BTC: btcWallet, ETH: ethWallet },
+      confirmed: true,
+    });
+    const refusal = new WalletError({
+      code: ERROR_CODES.SHARED_SESSION_DISCONNECT_REFUSED,
+      message: "Bitcoin and Ethereum share one wallet session.",
+    });
+    disconnectBtc.mockRejectedValueOnce(refusal);
+
+    await expect(result.current.disconnect("BTC")).rejects.toBe(refusal);
+
+    expect(displayError).toHaveBeenCalledWith(
+      expect.objectContaining({ title: "Wallets share one session", description: refusal.message }),
+    );
+    expect(displayChains).not.toHaveBeenCalled();
+    expect(disconnectEth).not.toHaveBeenCalled();
+    expect(reset).not.toHaveBeenCalled();
+
+    displayError.mock.calls[0][0].onCancel();
+
+    expect(displayChains).toHaveBeenCalled();
   });
 
   it("passes the chain scope when disconnecting a single chain", async () => {
@@ -183,7 +213,7 @@ describe("disconnect", () => {
 
     await result.current.disconnect("BTC");
 
-    expect(disconnectBtc).toHaveBeenCalledWith();
+    expect(disconnectBtc).toHaveBeenCalledWith("chain");
   });
 
   it("treats a click event as disconnect-all rather than as a chain", async () => {

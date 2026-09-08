@@ -1,7 +1,9 @@
 import { parseEther } from "viem";
 import {
+  connect,
   getAccount,
   getTransactionCount,
+  disconnect as wagmiDisconnect,
   estimateGas as wagmiEstimateGas,
   getBalance as wagmiGetBalance,
   sendTransaction as wagmiSendTransaction,
@@ -10,12 +12,17 @@ import {
   switchChain as wagmiSwitchChain,
   watchAccount,
   watchChainId,
-  connect,
-  disconnect as wagmiDisconnect,
 } from "wagmi/actions";
 import { walletConnect } from "wagmi/connectors";
 
-import type { ETHConfig, ETHTransactionRequest, ETHTypedData, IETHProvider, NetworkInfo } from "@/core/types";
+import type {
+  DisconnectScope,
+  ETHConfig,
+  ETHTransactionRequest,
+  ETHTypedData,
+  IETHProvider,
+  NetworkInfo,
+} from "@/core/types";
 import { APPKIT_OPEN_EVENT } from "@/core/wallets/appkit/constants";
 // Read the modal from the shared singleton rather than from `appKitModal`,
 // which pulls the Bitcoin adapter in with it.
@@ -83,7 +90,7 @@ export class AppKitProvider implements IETHProvider {
     if (!hasSharedWagmiConfig()) {
       throw new Error(
         "AppKit ETH not initialized. Ensure AppKit modal is initialized at application startup " +
-        "by calling initializeAppKitModal() with eth config in your app's entry point."
+          "by calling initializeAppKitModal() with eth config in your app's entry point.",
       );
     }
     return getSharedWagmiConfig();
@@ -94,7 +101,7 @@ export class AppKitProvider implements IETHProvider {
 
     // Check for existing connection on initialization (for auto-reconnection)
     const initialAccount = getAccount(config);
-    if (initialAccount.address && initialAccount.status === 'connected') {
+    if (initialAccount.address && initialAccount.status === "connected") {
       this.address = initialAccount.address;
       this.chainId = initialAccount.chainId;
       // Emit connect event after a short delay to ensure provider is fully initialized
@@ -246,9 +253,8 @@ export class AppKitProvider implements IETHProvider {
     }
   }
 
-  async disconnect(): Promise<void> {
-    const config = this.getWagmiConfig();
-    await wagmiDisconnect(config);
+  async disconnect(scope: DisconnectScope): Promise<void> {
+    if (scope !== "local") await wagmiDisconnect(this.getWagmiConfig());
     this.address = undefined;
     this.chainId = undefined;
   }

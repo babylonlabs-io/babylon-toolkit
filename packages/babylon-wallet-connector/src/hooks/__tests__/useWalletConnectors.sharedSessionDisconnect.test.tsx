@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { HashMap, IWallet, Network } from "@/core/types";
 import { ERROR_CODES, WalletError } from "@/error";
-import { useWalletConnectors } from "@/hooks/useWalletConnectors";
+import { useWalletConnectors, type BTCAddressValidation } from "@/hooks/useWalletConnectors";
 
 const TAPROOT_ADDRESS = "bc1p5cyxnuxmeuwuvkwfem96lqzszd02n6xdcjrs20cac6yqjjwudpxqkedrcr";
 const OTHER_COMPRESSED_PUBLIC_KEY = "0379be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798";
@@ -54,6 +54,13 @@ vi.mock("@/hooks/useWidgetState", () => ({
   }),
 }));
 
+// Rejects every key so the connect handler reaches the mismatch dialog without
+// a registered curve.
+const rejectEveryKey: BTCAddressValidation = {
+  validateAddress: () => {},
+  validateAddressWithPK: () => false,
+};
+
 function fakeAccountStorage(): HashMap & { store: Map<string, string> } {
   const store = new Map<string, string>();
   return {
@@ -91,53 +98,86 @@ beforeEach(() => {
 });
 
 describe("BTC validation failure with a refused shared-session disconnect", () => {
-  it("keeps the rejected wallet removed after the dialog closes and opens", async () => {
+  it("drops the rejected wallet locally and keeps it removed after the dialog closes and opens", async () => {
     const accountStorage = fakeAccountStorage();
-    harness.connectedWallet = connectedWalletWith(OTHER_COMPRESSED_PUBLIC_KEY);
-    harness.disconnect.mockRejectedValueOnce(sharedSessionRefusal());
-    const { rerender } = renderHook(() => useWalletConnectors({ persistent: true, accountStorage }));
-    await harness.connectHandler!(harness.connectedWallet);
+    const rejectedWallet = connectedWalletWith(OTHER_COMPRESSED_PUBLIC_KEY);
+    harness.connectedWallet = rejectedWallet;
+    // The connector stands in for the real one: a chain disconnect is refused
+    // for the shared session, and a local disconnect clears its wallet.
+    harness.disconnect.mockImplementation(async (scope: string) => {
+      if (scope === "chain") throw sharedSessionRefusal();
+      harness.connectedWallet = null;
+    });
+    const { rerender } = renderHook(() =>
+      useWalletConnectors({ persistent: true, accountStorage, btcValidation: rejectEveryKey }),
+    );
+    await harness.connectHandler!(rejectedWallet);
+    expect(harness.displayError).toHaveBeenCalledWith(expect.objectContaining({ title: "Public Key Mismatch" }));
+
     await harness.displayError.mock.calls[0][0].onCancel();
-    expect(harness.disconnect).toHaveBeenCalled();
+
+    await waitFor(() => expect(harness.disconnect.mock.calls).toEqual([["chain"], ["local"]]));
     expect(harness.removeWallet).toHaveBeenCalledWith("BTC");
     expect(accountStorage.store.has("BTC")).toBe(false);
-    expect(harness.connectedWallet.account).toBeNull();
     harness.selectWallet.mockClear();
     harness.visible = false;
     rerender();
     harness.visible = true;
     rerender();
-    expect(harness.selectWallet).not.toHaveBeenCalledWith("BTC", harness.connectedWallet);
+    expect(harness.selectWallet).not.toHaveBeenCalledWith("BTC", rejectedWallet);
+  });
+
+  it("does not re-select the rejected wallet while the chain disconnect is still in flight", async () => {
+    const accountStorage = fakeAccountStorage();
+    const rejectedWallet = connectedWalletWith(OTHER_COMPRESSED_PUBLIC_KEY);
+    harness.connectedWallet = rejectedWallet;
+    // The connector keeps its wallet until the remote chain disconnect settles.
+    let settleChainDisconnect!: () => void;
+    harness.disconnect.mockImplementation(async (scope: string) => {
+      if (scope === "chain") {
+        await new Promise<void>((resolve) => {
+          settleChainDisconnect = resolve;
+        });
+      }
+      harness.connectedWallet = null;
+    });
+    const { rerender } = renderHook(() =>
+      useWalletConnectors({ persistent: true, accountStorage, btcValidation: rejectEveryKey }),
+    );
+    await harness.connectHandler!(rejectedWallet);
+    harness.displayError.mock.calls[0][0].onCancel();
+    await waitFor(() => expect(harness.disconnect).toHaveBeenCalledWith("chain"));
+
+    harness.selectWallet.mockClear();
+    harness.visible = false;
+    rerender();
+    harness.visible = true;
+    rerender();
+
+    expect(harness.selectWallet).not.toHaveBeenCalledWith("BTC", rejectedWallet);
+    settleChainDisconnect();
+    await waitFor(() => expect(harness.connectedWallet).toBeNull());
   });
 });
 
-describe("SHARED_SESSION_DISCONNECT_REFUSED error event", () => {
-  it("shows the shared-session dialog and only calls displayChains once the dialog is dismissed", async () => {
+describe("BTC validation failure with a failed chain disconnect", () => {
+  it("logs the failure and still drops the rejected wallet locally", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
     const accountStorage = fakeAccountStorage();
-    renderHook(() => useWalletConnectors({ persistent: false, accountStorage }));
-    await waitFor(() => expect(harness.errorHandler).not.toBeNull());
+    const rejectedWallet = connectedWalletWith(OTHER_COMPRESSED_PUBLIC_KEY);
+    harness.connectedWallet = rejectedWallet;
+    harness.disconnect.mockImplementation(async (scope: string) => {
+      if (scope === "chain") throw new Error("relay down");
+      harness.connectedWallet = null;
+    });
+    renderHook(() => useWalletConnectors({ persistent: true, accountStorage, btcValidation: rejectEveryKey }));
+    await harness.connectHandler!(rejectedWallet);
+    await harness.displayError.mock.calls[0][0].onCancel();
 
-    const refusal = sharedSessionRefusal();
-    harness.errorHandler?.(refusal);
-
-    expect(harness.displayError).toHaveBeenCalledWith(
-      expect.objectContaining({ title: "Wallets share one session", description: refusal.message }),
-    );
-    expect(harness.displayChains).not.toHaveBeenCalled();
-
-    harness.displayError.mock.calls[0][0].onCancel();
-
-    expect(harness.displayChains).toHaveBeenCalled();
-  });
-
-  it("falls through to displayChains for a plain error", async () => {
-    const accountStorage = fakeAccountStorage();
-    renderHook(() => useWalletConnectors({ persistent: false, accountStorage }));
-    await waitFor(() => expect(harness.errorHandler).not.toBeNull());
-
-    harness.errorHandler?.(new Error("boom"));
-
-    expect(harness.displayError).not.toHaveBeenCalled();
-    expect(harness.displayChains).toHaveBeenCalled();
+    await waitFor(() => expect(harness.disconnect.mock.calls).toEqual([["chain"], ["local"]]));
+    expect(consoleError).toHaveBeenCalledWith("Failed to disconnect rejected wallet:", "relay down");
+    expect(harness.removeWallet).toHaveBeenCalledWith("BTC");
+    expect(accountStorage.store.has("BTC")).toBe(false);
+    consoleError.mockRestore();
   });
 });

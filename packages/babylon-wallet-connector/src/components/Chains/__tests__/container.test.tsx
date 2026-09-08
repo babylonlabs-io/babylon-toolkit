@@ -3,13 +3,14 @@ import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from "vite
 
 import type { IChain } from "@/core/types";
 import { APPKIT_BTC_CONNECTOR_ID, APPKIT_OPEN_EVENT } from "@/core/wallets/appkit/constants";
+import { ERROR_CODES, WalletError } from "@/error";
 
 import { ChainsContainer } from "../container";
 
 const harness = vi.hoisted(() => ({
   widgetState: {} as Record<string, unknown>,
   connectors: {} as Record<string, unknown>,
-  wouldDropEthereum: false,
+  disconnect: vi.fn(),
   onSelectChain: undefined as ((chain: IChain) => Promise<void>) | undefined,
 }));
 
@@ -20,10 +21,7 @@ vi.mock("@/context/Chain.context", () => ({
   useChainProviders: () => harness.connectors,
 }));
 vi.mock("@/hooks/useWalletConnect", () => ({
-  useWalletConnect: () => ({ selected: true }),
-}));
-vi.mock("@/core/wallets/btc/appkit/sharedConfig", () => ({
-  btcDisconnectWouldDropEthereum: () => harness.wouldDropEthereum,
+  useWalletConnect: () => ({ selected: true, disconnect: harness.disconnect }),
 }));
 
 // Stand-in that captures the chain-selection handler instead of rendering the list.
@@ -36,7 +34,6 @@ vi.mock("../index", () => ({
 
 const BTC_CHAIN = { id: "BTC" } as IChain;
 
-let disconnect: ReturnType<typeof vi.fn>;
 let connect: ReturnType<typeof vi.fn>;
 let displayWallets: ReturnType<typeof vi.fn>;
 let appKitOpened: Mock<(event: Event) => void>;
@@ -47,11 +44,11 @@ function selectBtc() {
 }
 
 beforeEach(() => {
-  disconnect = vi.fn().mockResolvedValue(undefined);
+  harness.disconnect.mockReset();
+  harness.disconnect.mockResolvedValue(undefined);
   connect = vi.fn().mockResolvedValue(undefined);
   displayWallets = vi.fn();
   appKitOpened = vi.fn<(event: Event) => void>();
-  harness.wouldDropEthereum = false;
   harness.onSelectChain = undefined;
   harness.widgetState = {
     chains: { BTC: BTC_CHAIN },
@@ -64,7 +61,6 @@ beforeEach(() => {
       wallets: [{ id: APPKIT_BTC_CONNECTOR_ID }],
       connectedWallet: { id: APPKIT_BTC_CONNECTOR_ID },
       connect,
-      disconnect,
     },
   };
   window.addEventListener(APPKIT_OPEN_EVENT, appKitOpened);
@@ -75,29 +71,36 @@ afterEach(() => {
 });
 
 describe("selecting an already-connected AppKit Bitcoin row", () => {
-  it("disconnects bitcoin instead of opening the AppKit modal when the session also carries ethereum", async () => {
-    harness.wouldDropEthereum = true;
-
+  it("disconnects bitcoin through the connector instead of opening the AppKit modal", async () => {
     await selectBtc();
 
-    expect(disconnect).toHaveBeenCalledTimes(1);
-    expect(disconnect).toHaveBeenCalledWith();
+    expect(harness.disconnect).toHaveBeenCalledTimes(1);
+    expect(harness.disconnect).toHaveBeenCalledWith("BTC");
     expect(appKitOpened).not.toHaveBeenCalled();
+    expect(connect).not.toHaveBeenCalled();
   });
 
-  it("opens the AppKit modal when bitcoin does not share its session with ethereum", async () => {
-    await selectBtc();
-
-    expect(appKitOpened).toHaveBeenCalledTimes(1);
-    expect(disconnect).not.toHaveBeenCalled();
-  });
-
-  it("swallows a refused disconnect so the click handler still settles", async () => {
-    harness.wouldDropEthereum = true;
-    disconnect.mockRejectedValue(new Error("refused"));
+  it("settles quietly when the disconnect is refused for a shared session", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    harness.disconnect.mockRejectedValue(
+      new WalletError({ code: ERROR_CODES.SHARED_SESSION_DISCONNECT_REFUSED, message: "shared", chainId: "BTC" }),
+    );
 
     await expect(selectBtc()).resolves.toBeUndefined();
 
+    expect(consoleError).not.toHaveBeenCalled();
     expect(appKitOpened).not.toHaveBeenCalled();
+    consoleError.mockRestore();
+  });
+
+  it("logs any other disconnect failure and still settles", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    harness.disconnect.mockRejectedValue(new Error("relay down"));
+
+    await expect(selectBtc()).resolves.toBeUndefined();
+
+    expect(consoleError).toHaveBeenCalledWith("Failed to disconnect AppKit BTC:", "relay down");
+    expect(appKitOpened).not.toHaveBeenCalled();
+    consoleError.mockRestore();
   });
 });

@@ -10,10 +10,10 @@ import {
   type PropsWithChildren,
 } from "react";
 
+import type { IETHProvider } from "@/core/types";
 import { useChainConnector } from "@/hooks/useChainConnector";
 import { useVisibilityCheck } from "@/hooks/useVisibilityCheck";
 import { useWalletConnect } from "@/hooks/useWalletConnect";
-import type { IETHProvider } from "@/core/types";
 
 export interface ETHWalletLifecycleCallbacks {
   onConnect?: (address: string) => void | Promise<void>;
@@ -67,7 +67,9 @@ export const ETHWalletProvider = ({ children, callbacks }: ETHWalletProviderProp
         await callbacks?.onConnect?.(walletAddress);
       } catch (error: unknown) {
         setLoading(false);
-        callbacks?.onError?.(error instanceof Error ? error : new Error("ETH connection failed"), { address: walletAddress });
+        callbacks?.onError?.(error instanceof Error ? error : new Error("ETH connection failed"), {
+          address: walletAddress,
+        });
       }
     },
     [callbacks],
@@ -164,10 +166,7 @@ export const ETHWalletProvider = ({ children, callbacks }: ETHWalletProviderProp
           // Defensive only — `connect` shouldn't reject, but reset on an
           // unexpected synchronous throw so we don't wedge the guard.
           lateReconnectInFlight = false;
-          console.error(
-            "ETH late reconnect failed:",
-            error instanceof Error ? error.message : "Unknown error",
-          );
+          console.error("ETH late reconnect failed:", error instanceof Error ? error.message : "Unknown error");
         });
     };
     if (bootstrapProvider && typeof bootstrapProvider.on === "function") {
@@ -189,8 +188,7 @@ export const ETHWalletProvider = ({ children, callbacks }: ETHWalletProviderProp
       setAddress(undefined);
       setProvider(null);
       try {
-        // Let the connector clear its wallet before the callback runs.
-        await Promise.resolve().then(() => callbacks?.onDisconnect?.());
+        await callbacks?.onDisconnect?.();
       } catch (error) {
         console.error("Error in onDisconnect callback:", error instanceof Error ? error.message : "Unknown error");
       }
@@ -227,7 +225,9 @@ export const ETHWalletProvider = ({ children, callbacks }: ETHWalletProviderProp
         try {
           await callbacks?.onAddressChange?.(newAddress);
         } catch (error: unknown) {
-          callbacks?.onError?.(error instanceof Error ? error : new Error("ETH address change failed"), { address: newAddress });
+          callbacks?.onError?.(error instanceof Error ? error : new Error("ETH address change failed"), {
+            address: newAddress,
+          });
         } finally {
           isProcessingChangeRef.current = false;
         }
@@ -282,10 +282,7 @@ export const ETHWalletProvider = ({ children, callbacks }: ETHWalletProviderProp
     enabled: Boolean(provider && address),
   });
 
-  const connected = useMemo(
-    () => Boolean(address),
-    [address],
-  );
+  const connected = useMemo(() => Boolean(address), [address]);
 
   return (
     <ETHWalletContext.Provider
