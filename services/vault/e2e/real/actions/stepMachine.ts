@@ -158,8 +158,8 @@ async function readPrePeginTxid(page: Page): Promise<string | undefined> {
 
 /**
  * Read the active step(s) for the run log: "Step N active (P%)" from the stepper + progress bar. In a
- * two-vault split the progress view shows two per-vault columns, each emitting its own
- * `aria-label="Step N active"` (the columns carry no distinguishing testid), so we collect ALL active
+ * two-vault split the progress view shows two stacked per-vault lanes, each emitting its own
+ * `aria-label="Step N active"` (the lanes carry no distinguishing testid), so we collect ALL active
  * labels — the two lanes advance independently and may sit on different steps. The single progressbar
  * reflects the aggregate (slowest lane).
  */

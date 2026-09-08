@@ -413,7 +413,7 @@ export const COPY = {
       stepsCompleted: (completed: number, total: number) =>
         `${completed} of ${total} steps completed`,
       defaultSuccessMessage: PRE_PEGIN_BROADCAST_CONFIRMATION_MESSAGE,
-      splitVaultColumnLabel: (vaultNumber: number) => `BTCVault ${vaultNumber}`,
+      splitVaultLabel: (vaultNumber: number) => `BTCVault ${vaultNumber}`,
       buttons: {
         closeContinueLater: "Close & continue later",
         retry: "Retry",
