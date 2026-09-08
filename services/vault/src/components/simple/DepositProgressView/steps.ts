@@ -2,14 +2,12 @@ import type { StepperItem } from "@babylonlabs-io/core-ui";
 
 import { COPY } from "@/copy";
 import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps/types";
-import type { RegistrationDepthProgress } from "@/services/vault/ethConfirmationGate";
 import type { PayoutSigningProgress } from "@/services/vault/vaultPayoutSignatureService";
 import type { PeginSigningProgress } from "@/services/vault/vaultTransactionService";
 
 export function buildStepItems(
   progress: PayoutSigningProgress | null,
   peginProgress: PeginSigningProgress | null = null,
-  ethConfirmationProgress: RegistrationDepthProgress | null = null,
 ): StepperItem[] {
   const payoutCounter =
     progress?.phase === "claimers" && progress.total > 0
@@ -31,15 +29,6 @@ export function buildStepItems(
         )
       : undefined;
 
-  // Ethereum finality gate depth. Absent outside the gate's window, so the
-  // step reads normally during the wallet popup and the receipt wait.
-  const ethConfirmationCounter = ethConfirmationProgress
-    ? COPY.deposit.steps.signingCounter(
-        ethConfirmationProgress.confirmations,
-        ethConfirmationProgress.required,
-      )
-    : undefined;
-
   return [
     {
       label: COPY.deposit.steps.generateSecret,
@@ -53,7 +42,6 @@ export function buildStepItems(
     },
     {
       label: COPY.deposit.steps.signAndBroadcastEth,
-      description: ethConfirmationCounter,
     },
     {
       label: COPY.deposit.steps.signAndBroadcastPrePegin,
@@ -98,8 +86,8 @@ export const TOTAL_VISUAL_STEPS = buildStepItems(null).length;
 /**
  * Logical groupings of the deposit flow. Each group covers a contiguous,
  * inclusive range of 1-based visual step numbers (the same numbering produced
- * by {@link getVisualStep}). The grouped progress UI expands only the group
- * containing the current step and collapses the rest.
+ * by {@link getVisualStep}). The grouped progress UI renders only the group
+ * containing the current step and hides the rest.
  */
 export interface StepGroup {
   title: string;
@@ -124,6 +112,14 @@ export const STEP_GROUPS: StepGroup[] = [
  * in the multi-vault stepper.
  */
 export const TRUNK_END_VISUAL_STEP = 6;
+
+/** True when the group's inclusive step range covers `currentStep`. */
+export function groupContainsStep(
+  group: StepGroup,
+  currentStep: number,
+): boolean {
+  return currentStep >= group.startStep && currentStep <= group.endStep;
+}
 
 /**
  * Returns the per-vault current step for a single vault in a split deposit.

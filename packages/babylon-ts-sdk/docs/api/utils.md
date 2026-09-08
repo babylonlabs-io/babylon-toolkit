@@ -1001,10 +1001,10 @@ Compute the total number of outputs (before change) in a Pre-PegIn
 transaction.
 
 A Pre-PegIn tx has: N HTLC outputs (one per vault) + optional
-auth-anchor OP_RETURN output + fixed outputs (CPFP anchor). This
-count is used for fee estimation only — the change output is handled
-separately by `selectUtxosForPegin` when the change amount exceeds
-the dust threshold.
+auth-anchor OP_RETURN output + fixed outputs (CPFP anchor). The fee model
+and the Pre-PegIn layout guard share this count. The change
+output is handled separately by `selectUtxosForPegin` when the change amount
+exceeds the dust threshold.
 
 #### Parameters
 

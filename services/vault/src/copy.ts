@@ -397,6 +397,7 @@ export const COPY = {
         completed: "Completed",
         active: "In progress",
         upcoming: "Not started",
+        failed: "Failed",
       },
     },
     progress: {
@@ -412,8 +413,6 @@ export const COPY = {
       stepsCompleted: (completed: number, total: number) =>
         `${completed} of ${total} steps completed`,
       defaultSuccessMessage: PRE_PEGIN_BROADCAST_CONFIRMATION_MESSAGE,
-      doNotSpendWarning:
-        "Do not spend the BTC used for this deposit until the transactions are confirmed.",
       splitVaultLabel: (vaultNumber: number) => `BTCVault ${vaultNumber}`,
       buttons: {
         closeContinueLater: "Close & continue later",
@@ -852,6 +851,10 @@ export const COPY = {
       // broadcast, so no funds are locked and the user can retry once it resumes.
       protocolPaused:
         "New deposits are temporarily disabled while the protocol is frozen or paused. No Bitcoin was sent — please try again once it resumes.",
+      capBelowMinimum: (remainingBtc: string, minBtc: string) =>
+        `Peg-in TVL cap reached — only ${remainingBtc} BTC remains, below the minimum deposit of ${minBtc} BTC`,
+      exceedsCap: (remainingBtc: string) =>
+        `Peg-in TVL cap reached — only ${remainingBtc} BTC remains`,
       cannotActivateInState: (state: string) =>
         `Cannot activate: BTCVault is in ${state} state. Activation is only valid when VERIFIED.`,
       // Deliberately worded without the token "broadcast". These are state
@@ -1861,10 +1864,9 @@ export const COPY = {
   overview: {
     heading: "Overview",
     positionTitle: "Position",
-    healthFactorLabel: "Health factor",
-    totalCollateralValueLabel: "Total collateral value",
-    totalBorrowedLabel: "Total borrowed",
-    availableToBorrowLabel: "Available to borrow",
+    totalCollateralValueLabel: "Total Collateral Value",
+    totalBorrowedLabel: "Total Borrowed",
+    availableToBorrowLabel: "Available to Borrow",
     depositAction: "Deposit",
     borrowAction: "Borrow",
     repayAction: "Repay",
