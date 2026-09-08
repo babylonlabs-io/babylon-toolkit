@@ -71,6 +71,9 @@ const HIDE_GOD_MODE_LAUNCHER_CSS = `
   }
 `;
 
+/** Overlap captures so fixed headers do not hide the same document pixels. */
+const STABILITY_SCROLL_STEP_RATIO = 0.5;
+
 /** How long the frame must stay byte-identical before we trust it. */
 const STABILITY_QUIET_MS = 300;
 /** Consecutive identical frames required. */
@@ -120,10 +123,11 @@ async function readFrameSignature(page: Page): Promise<FrameSignature> {
   if (maxX === 0 && maxY === 0) {
     return { pixels: await page.screenshot(), documentWidth, documentHeight };
   }
+  const stepX = viewportWidth * STABILITY_SCROLL_STEP_RATIO;
+  const stepY = viewportHeight * STABILITY_SCROLL_STEP_RATIO;
   try {
-    // Overlap captures so fixed headers do not hide the same document pixels.
-    for (let top = 0; ; top = Math.min(top + viewportHeight / 2, maxY)) {
-      for (let left = 0; ; left = Math.min(left + viewportWidth / 2, maxX)) {
+    for (let top = 0; ; top = Math.min(top + stepY, maxY)) {
+      for (let left = 0; ; left = Math.min(left + stepX, maxX)) {
         await page.evaluate(
           ([left, top]) => window.scrollTo({ left, top, behavior: "instant" }),
           [left, top],
