@@ -28,18 +28,27 @@ function fixture(t, source = 'import "react";', declaration = "export {};") {
     writeFileSync(join(root, file), contents);
   }
   const runtime = {
-    root: emittedDependencies([join(root, "root.js")]),
-    eth: emittedDependencies([join(root, "eth.js")]),
+    root: { ...emittedDependencies([join(root, "root.js")]), bundledPackages: new Set() },
+    eth: { ...emittedDependencies([join(root, "eth.js")]), bundledPackages: new Set() },
   };
   const declarations = {
     root: emittedDependencies([join(root, "root.d.ts")]),
     eth: emittedDependencies([join(root, "eth.d.ts")]),
   };
-  return (candidate = manifest) => checkPackage(candidate, runtime, declarations);
+  return { runtime, declarations, check: (candidate = manifest) => checkPackage(candidate, runtime, declarations) };
 }
 
-test("accepts optional peers derived from the build externals and declarations", (t) => {
-  assert.deepEqual(fixture(t)().optionalPeers, [...walletExternals, "@cosmjs/proto-signing"].sort());
+test("accepts optional peers from externals and declarations, including partially bundled peers", (t) => {
+  const { runtime, check } = fixture(t);
+  runtime.root.bundledPackages.add("bitcoinjs-lib");
+  assert.deepEqual(check().optionalPeers, [
+    "@babylonlabs-io/ledger-vault-signer",
+    "@cosmjs/proto-signing",
+    "@cosmjs/stargate",
+    "@keystonehq/sdk",
+    "@reown/appkit-adapter-bitcoin",
+    "bitcoinjs-lib",
+  ]);
 });
 
 for (const [name, change, error] of [
@@ -75,7 +84,7 @@ for (const [name, change, error] of [
   test(`rejects ${name}`, (t) => {
     const candidate = structuredClone(manifest);
     change(candidate);
-    assert.throws(() => fixture(t)(candidate), error);
+    assert.throws(() => fixture(t).check(candidate), error);
   });
 }
 
@@ -89,64 +98,40 @@ for (const [name, source] of [
   ["deferred CommonJS import", 'Promise.resolve().then(() => require("./bitcoin.js"));'],
 ]) {
   test(`rejects Bitcoin ${name}`, (t) => {
-    assert.throws(() => fixture(t, source)(), /Ethereum entry imports optional wallet dependency: bitcoinjs-lib/);
+    assert.throws(() => fixture(t, source).check(), /Ethereum entry imports optional wallet dependency: bitcoinjs-lib/);
   });
 }
 
 test("rejects Bitcoin declaration imports through local files", (t) => {
   assert.throws(
-    () => fixture(t, undefined, 'export * from "./bitcoin.js";')(),
+    () => fixture(t, undefined, 'export * from "./bitcoin.js";').check(),
     /Ethereum entry imports optional wallet dependency/,
   );
 });
 
 test("rejects an undeclared Ethereum-only dependency", (t) => {
-  assert.throws(() => fixture(t, 'import "@keystonehq/animated-qr";')(), /Undeclared emitted dependency/);
+  assert.throws(() => fixture(t, 'import "@keystonehq/animated-qr";').check(), /Undeclared emitted dependency/);
 });
 
-test("rejects an unused peer after its optional metadata is removed", () => {
+test("rejects an unused peer after its optional metadata is removed", (t) => {
+  const { declarations, check } = fixture(t);
   const candidate = structuredClone(manifest);
   delete candidate.peerDependenciesMeta["@cosmjs/proto-signing"];
-  const graph = (names) => ({ packages: new Set(names) });
-  assert.throws(
-    () =>
-      checkPackage(
-        candidate,
-        {
-          root: graph(walletExternals),
-          eth: graph(["react"]),
-        },
-        {
-          root: graph([]),
-          eth: graph([]),
-        },
-      ),
-    /Unused wallet peer: @cosmjs\/proto-signing/,
-  );
+  declarations.root.packages.delete("@cosmjs/proto-signing");
+  assert.throws(() => check(candidate), /Unused wallet peer: @cosmjs\/proto-signing/);
 });
 
 for (const section of ["dependencies", "optionalDependencies"]) {
-  test(`rejects bundled Bitcoin crypto moved to ${section}`, () => {
+  test(`rejects bundled Bitcoin crypto moved to ${section} or the Ethereum bundle`, (t) => {
+    const { runtime, check } = fixture(t);
     const candidate = structuredClone(manifest);
     const name = "@bitcoin-js/tiny-secp256k1-asmjs";
     candidate[section] = { ...candidate[section], [name]: candidate.devDependencies[name] };
     delete candidate.devDependencies[name];
-    const graph = (names) => ({ packages: new Set(names) });
-    assert.throws(
-      () =>
-        checkPackage(
-          candidate,
-          {
-            root: { ...graph(walletExternals), bundledPackages: new Set([name]) },
-            eth: graph(["react"]),
-          },
-          {
-            root: graph(["@cosmjs/proto-signing"]),
-            eth: graph([]),
-          },
-        ),
-      /Ethereum installs a bundled wallet dependency/,
-    );
+    runtime.root.bundledPackages.add(name);
+    assert.throws(() => check(candidate), /Ethereum installs a bundled wallet dependency/);
+    runtime.eth.bundledPackages.add(name);
+    assert.throws(() => check(), /Ethereum bundles Bitcoin wallet dependency/);
   });
 }
 
@@ -166,25 +151,12 @@ test("reads bundled packages from the emitted source map", (t) => {
   assert.deepEqual([...bundledDependencies([file])], ["@bitcoin-js/tiny-secp256k1-asmjs"]);
 });
 
-test("rejects a new root-only dependency installed for Ethereum", () => {
-  const graph = (names) => ({ packages: new Set(names) });
+test("rejects a new root-only dependency installed for Ethereum", (t) => {
+  const { runtime, check } = fixture(t);
   const candidate = structuredClone(manifest);
   candidate.dependencies["@scure/btc-signer"] = "1.8.1";
-  assert.throws(
-    () =>
-      checkPackage(
-        candidate,
-        {
-          root: graph([...walletExternals, "@scure/btc-signer"]),
-          eth: graph(["react"]),
-        },
-        {
-          root: graph(["@cosmjs/proto-signing"]),
-          eth: graph([]),
-        },
-      ),
-    /Missing optional wallet peer: @scure\/btc-signer/,
-  );
+  runtime.root.packages.add("@scure/btc-signer");
+  assert.throws(() => check(candidate), /Missing optional wallet peer: @scure\/btc-signer/);
 });
 
 test("rejects missing local chunks", (t) => {

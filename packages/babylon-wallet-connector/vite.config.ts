@@ -39,8 +39,11 @@ export default defineConfig({
       cssFileName: "wallet-connector",
     },
     rollupOptions: {
+      // Bundle BitcoinJS deep imports so Node ESM does not receive extensionless paths.
       external: (id) =>
-        [...requiredExternals, ...walletExternals].some((name) => id === name || id.startsWith(`${name}/`)) ||
+        [...requiredExternals, ...walletExternals].some(
+          (name) => id === name || (name !== "bitcoinjs-lib" && id.startsWith(`${name}/`)),
+        ) ||
         id.startsWith("@reown/"),
       output: {
         sourcemapExcludeSources: false,

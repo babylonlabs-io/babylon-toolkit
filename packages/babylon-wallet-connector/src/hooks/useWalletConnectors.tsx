@@ -114,6 +114,7 @@ export function useWalletConnectors({ persistent, accountStorage, onError, btcVa
       BTC: (connector) => async (connectedWallet) => {
         try {
           if (!connectedWallet || !connectedWallet.account) return;
+          if (!btcValidation) throw new Error("Bitcoin address validation is unavailable");
 
           selectWallet?.("BTC", connectedWallet);
 
@@ -123,7 +124,6 @@ export function useWalletConnectors({ persistent, accountStorage, onError, btcVa
 
           if (!visible) return;
 
-          if (!btcValidation) throw new Error("Bitcoin address validation is unavailable");
           btcValidation.validateAddress(connector.config.network, connectedWallet.account.address);
 
           const goToNextScreen = () => void displayChains?.();

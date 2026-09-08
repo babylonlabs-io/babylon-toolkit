@@ -93,7 +93,7 @@ try {
         packageManager,
         dependencies: {
           [sourceManifest.name]: tarballs[sourceManifest.name],
-          // Keplr types and the Core UI Tailwind helper require these application peers.
+          // Keplr 0.12.272 requires Starknet 7. Core UI requires Tailwind.
           starknet: "7.6.4",
           tailwindcss: "3.4.17",
           // WalletConnect's older ABI types require the Zod 3 consumer peer.
@@ -157,12 +157,15 @@ try {
         `Missing ${specifier} ${condition} export`,
       );
     }
-    const optionalCheck = join(consumerRoot, "check-optional-peers.cjs");
+    const runtimeCheck = join(consumerRoot, "check-runtime.mjs");
     writeFileSync(
-      optionalCheck,
-      `const assert = require("node:assert/strict");
-const { createRequire } = require("node:module");
+      runtimeCheck,
+      `import assert from "node:assert/strict";
+import { createRequire } from "node:module";
+import * as wallet from ${JSON.stringify(specifier)};
+const require = createRequire(import.meta.url);
 const walletRequire = createRequire(${JSON.stringify(join(installedRoot, "package.json"))});
+for (const name of ["WalletProvider", "createWalletConfig"]) assert.equal(typeof wallet[name], "function");
 for (const name of ${JSON.stringify(optionalPeers)}) {
   ${
     mode === "eth"
@@ -174,7 +177,7 @@ for (const name of ${JSON.stringify(optionalPeers)}) {
 }
 `,
     );
-    run(process.execPath, [optionalCheck], consumerRoot);
+    run(process.execPath, [runtimeCheck], consumerRoot);
 
     const config =
       mode === "eth"

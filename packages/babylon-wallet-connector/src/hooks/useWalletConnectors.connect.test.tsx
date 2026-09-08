@@ -42,6 +42,7 @@ type ConnectHandler = (wallet: IWallet) => void | Promise<void>;
 
 const harness = vi.hoisted(() => ({
   connectHandler: null as ConnectHandler | null,
+  visible: true,
   disconnect: vi.fn(),
   selectWallet: vi.fn(),
   removeWallet: vi.fn(),
@@ -71,11 +72,10 @@ vi.mock("@/context/LifecycleHooks.context", () => ({
   useLifeCycleHooks: () => ({}),
 }));
 
-// `visible` must be true: the handler returns early when the dialog is closed
-// and never reaches the address validation this file is about.
+// A missing validator must refuse both visible and restored Bitcoin connections.
 vi.mock("@/hooks/useWidgetState", () => ({
   useWidgetState: () => ({
-    visible: true,
+    visible: harness.visible,
     selectWallet: harness.selectWallet,
     removeWallet: harness.removeWallet,
     displayLoader: vi.fn(),
@@ -98,12 +98,6 @@ const accountStorage: HashMap = {
 function connectedWalletWith(publicKeyHex: string): IWallet {
   return {
     id: "unisat",
-    name: "UniSat",
-    icon: "",
-    docs: "",
-    installed: true,
-    provider: null,
-    label: "",
     account: { address: TAPROOT_ADDRESS, publicKeyHex },
   } as IWallet;
 }
@@ -122,6 +116,7 @@ describe("BTC connect handler without host-side curve setup", () => {
     // the way a host that never registers one at start-up does.
     initEccLib(undefined);
     harness.connectHandler = null;
+    harness.visible = true;
     vi.clearAllMocks();
   });
 
@@ -145,9 +140,12 @@ describe("BTC connect handler without host-side curve setup", () => {
     expect(harness.displayChains).toHaveBeenCalled();
   });
 
-  it("rejects a Bitcoin connection without address validation", async () => {
-    await fireConnect(connectedWalletWith(COMPRESSED_PUBLIC_KEY), undefined);
+  it.each([true, false])("rejects Bitcoin without validation when visible is %s", async (visible) => {
+    harness.visible = visible;
+    const wallet = connectedWalletWith(COMPRESSED_PUBLIC_KEY);
+    await fireConnect(wallet, undefined);
 
+    expect(harness.selectWallet).not.toHaveBeenCalledWith("BTC", wallet);
     expect(harness.disconnect).toHaveBeenCalled();
     expect(harness.removeWallet).toHaveBeenCalledWith("BTC");
     expect(harness.displayError).toHaveBeenCalledWith(

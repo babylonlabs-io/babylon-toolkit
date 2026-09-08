@@ -2,6 +2,25 @@ import { existsSync, readFileSync, statSync } from "node:fs";
 import { dirname, extname, resolve } from "node:path";
 import ts from "typescript";
 
+// The Ethereum entry must not include these wallet or cryptography packages.
+export const BITCOIN_WALLET_PACKAGES = [
+  "@reown/appkit-adapter-bitcoin",
+  "@keystonehq/animated-qr",
+  "@keystonehq/keystone-sdk",
+  "@keystonehq/sdk",
+  "@babylonlabs-io/ledger-vault-signer",
+  "@tomo-inc/ledger-bitcoin-babylon",
+  "@tomo-inc/wallet-connect-sdk",
+  "ledger-bitcoin-babylon-boilerplate",
+  "@keplr-wallet/provider-extension",
+  "@scure/btc-signer",
+  "@bitcoin-js/tiny-secp256k1-asmjs",
+  "@scure/bip32",
+  "bip174",
+  "bitcoinjs-lib",
+];
+
+// Share React, query state, and AppKit with the host application.
 export const requiredExternals = [
   "react",
   "react-dom",
@@ -98,6 +117,9 @@ export function bundledDependencies(files) {
 }
 
 export function checkPackage(manifest, runtime, declarations) {
+  for (const name of runtime.eth.bundledPackages) {
+    if (BITCOIN_WALLET_PACKAGES.includes(name)) throw new Error(`Ethereum bundles Bitcoin wallet dependency: ${name}`);
+  }
   const required = new Set([...runtime.eth.packages, ...declarations.eth.packages]);
   const used = new Set([...runtime.root.packages, ...declarations.root.packages, ...required]);
   const optionalPeers = new Set(walletExternals);
@@ -131,8 +153,8 @@ export function checkPackage(manifest, runtime, declarations) {
     ...manifest.peerDependencies,
     ...manifest.devDependencies,
   };
-  const buildOnlyDependencies = [...(runtime.root.bundledPackages ?? [])].filter(
-    (name) => !runtime.eth.bundledPackages?.has(name) && !required.has(name) && declared[name],
+  const buildOnlyDependencies = [...runtime.root.bundledPackages].filter(
+    (name) => !runtime.eth.bundledPackages.has(name) && !used.has(name) && declared[name],
   );
   for (const name of buildOnlyDependencies) {
     if (manifest.dependencies?.[name] || manifest.optionalDependencies?.[name] || manifest.peerDependencies?.[name]) {

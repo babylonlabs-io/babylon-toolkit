@@ -27,7 +27,7 @@
   },
   "scripts": {
     "dev": "npm run storybook",
-    "build": "NODE_OPTIONS=--max-old-space-size=8192 tsc -b --noEmit tsconfig.lib.json && NODE_OPTIONS=--max-old-space-size=8192 vite build && node scripts/check-package.js",
+    "build": "NODE_OPTIONS=--max-old-space-size=8192 tsc -b --noEmit tsconfig.lib.json && NODE_OPTIONS=--max-old-space-size=8192 vite build && node --test scripts/package-boundary.test.js && node scripts/check-package.js",
     "lint": "eslint --fix .",
     "format": "prettier . --write",
     "preview": "vite preview",
@@ -102,7 +102,6 @@
     "@eslint/js": "^9.31.0",
     "@internal/eslint-config": "workspace:*",
     "@keplr-wallet/provider-extension": "0.12.272",
-    "@keystonehq/animated-qr": "0.10.0",
     "@keystonehq/keystone-sdk": "0.12.3",
     "@keystonehq/sdk": "0.22.1",
     "@ledgerhq/hw-transport": "6.31.10",

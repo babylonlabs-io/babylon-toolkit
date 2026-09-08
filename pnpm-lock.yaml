@@ -543,9 +543,6 @@ importers:
       '@keplr-wallet/provider-extension':
         specifier: 0.12.272
         version: 0.12.272(starknet@6.24.1)
-      '@keystonehq/animated-qr':
-        specifier: 0.10.0
-        version: 0.10.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@keystonehq/keystone-sdk':
         specifier: 0.12.3
         version: 0.12.3
@@ -738,6 +735,9 @@ importers:
       '@babylonlabs-io/core-ui':
         specifier: workspace:*
         version: link:../../packages/babylon-core-ui
+      '@babylonlabs-io/ledger-vault-signer':
+        specifier: workspace:*
+        version: link:../../packages/babylon-ledger-vault-signer
       '@babylonlabs-io/wallet-connector':
         specifier: workspace:*
         version: link:../../packages/babylon-wallet-connector
@@ -753,9 +753,15 @@ importers:
       '@cosmjs/tendermint-rpc':
         specifier: 0.36.0
         version: 0.36.0(bufferutil@4.0.9)(utf-8-validate@5.0.10)
+      '@keystonehq/sdk':
+        specifier: 0.22.1
+        version: 0.22.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@reown/appkit':
         specifier: 1.8.12
         version: 1.8.12(@types/react@18.3.23)(bufferutil@4.0.9)(react@18.3.1)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@3.22.4)
+      '@reown/appkit-adapter-bitcoin':
+        specifier: 1.8.12
+        version: 1.8.12(@types/react@18.3.23)(bufferutil@4.0.9)(react@18.3.1)(typescript@5.9.2)(utf-8-validate@5.0.10)(valtio@2.1.7(@types/react@18.3.23)(react@18.3.1))(zod@3.22.4)
       '@sentry/react':
         specifier: 8.33.0
         version: 8.33.0(react@18.3.1)
@@ -1015,6 +1021,9 @@ importers:
       '@babylonlabs-io/core-ui':
         specifier: workspace:*
         version: link:../../packages/babylon-core-ui
+      '@babylonlabs-io/ledger-vault-signer':
+        specifier: workspace:*
+        version: link:../../packages/babylon-ledger-vault-signer
       '@babylonlabs-io/ts-sdk':
         specifier: workspace:*
         version: link:../../packages/babylon-ts-sdk
@@ -1024,6 +1033,12 @@ importers:
       '@bitcoin-js/tiny-secp256k1-asmjs':
         specifier: 2.2.3
         version: 2.2.3
+      '@cosmjs/proto-signing':
+        specifier: 0.36.0
+        version: 0.36.0
+      '@cosmjs/stargate':
+        specifier: 0.36.0
+        version: 0.36.0(bufferutil@4.0.9)(utf-8-validate@5.0.10)
       '@dnd-kit/core':
         specifier: 6.3.1
         version: 6.3.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -1036,9 +1051,15 @@ importers:
       '@dnd-kit/utilities':
         specifier: 3.2.2
         version: 3.2.2(react@18.3.1)
+      '@keystonehq/sdk':
+        specifier: 0.22.1
+        version: 0.22.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@noble/hashes':
         specifier: 2.0.1
         version: 2.0.1
+      '@reown/appkit-adapter-bitcoin':
+        specifier: 1.8.12
+        version: 1.8.12(@types/react@18.3.23)(bufferutil@4.0.9)(react@18.3.1)(typescript@5.9.2)(utf-8-validate@5.0.10)(valtio@2.1.7(@types/react@18.3.23)(react@18.3.1))(zod@3.22.4)
       '@sentry/react':
         specifier: 8.33.0
         version: 8.33.0(react@18.3.1)
@@ -1094,9 +1115,6 @@ importers:
         specifier: 2.18.1
         version: 2.18.1(@tanstack/query-core@5.90.20)(@tanstack/react-query@5.90.20(react@18.3.1))(@types/react@18.3.23)(bufferutil@4.0.9)(react@18.3.1)(typescript@5.9.2)(utf-8-validate@5.0.10)(viem@2.38.2(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@3.22.4))(zod@3.22.4)
     devDependencies:
-      '@babylonlabs-io/ledger-vault-signer':
-        specifier: workspace:*
-        version: link:../../packages/babylon-ledger-vault-signer
       '@eslint/js':
         specifier: ^9.31.0
         version: 9.32.0
@@ -14010,6 +14028,49 @@ snapshots:
   '@protobufjs/pool@1.1.0': {}
 
   '@protobufjs/utf8@1.1.0': {}
+
+  '@reown/appkit-adapter-bitcoin@1.8.12(@types/react@18.3.23)(bufferutil@4.0.9)(react@18.3.1)(typescript@5.9.2)(utf-8-validate@5.0.10)(valtio@2.1.7(@types/react@18.3.23)(react@18.3.1))(zod@3.22.4)':
+    dependencies:
+      '@exodus/bitcoin-wallet-standard': 0.0.0
+      '@reown/appkit': 1.8.12(@types/react@18.3.23)(bufferutil@4.0.9)(react@18.3.1)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@3.22.4)
+      '@reown/appkit-common': 1.8.12(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@3.22.4)
+      '@reown/appkit-controllers': 1.8.12(@types/react@18.3.23)(bufferutil@4.0.9)(react@18.3.1)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@3.22.4)
+      '@reown/appkit-polyfills': 1.8.12
+      '@reown/appkit-utils': 1.8.12(@types/react@18.3.23)(bufferutil@4.0.9)(react@18.3.1)(typescript@5.9.2)(utf-8-validate@5.0.10)(valtio@2.1.7(@types/react@18.3.23)(react@18.3.1))(zod@3.22.4)
+      '@wallet-standard/app': 1.1.0
+      '@wallet-standard/base': 1.1.0
+      '@walletconnect/universal-provider': 2.22.4(bufferutil@4.0.9)(typescript@5.9.2)(utf-8-validate@5.0.10)(zod@3.22.4)
+      bitcoinjs-lib: 6.1.7
+      sats-connect: 3.5.0(typescript@5.9.2)
+    transitivePeerDependencies:
+      - '@azure/app-configuration'
+      - '@azure/cosmos'
+      - '@azure/data-tables'
+      - '@azure/identity'
+      - '@azure/keyvault-secrets'
+      - '@azure/storage-blob'
+      - '@capacitor/preferences'
+      - '@deno/kv'
+      - '@netlify/blobs'
+      - '@planetscale/database'
+      - '@react-native-async-storage/async-storage'
+      - '@types/react'
+      - '@upstash/redis'
+      - '@vercel/blob'
+      - '@vercel/functions'
+      - '@vercel/kv'
+      - aws4fetch
+      - bufferutil
+      - db0
+      - debug
+      - encoding
+      - ioredis
+      - react
+      - typescript
+      - uploadthing
+      - utf-8-validate
+      - valtio
+      - zod
 
   '@reown/appkit-adapter-bitcoin@1.8.12(@types/react@18.3.23)(bufferutil@4.0.9)(react@18.3.1)(typescript@5.9.2)(utf-8-validate@5.0.10)(valtio@2.1.7(@types/react@18.3.23)(react@18.3.1))(zod@4.1.12)':
     dependencies:

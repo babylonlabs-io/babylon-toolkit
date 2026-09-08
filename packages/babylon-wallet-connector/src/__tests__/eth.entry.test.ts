@@ -3,6 +3,8 @@ import path from "node:path";
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
 
+import { BITCOIN_WALLET_PACKAGES } from "../../scripts/package-boundary.js";
+
 const PACKAGE_ROOT = path.resolve(__dirname, "../..");
 const SRC = path.join(PACKAGE_ROOT, "src");
 const ETH_ENTRY = path.join(SRC, "eth.ts");
@@ -11,23 +13,6 @@ const packageJson = JSON.parse(readFileSync(path.join(PACKAGE_ROOT, "package.jso
   exports?: Record<string, Record<string, string>>;
 };
 
-// The Ethereum entry must not include these wallet or cryptography packages.
-const BITCOIN_WALLET_PACKAGES = [
-  "@reown/appkit-adapter-bitcoin",
-  "@keystonehq/animated-qr",
-  "@keystonehq/keystone-sdk",
-  "@keystonehq/sdk",
-  "@babylonlabs-io/ledger-vault-signer",
-  "@tomo-inc/ledger-bitcoin-babylon",
-  "@tomo-inc/wallet-connect-sdk",
-  "ledger-bitcoin-babylon-boilerplate",
-  "@keplr-wallet/provider-extension",
-  "@scure/btc-signer",
-  "@bitcoin-js/tiny-secp256k1-asmjs",
-  "@scure/bip32",
-  "bip174",
-  "bitcoinjs-lib",
-];
 const BITCOIN_SOURCE_DIRS = [path.join(SRC, "core", "wallets", "btc"), path.join(SRC, "core", "wallets", "bbn")];
 
 function runtimeImports(source: string, filename: string): string[] {
