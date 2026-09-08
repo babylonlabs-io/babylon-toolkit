@@ -8,7 +8,7 @@
 @tailwind utilities;
 
 html {
-  @apply bg-surface;
+  @apply bg-background-contrast;
   -webkit-font-smoothing: antialiased;
 }
 
