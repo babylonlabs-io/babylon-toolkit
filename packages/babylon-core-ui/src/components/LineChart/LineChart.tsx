@@ -172,7 +172,7 @@ export function LineChart({
     if (event.pointerType === "mouse") setPointerX(null);
   };
 
-  if (collapsed) return null;
+  if (collapsed) return <div ref={parentRef} style={{ width: "100%" }} />;
 
   const hoverPx = hover === null ? null : xScale(hover.x);
   const tooltip = hover === null ? null : renderTooltip?.(hover);

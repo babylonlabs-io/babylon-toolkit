@@ -152,6 +152,7 @@ export function useChartLayout(input: {
 } {
   const { parentRef, width } = useParentSize({
     debounceTime: 16,
+    enableDebounceLeadingCall: false,
     initialSize: { width: FALLBACK_CHART_WIDTH_PX },
   });
   // Re-render when a webfont finishes loading so text measured against the

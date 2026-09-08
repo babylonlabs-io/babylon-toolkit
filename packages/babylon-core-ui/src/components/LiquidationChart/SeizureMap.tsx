@@ -102,7 +102,7 @@ export function SeizureMap({
     [layout.plotWidth],
   );
 
-  if (collapsed) return null;
+  if (collapsed) return <div ref={parentRef} style={{ width: "100%" }} />;
 
   const bandRect = (b: LiquidationBand): BandRect => {
     const x = shareScale(b.shareStart);
