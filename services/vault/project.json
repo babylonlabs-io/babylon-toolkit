@@ -15,8 +15,19 @@
           {
             "command": "./scripts/watch-deps.sh {projectName}"
           },
-          { "command": "pnpm exec vite" }
+          {
+            "command": "pnpm exec vite"
+          }
         ]
+      }
+    },
+    "test-layout": {
+      "executor": "nx:run-commands",
+      "cache": true,
+      "dependsOn": ["^build"],
+      "options": {
+        "command": "pnpm test:layout",
+        "cwd": "{projectRoot}"
       }
     }
   }

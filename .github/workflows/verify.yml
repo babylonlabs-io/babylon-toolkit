@@ -111,7 +111,7 @@ jobs:
       # split-deposit progress lanes actually stack and stay inside the card at
       # 360px - jsdom cannot see layout, so nothing else in CI catches that.
       - name: Test vault layout in Chromium
-        run: pnpm --filter @services/vault exec playwright test --project=chromium-god-mode
+        run: pnpm exec nx run @services/vault:test-layout
 
       - name: Test affected
         id: tests
