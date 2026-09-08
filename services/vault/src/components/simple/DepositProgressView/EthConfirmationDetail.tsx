@@ -32,7 +32,7 @@ export function EthConfirmationDetail({
 
   return (
     <div className={`mt-3 ${DETAIL_PANEL_CLASS}`}>
-      <div className="flex flex-wrap items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5">
         <Text as="span" variant="body2" className="text-accent-secondary">
           {copy.confirmations}:
         </Text>
@@ -41,7 +41,7 @@ export function EthConfirmationDetail({
         </Text>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5">
         <Text as="span" variant="body2" className="text-accent-secondary">
           {remainingSeconds === null
             ? COPY.deposit.waitDetails.status
