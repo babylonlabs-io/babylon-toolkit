@@ -80,6 +80,13 @@ pnpm add @babylonlabs-io/babylon-tbv-rust-wasm
 The source manifest uses `workspace:*` for the WASM peer. The release process
 replaces it with the exact engine version used in the release rehearsal.
 
+### Raw engine access is deprecated
+
+`loadRawTbvWasm()` and the engine's `/raw` classes bypass SDK value checks.
+Use the transaction builders in `@babylonlabs-io/ts-sdk/tbv/core/primitives`.
+See the [migration guide](./docs/guides/raw-engine-migration.md) for supported
+paths and remaining compatibility blockers. The raw API remains available.
+
 ### ECC Library Initialization (Bitcoin flows only)
 
 ETH-only consumers do not need an ECC library. If your application uses the

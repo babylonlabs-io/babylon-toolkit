@@ -6,10 +6,9 @@ The normal package entry is a lazy facade: importing it does not load the
 wasm-bindgen glue or instantiate/download the `.wasm` binary. The generated
 module is fetched on the first facade call that needs it.
 
-Low-level consumers that construct wasm-bindgen classes directly must opt in
-to the eager `@babylonlabs-io/babylon-tbv-rust-wasm/raw` subpath and call its
-`initWasm` export before constructing a class. Raw classes are intentionally
-not exported from the lazy root entry.
+The eager `@babylonlabs-io/babylon-tbv-rust-wasm/raw` classes are deprecated.
+They bypass SDK value checks. Use the SDK transaction builders before signing.
+See [Raw WASM Types](#raw-wasm-types) for the migration path.
 
 ## Overview
 
@@ -469,24 +468,26 @@ The same as `TAP_INTERNAL_KEY` but as a Buffer for convenience.
 
 ### Raw WASM Types
 
-Raw WASM classes moved from the package root to the explicit eager subpath.
-This is the one intentional breaking API change required to keep a normal
-facade import lazy:
+The `/raw` classes remain available during deprecation. They bypass SDK value
+checks. Their constructors, methods, and types keep the published contract.
+Existing raw callers must call `initWasm()` before construction and independently
+check transaction values and signing data.
 
-```ts
-import {
-  initWasm,
-  WasmPrePeginTx,
-} from "@babylonlabs-io/babylon-tbv-rust-wasm/raw";
-
-await initWasm();
-const transaction = new WasmPrePeginTx(/* ... */);
-```
-
-The raw entry exports:
+The retained exports are:
 
 - `initWasm` - Loads and initializes the binary; shares one initializer with the facade
 - `WasmPeginTx` - Low-level peg-in transaction class
 - `WasmPrePeginTx` - Low-level Pre-PegIn transaction class
 - `WasmPeginPayoutConnector` - Low-level payout connector class
 - `WasmPrePeginHtlcConnector` - Low-level Pre-PegIn HTLC connector class
+
+Use `buildPrePeginPsbt`, `buildPeginTxFromFundedPrePegin`, and `buildRefundPsbt`
+from `@babylonlabs-io/ts-sdk/tbv/core/primitives` for transaction construction.
+These builders apply checks against caller inputs. The engine's lazy root
+facade checks amount bounds, but does not provide the SDK's independent checks
+before signing.
+
+See the [migration guide](../babylon-ts-sdk/docs/guides/raw-engine-migration.md)
+for connector use and operations with no guarded replacement. No removal date
+is set. Deprecation alone does not close
+[#2361](https://github.com/babylonlabs-io/babylon-toolkit/issues/2361).

@@ -53,8 +53,12 @@ export function loadTbvWasm(): Promise<TbvWasmModule> {
 }
 
 /**
- * Load the explicit raw-class entry for the one SDK primitive that must
- * reconstruct a stateful WASM transaction object (refund construction).
+ * Load and initialize the raw engine classes. This bypasses SDK value checks.
+ * The internal refund builder applies equivalent checks at its call site.
+ *
+ * @deprecated Use buildPrePeginPsbt, buildPeginTxFromFundedPrePegin, or
+ * buildRefundPsbt from @babylonlabs-io/ts-sdk/tbv/core/primitives.
+ * Raw callers must independently check transaction values and signing data.
  */
 export function loadRawTbvWasm(): Promise<RawTbvWasmModule> {
   rawWasmModulePromise ??= import("@babylonlabs-io/babylon-tbv-rust-wasm/raw")
