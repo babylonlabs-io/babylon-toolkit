@@ -961,6 +961,14 @@ export const COPY = {
         title: "Broadcast failed",
         body: "We couldn't broadcast your Bitcoin transaction to the network. Please try again.",
       },
+      hashMismatch: (computedHash: string, chainHash: string) =>
+        `Pre-PegIn transaction hash mismatch: computed ${computedHash} from indexer tx, but on-chain contract has ${chainHash}. Aborting to prevent potential attack.`,
+      prePeginIntegrityMismatch:
+        "Transaction integrity check failed: the Pre-PegIn transaction does not match the hash stored on-chain. Aborting to prevent a potential attack.",
+      prePeginSigningCanceled:
+        "Signing canceled — the signed Pre-PegIn was not broadcast",
+      prePeginBroadcastFailed: (error: unknown) =>
+        `Failed to broadcast batch Pre-PegIn transaction: ${error instanceof Error ? error.message : String(error)}`,
       providerNotFound: {
         title: "Vault provider not found",
         body: "The selected vault provider could not be found. Please refresh and try again.",

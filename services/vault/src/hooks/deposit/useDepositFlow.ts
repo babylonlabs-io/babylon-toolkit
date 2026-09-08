@@ -1072,9 +1072,7 @@ export function useDepositFlow(
                 if (lastSignSettledWithCancelPendingRef.current) {
                   deviceCancelSettledRef.current = true;
                   throw Object.assign(
-                    new Error(
-                      "Signing canceled — the signed Pre-PegIn was not broadcast",
-                    ),
+                    new Error(COPY.deposit.errors.prePeginSigningCanceled),
                     { code: WALLET_CONNECTION_REJECTED_CODE },
                   );
                 }
@@ -1096,15 +1094,12 @@ export function useDepositFlow(
           if (isDepositTermsRejectedError(error)) {
             throw error;
           }
-          const errorMsg =
-            error instanceof Error ? error.message : String(error);
           // `cause` keeps the typed inner error visible to the cause-walking
           // classifiers (user cancellation, method-not-supported) in the
           // mappers.
-          throw new Error(
-            `Failed to broadcast batch Pre-PegIn transaction: ${errorMsg}`,
-            { cause: error },
-          );
+          throw new Error(COPY.deposit.errors.prePeginBroadcastFailed(error), {
+            cause: error,
+          });
         }
 
         // Broadcast succeeded — update pending pegins from PENDING to CONFIRMING
