@@ -851,6 +851,10 @@ export const COPY = {
       // broadcast, so no funds are locked and the user can retry once it resumes.
       protocolPaused:
         "New deposits are temporarily disabled while the protocol is frozen or paused. No Bitcoin was sent — please try again once it resumes.",
+      capBelowMinimum: (remainingBtc: string, minBtc: string) =>
+        `Peg-in TVL cap reached — only ${remainingBtc} BTC remains, below the minimum deposit of ${minBtc} BTC`,
+      exceedsCap: (remainingBtc: string) =>
+        `Peg-in TVL cap reached — only ${remainingBtc} BTC remains`,
       cannotActivateInState: (state: string) =>
         `Cannot activate: BTCVault is in ${state} state. Activation is only valid when VERIFIED.`,
       // Deliberately worded without the token "broadcast". These are state
