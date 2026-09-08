@@ -51,18 +51,12 @@ export const ETHWalletProvider = ({ children, callbacks }: ETHWalletProviderProp
   const ethConnector = useChainConnector("ETH");
 
   const disconnect = useCallback(async () => {
-    setAddress(undefined);
-    setProvider(null);
-    ethConnector?.disconnect().catch((error) => {
-      console.error("Failed to disconnect ETH connector:", error instanceof Error ? error.message : "Unknown error");
-    });
-
     try {
-      await callbacks?.onDisconnect?.();
+      await ethConnector?.disconnect();
     } catch (error) {
-      console.error("Error in onDisconnect callback:", error instanceof Error ? error.message : "Unknown error");
+      console.error("Failed to disconnect ETH connector:", error instanceof Error ? error.message : "Unknown error");
     }
-  }, [ethConnector, callbacks]);
+  }, [ethConnector]);
 
   const connectETH = useCallback(
     async (walletAddress: string) => {
@@ -191,12 +185,17 @@ export const ETHWalletProvider = ({ children, callbacks }: ETHWalletProviderProp
   useEffect(() => {
     if (!ethConnector) return;
 
-    const unsubscribe = ethConnector.on("disconnect", () => {
-      disconnect();
+    return ethConnector.on("disconnect", async () => {
+      setAddress(undefined);
+      setProvider(null);
+      try {
+        // Let the connector clear its wallet before the callback runs.
+        await Promise.resolve().then(() => callbacks?.onDisconnect?.());
+      } catch (error) {
+        console.error("Error in onDisconnect callback:", error instanceof Error ? error.message : "Unknown error");
+      }
     });
-
-    return unsubscribe;
-  }, [ethConnector, disconnect]);
+  }, [ethConnector, callbacks]);
 
   // Track previous address to detect changes
   const prevAddressRef = useRef<string | undefined>(undefined);
@@ -304,4 +303,3 @@ export const ETHWalletProvider = ({ children, callbacks }: ETHWalletProviderProp
 };
 
 export const useETHWallet = () => useContext(ETHWalletContext);
-
