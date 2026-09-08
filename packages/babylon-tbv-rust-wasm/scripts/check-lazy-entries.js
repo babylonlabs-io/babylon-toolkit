@@ -2,15 +2,31 @@ import { cpSync, readFileSync, rmSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, extname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import ts from 'typescript';
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const packageManifest = JSON.parse(
   readFileSync(resolve(packageRoot, 'package.json'), 'utf8'),
 );
-const { compilerOptions } = JSON.parse(
-  readFileSync(resolve(packageRoot, 'tsconfig.lib.json'), 'utf8'),
+function failConfig(diagnostic) {
+  throw new Error(
+    `Cannot read tsconfig.lib.json or its extends chain: ${ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n')}`,
+  );
+}
+const config = ts.getParsedCommandLineOfConfigFile(
+  resolve(packageRoot, 'tsconfig.lib.json'),
+  undefined,
+  { ...ts.sys, onUnRecoverableConfigFileDiagnostic: failConfig },
 );
-const outputDirectory = resolve(packageRoot, compilerOptions.outDir);
+const configError =
+  config.options.configFile.parseDiagnostics[0] ?? config.errors[0];
+if (configError) failConfig(configError);
+const outputDirectory = config.options.outDir;
+if (outputDirectory !== resolve(packageRoot, 'dist')) {
+  throw new Error(
+    'tsconfig.lib.json and its extends chain must resolve compilerOptions.outDir to dist to match package exports',
+  );
+}
 if (
   JSON.stringify(Object.keys(packageManifest.exports).sort()) !==
   JSON.stringify(['.', './raw'])
@@ -128,20 +144,31 @@ for (const loaderName of ['wasm-loader.ts', 'wasm-loader-node.ts']) {
   }
 }
 
-// Each emitted loader must resolve its generated type import.
-// Use the configured output directory to check changes to the build layout.
+// Check generated imports that TypeScript and skipLibCheck consumers can miss.
 for (const loaderName of ['wasm-loader.d.ts', 'wasm-loader-node.d.ts']) {
   const emitted = resolve(outputDirectory, loaderName);
+  let declaration;
   try {
-    const match = readFileSync(emitted, 'utf8').match(
-      /from ['"]([^'"]*generated\/vault_wasm\.js)['"]/,
+    declaration = readFileSync(emitted, 'utf8');
+  } catch (cause) {
+    throw new Error(
+      `Missing dist/${loaderName}. Check compilerOptions.outDir and rebuild the package.`,
+      { cause },
     );
-    if (!match) throw new Error(`${loaderName} must import generated types`);
+  }
+  const match = declaration.match(
+    /from ['"]([^'"]*generated\/vault_wasm\.js)['"]/,
+  );
+  if (!match) {
+    throw new Error(
+      `${loaderName} no longer pins its bindings to the generated declarations`,
+    );
+  }
+  try {
     readFileSync(resolve(dirname(emitted), match[1].replace(/\.js$/, '.d.ts')));
   } catch (cause) {
     throw new Error(
-      `${loaderName} must resolve its generated declarations from ${outputDirectory}. ` +
-        `Check compilerOptions.outDir and the generated import path.`,
+      `${loaderName} emits '${match[1]}', which resolves to no declaration from dist. The emit directory and src must stay siblings one level under the package root.`,
       { cause },
     );
   }
@@ -164,8 +191,7 @@ for (const [rawName, loaderName] of [
   }
 }
 
-// Remove generated code from a copy of the build. Both facade entries must
-// import before the first call fails. Raw entries must fail during import.
+// Without generated code, facade entries must import and raw entries must fail.
 const isolatedPackage = mkdtempSync(join(tmpdir(), 'tbv-wasm-lazy-'));
 try {
   cpSync(
