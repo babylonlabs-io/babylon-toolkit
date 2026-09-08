@@ -1,5 +1,9 @@
 import type { Page } from "@playwright/test";
-import { DirectSecp256k1Wallet } from "@cosmjs/proto-signing";
+import {
+  DirectSecp256k1Wallet,
+  type DirectSignResponse,
+} from "@cosmjs/proto-signing";
+import type { SerializedSignDoc } from "../../types";
 import type { TestWalletOptions } from "./btcWallet";
 
 import mockData, { type MockData } from "./constants";
@@ -33,7 +37,7 @@ export const injectBBNWallet = async (
     };
     await page.exposeFunction(
       "e2eSignDirect",
-      async (address: string, doc: any) => {
+      async (address: string, doc: SerializedSignDoc) => {
         const result = await signer.signDirect(address, {
           ...doc,
           bodyBytes: Uint8Array.from(doc.bodyBytes),
@@ -73,9 +77,12 @@ export const injectBBNWallet = async (
                 pubkey: new Uint8Array(bbnData.pubkeyArray),
               },
             ],
-            signDirect: async (address: string, doc: any) => {
+            signDirect: async (
+              address: string,
+              doc: DirectSignResponse["signed"],
+            ): Promise<DirectSignResponse> => {
               if (localSigner) {
-                const result = await (window as any).e2eSignDirect(address, {
+                const result = await window.e2eSignDirect(address, {
                   ...doc,
                   bodyBytes: Array.from(doc.bodyBytes),
                   authInfoBytes: Array.from(doc.authInfoBytes),

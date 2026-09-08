@@ -109,7 +109,7 @@ jobs:
         if: ${{ !cancelled() && steps.browsers.outcome == 'success' }}
         env:
           PLAYWRIGHT_HTML_OPEN: never
-        run: pnpm exec nx run @services/vault:test:e2e
+        run: pnpm exec nx run @services/vault:test:e2e --retries=0
 
       - name: Build staking for browser tests
         id: staking-browser-build
@@ -123,7 +123,7 @@ jobs:
         if: ${{ !cancelled() && steps.staking-browser-build.outcome == 'success' }}
         env:
           PLAYWRIGHT_HTML_OPEN: never
-        run: pnpm exec nx run @services/simple-staking:test:e2e
+        run: pnpm exec nx run @services/simple-staking:test:e2e --retries=0
 
       - name: Upload app browser results
         if: ${{ !cancelled() && steps.browsers.outcome == 'success' }}

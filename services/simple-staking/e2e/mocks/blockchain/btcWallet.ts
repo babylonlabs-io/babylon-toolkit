@@ -94,12 +94,12 @@ export const injectBTCWallet = async (
           getInscriptions: () => [],
           signPsbt: (_psbtHex: string) => {
             if (!localSigner) throw new Error("No test signer configured");
-            return (window as any).e2eSignPsbt(_psbtHex);
+            return window.e2eSignPsbt(_psbtHex);
           },
           ...(localSigner
             ? {
                 signMessage: (message: string, type: string) =>
-                  (window as any).e2eSignMessage(message, type),
+                  window.e2eSignMessage(message, type),
               }
             : {}),
           pushTx: (_txHex: string) => {
