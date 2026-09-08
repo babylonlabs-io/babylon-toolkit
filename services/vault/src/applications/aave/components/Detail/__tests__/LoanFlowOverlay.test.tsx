@@ -7,7 +7,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { MemoryRouter, useLocation } from "react-router";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { LOAN_TAB } from "../../../constants";
 import { LoanFlowOverlay } from "../index";
@@ -84,17 +84,18 @@ vi.mock("../../LoanCard/LoanSuccessPanel", () => ({
   LOAN_SUCCESS_WIDTH_CLASS: "max-w-[564px]",
 }));
 
+const walletState = vi.hoisted(() => ({ isConnected: true }));
+const useAaveUserPositionMock = vi.hoisted(() =>
+  vi.fn(() => ({ position: undefined, debtValueUsd: 0, isLoading: false })),
+);
+
 vi.mock("@/context/wallet", () => ({
-  useConnection: () => ({ isConnected: true }),
+  useConnection: () => walletState,
   useETHWallet: () => ({ address: "0xabc" }),
 }));
 
 vi.mock("../../../hooks", () => ({
-  useAaveUserPosition: () => ({
-    position: undefined,
-    debtValueUsd: 0,
-    isLoading: false,
-  }),
+  useAaveUserPosition: useAaveUserPositionMock,
   useAaveBorrowedAssets: () => ({ borrowedAssets: [] }),
 }));
 
@@ -113,6 +114,31 @@ function renderOverlay(ui: ReactNode, path = "/loans") {
 }
 
 describe("LoanFlowOverlay", () => {
+  beforeEach(() => {
+    walletState.isConnected = true;
+    useAaveUserPositionMock.mockClear();
+  });
+
+  it.each([false, true])(
+    "gates the position query when connected is %s",
+    (isConnected) => {
+      walletState.isConnected = isConnected;
+      renderOverlay(
+        <LoanFlowOverlay
+          picker={LOAN_TAB.REPAY}
+          reserveId={null}
+          tab={LOAN_TAB.REPAY}
+        />,
+      );
+
+      expect(useAaveUserPositionMock).toHaveBeenCalledWith(
+        isConnected ? "0xabc" : undefined,
+      );
+      expect(screen.getByTestId("picker-repay")).toBeInTheDocument();
+      expect(screen.queryByTestId("form")).not.toBeInTheDocument();
+    },
+  );
+
   it("shows the picker step and no form when only the picker param is set", () => {
     renderOverlay(
       <LoanFlowOverlay

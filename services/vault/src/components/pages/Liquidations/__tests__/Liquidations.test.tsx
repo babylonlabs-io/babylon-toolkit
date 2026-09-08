@@ -30,7 +30,7 @@ vi.mock("@/context/wallet", () => ({
 }));
 
 vi.mock("@/hooks/useDashboardState", () => ({
-  useDashboardState: () => useDashboardStateMock(),
+  useDashboardState: (address: unknown) => useDashboardStateMock(address),
 }));
 
 vi.mock("@/applications/aave/hooks/usePositionNotifications", () => ({
@@ -252,6 +252,7 @@ describe("Liquidation Dashboard — connection and position gates", () => {
 
     const emptyState = screen.getByTestId("liquidations-empty-state");
     expect(emptyState).toHaveAttribute("data-connected", "false");
+    expect(useDashboardStateMock).toHaveBeenCalledWith(undefined);
     expect(
       screen.getByText(COPY.liquidations.emptyDisconnected),
     ).toBeInTheDocument();

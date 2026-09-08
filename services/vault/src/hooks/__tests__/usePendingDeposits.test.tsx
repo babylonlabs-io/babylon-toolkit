@@ -8,6 +8,8 @@
 import { renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { useBTCWallet } from "@/context/wallet";
+import { useVaultDeposits } from "@/hooks/useVaultDeposits";
 import { ContractStatus } from "@/models/peginStateMachine";
 
 import { usePendingDeposits } from "../usePendingDeposits";
@@ -69,6 +71,7 @@ function makeActivity(
 describe("usePendingDeposits", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(useBTCWallet).mockReset();
     mockActivities.mockReturnValue([]);
   });
 
@@ -130,24 +133,31 @@ describe("usePendingDeposits", () => {
     expect(result.current.ethAddress).toBe("0xethtest");
   });
 
-  it("places EXPIRED activities with unsignedPrePeginTx into expiredActivities, not pendingActivities", () => {
-    mockActivities.mockReturnValue([
-      makeActivity("a1", ContractStatus.PENDING),
-      makeActivity("a2", ContractStatus.EXPIRED, "0.1", "0200000001abcd"),
-      makeActivity("a3", ContractStatus.EXPIRED, "0.1"),
-    ]);
+  it.each([true, false])(
+    "keeps deposit records but gates their flags when Bitcoin is connected: %s",
+    (connected) => {
+      mockActivities.mockReturnValue([
+        makeActivity("a1", ContractStatus.PENDING),
+        makeActivity("a2", ContractStatus.EXPIRED, "0.1", "0200000001abcd"),
+        makeActivity("a3", ContractStatus.EXPIRED, "0.1"),
+      ]);
 
-    const { result } = renderHook(() => usePendingDeposits());
+      const wallet = vi.mocked(useBTCWallet);
+      const currentWallet = wallet();
+      wallet.mockReturnValue({ ...currentWallet, connected });
+      const { result } = renderHook(() => usePendingDeposits());
 
-    expect(result.current.pendingActivities.map((a: any) => a.id)).toEqual([
-      "a1",
-    ]);
-    expect(result.current.expiredActivities.map((a: any) => a.id)).toEqual([
-      "a2",
-    ]);
-    expect(result.current.hasPendingDeposits).toBe(true);
-    expect(result.current.hasExpiredDeposits).toBe(true);
-  });
+      expect(result.current.pendingActivities.map((a: any) => a.id)).toEqual([
+        "a1",
+      ]);
+      expect(result.current.expiredActivities.map((a: any) => a.id)).toEqual([
+        "a2",
+      ]);
+      expect(result.current.hasPendingDeposits).toBe(connected);
+      expect(result.current.hasExpiredDeposits).toBe(connected);
+      expect(useVaultDeposits).toHaveBeenCalledWith("0xethtest");
+    },
+  );
 
   it("returns the broadcast modal handler", () => {
     const { result } = renderHook(() => usePendingDeposits());

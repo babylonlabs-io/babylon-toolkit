@@ -42,10 +42,20 @@ vi.mock("@/config", () => ({
   getNetworkConfigBTC: () => ({ icon: "btc.png", name: "sBTC" }),
 }));
 
-const mockUseConnection = vi.fn(() => ({ isConnected: true }));
-vi.mock("@/context/wallet", () => ({
-  useConnection: () => mockUseConnection(),
-  useETHWallet: () => ({ address: "0xUser" }),
+const walletMock = vi.hoisted(() => ({
+  btcConnected: true,
+  ethConnected: true,
+}));
+vi.mock("@babylonlabs-io/wallet-connector", () => ({
+  useBTCWallet: () => ({ connected: walletMock.btcConnected }),
+  useETHWallet: () => ({
+    connected: walletMock.ethConnected,
+    address: walletMock.ethConnected ? "0xUser" : undefined,
+  }),
+}));
+vi.mock("@/context/wallet", async () => ({
+  useConnection: (await import("@/context/wallet/useConnection")).useConnection,
+  useETHWallet: (await import("@babylonlabs-io/wallet-connector")).useETHWallet,
 }));
 
 vi.mock("../../../context", () => ({
@@ -118,7 +128,8 @@ function detailState(overrides: Record<string, unknown> = {}) {
 describe("ReserveDetailPanel", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockUseConnection.mockReturnValue({ isConnected: true });
+    walletMock.btcConnected = true;
+    walletMock.ethConnected = true;
     mockUseAaveReserveDetail.mockReturnValue(detailState());
   });
 
@@ -219,30 +230,38 @@ describe("ReserveDetailPanel", () => {
     expect(screen.queryByText(COPY.common.loading)).not.toBeInTheDocument();
   });
 
-  it("prompts to connect without waiting on the identity round-trip", () => {
-    mockUseConnection.mockReturnValue({ isConnected: false });
-    mockUseAaveReserveDetail.mockReturnValue(
-      detailState({
-        isLoading: true,
-        tokenIdentity: null,
-        assetConfig: null,
-        currentDebtAmount: null,
-      }),
-    );
+  it.each([
+    { btcConnected: false, ethConnected: false },
+    { btcConnected: true, ethConnected: false },
+    { btcConnected: false, ethConnected: true },
+  ])(
+    "prompts to connect before identity loads with wallet state %j",
+    (wallets) => {
+      Object.assign(walletMock, wallets);
+      mockUseAaveReserveDetail.mockReturnValue(
+        detailState({
+          isLoading: true,
+          tokenIdentity: null,
+          assetConfig: null,
+          currentDebtAmount: null,
+        }),
+      );
 
-    render(
-      <ReserveDetailPanel
-        reserveId="2"
-        tab={LOAN_TAB.BORROW}
-        onProcessingChange={vi.fn()}
-        onSuccess={vi.fn()}
-      />,
-    );
+      render(
+        <ReserveDetailPanel
+          reserveId="2"
+          tab={LOAN_TAB.BORROW}
+          onProcessingChange={vi.fn()}
+          onSuccess={vi.fn()}
+        />,
+      );
 
-    expect(
-      screen.getByText(COPY.loans.connectToManage.title),
-    ).toBeInTheDocument();
-  });
+      expect(
+        screen.getByText(COPY.loans.connectToManage.title),
+      ).toBeInTheDocument();
+      expect(screen.queryByTestId("loan-card")).not.toBeInTheDocument();
+    },
+  );
 
   it("tells the user a legacy symbol link is outdated", () => {
     mockUseAaveReserveDetail.mockReturnValue(
