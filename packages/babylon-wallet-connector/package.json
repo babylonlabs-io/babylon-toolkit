@@ -27,7 +27,7 @@
   },
   "scripts": {
     "dev": "npm run storybook",
-    "build": "NODE_OPTIONS=--max-old-space-size=8192 tsc -b --noEmit tsconfig.lib.json && NODE_OPTIONS=--max-old-space-size=8192 vite build",
+    "build": "NODE_OPTIONS=--max-old-space-size=8192 tsc -b --noEmit tsconfig.lib.json && NODE_OPTIONS=--max-old-space-size=8192 vite build && node scripts/check-package.js",
     "lint": "eslint --fix .",
     "format": "prettier . --write",
     "preview": "vite preview",
@@ -52,43 +52,38 @@
     "test:unit:ui": "playwright test --ui --project=unit",
     "test:unit:debug": "playwright test --debug --project=unit",
     "test:all": "npm run test:unit && npm run test:e2e",
-    "test": "vitest run",
-    "visualizer": "pnpm exec vite-bundle-visualizer"
+    "test": "node --test scripts/package-boundary.test.js && vitest run",
+    "visualizer": "pnpm exec vite-bundle-visualizer",
+    "check:packed-consumer": "node scripts/check-packed-consumer.js"
   },
   "dependencies": {
     "@babylonlabs-io/core-ui": "workspace:*",
-    "@babylonlabs-io/ledger-vault-signer": "workspace:*",
-    "@bitcoin-js/tiny-secp256k1-asmjs": "2.2.3",
-    "@cosmjs/proto-signing": "0.36.0",
-    "@cosmjs/stargate": "0.36.0",
-    "@keplr-wallet/provider-extension": "0.12.272",
     "@keplr-wallet/types": "0.12.272",
-    "@keystonehq/animated-qr": "0.10.0",
-    "@keystonehq/keystone-sdk": "0.12.3",
-    "@keystonehq/sdk": "0.22.1",
-    "@ledgerhq/hw-transport": "6.31.10",
-    "@ledgerhq/hw-transport-webhid": "6.30.6",
-    "@ledgerhq/hw-transport-webusb": "6.29.10",
     "@reown/appkit": "1.8.12",
-    "@reown/appkit-adapter-bitcoin": "1.8.12",
     "@reown/appkit-adapter-wagmi": "1.8.12",
-    "@scure/bip32": "1.4.0",
-    "@scure/btc-signer": "1.8.1",
-    "@tomo-inc/ledger-bitcoin-babylon": "0.3.5-alpha.0",
-    "@tomo-inc/wallet-connect-sdk": "1.0.0",
-    "bip174": "2.1.1",
-    "bitcoinjs-lib": "6.1.7",
-    "buffer": "6.0.3",
-    "ledger-bitcoin-babylon-boilerplate": "0.2.8",
     "nanoevents": "9.1.0",
-    "usehooks-ts": "^3.1.1",
-    "uuid": "11.1.0"
+    "usehooks-ts": "^3.1.1"
   },
   "files": [
     "dist"
   ],
+  "nx": {
+    "targets": {
+      "check:packed-consumer": {
+        "dependsOn": [
+          "build"
+        ]
+      }
+    }
+  },
   "peerDependencies": {
+    "@babylonlabs-io/ledger-vault-signer": "workspace:*",
+    "@cosmjs/proto-signing": "0.36.0",
+    "@cosmjs/stargate": "0.36.0",
+    "@keystonehq/sdk": "0.22.1",
+    "@reown/appkit-adapter-bitcoin": "1.8.12",
     "@tanstack/react-query": "^5.74.4",
+    "bitcoinjs-lib": "6.1.7",
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "tailwind-merge": "2.5.4",
@@ -96,13 +91,27 @@
     "wagmi": "2.18.1"
   },
   "devDependencies": {
+    "@babylonlabs-io/ledger-vault-signer": "workspace:*",
+    "@bitcoin-js/tiny-secp256k1-asmjs": "2.2.3",
     "@changesets/cli": "^2.29.8",
     "@chromatic-com/storybook": "^3.2.2",
     "@commitlint/cli": "^19.8.0",
     "@commitlint/config-conventional": "^19.8.0",
+    "@cosmjs/proto-signing": "0.36.0",
+    "@cosmjs/stargate": "0.36.0",
     "@eslint/js": "^9.31.0",
     "@internal/eslint-config": "workspace:*",
+    "@keplr-wallet/provider-extension": "0.12.272",
+    "@keystonehq/animated-qr": "0.10.0",
+    "@keystonehq/keystone-sdk": "0.12.3",
+    "@keystonehq/sdk": "0.22.1",
+    "@ledgerhq/hw-transport": "6.31.10",
+    "@ledgerhq/hw-transport-webhid": "6.30.6",
+    "@ledgerhq/hw-transport-webusb": "6.29.10",
     "@playwright/test": "1.56.1",
+    "@reown/appkit-adapter-bitcoin": "1.8.12",
+    "@scure/bip32": "1.4.0",
+    "@scure/btc-signer": "1.8.1",
     "@semantic-release/github": "^11.0.2",
     "@semantic-release/npm": "^12.0.1",
     "@storybook/addon-essentials": "^8.6.15",
@@ -114,12 +123,17 @@
     "@tanstack/react-query": "^5.74.4",
     "@testing-library/dom": "10.4.0",
     "@testing-library/react": "16.3.0",
+    "@tomo-inc/ledger-bitcoin-babylon": "0.3.5-alpha.0",
+    "@tomo-inc/wallet-connect-sdk": "1.0.0",
     "@types/node": "^22.10.2",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@typescript-eslint/eslint-plugin": "^8.44.1",
     "@vitejs/plugin-react": "^4.4.1",
     "autoprefixer": "^10.4.20",
+    "bip174": "2.1.1",
+    "bitcoinjs-lib": "6.1.7",
+    "buffer": "6.0.3",
     "dotenv": "^16.4.7",
     "eslint": "^9.32.0",
     "eslint-config-prettier": "^10.1.8",
@@ -131,6 +145,7 @@
     "globals": "^16.3.0",
     "husky": "^9.1.7",
     "jsdom": "20.0.3",
+    "ledger-bitcoin-babylon-boilerplate": "0.2.8",
     "lint-staged": "^15.5.0",
     "postcss": "^8.4.47",
     "prettier": "^3.6.2",
@@ -143,6 +158,7 @@
     "tsx": "^4.19.4",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.44.1",
+    "uuid": "11.1.0",
     "vite": "^6.4.1",
     "vite-plugin-dts": "^4.3.0",
     "vite-plugin-node-polyfills": "^0.23.0",
@@ -158,5 +174,25 @@
     "extends": [
       "plugin:storybook/recommended"
     ]
+  },
+  "peerDependenciesMeta": {
+    "@babylonlabs-io/ledger-vault-signer": {
+      "optional": true
+    },
+    "@cosmjs/proto-signing": {
+      "optional": true
+    },
+    "@cosmjs/stargate": {
+      "optional": true
+    },
+    "@keystonehq/sdk": {
+      "optional": true
+    },
+    "@reown/appkit-adapter-bitcoin": {
+      "optional": true
+    },
+    "bitcoinjs-lib": {
+      "optional": true
+    }
   }
 }

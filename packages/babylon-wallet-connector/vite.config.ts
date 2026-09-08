@@ -4,6 +4,8 @@ import { defineConfig } from "vite";
 import dts from "vite-plugin-dts";
 import { nodePolyfills } from "vite-plugin-node-polyfills";
 
+import { requiredExternals, walletExternals } from "./scripts/package-boundary.js";
+
 export default defineConfig({
   plugins: [
     react(),
@@ -37,29 +39,9 @@ export default defineConfig({
       cssFileName: "wallet-connector",
     },
     rollupOptions: {
-      external: [
-        "react",
-        "react-dom",
-        "react/jsx-runtime",
-        "tailwind-merge",
-        "wagmi",
-        "viem",
-        "@cosmjs/stargate",
-        "@babylonlabs-io/core-ui",
-        "@babylonlabs-io/ledger-vault-signer",
-        "bitcoinjs-lib",
-        "@keystonehq/animated-qr",
-        // Issues linking with Next.js
-        // "@keystonehq/keystone-sdk",
-        "@keystonehq/sdk",
-        // @reown packages that use viem internally
-        "@reown/appkit",
-        "@reown/appkit-adapter-wagmi",
-        "@reown/appkit-adapter-bitcoin",
-        /^@reown\//, // Match all @reown/* packages
-        // React Query must be external to share context with consuming app
-        "@tanstack/react-query",
-      ],
+      external: (id) =>
+        [...requiredExternals, ...walletExternals].some((name) => id === name || id.startsWith(`${name}/`)) ||
+        id.startsWith("@reown/"),
       output: {
         sourcemapExcludeSources: false,
       },
