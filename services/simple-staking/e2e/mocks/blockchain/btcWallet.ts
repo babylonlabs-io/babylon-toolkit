@@ -1,22 +1,78 @@
 import type { Page } from "@playwright/test";
+import * as ecc from "@bitcoin-js/tiny-secp256k1-asmjs";
+import { initEccLib, networks, payments, Psbt } from "bitcoinjs-lib";
+import { ECPairFactory } from "ecpair";
+
+import { signBip322P2wpkhWitness } from "../../../../../packages/babylon-ts-sdk/src/testing/signBip322P2wpkhWitness";
 
 import mockData, { type MockData } from "./constants";
 import type { BTCWalletType } from "./types";
 import { verifyBTCWalletInjected } from "./verification";
 
+export interface TestWalletOptions {
+  data?: MockData;
+  privateKeyHex?: string;
+}
+
 type DataType = {
   walletType: BTCWalletType;
   mockData: MockData;
+  localSigner: boolean;
 };
 
 export const injectBTCWallet = async (
   page: Page,
   walletType: BTCWalletType = "OKX",
+  { data = mockData, privateKeyHex }: TestWalletOptions = {},
 ) => {
+  if (privateKeyHex) {
+    initEccLib(ecc);
+    const key = ECPairFactory(ecc).fromPrivateKey(
+      Buffer.from(privateKeyHex, "hex"),
+    );
+    data = {
+      ...data,
+      btcWallet: {
+        ...data.btcWallet,
+        publicKeyHex: key.publicKey.toString("hex"),
+        mainnetAddress: payments.p2wpkh({ pubkey: key.publicKey }).address!,
+        testnetAddress: payments.p2wpkh({
+          pubkey: key.publicKey,
+          network: networks.testnet,
+        }).address!,
+      },
+    };
+    await page.exposeFunction("e2eSignPsbt", (hex: string) => {
+      const psbt = Psbt.fromHex(hex).signAllInputs(key);
+      if (
+        !psbt.validateSignaturesOfAllInputs((pubkey, hash, signature) =>
+          signature.length === 64 && pubkey.length === 32
+            ? ecc.verifySchnorr(hash, pubkey, signature)
+            : ecc.verify(hash, pubkey, signature),
+        )
+      ) {
+        throw new Error("Invalid local test signature");
+      }
+      return psbt.finalizeAllInputs().toHex();
+    });
+    await page.exposeFunction(
+      "e2eSignMessage",
+      (message: string, type: string) => {
+        if (type !== "bip322-simple")
+          throw new Error("Unsupported test signature type");
+        return Buffer.from(
+          signBip322P2wpkhWitness(
+            new TextEncoder().encode(message),
+            key.privateKey!,
+          ),
+        ).toString("base64");
+      },
+    );
+  }
   try {
     await page.evaluate(
       (data: DataType) => {
-        const { walletType, mockData } = data;
+        const { walletType, mockData, localSigner } = data;
         const btcData = mockData.btcWallet;
 
         const btcWallet = {
@@ -37,8 +93,15 @@ export const injectBTCWallet = async (
           getNetworkFees: () => btcData.networkFees,
           getInscriptions: () => [],
           signPsbt: (_psbtHex: string) => {
-            return btcData.signedPsbt;
+            if (!localSigner) throw new Error("No test signer configured");
+            return (window as any).e2eSignPsbt(_psbtHex);
           },
+          ...(localSigner
+            ? {
+                signMessage: (message: string, type: string) =>
+                  (window as any).e2eSignMessage(message, type),
+              }
+            : {}),
           pushTx: (_txHex: string) => {
             return btcData.txHash;
           },
@@ -58,9 +121,6 @@ export const injectBTCWallet = async (
                 getAccounts: () => [btcData.mainnetAddress],
                 isAccountActive: () => true,
                 switchNetwork: (network: string) => Promise.resolve(true),
-                signPsbt: (psbtHex: string) => {
-                  return btcData.simplifiedPsbt;
-                },
                 connect: async () => {
                   return {
                     address: btcData.mainnetAddress,
@@ -138,7 +198,7 @@ export const injectBTCWallet = async (
                   case "btc_getBalance":
                     return btcData.balance;
                   case "btc_signPsbt":
-                    return methodParams?.psbt || btcData.simplifiedPsbt;
+                    return btcWallet.signPsbt(methodParams?.psbt);
                   default:
                     return null;
                 }
@@ -176,7 +236,7 @@ export const injectBTCWallet = async (
           strategy();
         }
       },
-      { walletType, mockData },
+      { walletType, mockData: data, localSigner: Boolean(privateKeyHex) },
     );
 
     const isInjected = await verifyBTCWalletInjected(page);

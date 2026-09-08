@@ -210,7 +210,9 @@ export async function setupOKXWallet(context: BrowserContext, mnemonic: string, 
   if (!seedFrame) throw new Error("OKX: seed-entry iframe (ses.html) not found");
   const words = mnemonic.trim().split(/\s+/).filter(Boolean);
   let boxes = seedFrame.locator('input[data-testid="import-seed-phrase-or-private-key-page-seed-phrase-input"]');
-  await boxes.first().waitFor({ state: "visible", timeout: WAIT_FOR.ELEMENT_SLOW_MS }).catch(() => {});
+  await boxes.first().waitFor({ state: "visible", timeout: WAIT_FOR.ELEMENT_SLOW_MS });
+  const reminder = seedFrame.getByTestId("security-reminder-got-it-button");
+  if (await reminder.isVisible()) await reminder.click({ timeout: WAIT_FOR.ACTION_MS });
   // The seed screen defaults to a 12-input grid with a phrase-length selector; a 24-word phrase needs
   // it switched first, or the extra words are dropped. OKX renders in the OS locale, so we NEVER match
   // the visible "N words" text — we drive the selector by its language-agnostic data attributes.
@@ -224,8 +226,9 @@ export async function setupOKXWallet(context: BrowserContext, mnemonic: string, 
       `OKX: seed grid shows ${boxCount} inputs but the phrase has ${words.length} words — the phrase-length selector (okd-select-text) did not switch. OKX's import UI likely changed; re-derive selectOkxSeedWordCount (okx.ts).`,
     );
   for (let i = 0; i < words.length; i++) {
-    await boxes.nth(i).click().catch(() => {});
-    await boxes.nth(i).fill(words[i]).catch(() => {});
+    await boxes.nth(i).fill(words[i], { timeout: WAIT_FOR.ACTION_MS }).catch(() => {
+      throw new Error(`OKX: seed word ${i + 1} input failed`);
+    });
   }
   await sleep(SETTLE.BRIEF);
   const confirmSeed = seedFrame.locator('button[data-testid="import-seed-phrase-or-private-key-page-confirm-button"]');

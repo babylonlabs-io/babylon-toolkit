@@ -4,6 +4,7 @@ import { EXTENSION_CHROME_STORE_IDS } from "../../setup/downloadExtensions";
 import { runtimeExtensionId } from "../../utils/extensionId";
 import { fillInputsByName } from "../../utils/fillInputs";
 import { findServiceWorkerForExtension } from "../../utils/findServiceWorkerForExtension";
+import { WAIT_FOR } from "../../utils/timing";
 
 export async function setupKeplrWallet(context: BrowserContext, mnemonic: string, password: string) {
   if (!mnemonic) throw new Error("Missing E2E_WALLET_MNEMONIC in environment variables");
@@ -23,7 +24,9 @@ export async function setupKeplrWallet(context: BrowserContext, mnemonic: string
   // Fill mnemonic
   const words = mnemonic.trim().split(" ");
   for (let i = 0; i < words.length; i++) {
-    await page.getByText("1.2.3.4.5.6.7.8.9.10.11.12.").locator("input").nth(i).fill(words[i]);
+    await page.locator('input[type="text"], input[type="password"]').nth(i).fill(words[i], { timeout: WAIT_FOR.ACTION_MS }).catch(() => {
+      throw new Error(`Keplr: seed word ${i + 1} input failed`);
+    });
   }
 
   // Import wallet
@@ -38,12 +41,7 @@ export async function setupKeplrWallet(context: BrowserContext, mnemonic: string
 
   await page.getByRole("button", { name: "Next" }).click();
 
-  // Deselect all networks
-  await page
-    .locator("div")
-    .filter({ hasText: /^Select All$/ })
-    .nth(2)
-    .click();
+  await page.getByText("All Native Chains", { exact: true }).click({ timeout: WAIT_FOR.ACTION_MS });
 
   // Complete setup
   for (const buttonName of ["Save", "Finish"]) {

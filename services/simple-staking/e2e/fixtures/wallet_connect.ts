@@ -1,8 +1,13 @@
 import type { Page } from "@playwright/test";
 
-import { injectBBNWallet, injectBTCWallet } from "../mocks/blockchain";
+import {
+  injectBBNWallet,
+  injectBTCWallet,
+  type TestWalletOptions,
+} from "../mocks/blockchain";
 import { mockVerifyBTCAddress } from "../mocks/handlers";
 
+import { PageNavigationActions } from "./page_navigation";
 import {
   BUTTON_SELECTORS,
   CHECKBOX_SELECTOR,
@@ -210,10 +215,11 @@ export class WalletConnectActions {
     }
   }
 
-  async setupWalletConnection() {
+  async setupWalletConnection(options?: TestWalletOptions) {
+    await new PageNavigationActions(this.page).waitForPageLoad();
     await this.setupMocks();
-    await injectBTCWallet(this.page);
-    await injectBBNWallet(this.page);
+    await injectBTCWallet(this.page, "OKX", options);
+    await injectBBNWallet(this.page, "Leap", options);
     await this.clickConnectButton();
     await this.acceptTermsAndConditions();
     await this.clickInjectableWalletButton();

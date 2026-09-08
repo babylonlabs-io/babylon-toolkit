@@ -28,9 +28,9 @@ export default defineConfig({
   /* Retry on CI only */
   retries: 0,
   /* Opt out of parallel tests on CI. */
-  workers: 2,
+  workers: process.env.CI ? 1 : 2,
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
-  reporter: "html",
+  reporter: "line",
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
     /* Base URL to use in actions like `await page.goto('/')`. */
@@ -60,6 +60,9 @@ export default defineConfig({
       testIgnore: "**/specs/wallets/**",
       use: {
         ...devices["Desktop Chrome"],
+        trace: "off",
+        screenshot: "off",
+        video: "off",
         locale: "en-US",
         launchOptions: {
           args: ["--lang=en-US", "--force-lang=en-US", "--accept-lang=en-US"],
@@ -76,6 +79,6 @@ export default defineConfig({
     command: "npm run dev",
     url: baseURL,
     timeout: 120 * 1000,
-    reuseExistingServer: true,
+    reuseExistingServer: !process.env.CI,
   },
 });

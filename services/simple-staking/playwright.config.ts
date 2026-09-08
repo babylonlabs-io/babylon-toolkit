@@ -20,7 +20,7 @@ const effectiveEnv = {
 export default defineConfig({
   testDir: path.join(__dirname, "e2e"),
   fullyParallel: true,
-  forbidOnly: false,
+  forbidOnly: !!process.env.CI,
   retries: 2,
   timeout: 90_000,
   workers: 1,
@@ -41,7 +41,7 @@ export default defineConfig({
     command: `sh -c 'NODE_OPTIONS="--max-http-header-size=65536" PORT=${PORT} pnpm exec vite preview --host 0.0.0.0 --port ${PORT}'`,
     url: baseURL,
     timeout: 120_000,
-    reuseExistingServer: true,
+    reuseExistingServer: !process.env.CI,
     env: effectiveEnv,
   },
 });

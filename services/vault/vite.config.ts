@@ -92,8 +92,8 @@ const enableSentryPlugin =
       process.env.SENTRY_PROJECT,
   );
 
-// https://vite.dev/config/
 export default defineConfig(({ mode }) => ({
+  cacheDir: process.env.PLAYWRIGHT_VITE_CACHE_DIR,
   server: {
     headers: SECURITY_HEADERS,
     proxy: resolveSidecarProxy(mode),

@@ -15,7 +15,7 @@ export const BUTTON_SELECTORS = {
   CONTINUE: '[data-testid="error-continue-button"]',
   OK: 'button:has-text("OK")',
   SAVE: 'button:has-text("Save")',
-  DONE: '[data-testid="chains-done-button"]',
+  DONE: '[data-testid="chains-connect-button"]',
   CONTINUE_ANYWAY: '[data-testid="error-continue-button"]',
 };
 

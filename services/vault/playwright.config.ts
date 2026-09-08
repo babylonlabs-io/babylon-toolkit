@@ -30,11 +30,10 @@ const BEHAVIOURAL_TEST_IGNORE = ["**/visual/**", GOD_MODE_SPEC];
  * different app than the one under test.
  */
 export const MOCK_ENV_VARS = {
-  NEXT_PUBLIC_TBV_BTC_VAULT_REGISTRY:
-    "0x0000000000000000000000000000000000000001",
-  NEXT_PUBLIC_TBV_AAVE_ADAPTER: "0x0000000000000000000000000000000000000002",
-  NEXT_PUBLIC_TBV_AAVE_ADAPTER_CONFIG:
-    "0x0000000000000000000000000000000000000003",
+  NEXT_PUBLIC_TBV_BTC_VAULT_REGISTRY: RECORDED_DEPLOYMENT.BTC_VAULT_REGISTRY,
+  NEXT_PUBLIC_TBV_AAVE_ADAPTER: RECORDED_DEPLOYMENT.AAVE_ADAPTER,
+  NEXT_PUBLIC_TBV_AAVE_ADAPTER_CONFIG: RECORDED_DEPLOYMENT.AAVE_ADAPTER_CONFIG,
+  NEXT_PUBLIC_TBV_BTC_PRICE_FEED: RECORDED_DEPLOYMENT.BTC_PRICE_FEED,
   NEXT_PUBLIC_TBV_GRAPHQL_ENDPOINT: "http://localhost:9999/graphql",
   NEXT_PUBLIC_TBV_VP_PROXY_URL: "http://localhost:9998",
   NEXT_PUBLIC_ETH_RPC_URL: "http://localhost:9997/rpc",
@@ -68,13 +67,8 @@ export const MOCK_ENV_VARS = {
 };
 
 /**
- * Point the app at the deployment the replayed recording was captured
- * against. `MOCK_ENV_VARS` uses 0x…0001/2/3 placeholders, which are fine for
- * the behavioural suite (it asserts on what the app DOES with a response) and
- * useless against the recording: a replayed read is answered by the address it
- * was aimed at, so a placeholder matches nothing and every screen falls back
- * to the error boundary. See `e2e/fixtures/replay/contracts.ts`. Shared by
- * the god-mode server below and `playwright.visual.config.ts`.
+ * Keep the recorded deployment available to the god-mode and visual servers.
+ * Visual captures also use these values when testing baseline code.
  */
 export const RECORDED_DEPLOYMENT_ENV = {
   NEXT_PUBLIC_TBV_BTC_VAULT_REGISTRY: RECORDED_DEPLOYMENT.BTC_VAULT_REGISTRY,
@@ -100,7 +94,7 @@ export default defineConfig({
   // chases live animations for its full timeout and then retries twice.
   testIgnore: "**/visual/**",
   fullyParallel: false,
-  forbidOnly: false,
+  forbidOnly: !!process.env.CI,
   retries: 2,
   timeout: 90_000,
   workers: 1,
@@ -132,35 +126,36 @@ export default defineConfig({
 
   webServer: [
     {
-      command: `pnpm exec vite --port ${PORT_MISSING_ENV}`,
+      command: `pnpm exec vite --port ${PORT_MISSING_ENV} --strictPort`,
       url: `http://localhost:${PORT_MISSING_ENV}`,
       timeout: 120_000,
-      reuseExistingServer: true,
-      // This "missing configuration" server inherits the parent shell. Force the Sentry DSN
-      // empty so a developer's exported NEXT_PUBLIC_SENTRY_DSN can't enable Sentry here and
-      // transmit to a real project — the enable gate is DSN-only.
+      reuseExistingServer: !process.env.CI,
+      // Disable Sentry on the server with missing configuration.
       env: {
         NEXT_PUBLIC_SENTRY_DSN: "",
+        PLAYWRIGHT_VITE_CACHE_DIR: "node_modules/.vite-e2e-missing",
       },
     },
     {
-      command: `pnpm exec vite --port ${PORT_FULL_ENV}`,
+      command: `pnpm exec vite --port ${PORT_FULL_ENV} --strictPort`,
       url: `http://localhost:${PORT_FULL_ENV}`,
       timeout: 120_000,
-      reuseExistingServer: true,
+      reuseExistingServer: !process.env.CI,
       env: {
         ...MOCK_ENV_VARS,
+        PLAYWRIGHT_VITE_CACHE_DIR: "node_modules/.vite-e2e-full",
       },
     },
     {
-      command: `pnpm exec vite --port ${PORT_GOD_MODE}`,
+      command: `pnpm exec vite --port ${PORT_GOD_MODE} --strictPort`,
       url: `http://localhost:${PORT_GOD_MODE}`,
       timeout: 120_000,
-      reuseExistingServer: true,
+      reuseExistingServer: !process.env.CI,
       env: {
         ...MOCK_ENV_VARS,
         ...RECORDED_DEPLOYMENT_ENV,
         NEXT_PUBLIC_FF_GOD_MODE_PANEL: "true",
+        PLAYWRIGHT_VITE_CACHE_DIR: "node_modules/.vite-e2e-god-mode",
       },
     },
   ],

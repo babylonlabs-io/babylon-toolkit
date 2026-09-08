@@ -2,11 +2,12 @@ import { incentivequery } from "@babylonlabs-io/babylon-proto-ts";
 import type { Page } from "@playwright/test";
 import { QueryBalanceResponse } from "cosmjs-types/cosmos/bank/v1beta1/query.js";
 
-import mockData from "./constants";
+import defaultData from "./constants";
 
 export const injectBBNQueries = async (
   page: Page,
-  rewardAmount: string = mockData.bbnQueries.rewardAmount,
+  rewardAmount: string = defaultData.bbnQueries.rewardAmount,
+  mockData = defaultData,
 ) => {
   const rewardGaugeProto = incentivequery.QueryRewardGaugesResponse.fromPartial(
     {

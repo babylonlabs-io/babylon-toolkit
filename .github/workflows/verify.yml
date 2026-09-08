@@ -89,14 +89,52 @@ jobs:
       - name: Lint all
         run: pnpm run lint
 
-      - name: Install Chromium for browser tests
-        run: pnpm --filter @babylonlabs-io/ts-sdk exec playwright install --with-deps chromium
+      - name: Install browsers for browser tests
+        id: browsers
+        run: pnpm --filter @babylonlabs-io/ts-sdk exec playwright install --with-deps chromium firefox
 
       - name: Check packed wallet consumer
         run: pnpm exec nx run @babylonlabs-io/wallet-connector:check:packed-consumer
 
       - name: Test SDK in Chromium
         run: pnpm exec nx run @babylonlabs-io/ts-sdk:test-browser
+
+      - name: Test wallet connections in Chromium
+        if: ${{ !cancelled() && steps.browsers.outcome == 'success' }}
+        env:
+          PLAYWRIGHT_HTML_OPEN: never
+        run: xvfb-run -a pnpm exec nx run @babylonlabs-io/wallet-connector:test:e2e
+
+      - name: Test Vault browsers
+        if: ${{ !cancelled() && steps.browsers.outcome == 'success' }}
+        env:
+          PLAYWRIGHT_HTML_OPEN: never
+        run: pnpm exec nx run @services/vault:test:e2e
+
+      - name: Build staking for browser tests
+        id: staking-browser-build
+        if: ${{ !cancelled() && steps.browsers.outcome == 'success' }}
+        env:
+          NEXT_BUILD_E2E: 'true'
+          DISABLE_SENTRY: 'true'
+        run: pnpm exec nx run @services/simple-staking:build:e2e
+
+      - name: Test staking browsers
+        if: ${{ !cancelled() && steps.staking-browser-build.outcome == 'success' }}
+        env:
+          PLAYWRIGHT_HTML_OPEN: never
+        run: pnpm exec nx run @services/simple-staking:test:e2e
+
+      - name: Upload app browser results
+        if: ${{ !cancelled() && steps.browsers.outcome == 'success' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2 https://github.com/actions/upload-artifact/releases/tag/v4.6.2
+        with:
+          name: app-browser-results
+          path: |
+            services/vault/playwright-report
+            services/vault/test-results
+            services/simple-staking/playwright-report
+            services/simple-staking/test-results
 
       - name: Test affected
         id: tests

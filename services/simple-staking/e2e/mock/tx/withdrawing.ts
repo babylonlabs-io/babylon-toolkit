@@ -1,32 +1,72 @@
-import { DelegationState } from "@/ui/legacy/types/delegations";
+import { initBTCCurve, Staking } from "@babylonlabs-io/btc-staking-ts";
+import * as ecc from "@bitcoin-js/tiny-secp256k1-asmjs";
+import { networks, payments } from "bitcoinjs-lib";
+
+import { DelegationState } from "@/ui/common/types/delegations";
+
+import { mockNetworkInfo } from "../../mocks/handlers/constants";
+import { activeTX } from "./unbonding";
+
+initBTCCurve();
+export const withdrawalPrivateKeyHex = "4".padStart(64, "0");
+const publicKey = Buffer.from(
+  ecc.pointFromScalar(Buffer.from(withdrawalPrivateKeyHex, "hex"), true)!,
+);
+export const withdrawalDestination = payments.p2wpkh({ pubkey: publicKey });
+const params = mockNetworkInfo.data.params.bbn[0];
+const original = activeTX.data[0];
+const staking = new Staking(
+  networks.bitcoin,
+  {
+    address: withdrawalDestination.address!,
+    publicKeyNoCoordHex: publicKey.subarray(1).toString("hex"),
+  },
+  {
+    covenantNoCoordPks: params.covenant_pks.map((pk) => pk.slice(2)),
+    covenantQuorum: params.covenant_quorum,
+    unbondingTime: params.unbonding_time_blocks,
+    unbondingFeeSat: params.unbonding_fee_sat,
+    minStakingAmountSat: params.min_staking_value_sat,
+    maxStakingAmountSat: params.max_staking_value_sat,
+    minStakingTimeBlocks: params.min_staking_time_blocks,
+    maxStakingTimeBlocks: params.max_staking_time_blocks,
+  },
+  [original.finality_provider_pk_hex],
+  original.staking_tx.timelock,
+);
+// These input transactions represent mined outputs in the local test.
+const { transaction: stakingTx } = staking.createStakingTransaction(
+  params.min_staking_value_sat,
+  [
+    {
+      txid: "11".repeat(32),
+      vout: 0,
+      value: params.max_staking_value_sat,
+      scriptPubKey: withdrawalDestination.output!.toString("hex"),
+    },
+  ],
+  1,
+);
+export const { transaction: unbondingTransaction } =
+  staking.createUnbondingTransaction(stakingTx);
+export const { fee: withdrawalFee } =
+  staking.createWithdrawEarlyUnbondedTransaction(unbondingTransaction, 1);
 
 export const unbondedTX = {
   data: [
     {
-      staking_tx_hash_hex:
-        "1547205e6e32aaeb4eba21788891f4f323ffee9fd824461300f71292fe33f67e",
-      staker_pk_hex:
-        "4c6e2954c75bcb53aa13b7cd5d8bcdb4c9a4dd0784d68b115bd4408813b45608",
-      finality_provider_pk_hex:
-        "094f5861be4128861d69ea4b66a5f974943f100f55400bf26f5cce124b4c9af7",
+      ...original,
+      staking_tx_hash_hex: stakingTx.getId(),
+      staker_pk_hex: publicKey.subarray(1).toString("hex"),
+      staking_value: params.min_staking_value_sat,
       state: DelegationState.UNBONDED,
-      staking_value: 50000,
-      staking_tx: {
-        tx_hex:
-          "02000000000102b497f79965a97f792dc604791cb97d76567660fdcff8d519cf993175de2880c00000000000fdffffff092b154d5edd66be91057390140898468a48df393ea52e52f6fe82fc895141ec0000000000fdffffff0350c3000000000000225120cf7c40c6fb1395430816dbb5e1ba9f172ef25573a3b609efa1723559cd82d5590000000000000000496a4762626234004c6e2954c75bcb53aa13b7cd5d8bcdb4c9a4dd0784d68b115bd4408813b45608094f5861be4128861d69ea4b66a5f974943f100f55400bf26f5cce124b4c9af70096cdb80000000000002251203a24123d844b4115ac87811ec3e9acfe8a307307a4d480f04bffcae35cb80f470140aefb4107e1a224ec95f5ef3482e594371d575b869b6ea95f985fd39d02f821549acd28c7c4a80e4d2af66e6d24f06f3e4be4e8f1e6778559c25ed4eca145fa960140242411eccc7853685dd04e7b2eb0ad337e6e8c0039026114cb2500566aa1e6d4288121ccec9535aaee697d0b4f0fd2588838d4d3a0055165aeeb59883fdd1716340e0d00",
-        output_index: 0,
-        start_timestamp: "2024-09-12T16:09:01Z",
-        start_height: 861031,
-        timelock: 150,
-      },
-      is_overflow: false,
+      staking_tx: { ...original.staking_tx, tx_hex: stakingTx.toHex() },
       unbonding_tx: {
-        tx_hex:
-          "020000000001017ef633fe9212f700134624d89feeff23f3f491887821ba4eebaa326e5e2047150000000000ffffffff019065000000000000225120f33fe22ce55a0d4f272d54d84ceb2d8b383784bd5bdad12cfc6e6ed38336148f0600406e6c2d481d4c77bf841c98e32b2dfcc86bb3267564752e03a34e67fdf70a9c2a7eddc15943f938b915518405dc6c80807971883f5206026ca609254ae401310040f53aa9e92f4d93ec92da58c6c7a379f18435f7ac877eda33105300115e942a403ae384ccfade0b690acd3bc4b6f2d946f1ef8a370f0d74fca346915dd2090caf40c73ffb9088349cb94b4d5a5f293394627d190437f47dc2275a1c67afd8f1200d594f8d86f4dd6bf248bd2f71f337eac094feafebe78ea68279c3e22609cf5b588a204c6e2954c75bcb53aa13b7cd5d8bcdb4c9a4dd0784d68b115bd4408813b45608ad206f13a6d104446520d1757caec13eaf6fbcf29f488c31e0107e7351d4994cd068ac20a10a06bb3bae360db3aef0326413b55b9e46bf20b9a96fc8a806a99e644fe277ba20a5e21514682b87e37fb5d3c9862055041d1e6f4cc4f3034ceaf3d90f86b230a6ba529c61c050929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfee9ace803ac08cbd88238189c54c871cf32592ee6a4168ace71be7fa421fe0d115170c55fd872e3fc575e9845aca1bad807c7c409836824e21b47fcdc5ba259c787c17ff5fca00000000",
+        tx_hex: unbondingTransaction.toHex(),
         output_index: 0,
-        start_timestamp: "2024-09-12T16:32:26Z",
-        start_height: 861033,
-        timelock: 5,
+        start_timestamp: original.staking_tx.start_timestamp,
+        start_height: original.staking_tx.start_height,
+        timelock: params.unbonding_time_blocks,
       },
     },
   ],

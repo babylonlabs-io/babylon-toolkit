@@ -1,4 +1,6 @@
 import type { Page } from "@playwright/test";
+import { DirectSecp256k1Wallet } from "@cosmjs/proto-signing";
+import type { TestWalletOptions } from "./btcWallet";
 
 import mockData, { type MockData } from "./constants";
 import type { BBNWalletType } from "./types";
@@ -7,16 +9,53 @@ import { verifyBBNWalletInjected } from "./verification";
 type DataType = {
   walletType: BBNWalletType;
   mockData: MockData;
+  localSigner: boolean;
 };
 
 export const injectBBNWallet = async (
   page: Page,
   walletType: BBNWalletType = "Leap",
+  { data = mockData, privateKeyHex }: TestWalletOptions = {},
 ) => {
+  if (privateKeyHex) {
+    const signer = await DirectSecp256k1Wallet.fromKey(
+      Buffer.from(privateKeyHex, "hex"),
+      "bbn",
+    );
+    const [account] = await signer.getAccounts();
+    data = {
+      ...data,
+      bbnWallet: {
+        ...data.bbnWallet,
+        walletAddress: account.address,
+        pubkeyArray: Array.from(account.pubkey),
+      },
+    };
+    await page.exposeFunction(
+      "e2eSignDirect",
+      async (address: string, doc: any) => {
+        const result = await signer.signDirect(address, {
+          ...doc,
+          bodyBytes: Uint8Array.from(doc.bodyBytes),
+          authInfoBytes: Uint8Array.from(doc.authInfoBytes),
+          accountNumber: BigInt(doc.accountNumber),
+        });
+        return {
+          ...result,
+          signed: {
+            ...result.signed,
+            bodyBytes: Array.from(result.signed.bodyBytes),
+            authInfoBytes: Array.from(result.signed.authInfoBytes),
+            accountNumber: result.signed.accountNumber.toString(),
+          },
+        };
+      },
+    );
+  }
   try {
     await page.evaluate(
       (data: DataType) => {
-        const { walletType, mockData } = data;
+        const { walletType, mockData, localSigner } = data;
         const bbnData = mockData.bbnWallet;
 
         const bbnWallet = {
@@ -34,17 +73,26 @@ export const injectBBNWallet = async (
                 pubkey: new Uint8Array(bbnData.pubkeyArray),
               },
             ],
-            signDirect: async () => ({
-              signed: {
-                bodyBytes: new Uint8Array([]),
-                authInfoBytes: new Uint8Array([]),
-                chainId: "",
-                accountNumber: 0,
-              },
-              signature: {
-                signature: bbnData.signature,
-              },
-            }),
+            signDirect: async (address: string, doc: any) => {
+              if (localSigner) {
+                const result = await (window as any).e2eSignDirect(address, {
+                  ...doc,
+                  bodyBytes: Array.from(doc.bodyBytes),
+                  authInfoBytes: Array.from(doc.authInfoBytes),
+                  accountNumber: doc.accountNumber.toString(),
+                });
+                return {
+                  ...result,
+                  signed: {
+                    ...result.signed,
+                    bodyBytes: Uint8Array.from(result.signed.bodyBytes),
+                    authInfoBytes: Uint8Array.from(result.signed.authInfoBytes),
+                    accountNumber: BigInt(result.signed.accountNumber),
+                  },
+                };
+              }
+              throw new Error("No test signer configured");
+            },
           }),
           getOfflineSignerAuto: async () => bbnWallet.getOfflineSigner(),
           getAddress: async () => bbnData.walletAddress,
@@ -72,17 +120,7 @@ export const injectBBNWallet = async (
                 bech32Address: bbnData.walletAddress,
               };
             },
-            signDirect: async () => ({
-              signed: {
-                bodyBytes: new Uint8Array([]),
-                authInfoBytes: new Uint8Array([]),
-                chainId: "",
-                accountNumber: 0,
-              },
-              signature: {
-                signature: bbnData.signature,
-              },
-            }),
+            signDirect: bbnWallet.getOfflineSigner().signDirect,
           };
         } else if (walletType === "Leap") {
           // @ts-ignore - leap is defined in the window for the test
@@ -115,7 +153,7 @@ export const injectBBNWallet = async (
           };
         }
       },
-      { walletType, mockData },
+      { walletType, mockData: data, localSigner: Boolean(privateKeyHex) },
     );
 
     // Verify BBN wallet was properly injected

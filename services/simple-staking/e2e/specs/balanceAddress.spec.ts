@@ -27,8 +27,8 @@ test.describe("Balance and address checks after connection", () => {
     const stakableBalance = await balanceActions.getStakableBalance();
     const babylonBalance = await balanceActions.getBabylonBalance();
 
-    expect(stakedBalanceText).toContain("0.09876543 sBTC");
-    expect(stakableBalance).toContain("0.00074175 sBTC");
-    expect(babylonBalance).toContain("1 tBABY");
+    expect(stakedBalanceText).toContain("0.09876543 BTC");
+    expect(stakableBalance).toContain("<0.01 BTC");
+    expect(babylonBalance).toContain("1.00 BABY");
   });
 });
