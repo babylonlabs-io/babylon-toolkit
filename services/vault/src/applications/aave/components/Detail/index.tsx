@@ -27,6 +27,7 @@ import {
   LoanSuccessPanel,
 } from "../LoanCard/LoanSuccessPanel";
 
+import { PositionGate } from "./PositionGate";
 import {
   type LoanSuccessState,
   ReserveDetailPanel,
@@ -61,6 +62,8 @@ export function LoanFlowOverlay({
     position,
     debtValueUsd,
     isLoading: isPositionLoading,
+    error: positionError,
+    refetch: refetchPosition,
   } = useAaveUserPosition(isConnected ? address : undefined);
   const { borrowedAssets } = useAaveBorrowedAssets({ position, debtValueUsd });
   // The reserve id rides along so selecting a repay row routes by id rather
@@ -130,6 +133,17 @@ export function LoanFlowOverlay({
       );
     }
     const mode = picker ?? tab;
+    if (mode === LOAN_TAB.REPAY && isConnected && positionError) {
+      return (
+        <PositionGate
+          positionError={positionError}
+          ancillaryError={null}
+          refetchPosition={refetchPosition}
+        >
+          {null}
+        </PositionGate>
+      );
+    }
     return (
       <AssetSelectionPanel
         mode={mode}

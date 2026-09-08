@@ -9,10 +9,19 @@ import type { ReactNode } from "react";
 import { MemoryRouter, useLocation } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 
+import { COPY } from "@/copy";
+
 import { LOAN_TAB } from "../../../constants";
 import { LoanFlowOverlay } from "../index";
 
 const SHELL_TESTID = "modal-shell";
+const useAaveUserPositionMock = vi.fn(() => ({
+  position: undefined,
+  debtValueUsd: 0,
+  isLoading: false,
+  error: null as Error | null,
+  refetch: vi.fn(),
+}));
 
 // `getNetworkConfigBTC` is read at module scope by the token registry, which
 // this tree reaches through `@/routes`.
@@ -90,11 +99,7 @@ vi.mock("@/context/wallet", () => ({
 }));
 
 vi.mock("../../../hooks", () => ({
-  useAaveUserPosition: () => ({
-    position: undefined,
-    debtValueUsd: 0,
-    isLoading: false,
-  }),
+  useAaveUserPosition: () => useAaveUserPositionMock(),
   useAaveBorrowedAssets: () => ({ borrowedAssets: [] }),
 }));
 
@@ -113,6 +118,32 @@ function renderOverlay(ui: ReactNode, path = "/loans") {
 }
 
 describe("LoanFlowOverlay", () => {
+  it("shows an error and retry instead of an empty Repay picker after an RPC failure", () => {
+    const refetch = vi.fn();
+    useAaveUserPositionMock.mockReturnValueOnce({
+      position: undefined,
+      debtValueUsd: 0,
+      isLoading: false,
+      error: new Error("RPC unavailable"),
+      refetch,
+    });
+    renderOverlay(
+      <LoanFlowOverlay
+        picker={LOAN_TAB.REPAY}
+        reserveId={null}
+        tab={LOAN_TAB.REPAY}
+      />,
+    );
+    expect(
+      screen.getByText(COPY.loans.detail.positionLoadError),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("picker-repay")).not.toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: COPY.loans.detail.retry }),
+    );
+    expect(refetch).toHaveBeenCalledOnce();
+  });
+
   it("shows the picker step and no form when only the picker param is set", () => {
     renderOverlay(
       <LoanFlowOverlay

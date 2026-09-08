@@ -1,17 +1,8 @@
 /**
- * Loans page loading/gating tests.
- *
- * Locks in that a connected depositor whose position is still loading sees a
- * spinner — not the full-page "deposit" empty state — so the deposit CTA can't
- * flash before the summary lands on a hard refresh. Disconnected still shows
- * the connect prompt immediately.
- *
- * Also covers the god-mode demo path: injected mock loans route the page to the
- * populated layout even with no wallet and no position, which is the only way
- * to review the Loans page states.
+ * Loans page states and Repay access, including missing collateral details.
  */
 
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { COPY } from "@/copy";
@@ -22,6 +13,7 @@ const useDashboardStateMock = vi.fn();
 const useLoanOverrideMock = vi.fn();
 const useHealthFactorOverrideMock = vi.fn();
 const useBorrowCapacityOverrideMock = vi.fn();
+const openRepayMock = vi.fn();
 
 vi.mock("@/context/wallet", () => ({
   useConnection: () => useConnectionMock(),
@@ -35,7 +27,7 @@ vi.mock("@/hooks/useDashboardState", () => ({
 vi.mock("@/hooks/useLoanActions", () => ({
   useLoanActions: () => ({
     openBorrowPicker: vi.fn(),
-    openRepay: vi.fn(),
+    openRepay: openRepayMock,
     goToReserve: vi.fn(),
     assetModalProps: {
       isOpen: false,
@@ -88,11 +80,17 @@ vi.mock("../../simple/LoansSummary", () => ({
     borrowCapacityError,
     healthFactor,
     healthFactorStatus,
+    totalBorrowed,
+    canRepay,
+    onRepay,
   }: {
     borrowCapacityLoading: boolean;
     borrowCapacityError: Error | null;
     healthFactor: number | null;
     healthFactorStatus: string;
+    totalBorrowed: string;
+    canRepay: boolean;
+    onRepay: () => void;
   }) => (
     <div
       data-testid="loans-summary"
@@ -100,7 +98,12 @@ vi.mock("../../simple/LoansSummary", () => ({
       data-capacity-error={String(Boolean(borrowCapacityError))}
       data-health-factor={String(healthFactor)}
       data-health-factor-status={healthFactorStatus}
-    />
+      data-total-borrowed={totalBorrowed}
+    >
+      <button disabled={!canRepay} onClick={onRepay}>
+        Repay
+      </button>
+    </div>
   ),
 }));
 
@@ -145,43 +148,54 @@ describe("Loans page — loading gate", () => {
     useBorrowCapacityOverrideMock.mockReturnValue(null);
   });
 
-  it("shows a spinner (not the deposit CTA) while a connected depositor's position loads", () => {
-    useConnectionMock.mockReturnValue({ isConnected: true });
-    useETHWalletMock.mockReturnValue({ address: "0xabc" });
-    useDashboardStateMock.mockReturnValue({
-      ...CONNECTED_LOADED,
-      hasCollateral: false,
-      isLoading: true,
-    });
+  it.each<[string, boolean, boolean, boolean, boolean, Error | null]>([
+    ["empty", false, false, false, false, null],
+    ["loading", true, true, false, false, null],
+    ["summary", true, false, true, false, null],
+    ["summary", true, false, false, true, null],
+    ["empty", true, false, false, false, null],
+    ["error", true, false, false, false, new Error("RPC unavailable")],
+  ])(
+    "renders %s (connected %s, loading %s, collateral %s, debt %s)",
+    (view, connected, loading, collateral, debt, error) => {
+      useConnectionMock.mockReturnValue({ isConnected: connected });
+      useETHWalletMock.mockReturnValue({
+        address: connected ? "0xabc" : undefined,
+      });
+      useDashboardStateMock.mockReturnValue({
+        ...CONNECTED_LOADED,
+        hasCollateral: collateral,
+        hasLoans: debt,
+        debtValueUsd: debt ? 1500 : 0,
+        isLoading: loading,
+        positionError: error,
+      });
 
-    const { container } = render(<Loans />);
-
-    expect(container.querySelector("svg")).toBeInTheDocument();
-    expect(screen.queryByTestId("loans-empty-state")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("loans-summary")).not.toBeInTheDocument();
-  });
-
-  it("shows the disconnected empty state (no spinner) when disconnected", () => {
-    useConnectionMock.mockReturnValue({ isConnected: false });
-    useETHWalletMock.mockReturnValue({ address: undefined });
-    useDashboardStateMock.mockReturnValue({
-      ...CONNECTED_LOADED,
-      hasCollateral: false,
-      isLoading: false,
-    });
-
-    const { container } = render(<Loans />);
-
-    expect(screen.getByTestId("loans-empty-state")).toHaveAttribute(
-      "data-connected",
-      "false",
-    );
-    // Disconnected prompts for a wallet — it must not claim the depositor has
-    // no loans when we haven't looked at an address yet.
-    expect(screen.getByText(COPY.loans.emptyDisconnected)).toBeInTheDocument();
-    expect(container.querySelector("svg")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("loans-summary")).not.toBeInTheDocument();
-  });
+      const { container } = render(<Loans />);
+      expect(Boolean(container.querySelector("svg"))).toBe(view === "loading");
+      expect(Boolean(screen.queryByTestId("loans-empty-state"))).toBe(
+        view === "empty" || (view === "summary" && !debt),
+      );
+      expect(Boolean(screen.queryByTestId("loans-summary"))).toBe(
+        view === "summary",
+      );
+      expect(
+        Boolean(screen.queryByText(COPY.loans.detail.positionLoadError)),
+      ).toBe(view === "error");
+      if (!connected)
+        expect(
+          screen.getByText(COPY.loans.emptyDisconnected),
+        ).toBeInTheDocument();
+      if (debt) {
+        expect(screen.getByTestId("loans-summary")).toHaveAttribute(
+          "data-total-borrowed",
+          "$1,500.00 USD",
+        );
+        fireEvent.click(screen.getByRole("button", { name: "Repay" }));
+        expect(openRepayMock).toHaveBeenCalledOnce();
+      }
+    },
+  );
 
   it("renders injected god-mode loans while disconnected, instead of the empty state", () => {
     useConnectionMock.mockReturnValue({ isConnected: false });
@@ -219,16 +233,6 @@ describe("Loans page — loading gate", () => {
     render(<Loans />);
 
     expect(screen.getByTestId("loans-empty-state")).toBeInTheDocument();
-  });
-
-  it("renders the summary once a connected depositor with collateral has loaded", () => {
-    useConnectionMock.mockReturnValue({ isConnected: true });
-    useETHWalletMock.mockReturnValue({ address: "0xabc" });
-    useDashboardStateMock.mockReturnValue(CONNECTED_LOADED);
-
-    render(<Loans />);
-
-    expect(screen.getByTestId("loans-summary")).toBeInTheDocument();
   });
 });
 

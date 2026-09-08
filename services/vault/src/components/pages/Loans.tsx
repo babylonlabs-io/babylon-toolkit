@@ -9,6 +9,7 @@ import { Container, Loader } from "@babylonlabs-io/core-ui";
 import { useMemo } from "react";
 import { useOutletContext } from "react-router";
 
+import { PositionGate } from "@/applications/aave/components/Detail/PositionGate";
 import { LOAN_TAB, type LoanTab } from "@/applications/aave/constants";
 import { useActiveLoans } from "@/applications/aave/hooks";
 import type { RootLayoutContext } from "@/components/pages/RootLayout";
@@ -47,6 +48,8 @@ export default function Loans() {
     isBorrowCapacityLoading,
     borrowCapacityError,
     isLoading,
+    positionError,
+    refetchPosition,
   } = useDashboardState(isConnected ? address : undefined);
 
   const { openBorrowPicker, openRepay, goToReserve } = useLoanActions({
@@ -110,15 +113,19 @@ export default function Loans() {
   // section, whose Borrow button was enabled whenever collateral was present.
   const hasPosition = hasCollateral || hasLoans || godModeAffectsPage;
 
-  // Position is still loading for a connected wallet: hold on a spinner rather
-  // than flashing the full-page "deposit" empty state before the summary lands
-  // (hasCollateral/hasLoans are false until the position resolves).
-  if (isConnected && isLoading && !godModeAffectsPage) {
+  // Unknown position data must not show the empty state.
+  if (isConnected && (positionError || isLoading) && !godModeAffectsPage) {
     return (
       <Container className={`${PAGE_CONTENT_CLASS} pb-6`}>
-        <div className="flex items-center justify-center py-12">
-          <Loader />
-        </div>
+        <PositionGate
+          positionError={positionError}
+          ancillaryError={null}
+          refetchPosition={refetchPosition}
+        >
+          <div className="flex items-center justify-center py-12">
+            <Loader />
+          </div>
+        </PositionGate>
       </Container>
     );
   }

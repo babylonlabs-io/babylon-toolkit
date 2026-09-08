@@ -1,17 +1,16 @@
-/**
- * Aave Position Service
- *
- * Hybrid service that combines indexer data with live RPC data for positions.
- * Uses indexer for position list and collateral data, RPC for live account data.
- */
+/** Read positions from the chain. Use the indexer for collateral details. */
 
+import { getPosition } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 import type { Address } from "viem";
+
+import { ethClient } from "@/clients/eth-contract/client";
 
 import {
   AaveSpoke,
   type AaveSpokeUserAccountData,
   type AaveSpokeUserPosition,
 } from "../clients";
+import { getAaveAdapterAddress } from "../config";
 import { hasDebtFromPosition } from "../utils";
 
 import {
@@ -20,9 +19,7 @@ import {
   type AavePositionCollateral,
 } from "./fetchPositions";
 
-/**
- * Debt position data for a single reserve
- */
+/** Debt in one reserve. */
 export interface DebtPosition {
   reserveId: bigint;
   drawnShares: bigint;
@@ -30,88 +27,44 @@ export interface DebtPosition {
   totalDebt: bigint;
 }
 
-/**
- * Position with live on-chain data
- */
-export interface AavePositionWithLiveData extends AavePosition {
+/** Chain position with optional indexer timestamps and collateral details. */
+export interface AavePositionWithLiveData
+  extends Omit<AavePosition, "createdAt" | "updatedAt"> {
+  vaultIds: readonly string[];
+  createdAt?: bigint;
+  updatedAt?: bigint;
   /** Collateral entries for this position */
   collaterals: AavePositionCollateral[];
   /** Live position data from Spoke */
   liveData: {
-    /** Drawn debt shares */
     drawnShares: bigint;
     /** Premium shares (interest) */
     premiumShares: bigint;
-    /** Supplied collateral shares */
     suppliedShares: bigint;
-    /** Whether position has any debt */
     hasDebt: boolean;
     /**
-     * Dynamic config key stored on the user's position.
-     *
-     * This is the key the contract's liquidation path actually uses
-     * (`collateralUserPosition.dynamicConfigKey`). It is copied from
-     * `reserve.dynamicConfigKey` when the position is opened/refreshed and
-     * then insulated from later reserve-config rotations. Downstream split
-     * math must prefer this over the reserve's current key whenever the
-     * user already has a position.
+     * The liquidation path uses this stored key. Reserve changes do not
+     * update it. Split calculations must prefer it over the reserve's key.
      */
     dynamicConfigKey: number;
   };
-  /**
-   * Live account data from Spoke (calculated using on-chain oracle prices)
-   * This is the authoritative data for health factor and values.
-   */
+  /** Authoritative health factor and values from Spoke's on-chain oracle. */
   accountData: AaveSpokeUserAccountData;
-  /**
-   * Debt positions across borrowable reserves (only populated if borrowableReserveIds provided)
-   * Map of reserveId to debt position data (only includes reserves with debt)
-   */
+  /** Only reserves with debt. Absent when the account has no debt. */
   debtPositions?: Map<bigint, DebtPosition>;
 }
 
-/**
- * Options for getUserPositionsWithLiveData
- */
 export interface GetUserPositionsOptions {
-  /**
-   * Optional array of borrowable reserve IDs to check for debt positions.
-   * If provided, debt positions will be fetched in the same call and included in the result.
-   * This avoids a separate RPC call when both position and debt data are needed.
-   */
+  /** All configured debt reserve IDs, including paused and frozen reserves. */
   borrowableReserveIds?: bigint[];
-  /**
-   * vBTC reserve ID on Core Spoke (from config: vaultBtcReserveId).
-   * Required for fetching collateral position data from Spoke.
-   */
+  /** vBTC collateral reserve ID from the Core Spoke configuration. */
   vbtcReserveId: bigint;
 }
 
 /**
- * Get user positions with live on-chain data
- *
- * Fetches positions with collaterals from indexer (single GraphQL call)
- * and enriches with live data from Spoke.
- *
- * Note: In Babylon vault integration, users can only have ONE position
- * (single vBTC collateral reserve). The vBTC collateral position and aggregate
- * account data are read together in one multicall; debt discovery across
- * borrowable reserves uses two more batched multicalls (see
- * `fetchDebtPositionsForReserves`).
- *
- * **WARNING: This is a heavy method that makes multiple RPC calls:**
- * - 1 GraphQL call (indexer)
- * - 1 multicall for collateral position + account data
- *   (getUserPositionWithAccountData)
- * - 1 multicall for debt-reserve probe (covers all borrowableReserveIds)
- * - 1 multicall for total-debt readout (only if any reserve carries debt)
- *
- * Use sparingly and cache results appropriately (e.g., with React Query).
- * Avoid calling this method multiple times for the same user in a single render.
- *
- * @param depositor - User's Ethereum address
- * @param spokeAddress - Spoke contract address (from config context)
- * @param options - Parameters including vbtcReserveId and optional borrowableReserveIds
+ * The adapter supplies position existence, proxy, and collateral total.
+ * Spoke reads supply account data and debt across the configured reserves.
+ * Missing indexer details must not hide debt or prevent repayment.
  * @returns Array of positions with live data (0 or 1 position)
  */
 export async function getUserPositionsWithLiveData(
@@ -121,19 +74,24 @@ export async function getUserPositionsWithLiveData(
 ): Promise<AavePositionWithLiveData[]> {
   const { borrowableReserveIds, vbtcReserveId } = options;
 
-  // Fetch active positions with collaterals in a single GraphQL call
-  const positions = await fetchAaveActivePositionsWithCollaterals(depositor);
+  const [position, indexedPositions] = await Promise.all([
+    getPosition(
+      ethClient.getPublicClient(),
+      getAaveAdapterAddress(),
+      depositor as Address,
+    ),
+    fetchAaveActivePositionsWithCollaterals(depositor).catch(() => []),
+  ]);
+  if (!position) return [];
 
-  if (positions.length === 0) {
-    return [];
-  }
+  const proxyAddress = position.proxyContract;
+  const indexedPosition = indexedPositions.find(
+    (item) =>
+      item.depositorAddress.toLowerCase() === depositor.toLowerCase() &&
+      item.proxyContract.toLowerCase() === proxyAddress.toLowerCase(),
+  );
 
-  // User can only have one position in Babylon vault integration
-  const position = positions[0];
-  const proxyAddress = position.proxyContract as Address;
-
-  // One multicall for both live reads (vBTC collateral position + aggregate
-  // account data) instead of two parallel `eth_call`s.
+  // Read the collateral position and account data in one multicall.
   const { position: spokePosition, accountData } =
     await AaveSpoke.getUserPositionWithAccountData(
       spokeAddress,
@@ -143,8 +101,7 @@ export async function getUserPositionsWithLiveData(
 
   let debtPositions: Map<bigint, DebtPosition> | undefined;
   if (accountData.borrowCount > 0n) {
-    // Fail closed: a stale or skipped reserve list would otherwise let
-    // a debt reserve drop out of the repay picker.
+    // Require the full reserve list so the Repay picker cannot omit debt.
     if (!borrowableReserveIds || borrowableReserveIds.length === 0) {
       throw new Error(
         `Aave debt reserve discovery: on-chain reports ${accountData.borrowCount} debt reserve(s) but no reserve IDs were provided to probe.`,
@@ -164,7 +121,12 @@ export async function getUserPositionsWithLiveData(
 
   return [
     {
-      ...position,
+      ...indexedPosition,
+      depositorAddress: depositor,
+      proxyContract: proxyAddress,
+      totalCollateral: position.totalCollateralBTC,
+      vaultIds: position.vaultIds,
+      collaterals: indexedPosition?.collaterals ?? [],
       liveData: {
         drawnShares: spokePosition.drawnShares,
         premiumShares: spokePosition.premiumShares,
@@ -178,14 +140,7 @@ export async function getUserPositionsWithLiveData(
   ];
 }
 
-/**
- * Internal helper to fetch debt positions for multiple reserves.
- *
- * Uses two multicalls: one over every reserve's `getUserPosition` (per-reserve
- * soft-fail preserved via `allowFailure: true` inside `getUserPositionsBatch`),
- * then a second `getUserTotalDebt` only for the reserves that actually carry
- * debt (hard-fail).
- */
+/** Batch reserve probes and debt reads. Debt reads propagate RPC failures. */
 async function fetchDebtPositionsForReserves(
   proxyAddress: Address,
   spokeAddress: Address,
