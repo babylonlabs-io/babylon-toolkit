@@ -39,8 +39,8 @@ When using BTC vaults as collateral in this integration:
 | Health Factor | Status  | Action                      |
 | ------------- | ------- | --------------------------- |
 | > 2.0         | Safe    | Healthy position            |
-| 1.1 - 2.0     | Warning | Consider repaying debt      |
-| 1.0 - 1.1     | Risky   | Repay debt                  |
+| > 1.1 and <= 2.0     | Warning | Consider repaying debt      |
+| >= 1.0 and <= 1.1     | Risky   | Repay debt                  |
 | < 1.0         | Danger  | Position will be liquidated |
 
 ---

@@ -243,13 +243,13 @@ describe("computeRailLayout", () => {
     );
   });
 
-  it("anchors the red gradient stop on the liquidation price, not the current price", () => {
-    const layout = computeRailLayout(88400, 77600);
-    const redStop = Number(/risk-red\)\) ([\d.]+)%/.exec(layout.gradient!)![1]);
-    const liquidationStop =
-      ((77600 - layout.lo) / (layout.hi - layout.lo)) * 100;
-    expect(redStop).toBeCloseTo(liquidationStop, 2);
-    expect(redStop).toBeLessThan(layout.currentPct as number);
+  it("anchors the red and green stops on the liquidation and safe thresholds", () => {
+    const layout = computeRailLayout(130000, 60000);
+    const red = Number(/risk-red\)\) ([\d.]+)%/.exec(layout.gradient!)![1]);
+    const green = Number(/risk-green\)\) ([\d.]+)%/.exec(layout.gradient!)![1]);
+    const span = layout.hi - layout.lo;
+    expect(red).toBeCloseTo(((60000 - layout.lo) / span) * 100, 2);
+    expect(green).toBeCloseTo(((120000 - layout.lo) / span) * 100, 2);
   });
 
   it("keeps a readable ramp, still green under the marker, when liquidation is far below", () => {

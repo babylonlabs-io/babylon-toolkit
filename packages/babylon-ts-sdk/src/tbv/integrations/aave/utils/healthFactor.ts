@@ -38,7 +38,9 @@ export function getHealthFactorStatus(
   hasDebt: boolean,
 ): HealthFactorStatus {
   if (!hasDebt) return "no_debt";
-  if (healthFactor === null) return "safe";
+  if (healthFactor === null) {
+    throw new Error("A health factor is required for a position with debt.");
+  }
   if (healthFactor < 1.0) return "danger";
   if (healthFactor <= HEALTH_FACTOR_RISKY_THRESHOLD) return "risky";
   if (healthFactor <= HEALTH_FACTOR_WARNING_THRESHOLD) return "warning";
@@ -67,8 +69,8 @@ export function getHealthFactorStatusFromValue(
  *
  * Health factor determines liquidation risk:
  * - `> 2.0` - Safe (green)
- * - `1.1 - 2.0` - Warning (amber)
- * - `1.0 - 1.1` - Risky (red)
+ * - `> 1.1 and <= 2.0` - Warning (amber)
+ * - `>= 1.0 and <= 1.1` - Risky (red)
  * - `< 1.0` - Danger, position can be liquidated (red)
  *
  * @param collateralValueUsd - Total collateral value in USD (as number, not bigint)

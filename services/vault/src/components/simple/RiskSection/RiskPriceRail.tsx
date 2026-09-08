@@ -93,9 +93,8 @@ export function RiskPriceRail({
   const layout = computeRailLayout(currentPriceUsd, liquidationPriceUsd);
   const { lo, hi, ticks, currentPct, liquidationPct, gradient } = layout;
 
-  const isNeutral = currentPct === null;
-  const isSolidGreen =
-    !isNeutral && (state === "verySafe" || state === "noPosition");
+  const isNeutral = currentPct === null || state === "noPosition";
+  const isSolidGreen = !isNeutral && state === "verySafe";
   const showGradient = !isNeutral && !isSolidGreen && liquidationPct !== null;
   const showGapArrow =
     showGradient &&
@@ -103,12 +102,14 @@ export function RiskPriceRail({
     currentPct !== null &&
     Math.abs(currentPct - liquidationPct) >= GAP_MIN_SEPARATION_PCT;
 
-  const currentRingClass =
-    state === "liquidatable" || state === "risky"
-      ? "border-risk-red"
-      : state === "moderate"
-        ? "border-risk-amber"
-        : "border-risk-green";
+  const currentRingClass = {
+    noPosition: "border-risk-muted",
+    verySafe: "border-risk-green",
+    safe: "border-risk-green",
+    moderate: "border-risk-amber",
+    risky: "border-risk-red",
+    liquidatable: "border-risk-red",
+  } satisfies Record<RiskDisplayState, string>;
 
   const markerHalf = MARKER_LABEL_WIDTH_PX / 2;
   const labelCenters =
@@ -196,7 +197,7 @@ export function RiskPriceRail({
       {currentPct !== null && (
         <div
           data-testid="risk-marker-current"
-          className={`absolute size-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] bg-white ${currentRingClass}`}
+          className={`absolute size-3 -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] bg-white ${currentRingClass[state]}`}
           style={{ left: `${currentPct}%`, top: RAIL_CENTER_PX }}
         />
       )}

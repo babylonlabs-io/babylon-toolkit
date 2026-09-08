@@ -54,7 +54,7 @@ export const AAVE_BASE_CURRENCY_RAY_DECIMALS = 53;
 export const WAD_DECIMALS = 18;
 
 /**
- * Health factor risky threshold.
+ * Display threshold for positions close to liquidation, independent of the borrow floor.
  * A position from 1.0 up to and including this value is "risky".
  */
 export const HEALTH_FACTOR_RISKY_THRESHOLD = 1.1;

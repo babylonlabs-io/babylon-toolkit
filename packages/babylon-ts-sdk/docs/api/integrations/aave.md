@@ -1858,8 +1858,8 @@ Calculate health factor for an AAVE position.
 
 Health factor determines liquidation risk:
 - `> 2.0` - Safe (green)
-- `1.1 - 2.0` - Warning (amber)
-- `1.0 - 1.1` - Risky (red)
+- `> 1.1 and <= 2.0` - Warning (amber)
+- `>= 1.0 and <= 1.1` - Risky (red)
 - `< 1.0` - Danger, position can be liquidated (red)
 
 #### Parameters
@@ -2321,7 +2321,7 @@ const HEALTH_FACTOR_RISKY_THRESHOLD: 1.1 = 1.1;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts)
 
-Health factor risky threshold.
+Display threshold for positions close to liquidation, independent of the borrow floor.
 A position from 1.0 up to and including this value is "risky".
 
 ***

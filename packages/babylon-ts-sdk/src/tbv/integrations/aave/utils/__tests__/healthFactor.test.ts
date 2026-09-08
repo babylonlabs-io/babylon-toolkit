@@ -50,8 +50,10 @@ describe("healthFactor", () => {
       expect(getHealthFactorStatus(2.0, false)).toBe("no_debt");
     });
 
-    it("should return safe when health factor is null with debt", () => {
-      expect(getHealthFactorStatus(null, true)).toBe("safe");
+    it("rejects a missing health factor when the position has debt", () => {
+      expect(() => getHealthFactorStatus(null, true)).toThrow(
+        "health factor is required",
+      );
     });
 
     it("should return danger when health factor < 1.0", () => {
