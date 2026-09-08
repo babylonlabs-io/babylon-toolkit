@@ -30,7 +30,7 @@ describe("PositionStatCards", () => {
     const label = screen.getByText("Total collateral value");
     expect(label).toHaveClass("xl:whitespace-nowrap");
 
-    const value = screen.getByText("$10,000");
+    const value = screen.getByText("$10,000").parentElement;
     expect(value).toHaveClass("xl:whitespace-nowrap");
 
     const caption = screen.getByText("0.5 BTC");
@@ -58,5 +58,21 @@ describe("PositionStatCards", () => {
     const depositButton = screen.getByRole("button", { name: "Deposit" });
     expect(depositButton).toHaveClass("xl:max-[1439px]:w-[100px]");
     expect(depositButton).toHaveClass("w-[120px]");
+  });
+
+  it("truncates a long collateral total instead of overflowing the card (#2428)", () => {
+    const longValue = "$123,456,789,012,345,678.90";
+    render(
+      <PositionStatCards
+        cards={[{ label: "Total collateral value", value: longValue }]}
+      />,
+    );
+
+    const value = screen.getByText(longValue);
+    expect(value).toHaveClass("truncate");
+
+    const column = value.closest("div.justify-between");
+    expect(column).toHaveClass("min-w-0");
+    expect(column).toHaveClass("flex-1");
   });
 });
