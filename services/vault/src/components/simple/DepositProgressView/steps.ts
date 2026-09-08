@@ -2,14 +2,12 @@ import type { StepperItem } from "@babylonlabs-io/core-ui";
 
 import { COPY } from "@/copy";
 import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps/types";
-import type { RegistrationDepthProgress } from "@/services/vault/ethConfirmationGate";
 import type { PayoutSigningProgress } from "@/services/vault/vaultPayoutSignatureService";
 import type { PeginSigningProgress } from "@/services/vault/vaultTransactionService";
 
 export function buildStepItems(
   progress: PayoutSigningProgress | null,
   peginProgress: PeginSigningProgress | null = null,
-  ethConfirmationProgress: RegistrationDepthProgress | null = null,
 ): StepperItem[] {
   const payoutCounter =
     progress?.phase === "claimers" && progress.total > 0
@@ -31,15 +29,6 @@ export function buildStepItems(
         )
       : undefined;
 
-  // Ethereum finality gate depth. Absent outside the gate's window, so the
-  // step reads normally during the wallet popup and the receipt wait.
-  const ethConfirmationCounter = ethConfirmationProgress
-    ? COPY.deposit.steps.signingCounter(
-        ethConfirmationProgress.confirmations,
-        ethConfirmationProgress.required,
-      )
-    : undefined;
-
   return [
     {
       label: COPY.deposit.steps.generateSecret,
@@ -53,7 +42,6 @@ export function buildStepItems(
     },
     {
       label: COPY.deposit.steps.signAndBroadcastEth,
-      description: ethConfirmationCounter,
     },
     {
       label: COPY.deposit.steps.signAndBroadcastPrePegin,
