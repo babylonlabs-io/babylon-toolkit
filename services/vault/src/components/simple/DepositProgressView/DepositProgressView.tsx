@@ -385,13 +385,8 @@ export function DepositProgressView(props: DepositProgressViewProps) {
   const showCompletedGroupsPill = completedGroups >= 1;
 
   const steps = useMemo(
-    () =>
-      buildStepItems(
-        payoutSigningProgress,
-        peginSigningProgress,
-        ethConfirmationDetail,
-      ),
-    [payoutSigningProgress, peginSigningProgress, ethConfirmationDetail],
+    () => buildStepItems(payoutSigningProgress, peginSigningProgress),
+    [payoutSigningProgress, peginSigningProgress],
   );
 
   const activeStepDetail = resolveActiveStepDetail({
