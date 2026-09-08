@@ -11,7 +11,7 @@ import {
   WALLET_CONFIRMATION_RECEIPT_KEY,
 } from "@/core/confirmationReceipt";
 import type { ChainId, HashMap, IBTCProvider, IETHProvider, IWallet } from "@/core/types";
-import { useWalletConnectors } from "@/hooks/useWalletConnectors";
+import { useWalletConnectors, type BTCAddressValidation } from "@/hooks/useWalletConnectors";
 import { useWalletWidgets } from "@/hooks/useWalletWidgets";
 import { useWidgetState } from "@/hooks/useWidgetState";
 
@@ -198,6 +198,7 @@ async function createConfirmationSnapshot(
 
 interface WalletDialogProps {
   onError?: (e: Error) => void;
+  btcValidation?: BTCAddressValidation;
   storage: HashMap;
   config: any;
   persistent: boolean;
@@ -214,6 +215,7 @@ export function WalletDialog({
   storage,
   config,
   onError,
+  btcValidation,
   actions,
   closeButtonClassName,
   actionsClassName,
@@ -223,7 +225,7 @@ export function WalletDialog({
   const { acceptTermsOfService, onConfirm } = useLifeCycleHooks();
   const connectors = useChainProviders();
   const walletWidgets = useWalletWidgets(connectors, config, onError);
-  const { connect } = useWalletConnectors({ persistent, accountStorage: storage, onError });
+  const { connect } = useWalletConnectors({ persistent, accountStorage: storage, onError, btcValidation });
 
   const connectorsRef = useRef(connectors);
   const attemptGenerationRef = useRef(0);

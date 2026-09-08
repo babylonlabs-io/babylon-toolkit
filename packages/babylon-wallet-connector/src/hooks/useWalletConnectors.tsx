@@ -10,8 +10,7 @@ import {
   subscribeToConfirmationIdentityChanges,
   WALLET_CONFIRMATION_RECEIPT_KEY,
 } from "@/core/confirmationReceipt";
-import { ChainId, HashMap, IChain, IETHProvider, IWallet } from "@/core/types";
-import { validateAddress, validateAddressWithPK } from "@/core/utils/wallet";
+import { ChainId, HashMap, IChain, IETHProvider, IWallet, Network } from "@/core/types";
 import { resolveFirstPartyIcon } from "@/core/wallets/firstPartyIcons";
 import { ERROR_CODES, WalletError } from "@/error";
 
@@ -54,13 +53,19 @@ const TERMINAL_CONNECT_ERROR_CODES: ReadonlySet<string> = new Set([
   ERROR_CODES.INCOMPATIBLE_WALLET_VERSION,
 ]);
 
+export interface BTCAddressValidation {
+  validateAddress(network: Network, address: string): void;
+  validateAddressWithPK(address: string, publicKey: string, network: Network): boolean;
+}
+
 interface Props {
   persistent: boolean;
   accountStorage: HashMap;
   onError?: (e: Error) => void;
+  btcValidation?: BTCAddressValidation;
 }
 
-export function useWalletConnectors({ persistent, accountStorage, onError }: Props) {
+export function useWalletConnectors({ persistent, accountStorage, onError, btcValidation }: Props) {
   const connectors = useChainProviders();
   const {
     confirmed,
@@ -109,6 +114,7 @@ export function useWalletConnectors({ persistent, accountStorage, onError }: Pro
       BTC: (connector) => async (connectedWallet) => {
         try {
           if (!connectedWallet || !connectedWallet.account) return;
+          if (!btcValidation) throw new Error("Bitcoin address validation is unavailable");
 
           selectWallet?.("BTC", connectedWallet);
 
@@ -118,12 +124,12 @@ export function useWalletConnectors({ persistent, accountStorage, onError }: Pro
 
           if (!visible) return;
 
-          validateAddress(connector.config.network, connectedWallet.account.address);
+          btcValidation.validateAddress(connector.config.network, connectedWallet.account.address);
 
           const goToNextScreen = () => void displayChains?.();
 
           if (
-            !validateAddressWithPK(
+            !btcValidation.validateAddressWithPK(
               connectedWallet.account?.address ?? "",
               connectedWallet.account?.publicKeyHex ?? "",
               connector.config.network,
@@ -221,6 +227,7 @@ export function useWalletConnectors({ persistent, accountStorage, onError }: Pro
     displayChains,
     displayError,
     verifyBTCAddress,
+    btcValidation,
     accountStorage,
     connectors,
     persistent,
