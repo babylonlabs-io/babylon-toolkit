@@ -1860,10 +1860,9 @@ export const COPY = {
   overview: {
     heading: "Overview",
     positionTitle: "Position",
-    healthFactorLabel: "Health factor",
-    totalCollateralValueLabel: "Total collateral value",
-    totalBorrowedLabel: "Total borrowed",
-    availableToBorrowLabel: "Available to borrow",
+    totalCollateralValueLabel: "Total Collateral Value",
+    totalBorrowedLabel: "Total Borrowed",
+    availableToBorrowLabel: "Available to Borrow",
     depositAction: "Deposit",
     borrowAction: "Borrow",
     repayAction: "Repay",

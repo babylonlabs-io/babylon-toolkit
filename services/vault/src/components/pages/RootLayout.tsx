@@ -185,7 +185,7 @@ export default function RootLayout() {
 
   return (
     <div
-      className="relative flex min-h-svh w-full flex-col bg-surface"
+      className="relative flex min-h-svh w-full flex-col bg-background-contrast"
       style={
         { "--tbv-top-banner-height": `${topBannerHeight}px` } as CSSProperties
       }
