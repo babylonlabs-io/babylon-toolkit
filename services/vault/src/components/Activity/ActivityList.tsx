@@ -5,7 +5,11 @@ import { twJoin } from "tailwind-merge";
 import { ListRowCard } from "@/components/shared/ListRow";
 import { COPY } from "@/copy";
 import { useMidnightTick } from "@/hooks/useMidnightTick";
-import type { ActivityRow, ActivityType } from "@/types/activityLog";
+import {
+  PENDING_DEPOSIT_TYPE,
+  type ActivityRow,
+  type ActivityType,
+} from "@/types/activityLog";
 import { formatActivityDateGroup } from "@/utils/formatting";
 import { useDebounce } from "@/utils/hooks";
 
@@ -53,9 +57,11 @@ function groupByDate(
 }
 
 // Only the ActivityTypes that appear as filter options in the Figma menu.
-// `Redeem` and `Pending Deposit` rows still render in the list but are not
-// directly filterable. `claim_expired` is remapped to a refunded Deposit
-// upstream, so it falls under the `Deposit` filter automatically.
+// `Redeem` rows still render in the list but are not directly filterable.
+// `Pending Deposit` rows aren't a separate option here either — they fall
+// under the `Deposit` filter, matching how they render (see typeLabels).
+// `claim_expired` is remapped to a refunded Deposit upstream, so it falls
+// under the `Deposit` filter automatically.
 const FILTER_OPTIONS = (
   Object.entries(COPY.activity.filterTypes) as Array<[ActivityType, string]>
 ).map(([value, label]) => ({ value, label }));
@@ -110,7 +116,9 @@ export function ActivityList({
     () =>
       activities.filter(
         (row) =>
-          (filter === null || row.type === filter) &&
+          (filter === null ||
+            row.type === filter ||
+            (filter === "Deposit" && row.type === PENDING_DEPOSIT_TYPE)) &&
           activityRowMatchesSearch(row, normalizedQuery),
       ),
     [activities, filter, normalizedQuery],
