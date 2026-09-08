@@ -98,6 +98,21 @@ jobs:
       - name: Test SDK in Chromium
         run: pnpm exec nx run @babylonlabs-io/ts-sdk:test-browser
 
+      # The vault's first browser test on the PR gate. Scoped to the one
+      # project on purpose: the sibling `chromium` project holds the
+      # error-scenario specs, which depend on a developer's local .env and have
+      # never been runnable on a clean runner. Chromium is already installed
+      # above and both packages pin @playwright/test 1.56.1, so this reuses
+      # that browser rather than fetching a second one.
+      #
+      # Cost: about 35s locally for 6 tests, most of it booting the three vite
+      # dev servers the config declares (Playwright starts all three whatever
+      # project is selected). It buys the only automated check that the
+      # split-deposit progress lanes actually stack and stay inside the card at
+      # 360px - jsdom cannot see layout, so nothing else in CI catches that.
+      - name: Test vault layout in Chromium
+        run: pnpm --filter @services/vault exec playwright test --project=chromium-god-mode
+
       - name: Test affected
         id: tests
         shell: bash

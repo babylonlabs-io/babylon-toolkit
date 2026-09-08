@@ -54,8 +54,21 @@ export const AAVE_BASE_CURRENCY_RAY_DECIMALS = 53;
 export const WAD_DECIMALS = 18;
 
 /**
+ * Health factor at or above which Aave will not liquidate a position.
+ *
+ * Unlike HEALTH_FACTOR_RISKY_THRESHOLD and HEALTH_FACTOR_WARNING_THRESHOLD,
+ * this one is not ours to tune. Aave expresses the health factor in WAD so that
+ * exactly 1.0 is the liquidation boundary (ISpoke.sol - "healthFactor expressed
+ * in WAD. 1e18 represents a health factor of 1.00"). It is definitional to the
+ * encoding rather than a stored parameter, so there is nothing to read from the
+ * contract.
+ */
+export const HEALTH_FACTOR_LIQUIDATION_THRESHOLD = 1.0;
+
+/**
  * Display threshold for positions close to liquidation, independent of the borrow floor.
- * A position from 1.0 up to and including this value is "risky".
+ * A position from HEALTH_FACTOR_LIQUIDATION_THRESHOLD up to and including this
+ * value is "risky".
  */
 export const HEALTH_FACTOR_RISKY_THRESHOLD = 1.1;
 
