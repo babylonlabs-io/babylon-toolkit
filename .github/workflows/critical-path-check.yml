@@ -1,30 +1,47 @@
 name: Critical Path Check
 
+# The repository ruleset requires `detect` on main and release/*.
+# Owners come from the base branch. The count comes from repository variables.
+# A PR can still change this workflow. #2359 stays open until a trusted
+# external gate is required and verified. Review policy changes as critical.
 on:
   pull_request:
-    branches: [main]
+    branches: [main, 'release/**']
+    types: [opened, synchronize, reopened, edited]
+  pull_request_review:
+    types: [submitted, dismissed]
 
 permissions:
   contents: read
   pull-requests: write
 
+concurrency:
+  group: critical-path-check-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   detect:
+    if: github.event.pull_request.base.ref == 'main' || startsWith(github.event.pull_request.base.ref, 'release/')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2 https://github.com/actions/checkout/releases/tag/v6.0.2
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Detect critical-path files
         id: detect
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: |
-          set -e
+          set -euo pipefail
           # Keep in sync with SECURITY.md, CLAUDE.md > "CRITICAL PATHS",
           # .github/CODEOWNERS, packages/babylon-ts-sdk/eslint.config.mjs,
           # and .github/workflows/claude-md-drift.yml.
           paths=(
+            ".github/CODEOWNERS"
+            ".github/workflows/critical-path-check.yml"
             "packages/babylon-tbv-rust-wasm/src/index.ts"
             "packages/babylon-tbv-rust-wasm/src/index-node.ts"
             "packages/babylon-tbv-rust-wasm/scripts/build-wasm.js"
@@ -61,76 +78,120 @@ jobs:
             "services/vault/src/utils/btc/scriptPubKeyAddress.ts"
           )
 
-          git fetch origin main || true
-          changed=$(git diff --name-only "origin/${GITHUB_BASE_REF}...HEAD")
+          git fetch origin "$BASE_REF"
+          git diff --name-only -z "origin/${BASE_REF}...HEAD" > changed.txt
+          # Ownership is resolved from the base branch, not the PR: a PR
+          # must not be able to appoint the reviewers that approve it.
+          git show "origin/${BASE_REF}:.github/CODEOWNERS" > base-codeowners.txt
 
           matched=()
-          for f in $changed; do
+          while IFS= read -r -d '' f; do
             for p in "${paths[@]}"; do
-              case "$f" in
-                "$p"|"$p"*) matched+=("$f"); break ;;
-              esac
+              if [[ "$f" == "$p" || ( "$p" == */ && "$f" == "$p"* ) ]]; then
+                matched+=("$f"); break
+              fi
             done
-          done
+          done < changed.txt
 
           if [ ${#matched[@]} -gt 0 ]; then
-            printf '%s\n' "${matched[@]}" | sort -u > matched.txt
+            printf '%s\0' "${matched[@]}" > matched.txt
             echo "matched=true" >> "$GITHUB_OUTPUT"
             echo "Matched critical-path files:"
-            cat matched.txt
+            printf '%s\n' "${matched[@]}"
           else
             echo "matched=false" >> "$GITHUB_OUTPUT"
             echo "No critical-path files touched."
           fi
 
-      - name: Comment on PR
+      - name: Require code-owner approvals
         if: steps.detect.outputs.matched == 'true'
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0 https://github.com/actions/github-script/releases/tag/v7.1.0
+        env:
+          REQUIRED_APPROVALS: ${{ vars.CRITICAL_PATH_REQUIRED_APPROVALS }}
         with:
           script: |
             const fs = require('fs');
-            const matched = fs.readFileSync('matched.txt', 'utf8').trim().split('\n');
-            const marker = '<!-- critical-path-check -->';
-            const body = [
-              marker,
-              '### Critical path PR',
-              '',
-              'This PR touches files defined as critical in [CLAUDE.md](../blob/main/CLAUDE.md#critical-paths--human-review-required). Changes here handle irreversible value movement - silent bugs produce wrong BTC amounts.',
-              '',
-              '**Paths touched:**',
-              ...matched.map(m => `- \`${m}\``),
-              '',
-              '**Required before merge:**',
-              '- Two code-owner approvals',
-              '- Author can walk every changed line without an AI assistant open (generated golden vectors: reviewer-repeated re-derivation instead — see the per-path rule)',
-              '- Per-path rule in CLAUDE.md is satisfied',
-            ].join('\n');
-
-            const { data: comments } = await github.rest.issues.listComments({
-              ...context.repo,
-              issue_number: context.issue.number,
-            });
-            const existing = comments.find(c => (c.body || '').includes(marker));
-            if (existing) {
-              await github.rest.issues.updateComment({
-                ...context.repo,
-                comment_id: existing.id,
-                body,
-              });
-            } else {
-              await github.rest.issues.createComment({
-                ...context.repo,
-                issue_number: context.issue.number,
-                body,
-              });
+            const raw = process.env.REQUIRED_APPROVALS;
+            const required = Number(raw);
+            if (!/^[1-9]\d*$/.test(raw || '') || !Number.isSafeInteger(required)) {
+              throw new Error(`CRITICAL_PATH_REQUIRED_APPROVALS must be a positive integer, got "${raw}"`);
             }
-
-            try {
-              await github.rest.issues.addLabels({
-                ...context.repo,
-                issue_number: context.issue.number,
-                labels: ['critical-path'],
+            const pr = context.payload.pull_request;
+            const author = pr.user.login.toLowerCase();
+            const matched = fs.readFileSync('matched.txt', 'utf8').split('\0').filter(Boolean);
+            if (!matched.length) throw new Error('The critical-path file list is empty');
+            const rules = fs.readFileSync('base-codeowners.txt', 'utf8')
+              .split('\n').map(line => line.replace(/#.*$/, '').trim()).filter(Boolean)
+              .map(line => line.split(/\s+/));
+            const globToRegex = (pattern) => {
+              const body = pattern.replace(/^\//, '').replace(/\/$/, '');
+              const anyDepth = !pattern.startsWith('/') && !body.includes('/');
+              let source = '';
+              for (let i = 0; i < body.length; i += 1) {
+                const ch = body[i];
+                if (ch === '*' && body[i + 1] === '*') {
+                  source += body[i + 2] === '/' ? '(?:.*/)?' : '.*';
+                  i += body[i + 2] === '/' ? 2 : 1;
+                } else if (ch === '*') source += '[^/]*';
+                else if (ch === '?') source += '[^/]';
+                else source += ch.replace(/[.+^${}()|[\]\\]/g, '\\$&');
+              }
+              const suffix = pattern.endsWith('/') || !/[*?]/.test(body) ? '(?:/.*)?' : '';
+              return new RegExp(`${anyDepth ? '(?:^|.*/)' : '^'}${source}${suffix}$`, 's');
+            };
+            const reviews = await github.paginate(github.rest.pulls.listReviews, {
+              ...context.repo, pull_number: pr.number, per_page: 100,
+            });
+            const standing = new Map();
+            for (const review of reviews) {
+              if (!review.user || ['COMMENTED', 'PENDING'].includes(review.state)) continue;
+              const login = review.user.login.toLowerCase();
+              if (login !== author) standing.set(login, review);
+            }
+            const lines = [
+              '### Critical path PR',
+              `Required: ${required} code-owner approvals per path on \`${pr.head.sha}\`.`,
+            ];
+            for (const file of matched) {
+              let owners = [];
+              for (const [pattern, ...users] of rules) {
+                if (globToRegex(pattern).test(file)) owners = users;
+              }
+              if (owners.some(owner => !/^@[a-z\d-]+$/i.test(owner))) {
+                throw new Error(`Only @user owners are supported for ${file}: ${owners.join(', ')}`);
+              }
+              const qualified = [...new Set(owners.map(owner => owner.slice(1).toLowerCase()))]
+                .filter(login => login !== author);
+              const approvers = qualified.filter(login => {
+                const review = standing.get(login);
+                return review?.state === 'APPROVED' && review.commit_id === pr.head.sha;
               });
+              lines.push(`- \`${file}\`: ${approvers.length}/${required}. Qualified: ${qualified.join(', ')}`);
+              if (qualified.length < required) core.setFailed(`${file}: ${required} approvals cannot be reached without the author`);
+              if (approvers.length < required) core.setFailed(`${file}: ${approvers.length}/${required} current approvals`);
+              if (qualified.some(login => standing.get(login)?.state === 'CHANGES_REQUESTED')) {
+                core.setFailed(`${file}: a code owner still requests changes`);
+              }
+            }
+            lines.push('', 'The author must explain each change. Follow the per-path rule in CLAUDE.md, including independent re-derivation for generated golden vectors.');
+            const summary = lines.join('\n');
+            fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${summary}\n`);
+            core.info(summary);
+
+            // Comments and labels must not prevent approval checks on read-only tokens.
+            try {
+              const marker = '<!-- critical-path-check -->';
+              const comments = await github.paginate(github.rest.issues.listComments, {
+                ...context.repo, issue_number: pr.number, per_page: 100,
+              });
+              const existing = comments.find(c => c.user?.login === 'github-actions[bot]' && c.body?.includes(marker));
+              const body = `${marker}\n${summary}`;
+              if (existing) {
+                await github.rest.issues.updateComment({ ...context.repo, comment_id: existing.id, body });
+              } else {
+                await github.rest.issues.createComment({ ...context.repo, issue_number: pr.number, body });
+              }
+              await github.rest.issues.addLabels({ ...context.repo, issue_number: pr.number, labels: ['critical-path'] });
             } catch (err) {
-              core.warning(`Could not add 'critical-path' label: ${err.message}. Create the label in repo settings to enable auto-labelling.`);
+              core.warning(`Could not update the critical-path comment or label: ${err.message}`);
             }

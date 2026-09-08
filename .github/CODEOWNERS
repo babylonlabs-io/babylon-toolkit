@@ -3,15 +3,15 @@
 
 # -----------------------------------------------------------------------------
 # CRITICAL PATHS (see CLAUDE.md > "CRITICAL PATHS — HUMAN REVIEW REQUIRED")
-# These entries designate owners for the files/directories that handle
-# irreversible value movement. CODEOWNERS alone does NOT enforce a minimum
-# approval count - it only assigns owners and (when "Require review from
-# Code Owners" is enabled in branch protection) requires at least one
-# code-owner approval. To enforce two approvals specifically on these paths,
-# configure a GitHub ruleset scoped to these path globs with
-# `required_approving_review_count: 2`. Do not weaken ownership here without
-# review.
+# The required `detect` check reads this file from the base branch.
+# CRITICAL_PATH_REQUIRED_APPROVALS sets the required count per critical path.
+# Use individual @user owners on these paths. Branch rulesets cannot select
+# files. #2359 requires a trusted external gate before the issue can close.
 # -----------------------------------------------------------------------------
+
+# Review policy changes as critical changes.
+/.github/CODEOWNERS @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
+/.github/workflows/critical-path-check.yml @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov
 
 # 1. WASM boundary (value computation)
 /packages/babylon-tbv-rust-wasm/src/index.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov

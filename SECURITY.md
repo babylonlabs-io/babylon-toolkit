@@ -716,10 +716,12 @@ roles have different review requirements. Satisfy both.
 - `verify.yml` runs syncpack, a full build, lint, and `nx affected --target=test`. Note that tests
   are **affected-scoped** while build and lint are not — a change that alters behaviour without
   touching a project Nx considers affected runs fewer tests than a full sweep.
-- `critical-path-check.yml` comments and labels PRs touching critical paths but **does not block**.
-  Enforcement of the two-approval rule requires a GitHub ruleset scoped to those path globs with
-  `required_approving_review_count: 2` — CODEOWNERS alone cannot express it, as the comment in
-  `.github/CODEOWNERS` notes. Verify that ruleset exists; the file cannot.
+- The repository ruleset requires `verify`, `detect`, thread resolution, and fresh approval after changes.
+  `critical-path-check.yml` requires current code-owner approvals for each touched critical path.
+  It reads owners from the base branch and the count from `CRITICAL_PATH_REQUIRED_APPROVALS`.
+  The inventory includes `.github/CODEOWNERS`, `.github/workflows/critical-path-check.yml`, and
+  `packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/refund.ts`.
+  A PR can still edit the gate. #2359 stays open until a trusted external gate is required and verified.
 - `service-release-vault.yml` assumes an AWS role via OIDC per environment and writes the built
   bundle to S3. Note `continue-on-error` is set for the production environment in multi-env runs so
   a prod OIDC failure cannot block devnet — deliberate, and worth knowing when reading a green run.
