@@ -66,11 +66,16 @@ function Stat({
   className?: string;
 }) {
   return (
-    <div className="flex flex-col">
+    <div className="flex min-w-0 flex-1 flex-col">
       <span className="text-sm leading-[1.43] tracking-[0.17px] text-accent-secondary">
         {label}
       </span>
-      <span className={twJoin("leading-[1.6] tracking-[0.15px]", className)}>
+      <span
+        className={twJoin(
+          "block overflow-hidden text-ellipsis leading-[1.6] tracking-[0.15px]",
+          className,
+        )}
+      >
         {children}
       </span>
     </div>
