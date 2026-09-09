@@ -79,7 +79,7 @@ jobs:
           )
 
           git fetch origin "$BASE_REF"
-          git diff --name-only -z "origin/${BASE_REF}...HEAD" > changed.txt
+          git diff --no-renames --name-only -z "origin/${BASE_REF}...HEAD" > changed.txt
           # Ownership is resolved from the base branch, not the PR: a PR
           # must not be able to appoint the reviewers that approve it.
           git show "origin/${BASE_REF}:.github/CODEOWNERS" > base-codeowners.txt
