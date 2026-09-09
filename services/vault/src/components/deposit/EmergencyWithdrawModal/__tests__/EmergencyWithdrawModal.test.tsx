@@ -51,7 +51,11 @@ vi.mock("@/hooks/useProtocolGate", () => ({
   useProtocolGateState: () => ({ protocol: null, aave: null }),
 }));
 
+const btcActionWallet = vi.hoisted(() => ({ connected: true, open: vi.fn() }));
+
 vi.mock("@babylonlabs-io/wallet-connector", () => ({
+  useBTCWallet: () => ({ connected: btcActionWallet.connected }),
+  useWalletConnect: () => ({ connected: true, open: btcActionWallet.open }),
   useChainConnector: () => ({
     connectedWallet: {
       id: "test-btc-wallet",
@@ -120,10 +124,20 @@ function renderModal(client?: QueryClient) {
 }
 
 beforeEach(() => {
+  btcActionWallet.connected = true;
   vi.clearAllMocks();
 });
 
 describe("EmergencyWithdrawModal — application status before the reveal", () => {
+  it("requests Bitcoin without deriving or submitting the withdrawal", () => {
+    btcActionWallet.connected = false;
+    renderModal();
+    expect(btcActionWallet.open).toHaveBeenCalledWith("BTC");
+    expect(deriveHtlcSecretHex).not.toHaveBeenCalled();
+    expect(handleActivation).not.toHaveBeenCalled();
+    expect(isVaultApplicationActive).toHaveBeenCalledTimes(1);
+  });
+
   it("never opens the BTC wallet when the application resolves inactive after the click", async () => {
     // Resolve only after the click, reproducing a click inside the first
     // round-trip — the window the render-time gate cannot cover.

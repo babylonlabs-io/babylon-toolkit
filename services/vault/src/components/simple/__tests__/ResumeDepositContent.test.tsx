@@ -7,6 +7,7 @@
  */
 
 import { fireEvent, render, waitFor } from "@testing-library/react";
+import { cloneElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getVaultRegistryReader } from "@/clients/eth-contract/sdk-readers";
@@ -19,11 +20,13 @@ import {
 } from "@/context/deposit/optimisticDepositState";
 import { COPY } from "@/copy";
 import { useActivationState } from "@/hooks/deposit/useActivationState";
+import { useBroadcastState } from "@/hooks/deposit/useBroadcastState";
 import { shortId } from "@/infrastructure/telemetryEvents";
 import type { VaultActivity } from "@/types/activity";
 
 import {
   ResumeActivationContent,
+  ResumeBroadcastContent,
   ResumeSignContent,
   ResumeWotsContent,
 } from "../ResumeDepositContent";
@@ -71,7 +74,24 @@ vi.mock("@babylonlabs-io/ts-sdk/tbv/core/utils", () => ({
   calculateBtcTxHash: mockCalculateBtcTxHash,
 }));
 
+const btcActionWallet = vi.hoisted(() => ({
+  connected: true,
+  confirmed: true,
+  open: vi.fn(),
+}));
+
+beforeEach(() => {
+  btcActionWallet.connected = true;
+  btcActionWallet.confirmed = true;
+  btcActionWallet.open.mockClear();
+});
+
 vi.mock("@babylonlabs-io/wallet-connector", () => ({
+  useBTCWallet: () => ({ connected: btcActionWallet.connected }),
+  useWalletConnect: () => ({
+    connected: btcActionWallet.confirmed,
+    open: btcActionWallet.open,
+  }),
   useChainConnector: vi.fn(() => ({
     connectedWallet: {
       account: { address: "tb1test" },
@@ -1060,5 +1080,174 @@ describe("ResumeActivationContent — activated success terminal", () => {
     expect(getByTestId("error").textContent).toBe(
       COPY.deposit.errors.signingRejected.body,
     );
+  });
+});
+
+describe("Bitcoin action prompt", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    btcActionWallet.connected = false;
+    mockCalculateBtcTxHash.mockReturnValue(ON_CHAIN_HASH);
+    mockGetVaultRegistryReader.mockReturnValue(readerWith(ON_CHAIN_HASH));
+  });
+
+  it("requires an explicit retry before WOTS work starts after connection", async () => {
+    const content = (
+      <ResumeWotsContent
+        activity={baseActivity}
+        onClose={vi.fn()}
+        onSuccess={vi.fn()}
+      />
+    );
+    const view = render(content);
+    expect(mockGetVaultRegistryReader).not.toHaveBeenCalled();
+    fireEvent.click(
+      view.getByRole("button", { name: COPY.wallet.btcAction.connect }),
+    );
+    expect(btcActionWallet.open).toHaveBeenCalledWith("BTC");
+    btcActionWallet.connected = true;
+    view.rerender(cloneElement(content));
+    expect(mockGetVaultRegistryReader).not.toHaveBeenCalled();
+    expect(mockDeriveVaultRoot).not.toHaveBeenCalled();
+    fireEvent.click(
+      view.getByRole("button", { name: COPY.wallet.btcAction.retry }),
+    );
+    await waitFor(() => expect(mockGetVaultRegistryReader).toHaveBeenCalled());
+  });
+
+  it("leaves WOTS work unstarted when the user cancels the prompt", () => {
+    const onClose = vi.fn();
+    const view = render(
+      <ResumeWotsContent
+        activity={baseActivity}
+        onClose={onClose}
+        onSuccess={vi.fn()}
+      />,
+    );
+    fireEvent.click(
+      view.getByRole("button", { name: COPY.wallet.btcAction.connect }),
+    );
+    fireEvent.click(
+      view.getByRole("button", { name: COPY.wallet.btcAction.cancel }),
+    );
+    expect(onClose).toHaveBeenCalledOnce();
+    view.unmount();
+    btcActionWallet.connected = true;
+    expect(mockGetVaultRegistryReader).not.toHaveBeenCalled();
+    expect(mockDeriveVaultRoot).not.toHaveBeenCalled();
+    expect(mockSubmitWotsPublicKey).not.toHaveBeenCalled();
+  });
+
+  it("does not mount broadcast work when Bitcoin connects", () => {
+    const content = (
+      <ResumeBroadcastContent
+        activity={baseActivity}
+        batchVaultIds={[baseActivity.id]}
+        depositorEthAddress="0xdepositor"
+        onClose={vi.fn()}
+        onSuccess={vi.fn()}
+      />
+    );
+    const view = render(content);
+    expect(useBroadcastState).not.toHaveBeenCalled();
+    btcActionWallet.connected = true;
+    view.rerender(cloneElement(content));
+    expect(useBroadcastState).not.toHaveBeenCalled();
+    fireEvent.click(
+      view.getByRole("button", { name: COPY.wallet.btcAction.retry }),
+    );
+    expect(useBroadcastState).toHaveBeenCalled();
+  });
+
+  it("does not mount activation work when Bitcoin connects", () => {
+    const content = (
+      <ResumeActivationContent
+        activity={baseActivity}
+        depositorEthAddress="0xdepositor"
+        onClose={vi.fn()}
+        onGoToDashboard={vi.fn()}
+      />
+    );
+    const view = render(content);
+    expect(useActivationState).not.toHaveBeenCalled();
+    btcActionWallet.connected = true;
+    view.rerender(cloneElement(content));
+    expect(useActivationState).not.toHaveBeenCalled();
+    expect(mockHandleActivation).not.toHaveBeenCalled();
+    fireEvent.click(
+      view.getByRole("button", { name: COPY.wallet.btcAction.retry }),
+    );
+    expect(useActivationState).toHaveBeenCalled();
+  });
+
+  it("keeps a recorded payout cancellation after connection and retry", () => {
+    markPayoutSignCanceled(baseActivity.id);
+    const content = (
+      <ResumeSignContent
+        activity={baseActivity}
+        btcPublicKey="0xbtcpub"
+        depositorEthAddress="0xdepositor"
+        onClose={vi.fn()}
+        onSuccess={vi.fn()}
+      />
+    );
+    const view = render(content);
+    expect(usePayoutSigningState).not.toHaveBeenCalled();
+    btcActionWallet.connected = true;
+    view.rerender(cloneElement(content));
+    expect(usePayoutSigningState).not.toHaveBeenCalled();
+    fireEvent.click(
+      view.getByRole("button", { name: COPY.wallet.btcAction.retry }),
+    );
+    expect(usePayoutSigningState).toHaveBeenCalled();
+    const state = vi.mocked(usePayoutSigningState).mock.results.at(-1)?.value;
+    expect(state.handleSign).not.toHaveBeenCalled();
+    expect(view.getByTestId("started").textContent).toBe("false");
+  });
+
+  it("requires wallet confirmation before the explicit retry", () => {
+    btcActionWallet.connected = true;
+    btcActionWallet.confirmed = false;
+    const content = (
+      <ResumeBroadcastContent
+        activity={baseActivity}
+        batchVaultIds={[baseActivity.id]}
+        depositorEthAddress="0xdepositor"
+        onClose={vi.fn()}
+        onSuccess={vi.fn()}
+      />
+    );
+    const view = render(content);
+    expect(useBroadcastState).not.toHaveBeenCalled();
+    fireEvent.click(
+      view.getByRole("button", { name: COPY.wallet.btcAction.connect }),
+    );
+    expect(btcActionWallet.open).toHaveBeenCalledWith("BTC");
+    btcActionWallet.confirmed = true;
+    view.rerender(cloneElement(content));
+    expect(useBroadcastState).not.toHaveBeenCalled();
+    fireEvent.click(
+      view.getByRole("button", { name: COPY.wallet.btcAction.retry }),
+    );
+    expect(useBroadcastState).toHaveBeenCalled();
+  });
+
+  it("keeps an active broadcast mounted during a temporary disconnect", () => {
+    btcActionWallet.connected = true;
+    const content = (
+      <ResumeBroadcastContent
+        activity={baseActivity}
+        batchVaultIds={[baseActivity.id]}
+        depositorEthAddress="0xdepositor"
+        onClose={vi.fn()}
+        onSuccess={vi.fn()}
+      />
+    );
+    const view = render(content);
+    const progress = view.getByTestId("progress-view");
+    btcActionWallet.connected = false;
+    view.rerender(cloneElement(content));
+    expect(view.getByTestId("progress-view")).toBe(progress);
+    expect(view.queryByText(COPY.wallet.btcAction.heading)).toBeNull();
   });
 });

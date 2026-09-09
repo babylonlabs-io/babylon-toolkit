@@ -9,6 +9,17 @@ import type { DepositErrorContent } from "@/utils/errors";
 import type { DepositProgressViewProps } from "../DepositProgressView";
 import { DepositSignContent } from "../DepositSignContent";
 
+const btcActionWallet = vi.hoisted(() => ({ connected: true, open: vi.fn() }));
+vi.mock("@babylonlabs-io/wallet-connector", () => ({
+  useBTCWallet: () => ({ connected: btcActionWallet.connected }),
+  useWalletConnect: () => ({ connected: true, open: btcActionWallet.open }),
+}));
+
+beforeEach(() => {
+  btcActionWallet.connected = true;
+  btcActionWallet.open.mockClear();
+});
+
 const mockExecuteDeposit = vi.hoisted(() => vi.fn());
 const mockCancelDeviceSign = vi.hoisted(() => vi.fn());
 // Mutable so tests can drive the flow's cancel seam through the static mock.
@@ -146,6 +157,22 @@ describe("DepositSignContent", () => {
     deviceCancelState.requested = false;
     flowErrorState.error = null;
     flowErrorState.resumableVaultIds = null;
+  });
+
+  it("keeps a deposit unstarted until the user retries after connection", async () => {
+    btcActionWallet.connected = false;
+    mockExecuteDeposit.mockResolvedValue(null);
+    const first = renderContent();
+    fireEvent.click(first.getByTestId("summary-sign"));
+    expect(btcActionWallet.open).toHaveBeenCalledWith("BTC");
+    expect(mockExecuteDeposit).not.toHaveBeenCalled();
+    expect(first.queryByTestId("progress")).toBeNull();
+    first.unmount();
+    btcActionWallet.connected = true;
+    const next = renderContent();
+    expect(mockExecuteDeposit).not.toHaveBeenCalled();
+    fireEvent.click(next.getByTestId("summary-sign"));
+    expect(mockExecuteDeposit).toHaveBeenCalledOnce();
   });
 
   it("renders Retry and switches to the continuation view after a post-registration device error", async () => {

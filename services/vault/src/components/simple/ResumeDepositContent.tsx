@@ -28,6 +28,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Address, Hex } from "viem";
 
 import { getVaultRegistryReader } from "@/clients/eth-contract/sdk-readers";
+import { BtcActionGate } from "@/components/Wallet/BtcActionGate";
 import { computeDepositDerivedState } from "@/components/deposit/DepositSignModal/depositStepHelpers";
 import { usePayoutSigningState } from "@/components/deposit/PayoutSignModal/usePayoutSigningState";
 import { useDepositPollingResult } from "@/context/deposit/PeginPollingContext";
@@ -47,6 +48,7 @@ import { useBroadcastState } from "@/hooks/deposit/useBroadcastState";
 import { useReleaseVpTokenOnUnmount } from "@/hooks/deposit/useReleaseVpTokenOnUnmount";
 import { useRequiredPrePeginDepth } from "@/hooks/deposit/useRequiredPrePeginDepth";
 import { useSplitVaultProgress } from "@/hooks/deposit/useSplitVaultProgress";
+import { useBtcAction } from "@/hooks/useBtcAction";
 import { useRunOnce } from "@/hooks/useRunOnce";
 import { logger } from "@/infrastructure";
 import {
@@ -98,7 +100,15 @@ export interface ResumeSignContentProps {
   onSuccess: () => void;
 }
 
-export function ResumeSignContent({
+export function ResumeSignContent(props: ResumeSignContentProps) {
+  return (
+    <BtcActionGate onClose={props.onClose}>
+      <ResumeSignContentConnected {...props} />
+    </BtcActionGate>
+  );
+}
+
+function ResumeSignContentConnected({
   activity,
   btcPublicKey,
   depositorEthAddress,
@@ -252,7 +262,15 @@ export interface ResumeBroadcastContentProps {
   onSuccess: () => void;
 }
 
-export function ResumeBroadcastContent({
+export function ResumeBroadcastContent(props: ResumeBroadcastContentProps) {
+  return (
+    <BtcActionGate onClose={props.onClose}>
+      <ResumeBroadcastContentConnected {...props} />
+    </BtcActionGate>
+  );
+}
+
+function ResumeBroadcastContentConnected({
   activity,
   batchVaultIds,
   depositorEthAddress,
@@ -335,12 +353,21 @@ export interface ResumeWotsContentProps {
   onSuccess: () => void;
 }
 
-export function ResumeWotsContent({
+export function ResumeWotsContent(props: ResumeWotsContentProps) {
+  return (
+    <BtcActionGate onClose={props.onClose}>
+      <ResumeWotsContentConnected {...props} />
+    </BtcActionGate>
+  );
+}
+
+function ResumeWotsContentConnected({
   activity,
   siblingVaultIds,
   onClose,
   onSuccess,
 }: ResumeWotsContentProps) {
+  const { requireBtcWallet } = useBtcAction();
   const btcConnector = useChainConnector("BTC");
   const btcWalletProvider =
     (btcConnector?.connectedWallet?.provider as BitcoinWallet | undefined) ??
@@ -394,7 +421,7 @@ export function ResumeWotsContent({
   const trackPrimedTxid = useReleaseVpTokenOnUnmount();
 
   const handleSubmit = useCallback(async () => {
-    if (!btcWalletProvider || !connectedBtcAddress) {
+    if (!requireBtcWallet() || !btcWalletProvider || !connectedBtcAddress) {
       setError({ raw: COPY.deposit.resume.walletNotConnected });
       setLoading(false);
       return;
@@ -553,6 +580,7 @@ export function ResumeWotsContent({
     }
   }, [
     activity,
+    requireBtcWallet,
     btcWalletProvider,
     connectedBtcAddress,
     btcConnector?.connectedWallet?.id,
@@ -678,13 +706,22 @@ export interface ResumeActivationContentProps {
   onGoToDashboard: () => void;
 }
 
-export function ResumeActivationContent({
+export function ResumeActivationContent(props: ResumeActivationContentProps) {
+  return (
+    <BtcActionGate onClose={props.onClose}>
+      <ResumeActivationContentConnected {...props} />
+    </BtcActionGate>
+  );
+}
+
+function ResumeActivationContentConnected({
   activity,
   depositorEthAddress,
   siblingVaultIds,
   onClose,
   onGoToDashboard,
 }: ResumeActivationContentProps) {
+  const { requireBtcWallet } = useBtcAction();
   const btcConnector = useChainConnector("BTC");
   const btcWalletProvider =
     (btcConnector?.connectedWallet?.provider as BitcoinWallet | undefined) ??
@@ -720,7 +757,7 @@ export function ResumeActivationContent({
   });
 
   const handleSubmit = useCallback(async () => {
-    if (!btcWalletProvider || !connectedBtcAddress) {
+    if (!requireBtcWallet() || !btcWalletProvider || !connectedBtcAddress) {
       setLocalError({
         raw: COPY.deposit.resume.walletNotConnected,
       });
@@ -763,6 +800,7 @@ export function ResumeActivationContent({
     }
   }, [
     activity,
+    requireBtcWallet,
     btcWalletProvider,
     connectedBtcAddress,
     btcConnector?.connectedWallet?.id,

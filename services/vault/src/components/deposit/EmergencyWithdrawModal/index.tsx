@@ -26,6 +26,7 @@ import { V3ModalShell } from "@/components/shared/V3ModalShell";
 import { useETHWallet } from "@/context/wallet";
 import { COPY } from "@/copy";
 import { useActivationState } from "@/hooks/deposit/useActivationState";
+import { useBtcAction } from "@/hooks/useBtcAction";
 import { useEnsureVaultApplicationActive } from "@/hooks/useVaultApplicationActive";
 import {
   captureFunnelFailure,
@@ -53,6 +54,7 @@ export function EmergencyWithdrawModal({
   onClose,
   onSuccess,
 }: EmergencyWithdrawModalProps) {
+  const { requireBtcWallet } = useBtcAction();
   const btcConnector = useChainConnector("BTC");
   const btcWalletProvider =
     (btcConnector?.connectedWallet?.provider as BitcoinWallet | undefined) ??
@@ -92,6 +94,10 @@ export function EmergencyWithdrawModal({
 
   const handleConfirm = useCallback(async () => {
     if (withdrawing) return;
+    if (!requireBtcWallet()) {
+      setLocalError(COPY.wallet.btcAction.body);
+      return;
+    }
     if (!btcWalletProvider || !connectedBtcAddress) {
       setLocalError(
         COPY.deposit.emergencyWithdraw.errors.btcWalletNotConnected,
@@ -149,6 +155,7 @@ export function EmergencyWithdrawModal({
       if (mountedRef.current) setDeriving(false);
     }
   }, [
+    requireBtcWallet,
     withdrawing,
     activity,
     btcWalletProvider,

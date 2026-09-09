@@ -1284,6 +1284,13 @@ export const COPY = {
     },
   },
   wallet: {
+    btcAction: {
+      heading: "Connect your Bitcoin wallet",
+      body: "This action needs your Bitcoin wallet. Connect it, then try the action again.",
+      connect: "Connect Bitcoin wallet",
+      retry: "Retry",
+      cancel: "Cancel",
+    },
     geoBlockedTooltip: "Not available in your region",
     walletNotEligibleTooltip: "Wallet not eligible",
     addressScreeningBannerBody:

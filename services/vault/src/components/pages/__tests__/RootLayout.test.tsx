@@ -83,6 +83,11 @@ vi.mock("@/components/Wallet", () => ({
 // `Network` is the only export RootLayout's real tree needs here because
 // NetworkBadge imports it directly.
 vi.mock("@babylonlabs-io/wallet-connector", () => ({
+  useBTCWallet: () => ({ connected: walletMock.btcConnected }),
+  useWalletConnect: () => ({
+    connected: walletMock.btcConnected && walletMock.ethConnected,
+    open: vi.fn(),
+  }),
   Network: { MAINNET: "mainnet", SIGNET: "signet" },
 }));
 
