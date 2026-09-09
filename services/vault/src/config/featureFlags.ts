@@ -274,10 +274,11 @@ export default {
    * What it does: points the Ledger vault wallet's DMK transport at a Speculos
    * emulator's REST API instead of WebHID, and satisfies the WebHID term of the
    * wallet-row gate (a driven browser has no device to enumerate). Consumed by
-   * `src/e2e/speculosTransportBootstrap.ts`, which reaches the speculos
-   * transport kit ONLY through a flag-guarded dynamic import — the kit lands
-   * in a lazy chunk outside the eager module graph (index.html loads only
-   * main/react/babylon), so a production visitor never downloads it.
+   * `src/e2e/speculosTransportBootstrap.ts`, which additionally gates on
+   * `import.meta.env.DEV` and validates the URL (plain-http localhost only).
+   * The DEV gate is folded at build time, so production builds contain no
+   * speculos code at all — and the wallet row gates on the override actually
+   * being ARMED, never on this variable's mere presence.
    * Why needed: the full-dApp emulator E2E (#2110) — WebHID needs a user
    * gesture and real hardware; the emulator speaks HTTP.
    * Default: unset (never set outside E2E runs).
@@ -286,7 +287,7 @@ export default {
    * _FF_ (per rule 5).
    */
   get e2eSpeculosUrl(): string | undefined {
-    const url = process.env.NEXT_PUBLIC_TBV_E2E_SPECULOS_URL;
-    return url === undefined || url === "" ? undefined : url;
+    const url = (process.env.NEXT_PUBLIC_TBV_E2E_SPECULOS_URL ?? "").trim();
+    return url === "" ? undefined : url;
   },
 };

@@ -111,14 +111,16 @@ export default defineConfig(({ mode }) => ({
       "bitcoinjs-lib",
       "@bitcoin-js/tiny-secp256k1-asmjs",
       "@babylonlabs-io/wallet-connector",
-      // MUST accompany wallet-connector above: the dep optimizer would
-      // otherwise inline a second private copy of the signer (and its
-      // dmkSession singleton) into wallet-connector's pre-bundle, so the
-      // E2E Speculos transport override armed by src/e2e/
-      // speculosTransportBootstrap.ts would be invisible to the Ledger
-      // provider's connect path in dev. Listing both makes them share one
-      // optimized chunk holding the single dmkSession instance.
+      // BOTH signer entries MUST accompany wallet-connector above: the dep
+      // optimizer would otherwise give the E2E bootstrap (which imports the
+      // `/testing` subpath) a different dmkSession module instance than the
+      // Ledger provider's connect path inside wallet-connector's pre-bundle,
+      // silently orphaning the Speculos transport override in dev. Listing
+      // all three makes them share ONE optimized chunk holding the single
+      // dmkSession singleton (verified by grepping .vite/deps for the seam's
+      // guard string — it must appear in exactly one chunk).
       "@babylonlabs-io/ledger-vault-signer",
+      "@babylonlabs-io/ledger-vault-signer/testing",
       "@babylonlabs-io/core-ui",
     ],
   },
