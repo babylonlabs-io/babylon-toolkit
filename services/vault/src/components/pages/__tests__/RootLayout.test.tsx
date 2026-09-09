@@ -161,13 +161,16 @@ describe("RootLayout — header wiring", () => {
     expect(screen.getByText(COPY.header.networkBadge)).toBeInTheDocument();
   });
 
-  it("shows the entry layout when both wallets are missing", () => {
+  it("shows the sidebar when both wallets are connected", () => {
     walletMock.btcConnected = true;
     walletMock.ethConnected = true;
-    const { unmount } = renderRootLayout();
-    expect(document.querySelector("aside")).toBeInTheDocument();
-    unmount();
 
+    renderRootLayout();
+
+    expect(document.querySelector("aside")).toBeInTheDocument();
+  });
+
+  it("shows the entry layout when both wallets are missing", () => {
     walletMock.btcConnected = false;
     walletMock.ethConnected = false;
     const { container } = renderRootLayout();
@@ -185,12 +188,6 @@ describe("RootLayout — header wiring", () => {
 
   it("shows the entry layout when only Bitcoin is connected", () => {
     walletMock.btcConnected = true;
-    walletMock.ethConnected = true;
-    const { unmount } = renderRootLayout();
-    expect(document.querySelector("aside")).toBeInTheDocument();
-    unmount();
-
-    walletMock.btcConnected = true;
     walletMock.ethConnected = false;
     const { container } = renderRootLayout();
 
@@ -203,12 +200,6 @@ describe("RootLayout — header wiring", () => {
   });
 
   it("shows the entry layout when only Ethereum is connected", () => {
-    walletMock.btcConnected = true;
-    walletMock.ethConnected = true;
-    const { unmount } = renderRootLayout();
-    expect(document.querySelector("aside")).toBeInTheDocument();
-    unmount();
-
     walletMock.btcConnected = false;
     walletMock.ethConnected = true;
     const { container } = renderRootLayout();

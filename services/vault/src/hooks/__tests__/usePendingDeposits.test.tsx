@@ -133,7 +133,7 @@ describe("usePendingDeposits", () => {
     expect(result.current.ethAddress).toBe("0xethtest");
   });
 
-  it("keeps deposit records and enables their flags when Bitcoin is connected", () => {
+  it("routes expired records by unsigned transaction and enables flags with Bitcoin connected", () => {
     mockActivities.mockReturnValue([
       makeActivity("a1", ContractStatus.PENDING),
       makeActivity("a2", ContractStatus.EXPIRED, "0.1", "0200000001abcd"),
@@ -152,7 +152,7 @@ describe("usePendingDeposits", () => {
     expect(useVaultDeposits).toHaveBeenCalledWith("0xethtest");
   });
 
-  it("keeps deposit records and disables their flags when Bitcoin is disconnected", () => {
+  it("routes expired records by unsigned transaction and disables flags with Bitcoin disconnected", () => {
     mockActivities.mockReturnValue([
       makeActivity("a1", ContractStatus.PENDING),
       makeActivity("a2", ContractStatus.EXPIRED, "0.1", "0200000001abcd"),

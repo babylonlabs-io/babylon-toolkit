@@ -38,7 +38,7 @@ vi.mock("@babylonlabs-io/wallet-connector", () => ({
   useBTCWallet: () => ({ connected: walletMock.btcConnected }),
   useETHWallet: () => ({
     connected: walletMock.ethConnected,
-    address: walletMock.ethConnected ? "0xabc" : undefined,
+    address: "0xabc",
   }),
 }));
 

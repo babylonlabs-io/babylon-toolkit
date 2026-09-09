@@ -235,7 +235,7 @@ describe("Liquidation Dashboard — connection and position gates", () => {
 
   it("renders the connect empty state and no chart while disconnected", () => {
     useConnectionMock.mockReturnValue({ isConnected: false });
-    useETHWalletMock.mockReturnValue({ address: undefined });
+    useETHWalletMock.mockReturnValue({ address: "0xabc" });
     useDashboardStateMock.mockReturnValue({
       ...CONNECTED_WITH_CASCADE,
       hasCollateral: false,

@@ -163,7 +163,7 @@ describe("Loans page — loading gate", () => {
 
   it("shows the disconnected empty state (no spinner) when disconnected", () => {
     useConnectionMock.mockReturnValue({ isConnected: false });
-    useETHWalletMock.mockReturnValue({ address: undefined });
+    useETHWalletMock.mockReturnValue({ address: "0xabc" });
     useDashboardStateMock.mockReturnValue({
       ...CONNECTED_LOADED,
       hasCollateral: false,

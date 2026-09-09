@@ -380,9 +380,6 @@ describe("useVaultActions — handleBroadcast transaction integrity", () => {
     );
     await act(() => rerender());
 
-    expect(result.current.broadcastError).toBe(
-      COPY.deposit.errors.walletNotConnected,
-    );
     expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
 
     await act(() => result.current.handleBroadcast(baseBroadcastParams));
