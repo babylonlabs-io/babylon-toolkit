@@ -190,7 +190,7 @@ for (const [rawName, loaderName] of [
   ['raw-node.ts', 'wasm-loader-node.js'],
 ]) {
   const source = readFileSync(resolve(packageRoot, 'src', rawName), 'utf8');
-  if (!/from ['"]\.\/generated\/vault_wasm\.js['"]/.test(source)) {
+  if (!/from ['"]\.\/rawPrePeginTx\.js['"]/.test(source)) {
     throw new Error(`${rawName} must remain the explicit eager raw entry`);
   }
   if (!source.includes(`export { initWasm } from './${loaderName}'`)) {

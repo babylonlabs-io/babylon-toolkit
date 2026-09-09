@@ -9,7 +9,7 @@
       "dependsOn": ["build"],
       "executor": "nx:run-commands",
       "options": {
-        "command": "node --test tests/wasm-loader.test.mjs",
+        "command": "node --test tests/*.test.mjs",
         "cwd": "{projectRoot}"
       }
     }

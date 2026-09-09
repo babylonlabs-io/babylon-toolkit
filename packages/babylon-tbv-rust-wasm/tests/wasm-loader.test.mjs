@@ -45,14 +45,7 @@ for (const entry of ['raw', 'raw-node']) {
     );
     for (const name of rawClassNames) {
       assert.equal(typeof raw[name], 'function', name);
-      if (
-        name === 'WasmPrePeginHtlcConnector' ||
-        name === 'WasmPeginPayoutConnector'
-      ) {
-        assert.notEqual(raw[name], generated[name]);
-      } else {
-        assert.equal(raw[name], generated[name]);
-      }
+      assert.notEqual(raw[name], generated[name]);
     }
     assert.equal(raw.initWasm, loader.initWasm);
   });
@@ -65,10 +58,16 @@ for (const entry of ['raw', 'raw-node']) {
       'type Same<A, B> = (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2) ? true : false;',
       'type Check<T extends true> = T;',
       ...rawClassNames.flatMap((name) => [
-        `type CheckType${name} = Check<Same<${name}, generated.${name}>>;`,
-        `type CheckConstructor${name} = Check<Same<typeof ${name}, typeof generated.${name}>>;`,
+        `type CheckType${name} = Check<Same<${name}, ${name.includes('Connector') ? `generated.${name}` : name === 'WasmPeginTx' ? `ReturnType<typeof ${name}.fromJson>` : `InstanceType<typeof ${name}>`}>>;`,
+        ...(name.includes('Connector')
+          ? [
+              `type CheckConstructor${name} = Check<Same<typeof ${name}, typeof generated.${name}>>;`,
+            ]
+          : []),
         `void ${name};`,
       ]),
+      'type OriginalAmounts = Check<Same<ConstructorParameters<typeof WasmPrePeginTx>[6], readonly bigint[]>>;',
+      'type TrustedRestore = Check<Same<Parameters<typeof WasmPeginTx.fromJson>[2], import("./rawPeginTx.js").PeginRestoreParams>>;',
     ].join('\n');
     const options = {
       module: ts.ModuleKind.ESNext,

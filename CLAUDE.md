@@ -55,6 +55,10 @@ These paths handle irreversible value movement. An AI-generated mistake here is 
   - `packages/babylon-tbv-rust-wasm/src/connectorScripts.ts` - shared key and multisig script rules
   - `packages/babylon-tbv-rust-wasm/src/peginPayout.ts` - shared independent payout derivation
   - `packages/babylon-tbv-rust-wasm/src/rawPayoutConnector.ts` - raw payout output checks
+  - `packages/babylon-tbv-rust-wasm/src/peginFees.ts` - independent pinned fee calculations
+  - `packages/babylon-tbv-rust-wasm/src/prePeginTransaction.ts` - trusted Pre-PegIn transaction derivation
+  - `packages/babylon-tbv-rust-wasm/src/rawPrePeginTx.ts` - raw construction, funding, and refund checks
+  - `packages/babylon-tbv-rust-wasm/src/rawPeginTx.ts` - trusted PegIn restoration and signature checks
   - `packages/babylon-tbv-rust-wasm/src/payoutConnector.ts` - guarded payout factories
   - `packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/assertWasmPeginSizing.ts`
   - `packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/constants.ts` - protocol transaction layout constants
@@ -64,8 +68,8 @@ These paths handle irreversible value movement. An AI-generated mistake here is 
   - `packages/babylon-ts-sdk/src/tbv/core/utils/transaction/fundPeginTransaction.ts` - rejects undeclared output bytes
 - The Rust/WASM layer computes `htlcValue = peginAmount + depositorClaimValue + p2aAnchorValue + minPeginFee` internally (the anchor term is 0 for tx-graph v1, 240 sats for v2 and v3). TypeScript independently derives each canonical Pre-PegIn HTLC output and rejects a transaction or signing field that does not match.
 - **Rule:** Every WASM output consumed by JS must be asserted against expected bounds before use. If a WASM-returned value feeds a signed transaction, cross-check it against an independently computed expected value.
-- The package exports a second crossing at `@babylonlabs-io/babylon-tbv-rust-wasm/raw` (`src/raw.ts`, `src/raw-node.ts`, registered in section 9). The HTLC and payout connectors check their scripts, control blocks, addresses, hashes, and graph versions against their constructor inputs. The two transaction classes remain unguarded, so their callers must apply the rule above. The only SDK consumer is `packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/refund.ts`. It guards `pegInAmounts` with `assertPositiveBigintArray`, derives the canonical HTLC and signing data in TypeScript, compares the WASM template's script and value with the funded output, and checks the final refund input and output before it emits the PSBT. Every new `/raw` consumer must do equivalent cross-checks.
-- The raw classes and SDK raw loader are deprecated. The raw HTLC and payout connectors have complete output checks. The other raw paths still permit a bypass. See the [migration guide](packages/babylon-ts-sdk/docs/guides/raw-engine-migration.md) for guarded alternatives and the compatibility blocker in #2361.
+- The package exports a second crossing at `@babylonlabs-io/babylon-tbv-rust-wasm/raw` (`src/raw.ts`, `src/raw-node.ts`, registered in section 9). All four classes check outputs against independent derivations. Pre-PegIn amounts must remain original `bigint[]` values. Funded reconstruction checks the protocol output prefix against the original request. PegIn restoration requires that request, the funded parent, the HTLC index, and the payout timelock. It also checks saved metadata and signatures. The SDK refund caller retains its transaction and signing checks.
+- The raw classes and SDK raw loader remain deprecated. This is a breaking engine API. See the [migration guide](packages/babylon-ts-sdk/docs/guides/raw-engine-migration.md) for trusted inputs and release requirements in #2361.
 
 ### 2. Fee calculation consistency
 

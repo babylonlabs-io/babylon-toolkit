@@ -70,5 +70,9 @@
 /packages/babylon-tbv-rust-wasm/src/connectorScripts.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov @kirugan
 /packages/babylon-tbv-rust-wasm/src/peginPayout.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov @kirugan
 /packages/babylon-tbv-rust-wasm/src/rawPayoutConnector.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov @kirugan
+/packages/babylon-tbv-rust-wasm/src/peginFees.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov @kirugan
+/packages/babylon-tbv-rust-wasm/src/prePeginTransaction.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov @kirugan
+/packages/babylon-tbv-rust-wasm/src/rawPrePeginTx.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov @kirugan
+/packages/babylon-tbv-rust-wasm/src/rawPeginTx.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov @kirugan
 /packages/babylon-tbv-rust-wasm/src/payoutConnector.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov @kirugan
 /services/vault/src/utils/btc/scriptPubKeyAddress.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov @kirugan

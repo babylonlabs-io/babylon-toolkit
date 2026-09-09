@@ -618,7 +618,9 @@ describe("buildRefundPsbt", () => {
           refundFee: TEST_REFUND_FEE,
           hashlock: TEST_HASH_H,
         }),
-      ).rejects.toThrow(/value mismatch/i);
+      ).rejects.toThrow(
+        "Funded Pre-PegIn output 0 does not match the original request.",
+      );
     });
   });
 
