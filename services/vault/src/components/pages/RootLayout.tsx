@@ -42,7 +42,7 @@ import {
   AaveConfigProvider,
   ActivatingVaultsProvider,
 } from "../../applications/aave/context";
-import { useBTCWallet, useETHWallet } from "../../context/wallet";
+import { useConnection } from "../../context/wallet";
 import { AddressScreeningBanner } from "../shared/AddressScreeningBanner";
 import { AddressTypeBanner } from "../shared/AddressTypeBanner";
 import { DepositDisabledBanner } from "../shared/DepositDisabledBanner";
@@ -77,8 +77,7 @@ const DEPOSIT_DISABLED_BANNER_Z_CLASS = "z-30";
 export default function RootLayout() {
   const gate = useProtocolGateState();
   const { theme, setTheme } = useTheme();
-  const { connected: btcConnected } = useBTCWallet();
-  const { connected: ethConnected } = useETHWallet();
+  const { isConnected: isWalletConnected } = useConnection();
   const { isGeoBlocked, isLoading: isGeoLoading } = useGeoFencing();
   const { isBlocked: isAddressBlocked } = useAddressScreening();
   const { isSupportedAddress } = useAddressType();
@@ -86,7 +85,6 @@ export default function RootLayout() {
   const pageTitle = usePageTitle();
   const { pathname } = useLocation();
 
-  const isWalletConnected = btcConnected && ethConnected;
   // One signal for "is this the entry frame", so the sidebar and the chrome
   // that replaces it can never disagree. The other routes render disconnected
   // states on purpose and keep their shell — without it a disconnected desktop

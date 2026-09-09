@@ -250,6 +250,7 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
     logger.error(error, { data: { context: "Wallet connection error" } });
   }, []);
 
+  // Shared consent contract: docs/decisions/2354-wallet-consent.md.
   return (
     <WalletProvider
       persistent

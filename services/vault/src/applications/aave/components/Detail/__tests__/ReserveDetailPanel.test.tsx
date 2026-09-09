@@ -45,8 +45,10 @@ vi.mock("@/config", () => ({
 const walletMock = vi.hoisted(() => ({
   btcConnected: true,
   ethConnected: true,
+  confirmed: true,
 }));
 vi.mock("@babylonlabs-io/wallet-connector", () => ({
+  useWalletConnect: () => ({ connected: walletMock.confirmed }),
   useBTCWallet: () => ({ connected: walletMock.btcConnected }),
   useETHWallet: () => ({
     connected: walletMock.ethConnected,
@@ -130,6 +132,7 @@ describe("ReserveDetailPanel", () => {
     vi.clearAllMocks();
     walletMock.btcConnected = true;
     walletMock.ethConnected = true;
+    walletMock.confirmed = true;
     mockUseAaveReserveDetail.mockReturnValue(detailState());
   });
 

@@ -20,6 +20,8 @@ const h = vi.hoisted(() => ({
     btc: undefined as undefined | BtcCallbacks,
     eth: undefined as undefined | Omit<BtcCallbacks, "onConnect">,
     requiredChains: [] as string[],
+    persistent: false,
+    lifecycleHooks: undefined as unknown,
   },
 }));
 
@@ -28,11 +30,17 @@ vi.mock("@babylonlabs-io/wallet-connector", () => ({
   WalletProvider: ({
     children,
     requiredChains,
+    persistent,
+    lifecycleHooks,
   }: {
     children: React.ReactNode;
     requiredChains: string[];
+    persistent: boolean;
+    lifecycleHooks?: unknown;
   }) => {
     h.captured.requiredChains = requiredChains;
+    h.captured.persistent = persistent;
+    h.captured.lifecycleHooks = lifecycleHooks;
     return children;
   },
   BTCWalletProvider: ({
@@ -88,10 +96,12 @@ describe("WalletConnectionProvider wallet resets", () => {
     vi.useRealTimers();
   });
 
-  it("requires both BTC and ETH in the wallet dialog", () => {
+  it("uses shared consent and saved approval for BTC and ETH (#2354)", () => {
     renderProvider();
 
     expect(h.captured.requiredChains).toEqual(["BTC", "ETH"]);
+    expect(h.captured.persistent).toBe(true);
+    expect(h.captured.lifecycleHooks).toBeUndefined();
   });
 
   it("resets both wallets immediately when ETH disconnects outside the dialog", () => {

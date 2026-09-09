@@ -51,8 +51,10 @@ vi.mock("@/context/geofencing", () => ({
 const walletMock = vi.hoisted(() => ({
   btcConnected: false,
   ethConnected: false,
+  confirmed: true,
 }));
-vi.mock("@/context/wallet", () => ({
+vi.mock("@/context/wallet", async () => ({
+  useConnection: (await import("@/context/wallet/useConnection")).useConnection,
   useBTCWallet: () => ({ connected: walletMock.btcConnected }),
   useETHWallet: () => ({ connected: walletMock.ethConnected }),
 }));
@@ -84,6 +86,9 @@ vi.mock("@/components/Wallet", () => ({
 // NetworkBadge imports it directly.
 vi.mock("@babylonlabs-io/wallet-connector", () => ({
   Network: { MAINNET: "mainnet", SIGNET: "signet" },
+  useBTCWallet: () => ({ connected: walletMock.btcConnected }),
+  useETHWallet: () => ({ connected: walletMock.ethConnected }),
+  useWalletConnect: () => ({ connected: walletMock.confirmed }),
 }));
 
 // SimpleDeposit never mounts in any case below (RootLayout stays on its
@@ -126,6 +131,7 @@ beforeEach(() => {
   mobileMock.value = false;
   walletMock.btcConnected = false;
   walletMock.ethConnected = false;
+  walletMock.confirmed = true;
   debugStatusMock.value = null;
 });
 
@@ -170,46 +176,32 @@ describe("RootLayout — header wiring", () => {
     expect(document.querySelector("aside")).toBeInTheDocument();
   });
 
-  it("shows the entry layout when both wallets are missing", () => {
-    walletMock.btcConnected = false;
-    walletMock.ethConnected = false;
-    const { container } = renderRootLayout();
-
-    expect(document.querySelector("aside")).not.toBeInTheDocument();
-    expect(screen.queryByRole("heading", { level: 1 })).not.toBeInTheDocument();
-    // The Aave wordmark appears nowhere else on this screen, so it pins the
-    // lockup to the header.
-    expect(screen.getByRole("img", { name: "Aave" })).toBeInTheDocument();
-    // Without a sidebar column to fill, the navbar takes the capped entry box.
-    expect(
-      container.querySelector(".\\!max-w-\\[1280px\\]"),
-    ).toBeInTheDocument();
-  });
-
-  it("shows the entry layout when only Bitcoin is connected", () => {
-    walletMock.btcConnected = true;
-    walletMock.ethConnected = false;
-    const { container } = renderRootLayout();
-
+  it.each([
+    { btcConnected: false, ethConnected: false, confirmed: false },
+    { btcConnected: true, ethConnected: false, confirmed: true },
+    { btcConnected: false, ethConnected: true, confirmed: true },
+    { btcConnected: true, ethConnected: true, confirmed: false },
+  ])("keeps the entry layout until both wallets are confirmed: %o", (state) => {
+    Object.assign(walletMock, state);
+    const { container, rerender } = renderRootLayout();
     expect(document.querySelector("aside")).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { level: 1 })).not.toBeInTheDocument();
     expect(screen.getByRole("img", { name: "Aave" })).toBeInTheDocument();
     expect(
       container.querySelector(".\\!max-w-\\[1280px\\]"),
     ).toBeInTheDocument();
-  });
 
-  it("shows the entry layout when only Ethereum is connected", () => {
-    walletMock.btcConnected = false;
-    walletMock.ethConnected = true;
-    const { container } = renderRootLayout();
-
-    expect(document.querySelector("aside")).not.toBeInTheDocument();
-    expect(screen.queryByRole("heading", { level: 1 })).not.toBeInTheDocument();
-    expect(screen.getByRole("img", { name: "Aave" })).toBeInTheDocument();
-    expect(
-      container.querySelector(".\\!max-w-\\[1280px\\]"),
-    ).toBeInTheDocument();
+    Object.assign(walletMock, {
+      btcConnected: true,
+      ethConnected: true,
+      confirmed: true,
+    });
+    rerender(
+      <MemoryRouter>
+        <RootLayout />
+      </MemoryRouter>,
+    );
+    expect(document.querySelector("aside")).toBeInTheDocument();
   });
 
   it("disconnected: keeps the legal links reachable via the entry footer", () => {
