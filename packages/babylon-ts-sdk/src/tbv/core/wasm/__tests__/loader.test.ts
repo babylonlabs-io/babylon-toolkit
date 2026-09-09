@@ -104,9 +104,9 @@ describe("loadRawTbvWasm", () => {
     expect(causeMessages(error)).toContain("wasm instantiation failed");
   });
 
-  it("clears the cache after an initWasm failure so a retry re-initializes", async () => {
-    // initWasm runs inside the cached promise, so a failure there has to clear
-    // the cache too or the engine is unusable for the rest of the session.
+  it("clears the SDK cache after an initWasm rejection", async () => {
+    // Without the SDK cache reset, later calls would repeat this rejection.
+    // The real engine keeps generated initialization failures latched.
     let initCalls = 0;
     vi.doMock(RAW, () => ({
       initWasm: async () => {
