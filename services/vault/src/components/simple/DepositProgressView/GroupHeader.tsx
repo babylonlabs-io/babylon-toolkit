@@ -87,7 +87,7 @@ export function GroupHeader({
         as="span"
         variant="body1"
         className={twMerge(
-          "flex-1 font-medium",
+          "min-w-0 flex-1 overflow-hidden text-ellipsis font-medium",
           hasError ? "text-error-main" : "text-accent-primary",
         )}
       >
@@ -96,9 +96,10 @@ export function GroupHeader({
       <Text
         as="span"
         variant="body2"
-        className={
-          status === "active" ? "text-accent-primary" : "text-accent-secondary"
-        }
+        className={twMerge(
+          "shrink-0",
+          status === "active" ? "text-accent-primary" : "text-accent-secondary",
+        )}
       >
         {COPY.deposit.groups.stepCounter(completedInGroup, totalInGroup)}
       </Text>
