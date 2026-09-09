@@ -28,6 +28,7 @@ import { calculateBtcTxHash } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
 import type { Hex } from "viem";
 
 import { getVaultRegistryReader } from "@/clients/eth-contract/sdk-readers";
+import { COPY } from "@/copy";
 import type { VaultActivity } from "@/types/activity";
 import {
   shouldProbeWalletLiveness,
@@ -64,9 +65,7 @@ export async function deriveHtlcSecretHex(params: {
     const computedTxHash = calculateBtcTxHash(activity.unsignedPrePeginTx);
     if (computedTxHash.toLowerCase() !== onChainPrePeginTxHash.toLowerCase()) {
       throw new Error(
-        `Pre-PegIn transaction hash mismatch: computed ${computedTxHash} from indexer tx, ` +
-          `but on-chain contract has ${onChainPrePeginTxHash}. ` +
-          `Aborting to prevent potential attack.`,
+        COPY.deposit.errors.hashMismatch(computedTxHash, onChainPrePeginTxHash),
       );
     }
 
