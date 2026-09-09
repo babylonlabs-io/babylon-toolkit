@@ -240,9 +240,10 @@ async function readTargetVault(vaultId: Hex): Promise<TargetVaultData> {
     computedTxHash.toLowerCase() !== onChainVault.prePeginTxHash.toLowerCase()
   ) {
     throw new Error(
-      `Pre-PegIn transaction hash mismatch: computed ${computedTxHash} from indexer tx, ` +
-        `but on-chain contract has ${onChainVault.prePeginTxHash}. ` +
-        `Aborting refund to prevent potential attack.`,
+      COPY.deposit.errors.refundHashMismatch(
+        computedTxHash,
+        onChainVault.prePeginTxHash,
+      ),
     );
   }
 

@@ -243,7 +243,7 @@ export function useVaultActions(): UseVaultActionsReturn {
       const vault = await fetchVaultById(vaultId);
 
       if (!vault) {
-        throw new Error("BTCVault not found. Please try again.");
+        throw new Error(COPY.deposit.errors.vaultNotFound);
       }
 
       if (vault.status !== ContractStatus.PENDING) {
@@ -264,9 +264,7 @@ export function useVaultActions(): UseVaultActionsReturn {
         stripHexPrefix(localUnsignedTxHex).toLowerCase() !==
           stripHexPrefix(graphqlUnsignedTxHex).toLowerCase()
       ) {
-        throw new Error(
-          "Transaction mismatch: the indexer returned a transaction that differs from the locally stored copy. Aborting to prevent a potential attack.",
-        );
+        throw new Error(COPY.deposit.errors.prePeginIndexerTxMismatch);
       }
 
       const unsignedTxHex = localUnsignedTxHex || graphqlUnsignedTxHex;

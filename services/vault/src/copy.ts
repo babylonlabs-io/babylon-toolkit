@@ -962,13 +962,19 @@ export const COPY = {
         body: "We couldn't broadcast your Bitcoin transaction to the network. Please try again.",
       },
       hashMismatch: (computedHash: string, chainHash: string) =>
-        `Pre-PegIn transaction hash mismatch: computed ${computedHash} from indexer tx, but on-chain contract has ${chainHash}. Aborting to prevent potential attack.`,
+        `Pre-Pegin transaction hash mismatch: computed ${computedHash} from indexer tx, but on-chain contract has ${chainHash}. Aborting to prevent potential attack.`,
+      refundHashMismatch: (computedHash: string, chainHash: string) =>
+        `Pre-Pegin transaction hash mismatch: computed ${computedHash} from indexer tx, but on-chain contract has ${chainHash}. Aborting refund to prevent potential attack.`,
+      vaultNotFound: "BTCVault not found. Please try again.",
+      prePeginIndexerTxMismatch:
+        "Transaction mismatch: the indexer returned a transaction that differs from the locally stored copy. Aborting to prevent a potential attack.",
       prePeginIntegrityMismatch:
-        "Transaction integrity check failed: the Pre-PegIn transaction does not match the hash stored on-chain. Aborting to prevent a potential attack.",
+        "Transaction integrity check failed: the Pre-Pegin transaction does not match the hash stored on-chain. Aborting to prevent a potential attack.",
       prePeginSigningCanceled:
-        "Signing canceled — the signed Pre-PegIn was not broadcast",
+        "Signing canceled - the signed Pre-Pegin was not broadcast",
+      // depositErrors.ts matches "broadcast" to select the failure callout.
       prePeginBroadcastFailed: (error: unknown) =>
-        `Failed to broadcast batch Pre-PegIn transaction: ${error instanceof Error ? error.message : String(error)}`,
+        `Failed to broadcast batch Pre-Pegin transaction: ${error instanceof Error ? error.message : String(error)}`,
       providerNotFound: {
         title: "Vault provider not found",
         body: "The selected vault provider could not be found. Please refresh and try again.",
