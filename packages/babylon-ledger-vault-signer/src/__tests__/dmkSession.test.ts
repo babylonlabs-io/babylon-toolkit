@@ -248,6 +248,11 @@ describe("setDmkTransportOverride", () => {
   };
   const FAKE_IDENTIFIER = "FAKE-SPECULOS";
 
+  it("is part of the package's public surface — the dApp E2E bootstrap imports it from the index", async () => {
+    const pkg = await import("../index");
+    expect(typeof pkg.setDmkTransportOverride).toBe("function");
+  });
+
   it("builds the DMK over the injected factory and discovers on its identifier", async () => {
     setDmkTransportOverride({ transportFactory: fakeTransportFactory, transportIdentifier: FAKE_IDENTIFIER });
 

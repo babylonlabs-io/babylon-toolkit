@@ -11,6 +11,7 @@ import { ErrorBoundary } from "react-error-boundary";
 import { BrowserRouter } from "react-router";
 
 import GlobalError from "@/components/pages/global-error";
+import { initSpeculosTransportForE2E } from "@/e2e/speculosTransportBootstrap";
 import Providers from "@/providers";
 import { Router } from "@/router";
 import { reloadForStaleDeploy } from "@/utils/lazyWithRetry";
@@ -31,14 +32,27 @@ window.addEventListener("vite:preloadError", () => {
   reloadForStaleDeploy();
 });
 
-createRoot(document.getElementById("root")!).render(
-  <StrictMode>
-    <BrowserRouter>
-      <ErrorBoundary FallbackComponent={GlobalError}>
-        <Providers>
-          <Router />
-        </Providers>
-      </ErrorBoundary>
-    </BrowserRouter>
-  </StrictMode>,
-);
+function renderApp(): void {
+  createRoot(document.getElementById("root")!).render(
+    <StrictMode>
+      <BrowserRouter>
+        <ErrorBoundary FallbackComponent={GlobalError}>
+          <Providers>
+            <Router />
+          </Providers>
+        </ErrorBoundary>
+      </BrowserRouter>
+    </StrictMode>,
+  );
+}
+
+// E2E-only (#2110): with NEXT_PUBLIC_TBV_E2E_SPECULOS_URL set, arm the Ledger
+// DMK's Speculos transport BEFORE first render so a driven connect can never
+// race the override. Returns undefined in production — the render call below
+// is then the same synchronous call it always was.
+const speculosReady = initSpeculosTransportForE2E();
+if (speculosReady !== undefined) {
+  void speculosReady.then(renderApp);
+} else {
+  renderApp();
+}

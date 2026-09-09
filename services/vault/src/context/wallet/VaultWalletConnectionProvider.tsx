@@ -51,7 +51,10 @@ export const LEDGER_VAULT_WALLET_ID = "ledger_btc_vault";
 // WebHID (`navigator.hid` — desktop Chromium only, secure context); without it
 // the entry still renders clickable and only fails on connect, so hide it up
 // front. `in` check because TS's DOM lib does not declare `Navigator.hid`.
-const isWebHidAvailable = "hid" in navigator;
+// E2E exception: with the Speculos transport armed (#2110) the DMK never
+// touches WebHID, so the emulator flag stands in for device availability.
+const isWebHidAvailable =
+  "hid" in navigator || featureFlags.e2eSpeculosUrl !== undefined;
 
 const DISABLED_WALLETS: string[] = [
   ...ALWAYS_DISABLED_WALLETS,

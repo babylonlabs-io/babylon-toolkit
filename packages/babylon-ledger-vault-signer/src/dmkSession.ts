@@ -83,9 +83,13 @@ let transportOverride: DmkTransportOverride | undefined;
  * The injector passes the factory in; this module never imports that package,
  * so production bundles stay speculos-free.
  *
- * Package-internal for now: deliberately NOT re-exported from `index.ts`, so
- * the only callers are this package's own tests. The env-gated dApp seam that
- * needs it publicly is a separate task and re-exports it with its consumer.
+ * Public surface (re-exported with its consumer, per the original deferral):
+ * the vault dApp's env-gated Speculos bootstrap is the intended caller. What
+ * the code enforces is TIMING only — a swap after the DMK exists gets the
+ * loud throw below. A pre-build call from production code would take effect;
+ * keeping that from happening is the consumer's env gate plus review (this
+ * module still never imports the speculos package, so an abuser must also
+ * supply a transport of their own).
  *
  * The override persists across {@link closeDmk}; pass `undefined` to restore
  * the web-hid default.

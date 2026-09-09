@@ -13,7 +13,15 @@
 
 export { getExtendedPublicKey, getMasterFingerprintHex, getXOnlyPublicKeyHex } from "./derivation";
 export { createDmkApduSender, createDmkRawApduSender } from "./dmkApduSender";
-export { closeDmk, connectDmkSession, disconnectDmkSession, isSessionAlive, type DmkSessionHandle } from "./dmkSession";
+export {
+  closeDmk,
+  connectDmkSession,
+  disconnectDmkSession,
+  isSessionAlive,
+  setDmkTransportOverride,
+  type DmkSessionHandle,
+  type DmkTransportOverride,
+} from "./dmkSession";
 export { assertDepositTermsDeviceCompatible } from "./envelope";
 export {
   LEDGER_DEVICE_ERROR_NAME,
