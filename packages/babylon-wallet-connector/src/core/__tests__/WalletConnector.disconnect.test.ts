@@ -76,26 +76,7 @@ describe("WalletConnector disconnect", () => {
     expect(connector.connectedWallet).toBe(wallet);
   });
 
-  it("clears the wallet before it emits disconnect", async () => {
-    const wallet = createWallet({
-      connectWallet: vi.fn().mockResolvedValue(undefined),
-      getAddress: vi.fn().mockResolvedValue("bc1p"),
-      getPublicKeyHex: vi.fn().mockResolvedValue("02ab"),
-      disconnect: vi.fn().mockResolvedValue(undefined),
-    });
-    const connector = new WalletConnector("BTC", "Bitcoin", "icon", [wallet], {});
-    await connector.connect(wallet);
-    let walletDuringEvent: unknown = wallet;
-    connector.on("disconnect", () => {
-      walletDuringEvent = connector.connectedWallet;
-    });
-
-    await connector.disconnect();
-
-    expect(walletDuringEvent).toBeNull();
-  });
-
-  it("emits disconnect and clears the wallet when the provider disconnects", async () => {
+  it("clears the wallet before it emits disconnect when the provider disconnects", async () => {
     const wallet = createWallet({
       connectWallet: vi.fn().mockResolvedValue(undefined),
       getAddress: vi.fn().mockResolvedValue("bc1p"),
@@ -107,11 +88,16 @@ describe("WalletConnector disconnect", () => {
     const onError = vi.fn();
     const onDisconnect = vi.fn();
     connector.on("error", onError);
-    connector.on("disconnect", onDisconnect);
+    let walletDuringEvent: unknown = wallet;
+    connector.on("disconnect", (disconnectedWallet) => {
+      walletDuringEvent = connector.connectedWallet;
+      onDisconnect(disconnectedWallet);
+    });
 
     await connector.disconnect();
 
     expect(onDisconnect).toHaveBeenCalledWith(wallet);
+    expect(walletDuringEvent).toBeNull();
     expect(connector.connectedWallet).toBeNull();
     expect(onError).not.toHaveBeenCalled();
   });
@@ -197,30 +183,36 @@ describe("WalletConnector disconnect", () => {
     expect(connector.connectedWallet).toBeNull();
   });
 
-  it("emits disconnect once when a local disconnect lands during an in-flight chain disconnect", async () => {
-    let settleChainDisconnect!: () => void;
-    const chainDisconnect = new Promise<void>((resolve) => {
-      settleChainDisconnect = resolve;
-    });
-    const wallet = createWallet({
-      connectWallet: vi.fn().mockResolvedValue(undefined),
-      getAddress: vi.fn().mockResolvedValue("bc1p"),
-      getPublicKeyHex: vi.fn().mockResolvedValue("02ab"),
-      disconnect: vi.fn(async (scope: string) => {
-        if (scope === "chain") await chainDisconnect;
-      }),
-    });
-    const connector = new WalletConnector("BTC", "Bitcoin", "icon", [wallet], {});
-    await connector.connect(wallet);
-    const onDisconnect = vi.fn();
-    connector.on("disconnect", onDisconnect);
+  it.each(["disconnect", "reconnect", "disconnect then reconnect"])(
+    "keeps the latest wallet state after %s during a pending chain disconnect",
+    async (action) => {
+      let settleChainDisconnect!: () => void;
+      const chainDisconnect = new Promise<void>((resolve) => {
+        settleChainDisconnect = resolve;
+      });
+      const wallet = createWallet({
+        connectWallet: vi.fn().mockResolvedValue(undefined),
+        getAddress: vi.fn().mockResolvedValue("bc1p"),
+        getPublicKeyHex: vi.fn().mockResolvedValue("02ab"),
+        disconnect: vi.fn(async (scope: string) => {
+          if (scope === "chain") await chainDisconnect;
+        }),
+      });
+      const connector = new WalletConnector("BTC", "Bitcoin", "icon", [wallet], {});
+      await connector.connect(wallet);
+      const onDisconnect = vi.fn();
+      connector.on("disconnect", onDisconnect);
 
-    const chainScope = connector.disconnect("chain");
-    await connector.disconnect("local");
-    settleChainDisconnect();
-    await chainScope;
+      const chainScope = connector.disconnect("chain");
+      const localDisconnect = action !== "reconnect";
+      const reconnect = action !== "disconnect";
+      if (localDisconnect) await connector.disconnect("local");
+      if (reconnect) await connector.connect(wallet);
+      settleChainDisconnect();
+      await chainScope;
 
-    expect(onDisconnect.mock.calls).toEqual([[wallet]]);
-    expect(connector.connectedWallet).toBeNull();
-  });
+      expect(onDisconnect.mock.calls).toEqual(localDisconnect ? [[wallet]] : []);
+      expect(connector.connectedWallet).toBe(reconnect ? wallet : null);
+    },
+  );
 });
