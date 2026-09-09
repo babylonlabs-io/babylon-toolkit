@@ -71,7 +71,10 @@ const HIDE_GOD_MODE_LAUNCHER_CSS = `
   }
 `;
 
-/** Overlap captures so fixed headers do not hide the same document pixels. */
+/**
+ * The half-viewport overlap (400px desktop, 422px mobile) must exceed the fixed
+ * header height so each document pixel appears in at least one capture.
+ */
 const STABILITY_SCROLL_STEP_RATIO = 0.5;
 
 /** How long the frame must stay byte-identical before we trust it. */
@@ -103,11 +106,14 @@ interface FrameSignature {
   readonly pixels: Buffer;
   readonly documentWidth: number;
   readonly documentHeight: number;
+  readonly frameCount: number;
+  readonly durationMs: number;
 }
 
 /** Compare overlapping captures. Restore the scroll position after each poll. */
 async function readFrameSignature(page: Page): Promise<FrameSignature> {
-  // Read the document size first to settle layout before capture.
+  const startedAt = performance.now();
+  // Measuring the document first settles layout and prevents unstable deposit card images.
   const { documentWidth, documentHeight, viewportWidth, viewportHeight, x, y } =
     await page.evaluate(() => ({
       documentWidth: document.documentElement.scrollWidth,
@@ -121,10 +127,17 @@ async function readFrameSignature(page: Page): Promise<FrameSignature> {
   const maxX = Math.max(0, documentWidth - viewportWidth);
   const maxY = Math.max(0, documentHeight - viewportHeight);
   if (maxX === 0 && maxY === 0) {
-    return { pixels: await page.screenshot(), documentWidth, documentHeight };
+    return {
+      pixels: await page.screenshot(),
+      documentWidth,
+      documentHeight,
+      frameCount: 1,
+      durationMs: Math.round(performance.now() - startedAt),
+    };
   }
   const stepX = viewportWidth * STABILITY_SCROLL_STEP_RATIO;
   const stepY = viewportHeight * STABILITY_SCROLL_STEP_RATIO;
+  let scanFailed = false;
   try {
     for (let top = 0; ; top = Math.min(top + stepY, maxY)) {
       for (let left = 0; ; left = Math.min(left + stepX, maxX)) {
@@ -137,16 +150,34 @@ async function readFrameSignature(page: Page): Promise<FrameSignature> {
       }
       if (top === maxY) break;
     }
+  } catch (error) {
+    scanFailed = true;
+    throw error;
   } finally {
-    await page.evaluate(
-      ([left, top]) => window.scrollTo({ left, top, behavior: "instant" }),
-      [x, y],
-    );
+    await page
+      .evaluate(
+        ([left, top]) => window.scrollTo({ left, top, behavior: "instant" }),
+        [x, y],
+      )
+      .catch((error) => {
+        if (!scanFailed) throw error;
+        // eslint-disable-next-line no-console -- Keep the secondary browser failure in the test log.
+        console.error(
+          "Scroll restoration also failed after the visual scan:",
+          error,
+        );
+      });
   }
-  return { pixels: Buffer.concat(frames), documentWidth, documentHeight };
+  return {
+    pixels: Buffer.concat(frames),
+    documentWidth,
+    documentHeight,
+    frameCount: frames.length,
+    durationMs: Math.round(performance.now() - startedAt),
+  };
 }
 
-/** True only when both halves of the signal are unchanged. */
+/** Dimensions detect document growth; pixels detect paint changes at the same size. */
 function isSameFrame(a: FrameSignature, b: FrameSignature): boolean {
   return (
     a.documentWidth === b.documentWidth &&
@@ -207,7 +238,8 @@ export async function waitForVisualStability(page: Page): Promise<void> {
 
   throw new Error(
     `Page did not reach a stable frame within ${STABILITY_TIMEOUT_MS}ms. ` +
-      `Something on this screen animates or refetches indefinitely - freeze it ` +
-      `in stabilize.ts rather than accepting a flaky baseline.`,
+      `Last scan: ${previous.frameCount} captures in ${previous.durationMs}ms ` +
+      `for a ${previous.documentWidth}x${previous.documentHeight}px document. ` +
+      `Check scan cost, animations, and refetches before changing the timeout.`,
   );
 }
