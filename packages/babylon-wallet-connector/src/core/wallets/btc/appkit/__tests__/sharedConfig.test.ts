@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { ethDisconnectWouldDropBitcoin } from "@/core/wallets/eth/appkit/sharedConfig";
+
 import {
   __resetSharedBtcAppKitConfigForTests,
   btcDisconnectWouldDropEthereum,
@@ -26,55 +28,58 @@ function setModal(session: {
   return modal;
 }
 
-describe("btcDisconnectWouldDropEthereum", () => {
-  it("reports true when bitcoin runs over walletconnect and ethereum is connected", () => {
+describe.each([
+  ["Bitcoin", "bip122", "eip155", btcDisconnectWouldDropEthereum],
+  ["Ethereum", "eip155", "bip122", ethDisconnectWouldDropBitcoin],
+] as const)("%s shared disconnect", (_chain, namespace, otherNamespace, wouldDropOther) => {
+  it("refuses WalletConnect while the other chain is connected", () => {
     const modal = setModal({
-      providerTypes: { bip122: "WALLET_CONNECT", eip155: "ANNOUNCED" },
-      accounts: { bip122: { isConnected: false }, eip155: { isConnected: true } },
+      providerTypes: { [namespace]: "WALLET_CONNECT", [otherNamespace]: "ANNOUNCED" },
+      accounts: { [namespace]: { isConnected: false }, [otherNamespace]: { isConnected: true } },
     });
 
-    expect(btcDisconnectWouldDropEthereum()).toBe(true);
-    expect(modal.getProviderType).toHaveBeenCalledWith("bip122");
-    expect(modal.getAccount).toHaveBeenCalledWith("eip155");
+    expect(wouldDropOther()).toBe(true);
+    expect(modal.getProviderType).toHaveBeenCalledWith(namespace);
+    expect(modal.getAccount).toHaveBeenCalledWith(otherNamespace);
   });
 
-  it("reports true when bitcoin runs over auth and ethereum is connected", () => {
+  it("refuses Auth while the other chain is connected", () => {
     setModal({
-      providerTypes: { bip122: "AUTH", eip155: "ANNOUNCED" },
-      accounts: { bip122: { isConnected: false }, eip155: { isConnected: true } },
+      providerTypes: { [namespace]: "AUTH", [otherNamespace]: "ANNOUNCED" },
+      accounts: { [namespace]: { isConnected: false }, [otherNamespace]: { isConnected: true } },
     });
 
-    expect(btcDisconnectWouldDropEthereum()).toBe(true);
+    expect(wouldDropOther()).toBe(true);
   });
 
-  it("reports false for an announced bitcoin extension even while ethereum is connected over walletconnect", () => {
+  it("allows an announced extension while the other chain uses WalletConnect", () => {
     setModal({
-      providerTypes: { bip122: "ANNOUNCED", eip155: "WALLET_CONNECT" },
+      providerTypes: { [namespace]: "ANNOUNCED", [otherNamespace]: "WALLET_CONNECT" },
       accounts: { bip122: { isConnected: true }, eip155: { isConnected: true } },
     });
 
-    expect(btcDisconnectWouldDropEthereum()).toBe(false);
+    expect(wouldDropOther()).toBe(false);
   });
 
-  it("reports false over walletconnect when there is no ethereum account", () => {
+  it("allows WalletConnect when the other account is absent", () => {
     setModal({
-      providerTypes: { bip122: "WALLET_CONNECT" },
-      accounts: { bip122: { isConnected: true } },
+      providerTypes: { [namespace]: "WALLET_CONNECT" },
+      accounts: { [namespace]: { isConnected: true } },
     });
 
-    expect(btcDisconnectWouldDropEthereum()).toBe(false);
+    expect(wouldDropOther()).toBe(false);
   });
 
-  it("reports false over walletconnect when the ethereum account is disconnected", () => {
+  it("allows WalletConnect when the other account is disconnected", () => {
     setModal({
       providerTypes: { bip122: "WALLET_CONNECT", eip155: "WALLET_CONNECT" },
-      accounts: { bip122: { isConnected: true }, eip155: { isConnected: false } },
+      accounts: { [namespace]: { isConnected: true }, [otherNamespace]: { isConnected: false } },
     });
 
-    expect(btcDisconnectWouldDropEthereum()).toBe(false);
+    expect(wouldDropOther()).toBe(false);
   });
 
-  it("reports false when no shared bitcoin config is registered", () => {
-    expect(btcDisconnectWouldDropEthereum()).toBe(false);
+  it("reports no shared session before initialization", () => {
+    expect(wouldDropOther()).toBe(false);
   });
 });

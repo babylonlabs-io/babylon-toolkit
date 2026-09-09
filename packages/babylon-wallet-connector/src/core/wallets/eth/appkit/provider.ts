@@ -27,8 +27,9 @@ import { APPKIT_OPEN_EVENT } from "@/core/wallets/appkit/constants";
 // Read the modal from the shared singleton rather than from `appKitModal`,
 // which pulls the Bitcoin adapter in with it.
 import { getAppKitModal } from "@/core/wallets/appkit/state";
+import { ERROR_CODES, WalletError } from "@/error";
 
-import { getSharedWagmiConfig, hasSharedWagmiConfig } from "./sharedConfig";
+import { ethDisconnectWouldDropBitcoin, getSharedWagmiConfig, hasSharedWagmiConfig } from "./sharedConfig";
 
 // Grace period after modal close before rejecting as cancelled, to allow
 // async handoffs (WalletConnect deep-link, mobile wallet return) to publish
@@ -254,6 +255,15 @@ export class AppKitProvider implements IETHProvider {
   }
 
   async disconnect(scope: DisconnectScope): Promise<void> {
+    if (scope === "chain" && ethDisconnectWouldDropBitcoin()) {
+      throw new WalletError({
+        code: ERROR_CODES.SHARED_SESSION_DISCONNECT_REFUSED,
+        message:
+          "Ethereum and Bitcoin share one wallet session. Disconnecting Ethereum alone would also disconnect Bitcoin. Disconnect all wallets instead.",
+        wallet: "AppKit",
+        chainId: "ETH",
+      });
+    }
     if (scope !== "local") await wagmiDisconnect(this.getWagmiConfig());
     this.address = undefined;
     this.chainId = undefined;
