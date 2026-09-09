@@ -1,13 +1,17 @@
 import type { Page } from "@playwright/test";
 import { expect, test } from "@playwright/test";
+import {
+  decodeFunctionData,
+  encodeAbiParameters,
+  encodeFunctionResult,
+  multicall3Abi,
+  toFunctionSelector,
+} from "viem";
 
 import { SentryInterceptor } from "./helpers/sentry-interceptor";
 
 const PORT_MISSING_ENV = 5173;
 const PORT_FULL_ENV = 5175;
-
-const ABI_ENCODED_TRUE =
-  "0x0000000000000000000000000000000000000000000000000000000000000001";
 
 async function assertBlockingModal(
   page: Page,
@@ -130,8 +134,8 @@ test.describe("Catastrophic Error Handling", () => {
     });
   });
 
-  test.describe("Application Paused", () => {
-    test("should show blocking error modal when application is paused by admin", async ({
+  test.describe("Protocol Paused", () => {
+    test("should show the full pause banner when the protocol is paused", async ({
       page,
     }) => {
       await page.route("**/graphql", async (route) => {
@@ -142,32 +146,52 @@ test.describe("Catastrophic Error Handling", () => {
         });
       });
 
-      await page.route(/.*eth.*|.*rpc.*/, async (route) => {
+      let pauseReadCount = 0;
+      await page.route("http://localhost:9997/rpc", async (route) => {
         const postData = route.request().postDataJSON();
-
-        if (postData?.method === "eth_call") {
-          await route.fulfill({
-            status: 200,
-            contentType: "application/json",
-            body: JSON.stringify({
-              jsonrpc: "2.0",
-              id: postData.id,
-              result: ABI_ENCODED_TRUE,
+        const data = postData?.params?.[0]?.data;
+        if (
+          postData?.method !== "eth_call" ||
+          data?.slice(0, 10) !==
+            toFunctionSelector("aggregate3((address,bool,bytes)[])")
+        )
+          return route.abort();
+        const { functionName, args } = decodeFunctionData({
+          abi: multicall3Abi,
+          data,
+        });
+        if (functionName !== "aggregate3") return route.abort();
+        const result = args[0].map(({ callData }) => {
+          const success = callData === toFunctionSelector("pauseState()");
+          if (success) pauseReadCount += 1;
+          return {
+            success,
+            returnData: success
+              ? encodeAbiParameters([{ type: "uint8" }], [2])
+              : ("0x" as const),
+          };
+        });
+        await route.fulfill({
+          json: {
+            jsonrpc: "2.0",
+            id: postData.id,
+            result: encodeFunctionResult({
+              abi: multicall3Abi,
+              functionName: "aggregate3",
+              result,
             }),
-          });
-          return;
-        }
-
-        await route.continue();
+          },
+        });
       });
 
       await page.goto(`http://localhost:${PORT_FULL_ENV}/`);
 
-      await assertBlockingModal(
-        page,
-        "Application Paused",
-        /currently paused for maintenance/i,
-      );
+      const banner = page.getByTestId("protocol-status-banner");
+      await expect(banner).toBeVisible();
+      await expect(banner).toHaveAttribute("role", "alert");
+      await expect(banner).toContainText("Protocol is fully paused");
+      await expect(banner).toContainText("Debt continues accruing interest");
+      expect(pauseReadCount).toBeGreaterThan(0);
     });
   });
 });

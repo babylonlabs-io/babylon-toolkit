@@ -55,8 +55,7 @@ async function clickByTestId(tab: Page, testid: string): Promise<void> {
 
 /** Click the last enabled <button> inside a frame (the primary "Next"/"Confirm" action). */
 async function clickPrimaryButton(frame: Frame): Promise<void> {
-  const btn = frame.locator("button:not([disabled])").last();
-  if ((await btn.count().catch(() => 0)) > 0) await btn.click({ force: true }).catch(() => {});
+  await frame.locator("button:not([disabled])").last().click({ force: true, timeout: WAIT_FOR.ACTION_MS });
 }
 
 /**
@@ -191,8 +190,8 @@ export async function setupOKXWallet(context: BrowserContext, mnemonic: string, 
 
   // Full-page onboarding tab (not the popup — the popup delegates seed entry to a modal window).
   const tab = await context.newPage();
-  await tab.goto(`${origin}/home.html#/initialize`).catch(() => {});
-  await tab.waitForLoadState("domcontentloaded").catch(() => {});
+  await tab.goto(`${origin}/home.html#/initialize`);
+  await tab.waitForLoadState("domcontentloaded");
   await sleep(SETTLE.MEDIUM);
   await closeForeignTabs(context, tab);
 
@@ -200,8 +199,8 @@ export async function setupOKXWallet(context: BrowserContext, mnemonic: string, 
   // a modal window); closeForeignTabs then kills that window if it appears.
   await clickByTestId(tab, "onboard-page-import-wallet-button");
   await sleep(SETTLE.MODAL);
-  await tab.goto(`${origin}/home.html#/import-with-seed-phrase-and-private-key?openFromThisPage=1`).catch(() => {});
-  await tab.waitForLoadState("domcontentloaded").catch(() => {});
+  await tab.goto(`${origin}/home.html#/import-with-seed-phrase-and-private-key?openFromThisPage=1`);
+  await tab.waitForLoadState("domcontentloaded");
   await sleep(SETTLE.MEDIUM);
   await closeForeignTabs(context, tab);
 
@@ -210,7 +209,9 @@ export async function setupOKXWallet(context: BrowserContext, mnemonic: string, 
   if (!seedFrame) throw new Error("OKX: seed-entry iframe (ses.html) not found");
   const words = mnemonic.trim().split(/\s+/).filter(Boolean);
   let boxes = seedFrame.locator('input[data-testid="import-seed-phrase-or-private-key-page-seed-phrase-input"]');
-  await boxes.first().waitFor({ state: "visible", timeout: WAIT_FOR.ELEMENT_SLOW_MS }).catch(() => {});
+  await boxes.first().waitFor({ state: "visible", timeout: WAIT_FOR.ELEMENT_SLOW_MS });
+  const reminder = seedFrame.getByTestId("security-reminder-got-it-button");
+  if (await reminder.isVisible()) await reminder.click({ timeout: WAIT_FOR.ACTION_MS });
   // The seed screen defaults to a 12-input grid with a phrase-length selector; a 24-word phrase needs
   // it switched first, or the extra words are dropped. OKX renders in the OS locale, so we NEVER match
   // the visible "N words" text — we drive the selector by its language-agnostic data attributes.
@@ -224,52 +225,53 @@ export async function setupOKXWallet(context: BrowserContext, mnemonic: string, 
       `OKX: seed grid shows ${boxCount} inputs but the phrase has ${words.length} words — the phrase-length selector (okd-select-text) did not switch. OKX's import UI likely changed; re-derive selectOkxSeedWordCount (okx.ts).`,
     );
   for (let i = 0; i < words.length; i++) {
-    await boxes.nth(i).click().catch(() => {});
-    await boxes.nth(i).fill(words[i]).catch(() => {});
+    await boxes.nth(i).fill(words[i], { timeout: WAIT_FOR.ACTION_MS }).catch(() => {
+      throw new Error(`OKX: seed word ${i + 1} input failed`);
+    });
   }
   await sleep(SETTLE.BRIEF);
   const confirmSeed = seedFrame.locator('button[data-testid="import-seed-phrase-or-private-key-page-confirm-button"]');
-  await confirmSeed.click({ force: true, timeout: WAIT_FOR.ACTION_MS }).catch(() => {});
+  await confirmSeed.click({ force: true, timeout: WAIT_FOR.ACTION_MS });
   await sleep(SETTLE.LONG);
   await closeForeignTabs(context, tab);
 
   // Password-type screen: choose Password (not biometric), then Next.
   const typeFrame = sesFrame(tab);
-  if (typeFrame) {
-    await typeFrame.locator('[data-testid="password-type-item"]').first().click({ force: true }).catch(() => {});
-    await sleep(SETTLE.SHORT);
-    await clickPrimaryButton(typeFrame);
-    await sleep(SETTLE.MODAL);
-  }
+  if (!typeFrame) throw new Error("OKX: password type iframe (ses.html) not found");
+  await typeFrame.getByTestId("password-type-item").first().click({ force: true, timeout: WAIT_FOR.ACTION_MS });
+  await sleep(SETTLE.SHORT);
+  await clickPrimaryButton(typeFrame);
+  await sleep(SETTLE.MODAL);
 
   // Password entry: fill both fields, confirm.
   const pwFrame = sesFrame(tab);
-  if (pwFrame) {
-    const pw = pwFrame.locator('input[type="password"]');
-    await pw.first().waitFor({ state: "visible", timeout: WAIT_FOR.ELEMENT_MS }).catch(() => {});
-    if ((await pw.count().catch(() => 0)) >= 2) {
-      await pw.nth(0).fill(password).catch(() => {});
-      await pw.nth(1).fill(password).catch(() => {});
-      await sleep(SETTLE.SHORT);
-      await clickPrimaryButton(pwFrame);
-      await sleep(SETTLE.LONG);
-    }
+  if (!pwFrame) throw new Error("OKX: password entry iframe (ses.html) not found");
+  const pw = pwFrame.locator('input[type="password"]');
+  await pw.first().waitFor({ state: "visible", timeout: WAIT_FOR.ELEMENT_MS });
+  try {
+    await pw.nth(0).fill(password, { timeout: WAIT_FOR.ACTION_MS });
+    await pw.nth(1).fill(password, { timeout: WAIT_FOR.ACTION_MS });
+  } catch {
+    throw new Error("OKX: password input failed");
   }
+  await sleep(SETTLE.SHORT);
+  await clickPrimaryButton(pwFrame);
+  await sleep(SETTLE.LONG);
   await closeForeignTabs(context, tab);
 
   // Welcome / supported-chains: content lives outside the ses frame. Uncheck "set OKX as default wallet"
   // (so it won't hijack the provider for other wallets), then click the bottom button — across all frames.
   for (const frame of tab.frames()) {
     const checked = frame.locator('input[type="checkbox"]:checked');
-    const n = await checked.count().catch(() => 0);
-    for (let i = 0; i < n; i++) await checked.nth(i).uncheck({ force: true }).catch(() => {});
-    await clickPrimaryButton(frame);
+    const n = await checked.count();
+    for (let i = n - 1; i >= 0; i--) await checked.nth(i).uncheck({ force: true });
+    if (await frame.locator("button:not([disabled])").count()) await clickPrimaryButton(frame);
   }
   await sleep(SETTLE.LONG);
   await closeForeignTabs(context, tab);
 
   // Wait for the wallet home, then apply English and switch to signet.
-  await tab.locator('[data-testid="home-page-home-root-element-id"]').waitFor({ state: "visible", timeout: WAIT_FOR.HOME_MS }).catch(() => {});
+  await tab.getByTestId("home-page-home-root-element-id").waitFor({ state: "visible", timeout: WAIT_FOR.HOME_MS });
   await dismissPromoDialog(tab); // OKX may pop a promo modal on the home that blocks the settings dropdown
   await switchToEnglish(tab);
   await switchToSignet(tab, origin);

@@ -1,5 +1,23 @@
+import type { DirectSignResponse } from "@cosmjs/proto-signing";
+
+export interface SerializedSignDoc {
+  bodyBytes: number[];
+  authInfoBytes: number[];
+  chainId: string;
+  accountNumber: string;
+}
+
 declare global {
   interface Window {
+    e2eSignDirect: (
+      address: string,
+      doc: SerializedSignDoc,
+    ) => Promise<{
+      signed: SerializedSignDoc;
+      signature: DirectSignResponse["signature"];
+    }>;
+    e2eSignPsbt: (hex: string) => Promise<string>;
+    e2eSignMessage: (message: string, type: string) => Promise<string>;
     // From balanceAddress.spec.ts
     mockCosmJSBankBalance: (
       address: string,
@@ -34,7 +52,7 @@ declare global {
         minimumFee: number;
       };
       getInscriptions: () => any[];
-      signPsbt: (psbtHex: string) => string;
+      signPsbt: (psbtHex: string) => string | Promise<string>;
       pushTx: (txHex: string) => string;
       isConnected?: boolean;
     };

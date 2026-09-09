@@ -1,6 +1,6 @@
 import { test } from "../fixtures/setupExtensions";
 
-test("Setup OKX and Keplr wallets", async ({ setupExtensions }) => {
+test("Setup OKX and Keplr wallets", async ({ setupExtensions, baseURL }) => {
   // Initialize browser context with required wallet extensions
   const { context } = await setupExtensions(["OKX", "KEPLR"]);
 
@@ -9,7 +9,7 @@ test("Setup OKX and Keplr wallets", async ({ setupExtensions }) => {
 
   // Navigate to root URL
   // This step could be updated to navigate to a specific testing page
-  await page.goto("/");
+  await page.goto(new URL("/", baseURL).href);
 
   // If anything goes wrong, the test will fail
 });
