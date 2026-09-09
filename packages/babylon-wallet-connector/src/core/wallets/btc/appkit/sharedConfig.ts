@@ -76,7 +76,7 @@ export function setSharedBtcAppKitConfig(config: SharedBtcAppKitConfigInput): vo
     connectionEvents: config.connectionEvents ?? sharedBtcAppKitConfig?.connectionEvents ?? new EventTarget(),
   };
 
-  registerManualAppKitConfig(BITCOIN_CAPABILITY);
+  registerManualAppKitConfig(BITCOIN_CAPABILITY, config.modal);
   sharedBtcAppKitConfig = resolvedConfig;
 }
 

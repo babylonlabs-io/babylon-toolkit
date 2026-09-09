@@ -178,31 +178,36 @@ describe("disconnect", () => {
     expect(reset).not.toHaveBeenCalled();
   });
 
-  it("explains a refused single-chain disconnect in the dialog and still rejects", async () => {
-    const { result } = setup({
-      requiredChainIds: ["ETH"],
-      selectedWallets: { BTC: btcWallet, ETH: ethWallet },
-      confirmed: true,
-    });
-    const refusal = new WalletError({
-      code: ERROR_CODES.SHARED_SESSION_DISCONNECT_REFUSED,
-      message: "Bitcoin and Ethereum share one wallet session.",
-    });
-    disconnectBtc.mockRejectedValueOnce(refusal);
+  it.each(["BTC", "ETH"] as const)(
+    "explains a refused %s disconnect in the dialog and still rejects",
+    async (chain) => {
+      const { result } = setup({
+        requiredChainIds: ["ETH"],
+        selectedWallets: { BTC: btcWallet, ETH: ethWallet },
+        confirmed: true,
+      });
+      const refusal = new WalletError({
+        code: ERROR_CODES.SHARED_SESSION_DISCONNECT_REFUSED,
+        message: "Bitcoin and Ethereum share one wallet session.",
+      });
+      const [disconnect, otherDisconnect] =
+        chain === "BTC" ? [disconnectBtc, disconnectEth] : [disconnectEth, disconnectBtc];
+      disconnect.mockRejectedValueOnce(refusal);
 
-    await expect(result.current.disconnect("BTC")).rejects.toBe(refusal);
+      await expect(result.current.disconnect(chain)).rejects.toBe(refusal);
 
-    expect(displayError).toHaveBeenCalledWith(
-      expect.objectContaining({ title: "Wallets share one session", description: refusal.message }),
-    );
-    expect(displayChains).not.toHaveBeenCalled();
-    expect(disconnectEth).not.toHaveBeenCalled();
-    expect(reset).not.toHaveBeenCalled();
+      expect(displayError).toHaveBeenCalledWith(
+        expect.objectContaining({ title: "Wallets share one session", description: refusal.message }),
+      );
+      expect(displayChains).not.toHaveBeenCalled();
+      expect(otherDisconnect).not.toHaveBeenCalled();
+      expect(reset).not.toHaveBeenCalled();
 
-    displayError.mock.calls[0][0].onCancel();
+      displayError.mock.calls[0][0].onCancel();
 
-    expect(displayChains).toHaveBeenCalled();
-  });
+      expect(displayChains).toHaveBeenCalled();
+    },
+  );
 
   it("passes the chain scope when disconnecting a single chain", async () => {
     const { result } = setup({
