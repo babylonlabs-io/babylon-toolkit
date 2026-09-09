@@ -112,6 +112,7 @@ export const injectBTCWallet = async (
         const walletStrategies: Record<string, () => void> = {
           OKX: () => {
             (window as any).okxwallet = {
+              keplr: (window as Window & { leap?: unknown }).leap,
               bitcoin: {
                 ...btcWallet,
                 isOKXWallet: true,

@@ -372,7 +372,7 @@ export const injectBBNQueries = async (
           pathParam.includes("Query/RewardGauges") ||
           pathParam.includes("v1.Query/RewardGauges")
         ) {
-          return route.fulfill({
+          await route.fulfill({
             status: 200,
             contentType: "application/json",
             body: JSON.stringify({
@@ -393,6 +393,7 @@ export const injectBBNQueries = async (
               },
             }),
           });
+          return true;
         }
         return false;
       },
@@ -441,9 +442,7 @@ export const injectBBNQueries = async (
       }
     }
 
-    try {
-      await route.fallback();
-    } catch (error) {}
+    await route.fallback();
   });
 
   await page.route("**/v2/delegations*", async (route) => {

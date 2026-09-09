@@ -124,8 +124,8 @@ export class WalletConnectActions {
   async setupWalletConnection(options?: TestWalletOptions) {
     await new PageNavigationActions(this.page).waitForPageLoad();
     await this.setupMocks();
-    await injectBTCWallet(this.page, "OKX", options);
     await injectBBNWallet(this.page, "Leap", options);
+    await injectBTCWallet(this.page, "OKX", options);
     await this.clickConnectButton();
     await this.clickInjectableWalletButton();
     await this.clickOKXWalletButton();
