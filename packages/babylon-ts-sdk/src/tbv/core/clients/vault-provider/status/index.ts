@@ -6,7 +6,7 @@
  * for unauthenticated status reads and polling that must remain usable in an
  * Ethereum-only application session.
  *
- * @module clients/vault-provider/status
+ * @module tbv/core/clients/vault-provider/status
  */
 
 export { VaultProviderRpcClient } from "../api";
