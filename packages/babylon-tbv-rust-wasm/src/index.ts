@@ -492,3 +492,14 @@ export {
 
 // Export challenge assert connector utilities (depositor-as-claimer)
 export { getChallengeAssertScriptInfo } from './challengeAssertConnector.js';
+
+/** Derive the expected HTLC without using WASM output. */
+export async function deriveExpectedPrePeginHtlc(
+  params: import('./prePeginHtlc.js').PrePeginHtlcParams,
+  hashlock: string,
+): Promise<import('./prePeginHtlc.js').ExpectedPrePeginHtlc> {
+  return (await import('./prePeginHtlc.js')).deriveExpectedPrePeginHtlc(
+    params,
+    hashlock,
+  );
+}

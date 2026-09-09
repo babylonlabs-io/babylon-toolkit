@@ -58,6 +58,8 @@ jobs:
             "packages/babylon-tbv-rust-wasm/src/wasm-loader-node.ts"
             "packages/babylon-tbv-rust-wasm/src/raw.ts"
             "packages/babylon-tbv-rust-wasm/src/raw-node.ts"
+            "packages/babylon-tbv-rust-wasm/src/prePeginHtlc.ts"
+            "packages/babylon-tbv-rust-wasm/src/rawHtlcConnector.ts"
             "services/vault/src/utils/btc/scriptPubKeyAddress.ts"
           )
 

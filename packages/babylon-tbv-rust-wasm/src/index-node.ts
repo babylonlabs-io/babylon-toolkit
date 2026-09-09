@@ -572,3 +572,14 @@ export { TAP_INTERNAL_KEY, tapInternalPubkey } from './constants.js';
 
 // Export boundary value guards (input validation for callers)
 export { assertPositiveBigintArray } from './value-guards.js';
+
+/** Derive the expected HTLC without using WASM output. */
+export async function deriveExpectedPrePeginHtlc(
+  params: import('./prePeginHtlc.js').PrePeginHtlcParams,
+  hashlock: string,
+): Promise<import('./prePeginHtlc.js').ExpectedPrePeginHtlc> {
+  return (await import('./prePeginHtlc.js')).deriveExpectedPrePeginHtlc(
+    params,
+    hashlock,
+  );
+}

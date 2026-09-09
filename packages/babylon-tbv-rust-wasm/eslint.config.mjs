@@ -25,6 +25,8 @@ export default defineConfig([
       "src/wasm-loader-node.ts",
       "src/raw.ts",
       "src/raw-node.ts",
+      "src/prePeginHtlc.ts",
+      "src/rawHtlcConnector.ts",
     ],
     rules: {
       "@typescript-eslint/no-explicit-any": "error",
