@@ -20,7 +20,9 @@ type ProviderResolver = (address: string) => VaultProvider | undefined;
 /**
  * Checks whether a collateral entry is active (not removed, not excluded status).
  */
-function isActiveCollateral(collateral: AavePositionCollateral): boolean {
+export function isActiveCollateral(
+  collateral: AavePositionCollateral,
+): boolean {
   if (collateral.removedAt !== null) return false;
 
   const status = collateral.vault?.status;

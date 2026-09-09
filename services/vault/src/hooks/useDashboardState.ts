@@ -154,16 +154,19 @@ export function useDashboardState(connectedAddress: string | undefined) {
   }, [rawCollateralVaults, activatingVaults, clearActivatingVault]);
 
   // Add only activations that the current chain snapshot does not include.
-  const displayCollateralBtc =
-    collateralBtc +
-    activatingEntries
-      .filter(
-        (entry) =>
-          !position?.vaultIds.some(
-            (id) => id.toLowerCase() === entry.vaultId.toLowerCase(),
-          ),
-      )
-      .reduce((sum, entry) => sum + entry.amountBtc, 0);
+  const displayCollateralBtc = useMemo(
+    () =>
+      collateralBtc +
+      activatingEntries
+        .filter(
+          (entry) =>
+            !position?.vaultIds.some(
+              (id) => id.toLowerCase() === entry.vaultId.toLowerCase(),
+            ),
+        )
+        .reduce((sum, entry) => sum + entry.amountBtc, 0),
+    [collateralBtc, activatingEntries, position?.vaultIds],
+  );
 
   // Optimistic rows must not enable actions before collateral exists on-chain.
   const hasCollateral = collateralBtc > 0;
@@ -173,6 +176,8 @@ export function useDashboardState(connectedAddress: string | undefined) {
     collateralBtc > 0 || activatingEntries.length > 0;
 
   return {
+    position,
+    indexerError: position?.indexerError ?? null,
     collateralBtc,
     displayCollateralBtc,
     collateralValueUsd,

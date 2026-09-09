@@ -139,7 +139,6 @@ describe("getUserPositionsWithLiveData", () => {
   });
 
   it("does not read debt reserves when the on-chain borrowCount is zero", async () => {
-    mockGetUserPositionsBatch.mockResolvedValue([null, null]);
     const result = await load();
     expect(result).toHaveLength(1);
     expect(result[0].debtPositions).toBeUndefined();
@@ -173,33 +172,50 @@ describe("getUserPositionsWithLiveData", () => {
     });
   });
 
-  it.each(["empty", "failed"])(
-    "keeps live debt when the indexer is %s",
-    async (state) => {
-      setupHappyPath(1n);
-      if (state === "failed")
-        mockFetchActive.mockRejectedValueOnce(new Error("Indexer unavailable"));
-      else mockFetchActive.mockResolvedValue([]);
-      const [result] = await load();
-      expect(mockGetPosition).toHaveBeenCalledWith(
-        { __mockPublicClient: true },
-        ADAPTER,
-        DEPOSITOR,
-      );
-      expect(result).toMatchObject({
-        proxyContract: PROXY,
-        totalCollateral: INDEXED_POSITION.totalCollateral,
-        collaterals: [],
-        accountData: { totalDebtValueRay: 1000n, borrowCount: 1n },
-      });
-      expect(result.debtPositions?.get(USDC_RESERVE_ID)?.totalDebt).toBe(1000n);
-      expect(mockGetUserPositionsBatch).toHaveBeenCalledWith(
-        SPOKE,
-        [USDC_RESERVE_ID, DAI_RESERVE_ID],
-        PROXY,
-      );
-    },
-  );
+  it("keeps live debt when the indexer returns no position", async () => {
+    setupHappyPath(1n);
+    mockFetchActive.mockResolvedValue([]);
+    const [result] = await load();
+    expect(mockGetPosition).toHaveBeenCalledWith(
+      { __mockPublicClient: true },
+      ADAPTER,
+      DEPOSITOR,
+    );
+    expect(result).toMatchObject({
+      proxyContract: PROXY,
+      totalCollateral: INDEXED_POSITION.totalCollateral,
+      collaterals: [],
+      accountData: { totalDebtValueRay: 1000n, borrowCount: 1n },
+    });
+    expect(result.indexerError?.message).toContain("do not match");
+    expect(result.debtPositions?.get(USDC_RESERVE_ID)?.totalDebt).toBe(1000n);
+    expect(mockGetUserPositionsBatch).toHaveBeenCalledWith(
+      SPOKE,
+      [USDC_RESERVE_ID, DAI_RESERVE_ID],
+      PROXY,
+    );
+  });
+
+  it("keeps live debt and reports a failed indexer read", async () => {
+    setupHappyPath(1n);
+    const error = new Error("Indexer unavailable");
+    mockFetchActive.mockRejectedValueOnce(error);
+    const [result] = await load();
+    expect(result.indexerError?.cause).toBe(error);
+    expect(result.collaterals).toEqual([]);
+    expect(result.debtPositions?.get(USDC_RESERVE_ID)?.totalDebt).toBe(1000n);
+  });
+
+  it("rejects an incomplete debt result when a reserve probe returns null", async () => {
+    setupHappyPath(2n);
+    mockGetUserPositionsBatch.mockResolvedValue([DEBT_POSITION, null]);
+    await expect(load()).rejects.toThrow(/found 1.*incomplete/i);
+    expect(mockGetUserTotalDebtsBatch).toHaveBeenCalledWith(
+      SPOKE,
+      [USDC_RESERVE_ID],
+      PROXY,
+    );
+  });
 
   it("returns no position only when the chain confirms none exists", async () => {
     mockGetPosition.mockResolvedValue(null);
@@ -208,14 +224,19 @@ describe("getUserPositionsWithLiveData", () => {
     expect(mockGetUserPositionWithAccountData).not.toHaveBeenCalled();
   });
 
-  it.each([mockGetPosition, mockGetUserPositionWithAccountData])(
-    "propagates a position RPC failure instead of returning no debt",
-    async (rpc) => {
-      mockFetchActive.mockResolvedValue([]);
-      rpc.mockRejectedValueOnce(new Error("RPC down"));
-      await expect(load()).rejects.toThrow("RPC down");
-    },
-  );
+  it("propagates an adapter RPC failure instead of returning no debt", async () => {
+    mockFetchActive.mockResolvedValue([]);
+    mockGetPosition.mockRejectedValueOnce(new Error("Adapter RPC down"));
+    await expect(load()).rejects.toThrow("Adapter RPC down");
+  });
+
+  it("propagates a Spoke RPC failure instead of returning no debt", async () => {
+    mockFetchActive.mockResolvedValue([]);
+    mockGetUserPositionWithAccountData.mockRejectedValueOnce(
+      new Error("Spoke RPC down"),
+    );
+    await expect(load()).rejects.toThrow("Spoke RPC down");
+  });
 
   it("uses the chain proxy and collateral when indexer values differ", async () => {
     mockFetchActive.mockResolvedValue([
@@ -229,5 +250,71 @@ describe("getUserPositionsWithLiveData", () => {
       VBTC_RESERVE_ID,
       PROXY,
     );
+  });
+
+  it("accepts matching collateral details regardless of address case", async () => {
+    mockGetPosition.mockResolvedValue({
+      proxyContract: PROXY,
+      vaultIds: [ADAPTER],
+      totalCollateralBTC: 100n,
+    });
+    const collaterals = [
+      { vaultId: ADAPTER.toUpperCase(), amount: 100n, removedAt: null },
+    ];
+    mockFetchActive.mockResolvedValue([{ ...INDEXED_POSITION, collaterals }]);
+    const [result] = await load();
+    expect(result.indexerError).toBeUndefined();
+    expect(result.collaterals).toEqual(collaterals);
+  });
+
+  it("excludes removed collateral history from the active chain comparison", async () => {
+    mockGetPosition.mockResolvedValue({
+      proxyContract: PROXY,
+      vaultIds: [ADAPTER],
+      totalCollateralBTC: 100n,
+    });
+    const collaterals = [
+      { vaultId: ADAPTER, amount: 100n, removedAt: null },
+      { vaultId: PROXY, amount: 50n, removedAt: 1n },
+    ];
+    mockFetchActive.mockResolvedValue([{ ...INDEXED_POSITION, collaterals }]);
+    const [result] = await load();
+    expect(result.indexerError).toBeUndefined();
+    expect(result.totalCollateral).toBe(100n);
+    expect(result.collaterals).toEqual(collaterals);
+  });
+
+  it("reports a different indexed vault even when row count and total match", async () => {
+    mockGetPosition.mockResolvedValue({
+      proxyContract: PROXY,
+      vaultIds: [ADAPTER],
+      totalCollateralBTC: 100n,
+    });
+    mockFetchActive.mockResolvedValue([
+      {
+        ...INDEXED_POSITION,
+        collaterals: [{ vaultId: PROXY, amount: 100n, removedAt: null }],
+      },
+    ]);
+    const [result] = await load();
+    expect(result.indexerError?.message).toContain("do not match");
+    expect(result.vaultIds).toEqual([ADAPTER]);
+  });
+
+  it("reports stale collateral amounts even when every vault ID matches", async () => {
+    mockGetPosition.mockResolvedValue({
+      proxyContract: PROXY,
+      vaultIds: [ADAPTER],
+      totalCollateralBTC: 100n,
+    });
+    mockFetchActive.mockResolvedValue([
+      {
+        ...INDEXED_POSITION,
+        collaterals: [{ vaultId: ADAPTER, amount: 90n, removedAt: null }],
+      },
+    ]);
+    const [result] = await load();
+    expect(result.indexerError?.message).toContain("do not match");
+    expect(result.totalCollateral).toBe(100n);
   });
 });

@@ -62,8 +62,11 @@ export function DashboardPage() {
   // change.
   const cascadeOverride = usePositionCascadeOverride();
   const liquidationCardOverride = useLiquidationCardOverride();
-  const { result: positionNotifications, params: positionParams } =
-    usePositionNotifications(isConnected ? address : undefined);
+  const {
+    result: positionNotifications,
+    params: positionParams,
+    liveUrgentWarning,
+  } = usePositionNotifications(isConnected ? address : undefined);
   // The chart takes the god-mode cascade when the panel publishes one, else the
   // live position cascade. A status-only override (stale price) carries no
   // cascade, so it falls through to live. Null when neither has a result: the
@@ -234,7 +237,12 @@ export function DashboardPage() {
             column — it portals into RootLayout's top-banner slot (Figma frame
             10204-45613; see CriticalLiquidationTopBanner). */}
         {liquidationNotificationsEnabled && (
-          <CriticalLiquidationTopBanner result={criticalBannerResult} />
+          <CriticalLiquidationTopBanner
+            result={criticalBannerResult}
+            liveUrgentWarning={
+              cascadeOverride?.result ? null : liveUrgentWarning
+            }
+          />
         )}
 
         <OverviewSection

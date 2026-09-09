@@ -4,6 +4,8 @@ import { getPosition } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 import type { Address } from "viem";
 
 import { ethClient } from "@/clients/eth-contract/client";
+import { logger } from "@/infrastructure";
+import { isActiveCollateral } from "@/utils/collateral";
 
 import {
   AaveSpoke,
@@ -27,12 +29,11 @@ export interface DebtPosition {
   totalDebt: bigint;
 }
 
-/** Chain position with optional indexer timestamps and collateral details. */
+/** Chain position with optional collateral details from the indexer. */
 export interface AavePositionWithLiveData
   extends Omit<AavePosition, "createdAt" | "updatedAt"> {
   vaultIds: readonly string[];
-  createdAt?: bigint;
-  updatedAt?: bigint;
+  indexerError?: Error;
   /** Collateral entries for this position */
   collaterals: AavePositionCollateral[];
   /** Live position data from Spoke */
@@ -74,22 +75,48 @@ export async function getUserPositionsWithLiveData(
 ): Promise<AavePositionWithLiveData[]> {
   const { borrowableReserveIds, vbtcReserveId } = options;
 
-  const [position, indexedPositions] = await Promise.all([
+  const [chainResult, indexerResult] = await Promise.allSettled([
     getPosition(
       ethClient.getPublicClient(),
       getAaveAdapterAddress(),
       depositor as Address,
     ),
-    fetchAaveActivePositionsWithCollaterals(depositor).catch(() => []),
+    fetchAaveActivePositionsWithCollaterals(depositor),
   ]);
+  if (chainResult.status === "rejected") throw chainResult.reason;
+  const position = chainResult.value;
   if (!position) return [];
 
   const proxyAddress = position.proxyContract;
+  const indexedPositions =
+    indexerResult.status === "fulfilled" ? indexerResult.value : [];
   const indexedPosition = indexedPositions.find(
     (item) =>
       item.depositorAddress.toLowerCase() === depositor.toLowerCase() &&
       item.proxyContract.toLowerCase() === proxyAddress.toLowerCase(),
   );
+  const collaterals = indexedPosition?.collaterals ?? [];
+  const activeCollaterals = collaterals.filter(isActiveCollateral);
+  const indexerError =
+    indexerResult.status === "rejected"
+      ? new Error("Could not load indexed collateral details", {
+          cause: indexerResult.reason,
+        })
+      : !indexedPosition ||
+          position.vaultIds.length !== activeCollaterals.length ||
+          position.vaultIds.some(
+            (id) =>
+              !activeCollaterals.some(
+                (row) => row.vaultId.toLowerCase() === id.toLowerCase(),
+              ),
+          ) ||
+          activeCollaterals.reduce((total, row) => total + row.amount, 0n) !==
+            position.totalCollateralBTC
+        ? new Error(
+            "Indexed collateral details do not match the chain position",
+          )
+        : undefined;
+  if (indexerError) logger.warn(indexerError.message, { error: indexerError });
 
   // Read the collateral position and account data in one multicall.
   const { position: spokePosition, accountData } =
@@ -121,12 +148,12 @@ export async function getUserPositionsWithLiveData(
 
   return [
     {
-      ...indexedPosition,
       depositorAddress: depositor,
       proxyContract: proxyAddress,
       totalCollateral: position.totalCollateralBTC,
       vaultIds: position.vaultIds,
-      collaterals: indexedPosition?.collaterals ?? [],
+      collaterals,
+      indexerError,
       liveData: {
         drawnShares: spokePosition.drawnShares,
         premiumShares: spokePosition.premiumShares,

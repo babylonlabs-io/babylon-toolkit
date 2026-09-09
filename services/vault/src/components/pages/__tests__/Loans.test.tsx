@@ -2,7 +2,7 @@
  * Loans page states and Repay access, including missing collateral details.
  */
 
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { COPY } from "@/copy";
@@ -114,6 +114,10 @@ vi.mock("../../simple/ActiveLoansList", () => ({
 import Loans from "../Loans";
 
 const CONNECTED_LOADED = {
+  position: { collaterals: [], vaultIds: [] },
+  positionError: null,
+  indexerError: null,
+  refetchPosition: vi.fn().mockResolvedValue(null),
   debtValueUsd: 0,
   availableToBorrowUsd: 0,
   canBorrow: false,
@@ -148,54 +152,143 @@ describe("Loans page — loading gate", () => {
     useBorrowCapacityOverrideMock.mockReturnValue(null);
   });
 
-  it.each<[string, boolean, boolean, boolean, boolean, Error | null]>([
-    ["empty", false, false, false, false, null],
-    ["loading", true, true, false, false, null],
-    ["summary", true, false, true, false, null],
-    ["summary", true, false, false, true, null],
-    ["empty", true, false, false, false, null],
-    ["error", true, false, false, false, new Error("RPC unavailable")],
-  ])(
-    "renders %s (connected %s, loading %s, collateral %s, debt %s)",
-    (view, connected, loading, collateral, debt, error) => {
-      useConnectionMock.mockReturnValue({ isConnected: connected });
-      useETHWalletMock.mockReturnValue({
-        address: connected ? "0xabc" : undefined,
-      });
-      useDashboardStateMock.mockReturnValue({
-        ...CONNECTED_LOADED,
-        hasCollateral: collateral,
-        hasLoans: debt,
-        debtValueUsd: debt ? 1500 : 0,
-        isLoading: loading,
-        positionError: error,
-      });
+  it("shows the connect prompt while disconnected", () => {
+    useConnectionMock.mockReturnValue({ isConnected: false });
+    useETHWalletMock.mockReturnValue({ address: undefined });
+    useDashboardStateMock.mockReturnValue({
+      ...CONNECTED_LOADED,
+      position: null,
+      hasCollateral: false,
+    });
+    render(<Loans />);
+    expect(screen.getByText(COPY.loans.emptyDisconnected)).toBeInTheDocument();
+    expect(screen.getByTestId("loans-empty-state")).toHaveAttribute(
+      "data-connected",
+      "false",
+    );
+    expect(screen.queryByTestId("loans-summary")).not.toBeInTheDocument();
+  });
 
-      const { container } = render(<Loans />);
-      expect(Boolean(container.querySelector("svg"))).toBe(view === "loading");
-      expect(Boolean(screen.queryByTestId("loans-empty-state"))).toBe(
-        view === "empty" || (view === "summary" && !debt),
-      );
-      expect(Boolean(screen.queryByTestId("loans-summary"))).toBe(
-        view === "summary",
-      );
+  it("shows a loader before the first position read finishes", () => {
+    useConnectionMock.mockReturnValue({ isConnected: true });
+    useETHWalletMock.mockReturnValue({ address: "0xabc" });
+    useDashboardStateMock.mockReturnValue({
+      ...CONNECTED_LOADED,
+      position: null,
+      hasCollateral: false,
+      isLoading: true,
+    });
+    const { container } = render(<Loans />);
+    expect(container.querySelector("svg")).toBeInTheDocument();
+    expect(screen.queryByTestId("loans-empty-state")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("loans-summary")).not.toBeInTheDocument();
+  });
+
+  it("shows the summary for collateral without a loan", () => {
+    useConnectionMock.mockReturnValue({ isConnected: true });
+    useETHWalletMock.mockReturnValue({ address: "0xabc" });
+    useDashboardStateMock.mockReturnValue(CONNECTED_LOADED);
+    render(<Loans />);
+    expect(screen.getByTestId("loans-summary")).toBeInTheDocument();
+    expect(
+      screen.getByText(COPY.loans.noActiveLoans.title),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Repay" })).toBeDisabled();
+  });
+
+  it("keeps Repay available when indexed collateral details are missing", () => {
+    useConnectionMock.mockReturnValue({ isConnected: true });
+    useETHWalletMock.mockReturnValue({ address: "0xabc" });
+    useDashboardStateMock.mockReturnValue({
+      ...CONNECTED_LOADED,
+      hasCollateral: false,
+      hasLoans: true,
+      debtValueUsd: 1500,
+      indexerError: new Error("Indexer unavailable"),
+    });
+    render(<Loans />);
+    expect(screen.getByTestId("loans-summary")).toHaveAttribute(
+      "data-total-borrowed",
+      "$1,500.00 USD",
+    );
+    expect(
+      screen.getByText(COPY.loans.detail.ancillaryLoadWarning),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Repay" }));
+    expect(openRepayMock).toHaveBeenCalledOnce();
+  });
+
+  it("shows the deposit prompt after the chain confirms no position", () => {
+    useConnectionMock.mockReturnValue({ isConnected: true });
+    useETHWalletMock.mockReturnValue({ address: "0xabc" });
+    useDashboardStateMock.mockReturnValue({
+      ...CONNECTED_LOADED,
+      position: null,
+      hasCollateral: false,
+    });
+    render(<Loans />);
+    expect(screen.getByTestId("loans-empty-state")).toHaveAttribute(
+      "data-connected",
+      "true",
+    );
+    expect(
+      screen.getByText(COPY.loans.noActiveLoans.title),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("loans-summary")).not.toBeInTheDocument();
+  });
+
+  it("keeps the error and Retry control when a first-load retry fails", async () => {
+    const refetchPosition = vi
+      .fn()
+      .mockRejectedValue(new Error("RPC unavailable"));
+    useConnectionMock.mockReturnValue({ isConnected: true });
+    useETHWalletMock.mockReturnValue({ address: "0xabc" });
+    useDashboardStateMock.mockReturnValue({
+      ...CONNECTED_LOADED,
+      position: null,
+      hasCollateral: false,
+      positionError: new Error("RPC unavailable"),
+      refetchPosition,
+    });
+    render(<Loans />);
+    fireEvent.click(
+      screen.getByRole("button", { name: COPY.loans.detail.retry }),
+    );
+    await waitFor(() =>
       expect(
-        Boolean(screen.queryByText(COPY.loans.detail.positionLoadError)),
-      ).toBe(view === "error");
-      if (!connected)
-        expect(
-          screen.getByText(COPY.loans.emptyDisconnected),
-        ).toBeInTheDocument();
-      if (debt) {
-        expect(screen.getByTestId("loans-summary")).toHaveAttribute(
-          "data-total-borrowed",
-          "$1,500.00 USD",
-        );
-        fireEvent.click(screen.getByRole("button", { name: "Repay" }));
-        expect(openRepayMock).toHaveBeenCalledOnce();
-      }
-    },
-  );
+        screen.getByRole("button", { name: COPY.loans.detail.retry }),
+      ).toBeEnabled(),
+    );
+    expect(refetchPosition).toHaveBeenCalledOnce();
+    expect(
+      screen.getByText(COPY.loans.detail.positionLoadError),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("loans-empty-state")).not.toBeInTheDocument();
+  });
+
+  it("keeps the loaded debt and Repay action after a background read fails", () => {
+    useConnectionMock.mockReturnValue({ isConnected: true });
+    useETHWalletMock.mockReturnValue({ address: "0xabc" });
+    useDashboardStateMock.mockReturnValue({
+      ...CONNECTED_LOADED,
+      hasLoans: true,
+      debtValueUsd: 1500,
+      positionError: new Error("RPC unavailable"),
+    });
+    render(<Loans />);
+    expect(screen.getByTestId("loans-summary")).toHaveAttribute(
+      "data-total-borrowed",
+      "$1,500.00 USD",
+    );
+    expect(
+      screen.queryByText(COPY.loans.detail.positionLoadError),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText(COPY.loans.detail.ancillaryLoadWarning),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Repay" }));
+    expect(openRepayMock).toHaveBeenCalledOnce();
+  });
 
   it("renders injected god-mode loans while disconnected, instead of the empty state", () => {
     useConnectionMock.mockReturnValue({ isConnected: false });

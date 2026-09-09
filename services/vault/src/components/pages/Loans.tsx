@@ -37,6 +37,8 @@ export default function Loans() {
   const { isConnected } = useConnection();
 
   const {
+    position,
+    indexerError,
     debtValueUsd,
     availableToBorrowUsd,
     canBorrow,
@@ -114,7 +116,12 @@ export default function Loans() {
   const hasPosition = hasCollateral || hasLoans || godModeAffectsPage;
 
   // Unknown position data must not show the empty state.
-  if (isConnected && (positionError || isLoading) && !godModeAffectsPage) {
+  if (
+    isConnected &&
+    !position &&
+    (positionError || isLoading) &&
+    !godModeAffectsPage
+  ) {
     return (
       <Container className={`${PAGE_CONTENT_CLASS} pb-6`}>
         <PositionGate
@@ -160,42 +167,50 @@ export default function Loans() {
 
   return (
     <Container className={`${PAGE_CONTENT_CLASS} pb-6`}>
-      <div className="space-y-6">
-        <LoansSummary
-          availableToBorrow={formatUsdValue(availableToBorrowUsd)}
-          totalBorrowed={formatUsdValue(shownDebtUsd)}
-          borrowCapacityLoading={shownCapacityLoading}
-          borrowCapacityError={shownCapacityError}
-          healthFactor={shownHealthFactor}
-          healthFactorStatus={shownHealthFactorStatus}
-          onBorrow={openBorrowPicker}
-          onRepay={openRepay}
-          canBorrow={canBorrow}
-          canRepay={hasLoans}
-        />
+      <PositionGate
+        positionError={null}
+        ancillaryError={positionError || indexerError}
+        refetchPosition={refetchPosition}
+      >
+        <div className="space-y-6">
+          <LoansSummary
+            availableToBorrow={formatUsdValue(availableToBorrowUsd)}
+            totalBorrowed={formatUsdValue(shownDebtUsd)}
+            borrowCapacityLoading={shownCapacityLoading}
+            borrowCapacityError={shownCapacityError}
+            healthFactor={shownHealthFactor}
+            healthFactorStatus={shownHealthFactorStatus}
+            onBorrow={openBorrowPicker}
+            onRepay={openRepay}
+            canBorrow={canBorrow}
+            canRepay={hasLoans}
+          />
 
-        {/* `hasLoans` (debt in USD), not `displayLoans.length`: the two can
+          {/* `hasLoans` (debt in USD), not `displayLoans.length`: the two can
             disagree — dust debt, or a reserve with a debt position whose USD
             value reads 0 — and the real page's choice here must not shift. The
             demo only ever adds a reason to render the list. */}
-        {hasLoans || demoAffectsLoans ? (
-          <ActiveLoansList
-            rows={displayLoans}
-            canBorrow={canBorrow}
-            onBorrow={(reserveId) => goToRowReserve(reserveId, LOAN_TAB.BORROW)}
-            onRepay={(reserveId) => goToRowReserve(reserveId, LOAN_TAB.REPAY)}
-          />
-        ) : (
-          // Has collateral but no borrows yet: the Borrow action lives in the
-          // summary above; this just labels the empty active-loans area.
-          <EmptyState
-            title={COPY.loans.noActiveLoans.title}
-            description={COPY.loans.noActiveLoans.body}
-            isConnected
-            withCard
-          />
-        )}
-      </div>
+          {hasLoans || demoAffectsLoans ? (
+            <ActiveLoansList
+              rows={displayLoans}
+              canBorrow={canBorrow}
+              onBorrow={(reserveId) =>
+                goToRowReserve(reserveId, LOAN_TAB.BORROW)
+              }
+              onRepay={(reserveId) => goToRowReserve(reserveId, LOAN_TAB.REPAY)}
+            />
+          ) : (
+            // Has collateral but no borrows yet: the Borrow action lives in the
+            // summary above; this just labels the empty active-loans area.
+            <EmptyState
+              title={COPY.loans.noActiveLoans.title}
+              description={COPY.loans.noActiveLoans.body}
+              isConnected
+              withCard
+            />
+          )}
+        </div>
+      </PositionGate>
     </Container>
   );
 }

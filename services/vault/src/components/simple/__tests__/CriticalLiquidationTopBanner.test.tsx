@@ -8,6 +8,7 @@ import { render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import type { CalculatorResult } from "@/applications/aave/positionNotifications";
+import { COPY } from "@/copy";
 
 import {
   CRITICAL_BANNER_SLOT_ID,
@@ -105,6 +106,26 @@ describe("CriticalLiquidationTopBanner", () => {
     );
 
     expect(screen.queryByText(/Critical —/)).not.toBeInTheDocument();
+  });
+
+  it("shows live health-factor risk without a calculated liquidation distance", () => {
+    const title = COPY.liquidationWarnings.liveHealthFactor.title("1.05");
+    render(
+      <CriticalLiquidationTopBanner
+        result={null}
+        liveUrgentWarning={{
+          type: "urgent",
+          title,
+          detail: COPY.liquidationWarnings.liveHealthFactor.detail,
+        }}
+      />,
+    );
+
+    expect(screen.getByRole("alert")).toHaveTextContent(title);
+    expect(
+      screen.queryByText(COPY.topBanner.liquidatable),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 
   it("is non-dismissible — renders no close button", () => {
