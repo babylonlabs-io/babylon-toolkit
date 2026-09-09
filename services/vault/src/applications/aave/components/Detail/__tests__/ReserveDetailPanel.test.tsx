@@ -293,21 +293,21 @@ describe("ReserveDetailPanel", () => {
     expect(screen.getByText(COPY.loans.reserveNotFound)).toBeInTheDocument();
   });
 
-  it("withholds the loan form while the debt figure is still unproven", () => {
+  it("blocks Repay after a refresh error when only another reserve has debt", () => {
     mockUseAaveReserveDetail.mockReturnValue(
-      detailState({ currentDebtAmount: null }),
+      detailState({ currentDebtAmount: 0, positionError: new Error("RPC") }),
     );
 
     render(
       <ReserveDetailPanel
         reserveId="2"
-        tab={LOAN_TAB.BORROW}
+        tab={LOAN_TAB.REPAY}
         onProcessingChange={vi.fn()}
         onSuccess={vi.fn()}
       />,
     );
 
     expect(screen.queryByTestId("loan-card")).not.toBeInTheDocument();
-    expect(screen.getByText(COPY.loans.reserveNotFound)).toBeInTheDocument();
+    expect(screen.getByText(COPY.loans.detail.positionLoadError)).toBeVisible();
   });
 });

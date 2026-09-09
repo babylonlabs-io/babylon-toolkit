@@ -180,7 +180,11 @@ export function ReserveDetailPanel({
     <LoanProvider value={loanContextValue}>
       <PositionGate
         positionError={
-          tab === LOAN_TAB.REPAY && totalDebtValueUsd > 0 ? null : positionError
+          tab === LOAN_TAB.REPAY &&
+          totalDebtValueUsd > 0 &&
+          verified.currentDebtAmount > 0
+            ? null
+            : positionError
         }
         ancillaryError={ancillaryError ?? positionError}
         refetchPosition={refetchPosition}
