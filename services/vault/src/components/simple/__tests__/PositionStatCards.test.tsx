@@ -60,7 +60,8 @@ describe("PositionStatCards", () => {
     expect(depositButton).toHaveClass("w-[120px]");
   });
 
-  it("truncates a long collateral total instead of overflowing the card (#2428)", () => {
+  it("clips a long collateral total inside its column instead of overflowing the card", () => {
+    // Regression guard for issue #2428.
     const longValue = "$123,456,789,012,345,678.90";
     render(
       <PositionStatCards
@@ -69,10 +70,62 @@ describe("PositionStatCards", () => {
     );
 
     const value = screen.getByText(longValue);
-    expect(value).toHaveClass("truncate");
+    expect(value).toHaveClass("overflow-hidden");
+    expect(value).toHaveClass("text-ellipsis");
 
-    const column = value.closest("div.justify-between");
+    const column = value.closest("div.flex-col");
     expect(column).toHaveClass("min-w-0");
-    expect(column).toHaveClass("flex-1");
+
+    const section = value.closest("div.justify-between");
+    expect(section).toHaveClass("min-w-0");
+    expect(section).toHaveClass("flex-1");
+  });
+
+  it("clips a long caption inside its column instead of overflowing the card", () => {
+    const longCaption =
+      "0.11111111 BTC \u2192 0.22222222 BTC \u2192 0.33333333 BTC";
+    render(
+      <PositionStatCards
+        cards={[{ label: "Active vaults", value: "3", caption: longCaption }]}
+      />,
+    );
+
+    const caption = screen.getByText(longCaption);
+    expect(caption).toHaveClass("overflow-hidden");
+    expect(caption).toHaveClass("text-ellipsis");
+  });
+
+  it("clips custom valueNode content at the column edge, not only plain values", () => {
+    const longValue = "$123,456,789,012,345,678.90";
+    render(
+      <PositionStatCards
+        cards={[
+          {
+            label: "Total collateral value",
+            value: longValue,
+            valueNode: <span>{longValue} BTC</span>,
+          },
+        ]}
+      />,
+    );
+
+    const valueRow = screen.getByText(`${longValue} BTC`).parentElement;
+    expect(valueRow).toHaveClass("overflow-hidden");
+    expect(valueRow).toHaveClass("min-w-0");
+  });
+
+  it("below xl, a long value wraps rather than being clipped to one line", () => {
+    // truncate would force nowrap at every breakpoint; the component gates
+    // nowrap behind xl: (PR #2296) so narrow viewports wrap instead.
+    const longValue = "$123,456,789,012,345,678.90";
+    render(
+      <PositionStatCards
+        cards={[{ label: "Total collateral value", value: longValue }]}
+      />,
+    );
+
+    const value = screen.getByText(longValue);
+    expect(value).not.toHaveClass("truncate");
+    expect(value).not.toHaveClass("whitespace-nowrap");
   });
 });
