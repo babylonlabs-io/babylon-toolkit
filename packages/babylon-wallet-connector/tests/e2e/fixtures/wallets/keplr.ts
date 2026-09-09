@@ -43,8 +43,8 @@ export async function setupKeplrWallet(context: BrowserContext, mnemonic: string
 
   await page.getByText("All Native Chains", { exact: true }).click({ timeout: WAIT_FOR.ACTION_MS });
 
-  // Complete setup
-  for (const buttonName of ["Save", "Finish"]) {
-    await page.getByRole("button", { name: buttonName }).click();
-  }
+  // Keplr 0.13.46's Finish button only closes the completed setup page.
+  await page.getByRole("button", { name: "Save" }).click();
+  await page.getByRole("button", { name: "Finish" }).waitFor({ state: "visible", timeout: WAIT_FOR.ACTION_MS });
+  await page.close();
 }
