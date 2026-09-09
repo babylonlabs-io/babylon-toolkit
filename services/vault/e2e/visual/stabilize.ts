@@ -14,10 +14,8 @@
  *   deliberately keeps running (`.bbn-loader`, see docs/motion-system.md).
  *   A functional spinner is exactly what a screenshot catches mid-frame,
  *   so `FREEZE_SPINNER_CSS` stops it at a fixed angle.
- * - **Clock-derived copy** (relative timestamps, countdowns, expiry) is
- *   pinned with `setFixedTime`. Deliberately NOT `clock.install()`:
- *   full fake timers stall React Query's retry/refetch scheduling and
- *   the app never reaches a settled frame.
+ * - **Clock-derived copy** stays pinned with `setFixedTime`. Timers
+ *   keep React Query's retry and refetch scheduling active.
  * - **Web fonts** are self-hosted woff2 (`src/globals.css`), so there is
  *   no CDN race - but the first paint can still land before Px-Grotesk
  *   swaps in, so we await `document.fonts.ready`.
@@ -108,6 +106,20 @@ const MIN_RENDERED_TEXT_LENGTH = 20;
  */
 export async function installVisualDeterminism(page: Page): Promise<void> {
   await page.clock.setFixedTime(VISUAL_FIXED_TIME);
+  await page.addInitScript(() => {
+    window.addEventListener(
+      "resize",
+      (event) => {
+        if (
+          innerWidth === 1 &&
+          innerHeight === 1 &&
+          document.documentElement?.hasAttribute("data-visual-capture")
+        )
+          event.stopImmediatePropagation();
+      },
+      true,
+    );
+  });
 }
 
 /**
