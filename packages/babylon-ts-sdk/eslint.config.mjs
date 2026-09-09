@@ -79,9 +79,7 @@ export default defineConfig([
       ],
     },
   },
-  // `import { type X } from "pkg"` leaves a side-effect import behind under
-  // verbatimModuleSyntax, which would defeat allowTypeImports above. Keep
-  // every type-only import in the top-level `import type` form.
+  // Keep every type-only import in the top-level `import type` form.
   {
     files: ["src/**/*.ts"],
     rules: {

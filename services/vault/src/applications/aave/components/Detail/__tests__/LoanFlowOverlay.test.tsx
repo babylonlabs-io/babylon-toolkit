@@ -7,7 +7,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { MemoryRouter, useLocation } from "react-router";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { COPY } from "@/copy";
 
@@ -23,15 +23,17 @@ const useAaveBorrowedAssetsMock = vi.fn(() => ({
     icon: string;
   }[],
 }));
-const useAaveUserPositionMock = vi.fn(() => ({
-  position: undefined as
-    | { collaterals: []; vaultIds: []; indexerError?: Error }
-    | undefined,
-  debtValueUsd: 0,
-  isLoading: false,
-  error: null as Error | null,
-  refetch: vi.fn(),
-}));
+const useAaveUserPositionMock = vi.hoisted(() =>
+  vi.fn(() => ({
+    position: undefined as
+      | { collaterals: []; vaultIds: []; indexerError?: Error }
+      | undefined,
+    debtValueUsd: 0,
+    isLoading: false,
+    error: null as Error | null,
+    refetch: vi.fn(),
+  })),
+);
 
 // `getNetworkConfigBTC` is read at module scope by the token registry, which
 // this tree reaches through `@/routes`.
@@ -116,13 +118,15 @@ vi.mock("../../LoanCard/LoanSuccessPanel", () => ({
   LOAN_SUCCESS_WIDTH_CLASS: "max-w-[564px]",
 }));
 
+const walletState = vi.hoisted(() => ({ isConnected: true }));
+
 vi.mock("@/context/wallet", () => ({
-  useConnection: () => ({ isConnected: true }),
+  useConnection: () => walletState,
   useETHWallet: () => ({ address: "0xabc" }),
 }));
 
 vi.mock("../../../hooks", () => ({
-  useAaveUserPosition: () => useAaveUserPositionMock(),
+  useAaveUserPosition: useAaveUserPositionMock,
   useAaveBorrowedAssets: () => useAaveBorrowedAssetsMock(),
 }));
 
@@ -141,6 +145,41 @@ function renderOverlay(ui: ReactNode, path = "/loans") {
 }
 
 describe("LoanFlowOverlay", () => {
+  beforeEach(() => {
+    walletState.isConnected = true;
+    useAaveUserPositionMock.mockClear();
+  });
+
+  it("omits the position query address while disconnected", () => {
+    walletState.isConnected = false;
+    renderOverlay(
+      <LoanFlowOverlay
+        picker={LOAN_TAB.REPAY}
+        reserveId={null}
+        tab={LOAN_TAB.REPAY}
+      />,
+    );
+
+    expect(useAaveUserPositionMock).toHaveBeenCalledWith(undefined);
+    expect(screen.getByTestId("picker-repay")).toBeInTheDocument();
+    expect(screen.queryByTestId("form")).not.toBeInTheDocument();
+  });
+
+  it("queries the position for the connected Ethereum address", () => {
+    walletState.isConnected = true;
+    renderOverlay(
+      <LoanFlowOverlay
+        picker={LOAN_TAB.REPAY}
+        reserveId={null}
+        tab={LOAN_TAB.REPAY}
+      />,
+    );
+
+    expect(useAaveUserPositionMock).toHaveBeenCalledWith("0xabc");
+    expect(screen.getByTestId("picker-repay")).toBeInTheDocument();
+    expect(screen.queryByTestId("form")).not.toBeInTheDocument();
+  });
+
   it("shows an error and retry instead of an empty Repay picker after an RPC failure", async () => {
     const refetch = vi.fn().mockRejectedValue(new Error("RPC unavailable"));
     useAaveUserPositionMock.mockReturnValueOnce({

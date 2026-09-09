@@ -37,10 +37,20 @@ vi.mock("@/config", () => ({
   getNetworkConfigBTC: () => ({ icon: "btc.png", name: "sBTC" }),
 }));
 
-const mockUseConnection = vi.fn(() => ({ isConnected: true }));
-vi.mock("@/context/wallet", () => ({
-  useConnection: () => mockUseConnection(),
-  useETHWallet: () => ({ address: "0xUser" }),
+const walletMock = vi.hoisted(() => ({
+  btcConnected: true,
+  ethConnected: true,
+}));
+vi.mock("@babylonlabs-io/wallet-connector", () => ({
+  useBTCWallet: () => ({ connected: walletMock.btcConnected }),
+  useETHWallet: () => ({
+    connected: walletMock.ethConnected,
+    address: walletMock.ethConnected ? "0xUser" : undefined,
+  }),
+}));
+vi.mock("@/context/wallet", async () => ({
+  useConnection: (await import("@/context/wallet/useConnection")).useConnection,
+  useETHWallet: (await import("@babylonlabs-io/wallet-connector")).useETHWallet,
 }));
 
 vi.mock("../../../context", () => ({
@@ -113,7 +123,8 @@ function detailState(overrides: Record<string, unknown> = {}) {
 describe("ReserveDetailPanel", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockUseConnection.mockReturnValue({ isConnected: true });
+    walletMock.btcConnected = true;
+    walletMock.ethConnected = true;
     mockUseAaveReserveDetail.mockReturnValue(detailState());
   });
 
@@ -220,8 +231,9 @@ describe("ReserveDetailPanel", () => {
     expect(screen.queryByText(COPY.common.loading)).not.toBeInTheDocument();
   });
 
-  it("prompts to connect without waiting on the identity round-trip", () => {
-    mockUseConnection.mockReturnValue({ isConnected: false });
+  it("prompts to connect before identity loads when both wallets are missing", () => {
+    walletMock.btcConnected = false;
+    walletMock.ethConnected = false;
     mockUseAaveReserveDetail.mockReturnValue(
       detailState({
         isLoading: true,
@@ -243,6 +255,61 @@ describe("ReserveDetailPanel", () => {
     expect(
       screen.getByText(COPY.loans.connectToManage.title),
     ).toBeInTheDocument();
+    expect(screen.queryByTestId("loan-card")).not.toBeInTheDocument();
+  });
+
+  it("prompts to connect before identity loads when only Bitcoin is connected", () => {
+    walletMock.btcConnected = true;
+    walletMock.ethConnected = false;
+    mockUseAaveReserveDetail.mockReturnValue(
+      detailState({
+        isLoading: true,
+        tokenIdentity: null,
+        assetConfig: null,
+        currentDebtAmount: null,
+      }),
+    );
+
+    render(
+      <ReserveDetailPanel
+        reserveId="2"
+        tab={LOAN_TAB.BORROW}
+        onProcessingChange={vi.fn()}
+        onSuccess={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByText(COPY.loans.connectToManage.title),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("loan-card")).not.toBeInTheDocument();
+  });
+
+  it("prompts to connect before identity loads when only Ethereum is connected", () => {
+    walletMock.btcConnected = false;
+    walletMock.ethConnected = true;
+    mockUseAaveReserveDetail.mockReturnValue(
+      detailState({
+        isLoading: true,
+        tokenIdentity: null,
+        assetConfig: null,
+        currentDebtAmount: null,
+      }),
+    );
+
+    render(
+      <ReserveDetailPanel
+        reserveId="2"
+        tab={LOAN_TAB.BORROW}
+        onProcessingChange={vi.fn()}
+        onSuccess={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByText(COPY.loans.connectToManage.title),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("loan-card")).not.toBeInTheDocument();
   });
 
   it("tells the user a legacy symbol link is outdated", () => {

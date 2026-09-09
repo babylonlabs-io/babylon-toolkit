@@ -53,8 +53,12 @@ export function loadTbvWasm(): Promise<TbvWasmModule> {
 }
 
 /**
- * Load the explicit raw-class entry for the one SDK primitive that must
- * reconstruct a stateful WASM transaction object (refund construction).
+ * Load and initialize the raw engine classes. This bypasses SDK value checks.
+ * The internal refund builder applies equivalent checks at its call site.
+ *
+ * @deprecated Use buildPrePeginPsbt, buildPeginTxFromFundedPrePegin, or
+ * buildRefundPsbt from @babylonlabs-io/ts-sdk/tbv/core/primitives.
+ * Raw callers must independently check transaction values and signing data.
  */
 export function loadRawTbvWasm(): Promise<RawTbvWasmModule> {
   rawWasmModulePromise ??= import("@babylonlabs-io/babylon-tbv-rust-wasm/raw")
@@ -338,11 +342,8 @@ export async function getChallengeAssertScriptInfo(
 
 /**
  * Derive 32-byte `authAnchor` (OP_RETURN preimage → VP bearer token).
- * @stability frozen — forwards the frozen expander in `@babylonlabs-io/babylon-tbv-rust-wasm`; see CLAUDE.md §4.
- */
-/**
- * Derive 32-byte `authAnchor` (OP_RETURN preimage → VP bearer token).
- * @stability frozen — owned by btc-vault Rust via the vault-wasm pin (`VAULT_WASM_COMMIT`); rotation breaks VP auth for existing deposits.
+ * @stability frozen - btc-vault Rust owns this API through the vault-wasm pin (`VAULT_WASM_COMMIT`).
+ * Changing the derived bytes breaks VP auth for existing deposits. See CLAUDE.md §4.
  */
 export async function expandAuthAnchor(root: Uint8Array): Promise<Uint8Array> {
   return (await loadTbvWasm()).expandAuthAnchor(root);
@@ -350,11 +351,8 @@ export async function expandAuthAnchor(root: Uint8Array): Promise<Uint8Array> {
 
 /**
  * Derive 32-byte `hashlockSecret` for HTLC `htlcVout` (preimage → `activateVaultWithSecret`).
- * @stability frozen — forwards the frozen expander in `@babylonlabs-io/babylon-tbv-rust-wasm`; see CLAUDE.md §4.
- */
-/**
- * Derive 32-byte `hashlockSecret` for HTLC `htlcVout` (preimage → `activateVaultWithSecret`).
- * @stability frozen — owned by btc-vault Rust; rotation means affected vaults can never activate.
+ * @stability frozen - btc-vault Rust owns this API.
+ * Changing the derived bytes means affected vaults can never activate. See CLAUDE.md §4.
  */
 export async function expandHashlockSecret(
   root: Uint8Array,
@@ -365,11 +363,8 @@ export async function expandHashlockSecret(
 
 /**
  * Derive 64-byte `wotsSeed` for HTLC `htlcVout` (→ WOTS keys, hashed as `depositorWotsPkHash`).
- * @stability frozen — forwards the frozen expander in `@babylonlabs-io/babylon-tbv-rust-wasm`; see CLAUDE.md §4.
- */
-/**
- * Derive 64-byte `wotsSeed` for HTLC `htlcVout` (→ WOTS keys, hashed as `depositorWotsPkHash`).
- * @stability frozen — owned by btc-vault Rust; rotation breaks existing `depositorWotsPkHash` → no claim path.
+ * @stability frozen - btc-vault Rust owns this API.
+ * Changing the derived bytes breaks existing `depositorWotsPkHash` values. No claim path remains. See CLAUDE.md §4.
  */
 export async function expandWotsSeed(
   root: Uint8Array,

@@ -10,6 +10,7 @@ import type {
   CalculatorResult,
 } from "@/applications/aave/positionNotifications/types";
 import { COPY } from "@/copy";
+import { useDashboardState } from "@/hooks/useDashboardState";
 import { setHealthFactorOverride } from "@/overrides/borrowCapacity";
 import { setPositionCascadeOverride } from "@/overrides/position";
 
@@ -31,13 +32,26 @@ vi.mock("react-router", () => ({
   useOutletContext: () => ({ openDeposit: vi.fn() }),
 }));
 
-vi.mock("@/context/wallet", () => ({
-  useConnection: () => ({ isConnected: true }),
-  useETHWallet: () => ({ address: "0xabc" }),
+const walletMock = vi.hoisted(() => ({
+  btcConnected: true,
+  ethConnected: true,
+}));
+
+vi.mock("@babylonlabs-io/wallet-connector", () => ({
+  useBTCWallet: () => ({ connected: walletMock.btcConnected }),
+  useETHWallet: () => ({
+    connected: walletMock.ethConnected,
+    address: "0xabc",
+  }),
+}));
+
+vi.mock("@/context/wallet", async () => ({
+  useConnection: (await import("@/context/wallet/useConnection")).useConnection,
+  useETHWallet: (await import("@babylonlabs-io/wallet-connector")).useETHWallet,
 }));
 
 vi.mock("@/hooks/useDashboardState", () => ({
-  useDashboardState: () => ({
+  useDashboardState: vi.fn(() => ({
     collateralBtc: 0,
     displayCollateralBtc: 0,
     collateralValueUsd: 0,
@@ -54,7 +68,7 @@ vi.mock("@/hooks/useDashboardState", () => ({
     hasDisplayCollateral: true,
     collateralVaults: [],
     isLoading: false,
-  }),
+  })),
 }));
 
 vi.mock("@/hooks/useApplicationCap", () => ({
@@ -113,7 +127,7 @@ vi.mock("../CriticalLiquidationTopBanner", () => ({
   }) => <div data-testid="critical-banner">{liveUrgentWarning?.title}</div>,
 }));
 vi.mock("../DisconnectedOverview", () => ({
-  DisconnectedOverview: () => null,
+  DisconnectedOverview: () => <div data-testid="disconnected-overview" />,
 }));
 // Captures the raw cascade prop so tests can assert on the *identity* of the
 // CalculatorResult that reached the section, not just values re-derived from
@@ -154,6 +168,8 @@ vi.mock("@/components/shared", () => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
+  walletMock.btcConnected = true;
+  walletMock.ethConnected = true;
   featureFlagsMock.isLiquidationNotificationsEnabled = false;
   featureFlagsMock.isGodModePanelEnabled = false;
   positionNotificationsMock.result = null;
@@ -180,6 +196,39 @@ describe("DashboardPage composition", () => {
     expect(receivedCascade.current).toBeNull();
   });
 
+  it("shows the landing page when both wallets are missing", () => {
+    walletMock.btcConnected = false;
+    walletMock.ethConnected = false;
+
+    render(<DashboardPage />);
+
+    expect(screen.getByTestId("disconnected-overview")).toBeInTheDocument();
+    expect(screen.queryByTestId("overview-section")).not.toBeInTheDocument();
+    expect(useDashboardState).toHaveBeenCalledWith(undefined);
+  });
+
+  it("shows the landing page when only Bitcoin is connected", () => {
+    walletMock.btcConnected = true;
+    walletMock.ethConnected = false;
+
+    render(<DashboardPage />);
+
+    expect(screen.getByTestId("disconnected-overview")).toBeInTheDocument();
+    expect(screen.queryByTestId("overview-section")).not.toBeInTheDocument();
+    expect(useDashboardState).toHaveBeenCalledWith(undefined);
+  });
+
+  it("shows the landing page when only Ethereum is connected", () => {
+    walletMock.btcConnected = false;
+    walletMock.ethConnected = true;
+
+    render(<DashboardPage />);
+
+    expect(screen.getByTestId("disconnected-overview")).toBeInTheDocument();
+    expect(screen.queryByTestId("overview-section")).not.toBeInTheDocument();
+    expect(useDashboardState).toHaveBeenCalledWith(undefined);
+  });
+
   it("renders the overview summary, the risk card and the safety notifications", () => {
     featureFlagsMock.isLiquidationNotificationsEnabled = true;
 
@@ -190,6 +239,7 @@ describe("DashboardPage composition", () => {
     expect(screen.getByTestId("critical-banner")).toBeInTheDocument();
     expect(screen.getByTestId("position-banner")).toBeInTheDocument();
     expect(screen.getByText(COPY.risk.title)).toBeInTheDocument();
+    expect(useDashboardState).toHaveBeenCalledWith("0xabc");
 
     // Figma (10094-26791, 10204-45310): the max-vaults notice and the cascade
     // banner share the slot below Position, not above it.

@@ -21,7 +21,7 @@ vi.mock("@/context/wallet", () => ({
 }));
 
 vi.mock("@/hooks/useDashboardState", () => ({
-  useDashboardState: () => useDashboardStateMock(),
+  useDashboardState: (address: unknown) => useDashboardStateMock(address),
 }));
 
 vi.mock("@/hooks/useLoanActions", () => ({
@@ -154,18 +154,20 @@ describe("Loans page — loading gate", () => {
 
   it("shows the connect prompt while disconnected", () => {
     useConnectionMock.mockReturnValue({ isConnected: false });
-    useETHWalletMock.mockReturnValue({ address: undefined });
+    useETHWalletMock.mockReturnValue({ address: "0xabc" });
     useDashboardStateMock.mockReturnValue({
       ...CONNECTED_LOADED,
       position: null,
       hasCollateral: false,
     });
-    render(<Loans />);
+    const { container } = render(<Loans />);
     expect(screen.getByText(COPY.loans.emptyDisconnected)).toBeInTheDocument();
     expect(screen.getByTestId("loans-empty-state")).toHaveAttribute(
       "data-connected",
       "false",
     );
+    expect(useDashboardStateMock).toHaveBeenCalledWith(undefined);
+    expect(container.querySelector("svg")).not.toBeInTheDocument();
     expect(screen.queryByTestId("loans-summary")).not.toBeInTheDocument();
   });
 
