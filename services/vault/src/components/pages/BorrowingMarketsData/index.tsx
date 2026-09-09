@@ -25,7 +25,6 @@ import {
   useVaultSplitParams,
   useVerifiedReserveIdentity,
 } from "@/applications/aave/hooks";
-import { NEUTRAL_BUTTON_CLASS } from "@/components/shared/buttonClasses";
 import { PAGE_CONTENT_CLASS } from "@/components/shared/layoutClasses";
 import { getNetworkConfigBTC } from "@/config";
 import { COPY } from "@/copy";
@@ -363,36 +362,31 @@ export default function BorrowingMarketsData() {
             {COPY.marketData.backToAssets}
           </button>
 
-          <div className="flex flex-wrap items-center gap-4">
-            <div className="flex min-w-0 flex-1 items-center gap-4">
-              <Avatar
-                url={icon}
-                alt={name}
-                size="large"
-                variant="circular"
-                className="h-16 w-16 shrink-0 rounded-full bg-white"
-              />
-              <div className="flex min-w-0 flex-col">
-                <div className="flex items-center gap-2">
-                  <Heading
-                    variant="h5"
-                    as="h1"
-                    className="font-normal text-accent-primary"
-                  >
-                    {name}
-                  </Heading>
-                  <span className="rounded-lg bg-secondary-strokeLight px-2 py-0.5 text-xs leading-[1.66] tracking-[0.4px] text-accent-secondary">
-                    {symbol}
-                  </span>
-                </div>
-                <Text variant="body1" className="text-accent-secondary">
-                  {COPY.marketData.subtitle(symbol)}
-                </Text>
+          <div className="flex min-w-0 items-center gap-4">
+            <Avatar
+              url={icon}
+              alt={name}
+              size="large"
+              variant="circular"
+              className="h-16 w-16 shrink-0 rounded-full bg-white"
+            />
+            <div className="flex min-w-0 flex-col">
+              <div className="flex items-center gap-2">
+                <Heading
+                  variant="h5"
+                  as="h1"
+                  className="font-normal text-accent-primary"
+                >
+                  {name}
+                </Heading>
+                <span className="rounded-lg bg-secondary-strokeLight px-2 py-0.5 text-xs leading-[1.66] tracking-[0.4px] text-accent-secondary">
+                  {symbol}
+                </span>
               </div>
+              <Text variant="body1" className="text-accent-secondary">
+                {COPY.marketData.subtitle(symbol)}
+              </Text>
             </div>
-            <button type="button" className={NEUTRAL_BUTTON_CLASS} disabled>
-              {COPY.marketData.borrowAction}
-            </button>
           </div>
         </div>
 

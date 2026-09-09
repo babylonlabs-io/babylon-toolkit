@@ -412,6 +412,16 @@ describe("BorrowingMarketsData", () => {
     ).toBeInTheDocument();
   });
 
+  it("renders no Borrow control in the header (#2431 — it had no wiring to any flow)", () => {
+    setUpHooks();
+
+    renderPage("1");
+
+    expect(
+      screen.queryByRole("button", { name: "Borrow" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("resolves a token-symbol slug to the reserve whose underlying carries that registry symbol", () => {
     setUpHooks({
       borrowableReserves: [REGISTERED_USDC_RESERVE, WBTC_RESERVE],

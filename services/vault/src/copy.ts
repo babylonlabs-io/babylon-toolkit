@@ -1704,7 +1704,6 @@ export const COPY = {
     backToAssets: "Back to assets",
     subtitle: (symbol: string) =>
       `Learn more about the ${symbol} borrow market`,
-    borrowAction: "Borrow",
     // Shown instead of the metrics when a Hub or oracle read failed, so a
     // failed read is never mistaken for a metric that has no value.
     dataUnavailable:
