@@ -362,7 +362,7 @@ export function mapDepositError(err: unknown): DepositErrorContent {
   }
 
   // 7. Pre-PegIn broadcast failure. Checked before the ETH-gas/UTXO buckets:
-  // the flow wraps broadcast errors as "Failed to broadcast batch Pre-PegIn
+  // the flow wraps broadcast errors as "Failed to broadcast batch Pre-Pegin
   // transaction: <inner>", and that inner text can contain BTC-side
   // "insufficient funds" — a broadcast wrapper must win over the ETH-gas
   // classification.

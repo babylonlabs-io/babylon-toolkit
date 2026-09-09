@@ -48,10 +48,13 @@ vi.mock("@/context/geofencing", () => ({
   useGeoFencing: () => ({ isGeoBlocked: false, isLoading: true }),
 }));
 
-const walletMock = vi.hoisted(() => ({ connected: false }));
+const walletMock = vi.hoisted(() => ({
+  btcConnected: false,
+  ethConnected: false,
+}));
 vi.mock("@/context/wallet", () => ({
-  useBTCWallet: () => ({ connected: walletMock.connected }),
-  useETHWallet: () => ({ connected: walletMock.connected }),
+  useBTCWallet: () => ({ connected: walletMock.btcConnected }),
+  useETHWallet: () => ({ connected: walletMock.ethConnected }),
 }));
 
 // The god-mode status override is compile-time null in production (gated on
@@ -121,14 +124,16 @@ beforeEach(() => {
   featureFlagsMock.isDepositDisabled = false;
   networkMock.value = "mainnet";
   mobileMock.value = false;
-  walletMock.connected = false;
+  walletMock.btcConnected = false;
+  walletMock.ethConnected = false;
   debugStatusMock.value = null;
 });
 
 describe("RootLayout — header wiring", () => {
   it("mainnet: shows the page-title h1, no BrandLockup, no NetworkBadge", () => {
     networkMock.value = "mainnet";
-    walletMock.connected = true;
+    walletMock.btcConnected = true;
+    walletMock.ethConnected = true;
 
     renderRootLayout();
 
@@ -144,7 +149,8 @@ describe("RootLayout — header wiring", () => {
 
   it("signet: shows the page-title h1 and the NetworkBadge", () => {
     networkMock.value = "signet";
-    walletMock.connected = true;
+    walletMock.btcConnected = true;
+    walletMock.ethConnected = true;
 
     renderRootLayout();
 
@@ -155,13 +161,18 @@ describe("RootLayout — header wiring", () => {
     expect(screen.getByText(COPY.header.networkBadge)).toBeInTheDocument();
   });
 
-  it("disconnected: drops the sidebar and page title for the entry chrome", () => {
-    walletMock.connected = true;
-    const { unmount } = renderRootLayout();
-    expect(document.querySelector("aside")).toBeInTheDocument();
-    unmount();
+  it("shows the sidebar when both wallets are connected", () => {
+    walletMock.btcConnected = true;
+    walletMock.ethConnected = true;
 
-    walletMock.connected = false;
+    renderRootLayout();
+
+    expect(document.querySelector("aside")).toBeInTheDocument();
+  });
+
+  it("shows the entry layout when both wallets are missing", () => {
+    walletMock.btcConnected = false;
+    walletMock.ethConnected = false;
     const { container } = renderRootLayout();
 
     expect(document.querySelector("aside")).not.toBeInTheDocument();
@@ -170,6 +181,32 @@ describe("RootLayout — header wiring", () => {
     // lockup to the header.
     expect(screen.getByRole("img", { name: "Aave" })).toBeInTheDocument();
     // Without a sidebar column to fill, the navbar takes the capped entry box.
+    expect(
+      container.querySelector(".\\!max-w-\\[1280px\\]"),
+    ).toBeInTheDocument();
+  });
+
+  it("shows the entry layout when only Bitcoin is connected", () => {
+    walletMock.btcConnected = true;
+    walletMock.ethConnected = false;
+    const { container } = renderRootLayout();
+
+    expect(document.querySelector("aside")).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { level: 1 })).not.toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Aave" })).toBeInTheDocument();
+    expect(
+      container.querySelector(".\\!max-w-\\[1280px\\]"),
+    ).toBeInTheDocument();
+  });
+
+  it("shows the entry layout when only Ethereum is connected", () => {
+    walletMock.btcConnected = false;
+    walletMock.ethConnected = true;
+    const { container } = renderRootLayout();
+
+    expect(document.querySelector("aside")).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { level: 1 })).not.toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Aave" })).toBeInTheDocument();
     expect(
       container.querySelector(".\\!max-w-\\[1280px\\]"),
     ).toBeInTheDocument();
@@ -243,7 +280,8 @@ describe("RootLayout — operator message banner", () => {
   });
 
   it("suppresses the standalone notice while the deposit-disabled banner is active", () => {
-    walletMock.connected = true;
+    walletMock.btcConnected = true;
+    walletMock.ethConnected = true;
     featureFlagsMock.isDepositDisabled = true;
     featureFlagsMock.noticeBannerMessage = OPERATOR_MESSAGE;
 
@@ -265,7 +303,8 @@ describe("RootLayout — operator message banner", () => {
     // healthy — the deposit-disabled default copy must not leak through, and the
     // operator message must not appear as a standalone strip.
     debugStatusMock.value = "frozen";
-    walletMock.connected = true;
+    walletMock.btcConnected = true;
+    walletMock.ethConnected = true;
     featureFlagsMock.isDepositDisabled = true;
     featureFlagsMock.noticeBannerMessage = OPERATOR_MESSAGE;
 

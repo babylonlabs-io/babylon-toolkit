@@ -1,9 +1,8 @@
 // Node.js entry point for the WASM bindings.
 //
-// Loads the committed web WASM binary synchronously from disk using
-// readFileSync and initializes it via initSync. This avoids fetch()-based
-// loading, which does not work in Node.js environments, and does not require
-// a separate wasm-pack --target nodejs build step.
+// The loader reads the committed web WASM binary asynchronously on first use.
+// It initializes the binary with initSync. No fetch() or separate
+// wasm-pack --target nodejs build is needed.
 
 import {
   getWasmBindings,

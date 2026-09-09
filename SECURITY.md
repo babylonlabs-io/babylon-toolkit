@@ -221,6 +221,10 @@ cross-check at the call site instead. The only SDK consumer is
 `packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/refund.ts`.
 It derives the canonical HTLC and signing data in TypeScript before it emits a refund PSBT.
 
+The raw classes and SDK raw loader are deprecated. The retained path still permits a bypass.
+See the [migration guide](packages/babylon-ts-sdk/docs/guides/raw-engine-migration.md)
+for guarded alternatives and the compatibility blocker in #2361.
+
 The mitigation is `assertWasmBigint` / `assertPositiveBigintArray`
 (`packages/babylon-tbv-rust-wasm/src/value-guards.ts`), applied to every value crossing the boundary
 before it is used. The input guard is duplicated at

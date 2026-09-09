@@ -239,8 +239,8 @@ function renderReport(results, meta) {
   <h1>Visual diff</h1>
   <p class="summary">
     candidate <code>${escapeHtml(meta.candidateRef)}</code> vs baseline <code>${escapeHtml(meta.baselineRef)}</code><br />
-    ${meta.changedCount} of ${meta.totalCount} screens changed.
-    ${interesting.length === 0 ? "Showing all screens because nothing changed." : ""}
+    ${meta.expectedCount === null || meta.absentScreens.length > 0 ? 'Incomplete capture. ' : ''}${meta.changedCount} of ${meta.totalCount} screens changed.
+    ${interesting.length === 0 ? 'Showing all screens because nothing changed.' : ''}
   </p>
   ${rows}
 </body>
@@ -294,30 +294,29 @@ async function main() {
   const candidateNames = await listPngs(candidateDir);
   const allNames = [...new Set([...baselineNames, ...candidateNames])].sort();
 
-  // A screen absent from BOTH sides is invisible to everything below: it is
-  // never constructed, so it can never be ADDED, REMOVED or CHANGED, and the
-  // run reports "no visual changes" for a comparison that never looked at it.
-  // Because both sides are photographed by the same stashed harness against
-  // the same committed fixture, that symmetric shortfall is the DEFAULT
-  // failure mode here, not the rare one - a stale recording or a drifted
-  // testid takes the same screens out on both sides.
-  //
-  // Kept in `meta` rather than pushed into `results` as a fifth status:
-  // `visual-embed.mjs` composes an image for every non-UNCHANGED result, and
-  // there is no PNG on either side to compose from.
+  // Check each capture against its own manifest. A required screen that was
+  // not captured is incomplete evidence, not an added or removed screen.
+  // Keep it outside results so the image report uses only valid captures.
   const expectedLists = [
     await readExpected(args.get("expected-baseline")),
     await readExpected(args.get("expected-candidate")),
-  ].filter((list) => list !== null);
-  const expected =
-    expectedLists.length === 0
-      ? null
-      : [...new Set(expectedLists.flat())].sort();
-  const absentScreens =
-    expected?.filter((name) => !allNames.includes(name)) ?? [];
+  ];
+  const expected = expectedLists.includes(null)
+    ? null
+    : [...new Set(expectedLists.flat())].sort();
+  const absentScreens = [
+    ...new Set(
+      expectedLists.flatMap((list, side) =>
+        (list ?? []).filter(
+          (name) =>
+            !(side === 0 ? baselineNames : candidateNames).includes(name),
+        ),
+      ),
+    ),
+  ].sort();
 
   const results = [];
-  for (const name of allNames) {
+  for (const name of allNames.filter((name) => !absentScreens.includes(name))) {
     const inBaseline = baselineNames.includes(name);
     const inCandidate = candidateNames.includes(name);
 
@@ -351,9 +350,7 @@ async function main() {
     candidateRef: args.get("candidate-ref") ?? "HEAD",
     totalCount: results.length,
     changedCount: changed.length,
-    // null means no manifest was found on either side. The workflow treats
-    // that as a shortfall too: it can only happen when the capture that ran
-    // was not the stashed harness, which is not a state to report clean.
+    // Both manifests are required to confirm that the capture is complete.
     expectedCount: expected === null ? null : expected.length,
     absentScreens,
   };
@@ -390,12 +387,12 @@ async function main() {
   // on stdout so the workflow's `tee` carries it into the report comment.
   if (expected === null) {
     process.stdout.write(
-      `No expected-screens manifest on either side - cannot tell whether ` +
+      `At least one expected-screens manifest is missing - cannot tell whether ` +
         `every screen was captured. This run is not a full comparison.\n`,
     );
   } else if (absentScreens.length > 0) {
     process.stdout.write(
-      `Never captured on either side (${absentScreens.length} of ` +
+      `Not captured on one or both sides (${absentScreens.length} of ` +
         `${expected.length} expected screens):\n` +
         `${absentScreens.map((name) => `  ${name}`).join("\n")}\n`,
     );

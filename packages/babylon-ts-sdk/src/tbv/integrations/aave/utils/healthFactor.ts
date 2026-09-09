@@ -2,12 +2,12 @@
  * Health Factor Utilities for Aave
  *
  * Health factor is calculated by Aave on-chain using oracle prices.
- * A health factor below 1.0 means the position can be liquidated.
+ * A position below HEALTH_FACTOR_LIQUIDATION_THRESHOLD can be liquidated.
  *
  * Status thresholds:
  * - no_debt: No active debt (null health factor)
- * - danger: < 1.0 (can be liquidated)
- * - risky: from 1.0 up to and including HEALTH_FACTOR_RISKY_THRESHOLD
+ * - danger: below HEALTH_FACTOR_LIQUIDATION_THRESHOLD (can be liquidated)
+ * - risky: HEALTH_FACTOR_LIQUIDATION_THRESHOLD to HEALTH_FACTOR_RISKY_THRESHOLD (inclusive)
  * - warning: above HEALTH_FACTOR_RISKY_THRESHOLD, up to and including
  *   HEALTH_FACTOR_WARNING_THRESHOLD
  * - safe: > HEALTH_FACTOR_WARNING_THRESHOLD (healthy)
@@ -15,6 +15,7 @@
 
 import {
   BPS_SCALE,
+  HEALTH_FACTOR_LIQUIDATION_THRESHOLD,
   HEALTH_FACTOR_RISKY_THRESHOLD,
   HEALTH_FACTOR_WARNING_THRESHOLD,
 } from "../constants.js";
@@ -41,7 +42,7 @@ export function getHealthFactorStatus(
   if (healthFactor === null) {
     throw new Error("A health factor is required for a position with debt.");
   }
-  if (healthFactor < 1.0) return "danger";
+  if (healthFactor < HEALTH_FACTOR_LIQUIDATION_THRESHOLD) return "danger";
   if (healthFactor <= HEALTH_FACTOR_RISKY_THRESHOLD) return "risky";
   if (healthFactor <= HEALTH_FACTOR_WARNING_THRESHOLD) return "warning";
   return "safe";

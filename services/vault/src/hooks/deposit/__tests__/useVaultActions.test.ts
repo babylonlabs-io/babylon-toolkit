@@ -360,6 +360,36 @@ describe("useVaultActions — handleBroadcast transaction integrity", () => {
     );
   });
 
+  it("requires an explicit broadcast retry after BTC reconnects", async () => {
+    mockFetchVaultById.mockResolvedValue(baseVault as never);
+    vi.mocked(useChainConnector).mockReturnValue(null);
+    const { result, rerender } = renderHook(() => useVaultActions());
+
+    await act(() => result.current.handleBroadcast(baseBroadcastParams));
+
+    expect(result.current.broadcastError).toBe(
+      COPY.deposit.errors.walletNotConnected,
+    );
+    expect(result.current.broadcasting).toBe(false);
+    expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
+    expect(mockSignPsbt).not.toHaveBeenCalled();
+    expect(baseBroadcastParams.onShowSuccessModal).not.toHaveBeenCalled();
+
+    vi.mocked(useChainConnector).mockImplementation(
+      makeDefaultChainConnector as never,
+    );
+    await act(() => rerender());
+
+    expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
+
+    await act(() => result.current.handleBroadcast(baseBroadcastParams));
+
+    expect(result.current.broadcastError).toBeNull();
+    expect(mockBroadcastPrePeginTransaction).toHaveBeenCalledTimes(1);
+    expect(baseBroadcastParams.onShowSuccessModal).toHaveBeenCalledTimes(1);
+    expect(baseBroadcastParams.onRefetchActivities).toHaveBeenCalledTimes(1);
+  });
+
   it("throws when local tx hex differs from GraphQL tx hex", async () => {
     mockFetchVaultById.mockResolvedValue({
       ...baseVault,

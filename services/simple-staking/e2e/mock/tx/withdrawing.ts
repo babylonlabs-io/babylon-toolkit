@@ -34,23 +34,23 @@ const staking = new Staking(
   [original.finality_provider_pk_hex],
   original.staking_tx.timelock,
 );
-// These input transactions represent mined outputs in the local test.
+const fundingOutpoint = { txid: "11".repeat(32), vout: 0 };
+const feeRate = 1; // Satoshis per virtual byte.
 const { transaction: stakingTx } = staking.createStakingTransaction(
   params.min_staking_value_sat,
   [
     {
-      txid: "11".repeat(32),
-      vout: 0,
+      ...fundingOutpoint,
       value: params.max_staking_value_sat,
       scriptPubKey: withdrawalDestination.output!.toString("hex"),
     },
   ],
-  1,
+  feeRate,
 );
 export const { transaction: unbondingTransaction } =
   staking.createUnbondingTransaction(stakingTx);
 export const { fee: withdrawalFee } =
-  staking.createWithdrawEarlyUnbondedTransaction(unbondingTransaction, 1);
+  staking.createWithdrawEarlyUnbondedTransaction(unbondingTransaction, feeRate);
 
 export const unbondedTX = {
   data: [

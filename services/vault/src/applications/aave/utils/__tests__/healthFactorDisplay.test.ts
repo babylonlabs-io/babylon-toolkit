@@ -54,3 +54,15 @@ it("shows Risky in red and no debt in green", () => {
   expect(getHealthFactorColor("risky")).toBe(HEALTH_FACTOR_COLORS.RED);
   expect(getHealthFactorColor("no_debt")).toBe(HEALTH_FACTOR_COLORS.GREEN);
 });
+
+it("shows a safe position in green", () => {
+  expect(getHealthFactorColor("safe")).toBe(HEALTH_FACTOR_COLORS.GREEN);
+});
+
+it("shows a warning position in amber", () => {
+  expect(getHealthFactorColor("warning")).toBe(HEALTH_FACTOR_COLORS.AMBER);
+});
+
+it("shows a liquidatable position in red", () => {
+  expect(getHealthFactorColor("danger")).toBe(HEALTH_FACTOR_COLORS.RED);
+});

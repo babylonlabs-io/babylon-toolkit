@@ -269,7 +269,70 @@ describe("buildRefundPsbt", () => {
       );
     });
 
-    it("rejects a refund transaction that redirects the output", async () => {
+    it("rejects a refund transaction with the wrong input transaction", async () => {
+      const { txHex, params } = await buildFundedPrePegin();
+
+      await withMutatedRawRefundTx(
+        (refundTx) => {
+          refundTx.ins[0].hash[0] ^= 1;
+        },
+        async () => {
+          await expect(
+            buildRefundPsbt({
+              prePeginParams: params,
+              fundedPrePeginTxHex: txHex,
+              htlcVout: 0,
+              refundFee: TEST_REFUND_FEE,
+              hashlock: TEST_HASH_H,
+            }),
+          ).rejects.toThrow(/does not reference the Pre-PegIn transaction/);
+        },
+      );
+    });
+
+    it("rejects a refund transaction with an extra input", async () => {
+      const { txHex, params } = await buildFundedPrePegin();
+
+      await withMutatedRawRefundTx(
+        (refundTx) => {
+          refundTx.ins.push({ ...refundTx.ins[0] });
+        },
+        async () => {
+          await expect(
+            buildRefundPsbt({
+              prePeginParams: params,
+              fundedPrePeginTxHex: txHex,
+              htlcVout: 0,
+              refundFee: TEST_REFUND_FEE,
+              hashlock: TEST_HASH_H,
+            }),
+          ).rejects.toThrow(/must have exactly 1 input, got 2/);
+        },
+      );
+    });
+
+    it("rejects a refund transaction with an extra output", async () => {
+      const { txHex, params } = await buildFundedPrePegin();
+
+      await withMutatedRawRefundTx(
+        (refundTx) => {
+          refundTx.outs.push({ ...refundTx.outs[0] });
+        },
+        async () => {
+          await expect(
+            buildRefundPsbt({
+              prePeginParams: params,
+              fundedPrePeginTxHex: txHex,
+              htlcVout: 0,
+              refundFee: TEST_REFUND_FEE,
+              hashlock: TEST_HASH_H,
+            }),
+          ).rejects.toThrow(/must have exactly 1 output, got 2/);
+        },
+      );
+    });
+
+    it("rejects a refund transaction with a redirected output", async () => {
       const { txHex, params } = await buildFundedPrePegin();
 
       await withMutatedRawRefundTx(
@@ -290,7 +353,7 @@ describe("buildRefundPsbt", () => {
       );
     });
 
-    it("rejects a refund transaction that reduces the refund value", async () => {
+    it("rejects a refund transaction with a reduced refund value", async () => {
       const { txHex, params } = await buildFundedPrePegin();
 
       await withMutatedRawRefundTx(

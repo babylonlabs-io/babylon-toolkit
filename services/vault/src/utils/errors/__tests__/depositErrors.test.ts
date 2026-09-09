@@ -252,9 +252,7 @@ describe("mapDepositError", () => {
 
   it("maps a broadcast failure to the broadcast callout", () => {
     expect(
-      mapDepositError(
-        new Error("Failed to broadcast batch Pre-PegIn transaction: timeout"),
-      ),
+      mapDepositError(new Error(ERRORS.prePeginBroadcastFailed("timeout"))),
     ).toEqual(ERRORS.broadcastFailed);
   });
 
@@ -263,9 +261,7 @@ describe("mapDepositError", () => {
     // funds" (BTC-side) — that must not be read as an ETH gas shortfall.
     expect(
       mapDepositError(
-        new Error(
-          "Failed to broadcast batch Pre-PegIn transaction: insufficient funds",
-        ),
+        new Error(ERRORS.prePeginBroadcastFailed("insufficient funds")),
       ),
     ).toEqual(ERRORS.broadcastFailed);
   });
@@ -275,9 +271,7 @@ describe("mapDepositError", () => {
     // wallet code), so a rejection there must still be matched by phrasing.
     expect(
       mapDepositError(
-        new Error(
-          "Failed to broadcast batch Pre-PegIn transaction: User rejected the request",
-        ),
+        new Error(ERRORS.prePeginBroadcastFailed("User rejected the request")),
       ),
     ).toEqual(ERRORS.signingRejected);
   });
@@ -540,15 +534,12 @@ describe("mapDepositError", () => {
     // rejection whose message carries no cancellation wording used to flatten
     // into the wrapper and read as a broadcast failure.
     const rejection = new FakeWalletError("CONNECTION_REJECTED", "nope");
-    const withCause = new Error(
-      "Failed to broadcast batch Pre-PegIn transaction: nope",
-      { cause: rejection },
-    );
+    const withCause = new Error(ERRORS.prePeginBroadcastFailed("nope"), {
+      cause: rejection,
+    });
     expect(mapDepositError(withCause)).toEqual(ERRORS.signingRejected);
 
-    const withoutCause = new Error(
-      "Failed to broadcast batch Pre-PegIn transaction: nope",
-    );
+    const withoutCause = new Error(ERRORS.prePeginBroadcastFailed("nope"));
     expect(mapDepositError(withoutCause)).toEqual(ERRORS.broadcastFailed);
   });
 });

@@ -54,8 +54,18 @@ export const AAVE_BASE_CURRENCY_RAY_DECIMALS = 53;
 export const WAD_DECIMALS = 18;
 
 /**
+ * Dimensionless health factor at or above which Aave cannot liquidate a position.
+ *
+ * ISpoke.sol defines this boundary as 1.0 (1e18 WAD), not a stored parameter.
+ * Unlike display thresholds, it is not tunable. The per-asset
+ * liquidationThresholdBps is fetched from chain and uses basis points.
+ */
+export const HEALTH_FACTOR_LIQUIDATION_THRESHOLD = 1.0;
+
+/**
  * Display threshold for positions close to liquidation, independent of the borrow floor.
- * A position from 1.0 up to and including this value is "risky".
+ * A position from HEALTH_FACTOR_LIQUIDATION_THRESHOLD up to and including this
+ * value is "risky".
  */
 export const HEALTH_FACTOR_RISKY_THRESHOLD = 1.1;
 
@@ -83,4 +93,3 @@ export const MIN_HEALTH_FACTOR_FOR_BORROW = 1.05;
  * the user's balance, so a larger buffer never blocks a legitimate repay.
  */
 export const FULL_REPAY_BUFFER_DIVISOR = 200n; // 1/200 = 0.5% buffer
-

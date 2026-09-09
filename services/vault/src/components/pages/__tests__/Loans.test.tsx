@@ -29,7 +29,7 @@ vi.mock("@/context/wallet", () => ({
 }));
 
 vi.mock("@/hooks/useDashboardState", () => ({
-  useDashboardState: () => useDashboardStateMock(),
+  useDashboardState: (address: unknown) => useDashboardStateMock(address),
 }));
 
 vi.mock("@/hooks/useLoanActions", () => ({
@@ -163,7 +163,7 @@ describe("Loans page — loading gate", () => {
 
   it("shows the disconnected empty state (no spinner) when disconnected", () => {
     useConnectionMock.mockReturnValue({ isConnected: false });
-    useETHWalletMock.mockReturnValue({ address: undefined });
+    useETHWalletMock.mockReturnValue({ address: "0xabc" });
     useDashboardStateMock.mockReturnValue({
       ...CONNECTED_LOADED,
       hasCollateral: false,
@@ -179,6 +179,7 @@ describe("Loans page — loading gate", () => {
     // Disconnected prompts for a wallet — it must not claim the depositor has
     // no loans when we haven't looked at an address yet.
     expect(screen.getByText(COPY.loans.emptyDisconnected)).toBeInTheDocument();
+    expect(useDashboardStateMock).toHaveBeenCalledWith(undefined);
     expect(container.querySelector("svg")).not.toBeInTheDocument();
     expect(screen.queryByTestId("loans-summary")).not.toBeInTheDocument();
   });
