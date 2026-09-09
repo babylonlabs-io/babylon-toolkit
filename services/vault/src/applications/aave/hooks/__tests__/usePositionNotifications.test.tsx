@@ -40,6 +40,7 @@ function makeVault(
 ): CollateralVaultEntry {
   return {
     id: vaultId,
+    lifecycle: "active",
     vaultId,
     amountBtc,
     addedAt: 0,
@@ -174,7 +175,7 @@ describe("usePositionNotifications — live-HF urgency guardrail", () => {
   it("excludes optimistic activating vaults from the calculator inputs", () => {
     const activating: CollateralVaultEntry = {
       ...makeVault(VAULT_B, 5, Number.MAX_SAFE_INTEGER),
-      isActivating: true,
+      lifecycle: "activating",
     };
     setDashboardState({
       collateralVaults: [makeVault(VAULT_A, 0.5, 0), activating],
@@ -193,7 +194,9 @@ describe("usePositionNotifications — live-HF urgency guardrail", () => {
 
   it("reports no vaults when every collateral row is still activating", () => {
     setDashboardState({
-      collateralVaults: [{ ...makeVault(VAULT_A, 0.5, 0), isActivating: true }],
+      collateralVaults: [
+        { ...makeVault(VAULT_A, 0.5, 0), lifecycle: "activating" },
+      ],
       debtValueUsd: 30_000,
       healthFactor: 0.95,
     });

@@ -5,7 +5,7 @@ import type { Address } from "viem";
 
 import { ethClient } from "@/clients/eth-contract/client";
 import { logger } from "@/infrastructure";
-import { isActiveCollateral } from "@/utils/collateral";
+import { classifyCollateral } from "@/utils/collateral";
 
 import {
   AaveSpoke,
@@ -96,7 +96,11 @@ export async function getUserPositionsWithLiveData(
       item.proxyContract.toLowerCase() === proxyAddress.toLowerCase(),
   );
   const collaterals = indexedPosition?.collaterals ?? [];
-  const activeCollaterals = collaterals.filter(isActiveCollateral);
+  // Only rows still backing the position on-chain. A withdrawing row has left
+  // `position.vaultIds` already, so counting it would fake a mismatch.
+  const activeCollaterals = collaterals.filter(
+    (row) => classifyCollateral(row) === "active",
+  );
   const indexerError =
     indexerResult.status === "rejected"
       ? new Error("Could not load indexed collateral details", {

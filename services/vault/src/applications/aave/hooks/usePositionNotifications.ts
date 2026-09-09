@@ -142,10 +142,11 @@ export function usePositionNotifications(
     // Optimistic activating rows carry collateral the contract has not seen
     // yet, and a sentinel `liquidationIndex`. Including them would inflate
     // `totalBtc`, pushing every liquidation price DOWN — understating the
-    // risk — and label a band "Vault 9007199254740992". The cascade models
-    // what the protocol would seize, so it sees indexed vaults only.
+    // risk — and label a band "Vault 9007199254740992". A withdrawing vault
+    // has left the position and would inflate it the same way. The cascade
+    // models what the protocol would seize, so it sees active vaults only.
     const indexedVaults = collateralVaults.filter(
-      (entry) => !entry.isActivating,
+      (entry) => entry.lifecycle === "active",
     );
     if (indexedVaults.length === 0)
       return {

@@ -34,6 +34,7 @@ function makeVault(
 ): CollateralVaultEntry {
   return {
     id,
+    lifecycle: "active",
     vaultId,
     amountBtc: 0.5,
     addedAt: 0,

@@ -5,8 +5,9 @@
  * status, provider, transaction hash, and a per-row Withdraw action.
  * Presentational — entries arrive demo-merged from useVaultsPageData. Withdraw
  * passes the on-chain `vaultId` (the withdraw flow's selection key) and is
- * enabled only for in-use, indexer-backed rows — demo (`displayOnly`) and
- * optimistic (`isActivating`) rows never reach an action flow.
+ * enabled only for in-use `active` rows — demo (`displayOnly`), optimistic
+ * (`activating`) and peg-out-in-flight (`withdrawing`) rows never reach an
+ * action flow.
  */
 
 import { Avatar, Heading, Loader } from "@babylonlabs-io/core-ui";
@@ -25,6 +26,7 @@ import {
 import { getNetworkConfigBTC } from "@/config";
 import { COPY } from "@/copy";
 import type { CollateralVaultEntry } from "@/types/collateral";
+import { countActiveVaults } from "@/utils/collateral";
 import { getBtcExplorerTxUrl } from "@/utils/explorer";
 import { formatBtcAmount, formatOrdinal } from "@/utils/formatting";
 
@@ -74,7 +76,7 @@ function ActiveVaultRow({
           <span className="text-base leading-6 tracking-[0.15px] text-accent-primary">
             {formatBtcAmount(vault.amountBtc)}
           </span>{" "}
-          {!vault.isActivating && (
+          {vault.lifecycle === "active" && (
             <span className="text-xs leading-[1.66] tracking-[0.4px] text-accent-secondary">
               {COPY.vaults.summary.liquidationOrdinal(
                 formatOrdinal(vault.liquidationIndex + 1),
@@ -86,12 +88,19 @@ function ActiveVaultRow({
 
       {/* Status */}
       <div className={`flex items-center ${LIST_ROW_COLUMN_CLASS}`}>
-        {vault.isActivating ? (
+        {vault.lifecycle === "activating" && (
           <span className="flex items-center gap-2 text-sm text-accent-secondary">
             <Loader size={16} />
             {COPY.collateral.activating}
           </span>
-        ) : (
+        )}
+        {vault.lifecycle === "withdrawing" && (
+          <span className="flex items-center gap-2 text-sm text-accent-secondary">
+            <Loader size={16} />
+            {COPY.pegin.labels.REDEEM_IN_PROGRESS}
+          </span>
+        )}
+        {vault.lifecycle === "active" && (
           <span className="flex items-center gap-1">
             <span
               className={`size-3 rounded-full ${
@@ -144,7 +153,7 @@ function ActiveVaultRow({
             isWithdrawDisabled ||
             !vault.inUse ||
             vault.displayOnly ||
-            vault.isActivating
+            vault.lifecycle !== "active"
           }
           className={NEUTRAL_ROW_BUTTON_CLASS}
         >
@@ -182,7 +191,7 @@ export function VaultsActiveSection({
       <Heading variant="h6" as="h2" className="font-normal text-accent-primary">
         {COPY.vaults.sections.activeVaultsTitle}{" "}
         <span className="text-accent-secondary">
-          {COPY.vaults.sections.count(vaults.length)}
+          {COPY.vaults.sections.count(countActiveVaults(vaults))}
         </span>
       </Heading>
       <div className="space-y-2">

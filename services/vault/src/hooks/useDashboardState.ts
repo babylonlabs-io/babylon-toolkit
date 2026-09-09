@@ -82,6 +82,17 @@ export function useDashboardState(connectedAddress: string | undefined) {
     [position?.collaterals, findProvider],
   );
 
+  const activeCollateralVaults = useMemo(
+    () => rawCollateralVaults.filter((entry) => entry.lifecycle === "active"),
+    [rawCollateralVaults],
+  );
+
+  const withdrawingCollateralVaults = useMemo(
+    () =>
+      rawCollateralVaults.filter((entry) => entry.lifecycle === "withdrawing"),
+    [rawCollateralVaults],
+  );
+
   // Optimistic "Activating…" rows: just-activated vaults the indexer hasn't
   // ingested yet. Excludes any vault already present in the indexer entries so
   // we never duplicate a row once it lands, and any entry that belongs to a
@@ -101,11 +112,11 @@ export function useDashboardState(connectedAddress: string | undefined) {
         const provider = findProvider?.(entry.providerAddress ?? "");
         return {
           id: `activating-${entry.vaultId}`,
+          lifecycle: "activating",
           vaultId: entry.vaultId,
           amountBtc: entry.amountBtc,
           addedAt: 0,
           inUse: false,
-          isActivating: true,
           providerAddress: entry.providerAddress ?? "",
           providerName:
             provider?.name ?? truncateHash(entry.providerAddress ?? ""),
@@ -119,14 +130,21 @@ export function useDashboardState(connectedAddress: string | undefined) {
   // Displayed entries. Normally indexer-ordered; right after a reorder,
   // `reorderedOrder` holds the submitted order so the new order (and each row's
   // ordinal) shows immediately. Falls back to indexer ordering once the
-  // override no longer matches the vault set. Optimistic activating rows are
-  // appended last, until the indexer reflects them.
+  // override no longer matches the vault set, which covers the active rows
+  // alone. Withdrawing rows, then optimistic activating rows, are appended
+  // after, until the indexer reflects them.
   const collateralVaults = useMemo(
     (): CollateralVaultEntry[] => [
-      ...sortByReorderedOverride(rawCollateralVaults, reorderedOrder),
+      ...sortByReorderedOverride(activeCollateralVaults, reorderedOrder),
+      ...withdrawingCollateralVaults,
       ...activatingEntries,
     ],
-    [rawCollateralVaults, reorderedOrder, activatingEntries],
+    [
+      activeCollateralVaults,
+      withdrawingCollateralVaults,
+      reorderedOrder,
+      activatingEntries,
+    ],
   );
 
   // Drop the override once the indexer reflects the reordered sequence (or the
@@ -134,10 +152,10 @@ export function useDashboardState(connectedAddress: string | undefined) {
   // against the raw indexer entries, not the override-rewritten ones.
   useEffect(() => {
     if (!reorderedOrder) return;
-    if (isReorderOverrideReconciled(rawCollateralVaults, reorderedOrder)) {
+    if (isReorderOverrideReconciled(activeCollateralVaults, reorderedOrder)) {
       clearReorderedOrder();
     }
-  }, [rawCollateralVaults, reorderedOrder, clearReorderedOrder]);
+  }, [activeCollateralVaults, reorderedOrder, clearReorderedOrder]);
 
   // Drop each activating override once the indexer reflects that vault, so the
   // optimistic row hands off to the real indexer-driven row without duplicating.
@@ -171,9 +189,13 @@ export function useDashboardState(connectedAddress: string | undefined) {
   // Optimistic rows must not enable actions before collateral exists on-chain.
   const hasCollateral = collateralBtc > 0;
   // Display gate — drives the Collateral section's summary-vs-empty rendering,
-  // so the just-activated vault shows during the indexer gap.
+  // so the just-activated vault shows during the indexer gap and a withdrawing
+  // vault, whose `collateralBtc` the indexer has already zeroed, still shows
+  // until its payout settles.
   const hasDisplayCollateral =
-    collateralBtc > 0 || activatingEntries.length > 0;
+    collateralBtc > 0 ||
+    activatingEntries.length > 0 ||
+    withdrawingCollateralVaults.length > 0;
 
   return {
     position,

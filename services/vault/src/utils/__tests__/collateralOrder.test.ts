@@ -17,6 +17,7 @@ function entry(
 ): CollateralVaultEntry {
   return {
     id: `0xdep-${vaultId}`,
+    lifecycle: "active",
     vaultId,
     amountBtc: 1,
     addedAt: 0,

@@ -8,6 +8,7 @@ function makeVault(
   overrides: Partial<CollateralVaultEntry> & { id: string },
 ): CollateralVaultEntry {
   return {
+    lifecycle: "active",
     vaultId: `vault-${overrides.id}`,
     amountBtc: 0.5,
     addedAt: 0,
@@ -32,6 +33,14 @@ vi.mock("@/hooks/useDashboardState", () => ({
   useDashboardState: () => dashboardState,
 }));
 
+const pendingVaults = vi.hoisted(() => ({
+  current: new Map<string, "add" | "withdraw">(),
+}));
+
+vi.mock("@/applications/aave/context", () => ({
+  usePendingVaults: () => ({ pendingVaults: pendingVaults.current }),
+}));
+
 const demoState = vi.hoisted(() => ({
   current: null as {
     vaults: CollateralVaultEntry[];
@@ -50,6 +59,7 @@ describe("useVaultsPageData", () => {
     dashboardState.collateralValueUsd = 0;
     dashboardState.collateralVaults = [];
     demoState.current = null;
+    pendingVaults.current = new Map();
   });
 
   it("passes real entries through untouched when no demo is active", () => {
@@ -136,7 +146,7 @@ describe("useVaultsPageData", () => {
     dashboardState.collateralVaults = [
       makeVault({ id: "a", amountBtc: 0.6, liquidationIndex: 0 }),
       makeVault({ id: "b", amountBtc: 0.2, liquidationIndex: 1 }),
-      makeVault({ id: "activating", amountBtc: 0.3, isActivating: true }),
+      makeVault({ id: "activating", amountBtc: 0.3, lifecycle: "activating" }),
     ];
 
     const { result } = renderHook(() => useVaultsPageData("0xdepositor"));
@@ -148,10 +158,59 @@ describe("useVaultsPageData", () => {
     expect(result.current.summary.activeVaultsCount).toBe(3);
   });
 
+  it("marks a row withdrawing while its withdrawal awaits the indexer", () => {
+    dashboardState.collateralVaults = [
+      makeVault({ id: "a", vaultId: "vault-a" }),
+      makeVault({ id: "b", vaultId: "vault-b" }),
+    ];
+    pendingVaults.current = new Map([["vault-b", "withdraw"]]);
+
+    const { result } = renderHook(() => useVaultsPageData("0xdepositor"));
+
+    expect(
+      result.current.displayVaults.map((vault) => vault.lifecycle),
+    ).toEqual(["active", "withdrawing"]);
+  });
+
+  it("keeps a row pending an add operation actionable", () => {
+    dashboardState.collateralVaults = [
+      makeVault({ id: "a", vaultId: "vault-a" }),
+    ];
+    pendingVaults.current = new Map([["vault-a", "add"]]);
+
+    const { result } = renderHook(() => useVaultsPageData("0xdepositor"));
+
+    expect(result.current.displayVaults[0].lifecycle).toBe("active");
+  });
+
+  it("keeps a withdrawal-only position visible while reporting no active vaults", () => {
+    dashboardState.collateralVaults = [
+      makeVault({ id: "a", amountBtc: 0.5, lifecycle: "withdrawing" }),
+    ];
+
+    const { result } = renderHook(() => useVaultsPageData("0xdepositor"));
+
+    expect(result.current.displayVaults).toHaveLength(1);
+    expect(result.current.summary.activeVaultsCount).toBe(0);
+  });
+
+  it("keeps a withdrawing row out of the liquidation-order sequence", () => {
+    dashboardState.collateralVaults = [
+      makeVault({ id: "a", amountBtc: 0.6, liquidationIndex: 0 }),
+      makeVault({ id: "b", amountBtc: 0.2, liquidationIndex: 1 }),
+      makeVault({ id: "c", amountBtc: 0.3, lifecycle: "withdrawing" }),
+    ];
+
+    const { result } = renderHook(() => useVaultsPageData("0xdepositor"));
+
+    expect(result.current.summary.liquidationOrder).toContain("0.6 → 0.2");
+    expect(result.current.summary.liquidationOrder).not.toContain("0.3");
+  });
+
   it("omits the liquidation order when only one row has an established position", () => {
     dashboardState.collateralVaults = [
       makeVault({ id: "a", amountBtc: 0.6, liquidationIndex: 0 }),
-      makeVault({ id: "activating", amountBtc: 0.3, isActivating: true }),
+      makeVault({ id: "activating", amountBtc: 0.3, lifecycle: "activating" }),
     ];
 
     const { result } = renderHook(() => useVaultsPageData("0xdepositor"));

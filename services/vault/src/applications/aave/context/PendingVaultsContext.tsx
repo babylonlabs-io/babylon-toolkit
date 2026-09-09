@@ -26,6 +26,7 @@ import {
   type PendingOperation,
   type PendingVaultInfo,
 } from "@/storage/pendingCollateralStorage";
+import { AAVE_USER_POSITION_QUERY_KEY } from "@/utils/queryKeys";
 
 import type { VaultData } from "../types";
 
@@ -150,7 +151,6 @@ export function usePendingVaults(): PendingVaultsContextValue {
  */
 export function useSyncPendingVaults(vaults: VaultData[]): void {
   const { pendingVaults, clearPendingVaults } = usePendingVaults();
-  const { address } = useETHWallet();
   const queryClient = useQueryClient();
   const prevVaultsRef = useRef(vaults);
 
@@ -185,16 +185,14 @@ export function useSyncPendingVaults(vaults: VaultData[]): void {
       // This ensures we show the loading UI until fresh RPC data is available,
       // preventing the brief flash of stale cached data.
       const syncPosition = async () => {
-        if (address) {
-          await queryClient.refetchQueries({
-            queryKey: ["aaveUserPosition", address],
-          });
-        }
+        await queryClient.refetchQueries({
+          queryKey: [AAVE_USER_POSITION_QUERY_KEY],
+        });
         // Only clear pending after RPC completes
         clearPendingVaults(confirmedVaultIds);
       };
 
       void syncPosition();
     }
-  }, [vaults, pendingVaults, clearPendingVaults, address, queryClient]);
+  }, [vaults, pendingVaults, clearPendingVaults, queryClient]);
 }

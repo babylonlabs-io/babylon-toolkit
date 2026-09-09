@@ -51,9 +51,9 @@ function WithdrawFlowContent({
   const renderedStep = useDialogStep(open, step, reset);
 
   // Snapshots captured at confirm time. Needed by the Progress view because the
-  // underlying vaults are removed from the user's collateral list after
-  // withdraw — without snapshotting, this data would disappear by the time we
-  // navigate to PROGRESS.
+  // underlying vaults leave the withdrawable set after withdraw — without
+  // snapshotting, this data would disappear by the time we navigate to
+  // PROGRESS.
   const [submittedPayoutAddresses, setSubmittedPayoutAddresses] = useState<
     string[]
   >([]);
@@ -64,9 +64,12 @@ function WithdrawFlowContent({
   // fake vaultId) and must never be selectable for a real withdraw, even if a
   // caller mistakenly passes the demo-merged list. Mirrors CollateralSection's
   // actionableVaults filter. Always a no-op in production (the flag is never
-  // set there).
+  // set there). Only `active` vaults back the position.
   const withdrawableVaults = useMemo(
-    () => collateralVaults.filter((v) => !v.displayOnly),
+    () =>
+      collateralVaults.filter(
+        (v) => !v.displayOnly && v.lifecycle === "active",
+      ),
     [collateralVaults],
   );
 

@@ -157,7 +157,7 @@ async function openWithdrawForRow(
         "No active vault rows on /vaults — this position has nothing to withdraw.",
       );
     throw new Error(
-      `No withdrawable vault on /vaults after ${Math.round(WITHDRAW_CTA_ENABLE_TIMEOUT_MS / MS_PER_SECOND)}s (${found.rowCount} row(s) shown — every Withdraw button is disabled: the vault is not in use, still activating, or withdrawals are paused by the protocol). Repay outstanding debt first so collateral can be released.`,
+      `No withdrawable vault on /vaults after ${Math.round(WITHDRAW_CTA_ENABLE_TIMEOUT_MS / MS_PER_SECOND)}s (${found.rowCount} row(s) shown — every Withdraw button is disabled: the vault is not in use, still activating, already withdrawing, or withdrawals are paused by the protocol). Repay outstanding debt first so collateral can be released.`,
     );
   }
 
