@@ -34,9 +34,14 @@ export function usePendingDeposits() {
   const { connected: btcConnected, address: btcAddress } = useBTCWallet();
   const { address: ethAddress } = useETHWallet();
 
-  const { activities, refetchActivities, loading, error } = useVaultDeposits(
-    ethAddress as Address | undefined,
-  );
+  const {
+    activities,
+    refetchActivities,
+    loading,
+    error,
+    removePendingPegin,
+    indexedVaultIds,
+  } = useVaultDeposits(ethAddress as Address | undefined);
 
   const { vaultProviders } = useAllDepositProviders(activities);
 
@@ -128,6 +133,16 @@ export function usePendingDeposits() {
     isLoading: loading,
     error,
     refetchActivities,
+    /**
+     * Discards one browser-local pending deposit. Returns false when the
+     * localStorage write failed and the record is still stored.
+     */
+    removePendingPegin,
+    /**
+     * Lowercased ids of every vault the indexer returned, or null while the
+     * indexer has not answered successfully.
+     */
+    indexedVaultIds,
     broadcastModal,
     refundModal,
     reclaimModal,

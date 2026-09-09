@@ -591,6 +591,62 @@ describe("removePendingPegin", () => {
     expect(result).toHaveLength(1);
     expect(result[0].id).toBe(VALID_VAULT_ID_2);
   });
+
+  it("matches an upper-cased stored id against a lower-cased target", () => {
+    const upperCased = { ...validPegin, id: `0x${"A".repeat(64)}` };
+    localStorage.setItem(storageKey, JSON.stringify([upperCased]));
+
+    removePendingPegin(ETH_ADDRESS, `0x${"a".repeat(64)}`);
+
+    expect(localStorage.getItem(storageKey)).toBeNull();
+  });
+
+  it("matches a lower-cased stored id against an upper-cased target", () => {
+    const lowerCased = { ...validPegin, id: `0x${"a".repeat(64)}` };
+    localStorage.setItem(storageKey, JSON.stringify([lowerCased]));
+
+    removePendingPegin(ETH_ADDRESS, `0x${"A".repeat(64)}`);
+
+    expect(localStorage.getItem(storageKey)).toBeNull();
+  });
+
+  it("writes back stored siblings the read filter hides", () => {
+    // No build-version stamps: `getPendingPegins` hides this record, but it is
+    // still the user's only copy of that deposit.
+    const legacySibling = {
+      id: VALID_VAULT_ID_2,
+      peginTxHash: VALID_PEGIN_TXHASH,
+      timestamp: 1700000000000,
+      status: LocalStorageStatus.PENDING,
+      unsignedTxHex: "0xcafebabe",
+    };
+    const malformedSibling = { note: "not a pending pegin" };
+    localStorage.setItem(
+      storageKey,
+      JSON.stringify([validPegin, legacySibling, malformedSibling]),
+    );
+
+    removePendingPegin(ETH_ADDRESS, VALID_VAULT_ID);
+
+    expect(JSON.parse(localStorage.getItem(storageKey) as string)).toEqual([
+      legacySibling,
+      malformedSibling,
+    ]);
+    expect(getPendingPegins(ETH_ADDRESS)).toEqual([]);
+  });
+
+  it("writes nothing when the vault id is not stored", () => {
+    localStorage.setItem(storageKey, JSON.stringify([validPegin]));
+    const setItemSpy = vi.spyOn(Storage.prototype, "setItem");
+
+    try {
+      removePendingPegin(ETH_ADDRESS, VALID_VAULT_ID_2);
+
+      expect(setItemSpy).not.toHaveBeenCalled();
+    } finally {
+      setItemSpy.mockRestore();
+    }
+  });
 });
 
 describe("addPendingPegin persistence failures", () => {
@@ -622,7 +678,7 @@ describe("addPendingPegin persistence failures", () => {
     }
   });
 
-  it("keeps removePendingPegin best-effort when the localStorage write fails", () => {
+  it("reports a failed removal instead of throwing at the call site", () => {
     // Seed two entries so the removal produces a non-empty setItem write.
     addPendingPegin(ETH_ADDRESS, {
       id: VALID_VAULT_ID,
@@ -650,10 +706,8 @@ describe("addPendingPegin persistence failures", () => {
       });
 
     try {
-      // Cosmetic callers stay best-effort — failure is logged, not raised.
-      expect(() =>
-        removePendingPegin(ETH_ADDRESS, VALID_VAULT_ID),
-      ).not.toThrow();
+      expect(removePendingPegin(ETH_ADDRESS, VALID_VAULT_ID)).toBe(false);
+      expect(getPendingPegins(ETH_ADDRESS)).toHaveLength(2);
     } finally {
       setItemSpy.mockRestore();
     }

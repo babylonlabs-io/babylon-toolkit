@@ -402,17 +402,32 @@ function persistPendingPegins(
 ): void {
   if (!ethAddress) return;
 
+  const normalizedPegins = pegins.map((pegin) => ({
+    ...pegin,
+    id: normalizeTransactionId(pegin.id),
+  }));
+
+  persistStoredEntries(ethAddress, normalizedPegins);
+
+  // Dispatch custom event to notify React hooks
+  dispatchStorageUpdateEvent(ethAddress);
+}
+
+/**
+ * Write the stored array verbatim, THROWING if the write fails. An empty array
+ * deletes the key. Callers own the event dispatch.
+ */
+function persistStoredEntries(
+  ethAddress: string,
+  entries: readonly unknown[],
+): void {
   const key = getStorageKey(ethAddress);
 
   try {
-    if (pegins.length === 0) {
+    if (entries.length === 0) {
       localStorage.removeItem(key);
     } else {
-      const normalizedPegins = pegins.map((pegin) => ({
-        ...pegin,
-        id: normalizeTransactionId(pegin.id),
-      }));
-      localStorage.setItem(key, JSON.stringify(normalizedPegins));
+      localStorage.setItem(key, JSON.stringify(entries));
     }
   } catch (error) {
     logger.error(error instanceof Error ? error : new Error(String(error)), {
@@ -422,9 +437,36 @@ function persistPendingPegins(
       "Unable to save the deposit record locally. Your browser may be blocking local storage (private browsing or quota).",
     );
   }
+}
 
-  // Dispatch custom event to notify React hooks
-  dispatchStorageUpdateEvent(ethAddress);
+/**
+ * Read the stored array without validating or normalizing its entries. Null
+ * means there is nothing readable — a missing key, a non-array blob, or
+ * unparseable JSON — and is never a licence to write an empty list.
+ */
+function readStoredEntries(ethAddress: string): unknown[] | null {
+  try {
+    const stored = localStorage.getItem(getStorageKey(ethAddress));
+    if (!stored) return null;
+    const parsed: unknown = JSON.parse(stored);
+    return Array.isArray(parsed) ? parsed : null;
+  } catch (error) {
+    logger.error(error instanceof Error ? error : new Error(String(error)), {
+      data: { context: "[peginStorage] Failed to parse stored pending pegins" },
+    });
+    return null;
+  }
+}
+
+/**
+ * The normalized, lowercased vault id of a raw stored entry, or undefined when
+ * the entry carries no well-formed id.
+ */
+function readStoredEntryId(entry: unknown): string | undefined {
+  if (!entry || typeof entry !== "object") return undefined;
+  const id = (entry as { id?: unknown }).id;
+  if (typeof id !== "string" || !BYTES32_HEX_RE.test(id)) return undefined;
+  return normalizeTransactionId(id).toLowerCase();
 }
 
 /**
@@ -507,13 +549,38 @@ export function updatePendingPeginStatus(
 }
 
 /**
- * Remove a single pending peg-in entry by its vault id.
+ * Remove a single pending peg-in entry by its vault id, matching the id
+ * case-insensitively.
+ *
+ * Operates on the raw stored array so siblings that `getPendingPegins` hides —
+ * legacy records without the build-version stamps, entries a browser extension
+ * mangled — are written back untouched instead of being dropped along with the
+ * targeted entry.
+ *
+ * @returns false when the localStorage write failed and the entry is still
+ * stored. Callers that report the outcome to the user must not treat a failed
+ * removal as a removal.
  */
-export function removePendingPegin(ethAddress: string, vaultId: Hex): void {
-  const existingPegins = getPendingPegins(ethAddress);
-  const normalizedId = normalizeTransactionId(vaultId);
-  const filtered = existingPegins.filter((p) => p.id !== normalizedId);
-  savePendingPegins(ethAddress, filtered);
+export function removePendingPegin(ethAddress: string, vaultId: Hex): boolean {
+  if (!ethAddress) return false;
+
+  const stored = readStoredEntries(ethAddress);
+  if (stored === null) return true;
+
+  const target = normalizeTransactionId(vaultId).toLowerCase();
+  const remaining = stored.filter(
+    (entry) => readStoredEntryId(entry) !== target,
+  );
+  if (remaining.length === stored.length) return true;
+
+  try {
+    persistStoredEntries(ethAddress, remaining);
+  } catch {
+    return false;
+  }
+
+  dispatchStorageUpdateEvent(ethAddress);
+  return true;
 }
 
 /**

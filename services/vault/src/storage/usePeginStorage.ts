@@ -64,8 +64,11 @@ export interface UsePeginStorageResult {
    * broadcast path to clear entries that the on-chain version check has
    * confirmed can never be safely broadcast, matching what the inline
    * deposit path does for the same mismatch.
+   *
+   * Returns false when the localStorage write failed and the entry is still
+   * stored.
    */
-  removePendingPegin: (vaultId: string) => void;
+  removePendingPegin: (vaultId: string) => boolean;
   /**
    * Mark a pegin as REFUND_BROADCAST and stamp the broadcast time used by the
    * optimistic-suppression TTL.
@@ -293,8 +296,8 @@ export function usePeginStorage({
 
   const removePendingPegin = useCallback(
     (vaultId: string) => {
-      if (!ethAddress) return;
-      removePendingPeginFromStorage(ethAddress, vaultId as Hex);
+      if (!ethAddress) return false;
+      return removePendingPeginFromStorage(ethAddress, vaultId as Hex);
     },
     [ethAddress],
   );

@@ -23,6 +23,7 @@ import {
   Loader,
 } from "@babylonlabs-io/core-ui";
 import { useCallback, useMemo, useState, type ReactNode } from "react";
+import { IoClose } from "react-icons/io5";
 import type { Address, Hex } from "viem";
 
 import { ApplicationLogo } from "@/components/ApplicationLogo";
@@ -47,6 +48,7 @@ import { DEPOSIT_VIEW_MAX_WIDTH_CLASS } from "@/components/simple/DepositProgres
 import { getStepFillPercent } from "@/components/simple/DepositProgressView/steps";
 import { PendingDepositModals } from "@/components/simple/PendingDepositModals";
 import { PostDepositContinuationContent } from "@/components/simple/PostDepositContinuationContent";
+import { DismissPendingDepositDialog } from "@/components/vaults/DismissPendingDepositDialog";
 import { getNetworkConfigBTC } from "@/config";
 import { ProtocolParamsProvider } from "@/context/ProtocolParamsContext";
 import { useDepositPollingResult } from "@/context/deposit/PeginPollingContext";
@@ -87,6 +89,9 @@ const RECLAIM_BUTTON_TEST_ID = "vault-reclaim-button";
  * is the design's, and fits "999,999 sats" at `text-sm`.
  */
 const RECLAIM_METRIC_COLUMN_CLASS = "w-[82px]";
+
+/** Icon size of the pending row's dismiss control. */
+const DISMISS_ICON_SIZE = 20;
 
 /** Dot color per display variant. Danger keeps the error red explicitly —
  *  there is no "no dot" state in this compact row layout (v2's cards swap in
@@ -135,6 +140,7 @@ function PendingRow({
   onBroadcast,
   onRefund,
   onEmergencyWithdraw,
+  onDismiss,
 }: {
   activity: VaultActivity;
   vaultProviders: VaultProvider[];
@@ -142,6 +148,7 @@ function PendingRow({
   onBroadcast: (depositId: string) => void;
   onRefund: (depositId: string) => void;
   onEmergencyWithdraw: (depositId: string) => void;
+  onDismiss?: (depositId: string) => void;
 }) {
   // Undefined until the polling tree indexes this deposit — the row renders
   // its static cells with a loading status meanwhile.
@@ -326,6 +333,18 @@ function PendingRow({
           </button>
         )}
       </div>
+
+      {onDismiss && (
+        <button
+          type="button"
+          onClick={() => onDismiss(activity.id)}
+          aria-label={COPY.vaults.dismissPending.rowLabel}
+          data-testid="pending-deposit-dismiss-button"
+          className="flex size-9 shrink-0 items-center justify-center rounded-lg text-accent-secondary transition-[filter] hover:brightness-125"
+        >
+          <IoClose size={DISMISS_ICON_SIZE} />
+        </button>
+      )}
     </div>
   );
 }
@@ -547,6 +566,8 @@ export function VaultsLifecycleSections({
   // Vault IDs whose multistepper view modal is open — the full batch for a
   // split pegin, null when closed (same contract as PendingDepositSection).
   const [viewingBatch, setViewingBatch] = useState<Hex[] | null>(null);
+  const [dismissingId, setDismissingId] = useState<string | null>(null);
+  const [dismissFailed, setDismissFailed] = useState(false);
 
   const {
     pendingActivities,
@@ -559,6 +580,8 @@ export function VaultsLifecycleSections({
     refundModal,
     reclaimModal,
     emergencyWithdrawModal,
+    removePendingPegin,
+    indexedVaultIds,
     demo,
   } = deposits;
 
@@ -670,6 +693,52 @@ export function VaultsLifecycleSections({
 
   const handleViewingClose = useCallback(() => setViewingBatch(null), []);
 
+  const realActivityIds = useMemo(
+    () => new Set(allActivities.map((a) => a.id)),
+    [allActivities],
+  );
+
+  /**
+   * A deposit may be discarded only on positive evidence that it is the
+   * browser's alone: the indexer answered successfully and did not return this
+   * vault. A failing, empty-because-erroring, or still-loading indexer leaves
+   * `indexedVaultIds` null and offers nothing — an indexed deposit's record
+   * carries the participant-key stamp that blocks an unsafe later broadcast,
+   * and must never be discarded on the mere absence of a row.
+   */
+  const canDismiss = useCallback(
+    (activity: VaultActivity) => {
+      if (activity.isPending !== true || indexedVaultIds === null) return false;
+      if (!realActivityIds.has(activity.id)) return false;
+      return !indexedVaultIds.has(activity.id.toLowerCase());
+    },
+    [indexedVaultIds, realActivityIds],
+  );
+
+  const handleDismiss = useCallback((depositId: string) => {
+    setDismissFailed(false);
+    setDismissingId(depositId);
+  }, []);
+  const handleDismissCancel = useCallback(() => {
+    setDismissFailed(false);
+    setDismissingId(null);
+  }, []);
+  const handleDismissConfirm = useCallback(() => {
+    if (!dismissingId) return;
+    const activity = pendingActivities.find((a) => a.id === dismissingId);
+    if (!activity || !canDismiss(activity)) {
+      setDismissFailed(false);
+      setDismissingId(null);
+      return;
+    }
+    if (!removePendingPegin(dismissingId)) {
+      setDismissFailed(true);
+      return;
+    }
+    setDismissFailed(false);
+    setDismissingId(null);
+  }, [canDismiss, dismissingId, pendingActivities, removePendingPegin]);
+
   // Keep the section (and its modals) mounted while a modal is open, even if
   // the last row advances to a terminal state mid-flow.
   const hasOpenModal = Boolean(
@@ -678,7 +747,8 @@ export function VaultsLifecycleSections({
       refundModal.refundingActivity ||
       reclaimModal.reclaimingActivity ||
       emergencyWithdrawModal.withdrawing ||
-      viewingBatch,
+      viewingBatch ||
+      dismissingId,
   );
 
   // No lifecycle rows and nothing modal-held: skip the providers entirely but
@@ -712,6 +782,7 @@ export function VaultsLifecycleSections({
                 onBroadcast={handleBroadcast}
                 onRefund={handleRefund}
                 onEmergencyWithdraw={handleEmergencyWithdraw}
+                onDismiss={canDismiss(activity) ? handleDismiss : undefined}
               />
             ))}
           </div>
@@ -752,6 +823,13 @@ export function VaultsLifecycleSections({
           </div>
         </section>
       )}
+
+      <DismissPendingDepositDialog
+        open={dismissingId !== null}
+        failed={dismissFailed}
+        onCancel={handleDismissCancel}
+        onConfirm={handleDismissConfirm}
+      />
 
       <PendingDepositModals
         broadcastModal={broadcastModal}

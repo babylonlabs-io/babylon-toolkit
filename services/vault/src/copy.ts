@@ -2004,6 +2004,17 @@ export const COPY = {
       withdraw: "Withdraw",
       viewDetails: "View Details",
     },
+    dismissPending: {
+      rowLabel: "Remove this pending deposit",
+      title: "Remove this pending deposit?",
+      body: "This deposit's record is saved in this browser only. Removing it does not move or spend any Bitcoin, and your funds stay in your wallet.",
+      warning:
+        "You will lose the unsigned Pre-Pegin transaction this browser holds, so you can no longer broadcast it from here. This cannot be undone.",
+      failed:
+        "Your browser blocked the change, so the deposit is still saved here. Check your privacy settings or free up local storage, then try again.",
+      confirmButton: "Remove",
+      cancelButton: "Cancel",
+    },
   },
   risk: {
     title: "Risk",

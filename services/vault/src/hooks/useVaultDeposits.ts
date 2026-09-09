@@ -35,10 +35,13 @@ export function useVaultDeposits(connectedAddress: Address | undefined) {
     ? FAST_POLL_INTERVAL
     : NORMAL_POLL_INTERVAL;
 
-  const { data, isLoading, error, refetch } = useVaults(connectedAddress, {
-    poll: true,
-    interval: pollingInterval,
-  });
+  const { data, isLoading, error, refetch, status } = useVaults(
+    connectedAddress,
+    {
+      poll: true,
+      interval: pollingInterval,
+    },
+  );
 
   // Forces a refresh on `undefined → sameAddress` reconnect, which RQ
   // would otherwise serve from cache while still within `staleTime`.
@@ -54,6 +57,19 @@ export function useVaultDeposits(connectedAddress: Address | undefined) {
 
     return data.map(transformVaultToActivity);
   }, [data]);
+
+  /**
+   * Lowercased ids of every vault the indexer returned, or null while the
+   * indexer has not answered successfully — a failed or in-flight query is
+   * never evidence that a vault is absent.
+   */
+  const indexedVaultIds: ReadonlySet<string> | null = useMemo(
+    () =>
+      status === "success"
+        ? new Set(confirmedActivities.map((a) => a.id.toLowerCase()))
+        : null,
+    [status, confirmedActivities],
+  );
 
   // Check if any activity has "Processing" status and update fast polling flag
   useEffect(() => {
@@ -94,10 +110,11 @@ export function useVaultDeposits(connectedAddress: Address | undefined) {
   }, [connectedAddress, confirmedActivities]);
 
   // Combine with local pending pegins from localStorage
-  const { allActivities, pendingPegins, addPendingPegin } = usePeginStorage({
-    ethAddress: connectedAddress || "",
-    confirmedPegins: confirmedActivities,
-  });
+  const { allActivities, pendingPegins, addPendingPegin, removePendingPegin } =
+    usePeginStorage({
+      ethAddress: connectedAddress || "",
+      confirmedPegins: confirmedActivities,
+    });
 
   // Wrap refetch to return Promise<void> for backward compatibility
   const wrappedRefetch = async () => {
@@ -111,5 +128,7 @@ export function useVaultDeposits(connectedAddress: Address | undefined) {
     error: error as Error | null,
     refetchActivities: wrappedRefetch,
     addPendingPegin,
+    removePendingPegin,
+    indexedVaultIds,
   };
 }

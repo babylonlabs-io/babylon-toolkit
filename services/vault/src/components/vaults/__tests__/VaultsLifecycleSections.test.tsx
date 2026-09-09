@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import type { Hex } from "viem";
 import { describe, expect, it, vi } from "vitest";
@@ -131,13 +131,23 @@ function pollingResult(
   };
 }
 
-function renderPendingRow(result: DepositPollingResult) {
-  mockUseDepositPollingResult.mockReturnValue(result);
-  const deposits = {
-    pendingActivities: [ACTIVITY],
+interface DepositsOptions {
+  activities?: VaultActivity[];
+  indexedVaultIds?: ReadonlySet<string> | null;
+}
+
+function makeDeposits(
+  {
+    activities = [ACTIVITY],
+    indexedVaultIds = new Set<string>(),
+  }: DepositsOptions,
+  removePendingPegin: (vaultId: string) => boolean,
+) {
+  return {
+    pendingActivities: activities,
     expiredActivities: [],
     reclaimableCandidates: [],
-    allActivities: [ACTIVITY],
+    allActivities: activities,
     vaultProviders: [],
     btcAddress: "tb1depositor",
     btcConnected: true,
@@ -178,10 +188,34 @@ function renderPendingRow(result: DepositPollingResult) {
       handleClose: vi.fn(),
       handleSuccess: vi.fn(),
     },
+    removePendingPegin,
+    indexedVaultIds,
     demo: null,
   } satisfies ReturnType<typeof usePendingDeposits>;
+}
 
-  return render(<VaultsLifecycleSections deposits={deposits} />);
+function renderPendingRow(
+  result: DepositPollingResult,
+  options: DepositsOptions = {},
+  removePendingPegin: (vaultId: string) => boolean = vi.fn(() => true),
+) {
+  mockUseDepositPollingResult.mockReturnValue(result);
+  const view = render(
+    <VaultsLifecycleSections
+      deposits={makeDeposits(options, removePendingPegin)}
+    />,
+  );
+
+  return {
+    removePendingPegin,
+    rerenderWith: (next: DepositsOptions) =>
+      view.rerender(
+        <VaultsLifecycleSections
+          deposits={makeDeposits({ ...options, ...next }, removePendingPegin)}
+        />,
+      ),
+    ...view,
+  };
 }
 
 const estimateText = (minutes: number) =>
@@ -250,5 +284,134 @@ describe("VaultsLifecycleSections pending row", () => {
     );
 
     expect(screen.queryByText(ANY_ESTIMATE)).not.toBeInTheDocument();
+  });
+});
+
+const LOCAL_ONLY: VaultActivity = {
+  ...ACTIVITY,
+  id: "0xlocalonly" as Hex,
+  isPending: true,
+};
+
+const INDEXED_MIXED_CASE: VaultActivity = {
+  ...ACTIVITY,
+  id: "0xABCDEF" as Hex,
+  isPending: true,
+};
+
+const dismissIn = (rowIndex: number) =>
+  within(screen.getAllByTestId("pending-deposit-row")[rowIndex]).queryByTestId(
+    "pending-deposit-dismiss-button",
+  );
+
+describe("VaultsLifecycleSections dismiss control", () => {
+  it("offers the control only on the deposit the indexer did not return", () => {
+    renderPendingRow(pollingResult(BROADCAST_STATE), {
+      activities: [LOCAL_ONLY, INDEXED_MIXED_CASE],
+      indexedVaultIds: new Set([INDEXED_MIXED_CASE.id.toLowerCase()]),
+    });
+
+    expect(dismissIn(0)).toBeInTheDocument();
+    expect(dismissIn(1)).not.toBeInTheDocument();
+  });
+
+  it("offers the control only once the indexer has answered successfully", () => {
+    const { rerenderWith } = renderPendingRow(pollingResult(BROADCAST_STATE), {
+      activities: [LOCAL_ONLY],
+      indexedVaultIds: null,
+    });
+
+    expect(dismissIn(0)).not.toBeInTheDocument();
+
+    rerenderWith({ indexedVaultIds: new Set<string>() });
+
+    expect(dismissIn(0)).toBeInTheDocument();
+  });
+
+  it("states what the discard costs before removing anything", () => {
+    const { removePendingPegin } = renderPendingRow(
+      pollingResult(BROADCAST_STATE),
+      { activities: [LOCAL_ONLY] },
+    );
+
+    fireEvent.click(screen.getByTestId("pending-deposit-dismiss-button"));
+
+    expect(
+      screen.getByText(COPY.vaults.dismissPending.warning),
+    ).toBeInTheDocument();
+    expect(removePendingPegin).not.toHaveBeenCalled();
+  });
+
+  it("removes the stored deposit once the discard is confirmed", () => {
+    const { removePendingPegin } = renderPendingRow(
+      pollingResult(BROADCAST_STATE),
+      { activities: [LOCAL_ONLY] },
+    );
+
+    fireEvent.click(screen.getByTestId("pending-deposit-dismiss-button"));
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: COPY.vaults.dismissPending.confirmButton,
+      }),
+    );
+
+    expect(removePendingPegin).toHaveBeenCalledWith(LOCAL_ONLY.id);
+  });
+
+  it("keeps the stored deposit when the discard is cancelled", () => {
+    const { removePendingPegin } = renderPendingRow(
+      pollingResult(BROADCAST_STATE),
+      { activities: [LOCAL_ONLY] },
+    );
+
+    fireEvent.click(screen.getByTestId("pending-deposit-dismiss-button"));
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: COPY.vaults.dismissPending.cancelButton,
+      }),
+    );
+
+    expect(removePendingPegin).not.toHaveBeenCalled();
+  });
+
+  it("aborts the discard when the indexer returns the deposit before confirmation", () => {
+    const { removePendingPegin, rerenderWith } = renderPendingRow(
+      pollingResult(BROADCAST_STATE),
+      { activities: [LOCAL_ONLY] },
+    );
+
+    fireEvent.click(screen.getByTestId("pending-deposit-dismiss-button"));
+    rerenderWith({ indexedVaultIds: new Set([LOCAL_ONLY.id.toLowerCase()]) });
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: COPY.vaults.dismissPending.confirmButton,
+      }),
+    );
+
+    expect(removePendingPegin).not.toHaveBeenCalled();
+  });
+
+  it("reports a failed removal and keeps the confirmation open", () => {
+    renderPendingRow(
+      pollingResult(BROADCAST_STATE),
+      { activities: [LOCAL_ONLY] },
+      vi.fn(() => false),
+    );
+
+    fireEvent.click(screen.getByTestId("pending-deposit-dismiss-button"));
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: COPY.vaults.dismissPending.confirmButton,
+      }),
+    );
+
+    expect(
+      screen.getByTestId("pending-deposit-dismiss-error"),
+    ).toHaveTextContent(COPY.vaults.dismissPending.failed);
+    expect(
+      screen.getByRole("button", {
+        name: COPY.vaults.dismissPending.confirmButton,
+      }),
+    ).toBeInTheDocument();
   });
 });
