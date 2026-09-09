@@ -243,9 +243,9 @@ const buildWasm = async () => {
       process.exit(1);
     }
 
-    // Copy generated files to dist/generated. The node entrypoint
-    // (src/index-node.ts) loads this same web artifact via readFileSync +
-    // initSync, so no separate nodejs-target build is needed.
+    // Copy generated files to dist/generated. The Node loader
+    // (src/wasm-loader-node.ts) uses readFile, then initSync.
+    // No separate nodejs-target build is needed.
     console.log('Copying generated files...');
     const name = 'vault_wasm';
 
