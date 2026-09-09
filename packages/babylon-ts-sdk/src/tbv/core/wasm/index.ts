@@ -348,7 +348,7 @@ export async function expandAuthAnchor(root: Uint8Array): Promise<Uint8Array> {
 /**
  * Derive 32-byte `hashlockSecret` for HTLC `htlcVout` (preimage → `activateVaultWithSecret`).
  * @stability frozen - btc-vault Rust owns this API.
- * Changing the derived bytes prevents affected vaults from activating. See CLAUDE.md §4.
+ * Changing the derived bytes means affected vaults can never activate. See CLAUDE.md §4.
  */
 export async function expandHashlockSecret(
   root: Uint8Array,
@@ -360,7 +360,7 @@ export async function expandHashlockSecret(
 /**
  * Derive 64-byte `wotsSeed` for HTLC `htlcVout` (→ WOTS keys, hashed as `depositorWotsPkHash`).
  * @stability frozen - btc-vault Rust owns this API.
- * Changing the derived bytes breaks existing `depositorWotsPkHash` values and prevents claims. See CLAUDE.md §4.
+ * Changing the derived bytes breaks existing `depositorWotsPkHash` values. No claim path remains. See CLAUDE.md §4.
  */
 export async function expandWotsSeed(
   root: Uint8Array,
