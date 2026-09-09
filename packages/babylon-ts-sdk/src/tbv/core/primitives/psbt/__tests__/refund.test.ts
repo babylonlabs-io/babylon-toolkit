@@ -185,78 +185,14 @@ describe("buildRefundPsbt", () => {
   });
 
   describe("raw WASM refund transaction checks", () => {
-    it.each<
-      [name: string, mutate: (tx: bitcoin.Transaction) => void, message: RegExp]
-    >([
-      [
-        "the wrong version",
+    it("rejects a refund transaction with the wrong version", async () => {
+      const { txHex, params } = await buildFundedPrePegin();
+
+      await withMutatedRawRefundTx(
         (refundTx) => {
           refundTx.version = 1;
         },
-        /version/i,
-      ],
-      [
-        "a non-zero locktime",
-        (refundTx) => {
-          refundTx.locktime = 1;
-        },
-        /locktime/i,
-      ],
-      [
-        "the wrong input sequence",
-        (refundTx) => {
-          refundTx.ins[0].sequence = TEST_TIMELOCK_REFUND + 1;
-        },
-        /sequence/i,
-      ],
-      [
-        "the wrong input index",
-        (refundTx) => {
-          refundTx.ins[0].index = 1;
-        },
-        /input index/i,
-      ],
-      [
-        "the wrong input transaction",
-        (refundTx) => {
-          refundTx.ins[0].hash[0] ^= 1;
-        },
-        /does not reference the Pre-PegIn transaction/,
-      ],
-      [
-        "an extra input",
-        (refundTx) => {
-          refundTx.ins.push({ ...refundTx.ins[0] });
-        },
-        /must have exactly 1 input, got 2/,
-      ],
-      [
-        "an extra output",
-        (refundTx) => {
-          refundTx.outs.push({ ...refundTx.outs[0] });
-        },
-        /must have exactly 1 output, got 2/,
-      ],
-      [
-        "a redirected output",
-        (refundTx) => {
-          refundTx.outs[0].script = Buffer.from("6a", "hex");
-        },
-        /output scriptPubKey/i,
-      ],
-      [
-        "a reduced refund value",
-        (refundTx) => {
-          refundTx.outs[0].value -= 1;
-        },
-        /output value/i,
-      ],
-    ])(
-      "rejects a refund transaction with %s",
-      async (_name, mutate, message) => {
-        const { txHex, params } = await buildFundedPrePegin();
-
-        await withMutatedRawRefundTx(mutate, async () => {
+        async () => {
           await expect(
             buildRefundPsbt({
               prePeginParams: params,
@@ -265,10 +201,178 @@ describe("buildRefundPsbt", () => {
               refundFee: TEST_REFUND_FEE,
               hashlock: TEST_HASH_H,
             }),
-          ).rejects.toThrow(message);
-        });
-      },
-    );
+          ).rejects.toThrow(/version/i);
+        },
+      );
+    });
+
+    it("rejects a refund transaction with a non-zero locktime", async () => {
+      const { txHex, params } = await buildFundedPrePegin();
+
+      await withMutatedRawRefundTx(
+        (refundTx) => {
+          refundTx.locktime = 1;
+        },
+        async () => {
+          await expect(
+            buildRefundPsbt({
+              prePeginParams: params,
+              fundedPrePeginTxHex: txHex,
+              htlcVout: 0,
+              refundFee: TEST_REFUND_FEE,
+              hashlock: TEST_HASH_H,
+            }),
+          ).rejects.toThrow(/locktime/i);
+        },
+      );
+    });
+
+    it("rejects a refund transaction with the wrong input sequence", async () => {
+      const { txHex, params } = await buildFundedPrePegin();
+
+      await withMutatedRawRefundTx(
+        (refundTx) => {
+          refundTx.ins[0].sequence = TEST_TIMELOCK_REFUND + 1;
+        },
+        async () => {
+          await expect(
+            buildRefundPsbt({
+              prePeginParams: params,
+              fundedPrePeginTxHex: txHex,
+              htlcVout: 0,
+              refundFee: TEST_REFUND_FEE,
+              hashlock: TEST_HASH_H,
+            }),
+          ).rejects.toThrow(/sequence/i);
+        },
+      );
+    });
+
+    it("rejects a refund transaction with the wrong input index", async () => {
+      const { txHex, params } = await buildFundedPrePegin();
+
+      await withMutatedRawRefundTx(
+        (refundTx) => {
+          refundTx.ins[0].index = 1;
+        },
+        async () => {
+          await expect(
+            buildRefundPsbt({
+              prePeginParams: params,
+              fundedPrePeginTxHex: txHex,
+              htlcVout: 0,
+              refundFee: TEST_REFUND_FEE,
+              hashlock: TEST_HASH_H,
+            }),
+          ).rejects.toThrow(/input index/i);
+        },
+      );
+    });
+
+    it("rejects a refund transaction with the wrong input transaction", async () => {
+      const { txHex, params } = await buildFundedPrePegin();
+
+      await withMutatedRawRefundTx(
+        (refundTx) => {
+          refundTx.ins[0].hash[0] ^= 1;
+        },
+        async () => {
+          await expect(
+            buildRefundPsbt({
+              prePeginParams: params,
+              fundedPrePeginTxHex: txHex,
+              htlcVout: 0,
+              refundFee: TEST_REFUND_FEE,
+              hashlock: TEST_HASH_H,
+            }),
+          ).rejects.toThrow(/does not reference the Pre-PegIn transaction/);
+        },
+      );
+    });
+
+    it("rejects a refund transaction with an extra input", async () => {
+      const { txHex, params } = await buildFundedPrePegin();
+
+      await withMutatedRawRefundTx(
+        (refundTx) => {
+          refundTx.ins.push({ ...refundTx.ins[0] });
+        },
+        async () => {
+          await expect(
+            buildRefundPsbt({
+              prePeginParams: params,
+              fundedPrePeginTxHex: txHex,
+              htlcVout: 0,
+              refundFee: TEST_REFUND_FEE,
+              hashlock: TEST_HASH_H,
+            }),
+          ).rejects.toThrow(/must have exactly 1 input, got 2/);
+        },
+      );
+    });
+
+    it("rejects a refund transaction with an extra output", async () => {
+      const { txHex, params } = await buildFundedPrePegin();
+
+      await withMutatedRawRefundTx(
+        (refundTx) => {
+          refundTx.outs.push({ ...refundTx.outs[0] });
+        },
+        async () => {
+          await expect(
+            buildRefundPsbt({
+              prePeginParams: params,
+              fundedPrePeginTxHex: txHex,
+              htlcVout: 0,
+              refundFee: TEST_REFUND_FEE,
+              hashlock: TEST_HASH_H,
+            }),
+          ).rejects.toThrow(/must have exactly 1 output, got 2/);
+        },
+      );
+    });
+
+    it("rejects a refund transaction with a redirected output", async () => {
+      const { txHex, params } = await buildFundedPrePegin();
+
+      await withMutatedRawRefundTx(
+        (refundTx) => {
+          refundTx.outs[0].script = Buffer.from("6a", "hex");
+        },
+        async () => {
+          await expect(
+            buildRefundPsbt({
+              prePeginParams: params,
+              fundedPrePeginTxHex: txHex,
+              htlcVout: 0,
+              refundFee: TEST_REFUND_FEE,
+              hashlock: TEST_HASH_H,
+            }),
+          ).rejects.toThrow(/output scriptPubKey/i);
+        },
+      );
+    });
+
+    it("rejects a refund transaction with a reduced refund value", async () => {
+      const { txHex, params } = await buildFundedPrePegin();
+
+      await withMutatedRawRefundTx(
+        (refundTx) => {
+          refundTx.outs[0].value -= 1;
+        },
+        async () => {
+          await expect(
+            buildRefundPsbt({
+              prePeginParams: params,
+              fundedPrePeginTxHex: txHex,
+              htlcVout: 0,
+              refundFee: TEST_REFUND_FEE,
+              hashlock: TEST_HASH_H,
+            }),
+          ).rejects.toThrow(/output value/i);
+        },
+      );
+    });
   });
 
   describe("independent refund signing data", () => {

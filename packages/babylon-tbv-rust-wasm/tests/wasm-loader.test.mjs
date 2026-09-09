@@ -36,7 +36,10 @@ for (const entry of ['raw', 'raw-node']) {
       Object.keys(raw).sort(),
       [...rawClassNames, 'initWasm'].sort(),
     );
-    for (const name of rawClassNames) assert.equal(raw[name], generated[name]);
+    for (const name of rawClassNames) {
+      assert.equal(typeof raw[name], 'function', name);
+      assert.equal(raw[name], generated[name]);
+    }
     assert.equal(raw.initWasm, loader.initWasm);
   });
 

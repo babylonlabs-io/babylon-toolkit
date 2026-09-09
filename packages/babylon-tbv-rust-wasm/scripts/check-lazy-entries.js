@@ -145,7 +145,12 @@ for (const loaderName of ['wasm-loader.ts', 'wasm-loader-node.ts']) {
 }
 
 // Check generated imports that TypeScript and skipLibCheck consumers can miss.
-for (const loaderName of ['wasm-loader.d.ts', 'wasm-loader-node.d.ts']) {
+for (const loaderName of [
+  'wasm-loader.d.ts',
+  'wasm-loader-node.d.ts',
+  'raw.d.ts',
+  'raw-node.d.ts',
+]) {
   const emitted = resolve(outputDirectory, loaderName);
   let declaration;
   try {

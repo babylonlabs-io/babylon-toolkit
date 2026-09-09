@@ -468,6 +468,8 @@ The same as `TAP_INTERNAL_KEY` but as a Buffer for convenience.
 
 ### Raw WASM Types
 
+Raw classes are intentionally not exported from the lazy root entry.
+
 The `/raw` classes remain available during deprecation. They bypass SDK value
 checks. Their constructors, methods, and types keep the published contract.
 Existing raw callers must call `initWasm()` before construction and independently

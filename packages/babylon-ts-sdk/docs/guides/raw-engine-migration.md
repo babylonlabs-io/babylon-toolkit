@@ -88,7 +88,8 @@ decision must define how callers supply trusted inputs and how existing
 The guarded product-path work in #2386 remains separate.
 
 This change calls for a minor deprecation release of the SDK and engine.
-Use a `feat` release commit without a breaking-change marker. It adds deprecation
-metadata and guidance, with no runtime or signature change. A later incompatible
+Use a `feat` release commit without a breaking-change marker. The raw entries
+replace live class re-exports with typed constant aliases to add deprecation
+metadata. Class identities and signatures remain the same. A later incompatible
 guard change needs its own release decision. API removal and its date are outside
 this change.

@@ -50,7 +50,10 @@ test("publishes the raw loader deprecation in its declaration", () => {
   assert.ok(declaration, "The published raw loader declaration must remain");
   const deprecation = ts.getJSDocDeprecatedTag(declaration);
   assert.ok(deprecation, "The published raw loader must be deprecated");
-  assert.match(deprecation.comment, /buildRefundPsbt/);
+  assert.match(
+    ts.getTextOfJSDocComment(deprecation.comment) ?? "",
+    /buildRefundPsbt/,
+  );
 });
 
 const [CLAIMER, LOCAL_CHALLENGER, UNIVERSAL_CHALLENGER, ...COUNCIL] = [
