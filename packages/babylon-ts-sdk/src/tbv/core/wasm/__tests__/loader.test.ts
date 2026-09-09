@@ -105,7 +105,7 @@ describe("loadRawTbvWasm", () => {
   });
 
   it("clears the SDK cache after an initWasm rejection", async () => {
-    // This mock proves that the SDK clears its cache after a rejection.
+    // Without the SDK cache reset, later calls would repeat this rejection.
     // The real engine keeps generated initialization failures latched.
     let initCalls = 0;
     vi.doMock(RAW, () => ({
