@@ -45,7 +45,10 @@ for (const entry of ['raw', 'raw-node']) {
     );
     for (const name of rawClassNames) {
       assert.equal(typeof raw[name], 'function', name);
-      if (name === 'WasmPrePeginHtlcConnector') {
+      if (
+        name === 'WasmPrePeginHtlcConnector' ||
+        name === 'WasmPeginPayoutConnector'
+      ) {
         assert.notEqual(raw[name], generated[name]);
       } else {
         assert.equal(raw[name], generated[name]);
@@ -477,7 +480,11 @@ async function withRawEntry(entry, run) {
   if (entry === 'raw-node') {
     const raw = await import('../dist/raw-node.js');
     await raw.initWasm();
-    await run(raw, await import('../dist/generated/vault_wasm.js'));
+    await run(
+      raw,
+      await import('../dist/generated/vault_wasm.js'),
+      await import('../dist/index-node.js'),
+    );
     return;
   }
   await withBrowserFacade(
@@ -485,10 +492,14 @@ async function withRawEntry(entry, run) {
       new Response(wasmBytes, {
         headers: { 'Content-Type': 'application/wasm' },
       }),
-    async (_facade, url) => {
+    async (facade, url) => {
       const raw = await import(new URL('./raw.js', url));
       await raw.initWasm();
-      await run(raw, await import(new URL('./generated/vault_wasm.js', url)));
+      await run(
+        raw,
+        await import(new URL('./generated/vault_wasm.js', url)),
+        facade,
+      );
     },
   );
 }
@@ -503,6 +514,256 @@ function htlcArgs(version = 1, keepers = [xOnlyKeys[2]]) {
     sha256Text('raw HTLC'),
     144,
   ];
+}
+
+function payoutArgs(params = payoutConnectorParams) {
+  return [
+    params.txGraphVersion,
+    params.depositor,
+    params.vaultProvider,
+    params.vaultKeepers,
+    params.universalChallengers,
+    params.timelockPegin,
+  ];
+}
+
+const payoutGetters = [
+  'getPayoutScript',
+  'getPayoutControlBlock',
+  'getTaprootScriptHash',
+  'getTxGraphVersion',
+];
+
+for (const entry of ['raw', 'raw-node']) {
+  test(`${entry} pins independent payout fields for every graph version`, async () => {
+    await withRawEntry(entry, async (raw, generated, facade) => {
+      for (const version of [1, 2, 3]) {
+        const params = { ...payoutConnectorParams, txGraphVersion: version };
+        const expected = await facade.deriveExpectedPeginPayout(params);
+        assert.equal(
+          expected.scriptPubKey.toString('hex'),
+          '5120f168b9531c9ace8d638245e004e2550756b996300391337e169c7fb5c354d61d',
+        );
+        assert.equal(
+          expected.taprootScriptHash.toString('hex'),
+          '82c0e27be3e706b67c07953fa18ed9b9854ea1cebbc1040f535b130f38f72c73',
+        );
+        assert.equal(
+          expected.payoutControlBlock.toString('hex'),
+          'c050929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfee9ace803ac0',
+        );
+        assert.equal(
+          sha256Text(expected.payoutScript.toString('hex')),
+          'd851c37a211d3e4c55b2bae8a2a3262e2960de9f1015e43986f76ce5c8628991',
+        );
+        const checked = new raw.WasmPeginPayoutConnector(...payoutArgs(params));
+        const original = new generated.WasmPeginPayoutConnector(
+          ...payoutArgs(params),
+        );
+        try {
+          assert.ok(checked instanceof raw.WasmPeginPayoutConnector);
+          for (const getter of payoutGetters)
+            assert.equal(checked[getter](), original[getter]());
+          for (const network of [
+            'bitcoin',
+            'testnet',
+            'testnet4',
+            'signet',
+            'regtest',
+          ]) {
+            assert.equal(
+              checked.getAddress(network),
+              original.getAddress(network),
+            );
+            assert.equal(
+              checked.getScriptPubKey(network),
+              original.getScriptPubKey(network),
+            );
+          }
+          assert.throws(
+            () => checked.getAddress('mainnet'),
+            /Unsupported Bitcoin network/,
+          );
+          assert.throws(
+            () => checked.getScriptPubKey('invalid'),
+            /Unsupported Bitcoin network/,
+          );
+        } finally {
+          checked.free();
+          original.free();
+        }
+        assert.throws(() => checked.getPayoutScript());
+      }
+    });
+  });
+
+  test(`${entry} matches randomized payout inputs and script-number boundaries`, async () => {
+    await withRawEntry(entry, async (raw, generated, facade) => {
+      const timelocks = [1, 16, 17, 127, 128, 255, 256, 32767, 32768, 65535];
+      for (let sample = 0; sample < timelocks.length; sample += 1) {
+        const keys = Array.from({ length: 36 }, () =>
+          Buffer.from(
+            secp256k1
+              .getPublicKey(secp256k1.utils.randomPrivateKey(), true)
+              .subarray(1),
+          ).toString('hex'),
+        );
+        const count = [1, 2, 16, 17][sample % 4];
+        const params = {
+          txGraphVersion: 1 + (sample % 3),
+          depositor: keys[0],
+          vaultProvider: keys[1],
+          vaultKeepers: keys.slice(2, 2 + count),
+          universalChallengers: keys.slice(19, 19 + count),
+          timelockPegin: timelocks[sample],
+        };
+        const checked = new raw.WasmPeginPayoutConnector(...payoutArgs(params));
+        const original = new generated.WasmPeginPayoutConnector(
+          ...payoutArgs(params),
+        );
+        try {
+          for (const getter of payoutGetters)
+            assert.equal(checked[getter](), original[getter]());
+          assert.equal(
+            checked.getAddress('signet'),
+            original.getAddress('signet'),
+          );
+          assert.equal(
+            checked.getScriptPubKey('signet'),
+            original.getScriptPubKey('signet'),
+          );
+          const reordered = await facade.deriveExpectedPeginPayout({
+            ...params,
+            vaultKeepers: [...params.vaultKeepers].reverse(),
+            universalChallengers: [...params.universalChallengers].reverse(),
+          });
+          assert.equal(
+            reordered.payoutScript.toString('hex'),
+            original.getPayoutScript(),
+          );
+        } finally {
+          checked.free();
+          original.free();
+        }
+      }
+    });
+  });
+
+  test(`${entry} rejects changed payout fields at raw and async boundaries`, async () => {
+    await withRawEntry(entry, async (raw, generated, facade) => {
+      const prototype = generated.WasmPeginPayoutConnector.prototype;
+      for (const getter of [
+        ...payoutGetters,
+        'getScriptPubKey',
+        'getAddress',
+      ]) {
+        const checked = new raw.WasmPeginPayoutConnector(...payoutArgs());
+        const original = prototype[getter];
+        const free = prototype.free;
+        let releases = 0;
+        prototype.free = function () {
+          releases += 1;
+          return free.call(this);
+        };
+        prototype[getter] = function (...args) {
+          const value = original.apply(this, args);
+          return typeof value === 'number'
+            ? value + 1
+            : value.slice(0, -1) + (value.endsWith('0') ? '1' : '0');
+        };
+        try {
+          assert.throws(() => checked[getter]('bitcoin'), /does not match/);
+          if (getter !== 'getAddress') {
+            assert.throws(
+              () => new raw.WasmPeginPayoutConnector(...payoutArgs()),
+              /does not match/,
+            );
+            assert.equal(releases, 1);
+            await assert.rejects(
+              facade.getPeginPayoutScriptInfo(payoutConnectorParams),
+              /does not match/,
+            );
+            assert.equal(releases, 2);
+          }
+          const before = releases;
+          await assert.rejects(
+            facade.createPayoutConnector(payoutConnectorParams, 'bitcoin'),
+            /does not match/,
+          );
+          assert.equal(
+            releases,
+            before + 1,
+            'failed async construction releases the engine object',
+          );
+        } finally {
+          prototype[getter] = original;
+          prototype.free = free;
+          checked.free();
+        }
+      }
+    });
+  });
+
+  test(`${entry} validates original payout inputs and keeps its private expectations`, async () => {
+    await withRawEntry(entry, async (raw) => {
+      const params = {
+        ...payoutConnectorParams,
+        vaultKeepers: [...payoutConnectorParams.vaultKeepers],
+      };
+      const checked = new raw.WasmPeginPayoutConnector(...payoutArgs(params));
+      const expected = checked.getPayoutScript();
+      params.vaultKeepers[0] = xOnlyKeys[4];
+      params.timelockPegin += 1;
+      assert.equal(checked.getPayoutScript(), expected);
+      checked[Symbol.dispose]();
+      assert.throws(() => checked.getPayoutControlBlock());
+      for (const version of [0, 4, 99, 0x100000001, NaN]) {
+        assert.throws(
+          () =>
+            new raw.WasmPeginPayoutConnector(
+              ...payoutArgs({
+                ...payoutConnectorParams,
+                txGraphVersion: version,
+              }),
+            ),
+          /Unsupported payout graph version/,
+        );
+      }
+      for (const timelock of [0, -1, 1.5, 65536, 65537, NaN, Infinity]) {
+        assert.throws(
+          () =>
+            new raw.WasmPeginPayoutConnector(
+              ...payoutArgs({
+                ...payoutConnectorParams,
+                timelockPegin: timelock,
+              }),
+            ),
+          /timelockPegin/,
+        );
+      }
+      for (const role of ['vaultKeepers', 'universalChallengers']) {
+        for (const keys of [[], [xOnlyKeys[0], xOnlyKeys[0].toUpperCase()]]) {
+          assert.throws(
+            () =>
+              new raw.WasmPeginPayoutConnector(
+                ...payoutArgs({ ...payoutConnectorParams, [role]: keys }),
+              ),
+            /must not/,
+          );
+        }
+      }
+      assert.throws(
+        () =>
+          new raw.WasmPeginPayoutConnector(
+            ...payoutArgs({
+              ...payoutConnectorParams,
+              depositor: 'ff'.repeat(32),
+            }),
+          ),
+        /secp256k1 x-coordinate/,
+      );
+    });
+  });
 }
 
 const htlcGetters = [

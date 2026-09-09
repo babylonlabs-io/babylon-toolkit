@@ -11,6 +11,8 @@ import {
   fundPeginTransaction,
   parseUnfundedWasmTransaction,
 } from "../../../utils/transaction/fundPeginTransaction";
+import { loadRawTbvWasm } from "../../../wasm";
+import { createPayoutScript } from "../../scripts/payout";
 import {
   buildPeginTxFromFundedPrePegin,
   buildPrePeginPsbt,
@@ -664,6 +666,53 @@ describe("buildPeginTxFromFundedPrePegin", () => {
 
     return { txHex: fundedTxHex, params };
   }
+
+  it.each([1, 2, 3])(
+    "rejects a consistent vault-output redirect for Core %i",
+    async (vaultCoreVersion) => {
+      const { txHex, params } = await buildFundedPrePeginTxHex({
+        vaultCoreVersion,
+      });
+      const changedPayout = await createPayoutScript({
+        vaultCoreVersion,
+        depositor: params.depositorPubkey,
+        vaultProvider: params.vaultProviderPubkey,
+        vaultKeepers: params.vaultKeeperPubkeys,
+        universalChallengers: params.universalChallengerPubkeys,
+        timelockPegin: TEST_TIMELOCK_PEGIN + 1,
+        network: params.network,
+      });
+      const { WasmPeginTx } = await loadRawTbvWasm();
+      const prototype = WasmPeginTx.prototype;
+      const { toHex, getTxid, getVaultScriptPubKey } = prototype;
+      function redirectedTx(instance: typeof prototype) {
+        const tx = bitcoin.Transaction.fromHex(toHex.call(instance));
+        tx.outs[0].script = Buffer.from(changedPayout.scriptPubKey, "hex");
+        return tx;
+      }
+      prototype.toHex = function () {
+        return redirectedTx(this).toHex();
+      };
+      prototype.getTxid = function () {
+        return redirectedTx(this).getId();
+      };
+      prototype.getVaultScriptPubKey = function () {
+        return changedPayout.scriptPubKey;
+      };
+      try {
+        await expect(
+          buildPeginTxFromFundedPrePegin({
+            prePeginParams: params,
+            timelockPegin: TEST_TIMELOCK_PEGIN,
+            fundedPrePeginTxHex: txHex,
+            htlcVout: 0,
+          }),
+        ).rejects.toThrow("does not match the requested payout connector");
+      } finally {
+        Object.assign(prototype, { toHex, getTxid, getVaultScriptPubKey });
+      }
+    },
+  );
 
   describe("Basic functionality", () => {
     // v1 PegIn parity gate — companion to the Pre-PegIn byte pin above: the

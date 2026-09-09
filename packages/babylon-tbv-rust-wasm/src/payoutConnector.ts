@@ -1,5 +1,9 @@
-import { getWasmBindings } from "./wasm-loader.js";
-import type { PayoutConnectorParams, PayoutConnectorInfo, Network } from "./types.js";
+import { getWasmBindings } from './wasm-loader.js';
+import type {
+  PayoutConnectorParams,
+  PayoutConnectorInfo,
+  Network,
+} from './types.js';
 
 /**
  * Creates a payout connector for vault transactions.
@@ -26,9 +30,11 @@ import type { PayoutConnectorParams, PayoutConnectorInfo, Network } from "./type
  */
 export async function createPayoutConnector(
   params: PayoutConnectorParams,
-  network: Network
+  network: Network,
 ): Promise<PayoutConnectorInfo> {
-  const { WasmPeginPayoutConnector } = await getWasmBindings();
+  await getWasmBindings();
+  const { GuardedPeginPayoutConnector: WasmPeginPayoutConnector } =
+    await import('./rawPayoutConnector.js');
 
   const connector = new WasmPeginPayoutConnector(
     params.txGraphVersion,
@@ -36,7 +42,7 @@ export async function createPayoutConnector(
     params.vaultProvider,
     params.vaultKeepers,
     params.universalChallengers,
-    params.timelockPegin
+    params.timelockPegin,
   );
 
   try {
@@ -64,7 +70,9 @@ export async function createPayoutConnector(
 export async function getPeginPayoutScriptInfo(
   params: PayoutConnectorParams,
 ): Promise<{ payoutScript: string; payoutControlBlock: string }> {
-  const { WasmPeginPayoutConnector } = await getWasmBindings();
+  await getWasmBindings();
+  const { GuardedPeginPayoutConnector: WasmPeginPayoutConnector } =
+    await import('./rawPayoutConnector.js');
 
   const connector = new WasmPeginPayoutConnector(
     params.txGraphVersion,
@@ -72,7 +80,7 @@ export async function getPeginPayoutScriptInfo(
     params.vaultProvider,
     params.vaultKeepers,
     params.universalChallengers,
-    params.timelockPegin
+    params.timelockPegin,
   );
 
   try {

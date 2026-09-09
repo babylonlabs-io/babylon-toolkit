@@ -217,13 +217,19 @@ that does not match. The canonical transaction constants for this check are in
 
 The `@babylonlabs-io/babylon-tbv-rust-wasm/raw` subpath (`src/raw.ts`, `src/raw-node.ts`) has a
 second crossing. `packages/babylon-tbv-rust-wasm/src/rawHtlcConnector.ts` checks the HTLC connector
-against its constructor inputs. It checks all scripts, control blocks, addresses, and the graph
-version. The other three classes still expose unchecked WASM results. Their callers must
+against its constructor inputs. The payout guard in
+`packages/babylon-tbv-rust-wasm/src/rawPayoutConnector.ts` uses the independent derivation in
+`packages/babylon-tbv-rust-wasm/src/peginPayout.ts`. Both derivations use the key and multisig
+rules in `packages/babylon-tbv-rust-wasm/src/connectorScripts.ts`. The payout factories in
+`packages/babylon-tbv-rust-wasm/src/payoutConnector.ts` and `src/index-node.ts` use the guard.
+The SDK PegIn builder also checks the vault output against the payout derivation. These checks
+cover scripts, control blocks, addresses, hashes, and graph versions. The two transaction classes
+still expose unchecked WASM results. Their callers must
 cross-check at the call site. The only SDK consumer is
 `packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/refund.ts`.
 It derives the canonical HTLC and signing data in TypeScript before it emits a refund PSBT.
 
-The raw classes and SDK raw loader are deprecated. The HTLC wrapper changes class identity.
+The raw classes and SDK raw loader are deprecated. The HTLC and payout wrappers change class identity.
 The other raw paths still permit a bypass. Transaction restoration and original amount
 validation remain incomplete in #2361.
 See the [migration guide](packages/babylon-ts-sdk/docs/guides/raw-engine-migration.md)

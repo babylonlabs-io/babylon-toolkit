@@ -470,9 +470,9 @@ The same as `TAP_INTERNAL_KEY` but as a Buffer for convenience.
 
 Raw classes are intentionally not exported from the lazy root entry.
 
-The `/raw` classes remain available during deprecation. The HTLC connector
-checks its output fields against its constructor inputs. Its class identity
-changes. The other three classes still bypass SDK value checks.
+The `/raw` classes remain available during deprecation. The HTLC and payout
+connectors check their output fields against their constructor inputs. Their
+class identities change. The two transaction classes still bypass SDK value checks.
 Existing raw callers must call `initWasm()` before construction and independently
 check transaction values and signing data.
 

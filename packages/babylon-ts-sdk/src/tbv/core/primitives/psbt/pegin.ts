@@ -19,6 +19,7 @@ import {
   buildPeginTxFromPrePegin,
   computeMinClaimValue,
   createPrePeginTransaction,
+  loadTbvWasm,
   peginP2aAnchorOutput,
   validatePeginP2aAnchor,
   type Network,
@@ -461,14 +462,29 @@ async function assertPeginTxShape(
     );
   }
   const encodedVaultScript = encodedVaultOut.script.toString("hex");
-  const expectedVaultScript = stripHexPrefix(
-    result.vaultScriptPubKey,
-  ).toLowerCase();
+  const { deriveExpectedPeginPayout } = await loadTbvWasm();
+  const expectedVaultScript = (
+    await deriveExpectedPeginPayout({
+      txGraphVersion: version,
+      depositor: params.prePeginParams.depositorPubkey,
+      vaultProvider: params.prePeginParams.vaultProviderPubkey,
+      vaultKeepers: params.prePeginParams.vaultKeeperPubkeys,
+      universalChallengers: params.prePeginParams.universalChallengerPubkeys,
+      timelockPegin: params.timelockPegin,
+    })
+  ).scriptPubKey.toString("hex");
+  if (
+    stripHexPrefix(result.vaultScriptPubKey).toLowerCase() !==
+    expectedVaultScript
+  ) {
+    throw new Error(
+      "WASM PegIn vault scriptPubKey does not match the requested payout connector.",
+    );
+  }
   if (encodedVaultScript.toLowerCase() !== expectedVaultScript) {
     throw new Error(
       `Encoded PegIn vault output scriptPubKey ${encodedVaultScript} does ` +
-        `not match the WASM-reported vaultScriptPubKey ` +
-        `${result.vaultScriptPubKey}.`,
+        `not match the requested payout scriptPubKey ${expectedVaultScript}.`,
     );
   }
 

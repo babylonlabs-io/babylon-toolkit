@@ -325,7 +325,9 @@ export async function createPayoutConnector(
   params: PayoutConnectorParams,
   network: Network,
 ): Promise<PayoutConnectorInfo> {
-  const { WasmPeginPayoutConnector } = await getWasmBindings();
+  await getWasmBindings();
+  const { GuardedPeginPayoutConnector: WasmPeginPayoutConnector } =
+    await import('./rawPayoutConnector.js');
 
   const connector = new WasmPeginPayoutConnector(
     params.txGraphVersion,
@@ -352,7 +354,9 @@ export async function createPayoutConnector(
 export async function getPeginPayoutScriptInfo(
   params: PayoutConnectorParams,
 ): Promise<{ payoutScript: string; payoutControlBlock: string }> {
-  const { WasmPeginPayoutConnector } = await getWasmBindings();
+  await getWasmBindings();
+  const { GuardedPeginPayoutConnector: WasmPeginPayoutConnector } =
+    await import('./rawPayoutConnector.js');
 
   const connector = new WasmPeginPayoutConnector(
     params.txGraphVersion,
@@ -582,4 +586,11 @@ export async function deriveExpectedPrePeginHtlc(
     params,
     hashlock,
   );
+}
+
+/** Derive the expected payout without using WASM output. */
+export async function deriveExpectedPeginPayout(
+  params: import('./types.js').PayoutConnectorParams,
+): Promise<import('./peginPayout.js').ExpectedPeginPayout> {
+  return (await import('./peginPayout.js')).deriveExpectedPeginPayout(params);
 }
