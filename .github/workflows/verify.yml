@@ -12,6 +12,7 @@ concurrency:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
 
     steps:
       - name: Checkout code
@@ -137,6 +138,7 @@ jobs:
             services/simple-staking/test-results
 
       - name: Test affected
+        if: ${{ !cancelled() }}
         id: tests
         shell: bash
         run: |
@@ -166,6 +168,7 @@ jobs:
       # typedoc-plugin.mjs. MUST stay after "Build all": docs output depends on
       # the gitignored babylon-tbv-rust-wasm/dist.
       - name: Check generated API docs are current
+        if: ${{ !cancelled() }}
         shell: bash
         run: |
           set -o pipefail

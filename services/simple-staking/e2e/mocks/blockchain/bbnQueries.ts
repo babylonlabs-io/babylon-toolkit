@@ -1,4 +1,7 @@
-import { incentivequery } from "@babylonlabs-io/babylon-proto-ts";
+import {
+  incentivequery,
+  btclightclientquery,
+} from "@babylonlabs-io/babylon-proto-ts";
 import type { Page } from "@playwright/test";
 import { QueryBalanceResponse } from "cosmjs-types/cosmos/bank/v1beta1/query.js";
 
@@ -9,6 +12,100 @@ export const injectBBNQueries = async (
   rewardAmount: string = defaultData.bbnQueries.rewardAmount,
   mockData = defaultData,
 ) => {
+  await page.route("**/*", async (route, request) => {
+    const url = new URL(request.url());
+    // These fixtures do not include co-staking chain state.
+    if (
+      url.pathname === "/babylon/costaking/v1/params" ||
+      url.pathname.startsWith("/cosmos/staking/v1beta1/delegations/")
+    )
+      return route.abort();
+    if (["fetch", "xhr"].includes(request.resourceType())) {
+      await route.abort();
+      throw new Error(
+        `Unrouted ${request.method()} ${url.pathname}${url.search}`,
+      );
+    }
+    return route.continue();
+  });
+
+  await page.route("**/fees/recommended", (route) =>
+    route.fulfill({ json: mockData.btcWallet.networkFees }),
+  );
+
+  // Recorded from https://staking-api.testnet.babylonlabs.io/v2/apr on 2026-09-09.
+  // Keys are satoshis_staked. Each response has ubbn_staked=0.
+  const recordedAPRs = new Map([
+    [
+      "0",
+      {
+        data: {
+          current: {
+            btc_staking_apr: 0.11449292888869063,
+            baby_staking_apr: 1.336087451833286,
+            co_staking_apr: 0,
+            total_apr: 0.11449292888869063,
+          },
+          additional_baby_needed_for_boost: 0,
+          boost: {
+            btc_staking_apr: 0.11449292888869063,
+            baby_staking_apr: 1.336087451833286,
+            co_staking_apr: 0,
+            total_apr: 0.11449292888869063,
+          },
+        },
+      },
+    ],
+    [
+      "50000",
+      {
+        data: {
+          current: {
+            btc_staking_apr: 0.11449292888869063,
+            baby_staking_apr: 1.336087918077096,
+            co_staking_apr: 0,
+            total_apr: 0.11449292888869063,
+          },
+          additional_baby_needed_for_boost: 10,
+          boost: {
+            btc_staking_apr: 0.11449292888869063,
+            baby_staking_apr: 1.336087918077096,
+            co_staking_apr: 0.3275781446943151,
+            total_apr: 0.44207107358300574,
+          },
+        },
+      },
+    ],
+    [
+      "9876543",
+      {
+        data: {
+          current: {
+            btc_staking_apr: 0.11449292888869063,
+            baby_staking_apr: 1.3360881681088284,
+            co_staking_apr: 0,
+            total_apr: 0.11449292888869063,
+          },
+          additional_baby_needed_for_boost: 1975.3086,
+          boost: {
+            btc_staking_apr: 0.11449292888869063,
+            baby_staking_apr: 1.3360881681088284,
+            co_staking_apr: 0.3272640084086461,
+            total_apr: 0.4417569372973367,
+          },
+        },
+      },
+    ],
+  ]);
+  await page.route("**/v2/apr?*", (route) => {
+    const params = new URL(route.request().url()).searchParams;
+    const response =
+      params.get("ubbn_staked") === "0"
+        ? recordedAPRs.get(params.get("satoshis_staked") ?? "")
+        : undefined;
+    return response ? route.fulfill({ json: response }) : route.fallback();
+  });
+
   const rewardGaugeProto = incentivequery.QueryRewardGaugesResponse.fromPartial(
     {
       rewardGauges: {
@@ -155,7 +252,7 @@ export const injectBBNQueries = async (
     }
 
     try {
-      await route.continue();
+      await route.fallback();
     } catch (error) {
       console.error(
         "Failed to continue route, it may have been handled already:",
@@ -166,7 +263,7 @@ export const injectBBNQueries = async (
 
   await page.route("**", async (route, request) => {
     if (request.method() !== "POST" && request.method() !== "OPTIONS") {
-      return route.continue();
+      return route.fallback();
     }
 
     // For OPTIONS preflight, respond with basic CORS headers and 200
@@ -190,7 +287,7 @@ export const injectBBNQueries = async (
       parsed = postData ? JSON.parse(postData) : null;
     } catch (err) {
       console.error("Failed to parse POST data:", err);
-      return route.continue();
+      return route.fallback();
     }
 
     if (parsed && parsed.method === "status") {
@@ -240,31 +337,34 @@ export const injectBBNQueries = async (
       });
     }
 
-    if (!parsed) {
-      return route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ result: {} }),
-      });
-    }
-
-    if (parsed.method && !["abci_query", "status"].includes(parsed.method)) {
-      return route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({
-          jsonrpc: "2.0",
-          id: parsed.id ?? -1,
-          result: {},
-        }),
-      });
-    }
+    if (!parsed || !["abci_query", "status"].includes(parsed.method))
+      return route.fallback();
 
     if (parsed.method !== "abci_query") {
-      return route.continue();
+      return route.fallback();
     }
 
     const pathParam = parsed.params?.path || "";
+    if (pathParam === "/babylon.btclightclient.v1.Query/Tip") {
+      const bytes = btclightclientquery.QueryTipResponse.encode(
+        btclightclientquery.QueryTipResponse.fromPartial({
+          header: { height: mockData.btcWallet.tipHeight },
+        }),
+      ).finish();
+      return route.fulfill({
+        json: {
+          jsonrpc: "2.0",
+          id: parsed.id,
+          result: {
+            response: {
+              code: 0,
+              value: Buffer.from(bytes).toString("base64"),
+              height: "1",
+            },
+          },
+        },
+      });
+    }
 
     const pathHandlers = {
       "babylon.incentive": async () => {
@@ -342,7 +442,7 @@ export const injectBBNQueries = async (
     }
 
     try {
-      await route.continue();
+      await route.fallback();
     } catch (error) {}
   });
 
@@ -691,7 +791,7 @@ export const injectBBNQueries = async (
 
   await page.route("**/api/address/*", async (route) => {
     if (route.request().url().includes("/utxo")) {
-      return route.continue();
+      return route.fallback();
     }
     await route.fulfill({
       status: 200,

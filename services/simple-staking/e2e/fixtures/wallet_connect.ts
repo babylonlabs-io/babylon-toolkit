@@ -10,7 +10,6 @@ import { mockVerifyBTCAddress } from "../mocks/handlers";
 import { PageNavigationActions } from "./page_navigation";
 import {
   BUTTON_SELECTORS,
-  CHECKBOX_SELECTOR,
   CONNECT_BUTTON_SELECTOR,
   DIALOG_SELECTORS,
   WALLET_SELECTORS,
@@ -47,64 +46,6 @@ export class WalletConnectActions {
     }
   }
 
-  async acceptTermsAndConditions() {
-    const termsDialogVisible = await this.page
-      .locator(DIALOG_SELECTORS.TERMS_DIALOG_HEADER)
-      .isVisible()
-      .catch(() => false);
-
-    if (!termsDialogVisible) {
-      await this.handleAlternativeDialog();
-      return;
-    }
-
-    const checkboxes = this.page.locator(CHECKBOX_SELECTOR);
-    const count = await checkboxes.count();
-
-    for (let i = 0; i < count; i++) {
-      await checkboxes.nth(i).click();
-    }
-
-    await this.page.locator(BUTTON_SELECTORS.NEXT).click();
-  }
-
-  private async handleAlternativeDialog() {
-    const anyDialog = await this.page
-      .locator(DIALOG_SELECTORS.ANY_DIALOG)
-      .first()
-      .isVisible()
-      .catch(() => false);
-
-    if (!anyDialog) return;
-
-    const buttonSelectorsList = [
-      BUTTON_SELECTORS.NEXT,
-      BUTTON_SELECTORS.ACCEPT,
-      BUTTON_SELECTORS.CONTINUE,
-      BUTTON_SELECTORS.OK,
-      BUTTON_SELECTORS.CONTINUE_ANYWAY,
-    ];
-
-    for (const selector of buttonSelectorsList) {
-      const button = this.page.locator(selector).first();
-      if (await button.isVisible().catch(() => false)) {
-        await button
-          .click()
-          .catch((e) => console.error(`Error clicking ${selector}:`, e));
-        return;
-      }
-    }
-
-    const anyButton = this.page
-      .locator(`${DIALOG_SELECTORS.ANY_DIALOG} button`)
-      .first();
-    if (await anyButton.isVisible().catch(() => false)) {
-      await anyButton
-        .click()
-        .catch((e) => console.error("Error clicking dialog button:", e));
-    }
-  }
-
   async clickInjectableWalletButton() {
     const bitcoinWalletButton = this.page
       .locator(WALLET_SELECTORS.BITCOIN)
@@ -112,43 +53,6 @@ export class WalletConnectActions {
 
     await bitcoinWalletButton.waitFor({ state: "visible", timeout: 10_000 });
     await bitcoinWalletButton.click();
-  }
-
-  async clickConnectWalletButton() {
-    const saveButton = this.page.locator(BUTTON_SELECTORS.SAVE);
-    const continueAnywayButton = this.page.locator(
-      BUTTON_SELECTORS.CONTINUE_ANYWAY,
-    );
-
-    await Promise.race([
-      saveButton
-        .waitFor({ state: "visible", timeout: 5000 })
-        .then(() => "save")
-        .catch(() => 1),
-      continueAnywayButton
-        .waitFor({ state: "visible", timeout: 5000 })
-        .then(() => "continue")
-        .catch(() => 2),
-    ]);
-
-    if (await continueAnywayButton.isVisible().catch(() => false)) {
-      await continueAnywayButton.click();
-      await saveButton.waitFor({ state: "visible", timeout: 5000 });
-      await saveButton.click();
-      await this.page
-        .locator(DIALOG_SELECTORS.ANY_DIALOG)
-        .first()
-        .waitFor({ state: "hidden", timeout: 5000 })
-        .catch(() => {});
-      return;
-    }
-
-    if (await saveButton.isVisible().catch(() => false)) {
-      await saveButton.click();
-      return;
-    }
-
-    await this.handleAlternativeDialog();
   }
 
   async clickOKXWalletButton() {
@@ -160,7 +64,9 @@ export class WalletConnectActions {
       }
     }
 
-    await this.clickConnectWalletButton();
+    await this.page
+      .locator(WALLET_SELECTORS.BABYLON[0])
+      .waitFor({ state: "visible" });
   }
 
   async clickBabylonChainWalletButton() {
@@ -221,7 +127,6 @@ export class WalletConnectActions {
     await injectBTCWallet(this.page, "OKX", options);
     await injectBBNWallet(this.page, "Leap", options);
     await this.clickConnectButton();
-    await this.acceptTermsAndConditions();
     await this.clickInjectableWalletButton();
     await this.clickOKXWalletButton();
     await this.handleVerificationErrorIfPresent();

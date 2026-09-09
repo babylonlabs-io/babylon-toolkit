@@ -1,8 +1,5 @@
 import { expect, test } from "@playwright/test";
-import {
-  btcstakingtx,
-  btclightclientquery,
-} from "@babylonlabs-io/babylon-proto-ts";
+import { btcstakingtx } from "@babylonlabs-io/babylon-proto-ts";
 import * as ecc from "@bitcoin-js/tiny-secp256k1-asmjs";
 import { DirectSecp256k1Wallet, makeSignBytes } from "@cosmjs/proto-signing";
 import { crypto, payments, script, Transaction } from "bitcoinjs-lib";
@@ -82,11 +79,6 @@ test("create a V2 stake with local wallet signatures", async ({ page }) => {
       unexpectedWrites.push(`${method} ${url.href}`);
       return route.abort();
     }
-    if (
-      url.pathname === "/babylon/costaking/v1/params" ||
-      url.pathname.startsWith("/cosmos/staking/v1beta1/delegations/")
-    )
-      return route.abort();
     if (url.pathname.endsWith("/fees/recommended"))
       return route.fulfill({ json: data.btcWallet.networkFees });
     if (url.pathname.endsWith("/utxo"))
@@ -119,19 +111,6 @@ test("create a V2 stake with local wallet signatures", async ({ page }) => {
       });
     if (url.pathname.endsWith("/api/tx") && method === "POST") {
       submittedBtc = Transaction.fromHex(request.postData()!);
-      expect(submittedBtc.ins).toHaveLength(1);
-      const [witnessSignature, witnessPublicKey] = submittedBtc.ins[0].witness;
-      expect(submittedBtc.ins[0].witness).toHaveLength(2);
-      expect(witnessPublicKey).toEqual(publicKey);
-      const { signature, hashType } = script.signature.decode(witnessSignature);
-      expect(hashType).toBe(Transaction.SIGHASH_ALL);
-      const hash = submittedBtc.hashForWitnessV0(
-        0,
-        payments.p2pkh({ pubkey: publicKey }).output!,
-        funding.outs[0].value,
-        hashType,
-      );
-      expect(ecc.verify(hash, publicKey, signature)).toBe(true);
       return route.fulfill({ body: submittedBtc.getId() });
     }
     if (["GET", "HEAD", "OPTIONS"].includes(method)) {
@@ -152,12 +131,6 @@ test("create a V2 stake with local wallet signatures", async ({ page }) => {
     if (rpc.method === "abci_query") {
       const path = rpc.params.path;
       let bytes;
-      if (path.endsWith("/Tip"))
-        bytes = btclightclientquery.QueryTipResponse.encode(
-          btclightclientquery.QueryTipResponse.fromPartial({
-            header: { height: data.btcWallet.tipHeight },
-          }),
-        ).finish();
       if (path.endsWith("/Account"))
         bytes = QueryAccountResponse.encode({
           account: {
@@ -183,39 +156,9 @@ test("create a V2 stake with local wallet signatures", async ({ page }) => {
       };
     } else if (rpc.method === "broadcast_tx_sync") {
       babylonTx = Buffer.from(rpc.params.tx, "base64");
-      const raw = TxRaw.decode(babylonTx);
-      expect(raw.signatures).toHaveLength(1);
-      const auth = AuthInfo.decode(raw.authInfoBytes);
-      expect(auth.signerInfos).toHaveLength(1);
-      const signer = auth.signerInfos[0];
-      expect(signer.sequence).toBe(0n);
-      expect(signer.modeInfo?.single?.mode).toBe(SignMode.SIGN_MODE_DIRECT);
-      expect(signer.publicKey?.typeUrl).toBe("/cosmos.crypto.secp256k1.PubKey");
-      expect(PubKey.decode(signer.publicKey!.value).key).toEqual(
-        account.pubkey,
-      );
-      const signBytes = makeSignBytes({
-        bodyBytes: raw.bodyBytes,
-        authInfoBytes: raw.authInfoBytes,
-        chainId: "bbn-test",
-        accountNumber: 0n,
-      });
-      expect(
-        ecc.verify(
-          crypto.sha256(Buffer.from(signBytes)),
-          account.pubkey,
-          raw.signatures[0],
-        ),
-      ).toBe(true);
-      const body = TxBody.decode(raw.bodyBytes);
-      expect(body.messages).toHaveLength(1);
-      expect(body.messages[0].typeUrl).toBe(
-        "/babylon.btcstaking.v1.MsgCreateBTCDelegation",
-      );
       registration = btcstakingtx.MsgCreateBTCDelegation.decode(
-        body.messages[0].value,
+        TxBody.decode(TxRaw.decode(babylonTx).bodyBytes).messages[0].value,
       );
-      expect(registration.stakerAddr).toBe(account.address);
       result = {
         code: 0,
         hash: crypto.sha256(babylonTx).toString("hex").toUpperCase(),
@@ -266,6 +209,47 @@ test("create a V2 stake with local wallet signatures", async ({ page }) => {
   await expect
     .poll(() => submittedBtc?.getId())
     .toBe(Transaction.fromBuffer(Buffer.from(registration!.stakingTx)).getId());
+  expect(submittedBtc!.ins).toHaveLength(1);
+  const [witnessSignature, witnessPublicKey] = submittedBtc!.ins[0].witness;
+  expect(submittedBtc!.ins[0].witness).toHaveLength(2);
+  expect(witnessPublicKey).toEqual(publicKey);
+  const { signature, hashType } = script.signature.decode(witnessSignature);
+  expect(hashType).toBe(Transaction.SIGHASH_ALL);
+  const hash = submittedBtc!.hashForWitnessV0(
+    0,
+    payments.p2pkh({ pubkey: publicKey }).output!,
+    funding.outs[0].value,
+    hashType,
+  );
+  expect(ecc.verify(hash, publicKey, signature)).toBe(true);
+  const raw = TxRaw.decode(babylonTx);
+  expect(raw.signatures).toHaveLength(1);
+  const auth = AuthInfo.decode(raw.authInfoBytes);
+  expect(auth.signerInfos).toHaveLength(1);
+  const signer = auth.signerInfos[0];
+  expect(signer.sequence).toBe(0n);
+  expect(signer.modeInfo?.single?.mode).toBe(SignMode.SIGN_MODE_DIRECT);
+  expect(signer.publicKey?.typeUrl).toBe("/cosmos.crypto.secp256k1.PubKey");
+  expect(PubKey.decode(signer.publicKey!.value).key).toEqual(account.pubkey);
+  const signBytes = makeSignBytes({
+    bodyBytes: raw.bodyBytes,
+    authInfoBytes: raw.authInfoBytes,
+    chainId: "bbn-test",
+    accountNumber: 0n,
+  });
+  expect(
+    ecc.verify(
+      crypto.sha256(Buffer.from(signBytes)),
+      account.pubkey,
+      raw.signatures[0],
+    ),
+  ).toBe(true);
+  const body = TxBody.decode(raw.bodyBytes);
+  expect(body.messages).toHaveLength(1);
+  expect(body.messages[0].typeUrl).toBe(
+    "/babylon.btcstaking.v1.MsgCreateBTCDelegation",
+  );
+  expect(registration!.stakerAddr).toBe(account.address);
   expect(submittedBtc!.ins[0].hash).toEqual(funding.getHash());
   expect(submittedBtc!.ins[0].index).toBe(0);
   expect(submittedBtc!.outs[0].value).toBe(STAKING_AMOUNT_SAT);

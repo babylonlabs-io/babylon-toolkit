@@ -28,7 +28,7 @@ export const test = base.extend<ExtensionSetup>({
               await setupKeplrWallet(context, mnemonic, password);
             }
           } catch (error) {
-            const reason = [mnemonic, password, ...mnemonic.split(" ")].reduce(
+            const reason = [mnemonic, password].reduce(
               (message, secret) => message.replaceAll(secret, "[redacted]"),
               error instanceof Error ? error.message : "Unknown setup error",
             );

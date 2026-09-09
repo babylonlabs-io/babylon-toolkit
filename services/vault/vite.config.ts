@@ -92,8 +92,9 @@ const enableSentryPlugin =
       process.env.SENTRY_PROJECT,
   );
 
-export default defineConfig(({ mode }) => ({
-  cacheDir: process.env.PLAYWRIGHT_VITE_CACHE_DIR,
+export default defineConfig(({ mode, command }) => ({
+  cacheDir:
+    command === "serve" ? process.env.PLAYWRIGHT_VITE_CACHE_DIR : undefined,
   server: {
     headers: SECURITY_HEADERS,
     proxy: resolveSidecarProxy(mode),

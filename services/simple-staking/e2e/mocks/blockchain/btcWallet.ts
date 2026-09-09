@@ -182,7 +182,7 @@ export const injectBTCWallet = async (
                 }
                 throw new Error(`Chain not supported: ${chain}`);
               },
-              request: async (params: { method: string; params?: any }) => {
+              request: async (params: { method: string; params?: unknown }) => {
                 const { method, params: methodParams } = params;
 
                 switch (method) {
@@ -198,7 +198,14 @@ export const injectBTCWallet = async (
                   case "btc_getBalance":
                     return btcData.balance;
                   case "btc_signPsbt":
-                    return btcWallet.signPsbt(methodParams?.psbt);
+                    if (
+                      typeof methodParams !== "object" ||
+                      methodParams === null ||
+                      !("psbt" in methodParams) ||
+                      typeof methodParams.psbt !== "string"
+                    )
+                      throw new Error("Invalid test signing request");
+                    return btcWallet.signPsbt(methodParams.psbt);
                   default:
                     return null;
                 }

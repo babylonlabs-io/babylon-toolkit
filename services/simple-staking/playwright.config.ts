@@ -29,7 +29,7 @@ export default defineConfig({
   use: {
     baseURL,
     headless: true,
-    trace: "on-first-retry",
+    trace: "retain-on-failure",
   },
 
   projects: [

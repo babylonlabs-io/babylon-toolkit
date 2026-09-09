@@ -102,7 +102,7 @@ export default defineConfig({
 
   use: {
     headless: true,
-    trace: "on-first-retry",
+    trace: "retain-on-failure",
   },
 
   projects: [

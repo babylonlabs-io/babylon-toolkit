@@ -35,8 +35,7 @@ export default defineConfig({
   use: {
     /* Base URL to use in actions like `await page.goto('/')`. */
     baseURL,
-    /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
-    trace: "on-first-retry",
+    trace: "off",
     locale: "en-US",
     launchOptions: {
       args: ["--lang=en-US", "--force-lang=en-US", "--accept-lang=en-US"],
@@ -76,9 +75,11 @@ export default defineConfig({
   ],
   /* Run your local dev server before starting the tests */
   webServer: {
-    command: "npm run dev",
-    url: baseURL,
-    timeout: 120 * 1000,
+    command: process.env.CI
+      ? "pnpm run build-storybook && pnpm exec vite preview --outDir storybook-static --port 6006 --strictPort"
+      : "npm run dev",
+    url: `${baseURL}/iframe.html`,
+    timeout: 300_000,
     reuseExistingServer: !process.env.CI,
   },
 });
