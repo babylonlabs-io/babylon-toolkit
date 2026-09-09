@@ -988,6 +988,18 @@ export function getPeginDisplayStep(state: PeginState): DepositFlowStep | null {
   return null;
 }
 
+export function getPeginProgressStep(
+  state: PeginState,
+): DepositFlowStep | null {
+  const step = getPeginDisplayStep(state);
+  if (step === null || state.localStatus !== LocalStorageStatus.PAYOUT_SIGNED) {
+    return step;
+  }
+  return step === DepositFlowStep.SIGN_AUTH_ANCHOR
+    ? DepositFlowStep.AWAIT_VP_VERIFICATION
+    : step;
+}
+
 /**
  * Freeze a warning/terminal vault at the last locally-known deposit-flow step.
  *

@@ -8,6 +8,7 @@ import {
   ContractStatus,
   getNextLocalStatus,
   getPeginDisplayStep,
+  getPeginProgressStep,
   getPeginState,
   getPrimaryActionButton,
   isCandidateVault,
@@ -1016,6 +1017,33 @@ describe("peginStateMachine", () => {
       );
       expect(getPeginDisplayStep(getPeginState(ContractStatus.ACTIVE))).toBe(
         null,
+      );
+    });
+  });
+
+  describe("getPeginProgressStep", () => {
+    it("holds at AWAIT_VP_VERIFICATION when the VP still lists a PAYOUT_SIGNED deposit for signing", () => {
+      const state = getPeginState(ContractStatus.PENDING, {
+        localStatus: LocalStorageStatus.PAYOUT_SIGNED,
+        transactionsReady: true,
+      });
+      expect(state.availableActions).toContain(
+        PeginAction.SIGN_PAYOUT_TRANSACTIONS,
+      );
+      expect(getPeginDisplayStep(state)).toBe(DepositFlowStep.SIGN_AUTH_ANCHOR);
+      expect(getPeginProgressStep(state)).toBe(
+        DepositFlowStep.AWAIT_VP_VERIFICATION,
+      );
+    });
+
+    it("keeps the lower step when the VP contradicts PAYOUT_SIGNED with a WOTS demand", () => {
+      const state = getPeginState(ContractStatus.PENDING, {
+        localStatus: LocalStorageStatus.PAYOUT_SIGNED,
+        needsWotsKey: true,
+      });
+      expect(state.availableActions).toContain(PeginAction.SUBMIT_WOTS_KEY);
+      expect(getPeginProgressStep(state)).toBe(
+        DepositFlowStep.SUBMIT_WOTS_KEYS,
       );
     });
   });

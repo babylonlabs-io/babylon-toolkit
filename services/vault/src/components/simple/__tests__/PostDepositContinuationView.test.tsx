@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps";
 import {
-  getPeginDisplayStep,
+  getPeginProgressStep,
   getWarningPeginDisplayStep,
   PeginAction,
 } from "@/models/peginStateMachine";
@@ -41,6 +41,7 @@ vi.mock("../ActivationGate", () => ({
 vi.mock("@/hooks/deposit/depositFlowSteps", () => ({
   DepositFlowStep: {
     AWAIT_BTC_CONFIRMATION: "AWAIT_BTC_CONFIRMATION",
+    AWAIT_VP_VERIFICATION: "AWAIT_VP_VERIFICATION",
     ACTIVATE_VAULT: "ACTIVATE_VAULT",
     COMPLETED: "COMPLETED",
   },
@@ -123,7 +124,7 @@ vi.mock("@/models/peginStateMachine", () => {
       CONFIRMED: "confirmed",
       REFUND_BROADCAST: "refund_broadcast",
     },
-    getPeginDisplayStep: vi.fn(() => "AWAIT_BTC_CONFIRMATION"),
+    getPeginProgressStep: vi.fn(() => "AWAIT_BTC_CONFIRMATION"),
     getWarningPeginDisplayStep: vi.fn(() => "AWAIT_BTC_CONFIRMATION"),
     USER_ACTIONABLE_PEGIN_ACTIONS,
     isVaultPastActivation,
@@ -345,7 +346,7 @@ function renderView(
 describe("PostDepositContinuationView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(getPeginDisplayStep).mockReturnValue(
+    vi.mocked(getPeginProgressStep).mockReturnValue(
       DepositFlowStep.AWAIT_BTC_CONFIRMATION,
     );
     vi.mocked(getWarningPeginDisplayStep).mockReturnValue(
@@ -419,6 +420,22 @@ describe("PostDepositContinuationView", () => {
     });
     expect(queryByTestId("payout")).toBeNull();
     expect(getByTestId("progress-view")).toBeTruthy();
+  });
+
+  it("shows the floored progress step on the payout wait when btcPublicKey is unavailable", () => {
+    vi.mocked(getPeginProgressStep).mockReturnValue(
+      DepositFlowStep.AWAIT_VP_VERIFICATION,
+    );
+    mockGetPollingResult.mockReturnValue(
+      resultWith({
+        availableActions: [PeginAction.SIGN_PAYOUT_TRANSACTIONS],
+        localStatus: "payout_signed",
+      }),
+    );
+    const { getByTestId } = renderView({ btcPublicKey: undefined });
+    expect(getByTestId("step").textContent).toBe(
+      DepositFlowStep.AWAIT_VP_VERIFICATION,
+    );
   });
 
   it("routes activation through the activation gate when the vault is verified", () => {
@@ -940,7 +957,7 @@ describe("PostDepositContinuationView", () => {
   });
 
   it("preserves per-vault split steps when rendering a no-actionable warning", () => {
-    vi.mocked(getPeginDisplayStep).mockImplementation((state) =>
+    vi.mocked(getPeginProgressStep).mockImplementation((state) =>
       state.displayVariant === "warning" || state.contractStatus === 2
         ? null
         : DepositFlowStep.AWAIT_BTC_CONFIRMATION,
