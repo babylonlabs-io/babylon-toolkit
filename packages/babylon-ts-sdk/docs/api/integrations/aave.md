@@ -2313,6 +2313,22 @@ Reference: IAaveSpoke.sol UserAccountData.totalDebtValueRay
 
 ***
 
+### HEALTH\_FACTOR\_LIQUIDATION\_THRESHOLD
+
+```ts
+const HEALTH_FACTOR_LIQUIDATION_THRESHOLD: 1 = 1.0;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts)
+
+Dimensionless health factor at or above which Aave cannot liquidate a position.
+
+ISpoke.sol defines this boundary as 1.0 (1e18 WAD), not a stored parameter.
+Unlike display thresholds, it is not tunable. The per-asset
+liquidationThresholdBps is fetched from chain and uses basis points.
+
+***
+
 ### HEALTH\_FACTOR\_RISKY\_THRESHOLD
 
 ```ts
@@ -2322,7 +2338,8 @@ const HEALTH_FACTOR_RISKY_THRESHOLD: 1.1 = 1.1;
 Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts)
 
 Display threshold for positions close to liquidation, independent of the borrow floor.
-A position from 1.0 up to and including this value is "risky".
+A position from HEALTH_FACTOR_LIQUIDATION_THRESHOLD up to and including this
+value is "risky".
 
 ***
 

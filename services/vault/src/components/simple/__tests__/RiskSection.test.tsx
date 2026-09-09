@@ -1,6 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
+import { HEALTH_FACTOR_WARNING_THRESHOLD } from "@/applications/aave/utils";
 import { COPY } from "@/copy";
 
 import {
@@ -249,7 +250,13 @@ describe("computeRailLayout", () => {
     const green = Number(/risk-green\)\) ([\d.]+)%/.exec(layout.gradient!)![1]);
     const span = layout.hi - layout.lo;
     expect(red).toBeCloseTo(((60000 - layout.lo) / span) * 100, 2);
-    expect(green).toBeCloseTo(((120000 - layout.lo) / span) * 100, 2);
+    // Derived, not written out: the green stop IS the warning threshold, so a
+    // literal here would keep passing if the two were ever wired apart.
+    const safeThresholdPrice = 60000 * HEALTH_FACTOR_WARNING_THRESHOLD;
+    expect(green).toBeCloseTo(
+      ((safeThresholdPrice - layout.lo) / span) * 100,
+      2,
+    );
   });
 
   it("keeps a readable ramp, still green under the marker, when liquidation is far below", () => {

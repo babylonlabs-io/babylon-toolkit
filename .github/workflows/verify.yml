@@ -95,6 +95,24 @@ jobs:
       - name: Check packed wallet consumer
         run: pnpm exec nx run @babylonlabs-io/wallet-connector:check:packed-consumer
 
+      # Check split-deposit lanes at 360px with Vault's own browser version.
+      - name: Install Chromium for Vault layout
+        run: pnpm --filter @services/vault exec playwright install --with-deps chromium
+
+      - name: Test vault layout in Chromium
+        env:
+          PLAYWRIGHT_HTML_OPEN: never
+        run: pnpm exec nx run @services/vault:test-layout
+
+      - name: Upload vault layout results
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2 https://github.com/actions/upload-artifact/releases/tag/v4.6.2
+        with:
+          name: vault-layout-results
+          path: |
+            services/vault/playwright-report
+            services/vault/test-results
+
       - name: Test SDK in Chromium
         run: pnpm exec nx run @babylonlabs-io/ts-sdk:test-browser
 
