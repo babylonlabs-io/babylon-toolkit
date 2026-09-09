@@ -95,23 +95,26 @@ jobs:
       - name: Check packed wallet consumer
         run: pnpm exec nx run @babylonlabs-io/wallet-connector:check:packed-consumer
 
+      # Check split-deposit lanes at 360px with Vault's own browser version.
+      - name: Install Chromium for Vault layout
+        run: pnpm --filter @services/vault exec playwright install --with-deps chromium
+
+      - name: Test vault layout in Chromium
+        env:
+          PLAYWRIGHT_HTML_OPEN: never
+        run: pnpm exec nx run @services/vault:test-layout
+
+      - name: Upload vault layout results
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2 https://github.com/actions/upload-artifact/releases/tag/v4.6.2
+        with:
+          name: vault-layout-results
+          path: |
+            services/vault/playwright-report
+            services/vault/test-results
+
       - name: Test SDK in Chromium
         run: pnpm exec nx run @babylonlabs-io/ts-sdk:test-browser
-
-      # The vault's first browser test on the PR gate. Scoped to the one
-      # project on purpose: the sibling `chromium` project holds the
-      # error-scenario specs, which depend on a developer's local .env and have
-      # never been runnable on a clean runner. Chromium is already installed
-      # above and both packages pin @playwright/test 1.56.1, so this reuses
-      # that browser rather than fetching a second one.
-      #
-      # Cost: about 35s locally for 6 tests, most of it booting the three vite
-      # dev servers the config declares (Playwright starts all three whatever
-      # project is selected). It buys the only automated check that the
-      # split-deposit progress lanes actually stack and stay inside the card at
-      # 360px - jsdom cannot see layout, so nothing else in CI catches that.
-      - name: Test vault layout in Chromium
-        run: pnpm exec nx run @services/vault:test-layout
 
       - name: Test affected
         id: tests

@@ -24,6 +24,10 @@
     "test-layout": {
       "executor": "nx:run-commands",
       "cache": true,
+      "outputs": [
+        "{projectRoot}/playwright-report",
+        "{projectRoot}/test-results"
+      ],
       "dependsOn": ["^build"],
       "options": {
         "command": "pnpm test:layout",
