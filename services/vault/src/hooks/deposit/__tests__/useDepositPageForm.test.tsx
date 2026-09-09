@@ -3,6 +3,8 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { useConnection } from "@/context/wallet";
+
 // Mock env before importing modules that use it
 vi.mock("@/config/env", () => ({
   ENV: {
@@ -391,6 +393,7 @@ describe("useDepositPageForm", () => {
       },
     });
     vi.clearAllMocks();
+    vi.mocked(useConnection).mockReset();
     // Reset fee mock (clearAllMocks only clears call history, not implementations)
     vi.mocked(useEstimatedBtcFee).mockReturnValue({
       fee: 1500n,
@@ -486,6 +489,32 @@ describe("useDepositPageForm", () => {
   };
 
   describe("initialization", () => {
+    it("keeps the entered amount when the mounted form loses and regains its connection", () => {
+      const connection = vi.mocked(useConnection);
+      const currentConnection = connection();
+      const { result, rerender, unmount } = renderHook(
+        () => useDepositPageForm(),
+        { wrapper },
+      );
+      expect(result.current.isWalletConnected).toBe(true);
+      act(() => result.current.setFormData({ amountBtc: "0.001" }));
+
+      connection.mockReturnValue({
+        ...currentConnection,
+        isConnected: false,
+        btcConnected: false,
+      });
+      rerender();
+      expect(result.current.isWalletConnected).toBe(false);
+      expect(result.current.formData.amountBtc).toBe("0.001");
+
+      connection.mockReturnValue(currentConnection);
+      rerender();
+      expect(result.current.isWalletConnected).toBe(true);
+      expect(result.current.formData.amountBtc).toBe("0.001");
+      unmount();
+    });
+
     it("should initialize with empty form data", () => {
       const { result } = renderHook(() => useDepositPageForm(), { wrapper });
 
