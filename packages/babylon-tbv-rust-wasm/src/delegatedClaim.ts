@@ -282,5 +282,105 @@ export function createDelegatedClaimApi(getWasmBindings: GetWasmBindings) {
         throw toError(err, 'verifyWatchtowerArtifacts');
       }
     },
+
+    /**
+     * Verifies a compressed Groth16 pegout proof against its verifying key,
+     * both hex. Run it on the prover's response before the proof reaches
+     * {@link finalizeAssert} — a proof that does not verify produces an
+     * Assert the network refuses.
+     */
+    async verifyPegoutProof(
+      txGraphVersion: number,
+      verifyingKeyHex: string,
+      proofHex: string,
+    ): Promise<void> {
+      const wasm = await getWasmBindings();
+      try {
+        wasm.verifyPegoutProof(txGraphVersion, verifyingKeyHex, proofHex);
+      } catch (err) {
+        throw toError(err, 'verifyPegoutProof');
+      }
+    },
+
+    /**
+     * Finalizes the Assert transaction: applies the claimer signature,
+     * extracts the π₁ bits from the proof, signs them with the WOTS keypair
+     * and embeds the witness. Returns broadcastable consensus hex.
+     */
+    async finalizeAssert(
+      txGraphVersion: number,
+      graphJson: string,
+      assertClaimerSigHex: string,
+      keypairJson: string,
+      verifyingKeyHex: string,
+      proofHex: string,
+    ): Promise<string> {
+      const wasm = await getWasmBindings();
+      try {
+        return wasm.finalizeAssert(
+          txGraphVersion,
+          graphJson,
+          assertClaimerSigHex,
+          keypairJson,
+          verifyingKeyHex,
+          proofHex,
+        );
+      } catch (err) {
+        throw toError(err, 'finalizeAssert');
+      }
+    },
+
+    /**
+     * Finalizes the Payout transaction from the two signatures the artifacts
+     * carry. The result is broadcastable only after the Assert relative
+     * timelock expires. Pass `undefined` for the depositor signature when the
+     * graph already holds it from the presign phase.
+     */
+    async finalizePayout(
+      txGraphVersion: number,
+      graphJson: string,
+      payoutClaimerSigHex: string,
+      depositorPayoutSigHex?: string,
+    ): Promise<string> {
+      const wasm = await getWasmBindings();
+      try {
+        return wasm.finalizePayout(
+          txGraphVersion,
+          graphJson,
+          payoutClaimerSigHex,
+          depositorPayoutSigHex,
+        );
+      } catch (err) {
+        throw toError(err, 'finalizePayout');
+      }
+    },
+
+    /**
+     * Finalizes one WronglyChallenged transaction — the answer to a
+     * ChallengeAssert. It must confirm inside `timelock_challenge_assert`
+     * or the challenger's NoPayout takes the vault.
+     */
+    async finalizeWronglyChallenged(
+      txGraphVersion: number,
+      graphJson: string,
+      challengerPkHex: string,
+      gcIndex: number,
+      preimageHex: string,
+      claimerSigHex: string,
+    ): Promise<string> {
+      const wasm = await getWasmBindings();
+      try {
+        return wasm.finalizeWronglyChallenged(
+          txGraphVersion,
+          graphJson,
+          challengerPkHex,
+          gcIndex,
+          preimageHex,
+          claimerSigHex,
+        );
+      } catch (err) {
+        throw toError(err, 'finalizeWronglyChallenged');
+      }
+    },
   };
 }

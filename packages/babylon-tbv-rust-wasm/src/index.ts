@@ -502,8 +502,12 @@ export const {
   buildWronglyChallengedPsbts,
   extractDepositorPayoutSig,
   extractTapScriptSig,
+  finalizeAssert,
   finalizeClaimTx,
+  finalizePayout,
+  finalizeWronglyChallenged,
   validateWotsKeypairAgainstGraph,
+  verifyPegoutProof,
   verifyWatchtowerArtifacts,
   wotsKeypairFromSeed,
 } = createDelegatedClaimApi(getWasmBindings);

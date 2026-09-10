@@ -574,11 +574,32 @@ export function extractDepositorPayoutSig(tx_graph_version: number, graph_json: 
 export function extractTapScriptSig(psbt_base64: string, input_index: number): string;
 
 /**
+ * Finalizes the Assert transaction: applies the claimer signature, extracts
+ * the π₁ bits from the proof, signs them with the WOTS keypair and embeds
+ * the witness. Returns the broadcastable transaction hex.
+ */
+export function finalizeAssert(tx_graph_version: number, graph_json: string, assert_claimer_sig_hex: string, keypair_json: string, verifying_key_hex: string, proof_hex: string): string;
+
+/**
  * Applies the depositor's signature to the Claim transaction (verifying it
  * first) and returns the fully signed transaction hex — the `claim_tx` the
  * artifacts carry.
  */
 export function finalizeClaimTx(tx_graph_version: number, graph_json: string, depositor_sig_hex: string): string;
+
+/**
+ * Finalizes the Payout transaction from the two signatures the artifacts
+ * carry. Broadcastable only after the Assert relative timelock expires.
+ * Pass `None` for the depositor signature when the graph already holds it.
+ */
+export function finalizePayout(tx_graph_version: number, graph_json: string, payout_claimer_sig_hex: string, depositor_payout_sig_hex?: string | null): string;
+
+/**
+ * Finalizes one WronglyChallenged transaction — the answer to a
+ * ChallengeAssert, which must confirm inside `timelock_challenge_assert`
+ * or the challenger's NoPayout takes the vault.
+ */
+export function finalizeWronglyChallenged(tx_graph_version: number, graph_json: string, challenger_pk_hex: string, gc_index: number, preimage_hex: string, claimer_sig_hex: string): string;
 
 /**
  * Initialize panic hook for better error messages in the browser console.
@@ -643,6 +664,13 @@ export function verifyDepositorSignature(tx_graph_version: number, graph_json: s
 export function verifyP2trScriptSpendSignature(tx_graph_version: number, tx_hex: string, input_index: number, prevouts_json: string, script_hex: string, pubkey_hex: string, signature_hex: string): void;
 
 /**
+ * Verifies a compressed Groth16 pegout proof against its verifying key,
+ * both hex. Run it on the prover response before it reaches
+ * [`wasm_finalize_assert`].
+ */
+export function verifyPegoutProof(tx_graph_version: number, verifying_key_hex: string, proof_hex: string): void;
+
+/**
  * Re-verifies every claimer-side signature inside an `artifacts.json`
  * against its embedded graph — the pre-handoff self-check.
  */
@@ -661,6 +689,22 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
+    readonly buildAssertClaimerPsbt: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly buildClaimPsbt: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly buildPayoutClaimerPsbt: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly buildPayoutDepositorPsbt: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly buildWatchtowerArtifacts: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number, o: number, p: bigint, q: number, r: number, s: number, t: number, u: number) => [number, number, number, number];
+    readonly buildWronglyChallengedPsbts: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly computeClaimDepositorSighash: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly computeWronglyChallengedClaimerSighashes: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly extractDepositorPayoutSig: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly finalizeAssert: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number) => [number, number, number, number];
+    readonly finalizeClaimTx: (a: number, b: number, c: number, d: number, e: number) => [number, number, number, number];
+    readonly finalizePayout: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number, number];
+    readonly finalizeWronglyChallenged: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number) => [number, number, number, number];
+    readonly validateWotsKeypairAgainstGraph: (a: number, b: number, c: number, d: number, e: number) => [number, number];
+    readonly verifyPegoutProof: (a: number, b: number, c: number, d: number, e: number) => [number, number];
+    readonly verifyWatchtowerArtifacts: (a: number, b: number, c: number) => [number, number];
     readonly __wbg_wasmassertchallengeassertconnector_free: (a: number, b: number) => void;
     readonly wasmassertchallengeassertconnector_getAddress: (a: number, b: number, c: number) => [number, number, number, number];
     readonly wasmassertchallengeassertconnector_getControlBlock: (a: number) => [number, number, number, number];
@@ -732,18 +776,6 @@ export interface InitOutput {
     readonly wasmassertpayoutnopayoutconnector_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number) => [number, number, number];
     readonly wotsKeypairFromSeed: (a: number, b: number) => [number, number, number, number];
     readonly init_panic_hook: () => void;
-    readonly buildAssertClaimerPsbt: (a: number, b: number, c: number) => [number, number, number, number];
-    readonly buildClaimPsbt: (a: number, b: number, c: number) => [number, number, number, number];
-    readonly buildPayoutClaimerPsbt: (a: number, b: number, c: number) => [number, number, number, number];
-    readonly buildPayoutDepositorPsbt: (a: number, b: number, c: number) => [number, number, number, number];
-    readonly buildWatchtowerArtifacts: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number, o: number, p: bigint, q: number, r: number, s: number, t: number, u: number) => [number, number, number, number];
-    readonly buildWronglyChallengedPsbts: (a: number, b: number, c: number) => [number, number, number, number];
-    readonly computeClaimDepositorSighash: (a: number, b: number, c: number) => [number, number, number, number];
-    readonly computeWronglyChallengedClaimerSighashes: (a: number, b: number, c: number) => [number, number, number, number];
-    readonly extractDepositorPayoutSig: (a: number, b: number, c: number) => [number, number, number, number];
-    readonly finalizeClaimTx: (a: number, b: number, c: number, d: number, e: number) => [number, number, number, number];
-    readonly validateWotsKeypairAgainstGraph: (a: number, b: number, c: number, d: number, e: number) => [number, number];
-    readonly verifyWatchtowerArtifacts: (a: number, b: number, c: number) => [number, number];
     readonly __wbg_wasmpeginpayoutconnector_free: (a: number, b: number) => void;
     readonly __wbg_wasmprepeginhtlcconnector_free: (a: number, b: number) => void;
     readonly wasmpeginpayoutconnector_getAddress: (a: number, b: number, c: number) => [number, number, number, number];

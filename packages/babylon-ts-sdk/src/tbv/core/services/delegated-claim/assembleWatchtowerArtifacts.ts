@@ -204,6 +204,7 @@ async function signAndExtract(
   depositorPublicKey: string,
   requests: PsbtSigningRequest[],
 ): Promise<string[]> {
+  const signerAddress = await btcWallet.getAddress();
   const signedPsbtHexes = await signPsbtsWithFallback(
     btcWallet,
     requests.map((request) => psbtBase64ToHex(request.psbtBase64)),
@@ -211,6 +212,7 @@ async function signAndExtract(
       createTaprootScriptPathSignOptionsForInput(
         depositorPublicKey,
         request.inputIndex,
+        signerAddress,
       ),
     ),
   );

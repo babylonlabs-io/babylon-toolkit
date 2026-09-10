@@ -1,6 +1,22 @@
 /* tslint:disable */
 /* eslint-disable */
 export const memory: WebAssembly.Memory;
+export const buildAssertClaimerPsbt: (a: number, b: number, c: number) => [number, number, number, number];
+export const buildClaimPsbt: (a: number, b: number, c: number) => [number, number, number, number];
+export const buildPayoutClaimerPsbt: (a: number, b: number, c: number) => [number, number, number, number];
+export const buildPayoutDepositorPsbt: (a: number, b: number, c: number) => [number, number, number, number];
+export const buildWatchtowerArtifacts: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number, o: number, p: bigint, q: number, r: number, s: number, t: number, u: number) => [number, number, number, number];
+export const buildWronglyChallengedPsbts: (a: number, b: number, c: number) => [number, number, number, number];
+export const computeClaimDepositorSighash: (a: number, b: number, c: number) => [number, number, number, number];
+export const computeWronglyChallengedClaimerSighashes: (a: number, b: number, c: number) => [number, number, number, number];
+export const extractDepositorPayoutSig: (a: number, b: number, c: number) => [number, number, number, number];
+export const finalizeAssert: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number) => [number, number, number, number];
+export const finalizeClaimTx: (a: number, b: number, c: number, d: number, e: number) => [number, number, number, number];
+export const finalizePayout: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number, number];
+export const finalizeWronglyChallenged: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number) => [number, number, number, number];
+export const validateWotsKeypairAgainstGraph: (a: number, b: number, c: number, d: number, e: number) => [number, number];
+export const verifyPegoutProof: (a: number, b: number, c: number, d: number, e: number) => [number, number];
+export const verifyWatchtowerArtifacts: (a: number, b: number, c: number) => [number, number];
 export const __wbg_wasmassertchallengeassertconnector_free: (a: number, b: number) => void;
 export const wasmassertchallengeassertconnector_getAddress: (a: number, b: number, c: number) => [number, number, number, number];
 export const wasmassertchallengeassertconnector_getControlBlock: (a: number) => [number, number, number, number];
@@ -72,18 +88,6 @@ export const wasmassertpayoutnopayoutconnector_getTxGraphVersion: (a: number) =>
 export const wasmassertpayoutnopayoutconnector_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number) => [number, number, number];
 export const wotsKeypairFromSeed: (a: number, b: number) => [number, number, number, number];
 export const init_panic_hook: () => void;
-export const buildAssertClaimerPsbt: (a: number, b: number, c: number) => [number, number, number, number];
-export const buildClaimPsbt: (a: number, b: number, c: number) => [number, number, number, number];
-export const buildPayoutClaimerPsbt: (a: number, b: number, c: number) => [number, number, number, number];
-export const buildPayoutDepositorPsbt: (a: number, b: number, c: number) => [number, number, number, number];
-export const buildWatchtowerArtifacts: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number, o: number, p: bigint, q: number, r: number, s: number, t: number, u: number) => [number, number, number, number];
-export const buildWronglyChallengedPsbts: (a: number, b: number, c: number) => [number, number, number, number];
-export const computeClaimDepositorSighash: (a: number, b: number, c: number) => [number, number, number, number];
-export const computeWronglyChallengedClaimerSighashes: (a: number, b: number, c: number) => [number, number, number, number];
-export const extractDepositorPayoutSig: (a: number, b: number, c: number) => [number, number, number, number];
-export const finalizeClaimTx: (a: number, b: number, c: number, d: number, e: number) => [number, number, number, number];
-export const validateWotsKeypairAgainstGraph: (a: number, b: number, c: number, d: number, e: number) => [number, number];
-export const verifyWatchtowerArtifacts: (a: number, b: number, c: number) => [number, number];
 export const __wbg_wasmpeginpayoutconnector_free: (a: number, b: number) => void;
 export const __wbg_wasmprepeginhtlcconnector_free: (a: number, b: number) => void;
 export const wasmpeginpayoutconnector_getAddress: (a: number, b: number, c: number) => [number, number, number, number];

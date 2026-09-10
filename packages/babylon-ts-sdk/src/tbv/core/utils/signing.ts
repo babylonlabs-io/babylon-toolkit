@@ -11,10 +11,16 @@ import type { SignPsbtOptions } from "../../../shared/wallets/interfaces";
  *   (66-char) and x-only (64-char) formats — the wallet connector handles both.
  * @param inputCount - Number of inputs to sign. Generates entries
  *   for indices 0 through inputCount-1.
+ * @param address - Signer's BTC address. Give it whenever the caller knows it.
+ *   A wallet derives a key-path address from `publicKey` and compares it with
+ *   the input's address, so `publicKey` alone cannot sign an input that sits
+ *   at a different address — every script-path connector output. `address`
+ *   names the account instead and signs those inputs.
  */
 export function createTaprootScriptPathSignOptions(
   publicKey: string,
   inputCount: number,
+  address?: string,
 ): SignPsbtOptions {
   if (!Number.isInteger(inputCount) || inputCount < 1) {
     throw new Error(`inputCount must be a positive integer, got ${inputCount}`);
@@ -24,7 +30,7 @@ export function createTaprootScriptPathSignOptions(
     autoFinalized: false,
     signInputs: Array.from({ length: inputCount }, (_, i) => ({
       index: i,
-      publicKey,
+      ...(address ? { address } : { publicKey }),
       useTweakedSigner: false,
     })),
   };
@@ -41,10 +47,14 @@ export function createTaprootScriptPathSignOptions(
  *
  * @param publicKey - Signer's BTC public key (hex), compressed or x-only.
  * @param inputIndex - Index of the single input to sign.
+ * @param address - Signer's BTC address; see
+ *   {@link createTaprootScriptPathSignOptions}. Required in practice for the
+ *   claimer Payout, whose input 1 is the Assert connector.
  */
 export function createTaprootScriptPathSignOptionsForInput(
   publicKey: string,
   inputIndex: number,
+  address?: string,
 ): SignPsbtOptions {
   if (!Number.isInteger(inputIndex) || inputIndex < 0) {
     throw new Error(
@@ -54,6 +64,12 @@ export function createTaprootScriptPathSignOptionsForInput(
 
   return {
     autoFinalized: false,
-    signInputs: [{ index: inputIndex, publicKey, useTweakedSigner: false }],
+    signInputs: [
+      {
+        index: inputIndex,
+        ...(address ? { address } : { publicKey }),
+        useTweakedSigner: false,
+      },
+    ],
   };
 }

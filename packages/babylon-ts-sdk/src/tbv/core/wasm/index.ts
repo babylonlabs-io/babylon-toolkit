@@ -454,6 +454,72 @@ export async function buildWronglyChallengedPsbts(
   );
 }
 
+/** Verifies a Groth16 pegout proof against its verifying key, both hex. */
+export async function verifyPegoutProof(
+  txGraphVersion: number,
+  verifyingKeyHex: string,
+  proofHex: string,
+): Promise<void> {
+  return (await loadTbvWasm()).verifyPegoutProof(
+    txGraphVersion,
+    verifyingKeyHex,
+    proofHex,
+  );
+}
+
+/** Finalizes the Assert tx from the proof and WOTS keypair, consensus hex. */
+export async function finalizeAssert(
+  txGraphVersion: number,
+  graphJson: string,
+  assertClaimerSigHex: string,
+  keypairJson: string,
+  verifyingKeyHex: string,
+  proofHex: string,
+): Promise<string> {
+  return (await loadTbvWasm()).finalizeAssert(
+    txGraphVersion,
+    graphJson,
+    assertClaimerSigHex,
+    keypairJson,
+    verifyingKeyHex,
+    proofHex,
+  );
+}
+
+/** Finalizes the Payout tx from the artifacts' signatures, consensus hex. */
+export async function finalizePayout(
+  txGraphVersion: number,
+  graphJson: string,
+  payoutClaimerSigHex: string,
+  depositorPayoutSigHex?: string,
+): Promise<string> {
+  return (await loadTbvWasm()).finalizePayout(
+    txGraphVersion,
+    graphJson,
+    payoutClaimerSigHex,
+    depositorPayoutSigHex,
+  );
+}
+
+/** Finalizes one WronglyChallenged tx — the answer to a ChallengeAssert. */
+export async function finalizeWronglyChallenged(
+  txGraphVersion: number,
+  graphJson: string,
+  challengerPkHex: string,
+  gcIndex: number,
+  preimageHex: string,
+  claimerSigHex: string,
+): Promise<string> {
+  return (await loadTbvWasm()).finalizeWronglyChallenged(
+    txGraphVersion,
+    graphJson,
+    challengerPkHex,
+    gcIndex,
+    preimageHex,
+    claimerSigHex,
+  );
+}
+
 /** Applies the depositor signature to the Claim tx, returning consensus hex. */
 export async function finalizeClaimTx(
   txGraphVersion: number,

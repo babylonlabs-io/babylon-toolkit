@@ -34,6 +34,7 @@ const CHALLENGER_A = "aa".repeat(32);
 const CHALLENGER_B = "bb".repeat(32);
 const VAULT_ID = `0x${"cd".repeat(32)}` as Hex;
 const DEPOSITOR_PUBKEY = "02".concat("11".repeat(32));
+const SIGNER_ADDRESS = "tb1psigneraddressfortests";
 
 /**
  * PSBTs are opaque to this service, so the fixtures encode their own identity:
@@ -61,6 +62,7 @@ function stubPsbtPipeline(): void {
 /** A wallet that signs a batch and returns the PSBTs unchanged, in order. */
 function makeWallet(): BitcoinWallet {
   return {
+    getAddress: vi.fn(() => Promise.resolve(SIGNER_ADDRESS)),
     signPsbt: vi.fn(),
     signPsbts: vi.fn((psbtHexes: string[]) => Promise.resolve(psbtHexes)),
   } as unknown as BitcoinWallet;

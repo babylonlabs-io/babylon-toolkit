@@ -1958,6 +1958,47 @@ export function extractTapScriptSig(psbt_base64, input_index) {
 }
 
 /**
+ * Finalizes the Assert transaction: applies the claimer signature, extracts
+ * the π₁ bits from the proof, signs them with the WOTS keypair and embeds
+ * the witness. Returns the broadcastable transaction hex.
+ * @param {number} tx_graph_version
+ * @param {string} graph_json
+ * @param {string} assert_claimer_sig_hex
+ * @param {string} keypair_json
+ * @param {string} verifying_key_hex
+ * @param {string} proof_hex
+ * @returns {string}
+ */
+export function finalizeAssert(tx_graph_version, graph_json, assert_claimer_sig_hex, keypair_json, verifying_key_hex, proof_hex) {
+    let deferred7_0;
+    let deferred7_1;
+    try {
+        const ptr0 = passStringToWasm0(graph_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(assert_claimer_sig_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ptr2 = passStringToWasm0(keypair_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len2 = WASM_VECTOR_LEN;
+        const ptr3 = passStringToWasm0(verifying_key_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len3 = WASM_VECTOR_LEN;
+        const ptr4 = passStringToWasm0(proof_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len4 = WASM_VECTOR_LEN;
+        const ret = wasm.finalizeAssert(tx_graph_version, ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3, ptr4, len4);
+        var ptr6 = ret[0];
+        var len6 = ret[1];
+        if (ret[3]) {
+            ptr6 = 0; len6 = 0;
+            throw takeFromExternrefTable0(ret[2]);
+        }
+        deferred7_0 = ptr6;
+        deferred7_1 = len6;
+        return getStringFromWasm0(ptr6, len6);
+    } finally {
+        wasm.__wbindgen_free(deferred7_0, deferred7_1, 1);
+    }
+}
+
+/**
  * Applies the depositor's signature to the Claim transaction (verifying it
  * first) and returns the fully signed transaction hex — the `claim_tx` the
  * artifacts carry.
@@ -1986,6 +2027,80 @@ export function finalizeClaimTx(tx_graph_version, graph_json, depositor_sig_hex)
         return getStringFromWasm0(ptr3, len3);
     } finally {
         wasm.__wbindgen_free(deferred4_0, deferred4_1, 1);
+    }
+}
+
+/**
+ * Finalizes the Payout transaction from the two signatures the artifacts
+ * carry. Broadcastable only after the Assert relative timelock expires.
+ * Pass `None` for the depositor signature when the graph already holds it.
+ * @param {number} tx_graph_version
+ * @param {string} graph_json
+ * @param {string} payout_claimer_sig_hex
+ * @param {string | null} [depositor_payout_sig_hex]
+ * @returns {string}
+ */
+export function finalizePayout(tx_graph_version, graph_json, payout_claimer_sig_hex, depositor_payout_sig_hex) {
+    let deferred5_0;
+    let deferred5_1;
+    try {
+        const ptr0 = passStringToWasm0(graph_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(payout_claimer_sig_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        var ptr2 = isLikeNone(depositor_payout_sig_hex) ? 0 : passStringToWasm0(depositor_payout_sig_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        var len2 = WASM_VECTOR_LEN;
+        const ret = wasm.finalizePayout(tx_graph_version, ptr0, len0, ptr1, len1, ptr2, len2);
+        var ptr4 = ret[0];
+        var len4 = ret[1];
+        if (ret[3]) {
+            ptr4 = 0; len4 = 0;
+            throw takeFromExternrefTable0(ret[2]);
+        }
+        deferred5_0 = ptr4;
+        deferred5_1 = len4;
+        return getStringFromWasm0(ptr4, len4);
+    } finally {
+        wasm.__wbindgen_free(deferred5_0, deferred5_1, 1);
+    }
+}
+
+/**
+ * Finalizes one WronglyChallenged transaction — the answer to a
+ * ChallengeAssert, which must confirm inside `timelock_challenge_assert`
+ * or the challenger's NoPayout takes the vault.
+ * @param {number} tx_graph_version
+ * @param {string} graph_json
+ * @param {string} challenger_pk_hex
+ * @param {number} gc_index
+ * @param {string} preimage_hex
+ * @param {string} claimer_sig_hex
+ * @returns {string}
+ */
+export function finalizeWronglyChallenged(tx_graph_version, graph_json, challenger_pk_hex, gc_index, preimage_hex, claimer_sig_hex) {
+    let deferred6_0;
+    let deferred6_1;
+    try {
+        const ptr0 = passStringToWasm0(graph_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(challenger_pk_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ptr2 = passStringToWasm0(preimage_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len2 = WASM_VECTOR_LEN;
+        const ptr3 = passStringToWasm0(claimer_sig_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len3 = WASM_VECTOR_LEN;
+        const ret = wasm.finalizeWronglyChallenged(tx_graph_version, ptr0, len0, ptr1, len1, gc_index, ptr2, len2, ptr3, len3);
+        var ptr5 = ret[0];
+        var len5 = ret[1];
+        if (ret[3]) {
+            ptr5 = 0; len5 = 0;
+            throw takeFromExternrefTable0(ret[2]);
+        }
+        deferred6_0 = ptr5;
+        deferred6_1 = len5;
+        return getStringFromWasm0(ptr5, len5);
+    } finally {
+        wasm.__wbindgen_free(deferred6_0, deferred6_1, 1);
     }
 }
 
@@ -2144,6 +2259,25 @@ export function verifyP2trScriptSpendSignature(tx_graph_version, tx_hex, input_i
     const ptr4 = passStringToWasm0(signature_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
     const len4 = WASM_VECTOR_LEN;
     const ret = wasm.verifyP2trScriptSpendSignature(tx_graph_version, ptr0, len0, input_index, ptr1, len1, ptr2, len2, ptr3, len3, ptr4, len4);
+    if (ret[1]) {
+        throw takeFromExternrefTable0(ret[0]);
+    }
+}
+
+/**
+ * Verifies a compressed Groth16 pegout proof against its verifying key,
+ * both hex. Run it on the prover response before it reaches
+ * [`wasm_finalize_assert`].
+ * @param {number} tx_graph_version
+ * @param {string} verifying_key_hex
+ * @param {string} proof_hex
+ */
+export function verifyPegoutProof(tx_graph_version, verifying_key_hex, proof_hex) {
+    const ptr0 = passStringToWasm0(verifying_key_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passStringToWasm0(proof_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ret = wasm.verifyPegoutProof(tx_graph_version, ptr0, len0, ptr1, len1);
     if (ret[1]) {
         throw takeFromExternrefTable0(ret[0]);
     }
