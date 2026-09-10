@@ -686,6 +686,26 @@ describe("removePendingPegin", () => {
     }
   });
 
+  it("notifies listeners after a real removal so the row re-reads", () => {
+    localStorage.setItem(
+      storageKey,
+      JSON.stringify([validPegin, { ...validPegin, id: VALID_VAULT_ID_2 }]),
+    );
+    const listener = vi.fn();
+    window.addEventListener(STORAGE_UPDATE_EVENT, listener);
+
+    try {
+      expect(removePendingPegin(ETH_ADDRESS, VALID_VAULT_ID)).toBe(true);
+
+      expect(listener).toHaveBeenCalledTimes(1);
+      expect(getPendingPegins(ETH_ADDRESS).map((p) => p.id)).toEqual([
+        VALID_VAULT_ID_2,
+      ]);
+    } finally {
+      window.removeEventListener(STORAGE_UPDATE_EVENT, listener);
+    }
+  });
+
   it("writes nothing but still notifies when the vault id is not stored", () => {
     localStorage.setItem(storageKey, JSON.stringify([validPegin]));
     const setItemSpy = vi.spyOn(Storage.prototype, "setItem");
