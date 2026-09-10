@@ -39,10 +39,8 @@ const ALWAYS_DISABLED_WALLETS: string[] = [
 ];
 
 /**
- * Wallet id of the Ledger BTC Vault app. Exported because the reclaim flow
- * gates on it — the device firmware cannot sign that transaction shape (see
- * `models/reclaimEligibility`) — and the deposit fee breakdown words its
- * reserve tooltip by it; every site must agree on the id.
+ * Wallet id of the Ledger BTC Vault app. Exported because the reclaim gate
+ * (`models/reclaimEligibility`) and the deposit fee breakdown both key on it.
  */
 export const LEDGER_VAULT_WALLET_ID = "ledger_btc_vault";
 

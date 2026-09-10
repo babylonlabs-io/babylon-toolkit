@@ -36,11 +36,8 @@ interface DepositFeesBreakdownProps {
   networkFeeRate?: number;
   /** Estimated funding fee in satoshis at {@link networkFeeRate}. */
   networkFeeSats?: bigint | null;
-  /**
-   * Whether the connected BTC wallet is the Ledger vault app. Only the reserve
-   * tooltip reads it: that wallet cannot reclaim the reserve (decision D10), so
-   * the deposit-time copy must not promise it.
-   */
+  /** Ledger vault app connected? Only the reserve tooltip reads it: that
+   * wallet cannot reclaim the reserve (decision D10), so don't promise it. */
   isLedgerVaultWallet: boolean;
 }
 
