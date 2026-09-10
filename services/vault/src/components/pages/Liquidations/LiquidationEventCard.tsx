@@ -71,6 +71,7 @@ function Stat({
         {label}
       </span>
       <span
+        title={typeof children === "string" ? children : undefined}
         className={twJoin(
           "block overflow-hidden text-ellipsis leading-[1.6] tracking-[0.15px]",
           className,

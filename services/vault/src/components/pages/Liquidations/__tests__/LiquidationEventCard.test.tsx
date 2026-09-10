@@ -90,6 +90,14 @@ describe("LiquidationEventCard", () => {
       }
     });
 
+    it("carries the full untruncated value in a title attribute", () => {
+      render(<LiquidationEventCard card={STAT_CARD} />);
+
+      for (const value of ["1.23 tBTC", "$60,000", "-10%"]) {
+        expect(screen.getByText(value)).toHaveAttribute("title", value);
+      }
+    });
+
     it("clips an overflowing stat value with an ellipsis instead of pushing the next column", () => {
       render(<LiquidationEventCard card={STAT_CARD} />);
 
