@@ -64,6 +64,5 @@ export function hasSharedWagmiConfig(): boolean {
 export function ethDisconnectWouldDropBitcoin(): boolean {
   const modal = getAppKitModal();
   const providerType = modal?.getProviderType("eip155");
-  const sharesSession = providerType === "WALLET_CONNECT" || providerType === "AUTH";
-  return sharesSession && modal?.getAccount("bip122")?.isConnected === true;
+  return providerType === "WALLET_CONNECT" && modal?.getAccount("bip122")?.isConnected === true;
 }

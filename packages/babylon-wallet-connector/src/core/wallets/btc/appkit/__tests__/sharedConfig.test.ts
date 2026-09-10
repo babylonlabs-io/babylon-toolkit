@@ -43,13 +43,14 @@ describe.each([
     expect(modal.getAccount).toHaveBeenCalledWith(otherNamespace);
   });
 
-  it("refuses Auth while the other chain is connected", () => {
+  it("allows Ethereum Auth and retains the defensive Bitcoin guard", () => {
     setModal({
       providerTypes: { [namespace]: "AUTH", [otherNamespace]: "ANNOUNCED" },
       accounts: { [namespace]: { isConnected: false }, [otherNamespace]: { isConnected: true } },
     });
 
-    expect(wouldDropOther()).toBe(true);
+    // AppKit 1.8.12 has no Bitcoin Auth connector.
+    expect(wouldDropOther()).toBe(namespace === "bip122");
   });
 
   it("allows an announced extension while the other chain uses WalletConnect", () => {
