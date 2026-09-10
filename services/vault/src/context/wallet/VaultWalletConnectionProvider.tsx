@@ -20,6 +20,7 @@ import {
 import { getNetworkConfigBTC } from "@/config";
 import featureFlags from "@/config/featureFlags";
 import { getNetworkConfigETH } from "@/config/network";
+import { isSpeculosTransportArmed } from "@/e2e/speculosTransportBootstrap";
 import { logger } from "@/infrastructure";
 import { isUserCancellation } from "@/utils/errors/userCancellation";
 
@@ -47,19 +48,27 @@ export const LEDGER_VAULT_WALLET_ID = "ledger_btc_vault";
 // `ledger_btc_vault` (DMK-based vault provider, #2109) is opt-in via the feature
 // flag while Ledger's firmware is still in review — the env disable list defaults
 // to empty, so a new provider would otherwise show wherever nobody listed it.
-// The flag is necessary but not sufficient: the DMK web-hid transport needs
-// WebHID (`navigator.hid` — desktop Chromium only, secure context); without it
-// the entry still renders clickable and only fails on connect, so hide it up
-// front. `in` check because TS's DOM lib does not declare `Navigator.hid`.
-const isWebHidAvailable = "hid" in navigator;
+// The flag is necessary but not sufficient: the DMK needs a transport that can
+// actually reach a device — WebHID (`navigator.hid` — desktop Chromium only,
+// secure context), or the E2E Speculos override once it is genuinely ARMED
+// (#2110; `main.tsx` arms before render, so a render-time read is never early,
+// and a configured-but-failed arm keeps the row hidden). Without either, the
+// entry would render clickable and only fail on connect, so hide it up front.
+// `in` check because TS's DOM lib does not declare `Navigator.hid`.
+function canReachLedgerDevice(): boolean {
+  return "hid" in navigator || isSpeculosTransportArmed();
+}
 
-const DISABLED_WALLETS: string[] = [
-  ...ALWAYS_DISABLED_WALLETS,
-  ...(featureFlags.isLedgerVaultWalletEnabled && isWebHidAvailable
-    ? []
-    : [LEDGER_VAULT_WALLET_ID]),
-  ...featureFlags.disabledBtcWallets,
-];
+/** Computed per render (cheap), not at module scope: the Speculos arm state does not exist yet when this module evaluates. */
+export function computeDisabledWallets(): string[] {
+  return [
+    ...ALWAYS_DISABLED_WALLETS,
+    ...(featureFlags.isLedgerVaultWalletEnabled && canReachLedgerDevice()
+      ? []
+      : [LEDGER_VAULT_WALLET_ID]),
+    ...featureFlags.disabledBtcWallets,
+  ];
+}
 
 const context = typeof window !== "undefined" ? window : {};
 
@@ -250,6 +259,8 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
     logger.error(error, { data: { context: "Wallet connection error" } });
   }, []);
 
+  const disabledWallets = useMemo(() => computeDisabledWallets(), []);
+
   return (
     <WalletProvider
       persistent
@@ -257,7 +268,7 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
       config={config}
       context={context}
       onError={onError}
-      disabledWallets={DISABLED_WALLETS}
+      disabledWallets={disabledWallets}
       requiredChains={["BTC", "ETH"]}
       disableTomo
       dialogActions={<StandardSettingsMenu theme={theme} setTheme={setTheme} />}
