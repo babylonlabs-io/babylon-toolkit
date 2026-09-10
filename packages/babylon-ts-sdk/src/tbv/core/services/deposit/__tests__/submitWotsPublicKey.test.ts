@@ -6,6 +6,7 @@ import type { PeginStatusReader, WotsKeySubmitter } from "../interfaces";
 import { submitWotsPublicKey } from "../submitWotsPublicKey";
 
 const VALID_TXID = "a".repeat(64);
+const VALID_VAULT_ID = `0x${"1".repeat(64)}`;
 const VALID_DEPOSITOR_PK = "b".repeat(64);
 const TEST_TIMEOUT_MS = 60_000;
 
@@ -14,12 +15,15 @@ function createMockStatusReader(
 ): PeginStatusReader {
   let callIdx = 0;
   return {
-    getPeginStatus: vi.fn(async (): Promise<GetPeginStatusResponse> => ({
-      pegin_txid: VALID_TXID,
-      status: statuses[callIdx++] ?? DaemonStatus.PENDING_INGESTION,
-      progress: {},
-      health_info: "ok",
-    })),
+    getPeginStatusByVaultId: vi.fn(
+      async (): Promise<GetPeginStatusResponse> => ({
+        pegin_txid: VALID_TXID,
+        vault_id: VALID_VAULT_ID,
+        status: statuses[callIdx++] ?? DaemonStatus.PENDING_INGESTION,
+        progress: {},
+        health_info: "ok",
+      }),
+    ),
   };
 }
 
@@ -48,6 +52,7 @@ describe("submitWotsPublicKey", () => {
     await submitWotsPublicKey({
       statusReader: reader,
       wotsSubmitter: submitter,
+      vaultId: VALID_VAULT_ID,
       peginTxid: VALID_TXID,
       depositorPk: VALID_DEPOSITOR_PK,
       wotsPublicKeys: wotsKeys,
@@ -72,6 +77,7 @@ describe("submitWotsPublicKey", () => {
     await submitWotsPublicKey({
       statusReader: reader,
       wotsSubmitter: submitter,
+      vaultId: VALID_VAULT_ID,
       peginTxid: VALID_TXID,
       depositorPk: VALID_DEPOSITOR_PK,
       wotsPublicKeys: [],
@@ -87,6 +93,7 @@ describe("submitWotsPublicKey", () => {
     await submitWotsPublicKey({
       statusReader: reader,
       wotsSubmitter: submitter,
+      vaultId: VALID_VAULT_ID,
       peginTxid: VALID_TXID,
       depositorPk: VALID_DEPOSITOR_PK,
       wotsPublicKeys: [],
@@ -105,6 +112,7 @@ describe("submitWotsPublicKey", () => {
     const resultPromise = submitWotsPublicKey({
       statusReader: reader,
       wotsSubmitter: submitter,
+      vaultId: VALID_VAULT_ID,
       peginTxid: VALID_TXID,
       depositorPk: VALID_DEPOSITOR_PK,
       wotsPublicKeys: [],
@@ -126,6 +134,7 @@ describe("submitWotsPublicKey", () => {
       submitWotsPublicKey({
         statusReader: createMockStatusReader([]),
         wotsSubmitter: createMockWotsSubmitter(),
+        vaultId: VALID_VAULT_ID,
         peginTxid: VALID_TXID,
         depositorPk: VALID_DEPOSITOR_PK,
         wotsPublicKeys: [],

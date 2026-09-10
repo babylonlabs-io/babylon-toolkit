@@ -71,6 +71,7 @@ vi.mock("bitcoinjs-lib", () => ({
 // ---------------------------------------------------------------------------
 
 const VALID_TXID = "a".repeat(64);
+const VALID_VAULT_ID = `0x${"9".repeat(64)}`;
 const DEPOSITOR_PK = "d".repeat(64);
 const VP_PUBKEY = "e".repeat(64);
 const VK_PUBKEY = "f".repeat(64);
@@ -79,9 +80,10 @@ const CHALLENGER_PK = "c".repeat(64);
 function createMockStatusReader(statuses: DaemonStatus[]): PeginStatusReader {
   let callIdx = 0;
   return {
-    getPeginStatus: vi.fn(
+    getPeginStatusByVaultId: vi.fn(
       async (): Promise<GetPeginStatusResponse> => ({
         pegin_txid: VALID_TXID,
+        vault_id: VALID_VAULT_ID,
         status: statuses[callIdx++] ?? DaemonStatus.PENDING_INGESTION,
         progress: {},
         health_info: "ok",
@@ -230,6 +232,7 @@ describe("runDepositorPresignFlow", () => {
       statusReader: reader,
       presignClient,
       btcWallet: createMockWallet(),
+      vaultId: VALID_VAULT_ID,
       peginTxid: VALID_TXID,
       depositorPk: DEPOSITOR_PK,
       signingContext: createSigningContext(),
@@ -249,6 +252,7 @@ describe("runDepositorPresignFlow", () => {
       statusReader: reader,
       presignClient,
       btcWallet: createMockWallet(),
+      vaultId: VALID_VAULT_ID,
       peginTxid: VALID_TXID,
       depositorPk: DEPOSITOR_PK,
       signingContext: createSigningContext(),
@@ -269,6 +273,7 @@ describe("runDepositorPresignFlow", () => {
       statusReader: reader,
       presignClient,
       btcWallet: createMockWallet(),
+      vaultId: VALID_VAULT_ID,
       peginTxid: VALID_TXID,
       depositorPk: DEPOSITOR_PK,
       signingContext: createSigningContext(),
@@ -291,6 +296,7 @@ describe("runDepositorPresignFlow", () => {
       statusReader: reader,
       presignClient,
       btcWallet: wallet,
+      vaultId: VALID_VAULT_ID,
       peginTxid: VALID_TXID,
       depositorPk: DEPOSITOR_PK,
       signingContext: createSigningContext(),
@@ -329,6 +335,7 @@ describe("runDepositorPresignFlow", () => {
       statusReader: reader,
       presignClient,
       btcWallet: createMockWallet(),
+      vaultId: VALID_VAULT_ID,
       peginTxid: VALID_TXID,
       depositorPk: DEPOSITOR_PK,
       signingContext: createSigningContext(),
@@ -352,6 +359,7 @@ describe("runDepositorPresignFlow", () => {
       statusReader: reader,
       presignClient,
       btcWallet: createMockWallet(),
+      vaultId: VALID_VAULT_ID,
       peginTxid: VALID_TXID,
       depositorPk: DEPOSITOR_PK,
       signingContext: createSigningContext(),
@@ -411,6 +419,7 @@ describe("runDepositorPresignFlow", () => {
       statusReader: reader,
       presignClient,
       btcWallet: createMockWallet(),
+      vaultId: VALID_VAULT_ID,
       peginTxid: VALID_TXID,
       depositorPk: DEPOSITOR_PK,
       signingContext: createSigningContext(),
@@ -435,7 +444,8 @@ describe("runDepositorPresignFlow", () => {
         statusReader: createMockStatusReader([]),
         presignClient: createMockPresignClient(),
         btcWallet: createMockWallet(),
-        peginTxid: VALID_TXID,
+        vaultId: VALID_VAULT_ID,
+      peginTxid: VALID_TXID,
         depositorPk: DEPOSITOR_PK,
         signingContext: createSigningContext(),
         signal: controller.signal,
@@ -483,7 +493,8 @@ describe("runDepositorPresignFlow", () => {
         statusReader: reader,
         presignClient,
         btcWallet: wallet,
-        peginTxid: VALID_TXID,
+        vaultId: VALID_VAULT_ID,
+      peginTxid: VALID_TXID,
         depositorPk: DEPOSITOR_PK,
         signingContext: createSigningContext(),
       });
@@ -595,6 +606,7 @@ describe("runDepositorPresignFlow", () => {
       statusReader: reader,
       presignClient: createMockPresignClient(),
       btcWallet: createMockWallet(),
+      vaultId: VALID_VAULT_ID,
       peginTxid: VALID_TXID,
       depositorPk: DEPOSITOR_PK,
       signingContext: context,
@@ -639,7 +651,8 @@ describe("runDepositorPresignFlow", () => {
         statusReader: reader,
         presignClient,
         btcWallet: wallet,
-        peginTxid: VALID_TXID,
+        vaultId: VALID_VAULT_ID,
+      peginTxid: VALID_TXID,
         depositorPk: DEPOSITOR_PK,
         signingContext: createSigningContext(),
         depositTerms: DEPOSIT_TERMS,
@@ -668,7 +681,8 @@ describe("runDepositorPresignFlow", () => {
         statusReader: reader,
         presignClient: createMockPresignClient(),
         btcWallet: wallet,
-        peginTxid: VALID_TXID,
+        vaultId: VALID_VAULT_ID,
+      peginTxid: VALID_TXID,
         depositorPk: DEPOSITOR_PK,
         signingContext: createSigningContext(),
         depositTerms: DEPOSIT_TERMS,
@@ -694,7 +708,8 @@ describe("runDepositorPresignFlow", () => {
           statusReader: reader,
           presignClient,
           btcWallet: wallet,
-          peginTxid: VALID_TXID,
+          vaultId: VALID_VAULT_ID,
+      peginTxid: VALID_TXID,
           depositorPk: DEPOSITOR_PK,
           signingContext: createSigningContext(),
           depositTerms: DEPOSIT_TERMS,
@@ -719,7 +734,8 @@ describe("runDepositorPresignFlow", () => {
           statusReader: reader,
           presignClient,
           btcWallet: wallet,
-          peginTxid: VALID_TXID,
+          vaultId: VALID_VAULT_ID,
+      peginTxid: VALID_TXID,
           depositorPk: DEPOSITOR_PK,
           signingContext: createSigningContext(),
         }),
@@ -749,7 +765,8 @@ describe("runDepositorPresignFlow", () => {
             statusReader: reader,
             presignClient: createMockPresignClient(),
             btcWallet: wallet,
-            peginTxid: VALID_TXID,
+            vaultId: VALID_VAULT_ID,
+      peginTxid: VALID_TXID,
             depositorPk: DEPOSITOR_PK,
             signingContext: { ...createSigningContext(), ...override },
             depositTerms: DEPOSIT_TERMS,
@@ -776,7 +793,8 @@ describe("runDepositorPresignFlow", () => {
           statusReader: reader,
           presignClient,
           btcWallet: wallet,
-          peginTxid: VALID_TXID,
+          vaultId: VALID_VAULT_ID,
+      peginTxid: VALID_TXID,
           depositorPk: DEPOSITOR_PK,
           signingContext: {
             ...createSigningContext(),
@@ -801,7 +819,8 @@ describe("runDepositorPresignFlow", () => {
           statusReader: reader,
           presignClient,
           btcWallet: wallet,
-          peginTxid: VALID_TXID,
+          vaultId: VALID_VAULT_ID,
+      peginTxid: VALID_TXID,
           depositorPk: DEPOSITOR_PK,
           signingContext: {
             ...createSigningContext(),
@@ -828,7 +847,8 @@ describe("runDepositorPresignFlow", () => {
           statusReader: reader,
           presignClient,
           btcWallet: wallet,
-          peginTxid: VALID_TXID,
+          vaultId: VALID_VAULT_ID,
+      peginTxid: VALID_TXID,
           depositorPk: DEPOSITOR_PK,
           signingContext: { ...createSigningContext(), protocolFeeRate: 3n },
           depositTerms: DEPOSIT_TERMS, // protocolFeeRate: 2n
@@ -851,7 +871,8 @@ describe("runDepositorPresignFlow", () => {
         statusReader: reader,
         presignClient,
         btcWallet: wallet,
-        peginTxid: VALID_TXID,
+        vaultId: VALID_VAULT_ID,
+      peginTxid: VALID_TXID,
         depositorPk: DEPOSITOR_PK,
         signingContext: createSigningContext(),
       });
@@ -873,7 +894,8 @@ describe("runDepositorPresignFlow", () => {
         statusReader: reader,
         presignClient,
         btcWallet: wallet,
-        peginTxid: VALID_TXID,
+        vaultId: VALID_VAULT_ID,
+      peginTxid: VALID_TXID,
         depositorPk: DEPOSITOR_PK,
         signingContext: createSigningContext(),
         depositTerms: DEPOSIT_TERMS,

@@ -124,7 +124,7 @@ describe("VpTokenProvider", () => {
       now: () => NOW,
     });
 
-    const token = await provider.getToken("vaultProvider_getPeginStatus");
+    const token = await provider.getToken("vaultProvider_getPeginStatusByVaultId");
     expect(token).toBeNull();
   });
 

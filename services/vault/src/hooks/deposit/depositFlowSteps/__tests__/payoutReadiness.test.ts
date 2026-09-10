@@ -3,13 +3,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
   batchPollByProvider,
-  batchGetPeginStatus,
+  batchGetPeginStatusByVaultId,
   createVpClient,
   statusesByCall,
   abortAfterFirstPoll,
 } = vi.hoisted(() => ({
   batchPollByProvider: vi.fn(),
-  batchGetPeginStatus: vi.fn(),
+  batchGetPeginStatusByVaultId: vi.fn(),
   createVpClient: vi.fn(),
   statusesByCall: [] as Array<Record<string, string>>,
   abortAfterFirstPoll: { controller: null as AbortController | null },
@@ -48,13 +48,10 @@ vi.mock("@/infrastructure", () => ({
 
 import { waitForPayoutReadiness } from "../payoutReadiness";
 
-const VAULTS = [
-  { vaultId: "0xVault0" as Hex, peginTxHash: "0xPegin0" as Hex },
-  { vaultId: "0xVault1" as Hex, peginTxHash: "0xPegin1" as Hex },
-];
+const VAULTS = [{ vaultId: "0xVault0" as Hex }, { vaultId: "0xVault1" as Hex }];
 
 function setupBatchPoll() {
-  createVpClient.mockReturnValue({ batchGetPeginStatus });
+  createVpClient.mockReturnValue({ batchGetPeginStatusByVaultId });
   batchPollByProvider.mockImplementation(async ({ items, onItem }) => {
     const callIndex = batchPollByProvider.mock.calls.length - 1;
     const statuses = statusesByCall[callIndex] ?? {};

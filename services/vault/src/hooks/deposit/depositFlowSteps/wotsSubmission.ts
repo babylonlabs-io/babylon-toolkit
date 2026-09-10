@@ -90,7 +90,7 @@ export async function waitForWotsReadiness({
 /**
  * Submit pre-derived WOTS block public keys to the vault provider via RPC.
  *
- * Polls `getPeginStatus` first to ensure the VP has ingested the pegin and
+ * Polls `getPeginStatusByVaultId` first to ensure the VP has ingested the pegin and
  * is ready to accept the WOTS key (status = `PendingDepositorWotsPK`).
  * If the VP has already moved past that status, submission is skipped.
  */
@@ -121,6 +121,7 @@ export async function submitWotsPublicKey(
   await sdkSubmitWotsPublicKey({
     statusReader: rpcClient,
     wotsSubmitter: rpcClient,
+    vaultId,
     peginTxid,
     depositorPk: stripHexPrefix(depositorBtcPubkey),
     wotsPublicKeys,

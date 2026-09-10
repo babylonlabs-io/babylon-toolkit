@@ -85,8 +85,8 @@ describe("JsonRpcClient", () => {
     vi.stubGlobal("fetch", mockFetch);
 
     const client = createClient();
-    const result = await client.call("vaultProvider_getPeginStatus", {
-      pegin_txid: "abc",
+    const result = await client.call("vaultProvider_getPeginStatusByVaultId", {
+      vault_id: "abc",
     });
 
     expect(result).toEqual({ status: "Activated" });
@@ -98,9 +98,9 @@ describe("JsonRpcClient", () => {
 
     const body = JSON.parse(options.body);
     expect(body.jsonrpc).toBe("2.0");
-    expect(body.method).toBe("vaultProvider_getPeginStatus");
+    expect(body.method).toBe("vaultProvider_getPeginStatusByVaultId");
     // jsonrpsee expects params wrapped in an array
-    expect(body.params).toEqual([{ pegin_txid: "abc" }]);
+    expect(body.params).toEqual([{ vault_id: "abc" }]);
     expect(body.id).toBe(1);
   });
 
@@ -126,11 +126,11 @@ describe("JsonRpcClient", () => {
 
     const client = createClient();
     await expect(
-      client.call("vaultProvider_getPeginStatus", { pegin_txid: "abc" }),
+      client.call("vaultProvider_getPeginStatusByVaultId", { vault_id: "abc" }),
     ).rejects.toThrow(JsonRpcError);
 
     try {
-      await client.call("vaultProvider_getPeginStatus", { pegin_txid: "abc" });
+      await client.call("vaultProvider_getPeginStatusByVaultId", { vault_id: "abc" });
     } catch (err) {
       expect(err).toBeInstanceOf(JsonRpcError);
       expect((err as JsonRpcError).code).toBe(RpcErrorCode.PEGIN_NOT_FOUND);
@@ -138,7 +138,7 @@ describe("JsonRpcClient", () => {
     }
   });
 
-  it("retries getPeginStatus on retryable HTTP status codes", async () => {
+  it("retries getPeginStatusByVaultId on retryable HTTP status codes", async () => {
     const mockFetch = vi
       .fn()
       .mockResolvedValueOnce(
@@ -151,8 +151,8 @@ describe("JsonRpcClient", () => {
     vi.stubGlobal("fetch", mockFetch);
 
     const client = createClient({ retryDelay: 100 });
-    const resultPromise = client.call("vaultProvider_getPeginStatus", {
-      pegin_txid: "abc",
+    const resultPromise = client.call("vaultProvider_getPeginStatusByVaultId", {
+      vault_id: "abc",
     });
 
     // Advance past the retry delay (100ms * 2^0 = 100ms)
@@ -250,8 +250,8 @@ describe("JsonRpcClient", () => {
     const client = createClient();
     await expect(
       client.call(
-        "vaultProvider_getPeginStatus",
-        { pegin_txid: "abc" },
+        "vaultProvider_getPeginStatusByVaultId",
+        { vault_id: "abc" },
         controller.signal,
       ),
     ).rejects.toThrow("Request aborted");
@@ -265,7 +265,7 @@ describe("JsonRpcClient", () => {
       headers: { Authorization: "Bearer token123" },
     });
 
-    await client.call("vaultProvider_getPeginStatus", { pegin_txid: "abc" });
+    await client.call("vaultProvider_getPeginStatusByVaultId", { vault_id: "abc" });
 
     const [, options] = mockFetch.mock.calls[0];
     expect(options.headers).toEqual({
@@ -282,7 +282,7 @@ describe("JsonRpcClient", () => {
 
     const client = createClient();
     await expect(
-      client.call("vaultProvider_getPeginStatus", { pegin_txid: "abc" }),
+      client.call("vaultProvider_getPeginStatusByVaultId", { vault_id: "abc" }),
     ).rejects.toThrow('missing "result" field');
   });
 
@@ -291,8 +291,8 @@ describe("JsonRpcClient", () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(rawResponse));
 
     const client = createClient();
-    const response = await client.callRaw("vaultProvider_getPeginStatus", {
-      pegin_txid: "abc",
+    const response = await client.callRaw("vaultProvider_getPeginStatusByVaultId", {
+      vault_id: "abc",
     });
 
     expect(response).toBe(rawResponse);
@@ -314,7 +314,7 @@ describe("JsonRpcClient", () => {
     const client = createClient({ maxResponseBytes: 64 });
 
     try {
-      await client.call("vaultProvider_getPeginStatus", { pegin_txid: "abc" });
+      await client.call("vaultProvider_getPeginStatusByVaultId", { vault_id: "abc" });
       expect.fail("should have thrown");
     } catch (err) {
       expect(err).toBeInstanceOf(JsonRpcError);
@@ -342,7 +342,7 @@ describe("JsonRpcClient", () => {
     const client = createClient({ maxResponseBytes: 64 });
 
     await expect(
-      client.call("vaultProvider_getPeginStatus", { pegin_txid: "abc" }),
+      client.call("vaultProvider_getPeginStatusByVaultId", { vault_id: "abc" }),
     ).rejects.toMatchObject({
       code: JSON_RPC_ERROR_CODES.RESPONSE_TOO_LARGE,
       source: "local",
@@ -368,7 +368,7 @@ describe("JsonRpcClient", () => {
     });
 
     await expect(
-      client.getPeginStatus({ pegin_txid: "abc" }),
+      client.getPeginStatusByVaultId({ vault_id: "abc" }),
     ).rejects.toMatchObject({
       code: JSON_RPC_ERROR_CODES.RESPONSE_TOO_LARGE,
       source: "local",
@@ -416,7 +416,7 @@ describe("JsonRpcClient", () => {
     const client = createClient({ retries: 1, retryDelay: 10 });
 
     const resultPromise = client
-      .call("vaultProvider_getPeginStatus", { pegin_txid: "abc" })
+      .call("vaultProvider_getPeginStatusByVaultId", { vault_id: "abc" })
       .catch((e: Error) => e);
 
     await vi.advanceTimersByTimeAsync(1000);
@@ -553,7 +553,7 @@ describe("JsonRpcClient", () => {
     };
 
     const client = createClient({ tokenProvider });
-    await client.call("vaultProvider_getPeginStatus", {});
+    await client.call("vaultProvider_getPeginStatusByVaultId", {});
 
     const headers = mockFetch.mock.calls[0][1].headers as Record<
       string,

@@ -8,7 +8,7 @@
  *  2. Programmatic HTTP capture (`recording/http.jsonl`) — one JSON line per app fetch/XHR
  *     (request + response body/status), tagged with the current step. This is the machine-readable
  *     fixture the future `--data=mock` replay consumes; the VP daemon's `PendingIngestion → … →
- *     Activated` progression is reconstructable from the ordered `batchGetPeginStatus` responses here.
+ *     Activated` progression is reconstructable from the ordered `batchGetPeginStatusByVaultId` responses here.
  *  3. Wallet signing capture (`recording/signing.jsonl`) — one JSON line per BTC-wallet signing call
  *     (`signMessage` / `signPsbt` / `signPsbts`): its arguments (message, PSBT hex, PSBT-array) and the
  *     returned signature. These calls go through the injected wallet provider (`window.unisat`, …), NOT
