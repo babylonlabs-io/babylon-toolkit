@@ -180,21 +180,17 @@ describe("GroupedProgress", () => {
     expect(circle.querySelector("svg")).toBeInTheDocument();
   });
 
-  it("lets the group title shrink and clip with an ellipsis instead of overflowing", () => {
+  it("keeps the step counter in the header row by letting the title yield to it", () => {
     render(<GroupedProgress steps={steps} currentStep={1} />);
 
     const title = screen.getByText(COPY.deposit.groups.registerDeposit);
+    const counter = screen.getByText(COPY.deposit.groups.stepCounter(0, 6));
+    const row = title.parentElement as HTMLElement;
+
+    expect(counter.parentElement).toBe(row);
+    expect(row.className).toContain("flex");
     expect(title.className).toContain("min-w-0");
     expect(title.className).toContain("overflow-hidden");
-    expect(title.className).toContain("text-ellipsis");
-    expect(title.className).not.toContain("truncate");
-    expect(title.className).not.toMatch(/(?<!:)whitespace-nowrap/);
-  });
-
-  it("never lets the step counter shrink or wrap below its content width", () => {
-    render(<GroupedProgress steps={steps} currentStep={1} />);
-
-    const counter = screen.getByText(COPY.deposit.groups.stepCounter(0, 6));
     expect(counter.className).toContain("shrink-0");
   });
 
