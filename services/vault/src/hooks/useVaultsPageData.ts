@@ -11,13 +11,12 @@
 
 import { useMemo } from "react";
 
-import { usePendingVaults } from "@/applications/aave/context";
 import { getNetworkConfigBTC } from "@/config";
 import { COPY } from "@/copy";
 import { useDashboardState } from "@/hooks/useDashboardState";
 import { useCollateralOverride } from "@/overrides/collateral";
 import type { CollateralVaultEntry } from "@/types/collateral";
-import { applyPendingWithdrawals, countActiveVaults } from "@/utils/collateral";
+import { countActiveVaults } from "@/utils/collateral";
 import {
   formatBtcAmount,
   formatBtcValue,
@@ -33,23 +32,8 @@ export function useVaultsPageData(connectedAddress: string | undefined) {
     collateralValueUsd,
     healthFactor,
     healthFactorStatus,
-    collateralVaults: indexedCollateralVaults,
+    collateralVaults,
   } = useDashboardState(connectedAddress);
-
-  const { pendingVaults } = usePendingVaults();
-  const pendingWithdrawVaultIds = useMemo(() => {
-    const ids = new Set<string>();
-    for (const [vaultId, operation] of pendingVaults) {
-      if (operation === "withdraw") ids.add(vaultId.toLowerCase());
-    }
-    return ids;
-  }, [pendingVaults]);
-
-  const collateralVaults = useMemo(
-    () =>
-      applyPendingWithdrawals(indexedCollateralVaults, pendingWithdrawVaultIds),
-    [indexedCollateralVaults, pendingWithdrawVaultIds],
-  );
 
   const demoCollateral = useCollateralOverride();
   const displayVaults = useMemo((): CollateralVaultEntry[] => {

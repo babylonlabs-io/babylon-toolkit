@@ -9,6 +9,7 @@ import { useEffect, useMemo } from "react";
 import { BPS_SCALE, MIN_BORROWABLE_USD } from "@/applications/aave/constants";
 import {
   useActivatingVaults,
+  usePendingVaults,
   useReorderOverride,
 } from "@/applications/aave/context";
 import {
@@ -20,7 +21,10 @@ import { calculateBorrowCapacityUsd } from "@/applications/aave/utils";
 import { useVaultProviders } from "@/hooks/deposit/useVaultProviders";
 import type { CollateralVaultEntry } from "@/types/collateral";
 import { truncateHash } from "@/utils/addressUtils";
-import { toCollateralVaultEntries } from "@/utils/collateral";
+import {
+  applyPendingWithdrawals,
+  toCollateralVaultEntries,
+} from "@/utils/collateral";
 import {
   isReorderOverrideReconciled,
   sortByReorderedOverride,
@@ -71,15 +75,28 @@ export function useDashboardState(connectedAddress: string | undefined) {
   const { reorderedOrder, clearReorderedOrder } = useReorderOverride();
   const { activatingVaults, clearActivatingVault } = useActivatingVaults();
 
-  // Raw indexer entries (liquidationIndex straight from the indexer). These
+  const { pendingVaults } = usePendingVaults();
+  const pendingWithdrawVaultIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const [vaultId, operation] of pendingVaults) {
+      if (operation === "withdraw") ids.add(vaultId.toLowerCase());
+    }
+    return ids;
+  }, [pendingVaults]);
+
+  // Indexer entries (liquidationIndex straight from the indexer), re-tagged
+  // with the withdrawals whose transaction is mined but not yet indexed. These
   // drive reconciliation — they reflect what the indexer currently believes,
   // independent of any active override.
   const rawCollateralVaults = useMemo(
     (): CollateralVaultEntry[] =>
-      position?.collaterals
-        ? toCollateralVaultEntries(position.collaterals, findProvider)
-        : [],
-    [position?.collaterals, findProvider],
+      applyPendingWithdrawals(
+        position?.collaterals
+          ? toCollateralVaultEntries(position.collaterals, findProvider)
+          : [],
+        pendingWithdrawVaultIds,
+      ),
+    [position?.collaterals, findProvider, pendingWithdrawVaultIds],
   );
 
   const activeCollateralVaults = useMemo(

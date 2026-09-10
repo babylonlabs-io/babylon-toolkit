@@ -34,6 +34,7 @@ let mockSplitLoading = false;
 let mockSplitError: Error | null = null;
 let mockReorderedOrder: readonly `0x${string}`[] | null = null;
 let mockActivatingVaults = new Map<string, ActivatingEntry>();
+let mockPendingVaults = new Map<string, "add" | "withdraw">();
 const mockClearReorderedOrder = vi.fn();
 const mockClearActivatingVault = vi.fn();
 
@@ -47,6 +48,11 @@ vi.mock("@/applications/aave/context", () => ({
     activatingVaults: mockActivatingVaults,
     addActivatingVault: vi.fn(),
     clearActivatingVault: mockClearActivatingVault,
+  }),
+  usePendingVaults: () => ({
+    pendingVaults: mockPendingVaults,
+    markVaultsAsPending: vi.fn(),
+    clearPendingVaults: vi.fn(),
   }),
 }));
 
@@ -136,6 +142,7 @@ describe("useDashboardState", () => {
     mockSplitError = null;
     mockReorderedOrder = null;
     mockActivatingVaults = new Map();
+    mockPendingVaults = new Map();
   });
 
   it("returns a stable collateralVaults reference across re-renders when position?.collaterals is undefined", () => {
@@ -234,6 +241,43 @@ describe("useDashboardState", () => {
 
     expect(result.current.hasDisplayCollateral).toBe(true);
     expect(result.current.hasCollateral).toBe(false);
+  });
+
+  it("tags a vault whose withdrawal is mined but not yet indexed as withdrawing", () => {
+    mockCollateralBtc = 2;
+    mockCollaterals = [collateral(VAULT_A, 0), collateral(VAULT_B, 1)];
+    mockPendingVaults = new Map([[VAULT_B, "withdraw"]]);
+
+    const { result } = renderHook(() => useDashboardState("0xabc"));
+
+    expect(
+      result.current.collateralVaults.map((entry) => entry.lifecycle),
+    ).toEqual(["active", "withdrawing"]);
+  });
+
+  it("keeps a vault pending an add operation backing the position", () => {
+    mockCollateralBtc = 1;
+    mockCollaterals = [collateral(VAULT_A, 0)];
+    mockPendingVaults = new Map([[VAULT_A, "add"]]);
+
+    const { result } = renderHook(() => useDashboardState("0xabc"));
+
+    expect(result.current.collateralVaults[0].lifecycle).toBe("active");
+    expect(result.current.hasCollateral).toBe(true);
+  });
+
+  it("re-tags the only vault backing the position once its withdrawal is mined", () => {
+    mockCollateralBtc = 1;
+    mockCollaterals = [collateral(VAULT_A, 0)];
+    mockPendingVaults = new Map([[VAULT_A, "withdraw"]]);
+
+    const { result } = renderHook(() => useDashboardState("0xabc"));
+
+    expect(result.current.collateralVaults[0].lifecycle).toBe("withdrawing");
+    // The financial gate reads the chain scalar, never the local pending
+    // marker, so a mined-but-unindexed withdrawal cannot disable an action.
+    expect(result.current.hasCollateral).toBe(true);
+    expect(result.current.hasDisplayCollateral).toBe(true);
   });
 
   it("orders withdrawing rows after the vaults still backing the position", () => {

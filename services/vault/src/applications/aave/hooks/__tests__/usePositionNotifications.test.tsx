@@ -192,6 +192,23 @@ describe("usePositionNotifications — live-HF urgency guardrail", () => {
     ]);
   });
 
+  it("excludes a withdrawing vault from the calculator inputs", () => {
+    const withdrawing: CollateralVaultEntry = {
+      ...makeVault(VAULT_B, 5, 1),
+      lifecycle: "withdrawing",
+    };
+    setDashboardState({
+      collateralVaults: [makeVault(VAULT_A, 0.5, 0), withdrawing],
+      debtValueUsd: 30_000,
+    });
+
+    const { result } = renderHook(() => usePositionNotifications(USER));
+
+    expect(result.current.status).toBe("ready");
+    expect(result.current.params?.vaults.map((v) => v.id)).toEqual([VAULT_A]);
+    expect(result.current.params?.vaults.map((v) => v.btc)).toEqual([0.5]);
+  });
+
   it("reports no vaults when every collateral row is still activating", () => {
     setDashboardState({
       collateralVaults: [

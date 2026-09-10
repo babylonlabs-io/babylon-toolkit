@@ -74,11 +74,6 @@ export function toCollateralVaultEntries(
   });
 }
 
-/**
- * Re-tags entries whose withdrawal transaction has been mined but which the
- * indexer has not reported yet. `pendingWithdrawVaultIds` comes from the
- * pending-vaults marker (see PendingVaultsContext).
- */
 /** Rows that count towards the position's vault count — every row but a peg-out in flight. */
 export function countActiveVaults(entries: CollateralVaultEntry[]): number {
   return entries.filter(
@@ -86,6 +81,11 @@ export function countActiveVaults(entries: CollateralVaultEntry[]): number {
   ).length;
 }
 
+/**
+ * Re-tags entries whose withdrawal transaction has been mined but which the
+ * indexer has not reported yet. `pendingWithdrawVaultIds` comes from the
+ * pending-vaults marker (see PendingVaultsContext).
+ */
 export function applyPendingWithdrawals(
   entries: CollateralVaultEntry[],
   pendingWithdrawVaultIds: ReadonlySet<string>,

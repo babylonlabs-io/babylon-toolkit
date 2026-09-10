@@ -17,6 +17,7 @@ export const AAVE_USER_POSITION_QUERY_KEY = "aaveUserPosition";
  * - Successful activation (the vault becomes collateral)
  * - Successful withdraw collateral (the vault leaves the position)
  * - Successful reorder
+ * - Successful borrow or repay
  *
  * @param queryClient - React Query client instance
  */
