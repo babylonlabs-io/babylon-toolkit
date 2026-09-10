@@ -94,16 +94,6 @@ export function EmergencyWithdrawModal({
 
   const handleConfirm = useCallback(async () => {
     if (withdrawing) return;
-    if (!requireBtcWallet()) {
-      setLocalError(COPY.wallet.btcAction.body);
-      return;
-    }
-    if (!btcWalletProvider || !connectedBtcAddress) {
-      setLocalError(
-        COPY.deposit.emergencyWithdraw.errors.btcWalletNotConnected,
-      );
-      return;
-    }
     if (!depositorEthAddress) {
       setLocalError(
         COPY.deposit.emergencyWithdraw.errors.ethWalletNotConnected,
@@ -126,6 +116,16 @@ export function EmergencyWithdrawModal({
       // confirm screen reads, so that gate re-renders with the explanation and
       // the button disabled. Setting `localError` would print it twice.
       if ((await ensureApplicationActive(activity.id)) === false) return;
+      if (!requireBtcWallet()) {
+        setLocalError(COPY.wallet.btcAction.body);
+        return;
+      }
+      if (!btcWalletProvider || !connectedBtcAddress) {
+        setLocalError(
+          COPY.deposit.emergencyWithdraw.errors.btcWalletNotConnected,
+        );
+        return;
+      }
 
       const secretHex = await deriveHtlcSecretHex({
         activity,

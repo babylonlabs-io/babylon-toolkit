@@ -1,13 +1,4 @@
-/**
- * Tests for the click-time application-status gate on the escape hatch.
- *
- * The confirm screen's own check reads the cache as of paint, so it is
- * `undefined` — button enabled — for the whole first round-trip after the modal
- * mounts. These cover what happens when the answer lands only after the click:
- * a CONFIRMED inactive application must stop before the BTC wallet is ever
- * opened, and anything else must let the withdrawal through, because this is
- * the only recovery left for a swept peg-in.
- */
+/** Check application status before a wallet prompt or recovery transaction. */
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
@@ -129,18 +120,20 @@ beforeEach(() => {
 });
 
 describe("EmergencyWithdrawModal — application status before the reveal", () => {
-  it("requests Bitcoin without deriving or submitting the withdrawal", () => {
+  it("requests Bitcoin without deriving or submitting the withdrawal", async () => {
     btcActionWallet.connected = false;
+    vi.mocked(isVaultApplicationActive).mockResolvedValue(true);
     renderModal();
-    expect(btcActionWallet.open).toHaveBeenCalledWith("BTC");
+    await waitFor(() => {
+      expect(btcActionWallet.open).toHaveBeenCalledWith("BTC");
+    });
     expect(deriveHtlcSecretHex).not.toHaveBeenCalled();
     expect(handleActivation).not.toHaveBeenCalled();
     expect(isVaultApplicationActive).toHaveBeenCalledTimes(1);
   });
 
-  it("never opens the BTC wallet when the application resolves inactive after the click", async () => {
-    // Resolve only after the click, reproducing a click inside the first
-    // round-trip — the window the render-time gate cannot cover.
+  it("blocks a connected wallet when the application resolves inactive after the click", async () => {
+    // Resolve after the click to check the first request window.
     let resolveStatus: (active: boolean) => void = () => {};
     vi.mocked(isVaultApplicationActive).mockReturnValue(
       new Promise<boolean>((resolve) => {
@@ -159,6 +152,17 @@ describe("EmergencyWithdrawModal — application status before the reveal", () =
     ).toBeInTheDocument();
     expect(deriveHtlcSecretHex).not.toHaveBeenCalled();
     expect(handleActivation).not.toHaveBeenCalled();
+    expect(btcActionWallet.open).not.toHaveBeenCalled();
+  });
+
+  it("does not request Bitcoin when the application is inactive", async () => {
+    btcActionWallet.connected = false;
+    vi.mocked(isVaultApplicationActive).mockResolvedValue(false);
+    renderModal();
+    await screen.findByText(COPY.deposit.emergencyWithdraw.applicationInactive);
+    expect(deriveHtlcSecretHex).not.toHaveBeenCalled();
+    expect(handleActivation).not.toHaveBeenCalled();
+    expect(btcActionWallet.open).not.toHaveBeenCalled();
   });
 
   it("derives the secret and submits when the application is active", async () => {
@@ -173,13 +177,10 @@ describe("EmergencyWithdrawModal — application status before the reveal", () =
   });
 
   it("re-reads a stale cached status instead of trusting it", async () => {
-    // Modal reopened within gcTime: the cache still holds the answer from the
-    // previous open, so the button paints enabled off a value minutes old. A
-    // click must not ride that — the application was paused in between.
+    // A paused application must override the saved active status on reopen.
     const client = makeQueryClient();
     client.setQueryData(
-      // Key literal on purpose: if it drifts from the hook, this test should
-      // stop seeding the cache and fail loudly rather than pass vacuously.
+      // Keep the key literal to detect a change to the query key.
       ["vaultApplicationStatus", ACTIVITY.id],
       true,
       { updatedAt: Date.now() - 60_000 },
@@ -196,9 +197,7 @@ describe("EmergencyWithdrawModal — application status before the reveal", () =
   });
 
   it("still submits when the application status read fails", async () => {
-    // Fail OPEN: an RPC blip must not strand a depositor whose peg-in is
-    // already swept. The pre-broadcast simulation refuses to sign into a
-    // genuinely inactive application.
+    // A failed read permits recovery. The transaction simulation checks again.
     vi.mocked(isVaultApplicationActive).mockRejectedValue(
       new Error("rpc unavailable"),
     );

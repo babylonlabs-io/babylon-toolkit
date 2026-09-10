@@ -172,14 +172,13 @@ export function usePayoutSigningState({
 
   const handleSign = useCallback(async () => {
     if (inFlightRef.current || signing) return;
+    // A new attempt must allow a retry after a recoverable guard error.
+    setErrorTerminal(false);
     if (!requireBtcWallet()) {
       setError(COPY.deposit.payoutSigningGuards.walletNotConnected);
       return;
     }
     inFlightRef.current = true;
-    // A new attempt starts non-terminal: a guard error after a terminal
-    // refusal is a fresh, recoverable error and must get its Retry back.
-    setErrorTerminal(false);
 
     // Single outer try/finally so the reentrancy lock is always cleared —
     // including on synchronous throws from the guards (e.g.
