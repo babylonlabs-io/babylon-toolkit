@@ -15,11 +15,15 @@ import {
   type DepositTerms,
   type DepositTermsApprover,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
-import { useChainConnector } from "@babylonlabs-io/wallet-connector";
+import {
+  useBTCWallet,
+  useChainConnector,
+} from "@babylonlabs-io/wallet-connector";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Hex } from "viem";
 
 import { COPY } from "@/copy";
+import { useBtcAction } from "@/hooks/useBtcAction";
 import {
   captureFunnelFailure,
   shortId,
@@ -129,7 +133,10 @@ export function usePayoutSigningState({
   const cancelRequestedRef = useRef(false);
 
   const { findProvider } = useVaultProviders(activity.applicationEntryPoint);
+  const { connected, requireBtcWallet } = useBtcAction();
+  const { address: btcAddress } = useBTCWallet();
   const btcConnector = useChainConnector("BTC");
+  const btcProvider = btcConnector?.connectedWallet?.provider;
   const { setOptimisticStatus } = usePeginPolling();
 
   // Abort signing if the hook unmounts (e.g. user closes the modal) so we
@@ -161,6 +168,26 @@ export function usePayoutSigningState({
   // `signing === false`. Flip the ref before the first await, clear it in
   // `finally`, and always check this before the state.
   const inFlightRef = useRef(false);
+  const identityRef = useRef({
+    connected,
+    btcAddress,
+    btcProvider,
+    btcPublicKey,
+  });
+  useEffect(() => {
+    const previous = identityRef.current;
+    identityRef.current = { connected, btcAddress, btcProvider, btcPublicKey };
+    if (
+      inFlightRef.current &&
+      (previous.connected !== connected ||
+        previous.btcAddress !== btcAddress ||
+        previous.btcProvider !== btcProvider ||
+        previous.btcPublicKey !== btcPublicKey)
+    ) {
+      abortRef.current?.abort();
+      setError(COPY.deposit.payoutSigningGuards.walletNotConnected);
+    }
+  }, [connected, btcAddress, btcProvider, btcPublicKey]);
 
   // Provider that STARTED the in-flight sign. Cancellation binds to it so a
   // wallet swapped in mid-prompt cannot orphan the original ceremony.
@@ -170,10 +197,18 @@ export function usePayoutSigningState({
 
   const handleSign = useCallback(async () => {
     if (inFlightRef.current || signing) return;
-    inFlightRef.current = true;
-    // A new attempt starts non-terminal: a guard error after a terminal
-    // refusal is a fresh, recoverable error and must get its Retry back.
+    // A new attempt must allow a retry after a recoverable guard error.
     setErrorTerminal(false);
+    if (!requireBtcWallet()) {
+      setError(COPY.deposit.payoutSigningGuards.walletNotConnected);
+      return;
+    }
+    inFlightRef.current = true;
+    // Account changes can occur during the first address or liveness read.
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    const { signal } = controller;
 
     // Single outer try/finally so the reentrancy lock is always cleared —
     // including on synchronous throws from the guards (e.g.
@@ -195,6 +230,7 @@ export function usePayoutSigningState({
         ).catch(() => null);
         registeredPayoutScriptPubKey = backfilled ?? undefined;
       }
+      if (signal.aborted) return;
       if (!registeredPayoutScriptPubKey) {
         setError(COPY.deposit.payoutSigningGuards.missingPayoutAddress);
         return;
@@ -284,6 +320,7 @@ export function usePayoutSigningState({
         });
         return;
       }
+      if (signal.aborted) return;
 
       signingProviderRef.current = btcWalletProvider;
       setSigning(true);
@@ -294,27 +331,31 @@ export function usePayoutSigningState({
       setProgress({ phase: "auth", completed: 0, total: 0 });
       claimersDoneRef.current = false;
 
-      abortRef.current?.abort();
-      abortRef.current = new AbortController();
-
       // Flags the cancellable device window around exactly the calls the
       // provider's cancelSigning can abort — canCancel gates on it.
       const withDeviceWindow = async <T>(run: () => Promise<T>): Promise<T> => {
+        signal.throwIfAborted();
         setDeviceWindowActive(true);
         try {
-          return await run();
+          const result = await run();
+          signal.throwIfAborted();
+          return result;
         } finally {
           setDeviceWindowActive(false);
         }
       };
 
+      const approval = forwardDepositApproval(wallet);
       const graphProgressWallet: BitcoinWallet & Partial<DepositTermsApprover> =
         {
           ...wallet,
           deriveContextHash: async (appName, context) => {
+            signal.throwIfAborted();
             setProgress({ phase: "auth", completed: 0, total: 0 });
             try {
-              return await wallet.deriveContextHash(appName, context);
+              const root = await wallet.deriveContextHash(appName, context);
+              signal.throwIfAborted();
+              return root;
             } finally {
               setProgress({ phase: "claimers", completed: 0, total: 0 });
             }
@@ -364,7 +405,16 @@ export function usePayoutSigningState({
               }
             : {}),
           // Object spread drops prototype methods — see forwardDepositApproval.
-          ...forwardDepositApproval(wallet),
+          ...approval,
+          ...(approval.approveDepositTerms
+            ? {
+                approveDepositTerms: async (terms: DepositTerms) => {
+                  signal.throwIfAborted();
+                  await approval.approveDepositTerms!(terms);
+                  signal.throwIfAborted();
+                },
+              }
+            : {}),
         };
 
       try {
@@ -387,11 +437,11 @@ export function usePayoutSigningState({
             depositorBtcPubkey: btcPublicKey,
             fundedTxFee,
             lifecycle: "presign",
-            signal: abortRef.current.signal,
+            signal,
           });
           // Last cancellation point before wallet/device interaction — the
           // rebuild's chain reads leave a window where the modal may close.
-          if (abortRef.current.signal.aborted) {
+          if (signal.aborted) {
             setSigning(false);
             return;
           }
@@ -409,7 +459,7 @@ export function usePayoutSigningState({
           // Spread keeps the software-wallet params identical to before —
           // no `depositTerms` key at all rather than an explicit undefined.
           ...(depositTerms ? { depositTerms } : {}),
-          signal: abortRef.current.signal,
+          signal,
           onProgress: (next) => {
             if (next === null) return;
             setProgress(next);
@@ -474,6 +524,7 @@ export function usePayoutSigningState({
       setCancelRequested(false);
     }
   }, [
+    requireBtcWallet,
     signing,
     activity.providers,
     activity.peginTxHash,

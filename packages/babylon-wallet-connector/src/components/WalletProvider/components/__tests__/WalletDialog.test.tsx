@@ -232,37 +232,51 @@ describe("closing the dialog", () => {
 });
 
 describe("confirming the dialog", () => {
-  it("accepts the terms once, on confirm rather than on wallet connect", async () => {
-    setup();
-
-    await act(async () => {
-      screen.getByText("confirm").click();
+  // These required sets match the app provider tests in #2354.
+  describe.each([
+    { product: "Ethereum", requiredChainIds: ["ETH"], chain: "ETH", account: ETH_ACCOUNT },
+    { product: "Vault", requiredChainIds: ["BTC", "ETH"], chain: "BTC", account: BTC_ACCOUNT },
+    { product: "Bitcoin staking", requiredChainIds: ["BTC", "BBN"], chain: "BTC", account: BTC_ACCOUNT },
+    { product: "BABY staking", requiredChainIds: ["BBN"], chain: "BBN", account: BBN_ACCOUNT },
+  ])("$product consent contract", ({ requiredChainIds, chain, account }) => {
+    beforeEach(() => {
+      harness.connectors = {
+        BTC: { config: { network: "signet" }, connectedWallet: btcWallet("unisat", BTC_ACCOUNT) },
+        ETH: { config: { chainId: 11155111 }, connectedWallet: ethWallet("metamask", ETH_ACCOUNT) },
+        BBN: { config: { chainId: "bbn-test" }, connectedWallet: bbnWallet("keplr", BBN_ACCOUNT) },
+      };
     });
 
-    expect(acceptTermsOfService).toHaveBeenCalledTimes(1);
-    expect(acceptTermsOfService).toHaveBeenCalledWith(
-      expect.objectContaining({ chain: "ETH", address: ETH_ACCOUNT.address }),
-    );
-    expect(confirm).toHaveBeenCalled();
-  });
-
-  it("identifies the session by the first required chain, not the first connected wallet", async () => {
-    const btc = btcWallet("unisat", BTC_ACCOUNT);
-    const eth = ethWallet("metamask", ETH_ACCOUNT);
-    harness.connectors = {
-      BTC: { config: { network: "signet" }, connectedWallet: btc, disconnect: vi.fn() },
-      ETH: { config: { chainId: 11155111 }, connectedWallet: eth, disconnect: disconnectEth },
-      BBN: null,
-    };
-    setup({ requiredChainIds: ["ETH"] });
-
-    await act(async () => {
-      screen.getByText("confirm").click();
+    it("uses the first required live identity only after final Connect", async () => {
+      setup({ requiredChainIds });
+      expect(acceptTermsOfService).not.toHaveBeenCalled();
+      expect(store.has(WALLET_CONFIRMATION_RECEIPT_KEY)).toBe(false);
+      await act(async () => screen.getByText("confirm").click());
+      expect(acceptTermsOfService).toHaveBeenCalledTimes(1);
+      expect(acceptTermsOfService).toHaveBeenCalledWith(
+        expect.objectContaining({
+          chain,
+          address: account.address,
+          public_key: account.publicKeyHex,
+        }),
+      );
+      expect(confirm).toHaveBeenCalledTimes(1);
     });
 
-    expect(acceptTermsOfService).toHaveBeenCalledWith(
-      expect.objectContaining({ chain: "ETH", public_key: ETH_ACCOUNT.publicKeyHex }),
-    );
+    it("records approval without an app callback and does not repeat it for a confirmed session", async () => {
+      harness.lifecycleHooks = {};
+      const view = setup({ requiredChainIds });
+      await act(async () => screen.getByText("confirm").click());
+      const receipt = store.get(WALLET_CONFIRMATION_RECEIPT_KEY);
+      expect(receipt).toBeDefined();
+      expect(confirm).toHaveBeenCalledWith(receipt);
+      view.unmount();
+      harness.lifecycleHooks = { acceptTermsOfService };
+      setup({ requiredChainIds, confirmed: true });
+      await act(async () => screen.getByText("confirm").click());
+      expect(acceptTermsOfService).not.toHaveBeenCalled();
+      expect(confirm).toHaveBeenCalledTimes(1);
+    });
   });
 
   it("stores a receipt covering the required chains", async () => {

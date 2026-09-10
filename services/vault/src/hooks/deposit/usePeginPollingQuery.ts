@@ -20,6 +20,7 @@ import {
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef } from "react";
 
+import featureFlags from "@/config/featureFlags";
 import { COPY } from "@/copy";
 import { logger } from "@/infrastructure";
 
@@ -329,10 +330,8 @@ export function usePeginPollingQuery({
     btcPubKeyRef.current = btcPublicKey;
   }, [depositsToPoll, btcPublicKey]);
 
-  // Only enable when all required data is ready:
-  // - btcPublicKey from wallet
-  // - deposits to poll (pending deposits)
-  const isEnabled = !!btcPublicKey && depositsToPoll.length > 0;
+  // Status reads use transaction IDs. Signing keeps its wallet checks.
+  const isEnabled = depositsToPoll.length > 0;
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: [
@@ -344,7 +343,10 @@ export function usePeginPollingQuery({
       const currentDeposits = depositsRef.current;
       const currentBtcPubKey = btcPubKeyRef.current;
 
-      if (!currentBtcPubKey || currentDeposits.length === 0) {
+      if (
+        (!featureFlags.isEthFirstEnabled && !currentBtcPubKey) ||
+        currentDeposits.length === 0
+      ) {
         return {
           polledIds: [],
           errors: new Map<string, Error>(),

@@ -3,6 +3,10 @@ import type { PropsWithChildren } from "react";
 import type { Hex } from "viem";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import {
+  RECORDED_DEPLOYMENT,
+  RECORDED_DEPOSITOR,
+} from "../../../../e2e/fixtures/replay/contracts";
 import { COPY } from "../../../copy";
 import {
   ContractStatus,
@@ -12,6 +16,7 @@ import {
 } from "../../../models/peginStateMachine";
 import type { VaultActivity } from "../../../types/activity";
 import type { PeginPollingContextValue } from "../../../types/peginPolling";
+import { getDepositsNeedingPolling } from "../../../utils/peginPolling";
 import {
   PeginPollingProvider,
   resetPeginPollingProviderCount,
@@ -160,6 +165,64 @@ function renderProvider() {
   );
   return renderHook(() => usePeginPolling(), { wrapper });
 }
+
+describe("public deposit status with optional Bitcoin", () => {
+  const activity = {
+    ...ACTIVITY,
+    applicationEntryPoint: RECORDED_DEPLOYMENT.AAVE_ADAPTER,
+  };
+
+  afterEach(() => vi.unstubAllEnvs());
+
+  it.each([undefined, "false", "TRUE"])(
+    "requires Bitcoin when the flag is %s",
+    (value) => {
+      vi.stubEnv("NEXT_PUBLIC_FF_ENABLE_ETH_FIRST", value);
+      expect(getDepositsNeedingPolling([activity], [], undefined)).toEqual([]);
+      expect(
+        getDepositsNeedingPolling([activity], [], BTC_PUBKEY),
+      ).toHaveLength(1);
+    },
+  );
+
+  it("reads public status without Bitcoin when enabled", () => {
+    vi.stubEnv("NEXT_PUBLIC_FF_ENABLE_ETH_FIRST", "true");
+    const deposits = getDepositsNeedingPolling([activity], [], undefined);
+    expect(deposits).toHaveLength(1);
+    expect(deposits[0].activity).toBe(activity);
+    expect(deposits[0].activity.depositorBtcPubkey).toBe(BTC_PUBKEY);
+  });
+
+  it("still rejects a connected key that differs from the deposit key", () => {
+    vi.stubEnv("NEXT_PUBLIC_FF_ENABLE_ETH_FIRST", "true");
+    expect(
+      getDepositsNeedingPolling(
+        [
+          {
+            ...activity,
+            depositorBtcPubkey: RECORDED_DEPOSITOR.BTC_PUBLIC_KEY.slice(2),
+          },
+        ],
+        [],
+        BTC_PUBKEY,
+      ),
+    ).toEqual([]);
+  });
+
+  it("still requires a pending deposit and complete polling data", () => {
+    vi.stubEnv("NEXT_PUBLIC_FF_ENABLE_ETH_FIRST", "true");
+    for (const incomplete of [
+      { ...activity, applicationEntryPoint: undefined },
+      { ...activity, peginTxHash: undefined },
+      { ...activity, providers: [] },
+      { ...activity, contractStatus: ContractStatus.EXPIRED },
+    ]) {
+      expect(getDepositsNeedingPolling([incomplete], [], undefined)).toEqual(
+        [],
+      );
+    }
+  });
+});
 
 describe("PeginPollingContext", () => {
   beforeEach(() => {

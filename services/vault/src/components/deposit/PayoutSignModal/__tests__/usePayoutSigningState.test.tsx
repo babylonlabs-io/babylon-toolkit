@@ -4,7 +4,10 @@ import { StrictMode } from "react";
 import type { Hex } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { COPY } from "@/copy";
+
 import { LocalStorageStatus } from "../../../../models/peginStateMachine";
+import type { VaultActivity } from "../../../../types/activity";
 import { VaultLifecycleStateError } from "../../../../utils/errors/vaultLifecycleStateError";
 import { usePayoutSigningState } from "../usePayoutSigningState";
 
@@ -68,7 +71,13 @@ let mockBtcConnector: {
     provider?: unknown;
   };
 } | null = null;
+let mockSessionConfirmed = true;
 vi.mock("@babylonlabs-io/wallet-connector", () => ({
+  useBTCWallet: () => ({
+    connected: Boolean(mockBtcConnector?.connectedWallet),
+    address: mockBtcConnector?.connectedWallet?.account?.address,
+  }),
+  useWalletConnect: () => ({ connected: mockSessionConfirmed, open: vi.fn() }),
   useChainConnector: vi.fn(() => mockBtcConnector),
 }));
 
@@ -155,6 +164,7 @@ function renderHookWithProps(
 describe("usePayoutSigningState", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockSessionConfirmed = true;
     mockBtcConnector = null;
     setupHappyPath();
     mockSignAndSubmitPayouts.mockResolvedValue(undefined);
@@ -627,6 +637,143 @@ describe("usePayoutSigningState", () => {
       expect(result.current.error).toBeNull();
       expect(result.current.signing).toBe(false);
       expect(result.current.isComplete).toBe(false);
+    });
+  });
+
+  describe("wallet session changes", () => {
+    it.each([
+      [
+        "disconnect",
+        () => {
+          mockBtcConnector = null;
+        },
+      ],
+      [
+        "address loss",
+        () => {
+          mockBtcConnector!.connectedWallet!.account = undefined;
+        },
+      ],
+      [
+        "provider replacement",
+        () => {
+          mockBtcConnector!.connectedWallet!.provider = PROVIDER;
+        },
+      ],
+      [
+        "consent loss",
+        () => {
+          mockSessionConfirmed = false;
+        },
+      ],
+    ] as const)(
+      "stops before signing after %s during the liveness read",
+      async (_name, changeWallet) => {
+        let finishRead!: () => void;
+        mockVerifyBtcWalletLiveness.mockImplementationOnce(
+          () =>
+            new Promise<void>((resolve) => {
+              finishRead = resolve;
+            }),
+        );
+        const { result, rerender } = renderHookWithProps();
+        let attempt!: Promise<void>;
+        act(() => {
+          attempt = result.current.handleSign();
+        });
+        expect(mockVerifyBtcWalletLiveness).toHaveBeenCalledOnce();
+
+        changeWallet();
+        rerender();
+        await act(async () => {
+          finishRead();
+          await attempt;
+        });
+
+        expect(mockSignAndSubmitPayouts).not.toHaveBeenCalled();
+        expect(onSuccess).not.toHaveBeenCalled();
+        expect(result.current.signing).toBe(false);
+        expect(result.current.error).toEqual(
+          COPY.deposit.payoutSigningGuards.walletNotConnected,
+        );
+
+        setupHappyPath();
+        mockSessionConfirmed = true;
+        rerender();
+        expect(mockSignAndSubmitPayouts).not.toHaveBeenCalled();
+        await act(async () => {
+          await result.current.handleSign();
+        });
+        expect(mockSignAndSubmitPayouts).toHaveBeenCalledOnce();
+        expect(result.current.isComplete).toBe(true);
+      },
+    );
+
+    it("stops a delayed address lookup after disconnect", async () => {
+      let finishRead!: (address: string) => void;
+      mockFetchVaultPayoutScriptPubKey.mockImplementationOnce(
+        () =>
+          new Promise<string>((resolve) => {
+            finishRead = resolve;
+          }),
+      );
+      const { result, rerender } = renderHookWithProps({
+        activity: {
+          ...ACTIVITY,
+          depositorPayoutBtcAddress: undefined,
+        } as VaultActivity,
+      });
+      let attempt!: Promise<void>;
+      act(() => {
+        attempt = result.current.handleSign();
+      });
+
+      mockBtcConnector = null;
+      rerender();
+      await act(async () => {
+        finishRead(ACTIVITY.depositorPayoutBtcAddress);
+        await attempt;
+      });
+
+      expect(mockVerifyBtcWalletLiveness).not.toHaveBeenCalled();
+      expect(mockSignAndSubmitPayouts).not.toHaveBeenCalled();
+      expect(onSuccess).not.toHaveBeenCalled();
+    });
+
+    it("discards a late wallet signature after disconnect and stops the next call", async () => {
+      let finishSign!: (signed: string) => void;
+      BTC_WALLET.signPsbt.mockImplementationOnce(
+        () =>
+          new Promise<string>((resolve) => {
+            finishSign = resolve;
+          }),
+      );
+      mockSignAndSubmitPayouts.mockImplementationOnce(async ({ btcWallet }) => {
+        await btcWallet.signPsbt("payout-psbt");
+        await btcWallet.signPsbt("payout-psbt");
+      });
+      const { result, rerender } = renderHookWithProps();
+      let attempt!: Promise<void>;
+      act(() => {
+        attempt = result.current.handleSign();
+      });
+      await waitFor(() => expect(BTC_WALLET.signPsbt).toHaveBeenCalledOnce());
+      const { signal } = mockSignAndSubmitPayouts.mock.calls[0][0];
+
+      mockBtcConnector = null;
+      rerender();
+      expect(signal.aborted).toBe(true);
+      expect(result.current.signing).toBe(true);
+      await act(async () => {
+        finishSign("signed-psbt");
+        await attempt;
+      });
+
+      expect(BTC_WALLET.signPsbt).toHaveBeenCalledOnce();
+      expect(mockSetOptimisticStatus).not.toHaveBeenCalled();
+      expect(onSuccess).not.toHaveBeenCalled();
+      expect(result.current.isComplete).toBe(false);
+      expect(result.current.signing).toBe(false);
     });
   });
 
@@ -1275,14 +1422,12 @@ describe("usePayoutSigningState", () => {
       });
       expect(result.current.errorTerminal).toBe(true);
 
-      // Wallet disconnects before the retry — a guard error, recoverable.
-      // Re-render so the handler closes over the new connector state.
       mockBtcConnector = { connectedWallet: undefined };
       rerender();
       await act(async () => {
         await result.current.handleSign();
       });
-      expect(result.current.error?.title).toBe("Wallet address unavailable");
+      expect(result.current.error?.title).toBe("Wallet not connected");
       expect(result.current.errorTerminal).toBe(false);
     });
 

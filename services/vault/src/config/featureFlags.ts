@@ -14,6 +14,11 @@
  */
 
 export default {
+  /** Allow confirmed Ethereum-only sessions. Disabled by default. */
+  get isEthFirstEnabled() {
+    return process.env.NEXT_PUBLIC_FF_ENABLE_ETH_FIRST === "true";
+  },
+
   /**
    * DISABLE_DEPOSIT feature flag
    *

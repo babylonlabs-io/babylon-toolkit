@@ -1,4 +1,5 @@
 import { BabylonBtcStakingManager } from "@babylonlabs-io/btc-staking-ts";
+import { useWalletConnect } from "@babylonlabs-io/wallet-connector";
 import { useCallback, useMemo } from "react";
 
 import { getNetworkConfigBBN } from "@/ui/common/config/network/bbn";
@@ -12,6 +13,7 @@ import { useAppState } from "@/ui/common/state";
 import { getTxHex } from "@/ui/common/utils/mempool_api";
 
 export const useStakingManagerService = () => {
+  const { connected: confirmed } = useWalletConnect();
   const { networkInfo } = useAppState();
   const { signBbnTx } = useBbnTransaction();
   const {
@@ -45,6 +47,7 @@ export const useStakingManagerService = () => {
   const { chainId } = getNetworkConfigBBN();
 
   const isLoading =
+    !confirmed ||
     !btcNetwork ||
     !cosmosConnected ||
     !btcConnected ||

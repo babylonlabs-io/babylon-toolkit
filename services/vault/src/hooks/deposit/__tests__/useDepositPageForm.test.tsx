@@ -3,7 +3,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useConnection } from "@/context/wallet";
+import { useBTCWallet, useConnection } from "@/context/wallet";
 
 // Mock env before importing modules that use it
 vi.mock("@/config/env", () => ({
@@ -489,9 +489,11 @@ describe("useDepositPageForm", () => {
   };
 
   describe("initialization", () => {
-    it("keeps the entered amount when the mounted form loses and regains its connection", () => {
+    it("keeps the amount but blocks deposit when only Ethereum remains connected", () => {
       const connection = vi.mocked(useConnection);
       const currentConnection = connection();
+      const btcWallet = vi.mocked(useBTCWallet);
+      const currentBtcWallet = btcWallet();
       const { result, rerender, unmount } = renderHook(
         () => useDepositPageForm(),
         { wrapper },
@@ -501,14 +503,16 @@ describe("useDepositPageForm", () => {
 
       connection.mockReturnValue({
         ...currentConnection,
-        isConnected: false,
+        isConnected: true,
         btcConnected: false,
       });
+      btcWallet.mockReturnValue({ ...currentBtcWallet, connected: false });
       rerender();
       expect(result.current.isWalletConnected).toBe(false);
       expect(result.current.formData.amountBtc).toBe("0.001");
 
       connection.mockReturnValue(currentConnection);
+      btcWallet.mockReturnValue(currentBtcWallet);
       rerender();
       expect(result.current.isWalletConnected).toBe(true);
       expect(result.current.formData.amountBtc).toBe("0.001");

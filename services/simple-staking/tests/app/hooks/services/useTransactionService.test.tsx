@@ -1,6 +1,8 @@
+import { BabylonBtcStakingManager } from "@babylonlabs-io/btc-staking-ts";
+import { useWalletConnect } from "@babylonlabs-io/wallet-connector";
 import { act, renderHook } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Transaction } from "bitcoinjs-lib";
+import { networks, Transaction } from "bitcoinjs-lib";
 import type { ReactNode } from "react";
 
 import { useBTCWallet } from "@/ui/common/context/wallet/BTCWalletProvider";
@@ -18,6 +20,7 @@ import { useAppState } from "@/ui/common/state";
 import * as mempoolAPI from "@/ui/common/utils/mempool_api";
 
 import { testingNetworks } from "../../../helper";
+import { mockSuccessResponse } from "../../api/getNetworkInfo.mocks";
 
 // Mock modules before importing anything
 // Mock the module dependencies
@@ -28,10 +31,16 @@ jest.mock("@babylonlabs-io/btc-staking-ts", () => ({
     PROOF_OF_POSSESSION: "proof-of-possession",
     CREATE_BTC_DELEGATION_MSG: "create-btc-delegation-msg",
   },
-  BabylonBtcStakingManager: class MockManager {
-    constructor() {}
-  },
+  BabylonBtcStakingManager: jest.fn(),
 }));
+
+jest.mock("@babylonlabs-io/wallet-connector", () => ({
+  useWalletConnect: jest.fn(),
+}));
+jest.mock("@/ui/common/hooks/client/rpc/mutation/useBbnTransaction", () => ({
+  useBbnTransaction: () => ({ signBbnTx: jest.fn() }),
+}));
+jest.mock("@/ui/common/hooks/useEventBus", () => ({ useEventBus: jest.fn() }));
 
 // Mock all dependencies at the module level, so we avoid importing the actual files
 jest.mock("@/ui/common/hooks/services/useStakingManagerService", () => ({
@@ -218,6 +227,68 @@ describe("useTransactionService", () => {
     queryClient.clear();
   });
 
+  it("requires consent before the live-wallet EOI action can sign", async () => {
+    (useStakingManagerService as jest.Mock).mockImplementation(
+      jest.requireActual("@/ui/common/hooks/services/useStakingManagerService")
+        .useStakingManagerService,
+    );
+    (BabylonBtcStakingManager as jest.Mock).mockReturnValue(
+      mockBtcStakingManager,
+    );
+    Object.assign((useBTCWallet as jest.Mock)(), {
+      connected: true,
+      network: networks.bitcoin,
+      signPsbt: mockPushTx,
+      signMessage: mockPushTx,
+    });
+    Object.assign((useCosmosWallet as jest.Mock)(), { connected: true });
+    Object.assign((useBbnQuery as jest.Mock)(), {
+      babyTipQuery: { data: mockTipHeight },
+    });
+    Object.assign((useAppState as jest.Mock)(), {
+      networkInfo: {
+        params: {
+          bbnStakingParams: { versions: mockSuccessResponse.data.params.bbn },
+        },
+      },
+    });
+    (useWalletConnect as jest.Mock).mockReturnValue({ connected: false });
+    const { result, rerender } = renderHook(() => useTransactionService(), {
+      wrapper,
+    });
+    await expect(
+      result.current.createDelegationEoi(mockStakingInputs, mockFeeRate),
+    ).rejects.toThrow("BTC Staking Manager not initialized");
+    expect(
+      mockBtcStakingManager.preStakeRegistrationBabylonTransaction,
+    ).not.toHaveBeenCalled();
+    (useWalletConnect as jest.Mock).mockReturnValue({ connected: true });
+    mockBtcStakingManager.preStakeRegistrationBabylonTransaction.mockResolvedValue(
+      {
+        stakingTx: mockTransaction,
+        signedBabylonTx: mockSignedBabylonTx,
+      },
+    );
+    rerender();
+    await expect(
+      result.current.createDelegationEoi(mockStakingInputs, mockFeeRate),
+    ).resolves.toEqual({
+      stakingTxHash: mockTxId,
+      signedBabylonTx: mockSignedBabylonTx,
+    });
+    expect(
+      mockBtcStakingManager.preStakeRegistrationBabylonTransaction,
+    ).toHaveBeenCalledTimes(1);
+    (useWalletConnect as jest.Mock).mockReturnValue({ connected: false });
+    rerender();
+    await expect(
+      result.current.createDelegationEoi(mockStakingInputs, mockFeeRate),
+    ).rejects.toThrow("BTC Staking Manager not initialized");
+    expect(
+      mockBtcStakingManager.preStakeRegistrationBabylonTransaction,
+    ).toHaveBeenCalledTimes(1);
+  });
+
   describe("createDelegationEoi", () => {
     it("should create a delegation EOI successfully", async () => {
       // Mock the response from the staking manager
@@ -259,7 +330,10 @@ describe("useTransactionService", () => {
     it("calls refetchBtcTip before creating EOI", async () => {
       const { result } = renderHook(() => useTransactionService(), { wrapper });
       await act(async () => {
-        await result.current.createDelegationEoi(mockStakingInputs, mockFeeRate);
+        await result.current.createDelegationEoi(
+          mockStakingInputs,
+          mockFeeRate,
+        );
       });
       expect(mockRefetchBtcTip).toHaveBeenCalled();
     });
@@ -385,7 +459,11 @@ describe("useTransactionService", () => {
         .mockRejectedValueOnce(new Error("boom"));
       const { result } = renderHook(() => useTransactionService(), { wrapper });
       await expect(
-        result.current.transitionPhase1Delegation("hex", 123, mockStakingInputs),
+        result.current.transitionPhase1Delegation(
+          "hex",
+          123,
+          mockStakingInputs,
+        ),
       ).rejects.toThrow("boom");
     });
   });
@@ -460,9 +538,9 @@ describe("useTransactionService", () => {
     });
 
     it("invalidates delegations after success", async () => {
-      (mockBtcStakingManager.createSignedBtcStakingTransaction as jest.Mock).mockResolvedValue(
-        mockTransaction,
-      );
+      (
+        mockBtcStakingManager.createSignedBtcStakingTransaction as jest.Mock
+      ).mockResolvedValue(mockTransaction);
       const invalidateSpy = jest.spyOn(queryClient, "invalidateQueries");
       const { result } = renderHook(() => useTransactionService(), { wrapper });
       await act(async () => {
@@ -473,13 +551,15 @@ describe("useTransactionService", () => {
           "hex",
         );
       });
-      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: [DELEGATIONS_V2_KEY] });
+      expect(invalidateSpy).toHaveBeenCalledWith({
+        queryKey: [DELEGATIONS_V2_KEY],
+      });
     });
 
     it("throws and does not invalidate when pushTx fails", async () => {
-      (mockBtcStakingManager.createSignedBtcStakingTransaction as jest.Mock).mockResolvedValue(
-        mockTransaction,
-      );
+      (
+        mockBtcStakingManager.createSignedBtcStakingTransaction as jest.Mock
+      ).mockResolvedValue(mockTransaction);
       const invalidateSpy = jest.spyOn(queryClient, "invalidateQueries");
       mockPushTx.mockRejectedValueOnce(new Error("broadcast failed"));
       const { result } = renderHook(() => useTransactionService(), { wrapper });
@@ -517,9 +597,12 @@ describe("useTransactionService", () => {
     };
 
     it("createStakingExpansionEoi works and calls refetchBtcTip", async () => {
-      (mockBtcStakingManager.stakingExpansionRegistrationBabylonTransaction as jest.Mock).mockResolvedValue(
-        { stakingTx: mockTransaction, signedBabylonTx: mockSignedBabylonTx },
-      );
+      (
+        mockBtcStakingManager.stakingExpansionRegistrationBabylonTransaction as jest.Mock
+      ).mockResolvedValue({
+        stakingTx: mockTransaction,
+        signedBabylonTx: mockSignedBabylonTx,
+      });
       const { result } = renderHook(() => useTransactionService(), { wrapper });
       await act(async () => {
         await result.current.createStakingExpansionEoi(baseExpansion, 5);
@@ -531,16 +614,18 @@ describe("useTransactionService", () => {
     });
 
     it("estimateStakingExpansionFee returns value", () => {
-      (mockBtcStakingManager.estimateBtcStakingExpansionFee as jest.Mock).mockReturnValue(777);
+      (
+        mockBtcStakingManager.estimateBtcStakingExpansionFee as jest.Mock
+      ).mockReturnValue(777);
       const { result } = renderHook(() => useTransactionService(), { wrapper });
       const fee = result.current.estimateStakingExpansionFee(baseExpansion, 5);
       expect(fee).toBe(777);
     });
 
     it("submitStakingExpansionTx refetches UTXOs", async () => {
-      (mockBtcStakingManager.createSignedBtcStakingExpansionTransaction as jest.Mock).mockResolvedValue(
-        mockTransaction,
-      );
+      (
+        mockBtcStakingManager.createSignedBtcStakingExpansionTransaction as jest.Mock
+      ).mockResolvedValue(mockTransaction);
       const refetchSpy = jest.fn();
       (useAppState as jest.Mock).mockReturnValue({
         availableUTXOs: mockAvailableUTXOs,

@@ -24,6 +24,7 @@ vi.mock("@babylonlabs-io/wallet-connector", () => ({
   BTCWalletProvider: ({ children }: { children: React.ReactNode }) => children,
   ETHWalletProvider: ({ children }: { children: React.ReactNode }) => children,
   createWalletConfig: () => ({}),
+  useChainConnector: () => null,
   useWalletConnect: () => ({ disconnect: vi.fn() }),
   useWidgetState: () => ({ visible: false }),
 }));

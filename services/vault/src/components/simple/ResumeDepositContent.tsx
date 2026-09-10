@@ -28,6 +28,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Address, Hex } from "viem";
 
 import { getVaultRegistryReader } from "@/clients/eth-contract/sdk-readers";
+import { BtcActionGate } from "@/components/Wallet/BtcActionGate";
 import { computeDepositDerivedState } from "@/components/deposit/DepositSignModal/depositStepHelpers";
 import { usePayoutSigningState } from "@/components/deposit/PayoutSignModal/usePayoutSigningState";
 import { useDepositPollingResult } from "@/context/deposit/PeginPollingContext";
@@ -47,6 +48,7 @@ import { useBroadcastState } from "@/hooks/deposit/useBroadcastState";
 import { useReleaseVpTokenOnUnmount } from "@/hooks/deposit/useReleaseVpTokenOnUnmount";
 import { useRequiredPrePeginDepth } from "@/hooks/deposit/useRequiredPrePeginDepth";
 import { useSplitVaultProgress } from "@/hooks/deposit/useSplitVaultProgress";
+import { useBtcAction } from "@/hooks/useBtcAction";
 import { useRunOnce } from "@/hooks/useRunOnce";
 import { logger } from "@/infrastructure";
 import {
@@ -85,7 +87,7 @@ interface CaughtError {
 
 export interface ResumeSignContentProps {
   activity: VaultActivity;
-  btcPublicKey: string;
+  btcPublicKey: string | undefined;
   depositorEthAddress: Hex;
   /**
    * Every vault ID sharing this deposit's Pre-PegIn (the split-pegin
@@ -98,14 +100,36 @@ export interface ResumeSignContentProps {
   onSuccess: () => void;
 }
 
-export function ResumeSignContent({
+export function ResumeSignContent(props: ResumeSignContentProps) {
+  const [lastWalletKey, setLastWalletKey] = useState(props.btcPublicKey);
+  useEffect(() => {
+    if (props.btcPublicKey) setLastWalletKey(props.btcPublicKey);
+  }, [props.btcPublicKey]);
+  // Keep the active flow and its cancel control mounted during a key read.
+  // A new signing attempt still needs the current wallet key.
+  const btcPublicKey = props.btcPublicKey ?? lastWalletKey;
+  return (
+    <BtcActionGate onClose={props.onClose} ready={!!props.btcPublicKey}>
+      {btcPublicKey && (
+        <ResumeSignContentConnected
+          {...props}
+          btcPublicKey={btcPublicKey}
+          walletKeyReady={!!props.btcPublicKey}
+        />
+      )}
+    </BtcActionGate>
+  );
+}
+
+function ResumeSignContentConnected({
   activity,
   btcPublicKey,
+  walletKeyReady,
   depositorEthAddress,
   siblingVaultIds,
   onClose,
   onSuccess,
-}: ResumeSignContentProps) {
+}: ResumeSignContentProps & { btcPublicKey: string; walletKeyReady: boolean }) {
   const {
     signing,
     progress,
@@ -129,7 +153,7 @@ export function ResumeSignContent({
   // ResumeWotsContent's isReoffer — re-reading would swap modes mid-flight.
   const [wasCanceled] = useState(() => hasPayoutSignCancelRecord(activity.id));
 
-  useRunOnce(handleSign, !wasCanceled);
+  useRunOnce(handleSign, !wasCanceled && walletKeyReady);
 
   // A self-requested cancel settles QUIETLY in the hook (idle, no error, not
   // complete). Left alone, that state renders a disabled Sign button with no
@@ -151,9 +175,10 @@ export function ResumeSignContent({
   }, [cancelRequested, signing, error, isComplete]);
 
   const handleResign = useCallback(() => {
+    if (!walletKeyReady) return;
     setReofferAfterCancel(false);
     void handleSign();
-  }, [handleSign]);
+  }, [handleSign, walletKeyReady]);
 
   // Once signing is done the deposit waits on the vault provider. Track the
   // live contract status so the "Awaiting vault provider verification" wait has
@@ -226,9 +251,11 @@ export function ResumeSignContent({
       // A terminal refusal (ack window elapsed, signing already over, device
       // rejected the terms) re-runs the whole chain-read chain and fails
       // identically — no Retry CTA, same seam as the activation branch.
-      onRetry={error && !errorTerminal ? handleSign : undefined}
+      onRetry={
+        error && !errorTerminal && walletKeyReady ? handleSign : undefined
+      }
       started={!reofferAfterCancel}
-      onSign={handleResign}
+      onSign={walletKeyReady ? handleResign : undefined}
       canCancelSigning={canCancel}
       cancelSigningRequested={cancelRequested}
       onCancelSigning={handleCancel}
@@ -252,7 +279,15 @@ export interface ResumeBroadcastContentProps {
   onSuccess: () => void;
 }
 
-export function ResumeBroadcastContent({
+export function ResumeBroadcastContent(props: ResumeBroadcastContentProps) {
+  return (
+    <BtcActionGate onClose={props.onClose}>
+      <ResumeBroadcastContentConnected {...props} />
+    </BtcActionGate>
+  );
+}
+
+function ResumeBroadcastContentConnected({
   activity,
   batchVaultIds,
   depositorEthAddress,
@@ -335,12 +370,21 @@ export interface ResumeWotsContentProps {
   onSuccess: () => void;
 }
 
-export function ResumeWotsContent({
+export function ResumeWotsContent(props: ResumeWotsContentProps) {
+  return (
+    <BtcActionGate onClose={props.onClose}>
+      <ResumeWotsContentConnected {...props} />
+    </BtcActionGate>
+  );
+}
+
+function ResumeWotsContentConnected({
   activity,
   siblingVaultIds,
   onClose,
   onSuccess,
 }: ResumeWotsContentProps) {
+  const { requireBtcWallet } = useBtcAction();
   const btcConnector = useChainConnector("BTC");
   const btcWalletProvider =
     (btcConnector?.connectedWallet?.provider as BitcoinWallet | undefined) ??
@@ -394,7 +438,7 @@ export function ResumeWotsContent({
   const trackPrimedTxid = useReleaseVpTokenOnUnmount();
 
   const handleSubmit = useCallback(async () => {
-    if (!btcWalletProvider || !connectedBtcAddress) {
+    if (!requireBtcWallet() || !btcWalletProvider || !connectedBtcAddress) {
       setError({ raw: COPY.deposit.resume.walletNotConnected });
       setLoading(false);
       return;
@@ -553,6 +597,7 @@ export function ResumeWotsContent({
     }
   }, [
     activity,
+    requireBtcWallet,
     btcWalletProvider,
     connectedBtcAddress,
     btcConnector?.connectedWallet?.id,
@@ -678,13 +723,22 @@ export interface ResumeActivationContentProps {
   onGoToDashboard: () => void;
 }
 
-export function ResumeActivationContent({
+export function ResumeActivationContent(props: ResumeActivationContentProps) {
+  return (
+    <BtcActionGate onClose={props.onClose}>
+      <ResumeActivationContentConnected {...props} />
+    </BtcActionGate>
+  );
+}
+
+function ResumeActivationContentConnected({
   activity,
   depositorEthAddress,
   siblingVaultIds,
   onClose,
   onGoToDashboard,
 }: ResumeActivationContentProps) {
+  const { requireBtcWallet } = useBtcAction();
   const btcConnector = useChainConnector("BTC");
   const btcWalletProvider =
     (btcConnector?.connectedWallet?.provider as BitcoinWallet | undefined) ??
@@ -720,7 +774,7 @@ export function ResumeActivationContent({
   });
 
   const handleSubmit = useCallback(async () => {
-    if (!btcWalletProvider || !connectedBtcAddress) {
+    if (!requireBtcWallet() || !btcWalletProvider || !connectedBtcAddress) {
       setLocalError({
         raw: COPY.deposit.resume.walletNotConnected,
       });
@@ -763,6 +817,7 @@ export function ResumeActivationContent({
     }
   }, [
     activity,
+    requireBtcWallet,
     btcWalletProvider,
     connectedBtcAddress,
     btcConnector?.connectedWallet?.id,

@@ -9,6 +9,7 @@ import {
 import { useNavigate } from "react-router";
 import type { Address, Hex } from "viem";
 
+import FeatureFlags from "@/config/featureFlags";
 import { usePeginPolling } from "@/context/deposit/PeginPollingContext";
 import { COPY } from "@/copy";
 import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps";
@@ -153,7 +154,14 @@ export function PostDepositContinuationView({
 
   const isActionable = (id: string): boolean => {
     const state = getPollingResult(id)?.peginState;
-    return isCandidateVault(state) && hasActionableStep(state, btcPublicKey);
+    return (
+      isCandidateVault(state) &&
+      (hasActionableStep(state, btcPublicKey) ||
+        (FeatureFlags.isEthFirstEnabled &&
+          state?.availableActions.includes(
+            PeginAction.SIGN_PAYOUT_TRANSACTIONS,
+          ) === true))
+    );
   };
 
   // Which vault drives the rendered action branch. Two rules:
@@ -408,7 +416,7 @@ export function PostDepositContinuationView({
 
   if (
     activity &&
-    btcPublicKey &&
+    (btcPublicKey || FeatureFlags.isEthFirstEnabled) &&
     actions.includes(PeginAction.SIGN_PAYOUT_TRANSACTIONS)
   ) {
     return (

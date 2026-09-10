@@ -8,6 +8,8 @@ import {
 } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import type { Hex } from "viem";
 
+import featureFlags from "@/config/featureFlags";
+
 import { ContractStatus } from "../models/peginStateMachine";
 import type { PendingPeginRequest } from "../storage/peginStorage";
 import type { VaultActivity } from "../types/activity";
@@ -75,7 +77,7 @@ export function getDepositsNeedingPolling(
       // Check if this deposit should be polled
       const shouldPoll =
         contractStatus === ContractStatus.PENDING &&
-        !!btcPublicKey &&
+        (featureFlags.isEthFirstEnabled || !!btcPublicKey) &&
         !!vaultProviderAddress &&
         !!activity.peginTxHash &&
         !!activity.applicationEntryPoint &&

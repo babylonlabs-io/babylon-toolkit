@@ -34,6 +34,7 @@ import { useAddressType } from "@/context/addressType";
 import { AppPeginPollingProvider } from "@/context/deposit/AppPeginPollingProvider";
 import { useGeoFencing } from "@/context/geofencing";
 import { COPY } from "@/copy";
+import { useBtcAction } from "@/hooks/useBtcAction";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import { useProtocolStatusOverride } from "@/overrides/protocolStatus";
@@ -42,7 +43,7 @@ import {
   AaveConfigProvider,
   ActivatingVaultsProvider,
 } from "../../applications/aave/context";
-import { useBTCWallet, useETHWallet } from "../../context/wallet";
+import { useConnection } from "../../context/wallet";
 import { AddressScreeningBanner } from "../shared/AddressScreeningBanner";
 import { AddressTypeBanner } from "../shared/AddressTypeBanner";
 import { DepositDisabledBanner } from "../shared/DepositDisabledBanner";
@@ -77,8 +78,9 @@ const DEPOSIT_DISABLED_BANNER_Z_CLASS = "z-30";
 export default function RootLayout() {
   const gate = useProtocolGateState();
   const { theme, setTheme } = useTheme();
-  const { connected: btcConnected } = useBTCWallet();
-  const { connected: ethConnected } = useETHWallet();
+  const { isConnected, btcConnected, ethConnected } = useConnection();
+  const isWalletConnected =
+    ethConnected && (FeatureFlags.isEthFirstEnabled || btcConnected);
   const { isGeoBlocked, isLoading: isGeoLoading } = useGeoFencing();
   const { isBlocked: isAddressBlocked } = useAddressScreening();
   const { isSupportedAddress } = useAddressType();
@@ -86,14 +88,14 @@ export default function RootLayout() {
   const pageTitle = usePageTitle();
   const { pathname } = useLocation();
 
-  const isWalletConnected = btcConnected && ethConnected;
   // One signal for "is this the entry frame", so the sidebar and the chrome
   // that replaces it can never disagree. The other routes render disconnected
   // states on purpose and keep their shell — without it a disconnected desktop
   // visitor to /vaults would have no navigation at all.
-  const isEntryLayout = !isWalletConnected && pathname === "/";
+  const isEntryLayout = !isConnected && pathname === "/";
   const showV3Sidebar = !isMobileView && !isEntryLayout;
-  const showAddressTypeBanner = isWalletConnected && !isSupportedAddress;
+  const showAddressTypeBanner =
+    isWalletConnected && btcConnected && !isSupportedAddress;
   // Match ProtocolStatusBanner's status derivation: the dev-only god-mode
   // override (compile-time null in production) wins over the live gate, so a
   // forced frozen/paused preview drives banner suppression here too and can't
@@ -147,14 +149,19 @@ export default function RootLayout() {
     string | undefined
   >();
 
+  const { requireBtcWallet } = useBtcAction();
   // Reject a click event reaching `initialAmountBtc`: TypeScript allows this
   // where an `onClick` handler is expected, and it crashes the deposit dialog.
-  const openDeposit = useCallback((initialAmountBtc?: string) => {
-    setInitialDepositAmountBtc(
-      typeof initialAmountBtc === "string" ? initialAmountBtc : undefined,
-    );
-    setIsDepositOpen(true);
-  }, []);
+  const openDeposit = useCallback(
+    (initialAmountBtc?: string) => {
+      if (!requireBtcWallet()) return;
+      setInitialDepositAmountBtc(
+        typeof initialAmountBtc === "string" ? initialAmountBtc : undefined,
+      );
+      setIsDepositOpen(true);
+    },
+    [requireBtcWallet],
+  );
 
   const closeDeposit = useCallback(() => {
     setIsDepositOpen(false);

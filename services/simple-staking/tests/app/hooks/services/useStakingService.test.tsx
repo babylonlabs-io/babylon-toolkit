@@ -36,12 +36,23 @@ import { retry } from "@/ui/common/utils";
 // Mock all dependencies
 jest.mock("@/ui/common/api/getDelegationsV2");
 jest.mock("@/ui/common/context/Error/ErrorProvider");
-jest.mock("@/ui/common/context/wallet/BTCWalletProvider");
-jest.mock("@/ui/common/context/wallet/CosmosWalletProvider");
-jest.mock("@/ui/common/hooks/services/useTransactionService");
-jest.mock("@/ui/common/hooks/client/rpc/mutation/useBbnTransaction");
-jest.mock("@/ui/common/state/DelegationV2State");
+jest.mock("@/ui/common/context/wallet/BTCWalletProvider", () => ({
+  useBTCWallet: jest.fn(),
+}));
+jest.mock("@/ui/common/context/wallet/CosmosWalletProvider", () => ({
+  useCosmosWallet: jest.fn(),
+}));
+jest.mock("@/ui/common/hooks/services/useTransactionService", () => ({
+  useTransactionService: jest.fn(),
+}));
+jest.mock("@/ui/common/hooks/client/rpc/mutation/useBbnTransaction", () => ({
+  useBbnTransaction: jest.fn(),
+}));
+jest.mock("@/ui/common/state/DelegationV2State", () => ({
+  useDelegationV2State: jest.fn(),
+}));
 jest.mock("@/ui/common/state/StakingState");
+jest.mock("@/ui/common/state", () => ({ useAppState: jest.fn() }));
 jest.mock("@/ui/common/utils", () => ({
   retry: jest.fn(),
 }));
@@ -356,7 +367,7 @@ describe("useStakingService", () => {
         DelegationV2StakingState.INTERMEDIATE_PENDING_BTC_CONFIRMATION,
       );
 
-      expect(mockReset).toHaveBeenCalled();
+      expect(mockGoToStep).toHaveBeenCalledWith(StakingStep.FEEDBACK_SUCCESS);
       expect(mockSetProcessing).toHaveBeenNthCalledWith(1, true);
       expect(mockSetProcessing).toHaveBeenLastCalledWith(false);
       expect(mockSetProcessing).toHaveBeenCalledTimes(2);

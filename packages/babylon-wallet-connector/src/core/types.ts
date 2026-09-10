@@ -224,6 +224,17 @@ export interface IWallet<P extends IProvider = IProvider> {
 /** Every chain the connector can build a wallet connector for. */
 export type ChainId = "BTC" | "BBN" | "ETH";
 
+/**
+ * `"chain"` asks the provider to disconnect only this connector's chain; the
+ * provider refuses with `SHARED_SESSION_DISCONNECT_REFUSED` when that would
+ * also disconnect another chain. `"all"` is an explicit disconnect-everything
+ * request and is never refused. `"local"` drops this connector's wallet and
+ * the provider's cached session without any remote call: for a wallet the app
+ * rejected after connecting, or one the provider's backend already reports
+ * disconnected. It is never refused.
+ */
+export type DisconnectScope = "chain" | "all" | "local";
+
 export interface IChain<K extends string = string, P extends IProvider = IProvider, C = any> {
   id: K;
   name: string;
@@ -235,7 +246,15 @@ export interface IChain<K extends string = string, P extends IProvider = IProvid
 export interface IConnector<K extends string = string, P extends IProvider = IProvider, C = any>
   extends IChain<K, P, C> {
   connect(wallet: string | IWallet<P>): Promise<IWallet<P> | null>;
-  disconnect(): Promise<void>;
+  /**
+   * Rejects only for `"chain"`: with `SHARED_SESSION_DISCONNECT_REFUSED` when
+   * the provider refused, or with the provider's error when the remote
+   * disconnect failed. Either way nothing was disconnected, so the wallet
+   * stays connected and no `disconnect` event fires; only a genuine failure
+   * is also reported on `error`. `"all"` and `"local"` always finish the
+   * local teardown and report a provider failure on `error`.
+   */
+  disconnect(scope?: DisconnectScope): Promise<void>;
   on(event: string, cb: (wallet: IWallet<P>) => void): () => void;
 }
 
