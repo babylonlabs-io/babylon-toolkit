@@ -23,6 +23,15 @@ vi.mock("@/hooks/deposit/useEstimatedBtcFee", () => ({
   useEstimatedBtcFee: vi.fn(),
 }));
 
+// The bound is a React Query read; stubbed so these tests need no QueryClient.
+vi.mock("@/hooks/deposit/useFundingInputBound", () => ({
+  useFundingInputBound: vi.fn(() => ({
+    bound: { status: "published", maxInputs: 20 },
+    isError: false,
+  })),
+  resolveMaxInputCount: vi.fn(() => 20),
+}));
+
 // Slow=2, Avg=5, Fast=10 — kept low so nextPowerOfTwo(fastest) < 128 and the
 // custom-input cap is pinned at the LEAST_MAX_FEE_RATE floor for every test.
 const FEE_TIERS = {

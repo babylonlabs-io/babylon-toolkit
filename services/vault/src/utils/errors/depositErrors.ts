@@ -53,6 +53,7 @@
 import {
   isApplicationEntryPointMismatchError,
   isDepositTermsRejectedError,
+  isFundingInputCountExceededError,
   isParticipantKeyDriftError,
   isPeginFingerprintChangedError,
   isPeginFingerprintInputError,
@@ -236,9 +237,16 @@ export function mapDepositError(err: unknown): DepositErrorContent {
   // is both the far likelier case and the safe thing to show when the tag is
   // unreadable — it sends the depositor back to the form either way.
   if (isBuildLimitsDriftError(err)) {
-    return err.reason === "vault-count"
-      ? ERRORS.vaultCountLimitChanged
-      : ERRORS.depositLimitsChanged;
+    if (err.reason === "vault-count") return ERRORS.vaultCountLimitChanged;
+    if (err.reason === "funding-inputs") return ERRORS.peginsPaused;
+    return ERRORS.depositLimitsChanged;
+  }
+
+  // Same pre-signing point, from the UTXO selector rather than a limit guard:
+  // funding the approved amount would spend more inputs than one Pre-Pegin may
+  // carry. The fix is in the wallet, so it needs its own callout.
+  if (isFundingInputCountExceededError(err)) {
+    return ERRORS.tooManyFundingInputs;
   }
 
   // 3b. RFC-006 participant key drift. Distinct from the version mismatch

@@ -65,6 +65,10 @@ export const CONTRACT_ERROR_MESSAGES: Record<string, string> = {
     "This Pre-Pegin output has already been used to activate another BTCVault.",
   PeginTransactionAlreadyUsed:
     "This peg-in transaction has already been used to activate another BTCVault.",
+  TooManyFundingInputs:
+    "This deposit spends more Bitcoin UTXOs than the protocol allows in one Pre-Pegin transaction. Consolidate your UTXOs and try again.",
+  TooManyHtlcOutputs:
+    "This deposit creates more BTCVaults than the protocol allows in one Pre-Pegin transaction. Try again without splitting.",
 
   // ============================================================================
   // Vault Provider errors

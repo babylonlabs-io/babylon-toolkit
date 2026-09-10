@@ -1487,6 +1487,21 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts](http
 
 Available UTXOs from the depositor's wallet for funding the Pre-PegIn transaction.
 
+##### maxFundingInputCount
+
+```ts
+maxFundingInputCount: number | null;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts)
+
+On-chain `ProtocolParams.maxFundingInputCount` read at this build's
+pinned block — the most inputs one Pre-PegIn may spend. `null` only
+when the deployment predates the field.
+
+Enforced at UTXO selection, before any wallet or device I/O, and
+re-asserted against the funded transaction.
+
 ##### changeAddress
 
 ```ts

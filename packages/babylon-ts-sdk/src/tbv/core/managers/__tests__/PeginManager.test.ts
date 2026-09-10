@@ -37,7 +37,7 @@ import {
   TEST_KEYS,
   initializeWasmForTests,
 } from "../../primitives/psbt/__tests__/helpers";
-import type { UTXO } from "../../utils";
+import { FundingInputCountExceededError, type UTXO } from "../../utils";
 import { parseUnfundedWasmTransaction } from "../../utils/transaction/fundPeginTransaction";
 import { PeginManager, type PeginManagerConfig } from "../PeginManager";
 
@@ -273,6 +273,7 @@ const BASE_PREPARE_PEGIN_PARAMS = {
   availableUTXOs: TEST_UTXOS,
   changeAddress: TEST_CHANGE_ADDRESS,
   commissionBps: 250,
+  maxFundingInputCount: null,
 } as const;
 
 function appendUnexpectedPrePeginOutput(
@@ -726,6 +727,39 @@ describe("PeginManager", () => {
           ...BASE_PREPARE_PEGIN_PARAMS,
         }),
       ).rejects.toThrow(/Insufficient funds/);
+    });
+
+    it("rejects with FundingInputCountExceededError before deriving or signing when the deposit needs more inputs than maxFundingInputCount", async () => {
+      const btcWallet = new MockBitcoinWallet({
+        publicKeyHex: TEST_KEYS.DEPOSITOR,
+      });
+      const ethWallet = new MockEthereumWallet();
+      const deriveContextHashSpy = vi.spyOn(btcWallet, "deriveContextHash");
+      const signPsbtSpy = vi.spyOn(btcWallet, "signPsbt");
+      const signPsbtsSpy = vi.spyOn(btcWallet, "signPsbts");
+
+      const manager = new PeginManager({
+        btcNetwork: "signet",
+        btcWallet,
+        ethWallet: ethWallet as never,
+        ethChain: TEST_CHAIN,
+        publicClient: TEST_PUBLIC_CLIENT,
+        vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
+        mempoolApiUrl: MEMPOOL_API_URLS.signet,
+      });
+
+      // Two 500_000-sat vaults need two of the 800_000-sat TEST_UTXOS.
+      await expect(
+        manager.preparePegin({
+          amounts: [TEST_AMOUNTS.PEGIN_LARGE, TEST_AMOUNTS.PEGIN_LARGE],
+          ...BASE_PREPARE_PEGIN_PARAMS,
+          maxFundingInputCount: 1,
+        }),
+      ).rejects.toBeInstanceOf(FundingInputCountExceededError);
+
+      expect(deriveContextHashSpy).not.toHaveBeenCalled();
+      expect(signPsbtSpy).not.toHaveBeenCalled();
+      expect(signPsbtsSpy).not.toHaveBeenCalled();
     });
 
     it("should throw error for empty UTXOs", async () => {

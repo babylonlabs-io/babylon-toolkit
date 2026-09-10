@@ -19,6 +19,12 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  computeFundingBudget,
+  FundingInputCountExceededError,
+  selectUtxosForPegin,
+  type UTXO,
+} from "../../utxo/selectUtxos";
+import {
   applyChangeOutputPolicy,
   computeChangeOutputFeeSats,
   computeMaxDeposit,
@@ -251,8 +257,7 @@ describe("applyChangeOutputPolicy", () => {
     const totalInputValue = 100_000n;
 
     // Just-above-dust → emit change.
-    const peginAbove =
-      totalInputValue - baseFee - changeOutputFee - 547n;
+    const peginAbove = totalInputValue - baseFee - changeOutputFee - 547n;
     const above = applyChangeOutputPolicy({
       totalInputValue,
       peginAmount: peginAbove,
@@ -338,5 +343,82 @@ describe("computeMaxDeposit", () => {
       feeRate: 5,
     });
     expect(max).toBe(10_000n - baseFee);
+  });
+});
+
+describe("estimator-vs-selection agreement under maxFundingInputCount", () => {
+  // 25 UTXOs, deliberately out of value order so the shared largest-first
+  // sort is what makes the budget and the selection agree. Every value is
+  // far above the per-input fee (58 × 5 = 290 sats), so the selector cannot
+  // terminate on fewer inputs than the budget assumed.
+  const UTXO_VALUES = [
+    47_000, 120_000, 8_000, 88_000, 33_000, 61_000, 15_000, 95_000, 25_000,
+    70_000, 39_000, 5_000, 77_500, 51_000, 19_000, 66_000, 30_000, 11_000,
+    58_000, 44_000, 22_000, 54_000, 36_000, 28_000, 41_000,
+  ];
+  const FIXTURE_UTXOS: UTXO[] = UTXO_VALUES.map((value, index) => ({
+    txid: index.toString(16).padStart(64, "0"),
+    vout: 0,
+    value,
+    scriptPubKey:
+      "5120abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+  }));
+  const MAX_INPUT_COUNT = 20;
+  const FEE_RATE = 5;
+  const NUM_OUTPUTS = 3;
+
+  it("selects exactly maxFundingInputCount inputs at the Max the budget advertises", () => {
+    const budget = computeFundingBudget(FIXTURE_UTXOS, MAX_INPUT_COUNT);
+    expect(budget.numInputs).toBe(MAX_INPUT_COUNT);
+
+    const max = computeMaxDeposit({
+      numInputs: budget.numInputs,
+      numOutputs: NUM_OUTPUTS,
+      totalBalance: budget.totalBalance,
+      feeRate: FEE_RATE,
+    });
+    expect(max).not.toBeNull();
+
+    const result = selectUtxosForPegin(
+      FIXTURE_UTXOS,
+      max!,
+      FEE_RATE,
+      NUM_OUTPUTS,
+      MAX_INPUT_COUNT,
+    );
+
+    expect(result.selectedUTXOs).toHaveLength(MAX_INPUT_COUNT);
+    expect(result.totalValue).toBe(budget.totalBalance);
+    expect(result.changeAmount).toBe(0n);
+    // The estimator subtracted exactly this fee to reach `max`; the
+    // selector must charge exactly it back.
+    expect(result.fee).toBe(
+      computePeginBaseFeeSats({
+        numInputs: MAX_INPUT_COUNT,
+        numOutputs: NUM_OUTPUTS,
+        feeRate: FEE_RATE,
+      }),
+    );
+  });
+
+  it("throws FundingInputCountExceededError one satoshi above that Max", () => {
+    const budget = computeFundingBudget(FIXTURE_UTXOS, MAX_INPUT_COUNT);
+    const max = computeMaxDeposit({
+      numInputs: budget.numInputs,
+      numOutputs: NUM_OUTPUTS,
+      totalBalance: budget.totalBalance,
+      feeRate: FEE_RATE,
+    });
+    expect(max).not.toBeNull();
+
+    expect(() =>
+      selectUtxosForPegin(
+        FIXTURE_UTXOS,
+        max! + 1n,
+        FEE_RATE,
+        NUM_OUTPUTS,
+        MAX_INPUT_COUNT,
+      ),
+    ).toThrow(FundingInputCountExceededError);
   });
 });

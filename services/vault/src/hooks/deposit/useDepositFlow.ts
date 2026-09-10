@@ -79,6 +79,7 @@ import {
 import { computeBuildPeginFingerprint } from "@/services/vault/peginFingerprintInput";
 import {
   assertBuildWithinPinnedLimits,
+  BuildLimitsDriftError,
   isBuildLimitsDriftError,
 } from "@/services/vault/pinnedBuildLimits";
 import type { PayoutSigningProgress } from "@/services/vault/vaultPayoutSignatureService";
@@ -133,6 +134,7 @@ import {
 } from "./depositFlowSteps";
 import type { DepositWarning } from "./depositWarnings";
 import { useBtcWalletState } from "./useBtcWalletState";
+import { FUNDING_INPUT_BOUND_QUERY_KEY } from "./useFundingInputBound";
 import { useVaultProviders } from "./useVaultProviders";
 
 // ============================================================================
@@ -669,6 +671,17 @@ export function useDepositFlow(
         const pinnedBlock = await resolvePinnedReadBlock();
         const buildConfig =
           await protocolParamsReader.getPegInConfiguration(pinnedBlock);
+        const fundingInputBound =
+          await protocolParamsReader.getMaxFundingInputCount(pinnedBlock);
+        // The form sized its Max against the cached bound. If governance
+        // lowered it, the SDK rejects the selection below with
+        // `FundingInputCountExceededError` — outside the drift try/catch — and
+        // a restarted form must see the lowered bound or it will offer the same
+        // unfundable Max again.
+        queryClient.setQueryData(
+          FUNDING_INPUT_BOUND_QUERY_KEY,
+          fundingInputBound,
+        );
 
         // The page gated the "update the app" check and sized the amount
         // against the cached snapshot; the lock is about to be built from this
@@ -685,6 +698,17 @@ export function useDepositFlow(
           // Re-check what the depositor actually approved against the pinned
           // numbers.
           assertBuildWithinPinnedLimits(vaultAmounts, buildConfig);
+
+          // A chain that publishes no funding-input bound rejects every
+          // Pre-PegIn built against it, so there is nothing to build. Raised as
+          // drift because the form gated on a bound that has since gone away,
+          // and the recovery is the same: stop before anything is signed.
+          if (fundingInputBound.status === "unpublished") {
+            throw new BuildLimitsDriftError(
+              "Deposit limits changed while preparing this deposit: the chain no longer publishes a funding-input bound, so peg-ins are paused.",
+              "funding-inputs",
+            );
+          }
         } catch (driftError) {
           // Both aborts tell the depositor to start again, and the only way to
           // do that is to close and reopen the form, which reads the cached
@@ -789,6 +813,10 @@ export function useDepositFlow(
             timelockRefund: buildConfig.timelockRefund,
             councilQuorum: buildConfig.offchainParams.councilQuorum,
             councilSize: buildConfig.offchainParams.securityCouncilKeys.length,
+            maxFundingInputCount:
+              fundingInputBound.status === "published"
+                ? fundingInputBound.maxInputs
+                : null,
             availableUTXOs: spendableUTXOs,
           },
         );

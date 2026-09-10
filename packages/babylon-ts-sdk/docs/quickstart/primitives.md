@@ -216,6 +216,7 @@ const { selectedUTXOs, fee, changeAmount } = selectUtxosForPegin(
   amount, // Target amount (satoshis)
   feeRate, // sat/vB
   peginOutputCount(vaultCount), // N HTLCs + CPFP anchor
+  maxFundingInputCount, // on-chain bound; null only pre-deployment of the field
 );
 ```
 

@@ -63,6 +63,13 @@ export interface PreparePeginParams {
   councilQuorum: number;
   /** N in M-of-N council multisig */
   councilSize: number;
+  /**
+   * On-chain `ProtocolParams.maxFundingInputCount` read at the build's pinned
+   * block; `null` only when the deployment predates the field. Enforced at UTXO
+   * selection before any wallet or device I/O, and re-asserted against the
+   * funded transaction.
+   */
+  maxFundingInputCount: number | null;
   availableUTXOs: UTXO[];
 }
 
@@ -226,6 +233,7 @@ export async function preparePeginTransaction(
       mempoolFeeRate: params.mempoolFeeRate,
       councilQuorum: params.councilQuorum,
       councilSize: params.councilSize,
+      maxFundingInputCount: params.maxFundingInputCount,
       availableUTXOs: params.availableUTXOs,
       changeAddress: params.changeAddress,
     });

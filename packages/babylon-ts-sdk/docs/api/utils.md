@@ -52,6 +52,55 @@ readonly missingUtxos: MissingUtxoInfo[];
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts)
 
+***
+
+### FundingInputCountExceededError
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts)
+
+Thrown when funding a Pre-PegIn would need more inputs than the
+protocol's on-chain `maxFundingInputCount` allows in one transaction.
+
+#### Extends
+
+- `Error`
+
+#### Constructors
+
+##### Constructor
+
+```ts
+new FundingInputCountExceededError(maxInputCount): FundingInputCountExceededError;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts)
+
+###### Parameters
+
+###### maxInputCount
+
+`number`
+
+###### Returns
+
+[`FundingInputCountExceededError`](#fundinginputcountexceedederror)
+
+###### Overrides
+
+```ts
+Error.constructor
+```
+
+#### Properties
+
+##### maxInputCount
+
+```ts
+readonly maxInputCount: number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts)
+
 ## Interfaces
 
 ### CombinedAbortSignal
@@ -1416,6 +1465,79 @@ take precedence over a same-id local pegin entry.
 
 ***
 
+### isFundingInputCountExceededError()
+
+```ts
+function isFundingInputCountExceededError(err): err is FundingInputCountExceededError;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts)
+
+Type guard for [FundingInputCountExceededError](#fundinginputcountexceedederror). Falls back to the
+`name` check so the guard still holds across module/realm boundaries.
+
+#### Parameters
+
+##### err
+
+`unknown`
+
+#### Returns
+
+`err is FundingInputCountExceededError`
+
+***
+
+### computeFundingBudget()
+
+```ts
+function computeFundingBudget(availableUTXOs, maxInputCount): object;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts)
+
+The inputs and balance a Pre-PegIn may actually spend under the
+protocol's funding-input bound: the largest `maxInputCount` valid UTXOs
+(all of them when `maxInputCount` is null).
+
+#### Parameters
+
+##### availableUTXOs
+
+[`UTXO`](#utxo)[]
+
+All available UTXOs from wallet
+
+##### maxInputCount
+
+Protocol `maxFundingInputCount`, or null when the deployment publishes no bound
+
+`number` | `null`
+
+#### Returns
+
+`object`
+
+Number of spendable inputs and their summed value (satoshis)
+
+##### numInputs
+
+```ts
+numInputs: number;
+```
+
+##### totalBalance
+
+```ts
+totalBalance: bigint;
+```
+
+#### Throws
+
+Error if `maxInputCount` is neither null nor a positive integer
+
+***
+
 ### selectUtxosForPegin()
 
 ```ts
@@ -1423,7 +1545,8 @@ function selectUtxosForPegin(
    availableUTXOs, 
    peginAmount, 
    feeRate, 
-   numOutputs): UTXOSelectionResult;
+   numOutputs, 
+   maxInputCount): UTXOSelectionResult;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts)
@@ -1466,6 +1589,15 @@ Fee rate (sat/vbyte)
 
 Number of outputs in the unfunded transaction (HTLC + CPFP anchor, before change)
 
+##### maxInputCount
+
+Protocol `maxFundingInputCount`: the most inputs one
+  Pre-PegIn may spend, or null when the deployment publishes no bound. The
+  bound is exclusive in the same sense as the registry's `>` check —
+  exactly `maxInputCount` inputs is accepted, needing one more is rejected.
+
+`number` | `null`
+
 #### Returns
 
 [`UTXOSelectionResult`](#utxoselectionresult)
@@ -1474,7 +1606,11 @@ Selected UTXOs, total value, calculated fee, and change amount
 
 #### Throws
 
-Error if insufficient funds or no valid UTXOs
+Error if insufficient funds, no valid UTXOs, or `maxInputCount` is neither null nor a positive integer
+
+#### Throws
+
+FundingInputCountExceededError if funding would need more than `maxInputCount` inputs
 
 ***
 

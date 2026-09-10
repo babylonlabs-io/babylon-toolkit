@@ -21,6 +21,7 @@ export type {
 export { calculateBtcTxHash, derivePeginVaultId } from "./pegin-transaction";
 export { ViemProtocolParamsReader } from "./protocol-params-reader";
 export {
+  validateMaxFundingInputCount,
   validateOffchainParams,
   validatePegInConfiguration,
   validateTBVProtocolParams,
@@ -40,6 +41,7 @@ export { OnChainBtcVaultStatus } from "./types";
 export type {
   AddressBTCKeyPair,
   AllOffchainParamsData,
+  FundingInputBound,
   KeyEpochs,
   OnChainBtcPubkey,
   OnSkippedOffchainParamsVersion,

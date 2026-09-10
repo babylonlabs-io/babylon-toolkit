@@ -40,11 +40,7 @@ const UINT8_MAX = 255;
  * map key. Used by reader entry points that surface the version to JS.
  */
 export function assertValidOffchainParamsVersion(version: number): void {
-  if (
-    !Number.isInteger(version) ||
-    version < 0 ||
-    version > UINT32_MAX
-  ) {
+  if (!Number.isInteger(version) || version < 0 || version > UINT32_MAX) {
     throw new Error(
       `Invalid offchainParamsVersion from contract: must be a uint32, got ${version}`,
     );
@@ -210,6 +206,22 @@ export function validateTBVProtocolParams(params: TBVProtocolParams): void {
 
   if (errors.length > 0) {
     throw new Error(`Invalid TBV protocol parameters: ${errors.join("; ")}`);
+  }
+}
+
+/**
+ * Validate a published `maxFundingInputCount`.
+ *
+ * `0` is not accepted here: it is the unpublished sentinel and is classified
+ * by the reader before this runs, never validated into a usable bound.
+ *
+ * @throws Error if the value is not an integer in `[1, 255]`.
+ */
+export function validateMaxFundingInputCount(value: number): void {
+  if (!Number.isInteger(value) || value <= 0 || value > UINT8_MAX) {
+    throw new Error(
+      `maxFundingInputCount must be an integer in [1, ${UINT8_MAX}], got ${value}`,
+    );
   }
 }
 

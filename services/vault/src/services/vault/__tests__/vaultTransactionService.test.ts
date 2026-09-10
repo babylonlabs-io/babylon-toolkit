@@ -100,6 +100,7 @@ describe("vaultTransactionService - preparePeginTransaction", () => {
     timelockRefund: 50,
     councilQuorum: 2,
     councilSize: 3,
+    maxFundingInputCount: 20,
     availableUTXOs: mockUTXOs,
   };
 

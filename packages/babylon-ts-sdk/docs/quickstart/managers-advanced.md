@@ -148,7 +148,7 @@ declare const expectedFingerprint: Hex;
 
 // Every non-array param is the same as the single-vault happy path —
 // vault provider pubkey, keepers, challengers, timelocks, fee rate,
-// council params, UTXO set, change address.
+// council params, `maxFundingInputCount`, UTXO set, change address.
 declare const sharedBatchParams: Omit<
   Parameters<typeof peginManager.preparePegin>[0],
   "amounts"

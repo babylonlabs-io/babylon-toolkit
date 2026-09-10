@@ -162,6 +162,21 @@ export interface DepositGatingState {
    */
   vaultCountCapUnavailable?: boolean;
   /**
+   * True when the chain publishes no funding-input bound — fail closed (block
+   * the CTA), since the registry would reject a Pre-PegIn built without one.
+   */
+  fundingInputBoundUnpublished?: boolean;
+  /**
+   * True when the funding-input bound read terminally failed — fail closed, so
+   * a deposit can't be built against an unverified UTXO limit.
+   */
+  fundingInputBoundUnavailable?: boolean;
+  /**
+   * True when the funding-input bound, not the balance, caps the depositable
+   * maximum. Advisory only: shows an inline notice, never blocks.
+   */
+  fundingInputCapBites?: boolean;
+  /**
    * True when a single vault still fits but a 2-vault split would exceed the
    * cap — the deposit proceeds as a single vault and we surface the inline
    * "split unavailable" hint. The reason picks which hint: only the
@@ -245,6 +260,9 @@ export function DepositForm({
     ordinalsCheckPending = false,
     isVaultCapReached = false,
     vaultCountCapUnavailable = false,
+    fundingInputBoundUnpublished = false,
+    fundingInputBoundUnavailable = false,
+    fundingInputCapBites = false,
     splitUnavailableReason = null,
     vaultCapUsage,
   } = gatingState;
@@ -334,6 +352,24 @@ export function DepositForm({
     !!selectedProvider && selectedProviderCommissionBps === undefined;
 
   const hasAmount = !!amount && amount !== "0";
+
+  // Explains a Max that reads lower than the wallet balance: the depositor
+  // holds more UTXOs than one Pre-Pegin may spend. Withheld until there is a
+  // resolved max and a chosen provider, so it never appears beside a "--".
+  const fundingInputCapNotice =
+    fundingInputCapBites && hasAmount && !!selectedProvider && isMaxResolved ? (
+      <span className="inline-flex items-center gap-1 text-accent-secondary">
+        {COPY.deposit.form.fundingInputCapNotice(maxDepositLabel)}
+        {/* A bare Hint renders a div, which is invalid inside the p container. */}
+        <Hint
+          tooltip={COPY.deposit.form.fundingInputCapTooltip}
+          attachToChildren
+        >
+          <InfoIcon size={16} className="text-accent-secondary" />
+        </Hint>
+      </span>
+    ) : null;
+
   const isFeeError = hasAmount && !isLoadingFee && !!feeError;
   const feeDisabled =
     isLoadingFee ||
@@ -416,11 +452,16 @@ export function DepositForm({
           inputClassName="h-10 w-auto rounded-lg bg-primary-contrast px-4 [field-sizing:content]"
         />
         <p
-          className={pendingConfirmationNotice ? "text-sm" : "sr-only"}
+          className={
+            pendingConfirmationNotice || fundingInputCapNotice
+              ? "text-sm"
+              : "sr-only"
+          }
           role="status"
           aria-live="polite"
         >
           {pendingConfirmationNotice}
+          {fundingInputCapNotice}
         </p>
         <CollateralFactorRow
           collateralFactor={collateralFactor}
@@ -496,17 +537,23 @@ export function DepositForm({
           cta.disabled ||
           isVerifyingWallet ||
           isVaultCapReached ||
-          vaultCountCapUnavailable
+          vaultCountCapUnavailable ||
+          fundingInputBoundUnpublished ||
+          fundingInputBoundUnavailable
         }
         onClick={onDeposit}
       >
-        {isVaultCapReached
-          ? COPY.deposit.maxVaultsReached.cta
-          : vaultCountCapUnavailable
-            ? COPY.deposit.maxVaultsReached.unavailableCta
-            : isVerifyingWallet
-              ? "Checking wallet..."
-              : ctaLabel}
+        {fundingInputBoundUnpublished
+          ? COPY.deposit.fundingInputBound.pausedCta
+          : fundingInputBoundUnavailable
+            ? COPY.deposit.fundingInputBound.unavailableCta
+            : isVaultCapReached
+              ? COPY.deposit.maxVaultsReached.cta
+              : vaultCountCapUnavailable
+                ? COPY.deposit.maxVaultsReached.unavailableCta
+                : isVerifyingWallet
+                  ? "Checking wallet..."
+                  : ctaLabel}
       </DepositButton>
 
       {/* Fee breakdown */}

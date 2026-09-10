@@ -138,6 +138,7 @@ const PARAMS = {
   availableUTXOs: TEST_UTXOS,
   changeAddress: deriveTaprootAddress(TEST_KEYS.DEPOSITOR, "signet"),
   commissionBps: 250,
+  maxFundingInputCount: null,
 } as const;
 
 // Fresh path applies `capMaxAcceptableCommissionBps`: quote + 25 bps headroom.

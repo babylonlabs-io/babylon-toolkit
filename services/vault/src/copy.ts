@@ -305,6 +305,14 @@ export const COPY = {
       splitUnavailableProtocolLimit:
         "The protocol currently allows one BTCVault per transaction. BTCVault split unavailable.",
     },
+    // CTA labels for the on-chain funding-input bound. `pausedCta` is the
+    // chain publishing no bound at all (fail closed: a Pre-PegIn built without
+    // one would be rejected by the registry); `unavailableCta` is the read
+    // itself failing, which is recoverable by retrying.
+    fundingInputBound: {
+      pausedCta: "Peg-ins temporarily unavailable",
+      unavailableCta: "Unable to verify UTXO limit — please try again",
+    },
     steps: {
       generateSecret: "Generate secret for the deposit",
       signPeginBtc: "Sign the peg-in BTC transaction",
@@ -707,6 +715,13 @@ export const COPY = {
         `${amount} pending confirmation`,
       pendingConfirmationTooltip:
         "Only balances confirmed in a Bitcoin block are shown here. This amount is still waiting to confirm.",
+      // Shown when the on-chain funding-input bound, not the balance, is what
+      // caps the depositable maximum. Names the maximum rather than the UTXO
+      // count: the count is the cause, the amount is what the depositor acts on.
+      fundingInputCapNotice: (maxWithSymbol: string) =>
+        `You can deposit up to ${maxWithSymbol} with your current Bitcoin UTXOs`,
+      fundingInputCapTooltip:
+        "One deposit can spend at most a limited number of Bitcoin UTXOs. To deposit more, consolidate your UTXOs in your wallet first.",
       doNotSplit: "Do not split",
       selectVaultProvider: "Select vault provider",
       providerSelectDescription: "Choose a vault provider to secure your BTC",
@@ -1007,6 +1022,22 @@ export const COPY = {
       vaultCountLimitChanged: {
         title: "BTCVault limit changed",
         body: `The number of BTCVaults allowed in a single transaction changed while we were preparing your deposit, and this deposit asks for more than the new limit. ${NOTHING_SIGNED_OR_SPENT} — please start the deposit again without splitting across BTCVaults.`,
+      },
+      // Pre-signing, and the chain stopped publishing its funding-input bound.
+      // Nothing the depositor chose can fix it, so the copy offers no action
+      // beyond waiting — unlike the two above, which send them back to the form.
+      peginsPaused: {
+        title: "Peg-ins temporarily unavailable",
+        body: `The protocol stopped publishing its UTXO limit while we were preparing your deposit, so new deposits are paused. ${NOTHING_SIGNED_OR_SPENT} — please try again later.`,
+      },
+      // Pre-signing, and funding this deposit needs more Bitcoin UTXOs than one
+      // Pre-Pegin may spend. The fix is in the wallet, not the form, so the
+      // copy names consolidation rather than a different amount. `title`
+      // doubles as the fee estimator's error string, which becomes the CTA
+      // label — the same sentence in both places, held in one.
+      tooManyFundingInputs: {
+        title: "Too many UTXOs for one deposit",
+        body: `This deposit would spend more Bitcoin UTXOs than the protocol allows in a single transaction. ${NOTHING_SIGNED_OR_SPENT} — consolidate your UTXOs in your wallet and start the deposit again.`,
       },
       participantKeyDrift: {
         title: "Vault operator keys changed",

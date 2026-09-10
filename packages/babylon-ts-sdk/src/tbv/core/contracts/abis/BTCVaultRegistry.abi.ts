@@ -626,6 +626,14 @@ export const BTCVaultRegistryABI = [
   },
   {
     type: "error",
+    name: "TooManyFundingInputs",
+    inputs: [
+      { name: "inputCount", type: "uint256", internalType: "uint256" },
+      { name: "maxAllowed", type: "uint256", internalType: "uint256" },
+    ],
+  },
+  {
+    type: "error",
     name: "VaultBelowMinimum",
     inputs: [
       { name: "actual", type: "uint256", internalType: "uint256" },

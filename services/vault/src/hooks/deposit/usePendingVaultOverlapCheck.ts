@@ -23,6 +23,11 @@ interface UsePendingVaultOverlapCheckParams {
   depositorClaimValue: bigint | undefined;
   /** Per-vault minimum peg-in fee (sats) — must match the signing-path target. */
   minPeginFee: bigint | null;
+  /**
+   * On-chain `maxFundingInputCount` — must match the signing-path cap so the
+   * prediction selects the same inputs. `undefined` while unresolved.
+   */
+  maxInputCount: number | null | undefined;
 }
 
 export function usePendingVaultOverlapCheck({
@@ -31,11 +36,16 @@ export function usePendingVaultOverlapCheck({
   estimatedFeeRate,
   depositorClaimValue,
   minPeginFee,
+  maxInputCount,
 }: UsePendingVaultOverlapCheckParams) {
   const { data: depositorVaults } = useVaults(ethAddress);
 
   return useCallback(
     (vaultAmounts: readonly bigint[]): number | null => {
+      // Without the bound the prediction would select a different input set
+      // than signing will. Skip rather than advise on the wrong outpoints.
+      if (maxInputCount === undefined) return null;
+
       const sumPeginAmounts = vaultAmounts.reduce((s, a) => s + a, 0n);
       const perVaultExtras = (depositorClaimValue ?? 0n) + (minPeginFee ?? 0n);
       // Mirrors `prePegin.totalOutputValue`: HTLC values + CPFP anchor.
@@ -53,6 +63,7 @@ export function usePendingVaultOverlapCheck({
           predictedTarget,
           estimatedFeeRate,
           numOutputs,
+          maxInputCount,
         );
       } catch {
         // Let the real signing path surface insufficient-funds errors.
@@ -76,6 +87,7 @@ export function usePendingVaultOverlapCheck({
       estimatedFeeRate,
       depositorClaimValue,
       minPeginFee,
+      maxInputCount,
       depositorVaults,
     ],
   );

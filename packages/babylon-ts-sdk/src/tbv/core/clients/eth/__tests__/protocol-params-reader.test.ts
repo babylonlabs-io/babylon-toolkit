@@ -1,6 +1,13 @@
-import { describe, expect, it, vi } from "vitest";
 import type { Address, Hex } from "viem";
+import {
+  concat,
+  encodeFunctionData,
+  encodeFunctionResult,
+  numberToHex,
+} from "viem";
+import { describe, expect, it, vi } from "vitest";
 
+import { ProtocolParamsFundingInputBoundABI } from "../../../contracts/abis/ProtocolParams.abi";
 import { ViemProtocolParamsReader } from "../protocol-params-reader";
 
 const MOCK_ADDRESS = "0x1234567890abcdef1234567890abcdef12345678" as Address;
@@ -34,6 +41,32 @@ const MOCK_OFFCHAIN_PARAMS = {
   minPrepeginDepth: 6,
 };
 
+/** An 8-component `TBVProtocolParams` as viem decodes it: a named object. */
+const MOCK_FUNDING_INPUT_BOUND_PARAMS = {
+  ...MOCK_TBV_PARAMS,
+  peginActivationDelay: 200n,
+  maxFundingInputCount: 20,
+};
+
+const FUNDING_INPUT_BOUND_CALLDATA = encodeFunctionData({
+  abi: ProtocolParamsFundingInputBoundABI,
+  functionName: "getTBVProtocolParams",
+});
+
+/** ABI-encode a static tuple by hand, one 32-byte word per value. */
+function words(...values: Array<bigint | number>): Hex {
+  return concat(values.map((v) => numberToHex(v, { size: 32 })));
+}
+
+/** The 8-word return of a deployment carrying `maxFundingInputCount`. */
+function fundingInputBoundReturn(maxFundingInputCount: number): Hex {
+  return encodeFunctionResult({
+    abi: ProtocolParamsFundingInputBoundABI,
+    functionName: "getTBVProtocolParams",
+    result: { ...MOCK_FUNDING_INPUT_BOUND_PARAMS, maxFundingInputCount },
+  });
+}
+
 function createMockPublicClient(overrides?: {
   tbvParams?: unknown;
   offchainParams?: unknown;
@@ -41,6 +74,7 @@ function createMockPublicClient(overrides?: {
   activeVaultCoreVersion?: unknown;
   perVersionOffchainParams?: Map<number, unknown>;
   peginActivationDelay?: unknown;
+  fundingInputBoundData?: Hex | Error;
 }) {
   return {
     readContract: vi.fn(
@@ -84,6 +118,14 @@ function createMockPublicClient(overrides?: {
         throw new Error(`Unknown function: ${functionName}`);
       },
     ),
+    call: vi.fn(async () => {
+      const data =
+        overrides?.fundingInputBoundData ?? fundingInputBoundReturn(20);
+      if (data instanceof Error) {
+        throw data;
+      }
+      return { data };
+    }),
     multicall: vi.fn(
       async ({
         contracts,
@@ -379,6 +421,139 @@ describe("ViemProtocolParamsReader", () => {
     await expect(reader.getPeginActivationDelay()).rejects.toThrow(
       /Invalid peginActivationDelay from contract: must be a bigint/,
     );
+  });
+
+  it("getMaxFundingInputCount returns the published bound", async () => {
+    const publicClient = createMockPublicClient();
+    const reader = new ViemProtocolParamsReader(
+      publicClient as never,
+      MOCK_ADDRESS,
+    );
+
+    await expect(reader.getMaxFundingInputCount()).resolves.toEqual({
+      status: "published",
+      maxInputs: 20,
+    });
+  });
+
+  it("getMaxFundingInputCount reports 0 as unpublished, never as unbounded", async () => {
+    const publicClient = createMockPublicClient({
+      fundingInputBoundData: fundingInputBoundReturn(0),
+    });
+    const reader = new ViemProtocolParamsReader(
+      publicClient as never,
+      MOCK_ADDRESS,
+    );
+
+    await expect(reader.getMaxFundingInputCount()).resolves.toEqual({
+      status: "unpublished",
+    });
+  });
+
+  it("getMaxFundingInputCount reports a 6-word legacy tuple as unsupported", async () => {
+    const publicClient = createMockPublicClient({
+      fundingInputBoundData: words(100000n, 10000000n, 7200n, 14400n, 5, 100n),
+    });
+    const reader = new ViemProtocolParamsReader(
+      publicClient as never,
+      MOCK_ADDRESS,
+    );
+
+    await expect(reader.getMaxFundingInputCount()).resolves.toEqual({
+      status: "unsupported",
+    });
+  });
+
+  it("getMaxFundingInputCount reports a 7-word legacy tuple as unsupported", async () => {
+    const publicClient = createMockPublicClient({
+      fundingInputBoundData: words(
+        100000n,
+        10000000n,
+        7200n,
+        14400n,
+        5,
+        100n,
+        200n,
+      ),
+    });
+    const reader = new ViemProtocolParamsReader(
+      publicClient as never,
+      MOCK_ADDRESS,
+    );
+
+    await expect(reader.getMaxFundingInputCount()).resolves.toEqual({
+      status: "unsupported",
+    });
+  });
+
+  it("getMaxFundingInputCount rejects a truncated tuple instead of reporting unsupported", async () => {
+    // A one-word return is malformed protocol data, not an older deployment.
+    // Folding it into `unsupported` would fail open — the caller would skip
+    // the input-count check rather than surface the bad response.
+    const publicClient = createMockPublicClient({
+      fundingInputBoundData: words(20),
+    });
+    const reader = new ViemProtocolParamsReader(
+      publicClient as never,
+      MOCK_ADDRESS,
+    );
+
+    await expect(reader.getMaxFundingInputCount()).rejects.toThrow(
+      "Invalid getTBVProtocolParams return: expected 8 words (or a legacy 6/7-word tuple), got 32 bytes",
+    );
+  });
+
+  it("getMaxFundingInputCount rethrows a transport failure instead of reporting unsupported", async () => {
+    const publicClient = createMockPublicClient({
+      fundingInputBoundData: new Error("rpc down"),
+    });
+    const reader = new ViemProtocolParamsReader(
+      publicClient as never,
+      MOCK_ADDRESS,
+    );
+
+    await expect(reader.getMaxFundingInputCount()).rejects.toThrow("rpc down");
+  });
+
+  it("getMaxFundingInputCount rejects an out-of-range bound", async () => {
+    // Hand-built: viem's `uint8` encoder rejects 300, so this shape can only
+    // arrive from a contract, not from `encodeFunctionResult`.
+    const publicClient = createMockPublicClient({
+      fundingInputBoundData: words(
+        100000n,
+        10000000n,
+        7200n,
+        14400n,
+        5,
+        100n,
+        200n,
+        300,
+      ),
+    });
+    const reader = new ViemProtocolParamsReader(
+      publicClient as never,
+      MOCK_ADDRESS,
+    );
+
+    await expect(reader.getMaxFundingInputCount()).rejects.toThrow(
+      "maxFundingInputCount must be an integer in [1, 255], got 300",
+    );
+  });
+
+  it("getMaxFundingInputCount calls the 8-component selector and forwards blockNumber", async () => {
+    const publicClient = createMockPublicClient();
+    const reader = new ViemProtocolParamsReader(
+      publicClient as never,
+      MOCK_ADDRESS,
+    );
+
+    await reader.getMaxFundingInputCount(1234n);
+
+    expect(publicClient.call).toHaveBeenCalledWith({
+      to: MOCK_ADDRESS,
+      data: FUNDING_INPUT_BOUND_CALLDATA,
+      blockNumber: 1234n,
+    });
   });
 
   it("getTBVProtocolParams throws on invalid params via the auto-validator", async () => {

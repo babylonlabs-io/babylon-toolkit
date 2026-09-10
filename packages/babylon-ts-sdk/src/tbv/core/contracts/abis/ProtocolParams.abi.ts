@@ -373,3 +373,71 @@ export const ProtocolParamsABI = [
     stateMutability: "view",
   },
 ] as const;
+
+// The full 8-component `TBVProtocolParams` tuple, ending in the
+// `maxFundingInputCount` bound the registry enforces on a Pre-PegIn's input
+// count. It lives in its own ABI rather than as a second `getTBVProtocolParams`
+// entry in `ProtocolParamsABI` for two reasons: viem's `getAbiItem` picks the
+// first entry of a given name, so a duplicate would shadow the 6-component one
+// every other read depends on; and an 8-component decode cannot be run
+// against the 6- or 7-word return of deployments that predate the field.
+// Read it only through `getMaxFundingInputCount`, which classifies the raw
+// return by word count before decoding and reports those shorter tuples as
+// an `unsupported` bound.
+export const ProtocolParamsFundingInputBoundABI = [
+  {
+    type: "function",
+    name: "getTBVProtocolParams",
+    inputs: [],
+    outputs: [
+      {
+        name: "",
+        type: "tuple",
+        internalType: "struct IProtocolParams.TBVProtocolParams",
+        components: [
+          {
+            name: "minimumPegInAmount",
+            type: "uint64",
+            internalType: "uint64",
+          },
+          {
+            name: "maxPegInAmount",
+            type: "uint64",
+            internalType: "uint64",
+          },
+          {
+            name: "pegInAckTimeout",
+            type: "uint64",
+            internalType: "uint64",
+          },
+          {
+            name: "pegInActivationTimeout",
+            type: "uint64",
+            internalType: "uint64",
+          },
+          {
+            name: "maxHtlcOutputCount",
+            type: "uint8",
+            internalType: "uint8",
+          },
+          {
+            name: "expiredPegInGraceBlocks",
+            type: "uint64",
+            internalType: "uint64",
+          },
+          {
+            name: "peginActivationDelay",
+            type: "uint64",
+            internalType: "uint64",
+          },
+          {
+            name: "maxFundingInputCount",
+            type: "uint8",
+            internalType: "uint8",
+          },
+        ],
+      },
+    ],
+    stateMutability: "view",
+  },
+] as const;

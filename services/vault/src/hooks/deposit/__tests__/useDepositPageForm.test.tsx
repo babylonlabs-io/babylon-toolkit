@@ -370,6 +370,14 @@ vi.mock("../useEstimatedBtcFee", () => ({
   })),
 }));
 
+vi.mock("../useFundingInputBound", () => ({
+  useFundingInputBound: vi.fn(() => ({
+    bound: { status: "published", maxInputs: 20 },
+    isError: false,
+  })),
+  resolveMaxInputCount: vi.fn(() => 20),
+}));
+
 vi.mock("../useDepositValidation", () => ({
   useDepositValidation: vi.fn(() => ({
     validateAmount: mockValidateAmount,

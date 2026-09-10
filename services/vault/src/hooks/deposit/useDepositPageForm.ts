@@ -41,6 +41,10 @@ import { useAllocationPlanning } from "./useAllocationPlanning";
 import { useDepositFormErrors } from "./useDepositFormErrors";
 import { useDepositValidation } from "./useDepositValidation";
 import { useEstimatedBtcFee } from "./useEstimatedBtcFee";
+import {
+  resolveMaxInputCount,
+  useFundingInputBound,
+} from "./useFundingInputBound";
 import { useVaultProviders } from "./useVaultProviders";
 
 const STALE_TIME_MS = 5 * 60 * 1000;
@@ -181,6 +185,29 @@ export interface UseDepositPageFormResult {
    * the check resolves.
    */
   ordinalsCheckPending: boolean;
+
+  /**
+   * On-chain `maxFundingInputCount` as the SDK's UTXO selector wants it —
+   * `null` for a deployment without the field, `undefined` while unresolved.
+   */
+  maxInputCount: number | null | undefined;
+  /**
+   * True when the chain publishes no funding-input bound (reads 0). Terminal:
+   * the registry would reject any Pre-PegIn built without one, so consumers
+   * must block the CTA rather than select against an uncapped budget.
+   */
+  fundingInputBoundUnpublished: boolean;
+  /**
+   * True when the funding-input bound read terminally failed — fail closed,
+   * same as the vault-count cap.
+   */
+  fundingInputBoundUnavailable: boolean;
+  /**
+   * True when the bound, not the wallet balance, is what caps the depositable
+   * maximum — the depositor holds more spendable UTXOs than one Pre-PegIn may
+   * spend. Advisory: the Max already accounts for it.
+   */
+  fundingInputCapBites: boolean;
 
   // Two-vault split (multi-vault) intent
   isTwoVaultSplit: boolean;
@@ -416,13 +443,22 @@ export function useDepositPageForm(): UseDepositPageFormResult {
   const vaultCount = isTwoVaultSplit && canSplit ? 2 : 1;
   const numPeginOutputs = peginOutputCount(vaultCount, true);
 
+  const { bound: fundingInputBound, isError: fundingInputBoundUnavailable } =
+    useFundingInputBound();
+  const maxInputCount = resolveMaxInputCount(fundingInputBound);
+
   const {
     fee: estimatedFeeSats,
     feeRate: estimatedFeeRate,
     isLoading: isLoadingFee,
     error: feeError,
     maxDeposit: maxDepositSats,
-  } = useEstimatedBtcFee(amountSats, spendableMempoolUTXOs, numPeginOutputs);
+  } = useEstimatedBtcFee(
+    amountSats,
+    spendableMempoolUTXOs,
+    numPeginOutputs,
+    maxInputCount,
+  );
 
   // Compute depositorClaimValue for UI validation (min deposit check).
   // Uses {VP} ∪ {VKs} − {depositor} which is >= the transaction builder's
@@ -751,6 +787,12 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     appVersionUnsupported,
     p2aAnchorValueSats: p2aAnchorValueSats ?? null,
     ordinalsCheckPending,
+    maxInputCount,
+    fundingInputBoundUnpublished: fundingInputBound?.status === "unpublished",
+    fundingInputBoundUnavailable,
+    fundingInputCapBites:
+      fundingInputBound?.status === "published" &&
+      (spendableMempoolUTXOs?.length ?? 0) > fundingInputBound.maxInputs,
     isTwoVaultSplit,
     setIsTwoVaultSplit,
     canSplit,

@@ -213,6 +213,11 @@ export interface TBVProtocolParams {
   expiredPegInGraceBlocks: bigint;
 }
 
+export type FundingInputBound =
+  | { status: "unsupported" }
+  | { status: "unpublished" }
+  | { status: "published"; maxInputs: number };
+
 /**
  * Versioned offchain parameters from the ProtocolParams contract.
  * Matches Solidity struct `IProtocolParams.VersionedOffchainParams` exactly.
@@ -315,6 +320,24 @@ export interface ProtocolParamsReader {
    *   the decoded payload is not a `bigint`.
    */
   getPeginActivationDelay(): Promise<bigint>;
+  /**
+   * Ceiling on the number of funding inputs one Pre-PegIn may spend, read
+   * from `TBVProtocolParams.maxFundingInputCount`.
+   *
+   * `unsupported` means the deployment predates the field, and is returned
+   * only when the contract answers with the 6- or 7-word tuple of a
+   * deployment that predates the field; any other length is invalid protocol
+   * data and throws. `unpublished` means the field decoded as `0`, which
+   * governance has not set yet — a bound of zero is not a real limit, so
+   * callers must block rather than treat it as unbounded. `published`
+   * carries an integer validated into `[1, 255]`. Every other failure —
+   * a dead RPC, a wrong-length return, an out-of-range value — rethrows.
+   *
+   * Pass `blockNumber` when the result will shape a Bitcoin lock, so the
+   * bound describes the same block as the peg-in config it is enforced
+   * alongside.
+   */
+  getMaxFundingInputCount(blockNumber?: bigint): Promise<FundingInputBound>;
   fetchAllOffchainParams(
     onSkippedVersion?: OnSkippedOffchainParamsVersion,
   ): Promise<AllOffchainParamsData>;

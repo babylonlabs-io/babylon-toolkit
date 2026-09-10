@@ -197,6 +197,22 @@ describe("mapDepositError", () => {
     expect(mapDepositError(err)).toEqual(ERRORS.vaultCountLimitChanged);
   });
 
+  it("maps a funding-inputs drift to the peg-ins-paused callout", () => {
+    // Nothing the depositor chose can fix an unpublished bound, so this must
+    // not share the two callouts above, which both send them back to the form.
+    const err = Object.assign(new Error("Deposit limits changed"), {
+      name: "BuildLimitsDriftError",
+      reason: "funding-inputs",
+    });
+    expect(mapDepositError(err)).toEqual(ERRORS.peginsPaused);
+  });
+
+  it("maps an exceeded funding-input count to the too-many-UTXOs callout", () => {
+    const err = new Error("Funding this deposit needs more than 20 UTXOs");
+    err.name = "FundingInputCountExceededError";
+    expect(mapDepositError(err)).toEqual(ERRORS.tooManyFundingInputs);
+  });
+
   it("falls back to the amount-bounds callout when the reason did not survive", () => {
     // A structurally-cloned error matches by name but loses its fields. Both
     // callouts send the depositor back to the form, so the common case is the

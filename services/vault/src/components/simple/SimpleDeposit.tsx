@@ -142,6 +142,10 @@ function SimpleDepositContent({
     btcPublicKeyError,
     refetchBtcPublicKey,
     ordinalsCheckPending,
+    maxInputCount,
+    fundingInputBoundUnpublished,
+    fundingInputBoundUnavailable,
+    fundingInputCapBites,
     validateForm,
     resetForm,
   } = useDepositPageForm();
@@ -297,6 +301,7 @@ function SimpleDepositContent({
     estimatedFeeRate,
     depositorClaimValue,
     minPeginFee,
+    maxInputCount,
   });
   const [overlappingPendingVaultCount, setOverlappingPendingVaultCount] =
     useState<number | null>(null);
@@ -356,6 +361,11 @@ function SimpleDepositContent({
     // position past the on-chain cap, or when the cap couldn't be read (fail
     // closed) — defense-in-depth behind the disabled CTA.
     if (isVaultCapReached || vaultCountCapUnavailable) return;
+
+    // Same fail-closed shape for the on-chain funding-input bound: the registry
+    // rejects a Pre-PegIn built without one, and an unreadable bound means we
+    // cannot know how many UTXOs the selector may spend.
+    if (fundingInputBoundUnpublished || fundingInputBoundUnavailable) return;
 
     // The CTA doubles as the recovery action when the wallet-liveness probe
     // has failed OR the proactive lock poll has flagged a silently-locked
@@ -522,6 +532,9 @@ function SimpleDepositContent({
                   ordinalsCheckPending,
                   isVaultCapReached,
                   vaultCountCapUnavailable,
+                  fundingInputBoundUnpublished,
+                  fundingInputBoundUnavailable,
+                  fundingInputCapBites,
                   splitUnavailableReason,
                   // Usage figures only make sense for the per-position cap; the
                   // protocol cap can bite with an empty position and an unknown

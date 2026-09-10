@@ -18,6 +18,10 @@ import { MIN_RELAY_FEE_RATE_SATS_VB } from "@/constants";
 import { useBTCWallet } from "@/context/wallet";
 import { COPY } from "@/copy";
 import { useEstimatedBtcFee } from "@/hooks/deposit/useEstimatedBtcFee";
+import {
+  resolveMaxInputCount,
+  useFundingInputBound,
+} from "@/hooks/deposit/useFundingInputBound";
 import { useNetworkFees } from "@/hooks/useNetworkFees";
 import { useUTXOs } from "@/hooks/useUTXOs";
 import { satoshiToBtcNumber } from "@/utils/btcConversion";
@@ -69,10 +73,12 @@ export function FeeRateSelector({
     [vaultAmounts],
   );
   const numOutputs = peginOutputCount(vaultAmounts.length, true);
+  const { bound: fundingInputBound } = useFundingInputBound();
   const estimatedFee = useEstimatedBtcFee(
     totalAmountSats,
     spendableMempoolUTXOs,
     numOutputs,
+    resolveMaxInputCount(fundingInputBound),
     feeRate,
   );
 

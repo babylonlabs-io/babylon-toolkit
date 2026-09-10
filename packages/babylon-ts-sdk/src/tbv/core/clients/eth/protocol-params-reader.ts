@@ -6,16 +6,22 @@
  */
 
 import type { Abi, Address, Hex, PublicClient } from "viem";
+import { decodeFunctionResult, encodeFunctionData, size } from "viem";
 
-import { ProtocolParamsABI } from "../../contracts/abis/ProtocolParams.abi";
+import {
+  ProtocolParamsABI,
+  ProtocolParamsFundingInputBoundABI,
+} from "../../contracts/abis/ProtocolParams.abi";
 import {
   assertValidOffchainParamsVersion,
+  validateMaxFundingInputCount,
   validateOffchainParams,
   validatePegInConfiguration,
   validateTBVProtocolParams,
 } from "./protocol-params-validation";
 import type {
   AllOffchainParamsData,
+  FundingInputBound,
   OnSkippedOffchainParamsVersion,
   PegInConfiguration,
   ProtocolParamsReader,
@@ -29,6 +35,18 @@ import type {
  */
 const UINT16_MAX = 65535;
 
+/** Width of one ABI-encoded word, in bytes. */
+const ABI_WORD_BYTES = 32;
+
+/**
+ * Return lengths of the two `TBVProtocolParams` struct generations that
+ * predate `maxFundingInputCount`: the original 6-component struct, and the
+ * 7-component one that appended `peginActivationDelay`.
+ */
+const TBV_PROTOCOL_PARAMS_LEGACY_WORD_COUNTS = [6, 7] as const;
+
+/** Word count of the current 8-component `TBVProtocolParams` struct. */
+const TBV_PROTOCOL_PARAMS_WORD_COUNT = 8;
 
 /**
  * Raw shape viem returns for VersionedOffchainParams struct.
@@ -206,6 +224,49 @@ export class ViemProtocolParamsReader implements ProtocolParamsReader {
       );
     }
     return raw;
+  }
+
+  async getMaxFundingInputCount(
+    blockNumber?: bigint,
+  ): Promise<FundingInputBound> {
+    const { data } = await this.publicClient.call({
+      to: this.contractAddress,
+      data: encodeFunctionData({
+        abi: ProtocolParamsFundingInputBoundABI,
+        functionName: "getTBVProtocolParams",
+      }),
+      blockNumber,
+    });
+    if (data === undefined) {
+      throw new Error("getTBVProtocolParams returned no data");
+    }
+
+    const words = size(data) / ABI_WORD_BYTES;
+    if (
+      (TBV_PROTOCOL_PARAMS_LEGACY_WORD_COUNTS as readonly number[]).includes(
+        words,
+      )
+    ) {
+      return { status: "unsupported" };
+    }
+    if (words !== TBV_PROTOCOL_PARAMS_WORD_COUNT) {
+      throw new Error(
+        `Invalid getTBVProtocolParams return: expected ${TBV_PROTOCOL_PARAMS_WORD_COUNT} words (or a legacy 6/7-word tuple), got ${size(data)} bytes`,
+      );
+    }
+
+    const result = decodeFunctionResult({
+      abi: ProtocolParamsFundingInputBoundABI,
+      functionName: "getTBVProtocolParams",
+      data,
+    });
+
+    const raw = result.maxFundingInputCount;
+    if (raw === 0) {
+      return { status: "unpublished" };
+    }
+    validateMaxFundingInputCount(raw);
+    return { status: "published", maxInputs: raw };
   }
 
   /**

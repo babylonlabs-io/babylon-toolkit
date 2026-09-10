@@ -165,6 +165,7 @@ const result = await peginManager.preparePegin({
   mempoolFeeRate,
   councilQuorum,
   councilSize,
+  maxFundingInputCount,             // on-chain bound, read at the pinned block
   availableUTXOs,
   changeAddress,
 });

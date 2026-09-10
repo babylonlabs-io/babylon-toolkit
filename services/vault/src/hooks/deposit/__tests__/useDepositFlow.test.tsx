@@ -9,6 +9,7 @@ import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import type {
   DepositTerms,
   DepositTermsApprover,
+  FundingInputBound,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { Address, Hex } from "viem";
@@ -25,6 +26,7 @@ import { COPY } from "@/copy";
 
 import { DepositFlowStep } from "../depositFlowSteps";
 import { useDepositFlow } from "../useDepositFlow";
+import { FUNDING_INPUT_BOUND_QUERY_KEY } from "../useFundingInputBound";
 
 const DEPOSIT_ERRORS = COPY.deposit.errors;
 
@@ -107,6 +109,12 @@ const chainMocks = vi.hoisted(() => {
     /** Block the flow pins its protocol-state reads to. */
     pinnedBlock: 4_242_042n,
     getPegInConfiguration: vi.fn(async () => peginConfig),
+    getMaxFundingInputCount: vi.fn(
+      async (): Promise<FundingInputBound> => ({
+        status: "published",
+        maxInputs: 20,
+      }),
+    ),
   };
 });
 
@@ -123,6 +131,7 @@ vi.mock("@/clients/eth-contract/sdk-readers", () => ({
   getOperationKeyReader: vi.fn(async () => ({})),
   getProtocolParamsReader: vi.fn(async () => ({
     getPegInConfiguration: chainMocks.getPegInConfiguration,
+    getMaxFundingInputCount: chainMocks.getMaxFundingInputCount,
   })),
 }));
 
@@ -149,9 +158,10 @@ vi.mock("@/hooks/useProtocolGate", () => ({
 }));
 
 // Avoid threading a real QueryClientProvider through every renderHook —
-// `useDepositFlow` uses the client for two things: invalidating the UTXO query
-// after broadcast, and seeding the peg-in config cache when a drift guard
-// aborts. Hoisted rather than inline so the seed can be asserted.
+// `useDepositFlow` uses the client for three things: invalidating the UTXO
+// query after broadcast, seeding the peg-in config cache when a drift guard
+// aborts, and refreshing the funding-input bound cache from every pinned build
+// read. Hoisted rather than inline so those writes can be asserted.
 const queryClientMocks = vi.hoisted(() => ({
   invalidateQueries: vi.fn(),
   setQueryData: vi.fn(),
@@ -1170,6 +1180,63 @@ describe("useDepositFlow", () => {
       );
     });
 
+    it("aborts before building and seeds the bound cache when the chain publishes no funding-input bound", async () => {
+      const { preparePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultTransactionService"),
+      );
+
+      const unpublished: FundingInputBound = { status: "unpublished" };
+      chainMocks.getMaxFundingInputCount.mockResolvedValueOnce(unpublished);
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+
+      await executeDepositFlow(result);
+
+      await waitFor(() => {
+        // Its own callout: nothing the depositor chose can fix an unpublished
+        // bound, so it must not share the "start again" copy of its siblings.
+        expect(result.current.error).toEqual(DEPOSIT_ERRORS.peginsPaused);
+      });
+      expect(preparePeginTransaction).not.toHaveBeenCalled();
+      // The bound has its own key, so the config seed above cannot repair it —
+      // without this a reopened form re-reads the stale published bound and
+      // fails here identically.
+      expect(queryClientMocks.setQueryData).toHaveBeenCalledWith(
+        FUNDING_INPUT_BOUND_QUERY_KEY,
+        unpublished,
+      );
+    });
+
+    it("refreshes the cached bound from the pinned read before building", async () => {
+      const { preparePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultTransactionService"),
+      );
+
+      // Governance lowered the bound below the 20 the form sized its Max
+      // against. Nothing aborts here — the SDK would reject the selection
+      // outside the drift guard — so only the unconditional refresh stops a
+      // restarted form offering the same unfundable Max again.
+      const lowered: FundingInputBound = { status: "published", maxInputs: 10 };
+      chainMocks.getMaxFundingInputCount.mockResolvedValueOnce(lowered);
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+
+      await executeDepositFlow(result);
+
+      await waitFor(() => {
+        expect(preparePeginTransaction).toHaveBeenCalled();
+      });
+      expect(queryClientMocks.setQueryData).toHaveBeenCalledWith(
+        FUNDING_INPUT_BOUND_QUERY_KEY,
+        lowered,
+      );
+      expect(preparePeginTransaction).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.anything(),
+        expect.objectContaining({ maxFundingInputCount: 10 }),
+      );
+    });
+
     it("does not touch the config cache when the abort is not drift", async () => {
       // The seed overwrites a key the blocking ProtocolParamsProvider and the
       // polling hook both read. A TypeError from the guard establishes nothing
@@ -1188,7 +1255,16 @@ describe("useDepositFlow", () => {
       await waitFor(() => {
         expect(result.current.error).not.toBeNull();
       });
-      expect(queryClientMocks.setQueryData).not.toHaveBeenCalled();
+      // Scoped to the config key: the bound cache is refreshed unconditionally
+      // from the pinned read, which succeeded, so it is legitimately written on
+      // this path too.
+      const { pegInConfigQueryOptions } = await vi.importActual<
+        typeof import("@/context/ProtocolParamsContext")
+      >("@/context/ProtocolParamsContext");
+      expect(queryClientMocks.setQueryData).not.toHaveBeenCalledWith(
+        pegInConfigQueryOptions().queryKey,
+        expect.anything(),
+      );
     });
 
     it("leaves the config cache alone when the build succeeds", async () => {
@@ -1201,7 +1277,13 @@ describe("useDepositFlow", () => {
       await waitFor(() => {
         expect(chainMocks.getPegInConfiguration).toHaveBeenCalled();
       });
-      expect(queryClientMocks.setQueryData).not.toHaveBeenCalled();
+      const { pegInConfigQueryOptions } = await vi.importActual<
+        typeof import("@/context/ProtocolParamsContext")
+      >("@/context/ProtocolParamsContext");
+      expect(queryClientMocks.setQueryData).not.toHaveBeenCalledWith(
+        pegInConfigQueryOptions().queryKey,
+        expect.anything(),
+      );
     });
 
     it("aborts before building when the pinned HTLC output cap is below the vault count", async () => {

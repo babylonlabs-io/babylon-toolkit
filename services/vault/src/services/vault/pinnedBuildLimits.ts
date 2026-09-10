@@ -46,8 +46,14 @@ import { validateVaultAmounts } from "@babylonlabs-io/ts-sdk/tbv/core/services";
  * copy: an amount outside the bounds is fixed by entering a different amount,
  * a vault count over the cap by not splitting. One message covering both would
  * give the wrong instruction for whichever case it was not written for.
+ *
+ * `funding-inputs` is the third: the chain stopped publishing a funding-input
+ * bound, which the depositor can do nothing about — its copy offers no fix.
  */
-export type BuildLimitsDriftReason = "amount-bounds" | "vault-count";
+export type BuildLimitsDriftReason =
+  | "amount-bounds"
+  | "vault-count"
+  | "funding-inputs";
 
 /**
  * The depositor's amounts or vault count fall outside the protocol limits read

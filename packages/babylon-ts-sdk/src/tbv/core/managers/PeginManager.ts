@@ -280,6 +280,16 @@ export interface PreparePeginParams {
   availableUTXOs: readonly UTXO[];
 
   /**
+   * On-chain `ProtocolParams.maxFundingInputCount` read at this build's
+   * pinned block — the most inputs one Pre-PegIn may spend. `null` only
+   * when the deployment predates the field.
+   *
+   * Enforced at UTXO selection, before any wallet or device I/O, and
+   * re-asserted against the funded transaction.
+   */
+  maxFundingInputCount: number | null;
+
+  /**
    * Bitcoin address for receiving change from the Pre-PegIn transaction.
    */
   changeAddress: string;
@@ -874,6 +884,7 @@ export class PeginManager {
       prePegin.totalOutputValue,
       params.mempoolFeeRate,
       peginOutputCount(prePegin.htlcValues.length, true),
+      params.maxFundingInputCount,
     );
 
     return {
@@ -1029,6 +1040,29 @@ export class PeginManager {
         `Pre-PegIn funded fee ${fundedFee} does not match the sizing-pass fee ` +
           `${sizing.fee}; refusing to publish a deposit-terms fee bound the ` +
           `funded transaction does not pay.`,
+      );
+    }
+
+    // The registry rejects `inputCount > maxFundingInputCount`, so re-read
+    // the input count off the funded tx rather than trusting the selection
+    // the funder was handed.
+    const fundedInputCount =
+      Transaction.fromHex(fundedPrePeginTxHex).ins.length;
+    if (fundedInputCount !== sizing.selectedUTXOs.length) {
+      throw new Error(
+        `Pre-PegIn declares ${fundedInputCount} inputs but ${sizing.selectedUTXOs.length} ` +
+          `UTXOs were selected; refusing to submit a transaction that does not ` +
+          `spend exactly the selected inputs.`,
+      );
+    }
+    if (
+      params.maxFundingInputCount !== null &&
+      fundedInputCount > params.maxFundingInputCount
+    ) {
+      throw new Error(
+        `Pre-PegIn declares ${fundedInputCount} inputs, above the on-chain ` +
+          `maxFundingInputCount of ${params.maxFundingInputCount}; refusing to ` +
+          `submit a transaction the registry will reject.`,
       );
     }
 
