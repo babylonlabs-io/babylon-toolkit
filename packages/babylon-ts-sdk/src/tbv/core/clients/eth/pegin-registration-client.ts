@@ -45,6 +45,31 @@ function assertBytes32(value: Hex, label: string): void {
   }
 }
 
+/** All-zero `bytes32` — the shape an unresolved fingerprint takes. */
+const ZERO_BYTES32 =
+  "0x0000000000000000000000000000000000000000000000000000000000000000";
+
+/**
+ * The single validation point for `expectedFingerprint`, on both the singular
+ * and batch paths.
+ *
+ * Zero is rejected separately from the shape check because it is a *well-formed*
+ * `bytes32` that the registry can never accept — the live fingerprint is a
+ * keccak256 over a domain-separated preimage — so it can only ever mean the
+ * caller had no value and filled the slot. Catching it here turns a defaulted
+ * field into a named error instead of an opaque on-chain revert with two
+ * hashes and no hint.
+ */
+function assertFingerprint(value: Hex): void {
+  assertBytes32(value, "expectedFingerprint");
+  if (value.toLowerCase() === ZERO_BYTES32) {
+    throw new Error(
+      "expectedFingerprint must not be zero: the registry cannot resolve a " +
+        "zero fingerprint, so this submission would always revert",
+    );
+  }
+}
+
 function assertHtlcVout(value: number): void {
   if (!Number.isInteger(value) || value < 0 || value > UINT8_MAX) {
     throw new Error(`htlcVout must be a uint8, got ${value}`);
@@ -93,6 +118,17 @@ export interface RegisterPeginOnChainParams {
    */
   depositorPayoutScriptPubKey: string;
   quotedCommissionBps?: number;
+  /**
+   * `keccak256(abi.encode(...))` over the protocol state the Pre-PegIn was
+   * built against — see the SDK's `pegin-fingerprint` module.
+   *
+   * The registry recomputes it live at inclusion and reverts with
+   * `PeginFingerprintChanged` on any difference, so it must be computed from
+   * the same block-pinned snapshot that shaped the Bitcoin scripts. Required,
+   * with no default: a fingerprint the caller did not resolve is not a
+   * fingerprint, and the registry has no way to tell the two apart.
+   */
+  expectedFingerprint: Hex;
 }
 
 export interface PeginRegistrationResult {
@@ -121,6 +157,12 @@ export interface RegisterPeginBatchOnChainParams {
   /** Raw x-only, compressed, or uncompressed BTC pubkey from the PoP wallet. */
   depositorBtcPubkeyRaw: string;
   quotedCommissionBps?: number;
+  /**
+   * See {@link RegisterPeginOnChainParams.expectedFingerprint}. One value for
+   * the whole batch: the fingerprint takes no per-request input and a batch
+   * fixes one vault provider, so every entry would resolve the same value.
+   */
+  expectedFingerprint: Hex;
 }
 
 export interface BatchPeginRegistrationResultItem {
@@ -150,6 +192,9 @@ export class ViemPeginRegistrationClient {
       popSignature: { ...params.popSignature },
     };
     this.assertQuotedCommissionPresentWhenRequired(request.quotedCommissionBps);
+    // Second, matching the batch path, so the two public entry points validate
+    // in the same order and neither can drift behind a chain call.
+    assertFingerprint(request.expectedFingerprint);
     const depositor = this.assertPopMatchesEthAccount(request.popSignature);
     const depositorBtcPubkey = this.normalizeBtcPubkey(request.popSignature);
     const btcPopSignature = ensureHex(
@@ -186,6 +231,9 @@ export class ViemPeginRegistrationClient {
         request.htlcVout,
         normalized.payoutScript,
         request.depositorWotsPkHash,
+        // Appended last on the singular overload; the batch takes it at
+        // position 4 instead. Order is the selector, so do not "tidy" either.
+        request.expectedFingerprint,
       ],
     });
 
@@ -214,6 +262,7 @@ export class ViemPeginRegistrationClient {
       throw new Error("Batch pegin requires at least one request");
     }
     this.assertQuotedCommissionPresentWhenRequired(batch.quotedCommissionBps);
+    assertFingerprint(batch.expectedFingerprint);
     const depositor = this.assertPopMatchesEthAccount(batch.popSignature);
     const unsignedPrePeginTx = ensureHex(
       batch.unsignedPrePeginTx,
@@ -271,7 +320,15 @@ export class ViemPeginRegistrationClient {
     const callData = encodeFunctionData({
       abi: BTCVaultRegistryABI,
       functionName: "submitPeginRequestBatch",
-      args: [depositor, batch.vaultProvider, maxCommission, requests],
+      // `expectedFingerprint` sits BEFORE `requests`, not appended. Reordering
+      // these five changes the selector and the call stops existing.
+      args: [
+        depositor,
+        batch.vaultProvider,
+        maxCommission,
+        batch.expectedFingerprint,
+        requests,
+      ],
     });
     const ethTxHash = await this.sendAndWait(
       callData,
@@ -320,8 +377,15 @@ export class ViemPeginRegistrationClient {
     )}`;
   }
 
+  // `expectedFingerprint` is omitted rather than accepted and ignored: nothing
+  // here normalizes it, and requiring it would force the batch loop to thread a
+  // value through a per-request helper that has no use for it. It is validated
+  // once per call, at the top of each public method.
   private normalizeRequest(
-    params: Omit<RegisterPeginOnChainParams, "popSignature">,
+    params: Omit<
+      RegisterPeginOnChainParams,
+      "popSignature" | "expectedFingerprint"
+    >,
     depositor: Address,
     depositorBtcPubkey: Hex,
   ) {

@@ -14,8 +14,11 @@ export { ProtocolParamsABI } from "./abis/ProtocolParams.abi";
 
 export {
   CONTRACT_ERRORS,
+  PEGIN_FINGERPRINT_CHANGED_SELECTOR,
+  PeginFingerprintChangedError,
   extractErrorData,
   getContractErrorMessage,
   handleContractError,
   isKnownContractError,
+  isPeginFingerprintChangedError,
 } from "./errors";

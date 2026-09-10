@@ -59,6 +59,7 @@ function buildRegistryReader(
     getVaultKeyEpochsBatch: vi.fn(),
     getCurrentVaultProviderOperationBtcKey: vi.fn(),
     getMaxAcceptableCommissionBpsBatch: vi.fn(),
+    getVaultProviderApplication: vi.fn(),
   };
 }
 
