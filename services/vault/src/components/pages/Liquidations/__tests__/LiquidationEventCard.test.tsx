@@ -76,41 +76,41 @@ describe("LiquidationEventCard", () => {
     ).toBeInTheDocument();
   });
 
-  describe("collateral / liq price / distance stat columns", () => {
-    const STAT_CARD: EventCardData = { ...CARD, collateralLabel: "1.23 tBTC" };
+  describe("stat columns", () => {
+    const STAT_CARD: EventCardData = {
+      ...CARD,
+      collateralLabel: "1.23456789 tBTC",
+      liqPriceLabel: "$104,231",
+      btcRemainingLabel: "0.12345678 BTC",
+      debtRemainingLabel: "$1,234,567",
+    };
 
-    it("gives each of the three stat columns an equal share that can shrink below its content width", () => {
+    it("carries the full figure of every stat value in its title so truncation cannot hide it", () => {
       render(<LiquidationEventCard card={STAT_CARD} />);
 
-      for (const value of ["1.23 tBTC", "$60,000", "-10%"]) {
-        expect(screen.getByText(value).parentElement).toHaveClass(
-          "flex-1",
-          "min-w-0",
-        );
+      for (const value of [
+        "1.23456789 tBTC",
+        "$104,231",
+        "-10%",
+        "0.12345678 BTC",
+        "$1,234,567",
+        "1.20",
+      ]) {
+        expect(screen.getByTitle(value)).toHaveTextContent(value);
       }
     });
 
-    it("carries the full untruncated value in a title attribute", () => {
+    it("keeps collateral, liq price and distance as siblings of a single row", () => {
       render(<LiquidationEventCard card={STAT_CARD} />);
 
-      for (const value of ["1.23 tBTC", "$60,000", "-10%"]) {
-        expect(screen.getByText(value)).toHaveAttribute("title", value);
-      }
-    });
+      const [collateral, liqPrice, distance] = [
+        "1.23456789 tBTC",
+        "$104,231",
+        "-10%",
+      ].map((value) => screen.getByTitle(value).parentElement);
 
-    it("clips an overflowing stat value with an ellipsis instead of pushing the next column", () => {
-      render(<LiquidationEventCard card={STAT_CARD} />);
-
-      for (const value of ["1.23 tBTC", "$60,000", "-10%"]) {
-        const element = screen.getByText(value);
-        expect(element).toHaveClass(
-          "block",
-          "overflow-hidden",
-          "text-ellipsis",
-        );
-        expect(element.className).not.toMatch(/(^|\s)truncate(\s|$)/);
-        expect(element.className).not.toMatch(/(^|\s)whitespace-nowrap(\s|$)/);
-      }
+      expect(collateral?.parentElement).toBe(liqPrice?.parentElement);
+      expect(liqPrice?.parentElement).toBe(distance?.parentElement);
     });
   });
 });

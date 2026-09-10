@@ -1,5 +1,4 @@
 import { Hint } from "@babylonlabs-io/core-ui";
-import type { ReactNode } from "react";
 import { twJoin } from "tailwind-merge";
 
 import { COPY } from "@/copy";
@@ -58,11 +57,11 @@ function DetailRow({
 
 function Stat({
   label,
-  children,
+  value,
   className,
 }: {
   label: string;
-  children: ReactNode;
+  value: string;
   className?: string;
 }) {
   return (
@@ -71,13 +70,13 @@ function Stat({
         {label}
       </span>
       <span
-        title={typeof children === "string" ? children : undefined}
+        title={value}
         className={twJoin(
           "block overflow-hidden text-ellipsis leading-[1.6] tracking-[0.15px]",
           className,
         )}
       >
-        {children}
+        {value}
       </span>
     </div>
   );
@@ -139,28 +138,25 @@ export function LiquidationEventCard({ card }: { card: EventCardData }) {
       <div className="flex gap-16">
         <Stat
           label={COPY.liquidations.events.collateral}
+          value={card.collateralLabel}
           className="text-xl text-accent-primary"
-        >
-          {card.collateralLabel}
-        </Stat>
+        />
         <Stat
           label={COPY.liquidations.events.liqPrice}
+          value={card.liqPriceLabel}
           className={twJoin(
             "text-xl",
             triggered ? "text-error-light" : "text-success-light",
           )}
-        >
-          {card.liqPriceLabel}
-        </Stat>
+        />
         <Stat
           label={COPY.liquidations.events.distance}
+          value={card.distanceLabel}
           className={twJoin(
             "text-xl",
             triggered ? "text-error-light" : "text-success-light",
           )}
-        >
-          {card.distanceLabel}
-        </Stat>
+        />
       </div>
 
       <div className="flex flex-col gap-2">
@@ -230,22 +226,19 @@ export function LiquidationEventCard({ card }: { card: EventCardData }) {
         <div className="flex gap-16">
           <Stat
             label={COPY.liquidations.events.btcRemaining}
+            value={card.btcRemainingLabel}
             className="text-base text-accent-primary"
-          >
-            {card.btcRemainingLabel}
-          </Stat>
+          />
           <Stat
             label={COPY.liquidations.events.debtRemaining}
+            value={card.debtRemainingLabel}
             className="text-base text-accent-primary"
-          >
-            {card.debtRemainingLabel}
-          </Stat>
+          />
           <Stat
             label={COPY.liquidations.events.hfAfterLiquidation}
+            value={card.hfAfterLabel}
             className="text-base text-risk-amber"
-          >
-            {card.hfAfterLabel}
-          </Stat>
+          />
         </div>
       </div>
     </article>
