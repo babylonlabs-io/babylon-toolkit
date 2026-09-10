@@ -39,7 +39,7 @@ export function usePendingDeposits() {
     refetchActivities,
     loading,
     error,
-    removePendingPegin,
+    removePendingPegins,
     indexedVaultIds,
   } = useVaultDeposits(ethAddress as Address | undefined);
 
@@ -134,13 +134,14 @@ export function usePendingDeposits() {
     error,
     refetchActivities,
     /**
-     * Discards one browser-local pending deposit. Returns false when the
-     * localStorage write failed and the record is still stored.
+     * Discards browser-local pending deposits in one storage write — the whole
+     * batch of a split deposit at once. Returns false when the write failed
+     * and the records are still stored.
      */
-    removePendingPegin,
+    removePendingPegins,
     /**
-     * Lowercased ids of every vault the indexer returned, or null while the
-     * indexer has not answered successfully.
+     * Lowercased ids of every vault the indexer returned, or null unless that
+     * set is known to be complete (answered successfully, no dropped rows).
      */
     indexedVaultIds,
     broadcastModal,

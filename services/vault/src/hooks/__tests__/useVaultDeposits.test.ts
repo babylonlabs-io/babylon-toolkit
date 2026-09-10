@@ -21,6 +21,7 @@ vi.mock("../../storage/usePeginStorage", () => ({
     allActivities: [],
     pendingPegins: [],
     addPendingPegin: vi.fn(),
+    removePendingPegins: vi.fn(),
   })),
 }));
 vi.mock("../../storage/peginStorage", () => ({
@@ -76,6 +77,34 @@ describe("useVaultDeposits", () => {
     });
     // Importantly, no setInterval was scheduled regardless.
     expect(setIntervalSpy).not.toHaveBeenCalled();
+  });
+
+  it("exposes the indexed vault ids when the indexer returned every row", () => {
+    useVaultsMock.mockReturnValue({
+      data: { vaults: [], droppedCount: 0 },
+      status: "success",
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+
+    const { result } = renderHook(() => useVaultDeposits(ADDRESS));
+
+    expect(result.current.indexedVaultIds).toEqual(new Set());
+  });
+
+  it("withholds the indexed vault ids when the fetch dropped a row", () => {
+    useVaultsMock.mockReturnValue({
+      data: { vaults: [], droppedCount: 1 },
+      status: "success",
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+
+    const { result } = renderHook(() => useVaultDeposits(ADDRESS));
+
+    expect(result.current.indexedVaultIds).toBeNull();
   });
 
   it("exports the FAST/NORMAL interval constants used as polling cadences", () => {

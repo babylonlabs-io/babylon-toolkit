@@ -580,7 +580,7 @@ export function VaultsLifecycleSections({
     refundModal,
     reclaimModal,
     emergencyWithdrawModal,
-    removePendingPegin,
+    removePendingPegins,
     indexedVaultIds,
     demo,
   } = deposits;
@@ -700,13 +700,13 @@ export function VaultsLifecycleSections({
 
   /**
    * A deposit may be discarded only on positive evidence that it is the
-   * browser's alone: the indexer answered successfully and did not return this
-   * vault. A failing, empty-because-erroring, or still-loading indexer leaves
+   * browser's alone: the indexer answered completely and did not return this
+   * vault. A failing, still-loading, or row-dropping indexer leaves
    * `indexedVaultIds` null and offers nothing — an indexed deposit's record
    * carries the participant-key stamp that blocks an unsafe later broadcast,
    * and must never be discarded on the mere absence of a row.
    */
-  const canDismiss = useCallback(
+  const canDismissRecord = useCallback(
     (activity: VaultActivity) => {
       if (activity.isPending !== true || indexedVaultIds === null) return false;
       if (!realActivityIds.has(activity.id)) return false;
@@ -714,6 +714,26 @@ export function VaultsLifecycleSections({
     },
     [indexedVaultIds, realActivityIds],
   );
+
+  /**
+   * The records of a split deposit share one funded Pre-PegIn transaction, so
+   * discarding one alone would leave a sibling able to broadcast a transaction
+   * that funds a vault whose record — and its Pre-PegIn hex — is gone. The
+   * whole batch is therefore discardable together or not at all.
+   */
+  const canDismiss = useCallback(
+    (activity: VaultActivity) =>
+      canDismissRecord(activity) &&
+      getBatchSiblings(allActivities, activity).every(canDismissRecord),
+    [allActivities, canDismissRecord],
+  );
+
+  const dismissBatch = useMemo(() => {
+    if (dismissingId === null) return [];
+    const activity = pendingActivities.find((a) => a.id === dismissingId);
+    if (!activity || !canDismiss(activity)) return [];
+    return getBatchSiblings(allActivities, activity);
+  }, [allActivities, canDismiss, dismissingId, pendingActivities]);
 
   const handleDismiss = useCallback((depositId: string) => {
     setDismissFailed(false);
@@ -724,20 +744,18 @@ export function VaultsLifecycleSections({
     setDismissingId(null);
   }, []);
   const handleDismissConfirm = useCallback(() => {
-    if (!dismissingId) return;
-    const activity = pendingActivities.find((a) => a.id === dismissingId);
-    if (!activity || !canDismiss(activity)) {
+    if (dismissBatch.length === 0) {
       setDismissFailed(false);
       setDismissingId(null);
       return;
     }
-    if (!removePendingPegin(dismissingId)) {
+    if (!removePendingPegins(dismissBatch.map((a) => a.id))) {
       setDismissFailed(true);
       return;
     }
     setDismissFailed(false);
     setDismissingId(null);
-  }, [canDismiss, dismissingId, pendingActivities, removePendingPegin]);
+  }, [dismissBatch, removePendingPegins]);
 
   // Keep the section (and its modals) mounted while a modal is open, even if
   // the last row advances to a terminal state mid-flow.
@@ -826,6 +844,7 @@ export function VaultsLifecycleSections({
 
       <DismissPendingDepositDialog
         open={dismissingId !== null}
+        count={dismissBatch.length}
         failed={dismissFailed}
         onCancel={handleDismissCancel}
         onConfirm={handleDismissConfirm}

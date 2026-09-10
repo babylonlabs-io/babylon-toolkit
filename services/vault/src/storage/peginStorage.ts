@@ -440,21 +440,31 @@ function persistStoredEntries(
 }
 
 /**
- * Read the stored array without validating or normalizing its entries. Null
- * means there is nothing readable — a missing key, a non-array blob, or
- * unparseable JSON — and is never a licence to write an empty list.
+ * Read the stored array without validating or normalizing its entries.
+ *
+ * `empty` means the key is absent, so there is nothing stored to act on.
+ * `unreadable` means something is stored that cannot be interpreted — a
+ * non-array blob, unparseable JSON, or a localStorage that throws on read —
+ * and is never a licence to write an empty list or to report a removal.
  */
-function readStoredEntries(ethAddress: string): unknown[] | null {
+type StoredEntriesRead =
+  | { status: "ok"; entries: unknown[] }
+  | { status: "empty" }
+  | { status: "unreadable" };
+
+function readStoredEntries(ethAddress: string): StoredEntriesRead {
   try {
     const stored = localStorage.getItem(getStorageKey(ethAddress));
-    if (!stored) return null;
+    if (!stored) return { status: "empty" };
     const parsed: unknown = JSON.parse(stored);
-    return Array.isArray(parsed) ? parsed : null;
+    return Array.isArray(parsed)
+      ? { status: "ok", entries: parsed }
+      : { status: "unreadable" };
   } catch (error) {
     logger.error(error instanceof Error ? error : new Error(String(error)), {
       data: { context: "[peginStorage] Failed to parse stored pending pegins" },
     });
-    return null;
+    return { status: "unreadable" };
   }
 }
 
@@ -552,26 +562,55 @@ export function updatePendingPeginStatus(
  * Remove a single pending peg-in entry by its vault id, matching the id
  * case-insensitively.
  *
+ * @returns false when the entry could not be removed and is still stored.
+ * Callers that report the outcome to the user must not treat a failed removal
+ * as a removal.
+ */
+export function removePendingPegin(ethAddress: string, vaultId: Hex): boolean {
+  return removePendingPegins(ethAddress, [vaultId]);
+}
+
+/**
+ * Remove every pending peg-in entry in `vaultIds` in a single write, matching
+ * ids case-insensitively.
+ *
+ * One write is what makes a batched Pre-PegIn safe to discard: its records all
+ * share one funded transaction, so a partial removal would leave a sibling on
+ * screen with a broadcast button and no way back to the removed ones.
+ *
  * Operates on the raw stored array so siblings that `getPendingPegins` hides —
  * legacy records without the build-version stamps, entries a browser extension
  * mangled — are written back untouched instead of being dropped along with the
- * targeted entry.
+ * targeted entries.
  *
- * @returns false when the localStorage write failed and the entry is still
- * stored. Callers that report the outcome to the user must not treat a failed
- * removal as a removal.
+ * @returns false when localStorage could not be read, or when the write failed
+ * and the entries are still stored. Callers that report the outcome to the user
+ * must not treat a failed removal as a removal.
  */
-export function removePendingPegin(ethAddress: string, vaultId: Hex): boolean {
+export function removePendingPegins(
+  ethAddress: string,
+  vaultIds: readonly Hex[],
+): boolean {
   if (!ethAddress) return false;
 
-  const stored = readStoredEntries(ethAddress);
-  if (stored === null) return true;
+  const read = readStoredEntries(ethAddress);
+  if (read.status === "unreadable") return false;
+  if (read.status === "empty") {
+    dispatchStorageUpdateEvent(ethAddress);
+    return true;
+  }
 
-  const target = normalizeTransactionId(vaultId).toLowerCase();
-  const remaining = stored.filter(
-    (entry) => readStoredEntryId(entry) !== target,
+  const targets = new Set(
+    vaultIds.map((vaultId) => normalizeTransactionId(vaultId).toLowerCase()),
   );
-  if (remaining.length === stored.length) return true;
+  const remaining = read.entries.filter((entry) => {
+    const id = readStoredEntryId(entry);
+    return id === undefined || !targets.has(id);
+  });
+  if (remaining.length === read.entries.length) {
+    dispatchStorageUpdateEvent(ethAddress);
+    return true;
+  }
 
   try {
     persistStoredEntries(ethAddress, remaining);

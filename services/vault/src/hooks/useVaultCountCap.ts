@@ -80,7 +80,8 @@ export function useVaultCountCap(
     refetchOnWindowFocus: false,
   });
 
-  const { data: vaults, isError: vaultsError } = useVaults(address);
+  const { data: vaultsResult, isError: vaultsError } = useVaults(address);
+  const vaults = vaultsResult?.vaults;
 
   const currentCount = useMemo(
     () =>

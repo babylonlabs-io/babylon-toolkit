@@ -5,13 +5,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { logger } from "@/infrastructure";
 
-import { STORAGE_KEY_PREFIX } from "../../constants";
+import { STORAGE_KEY_PREFIX, STORAGE_UPDATE_EVENT } from "../../constants";
 import { LocalStorageStatus } from "../../models/peginStateMachine";
 import {
   addPendingPegin,
   getPendingPegins,
   type PendingPeginRequest,
   removePendingPegin,
+  removePendingPegins,
 } from "../peginStorage";
 
 vi.mock("@/infrastructure", () => ({
@@ -635,15 +636,69 @@ describe("removePendingPegin", () => {
     expect(getPendingPegins(ETH_ADDRESS)).toEqual([]);
   });
 
-  it("writes nothing when the vault id is not stored", () => {
+  it("notifies listeners when the stored entry is already gone", () => {
+    const listener = vi.fn();
+    window.addEventListener(STORAGE_UPDATE_EVENT, listener);
+
+    try {
+      expect(removePendingPegin(ETH_ADDRESS, VALID_VAULT_ID)).toBe(true);
+      expect(listener).toHaveBeenCalledTimes(1);
+    } finally {
+      window.removeEventListener(STORAGE_UPDATE_EVENT, listener);
+    }
+  });
+
+  it("reports a failed removal when the stored entries cannot be read", () => {
     localStorage.setItem(storageKey, JSON.stringify([validPegin]));
+    const getItemSpy = vi
+      .spyOn(Storage.prototype, "getItem")
+      .mockImplementation(() => {
+        throw new Error("SecurityError: access to storage is denied");
+      });
+
+    try {
+      expect(removePendingPegin(ETH_ADDRESS, VALID_VAULT_ID)).toBe(false);
+    } finally {
+      getItemSpy.mockRestore();
+    }
+  });
+
+  it("removes several ids in a single write", () => {
+    const second = { ...validPegin, id: VALID_VAULT_ID_2 };
+    const survivor = { ...validPegin, id: `0x${"c".repeat(64)}` };
+    localStorage.setItem(
+      storageKey,
+      JSON.stringify([validPegin, second, survivor]),
+    );
     const setItemSpy = vi.spyOn(Storage.prototype, "setItem");
 
     try {
-      removePendingPegin(ETH_ADDRESS, VALID_VAULT_ID_2);
+      expect(
+        removePendingPegins(ETH_ADDRESS, [VALID_VAULT_ID, VALID_VAULT_ID_2]),
+      ).toBe(true);
+
+      expect(setItemSpy).toHaveBeenCalledTimes(1);
+      expect(JSON.parse(localStorage.getItem(storageKey) as string)).toEqual([
+        survivor,
+      ]);
+    } finally {
+      setItemSpy.mockRestore();
+    }
+  });
+
+  it("writes nothing but still notifies when the vault id is not stored", () => {
+    localStorage.setItem(storageKey, JSON.stringify([validPegin]));
+    const setItemSpy = vi.spyOn(Storage.prototype, "setItem");
+    const listener = vi.fn();
+    window.addEventListener(STORAGE_UPDATE_EVENT, listener);
+
+    try {
+      expect(removePendingPegin(ETH_ADDRESS, VALID_VAULT_ID_2)).toBe(true);
 
       expect(setItemSpy).not.toHaveBeenCalled();
+      expect(listener).toHaveBeenCalledTimes(1);
     } finally {
+      window.removeEventListener(STORAGE_UPDATE_EVENT, listener);
       setItemSpy.mockRestore();
     }
   });

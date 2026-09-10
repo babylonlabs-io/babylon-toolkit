@@ -1,6 +1,7 @@
 /**
- * Confirmation for removing a pending deposit this browser holds on its own.
- * Only ever opened for a deposit the indexer answered on and did not return.
+ * Confirmation for removing the pending deposits this browser holds on its own.
+ * Only ever opened for deposits the indexer answered on and did not return, and
+ * always for a whole split-deposit batch at once.
  */
 
 import {
@@ -16,6 +17,8 @@ import { COPY } from "@/copy";
 
 interface DismissPendingDepositDialogProps {
   open: boolean;
+  /** How many records the confirmation would remove. */
+  count: number;
   /** The last confirmation could not be written to localStorage. */
   failed: boolean;
   onCancel: () => void;
@@ -24,21 +27,25 @@ interface DismissPendingDepositDialogProps {
 
 export function DismissPendingDepositDialog({
   open,
+  count,
   failed,
   onCancel,
   onConfirm,
 }: DismissPendingDepositDialogProps) {
+  const copy = COPY.vaults.dismissPending;
+  const isBatch = count > 1;
+
   return (
     <ResponsiveDialog open={open} onClose={onCancel}>
       <DialogBody className="px-4 py-10 text-accent-primary sm:px-6">
         <Heading variant="h5" className="mb-4 text-accent-primary">
-          {COPY.vaults.dismissPending.title}
+          {isBatch ? copy.batchTitle(count) : copy.title}
         </Heading>
         <Text variant="body1" className="text-accent-secondary">
-          {COPY.vaults.dismissPending.body}
+          {isBatch ? copy.batchBody(count) : copy.body}
         </Text>
         <Text variant="body2" className="mt-4 text-accent-secondary">
-          {COPY.vaults.dismissPending.warning}
+          {isBatch ? copy.batchWarning(count) : copy.warning}
         </Text>
         {failed && (
           <Text
@@ -47,16 +54,16 @@ export function DismissPendingDepositDialog({
             className="mt-4 text-error-main"
             data-testid="pending-deposit-dismiss-error"
           >
-            {COPY.vaults.dismissPending.failed}
+            {copy.failed}
           </Text>
         )}
       </DialogBody>
       <DialogFooter className="flex gap-4 px-4 pb-8 sm:px-6">
         <Button variant="outlined" fluid onClick={onCancel}>
-          {COPY.vaults.dismissPending.cancelButton}
+          {copy.cancelButton}
         </Button>
         <Button fluid onClick={onConfirm}>
-          {COPY.vaults.dismissPending.confirmButton}
+          {copy.confirmButton}
         </Button>
       </DialogFooter>
     </ResponsiveDialog>

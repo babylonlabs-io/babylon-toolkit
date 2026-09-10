@@ -32,7 +32,8 @@ export function usePendingVaultOverlapCheck({
   depositorClaimValue,
   minPeginFee,
 }: UsePendingVaultOverlapCheckParams) {
-  const { data: depositorVaults } = useVaults(ethAddress);
+  const { data: vaultsResult } = useVaults(ethAddress);
+  const depositorVaults = vaultsResult?.vaults;
 
   return useCallback(
     (vaultAmounts: readonly bigint[]): number | null => {

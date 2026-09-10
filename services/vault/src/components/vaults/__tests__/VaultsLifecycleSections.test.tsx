@@ -141,7 +141,7 @@ function makeDeposits(
     activities = [ACTIVITY],
     indexedVaultIds = new Set<string>(),
   }: DepositsOptions,
-  removePendingPegin: (vaultId: string) => boolean,
+  removePendingPegins: (vaultIds: readonly string[]) => boolean,
 ) {
   return {
     pendingActivities: activities,
@@ -188,7 +188,7 @@ function makeDeposits(
       handleClose: vi.fn(),
       handleSuccess: vi.fn(),
     },
-    removePendingPegin,
+    removePendingPegins,
     indexedVaultIds,
     demo: null,
   } satisfies ReturnType<typeof usePendingDeposits>;
@@ -197,21 +197,23 @@ function makeDeposits(
 function renderPendingRow(
   result: DepositPollingResult,
   options: DepositsOptions = {},
-  removePendingPegin: (vaultId: string) => boolean = vi.fn(() => true),
+  removePendingPegins: (vaultIds: readonly string[]) => boolean = vi.fn(
+    () => true,
+  ),
 ) {
   mockUseDepositPollingResult.mockReturnValue(result);
   const view = render(
     <VaultsLifecycleSections
-      deposits={makeDeposits(options, removePendingPegin)}
+      deposits={makeDeposits(options, removePendingPegins)}
     />,
   );
 
   return {
-    removePendingPegin,
+    removePendingPegins,
     rerenderWith: (next: DepositsOptions) =>
       view.rerender(
         <VaultsLifecycleSections
-          deposits={makeDeposits({ ...options, ...next }, removePendingPegin)}
+          deposits={makeDeposits({ ...options, ...next }, removePendingPegins)}
         />,
       ),
     ...view,
@@ -290,12 +292,28 @@ describe("VaultsLifecycleSections pending row", () => {
 const LOCAL_ONLY: VaultActivity = {
   ...ACTIVITY,
   id: "0xlocalonly" as Hex,
+  unsignedPrePeginTx: "0xlocalonlytx",
   isPending: true,
 };
 
 const INDEXED_MIXED_CASE: VaultActivity = {
   ...ACTIVITY,
   id: "0xABCDEF" as Hex,
+  unsignedPrePeginTx: "0xindexedtx",
+  isPending: true,
+};
+
+const BATCH_A: VaultActivity = {
+  ...ACTIVITY,
+  id: "0xbatcha" as Hex,
+  unsignedPrePeginTx: "0xsharedbatchtx",
+  isPending: true,
+};
+
+const BATCH_B: VaultActivity = {
+  ...ACTIVITY,
+  id: "0xbatchb" as Hex,
+  unsignedPrePeginTx: "0xsharedbatchtx",
   isPending: true,
 };
 
@@ -329,7 +347,7 @@ describe("VaultsLifecycleSections dismiss control", () => {
   });
 
   it("states what the discard costs before removing anything", () => {
-    const { removePendingPegin } = renderPendingRow(
+    const { removePendingPegins } = renderPendingRow(
       pollingResult(BROADCAST_STATE),
       { activities: [LOCAL_ONLY] },
     );
@@ -339,11 +357,11 @@ describe("VaultsLifecycleSections dismiss control", () => {
     expect(
       screen.getByText(COPY.vaults.dismissPending.warning),
     ).toBeInTheDocument();
-    expect(removePendingPegin).not.toHaveBeenCalled();
+    expect(removePendingPegins).not.toHaveBeenCalled();
   });
 
   it("removes the stored deposit once the discard is confirmed", () => {
-    const { removePendingPegin } = renderPendingRow(
+    const { removePendingPegins } = renderPendingRow(
       pollingResult(BROADCAST_STATE),
       { activities: [LOCAL_ONLY] },
     );
@@ -355,11 +373,11 @@ describe("VaultsLifecycleSections dismiss control", () => {
       }),
     );
 
-    expect(removePendingPegin).toHaveBeenCalledWith(LOCAL_ONLY.id);
+    expect(removePendingPegins).toHaveBeenCalledWith([LOCAL_ONLY.id]);
   });
 
   it("keeps the stored deposit when the discard is cancelled", () => {
-    const { removePendingPegin } = renderPendingRow(
+    const { removePendingPegins } = renderPendingRow(
       pollingResult(BROADCAST_STATE),
       { activities: [LOCAL_ONLY] },
     );
@@ -371,11 +389,11 @@ describe("VaultsLifecycleSections dismiss control", () => {
       }),
     );
 
-    expect(removePendingPegin).not.toHaveBeenCalled();
+    expect(removePendingPegins).not.toHaveBeenCalled();
   });
 
   it("aborts the discard when the indexer returns the deposit before confirmation", () => {
-    const { removePendingPegin, rerenderWith } = renderPendingRow(
+    const { removePendingPegins, rerenderWith } = renderPendingRow(
       pollingResult(BROADCAST_STATE),
       { activities: [LOCAL_ONLY] },
     );
@@ -388,7 +406,46 @@ describe("VaultsLifecycleSections dismiss control", () => {
       }),
     );
 
-    expect(removePendingPegin).not.toHaveBeenCalled();
+    expect(removePendingPegins).not.toHaveBeenCalled();
+  });
+
+  it("withholds the control while a batch sibling is still indexed", () => {
+    renderPendingRow(pollingResult(BROADCAST_STATE), {
+      activities: [BATCH_A, BATCH_B],
+      indexedVaultIds: new Set([BATCH_B.id.toLowerCase()]),
+    });
+
+    expect(dismissIn(0)).not.toBeInTheDocument();
+    expect(dismissIn(1)).not.toBeInTheDocument();
+  });
+
+  it("removes every record of a split deposit in one write", () => {
+    const { removePendingPegins } = renderPendingRow(
+      pollingResult(BROADCAST_STATE),
+      { activities: [BATCH_A, BATCH_B] },
+    );
+
+    fireEvent.click(dismissIn(0) as HTMLElement);
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: COPY.vaults.dismissPending.confirmButton,
+      }),
+    );
+
+    expect(removePendingPegins).toHaveBeenCalledTimes(1);
+    expect(removePendingPegins).toHaveBeenCalledWith([BATCH_A.id, BATCH_B.id]);
+  });
+
+  it("says how many deposits the confirmation would remove", () => {
+    renderPendingRow(pollingResult(BROADCAST_STATE), {
+      activities: [BATCH_A, BATCH_B],
+    });
+
+    fireEvent.click(dismissIn(0) as HTMLElement);
+
+    expect(
+      screen.getByText(COPY.vaults.dismissPending.batchWarning(2)),
+    ).toBeInTheDocument();
   });
 
   it("reports a failed removal and keeps the confirmation open", () => {

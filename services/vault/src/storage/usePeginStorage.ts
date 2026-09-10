@@ -27,6 +27,7 @@ import {
   markRefundBroadcast as markRefundBroadcastInStorage,
   type PendingPeginRequest,
   removePendingPegin as removePendingPeginFromStorage,
+  removePendingPegins as removePendingPeginsFromStorage,
   savePendingPegins,
   updatePendingPeginStatus as updatePendingPeginStatusInStorage,
 } from "./peginStorage";
@@ -69,6 +70,15 @@ export interface UsePeginStorageResult {
    * stored.
    */
   removePendingPegin: (vaultId: string) => boolean;
+  /**
+   * Remove several pending peg-ins in one storage write. Used by the dismiss
+   * path, where the records of a batched Pre-PegIn share one funded
+   * transaction and must never half-survive.
+   *
+   * Returns false when the localStorage write failed and the entries are
+   * still stored.
+   */
+  removePendingPegins: (vaultIds: readonly string[]) => boolean;
   /**
    * Mark a pegin as REFUND_BROADCAST and stamp the broadcast time used by the
    * optimistic-suppression TTL.
@@ -302,12 +312,24 @@ export function usePeginStorage({
     [ethAddress],
   );
 
+  const removePendingPegins = useCallback(
+    (vaultIds: readonly string[]) => {
+      if (!ethAddress) return false;
+      return removePendingPeginsFromStorage(
+        ethAddress,
+        vaultIds as readonly Hex[],
+      );
+    },
+    [ethAddress],
+  );
+
   return {
     allActivities,
     pendingPegins,
     addPendingPegin,
     updatePendingPeginStatus,
     removePendingPegin,
+    removePendingPegins,
     markRefundBroadcast,
   };
 }

@@ -55,20 +55,21 @@ export function useVaultDeposits(connectedAddress: Address | undefined) {
   const confirmedActivities = useMemo(() => {
     if (!data) return [];
 
-    return data.map(transformVaultToActivity);
+    return data.vaults.map(transformVaultToActivity);
   }, [data]);
 
   /**
-   * Lowercased ids of every vault the indexer returned, or null while the
-   * indexer has not answered successfully — a failed or in-flight query is
-   * never evidence that a vault is absent.
+   * Lowercased ids of every vault the indexer returned, or null unless that
+   * set is known to be complete — a failed or in-flight query is never
+   * evidence that a vault is absent, and neither is a successful one that
+   * dropped rows it could not transform.
    */
   const indexedVaultIds: ReadonlySet<string> | null = useMemo(
     () =>
-      status === "success"
+      status === "success" && data?.droppedCount === 0
         ? new Set(confirmedActivities.map((a) => a.id.toLowerCase()))
         : null,
-    [status, confirmedActivities],
+    [status, data, confirmedActivities],
   );
 
   // Check if any activity has "Processing" status and update fast polling flag
@@ -110,7 +111,7 @@ export function useVaultDeposits(connectedAddress: Address | undefined) {
   }, [connectedAddress, confirmedActivities]);
 
   // Combine with local pending pegins from localStorage
-  const { allActivities, pendingPegins, addPendingPegin, removePendingPegin } =
+  const { allActivities, pendingPegins, addPendingPegin, removePendingPegins } =
     usePeginStorage({
       ethAddress: connectedAddress || "",
       confirmedPegins: confirmedActivities,
@@ -128,7 +129,7 @@ export function useVaultDeposits(connectedAddress: Address | undefined) {
     error: error as Error | null,
     refetchActivities: wrappedRefetch,
     addPendingPegin,
-    removePendingPegin,
+    removePendingPegins,
     indexedVaultIds,
   };
 }
