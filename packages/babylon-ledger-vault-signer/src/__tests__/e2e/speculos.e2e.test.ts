@@ -25,11 +25,10 @@
  * cap and the next one answers SW_CAP_EXCEEDED (`sign_psbt_validate.c:741-744`).
  *
  * Requires a running container with the vault app (nanosp, testnet build,
- * firmware-test mnemonic) built from ELF commit `b0c0ac4d` — app 0.10.1, the
- * `develop` tip tagged `*_0.10.1_sdk_v26.6.1`; CI run 33860782380, artifact
- * `compiled_app_binaries_testnet`, `nanos2/bin/app.elf`. Every firmware line
- * cited in this file is at that commit. Skipped unless SPECULOS_URL is set
- * (SPECULOS_REQUIRED turns that skip into a failure — CI):
+ * firmware-test mnemonic) built from ELF commit `b0c0ac4d` (app 0.10.1; CI run
+ * 33860782380, `compiled_app_binaries_testnet` → `nanos2/bin/app.elf`); every
+ * firmware line cited in this file is at that commit. Skipped unless
+ * SPECULOS_URL is set (SPECULOS_REQUIRED turns that skip into a failure — CI):
  *
  *   SPECULOS_URL=http://127.0.0.1:5055 pnpm exec vitest run src/__tests__/e2e/
  *
@@ -98,11 +97,8 @@ async function loadSdkVerifier() {
 }
 type SdkVerifier = Awaited<ReturnType<typeof loadSdkVerifier>>;
 
-/**
- * App version of the pinned ELF (`b0c0ac4d`, see the header). Stage 1 asserts
- * it, so a run against another build cannot pass as this pin — the firmware
- * line citations below are only meaningful at this version.
- */
+/** App version of the pinned ELF (`b0c0ac4d`); stage 1 asserts it so a run
+ * against another build cannot pass as this pin. */
 const PINNED_APP_VERSION = "0.10.1";
 
 /** Live-verified nanosp review-screen texts (reference driver `lsk_ceremony2.py`). */
@@ -580,13 +576,8 @@ describe.skipIf(SPECULOS_URL === "")("Speculos end-to-end vault signing", () => 
       "NoPayout, production shape (input 0 spends Assert:0 per btc-vault/HLD): signs and far-side-verifies per challenger under the loaded intent",
       async () => {
         expect(graph, "fixture stage must have built the graph").toBeDefined();
-        // Firmware ≥ 0.10.0 (PR #8 `b71bcfe`) no longer routes the vault group
-        // by a PegIn-txid prevout: the challenger comes from the leaf's second
-        // key (`sign_psbt_validate.c:2138-2153`), so the protocol shape signs.
-        // The only replay bound is the flat cap `vault_count × (keepers +
-        // challengers)` (`:2155-2166`) — exactly this roster, which stage 12's
-        // re-ceremony resets — and each completed sign proves the stage-4
-        // intent is still loaded (`:2098-2101` gates on INTENT_LOADED).
+        // Since PR #8 the device routes NoPayout by the leaf's challenger key (`sign_psbt_validate.c:2138-2153`)
+        // and only caps the count at `vault_count × (keepers + challengers)` (`:2155-2166`) — this roster.
         for (const challenger of (graph as DepositorGraphFixture).perChallenger) {
           const result = await signVaultPsbt(sendRaw, {
             psbtHex: challenger.productionPsbtHex,

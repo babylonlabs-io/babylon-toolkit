@@ -696,11 +696,8 @@ export const COPY = {
     form: {
       computingAllocation: "Computing allocation...",
       transactionReserveLabel: "Depositor claim output",
-      // Describes the real mechanism. Until the reclaim flow shipped this said
-      // the reserve "is returned to you if unused", which nothing in the app
-      // could actually do. The Ledger vault app cannot sign the reclaim sweep
-      // (decision D10, see models/reclaimEligibility.ts), so that wallet is
-      // not promised a reclaim it cannot perform.
+      // Promise only what the app can do: the Ledger vault app cannot sign the
+      // reclaim sweep (decision D10, models/reclaimEligibility.ts).
       transactionReserveTooltip: (isLedgerVaultWallet: boolean) =>
         `${RESERVE_PURPOSE} ${
           isLedgerVaultWallet
@@ -1419,11 +1416,8 @@ export const COPY = {
     blocked: {
       protocolPaused:
         "Reclaim is paused while the protocol is under maintenance. Your reserve is safe and will remain reclaimable.",
-      // The Ledger vault app's firmware cannot sign this transaction shape
-      // (decision D10; see models/reclaimEligibility.ts for the firmware
-      // reference). The reserve is spendable only with the depositor key, so
-      // never suggest reaching it "from another wallet" — for a hardware-wallet
-      // user that means restoring the seed into software.
+      // Ledger cannot sign this shape (D10, models/reclaimEligibility.ts). Never
+      // point at "another wallet": for a hardware user that means restoring the seed.
       ledgerUnsupported:
         "Reclaiming with a Ledger device is not supported yet. Your reserve is safe and stays locked to the wallet that created the deposit.",
     },

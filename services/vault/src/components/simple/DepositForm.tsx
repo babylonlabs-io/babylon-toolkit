@@ -109,11 +109,8 @@ export interface DepositProviderState {
 
 export interface DepositWalletState {
   isWalletConnected: boolean;
-  /**
-   * Whether the connected BTC wallet is the Ledger vault app. Read only by the
-   * reserve tooltip in the fee breakdown (decision D10); never gates the
-   * deposit.
-   */
+  /** Ledger vault app connected? Read only by the fee breakdown's reserve
+   * tooltip (decision D10); never gates the deposit. */
   isLedgerVaultWallet: boolean;
   /**
    * True when the click-time wallet-liveness probe (or a prior reconnect

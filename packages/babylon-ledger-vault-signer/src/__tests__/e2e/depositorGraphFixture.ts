@@ -9,14 +9,11 @@
  * The WASM connector scripts were pre-verified byte-identical to the firmware
  * leaf builders at the ELF tip: vault-UTXO leaf and Assert:0 payout leaf match
  * fw `tests/test_sign_psbt_validate.py` `_vault_utxo_leaf` (`:207`) /
- * `_assert0_payout_leaf` (`:2175`) @ b0c0ac4d — every firmware line cited in
- * this file is at that commit — and every control block commits to one
- * Assert:0 spk.
+ * `_assert0_payout_leaf` (`:2175`), and every control block commits to one
+ * Assert:0 spk. Every firmware line cited in this file is at `b0c0ac4d`.
  *
- * The NoPayout is the btc-vault shape: input 0 spends Assert:0
- * (`transactions/nopayout.rs:146-155`; HLD §4.9.8 "Prevout Assert:0"). Firmware
- * ≥ 0.10.0 (PR #8 `b71bcfe`) no longer routes the vault group by a PegIn-txid
- * prevout, so this shape signs on-device (stage 11).
+ * NoPayout input 0 spends Assert:0 (btc-vault `nopayout.rs:146-155`); since
+ * PR #8 the device no longer routes it by a PegIn-txid prevout, so it signs.
  *
  * Conscious call on the §7 audit boundary: importing the SDK/WASM builders here
  * makes them devDependencies, so `build` (its typecheck) needs them built first
@@ -84,22 +81,14 @@ const ASSERT0_VALUE_SATS = 546 + 386;
 /** Non-VP payout Out1 must be exactly DUST (`sign_psbt_validate.c:1997-1999`). */
 const PAYOUT_ANCHOR_VALUE_SATS = 546;
 
-/**
- * ChallengeAssert connector value — arbitrary: since 0.10.1 the device puts
- * no bound on inputs 1-2 (`sign_psbt_validate.c:2247-2274`), they only enter
- * the fee computation. btc-vault funds a real connector at 330 + 179 × rate
- * (the firmware's own note, `:2252-2255`).
- */
+/** Arbitrary — since 0.10.1 the device leaves inputs 1-2 unbounded (`sign_psbt_validate.c:2247-2274`). */
 const CHALLENGE_ASSERT_CONNECTOR_VALUE_SATS = 546;
 
 /** Fixture `timelock_challenge_assert` (nopayout.rs:157-176 CAX/CAY sequences); device reads no NoPayout sequence. */
 const CHALLENGE_ASSERT_TIMELOCK = 72;
 
-/**
- * Fixture NoPayout fee. Since 0.10.1 the device bounds it to
- * `base_fee_rate × MAX_NOPAYOUT_VSIZE` = 1 × 450 (`sign_psbt_validate.c:90`,
- * `:2317-2322`) and requires out0 ≥ DUST (`:2313-2316`).
- */
+/** ≤ base_fee_rate × MAX_NOPAYOUT_VSIZE (450) since 0.10.1 (`sign_psbt_validate.c:90`, `:2317-2322`);
+ * out0 must stay ≥ DUST (`:2313-2316`). */
 const NOPAYOUT_FEE_SATS = 400;
 
 /** btc-vault tx literals: Payout/NoPayout are version 2, locktime 0 (payout.rs / nopayout.rs). */

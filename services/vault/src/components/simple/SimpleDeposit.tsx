@@ -498,9 +498,8 @@ function SimpleDepositContent({
                 }}
                 walletState={{
                   isWalletConnected,
-                  // Same predicate the reclaim row uses (useReclaimRowAction):
-                  // the reserve tooltip must not promise a reclaim the Ledger
-                  // vault app cannot sign (decision D10).
+                  // Same predicate as the reclaim row (useReclaimRowAction); the
+                  // reserve tooltip must not promise a reclaim Ledger cannot sign.
                   isLedgerVaultWallet:
                     btcConnector?.connectedWallet?.id ===
                     LEDGER_VAULT_WALLET_ID,
