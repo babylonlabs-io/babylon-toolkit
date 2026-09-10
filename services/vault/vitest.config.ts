@@ -117,6 +117,8 @@ export default defineConfig({
     },
     server: {
       deps: {
+        // Use Node for the built wallet entry. Vite corrupts a label in this bundle.
+        external: [/\/babylon-wallet-connector\/dist\/index\.es\.js$/],
         inline: ["@babylonlabs-io/wallet-connector", "@noble/hashes"],
       },
     },
