@@ -20,8 +20,10 @@ reject malformed keys and hashlocks, empty or duplicate key groups, and refund
 timelocks outside 1 through 65535. Do not depend on unchecked input acceptance or
 identity with the generated class. This is a breaking engine release.
 
-The engine now declares the same pinned Bitcoin and curve dependencies used by
-the SDK. The engine root loads the shared derivation on demand. Ethereum-only
+The engine now declares the Bitcoin and curve packages the SDK uses, at the same
+pinned versions. It declares them as direct dependencies, while the SDK declares
+`bitcoinjs-lib` and `@bitcoin-js/tiny-secp256k1-asmjs` as optional peers, so an
+application that installs both can resolve two copies of `bitcoinjs-lib`. The engine root loads the shared derivation on demand. Ethereum-only
 SDK use still requires no engine or Bitcoin dependency.
 
 This slice does not guard `WasmPrePeginTx`, `WasmPeginTx`, or

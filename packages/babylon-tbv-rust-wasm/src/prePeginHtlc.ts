@@ -10,6 +10,11 @@ import { Buffer } from 'buffer';
 import { tapInternalPubkey } from './constants.js';
 import type { HtlcConnectorParams } from './types.js';
 
+// bitcoinjs-lib keeps one module-global ECC backend. Install it once, when
+// this lazily-imported module is first evaluated, rather than mutating that
+// global inside a derivation.
+initEccLib(ecc);
+
 // BIP-341: the leaf version for a Taproot script.
 const TAPSCRIPT_LEAF_VERSION = 0xc0;
 
@@ -97,7 +102,6 @@ export function deriveExpectedPrePeginHtlc(
   params: PrePeginHtlcParams,
   hashlock: string,
 ): ExpectedPrePeginHtlc {
-  initEccLib(ecc);
 
   const depositor = normalizeXOnlyKey(
     params.depositorPubkey,
