@@ -304,10 +304,17 @@ function stableStringify(value: unknown): string {
  * nothing and every screen would render empty.
  *
  * `variables` are part of the key because an operation name is not one
- * question. `fetchVaultProviderStats` issues one `GetVaultsByProvider` per
- * vault provider; the recording holds a single provider, so without
- * `variables` every provider on a multi-provider deployment would be served
- * the first one's vaults - identical rows, and no miss to say so.
+ * question. `fetchVaultProviderStats` issues one `GetVaultsByProviders` whose
+ * `vaultProviders` variable lists every provider on the deployment; the
+ * recording holds a single provider, so without `variables` a multi-provider
+ * deployment would be served that one provider's vaults for the whole set -
+ * plausible-looking rows, and no miss to say so.
+ *
+ * When a query changes shape, the recording keeps the superseded exchange
+ * next to the new one. The visual-regression workflow photographs the
+ * merge-base SOURCE with the PR's e2e tree, so the baseline app still asks
+ * the old question; drop the old exchange and the baseline captures nothing
+ * and the diff degrades to "no comparison". The next re-record sheds it.
  */
 export function graphqlKey(
   method: string,

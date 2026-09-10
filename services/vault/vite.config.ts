@@ -92,8 +92,9 @@ const enableSentryPlugin =
       process.env.SENTRY_PROJECT,
   );
 
-// https://vite.dev/config/
-export default defineConfig(({ mode }) => ({
+export default defineConfig(({ mode, command }) => ({
+  cacheDir:
+    command === "serve" ? process.env.PLAYWRIGHT_VITE_CACHE_DIR : undefined,
   server: {
     headers: SECURITY_HEADERS,
     proxy: resolveSidecarProxy(mode),
@@ -111,6 +112,16 @@ export default defineConfig(({ mode }) => ({
       "bitcoinjs-lib",
       "@bitcoin-js/tiny-secp256k1-asmjs",
       "@babylonlabs-io/wallet-connector",
+      // BOTH signer entries MUST accompany wallet-connector above: the dep
+      // optimizer would otherwise give the E2E bootstrap (which imports the
+      // `/testing` subpath) a different dmkSession module instance than the
+      // Ledger provider's connect path inside wallet-connector's pre-bundle,
+      // silently orphaning the Speculos transport override in dev. Listing
+      // all three makes them share ONE optimized chunk holding the single
+      // dmkSession singleton (verified by grepping .vite/deps for the seam's
+      // guard string — it must appear in exactly one chunk).
+      "@babylonlabs-io/ledger-vault-signer",
+      "@babylonlabs-io/ledger-vault-signer/testing",
       "@babylonlabs-io/core-ui",
     ],
   },

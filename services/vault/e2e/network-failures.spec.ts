@@ -6,9 +6,8 @@
  * unhandled `pageerror` and the document still renders (title set,
  * shell paints text). That is the entirety of what this spec verifies.
  *
- * Catastrophic surfaces (GraphQL unreachable, GraphQL 5xx, missing env,
- * app paused) DO have user-visible blocking modals and are covered in
- * `catastrophic-errors.spec.ts`.
+ * `catastrophic-errors.spec.ts` covers blocking configuration/backend
+ * errors and the protocol pause banner.
  *
  * What this spec deliberately does NOT verify - and why
  * -----------------------------------------------------
@@ -36,6 +35,8 @@
 
 import { type Page, expect, test } from "@playwright/test";
 
+import { installRecordedBackend } from "./fixtures/replay";
+
 // Sentinel URLs - must match MOCK_ENV_VARS in playwright.config.ts.
 // Pinning these here means the intercept matches the exact URL the app
 // fetches, independent of whichever .env file vite happens to load.
@@ -60,18 +61,6 @@ const SLOW_RPC_DELAY_MS = 5_000;
 const GRAPHQL_HEALTHY_BODY = JSON.stringify({
   data: { __typename: "Query" },
 });
-
-const PAUSED_FALSE_RESULT =
-  "0x0000000000000000000000000000000000000000000000000000000000000000";
-const PAUSED_SELECTOR_PREFIX = "0x5c975abb";
-
-function buildPausedFalseResponseBody(id: unknown): string {
-  return JSON.stringify({
-    jsonrpc: "2.0",
-    id,
-    result: PAUSED_FALSE_RESULT,
-  });
-}
 
 async function stubGraphqlHealthy(page: Page) {
   await page.route("**/graphql", async (route) => {
@@ -112,22 +101,9 @@ test.describe("Network failure mode coverage", () => {
     test("RPC timeout does not throw unhandled errors", async ({ page }) => {
       await stubGraphqlHealthy(page);
 
-      // After the paused-check shortcut, every other RPC call aborts
-      // immediately. This simulates an unreachable RPC.
+      // Abort every RPC call to simulate an unreachable endpoint.
       let abortCount = 0;
       await page.route(ETH_RPC_URL, async (route) => {
-        const postData = route.request().postDataJSON();
-        if (postData?.method === "eth_call") {
-          const data = postData.params?.[0]?.data ?? "";
-          if (data.startsWith(PAUSED_SELECTOR_PREFIX)) {
-            await route.fulfill({
-              status: 200,
-              contentType: "application/json",
-              body: buildPausedFalseResponseBody(postData.id),
-            });
-            return;
-          }
-        }
         abortCount += 1;
         await route.abort("timedout");
       });
@@ -150,18 +126,6 @@ test.describe("Network failure mode coverage", () => {
 
       let errorResponseCount = 0;
       await page.route(ETH_RPC_URL, async (route) => {
-        const postData = route.request().postDataJSON();
-        if (postData?.method === "eth_call") {
-          const data = postData.params?.[0]?.data ?? "";
-          if (data.startsWith(PAUSED_SELECTOR_PREFIX)) {
-            await route.fulfill({
-              status: 200,
-              contentType: "application/json",
-              body: buildPausedFalseResponseBody(postData.id),
-            });
-            return;
-          }
-        }
         errorResponseCount += 1;
         await route.fulfill({
           status: 500,
@@ -180,25 +144,7 @@ test.describe("Network failure mode coverage", () => {
 
   test.describe("Vault Provider proxy failures", () => {
     test("VP proxy 5xx does not crash the app", async ({ page }) => {
-      await stubGraphqlHealthy(page);
-
-      // Let the paused-check pass so the app proceeds far enough to
-      // call the VP health endpoint.
-      await page.route(ETH_RPC_URL, async (route) => {
-        const postData = route.request().postDataJSON();
-        if (postData?.method === "eth_call") {
-          const data = postData.params?.[0]?.data ?? "";
-          if (data.startsWith(PAUSED_SELECTOR_PREFIX)) {
-            await route.fulfill({
-              status: 200,
-              contentType: "application/json",
-              body: buildPausedFalseResponseBody(postData.id),
-            });
-            return;
-          }
-        }
-        await route.abort("timedout");
-      });
+      await installRecordedBackend(page);
 
       let vpHealthHitCount = 0;
       await page.route(VP_HEALTH_URL, async (route) => {
@@ -227,17 +173,6 @@ test.describe("Network failure mode coverage", () => {
       let slowResponseCount = 0;
       await page.route(ETH_RPC_URL, async (route) => {
         const postData = route.request().postDataJSON();
-        if (postData?.method === "eth_call") {
-          const data = postData.params?.[0]?.data ?? "";
-          if (data.startsWith(PAUSED_SELECTOR_PREFIX)) {
-            await route.fulfill({
-              status: 200,
-              contentType: "application/json",
-              body: buildPausedFalseResponseBody(postData.id),
-            });
-            return;
-          }
-        }
         slowResponseCount += 1;
         // Hold the request for SLOW_RPC_DELAY_MS, then return a
         // JSON-RPC error. Crucially, the handler never forwards to

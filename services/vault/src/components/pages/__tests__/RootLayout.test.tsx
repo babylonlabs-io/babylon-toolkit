@@ -31,19 +31,6 @@ vi.mock("@/config", () => ({
   getBTCNetwork: () => networkMock.value,
 }));
 
-// A plain useContext consumer with no Provider mounted always sees the
-// context's default value in RTL — `@/context/addressScreening` and
-// `@/context/addressType` are left unmocked for exactly that reason. But
-// `@/context/geofencing`'s own module (GeoFencingProvider.tsx, which also
-// hosts the `useGeoFencing` export consumed here) imports `@/config/wagmi`
-// at module scope, which imports `@babylonlabs-io/wallet-connector` — and
-// that package's build cannot be transformed by Vitest in this workspace
-// (see the wallet-connector mock below), so the real module can't even be
-// loaded, not just "unsafe to render". Mocked here to return the exact same
-// default the real context has (`isLoading: true`, so RootLayout stays on
-// its Loader branch and the content-branch providers/components below it —
-// AaveConfigProvider, ActivatingVaultsProvider, SimpleDeposit, GeoBlockState,
-// ProtocolStatusBanner — never mount, matching the real unmocked behavior).
 vi.mock("@/context/geofencing", () => ({
   useGeoFencing: () => ({ isGeoBlocked: false, isLoading: true }),
 }));
@@ -52,6 +39,14 @@ const walletMock = vi.hoisted(() => ({
   btcConnected: false,
   ethConnected: false,
   confirmed: true,
+  isAddressBlocked: false,
+  isSupportedAddress: true,
+}));
+vi.mock("@/context/addressScreening", () => ({
+  useAddressScreening: () => ({ isBlocked: walletMock.isAddressBlocked }),
+}));
+vi.mock("@/context/addressType", () => ({
+  useAddressType: () => ({ isSupportedAddress: walletMock.isSupportedAddress }),
 }));
 vi.mock("@/context/wallet", async () => ({
   useConnection: (await import("@/context/wallet/useConnection")).useConnection,
@@ -132,6 +127,8 @@ beforeEach(() => {
   walletMock.btcConnected = false;
   walletMock.ethConnected = false;
   walletMock.confirmed = true;
+  walletMock.isAddressBlocked = false;
+  walletMock.isSupportedAddress = true;
   debugStatusMock.value = null;
 });
 
@@ -270,6 +267,28 @@ describe("RootLayout — operator message banner", () => {
 
     expect(screen.queryByText(OPERATOR_MESSAGE)).not.toBeInTheDocument();
   });
+
+  it.each([false, true])(
+    "shows wallet warnings with confirmed=%s",
+    (confirmed) => {
+      Object.assign(walletMock, {
+        btcConnected: true,
+        ethConnected: true,
+        confirmed,
+        isAddressBlocked: true,
+        isSupportedAddress: false,
+      });
+      featureFlagsMock.isDepositDisabled = true;
+      renderRootLayout();
+      expect(
+        screen.getByText(COPY.wallet.addressScreeningBannerBody),
+      ).toBeInTheDocument();
+      expect(screen.getByText("Taproot Address Required")).toBeInTheDocument();
+      expect(
+        screen.getByText(COPY.deposit.disabled.bannerMessage),
+      ).toBeInTheDocument();
+    },
+  );
 
   it("suppresses the standalone notice while the deposit-disabled banner is active", () => {
     walletMock.btcConnected = true;

@@ -77,7 +77,8 @@ const DEPOSIT_DISABLED_BANNER_Z_CLASS = "z-30";
 export default function RootLayout() {
   const gate = useProtocolGateState();
   const { theme, setTheme } = useTheme();
-  const { isConnected: isWalletConnected } = useConnection();
+  const { isConnected, btcConnected, ethConnected } = useConnection();
+  const isWalletConnected = btcConnected && ethConnected;
   const { isGeoBlocked, isLoading: isGeoLoading } = useGeoFencing();
   const { isBlocked: isAddressBlocked } = useAddressScreening();
   const { isSupportedAddress } = useAddressType();
@@ -89,7 +90,7 @@ export default function RootLayout() {
   // that replaces it can never disagree. The other routes render disconnected
   // states on purpose and keep their shell — without it a disconnected desktop
   // visitor to /vaults would have no navigation at all.
-  const isEntryLayout = !isWalletConnected && pathname === "/";
+  const isEntryLayout = !isConnected && pathname === "/";
   const showV3Sidebar = !isMobileView && !isEntryLayout;
   const showAddressTypeBanner = isWalletConnected && !isSupportedAddress;
   // Match ProtocolStatusBanner's status derivation: the dev-only god-mode

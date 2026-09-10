@@ -1396,6 +1396,9 @@ describe("useVaultActions — handleBroadcast intent (Ledger) resume branch", ()
       depositorBtcPubkey: "depositorBtcPubkey",
       fundedTxFee: 1234n,
       lifecycle: "broadcast",
+      // The flow's abort signal, so a dismissed modal ends the rebuild's
+      // registration-log retry backoff.
+      signal: expect.any(AbortSignal),
     });
     expect(mockBroadcastPrePeginTransaction).toHaveBeenCalledWith(
       expect.objectContaining({

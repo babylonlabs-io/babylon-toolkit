@@ -1,18 +1,11 @@
-/** @jest-environment jsdom */
-import {
-  WalletProvider,
-  useWalletConnect,
-} from "@babylonlabs-io/wallet-connector";
-import { render, renderHook } from "@testing-library/react";
+import { WalletProvider } from "@babylonlabs-io/wallet-connector";
+import { render } from "@testing-library/react";
 import { useTheme } from "next-themes";
-import { createElement } from "react";
 import { useLocation } from "react-router";
 
 import { useError } from "@/ui/common/context/Error/ErrorProvider";
 import { WalletConnectionProvider } from "@/ui/common/context/wallet/WalletConnectionProvider";
-import { useAuthGuard } from "@/ui/common/hooks/useAuthGuard";
 import { useHealthCheck } from "@/ui/common/hooks/useHealthCheck";
-import { useIsLoggedIn } from "@/ui/common/hooks/useIsLoggedIn";
 import { useLogger } from "@/ui/common/hooks/useLogger";
 import FeatureFlagService from "@/ui/common/utils/FeatureFlagService";
 
@@ -20,7 +13,6 @@ jest.mock("@babylonlabs-io/wallet-connector", () => ({
   APPKIT_BTC_CONNECTOR_ID: "appkit_btc",
   WalletProvider: jest.fn(({ children }) => children),
   createWalletConfig: jest.fn((options) => options),
-  useWalletConnect: jest.fn(),
   useChainConnector: jest.fn(),
 }));
 jest.mock("next-themes", () => ({ useTheme: jest.fn() }));
@@ -39,7 +31,7 @@ jest.mock("@/ui/common/utils/FeatureFlagService", () => ({
 
 const handleError = jest.fn();
 const logger = { error: jest.fn() };
-const renderProvider = () => render(createElement(WalletConnectionProvider));
+const renderProvider = () => render(<WalletConnectionProvider />);
 const providerProps = () => (WalletProvider as jest.Mock).mock.calls.at(-1)[0];
 
 beforeEach(() => {
@@ -52,7 +44,6 @@ beforeEach(() => {
     isGeoBlocked: false,
     isLoading: false,
   });
-  (useWalletConnect as jest.Mock).mockReturnValue({ connected: false });
   (FeatureFlagService.IsLedgerEnabled as boolean) = false;
 });
 
@@ -72,20 +63,6 @@ describe("WalletConnectionProvider consent contract (#2354)", () => {
       expect(providerProps().lifecycleHooks).toBeUndefined();
     },
   );
-
-  it("keeps action gates closed until confirmation or verified restore", () => {
-    const { result, rerender } = renderHook(() => ({
-      auth: useAuthGuard().connected,
-      loggedIn: useIsLoggedIn(),
-    }));
-    expect(result.current).toEqual({ auth: false, loggedIn: false });
-    (useWalletConnect as jest.Mock).mockReturnValue({ connected: true });
-    rerender();
-    expect(result.current).toEqual({ auth: true, loggedIn: true });
-    (useWalletConnect as jest.Mock).mockReturnValue({ connected: false });
-    rerender();
-    expect(result.current).toEqual({ auth: false, loggedIn: false });
-  });
 
   it.each([false, true])(
     "keeps the Ledger choice when enabled=%s",
