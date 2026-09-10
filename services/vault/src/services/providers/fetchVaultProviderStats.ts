@@ -135,8 +135,17 @@ function accumulate(stats: VaultProviderStats, item: VaultItem): void {
     stats.totalActiveSats += amount;
   }
 
-  const activatedMs =
-    Number(parseIndexerUint("activatedAt", item.activatedAt)) * MS_PER_SECOND;
+  // A digit string can still exceed what Number holds exactly; a rounded
+  // timestamp would silently reorder the provider list, so reject it.
+  const activatedMs = Number(
+    parseIndexerUint("activatedAt", item.activatedAt) * BigInt(MS_PER_SECOND),
+  );
+  if (!Number.isSafeInteger(activatedMs)) {
+    throw new Error(
+      `[fetchVaultProviderStats] Indexer returned an out-of-range activatedAt: ` +
+        JSON.stringify(item.activatedAt),
+    );
+  }
   if (
     stats.lastSuccessfulPeginAt === undefined ||
     activatedMs > stats.lastSuccessfulPeginAt

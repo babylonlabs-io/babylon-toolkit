@@ -334,6 +334,26 @@ describe("fetchVaultProviderStats", () => {
     );
   });
 
+  it("rejects an activatedAt beyond the safe integer range rather than rounding it", async () => {
+    mockRequest.mockResolvedValue(
+      page([
+        {
+          vaultProvider: "0xa",
+          amount: "100",
+          status: "available",
+          activatedAt: "99999999999999999999",
+        },
+      ]),
+    );
+
+    // All digits, so it passes the format check, but Number() can no longer
+    // represent it exactly — a rounded timestamp would silently reorder the
+    // provider list.
+    await expect(fetchVaultProviderStats(["0xA"])).rejects.toThrow(
+      /out-of-range activatedAt/,
+    );
+  });
+
   it("rejects when a row belongs to a provider that was not requested", async () => {
     mockRequest.mockResolvedValue(
       page([
