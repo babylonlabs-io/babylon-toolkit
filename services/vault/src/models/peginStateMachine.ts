@@ -229,6 +229,13 @@ export interface GetPeginStateOptions {
  */
 const REFUND_BROADCAST_SUPPRESSION_MS = 6 * 60 * 60 * 1000;
 
+/**
+ * Bounds the PAYOUT_SIGNED display floor, anchored on the persisted
+ * `payoutSignedAt` stamp so it survives a reload. Same lag class as
+ * `WOTS_SUBMISSION_SUPPRESSION_MS`: past it, a VP still asking for signatures
+ * is taken at its word (rejected, rotated, or lost behind a 200) and the
+ * signing step shows again instead of a sticky floor for the life of the entry.
+ */
 const PAYOUT_SIGNED_SUPPRESSION_MS = 20 * 60 * 1000;
 
 // ============================================================================
