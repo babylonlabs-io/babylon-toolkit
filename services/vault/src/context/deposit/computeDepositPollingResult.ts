@@ -46,6 +46,13 @@ function resolveRefundBroadcastAt(
   );
 }
 
+function resolvePayoutSignedAt(
+  depositId: string,
+  pendingPegins: PendingPeginRequest[],
+): number | undefined {
+  return pendingPegins.find((p) => p.id === depositId)?.payoutSignedAt;
+}
+
 export interface DepositPollingInputs {
   activity: VaultActivity;
   pendingPegins: PendingPeginRequest[];
@@ -177,6 +184,7 @@ export function computeDepositPollingResult(
     optimisticRefundBroadcastAt,
     pendingPegins,
   );
+  const payoutSignedAt = resolvePayoutSignedAt(depositId, pendingPegins);
 
   const depositError = errors?.get(depositId);
   const vpTerminalError =
@@ -330,6 +338,7 @@ export function computeDepositPollingResult(
     refundSettlement,
     vpTerminalError,
     refundBroadcastAt,
+    payoutSignedAt,
     now,
   });
 

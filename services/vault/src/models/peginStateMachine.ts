@@ -123,6 +123,7 @@ export interface PeginState {
    * which must keep their own presentation and their View-details control.
    */
   activationFloorBlocksRemaining?: number | null;
+  payoutSignedAt?: number;
 }
 
 export interface GetPeginStateOptions {
@@ -215,6 +216,7 @@ export interface GetPeginStateOptions {
    * from the mempool eventually re-exposes the refund action.
    */
   refundBroadcastAt?: number;
+  payoutSignedAt?: number;
   /** Override `Date.now()` used for the TTL check (testing only). */
   now?: number;
 }
@@ -226,6 +228,8 @@ export interface GetPeginStateOptions {
  * before the user has to clear localStorage by hand.
  */
 const REFUND_BROADCAST_SUPPRESSION_MS = 6 * 60 * 60 * 1000;
+
+const PAYOUT_SIGNED_SUPPRESSION_MS = 20 * 60 * 1000;
 
 // ============================================================================
 // Expiration helpers
@@ -455,6 +459,7 @@ export function getPeginState(
   return {
     contractStatus,
     localStatus: options.localStatus,
+    payoutSignedAt: options.payoutSignedAt,
     availableActions: actions,
     // `activationFloorBlocksRemaining` rides in on `display` — set by the floor
     // branch alone, so it marks that branch rather than every VERIFIED vault.
@@ -550,6 +555,12 @@ function isRefundBroadcastWithinTtl(
   // the safe reading, same as the missing-timestamp case above: the user
   // can always retry, and a duplicate broadcast is rejected by the network.
   return elapsedMs >= 0 && elapsedMs < REFUND_BROADCAST_SUPPRESSION_MS;
+}
+
+function isPayoutSignedWithinTtl(payoutSignedAt: number | undefined): boolean {
+  if (payoutSignedAt === undefined) return false;
+  const elapsedMs = Date.now() - payoutSignedAt;
+  return elapsedMs >= 0 && elapsedMs < PAYOUT_SIGNED_SUPPRESSION_MS;
 }
 
 interface DisplayInfo {
@@ -995,7 +1006,8 @@ export function getPeginProgressStep(
   if (step === null || state.localStatus !== LocalStorageStatus.PAYOUT_SIGNED) {
     return step;
   }
-  return step === DepositFlowStep.SIGN_AUTH_ANCHOR
+  return step === DepositFlowStep.SIGN_AUTH_ANCHOR &&
+    isPayoutSignedWithinTtl(state.payoutSignedAt)
     ? DepositFlowStep.AWAIT_VP_VERIFICATION
     : step;
 }

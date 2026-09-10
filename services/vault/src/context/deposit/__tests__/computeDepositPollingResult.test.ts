@@ -68,6 +68,26 @@ function makeInputs(
   };
 }
 
+describe("computeDepositPollingResult — payout-signed anchor", () => {
+  it("carries the stored payoutSignedAt onto the pegin state", () => {
+    const result = computeDepositPollingResult(
+      makeInputs({
+        pendingPegins: [
+          {
+            id: VAULT_ID,
+            peginTxHash: PEGIN_TX,
+            timestamp: 1_700_000_000_000,
+            status: LocalStorageStatus.PAYOUT_SIGNED,
+            payoutSignedAt: 1_700_000_060_000,
+            unsignedTxHex: "0x00",
+          },
+        ],
+      }),
+    );
+    expect(result.peginState.payoutSignedAt).toBe(1_700_000_060_000);
+  });
+});
+
 describe("computeDepositPollingResult — refund settlement", () => {
   it("offers the refund action for a mature EXPIRED vault whose HTLC is unspent", () => {
     const result = computeDepositPollingResult(makeInputs());

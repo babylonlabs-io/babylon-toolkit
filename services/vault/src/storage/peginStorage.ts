@@ -38,6 +38,7 @@ export interface PendingPeginRequest {
   // can be evicted from the mempool and never confirm, so the suppression must
   // expire to let the user retry instead of permanently hiding the action.
   refundBroadcastAt?: number;
+  payoutSignedAt?: number;
   // Fields for cross-device broadcasting support
   unsignedTxHex: string; // Funded Pre-PegIn tx hex (for broadcasting later)
   selectedUTXOs?: Array<{
@@ -193,6 +194,16 @@ function hasValidSecurityFields(entry: unknown): entry is PendingPeginRequest {
       typeof pegin.refundBroadcastAt !== "number" ||
       !Number.isFinite(pegin.refundBroadcastAt) ||
       pegin.refundBroadcastAt < 0
+    ) {
+      return false;
+    }
+  }
+
+  if (pegin.payoutSignedAt !== undefined) {
+    if (
+      typeof pegin.payoutSignedAt !== "number" ||
+      !Number.isFinite(pegin.payoutSignedAt) ||
+      pegin.payoutSignedAt < 0
     ) {
       return false;
     }
@@ -500,7 +511,15 @@ export function updatePendingPeginStatus(
   const normalizedId = normalizeTransactionId(vaultId);
 
   const updatedPegins = existingPegins.map((pegin) =>
-    pegin.id === normalizedId ? { ...pegin, status } : pegin,
+    pegin.id === normalizedId
+      ? {
+          ...pegin,
+          status,
+          ...(status === LocalStorageStatus.PAYOUT_SIGNED
+            ? { payoutSignedAt: Date.now() }
+            : {}),
+        }
+      : pegin,
   );
 
   savePendingPegins(ethAddress, updatedPegins);
