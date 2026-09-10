@@ -592,7 +592,7 @@ for (const entry of ['raw', 'raw-node']) {
           checked.free();
           original.free();
         }
-        assert.throws(() => checked.getPayoutScript());
+        assert.throws(() => checked.getPayoutScript(), /null pointer passed to rust/);
       }
     });
   });
@@ -705,7 +705,7 @@ for (const entry of ['raw', 'raw-node']) {
   });
 
   test(`${entry} validates original payout inputs and keeps its private expectations`, async () => {
-    await withRawEntry(entry, async (raw) => {
+    await withRawEntry(entry, async (raw, generated) => {
       const params = {
         ...payoutConnectorParams,
         vaultKeepers: [...payoutConnectorParams.vaultKeepers],
@@ -716,7 +716,7 @@ for (const entry of ['raw', 'raw-node']) {
       params.timelockPegin += 1;
       assert.equal(checked.getPayoutScript(), expected);
       checked[Symbol.dispose]();
-      assert.throws(() => checked.getPayoutControlBlock());
+      assert.throws(() => checked.getPayoutControlBlock(), /null pointer passed to rust/);
       for (const version of [0, 4, 99, 0x100000001, NaN]) {
         assert.throws(
           () =>
@@ -741,6 +741,20 @@ for (const entry of ['raw', 'raw-node']) {
           /timelockPegin/,
         );
       }
+      // The derivation must accept exactly what the engine accepts, so that
+      // no input can produce a script on one side and an error on the other.
+      const prefixedArgs = payoutArgs({
+        ...payoutConnectorParams,
+        depositor: `0x${payoutConnectorParams.depositor}`,
+      });
+      assert.throws(
+        () => new raw.WasmPeginPayoutConnector(...prefixedArgs),
+        /depositor must be a 32-byte x-only public key/,
+      );
+      assert.throws(
+        () => new generated.WasmPeginPayoutConnector(...prefixedArgs),
+        /malformed public key/,
+      );
       for (const role of ['vaultKeepers', 'universalChallengers']) {
         for (const keys of [[], [xOnlyKeys[0], xOnlyKeys[0].toUpperCase()]]) {
           assert.throws(
@@ -802,13 +816,13 @@ for (const entry of ['raw', 'raw-node']) {
                 original.getScriptPubKey(network),
               );
             }
-            assert.throws(() => checked.getAddress('mainnet'));
-            assert.throws(() => checked.getScriptPubKey('invalid'));
+            assert.throws(() => checked.getAddress('mainnet'), /Unsupported Bitcoin network/);
+            assert.throws(() => checked.getScriptPubKey('invalid'), /Unsupported Bitcoin network/);
           } finally {
             checked.free();
             original.free();
           }
-          assert.throws(() => checked.getHashlockScript());
+          assert.throws(() => checked.getHashlockScript(), /null pointer passed to rust/);
         }
       }
     });
@@ -924,7 +938,7 @@ for (const entry of ['raw', 'raw-node']) {
       keepers[0] = xOnlyKeys[4];
       assert.equal(checked.getHashlockScript(), expected);
       checked[Symbol.dispose]();
-      assert.throws(() => checked.getRefundControlBlock());
+      assert.throws(() => checked.getRefundControlBlock(), /null pointer passed to rust/);
       for (const version of [0, 4, 99, 0x100000001, NaN]) {
         assert.throws(
           () => new raw.WasmPrePeginHtlcConnector(...htlcArgs(version)),

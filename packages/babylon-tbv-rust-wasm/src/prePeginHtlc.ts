@@ -15,11 +15,8 @@ import {
   normalizeXOnlyKey,
   normalizeKeyGroup,
   nOfNChunks,
+  stripHexPrefix,
 } from './connectorScripts.js';
-
-function stripHexPrefix(hex: string): string {
-  return hex.startsWith('0x') || hex.startsWith('0X') ? hex.slice(2) : hex;
-}
 
 const PREIMAGE_LENGTH_BYTES = 32;
 

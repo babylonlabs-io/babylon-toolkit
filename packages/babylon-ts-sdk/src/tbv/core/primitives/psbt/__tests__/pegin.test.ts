@@ -707,10 +707,32 @@ describe("buildPeginTxFromFundedPrePegin", () => {
             fundedPrePeginTxHex: txHex,
             htlcVout: 0,
           }),
-        ).rejects.toThrow("does not match the requested payout connector");
+        ).rejects.toThrow(
+          `WASM PegIn vault scriptPubKey ${changedPayout.scriptPubKey} does ` +
+            `not match the requested payout scriptPubKey`,
+        );
       } finally {
         Object.assign(prototype, { toHex, getTxid, getVaultScriptPubKey });
       }
+    },
+  );
+
+  it.each([0, 65536, 65537, 1.5])(
+    "rejects PegIn timelock %p before it reaches the engine",
+    async (timelockPegin) => {
+      const { txHex, params } = await buildFundedPrePeginTxHex({});
+
+      await expect(
+        buildPeginTxFromFundedPrePegin({
+          prePeginParams: params,
+          timelockPegin,
+          fundedPrePeginTxHex: txHex,
+          htlcVout: 0,
+        }),
+      ).rejects.toThrow(
+        `PegIn timelock ${timelockPegin} must be a whole number of blocks ` +
+          `from 1 to 65535`,
+      );
     },
   );
 
