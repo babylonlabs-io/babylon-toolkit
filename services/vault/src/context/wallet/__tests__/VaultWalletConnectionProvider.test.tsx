@@ -3,10 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { WalletConnectionProvider } from "../VaultWalletConnectionProvider";
 
-// Drive the BTC lifecycle callbacks that VaultWalletConnectionProvider passes
-// into BTCWalletProvider, and observe whether the destructive disconnectAll()
-// cascade fires. We mock the wallet-connector module so the test exercises the
-// real blip-guard logic against a controllable connect/disconnect event stream.
+// Drive the wallet events and check which connector cleanup Vault requests.
 type BtcCallbacks = {
   onConnect: () => void;
   onDisconnect: () => void;
@@ -15,6 +12,7 @@ type BtcCallbacks = {
 
 const h = vi.hoisted(() => ({
   disconnectAll: vi.fn(async () => {}),
+  btcConnector: { disconnect: vi.fn<(scope: string) => Promise<void>>() },
   visible: false,
   captured: {
     btc: undefined as undefined | BtcCallbacks,
@@ -56,6 +54,7 @@ vi.mock("@babylonlabs-io/wallet-connector", () => ({
     return children;
   },
   createWalletConfig: () => ({}),
+  useChainConnector: () => h.btcConnector,
   useWalletConnect: () => ({ disconnect: h.disconnectAll }),
   useWidgetState: () => ({ visible: h.visible }),
 }));
@@ -78,6 +77,7 @@ describe("WalletConnectionProvider wallet resets", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     h.disconnectAll.mockClear();
+    h.btcConnector.disconnect.mockReset();
     h.visible = false;
     h.captured.btc = undefined;
     h.captured.eth = undefined;
@@ -143,20 +143,19 @@ describe("WalletConnectionProvider wallet resets", () => {
     await vi.advanceTimersByTimeAsync(PAST_DEBOUNCE_MS);
 
     expect(h.disconnectAll).not.toHaveBeenCalled();
+    expect(h.btcConnector.disconnect).not.toHaveBeenCalled();
   });
 
-  it("tears down both wallets for a genuine disconnect after a successful connect", async () => {
+  it("clears only Bitcoin after a disconnect outlasts the reconnect delay", async () => {
     renderProvider();
 
     act(() => btc().onConnect());
-    // No reconnect (onConnect) within the window → a real disconnect. The reset
-    // must fire purely on the absence of a reconnect — it must NOT consult the
-    // connector's connectedWallet (an extension-initiated disconnect leaves that
-    // stale-set, which would wrongly suppress the cascade).
     act(() => btc().onDisconnect());
+    expect(h.btcConnector.disconnect).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(PAST_DEBOUNCE_MS);
 
-    expect(h.disconnectAll).toHaveBeenCalledTimes(1);
+    expect(h.btcConnector.disconnect).toHaveBeenCalledExactlyOnceWith("local");
+    expect(h.disconnectAll).not.toHaveBeenCalled();
   });
 
   it("cancels the reset when a reconnect arrives within the debounce window", async () => {
@@ -168,9 +167,10 @@ describe("WalletConnectionProvider wallet resets", () => {
     await vi.advanceTimersByTimeAsync(PAST_DEBOUNCE_MS);
 
     expect(h.disconnectAll).not.toHaveBeenCalled();
+    expect(h.btcConnector.disconnect).not.toHaveBeenCalled();
   });
 
-  it("still resets both wallets when BTC disconnects inside the dialog", async () => {
+  it("keeps Ethereum connected when Bitcoin disconnects inside the dialog", async () => {
     h.visible = true;
     renderProvider();
 
@@ -179,7 +179,22 @@ describe("WalletConnectionProvider wallet resets", () => {
     expect(h.disconnectAll).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(PAST_DEBOUNCE_MS);
 
-    expect(h.disconnectAll).toHaveBeenCalledTimes(1);
+    expect(h.btcConnector.disconnect).toHaveBeenCalledExactlyOnceWith("local");
+    expect(h.disconnectAll).not.toHaveBeenCalled();
+  });
+
+  it("ignores the disconnect event emitted by Bitcoin cleanup", async () => {
+    renderProvider();
+    h.btcConnector.disconnect.mockImplementationOnce(async () => {
+      btc().onDisconnect();
+    });
+
+    act(() => btc().onConnect());
+    act(() => btc().onDisconnect());
+    await vi.advanceTimersByTimeAsync(PAST_DEBOUNCE_MS * 2);
+
+    expect(h.btcConnector.disconnect).toHaveBeenCalledExactlyOnceWith("local");
+    expect(h.disconnectAll).not.toHaveBeenCalled();
   });
 
   it("cancels a pending BTC reset when the provider unmounts", async () => {
@@ -191,5 +206,6 @@ describe("WalletConnectionProvider wallet resets", () => {
     await vi.advanceTimersByTimeAsync(PAST_DEBOUNCE_MS);
 
     expect(h.disconnectAll).not.toHaveBeenCalled();
+    expect(h.btcConnector.disconnect).not.toHaveBeenCalled();
   });
 });
