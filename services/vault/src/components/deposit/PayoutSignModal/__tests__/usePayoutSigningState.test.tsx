@@ -1337,6 +1337,9 @@ describe("usePayoutSigningState", () => {
         depositorBtcPubkey: "0x" + "ab".repeat(32),
         fundedTxFee: FUNDED_TX_FEE,
         lifecycle: "presign",
+        // The modal's abort signal, so closing it ends the rebuild's
+        // registration-log retry backoff.
+        signal: expect.any(AbortSignal),
       });
       expect(mockSignAndSubmitPayouts).toHaveBeenCalledOnce();
       expect(mockSignAndSubmitPayouts.mock.calls[0][0].depositTerms).toBe(

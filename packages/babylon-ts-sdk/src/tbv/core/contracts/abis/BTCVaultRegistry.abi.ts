@@ -9,7 +9,8 @@
 
 /**
  * Minimal ABI for BTCVaultRegistry contract.
- * Contains submitPeginRequest, submitPeginRequestBatch, activateVaultWithSecret, getPegInFee, getBtcVaultBasicInfo, and getVaultProviderCommission.
+ * Contains submitPeginRequest, submitPeginRequestBatch, activateVaultWithSecret, getPegInFee, getBtcVaultBasicInfo, getVaultProviderCommission,
+ * and the PegInSubmitted / PegInSubmittedV2 events.
  */
 export const BTCVaultRegistryABI = [
   {
@@ -662,4 +663,281 @@ export const BTCVaultRegistryABI = [
   { type: "error", name: "ActivationDelayNotElapsed", inputs: [] },
   { type: "error", name: "PostExpiryGraceWindowElapsed", inputs: [] },
   { type: "error", name: "CapExceeded", inputs: [] },
+  // Registration event, emitted on every registration since genesis
+  // (vault-contracts-aave-v4 src/protocol/lib/types/Events.sol).
+  {
+    type: "event",
+    name: "PegInSubmitted",
+    inputs: [
+      {
+        name: "vaultId",
+        type: "bytes32",
+        indexed: true,
+        internalType: "bytes32",
+      },
+      {
+        name: "peginTxHash",
+        type: "bytes32",
+        indexed: true,
+        internalType: "bytes32",
+      },
+      {
+        name: "depositor",
+        type: "address",
+        indexed: true,
+        internalType: "address",
+      },
+      {
+        name: "vaultProvider",
+        type: "address",
+        indexed: false,
+        internalType: "address",
+      },
+      {
+        name: "amount",
+        type: "uint256",
+        indexed: false,
+        internalType: "uint256",
+      },
+      {
+        name: "vaultCoreVersion",
+        type: "uint16",
+        indexed: false,
+        internalType: "uint16",
+      },
+      {
+        name: "universalChallengersVersion",
+        type: "uint16",
+        indexed: false,
+        internalType: "uint16",
+      },
+      {
+        name: "appVaultKeepersVersion",
+        type: "uint16",
+        indexed: false,
+        internalType: "uint16",
+      },
+      {
+        name: "proverCircuitVersion",
+        type: "uint16",
+        indexed: false,
+        internalType: "uint16",
+      },
+      {
+        name: "offchainParamsVersion",
+        type: "uint16",
+        indexed: false,
+        internalType: "uint16",
+      },
+      {
+        name: "referralCode",
+        type: "uint32",
+        indexed: false,
+        internalType: "uint32",
+      },
+      {
+        name: "depositorPayoutBtcAddress",
+        type: "bytes",
+        indexed: false,
+        internalType: "bytes",
+      },
+      {
+        name: "depositorWotsPkHash",
+        type: "bytes32",
+        indexed: false,
+        internalType: "bytes32",
+      },
+      {
+        name: "hashlock",
+        type: "bytes32",
+        indexed: false,
+        internalType: "bytes32",
+      },
+      {
+        name: "btcPopSignature",
+        type: "bytes",
+        indexed: false,
+        internalType: "bytes",
+      },
+      {
+        name: "htlcVout",
+        type: "uint8",
+        indexed: false,
+        internalType: "uint8",
+      },
+      {
+        name: "unsignedPrePeginTx",
+        type: "bytes",
+        indexed: false,
+        internalType: "bytes",
+      },
+      {
+        name: "depositorSignedPeginTx",
+        type: "bytes",
+        indexed: false,
+        internalType: "bytes",
+      },
+      {
+        name: "vpKeyEpoch",
+        type: "uint64",
+        indexed: false,
+        internalType: "uint64",
+      },
+      {
+        name: "appKeeperKeyEpoch",
+        type: "uint64",
+        indexed: false,
+        internalType: "uint64",
+      },
+      {
+        name: "ucKeyEpoch",
+        type: "uint64",
+        indexed: false,
+        internalType: "uint64",
+      },
+    ],
+    anonymous: false,
+  },
+  // Emitted alongside PegInSubmitted on every registration since #548; the
+  // only on-chain source of the depositor's commission ceiling, which the
+  // contract bound-checks and discards (Events.sol, vault-contracts-aave-v4 #548).
+  {
+    type: "event",
+    name: "PegInSubmittedV2",
+    inputs: [
+      {
+        name: "vaultId",
+        type: "bytes32",
+        indexed: true,
+        internalType: "bytes32",
+      },
+      {
+        name: "peginTxHash",
+        type: "bytes32",
+        indexed: true,
+        internalType: "bytes32",
+      },
+      {
+        name: "depositor",
+        type: "address",
+        indexed: true,
+        internalType: "address",
+      },
+      {
+        name: "vaultProvider",
+        type: "address",
+        indexed: false,
+        internalType: "address",
+      },
+      {
+        name: "amount",
+        type: "uint256",
+        indexed: false,
+        internalType: "uint256",
+      },
+      {
+        name: "vaultCoreVersion",
+        type: "uint16",
+        indexed: false,
+        internalType: "uint16",
+      },
+      {
+        name: "universalChallengersVersion",
+        type: "uint16",
+        indexed: false,
+        internalType: "uint16",
+      },
+      {
+        name: "appVaultKeepersVersion",
+        type: "uint16",
+        indexed: false,
+        internalType: "uint16",
+      },
+      {
+        name: "proverCircuitVersion",
+        type: "uint16",
+        indexed: false,
+        internalType: "uint16",
+      },
+      {
+        name: "offchainParamsVersion",
+        type: "uint16",
+        indexed: false,
+        internalType: "uint16",
+      },
+      {
+        name: "referralCode",
+        type: "uint32",
+        indexed: false,
+        internalType: "uint32",
+      },
+      {
+        name: "depositorPayoutBtcAddress",
+        type: "bytes",
+        indexed: false,
+        internalType: "bytes",
+      },
+      {
+        name: "depositorWotsPkHash",
+        type: "bytes32",
+        indexed: false,
+        internalType: "bytes32",
+      },
+      {
+        name: "hashlock",
+        type: "bytes32",
+        indexed: false,
+        internalType: "bytes32",
+      },
+      {
+        name: "btcPopSignature",
+        type: "bytes",
+        indexed: false,
+        internalType: "bytes",
+      },
+      {
+        name: "htlcVout",
+        type: "uint8",
+        indexed: false,
+        internalType: "uint8",
+      },
+      {
+        name: "unsignedPrePeginTx",
+        type: "bytes",
+        indexed: false,
+        internalType: "bytes",
+      },
+      {
+        name: "depositorSignedPeginTx",
+        type: "bytes",
+        indexed: false,
+        internalType: "bytes",
+      },
+      {
+        name: "vpKeyEpoch",
+        type: "uint64",
+        indexed: false,
+        internalType: "uint64",
+      },
+      {
+        name: "appKeeperKeyEpoch",
+        type: "uint64",
+        indexed: false,
+        internalType: "uint64",
+      },
+      {
+        name: "ucKeyEpoch",
+        type: "uint64",
+        indexed: false,
+        internalType: "uint64",
+      },
+      {
+        name: "maxAcceptableCommissionBps",
+        type: "uint16",
+        indexed: false,
+        internalType: "uint16",
+      },
+    ],
+    anonymous: false,
+  },
 ] as const;

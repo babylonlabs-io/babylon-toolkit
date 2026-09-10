@@ -387,6 +387,7 @@ export function usePayoutSigningState({
             depositorBtcPubkey: btcPublicKey,
             fundedTxFee,
             lifecycle: "presign",
+            signal: abortRef.current.signal,
           });
           // Last cancellation point before wallet/device interaction — the
           // rebuild's chain reads leave a window where the modal may close.

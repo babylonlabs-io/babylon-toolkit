@@ -1,8 +1,9 @@
 /**
  * The depositor's commission ceiling (`maxAcceptableCommissionBps`) policy:
  * quoted VP commission + drift headroom, capped below the contract's
- * exclusive bound. Shared by the fresh path (`PeginManager`) and the
- * resume-rebuild path so both compute the same ceiling.
+ * exclusive bound. Shared by `PeginManager` (the approved terms) and the
+ * registration calldata so both carry the same ceiling; a resume rebuild reads
+ * that submitted value back from the `PegInSubmittedV2` log instead.
  *
  * @module deposit-terms/commissionCeiling
  */

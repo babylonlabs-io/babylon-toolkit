@@ -444,6 +444,52 @@ optional observer invoked once per skipped
 
 ***
 
+### RegistrationLogsUnavailableError
+
+Defined in: packages/babylon-ts-sdk/src/tbv/core/clients/eth/registration-logs-error.ts
+
+#### Extends
+
+- `Error`
+
+#### Constructors
+
+##### Constructor
+
+```ts
+new RegistrationLogsUnavailableError(blockNumber): RegistrationLogsUnavailableError;
+```
+
+Defined in: packages/babylon-ts-sdk/src/tbv/core/clients/eth/registration-logs-error.ts
+
+###### Parameters
+
+###### blockNumber
+
+`bigint`
+
+###### Returns
+
+[`RegistrationLogsUnavailableError`](#registrationlogsunavailableerror)
+
+###### Overrides
+
+```ts
+Error.constructor
+```
+
+#### Properties
+
+##### blockNumber
+
+```ts
+readonly blockNumber: bigint;
+```
+
+Defined in: packages/babylon-ts-sdk/src/tbv/core/clients/eth/registration-logs-error.ts
+
+***
+
 ### ViemVaultKeeperReader
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/signer-set-reader.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/signer-set-reader.ts)
@@ -994,6 +1040,54 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/vault-registry-rea
 ###### Implementation of
 
 [`VaultRegistryReader`](#vaultregistryreader).[`getVaultData`](#getvaultdata)
+
+##### getMaxAcceptableCommissionBpsBatch()
+
+```ts
+getMaxAcceptableCommissionBpsBatch(vaultIds, createdAt): Promise<number[]>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/vault-registry-reader.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/vault-registry-reader.ts)
+
+Read the depositor's commission ceiling (`maxAcceptableCommissionBps`)
+for vaults registered in the same block, from their `PegInSubmittedV2`
+logs. Returned in `vaultIds` order.
+
+The contract bound-checks the ceiling and discards it (PeginLogic.sol,
+`VaultProviderCommissionExceeded`), so the registration log is its only
+on-chain source. One query at exactly `createdAt` — the `block.number`
+stamped at registration — so no block-range scan is needed and public-RPC
+range caps do not apply. Vault ids are matched case-insensitively.
+
+###### Parameters
+
+###### vaultIds
+
+readonly `` `0x${string}` ``[]
+
+###### createdAt
+
+`bigint`
+
+###### Returns
+
+`Promise`\<`number`[]\>
+
+###### Throws
+
+(transient, retry) when the
+node answers with no registration logs for the block at all.
+
+###### Throws
+
+when a vault has only its `PegInSubmitted` log — registrations
+that predate the V2 event (vault-contracts-aave-v4 #548) never emitted
+the ceiling — no registration log in its own `createdAt` block, or more
+than one V2 log.
+
+###### Implementation of
+
+[`VaultRegistryReader`](#vaultregistryreader).[`getMaxAcceptableCommissionBpsBatch`](#getmaxacceptablecommissionbpsbatch)
 
 ***
 
@@ -2563,6 +2657,43 @@ provider has never rotated.
 ###### Returns
 
 `Promise`\<[`OnChainBtcPubkey`](#onchainbtcpubkey)\>
+
+##### getMaxAcceptableCommissionBpsBatch()
+
+```ts
+getMaxAcceptableCommissionBpsBatch(vaultIds, createdAt): Promise<number[]>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts)
+
+Read the depositor's commission ceiling (`maxAcceptableCommissionBps`)
+for vaults registered in the same block `createdAt`, from their
+`PegInSubmittedV2` logs, in `vaultIds` order. The contract discards the
+ceiling after bound-checking it, so the log is its only on-chain source.
+
+###### Parameters
+
+###### vaultIds
+
+readonly `` `0x${string}` ``[]
+
+###### createdAt
+
+`bigint`
+
+###### Returns
+
+`Promise`\<`number`[]\>
+
+###### Throws
+
+(transient, retry) when the
+node answers with no registration logs for the block at all.
+
+###### Throws
+
+when a vault has only its `PegInSubmitted` log (a registration
+that predates the V2 event), none, or more than one V2 log.
 
 ***
 
@@ -6249,6 +6380,28 @@ names).
 #### Returns
 
 `void`
+
+***
+
+### isRegistrationLogsUnavailableError()
+
+```ts
+function isRegistrationLogsUnavailableError(err): err is RegistrationLogsUnavailableError;
+```
+
+Defined in: packages/babylon-ts-sdk/src/tbv/core/clients/eth/registration-logs-error.ts
+
+Matches `instanceof` OR the documented `name` (dual module instances).
+
+#### Parameters
+
+##### err
+
+`unknown`
+
+#### Returns
+
+`err is RegistrationLogsUnavailableError`
 
 ***
 
