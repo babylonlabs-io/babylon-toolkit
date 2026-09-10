@@ -46,7 +46,7 @@ export function assertDepositTermsDeviceCompatible(terms: DepositTerms): void {
   );
 
   // The >= 1 floor is enforced by both the contract and the device
-  // (vault_tlv.c:73 rejects rate == 0).
+  // (vault_tlv.c:75 rejects rate == 0).
   if (terms.protocolFeeRate < 1n || terms.protocolFeeRate > DEVICE_MAX_BASE_FEE_RATE_SAT_PER_VB) {
     throw new DepositTermsRejectedError(
       `${RANGE_MSG}: protocolFeeRate ${terms.protocolFeeRate} not in ` + `[1, ${DEVICE_MAX_BASE_FEE_RATE_SAT_PER_VB}]`,
@@ -85,7 +85,7 @@ export function assertDepositTermsDeviceCompatible(terms: DepositTerms): void {
 
   // Raw u64 validity first, then the semantic floor — same ordering as the
   // per-vault loop. The intent parser rejects prepegin_max_fee == 0
-  // (vault_tlv.c:152).
+  // (vault_tlv.c:170).
   requireU64("prepeginMaxFee", terms.prepeginMaxFee);
   if (terms.prepeginMaxFee < 1n) {
     throw new DepositTermsRejectedError(`${RANGE_MSG}: prepeginMaxFee ${terms.prepeginMaxFee} must be >= 1`);

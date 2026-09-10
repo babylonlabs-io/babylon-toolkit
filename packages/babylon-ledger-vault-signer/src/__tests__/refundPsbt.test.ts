@@ -2,8 +2,8 @@
  * Refund-PSBT classification and augmentation (#2371).
  *
  * The leaf grammar mirrors the firmware's own parser byte-for-byte —
- * `fw:sign_psbt_validate_helpers.c:77-148` (`parse_refund_leaf_script`) @
- * `ff1e1ce17` — so every accept/reject vector here is a firmware-grammar pin,
+ * `fw:sign_psbt_validate_helpers.c:77-156` (`parse_refund_leaf_script`) @
+ * `b0c0ac4d` — so every accept/reject vector here is a firmware-grammar pin,
  * including the shapes the firmware is deliberately loose about (OP_PUSHDATA1,
  * a non-minimal positive CScriptNum).
  */
@@ -158,10 +158,17 @@ describe("parseRefundLeafScript (firmware-grammar mirror)", () => {
     });
   });
 
-  it("parses the maximum 4-byte CScriptNum the firmware admits", () => {
-    expect(parseRefundLeafScript(refundLeaf(DEPOSITOR_XONLY, Buffer.from([0x04, 0xff, 0xff, 0xff, 0x7f])))).toEqual({
+  it("parses the maximum CSV the firmware admits — the BIP-68 block-count field (0xffff)", () => {
+    expect(parseRefundLeafScript(refundLeaf(DEPOSITOR_XONLY, Buffer.from([0x03, 0xff, 0xff, 0x00])))).toEqual({
       leafKeyHex: DEPOSITOR_XONLY,
-      csv: 0x7fffffff,
+      csv: 0xffff,
+    });
+  });
+
+  it("parses a 4-byte CScriptNum push — the firmware's length cap — when its value fits the field", () => {
+    expect(parseRefundLeafScript(refundLeaf(DEPOSITOR_XONLY, Buffer.from([0x04, 0xff, 0xff, 0x00, 0x00])))).toEqual({
+      leafKeyHex: DEPOSITOR_XONLY,
+      csv: 0xffff,
     });
   });
 
@@ -170,6 +177,8 @@ describe("parseRefundLeafScript (firmware-grammar mirror)", () => {
     ["OP_1NEGATE push", Buffer.from([0x4f])],
     ["negative CScriptNum (sign bit set)", Buffer.from([0x01, 0x80])],
     ["zero CScriptNum", Buffer.from([0x01, 0x00])],
+    ["CSV one above the BIP-68 block-count field (0x10000)", Buffer.from([0x03, 0x00, 0x00, 0x01])],
+    ["CSV 0x7fffffff — the 4-byte maximum the firmware accepted before V-005", Buffer.from([0x04, 0xff, 0xff, 0xff, 0x7f])],
     ["5-byte CScriptNum", Buffer.from([0x05, 0x01, 0x00, 0x00, 0x00, 0x00])],
     ["OP_PUSHDATA1 with a 5-byte length", Buffer.from([0x4c, 0x05, 0x01, 0x00, 0x00, 0x00, 0x00])],
     ["push extending past the script end", Buffer.from([0x04, 0x01])],
@@ -290,6 +299,11 @@ describe("assertRefundPsbtSignable", () => {
     expect(() => assertRefundPsbtSignable(classified({ sequence: 144 }))).toThrow(/sequence/);
   });
 
+  it("rejects a sequence with a bit above the block-count field even though the low 16 bits match the CSV", () => {
+    // A masked compare accepted this; the device compares unmasked (V-005).
+    expect(() => assertRefundPsbtSignable(classified({ sequence: 0x00010000 + CSV_2016 }))).toThrow(/sequence/);
+  });
+
   it("rejects an input without a witnessUtxo", () => {
     expect(() => assertRefundPsbtSignable(classified({ dropWitnessUtxo: true }))).toThrow(/witnessUtxo/);
   });
@@ -327,7 +341,7 @@ describe("augmentPsbtForRefund", () => {
     expect(inputDeriv![0].path).toBe("m/86'/1'/0'/0/0");
     expect(inputDeriv![0].leafHashes).toEqual([]);
 
-    // The asymmetry the device demands (`fw:sign_psbt_validate.c:1005-1057`):
+    // The asymmetry the device demands (`fw:sign_psbt_validate.c:1025-1069`):
     // the output entry is keyed by the scriptPubKey's witness program, which
     // is the BIP-86 TWEAK of the depositor key — never the depositor key itself.
     const outputDeriv = augmented.data.outputs[0].tapBip32Derivation;
