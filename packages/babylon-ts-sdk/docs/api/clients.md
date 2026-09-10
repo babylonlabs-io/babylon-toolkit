@@ -446,7 +446,7 @@ optional observer invoked once per skipped
 
 ### RegistrationLogsUnavailableError
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/clients/eth/registration-logs-error.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/registration-logs-error.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/registration-logs-error.ts)
 
 #### Extends
 
@@ -460,7 +460,7 @@ Defined in: packages/babylon-ts-sdk/src/tbv/core/clients/eth/registration-logs-e
 new RegistrationLogsUnavailableError(blockNumber): RegistrationLogsUnavailableError;
 ```
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/clients/eth/registration-logs-error.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/registration-logs-error.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/registration-logs-error.ts)
 
 ###### Parameters
 
@@ -486,7 +486,7 @@ Error.constructor
 readonly blockNumber: bigint;
 ```
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/clients/eth/registration-logs-error.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/registration-logs-error.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/registration-logs-error.ts)
 
 ***
 
@@ -6389,7 +6389,7 @@ names).
 function isRegistrationLogsUnavailableError(err): err is RegistrationLogsUnavailableError;
 ```
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/clients/eth/registration-logs-error.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/registration-logs-error.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/registration-logs-error.ts)
 
 Matches `instanceof` OR the documented `name` (dual module instances).
 
