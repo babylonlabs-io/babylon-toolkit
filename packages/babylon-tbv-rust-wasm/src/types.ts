@@ -277,3 +277,72 @@ export interface ChallengeAssertScriptInfo {
   /** The control block for the ChallengeAssert script (hex encoded) */
   controlBlock: string;
 }
+
+// ============================================================================
+// Delegated claim (depositor-as-claimer) — assembly surface
+// ============================================================================
+
+/**
+ * WronglyChallenged signing PSBTs (base64), keyed by hex challenger public key
+ * and ordered by garbled-circuit index within each entry.
+ */
+export type WronglyChallengedPsbts = Record<string, string[]>;
+
+/** Claimer WronglyChallenged signatures, keyed and ordered the same way. */
+export type WronglyChallengedSigs = Record<string, string[]>;
+
+/**
+ * Output of the depositor's WOTS keypair derivation.
+ *
+ * `keypair` holds the secret hash chains: single-use material that must not
+ * be persisted beyond the claim, logged, or reused across claims.
+ */
+export interface WotsKeypairDerivation {
+  /** Serializes verbatim as the `wots_keypair.json` the watchtower CLI reads. */
+  keypair: unknown;
+  /** The public side, matching what the graph's Claim commits to. */
+  public_keys: unknown;
+  /** `0x`-prefixed hash of the public keys — the on-chain `depositorWotsPkHash`. */
+  pk_hash: string;
+}
+
+/**
+ * Inputs to the watchtower `artifacts.json` builder, in the wire encodings the
+ * WASM boundary takes.
+ */
+export interface WatchtowerArtifactsInputs {
+  /** Graph version selecting the builder. Delegated claim requires 3. */
+  txGraphVersion: number;
+  /** JSON-serialized TxGraph exactly as the vault provider returned it. */
+  graphJson: string;
+  /** Fully signed Claim transaction, consensus hex. */
+  signedClaimTxHex: string;
+  /** 64-byte Schnorr signature hex over the Assert claimer sighash. */
+  assertClaimerSigHex: string;
+  /** 64-byte Schnorr signature hex over the Payout claimer sighash. */
+  payoutClaimerSigHex: string;
+  wronglyChallengedSigs: WronglyChallengedSigs;
+  /**
+   * 64-byte Schnorr signature hex over the depositor Payout sighash. Pass
+   * `undefined` to use the presign-phase signature stored on the graph.
+   */
+  depositorPayoutSigHex?: string;
+  /** Groth16 verifying key, ark-compressed hex. Passed through opaquely. */
+  verifyingKeyHex: string;
+  /**
+   * Block of the finalized `VaultClaimableBy` event. Zero until the Ethereum
+   * withdrawal is initiated; whoever runs the claim must correct it from
+   * chain first, or the prover proves the wrong block.
+   */
+  claimableEventBlockNumber: bigint;
+  /** On-chain prover circuit version. */
+  proverCircuitVersion: number;
+  /** 32-byte on-chain vault id, hex with or without a `0x` prefix. */
+  vaultIdHex: string;
+  /**
+   * Per-challenger BaBe sessions as `{"<pk>": {"decryptor_artifacts_hex":
+   * "..."}}`. Passed through opaquely, and hundreds of megabytes in practice
+   * — omit it here and join the sessions into the file downstream.
+   */
+  babeSessionsJson?: string;
+}
