@@ -13,7 +13,7 @@
  *   7-9. PegIn (spends the real Pre-PegIn txid), sighash check, finalize
  *   10. BIP-322 PoP, last among the intent stages, so it signs while the
  *       intent is still loaded — the path that exercises the firmware's
- *       intent-key check (`sign_psbt_validate.c:2764-2769`).
+ *       intent-key check (`sign_psbt_validate.c:3071-3075`).
  *   11. depositor-graph presign (T7 stage a): Payout (under the production
  *       `signInputIndexes: [0]`) + NoPayout against a production-SDK-built
  *       graph fixture, still under the stage-4 intent.
@@ -22,13 +22,14 @@
  *       LAST — it re-derives, which resets the vault session.
  *
  * Stage 5 MUST precede stage 6: a successful Pre-PegIn sign arms the one-shot
- * cap and the next one answers SW_CAP_EXCEEDED (`sign_psbt_validate.c:539-543`).
+ * cap and the next one answers SW_CAP_EXCEEDED (`sign_psbt_validate.c:741-744`).
  *
  * Requires a running container with the vault app (nanosp, testnet build,
- * firmware-test mnemonic) built from ELF commit `29beb88d5` (stages 1-10 also
- * pass at `e2d0c45b`; stages 11-12 cite `29beb88d5` line numbers). Skipped
- * unless SPECULOS_URL is set (SPECULOS_REQUIRED turns that skip into a
- * failure — CI):
+ * firmware-test mnemonic) built from ELF commit `b0c0ac4d` — app 0.10.1, the
+ * `develop` tip tagged `*_0.10.1_sdk_v26.6.1`; CI run 33860782380, artifact
+ * `compiled_app_binaries_testnet`, `nanos2/bin/app.elf`. Every firmware line
+ * cited in this file is at that commit. Skipped unless SPECULOS_URL is set
+ * (SPECULOS_REQUIRED turns that skip into a failure — CI):
  *
  *   SPECULOS_URL=http://127.0.0.1:5055 pnpm exec vitest run src/__tests__/e2e/
  *
@@ -61,9 +62,9 @@ import {
   computePeginSighash,
   computeRefundSighash,
   DEPOSITOR_PATH,
-  HTLC_VALUE_SATS,
   DEPOSITOR_XONLY_HEX,
   DERIVE_CONTEXT,
+  HTLC_VALUE_SATS,
   HTLC_VOUT,
   PREPEGIN_INPUT_VALUE_SATS,
   termsToIntent,
@@ -97,11 +98,18 @@ async function loadSdkVerifier() {
 }
 type SdkVerifier = Awaited<ReturnType<typeof loadSdkVerifier>>;
 
+/**
+ * App version of the pinned ELF (`b0c0ac4d`, see the header). Stage 1 asserts
+ * it, so a run against another build cannot pass as this pin — the firmware
+ * line citations below are only meaningful at this version.
+ */
+const PINNED_APP_VERSION = "0.10.1";
+
 /** Live-verified nanosp review-screen texts (reference driver `lsk_ceremony2.py`). */
 const DERIVE_APPROVAL_TEXT = "Allow derivation";
 const INTENT_APPROVAL_TEXT = "Approve intent";
 /**
- * The PoP finish page is "Register ETH\naddress?" (`display.c:336-342`); the
+ * The PoP finish page is "Register ETH\naddress?" (`display.c:364-366`); the
  * intro page is the same title WITHOUT the question mark, and `approveOnScreen`
  * presses both on the FIRST match — so target the "?", unique to the finish page.
  */
@@ -125,14 +133,14 @@ const DEPOSITOR_GRAPH_CHALLENGER_COUNT = 2;
  */
 const PAYOUT_VAULT_UTXO_INPUT = 0;
 const PAYOUT_ASSERT_INPUT = 1;
-/** NoPayout input 0 spends Assert:0 (btc-vault nopayout.rs:146-155) — the one prevout the two fixture shapes differ in. */
+/** NoPayout input 0 spends Assert:0 (btc-vault nopayout.rs:146-155) — the depositor-signed input. */
 const NOPAYOUT_ASSERT_INPUT = 0;
 /** Stage 12 aborts after the FIRST yield — validation (and the Pre-PegIn cap bump) is over, signing is not. */
 const ABORT_AFTER_YIELD_COUNT = 1;
 
 /**
  * SW_INCORRECT_DATA — `_validate_prepegin`'s catch-all output reject
- * (`sign_psbt_validate.c:507-510`); also what the dispatcher answers for the
+ * (`sign_psbt_validate.c:709-711`); also what the dispatcher answers for the
  * one eaten APDU after an abandoned CONTINUE loop (`base:dispatcher.c:107-111`).
  */
 const SW_INCORRECT_DATA = 0x6a80;
@@ -152,7 +160,7 @@ const CHANGE_ADDRESS_INDEX = 0;
  * `bip322ToSpendTxid` (the builder under test), but the device is the
  * independent oracle for it: the firmware rebuilds to_spend from the message
  * and its own BIP-86 key and rejects a PSBT_IN_PREVIOUS_TXID mismatch before
- * signing (`sign_psbt_validate.c:2751-2802` @ 4decf822).
+ * signing (`sign_psbt_validate.c:3093-3110`).
  */
 const TO_SIGN_VERSION = 0;
 const TO_SIGN_LOCKTIME = 0;
@@ -182,7 +190,7 @@ describe.skipIf(SPECULOS_URL === "")("Speculos end-to-end vault signing", () => 
     async () => {
       const app = await getAppAndVersion(sendRaw);
       expect(app.name).toContain("Babylon Vault");
-      expect(app.version).toMatch(/^\d+\.\d+\.\d+$/);
+      expect(app.version).toBe(PINNED_APP_VERSION);
       console.log(`[speculos-e2e] app: ${app.name} v${app.version}`);
     },
     SANITY_TIMEOUT_MS,
@@ -269,7 +277,7 @@ describe.skipIf(SPECULOS_URL === "")("Speculos end-to-end vault signing", () => 
         walletPolicy: policy as DefaultTaprootWalletPolicy,
         depositorPath: DEPOSITOR_PATH,
         // no `change` → the change output is external on-device → `_validate_prepegin`
-        // catch-all reject (`sign_psbt_validate.c:507-510`), before the txid/cap checks.
+        // catch-all reject (`sign_psbt_validate.c:709-711`), before the txid/cap checks.
       });
       const prepared = prepareSignPsbt({
         psbtHex: unmarkedChange,
@@ -283,7 +291,7 @@ describe.skipIf(SPECULOS_URL === "")("Speculos end-to-end vault signing", () => 
         (error: unknown) => error,
       );
       // A terminal status word from the loop is classified into LedgerDeviceError
-      // (`rawApdu.ts classifyStatusWord`, `signPsbtLoop.ts:159-171`).
+      // (`rawApdu.ts classifyStatusWord`, `signPsbtLoop.ts:140-157`).
       if (!isLedgerDeviceError(failure)) throw new Error("expected a LedgerDeviceError");
       expect(failure.statusWord).toBe(SW_INCORRECT_DATA);
       // Session and intent survive a validation failure: the next stage signs
@@ -508,37 +516,12 @@ describe.skipIf(SPECULOS_URL === "")("Speculos end-to-end vault signing", () => 
     );
 
     it(
-      "NoPayout fixture shapes differ ONLY in input 0's prevout txid — the firmware reject below is attributable to group routing alone",
-      () => {
-        expect(graph, "fixture stage must have built the graph").toBeDefined();
-        for (const challenger of (graph as DepositorGraphFixture).perChallenger) {
-          const production = Psbt.fromHex(challenger.productionPsbtHex);
-          const firmwareShaped = Psbt.fromHex(challenger.firmwareShapedPsbtHex);
-          const productionTx = Transaction.fromBuffer(production.data.globalMap.unsignedTx.toBuffer());
-          const firmwareShapedTx = Transaction.fromBuffer(firmwareShaped.data.globalMap.unsignedTx.toBuffer());
-          expect(
-            firmwareShapedTx.ins[NOPAYOUT_ASSERT_INPUT].hash.equals(productionTx.ins[NOPAYOUT_ASSERT_INPUT].hash),
-          ).toBe(false);
-          // Normalise the one intended difference, then demand byte-identity of
-          // the unsigned tx and field-identity of every map (the prevout lives
-          // nowhere but the tx — no non-witness UTXOs are attached).
-          firmwareShapedTx.ins[NOPAYOUT_ASSERT_INPUT].hash = productionTx.ins[NOPAYOUT_ASSERT_INPUT].hash;
-          expect(firmwareShapedTx.toBuffer().equals(productionTx.toBuffer())).toBe(true);
-          expect(firmwareShaped.data.inputs).toEqual(production.data.inputs);
-          expect(firmwareShaped.data.outputs).toEqual(production.data.outputs);
-          expect(firmwareShaped.data.globalMap.unknownKeyVals).toEqual(production.data.globalMap.unknownKeyVals);
-        }
-      },
-      SANITY_TIMEOUT_MS,
-    );
-
-    it(
       "Payout: the device signs input 0 alone under signInputIndexes [0]; input 1 stays classified but unsigned",
       async () => {
         expect(graph, "fixture stage must have built the graph").toBeDefined();
         const g = graph as DepositorGraphFixture;
         // #2321: the table is narrowed to what the firmware signs — the literal
-        // input 0 (`fw:sign_custom_inputs.c:347,413` @ 29beb88d5), never input 1.
+        // input 0 (`fw:sign_custom_inputs.c:387,405`), never input 1.
         const prepared = prepareSignPsbt({
           psbtHex: g.payoutPsbtHex,
           depositorXOnlyHex: DEPOSITOR_XONLY_HEX,
@@ -594,81 +577,42 @@ describe.skipIf(SPECULOS_URL === "")("Speculos end-to-end vault signing", () => 
     );
 
     it(
-      "NoPayout, production shape (input 0 spends Assert:0 per btc-vault/HLD): rejected per challenger, intent survives — challenger 0's firmware-shaped sign succeeds with no re-ceremony (FIRMWARE DIVERGENCE PIN)",
+      "NoPayout, production shape (input 0 spends Assert:0 per btc-vault/HLD): signs and far-side-verifies per challenger under the loaded intent",
       async () => {
         expect(graph, "fixture stage must have built the graph").toBeDefined();
+        // Firmware ≥ 0.10.0 (PR #8 `b71bcfe`) no longer routes the vault group
+        // by a PegIn-txid prevout: the challenger comes from the leaf's second
+        // key (`sign_psbt_validate.c:2138-2153`), so the protocol shape signs.
+        // The only replay bound is the flat cap `vault_count × (keepers +
+        // challengers)` (`:2155-2166`) — exactly this roster, which stage 12's
+        // re-ceremony resets — and each completed sign proves the stage-4
+        // intent is still loaded (`:2098-2101` gates on INTENT_LOADED).
         for (const challenger of (graph as DepositorGraphFixture).perChallenger) {
-          const failure = await signVaultPsbt(sendRaw, {
+          const result = await signVaultPsbt(sendRaw, {
             psbtHex: challenger.productionPsbtHex,
             depositorXOnlyHex: DEPOSITOR_XONLY_HEX,
             signal: AbortSignal.timeout(SIGNING_ABORT_MS),
-          }).then(
-            () => null,
-            (error: unknown) => error,
-          );
-          // DIVERGENCE PINNED (raise with Ledger): `_validate_nopayout` resolves
-          // the vault group by matching input 0's PREVIOUS_TXID against
-          // vault_compute_pegin_txid (`sign_psbt_validate.c:2196-2219`), but the
-          // protocol's NoPayout spends Assert:0 (btc-vault nopayout.rs:146-155;
-          // HLD v22 §4.9.8 "Prevout Assert:0"), whose txid the device cannot
-          // compute — so every honest NoPayout dies here at this tip.
-          // When Ledger fixes the routing (KB Q16, asked 2026-08-25) this MUST
-          // flip to a verified sign, and `firmwareShapedPsbtHex` + its stages go.
-          if (!isLedgerDeviceError(failure)) throw new Error("expected a LedgerDeviceError");
-          expect(failure.statusWord).toBe(SW_INCORRECT_DATA);
+          });
+          expect(result.yields).toHaveLength(1);
+          const yielded = result.yields[0];
+          expect(yielded.kind).toBe("tapscript");
+          if (yielded.kind !== "tapscript") throw new Error("unreachable");
+          expect(yielded.inputIndex).toBe(NOPAYOUT_ASSERT_INPUT);
+          expect(yielded.signerXOnlyHex).toBe(DEPOSITOR_XONLY_HEX);
+          expect(yielded.leafHashHex).toBe(challenger.noPayoutLeafHashHex);
+          expect(yielded.signature).toHaveLength(SCHNORR_SIG_BYTES);
+          // Far side, via the SDK's own verifier: recompute the BIP-341
+          // script-path sighash from the PSBT WE built and check the Schnorr.
+          (assertScriptPathSchnorrSignature as SdkVerifier)({
+            requestedPsbtHex: challenger.productionPsbtHex,
+            signatureHex: Buffer.from(yielded.signature).toString("hex"),
+            signerXOnlyPubkeyHex: DEPOSITOR_XONLY_HEX,
+            inputIndex: NOPAYOUT_ASSERT_INPUT,
+          });
         }
-        // Intent-survival proof, not a liveness probe: `_validate_nopayout` runs
-        // only in VAULT_STATE_INTENT_LOADED (`sign_psbt_validate.c:2000-2003`),
-        // so a completed sign under the SAME intent — no derive/intent re-run —
-        // proves the rejects above left the session loaded (their SEND_SW path
-        // carries no vault_context_invalidate).
-        await signAndVerifyFirmwareShapedNoPayout((graph as DepositorGraphFixture).perChallenger[0]);
       },
       SIGNING_TIMEOUT_MS,
     );
-
-    it(
-      "NoPayout, firmware shape for challenger 1 (FIRMWARE DIVERGENCE PIN — non-protocol shape, input 0 prevout swapped to the PegIn txid): signs and verifies",
-      async () => {
-        expect(graph, "fixture stage must have built the graph").toBeDefined();
-        // Challenger 0's slot was consumed by the survival proof above (per-slot
-        // dedup, `sign_psbt_validate.c:2221-2234`); this completes the roster.
-        await signAndVerifyFirmwareShapedNoPayout((graph as DepositorGraphFixture).perChallenger[1]);
-      },
-      SIGNING_TIMEOUT_MS,
-    );
-
-    /**
-     * Sign the firmware-shaped NoPayout — the shape the firmware's own tests
-     * build (test_sign_psbt_validate.py:2997), differing from production ONLY
-     * in input 0's prevout txid (asserted host-side above). Its completing
-     * isolates the production-shape rejection to the prevout routing alone:
-     * leaf, control block, witness band and sink all pass. NOT an endorsed
-     * scenario: a signature over the PegIn-txid prevout is unusable on the real
-     * Assert:0 (sighash commits the outpoint). Deleted with the Q16 fix.
-     */
-    async function signAndVerifyFirmwareShapedNoPayout(
-      challenger: DepositorGraphFixture["perChallenger"][number],
-    ): Promise<void> {
-      const result = await signVaultPsbt(sendRaw, {
-        psbtHex: challenger.firmwareShapedPsbtHex,
-        depositorXOnlyHex: DEPOSITOR_XONLY_HEX,
-        signal: AbortSignal.timeout(SIGNING_ABORT_MS),
-      });
-      expect(result.yields).toHaveLength(1);
-      const yielded = result.yields[0];
-      expect(yielded.kind).toBe("tapscript");
-      if (yielded.kind !== "tapscript") throw new Error("unreachable");
-      expect(yielded.inputIndex).toBe(NOPAYOUT_ASSERT_INPUT);
-      expect(yielded.signerXOnlyHex).toBe(DEPOSITOR_XONLY_HEX);
-      expect(yielded.leafHashHex).toBe(challenger.noPayoutLeafHashHex);
-      (assertScriptPathSchnorrSignature as SdkVerifier)({
-        requestedPsbtHex: challenger.firmwareShapedPsbtHex,
-        signatureHex: Buffer.from(yielded.signature).toString("hex"),
-        signerXOnlyPubkeyHex: DEPOSITOR_XONLY_HEX,
-        inputIndex: NOPAYOUT_ASSERT_INPUT,
-      });
-    }
   });
 
   describe("(12) SIGN_PSBT abort mid-loop: eaten APDU, consumed cap, re-ceremony recovery", () => {
@@ -716,7 +660,7 @@ describe.skipIf(SPECULOS_URL === "")("Speculos end-to-end vault signing", () => 
       "the aborted sign consumed the one-per-intent Pre-PegIn cap: the retry answers SW_CAP_EXCEEDED",
       async () => {
         // `pre_pegin_signed++` runs at the END of validation, BEFORE any yield
-        // ("a failed attempt counts as used", sign_psbt_validate.c:648-656) —
+        // ("a failed attempt counts as used", sign_psbt_validate.c:746-749) —
         // the abort above came after yield 1, so the slot is already burnt.
         // Pins the fw-reverify delta note: recovery REQUIRES the re-ceremony.
         const failure = await signPreparedVaultPsbt(sendRaw, prepareAugmentedPrePegin(), {
@@ -770,7 +714,7 @@ describe.skipIf(SPECULOS_URL === "")("Speculos end-to-end vault signing", () => 
   });
 
   describe("(13) standalone Refund (#2371): Leaf 1 back to the depositor, with and without a loaded intent", () => {
-    /** "Sign refund\ntransaction?" is the finish page (`display.c:134-136`); the
+    /** "Sign refund\ntransaction?" is the finish page (`display.c:161`); the
      * review intro is the same words WITHOUT the "?" — target the unique "?". */
     const REFUND_APPROVAL_TEXT = "transaction?";
     const REFUND_INPUT = 0;
@@ -863,7 +807,7 @@ describe.skipIf(SPECULOS_URL === "")("Speculos end-to-end vault signing", () => 
         });
         const augmented = Psbt.fromHex(augmentedRefundHex);
         // Input 0: the UNTWEAKED depositor key; output 0: the TWEAKED witness
-        // program from the scriptPubKey (`fw:sign_psbt_validate.c:905-950,1005-1057`).
+        // program from the scriptPubKey (`fw:sign_psbt_validate.c:920-948,1025-1069`).
         expect(augmented.data.inputs[REFUND_INPUT].tapBip32Derivation![0].pubkey.toString("hex")).toBe(
           DEPOSITOR_XONLY_HEX,
         );
@@ -888,8 +832,8 @@ describe.skipIf(SPECULOS_URL === "")("Speculos end-to-end vault signing", () => 
       async () => {
         // CAP_EXCEEDED (not a state reject) proves the validator ran under
         // INTENT_LOADED — the refund ceremony above kept the intent. Its
-        // failure path invalidates the session (`sign_psbt_validate.c:728-730`
-        // @ ff1e1ce17); the foreign-prevout refund below independently proves
+        // failure path invalidates the session (`sign_psbt_validate.c:741-744`);
+        // the foreign-prevout refund below independently proves
         // the nullification either way.
         const failure = await signPreparedVaultPsbt(sendRaw, prepareAugmentedPrePegin(), {
           signal: AbortSignal.timeout(SIGNING_ABORT_MS),
@@ -908,9 +852,9 @@ describe.skipIf(SPECULOS_URL === "")("Speculos end-to-end vault signing", () => 
       async () => {
         expect(augmentedForeignRefundHex, "refund fixture stage must have augmented the foreign PSBT").toBeDefined();
         // The discriminator: under INTENT_LOADED the device pins input 0's
-        // prevout to the intent's txid (`sign_psbt_validate.c:1076-1081`) and
+        // prevout to the intent's txid (`sign_psbt_validate.c:1093-1097`) and
         // would reject this foreign-prevout refund — so this ceremony
-        // completing proves the IDLE/HASH_DERIVED branch (`:898-903`) signed it.
+        // completing proves the IDLE/HASH_DERIVED branch (`:911-915`) signed it.
         await signRefundWithApproval(augmentedForeignRefundHex as string, foreignRefund as RefundPsbtFixture);
       },
       CEREMONY_TIMEOUT_MS,

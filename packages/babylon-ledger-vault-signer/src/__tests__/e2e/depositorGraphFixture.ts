@@ -8,19 +8,15 @@
  * Roster, amounts and timelocks equal the intent `peginFixture.ts` approves.
  * The WASM connector scripts were pre-verified byte-identical to the firmware
  * leaf builders at the ELF tip: vault-UTXO leaf and Assert:0 payout leaf match
- * fw `tests/test_sign_psbt_validate.py` `_vault_utxo_leaf` / `_assert0_payout_leaf`
- * (@ 29beb88d5), and every control block commits to one Assert:0 spk.
+ * fw `tests/test_sign_psbt_validate.py` `_vault_utxo_leaf` (`:207`) /
+ * `_assert0_payout_leaf` (`:2175`) @ b0c0ac4d — every firmware line cited in
+ * this file is at that commit — and every control block commits to one
+ * Assert:0 spk.
  *
- * The NoPayout comes in TWO shapes per challenger:
- *  - `productionPsbtHex`: input 0 spends Assert:0 — btc-vault
- *    `transactions/nopayout.rs:146-155` and HLD v22 §4.9.8 ("Prevout Assert:0").
- *  - `firmwareShapedPsbtHex`: identical except input 0's prevout txid is the
- *    computed PegIn txid — the shape the firmware's own tests build
- *    (`test_sign_psbt_validate.py:2997`) because `_validate_nopayout` resolves
- *    the vault group by matching that txid (`sign_psbt_validate.c:2196-2219`).
- *  The suite pins the divergence: production shape rejected, firmware shape signs.
- *  When Ledger fixes that routing (KB Q16, asked 2026-08-25) the production
- *  shape MUST sign and `firmwareShapedPsbtHex` is deleted.
+ * The NoPayout is the btc-vault shape: input 0 spends Assert:0
+ * (`transactions/nopayout.rs:146-155`; HLD §4.9.8 "Prevout Assert:0"). Firmware
+ * ≥ 0.10.0 (PR #8 `b71bcfe`) no longer routes the vault group by a PegIn-txid
+ * prevout, so this shape signs on-device (stage 11).
  *
  * Conscious call on the §7 audit boundary: importing the SDK/WASM builders here
  * makes them devDependencies, so `build` (its typecheck) needs them built first
@@ -71,7 +67,7 @@ const PROTOCOL_FEE_RATE = 1n;
 /**
  * Fixture security council (size 1, quorum 1). The council leaf only shapes
  * the Assert:0 taptree — the device never reconstructs it, it rides the
- * control block as a sibling hash (`sign_psbt_validate.c:664-...` commitment
+ * control block as a sibling hash (`sign_psbt_validate.c:759-810` commitment
  * walk). Key = BIP-340 test-vector pubkey 1, a known-valid x-only point.
  */
 const COUNCIL_MEMBERS = ["f9308a019258c31049344f85f89d5229b531c845836f99b08601f113bce036f9"];
@@ -81,20 +77,29 @@ const COUNCIL_QUORUM = 1;
  * Assert:0 funding: DUST + council-NoPayout fee at rate 1 (btc-vault funds
  * Assert:0 at `DUST_AMOUNT + council_nopayout_fee`; 386 vB fixture vsize per
  * the KB H3 row). Inside the device band [546, 546 + rate×500]
- * (`sign_psbt_validate.c:1646-1658` payout, `:2114-2126` nopayout).
+ * (`sign_psbt_validate.c:1725-1755` payout, `:2214-2225` nopayout).
  */
 const ASSERT0_VALUE_SATS = 546 + 386;
 
-/** Non-VP payout Out1 must be exactly DUST (`sign_psbt_validate.c:1898-1904`). */
+/** Non-VP payout Out1 must be exactly DUST (`sign_psbt_validate.c:1997-1999`). */
 const PAYOUT_ANCHOR_VALUE_SATS = 546;
 
-/** ChallengeAssert connector value: device requires ≤ DUST (`sign_psbt_validate.c:2149-2167`). */
+/**
+ * ChallengeAssert connector value — arbitrary: since 0.10.1 the device puts
+ * no bound on inputs 1-2 (`sign_psbt_validate.c:2247-2274`), they only enter
+ * the fee computation. btc-vault funds a real connector at 330 + 179 × rate
+ * (the firmware's own note, `:2252-2255`).
+ */
 const CHALLENGE_ASSERT_CONNECTOR_VALUE_SATS = 546;
 
 /** Fixture `timelock_challenge_assert` (nopayout.rs:157-176 CAX/CAY sequences); device reads no NoPayout sequence. */
 const CHALLENGE_ASSERT_TIMELOCK = 72;
 
-/** Fixture NoPayout fee; the device validates the output's spk, never its value (`sign_psbt_validate.c:2169-2188`). */
+/**
+ * Fixture NoPayout fee. Since 0.10.1 the device bounds it to
+ * `base_fee_rate × MAX_NOPAYOUT_VSIZE` = 1 × 450 (`sign_psbt_validate.c:90`,
+ * `:2317-2322`) and requires out0 ≥ DUST (`:2313-2316`).
+ */
 const NOPAYOUT_FEE_SATS = 400;
 
 /** btc-vault tx literals: Payout/NoPayout are version 2, locktime 0 (payout.rs / nopayout.rs). */
@@ -124,8 +129,6 @@ interface NoPayoutChallengerFixture {
   readonly challengerXOnlyHex: string;
   /** btc-vault shape — input 0 spends Assert:0 (nopayout.rs:146-155). */
   readonly productionPsbtHex: string;
-  /** fw-test shape — input 0's prevout txid = PegIn txid (test_sign_psbt_validate.py:2997). */
-  readonly firmwareShapedPsbtHex: string;
   /** TapLeaf hash of the 68-byte `<D> OP_CHECKSIGVERIFY <Cj> OP_CHECKSIG` leaf. */
   readonly noPayoutLeafHashHex: string;
 }
@@ -171,7 +174,7 @@ function buildParentTx(prevoutFill: number, outputs: readonly { script: Buffer; 
 
 /**
  * Build the depositor-as-claimer graph fixture bound to the suite's signed
- * PegIn: Payout PSBT + per-challenger NoPayout PSBTs (both shapes), via the
+ * PegIn: Payout PSBT + per-challenger NoPayout PSBTs, via the
  * production SDK builders.
  *
  * @param peginTxHex the fixture PegIn's raw unsigned tx (its txid is the
@@ -202,7 +205,7 @@ export async function buildDepositorGraphFixture(peginTxHex: string): Promise<De
 
   // --- Payout transaction, as the VP builds it (payout.rs; fee = SDK floor,
   // inside both bands: floor ≤ fee ≤ rate×(500+55×(N+M)) — fw
-  // `sign_psbt_validate.c:1949-1973`, SDK assertPayoutFeeBand).
+  // `sign_psbt_validate.c:2046-2069`, SDK assertPayoutFeeBand).
   const payoutFeeSats = Number(
     await computePayoutFeeFloor(
       VAULT_CORE_VERSION,
@@ -223,7 +226,7 @@ export async function buildDepositorGraphFixture(peginTxHex: string): Promise<De
   payoutTx.addInput(assertTx.getHash(), 0, PAYOUT_TIMELOCK);
   // Depositor claimer: Out0 = V + assert0 − fee − DUST to BIP-86(D), Out1 =
   // DUST CPFP anchor to BIP-86(D) — both script-verified on-device
-  // (`sign_psbt_validate.c:1817-1831, 1864-1916`).
+  // (`sign_psbt_validate.c:1910-1999`).
   payoutTx.addOutput(
     depositorBip86Spk,
     VAULT_AMOUNT_SATS + ASSERT0_VALUE_SATS - payoutFeeSats - PAYOUT_ANCHOR_VALUE_SATS,
@@ -252,7 +255,7 @@ export async function buildDepositorGraphFixture(peginTxHex: string): Promise<De
     vpCommissionScriptPubKey: depositorBip86Spk.toString("hex"), // unused for this role
   });
 
-  // --- NoPayout per challenger, both shapes.
+  // --- NoPayout per challenger.
   const perChallenger: NoPayoutChallengerFixture[] = [];
   for (const [challengerIndex, challengerXOnlyHex] of DEPOSITOR_GRAPH_CHALLENGERS.entries()) {
     const noPayoutInfo = await getAssertNoPayoutScriptInfo(connectorParams, challengerXOnlyHex);
@@ -262,8 +265,8 @@ export async function buildDepositorGraphFixture(peginTxHex: string): Promise<De
       throw new Error(`NoPayout control block for ${challengerXOnlyHex} binds a different Assert:0 spk`);
     }
 
-    // Placeholder connector spk (fw test_sign_psbt_validate.py:2991): the
-    // device checks connector VALUES only, never their scripts.
+    // Placeholder connector spk (fw test_sign_psbt_validate.py:3455): the
+    // device never checks connector scripts.
     const connectorSpk = Buffer.concat([Buffer.from([0x51, 0x20]), Buffer.alloc(32)]);
     const challengeAssertX = buildParentTx(CHALLENGE_ASSERT_PREVOUT_FILL_BASE + 2 * challengerIndex, [
       { script: connectorSpk, value: CHALLENGE_ASSERT_CONNECTOR_VALUE_SATS },
@@ -272,46 +275,34 @@ export async function buildDepositorGraphFixture(peginTxHex: string): Promise<De
       { script: connectorSpk, value: CHALLENGE_ASSERT_CONNECTOR_VALUE_SATS },
     ]);
 
-    // Output 0 pays P2TR(key-path tweak of Cj) — `sign_psbt_validate.c:2169-2188`.
+    // Output 0 pays P2TR(key-path tweak of Cj) — `sign_psbt_validate.c:2276-2295`.
     const challengerSink = payments.p2tr({ internalPubkey: hexToBuffer(challengerXOnlyHex) }).output!;
     const totalInSats =
       ASSERT0_VALUE_SATS + CHALLENGE_ASSERT_CONNECTOR_VALUE_SATS + CHALLENGE_ASSERT_CONNECTOR_VALUE_SATS;
 
-    const buildNoPayoutTx = (input0PrevoutTxid: Buffer): Transaction => {
-      const tx = new Transaction();
-      tx.version = GRAPH_TX_VERSION;
-      tx.locktime = GRAPH_TX_LOCKTIME;
-      tx.addInput(input0PrevoutTxid, 0, SEQUENCE_MAX);
-      tx.addInput(challengeAssertX.getHash(), 0, CHALLENGE_ASSERT_TIMELOCK);
-      tx.addInput(challengeAssertY.getHash(), 0, CHALLENGE_ASSERT_TIMELOCK);
-      tx.addOutput(challengerSink, totalInSats - NOPAYOUT_FEE_SATS);
-      return tx;
-    };
+    // Input 0 spends Assert:0 (nopayout.rs:146-155).
+    const noPayoutTx = new Transaction();
+    noPayoutTx.version = GRAPH_TX_VERSION;
+    noPayoutTx.locktime = GRAPH_TX_LOCKTIME;
+    noPayoutTx.addInput(assertTx.getHash(), 0, SEQUENCE_MAX);
+    noPayoutTx.addInput(challengeAssertX.getHash(), 0, CHALLENGE_ASSERT_TIMELOCK);
+    noPayoutTx.addInput(challengeAssertY.getHash(), 0, CHALLENGE_ASSERT_TIMELOCK);
+    noPayoutTx.addOutput(challengerSink, totalInSats - NOPAYOUT_FEE_SATS);
 
-    const prevouts = [
-      { script_pubkey: assert0Spk.toString("hex"), value: ASSERT0_VALUE_SATS },
-      { script_pubkey: connectorSpk.toString("hex"), value: CHALLENGE_ASSERT_CONNECTOR_VALUE_SATS },
-      { script_pubkey: connectorSpk.toString("hex"), value: CHALLENGE_ASSERT_CONNECTOR_VALUE_SATS },
-    ];
-    const [productionPsbtHex, firmwareShapedPsbtHex] = await Promise.all([
-      buildNoPayoutPsbt({
-        noPayoutTxHex: buildNoPayoutTx(assertTx.getHash()).toHex(),
-        challengerPubkey: challengerXOnlyHex,
-        prevouts,
-        connectorParams,
-      }),
-      buildNoPayoutPsbt({
-        noPayoutTxHex: buildNoPayoutTx(peginTx.getHash()).toHex(),
-        challengerPubkey: challengerXOnlyHex,
-        prevouts,
-        connectorParams,
-      }),
-    ]);
+    const productionPsbtHex = await buildNoPayoutPsbt({
+      noPayoutTxHex: noPayoutTx.toHex(),
+      challengerPubkey: challengerXOnlyHex,
+      prevouts: [
+        { script_pubkey: assert0Spk.toString("hex"), value: ASSERT0_VALUE_SATS },
+        { script_pubkey: connectorSpk.toString("hex"), value: CHALLENGE_ASSERT_CONNECTOR_VALUE_SATS },
+        { script_pubkey: connectorSpk.toString("hex"), value: CHALLENGE_ASSERT_CONNECTOR_VALUE_SATS },
+      ],
+      connectorParams,
+    });
 
     perChallenger.push({
       challengerXOnlyHex,
       productionPsbtHex,
-      firmwareShapedPsbtHex,
       noPayoutLeafHashHex: tapLeafHash(TAPSCRIPT_LEAF_VERSION, hexToBuffer(noPayoutInfo.noPayoutScript)).toString(
         "hex",
       ),

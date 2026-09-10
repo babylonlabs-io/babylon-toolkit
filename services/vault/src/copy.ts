@@ -55,6 +55,10 @@ const TRANSACTION_FAILED_TITLE = "Transaction failed";
 // of those messages — it is what distinguishes them from the post-registration
 // failures, which have spent an Ethereum fee — so it lives in one place.
 const NOTHING_SIGNED_OR_SPENT = "Nothing was signed and no funds were spent";
+// What the depositor-claim reserve is for; the sentence every variant of the
+// reserve tooltip opens with.
+const RESERVE_PURPOSE =
+  "A small portion of your deposit is reserved in a dedicated output to fund a future protocol claim transaction.";
 // Shared between the resume WOTS error string and the mapped callout body so
 // the wording stays in one place.
 const WRONG_WALLET_BODY =
@@ -692,13 +696,17 @@ export const COPY = {
     form: {
       computingAllocation: "Computing allocation...",
       transactionReserveLabel: "Depositor claim output",
-      // Describes the real mechanism, and deliberately shares wording with
-      // COPY.reclaim.review.description so the promise made at deposit time
-      // and the action offered after settlement read as the same thing. Until
-      // the reclaim flow shipped this said the reserve "is returned to you if
-      // unused", which nothing in the app could actually do.
-      transactionReserveTooltip:
-        "A small portion of your deposit is reserved in a dedicated output to fund a future protocol claim transaction. If it goes unused, you can reclaim it from your BTCVault once the vault has settled.",
+      // Describes the real mechanism. Until the reclaim flow shipped this said
+      // the reserve "is returned to you if unused", which nothing in the app
+      // could actually do. The Ledger vault app cannot sign the reclaim sweep
+      // (decision D10, see models/reclaimEligibility.ts), so that wallet is
+      // not promised a reclaim it cannot perform.
+      transactionReserveTooltip: (isLedgerVaultWallet: boolean) =>
+        `${RESERVE_PURPOSE} ${
+          isLedgerVaultWallet
+            ? "If it goes unused, it stays locked to the wallet that created the deposit; reclaiming it with a Ledger device is not supported yet."
+            : "If it goes unused, you can reclaim it once your BTCVault has settled."
+        }`,
       // Labeled "Available", not "Balance": the field shows the depositable
       // maximum — the wallet balance net of the fee buffer, inscription UTXOs
       // and the supply cap — not the raw wallet balance.
@@ -1411,10 +1419,13 @@ export const COPY = {
     blocked: {
       protocolPaused:
         "Reclaim is paused while the protocol is under maintenance. Your reserve is safe and will remain reclaimable.",
-      // The Ledger vault app's firmware cannot sign this transaction shape.
-      // See models/reclaimEligibility.ts for the firmware reference.
+      // The Ledger vault app's firmware cannot sign this transaction shape
+      // (decision D10; see models/reclaimEligibility.ts for the firmware
+      // reference). The reserve is spendable only with the depositor key, so
+      // never suggest reaching it "from another wallet" — for a hardware-wallet
+      // user that means restoring the seed into software.
       ledgerUnsupported:
-        "The Ledger BTCVault app cannot sign a reclaim yet. Connect the same wallet through another BTC wallet to reclaim your reserve.",
+        "Reclaiming with a Ledger device is not supported yet. Your reserve is safe and stays locked to the wallet that created the deposit.",
     },
     // Failures surfaced on the review screen's error callout. Kept here rather
     // than inline in the execution hook so the whole reclaim surface is
