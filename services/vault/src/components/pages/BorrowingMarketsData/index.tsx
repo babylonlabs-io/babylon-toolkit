@@ -346,7 +346,10 @@ export default function BorrowingMarketsData() {
   return (
     <Container className={`${PAGE_CONTENT_CLASS} pb-6`}>
       <div className="space-y-10">
-        <div className="space-y-4">
+        <section
+          className="space-y-4"
+          data-testid="market-section-identity"
+        >
           <button
             type="button"
             onClick={() =>
@@ -388,7 +391,7 @@ export default function BorrowingMarketsData() {
               </Text>
             </div>
           </div>
-        </div>
+        </section>
 
         <section data-testid="market-section-liquidity-stats">
           <MarketStatsBar stats={stats} />

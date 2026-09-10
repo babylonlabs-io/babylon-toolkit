@@ -417,8 +417,10 @@ describe("BorrowingMarketsData", () => {
 
     renderPage("1");
 
+    const header = screen.getByTestId("market-section-identity");
+
     expect(
-      screen.queryByRole("button", { name: "Borrow" }),
+      within(header).queryByRole("button", { name: "Borrow" }),
     ).not.toBeInTheDocument();
   });
 
