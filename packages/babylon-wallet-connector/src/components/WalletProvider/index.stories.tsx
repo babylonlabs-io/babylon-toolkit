@@ -66,6 +66,7 @@ export const WithConnectedData: Story = {
         <WalletProvider
           context={window.parent}
           config={config}
+          persistent={args.persistent}
           requiredChains={args.requiredChains}
           onError={console.log}
         >
