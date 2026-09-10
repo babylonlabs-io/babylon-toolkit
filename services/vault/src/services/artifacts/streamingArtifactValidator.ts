@@ -8,6 +8,15 @@
  * success envelope wrapping a schema-valid artifact payload, while holding
  * only a few KB of state.
  *
+ * It also reports, per chunk, which bytes fall inside the envelope's `result`
+ * value, so the caller can save the payload alone. The envelope is transport
+ * framing: `jsonrpc` and `id` mean nothing on disk, and the unwrapped file is
+ * the layout every consumer already expects — `tools/artifact-downloader` in
+ * btc-vault writes exactly that shape, and `docs/delegated_claim.md` treats it
+ * as the starting point for building the watchtower's `artifacts.json`. Since
+ * the machine already knows the document's structure, the span costs a byte
+ * offset rather than a second pass.
+ *
  * Why a byte-level machine rather than an incremental `TextDecoder`: every
  * JSON structural character is ASCII, and every byte of a multi-byte UTF-8
  * sequence is >= 0x80, so a byte scanner can never mistake payload text for
@@ -211,6 +220,22 @@ interface Frame {
   seenKeys: Set<string> | null;
 }
 
+/**
+ * Half-open `[start, end)` offsets into the chunk just handed to
+ * {@link ArtifactStreamValidator.update}, bounding the bytes that belong to
+ * the envelope's `result` value.
+ *
+ * Offsets rather than a `subarray` view so the caller slices with its own
+ * buffer type — the File System Access sink requires a view over a
+ * non-shared `ArrayBuffer`, which a view produced here could not promise.
+ */
+export interface ResultByteSpan {
+  /** Inclusive start offset within the chunk. */
+  start: number;
+  /** Exclusive end offset within the chunk. */
+  end: number;
+}
+
 export interface ArtifactStreamValidationResult {
   /**
    * The reconstructed payload handed to the SDK validator. Its
@@ -280,6 +305,12 @@ export class ArtifactStreamValidator {
   private errorCapture: CaptureBuffer | null = null;
 
   private resultSeen = false;
+  /**
+   * Where the parse sits relative to the envelope's `result` value. Drives
+   * the span {@link update} reports so the caller can persist the payload
+   * without the JSON-RPC framing around it.
+   */
+  private resultCapture: "before" | "inside" | "after" = "before";
   private txGraphJson: string | null = null;
   private verifyingKeyHex: string | null = null;
   private babeSessionsSeen = false;
@@ -290,11 +321,22 @@ export class ArtifactStreamValidator {
   /**
    * Feed the next chunk of the response body.
    *
+   * Returns the sub-range of *this* chunk that lies inside the envelope's
+   * `result` value, or null when the chunk contributes none — see
+   * {@link ResultByteSpan}. The caller writes only that range, so the saved
+   * file is the artifact payload rather than the JSON-RPC envelope around it.
+   *
    * Throws synchronously — `JsonRpcError` for a JSON-RPC error envelope,
    * `VpResponseValidationError` for anything malformed — so the caller can
    * abort the file write before the offending bytes are committed to disk.
    */
-  update(chunk: Uint8Array): void {
+  update(chunk: Uint8Array): ResultByteSpan | null {
+    // The result value occupies one contiguous span of the document, so a
+    // chunk can only continue that span, open it, close it, or fall outside
+    // it — never contribute two disjoint runs.
+    let spanStart = this.resultCapture === "inside" ? 0 : -1;
+    let spanEnd = -1;
+
     let index = 0;
     while (index < chunk.length) {
       // Hot path: inside a decryptor_artifacts_hex value, consume the run of
@@ -329,12 +371,27 @@ export class ArtifactStreamValidator {
         }
       }
 
+      const byteIndex = index;
       const byte = chunk[index++];
       if (this.errorCapture !== null) {
         this.errorCapture.push(byte);
       }
+
+      const wasInside = this.resultCapture === "inside";
       this.processByte(byte);
+
+      if (this.resultCapture === "inside") {
+        // Opening `{`: the span starts at this byte, inclusive.
+        if (!wasInside) spanStart = byteIndex;
+      } else if (wasInside) {
+        // Closing `}`: the span ends after this byte, inclusive.
+        spanEnd = index;
+      }
     }
+
+    if (spanStart < 0) return null;
+    const end = spanEnd >= 0 ? spanEnd : chunk.length;
+    return end > spanStart ? { start: spanStart, end } : null;
   }
 
   /**
@@ -570,7 +627,12 @@ export class ArtifactStreamValidator {
     }
 
     if (byte === BYTE_OPEN_BRACE) {
-      if (path === "result") this.resultSeen = true;
+      if (path === "result") {
+        this.resultSeen = true;
+        // This byte is the result object's `{` — the first byte of the span
+        // the caller writes to disk.
+        this.resultCapture = "inside";
+      }
       if (path === "babe_sessions") this.babeSessionsSeen = true;
       this.pushFrame("object");
       return;
@@ -841,6 +903,12 @@ export class ArtifactStreamValidator {
     }
     if (this.errorCapture !== null && this.frames.length === 1) {
       this.throwWireError(this.errorCapture);
+    }
+    if (this.resultCapture === "inside" && this.frames.length === 1) {
+      // Only the result object itself can return the parse to envelope depth
+      // while we are inside it — anything nested pops to depth >= 2 — so this
+      // byte is its closing `}` and the last byte of the span.
+      this.resultCapture = "after";
     }
     this.state = this.frames.length === 0 ? "done" : "after_value";
   }

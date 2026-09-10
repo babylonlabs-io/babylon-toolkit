@@ -610,3 +610,72 @@ describe("ArtifactStreamValidator — JSON-RPC error envelopes", () => {
     expect(() => validate(wire)).toThrow(JsonRpcError);
   });
 });
+
+describe("ArtifactStreamValidator — reports the result span", () => {
+  /**
+   * Feed `wire` in fixed-size chunks and concatenate the spans the validator
+   * reports, reproducing what the download service writes to disk.
+   */
+  function spannedText(wire: string, chunkSize?: number): string {
+    const validator = new ArtifactStreamValidator();
+    const bytes = encoder.encode(wire);
+    const size = chunkSize ?? bytes.length;
+    let out = "";
+    for (let offset = 0; offset < bytes.length; offset += size) {
+      const chunk = bytes.subarray(offset, offset + size);
+      const span = validator.update(chunk);
+      if (span) {
+        out += new TextDecoder().decode(chunk.subarray(span.start, span.end));
+      }
+    }
+    validator.finish();
+    return out;
+  }
+
+  it("spans exactly the result value's source", () => {
+    expect(spannedText(envelope(VALID_RESULT))).toBe(
+      JSON.stringify(VALID_RESULT),
+    );
+  });
+
+  it("reports the same span however the bytes are chunked", () => {
+    const wire = envelope(VALID_RESULT);
+    const expected = JSON.stringify(VALID_RESULT);
+
+    // Size 1 puts every structural byte on its own chunk boundary, which is
+    // where an off-by-one in the start/end offsets would show up.
+    for (const chunkSize of [1, 2, 5, 64, 1024]) {
+      expect(spannedText(wire, chunkSize)).toBe(expected);
+    }
+  });
+
+  it("spans the result wherever it sits among the envelope's keys", () => {
+    const resultFirst = JSON.stringify({
+      result: VALID_RESULT,
+      jsonrpc: "2.0",
+      id: 7,
+    });
+
+    expect(spannedText(resultFirst, 3)).toBe(JSON.stringify(VALID_RESULT));
+  });
+
+  it("excludes a sibling key whose value nests braces", () => {
+    // A nested object after `result` closes must not reopen the span.
+    const wire = JSON.stringify({
+      jsonrpc: "2.0",
+      result: VALID_RESULT,
+      meta: { nested: { deeper: [1, 2, 3] } },
+      id: 7,
+    });
+
+    expect(spannedText(wire, 11)).toBe(JSON.stringify(VALID_RESULT));
+  });
+
+  it("reports no span for an envelope it rejects before result", () => {
+    const validator = new ArtifactStreamValidator();
+
+    expect(validator.update(encoder.encode('{"jsonrpc":"2.0","id":7,'))).toBe(
+      null,
+    );
+  });
+});
