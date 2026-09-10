@@ -22,6 +22,8 @@ export interface PositionStatCard {
 function StatSection({ card }: { card: PositionStatCard }) {
   const hasAction = card.actionLabel != null && card.onAction != null;
   return (
+    // Both min-w-0 are load-bearing: they lift the min-width:auto content floor
+    // on the section and the column so a long value can truncate (#2428).
     <div className="flex min-w-0 flex-1 items-center justify-between gap-4 xl:max-[1439px]:gap-2">
       <div className="flex min-w-0 flex-col gap-3">
         <div className="flex items-center gap-1 text-sm leading-[1.43] tracking-[0.17px] text-accent-secondary xl:whitespace-nowrap">
@@ -37,14 +39,19 @@ function StatSection({ card }: { card: PositionStatCard }) {
           )}
         </div>
 
-        <span className="flex min-w-0 items-center gap-2 overflow-hidden text-xl leading-[1.6] tracking-[0.15px] text-accent-primary xl:whitespace-nowrap">
+        <span className="flex items-center gap-2 overflow-hidden text-xl leading-[1.6] tracking-[0.15px] text-accent-primary xl:whitespace-nowrap">
           {card.valueNode ?? (
-            <span className="overflow-hidden text-ellipsis">{card.value}</span>
+            <span className="xl:truncate" title={card.value}>
+              {card.value}
+            </span>
           )}
         </span>
 
         {card.caption ? (
-          <span className="overflow-hidden text-ellipsis text-sm leading-[1.43] tracking-[0.17px] text-accent-secondary xl:whitespace-nowrap">
+          <span
+            title={card.caption}
+            className="text-sm leading-[1.43] tracking-[0.17px] text-accent-secondary xl:truncate"
+          >
             {card.caption}
           </span>
         ) : null}

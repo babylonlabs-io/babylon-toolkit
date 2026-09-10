@@ -34,7 +34,7 @@ describe("PositionStatCards", () => {
     expect(value).toHaveClass("xl:whitespace-nowrap");
 
     const caption = screen.getByText("0.5 BTC");
-    expect(caption).toHaveClass("xl:whitespace-nowrap");
+    expect(caption).toHaveClass("xl:truncate");
   });
 
   it("below xl, labels are free to wrap instead of forcing the row to overflow", () => {
@@ -70,15 +70,14 @@ describe("PositionStatCards", () => {
     );
 
     const value = screen.getByText(longValue);
-    expect(value).toHaveClass("overflow-hidden");
-    expect(value).toHaveClass("text-ellipsis");
+    expect(value).toHaveClass("xl:truncate");
+    expect(value).toHaveAttribute("title", longValue);
 
     const column = value.closest("div.flex-col");
     expect(column).toHaveClass("min-w-0");
 
     const section = value.closest("div.justify-between");
     expect(section).toHaveClass("min-w-0");
-    expect(section).toHaveClass("flex-1");
   });
 
   it("clips a long caption inside its column instead of overflowing the card", () => {
@@ -91,8 +90,8 @@ describe("PositionStatCards", () => {
     );
 
     const caption = screen.getByText(longCaption);
-    expect(caption).toHaveClass("overflow-hidden");
-    expect(caption).toHaveClass("text-ellipsis");
+    expect(caption).toHaveClass("xl:truncate");
+    expect(caption).toHaveAttribute("title", longCaption);
   });
 
   it("clips custom valueNode content at the column edge, not only plain values", () => {
@@ -111,7 +110,6 @@ describe("PositionStatCards", () => {
 
     const valueRow = screen.getByText(`${longValue} BTC`).parentElement;
     expect(valueRow).toHaveClass("overflow-hidden");
-    expect(valueRow).toHaveClass("min-w-0");
   });
 
   it("below xl, a long value wraps rather than being clipped to one line", () => {
