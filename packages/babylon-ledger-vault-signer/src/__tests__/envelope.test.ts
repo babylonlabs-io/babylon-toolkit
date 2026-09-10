@@ -253,6 +253,13 @@ describe("assertDepositTermsDeviceCompatible", () => {
     expect(() => assertDepositTermsDeviceCompatible(makeTerms({ protocolFeeRate: 10_001n }))).toThrow(/protocolFeeRate/);
   });
 
+  it("accepts the device prepegin max-fee ceiling and rejects one sat above it", () => {
+    expect(() => assertDepositTermsDeviceCompatible(makeTerms({ prepeginMaxFee: 100_000_000n }))).not.toThrow();
+    expect(() => assertDepositTermsDeviceCompatible(makeTerms({ prepeginMaxFee: 100_000_001n }))).toThrow(
+      /prepeginMaxFee/,
+    );
+  });
+
   it("rejects a commission or claim value below the device dust floor", () => {
     const vault = makeTerms().vaults[0];
     expect(() =>

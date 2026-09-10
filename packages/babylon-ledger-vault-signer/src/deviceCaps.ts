@@ -41,6 +41,13 @@ export const DEVICE_MAX_VAULTS_PER_INTENT = 10;
  */
 export const DEVICE_MAX_BASE_FEE_RATE_SAT_PER_VB = 10_000n;
 
+/**
+ * Upper bound on `prepegin_max_fee` (`vault_tlv.c:170`; `PREPEGIN_MAX_FEE_LIMIT`
+ * at `vault_constants.h:98`). Firmware-only — no btc-vault counterpart, and
+ * the SDK's sized fee cannot approach it at the contract's 1000 sat/vB cap.
+ */
+export const DEVICE_MAX_PREPEGIN_FEE_SATS = 100_000_000n;
+
 /** Shared lower bound for the CSV/refund timelocks (`vault_constants.h:103`). */
 export const DEVICE_TIMELOCK_MIN_BLOCKS = 72;
 

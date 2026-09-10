@@ -10,7 +10,7 @@
  *
  * Firmware citations: `fw:` = LedgerHQ/app-babylon-vault @ `b0c0ac4d`
  * (`develop`, 2026-09-04). Leaf grammar: `fw:sign_psbt_validate_helpers.c:77-156`
- * (`parse_refund_leaf_script`); input entry: `fw:sign_psbt_validate.c:920-948`;
+ * (`parse_refund_leaf_script`); input entry: `fw:sign_psbt_validate.c:918-965`;
  * output entry: `fw:sign_psbt_validate.c:1025-1069`; both entries are REQUIRED —
  * a missing lookup rejects with SW_INCORRECT_DATA.
  *
@@ -68,6 +68,10 @@ const BIP68_SEQUENCE_MASK = 0x0000ffff;
 const MIN_REFUND_TX_VERSION = 2;
 const REFUND_TX_LOCKTIME = 0;
 
+/** The only sighash the refund path admits when one is present — explicit
+ * SIGHASH_ALL is rejected too (`fw:sign_psbt_validate.c:829-847`). */
+const SIGHASH_DEFAULT = 0;
+
 /** The terms a refund leaf commits to: signer key and CSV timelock. */
 export interface RefundLeafTerms {
   /** UNTWEAKED x-only key inside the leaf (lowercase hex). */
@@ -120,8 +124,8 @@ export function parseRefundLeafScript(script: Uint8Array): RefundLeafTerms | und
   } else {
     return undefined;
   }
-  // Consensus reads only the low 16 bits of a CSV operand, so the firmware
-  // bounds it to the BIP-68 block-count field (`fw:…helpers.c:136-145`).
+  // Block-count refunds only: the operand must fit the 16-bit field, which also
+  // keeps the BIP-68 disable/time flags unsettable (`fw:…helpers.c:136-145`).
   if (csv === 0 || csv > BIP68_SEQUENCE_MASK) return undefined;
 
   if (pos >= script.length) return undefined;
@@ -140,6 +144,8 @@ export interface RefundPsbtClassification extends RefundLeafTerms {
   readonly inputTxidInternalHex: string;
   /** Input 0's nSequence as encoded in the unsigned transaction. */
   readonly sequence: number;
+  /** Input 0's PSBT_IN_SIGHASH_TYPE, when the map carries one. */
+  readonly sighashType: number | undefined;
   /** Input 0's witnessUtxo terms, when the map carries one. */
   readonly witnessUtxo: { readonly scriptLength: number; readonly value: number } | undefined;
   /** Output 0's scriptPubKey (lowercase hex). */
@@ -183,6 +189,7 @@ export function classifyRefundPsbt(psbtHex: string): RefundPsbtClassification | 
     ...terms,
     inputTxidInternalHex: Buffer.from(psbt.txInputs[0].hash).toString("hex"),
     sequence: psbt.txInputs[0].sequence ?? 0,
+    sighashType: input.sighashType,
     witnessUtxo: input.witnessUtxo
       ? { scriptLength: input.witnessUtxo.script.length, value: input.witnessUtxo.value }
       : undefined,
@@ -194,16 +201,22 @@ export function classifyRefundPsbt(psbtHex: string): RefundPsbtClassification | 
 /**
  * Pure signability pins for a classified refund — every term the device
  * validates that needs NO device data, so a caller can reject before any
- * device I/O (not even a liveness probe). Mirrors, in order: the witnessUtxo
- * requirement (`fw:sign_psbt_validate.c:850-863`), the output-value cap
- * (`:1075`), destination ownership (the device derives, BIP-86-tweaks
- * and compares — `:1025-1069`; host-side the leaf key is the derivation
- * anchor, so the output must pay ITS BIP-86 address), the no-intent CSV floor
- * (`:912`, `vault_constants.h:103`), and the BIP-68 sequence pins
- * (`:972-991` — present, flags clear, equal to the CSV; compared unmasked
- * because the leaf parser already bounds the CSV to the block-count field).
+ * device I/O (not even a liveness probe). Mirrors, in order: the sighash pin
+ * (`fw:sign_psbt_validate.c:829-847` — absent or SIGHASH_DEFAULT), the
+ * witnessUtxo requirement (`:850-863`), the output-value cap (`:1075`),
+ * destination ownership (the device derives, BIP-86-tweaks and compares —
+ * `:1025-1069`; host-side the leaf key is the derivation anchor, so the output
+ * must pay ITS BIP-86 address), the no-intent CSV floor (`:912`,
+ * `vault_constants.h:103`), and the BIP-68 sequence pins (`:972-991` —
+ * present, flags clear, equal to the CSV; compared unmasked because the leaf
+ * parser already bounds the CSV to the block-count field).
  */
 export function assertRefundPsbtSignable(refund: RefundPsbtClassification): void {
+  if (refund.sighashType !== undefined && refund.sighashType !== SIGHASH_DEFAULT) {
+    throw new Error(
+      `refund input sighash type ${refund.sighashType} must be absent or SIGHASH_DEFAULT — the device rejects any other value`,
+    );
+  }
   if (refund.witnessUtxo === undefined || refund.witnessUtxo.scriptLength !== P2TR_SCRIPT_BYTES) {
     throw new Error(
       "refund input must carry a P2TR witnessUtxo — the device rejects a missing or non-34-byte scriptPubKey",
