@@ -304,10 +304,11 @@ function stableStringify(value: unknown): string {
  * nothing and every screen would render empty.
  *
  * `variables` are part of the key because an operation name is not one
- * question. `fetchVaultProviderStats` issues one `GetVaultsByProvider` per
- * vault provider; the recording holds a single provider, so without
- * `variables` every provider on a multi-provider deployment would be served
- * the first one's vaults - identical rows, and no miss to say so.
+ * question. `fetchVaultProviderStats` issues one `GetVaultsByProviders` whose
+ * `vaultProviders` variable lists every provider on the deployment; the
+ * recording holds a single provider, so without `variables` a multi-provider
+ * deployment would be served that one provider's vaults for the whole set -
+ * plausible-looking rows, and no miss to say so.
  */
 export function graphqlKey(
   method: string,
