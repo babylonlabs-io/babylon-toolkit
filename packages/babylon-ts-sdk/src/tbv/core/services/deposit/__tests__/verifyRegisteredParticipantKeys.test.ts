@@ -30,6 +30,7 @@ function registryReaderReturning(epoch: bigint): VaultRegistryReader {
     getVaultKeyEpochs: vi.fn(),
     getVaultKeyEpochsBatch: vi.fn().mockResolvedValue([epochsAt(epoch)]),
     getCurrentVaultProviderOperationBtcKey: vi.fn(),
+    getMaxAcceptableCommissionBpsBatch: vi.fn(),
   } as VaultRegistryReader;
 }
 

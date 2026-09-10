@@ -159,6 +159,21 @@ export interface VaultRegistryReader {
   getCurrentVaultProviderOperationBtcKey(
     vpAddress: Address,
   ): Promise<OnChainBtcPubkey>;
+  /**
+   * Read the depositor's commission ceiling (`maxAcceptableCommissionBps`)
+   * for vaults registered in the same block `createdAt`, from their
+   * `PegInSubmittedV2` logs, in `vaultIds` order. The contract discards the
+   * ceiling after bound-checking it, so the log is its only on-chain source.
+   *
+   * @throws {RegistrationLogsUnavailableError} (transient, retry) when the
+   * node answers with no registration logs for the block at all.
+   * @throws when a vault has only its `PegInSubmitted` log (a registration
+   * that predates the V2 event), none, or more than one V2 log.
+   */
+  getMaxAcceptableCommissionBpsBatch(
+    vaultIds: readonly Hex[],
+    createdAt: bigint,
+  ): Promise<number[]>;
 }
 
 // ============================================================================

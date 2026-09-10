@@ -482,6 +482,7 @@ export function useVaultActions(): UseVaultActionsReturn {
           depositorBtcPubkey,
           fundedTxFee,
           lifecycle: "broadcast",
+          signal,
         });
         // Last cancellation point before the wallet signs. Several network
         // round-trips (UTXO availability, version/key re-checks, and on the

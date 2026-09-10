@@ -82,6 +82,7 @@ function buildReaders({
     getVaultKeyEpochs: vi.fn(),
     getVaultKeyEpochsBatch: vi.fn(),
     getCurrentVaultProviderOperationBtcKey: vi.fn(),
+    getMaxAcceptableCommissionBpsBatch: vi.fn(),
   };
   const vaultKeeperReader: VaultKeeperReader = {
     getVaultKeepersByVersion: vi.fn().mockResolvedValue(keeperKeys.map(pair)),
@@ -392,6 +393,7 @@ describe("validateOnChainParticipantKeys with operation-key resolution", () => {
         getVaultKeyEpochs: vi.fn(),
         getVaultKeyEpochsBatch: vi.fn(),
         getCurrentVaultProviderOperationBtcKey: vi.fn(),
+        getMaxAcceptableCommissionBpsBatch: vi.fn(),
       } as VaultRegistryReader,
       vaultKeeperReader: {
         getVaultKeepersByVersion: vi.fn().mockResolvedValue(query.vaultKeepers),

@@ -13,6 +13,7 @@ import {
 } from "@/utils/errors";
 
 import {
+  getMaxAcceptableCommissionBpsFromChainWithGrace,
   getVaultFromChain,
   getVaultKeyEpochsFromChain,
   type OnChainVaultData,
@@ -30,6 +31,7 @@ import {
   assertPresignTargetSignable,
   assertSiblingBatchHomogeneous,
   rebuildDepositTerms,
+  type RebuildVaultRecord,
 } from "../rebuildDepositTerms";
 import { resolveVaultProviderBtcPubkey } from "../vaultPayoutSignatureService";
 
@@ -46,6 +48,7 @@ vi.mock("@/utils/vaultCoreVersionSupport", () => ({
   assertVaultCoreVersionSupported: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock("../../../clients/eth-contract/btc-vault-registry/query", () => ({
+  getMaxAcceptableCommissionBpsFromChainWithGrace: vi.fn(),
   getVaultFromChain: vi.fn(),
   getVaultKeyEpochsFromChain: vi.fn(),
   getVaultProviderGenesisBtcPubkeyFromChain: vi.fn(),
@@ -72,10 +75,7 @@ vi.mock("../../../config/pegin", () => ({
 vi.mock("../fetchVaults", () => ({
   fetchVaultIdsByDepositor: vi.fn(),
 }));
-// importOriginal keeps the real assertVpCommissionInProtocolRange so the
-// commission-ceiling mapping is exercised end-to-end.
-vi.mock("../vaultPayoutSignatureService", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("../vaultPayoutSignatureService")>()),
+vi.mock("../vaultPayoutSignatureService", () => ({
   resolveVaultProviderBtcPubkey: vi.fn(),
 }));
 
@@ -100,6 +100,13 @@ function makeVault(over: Partial<OnChainVaultData> = {}): OnChainVaultData {
     vaultProvider: "0xbbbb000000000000000000000000000000000002",
     ...over,
   } as OnChainVaultData;
+}
+
+// Chain record + the PegInSubmittedV2 ceiling, as the homogeneity gate sees it.
+function makeRecord(
+  over: Partial<RebuildVaultRecord> = {},
+): RebuildVaultRecord {
+  return { ...makeVault(), maxAcceptableCommissionBps: 300, ...over };
 }
 
 describe("assertBatchLifecycleStatus", () => {
@@ -215,34 +222,43 @@ describe("assertBatchLifecycleStatus", () => {
 });
 
 describe("assertSiblingBatchHomogeneous", () => {
-  it("accepts siblings whose stamps, provider, application, and commission match the target", () => {
-    const target = makeVault();
+  it("accepts siblings whose stamps, provider, application, and commission ceiling match the target", () => {
+    const target = makeRecord();
     expect(() =>
-      assertSiblingBatchHomogeneous(target, [makeVault(), makeVault()]),
+      assertSiblingBatchHomogeneous(target, [makeRecord(), makeRecord()]),
     ).not.toThrow();
   });
 
   it("accepts address fields that differ only by case", () => {
-    const target = makeVault();
-    const sib = makeVault({
+    const target = makeRecord();
+    const sib = makeRecord({
       vaultProvider:
         "0xBBBB000000000000000000000000000000000002" as OnChainVaultData["vaultProvider"],
     });
     expect(() => assertSiblingBatchHomogeneous(target, [sib])).not.toThrow();
   });
 
+  // The VP's stamped commission is not a rebuild input (the terms carry the
+  // depositor's ceiling, not the VP's actual), so siblings may differ on it.
+  it("accepts siblings whose stamped vault provider commission differs", () => {
+    const target = makeRecord({ vaultProviderCommissionBps: 250 });
+    const sib = makeRecord({ vaultProviderCommissionBps: 275 });
+    expect(() => assertSiblingBatchHomogeneous(target, [sib])).not.toThrow();
+  });
+
   // Each sibling is stamped by its own submitPeginRequest, so any of these can
-  // drift if governance/VP changes land between sibling registrations. Gate 1
-  // cannot see timelockPegin/timelockAssert/commission, so each must fail here.
+  // drift if governance changes land between sibling registrations, and a
+  // separately registered sibling can carry its own ceiling. Gate 1 cannot see
+  // timelockPegin/timelockAssert/commission, so each must fail here.
   it.each([
     ["vaultCoreVersion", 1],
     ["offchainParamsVersion", 9],
     ["appVaultKeepersVersion", 9],
     ["universalChallengersVersion", 9],
-    ["vaultProviderCommissionBps", 300],
+    ["maxAcceptableCommissionBps", 301],
   ] as const)("rejects a sibling with a different %s", (field, value) => {
-    const target = makeVault();
-    const sib = makeVault({ [field]: value });
+    const target = makeRecord();
+    const sib = makeRecord({ [field]: value });
     expect(() => assertSiblingBatchHomogeneous(target, [sib])).toThrow(
       new RegExp(`disagree on ${field}`),
     );
@@ -252,8 +268,8 @@ describe("assertSiblingBatchHomogeneous", () => {
     ["applicationEntryPoint", "0xcccc000000000000000000000000000000000003"],
     ["vaultProvider", "0xcccc000000000000000000000000000000000003"],
   ] as const)("rejects a sibling with a different %s", (field, value) => {
-    const target = makeVault();
-    const sib = makeVault({
+    const target = makeRecord();
+    const sib = makeRecord({
       [field]: value as OnChainVaultData["vaultProvider"],
     });
     expect(() => assertSiblingBatchHomogeneous(target, [sib])).toThrow(
@@ -310,12 +326,16 @@ describe("rebuildDepositTerms orchestrator (mocked chain, real discovery + mappi
     htlcVout: 0,
     amount: 90_000n,
   });
+  // Registered in a later tx than the target: the ceiling read must use each
+  // member's own registration block, not the target's.
+  const SIBLING_CREATED_AT_BLOCK = TARGET_CREATED_AT_BLOCK + 1n;
   const siblingVault = makeVault({
     depositor: DEPOSITOR_ETH as OnChainVaultData["depositor"],
     prePeginTxHash: PRE_PEGIN_TX_HASH,
     hashlock: `0x${"bb".repeat(32)}` as Hex,
     htlcVout: 1,
     amount: 120_000n,
+    createdAt: SIBLING_CREATED_AT_BLOCK,
   });
 
   function baseParams() {
@@ -377,6 +397,9 @@ describe("rebuildDepositTerms orchestrator (mocked chain, real discovery + mappi
     } as never);
     vi.mocked(resolveVaultProviderBtcPubkey).mockResolvedValue("cc".repeat(32));
     vi.mocked(getVaultKeyEpochsFromChain).mockResolvedValue({} as never);
+    vi.mocked(
+      getMaxAcceptableCommissionBpsFromChainWithGrace,
+    ).mockImplementation(async (vaultIds) => vaultIds.map(() => 300));
     vi.mocked(resolveParticipantKeysAtEpochs).mockResolvedValue({
       vaultProvider: { operationBtcPubkey: "dd".repeat(32) },
       vaultKeeperOperationKeysSorted: ["ee".repeat(32)],
@@ -411,12 +434,91 @@ describe("rebuildDepositTerms orchestrator (mocked chain, real discovery + mappi
       timelockRefund: 144, // tRefund mapping
       prepeginTxid: "12".repeat(32), // stripped + lowercased
       prepeginMaxFee: 1234n,
-      maxAcceptableCommissionBps: 275, // stored 250 + 25 bps headroom (fresh-path cap policy, #2252 interim)
+      maxAcceptableCommissionBps: 300, // the emitted PegInSubmittedV2 ceiling, verbatim
       network: "signet",
     });
+    // Each member's ceiling is read from its own registration block.
+    expect(
+      getMaxAcceptableCommissionBpsFromChainWithGrace,
+    ).toHaveBeenCalledTimes(2);
+    expect(
+      getMaxAcceptableCommissionBpsFromChainWithGrace,
+    ).toHaveBeenCalledWith([TARGET_ID], TARGET_CREATED_AT_BLOCK, undefined);
+    expect(
+      getMaxAcceptableCommissionBpsFromChainWithGrace,
+    ).toHaveBeenCalledWith([SIBLING_ID], SIBLING_CREATED_AT_BLOCK, undefined);
     // Broadcast mode is byte-identical to before: no ack-window reads added.
     expect(mockGetBlockNumber).not.toHaveBeenCalled();
     expect(mockGetTBVProtocolParams).not.toHaveBeenCalled();
+  });
+
+  // A closed modal must stop the registration-log retry backoff, not leave
+  // it polling the node for the rest of the schedule.
+  it("forwards the caller's abort signal to the registration-log read", async () => {
+    const controller = new AbortController();
+
+    await rebuildDepositTerms({ ...baseParams(), signal: controller.signal });
+
+    expect(
+      getMaxAcceptableCommissionBpsFromChainWithGrace,
+    ).toHaveBeenCalledWith(
+      [TARGET_ID],
+      TARGET_CREATED_AT_BLOCK,
+      controller.signal,
+    );
+  });
+
+  // A batch registration lands every sibling in one tx, so one block query
+  // covers them all — fewer RPCs and no compounding of a flaky node's misses.
+  it("reads members that share a registration block in one query", async () => {
+    vi.mocked(getVaultFromChain).mockImplementation(async (id: Hex) => {
+      if (id === TARGET_ID) return targetVault;
+      return { ...siblingVault, createdAt: TARGET_CREATED_AT_BLOCK };
+    });
+
+    await rebuildDepositTerms(baseParams());
+
+    expect(
+      getMaxAcceptableCommissionBpsFromChainWithGrace,
+    ).toHaveBeenCalledTimes(1);
+    expect(
+      getMaxAcceptableCommissionBpsFromChainWithGrace,
+    ).toHaveBeenCalledWith(
+      [TARGET_ID, SIBLING_ID],
+      TARGET_CREATED_AT_BLOCK,
+      undefined,
+    );
+    expect(rebuildDepositTermsCore).toHaveBeenCalledWith(
+      expect.objectContaining({ maxAcceptableCommissionBps: 300 }),
+    );
+  });
+
+  it("refuses when a sibling was registered with a different commission ceiling", async () => {
+    vi.mocked(
+      getMaxAcceptableCommissionBpsFromChainWithGrace,
+    ).mockImplementation(async (vaultIds) =>
+      vaultIds.map((id) => (id === TARGET_ID ? 300 : 301)),
+    );
+
+    await expect(rebuildDepositTerms(baseParams())).rejects.toThrow(
+      /disagree on maxAcceptableCommissionBps/,
+    );
+    expect(rebuildDepositTermsCore).not.toHaveBeenCalled();
+  });
+
+  // A devnet vault was registered (outside this app) with the uint16 maximum.
+  // The rebuild must hand the original value to the core unchanged — never a
+  // capped or "corrected" ceiling — and let the core's range gate refuse it.
+  it("passes a uint16-max ceiling through to the core unchanged", async () => {
+    vi.mocked(
+      getMaxAcceptableCommissionBpsFromChainWithGrace,
+    ).mockImplementation(async (vaultIds) => vaultIds.map(() => 65_535));
+
+    await rebuildDepositTerms(baseParams());
+
+    expect(rebuildDepositTermsCore).toHaveBeenCalledWith(
+      expect.objectContaining({ maxAcceptableCommissionBps: 65_535 }),
+    );
   });
 
   it("refuses with the typed depositor-mismatch error when the connected wallet is not the on-chain depositor", async () => {
