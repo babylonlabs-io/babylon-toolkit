@@ -5,13 +5,21 @@
 // the secp256k1 asm.js build validates its inputs with `instanceof
 // Uint8Array`, and under jsdom a Node `Buffer` belongs to a different realm:
 // every point is rejected as "Expected Point" and `initEccLib` fails.
+import { getPosition } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 import * as ecc from "@bitcoin-js/tiny-secp256k1-asmjs";
 import { initEccLib, networks, payments } from "bitcoinjs-lib";
-import { encodeFunctionData, parseAbi } from "viem";
+import {
+  createPublicClient,
+  custom,
+  encodeFunctionData,
+  parseAbi,
+  type Hex,
+} from "viem";
+import { sepolia } from "viem/chains";
 import { describe, expect, it } from "vitest";
 
 import { buildRecordedChain } from "../replay/chain";
-import { RECORDED_DEPOSITOR } from "../replay/contracts";
+import { RECORDED_DEPLOYMENT, RECORDED_DEPOSITOR } from "../replay/contracts";
 import { isDroppedHost, loadRecordedRun } from "../replay/recording";
 
 const MULTICALL3_ABI = parseAbi([
@@ -102,6 +110,61 @@ describe("loadRecordedRun", () => {
 });
 
 describe("buildRecordedChain", () => {
+  it("replays the recorded no-proxy revert as no position", async () => {
+    const chain = buildRecordedChain(loadRecordedRun());
+    const client = createPublicClient({
+      chain: sepolia,
+      batch: { multicall: true },
+      transport: custom({
+        request: async ({ method, params }) => {
+          expect(method).toBe("eth_call");
+          const [call] = params as [{ data: Hex }];
+          return chain.answerMulticall(call.data);
+        },
+      }),
+    });
+
+    await expect(
+      getPosition(
+        client,
+        RECORDED_DEPLOYMENT.AAVE_ADAPTER,
+        RECORDED_DEPOSITOR.ETH_ADDRESS,
+      ),
+    ).resolves.toBeNull();
+    expect(chain.unanswered).toEqual([]);
+  });
+
+  it("does not reuse the recorded no-proxy revert for another account", () => {
+    const chain = buildRecordedChain(loadRecordedRun());
+    const callData = encodeFunctionData({
+      abi: parseAbi(["function getPosition(address user)"]),
+      args: [RECORDED_DEPLOYMENT.AAVE_ADAPTER],
+    });
+
+    chain.answerMulticall(
+      encodeFunctionData({
+        abi: MULTICALL3_ABI,
+        functionName: "aggregate3",
+        args: [
+          [
+            {
+              target: RECORDED_DEPLOYMENT.AAVE_ADAPTER,
+              allowFailure: true,
+              callData,
+            },
+          ],
+        ],
+      }),
+    );
+
+    expect(chain.unanswered).toEqual([
+      {
+        target: RECORDED_DEPLOYMENT.AAVE_ADAPTER,
+        selector: callData.slice(0, 10),
+      },
+    ]);
+  });
+
   it("answers an inner call that was only ever recorded inside a batch", () => {
     const run = loadRecordedRun();
     const chain = buildRecordedChain(run);

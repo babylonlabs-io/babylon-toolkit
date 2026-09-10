@@ -82,12 +82,19 @@ export const DEFAULT_REPLAY_STEP = "deposit-form";
  *
  *   node scripts/build-replay-fixture.mjs e2e/artifacts/<run>/recording/http.jsonl
  *
- * Its last two lines were not recorded by that run. They are the indexer's
+ * Two supplemental lines are the indexer's
  * answers to the price-feed and daily-candle queries the liquidations page
  * gained after the recording was made, asked of the same indexer by
  * `scripts/topup-replay-fixture.mjs` and appended verbatim. A fresh recording
  * made by the CLI still would not hold them - it never visits that page - so
  * re-run the top-up after every regeneration.
+ *
+ * The final RPC line is an archive read from rpc.sentio.xyz/sepolia at block
+ * 11313642 (2026-07-20T15:38:36Z), before the final deposit-form response.
+ * Its hash is 0x6bf92724bbb383ceccbac05cb26c352193ff48c27ea7ec9a948f8401a4977474.
+ * Blocks 11313640-11313643 returned the same InvalidProxyContract error for
+ * getPosition(recorded depositor), with no adapter events in that interval.
+ * This is a supplemental historical read, not the original latest response.
  *
  * A single named constant rather than a glob: which run is replayed decides
  * what every captured screen contains, so it is a deliberate choice, not

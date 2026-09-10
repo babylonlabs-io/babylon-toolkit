@@ -2167,6 +2167,12 @@ export const COPY = {
   // weird-params / too-many-vaults. Wording is ported from the reference
   // liquidation calculator (the source of truth for this copy).
   liquidationWarnings: {
+    incompletePosition: "Indexed collateral data is incomplete",
+    liveHealthFactor: {
+      title: (healthFactor: string) =>
+        `Critical - health factor ${healthFactor}`,
+      detail: "The on-chain health factor shows a high risk of liquidation.",
+    },
     urgent: {
       liquidatableTitle: "Liquidation can trigger now",
       liquidatableDetail: (liqPriceUsd: string) =>
