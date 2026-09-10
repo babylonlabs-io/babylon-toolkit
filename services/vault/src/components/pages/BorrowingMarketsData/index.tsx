@@ -25,11 +25,17 @@ import {
   useVaultSplitParams,
   useVerifiedReserveIdentity,
 } from "@/applications/aave/hooks";
+import { NEUTRAL_BUTTON_CLASS } from "@/components/shared/buttonClasses";
 import { PAGE_CONTENT_CLASS } from "@/components/shared/layoutClasses";
 import { getNetworkConfigBTC } from "@/config";
 import { COPY } from "@/copy";
 import { useMarketDataOverride } from "@/overrides/marketData";
-import { getAssetPickerRoute, getMarketSlug, MARKET_PARAM } from "@/routes";
+import {
+  getAssetPickerRoute,
+  getMarketSlug,
+  getReserveDetailSearch,
+  MARKET_PARAM,
+} from "@/routes";
 import {
   getCurrencyIconWithFallback,
   getTokenByAddress,
@@ -346,10 +352,7 @@ export default function BorrowingMarketsData() {
   return (
     <Container className={`${PAGE_CONTENT_CLASS} pb-6`}>
       <div className="space-y-10">
-        <section
-          className="space-y-4"
-          data-testid="market-section-identity"
-        >
+        <section className="space-y-4" data-testid="market-section-identity">
           <button
             type="button"
             onClick={() =>
@@ -365,31 +368,50 @@ export default function BorrowingMarketsData() {
             {COPY.marketData.backToAssets}
           </button>
 
-          <div className="flex min-w-0 items-center gap-4">
-            <Avatar
-              url={icon}
-              alt={name}
-              size="large"
-              variant="circular"
-              className="h-16 w-16 shrink-0 rounded-full bg-white"
-            />
-            <div className="flex min-w-0 flex-col">
-              <div className="flex items-center gap-2">
-                <Heading
-                  variant="h5"
-                  as="h1"
-                  className="font-normal text-accent-primary"
-                >
-                  {name}
-                </Heading>
-                <span className="rounded-lg bg-secondary-strokeLight px-2 py-0.5 text-xs leading-[1.66] tracking-[0.4px] text-accent-secondary">
-                  {symbol}
-                </span>
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="flex min-w-0 flex-1 items-center gap-4">
+              <Avatar
+                url={icon}
+                alt={name}
+                size="large"
+                variant="circular"
+                className="h-16 w-16 shrink-0 rounded-full bg-white"
+              />
+              <div className="flex min-w-0 flex-col">
+                <div className="flex items-center gap-2">
+                  <Heading
+                    variant="h5"
+                    as="h1"
+                    className="font-normal text-accent-primary"
+                  >
+                    {name}
+                  </Heading>
+                  <span className="rounded-lg bg-secondary-strokeLight px-2 py-0.5 text-xs leading-[1.66] tracking-[0.4px] text-accent-secondary">
+                    {symbol}
+                  </span>
+                </div>
+                <Text variant="body1" className="text-accent-secondary">
+                  {COPY.marketData.subtitle(symbol)}
+                </Text>
               </div>
-              <Text variant="body1" className="text-accent-secondary">
-                {COPY.marketData.subtitle(symbol)}
-              </Text>
             </div>
+            <button
+              type="button"
+              className={NEUTRAL_BUTTON_CLASS}
+              disabled={isDemo || selectedReserve === null}
+              onClick={() => {
+                if (selectedReserve === null) return;
+                navigate({
+                  pathname: location.pathname,
+                  search: getReserveDetailSearch(
+                    selectedReserve.reserveId,
+                    LOAN_TAB.BORROW,
+                  ),
+                });
+              }}
+            >
+              {COPY.marketData.borrowAction}
+            </button>
           </div>
         </section>
 

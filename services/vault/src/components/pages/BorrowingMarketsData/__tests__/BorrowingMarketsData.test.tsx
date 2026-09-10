@@ -19,9 +19,9 @@
  * from `token.*` since they are labels only, not routing/trust decisions.
  */
 
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { MemoryRouter, Route, Routes } from "react-router";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // Component tests mock core-ui (its dist isn't built in the test run) —
@@ -262,6 +262,11 @@ function setUpHooks({
   });
 }
 
+function LocationProbe() {
+  const { pathname, search } = useLocation();
+  return <span data-testid="location-probe">{`${pathname}${search}`}</span>;
+}
+
 function renderPage(reserveIdParam: string) {
   return render(
     <MemoryRouter initialEntries={[`/markets/${reserveIdParam}`]}>
@@ -271,6 +276,7 @@ function renderPage(reserveIdParam: string) {
           element={<BorrowingMarketsData />}
         />
       </Routes>
+      <LocationProbe />
     </MemoryRouter>,
   );
 }
@@ -412,16 +418,46 @@ describe("BorrowingMarketsData", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders no Borrow control in the header (#2431 — it had no wiring to any flow)", () => {
+  it("opens the borrow form for the routed reserve without leaving the market page", () => {
     setUpHooks();
 
     renderPage("1");
 
-    const header = screen.getByTestId("market-section-identity");
+    const header = within(screen.getByTestId("market-section-identity"));
+    fireEvent.click(
+      header.getByRole("button", { name: COPY.marketData.borrowAction }),
+    );
 
+    expect(screen.getByTestId("location-probe").textContent).toBe(
+      "/markets/1?reserve=1&tab=borrow",
+    );
+  });
+
+  it("disables Borrow for a demo fixture, which has no on-chain reserve to borrow from", () => {
+    setUpHooks({
+      identity: null,
+      demoMarketData: {
+        reserves: [{ ...USDC_RESERVE, reserveId: 9001n }],
+        liquidityByReserveId: {
+          "9001": {
+            availableLiquidity: 11_400_000,
+            totalBorrowed: 24_500_000,
+            suppliedLiquidity: 38_500_000,
+            utilizationBps: 6259,
+          },
+        },
+        aprPercentByReserveId: { "9001": 3.5 },
+        pricesByReserveId: { "9001": 1 },
+        collateralFactor: 0.75,
+      },
+    });
+
+    renderPage("9001");
+
+    const header = within(screen.getByTestId("market-section-identity"));
     expect(
-      within(header).queryByRole("button", { name: "Borrow" }),
-    ).not.toBeInTheDocument();
+      header.getByRole("button", { name: COPY.marketData.borrowAction }),
+    ).toBeDisabled();
   });
 
   it("resolves a token-symbol slug to the reserve whose underlying carries that registry symbol", () => {
