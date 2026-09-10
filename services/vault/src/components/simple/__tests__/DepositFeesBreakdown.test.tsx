@@ -10,6 +10,8 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
+import { COPY } from "@/copy";
+
 import { DepositFeesBreakdown } from "../DepositFeesBreakdown";
 
 const baseProps = {
@@ -18,6 +20,7 @@ const baseProps = {
   protocolFeeAmount: "0.0001 BTC",
   protocolFeePrice: "",
   protocolFeeIsError: false,
+  isLedgerVaultWallet: false,
 };
 
 describe("DepositFeesBreakdown commission disclosure", () => {
@@ -139,5 +142,50 @@ describe("DepositFeesBreakdown commission disclosure", () => {
     // value would produce 5 sats, which is not the per-payout protocol math.
     expect(screen.getByText(/0\.00000004/)).toBeInTheDocument();
     expect(screen.getByText(/0\.00000006/)).toBeInTheDocument();
+  });
+});
+
+describe("DepositFeesBreakdown reserve tooltip", () => {
+  const reserveTooltipCopy = COPY.deposit.form.transactionReserveTooltip;
+
+  function renderedTooltips(): string[] {
+    return Array.from(document.querySelectorAll("[data-tooltip-content]")).map(
+      (node) => node.getAttribute("data-tooltip-content") ?? "",
+    );
+  }
+
+  it("promises the post-settlement reclaim to a non-Ledger wallet", () => {
+    render(
+      <DepositFeesBreakdown
+        {...baseProps}
+        amountSats={100_000_000n}
+        depositorClaimValue={3_000_000n}
+        commissionBaseValues={[100_000_000n]}
+        commissionBps={250}
+        isLedgerVaultWallet={false}
+      />,
+    );
+
+    expect(renderedTooltips()).toContain(reserveTooltipCopy(false));
+    expect(renderedTooltips()).not.toContain(reserveTooltipCopy(true));
+  });
+
+  // The Ledger vault app cannot sign the reclaim sweep (decision D10), so the
+  // deposit-time promise must not offer an action the depositor cannot take.
+  it("does not promise the reclaim to the Ledger vault wallet", () => {
+    render(
+      <DepositFeesBreakdown
+        {...baseProps}
+        amountSats={100_000_000n}
+        depositorClaimValue={3_000_000n}
+        commissionBaseValues={[100_000_000n]}
+        commissionBps={250}
+        isLedgerVaultWallet
+      />,
+    );
+
+    expect(reserveTooltipCopy(true)).not.toBe(reserveTooltipCopy(false));
+    expect(renderedTooltips()).toContain(reserveTooltipCopy(true));
+    expect(renderedTooltips()).not.toContain(reserveTooltipCopy(false));
   });
 });
