@@ -37,7 +37,7 @@ interface DepositFeesBreakdownProps {
   /** Estimated funding fee in satoshis at {@link networkFeeRate}. */
   networkFeeSats?: bigint | null;
   /** Ledger vault app connected? Only the reserve tooltip reads it: that
-   * wallet cannot reclaim the reserve (decision D10), so don't promise it. */
+   * wallet cannot reclaim the reserve (#2375), so don't promise it. */
   isLedgerVaultWallet: boolean;
 }
 

@@ -237,7 +237,9 @@ export function getReclaimEligibility(
   // approval screen, plus host-side work in babylon-ledger-vault-signer.
   //
   // Shown as blocked rather than hidden so Ledger users still learn the reserve
-  // exists (decision D10); the copy must not point at "another wallet" (= the seed).
+  // exists. Decision (#2375): ship the Ledger wallet with reclaim blocked; a
+  // reserve-sweep validator is a post-flip firmware ask. The copy must not point
+  // at "another wallet" (= the seed).
   if (isLedgerWallet) {
     return { type: "blocked", tooltip: COPY.reclaim.blocked.ledgerUnsupported };
   }

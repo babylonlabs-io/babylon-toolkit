@@ -25,8 +25,11 @@
  * cap and the next one answers SW_CAP_EXCEEDED (`sign_psbt_validate.c:741-744`).
  *
  * Requires a running container with the vault app (nanosp, testnet build,
- * firmware-test mnemonic) built from ELF commit `b0c0ac4d` (app 0.10.1; CI run
- * 33860782380, `compiled_app_binaries_testnet` → `nanos2/bin/app.elf`); every
+ * firmware-test mnemonic) built from ELF commit `b0c0ac4d` (app 0.10.1) — the
+ * `compiled_app_binaries_testnet` artifact (`nanos2/bin/app.elf`) of
+ * https://github.com/LedgerHQ/app-babylon-vault/actions/runs/33860782380
+ * ("Build and run functional tests using ragger through reusable workflow";
+ * artifacts expire 2026-12-03, after which rebuild from the commit); every
  * firmware line cited in this file is at that commit. Skipped unless
  * SPECULOS_URL is set (SPECULOS_REQUIRED turns that skip into a failure — CI):
  *
@@ -97,8 +100,8 @@ async function loadSdkVerifier() {
 }
 type SdkVerifier = Awaited<ReturnType<typeof loadSdkVerifier>>;
 
-/** App version of the pinned ELF (`b0c0ac4d`); stage 1 asserts it so a run
- * against another build cannot pass as this pin. */
+/** App version of the pinned ELF (`b0c0ac4d`). Stage 1 asserts it, which rules out a
+ * differently-versioned build only — the app exposes no commit; the ELF provenance above is the pin. */
 const PINNED_APP_VERSION = "0.10.1";
 
 /** Live-verified nanosp review-screen texts (reference driver `lsk_ceremony2.py`). */

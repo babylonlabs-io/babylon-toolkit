@@ -81,13 +81,14 @@ const ASSERT0_VALUE_SATS = 546 + 386;
 /** Non-VP payout Out1 must be exactly DUST (`sign_psbt_validate.c:1997-1999`). */
 const PAYOUT_ANCHOR_VALUE_SATS = 546;
 
-/** Arbitrary — since 0.10.1 the device leaves inputs 1-2 unbounded (`sign_psbt_validate.c:2247-2274`). */
-const CHALLENGE_ASSERT_CONNECTOR_VALUE_SATS = 546;
+/** btc-vault's ChallengeAssert:0 at rate 1 (`sign_psbt_validate.c:2254`). Since 7c2f184 (0.10.0) inputs 1-2
+ * are unbounded (`:2247-2274`); the old ≤ DUST cap admitted only 546, so 509 pins that cap's removal. */
+const CHALLENGE_ASSERT_CONNECTOR_VALUE_SATS = 509;
 
 /** Fixture `timelock_challenge_assert` (nopayout.rs:157-176 CAX/CAY sequences); device reads no NoPayout sequence. */
 const CHALLENGE_ASSERT_TIMELOCK = 72;
 
-/** ≤ base_fee_rate × MAX_NOPAYOUT_VSIZE (450) since 0.10.1 (`sign_psbt_validate.c:90`, `:2317-2322`);
+/** ≤ base_fee_rate × MAX_NOPAYOUT_VSIZE (450) since 7c2f184 (0.10.0) (`sign_psbt_validate.c:90`, `:2317-2322`);
  * out0 must stay ≥ DUST (`:2313-2316`). */
 const NOPAYOUT_FEE_SATS = 400;
 
@@ -215,7 +216,7 @@ export async function buildDepositorGraphFixture(peginTxHex: string): Promise<De
   payoutTx.addInput(assertTx.getHash(), 0, PAYOUT_TIMELOCK);
   // Depositor claimer: Out0 = V + assert0 − fee − DUST to BIP-86(D), Out1 =
   // DUST CPFP anchor to BIP-86(D) — both script-verified on-device
-  // (`sign_psbt_validate.c:1910-1999`).
+  // (`sign_psbt_validate.c:1910-2014`).
   payoutTx.addOutput(
     depositorBip86Spk,
     VAULT_AMOUNT_SATS + ASSERT0_VALUE_SATS - payoutFeeSats - PAYOUT_ANCHOR_VALUE_SATS,

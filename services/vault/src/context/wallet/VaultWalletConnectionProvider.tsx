@@ -38,11 +38,19 @@ const ALWAYS_DISABLED_WALLETS: string[] = [
   "ledger_btc_v2",
 ];
 
+/** Wallet id of the Ledger BTC Vault app. */
+const LEDGER_VAULT_WALLET_ID = "ledger_btc_vault";
+
 /**
- * Wallet id of the Ledger BTC Vault app. Exported because the reclaim gate
- * (`models/reclaimEligibility`) and the deposit fee breakdown both key on it.
+ * Whether the connected BTC wallet is the Ledger BTC Vault app — the one
+ * predicate the reclaim row (`hooks/deposit/useReclaimRowAction`) and the
+ * deposit reserve tooltip (`components/simple/SimpleDeposit`) must share.
  */
-export const LEDGER_VAULT_WALLET_ID = "ledger_btc_vault";
+export function isLedgerVaultConnector(
+  connector: { connectedWallet?: { id: string } | null } | null | undefined,
+): boolean {
+  return connector?.connectedWallet?.id === LEDGER_VAULT_WALLET_ID;
+}
 
 // `ledger_btc_vault` (DMK-based vault provider, #2109) is opt-in via the feature
 // flag while Ledger's firmware is still in review — the env disable list defaults
