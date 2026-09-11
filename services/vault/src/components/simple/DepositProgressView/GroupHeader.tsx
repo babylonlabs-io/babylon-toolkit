@@ -87,7 +87,7 @@ export function GroupHeader({
         as="span"
         variant="body1"
         className={twMerge(
-          "min-w-0 flex-1 overflow-hidden text-ellipsis font-medium",
+          "min-w-0 flex-1 truncate font-medium",
           hasError ? "text-error-main" : "text-accent-primary",
         )}
       >

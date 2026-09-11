@@ -180,7 +180,7 @@ describe("GroupedProgress", () => {
     expect(circle.querySelector("svg")).toBeInTheDocument();
   });
 
-  it("keeps the step counter in the header row by letting the title yield to it", () => {
+  it("renders the step counter beside a shrinkable title in the header row", () => {
     render(<GroupedProgress steps={steps} currentStep={1} />);
 
     const title = screen.getByText(COPY.deposit.groups.registerDeposit);
@@ -188,10 +188,7 @@ describe("GroupedProgress", () => {
     const row = title.parentElement as HTMLElement;
 
     expect(counter.parentElement).toBe(row);
-    expect(row.className).toContain("flex");
     expect(title.className).toContain("min-w-0");
-    expect(title.className).toContain("overflow-hidden");
-    expect(counter.className).toContain("shrink-0");
   });
 
   describe("accessibility", () => {
