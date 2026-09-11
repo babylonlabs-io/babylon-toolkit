@@ -44,7 +44,7 @@ function initializeVaultWagmi(): WagmiInitResult {
       projectId,
       metadata: {
         name: "Babylon Vault",
-        description: "Babylon Vault - Secure Bitcoin Vault Platform",
+        description: "BTCVault - Secure Bitcoin Vault Platform",
         url:
           typeof window !== "undefined"
             ? window.location.origin
