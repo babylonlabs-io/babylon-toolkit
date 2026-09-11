@@ -26,7 +26,6 @@ import {
 import { getNetworkConfigBTC } from "@/config";
 import { COPY } from "@/copy";
 import type { CollateralVaultEntry } from "@/types/collateral";
-import { countActiveVaults } from "@/utils/collateral";
 import { getBtcExplorerTxUrl } from "@/utils/explorer";
 import { formatBtcAmount, formatOrdinal } from "@/utils/formatting";
 
@@ -191,7 +190,7 @@ export function VaultsActiveSection({
       <Heading variant="h6" as="h2" className="font-normal text-accent-primary">
         {COPY.vaults.sections.activeVaultsTitle}{" "}
         <span className="text-accent-secondary">
-          {COPY.vaults.sections.count(countActiveVaults(vaults))}
+          {COPY.vaults.sections.count(vaults.length)}
         </span>
       </Heading>
       <div className="space-y-2">

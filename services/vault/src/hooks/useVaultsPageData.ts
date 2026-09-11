@@ -59,8 +59,11 @@ export function useVaultsPageData(connectedAddress: string | undefined) {
   // merged position. Only `active` rows enter the sequence — an activating
   // vault's liquidation position is a placeholder and a withdrawing vault has
   // left the position (their rows hide the ordinal for the same reason).
-  // `activeVaultsCount` counts the same rows the collateral total does, so an
-  // activating row counts and a withdrawing one does not.
+  // `activeVaultsCount` counts the same rows `displayCollateralBtc` totals —
+  // useDashboardState adds the activating amounts to the chain snapshot and
+  // subtracts the withdrawing ones — so an activating row counts and a
+  // withdrawing one does not. The demo path replaces both with the rendered
+  // rows, so it is exempt.
   const liquidationOrder = useMemo(() => {
     const orderedVaults = displayVaults.filter(
       (vault) => vault.lifecycle === "active",

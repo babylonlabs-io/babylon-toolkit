@@ -58,11 +58,13 @@ const activity = {
 
 const POSITION_KEY = ["aaveUserPosition", "0xUser", "0xspoke"] as const;
 const VAULTS_KEY = ["vaults", "0xUser"] as const;
+const ACTIVITIES_KEY = ["user-activities", "0xUser"] as const;
 
 function setup() {
   const client = new QueryClient();
   client.setQueryData(POSITION_KEY, "cached");
   client.setQueryData(VAULTS_KEY, "cached");
+  client.setQueryData(ACTIVITIES_KEY, "cached");
   const wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={client}>{children}</QueryClientProvider>
   );
@@ -93,6 +95,16 @@ describe("useActivationState", () => {
 
     expect(client.getQueryState(POSITION_KEY)?.isInvalidated).toBe(true);
     expect(client.getQueryState(VAULTS_KEY)?.isInvalidated).toBe(true);
+  });
+
+  it("invalidates the activities query so the activated deposit leaves the list", async () => {
+    const { client, result } = setup();
+
+    await act(async () => {
+      await result.current.handleActivation("0xsecret");
+    });
+
+    expect(client.getQueryState(ACTIVITIES_KEY)?.isInvalidated).toBe(true);
   });
 
   it("still records the optimistic activating row for the indexer gap", async () => {

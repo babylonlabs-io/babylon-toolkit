@@ -187,6 +187,7 @@ export function useSyncPendingVaults(vaults: VaultData[]): void {
       const syncPosition = async () => {
         await queryClient.refetchQueries({
           queryKey: [AAVE_USER_POSITION_QUERY_KEY],
+          type: "active",
         });
         // Only clear pending after RPC completes
         clearPendingVaults(confirmedVaultIds);

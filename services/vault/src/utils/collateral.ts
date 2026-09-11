@@ -74,7 +74,12 @@ export function toCollateralVaultEntries(
   });
 }
 
-/** Rows that count towards the position's vault count — every row but a peg-out in flight. */
+/**
+ * Summary-card display count: every row but a peg-out in flight. Not a gate —
+ * no action may branch on it. The active-vaults heading deliberately differs,
+ * counting every rendered row (`vaults.length`) so the number cannot contradict
+ * the rows under it.
+ */
 export function countActiveVaults(entries: CollateralVaultEntry[]): number {
   return entries.filter(
     (entry) => entry.lifecycle === "active" || entry.lifecycle === "activating",

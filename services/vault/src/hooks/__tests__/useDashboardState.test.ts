@@ -241,6 +241,9 @@ describe("useDashboardState", () => {
 
     expect(result.current.hasDisplayCollateral).toBe(true);
     expect(result.current.hasCollateral).toBe(false);
+    // The chain snapshot already dropped the vault, so the row must not be
+    // subtracted a second time.
+    expect(result.current.displayCollateralBtc).toBe(0);
   });
 
   it("tags a vault whose withdrawal is mined but not yet indexed as withdrawing", () => {
@@ -253,6 +256,21 @@ describe("useDashboardState", () => {
     expect(
       result.current.collateralVaults.map((entry) => entry.lifecycle),
     ).toEqual(["active", "withdrawing"]);
+  });
+
+  it("drops a mined-but-unindexed withdrawal from the display collateral total", () => {
+    // Chain snapshot still counts both vaults; only the local marker knows B is
+    // on its way out.
+    mockCollateralBtc = 0.000002;
+    mockChainVaultIds = [VAULT_A, VAULT_B];
+    mockCollaterals = [collateral(VAULT_A, 0), collateral(VAULT_B, 1)];
+    mockPendingVaults = new Map([[VAULT_B, "withdraw"]]);
+
+    const { result } = renderHook(() => useDashboardState("0xabc"));
+
+    expect(result.current.displayCollateralBtc).toBeCloseTo(0.000001, 12);
+    // Financial values stay chain-pure.
+    expect(result.current.collateralBtc).toBe(0.000002);
   });
 
   it("keeps a vault pending an add operation backing the position", () => {

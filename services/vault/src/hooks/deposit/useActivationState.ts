@@ -12,6 +12,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useActivatingVaults } from "@/applications/aave/context";
 import { usePeginPolling } from "@/context/deposit/PeginPollingContext";
 import { LocalStorageStatus } from "@/models/peginStateMachine";
+import { ACTIVITIES_QUERY_KEY } from "@/services/activity";
 import { usePeginStorage } from "@/storage/usePeginStorage";
 import type { VaultActivity } from "@/types/activity";
 import { invalidateVaultQueries } from "@/utils/queryKeys";
@@ -96,6 +97,9 @@ export function useActivationState({
           updatePendingPeginStatus,
           onRefetchActivities: () => {
             void invalidateVaultQueries(queryClient);
+            void queryClient.invalidateQueries({
+              queryKey: [ACTIVITIES_QUERY_KEY],
+            });
           },
           onShowSuccessModal: () => {
             if (!mountedRef.current) return;

@@ -72,16 +72,19 @@ describe("VaultsActiveSection", () => {
     expect(screen.getByTestId("vault-withdraw-button")).toBeDisabled();
   });
 
-  it("leaves a withdrawing row out of the Active Vaults heading count", () => {
+  it("counts every rendered row in the Active Vaults heading, withdrawing included", () => {
     render(
       <VaultsActiveSection
-        vaults={[activeVault, { ...activeVault, lifecycle: "withdrawing" }]}
+        vaults={[
+          activeVault,
+          { ...activeVault, id: "vault-withdrawing", lifecycle: "withdrawing" },
+        ]}
         onWithdraw={vi.fn()}
         isWithdrawDisabled={false}
       />,
     );
 
-    expect(screen.getByText(COPY.vaults.sections.count(1))).toBeInTheDocument();
+    expect(screen.getByText(COPY.vaults.sections.count(2))).toBeInTheDocument();
   });
 
   it("renders nothing when there is no vault and no empty state to show", () => {

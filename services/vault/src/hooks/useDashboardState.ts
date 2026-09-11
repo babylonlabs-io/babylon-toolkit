@@ -188,20 +188,27 @@ export function useDashboardState(connectedAddress: string | undefined) {
     }
   }, [rawCollateralVaults, activatingVaults, clearActivatingVault]);
 
-  // Add only activations that the current chain snapshot does not include.
-  const displayCollateralBtc = useMemo(
-    () =>
-      collateralBtc +
-      activatingEntries
-        .filter(
-          (entry) =>
-            !position?.vaultIds.some(
-              (id) => id.toLowerCase() === entry.vaultId.toLowerCase(),
-            ),
-        )
-        .reduce((sum, entry) => sum + entry.amountBtc, 0),
-    [collateralBtc, activatingEntries, position?.vaultIds],
-  );
+  // Net the optimistic deltas against the chain snapshot: add the activations it
+  // does not include yet, subtract the withdrawals it still counts. Both filters
+  // key on `vaultIds`, which comes from the same chain read as `collateralBtc`,
+  // so neither delta can be applied twice.
+  const displayCollateralBtc = useMemo(() => {
+    const chainVaultIds = new Set(
+      position?.vaultIds.map((id) => id.toLowerCase()) ?? [],
+    );
+    const activatingBtc = activatingEntries
+      .filter((entry) => !chainVaultIds.has(entry.vaultId.toLowerCase()))
+      .reduce((sum, entry) => sum + entry.amountBtc, 0);
+    const withdrawingBtc = withdrawingCollateralVaults
+      .filter((entry) => chainVaultIds.has(entry.vaultId.toLowerCase()))
+      .reduce((sum, entry) => sum + entry.amountBtc, 0);
+    return collateralBtc + activatingBtc - withdrawingBtc;
+  }, [
+    collateralBtc,
+    activatingEntries,
+    withdrawingCollateralVaults,
+    position?.vaultIds,
+  ]);
 
   // Optimistic rows must not enable actions before collateral exists on-chain.
   const hasCollateral = collateralBtc > 0;

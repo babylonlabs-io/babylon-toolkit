@@ -50,16 +50,6 @@ function WithdrawFlowContent({
 
   const renderedStep = useDialogStep(open, step, reset);
 
-  // Snapshots captured at confirm time. Needed by the Progress view because the
-  // underlying vaults leave the withdrawable set after withdraw — without
-  // snapshotting, this data would disappear by the time we navigate to
-  // PROGRESS.
-  const [submittedPayoutAddresses, setSubmittedPayoutAddresses] = useState<
-    string[]
-  >([]);
-  const [submittedAssertTimelockBlocks, setSubmittedAssertTimelockBlocks] =
-    useState(0);
-
   // Signing-surface guard: god-mode demo rows are display-only (`displayOnly`,
   // fake vaultId) and must never be selectable for a real withdraw, even if a
   // caller mistakenly passes the demo-merged list. Mirrors CollateralSection's
@@ -75,11 +65,37 @@ function WithdrawFlowContent({
 
   const {
     selectedVaultIds: effectiveSelectedVaultIds,
-    selectedVaults: effectiveSelectedVaults,
+    selectedVaults: liveSelectedVaults,
   } = useMemo(
     () => getEffectiveVaultSelection(withdrawableVaults, preSelectedVaultIds),
     [withdrawableVaults, preSelectedVaultIds],
   );
+
+  // The withdraw marks its vaults pending AND awaits a position refetch before
+  // `goToProgress()` runs, so both the selection and the position props move
+  // while Review is still on screen. Pin every Review input at confirm time —
+  // otherwise the amounts flash to zero under the spinner, the projected health
+  // factor is computed against an already-reduced position (a false blocking
+  // warning), and the Progress view loses its payout addresses. A failed submit
+  // releases the pin and Review tracks the live values again.
+  const [confirmed, setConfirmed] = useState<{
+    vaults: CollateralVaultEntry[];
+    collateralBtc: number;
+    collateralValueUsd: number;
+    currentHealthFactor: number | null;
+  } | null>(null);
+  const effectiveSelectedVaults = confirmed?.vaults ?? liveSelectedVaults;
+  // Ternaries, not `??`: a pinned `currentHealthFactor` of null (no debt) must
+  // not fall through to the live prop.
+  const reviewCollateralBtc = confirmed
+    ? confirmed.collateralBtc
+    : collateralBtc;
+  const reviewCollateralValueUsd = confirmed
+    ? confirmed.collateralValueUsd
+    : collateralValueUsd;
+  const reviewCurrentHealthFactor = confirmed
+    ? confirmed.currentHealthFactor
+    : currentHealthFactor;
 
   const selectedPayoutAddresses = useMemo(
     () => getUniquePayoutAddresses(effectiveSelectedVaults),
@@ -106,10 +122,12 @@ function WithdrawFlowContent({
       0,
     );
     const usd =
-      collateralBtc > 0 ? collateralValueUsd * (btc / collateralBtc) : 0;
+      reviewCollateralBtc > 0
+        ? reviewCollateralValueUsd * (btc / reviewCollateralBtc)
+        : 0;
     const projectedHF = computeProjectedHealthFactor(
-      currentHealthFactor,
-      collateralBtc,
+      reviewCurrentHealthFactor,
+      reviewCollateralBtc,
       btc,
     );
     return {
@@ -119,23 +137,31 @@ function WithdrawFlowContent({
     };
   }, [
     effectiveSelectedVaults,
-    collateralBtc,
-    collateralValueUsd,
-    currentHealthFactor,
+    reviewCollateralBtc,
+    reviewCollateralValueUsd,
+    reviewCurrentHealthFactor,
   ]);
 
   const handleConfirm = useCallback(async () => {
+    setConfirmed({
+      vaults: liveSelectedVaults,
+      collateralBtc,
+      collateralValueUsd,
+      currentHealthFactor,
+    });
     const success = await executeWithdraw(effectiveSelectedVaultIds);
-    if (success) {
-      setSubmittedPayoutAddresses(selectedPayoutAddresses);
-      setSubmittedAssertTimelockBlocks(selectedAssertTimelockBlocks);
-      goToProgress();
+    if (!success) {
+      setConfirmed(null);
+      return;
     }
+    goToProgress();
   }, [
     executeWithdraw,
     effectiveSelectedVaultIds,
-    selectedPayoutAddresses,
-    selectedAssertTimelockBlocks,
+    liveSelectedVaults,
+    collateralBtc,
+    collateralValueUsd,
+    currentHealthFactor,
     goToProgress,
   ]);
 
@@ -147,7 +173,7 @@ function WithdrawFlowContent({
             <WithdrawReviewContent
               totalAmountBtc={selectedBtc}
               totalAmountUsd={selectedUsd}
-              currentHealthFactor={currentHealthFactor}
+              currentHealthFactor={reviewCurrentHealthFactor}
               projectedHealthFactor={projectedHealthFactor}
               payoutAddresses={selectedPayoutAddresses}
               assertTimelockBlocks={selectedAssertTimelockBlocks}
@@ -160,8 +186,8 @@ function WithdrawFlowContent({
         {renderedStep === WithdrawStep.PROGRESS && (
           <div className="mx-auto w-full max-w-[520px]">
             <WithdrawProgressView
-              payoutAddresses={submittedPayoutAddresses}
-              assertTimelockBlocks={submittedAssertTimelockBlocks}
+              payoutAddresses={selectedPayoutAddresses}
+              assertTimelockBlocks={selectedAssertTimelockBlocks}
               onClose={onClose}
             />
           </div>
