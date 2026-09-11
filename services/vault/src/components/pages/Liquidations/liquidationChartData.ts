@@ -250,21 +250,19 @@ export function buildTimelineSafeZone(
 }
 
 /**
- * Time-axis label for a candle: the day of the month, naming the month instead
- * on the first days of one, so a multi-month window still says where it is.
- * Matches the design's date axis (5 / 12 / 19 / Jun / 8).
+ * Time-axis label for a candle: month + day, so a year-long window always
+ * says where it is. Matches the design's date axis (e.g. "Sep 12").
  */
-const MONTH_LABEL_MAX_DAY = 7;
-
 export function formatCandleDate(timeMs: number): string {
-  const date = new Date(timeMs);
-  return date.getUTCDate() <= MONTH_LABEL_MAX_DAY
-    ? date.toLocaleDateString("en-US", { month: "short", timeZone: "UTC" })
-    : String(date.getUTCDate());
+  return new Date(timeMs).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  });
 }
 
 /** The hovered candle's own date. Spelled out, because the axis label under it
- *  is often a bare day number that names no month. */
+ *  lacks only the year. */
 export function formatCandleTimestamp(timeMs: number): string {
   return new Date(timeMs).toLocaleDateString("en-US", {
     month: "short",
