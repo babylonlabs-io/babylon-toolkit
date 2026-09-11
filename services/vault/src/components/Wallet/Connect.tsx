@@ -4,6 +4,7 @@ import {
   ConnectButton,
   Hint,
   WalletIcon,
+  WalletMenu,
 } from "@babylonlabs-io/core-ui";
 import {
   useChainConnector,
@@ -12,13 +13,18 @@ import {
 } from "@babylonlabs-io/wallet-connector";
 import { useMemo } from "react";
 
+import featureFlags from "@/config/featureFlags";
 import { useAddressScreening } from "@/context/addressScreening";
 import { useGeoFencing } from "@/context/geofencing";
 import { COPY } from "@/copy";
 import { useBtcWalletUnlock } from "@/hooks/useBtcWalletUnlock";
 import { useUTXOs } from "@/hooks/useUTXOs";
 
-import { useBTCWallet, useETHWallet } from "../../context/wallet";
+import {
+  useBTCWallet,
+  useConnection,
+  useETHWallet,
+} from "../../context/wallet";
 import { useAppState } from "../../state/AppState";
 
 import { shouldShowInscriptionsToggle } from "./inscriptionToggle";
@@ -31,19 +37,14 @@ interface ConnectProps {
 }
 
 export const Connect: React.FC<ConnectProps> = ({ loading = false, text }) => {
+  const { open, disconnect } = useWalletConnect();
+  const { isConnected, btcConnected, ethConnected } = useConnection();
   const {
-    connected: walletSessionConfirmed,
-    open,
-    disconnect,
-  } = useWalletConnect();
-
-  const {
-    connected: btcConnected,
     address: btcAddress,
     publicKeyNoCoord,
     locked: btcLocked,
   } = useBTCWallet();
-  const { connected: ethConnected, address: ethAddress } = useETHWallet();
+  const { address: ethAddress } = useETHWallet();
   // Re-runs the wallet's connect flow, surfacing the extension's unlock prompt.
   // On success the provider clears `locked` and this button reverts to the
   // connected wallet menu.
@@ -59,31 +60,25 @@ export const Connect: React.FC<ConnectProps> = ({ loading = false, text }) => {
   const { isBlocked: isAddressBlocked, isLoading: isScreeningLoading } =
     useAddressScreening();
 
-  // `walletSessionConfirmed` is the dialog's own confirmation - the Connect
-  // press the "By clicking Connect you agree with the Terms of Use" copy hangs
-  // off. Closing the dialog now leaves a successful connection up rather than
-  // tearing it down, so without this gate a user could select both wallets,
-  // dismiss with X, and reach the full deposit UI having never accepted the
-  // terms. simple-staking gates its menu the same way.
-  const isWalletConnected =
-    walletSessionConfirmed && btcConnected && ethConnected;
-
-  // Single source for both the UTXO query gate and the menu render branch below.
-  const canShowWalletMenu = isWalletConnected && !isGeoBlocked && !isGeoLoading;
+  // The page and menu use the same confirmed-session gate.
+  const canShowWalletMenu = isConnected && !isGeoBlocked && !isGeoLoading;
 
   // Scope this subscription to when the menu can render; the query is shared
   // (same key) with the deposit form, so this only adds an observer.
   const utxoOptions = useMemo(
-    () => ({ enabled: canShowWalletMenu }),
-    [canShowWalletMenu],
+    () => ({ enabled: canShowWalletMenu && btcConnected && !btcLocked }),
+    [canShowWalletMenu, btcConnected, btcLocked],
   );
-  const { inscriptionUTXOs } = useUTXOs(btcAddress, utxoOptions);
+  const { inscriptionUTXOs } = useUTXOs(
+    btcConnected && !btcLocked ? btcAddress : undefined,
+    utxoOptions,
+  );
   // While ordinals are loading or errored, useUTXOs reports 0 inscriptions, so
   // the toggle stays hidden then — fine, toggling is a no-op until it resolves.
-  const showInscriptionsToggle = shouldShowInscriptionsToggle(
-    inscriptionUTXOs.length,
-    ordinalsExcluded,
-  );
+  const showInscriptionsToggle =
+    btcConnected &&
+    !btcLocked &&
+    shouldShowInscriptionsToggle(inscriptionUTXOs.length, ordinalsExcluded);
 
   // Icon source must stay aligned with the (provider-level) connection state:
   // `selectedWallets` is volatile widget state that can lag a reconnect on
@@ -104,7 +99,12 @@ export const Connect: React.FC<ConnectProps> = ({ loading = false, text }) => {
   // A silently locked BTC wallet keeps `connected` true (cached session), so it
   // would otherwise render the connected wallet menu. Surface an unlock button
   // in the navbar instead so the user can re-authorize in one click.
-  if (btcLocked && !isGeoBlocked && !isGeoLoading) {
+  if (
+    btcLocked &&
+    !featureFlags.isEthFirstEnabled &&
+    !isGeoBlocked &&
+    !isGeoLoading
+  ) {
     return (
       <ConnectButton
         connected={false}
@@ -118,14 +118,15 @@ export const Connect: React.FC<ConnectProps> = ({ loading = false, text }) => {
   // Show BtcEthWalletMenu when wallets are connected and not geo-blocked.
   // Address-blocked users still need the menu to disconnect and try a different wallet.
   if (canShowWalletMenu) {
+    const ConnectedWalletMenu = btcConnected ? BtcEthWalletMenu : WalletMenu;
     return (
       <div className="flex flex-row items-center gap-4">
-        <BtcEthWalletMenu
+        <ConnectedWalletMenu
           trigger={
             // This control's data-testid is a real-wallet E2E hook
             // (e2e/real/actions/walletConnect.ts, e2e/real/actions/resume.ts) —
             // carry it over if you move or rename the element. It renders only
-            // once both wallets are connected, on every route, so the harness
+            // once the required session is confirmed, on every route, so the harness
             // uses it as its route-independent "connected" signal.
             <div className="cursor-pointer" data-testid="wallet-menu-trigger">
               <AvatarGroup max={3} className="!-space-x-2">
@@ -146,7 +147,7 @@ export const Connect: React.FC<ConnectProps> = ({ loading = false, text }) => {
               </AvatarGroup>
             </div>
           }
-          btcAddress={btcAddress}
+          btcAddress={btcConnected ? btcAddress : undefined}
           ethAddress={ethAddress}
           selectedWallets={displayWallets}
           publicKeyNoCoord={publicKeyNoCoord}

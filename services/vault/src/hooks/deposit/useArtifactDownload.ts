@@ -9,6 +9,7 @@ import type { Hex } from "viem";
 
 import { COPY } from "@/copy";
 import { ensureAuthenticatedVpClient } from "@/hooks/deposit/depositFlowSteps/ensureAuthenticatedVpClient";
+import { useBtcAction } from "@/hooks/useBtcAction";
 import { logger } from "@/infrastructure";
 import {
   captureFunnelFailure,
@@ -91,6 +92,7 @@ export function useArtifactDownload(options?: {
   vaultId?: Hex;
   primeContext?: PrimeContext | null;
 }) {
+  const { requireBtcWallet } = useBtcAction();
   const vaultId = options?.vaultId;
   const primeContext = options?.primeContext ?? null;
 
@@ -141,6 +143,14 @@ export function useArtifactDownload(options?: {
       // god-mode panel's "Mock artifact download" toggle; off in production
       // builds, where the god-mode gate is compile-time false.
       const demoDownload = getArtifactDownloadOverride();
+      if (
+        !demoDownload &&
+        !vpTokenRegistry.peek(stripHexPrefix(peginTxid)) &&
+        !requireBtcWallet()
+      ) {
+        setState({ ...INITIAL_STATE, error: COPY.wallet.btcAction.body });
+        return;
+      }
 
       // DO NOT REORDER: showSaveFilePicker() requires transient user
       // activation, which any preceding `await` destroys. Opening the save
@@ -325,10 +335,6 @@ export function useArtifactDownload(options?: {
           totalBytes: 0,
         }));
 
-        // Drop any cached token so the next acquire goes back to the server.
-        // Covers the hot-but-stale case (auth_expired); harmless on cold cache.
-        vpTokenRegistry.peek(normalizedPeginTxid)?.invalidate();
-
         await ensureAuthenticatedVpClient({
           btcWallet: primeContext.btcWallet,
           vaultId: primeContext.vaultId,
@@ -452,6 +458,11 @@ export function useArtifactDownload(options?: {
           // retry the stream.
           if (!primeAttempted && isAuthRejectedError(err)) {
             primeAttempted = true;
+            vpTokenRegistry.peek(normalizedPeginTxid)?.invalidate();
+            if (!requireBtcWallet()) {
+              setError(COPY.wallet.btcAction.body);
+              return;
+            }
             try {
               const primed = await tryPrimeAndRetry();
               if (primed && !isStale()) {
@@ -497,7 +508,7 @@ export function useArtifactDownload(options?: {
         }
       }
     },
-    [vaultId, primeContext, persistReceipt],
+    [vaultId, primeContext, persistReceipt, requireBtcWallet],
   );
 
   const cancel = useCallback(() => {

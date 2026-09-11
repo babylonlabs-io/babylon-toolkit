@@ -179,16 +179,23 @@ describe("requirements that change with the route", () => {
     expect(store.has(WALLET_CONFIRMATION_RECEIPT_KEY)).toBe(true);
   });
 
-  it("restores the confirmation on a cold start under the narrowed requirements", async () => {
-    render(["BBN"], false);
+  describe.each([
+    { product: "Vault", required: ["BTC", "ETH"] },
+    { product: "Bitcoin staking", required: ["BTC", "BBN"] },
+    { product: "BABY staking", required: ["BBN"] },
+  ])("$product saved consent (#2354)", ({ required }) => {
+    it("restores a current receipt after live identity checks", async () => {
+      render(required, false);
+      await waitFor(() => expect(confirm).toHaveBeenCalledWith(approvedReceipt));
+    });
 
-    await waitFor(() => expect(confirm).toHaveBeenCalledWith(approvedReceipt));
-  });
-
-  it("restores the confirmation on a cold start under the widened requirements", async () => {
-    render(["BTC", "BBN"], false);
-
-    await waitFor(() => expect(confirm).toHaveBeenCalledWith(approvedReceipt));
+    it.each(["missing", "old"])("requires Connect when the receipt is %s", async (state) => {
+      if (state === "missing") store.delete(WALLET_CONFIRMATION_RECEIPT_KEY);
+      else store.set(WALLET_CONFIRMATION_RECEIPT_KEY, approvedReceipt.replace('"version":2', '"version":1'));
+      render(required, false);
+      await act(async () => {});
+      expect(confirm).not.toHaveBeenCalled();
+    });
   });
 
   it("waits for a required wallet to reconnect before it checks stored approval", async () => {

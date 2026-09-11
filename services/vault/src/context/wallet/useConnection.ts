@@ -1,14 +1,13 @@
-/**
- * useConnection hook
- *
- * Combines BTC and ETH wallet connection states into a single hook.
- * Components can use this instead of checking both wallets individually.
- */
+import {
+  useBTCWallet,
+  useETHWallet,
+  useWalletConnect,
+} from "@babylonlabs-io/wallet-connector";
 
-import { useBTCWallet, useETHWallet } from "@babylonlabs-io/wallet-connector";
+import featureFlags from "@/config/featureFlags";
 
 export interface ConnectionState {
-  /** Whether both BTC and ETH wallets are connected */
+  /** Whether the required wallets have a confirmed session. */
   isConnected: boolean;
   /** Whether BTC wallet is connected */
   btcConnected: boolean;
@@ -16,16 +15,17 @@ export interface ConnectionState {
   ethConnected: boolean;
 }
 
-/**
- * Hook to get combined wallet connection state
- * @returns Connection state for both wallets
- */
+// Consent contract: docs/decisions/2354-wallet-consent.md.
 export function useConnection(): ConnectionState {
+  const { connected: confirmed } = useWalletConnect();
   const { connected: btcConnected } = useBTCWallet();
   const { connected: ethConnected } = useETHWallet();
 
   return {
-    isConnected: btcConnected && ethConnected,
+    isConnected:
+      confirmed &&
+      ethConnected &&
+      (featureFlags.isEthFirstEnabled || btcConnected),
     btcConnected,
     ethConnected,
   };

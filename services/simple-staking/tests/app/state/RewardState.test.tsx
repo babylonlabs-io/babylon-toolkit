@@ -23,7 +23,7 @@ const TestWrapper = ({ children }: PropsWithChildren) => (
 describe("RewardState", () => {
   // Mock data
   const mockBbnAddress = "bbn1234567890abcdef";
-  const mockRewardBalance = 5000000; // 5 BBN
+  const mockRewardBalance = { btcStaker: 5000000, coStaker: 0 };
   const mockRefetchRewardBalance = jest.fn().mockResolvedValue(undefined);
 
   beforeEach(() => {
@@ -105,7 +105,7 @@ describe("RewardState", () => {
     const { result } = renderHook(() => useRewardsState(), {
       wrapper: TestWrapper,
     });
-    expect(result.current.rewardBalance).toBe(0);
+    expect(result.current.rewardBalance).toEqual({ btcStaker: 0, coStaker: 0 });
   });
 
   it("should provide openRewardModal and closeRewardModal methods", () => {

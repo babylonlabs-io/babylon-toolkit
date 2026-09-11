@@ -8,6 +8,26 @@ import {
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+const btcActionWallet = vi.hoisted(() => ({
+  connected: true,
+  confirmed: true,
+  open: vi.fn(),
+}));
+
+beforeEach(() => {
+  btcActionWallet.connected = true;
+  btcActionWallet.confirmed = true;
+  btcActionWallet.open.mockClear();
+});
+
+vi.mock("@babylonlabs-io/wallet-connector", () => ({
+  useBTCWallet: () => ({ connected: btcActionWallet.connected }),
+  useWalletConnect: () => ({
+    connected: btcActionWallet.confirmed,
+    open: btcActionWallet.open,
+  }),
+}));
+
 const featureFlagsMock = vi.hoisted(() => ({
   // The artifact-download override is itself gated on this flag; the
   // god-mode test flips it on to exercise the gated path.
@@ -141,6 +161,68 @@ describe("useArtifactDownload — prime then fetch", () => {
     vi.restoreAllMocks();
     featureFlagsMock.isGodModePanelEnabled = false;
     setArtifactDownloadOverride(null);
+  });
+
+  it("waits for an explicit download retry after Bitcoin connects", async () => {
+    btcActionWallet.connected = false;
+    const { result, rerender } = renderHook(() =>
+      useArtifactDownload({ primeContext }),
+    );
+    await act(() =>
+      result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK),
+    );
+    expect(btcActionWallet.open).toHaveBeenCalledWith("BTC");
+    expect(openTargetMock).not.toHaveBeenCalled();
+    expect(ensureAuthMock).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+    btcActionWallet.connected = true;
+    rerender();
+    expect(openTargetMock).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+    fetchMock.mockResolvedValueOnce(OUTCOME);
+    await act(() =>
+      result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK),
+    );
+    expect(openTargetMock).toHaveBeenCalledOnce();
+    expect(ensureAuthMock).toHaveBeenCalledOnce();
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it("downloads with a cached token while Bitcoin is disconnected", async () => {
+    btcActionWallet.connected = false;
+    seedHotCache();
+    fetchMock.mockResolvedValueOnce(OUTCOME);
+    const { result } = renderHook(() =>
+      useArtifactDownload({ primeContext: null }),
+    );
+    await act(() =>
+      result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK),
+    );
+    expect(btcActionWallet.open).not.toHaveBeenCalled();
+    expect(ensureAuthMock).not.toHaveBeenCalled();
+    expect(result.current.downloaded).toBe(true);
+  });
+
+  it("stops on an expired token when Bitcoin is disconnected", async () => {
+    btcActionWallet.connected = false;
+    seedHotCache();
+    fetchMock.mockRejectedValueOnce(
+      new JsonRpcError(-32001, "missing or malformed Bearer token", "wire"),
+    );
+    const { result, rerender } = renderHook(() =>
+      useArtifactDownload({ primeContext }),
+    );
+    await act(() =>
+      result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK),
+    );
+    expect(btcActionWallet.open).toHaveBeenCalledWith("BTC");
+    expect(ensureAuthMock).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(result.current.loading).toBe(false);
+    btcActionWallet.connected = true;
+    rerender();
+    expect(ensureAuthMock).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledOnce();
   });
 
   it("primes the bearer upfront when the registry is cold, then fetches once", async () => {

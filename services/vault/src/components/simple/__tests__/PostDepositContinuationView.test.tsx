@@ -2,7 +2,7 @@ import { fireEvent, render } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { MemoryRouter } from "react-router";
 import type { Address, Hex } from "viem";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps";
 import {
@@ -244,14 +244,20 @@ vi.mock("../DepositProgressView", () => ({
 function resumeMock(testId: string) {
   return ({
     activity,
+    btcPublicKey,
     onSuccess,
     onClose,
   }: {
     activity: VaultActivity;
+    btcPublicKey?: string;
     onSuccess: () => void;
     onClose: () => void;
   }) => (
-    <div data-testid={testId} data-vault={activity?.id}>
+    <div
+      data-testid={testId}
+      data-vault={activity?.id}
+      data-public-key={btcPublicKey}
+    >
       <button
         type="button"
         data-testid={`${testId}-success`}
@@ -345,6 +351,7 @@ function renderView(
 describe("PostDepositContinuationView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubEnv("NEXT_PUBLIC_FF_ENABLE_ETH_FIRST", "false");
     vi.mocked(getPeginDisplayStep).mockReturnValue(
       DepositFlowStep.AWAIT_BTC_CONFIRMATION,
     );
@@ -352,6 +359,7 @@ describe("PostDepositContinuationView", () => {
       DepositFlowStep.AWAIT_BTC_CONFIRMATION,
     );
   });
+  afterEach(() => vi.unstubAllEnvs());
 
   it("waits while the vault has no actionable step", () => {
     mockGetPollingResult.mockReturnValue(
@@ -410,16 +418,29 @@ describe("PostDepositContinuationView", () => {
     expect(renderView().getByTestId("payout")).toBeTruthy();
   });
 
-  it("waits (no payout) when the BTC public key is unavailable", () => {
-    mockGetPollingResult.mockReturnValue(
-      resultWith({ availableActions: [PeginAction.SIGN_PAYOUT_TRANSACTIONS] }),
-    );
-    const { queryByTestId, getByTestId } = renderView({
-      btcPublicKey: undefined,
-    });
-    expect(queryByTestId("payout")).toBeNull();
-    expect(getByTestId("progress-view")).toBeTruthy();
-  });
+  it.each([false, true])(
+    "gates payout access without BTC when ETH-first is %s",
+    (enabled) => {
+      vi.stubEnv("NEXT_PUBLIC_FF_ENABLE_ETH_FIRST", String(enabled));
+      mockGetPollingResult.mockReturnValue(
+        resultWith({
+          availableActions: [PeginAction.SIGN_PAYOUT_TRANSACTIONS],
+        }),
+      );
+      const { queryByTestId, getByTestId } = renderView({
+        btcPublicKey: undefined,
+      });
+      if (enabled) {
+        expect(getByTestId("payout").hasAttribute("data-public-key")).toBe(
+          false,
+        );
+        expect(queryByTestId("progress-view")).toBeNull();
+      } else {
+        expect(queryByTestId("payout")).toBeNull();
+        expect(getByTestId("progress-view")).toBeTruthy();
+      }
+    },
+  );
 
   it("routes activation through the activation gate when the vault is verified", () => {
     mockGetPollingResult.mockReturnValue(
@@ -826,41 +847,45 @@ describe("PostDepositContinuationView", () => {
     expect(getByTestId("wots").getAttribute("data-vault")).toBe("0xvault1");
   });
 
-  it("skips a payout-only vault when btcPublicKey is unavailable and picks the next actionable sibling", () => {
-    const states = new Map<string, ReturnType<typeof resultWith>>([
-      [
-        "0xvault0",
-        resultWith({
-          // Payout signing is available, but the prereq btcPublicKey is missing,
-          // so this vault must not win actionableIndex.
-          availableActions: [PeginAction.SIGN_PAYOUT_TRANSACTIONS],
-          contractStatus: 0,
-        }),
-      ],
-      [
-        "0xvault1",
-        resultWith({
-          availableActions: [PeginAction.SUBMIT_WOTS_KEY],
-          contractStatus: 0,
-        }),
-      ],
-    ]);
-    mockGetPollingResult.mockImplementation((id: string) => states.get(id));
+  it.each([false, true])(
+    "selects a payout sibling without BTC only when ETH-first is enabled: %s",
+    (enabled) => {
+      vi.stubEnv("NEXT_PUBLIC_FF_ENABLE_ETH_FIRST", String(enabled));
+      const states = new Map<string, ReturnType<typeof resultWith>>([
+        [
+          "0xvault0",
+          resultWith({
+            availableActions: [PeginAction.SIGN_PAYOUT_TRANSACTIONS],
+            contractStatus: 0,
+          }),
+        ],
+        [
+          "0xvault1",
+          resultWith({
+            availableActions: [PeginAction.SUBMIT_WOTS_KEY],
+            contractStatus: 0,
+          }),
+        ],
+      ]);
+      mockGetPollingResult.mockImplementation((id: string) => states.get(id));
 
-    const { getByTestId, queryByTestId } = render(
-      <PostDepositContinuationView
-        vaultIds={["0xvault0" as Hex, "0xvault1" as Hex]}
-        activities={[activityWithId("0xvault0"), activityWithId("0xvault1")]}
-        depositorEthAddress={ETH}
-        btcPublicKey={undefined}
-        onClose={vi.fn()}
-      />,
-      { wrapper: MemoryRouter },
-    );
-    expect(queryByTestId("payout")).toBeNull();
-    expect(queryByTestId("progress-view")).toBeNull();
-    expect(getByTestId("wots").getAttribute("data-vault")).toBe("0xvault1");
-  });
+      const { getByTestId, queryByTestId } = render(
+        <PostDepositContinuationView
+          vaultIds={["0xvault0" as Hex, "0xvault1" as Hex]}
+          activities={[activityWithId("0xvault0"), activityWithId("0xvault1")]}
+          depositorEthAddress={ETH}
+          btcPublicKey={undefined}
+          onClose={vi.fn()}
+        />,
+        { wrapper: MemoryRouter },
+      );
+      expect(queryByTestId("progress-view")).toBeNull();
+      expect(
+        getByTestId(enabled ? "payout" : "wots").getAttribute("data-vault"),
+      ).toBe(enabled ? "0xvault0" : "0xvault1");
+      expect(queryByTestId(enabled ? "wots" : "payout")).toBeNull();
+    },
+  );
 
   it("falls back to a waiting vault's progress view when no sibling is actionable", () => {
     const states = new Map<string, ReturnType<typeof resultWith>>([

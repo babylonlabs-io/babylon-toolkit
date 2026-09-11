@@ -214,7 +214,8 @@ export interface UseDepositPageFormResult {
 
 export function useDepositPageForm(): UseDepositPageFormResult {
   const { address: btcAddress, connected: btcConnected } = useBTCWallet();
-  const { isConnected: isWalletConnected } = useConnection();
+  const { isConnected: sessionConnected } = useConnection();
+  const isWalletConnected = sessionConnected && btcConnected;
   const {
     publicKey: depositorBtcPubkey,
     error: btcPublicKeyError,

@@ -33,7 +33,7 @@ import { useBbnTransaction } from "@/ui/common/hooks/client/rpc/mutation/useBbnT
 import { useStakingService } from "@/ui/common/hooks/services/useStakingService";
 import { useTransactionService } from "@/ui/common/hooks/services/useTransactionService";
 import { useDelegationV2State } from "@/ui/common/state/DelegationV2State";
-import { useStakingState } from "@/ui/common/state/StakingState";
+import { StakingStep, useStakingState } from "@/ui/common/state/StakingState";
 import {
   DelegationV2,
   DelegationV2StakingState,
@@ -43,18 +43,32 @@ import { retry } from "@/ui/common/utils";
 
 // Mock all dependencies
 jest.mock("@/ui/common/api/getDelegationsV2");
-jest.mock("@/ui/common/context/wallet/BTCWalletProvider");
-jest.mock("@/ui/common/context/wallet/CosmosWalletProvider");
-jest.mock("@/ui/common/hooks/services/useTransactionService");
-jest.mock("@/ui/common/hooks/client/rpc/mutation/useBbnTransaction");
-jest.mock("@/ui/common/state/DelegationV2State");
+jest.mock("@/ui/common/context/wallet/BTCWalletProvider", () => ({
+  useBTCWallet: jest.fn(),
+}));
+jest.mock("@/ui/common/context/wallet/CosmosWalletProvider", () => ({
+  useCosmosWallet: jest.fn(),
+}));
+jest.mock("@/ui/common/hooks/services/useTransactionService", () => ({
+  useTransactionService: jest.fn(),
+}));
+jest.mock("@/ui/common/hooks/client/rpc/mutation/useBbnTransaction", () => ({
+  useBbnTransaction: jest.fn(),
+}));
+jest.mock("@/ui/common/state/DelegationV2State", () => ({
+  useDelegationV2State: jest.fn(),
+}));
 jest.mock("@/ui/common/state/StakingState");
+jest.mock("@/ui/common/state", () => ({ useAppState: jest.fn() }));
 jest.mock("@/ui/common/utils", () => ({
   retry: jest.fn(),
   btcToSatoshi: (value: number) => value * 100000000, // Mock satoshi conversion
 }));
 
-// Mock the SigningStep enum from the library
+jest.mock("nanoevents", () => ({
+  createNanoEvents: jest.fn(() => ({ on: jest.fn(), emit: jest.fn() })),
+}));
+
 jest.mock("@babylonlabs-io/btc-staking-ts", () => ({
   SigningStep: {
     STAKING_SLASHING: "staking-slashing",
@@ -349,8 +363,7 @@ describe("Core Services Error Handling", () => {
         DelegationV2StakingState.INTERMEDIATE_PENDING_BTC_CONFIRMATION,
       );
 
-      // Verify UI was updated correctly
-      expect(mockReset).toHaveBeenCalled();
+      expect(mockGoToStep).toHaveBeenCalledWith(StakingStep.FEEDBACK_SUCCESS);
     });
 
     it("should include error category and type in the client error metadata", async () => {

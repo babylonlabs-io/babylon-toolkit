@@ -1,11 +1,14 @@
-import { render, screen } from "@testing-library/react";
+import { OnChainBtcVaultStatus } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+import { fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import type { Hex } from "viem";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { VaultsLifecycleSections } from "@/components/vaults/VaultsLifecycleSections";
 import { COPY } from "@/copy";
 import type { usePendingDeposits } from "@/hooks/usePendingDeposits";
+import { useReclaimStatus, type ReclaimStatus } from "@/hooks/useReclaimStatus";
+import { useReclaimVaultChainData } from "@/hooks/useReclaimVaultChainData";
 import {
   ContractStatus,
   PEGIN_DISPLAY_LABELS,
@@ -21,6 +24,7 @@ const mockUseDepositPollingResult = vi.hoisted(() =>
     () => undefined,
   ),
 );
+const wallet = vi.hoisted(() => ({ connected: true, open: vi.fn() }));
 
 vi.mock("@babylonlabs-io/core-ui", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@babylonlabs-io/core-ui")>()),
@@ -35,6 +39,8 @@ vi.mock("@babylonlabs-io/core-ui", async (importOriginal) => ({
 vi.mock("@babylonlabs-io/wallet-connector", () => ({
   Network: { MAINNET: "mainnet", SIGNET: "signet" },
   useChainConnector: () => undefined,
+  useBTCWallet: () => ({ connected: wallet.connected }),
+  useWalletConnect: () => ({ connected: true, open: wallet.open }),
 }));
 
 vi.mock("@/context/deposit/PeginPollingContext", () => ({
@@ -61,11 +67,11 @@ vi.mock("@/hooks/deposit/useReclaimRowAction", () => ({
 }));
 
 vi.mock("@/hooks/useReclaimStatus", () => ({
-  useReclaimStatus: () => ({ statusByDepositId: new Map() }),
+  useReclaimStatus: vi.fn(() => ({ statusByDepositId: new Map() })),
 }));
 
 vi.mock("@/hooks/useReclaimVaultChainData", () => ({
-  useReclaimVaultChainData: () => new Map(),
+  useReclaimVaultChainData: vi.fn(() => new Map()),
 }));
 
 vi.mock("@/components/simple/PendingDepositModals", () => ({
@@ -131,7 +137,10 @@ function pollingResult(
   };
 }
 
-function renderPendingRow(result: DepositPollingResult) {
+function renderPendingRow(
+  result: DepositPollingResult,
+  overrides: Partial<ReturnType<typeof usePendingDeposits>> = {},
+) {
   mockUseDepositPollingResult.mockReturnValue(result);
   const deposits = {
     pendingActivities: [ACTIVITY],
@@ -179,9 +188,13 @@ function renderPendingRow(result: DepositPollingResult) {
       handleSuccess: vi.fn(),
     },
     demo: null,
+    ...overrides,
   } satisfies ReturnType<typeof usePendingDeposits>;
 
-  return render(<VaultsLifecycleSections deposits={deposits} />);
+  return {
+    ...render(<VaultsLifecycleSections deposits={deposits} />),
+    deposits,
+  };
 }
 
 const estimateText = (minutes: number) =>
@@ -251,4 +264,92 @@ describe("VaultsLifecycleSections pending row", () => {
 
     expect(screen.queryByText(ANY_ESTIMATE)).not.toBeInTheDocument();
   });
+});
+
+describe("VaultsLifecycleSections reclaim connection", () => {
+  let status: ReclaimStatus;
+
+  beforeEach(() => {
+    vi.stubEnv("NEXT_PUBLIC_FF_ENABLE_ETH_FIRST", "true");
+    wallet.connected = false;
+    wallet.open.mockClear();
+    // Use the settled payout heights from reclaimEligibility.test.ts.
+    status = {
+      payoutSpend: { spent: true, confirmed: true, blockHeight: 899_995 },
+      reserveSpend: { spent: false, confirmed: false },
+      reserveValueSats: 33_000n,
+      observedTipHeight: 900_000,
+    };
+    vi.mocked(useReclaimStatus).mockReturnValue({
+      statusByDepositId: new Map([[ACTIVITY_ID, status]]),
+    });
+    vi.mocked(useReclaimVaultChainData).mockReturnValue(
+      new Map([
+        [
+          ACTIVITY_ID,
+          {
+            peginTxid: ACTIVITY.prePeginTxHash!,
+            onChainStatus: OnChainBtcVaultStatus.REDEEMED,
+          },
+        ],
+      ]),
+    );
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    wallet.connected = true;
+    vi.mocked(useReclaimStatus).mockReturnValue({
+      statusByDepositId: new Map(),
+    });
+    vi.mocked(useReclaimVaultChainData).mockReturnValue(new Map());
+  });
+
+  function renderReclaim() {
+    return renderPendingRow(pollingResult(PROCESSING_STATE), {
+      pendingActivities: [],
+      reclaimableCandidates: [ACTIVITY],
+    });
+  }
+
+  it("opens only the Bitcoin connection dialog and waits for ownership before reclaim", () => {
+    const { deposits, rerender } = renderReclaim();
+    fireEvent.click(
+      screen.getByRole("button", { name: COPY.wallet.btcAction.connect }),
+    );
+    expect(wallet.open).toHaveBeenCalledWith("BTC");
+    expect(deposits.reclaimModal.handleReclaimClick).not.toHaveBeenCalled();
+    expect(
+      screen.queryByTestId("vault-reclaim-button"),
+    ).not.toBeInTheDocument();
+    wallet.connected = true;
+    rerender(<VaultsLifecycleSections deposits={deposits} />);
+    expect(
+      screen.queryByRole("button", { name: COPY.wallet.btcAction.connect }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("vault-reclaim-button"),
+    ).not.toBeInTheDocument();
+    expect(deposits.reclaimModal.handleReclaimClick).not.toHaveBeenCalled();
+  });
+
+  it.each(["disabled", "unsettled", "spent", "missing", "in-flight"])(
+    "does not offer connection for a %s reclaim",
+    (condition) => {
+      if (condition === "disabled")
+        vi.stubEnv("NEXT_PUBLIC_FF_ENABLE_ETH_FIRST", "false");
+      if (condition === "unsettled") status.payoutSpend.confirmed = false;
+      if (condition === "spent") status.reserveSpend.spent = true;
+      if (condition === "missing")
+        vi.mocked(useReclaimVaultChainData).mockReturnValue(new Map());
+      const { deposits, rerender } = renderReclaim();
+      if (condition === "in-flight") {
+        deposits.reclaimModal.inFlightVaultIds = new Set([ACTIVITY_ID]);
+        rerender(<VaultsLifecycleSections deposits={deposits} />);
+      }
+      expect(
+        screen.queryByRole("button", { name: COPY.wallet.btcAction.connect }),
+      ).not.toBeInTheDocument();
+      expect(deposits.reclaimModal.handleReclaimClick).not.toHaveBeenCalled();
+    },
+  );
 });

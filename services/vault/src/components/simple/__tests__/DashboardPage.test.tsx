@@ -35,9 +35,11 @@ vi.mock("react-router", () => ({
 const walletMock = vi.hoisted(() => ({
   btcConnected: true,
   ethConnected: true,
+  confirmed: true,
 }));
 
 vi.mock("@babylonlabs-io/wallet-connector", () => ({
+  useWalletConnect: () => ({ connected: walletMock.confirmed }),
   useBTCWallet: () => ({ connected: walletMock.btcConnected }),
   useETHWallet: () => ({
     connected: walletMock.ethConnected,
@@ -170,6 +172,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   walletMock.btcConnected = true;
   walletMock.ethConnected = true;
+  walletMock.confirmed = true;
   featureFlagsMock.isLiquidationNotificationsEnabled = false;
   featureFlagsMock.isGodModePanelEnabled = false;
   positionNotificationsMock.result = null;
@@ -227,6 +230,18 @@ describe("DashboardPage composition", () => {
     expect(screen.getByTestId("disconnected-overview")).toBeInTheDocument();
     expect(screen.queryByTestId("overview-section")).not.toBeInTheDocument();
     expect(useDashboardState).toHaveBeenCalledWith(undefined);
+  });
+
+  it("waits for consent before it loads the connected dashboard", () => {
+    walletMock.confirmed = false;
+    const { rerender } = render(<DashboardPage />);
+    expect(screen.getByTestId("disconnected-overview")).toBeInTheDocument();
+    expect(useDashboardState).toHaveBeenLastCalledWith(undefined);
+
+    walletMock.confirmed = true;
+    rerender(<DashboardPage />);
+    expect(screen.getByTestId("overview-section")).toBeInTheDocument();
+    expect(useDashboardState).toHaveBeenLastCalledWith("0xabc");
   });
 
   it("renders the overview summary, the risk card and the safety notifications", () => {

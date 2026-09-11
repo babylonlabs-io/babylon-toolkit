@@ -1,38 +1,91 @@
+// @vitest-environment node
+// The curve library needs Node's typed arrays for these non-DOM checks.
+
+import * as ecc from "@bitcoin-js/tiny-secp256k1-asmjs";
 import * as bitcoin from "bitcoinjs-lib";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import {
-  btcAddressToScriptPubKeyHex,
-  scriptPubKeyHexToBtcAddress,
-} from "../btc";
+vi.unmock("@/config");
+vi.unmock("@/config/network");
 
-/**
- * Build the test fixture via bitcoinjs-lib's own payment helper so the script
- * bytes are guaranteed valid.
- *
- * Test config mocks the BTC network as signet (treated as testnet by btcUtils),
- * so the expected address is bech32-encoded with the `tb1` HRP.
- */
-const PUBKEY_HASH_BYTES = new Uint8Array([
-  0x75, 0x1e, 0x76, 0xe8, 0x19, 0x91, 0x96, 0xd4, 0x54, 0x94, 0x1c, 0x45, 0xd1,
-  0xb3, 0xa3, 0x23, 0xf1, 0x43, 0x3b, 0xd6,
-]);
+// Segwit vectors: https://github.com/bitcoin/bips/blob/master/bip-0350.mediawiki
+// The remaining addresses retain the existing bitcoinjs-lib 6.1.7 results.
+const P2PKH_SCRIPT = "0x76a914751e76e8199196d454941c45d1b3a323f1433bd688ac";
+const P2SH_SCRIPT = "0xa914751e76e8199196d454941c45d1b3a323f1433bd687";
+const SCRIPT_HEX_PREFIXED = "0x0014751e76e8199196d454941c45d1b3a323f1433bd6";
+const P2WSH_SCRIPT =
+  "0x00201863143c14c5166804bd19203356da136c985678cd4d27a1b8c6329604903262";
+const P2TR_SCRIPT =
+  "0x512079be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798";
+const EXPECTED_TESTNET_ADDRESS = "tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx";
 
-const { output, address: EXPECTED_TESTNET_ADDRESS } = bitcoin.payments.p2wpkh({
-  hash: Buffer.from(PUBKEY_HASH_BYTES),
-  network: bitcoin.networks.testnet,
+let btcAddressToScriptPubKeyHex: typeof import("../btc").btcAddressToScriptPubKeyHex;
+let scriptPubKeyHexToBtcAddress: typeof import("../btc").scriptPubKeyHexToBtcAddress;
+
+beforeEach(async () => {
+  vi.resetModules();
+  const { configureBabylonConfig } = await import(
+    "../../config/network/runtime"
+  );
+  configureBabylonConfig({
+    btcNetwork: "signet",
+    ethChainId: 11155111,
+    ethRpcUrl: process.env.NEXT_PUBLIC_ETH_RPC_URL!,
+  });
+  ({ btcAddressToScriptPubKeyHex, scriptPubKeyHexToBtcAddress } = await import(
+    "../btc"
+  ));
+  // Match the curve setup in the application's main.tsx.
+  bitcoin.initEccLib(ecc);
 });
 
-if (!output || !EXPECTED_TESTNET_ADDRESS) {
-  throw new Error("Test fixture setup failed: could not derive p2wpkh");
-}
-
-const SCRIPT_HEX_PREFIXED = `0x${Buffer.from(output).toString("hex")}`;
+afterEach(() => bitcoin.initEccLib(undefined));
 
 describe("scriptPubKeyHexToBtcAddress", () => {
-  it("decodes a P2WPKH scriptPubKey hex back to its testnet address", () => {
+  it("decodes supported payout scripts on the configured signet network", () => {
+    expect(scriptPubKeyHexToBtcAddress(P2PKH_SCRIPT)).toBe(
+      "mrCDrCybB6J1vRfbwM5hemdJz73FwDBC8r",
+    );
+    expect(scriptPubKeyHexToBtcAddress(P2SH_SCRIPT)).toBe(
+      "2N3vVYSK5XRgVSGWy21PnsRmBUywSQNdCsf",
+    );
     expect(scriptPubKeyHexToBtcAddress(SCRIPT_HEX_PREFIXED)).toBe(
       EXPECTED_TESTNET_ADDRESS,
+    );
+    expect(scriptPubKeyHexToBtcAddress(P2WSH_SCRIPT)).toBe(
+      "tb1qrp33g0q5c5txsp9arysrx4k6zdkfs4nce4xj0gdcccefvpysxf3q0sl5k7",
+    );
+    expect(scriptPubKeyHexToBtcAddress(P2TR_SCRIPT)).toBe(
+      "tb1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vq47zagq",
+    );
+  });
+
+  it("decodes supported payout scripts on the configured mainnet network", async () => {
+    vi.resetModules();
+    const { configureBabylonConfig } = await import(
+      "../../config/network/runtime"
+    );
+    configureBabylonConfig({
+      btcNetwork: "mainnet",
+      ethChainId: 1,
+      ethRpcUrl: process.env.NEXT_PUBLIC_ETH_RPC_URL!,
+    });
+    const { scriptPubKeyHexToBtcAddress } = await import("../btc");
+
+    expect(scriptPubKeyHexToBtcAddress(P2PKH_SCRIPT)).toBe(
+      "1BgGZ9tcN4rm9KBzDn7KprQz87SZ26SAMH",
+    );
+    expect(scriptPubKeyHexToBtcAddress(P2SH_SCRIPT)).toBe(
+      "3CNHUhP3uyB9EUtRLsmvFUmvGdjGdkTxJw",
+    );
+    expect(scriptPubKeyHexToBtcAddress(SCRIPT_HEX_PREFIXED)).toBe(
+      "bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4",
+    );
+    expect(scriptPubKeyHexToBtcAddress(P2WSH_SCRIPT)).toBe(
+      "bc1qrp33g0q5c5txsp9arysrx4k6zdkfs4nce4xj0gdcccefvpysxf3qccfmv3",
+    );
+    expect(scriptPubKeyHexToBtcAddress(P2TR_SCRIPT)).toBe(
+      "bc1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vqzk5jj0",
     );
   });
 
@@ -40,6 +93,32 @@ describe("scriptPubKeyHexToBtcAddress", () => {
     expect(scriptPubKeyHexToBtcAddress(SCRIPT_HEX_PREFIXED.slice(2))).toBe(
       EXPECTED_TESTNET_ADDRESS,
     );
+  });
+
+  it("accepts uppercase hex and its prefix", () => {
+    expect(scriptPubKeyHexToBtcAddress(SCRIPT_HEX_PREFIXED.toUpperCase())).toBe(
+      EXPECTED_TESTNET_ADDRESS,
+    );
+  });
+
+  it("rejects an odd number of hex digits", () => {
+    expect(() => scriptPubKeyHexToBtcAddress("0x001")).toThrow(
+      "must be non-empty and even",
+    );
+  });
+
+  it("rejects a script without a destination address", () => {
+    expect(() => scriptPubKeyHexToBtcAddress("0x6a")).toThrow(
+      "has no matching Address",
+    );
+  });
+
+  it("rejects a Taproot script whose output key is not on the curve", () => {
+    expect(() =>
+      scriptPubKeyHexToBtcAddress(
+        "0x5120ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      ),
+    ).toThrow("has no matching Address");
   });
 
   it("throws on a non-hex string rather than silently returning a fallback", () => {

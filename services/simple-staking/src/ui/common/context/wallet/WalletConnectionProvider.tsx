@@ -137,6 +137,7 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
     };
   }, []);
 
+  // Shared consent contract: docs/decisions/2354-wallet-consent.md.
   return (
     <WalletProvider
       persistent
