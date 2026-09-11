@@ -21,6 +21,7 @@ const useBtcPriceCandlesMock = vi.fn();
 
 vi.mock("@/applications/aave/hooks/useBtcPriceCandles", () => ({
   useBtcPriceCandles: () => useBtcPriceCandlesMock(),
+  TIMELINE_VISIBLE_CANDLES: 365,
 }));
 
 const CANDLES = Array.from({ length: 30 }, (_, i) => ({
@@ -153,6 +154,7 @@ describe("LiquidationAnalysisSection", () => {
     expect(
       screen.queryByRole("button", { name: COPY.liquidations.reset }),
     ).toBeNull();
+    expect(screen.queryByRole("button", { name: "Reset view" })).toBeNull();
   });
 
   it("opens the liquidations page from Explore", () => {

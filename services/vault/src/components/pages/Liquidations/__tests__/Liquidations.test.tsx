@@ -53,6 +53,7 @@ const useBtcPriceCandlesMock = vi.fn();
 
 vi.mock("@/applications/aave/hooks/useBtcPriceCandles", () => ({
   useBtcPriceCandles: () => useBtcPriceCandlesMock(),
+  TIMELINE_VISIBLE_CANDLES: 365,
 }));
 
 vi.mock("@/hooks/useLoanActions", () => ({
@@ -324,6 +325,19 @@ describe("Liquidation Dashboard — connection and position gates", () => {
       screen.getByText(
         `${COPY.liquidations.eventTitle(1)} (${formatBtcAmount(firstGroup.combinedBtc)})`,
       ),
+    ).toBeInTheDocument();
+  });
+
+  it("exposes the timeline's zoom controls, including Reset view", () => {
+    connectWallet();
+    useDashboardStateMock.mockReturnValue(CONNECTED_WITH_CASCADE);
+    usePositionNotificationsMock.mockReturnValue(READY_NOTIFICATIONS);
+
+    render(<Liquidations />);
+
+    expect(screen.getByRole("button", { name: "Zoom in" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Reset view" }),
     ).toBeInTheDocument();
   });
 

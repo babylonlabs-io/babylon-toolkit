@@ -3,7 +3,10 @@ import { useDeferredValue, useMemo, useState } from "react";
 import { useOutletContext } from "react-router";
 
 import { BPS_SCALE } from "@/applications/aave/constants";
-import { useBtcPriceCandles } from "@/applications/aave/hooks/useBtcPriceCandles";
+import {
+  TIMELINE_VISIBLE_CANDLES,
+  useBtcPriceCandles,
+} from "@/applications/aave/hooks/useBtcPriceCandles";
 import { calculate } from "@/applications/aave/positionNotifications";
 import type { RootLayoutContext } from "@/components/pages/RootLayout";
 import { EmptyState } from "@/components/shared";
@@ -55,9 +58,6 @@ import { useLiquidationsPageState } from "./useLiquidationsPageState";
 function clampToLive(simulated: number | null, live: number): number {
   return simulated === null ? live : Math.min(simulated, live);
 }
-
-/** Daily candles in view at rest; the rest of the series is reachable by pan. */
-const TIMELINE_VISIBLE_CANDLES = 60;
 
 function SummaryStat({ label, value }: { label: string; value: string }) {
   return (
@@ -345,7 +345,7 @@ export default function Liquidations() {
             priceAxis={chart.timelinePriceAxis}
             safeZone={chart.safeZone}
             visibleCandles={TIMELINE_VISIBLE_CANDLES}
-            interactions={{ crosshair: true, pan: true }}
+            interactions={{ crosshair: true, pan: true, zoom: true }}
             formatPrice={formatPriceUsd}
             formatTime={formatCandleDate}
             formatReadoutTime={formatCandleTimestamp}

@@ -724,12 +724,12 @@ describe("withAmountInBandLabel", () => {
 });
 
 describe("formatCandleDate", () => {
-  it("prints the day of the month", () => {
-    expect(formatCandleDate(Date.UTC(2026, 4, 19))).toBe("19");
+  it("prints the month and day", () => {
+    expect(formatCandleDate(Date.UTC(2026, 4, 19))).toBe("May 19");
   });
 
-  it("names the month at the start of one, so a multi-month window is placed", () => {
-    expect(formatCandleDate(Date.UTC(2026, 5, 3))).toBe("Jun");
+  it("prints the month and day for a date at the start of a month", () => {
+    expect(formatCandleDate(Date.UTC(2026, 5, 3))).toBe("Jun 3");
   });
 
   // The hover readout says which candle it describes, which a bare "19" does not.
