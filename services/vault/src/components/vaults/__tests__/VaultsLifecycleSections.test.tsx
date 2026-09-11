@@ -8,10 +8,12 @@ import { COPY } from "@/copy";
 import type { usePendingDeposits } from "@/hooks/usePendingDeposits";
 import {
   ContractStatus,
+  LocalStorageStatus,
   PEGIN_DISPLAY_LABELS,
   PeginAction,
   type PeginState,
 } from "@/models/peginStateMachine";
+import type { RemovePendingPeginsResult } from "@/storage/peginStorage";
 import type { VaultActivity } from "@/types/activity";
 import type { DepositPollingResult } from "@/types/peginPolling";
 import { formatDurationShort } from "@/utils/formatting";
@@ -134,14 +136,20 @@ function pollingResult(
 interface DepositsOptions {
   activities?: VaultActivity[];
   indexedVaultIds?: ReadonlySet<string> | null;
+  localRecordStatuses?: ReadonlyMap<string, LocalStorageStatus>;
 }
 
 function makeDeposits(
   {
     activities = [ACTIVITY],
     indexedVaultIds = new Set<string>(),
+    localRecordStatuses = new Map(
+      activities.map((a) => [a.id.toLowerCase(), LocalStorageStatus.PENDING]),
+    ),
   }: DepositsOptions,
-  removePendingPegins: (vaultIds: readonly string[]) => boolean,
+  removePendingPegins: (
+    vaultIds: readonly string[],
+  ) => RemovePendingPeginsResult,
 ) {
   return {
     pendingActivities: activities,
@@ -190,6 +198,7 @@ function makeDeposits(
     },
     removePendingPegins,
     indexedVaultIds,
+    localRecordStatuses,
     demo: null,
   } satisfies ReturnType<typeof usePendingDeposits>;
 }
@@ -197,8 +206,10 @@ function makeDeposits(
 function renderPendingRow(
   result: DepositPollingResult,
   options: DepositsOptions = {},
-  removePendingPegins: (vaultIds: readonly string[]) => boolean = vi.fn(
-    () => true,
+  removePendingPegins: (
+    vaultIds: readonly string[],
+  ) => RemovePendingPeginsResult = vi.fn(
+    (): RemovePendingPeginsResult => "removed",
   ),
 ) {
   mockUseDepositPollingResult.mockReturnValue(result);
@@ -346,6 +357,25 @@ describe("VaultsLifecycleSections dismiss control", () => {
     expect(dismissIn(0)).toBeInTheDocument();
   });
 
+  it("offers the control only while the stored record still reads PENDING", () => {
+    const { rerenderWith } = renderPendingRow(pollingResult(BROADCAST_STATE), {
+      activities: [LOCAL_ONLY],
+      localRecordStatuses: new Map([
+        [LOCAL_ONLY.id.toLowerCase(), LocalStorageStatus.CONFIRMING],
+      ]),
+    });
+
+    expect(dismissIn(0)).not.toBeInTheDocument();
+
+    rerenderWith({
+      localRecordStatuses: new Map([
+        [LOCAL_ONLY.id.toLowerCase(), LocalStorageStatus.PENDING],
+      ]),
+    });
+
+    expect(dismissIn(0)).toBeInTheDocument();
+  });
+
   it("states what the discard costs before removing anything", () => {
     const { removePendingPegins } = renderPendingRow(
       pollingResult(BROADCAST_STATE),
@@ -392,7 +422,7 @@ describe("VaultsLifecycleSections dismiss control", () => {
     expect(removePendingPegins).not.toHaveBeenCalled();
   });
 
-  it("aborts the discard when the indexer returns the deposit before confirmation", () => {
+  it("says why it removed nothing when the indexer returns the deposit before confirmation", () => {
     const { removePendingPegins, rerenderWith } = renderPendingRow(
       pollingResult(BROADCAST_STATE),
       { activities: [LOCAL_ONLY] },
@@ -407,6 +437,31 @@ describe("VaultsLifecycleSections dismiss control", () => {
     );
 
     expect(removePendingPegins).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      COPY.vaults.dismissPending.noLongerRemovable,
+    );
+  });
+
+  it("says the status is unverified when the indexer stops answering before confirmation", () => {
+    const { removePendingPegins, rerenderWith } = renderPendingRow(
+      pollingResult(BROADCAST_STATE),
+      { activities: [LOCAL_ONLY] },
+    );
+
+    fireEvent.click(screen.getByTestId("pending-deposit-dismiss-button"));
+    // The indexer query started failing while the dialog was open, so the id
+    // set is withheld — absence is no longer evidence of anything.
+    rerenderWith({ indexedVaultIds: null });
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: COPY.vaults.dismissPending.confirmButton,
+      }),
+    );
+
+    expect(removePendingPegins).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      COPY.vaults.dismissPending.unavailable,
+    );
   });
 
   it("withholds the control while a batch sibling is still indexed", () => {
@@ -448,27 +503,33 @@ describe("VaultsLifecycleSections dismiss control", () => {
     ).toBeInTheDocument();
   });
 
-  it("reports a failed removal and keeps the confirmation open", () => {
-    renderPendingRow(
-      pollingResult(BROADCAST_STATE),
-      { activities: [LOCAL_ONLY] },
-      vi.fn(() => false),
-    );
+  it.each([
+    ["write-failed", COPY.vaults.dismissPending.writeFailed],
+    ["unreadable", COPY.vaults.dismissPending.unreadable],
+  ] as const)(
+    "reports a %s removal and keeps the confirmation open",
+    (result, message) => {
+      renderPendingRow(
+        pollingResult(BROADCAST_STATE),
+        { activities: [LOCAL_ONLY] },
+        vi.fn((): RemovePendingPeginsResult => result),
+      );
 
-    fireEvent.click(screen.getByTestId("pending-deposit-dismiss-button"));
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: COPY.vaults.dismissPending.confirmButton,
-      }),
-    );
+      fireEvent.click(screen.getByTestId("pending-deposit-dismiss-button"));
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: COPY.vaults.dismissPending.confirmButton,
+        }),
+      );
 
-    expect(
-      screen.getByTestId("pending-deposit-dismiss-error"),
-    ).toHaveTextContent(COPY.vaults.dismissPending.failed);
-    expect(
-      screen.getByRole("button", {
-        name: COPY.vaults.dismissPending.confirmButton,
-      }),
-    ).toBeInTheDocument();
-  });
+      expect(
+        screen.getByTestId("pending-deposit-dismiss-error"),
+      ).toHaveTextContent(message);
+      expect(
+        screen.getByRole("button", {
+          name: COPY.vaults.dismissPending.confirmButton,
+        }),
+      ).toBeInTheDocument();
+    },
+  );
 });

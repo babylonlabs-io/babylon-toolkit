@@ -62,14 +62,16 @@ export function useVaultDeposits(connectedAddress: Address | undefined) {
    * Lowercased ids of every vault the indexer returned, or null unless that
    * set is known to be complete — a failed or in-flight query is never
    * evidence that a vault is absent, and neither is a successful one that
-   * dropped rows it could not transform.
+   * dropped rows it could not transform. React Query keeps `status` on
+   * "success" while serving stale cache through a failing background refetch,
+   * so a non-null `error` withholds the set too.
    */
   const indexedVaultIds: ReadonlySet<string> | null = useMemo(
     () =>
-      status === "success" && data?.droppedCount === 0
+      status === "success" && error === null && data?.droppedCount === 0
         ? new Set(confirmedActivities.map((a) => a.id.toLowerCase()))
         : null,
-    [status, data, confirmedActivities],
+    [status, error, data, confirmedActivities],
   );
 
   // Check if any activity has "Processing" status and update fast polling flag
@@ -117,6 +119,17 @@ export function useVaultDeposits(connectedAddress: Address | undefined) {
       confirmedPegins: confirmedActivities,
     });
 
+  /**
+   * The stored status of each browser-local record, keyed by lowercased vault
+   * id. A record that has already broadcast its Pre-PegIn is no longer the
+   * browser's to discard, so the dismiss gate reads this rather than inferring
+   * the status from the row's display state.
+   */
+  const localRecordStatuses: ReadonlyMap<string, LocalStorageStatus> = useMemo(
+    () => new Map(pendingPegins.map((p) => [p.id.toLowerCase(), p.status])),
+    [pendingPegins],
+  );
+
   // Wrap refetch to return Promise<void> for backward compatibility
   const wrappedRefetch = async () => {
     await refetch();
@@ -131,5 +144,6 @@ export function useVaultDeposits(connectedAddress: Address | undefined) {
     addPendingPegin,
     removePendingPegins,
     indexedVaultIds,
+    localRecordStatuses,
   };
 }

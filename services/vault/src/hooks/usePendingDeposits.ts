@@ -41,6 +41,7 @@ export function usePendingDeposits() {
     error,
     removePendingPegins,
     indexedVaultIds,
+    localRecordStatuses,
   } = useVaultDeposits(ethAddress as Address | undefined);
 
   const { vaultProviders } = useAllDepositProviders(activities);
@@ -135,15 +136,20 @@ export function usePendingDeposits() {
     refetchActivities,
     /**
      * Discards browser-local pending deposits in one storage write — the whole
-     * batch of a split deposit at once. Returns false when the write failed
-     * and the records are still stored.
+     * batch of a split deposit at once. Returns the failure reason when the
+     * records are still stored.
      */
     removePendingPegins,
     /**
      * Lowercased ids of every vault the indexer returned, or null unless that
-     * set is known to be complete (answered successfully, no dropped rows).
+     * set is known to be complete (answered successfully, no error, no dropped
+     * rows).
      */
     indexedVaultIds,
+    /**
+     * Stored status of each browser-local record, keyed by lowercased vault id.
+     */
+    localRecordStatuses,
     broadcastModal,
     refundModal,
     reclaimModal,

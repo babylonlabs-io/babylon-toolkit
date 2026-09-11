@@ -567,8 +567,19 @@ export function updatePendingPeginStatus(
  * as a removal.
  */
 export function removePendingPegin(ethAddress: string, vaultId: Hex): boolean {
-  return removePendingPegins(ethAddress, [vaultId]);
+  return removePendingPegins(ethAddress, [vaultId]) === "removed";
 }
+
+/**
+ * Outcome of a pending peg-in removal. The two failures are distinct to the
+ * user: `"unreadable"` means the stored records could not be read at all, so
+ * nothing was even attempted, while `"write-failed"` means the write itself
+ * was refused. Both leave the entries stored.
+ */
+export type RemovePendingPeginsResult =
+  | "removed"
+  | "unreadable"
+  | "write-failed";
 
 /**
  * Remove every pending peg-in entry in `vaultIds` in a single write, matching
@@ -583,21 +594,21 @@ export function removePendingPegin(ethAddress: string, vaultId: Hex): boolean {
  * mangled — are written back untouched instead of being dropped along with the
  * targeted entries.
  *
- * @returns false when localStorage could not be read, or when the write failed
- * and the entries are still stored. Callers that report the outcome to the user
- * must not treat a failed removal as a removal.
+ * @returns `"unreadable"` when localStorage could not be read, `"write-failed"`
+ * when the write failed and the entries are still stored. Callers that report
+ * the outcome to the user must not treat either as a removal.
  */
 export function removePendingPegins(
   ethAddress: string,
   vaultIds: readonly Hex[],
-): boolean {
-  if (!ethAddress) return false;
+): RemovePendingPeginsResult {
+  if (!ethAddress) return "write-failed";
 
   const read = readStoredEntries(ethAddress);
-  if (read.status === "unreadable") return false;
+  if (read.status === "unreadable") return "unreadable";
   if (read.status === "empty") {
     dispatchStorageUpdateEvent(ethAddress);
-    return true;
+    return "removed";
   }
 
   const targets = new Set(
@@ -609,17 +620,17 @@ export function removePendingPegins(
   });
   if (remaining.length === read.entries.length) {
     dispatchStorageUpdateEvent(ethAddress);
-    return true;
+    return "removed";
   }
 
   try {
     persistStoredEntries(ethAddress, remaining);
   } catch {
-    return false;
+    return "write-failed";
   }
 
   dispatchStorageUpdateEvent(ethAddress);
-  return true;
+  return "removed";
 }
 
 /**

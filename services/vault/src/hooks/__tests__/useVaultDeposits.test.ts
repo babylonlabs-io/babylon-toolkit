@@ -93,6 +93,40 @@ describe("useVaultDeposits", () => {
     expect(result.current.indexedVaultIds).toEqual(new Set());
   });
 
+  it("lowercases the indexed vault ids so a mixed-case row still matches", () => {
+    useVaultsMock.mockReturnValue({
+      data: {
+        vaults: [{ id: "0xAbCdEf", amount: 0n, status: 0, isInUse: false }],
+        droppedCount: 0,
+      },
+      status: "success",
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+
+    const { result } = renderHook(() => useVaultDeposits(ADDRESS));
+
+    expect(result.current.indexedVaultIds).toEqual(new Set(["0xabcdef"]));
+  });
+
+  it("withholds the indexed vault ids when a background refetch failed", () => {
+    // React Query keeps `status: "success"` while it serves stale cache
+    // through a failing refetch, so the set must not be trusted on `status`
+    // alone.
+    useVaultsMock.mockReturnValue({
+      data: { vaults: [], droppedCount: 0 },
+      status: "success",
+      isLoading: false,
+      error: new Error("indexer unreachable"),
+      refetch: vi.fn(),
+    });
+
+    const { result } = renderHook(() => useVaultDeposits(ADDRESS));
+
+    expect(result.current.indexedVaultIds).toBeNull();
+  });
+
   it("withholds the indexed vault ids when the fetch dropped a row", () => {
     useVaultsMock.mockReturnValue({
       data: { vaults: [], droppedCount: 1 },

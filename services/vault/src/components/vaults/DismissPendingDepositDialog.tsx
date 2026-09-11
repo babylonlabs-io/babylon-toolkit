@@ -14,13 +14,30 @@ import {
 } from "@babylonlabs-io/core-ui";
 
 import { COPY } from "@/copy";
+import type { RemovePendingPeginsResult } from "@/storage/peginStorage";
+
+/**
+ * Why the last confirmation removed nothing — a storage failure, a deposit the
+ * indexer has since returned, or an indexer that could no longer answer for it.
+ */
+export type DismissPendingDepositError =
+  | Exclude<RemovePendingPeginsResult, "removed">
+  | "no-longer-removable"
+  | "unavailable";
+
+const ERROR_COPY: Record<DismissPendingDepositError, string> = {
+  "write-failed": COPY.vaults.dismissPending.writeFailed,
+  unreadable: COPY.vaults.dismissPending.unreadable,
+  "no-longer-removable": COPY.vaults.dismissPending.noLongerRemovable,
+  unavailable: COPY.vaults.dismissPending.unavailable,
+};
 
 interface DismissPendingDepositDialogProps {
   open: boolean;
   /** How many records the confirmation would remove. */
   count: number;
-  /** The last confirmation could not be written to localStorage. */
-  failed: boolean;
+  /** Why the last confirmation removed nothing, or null before one was made. */
+  error: DismissPendingDepositError | null;
   onCancel: () => void;
   onConfirm: () => void;
 }
@@ -28,7 +45,7 @@ interface DismissPendingDepositDialogProps {
 export function DismissPendingDepositDialog({
   open,
   count,
-  failed,
+  error,
   onCancel,
   onConfirm,
 }: DismissPendingDepositDialogProps) {
@@ -47,14 +64,14 @@ export function DismissPendingDepositDialog({
         <Text variant="body2" className="mt-4 text-accent-secondary">
           {isBatch ? copy.batchWarning(count) : copy.warning}
         </Text>
-        {failed && (
+        {error && (
           <Text
             variant="body2"
             role="alert"
             className="mt-4 text-error-main"
             data-testid="pending-deposit-dismiss-error"
           >
-            {copy.failed}
+            {ERROR_COPY[error]}
           </Text>
         )}
       </DialogBody>

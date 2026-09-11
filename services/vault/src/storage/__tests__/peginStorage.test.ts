@@ -675,7 +675,7 @@ describe("removePendingPegin", () => {
     try {
       expect(
         removePendingPegins(ETH_ADDRESS, [VALID_VAULT_ID, VALID_VAULT_ID_2]),
-      ).toBe(true);
+      ).toBe("removed");
 
       expect(setItemSpy).toHaveBeenCalledTimes(1);
       expect(JSON.parse(localStorage.getItem(storageKey) as string)).toEqual([
@@ -686,7 +686,42 @@ describe("removePendingPegin", () => {
     }
   });
 
-  it("notifies listeners after a real removal so the row re-reads", () => {
+  it("distinguishes unreadable records from a refused write", () => {
+    localStorage.setItem(
+      storageKey,
+      JSON.stringify([validPegin, { ...validPegin, id: VALID_VAULT_ID_2 }]),
+    );
+
+    const getItemSpy = vi
+      .spyOn(Storage.prototype, "getItem")
+      .mockImplementation(() => {
+        throw new Error("SecurityError: access to storage is denied");
+      });
+    try {
+      expect(removePendingPegins(ETH_ADDRESS, [VALID_VAULT_ID])).toBe(
+        "unreadable",
+      );
+    } finally {
+      getItemSpy.mockRestore();
+    }
+
+    const setItemSpy = vi
+      .spyOn(Storage.prototype, "setItem")
+      .mockImplementation(() => {
+        throw new Error("QuotaExceededError: localStorage is full");
+      });
+    try {
+      expect(removePendingPegins(ETH_ADDRESS, [VALID_VAULT_ID])).toBe(
+        "write-failed",
+      );
+    } finally {
+      setItemSpy.mockRestore();
+    }
+
+    expect(getPendingPegins(ETH_ADDRESS)).toHaveLength(2);
+  });
+
+  it("dispatches the same-tab storage-update event after a real removal", () => {
     localStorage.setItem(
       storageKey,
       JSON.stringify([validPegin, { ...validPegin, id: VALID_VAULT_ID_2 }]),

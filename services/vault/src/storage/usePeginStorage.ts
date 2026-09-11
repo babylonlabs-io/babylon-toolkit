@@ -28,6 +28,7 @@ import {
   type PendingPeginRequest,
   removePendingPegin as removePendingPeginFromStorage,
   removePendingPegins as removePendingPeginsFromStorage,
+  type RemovePendingPeginsResult,
   savePendingPegins,
   updatePendingPeginStatus as updatePendingPeginStatusInStorage,
 } from "./peginStorage";
@@ -75,10 +76,12 @@ export interface UsePeginStorageResult {
    * path, where the records of a batched Pre-PegIn share one funded
    * transaction and must never half-survive.
    *
-   * Returns false when the localStorage write failed and the entries are
-   * still stored.
+   * Returns the failure reason when the entries are still stored: the records
+   * could not be read at all, or the write itself was refused.
    */
-  removePendingPegins: (vaultIds: readonly string[]) => boolean;
+  removePendingPegins: (
+    vaultIds: readonly string[],
+  ) => RemovePendingPeginsResult;
   /**
    * Mark a pegin as REFUND_BROADCAST and stamp the broadcast time used by the
    * optimistic-suppression TTL.
@@ -313,8 +316,8 @@ export function usePeginStorage({
   );
 
   const removePendingPegins = useCallback(
-    (vaultIds: readonly string[]) => {
-      if (!ethAddress) return false;
+    (vaultIds: readonly string[]): RemovePendingPeginsResult => {
+      if (!ethAddress) return "write-failed";
       return removePendingPeginsFromStorage(
         ethAddress,
         vaultIds as readonly Hex[],

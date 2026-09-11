@@ -100,9 +100,13 @@ export function useVaultCountCap(
     currentCount,
     isAtCap,
     // Fail closed on a terminal failure of EITHER read — the cap value or the
-    // vaults list. A list-fetch error would otherwise leave currentCount=0
-    // (isAtCap=false) and let an at-cap user lock BTC, then revert at
-    // activation. Mirrors useApplicationCap (capsQuery.error ?? usageQuery.error).
-    capUnavailable: capError || (address !== undefined && vaultsError),
+    // vaults list — and on a list that dropped rows it could not transform. A
+    // list-fetch error or a dropped row would otherwise under-count and let an
+    // at-cap user lock BTC, then revert at activation. Mirrors
+    // useApplicationCap (capsQuery.error ?? usageQuery.error).
+    capUnavailable:
+      capError ||
+      (address !== undefined &&
+        (vaultsError || (vaultsResult?.droppedCount ?? 0) > 0)),
   };
 }

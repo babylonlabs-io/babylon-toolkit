@@ -48,7 +48,10 @@ import { DEPOSIT_VIEW_MAX_WIDTH_CLASS } from "@/components/simple/DepositProgres
 import { getStepFillPercent } from "@/components/simple/DepositProgressView/steps";
 import { PendingDepositModals } from "@/components/simple/PendingDepositModals";
 import { PostDepositContinuationContent } from "@/components/simple/PostDepositContinuationContent";
-import { DismissPendingDepositDialog } from "@/components/vaults/DismissPendingDepositDialog";
+import {
+  DismissPendingDepositDialog,
+  type DismissPendingDepositError,
+} from "@/components/vaults/DismissPendingDepositDialog";
 import { getNetworkConfigBTC } from "@/config";
 import { ProtocolParamsProvider } from "@/context/ProtocolParamsContext";
 import { useDepositPollingResult } from "@/context/deposit/PeginPollingContext";
@@ -62,6 +65,7 @@ import {
   canPerformAction,
   getPeginDisplayStep,
   hasActionableStep,
+  LocalStorageStatus,
   PeginAction,
   type PeginState,
 } from "@/models/peginStateMachine";
@@ -566,8 +570,13 @@ export function VaultsLifecycleSections({
   // Vault IDs whose multistepper view modal is open — the full batch for a
   // split pegin, null when closed (same contract as PendingDepositSection).
   const [viewingBatch, setViewingBatch] = useState<Hex[] | null>(null);
-  const [dismissingId, setDismissingId] = useState<string | null>(null);
-  const [dismissFailed, setDismissFailed] = useState(false);
+  // The batch the open confirmation would remove, snapshotted when it opened
+  // so the dialog keeps naming the same records while polling continues.
+  const [dismissBatch, setDismissBatch] = useState<VaultActivity[] | null>(
+    null,
+  );
+  const [dismissError, setDismissError] =
+    useState<DismissPendingDepositError | null>(null);
 
   const {
     pendingActivities,
@@ -582,6 +591,7 @@ export function VaultsLifecycleSections({
     emergencyWithdrawModal,
     removePendingPegins,
     indexedVaultIds,
+    localRecordStatuses,
     demo,
   } = deposits;
 
@@ -700,19 +710,24 @@ export function VaultsLifecycleSections({
 
   /**
    * A deposit may be discarded only on positive evidence that it is the
-   * browser's alone: the indexer answered completely and did not return this
-   * vault. A failing, still-loading, or row-dropping indexer leaves
-   * `indexedVaultIds` null and offers nothing — an indexed deposit's record
-   * carries the participant-key stamp that blocks an unsafe later broadcast,
-   * and must never be discarded on the mere absence of a row.
+   * browser's alone: its own stored record still reads PENDING — a CONFIRMING
+   * record has already broadcast its Pre-PegIn and is on its way to the chain
+   * — and the indexer answered completely and did not return this vault. A
+   * failing, still-loading, or row-dropping indexer leaves `indexedVaultIds`
+   * null and offers nothing — an indexed deposit's record carries the
+   * participant-key stamp that blocks an unsafe later broadcast, and must
+   * never be discarded on the mere absence of a row.
    */
   const canDismissRecord = useCallback(
     (activity: VaultActivity) => {
       if (activity.isPending !== true || indexedVaultIds === null) return false;
       if (!realActivityIds.has(activity.id)) return false;
-      return !indexedVaultIds.has(activity.id.toLowerCase());
+      const id = activity.id.toLowerCase();
+      if (localRecordStatuses.get(id) !== LocalStorageStatus.PENDING)
+        return false;
+      return !indexedVaultIds.has(id);
     },
-    [indexedVaultIds, realActivityIds],
+    [indexedVaultIds, localRecordStatuses, realActivityIds],
   );
 
   /**
@@ -728,34 +743,40 @@ export function VaultsLifecycleSections({
     [allActivities, canDismissRecord],
   );
 
-  const dismissBatch = useMemo(() => {
-    if (dismissingId === null) return [];
-    const activity = pendingActivities.find((a) => a.id === dismissingId);
-    if (!activity || !canDismiss(activity)) return [];
-    return getBatchSiblings(allActivities, activity);
-  }, [allActivities, canDismiss, dismissingId, pendingActivities]);
-
-  const handleDismiss = useCallback((depositId: string) => {
-    setDismissFailed(false);
-    setDismissingId(depositId);
-  }, []);
+  const handleDismiss = useCallback(
+    (depositId: string) => {
+      const activity = pendingActivities.find((a) => a.id === depositId);
+      if (!activity || !canDismiss(activity)) return;
+      setDismissError(null);
+      setDismissBatch(getBatchSiblings(allActivities, activity));
+    },
+    [allActivities, canDismiss, pendingActivities],
+  );
   const handleDismissCancel = useCallback(() => {
-    setDismissFailed(false);
-    setDismissingId(null);
+    setDismissError(null);
+    setDismissBatch(null);
   }, []);
   const handleDismissConfirm = useCallback(() => {
-    if (dismissBatch.length === 0) {
-      setDismissFailed(false);
-      setDismissingId(null);
+    if (dismissBatch === null) return;
+    // The snapshot names the records; the gate is still read live, since the
+    // indexer may have answered differently while the dialog was open. Only an
+    // indexer that answered and returned one of these vaults means it was
+    // found — every other way the gate can fail leaves its fate unverified.
+    if (!dismissBatch.every((a) => canDismiss(a))) {
+      const found =
+        indexedVaultIds !== null &&
+        dismissBatch.some((a) => indexedVaultIds.has(a.id.toLowerCase()));
+      setDismissError(found ? "no-longer-removable" : "unavailable");
       return;
     }
-    if (!removePendingPegins(dismissBatch.map((a) => a.id))) {
-      setDismissFailed(true);
+    const result = removePendingPegins(dismissBatch.map((a) => a.id));
+    if (result !== "removed") {
+      setDismissError(result);
       return;
     }
-    setDismissFailed(false);
-    setDismissingId(null);
-  }, [dismissBatch, removePendingPegins]);
+    setDismissError(null);
+    setDismissBatch(null);
+  }, [canDismiss, dismissBatch, indexedVaultIds, removePendingPegins]);
 
   // Keep the section (and its modals) mounted while a modal is open, even if
   // the last row advances to a terminal state mid-flow.
@@ -766,7 +787,7 @@ export function VaultsLifecycleSections({
       reclaimModal.reclaimingActivity ||
       emergencyWithdrawModal.withdrawing ||
       viewingBatch ||
-      dismissingId,
+      dismissBatch,
   );
 
   // No lifecycle rows and nothing modal-held: skip the providers entirely but
@@ -843,9 +864,9 @@ export function VaultsLifecycleSections({
       )}
 
       <DismissPendingDepositDialog
-        open={dismissingId !== null}
-        count={dismissBatch.length}
-        failed={dismissFailed}
+        open={dismissBatch !== null}
+        count={dismissBatch?.length ?? 0}
+        error={dismissError}
         onCancel={handleDismissCancel}
         onConfirm={handleDismissConfirm}
       />

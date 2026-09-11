@@ -1,10 +1,21 @@
 import { ContractStatus } from "@babylonlabs-io/ts-sdk/tbv/core/services";
+import { renderHook } from "@testing-library/react";
 import type { Address } from "viem";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Vault } from "@/types/vault";
 
-import { countCollateralizableVaults } from "../useVaultCountCap";
+import {
+  countCollateralizableVaults,
+  useVaultCountCap,
+} from "../useVaultCountCap";
+
+vi.mock("@tanstack/react-query", () => ({
+  useQuery: vi.fn(() => ({ data: 5, isError: false })),
+}));
+vi.mock("../useVaults", () => ({
+  useVaults: vi.fn(),
+}));
 
 const ADAPTER = "0x00000000000000000000000000000000000000a1" as Address;
 const OTHER_ADAPTER = "0x00000000000000000000000000000000000000b2" as Address;
@@ -44,5 +55,42 @@ describe("countCollateralizableVaults", () => {
   it("matches the adapter case-insensitively", () => {
     const vaults = [v(ContractStatus.ACTIVE, ADAPTER.toUpperCase() as Address)];
     expect(countCollateralizableVaults(vaults, ADAPTER.toLowerCase())).toBe(1);
+  });
+});
+
+describe("useVaultCountCap capUnavailable", () => {
+  const DEPOSITOR = "0x00000000000000000000000000000000000000c3" as Address;
+  let useVaultsMock: ReturnType<typeof vi.fn>;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    const mod = await import("../useVaults");
+    useVaultsMock = vi.mocked(mod.useVaults) as unknown as ReturnType<
+      typeof vi.fn
+    >;
+  });
+
+  it("stays available when the vaults fetch returned every row", () => {
+    useVaultsMock.mockReturnValue({
+      data: { vaults: [], droppedCount: 0 },
+      isError: false,
+    });
+
+    const { result } = renderHook(() => useVaultCountCap(DEPOSITOR));
+
+    expect(result.current.capUnavailable).toBe(false);
+  });
+
+  it("fails closed when the vaults fetch dropped a row it could not transform", () => {
+    // A dropped vault under-counts exactly like a failed fetch, so the cap
+    // must not be treated as known.
+    useVaultsMock.mockReturnValue({
+      data: { vaults: [], droppedCount: 1 },
+      isError: false,
+    });
+
+    const { result } = renderHook(() => useVaultCountCap(DEPOSITOR));
+
+    expect(result.current.capUnavailable).toBe(true);
   });
 });
