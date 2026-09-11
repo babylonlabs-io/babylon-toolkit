@@ -54,6 +54,12 @@ Thumbs.db
 packages/*/.cursor
 .claude/*
 !.claude/skills
+!.claude/agents
+
+# /pre-review: the PR description it maintains and its per-branch state.
+# Local only, never committed.
+/PR.md
+/.pre-review/
 
 /todo
 .nx/polygraph
