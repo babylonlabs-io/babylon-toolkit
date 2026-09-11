@@ -39,12 +39,11 @@ function StatSection({ card }: { card: PositionStatCard }) {
           )}
         </div>
 
-        <span className="flex items-center gap-2 overflow-hidden text-xl leading-[1.6] tracking-[0.15px] text-accent-primary xl:whitespace-nowrap">
-          {card.valueNode ?? (
-            <span className="xl:truncate" title={card.value}>
-              {card.value}
-            </span>
-          )}
+        <span
+          title={card.value}
+          className="flex items-center gap-2 overflow-hidden text-xl leading-[1.6] tracking-[0.15px] text-accent-primary xl:whitespace-nowrap"
+        >
+          {card.valueNode ?? <span className="xl:truncate">{card.value}</span>}
         </span>
 
         {card.caption ? (

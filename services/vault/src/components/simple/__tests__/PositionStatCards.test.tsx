@@ -71,7 +71,7 @@ describe("PositionStatCards", () => {
 
     const value = screen.getByText(longValue);
     expect(value).toHaveClass("xl:truncate");
-    expect(value).toHaveAttribute("title", longValue);
+    expect(value.parentElement).toHaveAttribute("title", longValue);
 
     const column = value.closest("div.flex-col");
     expect(column).toHaveClass("min-w-0");
