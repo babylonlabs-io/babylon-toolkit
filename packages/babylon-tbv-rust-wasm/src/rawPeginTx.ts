@@ -9,6 +9,10 @@ import type * as Bindings from '../dist/generated/vault_wasm.js';
 import { WasmPeginTx as RawTransaction } from './generated/vault_wasm.js';
 import { normalizeKeyGroup, normalizeXOnlyKey } from './connectorScripts.js';
 import { tapInternalPubkey } from './constants.js';
+import {
+  P2A_ANCHOR_VALUE,
+  P2TR_DUST_THRESHOLD,
+} from './peginFees.js';
 import { deriveExpectedPeginPayout } from './peginPayout.js';
 import { deriveExpectedPrePeginHtlc } from './prePeginHtlc.js';
 import {
@@ -28,37 +32,56 @@ export interface PeginRestoreParams {
   timelockPegin: number;
 }
 
-function record(value: unknown): Record<string, unknown> {
+function record(value: unknown, path = 'pegin'): Record<string, unknown> {
   if (
     !value ||
     typeof value !== 'object' ||
     Object.getPrototypeOf(value) !== Object.prototype
   ) {
-    throw new Error('PegIn JSON must contain plain objects.');
+    throw new Error(`PegIn JSON ${path} must be a plain object.`);
   }
   return value as Record<string, unknown>;
 }
 
-function exact(actual: unknown, expected: unknown): void {
+// `path` names the field that disagreed. The values themselves are never
+// interpolated: this recurses into the input witness, which carries the HTLC
+// preimage, and an error string must not leak it.
+function exact(actual: unknown, expected: unknown, path = 'pegin'): void {
   if (Array.isArray(expected)) {
     if (!Array.isArray(actual) || actual.length !== expected.length) {
       throw new Error(
-        'PegIn JSON array does not match the trusted transaction.',
+        `PegIn JSON array ${path} does not match the trusted transaction.`,
       );
     }
-    expected.forEach((value, index) => exact(actual[index], value));
+    expected.forEach((value, index) =>
+      exact(actual[index], value, `${path}[${index}]`),
+    );
   } else if (expected !== null && typeof expected === 'object') {
-    const object = record(actual);
-    exact(Object.keys(object).sort(), Object.keys(expected).sort());
+    const object = record(actual, path);
+    exact(
+      Object.keys(object).sort(),
+      Object.keys(expected).sort(),
+      `${path} field names`,
+    );
     for (const [key, value] of Object.entries(expected))
-      exact(object[key], value);
+      exact(object[key], value, `${path}.${key}`);
   } else if (actual !== expected) {
-    throw new Error('PegIn JSON does not match the trusted transaction.');
+    throw new Error(
+      `PegIn JSON ${path} does not match the trusted transaction.`,
+    );
   }
 }
 
 function hex(bytes: Uint8Array): string {
   return Buffer.from(bytes).toString('hex');
+}
+
+interface PeginPayoutFields {
+  depositor: string;
+  vault_provider: string;
+  vault_keepers: string[];
+  universal_challengers: string[];
+  timelock_pegin: bigint;
 }
 
 /** Validate saved metadata, signatures, and bytes against the original request. */
@@ -70,10 +93,11 @@ export class GuardedPeginTx {
   readonly #txid: string;
   readonly #htlc: ReturnType<typeof deriveExpectedPrePeginHtlc>;
   readonly #prevout: { value: bigint; script_pubkey: string };
-  readonly #payout: Record<string, unknown>;
+  readonly #payout: PeginPayoutFields;
   readonly #inputConnector: Record<string, unknown>;
   readonly #signatureKeys: string[];
   readonly #sighashes: Map<number, Uint8Array>;
+  #freed = false;
 
   private constructor(
     inner: Bindings.WasmPeginTx,
@@ -153,8 +177,11 @@ export class GuardedPeginTx {
         value: expected.htlcValues[index],
         script_pubkey: hex(this.#htlc.scriptPubKey),
       };
-      if (p.pegInAmounts[index] < 330n || expected.depositorClaimValue < 330n) {
-        throw new Error('PegIn outputs must meet the 330-sat dust threshold.');
+      if (p.pegInAmounts[index] < P2TR_DUST_THRESHOLD) {
+        throw new Error(
+          `PegIn amount ${p.pegInAmounts[index]} is below the ` +
+            `${P2TR_DUST_THRESHOLD}-sat P2TR dust threshold.`,
+        );
       }
       this.#transaction = {
         version: this.#version === 1 ? 2 : 3,
@@ -172,7 +199,12 @@ export class GuardedPeginTx {
           { amount: expected.depositorClaimValue, script: claim },
           ...(this.#version === 1
             ? []
-            : [{ amount: 240n, script: Buffer.from('51024e73', 'hex') }]),
+            : [
+                {
+                  amount: P2A_ANCHOR_VALUE,
+                  script: Buffer.from('51024e73', 'hex'),
+                },
+              ]),
         ],
       };
       this.#unsignedHex = hex(RawOldTx.encode(this.#transaction));
@@ -201,7 +233,12 @@ export class GuardedPeginTx {
       if (serialized !== undefined)
         this.#checkJson(serialized, checked.transaction);
     } catch (error) {
-      inner.free();
+      try {
+        inner.free();
+      } catch {
+        // A release failure must not mask the guard error, which is the one
+        // diagnostic that says the engine disagreed with its own inputs.
+      }
       throw error;
     }
   }
@@ -274,8 +311,8 @@ export class GuardedPeginTx {
   #checkJson(json: string, transaction: BitcoinTransaction): void {
     const data = record(parse(json, undefined, parseNumberAndBigInt));
     const spender = record(data.pegin_input_spender);
-    const depositor = this.#payout.depositor as string;
-    const provider = this.#payout.vault_provider as string;
+    const depositor = this.#payout.depositor;
+    const provider = this.#payout.vault_provider;
     const stored = [
       this.#signature(spender.vault_provider_sig, provider),
       this.#signature(spender.depositor_sig, depositor),
@@ -330,12 +367,9 @@ export class GuardedPeginTx {
         vault_keeper_sigs: spender.vault_keeper_sigs,
         universal_challenger_sigs: spender.universal_challenger_sigs,
       },
-      ...(Object.hasOwn(data, 'prepegin_htlc_prevout')
-        ? {
-            prepegin_htlc_prevout:
-              data.prepegin_htlc_prevout === null ? null : this.#prevout,
-          }
-        : {}),
+      // Unconditional: letting the saved object opt out of this field would
+      // leave the spent HTLC value and scriptPubKey unbound.
+      prepegin_htlc_prevout: this.#prevout,
     });
     if (witness.length === 0) return;
     const partial = witness.length === 3;
@@ -382,6 +416,11 @@ export class GuardedPeginTx {
     return { txHex, json, transaction };
   }
 
+  // Every getter re-runs #checkAll on purpose. The engine object behind
+  // #inner is the thing being checked, so a cached verdict would report on
+  // the state at construction rather than the state being read. The cost is
+  // one JSON parse and the signature checks per read, which is the price of
+  // the guarantee this class exists to give.
   toHex(): string {
     return this.#checkAll().txHex;
   }
@@ -405,6 +444,12 @@ export class GuardedPeginTx {
     return this.#transaction.outputs[0].amount;
   }
   free(): void {
+    // wasm-bindgen zeroes its pointer and then rejects a second release, so
+    // `using` plus an explicit free() would throw without this.
+    if (this.#freed) {
+      return;
+    }
+    this.#freed = true;
     this.#inner.free();
   }
   [Symbol.dispose](): void {

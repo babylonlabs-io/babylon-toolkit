@@ -1,5 +1,24 @@
 const U64_MAX = (1n << 64n) - 1n;
 
+// btc-vault crates/vault/src/lib.rs at 2c1177ec, 27c0062b and e1e50f66:
+// DUST_AMOUNT = 546 and P2TR_DUST_THRESHOLD = 330. The estimators below
+// reproduce the pinned tx_graph/config.rs arithmetic, so these two have to
+// hold the same values it uses.
+export const DUST_AMOUNT = 546n;
+export const P2TR_DUST_THRESHOLD = 330n;
+
+// Transaction sizing terms, in bytes.
+// An outpoint (36) plus its sequence (4).
+const OUTPOINT_AND_SEQUENCE_BYTES = 40n;
+// A P2TR output: value (8), script length (1) and the 34-byte scriptPubKey.
+const P2TR_OUTPUT_BYTES = 43n;
+// One 32-byte x-only key push plus its length byte, per signer.
+const PER_KEY_PUSH_BYTES = 34n;
+// The two WOTS blocks contribute 11,414 bytes; prefix, depth and suffix add 42.
+const WOTS_SCRIPT_BYTES = 11456n;
+// The P2A anchor output value for tx-graph v2 and v3.
+export const P2A_ANCHOR_VALUE = 240n;
+
 function u64(value: bigint, label: string): bigint {
   if (typeof value !== 'bigint' || value < 0n || value > U64_MAX) {
     throw new Error(`${label} must be a bigint in the u64 range.`);
@@ -58,10 +77,10 @@ function vsize(
     8n +
     1n +
     compactSize(outputCount) +
-    40n +
+    OUTPOINT_AND_SEQUENCE_BYTES +
     compactSize(inputScript) +
     inputScript +
-    43n * p2trOutputs +
+    P2TR_OUTPUT_BYTES * p2trOutputs +
     extraOutputBytes;
   return ceilDiv4(4n * base + 2n + compactSize(witnessCount) + witnessBytes);
 }
@@ -86,17 +105,20 @@ export function computeMinClaimValue(
   const assertLocal = local || 1n;
   const assertUniversal = universal || 1n;
   const signatures = 1n + assertLocal + assertUniversal;
-  // Two WOTS blocks contribute 11,414 bytes. Prefix/depth/suffix add 42.
   // Each block has 64 message digits, two checksum digits and two padding checks.
   const script =
-    11456n +
-    34n * (assertLocal + assertUniversal) +
+    WOTS_SCRIPT_BYTES +
+    PER_KEY_PUSH_BYTES * (assertLocal + assertUniversal) +
     integerPushSize(assertLocal) +
     integerPushSize(assertUniversal);
   const assertVsize = vsize(
     0n,
     signatures + 264n + 2n,
-    signatures * 65n + 132n * (21n + 2n) + compactSize(script) + script + 34n,
+    signatures * 65n +
+      132n * (21n + 2n) +
+      compactSize(script) +
+      script +
+      PER_KEY_PUSH_BYTES,
     2n + 2n * challengers,
     marker ? 56n : 0n,
   );
@@ -104,22 +126,27 @@ export function computeMinClaimValue(
   for (let leaves = challengers + 1n; leaves > 0n; leaves >>= 1n) depth++;
   // Preserve the pinned council estimate, including its omitted witness prefixes.
   const councilVsize = ceilDiv4(
-    94n * 4n + quorum * 64n + council * 34n + 2n + 33n + 32n * depth,
+    94n * 4n +
+      quorum * 64n +
+      council * PER_KEY_PUSH_BYTES +
+      2n +
+      33n +
+      32n * depth,
   );
   const wronglyVsize = vsize(0n, 4n, 65n + 33n + 74n + 162n, 1n);
   // The pinned Claim estimator counts script + control block as scriptSig bytes.
   const claimVsize = vsize(67n, 1n, 65n, 2n);
   const challengerOutput = u64(
-    wronglyVsize * rate + 330n + 546n,
+    wronglyVsize * rate + P2TR_DUST_THRESHOLD + DUST_AMOUNT,
     'challenger output',
   );
   return u64(
-    546n +
+    DUST_AMOUNT +
       councilVsize * rate +
       2n * challengers * challengerOutput +
-      546n +
+      DUST_AMOUNT +
       assertVsize * rate +
-      546n +
+      DUST_AMOUNT +
       claimVsize * rate,
     'minimum claim value',
   );
@@ -140,7 +167,7 @@ export function computeMinPeginFee(
   const signatures = 2n + keepers + universal;
   const script =
     107n +
-    34n * (keepers + universal) +
+    PER_KEY_PUSH_BYTES * (keepers + universal) +
     integerPushSize(keepers) +
     1n +
     (universal === 0n ? 0n : integerPushSize(universal) + 1n);
@@ -165,7 +192,7 @@ export function computeMinHtlcValue(
   numUniversalChallengers: number,
   minPeginFeeRate: bigint,
 ): bigint {
-  const anchor = hasAnchor(version) ? 240n : 0n;
+  const anchor = hasAnchor(version) ? P2A_ANCHOR_VALUE : 0n;
   const fee = computeMinPeginFee(
     version,
     numVaultKeepers,

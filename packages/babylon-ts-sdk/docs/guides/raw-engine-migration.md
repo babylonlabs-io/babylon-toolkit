@@ -19,6 +19,11 @@ reject malformed keys and hashlocks, empty or duplicate key groups, and
 timelocks outside 1 through 65535. Do not depend on unchecked input acceptance or
 identity with the generated class. `free()` and `[Symbol.dispose]()` stay available.
 
+`WasmPeginTx.fromJson` now requires `prepegin_htlc_prevout` in the saved object.
+A saved transaction that omits the field, or stores it as null, is rejected:
+without it the spent HTLC value and scriptPubKey are not bound to the original
+request. Rebuild such a transaction from its request and funded parent.
+
 ## Raw transaction changes
 
 Pass the original `bigint[]` amount vector to the `WasmPrePeginTx` constructor.

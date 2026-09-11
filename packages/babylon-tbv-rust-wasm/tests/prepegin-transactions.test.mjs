@@ -190,6 +190,9 @@ for (const version of [1, 2, 3]) {
       const extra = guarded.fromFundedTransaction(encode(changed));
       assert.equal(extra.toHex(), encode(changed));
       extra.free();
+      // fromFundedTransaction frees its copy on the error path, so a caller's
+      // own finally must be able to free it again.
+      assert.doesNotThrow(() => extra.free());
       changed.inputs[0].finalScriptSig = Uint8Array.of(0);
       assert.throws(
         () => guarded.fromFundedTransaction(encode(changed)),

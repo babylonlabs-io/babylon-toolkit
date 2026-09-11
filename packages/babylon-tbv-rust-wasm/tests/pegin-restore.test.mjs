@@ -309,18 +309,60 @@ for (const version of [1, 2, 3]) {
     }
   });
 
-  test(`v${version} preserves older omitted or null prevout metadata`, () => {
+  // The guard derives the signing digest with preimageWitnessV1 and the
+  // fixtures are signed with the same call, so a BIP-342 divergence would keep
+  // every test here green. Pin the digest against the Rust oracle instead.
+  // A `using` declaration and an explicit free() in a finally are both
+  // normal; without the latch the second release throws.
+  test(`v${version} releases the engine object only once`, () => {
+    const source = fixture(version);
+    const saved = restore(version, source.json, source.trusted);
+    saved.free();
+    assert.doesNotThrow(() => saved.free());
+    assert.doesNotThrow(() => saved[Symbol.dispose]());
+  });
+
+  test(`v${version} derives the input digest the engine derives`, () => {
+    const source = fixture(version);
+    const data = read(source.json);
+    const params = source.trusted.prePeginParams;
+    const htlc = deriveExpectedPrePeginHtlc(params, params.hashlocks[0]);
+    const tx = Transaction.fromRaw(Buffer.from(source.txHex, 'hex'), {
+      allowUnknownInputs: true,
+      allowUnknownOutputs: true,
+    });
+
+    // SIGHASH_DEFAULT only: the export takes no sighash-type argument.
+    const digest = tx.preimageWitnessV1(
+      0,
+      [htlc.scriptPubKey],
+      0,
+      [data.prepegin_htlc_prevout.value],
+      undefined,
+      htlc.hashlockScript,
+    );
+
+    assert.equal(
+      hex(digest),
+      wasm.computePeginInputSighash(
+        version,
+        source.json,
+        stringify(data.pegin_input_spender.htlc_connector),
+        stringify(data.prepegin_htlc_prevout),
+      ),
+    );
+  });
+
+  test(`v${version} rejects a saved object with no prevout metadata`, () => {
     const source = fixture(version);
     for (const absent of [false, true]) {
       const data = read(source.json);
       if (absent) delete data.prepegin_htlc_prevout;
       else data.prepegin_htlc_prevout = null;
-      const saved = restore(version, stringify(data), source.trusted);
-      try {
-        assert.equal(saved.toHex(), source.txHex);
-      } finally {
-        saved.free();
-      }
+      assert.throws(
+        () => restore(version, stringify(data), source.trusted),
+        /prepegin_htlc_prevout/,
+      );
     }
   });
 }

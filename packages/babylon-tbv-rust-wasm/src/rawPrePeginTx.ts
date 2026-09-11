@@ -39,6 +39,7 @@ export class GuardedPrePeginTx {
   #txHex: string;
   #txid: string;
   #funded = false;
+  #freed = false;
 
   constructor(...args: PrePeginTxArgs) {
     const [
@@ -98,7 +99,12 @@ export class GuardedPrePeginTx {
     try {
       this.#checkAll();
     } catch (error) {
-      this.#inner.free();
+      try {
+        this.#inner.free();
+      } catch {
+        // A release failure must not mask the guard error, which is the one
+        // diagnostic that says the engine disagreed with its own inputs.
+      }
       throw error;
     }
   }
@@ -302,6 +308,12 @@ export class GuardedPrePeginTx {
     );
   }
   free(): void {
+    // wasm-bindgen zeroes its pointer and then rejects a second release, so
+    // `using` plus an explicit free() would throw without this.
+    if (this.#freed) {
+      return;
+    }
+    this.#freed = true;
     this.#inner.free();
   }
   [Symbol.dispose](): void {

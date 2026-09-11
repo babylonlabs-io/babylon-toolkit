@@ -2,7 +2,11 @@ import { RawOldTx, RawTx } from '@scure/btc-signer/script';
 import { address, crypto, networks, payments } from 'bitcoinjs-lib';
 import { Buffer } from 'buffer';
 import { normalizeXOnlyKey } from './connectorScripts.js';
-import { computeMinClaimValue, computeMinHtlcValue } from './peginFees.js';
+import {
+  DUST_AMOUNT,
+  computeMinClaimValue,
+  computeMinHtlcValue,
+} from './peginFees.js';
 import { deriveExpectedPrePeginHtlc } from './prePeginHtlc.js';
 import type { PrePeginParams } from './types.js';
 import { assertPositiveBigintArray } from './value-guards.js';
@@ -149,11 +153,6 @@ export function deriveExpectedPrePegin(
     amount: htlcValues[index],
     script: deriveExpectedPrePeginHtlc(params, hashlock).scriptPubKey,
   }));
-  if (outputs.some((output) => output.amount < 330n)) {
-    throw new Error(
-      'Pre-PegIn HTLC values must meet the 330-sat dust threshold.',
-    );
-  }
   if (params.authAnchorHash != null) {
     const hash = params.authAnchorHash.replace(/^0x/, '');
     if (!/^[0-9a-fA-F]{64}$/.test(hash)) {
@@ -163,7 +162,7 @@ export function deriveExpectedPrePegin(
     outputs.push({ amount: 0n, script: Buffer.from(`6a20${hash}`, 'hex') });
   }
   outputs.push({
-    amount: 546n,
+    amount: DUST_AMOUNT,
     script: depositorScript(params.depositorPubkey),
   });
   const transaction = { version: 2, lockTime: 0, inputs: [], outputs };
