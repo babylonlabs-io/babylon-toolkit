@@ -26,13 +26,16 @@ import { NotificationPermissionPrompt } from "@/components/shared/NotificationPe
 import { useBTCWallet } from "@/context/wallet";
 import { COPY } from "@/copy";
 import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps/types";
+import { useRequiredPrePeginDepth } from "@/hooks/deposit/useRequiredPrePeginDepth";
 import { useBtcWalletUnlock } from "@/hooks/useBtcWalletUnlock";
 import type { RegistrationDepthProgress } from "@/services/vault/ethConfirmationGate";
 import type { PayoutSigningProgress } from "@/services/vault/vaultPayoutSignatureService";
 import type { PeginSigningProgress } from "@/services/vault/vaultTransactionService";
 import type { DepositErrorContent } from "@/utils/errors";
+import { formatDurationShort } from "@/utils/formatting";
 
 import { BtcConfirmationDetailContainer } from "./BtcConfirmationDetailContainer";
+import { computeTotalEstimateMinutes } from "./btcConfirmationProgress";
 import { CompletedStepsPill } from "./CompletedStepsPill";
 import { DepositCardShell } from "./DepositCardShell";
 import { EthConfirmationDetail } from "./EthConfirmationDetail";
@@ -51,6 +54,19 @@ import {
 
 /** How long the copy button reports its outcome before reverting. */
 const COPY_RESET_MS = 2000;
+
+const STALL_TICK_MS = 60_000;
+
+/**
+ * Steps that wait on the Bitcoin network or a vault provider rather than on the
+ * user. Only these can sit unattended long enough to look stuck.
+ */
+const WAITING_STEPS = new Set([
+  DepositFlowStep.AWAIT_BTC_CONFIRMATION,
+  DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS,
+  DepositFlowStep.AWAIT_VP_VERIFICATION,
+  DepositFlowStep.AWAIT_ACTIVATION_CONFIRMATION,
+]);
 
 const DIAGNOSTICS_COPY_LABELS = {
   idle: COPY.deposit.errors.copyDiagnostics,
@@ -170,6 +186,13 @@ export interface DepositProgressViewProps {
   preSignFeeSelector?: ReactNode;
   /** Disables the pre-sign entry CTA (e.g. an invalid custom fee rate). */
   signDisabled?: boolean;
+  /**
+   * Epoch ms when the deposit was initiated, anchoring the "taking longer than
+   * expected" notice on the waiting steps. Callers driving an existing deposit
+   * pass its registration time (`VaultActivity.timestamp`); when omitted the
+   * view anchors on the moment `started` turns true.
+   */
+  startedAt?: number;
 }
 
 /**
@@ -269,6 +292,7 @@ export function DepositProgressView(props: DepositProgressViewProps) {
     onCancelSigning,
     preSignFeeSelector,
     signDisabled = false,
+    startedAt,
   } = props;
 
   // Every flow that renders this view requires the BTC wallet, so surface a
@@ -321,6 +345,31 @@ export function DepositProgressView(props: DepositProgressViewProps) {
   // A terminal-but-not-final milestone: closeable success without marking the
   // whole flow complete (so the stepper keeps its real position).
   const isTerminalSuccess = !isComplete && !error && Boolean(terminalMessage);
+
+  // Anchor for callers that pass no `startedAt`. Re-anchored when the flow
+  // actually begins: the pre-sign entry can sit idle for hours, and that idle
+  // time is the user's, not a stall. State rather than a ref so the re-anchor
+  // re-renders — a ref write would leave a wrong notice up until the next tick.
+  const [startedAtFallback, setStartedAtFallback] = useState(() => Date.now());
+  useEffect(() => {
+    if (started) setStartedAtFallback(Date.now());
+  }, [started]);
+
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), STALL_TICK_MS);
+    return () => clearInterval(timer);
+  }, []);
+
+  const requiredDepth = useRequiredPrePeginDepth(offchainParamsVersion);
+  const estimateMinutes = computeTotalEstimateMinutes(requiredDepth);
+  const isStalled =
+    started &&
+    !error &&
+    !isComplete &&
+    !isTerminalSuccess &&
+    WAITING_STEPS.has(currentStep) &&
+    now - (startedAt ?? startedAtFallback) > 2 * estimateMinutes * 60_000;
 
   // At the pre-sign entry (`!started`) a silently locked wallet can't sign, so
   // the primary CTA becomes an unlock action (matching the navbar and deposit
@@ -460,6 +509,14 @@ export function DepositProgressView(props: DepositProgressViewProps) {
 
           {isTerminalSuccess && (
             <Callout variant="success">{terminalMessage}</Callout>
+          )}
+
+          {isStalled && (
+            <Callout variant="info" title={COPY.deposit.progress.stalled.title}>
+              {COPY.deposit.progress.stalled.description(
+                formatDurationShort(estimateMinutes),
+              )}
+            </Callout>
           )}
 
           {showCancelSigning && cancelSigningRequested && (

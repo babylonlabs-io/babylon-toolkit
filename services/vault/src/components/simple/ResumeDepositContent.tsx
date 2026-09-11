@@ -232,6 +232,7 @@ export function ResumeSignContent({
       canCancelSigning={canCancel}
       cancelSigningRequested={cancelRequested}
       onCancelSigning={handleCancel}
+      startedAt={activity.timestamp}
     />
   );
 }
@@ -319,6 +320,7 @@ export function ResumeBroadcastContent({
       onClose={onClose}
       successMessage={COPY.deposit.resume.broadcastSuccessMessage}
       onRetry={error ? handleBroadcast : undefined}
+      startedAt={activity.timestamp}
     />
   );
 }
@@ -660,6 +662,7 @@ export function ResumeWotsContent({
       btcConfirmationDetail={btcConfirmationDetail}
       wotsApprovalHint={COPY.deposit.resume.wotsWalletApprovalHint}
       offchainParamsVersion={activity.offchainParamsVersion}
+      startedAt={activity.timestamp}
     />
   );
 }
@@ -830,6 +833,7 @@ export function ResumeActivationContent({
       perVaultSteps={perVaultSteps}
       onClose={onClose}
       onRetry={error && !isTerminal ? handleSubmit : undefined}
+      startedAt={activity.timestamp}
       offchainParamsVersion={activity.offchainParamsVersion}
     />
   );

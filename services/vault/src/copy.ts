@@ -429,6 +429,11 @@ export const COPY = {
       // in-flight signature only once the user acts on it.
       cancelRequestedNotice:
         "Cancellation requested — finish or reject the request on your signing device to continue.",
+      stalled: {
+        title: "This is taking longer than expected",
+        description: (estimate: string) =>
+          `Deposits usually finish in about ${estimate}. This one is still waiting on the Bitcoin network or the vault provider. You can close this window — the deposit continues in the background and stays on the Vaults page. If it is still on this step tomorrow, contact support.`,
+      },
     },
     btcConfirmation: {
       estRemaining: "Est. remaining",
