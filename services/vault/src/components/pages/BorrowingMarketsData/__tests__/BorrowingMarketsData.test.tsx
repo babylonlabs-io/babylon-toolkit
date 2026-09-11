@@ -418,10 +418,10 @@ describe("BorrowingMarketsData", () => {
     ).toBeInTheDocument();
   });
 
-  it("opens the borrow form for the routed reserve without leaving the market page", () => {
-    setUpHooks();
+  it("navigates to the routed reserve's borrow params and keeps the market pathname", () => {
+    setUpHooks({ borrowableReserves: [REGISTERED_USDC_RESERVE, WBTC_RESERVE] });
 
-    renderPage("1");
+    renderPage("usdc");
 
     const header = within(screen.getByTestId("market-section-identity"));
     fireEvent.click(
@@ -429,7 +429,7 @@ describe("BorrowingMarketsData", () => {
     );
 
     expect(screen.getByTestId("location-probe").textContent).toBe(
-      "/markets/1?reserve=1&tab=borrow",
+      "/markets/usdc?reserve=1&tab=borrow",
     );
   });
 
