@@ -21,6 +21,7 @@ import {
   activationFloorMinutesRemaining,
   isActivationFloorGating,
 } from "@/utils/activationFloor";
+import { isWithinTtl } from "@/utils/ttl";
 
 export { ContractStatus } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 export type {
@@ -535,44 +536,12 @@ function applyTrackingOverrides(
 
   if (contractStatus === ContractStatus.EXPIRED) {
     if (localStatus === LocalStorageStatus.REFUND_BROADCAST) {
-      if (isRefundBroadcastWithinTtl(refundBroadcastAt, now)) return [];
+      if (isWithinTtl(refundBroadcastAt, now, REFUND_BROADCAST_SUPPRESSION_MS))
+        return [];
     }
   }
 
   return sdkActions;
-}
-
-/**
- * The suppression must auto-expire — broadcast txs can be evicted from the
- * mempool, and a sticky marker would otherwise hide the refund action while
- * the vault is still EXPIRED on-chain. Legacy entries without a timestamp are
- * treated as expired so the user can always retry.
- */
-function isRefundBroadcastWithinTtl(
-  refundBroadcastAt: number | undefined,
-  now: number | undefined,
-): boolean {
-  if (refundBroadcastAt === undefined) return false;
-  const currentTime = now ?? Date.now();
-  const elapsedMs = currentTime - refundBroadcastAt;
-  // A timestamp ahead of the clock (backwards wall-clock jump after the
-  // broadcast was recorded) reads as negative elapsed — inside the window
-  // under a bare `< TTL` for as long as the clock stays behind, so the
-  // suppression would outlast the TTL by the size of the jump. Expired is
-  // the safe reading, same as the missing-timestamp case above: the user
-  // can always retry, and a duplicate broadcast is rejected by the network.
-  return elapsedMs >= 0 && elapsedMs < REFUND_BROADCAST_SUPPRESSION_MS;
-}
-
-function isPayoutSignedWithinTtl(
-  payoutSignedAt: number | undefined,
-  now: number,
-): boolean {
-  if (payoutSignedAt === undefined) return false;
-  const elapsedMs = now - payoutSignedAt;
-  // A stamp ahead of the clock reads as negative elapsed and is treated as
-  // expired, same as `isRefundBroadcastWithinTtl`.
-  return elapsedMs >= 0 && elapsedMs < PAYOUT_SIGNED_SUPPRESSION_MS;
 }
 
 interface DisplayInfo {
@@ -817,7 +786,7 @@ function getDisplay(
     }
     if (
       localStatus === LocalStorageStatus.REFUND_BROADCAST &&
-      isRefundBroadcastWithinTtl(refundBroadcastAt, now)
+      isWithinTtl(refundBroadcastAt, now, REFUND_BROADCAST_SUPPRESSION_MS)
     ) {
       return {
         displayLabel: PEGIN_DISPLAY_LABELS.REFUNDING,
@@ -1019,9 +988,12 @@ export function getPeginDisplayStep(state: PeginState): DepositFlowStep | null {
  * action set must follow the VP, so the "Sign payouts" button stays live, but
  * the progress bar deliberately disagrees: while the persisted
  * `payoutSignedAt` stamp is within `PAYOUT_SIGNED_SUPPRESSION_MS` it holds at
- * AWAIT_VP_VERIFICATION instead of dropping back to SIGN_AUTH_ANCHOR. Past the
- * window the floor lifts and the bar tracks the VP again. Never use this to
- * gate an action; only `getPeginDisplayStep` and the action set decide that.
+ * AWAIT_VP_VERIFICATION instead of dropping back to SIGN_AUTH_ANCHOR. The
+ * floor lifts on the next render that re-derives the step — a reload, or an
+ * unrelated re-render — not on a timer: `usePeginPollingQuery` halts its
+ * `refetchInterval` while every deposit is awaiting depositor signatures.
+ * Never use this to gate an action; only `getPeginDisplayStep` and the action
+ * set decide that.
  */
 export function getPeginProgressStep(
   state: PeginState,
@@ -1032,7 +1004,7 @@ export function getPeginProgressStep(
     return step;
   }
   return step === DepositFlowStep.SIGN_AUTH_ANCHOR &&
-    isPayoutSignedWithinTtl(state.payoutSignedAt, now)
+    isWithinTtl(state.payoutSignedAt, now, PAYOUT_SIGNED_SUPPRESSION_MS)
     ? DepositFlowStep.AWAIT_VP_VERIFICATION
     : step;
 }
@@ -1139,7 +1111,7 @@ export function shouldRemoveFromLocalStorage(
   if (
     contractStatus === ContractStatus.EXPIRED &&
     localStatus === LocalStorageStatus.REFUND_BROADCAST &&
-    isRefundBroadcastWithinTtl(refundBroadcastAt, now)
+    isWithinTtl(refundBroadcastAt, now, REFUND_BROADCAST_SUPPRESSION_MS)
   ) {
     return false;
   }

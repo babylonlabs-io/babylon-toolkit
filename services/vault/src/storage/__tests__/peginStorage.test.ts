@@ -1,7 +1,7 @@
 /** Tests for pending peg-in localStorage integrity validation. */
 
 import type { Hex } from "viem";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { logger } from "@/infrastructure";
 
@@ -587,6 +587,10 @@ describe("updatePendingPeginStatus", () => {
     vi.clearAllMocks();
   });
 
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("stamps payoutSignedAt when the status flips to PAYOUT_SIGNED", () => {
     const now = 1_700_000_123_000;
     vi.useFakeTimers({ now });
@@ -601,7 +605,6 @@ describe("updatePendingPeginStatus", () => {
     const [stored] = getPendingPegins(ETH_ADDRESS);
     expect(stored.status).toBe(LocalStorageStatus.PAYOUT_SIGNED);
     expect(stored.payoutSignedAt).toBe(now);
-    vi.useRealTimers();
   });
 
   it("refreshes payoutSignedAt on a repeat PAYOUT_SIGNED write", () => {
@@ -623,7 +626,6 @@ describe("updatePendingPeginStatus", () => {
     );
 
     expect(getPendingPegins(ETH_ADDRESS)[0].payoutSignedAt).toBe(second);
-    vi.useRealTimers();
   });
 
   it("clears a stale payoutSignedAt when the status moves off PAYOUT_SIGNED", () => {

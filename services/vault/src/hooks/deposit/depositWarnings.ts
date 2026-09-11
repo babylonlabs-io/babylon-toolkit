@@ -41,7 +41,8 @@ export interface DepositWarning {
  * advanced past the stage it warned about.
  *
  * Forward-only: resolution is driven by the vault's position in the ordered
- * deposit flow (`getPeginDisplayStep`, the same mapping the progress bar uses),
+ * deposit flow (`getPeginDisplayStep`, the unfloored mapping; the progress bar
+ * uses the floored `getPeginProgressStep`),
  * never by the absence of the warned action. That action is also absent while
  * the VP poll is still loading and before the VP asks for the key, so keying on
  * absence would hide a step the user still owes. A `null` step means the vault

@@ -5,11 +5,13 @@ import {
   type DepositPollingInputs,
 } from "@/context/deposit/computeDepositPollingResult";
 import { COPY } from "@/copy";
+import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps/types";
 import {
   ContractStatus,
   LocalStorageStatus,
   PEGIN_DISPLAY_LABELS,
   PeginAction,
+  getPeginProgressStep,
 } from "@/models/peginStateMachine";
 import type { VaultActivity } from "@/types/activity";
 import { canonicalizeTxid } from "@/utils/txid";
@@ -85,6 +87,54 @@ describe("computeDepositPollingResult — payout-signed anchor", () => {
       }),
     );
     expect(result.peginState.payoutSignedAt).toBe(1_700_000_060_000);
+  });
+
+  const SIGNED_AT = Date.parse("2026-07-27T12:00:00Z");
+
+  function makeReloadedAfterSigningInputs(): DepositPollingInputs {
+    return makeInputs({
+      activity: {
+        ...makeExpiredActivity(),
+        displayLabel: PEGIN_DISPLAY_LABELS.PENDING,
+        contractStatus: ContractStatus.PENDING,
+      },
+      matureRefundTxids: new Set(),
+      confirmedTxids: new Set([CANONICAL_PREPEGIN]),
+      // The reload dropped the session store, so only the persisted stamp is
+      // left to hold the bar while the VP still asks for signatures.
+      pendingDepositorSignatures: new Set([VAULT_ID]),
+      pendingPegins: [
+        {
+          id: VAULT_ID,
+          peginTxHash: PEGIN_TX,
+          timestamp: SIGNED_AT,
+          status: LocalStorageStatus.PAYOUT_SIGNED,
+          payoutSignedAt: SIGNED_AT,
+          unsignedTxHex: "0x00",
+        },
+      ],
+    });
+  }
+
+  it("holds the progress bar at VP verification after a reload inside the window", () => {
+    const result = computeDepositPollingResult(
+      makeReloadedAfterSigningInputs(),
+    );
+    expect(result.peginState.availableActions).toContain(
+      PeginAction.SIGN_PAYOUT_TRANSACTIONS,
+    );
+    expect(
+      getPeginProgressStep(result.peginState, SIGNED_AT + 5 * 60 * 1000),
+    ).toBe(DepositFlowStep.AWAIT_VP_VERIFICATION);
+  });
+
+  it("lets the progress bar fall back to signing once the stamp is past the window", () => {
+    const result = computeDepositPollingResult(
+      makeReloadedAfterSigningInputs(),
+    );
+    expect(
+      getPeginProgressStep(result.peginState, SIGNED_AT + 21 * 60 * 1000),
+    ).toBe(DepositFlowStep.SIGN_AUTH_ANCHOR);
   });
 });
 
@@ -384,9 +434,9 @@ describe("computeDepositPollingResult — unresolved protocol params", () => {
  * existing. The equivalent tests at the provider and store levels need
  * `vi.useFakeTimers`, because they exercise the `Date.now()` default; these do
  * not, and that is what makes this module's "pure per-deposit compute" header
- * true in practice rather than only in the type. Same shape as
- * `isRefundBroadcastWithinTtl`'s `now`, which `peginStateMachine.test.ts`
- * exercises the same way.
+ * true in practice rather than only in the type. Same shape as the refund
+ * suppression's `now`, which `peginStateMachine.test.ts` exercises the same
+ * way.
  */
 describe("computeDepositPollingResult — WOTS suppression clock", () => {
   const SUBMITTED_AT = Date.parse("2026-07-27T12:00:00Z");

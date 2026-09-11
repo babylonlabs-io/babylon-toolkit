@@ -276,10 +276,19 @@ function hasValidSecurityFields(entry: unknown): entry is PendingPeginRequest {
  * closed — losing a deposit record over a bad progress stamp is the worse
  * outcome.
  */
-function sanitizePayoutSignedAt(value: unknown): number | undefined {
-  return typeof value === "number" && Number.isFinite(value) && value >= 0
-    ? value
-    : undefined;
+function sanitizePayoutSignedAt(
+  value: unknown,
+  vaultId: string,
+): number | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value === "number" && Number.isFinite(value) && value >= 0) {
+    return value;
+  }
+  logger.warn("[peginStorage] Dropping corrupted payoutSignedAt stamp", {
+    category: "peginStorage",
+    vaultId,
+  });
+  return undefined;
 }
 
 /**
@@ -376,7 +385,7 @@ export function getPendingPegins(ethAddress: string): PendingPeginRequest[] {
       id: normalizeTransactionId(pegin.id),
       // Ensure status field exists (backward compatibility)
       status: pegin.status || LocalStorageStatus.PENDING,
-      payoutSignedAt: sanitizePayoutSignedAt(pegin.payoutSignedAt),
+      payoutSignedAt: sanitizePayoutSignedAt(pegin.payoutSignedAt, pegin.id),
     }));
 
     return normalized;
