@@ -404,6 +404,60 @@ describe("VaultsLifecycleSections dismiss control", () => {
     );
 
     expect(removePendingPegins).toHaveBeenCalledWith([LOCAL_ONLY.id]);
+    // core-ui keeps a closed dialog mounted until its exit animation ends, and
+    // jsdom never fires that event on its own.
+    fireEvent.animationEnd(screen.getByTestId("dialog"));
+    expect(
+      screen.queryByRole("button", {
+        name: COPY.vaults.dismissPending.confirmButton,
+      }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("closes the confirmation without a write when the record is already gone", () => {
+    const { removePendingPegins, rerenderWith } = renderPendingRow(
+      pollingResult(BROADCAST_STATE),
+      { activities: [LOCAL_ONLY] },
+    );
+
+    fireEvent.click(screen.getByTestId("pending-deposit-dismiss-button"));
+    rerenderWith({ activities: [] });
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: COPY.vaults.dismissPending.confirmButton,
+      }),
+    );
+
+    expect(removePendingPegins).not.toHaveBeenCalled();
+    expect(
+      screen.queryByRole("button", {
+        name: COPY.vaults.dismissPending.confirmButton,
+      }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("says why it removed nothing when the record stops reading PENDING before confirmation", () => {
+    const { removePendingPegins, rerenderWith } = renderPendingRow(
+      pollingResult(BROADCAST_STATE),
+      { activities: [LOCAL_ONLY] },
+    );
+
+    fireEvent.click(screen.getByTestId("pending-deposit-dismiss-button"));
+    rerenderWith({
+      localRecordStatuses: new Map([
+        [LOCAL_ONLY.id.toLowerCase(), LocalStorageStatus.CONFIRMING],
+      ]),
+    });
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: COPY.vaults.dismissPending.confirmButton,
+      }),
+    );
+
+    expect(removePendingPegins).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      COPY.vaults.dismissPending.noLongerRemovable,
+    );
   });
 
   it("keeps the stored deposit when the discard is cancelled", () => {

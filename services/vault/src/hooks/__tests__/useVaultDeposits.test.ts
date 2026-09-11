@@ -1,4 +1,5 @@
 import { renderHook } from "@testing-library/react";
+import type { Hex } from "viem";
 import {
   afterEach,
   beforeEach,
@@ -11,6 +12,8 @@ import {
 
 import { FAST_POLL_INTERVAL, NORMAL_POLL_INTERVAL } from "@/constants";
 
+import { LocalStorageStatus } from "../../models/peginStateMachine";
+import type { RemovePendingPeginsResult } from "../../storage/peginStorage";
 import { useVaultDeposits } from "../useVaultDeposits";
 
 vi.mock("../useVaults", () => ({
@@ -148,5 +151,32 @@ describe("useVaultDeposits", () => {
     // materially — surface either as a test signal.
     expect(FAST_POLL_INTERVAL).toBeGreaterThanOrEqual(1_000);
     expect(NORMAL_POLL_INTERVAL).toBeLessThanOrEqual(5 * 60_000);
+  });
+
+  it("lowercases the stored record ids so a mixed-case record still matches", async () => {
+    const mod = await import("../../storage/usePeginStorage");
+    vi.mocked(mod.usePeginStorage).mockReturnValue({
+      allActivities: [],
+      pendingPegins: [
+        {
+          id: "0xAbCdEf" as Hex,
+          timestamp: 0,
+          status: LocalStorageStatus.PENDING,
+          peginTxHash: "0xprepegin" as Hex,
+          unsignedTxHex: "0xdeadbeef",
+        },
+      ],
+      addPendingPegin: vi.fn(),
+      updatePendingPeginStatus: vi.fn(),
+      removePendingPegin: vi.fn(() => true),
+      removePendingPegins: vi.fn((): RemovePendingPeginsResult => "removed"),
+      markRefundBroadcast: vi.fn(),
+    });
+
+    const { result } = renderHook(() => useVaultDeposits(ADDRESS));
+
+    expect(result.current.localRecordStatuses.get("0xabcdef")).toBe(
+      LocalStorageStatus.PENDING,
+    );
   });
 });

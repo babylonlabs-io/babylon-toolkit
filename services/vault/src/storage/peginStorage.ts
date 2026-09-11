@@ -457,9 +457,15 @@ function readStoredEntries(ethAddress: string): StoredEntriesRead {
     const stored = localStorage.getItem(getStorageKey(ethAddress));
     if (!stored) return { status: "empty" };
     const parsed: unknown = JSON.parse(stored);
-    return Array.isArray(parsed)
-      ? { status: "ok", entries: parsed }
-      : { status: "unreadable" };
+    if (!Array.isArray(parsed)) {
+      logger.error(new Error("Stored pending pegins is not an array"), {
+        data: {
+          context: "[peginStorage] Failed to parse stored pending pegins",
+        },
+      });
+      return { status: "unreadable" };
+    }
+    return { status: "ok", entries: parsed };
   } catch (error) {
     logger.error(error instanceof Error ? error : new Error(String(error)), {
       data: { context: "[peginStorage] Failed to parse stored pending pegins" },

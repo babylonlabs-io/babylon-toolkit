@@ -2020,7 +2020,7 @@ export const COPY = {
       unreadable:
         "This browser's saved deposit records could not be read, so nothing was changed. Clearing this site's stored data removes them.",
       noLongerRemovable:
-        "This deposit can no longer be removed because it has since been found on-chain.",
+        "This deposit can no longer be removed because its Pre-Pegin transaction has since been broadcast or found on-chain.",
       unavailable:
         "The deposit's status could not be verified right now. Try again in a moment.",
       confirmButton: "Remove",

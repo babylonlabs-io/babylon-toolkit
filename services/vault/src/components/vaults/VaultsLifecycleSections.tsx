@@ -94,7 +94,6 @@ const RECLAIM_BUTTON_TEST_ID = "vault-reclaim-button";
  */
 const RECLAIM_METRIC_COLUMN_CLASS = "w-[82px]";
 
-/** Icon size of the pending row's dismiss control. */
 const DISMISS_ICON_SIZE = 20;
 
 /** Dot color per display variant. Danger keeps the error red explicitly —
@@ -758,6 +757,22 @@ export function VaultsLifecycleSections({
   }, []);
   const handleDismissConfirm = useCallback(() => {
     if (dismissBatch === null) return;
+    if (dismissBatch.every((a) => !realActivityIds.has(a.id))) {
+      setDismissError(null);
+      setDismissBatch(null);
+      return;
+    }
+    // Broadcast from another tab: no longer this browser's to discard.
+    if (
+      dismissBatch.some(
+        (a) =>
+          localRecordStatuses.get(a.id.toLowerCase()) !==
+          LocalStorageStatus.PENDING,
+      )
+    ) {
+      setDismissError("no-longer-removable");
+      return;
+    }
     // The snapshot names the records; the gate is still read live, since the
     // indexer may have answered differently while the dialog was open. Only an
     // indexer that answered and returned one of these vaults means it was
@@ -776,7 +791,14 @@ export function VaultsLifecycleSections({
     }
     setDismissError(null);
     setDismissBatch(null);
-  }, [canDismiss, dismissBatch, indexedVaultIds, removePendingPegins]);
+  }, [
+    canDismiss,
+    dismissBatch,
+    indexedVaultIds,
+    localRecordStatuses,
+    realActivityIds,
+    removePendingPegins,
+  ]);
 
   // Keep the section (and its modals) mounted while a modal is open, even if
   // the last row advances to a terminal state mid-flow.
