@@ -108,7 +108,10 @@ export async function buildPeginInputPsbt(
     timelockRefund: params.timelockRefund,
     network: params.network,
   });
-  const expectedHtlc = deriveExpectedPrePeginHtlc(params, params.hashlock);
+  const expectedHtlc = await deriveExpectedPrePeginHtlc(
+    params,
+    params.hashlock,
+  );
 
   const peginTx = Transaction.fromHex(peginTxHex);
   const prePeginTx = Transaction.fromHex(fundedPrePeginTxHex);

@@ -1,4 +1,10 @@
-import { cpSync, readFileSync, rmSync, mkdtempSync } from 'node:fs';
+import {
+  cpSync,
+  readFileSync,
+  rmSync,
+  mkdtempSync,
+  symlinkSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, extname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -197,6 +203,9 @@ for (const [rawName, loaderName] of [
 }
 
 // Without generated code, facade entries must import and raw entries must fail.
+// No node_modules here on purpose: a facade entry that grew a static edge to
+// the Bitcoin stack must fail this import, and a symlinked node_modules would
+// resolve it and hide the regression.
 const isolatedPackage = mkdtempSync(join(tmpdir(), 'tbv-wasm-lazy-'));
 try {
   cpSync(
@@ -276,6 +285,10 @@ const payoutConnectorParams = {
 // A second wasm-bindgen initialization replaces the module-global memory and
 // invalidates raw objects created after the first initialization completes.
 const browserRacePackage = mkdtempSync(join(tmpdir(), 'tbv-wasm-race-'));
+symlinkSync(
+  resolve(packageRoot, 'node_modules'),
+  join(browserRacePackage, 'node_modules'),
+);
 const originalFetch = globalThis.fetch;
 let browserRaceConnector;
 let browserRaceCompleted = false;

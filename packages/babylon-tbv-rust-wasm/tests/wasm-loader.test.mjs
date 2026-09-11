@@ -1,11 +1,18 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { cpSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import {
+  cpSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import ts from 'typescript';
+import { secp256k1 } from '@noble/curves/secp256k1.js';
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const packageExports = JSON.parse(
@@ -19,7 +26,7 @@ const rawClassNames = [
 ];
 
 for (const entry of ['raw', 'raw-node']) {
-  test(`${entry} retains the generated classes and shared initializer`, async () => {
+  test(`${entry} retains the raw API and shared initializer`, async () => {
     assert.deepEqual(
       packageExports['./raw'][entry === 'raw' ? 'default' : 'node'],
       {
@@ -38,7 +45,11 @@ for (const entry of ['raw', 'raw-node']) {
     );
     for (const name of rawClassNames) {
       assert.equal(typeof raw[name], 'function', name);
-      assert.equal(raw[name], generated[name]);
+      if (name === 'WasmPrePeginHtlcConnector') {
+        assert.notEqual(raw[name], generated[name]);
+      } else {
+        assert.equal(raw[name], generated[name]);
+      }
     }
     assert.equal(raw.initWasm, loader.initWasm);
   });
@@ -186,9 +197,13 @@ async function withBrowserFacade(fetchImpl, run) {
     cpSync(resolve(packageRoot, 'dist'), join(isolatedPackage, 'dist'), {
       recursive: true,
     });
+    symlinkSync(
+      resolve(packageRoot, 'node_modules'),
+      join(isolatedPackage, 'node_modules'),
+    );
     globalThis.fetch = fetchImpl;
     const entry = pathToFileURL(join(isolatedPackage, 'dist', 'index.js')).href;
-    await run(await import(entry));
+    await run(await import(entry), entry);
   } finally {
     globalThis.fetch = originalFetch;
     rmSync(isolatedPackage, { recursive: true, force: true });
@@ -455,5 +470,317 @@ test('createPayoutConnector forwards the network to the address through the brow
         'bc1p795tj5cunt8g6cuzghsqfcj4qattn93sqwgnxlskn3lmts656cwspah2xt',
       );
     },
+  );
+});
+
+async function withRawEntry(entry, run) {
+  if (entry === 'raw-node') {
+    const raw = await import('../dist/raw-node.js');
+    await raw.initWasm();
+    await run(raw, await import('../dist/generated/vault_wasm.js'));
+    return;
+  }
+  await withBrowserFacade(
+    async () =>
+      new Response(wasmBytes, {
+        headers: { 'Content-Type': 'application/wasm' },
+      }),
+    async (_facade, url) => {
+      const raw = await import(new URL('./raw.js', url));
+      await raw.initWasm();
+      await run(raw, await import(new URL('./generated/vault_wasm.js', url)));
+    },
+  );
+}
+
+function htlcArgs(version = 1, keepers = [xOnlyKeys[2]]) {
+  return [
+    version,
+    xOnlyKeys[0],
+    xOnlyKeys[1],
+    keepers,
+    [xOnlyKeys[3]],
+    sha256Text('raw HTLC'),
+    144,
+  ];
+}
+
+function facadeHtlcParams(txGraphVersion = 1) {
+  return {
+    txGraphVersion,
+    depositorPubkey: xOnlyKeys[0],
+    vaultProviderPubkey: xOnlyKeys[1],
+    vaultKeeperPubkeys: [xOnlyKeys[2]],
+    universalChallengerPubkeys: [xOnlyKeys[3]],
+    hashlock: sha256Text('raw HTLC'),
+    timelockRefund: 144,
+    network: 'bitcoin',
+  };
+}
+
+const htlcGetters = [
+  'getHashlockScript',
+  'getHashlockControlBlock',
+  'getRefundScript',
+  'getRefundControlBlock',
+  'getTxGraphVersion',
+];
+
+for (const entry of ['raw', 'raw-node']) {
+  test(`${entry} matches real HTLC connectors for all versions and networks`, async () => {
+    await withRawEntry(entry, async (raw, generated) => {
+      for (const version of [1, 2, 3]) {
+        for (const keepers of [[xOnlyKeys[2]], [xOnlyKeys[4], xOnlyKeys[2]]]) {
+          const args = htlcArgs(version, keepers);
+          const checked = new raw.WasmPrePeginHtlcConnector(...args);
+          const original = new generated.WasmPrePeginHtlcConnector(...args);
+          try {
+            assert.ok(checked instanceof raw.WasmPrePeginHtlcConnector);
+            for (const getter of htlcGetters)
+              assert.equal(checked[getter](), original[getter]());
+            for (const network of [
+              'bitcoin',
+              'testnet',
+              'testnet4',
+              'signet',
+              'regtest',
+            ]) {
+              assert.equal(
+                checked.getAddress(network),
+                original.getAddress(network),
+              );
+              assert.equal(
+                checked.getScriptPubKey(network),
+                original.getScriptPubKey(network),
+              );
+            }
+            assert.throws(() => checked.getAddress('mainnet'));
+            assert.throws(() => checked.getScriptPubKey('invalid'));
+          } finally {
+            checked.free();
+            original.free();
+          }
+          assert.throws(() => checked.getHashlockScript());
+        }
+      }
+    });
+  });
+
+  test(`${entry} pins HTLC signing data and matches randomized engine inputs`, async () => {
+    await withRawEntry(entry, async (raw, generated) => {
+      const pinned = new raw.WasmPrePeginHtlcConnector(...htlcArgs());
+      try {
+        assert.equal(
+          pinned.getScriptPubKey('bitcoin'),
+          '51201e329cae02c721440dd11bb652c9992e59b9ca7b2a8dbbb08d6fd49278a47fa4',
+        );
+        assert.equal(
+          sha256Text(
+            [
+              pinned.getHashlockScript(),
+              pinned.getHashlockControlBlock(),
+              pinned.getRefundScript(),
+              pinned.getRefundControlBlock(),
+            ].join('|'),
+          ),
+          '625a8b363190adc2e1f6b3edea52cbed792b96967dbb2bb5be5e2635ad1598cf',
+        );
+      } finally {
+        pinned.free();
+      }
+      // Vary the group sizes and walk the script-number encoder boundaries:
+      // bscript.number.encode changes width at 128 and again at 32768, and the
+      // OP_CHECKSIGADD chain only differs from a single key past the first.
+      const timelocks = [1, 127, 128, 32767, 32768, 65535];
+      for (let sample = 0; sample < 12; sample += 1) {
+        const keeperCount = 1 + (sample % 4);
+        const challengerCount = 1 + ((sample + 2) % 4);
+        const keys = Array.from({ length: 2 + keeperCount + challengerCount }, () =>
+          Buffer.from(
+            secp256k1
+              .getPublicKey(secp256k1.utils.randomPrivateKey(), true)
+              .subarray(1),
+          ).toString('hex'),
+        );
+        const args = [
+          1 + (sample % 3),
+          keys[0],
+          keys[1],
+          keys.slice(2, 2 + keeperCount),
+          keys.slice(2 + keeperCount),
+          sha256Text(keys.join('')),
+          timelocks[sample % timelocks.length],
+        ];
+        const checked = new raw.WasmPrePeginHtlcConnector(...args);
+        const original = new generated.WasmPrePeginHtlcConnector(...args);
+        try {
+          for (const getter of htlcGetters)
+            assert.equal(checked[getter](), original[getter]());
+          assert.equal(
+            checked.getAddress('signet'),
+            original.getAddress('signet'),
+          );
+          assert.equal(
+            checked.getScriptPubKey('signet'),
+            original.getScriptPubKey('signet'),
+          );
+        } finally {
+          checked.free();
+          original.free();
+        }
+      }
+    });
+  });
+
+  test(`${entry} rejects changed HTLC outputs and releases failed construction`, async () => {
+    await withRawEntry(entry, async (raw, generated) => {
+      const prototype = generated.WasmPrePeginHtlcConnector.prototype;
+      for (const getter of [...htlcGetters, 'getScriptPubKey', 'getAddress']) {
+        const checked = new raw.WasmPrePeginHtlcConnector(...htlcArgs());
+        const original = prototype[getter];
+        const free = prototype.free;
+        let releases = 0;
+        prototype.free = function () {
+          releases += 1;
+          return free.call(this);
+        };
+        prototype[getter] = function (...args) {
+          const value = original.apply(this, args);
+          return typeof value === 'number'
+            ? value + 1
+            : value.slice(0, -1) + (value.endsWith('0') ? '1' : '0');
+        };
+        try {
+          assert.throws(() => checked[getter]('bitcoin'), /does not match/);
+          if (getter !== 'getAddress') {
+            assert.throws(
+              () => new raw.WasmPrePeginHtlcConnector(...htlcArgs()),
+              /does not match/,
+            );
+            assert.equal(
+              releases,
+              1,
+              'failed construction releases its engine object',
+            );
+          }
+          if (getter !== 'getAddress') {
+            // A trapping release must not replace the mismatch message.
+            prototype.free = function () {
+              throw new Error('release failed');
+            };
+            assert.throws(
+              () => new raw.WasmPrePeginHtlcConnector(...htlcArgs()),
+              /does not match/,
+            );
+          }
+        } finally {
+          prototype[getter] = original;
+          prototype.free = free;
+          checked.free();
+        }
+      }
+    });
+  });
+
+  test(`${entry} rejects malformed HTLC keys, groups, and hashlocks`, async () => {
+    await withRawEntry(entry, async (raw) => {
+      const cases = [
+        [[1, `0x${xOnlyKeys[0]}`, xOnlyKeys[1], [xOnlyKeys[2]], [xOnlyKeys[3]], sha256Text('raw HTLC'), 144], /malformed public key/],
+        [[1, 'ff'.repeat(32), xOnlyKeys[1], [xOnlyKeys[2]], [xOnlyKeys[3]], sha256Text('raw HTLC'), 144], /not a secp256k1 x-coordinate/],
+        [htlcArgs(1, []), /vaultKeeperPubkeys must not be empty/],
+        [htlcArgs(1, [xOnlyKeys[2], xOnlyKeys[2].toUpperCase()]), /must not contain duplicate keys/],
+        [[1, xOnlyKeys[0], xOnlyKeys[1], [xOnlyKeys[2]], [xOnlyKeys[3]], sha256Text('raw HTLC').slice(0, 63), 144], /hashlock must be 32 bytes/],
+      ];
+      for (const [args, message] of cases) {
+        assert.throws(() => new raw.WasmPrePeginHtlcConnector(...args), message);
+      }
+    });
+  });
+
+  test(`${entry} keeps trusted HTLC inputs after caller mutation and supports dispose`, async () => {
+    await withRawEntry(entry, async (raw) => {
+      const keepers = [xOnlyKeys[2]];
+      const checked = new raw.WasmPrePeginHtlcConnector(
+        ...htlcArgs(1, keepers),
+      );
+      const expected = checked.getHashlockScript();
+      keepers[0] = xOnlyKeys[4];
+      assert.equal(checked.getHashlockScript(), expected);
+      checked[Symbol.dispose]();
+      assert.throws(() => checked.getRefundControlBlock());
+      // The latch makes `using` plus an explicit free() safe.
+      assert.doesNotThrow(() => checked.free());
+      assert.doesNotThrow(() => checked[Symbol.dispose]());
+      for (const version of [0, 4, 99, 0x100000001, NaN]) {
+        assert.throws(
+          () => new raw.WasmPrePeginHtlcConnector(...htlcArgs(version)),
+          /Unsupported HTLC graph version/,
+        );
+      }
+      const invalid = htlcArgs();
+      invalid[6] = 0;
+      assert.throws(
+        () => new raw.WasmPrePeginHtlcConnector(...invalid),
+        /timelockRefund/,
+      );
+    });
+  });
+}
+
+// The facade entries, not just /raw, must build the guarded connector: these
+// are the paths the SDK's resume and PegIn-input signing actually call.
+test('the node facade guards getPrePeginHtlcConnectorInfo', async () => {
+  const facade = await import('../dist/index-node.js');
+  await facade.initWasm();
+  const generated = await import('../dist/generated/vault_wasm.js');
+
+  const info = await facade.getPrePeginHtlcConnectorInfo(facadeHtlcParams());
+  const expected = new generated.WasmPrePeginHtlcConnector(...htlcArgs());
+  try {
+    assert.equal(info.scriptPubKey, expected.getScriptPubKey('bitcoin'));
+    assert.equal(info.hashlockScript, expected.getHashlockScript());
+  } finally {
+    expected.free();
+  }
+
+  // The guard rejects before construction, so this message can only come from
+  // the guard; the generated class says 'unsupported tx graph version'.
+  await assert.rejects(
+    facade.getPrePeginHtlcConnectorInfo(facadeHtlcParams(4)),
+    /Unsupported HTLC graph version: 4/,
+  );
+});
+
+test('the browser facade guards getPrePeginHtlcConnectorInfo', async () => {
+  await withBrowserFacade(
+    async () =>
+      new Response(wasmBytes, {
+        headers: { 'Content-Type': 'application/wasm' },
+      }),
+    async (facade) => {
+      const info = await facade.getPrePeginHtlcConnectorInfo(
+        facadeHtlcParams(),
+      );
+      assert.match(info.scriptPubKey, /^5120[0-9a-f]{64}$/);
+      await assert.rejects(
+        facade.getPrePeginHtlcConnectorInfo(facadeHtlcParams(4)),
+        /Unsupported HTLC graph version: 4/,
+      );
+    },
+  );
+});
+
+// An engine bump that adds a graph version must fail here, where the pin is
+// visible, rather than fail closed inside a depositor's resume.
+test('the pinned HTLC graph versions match the engine', async () => {
+  const { SUPPORTED_HTLC_GRAPH_VERSIONS } = await import(
+    '../dist/rawHtlcConnector.js'
+  );
+  const facade = await import('../dist/index-node.js');
+  await facade.initWasm();
+
+  assert.deepEqual(
+    [...SUPPORTED_HTLC_GRAPH_VERSIONS],
+    await facade.supportedTxGraphVersions(),
   );
 });

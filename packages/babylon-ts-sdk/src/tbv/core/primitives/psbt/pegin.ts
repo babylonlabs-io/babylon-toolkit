@@ -221,7 +221,7 @@ export async function buildPrePeginPsbt(
   // Bind the validated metadata to the bytes that get funded and signed.
   // Reject a wrong count, a wrong auth or CPFP output, or an HTLC that does
   // not match the request before UTXO selection uses the output values.
-  assertUnfundedPrePeginOutputLayout(
+  await assertUnfundedPrePeginOutputLayout(
     parsed.outputs,
     result.htlcValues,
     result.htlcScriptPubKeys,
