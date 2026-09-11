@@ -190,7 +190,12 @@ export async function getPrePeginHtlcConnectorInfo(
       scriptPubKey: connector.getScriptPubKey(params.network),
     };
   } finally {
-    connector.free();
+    try {
+      connector.free();
+    } catch {
+      // A release failure must not replace a guard error: that message is the
+      // one signal that the engine disagreed with its own inputs.
+    }
   }
 }
 

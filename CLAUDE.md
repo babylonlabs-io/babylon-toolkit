@@ -51,7 +51,7 @@ These paths handle irreversible value movement. An AI-generated mistake here is 
 - Files:
   - `packages/babylon-tbv-rust-wasm/src/index.ts`
   - `packages/babylon-tbv-rust-wasm/src/prePeginHtlc.ts` - shared independent HTLC derivation
-  - `packages/babylon-tbv-rust-wasm/src/rawHtlcConnector.ts` - raw HTLC output checks
+  - `packages/babylon-tbv-rust-wasm/src/rawHtlcConnector.ts` - raw and facade HTLC output checks
   - `packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/assertWasmPeginSizing.ts`
   - `packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/constants.ts` - protocol transaction layout constants
   - `packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts`

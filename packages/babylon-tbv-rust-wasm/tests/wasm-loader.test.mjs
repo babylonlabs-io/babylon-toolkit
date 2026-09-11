@@ -663,11 +663,36 @@ for (const entry of ['raw', 'raw-node']) {
               'failed construction releases its engine object',
             );
           }
+          if (getter !== 'getAddress') {
+            // A trapping release must not replace the mismatch message.
+            prototype.free = function () {
+              throw new Error('release failed');
+            };
+            assert.throws(
+              () => new raw.WasmPrePeginHtlcConnector(...htlcArgs()),
+              /does not match/,
+            );
+          }
         } finally {
           prototype[getter] = original;
           prototype.free = free;
           checked.free();
         }
+      }
+    });
+  });
+
+  test(`${entry} rejects malformed HTLC keys, groups, and hashlocks`, async () => {
+    await withRawEntry(entry, async (raw) => {
+      const cases = [
+        [[1, `0x${xOnlyKeys[0]}`, xOnlyKeys[1], [xOnlyKeys[2]], [xOnlyKeys[3]], sha256Text('raw HTLC'), 144], /malformed public key/],
+        [[1, 'ff'.repeat(32), xOnlyKeys[1], [xOnlyKeys[2]], [xOnlyKeys[3]], sha256Text('raw HTLC'), 144], /not a secp256k1 x-coordinate/],
+        [htlcArgs(1, []), /vaultKeeperPubkeys must not be empty/],
+        [htlcArgs(1, [xOnlyKeys[2], xOnlyKeys[2].toUpperCase()]), /must not contain duplicate keys/],
+        [[1, xOnlyKeys[0], xOnlyKeys[1], [xOnlyKeys[2]], [xOnlyKeys[3]], sha256Text('raw HTLC').slice(0, 63), 144], /hashlock must be 32 bytes/],
+      ];
+      for (const [args, message] of cases) {
+        assert.throws(() => new raw.WasmPrePeginHtlcConnector(...args), message);
       }
     });
   });
@@ -683,6 +708,9 @@ for (const entry of ['raw', 'raw-node']) {
       assert.equal(checked.getHashlockScript(), expected);
       checked[Symbol.dispose]();
       assert.throws(() => checked.getRefundControlBlock());
+      // The latch makes `using` plus an explicit free() safe.
+      assert.doesNotThrow(() => checked.free());
+      assert.doesNotThrow(() => checked[Symbol.dispose]());
       for (const version of [0, 4, 99, 0x100000001, NaN]) {
         assert.throws(
           () => new raw.WasmPrePeginHtlcConnector(...htlcArgs(version)),
