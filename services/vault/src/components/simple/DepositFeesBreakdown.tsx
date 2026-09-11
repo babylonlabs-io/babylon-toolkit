@@ -36,6 +36,9 @@ interface DepositFeesBreakdownProps {
   networkFeeRate?: number;
   /** Estimated funding fee in satoshis at {@link networkFeeRate}. */
   networkFeeSats?: bigint | null;
+  /** Ledger vault app connected? Only the reserve tooltip reads it: that
+   * wallet cannot reclaim the reserve (#2375), so don't promise it. */
+  isLedgerVaultWallet: boolean;
 }
 
 export function DepositFeesBreakdown({
@@ -50,6 +53,7 @@ export function DepositFeesBreakdown({
   commissionBaseValues,
   networkFeeRate,
   networkFeeSats,
+  isLedgerVaultWallet,
 }: DepositFeesBreakdownProps) {
   // Format a satoshi value as a BTC amount plus an optional "($X USD)" suffix,
   // matching the existing fee-line presentation. `null` sats render as the
@@ -128,7 +132,7 @@ export function DepositFeesBreakdown({
       />
       <FeeDetailRow
         label={FORM_COPY.transactionReserveLabel}
-        tooltip={FORM_COPY.transactionReserveTooltip}
+        tooltip={FORM_COPY.transactionReserveTooltip(isLedgerVaultWallet)}
         value={transactionReserve.amount}
         secondaryValue={transactionReserve.price}
       />

@@ -109,6 +109,9 @@ export interface DepositProviderState {
 
 export interface DepositWalletState {
   isWalletConnected: boolean;
+  /** Ledger vault app connected? Read only by the fee breakdown's reserve
+   * tooltip (#2375); never gates the deposit. */
+  isLedgerVaultWallet: boolean;
   /**
    * True when the click-time wallet-liveness probe (or a prior reconnect
    * attempt) failed. Promotes the CTA from "Deposit" to "Reconnect Wallet";
@@ -232,6 +235,7 @@ export function DepositForm({
     providerState;
   const {
     isWalletConnected,
+    isLedgerVaultWallet,
     hasWalletConnectionError = false,
     walletConnectionErrorMessage = null,
     isWalletLocked = false,
@@ -522,6 +526,7 @@ export function DepositForm({
         commissionBaseValues={commissionBaseValues}
         networkFeeRate={estimatedFeeRate}
         networkFeeSats={estimatedFeeSats}
+        isLedgerVaultWallet={isLedgerVaultWallet}
       />
 
       {/* Protocol & risk parameters */}

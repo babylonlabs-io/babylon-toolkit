@@ -26,7 +26,7 @@ import { useMemo } from "react";
 
 import { isWithdrawBlocked } from "@/components/shared/protocolStatus";
 import { useBTCWallet } from "@/context/wallet";
-import { LEDGER_VAULT_WALLET_ID } from "@/context/wallet/VaultWalletConnectionProvider";
+import { isLedgerVaultConnector } from "@/context/wallet/VaultWalletConnectionProvider";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import type { ReclaimStatus } from "@/hooks/useReclaimStatus";
 import {
@@ -83,8 +83,7 @@ export function useReclaimRowAction({
   // The wallet id lives on the connector, not the BTC wallet context — same
   // accessor `useRefundState` uses.
   const btcConnector = useChainConnector("BTC");
-  const isLedgerWallet =
-    btcConnector?.connectedWallet?.id === LEDGER_VAULT_WALLET_ID;
+  const isLedgerWallet = isLedgerVaultConnector(btcConnector);
   const isOwnedByWallet = isOwnedByConnectedWallet(
     depositorBtcPubkey,
     publicKeyNoCoord,

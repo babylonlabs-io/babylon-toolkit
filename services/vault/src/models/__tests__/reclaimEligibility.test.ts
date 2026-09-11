@@ -260,8 +260,8 @@ describe("getReclaimEligibility", () => {
   });
 
   it("prefers the reclaiming state over the Ledger block once a sweep is in flight", () => {
-    // A sweep already broadcast from another wallet is in flight regardless of
-    // what this session is connected with.
+    // A sweep already broadcast (by a non-Ledger wallet holding the depositor
+    // key) is in flight regardless of what this session is connected with.
     expect(
       getReclaimEligibility(
         makeInput({
