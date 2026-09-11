@@ -199,16 +199,6 @@ function hasValidSecurityFields(entry: unknown): entry is PendingPeginRequest {
     }
   }
 
-  if (pegin.payoutSignedAt !== undefined) {
-    if (
-      typeof pegin.payoutSignedAt !== "number" ||
-      !Number.isFinite(pegin.payoutSignedAt) ||
-      pegin.payoutSignedAt < 0
-    ) {
-      return false;
-    }
-  }
-
   if (typeof pegin.unsignedTxHex !== "string") return false;
   // Empty string is the explicit cross-device "no local data" marker; anything
   // else must be non-empty, even-length hex bytes (`0x` prefix optional).
@@ -278,6 +268,18 @@ function hasValidSecurityFields(entry: unknown): entry is PendingPeginRequest {
   }
 
   return true;
+}
+
+/**
+ * `payoutSignedAt` only floors a progress bar, so unlike every other field
+ * here a malformed value is dropped rather than failing the whole entry
+ * closed — losing a deposit record over a bad progress stamp is the worse
+ * outcome.
+ */
+function sanitizePayoutSignedAt(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0
+    ? value
+    : undefined;
 }
 
 /**
@@ -374,6 +376,7 @@ export function getPendingPegins(ethAddress: string): PendingPeginRequest[] {
       id: normalizeTransactionId(pegin.id),
       // Ensure status field exists (backward compatibility)
       status: pegin.status || LocalStorageStatus.PENDING,
+      payoutSignedAt: sanitizePayoutSignedAt(pegin.payoutSignedAt),
     }));
 
     return normalized;
@@ -515,9 +518,10 @@ export function updatePendingPeginStatus(
       ? {
           ...pegin,
           status,
-          ...(status === LocalStorageStatus.PAYOUT_SIGNED
-            ? { payoutSignedAt: Date.now() }
-            : {}),
+          payoutSignedAt:
+            status === LocalStorageStatus.PAYOUT_SIGNED
+              ? Date.now()
+              : undefined,
         }
       : pegin,
   );

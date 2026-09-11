@@ -559,21 +559,25 @@ describe("getPendingPegins integrity validation", () => {
     expect(getPendingPegins(ETH_ADDRESS)).toHaveLength(0);
   });
 
-  it("filters entries whose payoutSignedAt is non-numeric", () => {
+  it("keeps an entry whose payoutSignedAt is non-numeric and drops the stamp", () => {
     const tampered = {
       ...validPegin,
-      payoutSignedAt: "not-a-number" as unknown as number,
+      payoutSignedAt: "yesterday" as unknown as number,
     };
     localStorage.setItem(storageKey, JSON.stringify([tampered]));
 
-    expect(getPendingPegins(ETH_ADDRESS)).toHaveLength(0);
+    const [stored] = getPendingPegins(ETH_ADDRESS);
+    expect(stored.id).toBe(VALID_VAULT_ID);
+    expect(stored.payoutSignedAt).toBeUndefined();
   });
 
-  it("filters entries whose payoutSignedAt is negative", () => {
+  it("keeps an entry whose payoutSignedAt is negative and drops the stamp", () => {
     const tampered = { ...validPegin, payoutSignedAt: -1 };
     localStorage.setItem(storageKey, JSON.stringify([tampered]));
 
-    expect(getPendingPegins(ETH_ADDRESS)).toHaveLength(0);
+    const [stored] = getPendingPegins(ETH_ADDRESS);
+    expect(stored.id).toBe(VALID_VAULT_ID);
+    expect(stored.payoutSignedAt).toBeUndefined();
   });
 });
 
@@ -622,8 +626,17 @@ describe("updatePendingPeginStatus", () => {
     vi.useRealTimers();
   });
 
-  it("leaves payoutSignedAt unset for a status that is not PAYOUT_SIGNED", () => {
-    localStorage.setItem(storageKey, JSON.stringify([validPegin]));
+  it("clears a stale payoutSignedAt when the status moves off PAYOUT_SIGNED", () => {
+    localStorage.setItem(
+      storageKey,
+      JSON.stringify([
+        {
+          ...validPegin,
+          status: LocalStorageStatus.PAYOUT_SIGNED,
+          payoutSignedAt: 1_700_000_123_000,
+        },
+      ]),
+    );
 
     updatePendingPeginStatus(
       ETH_ADDRESS,

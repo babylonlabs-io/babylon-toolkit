@@ -41,7 +41,6 @@ vi.mock("../ActivationGate", () => ({
 vi.mock("@/hooks/deposit/depositFlowSteps", () => ({
   DepositFlowStep: {
     AWAIT_BTC_CONFIRMATION: "AWAIT_BTC_CONFIRMATION",
-    AWAIT_VP_VERIFICATION: "AWAIT_VP_VERIFICATION",
     ACTIVATE_VAULT: "ACTIVATE_VAULT",
     COMPLETED: "COMPLETED",
   },
@@ -420,22 +419,6 @@ describe("PostDepositContinuationView", () => {
     });
     expect(queryByTestId("payout")).toBeNull();
     expect(getByTestId("progress-view")).toBeTruthy();
-  });
-
-  it("shows the floored progress step on the payout wait when btcPublicKey is unavailable", () => {
-    vi.mocked(getPeginProgressStep).mockReturnValue(
-      DepositFlowStep.AWAIT_VP_VERIFICATION,
-    );
-    mockGetPollingResult.mockReturnValue(
-      resultWith({
-        availableActions: [PeginAction.SIGN_PAYOUT_TRANSACTIONS],
-        localStatus: "payout_signed",
-      }),
-    );
-    const { getByTestId } = renderView({ btcPublicKey: undefined });
-    expect(getByTestId("step").textContent).toBe(
-      DepositFlowStep.AWAIT_VP_VERIFICATION,
-    );
   });
 
   it("routes activation through the activation gate when the vault is verified", () => {

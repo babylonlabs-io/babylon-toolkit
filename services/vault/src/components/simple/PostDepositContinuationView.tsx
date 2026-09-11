@@ -217,8 +217,11 @@ export function PostDepositContinuationView({
     activity?.offchainParamsVersion,
   );
   const peginState = pollingResult?.peginState;
+  // One clock for every lane in this render, so siblings can't straddle the
+  // payout-signed window boundary.
+  const now = Date.now();
   const waitStep = peginState
-    ? (getPeginProgressStep(peginState) ?? DepositFlowStep.ACTIVATE_VAULT)
+    ? (getPeginProgressStep(peginState, now) ?? DepositFlowStep.ACTIVATE_VAULT)
     : DepositFlowStep.AWAIT_BTC_CONFIRMATION;
   const showBtcDepthPanel =
     waitStep === DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS &&
@@ -249,7 +252,7 @@ export function PostDepositContinuationView({
       if (!result || result.loading) {
         return DepositFlowStep.AWAIT_BTC_CONFIRMATION;
       }
-      const displayStep = getPeginProgressStep(result.peginState);
+      const displayStep = getPeginProgressStep(result.peginState, now);
       if (displayStep !== null) return displayStep;
       if (
         result.peginState.displayVariant === "warning" ||

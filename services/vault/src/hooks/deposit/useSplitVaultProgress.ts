@@ -40,7 +40,8 @@ export interface SplitVaultProgress {
 type GetPollingResult = (depositId: string) => DepositPollingResult | undefined;
 
 /**
- * Pure derivation. Used directly by callers that already hold a
+ * Derivation over the polled results — reads the wall clock for the
+ * progress floor. Used directly by callers that already hold a
  * `getPollingResult` (e.g. PostDepositContinuationView, which computes its
  * active vault after early returns where a hook can't run).
  */
@@ -70,6 +71,9 @@ export function deriveSplitVaultProgress(
     return { vaultCount: siblingVaultIds.length, currentVaultIndex: null };
   }
 
+  // One clock for every lane, so siblings can't straddle the payout-signed
+  // window boundary.
+  const now = Date.now();
   const perVaultSteps = siblingVaultIds.map((id, index) => {
     // The active lane tracks the live render step (e.g. mid-signing), which
     // is finer-grained than the polled display step.
@@ -87,7 +91,7 @@ export function deriveSplitVaultProgress(
         ? activeStep
         : DepositFlowStep.AWAIT_BTC_CONFIRMATION;
     }
-    const displayStep = getPeginProgressStep(state);
+    const displayStep = getPeginProgressStep(state, now);
     // An in-progress sibling has its own display step (this also covers the
     // optimistic VERIFIED+CONFIRMED → AWAIT_ACTIVATION_CONFIRMATION case).
     if (displayStep !== null) return displayStep;

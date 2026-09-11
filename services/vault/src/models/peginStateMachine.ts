@@ -564,9 +564,14 @@ function isRefundBroadcastWithinTtl(
   return elapsedMs >= 0 && elapsedMs < REFUND_BROADCAST_SUPPRESSION_MS;
 }
 
-function isPayoutSignedWithinTtl(payoutSignedAt: number | undefined): boolean {
+function isPayoutSignedWithinTtl(
+  payoutSignedAt: number | undefined,
+  now: number,
+): boolean {
   if (payoutSignedAt === undefined) return false;
-  const elapsedMs = Date.now() - payoutSignedAt;
+  const elapsedMs = now - payoutSignedAt;
+  // A stamp ahead of the clock reads as negative elapsed and is treated as
+  // expired, same as `isRefundBroadcastWithinTtl`.
   return elapsedMs >= 0 && elapsedMs < PAYOUT_SIGNED_SUPPRESSION_MS;
 }
 
@@ -1006,15 +1011,28 @@ export function getPeginDisplayStep(state: PeginState): DepositFlowStep | null {
   return null;
 }
 
+/**
+ * Display-only variant of `getPeginDisplayStep` for progress bars.
+ *
+ * Right after the user signs payouts the VP can briefly keep asking for
+ * signatures again (a stale poll, or a verification still in flight). The
+ * action set must follow the VP, so the "Sign payouts" button stays live, but
+ * the progress bar deliberately disagrees: while the persisted
+ * `payoutSignedAt` stamp is within `PAYOUT_SIGNED_SUPPRESSION_MS` it holds at
+ * AWAIT_VP_VERIFICATION instead of dropping back to SIGN_AUTH_ANCHOR. Past the
+ * window the floor lifts and the bar tracks the VP again. Never use this to
+ * gate an action; only `getPeginDisplayStep` and the action set decide that.
+ */
 export function getPeginProgressStep(
   state: PeginState,
+  now: number = Date.now(),
 ): DepositFlowStep | null {
   const step = getPeginDisplayStep(state);
   if (step === null || state.localStatus !== LocalStorageStatus.PAYOUT_SIGNED) {
     return step;
   }
   return step === DepositFlowStep.SIGN_AUTH_ANCHOR &&
-    isPayoutSignedWithinTtl(state.payoutSignedAt)
+    isPayoutSignedWithinTtl(state.payoutSignedAt, now)
     ? DepositFlowStep.AWAIT_VP_VERIFICATION
     : step;
 }
