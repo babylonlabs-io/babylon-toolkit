@@ -24,11 +24,14 @@ const CANDLE_STALE_TIME_MS = 30 * 60 * 1000;
 /** Daily buckets, matching the date axis in the design. */
 const CANDLE_INTERVAL = "day_1" as const;
 
+/** Daily candles the Timeline shows at rest: one year of history. */
+export const TIMELINE_VISIBLE_CANDLES = 365;
+
 /**
  * Days of history requested. Wider than the visible window so the Timeline's
  * pan has somewhere to go.
  */
-const CANDLE_LIMIT = 180;
+const CANDLE_LIMIT = 2 * TIMELINE_VISIBLE_CANDLES;
 
 export interface UseBtcPriceCandlesResult {
   candles: Candle[] | null;
