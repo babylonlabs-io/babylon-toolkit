@@ -217,17 +217,28 @@ that does not match. The canonical transaction constants for this check are in
 
 The `@babylonlabs-io/babylon-tbv-rust-wasm/raw` subpath (`src/raw.ts`, `src/raw-node.ts`) has a
 second crossing. `packages/babylon-tbv-rust-wasm/src/rawHtlcConnector.ts` checks the HTLC connector
-against its constructor inputs. The payout guard in
+for internal consistency against its own constructor inputs. The payout guard in
 `packages/babylon-tbv-rust-wasm/src/rawPayoutConnector.ts` uses the independent derivation in
 `packages/babylon-tbv-rust-wasm/src/peginPayout.ts`. Both derivations use the key and multisig
 rules in `packages/babylon-tbv-rust-wasm/src/connectorScripts.ts`. The payout factories in
 `packages/babylon-tbv-rust-wasm/src/payoutConnector.ts` and `src/index-node.ts` use the guard.
 The SDK PegIn builder also checks the vault output against the payout derivation. These checks
-cover scripts, control blocks, addresses, hashes, and graph versions. The two transaction classes
-still expose unchecked WASM results. Their callers must
-cross-check at the call site. The only SDK consumer is
-`packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/refund.ts`.
-It derives the canonical HTLC and signing data in TypeScript before it emits a refund PSBT.
+cover scripts, control blocks, addresses, hashes, and graph versions. They cannot tell whether
+those inputs are the correct ones, so the caller must still check them against on-chain data.
+The two transaction classes still expose unchecked WASM results. Their callers must cross-check at
+the call site.
+
+The only SDK consumer of the raw subpath is
+`packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/refund.ts`. It takes `WasmPrePeginTx`, one of
+the unguarded classes, and derives the canonical HTLC and signing data in TypeScript before it emits
+a refund PSBT.
+
+The independent derivations moved into the engine package
+(`packages/babylon-tbv-rust-wasm/src/prePeginHtlc.ts` and `src/peginPayout.ts`), so they now ship
+beside the binary they check. One compromised engine publish therefore controls both the value and
+the expected value. We accept this because the engine cannot import the SDK without a dependency
+cycle, and because the derivations share no code, no data, and no build step with the WASM binary.
+Keep the two sides in separate modules and keep the differential test.
 
 The raw classes and SDK raw loader are deprecated. The HTLC and payout wrappers change class identity.
 The other raw paths still permit a bypass. Transaction restoration and original amount

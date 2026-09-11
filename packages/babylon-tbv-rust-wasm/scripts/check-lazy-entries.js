@@ -203,11 +203,10 @@ for (const [rawName, loaderName] of [
 }
 
 // Without generated code, facade entries must import and raw entries must fail.
+// No node_modules here on purpose: a facade entry that grew a static edge to
+// the Bitcoin stack must fail this import, and a symlinked node_modules would
+// resolve it and hide the regression.
 const isolatedPackage = mkdtempSync(join(tmpdir(), 'tbv-wasm-lazy-'));
-symlinkSync(
-  resolve(packageRoot, 'node_modules'),
-  join(isolatedPackage, 'node_modules'),
-);
 try {
   cpSync(
     resolve(packageRoot, 'package.json'),

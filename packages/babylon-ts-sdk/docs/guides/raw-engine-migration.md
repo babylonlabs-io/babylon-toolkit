@@ -22,8 +22,10 @@ reject malformed keys and hashlocks, empty or duplicate key groups, and
 timelocks outside 1 through 65535. Do not depend on unchecked input acceptance or
 identity with the generated class. This is a breaking engine release.
 
-The engine now declares the same pinned Bitcoin and curve dependencies used by
-the SDK. The engine root loads the shared derivation on demand. Ethereum-only
+The engine now declares the Bitcoin and curve packages the SDK uses, at the same
+pinned versions. It declares them as direct dependencies, while the SDK declares
+`bitcoinjs-lib` and `@bitcoin-js/tiny-secp256k1-asmjs` as optional peers, so an
+application that installs both can resolve two copies of `bitcoinjs-lib`. The engine root loads the shared derivation on demand. Ethereum-only
 SDK use still requires no engine or Bitcoin dependency.
 
 The `WasmPrePeginTx` and `WasmPeginTx` classes remain unguarded. The original
@@ -70,7 +72,7 @@ Both browser and Node.js `/raw` entries export the same four classes and
 | `getDepositorClaimValue`; `getHtlcValue`; `getPeginAmountAt`; `getNumHtlcs`; `getHtlcAddress`; `getHtlcScriptPubKey`                        | Use the Pre-PegIn result and its array lengths. Its addresses remain engine metadata; derive addresses from the checked HTLC scripts when needed. Independently check any retained raw value before use. |
 | `WasmPeginTx.getVaultValue`; `getVaultScriptPubKey`; transaction `getTxid` and `toHex`                                                      | Use the checked PegIn result. For a Pre-PegIn ID, derive it from the checked transaction bytes.                                                                                                          |
 | `WasmPeginTx.fromJson`; `toJson`                                                                                                            | No guarded round-trip replacement. See the compatibility blocker below.                                                                                                                                  |
-| `WasmPrePeginHtlcConnector` constructor; `getAddress`; `getScriptPubKey`; hashlock and refund script/control-block getters                  | The raw connector now checks these fields against its inputs. Use the signing builders above for transactions. `getPrePeginHtlcConnectorInfo` at the engine root still has no independent signing-data check.                                                 |
+| `WasmPrePeginHtlcConnector` constructor; `getAddress`; `getScriptPubKey`; hashlock and refund script/control-block getters                  | The raw connector now checks these fields against its inputs. Use the signing builders above for transactions. `getPrePeginHtlcConnectorInfo` at the engine root builds the same guarded connector, so it returns checked fields; the check is internal consistency against the inputs it was given, and the caller must still verify those inputs on-chain.                                                 |
 | `WasmPeginPayoutConnector` constructor; `getAddress`; `getScriptPubKey`; `getPayoutScript`; `getPayoutControlBlock`; `getTaprootScriptHash` | Use `buildPayoutPsbt` for signing. The raw connector and async payout factories check every field against their inputs.                                                                             |
 | All `getTxGraphVersion` methods                                                                                                             | Keep the trusted request version. Do not treat a returned version as proof of valid transaction values.                                                                                                  |
 | All `free` and `[Symbol.dispose]` methods                                                                                                   | Builders manage engine objects. Raw callers must still release their objects.                                                                                                                            |

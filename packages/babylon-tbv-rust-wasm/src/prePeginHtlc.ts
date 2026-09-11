@@ -18,6 +18,11 @@ import {
   stripHexPrefix,
 } from './connectorScripts.js';
 
+// bitcoinjs-lib keeps one module-global ECC backend. Install it once, when
+// this lazily-imported module is first evaluated, rather than mutating that
+// global inside a derivation.
+initEccLib(ecc);
+
 const PREIMAGE_LENGTH_BYTES = 32;
 
 export type PrePeginHtlcParams = Pick<
@@ -45,7 +50,6 @@ export function deriveExpectedPrePeginHtlc(
   params: PrePeginHtlcParams,
   hashlock: string,
 ): ExpectedPrePeginHtlc {
-  initEccLib(ecc);
 
   const depositor = normalizeXOnlyKey(
     params.depositorPubkey,
