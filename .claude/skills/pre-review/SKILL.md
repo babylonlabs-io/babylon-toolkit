@@ -138,35 +138,44 @@ separately, at full price each. Do it yourself.
    - **full**: everything else. `review-generalist`, `review-tracer`,
      `review-panel`.
 
-9. **Snapshot the content**, before anything can modify it: one
-   `git hash-object -w <path>` per file that exists. `-w` stores the content
-   in git's object database, so a later run can diff against exactly what was
-   reviewed, whether or not it was ever committed. A deleted file has no
-   content, and `git hash-object` exits 128 on it, aborting the rest of that
-   call: record it as `deleted`. This snapshot is what the state records.
-   Never re-hash after fixes: that would make the fixes look already
+9. **Lint, then snapshot the content.** Some packages' `lint` runs
+   `eslint --fix`, which rewrites files. So lint runs first, in the
+   foreground, before anything is snapshotted or reviewed:
+
+   ```
+   pnpm nx affected -t lint --files=<comma-separated changed files> --skip-nx-cache
+   ```
+
+   Then compare `git status --porcelain` with step 3's copy. Every file lint
+   modified was **rewritten by the checks**: tell the engineer, record it in
+   the run's `rewritten_by_checks`, and redo steps 3–4 so the review set and
+   `run<N>__local.diff` include the rewritten content. The review then covers
+   exactly what the snapshot records.
+
+   Snapshot: one `git hash-object -w <path>` per file that exists. `-w` stores
+   the content in git's object database, so a later run can diff against
+   exactly what was reviewed, whether or not it was ever committed. A deleted
+   file has no content, and `git hash-object` exits 128 on it, aborting the
+   rest of that call: record it as `deleted`. This snapshot is what the state
+   records. Never re-hash after fixes: that would make the fixes look already
    reviewed.
-10. **Build and test signal**, in the background, after the snapshot:
+
+10. **Tests**, in the background, after the snapshot:
 
     ```
-    pnpm nx affected -t lint,test --files=<comma-separated changed files> --skip-nx-cache
+    pnpm nx affected -t test --files=<comma-separated changed files> --skip-nx-cache
     ```
 
-    `--skip-nx-cache` is not optional: a cached replay prints success without
-    executing anything. `No tasks were run` means no nx project is affected:
-    record it as **nothing affected**, never as passed. Redirect the output
-    to a WORK file and read nx's own exit status. A failure is not
-    automatically a finding: stale `dist/` is the standing hazard in this repo
-    (rebuild `core-ui` and `ts-sdk` before vault), so characterise it first.
-
-    Some packages' `lint` runs `eslint --fix`, which can rewrite any file in
-    its package while reviewers read. When the run finishes, compare
-    `git status --porcelain` with step 3's copy and re-hash the changed files
-    (without `-w`). Every file that is newly modified, or no longer matches
-    the snapshot, was **rewritten by the checks**: tell the engineer, record
-    it in the run's `rewritten_by_checks`, and warn that reviewers may have
-    read the rewritten version. The authoritative reviewed content stays the
-    snapshot and `run<N>__local.diff`.
+    For both nx runs, `--skip-nx-cache` is not optional: a cached replay
+    prints success without executing anything. `No tasks were run` means no
+    nx project is affected: **nothing affected**, never passed. Redirect each
+    run's output to a WORK file and read nx's own exit status. The run's
+    `checks` is `failed` if either run failed, `nothing affected` if neither
+    ran a task, otherwise `passed`. A failure is not automatically a finding:
+    stale `dist/` is the standing hazard in this repo (rebuild `core-ui` and
+    `ts-sdk` before vault), so characterise it first. Tests should not write
+    source files; if `git status --porcelain` shows one changed when they
+    finish, report it as rewritten by the checks.
 
 Collect steps 1–9 into a short **context pack** and paste it verbatim into
 every reviewer prompt. Open it with:
@@ -187,9 +196,11 @@ Compare the step-9 snapshot with the state's `files` map:
 - **moved**: both sides are blobs, and they differ. For each moved file,
   `git cat-file -e <state blob>` first. If git has pruned it (unreferenced
   objects expire after about two weeks), treat the file as entered. Otherwise
-  `git diff <state blob> <current blob> > WORK/run<N>__<path with / as __>.diff`,
-  and count its lines with `git diff --numstat <state blob> <current blob>`.
-  List every diff file by name in the pack.
+  `git diff <state blob> <current blob> > WORK/run<N>__d<k>.diff`, numbering
+  the moved files k = 1, 2, … (a name derived from the path could collide:
+  `a/b.ts` and `a__b.ts`). Count its lines with
+  `git diff --numstat <state blob> <current blob>`. Put a table of each diff
+  file and its path in the pack.
 - **entered**: in the change now and not in the state, or changed between
   `deleted` and content, or its stored blob was pruned. Reviewed whole; a
   file deleted since the last run is judged from `run<N>__local.diff`. Its
@@ -198,8 +209,12 @@ Compare the step-9 snapshot with the state's `files` map:
 - **left**: in the state, no longer in the change.
 
 If the base moved since the last run (a rebase onto a newer `origin/main`),
-say so in the pack: part of each per-file diff is upstream work, which
-`git diff <state base> <current base> -- <path>` separates.
+list the files upstream changed: `git diff --name-only <state base> <current base>`.
+A moved file on that list goes to **entered** instead: its blob-to-blob diff
+would present upstream work as the author's. It is reviewed through its diff
+against the current base, `git diff <current base> -- <path>`, which holds
+only the branch's own change, and counted by that diff's numstat. Say in the
+pack that the base moved.
 
 If nothing overlaps (every stored file left and every current file entered),
 this is probably a different change under a reused branch name: ask before
@@ -210,19 +225,21 @@ for the checks, then go to Phase 4 with the stored findings (the engineer may
 have new decisions to record). With `--full`, run Phases 1–3 over the whole
 change.
 
-**Anything else**, run a **verdict pass** and a **new-defect pass**.
+**Anything else**: first mark `moot` every finding whose anchor files have
+all left the change. That needs only the buckets, not a reviewer, and a
+finding with no file left in the change must not stay open. If files only
+left, stop there: wait for the checks and go to Phase 4. Otherwise run a
+**verdict pass** and a **new-defect pass**.
 
 The verdict pass is one `review-lane`. Give it every finding that is not
 `moot` and has an anchor file that moved or entered, **including `fixed`
 ones**, so a regression is caught; each with its full `detail`, plus the
 buckets, the per-file diffs and the pack. Ask for one line per finding and no
-word limit. It owes a verdict for each, none skipped (give it the count):
-
-- any anchor file moved or entered → judge the current code: `fixed` (cite
-  the line), `partially fixed` (say what remains), `open`, or regressed (a
-  `fixed` finding that is wrong again), and return the current anchors
-- every anchor file left the change → `moot`
-- any other mix (unchanged, or unchanged and left) → keep the stored status
+word limit. It owes a verdict for each, none skipped (give it the count): judge
+the current code and return `fixed` (cite the line), `partially fixed` (say
+what remains), `open`, or regressed (a `fixed` finding that is wrong again),
+with the current anchors. A finding whose anchor files are all unchanged, or
+only unchanged and left, keeps its stored status and is not sent.
 
 The new-defect pass depends on escalation. **Escalate** when any of these
 holds:

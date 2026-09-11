@@ -37,10 +37,10 @@ the change is for. Edits made to `PR.md` by hand are kept wherever they are
 still true. Decisions are recorded before any fix starts, so an interrupted
 fix loses nothing.
 
-> ⚠️ **Important**: Some packages' `lint` script runs `eslint --fix`, so the
-> background checks can rewrite source files, including files outside the
-> change, while the review runs. The session names every rewritten file;
-> check those before committing, or the PR ships code no one reviewed.
+> ⚠️ **Important**: Some packages' `lint` script runs `eslint --fix`, which
+> can rewrite source files, including files outside the change. `/pre-review`
+> runs lint before it reviews anything and names every file lint rewrote;
+> those rewrites become part of the change, so check them before committing.
 
 ## Tiers
 
