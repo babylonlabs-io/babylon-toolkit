@@ -1,5 +1,5 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { act, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { COPY } from "@/copy";
 import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps/types";
@@ -1267,6 +1267,129 @@ describe("DepositProgressView", () => {
       expect(
         screen.queryByText(COPY.deposit.ethConfirmation.rationale),
       ).not.toBeInTheDocument();
+    });
+  });
+  describe("stalled notice", () => {
+    // Mocked depth 6 → a ~70 min estimate, so the notice threshold is 140 min.
+    const THRESHOLD_MS = 140 * 60_000;
+    const NOW = new Date("2026-01-01T12:00:00Z").getTime();
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+      vi.setSystemTime(NOW);
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("shows the notice on a waiting step held far past the estimate", () => {
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.AWAIT_VP_VERIFICATION}
+          startedAt={NOW - 12 * 60 * 60_000}
+        />,
+      );
+
+      expect(
+        screen.getByText(COPY.deposit.progress.stalled.title),
+      ).toBeInTheDocument();
+    });
+
+    it("stays hidden on a waiting step that just started", () => {
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.AWAIT_VP_VERIFICATION}
+          startedAt={NOW - 60_000}
+        />,
+      );
+
+      expect(
+        screen.queryByText(COPY.deposit.progress.stalled.title),
+      ).not.toBeInTheDocument();
+    });
+
+    it("stays hidden on a step that waits on the user, however long it sits", () => {
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.SIGN_PAYOUTS}
+          startedAt={NOW - 12 * 60 * 60_000}
+        />,
+      );
+
+      expect(
+        screen.queryByText(COPY.deposit.progress.stalled.title),
+      ).not.toBeInTheDocument();
+    });
+
+    it("stays hidden when the flow already failed", () => {
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.AWAIT_VP_VERIFICATION}
+          startedAt={NOW - 12 * 60 * 60_000}
+          error={{ title: "Failed", body: "Something went wrong" }}
+        />,
+      );
+
+      expect(
+        screen.queryByText(COPY.deposit.progress.stalled.title),
+      ).not.toBeInTheDocument();
+    });
+
+    it("falls back to the first render when no start time is supplied", () => {
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.AWAIT_VP_VERIFICATION}
+        />,
+      );
+
+      expect(
+        screen.queryByText(COPY.deposit.progress.stalled.title),
+      ).not.toBeInTheDocument();
+
+      // One tick past the threshold, since the check is strictly greater-than.
+      act(() => vi.advanceTimersByTime(THRESHOLD_MS + 60_000));
+
+      expect(
+        screen.getByText(COPY.deposit.progress.stalled.title),
+      ).toBeInTheDocument();
+    });
+
+    it("does not count time spent idling on the pre-sign entry", () => {
+      const { rerender } = render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.SIGN_PEGIN_BTC}
+          started={false}
+          onSign={vi.fn()}
+        />,
+      );
+
+      act(() => vi.advanceTimersByTime(THRESHOLD_MS + 60_000));
+
+      rerender(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.AWAIT_VP_VERIFICATION}
+          started
+          onSign={vi.fn()}
+        />,
+      );
+
+      expect(
+        screen.queryByText(COPY.deposit.progress.stalled.title),
+      ).not.toBeInTheDocument();
+
+      act(() => vi.advanceTimersByTime(THRESHOLD_MS + 60_000));
+
+      expect(
+        screen.getByText(COPY.deposit.progress.stalled.title),
+      ).toBeInTheDocument();
     });
   });
 });

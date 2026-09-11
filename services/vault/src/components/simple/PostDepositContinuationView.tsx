@@ -80,6 +80,7 @@ function StatusView({
   currentVaultIndex = null,
   perVaultSteps,
   offchainParamsVersion,
+  startedAt,
 }: {
   currentStep: DepositFlowStep;
   onClose: () => void;
@@ -93,6 +94,7 @@ function StatusView({
   currentVaultIndex?: number | null;
   perVaultSteps?: DepositFlowStep[];
   offchainParamsVersion?: number;
+  startedAt?: number;
 }) {
   return (
     <DepositProgressView
@@ -111,6 +113,7 @@ function StatusView({
       successMessage={successMessage}
       btcConfirmationDetail={btcConfirmationDetail}
       offchainParamsVersion={offchainParamsVersion}
+      startedAt={startedAt}
     />
   );
 }
@@ -184,6 +187,12 @@ export function PostDepositContinuationView({
   useEffect(() => {
     setStickyVaultId(actionableVaultId);
   }, [actionableVaultId]);
+
+  // Batch siblings are registered together, so any sibling dates the deposit —
+  // same reasoning as `batchParamsVersion` below.
+  const startedAt = activities.find(
+    (a) => a.timestamp !== undefined,
+  )?.timestamp;
 
   const pollingResult = currentVaultId
     ? getPollingResult(currentVaultId)
@@ -294,6 +303,7 @@ export function PostDepositContinuationView({
           currentVaultIndex={null}
           perVaultSteps={perVaultSteps}
           offchainParamsVersion={batchParamsVersion}
+          startedAt={startedAt}
         />
       );
     }
@@ -350,6 +360,7 @@ export function PostDepositContinuationView({
         isProcessing
         canContinueInBackground
         onClose={onClose}
+        startedAt={startedAt}
       />
     );
   }
@@ -458,6 +469,7 @@ export function PostDepositContinuationView({
       onClose={onClose}
       btcConfirmationDetail={btcConfirmationDetail}
       offchainParamsVersion={activity?.offchainParamsVersion}
+      startedAt={startedAt}
     />
   );
 }
