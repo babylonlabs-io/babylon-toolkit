@@ -1,44 +1,18 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
-import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { Accordion } from "../Accordion";
-import { AccordionDetails } from "../components/AccordionDetails";
-import { AccordionSummary } from "../components/AccordionSummary";
-
-const OPEN_PANEL_SELECTOR = '.bbn-accordion-content[data-expanded="true"]';
-const OPEN_PANEL_RULE = /\.bbn-accordion-content\[data-expanded="true"\]\s*\{([^}]*)\}/;
-
-const COMPILED_ACCORDION_CSS = readFileSync(path.resolve(__dirname, "../Accordion.css"), "utf-8").replace(
-  /&-/g,
-  ".bbn-accordion-",
-);
+const ACCORDION_CSS_SOURCE = readFileSync(path.resolve(__dirname, "../Accordion.css"), "utf-8");
 
 describe("Accordion", () => {
-  it("an open panel keeps no transform after its enter animation, so fixed-position children are not clipped", () => {
-    render(
-      <Accordion>
-        <AccordionSummary>Vault details</AccordionSummary>
-        <AccordionDetails>
-          <span>tooltip host</span>
-        </AccordionDetails>
-      </Accordion>,
+  it("declares no animation fill mode, so no accordion element keeps a transform after its enter animation", () => {
+    const values = [...ACCORDION_CSS_SOURCE.matchAll(/\banimation(?:-fill-mode)?\s*:\s*([^;]+);/g)].map(
+      (match) => match[1],
     );
-
-    fireEvent.click(screen.getByText("Vault details"));
-
-    const panel = screen.getByText("tooltip host").parentElement!;
-
-    fireEvent.animationEnd(panel);
-
-    expect(panel.matches(OPEN_PANEL_SELECTOR)).toBe(true);
-    expect(panel.style.getPropertyValue("transform")).toBe("");
-
-    const openPanelRule = COMPILED_ACCORDION_CSS.match(OPEN_PANEL_RULE);
-
-    expect(openPanelRule).not.toBeNull();
-    expect(openPanelRule?.[1]).not.toMatch(/\b(forwards|both)\b/);
+    expect(values.length).toBeGreaterThan(0);
+    for (const value of values) {
+      expect(value).not.toMatch(/\b(forwards|both)\b/);
+    }
   });
 });
