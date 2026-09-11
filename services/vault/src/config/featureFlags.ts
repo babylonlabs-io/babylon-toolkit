@@ -134,7 +134,7 @@ export default {
    * `ledger_btc` / `ledger_btc_v2` staking adapters.
    * Why needed: the full deposit flow is implemented (intent ceremony, PoP,
    * Pre-PegIn and payout signing) — reclaim of the depositor-claim reserve is
-   * not (decision D10), see `models/reclaimEligibility.ts` — but Ledger's
+   * not (#2375; see `models/reclaimEligibility.ts`) — but Ledger's
    * firmware is still in review, so the wallet ships per environment: it must
    * stay invisible
    * everywhere by default while Ledger can switch it on in a test environment

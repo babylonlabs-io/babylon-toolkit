@@ -146,11 +146,22 @@ describe("DepositFeesBreakdown commission disclosure", () => {
 });
 
 describe("DepositFeesBreakdown reserve tooltip", () => {
-  const reserveTooltipCopy = COPY.deposit.form.transactionReserveTooltip;
-
-  function renderedTooltips(): string[] {
-    return Array.from(document.querySelectorAll("[data-tooltip-content]")).map(
-      (node) => node.getAttribute("data-tooltip-content") ?? "",
+  // The reserve row is the smallest ancestor of its label carrying exactly one
+  // tooltip trigger; reading it there pins placement, not just presence.
+  function reserveRowTooltip(): string | null {
+    let node: HTMLElement | null = screen.getByText(
+      COPY.deposit.form.transactionReserveLabel,
+    );
+    while (
+      node !== null &&
+      node.querySelectorAll("[data-tooltip-content]").length !== 1
+    ) {
+      node = node.parentElement;
+    }
+    return (
+      node
+        ?.querySelector("[data-tooltip-content]")
+        ?.getAttribute("data-tooltip-content") ?? null
     );
   }
 
@@ -166,11 +177,11 @@ describe("DepositFeesBreakdown reserve tooltip", () => {
       />,
     );
 
-    expect(renderedTooltips()).toContain(reserveTooltipCopy(false));
-    expect(renderedTooltips()).not.toContain(reserveTooltipCopy(true));
+    expect(reserveRowTooltip()).toContain("you can reclaim it");
+    expect(reserveRowTooltip()).not.toContain("not supported yet");
   });
 
-  // The Ledger vault app cannot sign the reclaim sweep (decision D10), so the
+  // The Ledger vault app cannot sign the reclaim sweep (#2375), so the
   // deposit-time promise must not offer an action the depositor cannot take.
   it("does not promise the reclaim to the Ledger vault wallet", () => {
     render(
@@ -184,8 +195,7 @@ describe("DepositFeesBreakdown reserve tooltip", () => {
       />,
     );
 
-    expect(reserveTooltipCopy(true)).not.toBe(reserveTooltipCopy(false));
-    expect(renderedTooltips()).toContain(reserveTooltipCopy(true));
-    expect(renderedTooltips()).not.toContain(reserveTooltipCopy(false));
+    expect(reserveRowTooltip()).toContain("not supported yet");
+    expect(reserveRowTooltip()).not.toContain("you can reclaim it");
   });
 });
