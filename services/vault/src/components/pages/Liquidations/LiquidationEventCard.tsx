@@ -134,7 +134,7 @@ export function LiquidationEventCard({ card }: { card: EventCardData }) {
         {card.title}
       </h3>
 
-      <div className="flex flex-wrap gap-4 sm:gap-16">
+      <div className="flex flex-wrap gap-4 sm:gap-8 xl:gap-16">
         <Stat
           label={COPY.liquidations.events.collateral}
           value={card.collateralLabel}
@@ -222,7 +222,7 @@ export function LiquidationEventCard({ card }: { card: EventCardData }) {
         <p className={SECTION_TITLE_CLASS}>
           {COPY.liquidations.events.positionAfterSection}
         </p>
-        <div className="flex flex-wrap gap-4 sm:gap-16">
+        <div className="flex flex-wrap gap-4 sm:gap-8 xl:gap-16">
           <Stat
             label={COPY.liquidations.events.btcRemaining}
             value={card.btcRemainingLabel}
