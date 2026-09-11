@@ -1,22 +1,24 @@
 # Migrate raw Bitcoin engine access
 
 The raw API is deprecated. Its exports and method signatures remain available.
-`WasmPrePeginHtlcConnector` now checks every output against its constructor
-inputs. It is a wrapper, so it no longer has the generated class identity.
-The other raw classes can still bypass SDK value checks.
+`WasmPrePeginHtlcConnector` and `WasmPeginPayoutConnector` check every output
+against their constructor inputs. These wrappers have different class identities
+from the generated classes. The two transaction classes can still bypass SDK value checks.
 [Track #2361](https://github.com/babylonlabs-io/babylon-toolkit/issues/2361).
 #2361 and its parent #2231 stay open until the compatibility blocker below is
 resolved.
 
-## Raw HTLC connector change
+## Raw connector changes
 
 The HTLC connector checks the hashlock and refund scripts, both control blocks,
 the output script, each requested address, and the graph version. Its private
-engine object is not exposed. `free()` and `[Symbol.dispose]()` remain available.
+engine object is not exposed. The payout connector checks its script, leaf hash,
+control block, output script, each requested address, and graph version. Its
+async factories use the same guard. `free()` and `[Symbol.dispose]()` remain available.
 
 Valid outputs match the pinned engine for graph versions 1, 2, and 3. Raw network
 names remain `bitcoin`, `testnet`, `testnet4`, `signet`, and `regtest`. Input checks
-reject malformed keys and hashlocks, empty or duplicate key groups, and refund
+reject malformed keys and hashlocks, empty or duplicate key groups, and
 timelocks outside 1 through 65535. Do not depend on unchecked input acceptance or
 identity with the generated class. This is a breaking engine release.
 
@@ -26,9 +28,8 @@ pinned versions. It declares them as direct dependencies, while the SDK declares
 application that installs both can resolve two copies of `bitcoinjs-lib`. The engine root loads the shared derivation on demand. Ethereum-only
 SDK use still requires no engine or Bitcoin dependency.
 
-This slice does not guard `WasmPrePeginTx`, `WasmPeginTx`, or
-`WasmPeginPayoutConnector`. The original amount vector and trusted restoration
-inputs remain separate work. Do not close #2361 or #2231.
+The `WasmPrePeginTx` and `WasmPeginTx` classes remain unguarded. The original
+amount vector and trusted restoration inputs remain separate work. Do not close #2361 or #2231.
 
 ## Use guarded transaction builders
 
@@ -39,14 +40,15 @@ Import these builders from `@babylonlabs-io/ts-sdk/tbv/core/primitives`:
   field contains the unfunded transaction hex, despite the field name.
 - `buildPeginTxFromFundedPrePegin(params)` replaces funded reconstruction and
   `buildPeginTx`. It checks the parent outpoint, transaction layout, and vault
-  value. Its result contains `txHex`, `txid`, `vaultValue`, and
+  value and independently derived vault script. Its result contains `txHex`, `txid`, `vaultValue`, and
   `vaultScriptPubKey`.
 - `buildRefundPsbt(params)` replaces `buildRefundTx`. It returns a refund PSBT
   after it checks the funded output, refund input, destination, and exact fee.
 - `buildPeginInputPsbt(params)` builds the HTLC hashlock signing input.
   `buildRefundPsbt` builds the refund signing input.
 - `buildPayoutPsbt(params)` checks payout transaction values and signing data.
-  It does not independently derive every byte returned by the payout connector.
+  Its payout connector checks every returned field against the requested keys
+  and timelock.
 
 These calls are asynchronous. Supply the original request and trusted contract
 parameters. Use `vaultCoreVersion` for the SDK request where the engine request
@@ -71,7 +73,7 @@ Both browser and Node.js `/raw` entries export the same four classes and
 | `WasmPeginTx.getVaultValue`; `getVaultScriptPubKey`; transaction `getTxid` and `toHex`                                                      | Use the checked PegIn result. For a Pre-PegIn ID, derive it from the checked transaction bytes.                                                                                                          |
 | `WasmPeginTx.fromJson`; `toJson`                                                                                                            | No guarded round-trip replacement. See the compatibility blocker below.                                                                                                                                  |
 | `WasmPrePeginHtlcConnector` constructor; `getAddress`; `getScriptPubKey`; hashlock and refund script/control-block getters                  | The raw connector now checks these fields against its inputs. Use the signing builders above for transactions. `getPrePeginHtlcConnectorInfo` at the engine root builds the same guarded connector, so it returns checked fields; the check is internal consistency against the inputs it was given, and the caller must still verify those inputs on-chain.                                                 |
-| `WasmPeginPayoutConnector` constructor; `getAddress`; `getScriptPubKey`; `getPayoutScript`; `getPayoutControlBlock`; `getTaprootScriptHash` | Use `buildPayoutPsbt` for signing. The engine's `createPayoutConnector` manages object lifetime, but is not a signing check.                                                                             |
+| `WasmPeginPayoutConnector` constructor; `getAddress`; `getScriptPubKey`; `getPayoutScript`; `getPayoutControlBlock`; `getTaprootScriptHash` | Use `buildPayoutPsbt` for signing. The raw connector and async payout factories check every field against their inputs.                                                                             |
 | All `getTxGraphVersion` methods                                                                                                             | Keep the trusted request version. Do not treat a returned version as proof of valid transaction values.                                                                                                  |
 | All `free` and `[Symbol.dispose]` methods                                                                                                   | Builders manage engine objects. Raw callers must still release their objects.                                                                                                                            |
 | `/raw.initWasm`; `loadRawTbvWasm`                                                                                                           | Builders load the engine on demand. Engine-only callers can use root `initWasm`, but initialization does not validate results.                                                                           |
@@ -111,8 +113,8 @@ decision must define how callers supply trusted inputs and how existing
 `fromJson` calls remain supported. Do not close #2361 or #2231 on this change.
 The guarded product-path work in #2386 remains separate.
 
-The earlier deprecation change kept class identities and signatures. This HTLC
-guard changes class identity and rejects unchecked inputs. Use a breaking-change
+The earlier deprecation change kept class identities and signatures. The HTLC
+and payout guards change class identity and reject unchecked inputs. Use a breaking-change
 release marker for the engine. The SDK must use the engine release that contains
 the shared derivation. The remaining raw API changes need their own release
 records. API removal and its date remain outside this change.

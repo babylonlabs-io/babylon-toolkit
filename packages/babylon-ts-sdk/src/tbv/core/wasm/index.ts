@@ -291,6 +291,21 @@ export async function createPayoutConnector(
 }
 
 /**
+ * Derives the canonical PegIn payout output from the requested keys and
+ * timelock, in TypeScript, without consuming any WASM-computed value.
+ *
+ * Callers compare an engine-built vault output against this derivation.
+ *
+ * @param params - The keys, graph version, and timelock that were requested
+ * @returns The expected payout script, control block, scriptPubKey, and hash
+ */
+export async function deriveExpectedPeginPayout(
+  params: PayoutConnectorParams,
+) {
+  return (await loadTbvWasm()).deriveExpectedPeginPayout(params);
+}
+
+/**
  * Get the Payout script and control block for the depositor's Assert output.
  *
  * Used to build the depositor's Payout PSBT (depositor-as-claimer path).

@@ -24,7 +24,10 @@ const {
   validatePeginP2aAnchorMock: vi.fn(),
 }));
 
-vi.mock("@babylonlabs-io/babylon-tbv-rust-wasm", () => ({
+vi.mock("@babylonlabs-io/babylon-tbv-rust-wasm", async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import("@babylonlabs-io/babylon-tbv-rust-wasm")
+  >()),
   buildPeginTxFromPrePegin: buildPeginTxFromPrePeginMock,
   computeMinClaimValue: computeMinClaimValueMock,
   createPrePeginTransaction: vi.fn(),
@@ -36,7 +39,9 @@ import { buildPeginTxFromFundedPrePegin, type PrePeginParams } from "../pegin";
 import { TEST_AMOUNTS, TEST_KEYS } from "./helpers";
 
 const CLAIM_VALUE = 20_000n;
-const VAULT_SCRIPT = "5120" + "ee".repeat(32);
+// Real payout connector for TEST_KEYS, with timelock 100.
+const VAULT_SCRIPT =
+  "51204770efdd795ac685bc070f9f8cfedc8bf8836dc7bc82384fbcfeca781551f14f";
 
 function makePrePeginParams(vaultCoreVersion = 1): PrePeginParams {
   return {
@@ -260,7 +265,7 @@ describe("assertPeginTxShape (via buildPeginTxFromFundedPrePegin)", () => {
   it("rejects an encoded vault script that differs from the metadata", async () => {
     await expect(
       buildWith(fundedHex, { encodedVaultScript: "5120" + "dd".repeat(32) }),
-    ).rejects.toThrow(/does not match the WASM-reported vaultScriptPubKey/);
+    ).rejects.toThrow(/does not match the requested payout scriptPubKey/);
   });
 
   it("rejects a depositor-claim value that differs from the WASM reference", async () => {
