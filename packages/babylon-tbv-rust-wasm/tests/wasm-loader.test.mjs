@@ -717,6 +717,8 @@ for (const entry of ['raw', 'raw-node']) {
       assert.equal(checked.getPayoutScript(), expected);
       checked[Symbol.dispose]();
       assert.throws(() => checked.getPayoutControlBlock(), /null pointer passed to rust/);
+      // The latch makes a `using` declaration plus an explicit free() safe.
+      assert.doesNotThrow(() => checked.free());
       for (const version of [0, 4, 99, 0x100000001, NaN]) {
         assert.throws(
           () =>
@@ -960,7 +962,7 @@ for (const entry of ['raw', 'raw-node']) {
   test(`${entry} rejects malformed HTLC keys, groups, and hashlocks`, async () => {
     await withRawEntry(entry, async (raw) => {
       const cases = [
-        [[1, `0x${xOnlyKeys[0]}`, xOnlyKeys[1], [xOnlyKeys[2]], [xOnlyKeys[3]], sha256Text('raw HTLC'), 144], /malformed public key/],
+        [[1, `0x${xOnlyKeys[0]}`, xOnlyKeys[1], [xOnlyKeys[2]], [xOnlyKeys[3]], sha256Text('raw HTLC'), 144], /must be a 32-byte x-only public key/],
         [[1, 'ff'.repeat(32), xOnlyKeys[1], [xOnlyKeys[2]], [xOnlyKeys[3]], sha256Text('raw HTLC'), 144], /not a secp256k1 x-coordinate/],
         [htlcArgs(1, []), /vaultKeeperPubkeys must not be empty/],
         [htlcArgs(1, [xOnlyKeys[2], xOnlyKeys[2].toUpperCase()]), /must not contain duplicate keys/],
