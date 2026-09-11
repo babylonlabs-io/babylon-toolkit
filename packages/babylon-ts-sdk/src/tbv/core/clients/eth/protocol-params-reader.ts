@@ -6,7 +6,7 @@
  */
 
 import type { Abi, Address, Hex, PublicClient } from "viem";
-import { decodeFunctionResult, encodeFunctionData, size } from "viem";
+import { decodeFunctionResult, encodeFunctionData, size, slice } from "viem";
 
 import {
   ProtocolParamsABI,
@@ -241,6 +241,11 @@ export class ViemProtocolParamsReader implements ProtocolParamsReader {
       throw new Error("getTBVProtocolParams returned no data");
     }
 
+    if (size(data) % ABI_WORD_BYTES !== 0) {
+      throw new Error(
+        `Invalid getTBVProtocolParams return: expected whole 32-byte words, got ${size(data)} bytes`,
+      );
+    }
     const words = size(data) / ABI_WORD_BYTES;
     if (
       (TBV_PROTOCOL_PARAMS_LEGACY_WORD_COUNTS as readonly number[]).includes(
@@ -249,16 +254,21 @@ export class ViemProtocolParamsReader implements ProtocolParamsReader {
     ) {
       return { status: "unsupported" };
     }
-    if (words !== TBV_PROTOCOL_PARAMS_WORD_COUNT) {
+    if (words < TBV_PROTOCOL_PARAMS_WORD_COUNT) {
       throw new Error(
-        `Invalid getTBVProtocolParams return: expected ${TBV_PROTOCOL_PARAMS_WORD_COUNT} words (or a legacy 6/7-word tuple), got ${size(data)} bytes`,
+        `Invalid getTBVProtocolParams return: expected at least ${TBV_PROTOCOL_PARAMS_WORD_COUNT} words (or a legacy 6/7-word tuple), got ${size(data)} bytes`,
       );
     }
 
+    // `TBVProtocolParams` is append-only — it has grown twice, and
+    // `IProtocolParams.sol` documents each new field as appended last. A 9th
+    // word is therefore a field this SDK does not know about, not a corrupt
+    // payload, so decode the prefix this SDK does know and ignore the rest
+    // rather than halting every deposit until the next SDK release.
     const result = decodeFunctionResult({
       abi: ProtocolParamsFundingInputBoundABI,
       functionName: "getTBVProtocolParams",
-      data,
+      data: slice(data, 0, TBV_PROTOCOL_PARAMS_WORD_COUNT * ABI_WORD_BYTES),
     });
 
     const raw = result.maxFundingInputCount;

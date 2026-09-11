@@ -12,6 +12,12 @@ import {
   computeChangeOutputFeeSats,
   computePeginBaseFeeSats,
 } from "../fee/peginFeeMath";
+import { FundingInputCountExceededError } from "./fundingInputCountExceeded";
+
+export {
+  FundingInputCountExceededError,
+  isFundingInputCountExceededError,
+} from "./fundingInputCountExceeded";
 
 /**
  * Unspent Transaction Output (UTXO) for funding peg-in transactions.
@@ -43,35 +49,6 @@ export interface UTXOSelectionResult {
   totalValue: bigint;
   fee: bigint;
   changeAmount: bigint;
-}
-
-/**
- * Thrown when funding a Pre-PegIn would need more inputs than the
- * protocol's on-chain `maxFundingInputCount` allows in one transaction.
- */
-export class FundingInputCountExceededError extends Error {
-  public readonly maxInputCount: number;
-
-  constructor(maxInputCount: number) {
-    super(
-      `Funding this deposit needs more than ${maxInputCount} UTXOs, the most one Pre-PegIn may spend`,
-    );
-    this.name = "FundingInputCountExceededError";
-    this.maxInputCount = maxInputCount;
-  }
-}
-
-/**
- * Type guard for {@link FundingInputCountExceededError}. Falls back to the
- * `name` check so the guard still holds across module/realm boundaries.
- */
-export function isFundingInputCountExceededError(
-  err: unknown,
-): err is FundingInputCountExceededError {
-  return (
-    err instanceof FundingInputCountExceededError ||
-    (err instanceof Error && err.name === "FundingInputCountExceededError")
-  );
 }
 
 /**
@@ -176,7 +153,10 @@ function assertNoDuplicateUtxos(utxos: UTXO[]): void {
  *   exactly `maxInputCount` inputs is accepted, needing one more is rejected.
  * @returns Selected UTXOs, total value, calculated fee, and change amount
  * @throws Error if insufficient funds, no valid UTXOs, or `maxInputCount` is neither null nor a positive integer
- * @throws FundingInputCountExceededError if funding would need more than `maxInputCount` inputs
+ * @throws FundingInputCountExceededError if funding would need more than
+ *   `maxInputCount` inputs and the full valid set could have covered the
+ *   target; a wallet whose whole valid set falls short throws insufficient
+ *   funds instead
  */
 export function selectUtxosForPegin(
   availableUTXOs: UTXO[],
@@ -218,12 +198,6 @@ export function selectUtxosForPegin(
   // selector charged for — silent depositor overpayment at the dust
   // boundary.
   for (const utxo of sortedUTXOs) {
-    // Reject before the push, so a selection that would need input
-    // `maxInputCount + 1` never reaches the fee math or the caller — the
-    // registry rejects `inputCount > maxFundingInputCount`.
-    if (maxInputCount !== null && selectedUTXOs.length >= maxInputCount) {
-      throw new FundingInputCountExceededError(maxInputCount);
-    }
     selectedUTXOs.push(utxo);
     accumulatedValue += BigInt(utxo.value);
 
@@ -237,6 +211,18 @@ export function selectUtxosForPegin(
     if (accumulatedValue < peginAmount + baseFee) {
       estimatedFee = baseFee;
       continue;
+    }
+
+    // Only once this prefix can actually fund the deposit: a wallet whose
+    // whole valid set falls short is short of funds, not over the input
+    // bound, and "consolidate your UTXOs" cannot fix a shortfall. Largest-
+    // first prefixes are the best k-input subsets for every k and the fee
+    // depends only on k, so reaching this line at all means no selection
+    // within the bound could have funded it either. The fee math above is
+    // pure integer arithmetic, so running it for the rejected input costs
+    // nothing.
+    if (maxInputCount !== null && selectedUTXOs.length > maxInputCount) {
+      throw new FundingInputCountExceededError(maxInputCount);
     }
 
     const policy = applyChangeOutputPolicy({

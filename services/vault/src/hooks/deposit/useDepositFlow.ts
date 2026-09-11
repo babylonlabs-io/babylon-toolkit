@@ -698,17 +698,6 @@ export function useDepositFlow(
           // Re-check what the depositor actually approved against the pinned
           // numbers.
           assertBuildWithinPinnedLimits(vaultAmounts, buildConfig);
-
-          // A chain that publishes no funding-input bound rejects every
-          // Pre-PegIn built against it, so there is nothing to build. Raised as
-          // drift because the form gated on a bound that has since gone away,
-          // and the recovery is the same: stop before anything is signed.
-          if (fundingInputBound.status === "unpublished") {
-            throw new BuildLimitsDriftError(
-              "Deposit limits changed while preparing this deposit: the chain no longer publishes a funding-input bound, so peg-ins are paused.",
-              "funding-inputs",
-            );
-          }
         } catch (driftError) {
           // Both aborts tell the depositor to start again, and the only way to
           // do that is to close and reopen the form, which reads the cached
@@ -738,6 +727,40 @@ export function useDepositFlow(
           }
           throw driftError;
         }
+
+        // A chain that publishes no funding-input bound rejects every Pre-PegIn
+        // built against it, so there is nothing to build. Raised as drift
+        // because the form gated on a bound that has since gone away, and the
+        // recovery is the same: stop before anything is signed.
+        //
+        // Outside the try/catch above on purpose: the peg-in configuration did
+        // not drift here, and the catch's cache overwrite is justified only on
+        // the axis that failed. The bound has its own cache key, already
+        // refreshed from the pinned read above.
+        if (fundingInputBound.status === "unpublished") {
+          throw new BuildLimitsDriftError(
+            "Deposit limits changed while preparing this deposit: the chain no longer publishes a funding-input bound, so peg-ins are paused.",
+            "funding-inputs",
+          );
+        }
+
+        // `unpublished` threw above, so the union left here is
+        // `published | unsupported` and this switch is exhaustive over it. That
+        // is the point: a new bound status becomes a compile error instead of
+        // silently falling through to `null`, which the selector reads as "no
+        // cap at all".
+        const pinnedMaxFundingInputCount = ((): number | null => {
+          switch (fundingInputBound.status) {
+            case "published":
+              return fundingInputBound.maxInputs;
+            case "unsupported":
+              return null;
+            default: {
+              const exhaustive: never = fundingInputBound;
+              return exhaustive;
+            }
+          }
+        })();
 
         const validatedKeys = await validateOnChainParticipantKeys({
           vaultRegistryReader: getVaultRegistryReader(),
@@ -813,10 +836,7 @@ export function useDepositFlow(
             timelockRefund: buildConfig.timelockRefund,
             councilQuorum: buildConfig.offchainParams.councilQuorum,
             councilSize: buildConfig.offchainParams.securityCouncilKeys.length,
-            maxFundingInputCount:
-              fundingInputBound.status === "published"
-                ? fundingInputBound.maxInputs
-                : null,
+            maxFundingInputCount: pinnedMaxFundingInputCount,
             availableUTXOs: spendableUTXOs,
           },
         );

@@ -71,15 +71,36 @@ vi.mock("../../../applications/aave/context", () => ({
   })),
 }));
 
+import { useApplicationCap } from "../../useApplicationCap";
 import { useApplications } from "../../useApplications";
 import { useBtcPublicKey } from "../../useBtcPublicKey";
 import { useUTXOs } from "../../useUTXOs";
 import { useAllocationPlanning } from "../useAllocationPlanning";
 import { useDepositPageForm } from "../useDepositPageForm";
 import { useEstimatedBtcFee } from "../useEstimatedBtcFee";
+import { resolveMaxInputCount } from "../useFundingInputBound";
 import { useVaultProviders } from "../useVaultProviders";
 
 vi.mock("@babylonlabs-io/ts-sdk/tbv/core", () => ({
+  // Stands in for the real budget: drop UTXOs whose script does not decode,
+  // take the largest `maxInputCount`, sum them. `scriptPubKey: null` marks the
+  // undecodable ones here; the real filter is covered in the SDK's own tests.
+  computeFundingBudget: vi.fn(
+    (
+      utxos: Array<{ value: number; scriptPubKey: string | null }>,
+      maxInputCount: number | null,
+    ) => {
+      const sorted = utxos
+        .filter((u) => u.scriptPubKey !== null)
+        .sort((a, b) => b.value - a.value);
+      const spendable =
+        maxInputCount === null ? sorted : sorted.slice(0, maxInputCount);
+      return {
+        numInputs: spendable.length,
+        totalBalance: spendable.reduce((sum, u) => sum + BigInt(u.value), 0n),
+      };
+    },
+  ),
   computeNumLocalChallengers: vi.fn(() => 2),
   computeMinClaimValue: vi.fn().mockResolvedValue(35_000n),
   // Mocked to a deterministic, realistic-shape value (~vsize × low rate).
@@ -1177,6 +1198,97 @@ describe("useDepositPageForm", () => {
       const { result } = renderHook(() => useDepositPageForm(), { wrapper });
 
       expect(result.current.btcPublicKeyError).toBe(walletError);
+    });
+  });
+
+  describe("fundingInputCapBites", () => {
+    // `clearAllMocks` keeps implementations, so restore the module defaults
+    // these tests override rather than leaking them into later suites.
+    beforeEach(() => {
+      vi.mocked(resolveMaxInputCount).mockReturnValue(20);
+      vi.mocked(useApplicationCap).mockReturnValue({
+        snapshot: {
+          totalCapBTC: 0n,
+          perAddressCapBTC: 0n,
+          totalBTC: 0n,
+          userBTC: null,
+          hasTotalCap: false,
+          hasPerAddressCap: false,
+          remainingTotal: null,
+          remainingForUser: null,
+          effectiveRemaining: null,
+        },
+        isLoading: false,
+        error: null,
+        refetch: vi.fn(),
+      } as unknown as ReturnType<typeof useApplicationCap>);
+    });
+
+    const utxo = (value: number, scriptPubKey: string | null = "0xabc") => ({
+      txid: `0x${value}`,
+      vout: 0,
+      value,
+      scriptPubKey,
+      confirmed: true,
+    });
+
+    function mockSpendable(utxos: ReturnType<typeof utxo>[]) {
+      vi.mocked(useUTXOs).mockReturnValue({
+        allUTXOs: utxos,
+        confirmedUTXOs: utxos,
+        availableUTXOs: utxos,
+        inscriptionUTXOs: [],
+        spendableUTXOs: utxos,
+        spendableMempoolUTXOs: utxos,
+        ordinalsCheckPending: false,
+        unconfirmedBalance: 0n,
+      } as unknown as ReturnType<typeof useUTXOs>);
+    }
+
+    it("is set when the bound, not the balance, caps the maximum", () => {
+      mockSpendable([utxo(500_000), utxo(300_000), utxo(100_000)]);
+      vi.mocked(resolveMaxInputCount).mockReturnValue(2);
+
+      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+
+      expect(result.current.fundingInputCapBites).toBe(true);
+    });
+
+    it("is not set when the inputs past the bound are the ones with undecodable scripts", () => {
+      // The selector and the Max both discard these, so the depositor's
+      // selectable set is inside the bound and consolidating buys nothing.
+      mockSpendable([utxo(500_000), utxo(300_000), utxo(900_000, null)]);
+      vi.mocked(resolveMaxInputCount).mockReturnValue(2);
+
+      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+
+      expect(result.current.fundingInputCapBites).toBe(false);
+    });
+
+    it("is not set when the supply cap, not the bound, is the binding ceiling", () => {
+      mockSpendable([utxo(500_000), utxo(300_000), utxo(100_000)]);
+      vi.mocked(resolveMaxInputCount).mockReturnValue(2);
+      vi.mocked(useApplicationCap).mockReturnValue({
+        snapshot: {
+          totalCapBTC: 0n,
+          perAddressCapBTC: 0n,
+          totalBTC: 0n,
+          userBTC: null,
+          hasTotalCap: true,
+          hasPerAddressCap: false,
+          remainingTotal: 50_000n,
+          remainingForUser: null,
+          effectiveRemaining: 50_000n,
+        },
+        isLoading: false,
+        error: null,
+        refetch: vi.fn(),
+      } as unknown as ReturnType<typeof useApplicationCap>);
+
+      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+
+      expect(result.current.maxDepositSats).toBe(50_000n);
+      expect(result.current.fundingInputCapBites).toBe(false);
     });
   });
 });

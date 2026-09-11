@@ -79,6 +79,7 @@ import {
 } from "../primitives/utils/bitcoin";
 import {
   calculateBtcTxHash,
+  FundingInputCountExceededError,
   fundPeginTransaction,
   getNetwork,
   getPsbtInputFields,
@@ -284,7 +285,7 @@ export interface PreparePeginParams {
    * pinned block — the most inputs one Pre-PegIn may spend. `null` only
    * when the deployment predates the field.
    *
-   * Enforced at UTXO selection, before any wallet or device I/O, and
+   * Enforced at UTXO selection, before any signing or approval prompt, and
    * re-asserted against the funded transaction.
    */
   maxFundingInputCount: number | null;
@@ -1055,15 +1056,14 @@ export class PeginManager {
           `spend exactly the selected inputs.`,
       );
     }
+    // Typed, not a plain Error: the consuming app routes this class to the
+    // "Too many UTXOs" copy, and a generic failure here would look like a
+    // bug in the app rather than a bound the depositor can act on.
     if (
       params.maxFundingInputCount !== null &&
       fundedInputCount > params.maxFundingInputCount
     ) {
-      throw new Error(
-        `Pre-PegIn declares ${fundedInputCount} inputs, above the on-chain ` +
-          `maxFundingInputCount of ${params.maxFundingInputCount}; refusing to ` +
-          `submit a transaction the registry will reject.`,
-      );
+      throw new FundingInputCountExceededError(params.maxFundingInputCount);
     }
 
     const prePeginTxid = stripHexPrefix(

@@ -38,13 +38,40 @@ import {
   initializeWasmForTests,
 } from "../../primitives/psbt/__tests__/helpers";
 import { FundingInputCountExceededError, type UTXO } from "../../utils";
-import { parseUnfundedWasmTransaction } from "../../utils/transaction/fundPeginTransaction";
+import {
+  fundPeginTransaction,
+  parseUnfundedWasmTransaction,
+} from "../../utils/transaction/fundPeginTransaction";
+import { selectUtxosForPegin } from "../../utils/utxo/selectUtxos";
 import { PeginManager, type PeginManagerConfig } from "../PeginManager";
 
 // Mock calculateBtcTxHash to avoid parsing funded pre-pegin tx in tests
 vi.mock("../../utils/transaction/btcTxHash", () => ({
   calculateBtcTxHash: vi.fn(() => `0x${"a".repeat(64)}`),
 }));
+
+// Pass-through spies. The post-funding cross-checks assert that the funder
+// spent exactly the selected inputs and stayed within the bound, and neither
+// is reachable while both halves behave — one test overrides each.
+vi.mock(
+  "../../utils/transaction/fundPeginTransaction",
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import("../../utils/transaction/fundPeginTransaction")
+      >();
+    return {
+      ...actual,
+      fundPeginTransaction: vi.fn(actual.fundPeginTransaction),
+    };
+  },
+);
+
+vi.mock("../../utils/utxo/selectUtxos", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("../../utils/utxo/selectUtxos")>();
+  return { ...actual, selectUtxosForPegin: vi.fn(actual.selectUtxosForPegin) };
+});
 
 // Mock buildPeginInputPsbt, extractPeginInputSignature, and finalizePeginInputPsbt —
 // the mock wallet cannot produce a valid signed PSBT, so we mock these primitives
@@ -760,6 +787,75 @@ describe("PeginManager", () => {
       expect(deriveContextHashSpy).not.toHaveBeenCalled();
       expect(signPsbtSpy).not.toHaveBeenCalled();
       expect(signPsbtsSpy).not.toHaveBeenCalled();
+    });
+
+    it("refuses to submit when the funder spends an input the selection did not include", async () => {
+      const manager = new PeginManager({
+        btcNetwork: "signet",
+        btcWallet: new MockBitcoinWallet({ publicKeyHex: TEST_KEYS.DEPOSITOR }),
+        ethWallet: new MockEthereumWallet() as never,
+        ethChain: TEST_CHAIN,
+        publicClient: TEST_PUBLIC_CLIENT,
+        vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
+        mempoolApiUrl: MEMPOOL_API_URLS.signet,
+      });
+
+      const actualFund = await vi.importActual<
+        typeof import("../../utils/transaction/fundPeginTransaction")
+      >("../../utils/transaction/fundPeginTransaction");
+      vi.mocked(fundPeginTransaction).mockImplementationOnce((args) => {
+        const funded = bitcoin.Transaction.fromHex(
+          actualFund.fundPeginTransaction(args),
+        );
+        // The input the selection never authorised. Its value never entered
+        // the fee math, so a depositor would silently overpay by it.
+        funded.addInput(Buffer.alloc(32, 7), 0);
+        return funded.toHex();
+      });
+
+      await expect(
+        manager.preparePegin({
+          amounts: [TEST_AMOUNTS.PEGIN_LARGE],
+          ...BASE_PREPARE_PEGIN_PARAMS,
+        }),
+      ).rejects.toThrow(/does not\s+spend exactly the selected inputs/);
+    });
+
+    it("refuses to submit a funded transaction above maxFundingInputCount", async () => {
+      const manager = new PeginManager({
+        btcNetwork: "signet",
+        btcWallet: new MockBitcoinWallet({ publicKeyHex: TEST_KEYS.DEPOSITOR }),
+        ethWallet: new MockEthereumWallet() as never,
+        ethChain: TEST_CHAIN,
+        publicClient: TEST_PUBLIC_CLIENT,
+        vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
+        mempoolApiUrl: MEMPOOL_API_URLS.signet,
+      });
+
+      // Only a selector that ignored the bound can reach the broadcast-site
+      // check, so this stands in for that bug: select as if unbounded, then
+      // let the manager re-read the count off the funded transaction.
+      const actualSelect = await vi.importActual<
+        typeof import("../../utils/utxo/selectUtxos")
+      >("../../utils/utxo/selectUtxos");
+      vi.mocked(selectUtxosForPegin).mockImplementationOnce(
+        (utxos, amount, feeRate, numOutputs) =>
+          actualSelect.selectUtxosForPegin(
+            utxos,
+            amount,
+            feeRate,
+            numOutputs,
+            null,
+          ),
+      );
+
+      await expect(
+        manager.preparePegin({
+          amounts: [TEST_AMOUNTS.PEGIN_LARGE, TEST_AMOUNTS.PEGIN_LARGE],
+          ...BASE_PREPARE_PEGIN_PARAMS,
+          maxFundingInputCount: 1,
+        }),
+      ).rejects.toBeInstanceOf(FundingInputCountExceededError);
     });
 
     it("should throw error for empty UTXOs", async () => {

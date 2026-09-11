@@ -66,8 +66,8 @@ export interface PreparePeginParams {
   /**
    * On-chain `ProtocolParams.maxFundingInputCount` read at the build's pinned
    * block; `null` only when the deployment predates the field. Enforced at UTXO
-   * selection before any wallet or device I/O, and re-asserted against the
-   * funded transaction.
+   * selection before any signing or approval prompt, and re-asserted against
+   * the funded transaction.
    */
   maxFundingInputCount: number | null;
   availableUTXOs: UTXO[];

@@ -1205,6 +1205,16 @@ describe("useDepositFlow", () => {
         FUNDING_INPUT_BOUND_QUERY_KEY,
         unpublished,
       );
+      // The peg-in configuration did not drift on this path, so the drift
+      // catch's overwrite must not reach it — that cache is also read by the
+      // blocking ProtocolParamsProvider.
+      const { pegInConfigQueryOptions } = await vi.importActual<
+        typeof import("@/context/ProtocolParamsContext")
+      >("@/context/ProtocolParamsContext");
+      expect(queryClientMocks.setQueryData).not.toHaveBeenCalledWith(
+        pegInConfigQueryOptions().queryKey,
+        expect.anything(),
+      );
     });
 
     it("refreshes the cached bound from the pinned read before building", async () => {
@@ -1229,6 +1239,11 @@ describe("useDepositFlow", () => {
       expect(queryClientMocks.setQueryData).toHaveBeenCalledWith(
         FUNDING_INPUT_BOUND_QUERY_KEY,
         lowered,
+      );
+      // The bound has to describe the same block as the config and the
+      // participant keys, or the Pre-PegIn is built from mixed chain states.
+      expect(chainMocks.getMaxFundingInputCount).toHaveBeenCalledWith(
+        chainMocks.pinnedBlock,
       );
       expect(preparePeginTransaction).toHaveBeenCalledWith(
         expect.anything(),

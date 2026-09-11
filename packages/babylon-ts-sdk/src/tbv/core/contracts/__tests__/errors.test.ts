@@ -1,9 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { isFundingInputCountExceededError } from "../../utils/utxo/fundingInputCountExceeded";
 import {
   CONTRACT_ERRORS,
   PEGIN_FINGERPRINT_CHANGED_SELECTOR,
   PeginFingerprintChangedError,
+  TOO_MANY_FUNDING_INPUTS_SELECTOR,
   extractErrorData,
   getContractErrorMessage,
   handleContractError,
@@ -17,9 +19,7 @@ const INVALID_PEGIN_FEE_SELECTOR = "0x979f4518";
 const EXPECTED_FINGERPRINT = `0x${"11".repeat(32)}`;
 const ACTUAL_FINGERPRINT = `0x${"22".repeat(32)}`;
 const FINGERPRINT_REVERT_DATA =
-  PEGIN_FINGERPRINT_CHANGED_SELECTOR +
-  "11".repeat(32) +
-  "22".repeat(32);
+  PEGIN_FINGERPRINT_CHANGED_SELECTOR + "11".repeat(32) + "22".repeat(32);
 
 describe("extractErrorData", () => {
   it("returns undefined for null", () => {
@@ -217,9 +217,7 @@ describe("CONTRACT_ERRORS table", () => {
     // The consuming app branches on the typed error rather than rendering a
     // string, so an entry here would be a second, unused representation that
     // could silently drift from the copy the depositor actually sees.
-    expect(
-      CONTRACT_ERRORS[PEGIN_FINGERPRINT_CHANGED_SELECTOR],
-    ).toBeUndefined();
+    expect(CONTRACT_ERRORS[PEGIN_FINGERPRINT_CHANGED_SELECTOR]).toBeUndefined();
   });
 });
 
@@ -253,6 +251,42 @@ describe("PeginFingerprintChanged", () => {
     const err = caught as PeginFingerprintChangedError;
     expect(err.expected).toBeUndefined();
     expect(err.actual).toBeUndefined();
+  });
+
+  it("throws a typed funding-input error carrying the registry's maxAllowed", () => {
+    // `maxAllowed` is the second word, so a swap with `inputCount` would
+    // report the depositor's own count back at them as the protocol limit.
+    const revertData =
+      TOO_MANY_FUNDING_INPUTS_SELECTOR +
+      (25).toString(16).padStart(64, "0") +
+      (20).toString(16).padStart(64, "0");
+
+    let caught: unknown;
+    try {
+      handleContractError({ data: revertData });
+    } catch (err) {
+      caught = err;
+    }
+
+    expect(isFundingInputCountExceededError(caught)).toBe(true);
+    expect((caught as { maxInputCount: number }).maxInputCount).toBe(20);
+  });
+
+  it("falls back to the tabled message when the funding-input revert carries only the selector", () => {
+    // The common shape in practice: viem exposes a decoded `signature`, not
+    // raw data, so there is no `maxAllowed` to build the typed error from.
+    // The depositor must still get the consolidate-your-UTXOs copy.
+    let caught: unknown;
+    try {
+      handleContractError({ data: TOO_MANY_FUNDING_INPUTS_SELECTOR });
+    } catch (err) {
+      caught = err;
+    }
+
+    expect(isFundingInputCountExceededError(caught)).toBe(false);
+    expect((caught as Error).message).toBe(
+      CONTRACT_ERRORS[TOO_MANY_FUNDING_INPUTS_SELECTOR],
+    );
   });
 
   it("does not classify a different selector as a fingerprint change", () => {

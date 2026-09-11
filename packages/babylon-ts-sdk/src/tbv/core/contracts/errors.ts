@@ -9,6 +9,8 @@
 
 import { decodeAbiParameters, type Hex } from "viem";
 
+import { FundingInputCountExceededError } from "../utils/utxo/fundingInputCountExceeded";
+
 /**
  * `PeginFingerprintChanged(bytes32 expected, bytes32 actual)`.
  *
@@ -20,6 +22,42 @@ import { decodeAbiParameters, type Hex } from "viem";
  * test asserts the two agree.
  */
 export const PEGIN_FINGERPRINT_CHANGED_SELECTOR = "0x846c25bb";
+
+/**
+ * `TooManyFundingInputs(uint256 inputCount, uint256 maxAllowed)` — the
+ * registry's own enforcement of `maxFundingInputCount`.
+ *
+ * Re-derived rather than copied: `keccak256("TooManyFundingInputs(uint256,uint256)")`
+ * begins `0xf14dcc9f`. `BTCVaultRegistry.abi.ts` carries the matching error
+ * entry, and a test asserts the two agree.
+ */
+export const TOO_MANY_FUNDING_INPUTS_SELECTOR = "0xf14dcc9f";
+
+/** `"0x"` + 4-byte selector + two abi-encoded `uint256` words. */
+const TOO_MANY_FUNDING_INPUTS_REVERT_DATA_LENGTH = 2 + 8 + 64 * 2;
+
+/**
+ * Recover the registry's `maxAllowed` from the revert payload, when there is
+ * one. Selector-only payloads are normal here for the same reason they are for
+ * the fingerprint revert, so the caller must have a path that does not need
+ * this number.
+ */
+function decodeMaxFundingInputsAllowed(errorData: string): number | undefined {
+  if (errorData.length !== TOO_MANY_FUNDING_INPUTS_REVERT_DATA_LENGTH) {
+    return undefined;
+  }
+  try {
+    const [, maxAllowed] = decodeAbiParameters(
+      [{ type: "uint256" }, { type: "uint256" }],
+      `0x${errorData.slice(10)}` as Hex,
+    );
+    return maxAllowed <= BigInt(Number.MAX_SAFE_INTEGER)
+      ? Number(maxAllowed)
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 /** `"0x"` + 4-byte selector + two abi-encoded `bytes32` words. */
 const FINGERPRINT_REVERT_DATA_LENGTH = 2 + 8 + 64 * 2;
@@ -139,6 +177,12 @@ export const CONTRACT_ERRORS: Record<string, string> = {
   "0x979f4518":
     "Invalid pegin fee: The ETH fee sent does not match the required amount. " +
     "This may indicate a fee rate change during the transaction.",
+  // TooManyFundingInputs(uint256,uint256). Also thrown typed by
+  // `handleContractError`; this entry is the fallback for a revert that
+  // reached us as a bare selector, with no `maxAllowed` to carry.
+  "0xf14dcc9f":
+    "Too many funding inputs: This deposit spends more Bitcoin UTXOs than the protocol " +
+    "allows in one Pre-Pegin transaction. Consolidate your UTXOs and try again.",
   // PrePeginOutputAlreadyUsed()
   "0x5fad9694":
     "This pre-pegin output has already been used to activate another vault.",
@@ -180,10 +224,7 @@ export function extractErrorData(error: unknown): string | undefined {
  *
  * Depth-limited (10) and walk-result-deduplicated so a cycle can't loop.
  */
-function walkForErrorData(
-  error: unknown,
-  depth: number,
-): string | undefined {
+function walkForErrorData(error: unknown, depth: number): string | undefined {
   if (depth > 10 || !error || typeof error !== "object") return undefined;
 
   const err = error as Record<string, unknown>;
@@ -320,6 +361,19 @@ export function handleContractError(error: unknown): never {
           "at inclusion differs from the state this deposit was built against.",
         decodeFingerprints(errorData),
       );
+    }
+
+    // Typed ahead of the message map for the same reason as the fingerprint
+    // revert: the app already branches on this error class to reach the
+    // "Too many UTXOs" copy, via `isFundingInputCountExceededError`. Only
+    // when the payload carried `maxAllowed` — the error class has no
+    // meaningful message without it, and the table entry below covers the
+    // selector-only case.
+    if (selector.toLowerCase() === TOO_MANY_FUNDING_INPUTS_SELECTOR) {
+      const maxAllowed = decodeMaxFundingInputsAllowed(errorData);
+      if (maxAllowed !== undefined) {
+        throw new FundingInputCountExceededError(maxAllowed);
+      }
     }
 
     const knownError = CONTRACT_ERRORS[errorData] ?? CONTRACT_ERRORS[selector];

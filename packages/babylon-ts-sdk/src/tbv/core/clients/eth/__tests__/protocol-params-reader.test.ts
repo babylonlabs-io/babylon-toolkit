@@ -499,8 +499,50 @@ describe("ViemProtocolParamsReader", () => {
     );
 
     await expect(reader.getMaxFundingInputCount()).rejects.toThrow(
-      "Invalid getTBVProtocolParams return: expected 8 words (or a legacy 6/7-word tuple), got 32 bytes",
+      "Invalid getTBVProtocolParams return: expected at least 8 words (or a legacy 6/7-word tuple), got 32 bytes",
     );
+  });
+
+  it("getMaxFundingInputCount rejects a return that is not whole 32-byte words", async () => {
+    const publicClient = createMockPublicClient({
+      fundingInputBoundData: `${words(20)}ff` as Hex,
+    });
+    const reader = new ViemProtocolParamsReader(
+      publicClient as never,
+      MOCK_ADDRESS,
+    );
+
+    await expect(reader.getMaxFundingInputCount()).rejects.toThrow(
+      "Invalid getTBVProtocolParams return: expected whole 32-byte words, got 33 bytes",
+    );
+  });
+
+  it("getMaxFundingInputCount decodes the first 8 words of a longer append-only tuple", async () => {
+    // Governance appending a 9th field must not halt every deposit until the
+    // next SDK release: the struct is append-only, so the first 8 words still
+    // mean what this SDK thinks they mean.
+    const publicClient = createMockPublicClient({
+      fundingInputBoundData: words(
+        100000n,
+        10000000n,
+        7200n,
+        14400n,
+        5,
+        100n,
+        200n,
+        20,
+        999n,
+      ),
+    });
+    const reader = new ViemProtocolParamsReader(
+      publicClient as never,
+      MOCK_ADDRESS,
+    );
+
+    await expect(reader.getMaxFundingInputCount()).resolves.toEqual({
+      status: "published",
+      maxInputs: 20,
+    });
   });
 
   it("getMaxFundingInputCount rethrows a transport failure instead of reporting unsupported", async () => {

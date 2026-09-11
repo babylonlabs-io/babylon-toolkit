@@ -261,6 +261,26 @@ describe("selectUtxosForPegin", () => {
     expect((thrown as FundingInputCountExceededError).maxInputCount).toBe(1);
   });
 
+  it("reports insufficient funds, not the input bound, when the whole valid set falls short", () => {
+    const smallUTXOs: UTXO[] = Array.from({ length: 25 }, (_, index) => ({
+      txid: index.toString(16).padStart(64, "0"),
+      vout: 0,
+      value: 1_000,
+      scriptPubKey:
+        "5120abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+    }));
+
+    let thrown: unknown;
+    try {
+      selectUtxosForPegin(smallUTXOs, 100_000n, 5, 2, 20);
+    } catch (err) {
+      thrown = err;
+    }
+
+    expect(isFundingInputCountExceededError(thrown)).toBe(false);
+    expect((thrown as Error).message).toMatch(/^Insufficient funds: need /);
+  });
+
   it("selects more inputs than any bound would allow when maxInputCount is null", () => {
     // 150000 + fee exceeds the two largest, so all three are needed.
     const result = selectUtxosForPegin(mockUTXOs, 150000n, 10, 2, null);

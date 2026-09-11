@@ -1,4 +1,5 @@
 import {
+  computeFundingBudget,
   computeMinClaimValue,
   computeMinPeginFee,
   computeNumLocalChallengers,
@@ -204,8 +205,9 @@ export interface UseDepositPageFormResult {
   fundingInputBoundUnavailable: boolean;
   /**
    * True when the bound, not the wallet balance, is what caps the depositable
-   * maximum — the depositor holds more spendable UTXOs than one Pre-PegIn may
-   * spend. Advisory: the Max already accounts for it.
+   * maximum: the UTXOs the selector would actually reach for sum to less under
+   * the bound than without it, and the supply cap is not the binding ceiling.
+   * Advisory — the Max already accounts for it.
    */
   fundingInputCapBites: boolean;
 
@@ -744,6 +746,36 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     resetErrors();
   }, [resetErrors]);
 
+  // The notice tells the depositor to consolidate, so it must only fire when
+  // consolidating would actually raise their Max. A count comparison does not
+  // establish that: the SDK's budget discards UTXOs with undecodable scripts,
+  // so counting raw entries can claim the bound binds when the selectable set
+  // is within it. Compare the two budgets instead — the same filter, sort and
+  // cap the Max itself was computed from.
+  //
+  // Suppressed when the supply cap is the real ceiling: there, the Max would
+  // not move even with one UTXO, and "consolidate your UTXOs" is wrong advice.
+  const fundingInputCapBites = useMemo(() => {
+    if (maxInputCount == null) return false;
+    const utxos = spendableMempoolUTXOs ?? [];
+    const effectiveRemaining = capSnapshot?.effectiveRemaining ?? null;
+    if (
+      effectiveRemaining !== null &&
+      adjustedMaxDepositSats === effectiveRemaining
+    ) {
+      return false;
+    }
+    return (
+      computeFundingBudget(utxos, maxInputCount).totalBalance <
+      computeFundingBudget(utxos, null).totalBalance
+    );
+  }, [
+    spendableMempoolUTXOs,
+    maxInputCount,
+    capSnapshot,
+    adjustedMaxDepositSats,
+  ]);
+
   return {
     formData,
     setFormData,
@@ -790,9 +822,7 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     maxInputCount,
     fundingInputBoundUnpublished: fundingInputBound?.status === "unpublished",
     fundingInputBoundUnavailable,
-    fundingInputCapBites:
-      fundingInputBound?.status === "published" &&
-      (spendableMempoolUTXOs?.length ?? 0) > fundingInputBound.maxInputs,
+    fundingInputCapBites,
     isTwoVaultSplit,
     setIsTwoVaultSplit,
     canSplit,

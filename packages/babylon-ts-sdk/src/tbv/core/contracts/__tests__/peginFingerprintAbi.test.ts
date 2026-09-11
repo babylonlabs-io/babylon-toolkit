@@ -27,7 +27,10 @@ import { describe, expect, it } from "vitest";
 import { ApplicationRegistryABI } from "../abis/ApplicationRegistry.abi";
 import { BTCVaultRegistryABI } from "../abis/BTCVaultRegistry.abi";
 import { ProtocolParamsABI } from "../abis/ProtocolParams.abi";
-import { PEGIN_FINGERPRINT_CHANGED_SELECTOR } from "../errors";
+import {
+  PEGIN_FINGERPRINT_CHANGED_SELECTOR,
+  TOO_MANY_FUNDING_INPUTS_SELECTOR,
+} from "../errors";
 
 /**
  * `toFunctionSignature` prefixes an error item with the `error ` keyword,
@@ -93,18 +96,25 @@ describe("peg-in submit selectors", () => {
     expect(PEGIN_FINGERPRINT_CHANGED_SELECTOR).toBe("0x846c25bb");
   });
 
+  it("declares TooManyFundingInputs so viem can decode the revert", () => {
+    const [error, ...extras] = itemsNamed("TooManyFundingInputs");
+    expect(extras).toHaveLength(0);
+    expect(error.type).toBe("error");
+    expect(error.inputs.map((input) => input.type)).toEqual([
+      "uint256",
+      "uint256",
+    ]);
+    expect(selectorOf(error)).toBe(TOO_MANY_FUNDING_INPUTS_SELECTOR);
+    expect(TOO_MANY_FUNDING_INPUTS_SELECTOR).toBe("0xf14dcc9f");
+  });
+
   // The two epoch getters feed fingerprint words 5 and 6. Neither is a compile
   // error if it drifts: a wrong name or arity reverts the read at build time
   // for every depositor, and a wrong output WIDTH is worse — `uint256` where
   // the contract declares `uint64` decodes to a value that encodes differently
   // and fails the on-chain comparison with two opaque hashes and no hint.
   it.each([
-    [
-      "appKeeperKeyEpochCurrent",
-      ApplicationRegistryABI,
-      ["address"],
-      "uint64",
-    ],
+    ["appKeeperKeyEpochCurrent", ApplicationRegistryABI, ["address"], "uint64"],
     ["ucKeyEpochCurrent", ProtocolParamsABI, [], "uint64"],
   ])(
     "declares %s with the width the fingerprint encodes",
@@ -123,9 +133,9 @@ describe("peg-in submit selectors", () => {
   );
 
   it("exposes getVaultProviderApplication, which resolves the keeper roster", () => {
-    const [getter, ...extras] = itemsNamed("getVaultProviderApplication").filter(
-      (item) => item.type === "function",
-    );
+    const [getter, ...extras] = itemsNamed(
+      "getVaultProviderApplication",
+    ).filter((item) => item.type === "function");
     expect(extras).toHaveLength(0);
     expect(getter.inputs.map((input) => input.type)).toEqual(["address"]);
     expect(getter.outputs.map((output) => output.type)).toEqual(["address"]);
