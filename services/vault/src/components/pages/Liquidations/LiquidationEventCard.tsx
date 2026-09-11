@@ -65,14 +65,13 @@ function Stat({
   className?: string;
 }) {
   return (
-    <div className="flex min-w-0 flex-1 flex-col">
+    <div className="flex min-w-0 grow basis-[110px] flex-col">
       <span className="text-sm leading-[1.43] tracking-[0.17px] text-accent-secondary">
         {label}
       </span>
       <span
-        title={value}
         className={twJoin(
-          "block overflow-hidden text-ellipsis leading-[1.6] tracking-[0.15px]",
+          "leading-[1.6] tracking-[0.15px] [overflow-wrap:anywhere]",
           className,
         )}
       >
@@ -135,7 +134,7 @@ export function LiquidationEventCard({ card }: { card: EventCardData }) {
         {card.title}
       </h3>
 
-      <div className="flex gap-16">
+      <div className="flex flex-wrap gap-4 sm:gap-16">
         <Stat
           label={COPY.liquidations.events.collateral}
           value={card.collateralLabel}
@@ -223,7 +222,7 @@ export function LiquidationEventCard({ card }: { card: EventCardData }) {
         <p className={SECTION_TITLE_CLASS}>
           {COPY.liquidations.events.positionAfterSection}
         </p>
-        <div className="flex gap-16">
+        <div className="flex flex-wrap gap-4 sm:gap-16">
           <Stat
             label={COPY.liquidations.events.btcRemaining}
             value={card.btcRemainingLabel}
