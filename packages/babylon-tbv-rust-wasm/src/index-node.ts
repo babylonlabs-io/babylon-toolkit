@@ -147,9 +147,16 @@ export async function buildPeginTxFromPrePegin(
 export async function getPrePeginHtlcConnectorInfo(
   params: HtlcConnectorParams,
 ): Promise<HtlcConnectorInfo> {
-  const { WasmPrePeginHtlcConnector } = await getWasmBindings();
+  // The guarded class re-derives every returned field from these inputs, so
+  // this facade never hands back a script only the engine produced. Import it
+  // dynamically: it statically imports the generated glue, which has to stay
+  // off this module's eager graph (scripts/check-lazy-entries.js).
+  await getWasmBindings();
+  const { GuardedPrePeginHtlcConnector } = await import(
+    './rawHtlcConnector.js'
+  );
 
-  const connector = new WasmPrePeginHtlcConnector(
+  const connector = new GuardedPrePeginHtlcConnector(
     params.txGraphVersion,
     params.depositorPubkey,
     params.vaultProviderPubkey,
@@ -169,7 +176,12 @@ export async function getPrePeginHtlcConnectorInfo(
       scriptPubKey: connector.getScriptPubKey(params.network),
     };
   } finally {
-    connector.free();
+    try {
+      connector.free();
+    } catch {
+      // A release failure must not replace a guard error: that message is the
+      // one signal that the engine disagreed with its own inputs.
+    }
   }
 }
 

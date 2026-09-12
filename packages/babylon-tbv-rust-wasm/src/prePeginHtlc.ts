@@ -15,11 +15,13 @@ import {
   normalizeXOnlyKey,
   normalizeKeyGroup,
   nOfNChunks,
+  stripHexPrefix,
 } from './connectorScripts.js';
 
-function stripHexPrefix(hex: string): string {
-  return hex.startsWith('0x') || hex.startsWith('0X') ? hex.slice(2) : hex;
-}
+// bitcoinjs-lib keeps one module-global ECC backend. Install it once, when
+// this lazily-imported module is first evaluated, rather than mutating that
+// global inside a derivation.
+initEccLib(ecc);
 
 const PREIMAGE_LENGTH_BYTES = 32;
 
@@ -48,7 +50,6 @@ export function deriveExpectedPrePeginHtlc(
   params: PrePeginHtlcParams,
   hashlock: string,
 ): ExpectedPrePeginHtlc {
-  initEccLib(ecc);
 
   const depositor = normalizeXOnlyKey(
     params.depositorPubkey,

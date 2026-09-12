@@ -51,7 +51,7 @@ These paths handle irreversible value movement. An AI-generated mistake here is 
 - Files:
   - `packages/babylon-tbv-rust-wasm/src/index.ts`
   - `packages/babylon-tbv-rust-wasm/src/prePeginHtlc.ts` - shared independent HTLC derivation
-  - `packages/babylon-tbv-rust-wasm/src/rawHtlcConnector.ts` - raw HTLC output checks
+  - `packages/babylon-tbv-rust-wasm/src/rawHtlcConnector.ts` - raw and facade HTLC output checks
   - `packages/babylon-tbv-rust-wasm/src/connectorScripts.ts` - shared key and multisig script rules
   - `packages/babylon-tbv-rust-wasm/src/peginPayout.ts` - shared independent payout derivation
   - `packages/babylon-tbv-rust-wasm/src/rawPayoutConnector.ts` - raw payout output checks
@@ -67,9 +67,10 @@ These paths handle irreversible value movement. An AI-generated mistake here is 
   - `packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/refund.ts`
   - `packages/babylon-ts-sdk/src/tbv/core/utils/transaction/fundPeginTransaction.ts` - rejects undeclared output bytes
 - The Rust/WASM layer computes `htlcValue = peginAmount + depositorClaimValue + p2aAnchorValue + minPeginFee` internally (the anchor term is 0 for tx-graph v1, 240 sats for v2 and v3). TypeScript independently derives each canonical Pre-PegIn HTLC output and rejects a transaction or signing field that does not match.
-- **Rule:** Every WASM output consumed by JS must be asserted against expected bounds before use. If a WASM-returned value feeds a signed transaction, cross-check it against an independently computed expected value.
-- The package exports a second crossing at `@babylonlabs-io/babylon-tbv-rust-wasm/raw` (`src/raw.ts`, `src/raw-node.ts`, registered in section 9). All four classes check outputs against independent derivations. Pre-PegIn amounts must remain original `bigint[]` values. Funded reconstruction checks the protocol output prefix against the original request. PegIn restoration requires that request, the funded parent, the HTLC index, and the payout timelock. It also checks saved metadata and signatures. The SDK refund caller retains its transaction and signing checks.
+- **Rule:** Every WASM output consumed by JS must be asserted against expected bounds before use. If a WASM-returned value feeds a signed transaction, cross-check it against an independently computed expected value. The independent derivations above (`connectorScripts.ts`, `prePeginHtlc.ts`, `peginPayout.ts`) carry the same differential-test duty as section 9: a change to one may not land without a test asserting byte-for-byte equality with the engine over the golden vectors **plus** randomised inputs.
+- The package exports a second crossing at `@babylonlabs-io/babylon-tbv-rust-wasm/raw` (`src/raw.ts`, `src/raw-node.ts`, registered in section 9). All four classes check outputs against independent derivations, for internal consistency against the inputs they were given; the caller must still check those inputs against on-chain data. Pre-PegIn amounts must remain original `bigint[]` values. Funded reconstruction checks the protocol output prefix against the original request. PegIn restoration requires that request, the funded parent, the HTLC index, and the payout timelock. It also checks saved metadata and signatures. The SDK refund caller retains its transaction and signing checks.
 - The raw classes and SDK raw loader remain deprecated. This is a breaking engine API. See the [migration guide](packages/babylon-ts-sdk/docs/guides/raw-engine-migration.md) for trusted inputs and release requirements in #2361.
+- The independent derivations (`packages/babylon-tbv-rust-wasm/src/prePeginHtlc.ts` and `src/peginPayout.ts`) now ship in the same package as the binary they check, so one compromised engine publish controls both the value and the expected value. Accepted because the SDK cannot be imported from the engine without a dependency cycle, and because the derivations share no code and no data with the WASM binary. A reviewer who moves either side must keep them in separate modules and keep the differential test.
 
 ### 2. Fee calculation consistency
 

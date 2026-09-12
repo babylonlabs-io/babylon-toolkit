@@ -4,11 +4,19 @@ import type * as Bindings from '../dist/generated/vault_wasm.js';
 import { WasmPrePeginHtlcConnector as RawConnector } from './generated/vault_wasm.js';
 import { deriveExpectedPrePeginHtlc } from './prePeginHtlc.js';
 
+/**
+ * The graph versions the TypeScript derivation is differentially tested
+ * against in tests/wasm-loader.test.mjs. The engine may support more; this
+ * guard covers only what the tests pin, and rejects the rest.
+ */
+export const SUPPORTED_HTLC_GRAPH_VERSIONS = [1, 2, 3] as const;
+
 /** Check each HTLC field against the constructor inputs. */
 export class GuardedPrePeginHtlcConnector {
   readonly #inner: Bindings.WasmPrePeginHtlcConnector;
   readonly #expected: ReturnType<typeof deriveExpectedPrePeginHtlc>;
   readonly #version: number;
+  #freed = false;
 
   constructor(
     ...args: ConstructorParameters<typeof Bindings.WasmPrePeginHtlcConnector>
@@ -22,8 +30,9 @@ export class GuardedPrePeginHtlcConnector {
       hashlock,
       timelock,
     ] = args;
-    // The independent derivation covers the three pinned graph versions.
-    if (version !== 1 && version !== 2 && version !== 3) {
+    if (
+      !(SUPPORTED_HTLC_GRAPH_VERSIONS as readonly number[]).includes(version)
+    ) {
       throw new Error(`Unsupported HTLC graph version: ${version}.`);
     }
     this.#version = version;
@@ -46,7 +55,12 @@ export class GuardedPrePeginHtlcConnector {
       this.getRefundControlBlock();
       this.getScriptPubKey('bitcoin');
     } catch (error) {
-      this.#inner.free();
+      try {
+        this.#inner.free();
+      } catch {
+        // A release failure must not mask the guard error, which is the one
+        // diagnostic that says the engine disagreed with its own inputs.
+      }
       throw error;
     }
   }
@@ -136,6 +150,12 @@ export class GuardedPrePeginHtlcConnector {
   }
 
   free(): void {
+    // wasm-bindgen zeroes its pointer without guarding a second call, so a
+    // free() then [Symbol.dispose]() would free the null pointer.
+    if (this.#freed) {
+      return;
+    }
+    this.#freed = true;
     this.#inner.free();
   }
 

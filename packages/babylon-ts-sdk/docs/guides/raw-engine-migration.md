@@ -19,10 +19,20 @@ reject malformed keys and hashlocks, empty or duplicate key groups, and
 timelocks outside 1 through 65535. Do not depend on unchecked input acceptance or
 identity with the generated class. `free()` and `[Symbol.dispose]()` stay available.
 
+The root facade's `getPrePeginHtlcConnectorInfo` builds the same guarded HTLC
+connector, so it returns checked fields. The check is internal consistency
+against the inputs it was given; the caller must still verify those inputs
+on-chain.
+
 `WasmPeginTx.fromJson` now requires `prepegin_htlc_prevout` in the saved object.
 A saved transaction that omits the field, or stores it as null, is rejected:
 without it the spent HTLC value and scriptPubKey are not bound to the original
 request. Rebuild such a transaction from its request and funded parent.
+
+The engine now declares the Bitcoin and curve packages the SDK uses, at the same
+pinned versions. It declares them as direct dependencies, while the SDK declares
+`bitcoinjs-lib` and `@bitcoin-js/tiny-secp256k1-asmjs` as optional peers, so an
+application that installs both can resolve two copies of `bitcoinjs-lib`.
 
 ## Raw transaction changes
 

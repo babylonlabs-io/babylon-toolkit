@@ -9,6 +9,7 @@ export class GuardedPeginPayoutConnector {
   readonly #inner: Bindings.WasmPeginPayoutConnector;
   readonly #expected: ReturnType<typeof deriveExpectedPeginPayout>;
   readonly #version: number;
+  #freed = false;
 
   constructor(
     ...args: ConstructorParameters<typeof Bindings.WasmPeginPayoutConnector>
@@ -31,7 +32,12 @@ export class GuardedPeginPayoutConnector {
       this.getTaprootScriptHash();
       this.getScriptPubKey('bitcoin');
     } catch (error) {
-      this.#inner.free();
+      try {
+        this.#inner.free();
+      } catch {
+        // A release failure must not mask the guard error, which is the one
+        // diagnostic that says the engine disagreed with its own inputs.
+      }
       throw error;
     }
   }
@@ -113,6 +119,12 @@ export class GuardedPeginPayoutConnector {
   }
 
   free(): void {
+    // wasm-bindgen zeroes its pointer and then rejects a second release, so
+    // `using` plus an explicit free() would throw without this.
+    if (this.#freed) {
+      return;
+    }
+    this.#freed = true;
     this.#inner.free();
   }
 
