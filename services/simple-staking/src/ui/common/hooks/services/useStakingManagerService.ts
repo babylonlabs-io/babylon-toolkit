@@ -66,7 +66,16 @@ export const useStakingManagerService = () => {
 
   const createBtcStakingManager = useCallback(() => {
     if (isLoading || !consent.confirmed) {
-      logger.info("createBtcStakingManager", { confirmed: consent.confirmed });
+      logger.info("createBtcStakingManager", {
+        confirmed: consent.confirmed,
+        cosmosConnected,
+        btcConnected,
+        btcNetwork: Boolean(btcNetwork),
+        signPsbt: Boolean(signPsbt),
+        signMessage: Boolean(signMessage),
+        signBbnTx: Boolean(signBbnTx),
+        versionedParams: Boolean(versionedParams),
+      });
 
       return null;
     }
@@ -99,6 +108,8 @@ export const useStakingManagerService = () => {
     networkUpgrade,
     bbnHeight,
     logger,
+    cosmosConnected,
+    btcConnected,
     eventBus,
     signPsbt,
     signMessage,

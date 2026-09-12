@@ -31,6 +31,14 @@ vi.mock("@/config", () => ({
   getBTCNetwork: () => networkMock.value,
 }));
 
+// `@/context/geofencing`'s own module (GeoFencingProvider.tsx, which also
+// hosts the `useGeoFencing` export consumed here) imports `@/config/wagmi`
+// at module scope, which imports `@babylonlabs-io/wallet-connector` - and
+// that package's build cannot be transformed by Vitest in this workspace
+// (see the wallet-connector mock below), so the real module cannot be loaded.
+// Mocked here to return the exact same default the real context has
+// (`isLoading: true`, so RootLayout stays on its Loader branch and the
+// content-branch providers/components below it never mount).
 vi.mock("@/context/geofencing", () => ({
   useGeoFencing: () => ({ isGeoBlocked: false, isLoading: true }),
 }));

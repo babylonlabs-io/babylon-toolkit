@@ -1,6 +1,6 @@
 # Wallet consent rule
 
-Status: jonybur authorized this rule on 9 September 2026 for [#2354](https://github.com/babylonlabs-io/babylon-toolkit/issues/2354). The user overrode the issue's prior Product and Legal approval requirement and will contact Legal separately.
+Status: Authorized on 9 September 2026 for [#2354](https://github.com/babylonlabs-io/babylon-toolkit/issues/2354).
 
 ## Decision
 
@@ -11,7 +11,7 @@ Status: jonybur authorized this rule on 9 September 2026 for [#2354](https://git
 - Neither app supplies a consent callback or has a consent service endpoint. Both use the shared dialog and its saved approval record.
 - A current saved approval restores the session only after live checks match the required wallet, address, public key, and network. A valid restore does not repeat the callback.
 - A missing, old, or invalid approval requires the final **Connect** action again. A saved wallet choice alone is not approval.
-- Page and action gates use the confirmed session. Wallet presence can supply read data but cannot replace consent.
+- Page and action gates use the confirmed session. Wallet presence can supply read data but cannot replace consent. The entry frame follows the same split: consent decides access, and wallet presence still drives read-only wallet warnings.
 
 This decision keeps the current wallet requirements. It does not enable Ethereum-first mode.
 
