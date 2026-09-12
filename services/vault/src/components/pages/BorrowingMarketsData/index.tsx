@@ -30,7 +30,12 @@ import { PAGE_CONTENT_CLASS } from "@/components/shared/layoutClasses";
 import { getNetworkConfigBTC } from "@/config";
 import { COPY } from "@/copy";
 import { useMarketDataOverride } from "@/overrides/marketData";
-import { getAssetPickerRoute, getMarketSlug, MARKET_PARAM } from "@/routes";
+import {
+  getAssetPickerRoute,
+  getMarketSlug,
+  getReserveDetailSearch,
+  MARKET_PARAM,
+} from "@/routes";
 import {
   getCurrencyIconWithFallback,
   getTokenByAddress,
@@ -347,7 +352,7 @@ export default function BorrowingMarketsData() {
   return (
     <Container className={`${PAGE_CONTENT_CLASS} pb-6`}>
       <div className="space-y-10">
-        <div className="space-y-4">
+        <section className="space-y-4" data-testid="market-section-identity">
           <button
             type="button"
             onClick={() =>
@@ -390,11 +395,25 @@ export default function BorrowingMarketsData() {
                 </Text>
               </div>
             </div>
-            <button type="button" className={NEUTRAL_BUTTON_CLASS} disabled>
+            <button
+              type="button"
+              className={NEUTRAL_BUTTON_CLASS}
+              disabled={isDemo || selectedReserve === null}
+              onClick={() => {
+                if (selectedReserve === null) return;
+                navigate({
+                  pathname: location.pathname,
+                  search: getReserveDetailSearch(
+                    selectedReserve.reserveId,
+                    LOAN_TAB.BORROW,
+                  ),
+                });
+              }}
+            >
               {COPY.marketData.borrowAction}
             </button>
           </div>
-        </div>
+        </section>
 
         <section data-testid="market-section-liquidity-stats">
           <MarketStatsBar stats={stats} />
