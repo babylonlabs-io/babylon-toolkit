@@ -1,4 +1,10 @@
-import { AmountSlider, Card, Hint, InfoIcon } from "@babylonlabs-io/core-ui";
+import {
+  AmountSlider,
+  Callout,
+  Card,
+  Hint,
+  InfoIcon,
+} from "@babylonlabs-io/core-ui";
 import { useMemo, useState } from "react";
 import { IoInformationCircle } from "react-icons/io5";
 
@@ -180,6 +186,7 @@ interface DepositFormProps {
   gatingState: DepositGatingState;
   collateralFactor?: number | null;
   twoVaultSplit?: TwoVaultSplitProps;
+  fundingInputCapExceeded?: boolean;
   onAmountChange: (value: string) => void;
   onMaxClick: () => void;
   onDeposit: () => void;
@@ -193,6 +200,7 @@ export function DepositForm({
   gatingState,
   collateralFactor = null,
   twoVaultSplit,
+  fundingInputCapExceeded = false,
   onAmountChange,
   onMaxClick,
   onDeposit,
@@ -369,6 +377,7 @@ export function DepositForm({
     ordinalsCheckPending,
     hasWalletConnectionError,
     isReconnectingWallet,
+    fundingInputCapExceeded,
   });
 
   // A locked wallet reuses the same recovery CTA as a liveness failure (both
@@ -422,6 +431,11 @@ export function DepositForm({
         >
           {pendingConfirmationNotice}
         </p>
+        {fundingInputCapExceeded && (
+          <Callout variant="info">
+            {COPY.deposit.fundingInputCap.notice}
+          </Callout>
+        )}
         <CollateralFactorRow
           collateralFactor={collateralFactor}
           amountBtc={amount}

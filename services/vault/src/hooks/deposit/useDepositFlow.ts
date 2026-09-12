@@ -67,6 +67,7 @@ import {
   TELEMETRY_EVENT,
 } from "@/infrastructure/telemetryEvents";
 import { LocalStorageStatus } from "@/models/peginStateMachine";
+import { capFundingUtxos } from "@/services/deposit/fundingInputCap";
 import { validateMultiVaultDepositInputs } from "@/services/deposit/validations";
 import {
   assertBuildConfigMatchesForm,
@@ -789,7 +790,7 @@ export function useDepositFlow(
             timelockRefund: buildConfig.timelockRefund,
             councilQuorum: buildConfig.offchainParams.councilQuorum,
             councilSize: buildConfig.offchainParams.securityCouncilKeys.length,
-            availableUTXOs: spendableUTXOs,
+            availableUTXOs: capFundingUtxos(spendableUTXOs),
           },
         );
         const {
