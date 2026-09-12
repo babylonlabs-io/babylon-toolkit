@@ -22,8 +22,10 @@ export interface PositionStatCard {
 function StatSection({ card }: { card: PositionStatCard }) {
   const hasAction = card.actionLabel != null && card.onAction != null;
   return (
-    <div className="flex flex-[1_0_0] items-center justify-between gap-4 xl:max-[1439px]:gap-2">
-      <div className="flex flex-col gap-3">
+    // Both min-w-0 are load-bearing: they lift the min-width:auto content floor
+    // on the section and the column so a long value can truncate (#2428).
+    <div className="flex min-w-0 flex-1 items-center justify-between gap-4 xl:max-[1439px]:gap-2">
+      <div className="flex min-w-0 flex-col gap-3">
         <div className="flex items-center gap-1 text-sm leading-[1.43] tracking-[0.17px] text-accent-secondary xl:whitespace-nowrap">
           {card.tooltip ? (
             <Hint
@@ -37,12 +39,18 @@ function StatSection({ card }: { card: PositionStatCard }) {
           )}
         </div>
 
-        <span className="flex items-center gap-2 text-xl leading-[1.6] tracking-[0.15px] text-accent-primary xl:whitespace-nowrap">
-          {card.valueNode ?? card.value}
+        <span
+          title={card.value}
+          className="flex items-center gap-2 overflow-hidden text-xl leading-[1.6] tracking-[0.15px] text-accent-primary xl:whitespace-nowrap"
+        >
+          {card.valueNode ?? <span className="xl:truncate">{card.value}</span>}
         </span>
 
         {card.caption ? (
-          <span className="text-sm leading-[1.43] tracking-[0.17px] text-accent-secondary xl:whitespace-nowrap">
+          <span
+            title={card.caption}
+            className="text-sm leading-[1.43] tracking-[0.17px] text-accent-secondary xl:truncate"
+          >
             {card.caption}
           </span>
         ) : null}
