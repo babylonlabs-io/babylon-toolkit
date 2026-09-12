@@ -183,6 +183,8 @@ export interface DepositCtaParams extends DepositFormValidityParams {
    * with no error or retry signal.
    */
   depositorClaimValueError: Error | null;
+  /** The amount needs more than the 20 largest UTXOs, though the wallet holds enough. */
+  fundingInputCapExceeded: boolean;
 }
 
 export interface DepositCtaState {
@@ -396,6 +398,15 @@ export function getDepositCtaState(params: DepositCtaParams): DepositCtaState {
       label: COPY.deposit.errors.exceedsCap(
         formatSatoshisToBtc(params.effectiveRemaining),
       ),
+    };
+  }
+
+  // Ahead of `amountExceedsMax`: the wallet holds enough, so "Insufficient
+  // balance" would send the user the wrong way.
+  if (params.fundingInputCapExceeded) {
+    return {
+      disabled: true,
+      label: COPY.deposit.fundingInputCap.cta,
     };
   }
 

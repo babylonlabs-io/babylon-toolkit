@@ -24,6 +24,8 @@ import {
 } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { useMemo } from "react";
 
+import { capFundingUtxos } from "@/services/deposit/fundingInputCap";
+
 import { useNetworkFees } from "../useNetworkFees";
 
 export interface EstimatedBtcFeeResult {
@@ -55,17 +57,23 @@ export function useEstimatedBtcFee(
       ? feeRateOverride
       : defaultFeeRate;
 
+  // The estimate, the Max, and the selection must agree on the capped set.
+  const cappedUtxos = useMemo(() => capFundingUtxos(utxos ?? []), [utxos]);
+
   // Max deposit only depends on UTXOs + fee rate, not the user's amount
   const maxDeposit = useMemo(() => {
-    if (isLoading || feeRate === 0 || !utxos?.length) return null;
-    const totalBalance = utxos.reduce((sum, u) => sum + BigInt(u.value), 0n);
+    if (isLoading || feeRate === 0 || !cappedUtxos.length) return null;
+    const totalBalance = cappedUtxos.reduce(
+      (sum, u) => sum + BigInt(u.value),
+      0n,
+    );
     return computeMaxDeposit({
-      numInputs: utxos.length,
+      numInputs: cappedUtxos.length,
       numOutputs,
       totalBalance,
       feeRate,
     });
-  }, [utxos, feeRate, numOutputs, isLoading]);
+  }, [cappedUtxos, feeRate, numOutputs, isLoading]);
 
   const result = useMemo((): EstimatedBtcFeeResult => {
     // Still loading fee rates — and no usable override yet
@@ -91,7 +99,7 @@ export function useEstimatedBtcFee(
     }
 
     // No UTXOs provided - can't calculate accurate fee
-    if (!utxos || utxos.length === 0) {
+    if (cappedUtxos.length === 0) {
       return {
         fee: null,
         feeRate,
@@ -113,7 +121,12 @@ export function useEstimatedBtcFee(
     }
 
     try {
-      const { fee } = selectUtxosForPegin(utxos, amount, feeRate, numOutputs);
+      const { fee } = selectUtxosForPegin(
+        cappedUtxos,
+        amount,
+        feeRate,
+        numOutputs,
+      );
 
       return {
         fee,
@@ -134,7 +147,15 @@ export function useEstimatedBtcFee(
         maxDeposit,
       };
     }
-  }, [amount, utxos, feeRate, numOutputs, isLoading, feeError, maxDeposit]);
+  }, [
+    amount,
+    cappedUtxos,
+    feeRate,
+    numOutputs,
+    isLoading,
+    feeError,
+    maxDeposit,
+  ]);
 
   return result;
 }

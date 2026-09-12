@@ -307,6 +307,7 @@ describe("Deposit Validations", () => {
       minPeginFee: 500n,
       minPeginFeeError: null,
       depositorClaimValueError: null,
+      fundingInputCapExceeded: false,
     };
 
     it("returns enabled 'Deposit' when all conditions are met", () => {
@@ -649,6 +650,35 @@ describe("Deposit Validations", () => {
         ...readyParams,
         amountSats: 100000n,
         maxDepositSats: 100000n,
+      });
+      expect(result).toEqual({ disabled: false, label: "Deposit" });
+    });
+
+    it("returns the consolidate-UTXOs label when the funding-input cap is exceeded", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        fundingInputCapExceeded: true,
+      });
+      expect(result).toEqual({
+        disabled: true,
+        label: COPY.deposit.fundingInputCap.cta,
+      });
+    });
+
+    it("shows the consolidate-UTXOs label even with no provider selected", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        fundingInputCapExceeded: true,
+        hasProvider: false,
+      });
+      expect(result.label).toBe(COPY.deposit.fundingInputCap.cta);
+      expect(result.disabled).toBe(true);
+    });
+
+    it("is unaffected by the funding-input cap when the amount is within it", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        fundingInputCapExceeded: false,
       });
       expect(result).toEqual({ disabled: false, label: "Deposit" });
     });
