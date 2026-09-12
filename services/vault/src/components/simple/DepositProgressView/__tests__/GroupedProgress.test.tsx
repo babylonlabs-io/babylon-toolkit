@@ -180,6 +180,17 @@ describe("GroupedProgress", () => {
     expect(circle.querySelector("svg")).toBeInTheDocument();
   });
 
+  it("renders the step counter beside a shrinkable title in the header row", () => {
+    render(<GroupedProgress steps={steps} currentStep={1} />);
+
+    const title = screen.getByText(COPY.deposit.groups.registerDeposit);
+    const counter = screen.getByText(COPY.deposit.groups.stepCounter(0, 6));
+    const row = title.parentElement as HTMLElement;
+
+    expect(counter.parentElement).toBe(row);
+    expect(title.className).toContain("min-w-0");
+  });
+
   describe("accessibility", () => {
     it("labels the active sub-step for screen readers with the global step number", () => {
       // Step 8 -> "Set up claim" group active; screen reader gets global step 8,
