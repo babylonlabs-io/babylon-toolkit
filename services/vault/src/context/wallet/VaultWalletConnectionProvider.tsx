@@ -261,6 +261,7 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
 
   const disabledWallets = useMemo(() => computeDisabledWallets(), []);
 
+  // Shared consent contract: docs/decisions/2354-wallet-consent.md.
   return (
     <WalletProvider
       persistent

@@ -132,13 +132,13 @@ describe("Connect current wallet requirements", () => {
     expect(wallet.useUTXOs).toHaveBeenLastCalledWith("", { enabled: true });
   });
 
-  it("reports a combined connection before the menu accepts confirmation", () => {
+  it("keeps the page and menu disconnected before confirmation", () => {
     wallet.confirmed = false;
 
     const { result } = renderHook(useConnection);
     render(<Connect />);
 
-    expect(result.current.isConnected).toBe(true);
+    expect(result.current.isConnected).toBe(false);
     expect(screen.getByTestId("connect-wallet-button")).toBeInTheDocument();
     expect(screen.queryByTestId("wallet-menu-trigger")).not.toBeInTheDocument();
   });
