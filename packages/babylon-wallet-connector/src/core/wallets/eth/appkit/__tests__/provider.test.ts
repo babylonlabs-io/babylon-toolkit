@@ -101,7 +101,7 @@ describe("AppKitProvider — constructed after AppKit init (shared wagmi config 
   it.each([
     ["ANNOUNCED", true, "chain", false],
     ["WALLET_CONNECT", true, "chain", true],
-    ["AUTH", true, "chain", true],
+    ["AUTH", true, "chain", false],
     ["WALLET_CONNECT", false, "chain", false],
     ["WALLET_CONNECT", undefined, "chain", false],
     ["WALLET_CONNECT", true, "all", false],

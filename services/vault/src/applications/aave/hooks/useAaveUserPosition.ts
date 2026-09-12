@@ -40,7 +40,7 @@ export type { HealthFactorStatus };
 export interface UseAaveUserPositionResult {
   /** User's vBTC collateral position (null if no position) */
   position: AavePositionWithLiveData | null;
-  /** Collateral amount in BTC (from indexer) */
+  /** Collateral amount in BTC (from the on-chain adapter) */
   collateralBtc: number;
   /** Total collateral value in USD (from Aave oracle) */
   collateralValueUsd: number;

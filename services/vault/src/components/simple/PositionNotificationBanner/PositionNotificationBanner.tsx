@@ -117,6 +117,7 @@ export function PositionNotificationBanner({
     status,
     isLoading,
     reorderVerificationContext,
+    liveUrgentWarning,
   } = usePositionNotifications(connectedAddress);
 
   const hasOverride = resultOverride !== undefined;
@@ -175,6 +176,38 @@ export function PositionNotificationBanner({
     isLiveStalePrice,
     STALE_PRICE_BANNER_GRACE_MS,
   );
+
+  if (
+    !hasOverride &&
+    statusOverride === undefined &&
+    !result &&
+    liveUrgentWarning
+  ) {
+    return (
+      <NotificationCard
+        tone="urgent"
+        title={liveUrgentWarning.title}
+        data-testid={TEST_ID}
+        data-severity="red"
+        actions={[
+          {
+            label: COPY.banner.addCollateral,
+            onClick: () => onDeposit(),
+            emphasis: "primary",
+            disabled: isDepositBlocked(gate),
+          },
+          {
+            label: COPY.banner.repayDebt,
+            onClick: onRepay,
+            emphasis: "secondary",
+            disabled: isRepayBlocked(gate),
+          },
+        ]}
+      >
+        {liveUrgentWarning.detail}
+      </NotificationCard>
+    );
+  }
 
   if (effectiveStatus === "stale-price") {
     if (statusOverride === "stale-price" || staleBannerReady) {

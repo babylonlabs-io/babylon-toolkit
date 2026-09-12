@@ -139,13 +139,13 @@ describe.each(["BTC", "ETH"] as const)("selecting a connected AppKit %s row in a
   });
 });
 
-it("guards the connected Ethereum row for an Auth session", async () => {
+it("allows the Ethereum account modal for an independent Auth session", async () => {
   configureEthereum("AUTH");
 
   await selectChain("ETH");
 
-  expect(harness.disconnect).toHaveBeenCalledWith("ETH");
-  expect(appKitOpened).not.toHaveBeenCalled();
+  expect(harness.disconnect).not.toHaveBeenCalled();
+  expect(appKitOpened).toHaveBeenCalledTimes(1);
 });
 
 it.each([

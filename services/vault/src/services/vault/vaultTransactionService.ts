@@ -154,6 +154,12 @@ export interface RegisterPeginBatchOnChainParams {
    * `PeginManager.resolveMaxAcceptableCommissionBps`.
    */
   quotedCommissionBps: number;
+  /**
+   * Peg-in configuration fingerprint over the block-pinned protocol state the
+   * Pre-Pegin was built from. The registry re-derives it at inclusion and
+   * reverts if it moved.
+   */
+  expectedFingerprint: Hex;
 }
 
 /**
@@ -269,6 +275,7 @@ export async function registerPeginBatchOnChain(
     requests: params.requests,
     popSignature: params.popSignature,
     quotedCommissionBps: params.quotedCommissionBps,
+    expectedFingerprint: params.expectedFingerprint,
   });
 
   return {

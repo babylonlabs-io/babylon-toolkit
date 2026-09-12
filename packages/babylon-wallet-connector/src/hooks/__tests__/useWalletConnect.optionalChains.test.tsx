@@ -1,9 +1,12 @@
-import { renderHook } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { act, renderHook, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { IWallet } from "@/core/types";
+import type { Wallet } from "@/core/Wallet";
+import { WalletConnector } from "@/core/WalletConnector";
+import type { DisconnectScope, IETHProvider, IWallet } from "@/core/types";
 import { ERROR_CODES, WalletError } from "@/error";
 import { useWalletConnect } from "@/hooks/useWalletConnect";
+import { ETHWalletProvider, useETHWallet } from "@/providers/ETHWalletProvider";
 
 const harness = vi.hoisted(() => ({
   widgetState: {} as Record<string, unknown>,
@@ -29,14 +32,14 @@ let disconnectBtc: ReturnType<typeof vi.fn>;
 let disconnectEth: ReturnType<typeof vi.fn>;
 
 function setup({
-  requiredChainIds,
-  selectedWallets,
-  confirmed = false,
+  requiredChainIds = ["ETH"],
+  selectedWallets = { BTC: btcWallet, ETH: ethWallet },
+  confirmed = true,
 }: {
-  requiredChainIds: string[];
-  selectedWallets: Record<string, IWallet | undefined>;
+  requiredChainIds?: string[];
+  selectedWallets?: Record<string, IWallet | undefined>;
   confirmed?: boolean;
-}) {
+} = {}) {
   harness.widgetState = {
     confirmed,
     chains: { BTC: { id: "BTC" }, ETH: { id: "ETH" } },
@@ -62,17 +65,16 @@ beforeEach(() => {
   disconnectEth = vi.fn().mockResolvedValue(undefined);
   harness.connectors = {
     BTC: { disconnect: disconnectBtc },
-    ETH: { disconnect: disconnectEth },
+    ETH: { disconnect: disconnectEth, wallets: [], on: () => () => {} },
     BBN: null,
   };
 });
+afterEach(() => vi.restoreAllMocks());
 
 describe("required versus displayed chains", () => {
   it("reports connected once the single required chain is connected, with an optional chain still missing", () => {
     const { result } = setup({
-      requiredChainIds: ["ETH"],
       selectedWallets: { ETH: ethWallet },
-      confirmed: true,
     });
 
     expect(result.current.selected).toBe(true);
@@ -92,7 +94,6 @@ describe("required versus displayed chains", () => {
 
   it("does not report connected on selection alone, before the dialog is confirmed", () => {
     const { result } = setup({
-      requiredChainIds: ["ETH"],
       selectedWallets: { ETH: ethWallet },
       confirmed: false,
     });
@@ -123,9 +124,7 @@ describe("open", () => {
 
   it("does not reset widget state, so a confirmed session survives attaching another chain", () => {
     const { result } = setup({
-      requiredChainIds: ["ETH"],
       selectedWallets: { ETH: ethWallet },
-      confirmed: true,
     });
 
     result.current.open("BTC");
@@ -136,25 +135,17 @@ describe("open", () => {
 
 describe("disconnect", () => {
   it("disconnects only the named chain and leaves the other connected", async () => {
-    const { result } = setup({
-      requiredChainIds: ["ETH"],
-      selectedWallets: { BTC: btcWallet, ETH: ethWallet },
-      confirmed: true,
-    });
+    const { result } = setup();
 
     await result.current.disconnect("BTC");
 
-    expect(disconnectBtc).toHaveBeenCalled();
+    expect(disconnectBtc).toHaveBeenCalledWith("chain");
     expect(disconnectEth).not.toHaveBeenCalled();
     expect(reset).not.toHaveBeenCalled();
   });
 
   it("disconnects everything and resets when called with no chain", async () => {
-    const { result } = setup({
-      requiredChainIds: ["ETH"],
-      selectedWallets: { BTC: btcWallet, ETH: ethWallet },
-      confirmed: true,
-    });
+    const { result } = setup();
 
     await result.current.disconnect();
 
@@ -164,11 +155,7 @@ describe("disconnect", () => {
   });
 
   it("rejects a failed single-chain disconnect without a dialog and leaves the other chain and the widget state alone", async () => {
-    const { result } = setup({
-      requiredChainIds: ["ETH"],
-      selectedWallets: { BTC: btcWallet, ETH: ethWallet },
-      confirmed: true,
-    });
+    const { result } = setup();
     disconnectBtc.mockRejectedValueOnce(new Error("relay down"));
 
     await expect(result.current.disconnect("BTC")).rejects.toThrow("relay down");
@@ -181,11 +168,7 @@ describe("disconnect", () => {
   it.each(["BTC", "ETH"] as const)(
     "explains a refused %s disconnect in the dialog and still rejects",
     async (chain) => {
-      const { result } = setup({
-        requiredChainIds: ["ETH"],
-        selectedWallets: { BTC: btcWallet, ETH: ethWallet },
-        confirmed: true,
-      });
+      const { result } = setup();
       const refusal = new WalletError({
         code: ERROR_CODES.SHARED_SESSION_DISCONNECT_REFUSED,
         message: "Bitcoin and Ethereum share one wallet session.",
@@ -194,7 +177,10 @@ describe("disconnect", () => {
         chain === "BTC" ? [disconnectBtc, disconnectEth] : [disconnectEth, disconnectBtc];
       disconnect.mockRejectedValueOnce(refusal);
 
-      await expect(result.current.disconnect(chain)).rejects.toBe(refusal);
+      const eth = renderHook(useETHWallet, { wrapper: ETHWalletProvider });
+      await expect(chain === "ETH" ? eth.result.current.disconnect() : result.current.disconnect(chain)).rejects.toBe(
+        refusal,
+      );
 
       expect(displayError).toHaveBeenCalledWith(
         expect.objectContaining({ title: "Wallets share one session", description: refusal.message }),
@@ -209,24 +195,62 @@ describe("disconnect", () => {
     },
   );
 
-  it("passes the chain scope when disconnecting a single chain", async () => {
-    const { result } = setup({
-      requiredChainIds: ["ETH"],
-      selectedWallets: { BTC: btcWallet, ETH: ethWallet },
-      confirmed: true,
+  it("clears lost ETH accounts locally and keeps Bitcoin connected", async () => {
+    setup();
+    const listeners = new Set<(accounts: string[]) => void>();
+    const provider = {
+      getAddress: vi.fn().mockResolvedValue(ethWallet.account!.address),
+      disconnect: vi.fn(async (scope: DisconnectScope) => {
+        if (scope !== "local")
+          throw new WalletError({
+            code: ERROR_CODES.SHARED_SESSION_DISCONNECT_REFUSED,
+            message: "Bitcoin and Ethereum share one wallet session.",
+          });
+      }),
+      on: (_event: string, listener: (accounts: string[]) => void) => listeners.add(listener),
+      off: (_event: string, listener: (accounts: string[]) => void) => listeners.delete(listener),
+    };
+    const wallet = { ...ethWallet, provider, connect: vi.fn() } as unknown as Wallet<IETHProvider>;
+    const connector = new WalletConnector("ETH", "Ethereum", "", [wallet], {});
+    harness.connectors.ETH = connector;
+    await connector.connect(wallet);
+    const onDisconnect = vi.fn();
+    const { result } = renderHook(useETHWallet, {
+      wrapper: ({ children }) => <ETHWalletProvider callbacks={{ onDisconnect }}>{children}</ETHWalletProvider>,
     });
+    await waitFor(() => expect(result.current.connected).toBe(true));
+    provider.getAddress.mockResolvedValue("");
+    act(() => listeners.forEach((listener) => listener([])));
+    await waitFor(() => expect(result.current.connected).toBe(false));
+    expect(connector.connectedWallet).toBeNull();
+    expect(provider.disconnect).toHaveBeenLastCalledWith("local");
 
-    await result.current.disconnect("BTC");
+    provider.getAddress.mockResolvedValue(ethWallet.account!.address);
+    await act(() => connector.connect(wallet));
+    await waitFor(() => expect(result.current.connected).toBe(true));
+    provider.getAddress.mockResolvedValue("");
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
+    document.dispatchEvent(new Event("visibilitychange"));
+    await waitFor(() => expect(result.current.connected).toBe(false));
+    expect(connector.connectedWallet).toBeNull();
+    expect(provider.disconnect).toHaveBeenLastCalledWith("local");
 
-    expect(disconnectBtc).toHaveBeenCalledWith("chain");
+    provider.getAddress.mockResolvedValue(ethWallet.account!.address);
+    await act(() => connector.connect(wallet));
+    await waitFor(() => expect(result.current.connected).toBe(true));
+    provider.getAddress.mockRejectedValue(new Error("Wallet not connected"));
+    document.dispatchEvent(new Event("visibilitychange"));
+    await waitFor(() => expect(result.current.connected).toBe(false));
+    expect(connector.connectedWallet).toBeNull();
+    expect(provider.disconnect.mock.calls).toEqual([["local"], ["local"], ["local"]]);
+    expect(onDisconnect).toHaveBeenCalledTimes(3);
+    expect(disconnectBtc).not.toHaveBeenCalled();
+    expect(displayError).not.toHaveBeenCalled();
+    expect(reset).not.toHaveBeenCalled();
   });
 
   it("treats a click event as disconnect-all rather than as a chain", async () => {
-    const { result } = setup({
-      requiredChainIds: ["ETH"],
-      selectedWallets: { BTC: btcWallet, ETH: ethWallet },
-      confirmed: true,
-    });
+    const { result } = setup();
 
     // React's bivariant handler types allow `onClick={disconnect}`, which calls
     // this with a MouseEvent.

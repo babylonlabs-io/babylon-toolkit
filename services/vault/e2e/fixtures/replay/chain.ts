@@ -1,8 +1,8 @@
 /**
  * A read-only fake chain assembled from a recorded run.
  *
- * The dApp reads the chain almost entirely through Multicall3: all 19
- * `eth_call`s in the committed peg-in recording are `aggregate3` batches.
+ * The dApp reads the chain almost entirely through Multicall3: the recorded
+ * `eth_call`s use `aggregate3` batches.
  * Replaying those batches by matching the outer `data` byte-for-byte would be
  * useless in practice - the batch is composed by wagmi from whatever hooks
  * happen to be mounted, so adding one component to a page changes the bytes
@@ -10,11 +10,9 @@
  *
  * So a batch is taken apart instead. Each recorded `aggregate3` is decoded
  * into its inner calls, paired positionally with the decoded results, and
- * stored per inner call. A live batch is answered the same way: decoded,
- * answered call by call, re-encoded. The recording's 39 inner calls collapse
- * to 28 distinct (target, selector) pairs, and a page that batches them
- * differently - or in a different order, or across two batches - is still
- * answered correctly.
+ * stored per inner call. A live batch is decoded, answered call by call, and
+ * re-encoded. A page can batch the recorded calls in a different order.
+ * Recorded reverts require the exact target and calldata.
  *
  * Lookup is exact-first: a call is answered by its full calldata when that
  * exact calldata was recorded, and otherwise by (target, selector) alone. The
@@ -121,20 +119,23 @@ function selectorKey(target: string, data: Hex): string {
   return `${target.toLowerCase()}|${selectorOf(data)}`;
 }
 
-/**
- * The selector table's value. `null` marks a (target, selector) pair the
- * recording holds under more than one calldata - see {@link buildTables}.
- */
-type SelectorAnswer = Hex | null;
+/** A recorded success or revert, with its original return bytes. */
+interface RecordedCall {
+  readonly success: boolean;
+  readonly returnData: Hex;
+}
+
+/** Null disables fallback for reverts or multiple recorded arguments. */
+type SelectorAnswer = RecordedCall | null;
 
 interface ChainTables {
-  readonly exact: Map<string, Hex>;
+  readonly exact: Map<string, RecordedCall>;
   readonly bySelector: Map<string, SelectorAnswer>;
   readonly methods: Map<string, unknown>;
 }
 
 /**
- * Decoded tables per run, so the 19 recorded batches are taken apart once
+ * Decoded tables per run, so the recorded batches are taken apart once
  * rather than once per captured screen. Keyed on the run object, which
  * `loadRecordedRun` already caches per path.
  */
@@ -163,24 +164,31 @@ const tableCache = new WeakMap<RecordedRun, ChainTables>();
  * rendered onto the deposit form the capture exists to photograph.
  */
 function buildTables(run: RecordedRun): ChainTables {
-  const exact = new Map<string, Hex>();
+  const exact = new Map<string, RecordedCall>();
   const bySelector = new Map<string, SelectorAnswer>();
   const methods = new Map<string, unknown>();
 
-  const remember = (target: string, callData: Hex, returnData: Hex): void => {
+  const remember = (
+    target: string,
+    callData: Hex,
+    outcome: RecordedCall,
+  ): void => {
     const byExact = exactKey(target, callData);
     const bySelectorAlone = selectorKey(target, callData);
     const isNewArgument = !exact.has(byExact);
-    exact.set(byExact, returnData);
+    exact.set(byExact, outcome);
 
-    if (isNewArgument && bySelector.has(bySelectorAlone)) {
+    if (
+      !outcome.success ||
+      (isNewArgument && bySelector.has(bySelectorAlone))
+    ) {
       bySelector.set(bySelectorAlone, null);
       return;
     }
     // Absent, or holding this same argument's earlier answer. Either way the
     // pair still has exactly one argument behind it and last-wins applies.
     if (bySelector.get(bySelectorAlone) !== null) {
-      bySelector.set(bySelectorAlone, returnData);
+      bySelector.set(bySelectorAlone, outcome);
     }
   };
 
@@ -202,7 +210,7 @@ function buildTables(run: RecordedRun): ChainTables {
     if (typeof to !== "string" || typeof data !== "string") continue;
 
     if (to.toLowerCase() !== MULTICALL3_ADDRESS) {
-      remember(to, data as Hex, result as Hex);
+      remember(to, data as Hex, { success: true, returnData: result as Hex });
       continue;
     }
 
@@ -225,8 +233,8 @@ function buildTables(run: RecordedRun): ChainTables {
 
     calls.forEach((inner, index) => {
       const outcome = results[index];
-      if (!outcome?.success) return;
-      remember(inner.target, inner.callData, outcome.returnData);
+      if (!outcome) return;
+      remember(inner.target, inner.callData, outcome);
     });
   }
 
@@ -236,7 +244,10 @@ function buildTables(run: RecordedRun): ChainTables {
   for (const supplement of buildSupplements(run)) {
     const key = exactKey(supplement.target, supplement.callData);
     if (exact.has(key)) continue;
-    remember(supplement.target, supplement.callData, supplement.returnData);
+    remember(supplement.target, supplement.callData, {
+      success: true,
+      returnData: supplement.returnData,
+    });
   }
 
   return { exact, bySelector, methods };
@@ -260,13 +271,16 @@ export function buildRecordedChain(run: RecordedRun): RecordedChain {
 
   // `?? null` covers both selector outcomes that must not answer: a pair the
   // recording never held, and one it held under several arguments.
-  const answerCall = (to: string, data: Hex): Hex | null =>
+  const answerCall = (to: string, data: Hex): RecordedCall | null =>
     exact.get(exactKey(to, data)) ??
     bySelector.get(selectorKey(to, data)) ??
     null;
 
   return {
-    answerCall,
+    answerCall(to, data) {
+      const outcome = answerCall(to, data);
+      return outcome?.success ? outcome.returnData : null;
+    },
     answerMulticall(data: Hex): Hex | null {
       let calls: readonly { target: string; callData: Hex }[];
       try {
@@ -286,15 +300,15 @@ export function buildRecordedChain(run: RecordedRun): RecordedChain {
       }
 
       const results = calls.map((inner) => {
-        const returnData = answerCall(inner.target, inner.callData);
-        if (returnData === null) {
+        const outcome = answerCall(inner.target, inner.callData);
+        if (outcome === null) {
           unanswered.push({
             target: inner.target.toLowerCase(),
             selector: selectorOf(inner.callData),
           });
           return { success: false, returnData: "0x" as Hex };
         }
-        return { success: true, returnData };
+        return outcome;
       });
 
       return encodeFunctionResult({

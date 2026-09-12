@@ -167,6 +167,34 @@ Vault core (tx-graph) version: the PegIn output count (`uint16`).
 
 ## Functions
 
+### isPeginFingerprintInputError()
+
+```ts
+function isPeginFingerprintInputError(err): err is PeginFingerprintInputError;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/pegin-fingerprint/peginFingerprint.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/pegin-fingerprint/peginFingerprint.ts)
+
+Recognise the error above, including across a module boundary.
+
+Every message it carries names an internal field and the width it broke, so a
+consumer needs to be able to catch it and substitute its own copy rather than
+show the depositor what went wrong internally. `instanceof` alone fails
+across duplicate module copies and test mocks, so the name is the fallback —
+the same pattern the deposit-path drift guards use.
+
+#### Parameters
+
+##### err
+
+`unknown`
+
+#### Returns
+
+`err is PeginFingerprintInputError`
+
+***
+
 ### encodePeginFingerprintPreimage()
 
 ```ts

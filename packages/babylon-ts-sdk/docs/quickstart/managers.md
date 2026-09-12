@@ -110,7 +110,12 @@ import {
   type PayoutSigningContext,
 } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 import { VaultProviderRpcClient } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
-import { type UTXO } from "@babylonlabs-io/ts-sdk/tbv/core";
+import {
+  computePeginFingerprint,
+  type PegInConfiguration,
+  type UTXO,
+  type ValidatedOnChainParticipantKeys,
+} from "@babylonlabs-io/ts-sdk/tbv/core";
 import { stripHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core/primitives";
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import type { Address, Hex, WalletClient } from "viem";
@@ -136,6 +141,13 @@ declare const councilSize: number;
 declare const availableUTXOs: UTXO[];
 declare const changeAddress: string;
 declare const vpEthAddress: Address;
+declare const ethChainId: number;
+
+// The two block-pinned protocol reads the fingerprint is computed from. Resolve
+// ONE block number and pass it to both, so they describe the same chain state
+// as each other and as the Bitcoin scripts built below.
+declare const validatedKeys: ValidatedOnChainParticipantKeys;
+declare const pegInConfig: PegInConfiguration;
 // 1. Prepare Pre-PegIn + PegIn transactions. The SDK orchestrator
 //    snapshots the wallet pubkey, runs a sizing pass, fires ONE
 //    `deriveContextHash` popup, derives per-vault WOTS keys + HTLC
@@ -169,6 +181,34 @@ const depositorWotsPkHash = result.derivedSecrets.wotsPkHashes[0];
 const popSignature = await peginManager.signProofOfPossession();
 
 // 3. Register on Ethereum (submits the vault + hashlock).
+//
+//    `expectedFingerprint` commits to the protocol configuration this deposit
+//    was built against. The registry resolves the same values when it includes
+//    the transaction and reverts with `PeginFingerprintChanged` if any of them
+//    moved in between, which would otherwise bond the vault to keys the funded
+//    HTLC does not commit to.
+//
+//    Every field must come from the SAME block-pinned reads that shaped the
+//    Bitcoin scripts above — `validateOnChainParticipantKeys` and
+//    `getPegInConfiguration` both take a `blockNumber`, so resolve one block
+//    and pass it to both. A fingerprint taken from fresher state is still
+//    accepted by the contract while your scripts are stale, which is the exact
+//    failure it exists to prevent.
+const expectedFingerprint = computePeginFingerprint({
+  chainId: BigInt(ethChainId),
+  registryAddress: BTC_VAULT_REGISTRY,
+  // 32 bytes, 0x-prefixed. The SDK resolves operation keys as x-only hex
+  // WITHOUT the prefix, so add it here.
+  vaultProviderBtcKey: `0x${validatedKeys.vaultProviderBtcPubkeyXOnly}` as Hex,
+  appKeeperKeyEpoch: validatedKeys.appKeeperKeyEpoch,
+  ucKeyEpoch: validatedKeys.ucKeyEpoch,
+  appVaultKeepersVersion: validatedKeys.expectedAppVaultKeepersVersion,
+  universalChallengersVersion:
+    validatedKeys.expectedUniversalChallengersVersion,
+  offchainParamsVersion: pegInConfig.offchainParamsVersion,
+  vaultCoreVersion: pegInConfig.activeVaultCoreVersion,
+});
+
 const { vaultId, peginTxHash } = await peginManager.registerPeginOnChain({
   unsignedPrePeginTx: result.transaction.fundedPrePeginTxHex,
   depositorSignedPeginTx: firstVault.peginTxHex,
@@ -177,6 +217,7 @@ const { vaultId, peginTxHash } = await peginManager.registerPeginOnChain({
   depositorWotsPkHash,
   htlcVout: firstVault.htlcVout,
   popSignature,
+  expectedFingerprint,
 });
 // Contract status: PENDING
 

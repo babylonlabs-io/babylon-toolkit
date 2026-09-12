@@ -70,10 +70,14 @@ export const KEYS = {
   outsider: KEY_POOL[10],
 } as const;
 
+// Real hex throughout: the build path now compares the application entry point
+// with `isAddressEqual`, which parses both sides and rejects a mnemonic
+// placeholder. Kept visually distinct rather than sequential so a mix-up in a
+// fixture is still obvious on sight.
 export const ADDRESSES = {
-  vaultProvider: "0x00000000000000000000000000000000000000v1" as Address,
+  vaultProvider: "0x00000000000000000000000000000000000000d1" as Address,
   applicationEntryPoint:
-    "0x0000000000000000000000000000000000000app" as Address,
+    "0x0000000000000000000000000000000000000abc" as Address,
   keeperA: "0x000000000000000000000000000000000000000a" as Address,
   keeperB: "0x000000000000000000000000000000000000000b" as Address,
   keeperC: "0x000000000000000000000000000000000000000c" as Address,
