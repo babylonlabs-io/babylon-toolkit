@@ -65,7 +65,7 @@ vi.mock("@/infrastructure", () => ({
 }));
 
 // Must stay in sync with BTC_DISCONNECT_DEBOUNCE_MS in the provider; advancing
-// past it is what would trigger the reset if the guard let it through.
+// past it is what runs the local Bitcoin cleanup if the guards let it through.
 const PAST_DEBOUNCE_MS = 5000;
 
 const renderProvider = () =>
@@ -176,6 +176,7 @@ describe("WalletConnectionProvider wallet resets", () => {
 
     act(() => btc().onConnect());
     act(() => btc().onDisconnect());
+    act(() => h.captured.eth!.onDisconnect());
     expect(h.disconnectAll).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(PAST_DEBOUNCE_MS);
 
@@ -195,6 +196,35 @@ describe("WalletConnectionProvider wallet resets", () => {
 
     expect(h.btcConnector.disconnect).toHaveBeenCalledExactlyOnceWith("local");
     expect(h.disconnectAll).not.toHaveBeenCalled();
+  });
+
+  it("skips the Bitcoin cleanup when a full reset starts inside the window", async () => {
+    h.disconnectAll.mockImplementationOnce(() => new Promise(() => {}));
+    renderProvider();
+
+    act(() => btc().onConnect());
+    act(() => btc().onDisconnect());
+    act(() => h.captured.eth!.onDisconnect());
+    expect(h.disconnectAll).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(PAST_DEBOUNCE_MS);
+
+    expect(h.btcConnector.disconnect).not.toHaveBeenCalled();
+  });
+
+  it("clears Bitcoin again after a reconnect that follows a local cleanup", async () => {
+    renderProvider();
+
+    act(() => btc().onConnect());
+    act(() => btc().onDisconnect());
+    await vi.advanceTimersByTimeAsync(PAST_DEBOUNCE_MS);
+    expect(h.btcConnector.disconnect).toHaveBeenCalledExactlyOnceWith("local");
+
+    act(() => btc().onConnect());
+    act(() => btc().onDisconnect());
+    await vi.advanceTimersByTimeAsync(PAST_DEBOUNCE_MS);
+
+    expect(h.btcConnector.disconnect).toHaveBeenCalledTimes(2);
+    expect(h.btcConnector.disconnect).toHaveBeenLastCalledWith("local");
   });
 
   it("cancels a pending BTC reset when the provider unmounts", async () => {
