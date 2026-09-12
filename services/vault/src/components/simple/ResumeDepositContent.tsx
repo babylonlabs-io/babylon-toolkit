@@ -87,7 +87,12 @@ interface CaughtError {
 
 export interface ResumeSignContentProps {
   activity: VaultActivity;
-  btcPublicKey: string;
+  /**
+   * The connected wallet's key. `undefined` while Bitcoin is disconnected or
+   * the key is still being read after a connect; the branch mounts either
+   * way so BtcActionGate can prompt, and signing waits for the key.
+   */
+  btcPublicKey: string | undefined;
   depositorEthAddress: Hex;
   /**
    * Every vault ID sharing this deposit's Pre-PegIn (the split-pegin
@@ -103,8 +108,53 @@ export interface ResumeSignContentProps {
 export function ResumeSignContent(props: ResumeSignContentProps) {
   return (
     <BtcActionGate onClose={props.onClose}>
-      <ResumeSignContentConnected {...props} />
+      {props.btcPublicKey === undefined ? (
+        <ResumeSignContentAwaitingKey
+          activity={props.activity}
+          siblingVaultIds={props.siblingVaultIds}
+          onClose={props.onClose}
+        />
+      ) : (
+        <ResumeSignContentConnected
+          {...props}
+          btcPublicKey={props.btcPublicKey}
+        />
+      )}
     </BtcActionGate>
+  );
+}
+
+// The wait state the continuation view used to render for a payout-ready
+// vault without a wallet key: the deposit rests on the auth-anchor step (see
+// getPeginDisplayStep) until the key read settles and the ceremony can start.
+function ResumeSignContentAwaitingKey({
+  activity,
+  siblingVaultIds,
+  onClose,
+}: Pick<ResumeSignContentProps, "activity" | "siblingVaultIds" | "onClose">) {
+  const { vaultCount, currentVaultIndex, perVaultSteps } =
+    useSplitVaultProgress(
+      siblingVaultIds,
+      activity.id,
+      DepositFlowStep.SIGN_AUTH_ANCHOR,
+    );
+
+  return (
+    <DepositProgressView
+      currentStep={DepositFlowStep.SIGN_AUTH_ANCHOR}
+      offchainParamsVersion={activity.offchainParamsVersion}
+      error={null}
+      isComplete={false}
+      isProcessing
+      canClose
+      canContinueInBackground
+      payoutSigningProgress={null}
+      peginSigningProgress={null}
+      vaultCount={vaultCount}
+      currentVaultIndex={currentVaultIndex}
+      perVaultSteps={perVaultSteps}
+      onClose={onClose}
+    />
   );
 }
 
@@ -115,7 +165,7 @@ function ResumeSignContentConnected({
   siblingVaultIds,
   onClose,
   onSuccess,
-}: ResumeSignContentProps) {
+}: ResumeSignContentProps & { btcPublicKey: string }) {
   const {
     signing,
     progress,

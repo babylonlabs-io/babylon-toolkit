@@ -1117,13 +1117,14 @@ describe("Bitcoin action prompt", () => {
 
   it("leaves WOTS work unstarted when the user cancels the prompt", () => {
     const onClose = vi.fn();
-    const view = render(
+    const content = (
       <ResumeWotsContent
         activity={baseActivity}
         onClose={onClose}
         onSuccess={vi.fn()}
-      />,
+      />
     );
+    const view = render(content);
     fireEvent.click(
       view.getByRole("button", { name: COPY.wallet.btcAction.connect }),
     );
@@ -1131,11 +1132,45 @@ describe("Bitcoin action prompt", () => {
       view.getByRole("button", { name: COPY.wallet.btcAction.cancel }),
     );
     expect(onClose).toHaveBeenCalledOnce();
-    view.unmount();
     btcActionWallet.connected = true;
+    view.rerender(cloneElement(content));
+    expect(
+      view.getByRole("button", { name: COPY.wallet.btcAction.retry }),
+    ).toBeTruthy();
     expect(mockGetVaultRegistryReader).not.toHaveBeenCalled();
     expect(mockDeriveVaultRoot).not.toHaveBeenCalled();
     expect(mockSubmitWotsPublicKey).not.toHaveBeenCalled();
+  });
+
+  it("holds the payout wait state after retry until the wallet key resolves", () => {
+    const withKey = (btcPublicKey: string | undefined) => (
+      <ResumeSignContent
+        activity={baseActivity}
+        btcPublicKey={btcPublicKey}
+        depositorEthAddress="0xdepositor"
+        onClose={vi.fn()}
+        onSuccess={vi.fn()}
+      />
+    );
+    const view = render(withKey(undefined));
+    expect(view.queryByTestId("progress-view")).toBeNull();
+    fireEvent.click(
+      view.getByRole("button", { name: COPY.wallet.btcAction.connect }),
+    );
+    expect(btcActionWallet.open).toHaveBeenCalledWith("BTC");
+    btcActionWallet.connected = true;
+    view.rerender(withKey(undefined));
+    expect(usePayoutSigningState).not.toHaveBeenCalled();
+    fireEvent.click(
+      view.getByRole("button", { name: COPY.wallet.btcAction.retry }),
+    );
+    expect(view.getByTestId("processing").textContent).toBe("true");
+    expect(usePayoutSigningState).not.toHaveBeenCalled();
+    view.rerender(withKey("0xbtcpub"));
+    expect(usePayoutSigningState).toHaveBeenCalled();
+    // The ceremony auto-runs on the first mount with a key, after the retry.
+    const state = vi.mocked(usePayoutSigningState).mock.results[0]?.value;
+    expect(state.handleSign).toHaveBeenCalledOnce();
   });
 
   it("does not mount broadcast work when Bitcoin connects", () => {
@@ -1219,10 +1254,13 @@ describe("Bitcoin action prompt", () => {
     );
     const view = render(content);
     expect(useBroadcastState).not.toHaveBeenCalled();
+    expect(view.getByText(COPY.wallet.btcAction.confirmBody)).toBeTruthy();
     fireEvent.click(
       view.getByRole("button", { name: COPY.wallet.btcAction.connect }),
     );
-    expect(btcActionWallet.open).toHaveBeenCalledWith("BTC");
+    // Bitcoin is already connected, so the dialog opens on the chain list
+    // that carries the confirm step, not on the Bitcoin wallet list.
+    expect(btcActionWallet.open).toHaveBeenCalledWith(undefined);
     btcActionWallet.confirmed = true;
     view.rerender(cloneElement(content));
     expect(useBroadcastState).not.toHaveBeenCalled();

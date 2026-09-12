@@ -5,15 +5,21 @@ import {
 import { useCallback } from "react";
 
 export function useBtcAction() {
-  const { connected: btcConnected } = useBTCWallet();
+  const { connected: btcConnected, loading } = useBTCWallet();
   const { connected: sessionConfirmed, open } = useWalletConnect();
   const connected = btcConnected && sessionConfirmed;
 
   const requireBtcWallet = useCallback(() => {
     if (connected) return true;
-    open("BTC");
+    open(btcConnected ? undefined : "BTC");
     return false;
-  }, [connected, open]);
+  }, [connected, btcConnected, open]);
 
-  return { connected, requireBtcWallet };
+  return {
+    connected,
+    btcConnected,
+    sessionConfirmed,
+    loading,
+    requireBtcWallet,
+  };
 }

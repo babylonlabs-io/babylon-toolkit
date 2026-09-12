@@ -117,7 +117,7 @@ export function EmergencyWithdrawModal({
       // the button disabled. Setting `localError` would print it twice.
       if ((await ensureApplicationActive(activity.id)) === false) return;
       if (!requireBtcWallet()) {
-        setLocalError(COPY.wallet.btcAction.body);
+        setLocalError(COPY.wallet.btcAction.error);
         return;
       }
       if (!btcWalletProvider || !connectedBtcAddress) {

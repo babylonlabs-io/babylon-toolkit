@@ -151,9 +151,15 @@ export function PostDepositContinuationView({
     onClose();
   }, [navigate, onClose]);
 
+  // Actionability keys on the vault's on-chain depositor key, not the wallet
+  // key, so the payout branch mounts while Bitcoin is disconnected and its
+  // BtcActionGate can prompt for the wallet instead of a wait state hiding it.
   const isActionable = (id: string): boolean => {
-    const state = getPollingResult(id)?.peginState;
-    return isCandidateVault(state) && hasActionableStep(state, btcPublicKey);
+    const result = getPollingResult(id);
+    return (
+      isCandidateVault(result?.peginState) &&
+      hasActionableStep(result?.peginState, result?.depositorBtcPubkey)
+    );
   };
 
   // Which vault drives the rendered action branch. Two rules:
@@ -406,9 +412,11 @@ export function PostDepositContinuationView({
     );
   }
 
+  // Same on-chain key as `isActionable`: a payout-ready vault with an unknown
+  // depositor key is not selected, and must not mount from the wait fallback.
   if (
     activity &&
-    btcPublicKey &&
+    pollingResult?.depositorBtcPubkey &&
     actions.includes(PeginAction.SIGN_PAYOUT_TRANSACTIONS)
   ) {
     return (

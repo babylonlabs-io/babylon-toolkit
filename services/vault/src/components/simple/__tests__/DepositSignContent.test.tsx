@@ -1,5 +1,6 @@
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import { act, fireEvent, render } from "@testing-library/react";
+import { cloneElement } from "react";
 import type { Address, Hex } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -119,13 +120,13 @@ vi.mock("../DepositProgressView", () => ({
   },
 }));
 
-function renderContent(
+function contentElement(
   overrides: {
     onRefetchActivities?: () => Promise<void>;
     depositorEthAddress?: Address | undefined;
   } = {},
 ) {
-  return render(
+  return (
     <DepositSignContent
       vaultAmounts={[100000n]}
       mempoolFeeRate={1}
@@ -144,8 +145,12 @@ function renderContent(
       onClose={vi.fn()}
       onRefetchActivities={overrides.onRefetchActivities}
       onFeeRateChange={vi.fn()}
-    />,
+    />
   );
+}
+
+function renderContent(overrides: Parameters<typeof contentElement>[0] = {}) {
+  return render(contentElement(overrides));
 }
 
 describe("DepositSignContent", () => {
@@ -159,19 +164,20 @@ describe("DepositSignContent", () => {
     flowErrorState.resumableVaultIds = null;
   });
 
-  it("keeps a deposit unstarted until the user retries after connection", async () => {
+  it("keeps a deposit unstarted until the user retries after connection", () => {
     btcActionWallet.connected = false;
     mockExecuteDeposit.mockResolvedValue(null);
-    const first = renderContent();
-    fireEvent.click(first.getByTestId("summary-sign"));
+    const content = contentElement();
+    const view = render(content);
+    fireEvent.click(view.getByTestId("summary-sign"));
     expect(btcActionWallet.open).toHaveBeenCalledWith("BTC");
     expect(mockExecuteDeposit).not.toHaveBeenCalled();
-    expect(first.queryByTestId("progress")).toBeNull();
-    first.unmount();
+    expect(view.queryByTestId("progress")).toBeNull();
     btcActionWallet.connected = true;
-    const next = renderContent();
+    view.rerender(cloneElement(content));
     expect(mockExecuteDeposit).not.toHaveBeenCalled();
-    fireEvent.click(next.getByTestId("summary-sign"));
+    expect(view.queryByTestId("progress")).toBeNull();
+    fireEvent.click(view.getByTestId("summary-sign"));
     expect(mockExecuteDeposit).toHaveBeenCalledOnce();
   });
 

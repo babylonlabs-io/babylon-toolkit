@@ -87,18 +87,18 @@ export function useRefundState({
     async (feeRate: number) => {
       if (inFlightRef.current || refunding) return;
       if (!requireBtcWallet()) {
-        setError(COPY.wallet.btcAction.body);
+        setError(COPY.wallet.btcAction.error);
         return;
       }
       inFlightRef.current = true;
 
       try {
         if (!btcWalletProvider || !connectedBtcAddress) {
-          setError("BTC wallet not connected");
+          setError(COPY.deposit.refundReview.errors.walletNotConnected);
           return;
         }
         if (!vaultId) {
-          setError("Missing BTC Vault ID");
+          setError(COPY.deposit.refundReview.errors.missingVaultId);
           return;
         }
         if (!ethAddress) {
@@ -106,11 +106,11 @@ export function useRefundState({
           // sibling vaults (batched Pre-PegIn refunds). Without it we
           // can't reconstruct the full HTLC vector even for single-vault
           // refunds, so fail closed.
-          setError("ETH wallet not connected");
+          setError(COPY.deposit.refundReview.errors.ethWalletNotConnected);
           return;
         }
         if (!Number.isFinite(feeRate) || feeRate <= 0) {
-          setError("Fee rate must be a positive number");
+          setError(COPY.deposit.refundReview.errors.invalidFeeRate);
           return;
         }
 
