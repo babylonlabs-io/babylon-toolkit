@@ -1,7 +1,10 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { calculate } from "@/applications/aave/positionNotifications";
+import {
+  calculate,
+  type Warning,
+} from "@/applications/aave/positionNotifications";
 import type {
   CalculatorParams,
   CalculatorResult,
@@ -101,6 +104,7 @@ vi.mock("@/applications/aave/hooks", () => ({
 
 const positionNotificationsMock = vi.hoisted(() => ({
   result: null as CalculatorResult | null,
+  liveUrgentWarning: null as Warning | null,
   params: null as CalculatorParams | null,
 }));
 
@@ -118,7 +122,11 @@ vi.mock("../PositionNotificationBanner", () => ({
   PositionNotificationBanner: () => <div data-testid="position-banner" />,
 }));
 vi.mock("../CriticalLiquidationTopBanner", () => ({
-  CriticalLiquidationTopBanner: () => <div data-testid="critical-banner" />,
+  CriticalLiquidationTopBanner: ({
+    liveUrgentWarning,
+  }: {
+    liveUrgentWarning?: Warning | null;
+  }) => <div data-testid="critical-banner">{liveUrgentWarning?.title}</div>,
 }));
 vi.mock("../DisconnectedOverview", () => ({
   DisconnectedOverview: () => <div data-testid="disconnected-overview" />,
@@ -168,6 +176,7 @@ beforeEach(() => {
   featureFlagsMock.isLiquidationNotificationsEnabled = false;
   featureFlagsMock.isGodModePanelEnabled = false;
   positionNotificationsMock.result = null;
+  positionNotificationsMock.liveUrgentWarning = null;
   positionNotificationsMock.params = null;
   setPositionCascadeOverride(null);
   pricesMock.prices = {};
@@ -177,6 +186,19 @@ beforeEach(() => {
 });
 
 describe("DashboardPage composition", () => {
+  it("passes live risk to the top banner when no cascade is available", () => {
+    featureFlagsMock.isLiquidationNotificationsEnabled = true;
+    const title = COPY.liquidationWarnings.liveHealthFactor.title("1.05");
+    positionNotificationsMock.liveUrgentWarning = {
+      type: "urgent",
+      title,
+      detail: COPY.liquidationWarnings.liveHealthFactor.detail,
+    };
+    render(<DashboardPage />);
+    expect(screen.getByTestId("critical-banner")).toHaveTextContent(title);
+    expect(receivedCascade.current).toBeNull();
+  });
+
   it("shows the landing page when both wallets are missing", () => {
     walletMock.btcConnected = false;
     walletMock.ethConnected = false;

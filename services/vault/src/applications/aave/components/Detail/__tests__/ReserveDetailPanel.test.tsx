@@ -1,11 +1,6 @@
 /**
- * ReserveDetailPanel — branch order of the loan overlay's borrow/repay step.
- *
- * The ordering is load-bearing, not cosmetic: nothing derived from the reserve
- * may reach the DOM before its asset is proven on-chain (audit F7). In
- * particular the identity block must win over the loading spinner, since
- * `isLoading` ORs four sources and a still-pending price query would otherwise
- * hide a resolved integrity failure.
+ * Verify the loan form gates. Asset identity must be proven before the form
+ * appears. Identity errors must also appear while other requests load.
  */
 
 import { render, screen } from "@testing-library/react";
@@ -109,8 +104,8 @@ function detailState(overrides: Record<string, unknown> = {}) {
     liquidationThresholdBps: 7500,
     proxyContract: "0xProxy",
     collateralValueUsd: 15000,
-    currentDebtAmount: 0,
-    totalDebtValueUsd: 0,
+    currentDebtAmount: 1,
+    totalDebtValueUsd: 1,
     healthFactor: null,
     tokenPriceUsd: 1,
     isPriceStale: false,
@@ -136,17 +131,23 @@ describe("ReserveDetailPanel", () => {
     mockUseAaveReserveDetail.mockReturnValue(detailState());
   });
 
-  it("renders the loan form once the reserve's identity is proven", () => {
+  it("keeps Repay open after a background position refresh fails", () => {
+    mockUseAaveReserveDetail.mockReturnValue(
+      detailState({ positionError: new Error("RPC failed") }),
+    );
     render(
       <ReserveDetailPanel
         reserveId="2"
-        tab={LOAN_TAB.BORROW}
+        tab={LOAN_TAB.REPAY}
         onProcessingChange={vi.fn()}
         onSuccess={vi.fn()}
       />,
     );
 
     expect(screen.getByTestId("loan-card")).toBeInTheDocument();
+    expect(
+      screen.getByText(COPY.loans.detail.ancillaryLoadWarning),
+    ).toBeVisible();
   });
 
   it("blocks with integrity copy and no retry when the asset can't be verified", () => {
@@ -362,21 +363,21 @@ describe("ReserveDetailPanel", () => {
     expect(screen.getByText(COPY.loans.reserveNotFound)).toBeInTheDocument();
   });
 
-  it("withholds the loan form while the debt figure is still unproven", () => {
+  it("blocks Repay after a refresh error when only another reserve has debt", () => {
     mockUseAaveReserveDetail.mockReturnValue(
-      detailState({ currentDebtAmount: null }),
+      detailState({ currentDebtAmount: 0, positionError: new Error("RPC") }),
     );
 
     render(
       <ReserveDetailPanel
         reserveId="2"
-        tab={LOAN_TAB.BORROW}
+        tab={LOAN_TAB.REPAY}
         onProcessingChange={vi.fn()}
         onSuccess={vi.fn()}
       />,
     );
 
     expect(screen.queryByTestId("loan-card")).not.toBeInTheDocument();
-    expect(screen.getByText(COPY.loans.reserveNotFound)).toBeInTheDocument();
+    expect(screen.getByText(COPY.loans.detail.positionLoadError)).toBeVisible();
   });
 });

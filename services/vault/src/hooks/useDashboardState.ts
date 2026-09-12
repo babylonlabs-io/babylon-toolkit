@@ -39,6 +39,7 @@ export function useDashboardState(connectedAddress: string | undefined) {
     healthFactorStatus,
     isLoading,
     error: positionError,
+    refetch: refetchPosition,
   } = useAaveUserPosition(connectedAddress);
 
   const { borrowedAssets, hasLoans } = useAaveBorrowedAssets({
@@ -152,16 +153,22 @@ export function useDashboardState(connectedAddress: string | undefined) {
     }
   }, [rawCollateralVaults, activatingVaults, clearActivatingVault]);
 
-  // Display-only BTC total: indexer collateral plus optimistic activating
-  // amounts. The financial `collateralBtc` (health factor / withdraw math)
-  // stays indexer/oracle-pure and is returned unchanged below.
-  const displayCollateralBtc =
-    collateralBtc +
-    activatingEntries.reduce((sum, entry) => sum + entry.amountBtc, 0);
+  // Add only activations that the current chain snapshot does not include.
+  const displayCollateralBtc = useMemo(
+    () =>
+      collateralBtc +
+      activatingEntries
+        .filter(
+          (entry) =>
+            !position?.vaultIds.some(
+              (id) => id.toLowerCase() === entry.vaultId.toLowerCase(),
+            ),
+        )
+        .reduce((sum, entry) => sum + entry.amountBtc, 0),
+    [collateralBtc, activatingEntries, position?.vaultIds],
+  );
 
-  // Financial gate — drives action-enabling (e.g. Borrow). Indexer-pure: an
-  // optimistic activating row must NOT unlock financial actions before the
-  // collateral actually exists on-chain.
+  // Optimistic rows must not enable actions before collateral exists on-chain.
   const hasCollateral = collateralBtc > 0;
   // Display gate — drives the Collateral section's summary-vs-empty rendering,
   // so the just-activated vault shows during the indexer gap.
@@ -169,6 +176,8 @@ export function useDashboardState(connectedAddress: string | undefined) {
     collateralBtc > 0 || activatingEntries.length > 0;
 
   return {
+    position,
+    indexerError: position?.indexerError ?? null,
     collateralBtc,
     displayCollateralBtc,
     collateralValueUsd,
@@ -187,5 +196,6 @@ export function useDashboardState(connectedAddress: string | undefined) {
     collateralVaults,
     isLoading,
     positionError,
+    refetchPosition,
   };
 }

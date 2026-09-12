@@ -1,14 +1,11 @@
-/**
- * Borrow / repay form step of the loan overlay. Reports progress and completion
- * upwards — `LoanFlowOverlay` owns the shell every step renders into.
- */
+/** Loan form with progress and completion callbacks for LoanFlowOverlay. */
 
 import { EmptyState } from "@/components/shared";
 import { getNetworkConfigBTC } from "@/config";
 import { useConnection, useETHWallet } from "@/context/wallet";
 import { COPY } from "@/copy";
 
-import type { LoanTab } from "../../constants";
+import { LOAN_TAB, type LoanTab } from "../../constants";
 import { useAaveConfig } from "../../context";
 import { useAaveOracleAddress } from "../../hooks";
 import { LoanProvider } from "../context/LoanContext";
@@ -182,8 +179,14 @@ export function ReserveDetailPanel({
   return (
     <LoanProvider value={loanContextValue}>
       <PositionGate
-        positionError={positionError}
-        ancillaryError={ancillaryError}
+        positionError={
+          tab === LOAN_TAB.REPAY &&
+          totalDebtValueUsd > 0 &&
+          verified.currentDebtAmount > 0
+            ? null
+            : positionError
+        }
+        ancillaryError={ancillaryError ?? positionError}
         refetchPosition={refetchPosition}
       >
         <LoanCard defaultTab={tab} />

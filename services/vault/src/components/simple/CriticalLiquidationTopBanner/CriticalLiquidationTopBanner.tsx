@@ -6,6 +6,7 @@ import { IoWarning } from "react-icons/io5";
 import {
   deriveBannerState,
   type CalculatorResult,
+  type Warning,
 } from "@/applications/aave/positionNotifications";
 import { COPY } from "@/copy";
 import { formatLiquidationDistancePercent } from "@/utils/formatting";
@@ -28,6 +29,7 @@ interface CriticalLiquidationTopBannerProps {
    * shows only when this resolves to a `red` (urgent) banner severity.
    */
   result: CalculatorResult | null;
+  liveUrgentWarning?: Warning | null;
 }
 
 /**
@@ -40,6 +42,7 @@ interface CriticalLiquidationTopBannerProps {
  */
 export function CriticalLiquidationTopBanner({
   result,
+  liveUrgentWarning,
 }: CriticalLiquidationTopBannerProps) {
   // The portal target lives in RootLayout (mounted before this component);
   // resolve it on mount so we can portal into it once available.
@@ -51,19 +54,19 @@ export function CriticalLiquidationTopBanner({
   const bannerState = result ? deriveBannerState(result) : null;
   const firstGroup = result?.groups[0] ?? null;
 
-  if (!slot || bannerState?.severity !== "red" || !firstGroup) {
-    return null;
-  }
-
   // distancePct is negative while approaching liquidation and >= 0 once the
   // position is already liquidatable (same sign convention the dashboard gauge
   // uses), so negate it before formatting the remaining buffer.
   const message =
-    firstGroup.distancePct >= 0
-      ? COPY.topBanner.liquidatable
-      : COPY.topBanner.critical(
-          formatLiquidationDistancePercent(-firstGroup.distancePct),
-        );
+    firstGroup && bannerState?.severity === "red"
+      ? firstGroup.distancePct >= 0
+        ? COPY.topBanner.liquidatable
+        : COPY.topBanner.critical(
+            formatLiquidationDistancePercent(-firstGroup.distancePct),
+          )
+      : liveUrgentWarning?.title;
+
+  if (!slot || !message) return null;
 
   // core-ui's `critical` Banner variant already carries everything Figma node
   // 10204-45613 asks of the bar itself: `bg-error-dark` (#C62828), zero radius,

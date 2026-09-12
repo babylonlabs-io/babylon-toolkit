@@ -18,6 +18,7 @@ const dashboardState = vi.hoisted(() => ({
   hasDisplayCollateral: false,
   isLoading: false,
   positionError: null as Error | null,
+  indexerError: null as Error | null,
 }));
 
 const useDashboardStateMock = vi.hoisted(() => vi.fn(() => dashboardState));
@@ -44,6 +45,7 @@ describe("useVaultsPageEmptiness", () => {
     dashboardState.hasDisplayCollateral = false;
     dashboardState.isLoading = false;
     dashboardState.positionError = null;
+    dashboardState.indexerError = null;
     depositsState.pendingActivities = [];
     depositsState.expiredActivities = [];
     depositsState.isLoading = false;
@@ -189,6 +191,15 @@ describe("useVaultsPageEmptiness", () => {
     expect(result.current.hasPartialError).toBe(true);
     expect(result.current.hasError).toBe(false);
     expect(result.current.isEmpty).toBe(false);
+  });
+
+  it("warns when the chain has collateral but its indexed rows are incomplete", () => {
+    dashboardState.hasDisplayCollateral = true;
+    dashboardState.indexerError = new Error("Indexed collateral is incomplete");
+    const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
+    expect(result.current.hasPartialError).toBe(true);
+    expect(result.current.isEmpty).toBe(false);
+    expect(result.current.hasError).toBe(false);
   });
 
   it("does not flag a partial error when both sources loaded cleanly", () => {

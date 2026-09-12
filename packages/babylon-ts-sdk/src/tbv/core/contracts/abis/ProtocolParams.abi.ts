@@ -314,6 +314,23 @@ export const ProtocolParamsABI = [
     ],
     stateMutability: "view",
   },
+  // One protocol-wide counter, bumped by any universal challenger's
+  // operation-key append. The peg-in config fingerprint commits to it in place
+  // of the M resolved challenger keys — see `pegin-fingerprint`. `uint64`, and
+  // it must stay a `bigint` end to end.
+  {
+    type: "function",
+    name: "ucKeyEpochCurrent",
+    inputs: [],
+    outputs: [
+      {
+        name: "",
+        type: "uint64",
+        internalType: "uint64",
+      },
+    ],
+    stateMutability: "view",
+  },
   // --- RFC-006 operation-key resolution ---------------------------------
   // Universal challengers get the reduced RFC-006 model: an operation key
   // that goes into the challenge scripts, resolved against the vault's frozen

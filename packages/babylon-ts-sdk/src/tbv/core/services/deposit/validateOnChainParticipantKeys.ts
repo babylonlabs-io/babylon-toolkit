@@ -1,3 +1,4 @@
+import { isAddress, isAddressEqual } from "viem";
 import type { Address, Hex } from "viem";
 
 import type {
@@ -21,6 +22,19 @@ export interface ValidateOnChainParticipantKeysParams {
   vaultKeeperReader: VaultKeeperReader;
   universalChallengerReader: UniversalChallengerReader;
   vaultProviderEthAddress: Address;
+  /**
+   * The application entry point the caller believes the provider serves — a
+   * *hint*, checked against the registry, in the same sense as
+   * `expectedVaultProviderBtcPubkey` below.
+   *
+   * The registry's own `getVaultProviderApplication(vp)` is authoritative: it
+   * is what the peg-in submit path resolves internally, and it selects the
+   * keeper roster, the roster version and the keeper key epoch a deposit is
+   * bonded to. This value comes from the dApp's configuration instead. They
+   * agree today, so the check is normally a no-op — but if they ever diverge,
+   * building against the configured one would bond the vault to an application
+   * the caller never chose, and nothing downstream would say so.
+   */
   applicationEntryPoint: Address;
   expectedVaultProviderBtcPubkey: string;
   expectedVaultKeeperBtcPubkeys: string[];
@@ -49,9 +63,11 @@ export interface ValidateOnChainParticipantKeysParams {
    * Block to resolve every read against, so the roster versions, the roster
    * members and their operation keys all describe one chain state.
    *
-   * This function reads in three dependent rounds — versions, then the members
-   * at those versions, then those members' operation keys — because each round
-   * needs the previous round's output. Left unpinned, each round lands on
+   * This function reads in four dependent rounds — the application entry point
+   * and the challenger axis, then the keeper version and epoch keyed on that
+   * entry point, then the roster members at those versions, then those members'
+   * operation keys — because each round needs the previous round's output.
+   * Left unpinned, each round lands on
    * whatever `latest` happens to be, and a rotation between rounds yields a key
    * set that no single block ever held. The Bitcoin lock built from it would
    * commit to that mixture, and no counterparty would agree with it.
@@ -75,6 +91,18 @@ export interface ValidatedOnChainParticipantKeys {
   expectedAppVaultKeepersVersion: number;
   expectedUniversalChallengersVersion: number;
   /**
+   * The two operation-key epochs the peg-in config fingerprint commits to, as
+   * `bigint` (`uint64` on-chain).
+   *
+   * They live here rather than beside the protocol params because they label
+   * the very keys this function resolves: `appKeeperKeyEpoch` is the epoch the
+   * keeper operation keys above were read at, and `ucKeyEpoch` the same for the
+   * challengers. Reading them anywhere else would create a second place for the
+   * epoch and the keys it names to come from different blocks.
+   */
+  appKeeperKeyEpoch: bigint;
+  ucKeyEpoch: bigint;
+  /**
    * The registration / roster keys, sorted. These are what indexer hints are
    * compared against first, and they stay available for diagnostics after
    * resolution.
@@ -89,6 +117,40 @@ export interface ValidatedOnChainParticipantKeys {
    * post-registration read-after-mine verification.
    */
   participantKeys: ParticipantKeySet;
+}
+
+/**
+ * The application entry point the caller passed cannot be used, either because
+ * the registry says this vault provider serves a different one, or because the
+ * value is not a well-formed address so no comparison is possible.
+ *
+ * Both are a deployment or configuration fault — not chain drift, and not
+ * anything a depositor can act on. One class covers both because the caller's
+ * recovery is identical and the distinction only matters in a bug report, which
+ * the message carries.
+ *
+ * It is typed only so the consuming app can recognise it and show its own
+ * generic copy: the messages name addresses and the protocol values at stake,
+ * which belongs in that bug report rather than in front of a depositor. An
+ * untyped `Error` would be rendered verbatim as the callout body by the
+ * mapper's last-resort bucket.
+ */
+export class ApplicationEntryPointMismatchError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ApplicationEntryPointMismatchError";
+  }
+}
+
+// `instanceof` alone fails across module boundaries (duplicate copies, test
+// mocks). Fall back to the name field, as the sibling drift guards do.
+export function isApplicationEntryPointMismatchError(
+  err: unknown,
+): err is ApplicationEntryPointMismatchError {
+  return (
+    err instanceof ApplicationEntryPointMismatchError ||
+    (err instanceof Error && err.name === "ApplicationEntryPointMismatchError")
+  );
 }
 
 const sortedSet = (keys: string[]) => keys.map(canonicalizeBtcPubkey).sort();
@@ -111,25 +173,74 @@ export async function validateOnChainParticipantKeys(
     blockNumber,
   } = params;
 
+  // Round 1: everything that needs no other read's output. The application
+  // entry point is among them because the keeper reads below key on it, and it
+  // must come from the registry rather than from the caller's configuration.
   const [
+    registryApplicationEntryPoint,
     onChainVpKey,
-    expectedAppVaultKeepersVersion,
     expectedUniversalChallengersVersion,
+    ucKeyEpoch,
   ] = await Promise.all([
+    vaultRegistryReader.getVaultProviderApplication(
+      vaultProviderEthAddress,
+      blockNumber,
+    ),
     vaultRegistryReader.getVaultProviderGenesisBtcPubKey(
       vaultProviderEthAddress,
       blockNumber,
     ),
-    vaultKeeperReader.getCurrentVaultKeepersVersion(
-      applicationEntryPoint,
-      blockNumber,
-    ),
     universalChallengerReader.getLatestUniversalChallengersVersion(blockNumber),
+    universalChallengerReader.getCurrentUcKeyEpoch(blockNumber),
   ]);
+
+  // Fail closed before any roster is read. A divergence here is a deployment or
+  // configuration fault rather than something the depositor can act on, so it
+  // carries a TYPED error: the app maps that to its own generic copy and keeps
+  // the message below for the bug report. An untyped `Error` would be rendered
+  // verbatim as the depositor-facing callout body by the mapper's last resort.
+  //
+  // The shape check runs first because callers reach this with a plain `string`
+  // cast to `Address` — nothing validates that cast — and `isAddressEqual`
+  // *parses* both sides, so a malformed value would throw viem's error instead
+  // of the one written for this situation. `isAddressEqual` rather than `===`
+  // because the two values arrive from different sources and need not share
+  // EIP-55 casing.
+  if (!isAddress(applicationEntryPoint, { strict: false })) {
+    throw new ApplicationEntryPointMismatchError(
+      `The application entry point this deposit was prepared for is not a ` +
+        `valid address: ${applicationEntryPoint}`,
+    );
+  }
+  if (!isAddressEqual(registryApplicationEntryPoint, applicationEntryPoint)) {
+    throw new ApplicationEntryPointMismatchError(
+      `Vault provider ${vaultProviderEthAddress} is registered to application ` +
+        `${registryApplicationEntryPoint}, but this deposit was prepared for ` +
+        `${applicationEntryPoint}. Refusing to build: the vault keeper roster, ` +
+        `its version, and the keeper key epoch would all resolve against a ` +
+        `different application than the one selected.`,
+    );
+  }
+
+  // Round 2: keyed on the registry-resolved entry point. The keeper roster
+  // version and the keeper key epoch are read together so the epoch labels the
+  // roster it was read beside.
+  const [expectedAppVaultKeepersVersion, appKeeperKeyEpoch] = await Promise.all(
+    [
+      vaultKeeperReader.getCurrentVaultKeepersVersion(
+        registryApplicationEntryPoint,
+        blockNumber,
+      ),
+      vaultKeeperReader.getCurrentAppKeeperKeyEpoch(
+        registryApplicationEntryPoint,
+        blockNumber,
+      ),
+    ],
+  );
 
   const [onChainKeepers, onChainChallengers] = await Promise.all([
     vaultKeeperReader.getVaultKeepersByVersion(
-      applicationEntryPoint,
+      registryApplicationEntryPoint,
       expectedAppVaultKeepersVersion,
       blockNumber,
     ),
@@ -158,7 +269,7 @@ export async function validateOnChainParticipantKeys(
       query: {
         vaultProviderEthAddress,
         vaultProviderGenesisBtcPubkey: `0x${onChainVpKey}` as Hex,
-        applicationEntryPoint,
+        applicationEntryPoint: registryApplicationEntryPoint,
         vaultKeepers: onChainKeepers,
         universalChallengers: onChainChallengers,
       },
@@ -250,6 +361,8 @@ export async function validateOnChainParticipantKeys(
     universalChallengerBtcPubkeysSorted: operationKeys.universalChallengers,
     expectedAppVaultKeepersVersion,
     expectedUniversalChallengersVersion,
+    appKeeperKeyEpoch,
+    ucKeyEpoch,
     registrationKeys,
     participantKeys,
   };
