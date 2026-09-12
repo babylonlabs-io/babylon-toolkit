@@ -7,7 +7,7 @@ import type {
   HtlcConnectorInfo,
   PeginP2aAnchorInfo,
 } from './types.js';
-import { assertPositiveBigintArray, assertWasmBigint } from './value-guards.js';
+import { assertWasmBigint } from './value-guards.js';
 
 export async function initWasm() {
   await initializeWasm();
@@ -32,7 +32,10 @@ export async function initWasm() {
 export async function createPrePeginTransaction(
   params: PrePeginParams,
 ): Promise<PrePeginResult> {
-  const { WasmPrePeginTx } = await getWasmBindings();
+  await initializeWasm();
+  const { GuardedPrePeginTx: WasmPrePeginTx } = await import(
+    './rawPrePeginTx.js'
+  );
 
   // Leading arg selects the tx-graph version inside the vault-wasm facade;
   // an unsupported version throws before any construction (fail closed).
@@ -43,9 +46,7 @@ export async function createPrePeginTransaction(
     params.vaultKeeperPubkeys,
     params.universalChallengerPubkeys,
     [...params.hashlocks],
-    new BigUint64Array(
-      assertPositiveBigintArray(params.pegInAmounts, 'pegInAmounts'),
-    ),
+    params.pegInAmounts,
     params.timelockRefund,
     params.feeRate,
     params.minPeginFeeRate,
@@ -107,7 +108,10 @@ export async function buildPeginTxFromPrePegin(
   fundedPrePeginTxHex: string,
   htlcVout: number,
 ): Promise<PeginTxResult> {
-  const { WasmPrePeginTx } = await getWasmBindings();
+  await initializeWasm();
+  const { GuardedPrePeginTx: WasmPrePeginTx } = await import(
+    './rawPrePeginTx.js'
+  );
 
   const unfundedTx = new WasmPrePeginTx(
     params.txGraphVersion,
@@ -116,9 +120,7 @@ export async function buildPeginTxFromPrePegin(
     params.vaultKeeperPubkeys,
     params.universalChallengerPubkeys,
     [...params.hashlocks],
-    new BigUint64Array(
-      assertPositiveBigintArray(params.pegInAmounts, 'pegInAmounts'),
-    ),
+    params.pegInAmounts,
     params.timelockRefund,
     params.feeRate,
     params.minPeginFeeRate,

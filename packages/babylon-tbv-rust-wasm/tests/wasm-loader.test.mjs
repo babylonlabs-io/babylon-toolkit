@@ -45,14 +45,7 @@ for (const entry of ['raw', 'raw-node']) {
     );
     for (const name of rawClassNames) {
       assert.equal(typeof raw[name], 'function', name);
-      if (
-        name === 'WasmPrePeginHtlcConnector' ||
-        name === 'WasmPeginPayoutConnector'
-      ) {
-        assert.notEqual(raw[name], generated[name]);
-      } else {
-        assert.equal(raw[name], generated[name]);
-      }
+      assert.notEqual(raw[name], generated[name]);
     }
     assert.equal(raw.initWasm, loader.initWasm);
   });
@@ -64,11 +57,29 @@ for (const entry of ['raw', 'raw-node']) {
       "import * as generated from './generated/vault_wasm.js';",
       'type Same<A, B> = (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2) ? true : false;',
       'type Check<T extends true> = T;',
-      ...rawClassNames.flatMap((name) => [
-        `type CheckType${name} = Check<Same<${name}, generated.${name}>>;`,
-        `type CheckConstructor${name} = Check<Same<typeof ${name}, typeof generated.${name}>>;`,
-        `void ${name};`,
-      ]),
+      ...rawClassNames.flatMap((name) => {
+        if (name.includes('Connector')) {
+          return [
+            `type CheckType${name} = Check<Same<${name}, generated.${name}>>;`,
+            `type CheckConstructor${name} = Check<Same<typeof ${name}, typeof generated.${name}>>;`,
+            `void ${name};`,
+          ];
+        }
+        // Compare the public instance surface against the generated class, so
+        // a dropped or renamed method fails to compile. Omit strips the
+        // #private brand that makes a direct comparison fail. The two
+        // Pre-PegIn methods below return the guarded class by design.
+        const diverging =
+          name === 'WasmPrePeginTx'
+            ? "'fromFundedTransaction' | 'buildPeginTx'"
+            : 'never';
+        return [
+          `type CheckSurface${name} = Check<Same<Omit<${name}, ${diverging}>, Omit<generated.${name}, ${diverging}>>>;`,
+          `void ${name};`,
+        ];
+      }),
+      'type OriginalAmounts = Check<Same<ConstructorParameters<typeof WasmPrePeginTx>[6], readonly bigint[]>>;',
+      'type TrustedRestore = Check<Same<Parameters<typeof WasmPeginTx.fromJson>[2], import("./rawPeginTx.js").PeginRestoreParams>>;',
     ].join('\n');
     const options = {
       module: ts.ModuleKind.ESNext,
@@ -102,7 +113,12 @@ for (const entry of ['raw', 'raw-node']) {
         [],
       );
       for (const name of rawClassNames) {
-        for (const reference of [`void ${name}`, `Same<${name},`]) {
+        // Both forms start with a five-character prefix, so the same offset
+        // lands on the identifier in each.
+        const surfaceReference = name.includes('Connector')
+          ? `Same<${name},`
+          : `Omit<${name},`;
+        for (const reference of [`void ${name}`, surfaceReference]) {
           const info = service.getQuickInfoAtPosition(
             consumerFile,
             source.indexOf(reference) + 5,

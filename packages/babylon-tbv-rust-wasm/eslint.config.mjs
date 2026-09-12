@@ -30,6 +30,10 @@ export default defineConfig([
       "src/connectorScripts.ts",
       "src/peginPayout.ts",
       "src/rawPayoutConnector.ts",
+      "src/peginFees.ts",
+      "src/prePeginTransaction.ts",
+      "src/rawPrePeginTx.ts",
+      "src/rawPeginTx.ts",
       "src/payoutConnector.ts",
     ],
     rules: {

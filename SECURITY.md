@@ -225,13 +225,13 @@ rules in `packages/babylon-tbv-rust-wasm/src/connectorScripts.ts`. The payout fa
 The SDK PegIn builder also checks the vault output against the payout derivation. These checks
 cover scripts, control blocks, addresses, hashes, and graph versions. They cannot tell whether
 those inputs are the correct ones, so the caller must still check them against on-chain data.
-The two transaction classes still expose unchecked WASM results. Their callers must cross-check at
-the call site.
 
-The only SDK consumer of the raw subpath is
-`packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/refund.ts`. It takes `WasmPrePeginTx`, one of
-the unguarded classes, and derives the canonical HTLC and signing data in TypeScript before it emits
-a refund PSBT.
+The two transaction classes are guarded here as well: Pre-PegIn amounts stay original `bigint[]`
+values, funded reconstruction checks the protocol output prefix against the original request, and
+PegIn restoration requires that request, the funded parent, the HTLC index, and the payout timelock
+before it accepts saved metadata and signatures. The only SDK consumer of the raw subpath is
+`packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/refund.ts`, which retains its own transaction
+and signing checks.
 
 The independent derivations moved into the engine package
 (`packages/babylon-tbv-rust-wasm/src/prePeginHtlc.ts` and `src/peginPayout.ts`), so they now ship
@@ -240,11 +240,19 @@ the expected value. We accept this because the engine cannot import the SDK with
 cycle, and because the derivations share no code, no data, and no build step with the WASM binary.
 Keep the two sides in separate modules and keep the differential test.
 
-The raw classes and SDK raw loader are deprecated. The HTLC and payout wrappers change class identity.
-The other raw paths still permit a bypass. Transaction restoration and original amount
-validation remain incomplete in #2361.
-See the [migration guide](packages/babylon-ts-sdk/docs/guides/raw-engine-migration.md)
-for guarded alternatives and the compatibility blocker in #2361.
+`packages/babylon-tbv-rust-wasm/src/peginFees.ts` derives values from the pinned Rust fee rules.
+`packages/babylon-tbv-rust-wasm/src/prePeginTransaction.ts` retains original bigint amounts and
+derives the protocol outputs. `packages/babylon-tbv-rust-wasm/src/rawPrePeginTx.ts` checks the
+unfunded bytes, funded output prefix, and complete refund transaction. Wallet change can follow
+the required protocol outputs. `packages/babylon-tbv-rust-wasm/src/rawPeginTx.ts` checks PegIn
+bytes, metadata, and signatures against the original request and trusted funded parent.
+Restoration cannot take expected values from the saved JSON. Both transaction codecs retain
+u64 values without Number conversion. The SDK refund caller retains its signing checks.
+
+The raw classes and SDK raw loader remain deprecated. All four wrappers change class identity.
+The amount constructor and restoration signatures are breaking changes. See the
+[migration guide](packages/babylon-ts-sdk/docs/guides/raw-engine-migration.md) for trusted inputs
+and release requirements in #2361.
 
 The mitigation is `assertWasmBigint` / `assertPositiveBigintArray`
 (`packages/babylon-tbv-rust-wasm/src/value-guards.ts`), applied to every value crossing the boundary

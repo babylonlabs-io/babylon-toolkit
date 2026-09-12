@@ -190,7 +190,7 @@ for (const [rawName, loaderName] of [
   ['raw-node.ts', 'wasm-loader-node.js'],
 ]) {
   const source = readFileSync(resolve(packageRoot, 'src', rawName), 'utf8');
-  if (!/from ['"]\.\/generated\/vault_wasm\.js['"]/.test(source)) {
+  if (!/from ['"]\.\/rawPrePeginTx\.js['"]/.test(source)) {
     throw new Error(`${rawName} must remain the explicit eager raw entry`);
   }
   if (!source.includes(`export { initWasm } from './${loaderName}'`)) {
@@ -207,6 +207,7 @@ for (const [rawName, loaderName] of [
 // the Bitcoin stack must fail this import, and a symlinked node_modules would
 // resolve it and hide the regression.
 const isolatedPackage = mkdtempSync(join(tmpdir(), 'tbv-wasm-lazy-'));
+let rawPackage;
 try {
   cpSync(
     resolve(packageRoot, 'package.json'),
@@ -240,8 +241,26 @@ try {
     }
   }
 
+  // The raw entries reach the generated glue through the guard modules, which
+  // import bitcoinjs-lib, so they need node_modules to fail for the right
+  // reason. They get their own copy: the facade loop above must keep a
+  // directory with no node_modules, or a static Bitcoin edge would resolve
+  // there and go unnoticed.
+  rawPackage = mkdtempSync(join(tmpdir(), 'tbv-wasm-raw-'));
+  symlinkSync(
+    resolve(packageRoot, 'node_modules'),
+    join(rawPackage, 'node_modules'),
+  );
+  cpSync(
+    join(isolatedPackage, 'package.json'),
+    join(rawPackage, 'package.json'),
+  );
+  cpSync(join(isolatedPackage, 'dist'), join(rawPackage, 'dist'), {
+    recursive: true,
+  });
+
   for (const entryName of ['raw.js', 'raw-node.js']) {
-    const url = pathToFileURL(join(isolatedPackage, 'dist', entryName)).href;
+    const url = pathToFileURL(join(rawPackage, 'dist', entryName)).href;
     try {
       await import(`${url}?eager-raw=${entryName}`);
       throw new Error(`${entryName} unexpectedly imported without WASM glue`);
@@ -253,6 +272,7 @@ try {
   }
 } finally {
   rmSync(isolatedPackage, { recursive: true, force: true });
+  if (rawPackage) rmSync(rawPackage, { recursive: true, force: true });
 }
 
 const xOnlyKeys = [

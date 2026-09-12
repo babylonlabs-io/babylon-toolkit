@@ -56,7 +56,9 @@
   "dependencies": {
     "@bitcoin-js/tiny-secp256k1-asmjs": "2.2.3",
     "@noble/curves": "1.9.7",
+    "@scure/btc-signer": "1.8.1",
     "bitcoinjs-lib": "6.1.7",
-    "buffer": "6.0.3"
+    "buffer": "6.0.3",
+    "lossless-json": "4.1.1"
   }
 }

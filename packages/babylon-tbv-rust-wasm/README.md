@@ -7,7 +7,8 @@ wasm-bindgen glue or instantiate/download the `.wasm` binary. The generated
 module is fetched on the first facade call that needs it.
 
 The eager `@babylonlabs-io/babylon-tbv-rust-wasm/raw` classes are deprecated.
-They bypass SDK value checks. Use the SDK transaction builders before signing.
+They check raw outputs against trusted inputs. Use the SDK transaction builders
+for signing data and product checks.
 See [Raw WASM Types](#raw-wasm-types) for the migration path.
 
 ## Overview
@@ -470,11 +471,11 @@ The same as `TAP_INTERNAL_KEY` but as a Buffer for convenience.
 
 Raw classes are intentionally not exported from the lazy root entry.
 
-The `/raw` classes remain available during deprecation. The HTLC and payout
-connectors check their output fields against their constructor inputs. Their
-class identities change. The two transaction classes still bypass SDK value checks.
-Existing raw callers must call `initWasm()` before construction and independently
-check transaction values and signing data.
+The `/raw` classes remain available during deprecation. All four classes check
+outputs against independent derivations. Their class identities change. Pass
+original `bigint[]` amounts to `WasmPrePeginTx`. PegIn restoration now requires
+`fromJson(version, json, trusted)` with the original request, funded parent, HTLC
+index, and payout timelock. Call `initWasm()` before construction.
 
 The retained exports are:
 
@@ -486,11 +487,10 @@ The retained exports are:
 
 Use `buildPrePeginPsbt`, `buildPeginTxFromFundedPrePegin`, and `buildRefundPsbt`
 from `@babylonlabs-io/ts-sdk/tbv/core/primitives` for transaction construction.
-These builders apply checks against caller inputs. The engine's lazy root
-facade checks amount bounds, but does not provide the SDK's independent checks
-before signing.
+These builders apply the SDK's signing and product checks. The engine's lazy
+Pre-PegIn and PegIn builders also use the raw transaction guards.
 
 See the [migration guide](../babylon-ts-sdk/docs/guides/raw-engine-migration.md)
-for connector use and operations with no guarded replacement. No removal date
+for trusted inputs and this breaking API change. No removal date
 is set. Deprecation alone does not close
 [#2361](https://github.com/babylonlabs-io/babylon-toolkit/issues/2361).

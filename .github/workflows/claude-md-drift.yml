@@ -65,6 +65,10 @@ jobs:
             "packages/babylon-tbv-rust-wasm/src/connectorScripts.ts"
             "packages/babylon-tbv-rust-wasm/src/peginPayout.ts"
             "packages/babylon-tbv-rust-wasm/src/rawPayoutConnector.ts"
+            "packages/babylon-tbv-rust-wasm/src/peginFees.ts"
+            "packages/babylon-tbv-rust-wasm/src/prePeginTransaction.ts"
+            "packages/babylon-tbv-rust-wasm/src/rawPrePeginTx.ts"
+            "packages/babylon-tbv-rust-wasm/src/rawPeginTx.ts"
             "packages/babylon-tbv-rust-wasm/src/payoutConnector.ts"
           )
 

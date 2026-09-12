@@ -99,9 +99,7 @@ export async function buildRefundPsbt(
     prePeginParams.vaultKeeperPubkeys,
     prePeginParams.universalChallengerPubkeys,
     [...prePeginParams.hashlocks],
-    new BigUint64Array(
-      assertPositiveBigintArray(prePeginParams.pegInAmounts, "pegInAmounts"),
-    ),
+    assertPositiveBigintArray(prePeginParams.pegInAmounts, "pegInAmounts"),
     prePeginParams.timelockRefund,
     prePeginParams.feeRate,
     prePeginParams.minPeginFeeRate,

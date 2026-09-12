@@ -400,12 +400,18 @@ importers:
       '@noble/curves':
         specifier: 1.9.7
         version: 1.9.7
+      '@scure/btc-signer':
+        specifier: 1.8.1
+        version: 1.8.1
       bitcoinjs-lib:
         specifier: 6.1.7
         version: 6.1.7
       buffer:
         specifier: 6.0.3
         version: 6.0.3
+      lossless-json:
+        specifier: 4.1.1
+        version: 4.1.1
     devDependencies:
       '@internal/eslint-config':
         specifier: workspace:*
