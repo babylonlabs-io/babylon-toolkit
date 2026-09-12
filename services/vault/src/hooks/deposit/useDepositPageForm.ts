@@ -10,6 +10,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import type { PriceMetadata } from "@/clients/eth-contract/chainlink";
 import { useBtcPublicKey } from "@/hooks/useBtcPublicKey";
+import { fragmentUtxos, useUtxoFragmentCountOverride } from "@/overrides/utxos";
 import { MAX_PRE_PEGIN_FUNDING_INPUTS } from "@/services/deposit/fundingInputCap";
 import type { VaultProviderListItem } from "@/types/vaultProvider";
 import { getSupportedVaultCoreVersions } from "@/utils/vaultCoreVersionSupport";
@@ -336,16 +337,26 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     isWalletConnected ? ethAddress : undefined,
   );
   // Display balance uses `availableUTXOs` so the user sees their real funds
-  // even while the ordinals classifier is loading or has errored. Actual
-  // spending uses `spendableMempoolUTXOs` (fee estimation) and the fail-closed
-  // gate inside `useDepositFlow`, which refuses to submit while classification
-  // is unavailable.
+  // even while the ordinals classifier is loading or has errored. Fee
+  // estimation and the funding-input-cap gate use `estimateUtxos`: the real
+  // `spendableMempoolUTXOs`, or the god-mode fragmented set (same total, N
+  // synthetic outpoints). Actual spending stays on the real set behind the
+  // fail-closed gate inside `useDepositFlow`, which refuses to submit while
+  // classification is unavailable.
   const {
     availableUTXOs,
     spendableMempoolUTXOs,
     ordinalsCheckPending,
     unconfirmedBalance,
   } = useUTXOs(btcAddress);
+  const utxoFragmentCount = useUtxoFragmentCountOverride();
+  const estimateUtxos = useMemo(
+    () =>
+      utxoFragmentCount === null
+        ? spendableMempoolUTXOs
+        : fragmentUtxos(spendableMempoolUTXOs, utxoFragmentCount),
+    [spendableMempoolUTXOs, utxoFragmentCount],
+  );
   const btcBalance = useMemo(() => {
     return BigInt(calculateBalance(availableUTXOs || []));
   }, [availableUTXOs]);
@@ -425,7 +436,7 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     isLoading: isLoadingFee,
     error: feeError,
     maxDeposit: maxDepositSats,
-  } = useEstimatedBtcFee(amountSats, spendableMempoolUTXOs, numPeginOutputs);
+  } = useEstimatedBtcFee(amountSats, estimateUtxos, numPeginOutputs);
 
   // Compute depositorClaimValue for UI validation (min deposit check).
   // Uses {VP} ∪ {VKs} − {depositor} which is >= the transaction builder's
@@ -610,11 +621,11 @@ export function useDepositPageForm(): UseDepositPageFormResult {
   const fundingInputCapExceeded = useMemo(
     () =>
       amountSats > 0n &&
-      (spendableMempoolUTXOs?.length ?? 0) > MAX_PRE_PEGIN_FUNDING_INPUTS &&
+      estimateUtxos.length > MAX_PRE_PEGIN_FUNDING_INPUTS &&
       utxoCappedMaxSats !== null &&
       amountSats > utxoCappedMaxSats &&
       amountSats <= btcBalance,
-    [amountSats, spendableMempoolUTXOs, utxoCappedMaxSats, btcBalance],
+    [amountSats, estimateUtxos, utxoCappedMaxSats, btcBalance],
   );
 
   // Declared after `adjustedMaxDepositSats` so the validator can reject amounts
