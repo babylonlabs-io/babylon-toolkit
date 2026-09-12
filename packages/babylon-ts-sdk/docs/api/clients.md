@@ -391,8 +391,11 @@ from `TBVProtocolParams.maxFundingInputCount`.
 
 `unsupported` means the deployment predates the field, and is returned
 only when the contract answers with the 6- or 7-word tuple of a
-deployment that predates the field; any other length is invalid protocol
-data and throws. `unpublished` means the field decoded as `0`, which
+deployment that predates the field. The struct is append-only, so a
+longer return is read as a governance addition this SDK does not know
+about: only the first 8 words are decoded and the rest ignored. A return
+below 6 words, or one that is not whole 32-byte words, is invalid
+protocol data and throws. `unpublished` means the field decoded as `0`, which
 governance has not set yet — a bound of zero is not a real limit, so
 callers must block rather than treat it as unbounded. `published`
 carries an integer validated into `[1, 255]`. Every other failure —
@@ -3363,8 +3366,11 @@ from `TBVProtocolParams.maxFundingInputCount`.
 
 `unsupported` means the deployment predates the field, and is returned
 only when the contract answers with the 6- or 7-word tuple of a
-deployment that predates the field; any other length is invalid protocol
-data and throws. `unpublished` means the field decoded as `0`, which
+deployment that predates the field. The struct is append-only, so a
+longer return is read as a governance addition this SDK does not know
+about: only the first 8 words are decoded and the rest ignored. A return
+below 6 words, or one that is not whole 32-byte words, is invalid
+protocol data and throws. `unpublished` means the field decoded as `0`, which
 governance has not set yet — a bound of zero is not a real limit, so
 callers must block rather than treat it as unbounded. `published`
 carries an integer validated into `[1, 255]`. Every other failure —

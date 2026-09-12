@@ -1499,7 +1499,7 @@ On-chain `ProtocolParams.maxFundingInputCount` read at this build's
 pinned block — the most inputs one Pre-PegIn may spend. `null` only
 when the deployment predates the field.
 
-Enforced at UTXO selection, before any wallet or device I/O, and
+Enforced at UTXO selection, before any signing or approval prompt, and
 re-asserted against the funded transaction.
 
 ##### changeAddress

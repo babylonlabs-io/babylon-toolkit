@@ -56,7 +56,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts](ht
 
 ### FundingInputCountExceededError
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/fundingInputCountExceeded.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/fundingInputCountExceeded.ts)
 
 Thrown when funding a Pre-PegIn would need more inputs than the
 protocol's on-chain `maxFundingInputCount` allows in one transaction.
@@ -73,7 +73,7 @@ protocol's on-chain `maxFundingInputCount` allows in one transaction.
 new FundingInputCountExceededError(maxInputCount): FundingInputCountExceededError;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/fundingInputCountExceeded.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/fundingInputCountExceeded.ts)
 
 ###### Parameters
 
@@ -99,7 +99,7 @@ Error.constructor
 readonly maxInputCount: number;
 ```
 
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts)
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/fundingInputCountExceeded.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/fundingInputCountExceeded.ts)
 
 ## Interfaces
 
@@ -1441,6 +1441,29 @@ Error if validation fails
 
 ***
 
+### isFundingInputCountExceededError()
+
+```ts
+function isFundingInputCountExceededError(err): err is FundingInputCountExceededError;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/fundingInputCountExceeded.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/fundingInputCountExceeded.ts)
+
+Type guard for [FundingInputCountExceededError](#fundinginputcountexceedederror). Falls back to the
+`name` check so the guard still holds across module/realm boundaries.
+
+#### Parameters
+
+##### err
+
+`unknown`
+
+#### Returns
+
+`err is FundingInputCountExceededError`
+
+***
+
 ### findOverlappingPendingVaults()
 
 ```ts
@@ -1462,29 +1485,6 @@ take precedence over a same-id local pegin entry.
 #### Returns
 
 `string`[]
-
-***
-
-### isFundingInputCountExceededError()
-
-```ts
-function isFundingInputCountExceededError(err): err is FundingInputCountExceededError;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/selectUtxos.ts)
-
-Type guard for [FundingInputCountExceededError](#fundinginputcountexceedederror). Falls back to the
-`name` check so the guard still holds across module/realm boundaries.
-
-#### Parameters
-
-##### err
-
-`unknown`
-
-#### Returns
-
-`err is FundingInputCountExceededError`
 
 ***
 
@@ -1610,7 +1610,10 @@ Error if insufficient funds, no valid UTXOs, or `maxInputCount` is neither null 
 
 #### Throws
 
-FundingInputCountExceededError if funding would need more than `maxInputCount` inputs
+FundingInputCountExceededError if funding would need more than
+  `maxInputCount` inputs and the full valid set could have covered the
+  target; a wallet whose whole valid set falls short throws insufficient
+  funds instead
 
 ***
 
