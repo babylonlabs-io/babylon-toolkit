@@ -21,6 +21,7 @@ import {
   activationFloorMinutesRemaining,
   isActivationFloorGating,
 } from "@/utils/activationFloor";
+import { isWithinTtl } from "@/utils/ttl";
 
 export { ContractStatus } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 export type {
@@ -123,6 +124,7 @@ export interface PeginState {
    * which must keep their own presentation and their View-details control.
    */
   activationFloorBlocksRemaining?: number | null;
+  payoutSignedAt?: number;
 }
 
 export interface GetPeginStateOptions {
@@ -215,6 +217,7 @@ export interface GetPeginStateOptions {
    * from the mempool eventually re-exposes the refund action.
    */
   refundBroadcastAt?: number;
+  payoutSignedAt?: number;
   /** Override `Date.now()` used for the TTL check (testing only). */
   now?: number;
 }
@@ -226,6 +229,15 @@ export interface GetPeginStateOptions {
  * before the user has to clear localStorage by hand.
  */
 const REFUND_BROADCAST_SUPPRESSION_MS = 6 * 60 * 60 * 1000;
+
+/**
+ * Bounds the PAYOUT_SIGNED display floor, anchored on the persisted
+ * `payoutSignedAt` stamp so it survives a reload. Same lag class as
+ * `WOTS_SUBMISSION_SUPPRESSION_MS`: past it, a VP still asking for signatures
+ * is taken at its word (rejected, rotated, or lost behind a 200) and the
+ * signing step shows again instead of a sticky floor for the life of the entry.
+ */
+const PAYOUT_SIGNED_SUPPRESSION_MS = 20 * 60 * 1000;
 
 // ============================================================================
 // Expiration helpers
@@ -455,6 +467,7 @@ export function getPeginState(
   return {
     contractStatus,
     localStatus: options.localStatus,
+    payoutSignedAt: options.payoutSignedAt,
     availableActions: actions,
     // `activationFloorBlocksRemaining` rides in on `display` — set by the floor
     // branch alone, so it marks that branch rather than every VERIFIED vault.
@@ -523,33 +536,12 @@ function applyTrackingOverrides(
 
   if (contractStatus === ContractStatus.EXPIRED) {
     if (localStatus === LocalStorageStatus.REFUND_BROADCAST) {
-      if (isRefundBroadcastWithinTtl(refundBroadcastAt, now)) return [];
+      if (isWithinTtl(refundBroadcastAt, now, REFUND_BROADCAST_SUPPRESSION_MS))
+        return [];
     }
   }
 
   return sdkActions;
-}
-
-/**
- * The suppression must auto-expire — broadcast txs can be evicted from the
- * mempool, and a sticky marker would otherwise hide the refund action while
- * the vault is still EXPIRED on-chain. Legacy entries without a timestamp are
- * treated as expired so the user can always retry.
- */
-function isRefundBroadcastWithinTtl(
-  refundBroadcastAt: number | undefined,
-  now: number | undefined,
-): boolean {
-  if (refundBroadcastAt === undefined) return false;
-  const currentTime = now ?? Date.now();
-  const elapsedMs = currentTime - refundBroadcastAt;
-  // A timestamp ahead of the clock (backwards wall-clock jump after the
-  // broadcast was recorded) reads as negative elapsed — inside the window
-  // under a bare `< TTL` for as long as the clock stays behind, so the
-  // suppression would outlast the TTL by the size of the jump. Expired is
-  // the safe reading, same as the missing-timestamp case above: the user
-  // can always retry, and a duplicate broadcast is rejected by the network.
-  return elapsedMs >= 0 && elapsedMs < REFUND_BROADCAST_SUPPRESSION_MS;
 }
 
 interface DisplayInfo {
@@ -794,7 +786,7 @@ function getDisplay(
     }
     if (
       localStatus === LocalStorageStatus.REFUND_BROADCAST &&
-      isRefundBroadcastWithinTtl(refundBroadcastAt, now)
+      isWithinTtl(refundBroadcastAt, now, REFUND_BROADCAST_SUPPRESSION_MS)
     ) {
       return {
         displayLabel: PEGIN_DISPLAY_LABELS.REFUNDING,
@@ -989,6 +981,35 @@ export function getPeginDisplayStep(state: PeginState): DepositFlowStep | null {
 }
 
 /**
+ * Display-only variant of `getPeginDisplayStep` for progress bars.
+ *
+ * Right after the user signs payouts the VP can briefly keep asking for
+ * signatures again (a stale poll, or a verification still in flight). The
+ * action set must follow the VP, so the "Sign payouts" button stays live, but
+ * the progress bar deliberately disagrees: while the persisted
+ * `payoutSignedAt` stamp is within `PAYOUT_SIGNED_SUPPRESSION_MS` it holds at
+ * AWAIT_VP_VERIFICATION instead of dropping back to SIGN_AUTH_ANCHOR. The
+ * floor lifts on the next render that re-derives the step — a reload, or an
+ * unrelated re-render — not on a timer: `usePeginPollingQuery` halts its
+ * `refetchInterval` while every deposit is awaiting depositor signatures.
+ * Never use this to gate an action; only `getPeginDisplayStep` and the action
+ * set decide that.
+ */
+export function getPeginProgressStep(
+  state: PeginState,
+  now: number = Date.now(),
+): DepositFlowStep | null {
+  const step = getPeginDisplayStep(state);
+  if (step === null || state.localStatus !== LocalStorageStatus.PAYOUT_SIGNED) {
+    return step;
+  }
+  return step === DepositFlowStep.SIGN_AUTH_ANCHOR &&
+    isWithinTtl(state.payoutSignedAt, now, PAYOUT_SIGNED_SUPPRESSION_MS)
+    ? DepositFlowStep.AWAIT_VP_VERIFICATION
+    : step;
+}
+
+/**
  * Freeze a warning/terminal vault at the last locally-known deposit-flow step.
  *
  * Warning states intentionally do not return a normal display step: they are
@@ -1090,7 +1111,7 @@ export function shouldRemoveFromLocalStorage(
   if (
     contractStatus === ContractStatus.EXPIRED &&
     localStatus === LocalStorageStatus.REFUND_BROADCAST &&
-    isRefundBroadcastWithinTtl(refundBroadcastAt, now)
+    isWithinTtl(refundBroadcastAt, now, REFUND_BROADCAST_SUPPRESSION_MS)
   ) {
     return false;
   }

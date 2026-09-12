@@ -38,6 +38,7 @@ export interface PendingPeginRequest {
   // can be evicted from the mempool and never confirm, so the suppression must
   // expire to let the user retry instead of permanently hiding the action.
   refundBroadcastAt?: number;
+  payoutSignedAt?: number;
   // Fields for cross-device broadcasting support
   unsignedTxHex: string; // Funded Pre-PegIn tx hex (for broadcasting later)
   selectedUTXOs?: Array<{
@@ -270,6 +271,27 @@ function hasValidSecurityFields(entry: unknown): entry is PendingPeginRequest {
 }
 
 /**
+ * `payoutSignedAt` only floors a progress bar, so unlike every other field
+ * here a malformed value is dropped rather than failing the whole entry
+ * closed — losing a deposit record over a bad progress stamp is the worse
+ * outcome.
+ */
+function sanitizePayoutSignedAt(
+  value: unknown,
+  vaultId: string,
+): number | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value === "number" && Number.isFinite(value) && value >= 0) {
+    return value;
+  }
+  logger.warn("[peginStorage] Dropping corrupted payoutSignedAt stamp", {
+    category: "peginStorage",
+    vaultId,
+  });
+  return undefined;
+}
+
+/**
  * Get storage key for a specific address
  */
 function getStorageKey(ethAddress: string): string {
@@ -363,6 +385,7 @@ export function getPendingPegins(ethAddress: string): PendingPeginRequest[] {
       id: normalizeTransactionId(pegin.id),
       // Ensure status field exists (backward compatibility)
       status: pegin.status || LocalStorageStatus.PENDING,
+      payoutSignedAt: sanitizePayoutSignedAt(pegin.payoutSignedAt, pegin.id),
     }));
 
     return normalized;
@@ -500,7 +523,16 @@ export function updatePendingPeginStatus(
   const normalizedId = normalizeTransactionId(vaultId);
 
   const updatedPegins = existingPegins.map((pegin) =>
-    pegin.id === normalizedId ? { ...pegin, status } : pegin,
+    pegin.id === normalizedId
+      ? {
+          ...pegin,
+          status,
+          payoutSignedAt:
+            status === LocalStorageStatus.PAYOUT_SIGNED
+              ? Date.now()
+              : undefined,
+        }
+      : pegin,
   );
 
   savePendingPegins(ethAddress, updatedPegins);

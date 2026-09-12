@@ -9,7 +9,7 @@ import { deriveSplitVaultProgress } from "../useSplitVaultProgress";
 // it needs neither the polling context nor the logger. Mock peginStateMachine
 // with controllable stubs — the branch this test exercises is the per-lane
 // glue (done sibling → COMPLETED, not the active vault's step), not the real
-// getPeginDisplayStep/isVaultPastActivation (covered by their own tests).
+// getPeginProgressStep/isVaultPastActivation (covered by their own tests).
 vi.mock("@/context/deposit/PeginPollingContext", () => ({
   usePeginPolling: () => ({ getPollingResult: () => undefined }),
 }));
@@ -31,7 +31,7 @@ vi.mock("@/hooks/deposit/depositFlowSteps", () => ({
   },
 }));
 vi.mock("@/models/peginStateMachine", () => ({
-  getPeginDisplayStep: (s: { displayStep: DepositFlowStep | null }) =>
+  getPeginProgressStep: (s: { displayStep: DepositFlowStep | null }) =>
     s.displayStep,
   getWarningPeginDisplayStep: (localStatus: string | undefined) =>
     localStatus === "confirming"

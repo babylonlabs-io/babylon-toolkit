@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps";
 import {
-  getPeginDisplayStep,
+  getPeginProgressStep,
   getWarningPeginDisplayStep,
   PeginAction,
 } from "@/models/peginStateMachine";
@@ -123,7 +123,7 @@ vi.mock("@/models/peginStateMachine", () => {
       CONFIRMED: "confirmed",
       REFUND_BROADCAST: "refund_broadcast",
     },
-    getPeginDisplayStep: vi.fn(() => "AWAIT_BTC_CONFIRMATION"),
+    getPeginProgressStep: vi.fn(() => "AWAIT_BTC_CONFIRMATION"),
     getWarningPeginDisplayStep: vi.fn(() => "AWAIT_BTC_CONFIRMATION"),
     USER_ACTIONABLE_PEGIN_ACTIONS,
     isVaultPastActivation,
@@ -345,7 +345,7 @@ function renderView(
 describe("PostDepositContinuationView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(getPeginDisplayStep).mockReturnValue(
+    vi.mocked(getPeginProgressStep).mockReturnValue(
       DepositFlowStep.AWAIT_BTC_CONFIRMATION,
     );
     vi.mocked(getWarningPeginDisplayStep).mockReturnValue(
@@ -940,7 +940,7 @@ describe("PostDepositContinuationView", () => {
   });
 
   it("preserves per-vault split steps when rendering a no-actionable warning", () => {
-    vi.mocked(getPeginDisplayStep).mockImplementation((state) =>
+    vi.mocked(getPeginProgressStep).mockImplementation((state) =>
       state.displayVariant === "warning" || state.contractStatus === 2
         ? null
         : DepositFlowStep.AWAIT_BTC_CONFIRMATION,
