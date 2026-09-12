@@ -8,6 +8,7 @@ function makeVault(
   overrides: Partial<CollateralVaultEntry> & { id: string },
 ): CollateralVaultEntry {
   return {
+    lifecycle: "active",
     vaultId: `vault-${overrides.id}`,
     amountBtc: 0.5,
     addedAt: 0,
@@ -136,7 +137,7 @@ describe("useVaultsPageData", () => {
     dashboardState.collateralVaults = [
       makeVault({ id: "a", amountBtc: 0.6, liquidationIndex: 0 }),
       makeVault({ id: "b", amountBtc: 0.2, liquidationIndex: 1 }),
-      makeVault({ id: "activating", amountBtc: 0.3, isActivating: true }),
+      makeVault({ id: "activating", amountBtc: 0.3, lifecycle: "activating" }),
     ];
 
     const { result } = renderHook(() => useVaultsPageData("0xdepositor"));
@@ -148,10 +149,34 @@ describe("useVaultsPageData", () => {
     expect(result.current.summary.activeVaultsCount).toBe(3);
   });
 
+  it("keeps a withdrawal-only position visible while reporting no active vaults", () => {
+    dashboardState.collateralVaults = [
+      makeVault({ id: "a", amountBtc: 0.5, lifecycle: "withdrawing" }),
+    ];
+
+    const { result } = renderHook(() => useVaultsPageData("0xdepositor"));
+
+    expect(result.current.displayVaults).toHaveLength(1);
+    expect(result.current.summary.activeVaultsCount).toBe(0);
+  });
+
+  it("keeps a withdrawing row out of the liquidation-order sequence", () => {
+    dashboardState.collateralVaults = [
+      makeVault({ id: "a", amountBtc: 0.6, liquidationIndex: 0 }),
+      makeVault({ id: "b", amountBtc: 0.2, liquidationIndex: 1 }),
+      makeVault({ id: "c", amountBtc: 0.3, lifecycle: "withdrawing" }),
+    ];
+
+    const { result } = renderHook(() => useVaultsPageData("0xdepositor"));
+
+    expect(result.current.summary.liquidationOrder).toContain("0.6 → 0.2");
+    expect(result.current.summary.liquidationOrder).not.toContain("0.3");
+  });
+
   it("omits the liquidation order when only one row has an established position", () => {
     dashboardState.collateralVaults = [
       makeVault({ id: "a", amountBtc: 0.6, liquidationIndex: 0 }),
-      makeVault({ id: "activating", amountBtc: 0.3, isActivating: true }),
+      makeVault({ id: "activating", amountBtc: 0.3, lifecycle: "activating" }),
     ];
 
     const { result } = renderHook(() => useVaultsPageData("0xdepositor"));

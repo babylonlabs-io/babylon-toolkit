@@ -284,6 +284,28 @@ describe("getUserPositionsWithLiveData", () => {
     expect(result.collaterals).toEqual(collaterals);
   });
 
+  it("excludes a vault whose peg-out is in flight from the chain comparison", async () => {
+    mockGetPosition.mockResolvedValue({
+      proxyContract: PROXY,
+      vaultIds: [ADAPTER],
+      totalCollateralBTC: 100n,
+    });
+    // The chain dropped this vault on withdrawal; the indexer has not written
+    // its `removedAt` yet and only flipped the vault status.
+    const collaterals = [
+      { vaultId: ADAPTER, amount: 100n, removedAt: null },
+      {
+        vaultId: PROXY,
+        amount: 50n,
+        removedAt: null,
+        vault: { status: "redeemed" },
+      },
+    ];
+    mockFetchActive.mockResolvedValue([{ ...INDEXED_POSITION, collaterals }]);
+    const [result] = await load();
+    expect(result.indexerError).toBeUndefined();
+  });
+
   it("reports a different indexed vault even when row count and total match", async () => {
     mockGetPosition.mockResolvedValue({
       proxyContract: PROXY,

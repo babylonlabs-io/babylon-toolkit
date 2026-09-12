@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockBorrow = vi.fn();
 const mockAssertReserve = vi.fn();
+const mockGetERC20Decimals = vi.hoisted(() => vi.fn());
+const mockInvalidateQueries = vi.hoisted(() => vi.fn());
 vi.mock("../../services", () => ({
   borrow: (...a: unknown[]) => mockBorrow(...a),
   assertReserveMatchesOnChain: (...a: unknown[]) => mockAssertReserve(...a),
@@ -14,7 +16,7 @@ vi.mock("../../config", () => ({
 }));
 
 vi.mock("@/clients/eth-contract", () => ({
-  ERC20: { getERC20Decimals: vi.fn() },
+  ERC20: { getERC20Decimals: mockGetERC20Decimals },
 }));
 
 vi.mock("@/infrastructure", () => ({
@@ -22,7 +24,7 @@ vi.mock("@/infrastructure", () => ({
 }));
 
 vi.mock("@tanstack/react-query", () => ({
-  useQueryClient: () => ({ invalidateQueries: vi.fn() }),
+  useQueryClient: () => ({ invalidateQueries: mockInvalidateQueries }),
 }));
 
 vi.mock("wagmi", () => ({
@@ -41,6 +43,10 @@ vi.mock("@/hooks/useProtocolGate", () => ({
 import { useBorrowTransaction } from "../useBorrowTransaction";
 
 const RESERVE = {} as never;
+const LIVE_RESERVE = {
+  reserveId: "r1",
+  token: { address: "0xtoken", decimals: 6, symbol: "USDC" },
+} as never;
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -60,5 +66,24 @@ describe("useBorrowTransaction — pause gating", () => {
     expect(resolved).toBe(false);
     expect(mockAssertReserve).not.toHaveBeenCalled();
     expect(mockBorrow).not.toHaveBeenCalled();
+  });
+});
+
+describe("useBorrowTransaction — cache invalidation", () => {
+  it("invalidates the vault and position queries by key prefix after a borrow", async () => {
+    mockAssertReserve.mockResolvedValue(undefined);
+    mockGetERC20Decimals.mockResolvedValue(6);
+    mockBorrow.mockResolvedValue({ transactionHash: "0xhash" });
+    const { result } = renderHook(() => useBorrowTransaction());
+
+    let resolved: boolean | undefined;
+    await act(async () => {
+      resolved = await result.current.executeBorrow(100, LIVE_RESERVE);
+    });
+
+    expect(resolved).toBe(true);
+    expect(
+      mockInvalidateQueries.mock.calls.map((call) => call[0].queryKey),
+    ).toEqual([["vaults"], ["aaveUserPosition"]]);
   });
 });

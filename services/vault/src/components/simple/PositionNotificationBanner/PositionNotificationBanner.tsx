@@ -6,8 +6,7 @@ import {
 } from "@babylonlabs-io/core-ui";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useState, type ReactNode } from "react";
-import type { Address, Hex } from "viem";
-import { useAccount } from "wagmi";
+import type { Hex } from "viem";
 
 import { useReorderOverride } from "@/applications/aave/context";
 import {
@@ -32,7 +31,7 @@ import {
 } from "@/components/shared/protocolStatus";
 import { COPY } from "@/copy";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
-import { invalidateVaultQueries, vaultOrderQueryKey } from "@/utils/queryKeys";
+import { invalidateVaultQueries } from "@/utils/queryKeys";
 
 import { ReorderSuccessModal } from "../ReorderVaults";
 
@@ -135,17 +134,11 @@ export function PositionNotificationBanner({
     () => new Set(),
   );
   const queryClient = useQueryClient();
-  const { address } = useAccount();
 
   const handleReorderSuccessClose = useCallback(() => {
     setIsReorderSuccess(false);
-    if (address) {
-      queryClient.invalidateQueries({
-        queryKey: vaultOrderQueryKey(address),
-      });
-      invalidateVaultQueries(queryClient, address as Address);
-    }
-  }, [address, queryClient]);
+    invalidateVaultQueries(queryClient);
+  }, [queryClient]);
 
   const handleDismissAdvisory = useCallback((key: string) => {
     setDismissedAdvisories((prev) => new Set(prev).add(key));

@@ -9,6 +9,7 @@ import { useEffect, useMemo } from "react";
 import { BPS_SCALE, MIN_BORROWABLE_USD } from "@/applications/aave/constants";
 import {
   useActivatingVaults,
+  usePendingVaults,
   useReorderOverride,
 } from "@/applications/aave/context";
 import {
@@ -20,7 +21,10 @@ import { calculateBorrowCapacityUsd } from "@/applications/aave/utils";
 import { useVaultProviders } from "@/hooks/deposit/useVaultProviders";
 import type { CollateralVaultEntry } from "@/types/collateral";
 import { truncateHash } from "@/utils/addressUtils";
-import { toCollateralVaultEntries } from "@/utils/collateral";
+import {
+  applyPendingWithdrawals,
+  toCollateralVaultEntries,
+} from "@/utils/collateral";
 import {
   isReorderOverrideReconciled,
   sortByReorderedOverride,
@@ -71,15 +75,39 @@ export function useDashboardState(connectedAddress: string | undefined) {
   const { reorderedOrder, clearReorderedOrder } = useReorderOverride();
   const { activatingVaults, clearActivatingVault } = useActivatingVaults();
 
-  // Raw indexer entries (liquidationIndex straight from the indexer). These
+  const { pendingVaults } = usePendingVaults();
+  const pendingWithdrawVaultIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const [vaultId, operation] of pendingVaults) {
+      if (operation === "withdraw") ids.add(vaultId.toLowerCase());
+    }
+    return ids;
+  }, [pendingVaults]);
+
+  // Indexer entries (liquidationIndex straight from the indexer), re-tagged
+  // with the withdrawals whose transaction is mined but not yet indexed. These
   // drive reconciliation — they reflect what the indexer currently believes,
   // independent of any active override.
   const rawCollateralVaults = useMemo(
     (): CollateralVaultEntry[] =>
-      position?.collaterals
-        ? toCollateralVaultEntries(position.collaterals, findProvider)
-        : [],
-    [position?.collaterals, findProvider],
+      applyPendingWithdrawals(
+        position?.collaterals
+          ? toCollateralVaultEntries(position.collaterals, findProvider)
+          : [],
+        pendingWithdrawVaultIds,
+      ),
+    [position?.collaterals, findProvider, pendingWithdrawVaultIds],
+  );
+
+  const activeCollateralVaults = useMemo(
+    () => rawCollateralVaults.filter((entry) => entry.lifecycle === "active"),
+    [rawCollateralVaults],
+  );
+
+  const withdrawingCollateralVaults = useMemo(
+    () =>
+      rawCollateralVaults.filter((entry) => entry.lifecycle === "withdrawing"),
+    [rawCollateralVaults],
   );
 
   // Optimistic "Activating…" rows: just-activated vaults the indexer hasn't
@@ -101,11 +129,11 @@ export function useDashboardState(connectedAddress: string | undefined) {
         const provider = findProvider?.(entry.providerAddress ?? "");
         return {
           id: `activating-${entry.vaultId}`,
+          lifecycle: "activating",
           vaultId: entry.vaultId,
           amountBtc: entry.amountBtc,
           addedAt: 0,
           inUse: false,
-          isActivating: true,
           providerAddress: entry.providerAddress ?? "",
           providerName:
             provider?.name ?? truncateHash(entry.providerAddress ?? ""),
@@ -119,14 +147,21 @@ export function useDashboardState(connectedAddress: string | undefined) {
   // Displayed entries. Normally indexer-ordered; right after a reorder,
   // `reorderedOrder` holds the submitted order so the new order (and each row's
   // ordinal) shows immediately. Falls back to indexer ordering once the
-  // override no longer matches the vault set. Optimistic activating rows are
-  // appended last, until the indexer reflects them.
+  // override no longer matches the vault set, which covers the active rows
+  // alone. Withdrawing rows, then optimistic activating rows, are appended
+  // after, until the indexer reflects them.
   const collateralVaults = useMemo(
     (): CollateralVaultEntry[] => [
-      ...sortByReorderedOverride(rawCollateralVaults, reorderedOrder),
+      ...sortByReorderedOverride(activeCollateralVaults, reorderedOrder),
+      ...withdrawingCollateralVaults,
       ...activatingEntries,
     ],
-    [rawCollateralVaults, reorderedOrder, activatingEntries],
+    [
+      activeCollateralVaults,
+      withdrawingCollateralVaults,
+      reorderedOrder,
+      activatingEntries,
+    ],
   );
 
   // Drop the override once the indexer reflects the reordered sequence (or the
@@ -134,10 +169,10 @@ export function useDashboardState(connectedAddress: string | undefined) {
   // against the raw indexer entries, not the override-rewritten ones.
   useEffect(() => {
     if (!reorderedOrder) return;
-    if (isReorderOverrideReconciled(rawCollateralVaults, reorderedOrder)) {
+    if (isReorderOverrideReconciled(activeCollateralVaults, reorderedOrder)) {
       clearReorderedOrder();
     }
-  }, [rawCollateralVaults, reorderedOrder, clearReorderedOrder]);
+  }, [activeCollateralVaults, reorderedOrder, clearReorderedOrder]);
 
   // Drop each activating override once the indexer reflects that vault, so the
   // optimistic row hands off to the real indexer-driven row without duplicating.
@@ -153,27 +188,38 @@ export function useDashboardState(connectedAddress: string | undefined) {
     }
   }, [rawCollateralVaults, activatingVaults, clearActivatingVault]);
 
-  // Add only activations that the current chain snapshot does not include.
-  const displayCollateralBtc = useMemo(
-    () =>
-      collateralBtc +
-      activatingEntries
-        .filter(
-          (entry) =>
-            !position?.vaultIds.some(
-              (id) => id.toLowerCase() === entry.vaultId.toLowerCase(),
-            ),
-        )
-        .reduce((sum, entry) => sum + entry.amountBtc, 0),
-    [collateralBtc, activatingEntries, position?.vaultIds],
-  );
+  // Net the optimistic deltas against the chain snapshot: add the activations it
+  // does not include yet, subtract the withdrawals it still counts. Both filters
+  // key on `vaultIds`, which comes from the same chain read as `collateralBtc`,
+  // so neither delta can be applied twice.
+  const displayCollateralBtc = useMemo(() => {
+    const chainVaultIds = new Set(
+      position?.vaultIds.map((id) => id.toLowerCase()) ?? [],
+    );
+    const activatingBtc = activatingEntries
+      .filter((entry) => !chainVaultIds.has(entry.vaultId.toLowerCase()))
+      .reduce((sum, entry) => sum + entry.amountBtc, 0);
+    const withdrawingBtc = withdrawingCollateralVaults
+      .filter((entry) => chainVaultIds.has(entry.vaultId.toLowerCase()))
+      .reduce((sum, entry) => sum + entry.amountBtc, 0);
+    return collateralBtc + activatingBtc - withdrawingBtc;
+  }, [
+    collateralBtc,
+    activatingEntries,
+    withdrawingCollateralVaults,
+    position?.vaultIds,
+  ]);
 
   // Optimistic rows must not enable actions before collateral exists on-chain.
   const hasCollateral = collateralBtc > 0;
   // Display gate — drives the Collateral section's summary-vs-empty rendering,
-  // so the just-activated vault shows during the indexer gap.
+  // so the just-activated vault shows during the indexer gap and a withdrawing
+  // vault, whose `collateralBtc` the indexer has already zeroed, still shows
+  // until its payout settles.
   const hasDisplayCollateral =
-    collateralBtc > 0 || activatingEntries.length > 0;
+    collateralBtc > 0 ||
+    activatingEntries.length > 0 ||
+    withdrawingCollateralVaults.length > 0;
 
   return {
     position,
