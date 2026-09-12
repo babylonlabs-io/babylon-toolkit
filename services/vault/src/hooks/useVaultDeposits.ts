@@ -35,10 +35,13 @@ export function useVaultDeposits(connectedAddress: Address | undefined) {
     ? FAST_POLL_INTERVAL
     : NORMAL_POLL_INTERVAL;
 
-  const { data, isLoading, error, refetch } = useVaults(connectedAddress, {
-    poll: true,
-    interval: pollingInterval,
-  });
+  const { data, isLoading, error, refetch, status } = useVaults(
+    connectedAddress,
+    {
+      poll: true,
+      interval: pollingInterval,
+    },
+  );
 
   // Forces a refresh on `undefined → sameAddress` reconnect, which RQ
   // would otherwise serve from cache while still within `staleTime`.
@@ -52,8 +55,24 @@ export function useVaultDeposits(connectedAddress: Address | undefined) {
   const confirmedActivities = useMemo(() => {
     if (!data) return [];
 
-    return data.map(transformVaultToActivity);
+    return data.vaults.map(transformVaultToActivity);
   }, [data]);
+
+  /**
+   * Lowercased ids of every vault the indexer returned, or null unless that
+   * set is known to be complete — a failed or in-flight query is never
+   * evidence that a vault is absent, and neither is a successful one that
+   * dropped rows it could not transform. React Query keeps `status` on
+   * "success" while serving stale cache through a failing background refetch,
+   * so a non-null `error` withholds the set too.
+   */
+  const indexedVaultIds: ReadonlySet<string> | null = useMemo(
+    () =>
+      status === "success" && error === null && data?.droppedCount === 0
+        ? new Set(confirmedActivities.map((a) => a.id.toLowerCase()))
+        : null,
+    [status, error, data, confirmedActivities],
+  );
 
   // Check if any activity has "Processing" status and update fast polling flag
   useEffect(() => {
@@ -94,10 +113,22 @@ export function useVaultDeposits(connectedAddress: Address | undefined) {
   }, [connectedAddress, confirmedActivities]);
 
   // Combine with local pending pegins from localStorage
-  const { allActivities, pendingPegins, addPendingPegin } = usePeginStorage({
-    ethAddress: connectedAddress || "",
-    confirmedPegins: confirmedActivities,
-  });
+  const { allActivities, pendingPegins, addPendingPegin, removePendingPegins } =
+    usePeginStorage({
+      ethAddress: connectedAddress || "",
+      confirmedPegins: confirmedActivities,
+    });
+
+  /**
+   * The stored status of each browser-local record, keyed by lowercased vault
+   * id. A record that has already broadcast its Pre-PegIn is no longer the
+   * browser's to discard, so the dismiss gate reads this rather than inferring
+   * the status from the row's display state.
+   */
+  const localRecordStatuses: ReadonlyMap<string, LocalStorageStatus> = useMemo(
+    () => new Map(pendingPegins.map((p) => [p.id.toLowerCase(), p.status])),
+    [pendingPegins],
+  );
 
   // Wrap refetch to return Promise<void> for backward compatibility
   const wrappedRefetch = async () => {
@@ -111,5 +142,8 @@ export function useVaultDeposits(connectedAddress: Address | undefined) {
     error: error as Error | null,
     refetchActivities: wrappedRefetch,
     addPendingPegin,
+    removePendingPegins,
+    indexedVaultIds,
+    localRecordStatuses,
   };
 }

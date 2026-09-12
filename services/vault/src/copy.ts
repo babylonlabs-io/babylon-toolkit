@@ -2004,6 +2004,28 @@ export const COPY = {
       withdraw: "Withdraw",
       viewDetails: "View Details",
     },
+    dismissPending: {
+      rowLabel: "Remove this pending deposit",
+      title: "Remove this pending deposit?",
+      body: "This deposit's record is saved in this browser only. Removing it does not move or spend any Bitcoin, and your funds stay in your wallet.",
+      warning:
+        "You will lose the unsigned Pre-Pegin transaction this browser holds, so you can no longer broadcast it from here. This cannot be undone.",
+      batchTitle: (count: number) => `Remove these ${count} pending deposits?`,
+      batchBody: (count: number) =>
+        `These ${count} deposits share one Pre-Pegin transaction, so they are removed together. Their records are saved in this browser only. Removing them does not move or spend any Bitcoin, and your funds stay in your wallet.`,
+      batchWarning: (count: number) =>
+        `You will lose the unsigned Pre-Pegin transaction this browser holds for all ${count} deposits, so you can no longer broadcast it from here. This cannot be undone.`,
+      writeFailed:
+        "Your browser blocked the change, so the deposit is still saved here. Check your privacy settings or free up local storage, then try again.",
+      unreadable:
+        "This browser's saved deposit records could not be read, so nothing was changed. Clearing this site's stored data removes them.",
+      noLongerRemovable:
+        "This deposit can no longer be removed because its Pre-Pegin transaction has since been broadcast or found on-chain.",
+      unavailable:
+        "The deposit's status could not be verified right now. Try again in a moment.",
+      confirmButton: "Remove",
+      cancelButton: "Cancel",
+    },
   },
   risk: {
     title: "Risk",

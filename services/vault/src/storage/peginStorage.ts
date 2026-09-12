@@ -402,17 +402,32 @@ function persistPendingPegins(
 ): void {
   if (!ethAddress) return;
 
+  const normalizedPegins = pegins.map((pegin) => ({
+    ...pegin,
+    id: normalizeTransactionId(pegin.id),
+  }));
+
+  persistStoredEntries(ethAddress, normalizedPegins);
+
+  // Dispatch custom event to notify React hooks
+  dispatchStorageUpdateEvent(ethAddress);
+}
+
+/**
+ * Write the stored array verbatim, THROWING if the write fails. An empty array
+ * deletes the key. Callers own the event dispatch.
+ */
+function persistStoredEntries(
+  ethAddress: string,
+  entries: readonly unknown[],
+): void {
   const key = getStorageKey(ethAddress);
 
   try {
-    if (pegins.length === 0) {
+    if (entries.length === 0) {
       localStorage.removeItem(key);
     } else {
-      const normalizedPegins = pegins.map((pegin) => ({
-        ...pegin,
-        id: normalizeTransactionId(pegin.id),
-      }));
-      localStorage.setItem(key, JSON.stringify(normalizedPegins));
+      localStorage.setItem(key, JSON.stringify(entries));
     }
   } catch (error) {
     logger.error(error instanceof Error ? error : new Error(String(error)), {
@@ -422,9 +437,52 @@ function persistPendingPegins(
       "Unable to save the deposit record locally. Your browser may be blocking local storage (private browsing or quota).",
     );
   }
+}
 
-  // Dispatch custom event to notify React hooks
-  dispatchStorageUpdateEvent(ethAddress);
+/**
+ * Read the stored array without validating or normalizing its entries.
+ *
+ * `empty` means the key is absent, so there is nothing stored to act on.
+ * `unreadable` means something is stored that cannot be interpreted — a
+ * non-array blob, unparseable JSON, or a localStorage that throws on read —
+ * and is never a licence to write an empty list or to report a removal.
+ */
+type StoredEntriesRead =
+  | { status: "ok"; entries: unknown[] }
+  | { status: "empty" }
+  | { status: "unreadable" };
+
+function readStoredEntries(ethAddress: string): StoredEntriesRead {
+  try {
+    const stored = localStorage.getItem(getStorageKey(ethAddress));
+    if (!stored) return { status: "empty" };
+    const parsed: unknown = JSON.parse(stored);
+    if (!Array.isArray(parsed)) {
+      logger.error(new Error("Stored pending pegins is not an array"), {
+        data: {
+          context: "[peginStorage] Failed to parse stored pending pegins",
+        },
+      });
+      return { status: "unreadable" };
+    }
+    return { status: "ok", entries: parsed };
+  } catch (error) {
+    logger.error(error instanceof Error ? error : new Error(String(error)), {
+      data: { context: "[peginStorage] Failed to parse stored pending pegins" },
+    });
+    return { status: "unreadable" };
+  }
+}
+
+/**
+ * The normalized, lowercased vault id of a raw stored entry, or undefined when
+ * the entry carries no well-formed id.
+ */
+function readStoredEntryId(entry: unknown): string | undefined {
+  if (!entry || typeof entry !== "object") return undefined;
+  const id = (entry as { id?: unknown }).id;
+  if (typeof id !== "string" || !BYTES32_HEX_RE.test(id)) return undefined;
+  return normalizeTransactionId(id).toLowerCase();
 }
 
 /**
@@ -507,13 +565,78 @@ export function updatePendingPeginStatus(
 }
 
 /**
- * Remove a single pending peg-in entry by its vault id.
+ * Remove a single pending peg-in entry by its vault id, matching the id
+ * case-insensitively.
+ *
+ * @returns false when the entry could not be removed and is still stored.
+ * Callers that report the outcome to the user must not treat a failed removal
+ * as a removal.
  */
-export function removePendingPegin(ethAddress: string, vaultId: Hex): void {
-  const existingPegins = getPendingPegins(ethAddress);
-  const normalizedId = normalizeTransactionId(vaultId);
-  const filtered = existingPegins.filter((p) => p.id !== normalizedId);
-  savePendingPegins(ethAddress, filtered);
+export function removePendingPegin(ethAddress: string, vaultId: Hex): boolean {
+  return removePendingPegins(ethAddress, [vaultId]) === "removed";
+}
+
+/**
+ * Outcome of a pending peg-in removal. The two failures are distinct to the
+ * user: `"unreadable"` means the stored records could not be read at all, so
+ * nothing was even attempted, while `"write-failed"` means the write itself
+ * was refused. Both leave the entries stored.
+ */
+export type RemovePendingPeginsResult =
+  | "removed"
+  | "unreadable"
+  | "write-failed";
+
+/**
+ * Remove every pending peg-in entry in `vaultIds` in a single write, matching
+ * ids case-insensitively.
+ *
+ * One write is what makes a batched Pre-PegIn safe to discard: its records all
+ * share one funded transaction, so a partial removal would leave a sibling on
+ * screen with a broadcast button and no way back to the removed ones.
+ *
+ * Operates on the raw stored array so siblings that `getPendingPegins` hides —
+ * legacy records without the build-version stamps, entries a browser extension
+ * mangled — are written back untouched instead of being dropped along with the
+ * targeted entries.
+ *
+ * @returns `"unreadable"` when localStorage could not be read, `"write-failed"`
+ * when the write failed and the entries are still stored. Callers that report
+ * the outcome to the user must not treat either as a removal.
+ */
+export function removePendingPegins(
+  ethAddress: string,
+  vaultIds: readonly Hex[],
+): RemovePendingPeginsResult {
+  if (!ethAddress) return "write-failed";
+
+  const read = readStoredEntries(ethAddress);
+  if (read.status === "unreadable") return "unreadable";
+  if (read.status === "empty") {
+    dispatchStorageUpdateEvent(ethAddress);
+    return "removed";
+  }
+
+  const targets = new Set(
+    vaultIds.map((vaultId) => normalizeTransactionId(vaultId).toLowerCase()),
+  );
+  const remaining = read.entries.filter((entry) => {
+    const id = readStoredEntryId(entry);
+    return id === undefined || !targets.has(id);
+  });
+  if (remaining.length === read.entries.length) {
+    dispatchStorageUpdateEvent(ethAddress);
+    return "removed";
+  }
+
+  try {
+    persistStoredEntries(ethAddress, remaining);
+  } catch {
+    return "write-failed";
+  }
+
+  dispatchStorageUpdateEvent(ethAddress);
+  return "removed";
 }
 
 /**
