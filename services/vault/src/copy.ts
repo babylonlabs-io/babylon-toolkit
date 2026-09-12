@@ -513,6 +513,14 @@ export const COPY = {
         `Network fee exceeds the ${percent}% refund safety cap. Lower the fee rate to continue.`,
       retryButton: "Retry",
       confirmButton: "Confirm",
+      // Failures surfaced on the review screen's error callout. Kept here
+      // rather than inline in the execution hook, like `reclaim.errors`.
+      errors: {
+        walletNotConnected: "BTC wallet not connected",
+        missingVaultId: "Missing BTCVault ID",
+        ethWalletNotConnected: "ETH wallet not connected",
+        invalidFeeRate: "Fee rate must be a positive number",
+      },
     },
     // The tier hints are static: they name the confirmation target of the
     // mempool.space field each tile reads (hourFee / halfHourFee / fastestFee),
@@ -1306,6 +1314,21 @@ export const COPY = {
     },
   },
   wallet: {
+    btcAction: {
+      heading: "Connect your Bitcoin wallet",
+      body: "This action needs your Bitcoin wallet. Connect it, then try the action again.",
+      // The wallet is connected, but the session dialog still waits for the
+      // depositor to confirm it.
+      confirmBody:
+        "This action needs your Bitcoin wallet. Confirm the wallet connection, then try the action again.",
+      // Shown while a saved wallet session is still being restored.
+      resolving: "Checking your Bitcoin wallet…",
+      // The inline error for handlers that run outside the prompt panel.
+      error: "Bitcoin wallet not connected.",
+      connect: "Connect Bitcoin wallet",
+      retry: "Retry",
+      cancel: "Cancel",
+    },
     geoBlockedTooltip: "Not available in your region",
     walletNotEligibleTooltip: "Wallet not eligible",
     addressScreeningBannerBody:

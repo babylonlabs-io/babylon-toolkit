@@ -34,6 +34,7 @@ import { useAddressType } from "@/context/addressType";
 import { AppPeginPollingProvider } from "@/context/deposit/AppPeginPollingProvider";
 import { useGeoFencing } from "@/context/geofencing";
 import { COPY } from "@/copy";
+import { useBtcAction } from "@/hooks/useBtcAction";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import { useProtocolStatusOverride } from "@/overrides/protocolStatus";
@@ -147,14 +148,19 @@ export default function RootLayout() {
     string | undefined
   >();
 
+  const { requireBtcWallet } = useBtcAction();
   // Reject a click event reaching `initialAmountBtc`: TypeScript allows this
   // where an `onClick` handler is expected, and it crashes the deposit dialog.
-  const openDeposit = useCallback((initialAmountBtc?: string) => {
-    setInitialDepositAmountBtc(
-      typeof initialAmountBtc === "string" ? initialAmountBtc : undefined,
-    );
-    setIsDepositOpen(true);
-  }, []);
+  const openDeposit = useCallback(
+    (initialAmountBtc?: string) => {
+      if (!requireBtcWallet()) return;
+      setInitialDepositAmountBtc(
+        typeof initialAmountBtc === "string" ? initialAmountBtc : undefined,
+      );
+      setIsDepositOpen(true);
+    },
+    [requireBtcWallet],
+  );
 
   const closeDeposit = useCallback(() => {
     setIsDepositOpen(false);

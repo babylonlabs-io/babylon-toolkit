@@ -1,5 +1,6 @@
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import { act, fireEvent, render } from "@testing-library/react";
+import { cloneElement } from "react";
 import type { Address, Hex } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -8,6 +9,17 @@ import type { DepositErrorContent } from "@/utils/errors";
 
 import type { DepositProgressViewProps } from "../DepositProgressView";
 import { DepositSignContent } from "../DepositSignContent";
+
+const btcActionWallet = vi.hoisted(() => ({ connected: true, open: vi.fn() }));
+vi.mock("@babylonlabs-io/wallet-connector", () => ({
+  useBTCWallet: () => ({ connected: btcActionWallet.connected }),
+  useWalletConnect: () => ({ connected: true, open: btcActionWallet.open }),
+}));
+
+beforeEach(() => {
+  btcActionWallet.connected = true;
+  btcActionWallet.open.mockClear();
+});
 
 const mockExecuteDeposit = vi.hoisted(() => vi.fn());
 const mockCancelDeviceSign = vi.hoisted(() => vi.fn());
@@ -108,13 +120,13 @@ vi.mock("../DepositProgressView", () => ({
   },
 }));
 
-function renderContent(
+function contentElement(
   overrides: {
     onRefetchActivities?: () => Promise<void>;
     depositorEthAddress?: Address | undefined;
   } = {},
 ) {
-  return render(
+  return (
     <DepositSignContent
       vaultAmounts={[100000n]}
       mempoolFeeRate={1}
@@ -133,8 +145,12 @@ function renderContent(
       onClose={vi.fn()}
       onRefetchActivities={overrides.onRefetchActivities}
       onFeeRateChange={vi.fn()}
-    />,
+    />
   );
+}
+
+function renderContent(overrides: Parameters<typeof contentElement>[0] = {}) {
+  return render(contentElement(overrides));
 }
 
 describe("DepositSignContent", () => {
@@ -146,6 +162,23 @@ describe("DepositSignContent", () => {
     deviceCancelState.requested = false;
     flowErrorState.error = null;
     flowErrorState.resumableVaultIds = null;
+  });
+
+  it("keeps a deposit unstarted until the user retries after connection", () => {
+    btcActionWallet.connected = false;
+    mockExecuteDeposit.mockResolvedValue(null);
+    const content = contentElement();
+    const view = render(content);
+    fireEvent.click(view.getByTestId("summary-sign"));
+    expect(btcActionWallet.open).toHaveBeenCalledWith("BTC");
+    expect(mockExecuteDeposit).not.toHaveBeenCalled();
+    expect(view.queryByTestId("progress")).toBeNull();
+    btcActionWallet.connected = true;
+    view.rerender(cloneElement(content));
+    expect(mockExecuteDeposit).not.toHaveBeenCalled();
+    expect(view.queryByTestId("progress")).toBeNull();
+    fireEvent.click(view.getByTestId("summary-sign"));
+    expect(mockExecuteDeposit).toHaveBeenCalledOnce();
   });
 
   it("renders Retry and switches to the continuation view after a post-registration device error", async () => {

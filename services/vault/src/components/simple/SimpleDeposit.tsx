@@ -19,6 +19,7 @@ import { useBtcWalletState } from "@/hooks/deposit/useBtcWalletState";
 import { useDepositPeginFee } from "@/hooks/deposit/useDepositPeginFee";
 import { useDialogStep } from "@/hooks/deposit/useDialogStep";
 import { usePendingVaultOverlapCheck } from "@/hooks/deposit/usePendingVaultOverlapCheck";
+import { useBtcAction } from "@/hooks/useBtcAction";
 import { useProtocolFeeRows } from "@/hooks/useProtocolFeeRows";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import { useVaultCountCap } from "@/hooks/useVaultCountCap";
@@ -84,6 +85,7 @@ function SimpleDepositContent({
   initialAmountBtc,
 }: SimpleDepositBaseProps) {
   const gate = useProtocolGateState();
+  const { requireBtcWallet } = useBtcAction();
   const { isGeoBlocked, isLoading: isGeoLoading } = useGeoFencing();
   const { isBlocked: isAddressBlocked, isLoading: isScreeningLoading } =
     useAddressScreening();
@@ -356,6 +358,7 @@ function SimpleDepositContent({
     // position past the on-chain cap, or when the cap couldn't be read (fail
     // closed) — defense-in-depth behind the disabled CTA.
     if (isVaultCapReached || vaultCountCapUnavailable) return;
+    if (!requireBtcWallet()) return;
 
     // The CTA doubles as the recovery action when the wallet-liveness probe
     // has failed OR the proactive lock poll has flagged a silently-locked

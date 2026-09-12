@@ -20,6 +20,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Hex } from "viem";
 
 import { COPY } from "@/copy";
+import { useBtcAction } from "@/hooks/useBtcAction";
 import {
   captureFunnelFailure,
   shortId,
@@ -129,6 +130,7 @@ export function usePayoutSigningState({
   const cancelRequestedRef = useRef(false);
 
   const { findProvider } = useVaultProviders(activity.applicationEntryPoint);
+  const { requireBtcWallet } = useBtcAction();
   const btcConnector = useChainConnector("BTC");
   const { setOptimisticStatus } = usePeginPolling();
 
@@ -170,10 +172,13 @@ export function usePayoutSigningState({
 
   const handleSign = useCallback(async () => {
     if (inFlightRef.current || signing) return;
-    inFlightRef.current = true;
-    // A new attempt starts non-terminal: a guard error after a terminal
-    // refusal is a fresh, recoverable error and must get its Retry back.
+    // A new attempt must allow a retry after a recoverable guard error.
     setErrorTerminal(false);
+    if (!requireBtcWallet()) {
+      setError(COPY.deposit.payoutSigningGuards.walletNotConnected);
+      return;
+    }
+    inFlightRef.current = true;
 
     // Single outer try/finally so the reentrancy lock is always cleared —
     // including on synchronous throws from the guards (e.g.
@@ -474,6 +479,7 @@ export function usePayoutSigningState({
       setCancelRequested(false);
     }
   }, [
+    requireBtcWallet,
     signing,
     activity.providers,
     activity.peginTxHash,

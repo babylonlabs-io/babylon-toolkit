@@ -140,7 +140,15 @@ vi.mock("@/clients/eth-contract/pause-state/query", () => ({
   getOnChainPauseState: () => Promise.resolve(onChainPauseMock.value),
 }));
 
+const btcActionWallet = vi.hoisted(() => ({ connected: true, open: vi.fn() }));
+beforeEach(() => {
+  btcActionWallet.connected = true;
+  btcActionWallet.open.mockClear();
+});
+
 vi.mock("@babylonlabs-io/wallet-connector", () => ({
+  useBTCWallet: () => ({ connected: btcActionWallet.connected }),
+  useWalletConnect: () => ({ connected: true, open: btcActionWallet.open }),
   getSharedWagmiConfig: vi.fn(() => ({})),
   useChainConnector: vi.fn(makeDefaultChainConnector),
 }));
@@ -361,6 +369,7 @@ describe("useVaultActions — handleBroadcast transaction integrity", () => {
   });
 
   it("requires an explicit broadcast retry after BTC reconnects", async () => {
+    btcActionWallet.connected = false;
     mockFetchVaultById.mockResolvedValue(baseVault as never);
     vi.mocked(useChainConnector).mockReturnValue(null);
     const { result, rerender } = renderHook(() => useVaultActions());
@@ -375,6 +384,9 @@ describe("useVaultActions — handleBroadcast transaction integrity", () => {
     expect(mockSignPsbt).not.toHaveBeenCalled();
     expect(baseBroadcastParams.onShowSuccessModal).not.toHaveBeenCalled();
 
+    expect(btcActionWallet.open).toHaveBeenCalledWith("BTC");
+    expect(mockFetchVaultById).not.toHaveBeenCalled();
+    btcActionWallet.connected = true;
     vi.mocked(useChainConnector).mockImplementation(
       makeDefaultChainConnector as never,
     );

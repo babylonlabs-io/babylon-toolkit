@@ -69,6 +69,10 @@ let mockBtcConnector: {
   };
 } | null = null;
 vi.mock("@babylonlabs-io/wallet-connector", () => ({
+  useBTCWallet: () => ({
+    connected: Boolean(mockBtcConnector?.connectedWallet),
+  }),
+  useWalletConnect: () => ({ connected: true, open: vi.fn() }),
   useChainConnector: vi.fn(() => mockBtcConnector),
 }));
 
@@ -1275,14 +1279,12 @@ describe("usePayoutSigningState", () => {
       });
       expect(result.current.errorTerminal).toBe(true);
 
-      // Wallet disconnects before the retry — a guard error, recoverable.
-      // Re-render so the handler closes over the new connector state.
       mockBtcConnector = { connectedWallet: undefined };
       rerender();
       await act(async () => {
         await result.current.handleSign();
       });
-      expect(result.current.error?.title).toBe("Wallet address unavailable");
+      expect(result.current.error?.title).toBe("Wallet not connected");
       expect(result.current.errorTerminal).toBe(false);
     });
 
