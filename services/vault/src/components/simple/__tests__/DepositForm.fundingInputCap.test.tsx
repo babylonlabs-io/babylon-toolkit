@@ -124,21 +124,21 @@ describe("DepositForm funding-input-cap callout", () => {
   it("does not render the callout when the cap is not exceeded", () => {
     renderForm(false);
     expect(
-      screen.queryByText(COPY.deposit.fundingInputCap.notice),
+      screen.queryByText(COPY.deposit.fundingInputCap.noticeEmphasis),
     ).not.toBeInTheDocument();
   });
 
   it("does not render the callout when the prop is omitted", () => {
     renderForm(undefined);
     expect(
-      screen.queryByText(COPY.deposit.fundingInputCap.notice),
+      screen.queryByText(COPY.deposit.fundingInputCap.noticeEmphasis),
     ).not.toBeInTheDocument();
   });
 
   it("renders the callout when the funding-input cap is exceeded", () => {
     renderForm(true);
     expect(
-      screen.getByText(COPY.deposit.fundingInputCap.notice),
+      screen.getByText(COPY.deposit.fundingInputCap.noticeEmphasis),
     ).toBeInTheDocument();
   });
 });

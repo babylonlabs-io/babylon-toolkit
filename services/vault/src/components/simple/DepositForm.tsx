@@ -1,10 +1,4 @@
-import {
-  AmountSlider,
-  Callout,
-  Card,
-  Hint,
-  InfoIcon,
-} from "@babylonlabs-io/core-ui";
+import { AmountSlider, Card, Hint, InfoIcon } from "@babylonlabs-io/core-ui";
 import { useMemo, useState } from "react";
 import { IoInformationCircle } from "react-icons/io5";
 
@@ -431,17 +425,31 @@ export function DepositForm({
         >
           {pendingConfirmationNotice}
         </p>
-        {fundingInputCapExceeded && (
-          <Callout variant="info">
-            {COPY.deposit.fundingInputCap.notice}
-          </Callout>
-        )}
         <CollateralFactorRow
           collateralFactor={collateralFactor}
           amountBtc={amount}
           btcPrice={btcPrice}
           hasPriceFetchError={hasPriceFetchError}
         />
+        {fundingInputCapExceeded && (
+          <div
+            role="status"
+            aria-live="polite"
+            className="flex w-full items-center gap-2 rounded-lg border border-secondary-strokeLight px-4 py-2"
+          >
+            <IoInformationCircle
+              size={18}
+              className="shrink-0 text-secondary-contrast"
+            />
+            <span className="min-w-0 text-sm text-accent-secondary">
+              {COPY.deposit.fundingInputCap.noticeBefore}
+              <span className="text-accent-contrast">
+                {COPY.deposit.fundingInputCap.noticeEmphasis}
+              </span>
+              {COPY.deposit.fundingInputCap.noticeAfter}
+            </span>
+          </div>
+        )}
         {suggestedAmountSats != null && (
           <SuggestedDepositContainer
             suggestedAmountLabel={`${Number(depositService.formatSatoshisToBtc(suggestedAmountSats))} ${btcConfig.coinSymbol}`}

@@ -306,8 +306,9 @@ export const COPY = {
         "The protocol currently allows one BTCVault per transaction. BTCVault split unavailable.",
     },
     fundingInputCap: {
-      notice:
-        "You can use up to 20 UTXOs per deposit. Please combine your UTXOs to proceed.",
+      noticeBefore: "You ",
+      noticeEmphasis: "can use up to 20 UTXOs",
+      noticeAfter: " per deposit. Please combine your UTXOs to proceed.",
       cta: "Consolidate your UTXOs to proceed",
     },
     steps: {
