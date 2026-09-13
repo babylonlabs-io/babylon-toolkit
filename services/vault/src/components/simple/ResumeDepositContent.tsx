@@ -88,6 +88,7 @@ interface CaughtError {
 export interface ResumeSignContentProps {
   activity: VaultActivity;
   btcPublicKey: string | undefined;
+  autoStart?: boolean;
   depositorEthAddress: Hex;
   /**
    * Every vault ID sharing this deposit's Pre-PegIn (the split-pegin
@@ -109,7 +110,11 @@ export function ResumeSignContent(props: ResumeSignContentProps) {
   // A new signing attempt still needs the current wallet key.
   const btcPublicKey = props.btcPublicKey ?? lastWalletKey;
   return (
-    <BtcActionGate onClose={props.onClose} ready={!!props.btcPublicKey}>
+    <BtcActionGate
+      onClose={props.onClose}
+      ready={!!props.btcPublicKey}
+      autoStart={props.autoStart}
+    >
       {btcPublicKey && (
         <ResumeSignContentConnected
           {...props}

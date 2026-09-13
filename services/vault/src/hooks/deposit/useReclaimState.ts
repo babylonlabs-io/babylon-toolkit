@@ -75,7 +75,7 @@ export function useReclaimState({
     async (feeRate: number) => {
       if (inFlightRef.current || reclaiming) return;
       if (!requireBtcWallet()) {
-        setError(COPY.wallet.btcAction.body);
+        setError(COPY.wallet.btcAction.error);
         return;
       }
       inFlightRef.current = true;

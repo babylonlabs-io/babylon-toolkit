@@ -3,7 +3,7 @@ import { useWalletConnect } from "@babylonlabs-io/wallet-connector";
 import { act, renderHook } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { networks, Transaction } from "bitcoinjs-lib";
-import type { ReactNode } from "react";
+import { StrictMode, type ReactNode } from "react";
 
 import { useBTCWallet } from "@/ui/common/context/wallet/BTCWalletProvider";
 import { useCosmosWallet } from "@/ui/common/context/wallet/CosmosWalletProvider";
@@ -227,7 +227,7 @@ describe("useTransactionService", () => {
     queryClient.clear();
   });
 
-  it("requires consent before the live-wallet EOI action can sign", async () => {
+  it("requires current consent for new and retained EOI actions", async () => {
     (useStakingManagerService as jest.Mock).mockImplementation(
       jest.requireActual("@/ui/common/hooks/services/useStakingManagerService")
         .useStakingManagerService,
@@ -253,15 +253,17 @@ describe("useTransactionService", () => {
       },
     });
     (useWalletConnect as jest.Mock).mockReturnValue({ connected: false });
-    const { result, rerender } = renderHook(() => useTransactionService(), {
-      wrapper,
-    });
+    const { result, rerender, unmount } = renderHook(
+      () => useTransactionService(),
+      {
+        wrapper: ({ children }) => (
+          <StrictMode>{wrapper({ children })}</StrictMode>
+        ),
+      },
+    );
     await expect(
       result.current.createDelegationEoi(mockStakingInputs, mockFeeRate),
     ).rejects.toThrow("BTC Staking Manager not initialized");
-    expect(
-      mockBtcStakingManager.preStakeRegistrationBabylonTransaction,
-    ).not.toHaveBeenCalled();
     (useWalletConnect as jest.Mock).mockReturnValue({ connected: true });
     mockBtcStakingManager.preStakeRegistrationBabylonTransaction.mockResolvedValue(
       {
@@ -270,23 +272,24 @@ describe("useTransactionService", () => {
       },
     );
     rerender();
-    await expect(
-      result.current.createDelegationEoi(mockStakingInputs, mockFeeRate),
-    ).resolves.toEqual({
-      stakingTxHash: mockTxId,
-      signedBabylonTx: mockSignedBabylonTx,
-    });
+    const retry = result.current.createDelegationEoi;
+    await retry(mockStakingInputs, mockFeeRate);
+    for (const confirmed of [false, true]) {
+      (useWalletConnect as jest.Mock).mockReturnValue({ connected: confirmed });
+      rerender();
+      await expect(retry(mockStakingInputs, mockFeeRate)).rejects.toThrow(
+        "BTC Staking Manager not initialized",
+      );
+    }
+    const currentAction = result.current.createDelegationEoi;
+    await currentAction(mockStakingInputs, mockFeeRate);
+    unmount();
+    await expect(currentAction(mockStakingInputs, mockFeeRate)).rejects.toThrow(
+      "BTC Staking Manager not initialized",
+    );
     expect(
       mockBtcStakingManager.preStakeRegistrationBabylonTransaction,
-    ).toHaveBeenCalledTimes(1);
-    (useWalletConnect as jest.Mock).mockReturnValue({ connected: false });
-    rerender();
-    await expect(
-      result.current.createDelegationEoi(mockStakingInputs, mockFeeRate),
-    ).rejects.toThrow("BTC Staking Manager not initialized");
-    expect(
-      mockBtcStakingManager.preStakeRegistrationBabylonTransaction,
-    ).toHaveBeenCalledTimes(1);
+    ).toHaveBeenCalledTimes(2);
   });
 
   describe("createDelegationEoi", () => {

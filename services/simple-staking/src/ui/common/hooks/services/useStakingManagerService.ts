@@ -1,6 +1,6 @@
 import { BabylonBtcStakingManager } from "@babylonlabs-io/btc-staking-ts";
 import { useWalletConnect } from "@babylonlabs-io/wallet-connector";
-import { useCallback, useMemo } from "react";
+import { useCallback, useLayoutEffect, useMemo } from "react";
 
 import { getNetworkConfigBBN } from "@/ui/common/config/network/bbn";
 import { useBTCWallet } from "@/ui/common/context/wallet/BTCWalletProvider";
@@ -14,6 +14,13 @@ import { getTxHex } from "@/ui/common/utils/mempool_api";
 
 export const useStakingManagerService = () => {
   const { connected: confirmed } = useWalletConnect();
+  const consent = useMemo(() => ({ confirmed }), [confirmed]);
+  useLayoutEffect(() => {
+    consent.confirmed = confirmed;
+    return () => {
+      consent.confirmed = false;
+    };
+  }, [consent, confirmed]);
   const { networkInfo } = useAppState();
   const { signBbnTx } = useBbnTransaction();
   const {
@@ -58,8 +65,9 @@ export const useStakingManagerService = () => {
     versionedParams.length === 0;
 
   const createBtcStakingManager = useCallback(() => {
-    if (isLoading) {
+    if (isLoading || !consent.confirmed) {
       logger.info("createBtcStakingManager", {
+        confirmed: consent.confirmed,
         cosmosConnected,
         btcConnected,
         btcNetwork: Boolean(btcNetwork),
@@ -80,9 +88,7 @@ export const useStakingManagerService = () => {
 
     const bbnProvider = {
       signTransaction: signBbnTx,
-      getCurrentHeight: async () => {
-        return bbnHeight;
-      },
+      getCurrentHeight: async () => bbnHeight,
       getChainId: async () => chainId,
     };
 
@@ -96,6 +102,7 @@ export const useStakingManagerService = () => {
     );
   }, [
     isLoading,
+    consent,
     btcNetwork,
     versionedParams,
     networkUpgrade,

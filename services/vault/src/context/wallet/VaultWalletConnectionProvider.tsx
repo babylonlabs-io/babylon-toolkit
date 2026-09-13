@@ -129,9 +129,18 @@ function WalletProviders({ children }: PropsWithChildren) {
       clearTimeout(pendingBtcResetRef.current);
     pendingBtcResetRef.current = setTimeout(() => {
       pendingBtcResetRef.current = undefined;
+      // A full reset may have started while the timer ran. Let it finish alone.
+      if (isDisconnectingRef.current) return;
       // Prevent the cleanup event from starting another timer. The local scope
       // clears Bitcoin selection and storage without disconnecting Ethereum.
       hasBtcConnectedRef.current = false;
+      // An extension-initiated disconnect tears down BTCWalletProvider without
+      // calling connector.disconnect(), so connectedWallet stays stale-set.
+      // That is why this call still clears the persisted session, and why it
+      // must not be gated on connectedWallet.
+      logger.info("Clearing the Bitcoin session after a sustained disconnect", {
+        category: "Wallet connection",
+      });
       void btcConnector?.disconnect("local");
     }, BTC_DISCONNECT_DEBOUNCE_MS);
   }, [btcConnector]);

@@ -79,7 +79,7 @@ export default function RootLayout() {
   const gate = useProtocolGateState();
   const { theme, setTheme } = useTheme();
   const { isConnected, btcConnected, ethConnected } = useConnection();
-  const isWalletConnected =
+  const walletsPresent =
     ethConnected && (FeatureFlags.isEthFirstEnabled || btcConnected);
   const { isGeoBlocked, isLoading: isGeoLoading } = useGeoFencing();
   const { isBlocked: isAddressBlocked } = useAddressScreening();
@@ -95,7 +95,7 @@ export default function RootLayout() {
   const isEntryLayout = !isConnected && pathname === "/";
   const showV3Sidebar = !isMobileView && !isEntryLayout;
   const showAddressTypeBanner =
-    isWalletConnected && btcConnected && !isSupportedAddress;
+    walletsPresent && btcConnected && !isSupportedAddress;
   // Match ProtocolStatusBanner's status derivation: the dev-only god-mode
   // override (compile-time null in production) wins over the live gate, so a
   // forced frozen/paused preview drives banner suppression here too and can't
@@ -107,7 +107,7 @@ export default function RootLayout() {
   // active, since that banner already explains the disabled state.
   const showDepositDisabledBanner =
     !isGeoBlocked &&
-    isWalletConnected &&
+    walletsPresent &&
     FeatureFlags.isDepositDisabled &&
     !hasProtocolStatus;
   // The operator message (NEXT_PUBLIC_NOTICE_BANNER_MESSAGE) is context-aware:
@@ -184,7 +184,7 @@ export default function RootLayout() {
         message={FeatureFlags.noticeBannerMessage ?? ""}
       />
       <AddressScreeningBanner
-        visible={!isGeoBlocked && isWalletConnected && isAddressBlocked}
+        visible={!isGeoBlocked && walletsPresent && isAddressBlocked}
       />
       <AddressTypeBanner visible={!isGeoBlocked && showAddressTypeBanner} />
     </>

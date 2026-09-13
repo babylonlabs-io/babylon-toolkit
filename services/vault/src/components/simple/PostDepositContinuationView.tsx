@@ -9,12 +9,12 @@ import {
 import { useNavigate } from "react-router";
 import type { Address, Hex } from "viem";
 
-import FeatureFlags from "@/config/featureFlags";
 import { usePeginPolling } from "@/context/deposit/PeginPollingContext";
 import { COPY } from "@/copy";
 import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps";
 import { useRequiredPrePeginDepth } from "@/hooks/deposit/useRequiredPrePeginDepth";
 import { deriveSplitVaultProgress } from "@/hooks/deposit/useSplitVaultProgress";
+import { useBtcAction } from "@/hooks/useBtcAction";
 import {
   getPeginDisplayStep,
   getWarningPeginDisplayStep,
@@ -124,6 +124,10 @@ export function PostDepositContinuationView({
   onClose,
   onAdvancedWithdraw,
 }: PostDepositContinuationViewProps) {
+  const { connected } = useBtcAction();
+  const payoutReady = connected && !!btcPublicKey;
+  const [payoutAdmitted, setPayoutAdmitted] = useState(payoutReady);
+  if (payoutAdmitted && !payoutReady) setPayoutAdmitted(false);
   const { refetch, getPollingResult } = usePeginPolling();
   const navigate = useNavigate();
 
@@ -152,15 +156,14 @@ export function PostDepositContinuationView({
     onClose();
   }, [navigate, onClose]);
 
+  // Actionability keys on the vault's on-chain depositor key, not the wallet
+  // key, so the payout branch mounts while Bitcoin is disconnected and its
+  // BtcActionGate can prompt for the wallet instead of a wait state hiding it.
   const isActionable = (id: string): boolean => {
-    const state = getPollingResult(id)?.peginState;
+    const result = getPollingResult(id);
     return (
-      isCandidateVault(state) &&
-      (hasActionableStep(state, btcPublicKey) ||
-        (FeatureFlags.isEthFirstEnabled &&
-          state?.availableActions.includes(
-            PeginAction.SIGN_PAYOUT_TRANSACTIONS,
-          ) === true))
+      isCandidateVault(result?.peginState) &&
+      hasActionableStep(result?.peginState, result?.depositorBtcPubkey)
     );
   };
 
@@ -414,9 +417,11 @@ export function PostDepositContinuationView({
     );
   }
 
+  // Same on-chain key as `isActionable`: a payout-ready vault with an unknown
+  // depositor key is not selected, and must not mount from the wait fallback.
   if (
     activity &&
-    (btcPublicKey || FeatureFlags.isEthFirstEnabled) &&
+    pollingResult?.depositorBtcPubkey &&
     actions.includes(PeginAction.SIGN_PAYOUT_TRANSACTIONS)
   ) {
     return (
@@ -424,6 +429,7 @@ export function PostDepositContinuationView({
         key={`payout-${currentVaultId}`}
         activity={activity}
         btcPublicKey={btcPublicKey}
+        autoStart={payoutAdmitted}
         depositorEthAddress={depositorEthAddress}
         siblingVaultIds={siblingVaultIds}
         onClose={onClose}

@@ -143,12 +143,16 @@ export function useArtifactDownload(options?: {
       // god-mode panel's "Mock artifact download" toggle; off in production
       // builds, where the god-mode gate is compile-time false.
       const demoDownload = getArtifactDownloadOverride();
+      const normalizedPeginTxid = stripHexPrefix(peginTxid);
       if (
         !demoDownload &&
-        !vpTokenRegistry.peek(stripHexPrefix(peginTxid)) &&
+        !vpTokenRegistry.peek(normalizedPeginTxid) &&
         !requireBtcWallet()
       ) {
-        setState({ ...INITIAL_STATE, error: COPY.wallet.btcAction.body });
+        // Mark any in-flight download stale, as `cancel` does, so it settles
+        // silently instead of overwriting this error.
+        abortControllerRef.current?.abort();
+        setState({ ...INITIAL_STATE, error: COPY.wallet.btcAction.error });
         return;
       }
 
@@ -179,8 +183,6 @@ export function useArtifactDownload(options?: {
         // the user sees names it rather than the fetch behind it.
         progress: COPY.deposit.recoveryArtifacts.choosingSaveLocation,
       });
-
-      const normalizedPeginTxid = stripHexPrefix(peginTxid);
 
       // Per-vault join key for telemetry. The collateral re-download path
       // mounts the hook without a vaultId; the pegin txid identifies the same
@@ -458,9 +460,11 @@ export function useArtifactDownload(options?: {
           // retry the stream.
           if (!primeAttempted && isAuthRejectedError(err)) {
             primeAttempted = true;
+            // Drop any cached token so the next acquire goes back to the server.
+            // Covers the hot-but-stale case (auth_expired); harmless on cold cache.
             vpTokenRegistry.peek(normalizedPeginTxid)?.invalidate();
             if (!requireBtcWallet()) {
-              setError(COPY.wallet.btcAction.body);
+              setError(COPY.wallet.btcAction.error);
               return;
             }
             try {
