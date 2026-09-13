@@ -78,14 +78,21 @@ function fundedBytes(native) {
   });
 }
 function mutateNative(method, mutate, run) {
-  const original = bindings.WasmPrePeginTx.prototype[method];
-  bindings.WasmPrePeginTx.prototype[method] = function (...methodArgs) {
+  const prototype = bindings.WasmPrePeginTx.prototype;
+  const original = prototype[method], free = prototype.free;
+  const cleanupError = new Error('release failed');
+  prototype[method] = function (...methodArgs) {
     return mutate(original.apply(this, methodArgs));
   };
+  prototype.free = function () {
+    free.call(this);
+    throw cleanupError;
+  };
   try {
-    run();
+    run(cleanupError);
   } finally {
-    bindings.WasmPrePeginTx.prototype[method] = original;
+    prototype[method] = original;
+    prototype.free = free;
   }
 }
 
@@ -233,10 +240,16 @@ for (const version of [1, 2, 3]) {
         toHex: (v) => v + '00',
       };
       for (const [method, mutate] of Object.entries(fieldMutations)) {
-        mutateNative(method, mutate, () => {
+        mutateNative(method, mutate, (cleanupError) => {
           assert.throws(
             () => new WasmPrePeginTx(...args(p)),
-            /original request/,
+            (error) => {
+              assert.ok(error instanceof AggregateError);
+              assert.match(error.message, /original request/);
+              assert.equal(error.message, error.errors[0].message);
+              assert.equal(error.errors[1], cleanupError);
+              return true;
+            },
           );
           assert.throws(() => guarded[method](0), /original request/);
         });

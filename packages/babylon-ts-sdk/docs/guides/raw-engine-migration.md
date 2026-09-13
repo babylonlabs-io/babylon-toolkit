@@ -60,9 +60,8 @@ Do not derive these inputs from the saved JSON. The guard checks the child bytes
 connector metadata, values, and signatures against these inputs. It supports the
 pinned engine's saved unsigned, partially signed, and fully signed forms. Each
 signature must verify for its key, position, sighash type, and trusted prevout.
-Legacy saved objects with a missing or null prevout can be read; the pinned engine
-still rejects later signing through that missing prevout. Unknown fields and
-unsupported encodings fail closed. `toJson` and all getters check their results.
+Unknown fields and unsupported encodings fail closed. `toJson` and all getters
+check their results.
 Transaction amounts retain u64 precision during byte and JSON parsing.
 
 ## Use guarded transaction builders

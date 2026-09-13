@@ -45,17 +45,28 @@ export async function createPayoutConnector(
     params.timelockPegin,
   );
 
+  let info: PayoutConnectorInfo;
   try {
-    return {
+    info = {
       payoutScript: connector.getPayoutScript(),
       taprootScriptHash: connector.getTaprootScriptHash(),
       scriptPubKey: connector.getScriptPubKey(network),
       address: connector.getAddress(network),
       payoutControlBlock: connector.getPayoutControlBlock(),
     };
-  } finally {
-    connector.free();
+  } catch (error) {
+    try {
+      connector.free();
+    } catch (cleanupError) {
+      throw new AggregateError(
+        [error, cleanupError],
+        error instanceof Error ? error.message : String(error),
+      );
+    }
+    throw error;
   }
+  connector.free();
+  return info;
 }
 
 /**
@@ -70,25 +81,9 @@ export async function createPayoutConnector(
 export async function getPeginPayoutScriptInfo(
   params: PayoutConnectorParams,
 ): Promise<{ payoutScript: string; payoutControlBlock: string }> {
-  await getWasmBindings();
-  const { GuardedPeginPayoutConnector: WasmPeginPayoutConnector } =
-    await import('./rawPayoutConnector.js');
-
-  const connector = new WasmPeginPayoutConnector(
-    params.txGraphVersion,
-    params.depositor,
-    params.vaultProvider,
-    params.vaultKeepers,
-    params.universalChallengers,
-    params.timelockPegin,
+  const { payoutScript, payoutControlBlock } = await createPayoutConnector(
+    params,
+    'bitcoin',
   );
-
-  try {
-    return {
-      payoutScript: connector.getPayoutScript(),
-      payoutControlBlock: connector.getPayoutControlBlock(),
-    };
-  } finally {
-    connector.free();
-  }
+  return { payoutScript, payoutControlBlock };
 }

@@ -204,55 +204,45 @@ for (const version of [1, 2, 3]) {
     }
   });
 
-  test(`v${version} rejects changed fields that raw JSON deserialization accepts`, () => {
+  test(`v${version} preserves JSON guard errors when release also fails`, () => {
     const source = fixture(version);
     const changes = [
-      (d) => {
-        d.tx.lock_time = 1n;
-      },
-      (d) => {
-        d.tx.input[0].sequence = 1n;
-      },
-      (d) => {
-        d.tx.input[0].previous_output = `${keys[0]}:0`;
-      },
-      (d) => {
-        d.tx.input[0].script_sig = '51';
-      },
-      (d) => {
-        d.tx.output[0].value += 1n;
-      },
-      (d) => {
-        d.tx.output[1].value += 1n;
-      },
-      (d) => {
-        d.tx.output[0].script_pubkey = d.tx.output[1].script_pubkey;
-      },
-      (d) => {
-        d.pegin_payout_connector.timelock_pegin += 1n;
-      },
-      (d) => {
-        d.depositor_claim_connector.pubkey = keys[1];
-      },
-      (d) => {
-        d.pegin_input_spender.htlc_connector.timelock_refund += 1n;
-      },
-      (d) => {
-        d.pegin_input_spender.htlc_connector.hashlock = keys[0];
-      },
-      (d) => {
-        d.prepegin_htlc_prevout.value += 1n;
-      },
-      (d) => {
-        d.prepegin_htlc_prevout.script_pubkey = d.tx.output[0].script_pubkey;
-      },
+      (d) => (d.tx.lock_time = 1n),
+      (d) => (d.tx.input[0].sequence = 1n),
+      (d) => (d.tx.input[0].previous_output = `${keys[0]}:0`),
+      (d) => (d.tx.input[0].script_sig = '51'),
+      (d) => (d.tx.output[0].value += 1n),
+      (d) => (d.tx.output[1].value += 1n),
+      (d) => (d.tx.output[0].script_pubkey = d.tx.output[1].script_pubkey),
+      (d) => (d.pegin_payout_connector.timelock_pegin += 1n),
+      (d) => (d.depositor_claim_connector.pubkey = keys[1]),
+      (d) => (d.pegin_input_spender.htlc_connector.timelock_refund += 1n),
+      (d) => (d.pegin_input_spender.htlc_connector.hashlock = keys[0]),
+      (d) => (d.prepegin_htlc_prevout.value += 1n),
+      (d) => (d.prepegin_htlc_prevout.script_pubkey = d.tx.output[0].script_pubkey),
     ];
-    for (const change of changes) {
-      const data = read(source.json);
-      change(data);
-      const json = stringify(data);
-      wasm.WasmPeginTx.fromJson(version, json).free();
-      assert.throws(() => restore(version, json, source.trusted));
+    const prototype = wasm.WasmPeginTx.prototype;
+    const free = prototype.free;
+    const cleanupError = new Error('release failed');
+    prototype.free = function () {
+      free.call(this);
+      throw cleanupError;
+    };
+    try {
+      for (const change of changes) {
+        const data = read(source.json);
+        change(data);
+        const json = stringify(data);
+        free.call(wasm.WasmPeginTx.fromJson(version, json));
+        assert.throws(() => restore(version, json, source.trusted), (error) => {
+          assert.ok(error instanceof AggregateError);
+          assert.equal(error.message, error.errors[0].message);
+          assert.equal(error.errors[1], cleanupError);
+          return true;
+        });
+      }
+    } finally {
+      prototype.free = free;
     }
     assert.throws(() => restore(version, source.json));
     assert.throws(() =>
