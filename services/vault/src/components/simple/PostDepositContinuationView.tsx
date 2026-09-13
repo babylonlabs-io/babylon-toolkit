@@ -14,6 +14,7 @@ import { COPY } from "@/copy";
 import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps";
 import { useRequiredPrePeginDepth } from "@/hooks/deposit/useRequiredPrePeginDepth";
 import { deriveSplitVaultProgress } from "@/hooks/deposit/useSplitVaultProgress";
+import { useBtcAction } from "@/hooks/useBtcAction";
 import {
   getPeginDisplayStep,
   getWarningPeginDisplayStep,
@@ -123,6 +124,10 @@ export function PostDepositContinuationView({
   onClose,
   onAdvancedWithdraw,
 }: PostDepositContinuationViewProps) {
+  const { connected } = useBtcAction();
+  const payoutReady = connected && !!btcPublicKey;
+  const [payoutAdmitted, setPayoutAdmitted] = useState(payoutReady);
+  if (payoutAdmitted && !payoutReady) setPayoutAdmitted(false);
   const { refetch, getPollingResult } = usePeginPolling();
   const navigate = useNavigate();
 
@@ -424,6 +429,7 @@ export function PostDepositContinuationView({
         key={`payout-${currentVaultId}`}
         activity={activity}
         btcPublicKey={btcPublicKey}
+        autoStart={payoutAdmitted}
         depositorEthAddress={depositorEthAddress}
         siblingVaultIds={siblingVaultIds}
         onClose={onClose}

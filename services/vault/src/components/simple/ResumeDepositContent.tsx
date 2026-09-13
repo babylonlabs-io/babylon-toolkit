@@ -87,12 +87,8 @@ interface CaughtError {
 
 export interface ResumeSignContentProps {
   activity: VaultActivity;
-  /**
-   * The connected wallet's key. `undefined` while Bitcoin is disconnected or
-   * the key is still being read after a connect; the branch mounts either
-   * way so BtcActionGate can prompt, and signing waits for the key.
-   */
   btcPublicKey: string | undefined;
+  autoStart?: boolean;
   depositorEthAddress: Hex;
   /**
    * Every vault ID sharing this deposit's Pre-PegIn (the split-pegin
@@ -106,66 +102,39 @@ export interface ResumeSignContentProps {
 }
 
 export function ResumeSignContent(props: ResumeSignContentProps) {
+  const [lastWalletKey, setLastWalletKey] = useState(props.btcPublicKey);
+  useEffect(() => {
+    if (props.btcPublicKey) setLastWalletKey(props.btcPublicKey);
+  }, [props.btcPublicKey]);
+  // Keep the active flow and its cancel control mounted during a key read.
+  // A new signing attempt still needs the current wallet key.
+  const btcPublicKey = props.btcPublicKey ?? lastWalletKey;
   return (
-    <BtcActionGate onClose={props.onClose}>
-      {props.btcPublicKey === undefined ? (
-        <ResumeSignContentAwaitingKey
-          activity={props.activity}
-          siblingVaultIds={props.siblingVaultIds}
-          onClose={props.onClose}
-        />
-      ) : (
+    <BtcActionGate
+      onClose={props.onClose}
+      ready={!!props.btcPublicKey}
+      autoStart={props.autoStart}
+    >
+      {btcPublicKey && (
         <ResumeSignContentConnected
           {...props}
-          btcPublicKey={props.btcPublicKey}
+          btcPublicKey={btcPublicKey}
+          walletKeyReady={!!props.btcPublicKey}
         />
       )}
     </BtcActionGate>
   );
 }
 
-// The wait state the continuation view used to render for a payout-ready
-// vault without a wallet key: the deposit rests on the auth-anchor step (see
-// getPeginDisplayStep) until the key read settles and the ceremony can start.
-function ResumeSignContentAwaitingKey({
-  activity,
-  siblingVaultIds,
-  onClose,
-}: Pick<ResumeSignContentProps, "activity" | "siblingVaultIds" | "onClose">) {
-  const { vaultCount, currentVaultIndex, perVaultSteps } =
-    useSplitVaultProgress(
-      siblingVaultIds,
-      activity.id,
-      DepositFlowStep.SIGN_AUTH_ANCHOR,
-    );
-
-  return (
-    <DepositProgressView
-      currentStep={DepositFlowStep.SIGN_AUTH_ANCHOR}
-      offchainParamsVersion={activity.offchainParamsVersion}
-      error={null}
-      isComplete={false}
-      isProcessing
-      canClose
-      canContinueInBackground
-      payoutSigningProgress={null}
-      peginSigningProgress={null}
-      vaultCount={vaultCount}
-      currentVaultIndex={currentVaultIndex}
-      perVaultSteps={perVaultSteps}
-      onClose={onClose}
-    />
-  );
-}
-
 function ResumeSignContentConnected({
   activity,
   btcPublicKey,
+  walletKeyReady,
   depositorEthAddress,
   siblingVaultIds,
   onClose,
   onSuccess,
-}: ResumeSignContentProps & { btcPublicKey: string }) {
+}: ResumeSignContentProps & { btcPublicKey: string; walletKeyReady: boolean }) {
   const {
     signing,
     progress,
@@ -189,7 +158,7 @@ function ResumeSignContentConnected({
   // ResumeWotsContent's isReoffer — re-reading would swap modes mid-flight.
   const [wasCanceled] = useState(() => hasPayoutSignCancelRecord(activity.id));
 
-  useRunOnce(handleSign, !wasCanceled);
+  useRunOnce(handleSign, !wasCanceled && walletKeyReady);
 
   // A self-requested cancel settles QUIETLY in the hook (idle, no error, not
   // complete). Left alone, that state renders a disabled Sign button with no
@@ -211,9 +180,10 @@ function ResumeSignContentConnected({
   }, [cancelRequested, signing, error, isComplete]);
 
   const handleResign = useCallback(() => {
+    if (!walletKeyReady) return;
     setReofferAfterCancel(false);
     void handleSign();
-  }, [handleSign]);
+  }, [handleSign, walletKeyReady]);
 
   // Once signing is done the deposit waits on the vault provider. Track the
   // live contract status so the "Awaiting vault provider verification" wait has
@@ -286,9 +256,11 @@ function ResumeSignContentConnected({
       // A terminal refusal (ack window elapsed, signing already over, device
       // rejected the terms) re-runs the whole chain-read chain and fails
       // identically — no Retry CTA, same seam as the activation branch.
-      onRetry={error && !errorTerminal ? handleSign : undefined}
+      onRetry={
+        error && !errorTerminal && walletKeyReady ? handleSign : undefined
+      }
       started={!reofferAfterCancel}
-      onSign={handleResign}
+      onSign={walletKeyReady ? handleResign : undefined}
       canCancelSigning={canCancel}
       cancelSigningRequested={cancelRequested}
       onCancelSigning={handleCancel}

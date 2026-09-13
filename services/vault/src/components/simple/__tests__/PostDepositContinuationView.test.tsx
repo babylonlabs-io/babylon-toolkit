@@ -14,6 +14,10 @@ import type { VaultActivity } from "@/types/activity";
 
 import { PostDepositContinuationView } from "../PostDepositContinuationView";
 
+vi.mock("@/hooks/useBtcAction", () => ({
+  useBtcAction: () => ({ connected: true }),
+}));
+
 const mockGetPollingResult = vi.hoisted(() => vi.fn());
 const mockRefetch = vi.hoisted(() => vi.fn());
 

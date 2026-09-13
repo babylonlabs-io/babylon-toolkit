@@ -7,7 +7,8 @@
  */
 
 import { fireEvent, render, waitFor } from "@testing-library/react";
-import { cloneElement } from "react";
+import { cloneElement, type ReactNode } from "react";
+import { MemoryRouter } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getVaultRegistryReader } from "@/clients/eth-contract/sdk-readers";
@@ -22,8 +23,10 @@ import { COPY } from "@/copy";
 import { useActivationState } from "@/hooks/deposit/useActivationState";
 import { useBroadcastState } from "@/hooks/deposit/useBroadcastState";
 import { shortId } from "@/infrastructure/telemetryEvents";
+import { PeginAction } from "@/models/peginStateMachine";
 import type { VaultActivity } from "@/types/activity";
 
+import { PostDepositContinuationView } from "../PostDepositContinuationView";
 import {
   ResumeActivationContent,
   ResumeBroadcastContent,
@@ -200,11 +203,10 @@ vi.mock("@/utils/rpc", () => ({
 
 vi.mock("@/context/deposit/PeginPollingContext", () => ({
   useDepositPollingResult: mockUseDepositPollingResult,
-  // useSplitVaultProgress (via the Resume components) reads sibling polling
-  // state. These tests render standalone deposits (no siblingVaultIds), so the
-  // derivation returns early and never calls getPollingResult — but the hook
-  // still runs, so it must resolve to a usable shape.
-  usePeginPolling: () => ({ getPollingResult: () => undefined }),
+  usePeginPolling: () => ({
+    getPollingResult: mockUseDepositPollingResult,
+    refetch: vi.fn(),
+  }),
 }));
 
 vi.mock("@/context/ProtocolParamsContext", () => ({
@@ -214,18 +216,12 @@ vi.mock("@/context/ProtocolParamsContext", () => ({
   }),
 }));
 
-vi.mock("@/models/peginStateMachine", () => ({
-  ContractStatus: {
-    PENDING: 0,
-    VERIFIED: 1,
-    ACTIVE: 2,
-    REDEEMED: 3,
-    LIQUIDATED: 4,
-    INVALID: 5,
-    DEPOSITOR_WITHDRAWN: 6,
-    EXPIRED: 7,
-  },
+vi.mock("@/models/peginStateMachine", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/models/peginStateMachine")>()),
   getPeginDisplayStep: mockGetPeginDisplayStep,
+}));
+vi.mock("../ActivationGate", () => ({
+  ActivationGate: ({ children }: { children: ReactNode }) => <>{children}</>,
 }));
 
 vi.mock("../DepositProgressView", () => ({
@@ -882,9 +878,15 @@ describe("ResumeSignContent — reactive verification terminal", () => {
   });
 });
 
-describe("ResumeSignContent — post-cancel re-offer", () => {
+describe("Payout admission through the continuation", () => {
   const handleSign = vi.fn();
-
+  const payout = {
+    depositorBtcPubkey: "0xbtcpub",
+    peginState: {
+      contractStatus: 0,
+      availableActions: [PeginAction.SIGN_PAYOUT_TRANSACTIONS],
+    },
+  };
   beforeEach(() => {
     vi.clearAllMocks();
     mockUseDepositPollingResult.mockReturnValue(undefined);
@@ -900,46 +902,87 @@ describe("ResumeSignContent — post-cancel re-offer", () => {
       handleCancel: vi.fn(),
     });
   });
-
-  function renderSign() {
-    return render(
-      <ResumeSignContent
-        activity={baseActivity}
-        btcPublicKey="0xbtcpub"
-        depositorEthAddress={"0xdepositor" as never}
-        onClose={vi.fn()}
-        onSuccess={vi.fn()}
-      />,
+  function content(btcPublicKey: string | undefined) {
+    return (
+      <MemoryRouter>
+        <PostDepositContinuationView
+          vaultIds={[baseActivity.id as never]}
+          activities={[baseActivity]}
+          btcPublicKey={btcPublicKey}
+          depositorEthAddress="0xdepositor"
+          onClose={vi.fn()}
+        />
+      </MemoryRouter>
     );
   }
-
-  it("auto-runs the signing ceremony at mount when no cancel is recorded", async () => {
-    renderSign();
-
-    await waitFor(() => expect(handleSign).toHaveBeenCalledTimes(1));
-  });
-
-  it("withholds the auto-run and parks on the pre-sign entry state after a recorded cancel", () => {
-    // The deposit flow records the marker when a settled device cancel breaks
-    // its payout loop; the continuation handoff mounts this component for the
-    // same still-actionable vault. Auto-running here would re-prompt the
-    // device moments after the user asked to stop.
-    markPayoutSignCanceled(baseActivity.id);
-
-    const { getByTestId } = renderSign();
-
+  it("keeps the opening action while a ready wallet waits for payout status", () => {
+    const view = render(content("0xbtcpub"));
     expect(handleSign).not.toHaveBeenCalled();
-    expect(getByTestId("started").textContent).toBe("false");
+    mockUseDepositPollingResult.mockReturnValue(payout as never);
+    view.rerender(content("0xbtcpub"));
+    expect(handleSign).toHaveBeenCalledOnce();
   });
-
-  it("re-runs the ceremony only on the explicit CTA click after a recorded cancel", () => {
-    markPayoutSignCanceled(baseActivity.id);
-
-    const { getByTestId } = renderSign();
-    fireEvent.click(getByTestId("sign"));
-
-    expect(handleSign).toHaveBeenCalledTimes(1);
-    expect(getByTestId("started").textContent).toBe("true");
+  it.each(["absent", "connected", "confirmed", "key", "canceled"] as const)(
+    "requires an explicit payout action after %s admission is lost",
+    (loss) => {
+      const absent = loss === "absent" || loss === "canceled";
+      btcActionWallet.connected = !absent;
+      if (loss === "canceled") markPayoutSignCanceled(baseActivity.id);
+      const view = render(
+        content(absent || loss === "key" ? undefined : "0xbtcpub"),
+      );
+      if (loss === "connected" || loss === "confirmed") {
+        btcActionWallet[loss] = false;
+        view.rerender(content(loss === "confirmed" ? "0xbtcpub" : undefined));
+      }
+      btcActionWallet.connected = btcActionWallet.confirmed = true;
+      view.rerender(content(loss === "key" ? undefined : "0xbtcpub"));
+      mockUseDepositPollingResult.mockReturnValue(payout as never);
+      view.rerender(content(loss === "key" ? undefined : "0xbtcpub"));
+      expect(handleSign).not.toHaveBeenCalled();
+      if (loss === "key") {
+        expect(view.getByTestId("btc-action-retry")).toBeDisabled();
+        view.rerender(content("0xbtcpub"));
+        expect(handleSign).not.toHaveBeenCalled();
+      }
+      fireEvent.click(view.getByTestId("btc-action-retry"));
+      if (loss === "canceled") {
+        expect(handleSign).not.toHaveBeenCalled();
+        expect(view.getByTestId("started").textContent).toBe("false");
+        fireEvent.click(view.getByTestId("sign"));
+      }
+      expect(handleSign).toHaveBeenCalledOnce();
+    },
+  );
+  it("keeps active payout controls mounted without restarting after key loss", () => {
+    mockUseDepositPollingResult.mockReturnValue(payout as never);
+    const view = render(content("0xbtcpub"));
+    const progress = view.getByTestId("progress-view");
+    const state = vi.mocked(usePayoutSigningState).mock.results[0].value;
+    vi.mocked(usePayoutSigningState).mockReturnValue({
+      ...state,
+      signing: true,
+      canCancel: true,
+    });
+    btcActionWallet.connected = false;
+    view.rerender(content(undefined));
+    expect(view.getByTestId("progress-view")).toBe(progress);
+    expect(view.getByTestId("can-cancel").textContent).toBe("true");
+    fireEvent.click(view.getByTestId("cancel-signing"));
+    expect(state.handleCancel).toHaveBeenCalledOnce();
+    vi.mocked(usePayoutSigningState).mockReturnValue({
+      ...state,
+      error: COPY.deposit.payoutSignatureErrors.unexpected,
+      errorTerminal: false,
+    });
+    btcActionWallet.connected = true;
+    view.rerender(content(undefined));
+    expect(view.getByTestId("has-retry").textContent).toBe("false");
+    view.rerender(content("0xdepositorpub"));
+    expect(usePayoutSigningState).toHaveBeenLastCalledWith(
+      expect.objectContaining({ btcPublicKey: "0xdepositorpub" }),
+    );
+    expect(handleSign).toHaveBeenCalledOnce();
   });
 });
 
@@ -1142,37 +1185,6 @@ describe("Bitcoin action prompt", () => {
     expect(mockSubmitWotsPublicKey).not.toHaveBeenCalled();
   });
 
-  it("holds the payout wait state after retry until the wallet key resolves", () => {
-    const withKey = (btcPublicKey: string | undefined) => (
-      <ResumeSignContent
-        activity={baseActivity}
-        btcPublicKey={btcPublicKey}
-        depositorEthAddress="0xdepositor"
-        onClose={vi.fn()}
-        onSuccess={vi.fn()}
-      />
-    );
-    const view = render(withKey(undefined));
-    expect(view.queryByTestId("progress-view")).toBeNull();
-    fireEvent.click(
-      view.getByRole("button", { name: COPY.wallet.btcAction.connect }),
-    );
-    expect(btcActionWallet.open).toHaveBeenCalledWith("BTC");
-    btcActionWallet.connected = true;
-    view.rerender(withKey(undefined));
-    expect(usePayoutSigningState).not.toHaveBeenCalled();
-    fireEvent.click(
-      view.getByRole("button", { name: COPY.wallet.btcAction.retry }),
-    );
-    expect(view.getByTestId("processing").textContent).toBe("true");
-    expect(usePayoutSigningState).not.toHaveBeenCalled();
-    view.rerender(withKey("0xbtcpub"));
-    expect(usePayoutSigningState).toHaveBeenCalled();
-    // The ceremony auto-runs on the first mount with a key, after the retry.
-    const state = vi.mocked(usePayoutSigningState).mock.results[0]?.value;
-    expect(state.handleSign).toHaveBeenCalledOnce();
-  });
-
   it("does not mount broadcast work when Bitcoin connects", () => {
     const content = (
       <ResumeBroadcastContent
@@ -1213,31 +1225,6 @@ describe("Bitcoin action prompt", () => {
       view.getByRole("button", { name: COPY.wallet.btcAction.retry }),
     );
     expect(useActivationState).toHaveBeenCalled();
-  });
-
-  it("keeps a recorded payout cancellation after connection and retry", () => {
-    markPayoutSignCanceled(baseActivity.id);
-    const content = (
-      <ResumeSignContent
-        activity={baseActivity}
-        btcPublicKey="0xbtcpub"
-        depositorEthAddress="0xdepositor"
-        onClose={vi.fn()}
-        onSuccess={vi.fn()}
-      />
-    );
-    const view = render(content);
-    expect(usePayoutSigningState).not.toHaveBeenCalled();
-    btcActionWallet.connected = true;
-    view.rerender(cloneElement(content));
-    expect(usePayoutSigningState).not.toHaveBeenCalled();
-    fireEvent.click(
-      view.getByRole("button", { name: COPY.wallet.btcAction.retry }),
-    );
-    expect(usePayoutSigningState).toHaveBeenCalled();
-    const state = vi.mocked(usePayoutSigningState).mock.results.at(-1)?.value;
-    expect(state.handleSign).not.toHaveBeenCalled();
-    expect(view.getByTestId("started").textContent).toBe("false");
   });
 
   it("requires wallet confirmation before the explicit retry", () => {

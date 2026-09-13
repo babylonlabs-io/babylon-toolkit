@@ -7,7 +7,13 @@ import { useBtcAction } from "@/hooks/useBtcAction";
 export function BtcActionGate({
   children,
   onClose,
-}: PropsWithChildren<{ onClose: () => void }>) {
+  ready = true,
+  autoStart = true,
+}: PropsWithChildren<{
+  onClose: () => void;
+  ready?: boolean;
+  autoStart?: boolean;
+}>) {
   const {
     connected,
     btcConnected,
@@ -15,7 +21,7 @@ export function BtcActionGate({
     loading,
     requireBtcWallet,
   } = useBtcAction();
-  const [started, setStarted] = useState(connected);
+  const [started, setStarted] = useState(connected && ready && autoStart);
 
   // Keep an active flow mounted during a temporary wallet disconnect.
   if (started) return <>{children}</>;
@@ -46,9 +52,10 @@ export function BtcActionGate({
           from the progress view's Retry, which shares this gate's "Retry"
           label. Carry them over if you move or rename the controls. */}
       <Button
+        disabled={connected && !ready}
         data-testid={connected ? "btc-action-retry" : "btc-action-connect"}
         onClick={() => {
-          if (requireBtcWallet()) setStarted(true);
+          if (requireBtcWallet() && ready) setStarted(true);
         }}
       >
         {connected
