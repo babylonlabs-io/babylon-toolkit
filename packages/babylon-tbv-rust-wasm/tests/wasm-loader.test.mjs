@@ -477,7 +477,7 @@ async function withRawEntry(entry, run) {
   if (entry === 'raw-node') {
     const raw = await import('../dist/raw-node.js');
     await raw.initWasm();
-    await run(raw, await import('../dist/generated/vault_wasm.js'));
+    await run(raw, await import('../dist/generated/vault_wasm.js'), await import('../dist/index-node.js'));
     return;
   }
   await withBrowserFacade(
@@ -485,10 +485,10 @@ async function withRawEntry(entry, run) {
       new Response(wasmBytes, {
         headers: { 'Content-Type': 'application/wasm' },
       }),
-    async (_facade, url) => {
+    async (facade, url) => {
       const raw = await import(new URL('./raw.js', url));
       await raw.initWasm();
-      await run(raw, await import(new URL('./generated/vault_wasm.js', url)));
+      await run(raw, await import(new URL('./generated/vault_wasm.js', url)), facade);
     },
   );
 }
@@ -633,7 +633,7 @@ for (const entry of ['raw', 'raw-node']) {
   });
 
   test(`${entry} rejects changed HTLC outputs and releases failed construction`, async () => {
-    await withRawEntry(entry, async (raw, generated) => {
+    await withRawEntry(entry, async (raw, generated, facade) => {
       const prototype = generated.WasmPrePeginHtlcConnector.prototype;
       for (const getter of [...htlcGetters, 'getScriptPubKey', 'getAddress']) {
         const checked = new raw.WasmPrePeginHtlcConnector(...htlcArgs());
@@ -663,15 +663,22 @@ for (const entry of ['raw', 'raw-node']) {
               'failed construction releases its engine object',
             );
           }
-          if (getter !== 'getAddress') {
-            // A trapping release must not replace the mismatch message.
-            prototype.free = function () {
-              throw new Error('release failed');
-            };
-            assert.throws(
-              () => new raw.WasmPrePeginHtlcConnector(...htlcArgs()),
-              /does not match/,
-            );
+          await assert.rejects(facade.getPrePeginHtlcConnectorInfo(facadeHtlcParams()), /does not match/);
+          const cleanupError = new Error('release failed');
+          prototype.free = function () {
+            free.call(this);
+            throw cleanupError;
+          };
+          const attempts = [() => facade.getPrePeginHtlcConnectorInfo(facadeHtlcParams())];
+          if (getter !== 'getAddress') attempts.push(() => new raw.WasmPrePeginHtlcConnector(...htlcArgs()));
+          for (const attempt of attempts) {
+            await assert.rejects(async () => attempt(), (error) => {
+              assert.ok(error instanceof AggregateError);
+              assert.match(error.message, /does not match/);
+              assert.equal(error.message, error.errors[0].message);
+              assert.equal(error.errors[1], cleanupError);
+              return true;
+            });
           }
         } finally {
           prototype[getter] = original;
@@ -725,50 +732,29 @@ for (const entry of ['raw', 'raw-node']) {
       );
     });
   });
+  test(`${entry} facade checks HTLC fields and reports release-only errors`, async () => {
+    await withRawEntry(entry, async (_raw, generated, facade) => {
+      const info = await facade.getPrePeginHtlcConnectorInfo(facadeHtlcParams());
+      const expected = new generated.WasmPrePeginHtlcConnector(...htlcArgs());
+      const prototype = generated.WasmPrePeginHtlcConnector.prototype;
+      const free = prototype.free;
+      try {
+        assert.equal(info.scriptPubKey, expected.getScriptPubKey('bitcoin'));
+        assert.equal(info.hashlockScript, expected.getHashlockScript());
+        await assert.rejects(facade.getPrePeginHtlcConnectorInfo(facadeHtlcParams(4)), /Unsupported HTLC graph version: 4/);
+        const cleanupError = new Error('release failed');
+        prototype.free = function () {
+          free.call(this);
+          throw cleanupError;
+        };
+        await assert.rejects(facade.getPrePeginHtlcConnectorInfo(facadeHtlcParams()), (error) => error === cleanupError);
+      } finally {
+        prototype.free = free;
+        expected.free();
+      }
+    });
+  });
 }
-
-// The facade entries, not just /raw, must build the guarded connector: these
-// are the paths the SDK's resume and PegIn-input signing actually call.
-test('the node facade guards getPrePeginHtlcConnectorInfo', async () => {
-  const facade = await import('../dist/index-node.js');
-  await facade.initWasm();
-  const generated = await import('../dist/generated/vault_wasm.js');
-
-  const info = await facade.getPrePeginHtlcConnectorInfo(facadeHtlcParams());
-  const expected = new generated.WasmPrePeginHtlcConnector(...htlcArgs());
-  try {
-    assert.equal(info.scriptPubKey, expected.getScriptPubKey('bitcoin'));
-    assert.equal(info.hashlockScript, expected.getHashlockScript());
-  } finally {
-    expected.free();
-  }
-
-  // The guard rejects before construction, so this message can only come from
-  // the guard; the generated class says 'unsupported tx graph version'.
-  await assert.rejects(
-    facade.getPrePeginHtlcConnectorInfo(facadeHtlcParams(4)),
-    /Unsupported HTLC graph version: 4/,
-  );
-});
-
-test('the browser facade guards getPrePeginHtlcConnectorInfo', async () => {
-  await withBrowserFacade(
-    async () =>
-      new Response(wasmBytes, {
-        headers: { 'Content-Type': 'application/wasm' },
-      }),
-    async (facade) => {
-      const info = await facade.getPrePeginHtlcConnectorInfo(
-        facadeHtlcParams(),
-      );
-      assert.match(info.scriptPubKey, /^5120[0-9a-f]{64}$/);
-      await assert.rejects(
-        facade.getPrePeginHtlcConnectorInfo(facadeHtlcParams(4)),
-        /Unsupported HTLC graph version: 4/,
-      );
-    },
-  );
-});
 
 // An engine bump that adds a graph version must fail here, where the pin is
 // visible, rather than fail closed inside a depositor's resume.
