@@ -57,9 +57,11 @@ export class GuardedPrePeginHtlcConnector {
     } catch (error) {
       try {
         this.#inner.free();
-      } catch {
-        // A release failure must not mask the guard error, which is the one
-        // diagnostic that says the engine disagreed with its own inputs.
+      } catch (cleanupError) {
+        throw new AggregateError(
+          [error, cleanupError],
+          error instanceof Error ? error.message : String(error),
+        );
       }
       throw error;
     }
