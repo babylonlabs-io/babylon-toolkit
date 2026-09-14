@@ -14,6 +14,7 @@ import {
   useProtocolParamsContext,
 } from "@/context/ProtocolParamsContext";
 import { useBTCWallet, useETHWallet } from "@/context/wallet";
+import { isLedgerVaultConnector } from "@/context/wallet/VaultWalletConnectionProvider";
 import { COPY } from "@/copy";
 import { useBtcWalletState } from "@/hooks/deposit/useBtcWalletState";
 import { useDepositPeginFee } from "@/hooks/deposit/useDepositPeginFee";
@@ -497,6 +498,9 @@ function SimpleDepositContent({
                 }}
                 walletState={{
                   isWalletConnected,
+                  // Shared with the reclaim row: the reserve tooltip must not
+                  // promise a reclaim Ledger cannot sign.
+                  isLedgerVaultWallet: isLedgerVaultConnector(btcConnector),
                   // A click-time liveness failure OR the proactive lock poll
                   // promotes the CTA to the reconnect/unlock action. A lock
                   // relabels the CTA to "Unlock Wallet to Deposit" (see
