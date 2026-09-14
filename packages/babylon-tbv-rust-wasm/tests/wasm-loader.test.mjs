@@ -1,11 +1,18 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { cpSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import {
+  cpSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import ts from 'typescript';
+import { secp256k1 } from '@noble/curves/secp256k1.js';
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const packageExports = JSON.parse(
@@ -19,7 +26,7 @@ const rawClassNames = [
 ];
 
 for (const entry of ['raw', 'raw-node']) {
-  test(`${entry} retains the generated classes and shared initializer`, async () => {
+  test(`${entry} retains the raw API and shared initializer`, async () => {
     assert.deepEqual(
       packageExports['./raw'][entry === 'raw' ? 'default' : 'node'],
       {
@@ -38,7 +45,14 @@ for (const entry of ['raw', 'raw-node']) {
     );
     for (const name of rawClassNames) {
       assert.equal(typeof raw[name], 'function', name);
-      assert.equal(raw[name], generated[name]);
+      if (
+        name === 'WasmPrePeginHtlcConnector' ||
+        name === 'WasmPeginPayoutConnector'
+      ) {
+        assert.notEqual(raw[name], generated[name]);
+      } else {
+        assert.equal(raw[name], generated[name]);
+      }
     }
     assert.equal(raw.initWasm, loader.initWasm);
   });
@@ -186,9 +200,13 @@ async function withBrowserFacade(fetchImpl, run) {
     cpSync(resolve(packageRoot, 'dist'), join(isolatedPackage, 'dist'), {
       recursive: true,
     });
+    symlinkSync(
+      resolve(packageRoot, 'node_modules'),
+      join(isolatedPackage, 'node_modules'),
+    );
     globalThis.fetch = fetchImpl;
     const entry = pathToFileURL(join(isolatedPackage, 'dist', 'index.js')).href;
-    await run(await import(entry));
+    await run(await import(entry), entry);
   } finally {
     globalThis.fetch = originalFetch;
     rmSync(isolatedPackage, { recursive: true, force: true });
@@ -455,5 +473,577 @@ test('createPayoutConnector forwards the network to the address through the brow
         'bc1p795tj5cunt8g6cuzghsqfcj4qattn93sqwgnxlskn3lmts656cwspah2xt',
       );
     },
+  );
+});
+
+async function withRawEntry(entry, run) {
+  if (entry === 'raw-node') {
+    const raw = await import('../dist/raw-node.js');
+    await raw.initWasm();
+    await run(
+      raw,
+      await import('../dist/generated/vault_wasm.js'),
+      await import('../dist/index-node.js'),
+    );
+    return;
+  }
+  await withBrowserFacade(
+    async () =>
+      new Response(wasmBytes, {
+        headers: { 'Content-Type': 'application/wasm' },
+      }),
+    async (facade, url) => {
+      const raw = await import(new URL('./raw.js', url));
+      await raw.initWasm();
+      await run(
+        raw,
+        await import(new URL('./generated/vault_wasm.js', url)),
+        facade,
+      );
+    },
+  );
+}
+
+function htlcArgs(version = 1, keepers = [xOnlyKeys[2]]) {
+  return [
+    version,
+    xOnlyKeys[0],
+    xOnlyKeys[1],
+    keepers,
+    [xOnlyKeys[3]],
+    sha256Text('raw HTLC'),
+    144,
+  ];
+}
+
+function payoutArgs(params = payoutConnectorParams) {
+  return [
+    params.txGraphVersion,
+    params.depositor,
+    params.vaultProvider,
+    params.vaultKeepers,
+    params.universalChallengers,
+    params.timelockPegin,
+  ];
+}
+
+const payoutGetters = [
+  'getPayoutScript',
+  'getPayoutControlBlock',
+  'getTaprootScriptHash',
+  'getTxGraphVersion',
+];
+
+for (const entry of ['raw', 'raw-node']) {
+  test(`${entry} pins independent payout fields for every graph version`, async () => {
+    await withRawEntry(entry, async (raw, generated, facade) => {
+      for (const version of [1, 2, 3]) {
+        const params = { ...payoutConnectorParams, txGraphVersion: version };
+        const expected = await facade.deriveExpectedPeginPayout(params);
+        assert.equal(
+          expected.scriptPubKey.toString('hex'),
+          '5120f168b9531c9ace8d638245e004e2550756b996300391337e169c7fb5c354d61d',
+        );
+        assert.equal(
+          expected.taprootScriptHash.toString('hex'),
+          '82c0e27be3e706b67c07953fa18ed9b9854ea1cebbc1040f535b130f38f72c73',
+        );
+        assert.equal(
+          expected.payoutControlBlock.toString('hex'),
+          'c050929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfee9ace803ac0',
+        );
+        assert.equal(
+          sha256Text(expected.payoutScript.toString('hex')),
+          'd851c37a211d3e4c55b2bae8a2a3262e2960de9f1015e43986f76ce5c8628991',
+        );
+        const checked = new raw.WasmPeginPayoutConnector(...payoutArgs(params));
+        const original = new generated.WasmPeginPayoutConnector(
+          ...payoutArgs(params),
+        );
+        try {
+          assert.ok(checked instanceof raw.WasmPeginPayoutConnector);
+          for (const getter of payoutGetters)
+            assert.equal(checked[getter](), original[getter]());
+          for (const network of [
+            'bitcoin',
+            'testnet',
+            'testnet4',
+            'signet',
+            'regtest',
+          ]) {
+            assert.equal(
+              checked.getAddress(network),
+              original.getAddress(network),
+            );
+            assert.equal(
+              checked.getScriptPubKey(network),
+              original.getScriptPubKey(network),
+            );
+          }
+          assert.throws(
+            () => checked.getAddress('mainnet'),
+            /Unsupported Bitcoin network/,
+          );
+          assert.throws(
+            () => checked.getScriptPubKey('invalid'),
+            /Unsupported Bitcoin network/,
+          );
+        } finally {
+          checked.free();
+          original.free();
+        }
+        assert.throws(() => checked.getPayoutScript(), /null pointer passed to rust/);
+      }
+    });
+  });
+
+  test(`${entry} matches randomized payout inputs and script-number boundaries`, async () => {
+    await withRawEntry(entry, async (raw, generated, facade) => {
+      const timelocks = [1, 16, 17, 127, 128, 255, 256, 32767, 32768, 65535];
+      for (let sample = 0; sample < timelocks.length; sample += 1) {
+        const keys = Array.from({ length: 36 }, () =>
+          Buffer.from(
+            secp256k1
+              .getPublicKey(secp256k1.utils.randomPrivateKey(), true)
+              .subarray(1),
+          ).toString('hex'),
+        );
+        const count = [1, 2, 16, 17][sample % 4];
+        const params = {
+          txGraphVersion: 1 + (sample % 3),
+          depositor: keys[0],
+          vaultProvider: keys[1],
+          vaultKeepers: keys.slice(2, 2 + count),
+          universalChallengers: keys.slice(19, 19 + count),
+          timelockPegin: timelocks[sample],
+        };
+        const checked = new raw.WasmPeginPayoutConnector(...payoutArgs(params));
+        const original = new generated.WasmPeginPayoutConnector(
+          ...payoutArgs(params),
+        );
+        try {
+          for (const getter of payoutGetters)
+            assert.equal(checked[getter](), original[getter]());
+          assert.equal(
+            checked.getAddress('signet'),
+            original.getAddress('signet'),
+          );
+          assert.equal(
+            checked.getScriptPubKey('signet'),
+            original.getScriptPubKey('signet'),
+          );
+          const reordered = await facade.deriveExpectedPeginPayout({
+            ...params,
+            vaultKeepers: [...params.vaultKeepers].reverse(),
+            universalChallengers: [...params.universalChallengers].reverse(),
+          });
+          assert.equal(
+            reordered.payoutScript.toString('hex'),
+            original.getPayoutScript(),
+          );
+        } finally {
+          checked.free();
+          original.free();
+        }
+      }
+    });
+  });
+
+  test(`${entry} rejects changed payout fields at raw and async boundaries`, async () => {
+    await withRawEntry(entry, async (raw, generated, facade) => {
+      const prototype = generated.WasmPeginPayoutConnector.prototype;
+      for (const getter of [...payoutGetters, 'getScriptPubKey', 'getAddress']) {
+        const checked = new raw.WasmPeginPayoutConnector(...payoutArgs());
+        const original = prototype[getter];
+        const free = prototype.free;
+        let releases = 0;
+        prototype[getter] = function (...args) {
+          const value = original.apply(this, args);
+          return typeof value === 'number'
+            ? value + 1
+            : value.slice(0, -1) + (value.endsWith('0') ? '1' : '0');
+        };
+        try {
+          assert.throws(() => checked[getter]('bitcoin'), /does not match/);
+          const attempts = [
+            () => facade.getPeginPayoutScriptInfo(payoutConnectorParams),
+            () => facade.createPayoutConnector(payoutConnectorParams, 'bitcoin'),
+          ];
+          if (getter !== 'getAddress') attempts.push(() => new raw.WasmPeginPayoutConnector(...payoutArgs()));
+          const releaseError = new Error('release failed');
+          for (const cleanupError of [undefined, releaseError]) {
+            prototype.free = function () {
+              releases += 1;
+              free.call(this);
+              if (cleanupError) throw cleanupError;
+            };
+            for (const attempt of attempts) {
+              const before = releases;
+              await assert.rejects(async () => attempt(), (error) => {
+                assert.match(error.message, /does not match/);
+                if (cleanupError) {
+                  assert.ok(error instanceof AggregateError);
+                  assert.equal(error.message, error.errors[0].message);
+                  assert.equal(error.errors[1], cleanupError);
+                }
+                return true;
+              });
+              assert.equal(releases, before + 1, 'failed construction releases its engine object once');
+            }
+          }
+          prototype[getter] = original;
+          for (const attempt of attempts.slice(0, 2)) {
+            await assert.rejects(attempt(), (error) => error === releaseError);
+          }
+        } finally {
+          prototype[getter] = original;
+          prototype.free = free;
+          checked.free();
+        }
+      }
+    });
+  });
+
+  test(`${entry} validates original payout inputs and keeps its private expectations`, async () => {
+    await withRawEntry(entry, async (raw, generated) => {
+      const params = {
+        ...payoutConnectorParams,
+        vaultKeepers: [...payoutConnectorParams.vaultKeepers],
+      };
+      const checked = new raw.WasmPeginPayoutConnector(...payoutArgs(params));
+      const expected = checked.getPayoutScript();
+      params.vaultKeepers[0] = xOnlyKeys[4];
+      params.timelockPegin += 1;
+      assert.equal(checked.getPayoutScript(), expected);
+      checked[Symbol.dispose]();
+      assert.throws(() => checked.getPayoutControlBlock(), /null pointer passed to rust/);
+      // The latch makes a `using` declaration plus an explicit free() safe.
+      assert.doesNotThrow(() => checked.free());
+      for (const version of [0, 4, 99, 0x100000001, NaN]) {
+        assert.throws(
+          () =>
+            new raw.WasmPeginPayoutConnector(
+              ...payoutArgs({
+                ...payoutConnectorParams,
+                txGraphVersion: version,
+              }),
+            ),
+          /Unsupported payout graph version/,
+        );
+      }
+      for (const timelock of [0, -1, 1.5, 65536, 65537, NaN, Infinity]) {
+        assert.throws(
+          () =>
+            new raw.WasmPeginPayoutConnector(
+              ...payoutArgs({
+                ...payoutConnectorParams,
+                timelockPegin: timelock,
+              }),
+            ),
+          /timelockPegin/,
+        );
+      }
+      // The derivation must accept exactly what the engine accepts, so that
+      // no input can produce a script on one side and an error on the other.
+      const prefixedArgs = payoutArgs({
+        ...payoutConnectorParams,
+        depositor: `0x${payoutConnectorParams.depositor}`,
+      });
+      assert.throws(
+        () => new raw.WasmPeginPayoutConnector(...prefixedArgs),
+        /depositor must be a 32-byte x-only public key/,
+      );
+      assert.throws(
+        () => new generated.WasmPeginPayoutConnector(...prefixedArgs),
+        /malformed public key/,
+      );
+      for (const role of ['vaultKeepers', 'universalChallengers']) {
+        for (const keys of [[], [xOnlyKeys[0], xOnlyKeys[0].toUpperCase()]]) {
+          assert.throws(
+            () =>
+              new raw.WasmPeginPayoutConnector(
+                ...payoutArgs({ ...payoutConnectorParams, [role]: keys }),
+              ),
+            /must not/,
+          );
+        }
+      }
+      assert.throws(
+        () =>
+          new raw.WasmPeginPayoutConnector(
+            ...payoutArgs({
+              ...payoutConnectorParams,
+              depositor: 'ff'.repeat(32),
+            }),
+          ),
+        /secp256k1 x-coordinate/,
+      );
+    });
+  });
+}
+
+function facadeHtlcParams(txGraphVersion = 1) {
+  return {
+    txGraphVersion,
+    depositorPubkey: xOnlyKeys[0],
+    vaultProviderPubkey: xOnlyKeys[1],
+    vaultKeeperPubkeys: [xOnlyKeys[2]],
+    universalChallengerPubkeys: [xOnlyKeys[3]],
+    hashlock: sha256Text('raw HTLC'),
+    timelockRefund: 144,
+    network: 'bitcoin',
+  };
+}
+
+const htlcGetters = [
+  'getHashlockScript',
+  'getHashlockControlBlock',
+  'getRefundScript',
+  'getRefundControlBlock',
+  'getTxGraphVersion',
+];
+
+for (const entry of ['raw', 'raw-node']) {
+  test(`${entry} matches real HTLC connectors for all versions and networks`, async () => {
+    await withRawEntry(entry, async (raw, generated) => {
+      for (const version of [1, 2, 3]) {
+        for (const keepers of [[xOnlyKeys[2]], [xOnlyKeys[4], xOnlyKeys[2]]]) {
+          const args = htlcArgs(version, keepers);
+          const checked = new raw.WasmPrePeginHtlcConnector(...args);
+          const original = new generated.WasmPrePeginHtlcConnector(...args);
+          try {
+            assert.ok(checked instanceof raw.WasmPrePeginHtlcConnector);
+            for (const getter of htlcGetters)
+              assert.equal(checked[getter](), original[getter]());
+            for (const network of [
+              'bitcoin',
+              'testnet',
+              'testnet4',
+              'signet',
+              'regtest',
+            ]) {
+              assert.equal(
+                checked.getAddress(network),
+                original.getAddress(network),
+              );
+              assert.equal(
+                checked.getScriptPubKey(network),
+                original.getScriptPubKey(network),
+              );
+            }
+            assert.throws(() => checked.getAddress('mainnet'), /Unsupported Bitcoin network/);
+            assert.throws(() => checked.getScriptPubKey('invalid'), /Unsupported Bitcoin network/);
+          } finally {
+            checked.free();
+            original.free();
+          }
+          assert.throws(() => checked.getHashlockScript(), /null pointer passed to rust/);
+        }
+      }
+    });
+  });
+
+  test(`${entry} pins HTLC signing data and matches randomized engine inputs`, async () => {
+    await withRawEntry(entry, async (raw, generated) => {
+      const pinned = new raw.WasmPrePeginHtlcConnector(...htlcArgs());
+      try {
+        assert.equal(
+          pinned.getScriptPubKey('bitcoin'),
+          '51201e329cae02c721440dd11bb652c9992e59b9ca7b2a8dbbb08d6fd49278a47fa4',
+        );
+        assert.equal(
+          sha256Text(
+            [
+              pinned.getHashlockScript(),
+              pinned.getHashlockControlBlock(),
+              pinned.getRefundScript(),
+              pinned.getRefundControlBlock(),
+            ].join('|'),
+          ),
+          '625a8b363190adc2e1f6b3edea52cbed792b96967dbb2bb5be5e2635ad1598cf',
+        );
+      } finally {
+        pinned.free();
+      }
+      // Vary the group sizes and walk the script-number encoder boundaries:
+      // bscript.number.encode changes width at 128 and again at 32768, and the
+      // OP_CHECKSIGADD chain only differs from a single key past the first.
+      const timelocks = [1, 127, 128, 32767, 32768, 65535];
+      for (let sample = 0; sample < 12; sample += 1) {
+        const keeperCount = 1 + (sample % 4);
+        const challengerCount = 1 + ((sample + 2) % 4);
+        const keys = Array.from({ length: 2 + keeperCount + challengerCount }, () =>
+          Buffer.from(
+            secp256k1
+              .getPublicKey(secp256k1.utils.randomPrivateKey(), true)
+              .subarray(1),
+          ).toString('hex'),
+        );
+        const args = [
+          1 + (sample % 3),
+          keys[0],
+          keys[1],
+          keys.slice(2, 2 + keeperCount),
+          keys.slice(2 + keeperCount),
+          sha256Text(keys.join('')),
+          timelocks[sample % timelocks.length],
+        ];
+        const checked = new raw.WasmPrePeginHtlcConnector(...args);
+        const original = new generated.WasmPrePeginHtlcConnector(...args);
+        try {
+          for (const getter of htlcGetters)
+            assert.equal(checked[getter](), original[getter]());
+          assert.equal(
+            checked.getAddress('signet'),
+            original.getAddress('signet'),
+          );
+          assert.equal(
+            checked.getScriptPubKey('signet'),
+            original.getScriptPubKey('signet'),
+          );
+        } finally {
+          checked.free();
+          original.free();
+        }
+      }
+    });
+  });
+
+  test(`${entry} rejects changed HTLC outputs at raw and facade boundaries and preserves cleanup errors`, async () => {
+    await withRawEntry(entry, async (raw, generated, facade) => {
+      const prototype = generated.WasmPrePeginHtlcConnector.prototype;
+      for (const getter of [...htlcGetters, 'getScriptPubKey', 'getAddress']) {
+        const checked = new raw.WasmPrePeginHtlcConnector(...htlcArgs());
+        const original = prototype[getter];
+        const free = prototype.free;
+        let releases = 0;
+        prototype.free = function () {
+          releases += 1;
+          return free.call(this);
+        };
+        prototype[getter] = function (...args) {
+          const value = original.apply(this, args);
+          return typeof value === 'number'
+            ? value + 1
+            : value.slice(0, -1) + (value.endsWith('0') ? '1' : '0');
+        };
+        try {
+          assert.throws(() => checked[getter]('bitcoin'), /does not match/);
+          if (getter !== 'getAddress') {
+            assert.throws(
+              () => new raw.WasmPrePeginHtlcConnector(...htlcArgs()),
+              /does not match/,
+            );
+            assert.equal(
+              releases,
+              1,
+              'failed construction releases its engine object',
+            );
+          }
+          await assert.rejects(facade.getPrePeginHtlcConnectorInfo(facadeHtlcParams()), /does not match/);
+          const cleanupError = new Error('release failed');
+          prototype.free = function () {
+            free.call(this);
+            throw cleanupError;
+          };
+          const attempts = [() => facade.getPrePeginHtlcConnectorInfo(facadeHtlcParams())];
+          if (getter !== 'getAddress') attempts.push(() => new raw.WasmPrePeginHtlcConnector(...htlcArgs()));
+          for (const attempt of attempts) {
+            await assert.rejects(async () => attempt(), (error) => {
+              assert.ok(error instanceof AggregateError);
+              assert.match(error.message, /does not match/);
+              assert.equal(error.message, error.errors[0].message);
+              assert.equal(error.errors[1], cleanupError);
+              return true;
+            });
+          }
+        } finally {
+          prototype[getter] = original;
+          prototype.free = free;
+          checked.free();
+        }
+      }
+    });
+  });
+
+  test(`${entry} rejects malformed HTLC keys, groups, and hashlocks`, async () => {
+    await withRawEntry(entry, async (raw) => {
+      const cases = [
+        [[1, `0x${xOnlyKeys[0]}`, xOnlyKeys[1], [xOnlyKeys[2]], [xOnlyKeys[3]], sha256Text('raw HTLC'), 144], /must be a 32-byte x-only public key/],
+        [[1, 'ff'.repeat(32), xOnlyKeys[1], [xOnlyKeys[2]], [xOnlyKeys[3]], sha256Text('raw HTLC'), 144], /not a secp256k1 x-coordinate/],
+        [htlcArgs(1, []), /vaultKeeperPubkeys must not be empty/],
+        [htlcArgs(1, [xOnlyKeys[2], xOnlyKeys[2].toUpperCase()]), /must not contain duplicate keys/],
+        [[1, xOnlyKeys[0], xOnlyKeys[1], [xOnlyKeys[2]], [xOnlyKeys[3]], sha256Text('raw HTLC').slice(0, 63), 144], /hashlock must be 32 bytes/],
+      ];
+      for (const [args, message] of cases) {
+        assert.throws(() => new raw.WasmPrePeginHtlcConnector(...args), message);
+      }
+    });
+  });
+
+  test(`${entry} keeps trusted HTLC inputs after caller mutation and supports dispose`, async () => {
+    await withRawEntry(entry, async (raw) => {
+      const keepers = [xOnlyKeys[2]];
+      const checked = new raw.WasmPrePeginHtlcConnector(
+        ...htlcArgs(1, keepers),
+      );
+      const expected = checked.getHashlockScript();
+      keepers[0] = xOnlyKeys[4];
+      assert.equal(checked.getHashlockScript(), expected);
+      checked[Symbol.dispose]();
+      assert.throws(() => checked.getRefundControlBlock(), /null pointer passed to rust/);
+      // The latch makes `using` plus an explicit free() safe.
+      assert.doesNotThrow(() => checked.free());
+      assert.doesNotThrow(() => checked[Symbol.dispose]());
+      for (const version of [0, 4, 99, 0x100000001, NaN]) {
+        assert.throws(
+          () => new raw.WasmPrePeginHtlcConnector(...htlcArgs(version)),
+          /Unsupported HTLC graph version/,
+        );
+      }
+      const invalid = htlcArgs();
+      invalid[6] = 0;
+      assert.throws(
+        () => new raw.WasmPrePeginHtlcConnector(...invalid),
+        /timelockRefund/,
+      );
+    });
+  });
+  test(`${entry} facade checks HTLC fields and reports release-only errors`, async () => {
+    await withRawEntry(entry, async (_raw, generated, facade) => {
+      const info = await facade.getPrePeginHtlcConnectorInfo(facadeHtlcParams());
+      const expected = new generated.WasmPrePeginHtlcConnector(...htlcArgs());
+      const prototype = generated.WasmPrePeginHtlcConnector.prototype;
+      const free = prototype.free;
+      try {
+        assert.equal(info.scriptPubKey, expected.getScriptPubKey('bitcoin'));
+        assert.equal(info.hashlockScript, expected.getHashlockScript());
+        await assert.rejects(facade.getPrePeginHtlcConnectorInfo(facadeHtlcParams(4)), /Unsupported HTLC graph version: 4/);
+        const cleanupError = new Error('release failed');
+        prototype.free = function () {
+          free.call(this);
+          throw cleanupError;
+        };
+        await assert.rejects(facade.getPrePeginHtlcConnectorInfo(facadeHtlcParams()), (error) => error === cleanupError);
+      } finally {
+        prototype.free = free;
+        expected.free();
+      }
+    });
+  });
+}
+
+// An engine bump that adds a graph version must fail here, where the pin is
+// visible, rather than fail closed inside a depositor's resume.
+test('the pinned HTLC graph versions match the engine', async () => {
+  const { SUPPORTED_HTLC_GRAPH_VERSIONS } = await import(
+    '../dist/rawHtlcConnector.js'
+  );
+  const facade = await import('../dist/index-node.js');
+  await facade.initWasm();
+
+  assert.deepEqual(
+    [...SUPPORTED_HTLC_GRAPH_VERSIONS],
+    await facade.supportedTxGraphVersions(),
   );
 });

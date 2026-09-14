@@ -124,7 +124,10 @@ export async function buildRefundPsbt(
     const wasmHtlcScriptPubKey = unfundedTx
       .getHtlcScriptPubKey(htlcVout)
       .toLowerCase();
-    const expectedHtlc = deriveExpectedPrePeginHtlc(prePeginParams, hashlock);
+    const expectedHtlc = await deriveExpectedPrePeginHtlc(
+      prePeginParams,
+      hashlock,
+    );
     const expectedHtlcScriptPubKey = expectedHtlc.scriptPubKey.toString("hex");
     if (wasmHtlcScriptPubKey !== expectedHtlcScriptPubKey) {
       throw new Error(

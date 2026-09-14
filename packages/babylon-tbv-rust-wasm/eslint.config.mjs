@@ -25,6 +25,12 @@ export default defineConfig([
       "src/wasm-loader-node.ts",
       "src/raw.ts",
       "src/raw-node.ts",
+      "src/prePeginHtlc.ts",
+      "src/rawHtlcConnector.ts",
+      "src/connectorScripts.ts",
+      "src/peginPayout.ts",
+      "src/rawPayoutConnector.ts",
+      "src/payoutConnector.ts",
     ],
     rules: {
       "@typescript-eslint/no-explicit-any": "error",

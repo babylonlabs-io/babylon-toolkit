@@ -52,5 +52,11 @@
     "@internal/eslint-config": "workspace:*",
     "shelljs": "^0.8.5",
     "typescript": "^5.8.3"
+  },
+  "dependencies": {
+    "@bitcoin-js/tiny-secp256k1-asmjs": "2.2.3",
+    "@noble/curves": "1.9.7",
+    "bitcoinjs-lib": "6.1.7",
+    "buffer": "6.0.3"
   }
 }

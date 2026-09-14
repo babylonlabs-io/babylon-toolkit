@@ -249,7 +249,7 @@ describe("buildPeginInputPsbt — HTLC taptree merkle root", () => {
 
   it("uses canonical signing data when the WASM facade returns forged connector data", async () => {
     const params = prePeginParams();
-    const expected = deriveExpectedPrePeginHtlc(params, HASHLOCK);
+    const expected = await deriveExpectedPrePeginHtlc(params, HASHLOCK);
     const forgedHashlockScript = "51";
     const forgedHashlockControlBlock = "c0" + "11".repeat(32) + "22".repeat(32);
     const connectorSpy = vi

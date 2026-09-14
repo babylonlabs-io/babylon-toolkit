@@ -348,15 +348,21 @@ function encodeUnfundedTransaction(outputs: readonly EncodedOutput[]): string {
   return `${encodedVersion.toString("hex")}000100${encodedOutputCount}${encodedOutputs.join("")}${encodedLocktime.toString("hex")}`;
 }
 
-function makeWasmResult(params: WasmPrePeginParams): PrePeginResult {
+async function makeWasmResult(
+  params: WasmPrePeginParams,
+): Promise<PrePeginResult> {
   const graphAnchorValue = params.txGraphVersion === 1 ? 0n : ANCHOR_VALUE;
   const htlcValues = params.pegInAmounts.map(
     (amount) => amount + CLAIM_VALUE + PEGIN_FEE + graphAnchorValue,
   );
-  const htlcScriptPubKeys = params.hashlocks.map(
-    (hashlock) =>
-      htlcScriptOverride ??
-      deriveExpectedPrePeginHtlc(params, hashlock).scriptPubKey.toString("hex"),
+  const htlcScriptPubKeys = await Promise.all(
+    params.hashlocks.map(
+      async (hashlock) =>
+        htlcScriptOverride ??
+        (
+          await deriveExpectedPrePeginHtlc(params, hashlock)
+        ).scriptPubKey.toString("hex"),
+    ),
   );
   const validOutputs = htlcValues.map((value, index) =>
     output(Number(value), htlcScriptPubKeys[index]),

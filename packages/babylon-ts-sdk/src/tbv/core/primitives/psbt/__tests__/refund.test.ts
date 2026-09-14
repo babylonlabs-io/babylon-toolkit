@@ -385,7 +385,7 @@ describe("buildRefundPsbt", () => {
         refundFee: TEST_REFUND_FEE,
         hashlock: TEST_HASH_H,
       });
-      const expected = deriveExpectedPrePeginHtlc(params, TEST_HASH_H);
+      const expected = await deriveExpectedPrePeginHtlc(params, TEST_HASH_H);
       const psbt = bitcoin.Psbt.fromHex(psbtHex);
       const input = psbt.data.inputs[0];
       const leaf = input.tapLeafScript?.[0];

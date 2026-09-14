@@ -145,9 +145,14 @@ export async function buildPeginTxFromPrePegin(
 export async function getPrePeginHtlcConnectorInfo(
   params: HtlcConnectorParams,
 ): Promise<HtlcConnectorInfo> {
-  const { WasmPrePeginHtlcConnector } = await getWasmBindings();
+  // Load the guard after WASM initialization and keep its generated glue
+  // outside this facade's eager dependency graph.
+  await getWasmBindings();
+  const { GuardedPrePeginHtlcConnector } = await import(
+    './rawHtlcConnector.js'
+  );
 
-  const connector = new WasmPrePeginHtlcConnector(
+  const connector = new GuardedPrePeginHtlcConnector(
     params.txGraphVersion,
     params.depositorPubkey,
     params.vaultProviderPubkey,
@@ -157,8 +162,9 @@ export async function getPrePeginHtlcConnectorInfo(
     params.timelockRefund,
   );
 
+  let info: HtlcConnectorInfo;
   try {
-    return {
+    info = {
       hashlockScript: connector.getHashlockScript(),
       hashlockControlBlock: connector.getHashlockControlBlock(),
       refundScript: connector.getRefundScript(),
@@ -166,9 +172,19 @@ export async function getPrePeginHtlcConnectorInfo(
       address: connector.getAddress(params.network),
       scriptPubKey: connector.getScriptPubKey(params.network),
     };
-  } finally {
-    connector.free();
+  } catch (error) {
+    try {
+      connector.free();
+    } catch (cleanupError) {
+      throw new AggregateError(
+        [error, cleanupError],
+        error instanceof Error ? error.message : String(error),
+      );
+    }
+    throw error;
   }
+  connector.free();
+  return info;
 }
 
 export async function computeMinClaimValue(
@@ -325,7 +341,9 @@ export async function createPayoutConnector(
   params: PayoutConnectorParams,
   network: Network,
 ): Promise<PayoutConnectorInfo> {
-  const { WasmPeginPayoutConnector } = await getWasmBindings();
+  await getWasmBindings();
+  const { GuardedPeginPayoutConnector: WasmPeginPayoutConnector } =
+    await import('./rawPayoutConnector.js');
 
   const connector = new WasmPeginPayoutConnector(
     params.txGraphVersion,
@@ -336,41 +354,38 @@ export async function createPayoutConnector(
     params.timelockPegin,
   );
 
+  let info: PayoutConnectorInfo;
   try {
-    return {
+    info = {
       payoutScript: connector.getPayoutScript(),
       taprootScriptHash: connector.getTaprootScriptHash(),
       scriptPubKey: connector.getScriptPubKey(network),
       address: connector.getAddress(network),
       payoutControlBlock: connector.getPayoutControlBlock(),
     };
-  } finally {
-    connector.free();
+  } catch (error) {
+    try {
+      connector.free();
+    } catch (cleanupError) {
+      throw new AggregateError(
+        [error, cleanupError],
+        error instanceof Error ? error.message : String(error),
+      );
+    }
+    throw error;
   }
+  connector.free();
+  return info;
 }
 
 export async function getPeginPayoutScriptInfo(
   params: PayoutConnectorParams,
 ): Promise<{ payoutScript: string; payoutControlBlock: string }> {
-  const { WasmPeginPayoutConnector } = await getWasmBindings();
-
-  const connector = new WasmPeginPayoutConnector(
-    params.txGraphVersion,
-    params.depositor,
-    params.vaultProvider,
-    params.vaultKeepers,
-    params.universalChallengers,
-    params.timelockPegin,
+  const { payoutScript, payoutControlBlock } = await createPayoutConnector(
+    params,
+    'bitcoin',
   );
-
-  try {
-    return {
-      payoutScript: connector.getPayoutScript(),
-      payoutControlBlock: connector.getPayoutControlBlock(),
-    };
-  } finally {
-    connector.free();
-  }
+  return { payoutScript, payoutControlBlock };
 }
 
 // The Assert Payout/NoPayout connector is allocated, read and freed inside the
@@ -572,3 +587,21 @@ export { TAP_INTERNAL_KEY, tapInternalPubkey } from './constants.js';
 
 // Export boundary value guards (input validation for callers)
 export { assertPositiveBigintArray } from './value-guards.js';
+
+/** Derive the expected HTLC without using WASM output. */
+export async function deriveExpectedPrePeginHtlc(
+  params: import('./prePeginHtlc.js').PrePeginHtlcParams,
+  hashlock: string,
+): Promise<import('./prePeginHtlc.js').ExpectedPrePeginHtlc> {
+  return (await import('./prePeginHtlc.js')).deriveExpectedPrePeginHtlc(
+    params,
+    hashlock,
+  );
+}
+
+/** Derive the expected payout without using WASM output. */
+export async function deriveExpectedPeginPayout(
+  params: import('./types.js').PayoutConnectorParams,
+): Promise<import('./peginPayout.js').ExpectedPeginPayout> {
+  return (await import('./peginPayout.js')).deriveExpectedPeginPayout(params);
+}
