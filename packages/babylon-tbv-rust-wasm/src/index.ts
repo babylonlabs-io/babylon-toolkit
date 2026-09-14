@@ -519,3 +519,10 @@ export async function deriveExpectedPrePeginHtlc(
     hashlock,
   );
 }
+
+/** Derive the expected payout without using WASM output. */
+export async function deriveExpectedPeginPayout(
+  params: import('./types.js').PayoutConnectorParams,
+): Promise<import('./peginPayout.js').ExpectedPeginPayout> {
+  return (await import('./peginPayout.js')).deriveExpectedPeginPayout(params);
+}

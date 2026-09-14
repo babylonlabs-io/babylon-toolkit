@@ -19,6 +19,7 @@ import {
   buildPeginTxFromPrePegin,
   computeMinClaimValue,
   createPrePeginTransaction,
+  deriveExpectedPeginPayout,
   peginP2aAnchorOutput,
   validatePeginP2aAnchor,
   type Network,
@@ -96,6 +97,12 @@ export interface PrePeginParams {
 const AUTH_ANCHOR_HASH_HEX_LEN = 64;
 
 const HEX_PATTERN = /^[0-9a-fA-F]+$/;
+
+/**
+ * The largest PegIn timelock the engine can hold. It stores the value as a
+ * Rust u16, so anything above this is truncated, not rejected.
+ */
+const MAX_TIMELOCK_PEGIN_BLOCKS = 0xffff;
 
 /**
  * Result of building an unfunded Pre-PegIn transaction
@@ -288,6 +295,22 @@ export function normalizeAuthAnchorHash(
 export async function buildPeginTxFromFundedPrePegin(
   params: BuildPeginTxParams,
 ): Promise<PeginTxResult> {
+  // Reject the timelock before it crosses into the engine. The engine holds
+  // it as a Rust u16 and truncates modulo 65536 rather than rejecting, so
+  // 65537 would build a one-block vault instead of the requested one.
+  if (
+    !Number.isInteger(params.timelockPegin) ||
+    params.timelockPegin < 1 ||
+    params.timelockPegin > MAX_TIMELOCK_PEGIN_BLOCKS
+  ) {
+    throw new Error(
+      `PegIn timelock ${params.timelockPegin} must be a whole number of ` +
+        `blocks from 1 to ${MAX_TIMELOCK_PEGIN_BLOCKS}; the engine stores ` +
+        `it as a u16 and would truncate a larger value into a different ` +
+        `timelock.`,
+    );
+  }
+
   // WASM reconstructs the Pre-PegIn template from these params to
   // decode the funded tx. Must pass `authAnchorHash` (normalized
   // identically to buildPrePeginPsbt) so the reconstruction matches
@@ -461,14 +484,29 @@ async function assertPeginTxShape(
     );
   }
   const encodedVaultScript = encodedVaultOut.script.toString("hex");
-  const expectedVaultScript = stripHexPrefix(
-    result.vaultScriptPubKey,
-  ).toLowerCase();
+  const expectedVaultScript = (
+    await deriveExpectedPeginPayout({
+      txGraphVersion: version,
+      depositor: params.prePeginParams.depositorPubkey,
+      vaultProvider: params.prePeginParams.vaultProviderPubkey,
+      vaultKeepers: params.prePeginParams.vaultKeeperPubkeys,
+      universalChallengers: params.prePeginParams.universalChallengerPubkeys,
+      timelockPegin: params.timelockPegin,
+    })
+  ).scriptPubKey.toString("hex");
+  if (
+    stripHexPrefix(result.vaultScriptPubKey).toLowerCase() !==
+    expectedVaultScript
+  ) {
+    throw new Error(
+      `WASM PegIn vault scriptPubKey ${result.vaultScriptPubKey} does not ` +
+        `match the requested payout scriptPubKey ${expectedVaultScript}.`,
+    );
+  }
   if (encodedVaultScript.toLowerCase() !== expectedVaultScript) {
     throw new Error(
       `Encoded PegIn vault output scriptPubKey ${encodedVaultScript} does ` +
-        `not match the WASM-reported vaultScriptPubKey ` +
-        `${result.vaultScriptPubKey}.`,
+        `not match the requested payout scriptPubKey ${expectedVaultScript}.`,
     );
   }
 
