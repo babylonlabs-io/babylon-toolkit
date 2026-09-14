@@ -70,6 +70,15 @@ function validEnvelope(): string {
 }
 
 /**
+ * What the saved file must contain: the envelope's `result` value alone.
+ * Bytes are sliced from the wire, so the file is the literal source span —
+ * which for a `JSON.stringify`d envelope is exactly the payload re-stringified.
+ */
+function expectedSavedPayload(result: unknown = VALID_ARTIFACT_RESULT): string {
+  return JSON.stringify(result);
+}
+
+/**
  * Build a Response backed by a real ReadableStream, with Content-Length only
  * when asked. A stream body never auto-populates the header, which is what
  * lets the header-absent fallback be tested deterministically.
@@ -144,9 +153,10 @@ describe("fetchAndDownloadArtifacts", () => {
   });
 
   describe("a valid response", () => {
-    it("writes the whole body and commits it", async () => {
-      const body = validEnvelope();
-      vi.mocked(fetch).mockResolvedValueOnce(streamingResponse(body));
+    it("writes the unwrapped payload and commits it", async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(
+        streamingResponse(validEnvelope()),
+      );
       const { target, commit, discard, savedBytes } = fakeSaveTarget();
 
       await fetchAndDownloadArtifacts(
@@ -156,14 +166,16 @@ describe("fetchAndDownloadArtifacts", () => {
         target,
       );
 
-      expect(new TextDecoder().decode(savedBytes())).toBe(body);
+      expect(new TextDecoder().decode(savedBytes())).toBe(
+        expectedSavedPayload(),
+      );
       expect(commit).toHaveBeenCalledTimes(1);
       expect(discard).not.toHaveBeenCalled();
     });
 
-    it("returns a receipt describing what was saved", async () => {
+    it("returns a receipt describing the saved file, not the wire body", async () => {
       const body = validEnvelope();
-      const byteLength = new TextEncoder().encode(body).byteLength;
+      const saved = new TextEncoder().encode(expectedSavedPayload());
       vi.mocked(fetch).mockResolvedValueOnce(streamingResponse(body));
       const { target } = fakeSaveTarget();
 
@@ -174,12 +186,17 @@ describe("fetchAndDownloadArtifacts", () => {
         target,
       );
 
+      // The digest has to be reproducible by `sha256sum` on the file the user
+      // ends up with, so it covers the payload rather than the envelope.
       expect(outcome).toEqual({
         filename: "babylon-vault-artifacts-aaaaaaaa.json",
-        byteLength,
-        sha256: bytesToHex(sha256(new TextEncoder().encode(body))),
+        byteLength: saved.byteLength,
+        sha256: bytesToHex(sha256(saved)),
         method: "file-system-access",
       });
+      expect(outcome.byteLength).toBeLessThan(
+        new TextEncoder().encode(body).byteLength,
+      );
     });
 
     it("reassembles a body split across many chunks", async () => {
@@ -205,7 +222,9 @@ describe("fetchAndDownloadArtifacts", () => {
         target,
       );
 
-      expect(new TextDecoder().decode(savedBytes())).toBe(body);
+      expect(new TextDecoder().decode(savedBytes())).toBe(
+        expectedSavedPayload(),
+      );
     });
 
     it("accepts a result body that nests an error key", async () => {
@@ -231,6 +250,104 @@ describe("fetchAndDownloadArtifacts", () => {
       );
 
       expect(commit).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("envelope unwrapping", () => {
+    /** Run a body through the service and return what reached the file. */
+    async function savedTextFor(
+      body: string,
+      chunkSizeBytes?: number,
+    ): Promise<string> {
+      vi.mocked(fetch).mockResolvedValueOnce(
+        streamingResponse(body, { chunkSizeBytes }),
+      );
+      const { target, savedBytes } = fakeSaveTarget();
+      await fetchAndDownloadArtifacts(
+        PROVIDER_ADDRESS,
+        PEGIN_TXID,
+        DEPOSITOR_PK,
+        target,
+      );
+      return new TextDecoder().decode(savedBytes());
+    }
+
+    it("saves a file with no transport framing left in it", async () => {
+      const saved = JSON.parse(await savedTextFor(validEnvelope())) as Record<
+        string,
+        unknown
+      >;
+
+      expect(Object.keys(saved).sort()).toEqual([
+        "babe_sessions",
+        "tx_graph_json",
+        "verifying_key_hex",
+      ]);
+      expect(saved).not.toHaveProperty("jsonrpc");
+      expect(saved).not.toHaveProperty("id");
+      expect(saved).not.toHaveProperty("result");
+    });
+
+    it("matches the layout btc-vault's artifact-downloader writes", async () => {
+      // The CLI writes {tx_graph_json, verifying_key_hex, babe_sessions} at
+      // the top level; a bundle saved here has to be interchangeable with one
+      // fetched that way, or docs/delegated_claim.md fits only one of them.
+      const saved = JSON.parse(await savedTextFor(validEnvelope()));
+
+      expect(saved).toEqual(VALID_ARTIFACT_RESULT);
+    });
+
+    it("strips the envelope wherever result sits in it", async () => {
+      // The proxy guarantees field order only on its gRPC path, so a result
+      // that trails `id` must unwrap exactly like one that precedes it.
+      const resultLast = JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        result: VALID_ARTIFACT_RESULT,
+      });
+
+      expect(await savedTextFor(resultLast)).toBe(expectedSavedPayload());
+    });
+
+    it("ignores envelope fields it does not consume", async () => {
+      const withExtras = JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        error: null,
+        someFutureField: "ignored",
+        result: VALID_ARTIFACT_RESULT,
+      });
+
+      expect(await savedTextFor(withExtras)).toBe(expectedSavedPayload());
+    });
+
+    it("drops the framing of a pretty-printed envelope", async () => {
+      // Whitespace *inside* result is part of the payload span and is kept;
+      // only the framing around it goes. The file still has to parse.
+      const pretty = JSON.stringify(
+        { jsonrpc: "2.0", id: 1, result: VALID_ARTIFACT_RESULT },
+        null,
+        2,
+      );
+      const saved = await savedTextFor(pretty);
+
+      expect(saved.startsWith("{")).toBe(true);
+      expect(saved.endsWith("}")).toBe(true);
+      expect(JSON.parse(saved)).toEqual(VALID_ARTIFACT_RESULT);
+    });
+
+    it("puts the payload boundaries in the same place at every chunk size", async () => {
+      // The span is tracked across chunk boundaries, so a `{` or `}` landing
+      // on a split is what would corrupt the file. Sizes here are co-prime-ish
+      // with the body so the cuts land in different places; byte-at-a-time
+      // splitting is covered in the validator's own suite, which needs no
+      // async write per chunk and can afford it.
+      const body = validEnvelope();
+      const expected = expectedSavedPayload();
+
+      for (const chunkSizeBytes of [64, 997, 65_536]) {
+        expect(await savedTextFor(body, chunkSizeBytes)).toBe(expected);
+      }
     });
   });
 
