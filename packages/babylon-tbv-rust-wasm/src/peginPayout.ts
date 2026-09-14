@@ -16,6 +16,11 @@ import {
 } from './connectorScripts.js';
 import type { PayoutConnectorParams } from './types.js';
 
+// Set the global ECC backend once when this module loads.
+initEccLib(ecc);
+
+const SUPPORTED_PAYOUT_GRAPH_VERSIONS: readonly number[] = [1, 2, 3];
+
 export interface ExpectedPeginPayout {
   payoutScript: Buffer;
   payoutControlBlock: Buffer;
@@ -27,11 +32,7 @@ export interface ExpectedPeginPayout {
 export function deriveExpectedPeginPayout(
   params: PayoutConnectorParams,
 ): ExpectedPeginPayout {
-  if (
-    params.txGraphVersion !== 1 &&
-    params.txGraphVersion !== 2 &&
-    params.txGraphVersion !== 3
-  ) {
+  if (!SUPPORTED_PAYOUT_GRAPH_VERSIONS.includes(params.txGraphVersion)) {
     throw new Error(
       `Unsupported payout graph version: ${params.txGraphVersion}.`,
     );
@@ -43,7 +44,6 @@ export function deriveExpectedPeginPayout(
   ) {
     throw new Error('timelockPegin must be an integer from 1 to 65535.');
   }
-  initEccLib(ecc);
   const depositor = normalizeXOnlyKey(params.depositor, 'depositor');
   const provider = normalizeXOnlyKey(params.vaultProvider, 'vaultProvider');
   const keepers = normalizeKeyGroup(params.vaultKeepers, 'vaultKeepers');
