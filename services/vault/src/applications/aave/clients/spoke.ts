@@ -6,6 +6,7 @@
  */
 
 import {
+  AaveSpokeABI,
   getDynamicReserveConfig as sdkGetDynamicReserveConfig,
   getReserve as sdkGetReserve,
   getTargetHealthFactor as sdkGetTargetHealthFactor,
@@ -104,6 +105,31 @@ export async function getTargetHealthFactor(
 export async function getReserve(spokeAddress: Address, reserveId: bigint) {
   const publicClient = ethClient.getPublicClient();
   return sdkGetReserve(publicClient, spokeAddress, reserveId);
+}
+
+/** On-chain `ISpoke.Reserve`, as returned by `getReserve`. */
+export type AaveSpokeReserve = Awaited<ReturnType<typeof sdkGetReserve>>;
+
+/**
+ * Read `getReserve` for many reserves in one multicall (hard-fail). Any
+ * revert, including an id the spoke never listed, rejects the whole batch, so
+ * a caller proving reserves against the chain fails closed.
+ */
+export async function getReservesBatch(
+  spokeAddress: Address,
+  reserveIds: bigint[],
+): Promise<AaveSpokeReserve[]> {
+  const publicClient = ethClient.getPublicClient();
+  const results = await publicClient.multicall({
+    contracts: reserveIds.map((reserveId) => ({
+      address: spokeAddress,
+      abi: AaveSpokeABI,
+      functionName: "getReserve",
+      args: [reserveId],
+    })),
+    allowFailure: false,
+  });
+  return results as AaveSpokeReserve[];
 }
 
 /**
