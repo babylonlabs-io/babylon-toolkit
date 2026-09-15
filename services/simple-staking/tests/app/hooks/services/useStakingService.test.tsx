@@ -111,7 +111,6 @@ describe("useStakingService", () => {
   const mockEstimateStakingFee = jest.fn().mockReturnValue(5000);
   const mockCreateDelegationEoi = jest.fn();
   const mockSubmitStakingTx = jest.fn();
-  const mockSubscribeToSigningSteps = jest.fn();
   const mockHandleError = jest.fn();
 
   beforeEach(() => {
@@ -143,7 +142,6 @@ describe("useStakingService", () => {
       estimateStakingFee: mockEstimateStakingFee,
       createDelegationEoi: mockCreateDelegationEoi,
       submitStakingTx: mockSubmitStakingTx,
-      subscribeToSigningSteps: mockSubscribeToSigningSteps,
     });
 
     // Mock useError

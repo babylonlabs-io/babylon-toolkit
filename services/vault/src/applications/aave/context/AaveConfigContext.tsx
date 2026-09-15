@@ -12,9 +12,13 @@ import { Button, Loader } from "@babylonlabs-io/core-ui";
 import { useQuery } from "@tanstack/react-query";
 import { createContext, useContext, type ReactNode } from "react";
 
+import { shouldRetry } from "@/config/queryClient";
+import { COPY } from "@/copy";
+
 import { CONFIG_STALE_TIME_MS } from "../constants";
 import {
   fetchAaveAppConfig,
+  isIntegrityFailure,
   type AaveConfig,
   type AaveReserveConfig,
 } from "../services";
@@ -44,6 +48,11 @@ export function AaveConfigProvider({
     queryFn: () => fetchAaveAppConfig(),
     staleTime: CONFIG_STALE_TIME_MS,
     refetchOnWindowFocus: false,
+    // A reserve that disagrees with the chain is a conclusion, not a fault:
+    // retrying repeats every read only to fail the same way. Every other error
+    // keeps the app's default policy.
+    retry: (failureCount, error) =>
+      !isIntegrityFailure(error) && shouldRetry(failureCount, error),
   });
 
   if (isLoading) {
@@ -68,12 +77,14 @@ export function AaveConfigProvider({
         data-testid="app-error-state"
         className="flex min-h-[400px] flex-col items-center justify-center gap-3 px-4 text-center"
       >
-        <p className="text-base font-medium">Something went wrong</p>
+        <p className="text-base font-medium">
+          {COPY.common.aaveConfigUnavailable.heading}
+        </p>
         <p className="max-w-md text-sm text-accent-secondary">
-          Please try again in a moment.
+          {COPY.common.aaveConfigUnavailable.body}
         </p>
         <Button variant="contained" onClick={() => refetch()}>
-          Retry
+          {COPY.common.aaveConfigUnavailable.retryButton}
         </Button>
       </div>
     );

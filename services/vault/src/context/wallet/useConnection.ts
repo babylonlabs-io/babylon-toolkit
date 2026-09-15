@@ -15,7 +15,6 @@ export interface ConnectionState {
   ethConnected: boolean;
 }
 
-// Consent contract: docs/decisions/2354-wallet-consent.md.
 export function useConnection(): ConnectionState {
   const { connected: confirmed } = useWalletConnect();
   const { connected: btcConnected } = useBTCWallet();

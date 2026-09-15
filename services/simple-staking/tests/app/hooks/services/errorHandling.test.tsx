@@ -129,7 +129,6 @@ const mockUpdateDelegationStatus = jest.fn();
 const mockEstimateStakingFee = jest.fn().mockReturnValue(5000);
 const mockCreateDelegationEoi = jest.fn();
 const mockSubmitStakingTx = jest.fn();
-const mockSubscribeToSigningSteps = jest.fn();
 
 describe("Core Services Error Handling", () => {
   beforeEach(() => {
@@ -161,7 +160,6 @@ describe("Core Services Error Handling", () => {
       estimateStakingFee: mockEstimateStakingFee,
       createDelegationEoi: mockCreateDelegationEoi,
       submitStakingTx: mockSubmitStakingTx,
-      subscribeToSigningSteps: mockSubscribeToSigningSteps,
     });
 
     // Mock wallet hooks

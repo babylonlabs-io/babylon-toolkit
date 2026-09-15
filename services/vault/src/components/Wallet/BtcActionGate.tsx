@@ -1,6 +1,7 @@
 import { Button, Heading, Loader } from "@babylonlabs-io/core-ui";
 import { useState, type PropsWithChildren } from "react";
 
+import { DEPOSIT_CONTENT_MAX_WIDTH_CLASS } from "@/components/simple/DepositProgressView/layout";
 import { COPY } from "@/copy";
 import { useBtcAction } from "@/hooks/useBtcAction";
 
@@ -21,47 +22,46 @@ export function BtcActionGate({
     loading,
     requireBtcWallet,
   } = useBtcAction();
+  const [admitted, setAdmitted] = useState(connected && autoStart);
   const [started, setStarted] = useState(connected && ready && autoStart);
+  if (admitted && (!connected || !autoStart)) setAdmitted(false);
+  if (!started && admitted && connected && autoStart && ready) setStarted(true);
 
-  // Keep an active flow mounted during a temporary wallet disconnect.
+  // Keep the active flow and its Cancel control mounted after wallet loss.
   if (started) return <>{children}</>;
 
-  // A saved session is still restoring, so neither prompt is right yet. The
-  // children stay unmounted: every resume branch auto-runs on mount.
-  if (loading) {
-    return (
-      <div className="mx-auto flex max-w-[564px] flex-col items-center gap-4">
-        <Loader />
-        <p className="text-accent-secondary">
-          {COPY.wallet.btcAction.resolving}
-        </p>
-      </div>
-    );
-  }
-
   return (
-    <div className="mx-auto flex max-w-[564px] flex-col gap-4">
-      <Heading variant="h5">{COPY.wallet.btcAction.heading}</Heading>
-      <p className="text-accent-secondary">
-        {btcConnected && !sessionConfirmed
-          ? COPY.wallet.btcAction.confirmBody
-          : COPY.wallet.btcAction.body}
-      </p>
-      {/* These data-testids exist so the real-wallet E2E
-          (e2e/real/actions/stepMachine.ts) can disambiguate these controls
-          from the progress view's Retry, which shares this gate's "Retry"
-          label. Carry them over if you move or rename the controls. */}
-      <Button
-        disabled={connected && !ready}
-        data-testid={connected ? "btc-action-retry" : "btc-action-connect"}
-        onClick={() => {
-          if (requireBtcWallet() && ready) setStarted(true);
-        }}
-      >
-        {connected
-          ? COPY.wallet.btcAction.retry
-          : COPY.wallet.btcAction.connect}
-      </Button>
+    <div
+      className={`mx-auto flex flex-col gap-4 ${DEPOSIT_CONTENT_MAX_WIDTH_CLASS}`}
+    >
+      {loading || (connected && !ready) ? (
+        <>
+          <Loader />
+          <p className="text-accent-secondary">
+            {COPY.wallet.btcAction.resolving}
+          </p>
+        </>
+      ) : (
+        <>
+          <Heading variant="h5">{COPY.wallet.btcAction.heading}</Heading>
+          <p className="text-accent-secondary">
+            {btcConnected && !sessionConfirmed
+              ? COPY.wallet.btcAction.confirmBody
+              : COPY.wallet.btcAction.body}
+          </p>
+          {/* Keep these IDs distinct from the progress view's Retry control. */}
+          <Button
+            data-testid={connected ? "btc-action-retry" : "btc-action-connect"}
+            onClick={() => {
+              if (requireBtcWallet() && ready) setStarted(true);
+            }}
+          >
+            {connected
+              ? COPY.wallet.btcAction.retry
+              : COPY.wallet.btcAction.connect}
+          </Button>
+        </>
+      )}
       <Button
         data-testid="btc-action-cancel"
         variant="outlined"

@@ -103,7 +103,7 @@ describe("WalletConnectionProvider wallet resets", () => {
   });
 
   it.each([undefined, "false", "true"])(
-    "uses the configured wallet requirements with the control set to %s",
+    "uses shared consent and the configured wallet requirements with the control set to %s (#2354)",
     (control) => {
       vi.stubEnv("NEXT_PUBLIC_FF_ENABLE_ETH_FIRST", control);
       renderProvider();

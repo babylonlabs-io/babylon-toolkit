@@ -1214,6 +1214,49 @@ Reserve data including `dynamicConfigKey`
 
 ***
 
+### getReserves()
+
+```ts
+function getReserves(
+   publicClient, 
+   spokeAddress, 
+reserveIds): Promise<ReserveResult[]>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts)
+
+Read `getReserve` for many reserves in a single multicall.
+
+Returns one entry per `reserveId` in input order. Hard-fails
+(`allowFailure: false`): any revert, including `ReserveNotListed` for an id
+the spoke never listed, rejects the whole call.
+
+#### Parameters
+
+##### publicClient
+
+Viem public client for reading contracts
+
+##### spokeAddress
+
+`` `0x${string}` ``
+
+Core Spoke contract address
+
+##### reserveIds
+
+`bigint`[]
+
+Reserve IDs to read
+
+#### Returns
+
+`Promise`\<`ReserveResult`[]\>
+
+Reserve data for each ID, in input order
+
+***
+
 ### getTargetHealthFactor()
 
 ```ts
