@@ -33,6 +33,7 @@ import {
 import FeatureFlags from "@/config/featureFlags";
 import { getETHChain } from "@/config/network";
 import { COPY } from "@/copy";
+import { useBtcAction } from "@/hooks/useBtcAction";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import { logger } from "@/infrastructure";
 import {
@@ -215,6 +216,7 @@ export function useVaultActions(): UseVaultActionsReturn {
   }, []);
 
   // Connectors
+  const { requireBtcWallet } = useBtcAction();
   const btcConnector = useChainConnector("BTC");
 
   /**
@@ -230,6 +232,11 @@ export function useVaultActions(): UseVaultActionsReturn {
       onRefetchActivities,
       onShowSuccessModal,
     } = params;
+
+    if (!requireBtcWallet()) {
+      setBroadcastError(COPY.deposit.errors.walletNotConnected);
+      return;
+    }
 
     setBroadcasting(true);
     setBroadcastError(null);

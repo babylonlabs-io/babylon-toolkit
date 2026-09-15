@@ -17,6 +17,7 @@ import { useSigningNotificationOptional } from "@/context/SigningNotificationCon
 import { COPY } from "@/copy";
 import { useDepositFlow } from "@/hooks/deposit/useDepositFlow";
 import { useDepositSigningNotification } from "@/hooks/deposit/useDepositSigningNotification";
+import { useBtcAction } from "@/hooks/useBtcAction";
 
 import { DepositProgressView } from "./DepositProgressView";
 import { FeeRateSelector } from "./DepositProgressView/FeeRateSelector";
@@ -124,8 +125,10 @@ export function DepositSignContent({
   // This ref restores the exactly-once guarantee regardless of click cadence.
   const hasStartedRef = useRef(false);
 
+  const { requireBtcWallet } = useBtcAction();
   const handleSign = useCallback(() => {
     if (hasStartedRef.current) return;
+    if (!requireBtcWallet()) return;
     hasStartedRef.current = true;
     // The Sign click is a user gesture - the right moment to ask for OS
     // notification permission so we can later ping the depositor when a
@@ -137,7 +140,7 @@ export function DepositSignContent({
     }
     setStarted(true);
     void startFlow();
-  }, [startFlow, signingNotifier]);
+  }, [startFlow, signingNotifier, requireBtcWallet]);
 
   // Derived state
   const { isComplete, canClose, isProcessing, canContinueInBackground } =
