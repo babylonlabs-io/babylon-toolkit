@@ -51,6 +51,7 @@ describe("FeeRateSelector", () => {
       isLoading: false,
       error: null,
       maxDeposit: null,
+      uncappedMaxDeposit: null,
     });
   });
 
@@ -208,6 +209,7 @@ describe("FeeRateSelector", () => {
       isLoading: false,
       error: "Insufficient funds",
       maxDeposit: null,
+      uncappedMaxDeposit: null,
     });
     const onValidityChange = vi.fn();
 
