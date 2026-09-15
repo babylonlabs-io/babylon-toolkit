@@ -193,8 +193,9 @@ async function openBorrow(page: Page, log: (m: string) => void): Promise<void> {
 /**
  * The reserve this run borrows from. The CLI normally resolved it already (`borrowReserveId`); when its
  * reserve read failed, resolve it here the same way: the token (plus `--borrow-hub`) must match exactly
- * one borrowable reserve, and no token means the first. One token can be listed on several hubs, so a
- * symbol alone is refused rather than resolved to whichever reserve comes first.
+ * one borrowable reserve, and no token is accepted only when a single reserve is borrowable. One token
+ * can be listed on several hubs, so a symbol alone is refused rather than resolved to whichever reserve
+ * comes first.
  */
 async function resolveBorrowReserve(
   ctx: ActionContext,
@@ -213,9 +214,12 @@ async function resolveBorrowReserve(
   }
   const token = ctx.config.borrowToken?.trim();
   if (!token) {
-    if (reserves.length === 0)
-      throw new Error(`borrow: no borrowable reserves on ${network}.`);
-    return reserves[0];
+    if (reserves.length === 1) return reserves[0];
+    throw new Error(
+      reserves.length === 0
+        ? `borrow: no borrowable reserves on ${network}.`
+        : `borrow: no --borrow-token and more than one borrowable reserve (${reserves.map(describeReserve).join("; ")}) — re-run with --borrow-token (and --borrow-hub).`,
+    );
   }
   const match = matchReserve(reserves, token, borrowHub);
   if (match.kind === "match") return match.reserve;

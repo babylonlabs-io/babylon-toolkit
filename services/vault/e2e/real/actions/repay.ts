@@ -108,8 +108,9 @@ type RepayAmount = { mode: "max" } | { mode: "amount"; value: string };
 /**
  * The debt this run repays, read after any borrow leg so a just-created loan is present. The CLI
  * normally resolved it (`repayReserveId`); otherwise the token (plus `--repay-hub`) must match exactly
- * one of the position's debts, and with no token the sole (or first) loan is taken. The same token can
- * be owed to several hubs, so a symbol alone is refused rather than resolved to whichever debt is first.
+ * one of the position's debts, and no token is accepted only when the position owes on a single reserve.
+ * The same token can be owed to several hubs, so a symbol alone is refused rather than resolved to
+ * whichever debt is first.
  */
 async function resolveRepayDebt(ctx: ActionContext): Promise<RepayableDebt> {
   const { network, repayReserveId } = ctx.config;
@@ -132,7 +133,12 @@ async function resolveRepayDebt(ctx: ActionContext): Promise<RepayableDebt> {
     return debt;
   }
   const token = ctx.config.repayToken?.trim() || ctx.config.borrowToken?.trim();
-  if (!token) return debts[0];
+  if (!token) {
+    if (debts.length === 1) return debts[0];
+    throw new Error(
+      `repay: no --repay-token and more than one outstanding loan (${debts.map(describeReserve).join("; ")}) — re-run with --repay-token (and --repay-hub).`,
+    );
+  }
   const hub = ctx.config.repayHub ?? ctx.config.borrowHub;
   const match = matchReserve(debts, token, hub);
   if (match.kind === "match") return match.reserve;

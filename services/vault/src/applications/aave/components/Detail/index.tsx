@@ -140,23 +140,31 @@ export function LoanFlowOverlay({
   };
 
   const showForm = Boolean(reserveId) && !showSuccess;
+  // Select hub: a borrow run that has picked a token but not yet a reserve.
+  const showHubPicker =
+    !showSuccess &&
+    !reserveId &&
+    (picker ?? tab) === LOAN_TAB.BORROW &&
+    asset !== null;
 
-  // The borrow form offers a way back only when its URL says it was reached
-  // through the pickers, and only for the token it names. A form opened from a
-  // Loans row, a market page or the token dropdown carries no `asset` and
-  // keeps the close button.
+  // Back follows the pickers' own path. Select hub goes back to Select asset.
+  // The borrow form goes back only when its URL says it was reached through
+  // the pickers, and only for the token it names; a form opened from a Loans
+  // row, a market page or the token dropdown carries no `asset` and keeps the
+  // close button.
   // Parsed the way the form parses it, so `?reserve=05` names reserve 5 here too.
   const openReserveId = parseReserveId(reserveId);
   const openReserve =
     openReserveId === null
       ? undefined
       : allBorrowReserves.find((r) => r.reserveId === openReserveId);
-  const backSearch =
-    showForm &&
-    tab === LOAN_TAB.BORROW &&
-    asset !== null &&
-    openReserve !== undefined &&
-    getAddress(openReserve.reserve.underlying) === asset
+  const backSearch = showHubPicker
+    ? getAssetPickerSearch(LOAN_TAB.BORROW)
+    : showForm &&
+        tab === LOAN_TAB.BORROW &&
+        asset !== null &&
+        openReserve !== undefined &&
+        getAddress(openReserve.reserve.underlying) === asset
       ? (borrowableByUnderlying.get(asset)?.length ?? 0) > 1
         ? getHubPickerSearch(asset)
         : getAssetPickerSearch(LOAN_TAB.BORROW)

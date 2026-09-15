@@ -21,7 +21,8 @@
  * amount ⇒ minimum, provider ⇒ first available — prompting interactively. Mock mode shows as disabled.
  *
  * Borrow accepts `--pegin-first` (peg in fresh collateral before borrowing — then also honors the pegin
- * extras above), `--borrow-token=<symbol>` (from the live borrowable list; default = first),
+ * extras above), `--borrow-token=<symbol>` (from the live borrowable list; an interactive run asks, a
+ * non-interactive run requires it unless only one reserve is borrowable),
  * `--borrow-hub=<label|address>` (which hub to borrow from when the token is listed on more than one —
  * e.g. `core`; without it an interactive run asks and a non-interactive run refuses to guess), and
  * `--borrow-amount=<n>|max` (default = a conservative fraction of the computed max, resolved in run.ts).
@@ -183,7 +184,8 @@ function optionalChoice<T extends string>(
  * Resolve the one reserve a borrow or repay run targets. One token can be listed on several hubs, so a
  * token alone may match more than one reserve: interactively that opens a menu naming each hub, and
  * non-interactively it throws with the candidates rather than guessing. With no token, the whole list is
- * offered (menu), or its first entry is taken (non-interactive).
+ * offered (menu); non-interactively a sole candidate is taken, and several throw with the list, since
+ * these runs move real value.
  */
 async function pickReserve<
   R extends { symbol: string; hub: string; reserveId: bigint },
@@ -216,7 +218,11 @@ async function pickReserve<
   if (token === undefined) {
     if (hub !== undefined)
       throw new Error(`--${flag}-hub needs --${flag}-token as well.`);
-    return interactive ? choose(reserves) : reserves[0];
+    if (interactive) return choose(reserves);
+    if (reserves.length === 1) return reserves[0];
+    throw new Error(
+      `--${flag}-token is required in a non-interactive run when there is more than one candidate (${reserves.map(describe).join("; ")}).`,
+    );
   }
   const match = matchReserve(reserves, token, hub);
   if (match.kind === "match") return match.reserve;
@@ -616,6 +622,14 @@ async function resolveConfig(
           "--borrow-usd and --borrow-amount both size the borrow — pass only one.",
         );
     }
+    // Multi-hub-only flags: any other action would silently ignore them while it moves real value.
+    if (
+      action !== "multi-hub" &&
+      (flags["all-reserves"] !== undefined || flags["borrow-usd"] !== undefined)
+    )
+      throw new Error(
+        "--all-reserves and --borrow-usd only apply to --action=multi-hub.",
+      );
     if (allReserves && borrowToken !== undefined)
       throw new Error(
         "--all-reserves borrows from every reserve — drop --borrow-token.",
@@ -684,6 +698,16 @@ async function resolveConfig(
           `--repay-amount must be a positive number of tokens or "max" (got "${repayAmount}")`,
         );
     }
+    // repay-all repays every debt on every hub with the form's Max, so these flags would be ignored.
+    if (
+      action === "repay-all" &&
+      (repayToken !== undefined ||
+        repayHub !== undefined ||
+        repayAmount !== undefined)
+    )
+      throw new Error(
+        "repay-all repays every debt on every hub with the form's Max — drop --repay-token, --repay-hub and --repay-amount.",
+      );
     // Withdraw with any repay leg clears the debt in full by default so collateral is no longer health-
     // factor-gated (an explicit --repay-amount still wins if a partial repay + withdraw is intended).
     if (action === "withdraw" && repayFirst && repayAmount === undefined)

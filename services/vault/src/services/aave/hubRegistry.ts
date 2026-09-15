@@ -23,7 +23,7 @@ type DeploymentHubs = Record<string, string>;
  * Hubs per deployment. Labels repeat across deployments (every network has a
  * "Babylon Hub"), so uniqueness is enforced within one; addresses never repeat.
  */
-const HUBS_BY_DEPLOYMENT: Record<string, DeploymentHubs> = {
+export const HUBS_BY_DEPLOYMENT: Record<string, DeploymentHubs> = {
   // Vault Devnet (2026-09 multi-hub deploy)
   "vault-devnet": {
     "0xb3283508a0E96F80CF79DC2a1135F10dA170138D": "Babylon Hub",

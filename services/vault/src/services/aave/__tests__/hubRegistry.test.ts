@@ -1,3 +1,4 @@
+import type { Address } from "viem";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/infrastructure", () => ({
@@ -6,7 +7,11 @@ vi.mock("@/infrastructure", () => ({
 
 import { logger } from "@/infrastructure";
 
-import { buildHubRegistry, getHubIdentity } from "../hubRegistry";
+import {
+  buildHubRegistry,
+  getHubIdentity,
+  HUBS_BY_DEPLOYMENT,
+} from "../hubRegistry";
 
 const DEVNET_BABYLON_HUB = "0xb3283508a0E96F80CF79DC2a1135F10dA170138D";
 const DEVNET_CORE_HUB = "0xF5E52D571Ed9b4779399A815815ABeFF7D7ec4ca";
@@ -51,10 +56,19 @@ describe("getHubIdentity", () => {
 });
 
 describe("buildHubRegistry", () => {
-  it("builds the deployed registry without a duplicate label or address", () => {
-    expect(getHubIdentity(DEVNET_BABYLON_HUB).label).not.toBe(
-      getHubIdentity(DEVNET_CORE_HUB).label,
+  it("accepts the deployed hub table: no label repeats within a deployment and no address repeats", () => {
+    expect(() => buildHubRegistry(HUBS_BY_DEPLOYMENT)).not.toThrow();
+  });
+
+  it("labels every hub in the deployed table from the registry", () => {
+    const addresses = Object.values(HUBS_BY_DEPLOYMENT).flatMap(
+      (hubs) => Object.keys(hubs) as Address[],
     );
+
+    expect(addresses.length).toBeGreaterThan(0);
+    for (const address of addresses) {
+      expect(getHubIdentity(address).source).toBe("registry");
+    }
   });
 
   it("rejects two hubs sharing a label within one deployment", () => {

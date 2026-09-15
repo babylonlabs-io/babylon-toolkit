@@ -423,6 +423,25 @@ describe("LoanFlowOverlay", () => {
     );
   });
 
+  it("goes back to Select asset from Select hub", () => {
+    renderOverlay(
+      <LoanFlowOverlay
+        picker={LOAN_TAB.BORROW}
+        reserveId={null}
+        tab={LOAN_TAB.BORROW}
+        asset={USDC}
+      />,
+      `/loans?picker=borrow&asset=${USDC}`,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "back" }));
+
+    expect(screen.getByTestId("location")).toHaveTextContent(
+      "/loans?picker=borrow",
+    );
+    expect(screen.getByTestId("location")).not.toHaveTextContent("asset=");
+  });
+
   it("goes back to Select asset from the form of a token on one hub", () => {
     renderOverlay(
       <LoanFlowOverlay
