@@ -1324,6 +1324,42 @@ export class WasmPrePeginTx {
 if (Symbol.dispose) WasmPrePeginTx.prototype[Symbol.dispose] = WasmPrePeginTx.prototype.free;
 
 /**
+ * Finalizes the Assert transaction from the pinned proof and the
+ * depositor's WOTS keypair, writes it into the artifacts as
+ * `assert_tx_hex`, and returns the updated artifacts JSON. Hand exactly
+ * that JSON to `vaultd vp wt start-claim`, which then verifies the attached
+ * Assert instead of signing one, so the keypair never leaves the browser.
+ * An attached Assert is verified, never re-signed; artifacts carrying a
+ * different Assert are refused. Errors when no proof is pinned.
+ * @param {number} tx_graph_version
+ * @param {string} artifacts_json
+ * @param {string} keypair_json
+ * @returns {string}
+ */
+export function attachFinalizedAssert(tx_graph_version, artifacts_json, keypair_json) {
+    let deferred4_0;
+    let deferred4_1;
+    try {
+        const ptr0 = passStringToWasm0(artifacts_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(keypair_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ret = wasm.attachFinalizedAssert(tx_graph_version, ptr0, len0, ptr1, len1);
+        var ptr3 = ret[0];
+        var len3 = ret[1];
+        if (ret[3]) {
+            ptr3 = 0; len3 = 0;
+            throw takeFromExternrefTable0(ret[2]);
+        }
+        deferred4_0 = ptr3;
+        deferred4_1 = len3;
+        return getStringFromWasm0(ptr3, len3);
+    } finally {
+        wasm.__wbindgen_free(deferred4_0, deferred4_1, 1);
+    }
+}
+
+/**
  * Creates the claimer's Assert signing PSBT (base64) for wallet signing.
  * @param {number} tx_graph_version
  * @param {string} graph_json
@@ -1407,8 +1443,9 @@ export function buildPayoutClaimerPsbt(tx_graph_version, graph_json) {
 
 /**
  * Creates the depositor's Payout signing PSBT (input 0, base64) for wallet
- * signing. Only needed when the graph does not already carry the
- * presign-phase depositor Payout signature (see `extractDepositorPayoutSig`).
+ * signing. The depositor Payout signature is always signed fresh: the graph
+ * the vault provider serves does not carry it, and
+ * `buildWatchtowerArtifacts` requires it.
  * @param {number} tx_graph_version
  * @param {string} graph_json
  * @returns {string}
@@ -1440,23 +1477,27 @@ export function buildPayoutDepositorPsbt(tx_graph_version, graph_json) {
  * graph's own presign set are verified before bundling, so a broken
  * artifact surfaces while the signer is still on the page.
  *
- * See the upstream binding for the full argument contract; `verifying_key`
- * and `babe_sessions` pass through opaquely.
+ * See the upstream binding for the full argument contract: the depositor
+ * Payout signature is always signed fresh and required, `verifying_key`
+ * and `babe_sessions` pass through opaquely, and the graph's recorded Core
+ * version must equal `expected_vault_core_version` (from the finalized
+ * `PegInSubmitted` event).
  * @param {number} tx_graph_version
  * @param {string} graph_json
  * @param {string} signed_claim_tx_hex
  * @param {string} assert_claimer_sig_hex
  * @param {string} payout_claimer_sig_hex
  * @param {string} wrongly_challenged_sigs_json
- * @param {string | null | undefined} depositor_payout_sig_hex
+ * @param {string} depositor_payout_sig_hex
  * @param {string} verifying_key_hex
  * @param {bigint} claimable_event_block_number
  * @param {number} prover_circuit_version
  * @param {string} vault_id_hex
- * @param {string | null} [babe_sessions_json]
+ * @param {string} babe_sessions_json
+ * @param {number} expected_vault_core_version
  * @returns {string}
  */
-export function buildWatchtowerArtifacts(tx_graph_version, graph_json, signed_claim_tx_hex, assert_claimer_sig_hex, payout_claimer_sig_hex, wrongly_challenged_sigs_json, depositor_payout_sig_hex, verifying_key_hex, claimable_event_block_number, prover_circuit_version, vault_id_hex, babe_sessions_json) {
+export function buildWatchtowerArtifacts(tx_graph_version, graph_json, signed_claim_tx_hex, assert_claimer_sig_hex, payout_claimer_sig_hex, wrongly_challenged_sigs_json, depositor_payout_sig_hex, verifying_key_hex, claimable_event_block_number, prover_circuit_version, vault_id_hex, babe_sessions_json, expected_vault_core_version) {
     let deferred11_0;
     let deferred11_1;
     try {
@@ -1470,15 +1511,15 @@ export function buildWatchtowerArtifacts(tx_graph_version, graph_json, signed_cl
         const len3 = WASM_VECTOR_LEN;
         const ptr4 = passStringToWasm0(wrongly_challenged_sigs_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len4 = WASM_VECTOR_LEN;
-        var ptr5 = isLikeNone(depositor_payout_sig_hex) ? 0 : passStringToWasm0(depositor_payout_sig_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        var len5 = WASM_VECTOR_LEN;
+        const ptr5 = passStringToWasm0(depositor_payout_sig_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len5 = WASM_VECTOR_LEN;
         const ptr6 = passStringToWasm0(verifying_key_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len6 = WASM_VECTOR_LEN;
         const ptr7 = passStringToWasm0(vault_id_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len7 = WASM_VECTOR_LEN;
-        var ptr8 = isLikeNone(babe_sessions_json) ? 0 : passStringToWasm0(babe_sessions_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        var len8 = WASM_VECTOR_LEN;
-        const ret = wasm.buildWatchtowerArtifacts(tx_graph_version, ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3, ptr4, len4, ptr5, len5, ptr6, len6, claimable_event_block_number, prover_circuit_version, ptr7, len7, ptr8, len8);
+        const ptr8 = passStringToWasm0(babe_sessions_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len8 = WASM_VECTOR_LEN;
+        const ret = wasm.buildWatchtowerArtifacts(tx_graph_version, ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3, ptr4, len4, ptr5, len5, ptr6, len6, claimable_event_block_number, prover_circuit_version, ptr7, len7, ptr8, len8, expected_vault_core_version);
         var ptr10 = ret[0];
         var len10 = ret[1];
         if (ret[3]) {
@@ -1900,20 +1941,20 @@ export function expandWotsSeed(root, htlc_vout) {
 }
 
 /**
- * Extracts the presign-phase depositor Payout signature stored on the
- * graph, verified against the payout leaf. Errors when absent — callers
- * then collect a fresh signature via `buildPayoutDepositorPsbt`.
+ * Extracts a compact JSON summary of the graph (transaction ids,
+ * timelocks, per-challenger competitor txids) so a monitor can follow the
+ * claim without re-parsing the full graph.
  * @param {number} tx_graph_version
  * @param {string} graph_json
  * @returns {string}
  */
-export function extractDepositorPayoutSig(tx_graph_version, graph_json) {
+export function extractGraphSummary(tx_graph_version, graph_json) {
     let deferred3_0;
     let deferred3_1;
     try {
         const ptr0 = passStringToWasm0(graph_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
-        const ret = wasm.extractDepositorPayoutSig(tx_graph_version, ptr0, len0);
+        const ret = wasm.extractGraphSummary(tx_graph_version, ptr0, len0);
         var ptr2 = ret[0];
         var len2 = ret[1];
         if (ret[3]) {
@@ -1958,49 +1999,8 @@ export function extractTapScriptSig(psbt_base64, input_index) {
 }
 
 /**
- * Finalizes the Assert transaction: applies the claimer signature, extracts
- * the π₁ bits from the proof, signs them with the WOTS keypair and embeds
- * the witness. Returns the broadcastable transaction hex.
- * @param {number} tx_graph_version
- * @param {string} graph_json
- * @param {string} assert_claimer_sig_hex
- * @param {string} keypair_json
- * @param {string} verifying_key_hex
- * @param {string} proof_hex
- * @returns {string}
- */
-export function finalizeAssert(tx_graph_version, graph_json, assert_claimer_sig_hex, keypair_json, verifying_key_hex, proof_hex) {
-    let deferred7_0;
-    let deferred7_1;
-    try {
-        const ptr0 = passStringToWasm0(graph_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        const len0 = WASM_VECTOR_LEN;
-        const ptr1 = passStringToWasm0(assert_claimer_sig_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        const len1 = WASM_VECTOR_LEN;
-        const ptr2 = passStringToWasm0(keypair_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        const len2 = WASM_VECTOR_LEN;
-        const ptr3 = passStringToWasm0(verifying_key_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        const len3 = WASM_VECTOR_LEN;
-        const ptr4 = passStringToWasm0(proof_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        const len4 = WASM_VECTOR_LEN;
-        const ret = wasm.finalizeAssert(tx_graph_version, ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3, ptr4, len4);
-        var ptr6 = ret[0];
-        var len6 = ret[1];
-        if (ret[3]) {
-            ptr6 = 0; len6 = 0;
-            throw takeFromExternrefTable0(ret[2]);
-        }
-        deferred7_0 = ptr6;
-        deferred7_1 = len6;
-        return getStringFromWasm0(ptr6, len6);
-    } finally {
-        wasm.__wbindgen_free(deferred7_0, deferred7_1, 1);
-    }
-}
-
-/**
  * Applies the depositor's signature to the Claim transaction (verifying it
- * first) and returns the fully signed transaction hex — the `claim_tx` the
+ * first) and returns the fully signed transaction hex - the `claim_tx` the
  * artifacts carry.
  * @param {number} tx_graph_version
  * @param {string} graph_json
@@ -2031,26 +2031,59 @@ export function finalizeClaimTx(tx_graph_version, graph_json, depositor_sig_hex)
 }
 
 /**
- * Finalizes the Payout transaction from the two signatures the artifacts
- * carry. Broadcastable only after the Assert relative timelock expires.
- * Pass `None` for the depositor signature when the graph already holds it.
+ * Finalizes the Payout transaction from the depositor and claimer Payout
+ * signatures the artifacts carry and returns the transaction hex.
+ * Broadcastable only after the Assert relative timelock expires.
  * @param {number} tx_graph_version
- * @param {string} graph_json
- * @param {string} payout_claimer_sig_hex
- * @param {string | null} [depositor_payout_sig_hex]
+ * @param {string} artifacts_json
  * @returns {string}
  */
-export function finalizePayout(tx_graph_version, graph_json, payout_claimer_sig_hex, depositor_payout_sig_hex) {
+export function finalizePayout(tx_graph_version, artifacts_json) {
+    let deferred3_0;
+    let deferred3_1;
+    try {
+        const ptr0 = passStringToWasm0(artifacts_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.finalizePayout(tx_graph_version, ptr0, len0);
+        var ptr2 = ret[0];
+        var len2 = ret[1];
+        if (ret[3]) {
+            ptr2 = 0; len2 = 0;
+            throw takeFromExternrefTable0(ret[2]);
+        }
+        deferred3_0 = ptr2;
+        deferred3_1 = len2;
+        return getStringFromWasm0(ptr2, len2);
+    } finally {
+        wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
+    }
+}
+
+/**
+ * Finalizes one `WronglyChallenged` transaction from the artifacts - the
+ * answer to a ChallengeAssert, which must confirm inside
+ * `timelock_challenge_assert` or the challenger's NoPayout takes the
+ * vault. `gc_index` and `preimage_hex` come from the BaBe decryption of
+ * the challenger's ChallengeAssert witness, which today only the
+ * watchtower CLI performs. Returns the transaction hex.
+ * @param {number} tx_graph_version
+ * @param {string} artifacts_json
+ * @param {string} challenger_pk_hex
+ * @param {number} gc_index
+ * @param {string} preimage_hex
+ * @returns {string}
+ */
+export function finalizeWronglyChallenged(tx_graph_version, artifacts_json, challenger_pk_hex, gc_index, preimage_hex) {
     let deferred5_0;
     let deferred5_1;
     try {
-        const ptr0 = passStringToWasm0(graph_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const ptr0 = passStringToWasm0(artifacts_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
-        const ptr1 = passStringToWasm0(payout_claimer_sig_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const ptr1 = passStringToWasm0(challenger_pk_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len1 = WASM_VECTOR_LEN;
-        var ptr2 = isLikeNone(depositor_payout_sig_hex) ? 0 : passStringToWasm0(depositor_payout_sig_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        var len2 = WASM_VECTOR_LEN;
-        const ret = wasm.finalizePayout(tx_graph_version, ptr0, len0, ptr1, len1, ptr2, len2);
+        const ptr2 = passStringToWasm0(preimage_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len2 = WASM_VECTOR_LEN;
+        const ret = wasm.finalizeWronglyChallenged(tx_graph_version, ptr0, len0, ptr1, len1, gc_index, ptr2, len2);
         var ptr4 = ret[0];
         var len4 = ret[1];
         if (ret[3]) {
@@ -2062,45 +2095,6 @@ export function finalizePayout(tx_graph_version, graph_json, payout_claimer_sig_
         return getStringFromWasm0(ptr4, len4);
     } finally {
         wasm.__wbindgen_free(deferred5_0, deferred5_1, 1);
-    }
-}
-
-/**
- * Finalizes one WronglyChallenged transaction — the answer to a
- * ChallengeAssert, which must confirm inside `timelock_challenge_assert`
- * or the challenger's NoPayout takes the vault.
- * @param {number} tx_graph_version
- * @param {string} graph_json
- * @param {string} challenger_pk_hex
- * @param {number} gc_index
- * @param {string} preimage_hex
- * @param {string} claimer_sig_hex
- * @returns {string}
- */
-export function finalizeWronglyChallenged(tx_graph_version, graph_json, challenger_pk_hex, gc_index, preimage_hex, claimer_sig_hex) {
-    let deferred6_0;
-    let deferred6_1;
-    try {
-        const ptr0 = passStringToWasm0(graph_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        const len0 = WASM_VECTOR_LEN;
-        const ptr1 = passStringToWasm0(challenger_pk_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        const len1 = WASM_VECTOR_LEN;
-        const ptr2 = passStringToWasm0(preimage_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        const len2 = WASM_VECTOR_LEN;
-        const ptr3 = passStringToWasm0(claimer_sig_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-        const len3 = WASM_VECTOR_LEN;
-        const ret = wasm.finalizeWronglyChallenged(tx_graph_version, ptr0, len0, ptr1, len1, gc_index, ptr2, len2, ptr3, len3);
-        var ptr5 = ret[0];
-        var len5 = ret[1];
-        if (ret[3]) {
-            ptr5 = 0; len5 = 0;
-            throw takeFromExternrefTable0(ret[2]);
-        }
-        deferred6_0 = ptr5;
-        deferred6_1 = len5;
-        return getStringFromWasm0(ptr5, len5);
-    } finally {
-        wasm.__wbindgen_free(deferred6_0, deferred6_1, 1);
     }
 }
 
@@ -2125,6 +2119,41 @@ export function peginP2aAnchorOutput(tx_graph_version) {
         throw takeFromExternrefTable0(ret[1]);
     }
     return ret[0] === 0 ? undefined : PeginP2aAnchorOutput.__wrap(ret[0]);
+}
+
+/**
+ * Verifies the Groth16 pegout proof against the artifacts' verifying key
+ * and pins it into the artifacts (`groth16_proof_hex`), returning the
+ * updated artifacts JSON. Re-pinning the same proof is a no-op; a different
+ * proof is refused once one is pinned, because the depositor's one-time
+ * WOTS keypair must sign exactly one π₁. Persist the returned JSON before
+ * Assert is broadcast and never finalize Assert from any other copy.
+ * @param {number} tx_graph_version
+ * @param {string} artifacts_json
+ * @param {string} proof_hex
+ * @returns {string}
+ */
+export function pinPegoutProof(tx_graph_version, artifacts_json, proof_hex) {
+    let deferred4_0;
+    let deferred4_1;
+    try {
+        const ptr0 = passStringToWasm0(artifacts_json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(proof_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ret = wasm.pinPegoutProof(tx_graph_version, ptr0, len0, ptr1, len1);
+        var ptr3 = ret[0];
+        var len3 = ret[1];
+        if (ret[3]) {
+            ptr3 = 0; len3 = 0;
+            throw takeFromExternrefTable0(ret[2]);
+        }
+        deferred4_0 = ptr3;
+        deferred4_1 = len3;
+        return getStringFromWasm0(ptr3, len3);
+    } finally {
+        wasm.__wbindgen_free(deferred4_0, deferred4_1, 1);
+    }
 }
 
 /**
@@ -2179,7 +2208,7 @@ export function validateTxGraphParams(tx_graph_version, params_json) {
 /**
  * Validates that a WOTS keypair (the `keypair` field of
  * `wotsKeypairFromSeed`) matches the WOTS public keys the graph's Claim
- * commits to — the gate before the keypair leaves the browser.
+ * commits to - the gate before the keypair signs anything.
  * @param {number} tx_graph_version
  * @param {string} keypair_json
  * @param {string} graph_json
@@ -2265,27 +2294,8 @@ export function verifyP2trScriptSpendSignature(tx_graph_version, tx_hex, input_i
 }
 
 /**
- * Verifies a compressed Groth16 pegout proof against its verifying key,
- * both hex. Run it on the prover response before it reaches
- * [`wasm_finalize_assert`].
- * @param {number} tx_graph_version
- * @param {string} verifying_key_hex
- * @param {string} proof_hex
- */
-export function verifyPegoutProof(tx_graph_version, verifying_key_hex, proof_hex) {
-    const ptr0 = passStringToWasm0(verifying_key_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    const len0 = WASM_VECTOR_LEN;
-    const ptr1 = passStringToWasm0(proof_hex, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-    const len1 = WASM_VECTOR_LEN;
-    const ret = wasm.verifyPegoutProof(tx_graph_version, ptr0, len0, ptr1, len1);
-    if (ret[1]) {
-        throw takeFromExternrefTable0(ret[0]);
-    }
-}
-
-/**
  * Re-verifies every claimer-side signature inside an `artifacts.json`
- * against its embedded graph — the pre-handoff self-check.
+ * against its embedded graph - the pre-handoff self-check.
  * @param {number} tx_graph_version
  * @param {string} artifacts_json
  */

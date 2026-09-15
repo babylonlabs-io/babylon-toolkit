@@ -51,7 +51,7 @@ describe("summarizeWatchtowerArtifacts", () => {
     expect(summary.vaultId).toBe(VAULT_ID);
     expect(summary.claimTxid).toBe(CLAIM_TX.getId());
     expect(summary.proverCircuitVersion).toBe(7);
-    expect(summary.claimableEventBlockNumber).toBe(10_985_680);
+    expect(summary.claimableEventBlockNumber).toBe(10_985_680n);
     expect(summary.babeSessionChallengerPubkeys).toEqual(["aa".repeat(32)]);
   });
 
@@ -60,7 +60,7 @@ describe("summarizeWatchtowerArtifacts", () => {
       artifactsFile({ claimable_event_block_number: undefined }),
     );
 
-    expect(summary.claimableEventBlockNumber).toBe(0);
+    expect(summary.claimableEventBlockNumber).toBe(0n);
   });
 
   it("rejects a file that is not JSON", () => {

@@ -16,11 +16,15 @@ export interface WatchtowerArtifactsSummary {
   claimTxid: string;
   proverCircuitVersion: number;
   /**
-   * Block of the finalized `VaultClaimableBy` event, or 0 when the file was
+   * Block of the finalized `VaultClaimableBy` event, or `0n` when the file was
    * assembled before the Ethereum withdrawal was initiated. A claim run
-   * against 0 proves the wrong block and fails before Assert.
+   * against zero proves the wrong block and fails before Assert, so
+   * `assertArtifactsUsableForVault` refuses it.
+   *
+   * `bigint`, matching {@link DelegatedClaimVaultContext} and the WASM
+   * boundary — a block number is a u64 there.
    */
-  claimableEventBlockNumber: number;
+  claimableEventBlockNumber: bigint;
   /** Hex challenger public keys the file carries BaBe sessions for. */
   babeSessionChallengerPubkeys: string[];
 }
@@ -39,6 +43,12 @@ export interface DelegatedClaimVaultContext {
   /** Graph (vault core) version of the vault. Delegated claim requires 3. */
   txGraphVersion: number;
   proverCircuitVersion: number;
+  /**
+   * Vault Core version from the finalized `PegInSubmitted` event. The builder
+   * refuses a graph that records a different one, which is what stops a graph
+   * built under other rules from being signed.
+   */
+  vaultCoreVersion: number;
   /**
    * Block of the finalized `VaultClaimableBy` event. Pass `0n` when the
    * withdrawal has not been initiated yet; whoever runs the claim must

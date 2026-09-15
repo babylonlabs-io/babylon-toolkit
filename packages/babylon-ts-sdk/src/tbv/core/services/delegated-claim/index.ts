@@ -36,16 +36,21 @@ export type {
 } from "./types";
 
 /**
- * Claim-time execution. These finalizers take the signatures an
- * `artifacts.json` already carries and return broadcastable transaction hex,
- * so a claimer runs the whole path — Claim, Assert, Payout — without the
- * watchtower CLI. Assert additionally needs a Groth16 proof from the prover
- * service; check it with `verifyPegoutProof` before it reaches
- * `finalizeAssert`.
+ * Claim-time execution, artifacts in and artifacts out.
+ *
+ * `pinPegoutProof` verifies the prover's Groth16 proof and writes it into the
+ * artifacts; `attachFinalizedAssert` then finalizes the Assert from that
+ * pinned proof and the depositor's WOTS keypair, so the keypair never leaves
+ * the caller. `finalizePayout` and `finalizeWronglyChallenged` return
+ * broadcastable transaction hex from the signatures the file already carries.
+ *
+ * Persist the JSON `pinPegoutProof` returns before the Assert is broadcast: a
+ * one-time WOTS keypair signs exactly one proof, and a second, different one
+ * is refused.
  */
 export {
-  verifyPegoutProof,
-  finalizeAssert,
+  pinPegoutProof,
+  attachFinalizedAssert,
   finalizePayout,
   finalizeWronglyChallenged,
 } from "../../wasm";

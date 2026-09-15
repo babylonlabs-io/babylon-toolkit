@@ -8,6 +8,7 @@
  */
 
 import type { Hex } from "viem";
+import type { Mock } from "vitest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { BitcoinWallet } from "../../../../../shared/wallets/interfaces";
@@ -19,7 +20,6 @@ const wasm = vi.hoisted(() => ({
   buildPayoutClaimerPsbt: vi.fn(),
   buildPayoutDepositorPsbt: vi.fn(),
   buildWronglyChallengedPsbts: vi.fn(),
-  extractDepositorPayoutSig: vi.fn(),
   extractTapScriptSig: vi.fn(),
   finalizeClaimTx: vi.fn(),
   buildWatchtowerArtifacts: vi.fn(),
@@ -63,6 +63,7 @@ function stubPsbtPipeline(): void {
 function makeWallet(): BitcoinWallet {
   return {
     getAddress: vi.fn(() => Promise.resolve(SIGNER_ADDRESS)),
+    getPublicKeyHex: vi.fn(() => Promise.resolve(DEPOSITOR_PUBKEY)),
     signPsbt: vi.fn(),
     signPsbts: vi.fn((psbtHexes: string[]) => Promise.resolve(psbtHexes)),
   } as unknown as BitcoinWallet;
@@ -85,6 +86,7 @@ async function assemble(wallet: BitcoinWallet): Promise<void> {
       vaultId: VAULT_ID,
       txGraphVersion: 3,
       proverCircuitVersion: 7,
+      vaultCoreVersion: 3,
       claimableEventBlockNumber: 10_985_680n,
     },
   });
@@ -94,7 +96,6 @@ describe("assembleWatchtowerArtifacts", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     stubPsbtPipeline();
-    wasm.extractDepositorPayoutSig.mockResolvedValue("presigned-payout-sig");
   });
 
   it("collects every signature in one wallet interaction", async () => {
@@ -140,29 +141,54 @@ describe("assembleWatchtowerArtifacts", () => {
     expect(payoutCall?.[1]).toBe(1);
   });
 
-  it("reuses the graph's presigned depositor Payout signature when it carries one", async () => {
+  it("always signs a fresh depositor Payout signature in the same batch", async () => {
     const wallet = makeWallet();
 
     await assemble(wallet);
 
-    expect(wasm.buildPayoutDepositorPsbt).not.toHaveBeenCalled();
-    expect(
-      wasm.buildWatchtowerArtifacts.mock.calls[0][0].depositorPayoutSigHex,
-    ).toBe("presigned-payout-sig");
-  });
-
-  it("signs a fresh depositor Payout signature in the same batch when the graph carries none", async () => {
-    wasm.extractDepositorPayoutSig.mockRejectedValue(
-      new Error("missing signature"),
-    );
-    const wallet = makeWallet();
-
-    await assemble(wallet);
-
+    // The builder no longer reads a presigned signature off the graph, so the
+    // PSBT must ride in the one batch — not a second prompt months later.
+    expect(wasm.buildPayoutDepositorPsbt).toHaveBeenCalledTimes(1);
     expect(wallet.signPsbts).toHaveBeenCalledTimes(1);
     expect(
       wasm.buildWatchtowerArtifacts.mock.calls[0][0].depositorPayoutSigHex,
     ).toBe("sig:psbt-payout-depositor");
+  });
+
+  it("asks the wallet for the script-path flags every signature depends on", async () => {
+    const wallet = makeWallet();
+
+    await assemble(wallet);
+
+    const options = (wallet.signPsbts as unknown as Mock).mock.calls[0][1];
+    expect(options).toHaveLength(4 + 3);
+    for (const option of options) {
+      // autoFinalized would strip the tapScriptSig these signatures are
+      // extracted from; useTweakedSigner would sign with the tweaked key and
+      // produce a signature no script path accepts.
+      expect(option.autoFinalized).toBe(false);
+      expect(option.signInputs).toHaveLength(1);
+      expect(option.signInputs[0].useTweakedSigner).toBe(false);
+      expect(option.signInputs[0].address).toBe(SIGNER_ADDRESS);
+    }
+    // The claimer Payout signs its Assert connector at input 1; every other
+    // PSBT signs input 0. A wrong index yields a signature for the wrong
+    // sighash, which only surfaces at claim time.
+    expect(options.map((o: { signInputs: { index: number }[] }) => o.signInputs[0].index)).toEqual([
+      0, 0, 1, 0, 0, 0, 0,
+    ]);
+  });
+
+  it("refuses to prompt when the wallet is on another account", async () => {
+    const wallet = makeWallet();
+    (wallet.getPublicKeyHex as unknown as Mock).mockResolvedValue(
+      "02".concat("99".repeat(32)),
+    );
+
+    await expect(assemble(wallet)).rejects.toThrow(
+      /does not hold the vault's depositor key/,
+    );
+    expect(wallet.signPsbts).not.toHaveBeenCalled();
   });
 
   it("carries the vault's on-chain facts into the artifacts", async () => {

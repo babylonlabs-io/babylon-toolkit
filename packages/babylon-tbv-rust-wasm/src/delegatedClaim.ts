@@ -38,8 +38,32 @@ type GetWasmBindings = () => Promise<typeof VaultWasm>;
 function parseWasmJson<T>(json: string, fnName: string): T {
   try {
     return JSON.parse(json) as T;
-  } catch (err) {
-    throw toError(err, `${fnName}: unparseable JSON from WASM`);
+  } catch {
+    // The cause is deliberately dropped. `toError` returns an `Error`
+    // unchanged, so a V8 `SyntaxError` would arrive verbatim — and its message
+    // quotes a snippet of the input it choked on. For `wotsKeypairFromSeed`
+    // that input is the secret keypair JSON, which would then reach any log
+    // that records the error.
+    throw new Error(`${fnName}: unparseable JSON from WASM`);
+  }
+}
+
+/** Rejects a value WASM would silently truncate into a u64. */
+function assertU64(value: bigint, label: string): void {
+  if (value < 0n || value > 0xffff_ffff_ffff_ffffn) {
+    throw new Error(`${label} must fit in a u64, got ${value}`);
+  }
+}
+
+/**
+ * Rejects a value WASM would silently truncate into a u16.
+ *
+ * wasm-bindgen wraps rather than throws, so `65543` would arrive as `7` and
+ * produce a well-formed artifacts file carrying the wrong version.
+ */
+function assertU16(value: number, label: string): void {
+  if (!Number.isInteger(value) || value < 0 || value > 0xffff) {
+    throw new Error(`${label} must be an integer in 0..65535, got ${value}`);
   }
 }
 
@@ -147,24 +171,6 @@ export function createDelegatedClaimApi(getWasmBindings: GetWasmBindings) {
     },
 
     /**
-     * Extracts the presign-phase depositor Payout signature stored on the
-     * graph, verified against the payout leaf. Throws when the graph carries
-     * none — the caller then collects a fresh one via
-     * `buildPayoutDepositorPsbt`.
-     */
-    async extractDepositorPayoutSig(
-      txGraphVersion: number,
-      graphJson: string,
-    ): Promise<string> {
-      const wasm = await getWasmBindings();
-      try {
-        return wasm.extractDepositorPayoutSig(txGraphVersion, graphJson);
-      } catch (err) {
-        throw toError(err, 'extractDepositorPayoutSig');
-      }
-    },
-
-    /**
      * Extracts the single taproot script-path signature from a signed PSBT
      * input, enforcing the 64-byte SIGHASH_DEFAULT form. Version-agnostic.
      */
@@ -240,11 +246,19 @@ export function createDelegatedClaimApi(getWasmBindings: GetWasmBindings) {
      * BaBe sessions are multi-hundred-megabyte payloads; omit them here and
      * join them into the file downstream rather than routing them through
      * WASM memory.
+     *
+     * `depositorPayoutSigHex` is always signed fresh and required — the
+     * upstream binding no longer reads a presigned one off the graph.
+     * `expectedVaultCoreVersion` comes from the finalized `PegInSubmitted`
+     * event and must equal the version the graph records.
      */
     async buildWatchtowerArtifacts(
       inputs: WatchtowerArtifactsInputs,
     ): Promise<string> {
       const wasm = await getWasmBindings();
+      assertU64(inputs.claimableEventBlockNumber, 'claimableEventBlockNumber');
+      assertU16(inputs.proverCircuitVersion, 'proverCircuitVersion');
+      assertU16(inputs.expectedVaultCoreVersion, 'expectedVaultCoreVersion');
       try {
         return wasm.buildWatchtowerArtifacts(
           inputs.txGraphVersion,
@@ -258,7 +272,11 @@ export function createDelegatedClaimApi(getWasmBindings: GetWasmBindings) {
           inputs.claimableEventBlockNumber,
           inputs.proverCircuitVersion,
           inputs.vaultIdHex,
-          inputs.babeSessionsJson,
+          // Required upstream, optional here: an omitted value means the
+          // sessions are joined into the file downstream, which the empty
+          // object represents.
+          inputs.babeSessionsJson ?? '{}',
+          inputs.expectedVaultCoreVersion,
         );
       } catch (err) {
         throw toError(err, 'buildWatchtowerArtifacts');
@@ -284,99 +302,92 @@ export function createDelegatedClaimApi(getWasmBindings: GetWasmBindings) {
     },
 
     /**
-     * Verifies a compressed Groth16 pegout proof against its verifying key,
-     * both hex. Run it on the prover's response before the proof reaches
-     * {@link finalizeAssert} — a proof that does not verify produces an
-     * Assert the network refuses.
+     * Verifies the Groth16 pegout proof against the artifacts' verifying key
+     * and pins it into the artifacts, returning the updated artifacts JSON.
+     *
+     * Persist the returned JSON before the Assert is broadcast, and finalize
+     * the Assert from that copy only: the depositor's one-time WOTS keypair
+     * must sign exactly one π₁, so a second, different proof is refused once
+     * one is pinned. Re-pinning the same proof is a no-op.
      */
-    async verifyPegoutProof(
+    async pinPegoutProof(
       txGraphVersion: number,
-      verifyingKeyHex: string,
-      proofHex: string,
-    ): Promise<void> {
-      const wasm = await getWasmBindings();
-      try {
-        wasm.verifyPegoutProof(txGraphVersion, verifyingKeyHex, proofHex);
-      } catch (err) {
-        throw toError(err, 'verifyPegoutProof');
-      }
-    },
-
-    /**
-     * Finalizes the Assert transaction: applies the claimer signature,
-     * extracts the π₁ bits from the proof, signs them with the WOTS keypair
-     * and embeds the witness. Returns broadcastable consensus hex.
-     */
-    async finalizeAssert(
-      txGraphVersion: number,
-      graphJson: string,
-      assertClaimerSigHex: string,
-      keypairJson: string,
-      verifyingKeyHex: string,
+      artifactsJson: string,
       proofHex: string,
     ): Promise<string> {
       const wasm = await getWasmBindings();
       try {
-        return wasm.finalizeAssert(
-          txGraphVersion,
-          graphJson,
-          assertClaimerSigHex,
-          keypairJson,
-          verifyingKeyHex,
-          proofHex,
-        );
+        return wasm.pinPegoutProof(txGraphVersion, artifactsJson, proofHex);
       } catch (err) {
-        throw toError(err, 'finalizeAssert');
+        throw toError(err, 'pinPegoutProof');
       }
     },
 
     /**
-     * Finalizes the Payout transaction from the two signatures the artifacts
-     * carry. The result is broadcastable only after the Assert relative
-     * timelock expires. Pass `undefined` for the depositor signature when the
-     * graph already holds it from the presign phase.
+     * Finalizes the Assert from the pinned proof and the depositor's WOTS
+     * keypair, writes it into the artifacts as `assert_tx_hex` and returns
+     * the updated artifacts JSON.
+     *
+     * Hand exactly that JSON to `vaultd vp wt start-claim`: it verifies the
+     * attached Assert instead of signing one, so the keypair never leaves
+     * the browser. Errors when no proof is pinned.
+     */
+    async attachFinalizedAssert(
+      txGraphVersion: number,
+      artifactsJson: string,
+      keypairJson: string,
+    ): Promise<string> {
+      const wasm = await getWasmBindings();
+      try {
+        return wasm.attachFinalizedAssert(
+          txGraphVersion,
+          artifactsJson,
+          keypairJson,
+        );
+      } catch (err) {
+        throw toError(err, 'attachFinalizedAssert');
+      }
+    },
+
+    /**
+     * Finalizes the Payout from the depositor and claimer Payout signatures
+     * the artifacts carry, and returns the transaction hex. Broadcastable
+     * only after the Assert relative timelock expires.
      */
     async finalizePayout(
       txGraphVersion: number,
-      graphJson: string,
-      payoutClaimerSigHex: string,
-      depositorPayoutSigHex?: string,
+      artifactsJson: string,
     ): Promise<string> {
       const wasm = await getWasmBindings();
       try {
-        return wasm.finalizePayout(
-          txGraphVersion,
-          graphJson,
-          payoutClaimerSigHex,
-          depositorPayoutSigHex,
-        );
+        return wasm.finalizePayout(txGraphVersion, artifactsJson);
       } catch (err) {
         throw toError(err, 'finalizePayout');
       }
     },
 
     /**
-     * Finalizes one WronglyChallenged transaction — the answer to a
-     * ChallengeAssert. It must confirm inside `timelock_challenge_assert`
-     * or the challenger's NoPayout takes the vault.
+     * Finalizes one WronglyChallenged transaction from the artifacts — the
+     * answer to a ChallengeAssert. It must confirm inside
+     * `timelock_challenge_assert` or the challenger's NoPayout takes the
+     * vault.
      */
     async finalizeWronglyChallenged(
       txGraphVersion: number,
-      graphJson: string,
+      artifactsJson: string,
       challengerPkHex: string,
       gcIndex: number,
       preimageHex: string,
-      claimerSigHex: string,
     ): Promise<string> {
       const wasm = await getWasmBindings();
+      assertU16(gcIndex, 'gcIndex');
       try {
         return wasm.finalizeWronglyChallenged(
           txGraphVersion,
-          graphJson,
+          artifactsJson,
           challengerPkHex,
           gcIndex,
           preimageHex,
-          claimerSigHex,
         );
       } catch (err) {
         throw toError(err, 'finalizeWronglyChallenged');

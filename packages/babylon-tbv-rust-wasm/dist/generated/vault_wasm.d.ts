@@ -406,6 +406,17 @@ export class WasmPrePeginTx {
 }
 
 /**
+ * Finalizes the Assert transaction from the pinned proof and the
+ * depositor's WOTS keypair, writes it into the artifacts as
+ * `assert_tx_hex`, and returns the updated artifacts JSON. Hand exactly
+ * that JSON to `vaultd vp wt start-claim`, which then verifies the attached
+ * Assert instead of signing one, so the keypair never leaves the browser.
+ * An attached Assert is verified, never re-signed; artifacts carrying a
+ * different Assert are refused. Errors when no proof is pinned.
+ */
+export function attachFinalizedAssert(tx_graph_version: number, artifacts_json: string, keypair_json: string): string;
+
+/**
  * Creates the claimer's Assert signing PSBT (base64) for wallet signing.
  */
 export function buildAssertClaimerPsbt(tx_graph_version: number, graph_json: string): string;
@@ -423,8 +434,9 @@ export function buildPayoutClaimerPsbt(tx_graph_version: number, graph_json: str
 
 /**
  * Creates the depositor's Payout signing PSBT (input 0, base64) for wallet
- * signing. Only needed when the graph does not already carry the
- * presign-phase depositor Payout signature (see `extractDepositorPayoutSig`).
+ * signing. The depositor Payout signature is always signed fresh: the graph
+ * the vault provider serves does not carry it, and
+ * `buildWatchtowerArtifacts` requires it.
  */
 export function buildPayoutDepositorPsbt(tx_graph_version: number, graph_json: string): string;
 
@@ -434,10 +446,13 @@ export function buildPayoutDepositorPsbt(tx_graph_version: number, graph_json: s
  * graph's own presign set are verified before bundling, so a broken
  * artifact surfaces while the signer is still on the page.
  *
- * See the upstream binding for the full argument contract; `verifying_key`
- * and `babe_sessions` pass through opaquely.
+ * See the upstream binding for the full argument contract: the depositor
+ * Payout signature is always signed fresh and required, `verifying_key`
+ * and `babe_sessions` pass through opaquely, and the graph's recorded Core
+ * version must equal `expected_vault_core_version` (from the finalized
+ * `PegInSubmitted` event).
  */
-export function buildWatchtowerArtifacts(tx_graph_version: number, graph_json: string, signed_claim_tx_hex: string, assert_claimer_sig_hex: string, payout_claimer_sig_hex: string, wrongly_challenged_sigs_json: string, depositor_payout_sig_hex: string | null | undefined, verifying_key_hex: string, claimable_event_block_number: bigint, prover_circuit_version: number, vault_id_hex: string, babe_sessions_json?: string | null): string;
+export function buildWatchtowerArtifacts(tx_graph_version: number, graph_json: string, signed_claim_tx_hex: string, assert_claimer_sig_hex: string, payout_claimer_sig_hex: string, wrongly_challenged_sigs_json: string, depositor_payout_sig_hex: string, verifying_key_hex: string, claimable_event_block_number: bigint, prover_circuit_version: number, vault_id_hex: string, babe_sessions_json: string, expected_vault_core_version: number): string;
 
 /**
  * Creates the claimer's `WronglyChallenged` signing PSBTs for every
@@ -560,11 +575,11 @@ export function expandHashlockSecret(root: Uint8Array, htlc_vout: number): Uint8
 export function expandWotsSeed(root: Uint8Array, htlc_vout: number): Uint8Array;
 
 /**
- * Extracts the presign-phase depositor Payout signature stored on the
- * graph, verified against the payout leaf. Errors when absent — callers
- * then collect a fresh signature via `buildPayoutDepositorPsbt`.
+ * Extracts a compact JSON summary of the graph (transaction ids,
+ * timelocks, per-challenger competitor txids) so a monitor can follow the
+ * claim without re-parsing the full graph.
  */
-export function extractDepositorPayoutSig(tx_graph_version: number, graph_json: string): string;
+export function extractGraphSummary(tx_graph_version: number, graph_json: string): string;
 
 /**
  * Extract the single taproot script-path signature from a signed PSBT
@@ -574,32 +589,28 @@ export function extractDepositorPayoutSig(tx_graph_version: number, graph_json: 
 export function extractTapScriptSig(psbt_base64: string, input_index: number): string;
 
 /**
- * Finalizes the Assert transaction: applies the claimer signature, extracts
- * the π₁ bits from the proof, signs them with the WOTS keypair and embeds
- * the witness. Returns the broadcastable transaction hex.
- */
-export function finalizeAssert(tx_graph_version: number, graph_json: string, assert_claimer_sig_hex: string, keypair_json: string, verifying_key_hex: string, proof_hex: string): string;
-
-/**
  * Applies the depositor's signature to the Claim transaction (verifying it
- * first) and returns the fully signed transaction hex — the `claim_tx` the
+ * first) and returns the fully signed transaction hex - the `claim_tx` the
  * artifacts carry.
  */
 export function finalizeClaimTx(tx_graph_version: number, graph_json: string, depositor_sig_hex: string): string;
 
 /**
- * Finalizes the Payout transaction from the two signatures the artifacts
- * carry. Broadcastable only after the Assert relative timelock expires.
- * Pass `None` for the depositor signature when the graph already holds it.
+ * Finalizes the Payout transaction from the depositor and claimer Payout
+ * signatures the artifacts carry and returns the transaction hex.
+ * Broadcastable only after the Assert relative timelock expires.
  */
-export function finalizePayout(tx_graph_version: number, graph_json: string, payout_claimer_sig_hex: string, depositor_payout_sig_hex?: string | null): string;
+export function finalizePayout(tx_graph_version: number, artifacts_json: string): string;
 
 /**
- * Finalizes one WronglyChallenged transaction — the answer to a
- * ChallengeAssert, which must confirm inside `timelock_challenge_assert`
- * or the challenger's NoPayout takes the vault.
+ * Finalizes one `WronglyChallenged` transaction from the artifacts - the
+ * answer to a ChallengeAssert, which must confirm inside
+ * `timelock_challenge_assert` or the challenger's NoPayout takes the
+ * vault. `gc_index` and `preimage_hex` come from the BaBe decryption of
+ * the challenger's ChallengeAssert witness, which today only the
+ * watchtower CLI performs. Returns the transaction hex.
  */
-export function finalizeWronglyChallenged(tx_graph_version: number, graph_json: string, challenger_pk_hex: string, gc_index: number, preimage_hex: string, claimer_sig_hex: string): string;
+export function finalizeWronglyChallenged(tx_graph_version: number, artifacts_json: string, challenger_pk_hex: string, gc_index: number, preimage_hex: string): string;
 
 /**
  * Initialize panic hook for better error messages in the browser console.
@@ -613,6 +624,16 @@ export function init_panic_hook(): void;
  * absent anchor cannot be mistaken for a zero-valued one.
  */
 export function peginP2aAnchorOutput(tx_graph_version: number): PeginP2aAnchorOutput | undefined;
+
+/**
+ * Verifies the Groth16 pegout proof against the artifacts' verifying key
+ * and pins it into the artifacts (`groth16_proof_hex`), returning the
+ * updated artifacts JSON. Re-pinning the same proof is a no-op; a different
+ * proof is refused once one is pinned, because the depositor's one-time
+ * WOTS keypair must sign exactly one π₁. Persist the returned JSON before
+ * Assert is broadcast and never finalize Assert from any other copy.
+ */
+export function pinPegoutProof(tx_graph_version: number, artifacts_json: string, proof_hex: string): string;
 
 /**
  * Tx graph versions this binary can build, ascending. Front-end
@@ -642,7 +663,7 @@ export function validateTxGraphParams(tx_graph_version: number, params_json: str
 /**
  * Validates that a WOTS keypair (the `keypair` field of
  * `wotsKeypairFromSeed`) matches the WOTS public keys the graph's Claim
- * commits to — the gate before the keypair leaves the browser.
+ * commits to - the gate before the keypair signs anything.
  */
 export function validateWotsKeypairAgainstGraph(tx_graph_version: number, keypair_json: string, graph_json: string): void;
 
@@ -664,15 +685,8 @@ export function verifyDepositorSignature(tx_graph_version: number, graph_json: s
 export function verifyP2trScriptSpendSignature(tx_graph_version: number, tx_hex: string, input_index: number, prevouts_json: string, script_hex: string, pubkey_hex: string, signature_hex: string): void;
 
 /**
- * Verifies a compressed Groth16 pegout proof against its verifying key,
- * both hex. Run it on the prover response before it reaches
- * [`wasm_finalize_assert`].
- */
-export function verifyPegoutProof(tx_graph_version: number, verifying_key_hex: string, proof_hex: string): void;
-
-/**
  * Re-verifies every claimer-side signature inside an `artifacts.json`
- * against its embedded graph — the pre-handoff self-check.
+ * against its embedded graph - the pre-handoff self-check.
  */
 export function verifyWatchtowerArtifacts(tx_graph_version: number, artifacts_json: string): void;
 
@@ -689,21 +703,21 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
+    readonly attachFinalizedAssert: (a: number, b: number, c: number, d: number, e: number) => [number, number, number, number];
     readonly buildAssertClaimerPsbt: (a: number, b: number, c: number) => [number, number, number, number];
     readonly buildClaimPsbt: (a: number, b: number, c: number) => [number, number, number, number];
     readonly buildPayoutClaimerPsbt: (a: number, b: number, c: number) => [number, number, number, number];
     readonly buildPayoutDepositorPsbt: (a: number, b: number, c: number) => [number, number, number, number];
-    readonly buildWatchtowerArtifacts: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number, o: number, p: bigint, q: number, r: number, s: number, t: number, u: number) => [number, number, number, number];
+    readonly buildWatchtowerArtifacts: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, m: number, n: number, o: number, p: bigint, q: number, r: number, s: number, t: number, u: number, v: number) => [number, number, number, number];
     readonly buildWronglyChallengedPsbts: (a: number, b: number, c: number) => [number, number, number, number];
     readonly computeClaimDepositorSighash: (a: number, b: number, c: number) => [number, number, number, number];
     readonly computeWronglyChallengedClaimerSighashes: (a: number, b: number, c: number) => [number, number, number, number];
-    readonly extractDepositorPayoutSig: (a: number, b: number, c: number) => [number, number, number, number];
-    readonly finalizeAssert: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number) => [number, number, number, number];
+    readonly extractGraphSummary: (a: number, b: number, c: number) => [number, number, number, number];
     readonly finalizeClaimTx: (a: number, b: number, c: number, d: number, e: number) => [number, number, number, number];
-    readonly finalizePayout: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => [number, number, number, number];
-    readonly finalizeWronglyChallenged: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number) => [number, number, number, number];
+    readonly finalizePayout: (a: number, b: number, c: number) => [number, number, number, number];
+    readonly finalizeWronglyChallenged: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => [number, number, number, number];
+    readonly pinPegoutProof: (a: number, b: number, c: number, d: number, e: number) => [number, number, number, number];
     readonly validateWotsKeypairAgainstGraph: (a: number, b: number, c: number, d: number, e: number) => [number, number];
-    readonly verifyPegoutProof: (a: number, b: number, c: number, d: number, e: number) => [number, number];
     readonly verifyWatchtowerArtifacts: (a: number, b: number, c: number) => [number, number];
     readonly __wbg_wasmassertchallengeassertconnector_free: (a: number, b: number) => void;
     readonly wasmassertchallengeassertconnector_getAddress: (a: number, b: number, c: number) => [number, number, number, number];

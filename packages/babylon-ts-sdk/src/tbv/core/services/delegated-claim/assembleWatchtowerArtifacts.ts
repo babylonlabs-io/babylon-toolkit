@@ -27,7 +27,6 @@ import {
   buildPayoutDepositorPsbt,
   buildWatchtowerArtifacts,
   buildWronglyChallengedPsbts,
-  extractDepositorPayoutSig,
   extractTapScriptSig,
   finalizeClaimTx,
 } from "../../wasm";
@@ -103,26 +102,18 @@ export async function assembleWatchtowerArtifacts(
       buildWronglyChallengedPsbts(txGraphVersion, graphJson),
     ]);
 
-  // The vault provider persists the depositor's presign-phase Payout
-  // signature in its own table, so a VP-served graph may or may not carry
-  // it. When it does, reuse it; when it does not, one more PSBT joins the
-  // same batch rather than a second wallet prompt later.
-  const presignedDepositorPayoutSig = await readPresignedDepositorPayoutSig(
-    txGraphVersion,
-    graphJson,
-  );
-
+  // The depositor Payout signature is always signed fresh. The builder no
+  // longer reads a presigned one off the graph, so its PSBT always joins this
+  // batch rather than costing a second wallet prompt later.
   const requests: PsbtSigningRequest[] = [
     { psbtBase64: claimPsbt, inputIndex: CLAIM_DEPOSITOR_INPUT },
     { psbtBase64: assertPsbt, inputIndex: ASSERT_CLAIMER_INPUT },
     { psbtBase64: payoutClaimerPsbt, inputIndex: PAYOUT_CLAIMER_INPUT },
-  ];
-  if (presignedDepositorPayoutSig === null) {
-    requests.push({
+    {
       psbtBase64: await buildPayoutDepositorPsbt(txGraphVersion, graphJson),
       inputIndex: PAYOUT_DEPOSITOR_INPUT,
-    });
-  }
+    },
+  ];
 
   // Challenger order is fixed here and reused when the signatures are mapped
   // back, so a wallet that reorders nothing keeps every signature with the
@@ -144,8 +135,7 @@ export async function assembleWatchtowerArtifacts(
   const claimSig = signatures[cursor++];
   const assertClaimerSigHex = signatures[cursor++];
   const payoutClaimerSigHex = signatures[cursor++];
-  const depositorPayoutSigHex =
-    presignedDepositorPayoutSig ?? signatures[cursor++];
+  const depositorPayoutSigHex = signatures[cursor++];
 
   const wronglyChallengedSigs: WronglyChallengedSigs = {};
   for (const challengerPubkey of challengerPubkeys) {
@@ -176,22 +166,36 @@ export async function assembleWatchtowerArtifacts(
     proverCircuitVersion: params.vault.proverCircuitVersion,
     vaultIdHex: params.vault.vaultId,
     babeSessionsJson: params.babeSessionsJson,
+    expectedVaultCoreVersion: params.vault.vaultCoreVersion,
   });
 }
 
+/** The 32-byte x-only form of a compressed or x-only public key, lowercase. */
+function xOnlyHex(publicKeyHex: string): string {
+  const hex = publicKeyHex.replace(/^0x/, "").toLowerCase();
+  if (hex.length === 66) return hex.slice(2);
+  if (hex.length === 64) return hex;
+  throw new Error(
+    `Public key must be 33-byte compressed or 32-byte x-only hex, got ${hex.length / 2} bytes.`,
+  );
+}
+
 /**
- * The graph's stored depositor Payout signature, or `null` when the graph
- * carries none. A graph that carries an invalid one is a different problem
- * and is not swallowed here.
+ * Throws unless the connected wallet holds `depositorPublicKey`.
+ *
+ * @throws When the wallet is on a different account than the vault's
+ *         depositor.
  */
-async function readPresignedDepositorPayoutSig(
-  txGraphVersion: number,
-  graphJson: string,
-): Promise<string | null> {
-  try {
-    return await extractDepositorPayoutSig(txGraphVersion, graphJson);
-  } catch {
-    return null;
+async function assertWalletMatchesDepositor(
+  btcWallet: BitcoinWallet,
+  depositorPublicKey: string,
+): Promise<void> {
+  const walletPublicKey = await btcWallet.getPublicKeyHex();
+  if (xOnlyHex(walletPublicKey) !== xOnlyHex(depositorPublicKey)) {
+    throw new Error(
+      "Connected wallet does not hold the vault's depositor key. " +
+        "Select the account that made the deposit, then try again.",
+    );
   }
 }
 
@@ -204,6 +208,13 @@ async function signAndExtract(
   depositorPublicKey: string,
   requests: PsbtSigningRequest[],
 ): Promise<string[]> {
+  // The sign options name the signer by address, because a wallet derives a
+  // key-path address from a public key and then refuses any input that sits
+  // elsewhere — every script-path connector. An address names the account, so
+  // it must be proved to be this depositor's account first: otherwise a wallet
+  // on the wrong account signs all N+3 PSBTs and the mismatch only surfaces
+  // later, in finalizeClaimTx or verify_bundle.
+  await assertWalletMatchesDepositor(btcWallet, depositorPublicKey);
   const signerAddress = await btcWallet.getAddress();
   const signedPsbtHexes = await signPsbtsWithFallback(
     btcWallet,

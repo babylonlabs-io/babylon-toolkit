@@ -454,69 +454,62 @@ export async function buildWronglyChallengedPsbts(
   );
 }
 
-/** Verifies a Groth16 pegout proof against its verifying key, both hex. */
-export async function verifyPegoutProof(
+/**
+ * Verifies the Groth16 pegout proof and pins it into the artifacts, returning
+ * the updated artifacts JSON. Persist that copy: the one-time WOTS keypair
+ * signs exactly one proof, so a second, different one is refused.
+ */
+export async function pinPegoutProof(
   txGraphVersion: number,
-  verifyingKeyHex: string,
+  artifactsJson: string,
   proofHex: string,
-): Promise<void> {
-  return (await loadTbvWasm()).verifyPegoutProof(
+): Promise<string> {
+  return (await loadTbvWasm()).pinPegoutProof(
     txGraphVersion,
-    verifyingKeyHex,
+    artifactsJson,
     proofHex,
   );
 }
 
-/** Finalizes the Assert tx from the proof and WOTS keypair, consensus hex. */
-export async function finalizeAssert(
+/**
+ * Finalizes the Assert from the pinned proof and the WOTS keypair, writes it
+ * into the artifacts and returns the updated artifacts JSON. The keypair
+ * never leaves the caller.
+ */
+export async function attachFinalizedAssert(
   txGraphVersion: number,
-  graphJson: string,
-  assertClaimerSigHex: string,
+  artifactsJson: string,
   keypairJson: string,
-  verifyingKeyHex: string,
-  proofHex: string,
 ): Promise<string> {
-  return (await loadTbvWasm()).finalizeAssert(
+  return (await loadTbvWasm()).attachFinalizedAssert(
     txGraphVersion,
-    graphJson,
-    assertClaimerSigHex,
+    artifactsJson,
     keypairJson,
-    verifyingKeyHex,
-    proofHex,
   );
 }
 
 /** Finalizes the Payout tx from the artifacts' signatures, consensus hex. */
 export async function finalizePayout(
   txGraphVersion: number,
-  graphJson: string,
-  payoutClaimerSigHex: string,
-  depositorPayoutSigHex?: string,
+  artifactsJson: string,
 ): Promise<string> {
-  return (await loadTbvWasm()).finalizePayout(
-    txGraphVersion,
-    graphJson,
-    payoutClaimerSigHex,
-    depositorPayoutSigHex,
-  );
+  return (await loadTbvWasm()).finalizePayout(txGraphVersion, artifactsJson);
 }
 
 /** Finalizes one WronglyChallenged tx — the answer to a ChallengeAssert. */
 export async function finalizeWronglyChallenged(
   txGraphVersion: number,
-  graphJson: string,
+  artifactsJson: string,
   challengerPkHex: string,
   gcIndex: number,
   preimageHex: string,
-  claimerSigHex: string,
 ): Promise<string> {
   return (await loadTbvWasm()).finalizeWronglyChallenged(
     txGraphVersion,
-    graphJson,
+    artifactsJson,
     challengerPkHex,
     gcIndex,
     preimageHex,
-    claimerSigHex,
   );
 }
 
@@ -530,17 +523,6 @@ export async function finalizeClaimTx(
     txGraphVersion,
     graphJson,
     depositorSigHex,
-  );
-}
-
-/** Extracts the presign-phase depositor Payout signature from the graph. */
-export async function extractDepositorPayoutSig(
-  txGraphVersion: number,
-  graphJson: string,
-): Promise<string> {
-  return (await loadTbvWasm()).extractDepositorPayoutSig(
-    txGraphVersion,
-    graphJson,
   );
 }
 

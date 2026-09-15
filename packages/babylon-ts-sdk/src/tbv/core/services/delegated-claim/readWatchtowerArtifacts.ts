@@ -80,10 +80,12 @@ export function summarizeWatchtowerArtifacts(
   // absent value as 0, which means "not yet known from chain".
   const claimableEventBlockNumber =
     parsed.claimable_event_block_number === undefined
-      ? 0
-      : requireNumber(
-          parsed.claimable_event_block_number,
-          "claimable_event_block_number",
+      ? 0n
+      : BigInt(
+          requireNumber(
+            parsed.claimable_event_block_number,
+            "claimable_event_block_number",
+          ),
         );
 
   return {
@@ -123,6 +125,18 @@ export async function assertArtifactsUsableForVault(
   const actual = normalizeVaultId(summary.vaultId);
   if (expected !== actual) {
     throw new ArtifactsVaultMismatchError(expected, actual);
+  }
+
+  // A file assembled before the Ethereum withdrawal was initiated carries
+  // zero here. `vaultd vp wt start-claim` would then ask the prover to prove
+  // the wrong block and fail before Assert, so a function named "usable"
+  // refuses it rather than passing the problem downstream. Nothing in the SDK
+  // fills the field in later — reassemble the file instead.
+  if (summary.claimableEventBlockNumber === 0n) {
+    throw new Error(
+      "Artifacts carry no claimable event block number. They were assembled " +
+        "before the Ethereum withdrawal was initiated; assemble them again.",
+    );
   }
 
   await verifyWatchtowerArtifacts(

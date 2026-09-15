@@ -323,10 +323,11 @@ export interface WatchtowerArtifactsInputs {
   payoutClaimerSigHex: string;
   wronglyChallengedSigs: WronglyChallengedSigs;
   /**
-   * 64-byte Schnorr signature hex over the depositor Payout sighash. Pass
-   * `undefined` to use the presign-phase signature stored on the graph.
+   * 64-byte Schnorr signature hex over the depositor Payout sighash. Always
+   * signed fresh and required — the builder no longer reads a presigned
+   * signature off the graph.
    */
-  depositorPayoutSigHex?: string;
+  depositorPayoutSigHex: string;
   /** Groth16 verifying key, ark-compressed hex. Passed through opaquely. */
   verifyingKeyHex: string;
   /**
@@ -345,4 +346,10 @@ export interface WatchtowerArtifactsInputs {
    * — omit it here and join the sessions into the file downstream.
    */
   babeSessionsJson?: string;
+  /**
+   * Vault Core version from the finalized `PegInSubmitted` event. The builder
+   * refuses a graph that records a different one, which is what stops a graph
+   * built under other rules from being signed.
+   */
+  expectedVaultCoreVersion: number;
 }

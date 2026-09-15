@@ -5,6 +5,7 @@
 // wasm-pack --target nodejs build is needed.
 
 import { createDelegatedClaimApi } from './delegatedClaim.js';
+import { toError } from './errors.js';
 import {
   getWasmBindings,
   initWasm as initializeWasm,
@@ -452,15 +453,6 @@ export async function getChallengeAssertScriptInfo(
   }
 }
 
-// wasm-bindgen rethrows Rust `JsValue::from_str(...)` errors as bare strings,
-// which break `err instanceof Error` and structured error handling. Normalize
-// to `Error` so the JS API surface is consistent with idiomatic JS rejection.
-function toError(err: unknown, fnName: string): Error {
-  if (err instanceof Error) return err;
-  const msg = typeof err === 'string' ? err : String(err);
-  return new Error(`${fnName}: ${msg}`);
-}
-
 /**
  * Derive 32-byte `authAnchor` (OP_RETURN preimage → VP bearer token).
  * @stability frozen — owned by btc-vault Rust via the vault-wasm pin (`VAULT_WASM_COMMIT`); rotation breaks VP auth for existing deposits.
@@ -588,9 +580,12 @@ export const {
   buildPayoutDepositorPsbt,
   buildWatchtowerArtifacts,
   buildWronglyChallengedPsbts,
-  extractDepositorPayoutSig,
+  attachFinalizedAssert,
   extractTapScriptSig,
   finalizeClaimTx,
+  finalizePayout,
+  finalizeWronglyChallenged,
+  pinPegoutProof,
   validateWotsKeypairAgainstGraph,
   verifyWatchtowerArtifacts,
   wotsKeypairFromSeed,
