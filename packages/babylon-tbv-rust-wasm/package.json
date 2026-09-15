@@ -14,16 +14,6 @@
         "types": "./dist/index.d.ts",
         "default": "./dist/index.js"
       }
-    },
-    "./raw": {
-      "node": {
-        "types": "./dist/raw-node.d.ts",
-        "default": "./dist/raw-node.js"
-      },
-      "default": {
-        "types": "./dist/raw.d.ts",
-        "default": "./dist/raw.js"
-      }
     }
   },
   "scripts": {
