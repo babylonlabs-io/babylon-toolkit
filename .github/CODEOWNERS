@@ -63,6 +63,4 @@
 /packages/babylon-ts-sdk/src/tbv/core/wasm/ @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov @kirugan
 /packages/babylon-tbv-rust-wasm/src/wasm-loader.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov @kirugan
 /packages/babylon-tbv-rust-wasm/src/wasm-loader-node.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov @kirugan
-/packages/babylon-tbv-rust-wasm/src/raw.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov @kirugan
-/packages/babylon-tbv-rust-wasm/src/raw-node.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov @kirugan
 /services/vault/src/utils/btc/scriptPubKeyAddress.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov @kirugan

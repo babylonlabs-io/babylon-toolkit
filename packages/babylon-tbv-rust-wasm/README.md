@@ -2,13 +2,9 @@
 
 WASM bindings for Babylon Trustless Bitcoin Vaults (TBV), providing TypeScript/JavaScript interfaces for creating Bitcoin peg-in transactions.
 
-The normal package entry is a lazy facade: importing it does not load the
-wasm-bindgen glue or instantiate/download the `.wasm` binary. The generated
-module is fetched on the first facade call that needs it.
-
-The eager `@babylonlabs-io/babylon-tbv-rust-wasm/raw` classes are deprecated.
-They bypass SDK value checks. Use the SDK transaction builders before signing.
-See [Raw WASM Types](#raw-wasm-types) for the migration path.
+The package entry loads the `.wasm` binary on demand. Importing the entry loads
+the wasm-bindgen glue, but it does not download or instantiate the binary. The
+binary loads on the first facade call that needs it, or on `initWasm()`.
 
 ## Overview
 
@@ -466,30 +462,24 @@ Value: `"50929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfee9ace803ac0"`
 
 The same as `TAP_INTERNAL_KEY` but as a Buffer for convenience.
 
-### Raw WASM Types
+### WASM Classes
 
-Raw classes are intentionally not exported from the lazy root entry.
+The package also exports these wasm-bindgen classes:
 
-The `/raw` classes remain available during deprecation. They bypass SDK value
-checks. Their constructors, methods, and types keep the published contract.
-Existing raw callers must call `initWasm()` before construction and independently
-check transaction values and signing data.
-
-The retained exports are:
-
-- `initWasm` - Loads and initializes the binary; shares one initializer with the facade
 - `WasmPeginTx` - Low-level peg-in transaction class
 - `WasmPrePeginTx` - Low-level Pre-PegIn transaction class
 - `WasmPeginPayoutConnector` - Low-level payout connector class
 - `WasmPrePeginHtlcConnector` - Low-level Pre-PegIn HTLC connector class
 
-Use `buildPrePeginPsbt`, `buildPeginTxFromFundedPrePegin`, and `buildRefundPsbt`
-from `@babylonlabs-io/ts-sdk/tbv/core/primitives` for transaction construction.
-These builders apply checks against caller inputs. The engine's lazy root
-facade checks amount bounds, but does not provide the SDK's independent checks
-before signing.
+The classes do not check values. Call `initWasm()` before you construct a
+class, and check every value a class returns before you use it:
 
-See the [migration guide](../babylon-ts-sdk/docs/guides/raw-engine-migration.md)
-for connector use and operations with no guarded replacement. No removal date
-is set. Deprecation alone does not close
-[#2361](https://github.com/babylonlabs-io/babylon-toolkit/issues/2361).
+```ts
+import {
+  initWasm,
+  WasmPrePeginTx,
+} from "@babylonlabs-io/babylon-tbv-rust-wasm";
+
+await initWasm();
+const transaction = new WasmPrePeginTx(/* ... */);
+```

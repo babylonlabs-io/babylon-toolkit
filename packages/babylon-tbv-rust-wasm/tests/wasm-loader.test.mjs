@@ -11,49 +11,37 @@ const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const packageExports = JSON.parse(
   readFileSync(resolve(packageRoot, 'package.json'), 'utf8'),
 ).exports;
-const rawClassNames = [
+const classNames = [
   'WasmPeginTx',
   'WasmPeginPayoutConnector',
   'WasmPrePeginTx',
   'WasmPrePeginHtlcConnector',
 ];
 
-for (const entry of ['raw', 'raw-node']) {
-  test(`${entry} retains the generated classes and shared initializer`, async () => {
-    assert.deepEqual(
-      packageExports['./raw'][entry === 'raw' ? 'default' : 'node'],
-      {
-        types: `./dist/${entry}.d.ts`,
-        default: `./dist/${entry}.js`,
-      },
-    );
-    const raw = await import(`../dist/${entry}.js`);
+test('exports only the root entry', () => {
+  assert.deepEqual(Object.keys(packageExports), ['.']);
+});
+
+for (const entry of ['index', 'index-node']) {
+  test(`${entry} exports the generated classes`, async () => {
+    const main = await import(`../dist/${entry}.js`);
     const generated = await import('../dist/generated/vault_wasm.js');
-    const loader = await import(
-      `../dist/${entry === 'raw' ? 'wasm-loader' : 'wasm-loader-node'}.js`
-    );
-    assert.deepEqual(
-      Object.keys(raw).sort(),
-      [...rawClassNames, 'initWasm'].sort(),
-    );
-    for (const name of rawClassNames) {
-      assert.equal(typeof raw[name], 'function', name);
-      assert.equal(raw[name], generated[name]);
+    for (const name of classNames) {
+      assert.equal(typeof main[name], 'function', name);
+      assert.equal(main[name], generated[name], name);
     }
-    assert.equal(raw.initWasm, loader.initWasm);
   });
 
-  test(`${entry} preserves class types and marks consumer imports deprecated`, () => {
-    const consumerFile = join(packageRoot, 'dist', 'raw-consumer.ts');
+  test(`${entry} preserves the generated class types`, () => {
+    const consumerFile = join(packageRoot, 'dist', 'class-consumer.ts');
     const source = [
-      `import { ${rawClassNames.join(', ')} } from './${entry}.js';`,
+      `import { ${classNames.join(', ')} } from './${entry}.js';`,
       "import * as generated from './generated/vault_wasm.js';",
       'type Same<A, B> = (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2) ? true : false;',
       'type Check<T extends true> = T;',
-      ...rawClassNames.flatMap((name) => [
+      ...classNames.flatMap((name) => [
         `type CheckType${name} = Check<Same<${name}, generated.${name}>>;`,
         `type CheckConstructor${name} = Check<Same<typeof ${name}, typeof generated.${name}>>;`,
-        `void ${name};`,
       ]),
     ].join('\n');
     const options = {
@@ -87,18 +75,6 @@ for (const entry of ['raw', 'raw-node']) {
           ),
         [],
       );
-      for (const name of rawClassNames) {
-        for (const reference of [`void ${name}`, `Same<${name},`]) {
-          const info = service.getQuickInfoAtPosition(
-            consumerFile,
-            source.indexOf(reference) + 5,
-          );
-          assert.ok(
-            info?.tags?.some((tag) => tag.name === 'deprecated'),
-            `${name} must be deprecated at ${reference}`,
-          );
-        }
-      }
     } finally {
       service.dispose();
     }

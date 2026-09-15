@@ -26,6 +26,12 @@ import type {
   ChallengeAssertScriptInfo,
 } from './types.js';
 import { assertPositiveBigintArray, assertWasmBigint } from './value-guards.js';
+// tsc keeps this import path in the emitted declaration. It must resolve
+// from both src and dist, which must remain siblings under the package root.
+// scripts/check-lazy-entries.js checks the emitted path.
+import type * as Bindings from '../dist/generated/vault_wasm.js';
+// @ts-expect-error - generated artifacts live in dist/generated
+import * as generated from './generated/vault_wasm.js';
 
 /**
  * HTLC output index for single deposits.
@@ -572,3 +578,20 @@ export { TAP_INTERNAL_KEY, tapInternalPubkey } from './constants.js';
 
 // Export boundary value guards (input validation for callers)
 export { assertPositiveBigintArray } from './value-guards.js';
+
+// Export wasm-bindgen classes. They have no value checks. Call initWasm()
+// before construction.
+export const WasmPeginTx: typeof Bindings.WasmPeginTx = generated.WasmPeginTx;
+export type WasmPeginTx = Bindings.WasmPeginTx;
+
+export const WasmPeginPayoutConnector: typeof Bindings.WasmPeginPayoutConnector =
+  generated.WasmPeginPayoutConnector;
+export type WasmPeginPayoutConnector = Bindings.WasmPeginPayoutConnector;
+
+export const WasmPrePeginTx: typeof Bindings.WasmPrePeginTx =
+  generated.WasmPrePeginTx;
+export type WasmPrePeginTx = Bindings.WasmPrePeginTx;
+
+export const WasmPrePeginHtlcConnector: typeof Bindings.WasmPrePeginHtlcConnector =
+  generated.WasmPrePeginHtlcConnector;
+export type WasmPrePeginHtlcConnector = Bindings.WasmPrePeginHtlcConnector;

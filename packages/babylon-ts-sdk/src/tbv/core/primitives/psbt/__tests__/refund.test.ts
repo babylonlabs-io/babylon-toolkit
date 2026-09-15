@@ -15,7 +15,7 @@ import * as bitcoin from "bitcoinjs-lib";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import { fundPeginTransaction } from "../../../utils/transaction/fundPeginTransaction";
-import { loadRawTbvWasm, tapInternalPubkey } from "../../../wasm";
+import { loadTbvWasm, tapInternalPubkey } from "../../../wasm";
 import {
   deriveBip86ScriptPubKeyHex,
   stripHexPrefix,
@@ -78,11 +78,11 @@ async function buildFundedPrePegin(overrides?: Partial<PrePeginParams>) {
   return { txHex: fundedTxHex, params, psbtResult: result };
 }
 
-async function withMutatedRawRefundTx(
+async function withMutatedWasmRefundTx(
   mutate: (tx: bitcoin.Transaction) => void,
   run: () => Promise<void>,
 ): Promise<void> {
-  const { WasmPrePeginTx } = await loadRawTbvWasm();
+  const { WasmPrePeginTx } = await loadTbvWasm();
   const originalBuildRefundTx = WasmPrePeginTx.prototype.buildRefundTx;
   const spy = vi
     .spyOn(WasmPrePeginTx.prototype, "buildRefundTx")
@@ -184,11 +184,33 @@ describe("buildRefundPsbt", () => {
     });
   });
 
-  describe("raw WASM refund transaction checks", () => {
+  describe("WASM refund transaction checks", () => {
+    it("rejects a WASM template HTLC script that differs from the independent derivation", async () => {
+      const { txHex, params } = await buildFundedPrePegin();
+      const { WasmPrePeginTx } = await loadTbvWasm();
+      const spy = vi
+        .spyOn(WasmPrePeginTx.prototype, "getHtlcScriptPubKey")
+        .mockReturnValue("5120" + "00".repeat(32));
+
+      try {
+        await expect(
+          buildRefundPsbt({
+            prePeginParams: params,
+            fundedPrePeginTxHex: txHex,
+            htlcVout: 0,
+            refundFee: TEST_REFUND_FEE,
+            hashlock: TEST_HASH_H,
+          }),
+        ).rejects.toThrow(/WASM HTLC scriptPubKey/);
+      } finally {
+        spy.mockRestore();
+      }
+    });
+
     it("rejects a refund transaction with the wrong version", async () => {
       const { txHex, params } = await buildFundedPrePegin();
 
-      await withMutatedRawRefundTx(
+      await withMutatedWasmRefundTx(
         (refundTx) => {
           refundTx.version = 1;
         },
@@ -209,7 +231,7 @@ describe("buildRefundPsbt", () => {
     it("rejects a refund transaction with a non-zero locktime", async () => {
       const { txHex, params } = await buildFundedPrePegin();
 
-      await withMutatedRawRefundTx(
+      await withMutatedWasmRefundTx(
         (refundTx) => {
           refundTx.locktime = 1;
         },
@@ -230,7 +252,7 @@ describe("buildRefundPsbt", () => {
     it("rejects a refund transaction with the wrong input sequence", async () => {
       const { txHex, params } = await buildFundedPrePegin();
 
-      await withMutatedRawRefundTx(
+      await withMutatedWasmRefundTx(
         (refundTx) => {
           refundTx.ins[0].sequence = TEST_TIMELOCK_REFUND + 1;
         },
@@ -251,7 +273,7 @@ describe("buildRefundPsbt", () => {
     it("rejects a refund transaction with the wrong input index", async () => {
       const { txHex, params } = await buildFundedPrePegin();
 
-      await withMutatedRawRefundTx(
+      await withMutatedWasmRefundTx(
         (refundTx) => {
           refundTx.ins[0].index = 1;
         },
@@ -272,7 +294,7 @@ describe("buildRefundPsbt", () => {
     it("rejects a refund transaction with the wrong input transaction", async () => {
       const { txHex, params } = await buildFundedPrePegin();
 
-      await withMutatedRawRefundTx(
+      await withMutatedWasmRefundTx(
         (refundTx) => {
           refundTx.ins[0].hash[0] ^= 1;
         },
@@ -293,7 +315,7 @@ describe("buildRefundPsbt", () => {
     it("rejects a refund transaction with an extra input", async () => {
       const { txHex, params } = await buildFundedPrePegin();
 
-      await withMutatedRawRefundTx(
+      await withMutatedWasmRefundTx(
         (refundTx) => {
           refundTx.ins.push({ ...refundTx.ins[0] });
         },
@@ -314,7 +336,7 @@ describe("buildRefundPsbt", () => {
     it("rejects a refund transaction with an extra output", async () => {
       const { txHex, params } = await buildFundedPrePegin();
 
-      await withMutatedRawRefundTx(
+      await withMutatedWasmRefundTx(
         (refundTx) => {
           refundTx.outs.push({ ...refundTx.outs[0] });
         },
@@ -335,7 +357,7 @@ describe("buildRefundPsbt", () => {
     it("rejects a refund transaction with a redirected output", async () => {
       const { txHex, params } = await buildFundedPrePegin();
 
-      await withMutatedRawRefundTx(
+      await withMutatedWasmRefundTx(
         (refundTx) => {
           refundTx.outs[0].script = Buffer.from("6a", "hex");
         },
@@ -356,7 +378,7 @@ describe("buildRefundPsbt", () => {
     it("rejects a refund transaction with a reduced refund value", async () => {
       const { txHex, params } = await buildFundedPrePegin();
 
-      await withMutatedRawRefundTx(
+      await withMutatedWasmRefundTx(
         (refundTx) => {
           refundTx.outs[0].value -= 1;
         },

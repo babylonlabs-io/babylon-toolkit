@@ -31,9 +31,6 @@ export { TAP_INTERNAL_KEY, tapInternalPubkey } from "./constants";
 type TbvWasmModule = typeof import("@babylonlabs-io/babylon-tbv-rust-wasm");
 
 let wasmModulePromise: Promise<TbvWasmModule> | undefined;
-type RawTbvWasmModule =
-  typeof import("@babylonlabs-io/babylon-tbv-rust-wasm/raw");
-let rawWasmModulePromise: Promise<RawTbvWasmModule> | undefined;
 
 /** Load the WASM engine on first use and share the in-flight import. */
 export function loadTbvWasm(): Promise<TbvWasmModule> {
@@ -50,41 +47,6 @@ export function loadTbvWasm(): Promise<TbvWasmModule> {
     },
   );
   return wasmModulePromise;
-}
-
-/**
- * Load and initialize the raw engine classes. This bypasses SDK value checks.
- * The internal refund builder applies equivalent checks at its call site.
- *
- * @deprecated Use buildPrePeginPsbt, buildPeginTxFromFundedPrePegin, or
- * buildRefundPsbt from @babylonlabs-io/ts-sdk/tbv/core/primitives.
- * Raw callers must independently check transaction values and signing data.
- */
-export function loadRawTbvWasm(): Promise<RawTbvWasmModule> {
-  rawWasmModulePromise ??= import("@babylonlabs-io/babylon-tbv-rust-wasm/raw")
-    .catch((error: unknown) => {
-      rawWasmModulePromise = undefined;
-      throw new Error(
-        "The raw vault-WASM entry @babylonlabs-io/babylon-tbv-rust-wasm/raw " +
-          "failed to load. The module could not be resolved, or it threw " +
-          "while evaluating. See the cause for the underlying error.",
-        { cause: error },
-      );
-    })
-    .then(async (wasm) => {
-      try {
-        await wasm.initWasm();
-      } catch (error: unknown) {
-        rawWasmModulePromise = undefined;
-        throw new Error(
-          "The raw vault-WASM entry resolved but its WebAssembly " +
-            "binary failed to initialize.",
-          { cause: error },
-        );
-      }
-      return wasm;
-    });
-  return rawWasmModulePromise;
 }
 
 /**

@@ -214,16 +214,11 @@ the Taproot signing data before it creates a PSBT. It rejects a WASM transaction
 that does not match. The canonical transaction constants for this check are in
 `packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/constants.ts`.
 
-There is a second crossing, and it is unguarded. The
-`@babylonlabs-io/babylon-tbv-rust-wasm/raw` subpath (`src/raw.ts`, `src/raw-node.ts`) hands out the
-wasm-bindgen classes directly, so no value is checked at the export. Every `/raw` consumer must
-cross-check at the call site instead. The only SDK consumer is
+The same entry (`src/index.ts`, `src/index-node.ts`) also exports the wasm-bindgen classes directly.
+That export is a second crossing, and it is unguarded. No value is checked at that export. Every class
+consumer must cross-check at the call site instead. The only SDK consumer is
 `packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/refund.ts`.
 It derives the canonical HTLC and signing data in TypeScript before it emits a refund PSBT.
-
-The raw classes and SDK raw loader are deprecated. The retained path still permits a bypass.
-See the [migration guide](packages/babylon-ts-sdk/docs/guides/raw-engine-migration.md)
-for guarded alternatives and the compatibility blocker in #2361.
 
 The mitigation is `assertWasmBigint` / `assertPositiveBigintArray`
 (`packages/babylon-tbv-rust-wasm/src/value-guards.ts`), applied to every value crossing the boundary
@@ -237,7 +232,7 @@ together. Reviewer rule, restated from CLAUDE.md:
 > WASM-returned value feeds a signed transaction, cross-check it against an independently computed
 > expected value.
 
-Adding a new WASM getter without a guard, or a new `/raw` consumer without call-site cross-checks, is
+Adding a new WASM getter without a guard, or a new class consumer without call-site cross-checks, is
 the easiest way to introduce a silent wrong-value bug in this repository. A facade guard can be the
 only check on a path that does not feed a signed transaction. The independent Pre-PegIn checks must
 remain in place for transaction outputs and signing data.
