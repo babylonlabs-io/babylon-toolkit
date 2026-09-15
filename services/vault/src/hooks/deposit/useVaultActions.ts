@@ -16,7 +16,7 @@ import {
   OnChainBtcVaultStatus,
   vpTokenRegistry,
 } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
-import { validateWalletPubkey } from "@babylonlabs-io/ts-sdk/tbv/core/primitives";
+import { canonicalizeBtcPubkey } from "@babylonlabs-io/ts-sdk/tbv/core/primitives";
 import { validateSecretAgainstHashlock } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 import { calculateBtcTxHash } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
 import {
@@ -53,6 +53,7 @@ import {
 } from "@/utils/activationFloor";
 import {
   ActivationNotPossibleError,
+  DepositorBtcKeyMismatchError,
   DepositorWalletMismatchError,
   isTerminalActivationError,
   isVaultRecordEmptyError,
@@ -370,15 +371,22 @@ export function useVaultActions(): UseVaultActionsReturn {
       }
 
       // Bind both wallets to the contract record. Indexer identity is untrusted.
+      // The PSBT uses the on-chain key. An empty key is a malformed record.
+      const depositorBtcPubkey = stripHexPrefix(
+        finalBasicInfo.depositorBtcPubKey,
+      );
+      if (!depositorBtcPubkey) {
+        throw new Error(COPY.deposit.errors.depositorBtcKeyMissing);
+      }
+      const expectedDepositorBtcPubkey =
+        canonicalizeBtcPubkey(depositorBtcPubkey);
       const assertDepositorWallet = async () => {
         signal.throwIfAborted();
         const walletPubkey = await btcWalletProvider.getPublicKeyHex();
         signal.throwIfAborted();
         const connectedDepositor = getAccount(getSharedWagmiConfig()).address;
         if (!connectedDepositor) {
-          throw new Error(
-            COPY.deposit.emergencyWithdraw.errors.ethWalletNotConnected,
-          );
+          throw new Error(COPY.deposit.errors.ethWalletNotConnected);
         }
         if (
           connectedDepositor.toLowerCase() !==
@@ -391,12 +399,15 @@ export function useVaultActions(): UseVaultActionsReturn {
             connectedDepositor,
           });
         }
-        return validateWalletPubkey(
-          walletPubkey,
-          stripHexPrefix(finalBasicInfo.depositorBtcPubKey),
-        ).depositorPubkey;
+        const connectedBtcPubkey = canonicalizeBtcPubkey(walletPubkey);
+        if (connectedBtcPubkey !== expectedDepositorBtcPubkey) {
+          throw new DepositorBtcKeyMismatchError({
+            vaultId,
+            expectedDepositorBtcPubkey,
+            connectedBtcPubkey,
+          });
+        }
       };
-      const depositorBtcPubkey = await assertDepositorWallet();
 
       // The wallet may have locked since the action started. Probe it with a
       // round-trip before any signing (a cached `getAddress()` would not reveal
@@ -407,6 +418,10 @@ export function useVaultActions(): UseVaultActionsReturn {
           btcConnector?.connectedWallet?.id,
         ),
       });
+
+      // Check the depositor wallets after the probe. A locked wallet then gets
+      // the liveness error, not a failed public-key read.
+      await assertDepositorWallet();
 
       // Get depositor's BTC address for UTXO validation
       const depositorAddress = await btcWalletProvider.getAddress();

@@ -9,6 +9,11 @@ import {
 } from "@babylonlabs-io/ts-sdk/tbv/core/primitives";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import {
+  DepositorBtcKeyMismatchError,
+  DepositorWalletMismatchError,
+} from "@/utils/errors/depositorWalletMismatch";
+
 // Use vi.hoisted so mocks can reference these before module initialization
 const { mockFetchUTXO, mockPsbt, mockSignedPsbt, mockTx, mockInput } =
   vi.hoisted(() => {
@@ -373,6 +378,46 @@ describe("broadcastPrePeginTransaction — resolveInputUtxo behavior", () => {
       ),
       cause: inner,
     });
+  });
+
+  it("rethrows a depositor Ethereum-wallet mismatch from signing unwrapped, without broadcasting", async () => {
+    const mismatch = new DepositorWalletMismatchError({
+      vaultId: "0xabc",
+      expectedDepositor: "0x1111111111111111111111111111111111111111",
+      connectedDepositor: "0x2222222222222222222222222222222222222222",
+    });
+    const signPsbt = vi.fn().mockRejectedValue(mismatch);
+    vi.mocked(pushTx).mockClear();
+
+    await expect(
+      broadcastPrePeginTransaction({
+        ...baseParams,
+        btcWalletProvider: { signPsbt },
+        expectedUtxos: undefined,
+      }),
+    ).rejects.toBe(mismatch);
+
+    expect(pushTx).not.toHaveBeenCalled();
+  });
+
+  it("rethrows a depositor Bitcoin-key mismatch from signing unwrapped, without broadcasting", async () => {
+    const mismatch = new DepositorBtcKeyMismatchError({
+      vaultId: "0xabc",
+      expectedDepositorBtcPubkey: "11".repeat(32),
+      connectedBtcPubkey: "22".repeat(32),
+    });
+    const signPsbt = vi.fn().mockRejectedValue(mismatch);
+    vi.mocked(pushTx).mockClear();
+
+    await expect(
+      broadcastPrePeginTransaction({
+        ...baseParams,
+        btcWalletProvider: { signPsbt },
+        expectedUtxos: undefined,
+      }),
+    ).rejects.toBe(mismatch);
+
+    expect(pushTx).not.toHaveBeenCalled();
   });
 
   it("verifies the returned key-path signatures after the rebind, with the requested/returned pair", async () => {

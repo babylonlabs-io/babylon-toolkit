@@ -68,12 +68,14 @@ import {
   getVaultFromChain,
   getVaultProviderGenesisBtcPubkeyFromChain,
 } from "../../../clients/eth-contract/btc-vault-registry/query";
+import { DepositorBtcKeyMismatchError } from "../../../utils/errors/depositorWalletMismatch";
 import {
   prepareSigningContext,
   resolveVaultProviderBtcPubkey,
 } from "../vaultPayoutSignatureService";
 
 const ON_CHAIN_VP_PUBKEY = "a".repeat(64);
+const DEPOSITOR_BTC_PUBKEY = "c".repeat(64);
 const COMPRESSED_VP_PUBKEY = `02${ON_CHAIN_VP_PUBKEY}`;
 const UNCOMPRESSED_VP_PUBKEY = `04${ON_CHAIN_VP_PUBKEY}${"b".repeat(64)}`;
 const DIFFERENT_VP_PUBKEY = "b".repeat(64);
@@ -190,6 +192,7 @@ describe("vaultPayoutSignatureService", () => {
 
   describe("prepareSigningContext", () => {
     const ON_CHAIN_VAULT = {
+      depositorBtcPubKey: `0x${DEPOSITOR_BTC_PUBKEY}` as `0x${string}`,
       depositorSignedPeginTx: "0xpegin",
       offchainParamsVersion: 1,
       vaultCoreVersion: 2,
@@ -237,7 +240,7 @@ describe("vaultPayoutSignatureService", () => {
     it("builds a SigningContext from on-chain data and returns provider address", async () => {
       const { context, vaultProviderAddress } = await prepareSigningContext({
         vaultId: "vault_id",
-        depositorBtcPubkey: "depositor_pubkey",
+        depositorBtcPubkey: DEPOSITOR_BTC_PUBKEY,
         registeredPayoutScriptPubKey: "0xscript",
       });
 
@@ -260,6 +263,54 @@ describe("vaultPayoutSignatureService", () => {
       expect(context.protocolFeeRate).toBe(7n);
     });
 
+    it("throws DepositorBtcKeyMismatchError before any other chain read when the connected key is not the on-chain depositor key", async () => {
+      (getVaultFromChain as Mock).mockResolvedValue({
+        ...ON_CHAIN_VAULT,
+        depositorBtcPubKey: `0x${"e".repeat(64)}`,
+      });
+
+      await expect(
+        prepareSigningContext({
+          vaultId: "vault_id",
+          depositorBtcPubkey: DEPOSITOR_BTC_PUBKEY,
+          registeredPayoutScriptPubKey: "0xscript",
+        }),
+      ).rejects.toBeInstanceOf(DepositorBtcKeyMismatchError);
+
+      expect(mockGetOffchainParamsByVersion).not.toHaveBeenCalled();
+      expect(mockGetVaultKeepersByVersion).not.toHaveBeenCalled();
+      expect(getVaultProviderGenesisBtcPubkeyFromChain).not.toHaveBeenCalled();
+    });
+
+    it("accepts a compressed connected key whose x-only form is the on-chain depositor key", async () => {
+      const { context } = await prepareSigningContext({
+        vaultId: "vault_id",
+        depositorBtcPubkey: `02${DEPOSITOR_BTC_PUBKEY}`,
+        registeredPayoutScriptPubKey: "0xscript",
+      });
+
+      expect(context.peginTxHex).toBe(ON_CHAIN_VAULT.depositorSignedPeginTx);
+    });
+
+    it("throws before any other chain read when the on-chain depositor key is empty", async () => {
+      (getVaultFromChain as Mock).mockResolvedValue({
+        ...ON_CHAIN_VAULT,
+        depositorBtcPubKey: "0x",
+      });
+
+      await expect(
+        prepareSigningContext({
+          vaultId: "vault_id",
+          depositorBtcPubkey: DEPOSITOR_BTC_PUBKEY,
+          registeredPayoutScriptPubKey: "0xscript",
+        }),
+      ).rejects.toThrow();
+
+      expect(mockGetOffchainParamsByVersion).not.toHaveBeenCalled();
+      expect(mockGetVaultKeepersByVersion).not.toHaveBeenCalled();
+      expect(getVaultProviderGenesisBtcPubkeyFromChain).not.toHaveBeenCalled();
+    });
+
     it("throws when VP commission is below the protocol floor", async () => {
       // minVpCommissionBps = 10; a vault with commission 5 is below the floor.
       (getVaultFromChain as Mock).mockResolvedValue({
@@ -270,7 +321,7 @@ describe("vaultPayoutSignatureService", () => {
       await expect(
         prepareSigningContext({
           vaultId: "vault_id",
-          depositorBtcPubkey: "depositor_pubkey",
+          depositorBtcPubkey: DEPOSITOR_BTC_PUBKEY,
           registeredPayoutScriptPubKey: "0xscript",
         }),
       ).rejects.toThrow(
@@ -287,7 +338,7 @@ describe("vaultPayoutSignatureService", () => {
       await expect(
         prepareSigningContext({
           vaultId: "vault_id",
-          depositorBtcPubkey: "depositor_pubkey",
+          depositorBtcPubkey: DEPOSITOR_BTC_PUBKEY,
           registeredPayoutScriptPubKey: "0xscript",
         }),
       ).rejects.toThrow(
@@ -313,7 +364,7 @@ describe("vaultPayoutSignatureService", () => {
       await expect(
         prepareSigningContext({
           vaultId: "vault_id",
-          depositorBtcPubkey: "depositor_pubkey",
+          depositorBtcPubkey: DEPOSITOR_BTC_PUBKEY,
           registeredPayoutScriptPubKey: "0xscript",
         }),
       ).rejects.toThrow(
@@ -328,7 +379,7 @@ describe("vaultPayoutSignatureService", () => {
 
       const { context } = await prepareSigningContext({
         vaultId: "vault_id",
-        depositorBtcPubkey: "depositor_pubkey",
+        depositorBtcPubkey: DEPOSITOR_BTC_PUBKEY,
         vaultProviderBtcPubKey: COMPRESSED_VP_PUBKEY,
         registeredPayoutScriptPubKey: "0xscript",
       });
@@ -352,7 +403,7 @@ describe("vaultPayoutSignatureService", () => {
       await expect(
         prepareSigningContext({
           vaultId: "vault_id",
-          depositorBtcPubkey: "depositor_pubkey",
+          depositorBtcPubkey: DEPOSITOR_BTC_PUBKEY,
           vaultProviderBtcPubKey: DIFFERENT_VP_PUBKEY,
           registeredPayoutScriptPubKey: "0xscript",
         }),
@@ -367,7 +418,7 @@ describe("vaultPayoutSignatureService", () => {
       await expect(
         prepareSigningContext({
           vaultId: "vault_id",
-          depositorBtcPubkey: "depositor_pubkey",
+          depositorBtcPubkey: DEPOSITOR_BTC_PUBKEY,
           registeredPayoutScriptPubKey: "0xscript",
         }),
       ).rejects.toThrow(
@@ -381,7 +432,7 @@ describe("vaultPayoutSignatureService", () => {
       await expect(
         prepareSigningContext({
           vaultId: "vault_id",
-          depositorBtcPubkey: "depositor_pubkey",
+          depositorBtcPubkey: DEPOSITOR_BTC_PUBKEY,
           registeredPayoutScriptPubKey: "0xscript",
         }),
       ).rejects.toThrow(
