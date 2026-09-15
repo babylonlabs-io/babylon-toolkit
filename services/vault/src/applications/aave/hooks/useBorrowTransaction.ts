@@ -18,6 +18,7 @@ import {
   WalletError,
   mapViemErrorToContractError,
 } from "@/utils/errors";
+import { invalidateVaultQueries } from "@/utils/queryKeys";
 
 import { getAaveAdapterAddress } from "../config";
 import { SAFE_TOFIXED_PRECISION } from "../constants";
@@ -130,9 +131,7 @@ export function useBorrowTransaction(): UseBorrowTransactionResult {
       await borrow(walletClient, chain, reserve.reserveId, borrowAmountBigInt);
 
       // Invalidate position queries to refresh data
-      await queryClient.invalidateQueries({
-        queryKey: ["aaveUserPosition", address],
-      });
+      await invalidateVaultQueries(queryClient);
 
       return true;
     } catch (error) {

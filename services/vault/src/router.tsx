@@ -146,27 +146,28 @@ const AaveOverlayLayout = () => {
 
 const ActivityWithProviders = () => (
   <AaveConfigProvider>
-    {/* Activity itself needs no reorder override — this is the one provider
-        the god-mode position-notifications section reads (through
-        `useDashboardState`) that this route does not otherwise mount, and it
-        is in-memory-only state, so a second instance here is inert for the
-        page. Without it the panel would throw on /activity.
+    {/* Activity itself needs neither the reorder override nor the pending-vault
+        markers — these are the providers the god-mode position-notifications
+        section reads (through `useDashboardState`) that this route does not
+        otherwise mount. Without them the panel would throw on /activity.
 
         The panel's full context dependency set is AaveConfig (mounted here),
-        ReorderOverride (mounted here) and ActivatingVaults (RootLayout).
-        Notably NOT PendingVaults: that context is reached only through
-        `useAaveVaults` and `useWithdrawCollateralTransaction`, neither of
-        which this subtree mounts — so the Aave layout's PendingVaultsProvider
-        is deliberately not duplicated here.
+        ReorderOverride and PendingVaults (mounted here) and ActivatingVaults
+        (RootLayout). Reorder state is in-memory only and this subtree neither
+        marks nor clears a pending vault (`useWithdrawCollateralTransaction`
+        and `useSyncPendingVaults` mount elsewhere), so both instances are
+        read-only here and inert for the page.
 
         The feed itself is demo-aware: `useActivitiesWithPending` merges the
         panel's activity mocks into the rows it returns (see dev/demoDeposit),
         so mock rows DO render on this page — while disconnected too —
         alongside the theme and protocol-status / max-vaults overrides. */}
-    <ReorderOverrideProvider>
-      <Activity />
-      <GodModePanelSlot />
-    </ReorderOverrideProvider>
+    <PendingVaultsProvider appId={AAVE_APP_ID}>
+      <ReorderOverrideProvider>
+        <Activity />
+        <GodModePanelSlot />
+      </ReorderOverrideProvider>
+    </PendingVaultsProvider>
   </AaveConfigProvider>
 );
 
