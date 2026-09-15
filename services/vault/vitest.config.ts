@@ -117,6 +117,17 @@ export default defineConfig({
     },
     server: {
       deps: {
+        // Load the built wallet entry through Node, not Vite's SSR transform.
+        // A statement label in the bundle collides with the "@keystonehq/sdk"
+        // default-import binding. Vite 6.4.1 rewrites that label to
+        // `__vite_ssr_import_N__.default:`, so
+        // scriptPubKeyHexToBtcAddress.test.ts, which loads the bundle through
+        // the real `@/config`, fails with "SyntaxError: Unexpected token ':'".
+        // Fixed upstream in https://github.com/vitejs/vite/pull/22451, which is
+        // not in the Vite 6 line this package uses. The `inline` string entry
+        // below never matches the pnpm-realpathed id, so this regex is the one
+        // entry that decides how the bundle loads.
+        external: [/\/babylon-wallet-connector\/dist\/index\.es\.js$/],
         inline: ["@babylonlabs-io/wallet-connector", "@noble/hashes"],
       },
     },

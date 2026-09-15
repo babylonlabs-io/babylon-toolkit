@@ -19,7 +19,6 @@ jest.mock("nanoevents", () => ({
   })),
 }));
 
-import { RegistrationStep } from "@babylonlabs-io/btc-staking-ts";
 import { act, renderHook } from "@testing-library/react";
 
 import { getDelegationV2 } from "@/ui/common/api/getDelegationsV2";
@@ -43,10 +42,18 @@ jest.mock("@/ui/common/api/getDelegationsV2");
 jest.mock("@/ui/common/constants", () => ({
   ONE_SECOND: 1000,
 }));
-jest.mock("@/ui/common/hooks/client/rpc/mutation/useBbnTransaction");
-jest.mock("@/ui/common/hooks/services/useTransactionService");
-jest.mock("@/ui/common/state/DelegationState");
-jest.mock("@/ui/common/state/DelegationV2State");
+jest.mock("@/ui/common/hooks/client/rpc/mutation/useBbnTransaction", () => ({
+  useBbnTransaction: jest.fn(),
+}));
+jest.mock("@/ui/common/hooks/services/useTransactionService", () => ({
+  useTransactionService: jest.fn(),
+}));
+jest.mock("@/ui/common/state/DelegationState", () => ({
+  useDelegationState: jest.fn(),
+}));
+jest.mock("@/ui/common/state/DelegationV2State", () => ({
+  useDelegationV2State: jest.fn(),
+}));
 jest.mock("@/ui/common/utils", () => ({
   retry: jest.fn(),
 }));
@@ -117,7 +124,6 @@ describe("useRegistrationService", () => {
   const mockResetRegistration = jest.fn();
   const mockRefetchV1Delegations = jest.fn();
   const mockTransitionPhase1Delegation = jest.fn();
-  const mockSubscribeToSigningSteps = jest.fn();
   const mockAddDelegation = jest.fn();
   const mockRefetchV2Delegations = jest.fn();
   const mockSendBbnTx = jest.fn();
@@ -138,7 +144,6 @@ describe("useRegistrationService", () => {
     // Mock useTransactionService
     (useTransactionService as jest.Mock).mockReturnValue({
       transitionPhase1Delegation: mockTransitionPhase1Delegation,
-      subscribeToSigningSteps: mockSubscribeToSigningSteps,
     });
 
     // Mock useDelegationV2State
@@ -169,50 +174,6 @@ describe("useRegistrationService", () => {
     mockTransitionPhase1Delegation.mockResolvedValue({
       stakingTxHash: mockStakingTxHashHex,
       signedBabylonTx: mockSignedBabylonTx,
-    });
-  });
-
-  describe("subscribeToSigningSteps", () => {
-    it("should subscribe to signing steps and update registration step", () => {
-      // Initialize callback to avoid linter error
-      let callback = jest.fn() as unknown as (step: RegistrationStep) => void;
-
-      // Mock the implementation of subscribeToSigningSteps
-      mockSubscribeToSigningSteps.mockImplementation((cb) => {
-        callback = cb;
-        return () => {};
-      });
-
-      // Render the hook
-      renderHook(() => useRegistrationService());
-
-      // Verify subscription was registered
-      expect(mockSubscribeToSigningSteps).toHaveBeenCalled();
-
-      // Simulate different signing step events
-      callback("staking-slashing");
-      expect(mockSetRegistrationStep).toHaveBeenCalledWith(
-        "registration-staking-slashing",
-        undefined,
-      );
-
-      callback("unbonding-slashing");
-      expect(mockSetRegistrationStep).toHaveBeenCalledWith(
-        "registration-unbonding-slashing",
-        undefined,
-      );
-
-      callback("proof-of-possession");
-      expect(mockSetRegistrationStep).toHaveBeenCalledWith(
-        "registration-proof-of-possession",
-        undefined,
-      );
-
-      callback("create-btc-delegation-msg");
-      expect(mockSetRegistrationStep).toHaveBeenCalledWith(
-        "registration-sign-bbn",
-        undefined,
-      );
     });
   });
 
