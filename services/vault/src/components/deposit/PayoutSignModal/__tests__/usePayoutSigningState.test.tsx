@@ -652,32 +652,6 @@ describe("usePayoutSigningState", () => {
         resolveSdk!();
       });
     });
-
-    it("aborts the in-flight signal when the hook unmounts", async () => {
-      let observedSignal: AbortSignal | undefined;
-      mockSignAndSubmitPayouts.mockImplementation(
-        ({ signal }: { signal: AbortSignal }) =>
-          new Promise<void>((_resolve, reject) => {
-            observedSignal = signal;
-            signal.addEventListener("abort", () => {
-              const e = new Error("aborted");
-              e.name = "AbortError";
-              reject(e);
-            });
-          }),
-      );
-
-      const { result, unmount } = renderHookWithProps();
-
-      act(() => {
-        void result.current.handleSign();
-      });
-      await waitFor(() => expect(mockSignAndSubmitPayouts).toHaveBeenCalled());
-
-      // A real unmount must cancel the attempt on the next tick.
-      unmount();
-      await waitFor(() => expect(observedSignal?.aborted).toBe(true));
-    });
   });
 
   describe("device-sign cancellation", () => {
@@ -722,6 +696,26 @@ describe("usePayoutSigningState", () => {
       );
       return pending;
     }
+
+    it("cancels the original device and signal when the hook unmounts", async () => {
+      const { cancelSigning } = connectCancellableWallet();
+      const pending = armPendingSdkCall();
+      const { result, unmount } = renderHookWithProps();
+      let signPromise!: Promise<void>;
+      act(() => {
+        signPromise = result.current.handleSign();
+      });
+      await waitFor(() => expect(result.current.canCancel).toBe(true));
+      unmount();
+      await waitFor(() => expect(cancelSigning).toHaveBeenCalledOnce());
+      expect(pending.signal?.aborted).toBe(true);
+      await act(async () => {
+        pending.resolve();
+        await signPromise;
+      });
+      expect(onSuccess).not.toHaveBeenCalled();
+      expect(mockSetOptimisticStatus).not.toHaveBeenCalled();
+    });
 
     // What the Ledger provider rejects with when a requested cancel settles
     // at the next device exchange boundary (WalletError, typed code).

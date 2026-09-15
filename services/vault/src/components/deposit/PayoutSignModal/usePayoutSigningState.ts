@@ -115,18 +115,6 @@ export function usePayoutSigningState({
   // Delay unmount cancellation so the StrictMode remount can keep its attempt.
   const abortRef = useRef<AbortController | null>(null);
   const pendingAbortRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => {
-    if (pendingAbortRef.current !== null) {
-      clearTimeout(pendingAbortRef.current);
-      pendingAbortRef.current = null;
-    }
-    return () => {
-      pendingAbortRef.current = setTimeout(() => {
-        abortRef.current?.abort();
-        pendingAbortRef.current = null;
-      }, 0);
-    };
-  }, []);
 
   // Block a second call before React commits the signing state.
   const inFlightRef = useRef(false);
@@ -461,6 +449,19 @@ export function usePayoutSigningState({
     abortRef.current?.abort();
     if (supportsCancelSigning(provider)) provider.cancelSigning();
   }, []);
+
+  useEffect(() => {
+    if (pendingAbortRef.current !== null) {
+      clearTimeout(pendingAbortRef.current);
+      pendingAbortRef.current = null;
+    }
+    return () => {
+      pendingAbortRef.current = setTimeout(() => {
+        handleCancel();
+        pendingAbortRef.current = null;
+      }, 0);
+    };
+  }, [handleCancel]);
 
   useEffect(() => {
     if (

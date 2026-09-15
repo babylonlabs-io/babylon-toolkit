@@ -1,6 +1,7 @@
 import { Button, Heading, Loader } from "@babylonlabs-io/core-ui";
 import { useState, type PropsWithChildren } from "react";
 
+import { DEPOSIT_CONTENT_MAX_WIDTH_CLASS } from "@/components/simple/DepositProgressView/layout";
 import { COPY } from "@/copy";
 import { useBtcAction } from "@/hooks/useBtcAction";
 
@@ -30,7 +31,9 @@ export function BtcActionGate({
   if (started) return <>{children}</>;
 
   return (
-    <div className="mx-auto flex max-w-[564px] flex-col gap-4">
+    <div
+      className={`mx-auto flex flex-col gap-4 ${DEPOSIT_CONTENT_MAX_WIDTH_CLASS}`}
+    >
       {loading || (connected && !ready) ? (
         <>
           <Loader />
