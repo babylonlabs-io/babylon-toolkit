@@ -30,6 +30,8 @@ export interface BorrowValidationResult {
  *   debt-based, already capped by available reserve liquidity when known)
  * @param tokenDecimals - Native token decimals (e.g., 8 for WBTC, 6 for USDC, 18 for ETH)
  * @param symbol - Token symbol, shown in the error description (e.g. "DAI")
+ * @param hubLabel - Hub the reserve belongs to, named beside the symbol: the
+ *   same token on another hub is a different market with a different limit
  * @param isPositionDataStale - Whether position data may be outdated
  * @param limitedByLiquidity - Whether `maxBorrowAmount` is bound by the
  *   reserve's available liquidity (vs the user's collateral). Selects the
@@ -42,6 +44,7 @@ export function validateBorrowAction(
   maxBorrowAmount: number,
   tokenDecimals: number,
   symbol: string,
+  hubLabel: string,
   isPositionDataStale = false,
   limitedByLiquidity = false,
 ): BorrowValidationResult {
@@ -90,12 +93,17 @@ export function validateBorrowAction(
           errorMessage: COPY.loans.validation.exceedsLiquidity(
             formattedMax,
             symbol,
+            hubLabel,
           ),
         }
       : {
           isDisabled: true,
           buttonText: COPY.loans.borrow.amountExceedsMax,
-          errorMessage: COPY.loans.validation.maxBorrow(formattedMax, symbol),
+          errorMessage: COPY.loans.validation.maxBorrow(
+            formattedMax,
+            symbol,
+            hubLabel,
+          ),
         };
   }
 

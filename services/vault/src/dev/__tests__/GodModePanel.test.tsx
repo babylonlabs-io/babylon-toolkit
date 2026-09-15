@@ -220,6 +220,19 @@ describe("demoDeposit builders", () => {
     expect(rateRow.borrowRate).toBeUndefined();
   });
 
+  it("names a hub on every demo loan row, including an unregistered one", () => {
+    const scenarios = loanScenarios(TEST_SYMBOL);
+    const demo = buildLoansDemo(
+      scenarios.map((_, index) => loanItem(index + 1, index, "100")),
+      false,
+      TEST_SYMBOL,
+    );
+
+    expect(demo.rows.every((row) => row.hub.label.length > 0)).toBe(true);
+    expect(demo.rows.some((row) => row.hub.source === "registry")).toBe(true);
+    expect(demo.rows.some((row) => row.hub.source === "address")).toBe(true);
+  });
+
   it("ignores items of other types when building the loan rows", () => {
     const demo = buildLoansDemo(
       [depositItem(1, 0), loanItem(2, 0, "10")],

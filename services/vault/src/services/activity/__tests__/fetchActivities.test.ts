@@ -44,6 +44,7 @@ const TX_DEPOSIT = "0x" + "1".repeat(64);
 const TX_BORROW = "0x" + "4".repeat(64);
 
 const RESERVE_ICON = "test://icon.svg";
+const RESERVE_HUB_LABEL = "Core Hub";
 
 type RawActivity = {
   id: string;
@@ -84,13 +85,19 @@ function buildDeps(
 ): FetchUserActivitiesDeps {
   const reserveMap = new Map<
     string,
-    { symbol: string; decimals: number; icon: string | undefined }
+    {
+      symbol: string;
+      decimals: number;
+      icon: string | undefined;
+      hubLabel: string;
+    }
   >();
   for (const r of reserves) {
     reserveMap.set(r.id, {
       symbol: r.symbol,
       decimals: r.decimals,
       icon: RESERVE_ICON,
+      hubLabel: RESERVE_HUB_LABEL,
     });
   }
   return {
@@ -392,6 +399,27 @@ describe("fetchUserActivities position-scoped enrichment", () => {
     expect(result).toHaveLength(1);
     expect(asStandard(result[0]).amount.symbol).toBe("USDC");
     expect(asStandard(result[0]).amount.value).toBe("1,500");
+  });
+
+  it("names the reserve's hub on a borrow row", async () => {
+    const rows: RawActivity[] = [
+      activity({
+        type: "borrow",
+        logIndex: 0,
+        transactionHash: TX_BORROW,
+        vaultId: null,
+        debtReserveId: "1",
+        amount: "1500000000",
+      }),
+    ];
+    await setupGraphqlMock(rows);
+
+    const result = await fetchUserActivities(
+      USER as `0x${string}`,
+      buildDeps([{ id: "1", symbol: "USDC", decimals: 6 }]),
+    );
+
+    expect(asStandard(result[0]).amount.hubLabel).toBe(RESERVE_HUB_LABEL);
   });
 
   it("formats high-decimals tokens without JS number precision loss", async () => {
@@ -768,6 +796,9 @@ describe("fetchUserActivities liquidation grouping", () => {
     expect(group.children).toHaveLength(2);
     expect(group.children[0].label).toBe("Liquidated");
     expect(group.children[1].label).toBe("Debt repaid");
+    // The repaid debt names its hub; the collateral side has none.
+    expect(group.children[1].amount.hubLabel).toBe(RESERVE_HUB_LABEL);
+    expect(group.children[0].amount.hubLabel).toBeUndefined();
   });
 
   it("still emits a LiquidationGroupRow when no sibling repay exists", async () => {

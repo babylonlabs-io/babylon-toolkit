@@ -6,8 +6,13 @@ import {
 } from "@/applications/aave/utils";
 import { HeartIcon } from "@/components/shared";
 import { COPY } from "@/copy";
+import type { HubIdentity } from "@/services/aave/hubRegistry";
+
+import { HubLabel } from "../../../HubLabel";
 
 interface BorrowMetricsCardProps {
+  /** Hub the selected reserve belongs to. */
+  hub: HubIdentity;
   /** Formatted current available liquidity, or "–". */
   availableLiquidity: string;
   /**
@@ -40,9 +45,11 @@ const DIVIDER_CLASS = "h-px w-full bg-secondary-strokeLight";
  * APR and Available liquidity rows render `current → projected` (the new borrow
  * raises the reserve's utilization), as does Health factor. Each figure falls
  * back to the empty placeholder ("–") while its read is loading or unavailable
- * rather than rendering a fabricated value.
+ * rather than rendering a fabricated value. The Hub row names which hub's
+ * market these figures describe, since one token can be borrowed from several.
  */
 export function BorrowMetricsCard({
+  hub,
   availableLiquidity,
   availableLiquidityProjected,
   borrowApr,
@@ -80,6 +87,11 @@ export function BorrowMetricsCard({
         ) : (
           <span className="text-accent-primary">{availableLiquidity}</span>
         )}
+      </div>
+
+      <div className={ROW_CLASS}>
+        <span className="text-accent-secondary">{COPY.loans.hub.label}</span>
+        <HubLabel hub={hub} className="text-accent-primary" />
       </div>
 
       <div className={DIVIDER_CLASS} />

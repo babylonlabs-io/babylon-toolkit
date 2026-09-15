@@ -3,7 +3,7 @@
  *
  * Guards that picking a row navigates by the reserve's on-chain id rather than
  * its indexer-supplied symbol, so two reserves sharing a symbol can't steer the
- * switch to the wrong one (audit F7).
+ * switch to the wrong one (audit F7), and that each entry names its hub.
  */
 
 import { fireEvent, render, screen } from "@testing-library/react";
@@ -19,50 +19,45 @@ const navigate = vi.fn();
 
 vi.mock("react-router", () => ({
   useNavigate: () => navigate,
+  useLocation: () => ({ pathname: "/loans" }),
 }));
 
 vi.mock("@babylonlabs-io/core-ui", () => ({
   Popover: ({ open, children }: { open: boolean; children: ReactNode }) =>
     open ? <div>{children}</div> : null,
   Avatar: ({ alt }: { alt: string }) => <img alt={alt} />,
-}));
-
-vi.mock("@/config", () => ({
-  FeatureFlags: {},
-  // AssetListItem pulls in @/utils/formatting, which reads BTC network config
-  // at module scope.
-  getNetworkConfigBTC: () => ({ coinSymbol: "sBTC", displayUSD: false }),
+  Hint: () => null,
 }));
 
 vi.mock("@/services/token/tokenService", () => ({
-  getTokenByAddress: () => ({ icon: "icon.png" }),
+  // No registry hit, so every row carries the indexer label the test sets.
+  getRegisteredTokenByAddress: () => null,
   getCurrencyIconWithFallback: () => "icon.png",
 }));
 
-// Two reserves deliberately share the symbol "USDC"; only their ids differ.
-// Only the fields AssetPill reads are populated.
+const BABYLON_HUB = "0xb3283508a0E96F80CF79DC2a1135F10dA170138D" as Address;
+const CORE_HUB = "0xF5E52D571Ed9b4779399A815815ABeFF7D7ec4ca" as Address;
+
+function reserve(
+  reserveId: bigint,
+  underlying: string,
+  hub: Address,
+  name: string,
+): AaveReserveConfig {
+  return {
+    reserveId,
+    reserve: { underlying, hub },
+    token: { symbol: "USDC", name, address: underlying, decimals: 6 },
+  } as unknown as AaveReserveConfig;
+}
+
+// Three reserves deliberately share the symbol "USDC": one token on two hubs,
+// and an impostor token on another address. Only their ids differ reliably.
 const reserves = [
-  {
-    reserveId: 2n,
-    reserve: { underlying: "0xUSDC" as Address },
-    token: {
-      symbol: "USDC",
-      name: "USD Coin",
-      address: "0xUSDC" as Address,
-      decimals: 6,
-    },
-  },
-  {
-    reserveId: 9n,
-    reserve: { underlying: "0xIMPOSTOR" as Address },
-    token: {
-      symbol: "USDC",
-      name: "USD Coin (impostor)",
-      address: "0xIMPOSTOR" as Address,
-      decimals: 18,
-    },
-  },
-] as unknown as AaveReserveConfig[];
+  reserve(2n, "0xUSDC", BABYLON_HUB, "USD Coin"),
+  reserve(4n, "0xUSDC", CORE_HUB, "USD Coin"),
+  reserve(9n, "0xIMPOSTOR", BABYLON_HUB, "USD Coin (impostor)"),
+];
 
 describe("AssetPill", () => {
   beforeEach(() => {
@@ -83,7 +78,30 @@ describe("AssetPill", () => {
     fireEvent.click(screen.getByRole("button", { name: /USDC/ }));
     fireEvent.click(screen.getByText("USD Coin (impostor)"));
 
-    expect(navigate).toHaveBeenCalledWith("/loans?reserve=9&tab=borrow");
+    expect(navigate).toHaveBeenCalledWith(
+      { pathname: "/loans", search: "?reserve=9&tab=borrow" },
+      { replace: true },
+    );
+  });
+
+  it("names each entry's hub so one token's reserves are told apart", () => {
+    render(
+      <AssetPill
+        symbol="USDC"
+        icon="icon.png"
+        selectedReserveId={2n}
+        reserves={reserves}
+        mode={LOAN_TAB.BORROW}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /USDC/ }));
+    fireEvent.click(screen.getByText("USDC on Core Hub"));
+
+    expect(navigate).toHaveBeenCalledWith(
+      { pathname: "/loans", search: "?reserve=4&tab=borrow" },
+      { replace: true },
+    );
   });
 
   it("keeps the current tab when switching asset", () => {
@@ -91,15 +109,18 @@ describe("AssetPill", () => {
       <AssetPill
         symbol="USDC"
         icon="icon.png"
-        selectedReserveId={2n}
+        selectedReserveId={9n}
         reserves={reserves}
         mode={LOAN_TAB.REPAY}
       />,
     );
 
     fireEvent.click(screen.getByRole("button", { name: /USDC/ }));
-    fireEvent.click(screen.getByText("USD Coin"));
+    fireEvent.click(screen.getAllByText("USD Coin")[0]);
 
-    expect(navigate).toHaveBeenCalledWith("/loans?reserve=2&tab=repay");
+    expect(navigate).toHaveBeenCalledWith(
+      { pathname: "/loans", search: "?reserve=2&tab=repay" },
+      { replace: true },
+    );
   });
 });

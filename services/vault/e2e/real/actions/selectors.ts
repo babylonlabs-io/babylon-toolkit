@@ -36,9 +36,18 @@ export function firstByTestid(
 /** The "Select asset" picker title (COPY.loans.assetSelection.title). Borrow always shows it; repay only
  *  when the position has multiple loans (a single loan routes straight to the form). */
 export const ASSET_SELECT_TITLE = "Select asset";
-/** Per-row testid prefix in the "Select asset" picker: `asset-select-row-<symbol-lowercase>`. Used both
- *  to target a row by token and to read the token symbol back out of the chosen row's `data-testid`. */
+/** Per-card testid prefix in the borrow "Select asset" picker: `asset-select-row-<underlying-address-lowercase>`,
+ *  one card per token. Builds that predate Select hub keyed one row per reserve by `<symbol-lowercase>`. */
 export const ASSET_ROW_TESTID_PREFIX = "asset-select-row-";
+/** The "Select hub" step title (COPY.loans.hub.selectTitle). Shown after Select asset only when the token is
+ *  listed on more than one hub; a single-hub token opens the borrow form directly. */
+export const HUB_SELECT_TITLE = "Select hub";
+/** Per-row testid prefix in "Select hub": `hub-option-<reserveId>`. Every row shares the token symbol. */
+export const HUB_OPTION_TESTID_PREFIX = "hub-option-";
+/** Per-row testid prefix in the repay picker: `repay-option-<reserveId>`. Two debts can share a symbol. */
+export const REPAY_OPTION_TESTID_PREFIX = "repay-option-";
+/** Per-row testid prefix in the /loans Active Loans list: `active-loan-row-<reserveId>`, one row per reserve. */
+export const ACTIVE_LOAN_ROW_TESTID_PREFIX = "active-loan-row-";
 /** The AmountSlider's numeric input (`inputmode="decimal"`, placeholder "0"). */
 export const AMOUNT_INPUT = 'input[inputmode="decimal"]';
 /** The AmountSlider's "Max" button (a <button> whose visible text is "Max"). */
@@ -51,3 +60,25 @@ export const SUCCESS_DONE_TESTID = '[data-testid="loan-success-done-button"]';
 export const DONE_BUTTON_RX = /^done$/i;
 /** The tx-failure callout title (COPY.common.transactionFailedTitle) shown when a borrow/repay tx fails. */
 export const TX_FAILED_RX = /transaction failed/i;
+/**
+ * The wallet's node rejected a submit whose nonce the previous, just-mined transaction already used
+ * (https://github.com/babylonlabs-io/babylon-toolkit/issues/2514). Nothing was broadcast.
+ */
+export const STALE_NONCE_RX = /nonce too low/i;
+
+/**
+ * Refuse to continue on a loan form opened for a different reserve than the one this run resolved. The
+ * overlay carries the reserve's on-chain id in `?reserve=`, so a wrong picker click (or a UI routing bug)
+ * fails here, before an amount is entered, rather than borrowing or repaying on the wrong market.
+ */
+export function assertOpenFormReserve(
+  page: Page,
+  reserveId: bigint,
+  flow: "Borrow" | "Repay",
+): void {
+  const opened = new URL(page.url()).searchParams.get("reserve");
+  if (opened !== reserveId.toString())
+    throw new Error(
+      `${flow}: the form opened for reserve ${opened ?? "(none)"}, not reserve ${reserveId} — refusing to continue on the wrong market.`,
+    );
+}

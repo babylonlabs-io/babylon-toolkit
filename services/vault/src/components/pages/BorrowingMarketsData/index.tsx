@@ -3,7 +3,7 @@
  *
  * Everything on the page reads from the same three batched Hub queries over
  * `borrowableReserves`: the stats bar and the collateral card show the routed
- * symbol's slice, the table shows every reserve. The two charts fetch their
+ * reserve's slice, the table shows every reserve, one row per hub. The two charts fetch their
  * series independently of that batch: `BorrowRateHistoryCard` queries the
  * indexer for a rate time series and `InterestRateModelCard` reads the
  * indexer IRM curve (hour-cached; its live "Current" marker reuses the
@@ -15,6 +15,7 @@ import { useMemo } from "react";
 import { IoChevronBack } from "react-icons/io5";
 import { useLocation, useNavigate, useParams } from "react-router";
 
+import { HubLabel } from "@/applications/aave/components/HubLabel";
 import { ReserveIdentityBlock } from "@/applications/aave/components/ReserveIdentityBlock";
 import { BPS_SCALE, LOAN_TAB } from "@/applications/aave/constants";
 import { useAaveConfig } from "@/applications/aave/context";
@@ -25,6 +26,8 @@ import {
   useVaultSplitParams,
   useVerifiedReserveIdentity,
 } from "@/applications/aave/hooks";
+import { compactUsdLabel } from "@/applications/aave/utils/marketLabels";
+import { getReserveTokenLabel } from "@/applications/aave/utils/reserveTokenLabel";
 import { NEUTRAL_BUTTON_CLASS } from "@/components/shared/buttonClasses";
 import { PAGE_CONTENT_CLASS } from "@/components/shared/layoutClasses";
 import { getNetworkConfigBTC } from "@/config";
@@ -32,10 +35,11 @@ import { COPY } from "@/copy";
 import { useMarketDataOverride } from "@/overrides/marketData";
 import {
   getAssetPickerRoute,
-  getMarketSlug,
   getReserveDetailSearch,
-  MARKET_PARAM,
+  MARKET_RESERVE_PARAM,
+  parseReserveId,
 } from "@/routes";
+import { getHubIdentity } from "@/services/aave/hubRegistry";
 import {
   getCurrencyIconWithFallback,
   getTokenByAddress,
@@ -44,7 +48,6 @@ import {
   formatAprPercent,
   formatBasisPointsAsPercent,
   formatCompactTokenAmount,
-  formatCompactUsd,
 } from "@/utils/formatting";
 
 import type { BorrowMarketRow } from "./BorrowMarketsTable";
@@ -55,20 +58,7 @@ import { InterestRateModelCard } from "./InterestRateModelCard";
 import type { MarketStat } from "./MarketStatsBar";
 import { MarketStatsBar } from "./MarketStatsBar";
 
-/** Every USD figure here sits beside an always-uppercase token amount. */
-const UPPERCASE_MAGNITUDE_SUFFIX = true;
-
 const btcConfig = getNetworkConfigBTC();
-
-/** Empty placeholder when the amount or its price is missing, never `$0`. */
-function compactUsdLabel(
-  amount: number | undefined,
-  priceUsd: number | null | undefined,
-): string {
-  return amount === undefined || priceUsd == null
-    ? COPY.common.emptyValue
-    : formatCompactUsd(amount * priceUsd, UPPERCASE_MAGNITUDE_SUFFIX);
-}
 
 function compactTokenLabel(amount: number | undefined, symbol: string): string {
   return amount === undefined
@@ -143,24 +133,27 @@ export default function BorrowingMarketsData() {
   const effectiveCollateralFactor =
     demoMarketData?.collateralFactor ?? splitParams?.CF ?? null;
 
-  // Resolve by the registry slug the link was built from, never by the
-  // indexer's own symbol — see `getMarketSlug` for why that distinction is the
-  // audit-F7 boundary. Exactly one match or none: `.find` would take whichever
+  // Resolve by the reserve's on-chain id, never by a token symbol: one token
+  // can be listed on several hubs, each a separate market, so a symbol names
+  // no single reserve. Exactly one match or none: `.find` would take whichever
   // duplicate the indexer ordered first.
+  const routedParam = params[MARKET_RESERVE_PARAM];
+  const routedReserveId = parseReserveId(routedParam);
+  // An old `/markets/<symbol>` link. Blocked with its own copy, never resolved.
+  const isLegacyMarketParam =
+    routedParam !== undefined && routedReserveId === null;
   const selectedReserve = useMemo(() => {
-    const slug = params[MARKET_PARAM]?.toLowerCase();
-    const matches = !slug
-      ? []
-      : effectiveReserves.filter(
-          (r) => getMarketSlug(r.reserveId, r.reserve.underlying) === slug,
-        );
+    const matches =
+      routedReserveId === null
+        ? []
+        : effectiveReserves.filter((r) => r.reserveId === routedReserveId);
     if (matches.length === 1) return matches[0];
     // Demo only: the fixtures replace the live reserve set, so whatever id is
     // already in the URL matches none of them. Falling back to the first
     // fixture lets the toggle work from any market route instead of blanking
     // the page — the live path above still resolves strictly or not at all.
     return isDemo ? (effectiveReserves[0] ?? null) : null;
-  }, [effectiveReserves, params, isDemo]);
+  }, [effectiveReserves, routedReserveId, isDemo]);
 
   // Demo fixtures have no on-chain counterpart, so verification could only
   // fail for them — leave the read disabled rather than letting that failure
@@ -188,6 +181,12 @@ export default function BorrowingMarketsData() {
       : identity?.icon,
     symbol,
   );
+  // The hub is part of which market this page is about: the same token on
+  // another hub is a different market. Its address was proven at config load.
+  const hub = selectedReserve
+    ? getHubIdentity(selectedReserve.reserve.hub)
+    : null;
+  const hubLabel = hub?.label ?? COPY.common.emptyValue;
 
   const rows = useMemo<BorrowMarketRow[]>(
     () =>
@@ -196,16 +195,15 @@ export default function BorrowingMarketsData() {
         const liquidity = effectiveLiquidityByReserveId[key] ?? null;
         const aprPercent = effectiveAprPercentByReserveId[key] ?? null;
         const priceUsd = effectivePricesByReserveId[key] ?? null;
-        const tokenSymbol = reserve.token.symbol;
+        const token = getReserveTokenLabel(reserve);
+        const tokenSymbol = token.symbol;
 
         return {
           reserveId: key,
           symbol: tokenSymbol,
-          name: reserve.token.name,
-          icon: getCurrencyIconWithFallback(
-            getTokenByAddress(reserve.token.address)?.icon,
-            tokenSymbol,
-          ),
+          name: token.name,
+          icon: token.icon,
+          hub: getHubIdentity(reserve.reserve.hub),
           aprLabel:
             aprPercent === null
               ? COPY.common.emptyValue
@@ -320,6 +318,9 @@ export default function BorrowingMarketsData() {
   // page is a claim about a specific market, and an unverified header is the
   // mislabeling F7 stops. Skipped under demo, where no verification ran.
   if (!isDemo) {
+    if (isLegacyMarketParam) {
+      return centered(COPY.loans.detail.reserveLinkOutdated);
+    }
     if (identityError) {
       return (
         <Container className={`${PAGE_CONTENT_CLASS} pb-6`}>
@@ -389,9 +390,15 @@ export default function BorrowingMarketsData() {
                   <span className="rounded-lg bg-secondary-strokeLight px-2 py-0.5 text-xs leading-[1.66] tracking-[0.4px] text-accent-secondary">
                     {symbol}
                   </span>
+                  {hub && (
+                    <HubLabel
+                      hub={hub}
+                      className="rounded-lg bg-secondary-strokeLight px-2 py-0.5 text-xs leading-[1.66] tracking-[0.4px] text-accent-secondary"
+                    />
+                  )}
                 </div>
                 <Text variant="body1" className="text-accent-secondary">
-                  {COPY.marketData.subtitle(symbol)}
+                  {COPY.marketData.subtitle(symbol, hubLabel)}
                 </Text>
               </div>
             </div>
@@ -433,6 +440,7 @@ export default function BorrowingMarketsData() {
               <BorrowRateHistoryCard
                 reserveId={selectedReserve.reserveId}
                 symbol={symbol}
+                hubLabel={hubLabel}
               />
             )}
           </div>
@@ -451,6 +459,7 @@ export default function BorrowingMarketsData() {
               reserve={selectedReserve}
               utilizationBps={selectedUtilizationBps}
               symbol={symbol}
+              hubLabel={hubLabel}
             />
           )}
         </section>
@@ -461,7 +470,10 @@ export default function BorrowingMarketsData() {
         >
           <SectionHeader
             title={COPY.marketData.borrowMarkets.title}
-            description={COPY.marketData.borrowMarkets.description(symbol)}
+            description={COPY.marketData.borrowMarkets.description(
+              symbol,
+              hubLabel,
+            )}
           />
           <BorrowMarketsTable rows={rows} />
         </section>

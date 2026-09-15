@@ -14,7 +14,7 @@ import {
 } from "@babylonlabs-io/core-ui";
 import { useTheme } from "next-themes";
 import type { ReactNode } from "react";
-import { IoClose } from "react-icons/io5";
+import { IoChevronBack, IoClose } from "react-icons/io5";
 import { twJoin } from "tailwind-merge";
 
 import { NetworkBadge } from "@/components/shared/NetworkBadge";
@@ -25,6 +25,12 @@ interface V3ModalShellProps {
   open: boolean;
   /** Omit to lock dismissal (e.g. while a tx is in flight). */
   onClose?: () => void;
+  /**
+   * Shows a back arrow in place of the close button, for a step reached from
+   * an earlier step of the same flow. Escape and the backdrop still call
+   * `onClose`.
+   */
+  onBack?: () => void;
   disableEscapeClose?: boolean;
   /** Max-width (and any extra layout) for the centered card. */
   contentClassName?: string;
@@ -34,6 +40,7 @@ interface V3ModalShellProps {
 export function V3ModalShell({
   open,
   onClose,
+  onBack,
   disableEscapeClose,
   contentClassName,
   children,
@@ -50,15 +57,24 @@ export function V3ModalShell({
       // Escape dismissal).
       closeButtonClassName="!hidden"
     >
-      {/* Header row: close on the left, network + settings on the right, on
-          the design's 120px inset so every modal's chrome lands in the same
-          place. As a stretched flex child the row fills the dialog minus that
-          gutter on its own — it needs no width class, which
+      {/* Header row: back or close on the left, network + settings on the
+          right, on the design's 120px inset so every modal's chrome lands in
+          the same place. As a stretched flex child the row fills the dialog
+          minus that gutter on its own — it needs no width class, which
           MODAL_TOP_BAR_GUTTER_CLASS explains is just as well. */}
       <div
         className={`flex items-center justify-between py-4 ${MODAL_TOP_BAR_GUTTER_CLASS}`}
       >
-        {onClose ? (
+        {onBack ? (
+          <button
+            type="button"
+            onClick={onBack}
+            aria-label={COPY.common.back}
+            className="flex size-10 items-center justify-center text-accent-primary"
+          >
+            <IoChevronBack size={24} />
+          </button>
+        ) : onClose ? (
           <button
             type="button"
             onClick={onClose}

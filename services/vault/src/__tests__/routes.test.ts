@@ -9,41 +9,63 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  getHubPickerSearch,
   getMarketDataRoute,
-  getReserveDetailRoute,
+  getReserveDetailSearch,
+  parseAssetParam,
   parseReserveId,
 } from "../routes";
 
-/** Mainnet USDC — present in the address-keyed token registry. */
-const REGISTERED_USDC = "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85";
+const DEVNET_USDC = "0xB588C1bd8A6cd3F114A52a0AD916778B419ECf48";
 
-describe("getReserveDetailRoute", () => {
-  it("writes the reserve id into the route", () => {
-    expect(getReserveDetailRoute(5n, "repay")).toBe(
-      "/loans?reserve=5&tab=repay",
-    );
+describe("getReserveDetailSearch", () => {
+  it("writes the reserve id into the search", () => {
+    expect(getReserveDetailSearch(5n, "repay")).toBe("?reserve=5&tab=repay");
   });
 
   it("preserves a large reserve id exactly", () => {
-    expect(getReserveDetailRoute(18446744073709551617n, "borrow")).toBe(
-      "/loans?reserve=18446744073709551617&tab=borrow",
+    expect(getReserveDetailSearch(18446744073709551617n, "borrow")).toBe(
+      "?reserve=18446744073709551617&tab=borrow",
+    );
+  });
+
+  it("carries the chosen asset onto the form search", () => {
+    expect(getReserveDetailSearch(4n, "borrow", DEVNET_USDC)).toBe(
+      `?reserve=4&tab=borrow&asset=${DEVNET_USDC}`,
+    );
+  });
+
+  it("omits the asset when the form wasn't reached through the pickers", () => {
+    expect(getReserveDetailSearch(4n, "borrow")).toBe("?reserve=4&tab=borrow");
+  });
+});
+
+describe("getHubPickerSearch", () => {
+  it("opens the borrow picker narrowed to one token", () => {
+    expect(getHubPickerSearch(DEVNET_USDC)).toBe(
+      `?picker=borrow&asset=${DEVNET_USDC}`,
     );
   });
 });
 
+describe("parseAssetParam", () => {
+  it("checksums a lowercase address", () => {
+    expect(parseAssetParam(DEVNET_USDC.toLowerCase())).toBe(DEVNET_USDC);
+  });
+
+  it("rejects a token symbol", () => {
+    expect(parseAssetParam("usdc")).toBeNull();
+  });
+
+  it("returns null for a missing param", () => {
+    expect(parseAssetParam(null)).toBeNull();
+    expect(parseAssetParam(undefined)).toBeNull();
+  });
+});
+
 describe("getMarketDataRoute", () => {
-  it("names a registered token by its symbol", () => {
-    expect(getMarketDataRoute(0n, REGISTERED_USDC)).toBe("/markets/usdc");
-  });
-
-  it("falls back to the reserve id for an unregistered token", () => {
-    expect(
-      getMarketDataRoute(7n, "0x1111111111111111111111111111111111111111"),
-    ).toBe("/markets/7");
-  });
-
-  it("falls back to the reserve id when the underlying is unknown", () => {
-    expect(getMarketDataRoute(7n)).toBe("/markets/7");
+  it("addresses the market by reserve id", () => {
+    expect(getMarketDataRoute(4n)).toBe("/markets/4");
   });
 });
 

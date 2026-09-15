@@ -1,10 +1,9 @@
 /**
  * BorrowingMarketsData — reserve resolution and header labelling.
  *
- * The page is addressed by a registry-backed slug (the on-chain id for tokens
- * the registry doesn't know) and labelled from the proven identity, so a
- * spoofed indexer symbol can neither steer which market opens nor name the one
- * that does (audit F7).
+ * The page is addressed by the reserve's on-chain id and labelled from the
+ * proven identity, so a spoofed indexer symbol can neither steer which market
+ * opens nor name the one that does (audit F7).
  */
 
 import { render, screen } from "@testing-library/react";
@@ -46,14 +45,17 @@ vi.mock("@/config/featureFlags", () => ({
 vi.mock("@/services/token/tokenService", () => ({
   getCurrencyIconWithFallback: () => "icon.png",
   getTokenByAddress: () => null,
-  // No registry entry for this fixture's underlying, so its slug is the id.
+  // No registry entry for this fixture's underlying.
   getRegisteredTokenByAddress: () => null,
 }));
 
 // Reserve 2 is genuinely WETH; the indexer labels it "USDC".
 const spoofedReserve = {
   reserveId: 2n,
-  reserve: { underlying: "0xWETH" as Address },
+  reserve: {
+    underlying: "0xWETH" as Address,
+    hub: "0xF5E52D571Ed9b4779399A815815ABeFF7D7ec4ca" as Address,
+  },
   token: {
     symbol: "USDC",
     name: "USD Coin",
@@ -111,7 +113,7 @@ function resolved(overrides: Record<string, unknown> = {}) {
 describe("BorrowingMarketsData", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockParams.mockReturnValue({ market: "2" });
+    mockParams.mockReturnValue({ reserveId: "2" });
     mockUseVerifiedReserveIdentity.mockReturnValue(resolved());
     mockUseAaveBorrowAprs.mockReturnValue({ aprPercentByReserveId: {} });
     mockUseAaveReserveLiquidity.mockReturnValue({ liquidityByReserveId: {} });
@@ -157,15 +159,17 @@ describe("BorrowingMarketsData", () => {
     expect(screen.getByText("WETH")).toBeInTheDocument();
   });
 
-  it("blocks a symbol URL the registry doesn't back instead of resolving it", () => {
-    mockParams.mockReturnValue({ market: "usdc" });
+  it("shows the outdated-link state for a symbol URL without resolving any reserve", () => {
+    mockParams.mockReturnValue({ reserveId: "usdc" });
     mockUseVerifiedReserveIdentity.mockReturnValue(
       resolved({ identity: null }),
     );
 
     render(<BorrowingMarketsData />);
 
-    expect(screen.getByText(COPY.loans.reserveNotFound)).toBeInTheDocument();
+    expect(
+      screen.getByText(COPY.loans.detail.reserveLinkOutdated),
+    ).toBeInTheDocument();
     expect(mockUseVerifiedReserveIdentity).toHaveBeenCalledWith({
       reserveId: undefined,
       underlying: undefined,
@@ -173,7 +177,7 @@ describe("BorrowingMarketsData", () => {
   });
 
   it("reports an id matching no reserve as not found", () => {
-    mockParams.mockReturnValue({ market: "99999" });
+    mockParams.mockReturnValue({ reserveId: "99999" });
     mockUseVerifiedReserveIdentity.mockReturnValue(
       resolved({ identity: null }),
     );
