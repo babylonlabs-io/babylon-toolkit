@@ -66,6 +66,8 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.31.0",
+    "@ledgerhq/device-management-kit": "1.7.1",
+    "@ledgerhq/device-transport-kit-speculos": "1.2.1",
     "@playwright/test": "1.56.1",
     "@sentry/vite-plugin": "^2.22.6",
     "@tanstack/react-query-devtools": "5.28.14",

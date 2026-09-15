@@ -1,6 +1,11 @@
 import type { Config } from "wagmi";
 
-import { failInitialization, getAppKitState, registerManualAppKitConfig } from "@/core/wallets/appkit/state";
+import {
+  failInitialization,
+  getAppKitModal,
+  getAppKitState,
+  registerManualAppKitConfig,
+} from "@/core/wallets/appkit/state";
 
 const ETHEREUM_CAPABILITY = "Ethereum";
 const SHARED_WAGMI_REPLACEMENT_WARNING =
@@ -33,7 +38,10 @@ export function getSharedWagmiConfig(): Config {
   const initializedState = getAppKitState();
   if (initializedState) {
     if (!initializedState.wagmiConfig) {
-      failInitialization("AppKit was initialized without Ethereum support. Initialize it with Ethereum support.", "ETH");
+      failInitialization(
+        "AppKit was initialized without Ethereum support. Initialize it with Ethereum support.",
+        "ETH",
+      );
     }
 
     return initializedState.wagmiConfig;
@@ -51,4 +59,10 @@ export function getSharedWagmiConfig(): Config {
 export function hasSharedWagmiConfig(): boolean {
   const initializedState = getAppKitState();
   return initializedState ? initializedState.wagmiConfig !== undefined : sharedWagmiConfig !== null;
+}
+
+export function ethDisconnectWouldDropBitcoin(): boolean {
+  const modal = getAppKitModal();
+  const providerType = modal?.getProviderType("eip155");
+  return providerType === "WALLET_CONNECT" && modal?.getAccount("bip122")?.isConnected === true;
 }

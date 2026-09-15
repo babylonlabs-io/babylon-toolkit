@@ -5,6 +5,7 @@ import {
   ETHWalletProvider,
   WalletProvider,
   createWalletConfig,
+  useChainConnector,
   useWalletConnect,
   useWidgetState,
 } from "@babylonlabs-io/wallet-connector";
@@ -20,6 +21,7 @@ import {
 import { getNetworkConfigBTC } from "@/config";
 import featureFlags from "@/config/featureFlags";
 import { getNetworkConfigETH } from "@/config/network";
+import { isSpeculosTransportArmed } from "@/e2e/speculosTransportBootstrap";
 import { logger } from "@/infrastructure";
 import { isUserCancellation } from "@/utils/errors/userCancellation";
 
@@ -37,29 +39,44 @@ const ALWAYS_DISABLED_WALLETS: string[] = [
   "ledger_btc_v2",
 ];
 
+/** Wallet id of the Ledger BTC Vault app. */
+const LEDGER_VAULT_WALLET_ID = "ledger_btc_vault";
+
 /**
- * Wallet id of the Ledger BTC Vault app. Exported because the reclaim flow
- * gates on it too — the device firmware cannot sign that transaction shape
- * (see `models/reclaimEligibility`) — and both sites must agree on the id.
+ * Whether the connected BTC wallet is the Ledger BTC Vault app — the one
+ * predicate the reclaim row (`hooks/deposit/useReclaimRowAction`) and the
+ * deposit reserve tooltip (`components/simple/SimpleDeposit`) must share.
  */
-export const LEDGER_VAULT_WALLET_ID = "ledger_btc_vault";
+export function isLedgerVaultConnector(
+  connector: { connectedWallet?: { id: string } | null } | null | undefined,
+): boolean {
+  return connector?.connectedWallet?.id === LEDGER_VAULT_WALLET_ID;
+}
 
 // `ledger_btc_vault` (DMK-based vault provider, #2109) is opt-in via the feature
 // flag while Ledger's firmware is still in review — the env disable list defaults
 // to empty, so a new provider would otherwise show wherever nobody listed it.
-// The flag is necessary but not sufficient: the DMK web-hid transport needs
-// WebHID (`navigator.hid` — desktop Chromium only, secure context); without it
-// the entry still renders clickable and only fails on connect, so hide it up
-// front. `in` check because TS's DOM lib does not declare `Navigator.hid`.
-const isWebHidAvailable = "hid" in navigator;
+// The flag is necessary but not sufficient: the DMK needs a transport that can
+// actually reach a device — WebHID (`navigator.hid` — desktop Chromium only,
+// secure context), or the E2E Speculos override once it is genuinely ARMED
+// (#2110; `main.tsx` arms before render, so a render-time read is never early,
+// and a configured-but-failed arm keeps the row hidden). Without either, the
+// entry would render clickable and only fail on connect, so hide it up front.
+// `in` check because TS's DOM lib does not declare `Navigator.hid`.
+function canReachLedgerDevice(): boolean {
+  return "hid" in navigator || isSpeculosTransportArmed();
+}
 
-const DISABLED_WALLETS: string[] = [
-  ...ALWAYS_DISABLED_WALLETS,
-  ...(featureFlags.isLedgerVaultWalletEnabled && isWebHidAvailable
-    ? []
-    : [LEDGER_VAULT_WALLET_ID]),
-  ...featureFlags.disabledBtcWallets,
-];
+/** Computed per render (cheap), not at module scope: the Speculos arm state does not exist yet when this module evaluates. */
+export function computeDisabledWallets(): string[] {
+  return [
+    ...ALWAYS_DISABLED_WALLETS,
+    ...(featureFlags.isLedgerVaultWalletEnabled && canReachLedgerDevice()
+      ? []
+      : [LEDGER_VAULT_WALLET_ID]),
+    ...featureFlags.disabledBtcWallets,
+  ];
+}
 
 const context = typeof window !== "undefined" ? window : {};
 
@@ -73,22 +90,8 @@ const WALLET_DIALOG_LEFT_INSET_CLASS =
 const WALLET_DIALOG_RIGHT_INSET_CLASS =
   "md:!right-[max(20px,calc((100vw-1080px)/2+20px))]";
 
-// A late-injecting BTC extension (e.g. UniSat) can emit a transient `disconnect`
-// while its service worker wakes right after a page (re)load, then immediately
-// reconnect. That blip is the only thing distinguishing it from a real
-// disconnect: a genuine disconnect is NOT followed by a reconnect. So instead of
-// reacting to a BTC disconnect immediately (which calls `disconnectAll()` and
-// wipes the persisted session for BOTH wallets), we wait this long; if a
-// reconnect arrives within the window we cancel, otherwise the disconnect is
-// real and we proceed. A real disconnect is therefore honoured, just delayed by
-// this bounded amount — never dropped.
-//
-// The window has to outlast a slow Unisat wake-up + auto-reconnect handshake
-// (which is fire-and-forget on reload and can take up to the provider's RPC
-// timeout). 1500ms was shorter than that handshake, so a slow extension wake
-// was being treated as a real disconnect and wiped both wallets. The
-// `hasBtcConnectedRef` gate (below) is the primary guard against startup blips;
-// this debounce + cancelBtcReset cover post-connect wake-up blips.
+// Allow a slow extension to reconnect before clearing its Bitcoin session.
+// A 1500 ms delay was shorter than the UniSat restore handshake.
 const BTC_DISCONNECT_DEBOUNCE_MS = 3000;
 
 /**
@@ -96,6 +99,7 @@ const BTC_DISCONNECT_DEBOUNCE_MS = 3000;
  */
 function WalletProviders({ children }: PropsWithChildren) {
   const { disconnect: disconnectAll } = useWalletConnect();
+  const btcConnector = useChainConnector("BTC");
   // Whether the connect modal is open. While it is, the user is actively
   // managing wallets, so a single-wallet disconnect must NOT cascade into the
   // full both-wallets teardown (which also closes the modal).
@@ -106,19 +110,14 @@ function WalletProviders({ children }: PropsWithChildren) {
   }, [connectModalVisible]);
   // Guard against re-entrancy when disconnectAll triggers disconnect events
   const isDisconnectingRef = useRef(false);
-  // Whether BTC has successfully connected at least once this session. A
-  // disconnect before the first successful connect is, by definition, a
-  // startup/reconnect blip — there is no live session to tear down — so we
-  // never escalate it to disconnectAll() (which would wipe BOTH wallets).
+  // A disconnect before the first connection must not clear a saved session.
   const hasBtcConnectedRef = useRef(false);
   // Pending debounced BTC reset (see BTC_DISCONNECT_DEBOUNCE_MS).
   const pendingBtcResetRef = useRef<ReturnType<typeof setTimeout> | undefined>(
     undefined,
   );
 
-  // Disconnect every wallet. Used directly for events that are unambiguous
-  // (account switch, ETH disconnect) and as the deferred action for the
-  // debounced BTC disconnect path.
+  // Reset both wallets after an account change or an Ethereum session loss.
   const runWalletReset = useCallback(async () => {
     if (isDisconnectingRef.current) return;
     isDisconnectingRef.current = true;
@@ -129,31 +128,29 @@ function WalletProviders({ children }: PropsWithChildren) {
     }
   }, [disconnectAll]);
 
-  // BTC disconnected — but it might be a transient wake-up blip. Defer the
-  // cascade; a reconnect within the debounce window cancels it (see
-  // cancelBtcReset). No-op while a teardown is already running so the disconnect
-  // events disconnectAll() itself emits don't re-arm the timer.
+  // A reconnect cancels Bitcoin cleanup. Ignore events from a full reset.
   const scheduleBtcReset = useCallback(() => {
     if (isDisconnectingRef.current) return;
-    // A disconnect before BTC ever finished connecting this session is a
-    // startup/reconnect blip, not a real disconnect — there is no live session
-    // to tear down. Escalating it would wipe the persisted session for BOTH
-    // wallets (including ETH) over a wallet that simply hasn't woken up yet.
     if (!hasBtcConnectedRef.current) return;
     if (pendingBtcResetRef.current !== undefined)
       clearTimeout(pendingBtcResetRef.current);
     pendingBtcResetRef.current = setTimeout(() => {
       pendingBtcResetRef.current = undefined;
-      // A reconnect within the window cancels this timer via cancelBtcReset
-      // (fired from the provider's onConnect). If we get here, no reconnect
-      // arrived — treat it as a real disconnect. We deliberately do NOT consult
-      // the connector's `connectedWallet` as a liveness signal: an
-      // extension-initiated disconnect tears down BTCWalletProvider without
-      // calling connector.disconnect(), so `connectedWallet` stays stale-set
-      // and would wrongly suppress a genuine disconnect.
-      void runWalletReset();
+      // A full reset may have started while the timer ran. Let it finish alone.
+      if (isDisconnectingRef.current) return;
+      // Prevent the cleanup event from starting another timer. The local scope
+      // clears Bitcoin selection and storage without disconnecting Ethereum.
+      hasBtcConnectedRef.current = false;
+      // An extension-initiated disconnect tears down BTCWalletProvider without
+      // calling connector.disconnect(), so connectedWallet stays stale-set.
+      // That is why this call still clears the persisted session, and why it
+      // must not be gated on connectedWallet.
+      logger.info("Clearing the Bitcoin session after a sustained disconnect", {
+        category: "Wallet connection",
+      });
+      void btcConnector?.disconnect("local");
     }, BTC_DISCONNECT_DEBOUNCE_MS);
-  }, [runWalletReset]);
+  }, [btcConnector]);
 
   // BTC (re)connected. Mark the session as having connected at least once, and
   // if a reset is pending, the preceding disconnect was a transient blip —
@@ -250,6 +247,8 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
     logger.error(error, { data: { context: "Wallet connection error" } });
   }, []);
 
+  const disabledWallets = useMemo(() => computeDisabledWallets(), []);
+
   return (
     <WalletProvider
       persistent
@@ -257,7 +256,7 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
       config={config}
       context={context}
       onError={onError}
-      disabledWallets={DISABLED_WALLETS}
+      disabledWallets={disabledWallets}
       requiredChains={["BTC", "ETH"]}
       disableTomo
       dialogActions={<StandardSettingsMenu theme={theme} setTheme={setTheme} />}

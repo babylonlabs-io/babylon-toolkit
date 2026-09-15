@@ -55,6 +55,10 @@ const TRANSACTION_FAILED_TITLE = "Transaction failed";
 // of those messages — it is what distinguishes them from the post-registration
 // failures, which have spent an Ethereum fee — so it lives in one place.
 const NOTHING_SIGNED_OR_SPENT = "Nothing was signed and no funds were spent";
+// What the depositor-claim reserve is for; the sentence every variant of the
+// reserve tooltip opens with.
+const RESERVE_PURPOSE =
+  "A small portion of your deposit is reserved in a dedicated output to fund a future protocol claim transaction.";
 // Shared between the resume WOTS error string and the mapped callout body so
 // the wording stays in one place.
 const WRONG_WALLET_BODY =
@@ -700,13 +704,14 @@ export const COPY = {
     form: {
       computingAllocation: "Computing allocation...",
       transactionReserveLabel: "Depositor claim output",
-      // Describes the real mechanism, and deliberately shares wording with
-      // COPY.reclaim.review.description so the promise made at deposit time
-      // and the action offered after settlement read as the same thing. Until
-      // the reclaim flow shipped this said the reserve "is returned to you if
-      // unused", which nothing in the app could actually do.
-      transactionReserveTooltip:
-        "A small portion of your deposit is reserved in a dedicated output to fund a future protocol claim transaction. If it goes unused, you can reclaim it from your BTCVault once the vault has settled.",
+      // Promise only what the app can do: the Ledger vault app cannot sign the
+      // reclaim sweep (#2375, models/reclaimEligibility.ts).
+      transactionReserveTooltip: (isLedgerVaultWallet: boolean) =>
+        `${RESERVE_PURPOSE} ${
+          isLedgerVaultWallet
+            ? "If it goes unused, reclaiming it with a Ledger device is not supported yet, and it will remain reclaimable once support ships."
+            : "If it goes unused, you can reclaim it once your BTCVault has settled."
+        }`,
       // Labeled "Available", not "Balance": the field shows the depositable
       // maximum — the wallet balance net of the fee buffer, inscription UTXOs
       // and the supply cap — not the raw wallet balance.
@@ -1020,6 +1025,28 @@ export const COPY = {
         title: "Vault operator keys changed",
         body: "A vault operator rotated its Bitcoin key while your deposit was being registered, so the registered vault no longer matches the transaction we prepared. Your Pre-Pegin was not broadcast and no Bitcoin was spent. The registered vault will time out on its own — please start a new deposit.",
       },
+      // The contract's own fingerprint check. It sits between the two cases
+      // around it: unlike the pre-signing aborts it cannot claim
+      // NOTHING_SIGNED_OR_SPENT, because the depositor has already approved the
+      // peg-in signatures by this point; unlike participantKeyDrift there is no
+      // stranded vault to explain.
+      //
+      // Every claim below has to hold on BOTH paths this revert takes — the gas
+      // estimate, where nothing was sent, and a rotation landing between that
+      // estimate and inclusion, which mines and so costs gas. Only the mapped
+      // estimate path reaches this copy today (see #2498), but wording it for
+      // one path would leave a false statement behind the moment the other is
+      // routed here. So: no "before it was submitted", and no "no fee was
+      // paid". What does hold either way is that the Pre-Pegin has not been
+      // broadcast and no Bitcoin has moved — registration precedes broadcast —
+      // and that is the reassurance that matters, since the Bitcoin is the
+      // depositor's principal and the gas is noise beside it.
+      //
+      // The two fingerprints go to diagnostics, never to the depositor.
+      peginFingerprintChanged: {
+        title: "Protocol configuration changed",
+        body: "The protocol configuration changed while your deposit was being prepared, so the contract rejected the registration. Your Pre-Pegin has not been broadcast and no Bitcoin was spent — but the signatures you just approved no longer match the protocol and cannot be reused. Please start the deposit again.",
+      },
       wrongWalletAccount: {
         title: "Wrong wallet account",
         body: WRONG_WALLET_BODY,
@@ -1253,6 +1280,13 @@ export const COPY = {
       heading: SOMETHING_WENT_WRONG_HEADING,
       body: "Please close this and try again in a moment.",
     },
+    // Inline panel shown in place of a page when the Aave config fails to
+    // load. Not a dialog, so unlike `somethingWentWrong` there is nothing to close.
+    aaveConfigUnavailable: {
+      heading: SOMETHING_WENT_WRONG_HEADING,
+      body: "Please try again in a moment.",
+      retryButton: "Retry",
+    },
     globalError: {
       heading: SOMETHING_WENT_WRONG_HEADING,
       body: "An unexpected error occurred. Please try again later.",
@@ -1412,10 +1446,10 @@ export const COPY = {
     blocked: {
       protocolPaused:
         "Reclaim is paused while the protocol is under maintenance. Your reserve is safe and will remain reclaimable.",
-      // The Ledger vault app's firmware cannot sign this transaction shape.
-      // See models/reclaimEligibility.ts for the firmware reference.
+      // Ledger cannot sign this shape (#2375, models/reclaimEligibility.ts). Never
+      // point at "another wallet": for a hardware user that means restoring the seed.
       ledgerUnsupported:
-        "The Ledger BTCVault app cannot sign a reclaim yet. Connect the same wallet through another BTC wallet to reclaim your reserve.",
+        "Reclaiming with a Ledger device is not supported yet. Your reserve is safe and will remain reclaimable once support ships.",
     },
     // Failures surfaced on the review screen's error callout. Kept here rather
     // than inline in the execution hook so the whole reclaim surface is
@@ -2168,6 +2202,12 @@ export const COPY = {
   // weird-params / too-many-vaults. Wording is ported from the reference
   // liquidation calculator (the source of truth for this copy).
   liquidationWarnings: {
+    incompletePosition: "Indexed collateral data is incomplete",
+    liveHealthFactor: {
+      title: (healthFactor: string) =>
+        `Critical - health factor ${healthFactor}`,
+      detail: "The on-chain health factor shows a high risk of liquidation.",
+    },
     urgent: {
       liquidatableTitle: "Liquidation can trigger now",
       liquidatableDetail: (liqPriceUsd: string) =>

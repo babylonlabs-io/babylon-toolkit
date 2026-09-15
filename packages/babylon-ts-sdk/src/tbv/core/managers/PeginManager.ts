@@ -24,7 +24,6 @@ import { Psbt, Transaction } from "bitcoinjs-lib";
 import { Buffer } from "buffer";
 
 import {
-  encodeFunctionData,
   isAddressEqual,
   type Address,
   type Chain,
@@ -47,18 +46,15 @@ import type {
   SignPsbtOptions,
 } from "../../../shared/wallets";
 import {
-  NO_REFERRAL_CODE,
   ViemPeginRegistrationClient,
   type PopSignature,
 } from "../clients/eth/pegin-registration-client";
 import { getUtxoInfo, pushTx, type UtxoInfo } from "../clients/mempool";
 import type { WotsBlockPublicKey } from "../clients/vault-provider/types";
-import { BTCVaultRegistryABI } from "../contracts";
 import {
   buildDepositTerms,
   capMaxAcceptableCommissionBps,
   ensurePrePeginTermsApproval,
-  MAX_ACCEPTABLE_COMMISSION_BPS_CAP,
   requireChangeAddress,
   supportsDepositApproval,
   type DepositTerms,
@@ -469,6 +465,14 @@ export interface RegisterPeginParams {
    * quote. Optional otherwise; falls back to chain-current.
    */
   quotedCommissionBps?: number;
+
+  /**
+   * Peg-in configuration fingerprint from the SDK's `computePeginFingerprint`,
+   * computed over the same block-pinned protocol state the Pre-PegIn was built
+   * against. The registry recomputes it at inclusion and reverts with
+   * `PeginFingerprintChanged` if it moved.
+   */
+  expectedFingerprint: Hex;
 }
 
 /**
@@ -528,6 +532,12 @@ export interface RegisterPeginBatchParams {
   popSignature: PopSignature;
   /** See {@link RegisterPeginParams.quotedCommissionBps}. */
   quotedCommissionBps?: number;
+  /**
+   * See {@link RegisterPeginParams.expectedFingerprint}. One value covers the
+   * batch — the fingerprint has no per-request input and a batch fixes one
+   * vault provider.
+   */
+  expectedFingerprint: Hex;
 }
 
 /**
@@ -1373,6 +1383,7 @@ export class PeginManager {
       depositorWotsPkHash: params.depositorWotsPkHash,
       popSignature: params.popSignature,
       quotedCommissionBps: params.quotedCommissionBps,
+      expectedFingerprint: params.expectedFingerprint,
     });
   }
 
@@ -1423,6 +1434,7 @@ export class PeginManager {
       popSignature: params.popSignature,
       depositorBtcPubkeyRaw: verifiedBtcPubkeyRaw,
       quotedCommissionBps: params.quotedCommissionBps,
+      expectedFingerprint: params.expectedFingerprint,
       requests: params.requests.map((request, index) => ({
         depositorSignedPeginTx: request.depositorSignedPeginTx,
         hashlock: request.hashlock,
@@ -1598,142 +1610,4 @@ export class PeginManager {
   getVaultContractAddress(): Address {
     return this.config.vaultContracts.btcVaultRegistry;
   }
-}
-
-/**
- * Representative byte lengths used by {@link estimateSubmitPeginRequestBatchGas}
- * when synthesizing calldata before the depositor has signed anything. Sized
- * to approximate the real broadcast values so EIP-2028 calldata gas (16 per
- * non-zero byte, 4 per zero byte) lands close to the real estimate.
- */
-const DUMMY_POP_SIGNATURE_BYTES = 80;
-const DUMMY_UNSIGNED_PRE_PEGIN_TX_BYTES = 250;
-const DUMMY_SIGNED_PEGIN_TX_BYTES = 300;
-const DUMMY_PAYOUT_SCRIPTPUBKEY_BYTES = 22;
-const DUMMY_FILLER_BYTE = "ab";
-
-/**
- * Build a `depositorSignedPeginTx` placeholder whose derived vault ID is
- * unique to (depositor, batch index). Real BTC transactions parse the txid
- * from their byte content, so embedding the depositor address + index makes
- * every dummy request produce a vault ID outside the user's existing set —
- * the contract's vault-uniqueness check then doesn't revert during
- * `estimateGas`.
- */
-function buildDummyDepositorSignedPeginTx(
-  depositorEthAddress: Address,
-  index: number,
-): Hex {
-  const filler = DUMMY_FILLER_BYTE.repeat(DUMMY_SIGNED_PEGIN_TX_BYTES);
-  const addressBytes = stripHexPrefix(depositorEthAddress).toLowerCase();
-  const indexBytes = index.toString(16).padStart(8, "0");
-  const marker = `${addressBytes}${indexBytes}`;
-  const suffix = filler.slice(marker.length);
-  return `0x${marker}${suffix}` as Hex;
-}
-
-function buildDummyBatchPeginRequest(
-  depositorEthAddress: Address,
-  index: number,
-): {
-  depositorBtcPubKey: Hex;
-  btcPopSignature: Hex;
-  unsignedPrePeginTx: Hex;
-  depositorSignedPeginTx: Hex;
-  hashlock: Hex;
-  htlcVout: number;
-  referralCode: number;
-  depositorPayoutBtcAddress: Hex;
-  depositorWotsPkHash: Hex;
-} {
-  const repeat = (bytes: number): Hex =>
-    `0x${DUMMY_FILLER_BYTE.repeat(bytes)}` as Hex;
-
-  return {
-    depositorBtcPubKey: repeat(32),
-    btcPopSignature: repeat(DUMMY_POP_SIGNATURE_BYTES),
-    unsignedPrePeginTx: repeat(DUMMY_UNSIGNED_PRE_PEGIN_TX_BYTES),
-    depositorSignedPeginTx: buildDummyDepositorSignedPeginTx(
-      depositorEthAddress,
-      index,
-    ),
-    hashlock: repeat(32),
-    htlcVout: index,
-    referralCode: NO_REFERRAL_CODE,
-    depositorPayoutBtcAddress: repeat(DUMMY_PAYOUT_SCRIPTPUBKEY_BYTES),
-    depositorWotsPkHash: repeat(32),
-  };
-}
-
-export interface EstimateSubmitPeginRequestBatchGasParams {
-  publicClient: PublicClient;
-  btcVaultRegistry: Address;
-  depositorEthAddress: Address;
-  vaultProvider: Address;
-  batchSize: number;
-}
-
-/**
- * Estimate gas for a `submitPeginRequestBatch` call before the depositor has
- * signed anything. Synthesizes calldata using representative dummy bytes for
- * fields the depositor would normally produce (signed PegIn tx, PoP sig,
- * WOTS hash, payout script). The estimate is approximate — calldata-byte
- * gas is correct, contract-side branches that depend on the real values may
- * diverge — but it lands within the usual gas-estimate margin.
- *
- * Passes {@link MAX_ACCEPTABLE_COMMISSION_BPS_CAP} for the
- * `maxAcceptableCommissionBps` argument so the simulation does not revert on
- * the contract's commission-drift check regardless of the VP's current
- * commission. The real submit path resolves an accurate, drift-checked value
- * via the registration client's protocol-parameter lookup.
- *
- * Throws if the contract reverts during simulation; callers should treat the
- * thrown error as "unable to estimate" and decide how to surface it.
- */
-export async function estimateSubmitPeginRequestBatchGas(
-  params: EstimateSubmitPeginRequestBatchGasParams,
-): Promise<bigint> {
-  const {
-    publicClient,
-    btcVaultRegistry,
-    depositorEthAddress,
-    vaultProvider,
-    batchSize,
-  } = params;
-
-  if (batchSize <= 0) {
-    throw new Error(
-      `estimateSubmitPeginRequestBatchGas requires batchSize >= 1 (received ${batchSize})`,
-    );
-  }
-
-  const peginFee = (await publicClient.readContract({
-    address: btcVaultRegistry,
-    abi: BTCVaultRegistryABI,
-    functionName: "getPegInFee",
-    args: [vaultProvider],
-  })) as bigint;
-  const totalFee = peginFee * BigInt(batchSize);
-
-  const requests = Array.from({ length: batchSize }, (_, i) =>
-    buildDummyBatchPeginRequest(depositorEthAddress, i),
-  );
-
-  const callData = encodeFunctionData({
-    abi: BTCVaultRegistryABI,
-    functionName: "submitPeginRequestBatch",
-    args: [
-      depositorEthAddress,
-      vaultProvider,
-      MAX_ACCEPTABLE_COMMISSION_BPS_CAP,
-      requests,
-    ],
-  });
-
-  return publicClient.estimateGas({
-    to: btcVaultRegistry,
-    data: callData,
-    value: totalFee,
-    account: depositorEthAddress,
-  });
 }

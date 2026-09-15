@@ -47,6 +47,8 @@ import {
   getVaultRegistryReader,
 } from "@/clients/eth-contract/sdk-readers";
 import { isDepositBlocked } from "@/components/shared/protocolStatus";
+import { CONTRACTS } from "@/config/contracts";
+import { getETHChain } from "@/config/network";
 import {
   pegInConfigQueryOptions,
   useProtocolParamsContext,
@@ -74,6 +76,7 @@ import {
   waitForEthRegistrationDepth,
   type RegistrationDepthProgress,
 } from "@/services/vault/ethConfirmationGate";
+import { computeBuildPeginFingerprint } from "@/services/vault/peginFingerprintInput";
 import {
   assertBuildWithinPinnedLimits,
   isBuildLimitsDriftError,
@@ -733,6 +736,20 @@ export function useDepositFlow(
             }),
         });
 
+        // Computed here, from the two objects the pinned block produced, and
+        // before anything is signed. The registry re-derives this hash when it
+        // includes our registration and rejects the submission unless it
+        // matches, so it has to describe the same chain state the Bitcoin
+        // scripts below are about to commit to — hence the same `buildConfig`
+        // and `validatedKeys` that feed `preparePeginTransaction`, and not the
+        // React Query snapshot the form used.
+        const expectedFingerprint = computeBuildPeginFingerprint({
+          chainId: getETHChain().id,
+          registryAddress: CONTRACTS.BTC_VAULT_REGISTRY,
+          validatedKeys,
+          buildConfig,
+        });
+
         // Prime the peg-in signing sub-counter (one tx per vault) before the
         // commit pass drives the wallet popup(s).
         setPeginSigningProgress({ completed: 0, total: vaultAmounts.length });
@@ -839,6 +856,7 @@ export function useDepositFlow(
           requests: batchRequests,
           popSignature,
           quotedCommissionBps,
+          expectedFingerprint,
         });
         registeredVaultIds = batchRegistration.vaults.map(
           (vault) => vault.vaultId,

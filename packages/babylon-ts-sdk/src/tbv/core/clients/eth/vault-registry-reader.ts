@@ -6,11 +6,13 @@
  */
 
 import type { Abi, Address, Hex, PublicClient } from "viem";
+import { getAbiItem } from "viem";
 
 import { BTCVaultRegistryABI } from "../../contracts/abis/BTCVaultRegistry.abi";
 import { BTCVaultRegistryKeyEpochsABI } from "../../contracts/abis/BTCVaultRegistryKeyEpochs.abi";
 import { assertOnChainBtcPubkey } from "./onChainBtcPubkey";
 import { assertValidOffchainParamsVersion } from "./protocol-params-validation";
+import { RegistrationLogsUnavailableError } from "./registration-logs-error";
 import type {
   KeyEpochs,
   OnChainBtcPubkey,
@@ -128,6 +130,16 @@ const UINT64_EXCLUSIVE_UPPER_BOUND = 1n << 64n;
  */
 const VP_GENESIS_KEY_EPOCH = 0n;
 
+/**
+ * Both registration events, queried together so one answer settles whether a
+ * vault's V2 log is missing (pre-upgrade registration) or the node served no
+ * logs for the block at all.
+ */
+const PEGIN_SUBMITTED_EVENTS = [
+  getAbiItem({ abi: BTCVaultRegistryABI, name: "PegInSubmitted" }),
+  getAbiItem({ abi: BTCVaultRegistryABI, name: "PegInSubmittedV2" }),
+] as const;
+
 function assertEpochInRange(
   value: bigint,
   field: string,
@@ -207,6 +219,30 @@ export class ViemVaultRegistryReader implements VaultRegistryReader {
       result,
       `getOperationBtcKeyAtEpoch (vp=${vpAddress}, epoch=${VP_GENESIS_KEY_EPOCH})`,
     );
+  }
+
+  /**
+   * Read the application entry point a vault provider is registered for.
+   *
+   * This is the registry's own `vaultProviders[vp].applicationEntryPoint`, and
+   * it is the value the peg-in submit path resolves internally — it selects
+   * which application's vault-keeper roster, roster version and keeper key
+   * epoch a deposit is bonded to. The dApp separately carries an entry point
+   * from its own configuration; the two agree today, but they are different
+   * sources of truth, so the build path reads this one and asserts the
+   * configured value matches it rather than trusting either alone.
+   */
+  async getVaultProviderApplication(
+    vpAddress: Address,
+    blockNumber?: bigint,
+  ): Promise<Address> {
+    return (await this.publicClient.readContract({
+      address: this.contractAddress,
+      abi: BTCVaultRegistryABI,
+      functionName: "getVaultProviderApplication",
+      args: [vpAddress],
+      blockNumber,
+    })) as Address;
   }
 
   /**
@@ -413,4 +449,76 @@ export class ViemVaultRegistryReader implements VaultRegistryReader {
     return { basic, protocol };
   }
 
+  /**
+   * Read the depositor's commission ceiling (`maxAcceptableCommissionBps`)
+   * for vaults registered in the same block, from their `PegInSubmittedV2`
+   * logs. Returned in `vaultIds` order.
+   *
+   * The contract bound-checks the ceiling and discards it (PeginLogic.sol,
+   * `VaultProviderCommissionExceeded`), so the registration log is its only
+   * on-chain source. One query at exactly `createdAt` — the `block.number`
+   * stamped at registration — so no block-range scan is needed and public-RPC
+   * range caps do not apply. Vault ids are matched case-insensitively.
+   *
+   * @throws {RegistrationLogsUnavailableError} (transient, retry) when the
+   * node answers with no registration logs for the block at all.
+   * @throws when a vault has only its `PegInSubmitted` log — registrations
+   * that predate the V2 event (vault-contracts-aave-v4 #548) never emitted
+   * the ceiling — no registration log in its own `createdAt` block, or more
+   * than one V2 log.
+   */
+  async getMaxAcceptableCommissionBpsBatch(
+    vaultIds: readonly Hex[],
+    createdAt: bigint,
+  ): Promise<number[]> {
+    if (vaultIds.length === 0) return [];
+
+    // Deliberately no `vaultId` topic filter: both events must come back in
+    // ONE answer for the empty-vs-missing discriminator below to hold, and
+    // viem's multi-event form takes no `args` — so the block's registration
+    // logs are fetched whole and ids are matched client-side. strict: a log
+    // whose data does not decode against the ABI is dropped (viem
+    // parseEventLogs) instead of surfacing as `args: {}`.
+    const logs = await this.publicClient.getLogs({
+      address: this.contractAddress,
+      events: PEGIN_SUBMITTED_EVENTS,
+      fromBlock: createdAt,
+      toBlock: createdAt,
+      strict: true,
+    });
+    if (logs.length === 0) {
+      throw new RegistrationLogsUnavailableError(createdAt);
+    }
+
+    return vaultIds.map((vaultId) => {
+      const vaultIdLower = vaultId.toLowerCase();
+      let registered = false;
+      const ceilings: number[] = [];
+      for (const log of logs) {
+        if (log.args.vaultId.toLowerCase() !== vaultIdLower) continue;
+        registered = true;
+        if (log.eventName === "PegInSubmittedV2") {
+          ceilings.push(log.args.maxAcceptableCommissionBps);
+        }
+      }
+
+      if (ceilings.length === 1) return ceilings[0];
+      if (ceilings.length > 1) {
+        throw new Error(
+          `Expected one PegInSubmittedV2 log for vault ${vaultId} at block ${createdAt}, ` +
+            `found ${ceilings.length} PegInSubmittedV2 logs`,
+        );
+      }
+      if (registered) {
+        throw new Error(
+          `Vault ${vaultId} was registered before the registry emitted the depositor's ` +
+            `commission ceiling (no PegInSubmittedV2 log at block ${createdAt}), so the ` +
+            `ceiling cannot be recovered on-chain`,
+        );
+      }
+      throw new Error(
+        `Vault ${vaultId} has no registration log at its on-chain registration block ${createdAt}`,
+      );
+    });
+  }
 }

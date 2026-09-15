@@ -248,9 +248,15 @@ describe("assertDepositTermsDeviceCompatible", () => {
     expect(() => assertDepositTermsDeviceCompatible(makeTerms({ timelockRefund: 4321 }))).toThrow(/timelockRefund/);
   });
 
-  it("rejects a protocolFeeRate above the device u32 ceiling", () => {
-    expect(() => assertDepositTermsDeviceCompatible(makeTerms({ protocolFeeRate: 0x1_0000_0000n }))).toThrow(
-      /protocolFeeRate/,
+  it("accepts the device fee-rate ceiling and rejects one sat/vB above it", () => {
+    expect(() => assertDepositTermsDeviceCompatible(makeTerms({ protocolFeeRate: 10_000n }))).not.toThrow();
+    expect(() => assertDepositTermsDeviceCompatible(makeTerms({ protocolFeeRate: 10_001n }))).toThrow(/protocolFeeRate/);
+  });
+
+  it("accepts the device prepegin max-fee ceiling and rejects one sat above it", () => {
+    expect(() => assertDepositTermsDeviceCompatible(makeTerms({ prepeginMaxFee: 100_000_000n }))).not.toThrow();
+    expect(() => assertDepositTermsDeviceCompatible(makeTerms({ prepeginMaxFee: 100_000_001n }))).toThrow(
+      /prepeginMaxFee/,
     );
   });
 

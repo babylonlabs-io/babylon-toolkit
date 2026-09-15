@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   getDynamicReserveConfig,
   getReserve,
+  getReserves,
   getTargetHealthFactor,
   getUserPositionAndAccountData,
   getUserPositions,
@@ -229,6 +230,74 @@ describe("getUserTotalDebts (batched readout)", () => {
     await expect(
       getUserTotalDebts(createMulticallClient(multicall), STUB_ADDRESS, [1n], USER),
     ).rejects.toThrow("RPC reverted");
+  });
+});
+
+describe("getReserves (batched reserve read)", () => {
+  const USDC_RESERVE = {
+    underlying: "0x3333333333333333333333333333333333333333" as Address,
+    hub: "0x4444444444444444444444444444444444444444" as Address,
+    assetId: 0,
+    decimals: 6,
+    collateralRisk: 0,
+    flags: 4,
+    dynamicConfigKey: 0,
+  };
+  const WBTC_RESERVE = {
+    underlying: "0x5555555555555555555555555555555555555555" as Address,
+    hub: "0x6666666666666666666666666666666666666666" as Address,
+    assetId: 2,
+    decimals: 8,
+    collateralRisk: 0,
+    flags: 4,
+    dynamicConfigKey: 1,
+  };
+
+  it("returns [] and skips the multicall when given no reserve IDs", async () => {
+    const multicall = vi.fn();
+    const result = await getReserves(
+      createMulticallClient(multicall),
+      STUB_ADDRESS,
+      [],
+    );
+    expect(result).toEqual([]);
+    expect(multicall).not.toHaveBeenCalled();
+  });
+
+  it("issues one getReserve call per reserve and hard-fails (allowFailure: false), returning reserves in input order", async () => {
+    const multicall = vi.fn().mockResolvedValue([USDC_RESERVE, WBTC_RESERVE]);
+
+    const result = await getReserves(
+      createMulticallClient(multicall),
+      STUB_ADDRESS,
+      [0n, 6n],
+    );
+
+    expect(result).toEqual([USDC_RESERVE, WBTC_RESERVE]);
+    expect(multicall).toHaveBeenCalledWith(
+      expect.objectContaining({
+        allowFailure: false,
+        contracts: [
+          expect.objectContaining({
+            address: STUB_ADDRESS,
+            functionName: "getReserve",
+            args: [0n],
+          }),
+          expect.objectContaining({
+            address: STUB_ADDRESS,
+            functionName: "getReserve",
+            args: [6n],
+          }),
+        ],
+      }),
+    );
+  });
+
+  it("propagates a multicall rejection (an unlisted reserve is not skipped)", async () => {
+    const multicall = vi.fn().mockRejectedValue(new Error("ReserveNotListed()"));
+    await expect(
+      getReserves(createMulticallClient(multicall), STUB_ADDRESS, [99n]),
+    ).rejects.toThrow("ReserveNotListed()");
   });
 });
 

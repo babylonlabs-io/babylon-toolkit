@@ -2,8 +2,8 @@
  * DMK session lifecycle: discovery → connect → state gate → dispose behind a
  * Promise API, so everything above this file is device-free and testable.
  * Verified against the installed DMK 1.7.1 types, not the published docs.
- * The transport is web-hid, swappable pre-build through the test-only
- * {@link setDmkTransportOverride} seam.
+ * The transport is web-hid, swappable pre-build through the test/E2E-only
+ * {@link setDmkTransportOverride} seam (the `./testing` exports subpath).
  *
  * @module ledger-vault-signer/dmkSession
  */
@@ -83,9 +83,13 @@ let transportOverride: DmkTransportOverride | undefined;
  * The injector passes the factory in; this module never imports that package,
  * so production bundles stay speculos-free.
  *
- * Package-internal for now: deliberately NOT re-exported from `index.ts`, so
- * the only callers are this package's own tests. The env-gated dApp seam that
- * needs it publicly is a separate task and re-exports it with its consumer.
+ * Exposed ONLY via the `./testing` exports subpath (never the main `.`
+ * surface): the vault dApp's DEV-gated Speculos bootstrap is the intended
+ * caller. What the code enforces is TIMING only — a swap after the DMK exists
+ * gets the loud throw below; keeping pre-build production calls out is the
+ * subpath boundary plus the consumer's build-time gate. THIS module still
+ * never imports the speculos package, so it contributes no speculos code to
+ * any bundle of this package.
  *
  * The override persists across {@link closeDmk}; pass `undefined` to restore
  * the web-hid default.

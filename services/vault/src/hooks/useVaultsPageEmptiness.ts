@@ -56,6 +56,7 @@ export function useVaultsPageEmptiness(deposits: VaultsPageDeposits): {
     hasDisplayCollateral,
     isLoading: isPositionLoading,
     positionError,
+    indexerError,
   } = useDashboardState(isConnected ? address : undefined);
   const {
     pendingActivities,
@@ -69,7 +70,9 @@ export function useVaultsPageEmptiness(deposits: VaultsPageDeposits): {
     hasDisplayCollateral ||
     pendingActivities.length > 0 ||
     expiredActivities.length > 0;
-  const anySourceFailed = positionError !== null || depositsError !== null;
+  const anySourceFailed = Boolean(
+    positionError || indexerError || depositsError,
+  );
   const hasError =
     isConnected && !isLoading && !hasAnythingToShow && anySourceFailed;
   const hasPartialError =

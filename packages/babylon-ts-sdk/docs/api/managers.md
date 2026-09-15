@@ -1927,6 +1927,19 @@ Bounds the registration's maxAcceptableCommissionBps (#1691). REQUIRED
 when the wallet approved terms — the ceiling must anchor to the approved
 quote. Optional otherwise; falls back to chain-current.
 
+##### expectedFingerprint
+
+```ts
+expectedFingerprint: `0x${string}`;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts)
+
+Peg-in configuration fingerprint from the SDK's `computePeginFingerprint`,
+computed over the same block-pinned protocol state the Pre-PegIn was built
+against. The registry recomputes it at inclusion and reverts with
+`PeginFingerprintChanged` if it moved.
+
 ***
 
 ### RegisterPeginResult
@@ -2092,6 +2105,18 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts](http
 
 See [RegisterPeginParams.quotedCommissionBps](#quotedcommissionbps).
 
+##### expectedFingerprint
+
+```ts
+expectedFingerprint: `0x${string}`;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts)
+
+See [RegisterPeginParams.expectedFingerprint](#expectedfingerprint). One value covers the
+batch — the fingerprint has no per-request input and a batch fixes one
+vault provider.
+
 ***
 
 ### BatchPeginResultItem
@@ -2152,54 +2177,6 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts](http
 
 Per-vault results (same order as input requests)
 
-***
-
-### EstimateSubmitPeginRequestBatchGasParams
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts)
-
-#### Properties
-
-##### publicClient
-
-```ts
-publicClient: object;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts)
-
-##### btcVaultRegistry
-
-```ts
-btcVaultRegistry: `0x${string}`;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts)
-
-##### depositorEthAddress
-
-```ts
-depositorEthAddress: `0x${string}`;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts)
-
-##### vaultProvider
-
-```ts
-vaultProvider: `0x${string}`;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts)
-
-##### batchSize
-
-```ts
-batchSize: number;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts)
-
 ## Type Aliases
 
 ### BitcoinNetwork
@@ -2212,42 +2189,6 @@ Defined in: [packages/babylon-ts-sdk/src/shared/wallets/interfaces/BitcoinWallet
 
 Bitcoin network types.
 Using string literal union for maximum compatibility with wallet providers.
-
-## Functions
-
-### estimateSubmitPeginRequestBatchGas()
-
-```ts
-function estimateSubmitPeginRequestBatchGas(params): Promise<bigint>;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts)
-
-Estimate gas for a `submitPeginRequestBatch` call before the depositor has
-signed anything. Synthesizes calldata using representative dummy bytes for
-fields the depositor would normally produce (signed PegIn tx, PoP sig,
-WOTS hash, payout script). The estimate is approximate — calldata-byte
-gas is correct, contract-side branches that depend on the real values may
-diverge — but it lands within the usual gas-estimate margin.
-
-Passes [MAX\_ACCEPTABLE\_COMMISSION\_BPS\_CAP](deposit-terms.md#max_acceptable_commission_bps_cap) for the
-`maxAcceptableCommissionBps` argument so the simulation does not revert on
-the contract's commission-drift check regardless of the VP's current
-commission. The real submit path resolves an accurate, drift-checked value
-via the registration client's protocol-parameter lookup.
-
-Throws if the contract reverts during simulation; callers should treat the
-thrown error as "unable to estimate" and decide how to surface it.
-
-#### Parameters
-
-##### params
-
-[`EstimateSubmitPeginRequestBatchGasParams`](#estimatesubmitpeginrequestbatchgasparams)
-
-#### Returns
-
-`Promise`\<`bigint`\>
 
 ## References
 

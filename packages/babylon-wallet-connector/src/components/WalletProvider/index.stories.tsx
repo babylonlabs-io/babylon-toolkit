@@ -59,21 +59,30 @@ export const WithDisabledWallets: Story = {
 };
 
 export const WithConnectedData: Story = {
+  argTypes: { requiredChains: { type: { name: "array", value: { name: "string" } } } },
   decorators: [
-    (Story) => (
+    (Story, { args }) => (
       <ScrollLocker>
-        <WalletProvider context={window.parent} config={config} onError={console.log}>
+        <WalletProvider
+          context={window.parent}
+          config={config}
+          persistent={args.persistent}
+          requiredChains={args.requiredChains}
+          onError={console.log}
+        >
           <Story />
         </WalletProvider>
       </ScrollLocker>
     ),
   ],
   render: () => {
-    const { open, selectedWallets } = useWidgetState();
+    const { open, selectedWallets, confirmed } = useWidgetState();
 
     return (
       <div>
-        <Button onClick={open}>Connect Wallet</Button>
+        <Button onClick={open} data-confirmed={confirmed}>
+          Connect Wallet
+        </Button>
         <div className="flex flex-col gap-4">
           {Object.entries(selectedWallets).map(
             ([chainName, wallet]) =>

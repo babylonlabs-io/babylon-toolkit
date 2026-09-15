@@ -141,6 +141,11 @@ declare const peginManager: PeginManager;
 declare const btcWallet: BitcoinWallet;
 declare const vpEthAddress: Address;
 
+// Computed once for the whole batch — see Managers Quickstart step 3. The
+// fingerprint takes no per-vault input and a batch fixes one vault provider, so
+// every entry resolves the same value.
+declare const expectedFingerprint: Hex;
+
 // Every non-array param is the same as the single-vault happy path —
 // vault provider pubkey, keepers, challengers, timelocks, fee rate,
 // council params, UTXO set, change address.
@@ -165,7 +170,8 @@ const hashlocks = derivedSecrets.htlcSecretHexes.map((hex) =>
 const popSignature = await peginManager.signProofOfPossession();
 
 // One registerPeginOnChain call per vault; they share the same Pre-PegIn
-// tx and the same PopSignature.
+// tx, the same PopSignature, and the same `expectedFingerprint` — the
+// fingerprint takes no per-vault input, so one value covers the batch.
 for (let i = 0; i < transaction.perVault.length; i++) {
   await peginManager.registerPeginOnChain({
     unsignedPrePeginTx: transaction.fundedPrePeginTxHex,
@@ -175,6 +181,7 @@ for (let i = 0; i < transaction.perVault.length; i++) {
     depositorWotsPkHash: derivedSecrets.wotsPkHashes[i],
     htlcVout: transaction.perVault[i].htlcVout,
     popSignature,
+    expectedFingerprint,
   });
 }
 

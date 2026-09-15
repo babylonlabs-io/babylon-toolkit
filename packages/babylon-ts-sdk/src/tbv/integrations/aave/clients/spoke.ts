@@ -361,6 +361,36 @@ export async function getReserve(
   return result as ReserveResult;
 }
 
+/**
+ * Read `getReserve` for many reserves in a single multicall.
+ *
+ * Returns one entry per `reserveId` in input order. Hard-fails
+ * (`allowFailure: false`): any revert, including `ReserveNotListed` for an id
+ * the spoke never listed, rejects the whole call.
+ *
+ * @param publicClient - Viem public client for reading contracts
+ * @param spokeAddress - Core Spoke contract address
+ * @param reserveIds - Reserve IDs to read
+ * @returns Reserve data for each ID, in input order
+ */
+export async function getReserves(
+  publicClient: PublicClient,
+  spokeAddress: Address,
+  reserveIds: bigint[],
+): Promise<ReserveResult[]> {
+  if (reserveIds.length === 0) return [];
+  const results = await publicClient.multicall({
+    contracts: reserveIds.map((reserveId) => ({
+      address: spokeAddress,
+      abi: AaveSpokeABI as Abi,
+      functionName: "getReserve" as const,
+      args: [reserveId] as const,
+    })),
+    allowFailure: false,
+  });
+  return results as unknown as ReserveResult[];
+}
+
 /** Result type from getLiquidationConfig contract call */
 type LiquidationConfigResult = {
   targetHealthFactor: bigint;

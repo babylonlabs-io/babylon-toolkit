@@ -16,6 +16,7 @@ export {
   PeginFingerprintInputError,
   computePeginFingerprint,
   encodePeginFingerprintPreimage,
+  isPeginFingerprintInputError,
 } from "./peginFingerprint";
 
 export type { PeginFingerprintInput } from "./peginFingerprint";

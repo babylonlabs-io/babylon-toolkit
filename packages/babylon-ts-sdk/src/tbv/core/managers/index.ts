@@ -21,7 +21,7 @@
  * @module managers
  */
 
-export { PeginManager, estimateSubmitPeginRequestBatchGas } from "./PeginManager";
+export { PeginManager } from "./PeginManager";
 export type {
   PreparePeginResult,
   PreparePeginTransaction,
@@ -36,7 +36,6 @@ export type {
   RegisterPeginBatchParams,
   BatchPeginResultItem,
   RegisterPeginBatchResult,
-  EstimateSubmitPeginRequestBatchGasParams,
 } from "./PeginManager";
 export type { PopSignature } from "../clients/eth";
 

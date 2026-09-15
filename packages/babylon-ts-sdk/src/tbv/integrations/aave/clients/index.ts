@@ -8,6 +8,7 @@ export {
 export {
   getDynamicReserveConfig,
   getReserve,
+  getReserves,
   getTargetHealthFactor,
   getUserAccountData,
   getUserPosition,

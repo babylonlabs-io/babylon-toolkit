@@ -8,9 +8,10 @@
  */
 
 import { Button, Text } from "@babylonlabs-io/core-ui";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 import { COPY } from "@/copy";
+import { logger } from "@/infrastructure";
 
 export interface PositionGateProps {
   positionError: Error | null;
@@ -25,13 +26,28 @@ export function PositionGate({
   refetchPosition,
   children,
 }: PositionGateProps) {
+  const [isRetrying, setIsRetrying] = useState(false);
   if (positionError) {
     return (
       <div className="flex flex-col items-center gap-3">
         <Text variant="body2" className="text-center text-warning-main">
           {COPY.loans.detail.positionLoadError}
         </Text>
-        <Button onClick={() => void refetchPosition()}>
+        <Button
+          disabled={isRetrying}
+          onClick={async () => {
+            setIsRetrying(true);
+            try {
+              await refetchPosition();
+            } catch (error) {
+              logger.warn("Could not reload the Aave position", {
+                error: error instanceof Error ? error : String(error),
+              });
+            } finally {
+              setIsRetrying(false);
+            }
+          }}
+        >
           {COPY.loans.detail.retry}
         </Button>
       </div>

@@ -27,6 +27,7 @@ import {
   LoanSuccessPanel,
 } from "../LoanCard/LoanSuccessPanel";
 
+import { PositionGate } from "./PositionGate";
 import {
   type LoanSuccessState,
   ReserveDetailPanel,
@@ -61,6 +62,8 @@ export function LoanFlowOverlay({
     position,
     debtValueUsd,
     isLoading: isPositionLoading,
+    error: positionError,
+    refetch: refetchPosition,
   } = useAaveUserPosition(isConnected ? address : undefined);
   const { borrowedAssets } = useAaveBorrowedAssets({ position, debtValueUsd });
   // The reserve id rides along so selecting a repay row routes by id rather
@@ -131,23 +134,35 @@ export function LoanFlowOverlay({
     }
     const mode = picker ?? tab;
     return (
-      <AssetSelectionPanel
-        mode={mode}
-        assets={mode === LOAN_TAB.REPAY ? repayAssets : undefined}
-        assetsLoading={isPositionLoading}
-        // `replace` so the picker leaves no entry behind the form: browser Back
-        // from the form returns to the page, and Back after closing can't drop
-        // the user into the flow again.
-        onSelectAsset={(selectedReserveId) =>
-          navigate(
-            {
-              pathname,
-              search: getReserveDetailSearch(selectedReserveId, mode),
-            },
-            { replace: true },
-          )
+      <PositionGate
+        positionError={
+          mode === LOAN_TAB.REPAY && isConnected && !position
+            ? positionError
+            : null
         }
-      />
+        ancillaryError={
+          isConnected ? (position?.indexerError ?? positionError) : null
+        }
+        refetchPosition={refetchPosition}
+      >
+        <AssetSelectionPanel
+          mode={mode}
+          assets={mode === LOAN_TAB.REPAY ? repayAssets : undefined}
+          assetsLoading={isPositionLoading}
+          // `replace` so the picker leaves no entry behind the form: browser Back
+          // from the form returns to the page, and Back after closing can't drop
+          // the user into the flow again.
+          onSelectAsset={(selectedReserveId) =>
+            navigate(
+              {
+                pathname,
+                search: getReserveDetailSearch(selectedReserveId, mode),
+              },
+              { replace: true },
+            )
+          }
+        />
+      </PositionGate>
     );
   };
 

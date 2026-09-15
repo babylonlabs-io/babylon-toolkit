@@ -4,7 +4,11 @@ import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { PositionNotificationsStatus } from "@/applications/aave/hooks/usePositionNotifications";
-import type { CalculatorResult } from "@/applications/aave/positionNotifications";
+import type {
+  CalculatorResult,
+  Warning,
+} from "@/applications/aave/positionNotifications";
+import { COPY } from "@/copy";
 
 import { STALE_PRICE_BANNER_GRACE_MS } from "../constants";
 import { PositionNotificationBanner } from "../PositionNotificationBanner";
@@ -127,6 +131,7 @@ const mockReorderVerificationContext = {
 
 const mockUsePositionNotifications = vi.fn(() => ({
   result: null,
+  liveUrgentWarning: null as Warning | null,
   status: "ready" as PositionNotificationsStatus,
   isLoading: false,
   reorderVerificationContext: mockReorderVerificationContext as
@@ -239,6 +244,7 @@ describe("PositionNotificationBanner", () => {
     // doesn't leak into other tests.
     mockUsePositionNotifications.mockReturnValue({
       result: null,
+      liveUrgentWarning: null,
       status: "ready",
       isLoading: false,
       reorderVerificationContext: mockReorderVerificationContext,
@@ -250,6 +256,60 @@ describe("PositionNotificationBanner", () => {
     const { container } = renderBanner(null, onDeposit, onRepay);
     expect(container.innerHTML).toBe("");
   });
+
+  it.each([null, "paused"])(
+    "shows live risk without reorder when indexed rows are incomplete (pause: %s)",
+    (pause) => {
+      gateMock.value.aave = pause;
+      gateMock.value.protocol = pause;
+      mockUsePositionNotifications.mockReturnValue({
+        result: null,
+        liveUrgentWarning: {
+          type: "urgent",
+          title: COPY.liquidationWarnings.liveHealthFactor.title("1.05"),
+          detail: COPY.liquidationWarnings.liveHealthFactor.detail,
+        },
+        status: "incomplete-position",
+        isLoading: false,
+        reorderVerificationContext: null,
+      });
+      render(
+        <Wrapper>
+          <PositionNotificationBanner
+            connectedAddress="0xTestAddress"
+            onDeposit={onDeposit}
+            onRepay={onRepay}
+          />
+        </Wrapper>,
+      );
+
+      expect(
+        screen.getByText(
+          COPY.liquidationWarnings.liveHealthFactor.title("1.05"),
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText(COPY.banner.applyOptimalOrder),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Dismiss notification" }),
+      ).not.toBeInTheDocument();
+      const deposit = screen.getByRole("button", {
+        name: COPY.banner.addCollateral,
+      });
+      const repay = screen.getByRole("button", { name: COPY.banner.repayDebt });
+      if (pause) {
+        expect(deposit).toBeDisabled();
+        expect(repay).toBeDisabled();
+      } else {
+        fireEvent.click(deposit);
+        fireEvent.click(repay);
+        expect(onDeposit).toHaveBeenCalledWith();
+        expect(onRepay).toHaveBeenCalledOnce();
+      }
+      expect(mockExecuteReorder).not.toHaveBeenCalled();
+    },
+  );
 
   it("renders green banner when no warnings and order is optimal", () => {
     renderBanner(makeBaseResult(), onDeposit, onRepay);
@@ -389,6 +449,7 @@ describe("PositionNotificationBanner", () => {
   it("disables Apply Optimal Order when the verification context is unavailable", () => {
     mockUsePositionNotifications.mockReturnValue({
       result: null,
+      liveUrgentWarning: null,
       status: "ready" as const,
       isLoading: false,
       reorderVerificationContext: null,
@@ -461,6 +522,7 @@ describe("PositionNotificationBanner", () => {
     // Live feed (no debug override) reports stale price.
     mockUsePositionNotifications.mockReturnValue({
       result: null,
+      liveUrgentWarning: null,
       status: "stale-price",
       isLoading: false,
       reorderVerificationContext: null,
@@ -606,6 +668,7 @@ describe("PositionNotificationBanner v3", () => {
     gateMock.value = { protocol: null, aave: null };
     mockUsePositionNotifications.mockReturnValue({
       result: null,
+      liveUrgentWarning: null,
       status: "ready",
       isLoading: false,
       reorderVerificationContext: mockReorderVerificationContext,

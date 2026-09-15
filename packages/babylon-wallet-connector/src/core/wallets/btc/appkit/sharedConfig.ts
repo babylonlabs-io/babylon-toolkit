@@ -76,7 +76,7 @@ export function setSharedBtcAppKitConfig(config: SharedBtcAppKitConfigInput): vo
     connectionEvents: config.connectionEvents ?? sharedBtcAppKitConfig?.connectionEvents ?? new EventTarget(),
   };
 
-  registerManualAppKitConfig(BITCOIN_CAPABILITY);
+  registerManualAppKitConfig(BITCOIN_CAPABILITY, config.modal);
   sharedBtcAppKitConfig = resolvedConfig;
 }
 
@@ -102,6 +102,23 @@ export function getSharedBtcAppKitConfig(): SharedBtcAppKitConfig {
 export function hasSharedBtcAppKitConfig(): boolean {
   const initializedState = getAppKitState();
   return initializedState ? initializedState.btcConfig !== undefined : sharedBtcAppKitConfig !== null;
+}
+
+/**
+ * AppKit widens a WalletConnect or Auth disconnect to every namespace, so a
+ * bip122-only disconnect over either connector would drop eip155 too.
+ * `@reown/appkit-common` 1.8.12 limits Auth to eip155 and solana; the `AUTH`
+ * arm is defensive until AppKit offers Auth for bip122 (#2352 names both).
+ */
+export function btcDisconnectWouldDropEthereum(): boolean {
+  if (!hasSharedBtcAppKitConfig()) {
+    return false;
+  }
+
+  const { modal } = getSharedBtcAppKitConfig();
+  const btcProviderType = modal.getProviderType("bip122");
+  const sharesSession = btcProviderType === "WALLET_CONNECT" || btcProviderType === "AUTH";
+  return sharesSession && modal.getAccount("eip155")?.isConnected === true;
 }
 
 /**

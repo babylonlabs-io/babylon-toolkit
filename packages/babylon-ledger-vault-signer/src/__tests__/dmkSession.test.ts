@@ -248,6 +248,14 @@ describe("setDmkTransportOverride", () => {
   };
   const FAKE_IDENTIFIER = "FAKE-SPECULOS";
 
+  it("the ./testing subpath exposes the SAME guarded seam the DMK builder reads — a post-build swap still refuses", async () => {
+    const testing = await import("../testing");
+    await connectDmkSession();
+    expect(() =>
+      testing.setDmkTransportOverride({ transportFactory: fakeTransportFactory, transportIdentifier: FAKE_IDENTIFIER }),
+    ).toThrow(/closeDmk/);
+  });
+
   it("builds the DMK over the injected factory and discovers on its identifier", async () => {
     setDmkTransportOverride({ transportFactory: fakeTransportFactory, transportIdentifier: FAKE_IDENTIFIER });
 

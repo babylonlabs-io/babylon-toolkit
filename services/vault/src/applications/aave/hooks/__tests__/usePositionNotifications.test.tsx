@@ -55,17 +55,17 @@ interface DashboardStateOverrides {
   debtValueUsd?: number;
   healthFactor?: number | null;
   isLoading?: boolean;
+  indexerError?: Error | null;
 }
 
 function setDashboardState(overrides: DashboardStateOverrides = {}) {
   mockUseDashboardState.mockReturnValue({
-    collateralVaults: overrides.collateralVaults ?? [
-      makeVault(VAULT_A, 0.5, 0),
-      makeVault(VAULT_B, 0.5, 1),
-    ],
-    debtValueUsd: overrides.debtValueUsd ?? 30_000,
-    healthFactor: overrides.healthFactor ?? 2.0,
-    isLoading: overrides.isLoading ?? false,
+    collateralVaults: [makeVault(VAULT_A, 0.5, 0), makeVault(VAULT_B, 0.5, 1)],
+    debtValueUsd: 30_000,
+    healthFactor: 2.0,
+    isLoading: false,
+    indexerError: null,
+    ...overrides,
   });
 }
 
@@ -195,6 +195,7 @@ describe("usePositionNotifications — live-HF urgency guardrail", () => {
     setDashboardState({
       collateralVaults: [{ ...makeVault(VAULT_A, 0.5, 0), isActivating: true }],
       debtValueUsd: 30_000,
+      healthFactor: 0.95,
     });
 
     const { result } = renderHook(() => usePositionNotifications(USER));
@@ -202,5 +203,35 @@ describe("usePositionNotifications — live-HF urgency guardrail", () => {
     expect(result.current.status).toBe("no-vaults");
     expect(result.current.result).toBeNull();
     expect(result.current.params).toBeNull();
+    expect(result.current.reorderVerificationContext).toBeNull();
+    expect(result.current.liveUrgentWarning?.type).toBe("urgent");
+  });
+
+  it.each([
+    { collateralVaults: [] },
+    { collateralVaults: [makeVault(VAULT_A, 0.5, 0)] },
+  ])(
+    "keeps the live warning without calculations when indexed rows are incomplete: %j",
+    ({ collateralVaults }) => {
+      setDashboardState({
+        collateralVaults,
+        healthFactor: 0.95,
+        indexerError: new Error("Indexed collateral is incomplete"),
+      });
+
+      const { result } = renderHook(() => usePositionNotifications(USER));
+
+      expect(result.current.status).toBe("incomplete-position");
+      expect(result.current.result).toBeNull();
+      expect(result.current.params).toBeNull();
+      expect(result.current.reorderVerificationContext).toBeNull();
+      expect(result.current.liveUrgentWarning?.type).toBe("urgent");
+    },
+  );
+
+  it("does not create a live warning without a health factor", () => {
+    setDashboardState({ healthFactor: null, collateralVaults: [] });
+    const { result } = renderHook(() => usePositionNotifications(USER));
+    expect(result.current.liveUrgentWarning).toBeNull();
   });
 });

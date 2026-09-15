@@ -26,6 +26,7 @@ type ActivatingEntry = {
 // Mutable state read by the hoisted mocks below.
 let mockCollaterals: unknown[] | null = null;
 let mockCollateralBtc = 0;
+let mockChainVaultIds: string[] = [];
 let mockCollateralValueUsd = 0;
 let mockDebtValueUsd = 0;
 let mockSplitParams: { THF: number; CF: number; LB: number } | null = null;
@@ -51,7 +52,9 @@ vi.mock("@/applications/aave/context", () => ({
 
 vi.mock("@/applications/aave/hooks", () => ({
   useAaveUserPosition: () => ({
-    position: mockCollaterals ? { collaterals: mockCollaterals } : null,
+    position: mockCollaterals
+      ? { collaterals: mockCollaterals, vaultIds: mockChainVaultIds }
+      : null,
     collateralBtc: mockCollateralBtc,
     collateralValueUsd: mockCollateralValueUsd,
     debtValueUsd: mockDebtValueUsd,
@@ -104,6 +107,7 @@ describe("useDashboardState", () => {
     vi.clearAllMocks();
     mockCollaterals = null;
     mockCollateralBtc = 0;
+    mockChainVaultIds = [];
     mockCollateralValueUsd = 0;
     mockDebtValueUsd = 0;
     mockSplitParams = null;
@@ -185,33 +189,36 @@ describe("useDashboardState", () => {
     expect(mockClearReorderedOrder).toHaveBeenCalled();
   });
 
-  it("appends an optimistic activating row when the vault is not yet indexed", () => {
-    mockCollaterals = null; // empty position (first deposit)
-    mockActivatingVaults = new Map([
-      [
-        VAULT_A.toLowerCase(),
-        { vaultId: VAULT_A, depositorEthAddress: "0xabc", amountBtc: 1 },
-      ],
-    ]);
+  it.each([0, 1])(
+    "counts an unindexed activation once with %s BTC in the chain snapshot",
+    (chainCollateral) => {
+      mockCollaterals = [];
+      mockCollateralBtc = chainCollateral;
+      mockChainVaultIds = chainCollateral > 0 ? [VAULT_A] : [];
+      mockActivatingVaults = new Map([
+        [
+          VAULT_A.toLowerCase(),
+          { vaultId: VAULT_A, depositorEthAddress: "0xabc", amountBtc: 1 },
+        ],
+      ]);
 
-    const { result } = renderHook(() => useDashboardState("0xabc"));
+      const { result } = renderHook(() => useDashboardState("0xabc"));
 
-    expect(result.current.collateralVaults).toHaveLength(1);
-    expect(result.current.collateralVaults[0]).toMatchObject({
-      vaultId: VAULT_A,
-      amountBtc: 1,
-      isActivating: true,
-      inUse: false,
-    });
-    // Display total + display gate reflect the optimistic vault, while the
-    // financial collateralBtc and the action-gating hasCollateral stay
-    // indexer-pure (so Borrow can't be unlocked before collateral exists).
-    expect(result.current.displayCollateralBtc).toBe(1);
-    expect(result.current.collateralBtc).toBe(0);
-    expect(result.current.hasDisplayCollateral).toBe(true);
-    expect(result.current.hasCollateral).toBe(false);
-    expect(mockClearActivatingVault).not.toHaveBeenCalled();
-  });
+      expect(result.current.collateralVaults).toHaveLength(1);
+      expect(result.current.collateralVaults[0]).toMatchObject({
+        vaultId: VAULT_A,
+        amountBtc: 1,
+        isActivating: true,
+        inUse: false,
+      });
+      // The display counts the vault once. Financial actions use chain data.
+      expect(result.current.displayCollateralBtc).toBe(1);
+      expect(result.current.collateralBtc).toBe(chainCollateral);
+      expect(result.current.hasDisplayCollateral).toBe(true);
+      expect(result.current.hasCollateral).toBe(chainCollateral > 0);
+      expect(mockClearActivatingVault).not.toHaveBeenCalled();
+    },
+  );
 
   it("drops the activating override and does not duplicate once the indexer reflects the vault", () => {
     mockCollateralBtc = 1;

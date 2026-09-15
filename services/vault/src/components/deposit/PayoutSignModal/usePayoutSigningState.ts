@@ -359,6 +359,7 @@ export function usePayoutSigningState({
             depositorBtcPubkey: btcPublicKey,
             fundedTxFee,
             lifecycle: "presign",
+            signal: abortRef.current.signal,
           });
         }
 

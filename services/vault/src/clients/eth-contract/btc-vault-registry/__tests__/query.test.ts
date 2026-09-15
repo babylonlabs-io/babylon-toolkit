@@ -3,6 +3,7 @@
  * lookup used by the reorder integrity guard.
  */
 
+import { RegistrationLogsUnavailableError } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import type { Address, Hex } from "viem";
 import { zeroAddress } from "viem";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -17,15 +18,18 @@ vi.mock("@/config/env", () => ({
 
 const mockGetVaultBasicInfo = vi.fn();
 const mockGetVaultData = vi.fn();
+const mockGetMaxAcceptableCommissionBpsBatch = vi.fn();
 vi.mock("../../sdk-readers", () => ({
   getVaultRegistryReader: () => ({
     getVaultBasicInfo: mockGetVaultBasicInfo,
     getVaultData: mockGetVaultData,
+    getMaxAcceptableCommissionBpsBatch: mockGetMaxAcceptableCommissionBpsBatch,
   }),
 }));
 
 import {
   getBtcVaultBasicInfoFromChain,
+  getMaxAcceptableCommissionBpsFromChainWithGrace,
   getVaultFromChain,
   getVaultFromChainWithGrace,
 } from "../query";
@@ -180,6 +184,111 @@ describe("getVaultFromChain", () => {
     await expect(getVaultFromChain(VAULT_A)).rejects.toThrow(
       /Invalid vaultCoreVersion 0 from BTCVaultRegistry.getBtcVaultProtocolInfo/,
     );
+  });
+});
+
+describe("getMaxAcceptableCommissionBpsFromChainWithGrace", () => {
+  const REGISTRATION_BLOCK = 11_561_176n;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("reads the ceilings of one registration block through the SDK reader", async () => {
+    mockGetMaxAcceptableCommissionBpsBatch.mockResolvedValue([35, 125]);
+
+    await expect(
+      getMaxAcceptableCommissionBpsFromChainWithGrace(
+        [VAULT_A, VAULT_B],
+        REGISTRATION_BLOCK,
+      ),
+    ).resolves.toEqual([35, 125]);
+    expect(mockGetMaxAcceptableCommissionBpsBatch).toHaveBeenCalledWith(
+      [VAULT_A, VAULT_B],
+      REGISTRATION_BLOCK,
+    );
+  });
+
+  // A load-balanced public node answers [] for a block a backend lacks; the
+  // SDK surfaces that as the typed transient error and the read is retried.
+  it("retries the transient no-logs error until a node serves the block", async () => {
+    mockGetMaxAcceptableCommissionBpsBatch
+      .mockRejectedValueOnce(
+        new RegistrationLogsUnavailableError(REGISTRATION_BLOCK),
+      )
+      .mockRejectedValueOnce(
+        new RegistrationLogsUnavailableError(REGISTRATION_BLOCK),
+      )
+      .mockResolvedValue([35]);
+
+    const promise = getMaxAcceptableCommissionBpsFromChainWithGrace(
+      [VAULT_A],
+      REGISTRATION_BLOCK,
+    );
+    await vi.runAllTimersAsync();
+
+    await expect(promise).resolves.toEqual([35]);
+    expect(mockGetMaxAcceptableCommissionBpsBatch).toHaveBeenCalledTimes(3);
+  });
+
+  it("rethrows the transient error once the retry schedule is exhausted", async () => {
+    mockGetMaxAcceptableCommissionBpsBatch.mockRejectedValue(
+      new RegistrationLogsUnavailableError(REGISTRATION_BLOCK),
+    );
+
+    const promise = getMaxAcceptableCommissionBpsFromChainWithGrace(
+      [VAULT_A],
+      REGISTRATION_BLOCK,
+    );
+    const assertion = expect(promise).rejects.toThrow(
+      /returned no registration logs for block 11561176/,
+    );
+    await vi.runAllTimersAsync();
+    await assertion;
+
+    // Initial attempt plus one per backoff step. Measured 2026-09-10 on the
+    // configured public Sepolia node: 40-70% of single-block answers were
+    // empty, so eight independent attempts leave 0.07-6% spurious refusals.
+    expect(mockGetMaxAcceptableCommissionBpsBatch).toHaveBeenCalledTimes(8);
+  });
+
+  it("propagates any other error on the first attempt", async () => {
+    mockGetMaxAcceptableCommissionBpsBatch.mockRejectedValue(
+      new Error("execution reverted"),
+    );
+
+    await expect(
+      getMaxAcceptableCommissionBpsFromChainWithGrace(
+        [VAULT_A],
+        REGISTRATION_BLOCK,
+      ),
+    ).rejects.toThrow(/execution reverted/);
+    expect(mockGetMaxAcceptableCommissionBpsBatch).toHaveBeenCalledTimes(1);
+  });
+
+  it("stops retrying and rejects with the abort reason when the caller aborts during the backoff", async () => {
+    mockGetMaxAcceptableCommissionBpsBatch.mockRejectedValue(
+      new RegistrationLogsUnavailableError(REGISTRATION_BLOCK),
+    );
+    const controller = new AbortController();
+
+    const promise = getMaxAcceptableCommissionBpsFromChainWithGrace(
+      [VAULT_A],
+      REGISTRATION_BLOCK,
+      controller.signal,
+    );
+    const assertion = expect(promise).rejects.toThrow(/modal closed/);
+    // First attempt has failed and the 500ms backoff is pending.
+    await vi.advanceTimersByTimeAsync(100);
+    controller.abort(new Error("modal closed"));
+    await assertion;
+
+    expect(mockGetMaxAcceptableCommissionBpsBatch).toHaveBeenCalledTimes(1);
   });
 });
 

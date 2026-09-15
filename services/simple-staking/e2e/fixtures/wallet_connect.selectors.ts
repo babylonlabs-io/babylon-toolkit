@@ -2,24 +2,14 @@ export const CONNECT_BUTTON_SELECTOR =
   'button[data-testid="connect-wallets-button"]:enabled';
 
 export const DIALOG_SELECTORS = {
-  TERMS_DIALOG_HEADER: '[data-testid="dialog-header"]',
-  ANY_DIALOG: '[data-testid="dialog"], [role="dialog"]',
   ERROR_DIALOG: '[data-testid="error-dialog"]',
   ERROR_DIALOG_DONE_BUTTON:
     '[data-testid="error-dialog"] [data-testid="error-continue-button"]',
 };
 
 export const BUTTON_SELECTORS = {
-  NEXT: '[data-testid="terms-next-button"]',
-  ACCEPT: 'button:has-text("Accept")',
-  CONTINUE: '[data-testid="error-continue-button"]',
-  OK: 'button:has-text("OK")',
-  SAVE: 'button:has-text("Save")',
-  DONE: '[data-testid="chains-done-button"]',
-  CONTINUE_ANYWAY: '[data-testid="error-continue-button"]',
+  DONE: '[data-testid="chains-connect-button"]',
 };
-
-export const CHECKBOX_SELECTOR = '[data-testid="checkbox-input"]';
 
 export const WALLET_SELECTORS = {
   BITCOIN: '[data-testid="select-bitcoin-wallet-button"]',

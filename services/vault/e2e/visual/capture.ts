@@ -197,30 +197,12 @@ export async function assertNoErrorSurface(
 }
 
 /**
- * Refuse to photograph the mobile layout at a desktop width.
- *
- * A category gate, not a fix for one bug. `installVisualDeterminism` freezes
- * `Date.now()` for the life of the page, and that is load-bearing for
- * clock-derived copy - `stabilize.ts` explains why `clock.install()` is not an
- * option instead. The cost is that any throttled or debounced listener in app
- * code is reduced to a single leading-edge call for the whole capture run: it
- * takes whatever the first event carried and never revises it. A resize
- * listener that reads one spurious width therefore keeps it forever.
- *
- * That is exactly what happened. A full-page screenshot of a page taller than
- * the viewport briefly emulates a 1x1 viewport, core-ui's `useIsMobile` took
- * the 1x1 resize on its leading edge, and five 1280px-wide screens were
- * photographed as the mobile tree. `stabilize.ts` no longer fires that event,
- * which closes the instance; this closes the category, because the next
- * listener to arrive will not have that history to warn it.
- *
- * Checked here rather than by the poll for the same reason as
- * {@link assertNoErrorSurface}: the wrong layout is stable, so no amount of
- * waiting can see it. Only a claim about what the frame must CONTAIN can.
- *
- * Below {@link DESKTOP_LAYOUT_MIN_WIDTH_PX} the gate does nothing - the mobile
- * layout is the correct answer there, and the spurious width 1 lands on the
- * same side of the breakpoint as the real one.
+ * Reject the mobile layout at a desktop width, even when its pixels are stable.
+ * Chromium can emit a temporary 1x1 resize during a full-page screenshot.
+ * The fixed clock lets a throttled listener keep that size after restoration.
+ * Check before and after each screenshot. The capture filter handles only
+ * that temporary event; this guard still catches other wrong-layout causes.
+ * Mobile viewports correctly retain their mobile layout.
  */
 async function assertLayoutMatchesViewport(
   page: Page,
@@ -231,14 +213,8 @@ async function assertLayoutMatchesViewport(
 
   await expect(
     page.locator(MOBILE_MENU_BUTTON),
-    `${label} captured the mobile layout at a ${viewport.width}px viewport. ` +
-      `The app decided it is mobile and never revised that decision, which is ` +
-      `what a resize listener does when it takes a spurious width on its ` +
-      `leading edge and the frozen capture clock stops its trailing edge from ` +
-      `ever firing. The result is a desktop-width photograph of the mobile ` +
-      `tree, and it is perfectly static, so it diffs clean against itself ` +
-      `forever. Find what resized the page during the capture rather than ` +
-      `accepting this as a baseline.`,
+    `${label} shows the mobile menu at a ${viewport.width}px viewport. ` +
+      `Check screenshot resize events and the fixed capture clock.`,
   ).toHaveCount(0);
 }
 
@@ -331,32 +307,55 @@ export interface StagedShot {
 }
 
 /**
- * Settle the page and photograph it, WITHOUT writing it to disk.
- *
- * Staged rather than written because the CI capture step is
- * `continue-on-error` (`.github/workflows/visual-regression.yml`), and that is
- * only safe while a fired gate leaves no file behind. A missing surface is
- * what makes the diff step report "missing" and the summary refuse to say "no
- * visual changes"; a screenshot already on disk would hand the diff a
- * complete, comparable set on both sides and let a failed gate report success.
- * So nothing reaches disk until the gates have passed - see
- * {@link writeCaptures}.
- *
- * Full-page rather than viewport-sized: a change below the fold is still a
- * change, and cropping would hide it.
+ * Capture the full page after content and layout guards pass.
+ * Stage bytes until the whole walk passes; a failure withholds every image.
+ * Keep offscreen pixels and filter temporary 1x1 resizes during capture.
+ * Check the restored viewport and layout before staging the image.
  */
 export async function capture(
   page: Page,
   fileName: string,
 ): Promise<StagedShot> {
   await waitForVisualStability(page);
-  // Per photograph, not per walk - see {@link assertNoErrorSurface}. Settled
-  // is not the same as rendered: an error fallback is perfectly stable.
+  // Reject stable error screens before each screenshot.
   await assertNoErrorSurface(page, fileName);
   // Nor is settled the same as correct: a latched mobile layout is stable too.
   await assertLayoutMatchesViewport(page, fileName);
   await assertNoDevChrome(page, fileName);
-  const buffer = await page.screenshot({ fullPage: true });
+  const viewport = page.viewportSize();
+  if (!viewport || viewport.width <= 1 || viewport.height <= 1) {
+    throw new Error(`${fileName} needs a known viewport larger than 1x1.`);
+  }
+  await page.evaluate(() =>
+    document.documentElement.setAttribute("data-visual-capture", ""),
+  );
+  let buffer: Buffer;
+  let captureFailed = false;
+  try {
+    buffer = await page.screenshot({ fullPage: true });
+    await expect
+      .poll(() =>
+        page.evaluate(() => ({
+          width: innerWidth,
+          height: innerHeight,
+        })),
+      )
+      .toEqual(viewport);
+  } catch (error) {
+    captureFailed = true;
+    throw error;
+  } finally {
+    await page
+      .evaluate(() =>
+        document.documentElement.removeAttribute("data-visual-capture"),
+      )
+      .catch((error) => {
+        if (!captureFailed) throw error;
+        // eslint-disable-next-line no-console -- Keep the secondary browser failure in the test log.
+        console.error("Full-page capture cleanup also failed:", error);
+      });
+  }
+  await assertLayoutMatchesViewport(page, fileName);
   expect(
     buffer.byteLength,
     `${fileName} is ${buffer.byteLength} bytes - the screen never painted.`,
@@ -364,11 +363,7 @@ export async function capture(
   return { fileName, buffer };
 }
 
-/**
- * Write staged photographs to disk. Call only after {@link assertAppRendered}
- * has passed - reaching here is the test's statement that what it photographed
- * is worth diffing against.
- */
+/** Write staged images only after the whole walk passes its guards. */
 export async function writeCaptures(
   shots: readonly StagedShot[],
 ): Promise<void> {
@@ -381,23 +376,10 @@ export async function writeCaptures(
 }
 
 /**
- * Create the output directory and declare which screens it should end up
- * holding. Call from `test.beforeAll`.
- *
- * The manifest is what closes the last silent-green path. A fired gate
- * withholds a PNG, which the diff step is meant to read as "missing" - but it
- * only checks that each surface DIRECTORY is non-empty, and `visual-diff.mjs`
- * builds its name set from the union of the two sides, so a screen absent from
- * BOTH never enters the comparison at all. Both sides run the same stashed
- * harness against the same committed fixture, so every fixture- or
- * harness-caused failure is symmetric BY CONSTRUCTION: the ten deposit-flow
- * shots vanish from both sides, the twelve route shots still land, and the run
- * reports "No visual changes" for a comparison that never looked at 10 of 58
- * screens.
- *
- * Written at collection time rather than derived at diff time on purpose: it
- * is a statement of intent made before anything can fail, so a spec that never
- * ran at all still leaves its screens accounted for.
+ * Declare expected screens before tests run, including walks that may fail.
+ * The report uses this manifest to find screens absent from both sides.
+ * A screen present on only one side needs separate capture-failure handling.
+ * Call from `test.beforeAll`; every spec writes the same target list.
  */
 export async function ensureOutputDir(): Promise<void> {
   await fs.mkdir(VISUAL_OUTPUT_DIR, { recursive: true });

@@ -142,6 +142,24 @@ export class PeginFingerprintInputError extends Error {
 }
 
 /**
+ * Recognise the error above, including across a module boundary.
+ *
+ * Every message it carries names an internal field and the width it broke, so a
+ * consumer needs to be able to catch it and substitute its own copy rather than
+ * show the depositor what went wrong internally. `instanceof` alone fails
+ * across duplicate module copies and test mocks, so the name is the fallback —
+ * the same pattern the deposit-path drift guards use.
+ */
+export function isPeginFingerprintInputError(
+  err: unknown,
+): err is PeginFingerprintInputError {
+  return (
+    err instanceof PeginFingerprintInputError ||
+    (err instanceof Error && err.name === "PeginFingerprintInputError")
+  );
+}
+
+/**
  * The type is checked before the range, and deliberately so.
  *
  * A purely relational guard (`value < 0n || value > max`) is not a guard at

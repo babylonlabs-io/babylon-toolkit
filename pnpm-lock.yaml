@@ -406,12 +406,12 @@ importers:
 
   packages/babylon-ts-sdk:
     dependencies:
-      '@noble/curves':
-        specifier: 1.9.7
-        version: 1.9.7
       '@bitcoin-js/tiny-secp256k1-asmjs':
         specifier: 2.2.3
         version: 2.2.3
+      '@noble/curves':
+        specifier: 1.9.7
+        version: 1.9.7
       '@noble/hashes':
         specifier: 2.0.1
         version: 2.0.1
@@ -1118,6 +1118,12 @@ importers:
       '@eslint/js':
         specifier: ^9.31.0
         version: 9.32.0
+      '@ledgerhq/device-management-kit':
+        specifier: 1.7.1
+        version: 1.7.1(bufferutil@4.0.9)(rxjs@7.8.2)(utf-8-validate@5.0.10)
+      '@ledgerhq/device-transport-kit-speculos':
+        specifier: 1.2.1
+        version: 1.2.1(@ledgerhq/device-management-kit@1.7.1(bufferutil@4.0.9)(rxjs@7.8.2)(utf-8-validate@5.0.10))(rxjs@7.8.2)
       '@playwright/test':
         specifier: 1.56.1
         version: 1.56.1

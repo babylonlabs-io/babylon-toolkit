@@ -32,6 +32,7 @@ import {
   type WarningType,
 } from "@/applications/aave/positionNotifications";
 import { useETHWallet } from "@/context/wallet";
+import { COPY } from "@/copy";
 import { setPositionCascadeOverride } from "@/overrides/position";
 
 import {
@@ -87,6 +88,7 @@ const STATUS_MESSAGES: Record<
   loading: "Loading position data...",
   "no-wallet": "Wallet not connected",
   "no-vaults": "No collateral vaults found",
+  "incomplete-position": COPY.liquidationWarnings.incompletePosition,
   "no-price": "Waiting for BTC price...",
   "stale-price": "BTC price is stale or unavailable",
 };

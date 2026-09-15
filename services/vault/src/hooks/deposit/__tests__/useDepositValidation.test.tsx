@@ -2,10 +2,8 @@
  * Tests for useDepositValidation hook
  */
 
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook } from "@testing-library/react";
-import type { ReactNode } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { useDepositValidation } from "../useDepositValidation";
 
@@ -23,49 +21,7 @@ vi.mock("@/context/ProtocolParamsContext", () => ({
   })),
 }));
 
-// Mock useQuery for provider fetching
-vi.mock("@tanstack/react-query", async () => {
-  const actual = await vi.importActual("@tanstack/react-query");
-  return {
-    ...actual,
-    useQuery: vi.fn((options: any) => {
-      // Mock provider query
-      if (options.queryKey?.includes("vaultProviders")) {
-        return {
-          data: [
-            "0x1234567890abcdef1234567890abcdef12345678",
-            "0xabcdef1234567890abcdef1234567890abcdef12",
-          ],
-          isLoading: false,
-          error: null,
-        };
-      }
-      return {
-        data: undefined,
-        isLoading: false,
-        error: null,
-      };
-    }),
-  };
-});
-
 describe("useDepositValidation", () => {
-  let queryClient: QueryClient;
-
-  beforeEach(() => {
-    queryClient = new QueryClient({
-      defaultOptions: {
-        queries: { retry: false },
-      },
-    });
-  });
-
-  const wrapper = ({ children }: { children: ReactNode }) => {
-    return (
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-    );
-  };
-
   const mockProviders = [
     "0x1234567890abcdef1234567890abcdef12345678",
     "0xabcdef1234567890abcdef1234567890abcdef12",
@@ -73,11 +29,8 @@ describe("useDepositValidation", () => {
 
   describe("validateAmount", () => {
     it("should validate valid amount", () => {
-      const { result } = renderHook(
-        () => useDepositValidation({ availableProviders: mockProviders }),
-        {
-          wrapper,
-        },
+      const { result } = renderHook(() =>
+        useDepositValidation({ availableProviders: mockProviders }),
       );
 
       const validationResult = result.current.validateAmount("0.001");
@@ -87,11 +40,8 @@ describe("useDepositValidation", () => {
     });
 
     it("should reject invalid amount format", () => {
-      const { result } = renderHook(
-        () => useDepositValidation({ availableProviders: mockProviders }),
-        {
-          wrapper,
-        },
+      const { result } = renderHook(() =>
+        useDepositValidation({ availableProviders: mockProviders }),
       );
 
       const validationResult = result.current.validateAmount("invalid");
@@ -102,11 +52,8 @@ describe("useDepositValidation", () => {
     });
 
     it("should reject amount below minimum", () => {
-      const { result } = renderHook(
-        () => useDepositValidation({ availableProviders: mockProviders }),
-        {
-          wrapper,
-        },
+      const { result } = renderHook(() =>
+        useDepositValidation({ availableProviders: mockProviders }),
       );
 
       const validationResult = result.current.validateAmount("0.00001"); // Below minimum
@@ -116,11 +63,8 @@ describe("useDepositValidation", () => {
     });
 
     it("should use dynamic minimum based on fees", () => {
-      const { result } = renderHook(
-        () => useDepositValidation({ availableProviders: mockProviders }),
-        {
-          wrapper,
-        },
+      const { result } = renderHook(() =>
+        useDepositValidation({ availableProviders: mockProviders }),
       );
 
       expect(result.current.minDeposit).toBeGreaterThan(0n);
@@ -131,15 +75,11 @@ describe("useDepositValidation", () => {
       // both bounds. This must win over the base minimum error so the message
       // matches the CTA instead of telling the user to raise an amount they
       // can never raise high enough.
-      const { result } = renderHook(
-        () =>
-          useDepositValidation({
-            availableProviders: mockProviders,
-            effectiveRemaining: 5_000n,
-          }),
-        {
-          wrapper,
-        },
+      const { result } = renderHook(() =>
+        useDepositValidation({
+          availableProviders: mockProviders,
+          effectiveRemaining: 5_000n,
+        }),
       );
 
       const validationResult = result.current.validateAmount("0.0001");
@@ -155,15 +95,11 @@ describe("useDepositValidation", () => {
       // valid. Must win over the base minimum error so the inline/submit path
       // matches the CTA instead of telling the user to raise an unraisable
       // amount.
-      const { result } = renderHook(
-        () =>
-          useDepositValidation({
-            availableProviders: mockProviders,
-            maxDepositSats: 8_000n,
-          }),
-        {
-          wrapper,
-        },
+      const { result } = renderHook(() =>
+        useDepositValidation({
+          availableProviders: mockProviders,
+          maxDepositSats: 8_000n,
+        }),
       );
 
       const validationResult = result.current.validateAmount("0.0001");
@@ -174,13 +110,9 @@ describe("useDepositValidation", () => {
   });
 
   describe("validateProviders", () => {
-    it.skip("should validate single provider selection", async () => {
-      // TODO: Requires proper provider API mocking
-      const { result } = renderHook(
-        () => useDepositValidation({ availableProviders: mockProviders }),
-        {
-          wrapper,
-        },
+    it("should validate single provider selection", () => {
+      const { result } = renderHook(() =>
+        useDepositValidation({ availableProviders: mockProviders }),
       );
 
       const validationResult = result.current.validateProviders([
@@ -191,11 +123,8 @@ describe("useDepositValidation", () => {
     });
 
     it("should reject empty provider selection", () => {
-      const { result } = renderHook(
-        () => useDepositValidation({ availableProviders: mockProviders }),
-        {
-          wrapper,
-        },
+      const { result } = renderHook(() =>
+        useDepositValidation({ availableProviders: mockProviders }),
       );
 
       const validationResult = result.current.validateProviders([]);
@@ -204,13 +133,9 @@ describe("useDepositValidation", () => {
       expect(validationResult.error?.toLowerCase()).toContain("at least one");
     });
 
-    it.skip("should reject invalid provider", async () => {
-      // TODO: Requires proper provider API mocking
-      const { result } = renderHook(
-        () => useDepositValidation({ availableProviders: mockProviders }),
-        {
-          wrapper,
-        },
+    it("should reject invalid provider", () => {
+      const { result } = renderHook(() =>
+        useDepositValidation({ availableProviders: mockProviders }),
       );
 
       const validationResult = result.current.validateProviders([
@@ -221,13 +146,9 @@ describe("useDepositValidation", () => {
       expect(validationResult.error).toContain("Invalid vault provider");
     });
 
-    it.skip("should reject multiple providers", async () => {
-      // TODO: Requires proper provider API mocking
-      const { result } = renderHook(
-        () => useDepositValidation({ availableProviders: mockProviders }),
-        {
-          wrapper,
-        },
+    it("should reject multiple providers", () => {
+      const { result } = renderHook(() =>
+        useDepositValidation({ availableProviders: mockProviders }),
       );
 
       const validationResult = result.current.validateProviders(
@@ -242,27 +163,9 @@ describe("useDepositValidation", () => {
   });
 
   describe("provider fetching", () => {
-    it.skip("should fetch available providers", async () => {
-      // TODO: Requires proper provider API mocking
-      const { result } = renderHook(
-        () => useDepositValidation({ availableProviders: mockProviders }),
-        {
-          wrapper,
-        },
-      );
-
-      expect(result.current.availableProviders).toHaveLength(2);
-      expect(result.current.availableProviders[0]).toBe(
-        "0x1234567890abcdef1234567890abcdef12345678",
-      );
-    });
-
     it("should return available providers", () => {
-      const { result } = renderHook(
-        () => useDepositValidation({ availableProviders: mockProviders }),
-        {
-          wrapper,
-        },
+      const { result } = renderHook(() =>
+        useDepositValidation({ availableProviders: mockProviders }),
       );
 
       expect(result.current.availableProviders).toEqual(mockProviders);
@@ -271,11 +174,8 @@ describe("useDepositValidation", () => {
 
   describe("edge cases", () => {
     it("should reject amounts exceeding max deposit", () => {
-      const { result } = renderHook(
-        () => useDepositValidation({ availableProviders: mockProviders }),
-        {
-          wrapper,
-        },
+      const { result } = renderHook(() =>
+        useDepositValidation({ availableProviders: mockProviders }),
       );
 
       // maxDeposit is 100_000_000 satoshis = 1 BTC
@@ -286,11 +186,8 @@ describe("useDepositValidation", () => {
     });
 
     it("should handle negative amounts by stripping minus sign", () => {
-      const { result } = renderHook(
-        () => useDepositValidation({ availableProviders: mockProviders }),
-        {
-          wrapper,
-        },
+      const { result } = renderHook(() =>
+        useDepositValidation({ availableProviders: mockProviders }),
       );
 
       const validationResult = result.current.validateAmount("-0.001");
@@ -303,14 +200,12 @@ describe("useDepositValidation", () => {
 
   describe("supply cap gating", () => {
     it("rejects amounts that exceed effectiveRemaining", () => {
-      const { result } = renderHook(
-        () =>
-          useDepositValidation({
-            availableProviders: mockProviders,
-            // 0.0005 BTC remaining; 0.001 BTC requested → too large
-            effectiveRemaining: 50_000n,
-          }),
-        { wrapper },
+      const { result } = renderHook(() =>
+        useDepositValidation({
+          availableProviders: mockProviders,
+          // 0.0005 BTC remaining; 0.001 BTC requested → too large
+          effectiveRemaining: 50_000n,
+        }),
       );
 
       const validationResult = result.current.validateAmount("0.001");
@@ -320,13 +215,11 @@ describe("useDepositValidation", () => {
     });
 
     it("returns the supply-cap-reached error when remaining is zero", () => {
-      const { result } = renderHook(
-        () =>
-          useDepositValidation({
-            availableProviders: mockProviders,
-            effectiveRemaining: 0n,
-          }),
-        { wrapper },
+      const { result } = renderHook(() =>
+        useDepositValidation({
+          availableProviders: mockProviders,
+          effectiveRemaining: 0n,
+        }),
       );
 
       const validationResult = result.current.validateAmount("0.001");
@@ -336,27 +229,23 @@ describe("useDepositValidation", () => {
     });
 
     it("accepts amounts when effectiveRemaining is null (no cap)", () => {
-      const { result } = renderHook(
-        () =>
-          useDepositValidation({
-            availableProviders: mockProviders,
-            effectiveRemaining: null,
-          }),
-        { wrapper },
+      const { result } = renderHook(() =>
+        useDepositValidation({
+          availableProviders: mockProviders,
+          effectiveRemaining: null,
+        }),
       );
 
       expect(result.current.validateAmount("0.001").valid).toBe(true);
     });
 
     it("blocks with an explicit error when capUnavailable is true", () => {
-      const { result } = renderHook(
-        () =>
-          useDepositValidation({
-            availableProviders: mockProviders,
-            effectiveRemaining: null,
-            capUnavailable: true,
-          }),
-        { wrapper },
+      const { result } = renderHook(() =>
+        useDepositValidation({
+          availableProviders: mockProviders,
+          effectiveRemaining: null,
+          capUnavailable: true,
+        }),
       );
 
       const validationResult = result.current.validateAmount("0.001");

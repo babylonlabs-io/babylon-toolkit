@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 
+import { COPY } from "@/copy";
 import { useDashboardState } from "@/hooks/useDashboardState";
 import { usePrices } from "@/hooks/usePrices";
 
@@ -18,12 +19,14 @@ export type PositionNotificationsStatus =
   | "loading"
   | "no-wallet"
   | "no-vaults"
+  | "incomplete-position"
   | "no-price"
   | "stale-price"
   | "ready";
 
 export interface UsePositionNotificationsResult {
   result: CalculatorResult | null;
+  liveUrgentWarning: Warning | null;
   status: PositionNotificationsStatus;
   isLoading: boolean;
   /**
@@ -56,10 +59,11 @@ const LIVE_HF_URGENT_THRESHOLD = 1.05;
 function buildLiveHfUrgentWarning(healthFactor: number): Warning {
   return {
     type: "urgent",
-    title: `Critical — health factor ${healthFactor.toFixed(2)}`,
-    detail: `On-chain health factor is at or below ${LIVE_HF_URGENT_THRESHOLD.toFixed(2)}. The position can be liquidated at the current price.`,
-    suggestion:
-      "Add collateral or repay part of the debt to restore a safe health factor.",
+    title: COPY.liquidationWarnings.liveHealthFactor.title(
+      healthFactor.toFixed(2),
+    ),
+    detail: COPY.liquidationWarnings.liveHealthFactor.detail,
+    suggestion: COPY.liquidationWarnings.urgent.approachingSuggestion,
   };
 }
 
@@ -73,6 +77,7 @@ export function usePositionNotifications(
     collateralVaults,
     debtValueUsd,
     healthFactor,
+    indexerError,
     isLoading: dashboardLoading,
   } = useDashboardState(connectedAddress);
 
@@ -81,6 +86,17 @@ export function usePositionNotifications(
   const btcMetadata = metadata["BTC"];
 
   const isLoading = paramsLoading || dashboardLoading;
+  const liveUrgentWarning = useMemo(
+    () =>
+      connectedAddress &&
+      !dashboardLoading &&
+      debtValueUsd > 0 &&
+      healthFactor !== null &&
+      healthFactor <= LIVE_HF_URGENT_THRESHOLD
+        ? buildLiveHfUrgentWarning(healthFactor)
+        : null,
+    [connectedAddress, dashboardLoading, debtValueUsd, healthFactor],
+  );
 
   const { result, status, reorderVerificationContext, params } = useMemo((): {
     result: CalculatorResult | null;
@@ -99,6 +115,13 @@ export function usePositionNotifications(
       return {
         result: null,
         status: "no-wallet",
+        reorderVerificationContext: null,
+        params: null,
+      };
+    if (indexerError)
+      return {
+        result: null,
+        status: "incomplete-position",
         reorderVerificationContext: null,
         params: null,
       };
@@ -159,15 +182,10 @@ export function usePositionNotifications(
       (w) => w.type === "urgent",
     );
     const resultWithLiveHf: CalculatorResult =
-      !hasUrgent &&
-      healthFactor !== null &&
-      healthFactor <= LIVE_HF_URGENT_THRESHOLD
+      !hasUrgent && liveUrgentWarning
         ? {
             ...calculatorResult,
-            warnings: [
-              buildLiveHfUrgentWarning(healthFactor),
-              ...calculatorResult.warnings,
-            ],
+            warnings: [liveUrgentWarning, ...calculatorResult.warnings],
           }
         : calculatorResult;
 
@@ -191,8 +209,16 @@ export function usePositionNotifications(
     btcMetadata,
     collateralVaults,
     debtValueUsd,
-    healthFactor,
+    indexerError,
+    liveUrgentWarning,
   ]);
 
-  return { result, status, isLoading, reorderVerificationContext, params };
+  return {
+    result,
+    liveUrgentWarning,
+    status,
+    isLoading,
+    reorderVerificationContext,
+    params,
+  };
 }

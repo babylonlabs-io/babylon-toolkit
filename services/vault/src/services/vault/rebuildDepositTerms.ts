@@ -4,9 +4,9 @@
  * On resume (any browser) the in-memory terms from `preparePegin` are gone, so
  * an intent (Ledger) wallet has nothing to approve. Reconstructs them from
  * chain + WASM only — never browser storage — at the vault's STAMPED versions;
- * the one non-chain-derivable field is the commission ceiling (interim proxy,
- * see {@link resolveResumeCommissionCeilingBps} + #2252). This orchestrator does
- * the chain reads + sibling discovery (mirrors `discoverBatch` /
+ * the commission ceiling, which the contract discards, comes from each vault's
+ * `PegInSubmittedV2` log (see `getMaxAcceptableCommissionBpsFromChainWithGrace`).
+ * This orchestrator does the chain reads + sibling discovery (mirrors `discoverBatch` /
  * `prepareSigningContext` — shared-helper dedupe deferred); the WASM recompute +
  * Gate 0/1 byte-checks live in ts-sdk `rebuildDepositTermsCore`.
  *
@@ -38,6 +38,7 @@ import {
 import { assertVaultCoreVersionSupported } from "@/utils/vaultCoreVersionSupport";
 
 import {
+  getMaxAcceptableCommissionBpsFromChainWithGrace,
   getVaultFromChain,
   getVaultKeyEpochsFromChain,
   type OnChainVaultData,
@@ -53,7 +54,6 @@ import {
 import { getBTCNetworkForWASM } from "../../config/pegin";
 
 import { fetchVaultIdsByDepositor } from "./fetchVaults";
-import { resolveResumeCommissionCeilingBps } from "./resolveResumeCommissionCeilingBps";
 import { resolveVaultProviderBtcPubkey } from "./vaultPayoutSignatureService";
 
 export interface RebuildDepositTermsParams {
@@ -77,24 +77,37 @@ export interface RebuildDepositTermsParams {
    * doc). Required so a new caller states its lifecycle explicitly.
    */
   lifecycle: VaultLifecycleStage;
+  /**
+   * Ends the registration-log read's retry backoff when the caller's modal
+   * closes. Callers still re-check `aborted` after the rebuild before any
+   * wallet or device interaction.
+   */
+  signal?: AbortSignal;
 }
 
 interface OrderedSibling extends RebuildSibling {
   htlcVout: number;
 }
 
+/** Chain record plus the registration-event field the terms carry. */
+export interface RebuildVaultRecord extends OnChainVaultData {
+  /** Depositor's commission ceiling from `PegInSubmittedV2` at `createdAt`. */
+  maxAcceptableCommissionBps: number;
+}
+
 /**
  * Fields that must be uniform across the batch: each sibling is stamped by its
- * own `submitPeginRequest`, so governance/VP changes between registrations can
- * stamp them differently — and Gate 1 cannot see fields not encoded in the
- * HTLC outputs (timelockPegin, timelockAssert, commission). Fail closed.
+ * own `submitPeginRequest`, so governance changes between registrations can
+ * stamp them differently and a separately registered sibling can carry its
+ * own ceiling — and Gate 1 cannot see fields not encoded in the HTLC outputs
+ * (timelockPegin, timelockAssert, commission). Fail closed.
  */
 const SIBLING_HOMOGENEOUS_FIELDS = [
   "vaultCoreVersion",
   "offchainParamsVersion",
   "appVaultKeepersVersion",
   "universalChallengersVersion",
-  "vaultProviderCommissionBps",
+  "maxAcceptableCommissionBps",
 ] as const;
 
 /** Batch member paired with its registry id so a refusal can name the vault. */
@@ -147,8 +160,8 @@ export function assertBatchLifecycleStatus(
 
 /** Exported for tests — pure, fail-closed. */
 export function assertSiblingBatchHomogeneous(
-  target: OnChainVaultData,
-  siblings: readonly OnChainVaultData[],
+  target: RebuildVaultRecord,
+  siblings: readonly RebuildVaultRecord[],
 ): void {
   for (const sib of siblings) {
     for (const field of SIBLING_HOMOGENEOUS_FIELDS) {
@@ -198,7 +211,8 @@ async function discoverSiblings(
   targetVaultId: Hex,
   connectedDepositor: Address,
   target: OnChainVaultData,
-): Promise<OrderedSibling[]> {
+  signal: AbortSignal | undefined,
+): Promise<{ siblings: OrderedSibling[]; target: RebuildVaultRecord }> {
   if (target.depositor.toLowerCase() !== connectedDepositor.toLowerCase()) {
     throw new DepositorWalletMismatchError({
       vaultId: targetVaultId,
@@ -229,24 +243,56 @@ async function discoverSiblings(
       })),
     )
   ).filter(({ vault }) => vault.prePeginTxHash.toLowerCase() === txHashLower);
-  const siblingOnChain = siblingMembers.map(({ vault }) => vault);
 
   assertBatchLifecycleStatus(
     lifecycle,
     { vaultId: targetVaultId, vault: target },
     siblingMembers,
   );
-  assertSiblingBatchHomogeneous(target, siblingOnChain);
 
-  const siblings: OrderedSibling[] = [target, ...siblingOnChain].map((v) => ({
-    hashlock: v.hashlock,
-    amount: v.amount,
-    htlcVout: v.htlcVout,
-  }));
+  // The ceiling lives only in registration logs, so it is read per
+  // registration block — one query covers every member registered in that
+  // block (a batch registration lands all siblings in one tx) — after the
+  // status gate, so a refused batch costs no extra RPCs.
+  const membersByBlock = new Map<bigint, LifecycleBatchMember[]>();
+  for (const member of [
+    { vaultId: targetVaultId, vault: target },
+    ...siblingMembers,
+  ]) {
+    const group = membersByBlock.get(member.vault.createdAt) ?? [];
+    group.push(member);
+    membersByBlock.set(member.vault.createdAt, group);
+  }
+  const recordGroups = await Promise.all(
+    [...membersByBlock].map(async ([createdAt, group]) => {
+      const ceilings = await getMaxAcceptableCommissionBpsFromChainWithGrace(
+        group.map((member) => member.vaultId),
+        createdAt,
+        signal,
+      );
+      return group.map(
+        ({ vault }, i): RebuildVaultRecord => ({
+          ...vault,
+          maxAcceptableCommissionBps: ceilings[i],
+        }),
+      );
+    }),
+  );
+  // The target was inserted first, so it heads the first group.
+  const [targetRecord, ...siblingRecords] = recordGroups.flat();
+  assertSiblingBatchHomogeneous(targetRecord, siblingRecords);
+
+  const siblings: OrderedSibling[] = [targetRecord, ...siblingRecords].map(
+    (v) => ({
+      hashlock: v.hashlock,
+      amount: v.amount,
+      htlcVout: v.htlcVout,
+    }),
+  );
   siblings.sort((a, b) => a.htlcVout - b.htlcVout);
   assertContiguousHtlcVector(siblings);
 
-  return siblings;
+  return { siblings, target: targetRecord };
 }
 
 /**
@@ -376,11 +422,12 @@ export async function rebuildDepositTerms(
   // the stamped version. Vendor-neutral, mirrors the refund flow.
   await assertVaultCoreVersionSupported(target.vaultCoreVersion);
 
-  const siblings = await discoverSiblings(
+  const { siblings, target: targetRecord } = await discoverSiblings(
     params.lifecycle,
     params.vaultId,
     params.connectedDepositorAddress,
     target,
+    params.signal,
   );
   // Runs after the status gate, so the refusal reports the still-PENDING
   // status — the same order as submitACK's two preconditions.
@@ -410,10 +457,9 @@ export async function rebuildDepositTerms(
     timelockRefund: offchainParams.tRefund,
     prepeginTxid: stripHexPrefix(target.prePeginTxHash).toLowerCase(),
     prepeginMaxFee: params.fundedTxFee,
-    maxAcceptableCommissionBps: resolveResumeCommissionCeilingBps(
-      target,
-      offchainParams.minVpCommissionBps,
-    ),
+    // The submitted ceiling, verbatim: the device must see the terms the
+    // depositor originally approved, so nothing here caps or rewrites it.
+    maxAcceptableCommissionBps: targetRecord.maxAcceptableCommissionBps,
     network: getBTCNetworkForWASM(),
   });
 }
