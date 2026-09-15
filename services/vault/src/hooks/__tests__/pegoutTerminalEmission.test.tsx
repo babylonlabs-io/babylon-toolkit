@@ -103,6 +103,9 @@ function statusEnvelope(claimerStatus: string): PollScript {
     error: null,
     result: {
       found: true,
+      // Must match VAULT.peginTxHash — the hook rejects a status whose
+      // server-attested pegin txid names another vault.
+      pegin_txid: "cd".repeat(32),
       claimer: { status: claimerStatus },
     } as GetPegoutStatusResponse,
   };
