@@ -78,6 +78,7 @@ export {
   getPosition,
   getPositionSizeParams,
   getReserve,
+  getReserves,
   getReservesPrices,
   getReservesPricesSafe,
   getTargetHealthFactor,
