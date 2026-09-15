@@ -307,6 +307,7 @@ describe("Deposit Validations", () => {
       minPeginFee: 500n,
       minPeginFeeError: null,
       depositorClaimValueError: null,
+      fundingInputCapExceeded: false,
     };
 
     it("returns enabled 'Deposit' when all conditions are met", () => {
@@ -651,6 +652,73 @@ describe("Deposit Validations", () => {
         maxDepositSats: 100000n,
       });
       expect(result).toEqual({ disabled: false, label: "Deposit" });
+    });
+
+    it("returns the consolidate-UTXOs label when the funding-input cap is exceeded", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        fundingInputCapExceeded: true,
+      });
+      expect(result).toEqual({
+        disabled: true,
+        label: COPY.deposit.fundingInputCap.cta,
+      });
+    });
+
+    it("shows the consolidate-UTXOs label even with no provider selected", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        fundingInputCapExceeded: true,
+        hasProvider: false,
+      });
+      expect(result.label).toBe(COPY.deposit.fundingInputCap.cta);
+      expect(result.disabled).toBe(true);
+    });
+
+    it("is unaffected by the funding-input cap when the amount is within it", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        fundingInputCapExceeded: false,
+      });
+      expect(result).toEqual({ disabled: false, label: "Deposit" });
+    });
+
+    it("prefers the consolidate-UTXOs label over the balance-below-minimum message, since the capped max can sit below the minimum while the wallet clears it", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        fundingInputCapExceeded: true,
+        minDeposit: 1_000_000n,
+        maxDepositSats: 960_398n,
+        effectiveRemaining: null,
+        amountSats: 1_500_000n,
+      });
+      expect(result).toEqual({
+        disabled: true,
+        label: COPY.deposit.fundingInputCap.cta,
+      });
+    });
+
+    it("keeps the exceeds-cap message ahead of the consolidate-UTXOs label, since consolidating cannot raise the remaining cap", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        fundingInputCapExceeded: true,
+        effectiveRemaining: 300_000n,
+        amountSats: 600_000n,
+      });
+      expect(result.label).toBe(COPY.deposit.errors.exceedsCap("0.003"));
+    });
+
+    it("keeps the supply-cap-below-minimum message ahead of the consolidate-UTXOs label, which consolidating could not fix", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        fundingInputCapExceeded: true,
+        minDeposit: 500_000n,
+        effectiveRemaining: 300_000n,
+        amountSats: 600_000n,
+      });
+      expect(result.label).toBe(
+        "Peg-in TVL cap reached — only 0.003 BTC remains, below the minimum deposit of 0.005 BTC",
+      );
     });
 
     it("shows the cap message, not 'Insufficient balance', when the supply cap is the binding max", () => {
