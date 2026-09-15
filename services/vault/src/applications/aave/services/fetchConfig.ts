@@ -9,11 +9,14 @@ import { gql } from "graphql-request";
 import type { Address } from "viem";
 
 import { graphqlClient } from "../../../clients/graphql";
+import { getReservesBatch, type AaveSpokeReserve } from "../clients/spoke";
 import {
   getCoreSpokeAddress,
   getVaultBtcReserveId,
 } from "../clients/transaction";
 import { getAaveAdapterAddress } from "../config";
+
+import { ReserveMismatchError } from "./assertReserveMatchesOnChain";
 
 /**
  * Aave configuration from GraphQL indexer
@@ -191,6 +194,127 @@ function mapReserveConfig(raw: GraphQLReserveItem): AaveReserveConfig | null {
   };
 }
 
+function assertAddressMatches(
+  reserveId: bigint,
+  field: string,
+  indexed: Address,
+  onChain: Address,
+): void {
+  if (indexed.toLowerCase() !== onChain.toLowerCase()) {
+    throw new ReserveMismatchError(
+      `Aave reserve ${reserveId} ${field} mismatch: indexer returned ${indexed}, expected ${onChain}`,
+    );
+  }
+}
+
+function assertNumberMatches(
+  reserveId: bigint,
+  field: string,
+  indexed: number,
+  onChain: number,
+): void {
+  if (indexed !== onChain) {
+    throw new ReserveMismatchError(
+      `Aave reserve ${reserveId} ${field} mismatch: indexer returned ${indexed}, expected ${onChain}`,
+    );
+  }
+}
+
+/**
+ * Proves every indexed reserve's identity against the Core Spoke's
+ * `getReserve`, in one hard-fail multicall, and throws `ReserveMismatchError`
+ * on any disagreement.
+ *
+ * `hub` is the contract every rate and liquidity read targets, `assetId` keys
+ * those reads, and `decimals` scales every amount shown for the reserve. An
+ * indexer that kept `reserveId -> underlying` truthful but rewrote any of them
+ * would put a false picture of chain state in front of an irreversible borrow.
+ * All of these are fixed when a reserve is listed, so a mismatch is never
+ * indexer lag. Mutable fields (paused, frozen, borrowable, risk parameters)
+ * are deliberately not compared: they change legitimately, and the indexer
+ * trails them by its refresh interval.
+ *
+ * A reserve id the indexer lists more than once is rejected before the read.
+ *
+ * A mismatch is a conclusion, not a fault, so the config query does not retry
+ * it. A failed read stays an ordinary error and is retried.
+ */
+async function assertReservesMatchOnChain(
+  coreSpokeAddress: Address,
+  reserves: AaveReserveConfig[],
+): Promise<void> {
+  if (reserves.length === 0) {
+    return;
+  }
+
+  // A repeated id would pass the identity check once per copy while each copy
+  // carries its own unproven labels and flags, leaving the indexer to choose
+  // which one downstream lookups keep.
+  const seenReserveIds = new Set<bigint>();
+  for (const { reserveId } of reserves) {
+    if (seenReserveIds.has(reserveId)) {
+      throw new ReserveMismatchError(
+        `Aave indexer listed reserve ${reserveId} more than once`,
+      );
+    }
+    seenReserveIds.add(reserveId);
+  }
+
+  let onChainReserves: AaveSpokeReserve[];
+  try {
+    onChainReserves = await getReservesBatch(
+      coreSpokeAddress,
+      reserves.map((r) => r.reserveId),
+    );
+  } catch (error) {
+    throw new Error(
+      `Failed to read reserves from Core Spoke ${coreSpokeAddress}`,
+      { cause: error },
+    );
+  }
+
+  reserves.forEach((indexed, index) => {
+    const onChain = onChainReserves[index];
+    if (onChain === undefined) {
+      throw new Error(
+        `Core Spoke ${coreSpokeAddress} returned no reserve for indexed reserve ${indexed.reserveId}`,
+      );
+    }
+    const { reserveId } = indexed;
+    assertAddressMatches(
+      reserveId,
+      "underlying",
+      indexed.reserve.underlying,
+      onChain.underlying,
+    );
+    assertAddressMatches(
+      reserveId,
+      "token address",
+      indexed.token.address,
+      onChain.underlying,
+    );
+    assertAddressMatches(reserveId, "hub", indexed.reserve.hub, onChain.hub);
+    assertNumberMatches(
+      reserveId,
+      "asset ID",
+      indexed.reserve.assetId,
+      onChain.assetId,
+    );
+    assertNumberMatches(
+      reserveId,
+      "decimals",
+      indexed.reserve.decimals,
+      onChain.decimals,
+    );
+    assertNumberMatches(
+      reserveId,
+      "token decimals",
+      indexed.token.decimals,
+      onChain.decimals,
+    );
+  });
+}
+
 /**
  * Fetches all Aave app configuration in a single GraphQL request.
  *
@@ -198,6 +322,9 @@ function mapReserveConfig(raw: GraphQLReserveItem): AaveReserveConfig | null {
  * - Aave config (contract addresses, reserve IDs)
  * - vBTC reserve config (for liquidation threshold)
  * - Borrowable reserves (for asset selection)
+ *
+ * Every returned reserve's underlying, hub, asset ID and decimals have been
+ * proven against the Core Spoke, so callers can use them directly.
  *
  * @returns Combined app config or null if config not found
  */
@@ -246,7 +373,7 @@ export async function fetchAaveAppConfig(): Promise<AaveAppConfig | null> {
     );
   }
   if (onChainReserveId !== BigInt(response.aaveConfig.vaultBtcReserveId)) {
-    throw new Error(
+    throw new ReserveMismatchError(
       `Aave vBTC reserve ID mismatch: indexer returned ${response.aaveConfig.vaultBtcReserveId}, expected ${onChainReserveId}`,
     );
   }
@@ -264,6 +391,8 @@ export async function fetchAaveAppConfig(): Promise<AaveAppConfig | null> {
   const allReserves = response.aaveReserves.items
     .map(mapReserveConfig)
     .filter((r): r is AaveReserveConfig => r !== null);
+
+  await assertReservesMatchOnChain(coreSpokeAddress, allReserves);
 
   // Find vBTC reserve by ID
   const vbtcReserve =

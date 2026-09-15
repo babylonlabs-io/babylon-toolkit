@@ -170,9 +170,9 @@ for (const storyId of storyIds) {
   test(`capture story ${storyId}`, async ({ page }) => {
     await page.setViewportSize(STORY_VIEWPORT);
 
-    // `viewMode=story` renders the bare component without the Storybook
-    // chrome (sidebar, toolbar, addon panel), so the screenshot is the
-    // component and nothing else.
+    // Keep the pointer outside the page so it cannot open hover tooltips.
+    const OUTSIDE_PAGE_COORDINATE = -1;
+    await page.mouse.move(OUTSIDE_PAGE_COORDINATE, OUTSIDE_PAGE_COORDINATE);
     await page.goto(`/iframe.html?id=${encodeURIComponent(storyId)}&viewMode=story`, {
       waitUntil: "domcontentloaded",
     });

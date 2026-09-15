@@ -473,6 +473,15 @@ refactor.** `services/vault/src/context/deposit/` already encodes this distincti
 status and requires an indexer-sourced one, and `computeDepositPollingResult.ts`, which keeps
 network-derived state independent of local storage so every tab converges.
 
+Aave reserve identity follows the same rule. `services/vault/src/applications/aave/services/fetchConfig.ts`
+proves each indexed reserve's underlying, hub, asset ID and decimals against the Core Spoke's
+`getReserve` before any market renders, and fails closed on disagreement. The hub is the contract
+every rate and liquidity read targets, so an indexer that rewrote it would falsify the figures a
+borrow is decided on. Everything else about a reserve stays indexer-sourced: the paused, frozen and
+borrowable flags, collateral risk, dynamic config key and collateral factor, which can trail chain
+state by the indexer's refresh interval, and the token symbol and name shown in the asset list and
+activity.
+
 ### Ethereum RPC and the registry trust root
 
 `services/vault/src/clients/eth-contract/client.ts` builds a single viem `PublicClient` over
@@ -797,6 +806,7 @@ only repository-local safeguards.
 | VP auth             | A/D       | Compromised proxy impersonates a vault provider                                   | Integrity of the whole deposit flow                                     | BIP-322 server identity pinned to on-chain `btcPubKey`; 2h ephemeral-key lifetime cap                           | `serverIdentity.test.ts`                                          |
 | VP responses        | A         | Malformed or hostile VP response is cast without inspection                       | User fund loss / wedged flow                                            | `validators.ts` runtime checks; 2 MiB typed-response cap; no retry on writes                                    | `validators.test.ts`, `json-rpc-client.test.ts`                   |
 | Indexer             | B         | Wrong vault status induces an irreversible user action                            | User fund loss (indirect)                                               | Signature-bound values never sourced from the indexer; `terminalMilestones` refuses storage-only classification | deposit-context tests                                             |
+| Indexer             | B         | Indexer rewrites a reserve's hub, asset ID or decimals but keeps its underlying   | Borrow decided on false rates, liquidity or Max amount                  | Every indexed reserve's underlying, hub, asset ID and decimals proven via Core Spoke `getReserve`               | `fetchConfig.test.ts`                                             |
 | Config              | G         | Wrong `NEXT_PUBLIC_TBV_BTC_VAULT_REGISTRY` points the app at attacker contracts   | **User fund loss**                                                      | Strict env validation; blocking modal on failure — but a _valid wrong address_ passes                           | deployment review                                                 |
 | Screening           | G         | Typo'd or unset `NEXT_PUBLIC_TBV_UTILS_API` disables screening silently           | Compliance bypass                                                       | **Known gap** — `parseOptionalUrl` warns and returns `undefined`; `verifyAddress` then allows all               | add a production startup gate                                     |
 | Screening           | —         | User edits the `localStorage` verdict or the bundle                               | Compliance bypass                                                       | None possible client-side — documented as advisory, enforcement belongs server/contract-side                    | —                                                                 |

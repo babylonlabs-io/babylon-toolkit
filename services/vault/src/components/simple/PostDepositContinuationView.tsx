@@ -14,6 +14,7 @@ import { COPY } from "@/copy";
 import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps";
 import { useRequiredPrePeginDepth } from "@/hooks/deposit/useRequiredPrePeginDepth";
 import { deriveSplitVaultProgress } from "@/hooks/deposit/useSplitVaultProgress";
+import { useBtcAction } from "@/hooks/useBtcAction";
 import {
   getPeginDisplayStep,
   getWarningPeginDisplayStep,
@@ -123,23 +124,19 @@ export function PostDepositContinuationView({
   onClose,
   onAdvancedWithdraw,
 }: PostDepositContinuationViewProps) {
+  const { connected } = useBtcAction();
+  const [admitted, setAdmitted] = useState(connected);
+  const [keyWasReady, setKeyWasReady] = useState(!!btcPublicKey);
+  if (btcPublicKey && !keyWasReady) setKeyWasReady(true);
+  // Allow the first key read. A lost session or key needs an explicit retry.
+  if (admitted && (!connected || (keyWasReady && !btcPublicKey))) {
+    setAdmitted(false);
+  }
   const { refetch, getPollingResult } = usePeginPolling();
   const navigate = useNavigate();
 
-  // Refresh the VP poll on open. This used to happen for free: the modal
-  // mounted its own provider, whose query key was scoped to the viewed batch,
-  // so opening it always produced a cache miss and a fresh fetch. Sharing the
-  // app-wide provider means the key no longer changes — and the poll may
-  // already have halted (`refetchInterval` stops once every deposit reports
-  // PendingDepositorSignatures), so without this the user can open the modal
-  // onto a stale snapshot and never see the action they came for.
-  //
-  // One-shot on mount, through a ref. `refetch` is re-created whenever the
-  // provider's context value recomputes — which a refetch itself causes — so
-  // depending on it turns this into a self-sustaining loop at network latency
-  // (refetch → new data → new context identity → effect → refetch), defeating
-  // the `refetchInterval: false` halt the polling design relies on. The ref
-  // keeps the call on the latest refetch without making its identity a dep.
+  // Refresh on open because the shared poll can stop before this view mounts.
+  // Use a ref: a changed refetch callback must not start another request.
   const refetchRef = useRef(refetch);
   refetchRef.current = refetch;
   useEffect(() => {
@@ -151,27 +148,18 @@ export function PostDepositContinuationView({
     onClose();
   }, [navigate, onClose]);
 
+  // Use the on-chain key so a disconnected wallet can see the payout prompt.
   const isActionable = (id: string): boolean => {
-    const state = getPollingResult(id)?.peginState;
-    return isCandidateVault(state) && hasActionableStep(state, btcPublicKey);
+    const result = getPollingResult(id);
+    return (
+      isCandidateVault(result?.peginState) &&
+      hasActionableStep(result?.peginState, result?.depositorBtcPubkey)
+    );
   };
 
-  // Which vault drives the rendered action branch. Two rules:
-  //
-  // 1. Prefer a vault with a user-actionable step over a sibling merely waiting
-  //    on the VP — otherwise vault[0] in AWAIT_VP_VERIFICATION would stall
-  //    vault[1]'s ready WOTS/payout/activation. Batches diverge because the VP
-  //    processes each vault at its own rate.
-  // 2. Stickiness: keep driving the SAME vault as long as it is still
-  //    actionable. `currentVaultId` keys the rendered branch, so without this a
-  //    polling tick that makes a *different* sibling actionable mid-action would
-  //    flip the selection and unmount an in-flight Resume*Content — dropping a
-  //    wallet-signing in progress. Re-select only once the held vault leaves
-  //    actionable (advanced to a wait, went terminal/warning, or left the
-  //    batch — all captured by `isActionable`).
-  //
-  // The progress lanes (`perVaultSteps`) still update live per poll; only the
-  // branch selection is sticky.
+  // Prefer a vault with an available action over a waiting sibling.
+  // Keep that vault selected while its action remains available. A new action
+  // on a sibling must not unmount active signing. Progress still updates live.
   const [stickyVaultId, setStickyVaultId] = useState<string | null>(null);
   const heldVaultId =
     stickyVaultId !== null &&
@@ -192,13 +180,7 @@ export function PostDepositContinuationView({
   const currentVaultId =
     currentVaultIndex === -1 ? undefined : vaultIds[currentVaultIndex];
 
-  // Remember the actionable vault we're driving so the next render's
-  // stickiness check can hold it. Sync unconditionally — clearing to null when
-  // nothing is actionable — so that re-entering an actionable state from a wait
-  // re-selects fresh (first actionable) rather than resurfacing a stale prior
-  // pick. (Holding mid-action is governed by `heldVaultId` above, which only
-  // sticks while the vault stays continuously actionable, so this never drops a
-  // branch that's in flight.)
+  // Clear the selection when all vaults wait. Select fresh when an action returns.
   useEffect(() => {
     setStickyVaultId(actionableVaultId);
   }, [actionableVaultId]);
@@ -372,19 +354,14 @@ export function PostDepositContinuationView({
     );
   }
 
-  // Action-driven branches. Broadcast comes first because it has to happen
-  // before any of the per-vault VP steps; the action availability already
-  // guarantees at most one branch matches.
-  //
-  // Artifact download is NOT auto-invoked: it's a real file download and
-  // silent downloads are user-hostile (the browser may block, the user may
-  // not be ready). The ActivationGate below renders a manual download
-  // button once that step is reached.
+  // Only one action can match. Broadcast precedes the vault provider steps.
+  // ActivationGate requires a click before it downloads artifacts.
 
   if (activity && actions.includes(PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN)) {
     return (
       <ResumeBroadcastContent
         key={`broadcast-${currentVaultId}`}
+        autoStart={admitted}
         activity={activity}
         batchVaultIds={siblingVaultIds}
         depositorEthAddress={depositorEthAddress}
@@ -398,6 +375,7 @@ export function PostDepositContinuationView({
     return (
       <ResumeWotsContent
         key={`wots-${currentVaultId}`}
+        autoStart={admitted}
         activity={activity}
         siblingVaultIds={siblingVaultIds}
         onClose={onClose}
@@ -406,9 +384,10 @@ export function PostDepositContinuationView({
     );
   }
 
+  // The wait fallback must also require the on-chain depositor key.
   if (
     activity &&
-    btcPublicKey &&
+    pollingResult?.depositorBtcPubkey &&
     actions.includes(PeginAction.SIGN_PAYOUT_TRANSACTIONS)
   ) {
     return (
@@ -416,6 +395,7 @@ export function PostDepositContinuationView({
         key={`payout-${currentVaultId}`}
         activity={activity}
         btcPublicKey={btcPublicKey}
+        autoStart={admitted}
         depositorEthAddress={depositorEthAddress}
         siblingVaultIds={siblingVaultIds}
         onClose={onClose}
