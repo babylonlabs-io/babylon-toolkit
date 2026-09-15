@@ -16,6 +16,8 @@ import {
 } from "../clients/transaction";
 import { getAaveAdapterAddress } from "../config";
 
+import { ReserveMismatchError } from "./assertReserveMatchesOnChain";
+
 /**
  * Aave configuration from GraphQL indexer
  * Contains contract addresses and reserve IDs discovered from the AaveIntegrationAdapter
@@ -199,7 +201,7 @@ function assertAddressMatches(
   onChain: Address,
 ): void {
   if (indexed.toLowerCase() !== onChain.toLowerCase()) {
-    throw new Error(
+    throw new ReserveMismatchError(
       `Aave reserve ${reserveId} ${field} mismatch: indexer returned ${indexed}, expected ${onChain}`,
     );
   }
@@ -212,7 +214,7 @@ function assertNumberMatches(
   onChain: number,
 ): void {
   if (indexed !== onChain) {
-    throw new Error(
+    throw new ReserveMismatchError(
       `Aave reserve ${reserveId} ${field} mismatch: indexer returned ${indexed}, expected ${onChain}`,
     );
   }
@@ -220,7 +222,8 @@ function assertNumberMatches(
 
 /**
  * Proves every indexed reserve's identity against the Core Spoke's
- * `getReserve`, in one hard-fail multicall, and throws on any disagreement.
+ * `getReserve`, in one hard-fail multicall, and throws `ReserveMismatchError`
+ * on any disagreement.
  *
  * `hub` is the contract every rate and liquidity read targets, `assetId` keys
  * those reads, and `decimals` scales every amount shown for the reserve. An
@@ -232,6 +235,9 @@ function assertNumberMatches(
  * trails them by its refresh interval.
  *
  * A reserve id the indexer lists more than once is rejected before the read.
+ *
+ * A mismatch is a conclusion, not a fault, so the config query does not retry
+ * it. A failed read stays an ordinary error and is retried.
  */
 async function assertReservesMatchOnChain(
   coreSpokeAddress: Address,
@@ -247,7 +253,7 @@ async function assertReservesMatchOnChain(
   const seenReserveIds = new Set<bigint>();
   for (const { reserveId } of reserves) {
     if (seenReserveIds.has(reserveId)) {
-      throw new Error(
+      throw new ReserveMismatchError(
         `Aave indexer listed reserve ${reserveId} more than once`,
       );
     }
@@ -367,7 +373,7 @@ export async function fetchAaveAppConfig(): Promise<AaveAppConfig | null> {
     );
   }
   if (onChainReserveId !== BigInt(response.aaveConfig.vaultBtcReserveId)) {
-    throw new Error(
+    throw new ReserveMismatchError(
       `Aave vBTC reserve ID mismatch: indexer returned ${response.aaveConfig.vaultBtcReserveId}, expected ${onChainReserveId}`,
     );
   }

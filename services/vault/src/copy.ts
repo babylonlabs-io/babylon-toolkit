@@ -1272,6 +1272,13 @@ export const COPY = {
       heading: SOMETHING_WENT_WRONG_HEADING,
       body: "Please close this and try again in a moment.",
     },
+    // Inline panel shown in place of a page when the Aave config fails to
+    // load. Not a dialog, so unlike `somethingWentWrong` there is nothing to close.
+    aaveConfigUnavailable: {
+      heading: SOMETHING_WENT_WRONG_HEADING,
+      body: "Please try again in a moment.",
+      retryButton: "Retry",
+    },
     globalError: {
       heading: SOMETHING_WENT_WRONG_HEADING,
       body: "An unexpected error occurred. Please try again later.",

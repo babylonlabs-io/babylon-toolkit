@@ -27,6 +27,7 @@ import {
   getVaultBtcReserveId,
 } from "../../clients/transaction";
 import { getAaveAdapterAddress } from "../../config";
+import { ReserveMismatchError } from "../assertReserveMatchesOnChain";
 import { fetchAaveAppConfig } from "../fetchConfig";
 
 const mockRequest = vi.mocked(graphqlClient.request);
@@ -203,7 +204,10 @@ describe("fetchAaveAppConfig", () => {
     mockGetVaultBtcReserveId.mockResolvedValue(1n);
     mockRequest.mockResolvedValueOnce(makeResponse(ENV_ADAPTER, "2"));
 
-    await expect(fetchAaveAppConfig()).rejects.toThrow(
+    const error = await fetchAaveAppConfig().catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ReserveMismatchError);
+    expect(error).toHaveProperty(
+      "message",
       "Aave vBTC reserve ID mismatch: indexer returned 2, expected 1",
     );
   });
@@ -234,7 +238,10 @@ describe("fetchAaveAppConfig", () => {
       { ...ON_CHAIN_USDC_RESERVE, underlying: OTHER_ADDRESS },
     ]);
 
-    await expect(fetchAaveAppConfig()).rejects.toThrow(
+    const error = await fetchAaveAppConfig().catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ReserveMismatchError);
+    expect(error).toHaveProperty(
+      "message",
       `Aave reserve 2 underlying mismatch: indexer returned ${USDC_TOKEN}, expected ${OTHER_ADDRESS}`,
     );
   });
@@ -244,7 +251,10 @@ describe("fetchAaveAppConfig", () => {
       makeResponse(ENV_ADAPTER, "1", { address: OTHER_ADDRESS, decimals: 6 }),
     );
 
-    await expect(fetchAaveAppConfig()).rejects.toThrow(
+    const error = await fetchAaveAppConfig().catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ReserveMismatchError);
+    expect(error).toHaveProperty(
+      "message",
       `Aave reserve 2 token address mismatch: indexer returned ${OTHER_ADDRESS}, expected ${USDC_TOKEN}`,
     );
   });
@@ -256,7 +266,10 @@ describe("fetchAaveAppConfig", () => {
       { ...ON_CHAIN_USDC_RESERVE, hub: OTHER_ADDRESS },
     ]);
 
-    await expect(fetchAaveAppConfig()).rejects.toThrow(
+    const error = await fetchAaveAppConfig().catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ReserveMismatchError);
+    expect(error).toHaveProperty(
+      "message",
       `Aave reserve 2 hub mismatch: indexer returned ${USDC_HUB}, expected ${OTHER_ADDRESS}`,
     );
   });
@@ -268,7 +281,10 @@ describe("fetchAaveAppConfig", () => {
       { ...ON_CHAIN_USDC_RESERVE, assetId: 7 },
     ]);
 
-    await expect(fetchAaveAppConfig()).rejects.toThrow(
+    const error = await fetchAaveAppConfig().catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ReserveMismatchError);
+    expect(error).toHaveProperty(
+      "message",
       "Aave reserve 2 asset ID mismatch: indexer returned 2, expected 7",
     );
   });
@@ -280,7 +296,10 @@ describe("fetchAaveAppConfig", () => {
       { ...ON_CHAIN_USDC_RESERVE, decimals: 18 },
     ]);
 
-    await expect(fetchAaveAppConfig()).rejects.toThrow(
+    const error = await fetchAaveAppConfig().catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ReserveMismatchError);
+    expect(error).toHaveProperty(
+      "message",
       "Aave reserve 2 decimals mismatch: indexer returned 6, expected 18",
     );
   });
@@ -290,7 +309,10 @@ describe("fetchAaveAppConfig", () => {
       makeResponse(ENV_ADAPTER, "1", { address: USDC_TOKEN, decimals: 18 }),
     );
 
-    await expect(fetchAaveAppConfig()).rejects.toThrow(
+    const error = await fetchAaveAppConfig().catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ReserveMismatchError);
+    expect(error).toHaveProperty(
+      "message",
       "Aave reserve 2 token decimals mismatch: indexer returned 18, expected 6",
     );
   });
@@ -315,7 +337,10 @@ describe("fetchAaveAppConfig", () => {
       ON_CHAIN_USDC_RESERVE,
     ]);
 
-    await expect(fetchAaveAppConfig()).rejects.toThrow(
+    const error = await fetchAaveAppConfig().catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ReserveMismatchError);
+    expect(error).toHaveProperty(
+      "message",
       `Aave reserve 1 hub mismatch: indexer returned ${VBTC_HUB}, expected ${OTHER_ADDRESS}`,
     );
   });
@@ -328,7 +353,10 @@ describe("fetchAaveAppConfig", () => {
       aaveReserves: { items: [vbtcRow, usdcRow, usdcRow] },
     });
 
-    await expect(fetchAaveAppConfig()).rejects.toThrow(
+    const error = await fetchAaveAppConfig().catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ReserveMismatchError);
+    expect(error).toHaveProperty(
+      "message",
       "Aave indexer listed reserve 2 more than once",
     );
     expect(mockGetReservesBatch).not.toHaveBeenCalled();
@@ -338,7 +366,11 @@ describe("fetchAaveAppConfig", () => {
     mockRequest.mockResolvedValueOnce(makeResponse());
     mockGetReservesBatch.mockRejectedValueOnce(new Error("rpc down"));
 
-    await expect(fetchAaveAppConfig()).rejects.toThrow(
+    // A read failure may be transient, so it must stay retryable.
+    const error = await fetchAaveAppConfig().catch((e: unknown) => e);
+    expect(error).not.toBeInstanceOf(ReserveMismatchError);
+    expect(error).toHaveProperty(
+      "message",
       `Failed to read reserves from Core Spoke ${CORE_SPOKE}`,
     );
   });
