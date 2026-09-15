@@ -1,8 +1,8 @@
 /**
  * The "multi-hub" action: borrow from several Aave hubs and repay each, end-to-end on real Sepolia,
  * against existing collateral. Two reserve sets:
- *   - one token on every hub that lists it (default; `--borrow-token`, else the first token on more than
- *     one hub — devnet lists USDC and WBTC on both the Babylon Hub and the Core Hub);
+ *   - one token on every hub that lists it (`--borrow-token`, required — never picked implicitly, since
+ *     each leg moves real value; devnet lists USDC and WBTC on both the Babylon Hub and the Core Hub);
  *   - every borrowable reserve on every hub (`--all-reserves`), including tokens on a single hub, whose
  *     borrow skips Select hub.
  *
@@ -60,7 +60,10 @@ async function resolveMultiHubReserves(
       `multi-hub: no token is borrowable from more than one hub on ${network} — nothing to exercise.`,
     );
   const wanted = ctx.config.borrowToken?.trim();
-  if (!wanted) return tokens[0].reserves;
+  if (!wanted)
+    throw new Error(
+      `multi-hub: no --borrow-token to borrow from every hub (tokens on more than one hub: ${tokens.map((t) => t.symbol).join(", ")}) — pass one, or --all-reserves.`,
+    );
   const matches = tokens.filter(
     (token) => token.symbol.toLowerCase() === wanted.toLowerCase(),
   );

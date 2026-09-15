@@ -35,7 +35,7 @@
  * Multi-hub borrows one token from EACH hub that lists it, checks each debt landed on its own reserve and
  * that /loans shows a row per hub, then repays each — against existing collateral (run it on
  * `--target=localhost` until the deployed site has Select hub). `--borrow-token=<symbol>` picks the
- * token (default = the first token on more than one hub); `--all-reserves` instead borrows from every
+ * token (an interactive run asks; a non-interactive run requires it); `--all-reserves` instead borrows from every
  * borrowable reserve on every hub. `--borrow-usd=<n>` sizes each borrow as n USD at the oracle price
  * (else `--borrow-amount` applies to every leg); `--repay-amount` (e.g. `max`) applies to every repay.
  *
@@ -646,16 +646,20 @@ async function resolveConfig(
           );
         borrowToken = match.symbol;
       } else if (borrowToken === undefined && tokens.length > 0) {
-        borrowToken = interactive
-          ? await select(
-              rl,
-              "Token to borrow from every hub",
-              tokens.map((token) => ({
-                value: token.symbol,
-                label: describeToken(token),
-              })),
-            )
-          : tokens[0].symbol;
+        // multi-hub moves real value on every hub that lists the token, so a non-interactive run
+        // refuses to pick one.
+        if (!interactive)
+          throw new Error(
+            `multi-hub needs --borrow-token or --all-reserves in a non-interactive run (tokens on more than one hub: ${tokens.map(describeToken).join("; ")}).`,
+          );
+        borrowToken = await select(
+          rl,
+          "Token to borrow from every hub",
+          tokens.map((token) => ({
+            value: token.symbol,
+            label: describeToken(token),
+          })),
+        );
       }
     }
 

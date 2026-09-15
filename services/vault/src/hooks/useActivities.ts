@@ -26,12 +26,15 @@ import {
  * @returns Query result with activity data sorted by date (newest first)
  */
 export function useActivities(userAddress: Address | undefined) {
-  const { borrowableReserves, vbtcReserve } = useAaveConfig();
+  const { allBorrowReserves, vbtcReserve } = useAaveConfig();
 
   const deps: FetchUserActivitiesDeps = useMemo(() => {
+    // Every reserve, not just the borrowable ones: a past borrow or repay on a
+    // reserve that has since been frozen or paused still needs its token,
+    // decimals and hub to render.
     const allReserves = vbtcReserve
-      ? [...borrowableReserves, vbtcReserve]
-      : borrowableReserves;
+      ? [...allBorrowReserves, vbtcReserve]
+      : allBorrowReserves;
     const reserves = new Map(
       allReserves.map((r) => [
         r.reserveId.toString(),
@@ -52,7 +55,7 @@ export function useActivities(userAddress: Address | undefined) {
       ]),
     );
     return { reserves };
-  }, [borrowableReserves, vbtcReserve]);
+  }, [allBorrowReserves, vbtcReserve]);
 
   return useQuery({
     queryKey: [ACTIVITIES_QUERY_KEY, userAddress],
