@@ -34,9 +34,15 @@ export function usePendingDeposits() {
   const { connected: btcConnected, address: btcAddress } = useBTCWallet();
   const { address: ethAddress } = useETHWallet();
 
-  const { activities, refetchActivities, loading, error } = useVaultDeposits(
-    ethAddress as Address | undefined,
-  );
+  const {
+    activities,
+    refetchActivities,
+    loading,
+    error,
+    removePendingPegins,
+    indexedVaultIds,
+    localRecordStatuses,
+  } = useVaultDeposits(ethAddress as Address | undefined);
 
   const { vaultProviders } = useAllDepositProviders(activities);
 
@@ -128,6 +134,22 @@ export function usePendingDeposits() {
     isLoading: loading,
     error,
     refetchActivities,
+    /**
+     * Discards browser-local pending deposits in one storage write — the whole
+     * batch of a split deposit at once. Returns the failure reason when the
+     * records are still stored.
+     */
+    removePendingPegins,
+    /**
+     * Lowercased ids of every vault the indexer returned, or null unless that
+     * set is known to be complete (answered successfully, no error, no dropped
+     * rows).
+     */
+    indexedVaultIds,
+    /**
+     * Stored status of each browser-local record, keyed by lowercased vault id.
+     */
+    localRecordStatuses,
     broadcastModal,
     refundModal,
     reclaimModal,
