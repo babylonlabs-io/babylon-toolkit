@@ -42,7 +42,7 @@ import {
   AaveConfigProvider,
   ActivatingVaultsProvider,
 } from "../../applications/aave/context";
-import { useBTCWallet, useETHWallet } from "../../context/wallet";
+import { useConnection } from "../../context/wallet";
 import { AddressScreeningBanner } from "../shared/AddressScreeningBanner";
 import { AddressTypeBanner } from "../shared/AddressTypeBanner";
 import { DepositDisabledBanner } from "../shared/DepositDisabledBanner";
@@ -77,8 +77,8 @@ const DEPOSIT_DISABLED_BANNER_Z_CLASS = "z-30";
 export default function RootLayout() {
   const gate = useProtocolGateState();
   const { theme, setTheme } = useTheme();
-  const { connected: btcConnected } = useBTCWallet();
-  const { connected: ethConnected } = useETHWallet();
+  const { isConnected, btcConnected, ethConnected } = useConnection();
+  const walletsPresent = btcConnected && ethConnected;
   const { isGeoBlocked, isLoading: isGeoLoading } = useGeoFencing();
   const { isBlocked: isAddressBlocked } = useAddressScreening();
   const { isSupportedAddress } = useAddressType();
@@ -86,14 +86,13 @@ export default function RootLayout() {
   const pageTitle = usePageTitle();
   const { pathname } = useLocation();
 
-  const isWalletConnected = btcConnected && ethConnected;
   // One signal for "is this the entry frame", so the sidebar and the chrome
   // that replaces it can never disagree. The other routes render disconnected
   // states on purpose and keep their shell — without it a disconnected desktop
   // visitor to /vaults would have no navigation at all.
-  const isEntryLayout = !isWalletConnected && pathname === "/";
+  const isEntryLayout = !isConnected && pathname === "/";
   const showV3Sidebar = !isMobileView && !isEntryLayout;
-  const showAddressTypeBanner = isWalletConnected && !isSupportedAddress;
+  const showAddressTypeBanner = walletsPresent && !isSupportedAddress;
   // Match ProtocolStatusBanner's status derivation: the dev-only god-mode
   // override (compile-time null in production) wins over the live gate, so a
   // forced frozen/paused preview drives banner suppression here too and can't
@@ -105,7 +104,7 @@ export default function RootLayout() {
   // active, since that banner already explains the disabled state.
   const showDepositDisabledBanner =
     !isGeoBlocked &&
-    isWalletConnected &&
+    walletsPresent &&
     FeatureFlags.isDepositDisabled &&
     !hasProtocolStatus;
   // The operator message (NEXT_PUBLIC_NOTICE_BANNER_MESSAGE) is context-aware:
@@ -177,7 +176,7 @@ export default function RootLayout() {
         message={FeatureFlags.noticeBannerMessage ?? ""}
       />
       <AddressScreeningBanner
-        visible={!isGeoBlocked && isWalletConnected && isAddressBlocked}
+        visible={!isGeoBlocked && walletsPresent && isAddressBlocked}
       />
       <AddressTypeBanner visible={!isGeoBlocked && showAddressTypeBanner} />
     </>
