@@ -8,6 +8,7 @@ import {
   ContractStatus,
   getNextLocalStatus,
   getPeginDisplayStep,
+  getPeginProgressStep,
   getPeginState,
   getPrimaryActionButton,
   isCandidateVault,
@@ -1016,6 +1017,81 @@ describe("peginStateMachine", () => {
       );
       expect(getPeginDisplayStep(getPeginState(ContractStatus.ACTIVE))).toBe(
         null,
+      );
+    });
+  });
+
+  describe("getPeginProgressStep", () => {
+    const NOW = 1_700_000_000_000;
+
+    it("holds at AWAIT_VP_VERIFICATION when the VP still lists a PAYOUT_SIGNED deposit for signing", () => {
+      const state = getPeginState(ContractStatus.PENDING, {
+        localStatus: LocalStorageStatus.PAYOUT_SIGNED,
+        transactionsReady: true,
+        payoutSignedAt: NOW - 60_000,
+      });
+      expect(state.availableActions).toContain(
+        PeginAction.SIGN_PAYOUT_TRANSACTIONS,
+      );
+      expect(getPeginDisplayStep(state)).toBe(DepositFlowStep.SIGN_AUTH_ANCHOR);
+      expect(getPeginProgressStep(state, NOW)).toBe(
+        DepositFlowStep.AWAIT_VP_VERIFICATION,
+      );
+    });
+
+    it("holds the floor one minute short of the payout-signed window", () => {
+      const state = getPeginState(ContractStatus.PENDING, {
+        localStatus: LocalStorageStatus.PAYOUT_SIGNED,
+        transactionsReady: true,
+        payoutSignedAt: NOW - 19 * 60_000,
+      });
+      expect(getPeginProgressStep(state, NOW)).toBe(
+        DepositFlowStep.AWAIT_VP_VERIFICATION,
+      );
+    });
+
+    it("releases the floor to SIGN_AUTH_ANCHOR once the payout-signed window has passed", () => {
+      const state = getPeginState(ContractStatus.PENDING, {
+        localStatus: LocalStorageStatus.PAYOUT_SIGNED,
+        transactionsReady: true,
+        payoutSignedAt: NOW - 20 * 60_000,
+      });
+      expect(getPeginDisplayStep(state)).toBe(DepositFlowStep.SIGN_AUTH_ANCHOR);
+      expect(getPeginProgressStep(state, NOW)).toBe(
+        DepositFlowStep.SIGN_AUTH_ANCHOR,
+      );
+    });
+
+    it("does not floor a PAYOUT_SIGNED deposit that carries no payout-signed timestamp", () => {
+      const state = getPeginState(ContractStatus.PENDING, {
+        localStatus: LocalStorageStatus.PAYOUT_SIGNED,
+        transactionsReady: true,
+      });
+      expect(getPeginProgressStep(state, NOW)).toBe(
+        DepositFlowStep.SIGN_AUTH_ANCHOR,
+      );
+    });
+
+    it("does not floor a payout-signed timestamp that sits ahead of the clock", () => {
+      const state = getPeginState(ContractStatus.PENDING, {
+        localStatus: LocalStorageStatus.PAYOUT_SIGNED,
+        transactionsReady: true,
+        payoutSignedAt: NOW + 60_000,
+      });
+      expect(getPeginProgressStep(state, NOW)).toBe(
+        DepositFlowStep.SIGN_AUTH_ANCHOR,
+      );
+    });
+
+    it("keeps the lower step when the VP contradicts PAYOUT_SIGNED with a WOTS demand", () => {
+      const state = getPeginState(ContractStatus.PENDING, {
+        localStatus: LocalStorageStatus.PAYOUT_SIGNED,
+        needsWotsKey: true,
+        payoutSignedAt: NOW - 60_000,
+      });
+      expect(state.availableActions).toContain(PeginAction.SUBMIT_WOTS_KEY);
+      expect(getPeginProgressStep(state, NOW)).toBe(
+        DepositFlowStep.SUBMIT_WOTS_KEYS,
       );
     });
   });
