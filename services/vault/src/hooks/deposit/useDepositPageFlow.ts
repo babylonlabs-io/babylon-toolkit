@@ -101,7 +101,8 @@ export function useDepositPageFlow(): UseDepositPageFlowResult {
   // Get activities refetch function
   const { refetchActivities } = useVaultDeposits(ethAddress);
 
-  const { data: existingVaults } = useVaults(ethAddress);
+  const { data: vaultsResult } = useVaults(ethAddress);
+  const existingVaults = vaultsResult?.vaults;
   const hasActiveVaults = useMemo(
     () => existingVaults?.some((v) => v.status === VaultStatus.ACTIVE) ?? false,
     [existingVaults],
