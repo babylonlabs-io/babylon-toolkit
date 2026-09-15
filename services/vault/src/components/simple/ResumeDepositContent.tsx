@@ -90,12 +90,7 @@ export interface ResumeSignContentProps {
   btcPublicKey: string | undefined;
   autoStart?: boolean;
   depositorEthAddress: Hex;
-  /**
-   * Every vault ID sharing this deposit's Pre-PegIn (the split-pegin
-   * siblings). When length > 1 the progress view renders the stacked
-   * per-vault split UI with this vault highlighted. Defaults to just this
-   * vault, so standalone deposits render as a single vault.
-   */
+  /** Vaults that share this Pre-PegIn. Defaults to the current vault. */
   siblingVaultIds?: string[];
   onClose: () => void;
   onSuccess: () => void;
@@ -138,7 +133,7 @@ function ResumeSignContentConnected({
   const {
     signing,
     progress,
-    error,
+    error: signingError,
     errorTerminal,
     isComplete,
     handleSign,
@@ -148,23 +143,18 @@ function ResumeSignContentConnected({
   } = usePayoutSigningState({
     activity,
     btcPublicKey,
+    walletKeyReady,
     depositorEthAddress,
     onSuccess,
   });
+  const error = signing ? null : signingError;
 
-  // A cancel recorded by the deposit flow means this mount is the post-cancel
-  // continuation handoff, not a first visit: auto-running would re-prompt the
-  // device moments after the user asked to stop. Read once at mount, like
-  // ResumeWotsContent's isReoffer — re-reading would swap modes mid-flight.
+  // Read once. A recorded cancel requires a new click before signing.
   const [wasCanceled] = useState(() => hasPayoutSignCancelRecord(activity.id));
 
   useRunOnce(handleSign, !wasCanceled && walletKeyReady);
 
-  // A self-requested cancel settles QUIETLY in the hook (idle, no error, not
-  // complete). Left alone, that state renders a disabled Sign button with no
-  // retry seam, so route it into the view's pre-sign entry state instead —
-  // its CTA re-runs the full ceremony, matching the WOTS re-offer pattern.
-  // Starts true for a recorded cancel so the handoff parks there directly.
+  // A settled cancel has no error. Show Sign again so the user can retry.
   const [reofferAfterCancel, setReofferAfterCancel] = useState(wasCanceled);
   const sawCancelRequestRef = useRef(false);
   useEffect(() => {
@@ -173,8 +163,7 @@ function ResumeSignContentConnected({
       return;
     }
     if (!sawCancelRequestRef.current || signing) return;
-    // The requested cancel has settled (the hook consumes the request on
-    // every settle path); only the quiet outcome becomes a re-offer.
+    // Offer Sign again only when cancel settles without an error or completion.
     sawCancelRequestRef.current = false;
     if (!error && !isComplete) setReofferAfterCancel(true);
   }, [cancelRequested, signing, error, isComplete]);
@@ -185,15 +174,7 @@ function ResumeSignContentConnected({
     void handleSign();
   }, [handleSign, walletKeyReady]);
 
-  // Once signing is done the deposit waits on the vault provider. Track the
-  // live contract status so the "Awaiting vault provider verification" wait has
-  // a terminal condition instead of spinning forever (the pending-deposit card
-  // already reflects this state):
-  //  - VERIFIED → advance to "ready to activate" (closeable terminal milestone).
-  //  - ACTIVE   → the vault was activated elsewhere while this modal sat open,
-  //    so the whole flow is already complete; show COMPLETED, not the stale
-  //    "ready to activate" milestone (which would imply an activation step is
-  //    still pending and disagree with the dashboard).
+  // Polling distinguishes a verified vault from an already active vault.
   const pollingResult = useDepositPollingResult(activity.id);
   const contractStatus = pollingResult?.peginState?.contractStatus;
   const verified = contractStatus === ContractStatus.VERIFIED;
@@ -227,10 +208,6 @@ function ResumeSignContentConnected({
     <DepositProgressView
       currentStep={renderStep}
       offchainParamsVersion={activity.offchainParamsVersion}
-      // usePayoutSigningState already produces structured { title, message }
-      // errors with actionable guard titles (missing/mismatched payout address,
-      // wallet liveness, etc.). Pass them through directly so the callout keeps
-      // that title instead of collapsing to the generic mapped fallback.
       error={
         error
           ? {
@@ -253,9 +230,7 @@ function ResumeSignContentConnected({
       currentVaultIndex={currentVaultIndex}
       perVaultSteps={perVaultSteps}
       onClose={onClose}
-      // A terminal refusal (ack window elapsed, signing already over, device
-      // rejected the terms) re-runs the whole chain-read chain and fails
-      // identically — no Retry CTA, same seam as the activation branch.
+      // A terminal refusal cannot succeed on Retry.
       onRetry={
         error && !errorTerminal && walletKeyReady ? handleSign : undefined
       }
@@ -274,6 +249,7 @@ function ResumeSignContentConnected({
 
 export interface ResumeBroadcastContentProps {
   activity: VaultActivity;
+  autoStart?: boolean;
   /**
    * Every vault ID sharing this Pre-PegIn transaction (batched pegin).
    * Includes `activity.id`. The broadcast confirms all of them.
@@ -286,7 +262,7 @@ export interface ResumeBroadcastContentProps {
 
 export function ResumeBroadcastContent(props: ResumeBroadcastContentProps) {
   return (
-    <BtcActionGate onClose={props.onClose}>
+    <BtcActionGate onClose={props.onClose} autoStart={props.autoStart}>
       <ResumeBroadcastContentConnected {...props} />
     </BtcActionGate>
   );
@@ -320,9 +296,7 @@ function ResumeBroadcastContentConnected({
   const btcWalletProvider = btcConnector?.connectedWallet?.provider;
   const connectedBtcAddress = btcConnector?.connectedWallet?.account?.address;
 
-  // Defensive auto-run gate (effectively always-enabled today) — see the note
-  // in ResumeWotsContent. Fires when no provider is present so the genuine
-  // "not connected" error surfaces (handleBroadcast throws it).
+  // Wait for the address, or let the handler report a missing provider.
   useRunOnce(
     handleBroadcast,
     !btcWalletProvider || Boolean(connectedBtcAddress),
@@ -369,6 +343,7 @@ function ResumeBroadcastContentConnected({
 
 export interface ResumeWotsContentProps {
   activity: VaultActivity;
+  autoStart?: boolean;
   /** Sibling vault IDs sharing this Pre-PegIn (see ResumeSignContentProps). */
   siblingVaultIds?: string[];
   onClose: () => void;
@@ -377,7 +352,7 @@ export interface ResumeWotsContentProps {
 
 export function ResumeWotsContent(props: ResumeWotsContentProps) {
   return (
-    <BtcActionGate onClose={props.onClose}>
+    <BtcActionGate onClose={props.onClose} autoStart={props.autoStart}>
       <ResumeWotsContentConnected {...props} />
     </BtcActionGate>
   );
@@ -396,32 +371,14 @@ function ResumeWotsContentConnected({
     null;
   const connectedBtcAddress = btcConnector?.connectedWallet?.account?.address;
 
-  // A submission already recorded for this deposit means the user has been
-  // through this step in this session, so this mount is the suppression TTL
-  // lapsing and re-offering the action — not a first visit. Auto-submitting
-  // there would fire a wallet prompt at an idle open modal with no user
-  // gesture behind it, so a re-offer waits for an explicit click instead.
-  // Read once at mount: `markWotsSubmitted` below flips it, and re-reading
-  // would swap the component into the wrong mode mid-flight.
-  //
-  // Deliberately gated even when the user just clicked the re-offered row
-  // action — where that click was already a gesture and this costs a second
-  // one. A re-offer means the VP is still asking after a submission this
-  // session watched resolve, so something may genuinely be wrong; making the
-  // user confirm the fresh wallet popup on that abnormal path is worth more
-  // than the click it saves, and it spares the mount site from having to
-  // report whether this render is a fresh open or a branch swap under an
-  // already-open modal.
+  // Read once. A prior submission requires a new click, even after its
+  // suppression period ends or the user opens the action again.
   const [isReoffer] = useState(() => hasWotsSubmissionRecord(activity.id));
 
-  // `started` false parks DepositProgressView on its pre-sign entry state,
-  // where the CTA calls `onSign` — the same seam DepositSignContent uses.
+  // A repeat submission starts at the Sign button.
   const [started, setStarted] = useState(!isReoffer);
 
-  // Starts true on the auto-submit path: useRunOnce fires handleSubmit on
-  // mount, so the first render must show processing — not a false-success
-  // banner from `isComplete = !loading && !error`. A re-offer has not
-  // submitted anything yet, so it starts idle.
+  // Show processing before the first automatic submission starts.
   const [loading, setLoading] = useState(!isReoffer);
   const [error, setError] = useState<CaughtError | null>(null);
 
@@ -610,17 +567,8 @@ function ResumeWotsContentConnected({
     onSuccess,
   ]);
 
-  // Defensive auto-run gate. Today this is effectively always-enabled: the
-  // connector exposes `connectedWallet` only after connect() completes, so
-  // `provider` and `account.address` are set together — there is no
-  // "provider present, address still hydrating" window. The gate is
-  // belt-and-suspenders for a future connector that surfaces a still-connecting
-  // wallet before its account hydrates: in that case useRunOnce (one-shot)
-  // would defer rather than fire into the "not connected" guard. When there is
-  // genuinely no provider it fires, so the real "not connected" error surfaces.
-  //
-  // `!isReoffer` keeps the auto-run to a first visit; a re-offer submits only
-  // through `handleStart`, behind a click.
+  // Wait for the address, or let the handler report a missing provider.
+  // A repeat submission requires handleStart.
   useRunOnce(
     handleSubmit,
     !isReoffer && (!btcWalletProvider || Boolean(connectedBtcAddress)),
@@ -829,9 +777,7 @@ function ResumeActivationContentConnected({
     handleActivation,
   ]);
 
-  // Defensive auto-run gate (effectively always-enabled today) — see the note
-  // in ResumeWotsContent. Fires when no provider is present so the genuine
-  // "not connected" error surfaces.
+  // Wait for the address, or let the handler report a missing provider.
   useRunOnce(handleSubmit, !btcWalletProvider || Boolean(connectedBtcAddress));
 
   const error: CaughtError | null =

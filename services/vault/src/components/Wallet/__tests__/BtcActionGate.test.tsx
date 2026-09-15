@@ -1,4 +1,4 @@
-import { render } from "@testing-library/react";
+import { fireEvent, render } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { COPY } from "@/copy";
@@ -12,8 +12,9 @@ vi.mock("@babylonlabs-io/wallet-connector", () => ({
 
 describe("BtcActionGate", () => {
   it("shows the resolving loader and mounts nothing while the wallet is still loading", () => {
+    const onClose = vi.fn();
     const { getByText, queryByText, queryByTestId, queryAllByRole } = render(
-      <BtcActionGate onClose={vi.fn()}>
+      <BtcActionGate onClose={onClose}>
         <div data-testid="gated-child" />
       </BtcActionGate>,
     );
@@ -21,6 +22,8 @@ describe("BtcActionGate", () => {
     expect(getByText(COPY.wallet.btcAction.resolving)).toBeInTheDocument();
     expect(queryByTestId("gated-child")).not.toBeInTheDocument();
     expect(queryByText(COPY.wallet.btcAction.heading)).not.toBeInTheDocument();
-    expect(queryAllByRole("button")).toHaveLength(0);
+    expect(queryAllByRole("button")).toHaveLength(1);
+    fireEvent.click(getByText(COPY.wallet.btcAction.cancel));
+    expect(onClose).toHaveBeenCalledOnce();
   });
 });
