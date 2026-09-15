@@ -1,8 +1,7 @@
 /**
  * Vault-root derivation via the wallet's `deriveContextHash` API.
  *
- * Implements the canonical root source from `derive-vault-secrets.md`
- * §2.2:
+ * Implements the canonical root source:
  *
  * ```
  * rootDerivation = deriveContextHash("babylon-btc-vault", hex(vaultContext))
@@ -22,14 +21,13 @@ import { buildVaultContext, type VaultContextInput } from "./context";
 /**
  * The fixed `appName` passed to the wallet's `deriveContextHash` for
  * Babylon vault derivations. The wallet displays this in its approval
- * dialog. Defined by `derive-vault-secrets.md` §2.2 — must not be
- * changed without coordinating a spec revision and a downstream
+ * dialog. Frozen — must not be changed without a downstream
  * migration plan, as it provides app-level domain separation across
  * applications using the same wallet.
  */
 export const VAULT_APP_NAME = "babylon-btc-vault";
 
-/** Expected length of the wallet output in bytes per spec §2.1. */
+/** Expected length of the wallet output in bytes (`deriveContextHash` returns 32 bytes). */
 const ROOT_OUTPUT_BYTES = 32;
 
 /** Expected length of the wallet output in lowercase hex chars. */
@@ -72,13 +70,13 @@ export function forwardDeriveContextHash(
  * `wallet.deriveContextHash`.
  *
  * Validates the wallet's output strictly: must be exactly 64
- * lowercase hex characters per `derive-context-hash.md` §2.1. A
+ * lowercase hex characters, as the `deriveContextHash` contract requires. A
  * conformant wallet always satisfies this, but we re-check at the
  * SDK boundary so a non-conformant wallet (or a wallet returning a
  * malformed value through a buggy adapter) fails loud here rather
  * than producing silently-wrong derived secrets downstream.
  *
- * The helper itself produces only valid spec inputs (`appName` is
+ * The helper itself produces only valid `deriveContextHash` inputs (`appName` is
  * the hardcoded `VAULT_APP_NAME`; `context` is hex of the 72-byte
  * `vaultContext`, always 144 chars lowercase), so input-side
  * validation is unnecessary.
@@ -91,8 +89,8 @@ export function forwardDeriveContextHash(
  * @stability frozen — on-chain-binding. The pair (`VAULT_APP_NAME`,
  * `vaultContext` encoding) is the wallet's input space; changing
  * either rotates the root and invalidates every secret derived from
- * it. `VAULT_APP_NAME` is fixed by `derive-vault-secrets.md` §2.2
- * and must never change without a coordinated spec revision.
+ * it. `VAULT_APP_NAME` is frozen and must never change without a
+ * downstream migration plan.
  *
  * @returns 32-byte root suitable for {@link expandAuthAnchor},
  *          {@link expandHashlockSecret}, {@link expandWotsSeed}.
@@ -121,7 +119,7 @@ export async function deriveVaultRoot(
   }
   if (!LOWERCASE_HEX_RE.test(rootHex)) {
     throw new Error(
-      "deriveVaultRoot: wallet must return lowercase hex per derive-context-hash.md §2.1; got value with non-lowercase or non-hex characters",
+      "deriveVaultRoot: wallet must return 64 lowercase hex characters; got value with non-lowercase or non-hex characters",
     );
   }
 

@@ -50,7 +50,8 @@ const FRAME_SETTLE_TIMEOUT_MS = 15_000;
 
 /**
  * Storybook keeps the functional loader spinning under reduced motion
- * (see docs/motion-system.md). Frozen here for the same reason the vault
+ * (the reduced-motion reset in core-ui index.css re-enables it). Frozen
+ * here for the same reason the vault
  * capture freezes it: otherwise every spinner story lands on a random
  * rotation and diffs against itself forever.
  */

@@ -338,10 +338,13 @@ invalidates every existing deposit.** Users cannot derive matching keys, cannot 
 resume. This is not a compatibility inconvenience — it is permanent loss of access for in-flight
 deposits.
 
-Treat any such change as a hard fork requiring: a coordinated revision of `derive-vault-secrets.md` /
-`derive-context-hash.md`; updated golden vectors in `btc-vault` (`golden_vectors_pinned`), in
-vault-wasm (`lib.rs`), and in `vault-secrets/__tests__/expand.test.ts`; and a migration plan for
-in-flight deposits.
+Treat any such change as a hard fork requiring: updated golden vectors in `btc-vault`
+(`golden_vectors_pinned`), in vault-wasm (`lib.rs`), in `vault-secrets/__tests__/expand.test.ts` and in
+`vault-secrets/__tests__/context.golden.test.ts`;
+for the wallet-side derivation, updated conformance vectors in
+`vault-secrets/__tests__/deriveContextHash.vectors.test.ts` and a coordinated release with every
+external implementation that pins them (Ledger vault app, Keystone firmware, OneKey, UniSat); and a
+migration plan for in-flight deposits.
 
 ### The `VAULT_WASM_COMMIT` pin
 

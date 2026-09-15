@@ -1,7 +1,6 @@
 /**
  * Shared `deriveContextHash` stub for BTC adapters whose underlying
- * wallet does not implement the `deriveContextHash` API specified in
- * `docs/specs/derive-context-hash.md`.
+ * wallet does not implement the `deriveContextHash` API.
  *
  * Centralizing the throw keeps the wording, error code, and parameter
  * usage consistent across adapters and lets us unit-test the contract

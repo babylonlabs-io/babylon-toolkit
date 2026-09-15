@@ -1,6 +1,6 @@
 /**
  * A `deriveContextHash` result is a 32-byte value, hex-encoded as 64
- * lowercase characters (`docs/specs/derive-context-hash.md` §2.1).
+ * lowercase characters.
  */
 export const CONTEXT_HASH_OUTPUT_HEX_LENGTH = 64;
 

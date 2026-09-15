@@ -11,7 +11,7 @@
  *   That reset is a `*` + `!important` rule, so it beats every component
  *   rule regardless of source order - no per-component masking needed.
  * - **The loader spinner** is the one documented exception the reset
- *   deliberately keeps running (`.bbn-loader`, see docs/motion-system.md).
+ *   deliberately keeps running (`.bbn-loader`, re-enabled in core-ui index.css).
  *   A functional spinner is exactly what a screenshot catches mid-frame,
  *   so `FREEZE_SPINNER_CSS` stops it at a fixed angle.
  * - **Clock-derived copy** stays pinned with `setFixedTime`. Timers

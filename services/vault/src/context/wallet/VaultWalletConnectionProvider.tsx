@@ -25,7 +25,7 @@ import { isSpeculosTransportArmed } from "@/e2e/speculosTransportBootstrap";
 import { logger } from "@/infrastructure";
 import { isUserCancellation } from "@/utils/errors/userCancellation";
 
-// Vault deposits need the BTC wallet's `deriveContextHash` (docs/specs/derive-context-hash.md).
+// Vault deposits need the BTC wallet's `deriveContextHash`.
 // ALWAYS_DISABLED_WALLETS keeps non-conforming adapters (appkit/injectable/ledger) permanently out
 // of the connect UI. Every other wallet is on by default; which ones are hidden per environment —
 // experimental wallets not yet ready for production (onekey, utila) and any wallet we need to pull

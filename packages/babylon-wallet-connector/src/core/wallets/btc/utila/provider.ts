@@ -31,7 +31,7 @@ const UTILA_PROMPT_TIMEOUT_MS = 60_000;
  * to looping `signPsbt` (confirmed with the Utila team).
  *
  * Its `deriveContextHash` is MPC-based, not HD/HKDF — cross-wallet portability
- * is not provided, which the spec permits for non-HD wallets (the dApp only
+ * is not provided, which `docs/vault-integration-guide.md` permits for MPC wallets (the dApp only
  * needs a deterministic, domain-separated 32-byte value).
  */
 export class UtilaProvider implements IBTCProvider {
