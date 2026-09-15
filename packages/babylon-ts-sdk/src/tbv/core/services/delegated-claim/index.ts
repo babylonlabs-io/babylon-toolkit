@@ -1,13 +1,19 @@
 /**
- * Delegated claim (depositor-as-claimer) — watchtower artifact assembly.
+ * Delegated claim (depositor-as-claimer) — artifact assembly and claim-time
+ * execution.
  *
- * Produces and checks the two files the `vaultd vp wt` watchtower CLI reads
- * to claim a vault without the vault provider: `artifacts.json` and
- * `wots_keypair.json`.
+ * Produces and checks the two files a claim runs from: `artifacts.json` and
+ * `wots_keypair.json`. `vaultd vp wt` reads the same pair, so either can drive
+ * the claim.
  *
- * Claim-time execution is not here. Proof generation, Assert/Payout
- * finalization, the WronglyChallenged response and race monitoring all run in
- * the watchtower CLI, against the files this module produces.
+ * Claim time is here as well. From an assembled `artifacts.json` this module
+ * pins the Groth16 proof, finalizes the Assert, and produces the Payout and
+ * WronglyChallenged transactions, so a depositor whose vault provider is gone
+ * completes a claim without running the CLI.
+ *
+ * Two things stay outside: the proof itself comes from the prover service,
+ * and nothing here watches the chain — a ChallengeAssert must be answered
+ * inside `timelock_challenge_assert`, and noticing one is the caller's job.
  *
  * @see btc-vault docs/delegated_claim.md
  * @module services/delegated-claim
