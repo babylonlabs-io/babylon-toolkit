@@ -10,8 +10,14 @@ const mockConnector = vi.hoisted(() => ({
   connectedWallet: { provider: { getPublicKeyHex: mockGetPublicKeyHex } },
 }));
 
+const mockWallet = vi.hoisted(() => ({ locked: false }));
+
 vi.mock("@babylonlabs-io/wallet-connector", () => ({
   useChainConnector: () => mockConnector,
+}));
+
+vi.mock("@/context/wallet", () => ({
+  useBTCWallet: () => ({ locked: mockWallet.locked }),
 }));
 
 vi.mock("@babylonlabs-io/ts-sdk/tbv/core", () => ({
@@ -26,6 +32,7 @@ vi.mock("@/infrastructure", () => ({
 describe("useBtcPublicKey", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockWallet.locked = false;
   });
 
   it("returns the x-only key without the 0x prefix once the wallet responds", async () => {
@@ -65,6 +72,26 @@ describe("useBtcPublicKey", () => {
     });
 
     expect(result.current.publicKey).toBe("ab".repeat(32));
+    expect(result.current.error).toBeNull();
+  });
+
+  it("re-reads the key on its own once the wallet reports unlocked", async () => {
+    mockWallet.locked = true;
+    mockGetPublicKeyHex.mockRejectedValueOnce(new Error("wallet locked"));
+    mockGetPublicKeyHex.mockResolvedValue(`02${"ab".repeat(32)}`);
+
+    const { result, rerender } = renderHook(() => useBtcPublicKey(true));
+    await waitFor(() => {
+      expect(result.current.error?.message).toBe("wallet locked");
+    });
+
+    // The provider clears `locked` after the unlock; nothing calls refetch().
+    mockWallet.locked = false;
+    rerender();
+
+    await waitFor(() => {
+      expect(result.current.publicKey).toBe("ab".repeat(32));
+    });
     expect(result.current.error).toBeNull();
   });
 

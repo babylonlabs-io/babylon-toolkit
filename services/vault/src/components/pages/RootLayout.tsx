@@ -79,7 +79,8 @@ export default function RootLayout() {
   const gate = useProtocolGateState();
   const { theme, setTheme } = useTheme();
   const { isConnected, btcConnected, ethConnected } = useConnection();
-  const walletsPresent = btcConnected && ethConnected;
+  const walletsPresent =
+    ethConnected && (FeatureFlags.isEthFirstEnabled || btcConnected);
   const { isGeoBlocked, isLoading: isGeoLoading } = useGeoFencing();
   const { isBlocked: isAddressBlocked } = useAddressScreening();
   const { isSupportedAddress } = useAddressType();
@@ -93,7 +94,8 @@ export default function RootLayout() {
   // visitor to /vaults would have no navigation at all.
   const isEntryLayout = !isConnected && pathname === "/";
   const showV3Sidebar = !isMobileView && !isEntryLayout;
-  const showAddressTypeBanner = walletsPresent && !isSupportedAddress;
+  const showAddressTypeBanner =
+    walletsPresent && btcConnected && !isSupportedAddress;
   // Match ProtocolStatusBanner's status derivation: the dev-only god-mode
   // override (compile-time null in production) wins over the live gate, so a
   // forced frozen/paused preview drives banner suppression here too and can't

@@ -28,6 +28,10 @@ vi.mock("@babylonlabs-io/wallet-connector", () => ({
   }),
 }));
 
+vi.mock("@/context/wallet", () => ({
+  useBTCWallet: () => ({ connected: btcActionWallet.connected }),
+}));
+
 const featureFlagsMock = vi.hoisted(() => ({
   // The artifact-download override is itself gated on this flag; the
   // god-mode test flips it on to exercise the gated path.

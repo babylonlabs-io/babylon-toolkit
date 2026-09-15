@@ -116,6 +116,10 @@ vi.mock("@babylonlabs-io/wallet-connector", () => {
   };
 });
 
+vi.mock("@/context/wallet", () => ({
+  useBTCWallet: () => ({ connected: btcActionWallet.connected }),
+}));
+
 vi.mock("@/clients/eth-contract/sdk-readers", () => ({
   getVaultRegistryReader: vi.fn(),
 }));
@@ -1316,6 +1320,27 @@ describe("Bitcoin action prompt", () => {
       view.getByRole("button", { name: COPY.wallet.btcAction.retry }),
     );
     expect(useActivationState).toHaveBeenCalled();
+  });
+
+  it("allows cancel while the connected wallet key is unavailable", () => {
+    btcActionWallet.connected = true;
+    const onClose = vi.fn();
+    const view = render(
+      <ResumeSignContent
+        activity={baseActivity}
+        btcPublicKey={undefined}
+        depositorEthAddress="0xdepositor"
+        onClose={onClose}
+        onSuccess={vi.fn()}
+      />,
+    );
+    expect(usePayoutSigningState).not.toHaveBeenCalled();
+    fireEvent.click(
+      view.getByRole("button", { name: COPY.wallet.btcAction.cancel }),
+    );
+    expect(onClose).toHaveBeenCalledOnce();
+    view.unmount();
+    expect(usePayoutSigningState).not.toHaveBeenCalled();
   });
 
   it("requires wallet confirmation before the explicit retry", () => {

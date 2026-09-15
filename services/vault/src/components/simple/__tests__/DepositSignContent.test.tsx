@@ -15,6 +15,9 @@ vi.mock("@babylonlabs-io/wallet-connector", () => ({
   useBTCWallet: () => ({ connected: btcActionWallet.connected }),
   useWalletConnect: () => ({ connected: true, open: btcActionWallet.open }),
 }));
+vi.mock("@/context/wallet", () => ({
+  useBTCWallet: () => ({ connected: btcActionWallet.connected }),
+}));
 
 beforeEach(() => {
   btcActionWallet.connected = true;

@@ -7,7 +7,7 @@
  */
 
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { AppPeginPollingProvider } from "../AppPeginPollingProvider";
 
@@ -15,22 +15,27 @@ const REAL_ID = "0xreal";
 const DEMO_ID = "0xdemo";
 
 let providerActivities: Array<{ id: string }> = [];
+let providerBtcWalletAbsent: boolean | undefined;
+let btcConnected = true;
 
 vi.mock("../PeginPollingContext", () => ({
   PeginPollingProvider: ({
     activities,
+    btcWalletAbsent,
     children,
   }: {
     activities: Array<{ id: string }>;
+    btcWalletAbsent?: boolean;
     children: React.ReactNode;
   }) => {
     providerActivities = activities;
+    providerBtcWalletAbsent = btcWalletAbsent;
     return children;
   },
 }));
 
 vi.mock("@/context/wallet", () => ({
-  useBTCWallet: () => ({ connected: true }),
+  useBTCWallet: () => ({ connected: btcConnected }),
   useETHWallet: () => ({ address: "0xdepositor" }),
 }));
 
@@ -54,6 +59,11 @@ vi.mock("@/overrides/deposits", () => ({
 }));
 
 describe("AppPeginPollingProvider", () => {
+  afterEach(() => {
+    btcConnected = true;
+    vi.unstubAllEnvs();
+  });
+
   it("feeds the polling provider the wallet's real deposits", () => {
     render(
       <AppPeginPollingProvider>
@@ -88,5 +98,46 @@ describe("AppPeginPollingProvider", () => {
     );
 
     expect(screen.getByText("deposit flow")).toBeInTheDocument();
+  });
+
+  it("marks the Bitcoin wallet absent when the flag is on and Bitcoin is disconnected", () => {
+    vi.stubEnv("NEXT_PUBLIC_FF_ENABLE_ETH_FIRST", "true");
+    btcConnected = false;
+
+    render(
+      <AppPeginPollingProvider>
+        <div>child</div>
+      </AppPeginPollingProvider>,
+    );
+
+    expect(providerBtcWalletAbsent).toBe(true);
+  });
+
+  it("does not mark the Bitcoin wallet absent while Bitcoin is connected", () => {
+    // A connected wallet whose key has not loaded yet must poll nothing, not
+    // everything, so the provider is told the wallet is present.
+    vi.stubEnv("NEXT_PUBLIC_FF_ENABLE_ETH_FIRST", "true");
+    btcConnected = true;
+
+    render(
+      <AppPeginPollingProvider>
+        <div>child</div>
+      </AppPeginPollingProvider>,
+    );
+
+    expect(providerBtcWalletAbsent).toBe(false);
+  });
+
+  it("does not mark the Bitcoin wallet absent when the flag is off", () => {
+    vi.stubEnv("NEXT_PUBLIC_FF_ENABLE_ETH_FIRST", "false");
+    btcConnected = false;
+
+    render(
+      <AppPeginPollingProvider>
+        <div>child</div>
+      </AppPeginPollingProvider>,
+    );
+
+    expect(providerBtcWalletAbsent).toBe(false);
   });
 });

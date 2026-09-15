@@ -4,8 +4,10 @@ import {
   useWalletConnect,
 } from "@babylonlabs-io/wallet-connector";
 
+import featureFlags from "@/config/featureFlags";
+
 export interface ConnectionState {
-  /** Whether both wallets have a confirmed session. */
+  /** Whether the required wallets have a confirmed session. */
   isConnected: boolean;
   /** Whether BTC wallet is connected */
   btcConnected: boolean;
@@ -19,7 +21,10 @@ export function useConnection(): ConnectionState {
   const { connected: ethConnected } = useETHWallet();
 
   return {
-    isConnected: confirmed && btcConnected && ethConnected,
+    isConnected:
+      confirmed &&
+      ethConnected &&
+      (featureFlags.isEthFirstEnabled || btcConnected),
     btcConnected,
     ethConnected,
   };

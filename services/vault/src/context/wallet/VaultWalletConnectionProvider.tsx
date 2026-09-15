@@ -229,7 +229,9 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
   const config = useMemo(
     () =>
       createWalletConfig({
-        chains: ["BTC", "ETH"],
+        chains: featureFlags.isEthFirstEnabled
+          ? ["ETH", "BTC"]
+          : ["BTC", "ETH"],
         networkConfigs: {
           BTC: getNetworkConfigBTC(),
           ETH: getNetworkConfigETH(),
@@ -257,7 +259,7 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
       context={context}
       onError={onError}
       disabledWallets={disabledWallets}
-      requiredChains={["BTC", "ETH"]}
+      requiredChains={featureFlags.isEthFirstEnabled ? ["ETH"] : ["BTC", "ETH"]}
       disableTomo
       dialogActions={<StandardSettingsMenu theme={theme} setTheme={setTheme} />}
       dialogCloseButtonClassName={WALLET_DIALOG_LEFT_INSET_CLASS}

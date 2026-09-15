@@ -56,8 +56,8 @@ import type {
   PeginPollingContextValue,
   PeginPollingProviderProps,
 } from "../../types/peginPolling";
+import { shouldPollForWallet } from "../../utils/peginPolling";
 import { canonicalizeTxid } from "../../utils/txid";
-import { isVaultOwnedByWallet } from "../../utils/vaultWarnings";
 
 import { computeDepositPollingResult } from "./computeDepositPollingResult";
 import {
@@ -188,6 +188,7 @@ export function PeginPollingProvider({
   activities,
   pendingPegins,
   btcPublicKey,
+  btcWalletAbsent = false,
 }: PeginPollingProviderProps) {
   useSingleProviderInvariant();
 
@@ -223,6 +224,7 @@ export function PeginPollingProvider({
     activities,
     pendingPegins,
     btcPublicKey,
+    btcWalletAbsent,
   });
 
   // Poll `prePeginTxHash` (depositor broadcast tx; `peginTxHash` is the
@@ -292,7 +294,13 @@ export function PeginPollingProvider({
         .filter((a) => {
           // Unowned vaults can't be signed by the current wallet → skip
           // polling. The card is dimmed via the ownership-mismatch tooltip.
-          if (!isVaultOwnedByWallet(a.depositorBtcPubkey, btcPublicKey))
+          if (
+            !shouldPollForWallet(
+              a.depositorBtcPubkey,
+              btcPublicKey,
+              btcWalletAbsent,
+            )
+          )
             return false;
           const status = (a.contractStatus ?? 0) as ContractStatus;
           if (status === ContractStatus.EXPIRED) {
@@ -314,6 +322,7 @@ export function PeginPollingProvider({
       confirmedTxids,
       matureRefundTxids,
       btcPublicKey,
+      btcWalletAbsent,
     ],
   );
   const { confirmationsByTxid: prePeginConfirmationsByTxid } =
@@ -332,7 +341,13 @@ export function PeginPollingProvider({
     () =>
       activities
         .filter((a) => {
-          if (!isVaultOwnedByWallet(a.depositorBtcPubkey, btcPublicKey))
+          if (
+            !shouldPollForWallet(
+              a.depositorBtcPubkey,
+              btcPublicKey,
+              btcWalletAbsent,
+            )
+          )
             return false;
           const status = (a.contractStatus ?? 0) as ContractStatus;
           if (
@@ -366,7 +381,13 @@ export function PeginPollingProvider({
           prePeginTxHash: a.prePeginTxHash as string,
           htlcVout: a.htlcVout as number,
         })),
-    [activities, btcPublicKey, refundedHtlcVaultIds, localStatusById],
+    [
+      activities,
+      btcPublicKey,
+      btcWalletAbsent,
+      refundedHtlcVaultIds,
+      localStatusById,
+    ],
   );
   const { refundByDepositId: htlcRefundByDepositId } = useBtcHtlcRefundStatus(
     htlcRefundOutpoints,
