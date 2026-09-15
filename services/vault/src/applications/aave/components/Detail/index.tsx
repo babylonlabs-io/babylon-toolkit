@@ -1,7 +1,11 @@
 /**
- * The borrow / repay flow as ONE full-screen dialog with three steps: asset
- * picker, borrow/repay form, success. Step comes from the query string
- * (`?picker=`, `?reserve=&tab=`) plus local success state.
+ * The borrow / repay flow as ONE full-screen dialog. The step comes from the
+ * query string plus local success state:
+ * - `?picker=borrow`: Select asset, one card per token
+ * - `?picker=borrow&asset=<underlying>`: Select hub, that token's reserves
+ * - `?picker=repay`: the repay picker, one row per debt
+ * - `?reserve=<id>&tab=`: the borrow / repay form
+ * - success, once the transaction settles
  *
  * One dialog on purpose: `.bbn-dialog-fullscreen` is an opaque `bg-surface`
  * panel, so handing off between two dialogs cross-fades two full-viewport
@@ -10,27 +14,34 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
+import { getAddress, type Address } from "viem";
 
 import { V3ModalShell } from "@/components/shared/V3ModalShell";
 import { useConnection, useETHWallet } from "@/context/wallet";
-import { getReserveDetailSearch } from "@/routes";
+import {
+  getAssetPickerSearch,
+  getHubPickerSearch,
+  getReserveDetailSearch,
+  parseReserveId,
+} from "@/routes";
 
 import { LOAN_TAB, type LoanTab } from "../../constants";
+import { useAaveConfig } from "../../context";
 import { useAaveBorrowedAssets, useAaveUserPosition } from "../../hooks";
-import {
-  AssetSelectionPanel,
-  getAssetPickerWidthClass,
-  type SelectableAsset,
-} from "../AssetSelectionPanel";
+import { groupReservesByUnderlying } from "../../utils/reserveGroups";
+import { AssetSelectionPanel } from "../AssetSelectionPanel";
+import { HubSelectionPanel } from "../HubSelectionPanel";
 import {
   LOAN_SUCCESS_WIDTH_CLASS,
   LoanSuccessPanel,
 } from "../LoanCard/LoanSuccessPanel";
+import { LOAN_PICKER_WIDTH_CLASS } from "../LoanPickerFrame";
+import { RepaySelectionPanel } from "../RepaySelectionPanel";
 
 import { PositionGate } from "./PositionGate";
 import {
-  type LoanSuccessState,
   ReserveDetailPanel,
+  type LoanSuccessState,
 } from "./ReserveDetailPanel";
 
 const FORM_WIDTH_CLASS = "max-w-[520px]";
@@ -39,17 +50,21 @@ interface LoanFlowOverlayProps {
   picker: LoanTab | null;
   reserveId: string | null;
   tab: LoanTab;
+  /** Underlying chosen in Select asset (`?asset=`); navigation only. */
+  asset: Address | null;
 }
 
 export function LoanFlowOverlay({
   picker,
   reserveId,
   tab,
+  asset,
 }: LoanFlowOverlayProps) {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const { isConnected } = useConnection();
   const { address } = useETHWallet();
+  const { borrowableReserves, allBorrowReserves } = useAaveConfig();
 
   // Lifted from the Borrow/Repay forms so the dialog can refuse to close
   // mid-transaction — a dismiss would unmount the flow and the success screen
@@ -66,17 +81,18 @@ export function LoanFlowOverlay({
     refetch: refetchPosition,
   } = useAaveUserPosition(isConnected ? address : undefined);
   const { borrowedAssets } = useAaveBorrowedAssets({ position, debtValueUsd });
-  // The reserve id rides along so selecting a repay row routes by id rather
-  // than by the indexer's symbol (audit F7).
-  const repayAssets = useMemo(
-    (): SelectableAsset[] =>
-      borrowedAssets.map(({ reserveId: id, symbol, name, icon }) => ({
-        reserveId: BigInt(id),
-        symbol,
-        name,
-        icon,
-      })),
-    [borrowedAssets],
+
+  // Each token's borrowable reserves, one per hub. Decides whether picking a
+  // token needs Select hub, and where the borrow form's back arrow returns.
+  const borrowableByUnderlying = useMemo(
+    () =>
+      new Map(
+        groupReservesByUnderlying(borrowableReserves).map((group) => [
+          group.underlying,
+          group.reserves,
+        ]),
+      ),
+    [borrowableReserves],
   );
 
   // Success is local state while the step is URL-driven, so browser Back off
@@ -101,7 +117,50 @@ export function LoanFlowOverlay({
     navigate({ pathname, search: "" }, { replace: true });
   };
 
+  // Every step change `replace`s, so no step leaves an entry behind: browser
+  // Back from any step returns to the page, and Back after closing can't drop
+  // the user into the flow again.
+  const openStep = (search: string) =>
+    navigate({ pathname, search }, { replace: true });
+
+  const selectAsset = (underlying: Address) => {
+    const reserves = borrowableByUnderlying.get(underlying) ?? [];
+    // A token listed on one hub has no hub to choose: open its form directly.
+    if (reserves.length === 1) {
+      openStep(
+        getReserveDetailSearch(
+          reserves[0].reserveId,
+          LOAN_TAB.BORROW,
+          underlying,
+        ),
+      );
+      return;
+    }
+    openStep(getHubPickerSearch(underlying));
+  };
+
   const showForm = Boolean(reserveId) && !showSuccess;
+
+  // The borrow form offers a way back only when its URL says it was reached
+  // through the pickers, and only for the token it names. A form opened from a
+  // Loans row, a market page or the token dropdown carries no `asset` and
+  // keeps the close button.
+  // Parsed the way the form parses it, so `?reserve=05` names reserve 5 here too.
+  const openReserveId = parseReserveId(reserveId);
+  const openReserve =
+    openReserveId === null
+      ? undefined
+      : allBorrowReserves.find((r) => r.reserveId === openReserveId);
+  const backSearch =
+    showForm &&
+    tab === LOAN_TAB.BORROW &&
+    asset !== null &&
+    openReserve !== undefined &&
+    getAddress(openReserve.reserve.underlying) === asset
+      ? (borrowableByUnderlying.get(asset)?.length ?? 0) > 1
+        ? getHubPickerSearch(asset)
+        : getAssetPickerSearch(LOAN_TAB.BORROW)
+      : null;
 
   const renderStep = () => {
     if (showSuccess) {
@@ -110,6 +169,7 @@ export function LoanFlowOverlay({
           variant={success.variant}
           amount={success.amount}
           symbol={success.symbol}
+          hubLabel={success.hubLabel}
           decimals={success.decimals}
           assetIcon={success.assetIcon}
           onDone={close}
@@ -145,23 +205,32 @@ export function LoanFlowOverlay({
         }
         refetchPosition={refetchPosition}
       >
-        <AssetSelectionPanel
-          mode={mode}
-          assets={mode === LOAN_TAB.REPAY ? repayAssets : undefined}
-          assetsLoading={isPositionLoading}
-          // `replace` so the picker leaves no entry behind the form: browser Back
-          // from the form returns to the page, and Back after closing can't drop
-          // the user into the flow again.
-          onSelectAsset={(selectedReserveId) =>
-            navigate(
-              {
-                pathname,
-                search: getReserveDetailSearch(selectedReserveId, mode),
-              },
-              { replace: true },
-            )
-          }
-        />
+        {mode === LOAN_TAB.REPAY ? (
+          <RepaySelectionPanel
+            assets={borrowedAssets}
+            assetsLoading={isPositionLoading}
+            onSelectReserve={(selectedReserveId) =>
+              openStep(
+                getReserveDetailSearch(selectedReserveId, LOAN_TAB.REPAY),
+              )
+            }
+          />
+        ) : asset !== null ? (
+          <HubSelectionPanel
+            underlying={asset}
+            onSelectReserve={(selectedReserveId) =>
+              openStep(
+                getReserveDetailSearch(
+                  selectedReserveId,
+                  LOAN_TAB.BORROW,
+                  asset,
+                ),
+              )
+            }
+          />
+        ) : (
+          <AssetSelectionPanel onSelectAsset={selectAsset} />
+        )}
       </PositionGate>
     );
   };
@@ -170,7 +239,7 @@ export function LoanFlowOverlay({
     ? LOAN_SUCCESS_WIDTH_CLASS
     : showForm
       ? FORM_WIDTH_CLASS
-      : getAssetPickerWidthClass(picker ?? tab);
+      : LOAN_PICKER_WIDTH_CLASS;
 
   return (
     <V3ModalShell
@@ -178,6 +247,11 @@ export function LoanFlowOverlay({
       // Withholding `onClose` hides the X and no-ops the backdrop click;
       // `disableEscapeClose` covers ESC. Together they lock every dismiss path.
       onClose={isTxInFlight ? undefined : close}
+      onBack={
+        backSearch === null || isTxInFlight
+          ? undefined
+          : () => openStep(backSearch)
+      }
       disableEscapeClose={isTxInFlight}
       contentClassName={contentClassName}
     >

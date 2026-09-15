@@ -20,6 +20,8 @@ export type ActionId =
   | "sign-conformance"
   | "borrow"
   | "repay"
+  | "multi-hub"
+  | "repay-all"
   | "withdraw"
   | "resume"
   | "recover"
@@ -123,6 +125,17 @@ export const ACTIONS: ActionOption[] = [
     enabled: true,
   },
   { id: "repay", label: "Repay", enabled: true },
+  {
+    id: "multi-hub",
+    label:
+      "Multi-hub (borrow from each hub — one token, or every reserve — then repay each)",
+    enabled: true,
+  },
+  {
+    id: "repay-all",
+    label: "Repay all (clear every outstanding loan on every hub)",
+    enabled: true,
+  },
   { id: "withdraw", label: "Withdraw", enabled: true },
   { id: "resume", label: "Resume (an interrupted peg-in)", enabled: true },
   {
@@ -157,6 +170,13 @@ export interface RunConfig {
   peginFirst?: boolean;
   /** Borrow only: token symbol to borrow (`--borrow-token`); defaults to the first borrowable reserve. */
   borrowToken?: string;
+  /** Borrow only: hub to borrow from (`--borrow-hub`, a label or address), for a token on several hubs. */
+  borrowHub?: string;
+  /**
+   * Borrow only: the reserve the run borrows from, resolved by the CLI (a decimal string, so the config
+   * stays JSON-serialisable). Absent when the CLI could not read the reserve list; the action resolves it.
+   */
+  borrowReserveId?: string;
   /**
    * Borrow only: token amount to borrow (`--borrow-amount`, or `max` for the form's Max). When absent
    * the CLI defaults to a conservative fraction of the computed max (see borrowParams).
@@ -169,6 +189,13 @@ export interface RunConfig {
   borrowFirst?: boolean;
   /** Repay only: token symbol to repay (`--repay-token`); defaults to the sole/first outstanding loan. */
   repayToken?: string;
+  /** Repay only: hub the loan is owed to (`--repay-hub`, a label or address), for a token owed to several. */
+  repayHub?: string;
+  /**
+   * Repay only: the reserve the run repays, resolved by the CLI (a decimal string, so the config stays
+   * JSON-serialisable). Absent when the CLI could not read the loans; the action resolves it.
+   */
+  repayReserveId?: string;
   /**
    * Repay only: token amount to repay (`--repay-amount`, or `max` for the form's Max — a full clear).
    * When absent the CLI defaults to a conservative fraction of the outstanding debt (see repayParams).
@@ -185,6 +212,13 @@ export interface RunConfig {
    * withdrawable one. Default (absent) withdraws a single vault, keeping the position alive for reuse.
    */
   withdrawAll?: boolean;
+  /** Multi-hub only: borrow from every borrowable reserve on every hub (`--all-reserves`), not one token. */
+  allReserves?: boolean;
+  /**
+   * Multi-hub only: size each borrow leg as this many USD (`--borrow-usd`) at the reserve's oracle price,
+   * instead of one `--borrow-amount` for tokens of very different prices.
+   */
+  borrowUsd?: string;
   /**
    * Resume only: target a specific in-flight deposit by its Pre-PegIn txid (`--txid`) when several are
    * pending (e.g. a split's two vaults share one Pre-PegIn). When absent, the first actionable pending

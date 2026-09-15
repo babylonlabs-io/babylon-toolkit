@@ -184,10 +184,16 @@ export function toNumericAmount(amount: string, decimals: number): number {
  * activity data.
  */
 export interface FetchUserActivitiesDeps {
-  /** Map of debtReserveId -> { symbol, decimals, icon }, e.g. from `useAaveConfig().borrowableReserves`. */
+  /** Map of debtReserveId -> { symbol, decimals, icon, hubLabel }, e.g. from `useAaveConfig().borrowableReserves`. */
   reserves: ReadonlyMap<
     string,
-    { symbol: string; decimals: number; icon: string | undefined }
+    {
+      symbol: string;
+      decimals: number;
+      icon: string | undefined;
+      /** Label of the hub the reserve belongs to. */
+      hubLabel: string;
+    }
   >;
 }
 
@@ -249,6 +255,7 @@ export function projectStandardRow(
           ? formatAmount(item.amount, reserve.decimals)
           : item.amount,
         symbol: reserve?.symbol ?? "—",
+        hubLabel: reserve?.hubLabel,
         // Without the reserve the token's decimals are unknown, so the raw
         // amount cannot be scaled — leave it unpriced.
         numeric: reserve

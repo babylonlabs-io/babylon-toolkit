@@ -3,6 +3,7 @@ import { useMemo } from "react";
 import type { Address } from "viem";
 
 import { useAaveConfig } from "../applications/aave/context";
+import { getHubIdentity } from "../services/aave/hubRegistry";
 import {
   ACTIVITIES_QUERY_KEY,
   fetchUserActivities,
@@ -44,6 +45,9 @@ export function useActivities(userAddress: Address | undefined) {
           icon:
             getTokenByAddress(r.token.address)?.icon ??
             getTokenIconBySymbol(r.token.symbol),
+          // The same token can be borrowed from several hubs, so a borrow or
+          // repay row names the hub beside the symbol.
+          hubLabel: getHubIdentity(r.reserve.hub).label,
         },
       ]),
     );

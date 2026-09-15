@@ -135,6 +135,11 @@ const DEMO_LOAN_ROW = {
   reserveId: "demo-reserve-1",
   symbol: "USDC",
   name: "USDC",
+  hub: {
+    source: "registry" as const,
+    address: "0xb3283508a0E96F80CF79DC2a1135F10dA170138D" as const,
+    label: "Babylon Hub",
+  },
   amount: "1500",
   icon: "",
   borrowRate: "5.861%",

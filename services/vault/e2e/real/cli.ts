@@ -21,13 +21,26 @@
  * amount ⇒ minimum, provider ⇒ first available — prompting interactively. Mock mode shows as disabled.
  *
  * Borrow accepts `--pegin-first` (peg in fresh collateral before borrowing — then also honors the pegin
- * extras above), `--borrow-token=<symbol>` (from the live borrowable list; default = first), and
+ * extras above), `--borrow-token=<symbol>` (from the live borrowable list; default = first),
+ * `--borrow-hub=<label|address>` (which hub to borrow from when the token is listed on more than one —
+ * e.g. `core`; without it an interactive run asks and a non-interactive run refuses to guess), and
  * `--borrow-amount=<n>|max` (default = a conservative fraction of the computed max, resolved in run.ts).
  *
  * Repay accepts `--borrow-first` (borrow against existing collateral, then repay the new loan — then
  * also honors the borrow extras above), `--repay-token=<symbol>` (from the depositor's outstanding
- * loans; default = the sole loan, or the borrowed token under --borrow-first) and `--repay-amount=<n>|max`
+ * loans; default = the sole loan, or the borrowed reserve under --borrow-first), `--repay-hub=<label|address>`
+ * (which hub's loan to repay when the token is owed to more than one) and `--repay-amount=<n>|max`
  * (`max` clicks the form's Max for a full clear; default = a conservative fraction of the debt).
+ *
+ * Multi-hub borrows one token from EACH hub that lists it, checks each debt landed on its own reserve and
+ * that /loans shows a row per hub, then repays each — against existing collateral (run it on
+ * `--target=localhost` until the deployed site has Select hub). `--borrow-token=<symbol>` picks the
+ * token (default = the first token on more than one hub); `--all-reserves` instead borrows from every
+ * borrowable reserve on every hub. `--borrow-usd=<n>` sizes each borrow as n USD at the oracle price
+ * (else `--borrow-amount` applies to every leg); `--repay-amount` (e.g. `max`) applies to every repay.
+ *
+ * Repay-all clears every outstanding loan on every hub with the form's Max, one reserve at a time, and
+ * fails if any debt remains afterwards (e.g. a wallet holding less of a token than it owes).
  *
  * Withdraw releases active BTC-Vault collateral (a single on-chain tx; the vault provider drives the
  * Bitcoin payout afterward). It chains prerequisite legs via the cascade `--pegin-first ⟹ --borrow-first
@@ -54,7 +67,12 @@
  */
 import { createInterface, type Interface } from "node:readline/promises";
 
-import { fetchBorrowableReserves } from "./borrowParams";
+import {
+  describeReserve,
+  fetchBorrowableReserves,
+  findMultiHubTokens,
+  matchReserve,
+} from "./borrowParams";
 import {
   ACTIONS,
   BTC_WALLETS,
@@ -68,6 +86,7 @@ import {
   type Target,
 } from "./config";
 import { deriveEthAddress } from "./connector";
+import { describeHub } from "./hubLabels";
 import {
   fetchMinDepositBtc,
   fetchMinDepositForSplitBtc,
@@ -158,6 +177,54 @@ function optionalChoice<T extends string>(
       `Invalid --${name} "${flag}"; expected one of: ${valid.join(", ")}`,
     );
   return flag as T;
+}
+
+/**
+ * Resolve the one reserve a borrow or repay run targets. One token can be listed on several hubs, so a
+ * token alone may match more than one reserve: interactively that opens a menu naming each hub, and
+ * non-interactively it throws with the candidates rather than guessing. With no token, the whole list is
+ * offered (menu), or its first entry is taken (non-interactive).
+ */
+async function pickReserve<
+  R extends { symbol: string; hub: string; reserveId: bigint },
+>(options: {
+  rl: Interface;
+  interactive: boolean;
+  reserves: R[];
+  flag: "borrow" | "repay";
+  token: string | undefined;
+  hub: string | undefined;
+  prompt: string;
+  describe: (reserve: R) => string;
+  /** Error for a token (+ hub) that matches no reserve. */
+  unmatched: string;
+}): Promise<R> {
+  const { rl, interactive, reserves, flag, token, hub, prompt, describe } =
+    options;
+  const choose = async (candidates: R[]): Promise<R> => {
+    const index = await select(
+      rl,
+      prompt,
+      candidates.map((reserve, i) => ({
+        value: String(i),
+        label: describe(reserve),
+      })),
+    );
+    return candidates[Number(index)];
+  };
+
+  if (token === undefined) {
+    if (hub !== undefined)
+      throw new Error(`--${flag}-hub needs --${flag}-token as well.`);
+    return interactive ? choose(reserves) : reserves[0];
+  }
+  const match = matchReserve(reserves, token, hub);
+  if (match.kind === "match") return match.reserve;
+  if (match.kind === "none") throw new Error(options.unmatched);
+  if (interactive) return choose(match.candidates);
+  throw new Error(
+    `--${flag}-token "${token}" is listed on more than one hub (${match.candidates.map(describe).join("; ")}). Re-run with --${flag}-hub=<hub label or address>.`,
+  );
 }
 
 async function resolveConfig(
@@ -487,6 +554,9 @@ async function resolveConfig(
       typeof flags["borrow-token"] === "string"
         ? flags["borrow-token"]
         : undefined;
+    const borrowHub =
+      typeof flags["borrow-hub"] === "string" ? flags["borrow-hub"] : undefined;
+    let borrowReserveId: string | undefined;
     const borrowAmount =
       typeof flags["borrow-amount"] === "string"
         ? flags["borrow-amount"]
@@ -499,37 +569,93 @@ async function resolveConfig(
         );
     }
     if (willBorrow) {
-      // Fetch the live borrowable list up front so we can VALIDATE an explicit --borrow-token before a
-      // (possibly funded, pegin-first) run — an unselectable token would otherwise only surface after
-      // the peg-in, wasting it. When the token isn't given, pick from the list (menu / first).
+      // Fetch the live borrowable list up front so an explicit --borrow-token (+ --borrow-hub) is
+      // VALIDATED before a (possibly funded, pegin-first) run — an unselectable token would otherwise
+      // only surface after the peg-in, wasting it. From here the run is pinned to one reserve id.
       const reserves = await fetchBorrowableReserves(network).catch((error) => {
         // eslint-disable-next-line no-console
         console.warn(
-          `\nCould not fetch borrowable tokens (${error instanceof Error ? error.message : error}); skipping token validation — the borrow form will gate it.`,
+          `\nCould not fetch borrowable tokens (${error instanceof Error ? error.message : error}); skipping token validation — the borrow action will resolve the reserve.`,
         );
         return [];
       });
-      if (borrowToken !== undefined) {
-        const match = reserves.find(
-          (r) => r.symbol.toLowerCase() === borrowToken!.toLowerCase(),
+      if (reserves.length > 0) {
+        const reserve = await pickReserve({
+          rl,
+          interactive,
+          reserves,
+          flag: "borrow",
+          token: borrowToken,
+          hub: borrowHub,
+          prompt: "Borrow token",
+          describe: describeReserve,
+          unmatched: `--borrow-token "${borrowToken}"${borrowHub ? ` --borrow-hub "${borrowHub}"` : ""} is not a borrowable reserve on ${network} (available: ${reserves.map(describeReserve).join("; ")}).`,
+        });
+        borrowToken = reserve.symbol;
+        borrowReserveId = reserve.reserveId.toString();
+      }
+    }
+
+    // Multi-hub extras: every reserve (`--all-reserves`) or one token on every hub that lists it, and a
+    // per-leg USD size (`--borrow-usd`). The token is validated up front against the live reserve list so
+    // a token on only one hub fails before the browser opens.
+    const allReserves =
+      action === "multi-hub" && flagBool(flags["all-reserves"]);
+    const borrowUsd =
+      action === "multi-hub" && typeof flags["borrow-usd"] === "string"
+        ? flags["borrow-usd"]
+        : undefined;
+    if (borrowUsd !== undefined) {
+      const parsed = Number(borrowUsd);
+      if (!Number.isFinite(parsed) || parsed <= 0)
+        throw new Error(
+          `--borrow-usd must be a positive USD amount (got "${borrowUsd}")`,
         );
-        if (reserves.length > 0 && !match)
-          throw new Error(
-            `--borrow-token "${borrowToken}" is not a borrowable reserve on ${network} (available: ${reserves.map((r) => r.symbol).join(", ")}).`,
+      if (borrowAmount !== undefined)
+        throw new Error(
+          "--borrow-usd and --borrow-amount both size the borrow — pass only one.",
+        );
+    }
+    if (allReserves && borrowToken !== undefined)
+      throw new Error(
+        "--all-reserves borrows from every reserve — drop --borrow-token.",
+      );
+    if (action === "multi-hub" && borrowHub !== undefined)
+      throw new Error(
+        "multi-hub borrows from every hub that lists the token — drop --borrow-hub.",
+      );
+    if (action === "multi-hub" && !allReserves) {
+      const tokens = findMultiHubTokens(
+        await fetchBorrowableReserves(network).catch((error) => {
+          // eslint-disable-next-line no-console
+          console.warn(
+            `\nCould not fetch borrowable tokens (${error instanceof Error ? error.message : error}); skipping token validation — the multi-hub action will resolve it.`,
           );
-        // Canonicalize to the reserve's exact symbol casing when we could validate it.
-        if (match) borrowToken = match.symbol;
-      } else if (reserves.length > 0) {
+          return [];
+        }),
+      );
+      const describeToken = (token: (typeof tokens)[number]) =>
+        `${token.symbol} — ${token.reserves.map((r) => describeHub(r.hub)).join(", ")}`;
+      if (borrowToken !== undefined && tokens.length > 0) {
+        const match = tokens.find(
+          (token) => token.symbol.toLowerCase() === borrowToken!.toLowerCase(),
+        );
+        if (!match)
+          throw new Error(
+            `--borrow-token "${borrowToken}" is not borrowable from more than one hub on ${network} (available: ${tokens.map(describeToken).join("; ")}).`,
+          );
+        borrowToken = match.symbol;
+      } else if (borrowToken === undefined && tokens.length > 0) {
         borrowToken = interactive
           ? await select(
               rl,
-              "Borrow token",
-              reserves.map((r) => ({
-                value: r.symbol,
-                label: `${r.symbol} — ${r.name}`,
+              "Token to borrow from every hub",
+              tokens.map((token) => ({
+                value: token.symbol,
+                label: describeToken(token),
               })),
             )
-          : reserves[0].symbol;
+          : tokens[0].symbol;
       }
     }
 
@@ -540,6 +666,9 @@ async function resolveConfig(
       typeof flags["repay-token"] === "string"
         ? flags["repay-token"]
         : undefined;
+    const repayHub =
+      typeof flags["repay-hub"] === "string" ? flags["repay-hub"] : undefined;
+    let repayReserveId: string | undefined;
     let repayAmount =
       typeof flags["repay-amount"] === "string"
         ? flags["repay-amount"]
@@ -579,40 +708,39 @@ async function resolveConfig(
         );
         return [];
       });
-      if (repayToken !== undefined) {
-        const match = debts.find(
-          (d) => d.symbol.toLowerCase() === repayToken!.toLowerCase(),
-        );
-        if (debts.length > 0 && !match)
-          throw new Error(
-            `--repay-token "${repayToken}" is not an outstanding loan on ${network} (you owe on: ${debts.map((d) => d.symbol).join(", ") || "nothing"}).`,
-          );
-        // Canonicalize to the reserve's exact symbol casing when we could validate it.
-        if (match) repayToken = match.symbol;
-      } else if (debts.length > 0) {
-        repayToken =
+      if (debts.length > 0) {
+        // A sole loan needs no choice unless --repay-hub names a hub to check it against; otherwise the
+        // token (+ hub) must name exactly one of them.
+        const debt =
+          repayToken === undefined &&
+          repayHub === undefined &&
           debts.length === 1
-            ? debts[0].symbol
-            : interactive
-              ? await select(
-                  rl,
-                  "Repay token",
-                  debts.map((d) => ({
-                    value: d.symbol,
-                    label: `${d.symbol} — ${d.debtTokens} owed`,
-                  })),
-                )
-              : debts[0].symbol;
+            ? debts[0]
+            : await pickReserve({
+                rl,
+                interactive,
+                reserves: debts,
+                flag: "repay",
+                token: repayToken,
+                hub: repayHub,
+                prompt: "Repay token",
+                describe: (d) => `${describeReserve(d)} — ${d.debtTokens} owed`,
+                unmatched: `--repay-token "${repayToken}"${repayHub ? ` --repay-hub "${repayHub}"` : ""} is not an outstanding loan on ${network} (you owe on: ${debts.map(describeReserve).join("; ")}).`,
+              });
+        repayToken = debt.symbol;
+        repayReserveId = debt.reserveId.toString();
       }
     }
-    // For a --borrow-first run (`repay` or `withdraw`), repay the token we just borrowed unless the user
-    // overrode --repay-token.
+    // For a --borrow-first run (`repay` or `withdraw`), repay the reserve we just borrowed from unless
+    // the user overrode --repay-token.
     if (
       (action === "repay" || action === "withdraw") &&
       borrowFirst &&
       repayToken === undefined
-    )
+    ) {
       repayToken = borrowToken;
+      repayReserveId = borrowReserveId;
+    }
 
     // Sign-conformance extra: explicit fixtures file (else the action auto-detects the newest pegin's).
     const fixturesPath =
@@ -640,12 +768,18 @@ async function resolveConfig(
       fixturesPath,
       peginFirst,
       borrowToken,
+      borrowHub,
+      borrowReserveId,
       borrowAmount,
       borrowFirst,
       repayToken,
+      repayHub,
+      repayReserveId,
       repayAmount,
       repayFirst,
       withdrawAll,
+      allReserves,
+      borrowUsd,
       resumeTxid,
       recoverTxid,
       interruptFresh,

@@ -110,6 +110,7 @@ export function buildLiquidationGroup(
           ? formatAmount(repay.amount, repayReserve.decimals)
           : repay.amount,
         symbol: repayReserve?.symbol ?? "—",
+        hubLabel: repayReserve?.hubLabel,
         // Without the reserve the token's decimals are unknown, so the raw
         // amount cannot be scaled — leave it unpriced.
         numeric: repayReserve

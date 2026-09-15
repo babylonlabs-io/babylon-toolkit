@@ -1,16 +1,19 @@
 /**
  * BorrowMetricsCard — the Available liquidity and Borrow APR rows each render
  * `current → projected` when a projection is supplied (mirroring the
- * health-factor row), and the current value alone otherwise.
+ * health-factor row), and the current value alone otherwise. The Hub row names
+ * which hub's market the figures describe.
  */
 
 import { render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
+import { COPY } from "@/copy";
+
 // Component tests mock core-ui (its dist isn't built in the test run).
 vi.mock("@babylonlabs-io/core-ui", () => ({
-  Hint: () => null,
+  Hint: ({ tooltip }: { tooltip?: ReactNode }) => <span>{tooltip}</span>,
   SubSection: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }));
 
@@ -21,6 +24,11 @@ vi.mock("@/components/shared", () => ({
 import { BorrowMetricsCard } from "../BorrowMetricsCard";
 
 const baseProps = {
+  hub: {
+    source: "registry" as const,
+    address: "0xF5E52D571Ed9b4779399A815815ABeFF7D7ec4ca" as const,
+    label: "Core Hub",
+  },
   availableLiquidity: "45.2K",
   borrowApr: "3.70%",
   utilization: "25%",
@@ -46,6 +54,38 @@ describe("BorrowMetricsCard available liquidity row", () => {
 
     expect(screen.getByText("45.2K USDT")).toBeInTheDocument();
     expect(screen.queryByText("→")).not.toBeInTheDocument();
+  });
+});
+
+describe("BorrowMetricsCard hub row", () => {
+  it("names the reserve's hub between available liquidity and borrow APR", () => {
+    const { container } = render(<BorrowMetricsCard {...baseProps} />);
+
+    const text = container.textContent ?? "";
+    const liquidityAt = text.indexOf(COPY.loans.availableLiquidityLabel);
+    const hubAt = text.indexOf(`${COPY.loans.hub.label}Core Hub`);
+    const aprAt = text.indexOf(COPY.loans.borrowRateLabel);
+
+    expect(hubAt).toBeGreaterThan(liquidityAt);
+    expect(aprAt).toBeGreaterThan(hubAt);
+  });
+
+  it("flags an unregistered hub with the unknown-hub warning", () => {
+    render(
+      <BorrowMetricsCard
+        {...baseProps}
+        hub={{
+          source: "address",
+          address: "0x1111111111111111111111111111111111111111",
+          label: "0x1111...1111",
+        }}
+      />,
+    );
+
+    expect(screen.getByText("0x1111...1111")).toBeInTheDocument();
+    expect(
+      screen.getByText(COPY.loans.hub.unknownHubWarning),
+    ).toBeInTheDocument();
   });
 });
 

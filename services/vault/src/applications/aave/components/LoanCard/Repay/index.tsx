@@ -64,6 +64,7 @@ export function Repay() {
     selectedReserve,
     tokenIdentity,
     assetConfig,
+    hub,
     proxyContract,
     tokenPriceUsd,
     isPriceStale,
@@ -295,7 +296,7 @@ export function Repay() {
         as="h3"
         className="mb-4 font-normal text-accent-primary"
       >
-        Repay
+        {COPY.loans.repay.action}
       </Heading>
       <div className="flex flex-col gap-2">
         <SubSection className="!bg-secondary-highlight">
@@ -369,6 +370,7 @@ export function Repay() {
         </SubSection>
 
         <RepayDetailsCard
+          hub={hub}
           debt={
             debtProjectedLabel ?? `${debtCurrentValue} ${assetConfig.symbol}`
           }

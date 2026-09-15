@@ -116,7 +116,7 @@ export function ListRowMetric({
   value,
 }: {
   label: string;
-  value: string;
+  value: ReactNode;
 }) {
   return (
     // Flexes rather than pinning the design's 190px: at the app's container
