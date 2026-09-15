@@ -8,6 +8,7 @@ import type { Hex } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  DepositorBtcKeyMismatchError,
   DepositorWalletMismatchError,
   VaultLifecycleStateError,
 } from "@/utils/errors";
@@ -321,6 +322,7 @@ describe("rebuildDepositTerms orchestrator (mocked chain, real discovery + mappi
 
   const targetVault = makeVault({
     depositor: DEPOSITOR_ETH as OnChainVaultData["depositor"],
+    depositorBtcPubKey: `0x${DEPOSITOR_BTC}`,
     prePeginTxHash: PRE_PEGIN_TX_HASH,
     hashlock: `0x${"aa".repeat(32)}` as Hex,
     htlcVout: 0,
@@ -331,6 +333,7 @@ describe("rebuildDepositTerms orchestrator (mocked chain, real discovery + mappi
   const SIBLING_CREATED_AT_BLOCK = TARGET_CREATED_AT_BLOCK + 1n;
   const siblingVault = makeVault({
     depositor: DEPOSITOR_ETH as OnChainVaultData["depositor"],
+    depositorBtcPubKey: `0x${DEPOSITOR_BTC}`,
     prePeginTxHash: PRE_PEGIN_TX_HASH,
     hashlock: `0x${"bb".repeat(32)}` as Hex,
     htlcVout: 1,
@@ -538,6 +541,28 @@ describe("rebuildDepositTerms orchestrator (mocked chain, real discovery + mappi
       expectedDepositor: targetVault.depositor,
       connectedDepositor: connected,
     });
+    expect(rebuildDepositTermsCore).not.toHaveBeenCalled();
+  });
+
+  it("refuses with the typed Bitcoin-key mismatch error before any sibling read when the on-chain depositor key is different", async () => {
+    const onChainBtcPubkey = "e".repeat(64);
+    const caught = await rebuildDepositTerms({
+      ...baseParams(),
+      target: { ...targetVault, depositorBtcPubKey: `0x${onChainBtcPubkey}` },
+    }).then(
+      () => null,
+      (err: unknown) => err,
+    );
+
+    expect(caught).toBeInstanceOf(DepositorBtcKeyMismatchError);
+    expect(caught).toMatchObject({
+      vaultId: TARGET_ID,
+      expectedDepositorBtcPubkey: onChainBtcPubkey,
+      connectedBtcPubkey: DEPOSITOR_BTC.toLowerCase(),
+    });
+    expect(fetchVaultIdsByDepositor).not.toHaveBeenCalled();
+    expect(getVaultRegistryReader).not.toHaveBeenCalled();
+    expect(getVaultFromChain).not.toHaveBeenCalled();
     expect(rebuildDepositTermsCore).not.toHaveBeenCalled();
   });
 

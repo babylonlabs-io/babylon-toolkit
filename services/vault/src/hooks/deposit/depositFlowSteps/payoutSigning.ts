@@ -4,7 +4,10 @@
 
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import type { DepositTerms } from "@babylonlabs-io/ts-sdk/tbv/core";
-import { stripHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
+import {
+  canonicalizeBtcPubkey,
+  stripHexPrefix,
+} from "@babylonlabs-io/ts-sdk/tbv/core";
 import { runDepositorPresignFlow } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 import type { Address, Hex } from "viem";
 
@@ -15,6 +18,7 @@ import {
   type PayoutSigningProgress,
 } from "@/services/vault/vaultPayoutSignatureService";
 import { updatePendingPeginStatus } from "@/storage/peginStorage";
+import { DepositorBtcKeyMismatchError } from "@/utils/errors/depositorWalletMismatch";
 import { assertVaultCoreVersionSupported } from "@/utils/vaultCoreVersionSupport";
 
 import { ensureAuthenticatedVpClient } from "./ensureAuthenticatedVpClient";
@@ -77,6 +81,20 @@ export async function signAndSubmitPayouts(
     vaultProviderBtcPubKey: providerBtcPubKey,
     registeredPayoutScriptPubKey,
   });
+
+  // The caller can read the key once, at wallet connect. Read the live key
+  // again, so a wallet switch since then cannot sign.
+  const expectedDepositorBtcPubkey = canonicalizeBtcPubkey(depositorBtcPubkey);
+  const connectedBtcPubkey = canonicalizeBtcPubkey(
+    await btcWallet.getPublicKeyHex(),
+  );
+  if (connectedBtcPubkey !== expectedDepositorBtcPubkey) {
+    throw new DepositorBtcKeyMismatchError({
+      vaultId,
+      expectedDepositorBtcPubkey,
+      connectedBtcPubkey,
+    });
+  }
 
   // Fail closed before the first wallet popup when this build's WASM can't
   // rebuild the vault's stamped graph version.

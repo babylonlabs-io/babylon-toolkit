@@ -14,7 +14,10 @@ import {
 import { COPY } from "@/copy";
 
 import { chainMatchesFrame } from "./causeChain";
-import { isDepositorWalletMismatchError } from "./depositorWalletMismatch";
+import {
+  isDepositorBtcKeyMismatchError,
+  isDepositorWalletMismatchError,
+} from "./depositorWalletMismatch";
 import {
   DEVICE_CEREMONY_INVALID_CODE,
   DEVICE_LOCKED_CODE,
@@ -501,8 +504,9 @@ export function formatErrorMessage(error: unknown): string {
 /**
  * Format payout signature errors with user-friendly messages. Typed
  * classifications run first (VP RPC, top-frame typed user rejection,
- * deposit-terms rejection, lifecycle refusal, depositor mismatch), then the
- * cause-walking method-not-supported check, then message-level matching.
+ * deposit-terms rejection, lifecycle refusal, depositor wallet and Bitcoin-key
+ * mismatch), then the cause-walking method-not-supported check, then
+ * message-level matching.
  *
  * Same typed-bucket ORDER as `mapDepositError`, not identical behaviour: the
  * deposit mapper additionally walks `cause` for cancellation wording (its
@@ -552,6 +556,12 @@ export function formatPayoutSignatureError(error: unknown): {
   // user-fixable error the rebuild can throw, so it never hits the fallback.
   if (isDepositorWalletMismatchError(error)) {
     return PSE.wrongDepositorWallet;
+  }
+
+  // Typed depositor Bitcoin-key refusal. The connected Bitcoin wallet is not
+  // the one that registered the deposit.
+  if (isDepositorBtcKeyMismatchError(error)) {
+    return PSE.wrongDepositorBtcWallet;
   }
 
   // Top-frame device code — before both cause walks, so an outer device error

@@ -33,8 +33,12 @@
  *    terms before approval (typed SDK error; can be terminal).
  *  - Lifecycle refusal — the DepositTerms rebuild's typed status gate
  *    (broadcast stage keeps its historical broadcast-bucket copy).
- *  - Depositor wallet mismatch — the DepositTerms rebuild's typed refusal when
- *    the connected Ethereum account is not the vault's depositor.
+ *  - Depositor wallet mismatch — the typed refusal from the DepositTerms
+ *    rebuild and the resume wallet check when the connected Ethereum account
+ *    is not the vault's depositor.
+ *  - Depositor Bitcoin key mismatch - the typed refusal from the resume wallet
+ *    check, payout signing and the DepositTerms rebuild when the connected
+ *    Bitcoin wallet's key is not the vault's registered depositor key.
  *  - Wallet method not supported — the connected wallet lacks a required
  *    method (coded, cause-walking; runs after every typed bucket above).
  *  - Wallet not connected / wallet client missing.
@@ -70,7 +74,10 @@ import {
   isBuildPreconditionError,
 } from "@/services/vault/pinnedBuildLimits";
 
-import { isDepositorWalletMismatchError } from "./depositorWalletMismatch";
+import {
+  isDepositorBtcKeyMismatchError,
+  isDepositorWalletMismatchError,
+} from "./depositorWalletMismatch";
 import {
   DEVICE_CEREMONY_INVALID_CODE,
   DEVICE_LOCKED_CODE,
@@ -302,9 +309,16 @@ export function mapDepositError(err: unknown): DepositErrorContent {
     return ERRORS.broadcastFailed;
   }
 
-  // 3f. Typed depositor-wallet refusal from the DepositTerms rebuild.
+  // 3f. Typed depositor-wallet refusal from the DepositTerms rebuild or the
+  // resume wallet check.
   if (isDepositorWalletMismatchError(err)) {
     return ERRORS.wrongDepositorWallet;
+  }
+
+  // 3f'. Typed depositor Bitcoin-key refusal from the resume wallet check,
+  // payout signing or the DepositTerms rebuild.
+  if (isDepositorBtcKeyMismatchError(err)) {
+    return ERRORS.wrongDepositorBtcWallet;
   }
 
   // 3g'. Top-frame device code — before both cause walks, so an outer device
