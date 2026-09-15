@@ -96,7 +96,7 @@ These paths handle irreversible value movement. An AI-generated mistake here is 
 - The orchestrator that composes these primitives:
   - `packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts` — `PeginManager.preparePegin` (sizing → `deriveVaultRoot` → per-vault expand → commit pass with `htlcVout === index` invariant). The wrapper API may evolve; the underlying frozen primitives must not.
 - These functions feed `wallet.deriveContextHash` and produce on-chain commitments (`depositorWotsPkHash`, HTLC hashlock, OP_RETURN auth-anchor preimage). Any byte-level change to layout, ordering, label, or HKDF info rotates the secrets and **invalidates every existing deposit** — users cannot derive matching keys, cannot activate, cannot resume.
-- **Rule:** Treat as a hard fork. Changes require: (a) a coordinated revision of `derive-vault-secrets.md` / `derive-context-hash.md`, (b) updated golden-vector tests in `btc-vault` (`golden_vectors_pinned`) and vault-wasm (`lib.rs`) — the byte-level `info` encoding lives Rust-side and those tests are the source of truth, plus the JS golden vectors in `vault-secrets/__tests__/expand.test.ts`, (c) a migration plan for in-flight deposits. A bump of `VAULT_WASM_COMMIT` in `build-wasm.js` that changes any expander output is equivalent to changing this list — re-run the JS golden-vector gate on every bump. Match the Rust `babe::wots` reference byte-for-byte. Two-vault test (overlapping inputs, distinct keys) is mandatory for any chain-logic change.
+- **Rule:** Treat as a hard fork. Changes require: (a) updated golden-vector tests in `btc-vault` (`golden_vectors_pinned`) and vault-wasm (`lib.rs`) — the byte-level `info` encoding lives Rust-side and those tests are the source of truth; (b) updated JS golden vectors in `vault-secrets/__tests__/expand.test.ts` and `vault-secrets/__tests__/context.golden.test.ts`; (c) for the wallet-side derivation, updated conformance vectors in `vault-secrets/__tests__/deriveContextHash.vectors.test.ts` and a coordinated release with every external implementation that pins them (Ledger vault app, Keystone firmware, OneKey, UniSat) — the tests are the specification; (d) a migration plan for in-flight deposits. A bump of `VAULT_WASM_COMMIT` in `build-wasm.js` that changes any expander output is equivalent to changing this list — re-run the JS golden-vector gate on every bump. Match the Rust `babe::wots` reference byte-for-byte. Two-vault test (overlapping inputs, distinct keys) is mandatory for any chain-logic change.
 
 ### 5. HTLC secret & vault activation
 
@@ -251,12 +251,15 @@ Separating the Ethereum-only paths from the Bitcoin stack reimplements some prim
 
 ## MOTION & ANIMATION
 
-- **Any PR that adds or changes an animation must follow `docs/motion-system.md`** — it is the standard for motion across the monorepo.
+- **Any PR that adds or changes an animation must follow the rules in this section** — they are the standard for motion across the monorepo.
 - **Tokens, not magic numbers.** Timing/easing/distance are CSS custom properties (`--motion-*`); never inline `ms`/easing/`px` in components.
 - **Knobs in core-ui, values in the app.** core-ui animations read `var(--motion-…, <legacy default>)`; an app opts in by defining the token in its `globals.css`. Don't define app-spec tokens in core-ui `:root`.
 - **No animation library** (no framer-motion/react-spring) — use the existing mount/unmount seam for exits.
-- **`prefers-reduced-motion` is mandatory:** handled by a single global `*` animation/transition reset in core-ui `index.css` — no per-token or per-app zeroing. The functional spinner is the one re-enabled exception; JS motion reads `useReducedMotion()`.
+- **`prefers-reduced-motion` is mandatory:** handled by a single global `*` animation/transition reset in core-ui `index.css` — no per-token or per-app zeroing. The functional spinner is the one re-enabled exception; JS motion reads `useReducedMotion()` and renders the final state on first paint (initialize state from `reduced`; never fade in after mount).
 - **Never animate `transform` on a popper/tooltip-positioned element** — animate opacity on it, translate on an inner wrapper.
+- **Enter ease-out, exit ease-in.** Distances 4–8px, durations 120–220ms (longer only for the looping spinner and the skeleton shimmer). Never shift surrounding layout; a skeleton shimmer preserves the final layout.
+- **Token families:** `--motion-duration-*`, `--motion-ease-*`, `--motion-shift-*`, `--motion-transform-*`. Values come from the Figma section node (`get_design_context`), not the overview screenshot — re-pull it before changing a value. Current values: `services/vault/src/globals.css`; reset and shared utilities: core-ui `src/index.css`; hook: core-ui `src/hooks/useReducedMotion.ts`.
+- **Adding an animation:** take the values from the Figma section node; add the keyframe/transition in core-ui (`src/components/**/*.css` or `tailwind.config.js`) behind `var(--motion-…, <legacy default>)` so non-opted-in consumers keep their current behavior; define the token in the app's `globals.css` `:root`; only a functional indicator that must keep running under reduced motion gets a higher-specificity re-enable rule next to the spinner exception; verify with the core-ui build, the app's lint and tests, and a manual `prefers-reduced-motion` pass.
 
 ---
 

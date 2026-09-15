@@ -448,8 +448,8 @@ export class OneKeyProvider implements IBTCProvider {
         wallet: WALLET_PROVIDER_NAME,
       });
 
-    // OneKey exposes deriveContextHash on the injected `$onekey.btcwallet`
-    // per docs/specs/derive-context-hash.md §2.1, shipped in OneKey >= 6.3.0.
+    // OneKey exposes deriveContextHash on the injected `$onekey.btcwallet`,
+    // shipped in OneKey >= 6.3.0.
     // Older builds omit the method, so surface a typed
     // WALLET_METHOD_NOT_SUPPORTED instead of an opaque "X is not a function".
     if (typeof this.provider.deriveContextHash !== "function") {

@@ -512,13 +512,15 @@ export interface IBTCProvider extends IProvider {
    * Derives a deterministic 32-byte value from the wallet's key material,
    * an application name, and an application-provided context string.
    *
-   * Conforms to the `deriveContextHash` wallet API specification
-   * (`docs/specs/derive-context-hash.md`, revision 1.0). Implementations
+   * Conforms to the `deriveContextHash` wallet API contract that the
+   * ts-sdk conformance vectors pin
+   * (`tbv/core/vault-secrets/__tests__/deriveContextHash.vectors.test.ts`).
+   * Implementations
    * that do not support this method MUST throw a {@link WalletError}
    * with code {@link ERROR_CODES.WALLET_METHOD_NOT_SUPPORTED} so the
    * caller can branch deterministically on capability.
    *
-   * The wallet itself enforces the spec's input/output validation
+   * The wallet itself enforces the contract's input/output validation
    * (`appName` charset and length, `context` even-length lowercase hex,
    * 64-char hex output). Adapters forward without re-validating.
    *
@@ -530,7 +532,7 @@ export interface IBTCProvider extends IProvider {
    * @returns 64-char lowercase hex string (32 bytes).
    * @throws {@link WalletError} with code
    *   {@link ERROR_CODES.WALLET_METHOD_NOT_SUPPORTED} when the wallet
-   *   does not implement the spec.
+   *   does not implement the method.
    */
   deriveContextHash(appName: string, context: string): Promise<string>;
 }

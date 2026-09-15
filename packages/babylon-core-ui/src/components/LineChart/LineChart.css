@@ -3,8 +3,8 @@
  *
  * Series and marker colours are per-instance knobs the app sets through props
  * (--bbn-line-chart-series / --bbn-line-chart-marker); neutral chrome comes
- * from the shared --bbn-chart-* tokens. Motion reads --motion-* tokens per
- * docs/motion-system.md — knobs here, values in the app; reduced motion is
+ * from the shared --bbn-chart-* tokens. Motion reads --motion-* tokens —
+ * knobs here, values in the app; reduced motion is
  * handled by the global reset in index.css. */
 @import "../charts/chartTokens.css";
 
