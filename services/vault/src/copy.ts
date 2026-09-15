@@ -49,6 +49,14 @@ const SOMETHING_WENT_WRONG_HEADING = "Something went wrong";
 // builder so the three can't drift apart.
 const connectToView = (subject: string) =>
   `Connect your wallet to view your ${subject}`;
+// Names a loan asset by its token and hub. One token can be borrowed from
+// several Aave hubs, each a separate market, so sentences naming a loan asset
+// go through this builder. The one exception is a body that emphasizes the
+// amount and token on their own (repay success), which splits the same
+// "<token> on <hub>" wording across segments.
+const tokenOnHub = (symbol: string, hub: string) => `${symbol} on ${hub}`;
+// Column header shared by the Select hub picker and the markets table.
+const AVAILABLE_LIQUIDITY_COLUMN = "Available Liquidity";
 // Generic deposit-failure title; shared so per-bucket titles can't drift.
 const TRANSACTION_FAILED_TITLE = "Transaction failed";
 // The reassurance every pre-signing abort carries. It is the load-bearing half
@@ -1270,6 +1278,8 @@ export const COPY = {
     loading: "Loading...",
     // Accessible label for the shared v3 modal header close control.
     close: "Close",
+    // Accessible label for the shared v3 modal header back control.
+    back: "Back",
     confirming: "Confirming...",
     applying: "Applying...",
     checking: "Checking...",
@@ -1609,10 +1619,10 @@ export const COPY = {
     validation: {
       minBorrow: (min: string) =>
         `The minimum borrowable amount is ${min}. Enter a higher amount and try again.`,
-      maxBorrow: (max: string, symbol: string) =>
-        `The maximum borrowable amount is ${max} ${symbol}. Enter a lower amount and try again.`,
-      exceedsLiquidity: (available: string, symbol: string) =>
-        `Only ${available} ${symbol} is available to borrow from this market right now. Enter a lower amount and try again.`,
+      maxBorrow: (max: string, symbol: string, hub: string) =>
+        `The maximum borrowable amount is ${max} ${tokenOnHub(symbol, hub)}. Enter a lower amount and try again.`,
+      exceedsLiquidity: (available: string, symbol: string, hub: string) =>
+        `Only ${available} ${tokenOnHub(symbol, hub)} is available to borrow right now. Enter a lower amount and try again.`,
       healthFactorTooLow: (min: number) =>
         `Borrowing this amount would drop your health factor below ${min}, risking liquidation. Reduce the amount and try again.`,
     },
@@ -1621,23 +1631,41 @@ export const COPY = {
       body: "Please connect your wallet to manage your position.",
     },
     reserveNotFound: "Reserve not found",
+    // Shown for a token whose indexed symbol is an address (no `symbol()`).
+    unknownTokenSymbol: "Unknown",
     assetSelection: {
       title: "Select asset",
       columnAsset: "Asset",
-      columnPrice: "Price",
-      columnAvailable: "Available Liquidity",
-      columnBorrowApr: "Borrow APR",
+      columnDebt: "Debt",
       loading: "Loading assets...",
       emptyBorrow: "No borrowable assets available",
       emptyRepay: "No assets available",
+    },
+    // Multi-hub: the Select hub step, and the hub named on every per-reserve
+    // surface. The label itself comes from `services/aave/hubRegistry.ts`.
+    hub: {
+      label: "Hub",
+      selectTitle: "Select hub",
+      // Title Case, matching the picker's other column headers.
+      columnAvailable: AVAILABLE_LIQUIDITY_COLUMN,
       marketInfo: "Market Info",
-      marketInfoAriaLabel: (symbol: string) => `${symbol} market info`,
+      marketInfoAriaLabel: (symbol: string, hub: string) =>
+        `${tokenOnHub(symbol, hub)} market info`,
+      empty: "This asset can't be borrowed from any hub right now",
+      // Beside a hub this build doesn't know, which renders by its address.
+      unknownHubWarning:
+        "This hub isn't in the app's list of known hubs, so it is shown by its contract address.",
+      tokenOnHub,
     },
     borrowSuccess: {
       title: "Borrow successful",
-      body: (amount: string, symbol: string): EmphasisBodySegment[] => [
+      body: (
+        amount: string,
+        symbol: string,
+        hub: string,
+      ): EmphasisBodySegment[] => [
         {
-          text: `${amount} ${symbol} has been credited to your wallet.`,
+          text: `${amount} ${tokenOnHub(symbol, hub)} has been credited to your wallet.`,
           emphasis: false,
         },
       ],
@@ -1645,9 +1673,14 @@ export const COPY = {
     },
     repaySuccess: {
       title: "Repay successful",
-      body: (amount: string, symbol: string): EmphasisBodySegment[] => [
+      body: (
+        amount: string,
+        symbol: string,
+        hub: string,
+      ): EmphasisBodySegment[] => [
         { text: "You have repaid ", emphasis: false },
         { text: `${amount} ${symbol}`, emphasis: true },
+        { text: ` on ${hub}`, emphasis: false },
       ],
       doneButton: "Done",
     },
@@ -1737,8 +1770,8 @@ export const COPY = {
   marketData: {
     pageTitle: "Borrowing markets data",
     backToAssets: "Back to assets",
-    subtitle: (symbol: string) =>
-      `Learn more about the ${symbol} borrow market`,
+    subtitle: (symbol: string, hub: string) =>
+      `Learn more about the ${tokenOnHub(symbol, hub)} borrow market`,
     borrowAction: "Borrow",
     // Shown instead of the metrics when a Hub or oracle read failed, so a
     // failed read is never mistaken for a metric that has no value.
@@ -1774,12 +1807,13 @@ export const COPY = {
     },
     borrowMarkets: {
       title: "Borrow markets",
-      description: (symbol: string) =>
-        `Understand market conditions, rates, and risk before borrowing ${symbol}`,
+      description: (symbol: string, hub: string) =>
+        `Understand market conditions, rates, and risk before borrowing ${tokenOnHub(symbol, hub)}`,
       columns: {
-        market: "Market",
+        // The token column; the hub column reuses `loans.hub.label`.
+        asset: "Asset",
         borrowApr: "Borrow APR",
-        available: "Available Liquidity",
+        available: AVAILABLE_LIQUIDITY_COLUMN,
         utilization: "Utilization",
         borrowed: "Borrowed",
         supplied: "Supplied",
@@ -1801,9 +1835,10 @@ export const COPY = {
       currentCallout: (pct: string) => `Current ${pct}`,
       optimalCallout: (pct: string) => `Optimal (Kink) ${pct}`,
       calloutApr: (pct: string) => `APR ~ ${pct}`,
-      historyAriaLabel: (symbol: string) => `${symbol} borrow APR history`,
-      irmAriaLabel: (symbol: string) =>
-        `${symbol} borrow rate against utilization`,
+      historyAriaLabel: (symbol: string, hub: string) =>
+        `${tokenOnHub(symbol, hub)} borrow APR history`,
+      irmAriaLabel: (symbol: string, hub: string) =>
+        `${tokenOnHub(symbol, hub)} borrow rate against utilization`,
       chartUnavailable:
         "Chart data is unavailable right now. Please try again shortly.",
       historyEmpty: "No rate history yet for this market.",

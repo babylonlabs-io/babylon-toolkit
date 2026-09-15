@@ -7,7 +7,14 @@ const HF_TOO_LOW_MESSAGE = `Borrowing this amount would drop your health factor 
 
 describe("validateBorrowAction", () => {
   it("disables with 'Enter an amount' when borrow amount is 0", () => {
-    const result = validateBorrowAction(0, Infinity, 10000, 6, "USDC");
+    const result = validateBorrowAction(
+      0,
+      Infinity,
+      10000,
+      6,
+      "USDC",
+      "Core Hub",
+    );
 
     expect(result).toEqual({
       isDisabled: true,
@@ -25,6 +32,7 @@ describe("validateBorrowAction", () => {
       10000,
       6,
       "USDC",
+      "Core Hub",
     );
 
     expect(result).toEqual({
@@ -39,7 +47,14 @@ describe("validateBorrowAction", () => {
     // 0.0000009 USDC -> toFixed(6) = "0.000001" (1 base unit). A round-to-zero
     // check would miss this and let the borrow execute for more than entered;
     // comparing against the minimum blocks all sub-unit amounts.
-    const result = validateBorrowAction(0.0000009, Infinity, 10000, 6, "USDC");
+    const result = validateBorrowAction(
+      0.0000009,
+      Infinity,
+      10000,
+      6,
+      "USDC",
+      "Core Hub",
+    );
 
     expect(result.buttonText).toBe("Amount too small");
     expect(result.errorMessage).toBe(
@@ -49,19 +64,33 @@ describe("validateBorrowAction", () => {
 
   it("allows the smallest representable amount (1 base unit)", () => {
     // 0.000001 USDC is exactly 1 base unit at 6 decimals — not sub-unit.
-    const result = validateBorrowAction(0.000001, Infinity, 10000, 6, "USDC");
+    const result = validateBorrowAction(
+      0.000001,
+      Infinity,
+      10000,
+      6,
+      "USDC",
+      "Core Hub",
+    );
 
     expect(result.buttonText).toBe("Borrow");
   });
 
   it("disables with 'Amount exceeds maximum' when borrow exceeds max", () => {
-    const result = validateBorrowAction(50000, 0.16, 10000, 6, "USDC");
+    const result = validateBorrowAction(
+      50000,
+      0.16,
+      10000,
+      6,
+      "USDC",
+      "Core Hub",
+    );
 
     expect(result).toEqual({
       isDisabled: true,
       buttonText: "Amount exceeds maximum",
       errorMessage:
-        "The maximum borrowable amount is 10,000 USDC. Enter a lower amount and try again.",
+        "The maximum borrowable amount is 10,000 USDC on Core Hub. Enter a lower amount and try again.",
     });
   });
 
@@ -73,6 +102,7 @@ describe("validateBorrowAction", () => {
       5000,
       6,
       "USDC",
+      "Core Hub",
       false,
       true,
     );
@@ -81,12 +111,19 @@ describe("validateBorrowAction", () => {
       isDisabled: true,
       buttonText: "Amount exceeds available liquidity",
       errorMessage:
-        "Only 5,000 USDC is available to borrow from this market right now. Enter a lower amount and try again.",
+        "Only 5,000 USDC on Core Hub is available to borrow right now. Enter a lower amount and try again.",
     });
   });
 
   it("disables with 'Health factor too low' when HF is below minimum", () => {
-    const result = validateBorrowAction(8000, 1.0, 10000, 6, "USDC");
+    const result = validateBorrowAction(
+      8000,
+      1.0,
+      10000,
+      6,
+      "USDC",
+      "Core Hub",
+    );
 
     expect(result).toEqual({
       isDisabled: true,
@@ -96,7 +133,7 @@ describe("validateBorrowAction", () => {
   });
 
   it("disables when projected health factor is exactly 0", () => {
-    const result = validateBorrowAction(100, 0, 10000, 6, "USDC");
+    const result = validateBorrowAction(100, 0, 10000, 6, "USDC", "Core Hub");
 
     expect(result).toEqual({
       isDisabled: true,
@@ -106,7 +143,14 @@ describe("validateBorrowAction", () => {
   });
 
   it("enables borrow when amount is valid and HF is safe", () => {
-    const result = validateBorrowAction(5000, 2.0, 10000, 6, "USDC");
+    const result = validateBorrowAction(
+      5000,
+      2.0,
+      10000,
+      6,
+      "USDC",
+      "Core Hub",
+    );
 
     expect(result).toEqual({
       isDisabled: false,
@@ -116,7 +160,14 @@ describe("validateBorrowAction", () => {
   });
 
   it("enables borrow when HF is Infinity (no debt)", () => {
-    const result = validateBorrowAction(1000, Infinity, 10000, 6, "USDC");
+    const result = validateBorrowAction(
+      1000,
+      Infinity,
+      10000,
+      6,
+      "USDC",
+      "Core Hub",
+    );
 
     expect(result).toEqual({
       isDisabled: false,
@@ -127,18 +178,32 @@ describe("validateBorrowAction", () => {
 
   it("prioritizes max amount check over health factor check", () => {
     // Amount exceeds max AND HF is low — should show max amount error
-    const result = validateBorrowAction(20000, 0.5, 10000, 6, "USDC");
+    const result = validateBorrowAction(
+      20000,
+      0.5,
+      10000,
+      6,
+      "USDC",
+      "Core Hub",
+    );
 
     expect(result).toEqual({
       isDisabled: true,
       buttonText: "Amount exceeds maximum",
       errorMessage:
-        "The maximum borrowable amount is 10,000 USDC. Enter a lower amount and try again.",
+        "The maximum borrowable amount is 10,000 USDC on Core Hub. Enter a lower amount and try again.",
     });
   });
 
   it("enables borrow at exactly max amount with safe HF", () => {
-    const result = validateBorrowAction(10000, 1.5, 10000, 6, "USDC");
+    const result = validateBorrowAction(
+      10000,
+      1.5,
+      10000,
+      6,
+      "USDC",
+      "Core Hub",
+    );
 
     expect(result).toEqual({
       isDisabled: false,
@@ -148,7 +213,15 @@ describe("validateBorrowAction", () => {
   });
 
   it("disables with 'Refreshing position...' when position data is stale", () => {
-    const result = validateBorrowAction(5000, 2.0, 10000, 6, "USDC", true);
+    const result = validateBorrowAction(
+      5000,
+      2.0,
+      10000,
+      6,
+      "USDC",
+      "Core Hub",
+      true,
+    );
 
     expect(result).toEqual({
       isDisabled: true,
@@ -158,26 +231,49 @@ describe("validateBorrowAction", () => {
   });
 
   it("does not block when isPositionDataStale is false", () => {
-    const result = validateBorrowAction(5000, 2.0, 10000, 6, "USDC", false);
+    const result = validateBorrowAction(
+      5000,
+      2.0,
+      10000,
+      6,
+      "USDC",
+      "Core Hub",
+      false,
+    );
 
     expect(result.isDisabled).toBe(false);
   });
 
   it("prioritizes staleness check over other validations", () => {
     // Stale AND amount is 0 — staleness should take priority
-    const result = validateBorrowAction(0, Infinity, 10000, 6, "USDC", true);
+    const result = validateBorrowAction(
+      0,
+      Infinity,
+      10000,
+      6,
+      "USDC",
+      "Core Hub",
+      true,
+    );
 
     expect(result.buttonText).toBe("Refreshing position...");
   });
 
-  it("formats the max with WBTC's precision and includes the symbol", () => {
+  it("formats the max with WBTC's precision and names the token and its hub", () => {
     // 0.0000099 WBTC max — a 2-decimal format would round to "0"; sub-1 amounts
     // keep the token's native precision so the value survives.
-    const result = validateBorrowAction(0.0001, 2.0, 0.0000099, 8, "WBTC");
+    const result = validateBorrowAction(
+      0.0001,
+      2.0,
+      0.0000099,
+      8,
+      "WBTC",
+      "Core Hub",
+    );
 
     expect(result.buttonText).toBe("Amount exceeds maximum");
     expect(result.errorMessage).toBe(
-      "The maximum borrowable amount is 0.0000099 WBTC. Enter a lower amount and try again.",
+      "The maximum borrowable amount is 0.0000099 WBTC on Core Hub. Enter a lower amount and try again.",
     );
   });
 });

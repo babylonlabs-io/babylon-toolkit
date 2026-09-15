@@ -152,7 +152,9 @@ export function ActivityRowLayout({
           <span
             className={`truncate ${CAPTION_TEXT_CLASS} text-accent-secondary`}
           >
-            {amount.symbol}
+            {amount.hubLabel
+              ? COPY.loans.hub.tokenOnHub(amount.symbol, amount.hubLabel)
+              : amount.symbol}
           </span>
         </div>
       </div>

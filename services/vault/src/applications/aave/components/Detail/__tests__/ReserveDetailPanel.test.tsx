@@ -3,7 +3,7 @@
  * appears. Identity errors must also appear while other requests load.
  */
 
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import type { Address } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -64,10 +64,21 @@ vi.mock("../../../hooks", () => ({
 }));
 
 // The borrow/repay form itself is out of scope here; its presence is the
-// assertion that the overlay reached the proven branch.
-vi.mock("../../LoanCard", () => ({
-  LoanCard: () => <div data-testid="loan-card" />,
-}));
+// assertion that the overlay reached the proven branch. It shows the hub it
+// was given and settles a borrow on click, so the hub hand-off is observable.
+vi.mock("../../LoanCard", async () => {
+  const { useLoanContext } = await import("../../context/LoanContext");
+  return {
+    LoanCard: () => {
+      const { hub, onBorrowSuccess } = useLoanContext();
+      return (
+        <button data-testid="loan-card" onClick={() => onBorrowSuccess(5)}>
+          {hub.label}
+        </button>
+      );
+    },
+  };
+});
 
 const mockUseAaveReserveDetail = vi.fn();
 vi.mock("../hooks", () => ({
@@ -76,7 +87,11 @@ vi.mock("../hooks", () => ({
 
 const RESERVE = {
   reserveId: 2n,
-  reserve: { collateralFactor: 0, underlying: "0xUSDC" as Address },
+  reserve: {
+    collateralFactor: 0,
+    underlying: "0xUSDC" as Address,
+    hub: "0xF5E52D571Ed9b4779399A815815ABeFF7D7ec4ca" as Address,
+  },
   token: {
     symbol: "USDC",
     name: "USD Coin",
@@ -148,6 +163,25 @@ describe("ReserveDetailPanel", () => {
     expect(
       screen.getByText(COPY.loans.detail.ancillaryLoadWarning),
     ).toBeVisible();
+  });
+
+  it("names the reserve's hub to the form and to the success step", () => {
+    const onSuccess = vi.fn();
+    render(
+      <ReserveDetailPanel
+        reserveId="2"
+        tab={LOAN_TAB.BORROW}
+        onProcessingChange={vi.fn()}
+        onSuccess={onSuccess}
+      />,
+    );
+
+    expect(screen.getByTestId("loan-card")).toHaveTextContent("Core Hub");
+    fireEvent.click(screen.getByTestId("loan-card"));
+
+    expect(onSuccess).toHaveBeenCalledWith(
+      expect.objectContaining({ amount: 5, hubLabel: "Core Hub" }),
+    );
   });
 
   it("blocks with integrity copy and no retry when the asset can't be verified", () => {

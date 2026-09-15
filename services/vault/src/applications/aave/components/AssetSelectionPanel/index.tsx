@@ -1,5 +1,1 @@
-export {
-  AssetSelectionPanel,
-  getAssetPickerWidthClass,
-  type SelectableAsset,
-} from "./AssetSelectionPanel";
+export { AssetSelectionPanel } from "./AssetSelectionPanel";

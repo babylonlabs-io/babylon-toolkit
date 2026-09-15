@@ -26,7 +26,12 @@ import NotFound from "./components/pages/not-found";
 import RootLayout, {
   type RootLayoutContext,
 } from "./components/pages/RootLayout";
-import { MARKET_PARAM, RESERVE_QUERY_KEYS, ROUTES } from "./routes";
+import {
+  MARKET_RESERVE_PARAM,
+  parseAssetParam,
+  RESERVE_QUERY_KEYS,
+  ROUTES,
+} from "./routes";
 import { lazyWithRetry } from "./utils/lazyWithRetry";
 
 const Activity = lazyWithRetry(() => import("./components/pages/Activity"));
@@ -96,6 +101,7 @@ const AaveOverlayLayout = () => {
       : pickerParam === LOAN_TAB.BORROW
         ? LOAN_TAB.BORROW
         : null;
+  const asset = parseAssetParam(searchParams.get(RESERVE_QUERY_KEYS.ASSET));
 
   useEffect(() => {
     if (typeof window.requestIdleCallback === "function") {
@@ -129,6 +135,7 @@ const AaveOverlayLayout = () => {
                 picker={picker}
                 reserveId={reserveId}
                 tab={tab}
+                asset={asset}
               />
             </Suspense>
           )}
@@ -190,7 +197,7 @@ export const Router = () => {
             }
           />
           <Route
-            path={`${ROUTES.MARKETS}/:${MARKET_PARAM}`}
+            path={`${ROUTES.MARKETS}/:${MARKET_RESERVE_PARAM}`}
             element={
               <Suspense fallback={<RouteFallback />}>
                 <BorrowingMarketsDataPage />

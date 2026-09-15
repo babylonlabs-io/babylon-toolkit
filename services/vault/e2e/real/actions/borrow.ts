@@ -9,9 +9,10 @@
  *
  * The borrow flow itself is short and has NO multi-minute on-chain gates (unlike pegin): navigate to
  * /loans (v3 moved the loan CTAs off the dashboard — see markdown/e2e-v3/03-borrow.md) → Borrow, pick
- * the token in the "Select asset" picker, enter the amount (a conservative fraction of the real-data
- * max, or the form's Max), submit, and approve the single MetaMask transaction. Then the "Borrow
- * successful" screen confirms it.
+ * the token in the "Select asset" picker, pick its hub in "Select hub" when the token is listed on more
+ * than one hub, enter the amount (a conservative fraction of the real-data max, or the form's Max),
+ * submit, and approve the single MetaMask transaction. Then the "Borrow successful" screen confirms it.
+ * The run is pinned to one reserve id throughout: a token symbol alone can name several reserves.
  *
  * Selectors are testid-first (added to the src borrow controls, mirroring `activate-vault-button`) with
  * tolerant text/role/class fallbacks so a deployed build that predates the testids still works. No SDK
@@ -24,10 +25,14 @@
 import type { BrowserContext, Locator, Page } from "@playwright/test";
 
 import {
+  type BorrowReserve,
   CONSERVATIVE_BORROW_FRACTION,
+  describeReserve,
+  fetchBorrowableReserves,
   fetchBorrowContext,
   fetchCollateralSats,
   fetchMaxBorrow,
+  matchReserve,
 } from "../borrowParams";
 import { formatBtc } from "../preflight";
 import {
@@ -48,16 +53,20 @@ import { runPeginFlow } from "./pegin";
 import { startRecording } from "./recording";
 import {
   AMOUNT_INPUT,
+  assertOpenFormReserve,
   ASSET_ROW_TESTID_PREFIX,
   ASSET_SELECT_TITLE,
   DONE_BUTTON_RX,
   firstByTestid,
   FLUID_CTA_SELECTOR,
+  HUB_OPTION_TESTID_PREFIX,
+  HUB_SELECT_TITLE,
   MAX_AMOUNT_KEYWORD,
   MAX_BUTTON_RX,
   SUCCESS_DONE_TESTID,
   TX_FAILED_RX,
 } from "./selectors";
+import { resubmitAfterStaleNonce } from "./staleNonceRetry";
 import { type Action, type ActionContext } from "./types";
 import { connectWallets } from "./walletConnect";
 
@@ -108,23 +117,25 @@ type BorrowAmount = { mode: "max" } | { mode: "amount"; value: string };
  * than silently borrowing the form's full Max — full-max is only ever used when explicitly requested
  * via `--borrow-amount=max`, so a failed read can't pin the health factor at the liquidation edge.
  */
-async function resolveBorrowAmount(ctx: ActionContext): Promise<BorrowAmount> {
+async function resolveBorrowAmount(
+  ctx: ActionContext,
+  reserve: BorrowReserve,
+): Promise<BorrowAmount> {
   const raw = ctx.config.borrowAmount?.trim();
   if (raw && raw.toLowerCase() === MAX_AMOUNT_KEYWORD) return { mode: "max" };
   if (raw) return { mode: "amount", value: raw };
 
-  const token = ctx.config.borrowToken?.trim();
-  if (!token)
-    throw new Error(
-      "borrow: no --borrow-token resolved and no --borrow-amount given — cannot compute a safe default. Re-run with --borrow-token and/or --borrow-amount.",
-    );
-
+  const token = reserve.symbol;
   let max;
   try {
-    max = await fetchMaxBorrow(ctx.config.network, ctx.eth.address, token);
+    max = await fetchMaxBorrow(
+      ctx.config.network,
+      ctx.eth.address,
+      reserve.reserveId,
+    );
   } catch (error) {
     throw new Error(
-      `borrow: could not compute the max borrow for ${token} (${error instanceof Error ? error.message : error}) — refusing to guess an amount. Re-run with an explicit --borrow-amount (or --borrow-amount=max).`,
+      `borrow: could not compute the max borrow for ${describeReserve(reserve)} (${error instanceof Error ? error.message : error}) — refusing to guess an amount. Re-run with an explicit --borrow-amount (or --borrow-amount=max).`,
     );
   }
 
@@ -180,47 +191,108 @@ async function openBorrow(page: Page, log: (m: string) => void): Promise<void> {
 }
 
 /**
- * Pick the borrow token in the "Select asset" modal. Prefer the per-symbol testid; fall back to the row
- * whose text contains the symbol (case-insensitive — symbols are alphanumeric so no regex escaping is
- * needed). With no token specified, take the first asset row (testid-based; requires the testid build).
- * The modal shows "Loading assets…" until the oracle-price query resolves, so we WAIT for the row (not a
- * one-shot check) and only fail on timeout — otherwise a healthy run could race the load and see no rows.
- * Returns the token SYMBOL (read from the chosen row's testid, not its free-text label), used for the
- * success log.
+ * The reserve this run borrows from. The CLI normally resolved it already (`borrowReserveId`); when its
+ * reserve read failed, resolve it here the same way: the token (plus `--borrow-hub`) must match exactly
+ * one borrowable reserve, and no token is accepted only when a single reserve is borrowable. One token
+ * can be listed on several hubs, so a symbol alone is refused rather than resolved to whichever reserve
+ * comes first.
+ */
+async function resolveBorrowReserve(
+  ctx: ActionContext,
+): Promise<BorrowReserve> {
+  const { network, borrowReserveId, borrowHub } = ctx.config;
+  const reserves = await fetchBorrowableReserves(network);
+  if (borrowReserveId !== undefined) {
+    const reserve = reserves.find(
+      (r) => r.reserveId.toString() === borrowReserveId,
+    );
+    if (!reserve)
+      throw new Error(
+        `borrow: reserve ${borrowReserveId} is not borrowable on ${network}.`,
+      );
+    return reserve;
+  }
+  const token = ctx.config.borrowToken?.trim();
+  if (!token) {
+    if (reserves.length === 1) return reserves[0];
+    throw new Error(
+      reserves.length === 0
+        ? `borrow: no borrowable reserves on ${network}.`
+        : `borrow: no --borrow-token and more than one borrowable reserve (${reserves.map(describeReserve).join("; ")}) — re-run with --borrow-token (and --borrow-hub).`,
+    );
+  }
+  const match = matchReserve(reserves, token, borrowHub);
+  if (match.kind === "match") return match.reserve;
+  throw new Error(
+    match.kind === "none"
+      ? `borrow: "${token}"${borrowHub ? ` on "${borrowHub}"` : ""} is not a borrowable reserve on ${network}.`
+      : `borrow: "${token}" is listed on more than one hub (${match.candidates.map(describeReserve).join("; ")}) — re-run with --borrow-hub.`,
+  );
+}
+
+/**
+ * Pick the borrow token in "Select asset": one card per token, keyed by its underlying address. Falls
+ * back to the per-reserve row keyed by symbol that builds predating Select hub render. The picker can
+ * still be loading, so we WAIT for the card (not a one-shot check) and only fail on timeout.
  */
 async function selectAsset(
   page: Page,
   log: (m: string) => void,
-  token: string | undefined,
-): Promise<string | undefined> {
-  const row = token
-    ? firstByTestid(
-        page,
-        `[data-testid="${ASSET_ROW_TESTID_PREFIX}${token.toLowerCase()}"]`,
-        page.getByRole("button").filter({ hasText: new RegExp(token, "i") }),
-      )
-    : page.locator(`[data-testid^="${ASSET_ROW_TESTID_PREFIX}"]`).first();
-  const appeared = await row
+  reserve: BorrowReserve,
+): Promise<void> {
+  const card = firstByTestid(
+    page,
+    `[data-testid="${ASSET_ROW_TESTID_PREFIX}${reserve.tokenAddress.toLowerCase()}"]`,
+    page.locator(
+      `[data-testid="${ASSET_ROW_TESTID_PREFIX}${reserve.symbol.toLowerCase()}"]`,
+    ),
+  );
+  const appeared = await card
     .waitFor({ state: "visible", timeout: STEP_TIMEOUT_MS })
     .then(() => true)
     .catch(() => false);
   if (!appeared)
     throw new Error(
-      token
-        ? `Borrow token "${token}" was not found in the asset picker within ${Math.round(STEP_TIMEOUT_MS / MS_PER_SECOND)}s.`
-        : "No borrow token specified and no asset rows were found — re-run with --borrow-token=<symbol>.",
+      `Borrow token ${reserve.symbol} (${reserve.tokenAddress}) was not found in the asset picker within ${Math.round(STEP_TIMEOUT_MS / MS_PER_SECOND)}s.`,
     );
-  // An explicit token wins; otherwise read the symbol from the row's testid (the no-token branch selects
-  // rows BY that prefix, so the attribute is always present on the chosen row).
-  let symbol = token;
-  if (!symbol) {
-    const testid = await row.getAttribute("data-testid").catch(() => null);
-    if (testid?.startsWith(ASSET_ROW_TESTID_PREFIX))
-      symbol = testid.slice(ASSET_ROW_TESTID_PREFIX.length);
+  await card.click();
+  log(`Selected borrow token: ${reserve.symbol}`);
+}
+
+/**
+ * Pick the hub in "Select hub". The step appears only when the token is listed on more than one hub; a
+ * single-hub token (or a build that predates the step) opens the form directly, so we race the step's
+ * title against the form's amount input. The row is clicked by reserve id with NO text fallback: every
+ * hub row shows the same token symbol, so matching on text could pick the wrong market.
+ */
+async function selectHub(
+  page: Page,
+  log: (m: string) => void,
+  reserve: BorrowReserve,
+): Promise<void> {
+  const hubTitle = page.getByText(HUB_SELECT_TITLE, { exact: true }).first();
+  const amountInput = page.locator(AMOUNT_INPUT).first();
+  const deadline = Date.now() + STEP_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    if (await hubTitle.isVisible().catch(() => false)) {
+      const row = page.locator(
+        `[data-testid="${HUB_OPTION_TESTID_PREFIX}${reserve.reserveId}"]`,
+      );
+      await row.waitFor({ state: "visible", timeout: STEP_TIMEOUT_MS });
+      await row.click();
+      await amountInput.waitFor({ state: "visible", timeout: STEP_TIMEOUT_MS });
+      log(`Selected hub: ${describeReserve(reserve)}`);
+      return;
+    }
+    if (await amountInput.isVisible().catch(() => false)) {
+      log(`No hub to choose for ${reserve.symbol} — the form opened directly`);
+      return;
+    }
+    await page.waitForTimeout(FORM_SETTLE_MS);
   }
-  await row.click();
-  log(`Selected borrow token: ${symbol ?? "(unknown)"}`);
-  return symbol;
+  throw new Error(
+    `Borrow: after selecting ${reserve.symbol}, neither "Select hub" nor the borrow form appeared within ${Math.round(STEP_TIMEOUT_MS / MS_PER_SECOND)}s.`,
+  );
 }
 
 /** Enter the borrow amount: click the form's Max button, or fill the numeric input. */
@@ -305,13 +377,15 @@ async function waitForBorrowCta(
 /**
  * After submitting, actively approve the MetaMask pop-up (the borrow is one ETH tx — the reused OKX-style
  * window needs the active sweep; MetaMask fires its own event too) and wait for the "Borrow successful"
- * screen, then click Done. Fails fast if the form surfaces a "Transaction failed" callout.
+ * screen, then click Done. Fails fast if the form surfaces a "Transaction failed" callout, except a
+ * stale-nonce rejection, which is resubmitted once via `cta` (see staleNonceRetry.ts).
  */
 async function confirmBorrowSuccess(
   page: Page,
   context: BrowserContext,
   log: (m: string) => void,
-  symbol: string | undefined,
+  reserveLabel: string,
+  cta: Locator,
 ): Promise<void> {
   // Success is gated ONLY on markers specific to the borrow-success screen — the "Borrow successful"
   // title or the `loan-success-done-button` testid. NOT the generic "Done" role: deposit/withdraw/repay
@@ -325,7 +399,8 @@ async function confirmBorrowSuccess(
     page.getByRole("button", { name: DONE_BUTTON_RX }),
   );
   const txFailed = page.getByText(TX_FAILED_RX).first();
-  const deadline = Date.now() + BORROW_TX_TIMEOUT_MS;
+  let deadline = Date.now() + BORROW_TX_TIMEOUT_MS;
+  let staleNonceRetries = 0;
   while (Date.now() < deadline) {
     await sweepApprovals(context, page, log);
 
@@ -333,13 +408,17 @@ async function confirmBorrowSuccess(
       (await successTitle.isVisible().catch(() => false)) ||
       (await successDone.isVisible().catch(() => false))
     ) {
-      log(
-        `✅ Borrow successful${symbol ? ` (${symbol})` : ""} — clicking Done`,
-      );
+      log(`✅ Borrow successful (${reserveLabel}) — clicking Done`);
       await doneButton.click({ timeout: STEP_TIMEOUT_MS }).catch(() => {});
       return;
     }
     if (await txFailed.isVisible().catch(() => false)) {
+      // A stale-nonce rejection is resubmitted once (see staleNonceRetry.ts); anything else fails the run.
+      if (await resubmitAfterStaleNonce(page, cta, log, staleNonceRetries)) {
+        staleNonceRetries += 1;
+        deadline = Date.now() + BORROW_TX_TIMEOUT_MS;
+        continue;
+      }
       const detail = await readCalloutText(page);
       throw new Error(
         `Borrow transaction failed${detail ? ` — ${detail}` : ""}. See trace.zip + the failure screenshot.`,
@@ -394,20 +473,26 @@ async function assertBorrowDebtIncreased(
 /**
  * Drive the borrow flow proper (assumes wallets connected + approver/recorder installed by the caller,
  * and collateral already present). Wrapped by `runBorrowWithOptionalPegin`, which adds the optional
- * pegin-first phase in front.
+ * pegin-first phase in front. Returns the amount it borrowed, as resolved before filling the form.
  */
 async function runBorrowFlow(
   ctx: ActionContext,
   onStep: (step: string) => void,
-): Promise<void> {
+): Promise<BorrowAmount> {
   const { page, context, log } = ctx;
-  const token = ctx.config.borrowToken?.trim() || undefined;
+  // Resolved before the browser flow, so an unknown or ambiguous token fails before anything is clicked.
+  const reserve = await resolveBorrowReserve(ctx);
+  log(`Borrowing from ${describeReserve(reserve)}`);
 
   onStep("borrow-open");
   await openBorrow(page, log);
 
   onStep("borrow-select-asset");
-  const symbol = await selectAsset(page, log, token);
+  await selectAsset(page, log, reserve);
+
+  onStep("borrow-select-hub");
+  await selectHub(page, log, reserve);
+  assertOpenFormReserve(page, reserve.reserveId, "Borrow");
 
   onStep("borrow-form");
   // Snapshot the on-chain debt BEFORE submitting so we can assert it rose afterwards (a real-data
@@ -418,7 +503,7 @@ async function runBorrowFlow(
   )
     .then((c) => c.currentDebtUsd)
     .catch(() => null);
-  const amount = await resolveBorrowAmount(ctx);
+  const amount = await resolveBorrowAmount(ctx, reserve);
   await fillBorrowAmount(page, log, amount);
   const cta = await waitForBorrowCta(page, log);
 
@@ -428,10 +513,11 @@ async function runBorrowFlow(
   );
   await cta.click();
 
-  await confirmBorrowSuccess(page, context, log, symbol);
+  await confirmBorrowSuccess(page, context, log, describeReserve(reserve), cta);
 
   onStep("borrow-verify");
   await assertBorrowDebtIncreased(ctx, debtBeforeUsd);
+  return amount;
 }
 
 /**
@@ -474,12 +560,13 @@ async function waitForFreshCollateral(
  * approver/recorder installed by the caller. Exported so BOTH the borrow action and the repay action
  * (`repay --borrow-first [--pegin-first]`) run the identical "maybe peg in, then borrow" sequence — the
  * pegin (a full `runPeginFlow`) then the baseline-relative collateral-settle wait, then the borrow. Step
- * labels are emitted via `onStep` (the caller namespaces them for its recorder).
+ * labels are emitted via `onStep` (the caller namespaces them for its recorder). Returns the borrowed
+ * amount, so a caller can check the leg on-chain against it.
  */
 export async function runBorrowWithOptionalPegin(
   ctx: ActionContext,
   onStep: (step: string) => void,
-): Promise<void> {
+): Promise<BorrowAmount> {
   if (ctx.config.peginFirst) {
     ctx.log("--pegin-first: pegging in fresh collateral before borrowing");
     // Snapshot the on-chain collateral BEFORE the pegin so we wait for THIS pegin's vault to register —
@@ -494,7 +581,7 @@ export async function runBorrowWithOptionalPegin(
     onStep("await-collateral");
     await waitForFreshCollateral(ctx, baselineSats);
   }
-  await runBorrowFlow(ctx, onStep);
+  return runBorrowFlow(ctx, onStep);
 }
 
 export const borrowAction: Action = {

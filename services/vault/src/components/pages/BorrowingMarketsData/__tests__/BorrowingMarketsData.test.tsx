@@ -54,13 +54,8 @@ vi.mock("@/services/token/tokenService", () => ({
   getCurrencyIconWithFallback: (_icon: string | undefined, symbol: string) =>
     `icon-${symbol}`,
   getTokenByAddress: () => null,
-  // Address-keyed, like the real registry: only mainnet USDC is known here, so
-  // only that reserve earns a symbol slug. Inlined rather than referencing the
-  // fixture below — `vi.mock` factories run before the module body.
-  getRegisteredTokenByAddress: (address: string) =>
-    address === "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85"
-      ? { symbol: "USDC" }
-      : null,
+  // No registry hit: table rows carry the fixtures' own token labels.
+  getRegisteredTokenByAddress: () => null,
 }));
 
 vi.mock("@/config", () => ({
@@ -78,7 +73,11 @@ vi.mock("@/overrides/marketData", () => ({
 // which props reach them and the `selectedReserve !== null` gate.
 const borrowRateHistoryCardMock = vi.fn();
 vi.mock("../BorrowRateHistoryCard", () => ({
-  BorrowRateHistoryCard: (props: { reserveId: bigint; symbol: string }) => {
+  BorrowRateHistoryCard: (props: {
+    reserveId: bigint;
+    symbol: string;
+    hubLabel: string;
+  }) => {
     borrowRateHistoryCardMock(props);
     return <div data-testid="borrow-rate-history-card-stub" />;
   },
@@ -90,6 +89,7 @@ vi.mock("../InterestRateModelCard", () => ({
     reserve: { reserveId: bigint };
     utilizationBps: number | null;
     symbol: string;
+    hubLabel: string;
   }) => {
     interestRateModelCardMock(props);
     return <div data-testid="interest-rate-model-card-stub" />;
@@ -117,14 +117,18 @@ vi.mock("@/applications/aave/hooks", () => ({
 
 import type { ReserveLiquidity } from "@/applications/aave/hooks";
 import { COPY } from "@/copy";
-import { MARKET_PARAM } from "@/routes";
+import { MARKET_RESERVE_PARAM } from "@/routes";
 
 import BorrowingMarketsData from "../index";
+
+const CORE_HUB = "0xF5E52D571Ed9b4779399A815815ABeFF7D7ec4ca";
+const BABYLON_HUB = "0xb3283508a0E96F80CF79DC2a1135F10dA170138D";
 
 const USDC_RESERVE = {
   reserveId: 1n,
   reserve: {
     underlying: "0x1111111111111111111111111111111111111111",
+    hub: CORE_HUB,
   },
   token: {
     address: "0x1111111111111111111111111111111111111111",
@@ -134,19 +138,18 @@ const USDC_RESERVE = {
   },
 };
 
-/** Same reserve, but on the mainnet USDC address the token registry knows —
- *  the only thing that earns a reserve a symbol slug. */
-const REGISTERED_USDC_RESERVE = {
+/** The same token on the other hub: a separate market with its own id. */
+const BABYLON_USDC_RESERVE = {
   ...USDC_RESERVE,
-  reserve: {
-    underlying: "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85",
-  },
+  reserveId: 4n,
+  reserve: { ...USDC_RESERVE.reserve, hub: BABYLON_HUB },
 };
 
 const WBTC_RESERVE = {
   reserveId: 2n,
   reserve: {
     underlying: "0x2222222222222222222222222222222222222222",
+    hub: BABYLON_HUB,
   },
   token: {
     address: "0x2222222222222222222222222222222222222222",
@@ -272,7 +275,7 @@ function renderPage(reserveIdParam: string) {
     <MemoryRouter initialEntries={[`/markets/${reserveIdParam}`]}>
       <Routes>
         <Route
-          path={`/markets/:${MARKET_PARAM}`}
+          path={`/markets/:${MARKET_RESERVE_PARAM}`}
           element={<BorrowingMarketsData />}
         />
       </Routes>
@@ -295,12 +298,14 @@ describe("BorrowingMarketsData", () => {
     expect(borrowRateHistoryCardMock).toHaveBeenCalledWith({
       reserveId: 1n,
       symbol: "USDC-VERIFIED",
+      hubLabel: "Core Hub",
     });
     expect(interestRateModelCardMock).toHaveBeenCalledWith({
       reserve: USDC_RESERVE,
       // Same 60s reads the stats bar renders from for reserve 1.
       utilizationBps: 6800,
       symbol: "USDC-VERIFIED",
+      hubLabel: "Core Hub",
     });
   });
 
@@ -374,9 +379,9 @@ describe("BorrowingMarketsData", () => {
 
     renderPage("1");
 
-    expect(screen.getByTestId("borrow-market-row-USDC")).toBeInTheDocument();
+    expect(screen.getByTestId("borrow-market-row-1")).toBeInTheDocument();
 
-    const wbtcRow = within(screen.getByTestId("borrow-market-row-WBTC"));
+    const wbtcRow = within(screen.getByTestId("borrow-market-row-2"));
     expect(wbtcRow.getByText("1.2%")).toBeInTheDocument();
     expect(wbtcRow.getByText("40 WBTC")).toBeInTheDocument();
     expect(wbtcRow.getByText("20%")).toBeInTheDocument();
@@ -393,7 +398,7 @@ describe("BorrowingMarketsData", () => {
 
     renderPage("1");
 
-    const wbtcRow = within(screen.getByTestId("borrow-market-row-WBTC"));
+    const wbtcRow = within(screen.getByTestId("borrow-market-row-2"));
     expect(wbtcRow.getAllByText(COPY.common.emptyValue)).toHaveLength(2); // borrowed + supplied USD cells
     expect(wbtcRow.getByText("40 WBTC")).toBeInTheDocument();
     expect(wbtcRow.getByText("10 WBTC")).toBeInTheDocument();
@@ -414,14 +419,14 @@ describe("BorrowingMarketsData", () => {
     expect(screen.getByText("Verified USD Coin")).toBeInTheDocument();
     expect(screen.getByText("USDC-VERIFIED")).toBeInTheDocument();
     expect(
-      screen.getByText(COPY.marketData.subtitle("USDC-VERIFIED")),
+      screen.getByText(COPY.marketData.subtitle("USDC-VERIFIED", "Core Hub")),
     ).toBeInTheDocument();
   });
 
   it("navigates to the routed reserve's borrow params and keeps the market pathname", () => {
-    setUpHooks({ borrowableReserves: [REGISTERED_USDC_RESERVE, WBTC_RESERVE] });
+    setUpHooks();
 
-    renderPage("usdc");
+    renderPage("1");
 
     const header = within(screen.getByTestId("market-section-identity"));
     fireEvent.click(
@@ -429,7 +434,7 @@ describe("BorrowingMarketsData", () => {
     );
 
     expect(screen.getByTestId("location-probe").textContent).toBe(
-      "/markets/usdc?reserve=1&tab=borrow",
+      "/markets/1?reserve=1&tab=borrow",
     );
   });
 
@@ -460,28 +465,42 @@ describe("BorrowingMarketsData", () => {
     ).toBeDisabled();
   });
 
-  it("resolves a token-symbol slug to the reserve whose underlying carries that registry symbol", () => {
+  it("resolves the market by reserve id when one token is listed on two hubs", () => {
     setUpHooks({
-      borrowableReserves: [REGISTERED_USDC_RESERVE, WBTC_RESERVE],
+      borrowableReserves: [USDC_RESERVE, BABYLON_USDC_RESERVE, WBTC_RESERVE],
+      liquidityByReserveId: {
+        ...LIQUIDITY_BY_RESERVE_ID,
+        "4": {
+          availableLiquidity: 2_500_000,
+          totalBorrowed: 500_000,
+          suppliedLiquidity: 3_000_000,
+          utilizationBps: 1667,
+        },
+      },
+      pricesByReserveId: { ...PRICES_BY_RESERVE_ID, "4": 1.0 },
     });
 
-    renderPage("usdc");
+    renderPage("4");
 
     const statsBar = within(screen.getByTestId("market-stats-bar"));
-    expect(statsBar.getByText("$11.4M")).toBeInTheDocument(); // reserve 1's liquidity
+    expect(statsBar.getByText("$2.5M")).toBeInTheDocument(); // reserve 4's liquidity
     expect(
-      screen.queryByText(COPY.loans.reserveNotFound),
-    ).not.toBeInTheDocument();
+      screen.getByText(
+        COPY.marketData.subtitle("USDC-VERIFIED", "Babylon Hub"),
+      ),
+    ).toBeInTheDocument();
   });
 
-  // The slug is matched against the address-keyed registry, so the indexer's
-  // own `token.symbol` — "USDC" on this fixture — cannot pull a reserve up.
-  it("shows the not-found copy for a symbol no registered underlying matches", () => {
+  // A symbol names no single market once a token is listed on several hubs,
+  // so an old symbol link is refused with its own copy rather than resolved.
+  it("shows the outdated-link copy for a legacy symbol market URL", () => {
     setUpHooks({ identity: null });
 
     renderPage("usdc");
 
-    expect(screen.getByText(COPY.loans.reserveNotFound)).toBeInTheDocument();
+    expect(
+      screen.getByText(COPY.loans.detail.reserveLinkOutdated),
+    ).toBeInTheDocument();
     expect(screen.queryByTestId("market-stats-bar")).not.toBeInTheDocument();
   });
 
@@ -529,7 +548,7 @@ describe("BorrowingMarketsData", () => {
     renderPage("9001");
 
     expect(screen.getByTestId("market-stats-bar")).toBeInTheDocument();
-    expect(screen.getByTestId("borrow-market-row-USDC")).toBeInTheDocument();
+    expect(screen.getByTestId("borrow-market-row-9001")).toBeInTheDocument();
     expect(
       screen.queryByText(COPY.loans.reserveNotFound),
     ).not.toBeInTheDocument();

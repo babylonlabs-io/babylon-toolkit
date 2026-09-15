@@ -8,10 +8,12 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
+import { COPY } from "@/copy";
+
 // Component tests mock core-ui (its dist isn't built in the test run).
 vi.mock("@babylonlabs-io/core-ui", () => ({
   Avatar: ({ alt }: { alt: string }) => <img alt={alt} />,
-  Hint: () => null,
+  Hint: ({ tooltip }: { tooltip?: string }) => <span>{tooltip}</span>,
 }));
 
 import {
@@ -24,6 +26,11 @@ const baseRow: BorrowMarketRow = {
   symbol: "USDC",
   name: "USD Coin",
   icon: "usdc.png",
+  hub: {
+    source: "registry",
+    address: "0xF5E52D571Ed9b4779399A815815ABeFF7D7ec4ca",
+    label: "Core Hub",
+  },
   aprLabel: "3.70%",
   availableLabel: "45.2K USDC",
   utilizationLabel: "25%",
@@ -38,9 +45,10 @@ describe("BorrowMarketsTable", () => {
   it("renders one row per entry with its formatted labels", () => {
     render(<BorrowMarketsTable rows={[baseRow]} />);
 
-    expect(screen.getByTestId("borrow-market-row-USDC")).toBeInTheDocument();
+    expect(screen.getByTestId("borrow-market-row-1")).toBeInTheDocument();
     expect(screen.getByText("USD Coin")).toBeInTheDocument();
     expect(screen.getByText("USDC")).toBeInTheDocument();
+    expect(screen.getByText("Core Hub")).toBeInTheDocument();
     expect(screen.getByText("3.70%")).toBeInTheDocument();
     expect(screen.getByText("45.2K USDC")).toBeInTheDocument();
     expect(screen.getByText("1.2M USDC")).toBeInTheDocument();
@@ -50,12 +58,35 @@ describe("BorrowMarketsTable", () => {
   it("renders every column header", () => {
     render(<BorrowMarketsTable rows={[baseRow]} />);
 
-    expect(screen.getByText("Market")).toBeInTheDocument();
+    expect(screen.getByText("Asset")).toBeInTheDocument();
+    expect(screen.getByText("Hub")).toBeInTheDocument();
     expect(screen.getByText("Borrow APR")).toBeInTheDocument();
     expect(screen.getByText("Available Liquidity")).toBeInTheDocument();
     expect(screen.getByText("Utilization")).toBeInTheDocument();
     expect(screen.getByText("Borrowed")).toBeInTheDocument();
     expect(screen.getByText("Supplied")).toBeInTheDocument();
+  });
+
+  it("flags a market on an unregistered hub with the unknown-hub warning", () => {
+    render(
+      <BorrowMarketsTable
+        rows={[
+          {
+            ...baseRow,
+            hub: {
+              source: "address",
+              address: "0x1111111111111111111111111111111111111111",
+              label: "0x1111...1111",
+            },
+          },
+        ]}
+      />,
+    );
+
+    expect(screen.getByText("0x1111...1111")).toBeInTheDocument();
+    expect(
+      screen.getByText(COPY.loans.hub.unknownHubWarning),
+    ).toBeInTheDocument();
   });
 
   it("omits the utilization meter when the ratio is unavailable", () => {

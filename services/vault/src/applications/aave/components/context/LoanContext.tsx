@@ -8,6 +8,8 @@
 import { createContext, useContext } from "react";
 import type { Address } from "viem";
 
+import type { HubIdentity } from "@/services/aave/hubRegistry";
+
 import type { VaultSplitParams } from "../../hooks/useVaultSplitParams";
 import type {
   AavePositionWithLiveData,
@@ -42,6 +44,11 @@ export interface LoanContextValue {
   tokenIdentity: VerifiedReserveIdentity;
   /** Asset display config (icon, name, symbol), derived from `tokenIdentity` */
   assetConfig: Asset;
+  /**
+   * Hub `selectedReserve` belongs to, named from the local hub registry. Its
+   * address was proven against the Core Spoke at config load.
+   */
+  hub: HubIdentity;
   /** User's proxy contract address (for debt queries) */
   proxyContract: string | undefined;
   /**
