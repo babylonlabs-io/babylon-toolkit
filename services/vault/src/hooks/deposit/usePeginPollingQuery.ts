@@ -20,7 +20,6 @@ import {
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef } from "react";
 
-import featureFlags from "@/config/featureFlags";
 import { COPY } from "@/copy";
 import { logger } from "@/infrastructure";
 
@@ -39,6 +38,7 @@ import {
   getDepositsNeedingPolling,
   groupDepositsByProvider,
   isTerminalPollingError,
+  shouldPollForWallet,
   TerminalPeginPollingError,
 } from "../../utils/peginPolling";
 import { createVpClient } from "../../utils/rpc";
@@ -47,6 +47,8 @@ interface UsePeginPollingQueryParams {
   activities: VaultActivity[];
   pendingPegins: PendingPeginRequest[];
   btcPublicKey?: string;
+  /** True when the session runs without a Bitcoin wallet (Ethereum-only). */
+  btcWalletAbsent?: boolean;
 }
 
 /** Result from polling query */
@@ -313,22 +315,31 @@ export function usePeginPollingQuery({
   activities,
   pendingPegins,
   btcPublicKey,
+  btcWalletAbsent = false,
 }: UsePeginPollingQueryParams): UsePeginPollingQueryResult {
   // Identify deposits that need polling
   const depositsToPoll = useMemo(
-    () => getDepositsNeedingPolling(activities, pendingPegins, btcPublicKey),
-    [activities, pendingPegins, btcPublicKey],
+    () =>
+      getDepositsNeedingPolling(
+        activities,
+        pendingPegins,
+        btcPublicKey,
+        btcWalletAbsent,
+      ),
+    [activities, pendingPegins, btcPublicKey, btcWalletAbsent],
   );
 
   // Use refs to access latest values in queryFn without stale closures
   const depositsRef = useRef(depositsToPoll);
   const btcPubKeyRef = useRef(btcPublicKey);
+  const btcWalletAbsentRef = useRef(btcWalletAbsent);
 
   // Keep refs updated
   useEffect(() => {
     depositsRef.current = depositsToPoll;
     btcPubKeyRef.current = btcPublicKey;
-  }, [depositsToPoll, btcPublicKey]);
+    btcWalletAbsentRef.current = btcWalletAbsent;
+  }, [depositsToPoll, btcPublicKey, btcWalletAbsent]);
 
   // Status reads use transaction IDs. Signing keeps its wallet checks.
   const isEnabled = depositsToPoll.length > 0;
@@ -337,16 +348,24 @@ export function usePeginPollingQuery({
     queryKey: [
       "peginPolling",
       btcPublicKey,
+      btcWalletAbsent,
       depositsToPoll.map((d) => d.activity.id).join(","),
     ],
     queryFn: async (): Promise<PollingQueryData> => {
-      const currentDeposits = depositsRef.current;
+      // Re-apply the wallet rule against the latest refs: a key that arrived
+      // or a wallet that connected after the deposits memo must not let a
+      // stale candidate list reach the provider.
       const currentBtcPubKey = btcPubKeyRef.current;
+      const currentBtcWalletAbsent = btcWalletAbsentRef.current;
+      const currentDeposits = depositsRef.current.filter((d) =>
+        shouldPollForWallet(
+          d.activity.depositorBtcPubkey,
+          currentBtcPubKey,
+          currentBtcWalletAbsent,
+        ),
+      );
 
-      if (
-        (!featureFlags.isEthFirstEnabled && !currentBtcPubKey) ||
-        currentDeposits.length === 0
-      ) {
+      if (currentDeposits.length === 0) {
         return {
           polledIds: [],
           errors: new Map<string, Error>(),

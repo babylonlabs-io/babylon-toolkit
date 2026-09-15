@@ -116,6 +116,10 @@ vi.mock("@babylonlabs-io/wallet-connector", () => {
   };
 });
 
+vi.mock("@/context/wallet", () => ({
+  useBTCWallet: () => ({ connected: btcActionWallet.connected }),
+}));
+
 vi.mock("@/clients/eth-contract/sdk-readers", () => ({
   getVaultRegistryReader: vi.fn(),
 }));

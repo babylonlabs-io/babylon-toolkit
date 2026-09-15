@@ -293,6 +293,7 @@ describe("Deposit Validations", () => {
       isGeoBlocked: false,
       isAddressBlocked: false,
       isWalletConnected: true,
+      canConnectBtcWallet: false,
       hasProvider: true,
       commissionUnavailable: false,
       isFeeError: false,
@@ -396,6 +397,18 @@ describe("Deposit Validations", () => {
       expect(result).toEqual({
         disabled: true,
         label: "Connect your wallet",
+      });
+    });
+
+    it("offers an enabled 'Connect Bitcoin wallet' when Bitcoin is optional and absent", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        isWalletConnected: false,
+        canConnectBtcWallet: true,
+      });
+      expect(result).toEqual({
+        disabled: false,
+        label: COPY.wallet.btcAction.connect,
       });
     });
 

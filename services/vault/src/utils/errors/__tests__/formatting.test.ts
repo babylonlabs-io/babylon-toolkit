@@ -22,7 +22,10 @@ import { describe, expect, it } from "vitest";
 
 import { COPY } from "@/copy";
 
-import { DepositorWalletMismatchError } from "../depositorWalletMismatch";
+import {
+  DepositorBtcKeyMismatchError,
+  DepositorWalletMismatchError,
+} from "../depositorWalletMismatch";
 import {
   classifyError,
   formatErrorDiagnostics,
@@ -1046,6 +1049,17 @@ describe("Error Formatting", () => {
       });
       expect(formatPayoutSignatureError(err)).toEqual(
         COPY.deposit.payoutSignatureErrors.wrongDepositorWallet,
+      );
+    });
+
+    it("maps the typed depositor Bitcoin-key mismatch to its own copy", () => {
+      const err = new DepositorBtcKeyMismatchError({
+        vaultId: "0xabc",
+        expectedDepositorBtcPubkey: "11".repeat(32),
+        connectedBtcPubkey: "22".repeat(32),
+      });
+      expect(formatPayoutSignatureError(err)).toEqual(
+        COPY.deposit.payoutSignatureErrors.wrongDepositorBtcWallet,
       );
     });
 

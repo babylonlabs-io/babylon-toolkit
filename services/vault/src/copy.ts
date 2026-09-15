@@ -879,6 +879,10 @@ export const COPY = {
         `Cannot continue: BTCVault is in ${state} state. This step is only valid while the vault is PENDING.`,
       cannotBroadcastInOnChainState: (state: string) =>
         `Cannot continue: on-chain BTCVault is in ${state} state. This step is only valid while the vault is PENDING.`,
+      // Resume refuses a vault record with no depositor Bitcoin key. A wallet
+      // reconnect cannot fix a malformed record, so this is not a mismatch.
+      depositorBtcKeyMissing:
+        "This BTCVault has no registered Bitcoin key on-chain, so it cannot be resumed. Please contact support.",
       chainSwitchRequired: (network: string) =>
         `Please switch to ${network} in your wallet`,
       ethereumMainnet: "Ethereum Mainnet",
@@ -962,6 +966,9 @@ export const COPY = {
         title: "Wallet not connected",
         body: "Please reconnect your Bitcoin and Ethereum wallets, then try again.",
       },
+      // Resume's Ethereum-account check. mapDepositError matches
+      // "wallet is not connected", so keep that phrase.
+      ethWalletNotConnected: "Ethereum wallet is not connected",
       walletAccountChanged: {
         title: "Wallet account changed",
         body: "Your wallet account changed during the deposit. Please restart the deposit with the original account.",
@@ -1051,11 +1058,18 @@ export const COPY = {
         title: "Wrong wallet account",
         body: WRONG_WALLET_BODY,
       },
-      // Typed DepositorWalletMismatchError from the terms rebuild (Ethereum
-      // account, not the BTC wallet the WOTS guard above covers).
+      // Typed DepositorWalletMismatchError (Ethereum account only). The WOTS
+      // guard above and wrongDepositorBtcWallet below cover the BTC wallet.
       wrongDepositorWallet: {
         title: "Wrong wallet connected",
         body: "This deposit belongs to a different Ethereum account. Connect the wallet that created the deposit to resume.",
+      },
+      // Typed DepositorBtcKeyMismatchError. The resume, payout signing and
+      // terms rebuild checks throw it when the connected Bitcoin wallet's key
+      // is not the one the BTCVault registered.
+      wrongDepositorBtcWallet: {
+        title: "Wrong Bitcoin wallet connected",
+        body: "This deposit belongs to a different Bitcoin wallet. Connect the Bitcoin wallet that created the deposit to resume.",
       },
       commissionChanged: {
         title: "Commission changed",
@@ -1224,6 +1238,13 @@ export const COPY = {
         title: "Wrong wallet connected",
         message:
           "This deposit belongs to a different Ethereum account. Connect the wallet that created the deposit to continue signing.",
+      },
+      // Typed DepositorBtcKeyMismatchError: the deposit is bound to the Bitcoin
+      // key that registered it.
+      wrongDepositorBtcWallet: {
+        title: "Wrong Bitcoin wallet connected",
+        message:
+          "This deposit belongs to a different Bitcoin wallet. Connect the Bitcoin wallet that created the deposit to continue signing.",
       },
       // Resume-specific variant of deposit.errors.walletMethodNotSupported: an
       // in-flight deposit is bound to the wallet that derived its secrets, so

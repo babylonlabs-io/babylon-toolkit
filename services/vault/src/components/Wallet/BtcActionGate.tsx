@@ -20,11 +20,14 @@ export function BtcActionGate({
     btcConnected,
     sessionConfirmed,
     loading,
+    locked,
+    isUnlocking,
     requireBtcWallet,
   } = useBtcAction();
   const [admitted, setAdmitted] = useState(connected && autoStart);
   const [started, setStarted] = useState(connected && ready && autoStart);
-  if (admitted && (!connected || !autoStart)) setAdmitted(false);
+  // A locked wallet keeps its admission so the flow resumes after the unlock.
+  if (admitted && ((!connected && !locked) || !autoStart)) setAdmitted(false);
   if (!started && admitted && connected && autoStart && ready) setStarted(true);
 
   // Keep the active flow and its Cancel control mounted after wallet loss.
@@ -40,6 +43,25 @@ export function BtcActionGate({
           <p className="text-accent-secondary">
             {COPY.wallet.btcAction.resolving}
           </p>
+        </>
+      ) : btcConnected && locked ? (
+        <>
+          <Heading variant="h5">{COPY.wallet.locked.title}</Heading>
+          <p className="text-accent-secondary">
+            {COPY.wallet.locked.description}
+          </p>
+          <Button
+            data-testid="btc-action-unlock"
+            disabled={isUnlocking}
+            onClick={() => {
+              if (autoStart) setAdmitted(true);
+              requireBtcWallet();
+            }}
+          >
+            {isUnlocking
+              ? COPY.wallet.locked.unlocking
+              : COPY.wallet.locked.unlockButton}
+          </Button>
         </>
       ) : (
         <>

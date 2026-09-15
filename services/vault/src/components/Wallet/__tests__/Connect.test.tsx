@@ -24,6 +24,7 @@ const wallet = vi.hoisted(() => ({
   isGeoBlocked: false,
   open: vi.fn(),
   disconnect: vi.fn(),
+  unlock: vi.fn(),
   useUTXOs: vi.fn(() => ({ inscriptionUTXOs: [] })),
 }));
 
@@ -63,7 +64,7 @@ vi.mock("@/context/geofencing", () => ({
 }));
 
 vi.mock("@/hooks/useBtcWalletUnlock", () => ({
-  useBtcWalletUnlock: () => ({ unlock: vi.fn(), isUnlocking: false }),
+  useBtcWalletUnlock: () => ({ unlock: wallet.unlock, isUnlocking: false }),
 }));
 
 vi.mock("@/hooks/useUTXOs", () => ({
@@ -240,19 +241,35 @@ describe("Connect current wallet requirements", () => {
     });
   });
 
-  it("keeps the Ethereum menu when optional Bitcoin locks", () => {
+  it("offers unlock inside the Ethereum menu when optional Bitcoin locks", () => {
     vi.stubEnv("NEXT_PUBLIC_FF_ENABLE_ETH_FIRST", "true");
     wallet.btcLocked = true;
 
     render(<Connect />);
 
-    expect(screen.getByTestId("wallet-menu-trigger")).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: COPY.wallet.locked.unlockButton }),
     ).not.toBeInTheDocument();
     expect(wallet.useUTXOs).toHaveBeenLastCalledWith(undefined, {
       enabled: false,
     });
+
+    fireEvent.click(screen.getByTestId("wallet-menu-trigger"));
+    expect(screen.getByText("Ethereum Wallet")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("wallet-menu-unlock"));
+
+    expect(wallet.unlock).toHaveBeenCalledTimes(1);
+    expect(wallet.disconnect).not.toHaveBeenCalled();
+  });
+
+  it("hides the unlock entry when Bitcoin is not locked under the flag", () => {
+    vi.stubEnv("NEXT_PUBLIC_FF_ENABLE_ETH_FIRST", "true");
+
+    render(<Connect />);
+    fireEvent.click(screen.getByTestId("wallet-menu-trigger"));
+
+    expect(screen.getByText("Bitcoin Wallet")).toBeInTheDocument();
+    expect(screen.queryByTestId("wallet-menu-unlock")).not.toBeInTheDocument();
   });
 
   it("keeps the unlock prompt when the flag is off", () => {

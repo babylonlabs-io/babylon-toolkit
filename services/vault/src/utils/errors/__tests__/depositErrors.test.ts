@@ -23,7 +23,10 @@ import {
   COMMISSION_UNAVAILABLE_ERROR,
   mapDepositError,
 } from "../depositErrors";
-import { DepositorWalletMismatchError } from "../depositorWalletMismatch";
+import {
+  DepositorBtcKeyMismatchError,
+  DepositorWalletMismatchError,
+} from "../depositorWalletMismatch";
 import { VaultLifecycleStateError } from "../vaultLifecycleStateError";
 
 const ERRORS = COPY.deposit.errors;
@@ -297,6 +300,21 @@ describe("mapDepositError", () => {
     expect(mapDepositError(new Error("BTC wallet is not connected"))).toEqual(
       ERRORS.walletNotConnected,
     );
+  });
+
+  it("maps the resume Ethereum-wallet check copy to the wallet callout", () => {
+    expect(mapDepositError(new Error(ERRORS.ethWalletNotConnected))).toEqual(
+      ERRORS.walletNotConnected,
+    );
+  });
+
+  it("keeps the missing on-chain Bitcoin key copy under the generic title", () => {
+    expect(
+      mapDepositError(new Error(ERRORS.depositorBtcKeyMissing)),
+    ).toMatchObject({
+      title: ERRORS.defaultTitle,
+      body: ERRORS.depositorBtcKeyMissing,
+    });
   });
 
   it("maps a missing vault provider to the provider-not-found callout", () => {
@@ -591,6 +609,15 @@ describe("mapDepositError", () => {
       connectedDepositor: "0x2222222222222222222222222222222222222222",
     });
     expect(mapDepositError(err)).toEqual(ERRORS.wrongDepositorWallet);
+  });
+
+  it("maps the typed depositor Bitcoin-key mismatch from the resume check to its own callout", () => {
+    const err = new DepositorBtcKeyMismatchError({
+      vaultId: "0xabc",
+      expectedDepositorBtcPubkey: "11".repeat(32),
+      connectedBtcPubkey: "22".repeat(32),
+    });
+    expect(mapDepositError(err)).toEqual(ERRORS.wrongDepositorBtcWallet);
   });
 
   it("classifies a coded-only rejection preserved as a wrapper's cause as a signing rejection", () => {

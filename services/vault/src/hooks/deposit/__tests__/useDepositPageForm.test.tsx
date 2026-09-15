@@ -519,6 +519,28 @@ describe("useDepositPageForm", () => {
       unmount();
     });
 
+    it("offers the Bitcoin connect action when only Ethereum is confirmed under the ETH-first flag", () => {
+      vi.stubEnv("NEXT_PUBLIC_FF_ENABLE_ETH_FIRST", "true");
+      const connection = vi.mocked(useConnection);
+      const currentConnection = connection();
+      connection.mockReturnValue({
+        ...currentConnection,
+        isConnected: true,
+        btcConnected: false,
+      });
+      const btcWallet = vi.mocked(useBTCWallet);
+      const currentBtcWallet = btcWallet();
+      btcWallet.mockReturnValue({ ...currentBtcWallet, connected: false });
+      const { result, unmount } = renderHook(() => useDepositPageForm(), {
+        wrapper,
+      });
+      expect(result.current.isWalletConnected).toBe(false);
+      expect(result.current.canConnectBtcWallet).toBe(true);
+      unmount();
+      btcWallet.mockReturnValue(currentBtcWallet);
+      vi.unstubAllEnvs();
+    });
+
     it("should initialize with empty form data", () => {
       const { result } = renderHook(() => useDepositPageForm(), { wrapper });
 

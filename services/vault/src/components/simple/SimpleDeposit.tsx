@@ -111,6 +111,7 @@ function SimpleDepositContent({
     applyMaxAmount,
     effectiveSelectedApplication,
     isWalletConnected,
+    canConnectBtcWallet,
     btcBalance,
     unconfirmedBalance,
     btcPrice,
@@ -359,7 +360,6 @@ function SimpleDepositContent({
     // position past the on-chain cap, or when the cap couldn't be read (fail
     // closed) — defense-in-depth behind the disabled CTA.
     if (isVaultCapReached || vaultCountCapUnavailable) return;
-    if (!requireBtcWallet()) return;
 
     // The CTA doubles as the recovery action when the wallet-liveness probe
     // has failed OR the proactive lock poll has flagged a silently-locked
@@ -367,10 +367,16 @@ function SimpleDepositContent({
     // (which triggers the wallet's unlock/re-authorization prompt) instead of
     // attempting another deposit. The deposit attempt itself is only retried
     // once the user successfully reconnects and the error/lock state clears.
-    if (walletConnectionError || isBtcWalletLocked || btcPublicKeyError) {
+    // Runs before the Bitcoin prompt while a wallet is attached, so the form
+    // keeps its own unlock state and an absent wallet still gets the prompt.
+    if (
+      isWalletConnected &&
+      (walletConnectionError || isBtcWalletLocked || btcPublicKeyError)
+    ) {
       await handleReconnectWallet();
       return;
     }
+    if (!requireBtcWallet()) return;
 
     if (!validateForm()) return;
     if (isVerifyingWallet) return;
@@ -501,6 +507,7 @@ function SimpleDepositContent({
                 }}
                 walletState={{
                   isWalletConnected,
+                  canConnectBtcWallet,
                   // Shared with the reclaim row: the reserve tooltip must not
                   // promise a reclaim Ledger cannot sign.
                   isLedgerVaultWallet: isLedgerVaultConnector(btcConnector),

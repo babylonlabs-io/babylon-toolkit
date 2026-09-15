@@ -75,6 +75,11 @@ vi.mock("@babylonlabs-io/wallet-connector", () => ({
   useWalletConnect: () => ({ connected: mockSessionConfirmed, open: vi.fn() }),
   useChainConnector: vi.fn(() => mockBtcConnector),
 }));
+vi.mock("@/context/wallet", () => ({
+  useBTCWallet: () => ({
+    connected: Boolean(mockBtcConnector?.connectedWallet),
+  }),
+}));
 
 const mockBtcAddressToScriptPubKeyHex = vi.fn();
 const mockVerifyBtcWalletLiveness = vi.fn();

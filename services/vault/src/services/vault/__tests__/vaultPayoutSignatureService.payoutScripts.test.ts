@@ -84,9 +84,11 @@ const SCRIPT_FOR_ROSTER_SECOND = "0xbbbb";
 /** A registered non-BIP-86 destination — what devnet's VP actually has set. */
 const VP_REGISTERED_P2WPKH = "0x00142bbccc132d605bd10a4b0e14275b260c46f00d2f";
 
+const DEPOSITOR_BTC_PUBKEY = "d".repeat(64);
+
 const signingArgs = {
   vaultId: "vault_id",
-  depositorBtcPubkey: "depositor_pubkey",
+  depositorBtcPubkey: DEPOSITOR_BTC_PUBKEY,
   registeredPayoutScriptPubKey: "0xdepositorScript",
 };
 
@@ -94,6 +96,7 @@ beforeEach(() => {
   vi.clearAllMocks();
 
   vi.mocked(getVaultFromChain).mockResolvedValue({
+    depositorBtcPubKey: `0x${DEPOSITOR_BTC_PUBKEY}`,
     depositorSignedPeginTx: "0xpegin",
     offchainParamsVersion: 1,
     vaultCoreVersion: 2,

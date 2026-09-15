@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import type { Hex } from "viem";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { ProtocolGateState } from "@/components/shared/protocolStatus";
 import { VaultsLifecycleSections } from "@/components/vaults/VaultsLifecycleSections";
 import { COPY } from "@/copy";
 import type { usePendingDeposits } from "@/hooks/usePendingDeposits";
@@ -25,6 +26,10 @@ const mockUseDepositPollingResult = vi.hoisted(() =>
   ),
 );
 const wallet = vi.hoisted(() => ({ connected: true, open: vi.fn() }));
+const UNBLOCKED_GATE: ProtocolGateState = { protocol: null, aave: null };
+const gate = vi.hoisted(() => ({
+  value: { protocol: null, aave: null } as ProtocolGateState,
+}));
 
 vi.mock("@babylonlabs-io/core-ui", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@babylonlabs-io/core-ui")>()),
@@ -57,13 +62,14 @@ vi.mock("@/hooks/deposit/useRefundRowAction", () => ({
   useRefundRowAction: () => ({ available: false, blockedTooltip: null }),
 }));
 
-vi.mock("@/hooks/deposit/useReclaimRowAction", () => ({
-  useReclaimRowAction: () => ({
-    available: false,
-    reclaiming: false,
-    blockedTooltip: null,
-    reclaimableSats: null,
-  }),
+// The reclaim row action runs for real: its wallet-needed decision is the
+// behaviour under test. Only the Ledger check and the protocol gate are driven.
+vi.mock("@/context/wallet/VaultWalletConnectionProvider", () => ({
+  isLedgerVaultConnector: () => false,
+}));
+
+vi.mock("@/hooks/useProtocolGate", () => ({
+  useProtocolGateState: () => gate.value,
 }));
 
 vi.mock("@/hooks/useReclaimStatus", () => ({
@@ -298,6 +304,7 @@ describe("VaultsLifecycleSections reclaim connection", () => {
   afterEach(() => {
     vi.unstubAllEnvs();
     wallet.connected = true;
+    gate.value = UNBLOCKED_GATE;
     vi.mocked(useReclaimStatus).mockReturnValue({
       statusByDepositId: new Map(),
     });
@@ -330,6 +337,20 @@ describe("VaultsLifecycleSections reclaim connection", () => {
       screen.queryByTestId("vault-reclaim-button"),
     ).not.toBeInTheDocument();
     expect(deposits.reclaimModal.handleReclaimClick).not.toHaveBeenCalled();
+  });
+
+  it("shows the disabled reclaim with its reason, not a connection, while withdraw is paused", () => {
+    gate.value = { protocol: "paused", aave: null };
+    renderReclaim();
+    expect(
+      screen.queryByRole("button", { name: COPY.wallet.btcAction.connect }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: COPY.reclaim.rowButton }),
+    ).toBeDisabled();
+    expect(
+      screen.getByText(COPY.reclaim.blocked.protocolPaused),
+    ).toBeInTheDocument();
   });
 
   it.each(["disabled", "unsettled", "spent", "missing", "in-flight"])(

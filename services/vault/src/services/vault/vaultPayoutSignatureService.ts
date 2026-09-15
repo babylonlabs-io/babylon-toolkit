@@ -39,6 +39,7 @@ import {
   getVaultRegistryReader,
 } from "../../clients/eth-contract/sdk-readers";
 import { getBTCNetworkForWASM } from "../../config/pegin";
+import { DepositorBtcKeyMismatchError } from "../../utils/errors/depositorWalletMismatch";
 
 /**
  * Exclusive upper bound on VP commission (bps) — mirrors `VPKeyRegistryLogic.sol`
@@ -195,6 +196,9 @@ export async function resolveVaultProviderBtcPubkey(
  * Never trusts the GraphQL indexer for signing-critical fields. The optional
  * vault-provider BTC pubkey supplied by callers is only a hint and must match
  * BTCVaultRegistry before it is used for payout signing.
+ *
+ * @throws {DepositorBtcKeyMismatchError} If the caller's depositor BTC pubkey
+ *   is not the key the vault registered on-chain.
  */
 export async function prepareSigningContext(
   params: PrepareSigningContextParams,
@@ -207,6 +211,21 @@ export async function prepareSigningContext(
   } = params;
 
   const vault = await getVaultFromChain(vaultId as Hex);
+
+  // Refuse a Bitcoin wallet that is not the vault's depositor. Both payout
+  // signing callers pass here before the VP auth ceremony and before any
+  // signature request.
+  const expectedDepositorBtcPubkey = canonicalizeBtcPubkey(
+    vault.depositorBtcPubKey,
+  );
+  const connectedBtcPubkey = canonicalizeBtcPubkey(depositorBtcPubkey);
+  if (connectedBtcPubkey !== expectedDepositorBtcPubkey) {
+    throw new DepositorBtcKeyMismatchError({
+      vaultId: vaultId as Hex,
+      expectedDepositorBtcPubkey,
+      connectedBtcPubkey,
+    });
+  }
 
   const protocolParamsReader = await getProtocolParamsReader();
   // Pull the version-locked offchain params once: timelockPegin (derived from

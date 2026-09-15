@@ -2,7 +2,7 @@ import { fireEvent, render } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { MemoryRouter } from "react-router";
 import type { Address, Hex } from "viem";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps";
 import {
@@ -248,20 +248,14 @@ vi.mock("../DepositProgressView", () => ({
 function resumeMock(testId: string) {
   return ({
     activity,
-    btcPublicKey,
     onSuccess,
     onClose,
   }: {
     activity: VaultActivity;
-    btcPublicKey?: string;
     onSuccess: () => void;
     onClose: () => void;
   }) => (
-    <div
-      data-testid={testId}
-      data-vault={activity?.id}
-      data-public-key={btcPublicKey}
-    >
+    <div data-testid={testId} data-vault={activity?.id}>
       <button
         type="button"
         data-testid={`${testId}-success`}
@@ -359,7 +353,6 @@ function renderView(
 describe("PostDepositContinuationView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.stubEnv("NEXT_PUBLIC_FF_ENABLE_ETH_FIRST", "false");
     vi.mocked(getPeginDisplayStep).mockReturnValue(
       DepositFlowStep.AWAIT_BTC_CONFIRMATION,
     );
@@ -367,7 +360,6 @@ describe("PostDepositContinuationView", () => {
       DepositFlowStep.AWAIT_BTC_CONFIRMATION,
     );
   });
-  afterEach(() => vi.unstubAllEnvs());
 
   it("waits while the vault has no actionable step", () => {
     mockGetPollingResult.mockReturnValue(

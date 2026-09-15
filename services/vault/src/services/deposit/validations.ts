@@ -117,6 +117,12 @@ export interface DepositCtaParams extends DepositFormValidityParams {
   isGeoBlocked: boolean;
   isAddressBlocked: boolean;
   isWalletConnected: boolean;
+  /**
+   * True when the session is confirmed, Bitcoin is absent, and Bitcoin is
+   * optional under the ETH-first flag. Keeps the not-connected CTA enabled so
+   * a click opens the Bitcoin wallet prompt instead of a dead button.
+   */
+  canConnectBtcWallet: boolean;
   hasProvider: boolean;
   /**
    * True when a provider is selected but its on-chain commission hasn't loaded
@@ -324,7 +330,9 @@ export function getDepositCtaState(params: DepositCtaParams): DepositCtaState {
   }
 
   if (!params.isWalletConnected) {
-    return { disabled: true, label: "Connect your wallet" };
+    return params.canConnectBtcWallet
+      ? { disabled: false, label: COPY.wallet.btcAction.connect }
+      : { disabled: true, label: "Connect your wallet" };
   }
 
   // Promote wallet-liveness failure to the CTA so the user can recover in one

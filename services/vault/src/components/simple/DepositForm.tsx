@@ -109,6 +109,11 @@ export interface DepositProviderState {
 
 export interface DepositWalletState {
   isWalletConnected: boolean;
+  /**
+   * True when Bitcoin is absent but optional (confirmed session, ETH-first
+   * flag). Keeps the CTA enabled so the click opens the Bitcoin prompt.
+   */
+  canConnectBtcWallet?: boolean;
   /** Ledger vault app connected? Read only by the fee breakdown's reserve
    * tooltip (#2375); never gates the deposit. */
   isLedgerVaultWallet: boolean;
@@ -235,6 +240,7 @@ export function DepositForm({
     providerState;
   const {
     isWalletConnected,
+    canConnectBtcWallet = false,
     isLedgerVaultWallet,
     hasWalletConnectionError = false,
     walletConnectionErrorMessage = null,
@@ -365,6 +371,7 @@ export function DepositForm({
     isGeoBlocked,
     isAddressBlocked,
     isWalletConnected,
+    canConnectBtcWallet,
     hasProvider: !!selectedProvider,
     commissionUnavailable,
     isFeeError,

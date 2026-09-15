@@ -24,6 +24,8 @@ import { getVaultRegistryReader } from "../sdk-readers";
 export interface OnChainVaultData {
   /** Depositor's Ethereum address — the authoritative owner of this vault. */
   depositor: Address;
+  /** Depositor's registered BTC pubkey, 0x-prefixed, as `getBtcVaultBasicInfo` returns it. */
+  depositorBtcPubKey: Hex;
   depositorSignedPeginTx: Hex;
   applicationEntryPoint: Address;
   vaultProvider: Address;
@@ -89,6 +91,7 @@ export async function getVaultFromChain(
 
   return {
     depositor: basic.depositor,
+    depositorBtcPubKey: basic.depositorBtcPubKey,
     depositorSignedPeginTx: protocol.depositorSignedPeginTx,
     applicationEntryPoint: basic.applicationEntryPoint,
     vaultProvider: basic.vaultProvider,

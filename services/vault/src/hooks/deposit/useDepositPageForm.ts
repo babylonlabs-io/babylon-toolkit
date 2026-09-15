@@ -9,6 +9,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import type { PriceMetadata } from "@/clients/eth-contract/chainlink";
+import featureFlags from "@/config/featureFlags";
 import { useBtcPublicKey } from "@/hooks/useBtcPublicKey";
 import type { VaultProviderListItem } from "@/types/vaultProvider";
 import { getSupportedVaultCoreVersions } from "@/utils/vaultCoreVersionSupport";
@@ -92,6 +93,12 @@ export interface UseDepositPageFormResult {
     provider?: string;
   };
   isWalletConnected: boolean;
+  /**
+   * True when the session is confirmed but Bitcoin is absent and optional
+   * (ETH-first flag). The CTA stays clickable so the click opens the Bitcoin
+   * wallet prompt; fee/UTXO work still waits on `isWalletConnected`.
+   */
+  canConnectBtcWallet: boolean;
 
   btcBalance: bigint;
   btcBalanceFormatted: number;
@@ -216,6 +223,8 @@ export function useDepositPageForm(): UseDepositPageFormResult {
   const { address: btcAddress, connected: btcConnected } = useBTCWallet();
   const { isConnected: sessionConnected } = useConnection();
   const isWalletConnected = sessionConnected && btcConnected;
+  const canConnectBtcWallet =
+    featureFlags.isEthFirstEnabled && sessionConnected && !btcConnected;
   const {
     publicKey: depositorBtcPubkey,
     error: btcPublicKeyError,
@@ -716,6 +725,7 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     effectiveSelectedApplication,
     errors,
     isWalletConnected,
+    canConnectBtcWallet,
     btcBalance,
     btcBalanceFormatted,
     unconfirmedBalance,

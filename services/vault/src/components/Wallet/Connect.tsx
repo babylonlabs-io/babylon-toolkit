@@ -119,6 +119,18 @@ export const Connect: React.FC<ConnectProps> = ({ loading = false, text }) => {
   // Address-blocked users still need the menu to disconnect and try a different wallet.
   if (canShowWalletMenu) {
     const ConnectedWalletMenu = btcConnected ? BtcEthWalletMenu : WalletMenu;
+    // Under the flag a locked BTC wallet keeps the menu (the Ethereum session
+    // stays usable), so the unlock entry lives inside the menu instead.
+    const unlockAction =
+      btcLocked && featureFlags.isEthFirstEnabled
+        ? {
+            label: isUnlocking
+              ? COPY.wallet.locked.unlocking
+              : COPY.wallet.locked.unlockButton,
+            onClick: handleUnlock,
+            "data-testid": "wallet-menu-unlock",
+          }
+        : undefined;
     return (
       <div className="flex flex-row items-center gap-4">
         <ConnectedWalletMenu
@@ -158,6 +170,7 @@ export const Connect: React.FC<ConnectProps> = ({ loading = false, text }) => {
           btcCoinSymbol="BTC"
           ethCoinSymbol="ETH"
           onDisconnect={disconnect}
+          connectAction={unlockAction}
         />
       </div>
     );

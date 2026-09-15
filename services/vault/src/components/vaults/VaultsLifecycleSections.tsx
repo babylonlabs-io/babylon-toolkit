@@ -22,7 +22,6 @@ import {
   InfoIcon,
   Loader,
 } from "@babylonlabs-io/core-ui";
-import { OnChainBtcVaultStatus } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { useCallback, useMemo, useState, type ReactNode } from "react";
 import type { Address, Hex } from "viem";
 
@@ -49,7 +48,6 @@ import { getStepFillPercent } from "@/components/simple/DepositProgressView/step
 import { PendingDepositModals } from "@/components/simple/PendingDepositModals";
 import { PostDepositContinuationContent } from "@/components/simple/PostDepositContinuationContent";
 import { getNetworkConfigBTC } from "@/config";
-import FeatureFlags from "@/config/featureFlags";
 import { ProtocolParamsProvider } from "@/context/ProtocolParamsContext";
 import { useDepositPollingResult } from "@/context/deposit/PeginPollingContext";
 import { COPY } from "@/copy";
@@ -66,7 +64,6 @@ import {
   PeginAction,
   type PeginState,
 } from "@/models/peginStateMachine";
-import { isPayoutSettled } from "@/models/reclaimEligibility";
 import { getDemoStepperBatch } from "@/overrides/deposits";
 import type { VaultActivity } from "@/types/activity";
 import type { VaultProvider } from "@/types/vaultProvider";
@@ -370,6 +367,7 @@ function InactiveRow({
   const {
     available: isReclaimAvailable,
     reclaiming: isReclaiming,
+    needsWallet: isReclaimWalletNeeded,
     blockedTooltip: reclaimBlockedTooltip,
     reclaimableSats,
   } = useReclaimRowAction({
@@ -378,15 +376,7 @@ function InactiveRow({
     depositorBtcPubkey: activity.depositorBtcPubkey,
     isReclaimInFlight,
   });
-  const { connected: btcConnected, requireBtcWallet } = useBtcAction();
-  const showReclaimConnection =
-    FeatureFlags.isEthFirstEnabled &&
-    !btcConnected &&
-    !!activity.depositorBtcPubkey &&
-    reclaimOnChainStatus === OnChainBtcVaultStatus.REDEEMED &&
-    !isReclaimInFlight &&
-    reclaimStatus?.reserveSpend.spent === false &&
-    isPayoutSettled(reclaimStatus.payoutSpend, reclaimStatus.observedTipHeight);
+  const { requireBtcWallet } = useBtcAction();
 
   // While a sweep is in flight the status cell reports the reserve action
   // rather than the vault's own lifecycle state, the same way the refund path
@@ -524,7 +514,7 @@ function InactiveRow({
             {COPY.reclaim.rowButton}
           </button>
         )}
-        {showReclaimConnection && (
+        {isReclaimWalletNeeded && (
           <button
             type="button"
             onClick={requireBtcWallet}
