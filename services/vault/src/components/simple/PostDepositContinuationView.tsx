@@ -15,7 +15,7 @@ import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps";
 import { useRequiredPrePeginDepth } from "@/hooks/deposit/useRequiredPrePeginDepth";
 import { deriveSplitVaultProgress } from "@/hooks/deposit/useSplitVaultProgress";
 import {
-  getPeginDisplayStep,
+  getPeginProgressStep,
   getWarningPeginDisplayStep,
   hasActionableStep,
   isCandidateVault,
@@ -218,7 +218,7 @@ export function PostDepositContinuationView({
   );
   const peginState = pollingResult?.peginState;
   const waitStep = peginState
-    ? (getPeginDisplayStep(peginState) ?? DepositFlowStep.ACTIVATE_VAULT)
+    ? (getPeginProgressStep(peginState) ?? DepositFlowStep.ACTIVATE_VAULT)
     : DepositFlowStep.AWAIT_BTC_CONFIRMATION;
   const showBtcDepthPanel =
     waitStep === DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS &&
@@ -249,7 +249,7 @@ export function PostDepositContinuationView({
       if (!result || result.loading) {
         return DepositFlowStep.AWAIT_BTC_CONFIRMATION;
       }
-      const displayStep = getPeginDisplayStep(result.peginState);
+      const displayStep = getPeginProgressStep(result.peginState);
       if (displayStep !== null) return displayStep;
       if (
         result.peginState.displayVariant === "warning" ||
@@ -270,7 +270,7 @@ export function PostDepositContinuationView({
       );
     if (warning) {
       // Freeze the stepper at the point of failure based on the vault's
-      // last persisted localStatus — `getPeginDisplayStep` is null for
+      // last persisted localStatus — `getPeginProgressStep` is null for
       // warning states by design, so we map it ourselves.
       const warningIndex = vaultIds.findIndex(
         (id) => getPollingResult(id)?.peginState === warning,

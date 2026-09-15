@@ -1,7 +1,7 @@
 /** Tests for pending peg-in localStorage integrity validation. */
 
 import type { Hex } from "viem";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { logger } from "@/infrastructure";
 
@@ -12,6 +12,7 @@ import {
   getPendingPegins,
   type PendingPeginRequest,
   removePendingPegin,
+  updatePendingPeginStatus,
 } from "../peginStorage";
 
 vi.mock("@/infrastructure", () => ({
@@ -556,6 +557,98 @@ describe("getPendingPegins integrity validation", () => {
     localStorage.setItem(storageKey, JSON.stringify([tampered]));
 
     expect(getPendingPegins(ETH_ADDRESS)).toHaveLength(0);
+  });
+
+  it("keeps an entry whose payoutSignedAt is non-numeric and drops the stamp", () => {
+    const tampered = {
+      ...validPegin,
+      payoutSignedAt: "yesterday" as unknown as number,
+    };
+    localStorage.setItem(storageKey, JSON.stringify([tampered]));
+
+    const [stored] = getPendingPegins(ETH_ADDRESS);
+    expect(stored.id).toBe(VALID_VAULT_ID);
+    expect(stored.payoutSignedAt).toBeUndefined();
+  });
+
+  it("keeps an entry whose payoutSignedAt is negative and drops the stamp", () => {
+    const tampered = { ...validPegin, payoutSignedAt: -1 };
+    localStorage.setItem(storageKey, JSON.stringify([tampered]));
+
+    const [stored] = getPendingPegins(ETH_ADDRESS);
+    expect(stored.id).toBe(VALID_VAULT_ID);
+    expect(stored.payoutSignedAt).toBeUndefined();
+  });
+});
+
+describe("updatePendingPeginStatus", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("stamps payoutSignedAt when the status flips to PAYOUT_SIGNED", () => {
+    const now = 1_700_000_123_000;
+    vi.useFakeTimers({ now });
+    localStorage.setItem(storageKey, JSON.stringify([validPegin]));
+
+    updatePendingPeginStatus(
+      ETH_ADDRESS,
+      VALID_VAULT_ID,
+      LocalStorageStatus.PAYOUT_SIGNED,
+    );
+
+    const [stored] = getPendingPegins(ETH_ADDRESS);
+    expect(stored.status).toBe(LocalStorageStatus.PAYOUT_SIGNED);
+    expect(stored.payoutSignedAt).toBe(now);
+  });
+
+  it("refreshes payoutSignedAt on a repeat PAYOUT_SIGNED write", () => {
+    const first = 1_700_000_000_000;
+    vi.useFakeTimers({ now: first });
+    localStorage.setItem(storageKey, JSON.stringify([validPegin]));
+    updatePendingPeginStatus(
+      ETH_ADDRESS,
+      VALID_VAULT_ID,
+      LocalStorageStatus.PAYOUT_SIGNED,
+    );
+
+    const second = first + 30 * 60_000;
+    vi.setSystemTime(second);
+    updatePendingPeginStatus(
+      ETH_ADDRESS,
+      VALID_VAULT_ID,
+      LocalStorageStatus.PAYOUT_SIGNED,
+    );
+
+    expect(getPendingPegins(ETH_ADDRESS)[0].payoutSignedAt).toBe(second);
+  });
+
+  it("clears a stale payoutSignedAt when the status moves off PAYOUT_SIGNED", () => {
+    localStorage.setItem(
+      storageKey,
+      JSON.stringify([
+        {
+          ...validPegin,
+          status: LocalStorageStatus.PAYOUT_SIGNED,
+          payoutSignedAt: 1_700_000_123_000,
+        },
+      ]),
+    );
+
+    updatePendingPeginStatus(
+      ETH_ADDRESS,
+      VALID_VAULT_ID,
+      LocalStorageStatus.CONFIRMING,
+    );
+
+    const [stored] = getPendingPegins(ETH_ADDRESS);
+    expect(stored.status).toBe(LocalStorageStatus.CONFIRMING);
+    expect(stored.payoutSignedAt).toBeUndefined();
   });
 });
 

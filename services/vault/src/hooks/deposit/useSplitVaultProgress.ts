@@ -24,7 +24,7 @@ import {
 import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps";
 import { logger } from "@/infrastructure";
 import {
-  getPeginDisplayStep,
+  getPeginProgressStep,
   getWarningPeginDisplayStep,
   isVaultPastActivation,
 } from "@/models/peginStateMachine";
@@ -40,7 +40,8 @@ export interface SplitVaultProgress {
 type GetPollingResult = (depositId: string) => DepositPollingResult | undefined;
 
 /**
- * Pure derivation. Used directly by callers that already hold a
+ * Derivation over the polled results — reads the wall clock for the
+ * progress floor. Used directly by callers that already hold a
  * `getPollingResult` (e.g. PostDepositContinuationView, which computes its
  * active vault after early returns where a hook can't run).
  */
@@ -87,11 +88,11 @@ export function deriveSplitVaultProgress(
         ? activeStep
         : DepositFlowStep.AWAIT_BTC_CONFIRMATION;
     }
-    const displayStep = getPeginDisplayStep(state);
+    const displayStep = getPeginProgressStep(state);
     // An in-progress sibling has its own display step (this also covers the
     // optimistic VERIFIED+CONFIRMED → AWAIT_ACTIVATION_CONFIRMATION case).
     if (displayStep !== null) return displayStep;
-    // `getPeginDisplayStep` is null both for a fully-activated vault and for a
+    // `getPeginProgressStep` is null both for a fully-activated vault and for a
     // warning/danger state. Warning/danger siblings freeze at their own last
     // known local step instead of mirroring the active sibling — checked
     // before `isVaultPastActivation`, which also matches LIQUIDATED and would
