@@ -78,6 +78,13 @@ describe("OverviewSection", () => {
     ).toBeInTheDocument();
   });
 
+  it("titles the collateral card with both the USD total and the BTC amount", () => {
+    renderSection();
+
+    const collateralValue = screen.getByText("0.5 BTC").closest("[title]");
+    expect(collateralValue).toHaveAttribute("title", "$10,000 0.5 BTC");
+  });
+
   it("fires the matching callback when each action is clicked", () => {
     renderSection();
 
