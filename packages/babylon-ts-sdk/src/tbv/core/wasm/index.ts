@@ -169,7 +169,8 @@ export async function computeMinClaimValue(
  * `minPeginFee = peginTxVsize(numVks, numUcs) × minPeginFeeRate`. Each HTLC
  * the depositor funds in the Pre-PegIn tx must reserve at least this fee
  * inside its value (`htlcValue = peginAmount + depositorClaimValue +
- * minPeginFee`), otherwise the VP cannot afford to broadcast the PegIn at
+ * p2aAnchorValue + minPeginFee`, anchor 0 on vault core 1), otherwise the VP
+ * cannot afford to broadcast the PegIn at
  * activation. The vsize comes from a Taproot script-path-spend weight
  * prediction whose witness shape depends on the VK + UC signer count.
  */

@@ -2,7 +2,7 @@
  * Policy-mode PSBT shaping. The base app marks inputs/outputs internal only from
  * TAP_BIP32_DERIVATION (`preprocess_inputs.c`, `process_in_outs.c:114-117` @ e400d8d8),
  * and `_validate_prepegin` needs every input internal and change internal
- * (`sign_psbt_validate.c:334-545` @ 4decf822). Vectors: BIP-86 published test vectors.
+ * (`sign_psbt_validate.c:526-751` @ b0c0ac4d). Vectors: BIP-86 published test vectors.
  */
 
 import { Psbt } from "bitcoinjs-lib";

@@ -6,11 +6,11 @@ Monorepo (pnpm workspaces) for Babylon's Bitcoin vault frontend. Users lock BTC 
 
 ### Key Packages
 
-- `services/vault` — Main vault dApp (Next.js)
+- `services/vault` — Main vault dApp (Vite + React)
 - `packages/babylon-tbv-rust-wasm` — Rust→WASM for transaction construction, fee calculation
-- `packages/wallet-connector` — Multi-chain wallet abstraction (BTC + ETH)
-- `packages/core-ui` — Shared UI component library
-- `packages/ts-sdk` — TypeScript SDK for protocol interaction
+- `packages/babylon-wallet-connector` — Multi-chain wallet abstraction (BTC + ETH)
+- `packages/babylon-core-ui` — Shared UI component library
+- `packages/babylon-ts-sdk` — TypeScript SDK for protocol interaction
 - `packages/babylon-ledger-vault-signer` — Host-side client for the Ledger Babylon Vault app (device protocol only; wallet-connector adapts it)
 
 ### Build Prerequisites

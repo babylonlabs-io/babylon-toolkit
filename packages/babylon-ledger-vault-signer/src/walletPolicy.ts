@@ -4,7 +4,7 @@
  * The base app signs internal (key-path) inputs only when a wallet policy is
  * present (`bitcoin_app_base/src/handler/sign_psbt.c:142-148` @ e400d8d8);
  * without one a PoP returns SW_OK with no signature
- * (`app-babylon-vault/src/sign_custom_inputs.c:101-107` @ 4decf822). A default
+ * (`app-babylon-vault/src/sign_custom_inputs.c:101-115` @ b0c0ac4d). A default
  * policy needs no registration: empty name (`init_global_state.c:238-242`),
  * template `tr(@0/**)`, one key info `[fpr/86'/coin'/account']xpub`
  * (`tests/test_screen7_pop.py:135-142`), hmac 32×00. The id is
