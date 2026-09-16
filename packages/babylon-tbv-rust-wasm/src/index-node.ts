@@ -579,19 +579,22 @@ export { TAP_INTERNAL_KEY, tapInternalPubkey } from './constants.js';
 // Export boundary value guards (input validation for callers)
 export { assertPositiveBigintArray } from './value-guards.js';
 
-// Export wasm-bindgen classes. They have no value checks. Call initWasm()
-// before construction.
+// Export wasm-bindgen classes
+/** wasm-bindgen class with no value guards. See README "WASM Classes". */
 export const WasmPeginTx: typeof Bindings.WasmPeginTx = generated.WasmPeginTx;
 export type WasmPeginTx = Bindings.WasmPeginTx;
 
+/** wasm-bindgen class with no value guards. See README "WASM Classes". */
 export const WasmPeginPayoutConnector: typeof Bindings.WasmPeginPayoutConnector =
   generated.WasmPeginPayoutConnector;
 export type WasmPeginPayoutConnector = Bindings.WasmPeginPayoutConnector;
 
+/** wasm-bindgen class with no value guards. See README "WASM Classes". */
 export const WasmPrePeginTx: typeof Bindings.WasmPrePeginTx =
   generated.WasmPrePeginTx;
 export type WasmPrePeginTx = Bindings.WasmPrePeginTx;
 
+/** wasm-bindgen class with no value guards. See README "WASM Classes". */
 export const WasmPrePeginHtlcConnector: typeof Bindings.WasmPrePeginHtlcConnector =
   generated.WasmPrePeginHtlcConnector;
 export type WasmPrePeginHtlcConnector = Bindings.WasmPrePeginHtlcConnector;

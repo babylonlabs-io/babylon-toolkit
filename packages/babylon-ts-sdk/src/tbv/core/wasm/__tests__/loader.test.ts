@@ -52,7 +52,7 @@ describe("loadTbvWasm", () => {
     vi.doMock(ENGINE, () => {
       attempt += 1;
       if (attempt === 1) throw new Error("transient network failure");
-      return { deriveVaultId: () => "recovered" };
+      return { initWasm: async () => {}, deriveVaultId: () => "recovered" };
     });
 
     const { loadTbvWasm } = await import("../index");
@@ -63,12 +63,66 @@ describe("loadTbvWasm", () => {
     expect(attempt).toBe(2);
   });
 
+  it("names the engine package when its binary fails to initialize", async () => {
+    vi.doMock(ENGINE, () => ({
+      initWasm: async () => {
+        throw new Error("stale generated WASM build");
+      },
+    }));
+
+    const { loadTbvWasm } = await import("../index");
+
+    await expect(loadTbvWasm()).rejects.toThrow(
+      "@babylonlabs-io/babylon-tbv-rust-wasm resolved, but its WebAssembly " +
+        "binary failed to initialize",
+    );
+  });
+
+  it("keeps the original initialization failure in the cause chain", async () => {
+    vi.doMock(ENGINE, () => ({
+      initWasm: async () => {
+        throw new Error("stale generated WASM build");
+      },
+    }));
+
+    const { loadTbvWasm } = await import("../index");
+
+    const error = await loadTbvWasm().catch((thrown: unknown) => thrown);
+    expect(causeMessages(error)).toContain("stale generated WASM build");
+  });
+
+  it("succeeds on a retry after a transient initialization failure", async () => {
+    // A failed initialization clears the cached promise too. The engine
+    // clears its own cache after a failed binary read, so the next call can
+    // read the binary again.
+    let initCalls = 0;
+    vi.doMock(ENGINE, () => ({
+      initWasm: async () => {
+        initCalls += 1;
+        if (initCalls === 1) throw new Error("transient binary read failure");
+      },
+    }));
+
+    const { loadTbvWasm } = await import("../index");
+
+    await expect(loadTbvWasm()).rejects.toThrow("failed to initialize");
+    await loadTbvWasm();
+    expect(initCalls).toBe(2);
+  });
+
   it("imports once and shares the module across callers", async () => {
-    vi.doMock(ENGINE, () => ({ deriveVaultId: () => "ok" }));
+    let initCalls = 0;
+    vi.doMock(ENGINE, () => ({
+      initWasm: async () => {
+        initCalls += 1;
+      },
+      deriveVaultId: () => "ok",
+    }));
 
     const { loadTbvWasm } = await import("../index");
 
     const [first, second] = await Promise.all([loadTbvWasm(), loadTbvWasm()]);
     expect(first).toBe(second);
+    expect(initCalls).toBe(1);
   });
 });

@@ -23,13 +23,24 @@ test('exports only the root entry', () => {
 });
 
 for (const entry of ['index', 'index-node']) {
-  test(`${entry} exports the generated classes`, async () => {
+  test(`${entry} re-exports only the four generated classes from the glue`, async () => {
     const main = await import(`../dist/${entry}.js`);
     const generated = await import('../dist/generated/vault_wasm.js');
     for (const name of classNames) {
       assert.equal(typeof main[name], 'function', name);
       assert.equal(main[name], generated[name], name);
     }
+    // The glue exports more classes and functions than these four classes.
+    // Any other glue export that the entry passes on has no value checks.
+    // Pin the full set, not only its members. Match by value, so a renamed
+    // export or the glue namespace itself also counts.
+    const glueValues = new Set(Object.values(generated));
+    assert.deepEqual(
+      Object.keys(main)
+        .filter((key) => main[key] === generated || glueValues.has(main[key]))
+        .sort(),
+      [...classNames].sort(),
+    );
   });
 
   test(`${entry} preserves the generated class types`, () => {

@@ -72,8 +72,7 @@ export interface BuildRefundPsbtResult {
 export async function buildRefundPsbt(
   params: BuildRefundPsbtParams,
 ): Promise<BuildRefundPsbtResult> {
-  const { initWasm, WasmPrePeginTx } = await loadTbvWasm();
-  await initWasm();
+  const { WasmPrePeginTx } = await loadTbvWasm();
 
   const { prePeginParams, fundedPrePeginTxHex, htlcVout, refundFee, hashlock } =
     params;

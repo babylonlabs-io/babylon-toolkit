@@ -32,10 +32,22 @@ type TbvWasmModule = typeof import("@babylonlabs-io/babylon-tbv-rust-wasm");
 
 let wasmModulePromise: Promise<TbvWasmModule> | undefined;
 
-/** Load the WASM engine on first use and share the in-flight import. */
+/**
+ * Load and initialize the WASM engine on first use. Concurrent callers share
+ * one load. The returned module is already initialized, so a caller does not
+ * call `initWasm()`. A load or initialization failure rejects with an error
+ * that names the engine package. The original error is its cause. A failure
+ * clears this cache, so the next call loads again. The engine keeps a failed
+ * binary initialization rejected, so only a failed import or binary read can
+ * succeed on a later call.
+ *
+ * The module also contains the wasm-bindgen classes. The classes have no value
+ * guards. A caller that uses a class must cross-check its output at the call
+ * site.
+ */
 export function loadTbvWasm(): Promise<TbvWasmModule> {
-  wasmModulePromise ??= import("@babylonlabs-io/babylon-tbv-rust-wasm").catch(
-    (error: unknown) => {
+  wasmModulePromise ??= import("@babylonlabs-io/babylon-tbv-rust-wasm")
+    .catch((error: unknown) => {
       wasmModulePromise = undefined;
       throw new Error(
         "The vault-WASM engine @babylonlabs-io/babylon-tbv-rust-wasm failed " +
@@ -44,8 +56,22 @@ export function loadTbvWasm(): Promise<TbvWasmModule> {
           "See the cause for the underlying error.",
         { cause: error },
       );
-    },
-  );
+    })
+    .then(async (wasm) => {
+      try {
+        await wasm.initWasm();
+      } catch (error: unknown) {
+        wasmModulePromise = undefined;
+        throw new Error(
+          "The vault-WASM engine @babylonlabs-io/babylon-tbv-rust-wasm " +
+            "resolved, but its WebAssembly binary failed to initialize, " +
+            "commonly a missing or stale generated WASM build. See the " +
+            "cause for the underlying error.",
+          { cause: error },
+        );
+      }
+      return wasm;
+    });
   return wasmModulePromise;
 }
 

@@ -52,6 +52,7 @@ These paths handle irreversible value movement. An AI-generated mistake here is 
 
 - Files:
   - `packages/babylon-tbv-rust-wasm/src/index.ts`
+  - `packages/babylon-tbv-rust-wasm/src/index-node.ts`
   - `packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/assertWasmPeginSizing.ts`
   - `packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/constants.ts` - protocol transaction layout constants
   - `packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts`
@@ -60,7 +61,7 @@ These paths handle irreversible value movement. An AI-generated mistake here is 
   - `packages/babylon-ts-sdk/src/tbv/core/utils/transaction/fundPeginTransaction.ts` - rejects undeclared output bytes
 - The Rust/WASM layer computes `htlcValue = peginAmount + depositorClaimValue + p2aAnchorValue + minPeginFee` internally (the anchor term is 0 for tx-graph v1, 240 sats for v2 and v3). TypeScript independently derives each canonical Pre-PegIn HTLC output and rejects a transaction or signing field that does not match.
 - **Rule:** Every WASM output consumed by JS must be asserted against expected bounds before use. If a WASM-returned value feeds a signed transaction, cross-check it against an independently computed expected value.
-- The engine main entry (`src/index.ts`, `src/index-node.ts`) also exports the wasm-bindgen classes `WasmPeginTx`, `WasmPrePeginTx`, `WasmPeginPayoutConnector` and `WasmPrePeginHtlcConnector` without value checks, so the rule above binds at each call site, not at the export. The only SDK consumer is `packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/refund.ts`. It guards `pegInAmounts` with `assertPositiveBigintArray`, derives the canonical HTLC and signing data in TypeScript, compares the WASM template's script and value with the funded output, and checks the final refund input and output before it emits the PSBT. Every new class consumer must do equivalent cross-checks.
+- The engine main entry (`src/index.ts`, `src/index-node.ts`) also exports the wasm-bindgen classes `WasmPeginTx`, `WasmPrePeginTx`, `WasmPeginPayoutConnector` and `WasmPrePeginHtlcConnector` without value checks, so the rule above binds at each call site, not at the export. The SDK's public `loadTbvWasm()` (`packages/babylon-ts-sdk/src/tbv/core/wasm/index.ts`) returns this engine module, so it also gives callers these classes. The only SDK consumer is `packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/refund.ts`. It guards `pegInAmounts` with `assertPositiveBigintArray`, derives the canonical HTLC and signing data in TypeScript, compares the WASM template's script and value with the funded output, and checks the final refund input and output before it emits the PSBT. Every new class consumer must do equivalent cross-checks. #2361 records the decision to keep these classes unguarded.
 
 ### 2. Fee calculation consistency
 

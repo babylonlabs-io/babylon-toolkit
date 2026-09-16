@@ -1,4 +1,5 @@
 import { cpSync, readFileSync, rmSync, mkdtempSync } from 'node:fs';
+import { createRequire, syncBuiltinESMExports } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, extname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -111,7 +112,7 @@ function eagerGeneratedEdges(entry) {
       const specifier = match[1];
       if (!specifier.startsWith('.')) continue;
       if (generatedSpecifier.test(specifier)) {
-        edges.push(`${file} -> ${specifier}`);
+        edges.push({ file, specifier, statement: match[0] });
         continue;
       }
       pending.push(resolveLocal(file, specifier));
@@ -122,16 +123,23 @@ function eagerGeneratedEdges(entry) {
 
 // Each entry imports the glue module directly to re-export the wasm-bindgen
 // classes. That import does not load the binary. No other module may reach the
-// glue statically.
+// glue statically. The entry may reach it only through a namespace import. An
+// export-from form passes glue exports on with no value checks.
+const classImport =
+  /^import\s+\*\s+as\s+[\w$]+\s+from\s*['"]\.\/generated\/vault_wasm\.js['"]$/;
 for (const entryName of ['index.ts', 'index-node.ts']) {
   const entry = resolve(packageRoot, 'src', entryName);
-  const classEdge = `${entry} -> ./generated/vault_wasm.js`;
-  const edges = eagerGeneratedEdges(entry).filter((edge) => edge !== classEdge);
+  const edges = eagerGeneratedEdges(entry)
+    .filter(
+      ({ file, statement }) => file !== entry || !classImport.test(statement),
+    )
+    .map(({ file, specifier }) => `${file} -> ${specifier}`);
   if (edges.length > 0) {
     throw new Error(
-      `${entryName} statically reaches generated WASM glue through a module ` +
-        `other than the entry. Reach the glue only through ` +
-        `import('./generated/vault_wasm.js') inside a loader:\n${edges.join('\n')}`,
+      `${entryName} statically reaches generated WASM glue other than through ` +
+        `a namespace import in the entry. Do not re-export from the glue. ` +
+        `Reach the glue only through import('./generated/vault_wasm.js') ` +
+        `inside a loader:\n${edges.join('\n')}`,
     );
   }
 }
@@ -238,6 +246,8 @@ try {
     join(browserRacePackage, 'dist', 'index.js'),
   ).href;
   const browserEntry = await import(`${browserUrl}?shared-browser-init`);
+  // A fire-and-forget init at module top level fetches a turn after import.
+  await new Promise((resolveTurn) => setImmediate(resolveTurn));
   if (fetchCalls !== 0)
     throw new Error('Importing index.js fetched the WASM binary');
 
@@ -325,6 +335,62 @@ try {
   }
 } finally {
   globalThis.fetch = originalFetch;
+}
+
+// The node loader reads the binary with readFile, not fetch. Importing the
+// node entry must not read the binary with readFile or readFileSync. The first
+// initWasm() call must read it exactly once, which also proves that the
+// counter sees the loader's reads.
+const nodeLazyPackage = mkdtempSync(join(tmpdir(), 'tbv-wasm-node-'));
+const requireBuiltin = createRequire(import.meta.url);
+const fsPromises = requireBuiltin('node:fs/promises');
+const fsSync = requireBuiltin('node:fs');
+const originalReadFile = fsPromises.readFile;
+const originalReadFileSync = fsSync.readFileSync;
+try {
+  cpSync(
+    resolve(packageRoot, 'package.json'),
+    join(nodeLazyPackage, 'package.json'),
+  );
+  cpSync(outputDirectory, join(nodeLazyPackage, 'dist'), {
+    recursive: true,
+  });
+  const nodeBinarySuffix = join('generated', 'vault_wasm_bg.wasm');
+  let binaryReads = 0;
+  const countBinaryRead = (path) => {
+    if (String(path).endsWith(nodeBinarySuffix)) binaryReads += 1;
+  };
+  fsPromises.readFile = (path, ...rest) => {
+    countBinaryRead(path);
+    return originalReadFile(path, ...rest);
+  };
+  fsSync.readFileSync = (path, ...rest) => {
+    countBinaryRead(path);
+    return originalReadFileSync(path, ...rest);
+  };
+  syncBuiltinESMExports();
+
+  const nodeEntry = await import(
+    pathToFileURL(join(nodeLazyPackage, 'dist', 'index-node.js')).href
+  );
+  // A fire-and-forget init at module top level reads a turn after import.
+  await new Promise((resolveTurn) => setImmediate(resolveTurn));
+  if (binaryReads !== 0) {
+    throw new Error(
+      'Importing index-node.js read the WASM binary. Read it only inside initWasm() or a facade call, not at module top level.',
+    );
+  }
+  await nodeEntry.initWasm();
+  if (binaryReads !== 1) {
+    throw new Error(
+      `initWasm() read the node WASM binary ${binaryReads} times, expected exactly once`,
+    );
+  }
+} finally {
+  fsPromises.readFile = originalReadFile;
+  fsSync.readFileSync = originalReadFileSync;
+  syncBuiltinESMExports();
+  rmSync(nodeLazyPackage, { recursive: true, force: true });
 }
 
 console.log('Lazy WASM facade boundary verified (browser and node).');

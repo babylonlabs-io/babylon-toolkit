@@ -11,9 +11,12 @@ import {
   getChallengeAssertScriptInfo,
 } from "@babylonlabs-io/ts-sdk/tbv/core/wasm";
 
-test("exposes the guarded builders in ESM and CommonJS", async () => {
+test("exposes the lazy boundary and guarded builders in ESM and CommonJS", async () => {
   const require = createRequire(import.meta.url);
+  const engine = await import("@babylonlabs-io/babylon-tbv-rust-wasm");
   for (const load of [async (name) => import(name), require]) {
+    const wasm = await load("@babylonlabs-io/ts-sdk/tbv/core/wasm");
+    assert.equal(await wasm.loadTbvWasm(), engine, "loadTbvWasm");
     const primitives = await load("@babylonlabs-io/ts-sdk/tbv/core/primitives");
     for (const name of [
       "buildPrePeginPsbt",
