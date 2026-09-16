@@ -110,7 +110,7 @@ export const EXPECTED_SCREENS_MANIFEST = "expected-screens.txt";
  * context scope is what also seals a window the page opens - the god-mode
  * panel's pop-out - which has no page route of its own.
  */
-async function blockOffsiteRequests(page: Page): Promise<void> {
+export async function blockOffsiteRequests(page: Page): Promise<void> {
   await page.context().route("**/*", (route) => {
     const { hostname } = new URL(route.request().url());
     const isLocal = hostname === "localhost" || hostname === "127.0.0.1";
