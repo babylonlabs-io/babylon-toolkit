@@ -38,7 +38,8 @@
  * `--target=localhost` until the deployed site has Select hub). `--borrow-token=<symbol>` picks the
  * token (an interactive run asks; a non-interactive run requires it); `--all-reserves` instead borrows from every
  * borrowable reserve on every hub. `--borrow-usd=<n>` sizes each borrow as n USD at the oracle price
- * (else `--borrow-amount` applies to every leg); `--repay-amount` (e.g. `max`) applies to every repay.
+ * (else a numeric `--borrow-amount` applies to every leg); every repay leg uses the form's Max, so `--repay-amount`
+ * accepts only `max`.
  *
  * Repay-all clears every outstanding loan on every hub with the form's Max, one reserve at a time, and
  * fails if any debt remains afterwards (e.g. a wallet holding less of a token than it owes).
@@ -680,6 +681,20 @@ async function resolveConfig(
       throw new Error(
         "multi-hub repays each reserve it borrowed from, against existing collateral — drop --repay-token, --repay-hub and --pegin-first.",
       );
+    // multi-hub repays every leg in full, so a partial --repay-amount would be ignored.
+    if (
+      action === "multi-hub" &&
+      typeof flags["repay-amount"] === "string" &&
+      flags["repay-amount"].toLowerCase() !== "max"
+    )
+      throw new Error(
+        "multi-hub repays every leg in full with the form's Max — drop --repay-amount (only max is accepted).",
+      );
+    // Max on the first leg would take the whole borrowing capacity and leave none for the other legs.
+    if (action === "multi-hub" && borrowAmount?.toLowerCase() === "max")
+      throw new Error(
+        "multi-hub borrows once per reserve, and Max on one leg leaves no capacity for the rest — pass a number to --borrow-amount, or --borrow-usd.",
+      );
     if (action === "multi-hub" && !allReserves) {
       const tokens = findMultiHubTokens(
         await fetchBorrowableReserves(network).catch((error) => {
@@ -801,9 +816,10 @@ async function resolveConfig(
         repayReserveId = debt.reserveId.toString();
       }
     }
-    // For a --borrow-first run (`repay` or `withdraw`), repay the reserve we just borrowed from unless
-    // the user overrode --repay-token. That reserve already names its hub, so a --repay-hub passed here
-    // would be silently dropped.
+    // For a --borrow-first run (`repay` or `withdraw`) with no --repay-token, repay the reserve we just
+    // borrowed from. That reserve already names its hub, so a --repay-hub passed here would be silently
+    // dropped. The action pins the borrowed reserve again once the borrow leg has resolved it, which also
+    // covers a --repay-token naming the borrowed token and a failed reserve read above.
     if (
       (action === "repay" || action === "withdraw") &&
       borrowFirst &&

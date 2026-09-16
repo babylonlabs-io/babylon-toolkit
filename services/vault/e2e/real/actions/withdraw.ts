@@ -55,7 +55,7 @@ import { installPopupApprover, sweepApprovals } from "./approver";
 import { runBorrowWithOptionalPegin } from "./borrow";
 import { goToSection } from "./navigation";
 import { startRecording } from "./recording";
-import { runRepayFlow } from "./repay";
+import { repayBorrowedReserve, runRepayFlow } from "./repay";
 import { DONE_BUTTON_RX, firstByTestid, TX_FAILED_RX } from "./selectors";
 import { type Action, type ActionContext } from "./types";
 import { connectWallets } from "./walletConnect";
@@ -423,6 +423,7 @@ export const withdrawAction: Action = {
     try {
       await connectWallets(ctx);
 
+      let repayCtx = ctx;
       if (ctx.config.borrowFirst) {
         log(
           "Withdraw --borrow-first: borrowing before repay + withdraw" +
@@ -434,9 +435,10 @@ export const withdrawAction: Action = {
         // collateral to unwind, so STOP — never fall through to repay + withdraw. runBorrowWithOptionalPegin
         // throws on any pegin/borrow failure; we catch only to log the skip intent, then rethrow.
         try {
-          await runBorrowWithOptionalPegin(ctx, (step) => {
+          const borrowed = await runBorrowWithOptionalPegin(ctx, (step) => {
             currentStep = `borrow:${step}`;
           });
+          repayCtx = repayBorrowedReserve(ctx, borrowed.reserve);
         } catch (error) {
           log(
             "❌ Borrow leg failed — stopping the run and SKIPPING repay + withdraw (no new loan/collateral to unwind).",
@@ -453,7 +455,7 @@ export const withdrawAction: Action = {
         // stays health-factor-gated, so STOP here — never fall through to the withdraw. runRepayFlow
         // throws on any repay failure; we catch only to log the skip intent, then rethrow.
         try {
-          await runRepayFlow(ctx, (step) => {
+          await runRepayFlow(repayCtx, (step) => {
             currentStep = `repay:${step}`;
           });
         } catch (error) {

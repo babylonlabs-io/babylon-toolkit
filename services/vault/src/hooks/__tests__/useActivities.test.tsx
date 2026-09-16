@@ -72,4 +72,32 @@ describe("useActivities", () => {
       hubLabel: "Babylon Hub",
     });
   });
+
+  it("maps the vBTC reserve alongside the loan reserves", () => {
+    const VBTC = "0x4444444444444444444444444444444444444444" as Address;
+    useAaveConfigMock.mockReturnValue({
+      allBorrowReserves: [frozenUsdt],
+      borrowableReserves: [],
+      vbtcReserve: {
+        reserveId: 3n,
+        reserve: { ...frozenUsdt.reserve, underlying: VBTC, decimals: 8 },
+        token: {
+          address: VBTC,
+          symbol: "vBTC",
+          name: "vault BTC",
+          decimals: 8,
+        },
+      },
+    });
+
+    renderHook(() => useActivities(USER));
+
+    const deps = fetchUserActivitiesMock.mock.lastCall![1];
+    expect(deps.reserves.get("3")).toMatchObject({
+      symbol: "vBTC",
+      decimals: 8,
+      hubLabel: "Babylon Hub",
+    });
+    expect(deps.reserves.get("1")).toMatchObject({ symbol: "USDT" });
+  });
 });

@@ -223,7 +223,7 @@ export function LoanFlowOverlay({
               )
             }
           />
-        ) : asset !== null ? (
+        ) : showHubPicker ? (
           <HubSelectionPanel
             underlying={asset}
             onSelectReserve={(selectedReserveId) =>

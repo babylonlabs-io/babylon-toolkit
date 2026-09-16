@@ -29,6 +29,7 @@
 import type { BrowserContext, Locator, Page } from "@playwright/test";
 
 import {
+  type BorrowReserve,
   describeReserve,
   fetchBorrowContext,
   matchReserve,
@@ -54,6 +55,7 @@ import { installPopupApprover, sweepApprovals } from "./approver";
 import { runBorrowWithOptionalPegin } from "./borrow";
 import { goToSection } from "./navigation";
 import { startRecording } from "./recording";
+import { legContext } from "./reserveLegs";
 import {
   AMOUNT_INPUT,
   assertOpenFormReserve,
@@ -107,7 +109,8 @@ type RepayAmount = { mode: "max" } | { mode: "amount"; value: string };
 
 /**
  * The debt this run repays, read after any borrow leg so a just-created loan is present. The CLI
- * normally resolved it (`repayReserveId`); otherwise the token (plus `--repay-hub`) must match exactly
+ * normally resolved it (`repayReserveId`), and a --borrow-first run pins the reserve it just borrowed
+ * from (`repayBorrowedReserve`); otherwise the token (plus `--repay-hub`) must match exactly
  * one of the position's debts, and no token is accepted only when the position owes on a single reserve.
  * The same token can be owed to several hubs, so a symbol alone is refused rather than resolved to
  * whichever debt is first.
@@ -132,18 +135,14 @@ async function resolveRepayDebt(ctx: ActionContext): Promise<RepayableDebt> {
       );
     return debt;
   }
-  // Only a token inherited from the borrow leg may inherit its hub: an explicit --repay-token names its
-  // own loan, and taking --borrow-hub there would pick a hub for a token the borrow never mentioned.
-  const explicitToken = ctx.config.repayToken?.trim();
-  const token = explicitToken || ctx.config.borrowToken?.trim();
+  const token = ctx.config.repayToken?.trim();
   if (!token) {
     if (debts.length === 1) return debts[0];
     throw new Error(
       `repay: no --repay-token and more than one outstanding loan (${debts.map(describeReserve).join("; ")}) — re-run with --repay-token (and --repay-hub).`,
     );
   }
-  const hub =
-    ctx.config.repayHub ?? (explicitToken ? undefined : ctx.config.borrowHub);
+  const hub = ctx.config.repayHub;
   const match = matchReserve(debts, token, hub);
   if (match.kind === "match") return match.reserve;
   throw new Error(
@@ -460,6 +459,25 @@ async function readDebtUsd(
     .catch(() => null);
 }
 
+/**
+ * A --borrow-first run's repay context, pinned to the reserve the borrow leg used when the repay names
+ * that loan: no `--repay-hub`, and no `--repay-token` or the borrowed token. The CLI pins it only when
+ * there is no `--repay-token` and its reserve read succeeded; this also covers a `--repay-token` naming the
+ * borrowed token and a failed read, where the borrow leg resolved the reserve itself and another hub's
+ * loan of the same token would otherwise make the repay ambiguous.
+ */
+export function repayBorrowedReserve(
+  ctx: ActionContext,
+  borrowed: BorrowReserve,
+): ActionContext {
+  const { repayToken, repayHub } = ctx.config;
+  if (repayHub !== undefined) return ctx;
+  const token = repayToken?.trim();
+  if (token && token.toLowerCase() !== borrowed.symbol.toLowerCase())
+    return ctx;
+  return legContext(ctx, { repayReserveId: borrowed.reserveId.toString() });
+}
+
 /** Drive the repay flow proper (assumes wallets connected + approver/recorder installed by the caller). */
 export async function runRepayFlow(
   ctx: ActionContext,
@@ -517,6 +535,7 @@ export const repayAction: Action = {
     try {
       await connectWallets(ctx);
 
+      let repayCtx = ctx;
       if (ctx.config.borrowFirst) {
         log(
           "Repay --borrow-first: borrowing before repaying" +
@@ -529,9 +548,10 @@ export const repayAction: Action = {
         // repay. runBorrowWithOptionalPegin throws on any pegin/borrow failure; we catch only to log the
         // skip intent, then rethrow so the run aborts (repay is never attempted).
         try {
-          await runBorrowWithOptionalPegin(ctx, (step) => {
+          const borrowed = await runBorrowWithOptionalPegin(ctx, (step) => {
             currentStep = `borrow:${step}`;
           });
+          repayCtx = repayBorrowedReserve(ctx, borrowed.reserve);
         } catch (error) {
           log(
             "❌ Borrow leg failed — stopping the run and SKIPPING repay (no new loan was created to repay).",
@@ -540,7 +560,7 @@ export const repayAction: Action = {
         }
       }
 
-      await runRepayFlow(ctx, (step) => {
+      await runRepayFlow(repayCtx, (step) => {
         currentStep = step;
       });
 

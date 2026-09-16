@@ -109,6 +109,12 @@ const DEBT_INCREASE_MIN_USD = 0.01;
 /** The resolved borrow amount: click the form's Max button, or fill a specific token amount. */
 type BorrowAmount = { mode: "max" } | { mode: "amount"; value: string };
 
+/** What a borrow leg did: the reserve it borrowed from and the amount it resolved. */
+interface BorrowLeg {
+  reserve: BorrowReserve;
+  amount: BorrowAmount;
+}
+
 /**
  * Resolve the amount to borrow. An explicit `--borrow-amount` wins (a number, or `max`). Otherwise it
  * computes a conservative fraction of the real-data max — this runs after any pegin-first pegin has
@@ -473,12 +479,13 @@ async function assertBorrowDebtIncreased(
 /**
  * Drive the borrow flow proper (assumes wallets connected + approver/recorder installed by the caller,
  * and collateral already present). Wrapped by `runBorrowWithOptionalPegin`, which adds the optional
- * pegin-first phase in front. Returns the amount it borrowed, as resolved before filling the form.
+ * pegin-first phase in front. Returns the reserve it borrowed from and the amount, as resolved before
+ * filling the form.
  */
 async function runBorrowFlow(
   ctx: ActionContext,
   onStep: (step: string) => void,
-): Promise<BorrowAmount> {
+): Promise<BorrowLeg> {
   const { page, context, log } = ctx;
   // Resolved before the browser flow, so an unknown or ambiguous token fails before anything is clicked.
   const reserve = await resolveBorrowReserve(ctx);
@@ -517,7 +524,7 @@ async function runBorrowFlow(
 
   onStep("borrow-verify");
   await assertBorrowDebtIncreased(ctx, debtBeforeUsd);
-  return amount;
+  return { reserve, amount };
 }
 
 /**
@@ -560,13 +567,13 @@ async function waitForFreshCollateral(
  * approver/recorder installed by the caller. Exported so BOTH the borrow action and the repay action
  * (`repay --borrow-first [--pegin-first]`) run the identical "maybe peg in, then borrow" sequence — the
  * pegin (a full `runPeginFlow`) then the baseline-relative collateral-settle wait, then the borrow. Step
- * labels are emitted via `onStep` (the caller namespaces them for its recorder). Returns the borrowed
- * amount, so a caller can check the leg on-chain against it.
+ * labels are emitted via `onStep` (the caller namespaces them for its recorder). Returns the reserve and
+ * amount borrowed, so a caller can repay that reserve or check the leg on-chain against the amount.
  */
 export async function runBorrowWithOptionalPegin(
   ctx: ActionContext,
   onStep: (step: string) => void,
-): Promise<BorrowAmount> {
+): Promise<BorrowLeg> {
   if (ctx.config.peginFirst) {
     ctx.log("--pegin-first: pegging in fresh collateral before borrowing");
     // Snapshot the on-chain collateral BEFORE the pegin so we wait for THIS pegin's vault to register —

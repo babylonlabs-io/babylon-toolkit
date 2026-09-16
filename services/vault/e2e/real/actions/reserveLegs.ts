@@ -24,8 +24,10 @@ export interface ReserveRef {
 
 /**
  * Upper bound on a reserve's relative debt growth from accrued interest during one leg. Even a 100% APR
- * accrues ~1e-5 in five minutes. Only used when the leg's own amount isn't known (the form's Max): the
- * bound scales with the debt already owed, so a small leg on a heavily borrowed reserve can't clear it.
+ * accrues ~1e-5 in five minutes. It bounds interest on debt already owed in two places: a "rise" check
+ * falls back to it when the leg's own amount isn't known (the form's Max), where it scales with the debt
+ * already owed and so can miss a small leg on a heavily borrowed reserve; and a reserve within it of its
+ * pre-run debt counts as cleared.
  */
 const INTEREST_DRIFT_BOUND = 1e-4;
 
@@ -52,15 +54,42 @@ export async function readReserveDebt(
   return debts.find((debt) => debt.reserveId === reserveId)?.debtTokens ?? 0;
 }
 
+/** How a leg's on-chain debt must move for the leg to count as landed. */
+type DebtDirection = "rise" | "fall" | "clear";
+
+/** Log wording once a leg's debt has moved as required. */
+const DEBT_LANDED: Record<DebtDirection, string> = {
+  rise: "rose",
+  fall: "fell",
+  clear: "is back to its pre-run level",
+};
+
+/** Timeout wording, including what a miss means for that direction. */
+const DEBT_MISSED: Record<DebtDirection, string> = {
+  rise: "did not rise — the leg did not land on this hub's reserve",
+  fall: "did not fall — the leg did not land on this hub's reserve",
+  clear:
+    "did not return to its pre-run level — the repay did not clear the debt this run created",
+};
+
+/** Whether `debt` is above `baseline` by more than interest drift on that baseline. */
+function owesMoreThan(debt: number, baseline: number): boolean {
+  return debt > baseline * (1 + INTEREST_DRIFT_BOUND);
+}
+
 /**
- * Poll until the leg shows on THIS reserve's on-chain debt: after a borrow, above its pre-leg value by at
- * least a share of `legAmount` (tokens; interest drift when absent or "max"); after a repay, below it.
+ * Poll until the leg shows on THIS reserve's on-chain debt:
+ *   - "rise" (after a borrow): above `before` by at least a share of `legAmount` (tokens; interest drift
+ *     when absent or "max");
+ *   - "fall" (after a repay): below `before`;
+ *   - "clear" (after a full repay): at or below `before`, here the reserve's debt before this run borrowed
+ *     from it, allowing for interest drift on debt that was already there.
  */
 export async function waitForReserveDebt(
   ctx: ActionContext,
   reserve: ReserveRef,
   before: number,
-  direction: "rise" | "fall",
+  direction: DebtDirection,
   legAmount?: string,
 ): Promise<void> {
   const legTokens = legAmount === undefined ? Number.NaN : Number(legAmount);
@@ -68,8 +97,11 @@ export async function waitForReserveDebt(
     Number.isFinite(legTokens) && legTokens > 0
       ? legTokens * MIN_LEG_RISE_SHARE
       : before * INTEREST_DRIFT_BOUND;
-  const landed = (after: number) =>
-    direction === "rise" ? after - before > minRise : after < before;
+  const landed = (after: number) => {
+    if (direction === "rise") return after - before > minRise;
+    if (direction === "fall") return after < before;
+    return !owesMoreThan(after, before);
+  };
   const deadline = Date.now() + RESERVE_DEBT_VERIFY_TIMEOUT_MS;
   let after = before;
   while (Date.now() < deadline) {
@@ -82,13 +114,52 @@ export async function waitForReserveDebt(
     }
     if (landed(after)) {
       ctx.log(
-        `✅ ${describeReserve(reserve)} debt ${direction === "rise" ? "rose" : "fell"}: ${before} → ${after} ${reserve.symbol}.`,
+        `✅ ${describeReserve(reserve)} debt ${DEBT_LANDED[direction]}: ${before} → ${after} ${reserve.symbol}.`,
       );
       return;
     }
     await ctx.page.waitForTimeout(RESERVE_DEBT_VERIFY_POLL_MS);
   }
   throw new Error(
-    `${describeReserve(reserve)} debt did not ${direction} within ${Math.round(RESERVE_DEBT_VERIFY_TIMEOUT_MS / MS_PER_SECOND)}s (before ${before}, last ${after} ${reserve.symbol}) — the leg did not land on this hub's reserve.`,
+    `${describeReserve(reserve)} debt ${DEBT_MISSED[direction]} (within ${Math.round(RESERVE_DEBT_VERIFY_TIMEOUT_MS / MS_PER_SECOND)}s; before ${before}, last ${after} ${reserve.symbol}).`,
   );
+}
+
+/** A leg's recorded pre-run debt. Throws when the run never recorded one, rather than assuming zero. */
+export function baselineOf(
+  baselines: ReadonlyMap<bigint, number>,
+  reserve: ReserveRef,
+): number {
+  const baseline = baselines.get(reserve.reserveId);
+  if (baseline === undefined)
+    throw new Error(
+      `No pre-run debt recorded for ${describeReserve(reserve)} — cannot tell whether this run's debt is cleared.`,
+    );
+  return baseline;
+}
+
+/**
+ * The reserves that still owe more than before this run borrowed from them (beyond interest drift), from
+ * one on-chain read. `null` when that read fails, so the caller can say the debt could not be checked.
+ */
+export async function readReservesStillOwed<R extends ReserveRef>(
+  ctx: ActionContext,
+  reserves: R[],
+  baselines: ReadonlyMap<bigint, number>,
+): Promise<R[] | null> {
+  let debts;
+  try {
+    debts = await fetchRepayableDebts(ctx.config.network, ctx.eth.address);
+  } catch (error) {
+    ctx.log(
+      `⚠️ Could not re-read outstanding debt (${error instanceof Error ? error.message : error}).`,
+    );
+    return null;
+  }
+  return reserves.filter((reserve) => {
+    // A reserve missing from the list owes nothing, as in readReserveDebt.
+    const debt =
+      debts.find((d) => d.reserveId === reserve.reserveId)?.debtTokens ?? 0;
+    return owesMoreThan(debt, baselineOf(baselines, reserve));
+  });
 }

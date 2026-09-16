@@ -10,13 +10,14 @@
  *   1. borrows from each reserve in turn — /loans → Borrow → Select asset → Select hub (that reserve's
  *      row, when shown) → form — checking on-chain after each leg that the debt landed on that reserve;
  *   2. opens /loans and checks there is one Active Loans row per reserve, each naming its hub;
- *   3. repays each reserve in turn through the repay picker, checking on-chain that its debt fell.
+ *   3. repays each reserve in full through the repay picker, checking on-chain that its debt is back to
+ *      what it was before the run.
  *
  * Each leg reuses the borrow / repay actions' flows pinned to one reserve id, so every UI step and
  * post-condition those actions assert applies here too. Borrow size: `--borrow-usd=<n>` converts n USD
  * to each token at the Aave oracle price (for a set spanning tokens of very different prices), else
- * `--borrow-amount` applies to every leg, else the borrow action's conservative default.
- * `--repay-amount` (e.g. `max`) applies to every repay leg. run.ts refuses the run before the browser
+ * a numeric `--borrow-amount` applies to every leg, else the borrow action's conservative default.
+ * Every repay leg uses the form's Max, so a clean run leaves no debt it created. run.ts refuses the run before the browser
  * when the position has no collateral.
  *
  * NEVER run without an explicit go-ahead: it moves real value (one borrow and one repay per reserve).
@@ -37,8 +38,14 @@ import { runBorrowWithOptionalPegin } from "./borrow";
 import { goToSection } from "./navigation";
 import { startRecording } from "./recording";
 import { runRepayFlow } from "./repay";
-import { legContext, readReserveDebt, waitForReserveDebt } from "./reserveLegs";
-import { ACTIVE_LOAN_ROW_TESTID_PREFIX } from "./selectors";
+import {
+  baselineOf,
+  legContext,
+  readReserveDebt,
+  readReservesStillOwed,
+  waitForReserveDebt,
+} from "./reserveLegs";
+import { ACTIVE_LOAN_ROW_TESTID_PREFIX, MAX_AMOUNT_KEYWORD } from "./selectors";
 import { type Action, type ActionContext } from "./types";
 import { connectWallets } from "./walletConnect";
 
@@ -114,36 +121,42 @@ async function checkLoanRowsNameHubs(
 ): Promise<string[]> {
   const { page, log } = ctx;
   const problems: string[] = [];
-  await goToSection(page, "loans", log);
-  for (const reserve of reserves) {
-    const row = page.locator(
-      `[data-testid="${ACTIVE_LOAN_ROW_TESTID_PREFIX}${reserve.reserveId}"]`,
+  try {
+    await goToSection(page, "loans", log);
+    for (const reserve of reserves) {
+      const row = page.locator(
+        `[data-testid="${ACTIVE_LOAN_ROW_TESTID_PREFIX}${reserve.reserveId}"]`,
+      );
+      const appeared = await row
+        .waitFor({ state: "visible", timeout: LOAN_ROW_APPEAR_TIMEOUT_MS })
+        .then(() => true)
+        .catch(() => false);
+      if (!appeared) {
+        problems.push(
+          `no Active Loans row for ${describeReserve(reserve)} within ${LOAN_ROW_APPEAR_TIMEOUT_MS}ms`,
+        );
+        continue;
+      }
+      const hubLabel = describeHub(reserve.hub);
+      if (hubLabel === reserve.hub) {
+        log(
+          `⚠️ ${describeReserve(reserve)}: hub not in hubLabels.ts — found its Loans row, skipped the hub label check.`,
+        );
+        continue;
+      }
+      const text = await row.innerText();
+      if (!text.includes(hubLabel)) {
+        problems.push(
+          `the Loans row for ${describeReserve(reserve)} does not name its hub (row text: "${text.replace(/\s+/g, " ").trim()}")`,
+        );
+        continue;
+      }
+      log(`✅ Loans row for ${describeReserve(reserve)} names ${hubLabel}.`);
+    }
+  } catch (error) {
+    problems.push(
+      `the Loans row check stopped before it finished (${error instanceof Error ? error.message : String(error)})`,
     );
-    const appeared = await row
-      .waitFor({ state: "visible", timeout: LOAN_ROW_APPEAR_TIMEOUT_MS })
-      .then(() => true)
-      .catch(() => false);
-    if (!appeared) {
-      problems.push(
-        `no Active Loans row for ${describeReserve(reserve)} within ${LOAN_ROW_APPEAR_TIMEOUT_MS}ms`,
-      );
-      continue;
-    }
-    const hubLabel = describeHub(reserve.hub);
-    if (hubLabel === reserve.hub) {
-      log(
-        `⚠️ ${describeReserve(reserve)}: hub not in hubLabels.ts — found its Loans row, skipped the hub label check.`,
-      );
-      continue;
-    }
-    const text = await row.innerText();
-    if (!text.includes(hubLabel)) {
-      problems.push(
-        `the Loans row for ${describeReserve(reserve)} does not name its hub (row text: "${text.replace(/\s+/g, " ").trim()}")`,
-      );
-      continue;
-    }
-    log(`✅ Loans row for ${describeReserve(reserve)} names ${hubLabel}.`);
   }
   return problems;
 }
@@ -175,16 +188,21 @@ export const multiHubAction: Action = {
               reserves.map((r) => r.reserveId),
             );
 
-      // Legs that have borrowed but not yet been repaid. Any failure while that is above zero leaves
-      // real debt on-chain, so the error says how much and how to clear it.
-      let openLegs = 0;
+      // Each reserve's debt before this run borrowed from it, the legs whose borrow was started, and the
+      // legs confirmed back at that debt. A leg counts as started before its borrow flow runs: the flow can
+      // submit and then still throw on a post-check, and that debt is real.
+      const baselines = new Map<bigint, number>();
+      const attempted: BorrowReserve[] = [];
+      const cleared = new Set<bigint>();
       try {
         for (const reserve of reserves) {
           const borrowAmount = legBorrowAmount(ctx, reserve, pricesUsd);
           const before = await readReserveDebt(ctx, reserve.reserveId);
+          baselines.set(reserve.reserveId, before);
           log(
             `── Borrow leg: ${describeReserve(reserve)}${borrowAmount ? ` — ${borrowAmount} ${reserve.symbol}` : ""}`,
           );
+          attempted.push(reserve);
           const borrowed = await runBorrowWithOptionalPegin(
             legContext(ctx, {
               borrowReserveId: reserve.reserveId.toString(),
@@ -197,15 +215,15 @@ export const multiHubAction: Action = {
               currentStep = `borrow:${reserve.reserveId}:${step}`;
             },
           );
-          // The borrow transaction confirmed, so this reserve owes from here until its repay leg.
-          openLegs += 1;
           currentStep = `borrow:${reserve.reserveId}:reserve-debt`;
           await waitForReserveDebt(
             ctx,
             reserve,
             before,
             "rise",
-            borrowed.mode === "amount" ? borrowed.value : undefined,
+            borrowed.amount.mode === "amount"
+              ? borrowed.amount.value
+              : undefined,
           );
         }
 
@@ -215,13 +233,14 @@ export const multiHubAction: Action = {
         for (const problem of rowProblems) log(`❌ ${problem}`);
 
         for (const reserve of reserves) {
-          const before = await readReserveDebt(ctx, reserve.reserveId);
           log(`── Repay leg: ${describeReserve(reserve)}`);
           await runRepayFlow(
             legContext(ctx, {
               repayReserveId: reserve.reserveId.toString(),
               repayToken: reserve.symbol,
               repayHub: undefined,
+              // In full: a partial repay would leave debt this run created.
+              repayAmount: MAX_AMOUNT_KEYWORD,
               borrowFirst: false,
             }),
             (step) => {
@@ -229,8 +248,13 @@ export const multiHubAction: Action = {
             },
           );
           currentStep = `repay:${reserve.reserveId}:reserve-debt`;
-          await waitForReserveDebt(ctx, reserve, before, "fall");
-          openLegs -= 1;
+          await waitForReserveDebt(
+            ctx,
+            reserve,
+            baselineOf(baselines, reserve),
+            "clear",
+          );
+          cleared.add(reserve.reserveId);
         }
 
         if (rowProblems.length > 0)
@@ -238,9 +262,34 @@ export const multiHubAction: Action = {
             `multi-hub: every borrow and repay ran, but the Loans rows were wrong — ${rowProblems.join("; ")}.`,
           );
       } catch (error) {
-        if (openLegs === 0) throw error;
+        const open = attempted.filter(
+          (reserve) => !cleared.has(reserve.reserveId),
+        );
+        if (open.length === 0) throw error;
+        const message = error instanceof Error ? error.message : String(error);
+        // Ask the chain which of those legs actually left debt, rather than guessing from how far the run got.
+        const stillOwed = await readReservesStillOwed(ctx, open, baselines);
+        if (stillOwed === null)
+          throw new Error(
+            `${message} — could not re-read the debt, so up to ${open.length} reserve${open.length === 1 ? "" : "s"} this run borrowed from may still be owed (${open.map(describeReserve).join("; ")}); check and clear it with --action=repay-all.`,
+            { cause: error },
+          );
+        // The tolerance scales with each reserve's pre-run debt, so a small leg on a heavily borrowed
+        // reserve can read as interest: the legs that don't read as owed are named too.
+        const unconfirmed = open.filter(
+          (reserve) => !stillOwed.includes(reserve),
+        );
+        const report: string[] = [];
+        if (stillOwed.length > 0)
+          report.push(
+            `still owed after this run: ${stillOwed.map(describeReserve).join("; ")}`,
+          );
+        if (unconfirmed.length > 0)
+          report.push(
+            `not read as owed, though a small leg on a reserve that already owed a lot can read as interest: ${unconfirmed.map(describeReserve).join("; ")}`,
+          );
         throw new Error(
-          `${error instanceof Error ? error.message : error} — ${openLegs} reserve${openLegs === 1 ? "" : "s"} this run borrowed from ${openLegs === 1 ? "is" : "are"} still owed; clear the debt with --action=repay-all.`,
+          `${message} — ${report.join("; ")}; check the debt, and clear it with --action=repay-all if needed.`,
           { cause: error },
         );
       }
