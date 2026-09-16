@@ -6,13 +6,16 @@
  * so the component stays a thin view layer.
  */
 
+import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useActivatingVaults } from "@/applications/aave/context";
 import { usePeginPolling } from "@/context/deposit/PeginPollingContext";
 import { LocalStorageStatus } from "@/models/peginStateMachine";
+import { ACTIVITIES_QUERY_KEY } from "@/services/activity";
 import { usePeginStorage } from "@/storage/usePeginStorage";
 import type { VaultActivity } from "@/types/activity";
+import { invalidateVaultQueries } from "@/utils/queryKeys";
 
 import { useVaultActions } from "./useVaultActions";
 
@@ -73,6 +76,7 @@ export function useActivationState({
 
   const { setOptimisticStatus } = usePeginPolling();
   const { addActivatingVault } = useActivatingVaults();
+  const queryClient = useQueryClient();
   const { pendingPegins, updatePendingPeginStatus } = usePeginStorage({
     ethAddress: depositorEthAddress,
     confirmedPegins: EMPTY_CONFIRMED,
@@ -92,9 +96,10 @@ export function useActivationState({
           pendingPegin,
           updatePendingPeginStatus,
           onRefetchActivities: () => {
-            // No-op: the optimistic CONFIRMED status set below drives the
-            // activated terminal, and the polling interval refreshes
-            // activities on its own.
+            void invalidateVaultQueries(queryClient);
+            void queryClient.invalidateQueries({
+              queryKey: [ACTIVITIES_QUERY_KEY],
+            });
           },
           onShowSuccessModal: () => {
             if (!mountedRef.current) return;
@@ -141,6 +146,7 @@ export function useActivationState({
       vaultHandleActivation,
       setOptimisticStatus,
       addActivatingVault,
+      queryClient,
     ],
   );
 

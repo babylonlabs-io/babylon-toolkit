@@ -43,7 +43,10 @@ import { VAULT_COLLATERAL_ASSET } from "@/services/activity/projection";
 import { getCurrencyIconWithFallback } from "@/services/token/tokenService";
 import type { VaultActivity } from "@/types/activity";
 import { type ActivityRow, PENDING_DEPOSIT_TYPE } from "@/types/activityLog";
-import type { CollateralVaultEntry } from "@/types/collateral";
+import type {
+  CollateralVaultEntry,
+  CollateralVaultLifecycle,
+} from "@/types/collateral";
 import type { DepositPollingResult } from "@/types/peginPolling";
 import type { VaultProvider } from "@/types/vaultProvider";
 import { getBatchSiblings } from "@/utils/batchedPegin";
@@ -409,7 +412,7 @@ export const ACTIVATED_SCENARIO_INDEX =
 /** One controllable collateral (active vault) state. Collateral has no CTA. */
 export interface CollateralScenario extends BaseScenario {
   inUse: boolean;
-  isActivating?: boolean;
+  lifecycle: CollateralVaultLifecycle;
 }
 
 export const COLLATERAL_SCENARIOS: CollateralScenario[] = [
@@ -418,19 +421,28 @@ export const COLLATERAL_SCENARIOS: CollateralScenario[] = [
     label: "Available (not in use)",
     expectedCta: "none",
     inUse: false,
+    lifecycle: "active",
   },
   {
     key: "col-in-use",
     label: "In use as collateral",
     expectedCta: "none",
     inUse: true,
+    lifecycle: "active",
   },
   {
     key: "col-activating",
     label: "Activating (optimistic)",
     expectedCta: "none",
     inUse: false,
-    isActivating: true,
+    lifecycle: "activating",
+  },
+  {
+    key: "col-withdrawing",
+    label: "Withdrawing (peg-out in flight)",
+    expectedCta: "none",
+    inUse: true,
+    lifecycle: "withdrawing",
   },
 ];
 
@@ -859,7 +871,7 @@ function buildCollateralEntry(
     amountBtc: Number.parseFloat(amount) || 0,
     addedAt: DEMO_AT_SECONDS,
     inUse: scenario.inUse,
-    isActivating: scenario.isActivating,
+    lifecycle: scenario.lifecycle,
     displayOnly: true,
     providerAddress: DEMO_PROVIDER_ID,
     providerName: DEMO_VAULT_PROVIDER.name ?? "demo-vault-provider",
