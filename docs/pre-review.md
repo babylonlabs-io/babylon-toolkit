@@ -29,7 +29,8 @@ before any PR exists.
 5. Run `/pre-review` again. It re-checks only what changed since the last run
    and reports what is fixed, what remains, and anything new the fixes
    introduced. Repeat steps 3–5 until nothing is left to fix.
-6. Commit, push, and open the PR with `PR.md` as the body.
+6. Commit, push, and open the PR with `PR.md` as the body; see
+   [Enforcement](#enforcement).
 
 `PR.md` is written on the first run and updated on every run after it. The
 session asks up to two questions on the first run when it cannot tell what
@@ -105,8 +106,9 @@ The end of `PR.md`, and so of the PR body, carries a collapsed section:
 | declined: …              | The author judged it not worth fixing; the reason is theirs.  |
 | moot                     | None of the finding's files is part of the change any more.   |
 
-> **Note**: The record is self-reported: it shows what the author's review
-> found and decided, not a gate CI enforces.
+> **Note**: The findings and decisions are self-reported: they show what the
+> author's review found and decided. CI checks only that a record for the
+> branch is present, not what the review concluded.
 
 ## Cost
 
@@ -122,6 +124,77 @@ through a PR. A personal skill with the same name in `~/.claude/skills/`
 takes precedence over the project one, so do not keep a private copy named
 `pre-review`.
 
-> **Note**: A CI check that recomputes the `files-sha256` digest in the
-> record's hidden snapshot line from the PR head is planned after the pilot
-> and is not implemented yet.
+## Enforcement
+
+The `pre-review-check` CI job runs on every PR to `main`. It reads the hidden
+snapshot line in the PR description and passes when `/pre-review` ran on the
+PR's branch: the line's `branch=` is the PR's head branch.
+
+The check requires a record from the PR's branch in the description. It does
+not compare the code with the record. What happens after a run is the
+author's to own: fixing the findings, running `/pre-review` again to verify
+the fixes (recommended), and any change pushed later, such as fixes for
+review comments.
+
+| Result       | Cause                                            | What to do                                               |
+| ------------ | ------------------------------------------------ | -------------------------------------------------------- |
+| missing      | The description has no record                    | Run `/pre-review`, then paste `PR.md` as the description |
+| other-branch | The record was taken on another branch           | Run `/pre-review` on this branch, then paste `PR.md`     |
+| ambiguous    | The description has two different snapshot lines | Run `/pre-review` again, then paste the updated `PR.md`  |
+
+The job updates one comment on the PR with the result, and re-runs when the
+description is edited, so pasting a new `PR.md` is enough to clear it.
+
+> **Note**: Once `/pre-review` is standard practice, the plan is to compare the
+> record with the code again: find the commit holding the reviewed content
+> through the snapshot's `files-sha256` digest, and require a new run when the
+> change since that commit exceeds `LIGHT_REVIEW_MAX_CHANGED_LINES` or touches
+> a CLAUDE.md critical path. The TODO is on `checkSnapshot` in
+> `scripts/pre-review/snapshot.mjs`.
+
+The check passes without reading the description in three cases:
+
+- the PR carries the `skip-pre-review` label, for a change too small to
+  review (a typo, a version bump). The label is visible to every reviewer;
+- the PR is a draft. The check runs when it is marked ready for review;
+- the PR was opened by a bot.
+
+> ⚠️ **Important**: The check proves that a record is present, not that the
+> review ran: a snapshot line can be written by hand. The findings table in
+> the description makes a skipped review visible to the human reviewer. A PR
+> that changes the check itself (the workflow or `scripts/pre-review/`) is
+> checked by its own modified copy, so review those files as carefully as the
+> change.
+
+### Local warnings
+
+Two optional helpers report a missing record before CI does. Both read the
+branch's `.pre-review/<key>.md`.
+
+- **Git pre-push hook.** Installed by `pnpm install` (husky). It prints a
+  warning for each pushed branch without a record and never blocks the push.
+- **Claude Code hook.** Denies `gh pr create` when Claude runs it on a branch
+  without a record, and tells the session to hand `/pre-review` back to you.
+  `.claude/settings.json` is not committed, so add it to your own settings:
+
+  ```json
+  {
+    "hooks": {
+      "PreToolUse": [
+        {
+          "matcher": "Bash",
+          "hooks": [
+            {
+              "type": "command",
+              "if": "Bash(gh pr create *)",
+              "command": "node \"$CLAUDE_PROJECT_DIR/scripts/pre-review/claude-pr-create-hook.mjs\""
+            }
+          ]
+        }
+      ]
+    }
+  }
+  ```
+
+  The `if` pattern matches a command that starts with `gh pr create`, not one
+  chained after another command with `&&`.
