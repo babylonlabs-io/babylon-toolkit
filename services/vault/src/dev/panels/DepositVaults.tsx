@@ -11,6 +11,12 @@ import { setArtifactDownloadOverride } from "@/overrides/artifactDownload";
 import { setCollateralOverride } from "@/overrides/collateral";
 import { setDepositOverride } from "@/overrides/deposits";
 import { setLoanOverride } from "@/overrides/loans";
+import {
+  setUtxoFragmentCountOverride,
+  useUtxoFragmentCountOverride,
+  UTXO_FRAGMENT_COUNT_MAX,
+  UTXO_FRAGMENT_COUNT_MIN,
+} from "@/overrides/utxos";
 import { clearArtifactDownloadReceipts } from "@/utils/artifactDownloadStorage";
 
 import {
@@ -56,6 +62,8 @@ import {
 } from "../demoDeposit";
 import {
   PANEL_BUTTON_CLASS,
+  PANEL_HINT_CLASS,
+  PANEL_INPUT_CLASS,
   PANEL_SECTION_CLASS,
   PANEL_SECTION_TITLE_CLASS,
 } from "../panelChrome";
@@ -430,9 +438,53 @@ function DemoControls() {
   );
 }
 
+/**
+ * Splits the connected wallet's spendable balance into N synthetic UTXOs for
+ * the deposit form's estimate and funding-input-cap gate only. Real signing
+ * keeps the real set, so a deposit clicked under the fragmented Max proceeds
+ * normally.
+ */
+function UtxoFragmentControl() {
+  const count = useUtxoFragmentCountOverride();
+  return (
+    <div className={`space-y-2 ${PANEL_SECTION_CLASS}`}>
+      <label className="flex items-center justify-between gap-2 text-sm">
+        <span>Fragment wallet UTXOs into</span>
+        <input
+          type="number"
+          min={UTXO_FRAGMENT_COUNT_MIN}
+          max={UTXO_FRAGMENT_COUNT_MAX}
+          step={1}
+          value={count ?? ""}
+          placeholder="real"
+          onChange={(e) => {
+            const next = Number.parseInt(e.target.value, 10);
+            setUtxoFragmentCountOverride(
+              Number.isInteger(next)
+                ? Math.min(
+                    UTXO_FRAGMENT_COUNT_MAX,
+                    Math.max(UTXO_FRAGMENT_COUNT_MIN, next),
+                  )
+                : null,
+            );
+          }}
+          className={`${PANEL_INPUT_CLASS} w-20`}
+          aria-label="Fragment wallet UTXOs into"
+        />
+      </label>
+      <div className={PANEL_HINT_CLASS}>
+        Same total, N equal outpoints. Drives Max and the 20-UTXO cap on the
+        deposit form; signing uses the real UTXOs.
+      </div>
+    </div>
+  );
+}
+
 export function DepositVaultsPanel() {
   return (
     <div className="space-y-2">
+      <div className={PANEL_SECTION_TITLE_CLASS}>Wallet</div>
+      <UtxoFragmentControl />
       <div className={PANEL_SECTION_TITLE_CLASS}>Mocks</div>
       <DemoControls />
     </div>

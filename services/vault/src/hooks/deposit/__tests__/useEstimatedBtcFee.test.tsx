@@ -117,3 +117,40 @@ describe("useEstimatedBtcFee fee-rate override", () => {
     expect(result.current.fee).toBeNull();
   });
 });
+
+describe("useEstimatedBtcFee uncapped max", () => {
+  const OVER_CAP_UTXOS = Array.from({ length: 21 }, (_, i) => ({
+    txid: i.toString(16).padStart(64, "0"),
+    vout: 0,
+    value: (i + 1) * 100_000,
+    scriptPubKey: "00",
+  })) as unknown as MempoolUTXO[];
+
+  it("reports the whole wallet's max alongside the funding-input-capped one", () => {
+    const { result } = renderHook(() =>
+      useEstimatedBtcFee(AMOUNT, OVER_CAP_UTXOS, NUM_OUTPUTS),
+    );
+
+    expect(result.current.maxDeposit).toBe(22_999_000n);
+    expect(result.current.uncappedMaxDeposit).toBe(23_099_000n);
+  });
+
+  it("excludes malformed scripts from both maxes, so 21 entries with 2 undecompilable ones stay within the cap", () => {
+    const withMalformed = OVER_CAP_UTXOS.map((utxo, i) =>
+      i === 0 || i === 20 ? { ...utxo, scriptPubKey: "20" } : utxo,
+    ) as unknown as MempoolUTXO[];
+
+    const { result } = renderHook(() =>
+      useEstimatedBtcFee(AMOUNT, withMalformed, NUM_OUTPUTS),
+    );
+
+    expect(result.current.maxDeposit).toBe(20_899_000n);
+    expect(result.current.uncappedMaxDeposit).toBe(20_899_000n);
+  });
+
+  it("matches maxDeposit when the wallet is within the cap", () => {
+    const { result } = render();
+
+    expect(result.current.uncappedMaxDeposit).toBe(result.current.maxDeposit);
+  });
+});

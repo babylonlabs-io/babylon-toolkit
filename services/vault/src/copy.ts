@@ -309,6 +309,12 @@ export const COPY = {
       splitUnavailableProtocolLimit:
         "The protocol currently allows one BTCVault per transaction. BTCVault split unavailable.",
     },
+    fundingInputCap: {
+      noticeBefore: "You ",
+      noticeEmphasis: (max: number) => `can use up to ${max} UTXOs`,
+      noticeAfter: " per deposit. Please combine your UTXOs to proceed.",
+      cta: "Consolidate your UTXOs to proceed",
+    },
     steps: {
       generateSecret: "Generate secret for the deposit",
       signPeginBtc: "Sign the peg-in BTC transaction",

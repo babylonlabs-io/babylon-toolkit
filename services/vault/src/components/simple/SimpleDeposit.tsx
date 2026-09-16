@@ -127,6 +127,7 @@ function SimpleDepositContent({
     isLoadingFee,
     feeError,
     maxDepositSats,
+    fundingInputCapExceeded,
     effectiveRemaining,
     capUnavailable,
     minPeginFee,
@@ -551,6 +552,7 @@ function SimpleDepositContent({
                 }}
                 collateralFactor={collateralFactor}
                 twoVaultSplit={twoVaultSplitProps}
+                fundingInputCapExceeded={fundingInputCapExceeded}
                 onAmountChange={(value) => setFormData({ amountBtc: value })}
                 onMaxClick={applyMaxAmount}
                 onDeposit={handleDeposit}
