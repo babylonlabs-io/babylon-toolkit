@@ -38,7 +38,6 @@ import {
   getDepositsNeedingPolling,
   groupDepositsByProvider,
   isTerminalPollingError,
-  shouldPollForWallet,
   TerminalPeginPollingError,
 } from "../../utils/peginPolling";
 import { createVpClient } from "../../utils/rpc";
@@ -329,17 +328,13 @@ export function usePeginPollingQuery({
     [activities, pendingPegins, btcPublicKey, btcWalletAbsent],
   );
 
-  // Use refs to access latest values in queryFn without stale closures
+  // Use a ref to access the latest deposits in queryFn without stale closures
   const depositsRef = useRef(depositsToPoll);
-  const btcPubKeyRef = useRef(btcPublicKey);
-  const btcWalletAbsentRef = useRef(btcWalletAbsent);
 
-  // Keep refs updated
+  // Keep the ref updated
   useEffect(() => {
     depositsRef.current = depositsToPoll;
-    btcPubKeyRef.current = btcPublicKey;
-    btcWalletAbsentRef.current = btcWalletAbsent;
-  }, [depositsToPoll, btcPublicKey, btcWalletAbsent]);
+  }, [depositsToPoll]);
 
   // Status reads use transaction IDs. Signing keeps its wallet checks.
   const isEnabled = depositsToPoll.length > 0;
@@ -352,18 +347,7 @@ export function usePeginPollingQuery({
       depositsToPoll.map((d) => d.activity.id).join(","),
     ],
     queryFn: async (): Promise<PollingQueryData> => {
-      // Re-apply the wallet rule against the latest refs: a key that arrived
-      // or a wallet that connected after the deposits memo must not let a
-      // stale candidate list reach the provider.
-      const currentBtcPubKey = btcPubKeyRef.current;
-      const currentBtcWalletAbsent = btcWalletAbsentRef.current;
-      const currentDeposits = depositsRef.current.filter((d) =>
-        shouldPollForWallet(
-          d.activity.depositorBtcPubkey,
-          currentBtcPubKey,
-          currentBtcWalletAbsent,
-        ),
-      );
+      const currentDeposits = depositsRef.current;
 
       if (currentDeposits.length === 0) {
         return {

@@ -104,6 +104,11 @@ Create a `.env` file with the following variables:
   - Only the mint path is gated; "Activate and redeem" stays available during the window, matching the contract's own exemption
   - Enable per environment only once its `ProtocolParams` exposes `peginActivationDelay()` — verify with `cast call <protocolParams> "peginActivationDelay()(uint256)"`. The gate fails closed, so enabling it where the getter is absent disables Activate for everyone
 
+- `NEXT_PUBLIC_FF_ENABLE_ETH_FIRST` - Lets a confirmed Ethereum session enter and use the Vault with no Bitcoin wallet attached
+  - Default: `false` (both wallets are required for entry, as before, unless explicitly set to `"true"`)
+  - Bitcoin is requested only by the actions that need it. Cancelling that prompt starts nothing, and connecting afterwards needs a separate explicit retry
+  - The release build passes the environment variable of the same name, so an environment enables it by setting that variable
+
 - `NEXT_PUBLIC_NOTICE_BANNER_MESSAGE` - The single operator message shown to depositors, placed by context (non-boolean config)
   - Default: empty (the default per-context copy is shown; standalone notice hidden)
   - When set: fills the frozen/paused status-card body if a status is active, else fills the deposit-disabled banner text if deposits are off, else shows as a standalone top-of-app notice

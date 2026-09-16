@@ -108,7 +108,7 @@ export function usePayoutSigningState({
   const cancelRequestedRef = useRef(false);
 
   const { findProvider } = useVaultProviders(activity.applicationEntryPoint);
-  const { connected, requireBtcWallet } = useBtcAction();
+  const { btcConnected, sessionConfirmed, requireBtcWallet } = useBtcAction();
   const btcConnector = useChainConnector("BTC");
   const { setOptimisticStatus } = usePeginPolling();
 
@@ -122,8 +122,10 @@ export function usePayoutSigningState({
   // Cancel the original provider if the connected wallet changes.
   const signingProviderRef = useRef<unknown>(null);
 
+  // A lock alone does not change the session, so it does not cancel an attempt
+  // in flight. `handleSign` still refuses to start while the wallet is locked.
   const walletSession = JSON.stringify([
-    connected,
+    btcConnected && sessionConfirmed,
     walletKeyReady,
     btcPublicKey,
     depositorEthAddress,

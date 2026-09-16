@@ -62,6 +62,7 @@ vi.mock("../../../../services/vault/rebuildDepositTerms", () => ({
 }));
 
 let mockSessionConfirmed = true;
+let mockBtcLocked = false;
 let mockBtcConnector: {
   connectedWallet?: {
     account?: { address: string };
@@ -71,6 +72,7 @@ let mockBtcConnector: {
 vi.mock("@babylonlabs-io/wallet-connector", () => ({
   useBTCWallet: () => ({
     connected: Boolean(mockBtcConnector?.connectedWallet),
+    locked: mockBtcLocked,
   }),
   useWalletConnect: () => ({ connected: mockSessionConfirmed, open: vi.fn() }),
   useChainConnector: vi.fn(() => mockBtcConnector),
@@ -164,6 +166,7 @@ describe("usePayoutSigningState", () => {
     vi.clearAllMocks();
     mockBtcConnector = null;
     mockSessionConfirmed = true;
+    mockBtcLocked = false;
     setupHappyPath();
     mockSignAndSubmitPayouts.mockResolvedValue(undefined);
     mockVerifyBtcWalletLiveness.mockResolvedValue(undefined);
@@ -917,6 +920,38 @@ describe("usePayoutSigningState", () => {
         expect(result.current.isComplete).toBe(true);
       },
     );
+
+    it("keeps a software attempt running when the wallet locks mid-attempt", async () => {
+      let finishSigning!: () => void;
+      mockSignAndSubmitPayouts.mockImplementation(
+        () =>
+          new Promise<void>((resolve) => {
+            finishSigning = resolve;
+          }),
+      );
+      const { result, rerender } = renderHookWithProps();
+      let signPromise!: Promise<void>;
+      act(() => {
+        signPromise = result.current.handleSign();
+      });
+      await waitFor(() =>
+        expect(mockSignAndSubmitPayouts).toHaveBeenCalledOnce(),
+      );
+      // An idle auto-lock during the vault provider wait. A lock alone must
+      // not cancel the attempt.
+      mockBtcLocked = true;
+      rerender();
+      expect(mockSignAndSubmitPayouts.mock.calls[0][0].signal.aborted).toBe(
+        false,
+      );
+      await act(async () => {
+        finishSigning();
+        await signPromise;
+      });
+      expect(result.current.error).toBeNull();
+      expect(result.current.isComplete).toBe(true);
+      expect(onSuccess).toHaveBeenCalledOnce();
+    });
 
     it("stops the next wallet call after a signature arrives after disconnect", async () => {
       let finishSign!: (value: string) => void;

@@ -31,8 +31,9 @@ export function AppPeginPollingProvider({ children }: PropsWithChildren) {
   const { connected: btcConnected } = useBTCWallet();
   const { address: ethAddress } = useETHWallet();
   const { publicKey: btcPublicKey } = useBtcPublicKey(btcConnected);
-  // Only a session with no Bitcoin wallet polls without a key. A connected
-  // wallet whose key is still loading polls nothing until the key arrives.
+  // Vault provider status: only a session with no Bitcoin wallet polls without
+  // a key, and a connected wallet whose key is still loading waits for it. The
+  // Bitcoin network polls keep running without a key.
   const btcWalletAbsent = featureFlags.isEthFirstEnabled && !btcConnected;
   // Shares the address-keyed React Query entry with every other
   // `useVaultDeposits` caller, so mounting app-wide adds no extra fetch.
