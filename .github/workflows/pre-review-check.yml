@@ -117,10 +117,17 @@ jobs:
                 '',
                 `This description has no \`/pre-review\` record. Run \`/pre-review\` locally, decide its findings, and use \`PR.md\` as the description. ${skipHint} See ${doc}.`,
               ],
+              // The recorded branch is author text (git allows ` and @ in a
+              // name), so it is quoted in a fence, never inline: a code span
+              // could be closed and the rest rendered as the bot's Markdown.
               'other-branch': [
                 '### Pre-review record is from another branch',
                 '',
-                `The record in this description was taken on \`${result.recorded?.branch}\`, not on this PR's branch. ${rerun} See ${doc}.`,
+                `The record in this description was taken on another branch, not on this PR's branch. ${rerun} See ${doc}.`,
+                '',
+                '~~~',
+                result.recorded?.branch ?? '',
+                '~~~',
               ],
               ambiguous: [
                 '### Pre-review record is ambiguous',

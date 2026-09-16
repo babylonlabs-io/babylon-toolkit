@@ -92,14 +92,19 @@ test("parseSnapshots counts the same line pasted twice as one record", () => {
   assert.equal(parseSnapshots(`${line}\n\n${line}`).length, 1);
 });
 
+// Each error message ends with the offending line, so these assertions match
+// the message's own text, which the input line cannot contain.
 test("parseSnapshots rejects a snapshot line with a truncated digest", () => {
-  assert.throws(() => parseSnapshots(snapshotLine({ sha256: "abc123" })), /files-sha256/);
+  assert.throws(
+    () => parseSnapshots(snapshotLine({ sha256: "abc123" })),
+    /no valid files-sha256=<hex>/,
+  );
 });
 
 test("parseSnapshots rejects a snapshot line without a branch", () => {
   const line = snapshotLine().replace("branch=feat/x ", "");
 
-  assert.throws(() => parseSnapshots(line), /branch/);
+  assert.throws(() => parseSnapshots(line), /no branch=<name>/);
 });
 
 test("checkSnapshot reports missing when the description has no record", () => {
@@ -125,7 +130,7 @@ test("checkSnapshot reports malformed, instead of throwing, for a quoted templat
   const result = checkSnapshot({ text, branch: "feat/x" });
 
   assert.equal(result.status, CHECK_STATUS.MALFORMED);
-  assert.match(result.error, /files=<count>/);
+  assert.match(result.error, /no valid files=<count>/);
 });
 
 test("checkSnapshot does not read a snapshot line across a carriage return", () => {
