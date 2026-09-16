@@ -61,7 +61,7 @@ const TAPROOT_SINGLE_SIG_WITNESS_STACK_SIZE = 3;
 /**
  * Parameters for building an unsigned Payout PSBT
  *
- * Payout is used in the challenge path after Assert, when the claimer proves validity.
+ * Payout ends two of the three peg-out paths: directly on the happy path (Claim -> Assert -> Payout), and via WronglyChallenged when a challenge is raised and the claimer wins. Only NoPayout, the challenger-wins branch, blocks it.
  * Input 1 references the Assert transaction.
  */
 export interface PayoutParams {
@@ -210,11 +210,15 @@ export interface PayoutPsbtResult {
 /**
  * Build unsigned Payout PSBT for depositor to sign.
  *
- * Payout is used in the **challenge path** when the claimer proves validity:
- * 1. Vault provider submits Claim transaction
- * 2. Challenge is raised during challenge period
- * 3. Claimer submits Assert transaction to prove validity
- * 4. Payout can be executed (references Assert tx)
+ * Payout ends two of the three peg-out paths (btc-vault
+ * `crates/vault/docs/btc-transactions-spec.md`):
+ * - Happy path: Claim -> Assert -> Payout.
+ * - Challenge path, claimer wins: Claim -> Assert -> ChallengeAssert ->
+ *   WronglyChallenged -> Payout.
+ * - Challenge path, challenger wins: Claim -> Assert -> ChallengeAssert -> NoPayout.
+ *
+ * So a raised challenge does not remove Payout; only NoPayout blocks it.
+ * Payout references the Assert tx and needs its timelock matured.
  *
  * Payout transactions have the following structure:
  * - Input 0: from PeginTx output0 (signed by depositor)

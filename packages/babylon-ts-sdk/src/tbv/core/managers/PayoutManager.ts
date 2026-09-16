@@ -141,7 +141,7 @@ interface SignPayoutBaseParams {
 /**
  * Parameters for signing a Payout transaction.
  *
- * Payout is used in the challenge path after Assert, when the claimer proves validity.
+ * Payout ends two of the three peg-out paths: directly on the happy path (Claim -> Assert -> Payout), and via WronglyChallenged when a challenge is raised and the claimer wins. Only NoPayout, the challenger-wins branch, blocks it.
  * Input 1 references the Assert transaction.
  */
 export interface SignPayoutParams extends SignPayoutBaseParams {

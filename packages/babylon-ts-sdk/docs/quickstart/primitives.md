@@ -1,6 +1,6 @@
 # Primitives
 
-Pure functions for Bitcoin PSBT building. No wallet access, no network calls, just data transformation.
+Low-level PSBT builders. No wallet access, no network calls, just data transformation.
 
 > For complete function signatures, see [API Reference](../api/primitives.md).
 
@@ -9,8 +9,9 @@ Pure functions for Bitcoin PSBT building. No wallet access, no network calls, ju
 Primitives are the lowest-level SDK functions. They:
 
 - Build Bitcoin PSBTs (Partially Signed Bitcoin Transactions)
-- Are pure functions: given inputs → return outputs, no external calls
-- Have zero dependencies on wallets or network
+- Are deterministic: given inputs → return outputs, no network access
+- Need no wallet and no RPC endpoint
+- The PSBT builders are `async` because they lazily initialise the WASM engine on first use; the signature extractors are synchronous
 - Work in Node.js, browsers, serverless, anywhere
 
 ## When to Use Primitives
@@ -36,13 +37,13 @@ Primitives are the lowest-level SDK functions. They:
 
 ## Primitives
 
-The full [transaction graph](https://github.com/babylonlabs-io/btc-vault/blob/main/docs/pegin.md#2-transaction-graph-and-presigning) includes additional transaction types (Claim, Assert, ChallengeAssert, NoPayout, WronglyChallenged). When the vault provider acts as claimer, most of these are generated and managed by the vault provider. The SDK provides primitives for operations the **depositor** performs: building the peg-in transaction and signing payout authorizations. When the depositor acts as claimer (depositor-as-claimer path), the SDK also provides builders for the NoPayout and ChallengeAssert PSBTs.
+The full [transaction graph](https://github.com/babylonlabs-io/btc-vault/blob/main/docs/pegin.md#2-transaction-graph-and-presigning) includes additional transaction types (Claim, Assert, ChallengeAssert, NoPayout, WronglyChallenged). When the vault provider acts as claimer, most of these are generated and managed by the vault provider. The SDK provides primitives for operations the **depositor** performs: building the peg-in transaction and signing payout authorizations. When the depositor acts as claimer (depositor-as-claimer path), the SDK also provides the NoPayout builder; the ChallengeAssert builder exists for tooling only, since the claimer never signs it.
 
 ### 1. buildPrePeginPsbt + buildPeginTxFromFundedPrePegin
 
 Peg-in is a **two-step flow** on Bitcoin:
 
-1. `buildPrePeginPsbt()` — build an unfunded **Pre-PegIn** tx with one HTLC output per vault (plus a CPFP anchor). No inputs yet — the caller funds it.
+1. `buildPrePeginPsbt()` — build an unfunded **Pre-PegIn** tx with one HTLC output per vault (plus an optional auth-anchor `OP_RETURN` and a CPFP anchor). No inputs yet — the caller funds it.
 2. `buildPeginTxFromFundedPrePegin()` — once the Pre-PegIn is funded and its txid is known, derive the **PegIn** tx that spends the HTLC output back to the vault connector.
 
 See the [protocol spec](https://github.com/babylonlabs-io/btc-vault/blob/main/docs/pegin.md) for why this is split.
@@ -55,6 +56,7 @@ import {
 
 // Step 1: unfunded Pre-PegIn tx
 const prePegin = await buildPrePeginPsbt({
+  vaultCoreVersion: 3,                  // on-chain activeVaultCoreVersion; drives HTLC sizing
   depositorPubkey: "abc123...",         // x-only, 64 hex chars, no 0x
   vaultProviderPubkey: "def456...",
   vaultKeeperPubkeys: ["ghi789..."],
@@ -63,7 +65,8 @@ const prePegin = await buildPrePeginPsbt({
   timelockRefund: 144,                  // CSV blocks for refund path
   pegInAmounts: [100_000n],             // one per vault (satoshis)
   feeRate: 10n,                         // sat/vB, from offchain params
-  numLocalChallengers: 0,
+  minPeginFeeRate: 2n,                  // sat/vB floor baked into the HTLC value
+  numLocalChallengers: 1,               // depositor-as-claimer: the vault keepers
   councilQuorum: 3,
   councilSize: 5,
   network: "signet",
@@ -85,12 +88,15 @@ const pegin = await buildPeginTxFromFundedPrePegin({
 
 ### 2. buildPayoutPsbt
 
-Builds unsigned Payout PSBT for depositor signing (challenge path - after Assert).
+Builds the unsigned Payout PSBT for depositor signing.
+
+Payout ends two of the three peg-out paths: the happy path (`Claim → Assert → Payout`), and the claimer-wins challenge path (`… → ChallengeAssert → WronglyChallenged → Payout`). Only NoPayout, the challenger-wins branch, blocks it. Input 0 (PegIn:0) waits `timelockPegin`, input 1 (Assert:0) waits `timelockAssert`.
 
 ```typescript
 import { buildPayoutPsbt } from "@babylonlabs-io/ts-sdk/tbv/core/primitives";
 
 const result = await buildPayoutPsbt({
+  vaultCoreVersion: 3,
   payoutTxHex: "...",            // From vault provider
   peginTxHex: "...",             // Your peg-in transaction
   assertTxHex: "...",            // Assert transaction from VP
@@ -98,6 +104,16 @@ const result = await buildPayoutPsbt({
   vaultProviderBtcPubkey: "...",
   vaultKeeperBtcPubkeys: [...],
   universalChallengerBtcPubkeys: [...],
+  timelockPegin: 144,
+  timelockAssert: 144,
+  claimerBtcPubkey: "...",       // depositor's own key on the depositor-as-claimer path
+  registeredPayoutScriptPubKey: "...",
+  commissionBps: 50,
+  protocolFeeRate: 2n,
+  councilMembers: ["..."],
+  councilQuorum: 3,
+  vkClaimerPayoutScriptPubKeys: { /* vaultKeeperPubkey -> scriptPubKey hex */ },
+  vpCommissionScriptPubKey: "...",
   network: "signet",
 });
 
@@ -125,17 +141,20 @@ const signature = extractPayoutSignature(signedPsbtHex, depositorBtcPubkey);
 
 ## Depositor-as-Claimer Path
 
-When the depositor acts as the claimer (instead of the vault provider), the depositor must sign 3 types of PSBTs per vault:
+When the depositor is the claimer, they pre-sign **1 + N PSBTs**, where N is the number of challengers:
 
-1. **Payout** (1 per vault) — sign with `buildPayoutPsbt` (section 2 above) with `claimerBtcPubkey` set to the depositor's own key; it validates the output layout and the implicit-fee band before returning the PSBT
-2. **NoPayout** (1 per challenger) — covers the case where the vault expires without a successful claim
-3. **ChallengeAssert** (1 per challenger, with 3 inputs) — covers the challenge-assert spending paths
+1. **Payout** (1 per vault) — `buildPayoutPsbt` with `claimerBtcPubkey` set to the depositor's key.
+2. **NoPayout** (1 per challenger) — the challenger-wins leg of a dispute. 3 inputs (Assert:0, ChallengeAssertX:0, ChallengeAssertY:0), 1 output.
+
+> **ChallengeAssert is not signed by the claimer.** NoPayout references specific ChallengeAssert txids, so a challenger who broadcasts a different one cannot execute NoPayout (btc-vault `tx_graph/challenger.rs`).
 
 The vault provider supplies the unsigned transaction hexes. The depositor must
 also supply the parent transactions (peg-in tx for Payout, Assert tx for
-NoPayout / ChallengeAssert) from a trusted source — the builders cross-check
-every signed input's outpoint and prevout against those parents so a malicious
-VP cannot trick the wallet into signing over an attacker-chosen prevout.
+ChallengeAssert) from a trusted source — those builders cross-check every signed
+input's outpoint and prevout against the parent so a malicious VP cannot trick the
+wallet into signing over an attacker-chosen prevout.
+
+> **`buildNoPayoutPsbt` is the exception.** It uses the caller-supplied `prevouts` verbatim and never sees the Assert tx, so it cannot check them. Validate them yourself, or use the `signDepositorGraph` service, which pins each input to its Assert/ChallengeAssert parent and derives the prevouts from those parents.
 
 ```typescript
 import {
@@ -154,40 +173,43 @@ const depositorPubkey = "abc123..."; // x-only, 64 hex chars
 // Uses AssertPayoutNoPayoutConnector — input 0 spends Assert:0
 const noPayoutPsbtHex = await buildNoPayoutPsbt({
   noPayoutTxHex: "...",             // From vault provider
-  assertTxHex: "...",               // Authoritative — input 0 must spend Assert:0
   challengerPubkey: "def456...",    // This challenger's x-only pubkey
+  prevouts: [                       // REQUIRED, one per input, supplied by the VP
+    { script_pubkey: "...", value: 12_345 },   // Assert:0
+    { script_pubkey: "...", value: 688 },      // e.g. ChallengeAssertX:0 — the VP supplies the value
+    { script_pubkey: "...", value: 688 },      // e.g. ChallengeAssertY:0
+  ],
   connectorParams: {                // AssertPayoutNoPayoutConnector params
+    txGraphVersion: 3,              // REQUIRED — the vault-core version
     claimer: depositorPubkey,
-    localChallengers: [],
+    localChallengers: ["..."],      // the vault keepers; never empty
     universalChallengers: ["..."],
     timelockAssert: 144,
     councilMembers: ["..."],
     councilQuorum: 3,
   },
-  // additionalPrevouts: [...]      // Required only if NoPayout has fee inputs beyond input 0
 });
 const signedNoPayout = await wallet.signPsbt(noPayoutPsbtHex);
 const noPayoutSig = extractPayoutSignature(signedNoPayout, depositorPubkey);
 
-// 3. ChallengeAssert (one PSBT per challenger, with 3 inputs)
-// Every input must spend a distinct Assert output; prevouts are derived from assertTxHex.
+// 3. ChallengeAssert — not signed by the claimer (see above); exported for tooling.
+// Two per challenger (X and Y), one input each.
 const caPsbtHex = await buildChallengeAssertPsbt({
   challengeAssertTxHex: "...",      // From vault provider
   assertTxHex: "...",               // Authoritative — every input must spend an Assert output
-  connectorParamsPerInput: [         // One per input (3 total)
-    { claimer: depositorPubkey, challenger: "def456...", claimerWotsKeysJson: "...", gcWotsKeysJson: "..." },
-    { claimer: depositorPubkey, challenger: "def456...", claimerWotsKeysJson: "...", gcWotsKeysJson: "..." },
-    { claimer: depositorPubkey, challenger: "def456...", claimerWotsKeysJson: "...", gcWotsKeysJson: "..." },
+  connectorParamsPerInput: [        // One entry per input of the supplied tx
+    {
+      txGraphVersion: 3,            // REQUIRED
+      claimer: depositorPubkey,
+      challenger: "def456...",
+      claimerWotsKeysJson: "...",
+      gcWotsKeysJson: "...",
+    },
   ],
 });
-const signedCA = await wallet.signPsbt(caPsbtHex);
-// Extract 3 signatures (one per input)
-const caSig0 = extractPayoutSignature(signedCA, depositorPubkey, 0);
-const caSig1 = extractPayoutSignature(signedCA, depositorPubkey, 1);
-const caSig2 = extractPayoutSignature(signedCA, depositorPubkey, 2);
 ```
 
-All of these builders use `extractPayoutSignature()` for signature extraction (same Schnorr extraction mechanism). The `extractPayoutSignature` function accepts an optional `inputIndex` parameter (defaults to 0) for extracting signatures from specific inputs.
+Payout and NoPayout signatures are extracted with `extractPayoutSignature()` (same Schnorr extraction mechanism). It accepts an optional `inputIndex` parameter (defaults to 0).
 
 ---
 
@@ -215,7 +237,7 @@ const { selectedUTXOs, fee, changeAmount } = selectUtxosForPegin(
   availableUTXOs, // Your UTXOs
   amount, // Target amount (satoshis)
   feeRate, // sat/vB
-  peginOutputCount(vaultCount), // N HTLCs + CPFP anchor
+  peginOutputCount(vaultCount, hasAuthAnchor), // N HTLCs + CPFP anchor (+ auth-anchor OP_RETURN)
 );
 ```
 

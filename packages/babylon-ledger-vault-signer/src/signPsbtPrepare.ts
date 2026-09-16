@@ -208,7 +208,7 @@ export interface PrepareSignPsbtParams {
    * interpreter serves the policy preimages. Required for key-path signing
    * (PoP, Pre-PegIn): without a policy the base app skips `sign_internal_inputs`
    * (`base:sign_psbt.c:142-148`) and the device answers SW_OK with no yield
-   * (`app-babylon-vault/src/sign_custom_inputs.c:101-107` @ 4decf822). Omit for
+   * (`app-babylon-vault/src/sign_custom_inputs.c:101-115` @ b0c0ac4d). Omit for
    * the no-policy tapscript flows; `signPreparedVaultPsbt` enforces the
    * requirement before any device I/O.
    */

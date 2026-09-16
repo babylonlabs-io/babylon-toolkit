@@ -4,14 +4,14 @@
  * The Pre-PegIn is built FIRST and its txid feeds both the intent
  * (`prepeginTxid`) and the PegIn input, because `_validate_prepegin` compares
  * SHA256d(unsigned tx) against the intent's `prepegin_txid`
- * (fw `sign_psbt_validate.c:529-537` @ 4decf822).
+ * (fw `sign_psbt_validate.c:734-735` @ b0c0ac4d).
  *
  * The committed SIGN_PSBT vectors were generated from foreign seeds, so this
  * builder replicates the firmware's own signable test path byte-for-byte:
- * `tests/test_sign_psbt_validate.py` (`_build_pegin_psbt`:309 and the leaf
- * builders at :142-221) and `tests/vault_client.py` (test constants at
- * :99-127, `_vault_expand_commitment`:262) at the fw rev the container runs
- * (v0.9.5). Every constant below cites its source line.
+ * `tests/test_sign_psbt_validate.py` (`_build_pegin_psbt`:504 and the leaf
+ * builders at :174-253) and `tests/vault_client.py` (test constants at
+ * :99-140, `_vault_expand_commitment`:290) at the fw rev the container runs
+ * (`b0c0ac4d`, app 0.10.1). Every constant below cites its source line.
  *
  * @module ledger-vault-signer/__tests__/e2e/peginFixture
  */
@@ -32,8 +32,8 @@ initEccLib(ecc);
 const TAPSCRIPT_LEAF_VERSION = 0xc0;
 
 // ---------------------------------------------------------------------------
-// Firmware test constants (tests/test_sign_psbt_validate.py:105-135 and
-// tests/vault_client.py:99-127). The depositor key is the device's own
+// Firmware test constants (tests/test_sign_psbt_validate.py:122-144 and
+// tests/vault_client.py:99-140). The depositor key is the device's own
 // m/86'/1'/0'/0/0 for the shared firmware-test mnemonic — verified live
 // against the running container via GET_EXTENDED_PUBKEY.
 // ---------------------------------------------------------------------------
@@ -45,7 +45,7 @@ export const VP_KEY_HEX = "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f28
 export const KEEPER_KEY_HEX = "25d1dff95105f5253c4022f628a996ad3a0d95fbf21d468a1b33f8c160d8f517";
 /** TEST_VALID_KEYS[1] (vault_client.py:106). */
 export const CHALLENGER_KEY_HEX = "2f01e5e15cca351daff3843fb70f3c2f0a1bdd05e5af888a67784ef3e10a2a01";
-/** VAULT_NUMS_XONLY (test_sign_psbt_validate.py:63). */
+/** VAULT_NUMS_XONLY (test_sign_psbt_validate.py:85). */
 const NUMS_XONLY_HEX = "50929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfee9ace803ac0";
 
 export const VAULT_AMOUNT_SATS = 9_876_543;
@@ -63,7 +63,7 @@ export const PREPEGIN_MAX_FEE_SATS = 500_000;
 
 /**
  * htlc_value must land in [amount + claim + anchor, … + pegin_max_fee]
- * (test_sign_psbt_validate.py:117-119): the +234 567 fee term keeps it inside.
+ * (test_sign_psbt_validate.py:142-144): the +234 567 fee term keeps it inside.
  */
 export const HTLC_VALUE_SATS = VAULT_AMOUNT_SATS + DEPOSITOR_CLAIM_VALUE_SATS + PEGIN_ANCHOR_VALUE_SATS + 234_567;
 
@@ -76,22 +76,22 @@ const CPFP_ANCHOR_VALUE_SATS = 546;
 /** Testnet BIP-32 version bytes — the signet build answers tpub/tprv. */
 export const TESTNET_VERSIONS = { public: 0x043587cf, private: 0x04358394 };
 
-/** _DERIVE_CONTEXT = bytes(range(72)) (test_sign_psbt_validate.py:591). */
+/** _DERIVE_CONTEXT = bytes(range(72)) (test_sign_psbt_validate.py:823). */
 export const DERIVE_CONTEXT = Uint8Array.from(Array.from({ length: 72 }, (_, i) => i));
 
-/** DERIVE_CONTEXT_HASH app name (vault_client.py:258). */
+/** DERIVE_CONTEXT_HASH app name (vault_client.py:286). */
 export const VAULT_APP_NAME = "babylon-btc-vault";
 
 const HARDENED = 0x80000000;
 /**
- * m/86'/1'/0'/0/0 — depositor_path(coin_type=1) (vault_client.py:279). Levels
- * use `+` (unsigned, provider.ts:205-212): `|` yields negative int32s that
+ * m/86'/1'/0'/0/0 — depositor_path(coin_type=1) (vault_client.py:307). Levels
+ * use `+` (unsigned, provider.ts:245-247): `|` yields negative int32s that
  * `assertBip86Path` rejects; the wire bytes are identical (`>>> 0` serializers).
  */
 export const DEPOSITOR_PATH: readonly number[] = [86 + HARDENED, 1 + HARDENED, 0 + HARDENED, 0, 0];
 const TESTNET_COIN_TYPE = 1;
 
-/** P2A anchor scriptPubKey `51 02 4e 73` (test_sign_psbt_validate.py:349). */
+/** P2A anchor scriptPubKey `51 02 4e 73` (test_sign_psbt_validate.py:544, in `_build_pegin_psbt`). */
 const P2A_SCRIPT_PUB_KEY = Buffer.from([0x51, 0x02, 0x4e, 0x73]);
 
 const hexToBuffer = (hex: string): Buffer => Buffer.from(hex, "hex");
@@ -99,7 +99,7 @@ const NUMS_XONLY = hexToBuffer(NUMS_XONLY_HEX);
 
 // ---------------------------------------------------------------------------
 // Script builders — TS replicas of the fw test's Python replicas of
-// vault_script.c (test_sign_psbt_validate.py:142-221).
+// vault_script.c (test_sign_psbt_validate.py:174-253).
 // ---------------------------------------------------------------------------
 
 const OP_NUMEQUAL = 0x9c;
@@ -113,7 +113,7 @@ const OP_CHECKSIGADD = 0xba;
 const OP_CSV = 0xb2;
 const PUSH_32 = 0x20;
 
-/** Minimal script-number push (test_sign_psbt_validate.py:73). */
+/** Minimal script-number push (test_sign_psbt_validate.py:95). */
 function encodeScriptNum(n: number): Buffer {
   if (n === 0) return Buffer.from([0x00]);
   if (n >= 1 && n <= 16) return Buffer.from([0x51 + n - 1]);
@@ -129,7 +129,7 @@ function encodeScriptNum(n: number): Buffer {
 
 /**
  * N-of-N multisig fragment. No single-key special case: `encode_multisig_group`
- * (fw `src/vault_script.c:204-231` @ e2d0c45b) emits the counted form for N>=1,
+ * (fw `src/vault_script.c:232-259` @ b0c0ac4d) emits the counted form for N>=1,
  * so a `<key> OP_CHECKSIG` shortcut would build a leaf 4 bytes short of the one
  * the device rebuilds and compares.
  */
@@ -143,7 +143,7 @@ function multisigGroup(keys: readonly Buffer[], isFinal: boolean): Buffer {
   return Buffer.concat(parts);
 }
 
-/** HTLC Leaf 0 — hashlock + all-parties leaf (test_sign_psbt_validate.py:154). */
+/** HTLC Leaf 0 — hashlock + all-parties leaf (test_sign_psbt_validate.py:186). */
 function htlcLeaf0(
   depositorPk: Buffer,
   vpPk: Buffer,
@@ -169,7 +169,7 @@ function htlcLeaf0(
   ]);
 }
 
-/** HTLC Leaf 1 — depositor refund with CSV (test_sign_psbt_validate.py:169). */
+/** HTLC Leaf 1 — depositor refund with CSV (test_sign_psbt_validate.py:201). */
 function htlcLeaf1(depositorPk: Buffer, refundTimelock: number): Buffer {
   return Buffer.concat([
     Buffer.from([PUSH_32]),
@@ -180,7 +180,7 @@ function htlcLeaf1(depositorPk: Buffer, refundTimelock: number): Buffer {
   ]);
 }
 
-/** Vault UTXO leaf (test_sign_psbt_validate.py:175). */
+/** Vault UTXO leaf (test_sign_psbt_validate.py:207). */
 function vaultUtxoLeaf(
   depositorPk: Buffer,
   vpPk: Buffer,
@@ -202,7 +202,7 @@ function vaultUtxoLeaf(
   ]);
 }
 
-/** Depositor Claim leaf `<D> OP_CHECKSIG` (test_sign_psbt_validate.py:188). */
+/** Depositor Claim leaf `<D> OP_CHECKSIG` (test_sign_psbt_validate.py:220). */
 function depositorClaimLeaf(depositorPk: Buffer): Buffer {
   return Buffer.concat([Buffer.from([PUSH_32]), depositorPk, Buffer.from([OP_CHECKSIG])]);
 }
@@ -232,7 +232,7 @@ function p2trFromSingleLeaf(leaf: Buffer): Buffer {
 
 // ---------------------------------------------------------------------------
 // Hashlock from the device-returned root — host-side mirror of fw
-// derive_vault_secrets_core.h (vault_client.py:262-271):
+// derive_vault_secrets_core.h (vault_client.py:281-299):
 // h = SHA256(HKDF-Expand-SHA256(root, "babylonbtcvault" ‖ len ‖ label ‖
 //     u16be(len(ctx)) ‖ ctx, 32)), single block.
 // ---------------------------------------------------------------------------
@@ -257,7 +257,7 @@ function vaultExpandCommitment(root: Buffer, label: string, ctx: Buffer): Buffer
   return createHash("sha256").update(secret).digest();
 }
 
-/** On-chain HTLC hashlock h for one vault (vault_client.py:269). */
+/** On-chain HTLC hashlock h for one vault (vault_client.py:297). */
 export function vaultHashlock(root: Uint8Array, htlcVout: number): Buffer {
   const ctx = Buffer.alloc(4);
   ctx.writeUInt32BE(htlcVout);
@@ -310,7 +310,7 @@ export interface IntentFixture {
 
 /**
  * DepositTerms → APPROVE_VAULT_INTENT inputs, mirroring wallet-connector's
- * `LedgerVaultProvider.approveDepositTerms` mapping (provider.ts:318-363),
+ * `LedgerVaultProvider.buildIntentFromTerms` mapping (provider.ts:567-573),
  * including the display→internal txid flip.
  */
 export function termsToIntent(terms: DepositTerms): IntentFixture {
@@ -343,17 +343,20 @@ export function termsToIntent(terms: DepositTerms): IntentFixture {
 
 // ---------------------------------------------------------------------------
 // Pre-PegIn PSBT — the transaction the intent binds to
-// (`_validate_prepegin`, fw sign_psbt_validate.c:334-545 @ 4decf822)
+// (`_validate_prepegin`, fw sign_psbt_validate.c:526-751 @ b0c0ac4d)
 // ---------------------------------------------------------------------------
 
 const PREPEGIN_INPUT_COUNT = 2;
 /** Distinct but otherwise arbitrary prevout hashes — the device never fetches them. */
 const PREPEGIN_PREVOUT_HASH_BASE = 0x40;
 /**
- * `_validate_prepegin` (fw `sign_psbt_validate.c:334-545` @ e2d0c45b) does not
- * constrain the sequence — it only hashes it into the txid it compares against
- * the intent (`:283-292`). So this must match what the toolkit's funding path
- * emits: bitcoinjs' DEFAULT_SEQUENCE (fundPeginTransaction.ts:148).
+ * The device REQUIRES `PSBT_IN_SEQUENCE` present and equal to SEQUENCE_FINAL on
+ * every Pre-PegIn input; absent or any other value is rejected fail-closed
+ * (fw `_compute_prepegin_txid`, `sign_psbt_validate.c:470-483` @ b0c0ac4d;
+ * `SEQUENCE_FINAL` = `vault_constants.h:136`). The toolkit's funding path emits
+ * it only as bitcoinjs' DEFAULT_SEQUENCE (`fundPeginTransaction.ts:155`,
+ * `bitcoinjs-lib@6.1.7 transaction.js:123,541`) — a library default, not an
+ * assertion — a host-side assert is tracked in #2531.
  */
 const PREPEGIN_SEQUENCE_FINAL = 0xffffffff;
 
@@ -404,7 +407,7 @@ export function buildPrePeginPsbt(hashlock: Buffer, changeXOnlyHex: string): Pre
 }
 
 // ---------------------------------------------------------------------------
-// PegIn PSBT (test_sign_psbt_validate.py:309 `_build_pegin_psbt`)
+// PegIn PSBT (test_sign_psbt_validate.py:504 `_build_pegin_psbt`)
 // ---------------------------------------------------------------------------
 
 export interface PeginPsbtFixture {
