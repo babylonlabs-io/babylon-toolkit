@@ -10,11 +10,13 @@ import {
   stripHexPrefix,
   supportsDepositApproval,
   verifyRegisteredVaultVersions,
+  type DepositTerms,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
   OnChainBtcVaultStatus,
   vpTokenRegistry,
 } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+import { canonicalizeBtcPubkey } from "@babylonlabs-io/ts-sdk/tbv/core/primitives";
 import { validateSecretAgainstHashlock } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 import { calculateBtcTxHash } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
 import {
@@ -23,7 +25,7 @@ import {
 } from "@babylonlabs-io/wallet-connector";
 import { useEffect, useRef, useState } from "react";
 import type { Hex } from "viem";
-import { getWalletClient, switchChain } from "wagmi/actions";
+import { getAccount, getWalletClient, switchChain } from "wagmi/actions";
 
 import {
   composeGateState,
@@ -33,6 +35,7 @@ import {
 import FeatureFlags from "@/config/featureFlags";
 import { getETHChain } from "@/config/network";
 import { COPY } from "@/copy";
+import { useBtcAction } from "@/hooks/useBtcAction";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import { logger } from "@/infrastructure";
 import {
@@ -51,6 +54,8 @@ import {
 } from "@/utils/activationFloor";
 import {
   ActivationNotPossibleError,
+  DepositorBtcKeyMismatchError,
+  DepositorWalletMismatchError,
   isTerminalActivationError,
   isVaultRecordEmptyError,
   mapDepositError,
@@ -93,9 +98,8 @@ import {
 export interface BroadcastPrePeginParams {
   vaultId: Hex;
   /**
-   * Connected wallet's ETH address. On the intent (Ledger) path the rebuild
-   * asserts it equals the on-chain depositor before any device interaction —
-   * a stale modal after a wallet switch must fail closed, not re-approve.
+   * ETH address selected for this action. It must match the live wallet and
+   * the depositor registered on chain before signing.
    */
   depositorEthAddress: string;
   pendingPegin?: PendingPeginRequest;
@@ -215,6 +219,7 @@ export function useVaultActions(): UseVaultActionsReturn {
   }, []);
 
   // Connectors
+  const { requireBtcWallet } = useBtcAction();
   const btcConnector = useChainConnector("BTC");
 
   /**
@@ -230,6 +235,11 @@ export function useVaultActions(): UseVaultActionsReturn {
       onRefetchActivities,
       onShowSuccessModal,
     } = params;
+
+    if (!requireBtcWallet()) {
+      setBroadcastError(COPY.deposit.errors.walletNotConnected);
+      return;
+    }
 
     setBroadcasting(true);
     setBroadcastError(null);
@@ -367,6 +377,45 @@ export function useVaultActions(): UseVaultActionsReturn {
         );
       }
 
+      // Bind both wallets to the contract record. Indexer identity is untrusted.
+      // The PSBT uses the on-chain key. An empty key is a malformed record.
+      const depositorBtcPubkey = stripHexPrefix(
+        finalBasicInfo.depositorBtcPubKey,
+      );
+      if (!depositorBtcPubkey) {
+        throw new Error(COPY.deposit.errors.depositorBtcKeyMissing);
+      }
+      const expectedDepositorBtcPubkey =
+        canonicalizeBtcPubkey(depositorBtcPubkey);
+      const assertDepositorWallet = async () => {
+        signal.throwIfAborted();
+        const walletPubkey = await btcWalletProvider.getPublicKeyHex();
+        signal.throwIfAborted();
+        const connectedDepositor = getAccount(getSharedWagmiConfig()).address;
+        if (!connectedDepositor) {
+          throw new Error(COPY.deposit.errors.ethWalletNotConnected);
+        }
+        if (
+          connectedDepositor.toLowerCase() !==
+            finalBasicInfo.depositor.toLowerCase() ||
+          connectedDepositor.toLowerCase() !== depositorEthAddress.toLowerCase()
+        ) {
+          throw new DepositorWalletMismatchError({
+            vaultId,
+            expectedDepositor: finalBasicInfo.depositor,
+            connectedDepositor,
+          });
+        }
+        const connectedBtcPubkey = canonicalizeBtcPubkey(walletPubkey);
+        if (connectedBtcPubkey !== expectedDepositorBtcPubkey) {
+          throw new DepositorBtcKeyMismatchError({
+            vaultId,
+            expectedDepositorBtcPubkey,
+            connectedBtcPubkey,
+          });
+        }
+      };
+
       // The wallet may have locked since the action started. Probe it with a
       // round-trip before any signing (a cached `getAddress()` would not reveal
       // a lock) so a locked/changed wallet fails fast with an actionable error
@@ -377,14 +426,9 @@ export function useVaultActions(): UseVaultActionsReturn {
         ),
       });
 
-      // Get depositor's BTC public key (needed for Taproot signing)
-      // Strip "0x" prefix since it comes from GraphQL (Ethereum-style hex)
-      const depositorBtcPubkey = stripHexPrefix(vault.depositorBtcPubkey);
-      if (!depositorBtcPubkey) {
-        throw new Error(
-          "Depositor BTC public key not found. Please try creating the peg-in request again.",
-        );
-      }
+      // Check the depositor wallets after the probe. A locked wallet then gets
+      // the liveness error, not a failed public-key read.
+      await assertDepositorWallet();
 
       // Get depositor's BTC address for UTXO validation
       const depositorAddress = await btcWalletProvider.getAddress();
@@ -394,24 +438,9 @@ export function useVaultActions(): UseVaultActionsReturn {
       // by unrelated transactions.
       await assertUtxosAvailable(unsignedTxHex, depositorAddress);
 
-      // The integrity guarantee for this broadcast is the on-chain
-      // `prePeginTxHash` match asserted above: it commits to every input,
-      // output, and script of the registered Pre-PegIn, so a match proves
-      // `unsignedTxHex` is exactly the tx the contract registered — safe to
-      // broadcast regardless of which offchain-params / signer-set versions
-      // it was built against.
-      //
-      // When the local record supplies BOTH the tx we're broadcasting and its
-      // build versions (the normal same-session path), additionally re-verify
-      // those versions on-chain as defense-in-depth and drop the entry on a
-      // confirmed mismatch. The versions are only meaningful when tied to the
-      // local tx — if we fell back to the indexer's tx (`!localUnsignedTxHex`)
-      // any stored versions are floating, so we don't trust them. When there
-      // is no local anchor — cross-device resume, cleared storage, or a Safe
-      // whose asynchronous ETH execution outlived the dApp tab so
-      // `addPendingPegin` never ran — skip that redundant check and broadcast
-      // on the strength of the hash match. Refusing here would strand a vault
-      // that is provably safe to broadcast.
+      // The registered hash binds the transaction. The wallet checks bind its
+      // depositor. Also check local build versions when they belong to this
+      // transaction. Resume without a local record uses the contract checks.
       const buildOffchainParamsVersion =
         pendingPegin?.buildOffchainParamsVersion;
       const buildAppVaultKeepersVersion =
@@ -467,14 +496,14 @@ export function useVaultActions(): UseVaultActionsReturn {
         });
       }
 
-      // Intent (Ledger) resume: rebuild the DepositTerms from chain + WASM and
-      // run the derive→approve ceremony before signing. Prevouts are resolved
-      // once, mempool-only (never the local cache), so the fee the device
-      // approves is the fee the broadcast signs. Software wallets unchanged.
+      let expectedUtxos;
+      let depositTerms: DepositTerms | undefined;
+      // Approval wallets need fresh terms and prevouts for the device fee check.
       if (supportsDepositApproval(btcWalletProvider)) {
         const { expectedUtxos: resolvedUtxos, fundedTxFee } =
           await resolveFundedTxFeeAndUtxos(unsignedTxHex);
-        const depositTerms = await rebuildDepositTerms({
+        expectedUtxos = resolvedUtxos;
+        depositTerms = await rebuildDepositTerms({
           vaultId,
           target: onChainVault,
           fundedPrePeginTxHex: unsignedTxHex,
@@ -484,55 +513,31 @@ export function useVaultActions(): UseVaultActionsReturn {
           lifecycle: "broadcast",
           signal,
         });
-        // Last cancellation point before the wallet signs. Several network
-        // round-trips (UTXO availability, version/key re-checks, and on the
-        // intent path the terms rebuild) sit between the finality gate and
-        // here, and the modal can be dismissed during any of them. Past this
-        // line the flow is committed: aborting mid-signature would leave the
-        // device ceremony half-run for no benefit.
-        if (signal.aborted) return;
-
-        await broadcastPrePeginTransaction({
-          unsignedTxHex,
-          btcWalletProvider: {
-            signPsbt: (psbtHex: string) => btcWalletProvider.signPsbt(psbtHex),
-            ...forwardDeriveContextHash(btcWalletProvider),
-            ...forwardDepositApproval(btcWalletProvider),
-          },
-          depositorBtcPubkey,
-          expectedUtxos: resolvedUtxos,
-          depositTerms,
-        });
       } else {
-        // Use the locally stored UTXO set as trusted construction-time data
-        // ONLY when we're broadcasting the local tx. The stored UTXOs are the
-        // inputs of the local tx, not necessarily of the indexer's tx, so when
-        // we fell back to the indexer copy (`!localUnsignedTxHex`) we must pass
-        // `undefined` and let `broadcastPrePeginTransaction` resolve inputs from
-        // the mempool. `createPsbtFromTransaction` throws if `expectedUtxos` is
-        // supplied but doesn't cover every input, so a stale/partial local set
-        // paired with the indexer tx would dead-end the broadcast.
-        const expectedUtxos =
+        // Local UTXOs apply only to the local transaction. Otherwise, the service
+        // resolves every input from the mempool.
+        expectedUtxos =
           localUnsignedTxHex && pendingPegin?.selectedUTXOs?.length
             ? utxosToExpectedRecord(pendingPegin.selectedUTXOs)
             : undefined;
-        // Last cancellation point before the wallet signs. Several network
-        // round-trips (UTXO availability, version/key re-checks, and on the
-        // intent path the terms rebuild) sit between the finality gate and
-        // here, and the modal can be dismissed during any of them. Past this
-        // line the flow is committed: aborting mid-signature would leave the
-        // device ceremony half-run for no benefit.
-        if (signal.aborted) return;
-
-        await broadcastPrePeginTransaction({
-          unsignedTxHex,
-          btcWalletProvider: {
-            signPsbt: (psbtHex: string) => btcWalletProvider.signPsbt(psbtHex),
-          },
-          depositorBtcPubkey,
-          expectedUtxos,
-        });
       }
+      if (signal.aborted) return;
+      await assertDepositorWallet();
+      await broadcastPrePeginTransaction({
+        unsignedTxHex,
+        btcWalletProvider: {
+          ...forwardDeriveContextHash(btcWalletProvider),
+          ...forwardDepositApproval(btcWalletProvider),
+          signPsbt: async (psbtHex: string) => {
+            // Input resolution can wait on the network. Check again at signing.
+            await assertDepositorWallet();
+            return btcWalletProvider.signPsbt(psbtHex);
+          },
+        },
+        depositorBtcPubkey,
+        expectedUtxos,
+        ...(depositTerms && { depositTerms }),
+      });
 
       const nextStatus = getNextLocalStatus(
         PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN,

@@ -71,10 +71,10 @@ interface BTCWalletContextProps {
   ) => Promise<string>;
   getInscriptions: () => Promise<InscriptionIdentifier[]>;
   /**
-   * Derives a deterministic 32-byte value from the wallet per the
-   * `deriveContextHash` spec. Throws `WalletError` with code
+   * Derives a deterministic 32-byte value from the wallet through its
+   * `deriveContextHash` method. Throws `WalletError` with code
    * `WALLET_METHOD_NOT_SUPPORTED` for wallets that don't implement
-   * the spec — callers should branch on that error code to gate
+   * the method — callers should branch on that error code to gate
    * features that require this capability.
    */
   deriveContextHash: (appName: string, context: string) => Promise<string>;

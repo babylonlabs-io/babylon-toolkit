@@ -7,7 +7,7 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
-import type { Address, Hex } from "viem";
+import type { Hex } from "viem";
 import { useAccount, useWalletClient } from "wagmi";
 
 import { isWithdrawBlocked } from "@/components/shared/protocolStatus";
@@ -98,7 +98,7 @@ export function useWithdrawCollateralTransaction(): UseWithdrawCollateralTransac
         }
 
         // Invalidate vault-related queries to refresh from indexer
-        await invalidateVaultQueries(queryClient, address as Address);
+        await invalidateVaultQueries(queryClient);
 
         return true;
       } catch (error) {

@@ -140,8 +140,10 @@ export default defineConfig({
         },
       },
       {
-        // Standalone on purpose: cross-package contract tests import no vault
-        // module, so the root plugins, jsdom and app setup must not apply.
+        // Standalone on purpose: cross-package contract tests exercise the
+        // SDK directly, so the root plugins, jsdom and app setup must not
+        // apply. A vault module may be imported by relative path when it pulls
+        // in no app setup (e.g. services/deposit/fundingInputCap.ts).
         test: {
           name: "contracts",
           environment: "node",

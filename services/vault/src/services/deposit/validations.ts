@@ -117,6 +117,12 @@ export interface DepositCtaParams extends DepositFormValidityParams {
   isGeoBlocked: boolean;
   isAddressBlocked: boolean;
   isWalletConnected: boolean;
+  /**
+   * True when the session is confirmed, Bitcoin is absent, and Bitcoin is
+   * optional under the ETH-first flag. Keeps the not-connected CTA enabled so
+   * a click opens the Bitcoin wallet prompt instead of a dead button.
+   */
+  canConnectBtcWallet: boolean;
   hasProvider: boolean;
   /**
    * True when a provider is selected but its on-chain commission hasn't loaded
@@ -183,6 +189,8 @@ export interface DepositCtaParams extends DepositFormValidityParams {
    * with no error or retry signal.
    */
   depositorClaimValueError: Error | null;
+  /** The amount needs more than the 20 largest UTXOs, though the wallet holds enough. */
+  fundingInputCapExceeded: boolean;
 }
 
 export interface DepositCtaState {
@@ -324,7 +332,9 @@ export function getDepositCtaState(params: DepositCtaParams): DepositCtaState {
   }
 
   if (!params.isWalletConnected) {
-    return { disabled: true, label: "Connect your wallet" };
+    return params.canConnectBtcWallet
+      ? { disabled: false, label: COPY.wallet.btcAction.connect }
+      : { disabled: true, label: "Connect your wallet" };
   }
 
   // Promote wallet-liveness failure to the CTA so the user can recover in one
@@ -371,6 +381,31 @@ export function getDepositCtaState(params: DepositCtaParams): DepositCtaState {
       label: capBelowMinimumLabel(params.effectiveRemaining, params.minDeposit),
     };
   }
+  if (
+    params.effectiveRemaining !== null &&
+    params.amountSats > params.effectiveRemaining
+  ) {
+    return {
+      disabled: true,
+      label: COPY.deposit.errors.exceedsCap(
+        formatSatoshisToBtc(params.effectiveRemaining),
+      ),
+    };
+  }
+
+  // Below every supply-cap branch: a supply-cap hit must never read as a UTXO
+  // problem, since consolidating cannot raise the remaining cap. Above
+  // `maxBelowMinimum` and `amountExceedsMax`: those read the funding-input-
+  // capped max, so a wallet that holds enough across more than the capped
+  // number of UTXOs would otherwise be told its minimum or its balance is the
+  // problem when consolidating is the one fix that works.
+  if (params.fundingInputCapExceeded) {
+    return {
+      disabled: true,
+      label: COPY.deposit.fundingInputCap.cta,
+    };
+  }
+
   // Symmetric to capBelowMinimum, on the balance/fee dimension: the fee-adjusted
   // max is positive but below the minimum, so no amount clears both bounds.
   // Only surface once the user has entered an amount — at the empty initial
@@ -387,18 +422,6 @@ export function getDepositCtaState(params: DepositCtaParams): DepositCtaState {
       label: maxBelowMinimumLabel(params.minDeposit),
     };
   }
-  if (
-    params.effectiveRemaining !== null &&
-    params.amountSats > params.effectiveRemaining
-  ) {
-    return {
-      disabled: true,
-      label: COPY.deposit.errors.exceedsCap(
-        formatSatoshisToBtc(params.effectiveRemaining),
-      ),
-    };
-  }
-
   // An amount that exceeds the fee-adjusted depositable balance can never be
   // funded — surface it before the provider prompt, since selecting a provider
   // cannot make an unfundable amount fundable.

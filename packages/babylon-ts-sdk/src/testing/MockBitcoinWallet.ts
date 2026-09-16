@@ -37,7 +37,7 @@ export interface MockBitcoinWalletConfig {
    * Optional override for `deriveContextHash`. When omitted the mock
    * returns a deterministic 64-char lowercase hex string derived from
    * `(appName, context)` so tests can assert pass-through wiring
-   * without pinning a specific value. Override to inject spec test
+   * without pinning a specific value. Override to inject conformance test
    * vectors or to simulate failure modes.
    */
   deriveContextHash?: (appName: string, context: string) => Promise<string>;

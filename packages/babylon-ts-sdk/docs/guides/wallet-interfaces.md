@@ -187,7 +187,7 @@ const ethWallet = new MockEthereumWallet({ chainId: 11155111 }); // sepolia
 
 ## Wallet-derived secrets: `deriveContextHash`
 
-`BitcoinWallet.deriveContextHash(appName, context)` is the canonical entrypoint for any wallet-bound secret in the vault flow. The wallet derives a deterministic 32-byte value from its key material + app name + application context per the [`derive-context-hash.md`](../../../../docs/specs/derive-context-hash.md) spec; any conforming wallet returns the same output for the same inputs, so secrets are re-derivable on demand instead of generated and persisted in the browser.
+`BitcoinWallet.deriveContextHash(appName, context)` is the canonical entrypoint for any wallet-bound secret in the vault flow. The wallet derives a deterministic 32-byte value from its key material, its network, the connected key, the app name and the application context (HKDF-SHA-256 for HD wallets; the [conformance vectors](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/vault-secrets/__tests__/deriveContextHash.vectors.test.ts) pin the exact derivation); any conforming HD wallet returns the same output for the same inputs, so secrets are re-derivable on demand instead of generated and persisted in the browser.
 
 Vault flows do not call `deriveContextHash` directly. Use the helpers in `tbv/core/vault-secrets`, which forward to the wallet with the canonical `appName` and `vaultContext` encoding.
 
@@ -234,7 +234,7 @@ try {
 
 **Per-vault uniqueness.** `htlcVout` is the per-vault domain separator inside `expandWotsSeed`. Two vaults in the same batch (same root) get cryptographically independent seeds.
 
-**Capability check.** Wallets that don't implement the spec throw `WALLET_METHOD_NOT_SUPPORTED` (or equivalent) from `deriveContextHash`. Branch on this if you need a fallback path.
+**Capability check.** Wallets that don't implement `deriveContextHash` throw `WALLET_METHOD_NOT_SUPPORTED` (or equivalent) from `deriveContextHash`. Branch on this if you need a fallback path.
 
 ### Other vault secrets
 
@@ -252,7 +252,7 @@ const authAnchor = await expandAuthAnchor(root); // 32 bytes
 
 `expandHashlockSecret` replaces the previously browser-generated HTLC preimage; `expandAuthAnchor` produces the OP_RETURN preimage used for the VP bearer-token flow. Both follow the same canonical pipeline as WOTS — call `deriveVaultRoot` once, then expand per-purpose.
 
-**Reference.** [`derive-vault-secrets.md`](../../../../docs/specs/derive-vault-secrets.md) — root-to-leaf algorithm and test vectors. [`derive-context-hash.md`](../../../../docs/specs/derive-context-hash.md) — wallet-side spec.
+**Reference.** The golden tests in [`tbv/core/vault-secrets/__tests__/`](https://github.com/babylonlabs-io/babylon-toolkit/tree/main/packages/babylon-ts-sdk/src/tbv/core/vault-secrets/__tests__) pin the root-to-leaf expansion (`expand.test.ts`), the `vaultContext` encoding (`context.golden.test.ts`) and the wallet-side `deriveContextHash` derivation (`deriveContextHash.vectors.test.ts`).
 
 ## See also
 

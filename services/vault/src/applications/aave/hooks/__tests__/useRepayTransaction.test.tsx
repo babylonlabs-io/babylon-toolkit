@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mockAssertReserve = vi.fn();
 const mockRepayAll = vi.fn();
 const mockRepayPartial = vi.fn();
+const mockInvalidateQueries = vi.hoisted(() => vi.fn());
 vi.mock("../../services", () => ({
   assertReserveMatchesOnChain: (...a: unknown[]) => mockAssertReserve(...a),
   repayAll: (...a: unknown[]) => mockRepayAll(...a),
@@ -25,7 +26,7 @@ vi.mock("@/infrastructure", () => ({
 }));
 
 vi.mock("@tanstack/react-query", () => ({
-  useQueryClient: () => ({ invalidateQueries: vi.fn() }),
+  useQueryClient: () => ({ invalidateQueries: mockInvalidateQueries }),
 }));
 
 vi.mock("wagmi", () => ({
@@ -144,6 +145,24 @@ describe("useRepayTransaction — max mode wiring", () => {
       123n,
       RESERVE_TOKEN,
     );
+  });
+});
+
+describe("useRepayTransaction — cache invalidation", () => {
+  it("invalidates the vault and position queries by key prefix after a repay", async () => {
+    mockAssertReserve.mockResolvedValue(undefined);
+    mockRepayAll.mockResolvedValue({ transactionHash: "0xhash" });
+    const { result } = setup();
+
+    await act(async () => {
+      await result.current.executeRepay(100, RESERVE, "max", {
+        repayAmountRaw: 123n,
+      });
+    });
+
+    expect(
+      mockInvalidateQueries.mock.calls.map((call) => call[0].queryKey),
+    ).toEqual([["vaults"], ["aaveUserPosition"]]);
   });
 });
 

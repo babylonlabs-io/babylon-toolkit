@@ -309,6 +309,12 @@ export const COPY = {
       splitUnavailableProtocolLimit:
         "The protocol currently allows one BTCVault per transaction. BTCVault split unavailable.",
     },
+    fundingInputCap: {
+      noticeBefore: "You ",
+      noticeEmphasis: (max: number) => `can use up to ${max} UTXOs`,
+      noticeAfter: " per deposit. Please combine your UTXOs to proceed.",
+      cta: "Consolidate your UTXOs to proceed",
+    },
     steps: {
       generateSecret: "Generate secret for the deposit",
       signPeginBtc: "Sign the peg-in BTC transaction",
@@ -517,6 +523,14 @@ export const COPY = {
         `Network fee exceeds the ${percent}% refund safety cap. Lower the fee rate to continue.`,
       retryButton: "Retry",
       confirmButton: "Confirm",
+      // Failures surfaced on the review screen's error callout. Kept here
+      // rather than inline in the execution hook, like `reclaim.errors`.
+      errors: {
+        walletNotConnected: "BTC wallet not connected",
+        missingVaultId: "Missing BTCVault ID",
+        ethWalletNotConnected: "ETH wallet not connected",
+        invalidFeeRate: "Fee rate must be a positive number",
+      },
     },
     // The tier hints are static: they name the confirmation target of the
     // mempool.space field each tile reads (hourFee / halfHourFee / fastestFee),
@@ -871,6 +885,10 @@ export const COPY = {
         `Cannot continue: BTCVault is in ${state} state. This step is only valid while the vault is PENDING.`,
       cannotBroadcastInOnChainState: (state: string) =>
         `Cannot continue: on-chain BTCVault is in ${state} state. This step is only valid while the vault is PENDING.`,
+      // Resume refuses a vault record with no depositor Bitcoin key. A wallet
+      // reconnect cannot fix a malformed record, so this is not a mismatch.
+      depositorBtcKeyMissing:
+        "This BTCVault has no registered Bitcoin key on-chain, so it cannot be resumed. Please contact support.",
       chainSwitchRequired: (network: string) =>
         `Please switch to ${network} in your wallet`,
       ethereumMainnet: "Ethereum Mainnet",
@@ -954,6 +972,9 @@ export const COPY = {
         title: "Wallet not connected",
         body: "Please reconnect your Bitcoin and Ethereum wallets, then try again.",
       },
+      // Resume's Ethereum-account check. mapDepositError matches
+      // "wallet is not connected", so keep that phrase.
+      ethWalletNotConnected: "Ethereum wallet is not connected",
       walletAccountChanged: {
         title: "Wallet account changed",
         body: "Your wallet account changed during the deposit. Please restart the deposit with the original account.",
@@ -1043,11 +1064,18 @@ export const COPY = {
         title: "Wrong wallet account",
         body: WRONG_WALLET_BODY,
       },
-      // Typed DepositorWalletMismatchError from the terms rebuild (Ethereum
-      // account, not the BTC wallet the WOTS guard above covers).
+      // Typed DepositorWalletMismatchError (Ethereum account only). The WOTS
+      // guard above and wrongDepositorBtcWallet below cover the BTC wallet.
       wrongDepositorWallet: {
         title: "Wrong wallet connected",
         body: "This deposit belongs to a different Ethereum account. Connect the wallet that created the deposit to resume.",
+      },
+      // Typed DepositorBtcKeyMismatchError. The resume, payout signing and
+      // terms rebuild checks throw it when the connected Bitcoin wallet's key
+      // is not the one the BTCVault registered.
+      wrongDepositorBtcWallet: {
+        title: "Wrong Bitcoin wallet connected",
+        body: "This deposit belongs to a different Bitcoin wallet. Connect the Bitcoin wallet that created the deposit to resume.",
       },
       commissionChanged: {
         title: "Commission changed",
@@ -1217,6 +1245,13 @@ export const COPY = {
         message:
           "This deposit belongs to a different Ethereum account. Connect the wallet that created the deposit to continue signing.",
       },
+      // Typed DepositorBtcKeyMismatchError: the deposit is bound to the Bitcoin
+      // key that registered it.
+      wrongDepositorBtcWallet: {
+        title: "Wrong Bitcoin wallet connected",
+        message:
+          "This deposit belongs to a different Bitcoin wallet. Connect the Bitcoin wallet that created the deposit to continue signing.",
+      },
       // Resume-specific variant of deposit.errors.walletMethodNotSupported: an
       // in-flight deposit is bound to the wallet that derived its secrets, so
       // "reconnect with a supported wallet" is not a recovery path here.
@@ -1272,6 +1307,13 @@ export const COPY = {
       heading: SOMETHING_WENT_WRONG_HEADING,
       body: "Please close this and try again in a moment.",
     },
+    // Inline panel shown in place of a page when the Aave config fails to
+    // load. Not a dialog, so unlike `somethingWentWrong` there is nothing to close.
+    aaveConfigUnavailable: {
+      heading: SOMETHING_WENT_WRONG_HEADING,
+      body: "Please try again in a moment.",
+      retryButton: "Retry",
+    },
     globalError: {
       heading: SOMETHING_WENT_WRONG_HEADING,
       body: "An unexpected error occurred. Please try again later.",
@@ -1311,6 +1353,21 @@ export const COPY = {
     },
   },
   wallet: {
+    btcAction: {
+      heading: "Connect your Bitcoin wallet",
+      body: "This action needs your Bitcoin wallet. Connect it, then try the action again.",
+      // The wallet is connected, but the session dialog still waits for the
+      // depositor to confirm it.
+      confirmBody:
+        "This action needs your Bitcoin wallet. Confirm the wallet connection, then try the action again.",
+      // Shown while a saved wallet session is still being restored.
+      resolving: "Checking your Bitcoin wallet…",
+      // The inline error for handlers that run outside the prompt panel.
+      error: "Bitcoin wallet not connected.",
+      connect: "Connect Bitcoin wallet",
+      retry: "Retry",
+      cancel: "Cancel",
+    },
     geoBlockedTooltip: "Not available in your region",
     walletNotEligibleTooltip: "Wallet not eligible",
     addressScreeningBannerBody:

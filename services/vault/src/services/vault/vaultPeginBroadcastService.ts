@@ -26,6 +26,10 @@ import { Psbt, Transaction } from "bitcoinjs-lib";
 import { Buffer } from "buffer";
 
 import { getMempoolApiUrl } from "../../clients/btc/config";
+import {
+  isDepositorBtcKeyMismatchError,
+  isDepositorWalletMismatchError,
+} from "../../utils/errors/depositorWalletMismatch";
 
 import { fetchUTXOFromMempool } from "./vaultUtxoDerivationService";
 
@@ -365,8 +369,14 @@ export async function broadcastPrePeginTransaction(
   } catch (error) {
     // A device-envelope rejection is a distinct, user-actionable outcome — let
     // it through unwrapped so the UI can show the intent-rejection copy instead
-    // of a generic broadcast failure.
-    if (isDepositTermsRejectedError(error)) {
+    // of a generic broadcast failure. The caller's `signPsbt` re-check can
+    // throw the typed depositor-wallet refusals. Let them through too: nothing
+    // was broadcast, and the user must connect the depositor's wallets.
+    if (
+      isDepositTermsRejectedError(error) ||
+      isDepositorWalletMismatchError(error) ||
+      isDepositorBtcKeyMismatchError(error)
+    ) {
       throw error;
     }
     const message = error == null ? "Unknown error" : formatError(error);

@@ -24,9 +24,10 @@
  * totals as real, and a failed deposits read would silently drop pending or
  * refundable rows.
  *
- * Withdrawal-only positions (every vault redeemed, pegout still in flight)
- * are not yet consulted; the withdrawal sections join the page with the
- * relocation step of issue #2041.
+ * A withdrawal-only position (every vault redeemed, peg-out still in flight)
+ * is not empty: the indexer has already zeroed the collateral figure, but the
+ * withdrawing rows are still shown, so `hasDisplayCollateral` keeps the page
+ * populated until the payouts settle.
  *
  * The deposit lists arrive as a parameter — the page's single
  * `usePendingDeposits` result, shared with VaultsLifecycleSections — so this

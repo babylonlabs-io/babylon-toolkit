@@ -666,8 +666,7 @@ export class UnisatProvider implements IBTCProvider {
         wallet: WALLET_PROVIDER_NAME,
       });
 
-    // UniSat exposes deriveContextHash on `window.unisat` per the spec
-    // at docs/specs/derive-context-hash.md §2.1. If the installed
+    // UniSat exposes deriveContextHash on `window.unisat`. If the installed
     // version is older than the one that shipped this method, we
     // surface a typed `WALLET_METHOD_NOT_SUPPORTED` so the caller can
     // gate on capability rather than receiving an opaque "X is not a

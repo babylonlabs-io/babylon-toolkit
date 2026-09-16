@@ -17,7 +17,10 @@ const h = vi.hoisted(() => ({
   captured: {
     btc: undefined as undefined | BtcCallbacks,
     eth: undefined as undefined | Omit<BtcCallbacks, "onConnect">,
+    chains: [] as string[],
     requiredChains: [] as string[],
+    persistent: false,
+    lifecycleHooks: undefined as unknown,
   },
 }));
 
@@ -26,11 +29,17 @@ vi.mock("@babylonlabs-io/wallet-connector", () => ({
   WalletProvider: ({
     children,
     requiredChains,
+    persistent,
+    lifecycleHooks,
   }: {
     children: React.ReactNode;
     requiredChains: string[];
+    persistent: boolean;
+    lifecycleHooks?: unknown;
   }) => {
     h.captured.requiredChains = requiredChains;
+    h.captured.persistent = persistent;
+    h.captured.lifecycleHooks = lifecycleHooks;
     return children;
   },
   BTCWalletProvider: ({
@@ -53,7 +62,10 @@ vi.mock("@babylonlabs-io/wallet-connector", () => ({
     h.captured.eth = callbacks;
     return children;
   },
-  createWalletConfig: () => ({}),
+  createWalletConfig: ({ chains }: { chains: string[] }) => {
+    h.captured.chains = chains;
+    return {};
+  },
   useChainConnector: () => h.btcConnector,
   useWalletConnect: () => ({ disconnect: h.disconnectAll }),
   useWidgetState: () => ({ visible: h.visible }),
@@ -76,6 +88,7 @@ const btc = () => h.captured.btc as BtcCallbacks;
 describe("WalletConnectionProvider wallet resets", () => {
   beforeEach(() => {
     vi.useFakeTimers();
+    vi.stubEnv("NEXT_PUBLIC_FF_ENABLE_ETH_FIRST", undefined);
     h.disconnectAll.mockClear();
     h.btcConnector.disconnect.mockReset();
     h.visible = false;
@@ -86,13 +99,25 @@ describe("WalletConnectionProvider wallet resets", () => {
 
   afterEach(() => {
     vi.useRealTimers();
+    vi.unstubAllEnvs();
   });
 
-  it("requires both BTC and ETH in the wallet dialog", () => {
-    renderProvider();
+  it.each([undefined, "false", "true"])(
+    "uses shared consent and the configured wallet requirements with the control set to %s (#2354)",
+    (control) => {
+      vi.stubEnv("NEXT_PUBLIC_FF_ENABLE_ETH_FIRST", control);
+      renderProvider();
 
-    expect(h.captured.requiredChains).toEqual(["BTC", "ETH"]);
-  });
+      expect(h.captured.requiredChains).toEqual(
+        control === "true" ? ["ETH"] : ["BTC", "ETH"],
+      );
+      expect(h.captured.chains).toEqual(
+        control === "true" ? ["ETH", "BTC"] : ["BTC", "ETH"],
+      );
+      expect(h.captured.persistent).toBe(true);
+      expect(h.captured.lifecycleHooks).toBeUndefined();
+    },
+  );
 
   it("resets both wallets immediately when ETH disconnects outside the dialog", () => {
     renderProvider();
@@ -117,23 +142,31 @@ describe("WalletConnectionProvider wallet resets", () => {
     expect(h.disconnectAll).toHaveBeenCalledTimes(1);
   });
 
-  it("resets both wallets immediately when the Bitcoin address changes", async () => {
-    h.visible = true;
-    renderProvider();
+  it.each(["false", "true"])(
+    "resets both wallets on a Bitcoin address change with the control set to %s",
+    async (control) => {
+      vi.stubEnv("NEXT_PUBLIC_FF_ENABLE_ETH_FIRST", control);
+      h.visible = true;
+      renderProvider();
 
-    await act(() => h.captured.btc!.onAddressChange());
+      await act(() => btc().onAddressChange());
 
-    expect(h.disconnectAll).toHaveBeenCalledTimes(1);
-  });
+      expect(h.disconnectAll).toHaveBeenCalledTimes(1);
+    },
+  );
 
-  it("resets both wallets immediately when the Ethereum address changes", async () => {
-    h.visible = true;
-    renderProvider();
+  it.each(["false", "true"])(
+    "resets both wallets on an Ethereum address change with the control set to %s",
+    async (control) => {
+      vi.stubEnv("NEXT_PUBLIC_FF_ENABLE_ETH_FIRST", control);
+      h.visible = true;
+      renderProvider();
 
-    await act(() => h.captured.eth!.onAddressChange());
+      await act(() => h.captured.eth!.onAddressChange());
 
-    expect(h.disconnectAll).toHaveBeenCalledTimes(1);
-  });
+      expect(h.disconnectAll).toHaveBeenCalledTimes(1);
+    },
+  );
 
   it("does not tear down both wallets for a disconnect before BTC ever connected", async () => {
     renderProvider();

@@ -6,6 +6,7 @@ import { DepositButton } from "@/components/shared";
 import { getNetworkConfigBTC } from "@/config";
 import { COPY } from "@/copy";
 import { depositService } from "@/services/deposit";
+import { MAX_PRE_PEGIN_FUNDING_INPUTS } from "@/services/deposit/fundingInputCap";
 import type { SplitUnavailableReason } from "@/services/deposit/vaultCap";
 import type { VaultProviderListItem } from "@/types/vaultProvider";
 
@@ -109,6 +110,11 @@ export interface DepositProviderState {
 
 export interface DepositWalletState {
   isWalletConnected: boolean;
+  /**
+   * True when Bitcoin is absent but optional (confirmed session, ETH-first
+   * flag). Keeps the CTA enabled so the click opens the Bitcoin prompt.
+   */
+  canConnectBtcWallet?: boolean;
   /** Ledger vault app connected? Read only by the fee breakdown's reserve
    * tooltip (#2375); never gates the deposit. */
   isLedgerVaultWallet: boolean;
@@ -183,6 +189,7 @@ interface DepositFormProps {
   gatingState: DepositGatingState;
   collateralFactor?: number | null;
   twoVaultSplit?: TwoVaultSplitProps;
+  fundingInputCapExceeded?: boolean;
   onAmountChange: (value: string) => void;
   onMaxClick: () => void;
   onDeposit: () => void;
@@ -196,6 +203,7 @@ export function DepositForm({
   gatingState,
   collateralFactor = null,
   twoVaultSplit,
+  fundingInputCapExceeded = false,
   onAmountChange,
   onMaxClick,
   onDeposit,
@@ -235,6 +243,7 @@ export function DepositForm({
     providerState;
   const {
     isWalletConnected,
+    canConnectBtcWallet = false,
     isLedgerVaultWallet,
     hasWalletConnectionError = false,
     walletConnectionErrorMessage = null,
@@ -365,6 +374,7 @@ export function DepositForm({
     isGeoBlocked,
     isAddressBlocked,
     isWalletConnected,
+    canConnectBtcWallet,
     hasProvider: !!selectedProvider,
     commissionUnavailable,
     isFeeError,
@@ -373,6 +383,7 @@ export function DepositForm({
     ordinalsCheckPending,
     hasWalletConnectionError,
     isReconnectingWallet,
+    fundingInputCapExceeded,
   });
 
   // A locked wallet reuses the same recovery CTA as a liveness failure (both
@@ -432,6 +443,27 @@ export function DepositForm({
           btcPrice={btcPrice}
           hasPriceFetchError={hasPriceFetchError}
         />
+        {fundingInputCapExceeded && (
+          <div
+            role="status"
+            aria-live="polite"
+            className="flex w-full items-center gap-2 rounded-lg border border-secondary-strokeLight px-4 py-2"
+          >
+            <IoInformationCircle
+              size={18}
+              className="shrink-0 text-secondary-contrast"
+            />
+            <span className="min-w-0 text-sm text-accent-secondary">
+              {COPY.deposit.fundingInputCap.noticeBefore}
+              <span className="text-accent-contrast">
+                {COPY.deposit.fundingInputCap.noticeEmphasis(
+                  MAX_PRE_PEGIN_FUNDING_INPUTS,
+                )}
+              </span>
+              {COPY.deposit.fundingInputCap.noticeAfter}
+            </span>
+          </div>
+        )}
         {suggestedAmountSats != null && (
           <SuggestedDepositContainer
             suggestedAmountLabel={`${Number(depositService.formatSatoshisToBtc(suggestedAmountSats))} ${btcConfig.coinSymbol}`}

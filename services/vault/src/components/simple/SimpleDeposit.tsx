@@ -20,6 +20,7 @@ import { useBtcWalletState } from "@/hooks/deposit/useBtcWalletState";
 import { useDepositPeginFee } from "@/hooks/deposit/useDepositPeginFee";
 import { useDialogStep } from "@/hooks/deposit/useDialogStep";
 import { usePendingVaultOverlapCheck } from "@/hooks/deposit/usePendingVaultOverlapCheck";
+import { useBtcAction } from "@/hooks/useBtcAction";
 import { useProtocolFeeRows } from "@/hooks/useProtocolFeeRows";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import { useVaultCountCap } from "@/hooks/useVaultCountCap";
@@ -85,6 +86,7 @@ function SimpleDepositContent({
   initialAmountBtc,
 }: SimpleDepositBaseProps) {
   const gate = useProtocolGateState();
+  const { requireBtcWallet } = useBtcAction();
   const { isGeoBlocked, isLoading: isGeoLoading } = useGeoFencing();
   const { isBlocked: isAddressBlocked, isLoading: isScreeningLoading } =
     useAddressScreening();
@@ -109,6 +111,7 @@ function SimpleDepositContent({
     applyMaxAmount,
     effectiveSelectedApplication,
     isWalletConnected,
+    canConnectBtcWallet,
     btcBalance,
     unconfirmedBalance,
     btcPrice,
@@ -124,6 +127,7 @@ function SimpleDepositContent({
     isLoadingFee,
     feeError,
     maxDepositSats,
+    fundingInputCapExceeded,
     effectiveRemaining,
     capUnavailable,
     minPeginFee,
@@ -364,10 +368,16 @@ function SimpleDepositContent({
     // (which triggers the wallet's unlock/re-authorization prompt) instead of
     // attempting another deposit. The deposit attempt itself is only retried
     // once the user successfully reconnects and the error/lock state clears.
-    if (walletConnectionError || isBtcWalletLocked || btcPublicKeyError) {
+    // Runs before the Bitcoin prompt while a wallet is attached, so the form
+    // keeps its own unlock state and an absent wallet still gets the prompt.
+    if (
+      isWalletConnected &&
+      (walletConnectionError || isBtcWalletLocked || btcPublicKeyError)
+    ) {
       await handleReconnectWallet();
       return;
     }
+    if (!requireBtcWallet()) return;
 
     if (!validateForm()) return;
     if (isVerifyingWallet) return;
@@ -498,6 +508,7 @@ function SimpleDepositContent({
                 }}
                 walletState={{
                   isWalletConnected,
+                  canConnectBtcWallet,
                   // Shared with the reclaim row: the reserve tooltip must not
                   // promise a reclaim Ledger cannot sign.
                   isLedgerVaultWallet: isLedgerVaultConnector(btcConnector),
@@ -541,6 +552,7 @@ function SimpleDepositContent({
                 }}
                 collateralFactor={collateralFactor}
                 twoVaultSplit={twoVaultSplitProps}
+                fundingInputCapExceeded={fundingInputCapExceeded}
                 onAmountChange={(value) => setFormData({ amountBtc: value })}
                 onMaxClick={applyMaxAmount}
                 onDeposit={handleDeposit}

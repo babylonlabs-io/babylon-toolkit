@@ -37,7 +37,7 @@ import {
 } from "viem";
 
 import { parseJson, type RecordedRun } from "./recording";
-import { buildSupplements } from "./supplements";
+import { buildSupplements, type RecordedAnswer } from "./supplements";
 
 /** Canonical Multicall3 deployment address, identical on every chain. */
 export const MULTICALL3_ADDRESS = "0xca11bde05977b3631167028862be2a173976ca11";
@@ -241,7 +241,11 @@ function buildTables(run: RecordedRun): ChainTables {
   // Applied last but never over a recorded answer: a supplement stands in for
   // a read the recording predates, so the moment the recording does hold one,
   // the recorded value is the truth and the supplement is dead weight.
-  for (const supplement of buildSupplements(run)) {
+  const recordedAnswer: RecordedAnswer = (target, callData) => {
+    const answer = exact.get(exactKey(target, callData));
+    return answer?.success ? answer.returnData : null;
+  };
+  for (const supplement of buildSupplements(run, recordedAnswer)) {
     const key = exactKey(supplement.target, supplement.callData);
     if (exact.has(key)) continue;
     remember(supplement.target, supplement.callData, {

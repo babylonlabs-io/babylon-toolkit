@@ -66,7 +66,7 @@ const SENSITIVE_FIELD_NAMES = new Set([
   "txHex",
   "peginTxHash",
   "rawTx",
-  // Vault-secret material derived from deriveContextHash (derive-vault-secrets.md).
+  // Vault-secret material derived from deriveContextHash.
   // Listed under the exact keys these values travel on so scrubbing never depends
   // on a value happening to be 64+ hex — a rename, truncation, or re-encoding by a
   // future refactor must not silently defeat redaction.

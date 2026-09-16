@@ -76,6 +76,14 @@ vi.mock("@/hooks/useVaultsPageData", () => ({
   })),
 }));
 
+vi.mock("@/applications/aave/hooks", () => ({
+  useAaveVaults: () => ({ vaults: [] }),
+}));
+
+vi.mock("@/applications/aave/context", () => ({
+  useSyncPendingVaults: () => {},
+}));
+
 vi.mock("@/components/vaults/VaultsSummaryCard", () => ({
   VaultsSummaryCard: () => <div data-testid="vaults-summary-card" />,
 }));

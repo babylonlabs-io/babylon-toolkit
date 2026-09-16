@@ -6,7 +6,7 @@
  * band hover popover renders in a portal outside the chart subtree and must
  * still inherit them. Neutral chrome (gridlines, axis text, surfaces) tracks
  * the shared --bbn-chart-* tokens, which carry their own dark override.
- * Motion uses --motion-* tokens per docs/motion-system.md (fallbacks reproduce
+ * Motion uses --motion-* tokens (fallbacks reproduce
  * legacy behaviour; reduced-motion handled by the global reset). */
 @import "../charts/chartTokens.css";
 

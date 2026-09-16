@@ -11,11 +11,18 @@
  *   incrementally by {@link ArtifactStreamValidator} as it streams. Nothing
  *   is skipped on the basis of size.
  * - **Success means the bytes are durably saved**, not that a fetch resolved.
- *   The body is piped into an {@link ArtifactSaveTarget} and only committed
+ *   The result span is piped into an {@link ArtifactSaveTarget} and only committed
  *   after the validator has seen the closing brace.
  *
  * Bytes are validated, hashed, and written chunk-by-chunk in a single pass,
  * so the full body is never held in memory on the File System Access path.
+ *
+ * What lands on disk is the envelope's `result` value alone, not the JSON-RPC
+ * response around it. `jsonrpc` and `id` are transport framing with no meaning
+ * in a saved file, and the receipt's digest then matches `sha256sum` of the
+ * file. The validator reports the payload's byte range as it parses
+ * (see `streamingArtifactValidator.ts`), so stripping the envelope costs no
+ * extra pass and no buffering.
  *
  * The bundle is also bound to the deposit it was requested for: the envelope
  * names no vault, but the transaction graph inside it does, so its claim and
@@ -94,8 +101,12 @@ export interface FetchArtifactsOptions {
 /** Evidence that a validated bundle was written to disk. */
 export interface ArtifactDownloadOutcome {
   filename: string;
+  /** Size of the saved file, which excludes the JSON-RPC envelope. */
   byteLength: number;
-  /** SHA-256 of the response body, computed during the same streaming pass. */
+  /**
+   * SHA-256 of the saved file, computed during the same streaming pass — so
+   * a user running `sha256sum` on the artifact file reproduces it.
+   */
   sha256: string;
   method: ArtifactSaveMethod;
 }
@@ -161,9 +172,9 @@ export async function fetchAndDownloadArtifacts(
 }
 
 /**
- * Read the body once, feeding every chunk through the validator, the digest,
- * and the save stream in that order. Validating before writing means a
- * rejected chunk never reaches disk.
+ * Read the body once, feeding every chunk through the validator, then the
+ * chunk's result span through the digest and the save stream. Validating
+ * before writing means a rejected chunk never reaches disk.
  *
  * Exported so the dev-only artifact mock can drive the real pipeline from a
  * synthetic response: a simulation that skipped validation and the file sink
@@ -195,7 +206,10 @@ export async function downloadArtifactsFromResponse(
   const validator = new ArtifactStreamValidator();
   const hasher = sha256.create();
   const reader = response.body.getReader();
+  /** Bytes read off the wire; bounds the transfer and drives progress. */
   let received = 0;
+  /** Bytes actually written — the envelope-stripped payload. */
+  let written = 0;
 
   options?.onProgress?.(0, totalBytes);
 
@@ -220,9 +234,15 @@ export async function downloadArtifactsFromResponse(
         throw new ArtifactDownloadTooLargeError(received, target.maxBytes);
       }
 
-      validator.update(chunk.value);
-      hasher.update(chunk.value);
-      await stream.write(chunk.value);
+      // Only the bytes inside the envelope's `result` are saved; the
+      // JSON-RPC framing is dropped. The validator still sees every byte.
+      const span = validator.update(chunk.value);
+      if (span) {
+        const payload = chunk.value.subarray(span.start, span.end);
+        hasher.update(payload);
+        await stream.write(payload);
+        written += payload.byteLength;
+      }
 
       options?.onProgress?.(received, totalBytes);
     }
@@ -257,7 +277,7 @@ export async function downloadArtifactsFromResponse(
 
   return {
     filename: target.filename,
-    byteLength: received,
+    byteLength: written,
     sha256: bytesToHex(hasher.digest()),
     method: target.method,
   };

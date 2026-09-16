@@ -787,9 +787,12 @@ deriveContextHash(appName, context): Promise<string>;
 
 Defined in: [packages/babylon-ts-sdk/src/shared/wallets/interfaces/BitcoinWallet.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/shared/wallets/interfaces/BitcoinWallet.ts)
 
-Derives a deterministic 32-byte value per
-`docs/specs/derive-context-hash.md` rev 1.0. Throws with code
-`WALLET_METHOD_NOT_SUPPORTED` if unimplemented.
+Derives a deterministic 32-byte value from the wallet's key material,
+its network, the connected key, `appName` and `context` (HKDF-SHA-256
+for HD wallets). The conformance vectors in
+`tbv/core/vault-secrets/__tests__/deriveContextHash.vectors.test.ts`
+pin the derivation. Throws with code `WALLET_METHOD_NOT_SUPPORTED` if
+unimplemented.
 
 ###### Parameters
 
