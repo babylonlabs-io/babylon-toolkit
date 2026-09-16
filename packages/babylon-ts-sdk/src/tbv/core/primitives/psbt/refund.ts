@@ -13,7 +13,7 @@
 
 import { Psbt, Transaction } from "bitcoinjs-lib";
 import { Buffer } from "buffer";
-import { loadRawTbvWasm, tapInternalPubkey } from "../../wasm";
+import { loadTbvWasm, tapInternalPubkey } from "../../wasm";
 import { assertPositiveBigintArray } from "../../wasm/value-guards";
 
 import {
@@ -72,7 +72,7 @@ export interface BuildRefundPsbtResult {
 export async function buildRefundPsbt(
   params: BuildRefundPsbtParams,
 ): Promise<BuildRefundPsbtResult> {
-  const { WasmPrePeginTx } = await loadRawTbvWasm();
+  const { WasmPrePeginTx } = await loadTbvWasm();
 
   const { prePeginParams, fundedPrePeginTxHex, htlcVout, refundFee, hashlock } =
     params;

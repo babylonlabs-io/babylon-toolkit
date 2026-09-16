@@ -80,7 +80,6 @@ export default defineConfig({
         "bitcoinjs-lib",
         "@bitcoin-js/tiny-secp256k1-asmjs",
         "@babylonlabs-io/babylon-tbv-rust-wasm",
-        "@babylonlabs-io/babylon-tbv-rust-wasm/raw",
         "viem",
         "buffer",
       ],

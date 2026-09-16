@@ -1,9 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { test } from "node:test";
-import ts from "typescript";
 
 import {
   createPayoutConnector,
@@ -13,12 +11,12 @@ import {
   getChallengeAssertScriptInfo,
 } from "@babylonlabs-io/ts-sdk/tbv/core/wasm";
 
-test("retains the raw loader and guarded builders in ESM and CommonJS", async () => {
+test("exposes the lazy boundary and guarded builders in ESM and CommonJS", async () => {
   const require = createRequire(import.meta.url);
-  const raw = await import("@babylonlabs-io/babylon-tbv-rust-wasm/raw");
+  const engine = await import("@babylonlabs-io/babylon-tbv-rust-wasm");
   for (const load of [async (name) => import(name), require]) {
     const wasm = await load("@babylonlabs-io/ts-sdk/tbv/core/wasm");
-    assert.equal(await wasm.loadRawTbvWasm(), raw);
+    assert.equal(await wasm.loadTbvWasm(), engine, "loadTbvWasm");
     const primitives = await load("@babylonlabs-io/ts-sdk/tbv/core/primitives");
     for (const name of [
       "buildPrePeginPsbt",
@@ -30,30 +28,6 @@ test("retains the raw loader and guarded builders in ESM and CommonJS", async ()
       assert.equal(typeof primitives[name], "function", name);
     }
   }
-});
-
-test("publishes the raw loader deprecation in its declaration", () => {
-  const declaration = ts
-    .createSourceFile(
-      "index.d.ts",
-      readFileSync(
-        new URL("../dist/tbv/core/wasm/index.d.ts", import.meta.url),
-        "utf8",
-      ),
-      ts.ScriptTarget.Latest,
-      true,
-    )
-    .statements.find(
-      (node) =>
-        ts.isFunctionDeclaration(node) && node.name?.text === "loadRawTbvWasm",
-    );
-  assert.ok(declaration, "The published raw loader declaration must remain");
-  const deprecation = ts.getJSDocDeprecatedTag(declaration);
-  assert.ok(deprecation, "The published raw loader must be deprecated");
-  assert.match(
-    ts.getTextOfJSDocComment(deprecation.comment) ?? "",
-    /buildRefundPsbt/,
-  );
 });
 
 const [CLAIMER, LOCAL_CHALLENGER, UNIVERSAL_CHALLENGER, ...COUNCIL] = [

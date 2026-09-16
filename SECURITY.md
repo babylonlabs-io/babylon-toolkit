@@ -202,11 +202,11 @@ _why_ they exist. Both documents must be updated together.
 
 ### The WASM value boundary
 
-`packages/babylon-tbv-rust-wasm/src/index.ts` is the guarded JS surface over a Rust/WASM module that
+`packages/babylon-tbv-rust-wasm/src/index.ts` has guarded JS functions over a Rust/WASM module that
 computes `htlcValue = peginAmount + depositorClaimValue + p2aAnchorValue + minPeginFee` internally.
 JavaScript receives numbers with no inherent validation: `wasm-bindgen` will happily hand back `0n`,
-and a `0n` HTLC value silently produces a transaction that funds nothing. SDK callers reach that
-surface through a lazy boundary, `packages/babylon-ts-sdk/src/tbv/core/wasm/index.ts`, which forwards
+and a `0n` HTLC value silently produces a transaction that funds nothing. SDK callers reach those
+functions through a lazy boundary, `packages/babylon-ts-sdk/src/tbv/core/wasm/index.ts`, which forwards
 without adding guards of its own — the facade's guards still apply.
 
 The Pre-PegIn path adds an independent TypeScript check. It derives every canonical HTLC output and
@@ -214,16 +214,13 @@ the Taproot signing data before it creates a PSBT. It rejects a WASM transaction
 that does not match. The canonical transaction constants for this check are in
 `packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/constants.ts`.
 
-There is a second crossing, and it is unguarded. The
-`@babylonlabs-io/babylon-tbv-rust-wasm/raw` subpath (`src/raw.ts`, `src/raw-node.ts`) hands out the
-wasm-bindgen classes directly, so no value is checked at the export. Every `/raw` consumer must
-cross-check at the call site instead. The only SDK consumer is
-`packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/refund.ts`.
+The same entry (`src/index.ts`, `src/index-node.ts`) also exports the wasm-bindgen classes directly.
+That export is a second crossing, and it is unguarded. No value is checked at that export. The SDK's
+public `loadTbvWasm()` (`@babylonlabs-io/ts-sdk/tbv/core/wasm`) returns this engine module, so it also
+gives callers the classes. Every class consumer must cross-check at the call site. The only SDK
+consumer is `packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/refund.ts`.
 It derives the canonical HTLC and signing data in TypeScript before it emits a refund PSBT.
-
-The raw classes and SDK raw loader are deprecated. The retained path still permits a bypass.
-See the [migration guide](packages/babylon-ts-sdk/docs/guides/raw-engine-migration.md)
-for guarded alternatives and the compatibility blocker in #2361.
+#2361 records the decision to keep these classes unguarded.
 
 The mitigation is `assertWasmBigint` / `assertPositiveBigintArray`
 (`packages/babylon-tbv-rust-wasm/src/value-guards.ts`), applied to every value crossing the boundary
@@ -237,7 +234,7 @@ together. Reviewer rule, restated from CLAUDE.md:
 > WASM-returned value feeds a signed transaction, cross-check it against an independently computed
 > expected value.
 
-Adding a new WASM getter without a guard, or a new `/raw` consumer without call-site cross-checks, is
+Adding a new WASM getter without a guard, or a new class consumer without call-site cross-checks, is
 the easiest way to introduce a silent wrong-value bug in this repository. A facade guard can be the
 only check on a path that does not feed a signed transaction. The independent Pre-PegIn checks must
 remain in place for transaction outputs and signing data.

@@ -80,12 +80,18 @@ pnpm add @babylonlabs-io/babylon-tbv-rust-wasm
 The source manifest uses `workspace:*` for the WASM peer. The release process
 replaces it with the exact engine version used in the release rehearsal.
 
-### Raw engine access is deprecated
+### `loadRawTbvWasm()` is removed
 
-`loadRawTbvWasm()` and the engine's `/raw` classes bypass SDK value checks.
-Use the transaction builders in `@babylonlabs-io/ts-sdk/tbv/core/primitives`.
-See the [migration guide](./docs/guides/raw-engine-migration.md) for supported
-paths and remaining compatibility blockers. The raw API remains available.
+Use the guarded builders in `@babylonlabs-io/ts-sdk/tbv/core/primitives`.
+
+Upgrade `@babylonlabs-io/babylon-tbv-rust-wasm` together with this SDK. Engine
+releases 0.17.0 to 0.19.0 have the `/raw` entry and do not export the classes
+from the package root. With one of those releases, `buildRefundPsbt()` fails.
+
+If you need the low-level classes, call `loadTbvWasm()` from
+`@babylonlabs-io/ts-sdk/tbv/core/wasm`. It returns the initialized engine
+module. Do the checks that the "WASM Classes" section of the
+`@babylonlabs-io/babylon-tbv-rust-wasm` README describes.
 
 ### ECC Library Initialization (Bitcoin flows only)
 

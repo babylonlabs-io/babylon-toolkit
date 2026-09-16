@@ -27,6 +27,7 @@ const {
 }));
 
 vi.mock("@babylonlabs-io/babylon-tbv-rust-wasm", () => ({
+  initWasm: async () => {},
   buildPeginTxFromPrePegin: buildPeginTxFromPrePeginMock,
   computeMinClaimValue: computeMinClaimValueMock,
   createPrePeginTransaction: vi.fn(),

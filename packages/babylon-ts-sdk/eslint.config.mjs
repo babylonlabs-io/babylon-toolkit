@@ -2,6 +2,15 @@ import { typescriptConfig } from "@internal/eslint-config/typescript";
 import { defineConfig } from "eslint/config";
 import tseslint from "typescript-eslint";
 
+const UNGUARDED_WASM_CLASS =
+  "/^Wasm(PeginTx|PrePeginTx|PeginPayoutConnector|PrePeginHtlcConnector)$/";
+const UNGUARDED_WASM_CLASS_MESSAGE =
+  "The engine classes WasmPeginTx, WasmPrePeginTx, WasmPeginPayoutConnector " +
+  "and WasmPrePeginHtlcConnector return values that the SDK does not check. " +
+  "Use the guarded builders in src/tbv/core/primitives instead. Only " +
+  "src/tbv/core/primitives/psbt/refund.ts may use these classes, because it " +
+  "cross-checks their output before it emits a PSBT.";
+
 export default defineConfig([
   ...typescriptConfig,
   {
@@ -75,6 +84,33 @@ export default defineConfig([
                 "Reach the vault WASM engine through src/tbv/core/wasm, which loads it lazily.",
             },
           ],
+        },
+      ],
+    },
+  },
+  // UNGUARDED WASM CLASSES - see CLAUDE.md > "WASM boundary (value computation)".
+  // loadTbvWasm() returns the engine module, which includes the wasm-bindgen
+  // classes. The classes have no value guards. The import ban above cannot see
+  // a class that a file takes from that module. Only refund.ts may take one,
+  // because it cross-checks the class output. Tests replace class methods on
+  // purpose - they prove the refund.ts checks.
+  {
+    files: ["src/**/*.ts"],
+    ignores: [
+      "src/tbv/core/primitives/psbt/refund.ts",
+      "**/__tests__/**",
+      "**/*.test.{ts,tsx}",
+    ],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: `ObjectPattern > Property:matches([key.name=${UNGUARDED_WASM_CLASS}], [key.value=${UNGUARDED_WASM_CLASS}])`,
+          message: UNGUARDED_WASM_CLASS_MESSAGE,
+        },
+        {
+          selector: `MemberExpression:matches([property.name=${UNGUARDED_WASM_CLASS}], [property.value=${UNGUARDED_WASM_CLASS}])`,
+          message: UNGUARDED_WASM_CLASS_MESSAGE,
         },
       ],
     },
