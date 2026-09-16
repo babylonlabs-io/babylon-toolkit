@@ -19,10 +19,8 @@
  *
  * What lands on disk is the envelope's `result` value alone, not the JSON-RPC
  * response around it. `jsonrpc` and `id` are transport framing with no meaning
- * in a saved file, and the unwrapped shape is what the rest of the toolchain
- * already reads — btc-vault's `tools/artifact-downloader` writes the identical
- * layout, so a bundle saved here and one fetched with the CLI are
- * interchangeable. The validator reports the payload's byte range as it parses
+ * in a saved file, and the receipt's digest then matches `sha256sum` of the
+ * file. The validator reports the payload's byte range as it parses
  * (see `streamingArtifactValidator.ts`), so stripping the envelope costs no
  * extra pass and no buffering.
  *
@@ -237,8 +235,7 @@ export async function downloadArtifactsFromResponse(
       }
 
       // Only the bytes inside the envelope's `result` are saved; the
-      // JSON-RPC framing is dropped so the file matches what the CLI
-      // toolchain reads. The validator still sees every byte.
+      // JSON-RPC framing is dropped. The validator still sees every byte.
       const span = validator.update(chunk.value);
       if (span) {
         const payload = chunk.value.subarray(span.start, span.end);

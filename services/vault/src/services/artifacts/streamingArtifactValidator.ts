@@ -10,12 +10,9 @@
  *
  * It also reports, per chunk, which bytes fall inside the envelope's `result`
  * value, so the caller can save the payload alone. The envelope is transport
- * framing: `jsonrpc` and `id` mean nothing on disk, and the unwrapped file is
- * the layout every consumer already expects — `tools/artifact-downloader` in
- * btc-vault writes exactly that shape, and `docs/delegated_claim.md` treats it
- * as the starting point for building the watchtower's `artifacts.json`. Since
- * the machine already knows the document's structure, the span costs a byte
- * offset rather than a second pass.
+ * framing: `jsonrpc` and `id` mean nothing on disk. Since the machine already
+ * knows the document's structure, the span costs a byte offset rather than a
+ * second pass.
  *
  * Why a byte-level machine rather than an incremental `TextDecoder`: every
  * JSON structural character is ASCII, and every byte of a multi-byte UTF-8
