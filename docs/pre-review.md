@@ -183,7 +183,10 @@ branch's `.pre-review/<key>.md`.
   warning for each pushed branch without a record and never blocks the push.
 - **Claude Code hook.** Denies `gh pr create` when Claude runs it on a branch
   without a record, and tells the session to hand `/pre-review` back to you.
-  A draft PR (`--draft`) is allowed, as CI skips drafts.
+  It lets through PRs the CI job does not check: a draft (`--draft`) and a PR
+  into a branch other than `main` (`--base`/`-B`, e.g. a stacked PR). Any
+  command with `--repo`/`-R` is also allowed, even one naming this repository,
+  whose PR CI still checks.
   `.claude/settings.json` is not committed, so add it to your own settings:
 
   ```json
@@ -208,7 +211,8 @@ branch's `.pre-review/<key>.md`.
   The script checks the command itself and ignores anything but
   `gh pr create`. The `if` filter only avoids starting it for every other
   Bash call; it matches a command that starts with `gh pr create`, not one
-  chained after another command with `&&`. Draft detection is best effort, not
-  a shell parser: a `-d`, `--draft` or `--draft=true` anywhere after
-  `gh pr create` reads as a draft, including one quoted inside a title or in a
-  command chained after it (`gh pr create --fill && git branch -d old`).
+  chained after another command with `&&`. Flag detection is best effort, not
+  a shell parser: a draft flag (`-d`, `--draft`, `--draft=true`), a non-`main`
+  `--base`/`-B` or a `--repo`/`-R` anywhere after `gh pr create` counts,
+  including one quoted inside a title or body or in a command chained after
+  it (`gh pr create --fill && git branch -d old` reads as a draft).

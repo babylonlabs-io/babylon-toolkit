@@ -80,6 +80,9 @@ test("recordBlobs covers edited, added and deleted files but not /pre-review's o
   assert.deepEqual([...blobs.keys()].sort(), ["kept.ts", "removed.ts", "src/added.ts"]);
   assert.equal(blobs.get("removed.ts"), DELETED);
   assert.equal(blobs.get("src/added.ts"), repo.git("hash-object", "src/added.ts"));
+  // Stored, not only hashed: a later run diffs against this object and treats
+  // a missing one as pruned, which would force a full re-review.
+  assert.doesNotThrow(() => repo.git("cat-file", "-e", blobs.get("src/added.ts")));
 });
 
 test("parseSnapshots finds no record in a hand-written description", () => {
@@ -263,6 +266,58 @@ test("the Claude hook denies gh pr create run after a backgrounded command", (t)
   const output = JSON.parse(run.stdout);
 
   assert.equal(output.hookSpecificOutput.permissionDecision, "deny");
+});
+
+test("the Claude hook allows a stacked PR into a branch other than main, which CI does not check", (t) => {
+  const repo = scratchRepo(t);
+
+  const run = spawnSync("node", [path.join(SCRIPTS, "claude-pr-create-hook.mjs")], {
+    cwd: repo.dir,
+    input: JSON.stringify({ tool_name: "Bash", tool_input: { command: "gh pr create --base feat/parent --fill" } }),
+    encoding: "utf8",
+  });
+
+  assert.equal(run.status, 0);
+  assert.equal(run.stdout, "");
+});
+
+test("the Claude hook denies gh pr create with an explicit --base main", (t) => {
+  const repo = scratchRepo(t);
+
+  const run = spawnSync("node", [path.join(SCRIPTS, "claude-pr-create-hook.mjs")], {
+    cwd: repo.dir,
+    input: JSON.stringify({ tool_name: "Bash", tool_input: { command: "gh pr create --base=main --fill" } }),
+    encoding: "utf8",
+  });
+  const output = JSON.parse(run.stdout);
+
+  assert.equal(output.hookSpecificOutput.permissionDecision, "deny");
+});
+
+test("the Claude hook denies gh pr create with a spaced, quoted -B main", (t) => {
+  const repo = scratchRepo(t);
+
+  const run = spawnSync("node", [path.join(SCRIPTS, "claude-pr-create-hook.mjs")], {
+    cwd: repo.dir,
+    input: JSON.stringify({ tool_name: "Bash", tool_input: { command: 'gh pr create -B "main" --fill' } }),
+    encoding: "utf8",
+  });
+  const output = JSON.parse(run.stdout);
+
+  assert.equal(output.hookSpecificOutput.permissionDecision, "deny");
+});
+
+test("the Claude hook allows a PR into another repository", (t) => {
+  const repo = scratchRepo(t);
+
+  const run = spawnSync("node", [path.join(SCRIPTS, "claude-pr-create-hook.mjs")], {
+    cwd: repo.dir,
+    input: JSON.stringify({ tool_name: "Bash", tool_input: { command: "gh pr create -R other/repo --fill" } }),
+    encoding: "utf8",
+  });
+
+  assert.equal(run.status, 0);
+  assert.equal(run.stdout, "");
 });
 
 test("the Claude hook allows gh pr create when the branch has a record", (t) => {
