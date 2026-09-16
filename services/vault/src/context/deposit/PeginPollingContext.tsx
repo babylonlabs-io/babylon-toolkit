@@ -56,8 +56,8 @@ import type {
   PeginPollingContextValue,
   PeginPollingProviderProps,
 } from "../../types/peginPolling";
-import { shouldPollForWallet } from "../../utils/peginPolling";
 import { canonicalizeTxid } from "../../utils/txid";
+import { isVaultOwnedByWallet } from "../../utils/vaultWarnings";
 
 import { computeDepositPollingResult } from "./computeDepositPollingResult";
 import {
@@ -294,13 +294,7 @@ export function PeginPollingProvider({
         .filter((a) => {
           // Unowned vaults can't be signed by the current wallet → skip
           // polling. The card is dimmed via the ownership-mismatch tooltip.
-          if (
-            !shouldPollForWallet(
-              a.depositorBtcPubkey,
-              btcPublicKey,
-              btcWalletAbsent,
-            )
-          )
+          if (!isVaultOwnedByWallet(a.depositorBtcPubkey, btcPublicKey))
             return false;
           const status = (a.contractStatus ?? 0) as ContractStatus;
           if (status === ContractStatus.EXPIRED) {
@@ -322,7 +316,6 @@ export function PeginPollingProvider({
       confirmedTxids,
       matureRefundTxids,
       btcPublicKey,
-      btcWalletAbsent,
     ],
   );
   const { confirmationsByTxid: prePeginConfirmationsByTxid } =
@@ -341,13 +334,7 @@ export function PeginPollingProvider({
     () =>
       activities
         .filter((a) => {
-          if (
-            !shouldPollForWallet(
-              a.depositorBtcPubkey,
-              btcPublicKey,
-              btcWalletAbsent,
-            )
-          )
+          if (!isVaultOwnedByWallet(a.depositorBtcPubkey, btcPublicKey))
             return false;
           const status = (a.contractStatus ?? 0) as ContractStatus;
           if (
@@ -381,13 +368,7 @@ export function PeginPollingProvider({
           prePeginTxHash: a.prePeginTxHash as string,
           htlcVout: a.htlcVout as number,
         })),
-    [
-      activities,
-      btcPublicKey,
-      btcWalletAbsent,
-      refundedHtlcVaultIds,
-      localStatusById,
-    ],
+    [activities, btcPublicKey, refundedHtlcVaultIds, localStatusById],
   );
   const { refundByDepositId: htlcRefundByDepositId } = useBtcHtlcRefundStatus(
     htlcRefundOutpoints,

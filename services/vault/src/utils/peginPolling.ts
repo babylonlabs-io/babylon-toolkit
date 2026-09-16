@@ -56,14 +56,15 @@ export function isTerminalPollingError(error: unknown): boolean {
 }
 
 /**
- * Decide whether the current wallet state polls a deposit.
+ * Decide whether the current wallet state polls a deposit's vault provider
+ * status.
  *
  * With a key, only the deposits signed by that key poll. Without a key,
  * every deposit polls when Bitcoin is absent (Ethereum-only session) and
  * none polls while Bitcoin is connected but its key is still loading or
- * failed — the same as before Ethereum-only access existed.
+ * failed - the same as before Ethereum-only access existed.
  */
-export function shouldPollForWallet(
+function shouldPollForWallet(
   depositorBtcPubkey: string | undefined,
   btcPublicKey: string | undefined,
   btcWalletAbsent: boolean,
