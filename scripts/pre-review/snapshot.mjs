@@ -33,8 +33,12 @@ const STATE_DIRECTORY_PREFIX = ".pre-review/";
 /** The blob value recorded for a file the change deletes. */
 export const DELETED = "deleted";
 
-/** Every snapshot line in a description, e.g. pasted twice by mistake. */
-const SNAPSHOT_LINE_PATTERN = /<!-- pre-review-snapshot v1 ([^\n]*?) -->/g;
+/**
+ * Every snapshot line in a description, e.g. pasted twice by mistake. A line
+ * never spans a line ending, including a lone `\r`, which Markdown also treats
+ * as one: CI quotes an unreadable line back inside a code fence.
+ */
+const SNAPSHOT_LINE_PATTERN = /<!-- pre-review-snapshot v1 ([^\r\n]*?) -->/g;
 
 const SHA256_HEX_PATTERN = /^[0-9a-f]{64}$/;
 const GIT_OBJECT_ID_PATTERN = /^[0-9a-f]{40}$/;
@@ -44,6 +48,8 @@ export const CHECK_STATUS = {
   MISSING: "missing",
   /** More than one different snapshot line; which one counts is unclear. */
   AMBIGUOUS: "ambiguous",
+  /** A snapshot line with a missing or invalid field, e.g. a quoted template. */
+  MALFORMED: "malformed",
   /** The record was taken on another branch, e.g. copied from another PR. */
   OTHER_BRANCH: "other-branch",
   /** `/pre-review` ran on this branch. */
@@ -109,6 +115,9 @@ export function digestBlobs(blobs) {
   return createHash("sha256").update(text).digest("hex");
 }
 
+/** A snapshot line that cannot be read as a record. */
+export class MalformedSnapshotError extends Error {}
+
 /**
  * The distinct snapshot records in a description. A line missing its branch,
  * file count or digest, or with a malformed value, is rejected rather than
@@ -129,13 +138,15 @@ export function parseSnapshots(text) {
     const files = fields.get("files");
     const sha256 = fields.get("files-sha256");
     if (branch === undefined || branch === "") {
-      throw new Error(`Snapshot line has no branch=<name>: ${match[0]}`);
+      throw new MalformedSnapshotError(`Snapshot line has no branch=<name>: ${match[0]}`);
     }
     if (files === undefined || !/^\d+$/.test(files)) {
-      throw new Error(`Snapshot line has no valid files=<count>: ${match[0]}`);
+      throw new MalformedSnapshotError(`Snapshot line has no valid files=<count>: ${match[0]}`);
     }
     if (sha256 === undefined || !SHA256_HEX_PATTERN.test(sha256)) {
-      throw new Error(`Snapshot line has no valid files-sha256=<hex>: ${match[0]}`);
+      throw new MalformedSnapshotError(
+        `Snapshot line has no valid files-sha256=<hex>: ${match[0]}`,
+      );
     }
     records.set(`${branch} ${files} ${sha256}`, { branch, files: Number(files), sha256 });
   }
@@ -155,7 +166,16 @@ export function parseSnapshots(text) {
  * or touches a CLAUDE.md critical path.
  */
 export function checkSnapshot({ text, branch }) {
-  const records = parseSnapshots(text);
+  let records;
+  try {
+    records = parseSnapshots(text);
+  } catch (error) {
+    // A result, not a crash: CI turns it into a comment the author can act on.
+    if (error instanceof MalformedSnapshotError) {
+      return { status: CHECK_STATUS.MALFORMED, error: error.message };
+    }
+    throw error;
+  }
   if (records.length === 0) return { status: CHECK_STATUS.MISSING };
   if (records.length > 1) return { status: CHECK_STATUS.AMBIGUOUS, recorded: records };
 

@@ -6,10 +6,15 @@
  * repository's `.claude/settings.json` is git-ignored. It only covers PRs
  * Claude opens; the `pre-review-check` CI job covers every PR.
  *
+ * It reads the command it is asked about, so a settings entry without the
+ * `if` filter still leaves every other Bash call alone. A draft PR is allowed,
+ * as CI skips drafts until they are ready for review.
+ *
  * `/pre-review` is user-invoked (`disable-model-invocation`), so the reason
  * tells Claude to hand the step back to the engineer rather than run it.
  */
 
+import fs from "node:fs";
 import process from "node:process";
 
 import {
@@ -18,6 +23,26 @@ import {
   currentBranch,
   repositoryRoot,
 } from "./snapshot.mjs";
+
+/** Shell operators and line breaks that can start a new command. */
+const COMMAND_SEPARATOR_PATTERN = /&&|\|\||[;|&\n]/;
+const PR_CREATE_PATTERN = /^gh\s+pr\s+create(\s|$)/;
+/** `gh pr create` flags that open a draft. */
+const DRAFT_FLAGS = new Set(["--draft", "-d", "--draft=true"]);
+
+/**
+ * Whether a Bash command opens a non-draft PR. Best effort, not a shell
+ * parser: the draft flag is looked for anywhere after `gh pr create`, so it is
+ * still found after a multi-line `--body`, and a flag quoted inside a title
+ * reads as a draft. CI is the enforcement; this only saves a round trip.
+ */
+function opensReadyPullRequest(command) {
+  const segments = command.split(COMMAND_SEPARATOR_PATTERN);
+  const createIndex = segments.findIndex((segment) => PR_CREATE_PATTERN.test(segment.trim()));
+  if (createIndex === -1) return false;
+  const tokens = segments.slice(createIndex).join(" ").split(/\s+/);
+  return !tokens.some((token) => DRAFT_FLAGS.has(token));
+}
 
 function reasonFor(branch, status) {
   const next =
@@ -31,10 +56,17 @@ function reasonFor(branch, status) {
   if (status === CHECK_STATUS.AMBIGUOUS) {
     return `The /pre-review record for ${branch} has more than one snapshot line. ${next}`;
   }
+  if (status === CHECK_STATUS.MALFORMED) {
+    return `The /pre-review record for ${branch} has an unreadable snapshot line. ${next}`;
+  }
   return null;
 }
 
 function main() {
+  const input = JSON.parse(fs.readFileSync(0, "utf8"));
+  const command = input.tool_input?.command;
+  if (typeof command !== "string" || !opensReadyPullRequest(command)) return;
+
   const cwd = repositoryRoot(process.cwd());
   const branch = currentBranch(cwd);
   if (branch === "") return;

@@ -31,6 +31,9 @@ function warningFor(branch, status) {
   if (status === CHECK_STATUS.AMBIGUOUS) {
     return `pre-review: the record for ${branch} has more than one snapshot line. Run /pre-review again to rewrite it.`;
   }
+  if (status === CHECK_STATUS.MALFORMED) {
+    return `pre-review: the record for ${branch} has an unreadable snapshot line. Run /pre-review again to rewrite it.`;
+  }
   return null;
 }
 

@@ -22,9 +22,13 @@ function snapshotLine({ branch = "feat/x", files = 3, sha256 = "a".repeat(64) } 
   return `<!-- pre-review-snapshot v1 base=abc branch=${branch} reviewed-at=2026-09-16T00:00:00Z tier=light files=${files} files-sha256=${sha256} -->`;
 }
 
-/** A throwaway repo with one commit on `main`, checked out on `feat/x`. */
-function scratchRepo() {
+/**
+ * A throwaway repo with one commit on `main`, checked out on `feat/x`, removed
+ * when the test `t` ends.
+ */
+function scratchRepo(t) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pre-review-snapshot-test-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const git = (...args) => execFileSync("git", args, { cwd: dir }).toString("utf8").trim();
   git("init", "--quiet", "--initial-branch=main");
   git("config", "user.email", "test@example.com");
@@ -63,8 +67,8 @@ test("digestBlobs rejects a value that is neither an object id nor deleted", () 
   assert.throws(() => digestBlobs(new Map([["a.ts", "not-a-sha"]])), /a\.ts/);
 });
 
-test("recordBlobs covers edited, added and deleted files but not /pre-review's own", () => {
-  const repo = scratchRepo();
+test("recordBlobs covers edited, added and deleted files but not /pre-review's own", (t) => {
+  const repo = scratchRepo(t);
   repo.write("kept.ts", "kept, edited\n");
   repo.write("src/added.ts", "added\n");
   fs.rmSync(path.join(repo.dir, "removed.ts"));
@@ -114,12 +118,30 @@ test("checkSnapshot rejects a record copied from another branch's PR", () => {
   assert.equal(checkSnapshot({ text, branch: "feat/x" }).status, CHECK_STATUS.OTHER_BRANCH);
 });
 
+test("checkSnapshot reports malformed, instead of throwing, for a quoted template line", () => {
+  const text =
+    "Format: <!-- pre-review-snapshot v1 base=<sha> branch=<name> reviewed-at=<iso8601> tier=<light|full> files=<count> files-sha256=<hex> -->";
+
+  const result = checkSnapshot({ text, branch: "feat/x" });
+
+  assert.equal(result.status, CHECK_STATUS.MALFORMED);
+  assert.match(result.error, /files=<count>/);
+});
+
+test("checkSnapshot does not read a snapshot line across a carriage return", () => {
+  // Markdown treats a lone CR as a line ending, so such a line must not reach
+  // the malformed comment, where it could close the code fence.
+  const text = "<!-- pre-review-snapshot v1 branch=feat/x\r~~~\r**injected** -->";
+
+  assert.equal(checkSnapshot({ text, branch: "feat/x" }).status, CHECK_STATUS.MISSING);
+});
+
 test("checkSnapshot accepts a record taken on the PR's branch", () => {
   assert.equal(checkSnapshot({ text: snapshotLine(), branch: "feat/x" }).status, CHECK_STATUS.MATCH);
 });
 
-test("the pre-push hook warns about a branch with no record and still lets the push through", () => {
-  const repo = scratchRepo();
+test("the pre-push hook warns about a branch with no record and still lets the push through", (t) => {
+  const repo = scratchRepo(t);
 
   const run = spawnSync("node", [path.join(SCRIPTS, "pre-push.mjs")], {
     cwd: repo.dir,
@@ -131,8 +153,8 @@ test("the pre-push hook warns about a branch with no record and still lets the p
   assert.match(run.stderr, /no \/pre-review record for feat\/x/);
 });
 
-test("the pre-push hook is silent when the branch has a record", () => {
-  const repo = scratchRepo();
+test("the pre-push hook is silent when the branch has a record", (t) => {
+  const repo = scratchRepo(t);
   repo.write(".pre-review/feat__x.md", snapshotLine());
 
   const run = spawnSync("node", [path.join(SCRIPTS, "pre-push.mjs")], {
@@ -145,8 +167,8 @@ test("the pre-push hook is silent when the branch has a record", () => {
   assert.equal(run.stderr, "");
 });
 
-test("the Claude hook denies gh pr create on a branch with no record", () => {
-  const repo = scratchRepo();
+test("the Claude hook denies gh pr create on a branch with no record", (t) => {
+  const repo = scratchRepo(t);
 
   const run = spawnSync("node", [path.join(SCRIPTS, "claude-pr-create-hook.mjs")], {
     cwd: repo.dir,
@@ -159,8 +181,87 @@ test("the Claude hook denies gh pr create on a branch with no record", () => {
   assert.match(output.hookSpecificOutput.permissionDecisionReason, /feat\/x has no \/pre-review record/);
 });
 
-test("the Claude hook allows gh pr create when the branch has a record", () => {
-  const repo = scratchRepo();
+test("the Claude hook denies gh pr create chained after another command", (t) => {
+  const repo = scratchRepo(t);
+
+  const run = spawnSync("node", [path.join(SCRIPTS, "claude-pr-create-hook.mjs")], {
+    cwd: repo.dir,
+    input: JSON.stringify({ tool_name: "Bash", tool_input: { command: "git push && gh pr create --fill" } }),
+    encoding: "utf8",
+  });
+  const output = JSON.parse(run.stdout);
+
+  assert.equal(output.hookSpecificOutput.permissionDecision, "deny");
+});
+
+test("the Claude hook leaves commands other than gh pr create alone", (t) => {
+  const repo = scratchRepo(t);
+
+  const run = spawnSync("node", [path.join(SCRIPTS, "claude-pr-create-hook.mjs")], {
+    cwd: repo.dir,
+    input: JSON.stringify({ tool_name: "Bash", tool_input: { command: "gh pr view 12" } }),
+    encoding: "utf8",
+  });
+
+  assert.equal(run.status, 0);
+  assert.equal(run.stdout, "");
+});
+
+test("the Claude hook allows a draft PR, which CI skips", (t) => {
+  const repo = scratchRepo(t);
+
+  const run = spawnSync("node", [path.join(SCRIPTS, "claude-pr-create-hook.mjs")], {
+    cwd: repo.dir,
+    input: JSON.stringify({ tool_name: "Bash", tool_input: { command: "gh pr create --draft --fill" } }),
+    encoding: "utf8",
+  });
+
+  assert.equal(run.status, 0);
+  assert.equal(run.stdout, "");
+});
+
+test("the Claude hook allows a draft whose flag follows a multi-line body", (t) => {
+  const repo = scratchRepo(t);
+  const command = "gh pr create --title t --body \"$(cat <<'EOF'\nWhat; why | how\nEOF\n)\" --draft";
+
+  const run = spawnSync("node", [path.join(SCRIPTS, "claude-pr-create-hook.mjs")], {
+    cwd: repo.dir,
+    input: JSON.stringify({ tool_name: "Bash", tool_input: { command } }),
+    encoding: "utf8",
+  });
+
+  assert.equal(run.status, 0);
+  assert.equal(run.stdout, "");
+});
+
+test("the Claude hook allows a draft opened with --draft=true", (t) => {
+  const repo = scratchRepo(t);
+
+  const run = spawnSync("node", [path.join(SCRIPTS, "claude-pr-create-hook.mjs")], {
+    cwd: repo.dir,
+    input: JSON.stringify({ tool_name: "Bash", tool_input: { command: "gh pr create --draft=true --fill" } }),
+    encoding: "utf8",
+  });
+
+  assert.equal(run.status, 0);
+  assert.equal(run.stdout, "");
+});
+
+test("the Claude hook denies gh pr create run after a backgrounded command", (t) => {
+  const repo = scratchRepo(t);
+
+  const run = spawnSync("node", [path.join(SCRIPTS, "claude-pr-create-hook.mjs")], {
+    cwd: repo.dir,
+    input: JSON.stringify({ tool_name: "Bash", tool_input: { command: "sleep 1 & gh pr create --fill" } }),
+    encoding: "utf8",
+  });
+  const output = JSON.parse(run.stdout);
+
+  assert.equal(output.hookSpecificOutput.permissionDecision, "deny");
+});
+
+test("the Claude hook allows gh pr create when the branch has a record", (t) => {
+  const repo = scratchRepo(t);
   repo.write(".pre-review/feat__x.md", snapshotLine());
 
   const run = spawnSync("node", [path.join(SCRIPTS, "claude-pr-create-hook.mjs")], {

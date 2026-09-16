@@ -155,9 +155,9 @@ separately, at full price each. Do it yourself.
    every file in the change (the step-3 set) with `git hash-object -w`, which
    stores the content in git's object database, so a later run can diff
    against exactly what was reviewed, whether or not it was ever committed. A
-   deleted file is recorded as `deleted`. Its JSON output is the state's
-   `files` map plus the snapshot line's `files` count and `files-sha256`:
-   copy them verbatim, never compute them another way. This snapshot is what
+   deleted file is recorded as `deleted`. Copy its JSON output verbatim,
+   never compute it another way: `files` is the state's `files` map, `count`
+   is the snapshot line's `files=`, and `sha256` is its `files-sha256=`. This snapshot is what
    the state records. Never re-run it after fixes: that would make the fixes
    look already reviewed.
 

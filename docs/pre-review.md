@@ -136,11 +136,12 @@ author's to own: fixing the findings, running `/pre-review` again to verify
 the fixes (recommended), and any change pushed later, such as fixes for
 review comments.
 
-| Result       | Cause                                            | What to do                                               |
-| ------------ | ------------------------------------------------ | -------------------------------------------------------- |
-| missing      | The description has no record                    | Run `/pre-review`, then paste `PR.md` as the description |
-| other-branch | The record was taken on another branch           | Run `/pre-review` on this branch, then paste `PR.md`     |
-| ambiguous    | The description has two different snapshot lines | Run `/pre-review` again, then paste the updated `PR.md`  |
+| Result       | Cause                                                  | What to do                                               |
+| ------------ | ------------------------------------------------------ | -------------------------------------------------------- |
+| missing      | The description has no record                          | Run `/pre-review`, then paste `PR.md` as the description |
+| other-branch | The record was taken on another branch                 | Run `/pre-review` on this branch, then paste `PR.md`     |
+| ambiguous    | The description has two different snapshot lines       | Run `/pre-review` again, then paste the updated `PR.md`  |
+| malformed    | A snapshot line cannot be read, e.g. a quoted template | Remove it, or run `/pre-review` again and paste `PR.md`  |
 
 The job updates one comment on the PR with the result, and re-runs when the
 description is edited, so pasting a new `PR.md` is enough to clear it.
@@ -161,10 +162,17 @@ The check passes without reading the description in three cases:
 
 > ⚠️ **Important**: The check proves that a record is present, not that the
 > review ran: a snapshot line can be written by hand. The findings table in
-> the description makes a skipped review visible to the human reviewer. A PR
-> that changes the check itself (the workflow or `scripts/pre-review/`) is
-> checked by its own modified copy, so review those files as carefully as the
-> change.
+> the description makes a skipped review visible to the human reviewer.
+
+The job runs on `pull_request_target`: GitHub takes the workflow and
+`scripts/pre-review/` from `main`, not from the PR, so a PR cannot edit the
+check it is judged by. It could still add a workflow of its own with a job of
+the same name; that file shows in the diff, so reviewers should look for one.
+A change to the check takes effect only after it merges, and
+`pre-review-scripts.yml` tests the scripts on the PR that changes them. The
+`pull_request_target` event has a write token, which is safe because the job
+never checks out or runs the PR's code; keep it that way when changing the
+workflow.
 
 ### Local warnings
 
@@ -175,6 +183,7 @@ branch's `.pre-review/<key>.md`.
   warning for each pushed branch without a record and never blocks the push.
 - **Claude Code hook.** Denies `gh pr create` when Claude runs it on a branch
   without a record, and tells the session to hand `/pre-review` back to you.
+  A draft PR (`--draft`) is allowed, as CI skips drafts.
   `.claude/settings.json` is not committed, so add it to your own settings:
 
   ```json
@@ -196,5 +205,10 @@ branch's `.pre-review/<key>.md`.
   }
   ```
 
-  The `if` pattern matches a command that starts with `gh pr create`, not one
-  chained after another command with `&&`.
+  The script checks the command itself and ignores anything but
+  `gh pr create`. The `if` filter only avoids starting it for every other
+  Bash call; it matches a command that starts with `gh pr create`, not one
+  chained after another command with `&&`. Draft detection is best effort, not
+  a shell parser: a `-d`, `--draft` or `--draft=true` anywhere after
+  `gh pr create` reads as a draft, including one quoted inside a title or in a
+  command chained after it (`gh pr create --fill && git branch -d old`).
