@@ -17,11 +17,25 @@ const PORT_FULL_ENV = 5175;
 const PORT_GOD_MODE = 5176;
 const GOD_MODE_SPEC = "**/deposit-progress-layout.spec.ts";
 /**
+ * Full mock env with Ethereum-only access switched on. Its own server because
+ * the flag is inlined when vite starts, and the behavioural specs on
+ * `PORT_FULL_ENV` cover the default, flag-off app.
+ */
+const PORT_ETH_FIRST = 5178;
+const ETH_FIRST_SPEC = "**/eth-first-access.spec.ts";
+/**
+ * Demo pacing for the Ethereum-only spec, off unless set. CI sets neither.
+ * `slowMo` delays input actions and navigation only, not network routing.
+ */
+const DEMO_SLOW_MO_MS =
+  Number.parseInt(process.env.E2E_SLOW_MO_MS ?? "", 10) || 0;
+const DEMO_VIDEO = process.env.E2E_VIDEO === "on" ? "on" : "off";
+/**
  * A project-level `testIgnore` replaces the top-level one rather than adding
  * to it, so the visual exclusion documented on `testIgnore` below has to be
  * repeated wherever a project narrows its own file set.
  */
-const BEHAVIOURAL_TEST_IGNORE = ["**/visual/**", GOD_MODE_SPEC];
+const BEHAVIOURAL_TEST_IGNORE = ["**/visual/**", GOD_MODE_SPEC, ETH_FIRST_SPEC];
 
 /**
  * Mock backend the e2e suite pins so no spec reaches a live host. Exported
@@ -122,6 +136,16 @@ export default defineConfig({
         baseURL: `http://localhost:${PORT_GOD_MODE}`,
       },
     },
+    {
+      name: "chromium-eth-first",
+      testMatch: ETH_FIRST_SPEC,
+      use: {
+        ...devices["Desktop Chrome"],
+        baseURL: `http://localhost:${PORT_ETH_FIRST}`,
+        launchOptions: { slowMo: DEMO_SLOW_MO_MS },
+        video: DEMO_VIDEO,
+      },
+    },
   ],
 
   webServer: [
@@ -143,6 +167,10 @@ export default defineConfig({
       reuseExistingServer: !process.env.CI,
       env: {
         ...MOCK_ENV_VARS,
+        // Pinned, not merely absent: vite reads `.env.local`, so a developer
+        // running the demo with the control on would otherwise test the
+        // Ethereum-only app here instead of the default two-wallet one.
+        NEXT_PUBLIC_FF_ENABLE_ETH_FIRST: "false",
         PLAYWRIGHT_VITE_CACHE_DIR: "node_modules/.vite-e2e-full",
       },
     },
@@ -155,7 +183,24 @@ export default defineConfig({
         ...MOCK_ENV_VARS,
         ...RECORDED_DEPLOYMENT_ENV,
         NEXT_PUBLIC_FF_GOD_MODE_PANEL: "true",
+        // Pinned for the same reason as the server above: this suite covers
+        // the default two-wallet app, whatever a developer's `.env.local` says.
+        NEXT_PUBLIC_FF_ENABLE_ETH_FIRST: "false",
         PLAYWRIGHT_VITE_CACHE_DIR: "node_modules/.vite-e2e-god-mode",
+      },
+    },
+    {
+      command: `pnpm exec vite --port ${PORT_ETH_FIRST} --strictPort`,
+      url: `http://localhost:${PORT_ETH_FIRST}`,
+      timeout: 120_000,
+      reuseExistingServer: !process.env.CI,
+      env: {
+        ...MOCK_ENV_VARS,
+        ...RECORDED_DEPLOYMENT_ENV,
+        // Explicit values: process env wins over a developer's `.env.local`.
+        NEXT_PUBLIC_FF_ENABLE_ETH_FIRST: "true",
+        NEXT_PUBLIC_FF_GOD_MODE_PANEL: "false",
+        PLAYWRIGHT_VITE_CACHE_DIR: "node_modules/.vite-e2e-eth-first",
       },
     },
   ],
