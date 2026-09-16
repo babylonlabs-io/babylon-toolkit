@@ -56,7 +56,7 @@ export function OverviewSection({
     () => [
       {
         label: COPY.overview.totalCollateralValueLabel,
-        value: totalCollateralValue,
+        value: `${totalCollateralValue} ${collateralBtc}`,
         valueNode: (
           <span>
             {totalCollateralValue}{" "}
