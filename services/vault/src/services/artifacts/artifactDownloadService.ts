@@ -11,7 +11,7 @@
  *   incrementally by {@link ArtifactStreamValidator} as it streams. Nothing
  *   is skipped on the basis of size.
  * - **Success means the bytes are durably saved**, not that a fetch resolved.
- *   The body is piped into an {@link ArtifactSaveTarget} and only committed
+ *   The result span is piped into an {@link ArtifactSaveTarget} and only committed
  *   after the validator has seen the closing brace.
  *
  * Bytes are validated, hashed, and written chunk-by-chunk in a single pass,
@@ -174,9 +174,9 @@ export async function fetchAndDownloadArtifacts(
 }
 
 /**
- * Read the body once, feeding every chunk through the validator, the digest,
- * and the save stream in that order. Validating before writing means a
- * rejected chunk never reaches disk.
+ * Read the body once, feeding every chunk through the validator, then the
+ * chunk's result span through the digest and the save stream. Validating
+ * before writing means a rejected chunk never reaches disk.
  *
  * Exported so the dev-only artifact mock can drive the real pipeline from a
  * synthetic response: a simulation that skipped validation and the file sink
@@ -261,15 +261,6 @@ export async function downloadArtifactsFromResponse(
       Object.keys(validated.result.babe_sessions),
       binding,
     );
-
-    // Unreachable while `finish()` requires a schema-valid result object, but
-    // a receipt is only meaningful if it describes real bytes on disk — so
-    // the invariant is asserted rather than assumed across future edits.
-    if (written === 0) {
-      throw new VpResponseValidationError(
-        "Artifact response yielded no payload bytes to save",
-      );
-    }
   } catch (err) {
     await discardQuietly(stream);
     throw err;

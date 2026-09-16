@@ -671,7 +671,7 @@ describe("ArtifactStreamValidator — reports the result span", () => {
     expect(spannedText(wire, 11)).toBe(JSON.stringify(VALID_RESULT));
   });
 
-  it("reports no span for an envelope it rejects before result", () => {
+  it("reports no span for bytes before result opens", () => {
     const validator = new ArtifactStreamValidator();
 
     expect(validator.update(encoder.encode('{"jsonrpc":"2.0","id":7,'))).toBe(

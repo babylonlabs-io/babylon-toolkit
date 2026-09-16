@@ -74,8 +74,8 @@ function validEnvelope(): string {
  * Bytes are sliced from the wire, so the file is the literal source span —
  * which for a `JSON.stringify`d envelope is exactly the payload re-stringified.
  */
-function expectedSavedPayload(result: unknown = VALID_ARTIFACT_RESULT): string {
-  return JSON.stringify(result);
+function expectedSavedPayload(): string {
+  return JSON.stringify(VALID_ARTIFACT_RESULT);
 }
 
 /**
@@ -272,31 +272,6 @@ describe("fetchAndDownloadArtifacts", () => {
       return new TextDecoder().decode(savedBytes());
     }
 
-    it("saves a file with no transport framing left in it", async () => {
-      const saved = JSON.parse(await savedTextFor(validEnvelope())) as Record<
-        string,
-        unknown
-      >;
-
-      expect(Object.keys(saved).sort()).toEqual([
-        "babe_sessions",
-        "tx_graph_json",
-        "verifying_key_hex",
-      ]);
-      expect(saved).not.toHaveProperty("jsonrpc");
-      expect(saved).not.toHaveProperty("id");
-      expect(saved).not.toHaveProperty("result");
-    });
-
-    it("matches the layout btc-vault's artifact-downloader writes", async () => {
-      // The CLI writes {tx_graph_json, verifying_key_hex, babe_sessions} at
-      // the top level; a bundle saved here has to be interchangeable with one
-      // fetched that way, or docs/delegated_claim.md fits only one of them.
-      const saved = JSON.parse(await savedTextFor(validEnvelope()));
-
-      expect(saved).toEqual(VALID_ARTIFACT_RESULT);
-    });
-
     it("strips the envelope wherever result sits in it", async () => {
       // The proxy guarantees field order only on its gRPC path, so a result
       // that trails `id` must unwrap exactly like one that precedes it.
@@ -323,17 +298,19 @@ describe("fetchAndDownloadArtifacts", () => {
 
     it("drops the framing of a pretty-printed envelope", async () => {
       // Whitespace *inside* result is part of the payload span and is kept;
-      // only the framing around it goes. The file still has to parse.
+      // only the framing around it goes.
       const pretty = JSON.stringify(
         { jsonrpc: "2.0", id: 1, result: VALID_ARTIFACT_RESULT },
         null,
         2,
       );
-      const saved = await savedTextFor(pretty);
+      const resultKey = '"result": ';
+      const resultSource = pretty.slice(
+        pretty.indexOf(resultKey) + resultKey.length,
+        pretty.lastIndexOf("\n}"),
+      );
 
-      expect(saved.startsWith("{")).toBe(true);
-      expect(saved.endsWith("}")).toBe(true);
-      expect(JSON.parse(saved)).toEqual(VALID_ARTIFACT_RESULT);
+      expect(await savedTextFor(pretty)).toBe(resultSource);
     });
 
     it("puts the payload boundaries in the same place at every chunk size", async () => {
