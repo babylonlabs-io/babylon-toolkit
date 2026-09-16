@@ -2440,7 +2440,10 @@ PegIn transaction details
 
 #### Throws
 
-If WASM initialization fails or parameters are invalid
+If `timelockPegin` is not a whole number from 1 to 65535, if WASM
+  initialization fails or parameters are invalid, or if the WASM result does
+  not match the request (for example, a vault scriptPubKey that differs from
+  the independently derived payout scriptPubKey)
 
 ***
 
