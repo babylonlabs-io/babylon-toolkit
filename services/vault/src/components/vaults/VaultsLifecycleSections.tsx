@@ -59,7 +59,7 @@ import { useReclaimStatus, type ReclaimStatus } from "@/hooks/useReclaimStatus";
 import { useReclaimVaultChainData } from "@/hooks/useReclaimVaultChainData";
 import {
   canPerformAction,
-  getPeginDisplayStep,
+  getPeginProgressStep,
   hasActionableStep,
   PeginAction,
   type PeginState,
@@ -154,7 +154,7 @@ function PendingRow({
   const peginState = result?.peginState;
   const step =
     result && !result.loading
-      ? (result.displayStepOverride ?? getPeginDisplayStep(result.peginState))
+      ? (result.displayStepOverride ?? getPeginProgressStep(result.peginState))
       : null;
   const fillPercent = step !== null ? getStepFillPercent(step) : null;
 
