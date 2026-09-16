@@ -165,6 +165,10 @@ vi.mock("@babylonlabs-io/wallet-connector", () => ({
   useChainConnector: vi.fn(makeDefaultChainConnector),
 }));
 
+vi.mock("@/context/wallet", () => ({
+  useBTCWallet: () => ({ connected: btcActionWallet.connected }),
+}));
+
 vi.mock("wagmi/actions", () => ({
   getAccount: vi.fn(),
   getWalletClient: vi.fn(),

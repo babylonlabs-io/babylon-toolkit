@@ -75,6 +75,11 @@ vi.mock("@babylonlabs-io/wallet-connector", () => ({
   useWalletConnect: () => ({ connected: mockSessionConfirmed, open: vi.fn() }),
   useChainConnector: vi.fn(() => mockBtcConnector),
 }));
+vi.mock("@/context/wallet", () => ({
+  useBTCWallet: () => ({
+    connected: Boolean(mockBtcConnector?.connectedWallet),
+  }),
+}));
 
 const mockBtcAddressToScriptPubKeyHex = vi.fn();
 const mockVerifyBtcWalletLiveness = vi.fn();
@@ -848,6 +853,68 @@ describe("usePayoutSigningState", () => {
           COPY.deposit.payoutSigningGuards.walletNotConnected,
         );
         expect(onSuccess).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each([
+      [
+        "address loss",
+        () => {
+          mockBtcConnector!.connectedWallet!.account = undefined;
+        },
+      ],
+      [
+        "provider replacement",
+        () => {
+          mockBtcConnector!.connectedWallet!.provider = PROVIDER;
+        },
+      ],
+      [
+        "consent loss",
+        () => {
+          mockSessionConfirmed = false;
+        },
+      ],
+    ] as const)(
+      "stops before signing after %s during the liveness read",
+      async (_name, changeWallet) => {
+        let finishRead!: () => void;
+        mockVerifyBtcWalletLiveness.mockImplementationOnce(
+          () =>
+            new Promise<void>((resolve) => {
+              finishRead = resolve;
+            }),
+        );
+        const { result, rerender } = renderHookWithProps();
+        let attempt!: Promise<void>;
+        act(() => {
+          attempt = result.current.handleSign();
+        });
+        expect(mockVerifyBtcWalletLiveness).toHaveBeenCalledOnce();
+
+        changeWallet();
+        rerender();
+        await act(async () => {
+          finishRead();
+          await attempt;
+        });
+
+        expect(mockSignAndSubmitPayouts).not.toHaveBeenCalled();
+        expect(onSuccess).not.toHaveBeenCalled();
+        expect(result.current.signing).toBe(false);
+        expect(result.current.error).toEqual(
+          COPY.deposit.payoutSigningGuards.walletNotConnected,
+        );
+
+        setupHappyPath();
+        mockSessionConfirmed = true;
+        rerender();
+        expect(mockSignAndSubmitPayouts).not.toHaveBeenCalled();
+        await act(async () => {
+          await result.current.handleSign();
+        });
+        expect(mockSignAndSubmitPayouts).toHaveBeenCalledOnce();
+        expect(result.current.isComplete).toBe(true);
       },
     );
 

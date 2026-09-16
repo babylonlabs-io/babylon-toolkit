@@ -12,7 +12,7 @@
 
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CRITICAL_BANNER_SLOT_ID } from "@/components/simple/CriticalLiquidationTopBanner";
 import { COPY } from "@/copy";
@@ -20,6 +20,7 @@ import { COPY } from "@/copy";
 const featureFlagsMock = vi.hoisted(() => ({
   noticeBannerMessage: undefined as string | undefined,
   isDepositDisabled: false,
+  isEthFirstEnabled: false,
 }));
 
 const networkMock = vi.hoisted(() => ({ value: "mainnet" }));
@@ -81,17 +82,11 @@ vi.mock("@/components/Wallet", () => ({
   Connect: () => <div data-testid="connect-stub" />,
 }));
 
-// `@babylonlabs-io/wallet-connector`'s build also can't be transformed by
-// Vitest in this workspace (every existing test touching it — e.g.
-// NetworkBadge.test.tsx, useDepositFlow.test.tsx — fully mocks the package
-// rather than partially merging with the real one via `importOriginal`).
-// `Network` is the only export RootLayout's real tree needs here because
-// NetworkBadge imports it directly.
 vi.mock("@babylonlabs-io/wallet-connector", () => ({
   Network: { MAINNET: "mainnet", SIGNET: "signet" },
   useBTCWallet: () => ({ connected: walletMock.btcConnected }),
   useETHWallet: () => ({ connected: walletMock.ethConnected }),
-  useWalletConnect: () => ({ connected: walletMock.confirmed }),
+  useWalletConnect: () => ({ connected: walletMock.confirmed, open: vi.fn() }),
 }));
 
 // SimpleDeposit never mounts in any case below (RootLayout stays on its
@@ -130,6 +125,8 @@ function renderRootLayout(path = "/") {
 beforeEach(() => {
   featureFlagsMock.noticeBannerMessage = undefined;
   featureFlagsMock.isDepositDisabled = false;
+  featureFlagsMock.isEthFirstEnabled = false;
+  vi.stubEnv("NEXT_PUBLIC_FF_ENABLE_ETH_FIRST", undefined);
   networkMock.value = "mainnet";
   mobileMock.value = false;
   walletMock.btcConnected = false;
@@ -139,6 +136,8 @@ beforeEach(() => {
   walletMock.isSupportedAddress = true;
   debugStatusMock.value = null;
 });
+
+afterEach(() => vi.unstubAllEnvs());
 
 describe("RootLayout — header wiring", () => {
   it("mainnet: shows the page-title h1, no BrandLockup, no NetworkBadge", () => {
@@ -207,6 +206,37 @@ describe("RootLayout — header wiring", () => {
       </MemoryRouter>,
     );
     expect(document.querySelector("aside")).toBeInTheDocument();
+  });
+
+  it.each([
+    { btcConnected: false, ethConnected: false, confirmed: false },
+    { btcConnected: true, ethConnected: false, confirmed: true },
+    { btcConnected: false, ethConnected: true, confirmed: false },
+    { btcConnected: true, ethConnected: true, confirmed: false },
+  ])("requires confirmed Ethereum with optional Bitcoin: %o", (state) => {
+    featureFlagsMock.isEthFirstEnabled = true;
+    vi.stubEnv("NEXT_PUBLIC_FF_ENABLE_ETH_FIRST", "true");
+    Object.assign(walletMock, state);
+    const { rerender } = renderRootLayout();
+
+    expect(document.querySelector("aside")).not.toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Aave" })).toBeInTheDocument();
+
+    Object.assign(walletMock, {
+      btcConnected: false,
+      ethConnected: true,
+      confirmed: true,
+    });
+    rerender(
+      <MemoryRouter>
+        <RootLayout />
+      </MemoryRouter>,
+    );
+
+    expect(document.querySelector("aside")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
+      COPY.nav.overview,
+    );
   });
 
   it("disconnected: keeps the legal links reachable via the entry footer", () => {
@@ -295,6 +325,32 @@ describe("RootLayout — operator message banner", () => {
       expect(
         screen.getByText(COPY.deposit.disabled.bannerMessage),
       ).toBeInTheDocument();
+    },
+  );
+
+  it.each([false, true])(
+    "keeps screening and deposit warnings for Ethereum alone with confirmed=%s",
+    (confirmed) => {
+      featureFlagsMock.isEthFirstEnabled = true;
+      vi.stubEnv("NEXT_PUBLIC_FF_ENABLE_ETH_FIRST", "true");
+      Object.assign(walletMock, {
+        ethConnected: true,
+        confirmed,
+        isAddressBlocked: true,
+        isSupportedAddress: false,
+      });
+      featureFlagsMock.isDepositDisabled = true;
+      renderRootLayout();
+
+      expect(
+        screen.getByText(COPY.wallet.addressScreeningBannerBody),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(COPY.deposit.disabled.bannerMessage),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText("Taproot Address Required"),
+      ).not.toBeInTheDocument();
     },
   );
 
