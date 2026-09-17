@@ -7,6 +7,9 @@ import {
 } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 import type { Abi, Address } from "viem";
 
+import { logger } from "@/infrastructure";
+import { getHubIdentity } from "@/services/aave/hubRegistry";
+
 import { ethClient } from "../../../clients/eth-contract/client";
 
 export async function getAssetDrawnRatesSafe(
@@ -358,6 +361,216 @@ export async function getAssetLiquiditiesSafe(
       premiumRaw: premium,
       sweptRaw: legs[2].result as bigint,
       error: null,
+    };
+  });
+}
+
+/**
+ * `Hub.MAX_ALLOWED_SPOKE_CAP` (`type(uint40).max`): a spoke cap at this value is
+ * no cap at all. Caps are whole tokens, so this number must never be rendered.
+ */
+export const UNLIMITED_SPOKE_CAP = 2 ** 40 - 1;
+
+/**
+ * Minimal Hub ABI for our spoke's standing on one Hub asset: its config (draw
+ * cap, active, halted) and what it already owes against the draw cap. Kept
+ * app-side for the same reason as HUB_LIQUIDITY_ABI.
+ */
+const HUB_SPOKE_ABI = [
+  {
+    type: "function",
+    name: "getSpokeConfig",
+    stateMutability: "view",
+    inputs: [
+      { name: "assetId", type: "uint256" },
+      { name: "spoke", type: "address" },
+    ],
+    outputs: [
+      {
+        name: "",
+        type: "tuple",
+        components: [
+          { name: "addCap", type: "uint40" },
+          { name: "drawCap", type: "uint40" },
+          { name: "riskPremiumThreshold", type: "uint24" },
+          { name: "active", type: "bool" },
+          { name: "halted", type: "bool" },
+        ],
+      },
+    ],
+  },
+  {
+    type: "function",
+    name: "getSpokeTotalOwed",
+    stateMutability: "view",
+    inputs: [
+      { name: "assetId", type: "uint256" },
+      { name: "spoke", type: "address" },
+    ],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    type: "function",
+    name: "getSpokeDeficitRay",
+    stateMutability: "view",
+    inputs: [
+      { name: "assetId", type: "uint256" },
+      { name: "spoke", type: "address" },
+    ],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+] as const;
+
+/** Our spoke's standing on one Hub asset, from `getSpokeConfig`. */
+export interface HubSpokeConfig {
+  /** Whole tokens; `UNLIMITED_SPOKE_CAP` means no cap. */
+  drawCap: number;
+  active: boolean;
+  halted: boolean;
+}
+
+/** What our spoke may still draw against its cap, from one live read. */
+export interface SpokeDrawUsage {
+  /** Whole tokens; `UNLIMITED_SPOKE_CAP` means no cap. */
+  drawCap: number;
+  /**
+   * Base units counted against the cap, as `Hub._validateDraw` counts them:
+   * everything the spoke owes plus its deficit, rounded up.
+   */
+  usedRaw: bigint;
+}
+
+/** Failures already reported to Sentry this session, by read and cause. */
+const reportedHubSpokeReadFailures = new Set<string>();
+
+/** Test-only: clear the per-session reported set so each test starts fresh. */
+export function __resetReportedHubSpokeReadFailuresForTests(): void {
+  reportedHubSpokeReadFailures.clear();
+}
+
+/**
+ * Logs a failed Hub spoke read. Callers fall back to "usable" or "uncapped", so
+ * without this a read that always fails (a wrong ABI, a Hub upgrade) would turn
+ * every hub gate off with nothing to diagnose it by.
+ *
+ * Every failure is a breadcrumb. The first per session of each cause is also sent
+ * as an event, since the forms poll and a breadcrumb alone never reaches Sentry.
+ * The cause is the read plus either the whole call (`request` null, e.g. an RPC
+ * blip) or the one hub asset that reverted, so a passing network failure cannot
+ * use up the event a hub that keeps reverting needs. The hub is named by its
+ * label: telemetry redacts addresses.
+ */
+function warnHubSpokeReadFailed(
+  read: string,
+  request: AssetLiquidityRequest | null,
+  error: unknown,
+): void {
+  const message = `Hub spoke read failed: ${read}`;
+  const hub = request ? getHubIdentity(request.hub).label : undefined;
+  const data = {
+    hub,
+    assetId: request?.assetId,
+    error: error instanceof Error ? error.message : String(error),
+  };
+  logger.warn(message, { data });
+  const cause = request ? `${read}:${hub}:${request.assetId}` : `${read}:call`;
+  if (reportedHubSpokeReadFailures.has(cause)) return;
+  reportedHubSpokeReadFailures.add(cause);
+  logger.event(message, { data });
+}
+
+/**
+ * Our spoke's config on each requested Hub asset, in one multicall. A reverted
+ * leg is `null` for that asset, and a network-level failure is `null` for every
+ * asset: callers treat an unread config as usable, the same way a missing
+ * liquidity read leaves the borrow uncapped. Every failure is logged.
+ */
+export async function getHubSpokeConfigsSafe(
+  spoke: Address,
+  requests: AssetLiquidityRequest[],
+): Promise<(HubSpokeConfig | null)[]> {
+  if (requests.length === 0) return [];
+
+  let results;
+  try {
+    results = await ethClient.getPublicClient().multicall({
+      contracts: requests.map(({ hub, assetId }) => ({
+        address: hub,
+        abi: HUB_SPOKE_ABI as Abi,
+        functionName: "getSpokeConfig" as const,
+        args: [BigInt(assetId), spoke] as const,
+      })),
+      allowFailure: true,
+    });
+  } catch (error) {
+    warnHubSpokeReadFailed("getSpokeConfig", null, error);
+    return requests.map(() => null);
+  }
+
+  return results.map((leg, i) => {
+    if (leg.status !== "success") {
+      warnHubSpokeReadFailed("getSpokeConfig", requests[i], leg.error);
+      return null;
+    }
+    const { drawCap, active, halted } = leg.result as HubSpokeConfig;
+    return { drawCap, active, halted };
+  });
+}
+
+/** Hub reads per asset for the draw usage: config, owed, deficit. */
+const DRAW_USAGE_LEGS_PER_ASSET = 3;
+
+/**
+ * Live draw-cap usage of our spoke on each requested Hub asset: the cap plus
+ * what is already counted against it. Per-asset isolated like
+ * `getAssetLiquiditiesSafe`: any failed leg nulls that asset, and a
+ * network-level failure nulls every asset rather than throwing. Every failure
+ * is logged.
+ */
+export async function getSpokeDrawUsagesSafe(
+  spoke: Address,
+  requests: AssetLiquidityRequest[],
+): Promise<(SpokeDrawUsage | null)[]> {
+  if (requests.length === 0) return [];
+
+  let results;
+  try {
+    results = await ethClient.getPublicClient().multicall({
+      contracts: requests.flatMap(({ hub, assetId }) =>
+        (
+          ["getSpokeConfig", "getSpokeTotalOwed", "getSpokeDeficitRay"] as const
+        ).map((functionName) => ({
+          address: hub,
+          abi: HUB_SPOKE_ABI as Abi,
+          functionName,
+          args: [BigInt(assetId), spoke] as const,
+        })),
+      ),
+      allowFailure: true,
+    });
+  } catch (error) {
+    warnHubSpokeReadFailed("draw usage", null, error);
+    return requests.map(() => null);
+  }
+
+  return requests.map((request, i) => {
+    const base = i * DRAW_USAGE_LEGS_PER_ASSET;
+    const [configLeg, owedLeg, deficitLeg] = results.slice(
+      base,
+      base + DRAW_USAGE_LEGS_PER_ASSET,
+    );
+    const failedLeg = [configLeg, owedLeg, deficitLeg].find(
+      (leg) => leg.status !== "success",
+    );
+    if (failedLeg) {
+      warnHubSpokeReadFailed("draw usage", request, failedLeg.error);
+      return null;
+    }
+    const { drawCap } = configLeg.result as HubSpokeConfig;
+    return {
+      drawCap,
+      usedRaw:
+        (owedLeg.result as bigint) + ceilDivRay(deficitLeg.result as bigint),
     };
   });
 }

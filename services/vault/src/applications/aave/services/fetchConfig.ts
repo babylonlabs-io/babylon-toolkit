@@ -9,12 +9,14 @@ import { gql } from "graphql-request";
 import type { Address } from "viem";
 
 import { graphqlClient } from "../../../clients/graphql";
+import { getHubSpokeConfigsSafe } from "../clients/aaveHub";
 import { getReservesBatch, type AaveSpokeReserve } from "../clients/spoke";
 import {
   getCoreSpokeAddress,
   getVaultBtcReserveId,
 } from "../clients/transaction";
 import { getAaveAdapterAddress } from "../config";
+import { getReserveHubBlock, type HubSpokeConfigs } from "../utils/hubState";
 
 import { ReserveMismatchError } from "./assertReserveMatchesOnChain";
 
@@ -72,7 +74,10 @@ export interface AaveAppConfig {
   config: AaveConfig;
   /** vBTC reserve configuration (collateral reserve) */
   vbtcReserve: AaveReserveConfig | null;
-  /** Reserves available for new borrows (filtered by borrowable/paused/frozen) */
+  /**
+   * Reserves available for new borrows: borrowable, not paused or frozen, and
+   * on a hub where our spoke is active and not halted.
+   */
   borrowableReserves: AaveReserveConfig[];
   /**
    * All non-vBTC reserves regardless of borrowable/paused/frozen flags.
@@ -81,6 +86,13 @@ export interface AaveAppConfig {
    * to repay it.
    */
   allBorrowReserves: AaveReserveConfig[];
+  /**
+   * Our Core Spoke's config on each reserve's hub (vBTC included), keyed by
+   * reserve id; null where the read failed. Read once with the config, which is
+   * not refreshed while the app stays open: it filters `borrowableReserves`,
+   * and stands in only until the forms' live read (`useHubSpokeConfigs`) lands.
+   */
+  hubSpokeConfigs: HubSpokeConfigs;
 }
 
 /**
@@ -394,6 +406,19 @@ export async function fetchAaveAppConfig(): Promise<AaveAppConfig | null> {
 
   await assertReservesMatchOnChain(coreSpokeAddress, allReserves);
 
+  // Read from the hubs just proven above, keyed by the spoke the adapter
+  // borrows through.
+  const spokeConfigs = await getHubSpokeConfigsSafe(
+    coreSpokeAddress,
+    allReserves.map((r) => ({
+      hub: r.reserve.hub,
+      assetId: r.reserve.assetId,
+    })),
+  );
+  const hubSpokeConfigs: HubSpokeConfigs = Object.fromEntries(
+    allReserves.map((r, i) => [r.reserveId.toString(), spokeConfigs[i]]),
+  );
+
   // Find vBTC reserve by ID
   const vbtcReserve =
     allReserves.find((r) => r.reserveId === vbtcReserveId) ?? null;
@@ -407,9 +432,14 @@ export async function fetchAaveAppConfig(): Promise<AaveAppConfig | null> {
   // Filter borrowable reserves:
   // - borrowable flag is true
   // - not paused or frozen
+  // - on a hub where our spoke is active and not halted (the draw would revert)
   // - NOT the vBTC reserve (vBTC is collateral-only, users deposit it but can't borrow it)
   const borrowableReserves = allBorrowReserves.filter(
-    (r) => r.reserve.borrowable && !r.reserve.paused && !r.reserve.frozen,
+    (r) =>
+      r.reserve.borrowable &&
+      !r.reserve.paused &&
+      !r.reserve.frozen &&
+      getReserveHubBlock(r, hubSpokeConfigs) === null,
   );
 
   return {
@@ -417,5 +447,6 @@ export async function fetchAaveAppConfig(): Promise<AaveAppConfig | null> {
     vbtcReserve,
     borrowableReserves,
     allBorrowReserves,
+    hubSpokeConfigs,
   };
 }

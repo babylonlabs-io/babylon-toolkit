@@ -221,6 +221,7 @@ describe("useVaultSplitParams", () => {
       vbtcReserve: null,
       borrowableReserves: [],
       allBorrowReserves: [],
+      hubSpokeConfigs: {},
     });
 
     mockGetReserve.mockResolvedValue({
@@ -262,6 +263,7 @@ describe("useVaultSplitParams", () => {
       vbtcReserve: null,
       borrowableReserves: [],
       allBorrowReserves: [],
+      hubSpokeConfigs: {},
     });
 
     const { result } = renderHook(() => useVaultSplitParams(), { wrapper });
@@ -286,6 +288,7 @@ describe("useVaultSplitParams", () => {
       vbtcReserve: null,
       borrowableReserves: [],
       allBorrowReserves: [],
+      hubSpokeConfigs: {},
     });
 
     // beforeEach default has CF=0.75 (7500 BPS). Initial load picks that up.
@@ -329,6 +332,7 @@ describe("useVaultSplitParams", () => {
       vbtcReserve: null,
       borrowableReserves: [],
       allBorrowReserves: [],
+      hubSpokeConfigs: {},
     });
 
     const { result } = renderHook(() => useVaultSplitParams(), { wrapper });
@@ -355,6 +359,7 @@ describe("useVaultSplitParams", () => {
       vbtcReserve: null,
       borrowableReserves: [],
       allBorrowReserves: [],
+      hubSpokeConfigs: {},
     });
 
     const { result } = renderHook(() => useVaultSplitParams(), { wrapper });

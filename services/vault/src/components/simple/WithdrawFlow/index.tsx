@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 
 import { useWithdrawCollateralTransaction } from "@/applications/aave/hooks/useWithdrawCollateralTransaction";
+import { useWithdrawHubBlockMessage } from "@/applications/aave/hooks/useWithdrawHubBlockMessage";
 import {
   computeProjectedHealthFactor,
   getEffectiveVaultSelection,
@@ -46,6 +47,7 @@ function WithdrawFlowContent({
   const { step, goToProgress, reset } = useWithdrawFlow();
   const { executeWithdraw, isProcessing, error } =
     useWithdrawCollateralTransaction();
+  const hubBlockMessage = useWithdrawHubBlockMessage();
   const { getOffchainParamsByVersion, config } = useProtocolParamsContext();
 
   const renderedStep = useDialogStep(open, step, reset);
@@ -179,6 +181,7 @@ function WithdrawFlowContent({
               assertTimelockBlocks={selectedAssertTimelockBlocks}
               isProcessing={isProcessing}
               error={error}
+              hubBlockMessage={hubBlockMessage}
               onConfirm={handleConfirm}
             />
           </div>

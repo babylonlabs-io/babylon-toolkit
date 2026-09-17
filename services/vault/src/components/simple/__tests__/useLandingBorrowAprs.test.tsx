@@ -52,6 +52,7 @@ function mockConfig(reserves: AaveReserveConfig[]) {
     vbtcReserve: null,
     borrowableReserves: reserves,
     allBorrowReserves: reserves,
+    hubSpokeConfigs: {},
   });
 }
 

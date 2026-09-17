@@ -209,6 +209,7 @@ describe("AaveConfigProvider — fail-closed on fetch failure (audit #312)", () 
       vbtcReserve: null,
       borrowableReserves: [],
       allBorrowReserves: [],
+      hubSpokeConfigs: {},
     });
     const { Wrapper } = wrapper();
 

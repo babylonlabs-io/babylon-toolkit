@@ -2,6 +2,8 @@ import { AaveIntegrationAdapterABI } from "@babylonlabs-io/ts-sdk/tbv/integratio
 import type { Address, Hex, WalletClient } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { HUB_ERROR_ABI } from "@/applications/aave/clients/hubErrors";
+
 import { activateVaultWithSecret } from "../vaultActivationService";
 
 // Inline literal because vi.mock factories are hoisted before outer consts.
@@ -57,7 +59,7 @@ describe("activateVaultWithSecret (vault adapter)", () => {
     expect(callArgs.chain).toEqual({ id: 11155111, name: "sepolia" });
   });
 
-  it("supplies the Aave adapter ABI so adapter reverts (e.g. VaultCountExceedsMaximum) decode to a friendly message", async () => {
+  it("supplies the Aave adapter and Hub error ABIs so adapter and Hub reverts (e.g. VaultCountExceedsMaximum, AddCapExceeded) decode to a friendly message", async () => {
     mockExecuteWrite.mockResolvedValueOnce({
       transactionHash: txHash,
       receipt: { status: "success" },
@@ -66,7 +68,10 @@ describe("activateVaultWithSecret (vault adapter)", () => {
     await activateVaultWithSecret({ vaultId, secret, hashlock, walletClient });
 
     const callArgs = mockExecuteWrite.mock.calls[0][0];
-    expect(callArgs.errorAbis).toEqual([AaveIntegrationAdapterABI]);
+    expect(callArgs.errorAbis).toEqual([
+      AaveIntegrationAdapterABI,
+      HUB_ERROR_ABI,
+    ]);
   });
 
   it("returns the full TransactionResult (hash + receipt) from executeWrite", async () => {

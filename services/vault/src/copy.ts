@@ -1532,6 +1532,9 @@ export const COPY = {
         `This withdrawal would drop your health factor below ${threshold} and be rejected on-chain. Reduce the selection or repay debt first.`,
       hfAtRiskWarning: (threshold: string) =>
         `Your position will be at risk of liquidation after this withdrawal (health factor below ${threshold}). Consider withdrawing less or repaying debt.`,
+      // The hub holding BTCVault collateral has stopped accepting withdrawals.
+      collateralHubUnavailable: (hub: string) =>
+        `${hub} isn't accepting BTCVault collateral withdrawals right now. Try again later.`,
     },
     initiated: {
       title: "Withdrawal initiated",
@@ -1639,6 +1642,7 @@ export const COPY = {
       amountTooSmall: "Amount too small",
       amountExceedsMax: "Amount exceeds maximum",
       amountExceedsLiquidity: "Amount exceeds available liquidity",
+      amountExceedsBorrowLimit: "Amount exceeds borrow limit",
       healthFactorTooLow: "Health factor too low",
     },
     // Borrow validation-error descriptions (the Callout title comes from the
@@ -1650,6 +1654,11 @@ export const COPY = {
         `The maximum borrowable amount is ${max} ${tokenOnHub(symbol, hub)}. Enter a lower amount and try again.`,
       exceedsLiquidity: (available: string, symbol: string, hub: string) =>
         `Only ${available} ${tokenOnHub(symbol, hub)} is available to borrow right now. Enter a lower amount and try again.`,
+      // A hub's draw cap on this market, named "borrow limit" for the user.
+      exceedsBorrowLimit: (available: string, symbol: string, hub: string) =>
+        `Only ${available} ${tokenOnHub(symbol, hub)} is left under this market's borrow limit. Enter a lower amount and try again.`,
+      borrowLimitReached: (symbol: string, hub: string) =>
+        `${tokenOnHub(symbol, hub)} has reached its borrow limit. Try again later or borrow from another hub.`,
       healthFactorTooLow: (min: number) =>
         `Borrowing this amount would drop your health factor below ${min}, risking liquidation. Reduce the amount and try again.`,
     },
@@ -1683,6 +1692,23 @@ export const COPY = {
       unknownHubWarning:
         "This hub isn't in the app's list of known hubs, so it is shown by its contract address.",
       tokenOnHub,
+      // A hub that has stopped accepting this market's transactions. Existing
+      // debt stays visible; the form explains why it can't be repaid. The
+      // sentence already leads with the hub, so the token is named alone.
+      halted: (symbol: string, hub: string) =>
+        `${hub} has halted ${symbol}, so it can't be borrowed or repaid on this hub until the halt is lifted. Your debt stays as it is.`,
+      inactive: (symbol: string, hub: string) =>
+        `${hub} isn't accepting ${symbol} transactions right now, so it can't be borrowed or repaid on this hub. Your debt stays as it is.`,
+      // Borrowing and withdrawing collateral also update your rate on every hub
+      // where you have debt, so an inactive one blocks them.
+      debtHubInactive: (hub: string) =>
+        `${hub}, where you have debt, isn't accepting transactions right now, so borrowing and withdrawing collateral are unavailable until it is.`,
+    },
+    // A decoded hub revert, scaled for the reserve that was being borrowed.
+    // Caps are whole tokens; the fixed-text fallbacks are in errorMessages.ts.
+    revert: {
+      drawCapExceeded: (cap: string, symbol: string, hub: string) =>
+        `This amount would go over the borrow limit for ${tokenOnHub(symbol, hub)}, which is ${cap} ${symbol}. Enter a lower amount and try again.`,
     },
     borrowSuccess: {
       title: "Borrow successful",

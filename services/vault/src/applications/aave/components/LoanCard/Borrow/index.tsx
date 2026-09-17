@@ -14,10 +14,11 @@ import {
   Text,
   WarningIcon,
 } from "@babylonlabs-io/core-ui";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 
 import { getHealthFactorStatusFromValue } from "@/applications/aave/utils";
 import { isBorrowBlocked } from "@/components/shared/protocolStatus";
+import { useETHWallet } from "@/context/wallet";
 import { COPY } from "@/copy";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
 
@@ -41,26 +42,37 @@ import {
 } from "../../../constants";
 import { useAaveConfig } from "../../../context";
 import {
+  useAaveReserveDrawHeadroom,
   useAaveReserveLiquidity,
   useBorrowTransaction,
+  useDebtReserves,
+  useHubSpokeConfigs,
   useProjectedBorrowApr,
 } from "../../../hooks";
+import { describeHubBlock, getBorrowHubBlock } from "../../../utils/hubState";
 import { AssetPill } from "../../AssetPill";
 import { useLoanContext } from "../../context/LoanContext";
 
 import { BorrowMetricsCard } from "./BorrowMetricsCard";
 import { useBorrowMetrics } from "./hooks/useBorrowMetrics";
 import { useBorrowState } from "./hooks/useBorrowState";
-import { validateBorrowAction } from "./hooks/validateBorrowAction";
+import {
+  getBorrowLimit,
+  validateBorrowAction,
+} from "./hooks/validateBorrowAction";
 import { validateBorrowPreSign } from "./hooks/validateBorrowPreSign";
 
 /**
- * Borrow at most this fraction of a reserve's available liquidity. The small
- * margin keeps "Max" from advertising the exact remaining amount — borrowing
- * the reserve down to zero can revert under some pool configs, so leaving a
- * sliver avoids a fail-at-Max edge while the on-chain draw stays the backstop.
+ * Borrow at most this fraction of a reserve's available liquidity, and of what
+ * the hub's borrow limit leaves. The small margin keeps "Max" from advertising
+ * the exact remaining amount, since borrowing the reserve down to zero can
+ * revert under some pool configs. It does not cover interest: that accrues on
+ * everything our spoke owes on the hub, so a large debt can use up more of the
+ * borrow limit between the read and the transaction than this margin leaves.
+ * The on-chain draw is the backstop, and its decoded `DrawCapExceeded` names
+ * the limit.
  */
-const MAX_BORROWABLE_LIQUIDITY_FRACTION = 0.999;
+const MAX_BORROWABLE_FRACTION = 0.999;
 
 export function Borrow() {
   const gate = useProtocolGateState();
@@ -99,25 +111,55 @@ export function Borrow() {
       tokenDecimals: tokenIdentity.decimals,
     });
 
+  // One stable array for the per-reserve reads below.
+  const selectedReserves = useMemo(() => [selectedReserve], [selectedReserve]);
+
   // Live available liquidity for the selected reserve (Aave Hub reserve totals);
   // also drives the metrics card below. Falls back to "–" while loading/failed.
   const { liquidityByReserveId } = useAaveReserveLiquidity({
-    reserves: [selectedReserve],
+    reserves: selectedReserves,
   });
   const reserveLiquidity =
     liquidityByReserveId[selectedReserve.reserveId.toString()];
 
-  // You can't borrow more than the reserve holds, so cap the collateral-based
-  // max by available liquidity (less a safety margin) when it's known. Additive:
-  // when the read is loading or failed (reserveLiquidity == null) the cap is
-  // skipped, so a best-effort display read can never block an otherwise-fundable
-  // borrow.
-  const liquidityCap =
+  // What our spoke may still draw on this reserve's hub (its borrow limit),
+  // separate from the hub's liquidity, which every spoke on the hub shares.
+  const { headroomByReserveId } = useAaveReserveDrawHeadroom({
+    reserves: selectedReserves,
+  });
+  const drawHeadroom =
+    headroomByReserveId[selectedReserve.reserveId.toString()] ?? null;
+
+  // You can't borrow more than the reserve holds or than the hub's borrow limit
+  // leaves, so cap the collateral-based max by both (less a safety margin) when
+  // known. Additive: a loading or failed read skips its cap, so a best-effort
+  // display read can never block an otherwise-fundable borrow.
+  const { max: effectiveMaxBorrowAmount, limitedBy } = getBorrowLimit(
+    maxBorrowAmount,
     reserveLiquidity == null
       ? Infinity
-      : reserveLiquidity.availableLiquidity * MAX_BORROWABLE_LIQUIDITY_FRACTION;
-  const effectiveMaxBorrowAmount = Math.min(maxBorrowAmount, liquidityCap);
-  const limitedByLiquidity = effectiveMaxBorrowAmount < maxBorrowAmount;
+      : reserveLiquidity.availableLiquidity * MAX_BORROWABLE_FRACTION,
+    drawHeadroom == null ? Infinity : drawHeadroom * MAX_BORROWABLE_FRACTION,
+  );
+
+  // A hub that would reject this borrow: the reserve's own hub halted or
+  // inactive, or an inactive hub where the user has debt. Read live, so a hub
+  // that recovers unblocks the form without a reload.
+  const { address } = useETHWallet();
+  const debtReserves = useDebtReserves(address);
+  const hubReserves = useMemo(
+    () => [selectedReserve, ...debtReserves],
+    [selectedReserve, debtReserves],
+  );
+  const hubSpokeConfigs = useHubSpokeConfigs(hubReserves);
+  const { borrowableReserves } = useAaveConfig();
+  const hubBlock = getBorrowHubBlock(
+    selectedReserve,
+    debtReserves,
+    hubSpokeConfigs,
+  );
+  const hubBlockMessage = hubBlock ? describeHubBlock(hubBlock) : null;
+  const isBorrowUnavailable = isBorrowBlocked(gate) || hubBlock !== null;
 
   // Reset the entered amount whenever the borrow asset changes. The form is no
   // longer remounted on switch (see `useAaveReservePrice` keepPreviousData), so
@@ -163,14 +205,14 @@ export function Borrow() {
     assetConfig.symbol,
     hub.label,
     isPositionDataStale,
-    limitedByLiquidity,
+    limitedBy,
   );
 
   // Cosmetic minimum only — keeps the slider track from rendering at zero
   // width when there is nothing to borrow. The "Max" label and the slider's
   // accept range use `effectiveMaxBorrowAmount` so the UI doesn't advertise a
-  // value (beyond collateral capacity or available liquidity) that validation
-  // will reject.
+  // value (beyond collateral capacity, available liquidity or the hub's borrow
+  // limit) that validation will reject.
   const sliderTrackMax =
     effectiveMaxBorrowAmount > 0 ? effectiveMaxBorrowAmount : MIN_SLIDER_MAX;
   const displayDecimals = Math.min(
@@ -179,8 +221,6 @@ export function Borrow() {
   );
 
   const hasProjection = borrowAmount > 0;
-
-  const { borrowableReserves } = useAaveConfig();
 
   // Current and projected borrow APR for the selected reserve, both evaluated
   // from the Hub asset's on-chain interest-rate strategy so the entered amount's
@@ -249,31 +289,44 @@ export function Borrow() {
   };
 
   const getBorrowButtonText = () => {
-    if (isBorrowBlocked(gate)) return COPY.loans.borrow.unavailable;
+    if (isBorrowUnavailable) return COPY.loans.borrow.unavailable;
     if (isProcessing) return COPY.loans.borrow.processing;
     return buttonText;
   };
 
   // A single status callout, rendered once below the action button. Highest
-  // priority first: a current input/validation error, then the last failed
-  // transaction, then the standing "can't borrow" warnings.
+  // priority first: why borrowing is unavailable (so it matches the button),
+  // then a current input/validation error, then the last failed transaction,
+  // then the standing warnings.
   const statusCallout: {
     variant: "error" | "warning";
     title?: string;
     body: string;
-  } | null = errorMessage
-    ? { variant: "error", title: buttonText, body: errorMessage }
-    : txError
-      ? {
-          variant: "error",
-          title: COPY.common.transactionFailedTitle,
-          body: txError,
-        }
-      : isBorrowBlocked(gate)
-        ? { variant: "warning", body: COPY.loans.borrowingUnavailable }
-        : tokenPriceUsd == null || oracleAddress == null
-          ? { variant: "warning", body: COPY.loans.priceUnavailable }
-          : null;
+  } | null = isBorrowBlocked(gate)
+    ? { variant: "warning", body: COPY.loans.borrowingUnavailable }
+    : hubBlockMessage
+      ? { variant: "warning", body: hubBlockMessage }
+      : errorMessage
+        ? { variant: "error", title: buttonText, body: errorMessage }
+        : txError
+          ? {
+              variant: "error",
+              title: COPY.common.transactionFailedTitle,
+              body: txError,
+            }
+          : tokenPriceUsd == null || oracleAddress == null
+            ? { variant: "warning", body: COPY.loans.priceUnavailable }
+            : // Before an amount is entered, say the borrow limit is used up
+              // rather than leaving a zero max unexplained.
+              limitedBy === "borrowLimit" && effectiveMaxBorrowAmount <= 0
+              ? {
+                  variant: "warning",
+                  body: COPY.loans.validation.borrowLimitReached(
+                    assetConfig.symbol,
+                    hub.label,
+                  ),
+                }
+              : null;
 
   return (
     <div>
@@ -380,7 +433,7 @@ export function Borrow() {
         disabled={
           isDisabled ||
           isProcessing ||
-          isBorrowBlocked(gate) ||
+          isBorrowUnavailable ||
           !isPriceReady ||
           oracleAddress == null
         }

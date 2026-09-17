@@ -149,7 +149,7 @@ describe("useRepayTransaction — max mode wiring", () => {
 });
 
 describe("useRepayTransaction — cache invalidation", () => {
-  it("invalidates the vault and position queries by key prefix after a repay", async () => {
+  it("invalidates the vault, position and hub queries by key prefix after a repay", async () => {
     mockAssertReserve.mockResolvedValue(undefined);
     mockRepayAll.mockResolvedValue({ transactionHash: "0xhash" });
     const { result } = setup();
@@ -162,7 +162,13 @@ describe("useRepayTransaction — cache invalidation", () => {
 
     expect(
       mockInvalidateQueries.mock.calls.map((call) => call[0].queryKey),
-    ).toEqual([["vaults"], ["aaveUserPosition"]]);
+    ).toEqual([
+      ["vaults"],
+      ["aaveUserPosition"],
+      ["aaveReserveLiquidity"],
+      ["aaveReserveDrawHeadroom"],
+      ["aaveHubSpokeConfigs"],
+    ]);
   });
 });
 

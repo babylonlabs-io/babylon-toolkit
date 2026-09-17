@@ -16,11 +16,16 @@ vi.mock("../../clients/spoke", () => ({
   getReservesBatch: vi.fn(),
 }));
 
+vi.mock("../../clients/aaveHub", () => ({
+  getHubSpokeConfigsSafe: vi.fn(),
+}));
+
 vi.mock("../../config", () => ({
   getAaveAdapterAddress: vi.fn(),
 }));
 
 import { graphqlClient } from "../../../../clients/graphql";
+import { getHubSpokeConfigsSafe } from "../../clients/aaveHub";
 import { getReservesBatch } from "../../clients/spoke";
 import {
   getCoreSpokeAddress,
@@ -35,6 +40,9 @@ const mockGetCoreSpokeAddress = vi.mocked(getCoreSpokeAddress);
 const mockGetVaultBtcReserveId = vi.mocked(getVaultBtcReserveId);
 const mockGetReservesBatch = vi.mocked(getReservesBatch);
 const mockGetAaveAdapterAddress = vi.mocked(getAaveAdapterAddress);
+const mockGetHubSpokeConfigsSafe = vi.mocked(getHubSpokeConfigsSafe);
+
+const USABLE_SPOKE = { drawCap: 10_000_000, active: true, halted: false };
 
 const ENV_ADAPTER = "0x1111111111111111111111111111111111111111" as Address;
 const INDEXER_ADAPTER = "0x2222222222222222222222222222222222222222" as Address;
@@ -138,6 +146,56 @@ describe("fetchAaveAppConfig", () => {
       ON_CHAIN_VBTC_RESERVE,
       ON_CHAIN_USDC_RESERVE,
     ]);
+    mockGetHubSpokeConfigsSafe.mockResolvedValue([USABLE_SPOKE, USABLE_SPOKE]);
+  });
+
+  it("reads our spoke's config on every reserve's hub, keyed by reserve id", async () => {
+    mockRequest.mockResolvedValueOnce(makeResponse());
+
+    const result = await fetchAaveAppConfig();
+
+    expect(mockGetHubSpokeConfigsSafe).toHaveBeenCalledWith(CORE_SPOKE, [
+      { hub: VBTC_HUB, assetId: 1 },
+      { hub: USDC_HUB, assetId: 2 },
+    ]);
+    expect(result?.hubSpokeConfigs).toEqual({
+      "1": USABLE_SPOKE,
+      "2": USABLE_SPOKE,
+    });
+  });
+
+  it("leaves a reserve on a halted hub out of the borrowable list but keeps it for repay", async () => {
+    mockGetHubSpokeConfigsSafe.mockResolvedValue([
+      USABLE_SPOKE,
+      { ...USABLE_SPOKE, halted: true },
+    ]);
+    mockRequest.mockResolvedValueOnce(makeResponse());
+
+    const result = await fetchAaveAppConfig();
+
+    expect(result?.borrowableReserves).toHaveLength(0);
+    expect(result?.allBorrowReserves.map((r) => r.reserveId)).toEqual([2n]);
+  });
+
+  it("leaves a reserve on a hub where our spoke is inactive out of the borrowable list", async () => {
+    mockGetHubSpokeConfigsSafe.mockResolvedValue([
+      USABLE_SPOKE,
+      { ...USABLE_SPOKE, active: false },
+    ]);
+    mockRequest.mockResolvedValueOnce(makeResponse());
+
+    const result = await fetchAaveAppConfig();
+
+    expect(result?.borrowableReserves).toHaveLength(0);
+  });
+
+  it("keeps a reserve borrowable when its hub config could not be read", async () => {
+    mockGetHubSpokeConfigsSafe.mockResolvedValue([null, null]);
+    mockRequest.mockResolvedValueOnce(makeResponse());
+
+    const result = await fetchAaveAppConfig();
+
+    expect(result?.borrowableReserves.map((r) => r.reserveId)).toEqual([2n]);
   });
 
   it("resolves the Core Spoke from the env-pinned adapter when the indexer agrees", async () => {
