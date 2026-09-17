@@ -149,8 +149,8 @@ When the depositor is the claimer, they pre-sign **1 + N PSBTs**, where N is the
 > **ChallengeAssert is not signed by the claimer.** NoPayout references specific ChallengeAssert txids, so a challenger who broadcasts a different one cannot execute NoPayout (btc-vault `tx_graph/challenger.rs`).
 
 The vault provider supplies the unsigned transaction hexes. The depositor must
-also supply the parent transactions (peg-in tx for Payout, Assert tx for
-ChallengeAssert) from a trusted source — those builders cross-check every signed
+also supply the parent transactions (peg-in and Assert tx for Payout, Assert tx
+for ChallengeAssert) from a trusted source — those builders cross-check every signed
 input's outpoint and prevout against the parent so a malicious VP cannot trick the
 wallet into signing over an attacker-chosen prevout.
 
