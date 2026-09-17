@@ -1,7 +1,6 @@
-import type { Address } from "viem";
+import { getAddress, isAddress, type Address } from "viem";
 
-import type { LoanTab } from "@/applications/aave/constants";
-import { getRegisteredTokenByAddress } from "@/services/token/tokenService";
+import { LOAN_TAB, type LoanTab } from "@/applications/aave/constants";
 
 export const ROUTES = {
   OVERVIEW: "/",
@@ -13,14 +12,20 @@ export const ROUTES = {
   MARKETS: "/markets",
 } as const;
 
-/** Path segment of `/markets/:market` — see {@link getMarketSlug}. */
-export const MARKET_PARAM = "market";
+/** Path segment of `/markets/:reserveId` — see {@link getMarketDataRoute}. */
+export const MARKET_RESERVE_PARAM = "reserveId";
 
 export const RESERVE_QUERY_KEYS = {
   RESERVE_ID: "reserve",
   TAB: "tab",
   /** Selects the loan overlay's asset-picker step (`borrow` | `repay`). */
   PICKER: "picker",
+  /**
+   * Underlying token chosen in Select asset. Carried to Select hub and on to
+   * the borrow form, whose back arrow returns there. Navigation only: it never
+   * resolves a reserve, which always comes from `RESERVE_ID`.
+   */
+  ASSET: "asset",
 } as const;
 
 /**
@@ -41,6 +46,32 @@ export function getAssetPickerSearch(tab: LoanTab) {
  */
 export function getAssetPickerRoute(tab: LoanTab) {
   return `${ROUTES.LOANS}${getAssetPickerSearch(tab)}`;
+}
+
+/**
+ * Query string that opens Select hub for one token: the borrow picker, narrowed
+ * to the reserves whose underlying is `underlying`. Search-only, like
+ * {@link getAssetPickerSearch}.
+ */
+export function getHubPickerSearch(underlying: Address) {
+  return `?${new URLSearchParams({
+    [RESERVE_QUERY_KEYS.PICKER]: LOAN_TAB.BORROW,
+    [RESERVE_QUERY_KEYS.ASSET]: underlying,
+  })}`;
+}
+
+/**
+ * Parse the `?asset=` underlying address.
+ *
+ * @returns The checksummed address, or null when absent or not an address.
+ */
+export function parseAssetParam(
+  param: string | null | undefined,
+): Address | null {
+  if (!param || !isAddress(param, { strict: false })) {
+    return null;
+  }
+  return getAddress(param);
 }
 
 /**
@@ -70,46 +101,34 @@ export function parseReserveId(
 }
 
 /**
- * Build the reserve detail route.
+ * Query string that opens the loan overlay's borrow / repay form for a reserve.
+ * Search-only, like {@link getAssetPickerSearch}.
  *
  * The `reserve` query value is the reserve's on-chain id, never its token
  * symbol: the symbol comes from the indexer, so routing by it lets a
- * compromised indexer decide which reserve a link opens.
+ * compromised indexer decide which reserve a link opens. `asset` records that
+ * the form was reached through the pickers, so the borrow form can offer a way
+ * back to them.
  */
-export function getReserveDetailRoute(reserveId: bigint, tab: LoanTab) {
-  return `${ROUTES.LOANS}${getReserveDetailSearch(reserveId, tab)}`;
-}
-
-/** Search-only form of {@link getReserveDetailRoute}; same rationale, and the
- *  same id-not-symbol rule. */
-export function getReserveDetailSearch(reserveId: bigint, tab: LoanTab) {
+export function getReserveDetailSearch(
+  reserveId: bigint,
+  tab: LoanTab,
+  asset?: Address,
+) {
   return `?${new URLSearchParams({
     [RESERVE_QUERY_KEYS.RESERVE_ID]: reserveId.toString(),
     [RESERVE_QUERY_KEYS.TAB]: tab,
+    ...(asset ? { [RESERVE_QUERY_KEYS.ASSET]: asset } : {}),
   })}`;
 }
 
 /**
- * Slug naming a reserve in `/markets/:market`: the compile-time token
- * registry's symbol for the reserve's underlying address, lowercased, falling
- * back to the on-chain id for addresses the registry does not know (testnet
- * mocks).
- *
- * Deliberately not the indexer's `token.symbol`. Link building and the page's
- * lookup both key off the registry, so a compromised indexer that rewrites a
- * reserve's underlying can only make the link resolve to nothing, never to a
- * different market — and the id/underlying pair it does resolve to is still
- * proven against the chain before anything renders
- * (`useVerifiedReserveIdentity`, audit F7).
+ * Route to a reserve's market data page, addressed by the reserve's on-chain
+ * id. Not by token symbol: one token can be listed on several hubs, each a
+ * separate market, and two hubs can even list different tokens that share a
+ * symbol. The id is unambiguous by construction, and the page still proves the
+ * reserve's identity against the chain before anything renders.
  */
-export function getMarketSlug(reserveId: bigint, underlying?: Address): string {
-  const symbol = underlying
-    ? getRegisteredTokenByAddress(underlying)?.symbol
-    : undefined;
-  return symbol ? symbol.toLowerCase() : reserveId.toString();
-}
-
-/** Route to a reserve's market data page. See {@link getMarketSlug}. */
-export function getMarketDataRoute(reserveId: bigint, underlying?: Address) {
-  return `${ROUTES.MARKETS}/${getMarketSlug(reserveId, underlying)}`;
+export function getMarketDataRoute(reserveId: bigint) {
+  return `${ROUTES.MARKETS}/${reserveId.toString()}`;
 }

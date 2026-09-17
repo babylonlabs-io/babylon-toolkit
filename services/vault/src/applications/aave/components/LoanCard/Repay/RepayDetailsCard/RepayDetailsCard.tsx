@@ -6,8 +6,13 @@ import {
 } from "@/applications/aave/utils";
 import { HeartIcon } from "@/components/shared";
 import { COPY } from "@/copy";
+import type { HubIdentity } from "@/services/aave/hubRegistry";
+
+import { HubLabel } from "../../../HubLabel";
 
 interface RepayDetailsCardProps {
+  /** Hub the debt is owed to. */
+  hub: HubIdentity;
   /** Outstanding debt after the repayment (or current debt when not repaying). */
   debt: string;
   /** Current debt, shown before the arrow when a repay amount is entered. */
@@ -21,11 +26,13 @@ interface RepayDetailsCardProps {
 const ROW_CLASS = "flex w-full items-center justify-between text-sm";
 
 /**
- * RepayDetailsCard - Displays the outstanding debt and health factor for the
- * selected reserve, each with a before → after indicator when a repay amount
- * is entered.
+ * RepayDetailsCard - Displays the hub, outstanding debt and health factor for
+ * the selected reserve, the last two with a before → after indicator when a
+ * repay amount is entered. The hub comes first: the same token can be owed to
+ * two hubs, and this repays only one of them.
  */
 export function RepayDetailsCard({
+  hub,
   debt,
   debtOriginal,
   healthFactor,
@@ -45,6 +52,11 @@ export function RepayDetailsCard({
 
   return (
     <SubSection className="w-full flex-col gap-4 !bg-secondary-highlight">
+      <div className={ROW_CLASS}>
+        <span className="text-accent-secondary">{COPY.loans.hub.label}</span>
+        <HubLabel hub={hub} className="text-accent-primary" />
+      </div>
+
       <div className={ROW_CLASS}>
         <span className="text-accent-secondary">{COPY.loans.debtLabel}</span>
         <span className="text-accent-primary">

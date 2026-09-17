@@ -200,3 +200,21 @@ export const SIGN_CALL_TIMEOUT_MS = 90_000;
 export const POPUP_OPEN_WAIT_MS = 5_000;
 /** Let the dapp settle any post-connection navigation before driving direct provider sign calls. */
 export const POST_CONNECT_SETTLE_MS = 5_000;
+
+// ── stale wallet nonce (TEMPORARY: remove with issue #2514) ──────────────────────
+/**
+ * How many times a borrow/repay submit rejected with "nonce too low" is resubmitted. One: the rejected
+ * transaction was never broadcast, and a second rejection means the wallet is not catching up.
+ */
+export const STALE_NONCE_RETRY_LIMIT = 1;
+/**
+ * Wait before resubmitting after "nonce too low". MetaMask refreshes its node's latest block about every
+ * 20 s; most of that has usually passed by the time the form shows the failure.
+ */
+export const STALE_NONCE_RETRY_DELAY_MS = 15_000;
+
+/** Multi-hub: how long a leg may take to show on its reserve's on-chain debt, and how often to re-read. */
+export const RESERVE_DEBT_VERIFY_TIMEOUT_MS = 90_000;
+export const RESERVE_DEBT_VERIFY_POLL_MS = 3_000;
+/** Multi-hub: how long /loans may take to render a just-borrowed reserve's Active Loans row. */
+export const LOAN_ROW_APPEAR_TIMEOUT_MS = 60_000;

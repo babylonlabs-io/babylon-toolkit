@@ -109,6 +109,14 @@ const TOKEN_REGISTRY: Record<string, TokenMetadata> = {
     decimals: 8,
     icon: TOKEN_ICONS.WBTC,
   },
+  // USDG - Vault Devnet (2026-09 multi-hub deploy, Core Hub only). No icon
+  // asset yet, so it renders the generated letter icon.
+  "0x18d2048734d66cDB6468A93A3311feC9af037Cc4": {
+    address: "0x18d2048734d66cDB6468A93A3311feC9af037Cc4" as Address,
+    symbol: "USDG",
+    name: "Global Dollar",
+    decimals: 6,
+  },
   // USDT
   "0x94b008aA00579c1307B0EF2c499aD98a8ce58e58": {
     address: "0x94b008aA00579c1307B0EF2c499aD98a8ce58e58" as Address,

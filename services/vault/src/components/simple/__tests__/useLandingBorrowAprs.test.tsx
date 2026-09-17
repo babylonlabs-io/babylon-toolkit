@@ -14,18 +14,20 @@ import type { AaveReserveConfig } from "@/applications/aave/services/fetchConfig
 
 import { useLandingBorrowAprs } from "../useLandingBorrowAprs";
 
-const HUB = "0x0000000000000000000000000000000000000003" as const;
+const BABYLON_HUB = "0xb3283508a0E96F80CF79DC2a1135F10dA170138D" as const;
+const CORE_HUB = "0xF5E52D571Ed9b4779399A815815ABeFF7D7ec4ca" as const;
 
 function makeReserve(
   reserveId: bigint,
   symbol: string,
   assetId: number,
+  hub: `0x${string}` = BABYLON_HUB,
 ): AaveReserveConfig {
   return {
     reserveId,
     reserve: {
       underlying: "0x0000000000000000000000000000000000000010",
-      hub: HUB,
+      hub,
       assetId,
       decimals: 6,
       dynamicConfigKey: 0,
@@ -96,17 +98,51 @@ describe("useLandingBorrowAprs", () => {
     });
   });
 
-  it("picks the lowest reserveId when two borrowable reserves share a symbol", () => {
-    // Indexer returns the higher reserveId first; selection must not depend on order.
-    mockConfig([makeReserve(9n, "USDT", 1), makeReserve(4n, "USDT", 1)]);
+  it("advertises the lowest APR among a token's reserves on different hubs", () => {
+    mockConfig([
+      makeReserve(0n, "USDC", 0, BABYLON_HUB),
+      makeReserve(4n, "USDC", 0, CORE_HUB),
+    ]);
     vi.mocked(useAaveBorrowAprs).mockReturnValue({
-      aprPercentByReserveId: { "4": 2.5, "9": 8.8 },
+      aprPercentByReserveId: { "0": 8.8, "4": 2.5 },
       isLoading: false,
       error: null,
     });
 
     const { result } = renderHook(() => useLandingBorrowAprs());
 
-    expect(result.current.usdt).toBe("2.5%");
+    expect(result.current.usdc).toBe("2.5%");
+  });
+
+  it("waits for every hub's rate before advertising a token", () => {
+    mockConfig([
+      makeReserve(0n, "USDC", 0, BABYLON_HUB),
+      makeReserve(4n, "USDC", 0, CORE_HUB),
+    ]);
+    vi.mocked(useAaveBorrowAprs).mockReturnValue({
+      aprPercentByReserveId: { "0": 8.8 },
+      isLoading: true,
+      error: null,
+    });
+
+    const { result } = renderHook(() => useLandingBorrowAprs());
+
+    expect(result.current.usdc).toBeUndefined();
+  });
+
+  it("skips a hub whose rate read failed", () => {
+    mockConfig([
+      makeReserve(0n, "USDC", 0, BABYLON_HUB),
+      makeReserve(4n, "USDC", 0, CORE_HUB),
+    ]);
+    vi.mocked(useAaveBorrowAprs).mockReturnValue({
+      aprPercentByReserveId: { "0": 8.8, "4": null },
+      isLoading: false,
+      error: null,
+    });
+
+    const { result } = renderHook(() => useLandingBorrowAprs());
+
+    expect(result.current.usdc).toBe("8.8%");
   });
 });

@@ -34,6 +34,8 @@ export interface RepayableDebt {
   name: string;
   reserveId: bigint;
   tokenAddress: string;
+  /** Hub the debt is owed to. One token can be owed to several hubs, each a separate debt. */
+  hub: string;
   /** Token (underlying) decimals — what the repay amount is parsed against. */
   decimals: number;
   /** Outstanding debt in token units (incl. accrued interest), from `getUserTotalDebt`. */
@@ -90,6 +92,7 @@ export async function fetchRepayableDebts(
       name: reserve.name,
       reserveId: reserve.reserveId,
       tokenAddress: reserve.tokenAddress,
+      hub: reserve.hub,
       decimals: reserve.decimals,
       debtTokens: rawToTokens(debtRaw, reserve.decimals),
       balanceTokens: rawToTokens(balanceRaw, reserve.decimals),

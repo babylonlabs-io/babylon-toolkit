@@ -72,6 +72,7 @@ export function Borrow() {
     selectedReserve,
     tokenIdentity,
     assetConfig,
+    hub,
     oracleAddress,
     tokenPriceUsd,
     isPriceStale,
@@ -160,6 +161,7 @@ export function Borrow() {
     effectiveMaxBorrowAmount,
     tokenIdentity.decimals,
     assetConfig.symbol,
+    hub.label,
     isPositionDataStale,
     limitedByLiquidity,
   );
@@ -281,7 +283,7 @@ export function Borrow() {
         as="h3"
         className="mb-4 font-normal text-accent-primary"
       >
-        Borrow
+        {COPY.loans.borrow.action}
       </Heading>
       <div className="flex flex-col gap-2">
         <SubSection className="gap-4 !bg-secondary-highlight">
@@ -356,6 +358,7 @@ export function Borrow() {
 
         {/* Borrow Metrics */}
         <BorrowMetricsCard
+          hub={hub}
           availableLiquidity={availableLiquidityDisplay}
           availableLiquidityProjected={availableLiquidityProjectedDisplay}
           borrowApr={borrowAprDisplay}

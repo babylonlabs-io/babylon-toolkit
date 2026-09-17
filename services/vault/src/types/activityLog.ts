@@ -40,6 +40,12 @@ export interface ActivityAmount {
   /** Token symbol (e.g., "USDC", "BTC") */
   symbol: string;
   /**
+   * Hub a borrowed asset's reserve belongs to, named beside the symbol: the
+   * same token can be borrowed from several hubs. Display only; `symbol`
+   * still keys the USD price. Absent on collateral rows and unknown reserves.
+   */
+  hubLabel?: string;
+  /**
    * The same amount as a plain number, used only to derive the row's USD
    * sub-line (amount × current price). Absent where the source has no
    * unambiguous numeric amount — those rows render no sub-line rather than a
