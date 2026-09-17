@@ -42,6 +42,7 @@ import {
   isSessionAlive,
   prepareSignPsbt,
   psbtPaysChangeScript,
+  refreshSessionApp,
   signPreparedVaultPsbt,
   SW_BAD_STATE,
   SW_CAP_EXCEEDED,
@@ -317,7 +318,10 @@ export class LedgerVaultProvider implements IBTCProvider {
     // Idempotent while the session lives: visibility checks re-call this
     // outside a user gesture, where WebHID's requestDevice rejects — tearing
     // down a healthy session would turn an alt-tab into a forced disconnect.
-    if (this.session && (await this.probeSessionAlive(this.session))) return;
+    if (this.session && (await this.probeSessionAlive(this.session))) {
+      await this.gateUngatedSession(this.session, token);
+      return;
+    }
     // A disconnect during the probe means the caller no longer wants a
     // session — skip opening one at all.
     if (token !== this.disconnectToken) return;
@@ -361,6 +365,28 @@ export class LedgerVaultProvider implements IBTCProvider {
     this.rawSend = createDmkRawApduSender(session);
     this.connectionGeneration += 1;
   };
+
+  /**
+   * A session installed after a failed preflight was never gated, and a
+   * retry (unlock, open an app, connect again) reuses it while it lives. Read
+   * the app now and gate it; idle only, since the preflight is a BOLOS
+   * command that must not interleave with an intent ceremony.
+   */
+  private async gateUngatedSession(session: DmkSessionHandle, token: number): Promise<void> {
+    if (session.appName !== undefined || this.deviceState.phase !== "idle") return;
+    const refreshed = await refreshSessionApp(session);
+    // A disconnect or teardown during the read owns the session now.
+    if (token !== this.disconnectToken || this.session !== session) return;
+    const refusal = this.refuseUnexpectedApp(refreshed);
+    if (refusal) {
+      await this.teardownSession();
+      throw refusal;
+    }
+    // Same session: keep the generation, rebuild the senders so 0x6E00 names the app.
+    this.session = refreshed;
+    this.send = withWalletErrorMapping(createDmkApduSender(refreshed));
+    this.rawSend = createDmkRawApduSender(refreshed);
+  }
 
   /**
    * Refuse, before the first vault APDU, an app the connect preflight shows is
