@@ -29,7 +29,8 @@ export interface DmkSessionHandle {
   readonly sessionId: DeviceSessionId;
   /**
    * App name/version at connect time ("BOLOS" = dashboard); absent when the
-   * preflight failed. The host gates connect on it. Never re-read between intent phases.
+   * preflight failed. The host gates connect on it, and re-reads it only while
+   * idle via `refreshSessionApp` — never between intent phases.
    */
   readonly appName?: string;
   readonly appVersion?: string;
@@ -233,6 +234,17 @@ export async function isSessionAlive(handle: DmkSessionHandle): Promise<boolean>
     if ((error as { _tag?: string } | undefined)?._tag === "DeviceSessionNotFound") return false;
     throw error;
   }
+}
+
+/**
+ * Re-run the connect preflight on a live session whose first read failed, so
+ * a retry cannot ride in on an ungated session. Returns the handle with the
+ * app fields filled when the read succeeds, unchanged otherwise. Call only
+ * while no intent ceremony is in flight: the preflight is a BOLOS command.
+ */
+export async function refreshSessionApp(handle: DmkSessionHandle): Promise<DmkSessionHandle> {
+  const app = await readAppAndVersion(handle.dmk, handle.sessionId);
+  return { ...handle, ...app };
 }
 
 /** Disconnect the session; safe to call when already disconnected. */

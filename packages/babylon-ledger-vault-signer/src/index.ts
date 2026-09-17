@@ -13,7 +13,14 @@
 
 export { getExtendedPublicKey, getMasterFingerprintHex, getXOnlyPublicKeyHex } from "./derivation";
 export { createDmkApduSender, createDmkRawApduSender } from "./dmkApduSender";
-export { closeDmk, connectDmkSession, disconnectDmkSession, isSessionAlive, type DmkSessionHandle } from "./dmkSession";
+export {
+  closeDmk,
+  connectDmkSession,
+  disconnectDmkSession,
+  isSessionAlive,
+  refreshSessionApp,
+  type DmkSessionHandle,
+} from "./dmkSession";
 export { assertDepositTermsDeviceCompatible } from "./envelope";
 export {
   LEDGER_DEVICE_ERROR_NAME,
@@ -57,13 +64,6 @@ export {
 } from "./policyPsbt";
 export { buildPopPsbtHex, type BuildPopPsbtParams } from "./popPsbt";
 export {
-  assertRefundPsbtSignable,
-  augmentPsbtForRefund,
-  classifyRefundPsbt,
-  type AugmentPsbtForRefundParams,
-  type RefundPsbtClassification,
-} from "./refundPsbt";
-export {
   SW_BAD_STATE,
   SW_CAP_EXCEEDED,
   SW_CLA_NOT_SUPPORTED,
@@ -73,6 +73,13 @@ export {
   type RawApduResponse,
   type RawApduSender,
 } from "./rawApdu";
+export {
+  assertRefundPsbtSignable,
+  augmentPsbtForRefund,
+  classifyRefundPsbt,
+  type AugmentPsbtForRefundParams,
+  type RefundPsbtClassification,
+} from "./refundPsbt";
 export {
   signPreparedVaultPsbt,
   signVaultPsbt,

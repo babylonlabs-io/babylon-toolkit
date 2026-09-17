@@ -51,6 +51,7 @@ const dmkSessionMock = vi.hoisted(() => ({
   connectDmkSession: vi.fn(),
   disconnectDmkSession: vi.fn(async () => {}),
   isSessionAlive: vi.fn(async () => true),
+  refreshSessionApp: vi.fn(async (session: unknown) => session),
 }));
 
 const derivationMock = vi.hoisted(() => ({
@@ -182,6 +183,8 @@ beforeEach(() => {
   dmkSessionMock.disconnectDmkSession.mockClear();
   dmkSessionMock.isSessionAlive.mockReset();
   dmkSessionMock.isSessionAlive.mockResolvedValue(true);
+  dmkSessionMock.refreshSessionApp.mockReset();
+  dmkSessionMock.refreshSessionApp.mockImplementation(async (session: unknown) => session);
   signMock.prepareSignPsbt.mockReset();
   signMock.prepareSignPsbt.mockImplementation(({ psbtHex }: { psbtHex: string }) => fakePrepared(psbtHex));
   signMock.signPreparedVaultPsbt.mockReset();
@@ -1400,9 +1403,7 @@ describe("LedgerVaultProvider", () => {
     }
 
     /** SDK-shaped refund PSBT: 1-in (refund leaf, NUMS internal key), 1-out (depositor BIP-86). */
-    function refundPsbtHex(
-      overrides: { leafKeyHex?: string; csv?: number; prevHashInternal?: Buffer } = {},
-    ): string {
+    function refundPsbtHex(overrides: { leafKeyHex?: string; csv?: number; prevHashInternal?: Buffer } = {}): string {
       initEccLib(ecc);
       const leafKeyHex = overrides.leafKeyHex ?? DEVICE_XONLY;
       const csv = overrides.csv ?? TERMS.timelockRefund;
@@ -1982,6 +1983,50 @@ describe("LedgerVaultProvider", () => {
 
     await expect(new LedgerVaultProvider(Network.SIGNET).connectWallet()).resolves.toBeUndefined();
     expect(dmkSessionMock.disconnectDmkSession).not.toHaveBeenCalled();
+  });
+
+  it("re-gates a session whose preflight failed when connect is retried", async () => {
+    // A locked device can fail the preflight; the session is installed ungated.
+    // The retry after unlocking must read the app and refuse a wrong one,
+    // instead of riding the live session past the gate.
+    const bare = { dmk: {}, sessionId: "s1" };
+    dmkSessionMock.connectDmkSession.mockResolvedValue(bare);
+    const provider = new LedgerVaultProvider(Network.SIGNET);
+    await provider.connectWallet();
+    dmkSessionMock.refreshSessionApp.mockResolvedValueOnce({ ...bare, appName: "BOLOS" });
+
+    const retry = provider.connectWallet();
+    await expect(retry).rejects.toMatchObject({ code: ERROR_CODES.DEVICE_WRONG_APP });
+    expect(dmkSessionMock.connectDmkSession).toHaveBeenCalledTimes(1);
+    expect(dmkSessionMock.disconnectDmkSession).toHaveBeenCalledWith(bare);
+    await expect(provider.getAddress()).rejects.toThrow(/not connected/);
+  });
+
+  it("keeps an ungated session once the retry preflight confirms the app", async () => {
+    const bare = { dmk: {}, sessionId: "s1" };
+    dmkSessionMock.connectDmkSession.mockResolvedValue(bare);
+    const provider = new LedgerVaultProvider(Network.SIGNET);
+    await provider.connectWallet();
+    dmkSessionMock.refreshSessionApp.mockResolvedValueOnce({
+      ...bare,
+      appName: "Babylon Vault Testnet",
+      appVersion: "0.10.1",
+    });
+
+    await expect(provider.connectWallet()).resolves.toBeUndefined();
+    expect(dmkSessionMock.connectDmkSession).toHaveBeenCalledTimes(1);
+    expect(dmkSessionMock.disconnectDmkSession).not.toHaveBeenCalled();
+    // The read is not repeated once the app is known.
+    await provider.connectWallet();
+    expect(dmkSessionMock.refreshSessionApp).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects the testnet app when the dApp is on mainnet", async () => {
+    dmkSessionMock.connectDmkSession.mockResolvedValue({ ...h.session });
+
+    const call = new LedgerVaultProvider(Network.MAINNET).connectWallet();
+    await expect(call).rejects.toMatchObject({ code: ERROR_CODES.DEVICE_WRONG_APP });
+    await expect(call).rejects.toThrow(/Open the Babylon Vault app/);
   });
 
   it("refuses the ceremony when the session has died, and tears everything down", async () => {

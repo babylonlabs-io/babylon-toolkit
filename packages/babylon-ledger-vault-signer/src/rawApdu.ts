@@ -56,8 +56,9 @@ export const SW_CLA_NOT_SUPPORTED = 0x6e00;
 /**
  * INS not supported. The vault app is built on `bitcoin_app_base`, so the stock
  * Bitcoin app shares CLA 0xE1 and answers this class; its dispatcher returns
- * this for a vault instruction it does not implement (`base:dispatcher.c:170`
- * @ b0c0ac4d). A known class without the vault instructions is a wrong app.
+ * this for a vault instruction it does not implement
+ * (`base:src/boilerplate/dispatcher.c:170-171` @ e400d8d8). A known class
+ * without the vault instructions is a wrong app.
  */
 export const SW_INS_NOT_SUPPORTED = 0x6d00;
 
