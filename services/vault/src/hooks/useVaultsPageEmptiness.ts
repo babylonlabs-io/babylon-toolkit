@@ -4,9 +4,10 @@
  * Emptiness predicate for the v3 /vaults page: `isEmpty` is true when the
  * account has nothing to show in any vault lifecycle section — no collateral
  * vaults (including optimistic activating rows) and no pending or refundable
- * expired deposits. A disconnected or partially connected session (BTC or
- * ETH wallet missing) is always "empty" regardless of what the ETH-keyed
- * queries returned, so the page shows the connect prompt.
+ * expired deposits. `useConnection` counts a session as connected only with
+ * confirmed Ethereum, plus Bitcoin while Ethereum-only access is off. Any
+ * other session is always "empty" regardless of what the ETH-keyed queries
+ * returned, so the page shows the connect prompt.
  *
  * `isLoading` guards against flashing the empty state before the position
  * and deposit queries resolve; it is false while disconnected.

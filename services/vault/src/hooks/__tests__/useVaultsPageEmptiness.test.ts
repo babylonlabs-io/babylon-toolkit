@@ -1,17 +1,30 @@
 import { renderHook } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useVaultsPageEmptiness } from "@/hooks/useVaultsPageEmptiness";
 import type { VaultActivity } from "@/types/activity";
 
 const walletState = vi.hoisted(() => ({
-  isConnected: true,
+  btcConnected: true,
+  ethConnected: true,
+  confirmed: true,
   address: "0xdepositor" as string | undefined,
 }));
 
-vi.mock("@/context/wallet", () => ({
-  useConnection: () => ({ isConnected: walletState.isConnected }),
-  useETHWallet: () => ({ address: walletState.address }),
+vi.mock("@babylonlabs-io/wallet-connector", () => ({
+  useWalletConnect: () => ({ connected: walletState.confirmed }),
+  useBTCWallet: () => ({ connected: walletState.btcConnected }),
+  useETHWallet: () => ({
+    connected: walletState.ethConnected,
+    address: walletState.address,
+  }),
+}));
+
+// The real gate, so the Ethereum-only control decides what this page counts as
+// connected. A hand-supplied `isConnected` would pass with the control removed.
+vi.mock("@/context/wallet", async () => ({
+  useConnection: (await import("@/context/wallet/useConnection")).useConnection,
+  useETHWallet: (await import("@babylonlabs-io/wallet-connector")).useETHWallet,
 }));
 
 const dashboardState = vi.hoisted(() => ({
@@ -39,8 +52,17 @@ const depositsState = {
 const stubActivity = (id: string) => ({ id }) as VaultActivity;
 
 describe("useVaultsPageEmptiness", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   beforeEach(() => {
-    walletState.isConnected = true;
+    // The real gate reads this through a live getter, so an unpinned run would
+    // take whatever the developer's environment carries.
+    vi.stubEnv("NEXT_PUBLIC_FF_ENABLE_ETH_FIRST", undefined);
+    walletState.btcConnected = true;
+    walletState.ethConnected = true;
+    walletState.confirmed = true;
     walletState.address = "0xdepositor";
     dashboardState.hasDisplayCollateral = false;
     dashboardState.isLoading = false;
@@ -54,7 +76,7 @@ describe("useVaultsPageEmptiness", () => {
   });
 
   it("is empty and not loading while disconnected", () => {
-    walletState.isConnected = false;
+    walletState.ethConnected = false;
 
     const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
 
@@ -67,7 +89,7 @@ describe("useVaultsPageEmptiness", () => {
   });
 
   it("is empty while disconnected even when ETH-keyed queries returned deposits", () => {
-    walletState.isConnected = false;
+    walletState.ethConnected = false;
     depositsState.pendingActivities = [stubActivity("pending-1")];
 
     const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
@@ -76,7 +98,7 @@ describe("useVaultsPageEmptiness", () => {
   });
 
   it("passes undefined to useDashboardState while disconnected", () => {
-    walletState.isConnected = false;
+    walletState.ethConnected = false;
 
     renderHook(() => useVaultsPageEmptiness(depositsState));
 
@@ -86,6 +108,32 @@ describe("useVaultsPageEmptiness", () => {
   it("passes the wallet address to useDashboardState while connected", () => {
     renderHook(() => useVaultsPageEmptiness(depositsState));
 
+    expect(useDashboardStateMock).toHaveBeenCalledWith("0xdepositor");
+  });
+
+  it("is empty for Ethereum alone while Ethereum-only access is off", () => {
+    walletState.btcConnected = false;
+    dashboardState.hasDisplayCollateral = true;
+
+    const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
+
+    expect(result.current.isEmpty).toBe(true);
+    expect(useDashboardStateMock).toHaveBeenCalledWith(undefined);
+  });
+
+  it("keeps the page populated for Ethereum alone under Ethereum-only access", () => {
+    vi.stubEnv("NEXT_PUBLIC_FF_ENABLE_ETH_FIRST", "true");
+    walletState.btcConnected = false;
+    dashboardState.hasDisplayCollateral = true;
+
+    const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
+
+    expect(result.current).toEqual({
+      isLoading: false,
+      isEmpty: false,
+      hasError: false,
+      hasPartialError: false,
+    });
     expect(useDashboardStateMock).toHaveBeenCalledWith("0xdepositor");
   });
 
@@ -222,7 +270,7 @@ describe("useVaultsPageEmptiness", () => {
   });
 
   it("ignores query errors while disconnected", () => {
-    walletState.isConnected = false;
+    walletState.ethConnected = false;
     depositsState.error = new Error("indexer down");
 
     const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));

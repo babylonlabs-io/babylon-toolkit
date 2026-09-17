@@ -1,25 +1,41 @@
 /**
  * Activity page wallet-gating tests.
  *
- * The Header treats the user as connected only when BOTH the BTC and ETH
- * wallets are connected (see RootLayout.tsx). These tests lock in that the
- * Activity page uses the same canonical signal: a stale ETH address alone
- * must not trigger an indexer query or the "connected" empty state.
+ * The page reads the canonical signal, `useConnection`: confirmed Ethereum,
+ * plus Bitcoin while Ethereum-only access is off (see RootLayout.tsx). These
+ * tests drive the real gate, so they lock in both halves - a stale ETH address
+ * alone never triggers an indexer query or the "connected" empty state, and an
+ * Ethereum-only session does once the control is on.
  */
 
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter, Outlet, Route, Routes } from "react-router";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ActivityLog } from "@/types/activityLog";
 
-const useConnectionMock = vi.fn();
-const useETHWalletMock = vi.fn();
+const walletMock = vi.hoisted(() => ({
+  btcConnected: true,
+  ethConnected: true,
+  confirmed: true,
+  address: "0xabc0000000000000000000000000000000000001" as string | undefined,
+}));
 const useActivitiesWithPendingMock = vi.fn();
 
-vi.mock("../../../context/wallet", () => ({
-  useConnection: () => useConnectionMock(),
-  useETHWallet: () => useETHWalletMock(),
+vi.mock("@babylonlabs-io/wallet-connector", () => ({
+  useWalletConnect: () => ({ connected: walletMock.confirmed }),
+  useBTCWallet: () => ({ connected: walletMock.btcConnected }),
+  useETHWallet: () => ({
+    connected: walletMock.ethConnected,
+    address: walletMock.address,
+  }),
+}));
+
+// The real gate, so the Ethereum-only control decides what this page counts as
+// connected. A hand-supplied `isConnected` would pass with the control removed.
+vi.mock("../../../context/wallet", async () => ({
+  useConnection: (await import("@/context/wallet/useConnection")).useConnection,
+  useETHWallet: (await import("@babylonlabs-io/wallet-connector")).useETHWallet,
 }));
 
 vi.mock("../../../hooks/useActivitiesWithPending", () => ({
@@ -89,6 +105,13 @@ function renderActivity() {
 describe("Activity page — wallet gating", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // The real gate reads this through a live getter, so an unpinned run would
+    // take whatever the developer's environment carries.
+    vi.stubEnv("NEXT_PUBLIC_FF_ENABLE_ETH_FIRST", undefined);
+    walletMock.btcConnected = true;
+    walletMock.ethConnected = true;
+    walletMock.confirmed = true;
+    walletMock.address = "0xabc0000000000000000000000000000000000001";
     usePendingDepositsMock.mockReturnValue({
       expiredActivities: [],
       allActivities: [],
@@ -103,16 +126,14 @@ describe("Activity page — wallet gating", () => {
     });
   });
 
+  // The Ethereum-only control is read from the environment by the real
+  // `featureFlags` getter, so leaving it set would reach every later file.
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it("treats BTC-disconnected + ETH-stale-address as disconnected, skipping the indexer query", () => {
-    useConnectionMock.mockReturnValue({
-      isConnected: false,
-      btcConnected: false,
-      ethConnected: true,
-    });
-    useETHWalletMock.mockReturnValue({
-      address: "0xabc0000000000000000000000000000000000001",
-      connected: true,
-    });
+    walletMock.btcConnected = false;
 
     renderActivity();
 
@@ -126,15 +147,8 @@ describe("Activity page — wallet gating", () => {
   });
 
   it("treats ETH-disconnected + BTC-connected as disconnected, skipping the indexer query", () => {
-    useConnectionMock.mockReturnValue({
-      isConnected: false,
-      btcConnected: true,
-      ethConnected: false,
-    });
-    useETHWalletMock.mockReturnValue({
-      address: undefined,
-      connected: false,
-    });
+    walletMock.ethConnected = false;
+    walletMock.address = undefined;
 
     renderActivity();
 
@@ -148,16 +162,6 @@ describe("Activity page — wallet gating", () => {
   });
 
   it("treats both wallets connected as connected and renders the connected empty state", () => {
-    useConnectionMock.mockReturnValue({
-      isConnected: true,
-      btcConnected: true,
-      ethConnected: true,
-    });
-    useETHWalletMock.mockReturnValue({
-      address: "0xabc0000000000000000000000000000000000001",
-      connected: true,
-    });
-
     renderActivity();
 
     expect(screen.getByTestId("activity-empty-state")).toBeInTheDocument();
@@ -171,16 +175,22 @@ describe("Activity page — wallet gating", () => {
     );
   });
 
+  it("queries the activity feed for Ethereum alone under Ethereum-only access", () => {
+    vi.stubEnv("NEXT_PUBLIC_FF_ENABLE_ETH_FIRST", "true");
+    walletMock.btcConnected = false;
+
+    renderActivity();
+
+    expect(useActivitiesWithPendingMock).toHaveBeenCalledWith(
+      "0xabc0000000000000000000000000000000000001",
+    );
+    expect(screen.getByText("No activity yet")).toBeInTheDocument();
+    expect(
+      screen.queryByText("Connect your wallet to view your activity"),
+    ).not.toBeInTheDocument();
+  });
+
   it("renders a loading indicator while activities are loading", () => {
-    useConnectionMock.mockReturnValue({
-      isConnected: true,
-      btcConnected: true,
-      ethConnected: true,
-    });
-    useETHWalletMock.mockReturnValue({
-      address: "0xabc0000000000000000000000000000000000001",
-      connected: true,
-    });
     useActivitiesWithPendingMock.mockReturnValue({
       data: undefined,
       isLoading: true,
@@ -195,16 +205,6 @@ describe("Activity page — wallet gating", () => {
   });
 
   it("renders activity rows as list items when connected with activities", () => {
-    useConnectionMock.mockReturnValue({
-      isConnected: true,
-      btcConnected: true,
-      ethConnected: true,
-    });
-    useETHWalletMock.mockReturnValue({
-      address: "0xabc0000000000000000000000000000000000001",
-      connected: true,
-    });
-
     const activities: ActivityLog[] = [
       {
         kind: "row",
@@ -241,31 +241,12 @@ describe("Activity page — wallet gating", () => {
   });
 
   it("mounts the deposit lifecycle so an expired deposit can offer its refund", () => {
-    useConnectionMock.mockReturnValue({
-      isConnected: true,
-      btcConnected: true,
-      ethConnected: true,
-    });
-    useETHWalletMock.mockReturnValue({
-      address: "0xabc0000000000000000000000000000000000001",
-      connected: true,
-    });
-
     renderActivity();
 
     expect(usePendingDepositsMock).toHaveBeenCalled();
   });
 
   it("keeps a refundable expired deposit distinct from a completed refund", () => {
-    useConnectionMock.mockReturnValue({
-      isConnected: true,
-      btcConnected: true,
-      ethConnected: true,
-    });
-    useETHWalletMock.mockReturnValue({
-      address: "0xabc0000000000000000000000000000000000001",
-      connected: true,
-    });
     usePendingDepositsMock.mockReturnValue({
       expiredActivities: [{ id: "vault-1" }],
       allActivities: [],

@@ -20,6 +20,7 @@ const featureFlagsMock = vi.hoisted(() => ({
   isLiquidationNotificationsEnabled: false,
   isGodModePanelEnabled: false,
   isPositionDebugPanelEnabled: false,
+  isEthFirstEnabled: false,
 }));
 
 vi.mock("@/config/featureFlags", () => ({ default: featureFlagsMock }));
@@ -175,6 +176,7 @@ beforeEach(() => {
   walletMock.confirmed = true;
   featureFlagsMock.isLiquidationNotificationsEnabled = false;
   featureFlagsMock.isGodModePanelEnabled = false;
+  featureFlagsMock.isEthFirstEnabled = false;
   positionNotificationsMock.result = null;
   positionNotificationsMock.liveUrgentWarning = null;
   positionNotificationsMock.params = null;
@@ -230,6 +232,20 @@ describe("DashboardPage composition", () => {
     expect(screen.getByTestId("disconnected-overview")).toBeInTheDocument();
     expect(screen.queryByTestId("overview-section")).not.toBeInTheDocument();
     expect(useDashboardState).toHaveBeenCalledWith(undefined);
+  });
+
+  it("opens the connected overview for Ethereum alone under Ethereum-only access", () => {
+    featureFlagsMock.isEthFirstEnabled = true;
+    walletMock.btcConnected = false;
+    walletMock.ethConnected = true;
+
+    render(<DashboardPage />);
+
+    expect(screen.getByTestId("overview-section")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("disconnected-overview"),
+    ).not.toBeInTheDocument();
+    expect(useDashboardState).toHaveBeenCalledWith("0xabc");
   });
 
   it("waits for consent before it loads the connected dashboard", () => {
