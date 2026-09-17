@@ -175,7 +175,11 @@ describe("connect-time errors the user must see in the dialog", () => {
 
   async function fireError(error: Error): Promise<void> {
     renderHook(() =>
-      useWalletConnectors({ persistent: false, accountStorage, btcValidation: { validateAddress, validateAddressWithPK } }),
+      useWalletConnectors({
+        persistent: false,
+        accountStorage,
+        btcValidation: { validateAddress, validateAddressWithPK },
+      }),
     );
 
     await waitFor(() => expect(harness.errorHandler).not.toBeNull());
@@ -187,24 +191,30 @@ describe("connect-time errors the user must see in the dialog", () => {
     await fireError(new WalletError({ code: ERROR_CODES.DEVICE_WRONG_APP, message, wallet: "Ledger Vault" }));
 
     expect(harness.displayError).toHaveBeenCalledWith(
-      expect.objectContaining({ title: "Wrong app on device", description: message }),
+      expect.objectContaining({ title: "Wrong App on Device", description: message }),
     );
     expect(harness.displayChains).not.toHaveBeenCalled();
   });
 
   it("shows the locked-device message instead of returning to chain selection", async () => {
-    await fireError(new WalletError({ code: ERROR_CODES.DEVICE_LOCKED, message: "Device is locked", wallet: "Ledger Vault" }));
+    await fireError(
+      new WalletError({ code: ERROR_CODES.DEVICE_LOCKED, message: "Device is locked", wallet: "Ledger Vault" }),
+    );
 
     expect(harness.displayError).toHaveBeenCalledWith(
-      expect.objectContaining({ title: "Signing device locked", description: "Device is locked" }),
+      expect.objectContaining({ title: "Signing Device Locked", description: "Device is locked" }),
     );
     expect(harness.displayChains).not.toHaveBeenCalled();
   });
 
   it("keeps the update title for an outdated wallet", async () => {
-    await fireError(new WalletError({ code: ERROR_CODES.INCOMPATIBLE_WALLET_VERSION, message: "Too old", wallet: "Unisat" }));
+    await fireError(
+      new WalletError({ code: ERROR_CODES.INCOMPATIBLE_WALLET_VERSION, message: "Too old", wallet: "Unisat" }),
+    );
 
-    expect(harness.displayError).toHaveBeenCalledWith(expect.objectContaining({ title: "Update Unisat", description: "Too old" }));
+    expect(harness.displayError).toHaveBeenCalledWith(
+      expect.objectContaining({ title: "Update Unisat", description: "Too old" }),
+    );
   });
 
   it("still returns to chain selection for a connect error with no in-dialog copy", async () => {

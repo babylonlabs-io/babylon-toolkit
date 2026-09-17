@@ -238,9 +238,11 @@ export async function isSessionAlive(handle: DmkSessionHandle): Promise<boolean>
 
 /**
  * Re-run the connect preflight on a live session whose first read failed, so
- * a retry cannot ride in on an ungated session. Returns the handle with the
- * app fields filled when the read succeeds, unchanged otherwise. Call only
- * while no intent ceremony is in flight: the preflight is a BOLOS command.
+ * a retry cannot ride in on an ungated session. Returns a copy of the handle
+ * with the app fields filled when the read succeeds, or with the same fields
+ * when it fails. The preflight is a BOLOS command, so it must not interleave
+ * with a device ceremony; the signer holds no ceremony state, so the caller
+ * enforces that.
  */
 export async function refreshSessionApp(handle: DmkSessionHandle): Promise<DmkSessionHandle> {
   const app = await readAppAndVersion(handle.dmk, handle.sessionId);

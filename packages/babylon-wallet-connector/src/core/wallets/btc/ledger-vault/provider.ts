@@ -369,12 +369,13 @@ export class LedgerVaultProvider implements IBTCProvider {
   /**
    * A session installed after a failed preflight was never gated, and a
    * retry (unlock, open an app, connect again) reuses it while it lives. Read
-   * the app now and gate it; idle only, since the preflight is a BOLOS
-   * command that must not interleave with an intent ceremony.
+   * the app now and gate it. The phase alone is not "no ceremony in flight"
+   * (derive, approve, PoP and refund all send at idle), so the read skips a
+   * running ceremony and holds the ceremony lock itself.
    */
   private async gateUngatedSession(session: DmkSessionHandle, token: number): Promise<void> {
-    if (session.appName !== undefined || this.deviceState.phase !== "idle") return;
-    const refreshed = await refreshSessionApp(session);
+    if (session.appName !== undefined || this.activeOperation || this.deviceState.phase !== "idle") return;
+    const refreshed = await this.withDeviceOperation("connectWallet", () => refreshSessionApp(session));
     // A disconnect or teardown during the read owns the session now.
     if (token !== this.disconnectToken || this.session !== session) return;
     const refusal = this.refuseUnexpectedApp(refreshed);

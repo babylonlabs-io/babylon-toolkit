@@ -56,11 +56,12 @@ const SW_DEVICE_LOCKED = new Set([0x5515, 0x6982, 0x5303]);
 /** CLA not supported — what the dashboard or a wrong app returns. */
 export const SW_CLA_NOT_SUPPORTED = 0x6e00;
 /**
- * INS not supported. The vault app is built on `bitcoin_app_base`, so the stock
- * Bitcoin app shares CLA 0xE1 and answers this class; its dispatcher returns
- * this for a vault instruction it does not implement
- * (`base:src/boilerplate/dispatcher.c:170-171` @ e400d8d8). A known class
- * without the vault instructions is a wrong app.
+ * INS not supported. The vault app is built on `bitcoin_app_base`
+ * (`base:src/boilerplate/dispatcher.c:170-171` @ e400d8d8). The stock Bitcoin
+ * app shares CLA 0xE1 and answers this for a vault instruction it does not
+ * implement (LedgerHQ/app-bitcoin-new @ da3c8c9d: `src/constants.h:10`,
+ * `src/boilerplate/dispatcher.c:160-161`). A known class without the vault
+ * instructions is a wrong app.
  */
 export const SW_INS_NOT_SUPPORTED = 0x6d00;
 
@@ -83,7 +84,7 @@ const STATUS_WORDS: Record<number, string> = {
   0x6a82: "The device does not support this request — check that the app build matches the selected network",
   0x6a86: "The device rejected the instruction parameters",
   0x6a87: "The device rejected the payload length",
-  0x6d00: "The running app does not support this instruction",
+  [SW_INS_NOT_SUPPORTED]: "The running app does not support this instruction",
   // SWO_COMMAND_NOT_ACCEPTED (`sdk:include/status_words.h:56`) — sent by the SDK
   // IO layer before dispatch, so the app never ran the command: from the UX
   // heartbeat when an APDU lands mid-approval (`sdk:io_legacy/src/os_io_legacy.c:132`,

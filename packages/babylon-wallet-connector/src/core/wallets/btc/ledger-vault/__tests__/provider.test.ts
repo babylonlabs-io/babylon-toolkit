@@ -2002,6 +2002,39 @@ describe("LedgerVaultProvider", () => {
     await expect(provider.getAddress()).rejects.toThrow(/not connected/);
   });
 
+  it("does not send the preflight while a device ceremony is in flight", async () => {
+    // A tab return re-calls connectWallet; mid-ceremony the BOLOS read would
+    // land between the ceremony's APDUs. PoP signs at phase idle, so only the
+    // ceremony lock can tell.
+    dmkSessionMock.connectDmkSession.mockResolvedValue({ dmk: {}, sessionId: "s1" });
+    const provider = new LedgerVaultProvider(Network.SIGNET);
+    await provider.connectWallet();
+    let releaseSign: () => void = () => {};
+    signMock.signPreparedVaultPsbt.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          releaseSign = () =>
+            resolve({
+              signedPsbtHex: "unused",
+              yields: [
+                { kind: "taproot-keypath", inputIndex: 0, outputKeyHex: "00".repeat(32), signature: Buffer.alloc(64) },
+              ],
+            });
+        }),
+    );
+    const signing = provider.signMessage(
+      "0xabcdef1234567890abcdef1234567890abcdef12:11155111:pegin:0x1234567890abcdef1234567890abcdef12345678",
+      "bip322-simple",
+    );
+    await vi.waitFor(() => expect(signMock.signPreparedVaultPsbt).toHaveBeenCalled());
+
+    await provider.connectWallet();
+
+    expect(dmkSessionMock.refreshSessionApp).not.toHaveBeenCalled();
+    releaseSign();
+    await signing;
+  });
+
   it("keeps an ungated session once the retry preflight confirms the app", async () => {
     const bare = { dmk: {}, sessionId: "s1" };
     dmkSessionMock.connectDmkSession.mockResolvedValue(bare);
