@@ -51,8 +51,8 @@ async function resolveEthDisplayWallet(wallet: IWallet): Promise<IWallet> {
  */
 const TERMINAL_CONNECT_ERROR_TITLES: ReadonlyMap<string, (walletName: string) => string> = new Map([
   [ERROR_CODES.INCOMPATIBLE_WALLET_VERSION, (walletName: string) => `Update ${walletName}`],
-  [ERROR_CODES.DEVICE_WRONG_APP, () => "Wrong app on device"],
-  [ERROR_CODES.DEVICE_LOCKED, () => "Signing device locked"],
+  [ERROR_CODES.DEVICE_WRONG_APP, () => "Wrong App on Device"],
+  [ERROR_CODES.DEVICE_LOCKED, () => "Signing Device Locked"],
 ]);
 
 export interface BTCAddressValidation {

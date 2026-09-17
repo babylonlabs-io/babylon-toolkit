@@ -79,6 +79,14 @@ describe("classifyStatusWord", () => {
     expect(error?.message).toMatch(/open the Babylon Vault app/);
     expect(error?.message).not.toMatch(/app at connect time/);
   });
+
+  it("names the connect-time app on 0x6D00, the stock Bitcoin app's unknown-instruction answer", () => {
+    // Shares CLA 0xE1 with the vault app, so the host maps it to a wrong app too.
+    const error = classifyStatusWord(0x6d00, { ...context, appName: "Bitcoin Test", appVersion: "2.4.1" });
+    expect(error).toMatchObject({ name: LEDGER_DEVICE_ERROR_NAME, statusWord: 0x6d00 });
+    expect(error?.message).toMatch(/does not support this instruction/);
+    expect(error?.message).toMatch(/"Bitcoin Test" v2\.4\.1/);
+  });
 });
 
 describe("createThrowingApduSender", () => {
