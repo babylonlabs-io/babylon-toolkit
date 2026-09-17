@@ -8,8 +8,10 @@
  * terminal words are classified by the caller via {@link classifyStatusWord},
  * so raw-seam consumers and the throwing sender raise identical typed errors.
  *
- * `base:` = LedgerHQ/app-bitcoin branch `baseapp` @ `e400d8d8`
- * (`src/boilerplate/sw.h`); the same path on `develop` differs.
+ * Citation legend — `base:` = LedgerHQ/app-bitcoin branch `baseapp` @ `e400d8d8`
+ * (`src/boilerplate/sw.h`); the same path on `develop` differs. `sdk:` =
+ * LedgerHQ/ledger-secure-sdk @ tag `v26.6.1`, the SDK app 0.10.1 builds against.
+ * `fw:` = LedgerHQ/app-babylon-vault @ `b0c0ac4d` (app 0.10.1).
  *
  * @module ledger-vault-signer/rawApdu
  */

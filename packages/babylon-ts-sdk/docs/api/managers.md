@@ -884,7 +884,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts](htt
 
 Parameters for signing a Payout transaction.
 
-Payout ends two of the three peg-out paths: directly on the happy path (Claim -> Assert -> Payout), and via WronglyChallenged when a challenge is raised and the claimer wins. Only NoPayout, the challenger-wins branch, blocks it.
+Payout ends two of the peg-out paths; see `buildPayoutPsbt` for all of them.
 Input 1 references the Assert transaction.
 
 #### Extends
