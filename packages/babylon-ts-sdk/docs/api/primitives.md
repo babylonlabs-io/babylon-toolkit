@@ -610,8 +610,8 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts](htt
 
 Parameters for building an unsigned Payout PSBT
 
-Payout ends two of the three peg-out paths: directly on the happy path (Claim -> Assert -> Payout), and via WronglyChallenged when a challenge is raised and the claimer wins. Only NoPayout, the challenger-wins branch, blocks it.
-Input 1 references the Assert transaction.
+Payout ends two of the peg-out paths; see [buildPayoutPsbt](#buildpayoutpsbt) for all of
+them. Input 1 references the Assert transaction.
 
 #### Properties
 
@@ -2237,14 +2237,16 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts](htt
 
 Build unsigned Payout PSBT for depositor to sign.
 
-Payout ends two of the three peg-out paths (btc-vault
+Payout ends two of the four peg-out paths (btc-vault
 `crates/vault/docs/btc-transactions-spec.md`):
 - Happy path: Claim -> Assert -> Payout.
 - Challenge path, claimer wins: Claim -> Assert -> ChallengeAssert ->
   WronglyChallenged -> Payout.
 - Challenge path, challenger wins: Claim -> Assert -> ChallengeAssert -> NoPayout.
+- Emergency path: the Security Council spends Assert:0 via CouncilNoPayout.
 
-So a raised challenge does not remove Payout; only NoPayout blocks it.
+So a raised challenge does not remove Payout; only NoPayout (challenger wins)
+or CouncilNoPayout (council emergency) blocks it.
 Payout references the Assert tx and needs its timelock matured.
 
 Payout transactions have the following structure:

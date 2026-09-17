@@ -85,7 +85,7 @@ export const VAULT_APP_NAME = "babylon-btc-vault";
 const HARDENED = 0x80000000;
 /**
  * m/86'/1'/0'/0/0 — depositor_path(coin_type=1) (vault_client.py:307). Levels
- * use `+` (unsigned, provider.ts:245-247): `|` yields negative int32s that
+ * use `+` (unsigned, provider.ts:246-248): `|` yields negative int32s that
  * `assertBip86Path` rejects; the wire bytes are identical (`>>> 0` serializers).
  */
 export const DEPOSITOR_PATH: readonly number[] = [86 + HARDENED, 1 + HARDENED, 0 + HARDENED, 0, 0];
@@ -130,8 +130,8 @@ function encodeScriptNum(n: number): Buffer {
 /**
  * N-of-N multisig fragment. No single-key special case: `encode_multisig_group`
  * (fw `src/vault_script.c:232-259` @ b0c0ac4d) emits the counted form for N>=1,
- * so a `<key> OP_CHECKSIG` shortcut would build a leaf 4 bytes short of the one
- * the device rebuilds and compares.
+ * so a `<key> OP_CHECKSIG` shortcut would build a leaf 2 bytes short (no pushed
+ * count, no `OP_NUMEQUAL`) of the one the device rebuilds and compares.
  */
 function multisigGroup(keys: readonly Buffer[], isFinal: boolean): Buffer {
   const parts: Buffer[] = [Buffer.concat([Buffer.from([PUSH_32]), keys[0], Buffer.from([OP_CHECKSIG])])];
@@ -310,8 +310,8 @@ export interface IntentFixture {
 
 /**
  * DepositTerms → APPROVE_VAULT_INTENT inputs, mirroring wallet-connector's
- * `LedgerVaultProvider.buildIntentFromTerms` mapping (provider.ts:567-573),
- * including the display→internal txid flip.
+ * `LedgerVaultProvider.buildIntentFromTerms` mapping (provider.ts:568-596),
+ * including the display→internal txid flip (provider.ts:574).
  */
 export function termsToIntent(terms: DepositTerms): IntentFixture {
   return {

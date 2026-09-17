@@ -418,7 +418,7 @@ export class LedgerVaultProvider implements IBTCProvider {
         this.assertSameConnection(generation);
         // Our two read paths must agree on the depositor key. The device does
         // byte-compare the policy xpub against its own derivation
-        // (`base:policy.c:1483-1495` @ e400d8d8, via `init_global_state.c:230-236`),
+        // (`base:policy.c:1483-1495` @ e400d8d8, via `base:init_global_state.c:230-236`),
         // but only at SIGN_PSBT — by then approveDepositTerms has already spent
         // the intent ceremony. This guards a host-side desync (depositorPath vs
         // accountPath, coin type, a refactor of either getter), not a device fault.

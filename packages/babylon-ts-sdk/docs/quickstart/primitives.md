@@ -90,7 +90,7 @@ const pegin = await buildPeginTxFromFundedPrePegin({
 
 Builds the unsigned Payout PSBT for depositor signing.
 
-Payout ends two of the three peg-out paths: the happy path (`Claim → Assert → Payout`), and the claimer-wins challenge path (`… → ChallengeAssert → WronglyChallenged → Payout`). Only NoPayout, the challenger-wins branch, blocks it. Input 0 (PegIn:0) waits `timelockPegin`, input 1 (Assert:0) waits `timelockAssert`.
+Payout ends two of the peg-out paths: the happy path (`Claim → Assert → Payout`), and the claimer-wins challenge path (`… → ChallengeAssert → WronglyChallenged → Payout`). It is blocked only by NoPayout (the challenger-wins branch) or CouncilNoPayout (the Security Council's emergency spend of Assert:0). Input 0 (PegIn:0) waits `timelockPegin`, input 1 (Assert:0) waits `timelockAssert`.
 
 ```typescript
 import { buildPayoutPsbt } from "@babylonlabs-io/ts-sdk/tbv/core/primitives";
@@ -174,10 +174,10 @@ const depositorPubkey = "abc123..."; // x-only, 64 hex chars
 const noPayoutPsbtHex = await buildNoPayoutPsbt({
   noPayoutTxHex: "...",             // From vault provider
   challengerPubkey: "def456...",    // This challenger's x-only pubkey
-  prevouts: [                       // REQUIRED, one per input, supplied by the VP
+  prevouts: [                       // REQUIRED, one per input — derive from the parent txs
     { script_pubkey: "...", value: 12_345 },   // Assert:0
-    { script_pubkey: "...", value: 688 },      // e.g. ChallengeAssertX:0 — the VP supplies the value
-    { script_pubkey: "...", value: 688 },      // e.g. ChallengeAssertY:0
+    { script_pubkey: "...", value: 688 },      // e.g. ChallengeAssertX:0 — outs[0] of that tx
+    { script_pubkey: "...", value: 688 },      // e.g. ChallengeAssertY:0 — outs[0] of that tx
   ],
   connectorParams: {                // AssertPayoutNoPayoutConnector params
     txGraphVersion: 3,              // REQUIRED — the vault-core version
