@@ -2,7 +2,10 @@ import { Heading, Timeline } from "@babylonlabs-io/core-ui";
 import { useMemo } from "react";
 import { useNavigate } from "react-router";
 
-import { useBtcPriceCandles } from "@/applications/aave/hooks/useBtcPriceCandles";
+import {
+  TIMELINE_VISIBLE_CANDLES,
+  useBtcPriceCandles,
+} from "@/applications/aave/hooks/useBtcPriceCandles";
 import type {
   CalculatorParams,
   CalculatorResult,
@@ -44,9 +47,6 @@ interface LiquidationAnalysisSectionProps {
    */
   cascade?: LiquidationCascade | null;
 }
-
-/** Daily candles in view. The preview does not pan; Explore opens the page. */
-const TIMELINE_VISIBLE_CANDLES = 60;
 
 /**
  * Overview-page preview of the Liquidation Dashboard: no collateral,
