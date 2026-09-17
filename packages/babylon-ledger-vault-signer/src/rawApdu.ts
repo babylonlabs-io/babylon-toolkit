@@ -55,6 +55,13 @@ const SW_DEVICE_LOCKED = new Set([0x5515, 0x6982, 0x5303]);
 
 /** CLA not supported — what the dashboard or a wrong app returns. */
 export const SW_CLA_NOT_SUPPORTED = 0x6e00;
+/**
+ * INS not supported. The vault app is built on `bitcoin_app_base`, so the stock
+ * Bitcoin app shares CLA 0xE1 and answers this class; its dispatcher returns
+ * this for a vault instruction it does not implement (`base:dispatcher.c:170`
+ * @ b0c0ac4d). A known class without the vault instructions is a wrong app.
+ */
+export const SW_INS_NOT_SUPPORTED = 0x6d00;
 
 /** SW_BAD_STATE — the loaded intent/root is gone (`base:src/boilerplate/sw.h:80` @ e400d8d8). */
 export const SW_BAD_STATE = 0xb007;
@@ -105,8 +112,8 @@ export function hex4(value: number): string {
 }
 
 /**
- * App name/version captured at connect time ("BOLOS" = dashboard). Diagnostics
- * only: it is woven into the 0x6E00 message and never gates control flow.
+ * App name/version captured at connect time ("BOLOS" = dashboard). In this
+ * module it only shapes the wrong-app message; the host gates connect on it.
  * Optional because the raw seam is an opaque function — a caller driving a bare
  * transport (the Speculos e2e client) has nothing to report.
  */
@@ -149,7 +156,7 @@ export function classifyStatusWord(
   // Name the app seen at connect ("BOLOS" = dashboard); the user may have
   // switched apps since, hence the phrasing.
   const appHint =
-    sw === SW_CLA_NOT_SUPPORTED && context.appName
+    (sw === SW_CLA_NOT_SUPPORTED || sw === SW_INS_NOT_SUPPORTED) && context.appName
       ? ` (app at connect time: "${context.appName}"${context.appVersion ? ` v${context.appVersion}` : ""})`
       : "";
   return new LedgerDeviceError(

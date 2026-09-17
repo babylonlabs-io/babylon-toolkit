@@ -28,8 +28,8 @@ export interface DmkSessionHandle {
   readonly dmk: DeviceManagementKit;
   readonly sessionId: DeviceSessionId;
   /**
-   * App name/version at connect time ("BOLOS" = dashboard). Diagnostic only;
-   * absent when the preflight failed. Never re-read between intent phases.
+   * App name/version at connect time ("BOLOS" = dashboard); absent when the
+   * preflight failed. The host gates connect on it. Never re-read between intent phases.
    */
   readonly appName?: string;
   readonly appVersion?: string;
@@ -200,7 +200,7 @@ export async function connectDmkSession(): Promise<DmkSessionHandle> {
  * `GET_APP_AND_VERSION` preflight, run only at connect — the most useful fact
  * when the first vault APDU fails ("Babylon Vault" vs "Babylon Vault Testnet"
  * vs "BOLOS"). Sent explicitly rather than read from DMK's internal session
- * state. Diagnostic only: a failed read degrades to `undefined`.
+ * state. A failed read degrades to `undefined`; the host lets that through.
  */
 async function readAppAndVersion(
   dmk: DeviceManagementKit,
@@ -212,7 +212,7 @@ async function readAppAndVersion(
     if (!isSuccessCommandResult(result)) return {};
     return { appName: result.data.name, appVersion: result.data.version };
   } catch {
-    // Preflight is diagnostics; the ceremony APDUs carry their own errors.
+    // No identity to gate on; the first vault APDU carries its own error.
     return {};
   }
 }

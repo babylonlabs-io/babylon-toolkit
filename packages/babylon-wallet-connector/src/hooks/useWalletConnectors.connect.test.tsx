@@ -14,6 +14,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { HashMap, IWallet, Network } from "@/core/types";
 import { validateAddress, validateAddressWithPK } from "@/core/utils/wallet";
+import { ERROR_CODES, WalletError } from "@/error";
 
 import { useWalletConnectors, type BTCAddressValidation } from "./useWalletConnectors";
 
@@ -38,9 +39,11 @@ const CONNECT_FAILED_TITLE = "Connection Failed";
 const PUBLIC_KEY_MISMATCH_TITLE = "Public Key Mismatch";
 
 type ConnectHandler = (wallet: IWallet) => void | Promise<void>;
+type ErrorHandler = (error: Error) => void;
 
 const harness = vi.hoisted(() => ({
   connectHandler: null as ConnectHandler | null,
+  errorHandler: null as ErrorHandler | null,
   visible: true,
   disconnect: vi.fn().mockResolvedValue(undefined),
   selectWallet: vi.fn(),
@@ -59,8 +62,9 @@ vi.mock("@/context/Chain.context", () => ({
       config: { network: Network.MAINNET },
       connectedWallet: null,
       disconnect: harness.disconnect,
-      on: (event: string, handler: ConnectHandler) => {
-        if (event === "connect") harness.connectHandler = handler;
+      on: (event: string, handler: ConnectHandler | ErrorHandler) => {
+        if (event === "connect") harness.connectHandler = handler as ConnectHandler;
+        if (event === "error") harness.errorHandler = handler as ErrorHandler;
         return () => {};
       },
     },
@@ -160,5 +164,60 @@ describe("BTC connect handler without host-side curve setup", () => {
 
     expect(harness.displayError).toHaveBeenCalledWith(expect.objectContaining({ title: PUBLIC_KEY_MISMATCH_TITLE }));
     expect(harness.displayError).not.toHaveBeenCalledWith(expect.objectContaining({ title: CONNECT_FAILED_TITLE }));
+  });
+});
+
+describe("connect-time errors the user must see in the dialog", () => {
+  beforeEach(() => {
+    harness.errorHandler = null;
+    vi.clearAllMocks();
+  });
+
+  async function fireError(error: Error): Promise<void> {
+    renderHook(() =>
+      useWalletConnectors({ persistent: false, accountStorage, btcValidation: { validateAddress, validateAddressWithPK } }),
+    );
+
+    await waitFor(() => expect(harness.errorHandler).not.toBeNull());
+    harness.errorHandler?.(error);
+  }
+
+  it("shows the wrong-app message instead of returning to chain selection", async () => {
+    const message = "Open the Babylon Vault Testnet app on your Ledger and try again.";
+    await fireError(new WalletError({ code: ERROR_CODES.DEVICE_WRONG_APP, message, wallet: "Ledger Vault" }));
+
+    expect(harness.displayError).toHaveBeenCalledWith(
+      expect.objectContaining({ title: "Wrong app on device", description: message }),
+    );
+    expect(harness.displayChains).not.toHaveBeenCalled();
+  });
+
+  it("shows the locked-device message instead of returning to chain selection", async () => {
+    await fireError(new WalletError({ code: ERROR_CODES.DEVICE_LOCKED, message: "Device is locked", wallet: "Ledger Vault" }));
+
+    expect(harness.displayError).toHaveBeenCalledWith(
+      expect.objectContaining({ title: "Signing device locked", description: "Device is locked" }),
+    );
+    expect(harness.displayChains).not.toHaveBeenCalled();
+  });
+
+  it("keeps the update title for an outdated wallet", async () => {
+    await fireError(new WalletError({ code: ERROR_CODES.INCOMPATIBLE_WALLET_VERSION, message: "Too old", wallet: "Unisat" }));
+
+    expect(harness.displayError).toHaveBeenCalledWith(expect.objectContaining({ title: "Update Unisat", description: "Too old" }));
+  });
+
+  it("still returns to chain selection for a connect error with no in-dialog copy", async () => {
+    await fireError(new WalletError({ code: ERROR_CODES.CONNECTION_FAILED, message: "boom", wallet: "Ledger Vault" }));
+
+    expect(harness.displayError).not.toHaveBeenCalled();
+    expect(harness.displayChains).toHaveBeenCalled();
+  });
+
+  it("returns to chain selection for a code that names an inherited object property", async () => {
+    await fireError(new WalletError({ code: "toString", message: "boom", wallet: "Ledger Vault" }));
+
+    expect(harness.displayError).not.toHaveBeenCalled();
+    expect(harness.displayChains).toHaveBeenCalled();
   });
 });

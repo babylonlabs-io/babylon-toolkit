@@ -42,7 +42,7 @@ const ACCOUNT_XPUB =
   "tpubDDKYE6BREvDsSWMazgHoyQWiJwYaDDYPbCFjYxN3HFXJP5fokeiK4hwK5tTLBNEDBwrDXn8cQ4v9b2xdW62Xr5yxoQdMu1v6c7UDXYVH27U";
 
 const h = vi.hoisted(() => ({
-  session: { dmk: {}, sessionId: "s1", appName: "Babylon Vault", appVersion: "0.9.5" },
+  session: { dmk: {}, sessionId: "s1", appName: "Babylon Vault Testnet", appVersion: "0.10.1" },
   sent: [] as { ins: number; p1: number; data: Uint8Array }[],
   failNext: undefined as Error | undefined,
 }));
@@ -179,6 +179,7 @@ beforeEach(() => {
   derivationMock.getExtendedPublicKey.mockClear();
   dmkSessionMock.connectDmkSession.mockReset();
   dmkSessionMock.connectDmkSession.mockResolvedValue(h.session);
+  dmkSessionMock.disconnectDmkSession.mockClear();
   dmkSessionMock.isSessionAlive.mockReset();
   dmkSessionMock.isSessionAlive.mockResolvedValue(true);
   signMock.prepareSignPsbt.mockReset();
@@ -220,6 +221,8 @@ describe("LedgerVaultProvider", () => {
     // Pins getTaprootAddress against the BIP-86 published vector, so this one
     // reads the vector key rather than the fixture device's own.
     derivationMock.getXOnlyPublicKeyHex.mockResolvedValueOnce(VECTOR_XONLY);
+    // A mainnet provider expects the mainnet app, not the fixture's testnet one.
+    dmkSessionMock.connectDmkSession.mockResolvedValueOnce({ ...h.session, appName: "Babylon Vault" });
     const provider = new LedgerVaultProvider(Network.MAINNET);
     await provider.connectWallet();
 
@@ -504,8 +507,8 @@ describe("LedgerVaultProvider", () => {
       await expect(provider.approveDepositTerms(TERMS)).resolves.toBeUndefined();
       // The connect-time app identity reaches the loop's diagnostics.
       expect(signMock.signPreparedVaultPsbt.mock.calls[0][2].appIdentity).toEqual({
-        appName: "Babylon Vault",
-        appVersion: "0.9.5",
+        appName: "Babylon Vault Testnet",
+        appVersion: "0.10.1",
       });
     });
 
@@ -1932,6 +1935,55 @@ describe("LedgerVaultProvider", () => {
     await expect(call).rejects.toThrow(/permissions policy/);
   });
 
+  it("rejects a device sitting on the dashboard as the wrong app, naming the app to open", async () => {
+    // The preflight reports "BOLOS" for the dashboard; refusing before the first
+    // vault APDU is what gives the dialog its message.
+    const dashboard = { ...h.session, appName: "BOLOS" };
+    dmkSessionMock.connectDmkSession.mockResolvedValue(dashboard);
+    const provider = new LedgerVaultProvider(Network.SIGNET);
+
+    const call = provider.connectWallet();
+    await expect(call).rejects.toMatchObject({ code: ERROR_CODES.DEVICE_WRONG_APP });
+    await expect(call).rejects.toThrow(/Babylon Vault Testnet/);
+    expect(dmkSessionMock.disconnectDmkSession).toHaveBeenCalledWith(dashboard);
+    await expect(provider.getAddress()).rejects.toThrow(/not connected/);
+  });
+
+  it("rejects the mainnet app when the dApp is on signet", async () => {
+    dmkSessionMock.connectDmkSession.mockResolvedValue({ ...h.session, appName: "Babylon Vault" });
+
+    const call = new LedgerVaultProvider(Network.SIGNET).connectWallet();
+    await expect(call).rejects.toMatchObject({ code: ERROR_CODES.DEVICE_WRONG_APP });
+    await expect(call).rejects.toThrow(/Babylon Vault Testnet/);
+  });
+
+  it("rejects an app older than the floor as an incompatible version", async () => {
+    const stale = { ...h.session, appVersion: "0.10.0" };
+    dmkSessionMock.connectDmkSession.mockResolvedValue(stale);
+
+    const call = new LedgerVaultProvider(Network.SIGNET).connectWallet();
+    await expect(call).rejects.toMatchObject({ code: ERROR_CODES.INCOMPATIBLE_WALLET_VERSION, version: "0.10.0" });
+    await expect(call).rejects.toThrow(/0\.10\.1/);
+    expect(dmkSessionMock.disconnectDmkSession).toHaveBeenCalledWith(stale);
+  });
+
+  it("refuses a non-canonical version without claiming it is out of date", async () => {
+    dmkSessionMock.connectDmkSession.mockResolvedValue({ ...h.session, appVersion: "0.11.0-rc1" });
+
+    const call = new LedgerVaultProvider(Network.SIGNET).connectWallet();
+    await expect(call).rejects.toMatchObject({ code: ERROR_CODES.INCOMPATIBLE_WALLET_VERSION, version: undefined });
+    await expect(call).rejects.toThrow(/Unable to verify/);
+    // The device's own string is not echoed back into dialog copy.
+    await expect(call).rejects.not.toThrow(/0\.11\.0-rc1/);
+  });
+
+  it("connects when the app preflight yielded nothing, leaving the first APDU to report", async () => {
+    dmkSessionMock.connectDmkSession.mockResolvedValue({ dmk: {}, sessionId: "s1" });
+
+    await expect(new LedgerVaultProvider(Network.SIGNET).connectWallet()).resolves.toBeUndefined();
+    expect(dmkSessionMock.disconnectDmkSession).not.toHaveBeenCalled();
+  });
+
   it("refuses the ceremony when the session has died, and tears everything down", async () => {
     const provider = await derived();
     dmkSessionMock.isSessionAlive.mockResolvedValue(false);
@@ -2119,6 +2171,11 @@ describe("LedgerVaultProvider", () => {
     [
       "the wrong running app",
       new LedgerDeviceError(0x6e00, "The running app does not handle vault instructions — open the Babylon Vault app"),
+      ERROR_CODES.DEVICE_WRONG_APP,
+    ],
+    [
+      "an app sharing the Bitcoin class without the vault instructions",
+      new LedgerDeviceError(0x6d00, "The running app does not support this instruction"),
       ERROR_CODES.DEVICE_WRONG_APP,
     ],
     [
