@@ -884,10 +884,11 @@ export const COPY = {
         `Peg-in TVL cap reached — only ${remainingBtc} BTC remains`,
       cannotActivateInState: (state: string) =>
         `Cannot activate: BTCVault is in ${state} state. Activation is only valid when VERIFIED.`,
-      // Worded without "failed to broadcast": colliding with the mapper's
-      // stage label would show retryable broadcast copy for a terminal state.
+      // Must never contain the mapper's full broadcast-stage label
+      // ("Failed to broadcast Pre-Pegin transaction"): that would show
+      // retryable broadcast copy for a terminal state.
       cannotBroadcastInState: (state: string) =>
-        `Cannot continue: BTCVault is in ${state} state. This step is only valid while the vault is PENDING.`,
+        `Cannot continue: BTCVault is in ${state} state. This step is only valid while the BTCVault is PENDING.`,
       cannotBroadcastInOnChainState: (state: string) =>
         `Cannot continue: on-chain BTCVault is in ${state} state. This step is only valid while the vault is PENDING.`,
       // Resume refuses a vault record with no depositor Bitcoin key. A wallet
@@ -979,10 +980,11 @@ export const COPY = {
         title: "Signing failed",
         body: "Your Bitcoin wallet couldn't sign the transaction. If it's locked, unlock it and try again. No Bitcoin has been broadcast.",
       },
-      // Not resumable in the modal, so point at the dashboard resume.
+      // Shown on the dashboard resume (its usual producer) and in the fresh
+      // flow, which offers no Retry; "from your dashboard" is true on both.
       preparationFailed: {
         title: "Preparation failed",
-        body: "We couldn't prepare your Bitcoin transaction for signing. No Bitcoin has been broadcast. If your deposit is already registered, resume it from your dashboard.",
+        body: "We couldn't prepare your Bitcoin transaction for signing. No Bitcoin has been broadcast. You can try again from your dashboard.",
       },
       walletNotConnected: {
         title: "Wallet not connected",
@@ -999,11 +1001,12 @@ export const COPY = {
         title: "Bitcoin funds unavailable",
         body: "We couldn't confirm your Bitcoin funds are available. They may be in use by another deposit. Please try again in a moment.",
       },
-      // Post-registration only: a Pre-Pegin input was spent during the
-      // Ethereum wait. The registration expires on its own; no retry.
+      // Post-registration only: a Pre-Pegin input was not found unspent. One
+      // mempool read decides this, so point at the dashboard, not at a
+      // new deposit; the registration expires on its own if it stays true.
       inputSpentAfterRegistration: {
         title: "Bitcoin funds no longer available",
-        body: "A Bitcoin input for this deposit was spent before the Pre-Pegin could be broadcast, so this deposit can't continue. The Ethereum registration will expire on its own. Start a new deposit when you're ready.",
+        body: "A Bitcoin input for this deposit is no longer available, so the Pre-Pegin can't be broadcast from here. The Ethereum registration will expire on its own; check the dashboard for the deposit's current status.",
       },
       broadcastFailed: {
         title: "Broadcast failed",
@@ -1015,7 +1018,7 @@ export const COPY = {
       // on Bitcoin, so this makes no claim about what was sent.
       batchNoLongerPending: {
         title: "Deposit can't be resumed",
-        body: "A BTCVault in this deposit is no longer awaiting its Bitcoin transaction, so the batch can't be broadcast from here. Check the dashboard for its current status.",
+        body: "A BTCVault in this deposit is no longer awaiting its Bitcoin transaction, so the deposit can't be broadcast from here. Check the dashboard for its current status.",
       },
       hashMismatch: (computedHash: string, chainHash: string) =>
         `Pre-Pegin transaction hash mismatch: computed ${computedHash} from indexer tx, but on-chain contract has ${chainHash}. Aborting to prevent potential attack.`,

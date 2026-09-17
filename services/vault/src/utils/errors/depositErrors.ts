@@ -69,6 +69,7 @@ import {
   isRegisteredVaultVersionMismatchError,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { JsonRpcError } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+import { UtxoNotAvailableError } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
 import { type ReactNode } from "react";
 
 import { COPY } from "@/copy";
@@ -138,6 +139,20 @@ const STAGE_FAILED = ERRORS.prePeginStageFailed;
 
 export function isResumableDepositError(content: DepositErrorContent): boolean {
   return RESUMABLE_AFTER_REGISTRATION.has(content);
+}
+
+/**
+ * Map an error thrown after the Ethereum registration is mined. A spent
+ * Pre-Pegin input is terminal there, so it gets its own callout instead of
+ * the SDK's "start a new peg-in" wording; everything else maps as usual.
+ */
+export function mapDepositErrorAfterRegistration(
+  err: unknown,
+): DepositErrorContent {
+  if (err instanceof UtxoNotAvailableError) {
+    return ERRORS.inputSpentAfterRegistration;
+  }
+  return mapDepositError(err);
 }
 
 /** BtcWalletLivenessError bodies, matched (lowercased) by bucket 5b. */
@@ -311,7 +326,8 @@ export function mapDepositError(err: unknown): DepositErrorContent {
   }
 
   // 3e. Typed lifecycle refusal from the DepositTerms rebuild: a batch
-  // member left PENDING, so nothing was sent and a retry cannot succeed.
+  // member left PENDING. The shared Pre-Pegin may already be on Bitcoin, so
+  // the callout neither claims what was sent nor invites a retry.
   if (isVaultLifecycleStateError(err) && err.stage === "broadcast") {
     return ERRORS.batchNoLongerPending;
   }

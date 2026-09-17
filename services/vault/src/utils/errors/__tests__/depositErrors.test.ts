@@ -15,6 +15,7 @@ import {
   OnChainBtcVaultStatus,
   RpcErrorCode,
 } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+import { UtxoNotAvailableError } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
 import { describe, expect, it } from "vitest";
 
 import { COPY } from "@/copy";
@@ -23,6 +24,7 @@ import {
   COMMISSION_UNAVAILABLE_ERROR,
   isResumableDepositError,
   mapDepositError,
+  mapDepositErrorAfterRegistration,
 } from "../depositErrors";
 import {
   DepositorBtcKeyMismatchError,
@@ -483,7 +485,6 @@ describe("mapDepositError", () => {
       vaultId: "0xabc",
     });
     expect(mapDepositError(err)).toEqual(ERRORS.batchNoLongerPending);
-    expect(mapDepositError(err)).not.toEqual(ERRORS.broadcastFailed);
   });
 
   it("does NOT map a presign-stage lifecycle refusal to the broadcast callout", () => {
@@ -692,6 +693,21 @@ describe("mapDepositError", () => {
       "Failed to sign Pre-Pegin transaction: nope",
     );
     expect(mapDepositError(withoutCause)).toEqual(ERRORS.signingFailed);
+  });
+});
+
+describe("mapDepositErrorAfterRegistration", () => {
+  it("maps a spent input to the terminal post-registration callout", () => {
+    const err = new UtxoNotAvailableError([{ txid: "ab".repeat(32), vout: 0 }]);
+    expect(mapDepositErrorAfterRegistration(err)).toEqual(
+      ERRORS.inputSpentAfterRegistration,
+    );
+  });
+
+  it("defers to mapDepositError for anything else", () => {
+    // The post-registration wrapper adds one branch and changes nothing else.
+    const err = new Error("Failed to get UTXOs for address tb1q: HTTP 502");
+    expect(mapDepositErrorAfterRegistration(err)).toEqual(mapDepositError(err));
   });
 });
 

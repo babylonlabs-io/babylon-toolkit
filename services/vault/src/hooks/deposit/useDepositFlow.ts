@@ -110,6 +110,7 @@ import {
   COMMISSION_UNAVAILABLE_ERROR,
   isResumableDepositError,
   mapDepositError,
+  mapDepositErrorAfterRegistration,
   type DepositErrorContent,
 } from "@/utils/errors";
 import {
@@ -1683,11 +1684,7 @@ export function useDepositFlow(
           // the wallet's CONNECTION_REJECTED as "You rejected the request",
           // which misattributes it. Post-registration copy names the Retry
           // offered below; pre-registration copy names no button (none is).
-          // A spent input after registration is terminal for these vaults:
-          // the SDK's "start a new peg-in" wording is right, but the
-          // registration will expire on its own and the user should hear that.
-          const inputSpentAfterRegistration =
-            registeredVaultIds !== null && err instanceof UtxoNotAvailableError;
+          // Post-registration mapping adds the spent-input terminal callout.
           const content: DepositErrorContent = selfCanceled
             ? registeredVaultIds !== null
               ? {
@@ -1700,8 +1697,8 @@ export function useDepositFlow(
                   title: COPY.deposit.errors.signingCanceled.title,
                   body: COPY.deposit.errors.signingCanceled.body,
                 }
-            : inputSpentAfterRegistration
-              ? COPY.deposit.errors.inputSpentAfterRegistration
+            : registeredVaultIds !== null
+              ? mapDepositErrorAfterRegistration(err)
               : mapDepositError(err);
           // Post-registration the vaults are on-chain, so a self-cancel, a
           // mapped resumable bucket (device trouble, wallet reject, sign

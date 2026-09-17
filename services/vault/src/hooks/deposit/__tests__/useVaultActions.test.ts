@@ -6,6 +6,7 @@
 
 import { PeginRegistrationNotFinalError } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { OnChainBtcVaultStatus } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+import { UtxoNotAvailableError } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
 import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { act, renderHook } from "@testing-library/react";
 import type { Hex } from "viem";
@@ -2047,6 +2048,28 @@ describe("useVaultActions — handleBroadcast Ethereum finality gate", () => {
     });
 
     expect(mockSignPsbt).not.toHaveBeenCalled();
+    expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
+  });
+
+  it("shows the terminal spent-input callout on resume, matching the fresh flow", async () => {
+    // Every resume is post-registration, so the same typed error must not
+    // fall through to the SDK's "create a new peg-in request" wording.
+    mockAssertUtxosAvailable.mockRejectedValueOnce(
+      new UtxoNotAvailableError([{ txid: "ab".repeat(32), vout: 0 }]),
+    );
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleBroadcast({
+        ...baseBroadcastParams,
+        pendingPegin: { ...basePendingPegin },
+      });
+    });
+
+    expect(result.current.broadcastError).toEqual(
+      COPY.deposit.errors.inputSpentAfterRegistration,
+    );
     expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
   });
 

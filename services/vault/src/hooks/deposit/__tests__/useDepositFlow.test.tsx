@@ -1871,6 +1871,30 @@ describe("useDepositFlow", () => {
       expect(result.current.error).toBeNull();
     });
 
+    it("tags a post-gate probe failure with the broadcast step, not the Ethereum one", async () => {
+      const { verifyBtcWalletLiveness } = vi.mocked(
+        await import("@/utils/btc"),
+      );
+      // The step must advance before the probes run, so a wallet that locked
+      // during the gate is filed under BROADCAST_PRE_PEGIN.
+      verifyBtcWalletLiveness
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(
+          new BtcWalletLivenessError(COPY.wallet.liveness.unresponsive),
+        );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+
+      await executeDepositFlow(result);
+
+      expect(mockLoggerError).toHaveBeenCalledWith(
+        expect.any(Error),
+        expect.objectContaining({
+          tags: { depositStep: "BROADCAST_PRE_PEGIN" },
+        }),
+      );
+    });
+
     it("tags the failure capture with the step the flow was on when it threw", async () => {
       const { registerPeginBatchAndWait } = vi.mocked(
         await import("../depositFlowSteps"),

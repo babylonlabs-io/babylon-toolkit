@@ -58,7 +58,7 @@ import {
   DepositorWalletMismatchError,
   isTerminalActivationError,
   isVaultRecordEmptyError,
-  mapDepositError,
+  mapDepositErrorAfterRegistration,
   type DepositErrorContent,
 } from "@/utils/errors";
 import { assertVaultCoreVersionSupported } from "@/utils/vaultCoreVersionSupport";
@@ -565,7 +565,9 @@ export function useVaultActions(): UseVaultActionsReturn {
         // narrows on, silently downgrading precise errors to message matching:
         // a finality-gate timeout would fall through to the generic callout
         // instead of the Ethereum-confirmation one.
-        setBroadcastError(mapDepositError(err));
+        // Every resume is post-registration, so a spent input gets the
+        // terminal callout here too, not the SDK's new-deposit wording.
+        setBroadcastError(mapDepositErrorAfterRegistration(err));
         // Mapping replaces the raw message with friendly copy, and only the
         // fallback branch carries `diagnostics`. Log the original so a mapped
         // failure is still diagnosable — `useBroadcastState`'s catch cannot do
