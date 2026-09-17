@@ -18,7 +18,10 @@ import {
   WalletError,
   mapViemErrorToContractError,
 } from "@/utils/errors";
-import { invalidateVaultQueries } from "@/utils/queryKeys";
+import {
+  invalidateHubQueries,
+  invalidateVaultQueries,
+} from "@/utils/queryKeys";
 
 import { getAaveAdapterAddress } from "../config";
 import { SAFE_TOFIXED_PRECISION } from "../constants";
@@ -28,6 +31,7 @@ import {
   borrow,
 } from "../services";
 import type { AaveReserveConfig } from "../services/fetchConfig";
+import { describeAaveRevert } from "../utils/describeAaveRevert";
 
 export interface UseBorrowTransactionResult {
   /** Execute the borrow transaction */
@@ -130,8 +134,12 @@ export function useBorrowTransaction(): UseBorrowTransactionResult {
       // Adapter resolves borrower's proxy from msg.sender
       await borrow(walletClient, chain, reserve.reserveId, borrowAmountBigInt);
 
-      // Invalidate position queries to refresh data
-      await invalidateVaultQueries(queryClient);
+      // Invalidate position queries to refresh data, and the hub reads behind
+      // the loan forms (liquidity, our spoke's borrow limit and hub state).
+      await Promise.all([
+        invalidateVaultQueries(queryClient),
+        invalidateHubQueries(queryClient),
+      ]);
 
       return true;
     } catch (error) {
@@ -151,7 +159,9 @@ export function useBorrowTransaction(): UseBorrowTransactionResult {
           ? mapViemErrorToContractError(error, "Borrow")
           : new Error("An unexpected error occurred while borrowing");
 
-      setError(mappedError.message);
+      setError(
+        describeAaveRevert(error, reserve, "borrow") ?? mappedError.message,
+      );
 
       return false;
     } finally {

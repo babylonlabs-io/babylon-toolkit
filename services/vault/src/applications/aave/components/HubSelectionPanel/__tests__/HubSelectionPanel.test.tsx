@@ -28,15 +28,18 @@ vi.mock("../../../context", () => ({
   useAaveConfig: () => config,
 }));
 
+const drawHeadroom = vi.hoisted(() => ({
+  headroomByReserveId: {} as Record<string, number | null>,
+}));
+const liquidity = vi.hoisted(() => ({
+  liquidityByReserveId: {} as Record<string, { availableLiquidity: number }>,
+}));
+
 vi.mock("../../../hooks", () => ({
   useAaveReservesPrices: () => ({ pricesByReserveId: { "0": 1, "4": 1 } }),
   useAaveBorrowAprs: () => ({ aprPercentByReserveId: { "0": 3.5, "4": 3.7 } }),
-  useAaveReserveLiquidity: () => ({
-    liquidityByReserveId: {
-      "0": { availableLiquidity: 35_500_000 },
-      "4": { availableLiquidity: 15_800_000 },
-    },
-  }),
+  useAaveReserveLiquidity: () => liquidity,
+  useAaveReserveDrawHeadroom: () => drawHeadroom,
 }));
 
 const USDC = "0xB588C1bd8A6cd3F114A52a0AD916778B419ECf48" as Address;
@@ -78,6 +81,11 @@ describe("HubSelectionPanel", () => {
       reserve(2n, WBTC, BABYLON_HUB),
       reserve(4n, USDC, CORE_HUB),
     ];
+    drawHeadroom.headroomByReserveId = {};
+    liquidity.liquidityByReserveId = {
+      "0": { availableLiquidity: 35_500_000 },
+      "4": { availableLiquidity: 15_800_000 },
+    };
   });
 
   it("lists one row per borrowable reserve of the chosen token, naming each hub", () => {
@@ -96,6 +104,28 @@ describe("HubSelectionPanel", () => {
     expect(screen.getByTestId("hub-option-0")).toHaveTextContent("$35.5M");
     expect(screen.getByTestId("hub-option-4")).toHaveTextContent("3.7%");
     expect(screen.getByTestId("hub-option-4")).toHaveTextContent("$15.8M");
+  });
+
+  it("shows the hub's borrow limit instead of its liquidity when the limit leaves less", () => {
+    // Core Hub holds $15.8M, but our borrow limit there leaves $2M; Babylon
+    // Hub's limit leaves more than its liquidity, so liquidity still binds.
+    drawHeadroom.headroomByReserveId = { "0": 50_000_000, "4": 2_000_000 };
+
+    renderPanel();
+
+    expect(screen.getByTestId("hub-option-0")).toHaveTextContent("$35.5M");
+    expect(screen.getByTestId("hub-option-4")).toHaveTextContent("$2M");
+  });
+
+  it("shows a used-up borrow limit as $0 even when the hub's liquidity did not load", () => {
+    liquidity.liquidityByReserveId = {
+      "0": { availableLiquidity: 35_500_000 },
+    };
+    drawHeadroom.headroomByReserveId = { "4": 0 };
+
+    renderPanel();
+
+    expect(screen.getByTestId("hub-option-4")).toHaveTextContent("$0");
   });
 
   it("routes by the clicked hub row's reserve id", () => {

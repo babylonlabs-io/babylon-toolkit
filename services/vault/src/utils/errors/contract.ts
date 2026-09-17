@@ -36,15 +36,24 @@ function isBuiltinSolidityError(errorName: string): boolean {
   return errorName === "Error" || errorName === "Panic";
 }
 
+/** A decoded custom error: its ABI name and its arguments, when it has any. */
+interface DecodedContractError {
+  errorName: string;
+  args?: readonly unknown[];
+}
+
 /**
- * Read viem's already-decoded custom-error name from the error chain.
+ * Read viem's already-decoded custom error from the error chain.
  *
  * viem's `ContractFunctionRevertedError` decodes the revert with the call's
- * own ABI and stores the result at `.data.errorName`. Reading it covers call
- * sites that pass no ABI to the mapper (where the selector isn't in
+ * own ABI and stores the result at `.data` (`errorName`, `args`). Reading it
+ * covers call sites that pass no ABI to the mapper (where the selector isn't in
  * `COMMON_ERROR_ABI` and re-decoding `.raw` would fail).
  */
-function findViemDecodedErrorName(obj: unknown, depth = 0): string | undefined {
+function findViemDecodedError(
+  obj: unknown,
+  depth = 0,
+): DecodedContractError | undefined {
   if (depth > 10 || !obj || typeof obj !== "object") {
     return undefined;
   }
@@ -53,28 +62,31 @@ function findViemDecodedErrorName(obj: unknown, depth = 0): string | undefined {
 
   const data = errorObj.data;
   if (data && typeof data === "object") {
-    const errorName = (data as Record<string, unknown>).errorName;
+    const { errorName, args } = data as Record<string, unknown>;
     if (
       typeof errorName === "string" &&
       errorName.length > 0 &&
       !isBuiltinSolidityError(errorName)
     ) {
-      return errorName;
+      return {
+        errorName,
+        args: Array.isArray(args) ? args : undefined,
+      };
     }
   }
 
   if (errorObj.cause) {
-    const found = findViemDecodedErrorName(errorObj.cause, depth + 1);
+    const found = findViemDecodedError(errorObj.cause, depth + 1);
     if (found) return found;
   }
 
   if (typeof errorObj.walk === "function") {
     try {
-      let found: string | undefined;
+      let found: DecodedContractError | undefined;
       (errorObj.walk as (fn: (e: unknown) => boolean) => unknown)((e) => {
-        const name = findViemDecodedErrorName(e, depth + 1);
-        if (name) {
-          found = name;
+        const decoded = findViemDecodedError(e, depth + 1);
+        if (decoded) {
+          found = decoded;
           return true;
         }
         return false;
@@ -152,13 +164,13 @@ function findErrorData(obj: unknown, depth = 0): `0x${string}` | undefined {
 function tryDecodeContractError(
   error: unknown,
   abis: Abi[],
-): { errorName: string; args?: readonly unknown[] } | undefined {
+): DecodedContractError | undefined {
   // Prefer viem's own decode (done with the call's ABI). This maps custom
   // errors even on call sites that pass no ABI, where re-decoding the raw
   // bytes below would fail because the selector isn't in COMMON_ERROR_ABI.
-  const viemErrorName = findViemDecodedErrorName(error);
-  if (viemErrorName) {
-    return { errorName: viemErrorName };
+  const viemDecoded = findViemDecodedError(error);
+  if (viemDecoded) {
+    return viemDecoded;
   }
 
   const errorData = findErrorData(error);
@@ -344,7 +356,18 @@ export function mapViemErrorToContractError(
 
   return new ContractError(finalMessage, code, transactionHash, reason, {
     cause: error,
+    // Kept so a caller that knows the asset can scale an amount-carrying
+    // error (e.g. a cap in whole tokens, liquidity in base units).
+    context: decoded?.args ? { errorArgs: decoded.args } : undefined,
   });
+}
+
+/** The decoded arguments of a mapped contract error, when it carried any. */
+export function getContractErrorArgs(
+  error: ContractError,
+): readonly unknown[] | undefined {
+  const args = error.context?.errorArgs;
+  return Array.isArray(args) ? args : undefined;
 }
 
 /** Context marker for errors raised during pre-flight simulation. */

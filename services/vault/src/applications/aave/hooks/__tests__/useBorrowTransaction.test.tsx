@@ -40,6 +40,8 @@ vi.mock("@/hooks/useProtocolGate", () => ({
   useProtocolGateState: () => gateMock.value,
 }));
 
+import { ContractError, ErrorCode } from "@/utils/errors";
+
 import { useBorrowTransaction } from "../useBorrowTransaction";
 
 const RESERVE = {} as never;
@@ -70,7 +72,7 @@ describe("useBorrowTransaction — pause gating", () => {
 });
 
 describe("useBorrowTransaction — cache invalidation", () => {
-  it("invalidates the vault and position queries by key prefix after a borrow", async () => {
+  it("invalidates the vault, position and hub queries by key prefix after a borrow", async () => {
     mockAssertReserve.mockResolvedValue(undefined);
     mockGetERC20Decimals.mockResolvedValue(6);
     mockBorrow.mockResolvedValue({ transactionHash: "0xhash" });
@@ -84,6 +86,45 @@ describe("useBorrowTransaction — cache invalidation", () => {
     expect(resolved).toBe(true);
     expect(
       mockInvalidateQueries.mock.calls.map((call) => call[0].queryKey),
-    ).toEqual([["vaults"], ["aaveUserPosition"]]);
+    ).toEqual([
+      ["vaults"],
+      ["aaveUserPosition"],
+      ["aaveReserveLiquidity"],
+      ["aaveReserveDrawHeadroom"],
+      ["aaveHubSpokeConfigs"],
+    ]);
+  });
+});
+
+describe("useBorrowTransaction — hub reverts", () => {
+  it("shows a draw-cap revert scaled and named for the reserve, not the generic rewrite", async () => {
+    mockAssertReserve.mockResolvedValue(undefined);
+    mockGetERC20Decimals.mockResolvedValue(6);
+    mockBorrow.mockRejectedValue(
+      new ContractError(
+        "This market has reached its borrow limit on its hub.",
+        ErrorCode.CONTRACT_REVERT,
+        undefined,
+        "DrawCapExceeded",
+        { context: { errorArgs: [1_000_000n] } },
+      ),
+    );
+    const { result } = renderHook(() => useBorrowTransaction());
+
+    await act(async () => {
+      await result.current.executeBorrow(100, {
+        reserveId: 4n,
+        // Vault Devnet Core Hub, in the hub registry.
+        reserve: {
+          hub: "0xF5E52D571Ed9b4779399A815815ABeFF7D7ec4ca",
+          decimals: 6,
+        },
+        token: { address: "0xtoken", decimals: 6, symbol: "USDC" },
+      } as never);
+    });
+
+    expect(result.current.error).toBe(
+      "This amount would go over the borrow limit for USDC on Core Hub, which is 1,000,000 USDC. Enter a lower amount and try again.",
+    );
   });
 });

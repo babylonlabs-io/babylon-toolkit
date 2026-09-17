@@ -3,8 +3,9 @@
  *
  * Select hub, the borrow step after Select asset when a token is listed on
  * more than one hub. Each row is a separate market for the same token, so this
- * is where they are compared: hub, Borrow APR, available liquidity in USD, and
- * a link to that market's page. Selecting a row opens that reserve's form.
+ * is where they are compared: hub, Borrow APR, what is available to borrow in
+ * USD (the hub's liquidity, capped by our borrow limit on it), and a link to
+ * that market's page. Selecting a row opens that reserve's form.
  */
 
 import { Avatar } from "@babylonlabs-io/core-ui";
@@ -24,6 +25,7 @@ import { formatAprPercent } from "@/utils/formatting";
 import { useAaveConfig } from "../../context";
 import {
   useAaveBorrowAprs,
+  useAaveReserveDrawHeadroom,
   useAaveReserveLiquidity,
   useAaveReservesPrices,
 } from "../../hooks";
@@ -78,12 +80,15 @@ export function HubSelectionPanel({
   });
   const { aprPercentByReserveId } = useAaveBorrowAprs({ reserves });
   const { liquidityByReserveId } = useAaveReserveLiquidity({ reserves });
+  const { headroomByReserveId } = useAaveReserveDrawHeadroom({ reserves });
 
   const rows = useMemo(
     () =>
       reserves.map((reserve) => {
         const key = reserve.reserveId.toString();
         const aprPercent = aprPercentByReserveId[key];
+        const liquidity = liquidityByReserveId[key]?.availableLiquidity;
+        const headroom = headroomByReserveId[key] ?? null;
         return {
           key,
           reserveId: reserve.reserveId,
@@ -93,13 +98,25 @@ export function HubSelectionPanel({
             aprPercent == null
               ? COPY.common.emptyValue
               : formatAprPercent(aprPercent),
+          // What can actually be borrowed here: the hub's liquidity, or less
+          // when our borrow limit on the hub leaves less.
           availableLabel: compactUsdLabel(
-            liquidityByReserveId[key]?.availableLiquidity,
+            liquidity == null
+              ? (headroom ?? undefined)
+              : headroom == null
+                ? liquidity
+                : Math.min(liquidity, headroom),
             pricesByReserveId[key],
           ),
         };
       }),
-    [reserves, aprPercentByReserveId, liquidityByReserveId, pricesByReserveId],
+    [
+      reserves,
+      aprPercentByReserveId,
+      liquidityByReserveId,
+      headroomByReserveId,
+      pricesByReserveId,
+    ],
   );
 
   return (

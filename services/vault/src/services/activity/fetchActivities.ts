@@ -88,8 +88,7 @@ export async function fetchUserActivities(
   // once per debt reserve, so one liquidation tx can produce multiple repays
   // (one per reserve being settled). Track them all per tx hash so:
   //   1. every repay is marked consumed (no orphan rows leak through), and
-  //   2. the first repay attaches to the liquidation card (today's design;
-  //      multi-repay card support is a separate design call).
+  //   2. every repay attaches to the liquidation card, one row per reserve.
   const repaysByTxHash = new Map<string, GraphQLVaultActivityItem[]>();
   for (const item of activities) {
     if (item.type === "repay") {
@@ -117,11 +116,22 @@ export async function fetchUserActivities(
   // sibling repay (higher logIndex) typically lands before the liquidation
   // that would consume it — we must know up-front which ids to skip.
   const consumedIds = new Set<string>();
+  // The indexer writes one liquidation row per seized vault, so a transaction
+  // that liquidates several vaults has several rows sharing the hash. Its
+  // repays attach to the first one only, or every card would repeat them.
+  const repayCardIdByTxHash = new Map<string, string>();
   for (const item of activities) {
     if (item.type === "liquidation") {
       const repays = repaysByTxHash.get(item.transactionHash);
       if (repays) {
         for (const repay of repays) consumedIds.add(repay.id);
+      }
+      const cardId = repayCardIdByTxHash.get(item.transactionHash);
+      if (
+        cardId === undefined ||
+        parseLogIndex(item.id) < parseLogIndex(cardId)
+      ) {
+        repayCardIdByTxHash.set(item.transactionHash, item.id);
       }
     }
   }
@@ -134,10 +144,15 @@ export async function fetchUserActivities(
     if (item.type === "liquidation") {
       const classification =
         liquidationClassification.get(item.id) ?? "Partially Liquidated";
-      // Multi-reserve case: only the first repay is shown in the card today.
-      // The others are still consumed above so they don't leak as orphan rows.
-      const repay = repaysByTxHash.get(item.transactionHash)?.[0];
-      rows.push(buildLiquidationGroup(item, repay, classification, deps));
+      // The indexer orders by timestamp only, so repays sharing a tx come back
+      // in no fixed order: list them in the order they were emitted.
+      const repays =
+        repayCardIdByTxHash.get(item.transactionHash) === item.id
+          ? [...(repaysByTxHash.get(item.transactionHash) ?? [])].sort(
+              (a, b) => parseLogIndex(a.id) - parseLogIndex(b.id),
+            )
+          : [];
+      rows.push(buildLiquidationGroup(item, repays, classification, deps));
       continue;
     }
 

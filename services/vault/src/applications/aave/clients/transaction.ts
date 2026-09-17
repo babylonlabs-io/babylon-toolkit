@@ -30,6 +30,8 @@ import {
   tagSimulationPhase,
 } from "../../../utils/errors";
 
+import { HUB_ERROR_ABI } from "./hubErrors";
+
 /**
  * ABIs consulted when decoding a revert on the Aave paths.
  *
@@ -37,13 +39,15 @@ import {
  * Core Spoke (health-factor floor, dust rule, frozen/paused reserve) or in the
  * per-position proxy, and a selector outside the supplied ABIs decodes to
  * nothing — which is how ordinary, explainable conditions reached the user as
- * "Execution reverted for an unknown reason."
+ * "Execution reverted for an unknown reason." The Spoke in turn calls its Hubs,
+ * which revert with their own errors (draw cap, liquidity, halted spoke).
  */
 const AAVE_REVERT_DECODING_ABIS = [
   AaveIntegrationAdapterABI,
   AaveSpokeABI,
   AaveAdapterPositionProxyABI,
   BTCVaultRegistryABI,
+  HUB_ERROR_ABI,
 ];
 
 /**

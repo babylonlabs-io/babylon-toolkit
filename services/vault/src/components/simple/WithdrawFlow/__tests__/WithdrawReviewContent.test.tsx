@@ -33,6 +33,7 @@ const baseProps = {
   assertTimelockBlocks: 144,
   isProcessing: false,
   error: null,
+  hubBlockMessage: null,
   onConfirm: () => {},
 };
 
@@ -80,6 +81,20 @@ describe("WithdrawReviewContent", () => {
 
     expect(screen.getByTestId("withdraw-hf-block-warning")).toHaveTextContent(
       "would drop your health factor below 1.0",
+    );
+    expect(screen.getByTestId("withdraw-confirm-button")).toBeDisabled();
+  });
+
+  it("blocks confirmation and shows the reason when a hub would reject the withdrawal", () => {
+    render(
+      <WithdrawReviewContent
+        {...baseProps}
+        hubBlockMessage="Core Hub, where you have debt, isn't accepting transactions right now."
+      />,
+    );
+
+    expect(screen.getByTestId("withdraw-hub-block-warning")).toHaveTextContent(
+      "Core Hub, where you have debt, isn't accepting transactions right now.",
     );
     expect(screen.getByTestId("withdraw-confirm-button")).toBeDisabled();
   });

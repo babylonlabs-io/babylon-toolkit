@@ -79,12 +79,14 @@ const BORROW_BUTTON_RX = /^borrow$/i; // COPY.loans.borrowButton
 const BORROW_SUBMIT_TESTID = '[data-testid="borrow-submit-button"]';
 const BORROW_SUBMIT_ENABLED_LABEL = "Borrow"; // COPY.loans.borrow.action (enabled state)
 // Submit labels that won't resolve by waiting — fail fast with the callout (COPY.loans.borrow.*).
-// "Borrowing Unavailable" is protocol-gated; "Amount too small" / "…exceeds available liquidity" are
-// fixed properties of the entered amount + reserve, not of how much collateral has propagated.
+// "Borrowing Unavailable" is protocol- or hub-gated; "Amount too small" / "…exceeds available liquidity" /
+// "…exceeds borrow limit" are fixed properties of the entered amount + reserve (and its hub), not of how
+// much collateral has propagated.
 const BORROW_INSTANT_FAIL_LABELS = new Set([
   "Borrowing Unavailable",
   "Amount too small",
   "Amount exceeds available liquidity",
+  "Amount exceeds borrow limit",
 ]);
 // Labels that depend on the position's collateral and so can be TRANSIENT right after a pegin-first
 // activation — the borrow form's max/health-factor grow as the just-activated vault propagates into
@@ -97,7 +99,7 @@ const BORROW_COLLATERAL_DEPENDENT_LABELS = new Set([
 // Best-effort: the validation callout body phrases (COPY.loans.validation.*) + the availability ones,
 // surfaced in the fail-fast message so a blocked run says why.
 const CALLOUT_BODY_RX =
-  /(minimum borrowable|maximum borrowable|available to borrow|health factor|temporarily unavailable|Price data unavailable)[^.]*\./i;
+  /(minimum borrowable|maximum borrowable|available to borrow|borrow limit|health factor|temporarily unavailable|isn't accepting|has halted|Price data unavailable)[^.]*\./i;
 // Success screen: the borrow-specific title (the shared Done testid/text + tx-failed live in selectors).
 const BORROW_SUCCESS_RX = /borrow successful/i; // COPY.loans.borrowSuccess.title
 /**
@@ -334,8 +336,8 @@ async function readCalloutText(page: Page): Promise<string> {
  * Wait for the fluid submit button to become the enabled "Borrow". It relabels through "Enter an
  * amount" / "Refreshing position…" while the price + position settle; we key on the stable
  * label-independent control (testid, else the fluid-button class) and read its text each tick, logging
- * changes. An instant-fail label (protocol paused, amount too small, over reserve liquidity) throws
- * immediately with the callout. A collateral-dependent label ("Amount exceeds maximum" / "Health factor
+ * changes. An instant-fail label (protocol paused or hub blocked, amount too small, over reserve liquidity
+ * or the hub's borrow limit) throws immediately with the callout. A collateral-dependent label ("Amount exceeds maximum" / "Health factor
  * too low") is treated as possibly-TRANSIENT — right after a pegin-first activation the form's max grows
  * as the new vault propagates — so we keep polling and only surface it if it persists to the deadline.
  */

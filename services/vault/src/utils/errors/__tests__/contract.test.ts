@@ -10,6 +10,7 @@ import { COPY } from "@/copy";
 
 import {
   ACTIVATION_DEADLINE_EXPIRED_REASON,
+  getContractErrorArgs,
   isActivationDeadlineExpiredError,
   isTerminalActivationError,
   mapViemErrorToContractError,
@@ -192,6 +193,32 @@ describe("Contract Error Mapping", () => {
       expect(result.code).toBe(ErrorCode.CONTRACT_REVERT);
       expect(result.reason).toBe("DebtMustBeRepaidFirst");
       expect(result.message).toContain("repay all debt");
+    });
+
+    it("keeps a decoded error's arguments for callers that scale them", () => {
+      const error = {
+        message: "execution reverted",
+        data: encodeErrorResult({
+          abi: TEST_ABI,
+          errorName: "CustomErrorWithArgs",
+          args: [1_000_000n, 2_000_000n],
+        }),
+      };
+      const result = mapViemErrorToContractError(error, "borrow", [TEST_ABI]);
+
+      expect(result.reason).toBe("CustomErrorWithArgs");
+      expect(getContractErrorArgs(result)).toEqual([1_000_000n, 2_000_000n]);
+    });
+
+    it("keeps the arguments viem already decoded on the error chain", () => {
+      const error = {
+        message: "execution reverted",
+        data: { errorName: "DrawCapExceeded", args: [1_000n] },
+      };
+      const result = mapViemErrorToContractError(error, "borrow");
+
+      expect(result.reason).toBe("DrawCapExceeded");
+      expect(getContractErrorArgs(result)).toEqual([1_000n]);
     });
 
     it("keeps a decoded revert even when its wrapper message says 'insufficient funds'", () => {

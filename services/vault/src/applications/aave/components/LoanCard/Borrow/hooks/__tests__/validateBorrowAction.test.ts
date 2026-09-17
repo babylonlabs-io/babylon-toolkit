@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { MIN_HEALTH_FACTOR_FOR_BORROW } from "../../../../../constants";
-import { validateBorrowAction } from "../validateBorrowAction";
+import { getBorrowLimit, validateBorrowAction } from "../validateBorrowAction";
 
 const HF_TOO_LOW_MESSAGE = `Borrowing this amount would drop your health factor below ${MIN_HEALTH_FACTOR_FOR_BORROW}, risking liquidation. Reduce the amount and try again.`;
 
@@ -95,7 +95,7 @@ describe("validateBorrowAction", () => {
   });
 
   it("disables with the liquidity message when the cap is the reserve's available liquidity", () => {
-    // limitedByLiquidity=true → distinct copy explaining the market is the limit.
+    // limitedBy="liquidity" → distinct copy explaining the market is the limit.
     const result = validateBorrowAction(
       6000,
       2.0,
@@ -104,7 +104,7 @@ describe("validateBorrowAction", () => {
       "USDC",
       "Core Hub",
       false,
-      true,
+      "liquidity",
     );
 
     expect(result).toEqual({
@@ -112,6 +112,82 @@ describe("validateBorrowAction", () => {
       buttonText: "Amount exceeds available liquidity",
       errorMessage:
         "Only 5,000 USDC on Core Hub is available to borrow right now. Enter a lower amount and try again.",
+    });
+  });
+
+  it("disables with the borrow-limit message when the cap is the hub's borrow limit", () => {
+    const result = validateBorrowAction(
+      6000,
+      2.0,
+      5000,
+      6,
+      "USDC",
+      "Core Hub",
+      false,
+      "borrowLimit",
+    );
+
+    expect(result).toEqual({
+      isDisabled: true,
+      buttonText: "Amount exceeds borrow limit",
+      errorMessage:
+        "Only 5,000 USDC on Core Hub is left under this market's borrow limit. Enter a lower amount and try again.",
+    });
+  });
+
+  it("keeps the collateral max when neither cap is known", () => {
+    expect(getBorrowLimit(100, Infinity, Infinity)).toEqual({
+      max: 100,
+      limitedBy: "collateral",
+    });
+  });
+
+  it("caps at liquidity when the hub holds less than collateral allows", () => {
+    expect(getBorrowLimit(100, 50, Infinity)).toEqual({
+      max: 50,
+      limitedBy: "liquidity",
+    });
+  });
+
+  it("caps at the borrow limit when it leaves less than liquidity", () => {
+    expect(getBorrowLimit(100, 50, 40)).toEqual({
+      max: 40,
+      limitedBy: "borrowLimit",
+    });
+  });
+
+  it("caps at zero when the borrow limit is used up", () => {
+    expect(getBorrowLimit(100, 50, 0)).toEqual({
+      max: 0,
+      limitedBy: "borrowLimit",
+    });
+  });
+
+  it("names the borrow limit when it ties with liquidity, since the hub checks it first", () => {
+    expect(getBorrowLimit(100, 50, 50).limitedBy).toBe("borrowLimit");
+  });
+
+  it("names collateral when a cap only equals the collateral max", () => {
+    expect(getBorrowLimit(50, 50, 50).limitedBy).toBe("collateral");
+  });
+
+  it("says the borrow limit is reached when it leaves nothing to borrow", () => {
+    const result = validateBorrowAction(
+      10,
+      2.0,
+      0,
+      6,
+      "USDC",
+      "Core Hub",
+      false,
+      "borrowLimit",
+    );
+
+    expect(result).toEqual({
+      isDisabled: true,
+      buttonText: "Amount exceeds borrow limit",
+      errorMessage:
+        "USDC on Core Hub has reached its borrow limit. Try again later or borrow from another hub.",
     });
   });
 

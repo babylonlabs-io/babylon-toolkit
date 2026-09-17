@@ -15,6 +15,34 @@ import {
   SAFE_TOFIXED_PRECISION,
 } from "../../../../constants";
 
+/**
+ * What bounds the borrow max: the user's collateral, the hub's available
+ * liquidity, or our spoke's draw cap on that hub (its borrow limit).
+ */
+export type BorrowLimit = "collateral" | "liquidity" | "borrowLimit";
+
+/**
+ * The effective borrow max and what bounds it. Each cap is in token units, or
+ * `Infinity` when its read is loading or failed.
+ *
+ * @param collateralMax - What the user's collateral allows
+ * @param liquidityCap - What the hub's liquidity allows
+ * @param borrowLimitCap - What our spoke's draw cap on the hub still allows
+ */
+export function getBorrowLimit(
+  collateralMax: number,
+  liquidityCap: number,
+  borrowLimitCap: number,
+): { max: number; limitedBy: BorrowLimit } {
+  const max = Math.min(collateralMax, liquidityCap, borrowLimitCap);
+  if (max >= collateralMax) return { max, limitedBy: "collateral" };
+  // The Hub checks the draw cap before liquidity, so the cap wins a tie.
+  return {
+    max,
+    limitedBy: borrowLimitCap <= liquidityCap ? "borrowLimit" : "liquidity",
+  };
+}
+
 export interface BorrowValidationResult {
   isDisabled: boolean;
   buttonText: string;
@@ -27,15 +55,15 @@ export interface BorrowValidationResult {
  * @param borrowAmount - Amount user wants to borrow
  * @param projectedHealthFactor - Health factor after the borrow
  * @param maxBorrowAmount - Effective maximum borrowable amount (collateral- and
- *   debt-based, already capped by available reserve liquidity when known)
+ *   debt-based, already capped by available liquidity and the hub's borrow
+ *   limit when known)
  * @param tokenDecimals - Native token decimals (e.g., 8 for WBTC, 6 for USDC, 18 for ETH)
  * @param symbol - Token symbol, shown in the error description (e.g. "DAI")
  * @param hubLabel - Hub the reserve belongs to, named beside the symbol: the
  *   same token on another hub is a different market with a different limit
  * @param isPositionDataStale - Whether position data may be outdated
- * @param limitedByLiquidity - Whether `maxBorrowAmount` is bound by the
- *   reserve's available liquidity (vs the user's collateral). Selects the
- *   "exceeds available liquidity" message over the generic "exceeds maximum".
+ * @param limitedBy - What bounds `maxBorrowAmount`. Selects the liquidity or
+ *   borrow-limit message over the generic "exceeds maximum".
  * @returns Validation result with disabled state, button text, and error message
  */
 export function validateBorrowAction(
@@ -46,7 +74,7 @@ export function validateBorrowAction(
   symbol: string,
   hubLabel: string,
   isPositionDataStale = false,
-  limitedByLiquidity = false,
+  limitedBy: BorrowLimit = "collateral",
 ): BorrowValidationResult {
   if (isPositionDataStale) {
     return {
@@ -86,7 +114,21 @@ export function validateBorrowAction(
 
   if (borrowAmount > maxBorrowAmount) {
     const formattedMax = formatDisplayAmount(maxBorrowAmount, displayDecimals);
-    return limitedByLiquidity
+    if (limitedBy === "borrowLimit") {
+      return {
+        isDisabled: true,
+        buttonText: COPY.loans.borrow.amountExceedsBorrowLimit,
+        errorMessage:
+          maxBorrowAmount > 0
+            ? COPY.loans.validation.exceedsBorrowLimit(
+                formattedMax,
+                symbol,
+                hubLabel,
+              )
+            : COPY.loans.validation.borrowLimitReached(symbol, hubLabel),
+      };
+    }
+    return limitedBy === "liquidity"
       ? {
           isDisabled: true,
           buttonText: COPY.loans.borrow.amountExceedsLiquidity,

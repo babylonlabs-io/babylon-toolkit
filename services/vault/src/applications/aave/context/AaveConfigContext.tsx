@@ -22,6 +22,7 @@ import {
   type AaveConfig,
   type AaveReserveConfig,
 } from "../services";
+import type { HubSpokeConfigs } from "../utils/hubState";
 
 interface AaveConfigContextValue {
   config: AaveConfig | null;
@@ -29,6 +30,8 @@ interface AaveConfigContextValue {
   borrowableReserves: AaveReserveConfig[];
   /** Includes frozen/paused reserves so users can still repay legacy debt. */
   allBorrowReserves: AaveReserveConfig[];
+  /** Our spoke's config on each reserve's hub, keyed by reserve id. */
+  hubSpokeConfigs: HubSpokeConfigs;
 }
 
 const AaveConfigContext = createContext<AaveConfigContextValue | null>(null);
@@ -95,6 +98,7 @@ export function AaveConfigProvider({
     vbtcReserve: data.vbtcReserve,
     borrowableReserves: data.borrowableReserves,
     allBorrowReserves: data.allBorrowReserves,
+    hubSpokeConfigs: data.hubSpokeConfigs,
   };
 
   return (

@@ -56,6 +56,11 @@ interface WithdrawReviewContentProps {
   isProcessing: boolean;
   /** Last failed-withdraw message, shown inline under the action (null when none). */
   error: string | null;
+  /**
+   * Why a hub would reject the withdrawal (null when none): the collateral's
+   * hub, or an inactive hub where the user has debt. Blocks the confirm button.
+   */
+  hubBlockMessage: string | null;
   onConfirm: () => void;
 }
 
@@ -68,6 +73,7 @@ export function WithdrawReviewContent({
   assertTimelockBlocks,
   isProcessing,
   error,
+  hubBlockMessage,
   onConfirm,
 }: WithdrawReviewContentProps) {
   const { defaultFeeRate } = useNetworkFees();
@@ -186,6 +192,15 @@ export function WithdrawReviewContent({
               )}
             </Text>
           )}
+          {hubBlockMessage && (
+            <Text
+              variant="body2"
+              className="text-error-main"
+              data-testid="withdraw-hub-block-warning"
+            >
+              {hubBlockMessage}
+            </Text>
+          )}
           {isAtRisk && (
             <Text
               variant="body2"
@@ -203,7 +218,7 @@ export function WithdrawReviewContent({
             variant="contained"
             color="secondary"
             className="w-full"
-            disabled={isProcessing || wouldBreachHF}
+            disabled={isProcessing || wouldBreachHF || hubBlockMessage !== null}
             onClick={onConfirm}
             data-testid="withdraw-confirm-button"
           >

@@ -12,6 +12,10 @@ export {
   type UseAaveOracleAddressResult,
 } from "./useAaveOracleAddress";
 export {
+  useAaveReserveDrawHeadroom,
+  type UseAaveReserveDrawHeadroomResult,
+} from "./useAaveReserveDrawHeadroom";
+export {
   useAaveReserveLiquidity,
   type ReserveLiquidity,
   type UseAaveReserveLiquidityResult,
@@ -43,6 +47,8 @@ export {
   useBtcPriceCandles,
   type UseBtcPriceCandlesResult,
 } from "./useBtcPriceCandles";
+export { useDebtReserves } from "./useDebtReserves";
+export { useHubSpokeConfigs } from "./useHubSpokeConfigs";
 export {
   useInterestRateModelCurve,
   type UseInterestRateModelCurveResult,
