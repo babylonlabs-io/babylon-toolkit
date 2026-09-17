@@ -9,6 +9,15 @@
  * this observer owns notifications for the active flow. The pending-deposit
  * observer stands down while `isActiveFlow` is set, so there's no double-fire.
  *
+ * Notifies at step entry only, which covers every step the flow reaches after an
+ * unattended wait - the broadcast, WOTS and payout popups. The accepted cost is
+ * every popup the step change does not mark: one that is already open when the
+ * depositor leaves the tab, because the step alone cannot tell an open popup
+ * from an answered one, and one raised by a round that re-enters the step it is
+ * already on, because that is a same-value set and the effect does not re-run.
+ * The per-vault WOTS round is the second case; the payout round moves through
+ * several step values, so it still re-runs.
+ *
  * No-ops when the SigningNotification provider is absent or the flag is off.
  */
 
@@ -84,17 +93,21 @@ export function useDepositSigningNotification(
   // Per-flow id keeps the de-dup key unique so a second deposit in the same
   // session notifies again rather than being swallowed by the prior flow.
   const flowId = useId();
-  // Re-fire when the user switches tabs: a step reached while focused is
-  // suppressed by the provider, so we retry once the tab is hidden.
-  const documentHidden = notifier?.documentHidden ?? false;
+  // Stable across provider re-renders, unlike `notifier` itself: the effect
+  // must run when the step changes and at no other time (see below).
+  const notifySigningRequired = notifier?.notifySigningRequired;
 
+  // Fires only when the flow ENTERS a signing step, never again while it stays
+  // there. A step outlives its wallet popup: SUBMIT_PEGIN stays current through
+  // the receipt wait and the ~1.6 min Ethereum finality gate, long after the
+  // depositor confirmed the registration. This effect also ran when the tab
+  // became hidden, and the provider leaves a key unconsumed while the tab is
+  // visible, so tabbing away during that wait asked for a signature that was
+  // already given.
   useEffect(() => {
-    if (!notifier || !active) return;
+    if (!notifySigningRequired || !active) return;
     const entry = STEP_NOTIFICATION[currentStep];
     if (!entry) return;
-    notifier.notifySigningRequired(
-      `inflow:${flowId}:${entry.phase}`,
-      entry.copy,
-    );
-  }, [currentStep, active, notifier, flowId, documentHidden]);
+    notifySigningRequired(`inflow:${flowId}:${entry.phase}`, entry.copy);
+  }, [currentStep, active, notifySigningRequired, flowId]);
 }

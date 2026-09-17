@@ -119,7 +119,10 @@ export function SigningNotificationProvider({
       if (shownKeysRef.current.has(key)) return;
       // Only the usable + hidden case marks the key handled. A requirement that
       // arises while focused or before permission is granted is left unmarked
-      // so a later observer can still notify once the user looks away.
+      // so a later observer can still notify once the user looks away. Only the
+      // pending-deposit observer takes that second chance: it re-reads a polled
+      // requirement that is still true. `inflow:` keys fire once, when the flow
+      // enters the step - see useDepositSigningNotification.
       if (getBrowserNotificationPermission() !== "granted") return;
       if (!isDocumentHidden()) return;
       // Mark synchronously before showing so two observers firing in the same
