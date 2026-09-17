@@ -26,6 +26,11 @@ import {
   type TransactionResult,
 } from "../../../clients/eth-contract/transactionFactory";
 import {
+  sendWithStaleNonceRetry,
+  waitForWalletToCountTransaction,
+} from "../../../clients/eth-contract/walletNonce";
+import {
+  isSimulationPhaseError,
   mapViemErrorToContractError,
   tagSimulationPhase,
 } from "../../../utils/errors";
@@ -149,28 +154,40 @@ async function executeTx(
     throw new Error("Wallet account not available");
   }
 
-  try {
-    // Pre-flight simulation - catches errors before user signs
-    await simulateTx(to, data, account);
-  } catch (error) {
-    // Tagged so callers can safely auto-retry: nothing was signed or sent,
-    // and the failure may be a lagging RPC backend, not the chain.
-    throw tagSimulationPhase(
-      mapViemErrorToContractError(
-        error,
-        errorContext,
-        AAVE_REVERT_DECODING_ABIS,
-      ),
-    );
-  }
+  // Pre-flight simulation - catches errors before user signs
+  const simulate = async () => {
+    try {
+      await simulateTx(to, data, account);
+    } catch (error) {
+      // Tagged so callers can safely auto-retry: nothing was signed or sent,
+      // and the failure may be a lagging RPC backend, not the chain.
+      throw tagSimulationPhase(
+        mapViemErrorToContractError(
+          error,
+          errorContext,
+          AAVE_REVERT_DECODING_ABIS,
+        ),
+      );
+    }
+  };
+  await simulate();
 
   try {
-    // Simulation passed, now send the actual transaction
-    const hash = await walletClient.sendTransaction({
-      to,
-      data,
-      chain,
-      account: walletClient.account!,
+    // Simulation passed, now send the actual transaction. A send the wallet
+    // signed with a nonce used before it started is simulated and sent once
+    // more.
+    const hash = await sendWithStaleNonceRetry({
+      walletClient,
+      publicClient,
+      account,
+      send: () =>
+        walletClient.sendTransaction({
+          to,
+          data,
+          chain,
+          account: walletClient.account!,
+        }),
+      prepare: simulate,
     });
 
     // Smart-account-aware: Externally Owned Account (EOA) wallets — controlled
@@ -181,6 +198,16 @@ async function executeTx(
       publicClient,
       walletAddress: account,
       hash,
+    });
+
+    // Before the flow asks the wallet for its next transaction (a repay's
+    // approve is followed straight away by the repay), let the wallet's own
+    // node count this one, so it does not reuse the nonce.
+    await waitForWalletToCountTransaction({
+      walletClient,
+      publicClient,
+      account,
+      receipt,
     });
 
     // Check if transaction was reverted
@@ -200,6 +227,8 @@ async function executeTx(
       receipt,
     };
   } catch (error) {
+    // The simulation re-run before a stale-nonce retry is already mapped.
+    if (isSimulationPhaseError(error)) throw error;
     throw mapViemErrorToContractError(
       error,
       errorContext,

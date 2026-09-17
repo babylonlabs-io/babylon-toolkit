@@ -60,11 +60,21 @@ export const SUCCESS_DONE_TESTID = '[data-testid="loan-success-done-button"]';
 export const DONE_BUTTON_RX = /^done$/i;
 /** The tx-failure callout title (COPY.common.transactionFailedTitle) shown when a borrow/repay tx fails. */
 export const TX_FAILED_RX = /transaction failed/i;
+
 /**
- * The wallet's node rejected a submit whose nonce the previous, just-mined transaction already used
- * (https://github.com/babylonlabs-io/babylon-toolkit/issues/2514). Nothing was broadcast.
+ * The text of the loan form's "Transaction failed" callout, title and body, whitespace-collapsed: the
+ * message the user was shown, so a failed run logs it. The callout is core-ui `Callout`, which renders
+ * the error variant with role="alert". Empty when the callout is gone.
  */
-export const STALE_NONCE_RX = /nonce too low/i;
+export async function readTxFailedText(page: Page): Promise<string> {
+  const callout = page
+    .getByRole("alert")
+    .filter({ hasText: TX_FAILED_RX })
+    .first();
+  return (await callout.innerText().catch(() => ""))
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
 /**
  * Refuse to continue on a loan form opened for a different reserve than the one this run resolved. The

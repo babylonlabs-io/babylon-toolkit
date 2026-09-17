@@ -3,7 +3,12 @@
  */
 
 import { AaveIntegrationAdapterABI } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
-import { type Abi, encodeErrorResult } from "viem";
+import {
+  type Abi,
+  encodeErrorResult,
+  NonceTooLowError,
+  RpcRequestError,
+} from "viem";
 import { describe, expect, it } from "vitest";
 
 import { COPY } from "@/copy";
@@ -102,6 +107,50 @@ describe("Contract Error Mapping", () => {
       const result = mapViemErrorToContractError(error, "test operation");
 
       expect(result.code).toBe(ErrorCode.CONTRACT_NONCE_ERROR);
+    });
+
+    it("maps a stale-nonce send rejection to friendly copy, not the raw node text", () => {
+      const error = new NonceTooLowError({
+        cause: new RpcRequestError({
+          body: {},
+          error: {
+            code: -32000,
+            message: "nonce too low: next nonce 788, tx nonce 787",
+          },
+          url: "https://rpc.example",
+        }),
+      });
+      const result = mapViemErrorToContractError(error, "approve ERC20");
+
+      expect(result.code).toBe(ErrorCode.CONTRACT_NONCE_ERROR);
+      expect(result.message).toBe(COPY.common.classifiedErrors.staleNonce);
+    });
+
+    it("keeps the stale-nonce copy when an already-mapped error is mapped again", () => {
+      const first = mapViemErrorToContractError(
+        new Error(
+          "Nonce provided for the transaction is lower than the current nonce of the account.",
+        ),
+        "repay to Aave Core position",
+      );
+      const result = mapViemErrorToContractError(first, "Repay");
+
+      expect(result.code).toBe(ErrorCode.CONTRACT_NONCE_ERROR);
+      expect(result.message).toBe(COPY.common.classifiedErrors.staleNonce);
+    });
+
+    it("does not show the stale-nonce copy when the node already holds the transaction", () => {
+      const error = new NonceTooLowError({
+        cause: new RpcRequestError({
+          body: {},
+          error: { code: -32000, message: "already known" },
+          url: "https://rpc.example",
+        }),
+      });
+      const result = mapViemErrorToContractError(error, "Repay");
+
+      expect(result.code).toBe(ErrorCode.CONTRACT_NONCE_ERROR);
+      expect(result.message).not.toBe(COPY.common.classifiedErrors.staleNonce);
     });
 
     it("should detect user rejection", () => {
