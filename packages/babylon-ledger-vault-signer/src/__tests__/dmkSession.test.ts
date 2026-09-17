@@ -170,7 +170,7 @@ describe("connectDmkSession", () => {
     expect(handle.appVersion).toBe("0.9.4");
   });
 
-  it("still connects when the preflight fails — app info is diagnostics, not a gate", async () => {
+  it("still connects when the preflight fails — with no identity there is nothing to gate on", async () => {
     dmkStub.sendCommand.mockRejectedValue(new Error("transport hiccup"));
 
     const handle = await connectDmkSession();
