@@ -979,9 +979,10 @@ export const COPY = {
         title: "Signing failed",
         body: "Your Bitcoin wallet couldn't sign the transaction. If it's locked, unlock it and try again. No Bitcoin has been broadcast.",
       },
+      // Not resumable in the modal, so point at the dashboard resume.
       preparationFailed: {
         title: "Preparation failed",
-        body: "We couldn't prepare your Bitcoin transaction for signing. Please try again. No Bitcoin has been broadcast.",
+        body: "We couldn't prepare your Bitcoin transaction for signing. No Bitcoin has been broadcast. If your deposit is already registered, resume it from your dashboard.",
       },
       walletNotConnected: {
         title: "Wallet not connected",
@@ -998,15 +999,23 @@ export const COPY = {
         title: "Bitcoin funds unavailable",
         body: "We couldn't confirm your Bitcoin funds are available. They may be in use by another deposit. Please try again in a moment.",
       },
+      // Post-registration only: a Pre-Pegin input was spent during the
+      // Ethereum wait. The registration expires on its own; no retry.
+      inputSpentAfterRegistration: {
+        title: "Bitcoin funds no longer available",
+        body: "A Bitcoin input for this deposit was spent before the Pre-Pegin could be broadcast, so this deposit can't continue. The Ethereum registration will expire on its own. Start a new deposit when you're ready.",
+      },
       broadcastFailed: {
         title: "Broadcast failed",
         body: "We couldn't broadcast your Bitcoin transaction to the network. Please try again.",
       },
       // Resume refused because a vault in the batch left PENDING: terminal, so
       // no retry advice.
+      // A batch member may be VERIFIED, i.e. the shared Pre-Pegin is already
+      // on Bitcoin, so this makes no claim about what was sent.
       batchNoLongerPending: {
         title: "Deposit can't be resumed",
-        body: "A vault in this deposit is no longer awaiting its Bitcoin transaction, so the batch can't be broadcast as one transaction. No Bitcoin was sent.",
+        body: "A BTCVault in this deposit is no longer awaiting its Bitcoin transaction, so the batch can't be broadcast from here. Check the dashboard for its current status.",
       },
       hashMismatch: (computedHash: string, chainHash: string) =>
         `Pre-Pegin transaction hash mismatch: computed ${computedHash} from indexer tx, but on-chain contract has ${chainHash}. Aborting to prevent potential attack.`,

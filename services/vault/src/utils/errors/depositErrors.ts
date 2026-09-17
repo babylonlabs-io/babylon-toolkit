@@ -32,7 +32,7 @@
  *  - Deposit-terms rejection — the signing device's envelope refused the
  *    terms before approval (typed SDK error; can be terminal).
  *  - Lifecycle refusal — the DepositTerms rebuild's typed status gate
- *    (broadcast stage keeps its historical broadcast-bucket copy).
+ *    (broadcast stage maps to the terminal batch callout).
  *  - Depositor wallet mismatch — the typed refusal from the DepositTerms
  *    rebuild and the resume wallet check when the connected Ethereum account
  *    is not the vault's depositor.
@@ -468,13 +468,16 @@ export function mapDepositError(err: unknown): DepositErrorContent {
   // matches (not a bare "utxo") so unrelated UTXO-mentioning errors (e.g. a
   // stale snapshot or indexer outage) don't get absorbed here. Covers the
   // known throws: "No spendable UTXOs available", "Spendable UTXOs unavailable
-  // ...", "Failed to load UTXOs". Checked BEFORE the ETH-gas bucket because
-  // `classifyError` reads "Insufficient funds: no UTXOs available" as a gas
-  // shortfall (no sats/pegin guard hit) — the UTXO phrase must win.
+  // ...", "Failed to load UTXOs", and the mempool client's "Failed to get
+  // UTXOs for address ..." from the availability re-checks. Checked BEFORE
+  // the ETH-gas bucket because `classifyError` reads "Insufficient funds: no
+  // UTXOs available" as a gas shortfall (no sats/pegin guard hit) — the UTXO
+  // phrase must win.
   if (
     msg.includes("spendable utxos") ||
     msg.includes("utxos available") ||
-    msg.includes("failed to load utxos")
+    msg.includes("failed to load utxos") ||
+    msg.includes("failed to get utxos")
   ) {
     return ERRORS.utxosUnavailable;
   }

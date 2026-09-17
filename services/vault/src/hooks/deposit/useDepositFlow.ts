@@ -31,6 +31,7 @@ import {
   vpTokenRegistry,
 } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { computeHashlock } from "@babylonlabs-io/ts-sdk/tbv/core/services";
+import { UtxoNotAvailableError } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
 import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -472,6 +473,9 @@ export function useDepositFlow(
       // Set once the ETH batch registration is mined: a later cancel gets the
       // after-registration copy, a later device failure gets the in-modal resume.
       let registeredVaultIds: Hex[] | null = null;
+      // Set when the post-gate UTXO re-check could not reach the mempool API:
+      // nothing was signed, so the registered vaults can resume in the modal.
+      let postGateUtxoFetchFailed = false;
 
       try {
         // Deposit (pegin) is a protocol-scope ENTRY action. The dialog-open is
@@ -1089,17 +1093,22 @@ export function useDepositFlow(
         });
 
         // The inputs were validated before ETH registration; the gate
-        // stretched that window to minutes, so re-check before signing.
-        await assertUtxosAvailable(
-          batchResult.fundedPrePeginTxHex,
-          confirmedBtcAddress,
-        );
+        // stretched that window to minutes, so re-check before signing. A
+        // spent input is terminal for these vaults; a fetch failure is not.
+        try {
+          await assertUtxosAvailable(
+            batchResult.fundedPrePeginTxHex,
+            confirmedBtcAddress,
+          );
+        } catch (err) {
+          postGateUtxoFetchFailed = !(err instanceof UtxoNotAvailableError);
+          throw err;
+        }
 
         // An abort landing during the probes must not raise the signing popup.
         signal.throwIfAborted();
 
-        // No re-wrap: the service labels each stage and preserves `cause`;
-        // a wrapper here would poison the label and sever that chain.
+        // No re-wrap: a wrapper here would replace the service's stage label.
         const prePeginBroadcastTxid = await broadcastPrePeginTransaction({
           unsignedTxHex: batchResult.fundedPrePeginTxHex,
           btcWalletProvider: {
@@ -1674,6 +1683,11 @@ export function useDepositFlow(
           // the wallet's CONNECTION_REJECTED as "You rejected the request",
           // which misattributes it. Post-registration copy names the Retry
           // offered below; pre-registration copy names no button (none is).
+          // A spent input after registration is terminal for these vaults:
+          // the SDK's "start a new peg-in" wording is right, but the
+          // registration will expire on its own and the user should hear that.
+          const inputSpentAfterRegistration =
+            registeredVaultIds !== null && err instanceof UtxoNotAvailableError;
           const content: DepositErrorContent = selfCanceled
             ? registeredVaultIds !== null
               ? {
@@ -1686,16 +1700,19 @@ export function useDepositFlow(
                   title: COPY.deposit.errors.signingCanceled.title,
                   body: COPY.deposit.errors.signingCanceled.body,
                 }
-            : mapDepositError(err);
+            : inputSpentAfterRegistration
+              ? COPY.deposit.errors.inputSpentAfterRegistration
+              : mapDepositError(err);
           // Post-registration the vaults are on-chain, so a self-cancel, a
           // mapped resumable bucket (device trouble, wallet reject, sign
-          // failure) or a wallet that locked during the gate offers the
-          // in-modal resume.
+          // failure), a wallet that locked during the gate or a UTXO re-check
+          // that could not reach the mempool offers the in-modal resume.
           if (
             registeredVaultIds !== null &&
             (selfCanceled ||
               isResumableDepositError(content) ||
-              err instanceof BtcWalletLivenessError)
+              err instanceof BtcWalletLivenessError ||
+              postGateUtxoFetchFailed)
           ) {
             setResumableVaultIds(registeredVaultIds);
           }

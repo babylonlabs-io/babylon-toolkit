@@ -10,6 +10,7 @@ import type {
   DepositTerms,
   DepositTermsApprover,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
+import { UtxoNotAvailableError } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { Address, Hex } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -3034,6 +3035,56 @@ describe("useDepositFlow", () => {
         "0xVault0Id",
         "0xVault1Id",
       ]);
+      expect(broadcastPrePeginTransaction).not.toHaveBeenCalled();
+    });
+
+    it("exposes resumableVaultIds when the post-gate UTXO re-check cannot reach the mempool", async () => {
+      const { broadcastPrePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultPeginBroadcastService"),
+      );
+      const { assertUtxosAvailable } = vi.mocked(
+        await import("@/services/vault/vaultUtxoValidationService"),
+      );
+      // Pre-registration check passes; the post-gate one hits a mempool 5xx.
+      // Nothing was signed, so the registered vaults can resume.
+      assertUtxosAvailable
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(
+          new Error("Failed to get UTXOs for address tb1qdepositor: HTTP 502"),
+        );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      await executeDepositFlow(result);
+
+      expect(result.current.error).toEqual(DEPOSIT_ERRORS.utxosUnavailable);
+      expect(result.current.resumableVaultIds).toEqual([
+        "0xVault0Id",
+        "0xVault1Id",
+      ]);
+      expect(broadcastPrePeginTransaction).not.toHaveBeenCalled();
+    });
+
+    it("reports a terminal callout, not resumable, when an input was spent during the finality wait", async () => {
+      const { broadcastPrePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultPeginBroadcastService"),
+      );
+      const { assertUtxosAvailable } = vi.mocked(
+        await import("@/services/vault/vaultUtxoValidationService"),
+      );
+      // The registration will expire on its own; a retry could never sign.
+      assertUtxosAvailable
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(
+          new UtxoNotAvailableError([{ txid: "ab".repeat(32), vout: 0 }]),
+        );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      await executeDepositFlow(result);
+
+      expect(result.current.error).toEqual(
+        DEPOSIT_ERRORS.inputSpentAfterRegistration,
+      );
+      expect(result.current.resumableVaultIds).toBeNull();
       expect(broadcastPrePeginTransaction).not.toHaveBeenCalled();
     });
 

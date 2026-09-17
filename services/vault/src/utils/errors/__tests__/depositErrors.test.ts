@@ -695,6 +695,17 @@ describe("mapDepositError", () => {
   });
 });
 
+describe("mapDepositError — UTXO availability re-check", () => {
+  it("maps a mempool UTXO fetch failure to the funds-unavailable callout", () => {
+    // The post-gate re-check's fetch path (mempoolApi getAddressUtxos).
+    expect(
+      mapDepositError(
+        new Error("Failed to get UTXOs for address tb1qdepositor: HTTP 502"),
+      ),
+    ).toEqual(ERRORS.utxosUnavailable);
+  });
+});
+
 describe("mapDepositError — bare broadcast wording", () => {
   it("does not read an untyped message that merely mentions broadcast as a broadcast failure", () => {
     // verifyResumeParticipantKeys' wording: nothing was sent, and the message
