@@ -40,7 +40,7 @@ The `verify` CI job regenerates those docs and diffs them against what is commit
 
 Run the SDK's own `test` script rather than `vitest` directly when checking that package. `pnpm --filter @babylonlabs-io/ts-sdk run test` is `build && vitest run && node --test tests/wasm-facade.node.mjs`; invoking `vitest` alone skips the build and the WASM-facade pin check that CI runs.
 
-Before a PR is opened, the author runs `/pre-review`, decides what to do about each finding, fixes the fix-now ones, and runs it again until nothing is left to fix. Each run keeps `PR.md` current, including a record of the review's findings, and the PR is opened from it. The `pre-review-check` CI job fails a PR whose description has no record taken on the PR's branch; it does not compare the code with the record. `/pre-review` is user-invoked; when implementation work is done, remind the user of this step rather than starting a review unprompted. See [docs/pre-review.md](docs/pre-review.md).
+Before a PR is opened, the author runs `/pre-review`, decides what to do about each finding, fixes the fix-now ones, and runs it again until nothing is left to fix. Each run keeps `PR.md` current, including a record of the review's findings, and the PR is opened from it. The `pre-review-check` CI job fails a PR whose description has no record taken on the PR's branch; it does not compare the code with the record. `/pre-review` is user-invoked; when implementation work is done, remind the user of this step rather than starting a review unprompted. See [docs/pre-review.md](docs/pre-review.md). Reviewers apply [docs/review-checklist.md](docs/review-checklist.md).
 
 ---
 
@@ -179,6 +179,11 @@ Separating the Ethereum-only paths from the Bitcoin stack reimplements some prim
 - Prefer discriminated unions over optional fields when states are mutually exclusive.
 - Null/undefined checks must be explicit, not hidden behind `??` fallbacks on critical paths.
 
+### No Speculative Code
+
+- No abstraction, option, parameter or extension point without a current use in the same change.
+- No hand-rolled helper for what the repository or an installed dependency already provides. Check both before writing one.
+
 ---
 
 ## TEST PHILOSOPHY
@@ -188,6 +193,8 @@ Separating the Ethereum-only paths from the Bitcoin stack reimplements some prim
 - Each test verifies ONE specific behavior of production code.
 - Test name describes the exact behavior being tested.
 - If you can't name what production behavior a test verifies, the test shouldn't exist.
+- A test with no named behavior and no production line that fails it should not exist. Rendering and wiring are not behavior.
+- An end-to-end test walks one user journey a unit test cannot prove, and asserts the end state.
 
 ### No test bloat
 
@@ -223,6 +230,7 @@ Separating the Ethereum-only paths from the Bitcoin stack reimplements some prim
 
 - Pattern: `NEXT_PUBLIC_FF_*`
 - Defined in `services/vault/src/config/featureFlags.ts`
+- Adding, renaming or removing a flag edits three places: `featureFlags.ts`, `.env.example`, and the flag block of the matching `service-release-*.yml`.
 
 ### Dependencies
 
@@ -249,6 +257,7 @@ Separating the Ethereum-only paths from the Bitcoin stack reimplements some prim
 - **Exception:** Contract / on-chain error messages live in `services/vault/src/utils/errors/errorMessages.ts`, keyed by ABI error name. Treat that file as part of the copy surface — same review rules apply.
 - Follow the style rules documented at the top of `copy.ts` (Pre-Pegin / peg-in conventions, sentence-case status labels, "has been broadcast" tense, American English, vault provider lowercase mid-sentence).
 - When adding strings that interpolate values, prefer a function (`(amount: string) => \`Your ${amount}...\``) in `copy.ts` over building the string in the component.
+- A new user-facing surface or string with no Figma reference is not implemented. Ask first.
 
 ---
 
