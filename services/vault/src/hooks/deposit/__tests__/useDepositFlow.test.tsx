@@ -1871,6 +1871,84 @@ describe("useDepositFlow", () => {
       expect(result.current.error).toBeNull();
     });
 
+    it("raises no wallet prompt when the flow is abandoned during the finality wait", async () => {
+      const { waitForEthRegistrationDepth } = vi.mocked(
+        await import("@/services/vault/ethConfirmationGate"),
+      );
+      const { verifyBtcWalletLiveness } = vi.mocked(
+        await import("@/utils/btc"),
+      );
+      const { broadcastPrePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultPeginBroadcastService"),
+      );
+      // The gate holds for minutes in production; the user closes the modal
+      // meanwhile. Neither the unlock probe nor the signing popup may follow.
+      let releaseGate: () => void = () => {};
+      waitForEthRegistrationDepth.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            releaseGate = () =>
+              resolve({ confirmations: 8, basicInfo: { status: 0 } } as never);
+          }),
+      );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      let flowPromise!: Promise<unknown>;
+      act(() => {
+        flowPromise = result.current.executeDeposit();
+      });
+      await waitFor(() =>
+        expect(waitForEthRegistrationDepth).toHaveBeenCalled(),
+      );
+      await act(async () => {
+        result.current.abort();
+        releaseGate();
+        await flowPromise;
+      });
+
+      // The pre-registration probe ran; the post-gate one must not have.
+      expect(verifyBtcWalletLiveness).toHaveBeenCalledTimes(1);
+      expect(broadcastPrePeginTransaction).not.toHaveBeenCalled();
+      expect(result.current.error).toBeNull();
+    });
+
+    it("does not broadcast when the flow is abandoned during the post-gate probes", async () => {
+      const { verifyBtcWalletLiveness } = vi.mocked(
+        await import("@/utils/btc"),
+      );
+      const { broadcastPrePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultPeginBroadcastService"),
+      );
+      // Abort lands while the second probe is in flight: the guard between the
+      // probes and the signature is what stops the popup.
+      let releaseProbe: () => void = () => {};
+      verifyBtcWalletLiveness
+        .mockResolvedValueOnce(undefined)
+        .mockImplementationOnce(
+          () =>
+            new Promise<void>((resolve) => {
+              releaseProbe = resolve;
+            }),
+        );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      let flowPromise!: Promise<unknown>;
+      act(() => {
+        flowPromise = result.current.executeDeposit();
+      });
+      await waitFor(() =>
+        expect(verifyBtcWalletLiveness).toHaveBeenCalledTimes(2),
+      );
+      await act(async () => {
+        result.current.abort();
+        releaseProbe();
+        await flowPromise;
+      });
+
+      expect(broadcastPrePeginTransaction).not.toHaveBeenCalled();
+      expect(result.current.error).toBeNull();
+    });
+
     it("tags a post-gate probe failure with the broadcast step, not the Ethereum one", async () => {
       const { verifyBtcWalletLiveness } = vi.mocked(
         await import("@/utils/btc"),
