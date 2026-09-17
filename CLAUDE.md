@@ -40,7 +40,7 @@ The `verify` CI job regenerates those docs and diffs them against what is commit
 
 Run the SDK's own `test` script rather than `vitest` directly when checking that package. `pnpm --filter @babylonlabs-io/ts-sdk run test` is `build && vitest run && node --test tests/wasm-facade.node.mjs`; invoking `vitest` alone skips the build and the WASM-facade pin check that CI runs.
 
-Before a PR is opened, the author runs `/pre-review`, decides what to do about each finding, fixes the fix-now ones, and runs it again until nothing is left to fix. Each run keeps `PR.md` current, including a record of the review's findings, and the PR is opened from it. `/pre-review` is user-invoked; when implementation work is done, remind the user of this step rather than starting a review unprompted. See [docs/pre-review.md](docs/pre-review.md).
+Before a PR is opened, the author runs `/pre-review`, decides what to do about each finding, fixes the fix-now ones, and runs it again until nothing is left to fix. Each run keeps `PR.md` current, including a record of the review's findings, and the PR is opened from it. The `pre-review-check` CI job fails a PR whose description has no record taken on the PR's branch; it does not compare the code with the record. `/pre-review` is user-invoked; when implementation work is done, remind the user of this step rather than starting a review unprompted. See [docs/pre-review.md](docs/pre-review.md).
 
 ---
 

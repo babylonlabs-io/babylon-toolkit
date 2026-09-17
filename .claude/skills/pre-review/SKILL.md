@@ -8,11 +8,10 @@ allowed-tools:
   - Bash(git merge-base *)
   - Bash(git diff *)
   - Bash(git ls-files *)
-  - Bash(git hash-object *)
   - Bash(git cat-file -e *)
   - Bash(git branch --show-current)
   - Bash(git status *)
-  - Bash(shasum -a 256 *)
+  - Bash(node scripts/pre-review/snapshot.mjs record *)
   - Bash(pnpm nx affected *)
 ---
 
@@ -152,13 +151,15 @@ separately, at full price each. Do it yourself.
    `run<N>__local.diff` include the rewritten content. The review then covers
    exactly what the snapshot records.
 
-   Snapshot: one `git hash-object -w <path>` per file that exists. `-w` stores
-   the content in git's object database, so a later run can diff against
-   exactly what was reviewed, whether or not it was ever committed. A deleted
-   file has no content, and `git hash-object` exits 128 on it, aborting the
-   rest of that call: record it as `deleted`. This snapshot is what the state
-   records. Never re-hash after fixes: that would make the fixes look already
-   reviewed.
+   Snapshot: `node scripts/pre-review/snapshot.mjs record <base>`. It hashes
+   every file in the change (the step-3 set) with `git hash-object -w`, which
+   stores the content in git's object database, so a later run can diff
+   against exactly what was reviewed, whether or not it was ever committed. A
+   deleted file is recorded as `deleted`. Copy its JSON output verbatim,
+   never compute it another way: `files` is the state's `files` map, `count`
+   is the snapshot line's `files=`, and `sha256` is its `files-sha256=`. This snapshot is what
+   the state records. Never re-run it after fixes: that would make the fixes
+   look already reviewed.
 
 10. **Tests**, in the background, after the snapshot:
 

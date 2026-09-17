@@ -106,12 +106,12 @@ One HTML comment inside the Pre-review record, on one line:
 - lines sorted by path in byte order (the C locale), each ending in a line
   feed, with no other content.
 
-Write that file to WORK with the Write tool and run `shasum -a 256 <file>`
-on it. A CI check rebuilds the same text from the PR itself: the paths from
-`git diff --name-only --no-renames <base>...<PR head>`, and for each path
-`git rev-parse <PR head>:<path>`, or `deleted` when the path does not exist
-at the head. Equal digests mean the PR changes the same files, with the same
-content, as the review saw.
+`node scripts/pre-review/snapshot.mjs record <base>` builds it from the
+working tree; never compute the digest another way. The `pre-review-check`
+CI job reads this line with the same script and requires `branch=` to be the
+PR's head branch. It does not compare the digest with the code yet: the
+digest is kept so a later, stricter check can find the commit holding the
+reviewed content.
 
 ## PR description: `.pre-review/<key>.md`, copied to `PR.md`
 

@@ -741,6 +741,18 @@ roles have different review requirements. Satisfy both.
   `pending` list that is exempt from the existence check and reported separately once the files land.
   It detects drift but does not gate merges;
   acting on the tracker or moving the existence check into `verify.yml` is still a human process.
+- `pre-review-check.yml` fails a PR to `main` whose description has no `/pre-review` record taken on
+  the PR's branch. It is the only workflow triggered by **`pull_request_target`**, so it runs with a
+  write token, fork PRs included, from `main`'s copy of the workflow and `scripts/pre-review/`.
+  **Never check out or run the PR's code in it**: every input comes from the event payload (the
+  description from `$GITHUB_EVENT_PATH`), and author text reaches the bot's comment only inside a
+  fenced block. It gates merges only once a ruleset makes it a required check; that ruleset lives
+  outside this repository — verify it exists. The gate is **bypassable by design**: the
+  `skip-pre-review` label, a hand-written snapshot line (it proves a record is present, not that a
+  review ran), a PR opened by a bot account (for example with a GitHub App token), which the job
+  skips, and a PR adding its own workflow with a same-named job (visible in its diff). Changes to
+  `scripts/pre-review/` are tested before merge only by `pre-review-scripts.yml`, a read-only
+  `pull_request` workflow.
 
 ### E2E secrets
 
