@@ -56,3 +56,4 @@ export { LinkedinIcon } from "./common/LinkedinIcon";
 export { MailIcon } from "./common/MailIcon";
 export { DiscordIcon } from "./common/DiscordIcon";
 export { XIcon } from "./common/XIcon";
+export { LockIcon } from "./common/LockIcon";

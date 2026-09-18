@@ -244,7 +244,7 @@ async function clickTestId(page: Page, testid: string): Promise<boolean> {
 /**
  * Raise UniSat's auto-lock timeout to its maximum (4 Hours). The default is **3 minutes**, which
  * re-locks the wallet mid-run — a real peg-in takes ~30 min–2 hr and would otherwise stall at
- * "Bitcoin wallet locked". Path: bottom tab Settings → Advanced (settings_advanced) → "Automatic Lock
+ * "Bitcoin wallet is locked". Path: bottom tab Settings → Advanced (settings_advanced) → "Automatic Lock
  * Time" → "4Hours". Fails loudly: a silent no-op reintroduces the exact lock stall this prevents, so
  * the per-wallet spec (test:e2e:unisat) surfaces any UniSat settings-UI drift immediately.
  */

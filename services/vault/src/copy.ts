@@ -1392,7 +1392,7 @@ export const COPY = {
         "Your BTC wallet account has changed. Please reconnect your wallet and try again.",
     },
     locked: {
-      title: "Bitcoin wallet locked",
+      title: "Bitcoin wallet is locked",
       description: "Unlock your Bitcoin wallet in your extension to continue.",
       unlockButton: "Unlock wallet",
       // Deposit-form CTA: names the action the unlock unblocks, unlike the

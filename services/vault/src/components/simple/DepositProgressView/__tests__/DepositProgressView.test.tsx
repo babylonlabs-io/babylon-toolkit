@@ -845,10 +845,29 @@ describe("DepositProgressView", () => {
         />,
       );
 
-      expect(screen.getByText(COPY.wallet.locked.title)).toBeInTheDocument();
+      expect(screen.getByText("Bitcoin wallet is locked")).toBeInTheDocument();
       expect(
         screen.getByText(COPY.wallet.locked.description),
       ).toBeInTheDocument();
+    });
+
+    it("announces the lock notice as an alert and marks it with the padlock", () => {
+      mockBtcWalletState.locked = true;
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.SIGN_PEGIN_BTC}
+        />,
+      );
+
+      const notice = screen
+        .getByText(COPY.wallet.locked.title)
+        .closest('[role="alert"]');
+
+      expect(notice).toBeInTheDocument();
+      expect(notice?.querySelector("svg path")?.getAttribute("d")).toMatch(
+        /^M18 8H17V6/,
+      );
     });
 
     it("does not show the lock notice when the BTC wallet is unlocked", () => {

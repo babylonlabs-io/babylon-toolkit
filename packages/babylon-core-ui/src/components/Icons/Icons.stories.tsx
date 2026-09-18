@@ -14,6 +14,7 @@ import {
     ThemeIcon,
     ThreeDotsMenuIcon,
     InfoIcon,
+    LockIcon,
 } from ".";
 
 const IconsGallery = () => {
@@ -28,6 +29,7 @@ const IconsGallery = () => {
         { name: "ThemeIcon", el: <ThemeIcon size={24} /> },
         { name: "ThreeDotsMenuIcon", el: <ThreeDotsMenuIcon size={24} /> },
         { name: "InfoIcon", el: <InfoIcon size={24} /> },
+        { name: "LockIcon", el: <LockIcon size={24} /> },
         { name: "BitcoinPublicKeyIcon", el: <BitcoinPublicKeyIcon size={24} /> },
         { name: "LinkWalletIcon", el: <LinkWalletIcon size={24} /> },
         { name: "UsingInscriptionIcon", el: <UsingInscriptionIcon size={24} /> },
