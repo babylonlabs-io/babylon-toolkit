@@ -127,6 +127,19 @@ separately, at full price each. Do it yourself.
    section's rule text can bring more files under it (§7, for example, places
    the vendor-vector generator scripts next to its `src/` directory). Match
    against CLAUDE.md itself; never copy the list anywhere else.
+
+   Then bind [docs/review-checklist.md](../../../docs/review-checklist.md):
+   the passes in full, the Tests section, the whole "Do not re-raise"
+   section, and the rows of every other section whose directories the
+   changed files touch. Toolkit UI: `services/` and
+   `packages/babylon-core-ui`. ts-sdk and the WASM boundary:
+   `packages/babylon-ts-sdk` and `packages/babylon-tbv-rust-wasm`. Backend
+   and Cross-repo seams: `services/vault/src/utils/rpc`,
+   `services/vault/src/services/providers`,
+   `services/vault/src/services/artifacts`, `services/vault/src/clients`,
+   and `packages/babylon-ts-sdk/src/tbv/core/contracts`. Paste the bound
+   text into the pack; do not summarise it.
+
 8. **Pick the tier.** `LIGHT_REVIEW_MAX_CHANGED_LINES = 150`, a starting value
    to be tuned from pilot data. Count changed lines as added + deleted from
    `git diff --numstat <base>`, plus the line count of each untracked file,
@@ -136,6 +149,9 @@ separately, at full price each. Do it yourself.
      `review-generalist`.
    - **full**: everything else. `review-generalist`, `review-tracer`,
      `review-panel`.
+
+   Record the change type (bugfix, refactor, feature, dependency, mixed)
+   and these totals in the intent as `change: <type>, +<added>/-<deleted>`.
 
 9. **Lint, then snapshot the content.** Some packages' `lint` runs
    `eslint --fix`, which rewrites files. So lint runs first, in the
@@ -305,9 +321,11 @@ Also wait for the checks (Phase 0 step 10) before Phase 4.
 1. Merge the lists, lanes included. Collapse findings naming the same defect;
    keep the sharpest statement and the best evidence.
 2. Compare with what is stored. A claim in `refuted` is dropped unless it
-   brings new evidence. A defect that matches a `fixed` finding **reopens
-   that finding** (status `open`, note "regressed") instead of taking a new
-   id. A defect that matches an open finding is merged into it.
+   brings new evidence. A claim matching a row of the checklist's "Do not
+   re-raise" section is dropped the same way, citing the row. A defect that
+   matches a `fixed` finding **reopens that finding** (status `open`, note
+   "regressed") instead of taking a new id. A defect that matches an open
+   finding is merged into it.
 3. **Agreement is not evidence.** Two reviewers agreeing without checking the
    source is a correlated guess.
 4. Verify yourself, against the code, every finding you keep and anything

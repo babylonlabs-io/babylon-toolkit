@@ -68,6 +68,11 @@ when `--full` is passed.
 | `review-tracer`     | One deep pass tracing the live call path end to end           |
 | `review-panel`      | Up to four focused lanes, each finding re-verified            |
 
+Every reviewer receives the passes and the applicable rows of
+[review-checklist.md](review-checklist.md), the team's review checklist. A
+finding cites the pass or row it comes from; a claim matching the
+checklist's "Do not re-raise" section is dropped.
+
 All reviewers are defined in `.claude/agents/` without the Edit and Write
 tools, and their instructions forbid touching the working tree or the index.
 That is not a sandbox: each reviewer keeps Bash, and `review-panel` can
@@ -123,6 +128,9 @@ The skill (`.claude/skills/pre-review/`) and the reviewers
 through a PR. A personal skill with the same name in `~/.claude/skills/`
 takes precedence over the project one, so do not keep a private copy named
 `pre-review`.
+
+The checklist is the file to extend when a review catches something the
+list would have caught earlier: add the row with the PR that earned it.
 
 ## Enforcement
 
