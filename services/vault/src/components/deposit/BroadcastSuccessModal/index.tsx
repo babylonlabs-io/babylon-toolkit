@@ -30,7 +30,7 @@ interface BroadcastSuccessModalProps {
  *
  * Important: this only confirms the Pre-PegIn BTC transaction is in the
  * mempool — the vault is NOT yet active. Several depositor steps still
- * remain (submit WOTS key, sign payouts, activate with HTLC secret).
+ * remain (submit WOTS key, sign payouts, activate the BTCVault).
  * The copy below makes that explicit so users don't think they're done.
  */
 export function BroadcastSuccessModal({
@@ -39,42 +39,37 @@ export function BroadcastSuccessModal({
   amount,
 }: BroadcastSuccessModalProps) {
   return (
-    <ResponsiveDialog open={open} onClose={onClose}>
-      <DialogBody className="px-4 py-16 text-center text-accent-primary sm:px-6">
+    <ResponsiveDialog
+      open={open}
+      onClose={onClose}
+      className="sm:w-[564px] [&_.bbn-dialog]:rounded-3xl [&_.bbn-dialog]:p-0"
+    >
+      <DialogBody className="px-6 pt-10 text-center text-accent-primary">
         <img
           src={btcConfig.icon}
           alt={btcConfig.name}
-          className="mx-auto h-auto w-full max-w-[160px]"
+          className="mx-auto size-[100px]"
         />
 
-        <Heading
-          variant="h4"
-          className="mb-4 mt-6 text-xl text-accent-primary sm:text-2xl"
-        >
+        <Heading variant="h5" className="mb-4 mt-6 text-accent-primary">
           {COPY.deposit.broadcastSuccess.heading}
         </Heading>
 
-        <Text
-          variant="body1"
-          className="text-sm text-accent-secondary sm:text-base"
-        >
+        <Text variant="body1" className="text-accent-secondary">
           {COPY.deposit.broadcastSuccess.body(amount, btcConfig.coinSymbol)}
         </Text>
 
-        <Text
-          variant="body2"
-          className="mt-4 text-xs text-accent-secondary sm:text-sm"
-        >
+        <Text variant="body1" className="mt-4 text-accent-secondary">
           {COPY.deposit.broadcastSuccess.footnote}
         </Text>
       </DialogBody>
 
-      <DialogFooter className="flex gap-4 px-4 pb-8 sm:px-6">
+      <DialogFooter className="px-6 pb-6 pt-10">
         <Button
           variant="contained"
           color="primary"
           onClick={onClose}
-          className="w-full"
+          className="w-full rounded-lg"
         >
           {COPY.deposit.broadcastSuccess.doneButton}
         </Button>
