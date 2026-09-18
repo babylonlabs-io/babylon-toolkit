@@ -140,6 +140,7 @@ describe("useVaultDeposits", () => {
     const mod = await import("../../storage/usePeginStorage");
     vi.mocked(mod.usePeginStorage).mockReturnValue({
       allActivities: [],
+      storageReadError: null,
       pendingPegins: [
         {
           id: "0xAbCdEf" as Hex,

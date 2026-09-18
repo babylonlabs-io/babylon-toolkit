@@ -114,19 +114,6 @@ export default function VaultsPage() {
 
   const populatedBody = (
     <div className="flex flex-col gap-8">
-      {/* One of the two data sources failed while the other still has rows —
-          the page prefers showing what it has, but the gap must never be
-          silent: a failed position read would otherwise present zero totals
-          as real, and a failed deposits read would drop pending rows. */}
-      {hasPartialError && (
-        <Notification
-          variant="warning"
-          title={COPY.vaults.partialLoadError.title}
-          data-testid="vaults-partial-load-error"
-        >
-          {COPY.vaults.partialLoadError.body}
-        </Notification>
-      )}
       <VaultsSummaryCard
         totalCollateralBtc={summary.totalCollateralBtc}
         totalCollateralUsd={summary.totalCollateralUsd}
@@ -182,7 +169,25 @@ export default function VaultsPage() {
 
   return (
     <Container as="main" className={`${PAGE_CONTENT_CLASS} pb-6`}>
-      {renderBody()}
+      <div className="flex flex-col gap-8">
+        {/* A data source failed, or the browser's own deposit records could
+            not be read — the page prefers showing what it has, but the gap
+            must never be silent: a failed position read would otherwise
+            present zero totals as real, and a failed deposits read would
+            drop pending rows. */}
+        {hasPartialError && (
+          <Notification
+            variant="warning"
+            title={COPY.vaults.partialLoadError.title}
+            data-testid="vaults-partial-load-error"
+          >
+            {deposits.storageReadError
+              ? COPY.vaults.storageReadError
+              : COPY.vaults.partialLoadError.body}
+          </Notification>
+        )}
+        {renderBody()}
+      </div>
 
       <WithdrawFlow
         open={withdrawVaultIds !== null}

@@ -10,7 +10,9 @@ import { LocalStorageStatus } from "../../models/peginStateMachine";
 import {
   addPendingPegin,
   getPendingPegins,
+  markRefundBroadcast,
   type PendingPeginRequest,
+  PendingPeginStorageReadError,
   removePendingPegin,
   removePendingPegins,
   updatePendingPeginStatus,
@@ -492,15 +494,100 @@ describe("getPendingPegins integrity validation", () => {
     expect(getPendingPegins(ETH_ADDRESS)).toHaveLength(0);
   });
 
-  it("returns empty array when the stored payload is not an array", () => {
-    localStorage.setItem(storageKey, JSON.stringify({ notAnArray: true }));
+  it("preserves a non-array payload and reports the unreadable record", () => {
+    const raw = JSON.stringify({ notAnArray: true });
+    localStorage.setItem(storageKey, raw);
 
-    const result = getPendingPegins(ETH_ADDRESS);
+    expect(() => getPendingPegins(ETH_ADDRESS)).toThrow(
+      expect.objectContaining({
+        name: "PendingPeginStorageReadError",
+        ethAddress: ETH_ADDRESS,
+        raw,
+      }),
+    );
+    expect(localStorage.getItem(storageKey)).toBe(raw);
+  });
 
-    expect(result).toEqual([]);
-    // The top-level array check does not trigger logger.error (reserved for
-    // JSON.parse failures). It quietly returns empty.
+  it("preserves malformed JSON without deleting the storage key", () => {
+    const raw = '[{"id":';
+    localStorage.setItem(storageKey, raw);
+    const removeItem = vi.spyOn(Storage.prototype, "removeItem");
+    try {
+      expect(() => getPendingPegins(ETH_ADDRESS)).toThrow(
+        expect.objectContaining({
+          name: "PendingPeginStorageReadError",
+          ethAddress: ETH_ADDRESS,
+          raw,
+        }),
+      );
+      expect(localStorage.getItem(storageKey)).toBe(raw);
+      expect(removeItem).not.toHaveBeenCalled();
+    } finally {
+      removeItem.mockRestore();
+    }
+  });
+
+  it("reports an empty stored string as unreadable", () => {
+    localStorage.setItem(storageKey, "");
+
+    expect(() => getPendingPegins(ETH_ADDRESS)).toThrow(
+      PendingPeginStorageReadError,
+    );
+    expect(localStorage.getItem(storageKey)).toBe("");
+  });
+
+  it("refuses to overwrite unreadable records when adding a deposit", () => {
+    const raw = '[{"id":';
+    localStorage.setItem(storageKey, raw);
+
+    expect(() => addPendingPegin(ETH_ADDRESS, validPegin)).toThrow(
+      PendingPeginStorageReadError,
+    );
+    expect(localStorage.getItem(storageKey)).toBe(raw);
+  });
+
+  it("reports blocked localStorage as an unreadable record", () => {
+    const getItem = vi
+      .spyOn(Storage.prototype, "getItem")
+      .mockImplementation(() => {
+        throw new DOMException("access denied", "SecurityError");
+      });
+    try {
+      expect(() => getPendingPegins(ETH_ADDRESS)).toThrow(
+        expect.objectContaining({
+          name: "PendingPeginStorageReadError",
+          ethAddress: ETH_ADDRESS,
+          raw: null,
+          errorCode: "PENDING_PEGIN_STORAGE_BLOCKED",
+          causeName: "SecurityError",
+        }),
+      );
+    } finally {
+      getItem.mockRestore();
+    }
+  });
+
+  it("raises no telemetry when the stored blob cannot be read", () => {
+    localStorage.setItem(storageKey, '[{"id":');
+
+    expect(() => getPendingPegins(ETH_ADDRESS)).toThrow(
+      PendingPeginStorageReadError,
+    );
+    // Every read of a corrupted blob reaches here - each polling tick, each
+    // Activity load. `usePeginStorage` reports it once instead.
+    expect(logger.warn).not.toHaveBeenCalled();
     expect(logger.error).not.toHaveBeenCalled();
+  });
+
+  it("carries the cause's name and a corrupt-blob code", () => {
+    localStorage.setItem(storageKey, '[{"id":');
+
+    expect(() => getPendingPegins(ETH_ADDRESS)).toThrow(
+      expect.objectContaining({
+        errorCode: "PENDING_PEGIN_BLOB_UNREADABLE",
+        causeName: "SyntaxError",
+      }),
+    );
   });
 
   it("accepts legacy ids stored without a 0x prefix", () => {
@@ -592,6 +679,25 @@ describe("updatePendingPeginStatus", () => {
     vi.useRealTimers();
   });
 
+  it("keeps an unreadable record when a status is updated", () => {
+    const raw = '[{"id":';
+    localStorage.setItem(storageKey, raw);
+    const removeItem = vi.spyOn(Storage.prototype, "removeItem");
+    try {
+      expect(() =>
+        updatePendingPeginStatus(
+          ETH_ADDRESS,
+          VALID_VAULT_ID,
+          LocalStorageStatus.CONFIRMING,
+        ),
+      ).not.toThrow();
+      expect(localStorage.getItem(storageKey)).toBe(raw);
+      expect(removeItem).not.toHaveBeenCalled();
+    } finally {
+      removeItem.mockRestore();
+    }
+  });
+
   it("stamps payoutSignedAt when the status flips to PAYOUT_SIGNED", () => {
     const now = 1_700_000_123_000;
     vi.useFakeTimers({ now });
@@ -657,6 +763,21 @@ describe("removePendingPegin", () => {
   beforeEach(() => {
     localStorage.clear();
     vi.clearAllMocks();
+  });
+
+  it("keeps an unreadable record when a pending deposit is removed", () => {
+    const raw = '[{"id":';
+    localStorage.setItem(storageKey, raw);
+    const removeItem = vi.spyOn(Storage.prototype, "removeItem");
+    try {
+      expect(() =>
+        removePendingPegin(ETH_ADDRESS, VALID_VAULT_ID),
+      ).not.toThrow();
+      expect(localStorage.getItem(storageKey)).toBe(raw);
+      expect(removeItem).not.toHaveBeenCalled();
+    } finally {
+      removeItem.mockRestore();
+    }
   });
 
   it("removes a single entry by id and leaves siblings intact", () => {
@@ -897,6 +1018,28 @@ describe("removePendingPegin", () => {
     } finally {
       window.removeEventListener(STORAGE_UPDATE_EVENT, listener);
       setItemSpy.mockRestore();
+    }
+  });
+});
+
+describe("markRefundBroadcast", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    vi.clearAllMocks();
+  });
+
+  it("keeps an unreadable record when a refund broadcast is marked", () => {
+    const raw = '[{"id":';
+    localStorage.setItem(storageKey, raw);
+    const removeItem = vi.spyOn(Storage.prototype, "removeItem");
+    try {
+      expect(() =>
+        markRefundBroadcast(ETH_ADDRESS, VALID_VAULT_ID, 1700000000000),
+      ).not.toThrow();
+      expect(localStorage.getItem(storageKey)).toBe(raw);
+      expect(removeItem).not.toHaveBeenCalled();
+    } finally {
+      removeItem.mockRestore();
     }
   });
 });

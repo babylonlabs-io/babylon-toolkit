@@ -14,7 +14,11 @@ import type { Address } from "viem";
 
 import { useVaults } from "@/hooks/useVaults";
 import { capFundingUtxos } from "@/services/deposit/fundingInputCap";
-import { getPendingPegins } from "@/storage/peginStorage";
+import {
+  getPendingPegins,
+  type PendingPeginRequest,
+  PendingPeginStorageReadError,
+} from "@/storage/peginStorage";
 
 interface UsePendingVaultOverlapCheckParams {
   ethAddress: Address | undefined;
@@ -60,6 +64,12 @@ export function usePendingVaultOverlapCheck({
         // Let the real signing path surface insufficient-funds errors.
         return null;
       }
+      let pendingPegins: PendingPeginRequest[] = [];
+      try {
+        pendingPegins = getPendingPegins(ethAddress ?? "");
+      } catch (error) {
+        if (!(error instanceof PendingPeginStorageReadError)) throw error;
+      }
       // `useVaults` is not polled — stale state is acceptable for an advisory.
       const overlapping = findOverlappingPendingVaults({
         selectedOutpoints: selection.selectedUTXOs.map((u) => ({
@@ -67,7 +77,7 @@ export function usePendingVaultOverlapCheck({
           vout: u.vout,
         })),
         vaults: depositorVaults ?? [],
-        pendingPegins: getPendingPegins(ethAddress ?? ""),
+        pendingPegins,
       });
 
       return overlapping.length > 0 ? overlapping.length : null;

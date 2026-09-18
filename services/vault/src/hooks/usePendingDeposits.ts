@@ -39,6 +39,7 @@ export function usePendingDeposits() {
     refetchActivities,
     loading,
     error,
+    storageReadError,
     removePendingPegins,
     indexedVaultIds,
     localRecordStatuses,
@@ -133,6 +134,7 @@ export function usePendingDeposits() {
     hasExpiredDeposits: btcConnected && expiredActivities.length > 0,
     isLoading: loading,
     error,
+    storageReadError,
     refetchActivities,
     /**
      * Discards browser-local pending deposits in one storage write — the whole
