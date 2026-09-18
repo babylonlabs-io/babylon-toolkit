@@ -6,7 +6,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import type { Address } from "viem";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { COPY } from "@/copy";
 
@@ -140,10 +140,20 @@ function detailState(overrides: Record<string, unknown> = {}) {
 describe("ReserveDetailPanel", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // The real gate reads this through a live getter, so an unpinned run would
+    // take whatever the developer's environment carries.
+    vi.stubEnv("NEXT_PUBLIC_FF_ENABLE_ETH_FIRST", undefined);
     walletMock.btcConnected = true;
     walletMock.ethConnected = true;
     walletMock.confirmed = true;
     mockUseAaveReserveDetail.mockReturnValue(detailState());
+  });
+
+  // The Ethereum-only control is read from the environment by the real
+  // `featureFlags` getter, so an unstubbed value would leak into every later
+  // file in this worker.
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
   it("keeps Repay open after a background position refresh fails", () => {
@@ -347,6 +357,26 @@ describe("ReserveDetailPanel", () => {
       screen.getByText(COPY.loans.connectToManage.title),
     ).toBeInTheDocument();
     expect(screen.queryByTestId("loan-card")).not.toBeInTheDocument();
+  });
+
+  it("shows the loan form for Ethereum alone under Ethereum-only access", () => {
+    vi.stubEnv("NEXT_PUBLIC_FF_ENABLE_ETH_FIRST", "true");
+    walletMock.btcConnected = false;
+    walletMock.ethConnected = true;
+
+    render(
+      <ReserveDetailPanel
+        reserveId="2"
+        tab={LOAN_TAB.BORROW}
+        onProcessingChange={vi.fn()}
+        onSuccess={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByTestId("loan-card")).toBeInTheDocument();
+    expect(
+      screen.queryByText(COPY.loans.connectToManage.title),
+    ).not.toBeInTheDocument();
   });
 
   it("tells the user a legacy symbol link is outdated", () => {

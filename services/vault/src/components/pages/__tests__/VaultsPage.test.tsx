@@ -15,6 +15,7 @@ const featureFlagsMock = vi.hoisted(() => ({
   isDepositDisabled: false,
   isProtocolPaused: false,
   isProtocolFrozen: false,
+  isEthFirstEnabled: false,
 }));
 
 vi.mock("@/config", () => ({
@@ -48,13 +49,26 @@ vi.mock("@/hooks/usePendingDeposits", () => ({
   }),
 }));
 
-const walletState = vi.hoisted(() => ({ isConnected: true }));
+const walletState = vi.hoisted(() => ({
+  btcConnected: true,
+  ethConnected: true,
+  confirmed: true,
+}));
 
-vi.mock("@/context/wallet", () => ({
-  useConnection: () => ({ isConnected: walletState.isConnected }),
+vi.mock("@babylonlabs-io/wallet-connector", () => ({
+  useWalletConnect: () => ({ connected: walletState.confirmed }),
+  useBTCWallet: () => ({ connected: walletState.btcConnected }),
   useETHWallet: () => ({
+    connected: walletState.ethConnected,
     address: "0x1111111111111111111111111111111111111111",
   }),
+}));
+
+// The real gate, so the Ethereum-only control decides what this page treats as
+// connected. A hand-supplied `isConnected` would pass with the control removed.
+vi.mock("@/context/wallet", async () => ({
+  useConnection: (await import("@/context/wallet/useConnection")).useConnection,
+  useETHWallet: (await import("@babylonlabs-io/wallet-connector")).useETHWallet,
 }));
 
 // Page-level data is exercised in the hook's own tests; the page test only
@@ -148,10 +162,13 @@ describe("VaultsPage", () => {
     emptinessState.isEmpty = true;
     emptinessState.hasError = false;
     emptinessState.hasPartialError = false;
-    walletState.isConnected = true;
+    walletState.btcConnected = true;
+    walletState.ethConnected = true;
+    walletState.confirmed = true;
     gateState.protocol = null;
     gateState.aave = null;
     featureFlagsMock.isDepositDisabled = false;
+    featureFlagsMock.isEthFirstEnabled = false;
     addressTypeState.isSupportedAddress = true;
   });
 
@@ -168,7 +185,7 @@ describe("VaultsPage", () => {
   });
 
   it("shows the connect prompt instead of the Deposit CTA when disconnected", () => {
-    walletState.isConnected = false;
+    walletState.ethConnected = false;
 
     renderVaultsPage();
 
@@ -185,10 +202,36 @@ describe("VaultsPage", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("shows the connect prompt for Ethereum alone while Ethereum-only access is off", () => {
+    walletState.btcConnected = false;
+
+    renderVaultsPage();
+
+    expect(screen.getByTestId("connect-button")).toBeInTheDocument();
+    expect(useVaultsPageData).toHaveBeenCalledWith(undefined);
+    expect(screen.queryByTestId("deposit-button")).not.toBeInTheDocument();
+  });
+
+  it("opens the page for Ethereum alone under Ethereum-only access", () => {
+    featureFlagsMock.isEthFirstEnabled = true;
+    walletState.btcConnected = false;
+
+    const { openDeposit } = renderVaultsPage();
+
+    expect(useVaultsPageData).toHaveBeenCalledWith(
+      "0x1111111111111111111111111111111111111111",
+    );
+    expect(screen.queryByTestId("connect-button")).not.toBeInTheDocument();
+    const deposit = screen.getByTestId("deposit-button");
+    expect(deposit).toBeEnabled();
+    fireEvent.click(deposit);
+    expect(openDeposit).toHaveBeenCalledTimes(1);
+  });
+
   it("keeps the deposits-paused notice visible while disconnected", () => {
     // The pause is protocol-level: a depositor should learn deposits are off
     // without having to connect a wallet first.
-    walletState.isConnected = false;
+    walletState.ethConnected = false;
     featureFlagsMock.isDepositDisabled = true;
 
     renderVaultsPage();
