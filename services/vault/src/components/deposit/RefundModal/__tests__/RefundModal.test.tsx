@@ -144,9 +144,14 @@ describe("RefundModal", () => {
       </Wrapper>,
     );
 
-    expect(
-      await screen.findByText("Bitcoin wallet locked"),
-    ).toBeInTheDocument();
+    const notice = (
+      await screen.findByText("Bitcoin wallet is locked")
+    ).closest('[role="alert"]');
+
+    expect(notice).toBeInTheDocument();
+    expect(notice?.querySelector("svg path")?.getAttribute("d")).toMatch(
+      /^M18 8H17V6/,
+    );
     expect(screen.getByRole("button", { name: /confirm/i })).toBeDisabled();
   });
 

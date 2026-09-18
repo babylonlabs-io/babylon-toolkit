@@ -156,7 +156,7 @@ const OKX_NEVER_LOCK_VALUE = "9999999999";
 
 /**
  * Set OKX's wallet auto-lock to "Never lock" so it doesn't re-lock mid-run (a real peg-in takes
- * ~30 min–2 hr and would otherwise stall at "Bitcoin wallet locked"). OKX honors direct hash-route
+ * ~30 min–2 hr and would otherwise stall at "Bitcoin wallet is locked"). OKX honors direct hash-route
  * navigation (used above for onboarding), so go straight to the auto-lock page and select the option by
  * its language-agnostic data-value. Fails loudly if the option is missing or doesn't become active — a
  * silent no-op reintroduces the exact lock stall this prevents; the per-wallet spec (test:e2e:okx)

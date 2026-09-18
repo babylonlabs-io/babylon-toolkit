@@ -9,7 +9,8 @@ export type CalloutVariant =
   | "warning"
   | "success"
   | "info"
-  | "infoStrong";
+  | "infoStrong"
+  | "accent";
 
 export interface CalloutAction {
   label: ReactNode;
@@ -40,6 +41,7 @@ const VARIANT_BG: Record<CalloutVariant, string> = {
   info: "bg-info-main",
   // Deeper navy accent for prominent, non-urgent prompts (e.g. opt-in nudges).
   infoStrong: "bg-info-dark",
+  accent: "bg-secondary-main",
 };
 
 const DEFAULT_ICONS: Record<CalloutVariant, ReactNode> = {
@@ -48,6 +50,7 @@ const DEFAULT_ICONS: Record<CalloutVariant, ReactNode> = {
   success: <CheckIcon size={14} color="text-accent-contrast" />,
   info: <InfoIcon size={14} color="text-accent-contrast" />,
   infoStrong: <InfoIcon size={14} color="text-accent-contrast" />,
+  accent: <InfoIcon size={14} color="text-accent-contrast" />,
 };
 
 const ACTION_BASE =

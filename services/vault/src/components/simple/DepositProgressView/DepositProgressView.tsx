@@ -12,7 +12,13 @@
  * banners (including a silent-lock notice), action button.
  */
 
-import { Button, Callout, Loader, Text } from "@babylonlabs-io/core-ui";
+import {
+  Button,
+  Callout,
+  Loader,
+  LockIcon,
+  Text,
+} from "@babylonlabs-io/core-ui";
 import {
   type ReactNode,
   useCallback,
@@ -272,7 +278,7 @@ export function DepositProgressView(props: DepositProgressViewProps) {
   } = props;
 
   // Every flow that renders this view requires the BTC wallet, so surface a
-  // silent lock here (as an error-style Callout) regardless of which flow —
+  // silent lock here (as a Callout) regardless of which flow —
   // deposit, resume/broadcast, payout signing, or continuation — mounted it.
   const { locked: walletLocked } = useBTCWallet();
   const { unlock, isUnlocking } = useBtcWalletUnlock(
@@ -422,7 +428,12 @@ export function DepositProgressView(props: DepositProgressViewProps) {
         // banners stay pinned above the CTA, always visible.
         <div className="flex flex-col gap-4">
           {walletLocked && !isComplete && !isTerminalSuccess && (
-            <Callout variant="error" title={COPY.wallet.locked.title}>
+            <Callout
+              variant="accent"
+              role="alert"
+              icon={<LockIcon size={24} color="text-accent-contrast" />}
+              title={COPY.wallet.locked.title}
+            >
               {COPY.wallet.locked.description}
             </Callout>
           )}
