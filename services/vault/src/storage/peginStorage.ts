@@ -152,8 +152,9 @@ function isValidSelectedUTXOs(
  * a security-relevant code path (pending-vault claim attribution, on-chain vault matching,
  * PSBT construction, or ID normalization) must pass a strict shape check. A
  * non-string `id`, for example, would otherwise throw inside
- * `normalizeTransactionId`, fall into the outer catch block, and wipe the
- * whole storage key — a DoS from a single tampered entry.
+ * `normalizeTransactionId`, which runs outside the read guard: an untyped
+ * throw no `PendingPeginStorageReadError` catch handles, so a single tampered
+ * entry would take down the whole app through the root error boundary.
  */
 function hasValidSecurityFields(entry: unknown): entry is PendingPeginRequest {
   if (!entry || typeof entry !== "object") return false;
@@ -345,6 +346,47 @@ function backfillBuildVaultCoreVersion(entry: unknown): unknown {
   return entry;
 }
 
+/** localStorage refused the read: blocked storage or private browsing. */
+export const PENDING_PEGIN_STORAGE_BLOCKED = "PENDING_PEGIN_STORAGE_BLOCKED";
+/** The stored value was read but is not a parseable array of records. */
+export const PENDING_PEGIN_BLOB_UNREADABLE = "PENDING_PEGIN_BLOB_UNREADABLE";
+
+/**
+ * The stored blob for an address could not be read. `raw` carries the
+ * unparseable string so a support path can recover it, and is `null` when
+ * localStorage itself refused the read — two failures with different remedies,
+ * which `errorCode` separates. Only the cause's name is kept: a `SyntaxError`
+ * message quotes the blob it choked on. The name is read off the object rather
+ * than behind `instanceof Error`, because a `DOMException` does not extend
+ * `Error` in every environment this runs in, and blocked storage is exactly
+ * the case this field exists to name.
+ */
+export class PendingPeginStorageReadError extends Error {
+  /** Sent to Sentry as a tag by `logger.error`. */
+  readonly errorCode: string;
+  readonly causeName: string;
+
+  constructor(
+    public readonly ethAddress: string,
+    public readonly raw: string | null,
+    cause: unknown,
+  ) {
+    super("Stored pending deposits could not be read.");
+    this.name = "PendingPeginStorageReadError";
+    this.errorCode =
+      raw === null
+        ? PENDING_PEGIN_STORAGE_BLOCKED
+        : PENDING_PEGIN_BLOB_UNREADABLE;
+    this.causeName =
+      typeof cause === "object" &&
+      cause !== null &&
+      "name" in cause &&
+      typeof cause.name === "string"
+        ? cause.name
+        : "unknown";
+  }
+}
+
 /**
  * Get all pending peg-ins from localStorage for an address
  * Pure read function - no side effects
@@ -352,62 +394,49 @@ function backfillBuildVaultCoreVersion(entry: unknown): unknown {
 export function getPendingPegins(ethAddress: string): PendingPeginRequest[] {
   if (!ethAddress) return [];
 
+  let stored: string | null = null;
+  let parsed: unknown[];
   try {
-    const key = getStorageKey(ethAddress);
-    const stored = localStorage.getItem(key);
-    if (!stored) return [];
-
-    const parsed: unknown = JSON.parse(stored);
-    if (!Array.isArray(parsed)) return [];
-
-    const migrated = parsed.map(backfillBuildVaultCoreVersion);
-
-    // Filter out entries whose security-critical fields (unsignedTxHex,
-    // selectedUTXOs) fail a strict format check. A tampered entry would
-    // otherwise feed malformed hex into downstream consumers.
-    const validated = migrated.filter((entry): entry is PendingPeginRequest => {
-      if (hasValidSecurityFields(entry)) return true;
-      const maybeId =
-        entry && typeof entry === "object" && "id" in entry
-          ? String((entry as { id: unknown }).id)
-          : "unknown";
-      logger.warn("[peginStorage] Skipping corrupted pending pegin entry", {
-        category: "peginStorage",
-        vaultId: maybeId,
-      });
-      return false;
-    });
-
-    // Normalize IDs to ensure they all have 0x prefix (handles legacy data)
-    // Note: We do NOT save back to localStorage here to avoid side effects
-    const normalized = validated.map((pegin) => ({
-      ...pegin,
-      id: normalizeTransactionId(pegin.id),
-      // Ensure status field exists (backward compatibility)
-      status: pegin.status || LocalStorageStatus.PENDING,
-      payoutSignedAt: sanitizePayoutSignedAt(pegin.payoutSignedAt, pegin.id),
-    }));
-
-    return normalized;
-  } catch (error) {
-    logger.error(error instanceof Error ? error : new Error(String(error)), {
-      data: {
-        context:
-          "[peginStorage] Failed to parse pending pegins - Clearing corrupted data",
-      },
-    });
-    try {
-      localStorage.removeItem(getStorageKey(ethAddress));
-    } catch (clearError) {
-      logger.error(
-        clearError instanceof Error
-          ? clearError
-          : new Error(String(clearError)),
-        { data: { context: "[peginStorage] Failed to clear corrupted data" } },
-      );
+    stored = localStorage.getItem(getStorageKey(ethAddress));
+    if (stored === null) return [];
+    const value: unknown = JSON.parse(stored);
+    if (!Array.isArray(value)) {
+      throw new TypeError("Stored pending deposits are not an array.");
     }
-    return [];
+    parsed = value;
+  } catch (error) {
+    throw new PendingPeginStorageReadError(ethAddress, stored, error);
   }
+
+  const migrated = parsed.map(backfillBuildVaultCoreVersion);
+
+  // Filter out entries whose security-critical fields (unsignedTxHex,
+  // selectedUTXOs) fail a strict format check. A tampered entry would
+  // otherwise feed malformed hex into downstream consumers.
+  const validated = migrated.filter((entry): entry is PendingPeginRequest => {
+    if (hasValidSecurityFields(entry)) return true;
+    const maybeId =
+      entry && typeof entry === "object" && "id" in entry
+        ? String((entry as { id: unknown }).id)
+        : "unknown";
+    logger.warn("[peginStorage] Skipping corrupted pending pegin entry", {
+      category: "peginStorage",
+      vaultId: maybeId,
+    });
+    return false;
+  });
+
+  // Normalize IDs to ensure they all have 0x prefix (handles legacy data)
+  // Note: We do NOT save back to localStorage here to avoid side effects
+  const normalized = validated.map((pegin) => ({
+    ...pegin,
+    id: normalizeTransactionId(pegin.id),
+    // Ensure status field exists (backward compatibility)
+    status: pegin.status || LocalStorageStatus.PENDING,
+    payoutSignedAt: sanitizePayoutSignedAt(pegin.payoutSignedAt, pegin.id),
+  }));
+
+  return normalized;
 }
 
 /**
@@ -477,6 +506,8 @@ export function savePendingPegins(
  * adding new one. Status defaults to LocalStorageStatus.PENDING if not
  * provided.
  *
+ * @throws `PendingPeginStorageReadError` when the stored blob cannot be read,
+ * leaving it untouched rather than overwriting it with this entry alone.
  * @throws when the localStorage write fails (quota / private browsing).
  * Callers that want best-effort behaviour must catch (see `usePeginStorage`).
  */
@@ -511,6 +542,21 @@ export function addPendingPegin(
 }
 
 /**
+ * Read for a mutator that writes the result straight back. `null` means the
+ * blob is unreadable and must not be overwritten, so the caller returns
+ * without writing. The failure itself is reported once by `usePeginStorage`,
+ * which reads the same blob.
+ */
+function readPeginsForUpdate(ethAddress: string): PendingPeginRequest[] | null {
+  try {
+    return getPendingPegins(ethAddress);
+  } catch (error) {
+    if (error instanceof PendingPeginStorageReadError) return null;
+    throw error;
+  }
+}
+
+/**
  * Update status of a pending peg-in
  * Used to track user actions through the peg-in flow
  */
@@ -519,7 +565,8 @@ export function updatePendingPeginStatus(
   vaultId: string,
   status: LocalStorageStatus,
 ): void {
-  const existingPegins = getPendingPegins(ethAddress);
+  const existingPegins = readPeginsForUpdate(ethAddress);
+  if (existingPegins === null) return;
   const normalizedId = normalizeTransactionId(vaultId);
 
   const updatedPegins = existingPegins.map((pegin) =>
@@ -542,7 +589,8 @@ export function updatePendingPeginStatus(
  * Remove a single pending peg-in entry by its vault id.
  */
 export function removePendingPegin(ethAddress: string, vaultId: Hex): void {
-  const existingPegins = getPendingPegins(ethAddress);
+  const existingPegins = readPeginsForUpdate(ethAddress);
+  if (existingPegins === null) return;
   const normalizedId = normalizeTransactionId(vaultId);
   const filtered = existingPegins.filter((p) => p.id !== normalizedId);
   savePendingPegins(ethAddress, filtered);
@@ -557,7 +605,8 @@ export function markRefundBroadcast(
   vaultId: string,
   refundBroadcastAt: number,
 ): void {
-  const existingPegins = getPendingPegins(ethAddress);
+  const existingPegins = readPeginsForUpdate(ethAddress);
+  if (existingPegins === null) return;
   const normalizedId = normalizeTransactionId(vaultId);
 
   const updatedPegins = existingPegins.map((pegin) =>

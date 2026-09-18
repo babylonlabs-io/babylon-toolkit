@@ -34,9 +34,8 @@ export function usePendingDeposits() {
   const { connected: btcConnected, address: btcAddress } = useBTCWallet();
   const { address: ethAddress } = useETHWallet();
 
-  const { activities, refetchActivities, loading, error } = useVaultDeposits(
-    ethAddress as Address | undefined,
-  );
+  const { activities, refetchActivities, loading, error, storageReadError } =
+    useVaultDeposits(ethAddress as Address | undefined);
 
   const { vaultProviders } = useAllDepositProviders(activities);
 
@@ -127,6 +126,7 @@ export function usePendingDeposits() {
     hasExpiredDeposits: btcConnected && expiredActivities.length > 0,
     isLoading: loading,
     error,
+    storageReadError,
     refetchActivities,
     broadcastModal,
     refundModal,

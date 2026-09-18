@@ -2097,6 +2097,8 @@ export const COPY = {
       `Activates in ~${duration}`,
     loadError:
       "We couldn't load your BTCVaults. Check your connection and try again.",
+    storageReadError:
+      "The stored deposit records in this browser could not be read. Nothing was deleted.",
     partialLoadError: {
       title: "Some of your BTCVault data couldn't be loaded",
       body: "Totals or deposits shown may be incomplete. Refresh the page to try again.",
