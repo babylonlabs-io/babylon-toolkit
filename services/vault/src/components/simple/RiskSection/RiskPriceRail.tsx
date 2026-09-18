@@ -108,7 +108,7 @@ export function RiskPriceRail({
     safe: "border-risk-green",
     moderate: "border-risk-amber",
     risky: "border-risk-red",
-    liquidatable: "border-risk-red",
+    liquidatable: "border-risk-red-dark",
   } satisfies Record<RiskDisplayState, string>;
 
   const markerHalf = MARKER_LABEL_WIDTH_PX / 2;

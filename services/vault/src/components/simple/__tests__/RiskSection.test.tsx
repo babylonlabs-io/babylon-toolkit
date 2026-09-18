@@ -1,7 +1,10 @@
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { HEALTH_FACTOR_WARNING_THRESHOLD } from "@/applications/aave/utils";
+import {
+  getHealthFactorStatus,
+  HEALTH_FACTOR_WARNING_THRESHOLD,
+} from "@/applications/aave/utils";
 import { COPY } from "@/copy";
 
 import {
@@ -35,28 +38,44 @@ function renderSection(overrides: Record<string, unknown> = {}) {
 
 describe("getRiskDisplayState", () => {
   it("returns noPosition regardless of status when there is no position", () => {
-    expect(getRiskDisplayState("danger", 0.9, false)).toBe("noPosition");
-    expect(getRiskDisplayState("safe", 2, false)).toBe("noPosition");
+    expect(getRiskDisplayState("danger", false)).toBe("noPosition");
+    expect(getRiskDisplayState("safe", false)).toBe("noPosition");
   });
 
   it("maps a no_debt position to verySafe", () => {
-    expect(getRiskDisplayState("no_debt", null, true)).toBe("verySafe");
+    expect(getRiskDisplayState(getHealthFactorStatus(null, false), true)).toBe(
+      "verySafe",
+    );
   });
 
-  it("treats a safe status above the healthy threshold as verySafe", () => {
-    expect(getRiskDisplayState("safe", 60, true)).toBe("verySafe");
-    expect(getRiskDisplayState("safe", null, true)).toBe("verySafe");
-    expect(getRiskDisplayState("safe", Infinity, true)).toBe("verySafe");
+  it("keeps a position with debt at HF 60 safe", () => {
+    expect(getRiskDisplayState(getHealthFactorStatus(60, true), true)).toBe(
+      "safe",
+    );
   });
 
-  it("keeps a bounded safe status as safe", () => {
-    expect(getRiskDisplayState("safe", 2.1, true)).toBe("safe");
+  it("maps HF 2.01 to safe", () => {
+    expect(getRiskDisplayState(getHealthFactorStatus(2.01, true), true)).toBe(
+      "safe",
+    );
   });
 
-  it("maps warning to moderate, risky to risky, and danger to liquidatable", () => {
-    expect(getRiskDisplayState("warning", 1.14, true)).toBe("moderate");
-    expect(getRiskDisplayState("risky", 1.05, true)).toBe("risky");
-    expect(getRiskDisplayState("danger", 0.94, true)).toBe("liquidatable");
+  it("maps HF 2.0 to moderate", () => {
+    expect(getRiskDisplayState(getHealthFactorStatus(2, true), true)).toBe(
+      "moderate",
+    );
+  });
+
+  it("maps HF 1.05 to risky", () => {
+    expect(getRiskDisplayState(getHealthFactorStatus(1.05, true), true)).toBe(
+      "risky",
+    );
+  });
+
+  it("maps HF 0.99 to liquidatable", () => {
+    expect(getRiskDisplayState(getHealthFactorStatus(0.99, true), true)).toBe(
+      "liquidatable",
+    );
   });
 });
 
@@ -80,7 +99,7 @@ describe("RiskSection rendering", () => {
     expect(container.textContent).not.toMatch(/NaN|Infinity/);
   });
 
-  it("renders the very-safe state with the infinity glyph and the passed liquidation placeholder", () => {
+  it("renders debt at HF 60 as Safe with its numeric health factor", () => {
     renderSection({
       healthFactorStatus: "safe",
       healthFactor: 60,
@@ -88,10 +107,11 @@ describe("RiskSection rendering", () => {
       liquidationPriceUsd: null,
     });
 
-    expect(screen.getByText(COPY.risk.status.verySafe)).toBeInTheDocument();
+    expect(screen.getByText(COPY.risk.status.safe)).toBeInTheDocument();
+    expect(screen.getByText("60.00")).toBeInTheDocument();
     expect(
-      screen.getByText(COPY.risk.healthFactorInfinity),
-    ).toBeInTheDocument();
+      screen.queryByText(COPY.risk.healthFactorInfinity),
+    ).not.toBeInTheDocument();
     const liqCell = screen
       .getByText(COPY.risk.liquidationBtcPriceLabel)
       .closest("div");
@@ -139,6 +159,38 @@ describe("RiskSection rendering", () => {
     );
     expect(screen.getByTestId("risk-marker-liquidation")).toBeInTheDocument();
     expect(screen.getByText("5.2%")).toBeInTheDocument();
+  });
+
+  it("renders liquidatable and risky labels with distinct color classes", () => {
+    const { unmount } = renderSection({
+      healthFactorStatus: "danger",
+      healthFactor: 0.99,
+    });
+    expect(screen.getByText(COPY.risk.status.liquidatable)).toHaveClass(
+      "text-risk-red-dark",
+    );
+    unmount();
+
+    renderSection({ healthFactorStatus: "risky", healthFactor: 1.05 });
+    expect(screen.getByText(COPY.risk.status.risky)).toHaveClass(
+      "text-risk-red",
+    );
+  });
+
+  it("rings the current-price marker in the liquidatable color, not the risky one", () => {
+    const { unmount } = renderSection({
+      healthFactorStatus: "danger",
+      healthFactor: 0.99,
+    });
+    expect(screen.getByTestId("risk-marker-current")).toHaveClass(
+      "border-risk-red-dark",
+    );
+    unmount();
+
+    renderSection({ healthFactorStatus: "risky", healthFactor: 1.05 });
+    expect(screen.getByTestId("risk-marker-current")).toHaveClass(
+      "border-risk-red",
+    );
   });
 
   it("shows the loader for collateral factor while borrow data is loading", () => {
