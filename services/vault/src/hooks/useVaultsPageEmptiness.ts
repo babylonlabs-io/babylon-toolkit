@@ -22,7 +22,8 @@
  * has, and this flag drives a warning so the failure is never silent — a
  * failed position read would otherwise present fallback (zero) collateral
  * totals as real, and a failed deposits read would silently drop pending or
- * refundable rows.
+ * refundable rows. Unreadable browser records also trigger the warning,
+ * even when there are no displayable rows.
  *
  * A withdrawal-only position (every vault redeemed, peg-out still in flight)
  * is not empty: the indexer has already zeroed the collateral figure, but the
@@ -36,6 +37,7 @@
 
 import { useConnection, useETHWallet } from "@/context/wallet";
 import { useDashboardState } from "@/hooks/useDashboardState";
+import type { PendingPeginStorageReadError } from "@/storage/peginStorage";
 import type { VaultActivity } from "@/types/activity";
 
 interface VaultsPageDeposits {
@@ -43,6 +45,7 @@ interface VaultsPageDeposits {
   expiredActivities: VaultActivity[];
   isLoading: boolean;
   error: Error | null;
+  storageReadError: PendingPeginStorageReadError | null;
 }
 
 export function useVaultsPageEmptiness(deposits: VaultsPageDeposits): {
@@ -64,6 +67,7 @@ export function useVaultsPageEmptiness(deposits: VaultsPageDeposits): {
     expiredActivities,
     isLoading: isDepositsLoading,
     error: depositsError,
+    storageReadError,
   } = deposits;
 
   const isLoading = isConnected && (isPositionLoading || isDepositsLoading);
@@ -77,7 +81,9 @@ export function useVaultsPageEmptiness(deposits: VaultsPageDeposits): {
   const hasError =
     isConnected && !isLoading && !hasAnythingToShow && anySourceFailed;
   const hasPartialError =
-    isConnected && !isLoading && hasAnythingToShow && anySourceFailed;
+    isConnected &&
+    !isLoading &&
+    ((hasAnythingToShow && anySourceFailed) || Boolean(storageReadError));
   const isEmpty =
     !isLoading && !hasError && (!isConnected || !hasAnythingToShow);
 

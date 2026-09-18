@@ -9,6 +9,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Hex } from "viem";
 
+import { logger } from "@/infrastructure";
+
 import { getNetworkConfigBTC } from "../config";
 import { STORAGE_KEY_PREFIX, STORAGE_UPDATE_EVENT } from "../constants";
 import {
@@ -26,6 +28,7 @@ import {
   getPendingPegins,
   markRefundBroadcast as markRefundBroadcastInStorage,
   type PendingPeginRequest,
+  PendingPeginStorageReadError,
   removePendingPegin as removePendingPeginFromStorage,
   savePendingPegins,
   updatePendingPeginStatus as updatePendingPeginStatusInStorage,
@@ -45,6 +48,7 @@ export interface UsePeginStorageResult {
   allActivities: VaultActivity[];
   /** Pending peg-ins from localStorage */
   pendingPegins: PendingPeginRequest[];
+  storageReadError: PendingPeginStorageReadError | null;
   /**
    * Add a new pending peg-in to localStorage. `status` is optional and
    * defaults to `LocalStorageStatus.PENDING` in the storage layer.
@@ -73,6 +77,29 @@ export interface UsePeginStorageResult {
   markRefundBroadcast: (vaultId: string, refundBroadcastAt: number) => void;
 }
 
+/** The error code last reported this session, per address. */
+const reportedStorageReadErrors = new Map<string, string>();
+
+/** Test-only: clear the per-session reported map so each test starts fresh. */
+export function __resetReportedStorageReadErrorsForTests(): void {
+  reportedStorageReadErrors.clear();
+}
+
+function readPendingPegins(ethAddress: string): {
+  pendingPegins: PendingPeginRequest[];
+  storageReadError: PendingPeginStorageReadError | null;
+} {
+  try {
+    return {
+      pendingPegins: getPendingPegins(ethAddress),
+      storageReadError: null,
+    };
+  } catch (error) {
+    if (!(error instanceof PendingPeginStorageReadError)) throw error;
+    return { pendingPegins: [], storageReadError: error };
+  }
+}
+
 /**
  * Hook to manage pending peg-in storage
  *
@@ -87,25 +114,43 @@ export function usePeginStorage({
   // the entries. Consumers that auto-fire on mount (e.g.
   // `useRunOnce(handleBroadcast)` in ResumeBroadcastContent) would
   // otherwise capture an empty array in their first useCallback closure
-  // and miss the entries — `setPendingPegins` from the effect below
+  // and miss the entries — `setStorageState` from the effect below
   // can't reach an already-fired closure. SSR / no-ethAddress: stay
   // empty until the effect runs.
-  const [pendingPegins, setPendingPegins] = useState<PendingPeginRequest[]>(
-    () => {
-      if (typeof window === "undefined" || !ethAddress) return [];
-      return getPendingPegins(ethAddress);
-    },
+  const [{ pendingPegins, storageReadError }, setStorageState] = useState(() =>
+    readPendingPegins(typeof window === "undefined" ? "" : ethAddress),
   );
   const [storageVersion, setStorageVersion] = useState(0);
 
   // Load pending peg-ins from localStorage whenever ethAddress changes or storage is updated
   useEffect(() => {
-    if (!ethAddress) {
-      setPendingPegins([]);
+    setStorageState(readPendingPegins(ethAddress));
+  }, [ethAddress, storageVersion]);
+
+  // One Sentry event per failure an address moves into, not one per read: the
+  // read runs on every polling tick, Activity load and deposit-modal Continue,
+  // and the root polling provider and the Vaults page each mount an instance
+  // over the same key, so a per-instance guard bills one event each. The map
+  // holds the code last reported for an address, so a corrupted blob that
+  // later becomes blocked storage — a different remedy — is reported rather
+  // than swallowed, and so is a move back. Cleared when that address reads
+  // cleanly again, so a recurrence is reported.
+  useEffect(() => {
+    if (!storageReadError) {
+      reportedStorageReadErrors.delete(ethAddress);
       return;
     }
-    setPendingPegins(getPendingPegins(ethAddress));
-  }, [ethAddress, storageVersion]);
+    const { ethAddress: erroredAddress, errorCode } = storageReadError;
+    if (reportedStorageReadErrors.get(erroredAddress) === errorCode) return;
+    reportedStorageReadErrors.set(erroredAddress, errorCode);
+    logger.error(storageReadError, {
+      data: {
+        context: "[usePeginStorage] Stored pending deposits could not be read",
+        ethAddress: storageReadError.ethAddress,
+        cause: storageReadError.causeName,
+      },
+    });
+  }, [ethAddress, storageReadError]);
 
   // Listen for custom events when localStorage is updated (same-tab updates)
   useEffect(() => {
@@ -150,7 +195,7 @@ export function usePeginStorage({
     if (!ethAddress) return;
 
     // Read fresh data from localStorage (not from stale state)
-    const currentPegins = getPendingPegins(ethAddress);
+    const { pendingPegins: currentPegins } = readPendingPegins(ethAddress);
 
     const filteredPegins = filterPendingPegins(
       currentPegins,
@@ -254,9 +299,10 @@ export function usePeginStorage({
 
   // Add pending peg-in - storage function will dispatch event.
   // Best-effort here: hook consumers (e.g. refund tracking) must not abort
-  // on a localStorage failure. The storage layer already logs it. The
-  // deposit-creation flow calls the storage function directly and handles
-  // persistence failures explicitly (surfaces a soft warning).
+  // on a localStorage failure. A failed write is logged by the storage layer,
+  // and an unreadable blob by the effect above. The deposit-creation flow
+  // calls the storage function directly and handles persistence failures
+  // explicitly (surfaces a soft warning).
   const addPendingPegin = useCallback(
     (
       pegin: Omit<PendingPeginRequest, "timestamp" | "status"> & {
@@ -302,6 +348,7 @@ export function usePeginStorage({
   return {
     allActivities,
     pendingPegins,
+    storageReadError,
     addPendingPegin,
     updatePendingPeginStatus,
     removePendingPegin,

@@ -2,6 +2,7 @@ import { renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useVaultsPageEmptiness } from "@/hooks/useVaultsPageEmptiness";
+import { PendingPeginStorageReadError } from "@/storage/peginStorage";
 import type { VaultActivity } from "@/types/activity";
 
 const walletState = vi.hoisted(() => ({
@@ -34,6 +35,7 @@ const depositsState = {
   expiredActivities: [] as VaultActivity[],
   isLoading: false,
   error: null as Error | null,
+  storageReadError: null as PendingPeginStorageReadError | null,
 };
 
 const stubActivity = (id: string) => ({ id }) as VaultActivity;
@@ -50,7 +52,25 @@ describe("useVaultsPageEmptiness", () => {
     depositsState.expiredActivities = [];
     depositsState.isLoading = false;
     depositsState.error = null;
+    depositsState.storageReadError = null;
     useDashboardStateMock.mockClear();
+  });
+
+  it("shows the partial warning when unreadable storage leaves no rows", () => {
+    depositsState.storageReadError = new PendingPeginStorageReadError(
+      "0xdepositor",
+      '[{"id":',
+      new SyntaxError("Unexpected end of JSON input"),
+    );
+
+    const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
+
+    expect(result.current).toEqual({
+      isLoading: false,
+      isEmpty: true,
+      hasError: false,
+      hasPartialError: true,
+    });
   });
 
   it("is empty and not loading while disconnected", () => {
@@ -211,14 +231,33 @@ describe("useVaultsPageEmptiness", () => {
   });
 
   it("does not flag a partial error alongside the full-page error state", () => {
-    // Nothing showable + a failed read is the full-page hasError case; the
-    // partial flag must not also fire or the page would try to render both.
+    // Nothing showable + a failed remote read is the full-page hasError case;
+    // the partial flag must not also fire on that alone. Unreadable browser
+    // records are the exception — see the test below.
     dashboardState.positionError = new Error("rpc down");
 
     const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
 
     expect(result.current.hasError).toBe(true);
     expect(result.current.hasPartialError).toBe(false);
+  });
+
+  it("flags a partial error alongside the full-page error when storage is also unreadable", () => {
+    dashboardState.positionError = new Error("rpc down");
+    depositsState.storageReadError = new PendingPeginStorageReadError(
+      "0xdepositor",
+      '[{"id":',
+      new SyntaxError("Unexpected end of JSON input"),
+    );
+
+    const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
+
+    expect(result.current).toEqual({
+      isLoading: false,
+      isEmpty: false,
+      hasError: true,
+      hasPartialError: true,
+    });
   });
 
   it("ignores query errors while disconnected", () => {
