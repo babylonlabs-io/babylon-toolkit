@@ -3,8 +3,8 @@
  *
  * Owns two sections sharing one polling tree: "Pending Deposit" (one row per
  * in-flight deposit, with live step progress and the state's primary action)
- * and "Inactive Vaults" (one row per refundable-expired deposit — inactive is
- * the v3 name for expired — whose Withdraw action performs the HTLC refund).
+ * and "Inactive Vaults" (refundable-expired deposits whose Withdraw action
+ * performs the HTLC refund, plus settled vaults with a reserve to reclaim).
  * `children` (the Active Vaults section) renders between them, giving the
  * page's Pending → Active → Inactive order. Polling state comes from the app's
  * single AppPeginPollingProvider (mounted in RootLayout); this component mounts
@@ -51,12 +51,12 @@ import { getNetworkConfigBTC } from "@/config";
 import { ProtocolParamsProvider } from "@/context/ProtocolParamsContext";
 import { useDepositPollingResult } from "@/context/deposit/PeginPollingContext";
 import { COPY } from "@/copy";
-import { useReclaimRowAction } from "@/hooks/deposit/useReclaimRowAction";
+import { useActionableExpiredDeposits } from "@/hooks/deposit/useActionableExpiredDeposits";
+import { useActionableReclaims } from "@/hooks/deposit/useActionableReclaims";
+import type { ReclaimRowAction } from "@/hooks/deposit/useReclaimRowAction";
 import { useRefundRowAction } from "@/hooks/deposit/useRefundRowAction";
 import { useBtcAction } from "@/hooks/useBtcAction";
 import type { usePendingDeposits } from "@/hooks/usePendingDeposits";
-import { useReclaimStatus, type ReclaimStatus } from "@/hooks/useReclaimStatus";
-import { useReclaimVaultChainData } from "@/hooks/useReclaimVaultChainData";
 import {
   canPerformAction,
   getPeginProgressStep,
@@ -336,18 +336,13 @@ function InactiveRow({
   vaultProviders,
   onRefund,
   onReclaim,
-  reclaimStatus,
-  reclaimOnChainStatus,
-  isReclaimInFlight,
+  reclaimAction,
 }: {
   activity: VaultActivity;
   vaultProviders: VaultProvider[];
   onRefund: (depositId: string) => void;
   onReclaim: (depositId: string) => void;
-  /** Reserve state from the section's batched poll; undefined for expired rows. */
-  reclaimStatus: ReclaimStatus | undefined;
-  reclaimOnChainStatus: number | undefined;
-  isReclaimInFlight: boolean;
+  reclaimAction: ReclaimRowAction | undefined;
 }) {
   const result = useDepositPollingResult(activity.id);
   const provider = findProvider(vaultProviders, activity.providers[0]?.id);
@@ -369,19 +364,14 @@ function InactiveRow({
     reclaiming: isReclaiming,
     needsWallet: isReclaimWalletNeeded,
     blockedTooltip: reclaimBlockedTooltip,
-    reclaimableSats,
-  } = useReclaimRowAction({
-    status: reclaimStatus,
-    onChainStatus: reclaimOnChainStatus,
-    depositorBtcPubkey: activity.depositorBtcPubkey,
-    isReclaimInFlight,
-  });
+    reclaimableSats = null,
+  } = reclaimAction ?? {};
   const { requireBtcWallet } = useBtcAction();
 
   // While a sweep is in flight the status cell reports the reserve action
   // rather than the vault's own lifecycle state, the same way the refund path
-  // shows "Refunding" over an expired vault's label. It reverts to the vault's
-  // own label ("Redeemed") once the sweep confirms.
+  // shows "Refunding" over an expired vault's label. Once the sweep confirms,
+  // the section removes the row.
   const statusLabel = isReclaiming
     ? COPY.reclaim.rowStatusReclaiming
     : peginState?.displayLabel;
@@ -574,38 +564,13 @@ export function VaultsLifecycleSections({
     demo,
   } = deposits;
 
-  // Contract reads for the settled candidates: the authoritative PegIn txid and
-  // the live on-chain status. Cached long — a settled vault's row is immutable.
-  const candidateVaultIds = useMemo(
-    () => reclaimableCandidates.map((a) => a.id),
-    [reclaimableCandidates],
-  );
-  const reclaimChainData = useReclaimVaultChainData(candidateVaultIds);
-
-  // Bitcoin poll, one batch for the whole section. Only vaults whose contract
-  // read landed are probed — without it the gate fails closed anyway.
-  const reclaimOutpoints = useMemo(
-    () =>
-      reclaimableCandidates
-        .map((activity) => {
-          const chain = reclaimChainData.get(activity.id.toLowerCase());
-          return chain
-            ? { depositId: activity.id as string, peginTxid: chain.peginTxid }
-            : null;
-        })
-        .filter(
-          (o): o is { depositId: string; peginTxid: string } => o !== null,
-        ),
-    [reclaimableCandidates, reclaimChainData],
-  );
-  const { statusByDepositId } = useReclaimStatus(reclaimOutpoints);
-
-  // Settled vaults join the expired ones in the Inactive section rather than
-  // getting a section of their own, so the heading count and action-required
-  // label pick them up unchanged.
+  const { candidates: actionableReclaims, actions: reclaimActions } =
+    useActionableReclaims(reclaimableCandidates, reclaimModal.inFlightVaultIds);
+  const actionableExpiredActivities =
+    useActionableExpiredDeposits(expiredActivities);
   const inactiveActivities: VaultActivity[] = useMemo(
-    () => [...expiredActivities, ...reclaimableCandidates],
-    [expiredActivities, reclaimableCandidates],
+    () => [...actionableExpiredActivities, ...actionableReclaims],
+    [actionableExpiredActivities, actionableReclaims],
   );
 
   const rows = [...pendingActivities, ...inactiveActivities];
@@ -752,13 +717,7 @@ export function VaultsLifecycleSections({
                 vaultProviders={vaultProviders}
                 onRefund={handleRefund}
                 onReclaim={handleReclaim}
-                reclaimStatus={statusByDepositId.get(activity.id.toLowerCase())}
-                reclaimOnChainStatus={
-                  reclaimChainData.get(activity.id.toLowerCase())?.onChainStatus
-                }
-                isReclaimInFlight={reclaimModal.inFlightVaultIds.has(
-                  activity.id.toLowerCase(),
-                )}
+                reclaimAction={reclaimActions.get(activity.id.toLowerCase())}
               />
             ))}
           </div>

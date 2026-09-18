@@ -26,7 +26,7 @@
  */
 
 import { useChainConnector } from "@babylonlabs-io/wallet-connector";
-import { useMemo } from "react";
+import { useCallback } from "react";
 
 import { isWithdrawBlocked } from "@/components/shared/protocolStatus";
 import FeatureFlags from "@/config/featureFlags";
@@ -80,34 +80,34 @@ function isOwnedByConnectedWallet(
   return normalize(vaultDepositorBtcPubkey) === normalize(connectedBtcPubkey);
 }
 
-export function useReclaimRowAction({
-  status,
-  onChainStatus,
-  depositorBtcPubkey,
-  isReclaimInFlight,
-}: UseReclaimRowActionInput): ReclaimRowAction {
+export function useReclaimRowAction() {
   const { publicKeyNoCoord, connected: btcConnected } = useBTCWallet();
   // The wallet id lives on the connector, not the BTC wallet context — same
   // accessor `useRefundState` uses.
   const btcConnector = useChainConnector("BTC");
   const isLedgerWallet = isLedgerVaultConnector(btcConnector);
-  const isOwnedByWallet = isOwnedByConnectedWallet(
-    depositorBtcPubkey,
-    publicKeyNoCoord,
-  );
   // Reclaim is an exit, so it follows withdraw's pause semantics.
   const withdrawBlocked = isWithdrawBlocked(useProtocolGateState());
-  // With no Bitcoin wallet attached, an Ethereum-only session cannot verify
-  // ownership of a vault whose depositor key is known. A locked wallet still
-  // exposes its key, so it takes the real ownership check. Evaluate the model as the owner would see it, so
-  // the row shows the same outcome (blocked, reclaiming, absent) and only an
-  // available reclaim asks for the wallet — the model stays the single gate.
-  const assumeOwnership =
-    FeatureFlags.isEthFirstEnabled && !btcConnected && !!depositorBtcPubkey;
 
-  const eligibility: ReclaimEligibility = useMemo(
-    () =>
-      getReclaimEligibility({
+  return useCallback(
+    ({
+      status,
+      onChainStatus,
+      depositorBtcPubkey,
+      isReclaimInFlight,
+    }: UseReclaimRowActionInput): ReclaimRowAction => {
+      const isOwnedByWallet = isOwnedByConnectedWallet(
+        depositorBtcPubkey,
+        publicKeyNoCoord,
+      );
+      // With no Bitcoin wallet attached, an Ethereum-only session cannot verify
+      // ownership of a vault whose depositor key is known. A locked wallet still
+      // exposes its key, so it takes the real ownership check. Evaluate the model as the owner would see it, so
+      // the row shows the same outcome (blocked, reclaiming, absent) and only an
+      // available reclaim asks for the wallet — the model stays the single gate.
+      const assumeOwnership =
+        FeatureFlags.isEthFirstEnabled && !btcConnected && !!depositorBtcPubkey;
+      const eligibility: ReclaimEligibility = getReclaimEligibility({
         onChainStatus,
         payoutSpend: status?.payoutSpend,
         reserveSpend: status?.reserveSpend,
@@ -118,28 +118,23 @@ export function useReclaimRowAction({
         isLedgerWallet,
         isWithdrawBlocked: withdrawBlocked,
         isReclaimInFlight,
-      }),
-    [
-      onChainStatus,
-      status,
-      assumeOwnership,
-      isOwnedByWallet,
-      isLedgerWallet,
-      withdrawBlocked,
-      isReclaimInFlight,
-    ],
+      });
+      const isAvailable = eligibility.type === "available";
+
+      return {
+        available: isAvailable && !assumeOwnership,
+        reclaiming: eligibility.type === "reclaiming",
+        needsWallet: isAvailable && assumeOwnership,
+        blockedTooltip:
+          eligibility.type === "blocked" ? eligibility.tooltip : null,
+        // Only meaningful once the row actually offers something; an absent row
+        // shows no figure.
+        reclaimableSats:
+          eligibility.type === "absent"
+            ? null
+            : (status?.reserveValueSats ?? null),
+      };
+    },
+    [publicKeyNoCoord, btcConnected, isLedgerWallet, withdrawBlocked],
   );
-
-  const isAvailable = eligibility.type === "available";
-
-  return {
-    available: isAvailable && !assumeOwnership,
-    reclaiming: eligibility.type === "reclaiming",
-    needsWallet: isAvailable && assumeOwnership,
-    blockedTooltip: eligibility.type === "blocked" ? eligibility.tooltip : null,
-    // Only meaningful once the row actually offers something; an absent row
-    // shows no figure.
-    reclaimableSats:
-      eligibility.type === "absent" ? null : (status?.reserveValueSats ?? null),
-  };
 }
