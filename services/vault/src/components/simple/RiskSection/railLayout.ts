@@ -1,5 +1,4 @@
 import {
-  HEALTH_FACTOR_HEALTHY_THRESHOLD,
   HEALTH_FACTOR_WARNING_THRESHOLD,
   type HealthFactorStatus,
 } from "@/applications/aave/utils";
@@ -14,7 +13,6 @@ export type RiskDisplayState =
 
 export function getRiskDisplayState(
   status: HealthFactorStatus,
-  healthFactor: number | null,
   hasPosition: boolean,
 ): RiskDisplayState {
   if (!hasPosition) return "noPosition";
@@ -22,11 +20,7 @@ export function getRiskDisplayState(
     case "no_debt":
       return "verySafe";
     case "safe":
-      return healthFactor === null ||
-        !isFinite(healthFactor) ||
-        healthFactor > HEALTH_FACTOR_HEALTHY_THRESHOLD
-        ? "verySafe"
-        : "safe";
+      return "safe";
     case "warning":
       return "moderate";
     case "risky":

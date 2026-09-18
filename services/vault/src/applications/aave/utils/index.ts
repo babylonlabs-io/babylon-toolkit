@@ -15,7 +15,6 @@ export type { HealthFactorStatus } from "@babylonlabs-io/ts-sdk/tbv/integrations
 // Display utilities (frontend-only, not in SDK)
 export {
   HEALTH_FACTOR_COLORS,
-  HEALTH_FACTOR_HEALTHY_THRESHOLD,
   formatHealthFactor,
   getHealthFactorColor,
 } from "./healthFactorDisplay";

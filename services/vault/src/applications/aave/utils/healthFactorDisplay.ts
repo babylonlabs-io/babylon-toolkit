@@ -3,9 +3,10 @@ import type { HealthFactorStatus } from "@babylonlabs-io/ts-sdk/tbv/integrations
 import { HEALTH_FACTOR_DISPLAY_CAP } from "../constants";
 
 export const HEALTH_FACTOR_COLORS = {
-  GREEN: "#00E676",
-  AMBER: "#FFC400",
+  GREEN: "#15B768",
+  AMBER: "#F7931A",
   RED: "#FF1744",
+  DARK_RED: "#C62828",
   GRAY: "#5A5A5A",
 } as const;
 
@@ -22,15 +23,11 @@ export function getHealthFactorColor(
     case "warning":
       return HEALTH_FACTOR_COLORS.AMBER;
     case "risky":
-    case "danger":
       return HEALTH_FACTOR_COLORS.RED;
+    case "danger":
+      return HEALTH_FACTOR_COLORS.DARK_RED;
   }
 }
-
-/** Above this value, the health factor is effectively unbounded. Callers that show
- *  a high-HF label (e.g. the Overview row) use this; numeric before/after deltas
- *  intentionally do not, to preserve the magnitude of the change. */
-export const HEALTH_FACTOR_HEALTHY_THRESHOLD = 50;
 
 export function formatHealthFactor(healthFactor: number | null): string {
   // null = no debt; non-finite or absurdly high = negligible debt. All render

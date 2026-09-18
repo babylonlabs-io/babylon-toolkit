@@ -22,9 +22,12 @@ html {
    * step checks. */
   --success-bright: 21 183 104;
   /* v3 risk-card semantic colors as RGB channels (Figma foundation red/a400,
-   * amber/600, green/a400, text/tertiary) so Tailwind alpha modifiers and
-   * `rgb(var(--risk-*))` inline styles both resolve. Dark overrides below. */
+   * error/dark, amber/600, green/a400, text/tertiary) so Tailwind alpha
+   * modifiers and `rgb(var(--risk-*))` inline styles both resolve. Dark
+   * overrides below. --risk-red-dark is the Liquidatable band's own color,
+   * token error/dark #C62828, from Figma node 10162-15543. */
   --risk-red: 255 23 68;
+  --risk-red-dark: 198 40 40;
   --risk-amber: 247 147 26;
   --risk-green: 21 183 104;
   --risk-muted: 176 176 176;
