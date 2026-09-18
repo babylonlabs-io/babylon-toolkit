@@ -59,12 +59,6 @@ interface PostDepositContinuationViewProps {
    */
   demoVaultIds?: ReadonlySet<string>;
   onClose: () => void;
-  /**
-   * Advanced escape-hatch entry (activate-and-redeem): routes to the host's
-   * dedicated withdraw modal. Rendered as a muted link in the activation
-   * confirmation only when provided.
-   */
-  onAdvancedWithdraw?: (vaultId: string) => void;
 }
 
 function StatusView({
@@ -122,7 +116,6 @@ export function PostDepositContinuationView({
   btcPublicKey,
   demoVaultIds,
   onClose,
-  onAdvancedWithdraw,
 }: PostDepositContinuationViewProps) {
   const { connected } = useBtcAction();
   const [admitted, setAdmitted] = useState(connected);
@@ -410,11 +403,6 @@ export function PostDepositContinuationView({
         key={`gate-${currentVaultId}`}
         activity={activity}
         onClose={onClose}
-        onAdvancedWithdraw={
-          onAdvancedWithdraw
-            ? () => onAdvancedWithdraw(currentVaultId)
-            : undefined
-        }
       >
         <ResumeActivationContent
           activity={activity}

@@ -38,7 +38,6 @@ const VAULT_ID = `0x${"11".repeat(32)}` as Hex;
 function renderConfirm() {
   return render(
     <EmergencyWithdrawConfirmContent
-      stuckStateDetected
       vaultId={VAULT_ID}
       withdrawing={false}
       error={null}

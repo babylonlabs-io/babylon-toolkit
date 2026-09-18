@@ -15,8 +15,6 @@ import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import { useVaultApplicationActive } from "@/hooks/useVaultApplicationActive";
 
 interface EmergencyWithdrawConfirmContentProps {
-  /** True when the stuck state was detected on-chain — drives the body copy. */
-  stuckStateDetected: boolean;
   /** Vault whose application registration gates this exit. */
   vaultId: Hex;
   /** Reveal + redeem in flight (wallet popup or on-chain submission). */
@@ -36,7 +34,6 @@ interface EmergencyWithdrawConfirmContentProps {
  * see `isActivateAndRedeemBlocked`).
  */
 export function EmergencyWithdrawConfirmContent({
-  stuckStateDetected,
   vaultId,
   withdrawing,
   error,
@@ -91,9 +88,7 @@ export function EmergencyWithdrawConfirmContent({
             {COPY.deposit.emergencyWithdraw.title}
           </Heading>
           <Text variant="body1" className="text-accent-secondary">
-            {stuckStateDetected
-              ? COPY.deposit.emergencyWithdraw.bodyStuck
-              : COPY.deposit.emergencyWithdraw.bodyAdvanced}
+            {COPY.deposit.emergencyWithdraw.bodyStuck}
           </Text>
         </div>
       </div>

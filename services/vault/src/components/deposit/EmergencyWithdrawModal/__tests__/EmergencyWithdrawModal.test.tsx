@@ -104,7 +104,6 @@ function renderModal(client?: QueryClient) {
       <EmergencyWithdrawModal
         open
         activity={ACTIVITY}
-        stuckStateDetected
         onClose={vi.fn()}
         onSuccess={vi.fn()}
       />
