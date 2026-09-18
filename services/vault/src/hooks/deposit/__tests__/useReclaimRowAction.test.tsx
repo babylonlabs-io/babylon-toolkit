@@ -50,7 +50,7 @@ const SETTLED_STATUS: ReclaimStatus = {
 
 function renderReclaimRowAction(depositorBtcPubkey = "ab".repeat(32)) {
   return renderHook(() =>
-    useReclaimRowAction({
+    useReclaimRowAction()({
       status: SETTLED_STATUS,
       onChainStatus: OnChainBtcVaultStatus.REDEEMED,
       depositorBtcPubkey,
