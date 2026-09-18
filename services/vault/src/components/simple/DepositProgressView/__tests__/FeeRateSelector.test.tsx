@@ -79,6 +79,58 @@ describe("FeeRateSelector", () => {
     expect(buttonFor("Slow")).toHaveAttribute("aria-pressed", "false");
   });
 
+  it("seeds Fast, not Slow, when every tier returns the same rate", () => {
+    vi.mocked(useNetworkFees).mockReturnValue({
+      ...FEE_TIERS,
+      defaultFeeRate: 1,
+      halfHourFeeRate: 1,
+      hourFeeRate: 1,
+    });
+    const onFeeRateChange = vi.fn();
+    render(
+      <FeeRateSelector
+        vaultAmounts={[100_000n]}
+        feeRate={1}
+        onFeeRateChange={onFeeRateChange}
+      />,
+    );
+
+    expect(buttonFor("Fast")).toHaveAttribute("aria-pressed", "true");
+    expect(buttonFor("Slow")).toHaveAttribute("aria-pressed", "false");
+    expect(buttonFor("Avg")).toHaveAttribute("aria-pressed", "false");
+    expect(buttonFor("Fast")).toHaveTextContent("~10 min");
+    expect(onFeeRateChange).not.toHaveBeenCalled();
+  });
+
+  it("seeds Slow when the committed rate equals the hour fee and the tiers differ", () => {
+    render(
+      <FeeRateSelector
+        vaultAmounts={[100_000n]}
+        feeRate={2}
+        onFeeRateChange={vi.fn()}
+      />,
+    );
+
+    expect(buttonFor("Slow")).toHaveAttribute("aria-pressed", "true");
+    expect(buttonFor("Fast")).toHaveAttribute("aria-pressed", "false");
+    expect(buttonFor("Avg")).toHaveAttribute("aria-pressed", "false");
+    expect(buttonFor("Custom")).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("seeds Avg when the committed rate equals the half-hour fee and the tiers differ", () => {
+    render(
+      <FeeRateSelector
+        vaultAmounts={[100_000n]}
+        feeRate={5}
+        onFeeRateChange={vi.fn()}
+      />,
+    );
+
+    expect(buttonFor("Avg")).toHaveAttribute("aria-pressed", "true");
+    expect(buttonFor("Fast")).toHaveAttribute("aria-pressed", "false");
+    expect(buttonFor("Slow")).toHaveAttribute("aria-pressed", "false");
+  });
+
   it("commits the hour fee rate when Slow is clicked", () => {
     const onFeeRateChange = vi.fn();
     render(
