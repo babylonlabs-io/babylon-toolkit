@@ -85,6 +85,30 @@ describe("WithdrawReviewContent", () => {
     expect(screen.getByTestId("withdraw-confirm-button")).toBeDisabled();
   });
 
+  it("announces the block warning as a titled alert banner", () => {
+    render(
+      <WithdrawReviewContent {...baseProps} projectedHealthFactor={0.9} />,
+    );
+
+    const banner = screen.getByTestId("withdraw-hf-block-warning");
+    expect(banner).toHaveAttribute("role", "alert");
+    expect(banner).toHaveTextContent("Withdraw unavailable");
+    // The warning triangle, not the error variant's default close glyph:
+    // the two icons are only distinguishable in the DOM by their viewBox.
+    expect(banner.querySelector('svg[viewBox="0 0 22 20"]')).not.toBeNull();
+  });
+
+  it("warns without blocking when the projection is above the floor but at risk", () => {
+    render(
+      <WithdrawReviewContent {...baseProps} projectedHealthFactor={1.05} />,
+    );
+
+    expect(screen.getByTestId("withdraw-hf-at-risk-warning")).toHaveTextContent(
+      "health factor below 1.1",
+    );
+    expect(screen.getByTestId("withdraw-confirm-button")).toBeEnabled();
+  });
+
   it("blocks confirmation and shows the reason when a hub would reject the withdrawal", () => {
     render(
       <WithdrawReviewContent
