@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useWithdrawCollateralTransaction } from "@/applications/aave/hooks/useWithdrawCollateralTransaction";
 import { useWithdrawHubBlockMessage } from "@/applications/aave/hooks/useWithdrawHubBlockMessage";
@@ -21,6 +21,7 @@ import { FadeTransition } from "../FadeTransition";
 import { useWithdrawFlow, WithdrawStep } from "./useWithdrawFlow";
 import { WithdrawProgressView } from "./WithdrawProgressView";
 import { WithdrawReviewContent } from "./WithdrawReviewContent";
+import { WithdrawSelectContent } from "./WithdrawSelectContent";
 
 export interface WithdrawFlowProps {
   open: boolean;
@@ -44,7 +45,7 @@ function WithdrawFlowContent({
   currentHealthFactor,
   preSelectedVaultIds,
 }: WithdrawFlowProps) {
-  const { step, goToProgress, reset } = useWithdrawFlow();
+  const { step, goToReview, goToProgress, reset } = useWithdrawFlow();
   const { executeWithdraw, isProcessing, error } =
     useWithdrawCollateralTransaction();
   const hubBlockMessage = useWithdrawHubBlockMessage();
@@ -56,21 +57,35 @@ function WithdrawFlowContent({
   // fake vaultId) and must never be selectable for a real withdraw, even if a
   // caller mistakenly passes the demo-merged list. Mirrors CollateralSection's
   // actionableVaults filter. Always a no-op in production (the flag is never
-  // set there). Only `active` vaults back the position.
+  // set there). Only `active`, in-use vaults back the position, so they are
+  // also the only ones the selection step offers.
   const withdrawableVaults = useMemo(
     () =>
       collateralVaults.filter(
-        (v) => !v.displayOnly && v.lifecycle === "active",
+        (v) => !v.displayOnly && v.lifecycle === "active" && v.inUse,
       ),
     [collateralVaults],
   );
+
+  // The row the user clicked arrives pre-checked; the selection step then owns
+  // it. `getEffectiveVaultSelection` still filters every read, so a vault that
+  // leaves the position mid-flow drops out on its own.
+  const [selectedVaultIds, setSelectedVaultIds] = useState(preSelectedVaultIds);
+  const [acknowledged, setAcknowledged] = useState(false);
+  const toggleVault = useCallback((vaultId: string) => {
+    setSelectedVaultIds((ids) =>
+      ids.includes(vaultId)
+        ? ids.filter((id) => id !== vaultId)
+        : [...ids, vaultId],
+    );
+  }, []);
 
   const {
     selectedVaultIds: effectiveSelectedVaultIds,
     selectedVaults: liveSelectedVaults,
   } = useMemo(
-    () => getEffectiveVaultSelection(withdrawableVaults, preSelectedVaultIds),
-    [withdrawableVaults, preSelectedVaultIds],
+    () => getEffectiveVaultSelection(withdrawableVaults, selectedVaultIds),
+    [withdrawableVaults, selectedVaultIds],
   );
 
   // The withdraw marks its vaults pending AND awaits a position refetch before
@@ -144,6 +159,14 @@ function WithdrawFlowContent({
     reviewCurrentHealthFactor,
   ]);
 
+  // The risk card names one health factor, so an acknowledgement only covers
+  // that number. Drop it whenever the projection moves — a changed selection, a
+  // price move, or the projection leaving the at-risk band and returning — so
+  // the user accepts what is on screen rather than what used to be.
+  useEffect(() => {
+    setAcknowledged(false);
+  }, [projectedHealthFactor]);
+
   const handleConfirm = useCallback(async () => {
     setConfirmed({
       vaults: liveSelectedVaults,
@@ -170,6 +193,20 @@ function WithdrawFlowContent({
   return (
     <V3ModalShell open={open} onClose={onClose}>
       <FadeTransition stepKey={renderedStep}>
+        {renderedStep === WithdrawStep.SELECT && (
+          <div className="mx-auto w-full max-w-[564px]">
+            <WithdrawSelectContent
+              vaults={withdrawableVaults}
+              selectedVaultIds={effectiveSelectedVaultIds}
+              totalAmountBtc={selectedBtc}
+              projectedHealthFactor={projectedHealthFactor}
+              acknowledged={acknowledged}
+              onToggleVault={toggleVault}
+              onAcknowledgedChange={setAcknowledged}
+              onContinue={goToReview}
+            />
+          </div>
+        )}
         {renderedStep === WithdrawStep.REVIEW && (
           <div className="mx-auto w-full max-w-[612px]">
             <WithdrawReviewContent
