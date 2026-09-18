@@ -1,4 +1,3 @@
-import { Loader } from "@babylonlabs-io/core-ui";
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import {
@@ -11,22 +10,10 @@ import {
 import { IoDownloadOutline } from "react-icons/io5";
 import type { Hex } from "viem";
 
-import { ProgressBar } from "@/components/simple/DepositProgressView/ProgressBar";
 import { COPY } from "@/copy";
 import { useArtifactDownload } from "@/hooks/deposit/useArtifactDownload";
 import { isFileSystemAccessSupported } from "@/services/artifacts";
 import { hasArtifactsDownloaded } from "@/utils/artifactDownloadStorage";
-
-// Decimal (SI) units, matching the design's "742 MB / 1.00 GB" presentation
-// and the "~1 GB" card copy.
-const DECIMAL_UNIT_STEP = 1000;
-const BYTES_PER_KB = DECIMAL_UNIT_STEP;
-const BYTES_PER_MB = BYTES_PER_KB * DECIMAL_UNIT_STEP;
-const BYTES_PER_GB = BYTES_PER_MB * DECIMAL_UNIT_STEP;
-
-// Brand orange (Tailwind's `secondary-main` token), inlined because
-// ProgressBar takes a raw CSS color rather than a class name.
-const PROGRESS_BAR_FILL_COLOR = "#CE6533";
 
 function RecoveryArtifactsIcon() {
   return (
@@ -63,18 +50,14 @@ function RecoveryArtifactsIcon() {
   );
 }
 
-// Unit rollover keys off the ROUNDED value so e.g. 999.5 MB renders
-// "1.00 GB", never "1000 MB".
-function formatBytes(bytes: number): string {
-  const megabytes = Math.round(bytes / BYTES_PER_MB);
-  if (megabytes >= DECIMAL_UNIT_STEP) {
-    return `${(bytes / BYTES_PER_GB).toFixed(2)} GB`;
-  }
-  const kilobytes = Math.round(bytes / BYTES_PER_KB);
-  if (kilobytes >= DECIMAL_UNIT_STEP) {
-    return `${megabytes} MB`;
-  }
-  return `${kilobytes} KB`;
+/** Everything the parent needs to render the download in the card's place. */
+export interface ArtifactDownloadProgress {
+  loading: boolean;
+  receivedBytes: number;
+  /** 0 until the transfer reports a Content-Length. */
+  totalBytes: number;
+  /** The hook's status line while the total is still unknown. */
+  status: string;
 }
 
 interface RecoveryArtifactsCardProps {
@@ -104,11 +87,12 @@ interface RecoveryArtifactsCardProps {
    */
   onDelivered?: () => void;
   /**
-   * Fired whenever the in-card download flag flips. Lets a parent modal
-   * swap its own title/body/footer copy in lockstep with the card so the
-   * whole dialog reads as a single "downloading" state.
+   * Fired whenever the in-flight download's state moves. The card renders
+   * nothing while `loading`, so this is what lets the parent modal present
+   * the download — its own title, body and progress — in place of its
+   * activation content.
    */
-  onLoadingChange?: (loading: boolean) => void;
+  onStateChange?: (state: ArtifactDownloadProgress) => void;
 }
 
 /**
@@ -132,7 +116,7 @@ export const RecoveryArtifactsCard = forwardRef<
     unsignedPrePeginTxHex,
     onDownloaded,
     onDelivered,
-    onLoadingChange,
+    onStateChange,
   },
   ref,
 ) {
@@ -192,57 +176,18 @@ export const RecoveryArtifactsCard = forwardRef<
   }, [delivered, onDelivered]);
 
   useEffect(() => {
-    onLoadingChange?.(loading);
-  }, [loading, onLoadingChange]);
+    onStateChange?.({ loading, receivedBytes, totalBytes, status: progress });
+  }, [loading, receivedBytes, totalBytes, progress, onStateChange]);
 
   const handleDownload = () => {
     download(providerAddress, peginTxid, depositorPk);
   };
 
-  // While the download is in flight, the parent modal swaps its own
-  // title/body/footer (see ArtifactDownloadModal) and we drop the icon
-  // header + inline Cancel link — the modal's footer button handles
-  // cancellation. The container styling stays consistent across states
-  // so the box position in the dialog doesn't jump.
-  if (loading) {
-    return (
-      <div className="flex flex-col gap-3 rounded-lg border border-secondary-strokeLight bg-secondary-highlight p-4">
-        {totalBytes > 0 ? (
-          <>
-            <div className="flex items-baseline justify-between gap-2">
-              <span className="text-base leading-[1.5] tracking-[0.15px] text-accent-primary">
-                {/* Clamp to total so a gzip'd Content-Length or an
-                    underestimated fallback can't render "1.40 GB / 1.30 GB"
-                    — matches the percent/bar clamps below. The separator
-                    stays in the primary segment per the design. */}
-                {`${formatBytes(Math.min(receivedBytes, totalBytes))} / `}
-                <span className="text-accent-secondary">
-                  {formatBytes(totalBytes)}
-                </span>
-              </span>
-              <span className="text-base leading-[1.5] tracking-[0.15px] text-accent-secondary">
-                {Math.min(100, Math.round((receivedBytes / totalBytes) * 100))}%
-              </span>
-            </div>
-            <ProgressBar
-              percent={Math.min(1, receivedBytes / totalBytes)}
-              color={PROGRESS_BAR_FILL_COLOR}
-            />
-            <span className="text-sm leading-[1.43] tracking-[0.17px] text-accent-primary">
-              {COPY.deposit.recoveryArtifacts.doNotCloseHint}
-            </span>
-          </>
-        ) : (
-          <div className="flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-secondary-strokeLight bg-neutral-200 px-4 text-accent-primary">
-            <Loader size={16} />
-            <span className="text-sm leading-[1.43] tracking-[0.17px]">
-              {progress || COPY.deposit.recoveryArtifacts.downloadingButton}
-            </span>
-          </div>
-        )}
-      </div>
-    );
-  }
+  // The parent modal owns the downloading presentation end to end (see
+  // ArtifactDownloadContent), so the card renders nothing while bytes
+  // stream. It stays mounted: it holds the download hook, and unmounting
+  // it would abandon the transfer.
+  if (loading) return null;
 
   return (
     <div className="flex flex-col gap-4 rounded-lg border border-secondary-strokeLight bg-secondary-highlight p-4">
