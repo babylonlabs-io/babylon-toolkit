@@ -585,23 +585,16 @@ export const COPY = {
       activateButton: "Activate BTCVault",
       cancelButton: "Cancel",
       cancelDownloadButton: CANCEL_DOWNLOAD_LABEL,
-      // Advanced entry into the activate-and-redeem escape hatch, rendered as
-      // a muted link under the activation confirmation so it is always
-      // reachable on a Verified BTCVault without competing with the primary
-      // activation path.
-      advancedWithdrawLink: "Unable to activate? Withdraw without activating",
     },
     // Activate-and-redeem escape hatch: reveals the HTLC secret and redeems
-    // the BTCVault in one transaction, skipping application activation. Two
-    // body variants: `bodyStuck` when the stuck state was detected on-chain
-    // (peg-in swept while the vault is still Verified), `bodyAdvanced` when
-    // the user reached it via the advanced link and waiting for expiry +
-    // refund is still the safe default.
+    // the BTCVault in one transaction, skipping application activation.
+    // Reached only when the stuck state was detected on-chain — the peg-in
+    // was swept while the vault is still Verified.
     emergencyWithdraw: {
       title: "Withdraw without activating",
       // Reassurance first: the stuck state looks like lost funds but is
       // fully recoverable through this flow.
-      // Both bodies state the wait before the acknowledgement, not only on the
+      // The body states the wait before the acknowledgement, not only on the
       // success screen: the BTC comes back through the vault provider's normal
       // claim pipeline, so a depositor who expects funds within the hour would
       // be committing to the reveal on a false premise. Deliberately no figure
@@ -609,8 +602,6 @@ export const COPY = {
       // this screen does not resolve, and a hardcoded one would be a guess.
       bodyStuck:
         "Your BTC is not lost. The peg-in was completed on Bitcoin, but the BTCVault was never activated. Withdrawing redeems the BTCVault — the vault provider will send your BTC to your payout address, which takes several days.",
-      bodyAdvanced:
-        "This reveals your HTLC secret and redeems the BTCVault without activating it. The vault provider will send your BTC to your payout address, which takes several days. If you are unsure, cancel and wait — letting the BTCVault expire and refunding is the safe default.",
       riskAcknowledgement:
         "I understand this permanently reveals my HTLC secret and cannot be undone.",
       // Shown when the vault's application is registered but not Active on

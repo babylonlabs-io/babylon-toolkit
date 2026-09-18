@@ -695,21 +695,12 @@ export function VaultsLifecycleSections({
   const handleEmergencyWithdraw = useCallback(
     (depositId: string) => {
       if (allActivities.some((a) => a.id === depositId)) {
-        emergencyWithdrawModal.handleWithdrawClick(depositId, "detected");
+        emergencyWithdrawModal.handleWithdrawClick(depositId);
         return;
       }
       handleOpenDetails(depositId);
     },
     [allActivities, emergencyWithdrawModal, handleOpenDetails],
-  );
-  // Advanced entry from the activation dialog inside the multistepper: swap
-  // the multistepper for the dedicated withdraw modal (the two never stack).
-  const handleAdvancedWithdraw = useCallback(
-    (depositId: string) => {
-      setViewingBatch(null);
-      emergencyWithdrawModal.handleWithdrawClick(depositId, "advanced");
-    },
-    [emergencyWithdrawModal],
   );
 
   const handleViewingClose = useCallback(() => setViewingBatch(null), []);
@@ -925,7 +916,6 @@ export function VaultsLifecycleSections({
               vaultIds={viewingBatch}
               depositorEthAddress={ethAddress as Address}
               onClose={handleViewingClose}
-              onAdvancedWithdraw={handleAdvancedWithdraw}
             />
           </div>
         </V3ModalShell>

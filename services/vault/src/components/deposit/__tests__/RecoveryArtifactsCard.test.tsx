@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RecoveryArtifactsCard } from "../RecoveryArtifactsCard";
@@ -94,6 +94,31 @@ describe("RecoveryArtifactsCard — byte-progress panel", () => {
       screen.getByText("Fetching artifacts from vault provider..."),
     ).toBeTruthy();
     expect(screen.queryByRole("progressbar")).toBeNull();
+  });
+});
+
+describe("RecoveryArtifactsCard — idle card", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    hookState.current = { ...IDLE_HOOK_STATE };
+  });
+
+  it("names the artifacts, what they are, and how large they are before any download", () => {
+    render(<RecoveryArtifactsCard {...COMMON_PROPS} />);
+
+    expect(screen.getByText("Recovery artifacts")).toBeTruthy();
+    expect(screen.getByText("Encrypted backup files")).toBeTruthy();
+    expect(screen.getByText("Up to ~1 GB")).toBeTruthy();
+  });
+
+  it("starts the download for this deposit when the download button is clicked", () => {
+    const download = vi.fn();
+    hookState.current = { ...IDLE_HOOK_STATE, download };
+
+    render(<RecoveryArtifactsCard {...COMMON_PROPS} />);
+    fireEvent.click(screen.getByText("Download Artifacts"));
+
+    expect(download).toHaveBeenCalledWith("0xprovider", "0xpegin", "0xpk");
   });
 });
 
