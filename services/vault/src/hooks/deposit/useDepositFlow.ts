@@ -1320,7 +1320,6 @@ export function useDepositFlow(
         const { readyVaultIds, terminalVaultIds } = await waitForWotsReadiness({
           vaults: broadcastedResults.map((result) => ({
             vaultId: result.vaultId,
-            peginTxHash: result.peginTxHash,
           })),
           providerAddress: provider.id,
           signal,
@@ -1460,7 +1459,6 @@ export function useDepositFlow(
         } = await waitForPayoutReadiness({
           vaults: payoutCandidateResults.map((result) => ({
             vaultId: result.vaultId,
-            peginTxHash: result.peginTxHash,
           })),
           providerAddress: provider.id,
           signal,
