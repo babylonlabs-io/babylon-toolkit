@@ -63,10 +63,10 @@ import {
   HUB_SELECT_TITLE,
   MAX_AMOUNT_KEYWORD,
   MAX_BUTTON_RX,
+  readTxFailedText,
   SUCCESS_DONE_TESTID,
   TX_FAILED_RX,
 } from "./selectors";
-import { resubmitAfterStaleNonce } from "./staleNonceRetry";
 import { type Action, type ActionContext } from "./types";
 import { connectWallets } from "./walletConnect";
 
@@ -385,15 +385,14 @@ async function waitForBorrowCta(
 /**
  * After submitting, actively approve the MetaMask pop-up (the borrow is one ETH tx — the reused OKX-style
  * window needs the active sweep; MetaMask fires its own event too) and wait for the "Borrow successful"
- * screen, then click Done. Fails fast if the form surfaces a "Transaction failed" callout, except a
- * stale-nonce rejection, which is resubmitted once via `cta` (see staleNonceRetry.ts).
+ * screen, then click Done. Fails fast, with the callout's text, if the form surfaces a "Transaction
+ * failed" callout.
  */
 async function confirmBorrowSuccess(
   page: Page,
   context: BrowserContext,
   log: (m: string) => void,
   reserveLabel: string,
-  cta: Locator,
 ): Promise<void> {
   // Success is gated ONLY on markers specific to the borrow-success screen — the "Borrow successful"
   // title or the `loan-success-done-button` testid. NOT the generic "Done" role: deposit/withdraw/repay
@@ -407,8 +406,7 @@ async function confirmBorrowSuccess(
     page.getByRole("button", { name: DONE_BUTTON_RX }),
   );
   const txFailed = page.getByText(TX_FAILED_RX).first();
-  let deadline = Date.now() + BORROW_TX_TIMEOUT_MS;
-  let staleNonceRetries = 0;
+  const deadline = Date.now() + BORROW_TX_TIMEOUT_MS;
   while (Date.now() < deadline) {
     await sweepApprovals(context, page, log);
 
@@ -421,15 +419,9 @@ async function confirmBorrowSuccess(
       return;
     }
     if (await txFailed.isVisible().catch(() => false)) {
-      // A stale-nonce rejection is resubmitted once (see staleNonceRetry.ts); anything else fails the run.
-      if (await resubmitAfterStaleNonce(page, cta, log, staleNonceRetries)) {
-        staleNonceRetries += 1;
-        deadline = Date.now() + BORROW_TX_TIMEOUT_MS;
-        continue;
-      }
-      const detail = await readCalloutText(page);
+      const detail = await readTxFailedText(page);
       throw new Error(
-        `Borrow transaction failed${detail ? ` — ${detail}` : ""}. See trace.zip + the failure screenshot.`,
+        `Borrow transaction failed${detail ? ` — the form shows "${detail}"` : ""}. See trace.zip + the failure screenshot.`,
       );
     }
     await page.waitForTimeout(FORM_SETTLE_MS);
@@ -522,7 +514,7 @@ async function runBorrowFlow(
   );
   await cta.click();
 
-  await confirmBorrowSuccess(page, context, log, describeReserve(reserve), cta);
+  await confirmBorrowSuccess(page, context, log, describeReserve(reserve));
 
   onStep("borrow-verify");
   await assertBorrowDebtIncreased(ctx, debtBeforeUsd);

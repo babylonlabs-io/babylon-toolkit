@@ -11,7 +11,10 @@ import { COPY } from "@/copy";
 
 import { COMMON_ERROR_ABI } from "./commonErrorAbi";
 import { CONTRACT_ERROR_MESSAGES } from "./errorMessages";
-import { matchesInsufficientGasFundsMessage } from "./formatting";
+import {
+  classifyError,
+  matchesInsufficientGasFundsMessage,
+} from "./formatting";
 import { ActivationNotPossibleError, ContractError, ErrorCode } from "./types";
 
 /** Minimum length of a revert hex payload: `0x` + a 4-byte (8 hex char) selector. */
@@ -303,6 +306,14 @@ export function mapViemErrorToContractError(
       ) {
         code = ErrorCode.CONTRACT_REVERT;
         reason = reason || message;
+      } else if (!decoded && classifyError(error) === "stale-nonce") {
+        // The wallet signed with a nonce the chain already used and the node
+        // rejected it before broadcast. Checked over the cause chain, so a
+        // caller re-mapping an already-mapped error keeps this copy instead
+        // of prefixing it with the raw node text.
+        code = ErrorCode.CONTRACT_NONCE_ERROR;
+        reason = reason || message;
+        enhancedMessage = COPY.common.classifiedErrors.staleNonce;
       } else if (!decoded && matchesInsufficientGasFundsMessage(message)) {
         // Wallet can't cover gas * price + value. This fails at send time
         // (not simulation), so surface friendly copy instead of the raw node

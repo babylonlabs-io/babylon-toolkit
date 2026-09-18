@@ -496,7 +496,7 @@ describe("Error Formatting", () => {
       expect(sanitizeErrorMessage(err)).toMatch(/Network error/i);
     });
 
-    it("classifies a nonce-too-low / already-known chain as already-submitted, not a retry", () => {
+    it("classifies a nonce error whose node text says already known as already-submitted, not a retry", () => {
       // viem's chain for "already known" / nonce errors is
       // TransactionExecutionError -> NonceTooLowError -> RpcRequestError. The
       // NonceTooLowError frame (above the RpcRequestError frame) means the tx
@@ -521,6 +521,29 @@ describe("Error Formatting", () => {
       expect(msg).not.toMatch(/check your connection/i);
       expect(msg).not.toMatch(/wait a moment and try again/i);
       expect(msg).toMatch(/already submitted/i);
+    });
+
+    it("classifies a nonce-too-low chain as a stale nonce, not already-submitted", () => {
+      // The wallet signed with a nonce the chain already used.
+      const inner = Object.assign(
+        new Error("nonce too low: next nonce 788, tx nonce 787"),
+        { name: "RpcRequestError", code: -32000, walk: () => {} },
+      );
+      const nonce = Object.assign(
+        new Error(
+          "Nonce provided for the transaction is lower than the current nonce of the account.",
+        ),
+        { name: "NonceTooLowError", cause: inner, walk: () => {} },
+      );
+      const outer = Object.assign(new Error("Transaction failed."), {
+        name: "TransactionExecutionError",
+        cause: nonce,
+        walk: () => {},
+      });
+      expect(classifyError(outer)).toBe("stale-nonce");
+      expect(sanitizeErrorMessage(outer)).toBe(
+        COPY.common.classifiedErrors.staleNonce,
+      );
     });
 
     it("classifies a raw 'already known' provider message as already-submitted", () => {

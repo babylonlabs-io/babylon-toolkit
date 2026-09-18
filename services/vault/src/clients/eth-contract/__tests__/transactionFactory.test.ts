@@ -2,17 +2,31 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ContractError, isSimulationPhaseError } from "@/utils/errors";
 
-const { mockPublicClient, mockWaitReceipt } = vi.hoisted(() => ({
+const {
+  mockPublicClient,
+  mockWaitReceipt,
+  mockSendWithStaleNonceRetry,
+  mockWaitForWalletToCountTransaction,
+} = vi.hoisted(() => ({
   mockPublicClient: {
     simulateContract: vi.fn(),
     call: vi.fn(),
     getTransaction: vi.fn(),
   },
   mockWaitReceipt: vi.fn(),
+  mockSendWithStaleNonceRetry: vi.fn(),
+  mockWaitForWalletToCountTransaction: vi.fn(),
 }));
 
 vi.mock("../client", () => ({
   ethClient: { getPublicClient: () => mockPublicClient },
+}));
+
+vi.mock("../walletNonce", () => ({
+  sendWithStaleNonceRetry: (...args: unknown[]) =>
+    mockSendWithStaleNonceRetry(...args),
+  waitForWalletToCountTransaction: (...args: unknown[]) =>
+    mockWaitForWalletToCountTransaction(...args),
 }));
 
 vi.mock("@/config/network", () => ({
@@ -60,11 +74,15 @@ const write = () =>
     errorContext: "approve ERC20",
   });
 
-describe("executeWrite simulation-phase tagging", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
+beforeEach(() => {
+  vi.clearAllMocks();
+  mockSendWithStaleNonceRetry.mockImplementation(
+    ({ send }: { send: () => Promise<unknown> }) => send(),
+  );
+  mockWaitForWalletToCountTransaction.mockResolvedValue(undefined);
+});
 
+describe("executeWrite simulation-phase tagging", () => {
   it("tags a pre-flight simulation failure as simulation-phase", async () => {
     mockPublicClient.simulateContract.mockRejectedValue(
       new Error("execution reverted"),
@@ -80,7 +98,9 @@ describe("executeWrite simulation-phase tagging", () => {
 
   it("does not tag a post-simulation send failure", async () => {
     mockPublicClient.simulateContract.mockResolvedValue({});
-    walletClient.writeContract.mockRejectedValue(new Error("nonce too low"));
+    walletClient.writeContract.mockRejectedValue(
+      new Error("replacement transaction underpriced"),
+    );
 
     const thrown = await write().catch((e: unknown) => e);
 
@@ -106,5 +126,91 @@ describe("executeWrite simulation-phase tagging", () => {
 
     expect(thrown).toBeInstanceOf(ContractError);
     expect(isSimulationPhaseError(thrown)).toBe(false);
+  });
+
+  it("waits for the wallet to count a reverted transaction before surfacing the revert", async () => {
+    mockPublicClient.simulateContract.mockResolvedValue({});
+    walletClient.writeContract.mockResolvedValue("0xhash");
+    mockWaitReceipt.mockResolvedValue({
+      status: "reverted",
+      gasUsed: 10n,
+      blockNumber: 5n,
+      transactionHash: "0xabc",
+      logs: [],
+    });
+    mockPublicClient.getTransaction.mockResolvedValue({ gas: 1000n });
+    mockPublicClient.call.mockRejectedValue(new Error("execution reverted"));
+
+    await write().catch(() => undefined);
+
+    expect(mockWaitForWalletToCountTransaction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        receipt: expect.objectContaining({ transactionHash: "0xabc" }),
+      }),
+    );
+  });
+});
+
+describe("executeWrite wallet nonce handling", () => {
+  it("waits for the wallet to count the mined transaction before returning", async () => {
+    mockPublicClient.simulateContract.mockResolvedValue({});
+    walletClient.writeContract.mockResolvedValue("0xsent");
+    mockWaitReceipt.mockResolvedValue({
+      status: "success",
+      transactionHash: "0xmined",
+    });
+
+    await expect(write()).resolves.toMatchObject({
+      transactionHash: "0xmined",
+    });
+    expect(mockWaitForWalletToCountTransaction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        walletClient,
+        publicClient: mockPublicClient,
+        account: "0x2000000000000000000000000000000000000002",
+        receipt: expect.objectContaining({ transactionHash: "0xmined" }),
+      }),
+    );
+  });
+
+  it("simulates again when the send is retried after a stale nonce", async () => {
+    mockPublicClient.simulateContract.mockResolvedValue({});
+    walletClient.writeContract.mockResolvedValue("0xsent");
+    mockWaitReceipt.mockResolvedValue({
+      status: "success",
+      transactionHash: "0xmined",
+    });
+    mockSendWithStaleNonceRetry.mockImplementation(
+      async ({
+        send,
+        prepare,
+      }: {
+        send: () => Promise<unknown>;
+        prepare: () => Promise<void>;
+      }) => {
+        await prepare();
+        return send();
+      },
+    );
+
+    await write();
+
+    expect(mockPublicClient.simulateContract).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps a failed re-simulation before the retry tagged as simulation-phase", async () => {
+    mockPublicClient.simulateContract
+      .mockResolvedValueOnce({})
+      .mockRejectedValueOnce(new Error("execution reverted"));
+    mockSendWithStaleNonceRetry.mockImplementation(
+      async ({ prepare }: { prepare: () => Promise<void> }) => {
+        await prepare();
+      },
+    );
+
+    const thrown = await write().catch((e: unknown) => e);
+
+    expect(isSimulationPhaseError(thrown)).toBe(true);
+    expect(walletClient.writeContract).not.toHaveBeenCalled();
   });
 });

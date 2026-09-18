@@ -1358,6 +1358,8 @@ export const COPY = {
         "We couldn't complete your request right now. Please wait a moment and try again.",
       alreadySubmitted:
         "This transaction was already submitted. Check your wallet or a block explorer for its status.",
+      staleNonce:
+        "Your wallet hadn't caught up with your last transaction yet. Check your wallet's activity, then try again.",
       staleDeploy:
         "This page is out of date — a newer version of the app was deployed. Refresh the page and try again.",
     },
