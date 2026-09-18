@@ -114,7 +114,7 @@ export interface IntentScalars {
   /**
    * PegIn prevout txid in INTERNAL byte order — the reverse of what an
    * explorer displays. The device compares it against the PSBT's prevout,
-   * which is also internal order (`vault_script.c:711-713`, "LE as stored").
+   * which is also internal order (`vault_script.c:766-767`, "LE as stored").
    */
   prepeginTxidInternal: Uint8Array;
   htlcRefundTimelock: number;

@@ -62,11 +62,11 @@ See the `services/vault` package in [babylon-toolkit](https://github.com/babylon
 
 ## PayoutManager — single-claimer payout signing
 
-Most applications don't drive `PayoutManager` directly. During phase 4 of the peg-in, the [`runDepositorPresignFlow()`](../api/services.md) service polls the VP, fetches per-claimer payout transactions, delegates signing to `PayoutManager` (batching through `signPsbts` when the wallet supports it), and submits signatures back to the VP. See the [Managers Quickstart end-to-end flow](./managers.md#end-to-end-flow) for the common path.
+Most applications don't drive `PayoutManager` directly. During phase 5 of the peg-in, the [`runDepositorPresignFlow()`](../api/services.md) service polls the VP, fetches per-claimer payout transactions, delegates signing to `PayoutManager` (batching through `signPsbts` when the wallet supports it), and submits signatures back to the VP. See the [Managers Quickstart end-to-end flow](./managers.md#end-to-end-flow) for the common path.
 
 Use `PayoutManager` directly only when you need to sign a single claimer's payout in isolation — e.g. a test harness, an out-of-band recovery, or a custom orchestration loop.
 
-> **What you're authorising.** A payout signature is cryptographic pre-authorisation that lets any qualified claimer move BTC out of the vault given a valid proof of bad behaviour. This is part of the [vault's security graph](https://github.com/babylonlabs-io/btc-vault/blob/main/docs/pegin.md#2-transaction-graph-and-presigning).
+> **What you're authorising.** A payout signature pre-authorises the peg-out once the claimer's Assert (which reveals the peg-out proof) matures. Output 0 pays the depositor's registered payout script when the VP or depositor claims, or the keeper's script when a VK claims. It is not a misbehaviour proof. See the [security graph](https://github.com/babylonlabs-io/btc-vault/blob/main/docs/pegin.md#2-transaction-graph-and-presigning).
 
 ### Configuration
 
@@ -90,15 +90,22 @@ const payoutManager = new PayoutManager({
 const { signature, depositorBtcPubkey } = await payoutManager.signPayoutTransaction({
   payoutTxHex: "...",
   peginTxHex: "...",
-  assertTxHex: "...",                        // Assert transaction (challenge path)
+  assertTxHex: "...",                        // Assert transaction the payout spends
   depositorBtcPubkey: "...",
   vaultProviderBtcPubkey: "...",
   vaultKeeperBtcPubkeys: [/* … */],
   universalChallengerBtcPubkeys: [/* … */],
   timelockPegin: 100,                        // from vault-pinned offchain params
+  timelockAssert: 144,
+  vaultCoreVersion,
+  claimerBtcPubkey: "...",
   registeredPayoutScriptPubKey: "0x...",     // from on-chain vault data
   protocolFeeRate,                           // version-locked offchainParams.feeRate
-  councilSize,                               // offchainParams.securityCouncilKeys.length
+  commissionBps,
+  councilMembers,                            // offchainParams.securityCouncilKeys
+  councilQuorum,
+  vkClaimerPayoutScriptPubKeys,
+  vpCommissionScriptPubKey,
 });
 ```
 
@@ -127,7 +134,7 @@ Rules to watch:
 - Every vault must use the same `vaultProviderBtcPubkey`, `vaultKeeperBtcPubkeys`, `universalChallengerBtcPubkeys`, and protocol params. If you need different providers, register separately.
 - The SDK derives a unique HTLC preimage per vault deterministically from the wallet root (`expandHashlockSecret(root, htlcVout)`). Callers don't generate or pass hashlocks.
 - Sign the proof-of-possession **once** (single wallet popup) and reuse the same `PopSignature` across every `registerPeginOnChain()` call in the batch.
-- `result.transaction.perVault[i]` returns one entry per vault — call `registerPeginOnChain()` for each. Broadcast the Pre-PegIn once.
+- `result.transaction.perVault[i]` returns one entry per vault. Prefer `registerPeginBatchOnChain()` — one Ethereum tx for all vaults instead of N. Broadcast the Pre-PegIn once.
 
 Example (builds on the happy-path config — `peginManager`, `btcWallet`, `vpEthAddress`, etc. are the same instances you set up in [Managers Quickstart → Configuration](./managers.md#configuration)):
 

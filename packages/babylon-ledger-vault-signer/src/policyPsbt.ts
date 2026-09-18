@@ -7,7 +7,7 @@
  * @ e400d8d8); outputs are internal ONLY on the change branch
  * (`process_in_outs.c:114-117`, `preprocess_outputs.c:74-79`). `_validate_prepegin`
  * requires every input internal and accepts change only when internal
- * (`sign_psbt_validate.c:334-545` @ 4decf822). This module adds exactly those
+ * (`sign_psbt_validate.c:526-751` @ b0c0ac4d). This module adds exactly those
  * fields; it never touches the unsigned transaction.
  *
  * @module ledger-vault-signer/policyPsbt
@@ -138,7 +138,7 @@ export function augmentPsbtForWalletPolicy(params: AugmentPsbtForWalletPolicyPar
       });
     }
   });
-  // `_validate_prepegin` requires EVERY input internal (`sign_psbt_validate.c:334-545`),
+  // `_validate_prepegin` requires EVERY input internal (`sign_psbt_validate.c:526-751`),
   // and an unmarked input is also skipped by the expected-signature table — so it
   // would reach the device and die mid-ceremony, after the approval screens.
   // Fail here, at zero device I/O, exactly like the change branch below.
@@ -158,7 +158,7 @@ export function augmentPsbtForWalletPolicy(params: AugmentPsbtForWalletPolicyPar
     const changeKey = Buffer.from(changeXOnlyHex, "hex");
     const matched = changeOutputIndices(psbt, changeXOnlyHex);
     // Marking nothing passes every host gate and dies mid-ceremony on-device
-    // (`sign_psbt_validate.c:507-510`); omit `change` for a change-less PSBT
+    // (`sign_psbt_validate.c:709-712`); omit `change` for a change-less PSBT
     // ({@link psbtPaysChangeScript} is the caller-side test).
     if (matched.length === 0) {
       throw new Error("change script matches no output — the PSBT does not pay the wallet's change address");

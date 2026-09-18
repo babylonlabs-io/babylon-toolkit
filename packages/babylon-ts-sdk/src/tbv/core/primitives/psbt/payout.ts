@@ -10,13 +10,13 @@
  * @module primitives/psbt/payout
  */
 
+import { Psbt, Transaction, type TxInput, type TxOutput } from "bitcoinjs-lib";
+import { Buffer } from "buffer";
 import {
   getAssertPayoutScriptInfo,
   tapInternalPubkey,
   type Network,
 } from "../../wasm";
-import { Psbt, Transaction, type TxInput, type TxOutput } from "bitcoinjs-lib";
-import { Buffer } from "buffer";
 import { deriveLocalChallengers } from "../challengers";
 import { createPayoutScript } from "../scripts/payout";
 import {
@@ -61,8 +61,8 @@ const TAPROOT_SINGLE_SIG_WITNESS_STACK_SIZE = 3;
 /**
  * Parameters for building an unsigned Payout PSBT
  *
- * Payout is used in the challenge path after Assert, when the claimer proves validity.
- * Input 1 references the Assert transaction.
+ * Payout ends two of the peg-out paths; see {@link buildPayoutPsbt} for all of
+ * them. Input 1 references the Assert transaction.
  */
 export interface PayoutParams {
   /**
@@ -210,11 +210,17 @@ export interface PayoutPsbtResult {
 /**
  * Build unsigned Payout PSBT for depositor to sign.
  *
- * Payout is used in the **challenge path** when the claimer proves validity:
- * 1. Vault provider submits Claim transaction
- * 2. Challenge is raised during challenge period
- * 3. Claimer submits Assert transaction to prove validity
- * 4. Payout can be executed (references Assert tx)
+ * Payout ends two of the four peg-out paths (btc-vault
+ * `crates/vault/docs/btc-transactions-spec.md`):
+ * - Happy path: Claim -> Assert -> Payout.
+ * - Challenge path, claimer wins: Claim -> Assert -> ChallengeAssert ->
+ *   WronglyChallenged -> Payout.
+ * - Challenge path, challenger wins: Claim -> Assert -> ChallengeAssert -> NoPayout.
+ * - Emergency path: the Security Council spends Assert:0 via CouncilNoPayout.
+ *
+ * So a raised challenge does not remove Payout; only NoPayout (challenger wins)
+ * or CouncilNoPayout (council emergency) blocks it.
+ * Payout references the Assert tx and needs its timelock matured.
  *
  * Payout transactions have the following structure:
  * - Input 0: from PeginTx output0 (signed by depositor)

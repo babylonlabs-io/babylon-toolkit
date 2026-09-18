@@ -35,6 +35,7 @@ declare const injectedWallet: {
   signPsbt(psbtHex: string, options?: SignPsbtOptions): Promise<string>;
   signPsbts?(psbtsHexes: string[], options?: SignPsbtOptions[]): Promise<string[]>;
   signMessage(msg: string, type: "bip322-simple" | "ecdsa"): Promise<string>;
+  deriveContextHash(appName: string, context: string): Promise<string>;
 };
 
 const btcWallet: BitcoinWallet = {
@@ -53,6 +54,10 @@ const btcWallet: BitcoinWallet = {
     );
   },
   signMessage: (msg, type) => injectedWallet.signMessage(msg, type),
+  // REQUIRED. Throw `WALLET_METHOD_NOT_SUPPORTED` if the wallet cannot do this —
+  // see "Wallet-derived secrets" below.
+  deriveContextHash: (appName, context) =>
+    injectedWallet.deriveContextHash(appName, context),
 };
 ```
 
@@ -141,6 +146,13 @@ const btcWallet: BitcoinWallet = {
     Promise.all(psbtsHexes.map((hex, i) => signPsbtImpl(hex, options?.[i]))),
   signMessage: async () => {
     throw new Error("BIP-322 signing not implemented in this example");
+  },
+  // REQUIRED on the interface. A wallet that cannot derive must throw
+  // `WALLET_METHOD_NOT_SUPPORTED` rather than omit the method.
+  deriveContextHash: async () => {
+    throw Object.assign(new Error("deriveContextHash not supported"), {
+      code: "WALLET_METHOD_NOT_SUPPORTED",
+    });
   },
 };
 ```
