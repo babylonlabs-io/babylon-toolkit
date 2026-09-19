@@ -65,6 +65,7 @@ import {
   connectDmkSession,
   disconnectDmkSession,
   isSessionAlive,
+  refreshSessionApp,
   setDmkTransportOverride,
 } from "../dmkSession";
 
@@ -170,7 +171,7 @@ describe("connectDmkSession", () => {
     expect(handle.appVersion).toBe("0.9.4");
   });
 
-  it("still connects when the preflight fails — app info is diagnostics, not a gate", async () => {
+  it("still connects when the preflight fails — with no identity there is nothing to gate on", async () => {
     dmkStub.sendCommand.mockRejectedValue(new Error("transport hiccup"));
 
     const handle = await connectDmkSession();
@@ -186,6 +187,27 @@ describe("connectDmkSession", () => {
     const handle = await connectDmkSession();
 
     expect(handle.appName).toBeUndefined();
+  });
+});
+
+describe("refreshSessionApp", () => {
+  it("fills the app name and version from a successful re-read on the same session", async () => {
+    const handle = { dmk: dmkStub as never, sessionId: "session-1" as never };
+
+    const refreshed = await refreshSessionApp(handle);
+
+    expect(refreshed).toMatchObject({ sessionId: "session-1", appName: "Babylon Vault Testnet", appVersion: "0.9.4" });
+    expect(dmkStub.sendCommand).toHaveBeenCalledWith(expect.objectContaining({ sessionId: "session-1" }));
+  });
+
+  it("keeps the handle's fields when the re-read fails", async () => {
+    dmkStub.sendCommand.mockRejectedValue(new Error("device locked"));
+    const handle = { dmk: dmkStub as never, sessionId: "session-1" as never };
+
+    const refreshed = await refreshSessionApp(handle);
+
+    expect(refreshed).toEqual(handle);
+    expect(refreshed.appName).toBeUndefined();
   });
 });
 
