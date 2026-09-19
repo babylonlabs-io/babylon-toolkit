@@ -139,8 +139,7 @@ export function assertBatchLifecycleStatus(
   for (const { member, role } of gated) {
     if (member.vault.status === OnChainBtcVaultStatus.PENDING) continue;
     throw new VaultLifecycleStateError(
-      // The broadcast message is load-bearing: mapDepositError buckets on the
-      // word "broadcast" — keep it byte-identical.
+      // mapDepositError buckets on the typed `stage`, not on this wording.
       lifecycle === "broadcast"
         ? `A vault in this Pre-PegIn batch is no longer awaiting broadcast ` +
           `(on-chain status ${member.vault.status}); the batch cannot be broadcast ` +
