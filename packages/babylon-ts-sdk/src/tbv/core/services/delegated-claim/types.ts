@@ -14,6 +14,12 @@ export interface WatchtowerArtifactsSummary {
   vaultId: string;
   /** Txid of the fully signed Claim transaction the file carries. */
   claimTxid: string;
+  /**
+   * Txid of the PegIn output that Claim spends. Together with the depositor's
+   * Ethereum address this derives the vault id, which is the only check that
+   * binds the file's graph to a vault — `vault_id` itself is self-declared.
+   */
+  peginTxid: string;
   proverCircuitVersion: number;
   /**
    * Block of the finalized `VaultClaimableBy` event, or `0n` when the file was
@@ -40,6 +46,12 @@ export interface ClaimerArtifactsSource {
 /** On-chain facts the assembled artifacts commit to. */
 export interface DelegatedClaimVaultContext {
   vaultId: Hex;
+  /**
+   * Depositor's Ethereum address, the one the vault was registered under.
+   * With the PegIn txid it re-derives {@link DelegatedClaimVaultContext.vaultId},
+   * which is how a vault-provider-served graph is bound to this vault.
+   */
+  depositorEthAddress: Hex;
   /** Graph (vault core) version of the vault. Delegated claim requires 3. */
   txGraphVersion: number;
   proverCircuitVersion: number;
@@ -50,9 +62,13 @@ export interface DelegatedClaimVaultContext {
    */
   vaultCoreVersion: number;
   /**
-   * Block of the finalized `VaultClaimableBy` event. Pass `0n` when the
-   * withdrawal has not been initiated yet; whoever runs the claim must
-   * correct it from chain first.
+   * Block of the finalized `VaultClaimableBy` event.
+   *
+   * Zero is accepted, because the file is meant to be assembled while the
+   * vault provider is still online, which can be long before the withdrawal
+   * is initiated. Such a file is not claimable as written: nothing in the SDK
+   * fills the field in later, and `assertArtifactsUsableForVault` refuses it.
+   * Pass the real block whenever the event has already finalized.
    */
   claimableEventBlockNumber: bigint;
 }

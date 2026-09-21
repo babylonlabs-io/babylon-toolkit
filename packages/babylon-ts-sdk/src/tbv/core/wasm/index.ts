@@ -395,12 +395,12 @@ export async function deriveVaultId(
 }
 
 // ============================================================================
-// Delegated claim (depositor-as-claimer) — assembly surface
+// Delegated claim (depositor-as-claimer) — assembly and claim-time surface
 // ============================================================================
 //
 // The forwarding hop for the WASM exports that assemble the two files the
-// `vaultd vp wt` watchtower CLI consumes. Claim-time execution is not here
-// and is not in the engine: it stays with that CLI.
+// `vaultd vp wt` watchtower CLI consumes, and for the claim-time exports
+// that run a claim from those files without the CLI.
 
 /** Depositor's Claim signing PSBT (base64) — spends PegIn:1, script path. */
 export async function buildClaimPsbt(

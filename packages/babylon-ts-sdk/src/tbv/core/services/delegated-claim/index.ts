@@ -35,6 +35,11 @@ export {
   summarizeWatchtowerArtifacts,
   type AssertArtifactsUsableParams,
 } from "./readWatchtowerArtifacts";
+export {
+  VaultIdBindingError,
+  assertClaimSpendsVault,
+  type AssertClaimSpendsVaultParams,
+} from "./vaultIdBinding";
 export type {
   ClaimerArtifactsSource,
   DelegatedClaimVaultContext,

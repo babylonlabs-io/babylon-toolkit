@@ -490,9 +490,9 @@ export {
 // Export challenge assert connector utilities (depositor-as-claimer)
 export { getChallengeAssertScriptInfo } from './challengeAssertConnector.js';
 
-// The delegated-claim assembly surface (graph v3 only). Claim-time execution
-// stays with the `vaultd vp wt` watchtower CLI, which reads the files these
-// produce.
+// The delegated-claim surface (graph v3 only): assembly of the two files the
+// `vaultd vp wt` watchtower CLI reads, and the claim-time execution that runs
+// from those same files without the CLI.
 export const {
   buildAssertClaimerPsbt,
   buildClaimPsbt,

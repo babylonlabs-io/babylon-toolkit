@@ -28,6 +28,15 @@ export interface DeriveClaimerWotsKeypairParams {
   txGraphJson: string;
   /** Graph version. Delegated claim requires 3. */
   txGraphVersion: number;
+  /**
+   * `depositorWotsPkHash` as the vault records it on chain, `0x`-prefixed.
+   *
+   * This is the only anchor here the vault provider does not supply. The
+   * graph check below compares against VP-served bytes, so it cannot tell a
+   * wrong `htlcVout`, a wrong wallet account, or expander drift after a
+   * WASM re-pin from a correct derivation.
+   */
+  expectedWotsPkHash: string;
 }
 
 export interface ClaimerWotsKeypair {
@@ -42,15 +51,18 @@ export interface ClaimerWotsKeypair {
 }
 
 /**
- * Re-derives the depositor's WOTS keypair and checks it against the graph.
+ * Re-derives the depositor's WOTS keypair and checks it against the vault's
+ * on-chain commitment and against the graph.
  *
  * The validation is the point of this function, not a formality: an unbound
  * keypair produces an Assert witness no verifier accepts, and that failure
  * would otherwise surface only after the Claim has been broadcast and the
- * PegIn UTXO is already spent.
+ * PegIn UTXO is already spent. The on-chain hash is checked first, because
+ * it is the one value here the vault provider cannot choose.
  *
- * @throws If the wallet's derivation does not match the WOTS public keys the
- *         graph's Claim commits to.
+ * @throws If the derivation does not match the vault's on-chain
+ *         `depositorWotsPkHash`, or the WOTS public keys the graph's Claim
+ *         commits to.
  */
 export async function deriveClaimerWotsKeypair(
   params: DeriveClaimerWotsKeypairParams,
@@ -70,6 +82,8 @@ export async function deriveClaimerWotsKeypair(
     wotsSeed.fill(0);
   }
 
+  assertMatchesOnChainHash(derivation.pk_hash, params.expectedWotsPkHash);
+
   await validateWotsKeypairAgainstGraph(
     params.txGraphVersion,
     derivation.keypair,
@@ -80,4 +94,24 @@ export async function deriveClaimerWotsKeypair(
     wotsKeypairJson: JSON.stringify(derivation.keypair),
     pkHash: derivation.pk_hash,
   };
+}
+
+/**
+ * Throws unless the derived public-key hash is the one the vault committed
+ * to on chain at deposit time.
+ */
+function assertMatchesOnChainHash(derived: string, onChain: string): void {
+  if (normalizeHash(derived) !== normalizeHash(onChain)) {
+    throw new Error(
+      `Derived WOTS public-key hash ${normalizeHash(derived)} does not match ` +
+        `the vault's on-chain depositorWotsPkHash ${normalizeHash(onChain)}. ` +
+        `The wallet, the HTLC output index, or the derivation itself is not ` +
+        `the one this vault was created with.`,
+    );
+  }
+}
+
+function normalizeHash(hash: string): string {
+  const bare = hash.startsWith("0x") ? hash.slice(2) : hash;
+  return `0x${bare.toLowerCase()}`;
 }

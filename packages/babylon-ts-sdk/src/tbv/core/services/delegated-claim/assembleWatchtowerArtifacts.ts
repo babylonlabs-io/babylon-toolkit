@@ -15,10 +15,12 @@
  * @module services/delegated-claim/assembleWatchtowerArtifacts
  */
 
+import type { Network } from "@babylonlabs-io/babylon-tbv-rust-wasm";
 import { Buffer } from "buffer";
 
 import type { BitcoinWallet } from "../../../../shared/wallets/interfaces";
 import { signPsbtsWithFallback } from "../../managers/pegin/signPsbtsWithFallback";
+import { isAddressFromPublicKey } from "../../primitives/utils/bitcoin";
 import { createTaprootScriptPathSignOptionsForInput } from "../../utils/signing";
 import {
   buildAssertClaimerPsbt,
@@ -36,6 +38,10 @@ import type {
   ClaimerArtifactsSource,
   DelegatedClaimVaultContext,
 } from "./types";
+import {
+  assertClaimSpendsVault,
+  peginTxidFromClaimPsbt,
+} from "./vaultIdBinding";
 
 /**
  * Index of the input each delegated-claim PSBT asks the wallet to sign.
@@ -62,6 +68,8 @@ export interface AssembleWatchtowerArtifactsParams {
   btcWallet: BitcoinWallet;
   /** Depositor's BTC public key (compressed or x-only hex). */
   depositorPublicKey: string;
+  /** Network the depositor's address is derived on, to check the signer. */
+  btcNetwork: Network;
   /** Graph and verifying key as the vault provider returned them. */
   source: ClaimerArtifactsSource;
   vault: DelegatedClaimVaultContext;
@@ -102,6 +110,15 @@ export async function assembleWatchtowerArtifacts(
       buildWronglyChallengedPsbts(txGraphVersion, graphJson),
     ]);
 
+  // The graph arrives from the vault provider and carries no proof that it
+  // belongs to this vault. The Claim's first input spends the PegIn output
+  // the on-chain vault id is derived from, so that input is the binding.
+  assertClaimSpendsVault({
+    peginTxid: peginTxidFromClaimPsbt(claimPsbt),
+    depositorEthAddress: params.vault.depositorEthAddress,
+    expectedVaultId: params.vault.vaultId,
+  });
+
   // The depositor Payout signature is always signed fresh. The builder no
   // longer reads a presigned one off the graph, so its PSBT always joins this
   // batch rather than costing a second wallet prompt later.
@@ -128,6 +145,7 @@ export async function assembleWatchtowerArtifacts(
   const signatures = await signAndExtract(
     params.btcWallet,
     params.depositorPublicKey,
+    params.btcNetwork,
     requests,
   );
 
@@ -181,15 +199,22 @@ function xOnlyHex(publicKeyHex: string): string {
 }
 
 /**
- * Throws unless the connected wallet holds `depositorPublicKey`.
+ * Returns the wallet's signing address, once both it and the wallet's public
+ * key are proved to be the vault's depositor.
+ *
+ * Both halves matter. The public key is what the graph's scripts commit to;
+ * the address is what the sign options name the signer by, and a wallet whose
+ * reported address and public key belong to different accounts would
+ * otherwise sign the whole batch for the wrong account.
  *
  * @throws When the wallet is on a different account than the vault's
- *         depositor.
+ *         depositor, or reports an address that key does not control.
  */
 async function assertWalletMatchesDepositor(
   btcWallet: BitcoinWallet,
   depositorPublicKey: string,
-): Promise<void> {
+  btcNetwork: Network,
+): Promise<string> {
   const walletPublicKey = await btcWallet.getPublicKeyHex();
   if (xOnlyHex(walletPublicKey) !== xOnlyHex(depositorPublicKey)) {
     throw new Error(
@@ -197,6 +222,16 @@ async function assertWalletMatchesDepositor(
         "Select the account that made the deposit, then try again.",
     );
   }
+
+  const signerAddress = await btcWallet.getAddress();
+  if (!isAddressFromPublicKey(signerAddress, depositorPublicKey, btcNetwork)) {
+    throw new Error(
+      `Connected wallet reports address "${signerAddress}", which is not ` +
+        "derived from the vault's depositor key. Select the account that " +
+        "made the deposit, then try again.",
+    );
+  }
+  return signerAddress;
 }
 
 /**
@@ -206,6 +241,7 @@ async function assertWalletMatchesDepositor(
 async function signAndExtract(
   btcWallet: BitcoinWallet,
   depositorPublicKey: string,
+  btcNetwork: Network,
   requests: PsbtSigningRequest[],
 ): Promise<string[]> {
   // The sign options name the signer by address, because a wallet derives a
@@ -214,8 +250,11 @@ async function signAndExtract(
   // it must be proved to be this depositor's account first: otherwise a wallet
   // on the wrong account signs all N+3 PSBTs and the mismatch only surfaces
   // later, in finalizeClaimTx or verify_bundle.
-  await assertWalletMatchesDepositor(btcWallet, depositorPublicKey);
-  const signerAddress = await btcWallet.getAddress();
+  const signerAddress = await assertWalletMatchesDepositor(
+    btcWallet,
+    depositorPublicKey,
+    btcNetwork,
+  );
   const signedPsbtHexes = await signPsbtsWithFallback(
     btcWallet,
     requests.map((request) => psbtBase64ToHex(request.psbtBase64)),

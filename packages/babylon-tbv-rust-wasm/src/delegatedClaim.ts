@@ -3,11 +3,15 @@
  *
  * These wrap the `vault-wasm` exports that let a browser produce the two
  * files the `vaultd vp wt` watchtower CLI consumes — `artifacts.json` and
- * `wots_keypair.json` — without the vault provider's cooperation.
+ * `wots_keypair.json` — without the vault provider's cooperation, and then
+ * run the claim from those same two files.
  *
- * Claim-time execution (proof verification, Assert/Payout/WronglyChallenged
- * finalization, race monitoring) is NOT part of this surface. It stays with
- * the watchtower CLI, which reads the two files these functions produce.
+ * Claim-time execution is part of this surface: `pinPegoutProof` verifies
+ * the prover's Groth16 proof into the artifacts, `attachFinalizedAssert`
+ * finalizes the Assert from it, and `finalizePayout` and
+ * `finalizeWronglyChallenged` return broadcastable transactions. Two things
+ * stay outside: the proof comes from the prover service, and nothing here
+ * watches the chain for a ChallengeAssert.
  *
  * Every graph-taking export is graph v3 only and fails closed on v1/v2 with
  * `unsupported tx graph version for delegated claim: <v> (supported: 3)` —
@@ -110,8 +114,9 @@ export function createDelegatedClaimApi(getWasmBindings: GetWasmBindings) {
 
     /**
      * Depositor's Payout signing PSBT (base64) — input 0, the PegIn UTXO
-     * spend. Only needed when the graph carries no presign-phase depositor
-     * Payout signature; see `extractDepositorPayoutSig`.
+     * spend. Always signed: the builder no longer reads a presign-phase
+     * depositor Payout signature off the graph, so this PSBT rides in the
+     * same batch as the rest rather than costing a second wallet prompt.
      */
     async buildPayoutDepositorPsbt(
       txGraphVersion: number,

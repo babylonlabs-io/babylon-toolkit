@@ -11,6 +11,10 @@
 import { describe, expect, it } from "vitest";
 
 import { wotsKeypairFromSeed } from "../../../wasm";
+import {
+  computeWotsBlockPublicKeysHash,
+  deriveWotsBlocksFromSeed,
+} from "../../../wots/blockDerivation";
 
 // The fixed [0x42; 64] seed vault-wasm pins.
 const GOLDEN_SEED = new Uint8Array(64).fill(0x42);
@@ -29,6 +33,19 @@ describe("wotsKeypairFromSeed frozen derivation", () => {
 
     expect(derivation.keypair).toBeTruthy();
     expect(derivation.public_keys).toBeTruthy();
+  });
+
+  it("agrees with the deposit-time TS derivation for the same seed", async () => {
+    // Deposit time commits `depositorWotsPkHash` through the TS path; claim
+    // time re-derives it through wasm. Two implementations of one on-chain
+    // value, so the value only binds while they agree. Both zero the seed
+    // they are handed, hence the copies.
+    const [blocks, derivation] = await Promise.all([
+      deriveWotsBlocksFromSeed(GOLDEN_SEED.slice()),
+      wotsKeypairFromSeed(GOLDEN_SEED.slice()),
+    ]);
+
+    expect(computeWotsBlockPublicKeysHash(blocks)).toBe(derivation.pk_hash);
   });
 
   it("rejects a seed that is not 64 bytes", async () => {

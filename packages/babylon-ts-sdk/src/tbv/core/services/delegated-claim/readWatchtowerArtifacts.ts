@@ -18,6 +18,11 @@ import { Transaction } from "bitcoinjs-lib";
 import { verifyWatchtowerArtifacts } from "../../wasm";
 
 import type { WatchtowerArtifactsSummary } from "./types";
+import {
+  assertClaimSpendsVault,
+  normalizeVaultId,
+  peginTxidFromClaimTx,
+} from "./vaultIdBinding";
 
 /**
  * Graph version the delegated-claim artifacts format exists for. Vaults on
@@ -41,12 +46,12 @@ export class ArtifactsVaultMismatchError extends Error {
 
 /** Raw shape of the fields this module reads out of the file. */
 interface ArtifactsFileFields {
-  vault_core_version?: number;
+  vault_core_version?: unknown;
   vault_id?: unknown;
   claim_tx?: unknown;
   prover_circuit_version?: unknown;
   claimable_event_block_number?: unknown;
-  babe_sessions?: Record<string, unknown>;
+  babe_sessions?: unknown;
 }
 
 /**
@@ -71,30 +76,39 @@ export function summarizeWatchtowerArtifacts(
   }
 
   const vaultId = requireString(parsed.vault_id, "vault_id");
-  const claimTxHex = requireString(parsed.claim_tx, "claim_tx");
-  const proverCircuitVersion = requireNumber(
+  const claimTx = parseClaimTx(requireString(parsed.claim_tx, "claim_tx"));
+  const proverCircuitVersion = requireSafeInteger(
     parsed.prover_circuit_version,
     "prover_circuit_version",
   );
   // Absent on files written before the field existed; the CLI reads an
-  // absent value as 0, which means "not yet known from chain".
+  // absent value as 0, which means "not yet known from chain". Anything
+  // present must be a block number: `JSON.parse` has already rounded
+  // anything above 2^53, and a negative or fractional value would otherwise
+  // reach `BigInt` and throw without naming the field.
   const claimableEventBlockNumber =
     parsed.claimable_event_block_number === undefined
       ? 0n
       : BigInt(
-          requireNumber(
+          requireSafeInteger(
             parsed.claimable_event_block_number,
             "claimable_event_block_number",
           ),
         );
 
   return {
-    vaultCoreVersion: parsed.vault_core_version,
+    vaultCoreVersion:
+      parsed.vault_core_version === undefined
+        ? undefined
+        : requireSafeInteger(parsed.vault_core_version, "vault_core_version"),
     vaultId,
-    claimTxid: computeTxid(claimTxHex),
+    claimTxid: claimTx.getId(),
+    peginTxid: peginTxidFromClaimTx(claimTx),
     proverCircuitVersion,
     claimableEventBlockNumber,
-    babeSessionChallengerPubkeys: Object.keys(parsed.babe_sessions ?? {}),
+    babeSessionChallengerPubkeys: Object.keys(
+      requireRecord(parsed.babe_sessions, "babe_sessions"),
+    ),
   };
 }
 
@@ -102,6 +116,12 @@ export interface AssertArtifactsUsableParams {
   artifactsJson: string;
   /** Vault the caller intends to claim, `0x`-prefixed or bare hex. */
   expectedVaultId: string;
+  /**
+   * Depositor's Ethereum address, used with the file's PegIn txid to
+   * re-derive the vault id. Without it the only check would be the file's
+   * self-declared `vault_id`.
+   */
+  depositorEthAddress: string;
   /**
    * Graph version to verify under. Defaults to the only version the format
    * exists for; pass it explicitly to fail loudly on a mismatched vault.
@@ -113,8 +133,9 @@ export interface AssertArtifactsUsableParams {
  * Verifies an artifacts file and confirms it is the one for this vault.
  *
  * @throws {@link ArtifactsVaultMismatchError} when the file names a different
- *         vault, or a verification error when any bundled signature does not
- *         hold against the file's own graph.
+ *         vault, {@link VaultIdBindingError} when the graph it carries
+ *         belongs to another vault whatever the file says, or a verification
+ *         error when any bundled signature does not hold against that graph.
  */
 export async function assertArtifactsUsableForVault(
   params: AssertArtifactsUsableParams,
@@ -126,6 +147,16 @@ export async function assertArtifactsUsableForVault(
   if (expected !== actual) {
     throw new ArtifactsVaultMismatchError(expected, actual);
   }
+
+  // `vault_id` is a field the file declares about itself, and the Rust
+  // verification only hex-normalizes it. This re-derives the id from the
+  // graph the file actually carries, which catches a file whose graph
+  // belongs to another vault however it was produced.
+  assertClaimSpendsVault({
+    peginTxid: summary.peginTxid,
+    depositorEthAddress: params.depositorEthAddress,
+    expectedVaultId: expected,
+  });
 
   // A file assembled before the Ethereum withdrawal was initiated carries
   // zero here. `vaultd vp wt start-claim` would then ask the prover to prove
@@ -147,15 +178,9 @@ export async function assertArtifactsUsableForVault(
   return summary;
 }
 
-function normalizeVaultId(vaultId: string): string {
-  const bare = vaultId.startsWith("0x") ? vaultId.slice(2) : vaultId;
-  return `0x${bare.toLowerCase()}`;
-}
-
-/** Display-order txid of the file's signed Claim transaction. */
-function computeTxid(txHex: string): string {
+function parseClaimTx(txHex: string): Transaction {
   try {
-    return Transaction.fromHex(txHex).getId();
+    return Transaction.fromHex(txHex);
   } catch (cause) {
     throw new Error("Artifacts file carries an unparseable claim_tx.", {
       cause,
@@ -170,9 +195,28 @@ function requireString(value: unknown, field: string): string {
   return value;
 }
 
-function requireNumber(value: unknown, field: string): number {
-  if (typeof value !== "number" || !Number.isFinite(value)) {
+/**
+ * A count or a block height: never negative, never fractional, and inside
+ * the range `JSON.parse` can represent without silently rounding.
+ */
+function requireSafeInteger(value: unknown, field: string): number {
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0) {
     throw new Error(`Artifacts file is missing a usable "${field}".`);
   }
   return value;
+}
+
+/**
+ * A JSON object, not a string or an array — `Object.keys` on either reports
+ * index positions, which would pass as challenger public keys.
+ */
+function requireRecord(
+  value: unknown,
+  field: string,
+): Record<string, unknown> {
+  if (value === undefined) return {};
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error(`Artifacts file is missing a usable "${field}".`);
+  }
+  return value as Record<string, unknown>;
 }

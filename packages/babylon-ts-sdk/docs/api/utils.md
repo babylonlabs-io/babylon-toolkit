@@ -1193,7 +1193,10 @@ Number of inputs to sign. Generates entries
 ### createTaprootScriptPathSignOptionsForInput()
 
 ```ts
-function createTaprootScriptPathSignOptionsForInput(publicKey, inputIndex): SignPsbtOptions;
+function createTaprootScriptPathSignOptionsForInput(
+   publicKey, 
+   inputIndex, 
+   address?): SignPsbtOptions;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/signing.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/signing.ts)
@@ -1219,6 +1222,18 @@ Signer's BTC public key (hex), compressed or x-only.
 `number`
 
 Index of the single input to sign.
+
+##### address?
+
+`string`
+
+Signer's BTC address. A wallet derives a key-path address
+  from `publicKey` and compares it with the input's address, so `publicKey`
+  alone cannot sign an input that sits at a different address — every
+  script-path connector output. UniSat refuses input 1 of the claimer Payout
+  (the Assert connector) on `publicKey` and signs it on `address`. The
+  caller must confirm the address belongs to `publicKey` before passing it;
+  `assembleWatchtowerArtifacts` does that against `depositorPublicKey`.
 
 #### Returns
 

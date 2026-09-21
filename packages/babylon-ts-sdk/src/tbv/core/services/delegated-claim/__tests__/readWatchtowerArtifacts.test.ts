@@ -8,6 +8,7 @@
  */
 
 import { Transaction } from "bitcoinjs-lib";
+import { Buffer } from "buffer";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -15,6 +16,7 @@ import {
   assertArtifactsUsableForVault,
   summarizeWatchtowerArtifacts,
 } from "../readWatchtowerArtifacts";
+import { VaultIdBindingError } from "../vaultIdBinding";
 
 const verifyWatchtowerArtifacts = vi.hoisted(() => vi.fn());
 
@@ -23,10 +25,15 @@ vi.mock("../../../wasm", async (importOriginal) => ({
   verifyWatchtowerArtifacts,
 }));
 
-const VAULT_ID = `0x${"cd".repeat(32)}`;
+const DEPOSITOR_ETH_ADDRESS = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8";
+// PegIn the Claim spends, and the vault id it derives with that depositor.
+const PEGIN_TXID = "ab".repeat(32);
+const VAULT_ID =
+  "0xcbba8595fd78d9d8d75df49378aaa786fc7ef2d78bae0fb924e1da97cb60382a";
 const OTHER_VAULT_ID = `0x${"ef".repeat(32)}`;
 
 const CLAIM_TX = new Transaction();
+CLAIM_TX.addInput(Buffer.from(PEGIN_TXID, "hex").reverse(), 1);
 const CLAIM_TX_HEX = CLAIM_TX.toHex();
 
 function artifactsFile(overrides: Record<string, unknown> = {}): string {
@@ -55,6 +62,14 @@ describe("summarizeWatchtowerArtifacts", () => {
     expect(summary.babeSessionChallengerPubkeys).toEqual(["aa".repeat(32)]);
   });
 
+  it("reports the PegIn txid in display order, not internal order", () => {
+    // The vault id is derived from this value, so a reversed one would
+    // reject every file that is in fact correct.
+    const summary = summarizeWatchtowerArtifacts(artifactsFile());
+
+    expect(summary.peginTxid).toBe(PEGIN_TXID);
+  });
+
   it("reports block 0 when the file predates the claimable event", () => {
     const summary = summarizeWatchtowerArtifacts(
       artifactsFile({ claimable_event_block_number: undefined }),
@@ -80,6 +95,45 @@ describe("summarizeWatchtowerArtifacts", () => {
       summarizeWatchtowerArtifacts(artifactsFile({ claim_tx: "zz" })),
     ).toThrow(/claim_tx/);
   });
+
+  it("rejects a negative claimable_event_block_number", () => {
+    expect(() =>
+      summarizeWatchtowerArtifacts(
+        artifactsFile({ claimable_event_block_number: -1 }),
+      ),
+    ).toThrow(/claimable_event_block_number/);
+  });
+
+  it("rejects a fractional claimable_event_block_number", () => {
+    // BigInt() would otherwise throw a RangeError that never names the field.
+    expect(() =>
+      summarizeWatchtowerArtifacts(
+        artifactsFile({ claimable_event_block_number: 1.5 }),
+      ),
+    ).toThrow(/claimable_event_block_number/);
+  });
+
+  it("rejects a claimable_event_block_number JSON.parse has already rounded", () => {
+    expect(() =>
+      summarizeWatchtowerArtifacts(
+        artifactsFile({ claimable_event_block_number: 2 ** 53 + 2 }),
+      ),
+    ).toThrow(/claimable_event_block_number/);
+  });
+
+  it("rejects a vault_core_version that is not a number", () => {
+    expect(() =>
+      summarizeWatchtowerArtifacts(artifactsFile({ vault_core_version: "3" })),
+    ).toThrow(/vault_core_version/);
+  });
+
+  it("rejects babe_sessions that is not an object", () => {
+    // Object.keys("ab") reports "0" and "1", which would pass downstream as
+    // challenger public keys.
+    expect(() =>
+      summarizeWatchtowerArtifacts(artifactsFile({ babe_sessions: "ab" })),
+    ).toThrow(/babe_sessions/);
+  });
 });
 
 describe("assertArtifactsUsableForVault", () => {
@@ -92,20 +146,21 @@ describe("assertArtifactsUsableForVault", () => {
     const summary = await assertArtifactsUsableForVault({
       artifactsJson: artifactsFile(),
       expectedVaultId: VAULT_ID,
+      depositorEthAddress: DEPOSITOR_ETH_ADDRESS,
     });
 
     expect(summary.vaultId).toBe(VAULT_ID);
-    expect(verifyWatchtowerArtifacts).toHaveBeenCalledWith(
-      3,
-      artifactsFile(),
-    );
+    expect(verifyWatchtowerArtifacts).toHaveBeenCalledWith(3, artifactsFile());
   });
 
   it("matches vault ids that differ only in prefix and case", async () => {
     await expect(
       assertArtifactsUsableForVault({
-        artifactsJson: artifactsFile({ vault_id: "CD".repeat(32) }),
+        artifactsJson: artifactsFile({
+          vault_id: VAULT_ID.slice(2).toUpperCase(),
+        }),
         expectedVaultId: VAULT_ID,
+        depositorEthAddress: DEPOSITOR_ETH_ADDRESS,
       }),
     ).resolves.toBeDefined();
   });
@@ -115,8 +170,23 @@ describe("assertArtifactsUsableForVault", () => {
       assertArtifactsUsableForVault({
         artifactsJson: artifactsFile(),
         expectedVaultId: OTHER_VAULT_ID,
+        depositorEthAddress: DEPOSITOR_ETH_ADDRESS,
       }),
     ).rejects.toThrow(ArtifactsVaultMismatchError);
+  });
+
+  it("rejects a file whose graph belongs to another vault than its vault_id", async () => {
+    const otherPeginTx = new Transaction();
+    otherPeginTx.addInput(Buffer.from("cd".repeat(32), "hex").reverse(), 0);
+
+    // vault_id says this vault; the graph the signatures cover says another.
+    await expect(
+      assertArtifactsUsableForVault({
+        artifactsJson: artifactsFile({ claim_tx: otherPeginTx.toHex() }),
+        expectedVaultId: VAULT_ID,
+        depositorEthAddress: DEPOSITOR_ETH_ADDRESS,
+      }),
+    ).rejects.toThrow(VaultIdBindingError);
   });
 
   it("does not verify signatures for a file that names the wrong vault", async () => {
@@ -124,6 +194,7 @@ describe("assertArtifactsUsableForVault", () => {
       assertArtifactsUsableForVault({
         artifactsJson: artifactsFile(),
         expectedVaultId: OTHER_VAULT_ID,
+        depositorEthAddress: DEPOSITOR_ETH_ADDRESS,
       }),
     ).rejects.toThrow();
 
@@ -139,6 +210,7 @@ describe("assertArtifactsUsableForVault", () => {
       assertArtifactsUsableForVault({
         artifactsJson: artifactsFile(),
         expectedVaultId: VAULT_ID,
+        depositorEthAddress: DEPOSITOR_ETH_ADDRESS,
       }),
     ).rejects.toThrow(/does not verify/);
   });
