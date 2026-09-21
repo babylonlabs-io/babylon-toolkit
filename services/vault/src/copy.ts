@@ -2149,7 +2149,7 @@ export const COPY = {
       // Heading over the vaults list before any vault is active — the count
       // is dropped while the section only holds the empty state.
       vaultsTitle: "Vaults",
-      activeVaultsTitle: "Active Vaults",
+      activeVaultsTitle: "Total Collateral",
       inactiveVaultsTitle: "Inactive Vaults",
       count: (count: number) => `(${count})`,
     },
