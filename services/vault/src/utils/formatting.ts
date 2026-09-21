@@ -135,7 +135,7 @@ export function formatAprPercent(percent: number): string {
   return `${rounded}%`;
 }
 
-/** Decimal places shown for the Overview "% to liquidation" figure. */
+/** Decimal places shown for the Overview "% to Liquidation" figure. */
 const LIQUIDATION_DISTANCE_DECIMALS = 1;
 
 /**

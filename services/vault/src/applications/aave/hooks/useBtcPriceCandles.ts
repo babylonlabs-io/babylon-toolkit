@@ -8,8 +8,9 @@
  * without polling ahead of the data.
  *
  * `candles: null` means "nothing to draw" (loading, no config, or a failed
- * fetch). The chart renders its frame without marks in that case, so a missing
- * series degrades to an empty price panel rather than an error state.
+ * fetch). Callers show a spinner while `isLoading`; outside that the chart
+ * renders its frame without marks, so a missing series degrades to an empty
+ * price panel rather than an error state.
  */
 
 import type { Candle } from "@babylonlabs-io/core-ui";

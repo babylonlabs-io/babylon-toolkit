@@ -45,6 +45,7 @@ import { CONTRACT_ERROR_MESSAGES } from "@/utils/errors/errorMessages";
 const PRE_PEGIN_BROADCAST_CONFIRMATION_MESSAGE =
   "Your Bitcoin transaction has been broadcast to the network. It will be confirmed after receiving the required number of Bitcoin confirmations.";
 const SOMETHING_WENT_WRONG_HEADING = "Something went wrong";
+const PCT_TO_LIQUIDATION_LABEL = "% to Liquidation";
 // Disconnected empty state on every v3 tab (Vaults / Loans / Activity). One
 // builder so the three can't drift apart.
 const connectToView = (subject: string) =>
@@ -2003,7 +2004,7 @@ export const COPY = {
     cumulativeSeized: (percent: number) => `${percent}% seized`,
     popover: {
       atPrice: "At price",
-      distance: "Distance",
+      distance: PCT_TO_LIQUIDATION_LABEL,
       vaults: "Vaults",
       seizes: "Seizes",
     },
@@ -2015,7 +2016,7 @@ export const COPY = {
         "BTCVaults are seized in order. Each BTCVault group is one liquidation event. To change the order, open the Vaults page.",
       collateral: "Collateral",
       liqPrice: "Liq Price",
-      distance: "Distance",
+      distance: PCT_TO_LIQUIDATION_LABEL,
       seizedVaultsSection: "Seized Vaults",
       targetSeizure: "Target seizure",
       targetSeizureTooltip:
@@ -2024,7 +2025,7 @@ export const COPY = {
       overSeizureTooltip:
         "An additional portion of the collateral value that the liquidator may seize due to the nature of indivisible BTCVaults.",
       estimatedLiquidationSection: "Estimated Liquidation",
-      collateralLiquidated: "Collateral liquidated",
+      collateralLiquidated: "BTCVault",
       debtRepaid: "Debt Repaid",
       liquidatorProfit: "Liquidator profit",
       fairnessDebtRepaid: "Fairness Debt Repaid",
@@ -2062,7 +2063,7 @@ export const COPY = {
     borrowAction: "Borrow",
     repayAction: "Repay",
     liquidationPriceLabel: "Liquidation price",
-    pctToLiquidationLabel: "% to liquidation",
+    pctToLiquidationLabel: PCT_TO_LIQUIDATION_LABEL,
     disconnected: {
       // Only the dot of the first "i" in Bitcoin is orange. `dotless` (U+0131)
       // is the same glyph minus its tittle — the app paints it over `dotted` in

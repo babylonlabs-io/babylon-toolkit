@@ -175,7 +175,7 @@ describe("buildLiquidationChartData", () => {
     const rows = bands[0].popoverMetrics ?? [];
     expect(rows.map((r) => r.label)).toEqual([
       "At price",
-      "Distance",
+      "% to Liquidation",
       "Vaults",
       "Seizes",
     ]);
