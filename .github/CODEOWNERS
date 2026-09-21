@@ -33,6 +33,7 @@
 # 3. Presigning payout transactions
 /packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov @kirugan
 /packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov @kirugan
+/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/ @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov @kirugan
 /services/vault/src/hooks/deposit/depositFlowSteps/payoutSigning.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov @kirugan
 
 # 4. Vault-secret derivation (frozen on-chain-binding API)
@@ -61,6 +62,7 @@
 /packages/babylon-ts-sdk/src/tbv/core/clients/eth/pegin-registration-client.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov @kirugan
 /packages/babylon-ts-sdk/src/tbv/core/clients/eth/payout-script.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov @kirugan
 /packages/babylon-ts-sdk/src/tbv/core/wasm/ @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov @kirugan
+/packages/babylon-tbv-rust-wasm/src/delegatedClaim.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov @kirugan
 /packages/babylon-tbv-rust-wasm/src/wasm-loader.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov @kirugan
 /packages/babylon-tbv-rust-wasm/src/wasm-loader-node.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov @kirugan
 /services/vault/src/utils/btc/scriptPubKeyAddress.ts @jonybur @jeremy-babylonlabs @jrwbabylonlab @gbarkhatov @kirugan

@@ -21,6 +21,7 @@ export default defineConfig([
     files: [
       "src/index.ts",
       "src/index-node.ts",
+      "src/delegatedClaim.ts",
       "src/wasm-loader.ts",
       "src/wasm-loader-node.ts",
     ],

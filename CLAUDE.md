@@ -53,6 +53,7 @@ These paths handle irreversible value movement. An AI-generated mistake here is 
 - Files:
   - `packages/babylon-tbv-rust-wasm/src/index.ts`
   - `packages/babylon-tbv-rust-wasm/src/index-node.ts`
+  - `packages/babylon-tbv-rust-wasm/src/delegatedClaim.ts` — the delegated-claim crossing, spread verbatim into both entries above. It owns the width guards for every integer that reaches WASM on this path, and carries a `@stability frozen` derivation (`wotsKeypairFromSeed`), so section 4 reaches it too.
   - `packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/assertWasmPeginSizing.ts`
   - `packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/constants.ts` - protocol transaction layout constants
   - `packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts`
@@ -79,6 +80,7 @@ These paths handle irreversible value movement. An AI-generated mistake here is 
   - `packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts`
   - `packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts` — orchestrator that derives `LocalChallengers`, asserts the VP-returned `challenger_presign_data` set equals `local ∪ universal`, and decides which per-challenger NoPayout PSBTs get pre-signed
   - `services/vault/src/hooks/deposit/depositFlowSteps/payoutSigning.ts`
+  - `packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/` — the claim-time counterpart. The same depositor signs the same kinds of transaction from the same VP-served graph, months later and with no VP to re-ask, so the same rule binds: `payoutBinding.ts` pins the Payout destination against the on-chain registered script, `challengerBinding.ts` asserts the graph's challenger set equals `local ∪ universal`, and `vaultIdBinding.ts` ties the graph to the vault before anything is signed.
 - The depositor pre-signs payout (and per-challenger NoPayout) transactions built by the Vault Provider — values and challenger sets come from an external party with no independent verification. Asymmetric failure: undersigning leaves recovery material missing for an active challenger; oversigning hands signatures to a key the protocol doesn't recognize.
 - **Rule:** Before the signature call, re-derive the expected payout amount from on-chain or WASM-computed sources and assert equality. For the challenger set, derive `LocalChallengers` from on-chain VK list (matching the Rust reference in `btc-vault crates/vault/src/tx_graph/graph.rs`) and assert the VP-returned set equals `local ∪ universal` exactly — no missing entries, no extras. Never sign a value or accept a challenger key handed to us verbatim.
 
@@ -91,6 +93,7 @@ These paths handle irreversible value movement. An AI-generated mistake here is 
   - `packages/babylon-ts-sdk/src/tbv/core/wasm/index.ts` — the lazy boundary's async wrappers for the three expanders; every SDK caller now reaches the WASM package through this hop (also registered in section 9)
   - `packages/babylon-tbv-rust-wasm/src/index.ts` — browser-side async wrappers for the three expanders
   - `packages/babylon-tbv-rust-wasm/src/index-node.ts` — node-side async wrappers for the three expanders
+  - `packages/babylon-tbv-rust-wasm/src/delegatedClaim.ts` — `wotsKeypairFromSeed`, the claim-time re-derivation of the WOTS keypair the on-chain `depositorWotsPkHash` commits to
   - `packages/babylon-tbv-rust-wasm/scripts/build-wasm.js` — `VAULT_WASM_COMMIT` pin (the vault-wasm facade at this commit, and the btc-vault revs it bundles, are the byte-level source of truth for the HKDF `info` encoding, labels, and i2osp prefixes)
   - `packages/babylon-ts-sdk/src/tbv/core/wots/blockDerivation.ts` — `deriveWotsBlocksFromSeed`, `computeWotsBlockPublicKeysHash`
 - The orchestrator that composes these primitives:

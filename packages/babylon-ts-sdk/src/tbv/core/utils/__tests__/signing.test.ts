@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { createTaprootScriptPathSignOptions } from "../signing";
+import {
+  createTaprootScriptPathSignOptions,
+  createTaprootScriptPathSignOptionsForInput,
+} from "../signing";
 
 const TEST_PUBKEY =
   "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
@@ -56,5 +59,53 @@ describe("createTaprootScriptPathSignOptions", () => {
     expect(() =>
       createTaprootScriptPathSignOptions(TEST_PUBKEY, 1.5),
     ).toThrow("inputCount must be a positive integer, got 1.5");
+  });
+});
+
+describe("createTaprootScriptPathSignOptionsForInput", () => {
+  const ADDRESS = "tb1pexampleaddressfortests";
+
+  it("names the single input to sign", () => {
+    const options = createTaprootScriptPathSignOptionsForInput(TEST_PUBKEY, 1);
+
+    expect(options.signInputs).toHaveLength(1);
+    expect(options.signInputs?.[0].index).toBe(1);
+  });
+
+  it("keeps the flags every script-path signature depends on", () => {
+    const options = createTaprootScriptPathSignOptionsForInput(TEST_PUBKEY, 0);
+
+    // autoFinalized would strip the tapScriptSig the signature is extracted
+    // from; the tweaked signer would sign with the wrong key.
+    expect(options.autoFinalized).toBe(false);
+    expect(options.signInputs?.[0].useTweakedSigner).toBe(false);
+  });
+
+  it("names the signer by public key when no address is given", () => {
+    const options = createTaprootScriptPathSignOptionsForInput(TEST_PUBKEY, 0);
+
+    expect(options.signInputs?.[0].publicKey).toBe(TEST_PUBKEY);
+    expect(options.signInputs?.[0].address).toBeUndefined();
+  });
+
+  it("names the signer by address instead when one is given", () => {
+    const options = createTaprootScriptPathSignOptionsForInput(
+      TEST_PUBKEY,
+      1,
+      ADDRESS,
+    );
+
+    // A wallet derives a key-path address from a public key and refuses any
+    // input sitting elsewhere - every script-path connector output. The
+    // address names the account instead, so it must replace the key, not
+    // accompany it.
+    expect(options.signInputs?.[0].address).toBe(ADDRESS);
+    expect(options.signInputs?.[0].publicKey).toBeUndefined();
+  });
+
+  it("throws for a negative input index", () => {
+    expect(() =>
+      createTaprootScriptPathSignOptionsForInput(TEST_PUBKEY, -1),
+    ).toThrow("inputIndex must be a non-negative integer, got -1");
   });
 });

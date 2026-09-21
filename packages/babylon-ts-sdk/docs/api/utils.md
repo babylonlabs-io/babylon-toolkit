@@ -1190,6 +1190,63 @@ Number of inputs to sign. Generates entries
 
 ***
 
+### createTaprootScriptPathSignOptionsForInput()
+
+```ts
+function createTaprootScriptPathSignOptionsForInput(
+   publicKey, 
+   inputIndex, 
+   address?): SignPsbtOptions;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/signing.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/signing.ts)
+
+**`Experimental`**
+
+Create SignPsbtOptions for a Taproot script-path PSBT whose signing input
+is not input 0 — the delegated-claim Payout, where input 0 is the PegIn
+UTXO and the claimer signs the Assert connector at input 1.
+
+Same flags and the same caveat as
+[createTaprootScriptPathSignOptions](#createtaprootscriptpathsignoptions): the produced signature must be
+validated before the PSBT is treated as signed.
+
+#### Parameters
+
+##### publicKey
+
+`string`
+
+Signer's BTC public key (hex), compressed or x-only.
+
+##### inputIndex
+
+`number`
+
+Index of the single input to sign.
+
+##### address?
+
+`string`
+
+Signer's BTC address. A wallet derives a key-path address
+  from `publicKey` and compares it with the input's address, so `publicKey`
+  alone cannot sign an input that sits at a different address — every
+  script-path connector output. UniSat refuses input 1 of the claimer Payout
+  (the Assert connector) on `publicKey` and signs it on `address`. The
+  caller must confirm the address belongs to `publicKey` before passing it;
+  `assembleWatchtowerArtifacts` does that against `depositorPublicKey`.
+
+ Added for the delegated claim, which is still under test and
+              is its only caller. This signature can change in a minor
+              release.
+
+#### Returns
+
+[`SignPsbtOptions`](managers.md#signpsbtoptions)
+
+***
+
 ### calculateBtcTxHash()
 
 ```ts

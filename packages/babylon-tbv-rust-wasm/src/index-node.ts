@@ -4,6 +4,8 @@
 // It initializes the binary with initSync. No fetch() or separate
 // wasm-pack --target nodejs build is needed.
 
+import { createDelegatedClaimApi } from './delegatedClaim.js';
+import { toError } from './errors.js';
 import {
   getWasmBindings,
   initWasm as initializeWasm,
@@ -457,15 +459,6 @@ export async function getChallengeAssertScriptInfo(
   }
 }
 
-// wasm-bindgen rethrows Rust `JsValue::from_str(...)` errors as bare strings,
-// which break `err instanceof Error` and structured error handling. Normalize
-// to `Error` so the JS API surface is consistent with idiomatic JS rejection.
-function toError(err: unknown, fnName: string): Error {
-  if (err instanceof Error) return err;
-  const msg = typeof err === 'string' ? err : String(err);
-  return new Error(`${fnName}: ${msg}`);
-}
-
 /**
  * Derive 32-byte `authAnchor` (OP_RETURN preimage → VP bearer token).
  * @stability frozen — owned by btc-vault Rust via the vault-wasm pin (`VAULT_WASM_COMMIT`); rotation breaks VP auth for existing deposits.
@@ -571,6 +564,10 @@ export type {
   AssertNoPayoutScriptInfo,
   ChallengeAssertConnectorParams,
   ChallengeAssertScriptInfo,
+  WatchtowerArtifactsInputs,
+  WotsKeypairDerivation,
+  WronglyChallengedPsbts,
+  WronglyChallengedSigs,
 } from './types.js';
 
 // Export constants
@@ -578,6 +575,30 @@ export { TAP_INTERNAL_KEY, tapInternalPubkey } from './constants.js';
 
 // Export boundary value guards (input validation for callers)
 export { assertPositiveBigintArray } from './value-guards.js';
+
+// The delegated-claim surface (graph v3 only): assembly of the two files the
+// `vaultd vp wt` watchtower CLI reads, and the claim-time execution that runs
+// from those same files without the CLI.
+//
+// EXPERIMENTAL — under test, signet only. These names and signatures can
+// change in a minor release. See src/delegatedClaim.ts.
+export const {
+  buildAssertClaimerPsbt,
+  buildClaimPsbt,
+  buildPayoutClaimerPsbt,
+  buildPayoutDepositorPsbt,
+  buildWatchtowerArtifacts,
+  buildWronglyChallengedPsbts,
+  attachFinalizedAssert,
+  extractTapScriptSig,
+  finalizeClaimTx,
+  finalizePayout,
+  finalizeWronglyChallenged,
+  pinPegoutProof,
+  validateWotsKeypairAgainstGraph,
+  verifyWatchtowerArtifacts,
+  wotsKeypairFromSeed,
+} = createDelegatedClaimApi(getWasmBindings);
 
 // Export wasm-bindgen classes
 /** wasm-bindgen class with no value guards. See README "WASM Classes". */
