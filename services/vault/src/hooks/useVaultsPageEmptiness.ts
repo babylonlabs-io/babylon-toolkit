@@ -3,14 +3,22 @@
  *
  * Emptiness predicate for the v3 /vaults page: `isEmpty` is true when the
  * account has nothing to show in any vault lifecycle section — no collateral
- * vaults (including optimistic activating rows) and no pending or refundable
- * expired deposits. `useConnection` counts a session as connected only with
- * confirmed Ethereum, plus Bitcoin while Ethereum-only access is off. Any
+ * vaults (including optimistic activating rows), no pending deposits, no
+ * refundable expired deposits and no reclaimable settled vaults. A deposit whose
+ * refund or reclaim is already done renders no row, so it counts for nothing
+ * here either: both sides read `useActionableExpiredDeposits` and
+ * `useActionableReclaims`. `useConnection` counts a session as connected only
+ * with confirmed Ethereum, plus Bitcoin while Ethereum-only access is off. Any
  * other session is always "empty" regardless of what the ETH-keyed queries
  * returned, so the page shows the connect prompt.
  *
- * `isLoading` guards against flashing the empty state before the position
- * and deposit queries resolve; it is false while disconnected.
+ * `isLoading` guards against flashing the empty state before the position and
+ * deposit queries resolve. An unresolved reclaim read holds it too, but only
+ * while nothing else is showable: eligibility fails closed, so a candidate with
+ * no verdict yet reads as nothing left to do and would empty the page, whereas
+ * an account with collateral or pending deposits has a page to render and the
+ * settled row simply arrives when its reads land. It is false while
+ * disconnected.
  *
  * `hasError` is true when a connected session has nothing to show AND either
  * query failed — an empty account must never be claimed on the back of a
@@ -32,16 +40,24 @@
  *
  * The deposit lists arrive as a parameter — the page's single
  * `usePendingDeposits` result, shared with VaultsLifecycleSections — so this
- * hook never instantiates a second broadcast/refund modal state pair.
+ * hook never instantiates a second broadcast/refund modal state pair. The
+ * reclaim reads it does repeat resolve against the query cache the section
+ * already fills, so they cost no extra requests.
  */
 
 import { useConnection, useETHWallet } from "@/context/wallet";
+import { useActionableExpiredDeposits } from "@/hooks/deposit/useActionableExpiredDeposits";
+import {
+  NO_RECLAIMS_IN_FLIGHT,
+  useActionableReclaims,
+} from "@/hooks/deposit/useActionableReclaims";
 import { useDashboardState } from "@/hooks/useDashboardState";
 import type { VaultActivity } from "@/types/activity";
 
 interface VaultsPageDeposits {
   pendingActivities: VaultActivity[];
   expiredActivities: VaultActivity[];
+  reclaimableCandidates: VaultActivity[];
   isLoading: boolean;
   error: Error | null;
 }
@@ -63,15 +79,26 @@ export function useVaultsPageEmptiness(deposits: VaultsPageDeposits): {
   const {
     pendingActivities,
     expiredActivities,
+    reclaimableCandidates,
     isLoading: isDepositsLoading,
     error: depositsError,
   } = deposits;
 
-  const isLoading = isConnected && (isPositionLoading || isDepositsLoading);
+  const actionableExpiredActivities =
+    useActionableExpiredDeposits(expiredActivities);
+  const { candidates: actionableReclaims, isResolving: isReclaimResolving } =
+    useActionableReclaims(reclaimableCandidates, NO_RECLAIMS_IN_FLIGHT);
+
   const hasAnythingToShow =
     hasDisplayCollateral ||
     pendingActivities.length > 0 ||
-    expiredActivities.length > 0;
+    actionableExpiredActivities.length > 0 ||
+    actionableReclaims.length > 0;
+  const isLoading =
+    isConnected &&
+    (isPositionLoading ||
+      isDepositsLoading ||
+      (isReclaimResolving && !hasAnythingToShow));
   const anySourceFailed = Boolean(
     positionError || indexerError || depositsError,
   );

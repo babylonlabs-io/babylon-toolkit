@@ -1,23 +1,41 @@
+import { OnChainBtcVaultStatus } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { ReclaimStatus } from "@/hooks/useReclaimStatus";
 import { useVaultsPageEmptiness } from "@/hooks/useVaultsPageEmptiness";
+import {
+  ContractStatus,
+  PEGIN_DISPLAY_LABELS,
+  PeginAction,
+  type PeginState,
+} from "@/models/peginStateMachine";
 import type { VaultActivity } from "@/types/activity";
+import type { DepositPollingResult } from "@/types/peginPolling";
+
+const DEPOSITOR_BTC_PUBKEY = "ab".repeat(32);
 
 const walletState = vi.hoisted(() => ({
   btcConnected: true,
   ethConnected: true,
   confirmed: true,
   address: "0xdepositor" as string | undefined,
+  publicKeyNoCoord: "ab".repeat(32) as string | undefined,
 }));
 
 vi.mock("@babylonlabs-io/wallet-connector", () => ({
   useWalletConnect: () => ({ connected: walletState.confirmed }),
-  useBTCWallet: () => ({ connected: walletState.btcConnected }),
+  useBTCWallet: () => ({
+    connected: walletState.btcConnected,
+    publicKeyNoCoord: walletState.publicKeyNoCoord,
+  }),
   useETHWallet: () => ({
     connected: walletState.ethConnected,
     address: walletState.address,
   }),
+  // The reclaim eligibility model runs for real; only the wallet kind, the
+  // protocol gate and the two batched chain reads are driven.
+  useChainConnector: () => undefined,
 }));
 
 // The real gate, so the Ethereum-only control decides what this page counts as
@@ -25,6 +43,28 @@ vi.mock("@babylonlabs-io/wallet-connector", () => ({
 vi.mock("@/context/wallet", async () => ({
   useConnection: (await import("@/context/wallet/useConnection")).useConnection,
   useETHWallet: (await import("@babylonlabs-io/wallet-connector")).useETHWallet,
+  useBTCWallet: (await import("@babylonlabs-io/wallet-connector")).useBTCWallet,
+}));
+
+vi.mock("@/context/wallet/VaultWalletConnectionProvider", () => ({
+  isLedgerVaultConnector: () => false,
+}));
+
+vi.mock("@/hooks/useProtocolGate", () => ({
+  useProtocolGateState: () => ({ protocol: null, aave: null }),
+}));
+
+const reclaimChainData = vi.hoisted(
+  () => new Map<string, { peginTxid: string; onChainStatus: number }>(),
+);
+const reclaimStatuses = vi.hoisted(() => new Map<string, ReclaimStatus>());
+
+vi.mock("@/hooks/useReclaimVaultChainData", () => ({
+  useReclaimVaultChainData: () => reclaimChainData,
+}));
+
+vi.mock("@/hooks/useReclaimStatus", () => ({
+  useReclaimStatus: () => ({ statusByDepositId: reclaimStatuses }),
 }));
 
 const dashboardState = vi.hoisted(() => ({
@@ -40,16 +80,56 @@ vi.mock("@/hooks/useDashboardState", () => ({
   useDashboardState: useDashboardStateMock,
 }));
 
+const pollingResults = vi.hoisted(
+  () => new Map<string, DepositPollingResult>(),
+);
+
+vi.mock("@/context/deposit/PeginPollingContext", () => ({
+  usePeginPolling: () => ({
+    getPollingResult: (depositId: string) => pollingResults.get(depositId),
+  }),
+}));
+
+const refundedResult = (depositId: string): DepositPollingResult => ({
+  depositId,
+  loading: false,
+  error: null,
+  peginState: {
+    contractStatus: ContractStatus.EXPIRED,
+    displayLabel: PEGIN_DISPLAY_LABELS.REFUNDED,
+    displayVariant: "pending",
+    availableActions: [PeginAction.NONE],
+    message: "",
+  } satisfies PeginState,
+  isOwnedByCurrentWallet: true,
+  depositorBtcPubkey: "ab".repeat(32),
+  prePeginConfirmations: 0,
+  requiredPrePeginDepth: 6,
+});
+
 // Passed straight into the hook — the page hands over its single
 // usePendingDeposits result the same way, so no module mock is needed.
 const depositsState = {
   pendingActivities: [] as VaultActivity[],
   expiredActivities: [] as VaultActivity[],
+  reclaimableCandidates: [] as VaultActivity[],
   isLoading: false,
   error: null as Error | null,
 };
 
 const stubActivity = (id: string) => ({ id }) as VaultActivity;
+
+const settledVault = (id: string) =>
+  ({ id, depositorBtcPubkey: DEPOSITOR_BTC_PUBKEY }) as VaultActivity;
+
+// The settled payout heights from reclaimEligibility.test.ts: payout mined and
+// deeply confirmed, so the reserve's own spend decides what is left to do.
+const reclaimStatus = (reserveSpend: ReclaimStatus["reserveSpend"]) => ({
+  payoutSpend: { spent: true, confirmed: true, blockHeight: 899_995 },
+  reserveSpend,
+  reserveValueSats: 33_000n,
+  observedTipHeight: 900_000,
+});
 
 describe("useVaultsPageEmptiness", () => {
   afterEach(() => {
@@ -68,10 +148,15 @@ describe("useVaultsPageEmptiness", () => {
     dashboardState.isLoading = false;
     dashboardState.positionError = null;
     dashboardState.indexerError = null;
+    walletState.publicKeyNoCoord = DEPOSITOR_BTC_PUBKEY;
     depositsState.pendingActivities = [];
     depositsState.expiredActivities = [];
+    depositsState.reclaimableCandidates = [];
     depositsState.isLoading = false;
     depositsState.error = null;
+    pollingResults.clear();
+    reclaimChainData.clear();
+    reclaimStatuses.clear();
     useDashboardStateMock.mockClear();
   });
 
@@ -181,6 +266,78 @@ describe("useVaultsPageEmptiness", () => {
     const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
 
     expect(result.current.isEmpty).toBe(false);
+  });
+
+  it("is empty when the only expired deposit is already refunded", () => {
+    depositsState.expiredActivities = [stubActivity("expired-1")];
+    pollingResults.set("expired-1", refundedResult("expired-1"));
+
+    const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
+
+    expect(result.current.isEmpty).toBe(true);
+  });
+
+  it("is not empty when one expired deposit is refunded and another still awaits refund", () => {
+    depositsState.expiredActivities = [
+      stubActivity("expired-1"),
+      stubActivity("expired-2"),
+    ];
+    pollingResults.set("expired-1", refundedResult("expired-1"));
+
+    const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
+
+    expect(result.current.isEmpty).toBe(false);
+  });
+
+  it("is not empty when a settled vault still has a reclaimable reserve", () => {
+    depositsState.reclaimableCandidates = [settledVault("settled-1")];
+    reclaimChainData.set("settled-1", {
+      peginTxid: "0xpegin",
+      onChainStatus: OnChainBtcVaultStatus.REDEEMED,
+    });
+    reclaimStatuses.set(
+      "settled-1",
+      reclaimStatus({ spent: false, confirmed: false }),
+    );
+
+    const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
+
+    expect(result.current.isEmpty).toBe(false);
+  });
+
+  it("is loading, not empty, while a settled vault's reclaim reads are unresolved", () => {
+    depositsState.reclaimableCandidates = [settledVault("settled-1")];
+
+    const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
+
+    expect(result.current.isLoading).toBe(true);
+    expect(result.current.isEmpty).toBe(false);
+  });
+
+  it("renders collateral without waiting on an unresolved settled vault", () => {
+    dashboardState.hasDisplayCollateral = true;
+    depositsState.reclaimableCandidates = [settledVault("settled-1")];
+
+    const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
+
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.isEmpty).toBe(false);
+  });
+
+  it("is empty when the only settled vault's reserve was already reclaimed", () => {
+    depositsState.reclaimableCandidates = [settledVault("settled-1")];
+    reclaimChainData.set("settled-1", {
+      peginTxid: "0xpegin",
+      onChainStatus: OnChainBtcVaultStatus.REDEEMED,
+    });
+    reclaimStatuses.set(
+      "settled-1",
+      reclaimStatus({ spent: true, confirmed: true, blockHeight: 899_998 }),
+    );
+
+    const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
+
+    expect(result.current.isEmpty).toBe(true);
   });
 
   it("is empty when connected with no vaults and no deposits", () => {
