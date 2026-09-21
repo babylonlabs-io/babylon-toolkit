@@ -3,6 +3,7 @@ import { Hint, SubSection } from "@babylonlabs-io/core-ui";
 import {
   getHealthFactorColor,
   getHealthFactorStatusFromValue,
+  HEALTH_FACTOR_COLORS,
 } from "@/applications/aave/utils";
 import { HeartIcon } from "@/components/shared";
 import { COPY } from "@/copy";
@@ -32,7 +33,6 @@ interface BorrowMetricsCardProps {
   healthFactor: string;
   healthFactorValue: number;
   healthFactorOriginal?: string;
-  healthFactorOriginalValue?: number;
 }
 
 const ROW_CLASS = "flex w-full items-center justify-between text-sm";
@@ -58,17 +58,9 @@ export function BorrowMetricsCard({
   healthFactor,
   healthFactorValue,
   healthFactorOriginal,
-  healthFactorOriginalValue,
 }: BorrowMetricsCardProps) {
   const status = getHealthFactorStatusFromValue(healthFactorValue);
   const color = getHealthFactorColor(status);
-  const originalStatus =
-    healthFactorOriginalValue !== undefined
-      ? getHealthFactorStatusFromValue(healthFactorOriginalValue)
-      : undefined;
-  const originalColor = originalStatus
-    ? getHealthFactorColor(originalStatus)
-    : undefined;
 
   return (
     <SubSection className="flex-col gap-4 !bg-secondary-highlight">
@@ -130,24 +122,24 @@ export function BorrowMetricsCard({
           <Hint tooltip={COPY.tooltips.healthFactor} />
         </div>
         <span className="flex items-center gap-2 text-accent-primary">
-          {healthFactorOriginal && originalColor ? (
+          {healthFactorOriginal ? (
             <>
               <span className="flex items-center gap-1 text-accent-secondary">
-                <HeartIcon color={originalColor} />
                 {healthFactorOriginal}
+                <HeartIcon color={HEALTH_FACTOR_COLORS.GRAY} />
               </span>
               <span className="text-accent-secondary">
                 {COPY.common.valueTransitionArrow}
               </span>
               <span className="flex items-center gap-1">
-                <HeartIcon color={color} />
                 {healthFactor}
+                <HeartIcon color={color} />
               </span>
             </>
           ) : (
             <span className="flex items-center gap-1">
-              <HeartIcon color={color} />
               {healthFactor}
+              <HeartIcon color={color} />
             </span>
           )}
         </span>
