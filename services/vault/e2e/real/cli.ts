@@ -16,6 +16,19 @@
  *   pnpm --filter vault run e2e:cli --target=website --network=devnet --btc=unisat --eth=metamask \
  *     --action=connect [--data=real] [--delay=0] [--yes]
  *
+ * `--eth-only` connects the Ethereum wallet ALONE, the way a depositor with no Bitcoin wallet reaches
+ * the app once Ethereum-only access is on (#2228). It covers the Ethereum-side actions — connect,
+ * borrow, repay, repay-all, multi-hub, withdraw — and is refused for anything that signs with Bitcoin,
+ * including `--pegin-first`. The served build must have the access flag on: set the variable in the
+ * invoking shell, as below, or in `.env.local`:
+ *
+ *   NEXT_PUBLIC_FF_ENABLE_ETH_FIRST=true pnpm --filter vault run e2e:cli --yes \
+ *     --target=localhost --network=devnet --btc=unisat --eth=metamask --eth-only --action=borrow
+ *
+ * It needs collateral the account already holds, since it cannot peg in to create any. The Bitcoin
+ * extension is still installed and imported — only the app-side Bitcoin connect is skipped, which is
+ * exactly what the app gates on.
+ *
  * Pegin accepts two optional extras: `--amount=<btc>` and `--vp=<name>`. When omitted, the CLI fetches
  * the network's real values (protocol minimum deposit + provider list) and offers them as defaults —
  * amount ⇒ minimum, provider ⇒ first available — prompting interactively. Mock mode shows as disabled.
@@ -89,6 +102,7 @@ import {
 } from "./config";
 import { deriveEthAddress } from "./connector";
 import { describeHub } from "./hubLabels";
+import { resolveAppEnv } from "./networkContracts";
 import {
   fetchMinDepositBtc,
   fetchMinDepositForSplitBtc,
@@ -136,6 +150,20 @@ const VALUE_FLAGS = [
   "repay-hub",
   "repay-amount",
 ] as const;
+
+/**
+ * The actions that can run with the Ethereum wallet alone (`--eth-only`). Everything else needs a
+ * Bitcoin wallet to sign with — a peg-in and its resume/recover/reclaim follow-ups, and the
+ * sign-conformance replay.
+ */
+const ETH_ONLY_ACTIONS: readonly ActionId[] = [
+  "connect",
+  "borrow",
+  "repay",
+  "repay-all",
+  "multi-hub",
+  "withdraw",
+];
 
 /** Refuse a value-taking flag passed bare, rather than reading it as "not supplied". */
 function assertFlagValues(flags: Record<string, string | boolean>): void {
@@ -362,6 +390,29 @@ async function resolveConfig(
       "action",
     );
 
+    // Resolved here, before any further prompt: the guards below must refuse an impossible run rather
+    // than first walking the user through questions (e.g. "Peg in first?") whose answer cannot be used.
+    const ethOnly = flagBool(flags["eth-only"]);
+    if (ethOnly) {
+      if (!ETH_ONLY_ACTIONS.includes(action))
+        throw new Error(
+          `--eth-only cannot run --action=${action}; it needs a Bitcoin wallet. Supported: ${ETH_ONLY_ACTIONS.join(", ")}.`,
+        );
+      if (target === "website")
+        throw new Error(
+          "--eth-only needs a build with NEXT_PUBLIC_FF_ENABLE_ETH_FIRST=true; the deployed sites are built with it off, so use --target=localhost.",
+        );
+      // The dev server this CLI starts inherits THIS process's environment and reads the `.env*` files
+      // for the network's mode, so resolving the flag the same way knows it now — long before the
+      // browser, the wallet imports and the server boot that would otherwise be spent reaching a connect
+      // screen still demanding Bitcoin. A dev server already running is reused as-is; the connect
+      // screen's Bitcoin row check (walletConnect.ts) catches a flag-off one.
+      if (resolveAppEnv(network).NEXT_PUBLIC_FF_ENABLE_ETH_FIRST !== "true")
+        throw new Error(
+          "--eth-only needs NEXT_PUBLIC_FF_ENABLE_ETH_FIRST=true, so the dev server it starts serves a build with Ethereum-only access on. Set it in this shell or in services/vault/.env.local.",
+        );
+    }
+
     // Optional: default to real/0 when not supplied (no error non-interactively).
     const dataMode =
       optionalChoice<DataMode>(flags.data, ["real", "mock"], "data") ??
@@ -434,13 +485,14 @@ async function resolveConfig(
     // Peg in first, or borrow against existing collateral? Applies to any run that draws a loan — a
     // `borrow` run, or a `repay`/`withdraw` with --borrow-first. Withdraw already resolved `peginFirst`
     // above via the cascade; borrow/repay resolve it here (flag wins, else prompt, default = reuse).
+    // `--eth-only` never prompts: it cannot peg in, so only an explicit flag reaches the guard below.
     const willBorrow =
       action === "borrow" ||
       ((action === "repay" || action === "withdraw") && borrowFirst);
     if (willBorrow && action !== "withdraw") {
       if (flags["pegin-first"] !== undefined) {
         peginFirst = flagBool(flags["pegin-first"]);
-      } else if (interactive) {
+      } else if (interactive && !ethOnly) {
         peginFirst =
           (await select<"reuse" | "pegin">(rl, "Collateral for the borrow", [
             {
@@ -451,6 +503,14 @@ async function resolveConfig(
           ])) === "pegin";
       }
     }
+
+    // Checked once the cascade above is final: a peg-in signs with the Bitcoin wallet this run never
+    // connects. Every other prerequisite leg (--borrow-first, --repay-first) is Ethereum-side, so it
+    // stays allowed.
+    if (ethOnly && peginFirst)
+      throw new Error(
+        "--eth-only cannot peg in: that signs with a Bitcoin wallet. Drop --pegin-first and borrow against collateral the account already holds.",
+      );
 
     // Resume extras (resume-only). `--interrupt-fresh` makes the run self-contained: peg in a fresh
     // deposit, interrupt it after Pre-PegIn broadcast, then resume from the dashboard — so it needs the
@@ -853,6 +913,7 @@ async function resolveConfig(
       action,
       dataMode,
       delayMs,
+      ethOnly,
       peginAmountBtc,
       peginProvider,
       split,
