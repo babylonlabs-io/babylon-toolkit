@@ -489,7 +489,7 @@ export const COPY = {
       body: (amount: string, symbol: string) =>
         `Your Pre-Pegin Bitcoin transaction for ${amount} ${symbol} has been broadcast to the network. Your BTCVault is not active yet — this is just one step in the deposit lifecycle.`,
       footnote:
-        "Once the Pre-Pegin confirms, the vault provider will prompt you to submit a WOTS key, sign payout authorizations, and finally activate the BTCVault by revealing your HTLC secret. Check back here — the next required action will appear when it's ready.",
+        "Once confirmed, you'll be asked to submit a WOTS key, sign payout authorizations, and activate your BTCVault.",
       doneButton: "Done",
     },
     refundSuccess: {
