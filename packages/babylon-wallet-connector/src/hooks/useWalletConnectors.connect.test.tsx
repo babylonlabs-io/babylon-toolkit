@@ -32,8 +32,7 @@ const TAPROOT_ADDRESS = "bc1p5cyxnuxmeuwuvkwfem96lqzszd02n6xdcjrs20cac6yqjjwudpx
 const COMPRESSED_PUBLIC_KEY = "03cc8a4bc64d897bddc5fbc2f670f7a8ba0b386779106cf1223c6fc5d7cd6fc115";
 
 /** A different valid key, so a mismatch is rejected on the address, not on parsing. */
-const OTHER_COMPRESSED_PUBLIC_KEY =
-  "0379be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798";
+const OTHER_COMPRESSED_PUBLIC_KEY = "0379be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798";
 
 const CONNECT_FAILED_TITLE = "Connection Failed";
 const PUBLIC_KEY_MISMATCH_TITLE = "Public Key Mismatch";
@@ -43,7 +42,7 @@ type ConnectHandler = (wallet: IWallet) => void | Promise<void>;
 const harness = vi.hoisted(() => ({
   connectHandler: null as ConnectHandler | null,
   visible: true,
-  disconnect: vi.fn(),
+  disconnect: vi.fn().mockResolvedValue(undefined),
   selectWallet: vi.fn(),
   removeWallet: vi.fn(),
   displayChains: vi.fn(),

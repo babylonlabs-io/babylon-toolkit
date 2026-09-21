@@ -75,6 +75,11 @@ export interface PageWalletConfig {
   readonly ethChainIdHex: string;
   /** Where unhandled JSON-RPC is forwarded - the replayed endpoint. */
   readonly ethRpcUrl: string;
+  /**
+   * EIP-6963 icon data URI for the ETH wallet. Blank when omitted, so the
+   * visual captures keep photographing the same header.
+   */
+  readonly ethIcon?: string;
 }
 
 /**
@@ -228,7 +233,7 @@ export async function injectPageWallets(
       const info = {
         uuid: "00000000-0000-4000-8000-000000000000",
         name: "E2E Capture Wallet",
-        icon: blankIcon,
+        icon: walletConfig.ethIcon ?? blankIcon,
         rdns: "io.babylonlabs.e2e.capture",
       };
 

@@ -3,11 +3,22 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { shouldRetry } from "@/config/queryClient";
+
 import { fetchAaveAppConfig } from "../../services";
 import { AaveConfigProvider, useAaveConfig } from "../AaveConfigContext";
 
+const { IntegrityFailure } = vi.hoisted(() => ({
+  IntegrityFailure: class IntegrityFailure extends Error {},
+}));
+
 vi.mock("../../services", () => ({
   fetchAaveAppConfig: vi.fn(),
+  isIntegrityFailure: (error: unknown) => error instanceof IntegrityFailure,
+}));
+
+vi.mock("@/config/queryClient", () => ({
+  shouldRetry: vi.fn(),
 }));
 
 vi.mock("@babylonlabs-io/core-ui", () => ({
@@ -26,6 +37,7 @@ vi.mock("@babylonlabs-io/core-ui", () => ({
 }));
 
 const mockFetch = vi.mocked(fetchAaveAppConfig);
+const mockShouldRetry = vi.mocked(shouldRetry);
 
 function ConsumerProbe() {
   const ctx = useAaveConfig();
@@ -56,6 +68,51 @@ function wrapper(): {
 describe("AaveConfigProvider — fail-closed on fetch failure (audit #312)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockShouldRetry.mockReturnValue(false);
+  });
+
+  it("does not retry a config failure that is a proven integrity violation", async () => {
+    mockShouldRetry.mockReturnValue(true);
+    mockFetch.mockRejectedValue(new IntegrityFailure("reserve 2 hub mismatch"));
+    const client = new QueryClient({
+      defaultOptions: { queries: { retryDelay: 0 } },
+    });
+
+    render(
+      <QueryClientProvider client={client}>
+        <AaveConfigProvider>
+          <ConsumerProbe />
+        </AaveConfigProvider>
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText(/Something went wrong/i)).toBeInTheDocument();
+    });
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(mockShouldRetry).not.toHaveBeenCalled();
+  });
+
+  it("retries any other config failure under the app's default policy", async () => {
+    mockShouldRetry.mockReturnValueOnce(true);
+    mockFetch.mockRejectedValue(new Error("rpc down"));
+    const client = new QueryClient({
+      defaultOptions: { queries: { retryDelay: 0 } },
+    });
+
+    render(
+      <QueryClientProvider client={client}>
+        <AaveConfigProvider>
+          <ConsumerProbe />
+        </AaveConfigProvider>
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText(/Something went wrong/i)).toBeInTheDocument();
+    });
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+    expect(mockShouldRetry).toHaveBeenCalledWith(0, expect.any(Error));
   });
 
   it("renders the unavailable state when the GraphQL fetch throws", async () => {
@@ -152,6 +209,7 @@ describe("AaveConfigProvider — fail-closed on fetch failure (audit #312)", () 
       vbtcReserve: null,
       borrowableReserves: [],
       allBorrowReserves: [],
+      hubSpokeConfigs: {},
     });
     const { Wrapper } = wrapper();
 

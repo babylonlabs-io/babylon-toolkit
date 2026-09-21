@@ -68,7 +68,7 @@ export interface PrePeginResult {
   txHex: string;
   /** Transaction ID of the unfunded Pre-PegIn transaction */
   txid: string;
-  /** Per-HTLC output values in satoshis (peginAmount + depositorClaimValue + minPeginFee each) */
+  /** Per-HTLC output values in satoshis (peginAmount + depositorClaimValue + p2aAnchorValue + minPeginFee each; anchor is 0 on vault core 1) */
   htlcValues: readonly bigint[];
   /** Per-HTLC output scriptPubKeys (hex encoded) */
   htlcScriptPubKeys: readonly string[];

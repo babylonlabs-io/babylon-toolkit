@@ -23,7 +23,7 @@
  */
 
 import { useMemo, useSyncExternalStore } from "react";
-import type { Hex } from "viem";
+import type { Address, Hex } from "viem";
 
 import type { ActiveLoanRow } from "@/applications/aave/hooks/useActiveLoans";
 import {
@@ -39,11 +39,15 @@ import {
   type GetPeginStateOptions,
   LocalStorageStatus,
 } from "@/models/peginStateMachine";
+import { getHubIdentity } from "@/services/aave/hubRegistry";
 import { VAULT_COLLATERAL_ASSET } from "@/services/activity/projection";
 import { getCurrencyIconWithFallback } from "@/services/token/tokenService";
 import type { VaultActivity } from "@/types/activity";
 import { type ActivityRow, PENDING_DEPOSIT_TYPE } from "@/types/activityLog";
-import type { CollateralVaultEntry } from "@/types/collateral";
+import type {
+  CollateralVaultEntry,
+  CollateralVaultLifecycle,
+} from "@/types/collateral";
 import type { DepositPollingResult } from "@/types/peginPolling";
 import type { VaultProvider } from "@/types/vaultProvider";
 import { getBatchSiblings } from "@/utils/batchedPegin";
@@ -409,7 +413,7 @@ export const ACTIVATED_SCENARIO_INDEX =
 /** One controllable collateral (active vault) state. Collateral has no CTA. */
 export interface CollateralScenario extends BaseScenario {
   inUse: boolean;
-  isActivating?: boolean;
+  lifecycle: CollateralVaultLifecycle;
 }
 
 export const COLLATERAL_SCENARIOS: CollateralScenario[] = [
@@ -418,19 +422,28 @@ export const COLLATERAL_SCENARIOS: CollateralScenario[] = [
     label: "Available (not in use)",
     expectedCta: "none",
     inUse: false,
+    lifecycle: "active",
   },
   {
     key: "col-in-use",
     label: "In use as collateral",
     expectedCta: "none",
     inUse: true,
+    lifecycle: "active",
   },
   {
     key: "col-activating",
     label: "Activating (optimistic)",
     expectedCta: "none",
     inUse: false,
-    isActivating: true,
+    lifecycle: "activating",
+  },
+  {
+    key: "col-withdrawing",
+    label: "Withdrawing (peg-out in flight)",
+    expectedCta: "none",
+    inUse: true,
+    lifecycle: "withdrawing",
   },
 ];
 
@@ -441,6 +454,8 @@ export const COLLATERAL_SCENARIOS: CollateralScenario[] = [
  *  (see {@link buildLoansDemo}), so every scenario is `expectedCta: "none"`. */
 export interface LoanScenario extends BaseScenario {
   symbol: string;
+  /** Hub the demo debt is owed to; an unregistered one previews the warning. */
+  hubAddress: Address;
   /** false → the per-reserve liquidity read is loading or failed (row shows –). */
   hasLiquidity: boolean;
   /** false → the reserve no longer accepts borrows (repay-only row). */
@@ -468,6 +483,10 @@ const DEMO_LOAN_UTILIZATION_BPS = 6420;
 /** Prefix for a mock row's reserve id. Real ids are decimal `reserveId`
  *  strings, so this can never collide with one. */
 const DEMO_LOAN_RESERVE_PREFIX = "demo-reserve-";
+/** Vault Devnet Babylon Hub, a registered hub, so a demo row shows its label. */
+const DEMO_LOAN_HUB = "0xb3283508a0E96F80CF79DC2a1135F10dA170138D" as Address;
+/** An address no hub registry lists, to preview the unrecognised-hub warning. */
+const DEMO_UNREGISTERED_HUB = `0x${"ef".repeat(20)}` as Address;
 
 /** Every loan scenario shares the panel's selected borrowed asset, so this is
  *  a function of that selection rather than a frozen list — the selector
@@ -479,6 +498,7 @@ export function loanScenarios(symbol: DemoBorrowSymbol): LoanScenario[] {
       label: "Borrowable reserve",
       expectedCta: "none",
       symbol,
+      hubAddress: DEMO_LOAN_HUB,
       hasLiquidity: true,
       isBorrowable: true,
       hasBorrowRate: true,
@@ -488,6 +508,7 @@ export function loanScenarios(symbol: DemoBorrowSymbol): LoanScenario[] {
       label: "Repay only (reserve frozen)",
       expectedCta: "none",
       symbol,
+      hubAddress: DEMO_LOAN_HUB,
       hasLiquidity: true,
       isBorrowable: false,
       hasBorrowRate: true,
@@ -497,6 +518,7 @@ export function loanScenarios(symbol: DemoBorrowSymbol): LoanScenario[] {
       label: "Liquidity / utilization unavailable",
       expectedCta: "none",
       symbol,
+      hubAddress: DEMO_LOAN_HUB,
       hasLiquidity: false,
       isBorrowable: true,
       hasBorrowRate: true,
@@ -506,9 +528,20 @@ export function loanScenarios(symbol: DemoBorrowSymbol): LoanScenario[] {
       label: "Borrow APR pending",
       expectedCta: "none",
       symbol,
+      hubAddress: DEMO_LOAN_HUB,
       hasLiquidity: true,
       isBorrowable: true,
       hasBorrowRate: false,
+    },
+    {
+      key: "loan-unregistered-hub",
+      label: "Unregistered hub (shown by address)",
+      expectedCta: "none",
+      symbol,
+      hubAddress: DEMO_UNREGISTERED_HUB,
+      hasLiquidity: true,
+      isBorrowable: true,
+      hasBorrowRate: true,
     },
   ];
 }
@@ -583,14 +616,17 @@ export function activityScenarios(
   const debtIcon = getCurrencyIconWithFallback(undefined, symbol);
   /** Borrow / repay rows are denominated in the debt asset, so the panel's
    *  amount drives them directly. */
+  const demoHubLabel = getHubIdentity(DEMO_LOAN_HUB).label;
   const demoDebtAmount = (amount: string) => ({
     value: amount,
     symbol,
+    hubLabel: demoHubLabel,
     numeric: Number(amount),
   });
   const demoLiquidationDebtAmount = () => ({
     value: DEMO_LIQUIDATION_DEBT_AMOUNT,
     symbol,
+    hubLabel: demoHubLabel,
     numeric: Number(DEMO_LIQUIDATION_DEBT_AMOUNT),
   });
 
@@ -859,7 +895,7 @@ function buildCollateralEntry(
     amountBtc: Number.parseFloat(amount) || 0,
     addedAt: DEMO_AT_SECONDS,
     inUse: scenario.inUse,
-    isActivating: scenario.isActivating,
+    lifecycle: scenario.lifecycle,
     displayOnly: true,
     providerAddress: DEMO_PROVIDER_ID,
     providerName: DEMO_VAULT_PROVIDER.name ?? "demo-vault-provider",
@@ -969,6 +1005,7 @@ export function buildLoansDemo(
       reserveId: `${DEMO_LOAN_RESERVE_PREFIX}${item.key}`,
       symbol: scenario.symbol,
       name: scenario.symbol,
+      hub: getHubIdentity(scenario.hubAddress),
       amount,
       icon: getCurrencyIconWithFallback(undefined, scenario.symbol),
       borrowRate: scenario.hasBorrowRate ? DEMO_LOAN_BORROW_RATE : undefined,

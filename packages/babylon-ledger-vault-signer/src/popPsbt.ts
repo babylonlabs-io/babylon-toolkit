@@ -2,15 +2,15 @@
  * BIP-322 "simple" proof-of-possession PSBT for the vault app's Screen 7.
  *
  * The device signs PoP as a SIGN_PSBT whose unsigned tx has `version == 0`
- * (`sign_psbt_validate.c:3213` @ 4decf822). The PSBT is the BIP-322 to_sign
+ * (`sign_psbt_validate.c:3578` @ b0c0ac4d). The PSBT is the BIP-322 to_sign
  * transaction: one input spending to_spend:0 (sequence 0), one OP_RETURN
  * output of value 0, locktime 0, with the message in the global proprietary
  * key `FC 06 "bvault" 00` (`bip322.h:24-38`). The firmware rebuilds to_spend
  * from the message and the BIP-86 tweaked key and compares its raw SHA256d
- * against PSBT_IN_PREVIOUS_TXID (`bip322.c:203-213`, `:2794-2802`). Built as a
+ * against PSBT_IN_PREVIOUS_TXID (`bip322.c:203-213`, `:3093-3111`). Built as a
  * PSBTv0: the vendored v0→v2 conversion in prepareSignPsbt emits the
  * OUTPUT_INDEX/SEQUENCE keys the device requires physically present
- * (`:2806-2831`). Message grammar is NOT validated here — the device is the boundary.
+ * (`:3113-3139`). Message grammar is NOT validated here — the device is the boundary.
  *
  * @module ledger-vault-signer/popPsbt
  */

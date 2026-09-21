@@ -92,7 +92,6 @@ export function DashboardPage() {
     borrowedAssets,
     hasLoans,
     hasCollateral,
-    hasDisplayCollateral,
     isBorrowCapacityLoading,
     borrowCapacityError,
   } = useDashboardState(isConnected ? address : undefined);
@@ -134,7 +133,7 @@ export function DashboardPage() {
   const hasOverviewData = hasCollateral || hasLoans;
   const liquidationCardState = resolveLiquidationCardState(
     liquidationCardOverride,
-    { hasCollateral: hasDisplayCollateral, hasLoans },
+    { hasCollateral, hasLoans },
   );
 
   // Liquidation-risk gauge stats. Liquidation price and distance-to-liquidation

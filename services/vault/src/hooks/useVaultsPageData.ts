@@ -16,6 +16,7 @@ import { COPY } from "@/copy";
 import { useDashboardState } from "@/hooks/useDashboardState";
 import { useCollateralOverride } from "@/overrides/collateral";
 import type { CollateralVaultEntry } from "@/types/collateral";
+import { countActiveVaults } from "@/utils/collateral";
 import {
   formatBtcAmount,
   formatBtcValue,
@@ -55,13 +56,18 @@ export function useVaultsPageData(connectedAddress: string | undefined) {
 
   // Liquidation-order sequence, seized-first vault leading. `collateralVaults`
   // is already liquidation-ordered by useDashboardState; demo rows keep their
-  // merged position. Optimistic activating rows stay out of the sequence —
-  // their liquidation position is a placeholder until the indexer ingests the
-  // vault (their row hides the ordinal for the same reason) — while
-  // `activeVaultsCount` still includes them so the summary matches the Active
-  // Vaults section header count.
+  // merged position. Only `active` rows enter the sequence — an activating
+  // vault's liquidation position is a placeholder and a withdrawing vault has
+  // left the position (their rows hide the ordinal for the same reason).
+  // `activeVaultsCount` counts the same rows `displayCollateralBtc` totals —
+  // useDashboardState adds the activating amounts to the chain snapshot and
+  // subtracts the withdrawing ones — so an activating row counts and a
+  // withdrawing one does not. The demo path replaces both with the rendered
+  // rows, so it is exempt.
   const liquidationOrder = useMemo(() => {
-    const orderedVaults = displayVaults.filter((vault) => !vault.isActivating);
+    const orderedVaults = displayVaults.filter(
+      (vault) => vault.lifecycle === "active",
+    );
     if (orderedVaults.length < 2) return null;
     return COPY.vaults.summary.liquidationOrder(
       orderedVaults.map((vault) => formatBtcValue(vault.amountBtc)),
@@ -73,7 +79,7 @@ export function useVaultsPageData(connectedAddress: string | undefined) {
     summary: {
       totalCollateralBtc: formatBtcAmount(shownCollateralBtc),
       totalCollateralUsd: formatUsdValue(collateralValueUsd),
-      activeVaultsCount: displayVaults.length,
+      activeVaultsCount: countActiveVaults(displayVaults),
       liquidationOrder,
       healthFactor,
       healthFactorStatus,
@@ -82,7 +88,7 @@ export function useVaultsPageData(connectedAddress: string | undefined) {
     displayVaults,
     /**
      * Demo-free entries — the only list action flows may receive. Alongside
-     * indexer-backed rows it still carries the optimistic `isActivating` ones,
+     * active rows it still carries the `activating` and `withdrawing` ones,
      * which action surfaces must themselves exclude (withdraw disables them
      * per-row, reorder filters them out).
      */

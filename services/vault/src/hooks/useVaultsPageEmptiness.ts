@@ -4,9 +4,10 @@
  * Emptiness predicate for the v3 /vaults page: `isEmpty` is true when the
  * account has nothing to show in any vault lifecycle section — no collateral
  * vaults (including optimistic activating rows) and no pending or refundable
- * expired deposits. A disconnected or partially connected session (BTC or
- * ETH wallet missing) is always "empty" regardless of what the ETH-keyed
- * queries returned, so the page shows the connect prompt.
+ * expired deposits. `useConnection` counts a session as connected only with
+ * confirmed Ethereum, plus Bitcoin while Ethereum-only access is off. Any
+ * other session is always "empty" regardless of what the ETH-keyed queries
+ * returned, so the page shows the connect prompt.
  *
  * `isLoading` guards against flashing the empty state before the position
  * and deposit queries resolve; it is false while disconnected.
@@ -24,9 +25,10 @@
  * totals as real, and a failed deposits read would silently drop pending or
  * refundable rows.
  *
- * Withdrawal-only positions (every vault redeemed, pegout still in flight)
- * are not yet consulted; the withdrawal sections join the page with the
- * relocation step of issue #2041.
+ * A withdrawal-only position (every vault redeemed, peg-out still in flight)
+ * is not empty: the indexer has already zeroed the collateral figure, but the
+ * withdrawing rows are still shown, so `hasDisplayCollateral` keeps the page
+ * populated until the payouts settle.
  *
  * The deposit lists arrive as a parameter — the page's single
  * `usePendingDeposits` result, shared with VaultsLifecycleSections — so this

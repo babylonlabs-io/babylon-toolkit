@@ -1,0 +1,197 @@
+name: Pre-review Check
+
+# Fails a PR whose description has no /pre-review record taken on the PR's
+# branch. The code is not compared with the record: the review is required
+# before the PR is created, and later changes are the author's to own (see the
+# TODO on checkSnapshot in scripts/pre-review/snapshot.mjs). See
+# docs/pre-review.md.
+#
+# pull_request_target, not pull_request: GitHub runs this file and checks out
+# the scripts from main, so a PR cannot edit the check it is judged by (it
+# could still add its own workflow with a job of the same name, which shows in
+# its diff). That event carries a write token, which is safe only because no
+# step checks out or runs the PR's code: everything is read from the event
+# payload. Keep it so. The scripts are tested on the PR that changes them by
+# pre-review-scripts.yml.
+#
+# `edited` re-runs the check when the author pastes an updated PR.md, which
+# changes only the body. `labeled`/`unlabeled` re-run it for skip-pre-review.
+# `synchronize` is still needed: a required check must report on every head.
+on:
+  pull_request_target:
+    branches: [main]
+    types:
+      [
+        opened,
+        edited,
+        synchronize,
+        reopened,
+        ready_for_review,
+        labeled,
+        unlabeled,
+      ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  check:
+    name: pre-review-check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      # The base branch's commit, which is the default on pull_request_target.
+      # Never check out the PR head here: see the note at the top.
+      - name: Checkout main
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2 https://github.com/actions/checkout/releases/tag/v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0 https://github.com/actions/setup-node/releases/tag/v4.4.0
+        with:
+          node-version: '24.2.0'
+
+      # Payload fields go through env, never `${{ }}` inside the script: they
+      # are author-controlled text and would otherwise be executed as shell.
+      # The body is read from the event file instead, as it can exceed the
+      # size limit of a single environment variable.
+      - name: Check the pre-review record
+        id: check
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          IS_DRAFT: ${{ github.event.pull_request.draft }}
+          AUTHOR_TYPE: ${{ github.event.pull_request.user.type }}
+          HAS_SKIP_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'skip-pre-review') }}
+        run: |
+          set -euo pipefail
+          result_file="$RUNNER_TEMP/pre-review-result.json"
+
+          if [ "$HAS_SKIP_LABEL" = "true" ]; then
+            echo '{"status":"skipped-label"}' > "$result_file"
+          elif [ "$IS_DRAFT" = "true" ]; then
+            # Re-checked on ready_for_review; a draft cannot merge.
+            echo '{"status":"skipped-draft"}' > "$result_file"
+          elif [ "$AUTHOR_TYPE" = "Bot" ]; then
+            echo '{"status":"skipped-bot"}' > "$result_file"
+          else
+            # A PR opened with no description has a null body: nothing to find.
+            node -e 'const fs = require("fs"); const { body } = JSON.parse(fs.readFileSync(process.env.GITHUB_EVENT_PATH, "utf8")).pull_request; fs.writeFileSync(process.argv[1], body ?? "")' "$RUNNER_TEMP/pr-body.md"
+            node scripts/pre-review/snapshot.mjs check \
+              --body-file "$RUNNER_TEMP/pr-body.md" \
+              --branch "$HEAD_REF" > "$result_file"
+          fi
+
+          cat "$result_file"
+          status=$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).status)' "$result_file")
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          echo "result_file=$result_file" >> "$GITHUB_OUTPUT"
+
+      # Best effort: a failed GitHub API call must not decide the check.
+      - name: Comment on PR
+        if: steps.check.outcome == 'success'
+        continue-on-error: true
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0 https://github.com/actions/github-script/releases/tag/v7.1.0
+        env:
+          RESULT_FILE: ${{ steps.check.outputs.result_file }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        with:
+          script: |
+            const fs = require('fs');
+            const result = JSON.parse(fs.readFileSync(process.env.RESULT_FILE, 'utf8'));
+            const marker = '<!-- pre-review-check -->';
+            const botLogin = 'github-actions[bot]';
+            const doc = '[docs/pre-review.md](../blob/main/docs/pre-review.md)';
+            const head = process.env.HEAD_SHA.slice(0, 9);
+            const rerun = 'Run `/pre-review` on this branch and replace this description with the updated `PR.md`.';
+            const skipHint = 'A trivial PR (a typo, a version bump) can take the `skip-pre-review` label instead.';
+
+            const failures = {
+              missing: [
+                '### Pre-review record missing',
+                '',
+                `This description has no \`/pre-review\` record. Run \`/pre-review\` locally, decide its findings, and use \`PR.md\` as the description. ${skipHint} See ${doc}.`,
+              ],
+              // The recorded branch is author text (git allows ` and @ in a
+              // name), so it is quoted in a fence, never inline: a code span
+              // could be closed and the rest rendered as the bot's Markdown.
+              'other-branch': [
+                '### Pre-review record is from another branch',
+                '',
+                `The record in this description was taken on another branch, not on this PR's branch. ${rerun} See ${doc}.`,
+                '',
+                '~~~',
+                result.recorded?.branch ?? '',
+                '~~~',
+              ],
+              ambiguous: [
+                '### Pre-review record is ambiguous',
+                '',
+                `This description has more than one different \`pre-review-snapshot\` line. ${rerun} See ${doc}.`,
+              ],
+              malformed: [
+                '### Pre-review record is malformed',
+                '',
+                `A \`pre-review-snapshot\` line in this description cannot be read, for example a quoted template. Remove it, or run \`/pre-review\` on this branch and replace this description with the updated \`PR.md\`. See ${doc}.`,
+                '',
+                '~~~',
+                result.error ?? '',
+                '~~~',
+              ],
+            };
+
+            // Passing or skipped results only update a comment a failure left.
+            const settled = {
+              match: ['### Pre-review record found', '', `A record for this branch is present at \`${head}\`.`],
+              'skipped-label': ['### Pre-review check skipped', '', `Skipped at \`${head}\`: the \`skip-pre-review\` label is set.`],
+              'skipped-draft': ['### Pre-review check skipped', '', `Skipped at \`${head}\` while this PR is a draft; it runs again when marked ready for review.`],
+              'skipped-bot': ['### Pre-review check skipped', '', `Skipped at \`${head}\`: the PR was opened by a bot.`],
+            };
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              ...context.repo,
+              issue_number: context.issue.number,
+              per_page: 100,
+            });
+            const existing = comments.find(
+              c => c.user?.login === botLogin && (c.body || '').includes(marker),
+            );
+
+            const failure = failures[result.status];
+            if (failure === undefined) {
+              const lines = settled[result.status];
+              if (existing && lines) {
+                await github.rest.issues.updateComment({
+                  ...context.repo,
+                  comment_id: existing.id,
+                  body: [marker, ...lines].join('\n'),
+                });
+              }
+              return;
+            }
+
+            const body = [marker, ...failure].join('\n');
+            if (existing) {
+              await github.rest.issues.updateComment({ ...context.repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment({ ...context.repo, issue_number: context.issue.number, body });
+            }
+
+      - name: Require a record for this branch
+        env:
+          STATUS: ${{ steps.check.outputs.status }}
+        run: |
+          case "$STATUS" in
+            match|skipped-label|skipped-draft|skipped-bot)
+              echo "Pre-review record: $STATUS"
+              ;;
+            *)
+              echo "::error title=Pre-review record ${STATUS}::See the PR comment and docs/pre-review.md."
+              exit 1
+              ;;
+          esac

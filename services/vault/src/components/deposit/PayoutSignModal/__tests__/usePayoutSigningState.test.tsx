@@ -4,13 +4,13 @@ import { StrictMode } from "react";
 import type { Hex } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { COPY } from "@/copy";
+
 import { LocalStorageStatus } from "../../../../models/peginStateMachine";
 import { VaultLifecycleStateError } from "../../../../utils/errors/vaultLifecycleStateError";
 import { usePayoutSigningState } from "../usePayoutSigningState";
 
-// Mock the SDK adapter the hook delegates to. We don't care here whether the
-// SDK actually polls / signs — only that the hook wires it up and respects
-// the contract (no double-invocation, abort handling, error mapping, etc.).
+// Check the hook's SDK inputs, cancellation, and error handling.
 const mockSignAndSubmitPayouts = vi.fn();
 vi.mock("../../../../hooks/deposit/depositFlowSteps/payoutSigning", () => ({
   signAndSubmitPayouts: (...args: unknown[]) =>
@@ -41,8 +41,7 @@ vi.mock("../../../../services/vault/fetchVaults", () => ({
     mockFetchVaultPayoutScriptPubKey(...args),
 }));
 
-// Presign terms-rebuild collaborators (approval wallets only). Mocked as
-// modules so the software-wallet path can assert they are never even called.
+// Software wallets must skip the deposit terms rebuild.
 const mockGetVaultFromChain = vi.fn();
 vi.mock("../../../../clients/eth-contract/btc-vault-registry/query", () => ({
   getVaultFromChain: (...args: unknown[]) => mockGetVaultFromChain(...args),
@@ -62,6 +61,8 @@ vi.mock("../../../../services/vault/rebuildDepositTerms", () => ({
   rebuildDepositTerms: (...args: unknown[]) => mockRebuildDepositTerms(...args),
 }));
 
+let mockSessionConfirmed = true;
+let mockBtcLocked = false;
 let mockBtcConnector: {
   connectedWallet?: {
     account?: { address: string };
@@ -69,7 +70,17 @@ let mockBtcConnector: {
   };
 } | null = null;
 vi.mock("@babylonlabs-io/wallet-connector", () => ({
+  useBTCWallet: () => ({
+    connected: Boolean(mockBtcConnector?.connectedWallet),
+    locked: mockBtcLocked,
+  }),
+  useWalletConnect: () => ({ connected: mockSessionConfirmed, open: vi.fn() }),
   useChainConnector: vi.fn(() => mockBtcConnector),
+}));
+vi.mock("@/context/wallet", () => ({
+  useBTCWallet: () => ({
+    connected: Boolean(mockBtcConnector?.connectedWallet),
+  }),
 }));
 
 const mockBtcAddressToScriptPubKeyHex = vi.fn();
@@ -90,9 +101,7 @@ vi.mock("../../../../utils/btc", () => ({
   },
 }));
 
-// Stub only the message formatter. `classifyError` stays real so the
-// user-rejection filter is exercised against genuine EIP-1193 classification
-// rather than a stub that could agree with a wrong implementation.
+// Keep real error classification while controlling the displayed message.
 vi.mock("../../../../utils/errors/formatting", async (importOriginal) => ({
   ...(await importOriginal<
     typeof import("../../../../utils/errors/formatting")
@@ -156,14 +165,14 @@ describe("usePayoutSigningState", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockBtcConnector = null;
+    mockSessionConfirmed = true;
+    mockBtcLocked = false;
     setupHappyPath();
     mockSignAndSubmitPayouts.mockResolvedValue(undefined);
     mockVerifyBtcWalletLiveness.mockResolvedValue(undefined);
     mockFetchVaultPayoutScriptPubKey.mockResolvedValue(null);
     mockGetVaultFromChain.mockResolvedValue(ON_CHAIN_VAULT);
-    // `vi.clearAllMocks` does not drain queued `*Once` implementations; reset
-    // the mocks that tests arm with one-shot failures before re-installing
-    // their defaults so an unconsumed queue cannot leak across tests.
+    // Reset queued one-shot failures before each test.
     mockResolveFundedTxFeeAndUtxos.mockReset();
     mockRebuildDepositTerms.mockReset();
     mockAssertPresignTargetSignable.mockReset();
@@ -272,6 +281,8 @@ describe("usePayoutSigningState", () => {
       });
 
       expect(mockLoggerError).not.toHaveBeenCalled();
+      expect(result.current.signing).toBe(false);
+      expect(result.current.isComplete).toBe(false);
       expect(result.current.error).toBeNull();
     });
 
@@ -563,7 +574,6 @@ describe("usePayoutSigningState", () => {
 
   describe("reentrancy guard", () => {
     it("ignores a second handleSign call while signing is in flight", async () => {
-      // Make the SDK call deliberately slow so two calls overlap.
       let resolveSdk: () => void;
       mockSignAndSubmitPayouts.mockImplementation(
         () => new Promise<void>((resolve) => (resolveSdk = resolve)),
@@ -571,17 +581,14 @@ describe("usePayoutSigningState", () => {
 
       const { result } = renderHookWithProps();
 
-      // Fire two back-to-back invocations BEFORE awaiting either.
       const calls = await act(async () => {
         const first = result.current.handleSign();
         const second = result.current.handleSign();
         return [first, second];
       });
 
-      // SDK should have been called exactly once.
       expect(mockSignAndSubmitPayouts).toHaveBeenCalledOnce();
 
-      // Resolve the slow SDK call so both promises settle.
       await act(async () => {
         resolveSdk!();
         await Promise.all(calls);
@@ -612,30 +619,11 @@ describe("usePayoutSigningState", () => {
       expect(onSuccess).not.toHaveBeenCalled();
       expect(mockSetOptimisticStatus).not.toHaveBeenCalled();
     });
-
-    it("treats AbortError as a silent end-of-flow (no error state)", async () => {
-      const abortErr = new Error("aborted");
-      abortErr.name = "AbortError";
-      mockSignAndSubmitPayouts.mockRejectedValueOnce(abortErr);
-
-      const { result } = renderHookWithProps();
-
-      await act(async () => {
-        await result.current.handleSign();
-      });
-
-      expect(result.current.error).toBeNull();
-      expect(result.current.signing).toBe(false);
-      expect(result.current.isComplete).toBe(false);
-    });
   });
 
   describe("unmount cleanup", () => {
     it("does not abort the in-flight signal under React StrictMode's simulated unmount", async () => {
-      // Regression: StrictMode runs effects mount→cleanup→remount on the
-      // first commit. A direct abort-on-cleanup would kill the controller
-      // that handleSign just created, causing "Polling aborted" to surface
-      // in dev as a spurious failure on the very first sign attempt.
+      // The StrictMode remount must keep the current attempt.
       let observedSignal: AbortSignal | undefined;
       let resolveSdk: (() => void) | undefined;
       mockSignAndSubmitPayouts.mockImplementation(
@@ -663,9 +651,7 @@ describe("usePayoutSigningState", () => {
       });
       await waitFor(() => expect(mockSignAndSubmitPayouts).toHaveBeenCalled());
 
-      // Give setTimeout(0) a chance to fire if the deferred-abort guard is
-      // broken. The signal must still be live after StrictMode's simulated
-      // unmount/remount cycle.
+      // Allow the deferred cancellation to run if the guard is broken.
       await new Promise((r) => setTimeout(r, 10));
       expect(observedSignal?.aborted).toBe(false);
 
@@ -674,43 +660,10 @@ describe("usePayoutSigningState", () => {
         resolveSdk!();
       });
     });
-
-    it("aborts the in-flight signal when the hook unmounts", async () => {
-      let observedSignal: AbortSignal | undefined;
-      mockSignAndSubmitPayouts.mockImplementation(
-        ({ signal }: { signal: AbortSignal }) =>
-          new Promise<void>((_resolve, reject) => {
-            observedSignal = signal;
-            signal.addEventListener("abort", () => {
-              const e = new Error("aborted");
-              e.name = "AbortError";
-              reject(e);
-            });
-          }),
-      );
-
-      const { result, unmount } = renderHookWithProps();
-
-      // Kick off signing without awaiting it.
-      act(() => {
-        void result.current.handleSign();
-      });
-      await waitFor(() => expect(mockSignAndSubmitPayouts).toHaveBeenCalled());
-
-      // Unmount mid-flight. The cleanup defers the abort to the next tick
-      // so that React StrictMode's simulated unmount doesn't kill work that
-      // the immediate remount will keep running.
-      unmount();
-      await waitFor(() => expect(observedSignal?.aborted).toBe(true));
-    });
   });
 
   describe("device-sign cancellation", () => {
-    // Ledger-shaped provider: the only BTC provider exposing cancelSigning.
-    // No approveDepositTerms on purpose — the cancel seam is orthogonal to
-    // the approval rebuild, so these tests stay on the software-wallet path.
-    // Its signPsbt never settles on its own: armPendingSdkCall's `pending`
-    // settles the SDK call while that device window is still held open.
+    // Hold the Ledger device call open until the test settles the SDK call.
     function connectCancellableWallet() {
       const cancelSigning = vi.fn();
       mockBtcConnector = {
@@ -725,10 +678,7 @@ describe("usePayoutSigningState", () => {
       return { cancelSigning };
     }
 
-    // Holds the SDK call open so cancel/settle ordering is test-controlled,
-    // driving one wrapped signPsbt so the cancellable device window the
-    // affordance tracks is active while the call is held (an instant no-op
-    // window for the plain software wallet).
+    // Start a wallet call and let the test control when the SDK settles.
     function armPendingSdkCall() {
       const pending: {
         resolve: () => void;
@@ -755,6 +705,26 @@ describe("usePayoutSigningState", () => {
       return pending;
     }
 
+    it("cancels the original device and signal when the hook unmounts", async () => {
+      const { cancelSigning } = connectCancellableWallet();
+      const pending = armPendingSdkCall();
+      const { result, unmount } = renderHookWithProps();
+      let signPromise!: Promise<void>;
+      act(() => {
+        signPromise = result.current.handleSign();
+      });
+      await waitFor(() => expect(result.current.canCancel).toBe(true));
+      unmount();
+      await waitFor(() => expect(cancelSigning).toHaveBeenCalledOnce());
+      expect(pending.signal?.aborted).toBe(true);
+      await act(async () => {
+        pending.resolve();
+        await signPromise;
+      });
+      expect(onSuccess).not.toHaveBeenCalled();
+      expect(mockSetOptimisticStatus).not.toHaveBeenCalled();
+    });
+
     // What the Ledger provider rejects with when a requested cancel settles
     // at the next device exchange boundary (WalletError, typed code).
     function signingCanceledError() {
@@ -766,43 +736,251 @@ describe("usePayoutSigningState", () => {
       );
     }
 
-    it("reports canCancel false while signing when the provider lacks cancelSigning", async () => {
-      // setupHappyPath connects the plain signPsbt-only software wallet.
-      const pending = armPendingSdkCall();
-      const { result } = renderHookWithProps();
-
+    it("stops a software attempt on disconnect and waits for an explicit retry", async () => {
+      mockSignAndSubmitPayouts.mockImplementation(
+        ({ signal }) =>
+          new Promise<void>((_resolve, reject) => {
+            signal.addEventListener("abort", () =>
+              reject(new Error("Polling aborted")),
+            );
+          }),
+      );
+      const { result, rerender } = renderHookWithProps();
       let signPromise!: Promise<void>;
       act(() => {
         signPromise = result.current.handleSign();
       });
-      await waitFor(() => expect(result.current.signing).toBe(true));
-
+      await waitFor(() =>
+        expect(mockSignAndSubmitPayouts).toHaveBeenCalledOnce(),
+      );
       expect(result.current.canCancel).toBe(false);
-
+      mockBtcConnector = null;
+      rerender();
       await act(async () => {
-        pending.resolve();
         await signPromise;
       });
+      expect(mockSignAndSubmitPayouts.mock.calls[0][0].signal.aborted).toBe(
+        true,
+      );
+      expect(result.current.signing).toBe(false);
+      expect(result.current.isComplete).toBe(false);
+      expect(result.current.error).toEqual(
+        COPY.deposit.payoutSigningGuards.walletNotConnected,
+      );
+      expect(onSuccess).not.toHaveBeenCalled();
+      expect(mockSetOptimisticStatus).not.toHaveBeenCalled();
+      setupHappyPath();
+      rerender();
+      expect(mockSignAndSubmitPayouts).toHaveBeenCalledOnce();
+      mockSignAndSubmitPayouts.mockResolvedValueOnce(undefined);
+      await act(async () => {
+        await result.current.handleSign();
+      });
+      expect(result.current.isComplete).toBe(true);
     });
 
-    it("reports canCancel true only while a sign is in flight on a provider with cancelSigning", async () => {
-      connectCancellableWallet();
-      const pending = armPendingSdkCall();
-      const { result } = renderHookWithProps();
+    it.each([
+      { walletKeyReady: false },
+      { btcPublicKey: PROVIDER.btcPubKey },
+      { depositorEthAddress: ACTIVITY.id },
+    ])(
+      "stops a software attempt after an identity change: %j",
+      async (change) => {
+        const pending = armPendingSdkCall();
+        const props = {};
+        const { result, rerender } = renderHookWithProps(props);
+        let signPromise!: Promise<void>;
+        act(() => {
+          signPromise = result.current.handleSign();
+        });
+        await waitFor(() =>
+          expect(mockSignAndSubmitPayouts).toHaveBeenCalledOnce(),
+        );
+        Object.assign(props, change);
+        rerender();
+        expect(pending.signal?.aborted).toBe(true);
+        await act(async () => {
+          pending.resolve();
+          await signPromise;
+        });
+        expect(result.current.isComplete).toBe(false);
+        expect(onSuccess).not.toHaveBeenCalled();
+      },
+    );
 
-      expect(result.current.canCancel).toBe(false);
+    it.each([
+      {
+        step: "backfill",
+        check: mockFetchVaultPayoutScriptPubKey,
+        payout: undefined,
+        livenessCalls: 0,
+      },
+      {
+        step: "liveness",
+        check: mockVerifyBtcWalletLiveness,
+        payout: ACTIVITY.depositorPayoutBtcAddress,
+        livenessCalls: 1,
+      },
+    ])(
+      "stops when the wallet disconnects during $step",
+      async ({ check, payout, livenessCalls }) => {
+        let finishCheck!: (value?: string) => void;
+        check.mockReturnValueOnce(
+          new Promise<string | undefined>((resolve) => {
+            finishCheck = resolve;
+          }),
+        );
+        const { result, rerender } = renderHookWithProps({
+          activity: {
+            ...ACTIVITY,
+            depositorPayoutBtcAddress: payout,
+          } as Parameters<typeof usePayoutSigningState>[0]["activity"],
+        });
+        let signPromise!: Promise<void>;
+        act(() => {
+          signPromise = result.current.handleSign();
+        });
+        await waitFor(() => expect(check).toHaveBeenCalledOnce());
+        mockBtcConnector = null;
+        rerender();
+        await act(async () => {
+          finishCheck(ACTIVITY.depositorPayoutBtcAddress);
+          await signPromise;
+        });
+        expect(mockSignAndSubmitPayouts).not.toHaveBeenCalled();
+        expect(mockVerifyBtcWalletLiveness).toHaveBeenCalledTimes(
+          livenessCalls,
+        );
+        expect(result.current.signing).toBe(false);
+        expect(result.current.error).toEqual(
+          COPY.deposit.payoutSigningGuards.walletNotConnected,
+        );
+        expect(onSuccess).not.toHaveBeenCalled();
+      },
+    );
 
+    it.each([
+      [
+        "address loss",
+        () => {
+          mockBtcConnector!.connectedWallet!.account = undefined;
+        },
+      ],
+      [
+        "provider replacement",
+        () => {
+          mockBtcConnector!.connectedWallet!.provider = PROVIDER;
+        },
+      ],
+      [
+        "consent loss",
+        () => {
+          mockSessionConfirmed = false;
+        },
+      ],
+    ] as const)(
+      "stops before signing after %s during the liveness read",
+      async (_name, changeWallet) => {
+        let finishRead!: () => void;
+        mockVerifyBtcWalletLiveness.mockImplementationOnce(
+          () =>
+            new Promise<void>((resolve) => {
+              finishRead = resolve;
+            }),
+        );
+        const { result, rerender } = renderHookWithProps();
+        let attempt!: Promise<void>;
+        act(() => {
+          attempt = result.current.handleSign();
+        });
+        expect(mockVerifyBtcWalletLiveness).toHaveBeenCalledOnce();
+
+        changeWallet();
+        rerender();
+        await act(async () => {
+          finishRead();
+          await attempt;
+        });
+
+        expect(mockSignAndSubmitPayouts).not.toHaveBeenCalled();
+        expect(onSuccess).not.toHaveBeenCalled();
+        expect(result.current.signing).toBe(false);
+        expect(result.current.error).toEqual(
+          COPY.deposit.payoutSigningGuards.walletNotConnected,
+        );
+
+        setupHappyPath();
+        mockSessionConfirmed = true;
+        rerender();
+        expect(mockSignAndSubmitPayouts).not.toHaveBeenCalled();
+        await act(async () => {
+          await result.current.handleSign();
+        });
+        expect(mockSignAndSubmitPayouts).toHaveBeenCalledOnce();
+        expect(result.current.isComplete).toBe(true);
+      },
+    );
+
+    it("keeps a software attempt running when the wallet locks mid-attempt", async () => {
+      let finishSigning!: () => void;
+      mockSignAndSubmitPayouts.mockImplementation(
+        () =>
+          new Promise<void>((resolve) => {
+            finishSigning = resolve;
+          }),
+      );
+      const { result, rerender } = renderHookWithProps();
       let signPromise!: Promise<void>;
       act(() => {
         signPromise = result.current.handleSign();
       });
-      await waitFor(() => expect(result.current.canCancel).toBe(true));
-
+      await waitFor(() =>
+        expect(mockSignAndSubmitPayouts).toHaveBeenCalledOnce(),
+      );
+      // An idle auto-lock during the vault provider wait. A lock alone must
+      // not cancel the attempt.
+      mockBtcLocked = true;
+      rerender();
+      expect(mockSignAndSubmitPayouts.mock.calls[0][0].signal.aborted).toBe(
+        false,
+      );
       await act(async () => {
-        pending.resolve();
+        finishSigning();
         await signPromise;
       });
-      expect(result.current.canCancel).toBe(false);
+      expect(result.current.error).toBeNull();
+      expect(result.current.isComplete).toBe(true);
+      expect(onSuccess).toHaveBeenCalledOnce();
+    });
+
+    it("stops the next wallet call after a signature arrives after disconnect", async () => {
+      let finishSign!: (value: string) => void;
+      BTC_WALLET.signPsbt.mockReturnValueOnce(
+        new Promise<string>((resolve) => {
+          finishSign = resolve;
+        }),
+      );
+      mockSignAndSubmitPayouts.mockImplementation(async ({ btcWallet }) => {
+        await btcWallet.signPsbt("payout-psbt");
+        await btcWallet.signPsbt("payout-psbt");
+      });
+      const { result, rerender } = renderHookWithProps();
+      let signPromise!: Promise<void>;
+      act(() => {
+        signPromise = result.current.handleSign();
+      });
+      await waitFor(() => expect(BTC_WALLET.signPsbt).toHaveBeenCalledOnce());
+      mockBtcConnector = null;
+      rerender();
+      await act(async () => {
+        finishSign("signed");
+        await signPromise;
+      });
+      expect(BTC_WALLET.signPsbt).toHaveBeenCalledOnce();
+      expect(result.current.isComplete).toBe(false);
+      expect(result.current.error).toEqual(
+        COPY.deposit.payoutSigningGuards.walletNotConnected,
+      );
     });
 
     it("cancels the provider that started the sign, not a wallet swapped in mid-prompt", async () => {
@@ -824,13 +1002,9 @@ describe("usePayoutSigningState", () => {
       };
       rerender();
 
-      // The affordance tracks the running ceremony, not the live connector.
       expect(result.current.canCancel).toBe(true);
-
-      act(() => {
-        result.current.handleCancel();
-      });
-
+      expect(result.current.cancelRequested).toBe(true);
+      expect(pending.signal?.aborted).toBe(true);
       expect(cancelSigning).toHaveBeenCalledTimes(1);
       expect(replacementCancelSigning).not.toHaveBeenCalled();
 
@@ -840,13 +1014,13 @@ describe("usePayoutSigningState", () => {
       });
     });
 
-    // Shared setup for the cancel-request tests below: start a sign on a
-    // cancellable wallet, request the cancel, hand back a settle helper.
+    // Request cancellation while the device call is pending.
     async function startSignAndRequestCancel() {
       const { cancelSigning } = connectCancellableWallet();
       const pending = armPendingSdkCall();
       const { result } = renderHookWithProps();
 
+      expect(result.current.canCancel).toBe(false);
       let signPromise!: Promise<void>;
       act(() => {
         signPromise = result.current.handleSign();
@@ -863,66 +1037,35 @@ describe("usePayoutSigningState", () => {
           await signPromise;
         });
       };
-      return { result, cancelSigning, pending, settleAsCancelRejection };
+      return {
+        result,
+        cancelSigning,
+        pending,
+        signPromise,
+        settleAsCancelRejection,
+      };
     }
 
-    it("handleCancel invokes the provider's cancelSigning once", async () => {
-      const { cancelSigning, settleAsCancelRejection } =
+    it("cancels the original provider and signal while the device call stays pending", async () => {
+      const { result, cancelSigning, pending, settleAsCancelRejection } =
         await startSignAndRequestCancel();
 
-      expect(cancelSigning).toHaveBeenCalledTimes(1);
-
-      await settleAsCancelRejection();
-    });
-
-    it("handleCancel aborts the in-flight signal so VP polling stops now", async () => {
-      const { pending, settleAsCancelRejection } =
-        await startSignAndRequestCancel();
-
+      act(() => result.current.handleCancel());
+      expect(cancelSigning).toHaveBeenCalledOnce();
       expect(pending.signal?.aborted).toBe(true);
-
-      await settleAsCancelRejection();
-    });
-
-    it("handleCancel sets cancelRequested", async () => {
-      const { result, settleAsCancelRejection } =
-        await startSignAndRequestCancel();
-
       expect(result.current.cancelRequested).toBe(true);
-
-      await settleAsCancelRejection();
-    });
-
-    it("keeps the sign pending after handleCancel — a cancel is a request, not a settle", async () => {
-      const { result, settleAsCancelRejection } =
-        await startSignAndRequestCancel();
-
       expect(result.current.signing).toBe(true);
 
       await settleAsCancelRejection();
     });
 
-    it("resets to idle with no error when a requested cancel settles as the provider's signing-cancelled rejection", async () => {
-      connectCancellableWallet();
-      const pending = armPendingSdkCall();
-      const { result } = renderHookWithProps();
+    it("resets to idle after the provider confirms cancellation", async () => {
+      const { result, settleAsCancelRejection } =
+        await startSignAndRequestCancel();
+      await settleAsCancelRejection();
 
-      let signPromise!: Promise<void>;
-      act(() => {
-        signPromise = result.current.handleSign();
-      });
-      await waitFor(() => expect(result.current.canCancel).toBe(true));
-
-      act(() => {
-        result.current.handleCancel();
-      });
-      await act(async () => {
-        pending.reject(signingCanceledError());
-        await signPromise;
-      });
-
-      // A self-requested cancel is not an error — back to the pre-sign state.
       expect(result.current.error).toBeNull();
+      expect(result.current.canCancel).toBe(false);
       expect(result.current.signing).toBe(false);
       expect(result.current.cancelRequested).toBe(false);
       expect(result.current.isComplete).toBe(false);
@@ -952,56 +1095,35 @@ describe("usePayoutSigningState", () => {
       expect(result.current.signing).toBe(false);
     });
 
-    it("surfaces an unrelated failure after a requested cancel and clears cancelRequested", async () => {
-      connectCancellableWallet();
-      const pending = armPendingSdkCall();
-      const { result } = renderHookWithProps();
+    it.each(["Polling aborted", "Request aborted"])(
+      "clears a cancelled attempt after %s",
+      async (message) => {
+        const { result, pending, signPromise } =
+          await startSignAndRequestCancel();
+        await act(async () => {
+          pending.reject(new Error(message));
+          await signPromise;
+        });
 
-      let signPromise!: Promise<void>;
-      act(() => {
-        signPromise = result.current.handleSign();
-      });
-      await waitFor(() => expect(result.current.canCancel).toBe(true));
+        expect(result.current.error).toBeNull();
+        expect(mockLoggerError).not.toHaveBeenCalled();
+        expect(result.current.cancelRequested).toBe(false);
+        expect(result.current.signing).toBe(false);
+      },
+    );
 
-      act(() => {
-        result.current.handleCancel();
-      });
-      await act(async () => {
-        pending.reject(new Error("VP unreachable"));
-        await signPromise;
-      });
-
-      expect(result.current.error).toEqual({
-        title: "Sign Error",
-        message: "VP unreachable",
-      });
-      expect(result.current.cancelRequested).toBe(false);
-      expect(result.current.signing).toBe(false);
-    });
-
-    it("clears cancelRequested when the sign settles successfully after a late cancel", async () => {
-      connectCancellableWallet();
-      const pending = armPendingSdkCall();
-      const { result } = renderHookWithProps();
-
-      let signPromise!: Promise<void>;
-      act(() => {
-        signPromise = result.current.handleSign();
-      });
-      await waitFor(() => expect(result.current.canCancel).toBe(true));
-
-      act(() => {
-        result.current.handleCancel();
-      });
+    it("ignores a late signing result after cancellation", async () => {
+      const { result, pending, signPromise } =
+        await startSignAndRequestCancel();
       await act(async () => {
         pending.resolve();
         await signPromise;
       });
 
-      // The cancel came too late — the sign completed. The request must be
-      // consumed so the modal cannot wedge on the disabled cancel button.
       expect(result.current.cancelRequested).toBe(false);
-      expect(result.current.isComplete).toBe(true);
+      expect(result.current.isComplete).toBe(false);
+      expect(onSuccess).not.toHaveBeenCalled();
+      expect(mockSetOptimisticStatus).not.toHaveBeenCalled();
     });
 
     it("keeps canCancel false during a hung VP-auth (deriveContextHash) phase", async () => {
@@ -1084,13 +1206,9 @@ describe("usePayoutSigningState", () => {
   });
 
   describe("deposit-terms approval capability forwarding through wallet wrappers", () => {
-    // A real depositor-approval wallet (e.g. Ledger) implements
-    // approveDepositTerms as a class-prototype method, not an own/instance
-    // property — `{...wallet}` silently drops it, so the wrapper built here
-    // must forward it explicitly instead of relying on spread.
+    // The wallet wrapper must preserve prototype methods.
     class PrototypeApprovalBtcWallet {
-      // Private so a wrong-`this` forward (e.g. an unbound method reference)
-      // throws instead of silently sharing spread-copied state.
+      // An unbound method must fail when it accesses this private field.
       #approvedWith: unknown[] = [];
       get approvedWith(): readonly unknown[] {
         return this.#approvedWith;
@@ -1133,11 +1251,41 @@ describe("usePayoutSigningState", () => {
       const call = mockSignAndSubmitPayouts.mock.calls[0][0];
       expect(supportsDepositApproval(call.btcWallet)).toBe(true);
 
-      // Presence isn't enough: the forwarded method must delegate to the
-      // underlying wallet with the same terms object.
+      // Forward the same terms object to the original wallet.
       const terms = { marker: "payout-wrapper-terms" };
       await call.btcWallet.approveDepositTerms(terms);
       expect(underlyingWallet.approvedWith).toEqual([terms]);
+    });
+    it("blocks deposit approval after the signing session ends", async () => {
+      const wallet = new PrototypeApprovalBtcWallet();
+      mockBtcConnector!.connectedWallet!.provider = wallet;
+      let approve!: () => Promise<void>;
+      let finish!: () => void;
+      mockSignAndSubmitPayouts.mockImplementation(
+        ({ btcWallet, depositTerms }) => {
+          approve = () => btcWallet.approveDepositTerms(depositTerms);
+          return new Promise<void>((resolve) => {
+            finish = resolve;
+          });
+        },
+      );
+      const { result, rerender } = renderHookWithProps();
+      let signPromise!: Promise<void>;
+      act(() => {
+        signPromise = result.current.handleSign();
+      });
+      await waitFor(() =>
+        expect(mockSignAndSubmitPayouts).toHaveBeenCalledOnce(),
+      );
+      mockSessionConfirmed = false;
+      rerender();
+      await expect(approve()).rejects.toMatchObject({ name: "AbortError" });
+      expect(wallet.approvedWith).toEqual([]);
+      await act(async () => {
+        finish();
+        await signPromise;
+      });
+      expect(result.current.isComplete).toBe(false);
     });
   });
 
@@ -1275,14 +1423,12 @@ describe("usePayoutSigningState", () => {
       });
       expect(result.current.errorTerminal).toBe(true);
 
-      // Wallet disconnects before the retry — a guard error, recoverable.
-      // Re-render so the handler closes over the new connector state.
       mockBtcConnector = { connectedWallet: undefined };
       rerender();
       await act(async () => {
         await result.current.handleSign();
       });
-      expect(result.current.error?.title).toBe("Wallet address unavailable");
+      expect(result.current.error?.title).toBe("Wallet not connected");
       expect(result.current.errorTerminal).toBe(false);
     });
 

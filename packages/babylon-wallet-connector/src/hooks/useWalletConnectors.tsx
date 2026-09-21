@@ -10,9 +10,9 @@ import {
   subscribeToConfirmationIdentityChanges,
   WALLET_CONFIRMATION_RECEIPT_KEY,
 } from "@/core/confirmationReceipt";
-import { ChainId, HashMap, IChain, IETHProvider, IWallet, Network } from "@/core/types";
+import { ChainId, HashMap, IChain, IConnector, IETHProvider, IWallet, Network } from "@/core/types";
 import { resolveFirstPartyIcon } from "@/core/wallets/firstPartyIcons";
-import { ERROR_CODES, WalletError } from "@/error";
+import { ERROR_CODES, isSharedSessionRefusal, WalletError } from "@/error";
 
 import { useWidgetState } from "./useWidgetState";
 
@@ -49,9 +49,7 @@ async function resolveEthDisplayWallet(wallet: IWallet): Promise<IWallet> {
  * silently bouncing back to chain selection would leave the user with no
  * idea why their wallet didn't connect.
  */
-const TERMINAL_CONNECT_ERROR_CODES: ReadonlySet<string> = new Set([
-  ERROR_CODES.INCOMPATIBLE_WALLET_VERSION,
-]);
+const TERMINAL_CONNECT_ERROR_CODES: ReadonlySet<string> = new Set([ERROR_CODES.INCOMPATIBLE_WALLET_VERSION]);
 
 export interface BTCAddressValidation {
   validateAddress(network: Network, address: string): void;
@@ -83,13 +81,35 @@ export function useWalletConnectors({ persistent, accountStorage, onError, btcVa
   const { verifyBTCAddress } = useLifeCycleHooks();
   const validationGenerationRef = useRef(0);
   const previousRequiredChainIdsRef = useRef(requiredChainIds);
-  const confirmationCandidate = confirmationReceipt ??
-    (persistent && !visible ? accountStorage.get(WALLET_CONFIRMATION_RECEIPT_KEY) : undefined);
+  const confirmationCandidate =
+    confirmationReceipt ?? (persistent && !visible ? accountStorage.get(WALLET_CONFIRMATION_RECEIPT_KEY) : undefined);
   const confirmationCandidateRef = useRef<string>();
   const dirtyOptionalChainsRef = useRef<Set<ChainId>>(new Set());
-  const requiredConnectorsReady = requiredChainIds.every(
-    (chainId) => connectors[chainId as ChainId]?.connectedWallet,
-  );
+  const requiredConnectorsReady = requiredChainIds.every((chainId) => connectors[chainId as ChainId]?.connectedWallet);
+
+  // A wallet that failed post-connect validation is forgotten locally no matter
+  // what the provider does: the chain disconnect is attempted first so an
+  // AppKit wallet is released, and a refusal (shared session) or a failure
+  // falls back to the local teardown so the wallet cannot be selected again.
+  const droppingRef = useRef<Set<string>>(new Set());
+  const dropRejectedWallet = async (connector: Pick<IConnector, "id" | "disconnect">) => {
+    droppingRef.current.add(connector.id);
+    removeWallet?.(connector.id);
+    if (persistent) accountStorage.delete(connector.id);
+    try {
+      await connector.disconnect("chain");
+    } catch (error) {
+      if (!isSharedSessionRefusal(error)) {
+        console.error(
+          "Failed to disconnect rejected wallet:",
+          error instanceof Error ? error.message : "Unknown error",
+        );
+      }
+      await connector.disconnect("local");
+    } finally {
+      droppingRef.current.delete(connector.id);
+    }
+  };
 
   // Connecting event
   useEffect(() => {
@@ -141,8 +161,7 @@ export function useWalletConnectors({ persistent, accountStorage, onError, btcVa
                 "The Bitcoin address and Public Key for this wallet do not match. Please contact your wallet provider for support.",
               onSubmit: goToNextScreen,
               onCancel: () => {
-                connector.disconnect();
-                removeWallet?.(connector.id);
+                void dropRejectedWallet(connector);
                 displayChains?.();
               },
             });
@@ -158,8 +177,7 @@ export function useWalletConnectors({ persistent, accountStorage, onError, btcVa
               submitButton: "",
               cancelButton: "Done",
               onCancel: async () => {
-                connector.disconnect();
-                removeWallet?.(connector.id);
+                void dropRejectedWallet(connector);
                 displayChains?.();
               },
             });
@@ -169,8 +187,7 @@ export function useWalletConnectors({ persistent, accountStorage, onError, btcVa
 
           goToNextScreen();
         } catch (e: any) {
-          connector.disconnect();
-          removeWallet?.(connector.id);
+          void dropRejectedWallet(connector);
           displayError?.({
             title: "Connection Failed",
             description: e.message,
@@ -211,7 +228,7 @@ export function useWalletConnectors({ persistent, accountStorage, onError, btcVa
     );
 
     connectorArr.forEach((connector) => {
-      const connectedWallet = connector.connectedWallet;
+      const connectedWallet = droppingRef.current.has(connector.id) ? null : connector.connectedWallet;
       if (connector.id === "ETH" && connectedWallet) {
         void resolveEthDisplayWallet(connectedWallet).then((wallet) => selectWallet?.(connector.id, wallet));
         return;
@@ -275,16 +292,11 @@ export function useWalletConnectors({ persistent, accountStorage, onError, btcVa
         // Guard on `displayError` directly so we still fall through to
         // `displayChains?.()` below if the dialog state isn't wired up;
         // otherwise the user could be stranded on the current screen.
-        if (
-          error instanceof WalletError &&
-          TERMINAL_CONNECT_ERROR_CODES.has(error.code) &&
-          displayError
-        ) {
+        if (error instanceof WalletError && TERMINAL_CONNECT_ERROR_CODES.has(error.code) && displayError) {
           const walletName = error.wallet ?? "your wallet";
           displayError({
             title: `Update ${walletName}`,
-            description:
-              error.message || `${walletName} needs to be updated before you can connect.`,
+            description: error.message || `${walletName} needs to be updated before you can connect.`,
             submitButton: "",
             cancelButton: "Done",
             onCancel: () => {

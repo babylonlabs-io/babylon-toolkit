@@ -5,42 +5,60 @@
  */
 
 import type { QueryClient } from "@tanstack/react-query";
-import type { Address } from "viem";
 
 import { VAULTS_QUERY_KEY } from "../hooks/useVaults";
 
+export const AAVE_USER_POSITION_QUERY_KEY = "aaveUserPosition";
+/** Hub-wide liquidity per reserve (useAaveReserveLiquidity). */
+export const AAVE_RESERVE_LIQUIDITY_QUERY_KEY = "aaveReserveLiquidity";
+/** Our spoke's remaining borrow limit per reserve (useAaveReserveDrawHeadroom). */
+export const AAVE_RESERVE_DRAW_HEADROOM_QUERY_KEY = "aaveReserveDrawHeadroom";
+/** Our spoke's live hub config per reserve (useHubSpokeConfigs). */
+export const AAVE_HUB_SPOKE_CONFIGS_QUERY_KEY = "aaveHubSpokeConfigs";
+
 /**
- * Query key for the depositor's vault liquidation order. The address is
- * lowercased so callers with checksummed and lowercase addresses hit the
- * same cache entry.
+ * Invalidate the Hub reads behind the loan forms after a borrow or repay: the
+ * hub's liquidity and what our spoke has drawn against its borrow limit, which
+ * the transaction moved, and our spoke's hub state, so the next action is
+ * checked against a fresh read. Without this the form keeps showing the
+ * pre-transaction figures until the next one-minute refresh.
+ *
+ * @param queryClient - React Query client instance
  */
-export function vaultOrderQueryKey(address: string): [string, string] {
-  return ["vaultOrder", address.toLowerCase()];
+export async function invalidateHubQueries(
+  queryClient: QueryClient,
+): Promise<void> {
+  await Promise.all([
+    queryClient.invalidateQueries({
+      queryKey: [AAVE_RESERVE_LIQUIDITY_QUERY_KEY],
+    }),
+    queryClient.invalidateQueries({
+      queryKey: [AAVE_RESERVE_DRAW_HEADROOM_QUERY_KEY],
+    }),
+    queryClient.invalidateQueries({
+      queryKey: [AAVE_HUB_SPOKE_CONFIGS_QUERY_KEY],
+    }),
+  ]);
 }
 
 /**
  * Invalidate vault-related queries after collateral operations
  *
  * Use this after:
- * - Successful add collateral (vaults become "In Use")
- * - Successful withdraw collateral (vaults become "Available")
+ * - Successful activation (the vault becomes collateral)
+ * - Successful withdraw collateral (the vault leaves the position)
+ * - Successful reorder
+ * - Successful borrow or repay
  *
  * @param queryClient - React Query client instance
- * @param address - User's Ethereum address
  */
 export async function invalidateVaultQueries(
   queryClient: QueryClient,
-  address: Address,
 ): Promise<void> {
   await Promise.all([
-    // Invalidate vaults query to refresh vault list
+    queryClient.invalidateQueries({ queryKey: [VAULTS_QUERY_KEY] }),
     queryClient.invalidateQueries({
-      queryKey: [VAULTS_QUERY_KEY, address],
-    }),
-
-    // Invalidate Aave user position to refresh collateral amount
-    queryClient.invalidateQueries({
-      queryKey: ["aaveUserPosition", address],
+      queryKey: [AAVE_USER_POSITION_QUERY_KEY],
     }),
   ]);
 }

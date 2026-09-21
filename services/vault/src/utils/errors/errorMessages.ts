@@ -109,6 +109,33 @@ export const CONTRACT_ERROR_MESSAGES: Record<string, string> = {
   FairnessPaymentTokenNotSet: "Fairness payment token is not set.",
   FeeRecipientNotConfigured: "Fee recipient is not configured.",
   DuplicateVaultId: "Duplicate BTCVault ID.",
+  // Reserve state and risk checks a borrow or repay can hit.
+  ReservePaused:
+    "This market is on hold, so it can't be used right now. Try again later.",
+  ReserveFrozen: "This market isn't accepting new borrows right now.",
+  ReserveNotBorrowable: "This asset can't be borrowed from this market.",
+  HealthFactorBelowThreshold:
+    "This would drop your health factor below the liquidation threshold. Reduce the amount and try again.",
+
+  // ============================================================================
+  // Aave Hub errors
+  // ============================================================================
+  // Fixed text for callers that have no reserve to name; the borrow and repay
+  // forms scale and name the hub (describeAaveRevert). Worded to avoid the
+  // substrings getEnhancedErrorMessage rewrites ("paused", "frozen",
+  // "not enough", "insufficient liquidity", "cap exceeded").
+  DrawCapExceeded:
+    "This market has reached its borrow limit on its hub. Enter a lower amount or borrow from another hub.",
+  AddCapExceeded:
+    "The hub's collateral limit has been reached, so this BTCVault can't be added right now. Try again later.",
+  InsufficientLiquidity:
+    "The hub doesn't hold enough of this asset to cover the amount. Enter a lower amount and try again.",
+  SpokeNotActive:
+    "A hub this transaction depends on isn't accepting transactions right now. Try again later.",
+  SpokeHalted:
+    "The hub for this market has halted it. Try again once the halt is lifted.",
+  InvalidPremiumChange:
+    "A hub where you have debt rejected the rate update this transaction needs. Try again later.",
 
   // ============================================================================
   // Bitcoin verification errors

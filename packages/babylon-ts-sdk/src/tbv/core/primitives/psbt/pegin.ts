@@ -30,6 +30,7 @@ import { stripHexPrefix, uint8ArrayToHex } from "../utils/bitcoin";
 import {
   assertUnfundedPrePeginOutputLayout,
   assertWasmPeginSizing,
+  deriveExpectedPeginPayoutScriptPubKey,
 } from "./assertWasmPeginSizing";
 import {
   PEGIN_INPUT_SEQUENCE,
@@ -96,6 +97,11 @@ export interface PrePeginParams {
 const AUTH_ANCHOR_HASH_HEX_LEN = 64;
 
 const HEX_PATTERN = /^[0-9a-fA-F]+$/;
+
+/**
+ * The largest PegIn timelock in blocks. The engine stores it as a Rust u16.
+ */
+const MAX_TIMELOCK_PEGIN_BLOCKS = 0xffff;
 
 /**
  * Result of building an unfunded Pre-PegIn transaction
@@ -283,11 +289,28 @@ export function normalizeAuthAnchorHash(
  *
  * @param params - Build parameters including Pre-PegIn params and funded tx hex
  * @returns PegIn transaction details
- * @throws If WASM initialization fails or parameters are invalid
+ * @throws If `timelockPegin` is not a whole number from 1 to 65535, if WASM
+ *   initialization fails or parameters are invalid, or if the WASM result does
+ *   not match the request (for example, a vault scriptPubKey that differs from
+ *   the independently derived payout scriptPubKey)
  */
 export async function buildPeginTxFromFundedPrePegin(
   params: BuildPeginTxParams,
 ): Promise<PeginTxResult> {
+  // Reject the timelock before it crosses into the engine. The engine keeps
+  // only the low 16 bits and drops a fraction, and rejects only a zero
+  // result. Thus 65537 would build a one-block vault, not the requested one.
+  if (
+    !Number.isInteger(params.timelockPegin) ||
+    params.timelockPegin < 1 ||
+    params.timelockPegin > MAX_TIMELOCK_PEGIN_BLOCKS
+  ) {
+    throw new Error(
+      `PegIn timelock ${params.timelockPegin} must be a whole number of ` +
+        `blocks from 1 to ${MAX_TIMELOCK_PEGIN_BLOCKS}.`,
+    );
+  }
+
   // WASM reconstructs the Pre-PegIn template from these params to
   // decode the funded tx. Must pass `authAnchorHash` (normalized
   // identically to buildPrePeginPsbt) so the reconstruction matches
@@ -343,7 +366,9 @@ const PEGIN_BASE_OUTPUT_COUNT = 2;
  * CLAUDE.md critical path #1: the metadata (`vaultValue`, `txid`,
  * `vaultScriptPubKey`) and the tx bytes both come from WASM — bind them to
  * each other and to the caller's requested amount so a doctored binary
- * can't commit one thing and encode another. The vault output value is the
+ * can't commit one thing and encode another. The reported and the encoded
+ * vault scriptPubKey must both equal the payout scriptPubKey that TypeScript
+ * derives from the request. The vault output value is the
  * exact on-chain vault amount, so it must equal the requested peg-in amount
  * (btc-vault: PegIn vout 0 carries `pegin_amount` verbatim). The P2A anchor
  * (exact value/vout/script for v2; complete absence for v1) is enforced by
@@ -460,15 +485,26 @@ async function assertPeginTxShape(
         `match the WASM-reported vaultValue ${result.vaultValue}.`,
     );
   }
+  const expectedVaultScript = deriveExpectedPeginPayoutScriptPubKey(
+    params.prePeginParams,
+    params.timelockPegin,
+  ).toString("hex");
+  if (
+    stripHexPrefix(result.vaultScriptPubKey).toLowerCase() !==
+    expectedVaultScript
+  ) {
+    throw new Error(
+      `WASM-reported PegIn vaultScriptPubKey ${result.vaultScriptPubKey} ` +
+        `does not match the independently derived payout scriptPubKey ` +
+        `${expectedVaultScript}.`,
+    );
+  }
   const encodedVaultScript = encodedVaultOut.script.toString("hex");
-  const expectedVaultScript = stripHexPrefix(
-    result.vaultScriptPubKey,
-  ).toLowerCase();
-  if (encodedVaultScript.toLowerCase() !== expectedVaultScript) {
+  if (encodedVaultScript !== expectedVaultScript) {
     throw new Error(
       `Encoded PegIn vault output scriptPubKey ${encodedVaultScript} does ` +
-        `not match the WASM-reported vaultScriptPubKey ` +
-        `${result.vaultScriptPubKey}.`,
+        `not match the independently derived payout scriptPubKey ` +
+        `${expectedVaultScript}.`,
     );
   }
 

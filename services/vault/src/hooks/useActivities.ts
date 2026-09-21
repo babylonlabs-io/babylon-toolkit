@@ -3,6 +3,7 @@ import { useMemo } from "react";
 import type { Address } from "viem";
 
 import { useAaveConfig } from "../applications/aave/context";
+import { getHubIdentity } from "../services/aave/hubRegistry";
 import {
   ACTIVITIES_QUERY_KEY,
   fetchUserActivities,
@@ -25,12 +26,15 @@ import {
  * @returns Query result with activity data sorted by date (newest first)
  */
 export function useActivities(userAddress: Address | undefined) {
-  const { borrowableReserves, vbtcReserve } = useAaveConfig();
+  const { allBorrowReserves, vbtcReserve } = useAaveConfig();
 
   const deps: FetchUserActivitiesDeps = useMemo(() => {
+    // Every reserve, not just the borrowable ones: a past borrow or repay on a
+    // reserve that has since been frozen or paused still needs its token,
+    // decimals and hub to render.
     const allReserves = vbtcReserve
-      ? [...borrowableReserves, vbtcReserve]
-      : borrowableReserves;
+      ? [...allBorrowReserves, vbtcReserve]
+      : allBorrowReserves;
     const reserves = new Map(
       allReserves.map((r) => [
         r.reserveId.toString(),
@@ -44,11 +48,14 @@ export function useActivities(userAddress: Address | undefined) {
           icon:
             getTokenByAddress(r.token.address)?.icon ??
             getTokenIconBySymbol(r.token.symbol),
+          // The same token can be borrowed from several hubs, so a borrow or
+          // repay row names the hub beside the symbol.
+          hubLabel: getHubIdentity(r.reserve.hub).label,
         },
       ]),
     );
     return { reserves };
-  }, [borrowableReserves, vbtcReserve]);
+  }, [allBorrowReserves, vbtcReserve]);
 
   return useQuery({
     queryKey: [ACTIVITIES_QUERY_KEY, userAddress],

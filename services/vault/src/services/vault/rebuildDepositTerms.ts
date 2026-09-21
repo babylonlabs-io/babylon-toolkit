@@ -20,7 +20,7 @@
  */
 
 import {
-  processPublicKeyToXOnly,
+  canonicalizeBtcPubkey,
   rebuildDepositTermsCore,
   resolveParticipantKeysAtEpochs,
   stripHexPrefix,
@@ -31,6 +31,7 @@ import { OnChainBtcVaultStatus } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import type { Address, Hex } from "viem";
 
 import {
+  DepositorBtcKeyMismatchError,
   DepositorWalletMismatchError,
   VaultLifecycleStateError,
   type VaultLifecycleStage,
@@ -138,8 +139,7 @@ export function assertBatchLifecycleStatus(
   for (const { member, role } of gated) {
     if (member.vault.status === OnChainBtcVaultStatus.PENDING) continue;
     throw new VaultLifecycleStateError(
-      // The broadcast message is load-bearing: mapDepositError buckets on the
-      // word "broadcast" — keep it byte-identical.
+      // mapDepositError buckets on the typed `stage`, not on this wording.
       lifecycle === "broadcast"
         ? `A vault in this Pre-PegIn batch is no longer awaiting broadcast ` +
           `(on-chain status ${member.vault.status}); the batch cannot be broadcast ` +
@@ -422,6 +422,20 @@ export async function rebuildDepositTerms(
   // the stamped version. Vendor-neutral, mirrors the refund flow.
   await assertVaultCoreVersionSupported(target.vaultCoreVersion);
 
+  // Refuse a Bitcoin wallet that is not the vault's depositor, before any
+  // chain read.
+  const expectedDepositorBtcPubkey = canonicalizeBtcPubkey(
+    target.depositorBtcPubKey,
+  );
+  const connectedBtcPubkey = canonicalizeBtcPubkey(params.depositorBtcPubkey);
+  if (connectedBtcPubkey !== expectedDepositorBtcPubkey) {
+    throw new DepositorBtcKeyMismatchError({
+      vaultId: params.vaultId,
+      expectedDepositorBtcPubkey,
+      connectedBtcPubkey,
+    });
+  }
+
   const { siblings, target: targetRecord } = await discoverSiblings(
     params.lifecycle,
     params.vaultId,
@@ -441,9 +455,7 @@ export async function rebuildDepositTerms(
     vaultCoreVersion: target.vaultCoreVersion,
     siblings: siblings.map((s) => ({ hashlock: s.hashlock, amount: s.amount })),
     fundedPrePeginTxHex: params.fundedPrePeginTxHex,
-    depositorBtcPubkey: processPublicKeyToXOnly(
-      params.depositorBtcPubkey,
-    ).toLowerCase(),
+    depositorBtcPubkey: connectedBtcPubkey,
     vaultProviderBtcPubkey: participantKeys.vaultProvider.operationBtcPubkey,
     vaultKeeperBtcPubkeys: participantKeys.vaultKeeperOperationKeysSorted,
     universalChallengerBtcPubkeys:

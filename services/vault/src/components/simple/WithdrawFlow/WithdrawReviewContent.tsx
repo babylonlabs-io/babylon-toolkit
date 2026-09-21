@@ -4,6 +4,7 @@ import {
   Heading,
   Loader,
   Text,
+  WarningIcon,
 } from "@babylonlabs-io/core-ui";
 import { useMemo, type ReactNode } from "react";
 
@@ -56,6 +57,11 @@ interface WithdrawReviewContentProps {
   isProcessing: boolean;
   /** Last failed-withdraw message, shown inline under the action (null when none). */
   error: string | null;
+  /**
+   * Why a hub would reject the withdrawal (null when none): the collateral's
+   * hub, or an inactive hub where the user has debt. Blocks the confirm button.
+   */
+  hubBlockMessage: string | null;
   onConfirm: () => void;
 }
 
@@ -68,6 +74,7 @@ export function WithdrawReviewContent({
   assertTimelockBlocks,
   isProcessing,
   error,
+  hubBlockMessage,
   onConfirm,
 }: WithdrawReviewContentProps) {
   const { defaultFeeRate } = useNetworkFees();
@@ -175,15 +182,26 @@ export function WithdrawReviewContent({
             ))}
           </div>
 
+          {/* This banner's data-testid is a real-wallet E2E hook (e2e/real/actions/withdraw.ts) — carry it over if you move or rename the element. */}
           {wouldBreachHF && (
-            <Text
-              variant="body2"
-              className="text-error-main"
+            <Callout
+              variant="error"
+              title={REVIEW_COPY.hfBlockTitle}
+              icon={<WarningIcon size={14} color="text-accent-contrast" />}
               data-testid="withdraw-hf-block-warning"
             >
               {REVIEW_COPY.hfBlockWarning(
                 WITHDRAW_HF_BLOCK_THRESHOLD.toFixed(1),
               )}
+            </Callout>
+          )}
+          {hubBlockMessage && (
+            <Text
+              variant="body2"
+              className="text-error-main"
+              data-testid="withdraw-hub-block-warning"
+            >
+              {hubBlockMessage}
             </Text>
           )}
           {isAtRisk && (
@@ -203,7 +221,7 @@ export function WithdrawReviewContent({
             variant="contained"
             color="secondary"
             className="w-full"
-            disabled={isProcessing || wouldBreachHF}
+            disabled={isProcessing || wouldBreachHF || hubBlockMessage !== null}
             onClick={onConfirm}
             data-testid="withdraw-confirm-button"
           >

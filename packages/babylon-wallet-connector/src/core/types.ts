@@ -224,6 +224,17 @@ export interface IWallet<P extends IProvider = IProvider> {
 /** Every chain the connector can build a wallet connector for. */
 export type ChainId = "BTC" | "BBN" | "ETH";
 
+/**
+ * `"chain"` asks the provider to disconnect only this connector's chain; the
+ * provider refuses with `SHARED_SESSION_DISCONNECT_REFUSED` when that would
+ * also disconnect another chain. `"all"` is an explicit disconnect-everything
+ * request and is never refused. `"local"` drops this connector's wallet and
+ * the provider's cached session without any remote call: for a wallet the app
+ * rejected after connecting, or one the provider's backend already reports
+ * disconnected. It is never refused.
+ */
+export type DisconnectScope = "chain" | "all" | "local";
+
 export interface IChain<K extends string = string, P extends IProvider = IProvider, C = any> {
   id: K;
   name: string;
@@ -235,7 +246,15 @@ export interface IChain<K extends string = string, P extends IProvider = IProvid
 export interface IConnector<K extends string = string, P extends IProvider = IProvider, C = any>
   extends IChain<K, P, C> {
   connect(wallet: string | IWallet<P>): Promise<IWallet<P> | null>;
-  disconnect(): Promise<void>;
+  /**
+   * Rejects only for `"chain"`: with `SHARED_SESSION_DISCONNECT_REFUSED` when
+   * the provider refused, or with the provider's error when the remote
+   * disconnect failed. Either way nothing was disconnected, so the wallet
+   * stays connected and no `disconnect` event fires; only a genuine failure
+   * is also reported on `error`. `"all"` and `"local"` always finish the
+   * local teardown and report a provider failure on `error`.
+   */
+  disconnect(scope?: DisconnectScope): Promise<void>;
   on(event: string, cb: (wallet: IWallet<P>) => void): () => void;
 }
 
@@ -493,13 +512,15 @@ export interface IBTCProvider extends IProvider {
    * Derives a deterministic 32-byte value from the wallet's key material,
    * an application name, and an application-provided context string.
    *
-   * Conforms to the `deriveContextHash` wallet API specification
-   * (`docs/specs/derive-context-hash.md`, revision 1.0). Implementations
+   * Conforms to the `deriveContextHash` wallet API contract that the
+   * ts-sdk conformance vectors pin
+   * (`tbv/core/vault-secrets/__tests__/deriveContextHash.vectors.test.ts`).
+   * Implementations
    * that do not support this method MUST throw a {@link WalletError}
    * with code {@link ERROR_CODES.WALLET_METHOD_NOT_SUPPORTED} so the
    * caller can branch deterministically on capability.
    *
-   * The wallet itself enforces the spec's input/output validation
+   * The wallet itself enforces the contract's input/output validation
    * (`appName` charset and length, `context` even-length lowercase hex,
    * 64-char hex output). Adapters forward without re-validating.
    *
@@ -511,7 +532,7 @@ export interface IBTCProvider extends IProvider {
    * @returns 64-char lowercase hex string (32 bytes).
    * @throws {@link WalletError} with code
    *   {@link ERROR_CODES.WALLET_METHOD_NOT_SUPPORTED} when the wallet
-   *   does not implement the spec.
+   *   does not implement the method.
    */
   deriveContextHash(appName: string, context: string): Promise<string>;
 }

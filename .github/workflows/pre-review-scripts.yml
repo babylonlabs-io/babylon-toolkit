@@ -1,0 +1,34 @@
+name: Pre-review Scripts
+
+# Tests scripts/pre-review on the PR that changes them. pre-review-check runs
+# main's copy of these scripts (pull_request_target), so this is the only
+# place a change to the check is tested before it merges. Plain pull_request
+# with a read-only token: running the PR's own code is the point here.
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'scripts/pre-review/**'
+      - '.github/workflows/pre-review-scripts.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: pre-review-scripts
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2 https://github.com/actions/checkout/releases/tag/v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0 https://github.com/actions/setup-node/releases/tag/v4.4.0
+        with:
+          node-version: '24.2.0'
+
+      - name: Test the snapshot scripts
+        run: node --test "scripts/pre-review/__tests__/*.test.mjs"

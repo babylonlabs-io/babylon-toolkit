@@ -38,6 +38,7 @@ export interface PendingPeginRequest {
   // can be evicted from the mempool and never confirm, so the suppression must
   // expire to let the user retry instead of permanently hiding the action.
   refundBroadcastAt?: number;
+  payoutSignedAt?: number;
   // Fields for cross-device broadcasting support
   unsignedTxHex: string; // Funded Pre-PegIn tx hex (for broadcasting later)
   selectedUTXOs?: Array<{
@@ -270,6 +271,27 @@ function hasValidSecurityFields(entry: unknown): entry is PendingPeginRequest {
 }
 
 /**
+ * `payoutSignedAt` only floors a progress bar, so unlike every other field
+ * here a malformed value is dropped rather than failing the whole entry
+ * closed — losing a deposit record over a bad progress stamp is the worse
+ * outcome.
+ */
+function sanitizePayoutSignedAt(
+  value: unknown,
+  vaultId: string,
+): number | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value === "number" && Number.isFinite(value) && value >= 0) {
+    return value;
+  }
+  logger.warn("[peginStorage] Dropping corrupted payoutSignedAt stamp", {
+    category: "peginStorage",
+    vaultId,
+  });
+  return undefined;
+}
+
+/**
  * Get storage key for a specific address
  */
 function getStorageKey(ethAddress: string): string {
@@ -363,6 +385,7 @@ export function getPendingPegins(ethAddress: string): PendingPeginRequest[] {
       id: normalizeTransactionId(pegin.id),
       // Ensure status field exists (backward compatibility)
       status: pegin.status || LocalStorageStatus.PENDING,
+      payoutSignedAt: sanitizePayoutSignedAt(pegin.payoutSignedAt, pegin.id),
     }));
 
     return normalized;
@@ -402,17 +425,32 @@ function persistPendingPegins(
 ): void {
   if (!ethAddress) return;
 
+  const normalizedPegins = pegins.map((pegin) => ({
+    ...pegin,
+    id: normalizeTransactionId(pegin.id),
+  }));
+
+  persistStoredEntries(ethAddress, normalizedPegins);
+
+  // Dispatch custom event to notify React hooks
+  dispatchStorageUpdateEvent(ethAddress);
+}
+
+/**
+ * Write the stored array verbatim, THROWING if the write fails. An empty array
+ * deletes the key. Callers own the event dispatch.
+ */
+function persistStoredEntries(
+  ethAddress: string,
+  entries: readonly unknown[],
+): void {
   const key = getStorageKey(ethAddress);
 
   try {
-    if (pegins.length === 0) {
+    if (entries.length === 0) {
       localStorage.removeItem(key);
     } else {
-      const normalizedPegins = pegins.map((pegin) => ({
-        ...pegin,
-        id: normalizeTransactionId(pegin.id),
-      }));
-      localStorage.setItem(key, JSON.stringify(normalizedPegins));
+      localStorage.setItem(key, JSON.stringify(entries));
     }
   } catch (error) {
     logger.error(error instanceof Error ? error : new Error(String(error)), {
@@ -422,9 +460,64 @@ function persistPendingPegins(
       "Unable to save the deposit record locally. Your browser may be blocking local storage (private browsing or quota).",
     );
   }
+}
 
-  // Dispatch custom event to notify React hooks
-  dispatchStorageUpdateEvent(ethAddress);
+/**
+ * Read the stored array without validating or normalizing its entries.
+ *
+ * `empty` means the key is absent, so there is nothing stored to act on.
+ * `unreadable` means something is stored that cannot be interpreted — a
+ * non-array blob, unparseable JSON, or a localStorage that throws on read —
+ * and is never a licence to write an empty list or to report a removal.
+ */
+type StoredEntriesRead =
+  | { status: "ok"; entries: unknown[] }
+  | { status: "empty" }
+  | { status: "unreadable" };
+
+function readStoredEntries(ethAddress: string): StoredEntriesRead {
+  try {
+    const stored = localStorage.getItem(getStorageKey(ethAddress));
+    if (!stored) return { status: "empty" };
+    const parsed: unknown = JSON.parse(stored);
+    if (!Array.isArray(parsed)) {
+      logger.error(new Error("Stored pending pegins is not an array"), {
+        data: {
+          context: "[peginStorage] Failed to parse stored pending pegins",
+        },
+      });
+      return { status: "unreadable" };
+    }
+    return { status: "ok", entries: parsed };
+  } catch (error) {
+    logger.error(error instanceof Error ? error : new Error(String(error)), {
+      data: { context: "[peginStorage] Failed to parse stored pending pegins" },
+    });
+    return { status: "unreadable" };
+  }
+}
+
+/**
+ * The normalized, lowercased vault id of a raw stored entry, or undefined when
+ * the entry carries no well-formed id.
+ */
+function readStoredEntryId(entry: unknown): string | undefined {
+  if (!entry || typeof entry !== "object") return undefined;
+  const id = (entry as { id?: unknown }).id;
+  if (typeof id !== "string" || !BYTES32_HEX_RE.test(id)) return undefined;
+  return normalizeTransactionId(id).toLowerCase();
+}
+
+/**
+ * The tracked status of a raw stored entry. A missing status reads as
+ * `PENDING`, matching the backward-compatible default `getPendingPegins`
+ * applies; anything else is returned verbatim so a status this build does not
+ * know never passes for one it does.
+ */
+function readStoredEntryStatus(entry: unknown): unknown {
+  if (!entry || typeof entry !== "object") return undefined;
+  const status = (entry as { status?: unknown }).status;
+  return status || LocalStorageStatus.PENDING;
 }
 
 /**
@@ -500,20 +593,118 @@ export function updatePendingPeginStatus(
   const normalizedId = normalizeTransactionId(vaultId);
 
   const updatedPegins = existingPegins.map((pegin) =>
-    pegin.id === normalizedId ? { ...pegin, status } : pegin,
+    pegin.id === normalizedId
+      ? {
+          ...pegin,
+          status,
+          payoutSignedAt:
+            status === LocalStorageStatus.PAYOUT_SIGNED
+              ? Date.now()
+              : undefined,
+        }
+      : pegin,
   );
 
   savePendingPegins(ethAddress, updatedPegins);
 }
 
 /**
- * Remove a single pending peg-in entry by its vault id.
+ * Remove a single pending peg-in entry by its vault id, matching the id
+ * case-insensitively.
+ *
+ * @returns false when the entry could not be removed and is still stored.
+ * Callers that report the outcome to the user must not treat a failed removal
+ * as a removal.
  */
-export function removePendingPegin(ethAddress: string, vaultId: Hex): void {
-  const existingPegins = getPendingPegins(ethAddress);
-  const normalizedId = normalizeTransactionId(vaultId);
-  const filtered = existingPegins.filter((p) => p.id !== normalizedId);
-  savePendingPegins(ethAddress, filtered);
+export function removePendingPegin(ethAddress: string, vaultId: Hex): boolean {
+  return removePendingPegins(ethAddress, [vaultId]) === "removed";
+}
+
+/**
+ * Outcome of a pending peg-in removal. The failures are distinct to the user:
+ * `"unreadable"` means the stored records could not be read at all, so nothing
+ * was even attempted, `"changed"` means a targeted record no longer carries the
+ * status the caller removed it for, and `"write-failed"` means the write itself
+ * was refused. All three leave the entries stored.
+ */
+export type RemovePendingPeginsResult =
+  | "removed"
+  | "changed"
+  | "unreadable"
+  | "write-failed";
+
+/**
+ * Remove every pending peg-in entry in `vaultIds` in a single write, matching
+ * ids case-insensitively.
+ *
+ * One write is what makes a batched Pre-PegIn safe to discard: its records all
+ * share one funded transaction, so a partial removal would leave a sibling on
+ * screen with a broadcast button and no way back to the removed ones.
+ *
+ * Operates on the raw stored array so siblings that `getPendingPegins` hides —
+ * legacy records without the build-version stamps, entries a browser extension
+ * mangled — are written back untouched instead of being dropped along with the
+ * targeted entries.
+ *
+ * When `expectedStatus` is given, a targeted entry stored under any other
+ * status aborts the whole removal. The check reads the same array this call
+ * writes back, so a status another tab wrote between a caller's own check and
+ * this call is still seen — a caller gating on React state cannot do that.
+ *
+ * @returns `"unreadable"` when localStorage could not be read, `"changed"` when
+ * a targeted entry no longer matches `expectedStatus`, `"write-failed"` when
+ * the write failed. The entries are still stored in every one of those cases,
+ * and callers that report the outcome to the user must not treat any of them
+ * as a removal.
+ */
+export function removePendingPegins(
+  ethAddress: string,
+  vaultIds: readonly Hex[],
+  expectedStatus?: LocalStorageStatus,
+): RemovePendingPeginsResult {
+  if (!ethAddress) return "write-failed";
+
+  const read = readStoredEntries(ethAddress);
+  if (read.status === "unreadable") return "unreadable";
+  if (read.status === "empty") {
+    dispatchStorageUpdateEvent(ethAddress);
+    return "removed";
+  }
+
+  const targets = new Set(
+    vaultIds.map((vaultId) => normalizeTransactionId(vaultId).toLowerCase()),
+  );
+  if (
+    expectedStatus !== undefined &&
+    read.entries.some((entry) => {
+      const id = readStoredEntryId(entry);
+      return (
+        id !== undefined &&
+        targets.has(id) &&
+        readStoredEntryStatus(entry) !== expectedStatus
+      );
+    })
+  ) {
+    return "changed";
+  }
+
+  const remaining = read.entries.filter((entry) => {
+    const id = readStoredEntryId(entry);
+    return id === undefined || !targets.has(id);
+  });
+  if (remaining.length === read.entries.length) {
+    dispatchStorageUpdateEvent(ethAddress);
+    return "removed";
+  }
+
+  try {
+    persistStoredEntries(ethAddress, remaining);
+  } catch {
+    return "write-failed";
+  }
+
+  dispatchStorageUpdateEvent(ethAddress);
+  return "removed";
 }
 
 /**

@@ -26,7 +26,7 @@
  *   "Done".
  *
  * The row's Withdraw button IS the eligibility gate: the app disables it for a paused protocol, a vault
- * that is not in use, a demo (`displayOnly`) row and an optimistic (`isActivating`) one — see
+ * that is not in use, a demo (`displayOnly`) row and an optimistic (`lifecycle === "activating"`) one — see
  * VaultsActiveSection. Health-factor gating surfaces one step later, on the Review screen.
  *
  * Default withdraws ONE vault (the first withdrawable), keeping the position alive for reuse.
@@ -55,7 +55,7 @@ import { installPopupApprover, sweepApprovals } from "./approver";
 import { runBorrowWithOptionalPegin } from "./borrow";
 import { goToSection } from "./navigation";
 import { startRecording } from "./recording";
-import { runRepayFlow } from "./repay";
+import { repayBorrowedReserve, runRepayFlow } from "./repay";
 import { DONE_BUTTON_RX, firstByTestid, TX_FAILED_RX } from "./selectors";
 import { type Action, type ActionContext } from "./types";
 import { connectWallets } from "./walletConnect";
@@ -157,7 +157,7 @@ async function openWithdrawForRow(
         "No active vault rows on /vaults — this position has nothing to withdraw.",
       );
     throw new Error(
-      `No withdrawable vault on /vaults after ${Math.round(WITHDRAW_CTA_ENABLE_TIMEOUT_MS / MS_PER_SECOND)}s (${found.rowCount} row(s) shown — every Withdraw button is disabled: the vault is not in use, still activating, or withdrawals are paused by the protocol). Repay outstanding debt first so collateral can be released.`,
+      `No withdrawable vault on /vaults after ${Math.round(WITHDRAW_CTA_ENABLE_TIMEOUT_MS / MS_PER_SECOND)}s (${found.rowCount} row(s) shown — every Withdraw button is disabled: the vault is not in use, still activating, already withdrawing, or withdrawals are paused by the protocol). Repay outstanding debt first so collateral can be released.`,
     );
   }
 
@@ -377,7 +377,7 @@ export async function runWithdrawFlow(
 
     // Another pass only if a withdrawable row remains — POLLED, on the same terms as the entry path.
     // A single scan here would end the batch on any transient (a re-render mid-refetch, a sibling still
-    // `isActivating`), silently releasing a subset while still exiting green.
+    // `lifecycle === "activating"`), silently releasing a subset while still exiting green.
     await goToSection(page, "vaults", log);
     const next = await waitForWithdrawableVaultId(page, released);
     if (!("vaultId" in next)) break;
@@ -423,6 +423,7 @@ export const withdrawAction: Action = {
     try {
       await connectWallets(ctx);
 
+      let repayCtx = ctx;
       if (ctx.config.borrowFirst) {
         log(
           "Withdraw --borrow-first: borrowing before repay + withdraw" +
@@ -434,9 +435,10 @@ export const withdrawAction: Action = {
         // collateral to unwind, so STOP — never fall through to repay + withdraw. runBorrowWithOptionalPegin
         // throws on any pegin/borrow failure; we catch only to log the skip intent, then rethrow.
         try {
-          await runBorrowWithOptionalPegin(ctx, (step) => {
+          const borrowed = await runBorrowWithOptionalPegin(ctx, (step) => {
             currentStep = `borrow:${step}`;
           });
+          repayCtx = repayBorrowedReserve(ctx, borrowed.reserve);
         } catch (error) {
           log(
             "❌ Borrow leg failed — stopping the run and SKIPPING repay + withdraw (no new loan/collateral to unwind).",
@@ -453,7 +455,7 @@ export const withdrawAction: Action = {
         // stays health-factor-gated, so STOP here — never fall through to the withdraw. runRepayFlow
         // throws on any repay failure; we catch only to log the skip intent, then rethrow.
         try {
-          await runRepayFlow(ctx, (step) => {
+          await runRepayFlow(repayCtx, (step) => {
             currentStep = `repay:${step}`;
           });
         } catch (error) {

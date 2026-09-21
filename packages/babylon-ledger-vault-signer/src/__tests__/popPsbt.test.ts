@@ -1,8 +1,8 @@
 /**
  * PoP PSBT golden tests. The to_spend txid vector is the Babylon canonical one
  * the firmware pins (`tests/test_screen7_pop.py:115-117`); every PSBT field is
- * asserted against `_validate_display_pop` (`sign_psbt_validate.c:2591-2869`
- * @ 4decf822) — see the device-contract block in the plan.
+ * asserted against `_validate_display_pop` (`sign_psbt_validate.c:2898-3176`
+ * @ b0c0ac4d) — see the device-contract block in the plan.
  */
 
 import { Psbt } from "bitcoinjs-lib";
@@ -85,7 +85,7 @@ describe("buildPopPsbtHex", () => {
   });
 
   it("normalizes to a v2 PSBT where OUTPUT_INDEX and SEQUENCE are physically present and zero", () => {
-    // The device demands both keys on the wire (`:2806-2831`); the vendored
+    // The device demands both keys on the wire (`:3113-3139`); the vendored
     // v0→v2 converter is what `prepareSignPsbt` runs, so assert on its output.
     const v2 = new PsbtV2();
     v2.deserialize(Buffer.from(hex, "hex"));

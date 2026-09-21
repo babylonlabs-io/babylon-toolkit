@@ -198,7 +198,7 @@ export interface PreparePeginParams {
 
   /**
    * Amounts to peg in per HTLC (in satoshis).
-   * Must have the same length as `hashlocks`.
+   * One entry per vault; hashlocks are derived from the vault root, not passed in.
    * For single deposits, pass a single-element array.
    */
   amounts: readonly bigint[];

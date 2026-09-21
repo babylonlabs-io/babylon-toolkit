@@ -69,7 +69,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/readW
 
 ### VaultIdBindingError
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/vaultIdBinding.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/vaultIdBinding.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/vaultIdBinding.ts)
 
 Thrown when a graph does not belong to the vault it is presented for.
 
@@ -88,7 +88,7 @@ new VaultIdBindingError(
    peginTxid): VaultIdBindingError;
 ```
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/vaultIdBinding.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/vaultIdBinding.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/vaultIdBinding.ts)
 
 ###### Parameters
 
@@ -122,7 +122,7 @@ Error.constructor
 readonly expectedVaultId: string;
 ```
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/vaultIdBinding.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/vaultIdBinding.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/vaultIdBinding.ts)
 
 ##### derivedVaultId
 
@@ -130,7 +130,7 @@ Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/vaultI
 readonly derivedVaultId: string;
 ```
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/vaultIdBinding.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/vaultIdBinding.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/vaultIdBinding.ts)
 
 ##### peginTxid
 
@@ -138,7 +138,7 @@ Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/vaultI
 readonly peginTxid: string;
 ```
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/vaultIdBinding.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/vaultIdBinding.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/vaultIdBinding.ts)
 
 ***
 
@@ -1160,7 +1160,7 @@ Pass the real block whenever the event has already finalized.
 
 ### AssertClaimSpendsVaultParams
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/vaultIdBinding.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/vaultIdBinding.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/vaultIdBinding.ts)
 
 #### Properties
 
@@ -1170,7 +1170,7 @@ Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/vaultI
 peginTxid: string;
 ```
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/vaultIdBinding.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/vaultIdBinding.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/vaultIdBinding.ts)
 
 Display-order PegIn txid, from the Claim's first input.
 
@@ -1180,7 +1180,7 @@ Display-order PegIn txid, from the Claim's first input.
 depositorEthAddress: string;
 ```
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/vaultIdBinding.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/vaultIdBinding.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/vaultIdBinding.ts)
 
 Depositor's Ethereum address, the second half of the on-chain id.
 
@@ -1190,7 +1190,7 @@ Depositor's Ethereum address, the second half of the on-chain id.
 expectedVaultId: string;
 ```
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/vaultIdBinding.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/vaultIdBinding.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/vaultIdBinding.ts)
 
 Vault id the graph or file claims to be for.
 
@@ -4104,7 +4104,7 @@ Verifies an artifacts file and confirms it is the one for this vault.
 function assertClaimSpendsVault(params): void;
 ```
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/vaultIdBinding.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/vaultIdBinding.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/vaultIdBinding.ts)
 
 Throws unless the Claim's PegIn input derives the expected vault id.
 

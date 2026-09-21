@@ -3,7 +3,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useConnection } from "@/context/wallet";
+import { useBTCWallet, useConnection } from "@/context/wallet";
 
 // Mock env before importing modules that use it
 vi.mock("@/config/env", () => ({
@@ -367,6 +367,7 @@ vi.mock("../useEstimatedBtcFee", () => ({
     isLoading: false,
     error: null,
     maxDeposit: 798500n,
+    uncappedMaxDeposit: 798500n,
   })),
 }));
 
@@ -401,6 +402,7 @@ describe("useDepositPageForm", () => {
       isLoading: false,
       error: null,
       maxDeposit: 798500n,
+      uncappedMaxDeposit: 798500n,
     });
     // Reset to default applications data
     vi.mocked(useApplications).mockReturnValue({
@@ -489,9 +491,11 @@ describe("useDepositPageForm", () => {
   };
 
   describe("initialization", () => {
-    it("keeps the entered amount when the mounted form loses and regains its connection", () => {
+    it("keeps the amount but blocks deposit when only Ethereum remains connected", () => {
       const connection = vi.mocked(useConnection);
       const currentConnection = connection();
+      const btcWallet = vi.mocked(useBTCWallet);
+      const currentBtcWallet = btcWallet();
       const { result, rerender, unmount } = renderHook(
         () => useDepositPageForm(),
         { wrapper },
@@ -501,18 +505,42 @@ describe("useDepositPageForm", () => {
 
       connection.mockReturnValue({
         ...currentConnection,
-        isConnected: false,
+        isConnected: true,
         btcConnected: false,
       });
+      btcWallet.mockReturnValue({ ...currentBtcWallet, connected: false });
       rerender();
       expect(result.current.isWalletConnected).toBe(false);
       expect(result.current.formData.amountBtc).toBe("0.001");
 
       connection.mockReturnValue(currentConnection);
+      btcWallet.mockReturnValue(currentBtcWallet);
       rerender();
       expect(result.current.isWalletConnected).toBe(true);
       expect(result.current.formData.amountBtc).toBe("0.001");
       unmount();
+    });
+
+    it("offers the Bitcoin connect action when only Ethereum is confirmed under the ETH-first flag", () => {
+      vi.stubEnv("NEXT_PUBLIC_FF_ENABLE_ETH_FIRST", "true");
+      const connection = vi.mocked(useConnection);
+      const currentConnection = connection();
+      connection.mockReturnValue({
+        ...currentConnection,
+        isConnected: true,
+        btcConnected: false,
+      });
+      const btcWallet = vi.mocked(useBTCWallet);
+      const currentBtcWallet = btcWallet();
+      btcWallet.mockReturnValue({ ...currentBtcWallet, connected: false });
+      const { result, unmount } = renderHook(() => useDepositPageForm(), {
+        wrapper,
+      });
+      expect(result.current.isWalletConnected).toBe(false);
+      expect(result.current.canConnectBtcWallet).toBe(true);
+      unmount();
+      btcWallet.mockReturnValue(currentBtcWallet);
+      vi.unstubAllEnvs();
     });
 
     it("should initialize with empty form data", () => {
@@ -689,6 +717,7 @@ describe("useDepositPageForm", () => {
         isLoading: true,
         error: null,
         maxDeposit: null,
+        uncappedMaxDeposit: null,
       });
 
       const { result } = renderHook(() => useDepositPageForm(), { wrapper });
@@ -704,6 +733,7 @@ describe("useDepositPageForm", () => {
         isLoading: false,
         error: "Insufficient funds: need 900000 sats, have 800000 sats",
         maxDeposit: 798500n,
+        uncappedMaxDeposit: 798500n,
       });
 
       const { result } = renderHook(() => useDepositPageForm(), { wrapper });
@@ -1169,6 +1199,111 @@ describe("useDepositPageForm", () => {
       const { result } = renderHook(() => useDepositPageForm(), { wrapper });
 
       expect(result.current.btcPublicKeyError).toBe(walletError);
+    });
+  });
+
+  describe("funding-input cap", () => {
+    const CAPPED_MAX_SATS = 760_000n;
+
+    function mockFee(): void {
+      vi.mocked(useEstimatedBtcFee).mockReturnValue({
+        fee: 1500n,
+        feeRate: 5,
+        isLoading: false,
+        error: null,
+        maxDeposit: 798_500n,
+        uncappedMaxDeposit: 2_000_000n,
+      });
+    }
+
+    function mockOverCapWallet(): void {
+      const utxos = Array.from({ length: 21 }, (_, i) => ({
+        txid: i.toString(16).padStart(64, "0"),
+        vout: 0,
+        value: 100_000,
+        scriptPubKey: "0xabc",
+        confirmed: true,
+      }));
+      vi.mocked(useUTXOs).mockReturnValue({
+        availableUTXOs: utxos,
+        spendableMempoolUTXOs: utxos,
+        ordinalsCheckPending: false,
+        unconfirmedBalance: 0n,
+      } as unknown as ReturnType<typeof useUTXOs>);
+      mockFee();
+    }
+
+    async function enterAmountWithSettledMax(
+      result: { current: ReturnType<typeof useDepositPageForm> },
+      amountBtc: string,
+    ): Promise<void> {
+      act(() => {
+        result.current.setFormData({
+          selectedProvider: "0x1234567890abcdef1234567890abcdef12345678",
+        });
+      });
+      await waitFor(() => {
+        expect(result.current.maxDepositSats).toBe(CAPPED_MAX_SATS);
+      });
+      act(() => {
+        result.current.setFormData({ amountBtc });
+      });
+    }
+
+    it("flags 1_000_000 sats, above the capped 760_000 max but within the uncapped 1_961_500", async () => {
+      mockOverCapWallet();
+      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+
+      await enterAmountWithSettledMax(result, "0.01");
+
+      expect(result.current.amountSats).toBe(1_000_000n);
+      expect(result.current.fundingInputCapExceeded).toBe(true);
+    });
+
+    it("does not flag an amount the capped set can fund", async () => {
+      mockOverCapWallet();
+      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+
+      await enterAmountWithSettledMax(result, "0.005");
+
+      expect(result.current.amountSats).toBe(500_000n);
+      expect(result.current.fundingInputCapExceeded).toBe(false);
+    });
+
+    it("does not flag 2_000_000 sats, above the uncapped 1_961_500 max, since consolidating could not fund it", async () => {
+      mockOverCapWallet();
+      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+
+      await enterAmountWithSettledMax(result, "0.02");
+
+      expect(result.current.amountSats).toBe(2_000_000n);
+      expect(result.current.fundingInputCapExceeded).toBe(false);
+    });
+
+    it("does not flag 21 entries whose malformed scripts leave 19 spendable, so both maxes agree", async () => {
+      mockOverCapWallet();
+      vi.mocked(useEstimatedBtcFee).mockReturnValue({
+        fee: 1500n,
+        feeRate: 5,
+        isLoading: false,
+        error: null,
+        maxDeposit: 798_500n,
+        uncappedMaxDeposit: 798_500n,
+      });
+      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+
+      await enterAmountWithSettledMax(result, "0.01");
+
+      expect(result.current.fundingInputCapExceeded).toBe(false);
+    });
+
+    it("does not flag the default two-UTXO wallet, where the cap can never bind", async () => {
+      mockFee();
+      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+
+      await enterAmountWithSettledMax(result, "0.01");
+
+      expect(result.current.fundingInputCapExceeded).toBe(false);
     });
   });
 });

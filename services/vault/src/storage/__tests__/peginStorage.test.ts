@@ -1,17 +1,19 @@
 /** Tests for pending peg-in localStorage integrity validation. */
 
 import type { Hex } from "viem";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { logger } from "@/infrastructure";
 
-import { STORAGE_KEY_PREFIX } from "../../constants";
+import { STORAGE_KEY_PREFIX, STORAGE_UPDATE_EVENT } from "../../constants";
 import { LocalStorageStatus } from "../../models/peginStateMachine";
 import {
   addPendingPegin,
   getPendingPegins,
   type PendingPeginRequest,
   removePendingPegin,
+  removePendingPegins,
+  updatePendingPeginStatus,
 } from "../peginStorage";
 
 vi.mock("@/infrastructure", () => ({
@@ -557,6 +559,98 @@ describe("getPendingPegins integrity validation", () => {
 
     expect(getPendingPegins(ETH_ADDRESS)).toHaveLength(0);
   });
+
+  it("keeps an entry whose payoutSignedAt is non-numeric and drops the stamp", () => {
+    const tampered = {
+      ...validPegin,
+      payoutSignedAt: "yesterday" as unknown as number,
+    };
+    localStorage.setItem(storageKey, JSON.stringify([tampered]));
+
+    const [stored] = getPendingPegins(ETH_ADDRESS);
+    expect(stored.id).toBe(VALID_VAULT_ID);
+    expect(stored.payoutSignedAt).toBeUndefined();
+  });
+
+  it("keeps an entry whose payoutSignedAt is negative and drops the stamp", () => {
+    const tampered = { ...validPegin, payoutSignedAt: -1 };
+    localStorage.setItem(storageKey, JSON.stringify([tampered]));
+
+    const [stored] = getPendingPegins(ETH_ADDRESS);
+    expect(stored.id).toBe(VALID_VAULT_ID);
+    expect(stored.payoutSignedAt).toBeUndefined();
+  });
+});
+
+describe("updatePendingPeginStatus", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("stamps payoutSignedAt when the status flips to PAYOUT_SIGNED", () => {
+    const now = 1_700_000_123_000;
+    vi.useFakeTimers({ now });
+    localStorage.setItem(storageKey, JSON.stringify([validPegin]));
+
+    updatePendingPeginStatus(
+      ETH_ADDRESS,
+      VALID_VAULT_ID,
+      LocalStorageStatus.PAYOUT_SIGNED,
+    );
+
+    const [stored] = getPendingPegins(ETH_ADDRESS);
+    expect(stored.status).toBe(LocalStorageStatus.PAYOUT_SIGNED);
+    expect(stored.payoutSignedAt).toBe(now);
+  });
+
+  it("refreshes payoutSignedAt on a repeat PAYOUT_SIGNED write", () => {
+    const first = 1_700_000_000_000;
+    vi.useFakeTimers({ now: first });
+    localStorage.setItem(storageKey, JSON.stringify([validPegin]));
+    updatePendingPeginStatus(
+      ETH_ADDRESS,
+      VALID_VAULT_ID,
+      LocalStorageStatus.PAYOUT_SIGNED,
+    );
+
+    const second = first + 30 * 60_000;
+    vi.setSystemTime(second);
+    updatePendingPeginStatus(
+      ETH_ADDRESS,
+      VALID_VAULT_ID,
+      LocalStorageStatus.PAYOUT_SIGNED,
+    );
+
+    expect(getPendingPegins(ETH_ADDRESS)[0].payoutSignedAt).toBe(second);
+  });
+
+  it("clears a stale payoutSignedAt when the status moves off PAYOUT_SIGNED", () => {
+    localStorage.setItem(
+      storageKey,
+      JSON.stringify([
+        {
+          ...validPegin,
+          status: LocalStorageStatus.PAYOUT_SIGNED,
+          payoutSignedAt: 1_700_000_123_000,
+        },
+      ]),
+    );
+
+    updatePendingPeginStatus(
+      ETH_ADDRESS,
+      VALID_VAULT_ID,
+      LocalStorageStatus.CONFIRMING,
+    );
+
+    const [stored] = getPendingPegins(ETH_ADDRESS);
+    expect(stored.status).toBe(LocalStorageStatus.CONFIRMING);
+    expect(stored.payoutSignedAt).toBeUndefined();
+  });
 });
 
 describe("removePendingPegin", () => {
@@ -591,6 +685,220 @@ describe("removePendingPegin", () => {
     expect(result).toHaveLength(1);
     expect(result[0].id).toBe(VALID_VAULT_ID_2);
   });
+
+  it("matches an upper-cased stored id against a lower-cased target", () => {
+    const upperCased = { ...validPegin, id: `0x${"A".repeat(64)}` };
+    localStorage.setItem(storageKey, JSON.stringify([upperCased]));
+
+    removePendingPegin(ETH_ADDRESS, `0x${"a".repeat(64)}`);
+
+    expect(localStorage.getItem(storageKey)).toBeNull();
+  });
+
+  it("matches a lower-cased stored id against an upper-cased target", () => {
+    const lowerCased = { ...validPegin, id: `0x${"a".repeat(64)}` };
+    localStorage.setItem(storageKey, JSON.stringify([lowerCased]));
+
+    removePendingPegin(ETH_ADDRESS, `0x${"A".repeat(64)}`);
+
+    expect(localStorage.getItem(storageKey)).toBeNull();
+  });
+
+  it("writes back stored siblings the read filter hides", () => {
+    // No build-version stamps: `getPendingPegins` hides this record, but it is
+    // still the user's only copy of that deposit.
+    const legacySibling = {
+      id: VALID_VAULT_ID_2,
+      peginTxHash: VALID_PEGIN_TXHASH,
+      timestamp: 1700000000000,
+      status: LocalStorageStatus.PENDING,
+      unsignedTxHex: "0xcafebabe",
+    };
+    const malformedSibling = { note: "not a pending pegin" };
+    localStorage.setItem(
+      storageKey,
+      JSON.stringify([validPegin, legacySibling, malformedSibling]),
+    );
+
+    removePendingPegin(ETH_ADDRESS, VALID_VAULT_ID);
+
+    expect(JSON.parse(localStorage.getItem(storageKey) as string)).toEqual([
+      legacySibling,
+      malformedSibling,
+    ]);
+    expect(getPendingPegins(ETH_ADDRESS)).toEqual([]);
+  });
+
+  it("notifies listeners when the stored entry is already gone", () => {
+    const listener = vi.fn();
+    window.addEventListener(STORAGE_UPDATE_EVENT, listener);
+
+    try {
+      expect(removePendingPegin(ETH_ADDRESS, VALID_VAULT_ID)).toBe(true);
+      expect(listener).toHaveBeenCalledTimes(1);
+    } finally {
+      window.removeEventListener(STORAGE_UPDATE_EVENT, listener);
+    }
+  });
+
+  it("reports a failed removal when the stored entries cannot be read", () => {
+    localStorage.setItem(storageKey, JSON.stringify([validPegin]));
+    const getItemSpy = vi
+      .spyOn(Storage.prototype, "getItem")
+      .mockImplementation(() => {
+        throw new Error("SecurityError: access to storage is denied");
+      });
+
+    try {
+      expect(removePendingPegin(ETH_ADDRESS, VALID_VAULT_ID)).toBe(false);
+    } finally {
+      getItemSpy.mockRestore();
+    }
+  });
+
+  it("removes several ids in a single write", () => {
+    const second = { ...validPegin, id: VALID_VAULT_ID_2 };
+    const survivor = { ...validPegin, id: `0x${"c".repeat(64)}` };
+    localStorage.setItem(
+      storageKey,
+      JSON.stringify([validPegin, second, survivor]),
+    );
+    const setItemSpy = vi.spyOn(Storage.prototype, "setItem");
+
+    try {
+      expect(
+        removePendingPegins(ETH_ADDRESS, [VALID_VAULT_ID, VALID_VAULT_ID_2]),
+      ).toBe("removed");
+
+      expect(setItemSpy).toHaveBeenCalledTimes(1);
+      expect(JSON.parse(localStorage.getItem(storageKey) as string)).toEqual([
+        survivor,
+      ]);
+    } finally {
+      setItemSpy.mockRestore();
+    }
+  });
+
+  it("removes nothing when a targeted record no longer carries the expected status", () => {
+    const broadcastInAnotherTab = {
+      ...validPegin,
+      id: VALID_VAULT_ID_2,
+      status: LocalStorageStatus.CONFIRMING,
+    };
+    const stored = [validPegin, broadcastInAnotherTab];
+    localStorage.setItem(storageKey, JSON.stringify(stored));
+    const listener = vi.fn();
+    window.addEventListener(STORAGE_UPDATE_EVENT, listener);
+
+    try {
+      expect(
+        removePendingPegins(
+          ETH_ADDRESS,
+          [VALID_VAULT_ID, VALID_VAULT_ID_2],
+          LocalStorageStatus.PENDING,
+        ),
+      ).toBe("changed");
+
+      expect(JSON.parse(localStorage.getItem(storageKey) as string)).toEqual(
+        stored,
+      );
+      expect(listener).not.toHaveBeenCalled();
+    } finally {
+      window.removeEventListener(STORAGE_UPDATE_EVENT, listener);
+    }
+  });
+
+  it("treats a record stored without a status as PENDING", () => {
+    const legacyPegin = {
+      id: VALID_VAULT_ID,
+      peginTxHash: VALID_PEGIN_TXHASH,
+      timestamp: 1700000000000,
+      unsignedTxHex: "0xdeadbeef",
+    };
+    localStorage.setItem(storageKey, JSON.stringify([legacyPegin]));
+
+    expect(
+      removePendingPegins(
+        ETH_ADDRESS,
+        [VALID_VAULT_ID],
+        LocalStorageStatus.PENDING,
+      ),
+    ).toBe("removed");
+
+    expect(localStorage.getItem(storageKey)).toBeNull();
+  });
+
+  it("distinguishes unreadable records from a refused write", () => {
+    localStorage.setItem(
+      storageKey,
+      JSON.stringify([validPegin, { ...validPegin, id: VALID_VAULT_ID_2 }]),
+    );
+
+    const getItemSpy = vi
+      .spyOn(Storage.prototype, "getItem")
+      .mockImplementation(() => {
+        throw new Error("SecurityError: access to storage is denied");
+      });
+    try {
+      expect(removePendingPegins(ETH_ADDRESS, [VALID_VAULT_ID])).toBe(
+        "unreadable",
+      );
+    } finally {
+      getItemSpy.mockRestore();
+    }
+
+    const setItemSpy = vi
+      .spyOn(Storage.prototype, "setItem")
+      .mockImplementation(() => {
+        throw new Error("QuotaExceededError: localStorage is full");
+      });
+    try {
+      expect(removePendingPegins(ETH_ADDRESS, [VALID_VAULT_ID])).toBe(
+        "write-failed",
+      );
+    } finally {
+      setItemSpy.mockRestore();
+    }
+
+    expect(getPendingPegins(ETH_ADDRESS)).toHaveLength(2);
+  });
+
+  it("dispatches the same-tab storage-update event after a real removal", () => {
+    localStorage.setItem(
+      storageKey,
+      JSON.stringify([validPegin, { ...validPegin, id: VALID_VAULT_ID_2 }]),
+    );
+    const listener = vi.fn();
+    window.addEventListener(STORAGE_UPDATE_EVENT, listener);
+
+    try {
+      expect(removePendingPegin(ETH_ADDRESS, VALID_VAULT_ID)).toBe(true);
+
+      expect(listener).toHaveBeenCalledTimes(1);
+      expect(getPendingPegins(ETH_ADDRESS).map((p) => p.id)).toEqual([
+        VALID_VAULT_ID_2,
+      ]);
+    } finally {
+      window.removeEventListener(STORAGE_UPDATE_EVENT, listener);
+    }
+  });
+
+  it("writes nothing but still notifies when the vault id is not stored", () => {
+    localStorage.setItem(storageKey, JSON.stringify([validPegin]));
+    const setItemSpy = vi.spyOn(Storage.prototype, "setItem");
+    const listener = vi.fn();
+    window.addEventListener(STORAGE_UPDATE_EVENT, listener);
+
+    try {
+      expect(removePendingPegin(ETH_ADDRESS, VALID_VAULT_ID_2)).toBe(true);
+
+      expect(setItemSpy).not.toHaveBeenCalled();
+      expect(listener).toHaveBeenCalledTimes(1);
+    } finally {
+      window.removeEventListener(STORAGE_UPDATE_EVENT, listener);
+      setItemSpy.mockRestore();
+    }
+  });
 });
 
 describe("addPendingPegin persistence failures", () => {
@@ -622,7 +930,7 @@ describe("addPendingPegin persistence failures", () => {
     }
   });
 
-  it("keeps removePendingPegin best-effort when the localStorage write fails", () => {
+  it("reports a failed removal instead of throwing at the call site", () => {
     // Seed two entries so the removal produces a non-empty setItem write.
     addPendingPegin(ETH_ADDRESS, {
       id: VALID_VAULT_ID,
@@ -650,10 +958,8 @@ describe("addPendingPegin persistence failures", () => {
       });
 
     try {
-      // Cosmetic callers stay best-effort — failure is logged, not raised.
-      expect(() =>
-        removePendingPegin(ETH_ADDRESS, VALID_VAULT_ID),
-      ).not.toThrow();
+      expect(removePendingPegin(ETH_ADDRESS, VALID_VAULT_ID)).toBe(false);
+      expect(getPendingPegins(ETH_ADDRESS)).toHaveLength(2);
     } finally {
       setItemSpy.mockRestore();
     }

@@ -34,6 +34,7 @@ const peginP2aAnchorOutput = vi.fn();
 const getPrePeginHtlcConnectorInfo = vi.fn();
 
 vi.mock("@babylonlabs-io/babylon-tbv-rust-wasm", () => ({
+  initWasm: async () => {},
   computeMinClaimValue: (...args: unknown[]) => computeMinClaimValue(...args),
   computeMinPeginFee: (...args: unknown[]) => computeMinPeginFee(...args),
   peginP2aAnchorOutput: (...args: unknown[]) => peginP2aAnchorOutput(...args),

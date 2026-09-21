@@ -26,7 +26,12 @@ import NotFound from "./components/pages/not-found";
 import RootLayout, {
   type RootLayoutContext,
 } from "./components/pages/RootLayout";
-import { MARKET_PARAM, RESERVE_QUERY_KEYS, ROUTES } from "./routes";
+import {
+  MARKET_RESERVE_PARAM,
+  parseAssetParam,
+  RESERVE_QUERY_KEYS,
+  ROUTES,
+} from "./routes";
 import { lazyWithRetry } from "./utils/lazyWithRetry";
 
 const Activity = lazyWithRetry(() => import("./components/pages/Activity"));
@@ -96,6 +101,7 @@ const AaveOverlayLayout = () => {
       : pickerParam === LOAN_TAB.BORROW
         ? LOAN_TAB.BORROW
         : null;
+  const asset = parseAssetParam(searchParams.get(RESERVE_QUERY_KEYS.ASSET));
 
   useEffect(() => {
     if (typeof window.requestIdleCallback === "function") {
@@ -129,6 +135,7 @@ const AaveOverlayLayout = () => {
                 picker={picker}
                 reserveId={reserveId}
                 tab={tab}
+                asset={asset}
               />
             </Suspense>
           )}
@@ -146,27 +153,28 @@ const AaveOverlayLayout = () => {
 
 const ActivityWithProviders = () => (
   <AaveConfigProvider>
-    {/* Activity itself needs no reorder override — this is the one provider
-        the god-mode position-notifications section reads (through
-        `useDashboardState`) that this route does not otherwise mount, and it
-        is in-memory-only state, so a second instance here is inert for the
-        page. Without it the panel would throw on /activity.
+    {/* Activity itself needs neither the reorder override nor the pending-vault
+        markers — these are the providers the god-mode position-notifications
+        section reads (through `useDashboardState`) that this route does not
+        otherwise mount. Without them the panel would throw on /activity.
 
         The panel's full context dependency set is AaveConfig (mounted here),
-        ReorderOverride (mounted here) and ActivatingVaults (RootLayout).
-        Notably NOT PendingVaults: that context is reached only through
-        `useAaveVaults` and `useWithdrawCollateralTransaction`, neither of
-        which this subtree mounts — so the Aave layout's PendingVaultsProvider
-        is deliberately not duplicated here.
+        ReorderOverride and PendingVaults (mounted here) and ActivatingVaults
+        (RootLayout). Reorder state is in-memory only and this subtree neither
+        marks nor clears a pending vault (`useWithdrawCollateralTransaction`
+        and `useSyncPendingVaults` mount elsewhere), so both instances are
+        read-only here and inert for the page.
 
         The feed itself is demo-aware: `useActivitiesWithPending` merges the
         panel's activity mocks into the rows it returns (see dev/demoDeposit),
         so mock rows DO render on this page — while disconnected too —
         alongside the theme and protocol-status / max-vaults overrides. */}
-    <ReorderOverrideProvider>
-      <Activity />
-      <GodModePanelSlot />
-    </ReorderOverrideProvider>
+    <PendingVaultsProvider appId={AAVE_APP_ID}>
+      <ReorderOverrideProvider>
+        <Activity />
+        <GodModePanelSlot />
+      </ReorderOverrideProvider>
+    </PendingVaultsProvider>
   </AaveConfigProvider>
 );
 
@@ -190,7 +198,7 @@ export const Router = () => {
             }
           />
           <Route
-            path={`${ROUTES.MARKETS}/:${MARKET_PARAM}`}
+            path={`${ROUTES.MARKETS}/:${MARKET_RESERVE_PARAM}`}
             element={
               <Suspense fallback={<RouteFallback />}>
                 <BorrowingMarketsDataPage />

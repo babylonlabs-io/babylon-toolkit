@@ -2,9 +2,9 @@
 
 `babylon-toolkit` is Babylon's frontend monorepo. It ships two browser dApps —
 [`services/vault`](services/vault) (the BTC Vault depositor lifecycle) and
-[`services/simple-staking`](services/simple-staking) (the BTC staking reference dApp) — and five
+[`services/simple-staking`](services/simple-staking) (the BTC staking reference dApp) — and six
 packages published to npm under `@babylonlabs-io/*` (`ts-sdk`, `babylon-tbv-rust-wasm`, `core-ui`,
-`wallet-connector`, `babylon-proto-ts`).
+`wallet-connector`, `babylon-proto-ts`, `ledger-vault-signer`).
 
 There is no server here. No database, no session store, no privileged API key that moves value. It
 is tempting to conclude that the security surface is therefore small. It is the opposite: **this
@@ -202,11 +202,11 @@ _why_ they exist. Both documents must be updated together.
 
 ### The WASM value boundary
 
-`packages/babylon-tbv-rust-wasm/src/index.ts` is the guarded JS surface over a Rust/WASM module that
+`packages/babylon-tbv-rust-wasm/src/index.ts` has guarded JS functions over a Rust/WASM module that
 computes `htlcValue = peginAmount + depositorClaimValue + p2aAnchorValue + minPeginFee` internally.
 JavaScript receives numbers with no inherent validation: `wasm-bindgen` will happily hand back `0n`,
-and a `0n` HTLC value silently produces a transaction that funds nothing. SDK callers reach that
-surface through a lazy boundary, `packages/babylon-ts-sdk/src/tbv/core/wasm/index.ts`, which forwards
+and a `0n` HTLC value silently produces a transaction that funds nothing. SDK callers reach those
+functions through a lazy boundary, `packages/babylon-ts-sdk/src/tbv/core/wasm/index.ts`, which forwards
 without adding guards of its own — the facade's guards still apply.
 
 The Pre-PegIn path adds an independent TypeScript check. It derives every canonical HTLC output and
@@ -214,16 +214,13 @@ the Taproot signing data before it creates a PSBT. It rejects a WASM transaction
 that does not match. The canonical transaction constants for this check are in
 `packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/constants.ts`.
 
-There is a second crossing, and it is unguarded. The
-`@babylonlabs-io/babylon-tbv-rust-wasm/raw` subpath (`src/raw.ts`, `src/raw-node.ts`) hands out the
-wasm-bindgen classes directly, so no value is checked at the export. Every `/raw` consumer must
-cross-check at the call site instead. The only SDK consumer is
-`packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/refund.ts`.
+The same entry (`src/index.ts`, `src/index-node.ts`) also exports the wasm-bindgen classes directly.
+That export is a second crossing, and it is unguarded. No value is checked at that export. The SDK's
+public `loadTbvWasm()` (`@babylonlabs-io/ts-sdk/tbv/core/wasm`) returns this engine module, so it also
+gives callers the classes. Every class consumer must cross-check at the call site. The only SDK
+consumer is `packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/refund.ts`.
 It derives the canonical HTLC and signing data in TypeScript before it emits a refund PSBT.
-
-The raw classes and SDK raw loader are deprecated. The retained path still permits a bypass.
-See the [migration guide](packages/babylon-ts-sdk/docs/guides/raw-engine-migration.md)
-for guarded alternatives and the compatibility blocker in #2361.
+#2361 records the decision to keep these classes unguarded.
 
 The mitigation is `assertWasmBigint` / `assertPositiveBigintArray`
 (`packages/babylon-tbv-rust-wasm/src/value-guards.ts`), applied to every value crossing the boundary
@@ -237,7 +234,7 @@ together. Reviewer rule, restated from CLAUDE.md:
 > WASM-returned value feeds a signed transaction, cross-check it against an independently computed
 > expected value.
 
-Adding a new WASM getter without a guard, or a new `/raw` consumer without call-site cross-checks, is
+Adding a new WASM getter without a guard, or a new class consumer without call-site cross-checks, is
 the easiest way to introduce a silent wrong-value bug in this repository. A facade guard can be the
 only check on a path that does not feed a signed transaction. The independent Pre-PegIn checks must
 remain in place for transaction outputs and signing data.
@@ -338,10 +335,13 @@ invalidates every existing deposit.** Users cannot derive matching keys, cannot 
 resume. This is not a compatibility inconvenience — it is permanent loss of access for in-flight
 deposits.
 
-Treat any such change as a hard fork requiring: a coordinated revision of `derive-vault-secrets.md` /
-`derive-context-hash.md`; updated golden vectors in `btc-vault` (`golden_vectors_pinned`), in
-vault-wasm (`lib.rs`), and in `vault-secrets/__tests__/expand.test.ts`; and a migration plan for
-in-flight deposits.
+Treat any such change as a hard fork requiring: updated golden vectors in `btc-vault`
+(`golden_vectors_pinned`), in vault-wasm (`lib.rs`), in `vault-secrets/__tests__/expand.test.ts` and in
+`vault-secrets/__tests__/context.golden.test.ts`;
+for the wallet-side derivation, updated conformance vectors in
+`vault-secrets/__tests__/deriveContextHash.vectors.test.ts` and a coordinated release with every
+external implementation that pins them (Ledger vault app, Keystone firmware, OneKey, UniSat); and a
+migration plan for in-flight deposits.
 
 ### The `VAULT_WASM_COMMIT` pin
 
@@ -469,6 +469,15 @@ refactor.** `services/vault/src/context/deposit/` already encodes this distincti
 `terminalMilestones.ts`, which explicitly refuses to classify a vault from a `localStorage`-only
 status and requires an indexer-sourced one, and `computeDepositPollingResult.ts`, which keeps
 network-derived state independent of local storage so every tab converges.
+
+Aave reserve identity follows the same rule. `services/vault/src/applications/aave/services/fetchConfig.ts`
+proves each indexed reserve's underlying, hub, asset ID and decimals against the Core Spoke's
+`getReserve` before any market renders, and fails closed on disagreement. The hub is the contract
+every rate and liquidity read targets, so an indexer that rewrote it would falsify the figures a
+borrow is decided on. Everything else about a reserve stays indexer-sourced: the paused, frozen and
+borrowable flags, collateral risk, dynamic config key and collateral factor, which can trail chain
+state by the indexer's refresh interval, and the token symbol and name shown in the asset list and
+activity.
 
 ### Ethereum RPC and the registry trust root
 
@@ -694,7 +703,7 @@ available improvement in this section.
 
 ### Published packages
 
-Five packages ship to npm from `package-release.yml`, which runs with `id-token: write` for
+Six packages ship to npm from `package-release.yml`, which runs with `id-token: write` for
 provenance. Downstream consumers of `@babylonlabs-io/ts-sdk` and
 `@babylonlabs-io/babylon-tbv-rust-wasm` inherit this repository's transaction-construction and
 secret-derivation logic wholesale.
@@ -732,6 +741,18 @@ roles have different review requirements. Satisfy both.
   `pending` list that is exempt from the existence check and reported separately once the files land.
   It detects drift but does not gate merges;
   acting on the tracker or moving the existence check into `verify.yml` is still a human process.
+- `pre-review-check.yml` fails a PR to `main` whose description has no `/pre-review` record taken on
+  the PR's branch. It is the only workflow triggered by **`pull_request_target`**, so it runs with a
+  write token, fork PRs included, from `main`'s copy of the workflow and `scripts/pre-review/`.
+  **Never check out or run the PR's code in it**: every input comes from the event payload (the
+  description from `$GITHUB_EVENT_PATH`), and author text reaches the bot's comment only inside a
+  fenced block. It gates merges only once a ruleset makes it a required check; that ruleset lives
+  outside this repository — verify it exists. The gate is **bypassable by design**: the
+  `skip-pre-review` label, a hand-written snapshot line (it proves a record is present, not that a
+  review ran), a PR opened by a bot account (for example with a GitHub App token), which the job
+  skips, and a PR adding its own workflow with a same-named job (visible in its diff). Changes to
+  `scripts/pre-review/` are tested before merge only by `pre-review-scripts.yml`, a read-only
+  `pull_request` workflow.
 
 ### E2E secrets
 
@@ -794,6 +815,7 @@ only repository-local safeguards.
 | VP auth             | A/D       | Compromised proxy impersonates a vault provider                                   | Integrity of the whole deposit flow                                     | BIP-322 server identity pinned to on-chain `btcPubKey`; 2h ephemeral-key lifetime cap                           | `serverIdentity.test.ts`                                          |
 | VP responses        | A         | Malformed or hostile VP response is cast without inspection                       | User fund loss / wedged flow                                            | `validators.ts` runtime checks; 2 MiB typed-response cap; no retry on writes                                    | `validators.test.ts`, `json-rpc-client.test.ts`                   |
 | Indexer             | B         | Wrong vault status induces an irreversible user action                            | User fund loss (indirect)                                               | Signature-bound values never sourced from the indexer; `terminalMilestones` refuses storage-only classification | deposit-context tests                                             |
+| Indexer             | B         | Indexer rewrites a reserve's hub, asset ID or decimals but keeps its underlying   | Borrow decided on false rates, liquidity or Max amount                  | Every indexed reserve's underlying, hub, asset ID and decimals proven via Core Spoke `getReserve`               | `fetchConfig.test.ts`                                             |
 | Config              | G         | Wrong `NEXT_PUBLIC_TBV_BTC_VAULT_REGISTRY` points the app at attacker contracts   | **User fund loss**                                                      | Strict env validation; blocking modal on failure — but a _valid wrong address_ passes                           | deployment review                                                 |
 | Screening           | G         | Typo'd or unset `NEXT_PUBLIC_TBV_UTILS_API` disables screening silently           | Compliance bypass                                                       | **Known gap** — `parseOptionalUrl` warns and returns `undefined`; `verifyAddress` then allows all               | add a production startup gate                                     |
 | Screening           | —         | User edits the `localStorage` verdict or the bundle                               | Compliance bypass                                                       | None possible client-side — documented as advisory, enforcement belongs server/contract-side                    | —                                                                 |

@@ -200,3 +200,9 @@ export const SIGN_CALL_TIMEOUT_MS = 90_000;
 export const POPUP_OPEN_WAIT_MS = 5_000;
 /** Let the dapp settle any post-connection navigation before driving direct provider sign calls. */
 export const POST_CONNECT_SETTLE_MS = 5_000;
+
+/** Multi-hub: how long a leg may take to show on its reserve's on-chain debt, and how often to re-read. */
+export const RESERVE_DEBT_VERIFY_TIMEOUT_MS = 90_000;
+export const RESERVE_DEBT_VERIFY_POLL_MS = 3_000;
+/** Multi-hub: how long /loans may take to render a just-borrowed reserve's Active Loans row. */
+export const LOAN_ROW_APPEAR_TIMEOUT_MS = 60_000;

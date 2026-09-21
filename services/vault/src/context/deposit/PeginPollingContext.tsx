@@ -188,6 +188,7 @@ export function PeginPollingProvider({
   activities,
   pendingPegins,
   btcPublicKey,
+  btcWalletAbsent = false,
 }: PeginPollingProviderProps) {
   useSingleProviderInvariant();
 
@@ -223,6 +224,7 @@ export function PeginPollingProvider({
     activities,
     pendingPegins,
     btcPublicKey,
+    btcWalletAbsent,
   });
 
   // Poll `prePeginTxHash` (depositor broadcast tx; `peginTxHash` is the

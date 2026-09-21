@@ -125,7 +125,7 @@ describe("ActivateConfirmationModal", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
-  it("disables Activate vault while a download is in flight even when the risk is acknowledged", () => {
+  it("disables Activate BTCVault while a download is in flight even when the risk is acknowledged", () => {
     render(
       <ActivateConfirmationModal
         open
@@ -136,10 +136,10 @@ describe("ActivateConfirmationModal", () => {
     );
 
     fireEvent.click(screen.getByTestId("risk-checkbox"));
-    expect(screen.getByText("Activate vault")).not.toBeDisabled();
+    expect(screen.getByText("Activate BTCVault")).not.toBeDisabled();
 
     fireEvent.click(screen.getByTestId("card-download-start"));
-    expect(screen.getByText("Activate vault")).toBeDisabled();
+    expect(screen.getByText("Activate BTCVault")).toBeDisabled();
   });
 
   it("disables the Activate button until the risk checkbox is ticked when not downloaded", () => {
@@ -152,14 +152,14 @@ describe("ActivateConfirmationModal", () => {
       />,
     );
 
-    const activateBtn = screen.getByText("Activate vault");
+    const activateBtn = screen.getByText("Activate BTCVault");
     expect(activateBtn).toBeDisabled();
 
     fireEvent.click(screen.getByTestId("risk-checkbox"));
     expect(activateBtn).not.toBeDisabled();
   });
 
-  it("calls onConfirm when Activate vault is clicked", () => {
+  it("calls onConfirm when Activate BTCVault is clicked", () => {
     const onConfirm = vi.fn();
     render(
       <ActivateConfirmationModal
@@ -171,7 +171,7 @@ describe("ActivateConfirmationModal", () => {
     );
 
     fireEvent.click(screen.getByTestId("risk-checkbox"));
-    fireEvent.click(screen.getByText("Activate vault"));
+    fireEvent.click(screen.getByText("Activate BTCVault"));
     expect(onConfirm).toHaveBeenCalledTimes(1);
   });
 
@@ -190,7 +190,7 @@ describe("ActivateConfirmationModal", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it("enables Activate vault, hides the checkbox, and shows the downloaded heading when artifacts were already downloaded", () => {
+  it("enables Activate BTCVault, hides the checkbox, and shows the downloaded heading when artifacts were already downloaded", () => {
     seedReceipt();
     render(
       <ActivateConfirmationModal
@@ -202,7 +202,7 @@ describe("ActivateConfirmationModal", () => {
     );
 
     expect(screen.getByText("Artifacts downloaded")).toBeInTheDocument();
-    expect(screen.getByText("Activate vault")).not.toBeDisabled();
+    expect(screen.getByText("Activate BTCVault")).not.toBeDisabled();
     expect(screen.queryByTestId("risk-checkbox")).not.toBeInTheDocument();
   });
 
@@ -219,11 +219,11 @@ describe("ActivateConfirmationModal", () => {
       />,
     );
 
-    expect(screen.getByText("Activate vault")).toBeDisabled();
+    expect(screen.getByText("Activate BTCVault")).toBeDisabled();
     expect(screen.getByTestId("risk-checkbox")).toBeInTheDocument();
   });
 
-  it("enables Activate vault and removes the checkbox once the card reports a download", () => {
+  it("enables Activate BTCVault and removes the checkbox once the card reports a download", () => {
     render(
       <ActivateConfirmationModal
         open
@@ -233,12 +233,12 @@ describe("ActivateConfirmationModal", () => {
       />,
     );
 
-    expect(screen.getByText("Activate vault")).toBeDisabled();
+    expect(screen.getByText("Activate BTCVault")).toBeDisabled();
     expect(screen.getByTestId("risk-checkbox")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("card-download-complete"));
 
-    expect(screen.getByText("Activate vault")).not.toBeDisabled();
+    expect(screen.getByText("Activate BTCVault")).not.toBeDisabled();
     expect(screen.queryByTestId("risk-checkbox")).not.toBeInTheDocument();
   });
 
@@ -258,11 +258,11 @@ describe("ActivateConfirmationModal", () => {
 
     fireEvent.click(screen.getByTestId("card-download-delivered"));
 
-    expect(screen.getByText("Activate vault")).toBeDisabled();
+    expect(screen.getByText("Activate BTCVault")).toBeDisabled();
     expect(screen.getByTestId("risk-checkbox")).toBeInTheDocument();
   });
 
-  it("enables Activate vault after an unverified download only once the risk is acknowledged", () => {
+  it("enables Activate BTCVault after an unverified download only once the risk is acknowledged", () => {
     render(
       <ActivateConfirmationModal
         open
@@ -275,6 +275,6 @@ describe("ActivateConfirmationModal", () => {
     fireEvent.click(screen.getByTestId("card-download-delivered"));
     fireEvent.click(screen.getByTestId("risk-checkbox"));
 
-    expect(screen.getByText("Activate vault")).not.toBeDisabled();
+    expect(screen.getByText("Activate BTCVault")).not.toBeDisabled();
   });
 });

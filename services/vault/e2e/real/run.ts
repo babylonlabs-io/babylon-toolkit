@@ -100,8 +100,10 @@ export async function runE2E(config: RunConfig): Promise<void> {
     // pegin.ts), so we warn and proceed rather than block on a transient read error.
     // Any pegin-first run performs a pegin too (`borrow --pegin-first` or
     // `repay --borrow-first --pegin-first`), so it's subject to the same cap.
+    // `multi-hub` borrows against existing collateral too (one leg per hub), never pegging in first.
     const willBorrow =
       config.action === "borrow" ||
+      config.action === "multi-hub" ||
       ((config.action === "repay" || config.action === "withdraw") &&
         config.borrowFirst);
     const willPegin =
@@ -164,8 +166,12 @@ export async function runE2E(config: RunConfig): Promise<void> {
     // run). Read the position from real data and refuse a doomed run BEFORE the browser if there's no
     // debt to repay. A fetch failure is non-fatal: the disabled Repay button + the form's validation
     // backstop it, so we warn. The repay amount (a conservative fraction of the debt) is resolved inside
-    // the action, which has the ETH address and logs it.
-    if (config.action === "repay" && !config.borrowFirst) {
+    // the action, which has the ETH address and logs it. `repay-all` with no debt is not refused: the
+    // action reports there is nothing to repay and exits cleanly.
+    if (
+      (config.action === "repay" && !config.borrowFirst) ||
+      config.action === "repay-all"
+    ) {
       const repayContext = await fetchBorrowContext(
         config.network,
         balances.eth.address,
@@ -176,7 +182,7 @@ export async function runE2E(config: RunConfig): Promise<void> {
         return undefined;
       });
       if (repayContext) {
-        if (repayContext.currentDebtUsd <= 0)
+        if (repayContext.currentDebtUsd <= 0 && config.action === "repay")
           throw new Error(
             "No debt to repay: this position holds no outstanding loan. Borrow first (--borrow-first), or repay with a different ETH account that has a loan.",
           );

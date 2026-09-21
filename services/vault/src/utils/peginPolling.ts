@@ -56,6 +56,25 @@ export function isTerminalPollingError(error: unknown): boolean {
 }
 
 /**
+ * Decide whether the current wallet state polls a deposit's vault provider
+ * status.
+ *
+ * With a key, only the deposits signed by that key poll. Without a key,
+ * every deposit polls when Bitcoin is absent (Ethereum-only session) and
+ * none polls while Bitcoin is connected but its key is still loading or
+ * failed - the same as before Ethereum-only access existed.
+ */
+function shouldPollForWallet(
+  depositorBtcPubkey: string | undefined,
+  btcPublicKey: string | undefined,
+  btcWalletAbsent: boolean,
+): boolean {
+  return btcPublicKey
+    ? isVaultOwnedByWallet(depositorBtcPubkey, btcPublicKey)
+    : btcWalletAbsent;
+}
+
+/**
  * Identify which deposits need polling based on their status
  *
  * Criteria: PENDING contract status, not yet signed, have required data
@@ -64,6 +83,7 @@ export function getDepositsNeedingPolling(
   activities: VaultActivity[],
   pendingPegins: PendingPeginRequest[],
   btcPublicKey?: string,
+  btcWalletAbsent = false,
 ): DepositToPoll[] {
   return activities
     .map((activity) => {
@@ -75,11 +95,14 @@ export function getDepositsNeedingPolling(
       // Check if this deposit should be polled
       const shouldPoll =
         contractStatus === ContractStatus.PENDING &&
-        !!btcPublicKey &&
         !!vaultProviderAddress &&
         !!activity.peginTxHash &&
         !!activity.applicationEntryPoint &&
-        isVaultOwnedByWallet(activity.depositorBtcPubkey, btcPublicKey);
+        shouldPollForWallet(
+          activity.depositorBtcPubkey,
+          btcPublicKey,
+          btcWalletAbsent,
+        );
 
       return {
         activity,

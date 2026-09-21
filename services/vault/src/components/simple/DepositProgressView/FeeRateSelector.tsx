@@ -98,12 +98,12 @@ export function FeeRateSelector({
 
     if (!seededRef.current) {
       seededRef.current = true;
-      if (feeRate === slowFee) {
-        key = "slow";
+      if (feeRate === fastestFee) {
+        key = "fast";
       } else if (feeRate === avgFee) {
         key = "avg";
-      } else if (feeRate === fastestFee) {
-        key = "fast";
+      } else if (feeRate === slowFee) {
+        key = "slow";
       } else {
         key = "custom";
         custom = String(feeRate);

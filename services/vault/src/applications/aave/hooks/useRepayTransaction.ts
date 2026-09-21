@@ -22,6 +22,10 @@ import {
   WalletError,
   mapViemErrorToContractError,
 } from "@/utils/errors";
+import {
+  invalidateHubQueries,
+  invalidateVaultQueries,
+} from "@/utils/queryKeys";
 
 import { getAaveAdapterAddress } from "../config";
 import { SAFE_TOFIXED_PRECISION } from "../constants";
@@ -33,6 +37,7 @@ import {
   repayPartial,
 } from "../services";
 import type { AaveReserveConfig } from "../services/fetchConfig";
+import { describeAaveRevert } from "../utils/describeAaveRevert";
 
 /**
  * Which repay path the user is invoking.
@@ -227,10 +232,12 @@ export function useRepayTransaction({
         );
       }
 
-      // Invalidate position queries to refresh data
-      await queryClient.invalidateQueries({
-        queryKey: ["aaveUserPosition", address],
-      });
+      // Invalidate position queries to refresh data, and the hub reads behind
+      // the loan forms (liquidity, our spoke's borrow limit and hub state).
+      await Promise.all([
+        invalidateVaultQueries(queryClient),
+        invalidateHubQueries(queryClient),
+      ]);
 
       return true;
     } catch (error) {
@@ -251,7 +258,9 @@ export function useRepayTransaction({
               ? mapViemErrorToContractError(error, "Repay")
               : new Error("An unexpected error occurred while repaying");
 
-      setError(mappedError.message);
+      setError(
+        describeAaveRevert(error, reserve, "repay") ?? mappedError.message,
+      );
 
       return false;
     } finally {

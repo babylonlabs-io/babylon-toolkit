@@ -44,6 +44,7 @@ const TX_DEPOSIT = "0x" + "1".repeat(64);
 const TX_BORROW = "0x" + "4".repeat(64);
 
 const RESERVE_ICON = "test://icon.svg";
+const RESERVE_HUB_LABEL = "Core Hub";
 
 type RawActivity = {
   id: string;
@@ -84,13 +85,19 @@ function buildDeps(
 ): FetchUserActivitiesDeps {
   const reserveMap = new Map<
     string,
-    { symbol: string; decimals: number; icon: string | undefined }
+    {
+      symbol: string;
+      decimals: number;
+      icon: string | undefined;
+      hubLabel: string;
+    }
   >();
   for (const r of reserves) {
     reserveMap.set(r.id, {
       symbol: r.symbol,
       decimals: r.decimals,
       icon: RESERVE_ICON,
+      hubLabel: RESERVE_HUB_LABEL,
     });
   }
   return {
@@ -392,6 +399,27 @@ describe("fetchUserActivities position-scoped enrichment", () => {
     expect(result).toHaveLength(1);
     expect(asStandard(result[0]).amount.symbol).toBe("USDC");
     expect(asStandard(result[0]).amount.value).toBe("1,500");
+  });
+
+  it("names the reserve's hub on a borrow row", async () => {
+    const rows: RawActivity[] = [
+      activity({
+        type: "borrow",
+        logIndex: 0,
+        transactionHash: TX_BORROW,
+        vaultId: null,
+        debtReserveId: "1",
+        amount: "1500000000",
+      }),
+    ];
+    await setupGraphqlMock(rows);
+
+    const result = await fetchUserActivities(
+      USER as `0x${string}`,
+      buildDeps([{ id: "1", symbol: "USDC", decimals: 6 }]),
+    );
+
+    expect(asStandard(result[0]).amount.hubLabel).toBe(RESERVE_HUB_LABEL);
   });
 
   it("formats high-decimals tokens without JS number precision loss", async () => {
@@ -768,6 +796,9 @@ describe("fetchUserActivities liquidation grouping", () => {
     expect(group.children).toHaveLength(2);
     expect(group.children[0].label).toBe("Liquidated");
     expect(group.children[1].label).toBe("Debt repaid");
+    // The repaid debt names its hub; the collateral side has none.
+    expect(group.children[1].amount.hubLabel).toBe(RESERVE_HUB_LABEL);
+    expect(group.children[0].amount.hubLabel).toBeUndefined();
   });
 
   it("still emits a LiquidationGroupRow when no sibling repay exists", async () => {
@@ -918,6 +949,115 @@ describe("fetchUserActivities liquidation grouping", () => {
     expect(result.some((r) => r.kind === "row" && r.type === "Repay")).toBe(
       false,
     );
+  });
+
+  it("attaches a transaction's repays to only its first liquidation when it seizes several vaults", async () => {
+    const rows: RawActivity[] = [
+      activity({
+        type: "liquidation",
+        logIndex: 0,
+        transactionHash: TX_LIQUIDATION,
+        vaultId: VAULT_A,
+        amount: "50000000",
+        timestamp: "1700000100",
+      }),
+      activity({
+        type: "liquidation",
+        logIndex: 3,
+        transactionHash: TX_LIQUIDATION,
+        vaultId: VAULT_B,
+        amount: "40000000",
+        timestamp: "1700000100",
+      }),
+      activity({
+        type: "repay",
+        logIndex: 1,
+        transactionHash: TX_LIQUIDATION,
+        vaultId: null,
+        debtReserveId: "1",
+        amount: "5000000000",
+        timestamp: "1700000100",
+      }),
+    ];
+    await setupGraphqlMock(rows);
+
+    const result = await fetchUserActivities(
+      USER as `0x${string}`,
+      buildDeps([{ id: "1", symbol: "USDC", decimals: 6 }]),
+    );
+
+    const groups = result
+      .filter((r) => r.kind === "liquidationGroup")
+      .map(asGroup);
+    expect(groups).toHaveLength(2);
+    const repaidRows = (id: string) =>
+      groups
+        .find((g) => g.id === id)
+        ?.children.filter((c) => c.label === "Debt repaid").length;
+    // The log-index-0 liquidation carries the repay; the later one has none.
+    expect(repaidRows(`${TX_LIQUIDATION}-0-liquidation`)).toBe(1);
+    expect(repaidRows(`${TX_LIQUIDATION}-3-liquidation`)).toBe(0);
+  });
+
+  it("shows every repay of a multi-reserve liquidation, in emitted order", async () => {
+    // Fed in reverse log order: the indexer orders by timestamp only, so
+    // same-tx repays can arrive in any order.
+    const rows: RawActivity[] = [
+      activity({
+        type: "repay",
+        logIndex: 2,
+        transactionHash: TX_LIQUIDATION,
+        vaultId: null,
+        debtReserveId: "2",
+        amount: "3000000000", // 3,000 USDT
+        timestamp: "1700000100",
+      }),
+      activity({
+        type: "repay",
+        logIndex: 1,
+        transactionHash: TX_LIQUIDATION,
+        vaultId: null,
+        debtReserveId: "1",
+        amount: "5000000000", // 5,000 USDC
+        timestamp: "1700000100",
+      }),
+      activity({
+        type: "liquidation",
+        logIndex: 0,
+        transactionHash: TX_LIQUIDATION,
+        vaultId: VAULT_A,
+        amount: "50000000",
+        timestamp: "1700000100",
+      }),
+    ];
+    await setupGraphqlMock(rows);
+
+    const result = await fetchUserActivities(
+      USER as `0x${string}`,
+      buildDeps([
+        { id: "1", symbol: "USDC", decimals: 6 },
+        { id: "2", symbol: "USDT", decimals: 6 },
+      ]),
+    );
+
+    const group = result.find((r) => r.kind === "liquidationGroup");
+    if (!group) throw new Error("expected a liquidation group");
+    const children = asGroup(group).children;
+    expect(children.map((c) => c.label)).toEqual([
+      "Liquidated",
+      "Debt repaid",
+      "Debt repaid",
+    ]);
+    expect(children[1].amount).toMatchObject({
+      value: "5,000",
+      symbol: "USDC",
+      hubLabel: RESERVE_HUB_LABEL,
+    });
+    expect(children[2].amount).toMatchObject({
+      value: "3,000",
+      symbol: "USDT",
+      hubLabel: RESERVE_HUB_LABEL,
+    });
   });
 });
 

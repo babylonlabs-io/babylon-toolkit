@@ -13,6 +13,7 @@ import { useCallback } from "react";
 import type { Address } from "viem";
 
 import { useVaults } from "@/hooks/useVaults";
+import { capFundingUtxos } from "@/services/deposit/fundingInputCap";
 import { getPendingPegins } from "@/storage/peginStorage";
 
 interface UsePendingVaultOverlapCheckParams {
@@ -32,7 +33,8 @@ export function usePendingVaultOverlapCheck({
   depositorClaimValue,
   minPeginFee,
 }: UsePendingVaultOverlapCheckParams) {
-  const { data: depositorVaults } = useVaults(ethAddress);
+  const { data: vaultsResult } = useVaults(ethAddress);
+  const depositorVaults = vaultsResult?.vaults;
 
   return useCallback(
     (vaultAmounts: readonly bigint[]): number | null => {
@@ -49,7 +51,7 @@ export function usePendingVaultOverlapCheck({
       let selection;
       try {
         selection = selectUtxosForPegin(
-          spendableUTXOs ?? [],
+          capFundingUtxos(spendableUTXOs ?? []),
           predictedTarget,
           estimatedFeeRate,
           numOutputs,

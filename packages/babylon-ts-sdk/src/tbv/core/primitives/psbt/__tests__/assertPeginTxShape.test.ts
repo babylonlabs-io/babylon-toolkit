@@ -2,9 +2,11 @@
  * Negative-path tests for the PegIn shape assertion inside
  * `buildPeginTxFromFundedPrePegin`: every bind (header, input, output count,
  * vault value/script, txid, depositor-claim value/script, anchor validation)
- * must reject a doctored WASM result. The WASM boundary is mocked so each
- * dimension can be corrupted independently; the happy path against the real
- * binary is covered by the golden vectors in `pegin.test.ts`.
+ * must reject a doctored WASM result. `buildPeginTxFromFundedPrePegin` also
+ * rejects an out-of-range `timelockPegin` before the engine is called. The WASM
+ * boundary is mocked so each dimension can be corrupted independently; the
+ * happy path against the real binary is covered by the golden vectors in
+ * `pegin.test.ts`.
  */
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -25,6 +27,7 @@ const {
 }));
 
 vi.mock("@babylonlabs-io/babylon-tbv-rust-wasm", () => ({
+  initWasm: async () => {},
   buildPeginTxFromPrePegin: buildPeginTxFromPrePeginMock,
   computeMinClaimValue: computeMinClaimValueMock,
   createPrePeginTransaction: vi.fn(),
@@ -36,7 +39,14 @@ import { buildPeginTxFromFundedPrePegin, type PrePeginParams } from "../pegin";
 import { TEST_AMOUNTS, TEST_KEYS } from "./helpers";
 
 const CLAIM_VALUE = 20_000n;
-const VAULT_SCRIPT = "5120" + "ee".repeat(32);
+// Real payout scriptPubKeys for TEST_KEYS with one keeper and one challenger,
+// produced by the engine for graph versions 1, 2, and 3.
+const VAULT_SCRIPT_TIMELOCK_100 =
+  "51204770efdd795ac685bc070f9f8cfedc8bf8836dc7bc82384fbcfeca781551f14f";
+const VAULT_SCRIPT_TIMELOCK_1 =
+  "512072e17029dac88fdca0f4c636ef582b7da0f1f796cca12c31147a30fc529242db";
+const VAULT_SCRIPT_TIMELOCK_65535 =
+  "512013f29d28a931c741bd05814fb3c3b96627dbd470d2f408eeeb2301bdc833518d";
 
 function makePrePeginParams(vaultCoreVersion = 1): PrePeginParams {
   return {
@@ -78,7 +88,7 @@ function makeFundedPrePeginHex(): string {
   const tx = new bitcoin.Transaction();
   tx.version = 2;
   tx.addInput(Buffer.alloc(32, 0xaa), 0);
-  tx.addOutput(Buffer.from(VAULT_SCRIPT, "hex"), 150_000);
+  tx.addOutput(Buffer.from(VAULT_SCRIPT_TIMELOCK_100, "hex"), 150_000);
   return tx.toHex();
 }
 
@@ -94,6 +104,7 @@ interface DoctorOptions {
   inputScriptSig?: Buffer;
   inputWitness?: Buffer[];
   extraOutput?: boolean;
+  metadataVaultScript?: string;
   encodedVaultValue?: number;
   encodedVaultScript?: string;
   claimValue?: number;
@@ -128,7 +139,7 @@ function makeWasmResult(
   if (doctor.extraInput) tx.addInput(Buffer.alloc(32, 0xbb), 1);
 
   tx.addOutput(
-    Buffer.from(doctor.encodedVaultScript ?? VAULT_SCRIPT, "hex"),
+    Buffer.from(doctor.encodedVaultScript ?? VAULT_SCRIPT_TIMELOCK_100, "hex"),
     doctor.encodedVaultValue ?? Number(TEST_AMOUNTS.PEGIN),
   );
   tx.addOutput(
@@ -139,7 +150,7 @@ function makeWasmResult(
     tx.addOutput(Buffer.from("51024e73", "hex"), 240);
   }
   if (doctor.extraOutput) {
-    tx.addOutput(Buffer.from(VAULT_SCRIPT, "hex"), 330);
+    tx.addOutput(Buffer.from(VAULT_SCRIPT_TIMELOCK_100, "hex"), 330);
   }
 
   const txid = doctor.metadataTxidByte
@@ -148,7 +159,7 @@ function makeWasmResult(
   return {
     txHex: tx.toHex(),
     txid,
-    vaultScriptPubKey: VAULT_SCRIPT,
+    vaultScriptPubKey: doctor.metadataVaultScript ?? VAULT_SCRIPT_TIMELOCK_100,
     vaultValue: doctor.metadataVaultValue ?? TEST_AMOUNTS.PEGIN,
   };
 }
@@ -157,13 +168,14 @@ async function buildWith(
   fundedHex: string,
   doctor: DoctorOptions = {},
   vaultCoreVersion = 1,
+  timelockPegin = 100,
 ) {
   buildPeginTxFromPrePeginMock.mockResolvedValue(
     makeWasmResult(fundedHex, doctor, vaultCoreVersion),
   );
   return buildPeginTxFromFundedPrePegin({
     prePeginParams: makePrePeginParams(vaultCoreVersion),
-    timelockPegin: 100,
+    timelockPegin,
     fundedPrePeginTxHex: fundedHex,
     htlcVout: 0,
   });
@@ -185,6 +197,40 @@ describe("assertPeginTxShape (via buildPeginTxFromFundedPrePegin)", () => {
     const result = await buildWith(fundedHex);
     expect(result.vaultValue).toBe(TEST_AMOUNTS.PEGIN);
   });
+
+  it.each([0, 65536, 1.5, -1])(
+    "rejects PegIn timelock %p before the engine is called",
+    async (timelockPegin) => {
+      await expect(buildWith(fundedHex, {}, 1, timelockPegin)).rejects.toThrow(
+        `PegIn timelock ${timelockPegin} must be a whole number of blocks ` +
+          `from 1 to 65535`,
+      );
+      expect(buildPeginTxFromPrePeginMock).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    [1, VAULT_SCRIPT_TIMELOCK_1],
+    [65535, VAULT_SCRIPT_TIMELOCK_65535],
+  ] as const)(
+    "passes PegIn timelock %i to the engine",
+    async (timelockPegin, vaultScript) => {
+      const result = await buildWith(
+        fundedHex,
+        { metadataVaultScript: vaultScript, encodedVaultScript: vaultScript },
+        1,
+        timelockPegin,
+      );
+
+      expect(result.vaultScriptPubKey).toBe(vaultScript);
+      expect(buildPeginTxFromPrePeginMock).toHaveBeenCalledWith(
+        expect.anything(),
+        timelockPegin,
+        fundedHex,
+        0,
+      );
+    },
+  );
 
   it.each([
     [3, 1, 2],
@@ -257,10 +303,33 @@ describe("assertPeginTxShape (via buildPeginTxFromFundedPrePegin)", () => {
     ).rejects.toThrow(/does not match the WASM-reported vaultValue/);
   });
 
-  it("rejects an encoded vault script that differs from the metadata", async () => {
+  it("rejects an engine-reported vault script that differs from the derived payout script", async () => {
     await expect(
-      buildWith(fundedHex, { encodedVaultScript: "5120" + "dd".repeat(32) }),
-    ).rejects.toThrow(/does not match the WASM-reported vaultScriptPubKey/);
+      buildWith(fundedHex, { metadataVaultScript: VAULT_SCRIPT_TIMELOCK_1 }),
+    ).rejects.toThrow(
+      `WASM-reported PegIn vaultScriptPubKey ${VAULT_SCRIPT_TIMELOCK_1} ` +
+        `does not match the independently derived payout scriptPubKey ` +
+        `${VAULT_SCRIPT_TIMELOCK_100}`,
+    );
+  });
+
+  it("rejects an encoded vault script that differs from the derived payout script", async () => {
+    await expect(
+      buildWith(fundedHex, { encodedVaultScript: VAULT_SCRIPT_TIMELOCK_1 }),
+    ).rejects.toThrow(
+      `Encoded PegIn vault output scriptPubKey ${VAULT_SCRIPT_TIMELOCK_1} ` +
+        `does not match the independently derived payout scriptPubKey ` +
+        `${VAULT_SCRIPT_TIMELOCK_100}`,
+    );
+  });
+
+  it("rejects an engine result that reports and encodes the same wrong vault script", async () => {
+    await expect(
+      buildWith(fundedHex, {
+        metadataVaultScript: VAULT_SCRIPT_TIMELOCK_1,
+        encodedVaultScript: VAULT_SCRIPT_TIMELOCK_1,
+      }),
+    ).rejects.toThrow(/does not match the independently derived payout/);
   });
 
   it("rejects a depositor-claim value that differs from the WASM reference", async () => {

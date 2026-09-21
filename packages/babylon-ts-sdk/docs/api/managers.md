@@ -787,9 +787,12 @@ deriveContextHash(appName, context): Promise<string>;
 
 Defined in: [packages/babylon-ts-sdk/src/shared/wallets/interfaces/BitcoinWallet.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/shared/wallets/interfaces/BitcoinWallet.ts)
 
-Derives a deterministic 32-byte value per
-`docs/specs/derive-context-hash.md` rev 1.0. Throws with code
-`WALLET_METHOD_NOT_SUPPORTED` if unimplemented.
+Derives a deterministic 32-byte value from the wallet's key material,
+its network, the connected key, `appName` and `context` (HKDF-SHA-256
+for HD wallets). The conformance vectors in
+`tbv/core/vault-secrets/__tests__/deriveContextHash.vectors.test.ts`
+pin the derivation. Throws with code `WALLET_METHOD_NOT_SUPPORTED` if
+unimplemented.
 
 ###### Parameters
 
@@ -881,7 +884,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts](htt
 
 Parameters for signing a Payout transaction.
 
-Payout is used in the challenge path after Assert, when the claimer proves validity.
+Payout ends two of the peg-out paths; see [buildPayoutPsbt](primitives.md#buildpayoutpsbt) for all of them.
 Input 1 references the Assert transaction.
 
 #### Extends
@@ -1342,7 +1345,7 @@ amounts: readonly bigint[];
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts)
 
 Amounts to peg in per HTLC (in satoshis).
-Must have the same length as `hashlocks`.
+One entry per vault; hashlocks are derived from the vault root, not passed in.
 For single deposits, pass a single-element array.
 
 ##### vaultProviderBtcPubkey

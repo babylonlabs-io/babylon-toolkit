@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { calculate } from "@/applications/aave/positionNotifications";
 import type { CalculatorParams } from "@/applications/aave/positionNotifications/types";
@@ -17,16 +17,31 @@ import { formatBtcAmount, formatPriceUsd, formatUsd } from "@/utils/formatting";
  * could.
  */
 
-const useConnectionMock = vi.fn();
-const useETHWalletMock = vi.fn();
+const walletMock = vi.hoisted(() => ({
+  btcConnected: false,
+  ethConnected: false,
+  confirmed: false,
+  address: undefined as string | undefined,
+}));
 const useDashboardStateMock = vi.fn();
 const usePositionNotificationsMock = vi.fn();
 const usePositionCascadeOverrideMock = vi.fn();
 const useLiquidationPositionOverrideMock = vi.fn();
 
-vi.mock("@/context/wallet", () => ({
-  useConnection: () => useConnectionMock(),
-  useETHWallet: () => useETHWalletMock(),
+vi.mock("@babylonlabs-io/wallet-connector", () => ({
+  useWalletConnect: () => ({ connected: walletMock.confirmed }),
+  useBTCWallet: () => ({ connected: walletMock.btcConnected }),
+  useETHWallet: () => ({
+    connected: walletMock.ethConnected,
+    address: walletMock.address,
+  }),
+}));
+
+// The real gate, so the Ethereum-only control decides what this page counts as
+// connected. A hand-supplied `isConnected` would pass with the control removed.
+vi.mock("@/context/wallet", async () => ({
+  useConnection: (await import("@/context/wallet/useConnection")).useConnection,
+  useETHWallet: (await import("@babylonlabs-io/wallet-connector")).useETHWallet,
 }));
 
 vi.mock("@/hooks/useDashboardState", () => ({
@@ -186,8 +201,23 @@ function setPrice(price: number) {
 }
 
 function connectWallet() {
-  useConnectionMock.mockReturnValue({ isConnected: true });
-  useETHWalletMock.mockReturnValue({ address: "0xabc" });
+  walletMock.btcConnected = true;
+  walletMock.ethConnected = true;
+  walletMock.confirmed = true;
+  walletMock.address = "0xabc";
+}
+
+/** Confirmed Ethereum with no Bitcoin wallet, the Ethereum-only session. */
+function connectEthereumOnly() {
+  connectWallet();
+  walletMock.btcConnected = false;
+}
+
+function disconnectWallet() {
+  walletMock.btcConnected = false;
+  walletMock.ethConnected = false;
+  walletMock.confirmed = false;
+  walletMock.address = undefined;
 }
 
 /** Manual mode off, matching the real store's default (untouched in production). */
@@ -221,9 +251,21 @@ function enablePositionOverride() {
   useLiquidationPositionOverrideMock.mockReturnValue(POSITION_OVERRIDE);
 }
 
+// The Ethereum-only control is read from the environment by the real
+// `featureFlags` getter. Pin it, or a run takes whatever the developer's
+// environment carries; unstub it, or the value reaches every later file.
+beforeEach(() => {
+  vi.stubEnv("NEXT_PUBLIC_FF_ENABLE_ETH_FIRST", undefined);
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
+
 describe("Liquidation Dashboard — connection and position gates", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    disconnectWallet();
     useBtcPriceCandlesMock.mockReturnValue({
       candles: CANDLES,
       isLoading: false,
@@ -234,8 +276,8 @@ describe("Liquidation Dashboard — connection and position gates", () => {
   });
 
   it("renders the connect empty state and no chart while disconnected", () => {
-    useConnectionMock.mockReturnValue({ isConnected: false });
-    useETHWalletMock.mockReturnValue({ address: "0xabc" });
+    disconnectWallet();
+    walletMock.address = "0xabc";
     useDashboardStateMock.mockReturnValue({
       ...CONNECTED_WITH_CASCADE,
       hasCollateral: false,
@@ -298,6 +340,35 @@ describe("Liquidation Dashboard — connection and position gates", () => {
     ).toBeInTheDocument();
     expect(
       screen.queryByTestId("liq-current-price-line"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows the connect empty state for Ethereum alone while Ethereum-only access is off", () => {
+    connectEthereumOnly();
+    useDashboardStateMock.mockReturnValue(CONNECTED_WITH_CASCADE);
+    usePositionNotificationsMock.mockReturnValue(READY_NOTIFICATIONS);
+
+    render(<Liquidations />);
+
+    expect(useDashboardStateMock).toHaveBeenCalledWith(undefined);
+    expect(screen.getByTestId("liquidations-empty-state")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("liq-current-price-line"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("charts the live position for Ethereum alone under Ethereum-only access", () => {
+    vi.stubEnv("NEXT_PUBLIC_FF_ENABLE_ETH_FIRST", "true");
+    connectEthereumOnly();
+    useDashboardStateMock.mockReturnValue(CONNECTED_WITH_CASCADE);
+    usePositionNotificationsMock.mockReturnValue(READY_NOTIFICATIONS);
+
+    render(<Liquidations />);
+
+    expect(useDashboardStateMock).toHaveBeenCalledWith("0xabc");
+    expect(screen.getByTestId("liq-current-price-line")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("liquidations-empty-state"),
     ).not.toBeInTheDocument();
   });
 
@@ -634,6 +705,7 @@ describe("Liquidation Dashboard — no cascade to chart", () => {
 describe("Liquidation Dashboard god mode", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    disconnectWallet();
     useBtcPriceCandlesMock.mockReturnValue({
       candles: CANDLES,
       isLoading: false,
@@ -644,8 +716,7 @@ describe("Liquidation Dashboard god mode", () => {
   });
 
   it("charts the god-mode cascade without a wallet or a real position, bypassing every empty-state gate", () => {
-    useConnectionMock.mockReturnValue({ isConnected: false });
-    useETHWalletMock.mockReturnValue({ address: undefined });
+    disconnectWallet();
     useDashboardStateMock.mockReturnValue({
       ...CONNECTED_WITH_CASCADE,
       hasCollateral: false,
@@ -786,8 +857,7 @@ describe("Liquidation Dashboard position override", () => {
   });
 
   it("leaves the USD caption absent (not a fabricated $0.00) when no BTC price is available", () => {
-    useConnectionMock.mockReturnValue({ isConnected: false });
-    useETHWalletMock.mockReturnValue({ address: undefined });
+    disconnectWallet();
     usePositionNotificationsMock.mockReturnValue({
       ...READY_NOTIFICATIONS,
       result: null,

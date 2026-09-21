@@ -96,6 +96,7 @@ export function createAppKitCapabilities({
  * the Bitcoin adapter through its sibling.
  */
 let appKitState: AppKitState | null = null;
+let manualAppKitModal: AppKitModal | null = null;
 const manualAppKitCapabilities = new Set<"Ethereum" | "Bitcoin">();
 
 export function failInitialization(message: string, chainId?: string): never {
@@ -107,10 +108,10 @@ export function getAppKitState(): AppKitState | null {
 }
 
 export function getAppKitModal(): AppKitModal | null {
-  return appKitState?.modal ?? null;
+  return appKitState?.modal ?? manualAppKitModal;
 }
 
-export function registerManualAppKitConfig(capability: "Ethereum" | "Bitcoin"): void {
+export function registerManualAppKitConfig(capability: "Ethereum" | "Bitcoin", modal?: AppKitModal): void {
   if (appKitState) {
     failInitialization(
       `Cannot set a manual ${capability} AppKit configuration after AppKit initialization. Use the canonical AppKit state.`,
@@ -118,11 +119,13 @@ export function registerManualAppKitConfig(capability: "Ethereum" | "Bitcoin"): 
   }
 
   manualAppKitCapabilities.add(capability);
+  if (modal) manualAppKitModal = modal;
 }
 
 /** @internal */
 export function __resetManualAppKitConfigForTests(capability: "Ethereum" | "Bitcoin"): void {
   manualAppKitCapabilities.delete(capability);
+  if (capability === "Bitcoin") manualAppKitModal = null;
 }
 
 export function validateAppKitInitialization(projectId?: string): projectId is string {

@@ -8,9 +8,9 @@
  *  - `classifyLiquidations`: point-in-time partial/full label by walking
  *    activities chronologically (no `vault.status` snapshot — see the
  *    function's own JSDoc).
- *  - `buildLiquidationGroup`: pairs a liquidation with its sibling repay
- *    (same EVM tx hash) into a single `LiquidationGroupRow` with two child
- *    rows for the card body.
+ *  - `buildLiquidationGroup`: pairs a liquidation with its sibling repays
+ *    (same EVM tx hash) into a single `LiquidationGroupRow`: a collateral
+ *    child row, then one child row per repaid debt reserve.
  */
 
 import { COPY } from "../../copy";
@@ -85,9 +85,45 @@ export function classifyLiquidations(
   return result;
 }
 
+/** One debt repay settled by a liquidation, as a card child row. */
+function liquidationRepayChild(
+  repay: GraphQLVaultActivityItem,
+  deps: FetchUserActivitiesDeps,
+): LiquidationChildRow {
+  const repayReserve =
+    repay.debtReserveId != null
+      ? deps.reserves.get(repay.debtReserveId)
+      : undefined;
+  return {
+    id: `${repay.id}-loan`,
+    label: COPY.activity.liquidation.repaidLabel,
+    amount: {
+      value: repayReserve
+        ? formatAmount(repay.amount, repayReserve.decimals)
+        : repay.amount,
+      symbol: repayReserve?.symbol ?? "—",
+      hubLabel: repayReserve?.hubLabel,
+      // Without the reserve the token's decimals are unknown, so the raw
+      // amount cannot be scaled — leave it unpriced.
+      numeric: repayReserve
+        ? toNumericAmount(repay.amount, repayReserve.decimals)
+        : undefined,
+    },
+    tokenIcon: repayReserve?.icon ?? "",
+    chain: "ETH",
+    transactionHash: repay.transactionHash,
+    date: new Date(parseInt(repay.timestamp, 10) * 1000),
+  };
+}
+
+/**
+ * One card per liquidation, with a "Debt repaid" child for every debt reserve
+ * the liquidation settled. The same token can be owed on several hubs, so each
+ * repay keeps its own row, named with its hub.
+ */
 export function buildLiquidationGroup(
   liquidation: GraphQLVaultActivityItem,
-  repay: GraphQLVaultActivityItem | undefined,
+  repays: readonly GraphQLVaultActivityItem[],
   classification: LiquidationClassification,
   deps: FetchUserActivitiesDeps,
 ): LiquidationGroupRow {
@@ -100,24 +136,11 @@ export function buildLiquidationGroup(
     ),
   };
 
-  const repayReserve =
-    repay && repay.debtReserveId != null
-      ? deps.reserves.get(repay.debtReserveId)
-      : undefined;
-  const debtAmount: ActivityAmount | null = repay
-    ? {
-        value: repayReserve
-          ? formatAmount(repay.amount, repayReserve.decimals)
-          : repay.amount,
-        symbol: repayReserve?.symbol ?? "—",
-        // Without the reserve the token's decimals are unknown, so the raw
-        // amount cannot be scaled — leave it unpriced.
-        numeric: repayReserve
-          ? toNumericAmount(repay.amount, repayReserve.decimals)
-          : undefined,
-      }
-    : null;
-  const debtIcon = repayReserve?.icon ?? "";
+  const repayChildren = repays.map((repay) =>
+    liquidationRepayChild(repay, deps),
+  );
+  // The summary carries a single debt figure; the first repay stands in for it.
+  const firstRepay = repayChildren[0];
 
   const children: LiquidationChildRow[] = [
     {
@@ -129,28 +152,18 @@ export function buildLiquidationGroup(
       transactionHash: liquidation.transactionHash,
       date: new Date(parseInt(liquidation.timestamp, 10) * 1000),
     },
+    ...repayChildren,
   ];
-  if (repay && debtAmount) {
-    children.push({
-      id: `${repay.id}-loan`,
-      label: COPY.activity.liquidation.repaidLabel,
-      amount: debtAmount,
-      tokenIcon: debtIcon,
-      chain: "ETH",
-      transactionHash: repay.transactionHash,
-      date: new Date(parseInt(repay.timestamp, 10) * 1000),
-    });
-  }
 
   return {
     kind: "liquidationGroup",
     id: liquidation.id,
     date: new Date(parseInt(liquidation.timestamp, 10) * 1000),
     type: classification,
-    tokenIcons: [VAULT_COLLATERAL_ASSET.icon, debtIcon],
+    tokenIcons: [VAULT_COLLATERAL_ASSET.icon, firstRepay?.tokenIcon ?? ""],
     summary: {
       collateral: collateralAmount,
-      debt: debtAmount,
+      debt: firstRepay?.amount ?? null,
     },
     children,
     transactionHash: liquidation.transactionHash,

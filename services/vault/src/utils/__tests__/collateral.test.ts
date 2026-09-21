@@ -3,7 +3,11 @@ import { describe, expect, it } from "vitest";
 import type { AavePositionCollateral } from "@/applications/aave/services/fetchPositions";
 import type { VaultProvider } from "@/types/vaultProvider";
 
-import { computeMaxBorrowUsd, toCollateralVaultEntries } from "../collateral";
+import {
+  applyPendingWithdrawals,
+  computeMaxBorrowUsd,
+  toCollateralVaultEntries,
+} from "../collateral";
 
 function makeCollateral(
   overrides: Partial<AavePositionCollateral> = {},
@@ -39,6 +43,7 @@ describe("Collateral Utilities", () => {
       expect(result).toEqual([
         {
           id: "0xdepositor1-vault1",
+          lifecycle: "active",
           vaultId: "vault1",
           peginTxHash: "0xpeginTxHash1",
           amountBtc: 1,
@@ -111,6 +116,55 @@ describe("Collateral Utilities", () => {
       expect(result).toHaveLength(0);
     });
 
+    it("should keep a vault whose peg-out is in flight as a withdrawing row", () => {
+      const collaterals = [
+        makeCollateral({
+          removedAt: 1700001000n,
+          vault: {
+            id: "vault1",
+            peginTxHash: "0xpeginTxHash1",
+            amount: 100000000n,
+            status: "redeemed",
+            vaultProvider: "0xprovider1",
+            inUse: true,
+            depositorBtcPubKey: "0xbtcpubkey1",
+            depositorPayoutBtcAddress: "0xpayout1",
+            offchainParamsVersion: 1,
+          },
+        }),
+      ];
+      const result = toCollateralVaultEntries(collaterals);
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).toMatchObject({
+        vaultId: "vault1",
+        lifecycle: "withdrawing",
+        amountBtc: 1,
+      });
+    });
+
+    it("should keep a redeemed vault whose removedAt has not been indexed yet", () => {
+      const collaterals = [
+        makeCollateral({
+          removedAt: null,
+          vault: {
+            id: "vault1",
+            peginTxHash: "0xpeginTxHash1",
+            amount: 100000000n,
+            status: "redeemed",
+            vaultProvider: "0xprovider1",
+            inUse: true,
+            depositorBtcPubKey: "0xbtcpubkey1",
+            depositorPayoutBtcAddress: "0xpayout1",
+            offchainParamsVersion: 1,
+          },
+        }),
+      ];
+      const result = toCollateralVaultEntries(collaterals);
+
+      expect(result[0].lifecycle).toBe("withdrawing");
+    });
+
     it("should keep collaterals with no vault data", () => {
       const collaterals = [makeCollateral({ vault: undefined })];
       const result = toCollateralVaultEntries(collaterals);
@@ -166,6 +220,32 @@ describe("Collateral Utilities", () => {
       const result = toCollateralVaultEntries(collaterals);
 
       expect(result[0].amountBtc).toBe(0.5);
+    });
+  });
+
+  describe("applyPendingWithdrawals", () => {
+    const entry = toCollateralVaultEntries([makeCollateral()])[0];
+
+    it("marks an active row withdrawing while its withdrawal awaits the indexer", () => {
+      const result = applyPendingWithdrawals([entry], new Set(["vault1"]));
+
+      expect(result[0].lifecycle).toBe("withdrawing");
+    });
+
+    it("matches pending vault IDs case-insensitively", () => {
+      const mixedCase = { ...entry, vaultId: "VaUlT1" };
+      const result = applyPendingWithdrawals([mixedCase], new Set(["vault1"]));
+
+      expect(result[0].lifecycle).toBe("withdrawing");
+    });
+
+    it("leaves rows with no pending withdrawal untouched", () => {
+      const entries = [entry];
+
+      expect(applyPendingWithdrawals(entries, new Set())).toBe(entries);
+      expect(applyPendingWithdrawals(entries, new Set(["other"]))[0]).toBe(
+        entry,
+      );
     });
   });
 

@@ -35,14 +35,23 @@ export { TAP_INTERNAL_KEY, tapInternalPubkey } from "./constants";
 type TbvWasmModule = typeof import("@babylonlabs-io/babylon-tbv-rust-wasm");
 
 let wasmModulePromise: Promise<TbvWasmModule> | undefined;
-type RawTbvWasmModule =
-  typeof import("@babylonlabs-io/babylon-tbv-rust-wasm/raw");
-let rawWasmModulePromise: Promise<RawTbvWasmModule> | undefined;
 
-/** Load the WASM engine on first use and share the in-flight import. */
+/**
+ * Load and initialize the WASM engine on first use. Concurrent callers share
+ * one load. The returned module is already initialized, so a caller does not
+ * call `initWasm()`. A load or initialization failure rejects with an error
+ * that names the engine package. The original error is its cause. A failure
+ * clears this cache, so the next call loads again. The engine keeps a failed
+ * binary initialization rejected, so only a failed import or binary read can
+ * succeed on a later call.
+ *
+ * The module also contains the wasm-bindgen classes. The classes have no value
+ * guards. A caller that uses a class must cross-check its output at the call
+ * site.
+ */
 export function loadTbvWasm(): Promise<TbvWasmModule> {
-  wasmModulePromise ??= import("@babylonlabs-io/babylon-tbv-rust-wasm").catch(
-    (error: unknown) => {
+  wasmModulePromise ??= import("@babylonlabs-io/babylon-tbv-rust-wasm")
+    .catch((error: unknown) => {
       wasmModulePromise = undefined;
       throw new Error(
         "The vault-WASM engine @babylonlabs-io/babylon-tbv-rust-wasm failed " +
@@ -51,44 +60,23 @@ export function loadTbvWasm(): Promise<TbvWasmModule> {
           "See the cause for the underlying error.",
         { cause: error },
       );
-    },
-  );
-  return wasmModulePromise;
-}
-
-/**
- * Load and initialize the raw engine classes. This bypasses SDK value checks.
- * The internal refund builder applies equivalent checks at its call site.
- *
- * @deprecated Use buildPrePeginPsbt, buildPeginTxFromFundedPrePegin, or
- * buildRefundPsbt from @babylonlabs-io/ts-sdk/tbv/core/primitives.
- * Raw callers must independently check transaction values and signing data.
- */
-export function loadRawTbvWasm(): Promise<RawTbvWasmModule> {
-  rawWasmModulePromise ??= import("@babylonlabs-io/babylon-tbv-rust-wasm/raw")
-    .catch((error: unknown) => {
-      rawWasmModulePromise = undefined;
-      throw new Error(
-        "The raw vault-WASM entry @babylonlabs-io/babylon-tbv-rust-wasm/raw " +
-          "failed to load. The module could not be resolved, or it threw " +
-          "while evaluating. See the cause for the underlying error.",
-        { cause: error },
-      );
     })
     .then(async (wasm) => {
       try {
         await wasm.initWasm();
       } catch (error: unknown) {
-        rawWasmModulePromise = undefined;
+        wasmModulePromise = undefined;
         throw new Error(
-          "The raw vault-WASM entry resolved but its WebAssembly " +
-            "binary failed to initialize.",
+          "The vault-WASM engine @babylonlabs-io/babylon-tbv-rust-wasm " +
+            "resolved, but its WebAssembly binary failed to initialize, " +
+            "commonly a missing or stale generated WASM build. See the " +
+            "cause for the underlying error.",
           { cause: error },
         );
       }
       return wasm;
     });
-  return rawWasmModulePromise;
+  return wasmModulePromise;
 }
 
 /**
@@ -185,7 +173,8 @@ export async function computeMinClaimValue(
  * `minPeginFee = peginTxVsize(numVks, numUcs) × minPeginFeeRate`. Each HTLC
  * the depositor funds in the Pre-PegIn tx must reserve at least this fee
  * inside its value (`htlcValue = peginAmount + depositorClaimValue +
- * minPeginFee`), otherwise the VP cannot afford to broadcast the PegIn at
+ * p2aAnchorValue + minPeginFee`, anchor 0 on vault core 1), otherwise the VP
+ * cannot afford to broadcast the PegIn at
  * activation. The vsize comes from a Taproot script-path-spend weight
  * prediction whose witness shape depends on the VK + UC signer count.
  */
@@ -332,8 +321,8 @@ export async function getAssertNoPayoutScriptInfo(
  * Get the ChallengeAssert script and control block.
  *
  * Used to build ChallengeAssert PSBTs for the depositor-as-claimer path.
- * Each challenger has 3 ChallengeAssert transactions, and this connector
- * generates the spending scripts using WOTS public keys from the VP.
+ * Each challenger has 2 ChallengeAssert transactions (X and Y), and this
+ * connector generates the spending scripts using WOTS public keys from the VP.
  *
  * @param params - ChallengeAssert connector parameters
  * @returns Script and control block (hex encoded)

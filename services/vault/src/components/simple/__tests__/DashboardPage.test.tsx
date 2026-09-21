@@ -20,6 +20,7 @@ const featureFlagsMock = vi.hoisted(() => ({
   isLiquidationNotificationsEnabled: false,
   isGodModePanelEnabled: false,
   isPositionDebugPanelEnabled: false,
+  isEthFirstEnabled: false,
 }));
 
 vi.mock("@/config/featureFlags", () => ({ default: featureFlagsMock }));
@@ -35,9 +36,11 @@ vi.mock("react-router", () => ({
 const walletMock = vi.hoisted(() => ({
   btcConnected: true,
   ethConnected: true,
+  confirmed: true,
 }));
 
 vi.mock("@babylonlabs-io/wallet-connector", () => ({
+  useWalletConnect: () => ({ connected: walletMock.confirmed }),
   useBTCWallet: () => ({ connected: walletMock.btcConnected }),
   useETHWallet: () => ({
     connected: walletMock.ethConnected,
@@ -170,8 +173,10 @@ beforeEach(() => {
   vi.clearAllMocks();
   walletMock.btcConnected = true;
   walletMock.ethConnected = true;
+  walletMock.confirmed = true;
   featureFlagsMock.isLiquidationNotificationsEnabled = false;
   featureFlagsMock.isGodModePanelEnabled = false;
+  featureFlagsMock.isEthFirstEnabled = false;
   positionNotificationsMock.result = null;
   positionNotificationsMock.liveUrgentWarning = null;
   positionNotificationsMock.params = null;
@@ -227,6 +232,32 @@ describe("DashboardPage composition", () => {
     expect(screen.getByTestId("disconnected-overview")).toBeInTheDocument();
     expect(screen.queryByTestId("overview-section")).not.toBeInTheDocument();
     expect(useDashboardState).toHaveBeenCalledWith(undefined);
+  });
+
+  it("opens the connected overview for Ethereum alone under Ethereum-only access", () => {
+    featureFlagsMock.isEthFirstEnabled = true;
+    walletMock.btcConnected = false;
+    walletMock.ethConnected = true;
+
+    render(<DashboardPage />);
+
+    expect(screen.getByTestId("overview-section")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("disconnected-overview"),
+    ).not.toBeInTheDocument();
+    expect(useDashboardState).toHaveBeenCalledWith("0xabc");
+  });
+
+  it("waits for consent before it loads the connected dashboard", () => {
+    walletMock.confirmed = false;
+    const { rerender } = render(<DashboardPage />);
+    expect(screen.getByTestId("disconnected-overview")).toBeInTheDocument();
+    expect(useDashboardState).toHaveBeenLastCalledWith(undefined);
+
+    walletMock.confirmed = true;
+    rerender(<DashboardPage />);
+    expect(screen.getByTestId("overview-section")).toBeInTheDocument();
+    expect(useDashboardState).toHaveBeenLastCalledWith("0xabc");
   });
 
   it("renders the overview summary, the risk card and the safety notifications", () => {

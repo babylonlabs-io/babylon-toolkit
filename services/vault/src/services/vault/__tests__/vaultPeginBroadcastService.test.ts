@@ -9,6 +9,11 @@ import {
 } from "@babylonlabs-io/ts-sdk/tbv/core/primitives";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import {
+  DepositorBtcKeyMismatchError,
+  DepositorWalletMismatchError,
+} from "@/utils/errors/depositorWalletMismatch";
+
 // Use vi.hoisted so mocks can reference these before module initialization
 const { mockFetchUTXO, mockPsbt, mockSignedPsbt, mockTx, mockInput } =
   vi.hoisted(() => {
@@ -353,7 +358,7 @@ describe("broadcastPrePeginTransaction — resolveInputUtxo behavior", () => {
     expect(mockSignedPsbt.extractTransaction).not.toHaveBeenCalled();
   });
 
-  it("attaches the original wallet error as the broadcast wrapper's cause", async () => {
+  it("attaches the original wallet error as the sign-stage wrapper's cause", async () => {
     // The cause-walking mappers (user cancellation, method-not-supported)
     // classify by the inner error's code, which the wrapper message loses.
     const inner = Object.assign(new Error("nope"), {
@@ -368,11 +373,49 @@ describe("broadcastPrePeginTransaction — resolveInputUtxo behavior", () => {
         expectedUtxos: undefined,
       }),
     ).rejects.toMatchObject({
-      message: expect.stringContaining(
-        "Failed to broadcast Pre-PegIn transaction",
-      ),
+      message: expect.stringContaining("Failed to sign Pre-Pegin transaction"),
       cause: inner,
     });
+  });
+
+  it("rethrows a depositor Ethereum-wallet mismatch from signing unwrapped, without broadcasting", async () => {
+    const mismatch = new DepositorWalletMismatchError({
+      vaultId: "0xabc",
+      expectedDepositor: "0x1111111111111111111111111111111111111111",
+      connectedDepositor: "0x2222222222222222222222222222222222222222",
+    });
+    const signPsbt = vi.fn().mockRejectedValue(mismatch);
+    vi.mocked(pushTx).mockClear();
+
+    await expect(
+      broadcastPrePeginTransaction({
+        ...baseParams,
+        btcWalletProvider: { signPsbt },
+        expectedUtxos: undefined,
+      }),
+    ).rejects.toBe(mismatch);
+
+    expect(pushTx).not.toHaveBeenCalled();
+  });
+
+  it("rethrows a depositor Bitcoin-key mismatch from signing unwrapped, without broadcasting", async () => {
+    const mismatch = new DepositorBtcKeyMismatchError({
+      vaultId: "0xabc",
+      expectedDepositorBtcPubkey: "11".repeat(32),
+      connectedBtcPubkey: "22".repeat(32),
+    });
+    const signPsbt = vi.fn().mockRejectedValue(mismatch);
+    vi.mocked(pushTx).mockClear();
+
+    await expect(
+      broadcastPrePeginTransaction({
+        ...baseParams,
+        btcWalletProvider: { signPsbt },
+        expectedUtxos: undefined,
+      }),
+    ).rejects.toBe(mismatch);
+
+    expect(pushTx).not.toHaveBeenCalled();
   });
 
   it("verifies the returned key-path signatures after the rebind, with the requested/returned pair", async () => {
@@ -433,6 +476,73 @@ describe("broadcastPrePeginTransaction — resolveInputUtxo behavior", () => {
     );
 
     expect(mockSignedPsbt.extractTransaction).not.toHaveBeenCalled();
+  });
+});
+
+describe("broadcastPrePeginTransaction — stage labels and cause preservation", () => {
+  const basePubkey = "a".repeat(64);
+  const baseParams = {
+    unsignedTxHex: "deadbeef",
+    btcWalletProvider: {
+      signPsbt: vi.fn().mockResolvedValue("mock-signed-psbt-hex"),
+    },
+    depositorBtcPubkey: basePubkey,
+  };
+
+  it("labels a prevout-resolution failure as a prepare failure, not a broadcast one", async () => {
+    const inner = new Error("Failed to fetch UTXO from mempool: 502");
+    mockFetchUTXO.mockRejectedValueOnce(inner);
+
+    const thrown = await broadcastPrePeginTransaction({
+      ...baseParams,
+      expectedUtxos: undefined,
+    }).then(
+      () => null,
+      (e: unknown) => e as Error,
+    );
+
+    expect(thrown?.message).toMatch(/^Failed to prepare Pre-Pegin transaction/);
+    expect(thrown?.message).not.toMatch(/^Failed to broadcast/);
+    expect(thrown?.cause).toBe(inner);
+  });
+
+  it("labels a wallet signing failure as a sign failure with the original error as cause", async () => {
+    const inner = new Error("wallet is locked");
+    vi.mocked(pushTx).mockClear();
+    const thrown = await broadcastPrePeginTransaction({
+      ...baseParams,
+      btcWalletProvider: {
+        signPsbt: vi.fn().mockRejectedValueOnce(inner),
+      },
+      expectedUtxos: undefined,
+    }).then(
+      () => null,
+      (e: unknown) => e as Error,
+    );
+
+    expect(thrown?.message).toMatch(
+      /^Failed to sign Pre-Pegin transaction: wallet is locked/,
+    );
+    expect(thrown?.cause).toBe(inner);
+    expect(pushTx).not.toHaveBeenCalled();
+  });
+
+  it("labels only a pushTx failure as a broadcast failure, keeping the node's reason and cause", async () => {
+    const inner = new Error("bad-txns-inputs-missingorspent");
+    vi.mocked(pushTx).mockRejectedValueOnce(inner);
+
+    const thrown = await broadcastPrePeginTransaction({
+      ...baseParams,
+      expectedUtxos: undefined,
+    }).then(
+      () => null,
+      (e: unknown) => e as Error,
+    );
+
+    expect(thrown?.message).toBe(
+      "Failed to broadcast Pre-Pegin transaction: bad-txns-inputs-missingorspent",
+    );
+    expect(thrown?.cause).toBe(inner);
   });
 });
 
@@ -514,5 +624,34 @@ describe("broadcastPrePeginTransaction — intent-approval ceremony", () => {
     ).rejects.toBe(rejection);
 
     expect(signPsbt).not.toHaveBeenCalled();
+  });
+
+  it("labels a non-rejection ceremony failure as a sign failure with the device error as cause", async () => {
+    // The ceremony runs in the sign stage so a device-transport drop reads as
+    // a signing problem, not a broadcast one.
+    const inner = new Error("device disconnected");
+    const wallet = {
+      signPsbt: vi.fn(),
+      deriveContextHash: vi.fn(async () => "ab".repeat(32)),
+      approveDepositTerms: vi.fn(async () => {
+        throw inner;
+      }),
+    };
+
+    const thrown = await broadcastPrePeginTransaction({
+      unsignedTxHex: "deadbeef",
+      btcWalletProvider: wallet,
+      depositorBtcPubkey: pubkey,
+      depositTerms: makeTerms(),
+    }).then(
+      () => null,
+      (e: unknown) => e as Error,
+    );
+
+    expect(thrown?.message).toMatch(
+      /^Failed to sign Pre-Pegin transaction: device disconnected/,
+    );
+    expect(thrown?.cause).toBe(inner);
+    expect(wallet.signPsbt).not.toHaveBeenCalled();
   });
 });

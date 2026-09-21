@@ -49,12 +49,24 @@ const SOMETHING_WENT_WRONG_HEADING = "Something went wrong";
 // builder so the three can't drift apart.
 const connectToView = (subject: string) =>
   `Connect your wallet to view your ${subject}`;
+// Names a loan asset by its token and hub. One token can be borrowed from
+// several Aave hubs, each a separate market, so sentences naming a loan asset
+// go through this builder. The one exception is a body that emphasizes the
+// amount and token on their own (repay success), which splits the same
+// "<token> on <hub>" wording across segments.
+const tokenOnHub = (symbol: string, hub: string) => `${symbol} on ${hub}`;
+// Column header shared by the Select hub picker and the markets table.
+const AVAILABLE_LIQUIDITY_COLUMN = "Available Liquidity";
 // Generic deposit-failure title; shared so per-bucket titles can't drift.
 const TRANSACTION_FAILED_TITLE = "Transaction failed";
 // The reassurance every pre-signing abort carries. It is the load-bearing half
 // of those messages — it is what distinguishes them from the post-registration
 // failures, which have spent an Ethereum fee — so it lives in one place.
 const NOTHING_SIGNED_OR_SPENT = "Nothing was signed and no funds were spent";
+// What the depositor-claim reserve is for; the sentence every variant of the
+// reserve tooltip opens with.
+const RESERVE_PURPOSE =
+  "A small portion of your deposit is reserved in a dedicated output to fund a future protocol claim transaction.";
 // Shared between the resume WOTS error string and the mapped callout body so
 // the wording stays in one place.
 const WRONG_WALLET_BODY =
@@ -305,6 +317,12 @@ export const COPY = {
       splitUnavailableProtocolLimit:
         "The protocol currently allows one BTCVault per transaction. BTCVault split unavailable.",
     },
+    fundingInputCap: {
+      noticeBefore: "You ",
+      noticeEmphasis: (max: number) => `can use up to ${max} UTXOs`,
+      noticeAfter: " per deposit. Please combine your UTXOs to proceed.",
+      cta: "Consolidate your UTXOs to proceed",
+    },
     steps: {
       generateSecret: "Generate secret for the deposit",
       signPeginBtc: "Sign the peg-in BTC transaction",
@@ -513,6 +531,14 @@ export const COPY = {
         `Network fee exceeds the ${percent}% refund safety cap. Lower the fee rate to continue.`,
       retryButton: "Retry",
       confirmButton: "Confirm",
+      // Failures surfaced on the review screen's error callout. Kept here
+      // rather than inline in the execution hook, like `reclaim.errors`.
+      errors: {
+        walletNotConnected: "BTC wallet not connected",
+        missingVaultId: "Missing BTCVault ID",
+        ethWalletNotConnected: "ETH wallet not connected",
+        invalidFeeRate: "Fee rate must be a positive number",
+      },
     },
     // The tier hints are static: they name the confirmation target of the
     // mempool.space field each tile reads (hourFee / halfHourFee / fastestFee),
@@ -556,7 +582,7 @@ export const COPY = {
       bodyDownloaded: ARTIFACTS_DOWNLOADED_BODY,
       riskAcknowledgement:
         "I understand the risks of continuing without the artifacts.",
-      activateButton: "Activate vault",
+      activateButton: "Activate BTCVault",
       cancelButton: "Cancel",
       cancelDownloadButton: CANCEL_DOWNLOAD_LABEL,
       // Advanced entry into the activate-and-redeem escape hatch, rendered as
@@ -692,13 +718,14 @@ export const COPY = {
     form: {
       computingAllocation: "Computing allocation...",
       transactionReserveLabel: "Depositor claim output",
-      // Describes the real mechanism, and deliberately shares wording with
-      // COPY.reclaim.review.description so the promise made at deposit time
-      // and the action offered after settlement read as the same thing. Until
-      // the reclaim flow shipped this said the reserve "is returned to you if
-      // unused", which nothing in the app could actually do.
-      transactionReserveTooltip:
-        "A small portion of your deposit is reserved in a dedicated output to fund a future protocol claim transaction. If it goes unused, you can reclaim it from your BTCVault once the vault has settled.",
+      // Promise only what the app can do: the Ledger vault app cannot sign the
+      // reclaim sweep (#2375, models/reclaimEligibility.ts).
+      transactionReserveTooltip: (isLedgerVaultWallet: boolean) =>
+        `${RESERVE_PURPOSE} ${
+          isLedgerVaultWallet
+            ? "If it goes unused, reclaiming it with a Ledger device is not supported yet, and it will remain reclaimable once support ships."
+            : "If it goes unused, you can reclaim it once your BTCVault has settled."
+        }`,
       // Labeled "Available", not "Balance": the field shows the depositable
       // maximum — the wallet balance net of the fee buffer, inscription UTXOs
       // and the supply cap — not the raw wallet balance.
@@ -828,19 +855,19 @@ export const COPY = {
           ? "This deposit and another of your pending BTCVault deposits selected the same UTXOs. No BTC was committed in the other deposit, it will expire on its own."
           : `This deposit and ${count} of your other pending BTCVault deposits selected the same UTXOs. No BTC was committed in the other deposits, they will expire on their own.`,
       wotsReadinessTimeout: (vaultNumber: number) =>
-        `Vault ${vaultNumber}: WOTS key submission skipped - vault provider was not ready before the readiness timeout`,
+        `BTCVault ${vaultNumber}: WOTS key submission skipped - vault provider was not ready before the readiness timeout`,
       wotsReadinessTerminal: (vaultNumber: number) =>
-        `Vault ${vaultNumber}: WOTS key submission skipped - vault provider reported this BTCVault cannot continue`,
+        `BTCVault ${vaultNumber}: WOTS key submission skipped - vault provider reported this BTCVault cannot continue`,
       payoutReadinessTerminal: (vaultNumber: number) =>
-        `Vault ${vaultNumber}: Payout signing skipped - vault provider reported this BTCVault cannot continue`,
+        `BTCVault ${vaultNumber}: Payout signing skipped - vault provider reported this BTCVault cannot continue`,
       wotsSubmissionFailed: (vaultNumber: number, error: string) =>
-        `Vault ${vaultNumber}: WOTS key submission failed - ${error}`,
+        `BTCVault ${vaultNumber}: WOTS key submission failed - ${error}`,
       payoutSigningFailed: (vaultNumber: number, error: string) =>
-        `Vault ${vaultNumber}: Payout signing failed - ${error}`,
+        `BTCVault ${vaultNumber}: Payout signing failed - ${error}`,
       // Self-requested device cancel: the loop stops here, so later vaults
       // are left unattempted (no warning) rather than marked failed.
       payoutSigningCanceled: (vaultNumber: number) =>
-        `Vault ${vaultNumber}: Payout signing canceled - you can finish signing when you're ready`,
+        `BTCVault ${vaultNumber}: Payout signing canceled - you can finish signing when you're ready`,
       dismissReusesReservedUtxos: "Dismiss",
     },
     errors: {
@@ -857,15 +884,17 @@ export const COPY = {
         `Peg-in TVL cap reached — only ${remainingBtc} BTC remains`,
       cannotActivateInState: (state: string) =>
         `Cannot activate: BTCVault is in ${state} state. Activation is only valid when VERIFIED.`,
-      // Deliberately worded without the token "broadcast". These are state
-      // preconditions, not broadcast failures, and `mapDepositError` matches
-      // "broadcast" on the message — which would replace this precise sentence
-      // with "Broadcast failed / please try again", wrong for a terminal state
-      // like EXPIRED where retrying can never succeed.
+      // Must never contain the mapper's full broadcast-stage label
+      // ("Failed to broadcast Pre-Pegin transaction"): that would show
+      // retryable broadcast copy for a terminal state.
       cannotBroadcastInState: (state: string) =>
-        `Cannot continue: BTCVault is in ${state} state. This step is only valid while the vault is PENDING.`,
+        `Cannot continue: BTCVault is in ${state} state. This step is only valid while the BTCVault is PENDING.`,
       cannotBroadcastInOnChainState: (state: string) =>
         `Cannot continue: on-chain BTCVault is in ${state} state. This step is only valid while the vault is PENDING.`,
+      // Resume refuses a vault record with no depositor Bitcoin key. A wallet
+      // reconnect cannot fix a malformed record, so this is not a mismatch.
+      depositorBtcKeyMissing:
+        "This BTCVault has no registered Bitcoin key on-chain, so it cannot be resumed. Please contact support.",
       chainSwitchRequired: (network: string) =>
         `Please switch to ${network} in your wallet`,
       ethereumMainnet: "Ethereum Mainnet",
@@ -945,10 +974,25 @@ export const COPY = {
         title: "Signing canceled",
         body: "You canceled the signature request. No Bitcoin was spent, but your deposit is already registered on Ethereum. Retry to continue signing, or resume it later from your dashboard — otherwise the registration will expire on its own.",
       },
+      // Also covers the integrity checks on the wallet's returned PSBT, so
+      // the lock is offered as a possibility, not stated as the cause.
+      signingFailed: {
+        title: "Signing failed",
+        body: "Your Bitcoin wallet couldn't sign the transaction. If it's locked, unlock it and try again. No Bitcoin has been broadcast.",
+      },
+      // Shown on the dashboard resume (its usual producer) and in the fresh
+      // flow, which offers no Retry; "from your dashboard" is true on both.
+      preparationFailed: {
+        title: "Preparation failed",
+        body: "We couldn't prepare your Bitcoin transaction for signing. No Bitcoin has been broadcast. You can try again from your dashboard.",
+      },
       walletNotConnected: {
         title: "Wallet not connected",
         body: "Please reconnect your Bitcoin and Ethereum wallets, then try again.",
       },
+      // Resume's Ethereum-account check. mapDepositError matches
+      // "wallet is not connected", so keep that phrase.
+      ethWalletNotConnected: "Ethereum wallet is not connected",
       walletAccountChanged: {
         title: "Wallet account changed",
         body: "Your wallet account changed during the deposit. Please restart the deposit with the original account.",
@@ -957,9 +1001,24 @@ export const COPY = {
         title: "Bitcoin funds unavailable",
         body: "We couldn't confirm your Bitcoin funds are available. They may be in use by another deposit. Please try again in a moment.",
       },
+      // Post-registration only: a Pre-Pegin input was not found unspent. One
+      // mempool read decides this, so point at the dashboard, not at a
+      // new deposit; the registration expires on its own if it stays true.
+      inputSpentAfterRegistration: {
+        title: "Bitcoin funds no longer available",
+        body: "A Bitcoin input for this deposit is no longer available, so the Pre-Pegin can't be broadcast from here. The Ethereum registration will expire on its own; check the dashboard for the deposit's current status.",
+      },
       broadcastFailed: {
         title: "Broadcast failed",
         body: "We couldn't broadcast your Bitcoin transaction to the network. Please try again.",
+      },
+      // Resume refused because a vault in the batch left PENDING: terminal, so
+      // no retry advice.
+      // A batch member may be VERIFIED, i.e. the shared Pre-Pegin is already
+      // on Bitcoin, so this makes no claim about what was sent.
+      batchNoLongerPending: {
+        title: "Deposit can't be resumed",
+        body: "A BTCVault in this deposit is no longer awaiting its Bitcoin transaction, so the deposit can't be broadcast from here. Check the dashboard for its current status.",
       },
       hashMismatch: (computedHash: string, chainHash: string) =>
         `Pre-Pegin transaction hash mismatch: computed ${computedHash} from indexer tx, but on-chain contract has ${chainHash}. Aborting to prevent potential attack.`,
@@ -972,9 +1031,13 @@ export const COPY = {
         "Transaction integrity check failed: the Pre-Pegin transaction does not match the hash stored on-chain. Aborting to prevent a potential attack.",
       prePeginSigningCanceled:
         "Signing canceled - the signed Pre-Pegin was not broadcast",
-      // depositErrors.ts matches "broadcast" to select the failure callout.
-      prePeginBroadcastFailed: (error: unknown) =>
-        `Failed to broadcast batch Pre-Pegin transaction: ${error instanceof Error ? error.message : String(error)}`,
+      // Stage labels broadcastPrePeginTransaction wraps failures under;
+      // depositErrors.ts matches each one to pick the callout.
+      prePeginStageFailed: {
+        prepare: "Failed to prepare Pre-Pegin transaction",
+        sign: "Failed to sign Pre-Pegin transaction",
+        broadcast: "Failed to broadcast Pre-Pegin transaction",
+      },
       providerNotFound: {
         title: "Vault provider not found",
         body: "The selected vault provider could not be found. Please refresh and try again.",
@@ -1010,7 +1073,7 @@ export const COPY = {
       },
       participantKeyDrift: {
         title: "Vault operator keys changed",
-        body: "A vault operator rotated its Bitcoin key while your deposit was being registered, so the registered vault no longer matches the transaction we prepared. Your Pre-Pegin was not broadcast and no Bitcoin was spent. The registered vault will time out on its own — please start a new deposit.",
+        body: "A vault operator rotated its Bitcoin key while your deposit was being registered, so the registered BTCVault no longer matches the transaction we prepared. Your Pre-Pegin was not broadcast and no Bitcoin was spent. The registered BTCVault will time out on its own — please start a new deposit.",
       },
       // The contract's own fingerprint check. It sits between the two cases
       // around it: unlike the pre-signing aborts it cannot claim
@@ -1038,11 +1101,18 @@ export const COPY = {
         title: "Wrong wallet account",
         body: WRONG_WALLET_BODY,
       },
-      // Typed DepositorWalletMismatchError from the terms rebuild (Ethereum
-      // account, not the BTC wallet the WOTS guard above covers).
+      // Typed DepositorWalletMismatchError (Ethereum account only). The WOTS
+      // guard above and wrongDepositorBtcWallet below cover the BTC wallet.
       wrongDepositorWallet: {
         title: "Wrong wallet connected",
         body: "This deposit belongs to a different Ethereum account. Connect the wallet that created the deposit to resume.",
+      },
+      // Typed DepositorBtcKeyMismatchError. The resume, payout signing and
+      // terms rebuild checks throw it when the connected Bitcoin wallet's key
+      // is not the one the BTCVault registered.
+      wrongDepositorBtcWallet: {
+        title: "Wrong Bitcoin wallet connected",
+        body: "This deposit belongs to a different Bitcoin wallet. Connect the Bitcoin wallet that created the deposit to resume.",
       },
       commissionChanged: {
         title: "Commission changed",
@@ -1212,6 +1282,13 @@ export const COPY = {
         message:
           "This deposit belongs to a different Ethereum account. Connect the wallet that created the deposit to continue signing.",
       },
+      // Typed DepositorBtcKeyMismatchError: the deposit is bound to the Bitcoin
+      // key that registered it.
+      wrongDepositorBtcWallet: {
+        title: "Wrong Bitcoin wallet connected",
+        message:
+          "This deposit belongs to a different Bitcoin wallet. Connect the Bitcoin wallet that created the deposit to continue signing.",
+      },
       // Resume-specific variant of deposit.errors.walletMethodNotSupported: an
       // in-flight deposit is bound to the wallet that derived its secrets, so
       // "reconnect with a supported wallet" is not a recovery path here.
@@ -1257,6 +1334,8 @@ export const COPY = {
     loading: "Loading...",
     // Accessible label for the shared v3 modal header close control.
     close: "Close",
+    // Accessible label for the shared v3 modal header back control.
+    back: "Back",
     confirming: "Confirming...",
     applying: "Applying...",
     checking: "Checking...",
@@ -1266,6 +1345,13 @@ export const COPY = {
     somethingWentWrong: {
       heading: SOMETHING_WENT_WRONG_HEADING,
       body: "Please close this and try again in a moment.",
+    },
+    // Inline panel shown in place of a page when the Aave config fails to
+    // load. Not a dialog, so unlike `somethingWentWrong` there is nothing to close.
+    aaveConfigUnavailable: {
+      heading: SOMETHING_WENT_WRONG_HEADING,
+      body: "Please try again in a moment.",
+      retryButton: "Retry",
     },
     globalError: {
       heading: SOMETHING_WENT_WRONG_HEADING,
@@ -1301,11 +1387,28 @@ export const COPY = {
         "We couldn't complete your request right now. Please wait a moment and try again.",
       alreadySubmitted:
         "This transaction was already submitted. Check your wallet or a block explorer for its status.",
+      staleNonce:
+        "Your wallet hadn't caught up with your last transaction yet. Check your wallet's activity, then try again.",
       staleDeploy:
         "This page is out of date — a newer version of the app was deployed. Refresh the page and try again.",
     },
   },
   wallet: {
+    btcAction: {
+      heading: "Connect your Bitcoin wallet",
+      body: "This action needs your Bitcoin wallet. Connect it, then try the action again.",
+      // The wallet is connected, but the session dialog still waits for the
+      // depositor to confirm it.
+      confirmBody:
+        "This action needs your Bitcoin wallet. Confirm the wallet connection, then try the action again.",
+      // Shown while a saved wallet session is still being restored.
+      resolving: "Checking your Bitcoin wallet…",
+      // The inline error for handlers that run outside the prompt panel.
+      error: "Bitcoin wallet not connected.",
+      connect: "Connect Bitcoin wallet",
+      retry: "Retry",
+      cancel: "Cancel",
+    },
     geoBlockedTooltip: "Not available in your region",
     walletNotEligibleTooltip: "Wallet not eligible",
     addressScreeningBannerBody:
@@ -1411,10 +1514,10 @@ export const COPY = {
     blocked: {
       protocolPaused:
         "Reclaim is paused while the protocol is under maintenance. Your reserve is safe and will remain reclaimable.",
-      // The Ledger vault app's firmware cannot sign this transaction shape.
-      // See models/reclaimEligibility.ts for the firmware reference.
+      // Ledger cannot sign this shape (#2375, models/reclaimEligibility.ts). Never
+      // point at "another wallet": for a hardware user that means restoring the seed.
       ledgerUnsupported:
-        "The Ledger BTCVault app cannot sign a reclaim yet. Connect the same wallet through another BTC wallet to reclaim your reserve.",
+        "Reclaiming with a Ledger device is not supported yet. Your reserve is safe and will remain reclaimable once support ships.",
     },
     // Failures surfaced on the review screen's error callout. Kept here rather
     // than inline in the execution hook so the whole reclaim surface is
@@ -1456,10 +1559,14 @@ export const COPY = {
       noCommission: "None",
       confirmButton: "Confirm",
       processing: "Processing",
+      hfBlockTitle: "Withdraw unavailable",
       hfBlockWarning: (threshold: string) =>
         `This withdrawal would drop your health factor below ${threshold} and be rejected on-chain. Reduce the selection or repay debt first.`,
       hfAtRiskWarning: (threshold: string) =>
         `Your position will be at risk of liquidation after this withdrawal (health factor below ${threshold}). Consider withdrawing less or repaying debt.`,
+      // The hub holding BTCVault collateral has stopped accepting withdrawals.
+      collateralHubUnavailable: (hub: string) =>
+        `${hub} isn't accepting BTCVault collateral withdrawals right now. Try again later.`,
     },
     initiated: {
       title: "Withdrawal initiated",
@@ -1567,6 +1674,7 @@ export const COPY = {
       amountTooSmall: "Amount too small",
       amountExceedsMax: "Amount exceeds maximum",
       amountExceedsLiquidity: "Amount exceeds available liquidity",
+      amountExceedsBorrowLimit: "Amount exceeds borrow limit",
       healthFactorTooLow: "Health factor too low",
     },
     // Borrow validation-error descriptions (the Callout title comes from the
@@ -1574,10 +1682,15 @@ export const COPY = {
     validation: {
       minBorrow: (min: string) =>
         `The minimum borrowable amount is ${min}. Enter a higher amount and try again.`,
-      maxBorrow: (max: string, symbol: string) =>
-        `The maximum borrowable amount is ${max} ${symbol}. Enter a lower amount and try again.`,
-      exceedsLiquidity: (available: string, symbol: string) =>
-        `Only ${available} ${symbol} is available to borrow from this market right now. Enter a lower amount and try again.`,
+      maxBorrow: (max: string, symbol: string, hub: string) =>
+        `The maximum borrowable amount is ${max} ${tokenOnHub(symbol, hub)}. Enter a lower amount and try again.`,
+      exceedsLiquidity: (available: string, symbol: string, hub: string) =>
+        `Only ${available} ${tokenOnHub(symbol, hub)} is available to borrow right now. Enter a lower amount and try again.`,
+      // A hub's draw cap on this market, named "borrow limit" for the user.
+      exceedsBorrowLimit: (available: string, symbol: string, hub: string) =>
+        `Only ${available} ${tokenOnHub(symbol, hub)} is left under this market's borrow limit. Enter a lower amount and try again.`,
+      borrowLimitReached: (symbol: string, hub: string) =>
+        `${tokenOnHub(symbol, hub)} has reached its borrow limit. Try again later or borrow from another hub.`,
       healthFactorTooLow: (min: number) =>
         `Borrowing this amount would drop your health factor below ${min}, risking liquidation. Reduce the amount and try again.`,
     },
@@ -1586,23 +1699,58 @@ export const COPY = {
       body: "Please connect your wallet to manage your position.",
     },
     reserveNotFound: "Reserve not found",
+    // Shown for a token whose indexed symbol is an address (no `symbol()`).
+    unknownTokenSymbol: "Unknown",
     assetSelection: {
       title: "Select asset",
       columnAsset: "Asset",
-      columnPrice: "Price",
-      columnAvailable: "Available Liquidity",
-      columnBorrowApr: "Borrow APR",
+      columnDebt: "Debt",
       loading: "Loading assets...",
       emptyBorrow: "No borrowable assets available",
       emptyRepay: "No assets available",
+    },
+    // Multi-hub: the Select hub step, and the hub named on every per-reserve
+    // surface. The label itself comes from `services/aave/hubRegistry.ts`.
+    hub: {
+      label: "Hub",
+      selectTitle: "Select hub",
+      // Title Case, matching the picker's other column headers.
+      columnAvailable: AVAILABLE_LIQUIDITY_COLUMN,
       marketInfo: "Market Info",
-      marketInfoAriaLabel: (symbol: string) => `${symbol} market info`,
+      marketInfoAriaLabel: (symbol: string, hub: string) =>
+        `${tokenOnHub(symbol, hub)} market info`,
+      empty: "This asset can't be borrowed from any hub right now",
+      // Beside a hub this build doesn't know, which renders by its address.
+      unknownHubWarning:
+        "This hub isn't in the app's list of known hubs, so it is shown by its contract address.",
+      tokenOnHub,
+      // A hub that has stopped accepting this market's transactions. Existing
+      // debt stays visible; the form explains why it can't be repaid. The
+      // sentence already leads with the hub, so the token is named alone.
+      halted: (symbol: string, hub: string) =>
+        `${hub} has halted ${symbol}, so it can't be borrowed or repaid on this hub until the halt is lifted. Your debt stays as it is.`,
+      inactive: (symbol: string, hub: string) =>
+        `${hub} isn't accepting ${symbol} transactions right now, so it can't be borrowed or repaid on this hub. Your debt stays as it is.`,
+      // Borrowing and withdrawing collateral also update your rate on every hub
+      // where you have debt, so an inactive one blocks them.
+      debtHubInactive: (hub: string) =>
+        `${hub}, where you have debt, isn't accepting transactions right now, so borrowing and withdrawing collateral are unavailable until it is.`,
+    },
+    // A decoded hub revert, scaled for the reserve that was being borrowed.
+    // Caps are whole tokens; the fixed-text fallbacks are in errorMessages.ts.
+    revert: {
+      drawCapExceeded: (cap: string, symbol: string, hub: string) =>
+        `This amount would go over the borrow limit for ${tokenOnHub(symbol, hub)}, which is ${cap} ${symbol}. Enter a lower amount and try again.`,
     },
     borrowSuccess: {
       title: "Borrow successful",
-      body: (amount: string, symbol: string): EmphasisBodySegment[] => [
+      body: (
+        amount: string,
+        symbol: string,
+        hub: string,
+      ): EmphasisBodySegment[] => [
         {
-          text: `${amount} ${symbol} has been credited to your wallet.`,
+          text: `${amount} ${tokenOnHub(symbol, hub)} has been credited to your wallet.`,
           emphasis: false,
         },
       ],
@@ -1610,9 +1758,14 @@ export const COPY = {
     },
     repaySuccess: {
       title: "Repay successful",
-      body: (amount: string, symbol: string): EmphasisBodySegment[] => [
+      body: (
+        amount: string,
+        symbol: string,
+        hub: string,
+      ): EmphasisBodySegment[] => [
         { text: "You have repaid ", emphasis: false },
         { text: `${amount} ${symbol}`, emphasis: true },
+        { text: ` on ${hub}`, emphasis: false },
       ],
       doneButton: "Done",
     },
@@ -1702,8 +1855,8 @@ export const COPY = {
   marketData: {
     pageTitle: "Borrowing markets data",
     backToAssets: "Back to assets",
-    subtitle: (symbol: string) =>
-      `Learn more about the ${symbol} borrow market`,
+    subtitle: (symbol: string, hub: string) =>
+      `Learn more about the ${tokenOnHub(symbol, hub)} borrow market`,
     borrowAction: "Borrow",
     // Shown instead of the metrics when a Hub or oracle read failed, so a
     // failed read is never mistaken for a metric that has no value.
@@ -1739,12 +1892,13 @@ export const COPY = {
     },
     borrowMarkets: {
       title: "Borrow markets",
-      description: (symbol: string) =>
-        `Understand market conditions, rates, and risk before borrowing ${symbol}`,
+      description: (symbol: string, hub: string) =>
+        `Understand market conditions, rates, and risk before borrowing ${tokenOnHub(symbol, hub)}`,
       columns: {
-        market: "Market",
+        // The token column; the hub column reuses `loans.hub.label`.
+        asset: "Asset",
         borrowApr: "Borrow APR",
-        available: "Available Liquidity",
+        available: AVAILABLE_LIQUIDITY_COLUMN,
         utilization: "Utilization",
         borrowed: "Borrowed",
         supplied: "Supplied",
@@ -1766,9 +1920,10 @@ export const COPY = {
       currentCallout: (pct: string) => `Current ${pct}`,
       optimalCallout: (pct: string) => `Optimal (Kink) ${pct}`,
       calloutApr: (pct: string) => `APR ~ ${pct}`,
-      historyAriaLabel: (symbol: string) => `${symbol} borrow APR history`,
-      irmAriaLabel: (symbol: string) =>
-        `${symbol} borrow rate against utilization`,
+      historyAriaLabel: (symbol: string, hub: string) =>
+        `${tokenOnHub(symbol, hub)} borrow APR history`,
+      irmAriaLabel: (symbol: string, hub: string) =>
+        `${tokenOnHub(symbol, hub)} borrow rate against utilization`,
       chartUnavailable:
         "Chart data is unavailable right now. Please try again shortly.",
       historyEmpty: "No rate history yet for this market.",
@@ -1948,11 +2103,11 @@ export const COPY = {
         },
         partialLiquidation: {
           title: "Partial liquidation supported",
-          body: "Splitting your deposit between two Bitcoin vaults in accordance with Aave's parameters will allow you to retain part of your position during the first liquidation.",
+          body: "Splitting your deposit between two BTCVaults in accordance with Aave's parameters will allow you to retain part of your position during the first liquidation.",
         },
         selfCustodial: {
           title: "Native, trustless, and self-custodial",
-          body: "No bridging. No wrapping. No pooled custody. Your native Bitcoin stays in a self-custodial vault, with no third party able to move it.",
+          body: "No bridging. No wrapping. No pooled custody. Your native Bitcoin stays in a self-custodial BTCVault, with no third party able to move it.",
         },
       },
     },
@@ -1981,7 +2136,7 @@ export const COPY = {
       activeVaultsLabel: "Active Vaults",
       healthFactorLabel: "Health Factor",
       vaultCount: (count: number) =>
-        count === 1 ? "1 Vault" : `${count} Vaults`,
+        count === 1 ? "1 BTCVault" : `${count} BTCVaults`,
       // e.g. "Order: 0.6 → 0.2 → 0.4 sBTC" — liquidation order, seized-first
       // vault leading.
       liquidationOrder: (amounts: string[], coinSymbol: string) =>
@@ -1994,7 +2149,7 @@ export const COPY = {
       // Heading over the vaults list before any vault is active — the count
       // is dropped while the section only holds the empty state.
       vaultsTitle: "Vaults",
-      activeVaultsTitle: "Active Vaults",
+      activeVaultsTitle: "Total Collateral",
       inactiveVaultsTitle: "Inactive Vaults",
       count: (count: number) => `(${count})`,
     },
@@ -2003,6 +2158,28 @@ export const COPY = {
       reorder: "Reorder",
       withdraw: "Withdraw",
       viewDetails: "View Details",
+    },
+    dismissPending: {
+      rowLabel: "Remove this pending deposit",
+      title: "Remove this pending deposit?",
+      body: "This deposit's record is saved in this browser only. Removing it does not move or spend any Bitcoin, and your funds stay in your wallet.",
+      warning:
+        "You will lose the unsigned Pre-Pegin transaction this browser holds, so you can no longer broadcast it from here. This cannot be undone.",
+      batchTitle: (count: number) => `Remove these ${count} pending deposits?`,
+      batchBody: (count: number) =>
+        `These ${count} deposits share one Pre-Pegin transaction, so they are removed together. Their records are saved in this browser only. Removing them does not move or spend any Bitcoin, and your funds stay in your wallet.`,
+      batchWarning: (count: number) =>
+        `You will lose the unsigned Pre-Pegin transaction this browser holds for all ${count} deposits, so you can no longer broadcast it from here. This cannot be undone.`,
+      writeFailed:
+        "Your browser blocked the change, so the deposit is still saved here. Check your privacy settings or free up local storage, then try again.",
+      unreadable:
+        "This browser's saved deposit records could not be read, so nothing was changed. Reload the page and try again.",
+      noLongerRemovable:
+        "This deposit can no longer be removed because its Pre-Pegin transaction has since been broadcast or found on-chain.",
+      unavailable:
+        "The deposit's status could not be verified right now. Try again in a moment.",
+      confirmButton: "Remove",
+      cancelButton: "Cancel",
     },
   },
   risk: {

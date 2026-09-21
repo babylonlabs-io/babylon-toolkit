@@ -124,9 +124,11 @@ function CenteredMessage({ message }: { message: string }) {
 export function BorrowRateHistoryCard({
   reserveId,
   symbol,
+  hubLabel,
 }: {
   reserveId: bigint;
   symbol: string;
+  hubLabel: string;
 }) {
   const [range, setRange] = useState<HistoryRange>(DEFAULT_RANGE);
   const { points, isLoading, error } = useBorrowRateHistory({
@@ -211,7 +213,7 @@ export function BorrowRateHistoryCard({
             <div>{formatAprPercent(hover.point.y)}</div>
           </>
         )}
-        ariaLabel={COPY.marketData.charts.historyAriaLabel(symbol)}
+        ariaLabel={COPY.marketData.charts.historyAriaLabel(symbol, hubLabel)}
         color="currentColor"
         className="text-accent-primary"
       />

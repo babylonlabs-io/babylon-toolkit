@@ -48,15 +48,20 @@ You do **not** generate or persist HTLC secrets. `preparePegin()` derives them d
 {
   transaction: { fundedPrePeginTxHex, prePeginTxid, perVault[], selectedUTXOs, fee, changeAmount },
   depositorBtcPubkey: string,         // x-only pubkey snapshot — safe to persist
+  depositTerms: DepositTerms,         // pass to signAndBroadcast when the wallet
+                                      // supports deposit approval (e.g. Ledger)
   derivedSecrets: {                   // sensitive — do not log / persist
     perVaultWotsKeys: WotsBlockPublicKey[][],
     wotsPkHashes: Hex[],              // for `registerPeginOnChain.depositorWotsPkHash`
     htlcSecretHexes: string[],        // 64-char hex, no 0x; SHA256 → on-chain hashlock
+    authAnchorHex: string,
   },
 }
 ```
 
 The `secret` you pass to `activateVault()` is `0x${derivedSecrets.htlcSecretHexes[i]}`. The `hashlock` you pass to `registerPeginOnChain()` is `computeHashlock(secret)`.
+
+> **Approval-capable wallets** (e.g. Ledger) additionally require `depositTerms` on `signAndBroadcast()` and `runDepositorPresignFlow()`, and `quotedCommissionBps` on `registerPeginOnChain()`. Omitting them throws.
 
 ---
 
@@ -119,7 +124,6 @@ import {
 import { stripHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core/primitives";
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import type { Address, Hex, WalletClient } from "viem";
-import { randomBytes } from "node:crypto";
 
 // The manager and wallets constructed in the Configuration section above.
 declare const peginManager: PeginManager;
@@ -138,6 +142,13 @@ declare const protocolFeeRate: bigint;
 declare const mempoolFeeRate: number;
 declare const councilQuorum: number;
 declare const councilSize: number;
+declare const vaultCoreVersion: number;
+declare const commissionBps: number;
+declare const timelockAssert: number;
+declare const minPeginFeeRate: bigint;
+declare const councilMembers: string[];
+declare const vkClaimerPayoutScriptPubKeys: Record<string, string>;
+declare const vpCommissionScriptPubKey: string;
 declare const availableUTXOs: UTXO[];
 declare const changeAddress: string;
 declare const vpEthAddress: Address;
@@ -155,18 +166,22 @@ declare const pegInConfig: PegInConfiguration;
 //    Returns broadcast-ready txs + the depositor pubkey snapshot +
 //    sensitive derived secrets (treat with care).
 const result = await peginManager.preparePegin({
+  vaultCoreVersion,                  // contract activeVaultCoreVersion()
   amounts: [100_000n],               // satoshis, one per vault
   vaultProviderBtcPubkey,
+  commissionBps,                     // quoted by the vault provider
   vaultKeeperBtcPubkeys,
   universalChallengerBtcPubkeys,
   timelockPegin,
+  timelockAssert,
   timelockRefund,
   protocolFeeRate,
+  minPeginFeeRate,                   // sat/vB floor baked into the HTLC value
   mempoolFeeRate,
   councilQuorum,
   councilSize,
   availableUTXOs,
-  changeAddress,
+  changeAddress,                     // must match the approval wallet's change address
 });
 
 const firstVault = result.transaction.perVault[0];
@@ -218,6 +233,7 @@ const { vaultId, peginTxHash } = await peginManager.registerPeginOnChain({
   htlcVout: firstVault.htlcVout,
   popSignature,
   expectedFingerprint,
+  quotedCommissionBps: commissionBps,      // required for approval-capable wallets
 });
 // Contract status: PENDING
 
@@ -225,6 +241,7 @@ const { vaultId, peginTxHash } = await peginManager.registerPeginOnChain({
 const btcTxid = await peginManager.signAndBroadcast({
   fundedPrePeginTxHex: result.transaction.fundedPrePeginTxHex,
   depositorBtcPubkey,
+  depositTerms: result.depositTerms,       // required for approval-capable wallets
 });
 
 // 5. Wait for the VP, sign payouts, submit. The service polls the VP,
@@ -232,21 +249,29 @@ const btcTxid = await peginManager.signAndBroadcast({
 const vpClient = new VaultProviderRpcClient(vaultProviderProxyUrl);
 
 const signingContext: PayoutSigningContext = {
+  vaultCoreVersion,
   peginTxHex: firstVault.peginTxHex,
   vaultProviderBtcPubkey,
   vaultKeeperBtcPubkeys,
   universalChallengerBtcPubkeys,
   depositorBtcPubkey: stripHexPrefix(depositorBtcPubkey),
   timelockPegin,
+  timelockAssert,
   network: "signet",
   registeredPayoutScriptPubKey: "0x...",   // from PegInSubmitted event / indexer
   protocolFeeRate,                         // version-locked offchainParams.feeRate
+  commissionBps,
+  councilMembers,
+  councilQuorum,
+  vkClaimerPayoutScriptPubKeys,            // vaultKeeperPubkey -> scriptPubKey hex
+  vpCommissionScriptPubKey,
 };
 
 await runDepositorPresignFlow({
   statusReader: vpClient,
   presignClient: vpClient,
   btcWallet,
+  depositTerms: result.depositTerms,       // required for approval-capable wallets
   peginTxid: stripHexPrefix(peginTxHash),
   depositorPk: stripHexPrefix(depositorBtcPubkey),
   signingContext,
@@ -283,7 +308,7 @@ await activateVault({
 
 | Phase | Method / Service | Returns |
 |---|---|---|
-| 1 | `peginManager.preparePegin()` | `{ transaction, depositorBtcPubkey, derivedSecrets }`. `transaction` is broadcast-safe: `{ fundedPrePeginTxHex, prePeginTxid, perVault[], selectedUTXOs, fee, changeAmount }`. `depositorBtcPubkey` is the x-only pubkey snapshot used end-to-end. `derivedSecrets` is sensitive: `{ perVaultWotsKeys, wotsPkHashes, htlcSecretHexes }` — do not log or persist. Pass `transaction.fundedPrePeginTxHex` as the `unsignedPrePeginTx` register param. |
+| 1 | `peginManager.preparePegin()` | `{ transaction, depositorBtcPubkey, depositTerms, derivedSecrets }`. `transaction` is broadcast-safe: `{ fundedPrePeginTxHex, prePeginTxid, perVault[], selectedUTXOs, fee, changeAmount }`. `depositorBtcPubkey` is the x-only pubkey snapshot used end-to-end. `derivedSecrets` is sensitive: `{ perVaultWotsKeys, wotsPkHashes, htlcSecretHexes, authAnchorHex }` — do not log or persist. Pass `transaction.fundedPrePeginTxHex` as the `unsignedPrePeginTx` register param. |
 | 2 | `peginManager.signProofOfPossession()` | `{ btcPopSignature, depositorEthAddress, depositorBtcPubkey }` — reusable across every `registerPeginOnChain` call in the session |
 | 3 | `peginManager.registerPeginOnChain()` | `{ ethTxHash, vaultId, peginTxHash }` |
 | 4 | `peginManager.signAndBroadcast()` | `btcTxid` (string) |

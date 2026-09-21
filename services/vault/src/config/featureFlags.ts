@@ -14,6 +14,11 @@
  */
 
 export default {
+  /** Allow confirmed Ethereum-only sessions. Disabled by default. */
+  get isEthFirstEnabled() {
+    return process.env.NEXT_PUBLIC_FF_ENABLE_ETH_FIRST === "true";
+  },
+
   /**
    * DISABLE_DEPOSIT feature flag
    *
@@ -134,8 +139,9 @@ export default {
    * `ledger_btc` / `ledger_btc_v2` staking adapters.
    * Why needed: the full deposit flow is implemented (intent ceremony, PoP,
    * Pre-PegIn and payout signing) — reclaim of the depositor-claim reserve is
-   * not, see `models/reclaimEligibility.ts` — but Ledger's firmware is still
-   * in review, so the wallet ships per environment: it must stay invisible
+   * not (#2375; see `models/reclaimEligibility.ts`) — but Ledger's
+   * firmware is still in review, so the wallet ships per environment: it must
+   * stay invisible
    * everywhere by default while Ledger can switch it on in a test environment
    * without a code change or a release.
    * Necessary but not sufficient: the entry also needs WebHID

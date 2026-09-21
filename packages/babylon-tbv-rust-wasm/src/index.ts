@@ -10,6 +10,12 @@ import type {
   PeginP2aAnchorInfo,
 } from './types.js';
 import { assertPositiveBigintArray, assertWasmBigint } from './value-guards.js';
+// tsc keeps this import path in the emitted declaration. It must resolve
+// from both src and dist, which must remain siblings under the package root.
+// scripts/check-lazy-entries.js checks the emitted path.
+import type * as Bindings from '../dist/generated/vault_wasm.js';
+// @ts-expect-error - generated artifacts live in dist/generated
+import * as generated from './generated/vault_wasm.js';
 
 export async function initWasm() {
   await initializeWasm();
@@ -228,7 +234,8 @@ export async function computeMinClaimValue(
  * `minPeginFee = peginTxVsize(numVks, numUcs) × minPeginFeeRate`. Each HTLC
  * the depositor funds in the Pre-PegIn tx must reserve at least this fee
  * inside its value (`htlcValue = peginAmount + depositorClaimValue +
- * minPeginFee`), otherwise the VP cannot afford to broadcast the PegIn at
+ * p2aAnchorValue + minPeginFee`, anchor 0 on vault core 1), otherwise the VP
+ * cannot afford to broadcast the PegIn at
  * activation. The vsize comes from a Taproot script-path-spend weight
  * prediction whose witness shape depends on the VK + UC signer count.
  */
@@ -511,3 +518,22 @@ export const {
   wotsKeypairFromSeed,
 } = createDelegatedClaimApi(getWasmBindings);
 
+// Export wasm-bindgen classes
+/** wasm-bindgen class with no value guards. See README "WASM Classes". */
+export const WasmPeginTx: typeof Bindings.WasmPeginTx = generated.WasmPeginTx;
+export type WasmPeginTx = Bindings.WasmPeginTx;
+
+/** wasm-bindgen class with no value guards. See README "WASM Classes". */
+export const WasmPeginPayoutConnector: typeof Bindings.WasmPeginPayoutConnector =
+  generated.WasmPeginPayoutConnector;
+export type WasmPeginPayoutConnector = Bindings.WasmPeginPayoutConnector;
+
+/** wasm-bindgen class with no value guards. See README "WASM Classes". */
+export const WasmPrePeginTx: typeof Bindings.WasmPrePeginTx =
+  generated.WasmPrePeginTx;
+export type WasmPrePeginTx = Bindings.WasmPrePeginTx;
+
+/** wasm-bindgen class with no value guards. See README "WASM Classes". */
+export const WasmPrePeginHtlcConnector: typeof Bindings.WasmPrePeginHtlcConnector =
+  generated.WasmPrePeginHtlcConnector;
+export type WasmPrePeginHtlcConnector = Bindings.WasmPrePeginHtlcConnector;

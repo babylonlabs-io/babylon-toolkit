@@ -12,8 +12,9 @@ import { Container, Loader, Notification } from "@babylonlabs-io/core-ui";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo, useState } from "react";
 import { useOutletContext } from "react-router";
-import type { Address } from "viem";
 
+import { useSyncPendingVaults } from "@/applications/aave/context";
+import { useAaveVaults } from "@/applications/aave/hooks";
 import type { RootLayoutContext } from "@/components/pages/RootLayout";
 import { PAGE_CONTENT_CLASS } from "@/components/shared/layoutClasses";
 import {
@@ -38,7 +39,7 @@ import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import { useVaultsPageData } from "@/hooks/useVaultsPageData";
 import { useVaultsPageEmptiness } from "@/hooks/useVaultsPageEmptiness";
 import { useDepositOverride } from "@/overrides/deposits";
-import { invalidateVaultQueries, vaultOrderQueryKey } from "@/utils/queryKeys";
+import { invalidateVaultQueries } from "@/utils/queryKeys";
 
 export default function VaultsPage() {
   const { openDeposit } = useOutletContext<RootLayoutContext>();
@@ -52,6 +53,10 @@ export default function VaultsPage() {
   const deposits = usePendingDeposits();
   const { isLoading, isEmpty, hasError, hasPartialError } =
     useVaultsPageEmptiness(deposits);
+  const { vaults: aaveVaults } = useAaveVaults(
+    isConnected ? address : undefined,
+  );
+  useSyncPendingVaults(aaveVaults);
   const {
     summary,
     displayVaults,
@@ -90,7 +95,7 @@ export default function VaultsPage() {
   );
 
   const reorderableVaults = useMemo(
-    () => rawCollateralVaults.filter((vault) => !vault.isActivating),
+    () => rawCollateralVaults.filter((vault) => vault.lifecycle === "active"),
     [rawCollateralVaults],
   );
   const canReorder = reorderableVaults.length >= 2;
@@ -104,13 +109,8 @@ export default function VaultsPage() {
   // back to the indexer by refetching the order-dependent queries.
   const handleReorderSuccessClose = useCallback(() => {
     setIsReorderSuccess(false);
-    if (address) {
-      queryClient.invalidateQueries({
-        queryKey: vaultOrderQueryKey(address),
-      });
-      invalidateVaultQueries(queryClient, address as Address);
-    }
-  }, [address, queryClient]);
+    invalidateVaultQueries(queryClient);
+  }, [queryClient]);
 
   const populatedBody = (
     <div className="flex flex-col gap-8">

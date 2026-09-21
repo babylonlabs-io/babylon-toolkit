@@ -63,6 +63,14 @@ type PrePeginHtlcParams = Pick<
   | "timelockRefund"
 >;
 
+type PeginPayoutParams = Pick<
+  PrePeginParams,
+  | "depositorPubkey"
+  | "vaultProviderPubkey"
+  | "vaultKeeperPubkeys"
+  | "universalChallengerPubkeys"
+>;
+
 interface ExpectedPrePeginHtlc {
   hashlockScript: Buffer;
   hashlockControlBlock: Buffer;
@@ -216,6 +224,56 @@ export function deriveExpectedPrePeginHtlc(
     scriptPubKey: output,
     tapMerkleRoot: hash,
   };
+}
+
+/**
+ * Derive the canonical PegIn vault (payout) scriptPubKey without using vault
+ * WASM output.
+ */
+export function deriveExpectedPeginPayoutScriptPubKey(
+  params: PeginPayoutParams,
+  timelockPegin: number,
+): Buffer {
+  assertEccInitialized();
+
+  const depositor = normalizeXOnlyKey(
+    params.depositorPubkey,
+    "depositorPubkey",
+  );
+  const vaultProvider = normalizeXOnlyKey(
+    params.vaultProviderPubkey,
+    "vaultProviderPubkey",
+  );
+  const vaultKeepers = normalizeKeyGroup(
+    params.vaultKeeperPubkeys,
+    "vaultKeeperPubkeys",
+  );
+  const universalChallengers = normalizeKeyGroup(
+    params.universalChallengerPubkeys,
+    "universalChallengerPubkeys",
+  );
+
+  // btc-vault crates/vault/src/connectors/pegin_payout.rs at 2c1177ec,
+  // 27c0062b, and e1e50f66 uses this single leaf and the fixed internal key.
+  const payoutScript = bscript.compile([
+    Buffer.from(depositor, "hex"),
+    opcodes.OP_CHECKSIGVERIFY,
+    Buffer.from(vaultProvider, "hex"),
+    opcodes.OP_CHECKSIGVERIFY,
+    ...nOfNChunks(vaultKeepers, true),
+    ...nOfNChunks(universalChallengers, true),
+    bscript.number.encode(timelockPegin),
+    opcodes.OP_CHECKSEQUENCEVERIFY,
+  ]);
+  const { output } = payments.p2tr({
+    internalPubkey: Buffer.from(tapInternalPubkey),
+    scriptTree: { output: payoutScript, version: TAPSCRIPT_LEAF_VERSION },
+  });
+  if (!output) {
+    throw new Error("Failed to derive the expected PegIn payout output.");
+  }
+
+  return output;
 }
 
 /**

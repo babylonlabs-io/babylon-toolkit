@@ -1,6 +1,5 @@
 /**
- * Tests for `vaultContext` encoding per
- * `derive-vault-secrets.md` §2.3 + §4 Vector 3.
+ * Tests for the `vaultContext` encoding.
  */
 
 import { describe, expect, it } from "vitest";
@@ -66,8 +65,8 @@ describe("buildFundingOutpointsCommitment", () => {
     ).toThrow(/u32/);
   });
 
-  it("matches manual SHA-256 over sorted concatenation (golden Vector 3 inputs)", () => {
-    // Vector 3 inputs from derive-vault-secrets.md §4:
+  it("matches manual SHA-256 over sorted concatenation", () => {
+    // Fixture inputs:
     // outpoint_a: txid = 0xaa..aa, vout = 0x00000000
     // outpoint_b: txid = 0xbb..bb, vout = 0x00000001
     // Sorted order: a before b (0xaa < 0xbb in the first byte).
@@ -100,7 +99,7 @@ describe("buildVaultContext", () => {
     expect(ctx.length).toBe(72);
   });
 
-  it("matches the §4 Vector 3 layout", () => {
+  it("matches the vaultContext layout", () => {
     // vaultContext :=
     //    I2OSP(32, 4) || depositorBtcPubkey
     // || I2OSP(32, 4) || fundingOutpointsCommitment

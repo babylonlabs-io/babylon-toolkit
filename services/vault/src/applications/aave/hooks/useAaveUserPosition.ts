@@ -9,6 +9,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { satoshiToBtcNumber } from "@/utils/btcConversion";
+import { AAVE_USER_POSITION_QUERY_KEY } from "@/utils/queryKeys";
 
 import {
   POSITION_REFETCH_INTERVAL_MS,
@@ -105,7 +106,7 @@ export function useAaveUserPosition(
     refetch,
   } = useQuery({
     queryKey: [
-      "aaveUserPosition",
+      AAVE_USER_POSITION_QUERY_KEY,
       connectedAddress,
       spokeAddress,
       vbtcReserveId?.toString(),

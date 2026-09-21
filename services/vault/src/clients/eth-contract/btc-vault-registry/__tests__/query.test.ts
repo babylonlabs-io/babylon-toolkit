@@ -161,6 +161,20 @@ describe("getVaultFromChain", () => {
     expect(result.createdAt).toBe(21_000_000n);
   });
 
+  it("surfaces basic.depositorBtcPubKey for the payout-signing wallet check", async () => {
+    mockGetVaultData.mockResolvedValue({
+      basic: {
+        ...basicInfo(60_000_000n),
+        depositorBtcPubKey: ("0x" + "c".repeat(64)) as Hex,
+      },
+      protocol: protocolInfo(),
+    });
+
+    const result = await getVaultFromChain(VAULT_A);
+
+    expect(result.depositorBtcPubKey).toBe("0x" + "c".repeat(64));
+  });
+
   it("surfaces the stamped vaultCoreVersion for resume flows", async () => {
     mockGetVaultData.mockResolvedValue({
       basic: basicInfo(60_000_000n),
