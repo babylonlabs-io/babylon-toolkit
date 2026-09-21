@@ -121,7 +121,7 @@ export async function signAndSubmitPayouts(
     requireFreshDeviceCeremony: true,
   });
 
-  await runDepositorPresignFlow({
+  const presignResult = await runDepositorPresignFlow({
     statusReader: rpcClient,
     presignClient: rpcClient,
     btcWallet,
@@ -138,9 +138,15 @@ export async function signAndSubmitPayouts(
 
   onProgress?.(null);
 
+  // Record what was signed. pegin.md §5.9 requires activation to refuse a
+  // bundle whose graph does not reproduce this. A resume that signed nothing
+  // has no fingerprint to offer and must not overwrite an earlier one.
   updatePendingPeginStatus(
     depositorEthAddress,
     vaultId,
     LocalStorageStatus.PAYOUT_SIGNED,
+    presignResult.status === "signed"
+      ? presignResult.signedGraphFingerprint
+      : undefined,
   );
 }

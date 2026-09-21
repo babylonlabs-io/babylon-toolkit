@@ -81,6 +81,7 @@ describe("signAndSubmitPayouts", () => {
   const vaultProviderAddress = "0xVaultProvider";
   const rpcClient = { marker: "rpc-client" };
   const DEPOSITOR_BTC_PUBKEY = "c".repeat(64);
+  const SIGNED_GRAPH_FINGERPRINT = "3f".repeat(32);
 
   const baseParams = {
     vaultId: "0xVaultId",
@@ -106,7 +107,10 @@ describe("signAndSubmitPayouts", () => {
       vaultProviderAddress,
     });
     mockEnsureAuthenticatedVpClient.mockResolvedValue(rpcClient);
-    mockRunDepositorPresignFlow.mockResolvedValue(undefined);
+    mockRunDepositorPresignFlow.mockResolvedValue({
+      status: "signed",
+      signedGraphFingerprint: SIGNED_GRAPH_FINGERPRINT,
+    });
   });
 
   it("aborts before any wallet popup when the stamped vaultCoreVersion is unsupported", async () => {
@@ -203,10 +207,27 @@ describe("signAndSubmitPayouts", () => {
       baseParams.depositorEthAddress,
       baseParams.vaultId,
       LocalStorageStatus.PAYOUT_SIGNED,
+      SIGNED_GRAPH_FINGERPRINT,
     );
     expect(
       mockUpdatePendingPeginStatus.mock.invocationCallOrder[0],
     ).toBeGreaterThan(mockRunDepositorPresignFlow.mock.invocationCallOrder[0]);
+  });
+
+  it("records no fingerprint when a resume signed nothing", async () => {
+    // The VP had already moved past payout signing, so this run saw no graph.
+    // Passing undefined leaves any fingerprint from the original signing
+    // device in place rather than overwriting it with a value we never saw.
+    mockRunDepositorPresignFlow.mockResolvedValue({ status: "skipped" });
+
+    await callSignAndSubmit();
+
+    expect(mockUpdatePendingPeginStatus).toHaveBeenCalledWith(
+      baseParams.depositorEthAddress,
+      baseParams.vaultId,
+      LocalStorageStatus.PAYOUT_SIGNED,
+      undefined,
+    );
   });
 
   it("does not persist PAYOUT_SIGNED when the presign flow rejects", async () => {

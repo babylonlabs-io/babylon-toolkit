@@ -39,6 +39,19 @@ export interface PendingPeginRequest {
   // expire to let the user retry instead of permanently hiding the action.
   refundBroadcastAt?: number;
   payoutSignedAt?: number;
+  /**
+   * Fingerprint of the canonical transaction set the depositor signed at
+   * presign, hex, no prefix. `btc-vault/docs/pegin.md` §5.9 makes this the
+   * depositor's binding between signing and activation: the artifact bundle
+   * fetched before the HTLC secret is revealed must reproduce this exact
+   * value, or the VP has swapped the graph underneath. Written once, when the
+   * presign run reports `status: "signed"`.
+   *
+   * Absent on entries written before this field existed, and on deposits
+   * presigned on another device. The activation gate treats absence as
+   * "unverifiable", not as "verified" — see `assertGraphMatchesPresign`.
+   */
+  signedGraphFingerprint?: string;
   // Fields for cross-device broadcasting support
   unsignedTxHex: string; // Funded Pre-PegIn tx hex (for broadcasting later)
   selectedUTXOs?: Array<{
@@ -588,6 +601,7 @@ export function updatePendingPeginStatus(
   ethAddress: string,
   vaultId: string,
   status: LocalStorageStatus,
+  signedGraphFingerprint?: string,
 ): void {
   const existingPegins = getPendingPegins(ethAddress);
   const normalizedId = normalizeTransactionId(vaultId);
@@ -601,6 +615,10 @@ export function updatePendingPeginStatus(
             status === LocalStorageStatus.PAYOUT_SIGNED
               ? Date.now()
               : undefined,
+          // Keep any fingerprint already recorded: a later status change must
+          // not erase the depositor's only record of what it signed.
+          signedGraphFingerprint:
+            signedGraphFingerprint ?? pegin.signedGraphFingerprint,
         }
       : pegin,
   );

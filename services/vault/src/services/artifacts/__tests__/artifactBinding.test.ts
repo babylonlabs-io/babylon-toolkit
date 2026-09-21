@@ -1,7 +1,13 @@
 import { VpResponseValidationError } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+import { fingerprintReturnedGraph } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 import { describe, expect, it } from "vitest";
 
-import { assertBundleBoundToVault } from "../artifactBinding";
+import {
+  assertBundleBoundToVault,
+  assertGraphMatchesPresign,
+  assertVerifyingKeyPinned,
+  PresignFingerprintUnavailableError,
+} from "../artifactBinding";
 
 const PEGIN_TXID =
   "f545b4a379becea9bd3ed30809c6b568e4035217391791d5408150b15023d64c";
@@ -145,5 +151,106 @@ describe("assertBundleBoundToVault", () => {
     expect(() =>
       assertBundleBoundToVault(graph, SESSION_KEYS, BINDING),
     ).not.toThrow();
+  });
+});
+
+describe("assertGraphMatchesPresign", () => {
+  /** A graph in the shape `fingerprintReturnedGraph` consumes. */
+  const realGraph = () => ({
+    pegin_tx: { tx: tx("aa") },
+    claim_tx: { tx: tx("bb") },
+    assert_tx: { tx: tx("cc") },
+    payout_tx: { tx: tx("dd") },
+    challenger_subgraphs: {
+      [LOCAL_CHALLENGER]: {
+        nopayout_tx: { tx: tx("ee") },
+        output_label_hashes: ["c2".repeat(32)],
+      },
+    },
+  });
+
+  function tx(marker: string) {
+    return {
+      version: 2,
+      lock_time: 0,
+      input: [
+        {
+          previous_output: `${marker.repeat(32)}:0`,
+          script_sig: "",
+          sequence: 4294967295,
+          witness: [],
+        },
+      ],
+      output: [{ value: 1000, script_pubkey: `0014${"11".repeat(20)}` }],
+    };
+  }
+
+  it("accepts a graph that reproduces the persisted fingerprint", () => {
+    const graph = realGraph();
+    const expected = fingerprintReturnedGraph(graph);
+    expect(() =>
+      assertGraphMatchesPresign(graph, expected, PEGIN_TXID),
+    ).not.toThrow();
+  });
+
+  it("rejects a graph whose transactions were swapped after presign", () => {
+    const graph = realGraph();
+    const expected = fingerprintReturnedGraph(graph);
+    const swapped = { ...graph, payout_tx: { tx: tx("ff") } };
+    expect(() =>
+      assertGraphMatchesPresign(swapped, expected, PEGIN_TXID),
+    ).toThrow(VpResponseValidationError);
+  });
+
+  it("rejects a graph whose challenger roster was swapped after presign", () => {
+    const graph = realGraph();
+    const expected = fingerprintReturnedGraph(graph);
+    const swapped = {
+      ...graph,
+      challenger_subgraphs: {
+        [UNIVERSAL_CHALLENGER]: graph.challenger_subgraphs[LOCAL_CHALLENGER],
+      },
+    };
+    expect(() =>
+      assertGraphMatchesPresign(swapped, expected, PEGIN_TXID),
+    ).toThrow(VpResponseValidationError);
+  });
+
+  it("reports absence separately from a mismatch", () => {
+    expect(() =>
+      assertGraphMatchesPresign(realGraph(), undefined, PEGIN_TXID),
+    ).toThrow(PresignFingerprintUnavailableError);
+  });
+
+  it("ignores prefix and case on the persisted value", () => {
+    const graph = realGraph();
+    const expected = fingerprintReturnedGraph(graph);
+    expect(() =>
+      assertGraphMatchesPresign(
+        graph,
+        `0x${expected.toUpperCase()}`,
+        PEGIN_TXID,
+      ),
+    ).not.toThrow();
+  });
+});
+
+describe("assertVerifyingKeyPinned", () => {
+  const PINNED = "9f".repeat(32);
+
+  it("accepts the pinned key", () => {
+    expect(() => assertVerifyingKeyPinned(PINNED, PINNED)).not.toThrow();
+  });
+
+  it("accepts a differently cased or prefixed encoding of the same key", () => {
+    expect(() =>
+      assertVerifyingKeyPinned(`0x${PINNED.toUpperCase()}`, PINNED),
+    ).not.toThrow();
+  });
+
+  it("rejects any other key", () => {
+    expect(() => assertVerifyingKeyPinned("ab".repeat(32), PINNED)).toThrow(
+      VpResponseValidationError,
+    );
   });
 });

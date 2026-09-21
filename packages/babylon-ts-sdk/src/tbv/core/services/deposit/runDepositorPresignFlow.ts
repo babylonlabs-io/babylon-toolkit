@@ -26,6 +26,7 @@ import {
   stripHexPrefix,
 } from "../../primitives/utils/bitcoin";
 import type { PeginStatusReader, PresignClient } from "./interfaces";
+import { fingerprintPresignTxSet } from "./graphFingerprint";
 import { signDepositorGraph } from "./signDepositorGraph";
 import { waitForPeginStatus } from "./waitForPeginStatus";
 
@@ -405,6 +406,19 @@ async function signPayoutTransactions(
 // ============================================================================
 
 /**
+ * The outcome of a presign run.
+ *
+ * `signed` carries the fingerprint of the transaction set the depositor just
+ * signed. `pegin.md` §5.9 requires the caller to persist it and refuse to
+ * activate later against a graph that does not reproduce it. `skipped` means
+ * the VP had already moved past payout signing, so this run signed nothing and
+ * has no fingerprint to offer — a resume of an already-presigned deposit.
+ */
+export type DepositorPresignResult =
+  | { status: "signed"; signedGraphFingerprint: string }
+  | { status: "skipped" };
+
+/**
  * Poll for payout transactions, sign them, sign the depositor graph,
  * and submit all signatures to the vault provider.
  *
@@ -414,7 +428,7 @@ async function signPayoutTransactions(
  */
 export async function runDepositorPresignFlow(
   params: RunDepositorPresignFlowParams,
-): Promise<void> {
+): Promise<DepositorPresignResult> {
   const {
     statusReader,
     presignClient,
@@ -439,7 +453,7 @@ export async function runDepositorPresignFlow(
 
   // Resume-safe: if VP already moved past payout signing, nothing to do
   if (POST_PAYOUT_STATUSES.has(status)) {
-    return;
+    return { status: "skipped" };
   }
 
   signal?.throwIfAborted();
@@ -554,4 +568,18 @@ export async function runDepositorPresignFlow(
     },
     signal,
   );
+
+  // Fingerprint the set the depositor just committed to. The PegIn comes from
+  // our own signing context rather than the response, so the VP does not get
+  // to pick both sides of the activation comparison.
+  return {
+    status: "signed",
+    signedGraphFingerprint: fingerprintPresignTxSet({
+      peginTxHex: signingContext.peginTxHex,
+      claimTxHex: response.depositor_graph.claim_tx.tx_hex,
+      assertTxHex: response.depositor_graph.assert_tx.tx_hex,
+      payoutTxHex: response.depositor_graph.payout_tx.tx_hex,
+      challengers: response.depositor_graph.challenger_presign_data,
+    }),
+  };
 }
