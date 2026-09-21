@@ -33,10 +33,16 @@ import { stripHexPrefix } from "../../primitives/utils/bitcoin";
 /** Output of the Payout transaction that pays the claimer. */
 const PAYOUT_DESTINATION_OUTPUT = 0;
 
-/** Thrown when a Payout does not pay the vault's registered destination. */
+/**
+ * Thrown when a Payout does not pay the vault's registered destination.
+ *
+ * @experimental
+ */
 export class PayoutDestinationError extends Error {
   constructor(
+    /** The vault's registered payout scriptPubKey, hex. */
     readonly expectedScriptHex: string,
+    /** The scriptPubKey the Payout actually pays, hex. */
     readonly actualScriptHex: string,
   ) {
     super(
@@ -49,6 +55,11 @@ export class PayoutDestinationError extends Error {
   }
 }
 
+/**
+ * The Payout to check, and the destination it must pay.
+ *
+ * @experimental
+ */
 export interface AssertPayoutPaysRegisteredScriptParams {
   /** A Payout signing PSBT, base64, as the graph produced it. */
   payoutPsbtBase64: string;

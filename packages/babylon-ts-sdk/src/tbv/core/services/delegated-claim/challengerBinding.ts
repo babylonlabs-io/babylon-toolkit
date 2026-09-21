@@ -23,10 +23,16 @@
 import { deriveLocalChallengers } from "../../primitives/challengers";
 import { stripHexPrefix } from "../../primitives/utils/bitcoin";
 
-/** Thrown when the graph's challengers are not the vault's challengers. */
+/**
+ * Thrown when the graph's challengers are not the vault's challengers.
+ *
+ * @experimental
+ */
 export class ChallengerSetMismatchError extends Error {
   constructor(
+    /** Challengers the vault has that the graph left out. */
     readonly missing: string[],
+    /** Challengers the graph lists that the vault does not have. */
     readonly unexpected: string[],
   ) {
     super(
@@ -42,6 +48,11 @@ export class ChallengerSetMismatchError extends Error {
   }
 }
 
+/**
+ * The graph's challenger keys, and the on-chain sets they must equal.
+ *
+ * @experimental
+ */
 export interface AssertChallengerSetMatchesVaultParams {
   /** Challenger keys the graph produced WronglyChallenged PSBTs for. */
   graphChallengerPubkeys: string[];

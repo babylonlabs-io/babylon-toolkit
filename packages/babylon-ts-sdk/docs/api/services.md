@@ -9,7 +9,9 @@ Callers own the wallet; services own the orchestration.
 
 ### ChallengerSetMismatchError
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/challengerBinding.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/challengerBinding.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/challengerBinding.ts)
+
+**`Experimental`**
 
 Thrown when the graph's challengers are not the vault's challengers.
 
@@ -25,7 +27,9 @@ Thrown when the graph's challengers are not the vault's challengers.
 new ChallengerSetMismatchError(missing, unexpected): ChallengerSetMismatchError;
 ```
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/challengerBinding.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/challengerBinding.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/challengerBinding.ts)
+
+**`Experimental`**
 
 ###### Parameters
 
@@ -33,9 +37,13 @@ Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/challe
 
 `string`[]
 
+Challengers the vault has that the graph left out.
+
 ###### unexpected
 
 `string`[]
+
+Challengers the graph lists that the vault does not have.
 
 ###### Returns
 
@@ -55,7 +63,11 @@ Error.constructor
 readonly missing: string[];
 ```
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/challengerBinding.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/challengerBinding.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/challengerBinding.ts)
+
+**`Experimental`**
+
+Challengers the vault has that the graph left out.
 
 ##### unexpected
 
@@ -63,13 +75,19 @@ Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/challe
 readonly unexpected: string[];
 ```
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/challengerBinding.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/challengerBinding.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/challengerBinding.ts)
+
+**`Experimental`**
+
+Challengers the graph lists that the vault does not have.
 
 ***
 
 ### PayoutDestinationError
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/payoutBinding.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/payoutBinding.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/payoutBinding.ts)
+
+**`Experimental`**
 
 Thrown when a Payout does not pay the vault's registered destination.
 
@@ -85,7 +103,9 @@ Thrown when a Payout does not pay the vault's registered destination.
 new PayoutDestinationError(expectedScriptHex, actualScriptHex): PayoutDestinationError;
 ```
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/payoutBinding.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/payoutBinding.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/payoutBinding.ts)
+
+**`Experimental`**
 
 ###### Parameters
 
@@ -93,9 +113,13 @@ Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/payout
 
 `string`
 
+The vault's registered payout scriptPubKey, hex.
+
 ###### actualScriptHex
 
 `string`
+
+The scriptPubKey the Payout actually pays, hex.
 
 ###### Returns
 
@@ -115,7 +139,11 @@ Error.constructor
 readonly expectedScriptHex: string;
 ```
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/payoutBinding.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/payoutBinding.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/payoutBinding.ts)
+
+**`Experimental`**
+
+The vault's registered payout scriptPubKey, hex.
 
 ##### actualScriptHex
 
@@ -123,7 +151,11 @@ Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/payout
 readonly actualScriptHex: string;
 ```
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/payoutBinding.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/payoutBinding.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/payoutBinding.ts)
+
+**`Experimental`**
+
+The scriptPubKey the Payout actually pays, hex.
 
 ***
 
@@ -970,7 +1002,11 @@ one string — join them into the file downstream instead.
 
 ### AssertChallengerSetMatchesVaultParams
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/challengerBinding.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/challengerBinding.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/challengerBinding.ts)
+
+**`Experimental`**
+
+The graph's challenger keys, and the on-chain sets they must equal.
 
 #### Properties
 
@@ -980,7 +1016,9 @@ Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/challe
 graphChallengerPubkeys: string[];
 ```
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/challengerBinding.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/challengerBinding.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/challengerBinding.ts)
+
+**`Experimental`**
 
 Challenger keys the graph produced WronglyChallenged PSBTs for.
 
@@ -990,7 +1028,9 @@ Challenger keys the graph produced WronglyChallenged PSBTs for.
 depositorBtcPubkey: string;
 ```
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/challengerBinding.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/challengerBinding.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/challengerBinding.ts)
+
+**`Experimental`**
 
 Depositor's BTC public key, registered on chain for this vault.
 
@@ -1000,7 +1040,9 @@ Depositor's BTC public key, registered on chain for this vault.
 vaultProviderBtcPubkey: string;
 ```
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/challengerBinding.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/challengerBinding.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/challengerBinding.ts)
+
+**`Experimental`**
 
 Vault provider's BTC public key, registered on chain for this vault.
 The depositor-as-claimer branch does not use it, but the shared
@@ -1013,7 +1055,9 @@ next change to that function could turn into a wrong set.
 vaultKeeperBtcPubkeys: string[];
 ```
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/challengerBinding.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/challengerBinding.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/challengerBinding.ts)
+
+**`Experimental`**
 
 Vault keepers registered on chain for this vault.
 
@@ -1023,7 +1067,9 @@ Vault keepers registered on chain for this vault.
 universalChallengerBtcPubkeys: string[];
 ```
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/challengerBinding.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/challengerBinding.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/challengerBinding.ts)
+
+**`Experimental`**
 
 Universal challengers registered on chain.
 
@@ -1158,7 +1204,11 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/deriv
 
 ### AssertPayoutPaysRegisteredScriptParams
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/payoutBinding.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/payoutBinding.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/payoutBinding.ts)
+
+**`Experimental`**
+
+The Payout to check, and the destination it must pay.
 
 #### Properties
 
@@ -1168,7 +1218,9 @@ Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/payout
 payoutPsbtBase64: string;
 ```
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/payoutBinding.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/payoutBinding.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/payoutBinding.ts)
+
+**`Experimental`**
 
 A Payout signing PSBT, base64, as the graph produced it.
 
@@ -1178,7 +1230,9 @@ A Payout signing PSBT, base64, as the graph produced it.
 registeredPayoutScriptPubKey: string;
 ```
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/payoutBinding.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/payoutBinding.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/payoutBinding.ts)
+
+**`Experimental`**
 
 `depositorPayoutScriptPubKey` as the vault registered it on chain, hex.
 The vault provider does not choose this value, which is the whole point
@@ -4402,7 +4456,7 @@ If the graph is not version 3, if the wallet returns a signature
 function assertChallengerSetMatchesVault(params): void;
 ```
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/challengerBinding.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/challengerBinding.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/challengerBinding.ts)
 
 **`Experimental`**
 
@@ -4474,7 +4528,7 @@ If the derivation does not match the vault's on-chain
 function assertPayoutPaysRegisteredScript(params): void;
 ```
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/payoutBinding.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/payoutBinding.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/payoutBinding.ts)
 
 **`Experimental`**
 
