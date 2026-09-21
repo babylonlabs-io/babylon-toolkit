@@ -48,6 +48,10 @@ export function createTaprootScriptPathSignOptions(
  *   (the Assert connector) on `publicKey` and signs it on `address`. The
  *   caller must confirm the address belongs to `publicKey` before passing it;
  *   `assembleWatchtowerArtifacts` does that against `depositorPublicKey`.
+ *
+ * @experimental Added for the delegated claim, which is still under test and
+ *               is its only caller. This signature can change in a minor
+ *               release.
  */
 export function createTaprootScriptPathSignOptionsForInput(
   publicKey: string,

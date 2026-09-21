@@ -27,6 +27,8 @@ import {
 /**
  * Graph version the delegated-claim artifacts format exists for. Vaults on
  * graph v1 and v2 predate it and have no artifacts path at all.
+ *
+ * @experimental
  */
 export const DELEGATED_CLAIM_TX_GRAPH_VERSION = 3;
 
@@ -137,7 +139,8 @@ export interface AssertArtifactsUsableParams {
   depositorEthAddress: string;
   /**
    * Graph version to verify under. Defaults to the only version the format
-   * exists for; pass it explicitly to fail loudly on a mismatched vault.
+   * exists for. A file that records a different `vault_core_version` is
+   * rejected rather than verified under this one.
    */
   txGraphVersion?: number;
 }
@@ -175,6 +178,19 @@ export async function assertArtifactsUsableForVault(
     expectedVaultId: expected,
   });
 
+  // Verifying a file under a version it does not claim yields, at best, an
+  // opaque Rust error. The file states its own version, so compare it.
+  const resolved = params.txGraphVersion ?? DELEGATED_CLAIM_TX_GRAPH_VERSION;
+  if (
+    summary.vaultCoreVersion !== undefined &&
+    summary.vaultCoreVersion !== resolved
+  ) {
+    throw new Error(
+      `Artifacts record vault core version ${summary.vaultCoreVersion}, ` +
+        `but verification was asked for version ${resolved}.`,
+    );
+  }
+
   // A file assembled before the Ethereum withdrawal was initiated carries
   // zero here. `vaultd vp wt start-claim` would then ask the prover to prove
   // the wrong block and fail before Assert, so a function named "usable"
@@ -187,10 +203,7 @@ export async function assertArtifactsUsableForVault(
     );
   }
 
-  await verifyWatchtowerArtifacts(
-    params.txGraphVersion ?? DELEGATED_CLAIM_TX_GRAPH_VERSION,
-    params.artifactsJson,
-  );
+  await verifyWatchtowerArtifacts(resolved, params.artifactsJson);
 
   return summary;
 }

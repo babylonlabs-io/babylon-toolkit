@@ -97,7 +97,7 @@ describe("deriveClaimerWotsKeypair", () => {
     );
   });
 
-  it("returns nothing when the keypair does not match the graph", async () => {
+  it("rejects when the keypair does not match the graph", async () => {
     wasm.validateWotsKeypairAgainstGraph.mockRejectedValue(
       new Error("WOTS keypair public keys do not match"),
     );

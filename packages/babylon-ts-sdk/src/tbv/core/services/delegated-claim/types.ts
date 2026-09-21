@@ -12,7 +12,11 @@ import type { Hex } from "viem";
  * @experimental
  */
 export interface WatchtowerArtifactsSummary {
-  /** Graph version the file was assembled under. Delegated claim requires 3. */
+  /**
+   * Vault Core version the file records, absent on files written before the
+   * field existed. `assertArtifactsUsableForVault` refuses a file whose
+   * value differs from the version it verifies under.
+   */
   vaultCoreVersion?: number;
   /** 32-byte on-chain vault id, as the file records it. */
   vaultId: string;
@@ -47,7 +51,18 @@ export interface WatchtowerArtifactsSummary {
 export interface ClaimerArtifactsSource {
   /** `tx_graph_json` from `requestDepositorClaimerArtifacts`. */
   txGraphJson: string;
-  /** `verifying_key_hex` from the same response. */
+  /**
+   * `verifying_key_hex` from the same response.
+   *
+   * Trusted from the vault provider. This value is written into the
+   * artifacts file and is the key `pinPegoutProof` later verifies the
+   * Groth16 proof against, so a provider that supplies a key of its own
+   * choosing makes that verification prove nothing. No registry read in
+   * this SDK exposes a verifying key, or a hash of one, per
+   * `proverCircuitVersion`, so there is nothing to compare it with yet.
+   * Obtain it over an authenticated channel, and re-check it here once the
+   * chain exposes an anchor.
+   */
   verifyingKeyHex: string;
 }
 
@@ -64,6 +79,18 @@ export interface DelegatedClaimVaultContext {
    * which is how a vault-provider-served graph is bound to this vault.
    */
   depositorEthAddress: Hex;
+  /**
+   * `depositorPayoutScriptPubKey` as the vault registered it on chain, hex.
+   * The Payout the vault provider builds is checked against this before the
+   * wallet signs it.
+   */
+  registeredPayoutScriptPubKey: string;
+  /** Vault provider's BTC public key, registered on chain for this vault. */
+  vaultProviderBtcPubkey: string;
+  /** Vault keepers registered on chain, the local challengers of this claim. */
+  vaultKeeperBtcPubkeys: string[];
+  /** Universal challengers registered on chain. */
+  universalChallengerBtcPubkeys: string[];
   /** Graph (vault core) version of the vault. Delegated claim requires 3. */
   txGraphVersion: number;
   proverCircuitVersion: number;

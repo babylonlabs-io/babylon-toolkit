@@ -27,9 +27,12 @@ vi.mock("../../../wasm", async (importOriginal) => ({
 
 const DEPOSITOR_ETH_ADDRESS = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8";
 // PegIn the Claim spends, and the vault id it derives with that depositor.
-const PEGIN_TXID = "ab".repeat(32);
+// Non-palindromic, and OTHER_TXID is its byte reversal, so a lost reversal
+// in the code swaps the two and fails both directions.
+const PEGIN_TXID = "00112233445566778899aabbccddeeff".repeat(2);
+const OTHER_TXID = "ffeeddccbbaa99887766554433221100".repeat(2);
 const VAULT_ID =
-  "0xcbba8595fd78d9d8d75df49378aaa786fc7ef2d78bae0fb924e1da97cb60382a";
+  "0xf5c2a4e499a96ee2a2e32acf1f16b51d2958e7819a1d5048eccab864163806c3";
 const OTHER_VAULT_ID = `0x${"ef".repeat(32)}`;
 
 const CLAIM_TX = new Transaction();
@@ -177,7 +180,7 @@ describe("assertArtifactsUsableForVault", () => {
 
   it("rejects a file whose graph belongs to another vault than its vault_id", async () => {
     const otherPeginTx = new Transaction();
-    otherPeginTx.addInput(Buffer.from("cd".repeat(32), "hex").reverse(), 0);
+    otherPeginTx.addInput(Buffer.from(OTHER_TXID, "hex").reverse(), 0);
 
     // vault_id says this vault; the graph the signatures cover says another.
     await expect(

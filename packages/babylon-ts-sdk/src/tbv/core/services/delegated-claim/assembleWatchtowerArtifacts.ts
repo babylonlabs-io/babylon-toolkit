@@ -38,6 +38,8 @@ import type {
   ClaimerArtifactsSource,
   DelegatedClaimVaultContext,
 } from "./types";
+import { assertChallengerSetMatchesVault } from "./challengerBinding";
+import { assertPayoutPaysRegisteredScript } from "./payoutBinding";
 import {
   assertClaimSpendsVault,
   peginTxidFromClaimPsbt,
@@ -133,12 +135,38 @@ export async function assembleWatchtowerArtifacts(
   // The depositor Payout signature is always signed fresh. The builder no
   // longer reads a presigned one off the graph, so its PSBT always joins this
   // batch rather than costing a second wallet prompt later.
+  const payoutDepositorPsbt = await buildPayoutDepositorPsbt(
+    txGraphVersion,
+    graphJson,
+  );
+
+  // Where the money lands. Both PSBTs describe the same Payout transaction,
+  // so both are checked: passing one and not the other would leave the
+  // unchecked half free to differ.
+  for (const psbtBase64 of [payoutClaimerPsbt, payoutDepositorPsbt]) {
+    assertPayoutPaysRegisteredScript({
+      payoutPsbtBase64: psbtBase64,
+      registeredPayoutScriptPubKey: params.vault.registeredPayoutScriptPubKey,
+    });
+  }
+
+  // Who can be answered later. A graph that omits an active challenger
+  // produces a file that verifies and still loses the vault at claim time.
+  assertChallengerSetMatchesVault({
+    graphChallengerPubkeys: Object.keys(wronglyChallengedPsbts),
+    depositorBtcPubkey: params.depositorPublicKey,
+    vaultProviderBtcPubkey: params.vault.vaultProviderBtcPubkey,
+    vaultKeeperBtcPubkeys: params.vault.vaultKeeperBtcPubkeys,
+    universalChallengerBtcPubkeys:
+      params.vault.universalChallengerBtcPubkeys,
+  });
+
   const requests: PsbtSigningRequest[] = [
     { psbtBase64: claimPsbt, inputIndex: CLAIM_DEPOSITOR_INPUT },
     { psbtBase64: assertPsbt, inputIndex: ASSERT_CLAIMER_INPUT },
     { psbtBase64: payoutClaimerPsbt, inputIndex: PAYOUT_CLAIMER_INPUT },
     {
-      psbtBase64: await buildPayoutDepositorPsbt(txGraphVersion, graphJson),
+      psbtBase64: payoutDepositorPsbt,
       inputIndex: PAYOUT_DEPOSITOR_INPUT,
     },
   ];
@@ -259,7 +287,8 @@ async function signAndExtract(
   // key-path address from a public key and then refuses any input that sits
   // elsewhere — every script-path connector. An address names the account, so
   // it must be proved to be this depositor's account first: otherwise a wallet
-  // on the wrong account signs all N+3 PSBTs and the mismatch only surfaces
+  // on the wrong account signs every PSBT in the batch and the mismatch
+  // only surfaces
   // later, in finalizeClaimTx or verify_bundle.
   const signerAddress = await assertWalletMatchesDepositor(
     btcWallet,

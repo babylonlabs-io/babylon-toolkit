@@ -51,6 +51,7 @@ export default defineConfig([
       "src/tbv/core/clients/eth/payout-script.ts",
       "src/tbv/core/clients/eth/onChainBtcPubkey.ts",
       "src/tbv/core/wasm/**/*.ts",
+      "src/tbv/core/services/delegated-claim/**/*.ts",
     ],
     ignores: ["**/__tests__/**", "**/*.test.{ts,tsx}"],
     rules: {

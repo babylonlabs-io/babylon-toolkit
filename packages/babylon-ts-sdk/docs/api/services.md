@@ -7,6 +7,126 @@ Callers own the wallet; services own the orchestration.
 
 ## Classes
 
+### ChallengerSetMismatchError
+
+Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/challengerBinding.ts
+
+Thrown when the graph's challengers are not the vault's challengers.
+
+#### Extends
+
+- `Error`
+
+#### Constructors
+
+##### Constructor
+
+```ts
+new ChallengerSetMismatchError(missing, unexpected): ChallengerSetMismatchError;
+```
+
+Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/challengerBinding.ts
+
+###### Parameters
+
+###### missing
+
+`string`[]
+
+###### unexpected
+
+`string`[]
+
+###### Returns
+
+[`ChallengerSetMismatchError`](#challengersetmismatcherror)
+
+###### Overrides
+
+```ts
+Error.constructor
+```
+
+#### Properties
+
+##### missing
+
+```ts
+readonly missing: string[];
+```
+
+Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/challengerBinding.ts
+
+##### unexpected
+
+```ts
+readonly unexpected: string[];
+```
+
+Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/challengerBinding.ts
+
+***
+
+### PayoutDestinationError
+
+Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/payoutBinding.ts
+
+Thrown when a Payout does not pay the vault's registered destination.
+
+#### Extends
+
+- `Error`
+
+#### Constructors
+
+##### Constructor
+
+```ts
+new PayoutDestinationError(expectedScriptHex, actualScriptHex): PayoutDestinationError;
+```
+
+Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/payoutBinding.ts
+
+###### Parameters
+
+###### expectedScriptHex
+
+`string`
+
+###### actualScriptHex
+
+`string`
+
+###### Returns
+
+[`PayoutDestinationError`](#payoutdestinationerror)
+
+###### Overrides
+
+```ts
+Error.constructor
+```
+
+#### Properties
+
+##### expectedScriptHex
+
+```ts
+readonly expectedScriptHex: string;
+```
+
+Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/payoutBinding.ts
+
+##### actualScriptHex
+
+```ts
+readonly actualScriptHex: string;
+```
+
+Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/payoutBinding.ts
+
+***
+
 ### ArtifactsVaultMismatchError
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/readWatchtowerArtifacts.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/readWatchtowerArtifacts.ts)
@@ -848,6 +968,67 @@ one string — join them into the file downstream instead.
 
 ***
 
+### AssertChallengerSetMatchesVaultParams
+
+Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/challengerBinding.ts
+
+#### Properties
+
+##### graphChallengerPubkeys
+
+```ts
+graphChallengerPubkeys: string[];
+```
+
+Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/challengerBinding.ts
+
+Challenger keys the graph produced WronglyChallenged PSBTs for.
+
+##### depositorBtcPubkey
+
+```ts
+depositorBtcPubkey: string;
+```
+
+Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/challengerBinding.ts
+
+Depositor's BTC public key, registered on chain for this vault.
+
+##### vaultProviderBtcPubkey
+
+```ts
+vaultProviderBtcPubkey: string;
+```
+
+Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/challengerBinding.ts
+
+Vault provider's BTC public key, registered on chain for this vault.
+The depositor-as-claimer branch does not use it, but the shared
+derivation takes it, and passing a stand-in would be a lie that the
+next change to that function could turn into a wrong set.
+
+##### vaultKeeperBtcPubkeys
+
+```ts
+vaultKeeperBtcPubkeys: string[];
+```
+
+Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/challengerBinding.ts
+
+Vault keepers registered on chain for this vault.
+
+##### universalChallengerBtcPubkeys
+
+```ts
+universalChallengerBtcPubkeys: string[];
+```
+
+Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/challengerBinding.ts
+
+Universal challengers registered on chain.
+
+***
+
 ### DeriveClaimerWotsKeypairParams
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/deriveClaimerWotsKeypair.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/deriveClaimerWotsKeypair.ts)
@@ -975,6 +1156,36 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/deriv
 
 ***
 
+### AssertPayoutPaysRegisteredScriptParams
+
+Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/payoutBinding.ts
+
+#### Properties
+
+##### payoutPsbtBase64
+
+```ts
+payoutPsbtBase64: string;
+```
+
+Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/payoutBinding.ts
+
+A Payout signing PSBT, base64, as the graph produced it.
+
+##### registeredPayoutScriptPubKey
+
+```ts
+registeredPayoutScriptPubKey: string;
+```
+
+Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/payoutBinding.ts
+
+`depositorPayoutScriptPubKey` as the vault registered it on chain, hex.
+The vault provider does not choose this value, which is the whole point
+of comparing against it.
+
+***
+
 ### AssertArtifactsUsableParams
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/readWatchtowerArtifacts.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/readWatchtowerArtifacts.ts)
@@ -1032,7 +1243,8 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/readW
 **`Experimental`**
 
 Graph version to verify under. Defaults to the only version the format
-exists for; pass it explicitly to fail loudly on a mismatched vault.
+exists for. A file that records a different `vault_core_version` is
+rejected rather than verified under this one.
 
 ***
 
@@ -1056,7 +1268,9 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types
 
 **`Experimental`**
 
-Graph version the file was assembled under. Delegated claim requires 3.
+Vault Core version the file records, absent on files written before the
+field existed. `assertArtifactsUsableForVault` refuses a file whose
+value differs from the version it verifies under.
 
 ##### vaultId
 
@@ -1172,6 +1386,15 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types
 
 `verifying_key_hex` from the same response.
 
+Trusted from the vault provider. This value is written into the
+artifacts file and is the key `pinPegoutProof` later verifies the
+Groth16 proof against, so a provider that supplies a key of its own
+choosing makes that verification prove nothing. No registry read in
+this SDK exposes a verifying key, or a hash of one, per
+`proverCircuitVersion`, so there is nothing to compare it with yet.
+Obtain it over an authenticated channel, and re-check it here once the
+chain exposes an anchor.
+
 ***
 
 ### DelegatedClaimVaultContext
@@ -1207,6 +1430,56 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types
 Depositor's Ethereum address, the one the vault was registered under.
 With the PegIn txid it re-derives [DelegatedClaimVaultContext.vaultId](#vaultid-3),
 which is how a vault-provider-served graph is bound to this vault.
+
+##### registeredPayoutScriptPubKey
+
+```ts
+registeredPayoutScriptPubKey: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts)
+
+**`Experimental`**
+
+`depositorPayoutScriptPubKey` as the vault registered it on chain, hex.
+The Payout the vault provider builds is checked against this before the
+wallet signs it.
+
+##### vaultProviderBtcPubkey
+
+```ts
+vaultProviderBtcPubkey: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts)
+
+**`Experimental`**
+
+Vault provider's BTC public key, registered on chain for this vault.
+
+##### vaultKeeperBtcPubkeys
+
+```ts
+vaultKeeperBtcPubkeys: string[];
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts)
+
+**`Experimental`**
+
+Vault keepers registered on chain, the local challengers of this claim.
+
+##### universalChallengerBtcPubkeys
+
+```ts
+universalChallengerBtcPubkeys: string[];
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts)
+
+**`Experimental`**
+
+Universal challengers registered on chain.
 
 ##### txGraphVersion
 
@@ -4123,6 +4396,38 @@ If the graph is not version 3, if the wallet returns a signature
 
 ***
 
+### assertChallengerSetMatchesVault()
+
+```ts
+function assertChallengerSetMatchesVault(params): void;
+```
+
+Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/challengerBinding.ts
+
+**`Experimental`**
+
+Throws unless the graph's challenger set equals `local ∪ universal`.
+
+The depositor is the claimer here, so the local set is the vault keepers,
+derived by the same function the deposit path uses rather than restated.
+
+#### Parameters
+
+##### params
+
+[`AssertChallengerSetMatchesVaultParams`](#assertchallengersetmatchesvaultparams)
+
+#### Returns
+
+`void`
+
+#### Throws
+
+[ChallengerSetMismatchError](#challengersetmismatcherror) on any missing or extra key, or
+        a plain error when the on-chain sets themselves are unusable.
+
+***
+
 ### deriveClaimerWotsKeypair()
 
 ```ts
@@ -4160,6 +4465,39 @@ version if you build on it.
 If the derivation does not match the vault's on-chain
         `depositorWotsPkHash`, or the WOTS public keys the graph's Claim
         commits to.
+
+***
+
+### assertPayoutPaysRegisteredScript()
+
+```ts
+function assertPayoutPaysRegisteredScript(params): void;
+```
+
+Defined in: packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/payoutBinding.ts
+
+**`Experimental`**
+
+Throws unless the Payout pays the vault's registered payout script.
+
+Run this on every Payout PSBT before the wallet is prompted. Both the
+depositor and the claimer PSBT describe the same transaction, so both must
+pass; checking only one would leave the other free to differ.
+
+#### Parameters
+
+##### params
+
+[`AssertPayoutPaysRegisteredScriptParams`](#assertpayoutpaysregisteredscriptparams)
+
+#### Returns
+
+`void`
+
+#### Throws
+
+[PayoutDestinationError](#payoutdestinationerror) when output 0 pays elsewhere, or a
+        plain error when the layout is not the canonical claimer layout.
 
 ***
 
@@ -5685,6 +6023,8 @@ const DELEGATED_CLAIM_TX_GRAPH_VERSION: 3 = 3;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/readWatchtowerArtifacts.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/readWatchtowerArtifacts.ts)
+
+**`Experimental`**
 
 Graph version the delegated-claim artifacts format exists for. Vaults on
 graph v1 and v2 predate it and have no artifacts path at all.

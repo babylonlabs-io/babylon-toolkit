@@ -43,6 +43,16 @@ export {
   type AssertArtifactsUsableParams,
 } from "./readWatchtowerArtifacts";
 export {
+  ChallengerSetMismatchError,
+  assertChallengerSetMatchesVault,
+  type AssertChallengerSetMatchesVaultParams,
+} from "./challengerBinding";
+export {
+  PayoutDestinationError,
+  assertPayoutPaysRegisteredScript,
+  type AssertPayoutPaysRegisteredScriptParams,
+} from "./payoutBinding";
+export {
   VaultIdBindingError,
   assertClaimSpendsVault,
   type AssertClaimSpendsVaultParams,

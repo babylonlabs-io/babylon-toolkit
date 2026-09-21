@@ -28,13 +28,6 @@ describe("wotsKeypairFromSeed frozen derivation", () => {
     );
   });
 
-  it("returns both the secret keypair and its public side", async () => {
-    const derivation = await wotsKeypairFromSeed(GOLDEN_SEED);
-
-    expect(derivation.keypair).toBeTruthy();
-    expect(derivation.public_keys).toBeTruthy();
-  });
-
   it("agrees with the deposit-time TS derivation for the same seed", async () => {
     // Deposit time commits `depositorWotsPkHash` through the TS path; claim
     // time re-derives it through wasm. Two implementations of one on-chain
@@ -46,6 +39,22 @@ describe("wotsKeypairFromSeed frozen derivation", () => {
     ]);
 
     expect(computeWotsBlockPublicKeysHash(blocks)).toBe(derivation.pk_hash);
+  });
+
+  it("agrees with the deposit-time TS derivation for random seeds", async () => {
+    // The fixed vector pins one input. The binding that matters is that the
+    // two implementations of depositorWotsPkHash agree on every input, so
+    // this drives them both over seeds neither side has ever seen.
+    const RANDOM_SEED_COUNT = 16;
+    for (let i = 0; i < RANDOM_SEED_COUNT; i++) {
+      const seed = crypto.getRandomValues(new Uint8Array(64));
+      const [blocks, derivation] = await Promise.all([
+        deriveWotsBlocksFromSeed(seed.slice()),
+        wotsKeypairFromSeed(seed.slice()),
+      ]);
+
+      expect(computeWotsBlockPublicKeysHash(blocks)).toBe(derivation.pk_hash);
+    }
   });
 
   it("rejects a seed that is not 64 bytes", async () => {

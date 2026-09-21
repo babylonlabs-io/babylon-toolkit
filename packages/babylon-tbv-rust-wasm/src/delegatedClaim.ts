@@ -75,6 +75,43 @@ function assertU16(value: number, label: string): void {
   }
 }
 
+/**
+ * Rejects a tx-graph version WASM would silently truncate.
+ *
+ * The same u16 hazard as {@link assertU16}, and worse here: a wrapped value
+ * can land on a supported version and succeed, which would defeat this
+ * surface's own contract that v1 and v2 fail closed.
+ */
+function assertTxGraphVersion(txGraphVersion: number): void {
+  assertU16(txGraphVersion, 'txGraphVersion');
+}
+
+/**
+ * Checks the shape `parseWasmJson` was told to assume.
+ *
+ * The cast is otherwise unchecked, and the caller iterates each value and
+ * reads its `length` to slice signatures out of one batch. A value arriving
+ * as a string rather than an array would iterate characters, report the
+ * character count, and silently misassign every later signature to the wrong
+ * challenger.
+ */
+function assertWronglyChallengedShape(
+  parsed: WronglyChallengedPsbts,
+): WronglyChallengedPsbts {
+  for (const [challenger, psbts] of Object.entries(parsed)) {
+    if (
+      !Array.isArray(psbts) ||
+      psbts.some((psbt) => typeof psbt !== 'string')
+    ) {
+      throw new Error(
+        `buildWronglyChallengedPsbts: challenger ${challenger} did not ` +
+          'return an array of PSBT strings',
+      );
+    }
+  }
+  return parsed;
+}
+
 export function createDelegatedClaimApi(getWasmBindings: GetWasmBindings) {
   return {
     /** Depositor's Claim signing PSBT (base64) — spends PegIn:1, script path. */
@@ -82,6 +119,7 @@ export function createDelegatedClaimApi(getWasmBindings: GetWasmBindings) {
       txGraphVersion: number,
       graphJson: string,
     ): Promise<string> {
+      assertTxGraphVersion(txGraphVersion);
       const wasm = await getWasmBindings();
       try {
         return wasm.buildClaimPsbt(txGraphVersion, graphJson);
@@ -95,6 +133,7 @@ export function createDelegatedClaimApi(getWasmBindings: GetWasmBindings) {
       txGraphVersion: number,
       graphJson: string,
     ): Promise<string> {
+      assertTxGraphVersion(txGraphVersion);
       const wasm = await getWasmBindings();
       try {
         return wasm.buildAssertClaimerPsbt(txGraphVersion, graphJson);
@@ -108,6 +147,7 @@ export function createDelegatedClaimApi(getWasmBindings: GetWasmBindings) {
       txGraphVersion: number,
       graphJson: string,
     ): Promise<string> {
+      assertTxGraphVersion(txGraphVersion);
       const wasm = await getWasmBindings();
       try {
         return wasm.buildPayoutClaimerPsbt(txGraphVersion, graphJson);
@@ -126,6 +166,7 @@ export function createDelegatedClaimApi(getWasmBindings: GetWasmBindings) {
       txGraphVersion: number,
       graphJson: string,
     ): Promise<string> {
+      assertTxGraphVersion(txGraphVersion);
       const wasm = await getWasmBindings();
       try {
         return wasm.buildPayoutDepositorPsbt(txGraphVersion, graphJson);
@@ -143,6 +184,7 @@ export function createDelegatedClaimApi(getWasmBindings: GetWasmBindings) {
       txGraphVersion: number,
       graphJson: string,
     ): Promise<WronglyChallengedPsbts> {
+      assertTxGraphVersion(txGraphVersion);
       const wasm = await getWasmBindings();
       let json: string;
       try {
@@ -150,9 +192,11 @@ export function createDelegatedClaimApi(getWasmBindings: GetWasmBindings) {
       } catch (err) {
         throw toError(err, 'buildWronglyChallengedPsbts');
       }
-      return parseWasmJson<WronglyChallengedPsbts>(
-        json,
-        'buildWronglyChallengedPsbts',
+      return assertWronglyChallengedShape(
+        parseWasmJson<WronglyChallengedPsbts>(
+          json,
+          'buildWronglyChallengedPsbts',
+        ),
       );
     },
 
@@ -167,6 +211,7 @@ export function createDelegatedClaimApi(getWasmBindings: GetWasmBindings) {
       graphJson: string,
       depositorSigHex: string,
     ): Promise<string> {
+      assertTxGraphVersion(txGraphVersion);
       const wasm = await getWasmBindings();
       try {
         return wasm.finalizeClaimTx(
@@ -230,6 +275,7 @@ export function createDelegatedClaimApi(getWasmBindings: GetWasmBindings) {
       keypair: unknown,
       graphJson: string,
     ): Promise<void> {
+      assertTxGraphVersion(txGraphVersion);
       const wasm = await getWasmBindings();
       try {
         wasm.validateWotsKeypairAgainstGraph(
@@ -265,6 +311,7 @@ export function createDelegatedClaimApi(getWasmBindings: GetWasmBindings) {
       inputs: WatchtowerArtifactsInputs,
     ): Promise<string> {
       const wasm = await getWasmBindings();
+      assertTxGraphVersion(inputs.txGraphVersion);
       assertU64(inputs.claimableEventBlockNumber, 'claimableEventBlockNumber');
       assertU16(inputs.proverCircuitVersion, 'proverCircuitVersion');
       assertU16(inputs.expectedVaultCoreVersion, 'expectedVaultCoreVersion');
@@ -302,6 +349,7 @@ export function createDelegatedClaimApi(getWasmBindings: GetWasmBindings) {
       txGraphVersion: number,
       artifactsJson: string,
     ): Promise<void> {
+      assertTxGraphVersion(txGraphVersion);
       const wasm = await getWasmBindings();
       try {
         wasm.verifyWatchtowerArtifacts(txGraphVersion, artifactsJson);
@@ -324,6 +372,7 @@ export function createDelegatedClaimApi(getWasmBindings: GetWasmBindings) {
       artifactsJson: string,
       proofHex: string,
     ): Promise<string> {
+      assertTxGraphVersion(txGraphVersion);
       const wasm = await getWasmBindings();
       try {
         return wasm.pinPegoutProof(txGraphVersion, artifactsJson, proofHex);
@@ -346,6 +395,7 @@ export function createDelegatedClaimApi(getWasmBindings: GetWasmBindings) {
       artifactsJson: string,
       keypairJson: string,
     ): Promise<string> {
+      assertTxGraphVersion(txGraphVersion);
       const wasm = await getWasmBindings();
       try {
         return wasm.attachFinalizedAssert(
@@ -367,6 +417,7 @@ export function createDelegatedClaimApi(getWasmBindings: GetWasmBindings) {
       txGraphVersion: number,
       artifactsJson: string,
     ): Promise<string> {
+      assertTxGraphVersion(txGraphVersion);
       const wasm = await getWasmBindings();
       try {
         return wasm.finalizePayout(txGraphVersion, artifactsJson);
@@ -388,6 +439,7 @@ export function createDelegatedClaimApi(getWasmBindings: GetWasmBindings) {
       gcIndex: number,
       preimageHex: string,
     ): Promise<string> {
+      assertTxGraphVersion(txGraphVersion);
       const wasm = await getWasmBindings();
       assertU16(gcIndex, 'gcIndex');
       try {

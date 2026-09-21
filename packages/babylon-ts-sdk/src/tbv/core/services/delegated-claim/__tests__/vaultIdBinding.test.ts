@@ -18,10 +18,14 @@ import {
   peginTxidFromClaimTx,
 } from "../vaultIdBinding";
 
-const PEGIN_TXID = "ab".repeat(32);
+// Non-palindromic on purpose, and OTHER_TXID is exactly PEGIN_TXID reversed:
+// dropping the byte-order flip in displayTxid turns each of these into the
+// other, so both the positive and the negative case below would fail.
+const PEGIN_TXID = "00112233445566778899aabbccddeeff".repeat(2);
+const OTHER_TXID = "ffeeddccbbaa99887766554433221100".repeat(2);
 const DEPOSITOR_ETH_ADDRESS = "0x70997970C51812dc3A010C7d01b50e0d17dc79C8";
 const VAULT_ID =
-  "0xcbba8595fd78d9d8d75df49378aaa786fc7ef2d78bae0fb924e1da97cb60382a";
+  "0xf5c2a4e499a96ee2a2e32acf1f16b51d2958e7819a1d5048eccab864163806c3";
 
 function claimPsbt(peginTxid: string): string {
   const psbt = new Psbt();
@@ -67,7 +71,7 @@ describe("assertClaimSpendsVault", () => {
   it("rejects a Claim that spends another vault's PegIn", () => {
     expect(() =>
       assertClaimSpendsVault({
-        peginTxid: "cd".repeat(32),
+        peginTxid: OTHER_TXID,
         depositorEthAddress: DEPOSITOR_ETH_ADDRESS,
         expectedVaultId: VAULT_ID,
       }),

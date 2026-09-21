@@ -18,6 +18,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { BitcoinWallet } from "../../../../../shared/wallets/interfaces";
 import { assembleWatchtowerArtifacts } from "../assembleWatchtowerArtifacts";
+import { ChallengerSetMismatchError } from "../challengerBinding";
+import { PayoutDestinationError } from "../payoutBinding";
 import { VaultIdBindingError } from "../vaultIdBinding";
 
 const wasm = vi.hoisted(() => ({
@@ -36,8 +38,11 @@ vi.mock("../../../wasm", async (importOriginal) => ({
   ...wasm,
 }));
 
+// The vault's on-chain sets: keeper A is the local challenger for a
+// depositor-as-claimer graph, B is universal.
 const CHALLENGER_A = "aa".repeat(32);
 const CHALLENGER_B = "bb".repeat(32);
+const VAULT_PROVIDER_PUBKEY = "02".concat("77".repeat(32));
 
 // The secp256k1 generator point, so the P2TR address below really derives
 // from this key — the signer check would reject a made-up one.
@@ -50,15 +55,30 @@ const OTHER_ADDRESS =
 
 const DEPOSITOR_ETH_ADDRESS =
   "0x70997970C51812dc3A010C7d01b50e0d17dc79C8" as Hex;
-// A Claim PSBT whose only input spends PegIn ab…ab:1, and the vault id that
-// PegIn txid derives with the depositor address above.
+// A Claim PSBT whose only input spends the PegIn below, and the vault id
+// that PegIn txid derives with the depositor address above. The txid is
+// non-palindromic, so the byte-order flip in the binding is load-bearing.
 const CLAIM_PSBT =
-  "cHNidP8BADMCAAAAAaurq6urq6urq6urq6urq6urq6urq6urq6urq6urq6urAQAAAAD/////AAAAAAAAAAA=";
+  "cHNidP8BADMCAAAAAf/u3cy7qpmId2ZVRDMiEQD/7t3Mu6qZiHdmVUQzIhEAAQAAAAD/////AAAAAAAAAAA=";
 const VAULT_ID =
-  "0xcbba8595fd78d9d8d75df49378aaa786fc7ef2d78bae0fb924e1da97cb60382a" as Hex;
+  "0xf5c2a4e499a96ee2a2e32acf1f16b51d2958e7819a1d5048eccab864163806c3" as Hex;
 // The same PSBT shape spending a different PegIn, so it derives another id.
 const OTHER_VAULT_CLAIM_PSBT =
-  "cHNidP8BADMCAAAAAc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3NAAAAAAD/////AAAAAAAAAAA=";
+  "cHNidP8BADMCAAAAAQARIjNEVWZ3iJmqu8zd7v8AESIzRFVmd4iZqrvM3e7/AAAAAAD/////AAAAAAAAAAA=";
+
+// The vault's registered payout script, and Payout PSBTs that pay it. The
+// canonical claimer layout is [payout, CPFP anchor at 546 sats].
+const REGISTERED_PAYOUT_SCRIPT =
+  "512079be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798";
+const PAYOUT_CLAIMER_PSBT =
+  "cHNidP8BALICAAAAAv/u3cy7qpmId2ZVRDMiEQD/7t3Mu6qZiHdmVUQzIhEAAAAAAAD//////+7dzLuqmYh3ZlVEMyIRAP/u3cy7qpmId2ZVRDMiEQABAAAAAP////8CuIIBAAAAAAAiUSB5vmZ++dy7rFWgYpXOhwsHApv82y3OKNlZ8oFbFvgXmCICAAAAAAAAIlEgeb5mfvncu6xVoGKVzocLBwKb/NstzijZWfKBWxb4F5gAAAAAAAAAAAA=";
+// The same canonical layout, distinguishable only by input sequence, so the
+// two Payout signatures can be told apart in the assertions below.
+const PAYOUT_DEPOSITOR_PSBT =
+  "cHNidP8BALICAAAAAv/u3cy7qpmId2ZVRDMiEQD/7t3Mu6qZiHdmVUQzIhEAAAAAAAD9/////+7dzLuqmYh3ZlVEMyIRAP/u3cy7qpmId2ZVRDMiEQABAAAAAP3///8CuIIBAAAAAAAiUSB5vmZ++dy7rFWgYpXOhwsHApv82y3OKNlZ8oFbFvgXmCICAAAAAAAAIlEgeb5mfvncu6xVoGKVzocLBwKb/NstzijZWfKBWxb4F5gAAAAAAAAAAAA=";
+// Same layout, output 0 pays somebody else.
+const PAYOUT_PSBT_WRONG_DESTINATION =
+  "cHNidP8BALICAAAAAv/u3cy7qpmId2ZVRDMiEQD/7t3Mu6qZiHdmVUQzIhEAAAAAAAD//////+7dzLuqmYh3ZlVEMyIRAP/u3cy7qpmId2ZVRDMiEQABAAAAAP////8CuIIBAAAAAAAiUSDGBH+UQe19bTBFQG6VwHzYXHeOS4zvPKerrAm5XHCe5SICAAAAAAAAIlEgeb5mfvncu6xVoGKVzocLBwKb/NstzijZWfKBWxb4F5gAAAAAAAAAAAA=";
 
 /**
  * PSBTs are opaque to this service, so the fixtures encode their own identity:
@@ -69,20 +89,21 @@ const OTHER_VAULT_CLAIM_PSBT =
 function stubPsbtPipeline(): void {
   wasm.buildClaimPsbt.mockResolvedValue(CLAIM_PSBT);
   wasm.buildAssertClaimerPsbt.mockResolvedValue(toBase64("psbt-assert"));
-  wasm.buildPayoutClaimerPsbt.mockResolvedValue(toBase64("psbt-payout"));
-  wasm.buildPayoutDepositorPsbt.mockResolvedValue(
-    toBase64("psbt-payout-depositor"),
-  );
+  wasm.buildPayoutClaimerPsbt.mockResolvedValue(PAYOUT_CLAIMER_PSBT);
+  wasm.buildPayoutDepositorPsbt.mockResolvedValue(PAYOUT_DEPOSITOR_PSBT);
   wasm.buildWronglyChallengedPsbts.mockResolvedValue({
     [CHALLENGER_A]: [toBase64("psbt-wc-a0"), toBase64("psbt-wc-a1")],
     [CHALLENGER_B]: [toBase64("psbt-wc-b0")],
   });
+  // Real PSBTs have to parse, so they are named by lookup; the opaque ones
+  // still carry their own identity, which is what proves nothing reordered.
+  const named: Record<string, string> = {
+    [CLAIM_PSBT]: "sig:psbt-claim",
+    [PAYOUT_CLAIMER_PSBT]: "sig:psbt-payout",
+    [PAYOUT_DEPOSITOR_PSBT]: "sig:psbt-payout-depositor",
+  };
   wasm.extractTapScriptSig.mockImplementation((psbtBase64: string) =>
-    Promise.resolve(
-      psbtBase64 === CLAIM_PSBT
-        ? "sig:psbt-claim"
-        : `sig:${fromBase64(psbtBase64)}`,
-    ),
+    Promise.resolve(named[psbtBase64] ?? `sig:${fromBase64(psbtBase64)}`),
   );
   wasm.finalizeClaimTx.mockResolvedValue("signed-claim-tx-hex");
   wasm.buildWatchtowerArtifacts.mockResolvedValue("{}");
@@ -115,6 +136,10 @@ async function assemble(wallet: BitcoinWallet): Promise<void> {
     vault: {
       vaultId: VAULT_ID,
       depositorEthAddress: DEPOSITOR_ETH_ADDRESS,
+      registeredPayoutScriptPubKey: REGISTERED_PAYOUT_SCRIPT,
+      vaultProviderBtcPubkey: VAULT_PROVIDER_PUBKEY,
+      vaultKeeperBtcPubkeys: [CHALLENGER_A],
+      universalChallengerBtcPubkeys: [CHALLENGER_B],
       txGraphVersion: 3,
       proverCircuitVersion: 7,
       vaultCoreVersion: 3,
@@ -167,7 +192,7 @@ describe("assembleWatchtowerArtifacts", () => {
     await assemble(makeWallet());
 
     const payoutCall = wasm.extractTapScriptSig.mock.calls.find(
-      ([psbtBase64]) => fromBase64(psbtBase64 as string) === "psbt-payout",
+      ([psbtBase64]) => psbtBase64 === PAYOUT_CLAIMER_PSBT,
     );
     expect(payoutCall?.[1]).toBe(1);
   });
@@ -243,6 +268,42 @@ describe("assembleWatchtowerArtifacts", () => {
     // The graph comes from the vault provider and declares no vault id of its
     // own, so the Claim's PegIn input is the only thing that binds it.
     await expect(assemble(wallet)).rejects.toThrow(VaultIdBindingError);
+    expect(wallet.signPsbts).not.toHaveBeenCalled();
+  });
+
+  it("refuses a Payout that pays anything but the registered script", async () => {
+    wasm.buildPayoutDepositorPsbt.mockResolvedValue(
+      PAYOUT_PSBT_WRONG_DESTINATION,
+    );
+    const wallet = makeWallet();
+
+    // The graph is correctly bound to this vault; only the destination is
+    // wrong, which is the case the vault-id binding cannot catch.
+    await expect(assemble(wallet)).rejects.toThrow(PayoutDestinationError);
+    expect(wallet.signPsbts).not.toHaveBeenCalled();
+  });
+
+  it("refuses a graph that omits one of the vault's challengers", async () => {
+    wasm.buildWronglyChallengedPsbts.mockResolvedValue({
+      [CHALLENGER_A]: [toBase64("psbt-wc-a0")],
+    });
+    const wallet = makeWallet();
+
+    // Undersigning is the asymmetric failure: the file would verify and the
+    // omitted challenger would be unanswerable at claim time.
+    await expect(assemble(wallet)).rejects.toThrow(ChallengerSetMismatchError);
+    expect(wallet.signPsbts).not.toHaveBeenCalled();
+  });
+
+  it("refuses a graph that adds a challenger the vault does not have", async () => {
+    wasm.buildWronglyChallengedPsbts.mockResolvedValue({
+      [CHALLENGER_A]: [toBase64("psbt-wc-a0")],
+      [CHALLENGER_B]: [toBase64("psbt-wc-b0")],
+      ["cc".repeat(32)]: [toBase64("psbt-wc-c0")],
+    });
+    const wallet = makeWallet();
+
+    await expect(assemble(wallet)).rejects.toThrow(ChallengerSetMismatchError);
     expect(wallet.signPsbts).not.toHaveBeenCalled();
   });
 

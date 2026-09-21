@@ -24,7 +24,7 @@ import { derivePeginVaultId } from "../../clients/eth/pegin-transaction";
  * Input of the Claim transaction that spends the PegIn vault UTXO. Fixed by
  * the Rust graph in `btc-vault crates/vault`, not free to choose here.
  */
-export const CLAIM_PEGIN_INPUT = 0;
+const CLAIM_PEGIN_INPUT = 0;
 
 /**
  * Thrown when a graph does not belong to the vault it is presented for.

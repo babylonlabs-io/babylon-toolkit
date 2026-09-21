@@ -1201,6 +1201,8 @@ function createTaprootScriptPathSignOptionsForInput(
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/signing.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/signing.ts)
 
+**`Experimental`**
+
 Create SignPsbtOptions for a Taproot script-path PSBT whose signing input
 is not input 0 — the delegated-claim Payout, where input 0 is the PegIn
 UTXO and the claimer signs the Assert connector at input 1.
@@ -1234,6 +1236,10 @@ Signer's BTC address. A wallet derives a key-path address
   (the Assert connector) on `publicKey` and signs it on `address`. The
   caller must confirm the address belongs to `publicKey` before passing it;
   `assembleWatchtowerArtifacts` does that against `depositorPublicKey`.
+
+ Added for the delegated claim, which is still under test and
+              is its only caller. This signature can change in a minor
+              release.
 
 #### Returns
 
