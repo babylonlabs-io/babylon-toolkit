@@ -58,7 +58,7 @@ import {
   DepositorWalletMismatchError,
   isTerminalActivationError,
   isVaultRecordEmptyError,
-  mapDepositError,
+  mapDepositErrorAfterRegistration,
   type DepositErrorContent,
 } from "@/utils/errors";
 import { assertVaultCoreVersionSupported } from "@/utils/vaultCoreVersionSupport";
@@ -563,10 +563,11 @@ export function useVaultActions(): UseVaultActionsReturn {
         // useDepositFlow uses. Flattening to `err.message` first would strip
         // the prototype and name that every `instanceof` branch in the mapper
         // narrows on, silently downgrading precise errors to message matching:
-        // a finality-gate timeout would land in the "broadcast failed" bucket
-        // and tell the user their Bitcoin broadcast failed when nothing was
-        // ever sent.
-        setBroadcastError(mapDepositError(err));
+        // a finality-gate timeout would fall through to the generic callout
+        // instead of the Ethereum-confirmation one.
+        // Every resume is post-registration, so a spent input gets the
+        // terminal callout here too, not the SDK's new-deposit wording.
+        setBroadcastError(mapDepositErrorAfterRegistration(err));
         // Mapping replaces the raw message with friendly copy, and only the
         // fallback branch carries `diagnostics`. Log the original so a mapped
         // failure is still diagnosable — `useBroadcastState`'s catch cannot do

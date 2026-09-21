@@ -172,6 +172,12 @@ vi.mock("@/copy", () => ({
         },
         utxosUnavailable: { title: "Funds unavailable", body: "In use." },
         broadcastFailed: { title: "Broadcast failed", body: "Try again." },
+        // depositErrors.ts reads the stage labels while matching.
+        prePeginStageFailed: {
+          prepare: "Failed to prepare Pre-Pegin transaction",
+          sign: "Failed to sign Pre-Pegin transaction",
+          broadcast: "Failed to broadcast Pre-Pegin transaction",
+        },
         providerNotFound: { title: "Provider not found", body: "Refresh." },
         versionMismatch: { title: "Parameters changed", body: "Restart." },
         insufficientEthForGas: {
