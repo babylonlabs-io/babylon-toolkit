@@ -4,8 +4,6 @@ import { HEALTH_FACTOR_DISPLAY_CAP } from "../../constants";
 import {
   formatHealthFactor,
   getHealthFactorColor,
-  HEALTH_FACTOR_COLORS,
-  HEALTH_FACTOR_HEALTHY_THRESHOLD,
 } from "../healthFactorDisplay";
 
 describe("formatHealthFactor", () => {
@@ -42,27 +40,28 @@ describe("formatHealthFactor", () => {
     // callers that show deltas (e.g. action review) need the numeric string
     // to compute before/after diffs. The label substitution lives at the
     // call site, not here.
-    expect(formatHealthFactor(HEALTH_FACTOR_HEALTHY_THRESHOLD)).toBe("50.00");
-    expect(formatHealthFactor(HEALTH_FACTOR_HEALTHY_THRESHOLD + 1)).toBe(
-      "51.00",
-    );
+    expect(formatHealthFactor(50)).toBe("50.00");
+    expect(formatHealthFactor(51)).toBe("51.00");
     expect(formatHealthFactor(100)).toBe("100.00");
   });
 });
 
-it("shows Risky in red and no debt in green", () => {
-  expect(getHealthFactorColor("risky")).toBe(HEALTH_FACTOR_COLORS.RED);
-  expect(getHealthFactorColor("no_debt")).toBe(HEALTH_FACTOR_COLORS.GREEN);
+it("shows a risky position in red", () => {
+  expect(getHealthFactorColor("risky")).toBe("#FF1744");
+});
+
+it("shows no debt in green", () => {
+  expect(getHealthFactorColor("no_debt")).toBe("#15B768");
 });
 
 it("shows a safe position in green", () => {
-  expect(getHealthFactorColor("safe")).toBe(HEALTH_FACTOR_COLORS.GREEN);
+  expect(getHealthFactorColor("safe")).toBe("#15B768");
 });
 
 it("shows a warning position in amber", () => {
-  expect(getHealthFactorColor("warning")).toBe(HEALTH_FACTOR_COLORS.AMBER);
+  expect(getHealthFactorColor("warning")).toBe("#F7931A");
 });
 
-it("shows a liquidatable position in red", () => {
-  expect(getHealthFactorColor("danger")).toBe(HEALTH_FACTOR_COLORS.RED);
+it("shows a liquidatable position in dark red", () => {
+  expect(getHealthFactorColor("danger")).toBe("#C62828");
 });

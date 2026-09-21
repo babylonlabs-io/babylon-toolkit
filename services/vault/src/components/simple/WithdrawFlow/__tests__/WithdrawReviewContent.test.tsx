@@ -70,7 +70,7 @@ describe("WithdrawReviewContent", () => {
     // carries the position colour.
     expect(screen.getByText("1.60")).not.toHaveAttribute("style");
     expect(screen.getByText("0.90")).toHaveStyle({
-      color: HEALTH_FACTOR_COLORS.RED,
+      color: HEALTH_FACTOR_COLORS.DARK_RED,
     });
   });
 

@@ -45,8 +45,8 @@ const STATE_STYLE: Record<
     colorCss: "rgb(var(--risk-red))",
   },
   liquidatable: {
-    textClass: "text-risk-red",
-    colorCss: "rgb(var(--risk-red))",
+    textClass: "text-risk-red-dark",
+    colorCss: "rgb(var(--risk-red-dark))",
   },
 };
 
@@ -100,11 +100,7 @@ export function RiskSection({
   btcPriceUsd,
   liquidationPriceUsd,
 }: RiskSectionProps) {
-  const state = getRiskDisplayState(
-    healthFactorStatus,
-    healthFactor,
-    hasPosition,
-  );
+  const state = getRiskDisplayState(healthFactorStatus, hasPosition);
   const { textClass, colorCss } = STATE_STYLE[state];
 
   let hfValueText: string;
