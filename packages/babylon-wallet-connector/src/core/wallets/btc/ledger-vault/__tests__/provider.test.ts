@@ -2055,6 +2055,19 @@ describe("LedgerVaultProvider", () => {
     releaseProbe();
 
     await expect(reconnecting).resolves.toBeUndefined();
+    expect(dmkSessionMock.refreshSessionApp).not.toHaveBeenCalled();
+  });
+
+  it("skips the re-gate on an ungated session that sits between intent phases", async () => {
+    // The preflight is a BOLOS command; between derive and approve it would
+    // land mid-ceremony with the lock free, so the phase must hold it off.
+    dmkSessionMock.connectDmkSession.mockResolvedValue({ dmk: {}, sessionId: "s1" });
+    const provider = new LedgerVaultProvider(Network.SIGNET);
+    await provider.connectWallet();
+    await provider.deriveContextHash("app", "aa".repeat(32));
+
+    await expect(provider.connectWallet()).resolves.toBeUndefined();
+    expect(dmkSessionMock.refreshSessionApp).not.toHaveBeenCalled();
   });
 
   it("keeps an ungated session once the retry preflight confirms the app", async () => {

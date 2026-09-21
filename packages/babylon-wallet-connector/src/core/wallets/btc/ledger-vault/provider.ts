@@ -238,12 +238,12 @@ export class LedgerVaultProvider implements IBTCProvider {
 
   /**
    * See {@link activeOperation}. The busy throw costs zero device I/O. Two
-   * overlapping ceremonies are a caller bug, but {@link gateUngatedSession}
-   * also holds the lock for one GET_APP_AND_VERSION on a tab return, so a
-   * ceremony started in that window hits this legitimately. Open question:
-   * whether DMK answers that read at once on a locked device or waits for
-   * the unlock — if it waits, the window is the whole unlock, not one
-   * exchange, and the re-gate would want a retry rather than a throw.
+   * overlapping ceremonies are a caller bug; {@link gateUngatedSession} also
+   * holds the lock for one GET_APP_AND_VERSION on a tab return, so a ceremony
+   * started in that window hits this legitimately. DMK 1.7.1 does not hold
+   * that read for an unlock (IntentQueueService has no lock gating; a locked
+   * reply only dispatches DEVICE_STATE_UPDATE_LOCKED). Unverified: what BOLOS
+   * answers to that read while locked.
    */
   private async withDeviceOperation<T>(operation: string, fn: () => Promise<T>): Promise<T> {
     if (this.activeOperation) {
@@ -383,6 +383,8 @@ export class LedgerVaultProvider implements IBTCProvider {
    * running ceremony and holds the ceremony lock itself.
    */
   private async gateUngatedSession(session: DmkSessionHandle, token: number): Promise<void> {
+    // A disconnect that landed during the probe already owns the session.
+    if (token !== this.disconnectToken || this.session !== session) return;
     if (session.appName !== undefined || this.activeOperation || this.deviceState.phase !== "idle") return;
     const refreshed = await this.withDeviceOperation("connectWallet", () => refreshSessionApp(session));
     // A disconnect or teardown during the read owns the session now.
