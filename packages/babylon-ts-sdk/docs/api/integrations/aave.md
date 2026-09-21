@@ -1339,6 +1339,45 @@ Dynamic reserve config with collateralFactor (BPS), maxLiquidationBonus (BPS), l
 
 ***
 
+### getMaxUserReservesLimit()
+
+```ts
+function getMaxUserReservesLimit(publicClient, spokeAddress): Promise<number>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts)
+
+Get the maximum number of reserves one user may hold on this Spoke.
+
+`uint16` immutable, set in the Spoke constructor. Collateral reserves and
+borrow reserves are counted separately against the same number: a borrow
+into a new reserve reverts with `MaximumUserReservesExceeded` once the
+user's borrow count has reached it. Borrowing more of a reserve the user
+already borrows is always allowed.
+
+`MAX_ALLOWED_USER_RESERVES_LIMIT` (65535) is the contract's "no cap"
+sentinel — the check is skipped on that value.
+
+#### Parameters
+
+##### publicClient
+
+Viem public client for reading contracts
+
+##### spokeAddress
+
+`` `0x${string}` ``
+
+Aave Spoke contract address
+
+#### Returns
+
+`Promise`\<`number`\>
+
+The limit as stored on the Spoke
+
+***
+
 ### buildReorderVaultsTx()
 
 ```ts
@@ -2429,6 +2468,22 @@ quoting the debt and transaction execution.
 repay-all sentinel and the adapter pulls only what's actually owed; the
 buffer only pads the approval cap, and the cap is additionally bounded by
 the user's balance, so a larger buffer never blocks a legitimate repay.
+
+***
+
+### MAX\_ALLOWED\_USER\_RESERVES\_LIMIT
+
+```ts
+const MAX_ALLOWED_USER_RESERVES_LIMIT: 65535 = 65535;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/integrations/aave/constants.ts)
+
+Sentinel the Spoke stores in `MAX_USER_RESERVES_LIMIT` to mean "no cap"
+(`type(uint16).max`). The contract skips the reserve-count check on this
+value, so callers must treat it as unlimited and never show it to a user.
+
+Reference: Spoke.sol MAX_ALLOWED_USER_RESERVES_LIMIT
 
 ***
 
