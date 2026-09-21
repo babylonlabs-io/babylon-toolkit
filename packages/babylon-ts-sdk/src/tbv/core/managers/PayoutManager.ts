@@ -141,7 +141,7 @@ interface SignPayoutBaseParams {
 /**
  * Parameters for signing a Payout transaction.
  *
- * Payout ends two of the peg-out paths; see `buildPayoutPsbt` for all of them.
+ * Payout ends two of the peg-out paths; see {@link buildPayoutPsbt} for all of them.
  * Input 1 references the Assert transaction.
  */
 export interface SignPayoutParams extends SignPayoutBaseParams {

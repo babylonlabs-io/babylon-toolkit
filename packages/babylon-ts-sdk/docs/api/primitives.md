@@ -578,7 +578,7 @@ prevouts: object[];
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/noPayout.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/noPayout.ts)
 
-Prevouts for all inputs [{script_pubkey, value}] from VP
+Prevouts for all inputs [{script_pubkey, value}], used verbatim — derive them from the parent txs
 
 ###### script\_pubkey
 
@@ -2237,7 +2237,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts](htt
 
 Build unsigned Payout PSBT for depositor to sign.
 
-Payout ends two of the four peg-out paths (btc-vault
+Payout ends two of the peg-out paths (btc-vault
 `crates/vault/docs/btc-transactions-spec.md`):
 - Happy path: Claim -> Assert -> Payout.
 - Challenge path, claimer wins: Claim -> Assert -> ChallengeAssert ->

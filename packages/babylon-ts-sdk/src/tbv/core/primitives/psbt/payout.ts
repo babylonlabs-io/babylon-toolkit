@@ -210,7 +210,7 @@ export interface PayoutPsbtResult {
 /**
  * Build unsigned Payout PSBT for depositor to sign.
  *
- * Payout ends two of the four peg-out paths (btc-vault
+ * Payout ends two of the peg-out paths (btc-vault
  * `crates/vault/docs/btc-transactions-spec.md`):
  * - Happy path: Claim -> Assert -> Payout.
  * - Challenge path, claimer wins: Claim -> Assert -> ChallengeAssert ->

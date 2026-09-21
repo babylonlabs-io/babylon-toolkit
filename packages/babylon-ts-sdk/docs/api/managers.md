@@ -884,7 +884,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PayoutManager.ts](htt
 
 Parameters for signing a Payout transaction.
 
-Payout ends two of the peg-out paths; see `buildPayoutPsbt` for all of them.
+Payout ends two of the peg-out paths; see [buildPayoutPsbt](primitives.md#buildpayoutpsbt) for all of them.
 Input 1 references the Assert transaction.
 
 #### Extends

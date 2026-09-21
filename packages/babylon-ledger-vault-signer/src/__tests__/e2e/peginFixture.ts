@@ -131,7 +131,7 @@ function encodeScriptNum(n: number): Buffer {
  * N-of-N multisig fragment. No single-key special case: `encode_multisig_group`
  * (fw `src/vault_script.c:232-259` @ b0c0ac4d) emits the counted form for N>=1,
  * so a `<key> OP_CHECKSIG` shortcut would build a leaf 2 bytes short (no pushed
- * count, no `OP_NUMEQUAL`) of the one the device rebuilds and compares.
+ * count, no `OP_NUMEQUAL[VERIFY]`) of the one the device rebuilds and compares.
  */
 function multisigGroup(keys: readonly Buffer[], isFinal: boolean): Buffer {
   const parts: Buffer[] = [Buffer.concat([Buffer.from([PUSH_32]), keys[0], Buffer.from([OP_CHECKSIG])])];

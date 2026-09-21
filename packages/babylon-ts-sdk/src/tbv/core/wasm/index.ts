@@ -317,8 +317,8 @@ export async function getAssertNoPayoutScriptInfo(
  * Get the ChallengeAssert script and control block.
  *
  * Used to build ChallengeAssert PSBTs for the depositor-as-claimer path.
- * Each challenger has 3 ChallengeAssert transactions, and this connector
- * generates the spending scripts using WOTS public keys from the VP.
+ * Each challenger has 2 ChallengeAssert transactions (X and Y), and this
+ * connector generates the spending scripts using WOTS public keys from the VP.
  *
  * @param params - ChallengeAssert connector parameters
  * @returns Script and control block (hex encoded)
