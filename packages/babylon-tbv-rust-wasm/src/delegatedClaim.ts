@@ -1,6 +1,10 @@
 /**
  * Delegated-claim (depositor-as-claimer) assembly surface.
  *
+ * EXPERIMENTAL. Under test, exercised on signet only. Every export here can
+ * change shape in a minor release. The bytes they produce are not
+ * provisional — those come from the pinned vault-wasm facade.
+ *
  * These wrap the `vault-wasm` exports that let a browser produce the two
  * files the `vaultd vp wt` watchtower CLI consumes — `artifacts.json` and
  * `wots_keypair.json` — without the vault provider's cooperation, and then

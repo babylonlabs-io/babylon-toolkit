@@ -390,8 +390,15 @@ export async function deriveVaultId(
 // The forwarding hop for the WASM exports that assemble the two files the
 // `vaultd vp wt` watchtower CLI consumes, and for the claim-time exports
 // that run a claim from those files without the CLI.
+//
+// EXPERIMENTAL — under test, signet only. These names and signatures can
+// change in a minor release. See services/delegated-claim.
 
-/** Depositor's Claim signing PSBT (base64) — spends PegIn:1, script path. */
+/**
+ * Depositor's Claim signing PSBT (base64) — spends PegIn:1, script path.
+ *
+ * @experimental
+ */
 export async function buildClaimPsbt(
   txGraphVersion: number,
   graphJson: string,
@@ -399,7 +406,11 @@ export async function buildClaimPsbt(
   return (await loadTbvWasm()).buildClaimPsbt(txGraphVersion, graphJson);
 }
 
-/** Claimer's Assert signing PSBT (base64) — the single WOTS input. */
+/**
+ * Claimer's Assert signing PSBT (base64) — the single WOTS input.
+ *
+ * @experimental
+ */
 export async function buildAssertClaimerPsbt(
   txGraphVersion: number,
   graphJson: string,
@@ -410,7 +421,11 @@ export async function buildAssertClaimerPsbt(
   );
 }
 
-/** Claimer's Payout signing PSBT (base64) — input 1, Assert connector path. */
+/**
+ * Claimer's Payout signing PSBT (base64) — input 1, Assert connector path.
+ *
+ * @experimental
+ */
 export async function buildPayoutClaimerPsbt(
   txGraphVersion: number,
   graphJson: string,
@@ -421,7 +436,11 @@ export async function buildPayoutClaimerPsbt(
   );
 }
 
-/** Depositor's Payout signing PSBT (base64) — input 0, the PegIn UTXO spend. */
+/**
+ * Depositor's Payout signing PSBT (base64) — input 0, the PegIn UTXO spend.
+ *
+ * @experimental
+ */
 export async function buildPayoutDepositorPsbt(
   txGraphVersion: number,
   graphJson: string,
@@ -432,7 +451,11 @@ export async function buildPayoutDepositorPsbt(
   );
 }
 
-/** Claimer's WronglyChallenged signing PSBTs, per challenger and GC index. */
+/**
+ * Claimer's WronglyChallenged signing PSBTs, per challenger and GC index.
+ *
+ * @experimental
+ */
 export async function buildWronglyChallengedPsbts(
   txGraphVersion: number,
   graphJson: string,
@@ -447,6 +470,8 @@ export async function buildWronglyChallengedPsbts(
  * Verifies the Groth16 pegout proof and pins it into the artifacts, returning
  * the updated artifacts JSON. Persist that copy: the one-time WOTS keypair
  * signs exactly one proof, so a second, different one is refused.
+ *
+ * @experimental
  */
 export async function pinPegoutProof(
   txGraphVersion: number,
@@ -464,6 +489,8 @@ export async function pinPegoutProof(
  * Finalizes the Assert from the pinned proof and the WOTS keypair, writes it
  * into the artifacts and returns the updated artifacts JSON. The keypair
  * never leaves the caller.
+ *
+ * @experimental
  */
 export async function attachFinalizedAssert(
   txGraphVersion: number,
@@ -477,7 +504,11 @@ export async function attachFinalizedAssert(
   );
 }
 
-/** Finalizes the Payout tx from the artifacts' signatures, consensus hex. */
+/**
+ * Finalizes the Payout tx from the artifacts' signatures, consensus hex.
+ *
+ * @experimental
+ */
 export async function finalizePayout(
   txGraphVersion: number,
   artifactsJson: string,
@@ -485,7 +516,11 @@ export async function finalizePayout(
   return (await loadTbvWasm()).finalizePayout(txGraphVersion, artifactsJson);
 }
 
-/** Finalizes one WronglyChallenged tx — the answer to a ChallengeAssert. */
+/**
+ * Finalizes one WronglyChallenged tx — the answer to a ChallengeAssert.
+ *
+ * @experimental
+ */
 export async function finalizeWronglyChallenged(
   txGraphVersion: number,
   artifactsJson: string,
@@ -502,7 +537,11 @@ export async function finalizeWronglyChallenged(
   );
 }
 
-/** Applies the depositor signature to the Claim tx, returning consensus hex. */
+/**
+ * Applies the depositor signature to the Claim tx, returning consensus hex.
+ *
+ * @experimental
+ */
 export async function finalizeClaimTx(
   txGraphVersion: number,
   graphJson: string,
@@ -515,7 +554,11 @@ export async function finalizeClaimTx(
   );
 }
 
-/** Extracts a signed PSBT input's taproot script-path signature (hex). */
+/**
+ * Extracts a signed PSBT input's taproot script-path signature (hex).
+ *
+ * @experimental
+ */
 export async function extractTapScriptSig(
   psbtBase64: string,
   inputIndex: number,
@@ -527,6 +570,8 @@ export async function extractTapScriptSig(
  * Derive the depositor's WOTS keypair from the 64-byte `wotsSeed`.
  * @stability frozen — `HASH160(seed || block index)` binds on-chain through
  * `depositorWotsPkHash`; see CLAUDE.md §4.
+ *
+ * @experimental
  */
 export async function wotsKeypairFromSeed(
   wotsSeed: Uint8Array,
@@ -534,7 +579,11 @@ export async function wotsKeypairFromSeed(
   return (await loadTbvWasm()).wotsKeypairFromSeed(wotsSeed);
 }
 
-/** Throws unless the keypair matches the WOTS keys the graph's Claim commits to. */
+/**
+ * Throws unless the keypair matches the WOTS keys the graph's Claim commits to.
+ *
+ * @experimental
+ */
 export async function validateWotsKeypairAgainstGraph(
   txGraphVersion: number,
   keypair: unknown,
@@ -547,14 +596,22 @@ export async function validateWotsKeypairAgainstGraph(
   );
 }
 
-/** Assembles the watchtower `artifacts.json` content, verifying every signature. */
+/**
+ * Assembles the watchtower `artifacts.json` content, verifying every signature.
+ *
+ * @experimental
+ */
 export async function buildWatchtowerArtifacts(
   inputs: WatchtowerArtifactsInputs,
 ): Promise<string> {
   return (await loadTbvWasm()).buildWatchtowerArtifacts(inputs);
 }
 
-/** Re-verifies every claimer-side signature in an `artifacts.json`. */
+/**
+ * Re-verifies every claimer-side signature in an `artifacts.json`.
+ *
+ * @experimental
+ */
 export async function verifyWatchtowerArtifacts(
   txGraphVersion: number,
   artifactsJson: string,

@@ -26,7 +26,11 @@ import { derivePeginVaultId } from "../../clients/eth/pegin-transaction";
  */
 export const CLAIM_PEGIN_INPUT = 0;
 
-/** Thrown when a graph does not belong to the vault it is presented for. */
+/**
+ * Thrown when a graph does not belong to the vault it is presented for.
+ *
+ * @experimental
+ */
 export class VaultIdBindingError extends Error {
   constructor(
     readonly expectedVaultId: string,
@@ -58,7 +62,9 @@ export function peginTxidFromClaimPsbt(claimPsbtBase64: string): string {
   return displayTxid(input.hash);
 }
 
-/** Display-order txid of the PegIn output a signed Claim transaction spends. */
+/**
+ * Display-order txid of the PegIn output a signed Claim transaction spends.
+ */
 export function peginTxidFromClaimTx(claimTx: Transaction): string {
   const input = claimTx.ins[CLAIM_PEGIN_INPUT];
   if (!input) {
@@ -69,6 +75,11 @@ export function peginTxidFromClaimTx(claimTx: Transaction): string {
   return displayTxid(input.hash);
 }
 
+/**
+ * The three values the on-chain vault id is derived from and compared with.
+ *
+ * @experimental
+ */
 export interface AssertClaimSpendsVaultParams {
   /** Display-order PegIn txid, from the Claim's first input. */
   peginTxid: string;
@@ -81,7 +92,11 @@ export interface AssertClaimSpendsVaultParams {
 /**
  * Throws unless the Claim's PegIn input derives the expected vault id.
  *
+ * Experimental: this API can change in a minor release. Pin the SDK
+ * version if you build on it.
+ *
  * @throws {@link VaultIdBindingError} when the graph belongs to another vault.
+ * @experimental
  */
 export function assertClaimSpendsVault(
   params: AssertClaimSpendsVaultParams,

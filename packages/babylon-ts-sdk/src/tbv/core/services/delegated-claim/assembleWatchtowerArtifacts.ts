@@ -57,12 +57,19 @@ const PAYOUT_CLAIMER_INPUT = 1;
 const PAYOUT_DEPOSITOR_INPUT = 0;
 const WRONGLY_CHALLENGED_INPUT = 0;
 
-/** One PSBT in the batch, with the input the wallet must sign. */
+/**
+ * One PSBT in the batch, with the input the wallet must sign.
+ */
 interface PsbtSigningRequest {
   psbtBase64: string;
   inputIndex: number;
 }
 
+/**
+ * Everything one delegated-claim signing session needs.
+ *
+ * @experimental
+ */
 export interface AssembleWatchtowerArtifactsParams {
   /** Wallet holding the depositor key the graph was built with. */
   btcWallet: BitcoinWallet;
@@ -92,9 +99,13 @@ export interface AssembleWatchtowerArtifactsParams {
  * so a wallet that signed under the wrong key fails here rather than at claim
  * time, when nothing can be re-signed.
  *
+ * Experimental: this API can change in a minor release. Pin the SDK
+ * version if you build on it.
+ *
  * @throws If the graph is not version 3, if the wallet returns a signature
  *         that does not verify, or if the graph's own presignatures are
  *         incomplete.
+ * @experimental
  */
 export async function assembleWatchtowerArtifacts(
   params: AssembleWatchtowerArtifactsParams,

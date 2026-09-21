@@ -6,7 +6,11 @@
 
 import type { Hex } from "viem";
 
-/** The small, non-opaque fields of an `artifacts.json` file. */
+/**
+ * The small, non-opaque fields of an `artifacts.json` file.
+ *
+ * @experimental
+ */
 export interface WatchtowerArtifactsSummary {
   /** Graph version the file was assembled under. Delegated claim requires 3. */
   vaultCoreVersion?: number;
@@ -35,7 +39,11 @@ export interface WatchtowerArtifactsSummary {
   babeSessionChallengerPubkeys: string[];
 }
 
-/** Inputs the vault provider supplies for artifact assembly. */
+/**
+ * Inputs the vault provider supplies for artifact assembly.
+ *
+ * @experimental
+ */
 export interface ClaimerArtifactsSource {
   /** `tx_graph_json` from `requestDepositorClaimerArtifacts`. */
   txGraphJson: string;
@@ -43,7 +51,11 @@ export interface ClaimerArtifactsSource {
   verifyingKeyHex: string;
 }
 
-/** On-chain facts the assembled artifacts commit to. */
+/**
+ * On-chain facts the assembled artifacts commit to.
+ *
+ * @experimental
+ */
 export interface DelegatedClaimVaultContext {
   vaultId: Hex;
   /**

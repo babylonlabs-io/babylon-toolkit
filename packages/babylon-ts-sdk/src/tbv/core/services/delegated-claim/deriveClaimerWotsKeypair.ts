@@ -17,6 +17,11 @@ import {
   wotsKeypairFromSeed,
 } from "../../wasm";
 
+/**
+ * Inputs for re-deriving the depositor's WOTS keypair at claim time.
+ *
+ * @experimental
+ */
 export interface DeriveClaimerWotsKeypairParams {
   /** Must implement `deriveContextHash` — the only wallet prompt in the claim. */
   btcWallet: BitcoinWallet;
@@ -39,6 +44,11 @@ export interface DeriveClaimerWotsKeypairParams {
   expectedWotsPkHash: string;
 }
 
+/**
+ * The `wots_keypair.json` content and the hash it commits to.
+ *
+ * @experimental
+ */
 export interface ClaimerWotsKeypair {
   /**
    * Content of `wots_keypair.json`, ready to write verbatim. Secret and
@@ -60,9 +70,13 @@ export interface ClaimerWotsKeypair {
  * PegIn UTXO is already spent. The on-chain hash is checked first, because
  * it is the one value here the vault provider cannot choose.
  *
+ * Experimental: this API can change in a minor release. Pin the SDK
+ * version if you build on it.
+ *
  * @throws If the derivation does not match the vault's on-chain
  *         `depositorWotsPkHash`, or the WOTS public keys the graph's Claim
  *         commits to.
+ * @experimental
  */
 export async function deriveClaimerWotsKeypair(
   params: DeriveClaimerWotsKeypairParams,

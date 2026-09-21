@@ -30,7 +30,11 @@ import {
  */
 export const DELEGATED_CLAIM_TX_GRAPH_VERSION = 3;
 
-/** Thrown when an artifacts file does not describe the vault being claimed. */
+/**
+ * Thrown when an artifacts file does not describe the vault being claimed.
+ *
+ * @experimental
+ */
 export class ArtifactsVaultMismatchError extends Error {
   constructor(
     readonly expectedVaultId: string,
@@ -62,8 +66,12 @@ interface ArtifactsFileFields {
  * real sessions runs to hundreds of megabytes per challenger and cannot be
  * parsed in a browser tab.
  *
+ * Experimental: this API can change in a minor release. Pin the SDK
+ * version if you build on it.
+ *
  * @throws If the file is not JSON, or lacks the fields every artifacts file
  *         has.
+ * @experimental
  */
 export function summarizeWatchtowerArtifacts(
   artifactsJson: string,
@@ -112,6 +120,11 @@ export function summarizeWatchtowerArtifacts(
   };
 }
 
+/**
+ * The file to check, and the vault it must belong to.
+ *
+ * @experimental
+ */
 export interface AssertArtifactsUsableParams {
   artifactsJson: string;
   /** Vault the caller intends to claim, `0x`-prefixed or bare hex. */
@@ -132,10 +145,14 @@ export interface AssertArtifactsUsableParams {
 /**
  * Verifies an artifacts file and confirms it is the one for this vault.
  *
+ * Experimental: this API can change in a minor release. Pin the SDK
+ * version if you build on it.
+ *
  * @throws {@link ArtifactsVaultMismatchError} when the file names a different
  *         vault, {@link VaultIdBindingError} when the graph it carries
  *         belongs to another vault whatever the file says, or a verification
  *         error when any bundled signature does not hold against that graph.
+ * @experimental
  */
 export async function assertArtifactsUsableForVault(
   params: AssertArtifactsUsableParams,
