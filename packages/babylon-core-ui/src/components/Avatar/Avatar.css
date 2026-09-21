@@ -25,9 +25,10 @@
     @apply size-16;
   }
 
-  /* Inset for a glyph drawn edge-to-edge in its own viewBox, so a circular
-     fill doesn't clip its corners. Sized per avatar size since percentage
-     padding would resolve against the parent, not the avatar. */
+  /* Inset for a glyph drawn edge-to-edge in its own viewBox, so the fill leaves
+     a margin around it instead of running under its edges. Sized per avatar
+     size since percentage padding would resolve against the parent, not the
+     avatar. */
   &-inset {
     @apply p-0.5;
 

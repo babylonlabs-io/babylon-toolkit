@@ -18,8 +18,9 @@ export interface WalletIconProps {
 
 /**
  * Renders a wallet logo the way the design system specifies: a mark that needs
- * contrast sits in a circle filled with its brand colour, while a self-coloured
- * logo renders bare and is never clipped to a shape it wasn't drawn for.
+ * contrast sits in a rounded square filled with its brand colour, while a
+ * self-coloured logo renders bare and is never clipped to a shape it wasn't
+ * drawn for.
  */
 export function WalletIcon({ url, alt, background, size = "large", className }: WalletIconProps) {
   if (background) {
@@ -28,7 +29,7 @@ export function WalletIcon({ url, alt, background, size = "large", className }: 
         url={url}
         alt={alt}
         size={size}
-        variant="circular"
+        variant="rounded"
         style={{ backgroundColor: background }}
         className={twMerge("bbn-avatar-inset", className)}
       />
