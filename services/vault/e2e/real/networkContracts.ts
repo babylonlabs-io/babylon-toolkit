@@ -44,13 +44,21 @@ export interface NetworkContracts {
 }
 
 /**
+ * The app's `NEXT_PUBLIC_*` env for `network`, resolved as the dev server resolves it: the `.env*` files
+ * for the network's Vite mode, with values already in the shell taking precedence.
+ */
+export function resolveAppEnv(network: NetworkName): Record<string, string> {
+  return loadEnv(NETWORKS[network].viteMode, VAULT_ROOT, "NEXT_PUBLIC_");
+}
+
+/**
  * Resolve the network's contract addresses + endpoints from the app's env, exactly as the running
  * dapp does — so a `sync-env.mjs` rotation is picked up automatically instead of going stale.
  */
 export function resolveNetworkContracts(
   network: NetworkName,
 ): NetworkContracts {
-  const env = loadEnv(NETWORKS[network].viteMode, VAULT_ROOT, "NEXT_PUBLIC_");
+  const env = resolveAppEnv(network);
   const registry = env.NEXT_PUBLIC_TBV_BTC_VAULT_REGISTRY;
   const appController = env.NEXT_PUBLIC_TBV_AAVE_ADAPTER;
   const graphqlEndpoint = env.NEXT_PUBLIC_TBV_GRAPHQL_ENDPOINT;
