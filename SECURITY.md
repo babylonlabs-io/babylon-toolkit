@@ -2,9 +2,9 @@
 
 `babylon-toolkit` is Babylon's frontend monorepo. It ships two browser dApps —
 [`services/vault`](services/vault) (the BTC Vault depositor lifecycle) and
-[`services/simple-staking`](services/simple-staking) (the BTC staking reference dApp) — and five
+[`services/simple-staking`](services/simple-staking) (the BTC staking reference dApp) — and six
 packages published to npm under `@babylonlabs-io/*` (`ts-sdk`, `babylon-tbv-rust-wasm`, `core-ui`,
-`wallet-connector`, `babylon-proto-ts`).
+`wallet-connector`, `babylon-proto-ts`, `ledger-vault-signer`).
 
 There is no server here. No database, no session store, no privileged API key that moves value. It
 is tempting to conclude that the security surface is therefore small. It is the opposite: **this
@@ -703,7 +703,7 @@ available improvement in this section.
 
 ### Published packages
 
-Five packages ship to npm from `package-release.yml`, which runs with `id-token: write` for
+Six packages ship to npm from `package-release.yml`, which runs with `id-token: write` for
 provenance. Downstream consumers of `@babylonlabs-io/ts-sdk` and
 `@babylonlabs-io/babylon-tbv-rust-wasm` inherit this repository's transaction-construction and
 secret-derivation logic wholesale.

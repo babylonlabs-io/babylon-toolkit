@@ -134,7 +134,7 @@ export async function buildRefundPsbt(
     }
     // The reconstructed template's HTLC output value at `htlcVout`,
     // sized by WASM from the supplied `pegInAmounts` via the protocol
-    // formula `htlcValue = peginAmount + depositorClaimValue + minPeginFee`.
+    // formula `htlcValue = peginAmount + depositorClaimValue + p2aAnchorValue + minPeginFee`.
     // Captured before `fromFundedTransaction` to bind it to the value the
     // funded tx actually carries (see the cross-check below).
     const expectedHtlcValue = unfundedTx.getHtlcValue(htlcVout);

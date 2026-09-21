@@ -169,7 +169,8 @@ export async function computeMinClaimValue(
  * `minPeginFee = peginTxVsize(numVks, numUcs) × minPeginFeeRate`. Each HTLC
  * the depositor funds in the Pre-PegIn tx must reserve at least this fee
  * inside its value (`htlcValue = peginAmount + depositorClaimValue +
- * minPeginFee`), otherwise the VP cannot afford to broadcast the PegIn at
+ * p2aAnchorValue + minPeginFee`, anchor 0 on vault core 1), otherwise the VP
+ * cannot afford to broadcast the PegIn at
  * activation. The vsize comes from a Taproot script-path-spend weight
  * prediction whose witness shape depends on the VK + UC signer count.
  */
@@ -316,8 +317,8 @@ export async function getAssertNoPayoutScriptInfo(
  * Get the ChallengeAssert script and control block.
  *
  * Used to build ChallengeAssert PSBTs for the depositor-as-claimer path.
- * Each challenger has 3 ChallengeAssert transactions, and this connector
- * generates the spending scripts using WOTS public keys from the VP.
+ * Each challenger has 2 ChallengeAssert transactions (X and Y), and this
+ * connector generates the spending scripts using WOTS public keys from the VP.
  *
  * @param params - ChallengeAssert connector parameters
  * @returns Script and control block (hex encoded)

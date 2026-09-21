@@ -46,6 +46,7 @@ describe("classifyStatusWord", () => {
     [0x6a80, /rejected the data as invalid/],
     [0xb007, /not in the expected state/],
     [0xb00a, /maximum number of these transactions/],
+    [0x6901, /still busy with the previous request/],
   ])("maps 0x%s to a readable device error naming the instruction", (sw, expected) => {
     const error = classifyStatusWord(sw, context);
     expect(error).toMatchObject({ name: LEDGER_DEVICE_ERROR_NAME, statusWord: sw });

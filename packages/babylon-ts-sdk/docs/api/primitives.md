@@ -45,7 +45,7 @@ the managers module instead (PeginManager and PayoutManager).
 - [buildPayoutPsbt](#buildpayoutpsbt) - Create payout PSBT for signing
 - [extractPayoutSignature](#extractpayoutsignature) - Extract Schnorr signature from signed PSBT
 - [buildNoPayoutPsbt](#buildnopayoutpsbt) - Create NoPayout PSBT per challenger (depositor-as-claimer path)
-- [buildChallengeAssertPsbt](#buildchallengeassertpsbt) - Create ChallengeAssert PSBT per challenger (depositor-as-claimer path)
+- [buildChallengeAssertPsbt](#buildchallengeassertpsbt) - Create ChallengeAssert PSBT (tooling only; not claimer-signed)
 
 ### Script Generators
 - [createPayoutScript](#createpayoutscript) - Generate taproot payout script
@@ -578,7 +578,7 @@ prevouts: object[];
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/noPayout.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/noPayout.ts)
 
-Prevouts for all inputs [{script_pubkey, value}] from VP
+Prevouts for all inputs [{script_pubkey, value}], used verbatim — derive them from the parent txs
 
 ###### script\_pubkey
 
@@ -610,8 +610,8 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts](htt
 
 Parameters for building an unsigned Payout PSBT
 
-Payout is used in the challenge path after Assert, when the claimer proves validity.
-Input 1 references the Assert transaction.
+Payout ends two of the peg-out paths; see [buildPayoutPsbt](#buildpayoutpsbt) for all of
+them. Input 1 references the Assert transaction.
 
 #### Properties
 
@@ -2075,8 +2075,8 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/challengeAsser
 Build unsigned ChallengeAssert PSBT.
 
 Each input has its own taproot script derived from its connector params; the
-number of connector params must match the transaction's input count. The
-depositor signs all inputs. Every prevout is derived from the authoritative
+number of connector params must match the transaction's input count.
+Every prevout is derived from the authoritative
 Assert transaction, never trusted from external input.
 
 #### Parameters
@@ -2237,11 +2237,17 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts](htt
 
 Build unsigned Payout PSBT for depositor to sign.
 
-Payout is used in the **challenge path** when the claimer proves validity:
-1. Vault provider submits Claim transaction
-2. Challenge is raised during challenge period
-3. Claimer submits Assert transaction to prove validity
-4. Payout can be executed (references Assert tx)
+Payout ends two of the peg-out paths (btc-vault
+`crates/vault/docs/btc-transactions-spec.md`):
+- Happy path: Claim -> Assert -> Payout.
+- Challenge path, claimer wins: Claim -> Assert -> ChallengeAssert ->
+  WronglyChallenged -> Payout.
+- Challenge path, challenger wins: Claim -> Assert -> ChallengeAssert -> NoPayout.
+- Emergency path: the Security Council spends Assert:0 via CouncilNoPayout.
+
+So a raised challenge does not remove Payout; only NoPayout (challenger wins)
+or CouncilNoPayout (council emergency) blocks it.
+Payout references the Assert tx and needs its timelock matured.
 
 Payout transactions have the following structure:
 - Input 0: from PeginTx output0 (signed by depositor)
@@ -3455,7 +3461,8 @@ Compute the minimum PegIn (activation) transaction fee in satoshis.
 `minPeginFee = peginTxVsize(numVks, numUcs) × minPeginFeeRate`. Each HTLC
 the depositor funds in the Pre-PegIn tx must reserve at least this fee
 inside its value (`htlcValue = peginAmount + depositorClaimValue +
-minPeginFee`), otherwise the VP cannot afford to broadcast the PegIn at
+p2aAnchorValue + minPeginFee`, anchor 0 on vault core 1), otherwise the VP
+cannot afford to broadcast the PegIn at
 activation. The vsize comes from a Taproot script-path-spend weight
 prediction whose witness shape depends on the VK + UC signer count.
 
