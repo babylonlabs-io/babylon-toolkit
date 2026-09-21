@@ -27,6 +27,8 @@ import {
   markRefundBroadcast as markRefundBroadcastInStorage,
   type PendingPeginRequest,
   removePendingPegin as removePendingPeginFromStorage,
+  removePendingPegins as removePendingPeginsFromStorage,
+  type RemovePendingPeginsResult,
   savePendingPegins,
   updatePendingPeginStatus as updatePendingPeginStatusInStorage,
 } from "./peginStorage";
@@ -64,8 +66,27 @@ export interface UsePeginStorageResult {
    * broadcast path to clear entries that the on-chain version check has
    * confirmed can never be safely broadcast, matching what the inline
    * deposit path does for the same mismatch.
+   *
+   * Returns false when the localStorage write failed and the entry is still
+   * stored.
    */
-  removePendingPegin: (vaultId: string) => void;
+  removePendingPegin: (vaultId: string) => boolean;
+  /**
+   * Remove several pending peg-ins in one storage write. Used by the dismiss
+   * path, where the records of a batched Pre-PegIn share one funded
+   * transaction and must never half-survive.
+   *
+   * `expectedStatus` is checked against the stored records inside that same
+   * write, so a status another tab wrote is caught however recently it landed.
+   *
+   * Returns the failure reason when the entries are still stored: the records
+   * could not be read at all, a record no longer carries `expectedStatus`, or
+   * the write itself was refused.
+   */
+  removePendingPegins: (
+    vaultIds: readonly string[],
+    expectedStatus?: LocalStorageStatus,
+  ) => RemovePendingPeginsResult;
   /**
    * Mark a pegin as REFUND_BROADCAST and stamp the broadcast time used by the
    * optimistic-suppression TTL.
@@ -293,8 +314,23 @@ export function usePeginStorage({
 
   const removePendingPegin = useCallback(
     (vaultId: string) => {
-      if (!ethAddress) return;
-      removePendingPeginFromStorage(ethAddress, vaultId as Hex);
+      if (!ethAddress) return false;
+      return removePendingPeginFromStorage(ethAddress, vaultId as Hex);
+    },
+    [ethAddress],
+  );
+
+  const removePendingPegins = useCallback(
+    (
+      vaultIds: readonly string[],
+      expectedStatus?: LocalStorageStatus,
+    ): RemovePendingPeginsResult => {
+      if (!ethAddress) return "write-failed";
+      return removePendingPeginsFromStorage(
+        ethAddress,
+        vaultIds as readonly Hex[],
+        expectedStatus,
+      );
     },
     [ethAddress],
   );
@@ -305,6 +341,7 @@ export function usePeginStorage({
     addPendingPegin,
     updatePendingPeginStatus,
     removePendingPegin,
+    removePendingPegins,
     markRefundBroadcast,
   };
 }
