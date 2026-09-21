@@ -420,7 +420,6 @@ export function Borrow() {
           healthFactor={metrics.healthFactor}
           healthFactorValue={metrics.healthFactorValue}
           healthFactorOriginal={metrics.healthFactorOriginal}
-          healthFactorOriginalValue={metrics.healthFactorOriginalValue}
         />
       </div>
 

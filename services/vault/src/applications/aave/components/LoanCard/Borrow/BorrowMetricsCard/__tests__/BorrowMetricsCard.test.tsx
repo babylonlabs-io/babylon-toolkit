@@ -9,6 +9,7 @@ import { render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
+import { HEALTH_FACTOR_COLORS } from "@/applications/aave/utils";
 import { COPY } from "@/copy";
 
 // Component tests mock core-ui (its dist isn't built in the test run).
@@ -18,7 +19,9 @@ vi.mock("@babylonlabs-io/core-ui", () => ({
 }));
 
 vi.mock("@/components/shared", () => ({
-  HeartIcon: () => <span data-testid="heart-icon" />,
+  HeartIcon: ({ color }: { color: string }) => (
+    <span data-testid="heart-icon" data-color={color} />
+  ),
 }));
 
 import { BorrowMetricsCard } from "../BorrowMetricsCard";
@@ -105,5 +108,37 @@ describe("BorrowMetricsCard borrow APR row", () => {
     expect(screen.getByText("3.70%")).toBeInTheDocument();
     expect(screen.getByText("4.20%")).toBeInTheDocument();
     expect(screen.getByText("→")).toBeInTheDocument();
+  });
+});
+
+describe("BorrowMetricsCard health factor row", () => {
+  it("renders each value before its heart, greying the previous heart and colouring the current one by status", () => {
+    render(<BorrowMetricsCard {...baseProps} healthFactorOriginal="1.10" />);
+
+    const previous = screen.getByText("1.10");
+    expect(previous.firstChild?.textContent).toBe("1.10");
+    expect(previous.lastElementChild).toHaveAttribute(
+      "data-color",
+      HEALTH_FACTOR_COLORS.GRAY,
+    );
+    expect(previous).toHaveClass("text-accent-secondary");
+
+    const current = screen.getByText("2.10");
+    expect(current.firstChild?.textContent).toBe("2.10");
+    expect(current.lastElementChild).toHaveAttribute(
+      "data-color",
+      HEALTH_FACTOR_COLORS.GREEN,
+    );
+  });
+
+  it("renders the value before its heart when there is no previous health factor", () => {
+    render(<BorrowMetricsCard {...baseProps} />);
+
+    const current = screen.getByText("2.10");
+    expect(current.firstChild?.textContent).toBe("2.10");
+    expect(current.lastElementChild).toHaveAttribute(
+      "data-color",
+      HEALTH_FACTOR_COLORS.GREEN,
+    );
   });
 });
