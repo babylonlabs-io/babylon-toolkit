@@ -33,7 +33,7 @@ export const ConnectedWallet = memo(({ className, logo, logoBackground, address 
   };
 
   return (
-    <div className={twMerge("flex items-center gap-2.5 rounded-lg bg-secondary-highlight p-2", className)}>
+    <div className={twMerge("flex items-center gap-2.5 rounded-lg bg-neutral-200 p-2", className)}>
       <WalletIcon size="small" className="shrink-0" url={logo} background={logoBackground} />
 
       <Text
