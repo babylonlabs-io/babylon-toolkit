@@ -51,3 +51,12 @@ export const CARD_SHELL_CLASS =
 
 export const DETAIL_PANEL_CLASS =
   "flex flex-col gap-2 rounded-lg border border-secondary-strokeLight bg-background-contrast p-3";
+
+/**
+ * Box holding the liquidation Timeline's loading spinner. The 1016/350 ratio is
+ * core-ui's default plot aspect, so the spinner occupies about the height the
+ * chart will take: the y-axis gutter shortens the plot and the x-axis row adds
+ * to it by roughly the same amount, so the two nearly cancel.
+ */
+export const CHART_LOADING_BOX_CLASS =
+  "flex aspect-[1016/350] w-full items-center justify-center";

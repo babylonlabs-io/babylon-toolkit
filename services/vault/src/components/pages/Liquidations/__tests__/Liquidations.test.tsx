@@ -357,6 +357,24 @@ describe("Liquidation Dashboard — connection and position gates", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("shows a loader instead of the chart while candles load", () => {
+    connectWallet();
+    useDashboardStateMock.mockReturnValue(CONNECTED_WITH_CASCADE);
+    usePositionNotificationsMock.mockReturnValue(READY_NOTIFICATIONS);
+    useBtcPriceCandlesMock.mockReturnValue({
+      candles: null,
+      isLoading: true,
+      error: null,
+    });
+
+    const { container } = render(<Liquidations />);
+
+    expect(container.querySelector(".bbn-loader")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("liq-current-price-line"),
+    ).not.toBeInTheDocument();
+  });
+
   it("charts the live position for Ethereum alone under Ethereum-only access", () => {
     vi.stubEnv("NEXT_PUBLIC_FF_ENABLE_ETH_FIRST", "true");
     connectEthereumOnly();

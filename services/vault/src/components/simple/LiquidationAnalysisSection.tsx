@@ -1,4 +1,4 @@
-import { Heading, Timeline } from "@babylonlabs-io/core-ui";
+import { Heading, Loader, Timeline } from "@babylonlabs-io/core-ui";
 import { useMemo } from "react";
 import { useNavigate } from "react-router";
 
@@ -17,6 +17,7 @@ import {
   NEUTRAL_BUTTON_CLASS,
   PRIMARY_BUTTON_CLASS,
 } from "@/components/shared/buttonClasses";
+import { CHART_LOADING_BOX_CLASS } from "@/components/shared/layoutClasses";
 import { COPY } from "@/copy";
 import { ROUTES } from "@/routes";
 import { formatPriceUsd } from "@/utils/formatting";
@@ -93,7 +94,7 @@ function LiquidationChartPanel({
   cascade: LiquidationCascade;
   onExplore: () => void;
 }) {
-  const { candles } = useBtcPriceCandles();
+  const { candles, isLoading: isLoadingCandles } = useBtcPriceCandles();
 
   const chart = useMemo(() => {
     const { bands } = buildLiquidationChartData(cascade.result, {
@@ -134,18 +135,24 @@ function LiquidationChartPanel({
         </button>
       </div>
 
-      <Timeline
-        bands={chart.bands}
-        candles={candles ?? []}
-        currentPrice={cascade.params.btcPrice}
-        currentPriceLabel={formatPriceUsd(cascade.params.btcPrice)}
-        priceAxis={chart.priceAxis}
-        safeZone={chart.safeZone}
-        visibleCandles={TIMELINE_VISIBLE_CANDLES}
-        formatPrice={formatPriceUsd}
-        formatTime={formatCandleDate}
-        liquidatedLabel={COPY.liquidations.liquidatedBandLabel}
-      />
+      {isLoadingCandles ? (
+        <div className={CHART_LOADING_BOX_CLASS}>
+          <Loader />
+        </div>
+      ) : (
+        <Timeline
+          bands={chart.bands}
+          candles={candles ?? []}
+          currentPrice={cascade.params.btcPrice}
+          currentPriceLabel={formatPriceUsd(cascade.params.btcPrice)}
+          priceAxis={chart.priceAxis}
+          safeZone={chart.safeZone}
+          visibleCandles={TIMELINE_VISIBLE_CANDLES}
+          formatPrice={formatPriceUsd}
+          formatTime={formatCandleDate}
+          liquidatedLabel={COPY.liquidations.liquidatedBandLabel}
+        />
+      )}
     </>
   );
 }

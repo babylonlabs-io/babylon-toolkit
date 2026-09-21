@@ -7,7 +7,10 @@ import { useBtcPriceCandles } from "@/applications/aave/hooks/useBtcPriceCandles
 import { calculate } from "@/applications/aave/positionNotifications";
 import type { RootLayoutContext } from "@/components/pages/RootLayout";
 import { EmptyState } from "@/components/shared";
-import { PAGE_CONTENT_CLASS } from "@/components/shared/layoutClasses";
+import {
+  CHART_LOADING_BOX_CLASS,
+  PAGE_CONTENT_CLASS,
+} from "@/components/shared/layoutClasses";
 import { useConnection, useETHWallet } from "@/context/wallet";
 import { COPY } from "@/copy";
 import { useDashboardState } from "@/hooks/useDashboardState";
@@ -96,7 +99,7 @@ export default function Liquidations() {
     cascade: cascadeOverride,
   } = useLiquidationsPageState(account);
 
-  const { candles } = useBtcPriceCandles();
+  const { candles, isLoading: isLoadingCandles } = useBtcPriceCandles();
 
   const livePrice = params?.btcPrice ?? null;
   // `null` = "track the live price" — the slider hasn't diverged from it (or
@@ -337,20 +340,26 @@ export default function Liquidations() {
             price={clampToLive(simulatedPrice, chart.livePrice)}
             onPriceChange={setSimulatedPrice}
           />
-          <Timeline
-            bands={chart.bands}
-            candles={candles ?? []}
-            currentPrice={chart.projectedPrice}
-            currentPriceLabel={formatPriceUsd(chart.projectedPrice)}
-            priceAxis={chart.timelinePriceAxis}
-            safeZone={chart.safeZone}
-            visibleCandles={TIMELINE_VISIBLE_CANDLES}
-            interactions={{ crosshair: true, pan: true }}
-            formatPrice={formatPriceUsd}
-            formatTime={formatCandleDate}
-            formatReadoutTime={formatCandleTimestamp}
-            liquidatedLabel={COPY.liquidations.liquidatedBandLabel}
-          />
+          {isLoadingCandles ? (
+            <div className={CHART_LOADING_BOX_CLASS}>
+              <Loader />
+            </div>
+          ) : (
+            <Timeline
+              bands={chart.bands}
+              candles={candles ?? []}
+              currentPrice={chart.projectedPrice}
+              currentPriceLabel={formatPriceUsd(chart.projectedPrice)}
+              priceAxis={chart.timelinePriceAxis}
+              safeZone={chart.safeZone}
+              visibleCandles={TIMELINE_VISIBLE_CANDLES}
+              interactions={{ crosshair: true, pan: true }}
+              formatPrice={formatPriceUsd}
+              formatTime={formatCandleDate}
+              formatReadoutTime={formatCandleTimestamp}
+              liquidatedLabel={COPY.liquidations.liquidatedBandLabel}
+            />
+          )}
         </div>
       </section>
 

@@ -117,6 +117,30 @@ describe("LiquidationAnalysisSection", () => {
     expect(screen.queryByText(COPY.liquidations.simulateLabel)).toBeNull();
   });
 
+  it("shows a loader instead of the chart while candles load", () => {
+    useBtcPriceCandlesMock.mockReturnValue({
+      candles: null,
+      isLoading: true,
+      error: null,
+    });
+
+    const { container } = render(
+      <LiquidationAnalysisSection
+        hasCollateral
+        hasLoans
+        cascade={CASCADE}
+        onDeposit={vi.fn()}
+        onBorrow={vi.fn()}
+      />,
+      { wrapper: MemoryRouter },
+    );
+
+    expect(container.querySelector(".bbn-loader")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("liq-current-price-line"),
+    ).not.toBeInTheDocument();
+  });
+
   it("charts the price timeline once there is debt and a cascade", () => {
     renderSection({ hasCollateral: true, hasLoans: true, cascade: CASCADE });
 
