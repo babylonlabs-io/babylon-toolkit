@@ -622,6 +622,10 @@ export const COPY = {
       // pairs with the green-card layout.
       titleDownloaded: ARTIFACTS_DOWNLOADED_TITLE,
       bodyDownloaded: ARTIFACTS_DOWNLOADED_BODY,
+      // Shown in place of the activation copy while the artifacts stream.
+      downloadingTitle: "Downloading BTCVault artifacts",
+      downloadingBody:
+        "This may take a few minutes depending on your connection.",
       riskAcknowledgement:
         "I understand the risks of continuing without the artifacts.",
       activateButton: "Activate BTCVault",

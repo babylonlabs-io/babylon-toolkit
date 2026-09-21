@@ -15,6 +15,7 @@ const cardCancelSpy = vi.hoisted(() => vi.fn());
 const viewport = vi.hoisted(() => ({ isMobile: false }));
 
 vi.mock("@babylonlabs-io/core-ui", () => ({
+  Loader: () => <div data-testid="loader" />,
   Text: (props: Record<string, unknown>) => (
     <span>{props.children as ReactNode}</span>
   ),
@@ -57,7 +58,12 @@ vi.mock("@/components/deposit/RecoveryArtifactsCard", () => ({
     {
       onDownloaded?: () => void;
       onDelivered?: () => void;
-      onLoadingChange?: (loading: boolean) => void;
+      onStateChange?: (state: {
+        loading: boolean;
+        receivedBytes: number;
+        totalBytes: number;
+        status: string;
+      }) => void;
       onGraphMismatch?: () => void;
     }
   >((props, ref) => {
@@ -73,6 +79,20 @@ vi.mock("@/components/deposit/RecoveryArtifactsCard", () => ({
         </button>
         <button
           type="button"
+          data-testid="card-download-idle"
+          onClick={() =>
+            props.onStateChange?.({
+              loading: false,
+              receivedBytes: 0,
+              totalBytes: 0,
+              status: "",
+            })
+          }
+        >
+          idle
+        </button>
+        <button
+          type="button"
           data-testid="card-download-delivered"
           onClick={() => props.onDelivered?.()}
         >
@@ -81,7 +101,14 @@ vi.mock("@/components/deposit/RecoveryArtifactsCard", () => ({
         <button
           type="button"
           data-testid="card-download-start"
-          onClick={() => props.onLoadingChange?.(true)}
+          onClick={() =>
+            props.onStateChange?.({
+              loading: true,
+              receivedBytes: 742_000_000,
+              totalBytes: 1_000_000_000,
+              status: "",
+            })
+          }
         >
           start
         </button>
@@ -143,7 +170,7 @@ describe("ActivateConfirmationModal", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
-  it("disables Activate BTCVault while a download is in flight even when the risk is acknowledged", () => {
+  it("replaces the activation body with the download progress and drops the Activate button while a download is in flight", () => {
     render(
       <ActivateConfirmationModal
         open
@@ -153,11 +180,36 @@ describe("ActivateConfirmationModal", () => {
       />,
     );
 
-    fireEvent.click(screen.getByTestId("risk-checkbox"));
-    expect(screen.getByText("Activate BTCVault")).not.toBeDisabled();
+    fireEvent.click(screen.getByTestId("card-download-start"));
+
+    expect(screen.getByText("Downloading BTCVault artifacts")).toBeTruthy();
+    expect(screen.getByText("74%")).toBeTruthy();
+    expect(screen.getByText("1.00 GB").parentElement?.textContent).toBe(
+      "742 MB / 1.00 GB",
+    );
+    expect(screen.getByText("Cancel download")).toBeTruthy();
+    expect(screen.queryByText("Activate your BTCVault")).toBeNull();
+    expect(screen.queryByText("Activate BTCVault")).toBeNull();
+    expect(screen.queryByTestId("risk-checkbox")).toBeNull();
+  });
+
+  it("returns to the activation body once the download finishes", () => {
+    render(
+      <ActivateConfirmationModal
+        open
+        {...COMMON_PROPS}
+        onClose={vi.fn()}
+        onConfirm={vi.fn()}
+      />,
+    );
 
     fireEvent.click(screen.getByTestId("card-download-start"));
-    expect(screen.getByText("Activate BTCVault")).toBeDisabled();
+    fireEvent.click(screen.getByTestId("card-download-complete"));
+    fireEvent.click(screen.getByTestId("card-download-idle"));
+
+    expect(screen.queryByText("Downloading BTCVault artifacts")).toBeNull();
+    expect(screen.getByText("Artifacts downloaded")).toBeTruthy();
+    expect(screen.getByText("Activate BTCVault")).not.toBeDisabled();
   });
 
   it("withdraws the risk opt-out and keeps Activate disabled after a graph mismatch", () => {
