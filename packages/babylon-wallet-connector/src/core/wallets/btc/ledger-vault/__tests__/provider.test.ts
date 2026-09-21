@@ -2035,6 +2035,28 @@ describe("LedgerVaultProvider", () => {
     await signing;
   });
 
+  it("survives a disconnect that lands during the liveness probe", async () => {
+    // doConnect must pin the handle before the probe await: disconnect clears
+    // this.session synchronously, and the re-gate would deref undefined.
+    dmkSessionMock.connectDmkSession.mockResolvedValue({ dmk: {}, sessionId: "s1" });
+    const provider = new LedgerVaultProvider(Network.SIGNET);
+    await provider.connectWallet();
+    let releaseProbe: () => void = () => {};
+    dmkSessionMock.isSessionAlive.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          releaseProbe = () => resolve(true);
+        }),
+    );
+
+    const reconnecting = provider.connectWallet();
+    await vi.waitFor(() => expect(dmkSessionMock.isSessionAlive).toHaveBeenCalled());
+    await provider.disconnect();
+    releaseProbe();
+
+    await expect(reconnecting).resolves.toBeUndefined();
+  });
+
   it("keeps an ungated session once the retry preflight confirms the app", async () => {
     const bare = { dmk: {}, sessionId: "s1" };
     dmkSessionMock.connectDmkSession.mockResolvedValue(bare);

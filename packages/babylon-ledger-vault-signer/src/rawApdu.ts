@@ -59,7 +59,8 @@ export const SW_CLA_NOT_SUPPORTED = 0x6e00;
  * INS not supported. The vault app is built on `bitcoin_app_base`
  * (`base:src/boilerplate/dispatcher.c:170-171` @ e400d8d8). The stock Bitcoin
  * app shares CLA 0xE1 and answers this for a vault instruction it does not
- * implement (LedgerHQ/app-bitcoin-new @ da3c8c9d: `src/constants.h:10`,
+ * implement (LedgerHQ/app-bitcoin, formerly app-bitcoin-new, @ da3c8c9d:
+ * `src/constants.h:10`,
  * `src/boilerplate/dispatcher.c:160-161`). A known class without the vault
  * instructions is a wrong app.
  */
@@ -124,7 +125,7 @@ export interface AppIdentity {
   readonly appVersion?: string;
 }
 
-/** Request context woven into the error message (and the 0x6E00 app hint). */
+/** Request context woven into the error message (and the 0x6E00/0x6D00 app hint). */
 export interface StatusWordContext extends AppIdentity {
   readonly ins: number;
   readonly p1: number;
@@ -173,7 +174,7 @@ export function classifyStatusWord(
  * 0x9000, the shared typed error otherwise. The single place that pairing is
  * written — `createDmkApduSender` and the Speculos e2e client's sender both
  * re-base on it, so a decline reads identically over either transport. The
- * 0x6E00 app hint appears only when the caller supplies an identity (the
+ * 0x6E00/0x6D00 app hint appears only when the caller supplies an identity (the
  * Speculos client has none). Structural return type is `ApduSender`.
  */
 export function createThrowingApduSender(

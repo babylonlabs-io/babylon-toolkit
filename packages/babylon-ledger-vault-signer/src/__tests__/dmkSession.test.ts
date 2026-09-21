@@ -164,7 +164,7 @@ describe("connectDmkSession", () => {
   });
 
   it("reports the running app's name and version from the connect preflight", async () => {
-    // The 0x6E00 wrong-app hint depends on this — "BOLOS" means the dashboard.
+    // The 0x6E00/0x6D00 wrong-app hint depends on this — "BOLOS" means the dashboard.
     const handle = await connectDmkSession();
 
     expect(handle.appName).toBe("Babylon Vault Testnet");

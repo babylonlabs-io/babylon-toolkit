@@ -221,7 +221,8 @@ export class LedgerVaultProvider implements IBTCProvider {
   /** Request-identity keys ({@link signingRequestKey}) signed under the CURRENT loaded intent. */
   private signedFingerprints = new Set<string>();
   /**
-   * ONE in-flight device ceremony (derive/approve/sign) at a time — a
+   * ONE in-flight device ceremony (derive/approve/sign, plus the connect
+   * re-gate's app read) at a time — a
    * concurrent APDU would be eaten with 0x6A80 and desync the interrupt loop.
    * Token-scoped: teardown clears it SYNCHRONOUSLY so a new connection can
    * operate while a stale call is still settling; that call's finally
@@ -236,8 +237,13 @@ export class LedgerVaultProvider implements IBTCProvider {
   constructor(private readonly network: Network = Network.MAINNET) {}
 
   /**
-   * See {@link activeOperation}. The busy throw costs zero device I/O; it
-   * fires only on a caller bug (two overlapping ceremonies).
+   * See {@link activeOperation}. The busy throw costs zero device I/O. Two
+   * overlapping ceremonies are a caller bug, but {@link gateUngatedSession}
+   * also holds the lock for one GET_APP_AND_VERSION on a tab return, so a
+   * ceremony started in that window hits this legitimately. Open question:
+   * whether DMK answers that read at once on a locked device or waits for
+   * the unlock — if it waits, the window is the whole unlock, not one
+   * exchange, and the re-gate would want a retry rather than a throw.
    */
   private async withDeviceOperation<T>(operation: string, fn: () => Promise<T>): Promise<T> {
     if (this.activeOperation) {
@@ -318,8 +324,11 @@ export class LedgerVaultProvider implements IBTCProvider {
     // Idempotent while the session lives: visibility checks re-call this
     // outside a user gesture, where WebHID's requestDevice rejects — tearing
     // down a healthy session would turn an alt-tab into a forced disconnect.
-    if (this.session && (await this.probeSessionAlive(this.session))) {
-      await this.gateUngatedSession(this.session, token);
+    // Pin the handle before the await: a disconnect mid-probe clears
+    // this.session synchronously, and the gate would deref undefined.
+    const live = this.session;
+    if (live && (await this.probeSessionAlive(live))) {
+      await this.gateUngatedSession(live, token);
       return;
     }
     // A disconnect during the probe means the caller no longer wants a
@@ -383,7 +392,9 @@ export class LedgerVaultProvider implements IBTCProvider {
       await this.teardownSession();
       throw refusal;
     }
-    // Same session: keep the generation, rebuild the senders so 0x6E00 names the app.
+    // Nothing learned: the copy is equal, so leave the senders alone.
+    if (refreshed.appName === undefined) return;
+    // Same session: keep the generation, rebuild the senders so the app hint names the app.
     this.session = refreshed;
     this.send = withWalletErrorMapping(createDmkApduSender(refreshed));
     this.rawSend = createDmkRawApduSender(refreshed);
