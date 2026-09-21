@@ -1559,6 +1559,7 @@ export const COPY = {
       noCommission: "None",
       confirmButton: "Confirm",
       processing: "Processing",
+      hfBlockTitle: "Withdraw unavailable",
       hfBlockWarning: (threshold: string) =>
         `This withdrawal would drop your health factor below ${threshold} and be rejected on-chain. Reduce the selection or repay debt first.`,
       hfAtRiskWarning: (threshold: string) =>

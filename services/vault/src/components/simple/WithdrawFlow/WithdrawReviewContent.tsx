@@ -4,6 +4,7 @@ import {
   Heading,
   Loader,
   Text,
+  WarningIcon,
 } from "@babylonlabs-io/core-ui";
 import { useMemo, type ReactNode } from "react";
 
@@ -181,16 +182,18 @@ export function WithdrawReviewContent({
             ))}
           </div>
 
+          {/* This banner's data-testid is a real-wallet E2E hook (e2e/real/actions/withdraw.ts) — carry it over if you move or rename the element. */}
           {wouldBreachHF && (
-            <Text
-              variant="body2"
-              className="text-error-main"
+            <Callout
+              variant="error"
+              title={REVIEW_COPY.hfBlockTitle}
+              icon={<WarningIcon size={14} color="text-accent-contrast" />}
               data-testid="withdraw-hf-block-warning"
             >
               {REVIEW_COPY.hfBlockWarning(
                 WITHDRAW_HF_BLOCK_THRESHOLD.toFixed(1),
               )}
-            </Text>
+            </Callout>
           )}
           {hubBlockMessage && (
             <Text
