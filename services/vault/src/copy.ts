@@ -582,7 +582,7 @@ export const COPY = {
       bodyDownloaded: ARTIFACTS_DOWNLOADED_BODY,
       riskAcknowledgement:
         "I understand the risks of continuing without the artifacts.",
-      activateButton: "Activate vault",
+      activateButton: "Activate BTCVault",
       cancelButton: "Cancel",
       cancelDownloadButton: CANCEL_DOWNLOAD_LABEL,
       // Advanced entry into the activate-and-redeem escape hatch, rendered as
@@ -855,19 +855,19 @@ export const COPY = {
           ? "This deposit and another of your pending BTCVault deposits selected the same UTXOs. No BTC was committed in the other deposit, it will expire on its own."
           : `This deposit and ${count} of your other pending BTCVault deposits selected the same UTXOs. No BTC was committed in the other deposits, they will expire on their own.`,
       wotsReadinessTimeout: (vaultNumber: number) =>
-        `Vault ${vaultNumber}: WOTS key submission skipped - vault provider was not ready before the readiness timeout`,
+        `BTCVault ${vaultNumber}: WOTS key submission skipped - vault provider was not ready before the readiness timeout`,
       wotsReadinessTerminal: (vaultNumber: number) =>
-        `Vault ${vaultNumber}: WOTS key submission skipped - vault provider reported this BTCVault cannot continue`,
+        `BTCVault ${vaultNumber}: WOTS key submission skipped - vault provider reported this BTCVault cannot continue`,
       payoutReadinessTerminal: (vaultNumber: number) =>
-        `Vault ${vaultNumber}: Payout signing skipped - vault provider reported this BTCVault cannot continue`,
+        `BTCVault ${vaultNumber}: Payout signing skipped - vault provider reported this BTCVault cannot continue`,
       wotsSubmissionFailed: (vaultNumber: number, error: string) =>
-        `Vault ${vaultNumber}: WOTS key submission failed - ${error}`,
+        `BTCVault ${vaultNumber}: WOTS key submission failed - ${error}`,
       payoutSigningFailed: (vaultNumber: number, error: string) =>
-        `Vault ${vaultNumber}: Payout signing failed - ${error}`,
+        `BTCVault ${vaultNumber}: Payout signing failed - ${error}`,
       // Self-requested device cancel: the loop stops here, so later vaults
       // are left unattempted (no warning) rather than marked failed.
       payoutSigningCanceled: (vaultNumber: number) =>
-        `Vault ${vaultNumber}: Payout signing canceled - you can finish signing when you're ready`,
+        `BTCVault ${vaultNumber}: Payout signing canceled - you can finish signing when you're ready`,
       dismissReusesReservedUtxos: "Dismiss",
     },
     errors: {
@@ -1073,7 +1073,7 @@ export const COPY = {
       },
       participantKeyDrift: {
         title: "Vault operator keys changed",
-        body: "A vault operator rotated its Bitcoin key while your deposit was being registered, so the registered vault no longer matches the transaction we prepared. Your Pre-Pegin was not broadcast and no Bitcoin was spent. The registered vault will time out on its own — please start a new deposit.",
+        body: "A vault operator rotated its Bitcoin key while your deposit was being registered, so the registered BTCVault no longer matches the transaction we prepared. Your Pre-Pegin was not broadcast and no Bitcoin was spent. The registered BTCVault will time out on its own — please start a new deposit.",
       },
       // The contract's own fingerprint check. It sits between the two cases
       // around it: unlike the pre-signing aborts it cannot claim
@@ -2102,11 +2102,11 @@ export const COPY = {
         },
         partialLiquidation: {
           title: "Partial liquidation supported",
-          body: "Splitting your deposit between two Bitcoin vaults in accordance with Aave's parameters will allow you to retain part of your position during the first liquidation.",
+          body: "Splitting your deposit between two BTCVaults in accordance with Aave's parameters will allow you to retain part of your position during the first liquidation.",
         },
         selfCustodial: {
           title: "Native, trustless, and self-custodial",
-          body: "No bridging. No wrapping. No pooled custody. Your native Bitcoin stays in a self-custodial vault, with no third party able to move it.",
+          body: "No bridging. No wrapping. No pooled custody. Your native Bitcoin stays in a self-custodial BTCVault, with no third party able to move it.",
         },
       },
     },
@@ -2135,7 +2135,7 @@ export const COPY = {
       activeVaultsLabel: "Active Vaults",
       healthFactorLabel: "Health Factor",
       vaultCount: (count: number) =>
-        count === 1 ? "1 Vault" : `${count} Vaults`,
+        count === 1 ? "1 BTCVault" : `${count} BTCVaults`,
       // e.g. "Order: 0.6 → 0.2 → 0.4 sBTC" — liquidation order, seized-first
       // vault leading.
       liquidationOrder: (amounts: string[], coinSymbol: string) =>

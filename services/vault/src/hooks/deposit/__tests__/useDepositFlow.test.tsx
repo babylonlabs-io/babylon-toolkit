@@ -1645,7 +1645,7 @@ describe("useDepositFlow", () => {
         expect.arrayContaining([
           expect.objectContaining({
             message: expect.stringContaining(
-              "Vault 1: WOTS key submission skipped - vault provider was not ready",
+              "BTCVault 1: WOTS key submission skipped - vault provider was not ready",
             ),
           }),
         ]),
@@ -1684,7 +1684,7 @@ describe("useDepositFlow", () => {
         expect.arrayContaining([
           expect.objectContaining({
             message: expect.stringContaining(
-              "Vault 1: WOTS key submission skipped - vault provider reported this BTCVault cannot continue",
+              "BTCVault 1: WOTS key submission skipped - vault provider reported this BTCVault cannot continue",
             ),
           }),
         ]),
