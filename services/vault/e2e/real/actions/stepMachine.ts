@@ -34,11 +34,11 @@ import { firstByTestid } from "./selectors";
 import { type ActionContext } from "./types";
 
 // The activation modal's confirm button. Selected testid-first (stable + text-independent) with a
-// tolerant-text fallback: the button copy drifts (COPY.deposit.activateConfirmation.activateButton
-// renders "Activate vault", lowercase v — an exact string silently stalled the run here), and the
-// data-testid isn't on the deployed build until it ships, so the fallback carries the current build.
+// tolerant-text fallback: the button copy drifts (an exact string silently stalled the run here),
+// and the data-testid isn't on the deployed build until it ships, so the fallback carries the
+// current build.
 const ACTIVATE_VAULT_TESTID = '[data-testid="activate-vault-button"]';
-const ACTIVATE_VAULT_RX = /activate vault/i; // COPY.deposit.activateConfirmation.activateButton
+const ACTIVATE_VAULT_RX = /activate (btc)?vault/i; // COPY.deposit.activateConfirmation.activateButton
 
 /** The activation modal's confirm button — testid if present (future-proof), else tolerant wording. */
 function activateButton(page: Page): Locator {
@@ -184,13 +184,15 @@ async function readActiveStep(page: Page): Promise<string> {
 // for WOTS-key submission before the readiness timeout (COPY.deposit.warnings.wotsReadinessTimeout /
 // wotsReadinessTerminal). A skipped vault is dropped from payout signing + activation and can NEVER
 // reach the activated view — so it's a hard dead-end for that vault, not a transient. Both variants
-// share this "Vault N: WOTS key submission skipped" prefix; the capture group is the vault number.
-const WOTS_SKIP_RX = /Vault\s+(\d+):\s*WOTS key submission skipped/i;
+// share this "BTCVault N: WOTS key submission skipped" prefix; the capture group is the vault number.
+// "BTC" is optional so a deployed build still on the old "Vault N:" wording matches too, and the
+// prefix is spelled out rather than left to substring luck so both wordings survive if this is anchored.
+const WOTS_SKIP_RX = /(?:BTC)?Vault\s+(\d+):\s*WOTS key submission skipped/i;
 
 /**
  * Count DISTINCT per-vault WOTS-key-submission-skip banners on the progress view. Deduped by the vault
  * number so a banner matched via nested elements (or re-rendered) isn't double-counted; a copy drift
- * that breaks the "Vault N:" prefix simply yields 0 (we degrade to the normal budget wait, never a
+ * that breaks the "BTCVault N:" prefix simply yields 0 (we degrade to the normal budget wait, never a
  * false abort). Used by walkStepMachine to fail fast when every expected vault has been skipped.
  */
 async function countWotsSkippedVaults(page: Page): Promise<number> {
