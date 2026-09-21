@@ -30,10 +30,10 @@ const multipleItems: ProviderItem[] = [
   {
     bsnId: "ethereum",
     bsnName: "Ethereum Bridge",
-    bsnLogoUrl: "/images/fps/pumpbtc.jpeg",
+    bsnLogoUrl: "/images/ethereum.svg",
     provider: {
       rank: 2,
-      logo_url: "/images/fps/lombard.jpeg",
+      logo_url: "/images/fps/pumpbtc.jpeg",
       description: { moniker: "Ethereum Provider" },
     },
   },
@@ -53,10 +53,10 @@ const maxCapacityItems: ProviderItem[] = [
   {
     bsnId: "ethereum",
     bsnName: "Ethereum Bridge",
-    bsnLogoUrl: "/images/fps/pumpbtc.jpeg",
+    bsnLogoUrl: "/images/ethereum.svg",
     provider: {
       rank: 2,
-      logo_url: "/images/fps/lombard.jpeg",
+      logo_url: "/images/fps/pumpbtc.jpeg",
       description: { moniker: "Ethereum Provider" },
     },
   },
@@ -66,7 +66,7 @@ const maxCapacityItems: ProviderItem[] = [
     bsnLogoUrl: "/images/fps/solv.jpeg",
     provider: {
       rank: 3,
-      logo_url: "/images/fps/lombard.jpeg",
+      logo_url: "/images/fps/solv.jpeg",
       description: { moniker: "Polygon Provider" },
     },
   },
@@ -209,7 +209,7 @@ export const ProvidersWithoutDescriptions: Story = {
         bsnLogoUrl: "/images/fps/solv.jpeg",
         provider: {
           rank: 2,
-          logo_url: "/images/fps/lombard.jpeg",
+          logo_url: "/images/fps/pumpbtc.jpeg",
           description: {},
         },
       },
