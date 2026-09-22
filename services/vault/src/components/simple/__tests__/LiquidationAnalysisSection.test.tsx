@@ -154,6 +154,22 @@ describe("LiquidationAnalysisSection", () => {
     expect(screen.getAllByTestId("liq-candle")).toHaveLength(CANDLES.length);
   });
 
+  it("draws only the preview window when more candles are available", () => {
+    const longSeries = Array.from({ length: 90 }, (_, i) => ({
+      ...CANDLES[0],
+      time: Date.UTC(2026, 0, 1) + i * 86_400_000,
+    }));
+    useBtcPriceCandlesMock.mockReturnValue({
+      candles: longSeries,
+      isLoading: false,
+      error: null,
+    });
+
+    renderSection({ hasCollateral: true, hasLoans: true, cascade: CASCADE });
+
+    expect(screen.getAllByTestId("liq-candle")).toHaveLength(60);
+  });
+
   it("labels the safe zone from the first trigger and the live price", () => {
     renderSection({ hasCollateral: true, hasLoans: true, cascade: CASCADE });
 
@@ -177,6 +193,7 @@ describe("LiquidationAnalysisSection", () => {
     expect(
       screen.queryByRole("button", { name: COPY.liquidations.reset }),
     ).toBeNull();
+    expect(screen.queryByRole("button", { name: "Reset view" })).toBeNull();
   });
 
   it("opens the liquidations page from Explore", () => {
