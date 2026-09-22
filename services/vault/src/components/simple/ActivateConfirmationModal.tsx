@@ -3,12 +3,13 @@ import {
   Checkbox,
   DialogBody,
   DialogFooter,
-  DialogHeader,
   ResponsiveDialog,
   WINDOW_BREAKPOINT,
   useIsMobile,
 } from "@babylonlabs-io/core-ui";
 import { useEffect, useRef, useState } from "react";
+import { IoClose } from "react-icons/io5";
+import { twJoin } from "tailwind-merge";
 import type { Hex } from "viem";
 
 import { ArtifactModalIcon } from "@/components/deposit/ArtifactModalIcon";
@@ -108,12 +109,31 @@ export function ActivateConfirmationModal({
       className="w-[600px] max-w-full"
       dialogClassName="!rounded-2xl !bg-background-contrast"
     >
-      {/* Header carries only the design's close control: the title is not a
-          header row here, it sits centred in the body under the icon. The
-          empty title is load-bearing — the header row is justify-between, so
-          it is what holds the button to the right. */}
-      {!isMobile && <DialogHeader title="" onClose={handleClose} />}
-      <DialogBody className="flex flex-col items-stretch gap-8 text-accent-primary">
+      {/* The design's close control. Hand-rolled so it carries an accessible
+          name and no empty heading; core-ui's DialogHeader renders both.
+          Desktop only: the mobile sheet draws its own close button. */}
+      {!isMobile && (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={handleClose}
+            aria-label={COPY.common.close}
+            className="flex size-10 items-center justify-center text-accent-primary"
+            data-testid="activate-modal-close"
+          >
+            <IoClose size={24} />
+          </button>
+        </div>
+      )}
+      {/* The mobile sheet's own inset is 16px; the desktop card's is 24px from
+          `.bbn-dialog`. Below the breakpoint the previous padding is kept so
+          the sheet keeps its 40px sides. */}
+      <DialogBody
+        className={twJoin(
+          "flex flex-col items-stretch gap-8 text-accent-primary",
+          isMobile && "px-6 pb-2 pt-10",
+        )}
+      >
         <div className="flex flex-col items-center gap-6">
           {downloaded ? (
             <ArtifactModalIcon variant="downloaded" />
@@ -190,7 +210,9 @@ export function ActivateConfirmationModal({
 
       {/* size="medium" gives the design's 14px label and 16px side padding;
           h-10 restores the design's 40px height over medium's default. */}
-      <DialogFooter className="flex flex-row gap-4 pt-4">
+      <DialogFooter
+        className={twJoin("flex flex-row gap-4 pt-4", isMobile && "px-6 pb-6")}
+      >
         <Button
           variant="outlined"
           size="medium"
