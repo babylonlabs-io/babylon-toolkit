@@ -618,8 +618,9 @@ sizingViolation: SplitSizingViolation | null;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts)
 
-Why the split is refused, or null when it is valid. When non-null both
-vault amounts are 0n.
+Why the split is refused, or null when it is valid. Non-null exactly when
+the split is not usable: both vault amounts are then 0n, and null always
+means two positive amounts that sum to `totalBtc`.
 
 ***
 
@@ -663,24 +664,49 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/healthFacto
 
 ***
 
-### SplitSizingViolation
+### SplitParamsViolation
 
 ```ts
-type SplitSizingViolation = 
+type SplitParamsViolation = 
   | "target-not-above-expected-hf"
   | "target-not-above-liquidation-penalty"
-  | "sacrificial-not-smaller";
+  | "sacrificial-not-smaller"
+  | "no-seizure-expected";
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts)
 
-Why a two-vault split is refused:
+Why the split parameters alone refuse a two-vault split. These are the
+verdicts [findSplitSizingViolation](#findsplitsizingviolation) can return; it sees only the
+parameters, so each one holds at any deposit amount. One of them,
+`sacrificial-not-smaller`, is also what [computeOptimalSplit](#computeoptimalsplit) reports
+when rounding the seizure up leaves the sacrificial vault not strictly
+smaller, so seeing it in an [OptimalSplitResult](#optimalsplitresult) does not by itself
+mean the parameters are bad:
 - `target-not-above-expected-hf`: THF ≤ expected HF, so the seizure formula
   has no valid target.
 - `target-not-above-liquidation-penalty`: THF ≤ LB × CF, so one liquidation
   takes the whole position.
 - `sacrificial-not-smaller`: the sacrificial vault would not be strictly
   smaller than the protected vault.
+- `no-seizure-expected`: the seized fraction is zero (for example CF 0), so
+  a sacrificial vault would be empty and the split would protect nothing.
+
+***
+
+### SplitSizingViolation
+
+```ts
+type SplitSizingViolation = SplitParamsViolation | "below-dust";
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts)
+
+Why [computeOptimalSplit](#computeoptimalsplit) refuses a split: the parameter verdicts
+above, plus one only a deposit amount can reach.
+- `below-dust`: the vaults would be below the HTLC dust threshold. A
+  non-positive deposit reports this too, but only when the parameters
+  themselves allow a split — otherwise the parameter verdict wins.
 
 ## Functions
 
@@ -2268,7 +2294,7 @@ when an input is outside the range the contract accepts
 ### findSplitSizingViolation()
 
 ```ts
-function findSplitSizingViolation(params): SplitSizingViolation | null;
+function findSplitSizingViolation(params): SplitParamsViolation | null;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts)
@@ -2300,7 +2326,7 @@ Split target health factor, expected health factor at
 
 #### Returns
 
-[`SplitSizingViolation`](#splitsizingviolation) \| `null`
+[`SplitParamsViolation`](#splitparamsviolation) \| `null`
 
 The first violated rule, or null when a split may be offered
 
@@ -2435,10 +2461,13 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.
 Compute the optimal split between a sacrificial vault and a protected vault.
 
 The sacrificial vault (index 0) is the target seizure rounded up to a whole
-satoshi. The protected vault (index 1) holds the remainder. A split whose
-parameters fail [findSplitSizingViolation](#findsplitsizingviolation), or whose sacrificial vault
-would not be strictly smaller than the protected one, is refused: both
-amounts are 0n and `sizingViolation` says why.
+satoshi. The protected vault (index 1) holds the remainder. The split is
+refused when the parameters fail [findSplitSizingViolation](#findsplitsizingviolation), when
+rounding the seizure up leaves the sacrificial vault not strictly smaller,
+or when the vaults would be dust — a non-positive deposit reaches the last
+of these whenever the parameters themselves allow a split. Both amounts are
+then 0n and `sizingViolation` says why; a null violation means two positive
+amounts that sum to `totalBtc`.
 
 #### Parameters
 

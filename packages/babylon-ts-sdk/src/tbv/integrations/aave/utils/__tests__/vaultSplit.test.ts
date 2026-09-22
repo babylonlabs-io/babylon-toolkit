@@ -141,8 +141,14 @@ describe("vaultSplit", () => {
 
       expect(result.sacrificialVault).toBe(0n);
       expect(result.protectedVault).toBe(0n);
-      expect(result.seizedFraction).toBe(0);
       expect(result.targetSeizureBtc).toBe(0n);
+      // The seized fraction is a property of the parameters, not of the
+      // amount, so every refusal reports the same value rather than zeroing
+      // it on this branch alone.
+      expect(result.seizedFraction).toBeCloseTo(0.398, 2);
+      // A null violation always means two usable vaults, so a zero deposit
+      // must report one.
+      expect(result.sizingViolation).toBe("below-dust");
     });
 
     it("should return zero vaults for negative amount", () => {
@@ -203,7 +209,7 @@ describe("vaultSplit", () => {
       expect(result.sizingViolation).toBe("sacrificial-not-smaller");
     });
 
-    it("refuses the split when rounding up ties the vaults on a tiny total", () => {
+    it("refuses the split when rounding up leaves the sacrificial vault not smaller", () => {
       // Seized fraction ≈ 0.465; ceil(3 × 0.465) = 2 leaves 1 for the protected vault
       const result = computeOptimalSplit({
         totalBtc: 3n,
@@ -217,6 +223,45 @@ describe("vaultSplit", () => {
       expect(result.sacrificialVault).toBe(0n);
       expect(result.protectedVault).toBe(0n);
       expect(result.sizingViolation).toBe("sacrificial-not-smaller");
+    });
+
+    it("reports the parameter violation, not dust, when both would apply", () => {
+      // A zero deposit is dust and CF 0 seizes nothing. The parameter verdict
+      // wins, so the caller is told what it can act on.
+      const result = computeOptimalSplit({
+        totalBtc: 0n,
+        ...DEFAULT_PARAMS,
+        CF: 0,
+      });
+
+      expect(result.sizingViolation).toBe("no-seizure-expected");
+    });
+
+    it("never reports a usable split with a zero-amount vault", () => {
+      // The postcondition a public consumer relies on: a null violation means
+      // two positive amounts that sum to the deposit.
+      const amounts = [0n, 100n, 1_999n, 100_000n, 1_000_000_000n];
+      const paramSets = [
+        DEFAULT_PARAMS,
+        { ...DEFAULT_PARAMS, CF: 0 },
+        { ...DEFAULT_PARAMS, expectedHF: 1.2 },
+      ];
+
+      for (const totalBtc of amounts) {
+        for (const params of paramSets) {
+          const result = computeOptimalSplit({ totalBtc, ...params });
+          if (result.sizingViolation === null) {
+            expect(result.sacrificialVault).toBeGreaterThan(0n);
+            expect(result.protectedVault).toBeGreaterThan(0n);
+            expect(result.sacrificialVault + result.protectedVault).toBe(
+              totalBtc,
+            );
+          } else {
+            expect(result.sacrificialVault).toBe(0n);
+            expect(result.protectedVault).toBe(0n);
+          }
+        }
+      }
     });
 
     it("should always have sacrificial + protected = totalBtc", () => {
@@ -267,13 +312,15 @@ describe("vaultSplit", () => {
       expect(result.sacrificialVault).toBe(0n);
       expect(result.protectedVault).toBe(0n);
       expect(result.targetSeizureBtc).toBe(0n);
-      expect(result.sizingViolation).toBeNull();
+      expect(result.sizingViolation).toBe("below-dust");
     });
 
-    it("should return zeroed vaults when protected amount is below HTLC dust threshold", () => {
-      // CF 0 → seized fraction 0: sacrificial 0 sats, protected 1_999 sats
+    it("refuses the split when no seizure is expected at all", () => {
+      // CF 0 → seized fraction 0: a sacrificial vault would be empty, so the
+      // split would protect nothing. Reported as a parameter verdict, so the
+      // deposit form can explain it.
       const result = computeOptimalSplit({
-        totalBtc: 1_999n,
+        totalBtc: 1_000_000n,
         CF: 0,
         LB: 1.05,
         THF: 1.1,
@@ -283,7 +330,7 @@ describe("vaultSplit", () => {
       expect(result.sacrificialVault).toBe(0n);
       expect(result.protectedVault).toBe(0n);
       expect(result.targetSeizureBtc).toBe(0n);
-      expect(result.sizingViolation).toBeNull();
+      expect(result.sizingViolation).toBe("no-seizure-expected");
     });
   });
 
@@ -502,6 +549,12 @@ describe("vaultSplit", () => {
       // LB × CF = 1.08 when LB = 1.08 / 0.78
       expect(findSplitSizingViolation({ ...VALID, LB: 1.08 / 0.78 })).toBe(
         "target-not-above-liquidation-penalty",
+      );
+    });
+
+    it("flags parameters under which nothing would be seized", () => {
+      expect(findSplitSizingViolation({ ...VALID, CF: 0 })).toBe(
+        "no-seizure-expected",
       );
     });
 

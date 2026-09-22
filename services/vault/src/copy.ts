@@ -324,7 +324,11 @@ export const COPY = {
     // add up to the deposit amount.
     splitSizing: {
       unavailable:
-        "The current protocol parameters can't size the first BTCVault smaller than the second. BTCVault split unavailable.",
+        "The current protocol parameters don't allow splitting a deposit into two BTCVaults. Your deposit will use a single BTCVault.",
+      // The split params read (CF and the liquidation bonus curve) failed, so
+      // no split can be sized at all.
+      paramsUnavailable:
+        "We couldn't read the protocol's risk parameters, so the BTCVault split is unavailable. Your deposit will use a single BTCVault.",
       sacrificialNotSmaller:
         "The first BTCVault of a split deposit must be smaller than the second. Close this window and start the deposit again.",
       amountsDoNotMatchDeposit:
@@ -2457,6 +2461,13 @@ export const COPY = {
       title: "Small position - simplified view",
       detail:
         "Below $1,000 the cascade simplifies — all BTCVaults are shown as one liquidation event. Small positions don't have meaningful multi-event behavior.",
+    },
+    // The Spoke risk-parameter read failed, so no cascade can be computed.
+    // The live health-factor card is computed separately and still shows.
+    paramsUnavailable: {
+      title: "Liquidation warnings unavailable",
+      detail:
+        "We couldn't read the protocol's risk parameters, so liquidation warnings can't be calculated right now. Your BTCVaults and loan are unaffected. Reload the page to try again, and contact support if this persists.",
     },
     weirdParams: {
       title: "Protocol parameters don't compute",

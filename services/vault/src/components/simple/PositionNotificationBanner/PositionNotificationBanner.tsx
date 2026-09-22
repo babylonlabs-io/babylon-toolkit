@@ -202,6 +202,19 @@ export function PositionNotificationBanner({
     );
   }
 
+  if (effectiveStatus === "params-unavailable") {
+    return (
+      <Notification
+        variant="warning"
+        title={COPY.liquidationWarnings.paramsUnavailable.title}
+        data-testid={TEST_ID}
+        data-severity="yellow"
+      >
+        {COPY.liquidationWarnings.paramsUnavailable.detail}
+      </Notification>
+    );
+  }
+
   if (effectiveStatus === "stale-price") {
     if (statusOverride === "stale-price" || staleBannerReady) {
       return (

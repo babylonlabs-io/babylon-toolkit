@@ -25,6 +25,8 @@ export type PositionNotificationsStatus =
   | "incomplete-position"
   | "no-price"
   | "stale-price"
+  /** The Spoke risk-parameter read failed; nothing can be calculated. */
+  | "params-unavailable"
   | "ready";
 
 export interface UsePositionNotificationsResult {
@@ -73,8 +75,11 @@ function buildLiveHfUrgentWarning(healthFactor: number): Warning {
 export function usePositionNotifications(
   connectedAddress: string | undefined,
 ): UsePositionNotificationsResult {
-  const { params: splitParams, isLoading: paramsLoading } =
-    useVaultSplitParams(connectedAddress);
+  const {
+    params: splitParams,
+    isLoading: paramsLoading,
+    error: splitParamsError,
+  } = useVaultSplitParams(connectedAddress);
 
   const {
     collateralVaults,
@@ -116,7 +121,7 @@ export function usePositionNotifications(
     reorderVerificationContext: ReorderVerificationContext | null;
     params: CalculatorParams | null;
   } => {
-    if (!splitParams || isLoading)
+    if (isLoading)
       return {
         result: null,
         status: "loading",
@@ -164,6 +169,18 @@ export function usePositionNotifications(
       return {
         result: null,
         status: "no-vaults",
+        reorderVerificationContext: null,
+        params: null,
+      };
+    // Reported only once there is a position to warn about, and only for a
+    // settled failure: the query does not refetch on focus, so the warnings
+    // would otherwise be hidden for good with nothing said.
+    // `computeSplitLiquidationBonus` throws on an out-of-range bonus curve,
+    // so this is a reachable state.
+    if (!splitParams)
+      return {
+        result: null,
+        status: splitParamsError ? "params-unavailable" : "loading",
         reorderVerificationContext: null,
         params: null,
       };
@@ -222,6 +239,7 @@ export function usePositionNotifications(
     };
   }, [
     splitParams,
+    splitParamsError,
     pegInConfig,
     isLoading,
     connectedAddress,

@@ -146,6 +146,7 @@ function SimpleDepositContent({
     minDepositForSplit,
     isSplitAmountTooLow,
     isSplitSizingRefused,
+    isSplitParamsUnavailable,
     depositorClaimValue,
     depositorClaimValueError,
     btcPublicKeyError,
@@ -225,6 +226,7 @@ function SimpleDepositContent({
     capReason: splitUnavailableReason,
     isSplitOffered,
     isVaultCapReached,
+    isSplitParamsUnavailable,
     isSplitSizingRefused,
   });
   const allowSplit = isSplitOffered && depositSplitUnavailableReason === null;

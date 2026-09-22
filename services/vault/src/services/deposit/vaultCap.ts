@@ -88,12 +88,13 @@ export function resolveVaultCapState({
 }
 
 /**
- * Why the deposit form shows no split: a cap, or the split sizing rules
- * (SDK `findSplitSizingViolation`) refusing the split at the current
- * parameters.
+ * Why the deposit form shows no split: a cap, the split parameters being
+ * unreadable, or the split sizing rules (SDK `findSplitSizingViolation`)
+ * refusing the split at the current parameters.
  */
 export type DepositSplitUnavailableReason =
   | SplitUnavailableReason
+  | "split-params-unavailable"
   | "split-sizing";
 
 export interface DepositSplitUnavailableParams {
@@ -106,6 +107,8 @@ export interface DepositSplitUnavailableParams {
   isSplitOffered: boolean;
   /** The deposit is blocked outright by the per-position cap. */
   isVaultCapReached: boolean;
+  /** The split parameters could not be read, so no split can be sized. */
+  isSplitParamsUnavailable: boolean;
   /** The split sizing rules refuse a two-vault split. */
   isSplitSizingRefused: boolean;
 }
@@ -120,11 +123,14 @@ export function resolveDepositSplitUnavailableReason({
   capReason,
   isSplitOffered,
   isVaultCapReached,
+  isSplitParamsUnavailable,
   isSplitSizingRefused,
 }: DepositSplitUnavailableParams): DepositSplitUnavailableReason | null {
   if (capReason !== null) return capReason;
-  if (isSplitOffered && !isVaultCapReached && isSplitSizingRefused) {
-    return "split-sizing";
-  }
+  if (!isSplitOffered || isVaultCapReached) return null;
+  // An unreadable parameter read comes first: the sizing rules cannot have a
+  // verdict without it.
+  if (isSplitParamsUnavailable) return "split-params-unavailable";
+  if (isSplitSizingRefused) return "split-sizing";
   return null;
 }

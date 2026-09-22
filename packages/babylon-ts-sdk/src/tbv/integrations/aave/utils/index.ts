@@ -36,5 +36,6 @@ export type {
   MinDepositForSplitParams,
   OptimalSplitParams,
   OptimalSplitResult,
+  SplitParamsViolation,
   SplitSizingViolation,
 } from "./vaultSplit.js";

@@ -44,7 +44,7 @@ describe("useOptimalSplit", () => {
     expect(result.current.canSplit).toBe(true);
     expect(result.current.sizingViolation).toBeNull();
     expect(result.current.isLoading).toBe(false);
-    expect(result.current.error).toBeNull();
+    expect(result.current.isParamsUnavailable).toBe(false);
   });
 
   it("returns canSplit: false when deposit is too small", () => {
@@ -123,7 +123,7 @@ describe("useOptimalSplit", () => {
     expect(result.current.canSplit).toBe(false);
   });
 
-  it("returns canSplit: false when params errored", () => {
+  it("reports the parameters as unavailable when the read failed with nothing cached", () => {
     mockUseVaultSplitParams.mockReturnValue({
       params: null,
       isLoading: false,
@@ -132,7 +132,36 @@ describe("useOptimalSplit", () => {
 
     const { result } = renderHook(() => useOptimalSplit(1_000_000_000n));
 
-    expect(result.current.error).toBeInstanceOf(Error);
+    expect(result.current.isParamsUnavailable).toBe(true);
     expect(result.current.canSplit).toBe(false);
+  });
+
+  it("keeps the split when a refetch failed but the parameters are still cached", () => {
+    // React Query keeps the previous data when a later refetch fails — for
+    // example the retry:0 pre-sign refetch borrow and repay fire into the same
+    // cache key. A split sized from those parameters is still correct.
+    mockUseVaultSplitParams.mockReturnValue({
+      params: DEFAULT_PARAMS,
+      isLoading: false,
+      error: new Error("RPC blip on refetch"),
+    });
+
+    const { result } = renderHook(() => useOptimalSplit(1_000_000_000n));
+
+    expect(result.current.isParamsUnavailable).toBe(false);
+    expect(result.current.canSplit).toBe(true);
+    expect(result.current.sacrificialVault).toBeGreaterThan(0n);
+  });
+
+  it("reports no parameter problem while the read is still loading", () => {
+    mockUseVaultSplitParams.mockReturnValue({
+      params: null,
+      isLoading: true,
+      error: null,
+    });
+
+    const { result } = renderHook(() => useOptimalSplit(1_000_000_000n));
+
+    expect(result.current.isParamsUnavailable).toBe(false);
   });
 });

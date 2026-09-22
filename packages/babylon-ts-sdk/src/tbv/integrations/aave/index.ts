@@ -132,6 +132,7 @@ export type {
   MinDepositForSplitParams,
   OptimalSplitParams,
   OptimalSplitResult,
+  SplitParamsViolation,
   SplitSizingViolation,
 } from "./utils/index.js";
 

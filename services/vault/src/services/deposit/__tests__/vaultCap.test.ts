@@ -161,6 +161,7 @@ describe("resolveDepositSplitUnavailableReason", () => {
         capReason: null,
         isSplitOffered: true,
         isVaultCapReached: false,
+        isSplitParamsUnavailable: false,
         isSplitSizingRefused: true,
       }),
     ).toBe("split-sizing");
@@ -172,6 +173,7 @@ describe("resolveDepositSplitUnavailableReason", () => {
         capReason: null,
         isSplitOffered: false,
         isVaultCapReached: false,
+        isSplitParamsUnavailable: false,
         isSplitSizingRefused: true,
       }),
     ).toBeNull();
@@ -183,6 +185,7 @@ describe("resolveDepositSplitUnavailableReason", () => {
         capReason: null,
         isSplitOffered: true,
         isVaultCapReached: true,
+        isSplitParamsUnavailable: false,
         isSplitSizingRefused: true,
       }),
     ).toBeNull();
@@ -194,9 +197,36 @@ describe("resolveDepositSplitUnavailableReason", () => {
         capReason: "per-position",
         isSplitOffered: true,
         isVaultCapReached: false,
+        isSplitParamsUnavailable: false,
         isSplitSizingRefused: true,
       }),
     ).toBe("per-position");
+  });
+
+  it("explains an unreadable parameter read ahead of the sizing rules", () => {
+    // Without the parameters the sizing rules cannot have a verdict, so the
+    // form must name the read, not the sizing.
+    expect(
+      resolveDepositSplitUnavailableReason({
+        capReason: null,
+        isSplitOffered: true,
+        isVaultCapReached: false,
+        isSplitParamsUnavailable: true,
+        isSplitSizingRefused: true,
+      }),
+    ).toBe("split-params-unavailable");
+  });
+
+  it("stays silent about an unreadable parameter read when no split would be offered", () => {
+    expect(
+      resolveDepositSplitUnavailableReason({
+        capReason: null,
+        isSplitOffered: false,
+        isVaultCapReached: false,
+        isSplitParamsUnavailable: true,
+        isSplitSizingRefused: false,
+      }),
+    ).toBeNull();
   });
 
   it("returns null when the sizing rules allow the split", () => {
@@ -205,6 +235,7 @@ describe("resolveDepositSplitUnavailableReason", () => {
         capReason: null,
         isSplitOffered: true,
         isVaultCapReached: false,
+        isSplitParamsUnavailable: false,
         isSplitSizingRefused: false,
       }),
     ).toBeNull();

@@ -9,7 +9,7 @@ import {
   computeMinDepositForSplit,
   computeOptimalSplit,
   findSplitSizingViolation,
-  type SplitSizingViolation,
+  type SplitParamsViolation,
 } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 import { useMemo } from "react";
 
@@ -32,18 +32,26 @@ export interface UseOptimalSplitResult {
    * Why the split parameters refuse a two-vault split, or null when they
    * allow one. Independent of the deposit amount.
    */
-  sizingViolation: SplitSizingViolation | null;
+  sizingViolation: SplitParamsViolation | null;
   /** Whether split params are still loading */
   isLoading: boolean;
-  /** Error from param fetching */
-  error: Error | null;
+  /**
+   * True only when the parameters are missing because their read failed. A
+   * failed background refetch leaves the previous values cached, and a split
+   * sized from them is still correct, so the error alone must not withdraw
+   * the split.
+   */
+  isParamsUnavailable: boolean;
 }
 
 // Bitcoin's max supply in satoshis (21M BTC). Larger amounts would trip the
 // SDK's precision guard, so bail before computing the split.
 const MAX_PLAUSIBLE_DEPOSIT_SATS = 2_100_000_000_000_000n;
 
-const EMPTY_RESULT: Omit<UseOptimalSplitResult, "isLoading" | "error"> = {
+const EMPTY_RESULT: Omit<
+  UseOptimalSplitResult,
+  "isLoading" | "isParamsUnavailable"
+> = {
   sacrificialVault: 0n,
   protectedVault: 0n,
   seizedFraction: 0,
@@ -88,9 +96,9 @@ export function useOptimalSplit(
       seizedFraction: split.seizedFraction,
     });
 
-    // The parameters passed above, so a refusal here comes from rounding on a
-    // tiny amount, which is below the split minimum anyway: not splittable,
-    // but not a parameter problem to report.
+    // The parameters passed above, so a refusal here is amount-driven — dust,
+    // or rounding that ties the two vaults — and the amount is below the split
+    // minimum anyway. Nothing to report as a parameter problem.
     const canSplit =
       split.sizingViolation === null &&
       minDepositForSplit > 0n &&
@@ -109,6 +117,6 @@ export function useOptimalSplit(
   return {
     ...result,
     isLoading,
-    error,
+    isParamsUnavailable: !params && error !== null,
   };
 }

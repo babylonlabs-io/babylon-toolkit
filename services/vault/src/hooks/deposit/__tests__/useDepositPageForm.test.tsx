@@ -1013,6 +1013,7 @@ describe("useDepositPageForm", () => {
         minDepositForSplit: 0n,
         isSplitAmountTooLow: false,
         isSplitSizingRefused: false,
+        isSplitParamsUnavailable: false,
         isLoading: false,
       });
     });
@@ -1100,6 +1101,7 @@ describe("useDepositPageForm", () => {
         minDepositForSplit: 0n,
         isSplitAmountTooLow: false,
         isSplitSizingRefused: false,
+        isSplitParamsUnavailable: false,
         isLoading: false,
       });
     });

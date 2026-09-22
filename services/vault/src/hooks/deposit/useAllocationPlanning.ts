@@ -36,6 +36,11 @@ export interface UseAllocationPlanningResult {
    * parameters (SDK `findSplitSizingViolation`), whatever the amount.
    */
   isSplitSizingRefused: boolean;
+  /**
+   * True when the split parameters could not be read, so no split can be
+   * sized. The deposit still proceeds as a single vault.
+   */
+  isSplitParamsUnavailable: boolean;
   /** Whether split params are still loading */
   isLoading: boolean;
 }
@@ -56,6 +61,7 @@ export function useAllocationPlanning({
     minDepositForSplit,
     sizingViolation,
     isLoading,
+    isParamsUnavailable,
   } = useOptimalSplit(amountSats, ethAddress);
 
   const vaultAmounts = useMemo(() => {
@@ -92,6 +98,7 @@ export function useAllocationPlanning({
     minDepositForSplit,
     isSplitAmountTooLow,
     isSplitSizingRefused: sizingViolation !== null,
+    isSplitParamsUnavailable: isParamsUnavailable,
     isLoading,
   };
 }

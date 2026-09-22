@@ -132,6 +132,46 @@ describe("usePositionNotifications — live-HF urgency guardrail", () => {
     expect(result.current.params?.minPeginBtc).toBeNull();
   });
 
+  it("reports params-unavailable when the split-parameter read has failed", () => {
+    setDashboardState();
+    mockUseVaultSplitParams.mockReturnValue({
+      params: null,
+      isLoading: false,
+      error: new RangeError("healthFactorForMaxBonus out of range"),
+    });
+
+    const { result } = renderHook(() => usePositionNotifications(USER));
+
+    expect(result.current.status).toBe("params-unavailable");
+    expect(result.current.result).toBeNull();
+  });
+
+  it("reports no-vaults rather than params-unavailable when there is nothing to warn about", () => {
+    setDashboardState({ collateralVaults: [] });
+    mockUseVaultSplitParams.mockReturnValue({
+      params: null,
+      isLoading: false,
+      error: new RangeError("healthFactorForMaxBonus out of range"),
+    });
+
+    const { result } = renderHook(() => usePositionNotifications(USER));
+
+    expect(result.current.status).toBe("no-vaults");
+  });
+
+  it("stays loading while the split-parameter read is still in flight", () => {
+    setDashboardState();
+    mockUseVaultSplitParams.mockReturnValue({
+      params: null,
+      isLoading: true,
+      error: null,
+    });
+
+    const { result } = renderHook(() => usePositionNotifications(USER));
+
+    expect(result.current.status).toBe("loading");
+  });
+
   it("stays loading until the peg-in configuration has loaded", () => {
     setDashboardState();
     mockUseQuery.mockReturnValue({ data: undefined, isLoading: true });

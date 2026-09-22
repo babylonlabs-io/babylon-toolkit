@@ -90,6 +90,7 @@ const STATUS_MESSAGES: Record<
   "no-vaults": "No collateral vaults found",
   "incomplete-position": COPY.liquidationWarnings.incompletePosition,
   "no-price": "Waiting for BTC price...",
+  "params-unavailable": COPY.liquidationWarnings.paramsUnavailable.title,
   "stale-price": "BTC price is stale or unavailable",
 };
 

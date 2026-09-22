@@ -72,18 +72,36 @@ export const EXPECTED_HEALTH_FACTOR_AT_LIQUIDATION =
 const MAX_SACRIFICIAL_SHARE = 0.5;
 
 /**
- * Why a two-vault split is refused:
+ * Why the split parameters alone refuse a two-vault split. These are the
+ * verdicts {@link findSplitSizingViolation} can return; it sees only the
+ * parameters, so each one holds at any deposit amount. One of them,
+ * `sacrificial-not-smaller`, is also what {@link computeOptimalSplit} reports
+ * when rounding the seizure up leaves the sacrificial vault not strictly
+ * smaller, so seeing it in an {@link OptimalSplitResult} does not by itself
+ * mean the parameters are bad:
  * - `target-not-above-expected-hf`: THF ≤ expected HF, so the seizure formula
  *   has no valid target.
  * - `target-not-above-liquidation-penalty`: THF ≤ LB × CF, so one liquidation
  *   takes the whole position.
  * - `sacrificial-not-smaller`: the sacrificial vault would not be strictly
  *   smaller than the protected vault.
+ * - `no-seizure-expected`: the seized fraction is zero (for example CF 0), so
+ *   a sacrificial vault would be empty and the split would protect nothing.
  */
-export type SplitSizingViolation =
+export type SplitParamsViolation =
   | "target-not-above-expected-hf"
   | "target-not-above-liquidation-penalty"
-  | "sacrificial-not-smaller";
+  | "sacrificial-not-smaller"
+  | "no-seizure-expected";
+
+/**
+ * Why {@link computeOptimalSplit} refuses a split: the parameter verdicts
+ * above, plus one only a deposit amount can reach.
+ * - `below-dust`: the vaults would be below the HTLC dust threshold. A
+ *   non-positive deposit reports this too, but only when the parameters
+ *   themselves allow a split — otherwise the parameter verdict wins.
+ */
+export type SplitSizingViolation = SplitParamsViolation | "below-dust";
 
 /**
  * Inputs of the Aave v4 liquidation bonus curve, in their on-chain units.
@@ -144,8 +162,9 @@ export interface OptimalSplitResult {
   /** Target seizure amount in satoshis */
   targetSeizureBtc: bigint;
   /**
-   * Why the split is refused, or null when it is valid. When non-null both
-   * vault amounts are 0n.
+   * Why the split is refused, or null when it is valid. Non-null exactly when
+   * the split is not usable: both vault amounts are then 0n, and null always
+   * means two positive amounts that sum to `totalBtc`.
    */
   sizingViolation: SplitSizingViolation | null;
 }
@@ -181,8 +200,11 @@ export function computeLiquidationBonusBps(
   curve: LiquidationBonusCurve,
   healthFactorWad: bigint,
 ): bigint {
-  const { healthFactorForMaxBonus, liquidationBonusFactor, maxLiquidationBonus } =
-    curve;
+  const {
+    healthFactorForMaxBonus,
+    liquidationBonusFactor,
+    maxLiquidationBonus,
+  } = curve;
 
   if (healthFactorForMaxBonus < 0n || healthFactorForMaxBonus >= WAD) {
     throw new RangeError(
@@ -262,7 +284,7 @@ export function findSplitSizingViolation(params: {
   LB: number;
   THF: number;
   expectedHF: number;
-}): SplitSizingViolation | null {
+}): SplitParamsViolation | null {
   const { CF, LB, THF, expectedHF } = params;
 
   // Negated comparisons so a NaN input is refused rather than let through.
@@ -272,8 +294,14 @@ export function findSplitSizingViolation(params: {
   if (!(THF > LB * CF)) {
     return "target-not-above-liquidation-penalty";
   }
-  if (!(computeSeizedFraction(CF, LB, THF, expectedHF) < MAX_SACRIFICIAL_SHARE)) {
+  const seizedFraction = computeSeizedFraction(CF, LB, THF, expectedHF);
+  if (!(seizedFraction < MAX_SACRIFICIAL_SHARE)) {
     return "sacrificial-not-smaller";
+  }
+  // Nothing would be seized, so a sacrificial vault would be empty and the
+  // split would protect nothing.
+  if (!(seizedFraction > 0)) {
+    return "no-seizure-expected";
   }
   return null;
 }
@@ -348,10 +376,13 @@ export function computeSeizedFraction(
  * Compute the optimal split between a sacrificial vault and a protected vault.
  *
  * The sacrificial vault (index 0) is the target seizure rounded up to a whole
- * satoshi. The protected vault (index 1) holds the remainder. A split whose
- * parameters fail {@link findSplitSizingViolation}, or whose sacrificial vault
- * would not be strictly smaller than the protected one, is refused: both
- * amounts are 0n and `sizingViolation` says why.
+ * satoshi. The protected vault (index 1) holds the remainder. The split is
+ * refused when the parameters fail {@link findSplitSizingViolation}, when
+ * rounding the seizure up leaves the sacrificial vault not strictly smaller,
+ * or when the vaults would be dust — a non-positive deposit reaches the last
+ * of these whenever the parameters themselves allow a split. Both amounts are
+ * then 0n and `sizingViolation` says why; a null violation means two positive
+ * amounts that sum to `totalBtc`.
  *
  * @param params - Total BTC and split sizing parameters
  * @returns Split result with vault sizes, seized fraction, target seizure and
@@ -384,13 +415,16 @@ export function computeOptimalSplit(
   const sizingViolation = findSplitSizingViolation({ CF, LB, THF, expectedHF });
   const seizedFraction = computeSeizedFraction(CF, LB, THF, expectedHF);
 
+  // Nothing to split: report the parameters' own verdict when they already
+  // refuse one, and otherwise the amount reason, so a null violation always
+  // means two usable vaults.
   if (totalBtc <= 0n) {
     return {
       sacrificialVault: 0n,
       protectedVault: 0n,
-      seizedFraction: 0,
+      seizedFraction,
       targetSeizureBtc: 0n,
-      sizingViolation,
+      sizingViolation: sizingViolation ?? "below-dust",
     };
   }
 
@@ -411,8 +445,8 @@ export function computeOptimalSplit(
   const sacrificialVault = targetSeizureBtc;
   const protectedVault = totalBtc - sacrificialVault;
 
-  // The share check above passed, but rounding up can still tie the two
-  // vaults on a very small total.
+  // The share check above passed, but rounding the seizure up can still leave
+  // the sacrificial vault equal to or larger than the protected one.
   if (sacrificialVault >= protectedVault) {
     return {
       sacrificialVault: 0n,
@@ -423,22 +457,19 @@ export function computeOptimalSplit(
     };
   }
 
-  // If either vault is non-zero but below the effective dust threshold for
-  // HTLC outputs, the split is not viable — return zeroed vaults so the
-  // caller treats this as non-splittable. We avoid throwing because this
-  // function is called during render (useMemo) and throwing would crash
-  // the component instead of showing validation feedback.
-  if (
-    (sacrificialVault > 0n &&
-      sacrificialVault < HTLC_EFFECTIVE_DUST_THRESHOLD) ||
-    (protectedVault > 0n && protectedVault < HTLC_EFFECTIVE_DUST_THRESHOLD)
-  ) {
+  // The sacrificial vault is the smaller of the two by the check above, so
+  // testing it covers both. Below the HTLC dust threshold the split is not
+  // viable — return zeroed vaults so the caller treats this as
+  // non-splittable. We avoid throwing because this function is called during
+  // render (useMemo) and throwing would crash the component instead of
+  // showing validation feedback.
+  if (sacrificialVault < HTLC_EFFECTIVE_DUST_THRESHOLD) {
     return {
       sacrificialVault: 0n,
       protectedVault: 0n,
       seizedFraction,
       targetSeizureBtc: 0n,
-      sizingViolation: null,
+      sizingViolation: "below-dust",
     };
   }
 
@@ -492,11 +523,9 @@ export function computeMinDepositForSplit(
     return 0n;
   }
 
-  // Minimum total so the protected vault >= minPegin
-  const minFromProtected = Math.ceil(Number(minPegin) / (1 - seizedFraction));
-
-  // Minimum total so the sacrificial vault >= minPegin
-  const minFromSacrificial = Math.ceil(Number(minPegin) / seizedFraction);
-
-  return BigInt(Math.max(minFromProtected, minFromSacrificial));
+  // Minimum total so the sacrificial vault >= minPegin. The guard above keeps
+  // the seized fraction under half, so the sacrificial vault is always the
+  // smaller of the two and sizing it is what binds; the protected vault clears
+  // minPegin at any total that satisfies this one.
+  return BigInt(Math.ceil(Number(minPegin) / seizedFraction));
 }

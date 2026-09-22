@@ -477,10 +477,10 @@ export function DepositForm({
           />
         )}
         {/* A split is not on offer, so the deposit proceeds as a single
-            BTCVault. Two unrelated caps or the split sizing rules can cause
-            this and they need different explanations — the per-position cap
-            can quote usage, the protocol cap applies even to an empty
-            position. */}
+            BTCVault. Two unrelated caps, an unreadable split-parameter read,
+            or the split sizing rules can cause this, and they need different
+            explanations — the per-position cap can quote usage, the protocol
+            cap applies even to an empty position. */}
         {splitUnavailableReason !== null && (
           <div
             role="status"
@@ -492,14 +492,17 @@ export function DepositForm({
               className="mt-px shrink-0 text-accent-primary"
             />
             <span className="min-w-0 text-sm text-accent-secondary">
-              {splitUnavailableReason === "split-sizing"
-                ? COPY.deposit.splitSizing.unavailable
-                : splitUnavailableReason === "per-position" && vaultCapUsage
-                  ? COPY.deposit.maxVaultsReached.splitUnavailable(
-                      vaultCapUsage.used,
-                      vaultCapUsage.cap,
-                    )
-                  : COPY.deposit.maxVaultsReached.splitUnavailableProtocolLimit}
+              {splitUnavailableReason === "split-params-unavailable"
+                ? COPY.deposit.splitSizing.paramsUnavailable
+                : splitUnavailableReason === "split-sizing"
+                  ? COPY.deposit.splitSizing.unavailable
+                  : splitUnavailableReason === "per-position" && vaultCapUsage
+                    ? COPY.deposit.maxVaultsReached.splitUnavailable(
+                        vaultCapUsage.used,
+                        vaultCapUsage.cap,
+                      )
+                    : COPY.deposit.maxVaultsReached
+                        .splitUnavailableProtocolLimit}
             </span>
           </div>
         )}

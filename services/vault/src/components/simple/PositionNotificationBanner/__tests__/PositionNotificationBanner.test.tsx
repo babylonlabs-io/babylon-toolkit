@@ -761,6 +761,32 @@ describe("PositionNotificationBanner v3", () => {
     expect(onDeposit).toHaveBeenCalledWith("0.0344");
   });
 
+  it("warns that liquidation warnings are unavailable when the parameter read failed", () => {
+    mockUsePositionNotifications.mockReturnValue({
+      result: null,
+      liveUrgentWarning: null,
+      status: "params-unavailable",
+      isLoading: false,
+      reorderVerificationContext: null,
+    });
+    render(
+      <Wrapper>
+        <PositionNotificationBanner
+          connectedAddress="0xTestAddress"
+          onDeposit={onDeposit}
+          onRepay={onRepay}
+        />
+      </Wrapper>,
+    );
+
+    expect(
+      screen.getByText(COPY.liquidationWarnings.paramsUnavailable.title),
+    ).toBeTruthy();
+    expect(
+      screen.getByTestId("position-notification-banner").dataset.severity,
+    ).toBe("yellow");
+  });
+
   it("renders the dust advisory as a dismissible v3 card that stays dismissed", () => {
     const result = makeBaseResult({
       warnings: [

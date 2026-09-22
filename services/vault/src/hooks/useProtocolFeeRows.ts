@@ -1,5 +1,6 @@
 import { formatSatoshisToBtc } from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
+  BPS_SCALE,
   computeMinDepositForSplit,
   computeSeizedFraction,
 } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
@@ -8,14 +9,12 @@ import { useMemo } from "react";
 import type { FeeRow } from "@/components/simple/FeesSection";
 import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
 import { COPY } from "@/copy";
-import { getBtcSymbol } from "@/utils/formatting";
+import { formatBasisPointsAsPercent, getBtcSymbol } from "@/utils/formatting";
 
 import {
   useVaultSplitParams,
   type VaultSplitParams,
 } from "../applications/aave/hooks/useVaultSplitParams";
-
-const PERCENT_SCALE = 100;
 
 function buildFeeRows(
   minDepositSats: bigint,
@@ -51,7 +50,10 @@ function buildFeeRows(
 
     rows.push({
       label: COPY.protocolFees.ltv.label,
-      value: `${(CF * PERCENT_SCALE).toFixed(0)}%`,
+      // Both percentages keep their basis-point precision: a collateral
+      // factor of 7825 BPS is 78.25%, and the dashboard renders it that way
+      // from the same contract field.
+      value: formatBasisPointsAsPercent(CF * BPS_SCALE),
       tooltip: COPY.tooltips.collateralFactor,
     });
 
@@ -61,10 +63,9 @@ function buildFeeRows(
       tooltip: COPY.protocolFees.splitTargetHealthFactor.tooltip,
     });
 
-    const bonusPercent = (maxLB - 1) * PERCENT_SCALE;
     rows.push({
       label: COPY.protocolFees.maxLiquidationPenalty.label,
-      value: `${bonusPercent.toFixed(0)}%`,
+      value: formatBasisPointsAsPercent((maxLB - 1) * BPS_SCALE),
       tooltip: COPY.protocolFees.maxLiquidationPenalty.tooltip,
     });
   }
