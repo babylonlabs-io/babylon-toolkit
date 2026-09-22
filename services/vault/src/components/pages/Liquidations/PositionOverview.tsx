@@ -62,6 +62,7 @@ export function PositionOverview({
         onAction: onRepay,
       },
       {
+        id: "liquidation-tour-health",
         label: COPY.liquidations.position.healthFactor,
         tooltip: COPY.tooltips.healthFactor,
         value: healthFactorText,

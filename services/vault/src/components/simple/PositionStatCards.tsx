@@ -4,6 +4,7 @@ import { Fragment, type ReactNode } from "react";
 import { COPY } from "@/copy";
 
 export interface PositionStatCard {
+  id?: string;
   label: string;
   tooltip?: string;
   value: string;
@@ -25,7 +26,10 @@ function StatSection({ card }: { card: PositionStatCard }) {
   return (
     // Both min-w-0 are load-bearing: they lift the min-width:auto content floor
     // on the section and the column so a long value can truncate (#2428).
-    <div className="flex min-w-0 flex-1 items-center justify-between gap-4 xl:max-[1439px]:gap-2">
+    <div
+      id={card.id}
+      className="flex min-w-0 flex-1 items-center justify-between gap-4 xl:max-[1439px]:gap-2"
+    >
       <div className="flex min-w-0 flex-col gap-3">
         <div className="flex items-center gap-1 text-sm leading-[1.43] tracking-[0.17px] text-accent-secondary xl:whitespace-nowrap">
           {card.tooltip ? (

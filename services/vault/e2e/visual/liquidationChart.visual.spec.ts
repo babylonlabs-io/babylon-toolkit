@@ -64,6 +64,9 @@ for (const viewport of VISUAL_VIEWPORTS) {
     });
 
     const backend = await preparePage(page);
+    await page.addInitScript(() => {
+      localStorage.setItem("tbv-liquidation-tour-seen", "true");
+    });
     await page.goto("/liquidations", { waitUntil: "domcontentloaded" });
 
     await page

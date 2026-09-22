@@ -11,11 +11,14 @@ const PORT_FULL_ENV = 5175;
 /**
  * Full mock env plus the dev-only god-mode panel. Its own server because the
  * panel mounts a fixed launcher on every screen, which the behavioural specs
- * on `PORT_FULL_ENV` must not have to click around. See
- * `e2e/deposit-progress-layout.spec.ts` for the one suite that drives it.
+ * on `PORT_FULL_ENV` must not have to click around.
+ * The layout and liquidation tour specs use this panel.
  */
 const PORT_GOD_MODE = 5176;
-const GOD_MODE_SPEC = "**/deposit-progress-layout.spec.ts";
+const GOD_MODE_SPECS = [
+  "**/deposit-progress-layout.spec.ts",
+  "**/liquidation-tour.spec.ts",
+];
 /**
  * Full mock env with Ethereum-only access switched on. Its own server because
  * the flag is inlined when vite starts, and the behavioural specs on
@@ -35,7 +38,11 @@ const DEMO_VIDEO = process.env.E2E_VIDEO === "on" ? "on" : "off";
  * to it, so the visual exclusion documented on `testIgnore` below has to be
  * repeated wherever a project narrows its own file set.
  */
-const BEHAVIOURAL_TEST_IGNORE = ["**/visual/**", GOD_MODE_SPEC, ETH_FIRST_SPEC];
+const BEHAVIOURAL_TEST_IGNORE = [
+  "**/visual/**",
+  ...GOD_MODE_SPECS,
+  ETH_FIRST_SPEC,
+];
 
 /**
  * Mock backend the e2e suite pins so no spec reaches a live host. Exported
@@ -130,7 +137,7 @@ export default defineConfig({
     },
     {
       name: "chromium-god-mode",
-      testMatch: GOD_MODE_SPEC,
+      testMatch: GOD_MODE_SPECS,
       use: {
         ...devices["Desktop Chrome"],
         baseURL: `http://localhost:${PORT_GOD_MODE}`,
@@ -183,6 +190,8 @@ export default defineConfig({
         ...MOCK_ENV_VARS,
         ...RECORDED_DEPLOYMENT_ENV,
         NEXT_PUBLIC_FF_GOD_MODE_PANEL: "true",
+        NEXT_PUBLIC_FF_ENABLE_LIQUIDATION_NOTIFICATIONS: "true",
+        NEXT_PUBLIC_FF_POSITION_DEBUG_PANEL: "true",
         // Pinned for the same reason as the server above: this suite covers
         // the default two-wallet app, whatever a developer's `.env.local` says.
         NEXT_PUBLIC_FF_ENABLE_ETH_FIRST: "false",

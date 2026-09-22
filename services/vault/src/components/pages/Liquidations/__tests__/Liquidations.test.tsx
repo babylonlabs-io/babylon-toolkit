@@ -257,10 +257,132 @@ function enablePositionOverride() {
 // environment carries; unstub it, or the value reaches every later file.
 beforeEach(() => {
   vi.stubEnv("NEXT_PUBLIC_FF_ENABLE_ETH_FIRST", undefined);
+  localStorage.setItem("tbv-liquidation-tour-seen", "true");
 });
 
 afterEach(() => {
   vi.unstubAllEnvs();
+  localStorage.removeItem("tbv-liquidation-tour-seen");
+});
+
+describe("Liquidation Dashboard tour", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.removeItem("tbv-liquidation-tour-seen");
+    connectWallet();
+    disableGodMode();
+    disablePositionOverride();
+    useDashboardStateMock.mockReturnValue(CONNECTED_WITH_CASCADE);
+    usePositionNotificationsMock.mockReturnValue(READY_NOTIFICATIONS);
+    useBtcPriceCandlesMock.mockReturnValue({
+      candles: CANDLES,
+      isLoading: false,
+      error: null,
+    });
+  });
+
+  it("welcomes the first visitor when the analysis is ready", async () => {
+    render(<Liquidations />);
+
+    expect(
+      await screen.findByRole("dialog", {
+        name: COPY.liquidations.tour.welcomeTitle,
+      }),
+    ).toBeVisible();
+    expect(
+      screen.getByText(COPY.liquidations.tour.welcomeBody),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: COPY.liquidations.tour.start }),
+    ).toBeVisible();
+    expect(localStorage.getItem("tbv-liquidation-tour-seen")).toBeNull();
+  });
+
+  it.each(["notNow", "close", "escape"] as const)(
+    "keeps the welcome dismissed after %s and a remount",
+    async (action) => {
+      const { unmount } = render(<Liquidations />);
+      const welcome = await screen.findByRole("dialog", {
+        name: COPY.liquidations.tour.welcomeTitle,
+      });
+
+      if (action === "escape") {
+        fireEvent.keyDown(welcome, { key: "Escape" });
+      } else {
+        fireEvent.click(
+          screen.getByRole("button", { name: COPY.liquidations.tour[action] }),
+        );
+      }
+
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(localStorage.getItem("tbv-liquidation-tour-seen")).toBe("true");
+      unmount();
+      render(<Liquidations />);
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    },
+  );
+
+  it.each([
+    "disconnected",
+    "no collateral",
+    "no loan",
+    "unavailable",
+    "loading position",
+    "loading candles",
+  ])("waits while %s and welcomes once ready", async (state) => {
+    if (state === "disconnected") {
+      disconnectWallet();
+    } else if (state === "no collateral") {
+      useDashboardStateMock.mockReturnValue({
+        ...CONNECTED_WITH_CASCADE,
+        hasCollateral: false,
+      });
+    } else if (state === "no loan") {
+      useDashboardStateMock.mockReturnValue({
+        ...CONNECTED_WITH_CASCADE,
+        hasLoans: false,
+      });
+    } else if (state === "unavailable") {
+      usePositionNotificationsMock.mockReturnValue({
+        ...READY_NOTIFICATIONS,
+        result: null,
+        params: null,
+        status: "stale-price",
+      });
+    } else if (state === "loading position") {
+      useDashboardStateMock.mockReturnValue({
+        ...CONNECTED_WITH_CASCADE,
+        isLoading: true,
+      });
+    } else {
+      useBtcPriceCandlesMock.mockReturnValue({
+        candles: null,
+        isLoading: true,
+        error: null,
+      });
+    }
+
+    const { rerender } = render(<Liquidations />);
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(localStorage.getItem("tbv-liquidation-tour-seen")).toBeNull();
+
+    connectWallet();
+    useDashboardStateMock.mockReturnValue(CONNECTED_WITH_CASCADE);
+    usePositionNotificationsMock.mockReturnValue(READY_NOTIFICATIONS);
+    useBtcPriceCandlesMock.mockReturnValue({
+      candles: CANDLES,
+      isLoading: false,
+      error: null,
+    });
+    rerender(<Liquidations />);
+
+    expect(
+      await screen.findByRole("dialog", {
+        name: COPY.liquidations.tour.welcomeTitle,
+      }),
+    ).toBeVisible();
+  });
 });
 
 describe("Liquidation Dashboard — connection and position gates", () => {

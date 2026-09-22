@@ -30,6 +30,7 @@ import {
   withAmountInBandLabel,
 } from "./liquidationChartData";
 import { LiquidationEventCard } from "./LiquidationEventCard";
+import { LiquidationTour } from "./LiquidationTour";
 import { PositionOverview } from "./PositionOverview";
 import { SimulationToolbar } from "./SimulationToolbar";
 import { useLiquidationsPageState } from "./useLiquidationsPageState";
@@ -295,7 +296,8 @@ export default function Liquidations() {
       as="main"
       className={`${PAGE_CONTENT_CLASS} flex flex-1 flex-col gap-10 pb-6`}
     >
-      <section className="flex flex-col gap-4">
+      <LiquidationTour ready={!isLoadingCandles} />
+      <section id="liquidation-tour-position" className="flex flex-col gap-4">
         <h2 className="text-xl leading-[1.6] tracking-[0.15px] text-accent-primary">
           {COPY.liquidations.position.heading}
         </h2>
@@ -333,7 +335,10 @@ export default function Liquidations() {
           </div>
         </div>
 
-        <div className="flex flex-col gap-6 rounded-lg bg-background-secondary p-6">
+        <div
+          id="liquidation-tour-simulation"
+          className="flex flex-col gap-6 rounded-lg bg-background-secondary p-6"
+        >
           <SimulationToolbar
             livePrice={chart.livePrice}
             floorPrice={chart.floorPrice}
@@ -363,7 +368,7 @@ export default function Liquidations() {
         </div>
       </section>
 
-      <section className="flex flex-col gap-4">
+      <section id="liquidation-tour-events" className="flex flex-col gap-4">
         <div className="flex flex-col">
           <h2 className="text-xl leading-[1.6] tracking-[0.15px] text-accent-primary">
             {COPY.liquidations.events.heading}
@@ -373,9 +378,14 @@ export default function Liquidations() {
           </p>
         </div>
         <div className="grid gap-6 lg:grid-cols-2">
-          {chart.cards.map((card) => (
+          {chart.cards.map((card, index) => (
             <div key={card.key}>
-              <LiquidationEventCard card={card} />
+              <LiquidationEventCard
+                card={card}
+                outcomesId={
+                  index === 0 ? "liquidation-tour-outcomes" : undefined
+                }
+              />
             </div>
           ))}
         </div>
