@@ -26,10 +26,11 @@ Settle explicitly:
 - What does the code silently trust that it could cheaply verify from data
   already in hand?
 
-Run the checklist's Falsifiability and Root cause passes over the change:
-for every test and guard, name the production line that turns it red; for
-every fix, locate the first invariant break and check the sibling callers.
-Cite the pass in the finding.
+Run the checklist's four passes over the change, Falsifiability and Root
+cause first: for every test, name the production line that turns it red; for
+every guard, name the test that goes red when the guard is removed; for every
+fix, locate the first invariant break and check the sibling callers. Cite the
+pass in the finding.
 
 When a changed file sits in a CLAUDE.md critical path, the per-path rule for
 that section is a merge gate, not advice. Check it.

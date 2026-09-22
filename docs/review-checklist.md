@@ -8,7 +8,8 @@ list.
 Every row carries the PR or document that earned it. Add a row when a review
 catches something this list would have caught earlier; remove a row when the
 code no longer has the seam. Rows are checks, not history: keep each one
-short, and put the story in the linked PR.
+short, and put the story in the linked PR. The PR numbers are evidence, not
+links a reader must follow; a row whose PR is gone still names the check.
 
 ## Passes
 
@@ -17,9 +18,14 @@ applies; the rows in the sections after this one are what each pass knows.
 
 ### Falsifiability
 
-For every test and every guard in the diff, name the production line whose
-deletion or inversion turns it red. No such line is a finding, and the
-recommendation is to delete the test or the guard, not to fix it.
+For every test in the diff, name the production line whose deletion or
+inversion turns it red. No such line is a finding, and the recommendation is
+to delete the test, not to fix it. For every guard in the diff, name the test
+that goes red when the guard is removed; no such test is a finding, and the
+recommendation is to add that test. A guard a CRITICAL PATHS rule in
+CLAUDE.md requires is never a delete candidate: those cross-checks exist
+because the input that trips them comes from Rust, a vault provider or a
+wallet, not from a TypeScript line.
 
 This one pass catches the six most recurrent human-found defects in this
 repository: a test that compares production output against itself
@@ -53,8 +59,10 @@ Inventory every added file, type, function, option, parameter and field, and
 ask what breaks if it disappears. A wrapper with one caller and no owned
 state, a parameter with one value across all callers, a field nothing reads,
 an option nothing reaches, and a helper the repository or an installed
-dependency already provides are findings. Grep for the existing helper and
-cite it before flagging reinvention.
+dependency already provides are findings. A reimplementation a CLAUDE.md
+section records the reason for (critical path 9's dependency-free Bitcoin
+primitives) is not. Grep for the existing helper and cite it before flagging
+reinvention.
 
 ### Change type
 
@@ -122,16 +130,18 @@ that turns it red. Neither, and the test should not exist.
   ([#2490](https://github.com/babylonlabs-io/babylon-toolkit/pull/2490)).
 - Typed error chains reach the user. "Broadcast failed" is not an error
   message ([#2508](https://github.com/babylonlabs-io/babylon-toolkit/pull/2508)).
-- A new feature flag needs three edits: `featureFlags.ts`, `.env.example`, and
-  the flag block of the matching `service-release-*.yml`. Missing the workflow
-  leaves the flag off in production.
+- A new feature flag needs three edits: `featureFlags.ts`,
+  `services/vault/.env.example`, and the flag block of the matching
+  `service-release-*.yml`. Missing the workflow leaves the flag off in
+  production.
 - Strings live in `copy.ts`, spelled as the file header pins them, with no
   duplicate literal across sites
   ([#2460](https://github.com/babylonlabs-io/babylon-toolkit/pull/2460)).
-- A component change reads `docs/motion-system.md` first, even when nothing
-  animates: hover and transition states count.
+- A change to an animation, hover or transition state follows `CLAUDE.md` >
+  MOTION & ANIMATION: tokens in `services/vault/src/globals.css`, the reset
+  and shared utilities in core-ui `src/index.css`.
 
-## ts-sdk and the WASM boundary
+## ts-sdk, packages and the WASM boundary
 
 - Every WASM class crosses the registered facade with an exact export-set pin
   and both browser and node coverage
@@ -140,9 +150,10 @@ that turns it red. Neither, and the test should not exist.
 - Host-side gates on Ledger PSBT terms mirror the firmware bound exactly,
   verified against the firmware source, and reject before any device I/O
   ([#2495](https://github.com/babylonlabs-io/babylon-toolkit/pull/2495)).
-- Depositor keys, payout amounts and challenger sets are re-derived from the
-  contract record at every signing site, never taken from a cache, a
-  `localStorage` value or a vault-provider response
+- Depositor keys, payout amounts and challenger sets are re-derived at every
+  signing site from on-chain or WASM-computed sources, as CLAUDE.md critical
+  path 3 states, never taken from a cache, a `localStorage` value or a
+  vault-provider response
   ([#2508](https://github.com/babylonlabs-io/babylon-toolkit/pull/2508)).
 - The funding-input cap and the UTXO selector agree with the on-chain accepted
   prefix, and the duplicate-outpoint assertion runs before any slicing
@@ -205,29 +216,31 @@ guarantee one of them exports.
   purpose. A query failure is not fixed by loosening them.
 - In utils-api, an empty `allowed-origins` list means no CORS, not wildcard,
   and screening configures exactly one backend.
-- A CI workflow's trigger runs build, lint and test on the head being
-  reviewed, from the trusted copy of the check
-  ([#2492](https://github.com/babylonlabs-io/babylon-toolkit/pull/2492),
-  [#2525](https://github.com/babylonlabs-io/babylon-toolkit/pull/2525)).
 
 ## Cross-repo seams
 
 - A contract event or ABI change lands with the indexer handler and the
   toolkit ABI in the same feature.
-- The proxy's SSRF and method-allowlist guarantees are imported by
-  `SECURITY.md` in this repository. A proxy change that touches them is
-  checked against both documents.
+- The proxy's SSRF guarantee is imported by `SECURITY.md` in this
+  repository. A proxy change that touches it is checked against both
+  documents.
 - A `VAULT_WASM_COMMIT` bump that changes any expander output is a vault-secret
   derivation change: golden vectors on the Rust, JS and wallet-partner sides,
   plus a migration plan (CLAUDE.md critical path 4).
+- A CI workflow's trigger runs build, lint and test on the head being
+  reviewed, from the trusted copy of the check
+  ([#2492](https://github.com/babylonlabs-io/babylon-toolkit/pull/2492),
+  [#2525](https://github.com/babylonlabs-io/babylon-toolkit/pull/2525)).
 
 ## Do not re-raise
 
 A finding on this list is not a finding. Cite the row when a reviewer raises
 it again.
 
-- A deviation listed in the nearest `SECURITY_MODEL.md` is accepted, with its
-  tracking issue. Flag only a change that widens it.
+- A deviation listed in a `SECURITY_MODEL.md` an owner has reviewed, or one
+  marked accepted with a tracking issue, is accepted. Flag only a change that
+  widens it. A model still pending owner review is informative: its deviations
+  are raised, not dropped.
 - Ordinals and inscription filtering behaves as designed.
 - Artifacts are not a hard precondition for the flows that use the
   acknowledgement checkbox; that UX was chosen deliberately.

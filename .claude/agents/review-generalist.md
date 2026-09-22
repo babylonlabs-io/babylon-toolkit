@@ -38,8 +38,9 @@ know about:
   that should be split or extracted.
 - **CLAUDE.md rules** the pack names as binding: dead code, silent fallbacks
   on critical paths, `copy.ts` for user-facing strings, test philosophy.
-- **The checklist rows** the pack carries, and its Necessity and Change type
-  passes. Cite the row or the pass in the finding.
+- **The checklist passes and rows** the pack carries: Falsifiability, Root
+  cause, Necessity and Change type, over the whole change. Cite the pass or
+  the row in the finding.
 
 ## Constraints
 

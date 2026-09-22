@@ -33,4 +33,5 @@ UNVERIFIED.
 ## Output
 
 Whatever format your prompt asks for. When it does not specify one: findings
-as `path:line + claim + evidence`, most severe first, under 400 words.
+as `path:line + claim + evidence`, most severe first, under 400 words. A
+finding that comes from a checklist pass or row cites it.

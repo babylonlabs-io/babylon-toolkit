@@ -77,5 +77,6 @@ evidence.
 
 `1 — <claim>. <path>:<line>`, 2–6 sentences each, most severe first,
 merge-blockers marked, and say per finding whether you verified it yourself.
+A finding that comes from a checklist pass or row cites it.
 Then "Checked and dismissed", at most 6 bullets. End with one line per lane:
 its type, its dimension, and whether it reported.

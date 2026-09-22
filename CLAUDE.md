@@ -182,7 +182,7 @@ Separating the Ethereum-only paths from the Bitcoin stack reimplements some prim
 ### No Speculative Code
 
 - No abstraction, option, parameter or extension point without a current use in the same change.
-- No hand-rolled helper for what the repository or an installed dependency already provides. Check both before writing one.
+- No hand-rolled helper for what the repository or an installed dependency already provides, unless a section of this file records why (critical path 9). Check both before writing one.
 
 ---
 
@@ -193,7 +193,7 @@ Separating the Ethereum-only paths from the Bitcoin stack reimplements some prim
 - Each test verifies ONE specific behavior of production code.
 - Test name describes the exact behavior being tested.
 - If you can't name what production behavior a test verifies, the test shouldn't exist.
-- A test with no named behavior and no production line that fails it should not exist. Rendering and wiring are not behavior.
+- A test that has no named behavior, or no production line whose change fails it, should not exist. Rendering and wiring are not behavior.
 - An end-to-end test walks one user journey a unit test cannot prove, and asserts the end state.
 
 ### No test bloat
@@ -230,7 +230,7 @@ Separating the Ethereum-only paths from the Bitcoin stack reimplements some prim
 
 - Pattern: `NEXT_PUBLIC_FF_*`
 - Defined in `services/vault/src/config/featureFlags.ts`
-- Adding, renaming or removing a flag edits three places: `featureFlags.ts`, `.env.example`, and the flag block of the matching `service-release-*.yml`.
+- Adding, renaming or removing a flag edits three places: `featureFlags.ts`, `services/vault/.env.example`, and the flag block of the matching `service-release-*.yml`.
 
 ### Dependencies
 
