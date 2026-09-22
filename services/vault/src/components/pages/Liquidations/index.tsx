@@ -304,7 +304,7 @@ export default function Liquidations() {
         {positionOverview}
       </section>
 
-      <section className="flex flex-col gap-6">
+      <section id="liquidation-tour-simulation" className="flex flex-col gap-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <h2 className="text-xl leading-[1.6] tracking-[0.15px] text-accent-primary">
@@ -335,10 +335,7 @@ export default function Liquidations() {
           </div>
         </div>
 
-        <div
-          id="liquidation-tour-simulation"
-          className="flex flex-col gap-6 rounded-lg bg-background-secondary p-6"
-        >
+        <div className="flex flex-col gap-6 rounded-lg bg-background-secondary p-6">
           <SimulationToolbar
             livePrice={chart.livePrice}
             floorPrice={chart.floorPrice}

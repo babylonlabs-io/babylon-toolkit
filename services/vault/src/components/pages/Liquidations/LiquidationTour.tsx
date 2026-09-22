@@ -234,7 +234,7 @@ export function LiquidationTour({ ready }: { ready: boolean }) {
           width="100%"
           height="100%"
           fill="black"
-          fillOpacity={welcome ? 0.5 : 0.7}
+          fillOpacity={0.6}
           mask={`url(#${id}-mask)`}
         />
       </svg>
@@ -306,7 +306,7 @@ export function LiquidationTour({ ready }: { ready: boolean }) {
             <div className="absolute inset-x-0 top-0 flex h-[72px] items-center justify-between gap-3 px-4 sm:px-6">
               <div
                 aria-hidden="true"
-                className="hidden w-[200px] items-center gap-3 text-white sm:flex"
+                className="hidden w-[200px] items-center gap-3 text-black dark:text-white sm:flex"
               >
                 <SidebarBrandLockup />
               </div>
@@ -326,19 +326,21 @@ export function LiquidationTour({ ready }: { ready: boolean }) {
             <div
               ref={cardRef}
               data-testid="liquidation-tour-card"
-              className="absolute w-[360px] max-w-[calc(100%-32px)] rounded-lg bg-[#f9f9f9] text-black shadow-lg"
+              className="absolute w-[360px] max-w-[calc(100%-32px)] rounded-lg bg-[#202020] text-white shadow-lg dark:bg-[#f9f9f9] dark:text-black"
               style={{
                 left: positioned?.left ?? 16,
                 top: positioned?.top ?? TOP,
                 visibility: positioned ? "visible" : "hidden",
               }}
             >
-              <img
-                src="/images/liquidation-tour/arrow.svg"
-                alt=""
+              <div
+                data-testid="liquidation-tour-arrow"
+                aria-hidden="true"
                 hidden={positioned?.overlapsTarget}
-                className="absolute h-[18px] w-[21px]"
+                className="absolute h-[18px] w-[21px] bg-inherit"
                 style={{
+                  maskImage: "url(/images/liquidation-tour/arrow.svg)",
+                  maskRepeat: "no-repeat",
                   left: (positioned?.arrow ?? 24) - 10.5,
                   top: positioned?.above ? "100%" : -18,
                   transform: positioned?.above ? "rotate(180deg)" : undefined,
@@ -367,7 +369,7 @@ export function LiquidationTour({ ready }: { ready: boolean }) {
                   <Button
                     variant="outlined"
                     size="medium"
-                    className="flex-1 !border-[#ddd] !text-black"
+                    className="flex-1 !border-[#2f2f2f] !text-white dark:!border-[#ddd] dark:!text-black"
                     onClick={close}
                   >
                     {copy.exit}

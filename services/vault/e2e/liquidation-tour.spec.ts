@@ -204,9 +204,7 @@ test("fits every step on a phone with reduced motion", async ({ page }) => {
       await page.setViewportSize({ width: 844, height: 320 });
       await expectSpotlight(page, target);
       await expectCardFitsViewport(page);
-      await expect(
-        card.locator('img[src="/images/liquidation-tour/arrow.svg"]'),
-      ).toBeHidden();
+      await expect(page.getByTestId("liquidation-tour-arrow")).toBeHidden();
       await page.evaluate(
         () =>
           new Promise<void>((resolve) =>

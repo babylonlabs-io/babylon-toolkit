@@ -75,9 +75,7 @@ for (const viewport of VISUAL_VIEWPORTS) {
       ).toBeVisible();
       await expect(page.getByTestId("liquidation-tour-card")).toBeVisible();
       if (viewport.name === "desktop" && (index === 2 || index === 3)) {
-        await expect(
-          page.getByTestId("liquidation-tour-card").locator("img"),
-        ).toBeVisible();
+        await expect(page.getByTestId("liquidation-tour-arrow")).toBeVisible();
       }
       shots.push(
         await capture(page, flowScreenshotFileName(stop, viewport), {
