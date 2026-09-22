@@ -1547,6 +1547,18 @@ export const COPY = {
     // Shared labels (review + initiated screens).
     estimatedTimeLabel: "Estimated time until payout",
     nominatedAddressLabel: "Nominated address",
+    // Vault-selection step, the first screen of the withdraw flow
+    // (Figma 13604-79261).
+    select: {
+      heading: "Withdraw",
+      subtitle:
+        "BTCVault order determines which collateral is liquidated first.",
+      riskTitle: "Liquidation risk is high",
+      riskBody: (healthFactor: string) =>
+        `Your health factor will drop to ${healthFactor}, close to the liquidation threshold. We recommend repaying your debt or keeping your collateral.`,
+      continueAnyway: "Continue anyway",
+      button: (amount: string) => `Withdraw ${amount}`,
+    },
     // Review Withdraw card. Row labels are Title Case to match the sibling
     // Review Refund card (and Figma 10088-38704); the two labels above are
     // rows Figma does not draw, so they keep their existing wording.

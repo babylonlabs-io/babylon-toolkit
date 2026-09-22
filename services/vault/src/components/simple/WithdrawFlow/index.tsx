@@ -4,6 +4,7 @@ import { useWithdrawCollateralTransaction } from "@/applications/aave/hooks/useW
 import { useWithdrawHubBlockMessage } from "@/applications/aave/hooks/useWithdrawHubBlockMessage";
 import {
   computeProjectedHealthFactor,
+  formatHealthFactor,
   getEffectiveVaultSelection,
   getUniquePayoutAddresses,
 } from "@/applications/aave/utils";
@@ -21,6 +22,7 @@ import { FadeTransition } from "../FadeTransition";
 import { useWithdrawFlow, WithdrawStep } from "./useWithdrawFlow";
 import { WithdrawProgressView } from "./WithdrawProgressView";
 import { WithdrawReviewContent } from "./WithdrawReviewContent";
+import { WithdrawSelectContent } from "./WithdrawSelectContent";
 
 export interface WithdrawFlowProps {
   open: boolean;
@@ -44,7 +46,8 @@ function WithdrawFlowContent({
   currentHealthFactor,
   preSelectedVaultIds,
 }: WithdrawFlowProps) {
-  const { step, goToProgress, reset } = useWithdrawFlow();
+  const { step, goToSelect, goToReview, goToProgress, reset } =
+    useWithdrawFlow();
   const { executeWithdraw, isProcessing, error } =
     useWithdrawCollateralTransaction();
   const hubBlockMessage = useWithdrawHubBlockMessage();
@@ -56,21 +59,40 @@ function WithdrawFlowContent({
   // fake vaultId) and must never be selectable for a real withdraw, even if a
   // caller mistakenly passes the demo-merged list. Mirrors CollateralSection's
   // actionableVaults filter. Always a no-op in production (the flag is never
-  // set there). Only `active` vaults back the position.
+  // set there). Only `active`, in-use vaults back the position, so they are
+  // also the only ones the selection step offers.
   const withdrawableVaults = useMemo(
     () =>
       collateralVaults.filter(
-        (v) => !v.displayOnly && v.lifecycle === "active",
+        (v) => !v.displayOnly && v.lifecycle === "active" && v.inUse,
       ),
     [collateralVaults],
   );
+
+  // The row the user clicked arrives pre-checked; the selection step then owns
+  // it. `getEffectiveVaultSelection` still filters every read, so a vault that
+  // leaves the position mid-flow drops out on its own.
+  const [selectedVaultIds, setSelectedVaultIds] = useState(preSelectedVaultIds);
+  // The risk card names one health factor at two decimals, so the
+  // acknowledgement covers that displayed value: it is stored as the value
+  // the user ticked for and derived on every render, so a refetch that moves
+  // the raw float without changing the shown number keeps the tick, and a
+  // change to the shown number drops it in the same render.
+  const [acknowledgedFor, setAcknowledgedFor] = useState<string | null>(null);
+  const toggleVault = useCallback((vaultId: string) => {
+    setSelectedVaultIds((ids) =>
+      ids.includes(vaultId)
+        ? ids.filter((id) => id !== vaultId)
+        : [...ids, vaultId],
+    );
+  }, []);
 
   const {
     selectedVaultIds: effectiveSelectedVaultIds,
     selectedVaults: liveSelectedVaults,
   } = useMemo(
-    () => getEffectiveVaultSelection(withdrawableVaults, preSelectedVaultIds),
-    [withdrawableVaults, preSelectedVaultIds],
+    () => getEffectiveVaultSelection(withdrawableVaults, selectedVaultIds),
+    [withdrawableVaults, selectedVaultIds],
   );
 
   // The withdraw marks its vaults pending AND awaits a position refetch before
@@ -144,6 +166,13 @@ function WithdrawFlowContent({
     reviewCurrentHealthFactor,
   ]);
 
+  const displayedHealthFactor = formatHealthFactor(projectedHealthFactor);
+  const acknowledged = acknowledgedFor === displayedHealthFactor;
+  const setAcknowledged = useCallback(
+    (next: boolean) => setAcknowledgedFor(next ? displayedHealthFactor : null),
+    [displayedHealthFactor],
+  );
+
   const handleConfirm = useCallback(async () => {
     setConfirmed({
       vaults: liveSelectedVaults,
@@ -167,9 +196,32 @@ function WithdrawFlowContent({
     goToProgress,
   ]);
 
+  // Review reached from Select can return to it; not while a submit is in flight.
   return (
-    <V3ModalShell open={open} onClose={onClose}>
+    <V3ModalShell
+      open={open}
+      onClose={onClose}
+      onBack={
+        renderedStep === WithdrawStep.REVIEW && !isProcessing
+          ? goToSelect
+          : undefined
+      }
+    >
       <FadeTransition stepKey={renderedStep}>
+        {renderedStep === WithdrawStep.SELECT && (
+          <div className="mx-auto w-full max-w-[564px]">
+            <WithdrawSelectContent
+              vaults={withdrawableVaults}
+              selectedVaultIds={effectiveSelectedVaultIds}
+              totalAmountBtc={selectedBtc}
+              projectedHealthFactor={projectedHealthFactor}
+              acknowledged={acknowledged}
+              onToggleVault={toggleVault}
+              onAcknowledgedChange={setAcknowledged}
+              onContinue={goToReview}
+            />
+          </div>
+        )}
         {renderedStep === WithdrawStep.REVIEW && (
           <div className="mx-auto w-full max-w-[612px]">
             <WithdrawReviewContent
@@ -182,6 +234,8 @@ function WithdrawFlowContent({
               isProcessing={isProcessing}
               error={error}
               hubBlockMessage={hubBlockMessage}
+              acknowledged={acknowledged}
+              onAcknowledgedChange={setAcknowledged}
               onConfirm={handleConfirm}
             />
           </div>

@@ -20,20 +20,20 @@
  *     (`--pegin-first ⟹ --borrow-first ⟹ --repay-first`) sets these, so this action just runs whichever
  *     legs are enabled in order.
  *
- * Click path (v3 — the "⋯" menu and the vault-selection modal are gone; see
- * markdown/e2e-v3/05-withdraw.md):
- *   /vaults → a row's "Withdraw" → Review ("Confirm") → one MetaMask tx → "Withdrawal initiated" →
- *   "Done".
+ * Click path (v3 — the "⋯" menu is gone; see markdown/e2e-v3/05-withdraw.md):
+ *   /vaults → a row's "Withdraw" → vault selection, that row already checked ("Withdraw <sum>") →
+ *   Review ("Confirm") → one MetaMask tx → "Withdrawal initiated" → "Done".
  *
  * The row's Withdraw button IS the eligibility gate: the app disables it for a paused protocol, a vault
  * that is not in use, a demo (`displayOnly`) row and an optimistic (`lifecycle === "activating"`) one — see
- * VaultsActiveSection. Health-factor gating surfaces one step later, on the Review screen.
+ * VaultsActiveSection. Health-factor gating surfaces one step later, on the selection screen, and again
+ * on Review.
  *
  * Default withdraws ONE vault (the first withdrawable), keeping the position alive for reuse.
- * `--withdraw-all` repeats the whole row → Review → Done cycle per withdrawable vault: v3 opens the
- * flow with exactly one preselected vault, so releasing several means several transactions, not one
- * multi-select. No SDK / product logic is reimplemented — the row's disabled state + the Review HF gate
- * are authoritative.
+ * `--withdraw-all` repeats the whole row → Select → Review → Done cycle per withdrawable vault on
+ * purpose: the modal now supports selecting several vaults in one transaction, but one transaction per
+ * vault keeps each release verifiable on its own. No SDK / product logic is reimplemented — the row's
+ * disabled state + the Review HF gate are authoritative.
  *
  * NEVER run without an explicit go-ahead: it moves real value (releases BTC collateral + real withdraw gas).
  */
@@ -67,9 +67,19 @@ import { connectWallets } from "./walletConnect";
 const VAULT_ROW_TESTID_PREFIX = "vault-row-";
 const VAULT_ROW_SELECTOR = `[data-testid^="${VAULT_ROW_TESTID_PREFIX}"]`;
 const ROW_WITHDRAW_TESTID = '[data-testid="vault-withdraw-button"]';
-// The Review screen's "Confirm" submit + its blocking HF warning.
+// The selection screen: one checkbox per selectable vault (keyed by on-chain vaultId) and the submit
+// that carries the selection to Review.
+const SELECT_ROW_TESTID_PREFIX = "withdraw-select-row-";
+const SELECT_CONTINUE_TESTID = '[data-testid="withdraw-select-continue"]';
+// Shown only when the projected health factor lands in the at-risk band (below
+// WITHDRAW_HF_WARNING_THRESHOLD, at or above the on-chain floor). It gates the
+// submit, so the run must accept the risk the way a depositor would.
+const SELECT_ACKNOWLEDGE_TESTID = '[data-testid="withdraw-select-acknowledge"]';
+// The Review screen's "Confirm" submit, its blocking HF warning, and the at-risk acknowledgement that
+// Review re-asks for when the projection it shows differs from the one accepted on the selection screen.
 const REVIEW_CONFIRM_TESTID = '[data-testid="withdraw-confirm-button"]';
 const HF_BLOCK_TESTID = '[data-testid="withdraw-hf-block-warning"]';
+const REVIEW_ACKNOWLEDGE_TESTID = '[data-testid="withdraw-review-acknowledge"]';
 // Success screen: "Withdrawal initiated" (COPY.withdraw.initiated.title) + its Done button. Both are
 // unique to the withdraw progress view (not the shared LoanSuccessModal), so either safely marks success.
 const WITHDRAW_DONE_TESTID = '[data-testid="withdraw-done-button"]';
@@ -143,6 +153,65 @@ async function waitForWithdrawableVaultId(
   return found;
 }
 
+/**
+ * The selection step the flow now opens on: the clicked row arrives pre-checked, so this verifies
+ * that pre-selection, accepts the at-risk warning when the screen shows one, and carries the
+ * selection to Review. With the warning accepted the submit can still be held by the health-factor
+ * floor, or by the pre-checked vault leaving the selectable set mid-poll (an `inUse` / lifecycle flip
+ * empties the selection), so it is polled for the same budget as the Review submit rather than
+ * timing out on a pointer wait, and the timeout names both causes.
+ */
+async function passSelectStep(
+  page: Page,
+  vaultId: string,
+  log: (m: string) => void,
+): Promise<void> {
+  const continueButton = page.locator(SELECT_CONTINUE_TESTID).first();
+  const appeared = await continueButton
+    .waitFor({ state: "visible", timeout: WITHDRAW_MODAL_TIMEOUT_MS })
+    .then(() => true)
+    .catch(() => false);
+  if (!appeared)
+    throw new Error(
+      `The withdraw vault-selection screen did not open within ${Math.round(WITHDRAW_MODAL_TIMEOUT_MS / MS_PER_SECOND)}s after clicking the row's Withdraw.`,
+    );
+
+  const checkbox = page
+    .locator(`[data-testid="${SELECT_ROW_TESTID_PREFIX}${vaultId}"]`)
+    .first();
+  if (!(await checkbox.isChecked().catch(() => false)))
+    throw new Error(
+      `The withdraw vault-selection screen opened without vault ${shortenVaultId(vaultId)} checked, so continuing would withdraw the wrong vaults.`,
+    );
+
+  // Inside the poll, not before it: a position refetch can raise the at-risk
+  // card while we wait, and an unacknowledged card holds the submit disabled.
+  const acknowledge = page.locator(SELECT_ACKNOWLEDGE_TESTID).first();
+  const deadline = Date.now() + WITHDRAW_CTA_ENABLE_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    if (
+      (await acknowledge.isVisible().catch(() => false)) &&
+      !(await acknowledge.isChecked().catch(() => false))
+    ) {
+      log(
+        "The selection screen warns the position will be at risk — accepting to continue",
+      );
+      await acknowledge.check({ timeout: STEP_TIMEOUT_MS });
+    }
+    if (await continueButton.isEnabled().catch(() => false)) {
+      log(
+        `Vault ${shortenVaultId(vaultId)} selected — continuing to the review screen`,
+      );
+      await continueButton.click({ timeout: STEP_TIMEOUT_MS });
+      return;
+    }
+    await page.waitForTimeout(FORM_SETTLE_MS);
+  }
+  throw new Error(
+    `The withdraw vault-selection screen's submit stayed disabled for ${Math.round(WITHDRAW_CTA_ENABLE_TIMEOUT_MS / MS_PER_SECOND)}s — either this withdrawal would drop the health factor below the on-chain minimum, or vault ${shortenVaultId(vaultId)} left the selectable set while we waited. Repay debt or withdraw fewer vaults, then re-run.`,
+  );
+}
+
 async function openWithdrawForRow(
   page: Page,
   log: (m: string) => void,
@@ -169,6 +238,8 @@ async function openWithdrawForRow(
     .first()
     .click({ timeout: STEP_TIMEOUT_MS });
 
+  await passSelectStep(page, vaultId, log);
+
   const confirm = page.locator(REVIEW_CONFIRM_TESTID).first();
   const appeared = await confirm
     .waitFor({ state: "visible", timeout: WITHDRAW_MODAL_TIMEOUT_MS })
@@ -176,7 +247,7 @@ async function openWithdrawForRow(
     .catch(() => false);
   if (!appeared)
     throw new Error(
-      `The withdraw review screen did not open within ${Math.round(WITHDRAW_MODAL_TIMEOUT_MS / MS_PER_SECOND)}s after clicking the row's Withdraw.`,
+      `The withdraw review screen did not open within ${Math.round(WITHDRAW_MODAL_TIMEOUT_MS / MS_PER_SECOND)}s after continuing from the vault selection.`,
     );
   return vaultId;
 }
@@ -192,12 +263,23 @@ async function submitReview(
 ): Promise<void> {
   const confirm = page.locator(REVIEW_CONFIRM_TESTID).first();
   const hfBlock = page.locator(HF_BLOCK_TESTID).first();
+  const acknowledge = page.locator(REVIEW_ACKNOWLEDGE_TESTID).first();
   const deadline = Date.now() + WITHDRAW_CTA_ENABLE_TIMEOUT_MS;
   while (Date.now() < deadline) {
     if (await hfBlock.isVisible().catch(() => false))
       throw new Error(
         "Withdraw blocked on the review screen: this withdrawal would drop the health factor below the on-chain minimum. Repay debt or withdraw fewer vaults.",
       );
+    // The acknowledgement is keyed to the displayed projection; a refetch between Select and Review can move it and re-ask here.
+    if (
+      (await acknowledge.isVisible().catch(() => false)) &&
+      !(await acknowledge.isChecked().catch(() => false))
+    ) {
+      log(
+        "The review screen re-asks for the at-risk acknowledgement — accepting to confirm",
+      );
+      await acknowledge.check({ timeout: STEP_TIMEOUT_MS });
+    }
     if (await confirm.isEnabled().catch(() => false)) {
       log(
         "Review confirmed — submitting the withdraw transaction (the approver will confirm the MetaMask tx)",
@@ -300,9 +382,10 @@ async function assertVaultsReleased(
 
 /**
  * Drive the withdraw flow proper (assumes wallets connected + approver/recorder installed by the
- * caller). One pass per released vault: v3's flow opens with a single preselected vault, so
- * `--withdraw-all` repeats row → Review → Done — one on-chain transaction each — until no withdrawable
- * row is left. The default releases exactly one, keeping the position alive for reuse.
+ * caller). One pass per released vault: the modal can batch several vaults into one transaction, but
+ * `--withdraw-all` deliberately repeats row → Select → Review → Done, one on-chain transaction each,
+ * until no withdrawable row is left. The default releases exactly one, keeping the position alive for
+ * reuse.
  *
  * The on-chain vault count is snapshotted before the FIRST pass and asserted after the LAST, so the
  * post-condition covers the whole batch rather than re-reading between transactions.
