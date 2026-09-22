@@ -2,10 +2,7 @@ import { Heading, Loader, Timeline } from "@babylonlabs-io/core-ui";
 import { useMemo } from "react";
 import { useNavigate } from "react-router";
 
-import {
-  TIMELINE_VISIBLE_CANDLES,
-  useBtcPriceCandles,
-} from "@/applications/aave/hooks/useBtcPriceCandles";
+import { useBtcPriceCandles } from "@/applications/aave/hooks/useBtcPriceCandles";
 import type {
   CalculatorParams,
   CalculatorResult,
@@ -24,6 +21,13 @@ import { CHART_LOADING_BOX_CLASS } from "@/components/shared/layoutClasses";
 import { COPY } from "@/copy";
 import { ROUTES } from "@/routes";
 import { formatPriceUsd } from "@/utils/formatting";
+
+/**
+ * Candles the Overview preview shows. The card never pans or zooms, so this is
+ * everything it will ever draw: a year of candles in the card's width renders
+ * as sub-pixel hairlines. Explore opens the full page with its own window.
+ */
+const PREVIEW_VISIBLE_CANDLES = 60;
 
 /** The cascade the chart renders. Absent = nothing to chart yet.
  *
@@ -147,7 +151,7 @@ function LiquidationChartPanel({
           currentPriceLabel={formatPriceUsd(cascade.params.btcPrice)}
           priceAxis={chart.priceAxis}
           safeZone={chart.safeZone}
-          visibleCandles={TIMELINE_VISIBLE_CANDLES}
+          visibleCandles={PREVIEW_VISIBLE_CANDLES}
           formatPrice={formatPriceUsd}
           formatTime={formatCandleDate}
           liquidatedLabel={COPY.liquidations.liquidatedBandLabel}
