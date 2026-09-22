@@ -11,6 +11,8 @@
 
 [staking]: #for-wallets-already-supporting-btc-staking
 [vectors]: ../../babylon-ts-sdk/src/tbv/core/vault-secrets/__tests__/deriveContextHash.vectors.test.ts
+[spec]: ../../../docs/specs/derive-context-hash.md
+[secrets-spec]: ../../../docs/specs/derive-vault-secrets.md
 
 ## Overview
 
@@ -40,7 +42,7 @@ nice-to-have.
 | 64-byte Schnorr signatures (implicit `SIGHASH_DEFAULT`) | MUST | SDK rejects 65-byte sigs; the appended sighash byte changes the signed message and cannot be stripped ([`peginInput.ts`][peginInput], [`payout.ts`][payout]) |
 | Non-finalized PSBT return for PegIn input PSBTs | MUST | SDK extracts the depositor signature from `tapScriptSig`; finalized PegIn PSBTs throw outright ([`peginInput.ts`][peginInput]) |
 | BIP-322 simple message signing | MUST | Used for proof-of-possession ([`PeginManager.ts`][peginManager]) |
-| `deriveContextHash` (HKDF-SHA-256, BIP-32 hardened path `m/73681862'`) | MUST | Hashlock secret derivation — see [deriveContextHash](#derivecontexthash) for the algorithm and [the conformance vectors][vectors] |
+| `deriveContextHash` (HKDF-SHA-256, BIP-32 hardened path `m/73681862'`) | MUST | Vault secret derivation (hashlock secrets, WOTS seeds, auth anchor) — see [deriveContextHash](#derivecontexthash) for the algorithm and [the conformance vectors][vectors] |
 | `signPsbts` (batch signing) | STRONGLY RECOMMENDED | Without it, depositors approve N PSBTs one-by-one |
 | `getInscriptions` | OPTIONAL | UTXO filtering only |
 
@@ -64,7 +66,7 @@ Babylon BTC staking, here's what's new for TBV:
 | Message signing | `"bip322-simple"` for PoP | Same |
 | Taproot path | `useTweakedSigner: false` (untweaked key) | Same |
 | Schnorr signature size | **Strictly 64 bytes — no sighash byte** | Either accepted |
-| Hashlock derivation | `deriveContextHash` — new requirement | N/A |
+| Vault secret derivation | `deriveContextHash` — new requirement | N/A |
 | Chains | **Dual**: BTC + ETH | BTC + Cosmos |
 
 ## Vault Deposit Flow
@@ -141,11 +143,14 @@ deriveContextHash(
 ```
 
 TBV uses `deriveContextHash("babylon-btc-vault", context)` to
-derive hashlock secrets for HTLC deposits. The derived
-value is committed as a SHA-256 hashlock during vault
-creation and revealed during activation.
+get one 32-byte root per deposit batch (one Pre-PegIn). The SDK expands the root
+into each vault's hashlock secret, WOTS seed and the shared
+auth anchor ([spec][secrets-spec]). The SHA-256 of each
+hashlock secret is committed in its HTLC during vault
+creation, and the secret is revealed during activation.
 
-Implementation requirements (the [conformance vectors][vectors]
+Implementation requirements (the [spec][spec] has the full
+algorithm and rationale; the [conformance vectors][vectors]
 pin the exact bytes):
 
 - BIP-32 hardened derivation path `m/73681862'`.
@@ -177,7 +182,7 @@ pin the exact bytes):
 - 32-byte output (64 lowercase hex chars).
 - `appName` must match `[a-z0-9\-]`, 1–64 bytes.
 - `context` must be lowercase hex, even-length, non-empty, no `0x` prefix, max 1024 bytes.
-- Wallet MUST require user approval and display `appName` ("babylon-btc-vault") and the requesting origin.
+- Wallet MUST require user approval and display `appName` ("babylon-btc-vault"). It MUST also display the requesting origin when the transport carries one (browser extensions, injected providers). Hardware wallets reached over raw APDU, USB, BLE or QR have no authenticated origin and MUST NOT present a dApp-supplied string as a verified one.
 
 ### PoP Message Format
 
