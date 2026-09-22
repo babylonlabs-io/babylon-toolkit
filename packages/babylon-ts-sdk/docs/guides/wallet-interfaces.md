@@ -264,7 +264,7 @@ const authAnchor = await expandAuthAnchor(root); // 32 bytes
 
 `expandHashlockSecret` replaces the previously browser-generated HTLC preimage; `expandAuthAnchor` produces the OP_RETURN preimage used for the VP bearer-token flow. Both follow the same canonical pipeline as WOTS — call `deriveVaultRoot` once, then expand per-purpose.
 
-**Reference.** The golden tests in [`tbv/core/vault-secrets/__tests__/`](https://github.com/babylonlabs-io/babylon-toolkit/tree/main/packages/babylon-ts-sdk/src/tbv/core/vault-secrets/__tests__) pin the root-to-leaf expansion (`expand.test.ts`), the `vaultContext` encoding (`context.golden.test.ts`) and the wallet-side `deriveContextHash` derivation (`deriveContextHash.vectors.test.ts`).
+**Reference.** The golden tests in [`tbv/core/vault-secrets/__tests__/`](https://github.com/babylonlabs-io/babylon-toolkit/tree/main/packages/babylon-ts-sdk/src/tbv/core/vault-secrets/__tests__) pin the root-to-leaf expansion (`expand.test.ts`), the `vaultContext` encoding (`context.golden.test.ts`) and the wallet-side `deriveContextHash` derivation (`deriveContextHash.vectors.test.ts`). The readable specs are [`derive-vault-secrets.md`](../../../../docs/specs/derive-vault-secrets.md) (root-to-secret algorithm) and [`derive-context-hash.md`](../../../../docs/specs/derive-context-hash.md) (wallet side).
 
 ## See also
 
