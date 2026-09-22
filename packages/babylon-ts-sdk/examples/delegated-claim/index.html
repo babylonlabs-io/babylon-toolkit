@@ -1,0 +1,287 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Delegated Claim</title>
+<style>
+ body{font:14px/1.55 -apple-system,system-ui,sans-serif;margin:0;background:#f7f6f4;color:#1b1b1f}
+ .wrap{max-width:900px;margin:0 auto;padding:24px 20px 70px}
+ h1{font-size:19px;margin:0 0 2px}.sub{color:#5d6068;margin:0 0 18px;font-size:13px}
+ .step{background:#fff;border:1px solid #e4e2de;border-radius:9px;padding:12px 14px;margin:0 0 10px}
+ .step h2{font-size:13px;margin:0 0 8px;display:flex;align-items:center;gap:8px}
+ .n{background:#1b1b1f;color:#fff;width:20px;height:20px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:11px}
+ .done .n{background:#0b6b53}.done h2{color:#0b6b53}
+ label{display:block;font-size:11px;color:#5d6068;margin:6px 0 2px}
+ input{width:100%;padding:6px 8px;font:12px ui-monospace,Menlo,monospace;border:1px solid #d8d5d0;border-radius:5px;box-sizing:border-box}
+ button{background:#0b6b53;color:#fff;border:0;border-radius:6px;padding:7px 13px;font-size:13px;cursor:pointer;margin-top:8px}
+ button:disabled{background:#bcc0bf;cursor:not-allowed}
+ .grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+ .grid .wide{grid-column:1/-1}
+ #log{background:#14161a;color:#d7dae0;font:12px ui-monospace,Menlo,monospace;padding:11px;border-radius:8px;height:250px;overflow:auto;white-space:pre-wrap;margin-top:12px}
+ .ok{color:#5fd0ab}.err{color:#ff8f7a}.warn{color:#e0b872}
+</style>
+<div class="wrap">
+<h1>Delegated claim — depositor as claimer</h1>
+<p class="sub">The vault provider is offline. This page runs the whole claim from the
+browser with the SDK's <code>services/delegated-claim</code> surface. Signet only.
+Every export it calls is experimental — see the README beside this file.</p>
+
+<div class="step" id="s1"><h2><span class="n">1</span> Connect wallet</h2>
+  <button id="connect">Connect UniSat</button> <span id="acct" style="font:11px ui-monospace,Menlo,monospace"></span>
+</div>
+
+<div class="step" id="s2"><h2><span class="n">2</span> Load vault-provider artifacts</h2>
+  <p class="sub" style="margin:0 0 6px">The <code>requestDepositorClaimerArtifacts</code>
+  response, slimmed to <code>tx_graph_json</code> and <code>verifying_key_hex</code>.
+  See the README: the raw response is too large for a browser to parse.</p>
+  <input type="file" id="file" accept=".json">
+  <div id="fileinfo" style="font-size:11px;color:#5d6068;margin-top:6px"></div>
+</div>
+
+<div class="step" id="s3"><h2><span class="n">3</span> Vault context</h2>
+  <p class="sub" style="margin:0 0 6px">Every field below is read from the vault's
+  on-chain registration, not from the vault provider. They are what bind the
+  provider-served graph to this vault.</p>
+  <div class="grid">
+    <div class="wide"><label>vaultId</label><input id="vaultId" placeholder="0x…"></div>
+    <div class="wide"><label>depositorEthAddress</label><input id="depositorEth" placeholder="0x…"></div>
+    <div><label>claimableEventBlockNumber</label><input id="claimableBlock" value="0"></div>
+    <div><label>btcNetwork</label><input id="btcNetwork" value="signet"></div>
+    <div><label>txGraphVersion</label><input id="txGraphVersion" value="3"></div>
+    <div><label>vaultCoreVersion</label><input id="vaultCoreVersion" value="3"></div>
+    <div><label>proverCircuitVersion</label><input id="proverCircuitVersion" value="1"></div>
+    <div><label>htlcVout</label><input id="htlcVout" value="0"></div>
+    <div><label>funding outpoint txid (pre-peg-in input)</label><input id="fundTxid" placeholder="hex, no 0x"></div>
+    <div><label>funding outpoint vout</label><input id="fundVout" value="0"></div>
+    <div class="wide"><label>expectedWotsPkHash (depositorWotsPkHash on chain)</label><input id="wotsPkHash" placeholder="0x…"></div>
+    <div class="wide"><label>registeredPayoutScriptPubKey</label><input id="payoutScript" placeholder="hex"></div>
+    <div class="wide"><label>vaultProviderBtcPubkey</label><input id="vpPubkey" placeholder="hex"></div>
+    <div class="wide"><label>vaultKeeperBtcPubkeys (comma separated)</label><input id="keepers" placeholder="hex, hex, …"></div>
+    <div class="wide"><label>universalChallengerBtcPubkeys (comma separated)</label><input id="universals" placeholder="hex, hex, …"></div>
+  </div>
+</div>
+
+<div class="step" id="s4"><h2><span class="n">4</span> Derive claimer WOTS keypair</h2>
+  <p class="sub" style="margin:0 0 6px">Secret and single-use. It never leaves this
+  page: step 7 hands it to the finalizer, which returns artifacts, not a keypair.</p>
+  <button id="wots" disabled>Derive &rarr; wots_keypair.json</button>
+</div>
+
+<div class="step" id="s5"><h2><span class="n">5</span> Assemble watchtower artifacts</h2>
+  <button id="assemble" disabled>Sign batch &rarr; artifacts.json</button>
+</div>
+
+<div class="step" id="s6"><h2><span class="n">6</span> Claim</h2>
+  <label>artifacts.json &mdash; leave empty to use the file step 5 just made</label>
+  <input type="file" id="artfile" accept=".json">
+  <button id="verify" disabled>Verify artifacts</button>
+  <button id="claim" disabled>Broadcast Claim tx</button>
+  <div id="claimtx" style="font:11px ui-monospace,Menlo,monospace;margin-top:6px"></div>
+</div>
+
+<div class="step" id="s7"><h2><span class="n">7</span> Assert</h2>
+  <label>wots_keypair.json &mdash; the file step 4 made for THIS vault</label>
+  <input type="file" id="kpfile" accept=".json">
+  <label>Groth16 proof hex &mdash; fetched by hand, see the TODO in the source</label>
+  <input id="proofhex" placeholder="hex, no 0x">
+  <button id="assertbtn" disabled>Pin proof &amp; finalize Assert</button>
+  <button id="assertcast" disabled>Broadcast Assert tx</button>
+  <div id="asserttx" style="font:11px ui-monospace,Menlo,monospace;margin-top:6px"></div>
+</div>
+
+<div class="step" id="s8"><h2><span class="n">8</span> Payout</h2>
+  <p class="sub" style="margin:0 0 6px">Spendable only after the Assert confirms and its
+  relative timelock expires. Until it does, a ChallengeAssert must be answered inside
+  <code>timelock_challenge_assert</code> — nothing on this page watches for one.</p>
+  <button id="payoutbtn" disabled>Finalize Payout tx</button>
+  <button id="payoutcast" disabled>Broadcast Payout tx</button>
+  <div id="payouttx" style="font:11px ui-monospace,Menlo,monospace;margin-top:6px"></div>
+</div>
+
+<div id="log"></div>
+</div>
+
+<script type="module">
+import { Buffer } from "buffer";
+// The SDK reaches for Buffer at import time, so it must exist before the
+// dynamic import below. A real app polyfills this in its bundler config.
+globalThis.Buffer = Buffer;
+globalThis.global = globalThis;
+globalThis.process = globalThis.process || { env: {} };
+const sdk = await import("@babylonlabs-io/babylon-ts-sdk");
+
+const logEl=document.getElementById("log");
+const log=(m,c="")=>{logEl.insertAdjacentHTML("beforeend",`<span class="${c}">${new Date().toISOString().slice(11,19)}  ${m}</span>\n`);logEl.scrollTop=logEl.scrollHeight;};
+const err=e=>log((e&&(e.stack||e.message))||String(e),"err");
+const done=id=>document.getElementById(id).classList.add("done");
+const save=(n,t)=>{const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([t],{type:"application/json"}));a.download=n;a.click();log(`saved ${n} (${t.length} bytes)`,"ok");};
+
+let wallet=null, source=null, depositorPublicKey="", babeSessionsJson;
+let artifactsJson=null, claimTxHex=null, keypairJson=null, assertHex=null, payoutHex=null;
+
+// =====================================================================
+// TODO(prover-exposure): the prover must become reachable from a browser.
+//
+// Assert needs a Groth16 proof. The prover is healthy JSON-RPC
+// (prover_submitClaimEvent -> jobId, then prover_getProof), but its CORS
+// preflight answers 405 with no Access-Control-* headers, so this page
+// cannot call it. Until that is fixed the proof is fetched with curl and
+// pasted into step 7 by hand, which no real user can do.
+//
+// Pick one before this ships:
+//   1. the prover service sends CORS headers for the app's origins, or
+//   2. a backend fetches the proof and the page asks that backend instead.
+// =====================================================================
+
+log(`SDK delegated-claim exports: ${Object.keys(sdk).filter(k=>/Watchtower|Wots|Pegout|Assert|Payout/i.test(k)).join(", ")||"NONE"}`,"ok");
+
+const hexToBytes=h=>{h=h.replace(/^0x/,"");const a=new Uint8Array(h.length/2);for(let i=0;i<a.length;i++)a[i]=parseInt(h.substr(i*2,2),16);return a;};
+const xonly=h=>{const b=hexToBytes(h);return b.length===33?b.slice(1):b;};
+const list=s=>s.value.split(",").map(v=>v.trim()).filter(Boolean);
+const v=()=>+txGraphVersion.value;
+
+// Inputs to the vault-secrets derivation — the same context that produced
+// this vault's secrets at deposit time.
+const vaultSecretsCtx=()=>({depositorBtcPubkey:xonly(depositorPublicKey),
+  fundingOutpoints:[{txid:hexToBytes(fundTxid.value.trim()),vout:+fundVout.value}]});
+
+// The on-chain facts the assembled artifacts commit to.
+const ctx=()=>({vaultId:vaultId.value.trim(),
+  depositorEthAddress:depositorEth.value.trim(),
+  registeredPayoutScriptPubKey:payoutScript.value.trim(),
+  vaultProviderBtcPubkey:vpPubkey.value.trim(),
+  vaultKeeperBtcPubkeys:list(keepers),
+  universalChallengerBtcPubkeys:list(universals),
+  txGraphVersion:v(),
+  proverCircuitVersion:+proverCircuitVersion.value,
+  vaultCoreVersion:+vaultCoreVersion.value,
+  claimableEventBlockNumber:BigInt(claimableBlock.value||"0")});
+
+const ready=()=>{const r=!!(wallet&&source);wots.disabled=!r;assemble.disabled=!r;
+  verify.disabled=!artifactsJson;claim.disabled=!claimTxHex;
+  assertbtn.disabled=!(artifactsJson&&keypairJson&&proofhex.value.trim());
+  assertcast.disabled=!assertHex;
+  payoutbtn.disabled=!artifactsJson;payoutcast.disabled=!payoutHex;};
+
+const broadcast=async(hex,what)=>{
+  log(`broadcasting ${what} to signet…`);
+  const res=await fetch("https://mempool.space/signet/api/tx",{method:"POST",body:hex});
+  const txt=(await res.text()).trim();
+  if(!res.ok){
+    // -27 "outputs already in utxo set" and "txn-already-known" both mean the
+    // transaction is already out there. Re-broadcast is idempotent, like the
+    // watchtower CLI treats it — report it, do not fail the step.
+    if(/already in utxo set|txn-already-known|already in block chain/i.test(txt)){
+      log(`${what} was already broadcast — nothing to do`,"ok");
+      return null;}
+    throw new Error(`broadcast failed: ${txt.slice(0,200)}`);}
+  log(`${what} broadcast: ${txt}`,"ok");
+  return txt;};
+const txLink=t=>`<a href="https://mempool.space/signet/tx/${t}" target="_blank">${t}</a>`;
+
+connect.onclick=async()=>{try{
+  await window.unisat.requestAccounts();
+  const u=window.unisat;
+  const acctAddr=(await u.getAccounts())[0];
+  // The SDK's sign options name the signer by address. This page speaks to
+  // window.unisat directly, so it does the connector's option mapping itself.
+  const mapOpts=o=>{if(!o)return o;const{signInputs,toSignInputs,...rest}=o;const ins=toSignInputs||signInputs;
+    return ins?{...rest,toSignInputs:ins.map(({publicKey,...i})=>({...i,address:i.address||acctAddr}))}:rest;};
+  wallet={getPublicKeyHex:()=>u.getPublicKey(),signPsbt:(h,o)=>u.signPsbt(h,mapOpts(o)),signPsbts:(h,o)=>u.signPsbts(h,Array.isArray(o)?o.map(mapOpts):mapOpts(o)),
+    deriveContextHash:(a,c)=>u.deriveContextHash(a,c),getAddress:async()=>(await u.getAccounts())[0]};
+  depositorPublicKey=await wallet.getPublicKeyHex();
+  acct.textContent=`${await wallet.getAddress()}  pk=${depositorPublicKey.slice(0,14)}…`;
+  log("wallet connected","ok");done("s1");ready();
+}catch(e){err(e)}};
+
+file.onchange=async ev=>{const f=ev.target.files[0];if(!f)return;
+  log(`reading ${f.name} (${(f.size/1e6).toFixed(0)} MB)…`);
+  try{
+    const j=JSON.parse(await f.text());const r=j.result??j;
+    source={txGraphJson:r.tx_graph_json,verifyingKeyHex:r.verifying_key_hex};
+    babeSessionsJson=typeof r.babe_sessions==="string"?r.babe_sessions:(r.babe_sessions?JSON.stringify(r.babe_sessions):undefined);
+    fileinfo.textContent=`graph ${source.txGraphJson.length} chars · vk ${source.verifyingKeyHex?source.verifyingKeyHex.length:0} · babe_sessions ${babeSessionsJson?"present":"absent"}`;
+    log("artifacts parsed","ok");done("s2");ready();
+  }catch(e){err(e);log("out of memory on the raw response? slim it first — see the README","warn")}};
+
+wots.onclick=async()=>{try{
+  log("deriving WOTS keypair — approve the wallet prompt…");
+  const kp=await sdk.deriveClaimerWotsKeypair({btcWallet:wallet,vaultContext:vaultSecretsCtx(),
+    htlcVout:+htlcVout.value,txGraphJson:source.txGraphJson,txGraphVersion:v(),
+    expectedWotsPkHash:wotsPkHash.value.trim()});
+  log(`keypair matches the on-chain hash ${kp.pkHash}`,"ok");
+  save("wots_keypair.json",kp.wotsKeypairJson);done("s4");
+}catch(e){err(e)}};
+
+assemble.onclick=async()=>{try{
+  log("assembling artifacts — one batched signing session, approve every prompt…");
+  artifactsJson=await sdk.assembleWatchtowerArtifacts({btcWallet:wallet,depositorPublicKey,
+    btcNetwork:btcNetwork.value.trim(),source,vault:ctx(),babeSessionsJson});
+  save("artifacts.json",artifactsJson);done("s5");ready();
+}catch(e){err(e)}};
+
+artfile.onchange=async ev=>{const f=ev.target.files[0];if(!f)return;
+  artifactsJson=await f.text();claimTxHex=null;assertHex=null;payoutHex=null;
+  log(`loaded ${f.name} (${(f.size/1e6).toFixed(2)} MB)`,"ok");ready();};
+
+verify.onclick=async()=>{try{
+  log("verifying every signature against the file's own graph…");
+  const sum=await sdk.assertArtifactsUsableForVault({artifactsJson,
+    expectedVaultId:vaultId.value.trim(),depositorEthAddress:depositorEth.value.trim(),
+    txGraphVersion:v()});
+  claimTxHex=JSON.parse(artifactsJson).claim_tx;
+  if(!claimTxHex) throw new Error("artifacts carry no claim_tx");
+  log(`artifacts verified — claim txid ${sum.claimTxid}`,"ok");
+  log(`claimable event block ${sum.claimableEventBlockNumber}`,
+    sum.claimableEventBlockNumber?"ok":"warn");
+  claimtx.textContent=`ready to broadcast ${claimTxHex.length/2} bytes`;ready();
+}catch(e){err(e)}};
+
+claim.onclick=async()=>{try{
+  const txid=await broadcast(claimTxHex,"Claim");
+  claimtx.innerHTML=`claim txid ${txLink(txid)}`;done("s6");
+  log("Assert is next — load wots_keypair.json in step 7.","warn");
+}catch(e){err(e)}};
+
+// ---- step 7: Assert -------------------------------------------------
+proofhex.oninput=()=>ready();
+
+kpfile.onchange=async ev=>{const f=ev.target.files[0];if(!f)return;
+  keypairJson=await f.text();
+  log(`loaded ${f.name}`,"ok");ready();};
+
+assertbtn.onclick=async()=>{try{
+  const proof=proofhex.value.trim().replace(/^0x/,"");
+  log("verifying the Groth16 proof and pinning it into the artifacts…");
+  // The one-time WOTS keypair signs exactly one proof, so a second, different
+  // one is refused once one is pinned. Keep the returned copy.
+  artifactsJson=await sdk.pinPegoutProof(v(),artifactsJson,proof);
+  log("proof pinned","ok");
+  log("finalizing Assert — WOTS-signing the π₁ bits…");
+  artifactsJson=await sdk.attachFinalizedAssert(v(),artifactsJson,keypairJson);
+  assertHex=JSON.parse(artifactsJson).assert_tx_hex;
+  save("artifacts.json",artifactsJson);
+  asserttx.textContent=`Assert ready: ${assertHex.length/2} bytes`;
+  log(`Assert finalized (${assertHex.length/2} bytes)`,"ok");
+  log("Hand this same file to `vaultd vp wt start-claim` if you prefer the CLI.","warn");
+  ready();
+}catch(e){err(e)}};
+
+assertcast.onclick=async()=>{try{
+  const txid=await broadcast(assertHex,"Assert");
+  asserttx.innerHTML=`assert txid ${txLink(txid)}`;done("s7");
+  log("The relative timelock starts when this confirms. Payout is step 8.","warn");
+  log("Watch for ChallengeAssert until the Payout confirms.","warn");
+}catch(e){err(e)}};
+
+// ---- step 8: Payout -------------------------------------------------
+payoutbtn.onclick=async()=>{try{
+  payoutHex=await sdk.finalizePayout(v(),artifactsJson);
+  payouttx.textContent=`Payout ready: ${payoutHex.length/2} bytes`;
+  log(`Payout finalized (${payoutHex.length/2} bytes)`,"ok");ready();
+}catch(e){err(e)}};
+
+payoutcast.onclick=async()=>{try{
+  const txid=await broadcast(payoutHex,"Payout");
+  payouttx.innerHTML=`payout txid ${txLink(txid)}`;done("s8");
+  log("Vault paid out.","ok");
+}catch(e){err(e)}};
+</script>
