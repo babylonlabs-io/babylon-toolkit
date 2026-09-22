@@ -298,9 +298,11 @@ export function createDelegatedClaimApi(getWasmBindings: GetWasmBindings) {
      * signer is still on the page, instead of months later at claim time.
      *
      * `babeSessionsJson` and `verifyingKeyHex` pass through opaquely. The
-     * BaBe sessions are multi-hundred-megabyte payloads; omit them here and
-     * join them into the file downstream rather than routing them through
-     * WASM memory.
+     * BaBe sessions are multi-hundred-megabyte payloads, and the builder
+     * refuses a map that does not cover every challenger
+     * (`validate_babe_sessions` @ ac4954e7), so a caller that cannot route
+     * them through WASM memory passes a placeholder map and joins the real
+     * sessions downstream (#2598).
      *
      * `depositorPayoutSigHex` is always signed fresh and required — the
      * upstream binding no longer reads a presigned one off the graph.
@@ -328,9 +330,8 @@ export function createDelegatedClaimApi(getWasmBindings: GetWasmBindings) {
           inputs.claimableEventBlockNumber,
           inputs.proverCircuitVersion,
           inputs.vaultIdHex,
-          // Required upstream, optional here: an omitted value means the
-          // sessions are joined into the file downstream, which the empty
-          // object represents.
+          // Required upstream; the empty object stands in for fixtures only —
+          // a real graph refuses it (see the doc above).
           inputs.babeSessionsJson ?? '{}',
           inputs.expectedVaultCoreVersion,
         );

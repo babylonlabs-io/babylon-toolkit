@@ -179,7 +179,9 @@ export async function resolveCurrentParticipantKeys(params: {
  * back to.
  */
 export async function resolveParticipantKeysAtEpochs(params: {
-  operationKeyReader: OperationKeyReader;
+  // Only the epochs getter is used, so a caller holding just that (the
+  // claim-time readers) needs no full reader.
+  operationKeyReader: Pick<OperationKeyReader, "getOperationKeysAtEpochs">;
   query: OperationKeyQuery;
   epochs: KeyEpochs;
 }): Promise<ParticipantKeySet> {

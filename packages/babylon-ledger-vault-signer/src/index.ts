@@ -3,14 +3,22 @@
  * raw APDU framing over the {@link ApduSender} seam, the silent key read,
  * the device envelope gate, the DERIVE_CONTEXT_HASH / APPROVE_VAULT_INTENT
  * ceremony, the SIGN_PSBT interrupt/continue signing loop
- * ({@link signVaultPsbt}), and the wallet-policy plumbing and the PoP PSBT
- * builder (#2221). Wallet-connector's LedgerVaultProvider is the
+ * ({@link signVaultPsbt}), the wallet-policy plumbing and the PoP PSBT
+ * builder (#2221), and the standalone refund and delegated-claim PSBT
+ * classifiers (#2371, #2111). Wallet-connector's LedgerVaultProvider is the
  * consuming adapter; this package holds everything device-protocol-shaped and
  * nothing wallet-taxonomy-shaped.
  *
  * @module ledger-vault-signer
  */
 
+export {
+  augmentPsbtForDelegatedClaim,
+  classifyDelegatedClaimPsbt,
+  type AugmentPsbtForDelegatedClaimParams,
+  type DelegatedClaimPsbtClassification,
+  type DelegatedClaimPsbtKind,
+} from "./delegatedClaimPsbt";
 export { getExtendedPublicKey, getMasterFingerprintHex, getXOnlyPublicKeyHex } from "./derivation";
 export { createDmkApduSender, createDmkRawApduSender } from "./dmkApduSender";
 export {

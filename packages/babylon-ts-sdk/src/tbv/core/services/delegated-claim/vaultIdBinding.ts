@@ -19,12 +19,7 @@ import { Psbt, Transaction } from "bitcoinjs-lib";
 import { Buffer } from "buffer";
 
 import { derivePeginVaultId } from "../../clients/eth/pegin-transaction";
-
-/**
- * Input of the Claim transaction that spends the PegIn vault UTXO. Fixed by
- * the Rust graph in `btc-vault crates/vault`, not free to choose here.
- */
-const CLAIM_PEGIN_INPUT = 0;
+import { CLAIM_PEGIN_INPUT_INDEX } from "../../primitives/psbt/constants";
 
 /**
  * Thrown when a graph does not belong to the vault it is presented for.
@@ -55,7 +50,7 @@ export function peginTxidFromClaimPsbt(claimPsbtBase64: string): string {
   } catch (cause) {
     throw new Error("Claim PSBT cannot be parsed.", { cause });
   }
-  const input = psbt.txInputs[CLAIM_PEGIN_INPUT];
+  const input = psbt.txInputs[CLAIM_PEGIN_INPUT_INDEX];
   if (!input) {
     throw new Error("Claim PSBT carries no PegIn input to bind the vault to.");
   }
@@ -66,7 +61,7 @@ export function peginTxidFromClaimPsbt(claimPsbtBase64: string): string {
  * Display-order txid of the PegIn output a signed Claim transaction spends.
  */
 export function peginTxidFromClaimTx(claimTx: Transaction): string {
-  const input = claimTx.ins[CLAIM_PEGIN_INPUT];
+  const input = claimTx.ins[CLAIM_PEGIN_INPUT_INDEX];
   if (!input) {
     throw new Error(
       "Artifacts file's claim_tx carries no PegIn input to bind the vault to.",
@@ -116,9 +111,13 @@ export function normalizeVaultId(vaultId: string): string {
   return `0x${bare.toLowerCase()}`;
 }
 
-// Bitcoin stores a prevout hash in internal byte order; a txid is the same
-// bytes reversed. Copy before reversing — the buffer belongs to the parsed
-// transaction.
-function displayTxid(internalHash: Uint8Array): string {
+/**
+ * Bitcoin stores a prevout hash in internal byte order; a txid is the same
+ * bytes reversed. Copies before reversing — the buffer belongs to the parsed
+ * transaction.
+ *
+ * @internal
+ */
+export function displayTxid(internalHash: Uint8Array): string {
   return Buffer.from(internalHash).reverse().toString("hex");
 }

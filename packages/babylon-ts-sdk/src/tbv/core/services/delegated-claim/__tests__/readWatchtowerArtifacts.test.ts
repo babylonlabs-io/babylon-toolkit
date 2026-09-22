@@ -34,6 +34,10 @@ const OTHER_TXID = "ffeeddccbbaa99887766554433221100".repeat(2);
 const VAULT_ID =
   "0xf5c2a4e499a96ee2a2e32acf1f16b51d2958e7819a1d5048eccab864163806c3";
 const OTHER_VAULT_ID = `0x${"ef".repeat(32)}`;
+/** The key from the vault-provers release; the file below carries the same. */
+const TRUSTED_VERIFYING_KEY = "beef";
+/** The vault's stamped circuit version; the file below records the same. */
+const PROVER_CIRCUIT_VERSION = 7;
 
 const CLAIM_TX = new Transaction();
 CLAIM_TX.addInput(Buffer.from(PEGIN_TXID, "hex").reverse(), 1);
@@ -47,9 +51,10 @@ function artifactsFile(overrides: Record<string, unknown> = {}): string {
     signatures: {},
     verifying_key: "beef",
     claimable_event_block_number: 10_985_680,
-    prover_circuit_version: 7,
+    prover_circuit_version: PROVER_CIRCUIT_VERSION,
     vault_id: VAULT_ID,
-    babe_sessions: { ["aa".repeat(32)]: { decryptor_artifacts_hex: "00" } },
+    // A joined session, not the "00" placeholder the assembler writes.
+    babe_sessions: { ["aa".repeat(32)]: { decryptor_artifacts_hex: "0a1b" } },
     ...overrides,
   });
 }
@@ -137,6 +142,38 @@ describe("summarizeWatchtowerArtifacts", () => {
       summarizeWatchtowerArtifacts(artifactsFile({ babe_sessions: "ab" })),
     ).toThrow(/babe_sessions/);
   });
+
+  it("rejects a babe_sessions entry with no decryptor_artifacts_hex string", () => {
+    expect(() =>
+      summarizeWatchtowerArtifacts(
+        artifactsFile({ babe_sessions: { ["aa".repeat(32)]: {} } }),
+      ),
+    ).toThrow(/babe_sessions/);
+  });
+
+  it("reports the verifying key the file carries", () => {
+    const summary = summarizeWatchtowerArtifacts(artifactsFile());
+
+    expect(summary.verifyingKeyHex).toBe("beef");
+  });
+
+  it("rejects a file with no verifying_key", () => {
+    expect(() =>
+      summarizeWatchtowerArtifacts(artifactsFile({ verifying_key: undefined })),
+    ).toThrow(/verifying_key/);
+  });
+
+  it("reports the challengers whose session is still the placeholder", () => {
+    const summary = summarizeWatchtowerArtifacts(
+      artifactsFile({
+        babe_sessions: { ["aa".repeat(32)]: { decryptor_artifacts_hex: "00" } },
+      }),
+    );
+
+    expect(summary.babeSessionPlaceholderChallengerPubkeys).toEqual([
+      "aa".repeat(32),
+    ]);
+  });
 });
 
 describe("assertArtifactsUsableForVault", () => {
@@ -150,6 +187,8 @@ describe("assertArtifactsUsableForVault", () => {
       artifactsJson: artifactsFile(),
       expectedVaultId: VAULT_ID,
       depositorEthAddress: DEPOSITOR_ETH_ADDRESS,
+      trustedVerifyingKeyHex: TRUSTED_VERIFYING_KEY,
+      expectedProverCircuitVersion: PROVER_CIRCUIT_VERSION,
     });
 
     expect(summary.vaultId).toBe(VAULT_ID);
@@ -164,6 +203,8 @@ describe("assertArtifactsUsableForVault", () => {
         }),
         expectedVaultId: VAULT_ID,
         depositorEthAddress: DEPOSITOR_ETH_ADDRESS,
+        trustedVerifyingKeyHex: TRUSTED_VERIFYING_KEY,
+        expectedProverCircuitVersion: PROVER_CIRCUIT_VERSION,
       }),
     ).resolves.toBeDefined();
   });
@@ -174,6 +215,8 @@ describe("assertArtifactsUsableForVault", () => {
         artifactsJson: artifactsFile(),
         expectedVaultId: OTHER_VAULT_ID,
         depositorEthAddress: DEPOSITOR_ETH_ADDRESS,
+        trustedVerifyingKeyHex: TRUSTED_VERIFYING_KEY,
+        expectedProverCircuitVersion: PROVER_CIRCUIT_VERSION,
       }),
     ).rejects.toThrow(ArtifactsVaultMismatchError);
   });
@@ -188,8 +231,89 @@ describe("assertArtifactsUsableForVault", () => {
         artifactsJson: artifactsFile({ claim_tx: otherPeginTx.toHex() }),
         expectedVaultId: VAULT_ID,
         depositorEthAddress: DEPOSITOR_ETH_ADDRESS,
+        trustedVerifyingKeyHex: TRUSTED_VERIFYING_KEY,
+        expectedProverCircuitVersion: PROVER_CIRCUIT_VERSION,
       }),
     ).rejects.toThrow(VaultIdBindingError);
+  });
+
+  it("rejects a file whose verifying key is not the trusted one", async () => {
+    // The Rust verification takes the key opaquely, so nothing downstream
+    // would notice a substituted one.
+    await expect(
+      assertArtifactsUsableForVault({
+        artifactsJson: artifactsFile({ verifying_key: "dead" }),
+        expectedVaultId: VAULT_ID,
+        depositorEthAddress: DEPOSITOR_ETH_ADDRESS,
+        trustedVerifyingKeyHex: TRUSTED_VERIFYING_KEY,
+        expectedProverCircuitVersion: PROVER_CIRCUIT_VERSION,
+      }),
+    ).rejects.toThrow(
+      `Artifacts carry Groth16 verifying key dead but the trusted key for prover circuit ` +
+        `version ${PROVER_CIRCUIT_VERSION} is beef`,
+    );
+    expect(verifyWatchtowerArtifacts).not.toHaveBeenCalled();
+  });
+
+  it("accepts a verifying key that differs only in prefix and case", async () => {
+    await expect(
+      assertArtifactsUsableForVault({
+        artifactsJson: artifactsFile({ verifying_key: "0xBEEF" }),
+        expectedVaultId: VAULT_ID,
+        depositorEthAddress: DEPOSITOR_ETH_ADDRESS,
+        trustedVerifyingKeyHex: TRUSTED_VERIFYING_KEY,
+        expectedProverCircuitVersion: PROVER_CIRCUIT_VERSION,
+      }),
+    ).resolves.toBeDefined();
+  });
+
+  it("rejects a file whose prover circuit version is not the vault's stamped one", async () => {
+    await expect(
+      assertArtifactsUsableForVault({
+        artifactsJson: artifactsFile({ prover_circuit_version: 6 }),
+        expectedVaultId: VAULT_ID,
+        depositorEthAddress: DEPOSITOR_ETH_ADDRESS,
+        trustedVerifyingKeyHex: TRUSTED_VERIFYING_KEY,
+        expectedProverCircuitVersion: PROVER_CIRCUIT_VERSION,
+      }),
+    ).rejects.toThrow(
+      /Artifacts record prover circuit version 6 but the vault's stamped params say 7/,
+    );
+    expect(verifyWatchtowerArtifacts).not.toHaveBeenCalled();
+  });
+
+  it("rejects a file whose verifying key is not even-length hex", async () => {
+    await expect(
+      assertArtifactsUsableForVault({
+        artifactsJson: artifactsFile({ verifying_key: "abc" }),
+        expectedVaultId: VAULT_ID,
+        depositorEthAddress: DEPOSITOR_ETH_ADDRESS,
+        trustedVerifyingKeyHex: TRUSTED_VERIFYING_KEY,
+        expectedProverCircuitVersion: PROVER_CIRCUIT_VERSION,
+      }),
+    ).rejects.toThrow(/must be non-empty, even-length hex/);
+    expect(verifyWatchtowerArtifacts).not.toHaveBeenCalled();
+  });
+
+  it("rejects a file whose BaBe session is still the placeholder", async () => {
+    await expect(
+      assertArtifactsUsableForVault({
+        artifactsJson: artifactsFile({
+          babe_sessions: {
+            ["aa".repeat(32)]: { decryptor_artifacts_hex: "00" },
+          },
+        }),
+        expectedVaultId: VAULT_ID,
+        depositorEthAddress: DEPOSITOR_ETH_ADDRESS,
+        trustedVerifyingKeyHex: TRUSTED_VERIFYING_KEY,
+        expectedProverCircuitVersion: PROVER_CIRCUIT_VERSION,
+      }),
+    ).rejects.toThrow(
+      `Artifacts carry a placeholder BaBe session for challenger ${"aa".repeat(32)}`,
+    );
+    // The file verifies; only this check stands between it and an
+    // unanswerable challenge.
+    expect(verifyWatchtowerArtifacts).not.toHaveBeenCalled();
   });
 
   it("does not verify signatures for a file that names the wrong vault", async () => {
@@ -198,6 +322,8 @@ describe("assertArtifactsUsableForVault", () => {
         artifactsJson: artifactsFile(),
         expectedVaultId: OTHER_VAULT_ID,
         depositorEthAddress: DEPOSITOR_ETH_ADDRESS,
+        trustedVerifyingKeyHex: TRUSTED_VERIFYING_KEY,
+        expectedProverCircuitVersion: PROVER_CIRCUIT_VERSION,
       }),
     ).rejects.toThrow();
 
@@ -214,6 +340,8 @@ describe("assertArtifactsUsableForVault", () => {
         artifactsJson: artifactsFile(),
         expectedVaultId: VAULT_ID,
         depositorEthAddress: DEPOSITOR_ETH_ADDRESS,
+        trustedVerifyingKeyHex: TRUSTED_VERIFYING_KEY,
+        expectedProverCircuitVersion: PROVER_CIRCUIT_VERSION,
       }),
     ).rejects.toThrow(/does not verify/);
   });
