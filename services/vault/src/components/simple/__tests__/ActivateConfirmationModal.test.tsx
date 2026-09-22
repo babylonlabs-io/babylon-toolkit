@@ -11,6 +11,7 @@ import {
 import { ActivateConfirmationModal } from "../ActivateConfirmationModal";
 
 const cardCancelSpy = vi.hoisted(() => vi.fn());
+const viewport = vi.hoisted(() => ({ isMobile: false }));
 
 vi.mock("@babylonlabs-io/core-ui", () => ({
   Text: (props: Record<string, unknown>) => (
@@ -34,12 +35,19 @@ vi.mock("@babylonlabs-io/core-ui", () => ({
   ),
   ResponsiveDialog: (props: Record<string, unknown>) =>
     props.open ? <div>{props.children as ReactNode}</div> : null,
+  // className is forwarded so the sheet-inset assertions can read it.
   DialogBody: (props: Record<string, unknown>) => (
-    <div>{props.children as ReactNode}</div>
+    <div data-testid="dialog-body" className={props.className as string}>
+      {props.children as ReactNode}
+    </div>
   ),
   DialogFooter: (props: Record<string, unknown>) => (
-    <div>{props.children as ReactNode}</div>
+    <div data-testid="dialog-footer" className={props.className as string}>
+      {props.children as ReactNode}
+    </div>
   ),
+  WINDOW_BREAKPOINT: 640,
+  useIsMobile: () => viewport.isMobile,
 }));
 
 vi.mock("@/components/deposit/RecoveryArtifactsCard", () => ({
@@ -105,6 +113,7 @@ describe("ActivateConfirmationModal", () => {
   beforeEach(() => {
     window.localStorage.clear();
     cardCancelSpy.mockClear();
+    viewport.isMobile = false;
   });
 
   it("cancels the download in place without closing the modal while a download is in flight", () => {
@@ -188,6 +197,80 @@ describe("ActivateConfirmationModal", () => {
 
     fireEvent.click(screen.getByText("Cancel"));
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("cancels an in-flight download and closes when the header close control is clicked", () => {
+    const onClose = vi.fn();
+    render(
+      <ActivateConfirmationModal
+        open
+        {...COMMON_PROPS}
+        onClose={onClose}
+        onConfirm={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("card-download-start"));
+    fireEvent.click(screen.getByTestId("activate-modal-close"));
+
+    expect(cardCancelSpy).toHaveBeenCalledTimes(1);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves the close control to the sheet below the breakpoint", () => {
+    viewport.isMobile = true;
+    render(
+      <ActivateConfirmationModal
+        open
+        {...COMMON_PROPS}
+        onClose={vi.fn()}
+        onConfirm={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByTestId("activate-modal-close")).toBeNull();
+  });
+
+  it("restores the sheet inset below the breakpoint", () => {
+    viewport.isMobile = true;
+    const { unmount } = render(
+      <ActivateConfirmationModal
+        open
+        {...COMMON_PROPS}
+        onClose={vi.fn()}
+        onConfirm={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByTestId("dialog-body")).toHaveClass("px-6");
+    unmount();
+
+    viewport.isMobile = false;
+    render(
+      <ActivateConfirmationModal
+        open
+        {...COMMON_PROPS}
+        onClose={vi.fn()}
+        onConfirm={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByTestId("dialog-body")).not.toHaveClass("px-6");
+  });
+
+  it("names the close control for assistive technology", () => {
+    render(
+      <ActivateConfirmationModal
+        open
+        {...COMMON_PROPS}
+        onClose={vi.fn()}
+        onConfirm={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Close" })).toBe(
+      screen.getByTestId("activate-modal-close"),
+    );
   });
 
   it("enables Activate BTCVault, hides the checkbox, and shows the downloaded heading when artifacts were already downloaded", () => {
