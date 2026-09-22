@@ -16,8 +16,21 @@ import WithdrawFlow, { type WithdrawFlowProps } from "../index";
 // The shared v3 shell renders the app top bar, whose graph reaches
 // wallet-connector and can't be transformed here.
 vi.mock("@/components/shared/V3ModalShell", () => ({
-  V3ModalShell: ({ open, children }: { open: boolean; children: ReactNode }) =>
-    open ? <div>{children}</div> : null,
+  V3ModalShell: ({
+    open,
+    onBack,
+    children,
+  }: {
+    open: boolean;
+    onBack?: () => void;
+    children: ReactNode;
+  }) =>
+    open ? (
+      <div>
+        {onBack && <button type="button" aria-label="Back" onClick={onBack} />}
+        {children}
+      </div>
+    ) : null,
 }));
 
 vi.mock("@/context/ProtocolParamsContext", () => ({
@@ -154,18 +167,19 @@ describe("WithdrawFlow selection step", () => {
     expect(continueButton()).toBeEnabled();
   });
 
-  it("re-asks for the acknowledgement once the projection has moved away and back", () => {
+  it("keeps the acknowledgement when the projection moves away and back to the same number", () => {
     renderFlow({ currentHealthFactor: 4.2 });
     fireEvent.click(acknowledgeCheckbox());
     expect(continueButton()).toBeEnabled();
 
     // Out of the at-risk band (0.8 of 0.8 BTC breaches the floor) and back to
-    // the same 1.05 projection.
+    // the same 1.05 projection: the tick covers that displayed value, and it
+    // is the value on screen again.
     fireEvent.click(rowCheckbox(SECOND_VAULT));
     fireEvent.click(rowCheckbox(SECOND_VAULT));
 
-    expect(acknowledgeCheckbox()).not.toBeChecked();
-    expect(continueButton()).toBeDisabled();
+    expect(acknowledgeCheckbox()).toBeChecked();
+    expect(continueButton()).toBeEnabled();
   });
 
   it("re-asks for the acknowledgement when a price move changes the projection", () => {
@@ -174,12 +188,54 @@ describe("WithdrawFlow selection step", () => {
     expect(continueButton()).toBeEnabled();
 
     // The position's own health factor drifts while the step is open, with the
-    // selection untouched: the same quarter-of-collateral withdrawal now
-    // projects to 1.075 instead of 1.05, still inside the at-risk band.
+    // selection untouched: the same quarter-of-collateral withdrawal now shows
+    // 1.07 instead of 1.05, still inside the at-risk band.
     rerenderWith({ currentHealthFactor: 4.3 });
 
     expect(acknowledgeCheckbox()).not.toBeChecked();
     expect(continueButton()).toBeDisabled();
+  });
+
+  it("keeps the acknowledgement when a refetch moves the projection below the displayed precision", () => {
+    const { rerenderWith } = renderFlow({ currentHealthFactor: 4.2 });
+    fireEvent.click(acknowledgeCheckbox());
+
+    // 4.204 projects to 1.051, which still reads as 1.05 — the number the user
+    // ticked for has not changed.
+    rerenderWith({ currentHealthFactor: 4.204 });
+
+    expect(acknowledgeCheckbox()).toBeChecked();
+    expect(continueButton()).toBeEnabled();
+  });
+
+  it("blocks Confirm on Review until the moved projection is acknowledged again", () => {
+    const { rerenderWith } = renderFlow({ currentHealthFactor: 4.2 });
+    fireEvent.click(acknowledgeCheckbox());
+    fireEvent.click(continueButton());
+
+    rerenderWith({ currentHealthFactor: 4.3 });
+
+    const reviewAcknowledge = screen.getByTestId("withdraw-review-acknowledge");
+    expect(reviewAcknowledge).not.toBeChecked();
+    expect(screen.getByTestId("withdraw-confirm-button")).toBeDisabled();
+
+    fireEvent.click(reviewAcknowledge);
+
+    expect(screen.getByTestId("withdraw-confirm-button")).toBeEnabled();
+  });
+
+  it("returns to Select from Review with the selection intact", () => {
+    renderFlow();
+
+    fireEvent.click(rowCheckbox(SECOND_VAULT));
+    fireEvent.click(continueButton());
+    expect(screen.getByText("Review Withdraw")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+
+    expect(rowCheckbox(FIRST_VAULT)).toBeChecked();
+    expect(rowCheckbox(SECOND_VAULT)).toBeChecked();
+    expect(continueButton()).toHaveTextContent("Withdraw 0.8 sBTC");
   });
 
   it("omits a vault that no longer backs the position", () => {

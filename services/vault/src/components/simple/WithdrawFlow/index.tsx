@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 import { useWithdrawCollateralTransaction } from "@/applications/aave/hooks/useWithdrawCollateralTransaction";
 import { useWithdrawHubBlockMessage } from "@/applications/aave/hooks/useWithdrawHubBlockMessage";
 import {
   computeProjectedHealthFactor,
+  formatHealthFactor,
   getEffectiveVaultSelection,
   getUniquePayoutAddresses,
 } from "@/applications/aave/utils";
@@ -45,7 +46,8 @@ function WithdrawFlowContent({
   currentHealthFactor,
   preSelectedVaultIds,
 }: WithdrawFlowProps) {
-  const { step, goToReview, goToProgress, reset } = useWithdrawFlow();
+  const { step, goToSelect, goToReview, goToProgress, reset } =
+    useWithdrawFlow();
   const { executeWithdraw, isProcessing, error } =
     useWithdrawCollateralTransaction();
   const hubBlockMessage = useWithdrawHubBlockMessage();
@@ -71,7 +73,12 @@ function WithdrawFlowContent({
   // it. `getEffectiveVaultSelection` still filters every read, so a vault that
   // leaves the position mid-flow drops out on its own.
   const [selectedVaultIds, setSelectedVaultIds] = useState(preSelectedVaultIds);
-  const [acknowledged, setAcknowledged] = useState(false);
+  // The risk card names one health factor at two decimals, so the
+  // acknowledgement covers that displayed value: it is stored as the value
+  // the user ticked for and derived on every render, so a refetch that moves
+  // the raw float without changing the shown number keeps the tick, and a
+  // change to the shown number drops it in the same render.
+  const [acknowledgedFor, setAcknowledgedFor] = useState<string | null>(null);
   const toggleVault = useCallback((vaultId: string) => {
     setSelectedVaultIds((ids) =>
       ids.includes(vaultId)
@@ -159,13 +166,12 @@ function WithdrawFlowContent({
     reviewCurrentHealthFactor,
   ]);
 
-  // The risk card names one health factor, so an acknowledgement only covers
-  // that number. Drop it whenever the projection moves — a changed selection, a
-  // price move, or the projection leaving the at-risk band and returning — so
-  // the user accepts what is on screen rather than what used to be.
-  useEffect(() => {
-    setAcknowledged(false);
-  }, [projectedHealthFactor]);
+  const displayedHealthFactor = formatHealthFactor(projectedHealthFactor);
+  const acknowledged = acknowledgedFor === displayedHealthFactor;
+  const setAcknowledged = useCallback(
+    (next: boolean) => setAcknowledgedFor(next ? displayedHealthFactor : null),
+    [displayedHealthFactor],
+  );
 
   const handleConfirm = useCallback(async () => {
     setConfirmed({
@@ -190,8 +196,17 @@ function WithdrawFlowContent({
     goToProgress,
   ]);
 
+  // Review reached from Select can return to it; not while a submit is in flight.
   return (
-    <V3ModalShell open={open} onClose={onClose}>
+    <V3ModalShell
+      open={open}
+      onClose={onClose}
+      onBack={
+        renderedStep === WithdrawStep.REVIEW && !isProcessing
+          ? goToSelect
+          : undefined
+      }
+    >
       <FadeTransition stepKey={renderedStep}>
         {renderedStep === WithdrawStep.SELECT && (
           <div className="mx-auto w-full max-w-[564px]">
@@ -219,6 +234,8 @@ function WithdrawFlowContent({
               isProcessing={isProcessing}
               error={error}
               hubBlockMessage={hubBlockMessage}
+              acknowledged={acknowledged}
+              onAcknowledgedChange={setAcknowledged}
               onConfirm={handleConfirm}
             />
           </div>
