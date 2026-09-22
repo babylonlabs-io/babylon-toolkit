@@ -37,7 +37,9 @@ import {
   DEPOSIT_PROGRESS_STOPS,
   depositProgressStepStop,
   flowScreenshotFileName,
+  HAS_LIQUIDATION_TOUR,
   LIQUIDATION_CHART_STOP,
+  LIQUIDATION_TOUR_STOPS,
   screenshotFileName,
   VISUAL_TARGETS,
   VISUAL_VIEWPORTS,
@@ -307,16 +309,18 @@ export interface StagedShot {
 }
 
 /**
- * Capture the full page after content and layout guards pass.
+ * Capture after content and layout guards pass.
  * Stage bytes until the whole walk passes; a failure withholds every image.
- * Keep offscreen pixels and filter temporary 1x1 resizes during capture.
+ * Use the full page by default. Fixed overlays use the current viewport.
+ * Filter temporary 1x1 resizes during capture.
  * Check the restored viewport and layout before staging the image.
  */
 export async function capture(
   page: Page,
   fileName: string,
+  { fullPage = true }: { fullPage?: boolean } = {},
 ): Promise<StagedShot> {
-  await waitForVisualStability(page);
+  await waitForVisualStability(page, fullPage);
   // Reject stable error screens before each screenshot.
   await assertNoErrorSurface(page, fileName);
   // Nor is settled the same as correct: a latched mobile layout is stable too.
@@ -332,7 +336,7 @@ export async function capture(
   let buffer: Buffer;
   let captureFailed = false;
   try {
-    buffer = await page.screenshot({ fullPage: true });
+    buffer = await page.screenshot({ fullPage });
     await expect
       .poll(() =>
         page.evaluate(() => ({
@@ -352,7 +356,7 @@ export async function capture(
       .catch((error) => {
         if (!captureFailed) throw error;
         // eslint-disable-next-line no-console -- Keep the secondary browser failure in the test log.
-        console.error("Full-page capture cleanup also failed:", error);
+        console.error("Screenshot cleanup also failed:", error);
       });
   }
   await assertLayoutMatchesViewport(page, fileName);
@@ -397,6 +401,7 @@ export async function ensureOutputDir(): Promise<void> {
       ...Object.values(DEPOSIT_PROGRESS_STOPS),
       ...DEPOSIT_FLOW_STEPS.map(depositProgressStepStop),
       LIQUIDATION_CHART_STOP,
+      ...(HAS_LIQUIDATION_TOUR ? Object.values(LIQUIDATION_TOUR_STOPS) : []),
     ].flatMap((stop) =>
       VISUAL_VIEWPORTS.map((viewport) =>
         flowScreenshotFileName(stop, viewport),

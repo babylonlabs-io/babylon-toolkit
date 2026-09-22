@@ -142,7 +142,7 @@ export function LiquidationTour({ ready }: { ready: boolean }) {
       const width = document.documentElement.clientWidth;
       const height = window.innerHeight;
       const above =
-        targetRect.top - GAP - cardRect.height >= TOP &&
+        Math.round(targetRect.top - GAP - cardRect.height) >= TOP &&
         (step >= 2 || targetRect.bottom + GAP + cardRect.height > height - 16);
       const left = Math.max(
         16,
