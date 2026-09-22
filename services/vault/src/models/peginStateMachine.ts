@@ -176,6 +176,17 @@ export interface GetPeginStateOptions {
    */
   htlcSpentByPeginTx?: boolean;
   /**
+   * EXPIRED counterpart of `htlcSpentByPeginTx`: the vault expired and the
+   * PegIn — not a refund — is what spent the HTLC. The BTC sits in the vault,
+   * so "Refund complete" would be a false reassurance and the refund action
+   * would fail on broadcast.
+   *
+   * Needs no chain-confirmation companion. `stuckStateConfirmedOnChain` exists
+   * to rule out a lagging indexer still reporting VERIFIED for an activated
+   * vault; EXPIRED is terminal, so the attribution alone settles it.
+   */
+  peginSweptWhileExpired?: boolean;
+  /**
    * Blocks still to wait before `activateVaultWithSecret` is permitted — the
    * registry's lower bound (`verifiedAt + peginActivationDelay`). The opposite
    * end of the window from `activationDeadlinePassed`, and deliberately a
@@ -404,6 +415,7 @@ export function getPeginState(
     canRefund: options.canRefund,
     hasProviderTerminalFailure: !!options.vpTerminalError,
     htlcSpentByPeginTx: options.htlcSpentByPeginTx,
+    peginSweptWhileExpired: options.peginSweptWhileExpired,
   });
 
   const sdkActions = applyTrackingOverrides(
@@ -792,6 +804,18 @@ function getDisplay(
         displayLabel: PEGIN_DISPLAY_LABELS.REFUNDING,
         displayVariant: "pending",
         message: COPY.pegin.messages.refundBroadcast,
+      };
+    }
+    // The PegIn swept the HTLC after expiry, so the deposit is funded, not
+    // refunded. Checked before every refund branch below: each of those
+    // describes returning BTC that is not coming back, and the maturity
+    // countdown would tick toward an action Bitcoin rejects.
+    if (options.peginSweptWhileExpired) {
+      return {
+        displayLabel: PEGIN_DISPLAY_LABELS.ACTIVATION_INCOMPLETE,
+        displayVariant: "warning",
+        message: COPY.pegin.messages.peginSweptWhileExpired,
+        inlineSubtext: COPY.pegin.messages.peginSweptWhileExpiredSubtext,
       };
     }
     const expiredMessage = buildExpiredMessage(expirationReason, expiredAt);

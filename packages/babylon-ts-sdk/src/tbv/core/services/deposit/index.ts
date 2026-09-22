@@ -21,6 +21,7 @@ export {
   PeginAction,
   canPerformAction,
   getPeginProtocolState,
+  activationDeadlineBlocksRemaining,
   isActivationDeadlinePassedOnChain,
   type ExpirationReason,
   type GetPeginProtocolStateOptions,

@@ -250,3 +250,29 @@ export function isActivationDeadlinePassedOnChain(params: {
   const { currentBlock, createdAtBlock, pegInActivationTimeout } = params;
   return currentBlock > createdAtBlock + pegInActivationTimeout;
 }
+
+/**
+ * Blocks still available for an activation transaction to be mined; `0` once
+ * the window has closed.
+ *
+ * `isActivationDeadlinePassedOnChain` answers whether the window is already
+ * shut, which is the right question for a badge but the wrong one for a
+ * secret-bearing call. An activation submitted in the last block before the
+ * deadline reverts if it lands one block late, and by then `s` is public
+ * calldata: the vault expires with `ActivationTimeout` and anyone can
+ * broadcast the PegIn with that secret. The caller therefore needs the
+ * remaining margin, not a boolean.
+ *
+ * Counts the boundary block as usable, matching the contract's strict `>`:
+ * at `currentBlock === createdAt + timeout` one block remains.
+ */
+export function activationDeadlineBlocksRemaining(params: {
+  currentBlock: bigint;
+  createdAtBlock: bigint;
+  pegInActivationTimeout: bigint;
+}): number {
+  const { currentBlock, createdAtBlock, pegInActivationTimeout } = params;
+  const lastUsableBlock = createdAtBlock + pegInActivationTimeout;
+  if (currentBlock > lastUsableBlock) return 0;
+  return Number(lastUsableBlock - currentBlock) + 1;
+}

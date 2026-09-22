@@ -191,10 +191,17 @@ vi.mock("@/services/vault", () => ({
 const mockGetPeginActivationDelay = vi.hoisted(() =>
   vi.fn().mockResolvedValue(0n),
 );
+// Activation ceiling. Default is a wide window so every pre-existing
+// activation test clears the inclusion margin unchanged; the deadline tests
+// drive it directly.
+const mockGetTBVProtocolParams = vi.hoisted(() =>
+  vi.fn().mockResolvedValue({ pegInActivationTimeout: 10_000n }),
+);
 vi.mock("@/clients/eth-contract/sdk-readers", () => ({
   getVaultRegistryReader: vi.fn(),
   getProtocolParamsReader: vi.fn().mockResolvedValue({
     getPeginActivationDelay: mockGetPeginActivationDelay,
+    getTBVProtocolParams: mockGetTBVProtocolParams,
   }),
 }));
 
@@ -280,6 +287,9 @@ function readerReturning(
   protocolInfo: Record<string, unknown>,
   basicInfo: Record<string, unknown> = {
     status: OnChainBtcVaultStatus.VERIFIED,
+    // Registration block. With the default tip and timeout this leaves the
+    // activation window wide open, so the deadline gate is a no-op here.
+    createdAt: 1_000n,
   },
 ): ReturnType<typeof getVaultRegistryReader> {
   return {
@@ -2320,7 +2330,12 @@ describe("useVaultActions — activation floor (peginActivationDelay)", () => {
     expect(mockActivateVaultWithSecret).toHaveBeenCalled();
   });
 
-  it("reveals at delay 0 even when getBlockNumber fails", async () => {
+  it("aborts at delay 0 when getBlockNumber fails, because the deadline is unverifiable", async () => {
+    // Supersedes "reveals at delay 0 even when getBlockNumber fails". The head
+    // used to be optional: delay 0 disables the floor, so a blip could be
+    // ignored. The activation ceiling needs the same read and cannot be
+    // skipped — without the head we cannot tell whether this reveal still has
+    // room to be mined, and a late one publishes the secret for nothing.
     mockGetPeginActivationDelay.mockResolvedValue(0n);
     mockGetBlockNumber.mockRejectedValue(new Error("RPC down"));
 
@@ -2329,7 +2344,10 @@ describe("useVaultActions — activation floor (peginActivationDelay)", () => {
       await result.current.handleActivation(params);
     });
 
-    expect(mockActivateVaultWithSecret).toHaveBeenCalled();
+    expect(mockActivateVaultWithSecret).not.toHaveBeenCalled();
+    expect(result.current.activationError).toBe(
+      COPY.pegin.messages.activationWindowUnavailable,
+    );
   });
 
   it("aborts rather than revealing when verifiedAt is unreadable (fail closed)", async () => {
@@ -2348,5 +2366,134 @@ describe("useVaultActions — activation floor (peginActivationDelay)", () => {
     });
 
     expect(mockActivateVaultWithSecret).not.toHaveBeenCalled();
+  });
+});
+
+// ============================================================================
+// Activation ceiling. Activation puts the HTLC secret in calldata, so a reveal
+// that lands after `createdAt + pegInActivationTimeout` reverts AND publishes
+// the secret: the vault expires with ActivationTimeout and anyone can
+// broadcast the PegIn with it. The dashboard gate is UX-only and up to a poll
+// interval stale, so the margin is re-checked here on fresh reads.
+// ============================================================================
+describe("useVaultActions — activation deadline margin", () => {
+  const SECRET =
+    "0x0000000000000000000000000000000000000000000000000000000000000001";
+  const ON_CHAIN_HASHLOCK =
+    "0xec4916dd28fc4c10d78e287ca5d9cc51ee1ae73cbfde08c6b37324cbfaac8bc5";
+
+  // createdAt 1000 + timeout 100 => the last block that can still be mined is
+  // 1100, so the margin runs out at 1094.
+  const CREATED_AT = 1_000n;
+  const TIMEOUT = 100n;
+
+  const params = {
+    vaultId: "0xvaultId" as Hex,
+    secretHex: SECRET,
+    depositorEthAddress: "0xdepositor",
+    onRefetchActivities: vi.fn(),
+    onShowSuccessModal: vi.fn(),
+  };
+
+  function readerWithDeadline() {
+    return readerReturning(
+      {
+        depositorSignedPeginTx: "0xdeadbeef",
+        hashlock: ON_CHAIN_HASHLOCK,
+        verifiedAt: CREATED_AT,
+      },
+      { status: OnChainBtcVaultStatus.VERIFIED, createdAt: CREATED_AT },
+    );
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    gateMock.value = { protocol: null, aave: null };
+    onChainPauseMock.value = { protocol: null, aave: null };
+    mockGetTBVProtocolParams.mockResolvedValue({
+      pegInActivationTimeout: TIMEOUT,
+    });
+    mockGetVaultRegistryReader.mockReturnValue(readerWithDeadline());
+  });
+
+  it("reveals the secret while a comfortable margin remains", async () => {
+    mockGetBlockNumber.mockResolvedValue(1_000n);
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(async () => {
+      await result.current.handleActivation(params);
+    });
+
+    expect(mockActivateVaultWithSecret).toHaveBeenCalledTimes(1);
+  });
+
+  it("reveals on the last block that still clears the margin", async () => {
+    // 1093 leaves 8 blocks (1093..1100 inclusive), one more than the margin.
+    mockGetBlockNumber.mockResolvedValue(1_093n);
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(async () => {
+      await result.current.handleActivation(params);
+    });
+
+    expect(mockActivateVaultWithSecret).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses once the remaining margin is used up", async () => {
+    // 1094 leaves exactly 7 blocks; the margin needs more than 6 to pass.
+    mockGetBlockNumber.mockResolvedValue(1_095n);
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(async () => {
+      await result.current.handleActivation(params);
+    });
+
+    expect(mockActivateVaultWithSecret).not.toHaveBeenCalled();
+    expect(result.current.activationError).toBe(
+      COPY.pegin.messages.activationWindowClosing,
+    );
+  });
+
+  it("refuses after the window has closed outright", async () => {
+    mockGetBlockNumber.mockResolvedValue(1_200n);
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(async () => {
+      await result.current.handleActivation(params);
+    });
+
+    expect(mockActivateVaultWithSecret).not.toHaveBeenCalled();
+  });
+
+  it("applies the margin to the activate-and-redeem path too", async () => {
+    // The floor exempts the escape hatch because the contract does. The
+    // deadline does not: past it that call reverts as well, with the secret
+    // already in the calldata.
+    mockGetBlockNumber.mockResolvedValue(1_200n);
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(async () => {
+      await result.current.handleActivation({
+        ...params,
+        redeemImmediately: true,
+      });
+    });
+
+    expect(mockActivateVaultWithSecretAndRedeem).not.toHaveBeenCalled();
+  });
+
+  it("aborts rather than revealing when the timeout cannot be read", async () => {
+    mockGetBlockNumber.mockResolvedValue(1_000n);
+    mockGetTBVProtocolParams.mockRejectedValue(new Error("RPC down"));
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(async () => {
+      await result.current.handleActivation(params);
+    });
+
+    expect(mockActivateVaultWithSecret).not.toHaveBeenCalled();
+    expect(result.current.activationError).toBe(
+      COPY.pegin.messages.activationWindowUnavailable,
+    );
   });
 });

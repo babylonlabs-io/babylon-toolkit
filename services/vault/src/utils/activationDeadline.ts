@@ -42,3 +42,24 @@ export function estimateActivationDeadlineLikelyPassed(params: {
   );
   return estimatedElapsedBlocks >= pegInActivationTimeout;
 }
+
+/**
+ * Blocks that must remain before the activation deadline for a
+ * secret-bearing activation to be worth sending.
+ *
+ * Activation reveals the HTLC secret in calldata. If the transaction is mined
+ * after `createdAt + pegInActivationTimeout` the contract reverts
+ * `ActivationDeadlineExpired`, but `s` is public by then: the vault expires
+ * with `ActivationTimeout` and anyone can broadcast the PegIn with that
+ * secret. Refusing close to the deadline costs the depositor an activation
+ * they were unlikely to land; sending it and losing the race costs them the
+ * secret. The asymmetry is the whole reason this margin exists.
+ *
+ * Six blocks is roughly 72 seconds at a 12-second slot. That covers ordinary
+ * inclusion latency with room for a few missed slots, and it is negligible
+ * against an activation window measured in hundreds of blocks.
+ *
+ * This is a policy value, not a protocol constant — the contract enforces the
+ * deadline itself and knows nothing about this margin.
+ */
+export const ACTIVATION_INCLUSION_MARGIN_BLOCKS = 6;

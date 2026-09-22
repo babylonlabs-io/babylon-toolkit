@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  activationDeadlineBlocksRemaining,
   canPerformAction,
   ContractStatus,
   getPeginProtocolState,
@@ -216,5 +217,68 @@ describe("peginProtocolState", () => {
         }),
       ).toBe(false);
     });
+  });
+});
+
+describe("activationDeadlineBlocksRemaining", () => {
+  const createdAtBlock = 1000n;
+  const pegInActivationTimeout = 100n;
+
+  it("counts the boundary block as usable, matching the contract's strict >", () => {
+    // The contract reverts on `block.number > createdAt + timeout`, so a
+    // transaction mined at exactly 1100 still succeeds: one block remains.
+    expect(
+      activationDeadlineBlocksRemaining({
+        currentBlock: 1100n,
+        createdAtBlock,
+        pegInActivationTimeout,
+      }),
+    ).toBe(1);
+  });
+
+  it("returns 0 once the window has closed", () => {
+    expect(
+      activationDeadlineBlocksRemaining({
+        currentBlock: 1101n,
+        createdAtBlock,
+        pegInActivationTimeout,
+      }),
+    ).toBe(0);
+  });
+
+  it("never reports a negative margin for a long-expired vault", () => {
+    expect(
+      activationDeadlineBlocksRemaining({
+        currentBlock: 9999n,
+        createdAtBlock,
+        pegInActivationTimeout,
+      }),
+    ).toBe(0);
+  });
+
+  it("reports the full window at the creation block", () => {
+    expect(
+      activationDeadlineBlocksRemaining({
+        currentBlock: createdAtBlock,
+        createdAtBlock,
+        pegInActivationTimeout,
+      }),
+    ).toBe(101);
+  });
+
+  it("agrees with isActivationDeadlinePassedOnChain at the boundary", () => {
+    for (const currentBlock of [1099n, 1100n, 1101n]) {
+      const remaining = activationDeadlineBlocksRemaining({
+        currentBlock,
+        createdAtBlock,
+        pegInActivationTimeout,
+      });
+      const passed = isActivationDeadlinePassedOnChain({
+        currentBlock,
+        createdAtBlock,
+        pegInActivationTimeout,
+      });
+      expect(remaining === 0).toBe(passed);
+    }
   });
 });
