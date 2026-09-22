@@ -35,6 +35,10 @@ const walletState = vi.hoisted(() => ({
   address: "0x3333333333333333333333333333333333333333",
 }));
 
+// The three session hooks answer from walletState. useChainConnector is the
+// fourth member this page reaches: the real useVaultsPageEmptiness resolves
+// reclaim candidates through useReclaimRowAction, which asks for the BTC
+// connector. No component here renders a reclaim row; that renderer is stubbed.
 vi.mock("@babylonlabs-io/wallet-connector", () => ({
   useWalletConnect: () => ({ connected: walletState.confirmed }),
   useBTCWallet: () => ({ connected: walletState.btcConnected }),
@@ -42,6 +46,21 @@ vi.mock("@babylonlabs-io/wallet-connector", () => ({
     connected: walletState.ethConnected,
     address: walletState.address,
   }),
+  useChainConnector: () => undefined,
+}));
+
+// The other half of that same reclaim action. Mocked as a module so the real
+// one never loads, because it reads APPKIT_BTC_CONNECTOR_ID from the
+// wallet-connector module at module scope, which the mock above does not carry.
+vi.mock("@/context/wallet/VaultWalletConnectionProvider", () => ({
+  isLedgerVaultConnector: () => false,
+}));
+
+// The real useVaultsPageEmptiness reads useActionableExpiredDeposits, which
+// needs the polling context. No case here has an expired deposit, so an empty
+// result keeps every expired activity actionable.
+vi.mock("@/context/deposit/PeginPollingContext", () => ({
+  usePeginPolling: () => ({ getPollingResult: () => undefined }),
 }));
 
 // The real gate, so the Ethereum-only control decides what this page treats as
@@ -49,6 +68,7 @@ vi.mock("@babylonlabs-io/wallet-connector", () => ({
 vi.mock("@/context/wallet", async () => ({
   useConnection: (await import("@/context/wallet/useConnection")).useConnection,
   useETHWallet: (await import("@babylonlabs-io/wallet-connector")).useETHWallet,
+  useBTCWallet: (await import("@babylonlabs-io/wallet-connector")).useBTCWallet,
 }));
 
 // Both data hooks answer from the address they are given — useVaultsPageData
@@ -69,7 +89,8 @@ vi.mock("@/hooks/useDashboardState", () => ({
 }));
 
 // The page's single usePendingDeposits instance, shared with the emptiness
-// hook. No pending or expired deposits, so only collateral decides emptiness.
+// hook. No pending, expired or reclaimable deposits, so of the four terms
+// useVaultsPageEmptiness counts, only collateral decides emptiness.
 vi.mock("@/hooks/usePendingDeposits", () => ({
   usePendingDeposits: () => ({
     pendingActivities: [],
