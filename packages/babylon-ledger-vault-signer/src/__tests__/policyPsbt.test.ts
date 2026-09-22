@@ -145,7 +145,9 @@ describe("augmentPsbtForWalletPolicy", () => {
       }),
     );
     const change = atIndex1.data.outputs[1];
-    expect(Buffer.from(change.tapInternalKey!).toString("hex")).toBe(deriveChangeXOnlyHex(ACCOUNT_XPUB, MAINNET_VERSIONS, 1));
+    expect(Buffer.from(change.tapInternalKey!).toString("hex")).toBe(
+      deriveChangeXOnlyHex(ACCOUNT_XPUB, MAINNET_VERSIONS, 1),
+    );
     expect(change.tapBip32Derivation![0].path).toBe("m/86'/0'/0'/1/1");
   });
 
@@ -166,9 +168,9 @@ describe("augmentPsbtForWalletPolicy", () => {
     });
     p.addOutput({ script: Buffer.from([0x6a]), value: 0 });
 
-    expect(() =>
-      augmentPsbtForWalletPolicy({ ...base, psbtHex: p.toHex(), depositorPath: DEPOSITOR_PATH }),
-    ).toThrow(/1 of 1 inputs do not carry the depositor key/);
+    expect(() => augmentPsbtForWalletPolicy({ ...base, psbtHex: p.toHex(), depositorPath: DEPOSITOR_PATH })).toThrow(
+      /1 of 1 inputs do not carry the depositor key/,
+    );
   });
 
   it("rejects paths that are not 5 levels, carry non-u32 levels, or sit on the change branch", () => {

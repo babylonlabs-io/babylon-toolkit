@@ -13,23 +13,66 @@
 
 /**
  * Depositor Payout transaction input count.
- * Input 0: PegIn:0 (signed). Input 1: Assert:0 (in sighash, not signed).
+ * Input 0: PegIn:0 ({@link PAYOUT_PEGIN_INPUT_INDEX}). Input 1: Assert:0
+ * ({@link PAYOUT_ASSERT_INPUT_INDEX} carries the signing regimes).
  */
 export const DEPOSITOR_PAYOUT_INPUT_COUNT = 2;
 
 /**
- * Inputs the depositor signs per Payout / NoPayout PSBT: input 0 only. The
- * other inputs are in the SIGHASH_DEFAULT sighash but carry no depositor
- * signature — the Ledger host expects exactly this many yields, so a drift
- * here re-arms an input the device never signs.
+ * Inputs the depositor signs per Payout / NoPayout PSBT at deposit time:
+ * input 0 only. The other inputs are in the SIGHASH_DEFAULT sighash but carry
+ * no depositor signature there — the Ledger host expects exactly this many
+ * yields, so a drift here re-arms an input the device never signs at deposit
+ * time.
  */
 export const DEPOSITOR_SIGNED_INPUT_COUNT = 1;
 
 /** PegIn vault output index spent by the depositor's Payout input 0. */
 export const PEGIN_VAULT_OUTPUT_INDEX = 0;
 
-/** Assert output index spent by the depositor's Payout input 1 (NOT signed). */
+/**
+ * Assert output index spent by the Payout's input 1
+ * ({@link PAYOUT_ASSERT_INPUT_INDEX} carries the signing regimes).
+ */
 export const ASSERT_PAYOUT_OUTPUT_INDEX = 0;
+
+/** Payout input that spends the Vault UTXO (PegIn:{@link PEGIN_VAULT_OUTPUT_INDEX}); the depositor signs it in both regimes. */
+export const PAYOUT_PEGIN_INPUT_INDEX = 0;
+
+/** Payout input that spends the Assert connector (Assert:{@link ASSERT_PAYOUT_OUTPUT_INDEX}); the claimer signs it, which is the depositor only in a delegated claim. */
+export const PAYOUT_ASSERT_INPUT_INDEX = 1;
+
+/**
+ * Claim input that spends the vault's PegIn. A depositor-as-claimer recovery
+ * Claim is funded by exactly the PegIn's depositor-claim output
+ * (`DEPOSITOR_CLAIM_VOUT = 1` in btc-vault `crates/vault/src/lib.rs:272`, used by
+ * `depositor_claim_funding_outpoint` in `crates/vault/src/transactions/claim.rs:119-121`
+ * @ ac4954e7); the depositor signs it.
+ */
+export const CLAIM_PEGIN_INPUT_INDEX = 0;
+
+/**
+ * Assert input that spends the Claim connector
+ * (Claim:{@link CLAIM_CONNECTOR_OUTPUT_INDEX}); the claimer signs it. Matches
+ * `CLAIM_ASSERT_INPUT` in btc-vault `crates/vault/src/transactions/assert.rs:56` @ ac4954e7.
+ */
+export const ASSERT_CLAIM_INPUT_INDEX = 0;
+
+/**
+ * Claim output the Assert spends. Matches `CLAIM_ASSERT_OUTPUT_INDEX` in
+ * btc-vault `crates/vault/src/transactions/claim.rs:25` @ ac4954e7.
+ */
+export const CLAIM_CONNECTOR_OUTPUT_INDEX = 0;
+
+/**
+ * WronglyChallenged input that spends the ChallengeAssert connector; the
+ * claimer signs it, which is the depositor only in a delegated claim. Matches
+ * `CHALLENGE_ASSERT_INPUT` in btc-vault
+ * `crates/vault/src/transactions/wrongly_challenged.rs:35`, the input
+ * `claimer_signing_psbt` hands the external signer (`:187`) and `sign_claimer`
+ * signs natively (`:243`) @ ac4954e7.
+ */
+export const WRONGLY_CHALLENGED_INPUT_INDEX = 0;
 
 /**
  * Dust amount (sats) for the payout CPFP anchor output. Matches `DUST_AMOUNT`
@@ -96,6 +139,18 @@ export const REFUND_TX_LOCKTIME = 0;
  */
 export const PAYOUT_TX_VERSION = 2;
 export const PAYOUT_TX_LOCKTIME = 0;
+
+/**
+ * Payout output that pays the payout receiver, resolved per claimer role (the
+ * depositor's registered script for a VP or depositor claimer, the keeper's
+ * for an AVK claimer — btc-vault `tx_graph/graph.rs:100-106` @ ac4954e7).
+ * btc-vault has no named constant for the index itself:
+ * `build_payout_outputs` (`crates/vault/src/transactions/mod.rs:206`)
+ * returns the destination as `output0` in both layouts — `:246`/`:256` with a
+ * VP commission, `:266`/`:270` without — and `transactions/payout.rs:153`
+ * pushes the CPFP anchor after them @ ac4954e7.
+ */
+export const PAYOUT_DESTINATION_OUTPUT_INDEX = 0;
 
 /** VP-claimer payout output count: [depositor payout, VP commission, CPFP anchor]. */
 export const VP_CLAIMER_PAYOUT_OUTPUT_COUNT = 3;

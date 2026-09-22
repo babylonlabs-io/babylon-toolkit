@@ -19,8 +19,8 @@ import type {
 } from "./types";
 
 /**
- * Maximum value for a Solidity uint16.
- * PeginLogic.sol casts timelockAssert to uint16, so values above this are invalid.
+ * Maximum value for a Solidity uint16. btc-vault carries the PegIn timelock as
+ * a `NonZeroU16` (`transactions/pegin.rs:33` @ ac4954e7).
  */
 const UINT16_MAX = 65535;
 

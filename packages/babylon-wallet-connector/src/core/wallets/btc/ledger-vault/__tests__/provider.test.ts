@@ -1570,6 +1570,464 @@ describe("LedgerVaultProvider", () => {
     });
   });
 
+  describe("signDelegatedClaimPsbt (#2111)", () => {
+    const NUMS = Buffer.from("50929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfee9ace803ac0", "hex");
+    const LEAF_VERSION = 0xc0;
+    const SEQUENCE_FINAL = 0xffffffff;
+    const PAYOUT_TIMELOCK = 200;
+    const DUST = 546;
+    const KEEPER = "25d1dff95105f5253c4022f628a996ad3a0d95fbf21d468a1b33f8c160d8f517";
+    const CHALLENGER = "2f01e5e15cca351daff3843fb70f3c2f0a1bdd05e5af888a67784ef3e10a2a01";
+    const DUMMY_SPK = Buffer.concat([Buffer.from([0x51, 0x20]), Buffer.alloc(32, 0)]);
+    /** A generic (non-claim) PSBT that signs under the loaded intent. */
+    const PSBT_UNDER_INTENT = "ab".repeat(40);
+
+    function ownSpk(): Buffer {
+      initEccLib(ecc);
+      return payments.p2tr({ internalPubkey: Buffer.from(DEVICE_XONLY, "hex") }).output!;
+    }
+
+    function singleLeaf(leaf: Buffer): { output: Buffer; controlBlock: Buffer } {
+      initEccLib(ecc);
+      const p2tr = payments.p2tr({
+        internalPubkey: NUMS,
+        scriptTree: { output: leaf },
+        redeem: { output: leaf, redeemVersion: LEAF_VERSION },
+      });
+      return { output: p2tr.output!, controlBlock: p2tr.witness![p2tr.witness!.length - 1] };
+    }
+
+    /** What the WASM builders put on a signing input for D: a zero-fingerprint, empty-path entry. */
+    function wasmDerivation(keyHex: string) {
+      return {
+        tapBip32Derivation: [
+          { masterFingerprint: Buffer.alloc(4, 0), pubkey: Buffer.from(keyHex, "hex"), path: "m", leafHashes: [] },
+        ],
+      };
+    }
+
+    function leafInput(hash: Buffer, leaf: Buffer, value: number, sequence: number, keyHex: string) {
+      const { output, controlBlock } = singleLeaf(leaf);
+      return {
+        hash,
+        index: 0,
+        sequence,
+        witnessUtxo: { script: output, value },
+        tapLeafScript: [{ leafVersion: LEAF_VERSION, script: leaf, controlBlock }],
+        tapInternalKey: NUMS,
+        ...wasmDerivation(keyHex),
+      };
+    }
+
+    function scriptNum(value: number): Buffer {
+      const bytes: number[] = [];
+      for (let v = value; v > 0; v >>= 8) bytes.push(v & 0xff);
+      if ((bytes[bytes.length - 1] & 0x80) !== 0) bytes.push(0);
+      return Buffer.from([bytes.length, ...bytes]);
+    }
+
+    /** `<key> OP_CHECKSIG OP_1 OP_NUMEQUALVERIFY` — a 1-of-1 challenger group. */
+    function group(hex: string): Buffer {
+      return Buffer.concat([Buffer.from([0x20]), Buffer.from(hex, "hex"), Buffer.from([0xac, 0x51, 0x9d])]);
+    }
+
+    /** `<D> OP_CHECKSIGVERIFY <group> <group> <t2> OP_CSV` — the Assert:0 payout leaf. */
+    function payoutLeaf(keyHex: string): Buffer {
+      return Buffer.concat([
+        Buffer.from([0x20]),
+        Buffer.from(keyHex, "hex"),
+        Buffer.from([0xad]),
+        group(KEEPER),
+        group(CHALLENGER),
+        scriptNum(PAYOUT_TIMELOCK),
+        Buffer.from([0xb2]),
+      ]);
+    }
+
+    /** The firmware suite's synthetic 107-byte Assert leaf: the signer prefix, then OP_TRUE for the WOTS body. */
+    function assertLeaf(keyHex: string): Buffer {
+      return Buffer.concat([
+        Buffer.from([0x20]),
+        Buffer.from(keyHex, "hex"),
+        Buffer.from([0xad]),
+        group(KEEPER),
+        group(CHALLENGER),
+        Buffer.from([0x51]),
+      ]);
+    }
+
+    /** SDK-shaped Claim: 1 in (`<D> OP_CHECKSIG`), 2 out (connector, 546 anchor to P2TR(D)). */
+    function claimPsbtHex(keyHex = DEVICE_XONLY): string {
+      const leaf = Buffer.concat([Buffer.from([0x20]), Buffer.from(keyHex, "hex"), Buffer.from([0xac])]);
+      const psbt = new Psbt();
+      psbt.setVersion(2);
+      psbt.setLocktime(0);
+      psbt.addInput(leafInput(Buffer.alloc(32, 0xab), leaf, 1_200_000, SEQUENCE_FINAL, keyHex));
+      psbt.addOutput({ script: DUMMY_SPK, value: 600_000 });
+      psbt.addOutput({ script: payments.p2tr({ internalPubkey: Buffer.from(keyHex, "hex") }).output!, value: DUST });
+      return psbt.toHex();
+    }
+
+    /** SDK-shaped WronglyChallenged: 1 in (73-byte leaf), 1 out to P2TR(D). */
+    function wcPsbtHex(): string {
+      const leaf = Buffer.concat([
+        Buffer.from([0x20]),
+        Buffer.from(DEVICE_XONLY, "hex"),
+        Buffer.from([0xad, 0x82, 0x01, 0x20, 0x88, 0xa8, 0x20]),
+        Buffer.alloc(32, 0xcc),
+        Buffer.from([0x87]),
+      ]);
+      const psbt = new Psbt();
+      psbt.setVersion(2);
+      psbt.setLocktime(0);
+      psbt.addInput(leafInput(Buffer.alloc(32, 0xef), leaf, 5_000_000, SEQUENCE_FINAL, DEVICE_XONLY));
+      psbt.addOutput({ script: ownSpk(), value: 4_900_000 });
+      return psbt.toHex();
+    }
+
+    /** SDK-shaped Assert: 1 in (Assert leaf, seq FINAL), 1 out. */
+    function assertPsbtHex(): string {
+      const psbt = new Psbt();
+      psbt.setVersion(2);
+      psbt.setLocktime(0);
+      psbt.addInput(
+        leafInput(Buffer.alloc(32, 0xcd), assertLeaf(DEVICE_XONLY), 5_000_000, SEQUENCE_FINAL, DEVICE_XONLY),
+      );
+      psbt.addOutput({ script: DUMMY_SPK, value: 4_990_000 });
+      return psbt.toHex();
+    }
+
+    /**
+     * The Payout as the WASM builders emit it (`payout.rs:100-135` @
+     * ac4954e7): input 0's sequence is the PegIn CSV timelock, which neither
+     * device nor host reads. `claimer`: input 0 bare (the claimer signs
+     * input 1). `depositor`: input 0 carries the Vault-UTXO leaf and D's
+     * entry, input 1 carries the payout leaf (no entry) — the deposit-time shape.
+     */
+    function payoutPsbtHex(role: "claimer" | "depositor"): string {
+      const leaf = payoutLeaf(DEVICE_XONLY);
+      const psbt = new Psbt();
+      psbt.setVersion(2);
+      psbt.setLocktime(0);
+      if (role === "claimer") {
+        psbt.addInput({
+          hash: Buffer.alloc(32, 0xaa),
+          index: 0,
+          sequence: TERMS.timelockPegin,
+          witnessUtxo: { script: DUMMY_SPK, value: 2_000_000 },
+        });
+        psbt.addInput({ ...leafInput(Buffer.alloc(32, 0xbb), leaf, DUST, PAYOUT_TIMELOCK, DEVICE_XONLY) });
+      } else {
+        const vaultLeaf = Buffer.concat([
+          Buffer.from([0x20]),
+          Buffer.from(DEVICE_XONLY, "hex"),
+          Buffer.from([0xad, 0x20]),
+          Buffer.alloc(32, 0x77),
+          Buffer.from([0xad]),
+          scriptNum(PAYOUT_TIMELOCK),
+          Buffer.from([0xb2]),
+        ]);
+        psbt.addInput({
+          ...leafInput(Buffer.alloc(32, 0xaa), vaultLeaf, 2_000_000, TERMS.timelockPegin, DEVICE_XONLY),
+        });
+        const { output, controlBlock } = singleLeaf(leaf);
+        psbt.addInput({
+          hash: Buffer.alloc(32, 0xbb),
+          index: 0,
+          sequence: PAYOUT_TIMELOCK,
+          witnessUtxo: { script: output, value: DUST },
+          tapLeafScript: [{ leafVersion: LEAF_VERSION, script: leaf, controlBlock }],
+          tapInternalKey: NUMS,
+        });
+      }
+      psbt.addOutput({ script: ownSpk(), value: 1_234_567 });
+      psbt.addOutput({ script: ownSpk(), value: DUST });
+      return psbt.toHex();
+    }
+
+    /** A refund-shaped PSBT — the OTHER standalone kind, which must never enter this method. */
+    function refundShapedHex(): string {
+      const leaf = Buffer.concat([
+        Buffer.from([0x20]),
+        Buffer.from(DEVICE_XONLY, "hex"),
+        Buffer.from([0xad]),
+        scriptNum(TERMS.timelockRefund),
+        Buffer.from([0xb2]),
+      ]);
+      const psbt = new Psbt();
+      psbt.setVersion(2);
+      psbt.setLocktime(0);
+      psbt.addInput(leafInput(Buffer.alloc(32, 0x11), leaf, 1_000_000, TERMS.timelockRefund, DEVICE_XONLY));
+      psbt.addOutput({ script: ownSpk(), value: 990_000 });
+      return psbt.toHex();
+    }
+
+    const signIndex = (index: number) => ({
+      autoFinalized: false,
+      signInputs: [{ index, publicKey: DEVICE_XONLY, useTweakedSigner: false }],
+    });
+
+    async function approved() {
+      const provider = await derived();
+      await provider.approveDepositTerms(TERMS);
+      return provider;
+    }
+
+    function stagedInput(index: number) {
+      return Psbt.fromHex(signMock.prepareSignPsbt.mock.calls[0][0].psbtHex).data.inputs[index];
+    }
+
+    it.each([
+      ["a Claim", () => claimPsbtHex(), 0],
+      ["a WronglyChallenged", () => wcPsbtHex(), 0],
+      ["the claimer Payout (PayoutFinalize, input 1)", () => payoutPsbtHex("claimer"), 1],
+    ])("signs %s with NO approved intent — the device accepts it without one", async (_label, hex, index) => {
+      const provider = await connected();
+
+      await expect(provider.signDelegatedClaimPsbt(hex(), signIndex(index))).resolves.toMatch(/^signed:/);
+      expect(signMock.signPreparedVaultPsbt).toHaveBeenCalledTimes(1);
+      expect(signMock.prepareSignPsbt.mock.calls[0][0].signInputIndexes).toEqual([index]);
+    });
+
+    it.each([
+      ["Claim", () => claimPsbtHex(), 0, false],
+      ["WronglyChallenged", () => wcPsbtHex(), 0, false],
+      ["claimer Payout", () => payoutPsbtHex("claimer"), 1, false],
+      ["Assert (under the intent)", () => assertPsbtHex(), 0, true],
+    ])(
+      "stages the AUGMENTED %s hex: the signed input carries the device entry and no zero-fingerprint entry",
+      async (_label, hex, index, needsIntent) => {
+        const provider = needsIntent ? await approved() : await connected();
+
+        await provider.signDelegatedClaimPsbt(hex(), signIndex(index));
+
+        const deriv = stagedInput(index).tapBip32Derivation;
+        expect(deriv).toHaveLength(1);
+        expect(deriv![0].pubkey.toString("hex")).toBe(DEVICE_XONLY);
+        expect(deriv![0].masterFingerprint.toString("hex")).toBe("73c5da0a");
+        // SIGNET provider → coin type 1: m/86'/1'/0'/0/0.
+        expect(deriv![0].path).toBe("m/86'/1'/0'/0/0");
+        const staged = Psbt.fromHex(signMock.prepareSignPsbt.mock.calls[0][0].psbtHex);
+        for (const output of staged.data.outputs) expect(output.tapBip32Derivation).toBeUndefined();
+      },
+    );
+
+    it.each([
+      ["Claim", () => claimPsbtHex(), 0, false],
+      ["WronglyChallenged", () => wcPsbtHex(), 0, false],
+      ["claimer Payout", () => payoutPsbtHex("claimer"), 1, false],
+      ["Assert", () => assertPsbtHex(), 0, true],
+    ])(
+      "the augmented %s survives the REAL prepare: the signed input classifies tapscript for the device key",
+      async (_label, hex, index, needsIntent) => {
+        const { prepareSignPsbt: realPrepare } = await actualSigner();
+        signMock.prepareSignPsbt.mockImplementation(realPrepare);
+        const provider = needsIntent ? await approved() : await connected();
+
+        await expect(provider.signDelegatedClaimPsbt(hex(), signIndex(index))).resolves.toMatch(/^signed:/);
+
+        const prepared = signMock.prepareSignPsbt.mock.results[0].value as {
+          table: { byInput: Map<number, InputSigExpectation> };
+        };
+        expect([...prepared.table.byInput.keys()]).toEqual([index]);
+        expect(prepared.table.byInput.get(index)).toMatchObject({
+          kind: "tapscript",
+          expectedSignerXOnlyHex: DEVICE_XONLY,
+        });
+      },
+    );
+
+    it("leaves the claimer Payout's input 0 untouched — the device never signs the Vault UTXO input", async () => {
+      const provider = await connected();
+      await provider.signDelegatedClaimPsbt(payoutPsbtHex("claimer"), signIndex(1));
+      expect(stagedInput(0).tapBip32Derivation).toBeUndefined();
+    });
+
+    it("refuses the claimer Payout while an intent is loaded, with ZERO device I/O, and keeps the intent — the device would refuse it and wipe the intent", async () => {
+      const provider = await approved();
+      dmkSessionMock.isSessionAlive.mockClear();
+
+      await expect(provider.signDelegatedClaimPsbt(payoutPsbtHex("claimer"), signIndex(1))).rejects.toMatchObject({
+        code: ERROR_CODES.DEVICE_CEREMONY_INVALID,
+        message: expect.stringMatching(/deriveContextHash/),
+      });
+      expect(dmkSessionMock.isSessionAlive).not.toHaveBeenCalled();
+      expect(signMock.prepareSignPsbt).not.toHaveBeenCalled();
+      expect(signMock.signPreparedVaultPsbt).not.toHaveBeenCalled();
+      await expect(provider.holdsApprovedDepositTerms(TERMS)).resolves.toBe(true);
+    });
+
+    it("signs the claimer Payout once the intent is released by a fresh derive", async () => {
+      const provider = await approved();
+      await provider.deriveContextHash("app", "aa".repeat(32));
+
+      await expect(provider.signDelegatedClaimPsbt(payoutPsbtHex("claimer"), signIndex(1))).resolves.toMatch(
+        /^signed:/,
+      );
+    });
+
+    it("signs a Claim and a WronglyChallenged under a loaded intent too, and the intent survives", async () => {
+      const provider = await approved();
+
+      await expect(provider.signDelegatedClaimPsbt(claimPsbtHex(), signIndex(0))).resolves.toMatch(/^signed:/);
+      await expect(provider.signDelegatedClaimPsbt(wcPsbtHex(), signIndex(0))).resolves.toMatch(/^signed:/);
+      await expect(provider.holdsApprovedDepositTerms(TERMS)).resolves.toBe(true);
+    });
+
+    it("refuses the Assert with NO approved intent — it is intent-bound on the device — after the liveness probe but before any ceremony", async () => {
+      const provider = await connected();
+      dmkSessionMock.isSessionAlive.mockClear();
+
+      await expect(provider.signDelegatedClaimPsbt(assertPsbtHex(), signIndex(0))).rejects.toMatchObject({
+        code: ERROR_CODES.DEVICE_CEREMONY_INVALID,
+        message: expect.stringMatching(/no approved intent/),
+      });
+      // The intent gate sits behind the probe (a dead session must say so first), not before it.
+      expect(dmkSessionMock.isSessionAlive).toHaveBeenCalledTimes(1);
+      expect(signMock.prepareSignPsbt).not.toHaveBeenCalled();
+      expect(signMock.signPreparedVaultPsbt).not.toHaveBeenCalled();
+    });
+
+    it("signs the Assert under the intent, keeps the intent, and records no replay fingerprint", async () => {
+      const provider = await approved();
+      const hex = assertPsbtHex();
+
+      await expect(provider.signDelegatedClaimPsbt(hex, signIndex(0))).resolves.toMatch(/^signed:/);
+      await expect(provider.holdsApprovedDepositTerms(TERMS)).resolves.toBe(true);
+      await expect(provider.signDelegatedClaimPsbt(hex, signIndex(0))).resolves.toMatch(/^signed:/);
+      expect(signMock.signPreparedVaultPsbt).toHaveBeenCalledTimes(2);
+    });
+
+    it("routes the depositor Payout down signPsbt unchanged: intent required, replay fingerprint recorded", async () => {
+      const idle = await connected();
+      await expect(idle.signDelegatedClaimPsbt(payoutPsbtHex("depositor"), signIndex(0))).rejects.toMatchObject({
+        code: ERROR_CODES.DEVICE_CEREMONY_INVALID,
+        message: expect.stringMatching(/no approved intent/),
+      });
+      expect(signMock.signPreparedVaultPsbt).not.toHaveBeenCalled();
+
+      const loaded = await approved();
+      const hex = payoutPsbtHex("depositor");
+      await expect(loaded.signDelegatedClaimPsbt(hex, signIndex(0))).resolves.toMatch(/^signed:/);
+      // No relabelling on this path: the device takes the path from the intent.
+      expect(stagedInput(0).tapBip32Derivation![0].masterFingerprint.toString("hex")).toBe("00000000");
+      await expect(loaded.signDelegatedClaimPsbt(hex, signIndex(0))).rejects.toThrow(/already signed/);
+    });
+
+    it.each([
+      ["the claimer Payout asked at input 0", () => payoutPsbtHex("claimer"), signIndex(0)],
+      ["a refund-shaped PSBT", () => refundShapedHex(), signIndex(0)],
+      ["a PSBT that does not parse", () => PSBT_UNDER_INTENT, signIndex(0)],
+    ])("refuses %s as not a delegated-claim PSBT, with ZERO device I/O", async (_label, hex, options) => {
+      const provider = await approved();
+      dmkSessionMock.isSessionAlive.mockClear();
+
+      await expect(provider.signDelegatedClaimPsbt(hex(), options)).rejects.toMatchObject({
+        code: ERROR_CODES.INVALID_PARAMS,
+        message: expect.stringMatching(/not a delegated-claim PSBT/),
+      });
+      expect(dmkSessionMock.isSessionAlive).not.toHaveBeenCalled();
+      expect(signMock.prepareSignPsbt).not.toHaveBeenCalled();
+      await expect(provider.holdsApprovedDepositTerms(TERMS)).resolves.toBe(true);
+    });
+
+    it("names the missing signInputs entry, not the PSBT's shape, when no input was requested", async () => {
+      const provider = await approved();
+      dmkSessionMock.isSessionAlive.mockClear();
+
+      await expect(provider.signDelegatedClaimPsbt(claimPsbtHex())).rejects.toMatchObject({
+        code: ERROR_CODES.INVALID_PARAMS,
+        message: expect.stringMatching(/needs exactly one entry in options.signInputs/),
+      });
+      expect(dmkSessionMock.isSessionAlive).not.toHaveBeenCalled();
+      expect(signMock.prepareSignPsbt).not.toHaveBeenCalled();
+    });
+
+    it("names the missing signInputs entry when two inputs were requested", async () => {
+      const provider = await approved();
+      dmkSessionMock.isSessionAlive.mockClear();
+
+      await expect(
+        provider.signDelegatedClaimPsbt(claimPsbtHex(), {
+          autoFinalized: false,
+          signInputs: [{ index: 0 }, { index: 1 }],
+        }),
+      ).rejects.toMatchObject({
+        code: ERROR_CODES.INVALID_PARAMS,
+        message: expect.stringMatching(/needs exactly one entry in options.signInputs/),
+      });
+      expect(dmkSessionMock.isSessionAlive).not.toHaveBeenCalled();
+      expect(signMock.prepareSignPsbt).not.toHaveBeenCalled();
+    });
+
+    it("rejects a Claim whose leaf key is not this device's depositor key after the probe and key read, before the ceremony", async () => {
+      const provider = await connected();
+      dmkSessionMock.isSessionAlive.mockClear();
+
+      await expect(provider.signDelegatedClaimPsbt(claimPsbtHex("ab".repeat(32)), signIndex(0))).rejects.toMatchObject({
+        code: ERROR_CODES.INVALID_PARAMS,
+        message: expect.stringMatching(/not this device's depositor key/),
+      });
+      expect(dmkSessionMock.isSessionAlive).toHaveBeenCalledTimes(1);
+      expect(signMock.prepareSignPsbt).not.toHaveBeenCalled();
+      expect(signMock.signPreparedVaultPsbt).not.toHaveBeenCalled();
+    });
+
+    it("records no replay fingerprint: the same Claim can be signed again", async () => {
+      const provider = await connected();
+      const hex = claimPsbtHex();
+
+      await expect(provider.signDelegatedClaimPsbt(hex, signIndex(0))).resolves.toMatch(/^signed:/);
+      await expect(provider.signDelegatedClaimPsbt(hex, signIndex(0))).resolves.toMatch(/^signed:/);
+      expect(signMock.signPreparedVaultPsbt).toHaveBeenCalledTimes(2);
+    });
+
+    it("a device-side failure on a claim sign leaves the loaded intent and the replay guard untouched", async () => {
+      const provider = await approved();
+      await provider.signPsbt(PSBT_UNDER_INTENT);
+      signMock.signPreparedVaultPsbt.mockRejectedValueOnce(new LedgerUserRefusedError(0x6985));
+
+      await expect(provider.signDelegatedClaimPsbt(wcPsbtHex(), signIndex(0))).rejects.toMatchObject({
+        code: ERROR_CODES.CONNECTION_REJECTED,
+      });
+      await expect(provider.holdsApprovedDepositTerms(TERMS)).resolves.toBe(true);
+      await expect(provider.signPsbt(PSBT_UNDER_INTENT)).rejects.toThrow(/already signed/);
+    });
+
+    it("an intent-bound failure after a claim sign still resets the mirror", async () => {
+      const provider = await approved();
+      await provider.signDelegatedClaimPsbt(claimPsbtHex(), signIndex(0));
+      signMock.signPreparedVaultPsbt.mockRejectedValueOnce(new LedgerUserRefusedError(0x6985));
+
+      await expect(provider.signPsbt(PSBT_UNDER_INTENT)).rejects.toMatchObject({
+        code: ERROR_CODES.CONNECTION_REJECTED,
+      });
+      await expect(provider.holdsApprovedDepositTerms(TERMS)).resolves.toBe(false);
+    });
+
+    it("names the kind in a device-side failure so a ceremony step is locatable without host validation", async () => {
+      const provider = await connected();
+      signMock.signPreparedVaultPsbt.mockRejectedValueOnce(new LedgerSignPsbtProtocolError("device said no"));
+
+      await expect(provider.signDelegatedClaimPsbt(wcPsbtHex(), signIndex(0))).rejects.toMatchObject({
+        message: expect.stringMatching(/wronglyChallenged/),
+      });
+    });
+
+    it("leaves signPsbt and signPsbts byte-identical: a claim PSBT handed to them still requires the intent", async () => {
+      const provider = await connected();
+
+      await expect(provider.signPsbt(claimPsbtHex(), signIndex(0))).rejects.toMatchObject({
+        code: ERROR_CODES.DEVICE_CEREMONY_INVALID,
+        message: expect.stringMatching(/no approved intent/),
+      });
+      await expect(provider.signPsbts([claimPsbtHex()], [signIndex(0)])).rejects.toMatchObject({
+        code: ERROR_CODES.DEVICE_CEREMONY_INVALID,
+      });
+      expect(signMock.signPreparedVaultPsbt).not.toHaveBeenCalled();
+    });
+  });
+
   describe("getChangeAddress", () => {
     it("returns the P2TR address of m/86'/coin'/0'/1/0 derived from the device's account xpub", async () => {
       const p = await connected();

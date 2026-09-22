@@ -12,9 +12,9 @@
  *
  * This is the claim-side counterpart of `assertPayoutOutputLayout` in
  * `primitives/psbt/payout.ts`, which the deposit-time path already runs for
- * the same `depositor-as-claimer` role. It pins the same four things: the
- * output count, the payout script, the CPFP anchor value, and the version
- * and locktime the depositor's signature commits to.
+ * the same `depositor-as-claimer` role. It pins the same things: the output
+ * count, the payout script, the CPFP anchor's value and destination, and the
+ * version and locktime the depositor's signature commits to.
  *
  * @module services/delegated-claim/payoutBinding
  */
@@ -22,16 +22,15 @@
 import { Psbt } from "bitcoinjs-lib";
 import { Buffer } from "buffer";
 
+import { deriveP2trScript } from "../../clients/eth/payout-script";
 import {
   NON_VP_CLAIMER_PAYOUT_OUTPUT_COUNT,
   PAYOUT_ANCHOR_DUST_SATS,
+  PAYOUT_DESTINATION_OUTPUT_INDEX,
   PAYOUT_TX_LOCKTIME,
   PAYOUT_TX_VERSION,
 } from "../../primitives/psbt/constants";
 import { stripHexPrefix } from "../../primitives/utils/bitcoin";
-
-/** Output of the Payout transaction that pays the claimer. */
-const PAYOUT_DESTINATION_OUTPUT = 0;
 
 /**
  * Thrown when a Payout does not pay the vault's registered destination.
@@ -46,7 +45,7 @@ export class PayoutDestinationError extends Error {
     readonly actualScriptHex: string,
   ) {
     super(
-      `Payout transaction output ${PAYOUT_DESTINATION_OUTPUT} pays ` +
+      `Payout transaction output ${PAYOUT_DESTINATION_OUTPUT_INDEX} pays ` +
         `${actualScriptHex}, not the vault's registered payout script ` +
         `${expectedScriptHex}. Refusing to sign a payout to another ` +
         `destination.`,
@@ -69,6 +68,11 @@ export interface AssertPayoutPaysRegisteredScriptParams {
    * of comparing against it.
    */
   registeredPayoutScriptPubKey: string;
+  /**
+   * The vault's registered depositor key, x-only hex. The CPFP anchor is the
+   * claimer's BIP-86 output, and on this path the claimer is the depositor.
+   */
+  depositorBtcPubkey: string;
 }
 
 /**
@@ -79,7 +83,8 @@ export interface AssertPayoutPaysRegisteredScriptParams {
  * pass; checking only one would leave the other free to differ.
  *
  * @throws {@link PayoutDestinationError} when output 0 pays elsewhere, or a
- *         plain error when the layout is not the canonical claimer layout.
+ *         plain error when the layout is not the canonical claimer layout or
+ *         the CPFP anchor is not the depositor's BIP-86 P2TR.
  *
  * @experimental
  */
@@ -122,10 +127,12 @@ export function assertPayoutPaysRegisteredScript(
         "script is required to check the Payout destination.",
     );
   }
-  const actual = outs[PAYOUT_DESTINATION_OUTPUT].script
+  const actual = outs[PAYOUT_DESTINATION_OUTPUT_INDEX].script
     .toString("hex")
     .toLowerCase();
-  if (!Buffer.from(actual, "hex").equals(Buffer.from(expected, "hex"))) {
+  // Compared as strings: a Buffer round-trip would silently truncate a
+  // malformed registered script at its first non-hex pair.
+  if (actual !== expected) {
     throw new PayoutDestinationError(expected, actual);
   }
 
@@ -134,6 +141,21 @@ export function assertPayoutPaysRegisteredScript(
     throw new Error(
       `Payout CPFP anchor value ${anchor.value} sats must equal ` +
         `${PAYOUT_ANCHOR_DUST_SATS} sats.`,
+    );
+  }
+
+  // btc-vault builds the anchor from `Bip86KeyConnector::new(assert_connector
+  // .claimer)` (`transactions/payout.rs:151-153`, `connectors/mod.rs:237-268`
+  // @ ac4954e7), so on this path it is the depositor's own key-path P2TR.
+  const expectedAnchor = stripHexPrefix(
+    deriveP2trScript(stripHexPrefix(params.depositorBtcPubkey).toLowerCase()),
+  );
+  const actualAnchor = anchor.script.toString("hex").toLowerCase();
+  if (actualAnchor !== expectedAnchor) {
+    throw new Error(
+      `Payout CPFP anchor pays ${actualAnchor}, not the depositor's BIP-86 P2TR ` +
+        `${expectedAnchor}. Refusing to sign a payout whose fee-bump output is ` +
+        `spendable by somebody else.`,
     );
   }
 }

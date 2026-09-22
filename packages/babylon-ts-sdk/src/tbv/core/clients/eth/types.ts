@@ -86,6 +86,77 @@ export interface VaultData {
 }
 
 /**
+ * One vault's `PegInSubmittedV2` registration log, decoded.
+ *
+ * The registry discards several of these values after using them
+ * (`maxAcceptableCommissionBps` is bound-checked and dropped), so the log is
+ * their only on-chain source. Decoded leniently — no transaction is parsed and
+ * no script is bound-checked here, so one malformed registration elsewhere in
+ * the block cannot fail an unrelated caller's read; the strict per-record
+ * checks live in `registration-records.ts` and run on selected records only.
+ * That leniency stops at duplicates: a vault registers once, so two logs for
+ * any vault id are an inconsistent node and fail the whole block's read
+ * closed.
+ *
+ * @experimental
+ */
+export interface PeginRegistrationRecord {
+  /** Lowercase, `0x`-prefixed. */
+  vaultId: Hex;
+  depositor: Address;
+  vaultProvider: Address;
+  /** btc-vault `pegin_amount`, satoshis. */
+  amount: bigint;
+  vaultCoreVersion: number;
+  universalChallengersVersion: number;
+  appVaultKeepersVersion: number;
+  proverCircuitVersion: number;
+  offchainParamsVersion: number;
+  /**
+   * The event's own `peginTxHash`: the txid of this vault's depositor-signed
+   * PegIn, which with `depositor` re-derives the vault id. Per-vault, unlike
+   * {@link PeginRegistrationRecord.unsignedPrePeginTx}, which siblings share.
+   */
+  peginTxHash: Hex;
+  /**
+   * The event's `depositorPayoutBtcAddress` bytes: the depositor's payout
+   * scriptPubKey as `submitPeginRequest` received it (BTCVaultRegistry.sol
+   * documents the parameter as "BTC payout address (scriptPubKey)"; the SDK
+   * registers the validated scriptPubKey there). Lowercase, `0x`-prefixed.
+   */
+  depositorPayoutScriptPubKey: Hex;
+  /**
+   * The log's `unsignedPrePeginTx`, verbatim. Its txid
+   * (`registrationPrePeginTxHash`) equals
+   * {@link VaultProtocolInfo.prePeginTxHash}; siblings of one batch share it,
+   * while the event's own `peginTxHash` is the per-vault PegIn id.
+   */
+  unsignedPrePeginTx: Hex;
+  maxAcceptableCommissionBps: number;
+  blockNumber: bigint;
+}
+
+/**
+ * A vault's finalized `VaultClaimableBy` log for one claimer key.
+ *
+ * `blockNumber` is what the artifacts file records as
+ * `claimable_event_block_number`, the block the prover proves against.
+ *
+ * @experimental
+ */
+export interface VaultClaimableByEvent {
+  blockNumber: bigint;
+  /** The `claimerPK` topic, validated as an x-only key. */
+  claimerPk: OnChainBtcPubkey;
+  peginTxHash: Hex;
+  vaultCoreVersion: number;
+  proverCircuitVersion: number;
+  offchainParamsVersion: number;
+  universalChallengersVersion: number;
+  appVaultKeepersVersion: number;
+}
+
+/**
  * RFC-006 operation-key epochs a vault froze at `submitPeginRequest`.
  *
  * Each registry keeps a monotonic epoch counter that every key/payout setter
@@ -166,14 +237,68 @@ export interface VaultRegistryReader {
    * ceiling after bound-checking it, so the log is its only on-chain source.
    *
    * @throws {RegistrationLogsUnavailableError} (transient, retry) when the
-   * node answers with no registration logs for the block at all.
-   * @throws when a vault has only its `PegInSubmitted` log (a registration
-   * that predates the V2 event), none, or more than one V2 log.
+   * node answers with no registration logs for the block at all, with none
+   * for a vault asked for, or with V1 logs only — the registry emits both
+   * shapes together, so every one of those can be a partial answer.
+   * @throws when a vault has more than one V2 log.
    */
   getMaxAcceptableCommissionBpsBatch(
     vaultIds: readonly Hex[],
     createdAt: bigint,
   ): Promise<number[]>;
+  /**
+   * Decode every `PegInSubmittedV2` registration in block `createdAt`, the
+   * `block.number` stamped on the vault at registration. One query at exactly
+   * that block, so no range scan is needed and public-RPC range caps do not
+   * apply. Records are keyed by lowercase vault id; use
+   * `findRegistrationRecord` to pick one.
+   *
+   * @throws {RegistrationLogsUnavailableError} (transient, retry) when the
+   * node answers with no registration logs for the block at all, or with V1
+   * registrations only — the registry emits both shapes together, so either
+   * can be a partial answer.
+   * @throws when a vault has more than one V2 log. Records are decoded
+   * leniently: no transaction is parsed and no script is bound-checked here
+   * (see `registration-records.ts`).
+   */
+  getRegistrationRecordsAtBlock(
+    createdAt: bigint,
+  ): Promise<PeginRegistrationRecord[]>;
+  /**
+   * The vault's finalized `VaultClaimableBy` log for `claimerPk` — the
+   * redemption that authorized that key to claim, and the block the prover
+   * proves against.
+   *
+   * The event's block is not stored in contract state, so it is found by
+   * scanning `eth_getLogs` newest-first from the finalized block
+   * (`eth_getBlockByNumber("finalized")`) down to the vault's `createdAt`, in
+   * chunks of `VAULT_CLAIMABLE_BY_QUERY_CHUNK_BLOCKS`, filtered on the indexed
+   * `vaultId` and `claimerPK` topics. A redeem in the last chunk costs one
+   * request; an older one costs one request per chunk. The bound is
+   * finalized, not latest, because the block returned is what the prover
+   * proves against (`claimable_event_block_number`) and an unfinalized redeem
+   * can reorg away — the same bound btc-vault's reader uses
+   * (`eth-client/src/client.rs:5989-6040`, `FinalityLevel::Finalized` default
+   * `config.rs:11-21`).
+   *
+   * A REDEEMED vault can legitimately have no log for the depositor:
+   * `redeemForAVK` (RedeemLogic.sol) authorizes the vault keeper alone.
+   *
+   * @throws {VaultClaimableByNotFoundError} (typed) when no log exists in
+   * `createdAt..finalized` — the vault is not redeemed for that key, the
+   * redeem is not finalized yet, or the node did not serve the block. The
+   * last case is indistinguishable here, so a caller that knows the vault is
+   * redeemed for this key owns the retry (as
+   * `getMaxAcceptableCommissionBpsFromChainWithGrace` does in the vault app);
+   * point the read at a node that serves whole blocks, not a load balancer.
+   * @throws when matching logs span more than one transaction (a vault is
+   * redeemed once), or `claimerPk` is not an x-only key on the curve.
+   */
+  getVaultClaimableBy(
+    vaultId: Hex,
+    claimerPk: Hex,
+    createdAt: bigint,
+  ): Promise<VaultClaimableByEvent>;
   /**
    * Read the application entry point a vault provider is registered for.
    *

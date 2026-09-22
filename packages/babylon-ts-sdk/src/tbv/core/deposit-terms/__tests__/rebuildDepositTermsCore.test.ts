@@ -13,27 +13,22 @@
  *    chain logic) + both anchor branches (v1 = 0, v2 = P2A anchor).
  */
 
-import {
-  computeMinClaimValue,
-  computeMinPeginFee,
-  getPrePeginHtlcConnectorInfo,
-  peginP2aAnchorOutput,
-  type Network,
-} from "@babylonlabs-io/babylon-tbv-rust-wasm";
 import { Transaction } from "bitcoinjs-lib";
 import { Buffer } from "buffer";
 import { beforeAll, describe, expect, it } from "vitest";
 
-import {
-  TEST_KEYS,
-  initializeWasmForTests,
-} from "../../primitives/psbt/__tests__/helpers";
+import { initializeWasmForTests } from "../../primitives/psbt/__tests__/helpers";
 import { stripHexPrefix } from "../../primitives/utils/bitcoin";
 import { calculateBtcTxHash } from "../../utils/transaction/btcTxHash";
 import {
   rebuildDepositTermsCore,
   type RebuildDepositTermsCoreInput,
 } from "../rebuildDepositTermsCore";
+import {
+  REAL_FUNDED_PREPEGIN,
+  buildRealFundedTx,
+  type Sibling,
+} from "./fixtures/realFundedPrePegin";
 
 /** A funded Pre-PegIn tx: `htlcCount` P2TR-ish HTLC outputs, then (optionally) the
  * auth-anchor OP_RETURN `6a20<32 bytes>` value 0 at vout `opReturnVout`. */
@@ -174,83 +169,23 @@ describe("rebuildDepositTermsCore golden (WASM-backed happy path)", () => {
     await initializeWasmForTests();
   });
 
-  const NETWORK = "signet" as Network;
-  // All four scalars deliberately DISTINCT: identical rates (or timelocks)
-  // would blind these tests to a swapped-argument bug in the core's WASM
-  // calls or a transposed field in the projection.
-  const TIMELOCK_REFUND = 2016;
-  const TIMELOCK_PEGIN = 684;
-  const TIMELOCK_ASSERT = 700;
-  const COUNCIL_QUORUM = 2;
-  const COUNCIL_SIZE = 3;
-  const PROTOCOL_FEE_RATE = 3n;
-  const MIN_PEGIN_FEE_RATE = 7n;
-  const PREPEGIN_MAX_FEE = 1500n;
-  const COMMISSION_BPS = 250;
-  const BPS_DENOMINATOR = 10_000n;
-
-  const DEPOSITOR = TEST_KEYS.DEPOSITOR;
-  const VP = TEST_KEYS.VAULT_PROVIDER;
-  const VKS = [TEST_KEYS.VAULT_KEEPER_1, TEST_KEYS.VAULT_KEEPER_2];
-  const UCS = [TEST_KEYS.UNIVERSAL_CHALLENGER_1];
-
-  interface Sibling {
-    hashlock: string;
-    amount: bigint;
-  }
-
-  /** Amount-independent sizing, recomputed exactly as the core does. */
-  async function sizing(version: number) {
-    const dcv = await computeMinClaimValue(
-      version,
-      VKS.length,
-      UCS.length,
-      COUNCIL_QUORUM,
-      COUNCIL_SIZE,
-      PROTOCOL_FEE_RATE,
-    );
-    const fee = await computeMinPeginFee(
-      version,
-      VKS.length,
-      UCS.length,
-      MIN_PEGIN_FEE_RATE,
-    );
-    const anchor = (await peginP2aAnchorOutput(version))?.value ?? 0n;
-    return { dcv, fee, anchor };
-  }
-
-  /**
-   * Build a funded tx whose HTLC outputs carry the REAL connector scriptPubKey +
-   * `amount + DCV + peginMaxFee + anchor` value, followed by the auth-anchor
-   * OP_RETURN at vout === sibling count — i.e. a tx the core's Gate 1 accepts.
-   */
-  async function buildRealFundedTx(version: number, siblings: Sibling[]) {
-    const { dcv, fee, anchor } = await sizing(version);
-    const tx = new Transaction();
-    tx.version = 2;
-    tx.addInput(Buffer.alloc(32, 0x11), 0);
-    for (const s of siblings) {
-      const info = await getPrePeginHtlcConnectorInfo({
-        txGraphVersion: version,
-        depositorPubkey: DEPOSITOR,
-        vaultProviderPubkey: VP,
-        vaultKeeperPubkeys: VKS,
-        universalChallengerPubkeys: UCS,
-        hashlock: s.hashlock,
-        timelockRefund: TIMELOCK_REFUND,
-        network: NETWORK,
-      });
-      tx.addOutput(
-        Buffer.from(info.scriptPubKey, "hex"),
-        Number(s.amount + dcv + fee + anchor),
-      );
-    }
-    tx.addOutput(
-      Buffer.concat([Buffer.from([0x6a, 0x20]), Buffer.alloc(32, 0xcd)]),
-      0,
-    );
-    return { txHex: tx.toHex(), dcv, fee, anchor };
-  }
+  const {
+    NETWORK,
+    TIMELOCK_REFUND,
+    TIMELOCK_PEGIN,
+    TIMELOCK_ASSERT,
+    COUNCIL_QUORUM,
+    COUNCIL_SIZE,
+    PROTOCOL_FEE_RATE,
+    MIN_PEGIN_FEE_RATE,
+    PREPEGIN_MAX_FEE,
+    COMMISSION_BPS,
+    BPS_DENOMINATOR,
+    DEPOSITOR,
+    VP,
+    VKS,
+    UCS,
+  } = REAL_FUNDED_PREPEGIN;
 
   function baseInput(
     version: number,

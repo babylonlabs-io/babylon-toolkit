@@ -25,7 +25,14 @@ function normalizeHex(value: string, label: string): Hex {
   return `0x${body.toLowerCase()}`;
 }
 
-function deriveP2trScript(xOnlyPubkey: string): Hex {
+/**
+ * The BIP-86 key-path P2TR scriptPubKey of an x-only key (bare lowercase
+ * hex): the internal key tweaked with no script tree, matching Rust
+ * `Bip86KeyConnector` (btc-vault `connectors/mod.rs:237-268` @ ac4954e7).
+ *
+ * @internal
+ */
+export function deriveP2trScript(xOnlyPubkey: string): Hex {
   const pubkeyBytes = hexToBytes(xOnlyPubkey);
   const internalKey = schnorr.utils.lift_x(BigInt(`0x${xOnlyPubkey}`));
   const tweak = schnorr.utils.bytesToNumberBE(

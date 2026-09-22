@@ -982,4 +982,66 @@ export const BTCVaultRegistryABI = [
     ],
     anonymous: false,
   },
+  // Redemption event (vault-contracts-aave-v4 src/protocol/lib/types/Events.sol
+  // @ c559f5c2). Emitted once per authorized claimer key, all in one
+  // transaction, by RedeemLogic._emitVaultClaimableBy (`redeemForDepositor`
+  // and the other depositor paths) and by PeginLogic `claimExpired`
+  // (:1101, :1111): the vault provider's key and then the depositor's
+  // registered BTC key — except `redeemForAVK`, which authorizes the vault
+  // keeper alone, so a REDEEMED vault can carry no log for its depositor.
+  {
+    type: "event",
+    name: "VaultClaimableBy",
+    inputs: [
+      {
+        name: "vaultId",
+        type: "bytes32",
+        indexed: true,
+        internalType: "bytes32",
+      },
+      {
+        name: "peginTxHash",
+        type: "bytes32",
+        indexed: true,
+        internalType: "bytes32",
+      },
+      {
+        name: "claimerPK",
+        type: "bytes32",
+        indexed: true,
+        internalType: "bytes32",
+      },
+      {
+        name: "vaultCoreVersion",
+        type: "uint16",
+        indexed: false,
+        internalType: "uint16",
+      },
+      {
+        name: "proverCircuitVersion",
+        type: "uint16",
+        indexed: false,
+        internalType: "uint16",
+      },
+      {
+        name: "offchainParamsVersion",
+        type: "uint16",
+        indexed: false,
+        internalType: "uint16",
+      },
+      {
+        name: "universalChallengersVersion",
+        type: "uint16",
+        indexed: false,
+        internalType: "uint16",
+      },
+      {
+        name: "appVaultKeepersVersion",
+        type: "uint16",
+        indexed: false,
+        internalType: "uint16",
+      },
+    ],
+    anonymous: false,
+  },
 ] as const;
