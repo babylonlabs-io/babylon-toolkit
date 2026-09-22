@@ -57,6 +57,15 @@ const validPegin: PendingPeginRequest = {
   buildVaultCoreVersion: 1,
 };
 
+const legacySibling = {
+  id: VALID_VAULT_ID_2,
+  peginTxHash: validPegin.peginTxHash,
+  timestamp: validPegin.timestamp,
+  status: validPegin.status,
+  unsignedTxHex: validPegin.unsignedTxHex,
+  selectedUTXOs: validPegin.selectedUTXOs,
+};
+
 describe("getPendingPegins integrity validation", () => {
   beforeEach(() => {
     localStorage.clear();
@@ -333,6 +342,20 @@ describe("getPendingPegins integrity validation", () => {
     expect(localStorage.getItem(storageKey)).not.toBeNull();
   });
 
+  it("skips an entry whose id cannot be stringified and keeps its siblings", () => {
+    const tampered = {
+      ...validPegin,
+      id: { toString: 0 } as unknown as PendingPeginRequest["id"],
+    };
+    localStorage.setItem(storageKey, JSON.stringify([validPegin, tampered]));
+
+    let result: PendingPeginRequest[] = [];
+    expect(() => {
+      result = getPendingPegins(ETH_ADDRESS);
+    }).not.toThrow();
+    expect(result.map((pegin) => pegin.id)).toEqual([VALID_VAULT_ID]);
+  });
+
   it("filters entries whose id contains non-hex characters", () => {
     const tampered = {
       ...validPegin,
@@ -527,12 +550,10 @@ describe("getPendingPegins integrity validation", () => {
     }
   });
 
-  it("reports an empty stored string as unreadable", () => {
+  it("treats an empty stored string as nothing stored", () => {
     localStorage.setItem(storageKey, "");
 
-    expect(() => getPendingPegins(ETH_ADDRESS)).toThrow(
-      PendingPeginStorageReadError,
-    );
+    expect(getPendingPegins(ETH_ADDRESS)).toEqual([]);
     expect(localStorage.getItem(storageKey)).toBe("");
   });
 
@@ -756,6 +777,24 @@ describe("updatePendingPeginStatus", () => {
     const [stored] = getPendingPegins(ETH_ADDRESS);
     expect(stored.status).toBe(LocalStorageStatus.CONFIRMING);
     expect(stored.payoutSignedAt).toBeUndefined();
+  });
+
+  it("writes back hidden siblings when a status is updated", () => {
+    localStorage.setItem(
+      storageKey,
+      JSON.stringify([validPegin, legacySibling]),
+    );
+
+    updatePendingPeginStatus(
+      ETH_ADDRESS,
+      VALID_VAULT_ID,
+      LocalStorageStatus.PAYOUT_SIGNED,
+    );
+
+    const stored = JSON.parse(localStorage.getItem(storageKey) ?? "[]");
+    expect(stored).toHaveLength(2);
+    expect(stored[0].status).toBe(LocalStorageStatus.PAYOUT_SIGNED);
+    expect(stored[1]).toEqual(legacySibling);
   });
 });
 
@@ -1041,6 +1080,21 @@ describe("markRefundBroadcast", () => {
     } finally {
       removeItem.mockRestore();
     }
+  });
+
+  it("writes back hidden siblings when a refund broadcast is marked", () => {
+    localStorage.setItem(
+      storageKey,
+      JSON.stringify([validPegin, legacySibling]),
+    );
+
+    markRefundBroadcast(ETH_ADDRESS, VALID_VAULT_ID, 1700000000000);
+
+    const stored = JSON.parse(localStorage.getItem(storageKey) ?? "[]");
+    expect(stored).toHaveLength(2);
+    expect(stored[0].status).toBe(LocalStorageStatus.REFUND_BROADCAST);
+    expect(stored[0].refundBroadcastAt).toBe(1700000000000);
+    expect(stored[1]).toEqual(legacySibling);
   });
 });
 

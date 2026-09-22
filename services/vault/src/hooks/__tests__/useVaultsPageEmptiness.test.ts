@@ -163,7 +163,7 @@ describe("useVaultsPageEmptiness", () => {
     useDashboardStateMock.mockClear();
   });
 
-  it("shows the partial warning when unreadable storage leaves no rows", () => {
+  it("reports unreadable storage instead of claiming an empty account", () => {
     depositsState.storageReadError = new PendingPeginStorageReadError(
       "0xdepositor",
       '[{"id":',
@@ -174,9 +174,10 @@ describe("useVaultsPageEmptiness", () => {
 
     expect(result.current).toEqual({
       isLoading: false,
-      isEmpty: true,
-      hasError: false,
-      hasPartialError: true,
+      isEmpty: false,
+      hasError: true,
+      hasPartialError: false,
+      storageOnlyError: true,
     });
   });
 
@@ -190,6 +191,7 @@ describe("useVaultsPageEmptiness", () => {
       isEmpty: true,
       hasError: false,
       hasPartialError: false,
+      storageOnlyError: false,
     });
   });
 
@@ -238,6 +240,7 @@ describe("useVaultsPageEmptiness", () => {
       isEmpty: false,
       hasError: false,
       hasPartialError: false,
+      storageOnlyError: false,
     });
     expect(useDashboardStateMock).toHaveBeenCalledWith("0xdepositor");
   });
@@ -252,6 +255,7 @@ describe("useVaultsPageEmptiness", () => {
       isEmpty: false,
       hasError: false,
       hasPartialError: false,
+      storageOnlyError: false,
     });
   });
 
@@ -368,6 +372,7 @@ describe("useVaultsPageEmptiness", () => {
       isEmpty: true,
       hasError: false,
       hasPartialError: false,
+      storageOnlyError: false,
     });
   });
 
@@ -381,6 +386,7 @@ describe("useVaultsPageEmptiness", () => {
       isEmpty: false,
       hasError: true,
       hasPartialError: false,
+      storageOnlyError: false,
     });
   });
 
@@ -404,6 +410,7 @@ describe("useVaultsPageEmptiness", () => {
       isEmpty: false,
       hasError: false,
       hasPartialError: true,
+      storageOnlyError: false,
     });
   });
 
@@ -462,6 +469,7 @@ describe("useVaultsPageEmptiness", () => {
       isEmpty: false,
       hasError: true,
       hasPartialError: true,
+      storageOnlyError: false,
     });
   });
 
@@ -476,6 +484,7 @@ describe("useVaultsPageEmptiness", () => {
       isEmpty: true,
       hasError: false,
       hasPartialError: false,
+      storageOnlyError: false,
     });
   });
 });

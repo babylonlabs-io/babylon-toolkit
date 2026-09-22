@@ -388,8 +388,14 @@ export class PendingPeginStorageReadError extends Error {
 }
 
 /**
- * Get all pending peg-ins from localStorage for an address
- * Pure read function - no side effects
+ * Get all pending peg-ins from localStorage for an address.
+ * Pure read function - no side effects.
+ *
+ * @throws `PendingPeginStorageReadError` when the stored blob cannot be read
+ * (unparseable JSON, a non-array value, or a localStorage that throws). The
+ * blob is left untouched. Callers that must not throw catch it:
+ * `usePeginStorage`'s `readPendingPegins` reports it once and returns an
+ * empty list; the status mutators below read the raw array instead.
  */
 export function getPendingPegins(ethAddress: string): PendingPeginRequest[] {
   if (!ethAddress) return [];
@@ -398,7 +404,7 @@ export function getPendingPegins(ethAddress: string): PendingPeginRequest[] {
   let parsed: unknown[];
   try {
     stored = localStorage.getItem(getStorageKey(ethAddress));
-    if (stored === null) return [];
+    if (!stored) return [];
     const value: unknown = JSON.parse(stored);
     if (!Array.isArray(value)) {
       throw new TypeError("Stored pending deposits are not an array.");
@@ -415,10 +421,11 @@ export function getPendingPegins(ethAddress: string): PendingPeginRequest[] {
   // otherwise feed malformed hex into downstream consumers.
   const validated = migrated.filter((entry): entry is PendingPeginRequest => {
     if (hasValidSecurityFields(entry)) return true;
-    const maybeId =
+    const rawId =
       entry && typeof entry === "object" && "id" in entry
-        ? String((entry as { id: unknown }).id)
-        : "unknown";
+        ? (entry as { id: unknown }).id
+        : undefined;
+    const maybeId = typeof rawId === "string" ? rawId : "unknown";
     logger.warn("[peginStorage] Skipping corrupted pending pegin entry", {
       category: "peginStorage",
       vaultId: maybeId,
@@ -612,47 +619,43 @@ export function addPendingPegin(
 }
 
 /**
- * Read for a mutator that writes the result straight back. `null` means the
- * blob is unreadable and must not be overwritten, so the caller returns
- * without writing. The failure itself is reported once by `usePeginStorage`,
- * which reads the same blob.
- */
-function readPeginsForUpdate(ethAddress: string): PendingPeginRequest[] | null {
-  try {
-    return getPendingPegins(ethAddress);
-  } catch (error) {
-    if (error instanceof PendingPeginStorageReadError) return null;
-    throw error;
-  }
-}
-
-/**
  * Update status of a pending peg-in
  * Used to track user actions through the peg-in flow
+ *
+ * Operates on the raw stored array so entries the read filter hides are written
+ * back untouched.
  */
 export function updatePendingPeginStatus(
   ethAddress: string,
   vaultId: string,
   status: LocalStorageStatus,
 ): void {
-  const existingPegins = readPeginsForUpdate(ethAddress);
-  if (existingPegins === null) return;
-  const normalizedId = normalizeTransactionId(vaultId);
+  if (!ethAddress) return;
 
-  const updatedPegins = existingPegins.map((pegin) =>
-    pegin.id === normalizedId
+  const read = readStoredEntries(ethAddress);
+  if (read.status !== "ok") return;
+
+  const target = normalizeTransactionId(vaultId).toLowerCase();
+  const updated = read.entries.map((entry) =>
+    readStoredEntryId(entry) === target
       ? {
-          ...pegin,
+          ...(entry as object),
           status,
           payoutSignedAt:
             status === LocalStorageStatus.PAYOUT_SIGNED
               ? Date.now()
               : undefined,
         }
-      : pegin,
+      : entry,
   );
 
-  savePendingPegins(ethAddress, updatedPegins);
+  try {
+    persistStoredEntries(ethAddress, updated);
+  } catch {
+    return;
+  }
+
+  dispatchStorageUpdateEvent(ethAddress);
 }
 
 /**
@@ -757,27 +760,38 @@ export function removePendingPegins(
 /**
  * Mark a pending peg-in as having broadcast its refund tx, anchoring the
  * timestamp used by the optimistic-suppression TTL.
+ *
+ * Operates on the raw stored array so entries the read filter hides are written
+ * back untouched.
  */
 export function markRefundBroadcast(
   ethAddress: string,
   vaultId: string,
   refundBroadcastAt: number,
 ): void {
-  const existingPegins = readPeginsForUpdate(ethAddress);
-  if (existingPegins === null) return;
-  const normalizedId = normalizeTransactionId(vaultId);
+  if (!ethAddress) return;
 
-  const updatedPegins = existingPegins.map((pegin) =>
-    pegin.id === normalizedId
+  const read = readStoredEntries(ethAddress);
+  if (read.status !== "ok") return;
+
+  const target = normalizeTransactionId(vaultId).toLowerCase();
+  const updated = read.entries.map((entry) =>
+    readStoredEntryId(entry) === target
       ? {
-          ...pegin,
+          ...(entry as object),
           status: LocalStorageStatus.REFUND_BROADCAST,
           refundBroadcastAt,
         }
-      : pegin,
+      : entry,
   );
 
-  savePendingPegins(ethAddress, updatedPegins);
+  try {
+    persistStoredEntries(ethAddress, updated);
+  } catch {
+    return;
+  }
+
+  dispatchStorageUpdateEvent(ethAddress);
 }
 
 /**

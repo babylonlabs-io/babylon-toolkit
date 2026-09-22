@@ -27,9 +27,15 @@ vi.mock("../../storage/usePeginStorage", () => ({
     removePendingPegins: vi.fn(),
   })),
 }));
-vi.mock("../../storage/peginStorage", () => ({
-  getPendingPegins: vi.fn(() => []),
-}));
+vi.mock("../../storage/peginStorage", async () => {
+  const actual = await vi.importActual<
+    typeof import("../../storage/peginStorage")
+  >("../../storage/peginStorage");
+  return {
+    PendingPeginStorageReadError: actual.PendingPeginStorageReadError,
+    getPendingPegins: vi.fn(() => []),
+  };
+});
 
 const ADDRESS = "0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" as const;
 
@@ -125,6 +131,54 @@ describe("useVaultDeposits", () => {
     const { result } = renderHook(() => useVaultDeposits(ADDRESS));
 
     expect(result.current.indexedVaultIds).toBeNull();
+  });
+
+  it("keeps fast polling off when the stored records cannot be read", async () => {
+    const { getPendingPegins, PendingPeginStorageReadError } = await import(
+      "../../storage/peginStorage"
+    );
+    vi.mocked(getPendingPegins).mockImplementationOnce(() => {
+      throw new PendingPeginStorageReadError(
+        ADDRESS,
+        '[{"id":',
+        new SyntaxError("Unexpected end of JSON input"),
+      );
+    });
+    useVaultsMock.mockReturnValue({
+      data: {
+        vaults: [{ id: "0xabcdef", amount: 0n, status: 0, isInUse: false }],
+        droppedCount: 0,
+      },
+      status: "success",
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+
+    expect(() => renderHook(() => useVaultDeposits(ADDRESS))).not.toThrow();
+    expect(useVaultsMock).toHaveBeenLastCalledWith(ADDRESS, {
+      poll: true,
+      interval: NORMAL_POLL_INTERVAL,
+    });
+  });
+
+  it("propagates a storage failure that is not the typed read error", async () => {
+    const { getPendingPegins } = await import("../../storage/peginStorage");
+    vi.mocked(getPendingPegins).mockImplementationOnce(() => {
+      throw new Error("boom");
+    });
+    useVaultsMock.mockReturnValue({
+      data: {
+        vaults: [{ id: "0xabcdef", amount: 0n, status: 0, isInUse: false }],
+        droppedCount: 0,
+      },
+      status: "success",
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+
+    expect(() => renderHook(() => useVaultDeposits(ADDRESS))).toThrow("boom");
   });
 
   it("exports the FAST/NORMAL interval constants used as polling cadences", () => {

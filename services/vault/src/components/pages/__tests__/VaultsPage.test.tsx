@@ -32,6 +32,7 @@ const emptinessState = vi.hoisted(() => ({
   isEmpty: true,
   hasError: false,
   hasPartialError: false,
+  storageOnlyError: false,
 }));
 
 vi.mock("@/hooks/useVaultsPageEmptiness", () => ({
@@ -169,6 +170,7 @@ describe("VaultsPage", () => {
     emptinessState.isEmpty = true;
     emptinessState.hasError = false;
     emptinessState.hasPartialError = false;
+    emptinessState.storageOnlyError = false;
     walletState.btcConnected = true;
     walletState.ethConnected = true;
     walletState.confirmed = true;
@@ -297,7 +299,9 @@ describe("VaultsPage", () => {
   });
 
   it("explains that unreadable browser deposits were not deleted", () => {
-    emptinessState.hasPartialError = true;
+    emptinessState.isEmpty = false;
+    emptinessState.hasError = true;
+    emptinessState.storageOnlyError = true;
     storageState.storageReadError = new PendingPeginStorageReadError(
       "0xdepositor",
       '[{"id":',
@@ -306,9 +310,8 @@ describe("VaultsPage", () => {
 
     renderVaultsPage();
 
-    expect(screen.getByTestId("vaults-partial-load-error")).toHaveTextContent(
-      COPY.vaults.storageReadError,
-    );
+    expect(screen.getByText(COPY.vaults.storageReadError)).toBeInTheDocument();
+    expect(screen.queryByTestId("deposit-button")).not.toBeInTheDocument();
   });
 
   it("keeps the storage warning visible when remote reads also fail", () => {

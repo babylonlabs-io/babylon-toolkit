@@ -95,6 +95,8 @@ import { assertUtxosAvailable } from "@/services/vault/vaultUtxoValidationServic
 import { resolveVpAuthPinnedPubkey } from "@/services/vault/vpAuthPinnedPubkey";
 import {
   addPendingPegin,
+  getPendingPegins,
+  PendingPeginStorageReadError,
   removePendingPegin,
   updatePendingPeginStatus,
 } from "@/storage/peginStorage";
@@ -851,6 +853,21 @@ export function useDepositFlow(
           batchResult.fundedPrePeginTxHex,
           confirmedBtcAddress,
         );
+
+        try {
+          getPendingPegins(confirmedEthAddress);
+        } catch (storageErr) {
+          if (!(storageErr instanceof PendingPeginStorageReadError)) {
+            throw storageErr;
+          }
+          logger.error(storageErr, {
+            tags: {
+              component: "useDepositFlow",
+              phase: "storage-readable",
+            },
+          });
+          throw storageErr;
+        }
 
         // 3e. Single batch ETH transaction for all vaults.
         advanceStep(DepositFlowStep.SUBMIT_PEGIN);

@@ -256,11 +256,18 @@ vi.mock("@/services/vault/vaultUtxoValidationService", () => ({
   assertUtxosAvailable: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock("@/storage/peginStorage", () => ({
-  addPendingPegin: vi.fn(),
-  removePendingPegin: vi.fn(),
-  updatePendingPeginStatus: vi.fn(),
-}));
+vi.mock("@/storage/peginStorage", async () => {
+  const actual = await vi.importActual<typeof import("@/storage/peginStorage")>(
+    "@/storage/peginStorage",
+  );
+  return {
+    PendingPeginStorageReadError: actual.PendingPeginStorageReadError,
+    addPendingPegin: vi.fn(),
+    getPendingPegins: vi.fn(() => []),
+    removePendingPegin: vi.fn(),
+    updatePendingPeginStatus: vi.fn(),
+  };
+});
 
 const { mockLoggerError } = vi.hoisted(() => ({
   mockLoggerError: vi.fn(),

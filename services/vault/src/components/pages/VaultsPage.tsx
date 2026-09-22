@@ -51,7 +51,7 @@ export default function VaultsPage() {
   // hook and the lifecycle sections so the broadcast/refund modal state pair
   // is instantiated once.
   const deposits = usePendingDeposits();
-  const { isLoading, isEmpty, hasError, hasPartialError } =
+  const { isLoading, isEmpty, hasError, hasPartialError, storageOnlyError } =
     useVaultsPageEmptiness(deposits);
   const { vaults: aaveVaults } = useAaveVaults(
     isConnected ? address : undefined,
@@ -158,7 +158,9 @@ export default function VaultsPage() {
       return (
         <div className="flex items-center justify-center py-12">
           <p className="text-base text-accent-secondary">
-            {COPY.vaults.loadError}
+            {storageOnlyError
+              ? COPY.vaults.storageReadError
+              : COPY.vaults.loadError}
           </p>
         </div>
       );
