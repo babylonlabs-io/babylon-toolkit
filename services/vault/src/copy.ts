@@ -842,6 +842,8 @@ export const COPY = {
     warnings: {
       depositRecordNotSaved:
         "Your deposit was registered on-chain, but this browser couldn't save a local copy. Free up browser storage or exit private browsing so it shows up here for tracking.",
+      overlapCheckUnavailable:
+        "Saved deposit records in this browser could not be read, so inputs reserved by pending deposits were not checked.",
       reusesReservedUtxos: (count: number) =>
         count <= 1
           ? "This deposit and another of your pending BTCVault deposits selected the same UTXOs. No BTC was committed in the other deposit, it will expire on its own."
@@ -912,6 +914,10 @@ export const COPY = {
       ethRegistrationNotFinal: {
         title: "Ethereum confirmation timed out",
         body: "Your Ethereum registration was submitted but hasn't been confirmed deeply enough yet. No Bitcoin has been broadcast and nothing is at risk. Resume this deposit from your dashboard once the network settles.",
+      },
+      storageUnreadable: {
+        title: "Saved deposit records could not be read",
+        body: "This browser's saved deposit records could not be read, so a new deposit cannot be saved here. Reload the page and try again. Nothing was deleted.",
       },
       ethRegistrationMissing: {
         title: TRANSACTION_FAILED_TITLE,
@@ -2131,6 +2137,8 @@ export const COPY = {
       `Activates in ~${duration}`,
     loadError:
       "We couldn't load your BTCVaults. Check your connection and try again.",
+    storageReadError:
+      "The stored deposit records in this browser could not be read. Nothing was deleted. Reload the page. Until the records read again, a new deposit cannot start from this browser.",
     partialLoadError: {
       title: "Some of your BTCVault data couldn't be loaded",
       body: "Totals or deposits shown may be incomplete. Refresh the page to try again.",

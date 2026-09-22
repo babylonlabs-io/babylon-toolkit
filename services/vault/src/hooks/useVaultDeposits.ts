@@ -15,7 +15,11 @@ import {
   LocalStorageStatus,
   PEGIN_DISPLAY_LABELS,
 } from "../models/peginStateMachine";
-import { getPendingPegins } from "../storage/peginStorage";
+import {
+  getPendingPegins,
+  type PendingPeginRequest,
+  PendingPeginStorageReadError,
+} from "../storage/peginStorage";
 import { usePeginStorage } from "../storage/usePeginStorage";
 import { transformVaultToActivity } from "../utils/vaultTransformers";
 
@@ -80,7 +84,12 @@ export function useVaultDeposits(connectedAddress: Address | undefined) {
     }
 
     // Get pending pegins from localStorage to check local status
-    const pendingPeginsFromStorage = getPendingPegins(connectedAddress);
+    let pendingPeginsFromStorage: PendingPeginRequest[] = [];
+    try {
+      pendingPeginsFromStorage = getPendingPegins(connectedAddress);
+    } catch (error) {
+      if (!(error instanceof PendingPeginStorageReadError)) throw error;
+    }
 
     // Check if any activity is in "Processing" state
     const hasProcessingActivity = confirmedActivities.some((activity) => {
@@ -111,11 +120,16 @@ export function useVaultDeposits(connectedAddress: Address | undefined) {
   }, [connectedAddress, confirmedActivities]);
 
   // Combine with local pending pegins from localStorage
-  const { allActivities, pendingPegins, addPendingPegin, removePendingPegins } =
-    usePeginStorage({
-      ethAddress: connectedAddress || "",
-      confirmedPegins: confirmedActivities,
-    });
+  const {
+    allActivities,
+    pendingPegins,
+    storageReadError,
+    addPendingPegin,
+    removePendingPegins,
+  } = usePeginStorage({
+    ethAddress: connectedAddress || "",
+    confirmedPegins: confirmedActivities,
+  });
 
   /**
    * The stored status of each browser-local record, keyed by lowercased vault
@@ -136,6 +150,7 @@ export function useVaultDeposits(connectedAddress: Address | undefined) {
   return {
     activities: allActivities,
     pendingPegins,
+    storageReadError,
     loading: isLoading,
     error: error as Error | null,
     refetchActivities: wrappedRefetch,

@@ -304,7 +304,7 @@ function SimpleDepositContent({
     minPeginFee,
   });
   const [overlappingPendingVaultCount, setOverlappingPendingVaultCount] =
-    useState<number | null>(null);
+    useState<number | null | "unreadable">(null);
 
   const resetAll = useCallback(() => {
     hasAutoChecked.current = false;

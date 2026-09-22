@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import VaultsPage from "@/components/pages/VaultsPage";
 import { COPY } from "@/copy";
 import { useVaultsPageData } from "@/hooks/useVaultsPageData";
+import { PendingPeginStorageReadError } from "@/storage/peginStorage";
 
 // The deposits kill-switch is read through two module paths: VaultsPage
 // swaps copy via `FeatureFlags` (@/config) and isDepositBlocked reads the
@@ -31,10 +32,15 @@ const emptinessState = vi.hoisted(() => ({
   isEmpty: true,
   hasError: false,
   hasPartialError: false,
+  storageOnlyError: false,
 }));
 
 vi.mock("@/hooks/useVaultsPageEmptiness", () => ({
   useVaultsPageEmptiness: () => emptinessState,
+}));
+
+const storageState = vi.hoisted(() => ({
+  storageReadError: null as PendingPeginStorageReadError | null,
 }));
 
 // The page instantiates the single usePendingDeposits shared by the emptiness
@@ -46,6 +52,7 @@ vi.mock("@/hooks/usePendingDeposits", () => ({
     expiredActivities: [],
     isLoading: false,
     error: null,
+    storageReadError: storageState.storageReadError,
   }),
 }));
 
@@ -158,10 +165,12 @@ function renderVaultsPage(openDeposit = vi.fn()) {
 describe("VaultsPage", () => {
   beforeEach(() => {
     vi.mocked(useVaultsPageData).mockClear();
+    storageState.storageReadError = null;
     emptinessState.isLoading = false;
     emptinessState.isEmpty = true;
     emptinessState.hasError = false;
     emptinessState.hasPartialError = false;
+    emptinessState.storageOnlyError = false;
     walletState.btcConnected = true;
     walletState.ethConnected = true;
     walletState.confirmed = true;
@@ -287,6 +296,42 @@ describe("VaultsPage", () => {
     ).toBeInTheDocument();
     // The data the page does have still renders beneath the warning.
     expect(screen.getByTestId("vaults-summary-card")).toBeInTheDocument();
+  });
+
+  it("explains that unreadable browser deposits were not deleted", () => {
+    emptinessState.isEmpty = false;
+    emptinessState.hasError = true;
+    emptinessState.storageOnlyError = true;
+    storageState.storageReadError = new PendingPeginStorageReadError(
+      "0xdepositor",
+      '[{"id":',
+      new SyntaxError("Unexpected end of JSON input"),
+    );
+
+    renderVaultsPage();
+
+    expect(screen.getByText(COPY.vaults.storageReadError)).toBeInTheDocument();
+    expect(screen.queryByTestId("deposit-button")).not.toBeInTheDocument();
+  });
+
+  it("keeps the storage warning visible when remote reads also fail", () => {
+    emptinessState.isEmpty = false;
+    emptinessState.hasError = true;
+    emptinessState.hasPartialError = true;
+    storageState.storageReadError = new PendingPeginStorageReadError(
+      "0xdepositor",
+      '[{"id":',
+      new SyntaxError("Unexpected end of JSON input"),
+    );
+
+    renderVaultsPage();
+
+    const warning = screen.getByTestId("vaults-partial-load-error");
+    expect(warning).toHaveTextContent(COPY.vaults.storageReadError);
+    // One body, not both: toHaveTextContent is a substring match, so without
+    // this the warning could carry the generic copy as well and still pass.
+    expect(warning).not.toHaveTextContent(COPY.vaults.partialLoadError.body);
+    expect(screen.getByText(COPY.vaults.loadError)).toBeInTheDocument();
   });
 
   it("does not show the partial-load warning when both sources loaded", () => {
