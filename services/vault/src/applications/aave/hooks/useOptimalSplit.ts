@@ -1,22 +1,19 @@
 /**
  * Hook for computing the optimal vault split for a given deposit amount.
  *
- * Combines on-chain risk parameters (from useVaultSplitParams) with
- * SDK split computation to determine sacrificial and protected vault sizes.
+ * Combines the split parameters (from useVaultSplitParams) with the SDK
+ * split computation to determine sacrificial and protected vault sizes.
  */
 
 import {
   computeMinDepositForSplit,
   computeOptimalSplit,
+  findSplitSizingViolation,
+  type SplitSizingViolation,
 } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 import { useMemo } from "react";
 
 import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
-
-import {
-  EXPECTED_HEALTH_FACTOR_AT_LIQUIDATION,
-  VAULT_SPLIT_SAFETY_MARGIN,
-} from "../constants";
 
 import { useVaultSplitParams } from "./useVaultSplitParams";
 
@@ -31,6 +28,11 @@ export interface UseOptimalSplitResult {
   canSplit: boolean;
   /** Minimum deposit required for a split, in satoshis */
   minDepositForSplit: bigint;
+  /**
+   * Why the split parameters refuse a two-vault split, or null when they
+   * allow one. Independent of the deposit amount.
+   */
+  sizingViolation: SplitSizingViolation | null;
   /** Whether split params are still loading */
   isLoading: boolean;
   /** Error from param fetching */
@@ -47,6 +49,7 @@ const EMPTY_RESULT: Omit<UseOptimalSplitResult, "isLoading" | "error"> = {
   seizedFraction: 0,
   canSplit: false,
   minDepositForSplit: 0n,
+  sizingViolation: null,
 };
 
 export function useOptimalSplit(
@@ -57,28 +60,41 @@ export function useOptimalSplit(
   const { minDeposit } = useProtocolParamsContext();
 
   const result = useMemo(() => {
-    if (!params || totalBtc <= 0n || totalBtc > MAX_PLAUSIBLE_DEPOSIT_SATS) {
+    if (!params) {
       return EMPTY_RESULT;
     }
 
-    const { THF, CF, LB } = params;
+    const { THF, expectedHF, CF, LB } = params;
 
-    const split = computeOptimalSplit({
-      totalBtc,
+    // Checked before the amount so the refusal shows even with an empty form.
+    const sizingViolation = findSplitSizingViolation({
       CF,
       LB,
       THF,
-      expectedHF: EXPECTED_HEALTH_FACTOR_AT_LIQUIDATION,
-      safetyMargin: VAULT_SPLIT_SAFETY_MARGIN,
+      expectedHF,
     });
+    if (sizingViolation !== null) {
+      return { ...EMPTY_RESULT, sizingViolation };
+    }
+
+    if (totalBtc <= 0n || totalBtc > MAX_PLAUSIBLE_DEPOSIT_SATS) {
+      return EMPTY_RESULT;
+    }
+
+    const split = computeOptimalSplit({ totalBtc, CF, LB, THF, expectedHF });
 
     const minDepositForSplit = computeMinDepositForSplit({
       minPegin: minDeposit,
       seizedFraction: split.seizedFraction,
-      safetyMargin: VAULT_SPLIT_SAFETY_MARGIN,
     });
 
-    const canSplit = minDepositForSplit > 0n && totalBtc >= minDepositForSplit;
+    // The parameters passed above, so a refusal here comes from rounding on a
+    // tiny amount, which is below the split minimum anyway: not splittable,
+    // but not a parameter problem to report.
+    const canSplit =
+      split.sizingViolation === null &&
+      minDepositForSplit > 0n &&
+      totalBtc >= minDepositForSplit;
 
     return {
       sacrificialVault: split.sacrificialVault,
@@ -86,6 +102,7 @@ export function useOptimalSplit(
       seizedFraction: split.seizedFraction,
       canSplit,
       minDepositForSplit,
+      sizingViolation: null,
     };
   }, [params, totalBtc, minDeposit]);
 

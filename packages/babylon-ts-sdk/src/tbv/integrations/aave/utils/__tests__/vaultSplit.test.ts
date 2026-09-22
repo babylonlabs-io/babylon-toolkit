@@ -5,19 +5,33 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  computeLiquidationBonusBps,
   computeMinDepositForSplit,
   computeOptimalSplit,
   computeSeizedFraction,
   computeSeizedFractionDetailed,
+  computeSplitLiquidationBonus,
+  EXPECTED_HEALTH_FACTOR_AT_LIQUIDATION,
+  EXPECTED_HEALTH_FACTOR_AT_LIQUIDATION_WAD,
+  findSplitSizingViolation,
+  SPLIT_TARGET_HEALTH_FACTOR,
 } from "../vaultSplit.js";
 
-// Mock parameter values (contracts not deployed yet)
+// Generic formula fixture (seized fraction ≈ 0.398). The launch values are
+// covered in "launch split sizing" below.
 const DEFAULT_PARAMS = {
   CF: 0.75,
   LB: 1.05,
   THF: 1.1,
   expectedHF: 0.95,
-  safetyMargin: 1.05,
+};
+
+// Aave v4 bonus curve as configured for the vault BTC reserve: 5.55% max
+// bonus, 90% of it still applying at HF 1.0, max bonus at HF 0.90.
+const BONUS_CURVE = {
+  healthFactorForMaxBonus: 900_000_000_000_000_000n,
+  liquidationBonusFactor: 9_000n,
+  maxLiquidationBonus: 10_555n,
 };
 
 describe("vaultSplit", () => {
@@ -111,22 +125,12 @@ describe("vaultSplit", () => {
         ...DEFAULT_PARAMS,
       });
 
-      // seized_fraction ≈ 0.398
+      // seized_fraction ≈ 0.3979; sacrificial = ceil(10 BTC × 0.3979)
       expect(result.seizedFraction).toBeCloseTo(0.398, 2);
-
-      // sacrificial ≈ 10 * 0.398 * 1.05 ≈ 4.18 BTC = 418_000_000 sats (approx)
-      expect(Number(result.sacrificialVault)).toBeCloseTo(418_000_000, -6);
-
-      // protected ≈ 5.82 BTC
-      expect(Number(result.protectedVault)).toBeCloseTo(582_000_000, -6);
-
-      // Vaults must sum to total
-      expect(result.sacrificialVault + result.protectedVault).toBe(
-        1_000_000_000n,
-      );
-
-      // Target seizure (before safety margin) ≈ 3.98 BTC
-      expect(Number(result.targetSeizureBtc)).toBeCloseTo(398_000_000, -6);
+      expect(result.sacrificialVault).toBe(397_894_737n);
+      expect(result.protectedVault).toBe(602_105_263n);
+      expect(result.targetSeizureBtc).toBe(397_894_737n);
+      expect(result.sizingViolation).toBeNull();
     });
 
     it("should return zero vaults for zero amount", () => {
@@ -151,37 +155,68 @@ describe("vaultSplit", () => {
       expect(result.protectedVault).toBe(0n);
     });
 
-    it("should cap sacrificial at totalBtc when full liquidation", () => {
-      // THF <= liq_penalty → seized_fraction = 1
+    it("refuses the split when THF <= LB × CF (one liquidation takes everything)", () => {
+      // liq_penalty = 1.5 × 0.75 = 1.125 > THF 1.10
       const result = computeOptimalSplit({
         totalBtc: 500_000_000n,
         CF: 0.75,
         LB: 1.5,
         THF: 1.1,
         expectedHF: 0.95,
-        safetyMargin: 1.05,
       });
 
-      // seized_fraction = 1, sacrificial = total * 1 * 1.05 = capped at total
-      expect(result.sacrificialVault).toBe(500_000_000n);
+      expect(result.sacrificialVault).toBe(0n);
       expect(result.protectedVault).toBe(0n);
       expect(result.seizedFraction).toBe(1);
+      expect(result.sizingViolation).toBe(
+        "target-not-above-liquidation-penalty",
+      );
     });
 
-    it("should return single vault when expectedHF >= THF", () => {
+    it("refuses the split when expectedHF >= THF", () => {
       const result = computeOptimalSplit({
         totalBtc: 1_000_000_000n,
         CF: 0.75,
         LB: 1.05,
         THF: 1.1,
         expectedHF: 1.2,
-        safetyMargin: 1.05,
       });
 
-      // seized_fraction = 0, no split needed
       expect(result.sacrificialVault).toBe(0n);
-      expect(result.protectedVault).toBe(1_000_000_000n);
-      expect(result.seizedFraction).toBe(0);
+      expect(result.protectedVault).toBe(0n);
+      expect(result.sizingViolation).toBe("target-not-above-expected-hf");
+    });
+
+    it("refuses the split when the sacrificial vault would not be smaller", () => {
+      // THF 1.24, eHF 0.99, LB 1.0555, CF 84.5% → seized fraction ≈ 0.647
+      const result = computeOptimalSplit({
+        totalBtc: 1_000_000_000n,
+        CF: 0.845,
+        LB: 1.0555,
+        THF: 1.24,
+        expectedHF: 0.99,
+      });
+
+      expect(result.seizedFraction).toBeGreaterThanOrEqual(0.5);
+      expect(result.sacrificialVault).toBe(0n);
+      expect(result.protectedVault).toBe(0n);
+      expect(result.sizingViolation).toBe("sacrificial-not-smaller");
+    });
+
+    it("refuses the split when rounding up ties the vaults on a tiny total", () => {
+      // Seized fraction ≈ 0.465; ceil(3 × 0.465) = 2 leaves 1 for the protected vault
+      const result = computeOptimalSplit({
+        totalBtc: 3n,
+        CF: 0.86,
+        LB: 1.0504,
+        THF: 1.08,
+        expectedHF: 0.99,
+      });
+
+      expect(result.seizedFraction).toBeLessThan(0.5);
+      expect(result.sacrificialVault).toBe(0n);
+      expect(result.protectedVault).toBe(0n);
+      expect(result.sizingViolation).toBe("sacrificial-not-smaller");
     });
 
     it("should always have sacrificial + protected = totalBtc", () => {
@@ -222,7 +257,7 @@ describe("vaultSplit", () => {
     });
 
     it("should return zeroed vaults when sacrificial amount is below HTLC dust threshold", () => {
-      // totalBtc = 100 sats → sacrificial ≈ 42 sats, protected ≈ 58 sats
+      // totalBtc = 100 sats → sacrificial 40 sats, protected 60 sats
       // Both are well below the 2000 sat HTLC dust threshold
       const result = computeOptimalSplit({
         totalBtc: 100n,
@@ -232,23 +267,23 @@ describe("vaultSplit", () => {
       expect(result.sacrificialVault).toBe(0n);
       expect(result.protectedVault).toBe(0n);
       expect(result.targetSeizureBtc).toBe(0n);
+      expect(result.sizingViolation).toBeNull();
     });
 
     it("should return zeroed vaults when protected amount is below HTLC dust threshold", () => {
-      // seizedFraction ≈ 0.8605, share ≈ 0.9035
-      // totalBtc = 19739 → sacrificial ≈ 17835, protected ≈ 1904 (below 2000)
+      // CF 0 → seized fraction 0: sacrificial 0 sats, protected 1_999 sats
       const result = computeOptimalSplit({
-        totalBtc: 19_739n,
-        CF: 0.75,
+        totalBtc: 1_999n,
+        CF: 0,
         LB: 1.05,
         THF: 1.1,
-        expectedHF: 0.82,
-        safetyMargin: 1.05,
+        expectedHF: 0.95,
       });
 
       expect(result.sacrificialVault).toBe(0n);
       expect(result.protectedVault).toBe(0n);
       expect(result.targetSeizureBtc).toBe(0n);
+      expect(result.sizingViolation).toBeNull();
     });
   });
 
@@ -264,7 +299,6 @@ describe("vaultSplit", () => {
       const minDeposit = computeMinDepositForSplit({
         minPegin: 50_000n,
         seizedFraction,
-        safetyMargin: DEFAULT_PARAMS.safetyMargin,
       });
 
       // Verify: at minDeposit, both vaults should be >= minPegin
@@ -288,7 +322,6 @@ describe("vaultSplit", () => {
       const minDeposit = computeMinDepositForSplit({
         minPegin: 50_000n,
         seizedFraction,
-        safetyMargin: DEFAULT_PARAMS.safetyMargin,
       });
 
       // Significantly below should produce at least one vault < minPegin
@@ -305,12 +338,10 @@ describe("vaultSplit", () => {
       }
     });
 
-    it("should return 0n when seizedFraction * safetyMargin >= 1", () => {
-      // Can't split — sacrificial would consume the entire deposit
+    it("returns 0n when the sacrificial vault would not be smaller than the protected one", () => {
       const result = computeMinDepositForSplit({
         minPegin: 50_000n,
-        seizedFraction: 1.0,
-        safetyMargin: 1.05,
+        seizedFraction: 0.5,
       });
       expect(result).toBe(0n);
     });
@@ -320,9 +351,164 @@ describe("vaultSplit", () => {
       const result = computeMinDepositForSplit({
         minPegin: 50_000n,
         seizedFraction: 0,
-        safetyMargin: 1.05,
       });
       expect(result).toBe(0n);
+    });
+
+    it("sizes the minimum from the sacrificial share", () => {
+      // 50_000 / 0.2857 = 175_008.75, rounded up
+      const result = computeMinDepositForSplit({
+        minPegin: 50_000n,
+        seizedFraction: 0.2857,
+      });
+      expect(result).toBe(175_009n);
+    });
+  });
+
+  describe("launch split sizing", () => {
+    // Split risk model (babylon-toolkit#2577): THF 1.08, expected HF 0.99,
+    // bonus at HF 0.99 = 105.04%, no extra buffer.
+    const launchBonus = computeSplitLiquidationBonus(
+      {
+        healthFactorForMaxBonus: BONUS_CURVE.healthFactorForMaxBonus,
+        liquidationBonusFactor: BONUS_CURVE.liquidationBonusFactor,
+      },
+      10_555,
+    );
+
+    it("sizes against the launch curve's bonus at HF 0.99, 105.04%", () => {
+      expect(launchBonus).toBe(1.0504);
+    });
+
+    it("keeps the expected-HF number and WAD constants equal", () => {
+      expect(EXPECTED_HEALTH_FACTOR_AT_LIQUIDATION).toBe(0.99);
+      expect(EXPECTED_HEALTH_FACTOR_AT_LIQUIDATION_WAD).toBe(
+        990_000_000_000_000_000n,
+      );
+    });
+
+    it("matches the model's sacrificial share at CF 78%, 85% and 86%", () => {
+      const shareAt = (CF: number) =>
+        computeSeizedFraction(
+          CF,
+          launchBonus,
+          SPLIT_TARGET_HEALTH_FACTOR,
+          EXPECTED_HEALTH_FACTOR_AT_LIQUIDATION,
+        );
+
+      expect(shareAt(0.78)).toBeCloseTo(0.28572, 5);
+      expect(shareAt(0.85)).toBeCloseTo(0.43368, 5);
+      expect(shareAt(0.86)).toBeCloseTo(0.46487, 5);
+    });
+
+    it("splits 10 BTC at CF 78% into 2.857 BTC and 7.143 BTC", () => {
+      const result = computeOptimalSplit({
+        totalBtc: 1_000_000_000n,
+        CF: 0.78,
+        LB: launchBonus,
+        THF: SPLIT_TARGET_HEALTH_FACTOR,
+        expectedHF: EXPECTED_HEALTH_FACTOR_AT_LIQUIDATION,
+      });
+
+      expect(result.sacrificialVault).toBe(285_716_677n);
+      expect(result.protectedVault).toBe(714_283_323n);
+      expect(result.sizingViolation).toBeNull();
+    });
+
+    it("refuses the split at CF 87%, where the sacrificial share passes 50%", () => {
+      expect(
+        findSplitSizingViolation({
+          CF: 0.87,
+          LB: launchBonus,
+          THF: SPLIT_TARGET_HEALTH_FACTOR,
+          expectedHF: EXPECTED_HEALTH_FACTOR_AT_LIQUIDATION,
+        }),
+      ).toBe("sacrificial-not-smaller");
+    });
+  });
+
+  describe("computeLiquidationBonusBps", () => {
+    it("returns the minimum bonus at HF 1.0", () => {
+      // min = (10555 − 10000) × 9000 / 10000 + 10000 = 10499 (499.5 rounds down)
+      expect(computeLiquidationBonusBps(BONUS_CURVE, 10n ** 18n)).toBe(10_499n);
+    });
+
+    it("interpolates linearly, rounding down, between HF 1.0 and the max-bonus HF", () => {
+      expect(
+        computeLiquidationBonusBps(BONUS_CURVE, 990_000_000_000_000_000n),
+      ).toBe(10_504n);
+      expect(
+        computeLiquidationBonusBps(BONUS_CURVE, 950_000_000_000_000_000n),
+      ).toBe(10_527n);
+    });
+
+    it("returns the max bonus at and below healthFactorForMaxBonus", () => {
+      expect(
+        computeLiquidationBonusBps(BONUS_CURVE, 900_000_000_000_000_000n),
+      ).toBe(10_555n);
+      expect(
+        computeLiquidationBonusBps(BONUS_CURVE, 500_000_000_000_000_000n),
+      ).toBe(10_555n);
+    });
+
+    it("throws above HF 1.0, where the contract reverts", () => {
+      expect(() =>
+        computeLiquidationBonusBps(BONUS_CURVE, 10n ** 18n + 1n),
+      ).toThrow(RangeError);
+    });
+
+    it("throws when healthFactorForMaxBonus is not below 1e18", () => {
+      expect(() =>
+        computeLiquidationBonusBps(
+          { ...BONUS_CURVE, healthFactorForMaxBonus: 10n ** 18n },
+          990_000_000_000_000_000n,
+        ),
+      ).toThrow(RangeError);
+    });
+
+    it("throws when liquidationBonusFactor is above 100%", () => {
+      expect(() =>
+        computeLiquidationBonusBps(
+          { ...BONUS_CURVE, liquidationBonusFactor: 10_001n },
+          990_000_000_000_000_000n,
+        ),
+      ).toThrow(RangeError);
+    });
+
+    it("throws when maxLiquidationBonus is below 100%", () => {
+      expect(() =>
+        computeLiquidationBonusBps(
+          { ...BONUS_CURVE, maxLiquidationBonus: 9_999n },
+          990_000_000_000_000_000n,
+        ),
+      ).toThrow(RangeError);
+    });
+  });
+
+  describe("findSplitSizingViolation", () => {
+    const VALID = { CF: 0.78, LB: 1.0504, THF: 1.08, expectedHF: 0.99 };
+
+    it("accepts the launch parameters", () => {
+      expect(findSplitSizingViolation(VALID)).toBeNull();
+    });
+
+    it("flags THF equal to the expected HF", () => {
+      expect(findSplitSizingViolation({ ...VALID, THF: 0.99 })).toBe(
+        "target-not-above-expected-hf",
+      );
+    });
+
+    it("flags THF equal to LB × CF", () => {
+      // LB × CF = 1.08 when LB = 1.08 / 0.78
+      expect(findSplitSizingViolation({ ...VALID, LB: 1.08 / 0.78 })).toBe(
+        "target-not-above-liquidation-penalty",
+      );
+    });
+
+    it("flags a NaN input instead of letting it through", () => {
+      expect(findSplitSizingViolation({ ...VALID, THF: Number.NaN })).toBe(
+        "target-not-above-expected-hf",
+      );
     });
   });
 

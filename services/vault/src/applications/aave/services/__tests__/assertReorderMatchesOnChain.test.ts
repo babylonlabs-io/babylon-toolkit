@@ -72,7 +72,9 @@ const VAULT_C =
 const CONTEXT_BASE: ReorderVerificationContext = {
   CF: 0.7,
   THF: 1.1,
-  maxLB: 1.05,
+  LB: 1.05,
+  expectedHF: 0.95,
+  minPeginBtc: 0.0005,
   btcPrice: 60_000,
   totalDebtUsd: 10_000,
 };

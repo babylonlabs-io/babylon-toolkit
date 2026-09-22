@@ -24,6 +24,15 @@ vi.mock("../useVaultSplitParams", () => ({
   useVaultSplitParams: (...args: unknown[]) => mockUseVaultSplitParams(...args),
 }));
 
+// The hook reads the minimum peg-in through the shared peg-in config query.
+const mockUseQuery = vi.fn();
+vi.mock("@tanstack/react-query", () => ({
+  useQuery: (...args: unknown[]) => mockUseQuery(...args),
+}));
+vi.mock("@/context/ProtocolParamsContext", () => ({
+  pegInConfigQueryOptions: () => ({ queryKey: ["pegInConfig"] }),
+}));
+
 import { usePositionNotifications } from "../usePositionNotifications";
 
 const VAULT_A =
@@ -79,7 +88,14 @@ function setHappyPrices() {
 
 function setHappySplitParams() {
   mockUseVaultSplitParams.mockReturnValue({
-    params: { CF: 0.7, THF: 1.1, LB: 1.05 },
+    params: { THF: 1.1, expectedHF: 0.95, CF: 0.7, LB: 1.05, maxLB: 1.05 },
+    isLoading: false,
+  });
+}
+
+function setPegInConfig() {
+  mockUseQuery.mockReturnValue({
+    data: { minimumPegInAmount: 5_460_000n },
     isLoading: false,
   });
 }
@@ -89,6 +105,41 @@ describe("usePositionNotifications — live-HF urgency guardrail", () => {
     vi.clearAllMocks();
     setHappyPrices();
     setHappySplitParams();
+    setPegInConfig();
+  });
+
+  it("passes the protocol minimum peg-in to the calculator in BTC", () => {
+    setDashboardState();
+
+    const { result } = renderHook(() => usePositionNotifications(USER));
+
+    expect(result.current.params?.minPeginBtc).toBe(0.0546);
+    expect(result.current.reorderVerificationContext?.minPeginBtc).toBe(0.0546);
+  });
+
+  it("still computes every warning, unfloored, when the peg-in configuration read fails", () => {
+    setDashboardState();
+    mockUseQuery.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      error: new Error("RPC failure"),
+    });
+
+    const { result } = renderHook(() => usePositionNotifications(USER));
+
+    expect(result.current.status).toBe("ready");
+    expect(result.current.result).not.toBeNull();
+    expect(result.current.params?.minPeginBtc).toBeNull();
+  });
+
+  it("stays loading until the peg-in configuration has loaded", () => {
+    setDashboardState();
+    mockUseQuery.mockReturnValue({ data: undefined, isLoading: true });
+
+    const { result } = renderHook(() => usePositionNotifications(USER));
+
+    expect(result.current.status).toBe("loading");
+    expect(result.current.result).toBeNull();
   });
 
   it("forces an urgent warning when live HF is below 1.0", () => {

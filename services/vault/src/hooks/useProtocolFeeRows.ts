@@ -11,10 +11,6 @@ import { COPY } from "@/copy";
 import { getBtcSymbol } from "@/utils/formatting";
 
 import {
-  EXPECTED_HEALTH_FACTOR_AT_LIQUIDATION,
-  VAULT_SPLIT_SAFETY_MARGIN,
-} from "../applications/aave/constants";
-import {
   useVaultSplitParams,
   type VaultSplitParams,
 } from "../applications/aave/hooks/useVaultSplitParams";
@@ -36,18 +32,12 @@ function buildFeeRows(
   });
 
   if (splitParams) {
-    const { CF, LB, THF } = splitParams;
+    const { CF, LB, THF, expectedHF, maxLB } = splitParams;
 
-    const seizedFraction = computeSeizedFraction(
-      CF,
-      LB,
-      THF,
-      EXPECTED_HEALTH_FACTOR_AT_LIQUIDATION,
-    );
+    const seizedFraction = computeSeizedFraction(CF, LB, THF, expectedHF);
     const minForSplit = computeMinDepositForSplit({
       minPegin: minDepositSats,
       seizedFraction,
-      safetyMargin: VAULT_SPLIT_SAFETY_MARGIN,
     });
 
     if (minForSplit > 0n) {
@@ -66,12 +56,12 @@ function buildFeeRows(
     });
 
     rows.push({
-      label: COPY.protocolFees.liquidationThreshold.label,
+      label: COPY.protocolFees.splitTargetHealthFactor.label,
       value: THF.toFixed(2),
-      tooltip: COPY.protocolFees.liquidationThreshold.tooltip,
+      tooltip: COPY.protocolFees.splitTargetHealthFactor.tooltip,
     });
 
-    const bonusPercent = (LB - 1) * PERCENT_SCALE;
+    const bonusPercent = (maxLB - 1) * PERCENT_SCALE;
     rows.push({
       label: COPY.protocolFees.maxLiquidationPenalty.label,
       value: `${bonusPercent.toFixed(0)}%`,

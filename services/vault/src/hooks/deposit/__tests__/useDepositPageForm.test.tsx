@@ -292,6 +292,7 @@ vi.mock("../useAllocationPlanning", () => ({
     splitRatioLabel: null,
     minDepositForSplit: 0n,
     isSplitAmountTooLow: false,
+    isSplitSizingRefused: false,
     isLoading: false,
   })),
 }));
@@ -1011,6 +1012,7 @@ describe("useDepositPageForm", () => {
         splitRatioLabel: null,
         minDepositForSplit: 0n,
         isSplitAmountTooLow: false,
+        isSplitSizingRefused: false,
         isLoading: false,
       });
     });
@@ -1097,6 +1099,7 @@ describe("useDepositPageForm", () => {
         splitRatioLabel: null,
         minDepositForSplit: 0n,
         isSplitAmountTooLow: false,
+        isSplitSizingRefused: false,
         isLoading: false,
       });
     });

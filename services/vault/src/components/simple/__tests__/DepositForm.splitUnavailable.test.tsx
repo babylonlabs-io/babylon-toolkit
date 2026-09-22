@@ -178,4 +178,12 @@ describe("DepositForm split-unavailable hint", () => {
     });
     expect(screen.getByText(PROTOCOL_HINT)).toBeInTheDocument();
   });
+
+  it("explains a split refused by the split sizing rules", () => {
+    renderForm({ splitUnavailableReason: "split-sizing" });
+    expect(
+      screen.getByText(COPY.deposit.splitSizing.unavailable),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(PROTOCOL_HINT)).not.toBeInTheDocument();
+  });
 });

@@ -38,7 +38,7 @@ import { setPositionCascadeOverride } from "@/overrides/position";
 import {
   DEBUG_DEFAULT_CF,
   DEBUG_DEFAULT_EXPECTED_HF,
-  DEBUG_DEFAULT_MAX_LB,
+  DEBUG_DEFAULT_LB,
   DEBUG_DEFAULT_THF,
   DEBUG_PRESETS,
   applyDebugPreset,
@@ -385,19 +385,16 @@ function ManualInputPanel({
       </div>
       <div className={FIELD_GRID_CLASS}>
         <div>
-          <div className={PANEL_LABEL_CLASS}>LB (maxLB)</div>
+          <div className={PANEL_LABEL_CLASS}>LB (at expected HF)</div>
           <input
             type="number"
             step="0.01"
             min="1.0"
             max="1.5"
             className={PANEL_INPUT_CLASS}
-            value={params.maxLB}
+            value={params.LB}
             onChange={(e) =>
-              updateField(
-                "maxLB",
-                parseFloat(e.target.value) || DEBUG_DEFAULT_MAX_LB,
-              )
+              updateField("LB", parseFloat(e.target.value) || DEBUG_DEFAULT_LB)
             }
           />
         </div>

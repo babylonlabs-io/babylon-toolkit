@@ -1,9 +1,16 @@
 /**
- * Hook for fetching vault split parameters from the Core Spoke contract.
+ * Hook for the vault split parameters: the one set of inputs every split,
+ * seizure and reorder calculation in the app uses.
  *
- * Fetches THF from getTargetHealthFactor and CF/LB from getDynamicReserveConfig,
- * converting them from on-chain formats (WAD/BPS) to plain numbers for use
- * in split calculations.
+ * - CF and the max liquidation bonus come from the Core Spoke's
+ *   `getDynamicReserveConfig`.
+ * - LB is the liquidation bonus at the expected liquidation health factor,
+ *   computed from the Spoke's bonus curve (`getLiquidationConfig`) and the
+ *   max bonus, exactly as the contract computes it.
+ * - THF and expectedHF are the SDK's `SPLIT_TARGET_HEALTH_FACTOR` and
+ *   `EXPECTED_HEALTH_FACTOR_AT_LIQUIDATION`. They are Babylon sizing
+ *   constants, not Spoke reads: the Babylon Spoke never uses the Aave
+ *   `targetHealthFactor`.
  *
  * **Which dynamicConfigKey do we use?**
  *
@@ -24,6 +31,11 @@
  * potentially-stale source for a value that gates liquidation correctness.
  */
 
+import {
+  computeSplitLiquidationBonus,
+  EXPECTED_HEALTH_FACTOR_AT_LIQUIDATION,
+  SPLIT_TARGET_HEALTH_FACTOR,
+} from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Address } from "viem";
 
@@ -34,17 +46,20 @@ import {
   CONFIG_STALE_TIME_MS,
 } from "../constants";
 import { useAaveConfig } from "../context";
-import { wadToNumber } from "../utils";
 
 import { useAaveUserPosition } from "./useAaveUserPosition";
 
 export interface VaultSplitParams {
-  /** Target health factor (e.g. 1.10) */
+  /** Split target health factor, `SPLIT_TARGET_HEALTH_FACTOR` (1.08) */
   THF: number;
-  /** Collateral factor (e.g. 0.75) */
+  /** Expected health factor at liquidation, `EXPECTED_HEALTH_FACTOR_AT_LIQUIDATION` (0.99) */
+  expectedHF: number;
+  /** Collateral factor (e.g. 0.78) */
   CF: number;
-  /** Liquidation bonus (e.g. 1.05) */
+  /** Liquidation bonus at `expectedHF` (e.g. 1.0504). Used by all seizure math. */
   LB: number;
+  /** Max liquidation bonus (e.g. 1.0555). Display only. */
+  maxLB: number;
 }
 
 export interface UseVaultSplitParamsResult {
@@ -54,7 +69,7 @@ export interface UseVaultSplitParamsResult {
   error: Error | null;
   /**
    * Force a fresh contract round-trip for `getDynamicReserveConfig` and
-   * `getTargetHealthFactor`. Use immediately before signing a borrow or
+   * `getLiquidationConfig`. Use immediately before signing a borrow or
    * repay so the projected-HF math runs against current on-chain values
    * even when the cache is still within `staleTime` and the
    * `dynamicConfigKey` has not changed.
@@ -79,8 +94,8 @@ async function fetchSplitParams(
     positionDynamicConfigKey ??
     (await AaveSpoke.getReserve(spokeAddress, reserveId)).dynamicConfigKey;
 
-  const [thfWad, dynamicConfig] = await Promise.all([
-    AaveSpoke.getTargetHealthFactor(spokeAddress),
+  const [bonusConfig, dynamicConfig] = await Promise.all([
+    AaveSpoke.getLiquidationBonusConfig(spokeAddress),
     AaveSpoke.getDynamicReserveConfig(
       spokeAddress,
       reserveId,
@@ -89,9 +104,16 @@ async function fetchSplitParams(
   ]);
 
   return {
-    THF: wadToNumber(thfWad),
-    CF: Number(dynamicConfig.collateralFactor) / BPS_SCALE,
-    LB: Number(dynamicConfig.maxLiquidationBonus) / BPS_SCALE,
+    THF: SPLIT_TARGET_HEALTH_FACTOR,
+    expectedHF: EXPECTED_HEALTH_FACTOR_AT_LIQUIDATION,
+    CF: dynamicConfig.collateralFactor / BPS_SCALE,
+    // Same inputs the contract's liquidation uses: the curve from the Spoke's
+    // liquidation config and the max bonus of the position's dynamic config.
+    LB: computeSplitLiquidationBonus(
+      bonusConfig,
+      dynamicConfig.maxLiquidationBonus,
+    ),
+    maxLB: dynamicConfig.maxLiquidationBonus / BPS_SCALE,
   };
 }
 

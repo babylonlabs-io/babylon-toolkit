@@ -153,6 +153,36 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/oracle.ts
 
 ***
 
+### LiquidationBonusConfig
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts)
+
+Liquidation-bonus curve parameters from the Spoke's liquidation config.
+
+#### Properties
+
+##### healthFactorForMaxBonus
+
+```ts
+healthFactorForMaxBonus: bigint;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts)
+
+Health factor at or below which the maximum bonus applies, WAD
+
+##### liquidationBonusFactor
+
+```ts
+liquidationBonusFactor: bigint;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts)
+
+Share of the maximum bonus that still applies at HF 1.0, BPS
+
+***
+
 ### AaveMarketPosition
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/integrations/aave/types.ts)
@@ -432,6 +462,46 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/cascadeSimu
 
 ***
 
+### LiquidationBonusCurve
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts)
+
+Inputs of the Aave v4 liquidation bonus curve, in their on-chain units.
+
+#### Properties
+
+##### healthFactorForMaxBonus
+
+```ts
+healthFactorForMaxBonus: bigint;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts)
+
+`LiquidationConfig.healthFactorForMaxBonus`, WAD. Below 1e18.
+
+##### liquidationBonusFactor
+
+```ts
+liquidationBonusFactor: bigint;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts)
+
+`LiquidationConfig.liquidationBonusFactor`, BPS. At most 10_000.
+
+##### maxLiquidationBonus
+
+```ts
+maxLiquidationBonus: bigint;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts)
+
+`DynamicReserveConfig.maxLiquidationBonus`, BPS. At least 10_000.
+
+***
+
 ### OptimalSplitParams
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts)
@@ -458,7 +528,7 @@ CF: number;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts)
 
-Collateral factor (e.g. 0.75 for 75%)
+Collateral factor (e.g. 0.78 for 78%)
 
 ##### LB
 
@@ -468,7 +538,7 @@ LB: number;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts)
 
-Liquidation bonus (e.g. 1.05 for 5% bonus)
+Liquidation bonus at the expected health factor (e.g. 1.0504)
 
 ##### THF
 
@@ -478,7 +548,7 @@ THF: number;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts)
 
-Target health factor (e.g. 1.10)
+Split target health factor (e.g. [SPLIT\_TARGET\_HEALTH\_FACTOR](#split_target_health_factor))
 
 ##### expectedHF
 
@@ -488,17 +558,7 @@ expectedHF: number;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts)
 
-Expected health factor at liquidation (e.g. 0.95)
-
-##### safetyMargin
-
-```ts
-safetyMargin: number;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts)
-
-Safety margin multiplier for the sacrificial vault (e.g. 1.05 for 5% buffer)
+Expected health factor at liquidation (e.g. [EXPECTED\_HEALTH\_FACTOR\_AT\_LIQUIDATION](#expected_health_factor_at_liquidation))
 
 ***
 
@@ -548,7 +608,18 @@ targetSeizureBtc: bigint;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts)
 
-Raw target seizure amount in satoshis (before safety margin)
+Target seizure amount in satoshis
+
+##### sizingViolation
+
+```ts
+sizingViolation: SplitSizingViolation | null;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts)
+
+Why the split is refused, or null when it is valid. When non-null both
+vault amounts are 0n.
 
 ***
 
@@ -580,16 +651,6 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.
 
 Seized fraction (0–1), from computeOptimalSplit or computeSeizedFraction
 
-##### safetyMargin
-
-```ts
-safetyMargin: number;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts)
-
-Safety margin multiplier (e.g. 1.05)
-
 ## Type Aliases
 
 ### HealthFactorStatus
@@ -599,6 +660,27 @@ type HealthFactorStatus = "safe" | "warning" | "risky" | "danger" | "no_debt";
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/healthFactor.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/healthFactor.ts)
+
+***
+
+### SplitSizingViolation
+
+```ts
+type SplitSizingViolation = 
+  | "target-not-above-expected-hf"
+  | "target-not-above-liquidation-penalty"
+  | "sacrificial-not-smaller";
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts)
+
+Why a two-vault split is refused:
+- `target-not-above-expected-hf`: THF ≤ expected HF, so the seizure formula
+  has no valid target.
+- `target-not-above-liquidation-penalty`: THF ≤ LB × CF, so one liquidation
+  takes the whole position.
+- `sacrificial-not-smaller`: the sacrificial vault would not be strictly
+  smaller than the protected vault.
 
 ## Functions
 
@@ -1257,18 +1339,19 @@ Reserve data for each ID, in input order
 
 ***
 
-### getTargetHealthFactor()
+### getLiquidationBonusConfig()
 
 ```ts
-function getTargetHealthFactor(publicClient, spokeAddress): Promise<bigint>;
+function getLiquidationBonusConfig(publicClient, spokeAddress): Promise<LiquidationBonusConfig>;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/spoke.ts)
 
-Get the target health factor (THF) from the Core Spoke contract.
+Get the liquidation-bonus curve parameters from the Core Spoke contract.
 
-Per-spoke governance parameter. After a liquidation, the protocol targets
-restoring the position to this health factor.
+Per-spoke governance parameters. Combined with a reserve's
+`maxLiquidationBonus` they give the bonus at any health factor; see
+`computeLiquidationBonusBps`.
 
 #### Parameters
 
@@ -1284,9 +1367,9 @@ Core Spoke contract address
 
 #### Returns
 
-`Promise`\<`bigint`\>
+`Promise`\<[`LiquidationBonusConfig`](#liquidationbonusconfig)\>
 
-Target health factor in WAD (1e18 = 1.0). Example: 1.10 = 1_100_000_000_000_000_000n
+healthFactorForMaxBonus (WAD) and liquidationBonusFactor (BPS)
 
 ***
 
@@ -1764,7 +1847,7 @@ function simulateCascade<T>(
    seizureTol, 
    CF, 
    THF, 
-   maxLB, 
+   LB, 
    expectedHF): object;
 ```
 
@@ -1808,7 +1891,7 @@ TIEBREAKER:     btcAfterG1 — BTC remaining after the first (most likely) event
 
 `number`
 
-##### maxLB
+##### LB
 
 `number`
 
@@ -2009,7 +2092,7 @@ function computeOptimalOrder<T>(
    seizureTol, 
    CF, 
    THF, 
-   maxLB, 
+   LB, 
    expectedHF): object;
 ```
 
@@ -2062,7 +2145,7 @@ simulateCascade() on the reconstructed order.
 
 `number`
 
-##### maxLB
+##### LB
 
 `number`
 
@@ -2091,6 +2174,135 @@ sumBtcAfterEvents: number;
 ```ts
 btcAfterG1: number;
 ```
+
+***
+
+### computeLiquidationBonusBps()
+
+```ts
+function computeLiquidationBonusBps(curve, healthFactorWad): bigint;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts)
+
+Compute the Aave v4 liquidation bonus at a health factor.
+
+Integer-exact port of `LiquidationLogic.calculateLiquidationBonus`
+(aave-v4 `src/spoke/libraries/LiquidationLogic.sol`), which the Babylon
+liquidation path calls with the same inputs: at or below
+`healthFactorForMaxBonus` the bonus is the maximum; above it the bonus falls
+linearly towards a minimum of
+`(maxLiquidationBonus − 100%) × liquidationBonusFactor + 100%` at HF 1.0.
+Every division rounds down, as on-chain.
+
+#### Parameters
+
+##### curve
+
+[`LiquidationBonusCurve`](#liquidationbonuscurve)
+
+Bonus curve inputs in on-chain units
+
+##### healthFactorWad
+
+`bigint`
+
+Health factor in WAD, at most 1e18
+
+#### Returns
+
+`bigint`
+
+Liquidation bonus in BPS (e.g. 10504n for 105.04%)
+
+#### Throws
+
+when an input is outside the range the contract
+  accepts (the contract would revert or was configured out of range)
+
+***
+
+### computeSplitLiquidationBonus()
+
+```ts
+function computeSplitLiquidationBonus(bonusConfig, maxLiquidationBonusBps): number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts)
+
+The liquidation bonus a split is sized against: the Spoke's bonus curve at
+[EXPECTED\_HEALTH\_FACTOR\_AT\_LIQUIDATION\_WAD](#expected_health_factor_at_liquidation_wad), as a multiplier.
+
+Every consumer of the split inputs (the deposit split, the liquidation
+warnings, the reorder guard, the E2E CLI) must use this one value, or a
+fresh split falls short of the seizure the warnings expect.
+
+#### Parameters
+
+##### bonusConfig
+
+`Omit`\<[`LiquidationBonusCurve`](#liquidationbonuscurve), `"maxLiquidationBonus"`\>
+
+`healthFactorForMaxBonus` (WAD) and
+  `liquidationBonusFactor` (BPS) from the Spoke's liquidation config
+
+##### maxLiquidationBonusBps
+
+`number`
+
+`maxLiquidationBonus` (BPS) of the dynamic
+  config the position's liquidation uses
+
+#### Returns
+
+`number`
+
+Liquidation bonus multiplier (e.g. 1.0504)
+
+#### Throws
+
+when an input is outside the range the contract accepts
+
+***
+
+### findSplitSizingViolation()
+
+```ts
+function findSplitSizingViolation(params): SplitSizingViolation | null;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts)
+
+Check the split sizing parameters before a two-vault split is offered.
+
+#### Parameters
+
+##### params
+
+Split target health factor, expected health factor at
+  liquidation, collateral factor and liquidation bonus
+
+###### CF
+
+`number`
+
+###### LB
+
+`number`
+
+###### THF
+
+`number`
+
+###### expectedHF
+
+`number`
+
+#### Returns
+
+[`SplitSizingViolation`](#splitsizingviolation) \| `null`
+
+The first violated rule, or null when a split may be offered
 
 ***
 
@@ -2124,25 +2336,25 @@ seized_fraction = CF × (THF - expectedHF) / (THF - liq_penalty) × LB / expecte
 
 `number`
 
-Collateral factor (e.g. 0.75)
+Collateral factor (e.g. 0.78)
 
 ##### LB
 
 `number`
 
-Liquidation bonus (e.g. 1.05)
+Liquidation bonus at the expected health factor (e.g. 1.0504, see [computeSplitLiquidationBonus](#computesplitliquidationbonus))
 
 ##### THF
 
 `number`
 
-Target health factor (e.g. 1.10)
+Split target health factor (e.g. [SPLIT\_TARGET\_HEALTH\_FACTOR](#split_target_health_factor))
 
 ##### expectedHF
 
 `number`
 
-Expected health factor at liquidation (e.g. 0.95)
+Expected health factor at liquidation (e.g. [EXPECTED\_HEALTH\_FACTOR\_AT\_LIQUIDATION](#expected_health_factor_at_liquidation))
 
 #### Returns
 
@@ -2184,25 +2396,25 @@ Compute the fraction of collateral that would be seized during liquidation.
 
 `number`
 
-Collateral factor (e.g. 0.75)
+Collateral factor (e.g. 0.78)
 
 ##### LB
 
 `number`
 
-Liquidation bonus (e.g. 1.05)
+Liquidation bonus at the expected health factor (e.g. 1.0504, see [computeSplitLiquidationBonus](#computesplitliquidationbonus))
 
 ##### THF
 
 `number`
 
-Target health factor (e.g. 1.10)
+Split target health factor (e.g. [SPLIT\_TARGET\_HEALTH\_FACTOR](#split_target_health_factor))
 
 ##### expectedHF
 
 `number`
 
-Expected health factor at liquidation (e.g. 0.95)
+Expected health factor at liquidation (e.g. [EXPECTED\_HEALTH\_FACTOR\_AT\_LIQUIDATION](#expected_health_factor_at_liquidation))
 
 #### Returns
 
@@ -2222,8 +2434,11 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.
 
 Compute the optimal split between a sacrificial vault and a protected vault.
 
-The sacrificial vault (index 0) is sized to cover the target seizure amount
-plus a safety margin. The protected vault (index 1) holds the remainder.
+The sacrificial vault (index 0) is the target seizure rounded up to a whole
+satoshi. The protected vault (index 1) holds the remainder. A split whose
+parameters fail [findSplitSizingViolation](#findsplitsizingviolation), or whose sacrificial vault
+would not be strictly smaller than the protected one, is refused: both
+amounts are 0n and `sizingViolation` says why.
 
 #### Parameters
 
@@ -2231,29 +2446,33 @@ plus a safety margin. The protected vault (index 1) holds the remainder.
 
 [`OptimalSplitParams`](#optimalsplitparams)
 
-Split parameters including total BTC, risk params, and safety margin
+Total BTC and split sizing parameters
 
 #### Returns
 
 [`OptimalSplitResult`](#optimalsplitresult)
 
-Split result with vault sizes, seized fraction, and target seizure
+Split result with vault sizes, seized fraction, target seizure and
+  any sizing violation
 
 #### Example
 
 ```typescript
-import { computeOptimalSplit } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
+import {
+  computeOptimalSplit,
+  EXPECTED_HEALTH_FACTOR_AT_LIQUIDATION,
+  SPLIT_TARGET_HEALTH_FACTOR,
+} from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 
 const result = computeOptimalSplit({
   totalBtc: 1_000_000_000n, // 10 BTC in sats
-  CF: 0.75,
-  LB: 1.05,
-  THF: 1.10,
-  expectedHF: 0.95,
-  safetyMargin: 1.05,
+  CF: 0.78,
+  LB: 1.0504,
+  THF: SPLIT_TARGET_HEALTH_FACTOR,
+  expectedHF: EXPECTED_HEALTH_FACTOR_AT_LIQUIDATION,
 });
-// result.sacrificialVault ≈ 418_000_000n (4.18 BTC)
-// result.protectedVault ≈ 582_000_000n (5.82 BTC)
+// result.sacrificialVault === 285_716_677n (2.86 BTC)
+// result.protectedVault === 714_283_323n (7.14 BTC)
 ```
 
 ***
@@ -2278,14 +2497,15 @@ would meet the minimum peg-in requirement.
 
 [`MinDepositForSplitParams`](#mindepositforsplitparams)
 
-Parameters including minimum peg-in, seized fraction, and safety margin
+Minimum peg-in and seized fraction
 
 #### Returns
 
 `bigint`
 
 Minimum total deposit in satoshis. Returns 0n in two cases:
-  - `seizedFraction * safetyMargin >= 1`: split impossible (sacrificial vault would consume entire deposit)
+  - `seizedFraction >= 0.5`: split refused (the sacrificial vault would not
+    be smaller than the protected vault)
   - `seizedFraction <= 0`: split not useful (no seizure expected at this health factor)
 
 #### Example
@@ -2295,9 +2515,9 @@ import { computeMinDepositForSplit } from "@babylonlabs-io/ts-sdk/tbv/integratio
 
 const minDeposit = computeMinDepositForSplit({
   minPegin: 50_000n, // 0.0005 BTC
-  seizedFraction: 0.398,
-  safetyMargin: 1.05,
+  seizedFraction: 0.2857,
 });
+// minDeposit === 175_009n: 50_000 / 0.2857, rounded up
 ```
 
 ## Variables
@@ -2535,3 +2755,60 @@ Hard cap on vault count for the bitmask DP optimizer. 2^n memory + 3^n work
 blow up past this. For n > MAX_DP_N the optimizer falls back to a
 largest-first heuristic. Benchmark: n=18 ≈ 720ms, n=20 ≈ 5.8s — anything past
 n=17 is too slow for interactive UI, so we cap here.
+
+***
+
+### SPLIT\_TARGET\_HEALTH\_FACTOR
+
+```ts
+const SPLIT_TARGET_HEALTH_FACTOR: 1.08 = 1.08;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts)
+
+Split target health factor: the health factor a two-vault position lands
+on after its sacrificial vault is seized. The sacrificial vault is sized so
+that seizing it lifts the position back to this value.
+
+This is a Babylon sizing parameter, not a contract parameter. The Babylon
+Spoke sizes each liquidation by the head vault's BTC and never reads the
+Aave `LiquidationConfig.targetHealthFactor`, so no contract can supply it.
+At 1.08 the sacrificial vault stays smaller than the protected vault for
+every collateral factor up to 86%, and after the first liquidation BTC can
+fall about 7.4% more before the protected vault is at risk. The risk model
+and the decision are recorded in babylon-toolkit#2577.
+
+Changing this value resizes every new split. A change needs sign-off from
+the risk model owner and two code-owner approvals: this file is the
+"Multi-vault split transactions" critical path in CLAUDE.md and has its own
+entry in .github/CODEOWNERS.
+
+***
+
+### EXPECTED\_HEALTH\_FACTOR\_AT\_LIQUIDATION\_WAD
+
+```ts
+const EXPECTED_HEALTH_FACTOR_AT_LIQUIDATION_WAD: 990000000000000000n = 990_000_000_000_000_000n;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts)
+
+Health factor at which a liquidation is assumed to land, in WAD.
+
+Aave liquidations settle close to 1.0 (median about 0.997 on Aave V3 over
+a year), so the split is sized for 0.99. The liquidation bonus used for
+sizing is read from the Spoke's bonus curve at this health factor. Same
+ownership and review rules as [SPLIT\_TARGET\_HEALTH\_FACTOR](#split_target_health_factor).
+
+***
+
+### EXPECTED\_HEALTH\_FACTOR\_AT\_LIQUIDATION
+
+```ts
+const EXPECTED_HEALTH_FACTOR_AT_LIQUIDATION: number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/integrations/aave/utils/vaultSplit.ts)
+
+[EXPECTED\_HEALTH\_FACTOR\_AT\_LIQUIDATION\_WAD](#expected_health_factor_at_liquidation_wad) as a plain number (0.99),
+for the floating-point split formulas.

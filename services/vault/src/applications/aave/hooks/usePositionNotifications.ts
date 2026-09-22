@@ -1,8 +1,11 @@
+import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 
+import { pegInConfigQueryOptions } from "@/context/ProtocolParamsContext";
 import { COPY } from "@/copy";
 import { useDashboardState } from "@/hooks/useDashboardState";
 import { usePrices } from "@/hooks/usePrices";
+import { satoshiToBtcNumber } from "@/utils/btcConversion";
 
 import {
   calculate,
@@ -85,7 +88,16 @@ export function usePositionNotifications(
   const btcPrice = prices["BTC"] ?? 0;
   const btcMetadata = metadata["BTC"];
 
-  const isLoading = paramsLoading || dashboardLoading;
+  // Suggested vault sizes must be depositable, so the calculator needs the
+  // protocol's minimum peg-in. Same cached query the deposit form reads. It
+  // only sizes suggestions: the warnings wait for the read to settle (so the
+  // suggested amount does not change once the minimum arrives), and if it
+  // failed they render with the suggestions not floored.
+  const { data: pegInConfig, isLoading: pegInConfigLoading } = useQuery(
+    pegInConfigQueryOptions(),
+  );
+
+  const isLoading = paramsLoading || dashboardLoading || pegInConfigLoading;
   const liveUrgentWarning = useMemo(
     () =>
       connectedAddress &&
@@ -168,7 +180,11 @@ export function usePositionNotifications(
       vaults,
       CF: splitParams.CF,
       THF: splitParams.THF,
-      maxLB: splitParams.LB,
+      LB: splitParams.LB,
+      expectedHF: splitParams.expectedHF,
+      minPeginBtc: pegInConfig
+        ? satoshiToBtcNumber(pegInConfig.minimumPegInAmount)
+        : null,
     };
 
     const calculatorResult = calculate(calculatorParams);
@@ -196,7 +212,9 @@ export function usePositionNotifications(
       reorderVerificationContext: {
         CF: splitParams.CF,
         THF: splitParams.THF,
-        maxLB: splitParams.LB,
+        LB: splitParams.LB,
+        expectedHF: splitParams.expectedHF,
+        minPeginBtc: calculatorParams.minPeginBtc,
         btcPrice,
         totalDebtUsd: debtValueUsd,
       },
@@ -204,6 +222,7 @@ export function usePositionNotifications(
     };
   }, [
     splitParams,
+    pegInConfig,
     isLoading,
     connectedAddress,
     btcPrice,

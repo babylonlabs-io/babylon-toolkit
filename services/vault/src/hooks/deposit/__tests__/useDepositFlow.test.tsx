@@ -492,6 +492,7 @@ const MOCK_BATCH_RESULT = {
 
 const MOCK_PARAMS = {
   vaultAmounts: [100000n, 100000n],
+  depositAmountSats: 200000n,
   mempoolFeeRate: 10,
   btcWalletProvider: MOCK_BTC_WALLET as any,
   depositorEthAddress: "0xEthAddress123" as Address,
@@ -2003,11 +2004,90 @@ describe("useDepositFlow", () => {
     });
   });
 
+  describe("Pre-sign input validation", () => {
+    it("passes both split amounts, in order, and the approved deposit total to the validation", async () => {
+      const { validateMultiVaultDepositInputs } = vi.mocked(
+        await import("@/services/deposit/validations"),
+      );
+
+      const { result } = renderHook(() =>
+        useDepositFlow({
+          ...MOCK_PARAMS,
+          vaultAmounts: [90000n, 110000n],
+          depositAmountSats: 200000n,
+        }),
+      );
+
+      await executeDepositFlow(result);
+
+      await waitFor(() => {
+        expect(validateMultiVaultDepositInputs).toHaveBeenCalledWith(
+          expect.objectContaining({
+            vaultAmounts: [90000n, 110000n],
+            depositAmountSats: 200000n,
+          }),
+        );
+      });
+    });
+
+    it("stops before building or signing anything when the validation throws", async () => {
+      const { validateMultiVaultDepositInputs } = vi.mocked(
+        await import("@/services/deposit/validations"),
+      );
+      const { preparePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultTransactionService"),
+      );
+      validateMultiVaultDepositInputs.mockImplementationOnce(() => {
+        throw new Error(COPY.deposit.splitSizing.amountsDoNotMatchDeposit);
+      });
+
+      const { result } = renderHook(() =>
+        useDepositFlow({
+          ...MOCK_PARAMS,
+          vaultAmounts: [90000n, 110000n],
+          depositAmountSats: 200001n,
+        }),
+      );
+
+      await executeDepositFlow(result);
+
+      await waitFor(() => {
+        expect(result.current.error?.body).toContain(
+          COPY.deposit.splitSizing.amountsDoNotMatchDeposit,
+        );
+      });
+      // The error is the validator's own, so the validation ran and stopped the
+      // flow before the peg-in transaction was built.
+      expect(validateMultiVaultDepositInputs).toHaveBeenCalledTimes(1);
+      expect(preparePeginTransaction).not.toHaveBeenCalled();
+    });
+  });
+
   describe("Single Vault", () => {
     const SINGLE_PARAMS = {
       ...MOCK_PARAMS,
       vaultAmounts: [100000n],
+      depositAmountSats: 100000n,
     };
+
+    it("passes the approved deposit amount to the pre-sign input validation", async () => {
+      const { validateMultiVaultDepositInputs } = vi.mocked(
+        await import("@/services/deposit/validations"),
+      );
+
+      const { result } = renderHook(() => useDepositFlow(SINGLE_PARAMS));
+
+      await executeDepositFlow(result);
+
+      await waitFor(() => {
+        expect(validateMultiVaultDepositInputs).toHaveBeenCalledWith(
+          expect.objectContaining({
+            vaultAmounts: [100000n],
+            depositAmountSats: 100000n,
+          }),
+        );
+      });
+    });
 
     it("should create batch with single vault amount", async () => {
       const { preparePeginTransaction } = vi.mocked(
@@ -2913,6 +2993,7 @@ describe("useDepositFlow", () => {
         useDepositFlow({
           ...MOCK_PARAMS,
           vaultAmounts: [100000n],
+          depositAmountSats: 100000n,
           btcWalletProvider: wallet as any,
         }),
       );

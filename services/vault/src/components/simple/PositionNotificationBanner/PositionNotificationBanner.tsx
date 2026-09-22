@@ -288,7 +288,8 @@ export function PositionNotificationBanner({
   // The cliff ("First liquidation takes everything") renders as a vertical card
   // per Figma: no title icon-chip, the CTA stacked below, and its suggestion box
   // styled by feasibility — an info-icon row when an affordable sacrificial add
-  // exists (#1948), otherwise a "SUGGESTION"-labelled block (#1949 / multi-vault).
+  // exists (#1948), otherwise a "SUGGESTION"-labelled block (no affordable add
+  // / multi-vault).
   const isCliffPrimary = primaryWarning?.type === "cliff";
   const cliffHasAffordableAdd =
     isCliffPrimary && result.suggestedNewVaultBtc !== null;
@@ -361,7 +362,7 @@ export function PositionNotificationBanner({
           </div>
         );
       } else if (isCliffPrimary) {
-        // #1949 / multi-vault — no CTA: "SUGGESTION" label, no icon (Figma CLIFF B).
+        // No affordable add / multi-vault — no CTA: "SUGGESTION" label, no icon.
         primarySuggestionNode = (
           <div className="flex flex-col gap-1">
             <div className="tracking-wider text-xs font-medium uppercase text-accent-secondary">

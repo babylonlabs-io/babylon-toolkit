@@ -25,7 +25,10 @@ import { useProtocolFeeRows } from "@/hooks/useProtocolFeeRows";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import { useVaultCountCap } from "@/hooks/useVaultCountCap";
 import { depositService } from "@/services/deposit";
-import { resolveVaultCapState } from "@/services/deposit/vaultCap";
+import {
+  resolveDepositSplitUnavailableReason,
+  resolveVaultCapState,
+} from "@/services/deposit/vaultCap";
 import type { VaultActivity } from "@/types/activity";
 import {
   shouldProbeWalletLiveness,
@@ -142,6 +145,7 @@ function SimpleDepositContent({
     splitRatioLabel,
     minDepositForSplit,
     isSplitAmountTooLow,
+    isSplitSizingRefused,
     depositorClaimValue,
     depositorClaimValueError,
     btcPublicKeyError,
@@ -210,10 +214,20 @@ function SimpleDepositContent({
   const suggestedAmountSats = initialAmountBtc
     ? depositService.parseBtcToSatoshis(initialAmountBtc)
     : null;
-  const allowSplit =
+  // Whether this deposit would be offered a split at all: not a top-up from
+  // the liquidation banner, and a fresh position unless the flag forces it.
+  const isSplitOffered =
     !isSupplementalDeposit &&
-    splitUnavailableReason === null &&
     (!hasActiveVaults || FeatureFlags.isForcePartialLiquidationSplit);
+  // The split sizing rules refusing the split is handled like a cap: the
+  // deposit proceeds as a single vault and the form says why.
+  const depositSplitUnavailableReason = resolveDepositSplitUnavailableReason({
+    capReason: splitUnavailableReason,
+    isSplitOffered,
+    isVaultCapReached,
+    isSplitSizingRefused,
+  });
+  const allowSplit = isSplitOffered && depositSplitUnavailableReason === null;
 
   // Effective split = the same condition handleDeposit uses at submit
   // (`shouldSplit`). Every batch-sized display row (protocol fee, total
@@ -537,7 +551,7 @@ function SimpleDepositContent({
                   ordinalsCheckPending,
                   isVaultCapReached,
                   vaultCountCapUnavailable,
-                  splitUnavailableReason,
+                  splitUnavailableReason: depositSplitUnavailableReason,
                   // Usage figures only make sense for the per-position cap; the
                   // protocol cap can bite with an empty position and an unknown
                   // per-position cap, so its hint quotes no numbers.
@@ -569,6 +583,7 @@ function SimpleDepositContent({
                   ? splitVaultAmounts
                   : [depositAmount]
               }
+              depositAmountSats={depositAmount}
               mempoolFeeRate={feeRate}
               onFeeRateChange={setFeeRate}
               btcWalletProvider={btcWalletProvider}

@@ -86,3 +86,45 @@ export function resolveVaultCapState({
     splitUnavailableReason: perPositionReason ?? htlcReason,
   };
 }
+
+/**
+ * Why the deposit form shows no split: a cap, or the split sizing rules
+ * (SDK `findSplitSizingViolation`) refusing the split at the current
+ * parameters.
+ */
+export type DepositSplitUnavailableReason =
+  | SplitUnavailableReason
+  | "split-sizing";
+
+export interface DepositSplitUnavailableParams {
+  /** The cap reason from {@link resolveVaultCapState}. */
+  capReason: SplitUnavailableReason | null;
+  /**
+   * Whether this deposit would be offered a split at all: not a top-up from
+   * the liquidation banner, and a fresh position unless a flag forces it.
+   */
+  isSplitOffered: boolean;
+  /** The deposit is blocked outright by the per-position cap. */
+  isVaultCapReached: boolean;
+  /** The split sizing rules refuse a two-vault split. */
+  isSplitSizingRefused: boolean;
+}
+
+/**
+ * Pick the reason the deposit form explains. A cap reason wins. The sizing
+ * reason is shown only where a split would otherwise be offered, and not at
+ * the vault cap, where the deposit is blocked and there is no split to
+ * explain.
+ */
+export function resolveDepositSplitUnavailableReason({
+  capReason,
+  isSplitOffered,
+  isVaultCapReached,
+  isSplitSizingRefused,
+}: DepositSplitUnavailableParams): DepositSplitUnavailableReason | null {
+  if (capReason !== null) return capReason;
+  if (isSplitOffered && !isVaultCapReached && isSplitSizingRefused) {
+    return "split-sizing";
+  }
+  return null;
+}

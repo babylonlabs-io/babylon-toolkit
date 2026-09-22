@@ -44,7 +44,9 @@ const PARAMS: CalculatorParams = {
   vaults: [{ id: "v-1", name: "Vault 1", btc: 0.6 }],
   CF: 0.5,
   THF: 1.1,
-  maxLB: 1.05,
+  LB: 1.05,
+  expectedHF: 0.95,
+  minPeginBtc: 0.0005,
 };
 const CASCADE: LiquidationCascade = {
   result: calculate(PARAMS),

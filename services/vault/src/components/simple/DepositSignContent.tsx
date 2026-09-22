@@ -25,6 +25,8 @@ import { PostDepositContinuationContent } from "./PostDepositContinuationContent
 
 interface DepositSignContentProps {
   vaultAmounts: bigint[];
+  /** Deposit amount the depositor approved; the vault amounts must sum to it. */
+  depositAmountSats: bigint;
   mempoolFeeRate: number;
   btcWalletProvider: BitcoinWallet;
   depositorEthAddress: Address | undefined;

@@ -28,8 +28,9 @@ const DEBUG_DEFAULT_BTC_PRICE = 61722.5;
 const DEBUG_DEFAULT_TOTAL_DEBT_USD = 44287.72;
 export const DEBUG_DEFAULT_CF = 0.75;
 export const DEBUG_DEFAULT_THF = 1.1;
-export const DEBUG_DEFAULT_MAX_LB = 1.05;
+export const DEBUG_DEFAULT_LB = 1.05;
 export const DEBUG_DEFAULT_EXPECTED_HF = 0.95;
+const DEBUG_DEFAULT_MIN_PEGIN_BTC = 0.0005;
 
 /** Default manual-mode inputs the panel starts from (and resets to). */
 export function makeDefaultDebugParams(): CalculatorParams {
@@ -43,8 +44,9 @@ export function makeDefaultDebugParams(): CalculatorParams {
     ],
     CF: DEBUG_DEFAULT_CF,
     THF: DEBUG_DEFAULT_THF,
-    maxLB: DEBUG_DEFAULT_MAX_LB,
+    LB: DEBUG_DEFAULT_LB,
     expectedHF: DEBUG_DEFAULT_EXPECTED_HF,
+    minPeginBtc: DEBUG_DEFAULT_MIN_PEGIN_BTC,
   };
 }
 
@@ -76,16 +78,17 @@ function vaults(...btc: number[]): CalculatorParams["vaults"] {
 const PRESET_RATIOS = {
   CF: DEBUG_DEFAULT_CF,
   THF: DEBUG_DEFAULT_THF,
-  maxLB: DEBUG_DEFAULT_MAX_LB,
+  LB: DEBUG_DEFAULT_LB,
   expectedHF: DEBUG_DEFAULT_EXPECTED_HF,
+  minPeginBtc: DEBUG_DEFAULT_MIN_PEGIN_BTC,
 };
 
 /**
  * `vault-contracts-aave-v4` deploy-default liquidation bonus (10%), used only
- * by the cascade preset below — unlike `DEBUG_DEFAULT_MAX_LB` (5%), which is
+ * by the cascade preset below — unlike `DEBUG_DEFAULT_LB` (5%), which is
  * just a representative starting point for manual mode, not a protocol value.
  */
-const CASCADE_PRESET_MAX_LB = 1.1;
+const CASCADE_PRESET_LB = 1.1;
 
 export const DEBUG_PRESETS: DebugPreset[] = [
   {
@@ -156,7 +159,7 @@ export const DEBUG_PRESETS: DebugPreset[] = [
       totalDebtUsd: 44_287,
       vaults: vaults(0.6, 0.4, 0.1),
       ...PRESET_RATIOS,
-      maxLB: CASCADE_PRESET_MAX_LB,
+      LB: CASCADE_PRESET_LB,
     },
   },
   {
@@ -193,7 +196,7 @@ export const DEBUG_PRESETS: DebugPreset[] = [
       totalDebtUsd: 44287.72,
       vaults: vaults(1),
       ...PRESET_RATIOS,
-      maxLB: CASCADE_PRESET_MAX_LB,
+      LB: CASCADE_PRESET_LB,
     },
   },
 ];

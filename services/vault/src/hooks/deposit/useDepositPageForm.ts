@@ -207,6 +207,8 @@ export interface UseDepositPageFormResult {
   minDepositForSplit: bigint;
   /** True when the amount is positive but below the two-vault split minimum */
   isSplitAmountTooLow: boolean;
+  /** True when the split sizing rules refuse a two-vault split */
+  isSplitSizingRefused: boolean;
   /** Depositor claim value computed from WASM (VK/UC counts + fee). undefined while loading. */
   depositorClaimValue: bigint | undefined;
   /**
@@ -415,6 +417,7 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     splitRatioLabel,
     minDepositForSplit,
     isSplitAmountTooLow,
+    isSplitSizingRefused,
     isLoading: isSplitLoading,
   } = useAllocationPlanning({
     amountSats,
@@ -818,6 +821,7 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     splitRatioLabel,
     minDepositForSplit,
     isSplitAmountTooLow,
+    isSplitSizingRefused,
     validateForm,
     validateAmountOnBlur,
     resetForm,

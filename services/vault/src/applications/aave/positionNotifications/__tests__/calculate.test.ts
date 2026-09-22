@@ -1,5 +1,12 @@
-import { computeSeizedFractionDetailed } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
+import {
+  computeOptimalSplit,
+  computeSeizedFractionDetailed,
+  EXPECTED_HEALTH_FACTOR_AT_LIQUIDATION,
+  SPLIT_TARGET_HEALTH_FACTOR,
+} from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 import { beforeEach, describe, expect, it } from "vitest";
+
+import { COPY } from "@/copy";
 
 import { deriveBannerState } from "../bannerSeverity";
 import { calculate } from "../calculate";
@@ -30,8 +37,9 @@ function makeParams(
     vaults,
     CF: DEFAULT_CF,
     THF: DEFAULT_THF,
-    maxLB: DEFAULT_LB,
+    LB: DEFAULT_LB,
     expectedHF: DEFAULT_EHF,
+    minPeginBtc: 0.0005,
     ...overrides,
   };
 }
@@ -273,10 +281,11 @@ describe("bannerSeverity", () => {
 
 // Golden vectors ported from the reference calculator's scenario suite
 // (tbv-liquidations, the source of truth). Defaults match the reference:
-// debt 44287.72, BTC $61722.5, CF 0.75, THF 1.10, maxLB 1.05, expectedHF 0.95.
+// debt 44287.72, BTC $61722.5, CF 0.75, THF 1.10, LB 1.05, expectedHF 0.95.
 // Behavior (warning types, group structure, suggested amounts) is asserted with
 // our copy strings — which intentionally differ from the reference only for the
-// `urgent` titles.
+// `urgent` titles. Suggested vault sizes drop the reference's 5% buffer, which
+// the split risk model removed (babylon-toolkit#2577).
 describe("golden vectors (reference scenario suite)", () => {
   it("A1 — single 1.0 BTC: affordable cliff (add sacrificial) + urgent within 5%", () => {
     const result = calculate(makeParams([v(1.0)]));
@@ -288,36 +297,134 @@ describe("golden vectors (reference scenario suite)", () => {
     expect(result.groups[0].isFullLiquidation).toBe(true);
     // Affordable add (≤ position) → Variant A: sacrificial vault to add so the
     // existing vault becomes protected.
-    expect(result.suggestedNewVaultBtc).toBe(0.72);
+    // 1.0 × 0.3979 / (1 − 0.3979) = 0.66084, rounded up to 0.0001 BTC
+    expect(result.suggestedNewVaultBtc).toBe(0.6609);
     expect(getWarning(result.warnings, "cliff")?.suggestion).toContain(
-      "Adding a new BTCVault of 0.72 BTC enables partial-position liquidation.",
+      "Adding a new BTCVault of 0.6609 BTC enables partial-position liquidation.",
     );
   });
 
-  it("A8 — single 2.0 BTC, THF 1.40: oversized cliff → withdraw & re-deposit (Variant B)", () => {
+  it("A8 — single 2.0 BTC, THF 1.40: no affordable add → add collateral or repay, never a re-split", () => {
     const result = calculate(makeParams([v(2.0)], { THF: 1.4 }));
     const cliff = getWarning(result.warnings, "cliff");
     expect(cliff?.title).toBe("First liquidation takes everything");
-    // The needed add exceeds the position, so there is no actionable CTA; the
-    // fix is to withdraw and re-split. The two parts sum to the withdraw.
+    // Seized fraction ≈ 0.609: the add would be 3.12 BTC, more than the 2.0 BTC
+    // position, and re-depositing as two vaults would put the larger vault
+    // first — a split the deposit form refuses. Only collateral or repay helps.
     expect(result.suggestedNewVaultBtc).toBeNull();
-    expect(cliff?.suggestion).toContain("withdraw your 2.00 BTC");
-    expect(cliff?.suggestion).toContain("1.28 BTC + 0.72 BTC");
+    expect(cliff?.suggestion).toBe(
+      COPY.liquidationWarnings.cliff.noSplitSuggestion,
+    );
+    expect(cliff?.suggestion).not.toContain("withdraw");
   });
 
-  it("A9 — non-cent-aligned vault: the three re-deposit amounts reconcile", () => {
-    // 1.045 BTC at THF 1.40 rendered an infeasible "1.04 → 0.67 + 0.38" (= 1.05)
-    // before the withdraw was snapped to cents; the parts must sum to withdraw.
-    const result = calculate(makeParams([v(1.045)], { THF: 1.4 }));
-    const suggestion = getWarning(result.warnings, "cliff")?.suggestion ?? "";
-    const match = suggestion.match(
-      /withdraw your ([\d.]+) BTC.*?([\d.]+) BTC \+ ([\d.]+) BTC/,
+  it("A9 — small position at CF 86%: the add fits because it is rounded to 0.0001 BTC, not to cents", () => {
+    // Launch split parameters. 0.0395 BTC × 0.4649 / (1 − 0.4649) = 0.03431 BTC.
+    // Rounded up to cents that is 0.04 BTC, more than the position.
+    const result = calculate({
+      btcPrice: 60_000,
+      totalDebtUsd: 1_500,
+      vaults: [v(0.0395)],
+      CF: 0.86,
+      THF: 1.08,
+      LB: 1.0504,
+      expectedHF: 0.99,
+      minPeginBtc: 0.0005,
+    });
+
+    expect(result.suggestedNewVaultBtc).toBe(0.0344);
+    expect(getWarning(result.warnings, "cliff")?.suggestion).toContain(
+      "Adding a new BTCVault of 0.0344 BTC",
     );
-    expect(match).not.toBeNull();
-    const [, withdraw, sacrificial, protectedAmt] = match!;
-    expect(
-      (parseFloat(sacrificial) + parseFloat(protectedAmt)).toFixed(2),
-    ).toBe(parseFloat(withdraw).toFixed(2));
+  });
+
+  it("raises the suggested vault to the minimum peg-in so the deposit form accepts it", () => {
+    // Launch split parameters at CF 78%: 0.1 BTC × 0.2857 / (1 − 0.2857) = 0.04 BTC,
+    // below the 0.0546 BTC minimum peg-in. A bigger first vault still covers
+    // the seizure.
+    const result = calculate({
+      btcPrice: 60_000,
+      totalDebtUsd: 3_000,
+      vaults: [v(0.1)],
+      CF: 0.78,
+      THF: 1.08,
+      LB: 1.0504,
+      expectedHF: 0.99,
+      minPeginBtc: 0.0546,
+    });
+
+    expect(result.suggestedNewVaultBtc).toBe(0.0546);
+    expect(getWarning(result.warnings, "cliff")?.suggestion).toContain(
+      "Adding a new BTCVault of 0.0546 BTC",
+    );
+  });
+
+  it("falls back to add collateral or repay when even the minimum peg-in exceeds the position", () => {
+    const result = calculate({
+      btcPrice: 60_000,
+      totalDebtUsd: 1_500,
+      vaults: [v(0.05)],
+      CF: 0.78,
+      THF: 1.08,
+      LB: 1.0504,
+      expectedHF: 0.99,
+      minPeginBtc: 0.0546,
+    });
+
+    expect(result.suggestedNewVaultBtc).toBeNull();
+    expect(getWarning(result.warnings, "cliff")?.suggestion).toBe(
+      COPY.liquidationWarnings.cliff.noSplitSuggestion,
+    );
+  });
+
+  it("does not suggest a new vault as large as the existing one", () => {
+    // 0.0546 BTC × 0.2857 / (1 − 0.2857) = 0.0218 BTC, floored to the 0.0546 BTC
+    // minimum: the new first vault would equal the existing vault.
+    const result = calculate({
+      btcPrice: 60_000,
+      totalDebtUsd: 1_500,
+      vaults: [v(0.0546)],
+      CF: 0.78,
+      THF: 1.08,
+      LB: 1.0504,
+      expectedHF: 0.99,
+      minPeginBtc: 0.0546,
+    });
+
+    expect(result.suggestedNewVaultBtc).toBeNull();
+    expect(getWarning(result.warnings, "cliff")?.suggestion).toBe(
+      COPY.liquidationWarnings.cliff.noSplitSuggestion,
+    );
+  });
+
+  it("floors the two-vault 'add alongside' amount at the minimum peg-in", () => {
+    // THF 1.40: seized fraction ≈ 0.609, so neither 1.0 BTC vault covers the
+    // 1.218 BTC target. The deficit is 0.5577 BTC, below a 0.6 BTC minimum.
+    const result = calculate(
+      makeParams([v(1.0), v(1.0)], { THF: 1.4, minPeginBtc: 0.6 }),
+    );
+
+    expect(getWarning(result.warnings, "cliff")?.suggestion).toContain(
+      "add ≥ 0.6 BTC alongside",
+    );
+  });
+
+  it("uses the unfloored suggestion when the peg-in configuration is unavailable", () => {
+    // Same position as the minimum-peg-in test above: 0.0401 BTC unfloored,
+    // 0.0546 BTC with the minimum. A fallback to a realistic minimum would
+    // change the result.
+    const result = calculate({
+      btcPrice: 60_000,
+      totalDebtUsd: 3_000,
+      vaults: [v(0.1)],
+      CF: 0.78,
+      THF: 1.08,
+      LB: 1.0504,
+      expectedHF: 0.99,
+      minPeginBtc: null,
+    });
+
+    expect(result.suggestedNewVaultBtc).toBe(0.0401);
   });
 
   it("A2 — single 2.0 BTC: cliff only, no urgent (far from liquidation)", () => {
@@ -425,4 +532,60 @@ describe("golden vectors (reference scenario suite)", () => {
     // The optimal-order analysis runs an exact DP at n = 17 (the cap), which is
     // intentionally near the interactive-time budget — allow extra headroom.
   }, 20000);
+});
+
+// The deposit form and this calculator must size seizures with the same
+// inputs. If they drift (a leftover buffer, or the max bonus instead of the
+// bonus at the expected HF), a fresh split's first BTCVault falls short of the
+// calculator's target and every new two-vault position shows a cliff warning.
+describe("consistency with the deposit split", () => {
+  const SATS_PER_BTC = 100_000_000;
+  // Bonus at HF 0.99 on the launch curve (max 105.55%, factor 90%, max at HF 0.90)
+  const LAUNCH_LB = 1.0504;
+
+  function launchSplitPosition(CF: number): CalculatorParams {
+    const split = computeOptimalSplit({
+      totalBtc: 10n * BigInt(SATS_PER_BTC),
+      CF,
+      LB: LAUNCH_LB,
+      THF: SPLIT_TARGET_HEALTH_FACTOR,
+      expectedHF: EXPECTED_HEALTH_FACTOR_AT_LIQUIDATION,
+    });
+    return {
+      btcPrice: 60_000,
+      // 10 BTC at $60k with $390k debt: HF 1.20 at CF 78%, 1.32 at CF 86%
+      totalDebtUsd: 390_000,
+      vaults: [
+        {
+          id: "first",
+          name: "Vault 1",
+          btc: Number(split.sacrificialVault) / SATS_PER_BTC,
+        },
+        {
+          id: "second",
+          name: "Vault 2",
+          btc: Number(split.protectedVault) / SATS_PER_BTC,
+        },
+      ],
+      CF,
+      THF: SPLIT_TARGET_HEALTH_FACTOR,
+      LB: LAUNCH_LB,
+      expectedHF: EXPECTED_HEALTH_FACTOR_AT_LIQUIDATION,
+      minPeginBtc: 0.0005,
+    };
+  }
+
+  it("liquidates only the first BTCVault of a fresh split at CF 78%", () => {
+    const result = calculate(launchSplitPosition(0.78));
+
+    expect(hasWarning(result.warnings, "cliff")).toBe(false);
+    expect(result.groups[0].vaults.map((vault) => vault.id)).toEqual(["first"]);
+  });
+
+  it("liquidates only the first BTCVault of a fresh split at CF 86%", () => {
+    const result = calculate(launchSplitPosition(0.86));
+
+    expect(hasWarning(result.warnings, "cliff")).toBe(false);
+    expect(result.groups[0].vaults.map((vault) => vault.id)).toEqual(["first"]);
+  });
 });

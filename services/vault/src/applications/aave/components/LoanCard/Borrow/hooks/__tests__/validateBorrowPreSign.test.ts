@@ -57,9 +57,13 @@ describe("validateBorrowPreSign", () => {
   });
 
   it("aborts when on-chain CF moved since the screen was rendered (auditor #260)", async () => {
-    const refetchSplitParams = vi
-      .fn()
-      .mockResolvedValue({ THF: 1.1, CF: 0.7, LB: 1.05 });
+    const refetchSplitParams = vi.fn().mockResolvedValue({
+      THF: 1.1,
+      expectedHF: 0.95,
+      CF: 0.7,
+      LB: 1.05,
+      maxLB: 1.05,
+    });
     const refetchPosition = vi.fn().mockResolvedValue(null);
 
     await expect(
@@ -75,9 +79,13 @@ describe("validateBorrowPreSign", () => {
   });
 
   it("skips revalidation when refetchPosition returns null (first borrow)", async () => {
-    const refetchSplitParams = vi
-      .fn()
-      .mockResolvedValue({ THF: 1.1, CF: 0.75, LB: 1.05 });
+    const refetchSplitParams = vi.fn().mockResolvedValue({
+      THF: 1.1,
+      expectedHF: 0.95,
+      CF: 0.75,
+      LB: 1.05,
+      maxLB: 1.05,
+    });
     const refetchPosition = vi.fn().mockResolvedValue(null);
 
     await expect(
@@ -96,9 +104,13 @@ describe("validateBorrowPreSign", () => {
   });
 
   it("uses fresh liquidationThresholdBps for HF computation", async () => {
-    const refetchSplitParams = vi
-      .fn()
-      .mockResolvedValue({ THF: 1.1, CF: 0.75, LB: 1.05 });
+    const refetchSplitParams = vi.fn().mockResolvedValue({
+      THF: 1.1,
+      expectedHF: 0.95,
+      CF: 0.75,
+      LB: 1.05,
+      maxLB: 1.05,
+    });
     const refetchPosition = vi
       .fn()
       .mockResolvedValue(makePosition(10000n * USD_COLLATERAL, 0n));
@@ -116,9 +128,13 @@ describe("validateBorrowPreSign", () => {
   });
 
   it("throws when projected HF would fall below MIN_HEALTH_FACTOR_FOR_BORROW", async () => {
-    const refetchSplitParams = vi
-      .fn()
-      .mockResolvedValue({ THF: 1.1, CF: 0.75, LB: 1.05 });
+    const refetchSplitParams = vi.fn().mockResolvedValue({
+      THF: 1.1,
+      expectedHF: 0.95,
+      CF: 0.75,
+      LB: 1.05,
+      maxLB: 1.05,
+    });
     const refetchPosition = vi
       .fn()
       .mockResolvedValue(makePosition(1000n * USD_COLLATERAL, 0n));
@@ -144,9 +160,13 @@ describe("validateBorrowPreSign", () => {
     vi.mocked(getReservesPrices).mockResolvedValueOnce([
       100_000n * PRICE_1USD_RAW,
     ]);
-    const refetchSplitParams = vi
-      .fn()
-      .mockResolvedValue({ THF: 1.1, CF: 0.75, LB: 1.05 });
+    const refetchSplitParams = vi.fn().mockResolvedValue({
+      THF: 1.1,
+      expectedHF: 0.95,
+      CF: 0.75,
+      LB: 1.05,
+      maxLB: 1.05,
+    });
     const refetchPosition = vi
       .fn()
       .mockResolvedValue(makePosition(80_000n * USD_COLLATERAL, 0n));
@@ -189,7 +209,7 @@ describe("validateBorrowPreSign", () => {
     const refetchSplitParams = vi.fn(async () => {
       splitParamsCallStarted();
       await Promise.resolve();
-      return { THF: 1.1, CF: 0.75, LB: 1.05 };
+      return { THF: 1.1, expectedHF: 0.95, CF: 0.75, LB: 1.05, maxLB: 1.05 };
     });
     const refetchPosition = vi.fn(async () => {
       positionCallStarted();
@@ -215,9 +235,13 @@ describe("validateBorrowPreSign", () => {
   });
 
   it("uses fresh debt from refetched position, not stale UI state", async () => {
-    const refetchSplitParams = vi
-      .fn()
-      .mockResolvedValue({ THF: 1.1, CF: 0.75, LB: 1.05 });
+    const refetchSplitParams = vi.fn().mockResolvedValue({
+      THF: 1.1,
+      expectedHF: 0.95,
+      CF: 0.75,
+      LB: 1.05,
+      maxLB: 1.05,
+    });
     const refetchPosition = vi
       .fn()
       .mockResolvedValue(

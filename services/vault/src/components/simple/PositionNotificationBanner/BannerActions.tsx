@@ -1,8 +1,9 @@
 import type { NotificationAction } from "@babylonlabs-io/core-ui";
 
-import type {
-  BannerState,
-  CalculatorResult,
+import {
+  fmtSuggestedVaultBtc,
+  type BannerState,
+  type CalculatorResult,
 } from "@/applications/aave/positionNotifications";
 import { COPY } from "@/copy";
 
@@ -87,7 +88,9 @@ export function buildBannerActions({
   // with the urgent "Add Collateral" CTA when both warnings are active.
   const hasCliffWarning = result.warnings.some((w) => w.type === "cliff");
   if (hasCliffWarning && result.suggestedNewVaultBtc !== null) {
-    const amountBtc = result.suggestedNewVaultBtc.toFixed(2);
+    // Same formatting as the suggestion text, so the label, the text and the
+    // pre-filled deposit amount agree.
+    const amountBtc = fmtSuggestedVaultBtc(result.suggestedNewVaultBtc);
     actions.push({
       label: COPY.banner.addVaultOfSize(amountBtc),
       onClick: () => onDeposit(amountBtc),

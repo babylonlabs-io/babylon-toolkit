@@ -14,7 +14,14 @@ vi.mock("../useVaultSplitParams", () => ({
 
 import { useOptimalSplit } from "../useOptimalSplit";
 
-const DEFAULT_PARAMS = { THF: 1.1, CF: 0.75, LB: 1.05 };
+// Launch values: split THF 1.08, expected HF 0.99, CF 78%, bonus at HF 0.99
+const DEFAULT_PARAMS = {
+  THF: 1.08,
+  expectedHF: 0.99,
+  CF: 0.78,
+  LB: 1.0504,
+  maxLB: 1.0555,
+};
 
 describe("useOptimalSplit", () => {
   beforeEach(() => {
@@ -30,16 +37,12 @@ describe("useOptimalSplit", () => {
     const totalBtc = 1_000_000_000n; // 10 BTC in sats
     const { result } = renderHook(() => useOptimalSplit(totalBtc));
 
-    // With THF=1.10, CF=0.75, LB=1.05, HF=0.95, margin=1.05:
-    // seized_fraction ≈ 0.398, sacrificial ≈ 4.18 BTC
-    expect(result.current.sacrificialVault).toBeGreaterThan(400_000_000n);
-    expect(result.current.sacrificialVault).toBeLessThan(430_000_000n);
-    expect(result.current.protectedVault).toBe(
-      totalBtc - result.current.sacrificialVault,
-    );
-    expect(result.current.seizedFraction).toBeGreaterThan(0.39);
-    expect(result.current.seizedFraction).toBeLessThan(0.41);
+    // seized_fraction ≈ 0.2857 with no extra buffer: 2.857 / 7.143 BTC
+    expect(result.current.sacrificialVault).toBe(285_716_677n);
+    expect(result.current.protectedVault).toBe(714_283_323n);
+    expect(result.current.seizedFraction).toBeCloseTo(0.28572, 5);
     expect(result.current.canSplit).toBe(true);
+    expect(result.current.sizingViolation).toBeNull();
     expect(result.current.isLoading).toBe(false);
     expect(result.current.error).toBeNull();
   });
@@ -81,6 +84,43 @@ describe("useOptimalSplit", () => {
     expect(result.current.canSplit).toBe(false);
     expect(result.current.sacrificialVault).toBe(0n);
     expect(result.current.protectedVault).toBe(0n);
+  });
+
+  it("sets the split minimum to minDeposit divided by the sacrificial share", () => {
+    const { result } = renderHook(() => useOptimalSplit(1_000_000_000n));
+
+    // ceil(50_000 / 0.2857166769…) = 174_999
+    expect(result.current.minDepositForSplit).toBe(174_999n);
+  });
+
+  it("refuses the split and reports why when the sacrificial vault would not be smaller", () => {
+    // CF 87% puts the sacrificial share just above 50%
+    mockUseVaultSplitParams.mockReturnValue({
+      params: { ...DEFAULT_PARAMS, CF: 0.87 },
+      isLoading: false,
+      error: null,
+    });
+
+    const { result } = renderHook(() => useOptimalSplit(1_000_000_000n));
+
+    expect(result.current.sizingViolation).toBe("sacrificial-not-smaller");
+    expect(result.current.canSplit).toBe(false);
+    expect(result.current.sacrificialVault).toBe(0n);
+    expect(result.current.protectedVault).toBe(0n);
+    expect(result.current.minDepositForSplit).toBe(0n);
+  });
+
+  it("reports a refused split before any amount is entered", () => {
+    mockUseVaultSplitParams.mockReturnValue({
+      params: { ...DEFAULT_PARAMS, THF: 0.99 },
+      isLoading: false,
+      error: null,
+    });
+
+    const { result } = renderHook(() => useOptimalSplit(0n));
+
+    expect(result.current.sizingViolation).toBe("target-not-above-expected-hf");
+    expect(result.current.canSplit).toBe(false);
   });
 
   it("returns canSplit: false when params errored", () => {

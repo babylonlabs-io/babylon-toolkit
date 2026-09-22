@@ -3,8 +3,20 @@ import { describe, expect, it, vi } from "vitest";
 import type { VaultSplitParams } from "../../hooks/useVaultSplitParams";
 import { assertCfUnchanged } from "../assertCfUnchanged";
 
-const CF_75 = { THF: 1.1, CF: 0.75, LB: 1.05 } satisfies VaultSplitParams;
-const CF_70 = { THF: 1.1, CF: 0.7, LB: 1.05 } satisfies VaultSplitParams;
+const CF_75 = {
+  THF: 1.1,
+  expectedHF: 0.95,
+  CF: 0.75,
+  LB: 1.05,
+  maxLB: 1.05,
+} satisfies VaultSplitParams;
+const CF_70 = {
+  THF: 1.1,
+  expectedHF: 0.95,
+  CF: 0.7,
+  LB: 1.05,
+  maxLB: 1.05,
+} satisfies VaultSplitParams;
 
 describe("assertCfUnchanged", () => {
   it("throws when refetchSplitParams returns null (RPC failure)", async () => {
