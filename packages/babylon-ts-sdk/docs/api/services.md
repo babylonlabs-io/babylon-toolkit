@@ -7,6 +7,92 @@ Callers own the wallet; services own the orchestration.
 
 ## Classes
 
+### SigningPlanMismatchError
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/assembleWatchtowerArtifactsFromSignatures.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/assembleWatchtowerArtifactsFromSignatures.ts)
+
+**`Experimental`**
+
+Thrown when a plan's requests differ from the ones the graph builds now.
+
+#### Extends
+
+- `Error`
+
+#### Constructors
+
+##### Constructor
+
+```ts
+new SigningPlanMismatchError(message): SigningPlanMismatchError;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/assembleWatchtowerArtifactsFromSignatures.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/assembleWatchtowerArtifactsFromSignatures.ts)
+
+**`Experimental`**
+
+###### Parameters
+
+###### message
+
+`string`
+
+###### Returns
+
+[`SigningPlanMismatchError`](#signingplanmismatcherror)
+
+###### Overrides
+
+```ts
+Error.constructor
+```
+
+***
+
+### AssertBindingError
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/assertBinding.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/assertBinding.ts)
+
+**`Experimental`**
+
+#### Extends
+
+- `Error`
+
+#### Constructors
+
+##### Constructor
+
+```ts
+new AssertBindingError(message, options?): AssertBindingError;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/assertBinding.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/assertBinding.ts)
+
+**`Experimental`**
+
+###### Parameters
+
+###### message
+
+`string`
+
+###### options?
+
+`ErrorOptions`
+
+###### Returns
+
+[`AssertBindingError`](#assertbindingerror)
+
+###### Overrides
+
+```ts
+Error.constructor
+```
+
+***
+
 ### ChallengerSetMismatchError
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/challengerBinding.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/challengerBinding.ts)
@@ -159,6 +245,46 @@ The scriptPubKey the Payout actually pays, hex.
 
 ***
 
+### PayoutInputLeafError
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/payoutInputLeaf.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/payoutInputLeaf.ts)
+
+**`Experimental`**
+
+#### Extends
+
+- `Error`
+
+#### Constructors
+
+##### Constructor
+
+```ts
+new PayoutInputLeafError(message): PayoutInputLeafError;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/payoutInputLeaf.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/payoutInputLeaf.ts)
+
+**`Experimental`**
+
+###### Parameters
+
+###### message
+
+`string`
+
+###### Returns
+
+[`PayoutInputLeafError`](#payoutinputleaferror)
+
+###### Overrides
+
+```ts
+Error.constructor
+```
+
+***
+
 ### ArtifactsVaultMismatchError
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/readWatchtowerArtifacts.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/readWatchtowerArtifacts.ts)
@@ -222,6 +348,90 @@ readonly actualVaultId: string;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/readWatchtowerArtifacts.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/readWatchtowerArtifacts.ts)
+
+**`Experimental`**
+
+***
+
+### DelegatedClaimSigningIncompleteError
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/signDelegatedClaimPlan.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/signDelegatedClaimPlan.ts)
+
+**`Experimental`**
+
+Thrown when an approval-wallet run stops before every request is signed.
+Carries what was collected so a retry can pass it as `resume`. Never
+persist these as artifacts: they are not a complete set.
+
+#### Extends
+
+- `Error`
+
+#### Constructors
+
+##### Constructor
+
+```ts
+new DelegatedClaimSigningIncompleteError(
+   message, 
+   signatures, 
+   failedRequestId, 
+   options?): DelegatedClaimSigningIncompleteError;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/signDelegatedClaimPlan.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/signDelegatedClaimPlan.ts)
+
+**`Experimental`**
+
+###### Parameters
+
+###### message
+
+`string`
+
+###### signatures
+
+[`DelegatedClaimSignatures`](#delegatedclaimsignatures)
+
+###### failedRequestId
+
+`string`
+
+###### options?
+
+###### cause?
+
+`unknown`
+
+###### Returns
+
+[`DelegatedClaimSigningIncompleteError`](#delegatedclaimsigningincompleteerror)
+
+###### Overrides
+
+```ts
+Error.constructor
+```
+
+#### Properties
+
+##### signatures
+
+```ts
+readonly signatures: DelegatedClaimSignatures;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/signDelegatedClaimPlan.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/signDelegatedClaimPlan.ts)
+
+**`Experimental`**
+
+##### failedRequestId
+
+```ts
+readonly failedRequestId: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/signDelegatedClaimPlan.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/signDelegatedClaimPlan.ts)
 
 **`Experimental`**
 
@@ -998,6 +1208,105 @@ Omit it for anything but a fixture. Real sessions run to hundreds of
 megabytes per challenger, and this argument crosses the WASM boundary as
 one string — join them into the file downstream instead.
 
+##### depositTerms?
+
+```ts
+optional depositTerms: DepositTerms;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/assembleWatchtowerArtifacts.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/assembleWatchtowerArtifacts.ts)
+
+**`Experimental`**
+
+Required for approval-capable wallets (the `DepositTermsApprover` seam):
+the terms that load this vault's intent on the device. Resume flows
+rebuild them from on-chain state.
+
+##### vaultContext?
+
+```ts
+optional vaultContext: VaultContextInput;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/assembleWatchtowerArtifacts.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/assembleWatchtowerArtifacts.ts)
+
+**`Experimental`**
+
+Required for approval-capable wallets: the context the vault root derives from.
+
+***
+
+### AssembleFromSignaturesParams
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/assembleWatchtowerArtifactsFromSignatures.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/assembleWatchtowerArtifactsFromSignatures.ts)
+
+**`Experimental`**
+
+A signed plan: the plan as it was handed to the signer, and the signatures
+it produced.
+
+#### Properties
+
+##### plan
+
+```ts
+plan: DelegatedClaimSigningPlan;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/assembleWatchtowerArtifactsFromSignatures.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/assembleWatchtowerArtifactsFromSignatures.ts)
+
+**`Experimental`**
+
+##### signatures
+
+```ts
+signatures: DelegatedClaimSignatures;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/assembleWatchtowerArtifactsFromSignatures.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/assembleWatchtowerArtifactsFromSignatures.ts)
+
+**`Experimental`**
+
+***
+
+### AssertAssertBindsClaimAndPayoutParams
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/assertBinding.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/assertBinding.ts)
+
+**`Experimental`**
+
+#### Properties
+
+##### claimPsbtBase64
+
+```ts
+claimPsbtBase64: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/assertBinding.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/assertBinding.ts)
+
+**`Experimental`**
+
+##### assertPsbtBase64
+
+```ts
+assertPsbtBase64: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/assertBinding.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/assertBinding.ts)
+
+**`Experimental`**
+
+##### payoutClaimerPsbtBase64
+
+```ts
+payoutClaimerPsbtBase64: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/assertBinding.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/assertBinding.ts)
+
+**`Experimental`**
+
 ***
 
 ### AssertChallengerSetMatchesVaultParams
@@ -1240,6 +1549,104 @@ of comparing against it.
 
 ***
 
+### CopyAssertConnectorLeafParams
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/payoutInputLeaf.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/payoutInputLeaf.ts)
+
+**`Experimental`**
+
+#### Properties
+
+##### payoutDepositorPsbtBase64
+
+```ts
+payoutDepositorPsbtBase64: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/payoutInputLeaf.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/payoutInputLeaf.ts)
+
+**`Experimental`**
+
+##### payoutClaimerPsbtBase64
+
+```ts
+payoutClaimerPsbtBase64: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/payoutInputLeaf.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/payoutInputLeaf.ts)
+
+**`Experimental`**
+
+***
+
+### PlanDelegatedClaimSigningParams
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/planDelegatedClaimSigning.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/planDelegatedClaimSigning.ts)
+
+**`Experimental`**
+
+#### Properties
+
+##### depositorPublicKey
+
+```ts
+depositorPublicKey: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/planDelegatedClaimSigning.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/planDelegatedClaimSigning.ts)
+
+**`Experimental`**
+
+Depositor's BTC public key (compressed or x-only hex).
+
+##### btcNetwork
+
+```ts
+btcNetwork: Network;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/planDelegatedClaimSigning.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/planDelegatedClaimSigning.ts)
+
+**`Experimental`**
+
+Network the depositor's address is derived on, to check the signer.
+
+##### source
+
+```ts
+source: ClaimerArtifactsSource;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/planDelegatedClaimSigning.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/planDelegatedClaimSigning.ts)
+
+**`Experimental`**
+
+Graph and verifying key as the vault provider returned them.
+
+##### vault
+
+```ts
+vault: DelegatedClaimVaultContext;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/planDelegatedClaimSigning.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/planDelegatedClaimSigning.ts)
+
+**`Experimental`**
+
+##### babeSessionsJson?
+
+```ts
+optional babeSessionsJson: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/planDelegatedClaimSigning.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/planDelegatedClaimSigning.ts)
+
+**`Experimental`**
+
+See [AssembleWatchtowerArtifactsParams.babeSessionsJson](#babesessionsjson).
+
+***
+
 ### AssertArtifactsUsableParams
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/readWatchtowerArtifacts.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/readWatchtowerArtifacts.ts)
@@ -1299,6 +1706,71 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/readW
 Graph version to verify under. Defaults to the only version the format
 exists for. A file that records a different `vault_core_version` is
 rejected rather than verified under this one.
+
+***
+
+### SignDelegatedClaimPlanOptions
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/signDelegatedClaimPlan.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/signDelegatedClaimPlan.ts)
+
+**`Experimental`**
+
+Options for [signDelegatedClaimPlan](#signdelegatedclaimplan).
+
+#### Properties
+
+##### depositTerms?
+
+```ts
+optional depositTerms: DepositTerms;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/signDelegatedClaimPlan.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/signDelegatedClaimPlan.ts)
+
+**`Experimental`**
+
+Required for approval-capable wallets: the terms that load the vault's
+intent on the device. Resume flows rebuild them from on-chain state.
+
+##### vaultContext?
+
+```ts
+optional vaultContext: VaultContextInput;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/signDelegatedClaimPlan.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/signDelegatedClaimPlan.ts)
+
+**`Experimental`**
+
+Required for approval-capable wallets: the context the vault root derives from.
+
+##### resume?
+
+```ts
+optional resume: DelegatedClaimSignatures;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/signDelegatedClaimPlan.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/signDelegatedClaimPlan.ts)
+
+**`Experimental`**
+
+Signatures from an earlier, incomplete run of this same plan. Each is
+verified against its request before it is reused; only standalone kinds
+are reused, intent-bound ones are always re-signed. Applies to approval
+wallets only: a software wallet signs the whole plan in one prompt, so it
+always re-signs everything and ignores this.
+
+##### signal?
+
+```ts
+optional signal: AbortSignal;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/signDelegatedClaimPlan.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/signDelegatedClaimPlan.ts)
+
+**`Experimental`**
+
+Checked before every wallet prompt; an aborted signal throws its reason.
 
 ***
 
@@ -1588,6 +2060,155 @@ vault provider is still online, which can be long before the withdrawal
 is initiated. Such a file is not claimable as written: nothing in the SDK
 fills the field in later, and `assertArtifactsUsableForVault` refuses it.
 Pass the real block whenever the event has already finalized.
+
+***
+
+### DelegatedClaimSigningRequest
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts)
+
+**`Experimental`**
+
+One PSBT the depositor must sign, with the input to sign and a stable id
+the signatures are keyed by.
+
+#### Properties
+
+##### id
+
+```ts
+readonly id: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts)
+
+**`Experimental`**
+
+`kind`, or `wronglyChallenged:<challenger x-only hex>:<gcIndex>`.
+
+##### kind
+
+```ts
+readonly kind: DelegatedClaimSigningKind;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts)
+
+**`Experimental`**
+
+##### psbtBase64
+
+```ts
+readonly psbtBase64: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts)
+
+**`Experimental`**
+
+##### inputIndex
+
+```ts
+readonly inputIndex: number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts)
+
+**`Experimental`**
+
+##### challengerPubkey?
+
+```ts
+readonly optional challengerPubkey: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts)
+
+**`Experimental`**
+
+##### gcIndex?
+
+```ts
+readonly optional gcIndex: number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts)
+
+**`Experimental`**
+
+***
+
+### DelegatedClaimSigningPlan
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts)
+
+**`Experimental`**
+
+Everything one delegated-claim signing session needs, built once and
+signed by whichever wallet path fits. Treat as immutable: the assembler
+rebuilds every PSBT from the graph and byte-compares against this.
+
+#### Properties
+
+##### depositorPublicKey
+
+```ts
+readonly depositorPublicKey: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts)
+
+**`Experimental`**
+
+##### btcNetwork
+
+```ts
+readonly btcNetwork: Network;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts)
+
+**`Experimental`**
+
+##### source
+
+```ts
+readonly source: ClaimerArtifactsSource;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts)
+
+**`Experimental`**
+
+##### vault
+
+```ts
+readonly vault: DelegatedClaimVaultContext;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts)
+
+**`Experimental`**
+
+##### babeSessionsJson?
+
+```ts
+readonly optional babeSessionsJson: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts)
+
+**`Experimental`**
+
+##### requests
+
+```ts
+readonly requests: readonly DelegatedClaimSigningRequest[];
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts)
+
+**`Experimental`**
 
 ***
 
@@ -4189,6 +4810,39 @@ the SDK forwards that shape back through `activateVault`.
 
 ***
 
+### DelegatedClaimSigningKind
+
+```ts
+type DelegatedClaimSigningKind = 
+  | "claim"
+  | "assert"
+  | "payoutClaimer"
+  | "payoutDepositor"
+  | "wronglyChallenged";
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts)
+
+**`Experimental`**
+
+Which delegated-claim transaction a signing request is for.
+
+***
+
+### DelegatedClaimSignatures
+
+```ts
+type DelegatedClaimSignatures = ReadonlyMap<string, string>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts)
+
+**`Experimental`**
+
+64-byte Schnorr signatures (hex) keyed by [DelegatedClaimSigningRequest.id](#id).
+
+***
+
 ### ExpirationReason
 
 ```ts
@@ -4425,9 +5079,13 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/assem
 Signs the delegated-claim set and returns the `artifacts.json` content,
 ready to write verbatim.
 
-Every signature is verified against the graph before the file is produced,
-so a wallet that signed under the wrong key fails here rather than at claim
-time, when nothing can be re-signed.
+Composition of [planDelegatedClaimSigning](#plandelegatedclaimsigning),
+[signDelegatedClaimPlan](#signdelegatedclaimplan) and
+[assembleWatchtowerArtifactsFromSignatures](#assemblewatchtowerartifactsfromsignatures). Software wallets sign
+in one batched prompt; approval-capable wallets sign as ordered device
+ceremonies. Every signature is verified against the graph before the
+file is produced. This one-shot forwards neither `signal` nor `resume`;
+callers needing those use the split.
 
 Experimental: this API can change in a minor release. Pin the SDK
 version if you build on it.
@@ -4444,9 +5102,75 @@ version if you build on it.
 
 #### Throws
 
-If the graph is not version 3, if the wallet returns a signature
-        that does not verify, or if the graph's own presignatures are
-        incomplete.
+If the graph is not version 3, if a binding check fails, if the
+        wallet returns a signature that does not verify, or if the graph's
+        own presignatures are incomplete.
+
+***
+
+### assembleWatchtowerArtifactsFromSignatures()
+
+```ts
+function assembleWatchtowerArtifactsFromSignatures(params): Promise<string>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/assembleWatchtowerArtifactsFromSignatures.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/assembleWatchtowerArtifactsFromSignatures.ts)
+
+**`Experimental`**
+
+Rebuilds the PSBT set from the plan's graph and vault, proves the plan's
+requests equal it, verifies every signature against the rebuilt request,
+then routes each signature to its artifacts field. Only the rebuilt set
+feeds the file; the plan's own PSBT bytes are compared and never used.
+
+#### Parameters
+
+##### params
+
+[`AssembleFromSignaturesParams`](#assemblefromsignaturesparams)
+
+#### Returns
+
+`Promise`\<`string`\>
+
+#### Throws
+
+If any request's id, kind, input index
+        or PSBT differs from the one the graph builds now.
+
+#### Throws
+
+If a request has no signature, a signature has no request, a
+        signature does not verify against its rebuilt request, a binding
+        check on the rebuilt set fails, or the Rust verification of the
+        bundle fails.
+
+***
+
+### assertAssertBindsClaimAndPayout()
+
+```ts
+function assertAssertBindsClaimAndPayout(params): void;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/assertBinding.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/assertBinding.ts)
+
+**`Experimental`**
+
+#### Parameters
+
+##### params
+
+[`AssertAssertBindsClaimAndPayoutParams`](#assertassertbindsclaimandpayoutparams)
+
+#### Returns
+
+`void`
+
+#### Throws
+
+When Assert input 0 is not Claim:0, or Payout
+        input 1 is not Assert:0.
 
 ***
 
@@ -4555,6 +5279,63 @@ pass; checking only one would leave the other free to differ.
 
 ***
 
+### copyAssertConnectorLeaf()
+
+```ts
+function copyAssertConnectorLeaf(params): string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/payoutInputLeaf.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/payoutInputLeaf.ts)
+
+**`Experimental`**
+
+#### Parameters
+
+##### params
+
+[`CopyAssertConnectorLeafParams`](#copyassertconnectorleafparams)
+
+#### Returns
+
+`string`
+
+The depositor Payout PSBT (base64) with input 1's taproot
+         metadata taken from the claimer Payout PSBT.
+
+#### Throws
+
+If the two PSBTs are not the same unsigned
+        transaction, the claimer PSBT carries no single input-1 leaf, or
+        the depositor PSBT already carries one.
+
+***
+
+### planDelegatedClaimSigning()
+
+```ts
+function planDelegatedClaimSigning(params): Promise<DelegatedClaimSigningPlan>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/planDelegatedClaimSigning.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/planDelegatedClaimSigning.ts)
+
+**`Experimental`**
+
+#### Parameters
+
+##### params
+
+[`PlanDelegatedClaimSigningParams`](#plandelegatedclaimsigningparams)
+
+#### Returns
+
+`Promise`\<[`DelegatedClaimSigningPlan`](#delegatedclaimsigningplan)\>
+
+#### Throws
+
+If the graph is not version 3, or any binding check fails.
+
+***
+
 ### summarizeWatchtowerArtifacts()
 
 ```ts
@@ -4623,6 +5404,47 @@ version if you build on it.
         vault, [VaultIdBindingError](#vaultidbindingerror) when the graph it carries
         belongs to another vault whatever the file says, or a verification
         error when any bundled signature does not hold against that graph.
+
+***
+
+### signDelegatedClaimPlan()
+
+```ts
+function signDelegatedClaimPlan(
+   plan, 
+   wallet, 
+opts): Promise<DelegatedClaimSignatures>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/signDelegatedClaimPlan.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/signDelegatedClaimPlan.ts)
+
+**`Experimental`**
+
+The plan must come from `planDelegatedClaimSigning`: the signer
+signs it as given and does not rebuild it. A plan altered in between is
+rejected at assembly by `assembleWatchtowerArtifactsFromSignatures`, which
+rebuilds every PSBT from the graph, and a hardware wallet displays what it
+signs.
+
+#### Parameters
+
+##### plan
+
+[`DelegatedClaimSigningPlan`](#delegatedclaimsigningplan)
+
+##### wallet
+
+[`BitcoinWallet`](managers.md#bitcoinwallet)
+
+##### opts
+
+[`SignDelegatedClaimPlanOptions`](#signdelegatedclaimplanoptions) = `{}`
+
+#### Returns
+
+`Promise`\<[`DelegatedClaimSignatures`](#delegatedclaimsignatures)\>
+
+Signatures keyed by request id, one per request in the plan.
 
 ***
 

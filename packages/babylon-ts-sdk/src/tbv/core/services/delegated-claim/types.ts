@@ -5,6 +5,7 @@
  */
 
 import type { Hex } from "viem";
+import type { Network } from "@babylonlabs-io/babylon-tbv-rust-wasm";
 
 /**
  * The small, non-opaque fields of an `artifacts.json` file.
@@ -111,3 +112,54 @@ export interface DelegatedClaimVaultContext {
    */
   claimableEventBlockNumber: bigint;
 }
+
+/**
+ * Which delegated-claim transaction a signing request is for.
+ *
+ * @experimental
+ */
+export type DelegatedClaimSigningKind =
+  | "claim"
+  | "assert"
+  | "payoutClaimer"
+  | "payoutDepositor"
+  | "wronglyChallenged";
+
+/**
+ * One PSBT the depositor must sign, with the input to sign and a stable id
+ * the signatures are keyed by.
+ *
+ * @experimental
+ */
+export interface DelegatedClaimSigningRequest {
+  /** `kind`, or `wronglyChallenged:<challenger x-only hex>:<gcIndex>`. */
+  readonly id: string;
+  readonly kind: DelegatedClaimSigningKind;
+  readonly psbtBase64: string;
+  readonly inputIndex: number;
+  readonly challengerPubkey?: string;
+  readonly gcIndex?: number;
+}
+
+/**
+ * Everything one delegated-claim signing session needs, built once and
+ * signed by whichever wallet path fits. Treat as immutable: the assembler
+ * rebuilds every PSBT from the graph and byte-compares against this.
+ *
+ * @experimental
+ */
+export interface DelegatedClaimSigningPlan {
+  readonly depositorPublicKey: string;
+  readonly btcNetwork: Network;
+  readonly source: ClaimerArtifactsSource;
+  readonly vault: DelegatedClaimVaultContext;
+  readonly babeSessionsJson?: string;
+  readonly requests: readonly DelegatedClaimSigningRequest[];
+}
+
+/**
+ * 64-byte Schnorr signatures (hex) keyed by {@link DelegatedClaimSigningRequest.id}.
+ *
+ * @experimental
+ */
+export type DelegatedClaimSignatures = ReadonlyMap<string, string>;

@@ -13,6 +13,12 @@
  * `wots_keypair.json`. `vaultd vp wt` reads the same pair, so either can drive
  * the claim.
  *
+ * Signing is split into plan → sign → assemble so a hardware wallet can sign
+ * the set as ordered device ceremonies (Assert and the depositor Payout under
+ * the vault's loaded intent, the rest after it is released) while software
+ * wallets keep one batched prompt. `assembleWatchtowerArtifacts` is the
+ * composition of the three.
+ *
  * Claim time is here as well. From an assembled `artifacts.json` this module
  * pins the Groth16 proof, finalizes the Assert, and produces the Payout and
  * WronglyChallenged transactions, so a depositor whose vault provider is gone
@@ -30,6 +36,28 @@ export {
   assembleWatchtowerArtifacts,
   type AssembleWatchtowerArtifactsParams,
 } from "./assembleWatchtowerArtifacts";
+export {
+  planDelegatedClaimSigning,
+  type PlanDelegatedClaimSigningParams,
+} from "./planDelegatedClaimSigning";
+export {
+  DelegatedClaimSigningIncompleteError,
+  signDelegatedClaimPlan,
+  type SignDelegatedClaimPlanOptions,
+} from "./signDelegatedClaimPlan";
+export {
+  SigningPlanMismatchError,
+  assembleWatchtowerArtifactsFromSignatures,
+  type AssembleFromSignaturesParams,
+} from "./assembleWatchtowerArtifactsFromSignatures";
+export { AssertBindingError, assertAssertBindsClaimAndPayout, type AssertAssertBindsClaimAndPayoutParams } from "./assertBinding";
+export { PayoutInputLeafError, copyAssertConnectorLeaf, type CopyAssertConnectorLeafParams } from "./payoutInputLeaf";
+export type {
+  DelegatedClaimSignatures,
+  DelegatedClaimSigningKind,
+  DelegatedClaimSigningPlan,
+  DelegatedClaimSigningRequest,
+} from "./types";
 export {
   deriveClaimerWotsKeypair,
   type ClaimerWotsKeypair,
