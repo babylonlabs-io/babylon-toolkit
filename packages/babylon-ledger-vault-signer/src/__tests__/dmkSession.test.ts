@@ -200,14 +200,43 @@ describe("refreshSessionApp", () => {
     expect(dmkStub.sendCommand).toHaveBeenCalledWith(expect.objectContaining({ sessionId: "session-1" }));
   });
 
-  it("keeps the handle's fields when the re-read fails", async () => {
+  it("keeps the handle's fields when the re-read throws", async () => {
+    // Seeded so a spread that cleared the fields is visible; the unseeded case below pins production's input.
+    dmkStub.sendCommand.mockRejectedValue(new Error("device locked"));
+    const handle = {
+      dmk: dmkStub as never,
+      sessionId: "session-1" as never,
+      appName: "Babylon Vault Testnet",
+      appVersion: "0.9.4",
+    };
+
+    const refreshed = await refreshSessionApp(handle);
+
+    expect(refreshed).toStrictEqual(handle);
+  });
+
+  it("adds no app fields to a bare handle when the re-read fails", async () => {
+    // Production's input: appName is undefined, and an undefined-valued key must not appear either.
     dmkStub.sendCommand.mockRejectedValue(new Error("device locked"));
     const handle = { dmk: dmkStub as never, sessionId: "session-1" as never };
 
     const refreshed = await refreshSessionApp(handle);
 
-    expect(refreshed).toEqual(handle);
-    expect(refreshed.appName).toBeUndefined();
+    expect(refreshed).toStrictEqual({ dmk: dmkStub, sessionId: "session-1" });
+  });
+
+  it("keeps the handle's fields when the re-read returns a command-level error", async () => {
+    dmkStub.sendCommand.mockResolvedValue({ status: "ERROR", error: { _tag: "SomeCommandError" } });
+    const handle = {
+      dmk: dmkStub as never,
+      sessionId: "session-1" as never,
+      appName: "Babylon Vault Testnet",
+      appVersion: "0.9.4",
+    };
+
+    const refreshed = await refreshSessionApp(handle);
+
+    expect(refreshed).toStrictEqual(handle);
   });
 });
 

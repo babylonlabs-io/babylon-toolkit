@@ -198,10 +198,12 @@ export async function connectDmkSession(): Promise<DmkSessionHandle> {
 }
 
 /**
- * `GET_APP_AND_VERSION` preflight, run only at connect — the most useful fact
- * when the first vault APDU fails ("Babylon Vault" vs "Babylon Vault Testnet"
- * vs "BOLOS"). Sent explicitly rather than read from DMK's internal session
- * state. A failed read degrades to `undefined`; the host lets that through.
+ * `GET_APP_AND_VERSION` preflight — the most useful fact when the first vault
+ * APDU fails ("Babylon Vault" vs "Babylon Vault Testnet" vs "BOLOS"). Run at
+ * connect, and again by {@link refreshSessionApp} when the host re-gates a
+ * session whose first read failed. Sent explicitly rather than read from DMK's
+ * internal session state. A failed read degrades to `undefined`; the host lets
+ * that through.
  */
 async function readAppAndVersion(
   dmk: DeviceManagementKit,

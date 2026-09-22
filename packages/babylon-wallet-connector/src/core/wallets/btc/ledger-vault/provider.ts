@@ -240,10 +240,11 @@ export class LedgerVaultProvider implements IBTCProvider {
    * See {@link activeOperation}. The busy throw costs zero device I/O. Two
    * overlapping ceremonies are a caller bug; {@link gateUngatedSession} also
    * holds the lock for one GET_APP_AND_VERSION on a tab return, so a ceremony
-   * started in that window hits this legitimately. DMK 1.7.1 does not hold
-   * that read for an unlock (IntentQueueService has no lock gating; a locked
-   * reply only dispatches DEVICE_STATE_UPDATE_LOCKED). Unverified: what BOLOS
-   * answers to that read while locked.
+   * started in that window hits this legitimately. The window is one instant
+   * exchange: the SDK answers a locked device with 0x5515 before the app's
+   * dispatcher sees it (`sdk:io_legacy/src/os_io_legacy.c:414-423` @ v26.6.1),
+   * and DMK 1.7.1
+   * never holds the read for an unlock (IntentQueueService has no lock gating).
    */
   private async withDeviceOperation<T>(operation: string, fn: () => Promise<T>): Promise<T> {
     if (this.activeOperation) {
