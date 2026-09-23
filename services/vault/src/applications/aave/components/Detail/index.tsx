@@ -18,6 +18,13 @@ import { getAddress, type Address } from "viem";
 
 import { V3ModalShell } from "@/components/shared/V3ModalShell";
 import { useConnection, useETHWallet } from "@/context/wallet";
+import { COPY } from "@/copy";
+import {
+  demoBorrowCount,
+  demoBorrowedReserveIds,
+  isDemoAffectingLoans,
+  useLoanOverride,
+} from "@/overrides/loans";
 import {
   getAssetPickerSearch,
   getHubPickerSearch,
@@ -28,6 +35,10 @@ import {
 import { LOAN_TAB, type LoanTab } from "../../constants";
 import { useAaveConfig } from "../../context";
 import { useAaveBorrowedAssets, useAaveUserPosition } from "../../hooks";
+import {
+  toBorrowedReserveIds,
+  type BorrowReserveGate,
+} from "../../utils/borrowReserveLimit";
 import { groupReservesByUnderlying } from "../../utils/reserveGroups";
 import { AssetSelectionPanel } from "../AssetSelectionPanel";
 import { HubSelectionPanel } from "../HubSelectionPanel";
@@ -38,6 +49,8 @@ import {
 import { LOAN_PICKER_WIDTH_CLASS } from "../LoanPickerFrame";
 import { RepaySelectionPanel } from "../RepaySelectionPanel";
 
+import { BorrowPickerLoading } from "./BorrowPickerLoading";
+import { LoadErrorRetry } from "./LoadErrorRetry";
 import { PositionGate } from "./PositionGate";
 import {
   ReserveDetailPanel,
@@ -64,7 +77,12 @@ export function LoanFlowOverlay({
   const { pathname } = useLocation();
   const { isConnected } = useConnection();
   const { address } = useETHWallet();
-  const { borrowableReserves, allBorrowReserves } = useAaveConfig();
+  const {
+    borrowableReserves,
+    allBorrowReserves,
+    maxBorrowReserves,
+    refetchConfig,
+  } = useAaveConfig();
 
   // Lifted from the Borrow/Repay forms so the dialog can refuse to close
   // mid-transaction — a dismiss would unmount the flow and the success screen
@@ -81,6 +99,69 @@ export function LoanFlowOverlay({
     refetch: refetchPosition,
   } = useAaveUserPosition(isConnected ? address : undefined);
   const { borrowedAssets } = useAaveBorrowedAssets({ position, debtValueUsd });
+
+  // God-mode demo loans (dev only; compile-time null in production builds).
+  const demoLoans = useLoanOverride();
+
+  // The position's standing against the spoke's borrow-reserve cap, shared by
+  // both borrow pickers. `borrowCount` is the Spoke's own counter — the number
+  // its borrow check compares — not one derived from the resolved debts.
+  //
+  // `borrowedReserveIds` uses the Spoke's own criterion too: it clears the
+  // borrowing flag at `drawnShares == 0`, while a debt position survives on a
+  // premium-only residue. Keying off the map would leave such a reserve
+  // selectable at the cap, and the borrow would revert.
+  //
+  // Null when the cap could not be read: `renderBorrowPicker` then blocks the
+  // borrow side, so no picker renders and none needs a gate.
+  const borrowGate: BorrowReserveGate | null = useMemo(() => {
+    if (maxBorrowReserves.status === "unavailable") return null;
+    const limit = maxBorrowReserves.limit;
+    // Zero is the true count for an account whose position loaded as null,
+    // and for a disconnected visitor, who cannot sign anything. The gates
+    // below keep it from standing in for a count that has not arrived yet.
+    const realBorrowCount = position?.accountData.borrowCount ?? 0n;
+    const realBorrowedReserveIds = toBorrowedReserveIds(
+      position?.debtPositions,
+    );
+    // God mode (dev only, null in production): a demo loan has no on-chain
+    // position behind it, so the real count alone would leave the at-the-cap
+    // state unreachable without a funded wallet and a real borrow. Count the
+    // demo's reserves the way the Loans card does (`demoBorrowCount`), and
+    // exempt what the demo stands for as owed (`demoBorrowedReserveIds`).
+    //
+    // Whatever the picker offers, the pre-sign gate re-reads the real position
+    // against the Spoke's own cap, never the god-mode override, so nothing
+    // here lets through a borrow the chain would revert.
+    if (isDemoAffectingLoans(demoLoans)) {
+      return {
+        limit,
+        borrowCount: demoBorrowCount(demoLoans, realBorrowCount),
+        borrowedReserveIds: demoBorrowedReserveIds(demoLoans, {
+          limit,
+          realBorrowCount,
+          realBorrowedReserveIds,
+          reserves: allBorrowReserves,
+        }),
+      };
+    }
+    return {
+      limit,
+      borrowCount: realBorrowCount,
+      borrowedReserveIds: realBorrowedReserveIds,
+    };
+  }, [maxBorrowReserves, position, demoLoans, allBorrowReserves]);
+
+  // The finite cap a borrow picker enforces; null when the spoke caps nothing
+  // (or the cap is unavailable, which blocks the borrow side on its own).
+  const finiteCap = borrowGate?.limit ?? null;
+
+  // A finite cap makes the borrow picker a protocol gate, not a convenience:
+  // an unknown position would render every asset selectable for an account
+  // that may be at the cap. Block the borrow side the way the repay side is
+  // already blocked, rather than defaulting the count to zero.
+  const borrowNeedsPosition =
+    finiteCap !== null && isConnected && !position && !demoLoans?.hideReal;
 
   // Each token's borrowable reserves, one per hub. Decides whether picking a
   // token needs Select hub, and where the borrow form's back arrow returns.
@@ -170,6 +251,77 @@ export function LoanFlowOverlay({
         : getAssetPickerSearch(LOAN_TAB.BORROW)
       : null;
 
+  const ancillaryError = isConnected
+    ? (position?.indexerError ?? positionError)
+    : null;
+
+  const renderRepayPicker = () => (
+    <PositionGate
+      positionError={isConnected && !position ? positionError : null}
+      ancillaryError={ancillaryError}
+      refetchPosition={refetchPosition}
+    >
+      <RepaySelectionPanel
+        assets={borrowedAssets}
+        assetsLoading={isPositionLoading}
+        onSelectReserve={(selectedReserveId) =>
+          openStep(getReserveDetailSearch(selectedReserveId, LOAN_TAB.REPAY))
+        }
+      />
+    </PositionGate>
+  );
+
+  const renderBorrowPicker = () => {
+    // An unreadable cap leaves no way to tell which reserves the Spoke would
+    // accept, so the borrow side is blocked until the config read succeeds.
+    // This is a config failure, not a position one, so it names the cap and
+    // retries the config. The repay side does not depend on the cap.
+    if (borrowGate === null) {
+      return (
+        <LoadErrorRetry
+          message={COPY.loans.borrowLimit.capLoadError}
+          onRetry={refetchConfig}
+          retryFailureLog="Could not reload the Aave config"
+        />
+      );
+    }
+    return (
+      <PositionGate
+        positionError={borrowNeedsPosition ? positionError : null}
+        ancillaryError={ancillaryError}
+        refetchPosition={refetchPosition}
+      >
+        {borrowNeedsPosition && isPositionLoading ? (
+          // Ahead of the hub branch, which a pasted or refreshed
+          // `?picker=borrow&asset=…` URL reaches directly.
+          <BorrowPickerLoading
+            mode={showHubPicker ? "hub" : "asset"}
+            limit={finiteCap}
+          />
+        ) : showHubPicker ? (
+          <HubSelectionPanel
+            underlying={asset}
+            borrowGate={borrowGate}
+            onSelectReserve={(selectedReserveId) =>
+              openStep(
+                getReserveDetailSearch(
+                  selectedReserveId,
+                  LOAN_TAB.BORROW,
+                  asset,
+                ),
+              )
+            }
+          />
+        ) : (
+          <AssetSelectionPanel
+            onSelectAsset={selectAsset}
+            borrowGate={borrowGate}
+          />
+        )}
+      </PositionGate>
+    );
+  };
+
   const renderStep = () => {
     if (showSuccess) {
       return (
@@ -200,47 +352,9 @@ export function LoanFlowOverlay({
         />
       );
     }
-    const mode = picker ?? tab;
-    return (
-      <PositionGate
-        positionError={
-          mode === LOAN_TAB.REPAY && isConnected && !position
-            ? positionError
-            : null
-        }
-        ancillaryError={
-          isConnected ? (position?.indexerError ?? positionError) : null
-        }
-        refetchPosition={refetchPosition}
-      >
-        {mode === LOAN_TAB.REPAY ? (
-          <RepaySelectionPanel
-            assets={borrowedAssets}
-            assetsLoading={isPositionLoading}
-            onSelectReserve={(selectedReserveId) =>
-              openStep(
-                getReserveDetailSearch(selectedReserveId, LOAN_TAB.REPAY),
-              )
-            }
-          />
-        ) : showHubPicker ? (
-          <HubSelectionPanel
-            underlying={asset}
-            onSelectReserve={(selectedReserveId) =>
-              openStep(
-                getReserveDetailSearch(
-                  selectedReserveId,
-                  LOAN_TAB.BORROW,
-                  asset,
-                ),
-              )
-            }
-          />
-        ) : (
-          <AssetSelectionPanel onSelectAsset={selectAsset} />
-        )}
-      </PositionGate>
-    );
+    return (picker ?? tab) === LOAN_TAB.REPAY
+      ? renderRepayPicker()
+      : renderBorrowPicker();
   };
 
   const contentClassName = showSuccess

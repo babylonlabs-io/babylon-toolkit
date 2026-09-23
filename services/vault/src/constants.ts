@@ -32,6 +32,14 @@ export const TWO_VAULT_SPLIT_DOCS_URL =
 // TODO(product): set the real vault-provider docs URL, then the link renders.
 export const VAULT_PROVIDER_DOCS_URL: string | null = null;
 
+// Single-borrow-asset docs link, surfaced from the "Learn more" in the borrow
+// pickers' notices. Null until the page explaining the limit exists; the
+// notices render without the link rather than pointing at a placeholder.
+// TODO(product): set the real single-borrow-asset docs URL, then the link
+// renders. The page must say the limit is per Ethereum account, not per
+// Bitcoin wallet or per vault.
+export const SINGLE_BORROW_ASSET_DOCS_URL: string | null = null;
+
 // Bitcoin protocol constants
 export const BTC_BLOCK_TIME_MINS = 10;
 export const MINS_PER_HOUR = 60;

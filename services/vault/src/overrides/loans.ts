@@ -2,7 +2,12 @@ import { getAddress, type Address } from "viem";
 
 import type { BorrowedAsset } from "@/applications/aave/hooks/useAaveBorrowedAssets";
 import type { ActiveLoanRow } from "@/applications/aave/hooks/useActiveLoans";
-import { knownBorrowCount } from "@/applications/aave/utils/borrowReserveLimit";
+import type { AaveReserveConfig } from "@/applications/aave/services/fetchConfig";
+import {
+  isAtBorrowReserveLimit,
+  knownBorrowCount,
+  type BorrowReserveLimit,
+} from "@/applications/aave/utils/borrowReserveLimit";
 
 import { createOverrideStore } from "./store";
 
@@ -56,7 +61,7 @@ function demoReserveKeys(override: LoanOverride): Set<string> {
  * never under-counts — the real side is the Spoke's own counter, and matching
  * it against resolved debts would mix two counters that can disagree.
  */
-function demoBorrowCount(
+export function demoBorrowCount(
   override: LoanOverride,
   realBorrowCount: bigint,
 ): bigint {
@@ -101,4 +106,53 @@ export function cardBorrowedAssets(
 ): BorrowedAsset[] {
   if (!isDemoAffectingLoans(override)) return real;
   return [...override.rows, ...(override.hideReal ? [] : real)];
+}
+
+/**
+ * Reserve ids a borrow picker treats as owed under a god-mode demo (dev only).
+ *
+ * The reserves the account really owes stay exempt, unless `hideReal` drops
+ * the real position. A mock row also stands for a reserve owed, so the real
+ * reserve it names (symbol + hub) is exempt too — otherwise the picker would
+ * grey the very reserve the Loans page lists as owed. Only while the real
+ * count alone is below the picker's cap: there the real account would already
+ * be offered every reserve, so the exemption offers nothing the picker without
+ * a demo would not. `hideReal` drops the real count here too, as
+ * `demoBorrowCount` does, so a wallet already at the real cap still gets the
+ * demo's reserves exempted: the one way a demo can offer more than the real
+ * position would.
+ */
+export function demoBorrowedReserveIds(
+  override: LoanOverride,
+  {
+    limit,
+    realBorrowCount,
+    realBorrowedReserveIds,
+    reserves,
+  }: {
+    limit: BorrowReserveLimit;
+    realBorrowCount: bigint;
+    realBorrowedReserveIds: ReadonlySet<bigint>;
+    /** Every reserve a mock row's symbol + hub could name. */
+    reserves: readonly AaveReserveConfig[];
+  },
+): Set<bigint> {
+  const borrowedReserveIds = new Set(
+    override.hideReal ? [] : realBorrowedReserveIds,
+  );
+  if (
+    !isAtBorrowReserveLimit(limit, override.hideReal ? 0n : realBorrowCount)
+  ) {
+    const mockReserves = demoReserveKeys(override);
+    for (const reserve of reserves) {
+      if (
+        mockReserves.has(
+          demoReserveKey(reserve.token.symbol, reserve.reserve.hub),
+        )
+      ) {
+        borrowedReserveIds.add(reserve.reserveId);
+      }
+    }
+  }
+  return borrowedReserveIds;
 }
