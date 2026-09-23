@@ -81,7 +81,14 @@ for (const viewport of VISUAL_VIEWPORTS) {
     const shots: StagedShot[] = [];
 
     await page.goto("/vaults", { waitUntil: "domcontentloaded" });
-    await connectInjectedWallets(page);
+    await connectInjectedWallets(page, async () => {
+      shots.push(
+        await capture(
+          page,
+          flowScreenshotFileName(DEPOSIT_FLOW_STOPS.connectDialog, viewport),
+        ),
+      );
+    });
     shots.push(
       await capture(
         page,
@@ -151,7 +158,7 @@ for (const viewport of VISUAL_VIEWPORTS) {
 
     // Deferred to the end because these two accumulate across the walk, where
     // the error-surface gates cannot and so run inside `capture()` per stop.
-    // Nothing has reached disk yet, so a failure here withholds all five
+    // Nothing has reached disk yet, so a failure here withholds all six
     // stops - which is what makes the capture step's `continue-on-error` safe.
     //
     // All four boundaries are named because this walk genuinely needs all

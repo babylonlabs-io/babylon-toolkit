@@ -273,8 +273,15 @@ export async function injectPageWallets(
  * The ETH side needs no interaction - wagmi has already authorised the
  * announced provider by the time the dialog opens, so the dialog shows the
  * account and only Bitcoin is left to choose.
+ *
+ * `beforeCommit` runs once both wallets are chosen and the dialog is still
+ * open - the one moment a capture can photograph the dialog in a state that
+ * does not depend on how fast each wallet reported in.
  */
-export async function connectInjectedWallets(page: Page): Promise<void> {
+export async function connectInjectedWallets(
+  page: Page,
+  beforeCommit?: () => Promise<void>,
+): Promise<void> {
   // By testid, not by its label: the header control is a labelled button on
   // desktop and an icon-only button on mobile, so a text match connects at one
   // width and times out at the other.
@@ -299,6 +306,7 @@ export async function connectInjectedWallets(page: Page): Promise<void> {
   // this is also the assertion that ETH really did connect silently.
   const commit = dialog.getByTestId("chains-connect-button");
   await expect(commit).toBeEnabled();
+  await beforeCommit?.();
   await commit.click();
 
   // The dialog is a full-viewport overlay: anything clicked before it is gone
