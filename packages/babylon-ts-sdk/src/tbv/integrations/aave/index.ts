@@ -54,6 +54,7 @@ export {
   HEALTH_FACTOR_LIQUIDATION_THRESHOLD,
   HEALTH_FACTOR_RISKY_THRESHOLD,
   HEALTH_FACTOR_WARNING_THRESHOLD,
+  MAX_ALLOWED_USER_RESERVES_LIMIT,
   MIN_HEALTH_FACTOR_FOR_BORROW,
 } from "./constants.js";
 
@@ -74,6 +75,7 @@ export {
   buildWithdrawCollateralsTx,
   getAssetDrawnRatesSafe,
   getDynamicReserveConfig,
+  getMaxUserReservesLimit,
   getOracleAddress,
   getPosition,
   getPositionSizeParams,

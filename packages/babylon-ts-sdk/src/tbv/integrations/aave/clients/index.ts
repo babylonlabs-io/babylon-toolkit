@@ -7,6 +7,7 @@ export {
 // Spoke operations
 export {
   getDynamicReserveConfig,
+  getMaxUserReservesLimit,
   getReserve,
   getReserves,
   getTargetHealthFactor,

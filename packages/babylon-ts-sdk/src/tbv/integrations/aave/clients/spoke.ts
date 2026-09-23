@@ -454,3 +454,32 @@ export async function getDynamicReserveConfig(
   });
   return result as DynamicReserveConfigResult;
 }
+
+/**
+ * Get the maximum number of reserves one user may hold on this Spoke.
+ *
+ * `uint16` immutable, set in the Spoke constructor. Collateral reserves and
+ * borrow reserves are counted separately against the same number: a borrow
+ * into a new reserve reverts with `MaximumUserReservesExceeded` once the
+ * user's borrow count has reached it. Borrowing more of a reserve the user
+ * already borrows is always allowed.
+ *
+ * `MAX_ALLOWED_USER_RESERVES_LIMIT` (65535) is the contract's "no cap"
+ * sentinel — the check is skipped on that value.
+ *
+ * @param publicClient - Viem public client for reading contracts
+ * @param spokeAddress - Aave Spoke contract address
+ * @returns The limit as stored on the Spoke
+ */
+export async function getMaxUserReservesLimit(
+  publicClient: PublicClient,
+  spokeAddress: Address,
+): Promise<number> {
+  const result = await publicClient.readContract({
+    address: spokeAddress,
+    abi: AaveSpokeABI,
+    functionName: "MAX_USER_RESERVES_LIMIT",
+  });
+
+  return result as number;
+}
