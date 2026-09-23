@@ -97,6 +97,9 @@ vi.mock("@/dev/demoDeposit", () => ({
 
 vi.mock("@/applications/aave/context", () => ({
   useSyncPendingVaults: () => undefined,
+  useAaveConfig: () => ({
+    maxBorrowReserves: { status: "loaded", limit: 1 },
+  }),
 }));
 
 vi.mock("@/applications/aave/hooks", () => ({
