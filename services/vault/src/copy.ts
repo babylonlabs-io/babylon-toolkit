@@ -803,6 +803,7 @@ export const COPY = {
           ? `${TWO_VAULT_SPLIT_NAME} - ${splitRatioLabel}`
           : TWO_VAULT_SPLIT_NAME,
       splitOptionRecommended: "(Recommended)",
+      splitSliderStepLabel: "2 UTXO Split",
       // Shown inside the expanded split selector, under the two-vault option,
       // when the deposit is below the minimum needed to split across two
       // vaults; that option stays visible but disabled. `minBtc` already

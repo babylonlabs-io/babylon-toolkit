@@ -57,6 +57,7 @@ export interface AmountSliderProps {
   sliderMax: number;
   sliderStep?: number;
   sliderSteps?: SliderStep[] | number;
+  sliderSnapToSteps?: boolean;
   onSliderChange: (value: number) => void;
   onSliderStepsChange?: (selectedSteps: number[]) => void; // Called when sliderSteps is array
   sliderVariant?: "primary" | "success" | "warning" | "error" | "rainbow";
@@ -101,6 +102,7 @@ export function AmountSlider({
   sliderMax,
   sliderStep = 1,
   sliderSteps,
+  sliderSnapToSteps,
   onSliderChange,
   onSliderStepsChange,
   sliderVariant = "primary",
@@ -201,6 +203,7 @@ export function AmountSlider({
           max={sliderMax}
           step={sliderStep}
           steps={sliderSteps}
+          snapToSteps={sliderSnapToSteps}
           onChange={onSliderChange}
           onStepsChange={onSliderStepsChange}
           variant={sliderVariant}

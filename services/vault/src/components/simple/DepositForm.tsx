@@ -314,6 +314,7 @@ export function DepositForm({
     Number(maxDepositSats ?? 0n),
   );
   const sliderValueSats = Number(amountSats);
+  const minDepositForSplit = twoVaultSplit?.minDepositForSplit ?? 0n;
 
   const usdValue = useMemo(() => {
     if (hasPriceFetchError || !btcPrice || !amount || amount === "0") return "";
@@ -415,7 +416,17 @@ export function DepositForm({
           sliderMin={sliderMinSats}
           sliderMax={sliderMaxSats}
           sliderStep={1}
-          sliderSteps={[]}
+          sliderSteps={
+            minDepositForSplit > 0n
+              ? [
+                  {
+                    value: Number(minDepositForSplit),
+                    label: COPY.deposit.form.splitSliderStepLabel,
+                  },
+                ]
+              : []
+          }
+          sliderSnapToSteps={false}
           sliderDisabled={sliderDisabled}
           onSliderChange={(sats) =>
             onAmountChange(
