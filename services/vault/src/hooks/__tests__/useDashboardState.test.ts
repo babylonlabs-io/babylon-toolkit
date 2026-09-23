@@ -439,6 +439,7 @@ describe("useDashboardState", () => {
       expectedHF: 0.95,
       CF: 0.8,
       LB: 1.05,
+      lbUnavailableReason: null,
       maxLB: 1.05,
     };
 
@@ -495,6 +496,7 @@ describe("useDashboardState", () => {
       expectedHF: 0.95,
       CF: 0.8,
       LB: 1.05,
+      lbUnavailableReason: null,
       maxLB: 1.05,
     };
     // Borrowed to within a fraction of a cent of the max — the float/HF-buffer
@@ -517,6 +519,7 @@ describe("useDashboardState", () => {
       expectedHF: 0.95,
       CF: 0.8,
       LB: 1.05,
+      lbUnavailableReason: null,
       maxLB: 1.05,
     };
     mockDebtValueUsd = fixtureMaxTotalDebtUsd - 50;

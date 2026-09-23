@@ -1,10 +1,12 @@
 import { Hint, InfoIcon } from "@babylonlabs-io/core-ui";
+import { BPS_SCALE } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 
 import { COPY } from "@/copy";
 import { computeMaxBorrowUsd } from "@/utils/collateral";
-import { formatCompactUsd } from "@/utils/formatting";
-
-const PERCENT_SCALE = 100;
+import {
+  formatBasisPointsAsPercent,
+  formatCompactUsd,
+} from "@/utils/formatting";
 
 const FORM_COPY = COPY.deposit.form;
 
@@ -23,7 +25,10 @@ export function CollateralFactorRow({
 }: CollateralFactorRowProps) {
   if (collateralFactor === null) return null;
 
-  const percent = `${Math.round(collateralFactor * PERCENT_SCALE)}%`;
+  // Same formatter as the collateral-factor fee row on this screen, so a
+  // fractional basis-point value cannot read 78.25% in one row and 78% in the
+  // other.
+  const percent = formatBasisPointsAsPercent(collateralFactor * BPS_SCALE);
 
   const maxBorrowUsd = hasPriceFetchError
     ? null

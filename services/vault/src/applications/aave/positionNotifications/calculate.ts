@@ -446,10 +446,16 @@ export function calculate(params: CalculatorParams): CalculatorResult {
   // collateral or repay: re-depositing the same BTC as two vaults would need
   // the first vault to be the larger one, a split the deposit form refuses.
   let suggestedNewVaultBtc: number | null = null;
+  // The add before the minimum peg-in is applied. Kept so the two reasons a
+  // suggestion can be missing stay distinguishable: if this one would have
+  // worked, only the floor stands in the way.
+  let unflooredSuggestionBtc = 0;
   if (nVaults === 1) {
     if (seizedFraction < 1) {
+      unflooredSuggestionBtc =
+        (vaults[0].btc * seizedFraction) / (1 - seizedFraction);
       const suggested = sizeSuggestedVaultBtc(
-        (vaults[0].btc * seizedFraction) / (1 - seizedFraction),
+        unflooredSuggestionBtc,
         minSuggestedVaultBtc,
       );
       // Actionable only if positive AND strictly smaller than the existing
@@ -458,6 +464,15 @@ export function calculate(params: CalculatorParams): CalculatorResult {
         suggestedNewVaultBtc = suggested;
       }
     }
+
+    // Two different reasons produce no suggestion, and they call for
+    // different advice. If the add would have been smaller than the existing
+    // vault before the minimum peg-in raised it, splitting works fine at
+    // these parameters and the position is simply too small. Otherwise the
+    // sacrificial vault would have to be the larger of the two, which no
+    // deposit size fixes.
+    const isTooSmallToSplit =
+      unflooredSuggestionBtc > 0 && unflooredSuggestionBtc < totalBtc;
 
     warnings.push({
       type: "cliff",
@@ -468,7 +483,11 @@ export function calculate(params: CalculatorParams): CalculatorResult {
           ? cliff.addSacrificialSuggestion(
               fmtSuggestedVaultBtc(suggestedNewVaultBtc),
             )
-          : cliff.noSplitSuggestion,
+          : isTooSmallToSplit
+            ? cliff.tooSmallToSplitSuggestion(
+                fmtSuggestedVaultBtc(minSuggestedVaultBtc),
+              )
+            : cliff.noSplitSuggestion,
     });
   }
 

@@ -491,7 +491,9 @@ const MOCK_BATCH_RESULT = {
 };
 
 const MOCK_PARAMS = {
-  vaultAmounts: [100000n, 100000n],
+  // Ordered smaller-first, the only shape the pre-sign validation accepts for
+  // a split: an equal pair is rejected before signing.
+  vaultAmounts: [90000n, 110000n],
   depositAmountSats: 200000n,
   mempoolFeeRate: 10,
   btcWalletProvider: MOCK_BTC_WALLET as any,
@@ -689,7 +691,7 @@ describe("useDepositFlow", () => {
             // Active version from ProtocolParams — a re-pinned constant here
             // would keep building v1 graphs after governance flips to v2.
             vaultCoreVersion: 3,
-            pegInAmounts: [100000n, 100000n],
+            pegInAmounts: [90000n, 110000n],
             // The RESOLVED operation key, not the indexer hint in MOCK_PARAMS.
             // The lock commits to whatever key the chain currently bonds the
             // provider to; the hint is only cross-checked. This named the hint

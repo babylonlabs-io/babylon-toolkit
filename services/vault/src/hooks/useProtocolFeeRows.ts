@@ -30,7 +30,10 @@ function buildFeeRows(
     tooltip: COPY.protocolFees.minDeposit.tooltip,
   });
 
-  if (splitParams) {
+  // The split-sizing rows need the bonus at the expected health factor; when
+  // the Spoke's curve is out of range there is no figure to show, so they are
+  // omitted rather than rendered from a substitute.
+  if (splitParams && splitParams.LB !== null) {
     const { CF, LB, THF, expectedHF, maxLB } = splitParams;
 
     const seizedFraction = computeSeizedFraction(CF, LB, THF, expectedHF);

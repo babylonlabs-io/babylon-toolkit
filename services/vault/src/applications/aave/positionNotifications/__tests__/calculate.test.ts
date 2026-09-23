@@ -372,8 +372,11 @@ describe("golden vectors (reference scenario suite)", () => {
     });
 
     expect(result.suggestedNewVaultBtc).toBeNull();
+    // The minimum peg-in is larger than the whole position, so the advice
+    // names the size rather than the protocol parameters — splitting works
+    // fine here at a seized fraction of ~0.29.
     expect(getWarning(result.warnings, "cliff")?.suggestion).toBe(
-      COPY.liquidationWarnings.cliff.noSplitSuggestion,
+      COPY.liquidationWarnings.cliff.tooSmallToSplitSuggestion("0.0546"),
     );
   });
 
@@ -392,8 +395,11 @@ describe("golden vectors (reference scenario suite)", () => {
     });
 
     expect(result.suggestedNewVaultBtc).toBeNull();
+    // Unfloored the add would be 0.0218 BTC, comfortably smaller than the
+    // vault, so only the minimum peg-in blocks the split: the position is too
+    // small, not badly parameterised.
     expect(getWarning(result.warnings, "cliff")?.suggestion).toBe(
-      COPY.liquidationWarnings.cliff.noSplitSuggestion,
+      COPY.liquidationWarnings.cliff.tooSmallToSplitSuggestion("0.0546"),
     );
   });
 

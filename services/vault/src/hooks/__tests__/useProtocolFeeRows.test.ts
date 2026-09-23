@@ -22,6 +22,7 @@ const LAUNCH_SPLIT_PARAMS = vi.hoisted(() => ({
     expectedHF: 0.99,
     CF: 0.78,
     LB: 1.0504,
+    lbUnavailableReason: null,
     maxLB: 1.0555,
   },
   isLoading: false,

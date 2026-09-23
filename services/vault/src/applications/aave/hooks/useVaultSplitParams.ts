@@ -56,8 +56,21 @@ export interface VaultSplitParams {
   expectedHF: number;
   /** Collateral factor (e.g. 0.78) */
   CF: number;
-  /** Liquidation bonus at `expectedHF` (e.g. 1.0504). Used by all seizure math. */
-  LB: number;
+  /**
+   * Liquidation bonus at `expectedHF` (e.g. 1.0504). Used by all seizure math.
+   *
+   * `null` when the Spoke's bonus curve is outside the range the port
+   * accepts, in which case `lbUnavailableReason` says why. It is nullable so
+   * that a curve which only matters for sizing a split cannot take the
+   * collateral factor down with it: `assertCfUnchanged` refetches this query
+   * before every borrow and repay, and repay is the action that reduces a
+   * user's risk. Consumers that need the bonus must refuse when it is null —
+   * never substitute `maxLB` or any other value, which would size a split
+   * against a bonus the protocol would not apply.
+   */
+  LB: number | null;
+  /** Why `LB` is null, or null when it was computed. Covaries with `LB`. */
+  lbUnavailableReason: string | null;
   /** Max liquidation bonus (e.g. 1.0555). Display only. */
   maxLB: number;
 }
@@ -103,16 +116,30 @@ async function fetchSplitParams(
     ),
   ]);
 
+  // Same inputs the contract's liquidation uses: the curve from the Spoke's
+  // liquidation config and the max bonus of the position's dynamic config.
+  // An out-of-range curve is reported on `LB` rather than thrown, because
+  // this query also backs the collateral factor that `assertCfUnchanged`
+  // re-reads before every borrow and repay. Throwing here would let a
+  // split-sizing input block a repay, which is how a user reduces risk.
+  let LB: number | null = null;
+  let lbUnavailableReason: string | null = null;
+  try {
+    LB = computeSplitLiquidationBonus(
+      bonusConfig,
+      dynamicConfig.maxLiquidationBonus,
+    );
+  } catch (error) {
+    lbUnavailableReason =
+      error instanceof Error ? error.message : String(error);
+  }
+
   return {
     THF: SPLIT_TARGET_HEALTH_FACTOR,
     expectedHF: EXPECTED_HEALTH_FACTOR_AT_LIQUIDATION,
     CF: dynamicConfig.collateralFactor / BPS_SCALE,
-    // Same inputs the contract's liquidation uses: the curve from the Spoke's
-    // liquidation config and the max bonus of the position's dynamic config.
-    LB: computeSplitLiquidationBonus(
-      bonusConfig,
-      dynamicConfig.maxLiquidationBonus,
-    ),
+    LB,
+    lbUnavailableReason,
     maxLB: dynamicConfig.maxLiquidationBonus / BPS_SCALE,
   };
 }

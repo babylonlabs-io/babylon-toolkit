@@ -2417,10 +2417,16 @@ export const COPY = {
       // position. The amount lives here; the CTA label stays generic.
       addSacrificialSuggestion: (sacrificialBtc: string) =>
         `Adding a new BTCVault of ${sacrificialBtc} BTC enables partial-position liquidation.`,
-      // No affordable add: the sacrificial vault would be larger than the
-      // position, so splitting cannot protect it at these protocol parameters.
+      // No affordable add because of the parameters themselves: the seized
+      // share is at least half, so the sacrificial vault would have to be the
+      // larger of the two and splitting cannot protect the position at all.
       noSplitSuggestion:
         "Current protocol parameters do not allow BTCVault splitting as a protection strategy. Add collateral or repay part of the debt to keep this position safe.",
+      // No affordable add because of the position's size: splitting works at
+      // these parameters, but the smaller BTCVault would have to clear the
+      // minimum peg-in, which is not smaller than what is already here.
+      tooSmallToSplitSuggestion: (minimumBtc: string) =>
+        `This position is too small to split: a second BTCVault would need at least ${minimumBtc} BTC, which is not smaller than your current BTCVault. Add collateral or repay part of the debt to keep this position safe.`,
       // 2-vault / 3+ cliffs share the title/body/severity but carry their own
       // structural suggestion (reorder, or how much a smaller first BTCVault
       // would need), since a position with several vaults has other fixes.

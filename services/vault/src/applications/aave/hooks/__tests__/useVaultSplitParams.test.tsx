@@ -132,12 +132,13 @@ describe("useVaultSplitParams", () => {
       expectedHF: 0.99,
       CF: 0.75,
       LB: 1.0504,
+      lbUnavailableReason: null,
       maxLB: 1.0555,
     });
     expect(result.current.error).toBeNull();
   });
 
-  it("fails instead of guessing when the Spoke's bonus curve is out of range", async () => {
+  it("reports a null bonus instead of guessing when the Spoke's bonus curve is out of range", async () => {
     // healthFactorForMaxBonus must be below 1e18; the contract would never
     // accept this configuration.
     mockGetLiquidationBonusConfig.mockResolvedValue({
@@ -148,9 +149,15 @@ describe("useVaultSplitParams", () => {
     const { result } = renderHook(() => useVaultSplitParams(), { wrapper });
 
     await waitFor(() => {
-      expect(result.current.error).toBeInstanceOf(RangeError);
+      expect(result.current.isLoading).toBe(false);
     });
-    expect(result.current.params).toBeNull();
+
+    expect(result.current.params?.LB).toBeNull();
+    expect(result.current.params?.lbUnavailableReason).toBeTruthy();
+    // The query itself succeeds: the collateral factor still has to reach the
+    // borrow and repay pre-sign checks, which re-read it through this query.
+    expect(result.current.error).toBeNull();
+    expect(result.current.params?.CF).toBe(0.75);
   });
 
   it("passes reserveId and dynamicConfigKey to getDynamicReserveConfig", async () => {
@@ -265,6 +272,7 @@ describe("useVaultSplitParams", () => {
       expectedHF: 0.99,
       CF: 0.75,
       LB: 1.0504,
+      lbUnavailableReason: null,
       maxLB: 1.0555,
     });
   });

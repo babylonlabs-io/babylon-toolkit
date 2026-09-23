@@ -68,7 +68,11 @@ export function useOptimalSplit(
   const { minDeposit } = useProtocolParamsContext();
 
   const result = useMemo(() => {
-    if (!params) {
+    // A null bonus means the Spoke's curve is out of range. Every seizure
+    // formula below needs it, and substituting any other value would size the
+    // split against a bonus the protocol would not apply, so the split is
+    // refused the same way an unreadable parameter set is.
+    if (!params || params.LB === null) {
       return EMPTY_RESULT;
     }
 
@@ -117,6 +121,6 @@ export function useOptimalSplit(
   return {
     ...result,
     isLoading,
-    isParamsUnavailable: !params && error !== null,
+    isParamsUnavailable: (!params && error !== null) || params?.LB === null,
   };
 }

@@ -62,6 +62,7 @@ describe("validateBorrowPreSign", () => {
       expectedHF: 0.95,
       CF: 0.7,
       LB: 1.05,
+      lbUnavailableReason: null,
       maxLB: 1.05,
     });
     const refetchPosition = vi.fn().mockResolvedValue(null);
@@ -84,6 +85,7 @@ describe("validateBorrowPreSign", () => {
       expectedHF: 0.95,
       CF: 0.75,
       LB: 1.05,
+      lbUnavailableReason: null,
       maxLB: 1.05,
     });
     const refetchPosition = vi.fn().mockResolvedValue(null);
@@ -109,6 +111,7 @@ describe("validateBorrowPreSign", () => {
       expectedHF: 0.95,
       CF: 0.75,
       LB: 1.05,
+      lbUnavailableReason: null,
       maxLB: 1.05,
     });
     const refetchPosition = vi
@@ -133,6 +136,7 @@ describe("validateBorrowPreSign", () => {
       expectedHF: 0.95,
       CF: 0.75,
       LB: 1.05,
+      lbUnavailableReason: null,
       maxLB: 1.05,
     });
     const refetchPosition = vi
@@ -165,6 +169,7 @@ describe("validateBorrowPreSign", () => {
       expectedHF: 0.95,
       CF: 0.75,
       LB: 1.05,
+      lbUnavailableReason: null,
       maxLB: 1.05,
     });
     const refetchPosition = vi
@@ -209,7 +214,14 @@ describe("validateBorrowPreSign", () => {
     const refetchSplitParams = vi.fn(async () => {
       splitParamsCallStarted();
       await Promise.resolve();
-      return { THF: 1.1, expectedHF: 0.95, CF: 0.75, LB: 1.05, maxLB: 1.05 };
+      return {
+        THF: 1.1,
+        expectedHF: 0.95,
+        CF: 0.75,
+        LB: 1.05,
+        lbUnavailableReason: null,
+        maxLB: 1.05,
+      };
     });
     const refetchPosition = vi.fn(async () => {
       positionCallStarted();
@@ -240,6 +252,7 @@ describe("validateBorrowPreSign", () => {
       expectedHF: 0.95,
       CF: 0.75,
       LB: 1.05,
+      lbUnavailableReason: null,
       maxLB: 1.05,
     });
     const refetchPosition = vi
