@@ -267,6 +267,10 @@ let protocolStatusOverride: ProtocolStatus | null = null;
 // production banding. null = live.
 let healthFactorOverride: number | null = null;
 let borrowCapacityStateOverride: DebugBorrowCapacityState | null = null;
+// Spoke borrow-reserve cap. It is a contract immutable, so there is no way to
+// exercise the single-borrow-asset surfaces on a spoke deployed unlimited
+// without forcing it here. null = live (the value read from the Spoke).
+let borrowReserveLimitOverride: number | null = null;
 
 const listeners = new Set<() => void>();
 
@@ -327,6 +331,12 @@ export function setDebugBorrowCapacityStateOverride(
   emit();
 }
 
+/** Force (a finite cap) or release (null) the Spoke's borrow-reserve cap. */
+export function setDebugBorrowReserveLimitOverride(limit: number | null) {
+  borrowReserveLimitOverride = limit;
+  emit();
+}
+
 function getManualMode() {
   return manualMode;
 }
@@ -375,6 +385,18 @@ function getBorrowCapacity(): DebugBorrowCapacity | null {
   const state = getBorrowCapacityStateOverride();
   if (!state || !DEBUG_BORROW_CAPACITY_SNAPSHOTS) return null;
   return DEBUG_BORROW_CAPACITY_SNAPSHOTS[state];
+}
+
+function getBorrowReserveLimitOverride(): number | null {
+  return borrowReserveLimitOverride;
+}
+
+export function useDebugBorrowReserveLimitOverride(): number | null {
+  return useSyncExternalStore(
+    subscribe,
+    getBorrowReserveLimitOverride,
+    getBorrowReserveLimitOverride,
+  );
 }
 
 export function useDebugMaxVaultsOverride(): number | null {
