@@ -161,11 +161,18 @@ When the file does not exist yet, write:
    approaches stop reviewers, human and AI, from re-proposing them.
 5. **Not in this PR**: deliberate omissions. Every finding whose **decision**
    is `follow-up` and whose **status** is neither `fixed` nor `moot` is listed
-   here as `- <follow-up> (pre-review #<id>)`, regenerated every run, so one
+   here as `- <follow-up> (pre-review N<id>)`, regenerated every run, so one
    that is later fixed drops out. Keyed on the decision rather than the
    outcome so a deferred merge-blocker stays listed — its outcome is
    `open — merge-blocker` — and guarded on the status so a fixed follow-up
    does not keep advertising itself as a deliberate omission.
+
+   **Never write a finding id as `#<id>`,** here or anywhere else in the
+   description. This file becomes the PR body, where GitHub turns `#97` into
+   a link to issue or PR 97 — a real, unrelated one, in every description the
+   loop produces. Use `N<id>` in prose and a bare number in the record
+   table's `N` column. `#` stays for genuine issue and PR references, which
+   is what a reader of a PR body will take it to mean.
 6. **Pre-review**: the collapsed record, regenerated every run:
 
    ```
@@ -174,7 +181,7 @@ When the file does not exist yet, write:
 
    <!-- pre-review-snapshot v1 base=… branch=… reviewed-at=… tier=… files=… files-sha256=… -->
 
-   | # | Finding | Severity | Outcome |
+   | N | Finding | Severity | Outcome |
    |---|---|---|---|
    | 3 | <one-line claim> | merge-blocker | fixed |
    | 7 | <one-line claim> | normal | follow-up: <what> |

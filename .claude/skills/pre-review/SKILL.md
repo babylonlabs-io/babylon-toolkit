@@ -127,7 +127,7 @@ separately, at full price each. Do it yourself.
    hand-written "Not in this PR" bullet describing an open *declined*
    blocker matches neither the first clause (wrong decision) nor a clause
    scoped to "elsewhere", and descriptions written by hand — carrying no
-   `(pre-review #<id>)` markers — are the expected case, not the exception.
+   `(pre-review N<id>)` markers — are the expected case, not the exception.
 
    Both extensions are load bearing, and both failed on this skill's own
    branch the first run that could exercise them. Keying only on
@@ -151,7 +151,7 @@ separately, at full price each. Do it yourself.
    "what is deliberately left out" — the second of the two questions this step
    asks — and dropping it makes reviewers re-raise settled scope every run,
    which is the cost this exclusion exists to avoid. Match against the stored
-   findings, not against the `(pre-review #<id>)` marker: a description
+   findings, not against the `(pre-review N<id>)` marker: a description
    written or edited by hand carries no markers, including on its genuine
    follow-ups.
 
