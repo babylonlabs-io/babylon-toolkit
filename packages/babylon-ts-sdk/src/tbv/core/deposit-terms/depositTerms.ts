@@ -151,6 +151,51 @@ export interface PrePeginChangeSource {
   getChangeAddress(): Promise<string>;
 }
 
+/**
+ * The two BIP-86 branches a funding address can sit on: 0 receive, 1 change
+ * (BIP-44's `change` level; the device policy `tr(@0/**)` covers both).
+ */
+export const BIP86_FUNDING_BRANCHES: readonly number[] = [0, 1];
+
+/** Highest non-hardened BIP-32 child index. */
+export const MAX_NON_HARDENED_INDEX = 0x7fffffff;
+
+/**
+ * One address a Pre-PegIn may be funded from, with the key and path that own
+ * it. The whole tuple MUST come from the wallet's policy account xpub: it is
+ * the only link between an outpoint and a key the device will sign with.
+ */
+export interface FundingAddress {
+  /** Address to list UTXOs for. */
+  address: string;
+  /** x-only internal key that owns the address's script (64-char hex, no `0x`). */
+  internalPubkeyHex: string;
+  /** One of {@link BIP86_FUNDING_BRANCHES}. */
+  branch: number;
+  /** Address index within the branch, at most {@link MAX_NON_HARDENED_INDEX}. */
+  addressIndex: number;
+}
+
+/**
+ * Which of the wallet's addresses may fund a Pre-PegIn. Only a policy wallet
+ * (with an account xpub) can answer; a wallet without it funds from its
+ * connected address alone. The set MUST include the connected receive address
+ * and MUST be a function of it (consumers read it once per connected address).
+ */
+export interface PrePeginFundingSource {
+  getFundingAddresses(): Promise<FundingAddress[]>;
+}
+
+/** Probes {@link PrePeginFundingSource.getFundingAddresses}. */
+export function supportsMultiAddressFunding(
+  wallet: BitcoinWallet,
+): wallet is BitcoinWallet & PrePeginFundingSource {
+  return (
+    typeof (wallet as Partial<PrePeginFundingSource>).getFundingAddresses ===
+    "function"
+  );
+}
+
 /** Probes {@link DepositTermsApprover.approveDepositTerms}. */
 export function supportsDepositApproval(
   wallet: BitcoinWallet,
@@ -185,21 +230,32 @@ export async function requireChangeAddress(
 }
 
 /**
- * Spreadable forward of the approval capability for wallet-wrapper objects.
+ * Spreadable forward of the wallet capabilities the Pre-PegIn build probes for.
  * Object spread drops prototype methods, so every `{...wallet}` wrapper site
- * must re-attach the capability explicitly: `...forwardDepositApproval(wallet)`.
+ * must re-attach them explicitly: `...forwardDepositApproval(wallet)`.
+ * Each capability is forwarded on its own probe; the three are independent.
  */
 export function forwardDepositApproval(
   wallet: BitcoinWallet,
-): Partial<DepositTermsApprover & PrePeginChangeSource> {
+): Partial<
+  DepositTermsApprover & PrePeginChangeSource & PrePeginFundingSource
+> {
+  const getFundingAddresses = (wallet as Partial<PrePeginFundingSource>)
+    .getFundingAddresses;
+  const fundingSource =
+    typeof getFundingAddresses === "function"
+      ? { getFundingAddresses: () => getFundingAddresses.call(wallet) }
+      : {};
+
   if (!supportsDepositApproval(wallet)) {
-    return {};
+    return fundingSource;
   }
   const holdsApprovedDepositTerms = wallet.holdsApprovedDepositTerms;
   const validateDepositTerms = wallet.validateDepositTerms;
   const getChangeAddress = (wallet as Partial<PrePeginChangeSource>)
     .getChangeAddress;
   return {
+    ...fundingSource,
     approveDepositTerms: (terms) => wallet.approveDepositTerms(terms),
     // All optional in the seam: forward only what the provider implements, so
     // wrapper consumers can keep probing by typeof.

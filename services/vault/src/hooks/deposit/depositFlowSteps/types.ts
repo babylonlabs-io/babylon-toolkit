@@ -79,6 +79,11 @@ export interface DepositUtxo {
   vout: number;
   value: number;
   scriptPubKey: string;
+  /**
+   * x-only key that owns `scriptPubKey` (multi-address funding only). Carried
+   * unchanged from the listing to the broadcast: the input is signed under it.
+   */
+  internalPubkeyHex?: string;
 }
 
 /** Minimal UTXO reference for reservation tracking */

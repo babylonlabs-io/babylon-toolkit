@@ -15,6 +15,8 @@ import {
   assertRefundPsbtSignable,
   augmentPsbtForRefund,
   augmentPsbtForWalletPolicy,
+  BIP86_CHANGE_BRANCH,
+  BIP86_RECEIVE_BRANCH,
   buildDefaultTaprootPolicy,
   buildPopPsbtHex,
   classifyRefundPsbt,
@@ -22,6 +24,7 @@ import {
   createDmkApduSender,
   createDmkRawApduSender,
   DepositTermsRejectedError,
+  deriveAuthorizedKeyPathLeaves,
   deriveChangeXOnlyHex,
   deriveContextHash,
   deriveReceiveXOnlyHex,
@@ -49,16 +52,19 @@ import {
   SW_CLA_NOT_SUPPORTED,
   SW_INS_NOT_SUPPORTED,
   type ApduSender,
+  type AuthorizedKeyPathLeaves,
   type DefaultTaprootWalletPolicy,
   type DepositTerms,
   type DmkSessionHandle,
   type IntentScalars,
   type IntentVaultGroup,
+  type KeyPathLeaf,
   type PreparedSignPsbt,
   type RawApduSender,
   type RefundPsbtClassification,
   type SignVaultPsbtResult,
 } from "@babylonlabs-io/ledger-vault-signer";
+import { Psbt } from "bitcoinjs-lib";
 
 import type { IBTCProvider, InscriptionIdentifier, SigningProgress, SignPsbtOptions } from "@/core/types";
 import { Network } from "@/core/types";
@@ -94,7 +100,6 @@ const APP_NAME_BY_NETWORK: Record<Network, string> = {
 // envelope caps and refund checks are mirrored from.
 const MIN_APP_VERSION = "0.10.1";
 const ACCOUNT_INDEX = 0;
-const CHANGE_INDEX = 0;
 const ADDRESS_INDEX = 0;
 const FIRST_CHANGE_INDEX = 0;
 const HARDENED = 0x80000000;
@@ -150,6 +155,22 @@ interface StagedPsbt {
    * replay guard and the pessimistic mirror reset.
    */
   readonly standaloneRefund: boolean;
+}
+
+/**
+ * Does the PSBT carry a key-path candidate (TAP_INTERNAL_KEY, no
+ * TAP_LEAF_SCRIPT)? A hint for whether to derive the authorized set first;
+ * the signer still applies every rule.
+ */
+function hasKeyPathCandidateInput(psbtHex: string): boolean {
+  let psbt: Psbt;
+  try {
+    psbt = Psbt.fromHex(psbtHex);
+  } catch {
+    // `prepareSignPsbt` parses the same bytes next and reports it typed.
+    return false;
+  }
+  return psbt.data.inputs.some((input) => input.tapInternalKey !== undefined && !input.tapLeafScript?.length);
 }
 
 /**
@@ -268,7 +289,9 @@ export class LedgerVaultProvider implements IBTCProvider {
       BIP86_PURPOSE + HARDENED,
       COIN_TYPE_BY_NETWORK[this.network] + HARDENED,
       ACCOUNT_INDEX + HARDENED,
-      CHANGE_INDEX,
+      // The depositor identity lives on the receive branch; the signer refuses
+      // any other branch here (`assertDepositorPathUnderPolicy`).
+      BIP86_RECEIVE_BRANCH,
       ADDRESS_INDEX,
     ];
   }
@@ -578,6 +601,55 @@ export class LedgerVaultProvider implements IBTCProvider {
       this.assertSameConnection(generation);
       return getTaprootAddress(changeXOnlyHex, this.network);
     });
+
+  /**
+   * The addresses a Pre-PegIn may be funded from: the connected receive
+   * address and the one change address this provider uses (`/1/0`). Keys come
+   * from the policy account xpub; the device signs inputs on either branch
+   * (`base:process_in_outs.c:82-128`).
+   */
+  getFundingAddresses = async (): Promise<
+    {
+      address: string;
+      internalPubkeyHex: string;
+      branch: number;
+      addressIndex: number;
+    }[]
+  > =>
+    this.withDeviceOperation("getFundingAddresses", async () => {
+      const generation = this.connectionGeneration;
+      const [depositorXOnlyHex, { policy }] = await Promise.all([this.getDevicePubkeyHex(), this.getPolicyContext()]);
+      // Both reads can be served from a cache filled by a previous
+      // connection; a reconnect mid-read must not hand back a mix.
+      this.assertSameConnection(generation);
+      return this.authorizedKeyPathLeaves(policy, depositorXOnlyHex).leaves.map((leaf) => ({
+        address: getTaprootAddress(leaf.xOnlyHex, this.network),
+        internalPubkeyHex: leaf.xOnlyHex,
+        branch: leaf.branch,
+        addressIndex: leaf.addressIndex,
+      }));
+    });
+
+  /** The one change leaf this provider ever pays. */
+  private get fundingLeaves(): readonly KeyPathLeaf[] {
+    return [{ branch: BIP86_CHANGE_BRANCH, addressIndex: FIRST_CHANGE_INDEX }];
+  }
+
+  /**
+   * The authorized key-path set: depositor first, then {@link fundingLeaves}.
+   * One derivation feeds both `getFundingAddresses` and `stagePsbt`.
+   */
+  private authorizedKeyPathLeaves(
+    policy: DefaultTaprootWalletPolicy,
+    depositorXOnlyHex: string,
+  ): AuthorizedKeyPathLeaves {
+    return deriveAuthorizedKeyPathLeaves({
+      walletPolicy: policy,
+      depositorXOnlyHex,
+      depositorPath: this.depositorPath,
+      fundingLeaves: this.fundingLeaves,
+    });
+  }
 
   /**
    * Derive the 32-byte context root, always with the approval screen — a
@@ -1087,11 +1159,30 @@ export class LedgerVaultProvider implements IBTCProvider {
     // on the device-read key instead, and `useTweakedSigner` is inert because the
     // device picks tweaking from the spend type (`base:sign_input.c:430-433`).
     const signInputIndexes = options?.signInputs?.map((input) => input.index);
+    // A change-branch input needs the authorized set at classification time;
+    // deriving it costs the policy context, so only key-path candidates pay.
+    const keyPathCandidate = hasKeyPathCandidateInput(psbtHex);
+    // The policy read below may have exchanged APDUs on a cold cache — a
+    // rejection after it is "before the ceremony", not "before device I/O".
+    const preflightLabel = keyPathCandidate
+      ? `${label} rejected before the signing ceremony`
+      : `${label} rejected before device I/O`;
+    let authorizedKeyPathLeaves: AuthorizedKeyPathLeaves | undefined;
+    if (keyPathCandidate) {
+      // Read outside the try: a disconnect here is a connection error, and
+      // re-wrapping it as INVALID_PARAMS would blame the caller's PSBT.
+      const { policy } = await this.getPolicyContext();
+      try {
+        authorizedKeyPathLeaves = this.authorizedKeyPathLeaves(policy, depositorXOnlyHex);
+      } catch (error) {
+        throw toStagingWalletError(error, preflightLabel);
+      }
+    }
     let prepared: PreparedSignPsbt;
     try {
-      prepared = prepareSignPsbt({ psbtHex, depositorXOnlyHex, signInputIndexes });
+      prepared = prepareSignPsbt({ psbtHex, depositorXOnlyHex, signInputIndexes, authorizedKeyPathLeaves });
     } catch (error) {
-      throw toStagingWalletError(error, `${label} rejected before device I/O`);
+      throw toStagingWalletError(error, preflightLabel);
     }
     // Unnarrowed: the flow a PSBT belongs to is not something the caller's
     // requested set gets to change, or a key-path input could hide behind it.
@@ -1121,6 +1212,9 @@ export class LedgerVaultProvider implements IBTCProvider {
           // A Pre-PegIn legitimately has no change (dust-revert, and the Max
           // sweep by design) — marking it only when the PSBT actually pays it.
           change: psbtPaysChangeScript(psbtHex, changeXOnlyHex) ? { addressIndex: FIRST_CHANGE_INDEX } : undefined,
+          // Each input is declared at the leaf that owns it; the signer
+          // derives these leaves' keys from the policy xpub itself.
+          fundingLeaves: this.fundingLeaves,
         });
       } catch (error) {
         throw toStagingWalletError(error, `${label} rejected before device I/O`);
@@ -1129,7 +1223,12 @@ export class LedgerVaultProvider implements IBTCProvider {
         // Pass the AUGMENTED hex: the signer's merge target is whatever hex it
         // prepared, so the SDK gets the derivation fields back with the tapKeySig.
         // No signInputIndexes: it narrows tapscript only, and this path is key-path.
-        prepared = prepareSignPsbt({ psbtHex: augmented, depositorXOnlyHex, walletPolicy: policy });
+        prepared = prepareSignPsbt({
+          psbtHex: augmented,
+          depositorXOnlyHex,
+          walletPolicy: policy,
+          authorizedKeyPathLeaves,
+        });
       } catch (error) {
         throw toStagingWalletError(error, `${label} rejected at policy-mode prepare`);
       }

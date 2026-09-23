@@ -3844,6 +3844,10 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/mempool/types.ts](http
 
 UTXO information from mempool API.
 
+#### Extended by
+
+- [`FundingUtxo`](services.md#fundingutxo)
+
 #### Properties
 
 ##### txid
@@ -6743,6 +6747,12 @@ Calls the esplora-compatible `GET /tx/{txid}/outspend/{vout}` endpoint
 (mempool.space backend, mempool/electrs `rest.rs`). Returns
 `{ spent: false }` for an unspent output, or
 `{ spent: true, txid, vin, status }` when the output has been spent.
+
+electrs semantics only: an unknown parent also answers `{ spent: false }`
+(`rest.rs`), so existence needs a separate output read; and a
+bitcoind-backed mempool instance (`BACKEND=electrum|none`, `gettxout` with
+`include_mempool=false`) reads a mempool spend as unspent. Point this client
+only at an electrs-served API.
 
 #### Parameters
 

@@ -1021,6 +1021,15 @@ export const COPY = {
         title: "Bitcoin funds unavailable",
         body: "We couldn't confirm your Bitcoin funds are available. They may be in use by another deposit. Please try again in a moment.",
       },
+      // Pre-registration only: a selected input's on-chain script or amount
+      // is not what it was listed as. The listing is being re-read when this
+      // shows (the flow drops it in the same error path), so a retry starts
+      // fresh. "wasn't registered", not "wasn't started": a Ledger user has
+      // already approved the proof of possession on the device by this point.
+      inputPrevoutMismatch: {
+        title: "Bitcoin funds could not be verified",
+        body: "One of the selected Bitcoin inputs doesn't match what the Bitcoin network reports for it, so this deposit wasn't registered. Your funds are being re-read; please try again.",
+      },
       // Post-registration only: a Pre-Pegin input was not found unspent. One
       // mempool read decides this, so point at the dashboard, not at a
       // new deposit; the registration expires on its own if it stays true.

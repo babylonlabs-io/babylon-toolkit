@@ -2,21 +2,50 @@
  * Tests for useUTXOs hook
  */
 
+import { getAddressUtxos } from "@babylonlabs-io/ts-sdk";
 import { useQuery } from "@tanstack/react-query";
 import { renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useAppState } from "../../state/AppState";
 import { useOrdinals } from "../useOrdinals";
-import { useUTXOs } from "../useUTXOs";
+import {
+  FUNDING_ADDRESSES_QUERY_KEY,
+  SINGLE_ADDRESS_LISTING_KEY,
+  UTXOS_QUERY_KEY,
+  useUTXOs,
+} from "../useUTXOs";
 
 // Mock ts-sdk to avoid ecc library initialization
 vi.mock("@babylonlabs-io/ts-sdk", () => ({
   getAddressUtxos: vi.fn(),
 }));
 
-// Mock wallet-connector
+// The capability probe is the SDK's `typeof getFundingAddresses === "function"`;
+// restated here so the barrel (and its ecc initialisation) stays out of the test.
+vi.mock("@babylonlabs-io/ts-sdk/tbv/core", () => ({
+  supportsMultiAddressFunding: (wallet: { getFundingAddresses?: unknown }) =>
+    typeof wallet.getFundingAddresses === "function",
+}));
+
+const { mockCollectFundingUtxos } = vi.hoisted(() => ({
+  mockCollectFundingUtxos: vi.fn(),
+}));
+vi.mock("@babylonlabs-io/ts-sdk/tbv/core/services", () => ({
+  collectFundingUtxos: mockCollectFundingUtxos,
+}));
+
+vi.mock("@/config/pegin", () => ({
+  getBTCNetworkForWASM: vi.fn(() => "signet"),
+}));
+
+// Mock wallet-connector. No connected wallet by default: the single-address
+// path, which every test below this file's multi-address section exercises.
+const { mockUseChainConnector } = vi.hoisted(() => ({
+  mockUseChainConnector: vi.fn(() => null),
+}));
 vi.mock("@babylonlabs-io/wallet-connector", () => ({
+  useChainConnector: mockUseChainConnector,
   filterInscriptionUtxos: vi.fn((utxos, inscriptions) => {
     const inscriptionSet = new Set(
       inscriptions.map(
@@ -92,6 +121,7 @@ describe("useUTXOs", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockUseAppState.mockReturnValue({ ordinalsExcluded: true });
+    mockUseChainConnector.mockReturnValue(null);
   });
 
   describe("ordinals classification gating", () => {
@@ -257,6 +287,176 @@ describe("useUTXOs", () => {
       const { result } = renderHook(() => useUTXOs(testAddress));
 
       expect(result.current.unconfirmedBalance).toBe(0n);
+    });
+  });
+
+  describe("multi-address funding", () => {
+    const receiveAddress = "tb1preceive";
+    const changeAddress = "tb1pchange";
+    const fundingAddresses = [
+      {
+        address: receiveAddress,
+        internalPubkeyHex: "aa".repeat(32),
+        branch: 0,
+        addressIndex: 0,
+      },
+      {
+        address: changeAddress,
+        internalPubkeyHex: "bb".repeat(32),
+        branch: 1,
+        addressIndex: 0,
+      },
+    ];
+    const idleQuery = {
+      data: undefined,
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    };
+
+    function connectWallet(provider: object) {
+      mockUseChainConnector.mockReturnValue({
+        connectedWallet: { provider },
+      } as never);
+    }
+
+    /** Route the mocked `useQuery` by the key's first element. */
+    function answerQueries(
+      funding: Record<string, unknown>,
+      utxos: Record<string, unknown>,
+    ) {
+      mockUseQuery.mockImplementation((options: { queryKey: unknown[] }) =>
+        options.queryKey[0] === FUNDING_ADDRESSES_QUERY_KEY ? funding : utxos,
+      );
+    }
+
+    function optionsFor(key: string) {
+      const call = mockUseQuery.mock.calls.find(
+        ([options]) => options.queryKey[0] === key,
+      );
+      if (!call) throw new Error(`useQuery was not called for ${key}`);
+      return call[0];
+    }
+
+    beforeEach(() => {
+      mockUseOrdinals.mockReturnValue({
+        inscriptions: [],
+        isLoading: false,
+        error: null,
+        refetch: vi.fn(),
+      });
+    });
+
+    it("reads the wallet's address set once per connection and lists nothing until it arrives", async () => {
+      const getFundingAddresses = vi.fn().mockResolvedValue(fundingAddresses);
+      connectWallet({ getFundingAddresses });
+      answerQueries({ ...idleQuery, isLoading: true }, idleQuery);
+
+      const { result } = renderHook(() => useUTXOs(receiveAddress));
+
+      const addressOptions = optionsFor(FUNDING_ADDRESSES_QUERY_KEY);
+      expect(addressOptions.queryKey).toEqual([
+        FUNDING_ADDRESSES_QUERY_KEY,
+        receiveAddress,
+      ]);
+      expect(addressOptions.enabled).toBe(true);
+      expect(addressOptions.staleTime).toBe(Infinity);
+      // The query reads the set from the wallet itself, nothing else.
+      await expect(addressOptions.queryFn()).resolves.toBe(fundingAddresses);
+      expect(getFundingAddresses).toHaveBeenCalledTimes(1);
+
+      expect(optionsFor(UTXOS_QUERY_KEY).enabled).toBe(false);
+      expect(result.current.isLoading).toBe(true);
+      expect(result.current.spendableUTXOs).toEqual([]);
+    });
+
+    it("refuses to list the connected address alone while the address set is pending, even when refetched", async () => {
+      connectWallet({ getFundingAddresses: vi.fn() });
+      answerQueries({ ...idleQuery, isLoading: true }, idleQuery);
+
+      renderHook(() => useUTXOs(receiveAddress));
+
+      // `refetch()` runs the query function regardless of `enabled`.
+      await expect(optionsFor(UTXOS_QUERY_KEY).queryFn()).rejects.toThrow(
+        "Cannot list UTXOs before the wallet's funding-address set is read",
+      );
+      expect(getAddressUtxos).not.toHaveBeenCalled();
+      expect(mockCollectFundingUtxos).not.toHaveBeenCalled();
+    });
+
+    it("lists every funding address and keeps each UTXO's owning key on the spendable set", async () => {
+      connectWallet({ getFundingAddresses: vi.fn() });
+      const changeUtxo = {
+        ...createMempoolUtxo("changetx", 1, 70000),
+        internalPubkeyHex: "bb".repeat(32),
+        address: changeAddress,
+      };
+      mockCollectFundingUtxos.mockResolvedValue([changeUtxo]);
+      answerQueries(
+        { ...idleQuery, data: fundingAddresses },
+        { ...idleQuery, data: [changeUtxo] },
+      );
+
+      const { result } = renderHook(() => useUTXOs(receiveAddress));
+
+      const utxoOptions = optionsFor(UTXOS_QUERY_KEY);
+      expect(utxoOptions.queryKey).toEqual([
+        UTXOS_QUERY_KEY,
+        receiveAddress,
+        [receiveAddress, changeAddress],
+      ]);
+      expect(utxoOptions.enabled).toBe(true);
+
+      await expect(utxoOptions.queryFn()).resolves.toEqual([changeUtxo]);
+      expect(mockCollectFundingUtxos).toHaveBeenCalledWith({
+        addresses: fundingAddresses,
+        network: "signet",
+        listAddressUtxos: expect.any(Function),
+      });
+      const { listAddressUtxos } = mockCollectFundingUtxos.mock.calls[0][0];
+      listAddressUtxos(changeAddress);
+      expect(getAddressUtxos).toHaveBeenCalledWith(
+        changeAddress,
+        "https://mempool.test/api",
+      );
+
+      expect(result.current.spendableUTXOs).toEqual([
+        {
+          txid: "changetx",
+          vout: 1,
+          value: 70000,
+          scriptPubKey: "0014abcd1234",
+          internalPubkeyHex: "bb".repeat(32),
+        },
+      ]);
+    });
+
+    it("surfaces a failed address read as the hook's error", () => {
+      connectWallet({ getFundingAddresses: vi.fn() });
+      const deviceError = new Error("device busy");
+      answerQueries({ ...idleQuery, error: deviceError }, idleQuery);
+
+      const { result } = renderHook(() => useUTXOs(receiveAddress));
+
+      expect(result.current.error).toBe(deviceError);
+      expect(optionsFor(UTXOS_QUERY_KEY).enabled).toBe(false);
+    });
+
+    it("lists only the connected address for a wallet that cannot enumerate its addresses", async () => {
+      connectWallet({ signPsbt: vi.fn() });
+      answerQueries(idleQuery, { ...idleQuery, data: [] });
+
+      renderHook(() => useUTXOs(receiveAddress));
+
+      expect(optionsFor(FUNDING_ADDRESSES_QUERY_KEY).enabled).toBe(false);
+      const utxoOptions = optionsFor(UTXOS_QUERY_KEY);
+      expect(utxoOptions.queryKey[2]).toBe(SINGLE_ADDRESS_LISTING_KEY);
+      await utxoOptions.queryFn();
+      expect(getAddressUtxos).toHaveBeenCalledWith(
+        receiveAddress,
+        "https://mempool.test/api",
+      );
+      expect(mockCollectFundingUtxos).not.toHaveBeenCalled();
     });
   });
 });

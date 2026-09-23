@@ -94,7 +94,6 @@ function isValidVout(vout: number, outputCount?: number): boolean {
   return outputCount === undefined || vout < outputCount;
 }
 
-
 function assertValidTxid(txid: string): void {
   if (!TXID_RE.test(txid)) {
     throw new Error(`Invalid transaction ID format: ${txid}`);
@@ -109,9 +108,7 @@ function assertValidAddress(address: string): void {
 
 function assertValidScriptPubKey(scriptPubKey: string, context: string): void {
   if (!HEX_RE.test(scriptPubKey)) {
-    throw new Error(
-      `Invalid scriptPubKey: not valid hex for ${context}`,
-    );
+    throw new Error(`Invalid scriptPubKey: not valid hex for ${context}`);
   }
   const matchesKnownType = KNOWN_SCRIPT_PREFIXES.some((prefix) =>
     scriptPubKey.toLowerCase().startsWith(prefix),
@@ -136,10 +133,7 @@ export const MEMPOOL_API_URLS = {
 /**
  * Fetch wrapper with error handling.
  */
-async function fetchApi<T>(
-  url: string,
-  options?: RequestInit,
-): Promise<T> {
+async function fetchApi<T>(url: string, options?: RequestInit): Promise<T> {
   try {
     const response = await fetchWithTimeout(url, options);
 
@@ -259,6 +253,12 @@ export async function getTipHeight(apiUrl: string): Promise<number> {
  * `{ spent: false }` for an unspent output, or
  * `{ spent: true, txid, vin, status }` when the output has been spent.
  *
+ * electrs semantics only: an unknown parent also answers `{ spent: false }`
+ * (`rest.rs`), so existence needs a separate output read; and a
+ * bitcoind-backed mempool instance (`BACKEND=electrum|none`, `gettxout` with
+ * `include_mempool=false`) reads a mempool spend as unspent. Point this client
+ * only at an electrs-served API.
+ *
  * @param txid - The transaction id whose output is being checked (no 0x prefix)
  * @param vout - The output index
  * @param apiUrl - Mempool API base URL
@@ -299,7 +299,9 @@ export async function getTxHex(txid: string, apiUrl: string): Promise<string> {
     return await response.text();
   } catch (error) {
     if (error instanceof Error) {
-      throw new Error(`Failed to get transaction hex for ${txid}: ${error.message}`);
+      throw new Error(
+        `Failed to get transaction hex for ${txid}: ${error.message}`,
+      );
     }
     throw new Error(`Failed to get transaction hex for ${txid}: Unknown error`);
   }
@@ -515,4 +517,3 @@ export async function getNetworkFees(apiUrl: string): Promise<NetworkFees> {
 
   return data as NetworkFees;
 }
-

@@ -30,7 +30,10 @@ import {
   VpResponseValidationError,
   vpTokenRegistry,
 } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
-import { computeHashlock } from "@babylonlabs-io/ts-sdk/tbv/core/services";
+import {
+  computeHashlock,
+  InputPrevoutMismatchError,
+} from "@babylonlabs-io/ts-sdk/tbv/core/services";
 import { UtxoNotAvailableError } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
 import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { useQueryClient } from "@tanstack/react-query";
@@ -856,9 +859,12 @@ export function useDepositFlow(
         // (potentially lengthy) PoP signing step. It does not eliminate the
         // race entirely — UTXOs could still be spent between this check and
         // the BTC broadcast — but it prevents the most likely failure mode.
+        // The selected UTXOs go with it: an input the chain describes with
+        // another script or value was mislabelled by the listing and could
+        // never be signed correctly — refused before registration.
         await assertUtxosAvailable(
           batchResult.fundedPrePeginTxHex,
-          confirmedBtcAddress,
+          utxosToExpectedRecord(batchResult.selectedUTXOs),
         );
 
         try {
@@ -970,6 +976,10 @@ export function useDepositFlow(
               vout: u.vout,
               value: String(u.value),
               scriptPubKey: u.scriptPubKey,
+              // Owning key, when the deposit spans addresses. JSON drops an
+              // undefined property, so a single-address record stays as it
+              // was and the read guard's all-or-none rule holds either way.
+              internalPubkeyHex: u.internalPubkeyHex,
             })),
             // Persist the exact versions the BTC scripts were built against.
             // The resume broadcast path re-asserts these against the on-chain
@@ -1120,11 +1130,11 @@ export function useDepositFlow(
         // The inputs were validated before ETH registration; the gate
         // stretched that window to minutes, so re-check before signing. A
         // spent input is terminal for these vaults; a fetch failure is not.
+        // Spend status only: the scripts were bound to their outpoints by the
+        // pre-registration check above on these same inputs, and the signing
+        // site re-reads every outpoint again.
         try {
-          await assertUtxosAvailable(
-            batchResult.fundedPrePeginTxHex,
-            confirmedBtcAddress,
-          );
+          await assertUtxosAvailable(batchResult.fundedPrePeginTxHex);
         } catch (err) {
           postGateUtxoFetchFailed = !(err instanceof UtxoNotAvailableError);
           throw err;
@@ -1690,6 +1700,15 @@ export function useDepositFlow(
           warnings: warnings.length > 0 ? warnings : undefined,
         };
       } catch (err: unknown) {
+        // A UTXO the chain describes differently is refused before
+        // registration — but the listing that produced it is cached, so a
+        // retry would select it again. Drop the listing.
+        if (err instanceof InputPrevoutMismatchError && btcAddress) {
+          void queryClient.invalidateQueries({
+            queryKey: [UTXOS_QUERY_KEY, btcAddress],
+          });
+        }
+
         // On user-cancel, release any registry entries we primed so
         // `authAnchorHex` doesn't outlive the abandoned flow. On other
         // errors keep the entries — the user may retry, in which case

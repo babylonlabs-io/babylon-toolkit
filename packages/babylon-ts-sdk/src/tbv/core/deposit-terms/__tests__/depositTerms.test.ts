@@ -5,6 +5,7 @@ import {
   forwardDepositApproval,
   requireChangeAddress,
   supportsDepositApproval,
+  supportsMultiAddressFunding,
 } from "../depositTerms";
 
 const base = {} as BitcoinWallet;
@@ -25,6 +26,21 @@ describe("forwardDepositApproval", () => {
   it("forwards nothing for software wallets and keeps the probe on approveDepositTerms", () => {
     expect(forwardDepositApproval(base)).toEqual({});
     expect(supportsDepositApproval(base)).toBe(false);
+  });
+
+  it("forwards getFundingAddresses for a wallet that cannot approve terms", async () => {
+    // The two capabilities are probed independently, so forwarding must be
+    // too: dropping this one at a wrapper site falls back to single-address
+    // funding, and the change branch becomes unspendable again.
+    const fundingOnly = Object.assign(Object.create({}), base, {
+      getFundingAddresses: vi.fn(async () => []),
+    });
+
+    const fwd = forwardDepositApproval(fundingOnly);
+
+    expect(fwd.approveDepositTerms).toBeUndefined();
+    await expect(fwd.getFundingAddresses!()).resolves.toEqual([]);
+    expect(fundingOnly.getFundingAddresses).toHaveBeenCalledOnce();
   });
 
   it("still recognizes an approver that cannot report a change address", () => {
@@ -77,6 +93,33 @@ describe("forwardDepositApproval", () => {
     expect(withProbe.holdsApprovedDepositTerms).toHaveBeenCalledOnce();
   });
 
+  it("forwards getFundingAddresses only when the wallet implements it", async () => {
+    // Object spread drops prototype methods, so a wrapper that lost this
+    // would silently fall back to single-address funding — and a deposit
+    // funded from the change branch would be signed under the wrong key.
+    const withoutFunding = Object.assign(Object.create({}), base, {
+      approveDepositTerms: vi.fn(async () => {}),
+    });
+    expect(
+      forwardDepositApproval(withoutFunding).getFundingAddresses,
+    ).toBeUndefined();
+
+    const addresses = [
+      {
+        address: "tb1preceive",
+        internalPubkeyHex: "aa".repeat(32),
+        branch: 0,
+        addressIndex: 0,
+      },
+    ];
+    const withFunding = Object.assign(Object.create({}), withoutFunding, {
+      getFundingAddresses: vi.fn(async () => addresses),
+    });
+    const fwd = forwardDepositApproval(withFunding);
+    await expect(fwd.getFundingAddresses!()).resolves.toEqual(addresses);
+    expect(withFunding.getFundingAddresses).toHaveBeenCalledOnce();
+  });
+
   it("forwards validateDepositTerms only when the wallet implements it", async () => {
     const withoutValidate = Object.assign(Object.create({}), base, {
       approveDepositTerms: vi.fn(async () => {}),
@@ -91,5 +134,32 @@ describe("forwardDepositApproval", () => {
     const fwd = forwardDepositApproval(withValidate);
     await fwd.validateDepositTerms!({} as never);
     expect(withValidate.validateDepositTerms).toHaveBeenCalledOnce();
+  });
+});
+
+describe("supportsMultiAddressFunding", () => {
+  it("is false for a wallet that cannot enumerate its addresses", () => {
+    // Software wallets expose no account xpub, so their addresses cannot be
+    // enumerated — and their change returns to the connected address anyway.
+    expect(supportsMultiAddressFunding(base)).toBe(false);
+  });
+
+  it("is true for a wallet that reports its funding addresses", () => {
+    const policyWallet = Object.assign(Object.create({}), base, {
+      getFundingAddresses: vi.fn(async () => []),
+    });
+
+    expect(supportsMultiAddressFunding(policyWallet)).toBe(true);
+  });
+
+  it("does not require the wallet to also be an approver", () => {
+    // The two capabilities are probed independently: nothing about signing
+    // terms implies the wallet can list its addresses, or the reverse.
+    const approverOnly = Object.assign(Object.create({}), base, {
+      approveDepositTerms: vi.fn(async () => {}),
+    });
+
+    expect(supportsDepositApproval(approverOnly)).toBe(true);
+    expect(supportsMultiAddressFunding(approverOnly)).toBe(false);
   });
 });

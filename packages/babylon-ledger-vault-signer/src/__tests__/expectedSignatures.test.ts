@@ -188,7 +188,7 @@ describe("table build rules reject malformed PSBTs before any device I/O", () =>
   it("ownership scan: rejects an unsigned input spending the depositor's P2TR UTXO", () => {
     const psbt = psbtWithOneInput();
     psbt.updateInput(0, { witnessUtxo: { script: p2trOutput(TEST_DEPOSITOR_KEY_HEX), value: 5000 } });
-    expectPrepareRejects(psbt.toHex(), /depositor-owned UTXO but carries no signing metadata/);
+    expectPrepareRejects(psbt.toHex(), /wallet-owned UTXO but carries no signing metadata/);
   });
 
   it("ownership scan: rejects an unsigned input spending the depositor's P2WPKH UTXO", () => {
@@ -196,7 +196,7 @@ describe("table build rules reject malformed PSBTs before any device I/O", () =>
     const compressed = Buffer.concat([Buffer.from([0x02]), Buffer.from(TEST_DEPOSITOR_KEY_HEX, "hex")]);
     const p2wpkhScript = Buffer.concat([Buffer.from([0x00, 0x14]), bcrypto.hash160(compressed)]);
     psbt.updateInput(0, { witnessUtxo: { script: p2wpkhScript, value: 5000 } });
-    expectPrepareRejects(psbt.toHex(), /depositor-owned UTXO but carries no signing metadata/);
+    expectPrepareRejects(psbt.toHex(), /wallet-owned UTXO but carries no signing metadata/);
   });
 });
 
@@ -323,7 +323,7 @@ describe("keypath build rules, driven by mutations of the committed Pre-PegIn fi
       .split(recordHex(INTERNAL_KEY_KEY, depositorXOnlyHex))
       .join(recordHex(INTERNAL_KEY_KEY, flipped + depositorXOnlyHex.slice(2)));
 
-    expectPrepareRejects(psbtHex, depositorXOnlyHex, /internal key is not the connected depositor key/);
+    expectPrepareRejects(psbtHex, depositorXOnlyHex, /internal key is not an authorized key-path key/);
   });
 
   it("rejects a keypath input with no witnessUtxo", () => {
@@ -351,7 +351,7 @@ describe("keypath build rules, driven by mutations of the committed Pre-PegIn fi
       recordHex(WITNESS_UTXO_KEY, foreignUtxo),
     );
 
-    expectPrepareRejects(psbtHex, fixtureInternalKeyHex(vector), /not the BIP-86 P2TR of the depositor key/);
+    expectPrepareRejects(psbtHex, fixtureInternalKeyHex(vector), /not the BIP-86 P2TR of its internal key/);
   });
 });
 
@@ -703,6 +703,46 @@ describe("YieldCollector treats a short signature as a malformed payload", () =>
     expectRejects(
       () => collector.assertAndRecord(payload),
       /YIELD payload truncated inside the signature \(63 of 64 bytes on input 0\)/,
+    );
+  });
+});
+
+describe("an explicit authorized key-path set is checked before any input is read", () => {
+  // These two rules guard the builder's own contract: `prepareSignPsbt` only
+  // ever passes a set derived from the policy, which always leads with the
+  // depositor and cannot repeat a key — but the builder is a unit of its own,
+  // and a future caller must hit these, not a silent widening.
+  const noInputs: ExpectedSignaturePsbt = {
+    getGlobalInputCount: () => 0,
+    getInputEntriesOfType: () => [],
+    getInputWitnessUtxo: () => undefined,
+  };
+  const H = 0x80000000;
+
+  it("rejects a set that leaves out the connected depositor key", () => {
+    expectRejects(
+      () =>
+        buildExpectedSignatureTable({
+          psbt: noInputs,
+          depositorXOnlyHex: TEST_DEPOSITOR_KEY_HEX,
+          authorizedKeyPathLeaves: [{ xOnlyHex: OTHER_KEY_HEX, branch: 1, addressIndex: 0, path: [86 + H, H, H, 1, 0] }],
+        }),
+      /authorized key-path leaves do not include the connected depositor key/,
+    );
+  });
+
+  it("rejects a set naming the same key twice — an input's owner would be ambiguous", () => {
+    expectRejects(
+      () =>
+        buildExpectedSignatureTable({
+          psbt: noInputs,
+          depositorXOnlyHex: TEST_DEPOSITOR_KEY_HEX,
+          authorizedKeyPathLeaves: [
+            { xOnlyHex: TEST_DEPOSITOR_KEY_HEX, branch: 0, addressIndex: 0, path: [86 + H, H, H, 0, 0] },
+            { xOnlyHex: TEST_DEPOSITOR_KEY_HEX, branch: 0, addressIndex: 1, path: [86 + H, H, H, 0, 1] },
+          ],
+        }),
+      /name the same key twice \(0\/1\)/,
     );
   });
 });

@@ -399,6 +399,83 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts]
 
 ***
 
+### FundingAddress
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
+
+One address a Pre-PegIn may be funded from, with the key and path that own
+it. The whole tuple MUST come from the wallet's policy account xpub: it is
+the only link between an outpoint and a key the device will sign with.
+
+#### Properties
+
+##### address
+
+```ts
+address: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
+
+Address to list UTXOs for.
+
+##### internalPubkeyHex
+
+```ts
+internalPubkeyHex: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
+
+x-only internal key that owns the address's script (64-char hex, no `0x`).
+
+##### branch
+
+```ts
+branch: number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
+
+One of [BIP86\_FUNDING\_BRANCHES](#bip86_funding_branches).
+
+##### addressIndex
+
+```ts
+addressIndex: number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
+
+Address index within the branch, at most [MAX\_NON\_HARDENED\_INDEX](#max_non_hardened_index).
+
+***
+
+### PrePeginFundingSource
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
+
+Which of the wallet's addresses may fund a Pre-PegIn. Only a policy wallet
+(with an account xpub) can answer; a wallet without it funds from its
+connected address alone. The set MUST include the connected receive address
+and MUST be a function of it (consumers read it once per connected address).
+
+#### Methods
+
+##### getFundingAddresses()
+
+```ts
+getFundingAddresses(): Promise<FundingAddress[]>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
+
+###### Returns
+
+`Promise`\<[`FundingAddress`](#fundingaddress)[]\>
+
+***
+
 ### BuildDepositTermsInputs
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
@@ -913,6 +990,28 @@ and register time so device-accept stays coextensive with contract-accept.
 
 ***
 
+### supportsMultiAddressFunding()
+
+```ts
+function supportsMultiAddressFunding(wallet): wallet is BitcoinWallet & PrePeginFundingSource;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
+
+Probes [PrePeginFundingSource.getFundingAddresses](#getfundingaddresses).
+
+#### Parameters
+
+##### wallet
+
+[`BitcoinWallet`](managers.md#bitcoinwallet)
+
+#### Returns
+
+`wallet is BitcoinWallet & PrePeginFundingSource`
+
+***
+
 ### supportsDepositApproval()
 
 ```ts
@@ -969,14 +1068,15 @@ If the wallet cannot report a change address.
 ### forwardDepositApproval()
 
 ```ts
-function forwardDepositApproval(wallet): Partial<DepositTermsApprover & PrePeginChangeSource>;
+function forwardDepositApproval(wallet): Partial<DepositTermsApprover & PrePeginChangeSource & PrePeginFundingSource>;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
 
-Spreadable forward of the approval capability for wallet-wrapper objects.
+Spreadable forward of the wallet capabilities the Pre-PegIn build probes for.
 Object spread drops prototype methods, so every `{...wallet}` wrapper site
-must re-attach the capability explicitly: `...forwardDepositApproval(wallet)`.
+must re-attach them explicitly: `...forwardDepositApproval(wallet)`.
+Each capability is forwarded on its own probe; the three are independent.
 
 #### Parameters
 
@@ -986,7 +1086,7 @@ must re-attach the capability explicitly: `...forwardDepositApproval(wallet)`.
 
 #### Returns
 
-`Partial`\<[`DepositTermsApprover`](#deposittermsapprover) & [`PrePeginChangeSource`](#prepeginchangesource)\>
+`Partial`\<[`DepositTermsApprover`](#deposittermsapprover) & [`PrePeginChangeSource`](#prepeginchangesource) & [`PrePeginFundingSource`](#prepeginfundingsource)\>
 
 ***
 
@@ -1104,6 +1204,31 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/commissionCeilin
 Hard ceiling for `maxAcceptableCommissionBps`. The contract enforces
 `commissionBps < 10000`, so any value at/above that is unreachable;
 `9999` is the maximum useful cap.
+
+***
+
+### BIP86\_FUNDING\_BRANCHES
+
+```ts
+const BIP86_FUNDING_BRANCHES: readonly number[];
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
+
+The two BIP-86 branches a funding address can sit on: 0 receive, 1 change
+(BIP-44's `change` level; the device policy `tr(@0/**)` covers both).
+
+***
+
+### MAX\_NON\_HARDENED\_INDEX
+
+```ts
+const MAX_NON_HARDENED_INDEX: 2147483647 = 0x7fffffff;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
+
+Highest non-hardened BIP-32 child index.
 
 ***
 

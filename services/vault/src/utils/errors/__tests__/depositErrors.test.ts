@@ -15,6 +15,7 @@ import {
   OnChainBtcVaultStatus,
   RpcErrorCode,
 } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+import { InputPrevoutMismatchError } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 import { UtxoNotAvailableError } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
 import { describe, expect, it } from "vitest";
 
@@ -713,12 +714,43 @@ describe("mapDepositErrorAfterRegistration", () => {
 
 describe("mapDepositError — UTXO availability re-check", () => {
   it("maps a mempool UTXO fetch failure to the funds-unavailable callout", () => {
-    // The post-gate re-check's fetch path (mempoolApi getAddressUtxos).
+    // The availability re-check's per-outpoint read, as
+    // vaultUtxoValidationService wraps a failed mempool call.
     expect(
       mapDepositError(
-        new Error("Failed to get UTXOs for address tb1qdepositor: HTTP 502"),
+        new Error(
+          `Failed to get UTXOs for input ${"ab".repeat(32)}:0: Failed to fetch from mempool API: Mempool API error (502): Bad Gateway`,
+        ),
       ),
     ).toEqual(ERRORS.utxosUnavailable);
+  });
+
+  it("maps an unreadable mempool spend status to the funds-unavailable callout", () => {
+    // The SDK refuses to read a malformed outspend body as unspent; the
+    // depositor sees the same retryable callout as a failed read.
+    expect(
+      mapDepositError(
+        new Error(
+          `The mempool API returned an unreadable spend status for ${"ab".repeat(32)}:0 ({}); the input cannot be confirmed unspent.`,
+        ),
+      ),
+    ).toEqual(ERRORS.utxosUnavailable);
+  });
+
+  it("maps a selected input paying another address's script to its own pre-registration callout", () => {
+    // Typed, not phrase-matched: the SDK's refusal from the pre-registration
+    // check. Distinct from the retryable read failure — the listing was wrong,
+    // and the flow has already dropped it.
+    expect(
+      mapDepositError(
+        new InputPrevoutMismatchError(
+          "ab".repeat(32),
+          0,
+          { scriptPubKey: "5120" + "11".repeat(32), value: 100_000 },
+          { scriptPubKey: "5120" + "22".repeat(32), value: 100_000 },
+        ),
+      ),
+    ).toEqual(ERRORS.inputPrevoutMismatch);
   });
 });
 

@@ -9,6 +9,7 @@ import {
   isRegisteredVaultVersionMismatchError,
   stripHexPrefix,
   supportsDepositApproval,
+  supportsMultiAddressFunding,
   verifyRegisteredVaultVersions,
   type DepositTerms,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
@@ -17,7 +18,10 @@ import {
   vpTokenRegistry,
 } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { canonicalizeBtcPubkey } from "@babylonlabs-io/ts-sdk/tbv/core/primitives";
-import { validateSecretAgainstHashlock } from "@babylonlabs-io/ts-sdk/tbv/core/services";
+import {
+  bindPrevoutsToFundingAddresses,
+  validateSecretAgainstHashlock,
+} from "@babylonlabs-io/ts-sdk/tbv/core/services";
 import { calculateBtcTxHash } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
 import {
   getSharedWagmiConfig,
@@ -34,6 +38,7 @@ import {
 } from "@/components/shared/protocolStatus";
 import FeatureFlags from "@/config/featureFlags";
 import { getETHChain } from "@/config/network";
+import { getBTCNetworkForWASM } from "@/config/pegin";
 import { COPY } from "@/copy";
 import { useBtcAction } from "@/hooks/useBtcAction";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
@@ -430,13 +435,12 @@ export function useVaultActions(): UseVaultActionsReturn {
       // the liveness error, not a failed public-key read.
       await assertDepositorWallet();
 
-      // Get depositor's BTC address for UTXO validation
-      const depositorAddress = await btcWalletProvider.getAddress();
-
       // Validate UTXOs are still available BEFORE asking user to sign.
       // This prevents wasted signing effort if UTXOs have been spent
-      // by unrelated transactions.
-      await assertUtxosAvailable(unsignedTxHex, depositorAddress);
+      // by unrelated transactions. Asked per outpoint, so an input on any of
+      // the wallet's addresses is judged on its own spend status. No script
+      // binding here: the resolution below reads every input by outpoint.
+      await assertUtxosAvailable(unsignedTxHex);
 
       // The registered hash binds the transaction. The wallet checks bind its
       // depositor. Also check local build versions when they belong to this
@@ -502,7 +506,18 @@ export function useVaultActions(): UseVaultActionsReturn {
       if (supportsDepositApproval(btcWalletProvider)) {
         const { expectedUtxos: resolvedUtxos, fundedTxFee } =
           await resolveFundedTxFeeAndUtxos(unsignedTxHex);
-        expectedUtxos = resolvedUtxos;
+        // A modal dismissed during that network read must not go on to touch
+        // the device: the address read below takes the device lock.
+        if (signal.aborted) return;
+        // Bind each chain-resolved input to the owning key from the device's
+        // own address set — never from the stored record.
+        expectedUtxos = supportsMultiAddressFunding(btcWalletProvider)
+          ? bindPrevoutsToFundingAddresses({
+              prevouts: resolvedUtxos,
+              addresses: await btcWalletProvider.getFundingAddresses(),
+              network: getBTCNetworkForWASM(),
+            })
+          : resolvedUtxos;
         depositTerms = await rebuildDepositTerms({
           vaultId,
           target: onChainVault,

@@ -69,6 +69,7 @@ import {
   isRegisteredVaultVersionMismatchError,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { JsonRpcError } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+import { InputPrevoutMismatchError } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 import { UtxoNotAvailableError } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
 import { type ReactNode } from "react";
 
@@ -214,6 +215,13 @@ export function mapDepositError(err: unknown): DepositErrorContent {
 
   if (err instanceof PendingPeginStorageReadError) {
     return ERRORS.storageUnreadable;
+  }
+
+  // 2a. A selected input whose on-chain script or value is not what it was
+  // listed as. Raised by the pre-registration availability check only, so
+  // nothing was registered; the flow drops the cached listing on it.
+  if (err instanceof InputPrevoutMismatchError) {
+    return ERRORS.inputPrevoutMismatch;
   }
 
   // 3. Protocol-parameter version mismatch (registered vault drifted).
@@ -486,19 +494,15 @@ export function mapDepositError(err: unknown): DepositErrorContent {
   }
 
   // 9. Bitcoin funds unavailable — UTXO load / availability. Phrase-level
-  // matches (not a bare "utxo") so unrelated UTXO-mentioning errors (e.g. a
-  // stale snapshot or indexer outage) don't get absorbed here. Covers the
-  // known throws: "No spendable UTXOs available", "Spendable UTXOs unavailable
-  // ...", "Failed to load UTXOs", and the mempool client's "Failed to get
-  // UTXOs for address ..." from the availability re-checks. Checked BEFORE
-  // the ETH-gas bucket because `classifyError` reads "Insufficient funds: no
-  // UTXOs available" as a gas shortfall (no sats/pegin guard hit) — the UTXO
-  // phrase must win.
+  // matches (not a bare "utxo") so unrelated UTXO-mentioning errors are not
+  // absorbed. Checked BEFORE the ETH-gas bucket, which would otherwise read
+  // "Insufficient funds: no UTXOs available" as a gas shortfall.
   if (
     msg.includes("spendable utxos") ||
     msg.includes("utxos available") ||
     msg.includes("failed to load utxos") ||
-    msg.includes("failed to get utxos")
+    msg.includes("failed to get utxos") ||
+    msg.includes("unreadable spend status")
   ) {
     return ERRORS.utxosUnavailable;
   }

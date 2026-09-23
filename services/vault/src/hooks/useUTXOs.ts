@@ -1,19 +1,25 @@
 /**
  * Hook for fetching and managing Bitcoin UTXOs
  *
- * Fetches UTXOs from mempool API for the connected BTC wallet address.
+ * Fetches UTXOs from mempool API for the connected BTC wallet address — or,
+ * for a wallet that can enumerate its own addresses, for every address it
+ * may fund a deposit from, each UTXO annotated with the key that owns it.
  * Supports filtering out inscription UTXOs using the useOrdinals hook.
  * Returns spendableUTXOs based on user's inscription preference.
  */
 
 import { getAddressUtxos, type MempoolUTXO } from "@babylonlabs-io/ts-sdk";
+import { supportsMultiAddressFunding } from "@babylonlabs-io/ts-sdk/tbv/core";
+import { collectFundingUtxos } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 import {
   filterInscriptionUtxos,
+  useChainConnector,
   type UTXO,
 } from "@babylonlabs-io/wallet-connector";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo } from "react";
 
+import { getBTCNetworkForWASM } from "@/config/pegin";
 import { logger } from "@/infrastructure";
 
 import { getMempoolApiUrl } from "../clients/btc/config";
@@ -23,16 +29,35 @@ import { useOrdinals } from "./useOrdinals";
 
 /** Query key for UTXO and address transactions fetching */
 export const UTXOS_QUERY_KEY = "btc-utxos";
+/** Query key for the wallet's own funding-address set (read once per connection). */
+export const FUNDING_ADDRESSES_QUERY_KEY = "btc-funding-addresses";
+/**
+ * Third element of the UTXO query key when the listing covers the connected
+ * address alone; a multi-address listing puts its address list there instead.
+ */
+export const SINGLE_ADDRESS_LISTING_KEY = "connected-address";
 
 /**
- * Convert MempoolUTXO to wallet-connector UTXO type.
+ * A spendable UTXO as the deposit flow consumes it. `internalPubkeyHex` is
+ * set when the wallet funds from more than one of its addresses; it must
+ * travel unchanged to the broadcast and the stored record, because the
+ * signing path signs each input under it.
  */
-function toWalletUtxo(utxo: MempoolUTXO): UTXO {
+type SpendableUtxo = UTXO & { internalPubkeyHex?: string };
+
+/**
+ * Convert MempoolUTXO to the wallet-connector UTXO shape, keeping the owning
+ * key when the listing carried one.
+ */
+function toWalletUtxo(
+  utxo: MempoolUTXO & { internalPubkeyHex?: string },
+): SpendableUtxo {
   return {
     txid: utxo.txid,
     vout: utxo.vout,
     value: utxo.value,
     scriptPubKey: utxo.scriptPubKey,
+    internalPubkeyHex: utxo.internalPubkeyHex,
   };
 }
 
@@ -48,18 +73,80 @@ export function useUTXOs(
   options?: { enabled?: boolean; refetchInterval?: number },
 ) {
   const { ordinalsExcluded } = useAppState();
+  const enabled = !!btcAddress && (options?.enabled ?? true);
 
-  const { data, isLoading, error, refetch } = useQuery({
-    queryKey: [UTXOS_QUERY_KEY, btcAddress],
+  // Only a wallet that can enumerate its addresses (the Ledger vault wallet)
+  // funds from more than the connected one.
+  const provider = useChainConnector("BTC")?.connectedWallet?.provider;
+  const fundingSource =
+    provider !== undefined &&
+    provider !== null &&
+    supportsMultiAddressFunding(provider)
+      ? provider
+      : undefined;
+
+  // Read once per connection (it takes the device lock), never on the UTXO
+  // poll. A failed read is retried only on remount, navigation or a new address.
+  const fundingAddressesQuery = useQuery({
+    queryKey: [FUNDING_ADDRESSES_QUERY_KEY, btcAddress],
+    queryFn: () => fundingSource!.getFundingAddresses(),
+    enabled: enabled && fundingSource !== undefined,
+    staleTime: Infinity,
+  });
+  const fundingAddresses =
+    fundingSource === undefined ? undefined : fundingAddressesQuery.data;
+
+  const utxoQuery = useQuery({
+    // The address set is part of the key so `/1/0` data cannot go stale
+    // across reconnects; the deposit flow invalidates by the two-element
+    // prefix (after a broadcast, and on a pre-registration script mismatch),
+    // which covers both shapes.
+    queryKey: [
+      UTXOS_QUERY_KEY,
+      btcAddress,
+      fundingAddresses === undefined
+        ? SINGLE_ADDRESS_LISTING_KEY
+        : fundingAddresses.map((funding) => funding.address),
+    ],
     queryFn: async () => {
+      // `refetch()` bypasses `enabled`: never list a funding wallet by its
+      // connected address alone while its address set is pending.
+      if (fundingSource !== undefined && fundingAddresses === undefined) {
+        throw new Error(
+          "Cannot list UTXOs before the wallet's funding-address set is read",
+        );
+      }
       const apiUrl = getMempoolApiUrl();
-      return getAddressUtxos(btcAddress!, apiUrl);
+      if (fundingAddresses === undefined) {
+        return getAddressUtxos(btcAddress!, apiUrl);
+      }
+      // All or nothing across the address set: a partial read must not
+      // masquerade as the wallet's balance.
+      return collectFundingUtxos({
+        addresses: fundingAddresses,
+        network: getBTCNetworkForWASM(),
+        listAddressUtxos: (address) => getAddressUtxos(address, apiUrl),
+      });
     },
-    enabled: !!btcAddress && (options?.enabled ?? true),
+    // A funding wallet waits for its address set; nothing is listed from a
+    // guess at what the set might be.
+    enabled:
+      enabled &&
+      (fundingSource === undefined || fundingAddresses !== undefined),
     refetchInterval: options?.refetchInterval,
     refetchOnMount: true,
     staleTime: 30_000, // 30 seconds
   });
+  const data = utxoQuery.data;
+  const isLoading =
+    utxoQuery.isLoading ||
+    (fundingSource !== undefined && fundingAddressesQuery.isLoading);
+  // A failed address read is the error: with no set there is no listing, and
+  // an error from the device must not be hidden behind a pending listing.
+  const error =
+    fundingSource !== undefined && fundingAddressesQuery.error !== null
+      ? fundingAddressesQuery.error
+      : utxoQuery.error;
 
   // Get confirmed UTXOs only
   const confirmedUTXOs = useMemo(() => {
@@ -125,8 +212,8 @@ export function useUTXOs(
       inscriptions,
     );
     return {
-      availableUTXOs: availableUtxos,
-      inscriptionUTXOs: inscriptionUtxos,
+      availableUTXOs: availableUtxos as SpendableUtxo[],
+      inscriptionUTXOs: inscriptionUtxos as SpendableUtxo[],
     };
   }, [
     confirmedUtxosForOrdinals,
@@ -199,8 +286,8 @@ export function useUTXOs(
      * yet, so consumers should block submission until it resolves.
      */
     ordinalsCheckPending,
-    /** Refetch function */
-    refetch,
+    /** Refetch function (the listing; the address set is read once per connection) */
+    refetch: utxoQuery.refetch,
   };
 }
 

@@ -1,3 +1,19 @@
+export {
+  InputPrevoutMismatchError,
+  assertOutpointsAvailable,
+  type AssertOutpointsAvailableParams,
+  type OutpointPrevout,
+  type OutpointReaders,
+} from "./assertOutpointsAvailable";
+export {
+  bindPrevoutsToFundingAddresses,
+  type BindPrevoutsToFundingAddressesParams,
+} from "./bindPrevoutsToFundingAddresses";
+export {
+  collectFundingUtxos,
+  type CollectFundingUtxosParams,
+  type FundingUtxo,
+} from "./collectFundingUtxos";
 export type {
   ClaimerArtifactsReader,
   PeginStatusReader,

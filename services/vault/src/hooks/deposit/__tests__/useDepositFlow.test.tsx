@@ -10,6 +10,7 @@ import type {
   DepositTerms,
   DepositTermsApprover,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
+import { InputPrevoutMismatchError } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 import { UtxoNotAvailableError } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { Address, Hex } from "viem";
@@ -23,6 +24,7 @@ import {
   resetOptimisticDepositState,
 } from "@/context/deposit/optimisticDepositState";
 import { COPY } from "@/copy";
+import { UTXOS_QUERY_KEY } from "@/hooks/useUTXOs";
 import { BtcWalletLivenessError } from "@/utils/btc";
 
 import { DepositFlowStep } from "../depositFlowSteps";
@@ -827,6 +829,55 @@ describe("useDepositFlow", () => {
         }),
       );
     });
+
+    it("carries each selected UTXO's owning key into the stored record and the broadcast's expected set", async () => {
+      const { addPendingPegin } = vi.mocked(
+        await import("@/storage/peginStorage"),
+      );
+      const { preparePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultTransactionService"),
+      );
+      const { utxosToExpectedRecord } = vi.mocked(
+        await import("@/services/vault/vaultPeginBroadcastService"),
+      );
+      // A deposit funded from the wallet's change branch: the build returns
+      // the listing's objects, one of which names the key that owns it. The
+      // key must reach the record (resume) and the expected set (signing)
+      // exactly as listed — the signing site signs that input under it, and
+      // a dropped key would be refused only after Ethereum registration.
+      const changeKey = "bb".repeat(32);
+      const changeUtxo = {
+        ...MOCK_UTXO_2,
+        txid: "cd".repeat(32),
+        internalPubkeyHex: changeKey,
+      };
+      preparePeginTransaction.mockResolvedValueOnce({
+        ...MOCK_BATCH_RESULT,
+        selectedUTXOs: [MOCK_UTXO_1, changeUtxo],
+      } as any);
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      await executeDepositFlow(result);
+
+      await waitFor(() => {
+        expect(addPendingPegin).toHaveBeenCalledTimes(2);
+      });
+      const [, storedRecord] = addPendingPegin.mock.calls[0];
+      expect(storedRecord.selectedUTXOs).toEqual([
+        expect.objectContaining({ txid: MOCK_UTXO_1.txid }),
+        expect.objectContaining({
+          txid: changeUtxo.txid,
+          internalPubkeyHex: changeKey,
+        }),
+      ]);
+      expect(storedRecord.selectedUTXOs[0].internalPubkeyHex).toBeUndefined();
+      // Every expected-set derivation (pre-registration check and broadcast)
+      // was handed the listing's objects with the key still on them.
+      expect(utxosToExpectedRecord).toHaveBeenCalled();
+      for (const [utxos] of utxosToExpectedRecord.mock.calls) {
+        expect(utxos[1]).toBe(changeUtxo);
+      }
+    });
   });
 
   describe("Broadcasting", () => {
@@ -922,10 +973,17 @@ describe("useDepositFlow", () => {
       expect(assertUtxosAvailable.mock.invocationCallOrder[1]).toBeLessThan(
         broadcastPrePeginTransaction.mock.invocationCallOrder[0],
       );
-      // Same arguments as the pre-registration check.
-      expect(assertUtxosAvailable.mock.calls[1]).toEqual(
-        assertUtxosAvailable.mock.calls[0],
-      );
+      // Same transaction as the pre-registration check. Only that first check
+      // carries the selected UTXOs' scripts (bound to their outpoints before
+      // registration); post-gate asks about spend status alone.
+      const [preRegistrationCall, postGateCall] =
+        assertUtxosAvailable.mock.calls;
+      expect(postGateCall).toEqual([preRegistrationCall[0]]);
+      // The scripts bound before registration are the ones of the very UTXO
+      // set the broadcast is later handed — not a copy, not undefined.
+      const [{ expectedUtxos }] = broadcastPrePeginTransaction.mock.calls[0];
+      expect(expectedUtxos).toBeDefined();
+      expect(preRegistrationCall[1]).toEqual(expectedUtxos);
     });
 
     it("probes wallet liveness after the finality wait, before the signing popup", async () => {
@@ -3184,6 +3242,34 @@ describe("useDepositFlow", () => {
       expect(result.current.resumableVaultIds).toBeNull();
     });
 
+    it("drops the cached UTXO listing when a selected input pays another address's script", async () => {
+      const { registerPeginBatchAndWait } = vi.mocked(
+        await import("../depositFlowSteps"),
+      );
+      const { assertUtxosAvailable } = vi.mocked(
+        await import("@/services/vault/vaultUtxoValidationService"),
+      );
+      // The listing that produced this input is cached; without dropping it,
+      // a retry would select the same mislabelled outpoint again.
+      assertUtxosAvailable.mockRejectedValueOnce(
+        new InputPrevoutMismatchError(
+          "ab".repeat(32),
+          0,
+          { scriptPubKey: "5120" + "11".repeat(32), value: 100_000 },
+          { scriptPubKey: "5120" + "22".repeat(32), value: 100_000 },
+        ),
+      );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      await executeDepositFlow(result);
+
+      expect(queryClientMocks.invalidateQueries).toHaveBeenCalledWith({
+        queryKey: [UTXOS_QUERY_KEY, "bc1qtest"],
+      });
+      expect(registerPeginBatchAndWait).not.toHaveBeenCalled();
+      expect(result.current.resumableVaultIds).toBeNull();
+    });
+
     it("leaves resumableVaultIds null for a non-device broadcast failure after registration", async () => {
       const { broadcastPrePeginTransaction } = vi.mocked(
         await import("@/services/vault/vaultPeginBroadcastService"),
@@ -3242,7 +3328,9 @@ describe("useDepositFlow", () => {
       assertUtxosAvailable
         .mockResolvedValueOnce(undefined)
         .mockRejectedValueOnce(
-          new Error("Failed to get UTXOs for address tb1qdepositor: HTTP 502"),
+          new Error(
+            `Failed to get UTXOs for input ${"ab".repeat(32)}:0: Failed to fetch from mempool API: Mempool API error (502): Bad Gateway`,
+          ),
         );
 
       const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));

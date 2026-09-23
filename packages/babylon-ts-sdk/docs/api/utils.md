@@ -628,6 +628,47 @@ Total number of inputs checked
 
 ***
 
+### FundingPrevout
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/prevoutBinding.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/prevoutBinding.ts)
+
+Prevout data a caller supplies for one funding input.
+
+#### Properties
+
+##### scriptPubKey
+
+```ts
+scriptPubKey: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/prevoutBinding.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/prevoutBinding.ts)
+
+scriptPubKey of the outpoint, hex.
+
+##### value
+
+```ts
+value: number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/prevoutBinding.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/prevoutBinding.ts)
+
+Value of the outpoint, satoshis.
+
+##### internalPubkeyHex?
+
+```ts
+optional internalPubkeyHex: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/prevoutBinding.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/prevoutBinding.ts)
+
+x-only key that owns `scriptPubKey` (64-char hex, no `0x`). Set on every
+prevout for multi-address funding; omitted for single-address funding.
+
+***
+
 ### PendingPeginLike
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts)
@@ -717,6 +758,108 @@ optional pendingPegins: readonly PendingPeginLike[];
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts)
+
+***
+
+### ResolvedFundingInput
+
+Defined in: packages/babylon-ts-sdk/src/tbv/core/utils/utxo/resolveFundingInput.ts
+
+#### Type Parameters
+
+##### T
+
+`T` *extends* `ChainPrevout`
+
+#### Properties
+
+##### utxoData
+
+```ts
+utxoData: T;
+```
+
+Defined in: packages/babylon-ts-sdk/src/tbv/core/utils/utxo/resolveFundingInput.ts
+
+##### internalPubkeyHex?
+
+```ts
+optional internalPubkeyHex: string;
+```
+
+Defined in: packages/babylon-ts-sdk/src/tbv/core/utils/utxo/resolveFundingInput.ts
+
+Set only for multi-address funding: the key this input is signed under.
+
+***
+
+### FundingInputResolverParams
+
+Defined in: packages/babylon-ts-sdk/src/tbv/core/utils/utxo/resolveFundingInput.ts
+
+#### Type Parameters
+
+##### T
+
+`T` *extends* `ChainPrevout`
+
+#### Properties
+
+##### prevouts
+
+```ts
+prevouts: Record<string, FundingPrevout> | undefined;
+```
+
+Defined in: packages/babylon-ts-sdk/src/tbv/core/utils/utxo/resolveFundingInput.ts
+
+##### readChain()
+
+```ts
+readChain: (txid, vout) => Promise<T>;
+```
+
+Defined in: packages/babylon-ts-sdk/src/tbv/core/utils/utxo/resolveFundingInput.ts
+
+Outpoint-keyed chain read (`getUtxoInfo`); the chain's values are used.
+
+###### Parameters
+
+###### txid
+
+`string`
+
+###### vout
+
+`number`
+
+###### Returns
+
+`Promise`\<`T`\>
+
+##### resolveSingle()
+
+```ts
+resolveSingle: (txid, vout) => Promise<T>;
+```
+
+Defined in: packages/babylon-ts-sdk/src/tbv/core/utils/utxo/resolveFundingInput.ts
+
+The caller's single-address lookup (declared prevout or mempool).
+
+###### Parameters
+
+###### txid
+
+`string`
+
+###### vout
+
+`number`
+
+###### Returns
+
+`Promise`\<`T`\>
 
 ***
 
@@ -1449,6 +1592,185 @@ Error if validation fails
 
 ***
 
+### isXOnlyPubkeyHex()
+
+```ts
+function isXOnlyPubkeyHex(value): boolean;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/prevoutBinding.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/prevoutBinding.ts)
+
+True for an x-only public key in hex, no `0x` prefix.
+
+#### Parameters
+
+##### value
+
+`string`
+
+#### Returns
+
+`boolean`
+
+***
+
+### outpointKey()
+
+```ts
+function outpointKey(txid, vout): string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/prevoutBinding.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/prevoutBinding.ts)
+
+`txid:vout` key of a prevout record.
+
+#### Parameters
+
+##### txid
+
+`string`
+
+##### vout
+
+`number`
+
+#### Returns
+
+`string`
+
+***
+
+### isMultiAddressFunding()
+
+```ts
+function isMultiAddressFunding(prevouts): boolean;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/prevoutBinding.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/prevoutBinding.ts)
+
+True when any prevout declares a key; the whole set is then multi-address.
+
+#### Parameters
+
+##### prevouts
+
+`Record`\<`string`, [`FundingPrevout`](#fundingprevout)\> | `undefined`
+
+#### Returns
+
+`boolean`
+
+***
+
+### requireFundingPrevout()
+
+```ts
+function requireFundingPrevout(
+   prevouts, 
+   txid, 
+   vout): FundingPrevout & object;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/prevoutBinding.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/prevoutBinding.ts)
+
+The declared prevout for an outpoint, with its key; never falls back to the depositor key.
+
+#### Parameters
+
+##### prevouts
+
+`Record`\<`string`, [`FundingPrevout`](#fundingprevout)\> | `undefined`
+
+##### txid
+
+`string`
+
+##### vout
+
+`number`
+
+#### Returns
+
+[`FundingPrevout`](#fundingprevout) & `object`
+
+***
+
+### assertKeyOwnsScript()
+
+```ts
+function assertKeyOwnsScript(
+   key, 
+   internalPubkeyHex, 
+   scriptPubKey): void;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/prevoutBinding.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/prevoutBinding.ts)
+
+Assert the declared key derives the declared scriptPubKey (BIP-86, no
+script tree — the same derivation the Ledger signer matches a `tr(@0/**)`
+policy against). Only P2TR prevouts are accepted.
+
+#### Parameters
+
+##### key
+
+`string`
+
+##### internalPubkeyHex
+
+`string`
+
+##### scriptPubKey
+
+`string`
+
+#### Returns
+
+`void`
+
+***
+
+### assertPrevoutMatchesChain()
+
+```ts
+function assertPrevoutMatchesChain(
+   key, 
+   declared, 
+   chain): void;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/prevoutBinding.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/prevoutBinding.ts)
+
+Assert the declared prevout equals the chain's for that outpoint. `chain`
+must come from an outpoint-keyed read (`getUtxoInfo`), not an address
+listing, which stamps one script on every entry.
+
+#### Parameters
+
+##### key
+
+`string`
+
+##### declared
+
+[`FundingPrevout`](#fundingprevout)
+
+##### chain
+
+###### scriptPubKey
+
+`string`
+
+###### value
+
+`number`
+
+#### Returns
+
+`void`
+
+***
+
 ### findOverlappingPendingVaults()
 
 ```ts
@@ -1470,6 +1792,76 @@ take precedence over a same-id local pegin entry.
 #### Returns
 
 `string`[]
+
+***
+
+### createFundingInputResolver()
+
+```ts
+function createFundingInputResolver<T>(params): (txid, vout) => Promise<ResolvedFundingInput<T>>;
+```
+
+Defined in: packages/babylon-ts-sdk/src/tbv/core/utils/utxo/resolveFundingInput.ts
+
+Build the resolver for one transaction's inputs; the mode is decided once.
+
+#### Type Parameters
+
+##### T
+
+`T` *extends* `ChainPrevout`
+
+#### Parameters
+
+##### params
+
+[`FundingInputResolverParams`](#fundinginputresolverparams)\<`T`\>
+
+#### Returns
+
+```ts
+(txid, vout): Promise<ResolvedFundingInput<T>>;
+```
+
+##### Parameters
+
+###### txid
+
+`string`
+
+###### vout
+
+`number`
+
+##### Returns
+
+`Promise`\<[`ResolvedFundingInput`](#resolvedfundinginput)\<`T`\>\>
+
+***
+
+### fundingInputInternalKey()
+
+```ts
+function fundingInputInternalKey(internalPubkeyHex, depositorKey): Buffer;
+```
+
+Defined in: packages/babylon-ts-sdk/src/tbv/core/utils/utxo/resolveFundingInput.ts
+
+The internal key an input is signed under: its own when declared, else the depositor's.
+
+#### Parameters
+
+##### internalPubkeyHex
+
+`string` | `undefined`
+
+##### depositorKey
+
+`Buffer`
+
+#### Returns
+
+`Buffer`
 
 ***
 

@@ -125,6 +125,21 @@ export interface ExpectedSignaturePsbt {
   getInputWitnessUtxo(inputIndex: number): { readonly amount: number; readonly scriptPubKey: Buffer } | undefined;
 }
 
+/**
+ * One leaf under the wallet policy whose key may sign a key-path input:
+ * its x-only key and the BIP-32 position that key was derived at.
+ */
+export interface AuthorizedKeyPathLeaf {
+  /** x-only key at this leaf, 64 lowercase hex. */
+  readonly xOnlyHex: string;
+  /** BIP-86 branch (0 receive, 1 change). */
+  readonly branch: number;
+  /** Non-hardened address index within the branch. */
+  readonly addressIndex: number;
+  /** The full 5-level path — what TAP_BIP32_DERIVATION declares to the device. */
+  readonly path: readonly number[];
+}
+
 export interface BuildExpectedSignatureTableParams {
   /**
    * The exact map model committed to the device — pass the MerkelizedPsbt
@@ -133,6 +148,12 @@ export interface BuildExpectedSignatureTableParams {
   readonly psbt: ExpectedSignaturePsbt;
   /** Connected depositor x-only key (64 lowercase hex) — pins the table. */
   readonly depositorXOnlyHex: string;
+  /**
+   * Leaves whose keys may sign key-path inputs (must include the depositor's).
+   * Omitted, the set is the depositor alone. Tapscript expectations are never
+   * widened by this.
+   */
+  readonly authorizedKeyPathLeaves?: readonly AuthorizedKeyPathLeaf[];
   /**
    * Input indices the caller asked to sign. Narrows TAPSCRIPT expectations
    * only: key-path expectations are never narrowed, because under a policy the
@@ -252,7 +273,7 @@ function assertControlBlockCommitsToLeaf(
  * (`LedgerHQ/app-babylon-vault` @ `develop` 0468801138.)
  */
 export function buildExpectedSignatureTable(params: BuildExpectedSignatureTableParams): ExpectedSignatureTable {
-  const { psbt, depositorXOnlyHex, signInputIndexes } = params;
+  const { psbt, depositorXOnlyHex, signInputIndexes, authorizedKeyPathLeaves } = params;
   const byInput = new Map<number, InputSigExpectation>();
   const classifiedByInput = new Map<number, InputSigExpectation>();
   const inputCount = psbt.getGlobalInputCount();
@@ -281,6 +302,27 @@ export function buildExpectedSignatureTable(params: BuildExpectedSignatureTableP
     p2wpkhOutputScript(depositorXOnlyHex, COMPRESSED_KEY_EVEN_PREFIX),
     p2wpkhOutputScript(depositorXOnlyHex, COMPRESSED_KEY_ODD_PREFIX),
   ];
+  // Key-path signers and the one script each owns. Both halves are pinned:
+  // the device signs any consistent (key, script) pair, even a wrong outpoint's.
+  const keyPathScriptByKey = new Map<string, Buffer>();
+  if (authorizedKeyPathLeaves === undefined) {
+    keyPathScriptByKey.set(depositorXOnlyHex, depositorP2trScript);
+  } else {
+    for (const leaf of authorizedKeyPathLeaves) {
+      if (keyPathScriptByKey.has(leaf.xOnlyHex)) {
+        throw new LedgerSignPsbtProtocolError(
+          `authorized key-path leaves name the same key twice (${leaf.branch}/${leaf.addressIndex}) — an input's owner would be ambiguous`,
+        );
+      }
+      keyPathScriptByKey.set(leaf.xOnlyHex, bip86OutputScript(leaf.xOnlyHex));
+    }
+    // The depositor identity is pinned by the intent; a set that leaves it out
+    // could only come from a host bug, and would reject every existing flow.
+    if (!keyPathScriptByKey.has(depositorXOnlyHex)) {
+      throw new LedgerSignPsbtProtocolError("authorized key-path leaves do not include the connected depositor key");
+    }
+  }
+  const authorizedP2trScripts = [...keyPathScriptByKey.values()];
 
   for (let inputIndex = 0; inputIndex < inputCount; inputIndex++) {
     // A leaf input also carries TAP_INTERNAL_KEY (NUMS) by spec — wire spec §8,
@@ -339,8 +381,9 @@ export function buildExpectedSignatureTable(params: BuildExpectedSignatureTableP
         throw new LedgerSignPsbtProtocolError(`input ${inputIndex} carries a malformed TAP_INTERNAL_KEY entry`);
       }
       // A foreign internal key is not ours to expect.
-      if (entry.value.toString("hex") !== depositorXOnlyHex) {
-        throw new LedgerSignPsbtProtocolError(`input ${inputIndex} internal key is not the connected depositor key`);
+      const authorizedScript = keyPathScriptByKey.get(entry.value.toString("hex"));
+      if (authorizedScript === undefined) {
+        throw new LedgerSignPsbtProtocolError(`input ${inputIndex} internal key is not an authorized key-path key`);
       }
       const witnessUtxo = psbt.getInputWitnessUtxo(inputIndex);
       if (!witnessUtxo) {
@@ -350,10 +393,10 @@ export function buildExpectedSignatureTable(params: BuildExpectedSignatureTableP
       if (!isP2trScript(script)) {
         throw new LedgerSignPsbtProtocolError(`input ${inputIndex} witnessUtxo script is not P2TR`);
       }
-      // Pins "witness program" == "BIP-86 tweak of OUR key" independently.
-      if (!script.equals(depositorP2trScript)) {
+      // Pins "witness program" == "BIP-86 tweak of THIS input's key" independently.
+      if (!script.equals(authorizedScript)) {
         throw new LedgerSignPsbtProtocolError(
-          `input ${inputIndex} witnessUtxo is not the BIP-86 P2TR of the depositor key`,
+          `input ${inputIndex} witnessUtxo is not the BIP-86 P2TR of its internal key`,
         );
       }
       // NEVER narrowed: under a policy the base app signs every internal input
@@ -368,21 +411,22 @@ export function buildExpectedSignatureTable(params: BuildExpectedSignatureTableP
     }
 
     // No taproot signing metadata at all (NoPayout inputs 1-2 today).
-    // Ownership scan: a depositor-owned UTXO here means our builder dropped
-    // the device-required metadata — fail before burning a ceremony. Deliberately
-    // limited to these inputs: a Pre-PegIn keypath input legitimately IS the
-    // depositor's BIP-86 P2TR, and leaf semantics (including where the depositor
+    // Ownership scan: a wallet-owned UTXO here means our builder dropped the
+    // device-required metadata — fail before burning a ceremony. Deliberately
+    // limited to these inputs: a Pre-PegIn keypath input legitimately IS one of
+    // the wallet's BIP-86 P2TRs, and leaf semantics (including where the depositor
     // key sits) are the device's job — the host's is the commitment asserted above.
-    // Recognises only P2TR/P2WPKH shapes of the connected key; P2SH-P2WPKH and
-    // P2PKH depositor UTXOs are deliberately out of scope (tripwire, not a guarantee).
+    // Recognises the P2TR of every authorized key-path key and the P2WPKH shapes of
+    // the connected key; P2SH-P2WPKH and P2PKH depositor UTXOs are deliberately
+    // out of scope (tripwire, not a guarantee).
     const witnessUtxo = psbt.getInputWitnessUtxo(inputIndex);
     if (
       witnessUtxo &&
-      (witnessUtxo.scriptPubKey.equals(depositorP2trScript) ||
+      (authorizedP2trScripts.some((s) => witnessUtxo.scriptPubKey.equals(s)) ||
         depositorP2wpkhScripts.some((s) => witnessUtxo.scriptPubKey.equals(s)))
     ) {
       throw new LedgerSignPsbtProtocolError(
-        `input ${inputIndex} spends a depositor-owned UTXO but carries no signing metadata`,
+        `input ${inputIndex} spends a wallet-owned UTXO but carries no signing metadata`,
       );
     }
   }

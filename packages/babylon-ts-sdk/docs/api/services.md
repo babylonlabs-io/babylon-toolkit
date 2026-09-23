@@ -312,6 +312,94 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/vault
 
 ***
 
+### InputPrevoutMismatchError
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/assertOutpointsAvailable.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/assertOutpointsAvailable.ts)
+
+An input's outpoint has a script or value other than the one it was built with.
+
+#### Extends
+
+- `Error`
+
+#### Constructors
+
+##### Constructor
+
+```ts
+new InputPrevoutMismatchError(
+   txid, 
+   vout, 
+   expected, 
+   chain): InputPrevoutMismatchError;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/assertOutpointsAvailable.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/assertOutpointsAvailable.ts)
+
+###### Parameters
+
+###### txid
+
+`string`
+
+###### vout
+
+`number`
+
+###### expected
+
+[`OutpointPrevout`](#outpointprevout)
+
+###### chain
+
+[`OutpointPrevout`](#outpointprevout)
+
+###### Returns
+
+[`InputPrevoutMismatchError`](#inputprevoutmismatcherror)
+
+###### Overrides
+
+```ts
+Error.constructor
+```
+
+#### Properties
+
+##### txid
+
+```ts
+readonly txid: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/assertOutpointsAvailable.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/assertOutpointsAvailable.ts)
+
+##### vout
+
+```ts
+readonly vout: number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/assertOutpointsAvailable.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/assertOutpointsAvailable.ts)
+
+##### expected
+
+```ts
+readonly expected: OutpointPrevout;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/assertOutpointsAvailable.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/assertOutpointsAvailable.ts)
+
+##### chain
+
+```ts
+readonly chain: OutpointPrevout;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/assertOutpointsAvailable.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/assertOutpointsAvailable.ts)
+
+***
+
 ### PeginRegistrationMissingError
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginRegistrationDepth.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginRegistrationDepth.ts)
@@ -1636,6 +1724,310 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/vault
 **`Experimental`**
 
 Vault id the graph or file claims to be for.
+
+***
+
+### OutpointPrevout
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/assertOutpointsAvailable.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/assertOutpointsAvailable.ts)
+
+Script and value of one output, as the chain or the build reports them.
+
+#### Properties
+
+##### scriptPubKey
+
+```ts
+readonly scriptPubKey: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/assertOutpointsAvailable.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/assertOutpointsAvailable.ts)
+
+##### value
+
+```ts
+readonly value: number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/assertOutpointsAvailable.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/assertOutpointsAvailable.ts)
+
+***
+
+### OutpointReaders
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/assertOutpointsAvailable.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/assertOutpointsAvailable.ts)
+
+#### Methods
+
+##### readOutspend()
+
+```ts
+readOutspend(txid, vout): Promise<{
+  spent: boolean;
+}>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/assertOutpointsAvailable.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/assertOutpointsAvailable.ts)
+
+Spend status by outpoint (`getOutspend`); a failed read must throw.
+
+###### Parameters
+
+###### txid
+
+`string`
+
+###### vout
+
+`number`
+
+###### Returns
+
+`Promise`\<\{
+  `spent`: `boolean`;
+\}\>
+
+##### readOutpoint()
+
+```ts
+readOutpoint(txid, vout): Promise<OutpointPrevout>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/assertOutpointsAvailable.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/assertOutpointsAvailable.ts)
+
+The output by outpoint (`getUtxoInfo`); must throw for an unknown parent.
+
+###### Parameters
+
+###### txid
+
+`string`
+
+###### vout
+
+`number`
+
+###### Returns
+
+`Promise`\<[`OutpointPrevout`](#outpointprevout)\>
+
+***
+
+### AssertOutpointsAvailableParams
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/assertOutpointsAvailable.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/assertOutpointsAvailable.ts)
+
+#### Properties
+
+##### unsignedTxHex
+
+```ts
+readonly unsignedTxHex: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/assertOutpointsAvailable.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/assertOutpointsAvailable.ts)
+
+##### readers
+
+```ts
+readonly readers: OutpointReaders;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/assertOutpointsAvailable.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/assertOutpointsAvailable.ts)
+
+##### expectedPrevouts?
+
+```ts
+readonly optional expectedPrevouts: Readonly<Record<string, OutpointPrevout>>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/assertOutpointsAvailable.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/assertOutpointsAvailable.ts)
+
+Prevouts the transaction was built against, keyed `txid:vout`. Pass on a
+path that commits before signing; every input must then have an entry.
+
+***
+
+### BindPrevoutsToFundingAddressesParams
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/bindPrevoutsToFundingAddresses.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/bindPrevoutsToFundingAddresses.ts)
+
+#### Properties
+
+##### prevouts
+
+```ts
+readonly prevouts: Readonly<Record<string, {
+  scriptPubKey: string;
+  value: number;
+}>>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/bindPrevoutsToFundingAddresses.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/bindPrevoutsToFundingAddresses.ts)
+
+The transaction's inputs, keyed `txid:vout`, each resolved from the chain.
+
+##### addresses
+
+```ts
+readonly addresses: readonly FundingAddress[];
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/bindPrevoutsToFundingAddresses.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/bindPrevoutsToFundingAddresses.ts)
+
+The wallet's funding addresses, from `getFundingAddresses()`.
+
+##### network
+
+```ts
+readonly network: Network;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/bindPrevoutsToFundingAddresses.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/bindPrevoutsToFundingAddresses.ts)
+
+Network the addresses are encoded for.
+
+***
+
+### FundingUtxo
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/collectFundingUtxos.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/collectFundingUtxos.ts)
+
+A wallet UTXO with the key and path that own it.
+
+#### Extends
+
+- [`MempoolUTXO`](clients.md#mempoolutxo)
+
+#### Properties
+
+##### txid
+
+```ts
+txid: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/mempool/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/mempool/types.ts)
+
+###### Inherited from
+
+[`MempoolUTXO`](clients.md#mempoolutxo).[`txid`](clients.md#txid-1)
+
+##### vout
+
+```ts
+vout: number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/mempool/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/mempool/types.ts)
+
+###### Inherited from
+
+[`MempoolUTXO`](clients.md#mempoolutxo).[`vout`](clients.md#vout)
+
+##### value
+
+```ts
+value: number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/mempool/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/mempool/types.ts)
+
+###### Inherited from
+
+[`MempoolUTXO`](clients.md#mempoolutxo).[`value`](clients.md#value)
+
+##### scriptPubKey
+
+```ts
+scriptPubKey: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/mempool/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/mempool/types.ts)
+
+###### Inherited from
+
+[`MempoolUTXO`](clients.md#mempoolutxo).[`scriptPubKey`](clients.md#scriptpubkey)
+
+##### confirmed
+
+```ts
+confirmed: boolean;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/mempool/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/mempool/types.ts)
+
+###### Inherited from
+
+[`MempoolUTXO`](clients.md#mempoolutxo).[`confirmed`](clients.md#confirmed)
+
+##### internalPubkeyHex
+
+```ts
+internalPubkeyHex: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/collectFundingUtxos.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/collectFundingUtxos.ts)
+
+x-only internal key that owns `scriptPubKey` (64-char hex, no `0x`).
+
+##### address
+
+```ts
+address: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/collectFundingUtxos.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/collectFundingUtxos.ts)
+
+Address this UTXO was listed under.
+
+***
+
+### CollectFundingUtxosParams
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/collectFundingUtxos.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/collectFundingUtxos.ts)
+
+#### Properties
+
+##### addresses
+
+```ts
+addresses: readonly FundingAddress[];
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/collectFundingUtxos.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/collectFundingUtxos.ts)
+
+From `PrePeginFundingSource.getFundingAddresses()`; non-empty, no repeats.
+
+##### network
+
+```ts
+network: Network;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/collectFundingUtxos.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/collectFundingUtxos.ts)
+
+Network the addresses are encoded for — each one is re-derived against it.
+
+##### listAddressUtxos()
+
+```ts
+listAddressUtxos: (address) => Promise<MempoolUTXO[]>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/collectFundingUtxos.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/collectFundingUtxos.ts)
+
+Lists one address's UTXOs, e.g. `(address) => getAddressUtxos(address, apiUrl)`.
+
+###### Parameters
+
+###### address
+
+`string`
+
+###### Returns
+
+`Promise`\<[`MempoolUTXO`](clients.md#mempoolutxo)[]\>
 
 ***
 
@@ -4654,6 +5046,77 @@ version if you build on it.
 #### Throws
 
 [VaultIdBindingError](#vaultidbindingerror) when the graph belongs to another vault.
+
+***
+
+### assertOutpointsAvailable()
+
+```ts
+function assertOutpointsAvailable(params): Promise<void>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/assertOutpointsAvailable.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/assertOutpointsAvailable.ts)
+
+Assert every input exists and is unspent — and, with `expectedPrevouts`,
+has the script and value it was built with. A failed read propagates as
+is; then a prevout mismatch ([InputPrevoutMismatchError](#inputprevoutmismatcherror)) wins over
+a spend ([UtxoNotAvailableError](utils.md#utxonotavailableerror)).
+
+#### Parameters
+
+##### params
+
+[`AssertOutpointsAvailableParams`](#assertoutpointsavailableparams)
+
+#### Returns
+
+`Promise`\<`void`\>
+
+***
+
+### bindPrevoutsToFundingAddresses()
+
+```ts
+function bindPrevoutsToFundingAddresses(params): Record<string, FundingPrevout>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/bindPrevoutsToFundingAddresses.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/bindPrevoutsToFundingAddresses.ts)
+
+Bind every prevout to the funding address whose key owns its script.
+All or nothing: an input owned by none of the addresses throws.
+
+#### Parameters
+
+##### params
+
+[`BindPrevoutsToFundingAddressesParams`](#bindprevoutstofundingaddressesparams)
+
+#### Returns
+
+`Record`\<`string`, [`FundingPrevout`](utils.md#fundingprevout)\>
+
+***
+
+### collectFundingUtxos()
+
+```ts
+function collectFundingUtxos(params): Promise<FundingUtxo[]>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/collectFundingUtxos.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/collectFundingUtxos.ts)
+
+Every UTXO across the wallet's funding addresses, each carrying its owning
+key and path. All or nothing: any failed listing or foreign script throws.
+
+#### Parameters
+
+##### params
+
+[`CollectFundingUtxosParams`](#collectfundingutxosparams)
+
+#### Returns
+
+`Promise`\<[`FundingUtxo`](#fundingutxo)[]\>
 
 ***
 
