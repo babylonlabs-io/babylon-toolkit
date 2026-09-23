@@ -121,9 +121,13 @@ separately, at full price each. Do it yourself.
    finding whose `decision` is `follow-up` and whose status is neither
    `fixed` nor `moot` (the same condition Phase 5 regenerates that section
    with, so the two never disagree about one finding), and equally any
-   sentence elsewhere in the description — including in "What" or "Why" —
-   that presents an open finding's subject as settled design, whatever its
-   decision.
+   sentence **anywhere in the description, that list included**, that
+   presents an open finding's subject as settled design, whatever its
+   decision. The second clause is not restricted to the other sections: a
+   hand-written "Not in this PR" bullet describing an open *declined*
+   blocker matches neither the first clause (wrong decision) nor a clause
+   scoped to "elsewhere", and descriptions written by hand — carrying no
+   `(pre-review #<id>)` markers — are the expected case, not the exception.
 
    Both extensions are load bearing, and both failed on this skill's own
    branch the first run that could exercise them. Keying only on
@@ -244,12 +248,13 @@ separately, at full price each. Do it yourself.
 
    Two projects sit outside that pattern. `tools/release` has a `typecheck`
    (`tsc --noEmit -p tsconfig.json`) and no `build` at all, so there are more
-   typecheck targets than build targets. `tools/eslint-config` is plain
-   JavaScript with no tsconfig, so nx never infers a typecheck target for it
-   and there is no stub to override. Those two do not make the lint and
-   typecheck project counts differ from each other in any predictable
-   direction — `tools/release` is in both sets — so do not reason from a
-   count either way.
+   typecheck targets than build targets; it is in the lint set too.
+   `tools/eslint-config` is plain JavaScript with no tsconfig, so nx never
+   infers a typecheck target for it and there is no stub to override, but it
+   does carry a lint target. The lint set is therefore exactly one larger
+   than the typecheck set: a whole-workspace run reports 10 lint projects and
+   9 typecheck projects. That offset is the baseline — read a discrepancy
+   against it, not against equality.
 
    Cross-package types resolve through `node_modules` to each dependency's
    built `dist`, not through a path mapping, so this step checks each project
