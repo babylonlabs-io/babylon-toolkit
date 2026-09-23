@@ -1746,6 +1746,40 @@ export const COPY = {
     reserveNotFound: "Reserve not found",
     // Shown for a token whose indexed symbol is an address (no `symbol()`).
     unknownTokenSymbol: "Unknown",
+    // Aave caps how many reserves one position may borrow. Both pickers say so
+    // before the choice is made, phrased from the cap the spoke reports.
+    borrowLimit: {
+      assetNoticeTitle: (limit: number) =>
+        limit === 1
+          ? "Only one asset can be borrowed per position"
+          : `Only ${limit} assets can be borrowed per position`,
+      // Figma 13839:7442 verbatim at a cap of one, the case the design draws.
+      // Above one it scales: repaying in full frees the slot either way, since
+      // the Spoke clears the borrowing flag once drawn shares reach zero.
+      assetNoticeBody: (limit: number) =>
+        limit === 1
+          ? "To switch to another asset, you must fully repay your current loan first. Once it's fully repaid, you can choose a different asset."
+          : `This position can borrow ${limit} assets at a time. Repay one in full to free its slot and choose another.`,
+      // Figma I13786:66896;7899:81189 / 81191 verbatim at a cap of one.
+      hubNoticeTitle: (limit: number) =>
+        limit === 1
+          ? "Only one hub can be borrowed per position"
+          : `Only ${limit} hubs can be borrowed per position`,
+      hubNoticeBody: (limit: number) =>
+        limit === 1
+          ? "Your position will be tied to this hub. To switch hubs later, you'll need to create a new position."
+          : `Your position can be tied to ${limit} hubs. To switch hubs later, you'll need to create a new position.`,
+      learnMore: "Learn more",
+      // Thrown at submit when the Spoke's cap could not be read, so there is
+      // no way to tell whether the borrow would be accepted.
+      capUnavailableError:
+        "Couldn't load the borrow limit, so the borrow was stopped. Refresh the page and try again.",
+      // Blocks the borrow pickers while the Spoke's cap could not be read.
+      capLoadError: "Couldn't load the borrow limit. Please try again.",
+    },
+    // A borrow refused because the indexer's reserve disagrees with the chain.
+    borrowIntegrityError:
+      "Asset integrity check failed: the borrowable asset returned by the indexer does not match what's registered on-chain. Refresh and try again. If this persists, do not proceed.",
     assetSelection: {
       title: "Select asset",
       columnAsset: "Asset",

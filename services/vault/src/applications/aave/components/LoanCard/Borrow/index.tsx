@@ -152,7 +152,7 @@ export function Borrow() {
     [selectedReserve, debtReserves],
   );
   const hubSpokeConfigs = useHubSpokeConfigs(hubReserves);
-  const { borrowableReserves } = useAaveConfig();
+  const { borrowableReserves, chainMaxBorrowReserves } = useAaveConfig();
   const hubBlock = getBorrowHubBlock(
     selectedReserve,
     debtReserves,
@@ -280,6 +280,7 @@ export function Borrow() {
         liquidationThresholdBps,
         refetchSplitParams,
         refetchPosition,
+        chainMaxBorrowReserves,
       }),
     );
     if (success) {
