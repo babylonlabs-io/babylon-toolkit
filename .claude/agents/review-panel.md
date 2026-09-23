@@ -92,5 +92,8 @@ authoritative source yourself. Two lanes agreeing is not evidence.
 
 `1 — <claim>. <path>:<line>`, 2–6 sentences each, most severe first,
 merge-blockers marked, and say per finding whether you verified it yourself.
+An out-of-diff finding carries **both** locations — the changed line that
+makes it wrong and the outside file that is wrong — because both are needed
+to route and re-judge it later.
 Then "Checked and dismissed", at most 6 bullets. End with one line per lane:
 its type, its dimension, and whether it reported.

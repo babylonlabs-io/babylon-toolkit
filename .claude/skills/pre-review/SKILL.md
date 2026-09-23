@@ -147,13 +147,17 @@ separately, at full price each. Do it yourself.
    an engineer-written scope line matching it would keep being deleted from
    what reviewers see for the life of the branch.
 
-   Exclude those entries only. The rest of the section is the engineer's own
-   "what is deliberately left out" — the second of the two questions this step
-   asks — and dropping it makes reviewers re-raise settled scope every run,
-   which is the cost this exclusion exists to avoid. Match against the stored
-   findings, not against the `(pre-review N<id>)` marker: a description
-   written or edited by hand carries no markers, including on its genuine
-   follow-ups.
+   **Withhold what states a known open defect; keep everything else.** The
+   test is the sentence's subject, not the section it sits in: an entry or
+   sentence anywhere that presents an open finding's subject as settled is
+   withheld, and an entry or sentence that does not — the engineer's own
+   "what is deliberately left out", the second of the two questions this step
+   asks — stays, wherever it sits. Both halves cost something when they go
+   wrong: withholding too little leaves an open blocker standing as settled
+   design, and withholding too much makes reviewers re-raise settled scope
+   every run. Match against the stored findings, not against the
+   `(pre-review N<id>)` marker: a description written or edited by hand
+   carries no markers, including on its genuine follow-ups.
 
    Tell reviewers plainly: _the intent settles WHAT to build and WHAT is out
    of scope. It never settles whether the code does it safely. Re-proposing a
@@ -281,9 +285,11 @@ separately, at full price each. Do it yourself.
      tracked files before the snapshot is taken. It also schedules a
      project's `build` and `typecheck` concurrently over one
      `.tsbuildinfo`, since `^build` adds no edge to the project's own build.
-   - A module-not-found on a workspace package means the dependency has never
-     been built in this clone, not that the change is broken. Characterise it
-     before recording a failure.
+   - A module-not-found on a workspace package **may** mean the dependency has
+     never been built in this clone rather than that the change is broken —
+     but it may equally mean the change imports a package this project does
+     not declare, which is a real defect with the identical error text. Never
+     assume the first: settle it before recording anything (step 10 says how).
 
    Then compare `git status --porcelain` with step 3's copy. Every file lint
    modified was **rewritten by the checks**: tell the engineer, record it in
@@ -312,13 +318,29 @@ separately, at full price each. Do it yourself.
     nx project is affected: **nothing affected**, never passed. Redirect each
     run's output to a WORK file and read nx's own exit status.
 
-    First discount the target that did not really run: a typecheck that failed
-    **only** with a module-not-found on a workspace package did not check
-    anything, because the dependency has never been built in this clone. That
-    says nothing about the change, so it is neither a pass nor a failure —
-    drop it from the set of targets the value below is computed from, name it
-    in `uncovered` as `typecheck-unbuilt: <project>`, and say so in the
-    verdict line so nobody reads the run as fully checked.
+    First consider whether a target did not really run. A typecheck that
+    failed **only** with a module-not-found on a workspace package is the one
+    candidate — but it is **not** automatically discountable, because a real
+    defect produces the identical error: a change that imports a package the
+    project does not declare in its `package.json` fails exactly this way, and
+    so does one importing a path a package does not export. Discounting
+    blindly turns a change that does not compile into `checks: passed`, which
+    is the false green this whole step exists to prevent.
+
+    **Prove it before discounting.** For each unresolved specifier, check both:
+
+    - the dependency is **declared** — the importing project's `package.json`
+      lists that package (`dependencies`, `devDependencies` or
+      `peerDependencies`); and
+    - its build output is **absent** — the resolved `dist` (or whatever its
+      `main`/`exports`/`types` point at) does not exist on disk.
+
+    Only when a specifier is declared *and* unbuilt is the failure an artifact
+    of this clone. Then drop that target from the set the value below is
+    computed from, name it in `uncovered` as `typecheck-unbuilt: <project>`,
+    and say so in the verdict line so nobody reads the run as fully checked.
+    If any specifier is undeclared, or is declared and built, the typecheck
+    **failed** — record it that way and hand the reviewers the error.
 
     Then, over the targets that remain, the run's `checks` is `failed` if any
     failed; `stubbed` if none failed but a project reported its typecheck

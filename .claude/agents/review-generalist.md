@@ -79,4 +79,6 @@ know about:
 
 Findings as `1 — <claim>. <path>:<line>`, most severe first, merge-blockers
 marked. 2–4 sentences each: what the code does, why it is wrong, the concrete
-failure, the fix. Then "Verified clean", at most 4 bullets.
+failure, the fix. An out-of-diff finding carries **both** locations —
+`<changed path>:<line>` and `<outside path>:<line>` — because both are needed
+to route and re-judge it later. Then "Verified clean", at most 4 bullets.

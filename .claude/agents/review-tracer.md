@@ -79,6 +79,9 @@ that section is a merge gate, not advice. Check it.
 
 `N — <one-line claim>. <path>:<line-range>` + 2–6 sentences: what the code
 does, why it is wrong, the concrete failure, the fix (name any existing helper
-to reuse). Most severe first, merge-blockers marked, confidence per finding.
+to reuse). An out-of-diff finding carries **both** locations — the changed
+line that makes it wrong and the outside file that is wrong — because both
+are needed to route and re-judge it later. Most severe first, merge-blockers
+marked, confidence per finding.
 Then "Verified correct, no action", at most 6 one-line bullets. Flag anything
 that needs an answer you could not obtain.
