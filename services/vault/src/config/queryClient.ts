@@ -8,7 +8,7 @@ import {
 } from "@/utils/errors/types";
 import { isUserCancellation } from "@/utils/errors/userCancellation";
 
-const calculateRetryDelay = (attemptIndex: number): number => {
+export const calculateRetryDelay = (attemptIndex: number): number => {
   return Math.min(1000 * 2 ** attemptIndex, 30000);
 };
 

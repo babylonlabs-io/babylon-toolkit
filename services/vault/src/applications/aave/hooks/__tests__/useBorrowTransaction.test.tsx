@@ -20,7 +20,7 @@ vi.mock("@/clients/eth-contract", () => ({
 }));
 
 vi.mock("@/infrastructure", () => ({
-  logger: { error: vi.fn() },
+  logger: { error: vi.fn(), warn: vi.fn() },
 }));
 
 vi.mock("@tanstack/react-query", () => ({
@@ -40,8 +40,10 @@ vi.mock("@/hooks/useProtocolGate", () => ({
   useProtocolGateState: () => gateMock.value,
 }));
 
+import { COPY } from "@/copy";
 import { ContractError, ErrorCode } from "@/utils/errors";
 
+import { BorrowReserveCapUnavailableError } from "../../utils/borrowReserveLimit";
 import { useBorrowTransaction } from "../useBorrowTransaction";
 
 const RESERVE = {} as never;
@@ -126,5 +128,26 @@ describe("useBorrowTransaction — hub reverts", () => {
     expect(result.current.error).toBe(
       "This amount would go over the borrow limit for USDC on Core Hub, which is 1,000,000 USDC. Enter a lower amount and try again.",
     );
+  });
+});
+
+describe("useBorrowTransaction — unreadable borrow cap", () => {
+  it("shows the cap-unavailable sentence as is, with no Borrow failed prefix", async () => {
+    mockAssertReserve.mockResolvedValue(undefined);
+    mockGetERC20Decimals.mockResolvedValue(6);
+    const { result } = renderHook(() => useBorrowTransaction());
+
+    await act(async () => {
+      await result.current.executeBorrow(100, LIVE_RESERVE, async () => {
+        throw new BorrowReserveCapUnavailableError({
+          cause: new Error("RPC unavailable"),
+        });
+      });
+    });
+
+    expect(result.current.error).toBe(
+      COPY.loans.borrowLimit.capUnavailableError,
+    );
+    expect(mockBorrow).not.toHaveBeenCalled();
   });
 });

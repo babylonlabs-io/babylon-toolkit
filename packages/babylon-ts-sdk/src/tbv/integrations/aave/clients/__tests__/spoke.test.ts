@@ -4,8 +4,8 @@ import { describe, expect, it, vi } from "vitest";
 import {
   getDynamicReserveConfig,
   getReserve,
+  getLiquidationBonusConfig,
   getReserves,
-  getTargetHealthFactor,
   getUserPositionAndAccountData,
   getUserPositions,
   getUserTotalDebts,
@@ -39,18 +39,21 @@ function createMulticallClient(
 }
 
 describe("Core Spoke parameter reads", () => {
-  describe("getTargetHealthFactor", () => {
-    it("reads targetHealthFactor from getLiquidationConfig", async () => {
-      const expectedTHF = 1_100_000_000_000_000_000n;
+  describe("getLiquidationBonusConfig", () => {
+    it("reads the bonus curve fields from getLiquidationConfig", async () => {
+      // viem decodes the uint16 liquidationBonusFactor as a number
       const client = createMockClient({
-        targetHealthFactor: expectedTHF,
+        targetHealthFactor: 1_000_000_000_000_000_000n,
         healthFactorForMaxBonus: 900_000_000_000_000_000n,
-        liquidationBonusFactor: 5000n,
+        liquidationBonusFactor: 9000,
       });
 
-      const thf = await getTargetHealthFactor(client, STUB_ADDRESS);
+      const config = await getLiquidationBonusConfig(client, STUB_ADDRESS);
 
-      expect(thf).toBe(expectedTHF);
+      expect(config).toEqual({
+        healthFactorForMaxBonus: 900_000_000_000_000_000n,
+        liquidationBonusFactor: 9000n,
+      });
       expect(client.readContract).toHaveBeenCalledWith(
         expect.objectContaining({
           address: STUB_ADDRESS,
@@ -62,10 +65,11 @@ describe("Core Spoke parameter reads", () => {
 
   describe("getDynamicReserveConfig", () => {
     it("reads dynamic reserve config with reserveId and dynamicConfigKey", async () => {
+      // viem decodes these uint16/uint32 fields as numbers
       const expectedConfig = {
-        collateralFactor: 7500n,
-        maxLiquidationBonus: 10500n,
-        liquidationFee: 100n,
+        collateralFactor: 7500,
+        maxLiquidationBonus: 10555,
+        liquidationFee: 100,
       };
       const client = createMockClient(expectedConfig);
 

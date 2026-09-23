@@ -56,6 +56,12 @@ const connectToView = (subject: string) =>
 // amount and token on their own (repay success), which splits the same
 // "<token> on <hub>" wording across segments.
 const tokenOnHub = (symbol: string, hub: string) => `${symbol} on ${hub}`;
+// Names the spoke's borrow-reserve cap. Both Borrowed Asset tooltips open with
+// it, so one builder keeps their singular and plural forms from drifting.
+const borrowAssetsPerPosition = (limit: number) =>
+  limit === 1
+    ? "One borrow asset per position"
+    : `${limit} borrow assets per position`;
 // Column header shared by the Select hub picker and the markets table.
 const AVAILABLE_LIQUIDITY_COLUMN = "Available Liquidity";
 // Generic deposit-failure title; shared so per-bucket titles can't drift.
@@ -317,6 +323,22 @@ export const COPY = {
       // would name a cause that is not the reason.
       splitUnavailableProtocolLimit:
         "The protocol currently allows one BTCVault per transaction. BTCVault split unavailable.",
+    },
+    // Split sizing and the deposit flow's pre-sign vault-amount checks: the
+    // form hint when the SDK's `findSplitSizingViolation` refuses a split,
+    // and the errors when submitted vault amounts are out of order or do not
+    // add up to the deposit amount.
+    splitSizing: {
+      unavailable:
+        "The current protocol parameters don't allow splitting a deposit into two BTCVaults. Your deposit will use a single BTCVault.",
+      // The split params read (CF and the liquidation bonus curve) failed, so
+      // no split can be sized at all.
+      paramsUnavailable:
+        "We couldn't read the protocol's risk parameters, so the BTCVault split is unavailable. Your deposit will use a single BTCVault.",
+      sacrificialNotSmaller:
+        "The first BTCVault of a split deposit must be smaller than the second. Close this window and start the deposit again.",
+      amountsDoNotMatchDeposit:
+        "The BTCVault amounts don't add up to your deposit amount. Close this window and start the deposit again.",
     },
     fundingInputCap: {
       noticeBefore: "You ",
@@ -1392,6 +1414,12 @@ export const COPY = {
     },
   },
   wallet: {
+    // Connect Wallets screen: the line under each wallet row that says why
+    // the app needs that wallet.
+    chainDescriptions: {
+      BTC: "Used to deposit and manage your Bitcoin collateral.",
+      ETH: "Used to manage your positions, transactions, and account activity.",
+    },
     btcAction: {
       heading: "Connect your Bitcoin wallet",
       body: "This action needs your Bitcoin wallet. Connect it, then try the action again.",
@@ -1638,9 +1666,22 @@ export const COPY = {
     // v3 Loans page: "Active Loans (N)" section heading.
     activeLoansHeading: (count: number) => `Active Loans (${count})`,
     // v3 Loans page empty state (connected, no debt).
+    // The body is split so the middle clause can carry the design's emphasis.
+    // `bodyNoCap` is what the same state says on a spoke that caps nothing:
+    // there is no asset to be tied to, so the tied-position sentence would be
+    // a restriction the protocol is not imposing.
     noActiveLoans: {
       title: "No active loans",
-      body: "You haven't borrowed any assets yet",
+      bodyNoCap: "You haven't borrowed any assets yet",
+      // Figma I13779:43096;13155:11244 verbatim at a cap of one.
+      body: (limit: number) => ({
+        lead: "Once you choose an asset, ",
+        emphasis:
+          limit === 1
+            ? "your position is tied to it"
+            : `this position can borrow ${limit} assets`,
+        rest: ". To borrow a different asset, you'll need to create a new position.",
+      }),
     },
     // v3 Loans page empty state, disconnected — no position to describe yet,
     // so it's a title-only prompt like the Activity tab's.
@@ -1711,6 +1752,40 @@ export const COPY = {
     reserveNotFound: "Reserve not found",
     // Shown for a token whose indexed symbol is an address (no `symbol()`).
     unknownTokenSymbol: "Unknown",
+    // Aave caps how many reserves one position may borrow. Both pickers say so
+    // before the choice is made, phrased from the cap the spoke reports.
+    borrowLimit: {
+      assetNoticeTitle: (limit: number) =>
+        limit === 1
+          ? "Only one asset can be borrowed per position"
+          : `Only ${limit} assets can be borrowed per position`,
+      // Figma 13839:7442 verbatim at a cap of one, the case the design draws.
+      // Above one it scales: repaying in full frees the slot either way, since
+      // the Spoke clears the borrowing flag once drawn shares reach zero.
+      assetNoticeBody: (limit: number) =>
+        limit === 1
+          ? "To switch to another asset, you must fully repay your current loan first. Once it's fully repaid, you can choose a different asset."
+          : `This position can borrow ${limit} assets at a time. Repay one in full to free its slot and choose another.`,
+      // Figma I13786:66896;7899:81189 / 81191 verbatim at a cap of one.
+      hubNoticeTitle: (limit: number) =>
+        limit === 1
+          ? "Only one hub can be borrowed per position"
+          : `Only ${limit} hubs can be borrowed per position`,
+      hubNoticeBody: (limit: number) =>
+        limit === 1
+          ? "Your position will be tied to this hub. To switch hubs later, you'll need to create a new position."
+          : `Your position can be tied to ${limit} hubs. To switch hubs later, you'll need to create a new position.`,
+      learnMore: "Learn more",
+      // Thrown at submit when the Spoke's cap could not be read, so there is
+      // no way to tell whether the borrow would be accepted.
+      capUnavailableError:
+        "Couldn't load the borrow limit, so the borrow was stopped. Refresh the page and try again.",
+      // Blocks the borrow pickers while the Spoke's cap could not be read.
+      capLoadError: "Couldn't load the borrow limit. Please try again.",
+    },
+    // A borrow refused because the indexer's reserve disagrees with the chain.
+    borrowIntegrityError:
+      "Asset integrity check failed: the borrowable asset returned by the indexer does not match what's registered on-chain. Refresh and try again. If this persists, do not proceed.",
     assetSelection: {
       title: "Select asset",
       columnAsset: "Asset",
@@ -2099,8 +2174,39 @@ export const COPY = {
     heading: "Overview",
     positionTitle: "Position",
     totalCollateralValueLabel: "Total Collateral Value",
-    totalBorrowedLabel: "Total Borrowed",
     availableToBorrowLabel: "Available to Borrow",
+    // Aave caps how many reserves one position may borrow, so the position bar
+    // names the asset the position is tied to rather than a debt total.
+    borrowedAssetLabel: "Borrowed Asset",
+    // Before the first borrow, when no asset is tied to the position yet.
+    borrowedAssetEmpty: "Not Selected",
+    // Two hubs can list the same symbol, so a position holding both reads
+    // "USDC, USDC". The hub is named on the Loans rows, not here.
+    borrowedAssetValue: (symbols: string[]) => symbols.join(", "),
+    // Borrowed Asset tooltip before the first borrow. Phrased from the cap the
+    // Spoke reports, never a hardcoded 1 — Aave may raise it.
+    borrowedAssetTooltipBefore: (limit: number) => ({
+      title: borrowAssetsPerPosition(limit),
+      body:
+        limit === 1
+          ? "Choose carefully once you borrow, this position is tied to that asset."
+          : "Choose carefully once you borrow, this position is tied to the assets you pick.",
+    }),
+    // Borrowed Asset tooltip below the cap with something already borrowed.
+    // Distinct from the before-first-borrow copy: "choose carefully once you
+    // borrow" contradicts a card that is already showing a borrowed asset.
+    borrowedAssetTooltipRemaining: (limit: number, borrowed: number) => ({
+      title: borrowAssetsPerPosition(limit),
+      body:
+        limit - borrowed === 1
+          ? "One slot left. Repay a loan in full to free another."
+          : `${limit - borrowed} slots left. Repay a loan in full to free another.`,
+    }),
+    // Borrowed Asset tooltip once the position has used up its reserves.
+    borrowedAssetTooltipAfter: (limit: number) =>
+      limit === 1
+        ? "To switch to another asset, you must fully repay your loan first. Once it's fully repaid, you can choose a different asset."
+        : "To borrow a different asset, fully repay one of your current loans first. Once it's fully repaid, you can choose another.",
     depositAction: "Deposit",
     borrowAction: "Borrow",
     repayAction: "Repay",
@@ -2343,10 +2449,10 @@ export const COPY = {
     ltv: {
       label: "Collateral Factor",
     },
-    liquidationThreshold: {
-      label: "Target Health Factor",
+    splitTargetHealthFactor: {
+      label: "Split Target Health Factor",
       tooltip:
-        "The health factor the protocol aims to restore after partial-position liquidation.",
+        "The health factor a split position returns to after its first BTCVault is liquidated. The first BTCVault is sized to reach it.",
     },
     maxLiquidationPenalty: {
       label: "Max Liquidation Penalty",
@@ -2422,32 +2528,31 @@ export const COPY = {
     },
     // Cliff: all vaults consolidate into one liquidation group, so partial
     // liquidation is no longer possible. One Figma title/body across every case
-    // (CLIFF A 6502-110902 / CLIFF B 7064-77201); only the suggestion varies by
-    // what action is feasible.
+    // (CLIFF A 6502-110902, and the "Suggestion" block layout of 7064-77201);
+    // only the suggestion varies by what action is feasible.
     cliff: {
       title: "First liquidation takes everything",
       body: "With your current BTCVaults, a single liquidation event liquidates all your BTC in collateral.",
       // Header shown above the suggestion text when there is no actionable CTA
-      // (the withdraw/re-deposit and multi-vault cases). Rendered uppercase.
+      // (no affordable add, and the multi-vault cases). Rendered uppercase.
       suggestionLabel: "Suggestion",
       // Variant A (#1948): an affordable sacrificial vault buffers the existing
       // position. The amount lives here; the CTA label stays generic.
       addSacrificialSuggestion: (sacrificialBtc: string) =>
         `Adding a new BTCVault of ${sacrificialBtc} BTC enables partial-position liquidation.`,
-      // Variant B (#1949): the single vault is too large to buffer cheaply —
-      // withdraw it and re-deposit as two smaller vaults instead.
-      withdrawResplitSuggestion: (
-        withdrawBtc: string,
-        sacrificialBtc: string,
-        protectedBtc: string,
-      ) =>
-        `To enable partial-position liquidation, withdraw your ${withdrawBtc} BTC and re-deposit as two smaller BTCVaults: ${sacrificialBtc} BTC + ${protectedBtc} BTC. Alternatively: add collateral or repay debt to manage the liquidation.`,
-      // Protocol params disallow splitting entirely — no re-split is possible.
+      // No affordable add because of the parameters themselves: the seized
+      // share is at least half, so the sacrificial vault would have to be the
+      // larger of the two and splitting cannot protect the position at all.
       noSplitSuggestion:
         "Current protocol parameters do not allow BTCVault splitting as a protection strategy. Add collateral or repay part of the debt to keep this position safe.",
-      // 2-vault / 3+ cliffs share the title/body/severity but keep their
-      // structural suggestion, since "re-deposit as two smaller vaults" doesn't
-      // apply when you already hold multiple vaults.
+      // No affordable add because of the position's size: splitting works at
+      // these parameters, but the smaller BTCVault would have to clear the
+      // minimum peg-in, which is not smaller than what is already here.
+      tooSmallToSplitSuggestion: (minimumBtc: string) =>
+        `This position is too small to split: a second BTCVault would need at least ${minimumBtc} BTC, which is not smaller than your current BTCVault. Add collateral or repay part of the debt to keep this position safe.`,
+      // 2-vault / 3+ cliffs share the title/body/severity but carry their own
+      // structural suggestion (reorder, or how much a smaller first BTCVault
+      // would need), since a position with several vaults has other fixes.
       twoVault: {
         enablePartial: (deficitBtc: string, largestName: string) =>
           `To enable partial-position liquidation, add ≥ ${deficitBtc} BTC alongside ${largestName}. `,
@@ -2486,16 +2591,23 @@ export const COPY = {
       detail:
         "Below $1,000 the cascade simplifies — all BTCVaults are shown as one liquidation event. Small positions don't have meaningful multi-event behavior.",
     },
+    // The Spoke risk-parameter read failed, so no cascade can be computed.
+    // The live health-factor card is computed separately and still shows.
+    paramsUnavailable: {
+      title: "Liquidation warnings unavailable",
+      detail:
+        "We couldn't read the protocol's risk parameters, so liquidation warnings can't be calculated right now. Your BTCVaults and loan are unaffected. Reload the page to try again, and contact support if this persists.",
+    },
     weirdParams: {
       title: "Protocol parameters don't compute",
       causeLiqPenalty: (liqPenalty: string, thf: string) =>
-        `maxLB × CF = ${liqPenalty}, but it must be less than THF (${thf}). At this combination the liquidation formula becomes undefined (division by a non-positive number).`,
+        `LB × CF = ${liqPenalty}, but it must be less than THF (${thf}). At this combination the liquidation formula becomes undefined (division by a non-positive number).`,
       causeThfTooLow: (thf: string, expectedHf: string) =>
         `THF (${thf}) must be greater than expected HF (${expectedHf}) — otherwise liquidation has no valid target.`,
       causeFractionOver: (fractionPct: string) =>
-        `With these settings, each liquidation would seize more than 100% of your collateral (${fractionPct}%). That's mathematically impossible — adjust CF, THF, or maxLB.`,
+        `With these settings, each liquidation would seize more than 100% of your collateral (${fractionPct}%). That's mathematically impossible — adjust CF, THF, or LB.`,
       causeGeneric: (fractionPct: string) =>
-        `Seizure fraction computed as ${fractionPct}% — outside the valid range. Adjust CF, THF, or maxLB.`,
+        `Seizure fraction computed as ${fractionPct}% — outside the valid range. Adjust CF, THF, or LB.`,
     },
   },
 } as const;

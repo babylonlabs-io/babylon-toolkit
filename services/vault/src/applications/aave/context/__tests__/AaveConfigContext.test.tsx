@@ -210,6 +210,7 @@ describe("AaveConfigProvider — fail-closed on fetch failure (audit #312)", () 
       borrowableReserves: [],
       allBorrowReserves: [],
       hubSpokeConfigs: {},
+      maxBorrowReserves: { status: "loaded", limit: null },
     });
     const { Wrapper } = wrapper();
 

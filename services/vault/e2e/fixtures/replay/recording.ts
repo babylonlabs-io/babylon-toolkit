@@ -89,7 +89,7 @@ export const DEFAULT_REPLAY_STEP = "deposit-form";
  * made by the CLI still would not hold them - it never visits that page - so
  * re-run the top-up after every regeneration.
  *
- * The last two RPC lines are archive reads from rpc.sentio.xyz/sepolia at
+ * The last three RPC lines are archive reads from rpc.sentio.xyz/sepolia at
  * block 11313642 (2026-07-20T15:38:36Z), before the final deposit-form
  * response. The block hash is
  * 0x6bf92724bbb383ceccbac05cb26c352193ff48c27ea7ec9a948f8401a4977474.
@@ -97,8 +97,11 @@ export const DEFAULT_REPLAY_STEP = "deposit-form";
  * returned the same InvalidProxyContract error, with no adapter events in that
  * interval. The second is the Hub's getSpokeConfig for every recorded reserve
  * and the recorded Core Spoke, which the config load gained after the
- * recording was made. These are supplemental historical reads, not the
- * original latest responses.
+ * recording was made. The third is MAX_USER_RESERVES_LIMIT() on the recorded
+ * Core Spoke (0xb2884144a43b40cb3a89042b3e94f0f1e41cd022), which the config
+ * load gained later still; that deployment answers 65535, the contract's
+ * unlimited sentinel, at this block and at head alike. These are supplemental
+ * historical reads, not the original latest responses.
  *
  * A single named constant rather than a glob: which run is replayed decides
  * what every captured screen contains, so it is a deliberate choice, not

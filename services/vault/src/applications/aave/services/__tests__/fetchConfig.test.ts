@@ -13,6 +13,7 @@ vi.mock("../../clients/transaction", () => ({
 }));
 
 vi.mock("../../clients/spoke", () => ({
+  getMaxUserReservesLimit: vi.fn(),
   getReservesBatch: vi.fn(),
 }));
 
@@ -26,7 +27,7 @@ vi.mock("../../config", () => ({
 
 import { graphqlClient } from "../../../../clients/graphql";
 import { getHubSpokeConfigsSafe } from "../../clients/aaveHub";
-import { getReservesBatch } from "../../clients/spoke";
+import { getMaxUserReservesLimit, getReservesBatch } from "../../clients/spoke";
 import {
   getCoreSpokeAddress,
   getVaultBtcReserveId,
@@ -39,6 +40,7 @@ const mockRequest = vi.mocked(graphqlClient.request);
 const mockGetCoreSpokeAddress = vi.mocked(getCoreSpokeAddress);
 const mockGetVaultBtcReserveId = vi.mocked(getVaultBtcReserveId);
 const mockGetReservesBatch = vi.mocked(getReservesBatch);
+const mockGetMaxUserReservesLimit = vi.mocked(getMaxUserReservesLimit);
 const mockGetAaveAdapterAddress = vi.mocked(getAaveAdapterAddress);
 const mockGetHubSpokeConfigsSafe = vi.mocked(getHubSpokeConfigsSafe);
 
@@ -142,6 +144,8 @@ describe("fetchAaveAppConfig", () => {
     mockGetAaveAdapterAddress.mockReturnValue(ENV_ADAPTER);
     mockGetCoreSpokeAddress.mockResolvedValue(CORE_SPOKE);
     mockGetVaultBtcReserveId.mockResolvedValue(1n);
+    // Our spoke deploy defaults the cap to type(uint16).max, i.e. unlimited.
+    mockGetMaxUserReservesLimit.mockResolvedValue(65535);
     mockGetReservesBatch.mockResolvedValue([
       ON_CHAIN_VBTC_RESERVE,
       ON_CHAIN_USDC_RESERVE,

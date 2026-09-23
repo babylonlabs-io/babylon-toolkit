@@ -26,7 +26,7 @@ interface EmptyStateProps {
   /** Primary text/title */
   title: string;
   /** Secondary text/description (optional) */
-  description?: string;
+  description?: ReactNode;
   /** Presentation — see the file header. */
   variant?: "v3" | "compact";
   /** Whether the user is connected */

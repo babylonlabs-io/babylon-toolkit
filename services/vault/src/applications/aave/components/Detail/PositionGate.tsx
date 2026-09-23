@@ -7,11 +7,12 @@
  * - neither → render children
  */
 
-import { Button, Text } from "@babylonlabs-io/core-ui";
-import { useState, type ReactNode } from "react";
+import { Text } from "@babylonlabs-io/core-ui";
+import type { ReactNode } from "react";
 
 import { COPY } from "@/copy";
-import { logger } from "@/infrastructure";
+
+import { LoadErrorRetry } from "./LoadErrorRetry";
 
 export interface PositionGateProps {
   positionError: Error | null;
@@ -26,31 +27,13 @@ export function PositionGate({
   refetchPosition,
   children,
 }: PositionGateProps) {
-  const [isRetrying, setIsRetrying] = useState(false);
   if (positionError) {
     return (
-      <div className="flex flex-col items-center gap-3">
-        <Text variant="body2" className="text-center text-warning-main">
-          {COPY.loans.detail.positionLoadError}
-        </Text>
-        <Button
-          disabled={isRetrying}
-          onClick={async () => {
-            setIsRetrying(true);
-            try {
-              await refetchPosition();
-            } catch (error) {
-              logger.warn("Could not reload the Aave position", {
-                error: error instanceof Error ? error : String(error),
-              });
-            } finally {
-              setIsRetrying(false);
-            }
-          }}
-        >
-          {COPY.loans.detail.retry}
-        </Button>
-      </div>
+      <LoadErrorRetry
+        message={COPY.loans.detail.positionLoadError}
+        onRetry={refetchPosition}
+        retryFailureLog="Could not reload the Aave position"
+      />
     );
   }
 

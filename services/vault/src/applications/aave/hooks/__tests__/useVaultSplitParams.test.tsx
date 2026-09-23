@@ -35,22 +35,18 @@ vi.mock("@/clients/eth-contract/client", () => ({
   },
 }));
 
-const mockGetTargetHealthFactor = vi.fn();
+const mockGetLiquidationBonusConfig = vi.fn();
 const mockGetDynamicReserveConfig = vi.fn();
 const mockGetReserve = vi.fn();
 
 vi.mock("../../clients", () => ({
   AaveSpoke: {
-    getTargetHealthFactor: (...args: unknown[]) =>
-      mockGetTargetHealthFactor(...args),
+    getLiquidationBonusConfig: (...args: unknown[]) =>
+      mockGetLiquidationBonusConfig(...args),
     getDynamicReserveConfig: (...args: unknown[]) =>
       mockGetDynamicReserveConfig(...args),
     getReserve: (...args: unknown[]) => mockGetReserve(...args),
   },
-}));
-
-vi.mock("../../utils", () => ({
-  wadToNumber: (wad: bigint) => Number(wad) / 1e18,
 }));
 
 vi.mock("../../context", () => ({
@@ -101,12 +97,17 @@ describe("useVaultSplitParams", () => {
     });
     vi.clearAllMocks();
 
-    // Default mock values: THF=1.10 (WAD), CF=7500 (BPS), LB=10500 (BPS)
-    mockGetTargetHealthFactor.mockResolvedValue(1_100_000_000_000_000_000n);
+    // Default mock values: bonus curve with max bonus at HF 0.90 and 90% of
+    // it at HF 1.0; CF=7500 (BPS), max LB=10555 (BPS). viem decodes these
+    // small uints as numbers.
+    mockGetLiquidationBonusConfig.mockResolvedValue({
+      healthFactorForMaxBonus: 900_000_000_000_000_000n,
+      liquidationBonusFactor: 9000n,
+    });
     mockGetDynamicReserveConfig.mockResolvedValue({
-      collateralFactor: 7500n,
-      maxLiquidationBonus: 10500n,
-      liquidationFee: 100n,
+      collateralFactor: 7500,
+      maxLiquidationBonus: 10555,
+      liquidationFee: 100,
     });
     mockGetReserve.mockResolvedValue({
       dynamicConfigKey: 0,
@@ -118,19 +119,45 @@ describe("useVaultSplitParams", () => {
     });
   });
 
-  it("returns converted THF, CF, LB values", async () => {
+  it("uses the split constants for THF and expected HF, and the Spoke's bonus curve at HF 0.99 for LB", async () => {
     const { result } = renderHook(() => useVaultSplitParams(), { wrapper });
 
     await waitFor(() => {
       expect(result.current.isLoading).toBe(false);
     });
 
+    // LB: 10499 + (10555 − 10499) × 0.01 / 0.10 = 10504 BPS
     expect(result.current.params).toEqual({
-      THF: 1.1,
+      THF: 1.08,
+      expectedHF: 0.99,
       CF: 0.75,
-      LB: 1.05,
+      LB: 1.0504,
+      lbUnavailableReason: null,
+      maxLB: 1.0555,
     });
     expect(result.current.error).toBeNull();
+  });
+
+  it("reports a null bonus instead of guessing when the Spoke's bonus curve is out of range", async () => {
+    // healthFactorForMaxBonus must be below 1e18; the contract would never
+    // accept this configuration.
+    mockGetLiquidationBonusConfig.mockResolvedValue({
+      healthFactorForMaxBonus: 1_000_000_000_000_000_000n,
+      liquidationBonusFactor: 9000n,
+    });
+
+    const { result } = renderHook(() => useVaultSplitParams(), { wrapper });
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    expect(result.current.params?.LB).toBeNull();
+    expect(result.current.params?.lbUnavailableReason).toBeTruthy();
+    // The query itself succeeds: the collateral factor still has to reach the
+    // borrow and repay pre-sign checks, which re-read it through this query.
+    expect(result.current.error).toBeNull();
+    expect(result.current.params?.CF).toBe(0.75);
   });
 
   it("passes reserveId and dynamicConfigKey to getDynamicReserveConfig", async () => {
@@ -222,6 +249,9 @@ describe("useVaultSplitParams", () => {
       borrowableReserves: [],
       allBorrowReserves: [],
       hubSpokeConfigs: {},
+      maxBorrowReserves: { status: "loaded", limit: null },
+      chainMaxBorrowReserves: { status: "loaded", limit: null },
+      refetchConfig: vi.fn(),
     });
 
     mockGetReserve.mockResolvedValue({
@@ -241,14 +271,17 @@ describe("useVaultSplitParams", () => {
       2,
     );
     expect(result.current.params).toEqual({
-      THF: 1.1,
+      THF: 1.08,
+      expectedHF: 0.99,
       CF: 0.75,
-      LB: 1.05,
+      LB: 1.0504,
+      lbUnavailableReason: null,
+      maxLB: 1.0555,
     });
   });
 
   it("returns loading state while fetching", () => {
-    mockGetTargetHealthFactor.mockReturnValue(new Promise(() => {}));
+    mockGetLiquidationBonusConfig.mockReturnValue(new Promise(() => {}));
 
     const { result } = renderHook(() => useVaultSplitParams(), { wrapper });
 
@@ -264,6 +297,9 @@ describe("useVaultSplitParams", () => {
       borrowableReserves: [],
       allBorrowReserves: [],
       hubSpokeConfigs: {},
+      maxBorrowReserves: { status: "loaded", limit: null },
+      chainMaxBorrowReserves: { status: "loaded", limit: null },
+      refetchConfig: vi.fn(),
     });
 
     const { result } = renderHook(() => useVaultSplitParams(), { wrapper });
@@ -289,6 +325,9 @@ describe("useVaultSplitParams", () => {
       borrowableReserves: [],
       allBorrowReserves: [],
       hubSpokeConfigs: {},
+      maxBorrowReserves: { status: "loaded", limit: null },
+      chainMaxBorrowReserves: { status: "loaded", limit: null },
+      refetchConfig: vi.fn(),
     });
 
     // beforeEach default has CF=0.75 (7500 BPS). Initial load picks that up.
@@ -305,9 +344,9 @@ describe("useVaultSplitParams", () => {
     // explicit refetch React Query would keep the cached 0.75 — the bug
     // auditor finding #260 calls out.
     mockGetDynamicReserveConfig.mockResolvedValue({
-      collateralFactor: 7000n,
-      maxLiquidationBonus: 10500n,
-      liquidationFee: 100n,
+      collateralFactor: 7000,
+      maxLiquidationBonus: 10555,
+      liquidationFee: 100,
     });
 
     const refreshed = await result.current.refetch();
@@ -333,6 +372,9 @@ describe("useVaultSplitParams", () => {
       borrowableReserves: [],
       allBorrowReserves: [],
       hubSpokeConfigs: {},
+      maxBorrowReserves: { status: "loaded", limit: null },
+      chainMaxBorrowReserves: { status: "loaded", limit: null },
+      refetchConfig: vi.fn(),
     });
 
     const { result } = renderHook(() => useVaultSplitParams(), { wrapper });
@@ -360,6 +402,9 @@ describe("useVaultSplitParams", () => {
       borrowableReserves: [],
       allBorrowReserves: [],
       hubSpokeConfigs: {},
+      maxBorrowReserves: { status: "loaded", limit: null },
+      chainMaxBorrowReserves: { status: "loaded", limit: null },
+      refetchConfig: vi.fn(),
     });
 
     const { result } = renderHook(() => useVaultSplitParams(), { wrapper });

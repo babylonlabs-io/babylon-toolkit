@@ -14,6 +14,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { COPY } from "@/copy";
 
 import { LOAN_TAB } from "../../../constants";
+import type { BorrowReserveCap } from "../../../utils/borrowReserveLimit";
 import { LoanFlowOverlay } from "../index";
 
 const SHELL_TESTID = "modal-shell";
@@ -29,10 +30,29 @@ const useAaveBorrowedAssetsMock = vi.fn(() => ({
     symbol: string;
   }[],
 }));
+/**
+ * The borrow gate only arms with a finite cap, so most tests here want the
+ * no-cap default and the ones that exercise the gate set this instead.
+ */
+const configMock = vi.hoisted(() => ({
+  maxBorrowReserves: { status: "loaded", limit: null } as BorrowReserveCap,
+}));
 const useAaveUserPositionMock = vi.hoisted(() =>
   vi.fn(() => ({
     position: undefined as
-      | { collaterals: []; vaultIds: []; indexerError?: Error }
+      | {
+          collaterals: [];
+          vaultIds: [];
+          indexerError?: Error;
+          // Required on AavePositionWithLiveData, and read without an optional
+          // chain in Detail/index.tsx — an optional here would let a test
+          // typecheck and then crash the component.
+          accountData: { borrowCount: bigint };
+          debtPositions?: Map<
+            bigint,
+            { reserveId: bigint; drawnShares: bigint }
+          >;
+        }
       | undefined,
     debtValueUsd: 0,
     isLoading: false,
@@ -164,6 +184,9 @@ vi.mock("../../../context", () => {
     useAaveConfig: () => ({
       borrowableReserves,
       allBorrowReserves: borrowableReserves,
+      // Omitting this leaves it `undefined`, which crashes the overlay's cap
+      // check in every test here. `configMock` defaults it to no cap.
+      maxBorrowReserves: configMock.maxBorrowReserves,
     }),
   };
 });
@@ -190,7 +213,77 @@ function renderOverlay(ui: ReactNode, path = "/loans") {
 describe("LoanFlowOverlay", () => {
   beforeEach(() => {
     walletState.isConnected = true;
+    configMock.maxBorrowReserves = { status: "loaded", limit: null };
     useAaveUserPositionMock.mockClear();
+  });
+
+  it("holds Select asset behind a loading frame while the borrow count is unknown under a finite cap", () => {
+    // A cap of 2, not 1: at 1, a limit hard-coded to 1 would pass too.
+    configMock.maxBorrowReserves = { status: "loaded", limit: 2 };
+    useAaveUserPositionMock.mockReturnValueOnce({
+      position: undefined,
+      debtValueUsd: 0,
+      isLoading: true,
+      error: null,
+      refetch: vi.fn(),
+    });
+
+    renderOverlay(
+      <LoanFlowOverlay
+        picker={LOAN_TAB.BORROW}
+        reserveId={null}
+        tab={LOAN_TAB.BORROW}
+        asset={null}
+      />,
+    );
+
+    // Offering every asset here would let an account that is already at the
+    // cap pick one, and the borrow would revert on-chain.
+    expect(screen.queryByTestId("picker-borrow")).not.toBeInTheDocument();
+    expect(
+      screen.getByText(COPY.loans.assetSelection.title),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(COPY.loans.assetSelection.loading),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(COPY.loans.borrowLimit.assetNoticeTitle(2)),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(COPY.loans.borrowLimit.assetNoticeBody(2), {
+        exact: false,
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("names the hub picker, not the asset picker, behind the same loading frame", () => {
+    // A cap of 3, not the asset test's 2: a literal hard-coded on either
+    // branch then fails one of the two tests.
+    configMock.maxBorrowReserves = { status: "loaded", limit: 3 };
+    useAaveUserPositionMock.mockReturnValueOnce({
+      position: undefined,
+      debtValueUsd: 0,
+      isLoading: true,
+      error: null,
+      refetch: vi.fn(),
+    });
+
+    renderOverlay(
+      <LoanFlowOverlay
+        picker={LOAN_TAB.BORROW}
+        reserveId={null}
+        tab={LOAN_TAB.BORROW}
+        asset={USDC}
+      />,
+    );
+
+    expect(screen.queryByTestId("hub-picker")).not.toBeInTheDocument();
+    // The frame title, not just the notice: it is the other half of what
+    // `mode` selects, and the only thing the extraction could silently swap.
+    expect(screen.getByText(COPY.loans.hub.selectTitle)).toBeInTheDocument();
+    expect(
+      screen.getByText(COPY.loans.borrowLimit.hubNoticeTitle(3)),
+    ).toBeInTheDocument();
   });
 
   it("omits the position query address while disconnected", () => {
@@ -265,7 +358,13 @@ describe("LoanFlowOverlay", () => {
       borrowedAssets: [{ reserveId: "2", symbol: "USDC" }],
     });
     useAaveUserPositionMock.mockReturnValueOnce({
-      position: { collaterals: [], vaultIds: [] },
+      position: {
+        collaterals: [],
+        vaultIds: [],
+        // Required on AavePositionWithLiveData; this repay test never reads it.
+        accountData: { borrowCount: 1n },
+        debtPositions: new Map([[2n, { reserveId: 2n, drawnShares: 1n }]]),
+      },
       debtValueUsd: 1500,
       isLoading: false,
       error: new Error("RPC unavailable"),

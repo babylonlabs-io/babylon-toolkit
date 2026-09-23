@@ -59,6 +59,12 @@ function reserve(
   } as unknown as AaveReserveConfig;
 }
 
+const NO_CAP = {
+  limit: null,
+  borrowCount: 0n,
+  borrowedReserveIds: new Set<bigint>(),
+};
+
 function LocationDisplay() {
   const { pathname } = useLocation();
   return <div data-testid="location">{pathname}</div>;
@@ -67,7 +73,11 @@ function LocationDisplay() {
 function renderPanel(onSelectReserve = vi.fn()) {
   render(
     <MemoryRouter initialEntries={["/loans"]}>
-      <HubSelectionPanel underlying={USDC} onSelectReserve={onSelectReserve} />
+      <HubSelectionPanel
+        underlying={USDC}
+        onSelectReserve={onSelectReserve}
+        borrowGate={NO_CAP}
+      />
       <LocationDisplay />
     </MemoryRouter>,
   );

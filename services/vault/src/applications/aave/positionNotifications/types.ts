@@ -52,9 +52,19 @@ export interface CalculatorParams {
   totalDebtUsd: number;
   vaults: Vault[];
   CF: number;
+  /** Split target health factor (`VaultSplitParams.THF`) */
   THF: number;
-  maxLB: number;
-  expectedHF?: number;
+  /** Liquidation bonus at `expectedHF` (`VaultSplitParams.LB`) */
+  LB: number;
+  /** Expected health factor at liquidation (`VaultSplitParams.expectedHF`) */
+  expectedHF: number;
+  /**
+   * Protocol minimum peg-in, in BTC. A suggested new vault is never smaller,
+   * so the deposit form accepts the amount the banner pre-fills. `null` when
+   * the peg-in configuration could not be read: suggestions are then not
+   * floored, and every warning still renders.
+   */
+  minPeginBtc: number | null;
 }
 
 export interface CalculatorResult {

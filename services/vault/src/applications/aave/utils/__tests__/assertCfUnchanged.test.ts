@@ -3,8 +3,22 @@ import { describe, expect, it, vi } from "vitest";
 import type { VaultSplitParams } from "../../hooks/useVaultSplitParams";
 import { assertCfUnchanged } from "../assertCfUnchanged";
 
-const CF_75 = { THF: 1.1, CF: 0.75, LB: 1.05 } satisfies VaultSplitParams;
-const CF_70 = { THF: 1.1, CF: 0.7, LB: 1.05 } satisfies VaultSplitParams;
+const CF_75 = {
+  THF: 1.1,
+  expectedHF: 0.95,
+  CF: 0.75,
+  LB: 1.05,
+  lbUnavailableReason: null,
+  maxLB: 1.05,
+} satisfies VaultSplitParams;
+const CF_70 = {
+  THF: 1.1,
+  expectedHF: 0.95,
+  CF: 0.7,
+  LB: 1.05,
+  lbUnavailableReason: null,
+  maxLB: 1.05,
+} satisfies VaultSplitParams;
 
 describe("assertCfUnchanged", () => {
   it("throws when refetchSplitParams returns null (RPC failure)", async () => {
@@ -39,6 +53,25 @@ describe("assertCfUnchanged", () => {
 
     expect(result.freshLiquidationThresholdBps).toBe(7500);
     expect(result.freshSplitParams).toEqual(CF_75);
+  });
+
+  it("passes when the split bonus is unavailable but the collateral factor is intact", async () => {
+    // An out-of-range bonus curve only prevents sizing a deposit split. This
+    // check gates borrow and repay, and repay is how a user reduces risk, so
+    // it must not fail on a value it never reads.
+    const refetchSplitParams = vi.fn().mockResolvedValue({
+      ...CF_75,
+      LB: null,
+      lbUnavailableReason: "bonus curve out of range",
+    } satisfies VaultSplitParams);
+
+    const result = await assertCfUnchanged({
+      liquidationThresholdBps: 7500,
+      refetchSplitParams,
+    });
+
+    expect(result.freshLiquidationThresholdBps).toBe(7500);
+    expect(result.freshSplitParams.CF).toBe(0.75);
   });
 
   it("skips the equality check when the displayed BPS is 0 (loading/errored state)", async () => {

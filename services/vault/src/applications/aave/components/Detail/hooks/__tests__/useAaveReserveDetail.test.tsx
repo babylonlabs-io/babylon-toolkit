@@ -116,7 +116,7 @@ const mockUseAaveUserPosition = vi.fn<(addr?: string) => unknown>(() => ({
 }));
 
 const mockUseVaultSplitParams = vi.fn<(addr?: string) => unknown>(() => ({
-  params: { THF: 1.1, CF: 0.75, LB: 1.05 },
+  params: { THF: 1.1, expectedHF: 0.95, CF: 0.75, LB: 1.05, maxLB: 1.05 },
   isLoading: false,
   error: null,
   refetch: vi.fn(),
@@ -218,7 +218,7 @@ describe("useAaveReserveDetail", () => {
       error: null,
     });
     mockUseVaultSplitParams.mockReturnValue({
-      params: { THF: 1.1, CF: 0.75, LB: 1.05 },
+      params: { THF: 1.1, expectedHF: 0.95, CF: 0.75, LB: 1.05, maxLB: 1.05 },
       isLoading: false,
       error: null,
       refetch: vi.fn(),
@@ -352,7 +352,7 @@ describe("useAaveReserveDetail", () => {
 
   it("uses CF from useVaultSplitParams for liquidationThresholdBps", () => {
     mockUseVaultSplitParams.mockReturnValue({
-      params: { THF: 1.1, CF: 0.75, LB: 1.05 },
+      params: { THF: 1.1, expectedHF: 0.95, CF: 0.75, LB: 1.05, maxLB: 1.05 },
       isLoading: false,
       error: null,
       refetch: vi.fn(),
@@ -383,7 +383,7 @@ describe("useAaveReserveDetail", () => {
 
   it("handles CF values that could produce floating-point imprecision", () => {
     mockUseVaultSplitParams.mockReturnValue({
-      params: { THF: 1.1, CF: 0.8333, LB: 1.05 },
+      params: { THF: 1.1, expectedHF: 0.95, CF: 0.8333, LB: 1.05, maxLB: 1.05 },
       isLoading: false,
       error: null,
     });
@@ -435,7 +435,7 @@ describe("useAaveReserveDetail", () => {
       error: null,
     });
     mockUseVaultSplitParams.mockReturnValue({
-      params: { THF: 1.1, CF: 0.75, LB: 1.05 },
+      params: { THF: 1.1, expectedHF: 0.95, CF: 0.75, LB: 1.05, maxLB: 1.05 },
       isLoading: false,
       error: null,
       refetch: vi.fn(),
