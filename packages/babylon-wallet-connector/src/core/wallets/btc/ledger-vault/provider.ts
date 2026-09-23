@@ -52,7 +52,7 @@ import {
   SW_CLA_NOT_SUPPORTED,
   SW_INS_NOT_SUPPORTED,
   type ApduSender,
-  type AuthorizedKeyPathLeaves,
+  type AuthorizedKeyPathLeaf,
   type DefaultTaprootWalletPolicy,
   type DepositTerms,
   type DmkSessionHandle,
@@ -608,25 +608,16 @@ export class LedgerVaultProvider implements IBTCProvider {
    * from the policy account xpub; the device signs inputs on either branch
    * (`base:process_in_outs.c:82-128`).
    */
-  getFundingAddresses = async (): Promise<
-    {
-      address: string;
-      internalPubkeyHex: string;
-      branch: number;
-      addressIndex: number;
-    }[]
-  > =>
+  getFundingAddresses = async (): Promise<{ address: string; internalPubkeyHex: string }[]> =>
     this.withDeviceOperation("getFundingAddresses", async () => {
       const generation = this.connectionGeneration;
       const [depositorXOnlyHex, { policy }] = await Promise.all([this.getDevicePubkeyHex(), this.getPolicyContext()]);
       // Both reads can be served from a cache filled by a previous
       // connection; a reconnect mid-read must not hand back a mix.
       this.assertSameConnection(generation);
-      return this.authorizedKeyPathLeaves(policy, depositorXOnlyHex).leaves.map((leaf) => ({
+      return this.authorizedKeyPathLeaves(policy, depositorXOnlyHex).map((leaf) => ({
         address: getTaprootAddress(leaf.xOnlyHex, this.network),
         internalPubkeyHex: leaf.xOnlyHex,
-        branch: leaf.branch,
-        addressIndex: leaf.addressIndex,
       }));
     });
 
@@ -642,7 +633,7 @@ export class LedgerVaultProvider implements IBTCProvider {
   private authorizedKeyPathLeaves(
     policy: DefaultTaprootWalletPolicy,
     depositorXOnlyHex: string,
-  ): AuthorizedKeyPathLeaves {
+  ): readonly AuthorizedKeyPathLeaf[] {
     return deriveAuthorizedKeyPathLeaves({
       walletPolicy: policy,
       depositorXOnlyHex,
@@ -1167,7 +1158,7 @@ export class LedgerVaultProvider implements IBTCProvider {
     const preflightLabel = keyPathCandidate
       ? `${label} rejected before the signing ceremony`
       : `${label} rejected before device I/O`;
-    let authorizedKeyPathLeaves: AuthorizedKeyPathLeaves | undefined;
+    let authorizedKeyPathLeaves: readonly AuthorizedKeyPathLeaf[] | undefined;
     if (keyPathCandidate) {
       // Read outside the try: a disconnect here is a connection error, and
       // re-wrapping it as INVALID_PARAMS would blame the caller's PSBT.
@@ -1202,19 +1193,19 @@ export class LedgerVaultProvider implements IBTCProvider {
       // Read outside the try: a disconnect here is a connection error, and
       // re-wrapping it as INVALID_PARAMS would blame the caller's PSBT.
       const changeXOnlyHex = await this.getChangeXOnlyHex();
+      // The classification pass derived the set for a key-path candidate; the
+      // same derivation is repeated only if it did not.
+      const leaves = authorizedKeyPathLeaves ?? this.authorizedKeyPathLeaves(policy, depositorXOnlyHex);
       let augmented: string;
       try {
         augmented = augmentPsbtForWalletPolicy({
           psbtHex,
-          depositorXOnlyHex,
           walletPolicy: policy,
-          depositorPath: this.depositorPath,
+          // Each input is declared at the leaf that owns it.
+          authorizedKeyPathLeaves: leaves,
           // A Pre-PegIn legitimately has no change (dust-revert, and the Max
           // sweep by design) — marking it only when the PSBT actually pays it.
           change: psbtPaysChangeScript(psbtHex, changeXOnlyHex) ? { addressIndex: FIRST_CHANGE_INDEX } : undefined,
-          // Each input is declared at the leaf that owns it; the signer
-          // derives these leaves' keys from the policy xpub itself.
-          fundingLeaves: this.fundingLeaves,
         });
       } catch (error) {
         throw toStagingWalletError(error, `${label} rejected before device I/O`);
@@ -1227,7 +1218,7 @@ export class LedgerVaultProvider implements IBTCProvider {
           psbtHex: augmented,
           depositorXOnlyHex,
           walletPolicy: policy,
-          authorizedKeyPathLeaves,
+          authorizedKeyPathLeaves: leaves,
         });
       } catch (error) {
         throw toStagingWalletError(error, `${label} rejected at policy-mode prepare`);

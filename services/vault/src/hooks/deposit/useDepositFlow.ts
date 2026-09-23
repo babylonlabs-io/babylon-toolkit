@@ -30,11 +30,11 @@ import {
   VpResponseValidationError,
   vpTokenRegistry,
 } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+import { computeHashlock } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 import {
-  computeHashlock,
   InputPrevoutMismatchError,
-} from "@babylonlabs-io/ts-sdk/tbv/core/services";
-import { UtxoNotAvailableError } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
+  UtxoNotAvailableError,
+} from "@babylonlabs-io/ts-sdk/tbv/core/utils";
 import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -976,10 +976,6 @@ export function useDepositFlow(
               vout: u.vout,
               value: String(u.value),
               scriptPubKey: u.scriptPubKey,
-              // Owning key, when the deposit spans addresses. JSON drops an
-              // undefined property, so a single-address record stays as it
-              // was and the read guard's all-or-none rule holds either way.
-              internalPubkeyHex: u.internalPubkeyHex,
             })),
             // Persist the exact versions the BTC scripts were built against.
             // The resume broadcast path re-asserts these against the on-chain

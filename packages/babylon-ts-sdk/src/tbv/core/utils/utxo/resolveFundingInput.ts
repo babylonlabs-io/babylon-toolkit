@@ -14,21 +14,17 @@ import {
   type FundingPrevout,
   isMultiAddressFunding,
   outpointKey,
+  type Prevout,
   requireFundingPrevout,
 } from "./prevoutBinding";
 
-interface ChainPrevout {
-  scriptPubKey: string;
-  value: number;
-}
-
-export interface ResolvedFundingInput<T extends ChainPrevout> {
+export interface ResolvedFundingInput<T extends Prevout> {
   utxoData: T;
   /** Set only for multi-address funding: the key this input is signed under. */
   internalPubkeyHex?: string;
 }
 
-export interface FundingInputResolverParams<T extends ChainPrevout> {
+export interface FundingInputResolverParams<T extends Prevout> {
   prevouts: Record<string, FundingPrevout> | undefined;
   /** Outpoint-keyed chain read (`getUtxoInfo`); the chain's values are used. */
   readChain: (txid: string, vout: number) => Promise<T>;
@@ -37,7 +33,7 @@ export interface FundingInputResolverParams<T extends ChainPrevout> {
 }
 
 /** Build the resolver for one transaction's inputs; the mode is decided once. */
-export function createFundingInputResolver<T extends ChainPrevout>(
+export function createFundingInputResolver<T extends Prevout>(
   params: FundingInputResolverParams<T>,
 ): (txid: string, vout: number) => Promise<ResolvedFundingInput<T>> {
   const { prevouts, readChain, resolveSingle } = params;
@@ -47,11 +43,14 @@ export function createFundingInputResolver<T extends ChainPrevout>(
     });
   }
   return async (txid, vout) => {
-    const key = outpointKey(txid, vout);
     const declared = requireFundingPrevout(prevouts, txid, vout);
-    assertKeyOwnsScript(key, declared.internalPubkeyHex, declared.scriptPubKey);
+    assertKeyOwnsScript(
+      outpointKey(txid, vout),
+      declared.internalPubkeyHex,
+      declared.scriptPubKey,
+    );
     const chain = await readChain(txid, vout);
-    assertPrevoutMatchesChain(key, declared, chain);
+    assertPrevoutMatchesChain(txid, vout, declared, chain);
     return { utxoData: chain, internalPubkeyHex: declared.internalPubkeyHex };
   };
 }

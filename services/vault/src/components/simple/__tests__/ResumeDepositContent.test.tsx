@@ -80,6 +80,8 @@ vi.mock("@babylonlabs-io/ts-sdk/tbv/core/clients", () => ({
 
 vi.mock("@babylonlabs-io/ts-sdk/tbv/core/utils", () => ({
   calculateBtcTxHash: mockCalculateBtcTxHash,
+  // The deposit error mapper matches it by instanceof; never thrown here.
+  InputPrevoutMismatchError: class InputPrevoutMismatchError extends Error {},
 }));
 
 const btcActionWallet = vi.hoisted(() => ({

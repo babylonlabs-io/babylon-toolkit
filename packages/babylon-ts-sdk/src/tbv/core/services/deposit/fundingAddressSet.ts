@@ -5,11 +5,7 @@
 
 import type { Network } from "@babylonlabs-io/babylon-tbv-rust-wasm";
 
-import {
-  BIP86_FUNDING_BRANCHES,
-  MAX_NON_HARDENED_INDEX,
-  type FundingAddress,
-} from "../../deposit-terms";
+import type { FundingAddress } from "../../deposit-terms";
 import {
   deriveBip86ScriptPubKeyHex,
   deriveTaprootAddress,
@@ -37,7 +33,6 @@ function assertDistinctFundingAddresses(
   // A duplicate key shows up as a duplicate address: the pairing check below
   // makes the address a function of the key.
   const seenAddresses = new Set<string>();
-  const seenPaths = new Set<string>();
   for (const funding of addresses) {
     // The provider side is duck-typed; a wrong shape must fail here, by name.
     if (
@@ -54,24 +49,6 @@ function assertDistinctFundingAddresses(
         `Funding address ${funding.address} reported an invalid ` +
           `internalPubkeyHex: expected 64 hex characters (x-only, no 0x ` +
           `prefix), got "${funding.internalPubkeyHex}".`,
-      );
-    }
-    if (!BIP86_FUNDING_BRANCHES.includes(funding.branch)) {
-      throw new Error(
-        `Funding address ${funding.address} reported branch ` +
-          `${funding.branch}; only ${BIP86_FUNDING_BRANCHES.join(" and ")} ` +
-          `are addresses of a BIP-86 account.`,
-      );
-    }
-    if (
-      !Number.isInteger(funding.addressIndex) ||
-      funding.addressIndex < 0 ||
-      funding.addressIndex > MAX_NON_HARDENED_INDEX
-    ) {
-      throw new Error(
-        `Funding address ${funding.address} reported address index ` +
-          `${funding.addressIndex}; it must be a non-hardened index in ` +
-          `0..${MAX_NON_HARDENED_INDEX}.`,
       );
     }
     // The pairing, not just the parts: re-derive the address from its own key.
@@ -92,17 +69,10 @@ function assertDistinctFundingAddresses(
           `come from different addresses.`,
       );
     }
-    const path = `${funding.branch}/${funding.addressIndex}`;
     if (seenAddresses.has(funding.address)) {
       throw new Error(`Funding address ${funding.address} was listed twice.`);
     }
-    if (seenPaths.has(path)) {
-      throw new Error(
-        `Two funding addresses report the same derivation path ${path}.`,
-      );
-    }
     seenAddresses.add(funding.address);
-    seenPaths.add(path);
   }
 }
 

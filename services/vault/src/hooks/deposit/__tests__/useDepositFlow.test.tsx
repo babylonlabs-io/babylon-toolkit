@@ -10,8 +10,10 @@ import type {
   DepositTerms,
   DepositTermsApprover,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
-import { InputPrevoutMismatchError } from "@babylonlabs-io/ts-sdk/tbv/core/services";
-import { UtxoNotAvailableError } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
+import {
+  InputPrevoutMismatchError,
+  UtxoNotAvailableError,
+} from "@babylonlabs-io/ts-sdk/tbv/core/utils";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { Address, Hex } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -830,7 +832,7 @@ describe("useDepositFlow", () => {
       );
     });
 
-    it("carries each selected UTXO's owning key into the stored record and the broadcast's expected set", async () => {
+    it("hands the broadcast the listing's UTXO objects with their owning keys, and stores no key", async () => {
       const { addPendingPegin } = vi.mocked(
         await import("@/storage/peginStorage"),
       );
@@ -842,9 +844,8 @@ describe("useDepositFlow", () => {
       );
       // A deposit funded from the wallet's change branch: the build returns
       // the listing's objects, one of which names the key that owns it. The
-      // key must reach the record (resume) and the expected set (signing)
-      // exactly as listed — the signing site signs that input under it, and
-      // a dropped key would be refused only after Ethereum registration.
+      // key must reach the expected set (signing) exactly as listed; it is
+      // never persisted — resume re-derives ownership from the device.
       const changeKey = "bb".repeat(32);
       const changeUtxo = {
         ...MOCK_UTXO_2,
@@ -863,14 +864,9 @@ describe("useDepositFlow", () => {
         expect(addPendingPegin).toHaveBeenCalledTimes(2);
       });
       const [, storedRecord] = addPendingPegin.mock.calls[0];
-      expect(storedRecord.selectedUTXOs).toEqual([
-        expect.objectContaining({ txid: MOCK_UTXO_1.txid }),
-        expect.objectContaining({
-          txid: changeUtxo.txid,
-          internalPubkeyHex: changeKey,
-        }),
-      ]);
-      expect(storedRecord.selectedUTXOs[0].internalPubkeyHex).toBeUndefined();
+      for (const stored of storedRecord.selectedUTXOs ?? []) {
+        expect(stored).not.toHaveProperty("internalPubkeyHex");
+      }
       // Every expected-set derivation (pre-registration check and broadcast)
       // was handed the listing's objects with the key still on them.
       expect(utxosToExpectedRecord).toHaveBeenCalled();

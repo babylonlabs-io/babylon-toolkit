@@ -27,8 +27,7 @@ const { getUtxoInfoMock, pushTxMock } = vi.hoisted(() => ({
 }));
 
 vi.mock("../../clients/mempool", async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import("../../clients/mempool")>();
+  const actual = await importOriginal<typeof import("../../clients/mempool")>();
   return { ...actual, getUtxoInfo: getUtxoInfoMock, pushTx: pushTxMock };
 });
 
@@ -127,8 +126,7 @@ function makeManager(btcWallet: MockBitcoinWallet): PeginManager {
     ethChain,
     publicClient,
     vaultContracts: {
-      btcVaultRegistry:
-        "0x742d35cc6634c0532925a3b844bc9e7595f0beb0" as Address,
+      btcVaultRegistry: "0x742d35cc6634c0532925a3b844bc9e7595f0beb0" as Address,
     },
     mempoolApiUrl: MEMPOOL_API_URLS.signet,
   });
@@ -190,7 +188,7 @@ describe("signAndBroadcast with multi-address funding", () => {
         depositorBtcPubkey: RECEIVE_KEY,
         localPrevouts: prevouts,
       }),
-    ).rejects.toThrow(/script does not match the chain/);
+    ).rejects.toThrow(/does not match the chain/);
 
     expect(wallet.signPsbt).not.toHaveBeenCalled();
     expect(pushTxMock).not.toHaveBeenCalled();

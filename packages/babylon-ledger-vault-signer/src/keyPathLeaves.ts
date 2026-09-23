@@ -2,12 +2,12 @@
  * The key-path leaves a Pre-PegIn may spend under the wallet policy.
  *
  * The device marks an input internal when the wallet script at its declared
- * (branch, index) byte-matches the witnessUtxo, and signs with that leaf's
- * key (`base:process_in_outs.c:82-128`, `base:sign_input.c:544-608`
- * @ e400d8d8). A wrong-but-consistent declaration is signed, not refused, so
- * this module is the one place that derives every authorized leaf's key from
- * the policy xpub; callers name leaves by position and never supply a key.
- * The result is a branded handle that `prepareSignPsbt` checks provenance of.
+ * (branch, index) byte-matches the witnessUtxo, and signs with the key at that
+ * path (`base:process_in_outs.c:82-128`, `base:sign_input.c:244-250` and
+ * `:544-608` @ e400d8d8). A wrong-but-consistent declaration is signed, not
+ * refused, so this module is the one place that derives every authorized
+ * leaf's key from the policy xpub; callers name leaves by position and never
+ * supply a key.
  */
 
 import { HDKey } from "@scure/bip32";
@@ -35,17 +35,6 @@ export interface KeyPathLeaf {
   /** Non-hardened address index within the branch. */
   readonly addressIndex: number;
 }
-
-declare const authorizedKeyPathLeavesBrand: unique symbol;
-
-/** The authorized set; produced only by {@link deriveAuthorizedKeyPathLeaves}. */
-export interface AuthorizedKeyPathLeaves {
-  /** The depositor's own leaf first, then each funding leaf in request order. */
-  readonly leaves: readonly AuthorizedKeyPathLeaf[];
-  readonly [authorizedKeyPathLeavesBrand]: true;
-}
-
-const producedHandles = new WeakSet<AuthorizedKeyPathLeaves>();
 
 /** The policy expression is `@0/<0;1>/*`: the depositor path must be branch 0 under the policy's account. */
 function assertDepositorPathUnderPolicy(depositorPath: readonly number[], keyOriginPath: readonly number[]): void {
@@ -89,10 +78,13 @@ export interface DeriveAuthorizedKeyPathLeavesParams {
 }
 
 /**
- * Derive the authorized set: the depositor's leaf, then each funding leaf's
- * key from the policy xpub. Rejects an off-branch, hardened or repeated leaf.
+ * Derive the authorized set: the depositor's leaf first, then each funding
+ * leaf's key from the policy xpub. Rejects an off-branch, hardened or repeated
+ * leaf.
  */
-export function deriveAuthorizedKeyPathLeaves(params: DeriveAuthorizedKeyPathLeavesParams): AuthorizedKeyPathLeaves {
+export function deriveAuthorizedKeyPathLeaves(
+  params: DeriveAuthorizedKeyPathLeavesParams,
+): readonly AuthorizedKeyPathLeaf[] {
   const { walletPolicy, depositorXOnlyHex, depositorPath, fundingLeaves = [] } = params;
   if (!X_ONLY_HEX_RE.test(depositorXOnlyHex)) throw new Error("depositorXOnlyHex must be 64 lowercase hex characters");
   assertDepositorPathUnderPolicy(depositorPath, walletPolicy.keyOriginPath);
@@ -133,23 +125,5 @@ export function deriveAuthorizedKeyPathLeaves(params: DeriveAuthorizedKeyPathLea
       path: [...accountPrefix, leaf.branch, leaf.addressIndex],
     });
   }
-
-  // Deep-frozen: a caller holding a handle must not be able to alter a leaf
-  // before signing. The brand is type-only; the cast just names the type.
-  for (const leaf of leaves) {
-    Object.freeze(leaf.path);
-    Object.freeze(leaf);
-  }
-  Object.freeze(leaves);
-  const handle = Object.freeze({ leaves }) as unknown as AuthorizedKeyPathLeaves;
-  producedHandles.add(handle);
-  return handle;
-}
-
-/** @internal The leaves behind a handle; refuses anything this module did not produce. */
-export function resolveAuthorizedKeyPathLeaves(handle: AuthorizedKeyPathLeaves): readonly AuthorizedKeyPathLeaf[] {
-  if (!producedHandles.has(handle)) {
-    throw new Error("unrecognised authorized key-path leaves — use deriveAuthorizedKeyPathLeaves's return value");
-  }
-  return handle.leaves;
+  return leaves;
 }

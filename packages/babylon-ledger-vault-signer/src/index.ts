@@ -53,18 +53,17 @@ export {
 } from "./errors";
 export type { AuthorizedKeyPathLeaf, ExpectedSignatureTable, InputSigExpectation } from "./expectedSignatures";
 export {
-  deriveAuthorizedKeyPathLeaves,
-  type AuthorizedKeyPathLeaves,
-  type DeriveAuthorizedKeyPathLeavesParams,
-  type KeyPathLeaf,
-} from "./keyPathLeaves";
-export {
   encodeIntentGroup,
   encodeIntentScalars,
   encodeKeyBatches,
   type IntentScalars,
   type IntentVaultGroup,
 } from "./intentTlv";
+export {
+  deriveAuthorizedKeyPathLeaves,
+  type DeriveAuthorizedKeyPathLeavesParams,
+  type KeyPathLeaf,
+} from "./keyPathLeaves";
 export {
   augmentPsbtForWalletPolicy,
   deriveChangeXOnlyHex,

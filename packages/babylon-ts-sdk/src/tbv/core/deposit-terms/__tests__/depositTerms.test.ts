@@ -28,21 +28,6 @@ describe("forwardDepositApproval", () => {
     expect(supportsDepositApproval(base)).toBe(false);
   });
 
-  it("forwards getFundingAddresses for a wallet that cannot approve terms", async () => {
-    // The two capabilities are probed independently, so forwarding must be
-    // too: dropping this one at a wrapper site falls back to single-address
-    // funding, and the change branch becomes unspendable again.
-    const fundingOnly = Object.assign(Object.create({}), base, {
-      getFundingAddresses: vi.fn(async () => []),
-    });
-
-    const fwd = forwardDepositApproval(fundingOnly);
-
-    expect(fwd.approveDepositTerms).toBeUndefined();
-    await expect(fwd.getFundingAddresses!()).resolves.toEqual([]);
-    expect(fundingOnly.getFundingAddresses).toHaveBeenCalledOnce();
-  });
-
   it("still recognizes an approver that cannot report a change address", () => {
     // The presign/payout ceremonies approve terms without ever creating
     // change, so getChangeAddress is not part of being an approval wallet.
@@ -91,33 +76,6 @@ describe("forwardDepositApproval", () => {
       true,
     );
     expect(withProbe.holdsApprovedDepositTerms).toHaveBeenCalledOnce();
-  });
-
-  it("forwards getFundingAddresses only when the wallet implements it", async () => {
-    // Object spread drops prototype methods, so a wrapper that lost this
-    // would silently fall back to single-address funding — and a deposit
-    // funded from the change branch would be signed under the wrong key.
-    const withoutFunding = Object.assign(Object.create({}), base, {
-      approveDepositTerms: vi.fn(async () => {}),
-    });
-    expect(
-      forwardDepositApproval(withoutFunding).getFundingAddresses,
-    ).toBeUndefined();
-
-    const addresses = [
-      {
-        address: "tb1preceive",
-        internalPubkeyHex: "aa".repeat(32),
-        branch: 0,
-        addressIndex: 0,
-      },
-    ];
-    const withFunding = Object.assign(Object.create({}), withoutFunding, {
-      getFundingAddresses: vi.fn(async () => addresses),
-    });
-    const fwd = forwardDepositApproval(withFunding);
-    await expect(fwd.getFundingAddresses!()).resolves.toEqual(addresses);
-    expect(withFunding.getFundingAddresses).toHaveBeenCalledOnce();
   });
 
   it("forwards validateDepositTerms only when the wallet implements it", async () => {

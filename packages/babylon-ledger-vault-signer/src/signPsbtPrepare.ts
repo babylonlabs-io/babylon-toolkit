@@ -21,10 +21,10 @@ import { LedgerSignPsbtProtocolError } from "./errors";
 import {
   buildExpectedSignatureTable,
   createYieldCollector,
+  type AuthorizedKeyPathLeaf,
   type ExpectedSignatureTable,
   type YieldCollector,
 } from "./expectedSignatures";
-import { resolveAuthorizedKeyPathLeaves, type AuthorizedKeyPathLeaves } from "./keyPathLeaves";
 import type { Apdu } from "./rawApdu";
 import { CLA_APP } from "./vaultCommands";
 import { ClientCommandInterpreter } from "./vendor/ledger-bitcoin/clientCommands";
@@ -215,11 +215,11 @@ export interface PrepareSignPsbtParams {
    */
   readonly walletPolicy?: DefaultTaprootWalletPolicy;
   /**
-   * Leaves whose keys may sign key-path, from `deriveAuthorizedKeyPathLeaves`
-   * only. Needed by the classification pass even without `walletPolicy`, or a
+   * Leaves whose keys may sign key-path, from `deriveAuthorizedKeyPathLeaves`.
+   * Needed by the classification pass even without `walletPolicy`, or a
    * change-branch input is rejected as foreign. Omit for every other flow.
    */
-  readonly authorizedKeyPathLeaves?: AuthorizedKeyPathLeaves;
+  readonly authorizedKeyPathLeaves?: readonly AuthorizedKeyPathLeaf[];
 }
 
 declare const preparedSignPsbtBrand: unique symbol;
@@ -281,9 +281,7 @@ export function prepareSignPsbt(params: PrepareSignPsbtParams): PreparedSignPsbt
   if (!DEPOSITOR_X_ONLY_HEX_RE.test(depositorXOnlyHex)) {
     throw new LedgerSignPsbtProtocolError("depositorXOnlyHex must be 64 lowercase hex characters");
   }
-  // Provenance first: a forged set is a host bug, reported as such rather than
-  // as a property of the PSBT.
-  const keyPathLeaves = authorizedKeyPathLeaves === undefined ? undefined : resolveAuthorizedKeyPathLeaves(authorizedKeyPathLeaves);
+  const keyPathLeaves = authorizedKeyPathLeaves;
   // Value import only — the vendored type never appears in an exported signature.
   let vendorPolicy: DefaultWalletPolicy | undefined;
   if (walletPolicy !== undefined) {

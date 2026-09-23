@@ -83,9 +83,9 @@ describe("txid format validation", () => {
   });
 
   it("getTxInfo rejects txid with path traversal", async () => {
-    await expect(getTxInfo("../../../etc/passwd" + "a".repeat(46), API_URL)).rejects.toThrow(
-      /Invalid transaction ID format/,
-    );
+    await expect(
+      getTxInfo("../../../etc/passwd" + "a".repeat(46), API_URL),
+    ).rejects.toThrow(/Invalid transaction ID format/);
   });
 
   it("getTxHex rejects invalid txid", async () => {
@@ -223,7 +223,12 @@ describe("getAddressUtxos", () => {
     mockFetch
       .mockResolvedValueOnce(
         jsonResponse([
-          { txid: VALID_TXID, vout: 0, value: 50000, status: { confirmed: true } },
+          {
+            txid: VALID_TXID,
+            vout: 0,
+            value: 50000,
+            status: { confirmed: true },
+          },
         ]),
       )
       .mockResolvedValueOnce(jsonResponse(badAddressInfo));
@@ -419,6 +424,20 @@ describe("getOutspend", () => {
     expect(mockFetch).not.toHaveBeenCalled();
   });
 
+  it("rejects a body whose spent flag is not a boolean, rather than reading it as unspent", async () => {
+    // An availability check that took `{}` as "unspent" would register a
+    // deposit against an input it could not vouch for.
+    mockFetch.mockResolvedValueOnce(jsonResponse({}));
+    await expect(getOutspend(VALID_TXID, 0, API_URL)).rejects.toThrow(
+      `Invalid outspend response for ${VALID_TXID}:0: spent is not a boolean`,
+    );
+
+    mockFetch.mockResolvedValueOnce(jsonResponse({ spent: "true" }));
+    await expect(getOutspend(VALID_TXID, 0, API_URL)).rejects.toThrow(
+      /spent is not a boolean/,
+    );
+  });
+
   it("rejects a negative vout before fetching", async () => {
     await expect(getOutspend(VALID_TXID, -1, API_URL)).rejects.toThrow(
       /Invalid vout -1/,
@@ -538,9 +557,7 @@ describe("getTipHeight", () => {
 
   it("throws when the response is not a whole number", async () => {
     mockFetch.mockResolvedValueOnce(textResponse("not-a-height"));
-    await expect(getTipHeight(API_URL)).rejects.toThrow(
-      /block tip height/i,
-    );
+    await expect(getTipHeight(API_URL)).rejects.toThrow(/block tip height/i);
   });
 
   // Callers subtract this height from a confirmed block height to get a
@@ -581,10 +598,7 @@ describe("request timeout", () => {
         new Promise((_resolve, reject) => {
           options?.signal?.addEventListener("abort", () => {
             reject(
-              new DOMException(
-                "The operation was aborted.",
-                "AbortError",
-              ),
+              new DOMException("The operation was aborted.", "AbortError"),
             );
           });
         }),
@@ -595,7 +609,9 @@ describe("request timeout", () => {
     mockHangingFetch();
 
     const promise = getNetworkFees(API_URL);
-    const assertion = expect(promise).rejects.toThrow(/timed out after 30000ms/);
+    const assertion = expect(promise).rejects.toThrow(
+      /timed out after 30000ms/,
+    );
     await vi.advanceTimersByTimeAsync(30_000);
     await assertion;
   });
@@ -604,7 +620,9 @@ describe("request timeout", () => {
     mockHangingFetch();
 
     const promise = pushTx("deadbeef", API_URL);
-    const assertion = expect(promise).rejects.toThrow(/timed out after 30000ms/);
+    const assertion = expect(promise).rejects.toThrow(
+      /timed out after 30000ms/,
+    );
     await vi.advanceTimersByTimeAsync(30_000);
     await assertion;
   });
@@ -613,7 +631,9 @@ describe("request timeout", () => {
     mockHangingFetch();
 
     const promise = getTxHex(VALID_TXID, API_URL);
-    const assertion = expect(promise).rejects.toThrow(/timed out after 30000ms/);
+    const assertion = expect(promise).rejects.toThrow(
+      /timed out after 30000ms/,
+    );
     await vi.advanceTimersByTimeAsync(30_000);
     await assertion;
   });
@@ -622,7 +642,9 @@ describe("request timeout", () => {
     mockHangingFetch();
 
     const promise = getAddressUtxos(VALID_ADDRESS, API_URL);
-    const assertion = expect(promise).rejects.toThrow(/timed out after 30000ms/);
+    const assertion = expect(promise).rejects.toThrow(
+      /timed out after 30000ms/,
+    );
     await vi.advanceTimersByTimeAsync(30_000);
     await assertion;
   });

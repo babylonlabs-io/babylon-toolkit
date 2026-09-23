@@ -1,9 +1,6 @@
 export {
-  InputPrevoutMismatchError,
   assertOutpointsAvailable,
   type AssertOutpointsAvailableParams,
-  type OutpointPrevout,
-  type OutpointReaders,
 } from "./assertOutpointsAvailable";
 export {
   bindPrevoutsToFundingAddresses,

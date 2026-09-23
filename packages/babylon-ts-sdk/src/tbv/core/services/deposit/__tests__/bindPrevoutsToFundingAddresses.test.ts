@@ -30,24 +30,16 @@ const SECOND_RECEIVE_SCRIPT =
   "5120a82f29944d65b86ae6b5e5cc75e294ead6c59391a1edc5e016e3498c67fc7bbb";
 
 const ADDRESSES: FundingAddress[] = [
-  {
-    address: RECEIVE_ADDRESS,
-    internalPubkeyHex: RECEIVE_KEY,
-    branch: 0,
-    addressIndex: 0,
-  },
-  {
-    address: CHANGE_ADDRESS,
-    internalPubkeyHex: CHANGE_KEY,
-    branch: 1,
-    addressIndex: 0,
-  },
+  { address: RECEIVE_ADDRESS, internalPubkeyHex: RECEIVE_KEY },
+  { address: CHANGE_ADDRESS, internalPubkeyHex: CHANGE_KEY },
 ];
 
 const RECEIVE_OUTPOINT = `${"a".repeat(64)}:0`;
 const CHANGE_OUTPOINT = `${"b".repeat(64)}:1`;
 
-function bind(prevouts: Record<string, { scriptPubKey: string; value: number }>) {
+function bind(
+  prevouts: Record<string, { scriptPubKey: string; value: number }>,
+) {
   return bindPrevoutsToFundingAddresses({
     prevouts,
     addresses: ADDRESSES,
@@ -82,7 +74,10 @@ describe("bindPrevoutsToFundingAddresses", () => {
     expect(() =>
       bind({
         [RECEIVE_OUTPOINT]: { scriptPubKey: RECEIVE_SCRIPT, value: 800_000 },
-        [CHANGE_OUTPOINT]: { scriptPubKey: SECOND_RECEIVE_SCRIPT, value: 200_000 },
+        [CHANGE_OUTPOINT]: {
+          scriptPubKey: SECOND_RECEIVE_SCRIPT,
+          value: 200_000,
+        },
       }),
     ).toThrow(
       `Input ${CHANGE_OUTPOINT} spends a script (${SECOND_RECEIVE_SCRIPT}) that belongs to none`,
@@ -95,7 +90,10 @@ describe("bindPrevoutsToFundingAddresses", () => {
 
   it("matches a script case-insensitively and emits it lowercase", () => {
     const bound = bind({
-      [CHANGE_OUTPOINT]: { scriptPubKey: CHANGE_SCRIPT.toUpperCase(), value: 200_000 },
+      [CHANGE_OUTPOINT]: {
+        scriptPubKey: CHANGE_SCRIPT.toUpperCase(),
+        value: 200_000,
+      },
     });
 
     expect(bound[CHANGE_OUTPOINT].scriptPubKey).toBe(CHANGE_SCRIPT);

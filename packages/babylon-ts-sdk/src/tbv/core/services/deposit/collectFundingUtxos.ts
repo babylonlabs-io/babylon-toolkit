@@ -19,7 +19,7 @@ import {
   type FundingScript,
 } from "./fundingAddressSet";
 
-/** A wallet UTXO with the key and path that own it. */
+/** A wallet UTXO with the key and address that own it. */
 export interface FundingUtxo extends MempoolUTXO {
   /** x-only internal key that owns `scriptPubKey` (64-char hex, no `0x`). */
   internalPubkeyHex: string;
@@ -56,8 +56,7 @@ async function collectOneAddress(
   return listed.map((utxo) => {
     if (utxo.scriptPubKey.toLowerCase() !== expectedScript) {
       throw new Error(
-        `Funding address ${funding.address} at ${funding.branch}/` +
-          `${funding.addressIndex} does not own the script reported for ` +
+        `Funding address ${funding.address} does not own the script reported for ` +
           `${outpointKey(utxo.txid, utxo.vout)}: its key derives ` +
           `${expectedScript}, the listing reports ${utxo.scriptPubKey}.`,
       );
@@ -76,7 +75,7 @@ async function collectOneAddress(
 
 /**
  * Every UTXO across the wallet's funding addresses, each carrying its owning
- * key and path. All or nothing: any failed listing or foreign script throws.
+ * key and address. All or nothing: any failed listing or foreign script throws.
  */
 export async function collectFundingUtxos(
   params: CollectFundingUtxosParams,
@@ -94,11 +93,8 @@ export async function collectFundingUtxos(
     const existing = byOutpoint.get(key);
     if (existing) {
       throw new Error(
-        existing.address === utxo.address
-          ? `Outpoint ${key} was listed twice under ${utxo.address}; the ` +
-            `listing contradicts itself, so it cannot size a deposit.`
-          : `Outpoint ${key} was listed under both ${existing.address} and ` +
-            `${utxo.address}; its owning key is ambiguous.`,
+        `Outpoint ${key} was listed twice (under ${existing.address} and ` +
+          `${utxo.address}); its owning key is ambiguous.`,
       );
     }
     byOutpoint.set(key, utxo);

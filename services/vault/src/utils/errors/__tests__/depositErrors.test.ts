@@ -15,8 +15,10 @@ import {
   OnChainBtcVaultStatus,
   RpcErrorCode,
 } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
-import { InputPrevoutMismatchError } from "@babylonlabs-io/ts-sdk/tbv/core/services";
-import { UtxoNotAvailableError } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
+import {
+  InputPrevoutMismatchError,
+  UtxoNotAvailableError,
+} from "@babylonlabs-io/ts-sdk/tbv/core/utils";
 import { describe, expect, it } from "vitest";
 
 import { COPY } from "@/copy";
@@ -720,18 +722,6 @@ describe("mapDepositError — UTXO availability re-check", () => {
       mapDepositError(
         new Error(
           `Failed to get UTXOs for input ${"ab".repeat(32)}:0: Failed to fetch from mempool API: Mempool API error (502): Bad Gateway`,
-        ),
-      ),
-    ).toEqual(ERRORS.utxosUnavailable);
-  });
-
-  it("maps an unreadable mempool spend status to the funds-unavailable callout", () => {
-    // The SDK refuses to read a malformed outspend body as unspent; the
-    // depositor sees the same retryable callout as a failed read.
-    expect(
-      mapDepositError(
-        new Error(
-          `The mempool API returned an unreadable spend status for ${"ab".repeat(32)}:0 ({}); the input cannot be confirmed unspent.`,
         ),
       ),
     ).toEqual(ERRORS.utxosUnavailable);

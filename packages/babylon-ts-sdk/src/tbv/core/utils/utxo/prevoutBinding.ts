@@ -23,12 +23,16 @@ export function isXOnlyPubkeyHex(value: string): boolean {
   return value.length === X_ONLY_PUBKEY_HEX_LEN && HEX_RE.test(value);
 }
 
-/** Prevout data a caller supplies for one funding input. */
-export interface FundingPrevout {
+/** Script and value of one output, as the chain or the build reports them. */
+export interface Prevout {
   /** scriptPubKey of the outpoint, hex. */
   scriptPubKey: string;
   /** Value of the outpoint, satoshis. */
   value: number;
+}
+
+/** Prevout data a caller supplies for one funding input. */
+export interface FundingPrevout extends Prevout {
   /**
    * x-only key that owns `scriptPubKey` (64-char hex, no `0x`). Set on every
    * prevout for multi-address funding; omitted for single-address funding.
@@ -116,29 +120,46 @@ export function assertKeyOwnsScript(
   }
 }
 
+/** An input's outpoint has a script or value other than the one it was built with. */
+export class InputPrevoutMismatchError extends Error {
+  constructor(
+    public readonly txid: string,
+    public readonly vout: number,
+    public readonly expected: Prevout,
+    public readonly chain: Prevout,
+  ) {
+    super(
+      `Input ${outpointKey(txid, vout)} does not match the chain: built as ` +
+        `${expected.value} sat paying ${expected.scriptPubKey}, chain reports ` +
+        `${chain.value} sat paying ${chain.scriptPubKey}. The listing entry does ` +
+        `not describe this outpoint; the transaction cannot be signed correctly.`,
+    );
+    this.name = "InputPrevoutMismatchError";
+  }
+}
+
 /**
  * Assert the declared prevout equals the chain's for that outpoint. `chain`
  * must come from an outpoint-keyed read (`getUtxoInfo`), not an address
  * listing, which stamps one script on every entry.
  */
 export function assertPrevoutMatchesChain(
-  key: string,
-  declared: FundingPrevout,
-  chain: { scriptPubKey: string; value: number },
+  txid: string,
+  vout: number,
+  declared: Prevout,
+  chain: Prevout,
 ): void {
-  if (
-    declared.scriptPubKey.toLowerCase() !== chain.scriptPubKey.toLowerCase()
-  ) {
-    throw new Error(
-      `Funding prevout ${key} script does not match the chain: declared ` +
-        `${declared.scriptPubKey}, chain reports ${chain.scriptPubKey}. The ` +
-        `input was labelled with another address's script.`,
-    );
-  }
-  if (declared.value !== chain.value) {
-    throw new Error(
-      `Funding prevout ${key} value does not match the chain: declared ` +
-        `${declared.value} sat, chain reports ${chain.value} sat.`,
+  const scriptDiffers =
+    declared.scriptPubKey.toLowerCase() !== chain.scriptPubKey.toLowerCase();
+  if (scriptDiffers || declared.value !== chain.value) {
+    throw new InputPrevoutMismatchError(
+      txid,
+      vout,
+      {
+        scriptPubKey: declared.scriptPubKey.toLowerCase(),
+        value: declared.value,
+      },
+      { scriptPubKey: chain.scriptPubKey.toLowerCase(), value: chain.value },
     );
   }
 }

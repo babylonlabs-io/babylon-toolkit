@@ -757,7 +757,7 @@ describe("LedgerVaultProvider", () => {
 
       const [prepareArgs] = signMock.prepareSignPsbt.mock.calls.at(-1)!;
       // The set the signer authorized: the same one getFundingAddresses reports.
-      expect(prepareArgs.authorizedKeyPathLeaves?.leaves.map((leaf: { xOnlyHex: string }) => leaf.xOnlyHex)).toEqual([
+      expect(prepareArgs.authorizedKeyPathLeaves?.map((leaf: { xOnlyHex: string }) => leaf.xOnlyHex)).toEqual([
         DEVICE_XONLY,
         changeXOnly,
       ]);
@@ -1719,21 +1719,14 @@ describe("LedgerVaultProvider", () => {
   });
 
   describe("getFundingAddresses", () => {
-    it("reports the receive and change addresses with the keys and paths that own them", async () => {
+    it("reports the receive and change addresses with the keys that own them", async () => {
       const p = await connected();
 
       await expect(p.getFundingAddresses()).resolves.toEqual([
-        {
-          address: getTaprootAddress(DEVICE_XONLY, Network.SIGNET),
-          internalPubkeyHex: DEVICE_XONLY,
-          branch: 0,
-          addressIndex: 0,
-        },
+        { address: getTaprootAddress(DEVICE_XONLY, Network.SIGNET), internalPubkeyHex: DEVICE_XONLY },
         {
           address: getTaprootAddress(await changeXOnlyHex(), Network.SIGNET),
           internalPubkeyHex: await changeXOnlyHex(),
-          branch: 1,
-          addressIndex: 0,
         },
       ]);
     });

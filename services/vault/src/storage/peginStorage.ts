@@ -47,9 +47,6 @@ export interface PendingPeginRequest {
     vout: number;
     value: string; // Store as string for JSON serialization
     scriptPubKey: string;
-    // x-only key that owns `scriptPubKey` (multi-address funding only);
-    // validated by the read guard like the other fields.
-    internalPubkeyHex?: string;
   }>;
   // Multi-vault tracking fields
   batchId?: string; // UUID linking vaults created together
@@ -100,9 +97,6 @@ const TXID_HEX_RE = /^[0-9a-fA-F]{64}$/;
 // Intentionally distinct from NON_EMPTY_HEX_RE: raw Bitcoin script is never
 // 0x-prefixed, so the prefix option is disallowed here. Do not "dedupe" these.
 const SCRIPT_PUBKEY_HEX_RE = /^([0-9a-fA-F]{2})+$/;
-// x-only public key: exactly 32 bytes, never 0x-prefixed — the form
-// `tapInternalKey` is built from.
-const X_ONLY_PUBKEY_HEX_RE = /^[0-9a-fA-F]{64}$/;
 // Valid LocalStorageStatus string values. Kept in lock-step with
 // OffChainTrackingStatus in models/peginStateMachine.ts.
 const VALID_LOCAL_STORAGE_STATUSES: ReadonlySet<string> = new Set([
@@ -121,7 +115,6 @@ function isValidSelectedUTXOs(
   value: unknown,
 ): value is PendingPeginRequest["selectedUTXOs"] {
   if (!Array.isArray(value)) return false;
-  let annotated = 0;
   for (const candidate of value) {
     if (!candidate || typeof candidate !== "object") return false;
     const utxo = candidate as Record<string, unknown>;
@@ -146,21 +139,8 @@ function isValidSelectedUTXOs(
     ) {
       return false;
     }
-    // Absent is single-address funding; present must be a real x-only key.
-    if (utxo.internalPubkeyHex !== undefined) {
-      if (
-        typeof utxo.internalPubkeyHex !== "string" ||
-        !X_ONLY_PUBKEY_HEX_RE.test(utxo.internalPubkeyHex)
-      ) {
-        return false;
-      }
-      annotated += 1;
-    }
   }
-  // All or none. One annotated entry puts the broadcast into per-input-key
-  // mode for the whole set, where an entry without a key is refused — so a
-  // mixed record is a stuck resume, discovered only after the user acts.
-  return annotated === 0 || annotated === value.length;
+  return true;
 }
 
 /**

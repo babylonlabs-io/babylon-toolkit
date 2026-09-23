@@ -86,7 +86,8 @@ export function useUTXOs(
       : undefined;
 
   // Read once per connection (it takes the device lock), never on the UTXO
-  // poll. A failed read is retried only on remount, navigation or a new address.
+  // poll. A failed read gets the client's retry policy (`shouldRetry`, three
+  // attempts), then stays failed until remount, navigation or a new address.
   const fundingAddressesQuery = useQuery({
     queryKey: [FUNDING_ADDRESSES_QUERY_KEY, btcAddress],
     queryFn: () => fundingSource!.getFundingAddresses(),
@@ -109,8 +110,9 @@ export function useUTXOs(
         : fundingAddresses.map((funding) => funding.address),
     ],
     queryFn: async () => {
-      // `refetch()` bypasses `enabled`: never list a funding wallet by its
-      // connected address alone while its address set is pending.
+      // `refetch()` bypasses `enabled` (TanStack Query 5.90.20: `QueryObserver.
+      // refetch` reaches `Query.fetch` with no `enabled` check): never list a
+      // funding wallet by its connected address alone while its set is pending.
       if (fundingSource !== undefined && fundingAddresses === undefined) {
         throw new Error(
           "Cannot list UTXOs before the wallet's funding-address set is read",

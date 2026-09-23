@@ -3,71 +3,60 @@
  *
  * Every input is read by outpoint, so inputs on any address are covered. Two
  * reads each: the outspend route answers `{spent: false}` for an unknown
- * parent (mempool/electrs `src/rest.rs`), so the output itself is read too —
- * together they mean "exists and unspent". With `expectedPrevouts`, the
- * chain's script and value are also compared to the ones the transaction was
- * built with, which catches a mislabelled outpoint before Ethereum
- * registration.
+ * parent (mempool/electrs@cd6a967 `src/rest.rs:1489-1497`), so the output
+ * itself is read too — together they mean "exists and unspent". With
+ * `expectedPrevouts`, the chain's script and value are also compared to the
+ * ones the transaction was built with, which catches a mislabelled outpoint
+ * before Ethereum registration.
  */
 
+import { getOutspend, getUtxoInfo } from "../../clients/mempool";
 import {
+  assertPrevoutMatchesChain,
   extractInputsFromTransaction,
   outpointKey,
   UtxoNotAvailableError,
   type MissingUtxoInfo,
+  type Prevout,
 } from "../../utils";
-
-/** Script and value of one output, as the chain or the build reports them. */
-export interface OutpointPrevout {
-  readonly scriptPubKey: string;
-  readonly value: number;
-}
-
-export interface OutpointReaders {
-  /** Spend status by outpoint (`getOutspend`); a failed read must throw. */
-  readOutspend(txid: string, vout: number): Promise<{ spent: boolean }>;
-  /** The output by outpoint (`getUtxoInfo`); must throw for an unknown parent. */
-  readOutpoint(txid: string, vout: number): Promise<OutpointPrevout>;
-}
 
 export interface AssertOutpointsAvailableParams {
   readonly unsignedTxHex: string;
-  readonly readers: OutpointReaders;
+  readonly mempoolApiUrl: string;
   /**
    * Prevouts the transaction was built against, keyed `txid:vout`. Pass on a
    * path that commits before signing; every input must then have an entry.
    */
-  readonly expectedPrevouts?: Readonly<Record<string, OutpointPrevout>>;
+  readonly expectedPrevouts?: Readonly<Record<string, Prevout>>;
 }
 
-/** An input's outpoint has a script or value other than the one it was built with. */
-export class InputPrevoutMismatchError extends Error {
-  constructor(
-    public readonly txid: string,
-    public readonly vout: number,
-    public readonly expected: OutpointPrevout,
-    public readonly chain: OutpointPrevout,
-  ) {
-    super(
-      `Input ${outpointKey(txid, vout)} was built as ${expected.value} sat paying ` +
-        `${expected.scriptPubKey}, but the chain reports ${chain.value} sat paying ` +
-        `${chain.scriptPubKey}. The listing entry does not describe this outpoint; ` +
-        `the transaction cannot be signed correctly.`,
+/** A failed mempool read, worded for the retryable "funds unavailable" callout; never "unspent". */
+async function readOrFail<T>(
+  txid: string,
+  vout: number,
+  read: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await read();
+  } catch (cause) {
+    const detail = cause instanceof Error ? cause.message : String(cause);
+    throw new Error(
+      `Failed to get UTXOs for input ${outpointKey(txid, vout)}: ${detail}`,
+      { cause },
     );
-    this.name = "InputPrevoutMismatchError";
   }
 }
 
 /**
  * Assert every input exists and is unspent — and, with `expectedPrevouts`,
- * has the script and value it was built with. A failed read propagates as
- * is; then a prevout mismatch ({@link InputPrevoutMismatchError}) wins over
- * a spend ({@link UtxoNotAvailableError}).
+ * has the script and value it was built with. A failed read propagates as a
+ * read failure; then a prevout mismatch (`InputPrevoutMismatchError`) wins
+ * over a spend ({@link UtxoNotAvailableError}).
  */
 export async function assertOutpointsAvailable(
   params: AssertOutpointsAvailableParams,
 ): Promise<void> {
-  const { unsignedTxHex, readers, expectedPrevouts } = params;
+  const { unsignedTxHex, mempoolApiUrl, expectedPrevouts } = params;
   const inputs = extractInputsFromTransaction(unsignedTxHex);
   if (inputs.length === 0) {
     throw new Error("Transaction has no inputs");
@@ -99,41 +88,25 @@ export async function assertOutpointsAvailable(
     inputs.map(async (input) => {
       const txid = input.txid.toLowerCase();
       const [outspend, chain] = await Promise.all([
-        readers.readOutspend(txid, input.vout),
-        readers.readOutpoint(txid, input.vout),
+        readOrFail(txid, input.vout, () =>
+          getOutspend(txid, input.vout, mempoolApiUrl),
+        ),
+        readOrFail(txid, input.vout, () =>
+          getUtxoInfo(txid, input.vout, mempoolApiUrl),
+        ),
       ]);
-      // An unreadable body must not pass as "unspent"; it is a read failure.
-      if (typeof outspend.spent !== "boolean") {
-        throw new Error(
-          `The mempool API returned an unreadable spend status for ` +
-            `${outpointKey(txid, input.vout)} (${JSON.stringify(outspend)}); ` +
-            `the input cannot be confirmed unspent.`,
-        );
-      }
       return { txid, vout: input.vout, spent: outspend.spent, chain };
     }),
   );
 
   if (expectedPrevouts !== undefined) {
     for (const { txid, vout, chain } of results) {
-      const expected = expectedPrevouts[outpointKey(txid, vout)];
-      const scriptDiffers =
-        chain.scriptPubKey.toLowerCase() !==
-        expected.scriptPubKey.toLowerCase();
-      if (scriptDiffers || chain.value !== expected.value) {
-        throw new InputPrevoutMismatchError(
-          txid,
-          vout,
-          {
-            scriptPubKey: expected.scriptPubKey.toLowerCase(),
-            value: expected.value,
-          },
-          {
-            scriptPubKey: chain.scriptPubKey.toLowerCase(),
-            value: chain.value,
-          },
-        );
-      }
+      assertPrevoutMatchesChain(
+        txid,
+        vout,
+        expectedPrevouts[outpointKey(txid, vout)],
+        chain,
+      );
     }
   }
 

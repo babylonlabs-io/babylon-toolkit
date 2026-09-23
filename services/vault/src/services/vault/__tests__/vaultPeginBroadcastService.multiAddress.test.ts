@@ -224,7 +224,7 @@ describe("broadcastPrePeginTransaction with multi-address funding", () => {
         depositorBtcPubkey: RECEIVE_KEY,
         expectedUtxos,
       }),
-    ).rejects.toThrow(/script does not match the chain/);
+    ).rejects.toThrow(/does not match the chain/);
 
     expect(requestedPsbts).toHaveLength(0);
     expect(mockPushTx).not.toHaveBeenCalled();

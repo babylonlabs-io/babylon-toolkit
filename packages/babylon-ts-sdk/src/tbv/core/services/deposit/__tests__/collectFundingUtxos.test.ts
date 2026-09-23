@@ -32,18 +32,8 @@ const SECOND_RECEIVE_KEY =
   "83dfe85a3151d2517290da461fe2815591ef69f2b18a2ce63f01697a8b313145";
 
 const ADDRESSES: FundingAddress[] = [
-  {
-    address: RECEIVE_ADDRESS,
-    internalPubkeyHex: RECEIVE_KEY,
-    branch: 0,
-    addressIndex: 0,
-  },
-  {
-    address: CHANGE_ADDRESS,
-    internalPubkeyHex: CHANGE_KEY,
-    branch: 1,
-    addressIndex: 0,
-  },
+  { address: RECEIVE_ADDRESS, internalPubkeyHex: RECEIVE_KEY },
+  { address: CHANGE_ADDRESS, internalPubkeyHex: CHANGE_KEY },
 ];
 
 const RECEIVE_TXID = "a".repeat(64);
@@ -76,7 +66,7 @@ function collect(
 }
 
 describe("collectFundingUtxos", () => {
-  it("annotates each address's UTXOs with the key and path that own them", async () => {
+  it("annotates each address's UTXOs with the key that owns them", async () => {
     const listAddressUtxos = listerFor({
       [RECEIVE_ADDRESS]: [
         utxo(RECEIVE_TXID, 0, 800_000, RECEIVE_SCRIPT),
@@ -209,36 +199,12 @@ describe("collectFundingUtxos", () => {
     });
   });
 
-  describe("path validation", () => {
-    it("rejects a branch that is not an address branch of the account", async () => {
-      await expect(
-        collect([{ ...ADDRESSES[0], branch: 2 }], listerFor({})),
-      ).rejects.toThrow(/reported branch 2; only 0 and 1 are addresses/);
-    });
-
-    it("rejects a hardened address index", async () => {
-      // 0x80000000 is a different derivation entirely, and the device path
-      // encoder refuses it.
-      await expect(
-        collect([{ ...ADDRESSES[0], addressIndex: 0x80000000 }], listerFor({})),
-      ).rejects.toThrow(/non-hardened index in 0\.\.2147483647/);
-    });
-
-    it("rejects a negative address index", async () => {
-      await expect(
-        collect([{ ...ADDRESSES[0], addressIndex: -1 }], listerFor({})),
-      ).rejects.toThrow(/non-hardened index in 0\.\.2147483647/);
-    });
-
+  describe("key validation", () => {
     it("names the seam when the wallet omits a field, rather than dying on its type", async () => {
       // No package depends on both the SDK and the wallet adapter, so the
       // shape the provider returns is not compile-checked against
       // FundingAddress. A dropped field must be reported, not crash.
-      const withoutKey = {
-        address: RECEIVE_ADDRESS,
-        branch: 0,
-        addressIndex: 0,
-      } as FundingAddress;
+      const withoutKey = { address: RECEIVE_ADDRESS } as FundingAddress;
 
       await expect(collect([withoutKey], listerFor({}))).rejects.toThrow(
         /missing its address or owning key/,
@@ -322,12 +288,6 @@ describe("collectFundingUtxos", () => {
       ).rejects.toThrow(`Funding address ${RECEIVE_ADDRESS} was listed twice.`);
     });
 
-    it("rejects two addresses on the same derivation path", async () => {
-      await expect(
-        collect([ADDRESSES[0], { ...ADDRESSES[1], branch: 0 }], listerFor({})),
-      ).rejects.toThrow(/same derivation path 0\/0/);
-    });
-
     it("rejects one outpoint appearing under two addresses", async () => {
       // Physically impossible, so it means the listings disagree — and the
       // owning key would then depend on merge order.
@@ -350,7 +310,7 @@ describe("collectFundingUtxos", () => {
       });
 
       await expect(collect(ADDRESSES, listAddressUtxos)).rejects.toThrow(
-        `Outpoint ${RECEIVE_TXID}:0 was listed twice under ${RECEIVE_ADDRESS}`,
+        `Outpoint ${RECEIVE_TXID}:0 was listed twice`,
       );
     });
 

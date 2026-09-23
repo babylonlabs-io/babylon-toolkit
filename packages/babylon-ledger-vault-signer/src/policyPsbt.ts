@@ -16,28 +16,20 @@
 import { Psbt } from "bitcoinjs-lib";
 import { Buffer } from "buffer";
 
-import { BIP86_CHANGE_BRANCH, BIP86_RECEIVE_BRANCH, bip86PathToString, PATH_ACCOUNT_LEVELS } from "./bip86Path";
+import { BIP86_CHANGE_BRANCH, BIP86_RECEIVE_BRANCH, bip86PathToString } from "./bip86Path";
 import { bip86OutputScript, type AuthorizedKeyPathLeaf } from "./expectedSignatures";
-import { deriveAuthorizedKeyPathLeaves, deriveBranchXOnlyHex, type KeyPathLeaf } from "./keyPathLeaves";
+import { deriveBranchXOnlyHex } from "./keyPathLeaves";
 import type { Bip32Versions, DefaultTaprootWalletPolicy } from "./walletPolicy";
 
 const X_ONLY_HEX_RE = /^[0-9a-f]{64}$/;
 
 /** x-only key at `account/1/addressIndex` from the device's verbatim account xpub. */
-export function deriveChangeXOnlyHex(
-  accountXpub: string,
-  bip32Versions: Bip32Versions,
-  addressIndex: number,
-): string {
+export function deriveChangeXOnlyHex(accountXpub: string, bip32Versions: Bip32Versions, addressIndex: number): string {
   return deriveBranchXOnlyHex(accountXpub, bip32Versions, BIP86_CHANGE_BRANCH, addressIndex);
 }
 
 /** x-only key at `account/0/addressIndex` — the depositor branch. */
-export function deriveReceiveXOnlyHex(
-  accountXpub: string,
-  bip32Versions: Bip32Versions,
-  addressIndex: number,
-): string {
+export function deriveReceiveXOnlyHex(accountXpub: string, bip32Versions: Bip32Versions, addressIndex: number): string {
   return deriveBranchXOnlyHex(accountXpub, bip32Versions, BIP86_RECEIVE_BRANCH, addressIndex);
 }
 
@@ -60,18 +52,16 @@ export function psbtPaysChangeScript(psbtHex: string, changeXOnlyHex: string): b
 
 export interface AugmentPsbtForWalletPolicyParams {
   readonly psbtHex: string;
-  readonly depositorXOnlyHex: string;
   /** The policy the PSBT signs under — supplies the fingerprint, account origin and xpub. */
   readonly walletPolicy: DefaultTaprootWalletPolicy;
-  readonly depositorPath: readonly number[];
+  /** The leaves that may own an input, from `deriveAuthorizedKeyPathLeaves`. */
+  readonly authorizedKeyPathLeaves: readonly AuthorizedKeyPathLeaf[];
   /**
    * Index on the policy's change branch. The key and path are BOTH derived
    * from it and the policy, so they cannot disagree; omit when the PSBT
    * carries no change.
    */
   readonly change?: { readonly addressIndex: number };
-  /** Further leaves this Pre-PegIn may spend, by position; keys are derived here. */
-  readonly fundingLeaves?: readonly KeyPathLeaf[];
 }
 
 /**
@@ -89,11 +79,10 @@ function ownerOf(
 }
 
 export function augmentPsbtForWalletPolicy(params: AugmentPsbtForWalletPolicyParams): string {
-  const { psbtHex, depositorXOnlyHex, walletPolicy, depositorPath, change, fundingLeaves } = params;
-  // Validates the depositor key and path under the policy, and derives every
-  // funding leaf's key from the policy xpub — the one authorized set.
-  const { leaves } = deriveAuthorizedKeyPathLeaves({ walletPolicy, depositorXOnlyHex, depositorPath, fundingLeaves });
-  const leavesByScript = new Map(leaves.map((leaf) => [bip86OutputScript(leaf.xOnlyHex).toString("hex"), leaf]));
+  const { psbtHex, walletPolicy, authorizedKeyPathLeaves, change } = params;
+  const leavesByScript = new Map(
+    authorizedKeyPathLeaves.map((leaf) => [bip86OutputScript(leaf.xOnlyHex).toString("hex"), leaf]),
+  );
   const psbt = Psbt.fromHex(psbtHex);
   const fingerprint = Buffer.from(walletPolicy.masterFingerprintHex, "hex");
   let markedInputs = 0;
@@ -129,7 +118,7 @@ export function augmentPsbtForWalletPolicy(params: AugmentPsbtForWalletPolicyPar
       walletPolicy.bip32Versions,
       change.addressIndex,
     );
-    const changePath = [...depositorPath.slice(0, PATH_ACCOUNT_LEVELS), BIP86_CHANGE_BRANCH, change.addressIndex];
+    const changePath = [...walletPolicy.keyOriginPath, BIP86_CHANGE_BRANCH, change.addressIndex];
     const changeKey = Buffer.from(changeXOnlyHex, "hex");
     const matched = changeOutputIndices(psbt, changeXOnlyHex);
     // Marking nothing passes every host gate and dies mid-ceremony on-device

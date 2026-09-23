@@ -104,14 +104,14 @@ describe("augmentPsbtForWalletPolicy", () => {
   });
   const base = {
     psbtHex: prePeginLikePsbt(),
-    depositorXOnlyHex: RECEIVE0_XONLY,
     walletPolicy: POLICY,
+    authorizedKeyPathLeaves: deriveAuthorizedKeyPathLeaves({
+      walletPolicy: POLICY,
+      depositorXOnlyHex: RECEIVE0_XONLY,
+      depositorPath: DEPOSITOR_PATH,
+    }),
   };
-  const out = augmentPsbtForWalletPolicy({
-    ...base,
-    depositorPath: DEPOSITOR_PATH,
-    change: { addressIndex: 0 },
-  });
+  const out = augmentPsbtForWalletPolicy({ ...base, change: { addressIndex: 0 } });
   const psbt = Psbt.fromHex(out);
 
   it("adds TAP_BIP32_DERIVATION (fingerprint + depositor path, no leaf hashes) to every depositor key-path input", () => {
@@ -141,12 +141,13 @@ describe("augmentPsbtForWalletPolicy", () => {
       augmentPsbtForWalletPolicy({
         ...base,
         psbtHex: psbtPayingChangeIndex(1),
-        depositorPath: DEPOSITOR_PATH,
         change: { addressIndex: 1 },
       }),
     );
     const change = atIndex1.data.outputs[1];
-    expect(Buffer.from(change.tapInternalKey!).toString("hex")).toBe(deriveChangeXOnlyHex(ACCOUNT_XPUB, MAINNET_VERSIONS, 1));
+    expect(Buffer.from(change.tapInternalKey!).toString("hex")).toBe(
+      deriveChangeXOnlyHex(ACCOUNT_XPUB, MAINNET_VERSIONS, 1),
+    );
     expect(change.tapBip32Derivation![0].path).toBe("m/86'/0'/0'/1/1");
   });
 
@@ -167,49 +168,14 @@ describe("augmentPsbtForWalletPolicy", () => {
     });
     p.addOutput({ script: Buffer.from([0x6a]), value: 0 });
 
-    expect(() =>
-      augmentPsbtForWalletPolicy({ ...base, psbtHex: p.toHex(), depositorPath: DEPOSITOR_PATH }),
-    ).toThrow(/1 of 1 inputs are not owned by an authorized key-path leaf/);
-  });
-
-  it("rejects paths that are not 5 levels, carry non-u32 levels, or sit on the change branch", () => {
-    expect(() => augmentPsbtForWalletPolicy({ ...base, depositorPath: [86 + H, 0, 0] })).toThrow(/depositorPath/);
-    expect(() => augmentPsbtForWalletPolicy({ ...base, depositorPath: [86 + H, 0 + H, 0 + H, 0, 2 ** 32] })).toThrow(
-      /depositorPath/,
-    );
-    expect(() => augmentPsbtForWalletPolicy({ ...base, depositorPath: [86 + H, 0 + H, 0 + H, 1, 0] })).toThrow(
-      /receive branch 0/,
-    );
-  });
-
-  it("rejects a depositorPath that is not under the policy's key origin", () => {
-    // The policy is built over m/86'/0'/0'; a path under another purpose,
-    // coin or account can never be matched against `@0/<0;1>/*` on-device.
-    expect(() => augmentPsbtForWalletPolicy({ ...base, depositorPath: [84 + H, 0 + H, 0 + H, 0, 0] })).toThrow(
-      /BIP-86 purpose/,
-    );
-    expect(() => augmentPsbtForWalletPolicy({ ...base, depositorPath: [86 + H, 1 + H, 0 + H, 0, 0] })).toThrow(
-      /key origin/,
-    );
-    expect(() => augmentPsbtForWalletPolicy({ ...base, depositorPath: [86 + H, 0 + H, 1 + H, 0, 0] })).toThrow(
-      /key origin/,
+    expect(() => augmentPsbtForWalletPolicy({ ...base, psbtHex: p.toHex() })).toThrow(
+      /1 of 1 inputs are not owned by an authorized key-path leaf/,
     );
   });
 
   it("rejects a change index no output pays", () => {
     // m/86'/0'/0'/1/1 — a real point on the change branch, but not this PSBT's change output.
-    expect(() =>
-      augmentPsbtForWalletPolicy({ ...base, depositorPath: DEPOSITOR_PATH, change: { addressIndex: 1 } }),
-    ).toThrow(/matches no output/);
-  });
-
-  it("rejects a hardened address index or an unhardened account level", () => {
-    expect(() => augmentPsbtForWalletPolicy({ ...base, depositorPath: [86 + H, 0 + H, 0 + H, 0, 0 + H] })).toThrow(
-      /depositorPath must harden/,
-    );
-    expect(() => augmentPsbtForWalletPolicy({ ...base, depositorPath: [86 + H, 0 + H, 0, 0, 0] })).toThrow(
-      /depositorPath must harden/,
-    );
+    expect(() => augmentPsbtForWalletPolicy({ ...base, change: { addressIndex: 1 } })).toThrow(/matches no output/);
   });
 
   it("is accepted by prepareSignPsbt in policy mode as an all-key-path table (one yield per input)", () => {
@@ -248,11 +214,14 @@ describe("augmentPsbtForWalletPolicy with funding leaves (Pre-PegIn funded from 
     accountXpub: ACCOUNT_XPUB,
     bip32Versions: MAINNET_VERSIONS,
   });
-  const base = { depositorXOnlyHex: RECEIVE0_XONLY, walletPolicy: POLICY, depositorPath: DEPOSITOR_PATH };
   const CHANGE_LEAF = { branch: 1, addressIndex: 0 };
+  const deriveArgs = { walletPolicy: POLICY, depositorXOnlyHex: RECEIVE0_XONLY, depositorPath: DEPOSITOR_PATH };
+  const DEPOSITOR_ONLY = deriveAuthorizedKeyPathLeaves(deriveArgs);
+  const WITH_CHANGE = deriveAuthorizedKeyPathLeaves({ ...deriveArgs, fundingLeaves: [CHANGE_LEAF] });
+  const base = { walletPolicy: POLICY, authorizedKeyPathLeaves: WITH_CHANGE };
 
   it("declares each input at the leaf that owns it — the depositor's and the change branch's", () => {
-    const out = augmentPsbtForWalletPolicy({ ...base, psbtHex: mixedBranchPsbt(), fundingLeaves: [CHANGE_LEAF] });
+    const out = augmentPsbtForWalletPolicy({ ...base, psbtHex: mixedBranchPsbt() });
     const [input0, input1] = Psbt.fromHex(out).data.inputs;
 
     const [d0] = input0.tapBip32Derivation!;
@@ -269,11 +238,7 @@ describe("augmentPsbtForWalletPolicy with funding leaves (Pre-PegIn funded from 
     // the depositor's. Without both halves pinned to ONE leaf the device would
     // be told a path whose key does not own the prevout.
     expect(() =>
-      augmentPsbtForWalletPolicy({
-        ...base,
-        psbtHex: mixedBranchPsbt({ input1Key: RECEIVE0_XONLY }),
-        fundingLeaves: [CHANGE_LEAF],
-      }),
+      augmentPsbtForWalletPolicy({ ...base, psbtHex: mixedBranchPsbt({ input1Key: RECEIVE0_XONLY }) }),
     ).toThrow(/1 of 2 inputs are not owned by an authorized key-path leaf/);
   });
 
@@ -285,7 +250,6 @@ describe("augmentPsbtForWalletPolicy with funding leaves (Pre-PegIn funded from 
     const out = augmentPsbtForWalletPolicy({
       ...base,
       psbtHex: mixedBranchPsbt({ input1Key: RECEIVE0_XONLY, input1Script: bip86OutputScript(RECEIVE0_XONLY) }),
-      fundingLeaves: [CHANGE_LEAF],
     });
 
     expect(Psbt.fromHex(out).data.inputs[1].tapBip32Derivation![0].path).toBe("m/86'/0'/0'/0/0");
@@ -296,17 +260,16 @@ describe("augmentPsbtForWalletPolicy with funding leaves (Pre-PegIn funded from 
       augmentPsbtForWalletPolicy({
         ...base,
         psbtHex: mixedBranchPsbt({ input1Script: bip86OutputScript(RECEIVE0_XONLY) }),
-        fundingLeaves: [CHANGE_LEAF],
       }),
     ).toThrow(/1 of 2 inputs are not owned by an authorized key-path leaf/);
   });
 
-  it("rejects a change-branch input when the change leaf is not named as a funding leaf", () => {
-    // Naming is the authorization: every other flow passes no funding leaves,
-    // and stays pinned to the depositor's inputs exactly as before.
-    expect(() => augmentPsbtForWalletPolicy({ ...base, psbtHex: mixedBranchPsbt() })).toThrow(
-      /1 of 2 inputs are not owned by an authorized key-path leaf/,
-    );
+  it("rejects a change-branch input when the change leaf is not among the authorized leaves", () => {
+    // Naming is the authorization: every other flow derives the depositor's
+    // leaf alone, and stays pinned to the depositor's inputs exactly as before.
+    expect(() =>
+      augmentPsbtForWalletPolicy({ ...base, psbtHex: mixedBranchPsbt(), authorizedKeyPathLeaves: DEPOSITOR_ONLY }),
+    ).toThrow(/1 of 2 inputs are not owned by an authorized key-path leaf/);
   });
 
   it("rejects an input on a leaf the device policy cannot cover", () => {
@@ -315,20 +278,21 @@ describe("augmentPsbtForWalletPolicy with funding leaves (Pre-PegIn funded from 
     const RECEIVE1_XONLY = "83dfe85a3151d2517290da461fe2815591ef69f2b18a2ce63f01697a8b313145";
     const psbtHex = mixedBranchPsbt({ input1Key: RECEIVE1_XONLY, input1Script: bip86OutputScript(RECEIVE1_XONLY) });
 
-    expect(() => augmentPsbtForWalletPolicy({ ...base, psbtHex, fundingLeaves: [CHANGE_LEAF] })).toThrow(
-      /1 of 2 inputs are not owned/,
-    );
+    expect(() => augmentPsbtForWalletPolicy({ ...base, psbtHex })).toThrow(/1 of 2 inputs are not owned/);
     const out = augmentPsbtForWalletPolicy({
       ...base,
       psbtHex,
-      fundingLeaves: [CHANGE_LEAF, { branch: 0, addressIndex: 1 }],
+      authorizedKeyPathLeaves: deriveAuthorizedKeyPathLeaves({
+        ...deriveArgs,
+        fundingLeaves: [CHANGE_LEAF, { branch: 0, addressIndex: 1 }],
+      }),
     });
     expect(Psbt.fromHex(out).data.inputs[1].tapBip32Derivation![0].path).toBe("m/86'/0'/0'/0/1");
   });
 
   describe("prepareSignPsbt over the marked PSBT", () => {
-    const marked = augmentPsbtForWalletPolicy({ ...base, psbtHex: mixedBranchPsbt(), fundingLeaves: [CHANGE_LEAF] });
-    const authorized = deriveAuthorizedKeyPathLeaves({ ...base, fundingLeaves: [CHANGE_LEAF] });
+    const marked = augmentPsbtForWalletPolicy({ ...base, psbtHex: mixedBranchPsbt() });
+    const authorized = WITH_CHANGE;
 
     it("expects one key-path yield per input, each under its own tweaked output key", () => {
       const prepared = prepareSignPsbt({
@@ -347,22 +311,9 @@ describe("augmentPsbtForWalletPolicy with funding leaves (Pre-PegIn funded from 
     });
 
     it("rejects the same PSBT when the set is not supplied — naming the leaves is the authorization", () => {
-      expect(() => prepareSignPsbt({ psbtHex: marked, depositorXOnlyHex: RECEIVE0_XONLY, walletPolicy: POLICY })).toThrow(
-        /input 1 internal key is not an authorized key-path key/,
-      );
-    });
-
-    it("rejects a set that was not produced by deriveAuthorizedKeyPathLeaves, before reading the PSBT", () => {
-      const forged = { leaves: authorized.leaves } as typeof authorized;
-
       expect(() =>
-        prepareSignPsbt({
-          psbtHex: "zz",
-          depositorXOnlyHex: RECEIVE0_XONLY,
-          walletPolicy: POLICY,
-          authorizedKeyPathLeaves: forged,
-        }),
-      ).toThrow(/unrecognised authorized key-path leaves/);
+        prepareSignPsbt({ psbtHex: marked, depositorXOnlyHex: RECEIVE0_XONLY, walletPolicy: POLICY }),
+      ).toThrow(/input 1 internal key is not an authorized key-path key/);
     });
 
     it("accepts a device YIELD carrying the change leaf's tweaked output key for input 1", () => {
@@ -433,7 +384,7 @@ describe("augmentPsbtForWalletPolicy with funding leaves (Pre-PegIn funded from 
         prepareSignPsbt({
           psbtHex: unmarkedChangeInputPsbt(),
           depositorXOnlyHex: RECEIVE0_XONLY,
-          authorizedKeyPathLeaves: deriveAuthorizedKeyPathLeaves({ ...base, fundingLeaves: [CHANGE_LEAF] }),
+          authorizedKeyPathLeaves: WITH_CHANGE,
         }),
       ).toThrow(/input 1 spends a wallet-owned UTXO but carries no signing metadata/);
     });

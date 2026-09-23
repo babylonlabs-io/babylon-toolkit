@@ -294,18 +294,8 @@ describe("useUTXOs", () => {
     const receiveAddress = "tb1preceive";
     const changeAddress = "tb1pchange";
     const fundingAddresses = [
-      {
-        address: receiveAddress,
-        internalPubkeyHex: "aa".repeat(32),
-        branch: 0,
-        addressIndex: 0,
-      },
-      {
-        address: changeAddress,
-        internalPubkeyHex: "bb".repeat(32),
-        branch: 1,
-        addressIndex: 0,
-      },
+      { address: receiveAddress, internalPubkeyHex: "aa".repeat(32) },
+      { address: changeAddress, internalPubkeyHex: "bb".repeat(32) },
     ];
     const idleQuery = {
       data: undefined,

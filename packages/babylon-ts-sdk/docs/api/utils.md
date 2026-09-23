@@ -52,6 +52,94 @@ readonly missingUtxos: MissingUtxoInfo[];
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/availability.ts)
 
+***
+
+### InputPrevoutMismatchError
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/prevoutBinding.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/prevoutBinding.ts)
+
+An input's outpoint has a script or value other than the one it was built with.
+
+#### Extends
+
+- `Error`
+
+#### Constructors
+
+##### Constructor
+
+```ts
+new InputPrevoutMismatchError(
+   txid, 
+   vout, 
+   expected, 
+   chain): InputPrevoutMismatchError;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/prevoutBinding.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/prevoutBinding.ts)
+
+###### Parameters
+
+###### txid
+
+`string`
+
+###### vout
+
+`number`
+
+###### expected
+
+[`Prevout`](#prevout)
+
+###### chain
+
+[`Prevout`](#prevout)
+
+###### Returns
+
+[`InputPrevoutMismatchError`](#inputprevoutmismatcherror)
+
+###### Overrides
+
+```ts
+Error.constructor
+```
+
+#### Properties
+
+##### txid
+
+```ts
+readonly txid: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/prevoutBinding.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/prevoutBinding.ts)
+
+##### vout
+
+```ts
+readonly vout: number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/prevoutBinding.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/prevoutBinding.ts)
+
+##### expected
+
+```ts
+readonly expected: Prevout;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/prevoutBinding.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/prevoutBinding.ts)
+
+##### chain
+
+```ts
+readonly chain: Prevout;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/prevoutBinding.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/prevoutBinding.ts)
+
 ## Interfaces
 
 ### CombinedAbortSignal
@@ -628,11 +716,15 @@ Total number of inputs checked
 
 ***
 
-### FundingPrevout
+### Prevout
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/prevoutBinding.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/prevoutBinding.ts)
 
-Prevout data a caller supplies for one funding input.
+Script and value of one output, as the chain or the build reports them.
+
+#### Extended by
+
+- [`FundingPrevout`](#fundingprevout)
 
 #### Properties
 
@@ -655,6 +747,48 @@ value: number;
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/prevoutBinding.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/prevoutBinding.ts)
 
 Value of the outpoint, satoshis.
+
+***
+
+### FundingPrevout
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/prevoutBinding.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/prevoutBinding.ts)
+
+Prevout data a caller supplies for one funding input.
+
+#### Extends
+
+- [`Prevout`](#prevout)
+
+#### Properties
+
+##### scriptPubKey
+
+```ts
+scriptPubKey: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/prevoutBinding.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/prevoutBinding.ts)
+
+scriptPubKey of the outpoint, hex.
+
+###### Inherited from
+
+[`Prevout`](#prevout).[`scriptPubKey`](#scriptpubkey-1)
+
+##### value
+
+```ts
+value: number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/prevoutBinding.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/prevoutBinding.ts)
+
+Value of the outpoint, satoshis.
+
+###### Inherited from
+
+[`Prevout`](#prevout).[`value`](#value-2)
 
 ##### internalPubkeyHex?
 
@@ -763,13 +897,13 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/reservation.ts](htt
 
 ### ResolvedFundingInput
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/utils/utxo/resolveFundingInput.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/resolveFundingInput.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/resolveFundingInput.ts)
 
 #### Type Parameters
 
 ##### T
 
-`T` *extends* `ChainPrevout`
+`T` *extends* [`Prevout`](#prevout)
 
 #### Properties
 
@@ -779,7 +913,7 @@ Defined in: packages/babylon-ts-sdk/src/tbv/core/utils/utxo/resolveFundingInput.
 utxoData: T;
 ```
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/utils/utxo/resolveFundingInput.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/resolveFundingInput.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/resolveFundingInput.ts)
 
 ##### internalPubkeyHex?
 
@@ -787,7 +921,7 @@ Defined in: packages/babylon-ts-sdk/src/tbv/core/utils/utxo/resolveFundingInput.
 optional internalPubkeyHex: string;
 ```
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/utils/utxo/resolveFundingInput.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/resolveFundingInput.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/resolveFundingInput.ts)
 
 Set only for multi-address funding: the key this input is signed under.
 
@@ -795,13 +929,13 @@ Set only for multi-address funding: the key this input is signed under.
 
 ### FundingInputResolverParams
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/utils/utxo/resolveFundingInput.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/resolveFundingInput.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/resolveFundingInput.ts)
 
 #### Type Parameters
 
 ##### T
 
-`T` *extends* `ChainPrevout`
+`T` *extends* [`Prevout`](#prevout)
 
 #### Properties
 
@@ -811,7 +945,7 @@ Defined in: packages/babylon-ts-sdk/src/tbv/core/utils/utxo/resolveFundingInput.
 prevouts: Record<string, FundingPrevout> | undefined;
 ```
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/utils/utxo/resolveFundingInput.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/resolveFundingInput.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/resolveFundingInput.ts)
 
 ##### readChain()
 
@@ -819,7 +953,7 @@ Defined in: packages/babylon-ts-sdk/src/tbv/core/utils/utxo/resolveFundingInput.
 readChain: (txid, vout) => Promise<T>;
 ```
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/utils/utxo/resolveFundingInput.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/resolveFundingInput.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/resolveFundingInput.ts)
 
 Outpoint-keyed chain read (`getUtxoInfo`); the chain's values are used.
 
@@ -843,7 +977,7 @@ Outpoint-keyed chain read (`getUtxoInfo`); the chain's values are used.
 resolveSingle: (txid, vout) => Promise<T>;
 ```
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/utils/utxo/resolveFundingInput.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/resolveFundingInput.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/resolveFundingInput.ts)
 
 The caller's single-address lookup (declared prevout or mempool).
 
@@ -1734,7 +1868,8 @@ policy against). Only P2TR prevouts are accepted.
 
 ```ts
 function assertPrevoutMatchesChain(
-   key, 
+   txid, 
+   vout, 
    declared, 
    chain): void;
 ```
@@ -1747,23 +1882,21 @@ listing, which stamps one script on every entry.
 
 #### Parameters
 
-##### key
+##### txid
 
 `string`
+
+##### vout
+
+`number`
 
 ##### declared
 
-[`FundingPrevout`](#fundingprevout)
+[`Prevout`](#prevout)
 
 ##### chain
 
-###### scriptPubKey
-
-`string`
-
-###### value
-
-`number`
+[`Prevout`](#prevout)
 
 #### Returns
 
@@ -1801,7 +1934,7 @@ take precedence over a same-id local pegin entry.
 function createFundingInputResolver<T>(params): (txid, vout) => Promise<ResolvedFundingInput<T>>;
 ```
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/utils/utxo/resolveFundingInput.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/resolveFundingInput.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/resolveFundingInput.ts)
 
 Build the resolver for one transaction's inputs; the mode is decided once.
 
@@ -1809,7 +1942,7 @@ Build the resolver for one transaction's inputs; the mode is decided once.
 
 ##### T
 
-`T` *extends* `ChainPrevout`
+`T` *extends* [`Prevout`](#prevout)
 
 #### Parameters
 
@@ -1845,7 +1978,7 @@ Build the resolver for one transaction's inputs; the mode is decided once.
 function fundingInputInternalKey(internalPubkeyHex, depositorKey): Buffer;
 ```
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/utils/utxo/resolveFundingInput.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/utils/utxo/resolveFundingInput.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/utils/utxo/resolveFundingInput.ts)
 
 The internal key an input is signed under: its own when declared, else the depositor's.
 

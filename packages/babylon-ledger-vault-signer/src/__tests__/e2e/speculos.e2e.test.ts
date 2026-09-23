@@ -47,6 +47,7 @@ import { getExtendedPublicKey, getMasterFingerprintHex } from "../../derivation"
 import { assertDepositTermsDeviceCompatible } from "../../envelope";
 import { isLedgerDeviceError, isLedgerSignPsbtAbortedError, type LedgerSignPsbtAbortedError } from "../../errors";
 import { bip86OutputScript } from "../../expectedSignatures";
+import { deriveAuthorizedKeyPathLeaves } from "../../keyPathLeaves";
 import { augmentPsbtForWalletPolicy, deriveChangeXOnlyHex } from "../../policyPsbt";
 import { bip322ToSpendTxid, buildPopPsbtHex } from "../../popPsbt";
 import { SW_CAP_EXCEEDED } from "../../rawApdu";
@@ -272,9 +273,8 @@ describe.skipIf(SPECULOS_URL === "")("Speculos end-to-end vault signing", () => 
       expect(prePegin, "policy-context stage must have built the Pre-PegIn").toBeDefined();
       const unmarkedChange = augmentPsbtForWalletPolicy({
         psbtHex: (prePegin as PrePeginPsbtFixture).psbtHex,
-        depositorXOnlyHex: DEPOSITOR_XONLY_HEX,
         walletPolicy: policy as DefaultTaprootWalletPolicy,
-        depositorPath: DEPOSITOR_PATH,
+        authorizedKeyPathLeaves: depositorLeaves(),
         // no `change` → the change output is external on-device → `_validate_prepegin`
         // catch-all reject (`sign_psbt_validate.c:709-711`), before the txid/cap checks.
       });
@@ -307,9 +307,8 @@ describe.skipIf(SPECULOS_URL === "")("Speculos end-to-end vault signing", () => 
       const psbtFixture = prePegin as PrePeginPsbtFixture;
       const augmented = augmentPsbtForWalletPolicy({
         psbtHex: psbtFixture.psbtHex,
-        depositorXOnlyHex: DEPOSITOR_XONLY_HEX,
         walletPolicy: policy as DefaultTaprootWalletPolicy,
-        depositorPath: DEPOSITOR_PATH,
+        authorizedKeyPathLeaves: depositorLeaves(),
         change: { addressIndex: CHANGE_ADDRESS_INDEX },
       });
       const prepared = prepareSignPsbt({
@@ -877,13 +876,21 @@ describe.skipIf(SPECULOS_URL === "")("Speculos end-to-end vault signing", () => 
     return root;
   }
 
+  /** The depositor's leaf alone, derived from the connected policy — what the Pre-PegIn stages spend. */
+  function depositorLeaves() {
+    return deriveAuthorizedKeyPathLeaves({
+      walletPolicy: policy as DefaultTaprootWalletPolicy,
+      depositorXOnlyHex: DEPOSITOR_XONLY_HEX,
+      depositorPath: DEPOSITOR_PATH,
+    });
+  }
+
   /** Stage-6-shaped Pre-PegIn (change marked internal), freshly prepared — prepared objects are single-use. */
   function prepareAugmentedPrePegin(): PreparedSignPsbt {
     const augmented = augmentPsbtForWalletPolicy({
       psbtHex: (prePegin as PrePeginPsbtFixture).psbtHex,
-      depositorXOnlyHex: DEPOSITOR_XONLY_HEX,
       walletPolicy: policy as DefaultTaprootWalletPolicy,
-      depositorPath: DEPOSITOR_PATH,
+      authorizedKeyPathLeaves: depositorLeaves(),
       change: { addressIndex: CHANGE_ADDRESS_INDEX },
     });
     return prepareSignPsbt({

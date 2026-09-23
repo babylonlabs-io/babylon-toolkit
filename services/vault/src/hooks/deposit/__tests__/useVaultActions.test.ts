@@ -123,6 +123,8 @@ vi.mock("@babylonlabs-io/ts-sdk/tbv/core/utils", () => ({
       this.name = "UtxoNotAvailableError";
     }
   },
+  // The deposit error mapper matches it by instanceof; never thrown here.
+  InputPrevoutMismatchError: class InputPrevoutMismatchError extends Error {},
 }));
 
 vi.mock("@/clients/eth-contract/btc-vault-registry/query", () => ({

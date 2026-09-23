@@ -31,8 +31,7 @@ function p2trScript(internalPubkeyHex: string): string {
 const RECEIVE_SCRIPT = p2trScript(RECEIVE_KEY);
 const CHANGE_SCRIPT = p2trScript(CHANGE_KEY);
 
-const TXID =
-  "0000000000000000000000000000000000000000000000000000000000000001";
+const TXID = "0000000000000000000000000000000000000000000000000000000000000001";
 
 describe("isMultiAddressFunding", () => {
   it("is false when no prevouts were declared", () => {
@@ -176,12 +175,9 @@ describe("assertPrevoutMatchesChain", () => {
   it("accepts a declaration equal to the chain's prevout", () => {
     expect(() =>
       assertPrevoutMatchesChain(
-        `${TXID}:1`,
-        {
-          scriptPubKey: CHANGE_SCRIPT,
-          value: 500_000,
-          internalPubkeyHex: CHANGE_KEY,
-        },
+        TXID,
+        1,
+        { scriptPubKey: CHANGE_SCRIPT, value: 500_000 },
         { scriptPubKey: CHANGE_SCRIPT, value: 500_000 },
       ),
     ).not.toThrow();
@@ -190,28 +186,22 @@ describe("assertPrevoutMatchesChain", () => {
   it("rejects an outpoint labelled with another address's script", () => {
     expect(() =>
       assertPrevoutMatchesChain(
-        `${TXID}:1`,
-        {
-          scriptPubKey: RECEIVE_SCRIPT,
-          value: 500_000,
-          internalPubkeyHex: RECEIVE_KEY,
-        },
+        TXID,
+        1,
+        { scriptPubKey: RECEIVE_SCRIPT, value: 500_000 },
         { scriptPubKey: CHANGE_SCRIPT, value: 500_000 },
       ),
-    ).toThrow(/script does not match the chain/);
+    ).toThrow(/does not match the chain: built as 500000 sat paying/);
   });
 
   it("rejects a declared value the chain disagrees with", () => {
     expect(() =>
       assertPrevoutMatchesChain(
-        `${TXID}:1`,
-        {
-          scriptPubKey: CHANGE_SCRIPT,
-          value: 500_000,
-          internalPubkeyHex: CHANGE_KEY,
-        },
+        TXID,
+        1,
+        { scriptPubKey: CHANGE_SCRIPT, value: 500_000 },
         { scriptPubKey: CHANGE_SCRIPT, value: 499_000 },
       ),
-    ).toThrow(/value does not match the chain/);
+    ).toThrow(/does not match the chain: .*chain reports 499000 sat/);
   });
 });

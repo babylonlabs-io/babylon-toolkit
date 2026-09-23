@@ -69,8 +69,10 @@ import {
   isRegisteredVaultVersionMismatchError,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { JsonRpcError } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
-import { InputPrevoutMismatchError } from "@babylonlabs-io/ts-sdk/tbv/core/services";
-import { UtxoNotAvailableError } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
+import {
+  InputPrevoutMismatchError,
+  UtxoNotAvailableError,
+} from "@babylonlabs-io/ts-sdk/tbv/core/utils";
 import { type ReactNode } from "react";
 
 import { COPY } from "@/copy";
@@ -493,16 +495,16 @@ export function mapDepositError(err: unknown): DepositErrorContent {
     return ERRORS.providerNotFound;
   }
 
-  // 9. Bitcoin funds unavailable — UTXO load / availability. Phrase-level
-  // matches (not a bare "utxo") so unrelated UTXO-mentioning errors are not
-  // absorbed. Checked BEFORE the ETH-gas bucket, which would otherwise read
-  // "Insufficient funds: no UTXOs available" as a gas shortfall.
+  // 9. Bitcoin funds unavailable — UTXO load / availability (incl. the SDK's
+  // "Failed to get UTXOs for input" read failures). Phrase-level matches so
+  // unrelated UTXO-mentioning errors are not absorbed. Checked BEFORE the
+  // ETH-gas bucket, which would otherwise read "Insufficient funds: no UTXOs
+  // available" as a gas shortfall.
   if (
     msg.includes("spendable utxos") ||
     msg.includes("utxos available") ||
     msg.includes("failed to load utxos") ||
-    msg.includes("failed to get utxos") ||
-    msg.includes("unreadable spend status")
+    msg.includes("failed to get utxos")
   ) {
     return ERRORS.utxosUnavailable;
   }
