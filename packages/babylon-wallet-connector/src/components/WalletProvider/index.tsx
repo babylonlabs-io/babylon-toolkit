@@ -65,6 +65,8 @@ export interface WalletProviderProps {
   dialogCloseButtonClassName?: string;
   /** Overrides the wallet dialog's `dialogActions` slot default `right-4` position. */
   dialogActionsClassName?: string;
+  /** A short line under each chain's name on the connect screen that says why the app needs that wallet. */
+  chainDescriptions?: Partial<Record<ChainId, string>>;
 }
 
 export function WalletProvider({
@@ -83,6 +85,7 @@ export function WalletProvider({
   dialogActions,
   dialogCloseButtonClassName,
   dialogActionsClassName,
+  chainDescriptions,
 }: PropsWithChildren<WalletProviderProps>) {
   const networkMap = useMemo(() => deriveNetworkMap(config), [config]);
   const storage = useMemo(() => createAccountStorage(ttl, networkMap), [ttl, networkMap]);
@@ -159,6 +162,7 @@ export function WalletProvider({
           actions={dialogActions}
           closeButtonClassName={dialogCloseButtonClassName}
           actionsClassName={dialogActionsClassName}
+          chainDescriptions={chainDescriptions}
         />
       </ChainProvider>
     </LifeCycleHooksProvider>

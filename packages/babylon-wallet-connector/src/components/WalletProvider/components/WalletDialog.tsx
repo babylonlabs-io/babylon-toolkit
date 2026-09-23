@@ -208,6 +208,8 @@ interface WalletDialogProps {
   closeButtonClassName?: string;
   /** Overrides the default `right-4` position of the `actions` slot. */
   actionsClassName?: string;
+  /** The line under each chain's name on the chain list, keyed by chain id. */
+  chainDescriptions?: Partial<Record<ChainId, string>>;
 }
 
 export function WalletDialog({
@@ -219,6 +221,7 @@ export function WalletDialog({
   actions,
   closeButtonClassName,
   actionsClassName,
+  chainDescriptions,
 }: WalletDialogProps) {
   const { visible, screen, confirmed, requiredChainIds, close, confirm, unconfirm, displayChains, displayError } =
     useWidgetState();
@@ -434,7 +437,13 @@ export function WalletDialog({
       actionsClassName={actionsClassName}
     >
       <div className="mx-auto w-full max-w-[612px]">
-        <Screen current={screen} widgets={walletWidgets} onConfirm={handleConfirm} onSelectWallet={connect} />
+        <Screen
+          current={screen}
+          widgets={walletWidgets}
+          onConfirm={handleConfirm}
+          onSelectWallet={connect}
+          chainDescriptions={chainDescriptions}
+        />
       </div>
     </FullScreenDialog>
   );

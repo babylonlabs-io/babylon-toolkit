@@ -28,6 +28,8 @@ export interface WalletProviderProps {
   dialogActions?: ReactNode;
   dialogCloseButtonClassName?: string;
   dialogActionsClassName?: string;
+  /** A short line under each chain's name on the connect screen that says why the app needs that wallet. */
+  chainDescriptions?: Partial<Record<Extract<ChainId, "ETH">, string>>;
 }
 
 /**
@@ -49,6 +51,7 @@ export function WalletProvider({
   dialogActions,
   dialogCloseButtonClassName,
   dialogActionsClassName,
+  chainDescriptions,
 }: PropsWithChildren<WalletProviderProps>) {
   const walletContext = context ?? (typeof window === "undefined" ? {} : window);
   const networkMap = useMemo(
@@ -114,6 +117,7 @@ export function WalletProvider({
           actions={dialogActions}
           closeButtonClassName={dialogCloseButtonClassName}
           actionsClassName={dialogActionsClassName}
+          chainDescriptions={chainDescriptions}
         />
       </ChainProvider>
     </LifeCycleHooksProvider>

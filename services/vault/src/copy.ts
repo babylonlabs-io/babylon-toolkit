@@ -1408,6 +1408,12 @@ export const COPY = {
     },
   },
   wallet: {
+    // Connect Wallets screen: the line under each wallet row that says why
+    // the app needs that wallet.
+    chainDescriptions: {
+      BTC: "Used to deposit and manage your Bitcoin collateral.",
+      ETH: "Used to manage your positions, transactions, and account activity.",
+    },
     btcAction: {
       heading: "Connect your Bitcoin wallet",
       body: "This action needs your Bitcoin wallet. Connect it, then try the action again.",
