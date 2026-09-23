@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from "react";
 
-import type { IChain } from "@/core/types";
+import type { ChainId, IChain } from "@/core/types";
 // Connector ids come from the shared constants module, not from each chain's
 // wallet metadata — importing the metadata here would put every Bitcoin wallet
 // adapter into the `./eth` graph, since this screen is part of the dialog.
@@ -25,6 +25,7 @@ function openAppKitModal() {
 
 interface ContainerProps {
   className?: string;
+  chainDescriptions?: Partial<Record<ChainId, string>>;
   onConfirm?: () => void;
 }
 
