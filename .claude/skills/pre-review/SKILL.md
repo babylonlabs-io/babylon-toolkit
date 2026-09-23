@@ -127,6 +127,21 @@ separately, at full price each. Do it yourself.
    section's rule text can bring more files under it (§7, for example, places
    the vendor-vector generator scripts next to its `src/` directory). Match
    against CLAUDE.md itself; never copy the list anywhere else.
+
+   Then bind [docs/review-checklist.md](../../../docs/review-checklist.md):
+   the passes in full, the Tests section, the whole "Do not re-raise"
+   section, and the rows of every other section whose directories the
+   changed files touch. Toolkit UI: `services/`,
+   `packages/babylon-core-ui` and `packages/babylon-wallet-connector`.
+   ts-sdk, packages and the WASM boundary: `packages/babylon-ts-sdk`,
+   `packages/babylon-tbv-rust-wasm`, `packages/babylon-ledger-vault-signer`
+   and `packages/babylon-proto-ts`. Backend: `services/vault/src/utils/rpc`,
+   `services/vault/src/services/providers`,
+   `services/vault/src/services/artifacts` and `services/vault/src/clients`.
+   Cross-repo seams: `packages/babylon-ts-sdk/src/tbv/core/contracts`,
+   `packages/babylon-tbv-rust-wasm`, `.github/workflows` and `scripts/`.
+   Paste the bound text into the pack; do not summarise it.
+
 8. **Pick the tier.** `LIGHT_REVIEW_MAX_CHANGED_LINES = 150`, a starting value
    to be tuned from pilot data. Count changed lines as added + deleted from
    `git diff --numstat <base>`, plus the line count of each untracked file,
@@ -136,6 +151,13 @@ separately, at full price each. Do it yourself.
      `review-generalist`.
    - **full**: everything else. `review-generalist`, `review-tracer`,
      `review-panel`.
+
+   Add a `change` field to the pack next to the tier:
+   `change: <type>, +<added>/-<deleted>`. The type comes from the
+   conventional-commit prefix of the intent's first line: `fix` is bugfix,
+   `refactor` is refactor, `feat` is feature, a `deps` scope or a
+   lockfile-only change is dependency, anything else is mixed. The Change
+   type pass reads this field; it is not written to the description.
 
 9. **Lint, then snapshot the content.** Some packages' `lint` runs
    `eslint --fix`, which rewrites files. So lint runs first, in the
@@ -259,8 +281,9 @@ holds:
   change: those files have never had the full set.
 - **Not escalated**: the verdict lane also reviews the per-file diffs and the
   entered files for new defects, giving each a severity (merge-blocker or
-  normal) and a confidence. Those defects then go through Phase 3 like any
-  other.
+  normal) and a confidence. It runs the four checklist passes over those
+  diffs and cites the pass or row in each finding. Those defects then go
+  through Phase 3 like any other.
 
 Verify every `fixed` and every regression yourself against the current code
 before recording it: a wrong `fixed` retires a live finding. "The line
@@ -305,9 +328,14 @@ Also wait for the checks (Phase 0 step 10) before Phase 4.
 1. Merge the lists, lanes included. Collapse findings naming the same defect;
    keep the sharpest statement and the best evidence.
 2. Compare with what is stored. A claim in `refuted` is dropped unless it
-   brings new evidence. A defect that matches a `fixed` finding **reopens
-   that finding** (status `open`, note "regressed") instead of taking a new
-   id. A defect that matches an open finding is merged into it.
+   brings new evidence. A claim that matches a row of the checklist's "Do not
+   re-raise" section is a candidate, not a drop: step 4 verifies that the
+   change stays within the behaviour the row accepts. A claim that does is
+   recorded in `refuted` with the row as its evidence, so the author can see
+   and reverse the match; a claim that widens the accepted behaviour is kept.
+   A defect that matches a `fixed` finding **reopens that finding** (status
+   `open`, note "regressed") instead of taking a new id. A defect that matches
+   an open finding is merged into it.
 3. **Agreement is not evidence.** Two reviewers agreeing without checking the
    source is a correlated guess.
 4. Verify yourself, against the code, every finding you keep and anything
