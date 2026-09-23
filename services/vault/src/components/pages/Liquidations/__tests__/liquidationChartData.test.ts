@@ -70,8 +70,9 @@ function realCascadeResult(): CalculatorResult {
     vaults,
     CF: REAL_CF,
     THF: REAL_THF,
-    maxLB: REAL_MAX_LB,
+    LB: REAL_MAX_LB,
     expectedHF: REAL_EXPECTED_HF,
+    minPeginBtc: 0.0005,
   });
 }
 

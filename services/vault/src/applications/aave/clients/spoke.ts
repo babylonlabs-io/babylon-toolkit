@@ -7,14 +7,15 @@
 
 import {
   getDynamicReserveConfig as sdkGetDynamicReserveConfig,
+  getLiquidationBonusConfig as sdkGetLiquidationBonusConfig,
   getReserve as sdkGetReserve,
   getReserves as sdkGetReserves,
-  getTargetHealthFactor as sdkGetTargetHealthFactor,
   getUserPositionAndAccountData as sdkGetUserPositionAndAccountData,
   getUserPositions as sdkGetUserPositions,
   getUserTotalDebts as sdkGetUserTotalDebts,
   type AaveSpokeUserAccountData,
   type AaveSpokeUserPosition,
+  type LiquidationBonusConfig,
 } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 import type { Address } from "viem";
 
@@ -80,16 +81,16 @@ export async function getUserTotalDebtsBatch(
 }
 
 /**
- * Get the target health factor (THF) from the Core Spoke contract.
+ * Get the liquidation-bonus curve parameters from the Core Spoke contract.
  *
  * @param spokeAddress - Core Spoke contract address
- * @returns THF in WAD format (1e18 = 1.0)
+ * @returns healthFactorForMaxBonus (WAD) and liquidationBonusFactor (BPS)
  */
-export async function getTargetHealthFactor(
+export async function getLiquidationBonusConfig(
   spokeAddress: Address,
-): Promise<bigint> {
+): Promise<LiquidationBonusConfig> {
   const publicClient = ethClient.getPublicClient();
-  return sdkGetTargetHealthFactor(publicClient, spokeAddress);
+  return sdkGetLiquidationBonusConfig(publicClient, spokeAddress);
 }
 
 /**

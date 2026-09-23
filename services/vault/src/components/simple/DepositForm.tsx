@@ -7,7 +7,7 @@ import { getNetworkConfigBTC } from "@/config";
 import { COPY } from "@/copy";
 import { depositService } from "@/services/deposit";
 import { MAX_PRE_PEGIN_FUNDING_INPUTS } from "@/services/deposit/fundingInputCap";
-import type { SplitUnavailableReason } from "@/services/deposit/vaultCap";
+import type { DepositSplitUnavailableReason } from "@/services/deposit/vaultCap";
 import type { VaultProviderListItem } from "@/types/vaultProvider";
 
 import { CollateralFactorRow } from "./CollateralFactorRow";
@@ -171,12 +171,13 @@ export interface DepositGatingState {
    */
   vaultCountCapUnavailable?: boolean;
   /**
-   * True when a single vault still fits but a 2-vault split would exceed the
-   * cap — the deposit proceeds as a single vault and we surface the inline
-   * "split unavailable" hint. The reason picks which hint: only the
-   * per-position cap can quote usage figures.
+   * Set when a single vault still fits but a 2-vault split is not on offer:
+   * it would exceed a cap, or the split sizing rules refuse it
+   * (`"split-sizing"`). The deposit proceeds as a single vault and we surface
+   * the inline "split unavailable" hint. The reason picks which hint: only
+   * the per-position cap can quote usage figures.
    */
-  splitUnavailableReason?: SplitUnavailableReason | null;
+  splitUnavailableReason?: DepositSplitUnavailableReason | null;
   /** Vault usage (used / cap), set only for the per-position reason. */
   vaultCapUsage?: { used: number; cap: number };
 }
@@ -476,9 +477,10 @@ export function DepositForm({
           />
         )}
         {/* A split is not on offer, so the deposit proceeds as a single
-            BTCVault. Two unrelated caps can cause this and they need different
-            explanations — the per-position one can quote usage, the protocol
-            one applies even to an empty position. */}
+            BTCVault. Two unrelated caps, an unreadable split-parameter read,
+            or the split sizing rules can cause this, and they need different
+            explanations — the per-position cap can quote usage, the protocol
+            cap applies even to an empty position. */}
         {splitUnavailableReason !== null && (
           <div
             role="status"
@@ -490,12 +492,17 @@ export function DepositForm({
               className="mt-px shrink-0 text-accent-primary"
             />
             <span className="min-w-0 text-sm text-accent-secondary">
-              {splitUnavailableReason === "per-position" && vaultCapUsage
-                ? COPY.deposit.maxVaultsReached.splitUnavailable(
-                    vaultCapUsage.used,
-                    vaultCapUsage.cap,
-                  )
-                : COPY.deposit.maxVaultsReached.splitUnavailableProtocolLimit}
+              {splitUnavailableReason === "split-params-unavailable"
+                ? COPY.deposit.splitSizing.paramsUnavailable
+                : splitUnavailableReason === "split-sizing"
+                  ? COPY.deposit.splitSizing.unavailable
+                  : splitUnavailableReason === "per-position" && vaultCapUsage
+                    ? COPY.deposit.maxVaultsReached.splitUnavailable(
+                        vaultCapUsage.used,
+                        vaultCapUsage.cap,
+                      )
+                    : COPY.deposit.maxVaultsReached
+                        .splitUnavailableProtocolLimit}
             </span>
           </div>
         )}

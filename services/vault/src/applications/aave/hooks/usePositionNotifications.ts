@@ -1,8 +1,11 @@
+import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 
+import { pegInConfigQueryOptions } from "@/context/ProtocolParamsContext";
 import { COPY } from "@/copy";
 import { useDashboardState } from "@/hooks/useDashboardState";
 import { usePrices } from "@/hooks/usePrices";
+import { satoshiToBtcNumber } from "@/utils/btcConversion";
 
 import {
   calculate,
@@ -22,6 +25,8 @@ export type PositionNotificationsStatus =
   | "incomplete-position"
   | "no-price"
   | "stale-price"
+  /** The Spoke risk-parameter read failed; nothing can be calculated. */
+  | "params-unavailable"
   | "ready";
 
 export interface UsePositionNotificationsResult {
@@ -70,8 +75,11 @@ function buildLiveHfUrgentWarning(healthFactor: number): Warning {
 export function usePositionNotifications(
   connectedAddress: string | undefined,
 ): UsePositionNotificationsResult {
-  const { params: splitParams, isLoading: paramsLoading } =
-    useVaultSplitParams(connectedAddress);
+  const {
+    params: splitParams,
+    isLoading: paramsLoading,
+    error: splitParamsError,
+  } = useVaultSplitParams(connectedAddress);
 
   const {
     collateralVaults,
@@ -85,7 +93,16 @@ export function usePositionNotifications(
   const btcPrice = prices["BTC"] ?? 0;
   const btcMetadata = metadata["BTC"];
 
-  const isLoading = paramsLoading || dashboardLoading;
+  // Suggested vault sizes must be depositable, so the calculator needs the
+  // protocol's minimum peg-in. Same cached query the deposit form reads. It
+  // only sizes suggestions: the warnings wait for the read to settle (so the
+  // suggested amount does not change once the minimum arrives), and if it
+  // failed they render with the suggestions not floored.
+  const { data: pegInConfig, isLoading: pegInConfigLoading } = useQuery(
+    pegInConfigQueryOptions(),
+  );
+
+  const isLoading = paramsLoading || dashboardLoading || pegInConfigLoading;
   const liveUrgentWarning = useMemo(
     () =>
       connectedAddress &&
@@ -104,7 +121,7 @@ export function usePositionNotifications(
     reorderVerificationContext: ReorderVerificationContext | null;
     params: CalculatorParams | null;
   } => {
-    if (!splitParams || isLoading)
+    if (isLoading)
       return {
         result: null,
         status: "loading",
@@ -155,6 +172,30 @@ export function usePositionNotifications(
         reorderVerificationContext: null,
         params: null,
       };
+    // Reported only once there is a position to warn about, and only for a
+    // settled failure: the query does not refetch on focus, so the warnings
+    // would otherwise be hidden for good with nothing said.
+    // `computeSplitLiquidationBonus` throws on an out-of-range bonus curve,
+    // so this is a reachable state.
+    if (!splitParams)
+      return {
+        result: null,
+        status: splitParamsError ? "params-unavailable" : "loading",
+        reorderVerificationContext: null,
+        params: null,
+      };
+    // A null `LB` is the same situation as a failed read for the warnings:
+    // every seizure figure below is computed from it, so there is nothing to
+    // show. The collateral factor survives in the same query on purpose, for
+    // the borrow and repay pre-sign checks. Keyed on the value itself, not on
+    // the reason string, so an empty reason cannot strand this on "loading".
+    if (splitParams.LB === null)
+      return {
+        result: null,
+        status: "params-unavailable",
+        reorderVerificationContext: null,
+        params: null,
+      };
 
     const vaults: Vault[] = indexedVaults.map((entry) => ({
       id: entry.vaultId,
@@ -168,7 +209,11 @@ export function usePositionNotifications(
       vaults,
       CF: splitParams.CF,
       THF: splitParams.THF,
-      maxLB: splitParams.LB,
+      LB: splitParams.LB,
+      expectedHF: splitParams.expectedHF,
+      minPeginBtc: pegInConfig
+        ? satoshiToBtcNumber(pegInConfig.minimumPegInAmount)
+        : null,
     };
 
     const calculatorResult = calculate(calculatorParams);
@@ -196,7 +241,9 @@ export function usePositionNotifications(
       reorderVerificationContext: {
         CF: splitParams.CF,
         THF: splitParams.THF,
-        maxLB: splitParams.LB,
+        LB: splitParams.LB,
+        expectedHF: splitParams.expectedHF,
+        minPeginBtc: calculatorParams.minPeginBtc,
         btcPrice,
         totalDebtUsd: debtValueUsd,
       },
@@ -204,6 +251,8 @@ export function usePositionNotifications(
     };
   }, [
     splitParams,
+    splitParamsError,
+    pegInConfig,
     isLoading,
     connectedAddress,
     btcPrice,

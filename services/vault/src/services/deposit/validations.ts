@@ -41,6 +41,8 @@ export interface VaultMultiVaultDepositInputs
   btcAddress: string | undefined;
   depositorEthAddress: string | undefined;
   selectedProviders: string[];
+  /** Deposit amount the depositor approved, in satoshis. */
+  depositAmountSats: bigint;
 }
 
 export function validateProviderSelection(
@@ -87,6 +89,23 @@ export function validateMultiVaultDepositInputs(
   }
   if (params.vaultAmounts.length > 2) {
     throw new Error("Maximum 2 BTCVaults supported");
+  }
+  // The vault amounts are the peg-in outputs; fees are funded separately, so
+  // they must add up to exactly the amount the depositor approved.
+  const vaultAmountsTotal = params.vaultAmounts.reduce(
+    (sum, amount) => sum + amount,
+    0n,
+  );
+  if (vaultAmountsTotal !== params.depositAmountSats) {
+    throw new Error(COPY.deposit.splitSizing.amountsDoNotMatchDeposit);
+  }
+  // A split's first BTCVault is liquidated first, so it must be the smaller
+  // one. Checked here, before any signing, on the amounts actually submitted.
+  if (
+    params.vaultAmounts.length === 2 &&
+    params.vaultAmounts[0] >= params.vaultAmounts[1]
+  ) {
+    throw new Error(COPY.deposit.splitSizing.sacrificialNotSmaller);
   }
 
   sdkValidateMultiVaultDepositInputs(params);

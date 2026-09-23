@@ -129,8 +129,9 @@ const LIVE_PARAMS: CalculatorParams = {
   ],
   CF: 0.75,
   THF: 1.1,
-  maxLB: 1.05,
+  LB: 1.05,
   expectedHF: 0.95,
+  minPeginBtc: 0.0005,
 };
 const LIVE_RESULT = calculate(LIVE_PARAMS);
 const [firstGroup, secondGroup] = LIVE_RESULT.groups;
@@ -168,8 +169,9 @@ const GOD_MODE_PARAMS: CalculatorParams = {
   vaults: [{ id: "god-vault-1", name: "God Vault 1", btc: 2 }],
   CF: 0.5,
   THF: 1.1,
-  maxLB: 1.05,
+  LB: 1.05,
   expectedHF: 0.95,
+  minPeginBtc: 0.0005,
 };
 const GOD_MODE_RESULT = calculate(GOD_MODE_PARAMS);
 

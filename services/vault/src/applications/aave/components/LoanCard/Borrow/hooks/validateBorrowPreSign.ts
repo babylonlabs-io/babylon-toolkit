@@ -1,5 +1,5 @@
 /**
- * Refetches every signing input from chain at submit time: CF/THF/LB
+ * Refetches every signing input from chain at submit time: CF/LB
  * (audit #260), account position, and the oracle price. Without the
  * fresh oracle read, the React Query cache was the only input that could
  * stay up to 60s stale through a price move.

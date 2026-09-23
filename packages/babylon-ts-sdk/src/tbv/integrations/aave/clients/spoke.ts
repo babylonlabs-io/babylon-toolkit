@@ -391,41 +391,60 @@ export async function getReserves(
   return results as unknown as ReserveResult[];
 }
 
-/** Result type from getLiquidationConfig contract call */
+/**
+ * The fields of the getLiquidationConfig result that this client reads.
+ * `targetHealthFactor` is left out on purpose: the Babylon Spoke never uses
+ * it, and the split target health factor is `SPLIT_TARGET_HEALTH_FACTOR`.
+ * viem decodes the `uint16` factor as a number and the `uint64` as a bigint.
+ */
 type LiquidationConfigResult = {
-  targetHealthFactor: bigint;
   healthFactorForMaxBonus: bigint;
-  liquidationBonusFactor: bigint;
+  liquidationBonusFactor: number | bigint;
 };
 
-/** Result type from getDynamicReserveConfig contract call */
+/** Liquidation-bonus curve parameters from the Spoke's liquidation config. */
+export interface LiquidationBonusConfig {
+  /** Health factor at or below which the maximum bonus applies, WAD */
+  healthFactorForMaxBonus: bigint;
+  /** Share of the maximum bonus that still applies at HF 1.0, BPS */
+  liquidationBonusFactor: bigint;
+}
+
+/**
+ * Result type from getDynamicReserveConfig contract call. The fields are
+ * uint16/uint32 on-chain, which viem decodes as numbers, not bigints.
+ */
 type DynamicReserveConfigResult = {
-  collateralFactor: bigint;
-  maxLiquidationBonus: bigint;
-  liquidationFee: bigint;
+  collateralFactor: number;
+  maxLiquidationBonus: number;
+  liquidationFee: number;
 };
 
 /**
- * Get the target health factor (THF) from the Core Spoke contract.
+ * Get the liquidation-bonus curve parameters from the Core Spoke contract.
  *
- * Per-spoke governance parameter. After a liquidation, the protocol targets
- * restoring the position to this health factor.
+ * Per-spoke governance parameters. Combined with a reserve's
+ * `maxLiquidationBonus` they give the bonus at any health factor; see
+ * `computeLiquidationBonusBps`.
  *
  * @param publicClient - Viem public client for reading contracts
  * @param spokeAddress - Core Spoke contract address
- * @returns Target health factor in WAD (1e18 = 1.0). Example: 1.10 = 1_100_000_000_000_000_000n
+ * @returns healthFactorForMaxBonus (WAD) and liquidationBonusFactor (BPS)
  */
-export async function getTargetHealthFactor(
+export async function getLiquidationBonusConfig(
   publicClient: PublicClient,
   spokeAddress: Address,
-): Promise<bigint> {
+): Promise<LiquidationBonusConfig> {
   const result = await publicClient.readContract({
     address: spokeAddress,
     abi: AaveSpokeABI,
     functionName: "getLiquidationConfig",
   });
   const config = result as LiquidationConfigResult;
-  return config.targetHealthFactor;
+  return {
+    healthFactorForMaxBonus: config.healthFactorForMaxBonus,
+    liquidationBonusFactor: BigInt(config.liquidationBonusFactor),
+  };
 }
 
 /**

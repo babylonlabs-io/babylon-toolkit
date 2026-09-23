@@ -318,6 +318,22 @@ export const COPY = {
       splitUnavailableProtocolLimit:
         "The protocol currently allows one BTCVault per transaction. BTCVault split unavailable.",
     },
+    // Split sizing and the deposit flow's pre-sign vault-amount checks: the
+    // form hint when the SDK's `findSplitSizingViolation` refuses a split,
+    // and the errors when submitted vault amounts are out of order or do not
+    // add up to the deposit amount.
+    splitSizing: {
+      unavailable:
+        "The current protocol parameters don't allow splitting a deposit into two BTCVaults. Your deposit will use a single BTCVault.",
+      // The split params read (CF and the liquidation bonus curve) failed, so
+      // no split can be sized at all.
+      paramsUnavailable:
+        "We couldn't read the protocol's risk parameters, so the BTCVault split is unavailable. Your deposit will use a single BTCVault.",
+      sacrificialNotSmaller:
+        "The first BTCVault of a split deposit must be smaller than the second. Close this window and start the deposit again.",
+      amountsDoNotMatchDeposit:
+        "The BTCVault amounts don't add up to your deposit amount. Close this window and start the deposit again.",
+    },
     fundingInputCap: {
       noticeBefore: "You ",
       noticeEmphasis: (max: number) => `can use up to ${max} UTXOs`,
@@ -2310,10 +2326,10 @@ export const COPY = {
     ltv: {
       label: "Collateral Factor",
     },
-    liquidationThreshold: {
-      label: "Target Health Factor",
+    splitTargetHealthFactor: {
+      label: "Split Target Health Factor",
       tooltip:
-        "The health factor the protocol aims to restore after partial-position liquidation.",
+        "The health factor a split position returns to after its first BTCVault is liquidated. The first BTCVault is sized to reach it.",
     },
     maxLiquidationPenalty: {
       label: "Max Liquidation Penalty",
@@ -2389,32 +2405,31 @@ export const COPY = {
     },
     // Cliff: all vaults consolidate into one liquidation group, so partial
     // liquidation is no longer possible. One Figma title/body across every case
-    // (CLIFF A 6502-110902 / CLIFF B 7064-77201); only the suggestion varies by
-    // what action is feasible.
+    // (CLIFF A 6502-110902, and the "Suggestion" block layout of 7064-77201);
+    // only the suggestion varies by what action is feasible.
     cliff: {
       title: "First liquidation takes everything",
       body: "With your current BTCVaults, a single liquidation event liquidates all your BTC in collateral.",
       // Header shown above the suggestion text when there is no actionable CTA
-      // (the withdraw/re-deposit and multi-vault cases). Rendered uppercase.
+      // (no affordable add, and the multi-vault cases). Rendered uppercase.
       suggestionLabel: "Suggestion",
       // Variant A (#1948): an affordable sacrificial vault buffers the existing
       // position. The amount lives here; the CTA label stays generic.
       addSacrificialSuggestion: (sacrificialBtc: string) =>
         `Adding a new BTCVault of ${sacrificialBtc} BTC enables partial-position liquidation.`,
-      // Variant B (#1949): the single vault is too large to buffer cheaply —
-      // withdraw it and re-deposit as two smaller vaults instead.
-      withdrawResplitSuggestion: (
-        withdrawBtc: string,
-        sacrificialBtc: string,
-        protectedBtc: string,
-      ) =>
-        `To enable partial-position liquidation, withdraw your ${withdrawBtc} BTC and re-deposit as two smaller BTCVaults: ${sacrificialBtc} BTC + ${protectedBtc} BTC. Alternatively: add collateral or repay debt to manage the liquidation.`,
-      // Protocol params disallow splitting entirely — no re-split is possible.
+      // No affordable add because of the parameters themselves: the seized
+      // share is at least half, so the sacrificial vault would have to be the
+      // larger of the two and splitting cannot protect the position at all.
       noSplitSuggestion:
         "Current protocol parameters do not allow BTCVault splitting as a protection strategy. Add collateral or repay part of the debt to keep this position safe.",
-      // 2-vault / 3+ cliffs share the title/body/severity but keep their
-      // structural suggestion, since "re-deposit as two smaller vaults" doesn't
-      // apply when you already hold multiple vaults.
+      // No affordable add because of the position's size: splitting works at
+      // these parameters, but the smaller BTCVault would have to clear the
+      // minimum peg-in, which is not smaller than what is already here.
+      tooSmallToSplitSuggestion: (minimumBtc: string) =>
+        `This position is too small to split: a second BTCVault would need at least ${minimumBtc} BTC, which is not smaller than your current BTCVault. Add collateral or repay part of the debt to keep this position safe.`,
+      // 2-vault / 3+ cliffs share the title/body/severity but carry their own
+      // structural suggestion (reorder, or how much a smaller first BTCVault
+      // would need), since a position with several vaults has other fixes.
       twoVault: {
         enablePartial: (deficitBtc: string, largestName: string) =>
           `To enable partial-position liquidation, add ≥ ${deficitBtc} BTC alongside ${largestName}. `,
@@ -2453,16 +2468,23 @@ export const COPY = {
       detail:
         "Below $1,000 the cascade simplifies — all BTCVaults are shown as one liquidation event. Small positions don't have meaningful multi-event behavior.",
     },
+    // The Spoke risk-parameter read failed, so no cascade can be computed.
+    // The live health-factor card is computed separately and still shows.
+    paramsUnavailable: {
+      title: "Liquidation warnings unavailable",
+      detail:
+        "We couldn't read the protocol's risk parameters, so liquidation warnings can't be calculated right now. Your BTCVaults and loan are unaffected. Reload the page to try again, and contact support if this persists.",
+    },
     weirdParams: {
       title: "Protocol parameters don't compute",
       causeLiqPenalty: (liqPenalty: string, thf: string) =>
-        `maxLB × CF = ${liqPenalty}, but it must be less than THF (${thf}). At this combination the liquidation formula becomes undefined (division by a non-positive number).`,
+        `LB × CF = ${liqPenalty}, but it must be less than THF (${thf}). At this combination the liquidation formula becomes undefined (division by a non-positive number).`,
       causeThfTooLow: (thf: string, expectedHf: string) =>
         `THF (${thf}) must be greater than expected HF (${expectedHf}) — otherwise liquidation has no valid target.`,
       causeFractionOver: (fractionPct: string) =>
-        `With these settings, each liquidation would seize more than 100% of your collateral (${fractionPct}%). That's mathematically impossible — adjust CF, THF, or maxLB.`,
+        `With these settings, each liquidation would seize more than 100% of your collateral (${fractionPct}%). That's mathematically impossible — adjust CF, THF, or LB.`,
       causeGeneric: (fractionPct: string) =>
-        `Seizure fraction computed as ${fractionPct}% — outside the valid range. Adjust CF, THF, or maxLB.`,
+        `Seizure fraction computed as ${fractionPct}% — outside the valid range. Adjust CF, THF, or LB.`,
     },
   },
 } as const;

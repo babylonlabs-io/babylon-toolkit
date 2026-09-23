@@ -86,7 +86,8 @@ describe("Deposit Validations", () => {
       btcAddress: "bc1qtest",
       depositorEthAddress:
         "0x1234567890abcdef1234567890abcdef12345678" as `0x${string}`,
-      vaultAmounts: [50_000n, 50_000n],
+      vaultAmounts: [40_000n, 60_000n],
+      depositAmountSats: 100_000n,
       selectedProviders: ["0x1234567890abcdef1234567890abcdef12345678"],
       confirmedUTXOs: [
         { txid: "0xabc", vout: 0, value: 200_000, scriptPubKey: "0xdef" },
@@ -107,8 +108,29 @@ describe("Deposit Validations", () => {
         validateMultiVaultDepositInputs({
           ...validInputs,
           vaultAmounts: [5_000n, 50_000n],
+          depositAmountSats: 55_000n,
         }),
       ).toThrow("below minimum deposit");
+    });
+
+    it("throws when the first BTCVault of a split equals the second", () => {
+      expect(() =>
+        validateMultiVaultDepositInputs({
+          ...validInputs,
+          vaultAmounts: [50_000n, 50_000n],
+          depositAmountSats: 100_000n,
+        }),
+      ).toThrow("must be smaller than the second");
+    });
+
+    it("throws when the first BTCVault of a split is larger than the second", () => {
+      expect(() =>
+        validateMultiVaultDepositInputs({
+          ...validInputs,
+          vaultAmounts: [60_000n, 40_000n],
+          depositAmountSats: 100_000n,
+        }),
+      ).toThrow("must be smaller than the second");
     });
 
     it("throws when a vault amount exceeds maxDeposit", () => {
@@ -116,6 +138,7 @@ describe("Deposit Validations", () => {
         validateMultiVaultDepositInputs({
           ...validInputs,
           vaultAmounts: [50_000n, 200_000n],
+          depositAmountSats: 250_000n,
         }),
       ).toThrow("exceeds maximum deposit");
     });
@@ -126,8 +149,19 @@ describe("Deposit Validations", () => {
           ...validInputs,
           maxDeposit: undefined,
           vaultAmounts: [50_000n, 500_000n],
+          depositAmountSats: 550_000n,
         }),
       ).not.toThrow();
+    });
+
+    it("throws when the vault amounts do not add up to the deposit amount", () => {
+      expect(() =>
+        validateMultiVaultDepositInputs({
+          ...validInputs,
+          vaultAmounts: [40_000n, 60_000n],
+          depositAmountSats: 100_001n,
+        }),
+      ).toThrow("don't add up to your deposit amount");
     });
 
     it("throws when more than 2 vaults are requested", () => {

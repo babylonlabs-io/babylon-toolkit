@@ -14,7 +14,15 @@ vi.mock("../useVaultSplitParams", () => ({
 
 import { useOptimalSplit } from "../useOptimalSplit";
 
-const DEFAULT_PARAMS = { THF: 1.1, CF: 0.75, LB: 1.05 };
+// Launch values: split THF 1.08, expected HF 0.99, CF 78%, bonus at HF 0.99
+const DEFAULT_PARAMS = {
+  THF: 1.08,
+  expectedHF: 0.99,
+  CF: 0.78,
+  LB: 1.0504,
+  lbUnavailableReason: null,
+  maxLB: 1.0555,
+};
 
 describe("useOptimalSplit", () => {
   beforeEach(() => {
@@ -30,18 +38,14 @@ describe("useOptimalSplit", () => {
     const totalBtc = 1_000_000_000n; // 10 BTC in sats
     const { result } = renderHook(() => useOptimalSplit(totalBtc));
 
-    // With THF=1.10, CF=0.75, LB=1.05, HF=0.95, margin=1.05:
-    // seized_fraction ≈ 0.398, sacrificial ≈ 4.18 BTC
-    expect(result.current.sacrificialVault).toBeGreaterThan(400_000_000n);
-    expect(result.current.sacrificialVault).toBeLessThan(430_000_000n);
-    expect(result.current.protectedVault).toBe(
-      totalBtc - result.current.sacrificialVault,
-    );
-    expect(result.current.seizedFraction).toBeGreaterThan(0.39);
-    expect(result.current.seizedFraction).toBeLessThan(0.41);
+    // seized_fraction ≈ 0.2857 with no extra buffer: 2.857 / 7.143 BTC
+    expect(result.current.sacrificialVault).toBe(285_716_677n);
+    expect(result.current.protectedVault).toBe(714_283_323n);
+    expect(result.current.seizedFraction).toBeCloseTo(0.28572, 5);
     expect(result.current.canSplit).toBe(true);
+    expect(result.current.sizingViolation).toBeNull();
     expect(result.current.isLoading).toBe(false);
-    expect(result.current.error).toBeNull();
+    expect(result.current.isParamsUnavailable).toBe(false);
   });
 
   it("returns canSplit: false when deposit is too small", () => {
@@ -83,7 +87,44 @@ describe("useOptimalSplit", () => {
     expect(result.current.protectedVault).toBe(0n);
   });
 
-  it("returns canSplit: false when params errored", () => {
+  it("sets the split minimum to minDeposit divided by the sacrificial share", () => {
+    const { result } = renderHook(() => useOptimalSplit(1_000_000_000n));
+
+    // ceil(50_000 / 0.2857166769…) = 174_999
+    expect(result.current.minDepositForSplit).toBe(174_999n);
+  });
+
+  it("refuses the split and reports why when the sacrificial vault would not be smaller", () => {
+    // CF 87% puts the sacrificial share just above 50%
+    mockUseVaultSplitParams.mockReturnValue({
+      params: { ...DEFAULT_PARAMS, CF: 0.87 },
+      isLoading: false,
+      error: null,
+    });
+
+    const { result } = renderHook(() => useOptimalSplit(1_000_000_000n));
+
+    expect(result.current.sizingViolation).toBe("sacrificial-not-smaller");
+    expect(result.current.canSplit).toBe(false);
+    expect(result.current.sacrificialVault).toBe(0n);
+    expect(result.current.protectedVault).toBe(0n);
+    expect(result.current.minDepositForSplit).toBe(0n);
+  });
+
+  it("reports a refused split before any amount is entered", () => {
+    mockUseVaultSplitParams.mockReturnValue({
+      params: { ...DEFAULT_PARAMS, THF: 0.99 },
+      isLoading: false,
+      error: null,
+    });
+
+    const { result } = renderHook(() => useOptimalSplit(0n));
+
+    expect(result.current.sizingViolation).toBe("target-not-above-expected-hf");
+    expect(result.current.canSplit).toBe(false);
+  });
+
+  it("reports the parameters as unavailable when the read failed with nothing cached", () => {
     mockUseVaultSplitParams.mockReturnValue({
       params: null,
       isLoading: false,
@@ -92,7 +133,57 @@ describe("useOptimalSplit", () => {
 
     const { result } = renderHook(() => useOptimalSplit(1_000_000_000n));
 
-    expect(result.current.error).toBeInstanceOf(Error);
+    expect(result.current.isParamsUnavailable).toBe(true);
     expect(result.current.canSplit).toBe(false);
+  });
+
+  it("keeps the split when a refetch failed but the parameters are still cached", () => {
+    // React Query keeps the previous data when a later refetch fails — for
+    // example the retry:0 pre-sign refetch borrow and repay fire into the same
+    // cache key. A split sized from those parameters is still correct.
+    mockUseVaultSplitParams.mockReturnValue({
+      params: DEFAULT_PARAMS,
+      isLoading: false,
+      error: new Error("RPC blip on refetch"),
+    });
+
+    const { result } = renderHook(() => useOptimalSplit(1_000_000_000n));
+
+    expect(result.current.isParamsUnavailable).toBe(false);
+    expect(result.current.canSplit).toBe(true);
+    expect(result.current.sacrificialVault).toBeGreaterThan(0n);
+  });
+
+  it("reports the parameters as unavailable when the bonus curve is out of range", () => {
+    // What a bad curve actually produces now: the read succeeds and the
+    // collateral factor is intact, but the bonus every seizure formula needs
+    // is null. The split must refuse rather than size against a substitute.
+    mockUseVaultSplitParams.mockReturnValue({
+      params: {
+        ...DEFAULT_PARAMS,
+        LB: null,
+        lbUnavailableReason: "bonus curve out of range",
+      },
+      isLoading: false,
+      error: null,
+    });
+
+    const { result } = renderHook(() => useOptimalSplit(1_000_000_000n));
+
+    expect(result.current.isParamsUnavailable).toBe(true);
+    expect(result.current.canSplit).toBe(false);
+    expect(result.current.sacrificialVault).toBe(0n);
+  });
+
+  it("reports no parameter problem while the read is still loading", () => {
+    mockUseVaultSplitParams.mockReturnValue({
+      params: null,
+      isLoading: true,
+      error: null,
+    });
+
+    const { result } = renderHook(() => useOptimalSplit(1_000_000_000n));
+
+    expect(result.current.isParamsUnavailable).toBe(false);
   });
 });

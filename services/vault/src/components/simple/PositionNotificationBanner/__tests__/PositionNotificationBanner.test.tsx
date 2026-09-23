@@ -124,7 +124,9 @@ vi.mock("@/applications/aave/context", () => ({
 const mockReorderVerificationContext = {
   CF: 0.7,
   THF: 1.1,
-  maxLB: 1.05,
+  LB: 1.05,
+  expectedHF: 0.95,
+  minPeginBtc: 0.0005,
   btcPrice: 60_000,
   totalDebtUsd: 10_000,
 };
@@ -716,15 +718,14 @@ describe("PositionNotificationBanner v3", () => {
     expect(screen.queryByText("Suggestion")).toBeNull();
   });
 
-  it("selects CLIFF B (no affordable add) when suggestedNewVaultBtc is null", () => {
+  it("shows the suggestion block with no add CTA when suggestedNewVaultBtc is null", () => {
     const result = makeBaseResult({
       warnings: [
         {
           type: "cliff",
           title: "First liquidation takes everything",
           detail: "A single liquidation event seizes all your BTC.",
-          suggestion:
-            "To enable partial liquidation, withdraw your 1 BTC and re-deposit as two smaller vaults.",
+          suggestion: COPY.liquidationWarnings.cliff.noSplitSuggestion,
         },
       ],
       suggestedNewVaultBtc: null,
@@ -734,8 +735,56 @@ describe("PositionNotificationBanner v3", () => {
     const banner = screen.getByTestId("position-notification-banner");
     expect(banner.dataset.tone).toBe("cliff");
     expect(screen.getByText("Suggestion")).toBeTruthy();
-    expect(screen.getByText(/withdraw your 1 BTC/)).toBeTruthy();
+    expect(
+      screen.getByText(COPY.liquidationWarnings.cliff.noSplitSuggestion),
+    ).toBeTruthy();
+    expect(screen.queryByText(/^Add .* BTC$/)).toBeNull();
     expect(screen.queryByText("Add Collateral")).toBeNull();
+  });
+
+  it("labels the add CTA and pre-fills the deposit with the same 0.0001 BTC amount", () => {
+    const result = makeBaseResult({
+      warnings: [
+        {
+          type: "cliff",
+          title: "First liquidation takes everything",
+          detail: "A single liquidation event seizes all your BTC.",
+          suggestion:
+            "Adding a new BTCVault of 0.0344 BTC enables partial-position liquidation.",
+        },
+      ],
+      suggestedNewVaultBtc: 0.0344,
+    });
+    renderBanner(result, onDeposit, onRepay);
+
+    fireEvent.click(screen.getByText("Add 0.0344 BTC"));
+    expect(onDeposit).toHaveBeenCalledWith("0.0344");
+  });
+
+  it("warns that liquidation warnings are unavailable when the parameter read failed", () => {
+    mockUsePositionNotifications.mockReturnValue({
+      result: null,
+      liveUrgentWarning: null,
+      status: "params-unavailable",
+      isLoading: false,
+      reorderVerificationContext: null,
+    });
+    render(
+      <Wrapper>
+        <PositionNotificationBanner
+          connectedAddress="0xTestAddress"
+          onDeposit={onDeposit}
+          onRepay={onRepay}
+        />
+      </Wrapper>,
+    );
+
+    expect(
+      screen.getByText(COPY.liquidationWarnings.paramsUnavailable.title),
+    ).toBeTruthy();
+    expect(
+      screen.getByTestId("position-notification-banner").dataset.severity,
+    ).toBe("yellow");
   });
 
   it("renders the dust advisory as a dismissible v3 card that stays dismissed", () => {
