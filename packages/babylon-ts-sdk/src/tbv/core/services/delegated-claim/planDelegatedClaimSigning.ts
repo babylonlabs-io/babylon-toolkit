@@ -21,6 +21,7 @@ import {
 } from "../../wasm";
 
 import { assertAssertBindsClaimAndPayout } from "./assertBinding";
+import { assertPayoutFeeAndTimelocks } from "./assertPayoutFeeAndTimelocks";
 import { assertChallengerSetMatchesVault } from "./challengerBinding";
 import { assertPayoutPaysRegisteredScript } from "./payoutBinding";
 import { copyAssertConnectorLeaf } from "./payoutInputLeaf";
@@ -33,7 +34,10 @@ import type {
   DelegatedClaimSigningPlan,
   DelegatedClaimVaultContext,
 } from "./types";
-import { assertClaimSpendsVault, peginTxidFromClaimPsbt } from "./vaultIdBinding";
+import {
+  assertClaimSpendsVault,
+  peginTxidFromClaimPsbt,
+} from "./vaultIdBinding";
 
 /** @experimental */
 export interface PlanDelegatedClaimSigningParams {
@@ -98,6 +102,16 @@ export async function buildBoundPsbtSet(
     });
   }
 
+  // How much of the money reaches it: the CSV sequences the signature commits
+  // to, and the fee the difference between inputs and outputs burns.
+  for (const psbtBase64 of [payoutClaimer, payoutDepositorRaw]) {
+    await assertPayoutFeeAndTimelocks({
+      payoutPsbtBase64: psbtBase64,
+      assertPsbtBase64: assert,
+      vault,
+    });
+  }
+
   // Who can be answered later.
   assertChallengerSetMatchesVault({
     graphChallengerPubkeys: Object.keys(wronglyChallenged),
@@ -116,7 +130,9 @@ export async function buildBoundPsbtSet(
 }
 
 /**
- * @throws If the graph is not version 3, or any binding check fails.
+ * @throws If the graph is not version 3, any binding check fails, or the
+ *         Payout's CSV sequences or implicit fee do not match the vault's
+ *         stamped timelocks and fee band.
  * @experimental
  */
 export async function planDelegatedClaimSigning(

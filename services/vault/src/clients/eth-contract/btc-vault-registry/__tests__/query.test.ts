@@ -32,6 +32,7 @@ import {
   getMaxAcceptableCommissionBpsFromChainWithGrace,
   getVaultFromChain,
   getVaultFromChainWithGrace,
+  readRegistrationLogsWithGrace,
 } from "../query";
 
 const VAULT_A =
@@ -198,6 +199,60 @@ describe("getVaultFromChain", () => {
     await expect(getVaultFromChain(VAULT_A)).rejects.toThrow(
       /Invalid vaultCoreVersion 0 from BTCVaultRegistry.getBtcVaultProtocolInfo/,
     );
+  });
+});
+
+describe("readRegistrationLogsWithGrace", () => {
+  const REGISTRATION_BLOCK = 11_561_176n;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("retries the typed no-logs error until the read succeeds", async () => {
+    const read = vi
+      .fn()
+      .mockRejectedValueOnce(
+        new RegistrationLogsUnavailableError(REGISTRATION_BLOCK),
+      )
+      .mockResolvedValue(["record"]);
+
+    const promise = readRegistrationLogsWithGrace(read);
+    await vi.runAllTimersAsync();
+
+    await expect(promise).resolves.toEqual(["record"]);
+    expect(read).toHaveBeenCalledTimes(2);
+  });
+
+  it("rethrows the typed error once the retry schedule is exhausted", async () => {
+    const read = vi
+      .fn()
+      .mockRejectedValue(
+        new RegistrationLogsUnavailableError(REGISTRATION_BLOCK),
+      );
+
+    const promise = readRegistrationLogsWithGrace(read);
+    const assertion = expect(promise).rejects.toThrow(
+      /returned no registration logs for block 11561176/,
+    );
+    await vi.runAllTimersAsync();
+    await assertion;
+
+    // Initial attempt plus one per backoff step.
+    expect(read).toHaveBeenCalledTimes(8);
+  });
+
+  it("propagates a non-typed error on the first attempt", async () => {
+    const read = vi.fn().mockRejectedValue(new Error("execution reverted"));
+
+    await expect(readRegistrationLogsWithGrace(read)).rejects.toThrow(
+      /execution reverted/,
+    );
+    expect(read).toHaveBeenCalledTimes(1);
   });
 });
 

@@ -6,14 +6,21 @@
  * time by the fallback (the intended behaviour for Utila). Approval-capable
  * wallets (the `DepositTermsApprover` seam) hold a device session that binds
  * some of these signatures to a loaded intent and refuses others while it is
- * loaded, so for them the plan is signed as ordered ceremonies; see
- * {@link signWithApprovalWallet}.
+ * loaded, so for them the plan is signed as ordered ceremonies through the
+ * {@link DelegatedClaimPsbtSigner} capability, which lets the provider put
+ * its own derivation fields on each PSBT; see {@link signWithApprovalWallet}.
  *
  * @module services/delegated-claim/signDelegatedClaimPlan
  */
 
-import type { BitcoinWallet } from "../../../../shared/wallets/interfaces";
-import type { DepositTerms, DepositTermsApprover } from "../../deposit-terms/depositTerms";
+import type {
+  BitcoinWallet,
+  SignPsbtOptions,
+} from "../../../../shared/wallets/interfaces";
+import type {
+  DepositTerms,
+  DepositTermsApprover,
+} from "../../deposit-terms/depositTerms";
 import { supportsDepositApproval } from "../../deposit-terms/depositTerms";
 import { signPsbtsWithFallback } from "../../managers/pegin/signPsbtsWithFallback";
 import { createTaprootScriptPathSignOptionsForInput } from "../../utils/signing";
@@ -27,8 +34,42 @@ import type {
   DelegatedClaimSigningPlan,
   DelegatedClaimSigningRequest,
 } from "./types";
-import { assertSignatureForRequest, psbtBase64ToHex, psbtHexToBase64 } from "./verifySignatureForRequest";
+import {
+  assertSignatureForRequest,
+  psbtBase64ToHex,
+  psbtHexToBase64,
+} from "./verifySignatureForRequest";
 import { assertWalletMatchesDepositor, xOnlyHex } from "./walletIdentity";
+
+/**
+ * The claim-ceremony signing capability an approval wallet must add: its
+ * device signs some claim PSBTs with no loaded intent and needs its own
+ * derivation fields on them, which only the provider can write. Implementers
+ * MUST classify each PSBT themselves from the single requested input and
+ * refuse anything that is not one of the claim ceremony's shapes — this is
+ * not a second `signPsbt`. The SDK cannot enforce that and does not rely on
+ * it: the wallet is proved to be the depositor's before any prompt, and every
+ * returned signature is verified against the PSBT that requested it. The SDK
+ * probes for the method before it prompts.
+ *
+ * @experimental
+ */
+export interface DelegatedClaimPsbtSigner {
+  signDelegatedClaimPsbt(
+    psbtHex: string,
+    options?: SignPsbtOptions,
+  ): Promise<string>;
+}
+
+/** Probes {@link DelegatedClaimPsbtSigner.signDelegatedClaimPsbt}. */
+function supportsDelegatedClaimSigning(
+  wallet: BitcoinWallet,
+): wallet is BitcoinWallet & DelegatedClaimPsbtSigner {
+  return (
+    typeof (wallet as Partial<DelegatedClaimPsbtSigner>)
+      .signDelegatedClaimPsbt === "function"
+  );
+}
 
 /**
  * Options for {@link signDelegatedClaimPlan}.
@@ -79,13 +120,14 @@ type DeviceSigningState = "intentBound" | "standalone";
 
 // Exhaustive over the kind union, so adding a kind without classifying it
 // fails to compile instead of silently dropping out of the ceremony.
-const KIND_DEVICE_STATE: Record<DelegatedClaimSigningKind, DeviceSigningState> = {
-  assert: "intentBound",
-  payoutDepositor: "intentBound",
-  payoutClaimer: "standalone",
-  claim: "standalone",
-  wronglyChallenged: "standalone",
-};
+const KIND_DEVICE_STATE: Record<DelegatedClaimSigningKind, DeviceSigningState> =
+  {
+    assert: "intentBound",
+    payoutDepositor: "intentBound",
+    payoutClaimer: "standalone",
+    claim: "standalone",
+    wronglyChallenged: "standalone",
+  };
 /** The order the standalone requests are signed once the intent is released. */
 const STANDALONE_ORDER: readonly DelegatedClaimSigningKind[] = [
   "payoutClaimer",
@@ -117,13 +159,34 @@ export async function signDelegatedClaimPlan(
   // for the wrong account.
   assertRequestIdsUnique(plan);
   if (supportsDepositApproval(wallet)) {
+    if (!supportsDelegatedClaimSigning(wallet)) {
+      throw new Error(
+        "Approval wallet does not implement signDelegatedClaimPsbt; the claim ceremony needs it because the " +
+          "device signs some claim PSBTs with no loaded intent and needs its own derivation fields on them.",
+      );
+    }
     const ceremony = requireApprovalInputs(opts);
     assertTermsMatchVault(ceremony.depositTerms, plan);
     const partition = partitionByDeviceState(plan);
-    const signerAddress = await assertWalletMatchesDepositor(wallet, plan.depositorPublicKey, plan.btcNetwork);
-    return signWithApprovalWallet(plan, wallet, signerAddress, ceremony, partition, opts);
+    const signerAddress = await assertWalletMatchesDepositor(
+      wallet,
+      plan.depositorPublicKey,
+      plan.btcNetwork,
+    );
+    return signWithApprovalWallet(
+      plan,
+      wallet,
+      signerAddress,
+      ceremony,
+      partition,
+      opts,
+    );
   }
-  const signerAddress = await assertWalletMatchesDepositor(wallet, plan.depositorPublicKey, plan.btcNetwork);
+  const signerAddress = await assertWalletMatchesDepositor(
+    wallet,
+    plan.depositorPublicKey,
+    plan.btcNetwork,
+  );
   return signWithBatch(plan, wallet, signerAddress, opts.signal);
 }
 
@@ -148,9 +211,15 @@ function assertRequestIdsUnique(plan: DelegatedClaimSigningPlan): void {
   }
 }
 
-function partitionByDeviceState(plan: DelegatedClaimSigningPlan): DeviceStatePartition {
-  const intentBound = plan.requests.filter((r) => KIND_DEVICE_STATE[r.kind] === "intentBound");
-  const standalone = STANDALONE_ORDER.flatMap((kind) => plan.requests.filter((r) => r.kind === kind));
+function partitionByDeviceState(
+  plan: DelegatedClaimSigningPlan,
+): DeviceStatePartition {
+  const intentBound = plan.requests.filter(
+    (r) => KIND_DEVICE_STATE[r.kind] === "intentBound",
+  );
+  const standalone = STANDALONE_ORDER.flatMap((kind) =>
+    plan.requests.filter((r) => r.kind === kind),
+  );
   const classified = intentBound.length + standalone.length;
   if (classified !== plan.requests.length) {
     throw new Error(
@@ -161,7 +230,10 @@ function partitionByDeviceState(plan: DelegatedClaimSigningPlan): DeviceStatePar
   return { intentBound, standalone };
 }
 
-function assertEveryRequestSigned(plan: DelegatedClaimSigningPlan, signatures: DelegatedClaimSignatures): void {
+function assertEveryRequestSigned(
+  plan: DelegatedClaimSigningPlan,
+  signatures: DelegatedClaimSignatures,
+): void {
   if (signatures.size !== plan.requests.length) {
     throw new Error(
       `Delegated-claim signing ended with ${signatures.size} signatures for ${plan.requests.length} requests; ` +
@@ -175,7 +247,9 @@ interface ApprovalCeremonyInputs {
   vaultContext: VaultContextInput;
 }
 
-function requireApprovalInputs(opts: SignDelegatedClaimPlanOptions): ApprovalCeremonyInputs {
+function requireApprovalInputs(
+  opts: SignDelegatedClaimPlanOptions,
+): ApprovalCeremonyInputs {
   if (opts.depositTerms === undefined) {
     throw new Error(
       "An approval wallet signs Assert and the depositor Payout only under this vault's " +
@@ -196,12 +270,26 @@ function requireApprovalInputs(opts: SignDelegatedClaimPlanOptions): ApprovalCer
  * rosters, the vault core version, and the vault provider key of each group
  * the terms describe. Otherwise the device binds the Assert to another
  * deposit's intent.
+ *
+ * Exported so a claim-time terms builder can be checked against the context
+ * it will be signed with, before any device session.
+ *
+ * @experimental
  */
-function assertTermsMatchVault(terms: DepositTerms, plan: DelegatedClaimSigningPlan): void {
-  const norm = (keys: readonly string[]) => keys.map((k) => xOnlyHex(k)).sort().join(",");
+export function assertTermsMatchVault(
+  terms: DepositTerms,
+  plan: DelegatedClaimSigningPlan,
+): void {
+  const norm = (keys: readonly string[]) =>
+    keys
+      .map((k) => xOnlyHex(k))
+      .sort()
+      .join(",");
   if (
-    norm(terms.vaultKeeperBtcPubkeys) !== norm(plan.vault.vaultKeeperBtcPubkeys) ||
-    norm(terms.universalChallengerBtcPubkeys) !== norm(plan.vault.universalChallengerBtcPubkeys)
+    norm(terms.vaultKeeperBtcPubkeys) !==
+      norm(plan.vault.vaultKeeperBtcPubkeys) ||
+    norm(terms.universalChallengerBtcPubkeys) !==
+      norm(plan.vault.universalChallengerBtcPubkeys)
   ) {
     throw new Error(
       "Deposit terms carry different keeper or challenger rosters than the vault this plan was built for; " +
@@ -246,7 +334,7 @@ function assertTermsMatchVault(terms: DepositTerms, plan: DelegatedClaimSigningP
  */
 async function signWithApprovalWallet(
   plan: DelegatedClaimSigningPlan,
-  wallet: BitcoinWallet & DepositTermsApprover,
+  wallet: BitcoinWallet & DepositTermsApprover & DelegatedClaimPsbtSigner,
   signerAddress: string,
   ceremony: ApprovalCeremonyInputs,
   { intentBound, standalone }: DeviceStatePartition,
@@ -260,13 +348,22 @@ async function signWithApprovalWallet(
   const queue = [...intentBound, ...standalone];
   let position = 0;
 
-  const signOne = async (request: DelegatedClaimSigningRequest): Promise<void> => {
+  const signOne = async (
+    request: DelegatedClaimSigningRequest,
+  ): Promise<void> => {
     opts.signal?.throwIfAborted();
-    const signedHex = await wallet.signPsbt(
+    const signedHex = await wallet.signDelegatedClaimPsbt(
       psbtBase64ToHex(request.psbtBase64),
-      createTaprootScriptPathSignOptionsForInput(plan.depositorPublicKey, request.inputIndex, signerAddress),
+      createTaprootScriptPathSignOptionsForInput(
+        plan.depositorPublicKey,
+        request.inputIndex,
+        signerAddress,
+      ),
     );
-    const signatureHex = await extractTapScriptSig(psbtHexToBase64(signedHex), request.inputIndex);
+    const signatureHex = await extractTapScriptSig(
+      psbtHexToBase64(signedHex),
+      request.inputIndex,
+    );
     assertSignatureForRequest(plan, request, signatureHex);
     signatures.set(request.id, signatureHex);
   };
@@ -326,7 +423,11 @@ function verifiedResumable(
   if (!resume) return out;
   for (const request of plan.requests) {
     const signatureHex = resume.get(request.id);
-    if (signatureHex === undefined || KIND_DEVICE_STATE[request.kind] === "intentBound") continue;
+    if (
+      signatureHex === undefined ||
+      KIND_DEVICE_STATE[request.kind] === "intentBound"
+    )
+      continue;
     try {
       assertSignatureForRequest(plan, request, signatureHex);
     } catch {
@@ -351,12 +452,19 @@ async function signWithBatch(
     wallet,
     requests.map((r) => psbtBase64ToHex(r.psbtBase64)),
     requests.map((r) =>
-      createTaprootScriptPathSignOptionsForInput(plan.depositorPublicKey, r.inputIndex, signerAddress),
+      createTaprootScriptPathSignOptionsForInput(
+        plan.depositorPublicKey,
+        r.inputIndex,
+        signerAddress,
+      ),
     ),
   );
   const signatures = new Map<string, string>();
   for (let i = 0; i < requests.length; i++) {
-    const signatureHex = await extractTapScriptSig(psbtHexToBase64(signedPsbtHexes[i]), requests[i].inputIndex);
+    const signatureHex = await extractTapScriptSig(
+      psbtHexToBase64(signedPsbtHexes[i]),
+      requests[i].inputIndex,
+    );
     assertSignatureForRequest(plan, requests[i], signatureHex);
     signatures.set(requests[i].id, signatureHex);
   }

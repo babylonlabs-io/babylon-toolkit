@@ -1,8 +1,11 @@
 /**
  * Binding between the three transactions a delegated claim signs in
- * sequence: Assert must spend Claim:0, and the Payout's Assert-connector
- * input must spend Assert:0 — the Assert that is being signed, not another
- * one the graph might carry.
+ * sequence: Assert must spend Claim:0, the Payout's Assert-connector input
+ * must spend Assert:0 — the Assert that is being signed, not another one the
+ * graph might carry — and the Payout's Vault-UTXO input must spend output 0
+ * of the PegIn the Claim spends (btc-vault `payout.rs:66,107` and
+ * `claim.rs:120` @ ac4954e7), so the Payout the depositor signs pays out
+ * this vault and no other.
  *
  * btc-vault's `check_assert_spends_claim` covers the first half when the
  * Claim is finalized; nothing covered the second half until here. The
@@ -19,6 +22,10 @@ const ASSERT_CLAIM_INPUT = 0;
 const CLAIM_CONNECTOR_VOUT = 0;
 const PAYOUT_ASSERT_INPUT = 1;
 const ASSERT_CONNECTOR_VOUT = 0;
+const CLAIM_PEGIN_INPUT = 0;
+const PAYOUT_VAULT_INPUT = 0;
+/** The Vault UTXO is the PegIn's first output. */
+const PEGIN_VAULT_VOUT = 0;
 
 /** @experimental */
 export class AssertBindingError extends Error {
@@ -43,9 +50,20 @@ function parse(label: string, psbtBase64: string): Psbt {
   }
 }
 
+/** Internal-order prevout hash of one input, present or not. */
+function inputHash(label: string, psbt: Psbt, inputIndex: number): Buffer {
+  const input = psbt.txInputs[inputIndex];
+  if (!input) {
+    throw new AssertBindingError(`${label} PSBT has no input ${inputIndex}.`);
+  }
+  return input.hash;
+}
+
 /** Internal-order hash of a PSBT's unsigned transaction. */
 function unsignedTxHash(psbt: Psbt): Buffer {
-  return Transaction.fromBuffer(psbt.data.globalMap.unsignedTx.toBuffer()).getHash();
+  return Transaction.fromBuffer(
+    psbt.data.globalMap.unsignedTx.toBuffer(),
+  ).getHash();
 }
 
 function assertInputSpends(
@@ -68,8 +86,9 @@ function assertInputSpends(
 }
 
 /**
- * @throws {AssertBindingError} When Assert input 0 is not Claim:0, or Payout
- *         input 1 is not Assert:0.
+ * @throws {AssertBindingError} When Assert input 0 is not Claim:0, Payout
+ *         input 1 is not Assert:0, or Payout input 0 is not output 0 of the
+ *         PegIn the Claim spends.
  * @experimental
  */
 export function assertAssertBindsClaimAndPayout(
@@ -79,6 +98,28 @@ export function assertAssertBindsClaimAndPayout(
   const assert = parse("Assert", params.assertPsbtBase64);
   const payout = parse("Payout", params.payoutClaimerPsbtBase64);
 
-  assertInputSpends("Assert", assert, ASSERT_CLAIM_INPUT, unsignedTxHash(claim), CLAIM_CONNECTOR_VOUT, "Claim:0");
-  assertInputSpends("Payout", payout, PAYOUT_ASSERT_INPUT, unsignedTxHash(assert), ASSERT_CONNECTOR_VOUT, "Assert:0");
+  assertInputSpends(
+    "Assert",
+    assert,
+    ASSERT_CLAIM_INPUT,
+    unsignedTxHash(claim),
+    CLAIM_CONNECTOR_VOUT,
+    "Claim:0",
+  );
+  assertInputSpends(
+    "Payout",
+    payout,
+    PAYOUT_ASSERT_INPUT,
+    unsignedTxHash(assert),
+    ASSERT_CONNECTOR_VOUT,
+    "Assert:0",
+  );
+  assertInputSpends(
+    "Payout",
+    payout,
+    PAYOUT_VAULT_INPUT,
+    inputHash("Claim", claim, CLAIM_PEGIN_INPUT),
+    PEGIN_VAULT_VOUT,
+    "this vault's PegIn:0",
+  );
 }

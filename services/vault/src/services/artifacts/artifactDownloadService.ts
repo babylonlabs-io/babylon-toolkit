@@ -75,6 +75,12 @@ const RPC_TIMEOUT_MS = 120 * 1000;
  */
 const ARTIFACT_TOTAL_FALLBACK_BYTES = 1_600_000_000;
 
+/** The small fields of a bundle a claim needs in memory; the sessions stay on disk. */
+export interface CapturedClaimerPayload {
+  txGraphJson: string;
+  verifyingKeyHex: string;
+}
+
 export interface FetchArtifactsOptions {
   /**
    * Invoked after each chunk read from the response body. `totalBytes`
@@ -96,6 +102,13 @@ export interface FetchArtifactsOptions {
    * EOF, or the RPC timeout.
    */
   signal?: AbortSignal;
+  /**
+   * Receives the two claimer inputs the validator captured in full while the
+   * body streamed (`tx_graph_json`, `verifying_key_hex`). Called once, after
+   * the whole body validated and was bound to the deposit, and before the
+   * file is committed — a throw here discards the download.
+   */
+  onPayloadCaptured?: (payload: CapturedClaimerPayload) => void;
 }
 
 /** Evidence that a validated bundle was written to disk. */
@@ -258,6 +271,10 @@ export async function downloadArtifactsFromResponse(
       Object.keys(validated.result.babe_sessions),
       binding,
     );
+    options?.onPayloadCaptured?.({
+      txGraphJson: validated.result.tx_graph_json,
+      verifyingKeyHex: validated.result.verifying_key_hex,
+    });
   } catch (err) {
     await discardQuietly(stream);
     throw err;

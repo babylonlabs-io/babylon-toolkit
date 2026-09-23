@@ -1,12 +1,24 @@
+import { networks, payments } from "bitcoinjs-lib";
 import type { Mock } from "vitest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { BitcoinWallet } from "../../../../../shared/wallets/interfaces";
 import type { DepositTerms } from "../../../deposit-terms/depositTerms";
 import { assertScriptPathSchnorrSignature } from "../../../primitives/psbt/verifyScriptPathSchnorrSignature";
-import type { DelegatedClaimSigningKind, DelegatedClaimSigningPlan } from "../types";
-import { DelegatedClaimSigningIncompleteError, signDelegatedClaimPlan } from "../signDelegatedClaimPlan";
-import { DEPOSITOR_PUBKEY, SIGNER_ADDRESS, VAULT_PROVIDER_PUBKEY } from "./fixtures/delegatedClaimPsbts";
+import type { DelegatedClaimPsbtSigner } from "../signDelegatedClaimPlan";
+import {
+  DelegatedClaimSigningIncompleteError,
+  signDelegatedClaimPlan,
+} from "../signDelegatedClaimPlan";
+import type {
+  DelegatedClaimSigningKind,
+  DelegatedClaimSigningPlan,
+} from "../types";
+import {
+  DEPOSITOR_PUBKEY,
+  SIGNER_ADDRESS,
+  VAULT_PROVIDER_PUBKEY,
+} from "./fixtures/delegatedClaimPsbts";
 
 const wasm = vi.hoisted(() => ({ extractTapScriptSig: vi.fn() }));
 vi.mock("../../../wasm", async (importOriginal) => ({
@@ -34,10 +46,32 @@ function plan(): DelegatedClaimSigningPlan {
     } as DelegatedClaimSigningPlan["vault"],
     requests: [
       { id: "claim", kind: "claim", psbtBase64: b64("claim"), inputIndex: 0 },
-      { id: "assert", kind: "assert", psbtBase64: b64("assert"), inputIndex: 0 },
-      { id: "payoutClaimer", kind: "payoutClaimer", psbtBase64: b64("pc"), inputIndex: 1 },
-      { id: "payoutDepositor", kind: "payoutDepositor", psbtBase64: b64("pd"), inputIndex: 0 },
-      { id: "wronglyChallenged:aa:0", kind: "wronglyChallenged", psbtBase64: b64("w0"), inputIndex: 0, challengerPubkey: "aa", gcIndex: 0 },
+      {
+        id: "assert",
+        kind: "assert",
+        psbtBase64: b64("assert"),
+        inputIndex: 0,
+      },
+      {
+        id: "payoutClaimer",
+        kind: "payoutClaimer",
+        psbtBase64: b64("pc"),
+        inputIndex: 1,
+      },
+      {
+        id: "payoutDepositor",
+        kind: "payoutDepositor",
+        psbtBase64: b64("pd"),
+        inputIndex: 0,
+      },
+      {
+        id: "wronglyChallenged:aa:0",
+        kind: "wronglyChallenged",
+        psbtBase64: b64("w0"),
+        inputIndex: 0,
+        challengerPubkey: "aa",
+        gcIndex: 0,
+      },
     ],
   };
 }
@@ -54,8 +88,11 @@ function softwareWallet(): BitcoinWallet {
 describe("signDelegatedClaimPlan — software wallet", () => {
   beforeEach(() => {
     vi.resetAllMocks();
-    wasm.extractTapScriptSig.mockImplementation((psbtBase64: string, i: number) =>
-      Promise.resolve(`sig:${Buffer.from(psbtBase64, "base64").toString("utf8")}@${i}`),
+    wasm.extractTapScriptSig.mockImplementation(
+      (psbtBase64: string, i: number) =>
+        Promise.resolve(
+          `sig:${Buffer.from(psbtBase64, "base64").toString("utf8")}@${i}`,
+        ),
     );
   });
 
@@ -78,14 +115,22 @@ describe("signDelegatedClaimPlan — software wallet", () => {
       expect(option.signInputs[0].useTweakedSigner).toBe(false);
       expect(option.signInputs[0].address).toBe(SIGNER_ADDRESS);
     }
-    expect(options.map((o: { signInputs: { index: number }[] }) => o.signInputs[0].index)).toEqual([0, 0, 1, 0, 0]);
+    expect(
+      options.map(
+        (o: { signInputs: { index: number }[] }) => o.signInputs[0].index,
+      ),
+    ).toEqual([0, 0, 1, 0, 0]);
   });
 
   it("refuses to prompt when the wallet is on another account", async () => {
     const wallet = softwareWallet();
-    (wallet.getPublicKeyHex as unknown as Mock).mockResolvedValue("02".concat("99".repeat(32)));
+    (wallet.getPublicKeyHex as unknown as Mock).mockResolvedValue(
+      "02".concat("99".repeat(32)),
+    );
 
-    await expect(signDelegatedClaimPlan(plan(), wallet)).rejects.toThrow(/depositor key/);
+    await expect(signDelegatedClaimPlan(plan(), wallet)).rejects.toThrow(
+      /depositor key/,
+    );
     expect(wallet.signPsbts).not.toHaveBeenCalled();
   });
 
@@ -95,7 +140,9 @@ describe("signDelegatedClaimPlan — software wallet", () => {
 
     // Nothing collected yet, so the signal's own reason surfaces unwrapped.
     await expect(
-      signDelegatedClaimPlan(plan(), wallet, { signal: AbortSignal.abort(reason) }),
+      signDelegatedClaimPlan(plan(), wallet, {
+        signal: AbortSignal.abort(reason),
+      }),
     ).rejects.toBe(reason);
     expect(wallet.getPublicKeyHex).not.toHaveBeenCalled();
     expect(wallet.signPsbts).not.toHaveBeenCalled();
@@ -103,9 +150,14 @@ describe("signDelegatedClaimPlan — software wallet", () => {
 
   it("refuses a plan that lists a request id twice before any wallet call", async () => {
     const wallet = softwareWallet();
-    const duplicated: DelegatedClaimSigningPlan = { ...plan(), requests: [...plan().requests, plan().requests[0]] };
+    const duplicated: DelegatedClaimSigningPlan = {
+      ...plan(),
+      requests: [...plan().requests, plan().requests[0]],
+    };
 
-    await expect(signDelegatedClaimPlan(duplicated, wallet)).rejects.toThrow(/request "claim" more than once/);
+    await expect(signDelegatedClaimPlan(duplicated, wallet)).rejects.toThrow(
+      /request "claim" more than once/,
+    );
     expect(wallet.getPublicKeyHex).not.toHaveBeenCalled();
     expect(wallet.getAddress).not.toHaveBeenCalled();
     expect(wallet.signPsbts).not.toHaveBeenCalled();
@@ -115,11 +167,14 @@ describe("signDelegatedClaimPlan — software wallet", () => {
     const wallet = softwareWallet();
     (assertScriptPathSchnorrSignature as unknown as Mock).mockImplementation(
       ({ signatureHex }: { signatureHex: string }) => {
-        if (signatureHex === "sig:pc@1") throw new Error("signature does not verify");
+        if (signatureHex === "sig:pc@1")
+          throw new Error("signature does not verify");
       },
     );
 
-    await expect(signDelegatedClaimPlan(plan(), wallet)).rejects.toThrow(/does not verify/);
+    await expect(signDelegatedClaimPlan(plan(), wallet)).rejects.toThrow(
+      /does not verify/,
+    );
     expect(assertScriptPathSchnorrSignature).toHaveBeenCalledWith({
       requestedPsbtHex: Buffer.from("pc", "utf8").toString("hex"),
       signatureHex: "sig:pc@1",
@@ -134,10 +189,15 @@ const TERMS = {
   vaultKeeperBtcPubkeys: [VAULT_KEEPER],
   universalChallengerBtcPubkeys: [UNIVERSAL_CHALLENGER],
   // x-only, as the terms carry it; the plan's vault holds the compressed form.
-  vaults: [{ htlcVout: 0, vaultProviderBtcPubkey: VAULT_PROVIDER_PUBKEY.slice(2) }],
+  vaults: [
+    { htlcVout: 0, vaultProviderBtcPubkey: VAULT_PROVIDER_PUBKEY.slice(2) },
+  ],
 } as unknown as DepositTerms;
 const CONTEXT = {
-  depositorBtcPubkey: Buffer.from("79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798", "hex"),
+  depositorBtcPubkey: Buffer.from(
+    "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+    "hex",
+  ),
   fundingOutpoints: [{ txid: Buffer.from("11".repeat(32), "hex"), vout: 0 }],
 };
 
@@ -146,8 +206,10 @@ function label(psbtHex: string): string {
   return Buffer.from(psbtHex, "hex").toString("utf8");
 }
 
-/** Records every wallet call in order; signPsbt returns the PSBT unchanged. */
-function approvalWallet(calls: string[]): BitcoinWallet {
+/** Records every wallet call in order; signDelegatedClaimPsbt returns the PSBT unchanged. */
+function approvalWallet(
+  calls: string[],
+): BitcoinWallet & DelegatedClaimPsbtSigner {
   return {
     getAddress: vi.fn(() => {
       calls.push("address");
@@ -165,35 +227,49 @@ function approvalWallet(calls: string[]): BitcoinWallet {
       calls.push("approve");
       return Promise.resolve();
     }),
-    signPsbt: vi.fn((hex: string) => {
+    signPsbt: vi.fn(),
+    signPsbts: vi.fn(),
+    signDelegatedClaimPsbt: vi.fn((hex: string) => {
       calls.push(`sign:${label(hex)}`);
       return Promise.resolve(hex);
     }),
-    signPsbts: vi.fn(),
-  } as unknown as BitcoinWallet;
+  } as unknown as BitcoinWallet & DelegatedClaimPsbtSigner;
 }
 
 describe("signDelegatedClaimPlan — approval-capable wallet", () => {
   beforeEach(() => {
     vi.resetAllMocks();
-    wasm.extractTapScriptSig.mockImplementation((psbtBase64: string, i: number) =>
-      Promise.resolve(`sig:${Buffer.from(psbtBase64, "base64").toString("utf8")}@${i}`),
+    wasm.extractTapScriptSig.mockImplementation(
+      (psbtBase64: string, i: number) =>
+        Promise.resolve(
+          `sig:${Buffer.from(psbtBase64, "base64").toString("utf8")}@${i}`,
+        ),
     );
   });
 
   it("derives, approves, signs the intent-bound pair, derives again, then signs the rest, one prompt each", async () => {
     const calls: string[] = [];
     const wallet = approvalWallet(calls);
-    const sigs = await signDelegatedClaimPlan(plan(), wallet, { depositTerms: TERMS, vaultContext: CONTEXT });
+    const sigs = await signDelegatedClaimPlan(plan(), wallet, {
+      depositTerms: TERMS,
+      vaultContext: CONTEXT,
+    });
 
     expect(calls).toEqual([
-      "pubkey", "address",
-      "derive", "approve",
-      "sign:assert", "sign:pd",
+      "pubkey",
+      "address",
       "derive",
-      "sign:pc", "sign:claim", "sign:w0",
+      "approve",
+      "sign:assert",
+      "sign:pd",
+      "derive",
+      "sign:pc",
+      "sign:claim",
+      "sign:w0",
     ]);
+    // Every claim PSBT goes through the capability; the deposit flow's methods stay untouched.
     expect(wallet.signPsbts).not.toHaveBeenCalled();
+    expect(wallet.signPsbt).not.toHaveBeenCalled();
     expect(Object.fromEntries(sigs)).toEqual({
       claim: "sig:claim@0",
       assert: "sig:assert@0",
@@ -205,7 +281,10 @@ describe("signDelegatedClaimPlan — approval-capable wallet", () => {
 
   it("verifies every fresh signature against the PSBT it requested before accepting it", async () => {
     const calls: string[] = [];
-    await signDelegatedClaimPlan(plan(), approvalWallet(calls), { depositTerms: TERMS, vaultContext: CONTEXT });
+    await signDelegatedClaimPlan(plan(), approvalWallet(calls), {
+      depositTerms: TERMS,
+      vaultContext: CONTEXT,
+    });
 
     const b64 = (s: string) => Buffer.from(s, "utf8").toString("base64");
     const hex = (s: string) => Buffer.from(b64(s), "base64").toString("hex");
@@ -218,11 +297,49 @@ describe("signDelegatedClaimPlan — approval-capable wallet", () => {
     });
   });
 
+  it("refuses an approval wallet without signDelegatedClaimPsbt before any prompt — the provider must write its own derivation fields", async () => {
+    const calls: string[] = [];
+    const wallet = approvalWallet(calls) as BitcoinWallet & {
+      signDelegatedClaimPsbt?: unknown;
+    };
+    delete wallet.signDelegatedClaimPsbt;
+
+    await expect(
+      signDelegatedClaimPlan(plan(), wallet, {
+        depositTerms: TERMS,
+        vaultContext: CONTEXT,
+      }),
+    ).rejects.toThrow(/signDelegatedClaimPsbt/);
+    expect(calls).toEqual([]);
+    expect(wallet.signPsbt).not.toHaveBeenCalled();
+  });
+
+  it("accepts a native-segwit depositor: the address check uses the wallet's own compressed key, not the on-chain x-only one", async () => {
+    const calls: string[] = [];
+    const wallet = approvalWallet(calls);
+    const nativeSegwit = payments.p2wpkh({
+      pubkey: Buffer.from(DEPOSITOR_PUBKEY, "hex"),
+      network: networks.testnet,
+    }).address;
+    (wallet.getAddress as unknown as Mock).mockResolvedValue(nativeSegwit);
+
+    const sigs = await signDelegatedClaimPlan(plan(), wallet, {
+      depositTerms: TERMS,
+      vaultContext: CONTEXT,
+    });
+
+    expect(sigs.size).toBe(5);
+  });
+
   it("requires deposit terms and a vault context before touching the device", async () => {
     const calls: string[] = [];
     const wallet = approvalWallet(calls);
-    await expect(signDelegatedClaimPlan(plan(), wallet)).rejects.toThrow(/depositTerms/);
-    await expect(signDelegatedClaimPlan(plan(), wallet, { depositTerms: TERMS })).rejects.toThrow(/vaultContext/);
+    await expect(signDelegatedClaimPlan(plan(), wallet)).rejects.toThrow(
+      /depositTerms/,
+    );
+    await expect(
+      signDelegatedClaimPlan(plan(), wallet, { depositTerms: TERMS }),
+    ).rejects.toThrow(/vaultContext/);
     expect(calls).toEqual([]);
     expect(wallet.getPublicKeyHex).not.toHaveBeenCalled();
   });
@@ -230,9 +347,15 @@ describe("signDelegatedClaimPlan — approval-capable wallet", () => {
   it("refuses terms whose rosters differ from the vault's", async () => {
     const calls: string[] = [];
     const wallet = approvalWallet(calls);
-    const wrong = { ...TERMS, universalChallengerBtcPubkeys: ["cc".repeat(32)] } as typeof TERMS;
+    const wrong = {
+      ...TERMS,
+      universalChallengerBtcPubkeys: ["cc".repeat(32)],
+    } as typeof TERMS;
     await expect(
-      signDelegatedClaimPlan(plan(), wallet, { depositTerms: wrong, vaultContext: CONTEXT }),
+      signDelegatedClaimPlan(plan(), wallet, {
+        depositTerms: wrong,
+        vaultContext: CONTEXT,
+      }),
     ).rejects.toThrow(/rosters/);
     expect(calls).toEqual([]);
     expect(wallet.getPublicKeyHex).not.toHaveBeenCalled();
@@ -243,8 +366,13 @@ describe("signDelegatedClaimPlan — approval-capable wallet", () => {
     const wallet = approvalWallet(calls);
     const wrong = { ...TERMS, vaultCoreVersion: 2 } as typeof TERMS;
     await expect(
-      signDelegatedClaimPlan(plan(), wallet, { depositTerms: wrong, vaultContext: CONTEXT }),
-    ).rejects.toThrow(/vault core version 2 but this plan's vault is version 3/);
+      signDelegatedClaimPlan(plan(), wallet, {
+        depositTerms: wrong,
+        vaultContext: CONTEXT,
+      }),
+    ).rejects.toThrow(
+      /vault core version 2 but this plan's vault is version 3/,
+    );
     expect(calls).toEqual([]);
   });
 
@@ -253,10 +381,16 @@ describe("signDelegatedClaimPlan — approval-capable wallet", () => {
     const wallet = approvalWallet(calls);
     const wrong = {
       ...TERMS,
-      vaults: [...TERMS.vaults, { htlcVout: 1, vaultProviderBtcPubkey: "88".repeat(32) }],
+      vaults: [
+        ...TERMS.vaults,
+        { htlcVout: 1, vaultProviderBtcPubkey: "88".repeat(32) },
+      ],
     } as typeof TERMS;
     await expect(
-      signDelegatedClaimPlan(plan(), wallet, { depositTerms: wrong, vaultContext: CONTEXT }),
+      signDelegatedClaimPlan(plan(), wallet, {
+        depositTerms: wrong,
+        vaultContext: CONTEXT,
+      }),
     ).rejects.toThrow(/group at htlcVout 1 names a different vault provider/);
     expect(calls).toEqual([]);
   });
@@ -266,7 +400,10 @@ describe("signDelegatedClaimPlan — approval-capable wallet", () => {
     const wallet = approvalWallet(calls);
     const wrong = { ...TERMS, vaults: [] } as typeof TERMS;
     await expect(
-      signDelegatedClaimPlan(plan(), wallet, { depositTerms: wrong, vaultContext: CONTEXT }),
+      signDelegatedClaimPlan(plan(), wallet, {
+        depositTerms: wrong,
+        vaultContext: CONTEXT,
+      }),
     ).rejects.toThrow(/describe no vault group/);
     expect(calls).toEqual([]);
   });
@@ -274,10 +411,16 @@ describe("signDelegatedClaimPlan — approval-capable wallet", () => {
   it("refuses a plan that lists a request id twice before any wallet call", async () => {
     const calls: string[] = [];
     const wallet = approvalWallet(calls);
-    const duplicated: DelegatedClaimSigningPlan = { ...plan(), requests: [...plan().requests, plan().requests[0]] };
+    const duplicated: DelegatedClaimSigningPlan = {
+      ...plan(),
+      requests: [...plan().requests, plan().requests[0]],
+    };
 
     await expect(
-      signDelegatedClaimPlan(duplicated, wallet, { depositTerms: TERMS, vaultContext: CONTEXT }),
+      signDelegatedClaimPlan(duplicated, wallet, {
+        depositTerms: TERMS,
+        vaultContext: CONTEXT,
+      }),
     ).rejects.toThrow(/request "claim" more than once/);
     expect(calls).toEqual([]);
   });
@@ -315,7 +458,10 @@ describe("signDelegatedClaimPlan — approval-capable wallet", () => {
     };
 
     await expect(
-      signDelegatedClaimPlan(withUnknownKind, wallet, { depositTerms: TERMS, vaultContext: CONTEXT }),
+      signDelegatedClaimPlan(withUnknownKind, wallet, {
+        depositTerms: TERMS,
+        vaultContext: CONTEXT,
+      }),
     ).rejects.toThrow(/6 signing requests but only 5/);
     expect(calls).toEqual([]);
   });
@@ -324,12 +470,14 @@ describe("signDelegatedClaimPlan — approval-capable wallet", () => {
     const calls: string[] = [];
     const wallet = approvalWallet(calls);
     const controller = new AbortController();
-    (wallet.signPsbt as unknown as Mock).mockImplementation((hex: string) => {
-      const name = label(hex);
-      calls.push(`sign:${name}`);
-      if (name === "pc") controller.abort(new Error("user left"));
-      return Promise.resolve(hex);
-    });
+    (wallet.signDelegatedClaimPsbt as unknown as Mock).mockImplementation(
+      (hex: string) => {
+        const name = label(hex);
+        calls.push(`sign:${name}`);
+        if (name === "pc") controller.abort(new Error("user left"));
+        return Promise.resolve(hex);
+      },
+    );
 
     const failure = await signDelegatedClaimPlan(plan(), wallet, {
       depositTerms: TERMS,
@@ -341,8 +489,21 @@ describe("signDelegatedClaimPlan — approval-capable wallet", () => {
     const incomplete = failure as DelegatedClaimSigningIncompleteError;
     expect(incomplete.failedRequestId).toBe("claim");
     expect(incomplete.cause).toBe(controller.signal.reason);
-    expect([...incomplete.signatures.keys()]).toEqual(["assert", "payoutDepositor", "payoutClaimer"]);
-    expect(calls).toEqual(["pubkey", "address", "derive", "approve", "sign:assert", "sign:pd", "derive", "sign:pc"]);
+    expect([...incomplete.signatures.keys()]).toEqual([
+      "assert",
+      "payoutDepositor",
+      "payoutClaimer",
+    ]);
+    expect(calls).toEqual([
+      "pubkey",
+      "address",
+      "derive",
+      "approve",
+      "sign:assert",
+      "sign:pd",
+      "derive",
+      "sign:pc",
+    ]);
   });
 
   it("reports the resumed standalone signature and the first unresumed request when the signal aborts during the second derivation", async () => {
@@ -351,7 +512,8 @@ describe("signDelegatedClaimPlan — approval-capable wallet", () => {
     const controller = new AbortController();
     (wallet.deriveContextHash as unknown as Mock).mockImplementation(() => {
       calls.push("derive");
-      if (calls.filter((c) => c === "derive").length === 2) controller.abort(new Error("user left"));
+      if (calls.filter((c) => c === "derive").length === 2)
+        controller.abort(new Error("user left"));
       return Promise.resolve("ab".repeat(32));
     });
     const resume = new Map([["payoutClaimer", "sig:pc@1"]]);
@@ -372,7 +534,15 @@ describe("signDelegatedClaimPlan — approval-capable wallet", () => {
       assert: "sig:assert@0",
       payoutDepositor: "sig:pd@0",
     });
-    expect(calls).toEqual(["pubkey", "address", "derive", "approve", "sign:assert", "sign:pd", "derive"]);
+    expect(calls).toEqual([
+      "pubkey",
+      "address",
+      "derive",
+      "approve",
+      "sign:assert",
+      "sign:pd",
+      "derive",
+    ]);
   });
 
   it("reports the intent-bound signatures when the second derivation itself fails", async () => {
@@ -382,17 +552,33 @@ describe("signDelegatedClaimPlan — approval-capable wallet", () => {
     (wallet.deriveContextHash as unknown as Mock).mockImplementation(() => {
       calls.push("derive");
       const secondDerive = calls.filter((c) => c === "derive").length === 2;
-      return secondDerive ? Promise.reject(deviceError) : Promise.resolve("ab".repeat(32));
+      return secondDerive
+        ? Promise.reject(deviceError)
+        : Promise.resolve("ab".repeat(32));
     });
 
-    const failure = await signDelegatedClaimPlan(plan(), wallet, { depositTerms: TERMS, vaultContext: CONTEXT }).catch((e: unknown) => e);
+    const failure = await signDelegatedClaimPlan(plan(), wallet, {
+      depositTerms: TERMS,
+      vaultContext: CONTEXT,
+    }).catch((e: unknown) => e);
 
     expect(failure).toBeInstanceOf(DelegatedClaimSigningIncompleteError);
     const incomplete = failure as DelegatedClaimSigningIncompleteError;
     expect(incomplete.cause).toBe(deviceError);
     expect(incomplete.failedRequestId).toBe("payoutClaimer");
-    expect(Object.fromEntries(incomplete.signatures)).toEqual({ assert: "sig:assert@0", payoutDepositor: "sig:pd@0" });
-    expect(calls).toEqual(["pubkey", "address", "derive", "approve", "sign:assert", "sign:pd", "derive"]);
+    expect(Object.fromEntries(incomplete.signatures)).toEqual({
+      assert: "sig:assert@0",
+      payoutDepositor: "sig:pd@0",
+    });
+    expect(calls).toEqual([
+      "pubkey",
+      "address",
+      "derive",
+      "approve",
+      "sign:assert",
+      "sign:pd",
+      "derive",
+    ]);
   });
 
   it("still runs the release derive with every standalone signature resumed, and reports its failure against the first standalone request", async () => {
@@ -402,7 +588,9 @@ describe("signDelegatedClaimPlan — approval-capable wallet", () => {
     (wallet.deriveContextHash as unknown as Mock).mockImplementation(() => {
       calls.push("derive");
       const secondDerive = calls.filter((c) => c === "derive").length === 2;
-      return secondDerive ? Promise.reject(deviceError) : Promise.resolve("ab".repeat(32));
+      return secondDerive
+        ? Promise.reject(deviceError)
+        : Promise.resolve("ab".repeat(32));
     });
     const resume = new Map([
       ["payoutClaimer", "sig:pc@1"],
@@ -410,7 +598,11 @@ describe("signDelegatedClaimPlan — approval-capable wallet", () => {
       ["wronglyChallenged:aa:0", "sig:w0@0"],
     ]);
 
-    const failure = await signDelegatedClaimPlan(plan(), wallet, { depositTerms: TERMS, vaultContext: CONTEXT, resume }).catch((e: unknown) => e);
+    const failure = await signDelegatedClaimPlan(plan(), wallet, {
+      depositTerms: TERMS,
+      vaultContext: CONTEXT,
+      resume,
+    }).catch((e: unknown) => e);
 
     expect(failure).toBeInstanceOf(DelegatedClaimSigningIncompleteError);
     const incomplete = failure as DelegatedClaimSigningIncompleteError;
@@ -423,33 +615,68 @@ describe("signDelegatedClaimPlan — approval-capable wallet", () => {
       assert: "sig:assert@0",
       payoutDepositor: "sig:pd@0",
     });
-    expect(calls).toEqual(["pubkey", "address", "derive", "approve", "sign:assert", "sign:pd", "derive"]);
+    expect(calls).toEqual([
+      "pubkey",
+      "address",
+      "derive",
+      "approve",
+      "sign:assert",
+      "sign:pd",
+      "derive",
+    ]);
   });
 
   it("returns what it collected when a standalone signature fails, and a retry reuses only verified standalone ones", async () => {
     const calls: string[] = [];
     const wallet = approvalWallet(calls);
-    (wallet.signPsbt as unknown as Mock).mockImplementation((hex: string) => {
-      const name = label(hex);
-      calls.push(`sign:${name}`);
-      return name === "claim" ? Promise.reject(new Error("user cancelled")) : Promise.resolve(hex);
-    });
+    (wallet.signDelegatedClaimPsbt as unknown as Mock).mockImplementation(
+      (hex: string) => {
+        const name = label(hex);
+        calls.push(`sign:${name}`);
+        return name === "claim"
+          ? Promise.reject(new Error("user cancelled"))
+          : Promise.resolve(hex);
+      },
+    );
 
-    const failure = await signDelegatedClaimPlan(plan(), wallet, { depositTerms: TERMS, vaultContext: CONTEXT }).catch((e: unknown) => e);
+    const failure = await signDelegatedClaimPlan(plan(), wallet, {
+      depositTerms: TERMS,
+      vaultContext: CONTEXT,
+    }).catch((e: unknown) => e);
     expect(failure).toBeInstanceOf(DelegatedClaimSigningIncompleteError);
     const incomplete = failure as DelegatedClaimSigningIncompleteError;
     expect(incomplete.failedRequestId).toBe("claim");
-    expect([...incomplete.signatures.keys()]).toEqual(["assert", "payoutDepositor", "payoutClaimer"]);
+    expect([...incomplete.signatures.keys()]).toEqual([
+      "assert",
+      "payoutDepositor",
+      "payoutClaimer",
+    ]);
 
     calls.length = 0;
-    (wallet.signPsbt as unknown as Mock).mockImplementation((hex: string) => {
-      calls.push(`sign:${label(hex)}`);
-      return Promise.resolve(hex);
+    (wallet.signDelegatedClaimPsbt as unknown as Mock).mockImplementation(
+      (hex: string) => {
+        calls.push(`sign:${label(hex)}`);
+        return Promise.resolve(hex);
+      },
+    );
+    const sigs = await signDelegatedClaimPlan(plan(), wallet, {
+      depositTerms: TERMS,
+      vaultContext: CONTEXT,
+      resume: incomplete.signatures,
     });
-    const sigs = await signDelegatedClaimPlan(plan(), wallet, { depositTerms: TERMS, vaultContext: CONTEXT, resume: incomplete.signatures });
 
     // Intent-bound signatures are never resumed; the verified claimer payout is.
-    expect(calls).toEqual(["pubkey", "address", "derive", "approve", "sign:assert", "sign:pd", "derive", "sign:claim", "sign:w0"]);
+    expect(calls).toEqual([
+      "pubkey",
+      "address",
+      "derive",
+      "approve",
+      "sign:assert",
+      "sign:pd",
+      "derive",
+      "sign:claim",
+      "sign:w0",
+    ]);
     expect(assertScriptPathSchnorrSignature).toHaveBeenCalledWith(
       expect.objectContaining({ signatureHex: "sig:pc@1", inputIndex: 1 }),
     );
@@ -462,14 +689,30 @@ describe("signDelegatedClaimPlan — approval-capable wallet", () => {
     const wallet = approvalWallet(calls);
     (assertScriptPathSchnorrSignature as unknown as Mock).mockImplementation(
       ({ signatureHex }: { signatureHex: string }) => {
-        if (signatureHex === "stale") throw new Error("signature does not verify");
+        if (signatureHex === "stale")
+          throw new Error("signature does not verify");
       },
     );
     const resume = new Map([["payoutClaimer", "stale"]]);
 
-    const sigs = await signDelegatedClaimPlan(plan(), wallet, { depositTerms: TERMS, vaultContext: CONTEXT, resume });
+    const sigs = await signDelegatedClaimPlan(plan(), wallet, {
+      depositTerms: TERMS,
+      vaultContext: CONTEXT,
+      resume,
+    });
 
-    expect(calls).toEqual(["pubkey", "address", "derive", "approve", "sign:assert", "sign:pd", "derive", "sign:pc", "sign:claim", "sign:w0"]);
+    expect(calls).toEqual([
+      "pubkey",
+      "address",
+      "derive",
+      "approve",
+      "sign:assert",
+      "sign:pd",
+      "derive",
+      "sign:pc",
+      "sign:claim",
+      "sign:w0",
+    ]);
     expect(sigs.get("payoutClaimer")).toBe("sig:pc@1");
   });
 
@@ -481,7 +724,11 @@ describe("signDelegatedClaimPlan — approval-capable wallet", () => {
       ["payoutDepositor", "resumed-pd"],
     ]);
 
-    const sigs = await signDelegatedClaimPlan(plan(), wallet, { depositTerms: TERMS, vaultContext: CONTEXT, resume });
+    const sigs = await signDelegatedClaimPlan(plan(), wallet, {
+      depositTerms: TERMS,
+      vaultContext: CONTEXT,
+      resume,
+    });
 
     expect(assertScriptPathSchnorrSignature).not.toHaveBeenCalledWith(
       expect.objectContaining({ signatureHex: "resumed-assert" }),
@@ -500,16 +747,27 @@ describe("signDelegatedClaimPlan — approval-capable wallet", () => {
     const wallet = approvalWallet(calls);
     (assertScriptPathSchnorrSignature as unknown as Mock).mockImplementation(
       ({ signatureHex }: { signatureHex: string }) => {
-        if (signatureHex === "sig:pd@0") throw new Error("signature does not verify");
+        if (signatureHex === "sig:pd@0")
+          throw new Error("signature does not verify");
       },
     );
 
-    const failure = await signDelegatedClaimPlan(plan(), wallet, { depositTerms: TERMS, vaultContext: CONTEXT }).catch((e: unknown) => e);
+    const failure = await signDelegatedClaimPlan(plan(), wallet, {
+      depositTerms: TERMS,
+      vaultContext: CONTEXT,
+    }).catch((e: unknown) => e);
 
     expect(failure).toBeInstanceOf(DelegatedClaimSigningIncompleteError);
     const incomplete = failure as DelegatedClaimSigningIncompleteError;
     expect(incomplete.failedRequestId).toBe("payoutDepositor");
     expect([...incomplete.signatures.keys()]).toEqual(["assert"]);
-    expect(calls).toEqual(["pubkey", "address", "derive", "approve", "sign:assert", "sign:pd"]);
+    expect(calls).toEqual([
+      "pubkey",
+      "address",
+      "derive",
+      "approve",
+      "sign:assert",
+      "sign:pd",
+    ]);
   });
 });

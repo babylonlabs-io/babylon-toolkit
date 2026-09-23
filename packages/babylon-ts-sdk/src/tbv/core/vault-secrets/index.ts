@@ -19,6 +19,10 @@ export {
   expandWotsSeed,
 } from "../wasm";
 
+export {
+  buildVaultContextInputForClaim,
+  type BuildVaultContextInputForClaimParams,
+} from "./buildVaultContextInputForClaim";
 export { buildFundingOutpointsCommitment, buildVaultContext } from "./context";
 
 export type { FundingOutpoint, VaultContextInput } from "./context";

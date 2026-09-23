@@ -188,43 +188,36 @@ export async function getVaultKeyEpochsFromChain(
 }
 
 /**
- * Backoff schedule (ms) for
- * {@link getMaxAcceptableCommissionBpsFromChainWithGrace}: eight attempts,
- * ~11s. A load-balanced public node answers a single-block `eth_getLogs` with
- * `[]` when the backend it routed to lacks the block — measured 2026-09-10 on
- * the configured Sepolia node at 40-70% of answers across samples, with
- * `eth_call` correct every time — so the odds are per attempt, not per
- * second: more short attempts beat a few long ones. Eight independent
- * attempts leave 0.4^8 ≈ 0.07% to 0.7^8 ≈ 6% spurious refusals per
- * registration block over that range; a dependable RPC is the real fix.
+ * Backoff schedule (ms) for {@link readRegistrationLogsWithGrace}: eight
+ * attempts, ~11s. A load-balanced public node answers a single-block
+ * `eth_getLogs` with `[]` when the backend it routed to lacks the block —
+ * measured 2026-09-10 on the configured Sepolia node at 40-70% of answers
+ * across samples, with `eth_call` correct every time — so the odds are per
+ * attempt, not per second: more short attempts beat a few long ones. Eight
+ * independent attempts leave 0.4^8 ≈ 0.07% to 0.7^8 ≈ 6% spurious refusals
+ * per registration block over that range; a dependable RPC is the real fix.
  */
 const REGISTRATION_LOGS_RETRY_DELAYS_MS = [
   500, 500, 1_000, 1_000, 2_000, 2_000, 4_000,
 ];
 
 /**
- * Read the depositor's commission ceilings of the vaults registered in block
- * `createdAt`, from their `PegInSubmittedV2` logs, in `vaultIds` order. The
- * contract discards the value after bound-checking it, so the log is its only
- * on-chain source; a vault registered before the V2 event has none and the
- * read throws.
+ * Run a registration-log read under the app's backoff policy.
  *
  * Retries **only** the SDK's typed "node served no registration logs" error —
- * every registered vault has a log in that block, so an empty answer is the
- * node's failure, not the chain's. Every other error propagates on the first
- * attempt. Aborting `signal` ends a pending backoff with its reason.
+ * every registered vault has a log in its registration block, so an empty
+ * answer is the node's failure, not the chain's. Every other error propagates
+ * on the first attempt. Aborting `signal` ends a pending backoff with its
+ * reason. If the node still serves nothing after the schedule, the typed
+ * error is rethrown for the caller to surface as transient.
  */
-export async function getMaxAcceptableCommissionBpsFromChainWithGrace(
-  vaultIds: readonly Hex[],
-  createdAt: bigint,
+export async function readRegistrationLogsWithGrace<T>(
+  read: () => Promise<T>,
   signal?: AbortSignal,
-): Promise<number[]> {
+): Promise<T> {
   for (let attempt = 0; ; attempt++) {
     try {
-      return await getVaultRegistryReader().getMaxAcceptableCommissionBpsBatch(
-        vaultIds,
-        createdAt,
-      );
+      return await read();
     } catch (err) {
       if (
         !isRegistrationLogsUnavailableError(err) ||
@@ -235,6 +228,30 @@ export async function getMaxAcceptableCommissionBpsFromChainWithGrace(
       await waitOrAbort(REGISTRATION_LOGS_RETRY_DELAYS_MS[attempt], signal);
     }
   }
+}
+
+/**
+ * Read the depositor's commission ceilings of the vaults registered in block
+ * `createdAt`, from their `PegInSubmittedV2` logs, in `vaultIds` order. The
+ * contract discards the value after bound-checking it, so the log is its only
+ * on-chain source; a vault registered before the V2 event has none and the
+ * read throws.
+ *
+ * Runs under {@link readRegistrationLogsWithGrace}.
+ */
+export async function getMaxAcceptableCommissionBpsFromChainWithGrace(
+  vaultIds: readonly Hex[],
+  createdAt: bigint,
+  signal?: AbortSignal,
+): Promise<number[]> {
+  return readRegistrationLogsWithGrace(
+    () =>
+      getVaultRegistryReader().getMaxAcceptableCommissionBpsBatch(
+        vaultIds,
+        createdAt,
+      ),
+    signal,
+  );
 }
 
 /**

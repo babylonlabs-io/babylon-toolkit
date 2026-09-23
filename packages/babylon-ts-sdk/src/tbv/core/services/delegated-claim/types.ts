@@ -4,8 +4,8 @@
  * @module services/delegated-claim/types
  */
 
-import type { Hex } from "viem";
 import type { Network } from "@babylonlabs-io/babylon-tbv-rust-wasm";
+import type { Hex } from "viem";
 
 /**
  * The small, non-opaque fields of an `artifacts.json` file.
@@ -111,6 +111,21 @@ export interface DelegatedClaimVaultContext {
    * Pass the real block whenever the event has already finalized.
    */
   claimableEventBlockNumber: bigint;
+  /**
+   * Value of output 0 of the vault's depositor-signed PegIn, in sats, parsed
+   * from `VaultData.protocol.depositorSignedPeginTx`. The Payout's input 0
+   * spends that output (btc-vault `payout.rs:103-112` @ ac4954e7), so it is
+   * one of the two amounts the claim-time fee band is measured over.
+   */
+  peginVaultOutputValueSats: number;
+  /** `feeRate` of the vault's stamped `getOffchainParamsByVersion`, sat/vB. */
+  protocolFeeRate: bigint;
+  /** `securityCouncilKeys.length` of the same stamped offchain params. */
+  councilSize: number;
+  /** `getTimelockPeginByVersion` — the CSV sequence of Payout input 0. */
+  timelockPegin: number;
+  /** `timelockAssert` of the stamped params — the CSV sequence of Payout input 1. */
+  timelockAssert: number;
 }
 
 /**

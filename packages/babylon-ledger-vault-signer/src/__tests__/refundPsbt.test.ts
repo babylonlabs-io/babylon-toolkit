@@ -102,7 +102,8 @@ function buildRefundShapedPsbt(
               leafVersion: overrides.leafVersion ?? TAPSCRIPT_LEAF_VERSION,
               script,
               // Distinct per entry — bip174 keys TAP_LEAF_SCRIPT by control block.
-              controlBlock: i === 0 ? versionedControlBlock : Buffer.concat([versionedControlBlock, Buffer.alloc(32, 0x44)]),
+              controlBlock:
+                i === 0 ? versionedControlBlock : Buffer.concat([versionedControlBlock, Buffer.alloc(32, 0x44)]),
             };
           }),
         }),
@@ -183,7 +184,10 @@ describe("parseRefundLeafScript (firmware-grammar mirror)", () => {
     ["negative 4-byte CScriptNum (sign bit in the top byte)", Buffer.from([0x04, 0x00, 0x00, 0x00, 0x80])],
     ["zero CScriptNum", Buffer.from([0x01, 0x00])],
     ["CSV one above the BIP-68 block-count field (0x10000)", Buffer.from([0x03, 0x00, 0x00, 0x01])],
-    ["CSV 0x7fffffff — the 4-byte maximum the firmware accepted before the refund-sequence fix", Buffer.from([0x04, 0xff, 0xff, 0xff, 0x7f])],
+    [
+      "CSV 0x7fffffff — the 4-byte maximum the firmware accepted before the refund-sequence fix",
+      Buffer.from([0x04, 0xff, 0xff, 0xff, 0x7f]),
+    ],
     ["5-byte CScriptNum", Buffer.from([0x05, 0x01, 0x00, 0x00, 0x00, 0x00])],
     ["OP_PUSHDATA1 with a 5-byte length", Buffer.from([0x4c, 0x05, 0x01, 0x00, 0x00, 0x00, 0x00])],
     ["push extending past the script end", Buffer.from([0x04, 0x01])],
@@ -245,7 +249,10 @@ describe("classifyRefundPsbt", () => {
     ["a second output", { extraOutput: true }],
     ["a second input", { extraInput: true }],
     ["no tapLeafScript on the input", { dropLeaf: true }],
-    ["two TAP_LEAF_SCRIPT entries", { leaves: [refundLeaf(DEPOSITOR_XONLY, PUSH_2016), refundLeaf(FOREIGN_XONLY, PUSH_2016)] }],
+    [
+      "two TAP_LEAF_SCRIPT entries",
+      { leaves: [refundLeaf(DEPOSITOR_XONLY, PUSH_2016), refundLeaf(FOREIGN_XONLY, PUSH_2016)] },
+    ],
     ["a non-refund leaf script", { leaf: Buffer.from([OP_PUSHBYTES_32, ...Buffer.alloc(32, 5), 0xac]) }],
     ["a non-tapscript leaf version", { leafVersion: 0xc2 }],
     ["a version-1 transaction (the device requires version >= 2)", { version: 1 }],
@@ -282,13 +289,17 @@ describe("assertRefundPsbtSignable", () => {
 
   it("accepts the device floor exactly (CSV 72)", () => {
     expect(() =>
-      assertRefundPsbtSignable(classified({ leaf: refundLeaf(DEPOSITOR_XONLY, Buffer.from([0x01, 0x48])), sequence: 72 })),
+      assertRefundPsbtSignable(
+        classified({ leaf: refundLeaf(DEPOSITOR_XONLY, Buffer.from([0x01, 0x48])), sequence: 72 }),
+      ),
     ).not.toThrow();
   });
 
   it("rejects a CSV below the device floor of 72", () => {
     expect(() =>
-      assertRefundPsbtSignable(classified({ leaf: refundLeaf(DEPOSITOR_XONLY, Buffer.from([0x01, 0x47])), sequence: 71 })),
+      assertRefundPsbtSignable(
+        classified({ leaf: refundLeaf(DEPOSITOR_XONLY, Buffer.from([0x01, 0x47])), sequence: 71 }),
+      ),
     ).toThrow(/72/);
   });
 
@@ -403,9 +414,9 @@ describe("augmentPsbtForRefund", () => {
   });
 
   it("rejects a malformed depositor path before touching the PSBT", () => {
-    expect(() => augmentPsbtForRefund({ ...params, depositorPath: [86 + HARDENED, 1 + HARDENED, 0 + HARDENED, 0] })).toThrow(
-      /5 levels|depositorPath/,
-    );
+    expect(() =>
+      augmentPsbtForRefund({ ...params, depositorPath: [86 + HARDENED, 1 + HARDENED, 0 + HARDENED, 0] }),
+    ).toThrow(/5 levels|depositorPath/);
   });
 
   it("rejects a malformed master fingerprint", () => {

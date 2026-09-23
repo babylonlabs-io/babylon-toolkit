@@ -27,6 +27,7 @@ const wasm = vi.hoisted(() => ({
   buildPayoutClaimerPsbt: vi.fn(),
   buildPayoutDepositorPsbt: vi.fn(),
   buildWronglyChallengedPsbts: vi.fn(),
+  computePayoutFeeFloor: vi.fn(),
   extractTapScriptSig: vi.fn(),
   finalizeClaimTx: vi.fn(),
   buildWatchtowerArtifacts: vi.fn(),
@@ -51,13 +52,19 @@ import {
   OTHER_VAULT_CLAIM_PSBT,
   REGISTERED_PAYOUT_SCRIPT,
   SIGNER_ADDRESS,
+  TIMELOCK_ASSERT,
+  TIMELOCK_PEGIN,
   VAULT_ID,
   VAULT_PROVIDER_PUBKEY,
+  VAULT_UTXO_SATS,
   buildDelegatedClaimFixture,
 } from "./fixtures/delegatedClaimPsbts";
 import { copyAssertConnectorLeaf } from "../payoutInputLeaf";
 
 const fx = buildDelegatedClaimFixture();
+const MOCKED_FEE_FLOOR = 800n;
+/** The fixture's 1_000 sat implicit fee sits inside [800, 2 x 610] for 1 keeper + 1 challenger. */
+const PROTOCOL_FEE_RATE = 2n;
 // The planner copies the Assert-connector leaf onto the depositor Payout
 // before signing, so the wallet sees the augmented PSBT, not the builder's.
 const PAYOUT_DEPOSITOR_AUGMENTED = copyAssertConnectorLeaf({
@@ -71,6 +78,8 @@ function stubPsbtPipeline(): void {
   wasm.buildPayoutClaimerPsbt.mockResolvedValue(fx.payoutClaimerPsbt);
   wasm.buildPayoutDepositorPsbt.mockResolvedValue(fx.payoutDepositorPsbt);
   wasm.buildWronglyChallengedPsbts.mockResolvedValue(fx.wronglyChallengedPsbts);
+  // The band itself is covered by assertPayoutFeeBand.test.ts and assertPayoutFeeAndTimelocks.test.ts.
+  wasm.computePayoutFeeFloor.mockResolvedValue(MOCKED_FEE_FLOOR);
   // Each signature names the PSBT it came from, which is what proves nothing
   // was reordered between the request list and the artifacts.
   const named: Record<string, string> = {
@@ -117,6 +126,11 @@ async function assemble(wallet: BitcoinWallet): Promise<void> {
       proverCircuitVersion: 7,
       vaultCoreVersion: 3,
       claimableEventBlockNumber: 10_985_680n,
+      peginVaultOutputValueSats: VAULT_UTXO_SATS,
+      protocolFeeRate: PROTOCOL_FEE_RATE,
+      councilSize: 3,
+      timelockPegin: TIMELOCK_PEGIN,
+      timelockAssert: TIMELOCK_ASSERT,
     },
   });
 }

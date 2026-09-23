@@ -24,7 +24,10 @@ import type { VaultContextInput } from "../../vault-secrets";
 import { assembleWatchtowerArtifactsFromSignatures } from "./assembleWatchtowerArtifactsFromSignatures";
 import { planDelegatedClaimSigning } from "./planDelegatedClaimSigning";
 import { signDelegatedClaimPlan } from "./signDelegatedClaimPlan";
-import type { ClaimerArtifactsSource, DelegatedClaimVaultContext } from "./types";
+import type {
+  ClaimerArtifactsSource,
+  DelegatedClaimVaultContext,
+} from "./types";
 
 /**
  * Everything one delegated-claim signing session needs.
@@ -45,9 +48,13 @@ export interface AssembleWatchtowerArtifactsParams {
    * Per-challenger BaBe sessions as `{"<pk>": {"decryptor_artifacts_hex":
    * "..."}}`, passed through into the file unchanged.
    *
-   * Omit it for anything but a fixture. Real sessions run to hundreds of
-   * megabytes per challenger, and this argument crosses the WASM boundary as
-   * one string — join them into the file downstream instead.
+   * The WASM builder and verifier require an entry for every challenger of
+   * the graph (btc-vault `validate_babe_sessions`); an omitted value becomes
+   * `{}` and is refused on any real graph. Real sessions run to hundreds of
+   * megabytes per challenger, so a browser caller passes a placeholder map
+   * (one `"00"` entry per challenger) and joins the real sessions into the
+   * file downstream — #2598 tracks making an empty map a first-class
+   * "not joined yet" state.
    */
   babeSessionsJson?: string;
   /**

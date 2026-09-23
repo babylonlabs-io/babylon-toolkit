@@ -2,7 +2,10 @@ import { Psbt } from "bitcoinjs-lib";
 import { Buffer } from "buffer";
 import { describe, expect, it } from "vitest";
 
-import { AssertBindingError, assertAssertBindsClaimAndPayout } from "../assertBinding";
+import {
+  AssertBindingError,
+  assertAssertBindsClaimAndPayout,
+} from "../assertBinding";
 import { buildDelegatedClaimFixture } from "./fixtures/delegatedClaimPsbts";
 
 const fx = buildDelegatedClaimFixture();
@@ -10,7 +13,9 @@ const fx = buildDelegatedClaimFixture();
 /** The same PSBT with input `index`'s prevout hash replaced. */
 function respend(psbtBase64: string, index: number, hashByte: string): string {
   const psbt = Psbt.fromBase64(psbtBase64);
-  const tx = psbt.data.globalMap.unsignedTx as unknown as { tx: { ins: { hash: Buffer }[] } };
+  const tx = psbt.data.globalMap.unsignedTx as unknown as {
+    tx: { ins: { hash: Buffer }[] };
+  };
   tx.tx.ins[index].hash = Buffer.from(hashByte.repeat(32), "hex");
   return psbt.toBase64();
 }
@@ -18,7 +23,9 @@ function respend(psbtBase64: string, index: number, hashByte: string): string {
 /** The same PSBT with input `index`'s prevout vout replaced. */
 function reindex(psbtBase64: string, index: number, vout: number): string {
   const psbt = Psbt.fromBase64(psbtBase64);
-  const tx = psbt.data.globalMap.unsignedTx as unknown as { tx: { ins: { index: number }[] } };
+  const tx = psbt.data.globalMap.unsignedTx as unknown as {
+    tx: { ins: { index: number }[] };
+  };
   tx.tx.ins[index].index = vout;
   return psbt.toBase64();
 }
@@ -29,7 +36,9 @@ function payoutWithoutInput1(psbtBase64: string): string {
   const p = new Psbt();
   p.setVersion(source.version).setLocktime(source.locktime);
   p.addInput(source.txInputs[0]);
-  source.txOutputs.forEach((out) => p.addOutput({ script: out.script, value: out.value }));
+  source.txOutputs.forEach((out) =>
+    p.addOutput({ script: out.script, value: out.value }),
+  );
   return p.toBase64();
 }
 
@@ -73,6 +82,26 @@ describe("assertAssertBindsClaimAndPayout", () => {
         claimPsbtBase64: fx.claimPsbt,
         assertPsbtBase64: fx.assertPsbt,
         payoutClaimerPsbtBase64: reindex(fx.payoutClaimerPsbt, 1, 1),
+      }),
+    ).toThrow(AssertBindingError);
+  });
+
+  it("rejects a Payout whose input 0 spends a PegIn other than the one the Claim spends", () => {
+    expect(() =>
+      assertAssertBindsClaimAndPayout({
+        claimPsbtBase64: fx.claimPsbt,
+        assertPsbtBase64: fx.assertPsbt,
+        payoutClaimerPsbtBase64: respend(fx.payoutClaimerPsbt, 0, "ee"),
+      }),
+    ).toThrow(AssertBindingError);
+  });
+
+  it("rejects a Payout whose input 0 spends the right PegIn at an output other than the Vault UTXO", () => {
+    expect(() =>
+      assertAssertBindsClaimAndPayout({
+        claimPsbtBase64: fx.claimPsbt,
+        assertPsbtBase64: fx.assertPsbt,
+        payoutClaimerPsbtBase64: reindex(fx.payoutClaimerPsbt, 0, 1),
       }),
     ).toThrow(AssertBindingError);
   });

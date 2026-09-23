@@ -131,6 +131,14 @@ export default defineConfig(({ mode, command }) => ({
     rollupOptions: {
       input: {
         main: resolve(__dirname, "index.html"),
+        // Dev-only delegated-claim harness (src/dev/claimHarness). The dev
+        // server serves it regardless; this entry only exists so a
+        // non-production build can bundle it. The gate is the mode name:
+        // `vite build` with no --mode is production (what the release
+        // workflow runs), and any `vite build --mode <x>` would bundle it.
+        ...(mode === "production"
+          ? {}
+          : { claimHarness: resolve(__dirname, "claim-harness/index.html") }),
       },
       output: {
         manualChunks: {

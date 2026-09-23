@@ -6,11 +6,13 @@ export {
   downloadArtifactsFromResponse,
   fetchAndDownloadArtifacts,
   type ArtifactDownloadOutcome,
+  type CapturedClaimerPayload,
   type FetchArtifactsOptions,
 } from "./artifactDownloadService";
 export {
   isFileSystemAccessSupported,
   openArtifactSaveTarget,
+  openSaveTarget,
   type ArtifactSaveMethod,
   type ArtifactSaveTarget,
 } from "./artifactSaveTarget";

@@ -32,6 +32,9 @@
         "src/**/*.test.tsx",
         "src/**/__tests__/**/*.{ts,tsx}",
         "e2e/**/*.{ts,tsx}",
+        "claim-harness/index.html",
+        "src/dev/claimHarness/main.ts",
+        "scripts/join-babe-sessions.mjs",
         "vite.config.ts",
         "vitest.config.ts"
       ],

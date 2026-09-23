@@ -20,6 +20,10 @@ export * from "@/context/State.context";
 
 export { createExternalWallet } from "@/core";
 export * from "@/core/types";
+// The Ledger vault adapter, for pages that drive the device ceremony without
+// the wallet-connect UI (the delegated-claim harness): `new LedgerVaultProvider(Network.SIGNET)`.
+export { LedgerVaultProvider } from "@/core/wallets/btc/ledger-vault/provider";
+export { UnisatProvider } from "@/core/wallets/btc/unisat/provider";
 export { type ETHTypedData } from "@/core/wallets/eth/appkit/types";
 
 // Export AppKit shared config helpers

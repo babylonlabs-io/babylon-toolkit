@@ -441,6 +441,21 @@ export interface IBTCProvider extends IProvider {
   cancelSigning?(): void;
 
   /**
+   * Signs one PSBT of the depositor-as-claimer ceremony (#2111): the Assert,
+   * the depositor Payout, the claimer Payout, the Claim or a
+   * WronglyChallenged. The provider classifies the shape itself from the
+   * single `signInputs` entry and refuses anything else before any device
+   * I/O — this is not a general `signPsbt`. Implemented by hardware providers
+   * whose device signs some of these with no loaded intent and needs its own
+   * derivation fields on them (currently the Ledger vault provider). Optional —
+   * callers MUST feature-detect (`typeof provider.signDelegatedClaimPsbt ===
+   * "function"`). Software wallets sign the same PSBTs through `signPsbts`;
+   * an approval (hardware) wallet without this method cannot run the claim
+   * ceremony, and the SDK refuses before any prompt rather than falling back.
+   */
+  signDelegatedClaimPsbt?(psbtHex: string, options?: SignPsbtOptions): Promise<string>;
+
+  /**
    * Subscribes to per-PSBT progress inside `signPsbts`: fires after each
    * device ceremony commits, with `completed` = PSBT ceremonies committed
    * so far and `total` = the batch length. Never fires for `signPsbt`

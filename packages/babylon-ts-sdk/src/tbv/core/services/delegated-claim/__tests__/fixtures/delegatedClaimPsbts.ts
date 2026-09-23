@@ -36,9 +36,14 @@ export const REGISTERED_PAYOUT_SCRIPT =
 const OTHER_PAYOUT_SCRIPT =
   "5120c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5";
 
-const PAYOUT_ANCHOR_SATS = 546;
-const PAYOUT_VALUE_SATS = 99_000;
-const VAULT_UTXO_SATS = 100_000;
+export const PAYOUT_ANCHOR_SATS = 546;
+/** Leaves an implicit Payout fee of `VAULT_UTXO_SATS - PAYOUT_VALUE_SATS` sats. */
+export const PAYOUT_VALUE_SATS = 99_000;
+/** Value of PegIn:0, the prevout of Payout input 0. */
+export const VAULT_UTXO_SATS = 100_000;
+/** CSV sequence the Payout's two inputs carry unless a test overrides them. */
+export const TIMELOCK_PEGIN = 684;
+export const TIMELOCK_ASSERT = 700;
 const CONNECTOR_SATS = 1_000;
 const LEAF_VERSION = 0xc0;
 // PegIn txid in internal byte order, as CLAIM_PSBT spends it.
@@ -73,6 +78,13 @@ export interface DelegatedClaimFixture {
   wronglyChallengedPsbts: Record<string, string[]>;
 }
 
+/** Payout fields the fee-and-timelock tests vary; everything else is fixed. */
+export interface PayoutOverrides {
+  peginInputSequence?: number;
+  assertInputSequence?: number;
+  payoutValueSats?: number;
+}
+
 /**
  * By default each signed input carries a distinct tag key, so tests can tell
  * the leaves apart. With `signedLeafKey` (x-only hex) every signed input
@@ -80,7 +92,13 @@ export interface DelegatedClaimFixture {
  * it lacks (a sighash needs both), so the whole set can be signed and
  * verified for real.
  */
-export function buildDelegatedClaimFixture(signedLeafKey?: string): DelegatedClaimFixture {
+export function buildDelegatedClaimFixture(
+  signedLeafKey?: string,
+  payoutOverrides: PayoutOverrides = {},
+): DelegatedClaimFixture {
+  const peginSequence = payoutOverrides.peginInputSequence ?? TIMELOCK_PEGIN;
+  const assertSequence = payoutOverrides.assertInputSequence ?? TIMELOCK_ASSERT;
+  const payoutValue = payoutOverrides.payoutValueSats ?? PAYOUT_VALUE_SATS;
   const leafKey = (tag: string): string => (signedLeafKey === undefined ? tag.repeat(32) : signedLeafKey);
 
   const claim = Psbt.fromBase64(CLAIM_PSBT);
@@ -111,18 +129,18 @@ export function buildDelegatedClaimFixture(signedLeafKey?: string): DelegatedCla
     p.addInput({
       hash: PEGIN_HASH,
       index: 0,
-      sequence: 0xffffffff,
+      sequence: peginSequence,
       witnessUtxo: witnessUtxo(VAULT_UTXO_SATS),
       ...(withInput0Leaf ? { tapLeafScript: tapLeaf(leafScript(leafKey("22"))) } : {}),
     });
     p.addInput({
       hash: assertHash,
       index: 0,
-      sequence: 0xffffffff,
+      sequence: assertSequence,
       witnessUtxo: witnessUtxo(PAYOUT_ANCHOR_SATS),
       ...(withInput1Leaf ? { tapLeafScript: tapLeaf(leafScript(leafKey("33"))) } : {}),
     });
-    p.addOutput({ script: Buffer.from(destination, "hex"), value: PAYOUT_VALUE_SATS });
+    p.addOutput({ script: Buffer.from(destination, "hex"), value: payoutValue });
     p.addOutput({ script: Buffer.from(REGISTERED_PAYOUT_SCRIPT, "hex"), value: PAYOUT_ANCHOR_SATS });
     return p;
   }

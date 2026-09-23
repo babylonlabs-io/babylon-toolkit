@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="en" translate="no">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="google" content="notranslate" />
+    <!--
+      Same shape as the app's CSP (services/vault/index.html): 'wasm-unsafe-eval'
+      for the vault WASM, https: for the VP proxy / RPC / mempool, localhost for
+      HMR. No WalletConnect frames: this page uses injected UniSat and WebHID.
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self' https: wss: http://localhost:* ws://localhost:*; img-src 'self' data:; style-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'self'; form-action 'self'; worker-src 'self' blob:;"
+    />
+    <title>Delegated claim harness (dev)</title>
+    <script src="/process-polyfill.js"></script>
+    <style>
+      body {
+        font:
+          14px/1.5 system-ui,
+          sans-serif;
+        margin: 0;
+        background: #f7f6f4;
+        color: #1b1b1f;
+      }
+      .wrap {
+        max-width: 960px;
+        margin: 0 auto;
+        padding: 24px 20px 72px;
+      }
+      h1 {
+        font-size: 19px;
+        margin: 0 0 4px;
+      }
+      .sub {
+        color: #5d6068;
+        margin: 0 0 18px;
+        font-size: 13px;
+      }
+      .step {
+        background: #fff;
+        border: 1px solid #e4e2de;
+        border-radius: 9px;
+        padding: 12px 14px;
+        margin: 0 0 10px;
+      }
+      .step h2 {
+        font-size: 13px;
+        margin: 0 0 8px;
+      }
+      .step[data-status="done"] h2 {
+        color: #0b6b53;
+      }
+      .step[data-status="error"] h2 {
+        color: #b3261e;
+      }
+      .step[data-status="running"] h2 {
+        color: #8a6d00;
+      }
+      .status {
+        font:
+          12px ui-monospace,
+          Menlo,
+          monospace;
+        color: #5d6068;
+        margin-top: 6px;
+        white-space: pre-wrap;
+      }
+      label {
+        display: block;
+        font-size: 11px;
+        color: #5d6068;
+        margin: 6px 0 2px;
+      }
+      input {
+        width: 100%;
+        padding: 6px 8px;
+        font:
+          12px ui-monospace,
+          Menlo,
+          monospace;
+        border: 1px solid #d8d5d0;
+        border-radius: 5px;
+        box-sizing: border-box;
+      }
+      button {
+        background: #0b6b53;
+        color: #fff;
+        border: 0;
+        border-radius: 6px;
+        padding: 7px 13px;
+        font-size: 13px;
+        cursor: pointer;
+        margin: 8px 6px 0 0;
+      }
+      button:disabled {
+        background: #bcc0bf;
+        cursor: not-allowed;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 8px;
+      }
+      #log {
+        background: #14161a;
+        color: #d7dae0;
+        font:
+          12px ui-monospace,
+          Menlo,
+          monospace;
+        padding: 11px;
+        border-radius: 8px;
+        height: 260px;
+        overflow: auto;
+        white-space: pre-wrap;
+        margin-top: 12px;
+      }
+      .ok {
+        color: #5fd0ab;
+      }
+      .err {
+        color: #ff8f7a;
+      }
+      details {
+        font-size: 12px;
+        color: #5d6068;
+        margin-top: 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>Delegated claim — depositor as claimer (devnet harness)</h1>
+      <p class="sub">
+        Dev server only. Every vault fact is read from chain; you enter the
+        vault id and, later, the Groth16 proof.
+      </p>
+
+      <div class="step" id="step-connect" data-status="idle">
+        <h2>1 · Connect wallet</h2>
+        <button id="connect-unisat">Connect UniSat</button>
+        <button id="connect-ledger">Connect Ledger (Babylon Vault app)</button>
+        <div class="status" id="status-connect"></div>
+        <details>
+          <summary>Ledger: device screens you will see, in order</summary>
+          <ol>
+            <li>
+              WebHID pairing, then "Babylon Vault Testnet" open on the device
+            </li>
+            <li>
+              Step 3 (artifacts): DERIVE_CONTEXT_HASH approval — vault-provider
+              auth token
+            </li>
+            <li>Step 4 (WOTS): DERIVE_CONTEXT_HASH approval — WOTS keypair</li>
+            <li>
+              Step 6 (sign): DERIVE_CONTEXT_HASH approval → APPROVE_VAULT_INTENT
+              (review terms) → sign Assert → sign depositor Payout →
+              DERIVE_CONTEXT_HASH approval → sign claimer Payout → sign Claim →
+              sign WronglyChallenged × (challengers × circuits)
+            </li>
+            <li>
+              Resume after a rejection replays the whole step-6 list but skips
+              standalone signatures already collected
+            </li>
+          </ol>
+        </details>
+      </div>
+
+      <div class="step" id="step-context" data-status="idle">
+        <h2>2 · Read vault context from chain</h2>
+        <label for="vault-id">Vault id (0x…, 32 bytes)</label>
+        <input id="vault-id" placeholder="0x…" />
+        <button id="read-context">Read context</button>
+        <div class="status" id="status-context"></div>
+      </div>
+
+      <div class="step" id="step-artifacts" data-status="idle">
+        <h2>
+          3 · Download vault-provider artifacts (streams to a file you choose)
+        </h2>
+        <button id="download-artifacts">Download bundle</button>
+        <div class="status" id="status-artifacts"></div>
+      </div>
+
+      <div class="step" id="step-wots" data-status="idle">
+        <h2>4 · Derive claimer WOTS keypair</h2>
+        <button id="derive-wots">Derive</button>
+        <button id="save-wots" disabled>Save wots_keypair.json</button>
+        <div class="status" id="status-wots"></div>
+      </div>
+
+      <div class="step" id="step-plan" data-status="idle">
+        <h2>5 · Plan (build + bind PSBTs)</h2>
+        <button id="build-plan">Plan</button>
+        <div class="status" id="status-plan"></div>
+      </div>
+
+      <div class="step" id="step-sign" data-status="idle">
+        <h2>6 · Sign</h2>
+        <button id="sign-plan">Sign</button>
+        <button id="resume-sign" disabled>Resume</button>
+        <div class="status" id="status-sign"></div>
+      </div>
+
+      <div class="step" id="step-assemble" data-status="idle">
+        <h2>7 · Assemble artifacts.json</h2>
+        <button id="assemble">Assemble</button>
+        <button id="save-artifacts" disabled>Save artifacts.json</button>
+        <div class="status" id="status-assemble"></div>
+        <details>
+          <summary>Join babe_sessions for the watchtower CLI (Node)</summary>
+          <code
+            >node services/vault/scripts/join-babe-sessions.mjs --artifacts
+            artifacts.json --bundle babylon-vault-artifacts-&lt;txid8&gt;.json
+            --out artifacts.joined.json</code
+          >
+        </details>
+      </div>
+
+      <div class="step" id="step-claim" data-status="idle">
+        <h2>8 · Claim</h2>
+        <button id="verify-artifacts">Verify artifacts</button>
+        <button id="broadcast-claim" disabled>Broadcast Claim</button>
+        <div class="status" id="status-claim"></div>
+      </div>
+
+      <div class="step" id="step-proof" data-status="idle">
+        <h2>9 · Pin the Groth16 proof</h2>
+        <label for="proof-hex"
+          >Proof hex (from prover_getProof; the prover has no CORS for this
+          origin, paste it)</label
+        >
+        <input id="proof-hex" />
+        <button id="pin-proof">Pin proof</button>
+        <button id="save-pinned" disabled>Save pinned artifacts.json</button>
+        <div class="status" id="status-proof"></div>
+      </div>
+
+      <div class="step" id="step-assert" data-status="idle">
+        <h2>10 · Assert</h2>
+        <button id="attach-assert">Finalize Assert</button>
+        <button id="broadcast-assert" disabled>Broadcast Assert</button>
+        <button id="save-asserted" disabled>
+          Save asserted artifacts.json
+        </button>
+        <div class="status" id="status-assert"></div>
+      </div>
+
+      <div class="step" id="step-payout" data-status="idle">
+        <h2>11 · Payout (after the Assert timelock)</h2>
+        <button id="finalize-payout">Finalize Payout</button>
+        <button id="broadcast-payout" disabled>Broadcast Payout</button>
+        <div class="status" id="status-payout"></div>
+      </div>
+
+      <div class="step" id="step-wc" data-status="idle">
+        <h2>Optional · WronglyChallenged (answer a ChallengeAssert)</h2>
+        <div class="grid">
+          <div>
+            <label for="wc-challenger">Challenger x-only pubkey</label
+            ><input id="wc-challenger" />
+          </div>
+          <div>
+            <label for="wc-gc-index">GC index</label
+            ><input id="wc-gc-index" value="0" />
+          </div>
+          <div>
+            <label for="wc-preimage">Preimage hex</label
+            ><input id="wc-preimage" />
+          </div>
+        </div>
+        <button id="finalize-wc">Finalize WronglyChallenged</button>
+        <button id="broadcast-wc" disabled>Broadcast</button>
+        <div class="status" id="status-wc"></div>
+      </div>
+
+      <div id="log"></div>
+    </div>
+    <script type="module" src="/src/dev/claimHarness/main.ts"></script>
+  </body>
+</html>

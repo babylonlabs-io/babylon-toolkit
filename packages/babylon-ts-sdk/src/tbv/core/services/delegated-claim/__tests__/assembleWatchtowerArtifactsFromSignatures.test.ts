@@ -13,8 +13,11 @@ import {
   DEPOSITOR_ETH_ADDRESS,
   DEPOSITOR_PUBKEY,
   REGISTERED_PAYOUT_SCRIPT,
+  TIMELOCK_ASSERT,
+  TIMELOCK_PEGIN,
   VAULT_ID,
   VAULT_PROVIDER_PUBKEY,
+  VAULT_UTXO_SATS,
   buildDelegatedClaimFixture,
 } from "./fixtures/delegatedClaimPsbts";
 
@@ -24,6 +27,7 @@ const wasm = vi.hoisted(() => ({
   buildPayoutClaimerPsbt: vi.fn(),
   buildPayoutDepositorPsbt: vi.fn(),
   buildWronglyChallengedPsbts: vi.fn(),
+  computePayoutFeeFloor: vi.fn(),
   finalizeClaimTx: vi.fn(),
   buildWatchtowerArtifacts: vi.fn(),
 }));
@@ -38,6 +42,9 @@ vi.mock("../../../primitives/psbt/verifyScriptPathSchnorrSignature", () => ({
 }));
 
 const fx = buildDelegatedClaimFixture();
+const MOCKED_FEE_FLOOR = 800n;
+/** The fixture's 1_000 sat implicit fee sits inside [800, 2 x 610] for 1 keeper + 1 challenger. */
+const PROTOCOL_FEE_RATE = 2n;
 const vault = {
   vaultId: VAULT_ID,
   depositorEthAddress: DEPOSITOR_ETH_ADDRESS,
@@ -49,6 +56,11 @@ const vault = {
   proverCircuitVersion: 7,
   vaultCoreVersion: 3,
   claimableEventBlockNumber: 10_985_680n,
+  peginVaultOutputValueSats: VAULT_UTXO_SATS,
+  protocolFeeRate: PROTOCOL_FEE_RATE,
+  councilSize: 3,
+  timelockPegin: TIMELOCK_PEGIN,
+  timelockAssert: TIMELOCK_ASSERT,
 };
 const source = { txGraphJson: "{graph}", verifyingKeyHex: "beef" };
 
@@ -64,6 +76,8 @@ describe("assembleWatchtowerArtifactsFromSignatures", () => {
     wasm.buildPayoutClaimerPsbt.mockResolvedValue(fx.payoutClaimerPsbt);
     wasm.buildPayoutDepositorPsbt.mockResolvedValue(fx.payoutDepositorPsbt);
     wasm.buildWronglyChallengedPsbts.mockResolvedValue(fx.wronglyChallengedPsbts);
+    // The band itself is covered by assertPayoutFeeBand.test.ts and assertPayoutFeeAndTimelocks.test.ts.
+    wasm.computePayoutFeeFloor.mockResolvedValue(MOCKED_FEE_FLOOR);
     wasm.finalizeClaimTx.mockResolvedValue("signed-claim-tx-hex");
     wasm.buildWatchtowerArtifacts.mockResolvedValue("{artifacts}");
   });

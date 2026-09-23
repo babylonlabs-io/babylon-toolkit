@@ -11,8 +11,11 @@ import {
   DEPOSITOR_ETH_ADDRESS,
   DEPOSITOR_PUBKEY,
   REGISTERED_PAYOUT_SCRIPT,
+  TIMELOCK_ASSERT,
+  TIMELOCK_PEGIN,
   VAULT_ID,
   VAULT_PROVIDER_PUBKEY,
+  VAULT_UTXO_SATS,
   buildDelegatedClaimFixture,
 } from "./fixtures/delegatedClaimPsbts";
 
@@ -22,6 +25,7 @@ const wasm = vi.hoisted(() => ({
   buildPayoutClaimerPsbt: vi.fn(),
   buildPayoutDepositorPsbt: vi.fn(),
   buildWronglyChallengedPsbts: vi.fn(),
+  computePayoutFeeFloor: vi.fn(),
 }));
 vi.mock("../../../wasm", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../../wasm")>()),
@@ -29,6 +33,9 @@ vi.mock("../../../wasm", async (importOriginal) => ({
 }));
 
 const fx = buildDelegatedClaimFixture();
+const MOCKED_FEE_FLOOR = 800n;
+/** The fixture's 1_000 sat implicit fee sits inside [800, 2 x 610] for 1 keeper + 1 challenger. */
+const PROTOCOL_FEE_RATE = 2n;
 
 function params() {
   return {
@@ -46,6 +53,11 @@ function params() {
       proverCircuitVersion: 7,
       vaultCoreVersion: 3,
       claimableEventBlockNumber: 10_985_680n,
+      peginVaultOutputValueSats: VAULT_UTXO_SATS,
+      protocolFeeRate: PROTOCOL_FEE_RATE,
+      councilSize: 3,
+      timelockPegin: TIMELOCK_PEGIN,
+      timelockAssert: TIMELOCK_ASSERT,
     },
   };
 }
@@ -58,6 +70,8 @@ describe("planDelegatedClaimSigning", () => {
     wasm.buildPayoutClaimerPsbt.mockResolvedValue(fx.payoutClaimerPsbt);
     wasm.buildPayoutDepositorPsbt.mockResolvedValue(fx.payoutDepositorPsbt);
     wasm.buildWronglyChallengedPsbts.mockResolvedValue(fx.wronglyChallengedPsbts);
+    // The band itself is covered by assertPayoutFeeBand.test.ts and assertPayoutFeeAndTimelocks.test.ts.
+    wasm.computePayoutFeeFloor.mockResolvedValue(MOCKED_FEE_FLOOR);
   });
 
   it("returns the ordered requests with the depositor Payout carrying the Assert-connector leaf", async () => {

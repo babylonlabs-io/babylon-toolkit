@@ -14,8 +14,11 @@ import {
   DEPOSITOR_PUBKEY,
   REGISTERED_PAYOUT_SCRIPT,
   SIGNER_ADDRESS,
+  TIMELOCK_ASSERT,
+  TIMELOCK_PEGIN,
   VAULT_ID,
   VAULT_PROVIDER_PUBKEY,
+  VAULT_UTXO_SATS,
   buildDelegatedClaimFixture,
 } from "./fixtures/delegatedClaimPsbts";
 
@@ -25,6 +28,7 @@ const wasm = vi.hoisted(() => ({
   buildPayoutClaimerPsbt: vi.fn(),
   buildPayoutDepositorPsbt: vi.fn(),
   buildWronglyChallengedPsbts: vi.fn(),
+  computePayoutFeeFloor: vi.fn(),
   extractTapScriptSig: vi.fn(),
 }));
 vi.mock("../../../wasm", async (importOriginal) => ({
@@ -36,6 +40,9 @@ vi.mock("../../../wasm", async (importOriginal) => ({
 const DEPOSITOR_PRIV = Buffer.concat([Buffer.alloc(31), Buffer.from([1])]);
 const OTHER_PRIV = Buffer.concat([Buffer.alloc(31), Buffer.from([2])]);
 const fx = buildDelegatedClaimFixture(DEPOSITOR_PUBKEY.slice(2));
+const MOCKED_FEE_FLOOR = 800n;
+/** The fixture's 1_000 sat implicit fee sits inside [800, 2 x 610] for 1 keeper + 1 challenger. */
+const PROTOCOL_FEE_RATE = 2n;
 const params = {
   depositorPublicKey: DEPOSITOR_PUBKEY,
   btcNetwork: "testnet" as const,
@@ -51,6 +58,11 @@ const params = {
     proverCircuitVersion: 7,
     vaultCoreVersion: 3,
     claimableEventBlockNumber: 10_985_680n,
+    peginVaultOutputValueSats: VAULT_UTXO_SATS,
+    protocolFeeRate: PROTOCOL_FEE_RATE,
+    councilSize: 3,
+    timelockPegin: TIMELOCK_PEGIN,
+    timelockAssert: TIMELOCK_ASSERT,
   },
 };
 
@@ -80,6 +92,8 @@ describe("signDelegatedClaimPlan with the real Schnorr verifier", () => {
     wasm.buildPayoutClaimerPsbt.mockResolvedValue(fx.payoutClaimerPsbt);
     wasm.buildPayoutDepositorPsbt.mockResolvedValue(fx.payoutDepositorPsbt);
     wasm.buildWronglyChallengedPsbts.mockResolvedValue(fx.wronglyChallengedPsbts);
+    // The band itself is covered by assertPayoutFeeBand.test.ts and assertPayoutFeeAndTimelocks.test.ts.
+    wasm.computePayoutFeeFloor.mockResolvedValue(MOCKED_FEE_FLOOR);
     wasm.extractTapScriptSig.mockImplementation((psbtBase64: string, inputIndex: number) => {
       const tapScriptSig = Psbt.fromBase64(psbtBase64).data.inputs[inputIndex].tapScriptSig;
       return Promise.resolve(tapScriptSig?.[0].signature.toString("hex"));

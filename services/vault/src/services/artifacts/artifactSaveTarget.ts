@@ -122,16 +122,19 @@ function artifactFilename(peginTxid: string): string {
 }
 
 /**
- * Resolve where this download will be saved.
+ * Resolve where a file will be saved.
  *
  * IMPORTANT: on the File System Access path this shows the browser's save
  * dialog, which requires transient user activation. It must therefore be
- * called before any `await` in the click handler that triggers the download.
+ * called before any `await` in the click handler that triggers the save.
  */
-export async function openArtifactSaveTarget(
-  peginTxid: string,
-): Promise<ArtifactSaveTarget> {
-  const filename = artifactFilename(peginTxid);
+export async function openSaveTarget(request: {
+  /** The file's name. */
+  filename: string;
+  /** The picker's file-type label. */
+  pickerDescription: string;
+}): Promise<ArtifactSaveTarget> {
+  const { filename } = request;
   const showSaveFilePicker = getShowSaveFilePicker();
 
   if (!showSaveFilePicker) {
@@ -146,7 +149,7 @@ export async function openArtifactSaveTarget(
       startIn: "downloads",
       types: [
         {
-          description: COPY.deposit.recoveryArtifacts.savePickerDescription,
+          description: request.pickerDescription,
           accept: { [ARTIFACT_BLOB_TYPE]: [".json"] },
         },
       ],
@@ -163,6 +166,16 @@ export async function openArtifactSaveTarget(
   }
 
   return new FileSystemAccessTarget(handle, filename);
+}
+
+/** The artifact bundle's save target: fixed name per pegin, the app's picker label. */
+export async function openArtifactSaveTarget(
+  peginTxid: string,
+): Promise<ArtifactSaveTarget> {
+  return openSaveTarget({
+    filename: artifactFilename(peginTxid),
+    pickerDescription: COPY.deposit.recoveryArtifacts.savePickerDescription,
+  });
 }
 
 class FileSystemAccessTarget implements ArtifactSaveTarget {

@@ -253,6 +253,60 @@ describe("fetchAndDownloadArtifacts", () => {
     });
   });
 
+  describe("claimer payload capture", () => {
+    it("hands the captured tx graph and verifying key to onPayloadCaptured before the file is committed", async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(
+        streamingResponse(validEnvelope()),
+      );
+      const { target, commit } = fakeSaveTarget();
+      const onPayloadCaptured = vi.fn();
+
+      await fetchAndDownloadArtifacts(
+        PROVIDER_ADDRESS,
+        PEGIN_TXID,
+        DEPOSITOR_PK,
+        target,
+        { onPayloadCaptured },
+      );
+
+      expect(onPayloadCaptured).toHaveBeenCalledTimes(1);
+      expect(onPayloadCaptured).toHaveBeenCalledWith({
+        txGraphJson: VALID_ARTIFACT_RESULT.tx_graph_json,
+        verifyingKeyHex: VALID_ARTIFACT_RESULT.verifying_key_hex,
+      });
+      // The caller sees the payload only once the whole body validated and
+      // bound, and before the save is committed, so a throw here discards it.
+      expect(onPayloadCaptured.mock.invocationCallOrder[0]).toBeLessThan(
+        commit.mock.invocationCallOrder[0],
+      );
+    });
+
+    it("discards the download and rejects when onPayloadCaptured throws", async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(
+        streamingResponse(validEnvelope()),
+      );
+      const { target, commit, discard } = fakeSaveTarget();
+      const refused = new Error("page refused the payload");
+
+      await expect(
+        fetchAndDownloadArtifacts(
+          PROVIDER_ADDRESS,
+          PEGIN_TXID,
+          DEPOSITOR_PK,
+          target,
+          {
+            onPayloadCaptured: () => {
+              throw refused;
+            },
+          },
+        ),
+      ).rejects.toBe(refused);
+
+      expect(discard).toHaveBeenCalledTimes(1);
+      expect(commit).not.toHaveBeenCalled();
+    });
+  });
+
   describe("envelope unwrapping", () => {
     /** Run a body through the service and return what reached the file. */
     async function savedTextFor(

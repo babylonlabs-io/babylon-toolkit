@@ -15,6 +15,11 @@ export type {
   HintMatch,
 } from "./indexerKeyHint";
 export {
+  readStampedParticipantKeys,
+  type ReadStampedParticipantKeysParams,
+  type StampedParticipantKeyReaders,
+} from "./readStampedParticipantKeys";
+export {
   resolveCurrentParticipantKeys,
   resolveParticipantKeysAtEpochs,
 } from "./resolveParticipantKeys";
