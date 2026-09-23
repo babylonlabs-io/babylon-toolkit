@@ -19,14 +19,13 @@ interface SocialLink {
  * block can't drift on a handle, URL or ordering change. Per-surface
  * presentation (icon size, hover color) stays local to each caller.
  */
+// Matches the org convention used elsewhere (countdown, tbv-faucet,
+// coming-soon) — babylonlabs_io is an unrelated ~200-subscriber channel.
+// Also the "contact support" target, as the vault has no help page.
+export const TELEGRAM_URL = "https://t.me/babylonofficialcommunity";
+
 export const SOCIAL_LINKS: SocialLink[] = [
-  {
-    name: "Telegram",
-    // Matches the org convention used elsewhere (countdown, tbv-faucet,
-    // coming-soon) — babylonlabs_io is an unrelated ~200-subscriber channel.
-    url: "https://t.me/babylonofficialcommunity",
-    Icon: TelegramIcon,
-  },
+  { name: "Telegram", url: TELEGRAM_URL, Icon: TelegramIcon },
   {
     name: "LinkedIn",
     url: "https://www.linkedin.com/company/babylon-labs-official",

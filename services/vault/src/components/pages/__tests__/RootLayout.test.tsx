@@ -49,10 +49,14 @@ const walletMock = vi.hoisted(() => ({
   ethConnected: false,
   confirmed: true,
   isAddressBlocked: false,
+  isScreeningUnavailable: false,
   isSupportedAddress: true,
 }));
 vi.mock("@/context/addressScreening", () => ({
-  useAddressScreening: () => ({ isBlocked: walletMock.isAddressBlocked }),
+  useAddressScreening: () => ({
+    isBlocked: walletMock.isAddressBlocked,
+    isUnavailable: walletMock.isScreeningUnavailable,
+  }),
 }));
 vi.mock("@/context/addressType", () => ({
   useAddressType: () => ({ isSupportedAddress: walletMock.isSupportedAddress }),
@@ -133,6 +137,7 @@ beforeEach(() => {
   walletMock.ethConnected = false;
   walletMock.confirmed = true;
   walletMock.isAddressBlocked = false;
+  walletMock.isScreeningUnavailable = false;
   walletMock.isSupportedAddress = true;
   debugStatusMock.value = null;
 });
@@ -319,7 +324,7 @@ describe("RootLayout — operator message banner", () => {
       featureFlagsMock.isDepositDisabled = true;
       renderRootLayout();
       expect(
-        screen.getByText(COPY.wallet.addressScreeningBannerBody),
+        screen.getByText(COPY.wallet.walletNotEligibleTooltip),
       ).toBeInTheDocument();
       expect(screen.getByText("Taproot Address Required")).toBeInTheDocument();
       expect(
@@ -343,7 +348,7 @@ describe("RootLayout — operator message banner", () => {
       renderRootLayout();
 
       expect(
-        screen.getByText(COPY.wallet.addressScreeningBannerBody),
+        screen.getByText(COPY.wallet.walletNotEligibleTooltip),
       ).toBeInTheDocument();
       expect(
         screen.getByText(COPY.deposit.disabled.bannerMessage),

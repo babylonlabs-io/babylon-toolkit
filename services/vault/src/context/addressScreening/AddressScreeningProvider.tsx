@@ -25,28 +25,32 @@ import type { AddressScreeningContextType } from "./types";
 
 const AddressScreeningContext = createContext<AddressScreeningContextType>({
   isBlocked: false,
+  isUnavailable: false,
   isLoading: false,
 });
 
+type ScreeningOutcome = "allowed" | "ineligible" | "unavailable";
+
 /**
- * Checks whether an address is blocked, consulting the localStorage cache
- * first. Resolves to `true` when the address failed risk assessment or when
- * the screening API is unreachable (hard-block on error is intentional; the
- * result is not cached so a later retry can succeed).
+ * Screens an address, consulting the localStorage cache first. Resolves to
+ * "ineligible" when the address failed risk assessment, and to "unavailable"
+ * when the screening API is unreachable (hard-block on error is intentional;
+ * the result is not cached so a later retry can succeed).
  */
-async function isAddressBlocked(address: string | undefined): Promise<boolean> {
-  if (!address) return false;
+async function screenAddress(
+  address: string | undefined,
+): Promise<ScreeningOutcome> {
+  if (!address) return "allowed";
 
   const cached = getAddressScreeningResult(address);
   if (cached !== undefined) {
-    return cached;
+    return cached ? "ineligible" : "allowed";
   }
 
   try {
     const allowed = await verifyAddress(address);
-    const blocked = !allowed;
-    setAddressScreeningResult(address, blocked);
-    return blocked;
+    setAddressScreeningResult(address, !allowed);
+    return allowed ? "allowed" : "ineligible";
   } catch (error) {
     if (error instanceof AddressScreeningNetworkError) {
       logger.warn("Address screening network error — hard-blocking", {
@@ -57,7 +61,7 @@ async function isAddressBlocked(address: string | undefined): Promise<boolean> {
         data: { context: "Address screening unexpected error", address },
       });
     }
-    return true;
+    return "unavailable";
   }
 }
 
@@ -66,8 +70,8 @@ export function AddressScreeningProvider({ children }: PropsWithChildren) {
   const { address: ethAddress } = useETHWallet();
 
   const [isLoading, setIsLoading] = useState(false);
-  const [btcBlocked, setBtcBlocked] = useState(false);
-  const [ethBlocked, setEthBlocked] = useState(false);
+  const [btcOutcome, setBtcOutcome] = useState<ScreeningOutcome>("allowed");
+  const [ethOutcome, setEthOutcome] = useState<ScreeningOutcome>("allowed");
 
   const prevBtcRef = useRef<string | undefined>(undefined);
   const prevEthRef = useRef<string | undefined>(undefined);
@@ -85,8 +89,8 @@ export function AddressScreeningProvider({ children }: PropsWithChildren) {
     prevEthRef.current = ethAddress;
 
     if (!btcAddress && !ethAddress) {
-      setBtcBlocked(false);
-      setEthBlocked(false);
+      setBtcOutcome("allowed");
+      setEthOutcome("allowed");
       setIsLoading(false);
       return;
     }
@@ -94,32 +98,34 @@ export function AddressScreeningProvider({ children }: PropsWithChildren) {
     let cancelled = false;
     // Clear previous results immediately so a stale "blocked" banner from
     // the prior wallet doesn't remain visible during re-screening.
-    setBtcBlocked(false);
-    setEthBlocked(false);
+    setBtcOutcome("allowed");
+    setEthOutcome("allowed");
     setIsLoading(true);
 
-    Promise.all([
-      isAddressBlocked(btcAddress),
-      isAddressBlocked(ethAddress),
-    ]).then(([btcIsBlocked, ethIsBlocked]) => {
-      if (cancelled) return;
-      setBtcBlocked(btcIsBlocked);
-      setEthBlocked(ethIsBlocked);
-      setIsLoading(false);
-    });
+    Promise.all([screenAddress(btcAddress), screenAddress(ethAddress)]).then(
+      ([btcResult, ethResult]) => {
+        if (cancelled) return;
+        setBtcOutcome(btcResult);
+        setEthOutcome(ethResult);
+        setIsLoading(false);
+      },
+    );
 
     return () => {
       cancelled = true;
     };
   }, [btcAddress, ethAddress]);
 
-  const value = useMemo<AddressScreeningContextType>(
-    () => ({
-      isBlocked: btcBlocked || ethBlocked,
+  const value = useMemo<AddressScreeningContextType>(() => {
+    const outcomes = [btcOutcome, ethOutcome];
+    const isIneligible = outcomes.includes("ineligible");
+    return {
+      isBlocked: isIneligible || outcomes.includes("unavailable"),
+      // A definitive "ineligible" result takes precedence over a failed check.
+      isUnavailable: !isIneligible && outcomes.includes("unavailable"),
       isLoading,
-    }),
-    [btcBlocked, ethBlocked, isLoading],
-  );
+    };
+  }, [btcOutcome, ethOutcome, isLoading]);
 
   return (
     <AddressScreeningContext.Provider value={value}>
