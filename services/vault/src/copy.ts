@@ -56,6 +56,12 @@ const connectToView = (subject: string) =>
 // amount and token on their own (repay success), which splits the same
 // "<token> on <hub>" wording across segments.
 const tokenOnHub = (symbol: string, hub: string) => `${symbol} on ${hub}`;
+// Names the spoke's borrow-reserve cap. Both Borrowed Asset tooltips open with
+// it, so one builder keeps their singular and plural forms from drifting.
+const borrowAssetsPerPosition = (limit: number) =>
+  limit === 1
+    ? "One borrow asset per position"
+    : `${limit} borrow assets per position`;
 // Column header shared by the Select hub picker and the markets table.
 const AVAILABLE_LIQUIDITY_COLUMN = "Available Liquidity";
 // Generic deposit-failure title; shared so per-bucket titles can't drift.
@@ -1654,9 +1660,22 @@ export const COPY = {
     // v3 Loans page: "Active Loans (N)" section heading.
     activeLoansHeading: (count: number) => `Active Loans (${count})`,
     // v3 Loans page empty state (connected, no debt).
+    // The body is split so the middle clause can carry the design's emphasis.
+    // `bodyNoCap` is what the same state says on a spoke that caps nothing:
+    // there is no asset to be tied to, so the tied-position sentence would be
+    // a restriction the protocol is not imposing.
     noActiveLoans: {
       title: "No active loans",
-      body: "You haven't borrowed any assets yet",
+      bodyNoCap: "You haven't borrowed any assets yet",
+      // Figma I13779:43096;13155:11244 verbatim at a cap of one.
+      body: (limit: number) => ({
+        lead: "Once you choose an asset, ",
+        emphasis:
+          limit === 1
+            ? "your position is tied to it"
+            : `this position can borrow ${limit} assets`,
+        rest: ". To borrow a different asset, you'll need to create a new position.",
+      }),
     },
     // v3 Loans page empty state, disconnected — no position to describe yet,
     // so it's a title-only prompt like the Activity tab's.
@@ -2082,8 +2101,39 @@ export const COPY = {
     heading: "Overview",
     positionTitle: "Position",
     totalCollateralValueLabel: "Total Collateral Value",
-    totalBorrowedLabel: "Total Borrowed",
     availableToBorrowLabel: "Available to Borrow",
+    // Aave caps how many reserves one position may borrow, so the position bar
+    // names the asset the position is tied to rather than a debt total.
+    borrowedAssetLabel: "Borrowed Asset",
+    // Before the first borrow, when no asset is tied to the position yet.
+    borrowedAssetEmpty: "Not Selected",
+    // Two hubs can list the same symbol, so a position holding both reads
+    // "USDC, USDC". The hub is named on the Loans rows, not here.
+    borrowedAssetValue: (symbols: string[]) => symbols.join(", "),
+    // Borrowed Asset tooltip before the first borrow. Phrased from the cap the
+    // Spoke reports, never a hardcoded 1 — Aave may raise it.
+    borrowedAssetTooltipBefore: (limit: number) => ({
+      title: borrowAssetsPerPosition(limit),
+      body:
+        limit === 1
+          ? "Choose carefully once you borrow, this position is tied to that asset."
+          : "Choose carefully once you borrow, this position is tied to the assets you pick.",
+    }),
+    // Borrowed Asset tooltip below the cap with something already borrowed.
+    // Distinct from the before-first-borrow copy: "choose carefully once you
+    // borrow" contradicts a card that is already showing a borrowed asset.
+    borrowedAssetTooltipRemaining: (limit: number, borrowed: number) => ({
+      title: borrowAssetsPerPosition(limit),
+      body:
+        limit - borrowed === 1
+          ? "One slot left. Repay a loan in full to free another."
+          : `${limit - borrowed} slots left. Repay a loan in full to free another.`,
+    }),
+    // Borrowed Asset tooltip once the position has used up its reserves.
+    borrowedAssetTooltipAfter: (limit: number) =>
+      limit === 1
+        ? "To switch to another asset, you must fully repay your loan first. Once it's fully repaid, you can choose a different asset."
+        : "To borrow a different asset, fully repay one of your current loans first. Once it's fully repaid, you can choose another.",
     depositAction: "Deposit",
     borrowAction: "Borrow",
     repayAction: "Repay",

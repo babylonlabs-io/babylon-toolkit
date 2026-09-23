@@ -1,14 +1,16 @@
 /**
  * LoansSummary Component
- * v3 Loans page summary trio: Available to Borrow · Total Borrowed · Health
+ * v3 Loans page summary trio: Available to Borrow · Borrowed Asset · Health
  * Factor. Reuses the shared PositionStatCards primitive and the borrow-capacity
  * card builder (same cards the Overview position summary uses); the health-factor
  * card is an action-less variant with a color-coded value + heart.
  */
 
+import type { BorrowedAsset } from "@/applications/aave/hooks/useAaveBorrowedAssets";
 import {
   formatHealthFactor,
   getHealthFactorColor,
+  type BorrowReserveLimit,
   type HealthFactorStatus,
 } from "@/applications/aave/utils";
 import { HeartIcon } from "@/components/shared";
@@ -21,7 +23,9 @@ import {
 
 interface LoansSummaryProps {
   availableToBorrow: string;
-  totalBorrowed: string;
+  borrowedAssets: BorrowedAsset[];
+  maxBorrowReserves: BorrowReserveLimit;
+  borrowCount: bigint | null;
   borrowCapacityLoading: boolean;
   borrowCapacityError: Error | null;
   healthFactor: number | null;
@@ -34,7 +38,9 @@ interface LoansSummaryProps {
 
 export function LoansSummary({
   availableToBorrow,
-  totalBorrowed,
+  borrowedAssets,
+  maxBorrowReserves,
+  borrowCount,
   borrowCapacityLoading,
   borrowCapacityError,
   healthFactor,
@@ -53,7 +59,9 @@ export function LoansSummary({
   const cards = [
     ...buildBorrowCapacityCards({
       availableToBorrow,
-      totalBorrowed,
+      borrowedAssets,
+      maxBorrowReserves,
+      borrowCount,
       borrowCapacityLoading,
       borrowCapacityError,
       onBorrow,

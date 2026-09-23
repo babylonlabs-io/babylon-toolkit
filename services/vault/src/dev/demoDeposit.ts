@@ -927,8 +927,6 @@ export interface ActiveDemoActivity {
 
 export interface ActiveDemoLoan {
   rows: ActiveLoanRow[];
-  /** Total mock debt in USD — the Loans summary totals the rendered rows. */
-  debtUsd: number;
   hideReal: boolean;
 }
 
@@ -993,14 +991,10 @@ export function buildLoansDemo(
 ): ActiveDemoLoan {
   const scenarios = loanScenarios(borrowSymbol);
   const rows: ActiveLoanRow[] = [];
-  let debtUsd = 0;
   for (const item of items) {
     if (item.type !== "loan") continue;
     const scenario = scenarios[item.stateIndex] ?? scenarios[0];
     const amount = safeAmount(item.amount);
-    // The mock borrows a stablecoin, so the token amount doubles as its USD
-    // value — enough for the summary to total the rendered rows.
-    debtUsd += Number.parseFloat(amount) || 0;
     rows.push({
       reserveId: `${DEMO_LOAN_RESERVE_PREFIX}${item.key}`,
       symbol: scenario.symbol,
@@ -1014,13 +1008,15 @@ export function buildLoansDemo(
         : null,
       utilizationBps: scenario.hasLiquidity ? DEMO_LOAN_UTILIZATION_BPS : null,
       isBorrowable: scenario.isBorrowable,
-      // Safety: the row's reserveId/symbol resolve to no real reserve, so both
-      // of its actions stay disabled (ActiveLoansList) — a mock can never open
-      // the borrow/repay overlay against a real position.
+      // Safety: the row's `demo-reserve-` id parses as no reserve id, and the
+      // row is `displayOnly`, so both of its actions stay disabled
+      // (ActiveLoansList) — a mock can never open the borrow/repay overlay
+      // against a real position. Its symbol and hub are real (a registered
+      // hub, the selected symbol), so `symbol|hub` does match real reserves.
       displayOnly: true,
     });
   }
-  return { rows, debtUsd, hideReal };
+  return { rows, hideReal };
 }
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
