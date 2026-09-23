@@ -66,6 +66,9 @@ vi.mock("@/context/wallet", async () => ({
   useBTCWallet: () => ({ connected: walletMock.btcConnected }),
   useETHWallet: () => ({ connected: walletMock.ethConnected }),
 }));
+vi.mock("@/hooks/usePendingDeposits", () => ({
+  usePendingDeposits: () => ({ pendingActivities: [] }),
+}));
 
 // The god-mode status override is compile-time null in production (gated on
 // `import.meta.env.DEV` + the god-mode flag), so the real store never emits one

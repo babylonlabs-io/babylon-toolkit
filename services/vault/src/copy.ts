@@ -2028,6 +2028,8 @@ export const COPY = {
     activity: "Activity",
     liquidations: "Liquidations",
     explore: "Explore",
+    pendingDeposits: (count: number) =>
+      `${count} pending ${count === 1 ? "deposit" : "deposits"}`,
     termsOfUse: "Terms of Use",
     privacyPolicy: "Privacy Policy",
   },

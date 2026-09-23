@@ -5,6 +5,7 @@ export interface SidebarItemProps {
   icon: ReactNode;
   label: string;
   isActive?: boolean;
+  trailing?: ReactNode;
   className?: string;
 }
 
@@ -17,6 +18,7 @@ export const SidebarItem = ({
   icon,
   label,
   isActive = false,
+  trailing,
   className,
 }: SidebarItemProps) => (
   <div
@@ -32,5 +34,6 @@ export const SidebarItem = ({
       {icon}
     </span>
     <span>{label}</span>
+    {trailing && <span className="ml-auto flex shrink-0">{trailing}</span>}
   </div>
 );

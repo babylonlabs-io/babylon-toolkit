@@ -13,6 +13,8 @@ import type { ComponentType } from "react";
 import { NavLink } from "react-router";
 
 import { getVisibleV3NavGroups, type V3NavItemId } from "@/config/v3Navigation";
+import { COPY } from "@/copy";
+import { usePendingDeposits } from "@/hooks/usePendingDeposits";
 
 import { SidebarFooter } from "./SidebarFooter";
 
@@ -31,12 +33,49 @@ const V3_NAV_ICONS: Record<
   explore: ExploreIcon,
 };
 
+function PendingDepositsBadge({ count }: { count: number }) {
+  return (
+    <span
+      role="img"
+      aria-label={COPY.nav.pendingDeposits(count)}
+      className="relative flex size-[18px] items-center justify-center"
+    >
+      <svg
+        className="absolute inset-0"
+        width={18}
+        height={18}
+        viewBox="0 0 18 18"
+        fill="none"
+        aria-hidden
+      >
+        <circle
+          cx={9}
+          cy={9}
+          r={8}
+          strokeWidth={2}
+          className="stroke-secondary-strokeLight"
+        />
+        <path
+          d="M17 9C17 4.58172 13.4183 1 9 1"
+          strokeWidth={2}
+          strokeLinecap="round"
+          className="stroke-risk-amber"
+        />
+      </svg>
+      <span className="relative text-[10px] font-bold leading-[1.2] tracking-[0.4px] text-accent-primary">
+        {count}
+      </span>
+    </span>
+  );
+}
+
 function V3NavLinks() {
   // Which sections a flag currently hides is decided by `V3_SECTION_FLAG_GATES`
   // in config/v3Navigation.ts, shared with the router's guards so a hidden
   // section is never advertised as a dead end. The sidebar itself only renders
   // under v3 — see RootLayout.
   const groups = getVisibleV3NavGroups();
+  const pendingCount = usePendingDeposits().pendingActivities.length;
 
   return (
     <>
@@ -59,6 +98,11 @@ function V3NavLinks() {
                     icon={<Icon size={24} />}
                     label={label}
                     isActive={isActive}
+                    trailing={
+                      id === "vaults" && pendingCount > 0 ? (
+                        <PendingDepositsBadge count={pendingCount} />
+                      ) : undefined
+                    }
                   />
                 )}
               </NavLink>
