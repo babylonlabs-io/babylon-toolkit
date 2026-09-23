@@ -8,6 +8,7 @@
 import {
   getDynamicReserveConfig as sdkGetDynamicReserveConfig,
   getLiquidationBonusConfig as sdkGetLiquidationBonusConfig,
+  getMaxUserReservesLimit as sdkGetMaxUserReservesLimit,
   getReserve as sdkGetReserve,
   getReserves as sdkGetReserves,
   getUserPositionAndAccountData as sdkGetUserPositionAndAccountData,
@@ -78,6 +79,18 @@ export async function getUserTotalDebtsBatch(
     reserveIds,
     userAddress,
   );
+}
+
+/**
+ * Read the Core Spoke's cap on how many reserves one account may hold. Thin DI
+ * wrapper over the SDK `getMaxUserReservesLimit`; the raw contract value,
+ * including the unlimited sentinel.
+ */
+export async function getMaxUserReservesLimit(
+  spokeAddress: Address,
+): Promise<number> {
+  const publicClient = ethClient.getPublicClient();
+  return sdkGetMaxUserReservesLimit(publicClient, spokeAddress);
 }
 
 /**

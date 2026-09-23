@@ -249,6 +249,9 @@ describe("useVaultSplitParams", () => {
       borrowableReserves: [],
       allBorrowReserves: [],
       hubSpokeConfigs: {},
+      maxBorrowReserves: { status: "loaded", limit: null },
+      chainMaxBorrowReserves: { status: "loaded", limit: null },
+      refetchConfig: vi.fn(),
     });
 
     mockGetReserve.mockResolvedValue({
@@ -294,6 +297,9 @@ describe("useVaultSplitParams", () => {
       borrowableReserves: [],
       allBorrowReserves: [],
       hubSpokeConfigs: {},
+      maxBorrowReserves: { status: "loaded", limit: null },
+      chainMaxBorrowReserves: { status: "loaded", limit: null },
+      refetchConfig: vi.fn(),
     });
 
     const { result } = renderHook(() => useVaultSplitParams(), { wrapper });
@@ -319,6 +325,9 @@ describe("useVaultSplitParams", () => {
       borrowableReserves: [],
       allBorrowReserves: [],
       hubSpokeConfigs: {},
+      maxBorrowReserves: { status: "loaded", limit: null },
+      chainMaxBorrowReserves: { status: "loaded", limit: null },
+      refetchConfig: vi.fn(),
     });
 
     // beforeEach default has CF=0.75 (7500 BPS). Initial load picks that up.
@@ -363,6 +372,9 @@ describe("useVaultSplitParams", () => {
       borrowableReserves: [],
       allBorrowReserves: [],
       hubSpokeConfigs: {},
+      maxBorrowReserves: { status: "loaded", limit: null },
+      chainMaxBorrowReserves: { status: "loaded", limit: null },
+      refetchConfig: vi.fn(),
     });
 
     const { result } = renderHook(() => useVaultSplitParams(), { wrapper });
@@ -390,6 +402,9 @@ describe("useVaultSplitParams", () => {
       borrowableReserves: [],
       allBorrowReserves: [],
       hubSpokeConfigs: {},
+      maxBorrowReserves: { status: "loaded", limit: null },
+      chainMaxBorrowReserves: { status: "loaded", limit: null },
+      refetchConfig: vi.fn(),
     });
 
     const { result } = renderHook(() => useVaultSplitParams(), { wrapper });
