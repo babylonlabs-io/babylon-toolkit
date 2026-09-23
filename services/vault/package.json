@@ -10,6 +10,7 @@
     "sync-env:check": "node scripts/sync-env.mjs --check",
     "watchDeps": "./scripts/watch-deps.sh @services/vault",
     "build": "NODE_OPTIONS=--max-old-space-size=8192 pnpm exec tsc --noEmit -p tsconfig.lib.json && NODE_OPTIONS=--max-old-space-size=8192 pnpm exec vite build",
+    "typecheck": "NODE_OPTIONS=--max-old-space-size=8192 pnpm exec tsc --noEmit -p tsconfig.lib.json",
     "lint": "eslint",
     "preview": "vite preview",
     "format": "prettier --check .",

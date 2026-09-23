@@ -28,6 +28,7 @@
   "scripts": {
     "dev": "npm run storybook",
     "build": "NODE_OPTIONS=--max-old-space-size=8192 tsc -b --noEmit tsconfig.lib.json && NODE_OPTIONS=--max-old-space-size=8192 vite build && node --test scripts/package-boundary.test.js && node scripts/check-package.js",
+    "typecheck": "NODE_OPTIONS=--max-old-space-size=8192 tsc -b --noEmit tsconfig.lib.json",
     "lint": "eslint --fix .",
     "format": "prettier . --write",
     "preview": "vite preview",
