@@ -177,17 +177,22 @@ export function usePositionNotifications(
     // would otherwise be hidden for good with nothing said.
     // `computeSplitLiquidationBonus` throws on an out-of-range bonus curve,
     // so this is a reachable state.
+    if (!splitParams)
+      return {
+        result: null,
+        status: splitParamsError ? "params-unavailable" : "loading",
+        reorderVerificationContext: null,
+        params: null,
+      };
     // A null `LB` is the same situation as a failed read for the warnings:
     // every seizure figure below is computed from it, so there is nothing to
     // show. The collateral factor survives in the same query on purpose, for
-    // the borrow and repay pre-sign checks.
-    if (!splitParams || splitParams.LB === null)
+    // the borrow and repay pre-sign checks. Keyed on the value itself, not on
+    // the reason string, so an empty reason cannot strand this on "loading".
+    if (splitParams.LB === null)
       return {
         result: null,
-        status:
-          splitParamsError || splitParams?.lbUnavailableReason
-            ? "params-unavailable"
-            : "loading",
+        status: "params-unavailable",
         reorderVerificationContext: null,
         params: null,
       };

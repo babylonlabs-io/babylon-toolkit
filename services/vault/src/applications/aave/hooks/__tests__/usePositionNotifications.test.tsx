@@ -146,6 +146,31 @@ describe("usePositionNotifications — live-HF urgency guardrail", () => {
     expect(result.current.result).toBeNull();
   });
 
+  it("reports params-unavailable when the read succeeded but the bonus curve is out of range", () => {
+    // The shape a bad curve actually produces now: params present, collateral
+    // factor intact for the borrow and repay pre-sign checks, and no query
+    // error — only the bonus is missing. Keyed on the value, so an empty
+    // reason string cannot strand this on "loading".
+    setDashboardState();
+    mockUseVaultSplitParams.mockReturnValue({
+      params: {
+        THF: 1.08,
+        expectedHF: 0.99,
+        CF: 0.78,
+        LB: null,
+        lbUnavailableReason: "",
+        maxLB: 1.0555,
+      },
+      isLoading: false,
+      error: null,
+    });
+
+    const { result } = renderHook(() => usePositionNotifications(USER));
+
+    expect(result.current.status).toBe("params-unavailable");
+    expect(result.current.result).toBeNull();
+  });
+
   it("reports no-vaults rather than params-unavailable when there is nothing to warn about", () => {
     setDashboardState({ collateralVaults: [] });
     mockUseVaultSplitParams.mockReturnValue({

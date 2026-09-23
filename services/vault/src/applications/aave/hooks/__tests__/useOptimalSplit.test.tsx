@@ -20,6 +20,7 @@ const DEFAULT_PARAMS = {
   expectedHF: 0.99,
   CF: 0.78,
   LB: 1.0504,
+  lbUnavailableReason: null,
   maxLB: 1.0555,
 };
 
@@ -151,6 +152,27 @@ describe("useOptimalSplit", () => {
     expect(result.current.isParamsUnavailable).toBe(false);
     expect(result.current.canSplit).toBe(true);
     expect(result.current.sacrificialVault).toBeGreaterThan(0n);
+  });
+
+  it("reports the parameters as unavailable when the bonus curve is out of range", () => {
+    // What a bad curve actually produces now: the read succeeds and the
+    // collateral factor is intact, but the bonus every seizure formula needs
+    // is null. The split must refuse rather than size against a substitute.
+    mockUseVaultSplitParams.mockReturnValue({
+      params: {
+        ...DEFAULT_PARAMS,
+        LB: null,
+        lbUnavailableReason: "bonus curve out of range",
+      },
+      isLoading: false,
+      error: null,
+    });
+
+    const { result } = renderHook(() => useOptimalSplit(1_000_000_000n));
+
+    expect(result.current.isParamsUnavailable).toBe(true);
+    expect(result.current.canSplit).toBe(false);
+    expect(result.current.sacrificialVault).toBe(0n);
   });
 
   it("reports no parameter problem while the read is still loading", () => {

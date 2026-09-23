@@ -403,6 +403,73 @@ describe("golden vectors (reference scenario suite)", () => {
     );
   });
 
+  // The next two need a seized fraction just under one half, which takes a
+  // collateral factor of about 87% — above the 86% the protocol contemplates.
+  // Below that the 0.0001 BTC round-up can never be what blocks the split, so
+  // this is the only configuration that exercises the branch at all.
+  it("quotes the rounded-up requirement, not the minimum, when the round-up is what blocks the split", () => {
+    // Seized fraction ≈ 0.4993, so the add is 0.019941 BTC — smaller than the
+    // vault until the round-up lifts it to exactly 0.02. The minimum peg-in
+    // is 40× smaller than the vault, so quoting it would claim an amount that
+    // plainly is smaller and contradict the sentence.
+    const result = calculate({
+      btcPrice: 60_000,
+      totalDebtUsd: 1_500,
+      vaults: [v(0.02)],
+      CF: 0.8698,
+      THF: 1.08,
+      LB: 1.0504,
+      expectedHF: 0.99,
+      minPeginBtc: 0.0005,
+    });
+
+    expect(result.suggestedNewVaultBtc).toBeNull();
+    expect(getWarning(result.warnings, "cliff")?.suggestion).toBe(
+      COPY.liquidationWarnings.cliff.tooSmallToSplitSuggestion("0.02"),
+    );
+  });
+
+  it("never quotes a zero requirement when the minimum peg-in could not be read", () => {
+    // A null minimum leaves no floor, so the round-up alone decides. Quoting
+    // the floor here would render "at least 0 BTC".
+    const result = calculate({
+      btcPrice: 60_000,
+      totalDebtUsd: 1_500,
+      vaults: [v(0.02)],
+      CF: 0.8698,
+      THF: 1.08,
+      LB: 1.0504,
+      expectedHF: 0.99,
+      minPeginBtc: null,
+    });
+
+    expect(result.suggestedNewVaultBtc).toBeNull();
+    expect(getWarning(result.warnings, "cliff")?.suggestion).toBe(
+      COPY.liquidationWarnings.cliff.tooSmallToSplitSuggestion("0.02"),
+    );
+  });
+
+  it("blames the protocol parameters when no deposit size could make the added vault smaller", () => {
+    // Seized fraction ≥ 0.5, so the sacrificial vault would have to be at
+    // least as large as the existing one at any position size — the opposite
+    // cause from the two cases above, and it must keep its own copy.
+    const result = calculate({
+      btcPrice: 60_000,
+      totalDebtUsd: 1_500,
+      vaults: [v(0.5)],
+      CF: 0.9,
+      THF: 1.08,
+      LB: 1.0504,
+      expectedHF: 0.99,
+      minPeginBtc: 0.0005,
+    });
+
+    expect(result.suggestedNewVaultBtc).toBeNull();
+    expect(getWarning(result.warnings, "cliff")?.suggestion).toBe(
+      COPY.liquidationWarnings.cliff.noSplitSuggestion,
+    );
+  });
+
   it("floors the two-vault 'add alongside' amount at the minimum peg-in", () => {
     // THF 1.40: seized fraction ≈ 0.609, so neither 1.0 BTC vault covers the
     // 1.218 BTC target. The deficit is 0.5577 BTC, below a 0.6 BTC minimum.

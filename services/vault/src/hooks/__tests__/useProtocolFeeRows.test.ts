@@ -92,6 +92,43 @@ describe("useProtocolFeeRows", () => {
     vi.mocked(useVaultSplitParams).mockReturnValue(LAUNCH_SPLIT_PARAMS);
   });
 
+  it("keeps the collateral factor and penalty rows when the bonus curve is out of range", () => {
+    // The bonus is nullable so a bad curve cannot take the collateral factor
+    // down with it. Only the split minimum is sized from it, so only that row
+    // may disappear.
+    vi.mocked(useVaultSplitParams).mockReturnValue({
+      ...LAUNCH_SPLIT_PARAMS,
+      params: {
+        ...LAUNCH_SPLIT_PARAMS.params,
+        LB: null,
+        lbUnavailableReason: "bonus curve out of range",
+      },
+    });
+
+    const { result } = renderHook(() => useProtocolFeeRows());
+
+    expect(rowValue(result.current.rows, COPY.protocolFees.ltv.label)).toBe(
+      "78%",
+    );
+    expect(
+      rowValue(
+        result.current.rows,
+        COPY.protocolFees.maxLiquidationPenalty.label,
+      ),
+    ).toBe("5.55%");
+    expect(
+      rowValue(
+        result.current.rows,
+        COPY.protocolFees.splitTargetHealthFactor.label,
+      ),
+    ).toBe("1.08");
+    expect(
+      rowValue(result.current.rows, COPY.protocolFees.minForSplit.label),
+    ).toBeUndefined();
+
+    vi.mocked(useVaultSplitParams).mockReturnValue(LAUNCH_SPLIT_PARAMS);
+  });
+
   it("sizes the split minimum from the sacrificial share with no extra buffer", () => {
     const { result } = renderHook(() => useProtocolFeeRows());
 

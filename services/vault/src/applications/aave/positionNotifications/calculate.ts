@@ -446,33 +446,42 @@ export function calculate(params: CalculatorParams): CalculatorResult {
   // collateral or repay: re-depositing the same BTC as two vaults would need
   // the first vault to be the larger one, a split the deposit form refuses.
   let suggestedNewVaultBtc: number | null = null;
-  // The add before the minimum peg-in is applied. Kept so the two reasons a
-  // suggestion can be missing stay distinguishable: if this one would have
-  // worked, only the floor stands in the way.
+  // The add before the minimum peg-in is applied, and the amount a second
+  // BTCVault would actually have to be. Both are kept so the two reasons a
+  // suggestion can be missing stay distinguishable, and so the advice quotes
+  // the real requirement rather than one of its two inputs.
   let unflooredSuggestionBtc = 0;
+  let requiredNewVaultBtc = 0;
   if (nVaults === 1) {
     if (seizedFraction < 1) {
       unflooredSuggestionBtc =
         (vaults[0].btc * seizedFraction) / (1 - seizedFraction);
-      const suggested = sizeSuggestedVaultBtc(
+      requiredNewVaultBtc = sizeSuggestedVaultBtc(
         unflooredSuggestionBtc,
         minSuggestedVaultBtc,
       );
       // Actionable only if positive AND strictly smaller than the existing
       // vault, which becomes the protected one.
-      if (suggested > 0 && suggested < totalBtc) {
-        suggestedNewVaultBtc = suggested;
+      if (requiredNewVaultBtc > 0 && requiredNewVaultBtc < totalBtc) {
+        suggestedNewVaultBtc = requiredNewVaultBtc;
       }
     }
 
     // Two different reasons produce no suggestion, and they call for
     // different advice. If the add would have been smaller than the existing
-    // vault before the minimum peg-in raised it, splitting works fine at
-    // these parameters and the position is simply too small. Otherwise the
-    // sacrificial vault would have to be the larger of the two, which no
-    // deposit size fixes.
+    // vault before it was rounded up and floored at the minimum peg-in, then
+    // splitting works fine at these parameters and the position is simply too
+    // small. Otherwise the sacrificial vault would have to be the larger of
+    // the two, which no deposit size fixes.
+    //
+    // The amount quoted is the requirement itself, not the minimum peg-in:
+    // either the floor or the round-up can be what lifts it to the vault's
+    // size, and quoting the minimum would claim a figure that is smaller than
+    // the vault — or zero, when the minimum could not be read.
     const isTooSmallToSplit =
-      unflooredSuggestionBtc > 0 && unflooredSuggestionBtc < totalBtc;
+      requiredNewVaultBtc > 0 &&
+      unflooredSuggestionBtc > 0 &&
+      unflooredSuggestionBtc < totalBtc;
 
     warnings.push({
       type: "cliff",
@@ -485,7 +494,7 @@ export function calculate(params: CalculatorParams): CalculatorResult {
             )
           : isTooSmallToSplit
             ? cliff.tooSmallToSplitSuggestion(
-                fmtSuggestedVaultBtc(minSuggestedVaultBtc),
+                fmtSuggestedVaultBtc(requiredNewVaultBtc),
               )
             : cliff.noSplitSuggestion,
     });

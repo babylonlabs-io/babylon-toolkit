@@ -30,25 +30,29 @@ function buildFeeRows(
     tooltip: COPY.protocolFees.minDeposit.tooltip,
   });
 
-  // The split-sizing rows need the bonus at the expected health factor; when
-  // the Spoke's curve is out of range there is no figure to show, so they are
-  // omitted rather than rendered from a substitute.
-  if (splitParams && splitParams.LB !== null) {
+  if (splitParams) {
     const { CF, LB, THF, expectedHF, maxLB } = splitParams;
 
-    const seizedFraction = computeSeizedFraction(CF, LB, THF, expectedHF);
-    const minForSplit = computeMinDepositForSplit({
-      minPegin: minDepositSats,
-      seizedFraction,
-    });
-
-    if (minForSplit > 0n) {
-      const minForSplitBtc = formatSatoshisToBtc(minForSplit);
-      rows.push({
-        label: COPY.protocolFees.minForSplit.label,
-        value: `${minForSplitBtc} ${btcSymbol}`,
-        tooltip: COPY.protocolFees.minForSplit.tooltip,
+    // Only this row is sized from the bonus at the expected health factor.
+    // When the Spoke's curve is out of range there is no figure to show, so
+    // it is omitted rather than rendered from a substitute — but the rows
+    // below do not read `LB` and must survive, which is the whole reason the
+    // bonus is nullable instead of throwing.
+    if (LB !== null) {
+      const seizedFraction = computeSeizedFraction(CF, LB, THF, expectedHF);
+      const minForSplit = computeMinDepositForSplit({
+        minPegin: minDepositSats,
+        seizedFraction,
       });
+
+      if (minForSplit > 0n) {
+        const minForSplitBtc = formatSatoshisToBtc(minForSplit);
+        rows.push({
+          label: COPY.protocolFees.minForSplit.label,
+          value: `${minForSplitBtc} ${btcSymbol}`,
+          tooltip: COPY.protocolFees.minForSplit.tooltip,
+        });
+      }
     }
 
     rows.push({
