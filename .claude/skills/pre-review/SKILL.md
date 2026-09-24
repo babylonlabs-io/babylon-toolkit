@@ -14,7 +14,6 @@ allowed-tools:
   - Bash(git status *)
   - Bash(node scripts/pre-review/snapshot.mjs record *)
   - Bash(pnpm nx affected *)
-  - Bash(pnpm --filter * exec vitest run *)
   - Bash(pnpm --filter @babylonlabs-io/ts-sdk run test)
   - Bash(gh pr view * --json body --jq .body)
 ---
@@ -513,8 +512,9 @@ separately, at full price each. Do it yourself.
 
     A failure is not automatically a finding, so characterise it first. Tests
     should not write source files; if `git status --porcelain` shows one
-    changed when they finish, and it is not the expected regeneration above,
-    report it as rewritten by the checks.
+    changed when they finish, report it as rewritten by the checks — the
+    regeneration above included, with its cause named. There is no exemption:
+    a file the checks changed is recorded whatever changed it.
 
 Collect steps 1–9 into a short **context pack** and paste it verbatim into
 every reviewer prompt. Open it with:
@@ -532,9 +532,15 @@ actually bind, and they hold either way.
 **The pack must carry a `CHECKS` section, and it is not optional.** Step 9
 finishes before the reviewers are spawned, so its results are available and
 they are exactly what a reviewer cannot rediscover under the no-builds rule.
-Give, for lint and typecheck, the outcome in the same vocabulary step 9
-settles each of them in (`passed`, `failed`, `stubbed`, `nothing affected`)
-and the project count nx reported. Name any project whose target was a stub.
+Give, for lint and typecheck, the verdict step 9 settled — `passed`, `failed`
+or `nothing affected`, each optionally qualified as "with `<project>`
+stubbed" — and the project count nx reported. **Never a bare `stubbed`**: it
+is a qualifier, not a verdict, and lint cannot take it at all. A bare
+`stubbed` would let a run where one project stubs and another does not
+compile reach reviewers without the word `failed`, which is what the rule
+above keys on to put compiler output at the top of the pack. Bare `stubbed`
+exists only as a `runs[].checks` value, which step 10 sets and no reviewer
+reads.
 Tests are still running at this point, so say so rather than implying they
 passed.
 
@@ -610,9 +616,16 @@ the stored findings (the engineer may have new decisions to record). With
 `--full`, run Phases 1–3 over the whole change.
 
 **Anything else**: first mark `moot` every finding **none of whose anchor
-paths is outside the changed-file list**, and whose anchor files have all
-left the change. That needs only the buckets, not a reviewer, and a finding
-with no file left in the change must not stay open.
+paths was ever in `files`** other than the ones that have now left, and whose
+anchor files have all left the change. That needs only the buckets, not a
+reviewer, and a finding with no file left in the change must not stay open.
+
+Say it that way and not "no anchor path outside the changed-file list": a
+file that has *left* is outside the changed-file list by definition, so that
+phrasing is unsatisfiable for exactly the findings the sweep is meant to
+retire — nothing would ever be mooted, and every such finding would then trip
+the `left`-anchor condition on the gate below and spawn reviewers for a
+finding with no file in the change at all.
 
 The test is the anchor *path*, not an entry in `outside_anchors`. The map
 starts empty and is never backfilled, so "has no entry in the map" is true of
@@ -655,10 +668,13 @@ the common case rather than the corner. They are tracked separately:
   folded into the digest makes the record unmatchable by the stricter CI
   check *planned* against `git ls-tree` — which can only ever reconstruct
   changed paths. That check is a TODO today; the first reason stands alone.
-- **Populate it in Phase 4**, when the findings are known. For every anchor
-  path of every stored finding that is not in the changed-file list, run
-  `git hash-object -w -- <path>` and store the blob under that path. A path
-  that no longer exists is recorded as `deleted`. Do not use
+- **Populate it in Phase 4**, when the findings are known, by the rule stated
+  there and only that rule — which is narrower than "every stored finding":
+  it skips `moot` findings and findings raised before the map existed. Do not
+  restate the filter here, or the two copies drift and this one, being the
+  looser, wins. In outline: for each eligible anchor path not in the
+  changed-file list, `git hash-object -w -- <path>` and store the blob under
+  that path, recording `deleted` for a path that no longer exists. Do not use
   `snapshot.mjs` for this: its three outputs come from one map by
   construction.
 - **Not eligible**: `PR.md` and anything under `.pre-review/`. The snapshot
@@ -995,18 +1011,19 @@ ordinary fix-and-re-run and the sequence this lane exists to break, so it is
 the last place to skip it: on a non-escalated run the cold lane is spawned
 alongside the verdict lane, and Phase 1 is entered for it alone.
 
-**The exception is the run that reviews nothing** — either gate in Phase 0b
-taken in full, qualifiers included: nothing moved, entered or left, no
-outside anchor's value changed and no `--full`; or files only left with no
-outside anchor's value changed. Those spawn no reviewers by design and record
-`breadth: none`; spawning a cold lane there would review a change nobody has
-touched since the last run. Record `cold: false`.
+**The exception is the run that reviews nothing**: a run that took **either
+of Phase 0b's two gates, as written there**. Those spawn no reviewers by
+design and record `breadth: none`; spawning a cold lane there would review a
+change nobody has touched since the last run. Record `cold: false`.
 
-Quote the gates whole or not at all. An earlier version named them by their
-opening phrases — "nothing moved, entered or left" and "files only left" —
-which dropped `--full` and the outside-anchor condition, so an explicit
-`--full` re-run over the whole change with the full tier would have recorded
-`breadth: none` and `cold: false`.
+**No copy of the gates is kept here, deliberately.** Twice now a shortened
+restatement has dropped qualifiers the gate actually carries — first `--full`
+and the outside-anchor condition, then `--full` and the `left`-anchor
+condition — each time producing a run that spawns the full tier while
+recording `breadth: none` and `cold: false`. A rule with four qualifiers
+cannot be safely paraphrased in a sentence, and the second attempt at
+paraphrasing it sat directly under a paragraph warning against the first. Go
+and read the gates.
 
 Spawn an extra `review-lane` whose dimension is the whole changed-file list —
 **the whole change, not the narrowed set**, whatever breadth the run records.
@@ -1069,18 +1086,48 @@ to satisfy the file it is spawned as, and would leave the one reviewer added
 to catch structural defects as the only one not told whether the change
 compiles.
 
-Withhold five things: **the stored findings, the `refuted` list, "what changed
-this round", any scope hint, and every run number.** Do not tell it the
-change has been reviewed before.
+**Build this lane's prompt from an allowlist, not a denylist.** Give it the
+items enumerated above and **nothing else** — anything not on that list is
+withheld by default, including things no one has thought of yet. Do not
+reason "this is not on the withheld list, so it may go in"; reason "this is
+not on the given list, so it stays out".
 
-**Render its intent without the withholding markers.** Everyone else gets
-`[withheld: N<id>]` at each cut and a `withheld:` header, which exists so a
-reviewer holding the ledger can reconcile the omission. For this lane those
-markers announce that a ledger exists and point at the exact sentences it
-covers — the scope hint banned two paragraphs above, in a different font. Cut
-silently for the cold lane: it has no ledger to reconcile against, and a
-finding it raises on withheld ground is deduplicated in Phase 3 like any
-other.
+That is a deliberate inversion, and four separate leaks bought it. A
+denylist of things to withhold was tried and failed four times, each time
+because the ledger arrived through a route the list did not name: the
+per-file diffs, captioned with the run number; the description's collapsed
+findings record, pasted as "the intent"; a committed review report sitting in
+the changed-file list; and finally ordinary prose in the description's own
+sections narrating earlier runs. Each fix added one more item. A closed list
+of permitted inputs fails shut instead, and is the only form that covers the
+fifth route before anyone finds it.
+
+So: no stored findings, no `refuted` list, no "what changed this round", no
+scope hint, no run numbers — and no anything-else. Do not tell it the change
+has been reviewed before.
+
+**Write this lane's intent yourself; do not paste the engineer's.** For every
+other reviewer the intent is sections 1–5 verbatim, with the sentences that
+state a known open defect cut and marked. For this lane, state in your own
+words only what the change is for and what is deliberately out of scope, and
+carry across nothing that refers to earlier runs, earlier reviews, findings,
+or this branch's history.
+
+Cutting is not enough here, and that is the point. A cut removes the
+sentences you thought to look for; sections 1–5 are the engineer's prose and
+may narrate the review in passing anywhere. This very description's "Why"
+section says the cold lane earned its cost on a particular numbered run of
+this branch — a sentence tied to no stored finding, which every cut rule
+above leaves standing and which would be handed to the cold lane on this
+branch. Rewriting is the only form that cannot leak a sentence nobody
+anticipated.
+
+Say nothing about the omission either: everyone else gets `[withheld: N<id>]`
+markers and a `withheld:` header so a reviewer holding the ledger can
+reconcile the gap, and for this lane those markers announce that a ledger
+exists and point at the exact sentences it covers. It has no ledger to
+reconcile against, and a finding it raises on withheld ground is deduplicated
+in Phase 3 like any other.
 
 Record `cold: true` on the run entry when it ran, `false` when it did not.
 
@@ -1168,6 +1215,16 @@ Also wait for the checks (Phase 0 step 10) before Phase 4.
    at the repo root: `pnpm --filter <package name> exec vitest run <test file>`,
    except `@babylonlabs-io/ts-sdk`, which CLAUDE.md sends through its own
    `test` script (`pnpm --filter @babylonlabs-io/ts-sdk run test`).
+
+   **The general form is not in `allowed-tools`, and that is deliberate: it
+   will prompt.** Only the ts-sdk script, which is a fixed string, is
+   pre-approved. A pattern wide enough to cover any package —
+   `pnpm --filter * exec vitest run *` — puts a wildcard in the middle of the
+   command, where it can span the argument boundary and pre-approve a payload
+   that has nothing to do with vitest. This session reads diffs and reviewer
+   output it does not control, so a mid-pattern wildcard is a real widening
+   and not a convenience. Accept the prompt, or add one trailing-wildcard
+   entry per package you actually need.
 5. Add disproved claims to `refuted`.
 6. **Rank, then cut.** Only a small fraction of findings are ever
    merge-blockers, and a real defect that arrives as one line inside a list of
@@ -1272,15 +1329,28 @@ that are still live.** Skip every `moot` finding: its anchors have all left
 the change by definition, the verdict pass excludes `moot` so those entries
 can never route anything, and the no-spawn gate reads the whole map — so a
 retired finding's stale anchor would spawn a reviewer pass over nothing the
-next time anyone edits that file. Then take a finding's anchors into the walk
-only if it was raised in a run whose `n` is at or after the first run written
-by a state with `version: 2` and an `outside_anchors` key.
+next time anyone edits that file.
 
-Key it on that, not on whether the run entry *records* `cold`: `formats.md`
-tells a reader to treat an absent `cold` as `false`, so an orchestrator that
-normalises the state before walking it resolves a value for every legacy
-entry and the presence test can never fail. A guard that cannot fail admits
-everything. Phase 0b
+Then apply the boundary, which the state **records explicitly**: the first
+run that writes `outside_anchors` also writes
+**`outside_anchors_since: <the index of that run>`** at the top level, and no
+later run changes it. A finding is eligible when its `raised_in_run` is at or
+after that value. Both fields already exist and are already written every
+run, so the test is evaluable from the state alone.
+
+Record the boundary rather than deriving it. Two earlier attempts could not
+be evaluated at all. Keying on whether a run entry *records* `cold` fails
+because `formats.md` tells a reader to treat an absent `cold` as `false`, so
+an orchestrator that normalises the state first resolves a value for every
+legacy entry and the presence test never fails — a guard that cannot fail
+admits everything. Keying on "the first run written by a `version: 2` state
+carrying the key" fails differently and worse: the state is rewritten whole
+every run, so nothing preserves when the key first appeared, `version: 2`
+predates this map, and run entries carry no index field at all in
+`formats.md`. That guard cannot be evaluated either way, which leaves the
+orchestrator to admit everything or nothing — the first restores the
+pinned-open defect below, the second leaves the map permanently empty.
+Phase 0b
 forbids backfilling because an anchor absent from `files` is equally a genuine
 outside anchor and a file that was in the change and later left, and this walk
 applies that same ambiguous test; without the guard, the first run after this
