@@ -1,8 +1,8 @@
 /**
  * Pegout state definitions and protocol-level terminal checks.
  *
- * Maps VP-reported pegout statuses from `vaultProvider_batchGetPegoutStatus`
- * to protocol lifecycle states.
+ * Maps VP-reported pegout statuses from
+ * `vaultProvider_batchGetPegoutStatusByVaultId` to protocol lifecycle states.
  *
  * Lifecycle (pegin-level, see btc-vault mod.rs PegoutStatus):
  *   ClaimEventReceived -> ClaimBroadcast -> AssertBroadcast ->

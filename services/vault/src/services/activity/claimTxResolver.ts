@@ -5,16 +5,15 @@
  * indexer only sees the EVM `VaultMarkedRedeemed` event — the BTC claim
  * is broadcast off-chain by the vault provider's claimer. This module
  * groups redeem vaults by `vaultProvider`, calls the SDK's
- * `vaultProvider_batchGetPegoutStatus` RPC per provider, and returns a
- * `vaultId -> claim_txid` map.
+ * `vaultProvider_batchGetPegoutStatusByVaultId` RPC per provider, and
+ * returns a `vaultId -> claim_txid` map.
  *
  * Failure handling: any VP-level error, missing claimer, or unknown
- * pegin_txid is dropped from the result. The activity row will then
+ * vault id is dropped from the result. The activity row will then
  * render the existing "Pending…" affordance — strictly better than
  * surfacing the unrelated EVM hash, which is the bug this module fixes.
  */
 
-import { stripHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
   batchPollByProvider,
   type GetPegoutStatusResponse,
@@ -37,7 +36,6 @@ export const CLAIM_TX_RPC_TIMEOUT_MS = 10_000;
 const BTC_TXID_REGEX = /^[0-9a-f]{64}$/i;
 
 export interface RedeemVaultLookup {
-  peginTxHash: string;
   vaultProvider: string;
 }
 
@@ -47,7 +45,6 @@ export interface RedeemActivityRef {
 
 interface PerVaultEntry {
   vaultId: string;
-  peginTxHash: string;
 }
 
 export async function resolveRedeemClaimTxids(
@@ -74,7 +71,7 @@ export async function resolveRedeemClaimTxids(
       continue;
     }
     const bucket = byProvider.get(info.vaultProvider);
-    const entry: PerVaultEntry = { vaultId, peginTxHash: info.peginTxHash };
+    const entry: PerVaultEntry = { vaultId };
     if (bucket) bucket.push(entry);
     else byProvider.set(info.vaultProvider, [entry]);
   }
@@ -93,9 +90,9 @@ export async function resolveRedeemClaimTxids(
         });
         await batchPollByProvider<PerVaultEntry, GetPegoutStatusResponse>({
           items: entries,
-          getTxid: (e) => stripHexPrefix(e.peginTxHash),
-          batchCall: (pegin_txids) =>
-            rpcClient.batchGetPegoutStatus({ pegin_txids }),
+          getVaultId: (e) => e.vaultId,
+          batchCall: (vault_ids) =>
+            rpcClient.batchGetPegoutStatusByVaultId({ vault_ids }),
           onItem: (entry, envelope) => {
             if (envelope.error !== null) return;
             const claimer = envelope.result?.claimer;

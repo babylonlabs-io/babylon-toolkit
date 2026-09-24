@@ -125,6 +125,7 @@ export async function signAndSubmitPayouts(
     statusReader: rpcClient,
     presignClient: rpcClient,
     btcWallet,
+    vaultId,
     peginTxid,
     depositorPk: stripHexPrefix(depositorBtcPubkey),
     signingContext: context,

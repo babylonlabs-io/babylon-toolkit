@@ -73,10 +73,12 @@ describe("createAuthenticatedVpClient", () => {
       depositorBtcPubkey: DEPOSITOR_PUBKEY,
     });
 
-    await client.getPeginStatus({ pegin_txid: PEGIN_TXID }).catch(() => {
-      // Validation error is fine; we only care that fetch ran exactly
-      // once and no auth-create call was issued.
-    });
+    await client
+      .getPeginStatusByVaultId({ vault_id: "ab".repeat(32) })
+      .catch(() => {
+        // Validation error is fine; we only care that fetch ran exactly
+        // once and no auth-create call was issued.
+      });
 
     expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
