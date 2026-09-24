@@ -70,7 +70,7 @@ export interface LoanContextValue {
   /** Refetch position data — returns fresh position (or null if unavailable) */
   refetchPosition: () => Promise<AavePositionWithLiveData | null>;
   /**
-   * Force a fresh contract round-trip for vault split params (CF / THF / LB).
+   * Force a fresh contract round-trip for vault split params (CF / LB).
    * Used by borrow and repay pre-sign validation to recompute the projected
    * health factor against current on-chain values rather than the cached ones.
    */

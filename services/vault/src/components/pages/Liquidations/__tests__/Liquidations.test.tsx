@@ -68,6 +68,7 @@ const useBtcPriceCandlesMock = vi.fn();
 
 vi.mock("@/applications/aave/hooks/useBtcPriceCandles", () => ({
   useBtcPriceCandles: () => useBtcPriceCandlesMock(),
+  TIMELINE_VISIBLE_CANDLES: 365,
 }));
 
 vi.mock("@/hooks/useLoanActions", () => ({
@@ -128,8 +129,9 @@ const LIVE_PARAMS: CalculatorParams = {
   ],
   CF: 0.75,
   THF: 1.1,
-  maxLB: 1.05,
+  LB: 1.05,
   expectedHF: 0.95,
+  minPeginBtc: 0.0005,
 };
 const LIVE_RESULT = calculate(LIVE_PARAMS);
 const [firstGroup, secondGroup] = LIVE_RESULT.groups;
@@ -167,8 +169,9 @@ const GOD_MODE_PARAMS: CalculatorParams = {
   vaults: [{ id: "god-vault-1", name: "God Vault 1", btc: 2 }],
   CF: 0.5,
   THF: 1.1,
-  maxLB: 1.05,
+  LB: 1.05,
   expectedHF: 0.95,
+  minPeginBtc: 0.0005,
 };
 const GOD_MODE_RESULT = calculate(GOD_MODE_PARAMS);
 
@@ -413,6 +416,19 @@ describe("Liquidation Dashboard — connection and position gates", () => {
       screen.getByText(
         `${COPY.liquidations.eventTitle(1)} (${formatBtcAmount(firstGroup.combinedBtc)})`,
       ),
+    ).toBeInTheDocument();
+  });
+
+  it("exposes the timeline's zoom controls, including Reset view", () => {
+    connectWallet();
+    useDashboardStateMock.mockReturnValue(CONNECTED_WITH_CASCADE);
+    usePositionNotificationsMock.mockReturnValue(READY_NOTIFICATIONS);
+
+    render(<Liquidations />);
+
+    expect(screen.getByRole("button", { name: "Zoom in" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Reset view" }),
     ).toBeInTheDocument();
   });
 

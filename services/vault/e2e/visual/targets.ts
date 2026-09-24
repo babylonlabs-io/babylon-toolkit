@@ -105,6 +105,12 @@ export const VISUAL_TARGETS: readonly VisualTarget[] = [
  * quadruple the capture for nothing.
  */
 export const DEPOSIT_FLOW_STOPS = {
+  /**
+   * The Connect Wallets dialog with both wallets chosen, just before Connect
+   * commits the session. The only stop that photographs wallet-connector's
+   * own screens: the core-ui Storybook capture does not build its stories.
+   */
+  connectDialog: "deposit-connect-dialog",
   /** Dashboard with a wallet connected - the empty state a new depositor sees. */
   connected: "deposit-connected",
   /** The deposit dialog as it opens, before anything is typed. */

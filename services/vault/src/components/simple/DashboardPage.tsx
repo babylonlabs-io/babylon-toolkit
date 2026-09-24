@@ -8,9 +8,13 @@ import { Container } from "@babylonlabs-io/core-ui";
 import { useMemo } from "react";
 import { useOutletContext } from "react-router";
 
-import { useSyncPendingVaults } from "@/applications/aave/context";
+import {
+  useAaveConfig,
+  useSyncPendingVaults,
+} from "@/applications/aave/context";
 import { useAaveVaults } from "@/applications/aave/hooks";
 import { usePositionNotifications } from "@/applications/aave/hooks/usePositionNotifications";
+import { toDisplayedBorrowReserveLimit } from "@/applications/aave/utils";
 import type { RootLayoutContext } from "@/components/pages/RootLayout";
 import {
   ENTRY_CONTENT_CLASS,
@@ -33,6 +37,11 @@ import {
   resolveLiquidationCardState,
   useLiquidationCardOverride,
 } from "@/overrides/liquidations";
+import {
+  cardBorrowCount,
+  cardBorrowedAssets,
+  useLoanOverride,
+} from "@/overrides/loans";
 import { usePositionCascadeOverride } from "@/overrides/position";
 import {
   formatBasisPointsAsPercent,
@@ -81,9 +90,9 @@ export function DashboardPage() {
     [cascadeOverride, positionNotifications, positionParams],
   );
   const {
+    position,
     collateralBtc,
     collateralValueUsd,
-    debtValueUsd,
     availableToBorrowUsd,
     canBorrow,
     collateralFactorBps,
@@ -94,7 +103,17 @@ export function DashboardPage() {
     hasCollateral,
     isBorrowCapacityLoading,
     borrowCapacityError,
+    isLoading,
+    positionError,
   } = useDashboardState(isConnected ? address : undefined);
+  // God-mode demo loans (dev only; compile-time null in production builds),
+  // counted the way the Loans card counts them so the two cards agree.
+  const demoLoans = useLoanOverride();
+
+  // Display only: an unavailable cap claims nothing, like no cap.
+  const maxBorrowReserves = toDisplayedBorrowReserveLimit(
+    useAaveConfig().maxBorrowReserves,
+  );
 
   const { openBorrowPicker, openRepay } = useLoanActions({
     borrowedAssets,
@@ -122,7 +141,6 @@ export function DashboardPage() {
 
   // Format display values
   const totalCollateralValue = formatUsdValue(collateralValueUsd);
-  const totalBorrowed = formatUsdValue(debtValueUsd);
   const availableToBorrow = formatUsdValue(availableToBorrowUsd);
   const collateralBtcText = formatBtcAmount(collateralBtc);
   // The Overview is purely a financial summary: an empty position renders every
@@ -246,7 +264,13 @@ export function DashboardPage() {
 
         <OverviewSection
           totalCollateralValue={totalCollateralValue}
-          totalBorrowed={totalBorrowed}
+          borrowedAssets={cardBorrowedAssets(demoLoans, borrowedAssets)}
+          maxBorrowReserves={maxBorrowReserves}
+          borrowCount={cardBorrowCount(demoLoans, {
+            position,
+            isLoading,
+            positionError,
+          })}
           availableToBorrow={availableToBorrow}
           collateralBtc={collateralBtcText}
           borrowCapacityLoading={isBorrowCapacityLoading}

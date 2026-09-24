@@ -122,7 +122,7 @@ export interface UseAaveReserveDetailResult {
   refetchPosition: () => Promise<AavePositionWithLiveData | null>;
   /**
    * Force a fresh contract round-trip for vault split params
-   * (`getDynamicReserveConfig` + `getTargetHealthFactor`). Use immediately
+   * (`getDynamicReserveConfig` + `getLiquidationConfig`). Use immediately
    * before signing a borrow or repay so the projected-HF math runs against
    * current on-chain values, not the React Query cache.
    */

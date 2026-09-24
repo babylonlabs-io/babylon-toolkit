@@ -178,7 +178,13 @@ const APR_BY_RESERVE_ID = { "1": 3.5, "2": 1.2 };
 
 const PRICES_BY_RESERVE_ID = { "1": 1.0, "2": 90_000 };
 
-const SPLIT_PARAMS = { THF: 1.1, CF: 0.75, LB: 1.05 };
+const SPLIT_PARAMS = {
+  THF: 1.1,
+  expectedHF: 0.95,
+  CF: 0.75,
+  LB: 1.05,
+  maxLB: 1.05,
+};
 
 // Deliberately different from `USDC_RESERVE.token.symbol`/`name` — this is
 // what "shows the VERIFIED identity, not the indexer symbol" (test 5) proves

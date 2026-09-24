@@ -95,6 +95,8 @@ import { assertUtxosAvailable } from "@/services/vault/vaultUtxoValidationServic
 import { resolveVpAuthPinnedPubkey } from "@/services/vault/vpAuthPinnedPubkey";
 import {
   addPendingPegin,
+  getPendingPegins,
+  PendingPeginStorageReadError,
   removePendingPegin,
   updatePendingPeginStatus,
 } from "@/storage/peginStorage";
@@ -145,6 +147,11 @@ import { useVaultProviders } from "./useVaultProviders";
 export interface UseDepositFlowParams {
   /** Vault amounts in satoshis - [amount1] for single vault, [amount1, amount2] for two vaults */
   vaultAmounts: bigint[];
+  /**
+   * Deposit amount the depositor approved, in satoshis. The vault amounts
+   * must add up to it; checked before any signing.
+   */
+  depositAmountSats: bigint;
   /** Mempool fee rate in sat/vB for UTXO selection and funding */
   mempoolFeeRate: number;
   /** Bitcoin wallet provider */
@@ -281,6 +288,7 @@ export function useDepositFlow(
 ): UseDepositFlowReturn {
   const {
     vaultAmounts,
+    depositAmountSats,
     mempoolFeeRate,
     btcWalletProvider,
     depositorEthAddress,
@@ -528,6 +536,7 @@ export function useDepositFlow(
           btcAddress,
           depositorEthAddress,
           vaultAmounts,
+          depositAmountSats,
           selectedProviders,
           confirmedUTXOs: spendableUTXOs,
           vaultProviderBtcPubkey,
@@ -851,6 +860,21 @@ export function useDepositFlow(
           batchResult.fundedPrePeginTxHex,
           confirmedBtcAddress,
         );
+
+        try {
+          getPendingPegins(confirmedEthAddress);
+        } catch (storageErr) {
+          if (!(storageErr instanceof PendingPeginStorageReadError)) {
+            throw storageErr;
+          }
+          logger.error(storageErr, {
+            tags: {
+              component: "useDepositFlow",
+              phase: "storage-readable",
+            },
+          });
+          throw storageErr;
+        }
 
         // 3e. Single batch ETH transaction for all vaults.
         advanceStep(DepositFlowStep.SUBMIT_PEGIN);
@@ -1743,6 +1767,7 @@ export function useDepositFlow(
       runCancellableSign,
       gate,
       vaultAmounts,
+      depositAmountSats,
       mempoolFeeRate,
       btcWalletProvider,
       btcConnector?.connectedWallet?.id,

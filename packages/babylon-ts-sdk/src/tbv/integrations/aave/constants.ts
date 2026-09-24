@@ -93,3 +93,12 @@ export const MIN_HEALTH_FACTOR_FOR_BORROW = 1.05;
  * the user's balance, so a larger buffer never blocks a legitimate repay.
  */
 export const FULL_REPAY_BUFFER_DIVISOR = 200n; // 1/200 = 0.5% buffer
+
+/**
+ * Sentinel the Spoke stores in `MAX_USER_RESERVES_LIMIT` to mean "no cap"
+ * (`type(uint16).max`). The contract skips the reserve-count check on this
+ * value, so callers must treat it as unlimited and never show it to a user.
+ *
+ * Reference: Spoke.sol MAX_ALLOWED_USER_RESERVES_LIMIT
+ */
+export const MAX_ALLOWED_USER_RESERVES_LIMIT = 65535;

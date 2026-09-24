@@ -31,6 +31,16 @@ export interface UseAllocationPlanningResult {
    * amount is zero/out of range). Drives the "increase your deposit" hint.
    */
   isSplitAmountTooLow: boolean;
+  /**
+   * True when the split sizing rules refuse a two-vault split at the current
+   * parameters (SDK `findSplitSizingViolation`), whatever the amount.
+   */
+  isSplitSizingRefused: boolean;
+  /**
+   * True when the split parameters could not be read, so no split can be
+   * sized. The deposit still proceeds as a single vault.
+   */
+  isSplitParamsUnavailable: boolean;
   /** Whether split params are still loading */
   isLoading: boolean;
 }
@@ -49,7 +59,9 @@ export function useAllocationPlanning({
     protectedVault,
     canSplit,
     minDepositForSplit,
+    sizingViolation,
     isLoading,
+    isParamsUnavailable,
   } = useOptimalSplit(amountSats, ethAddress);
 
   const vaultAmounts = useMemo(() => {
@@ -85,6 +97,8 @@ export function useAllocationPlanning({
     splitRatioLabel,
     minDepositForSplit,
     isSplitAmountTooLow,
+    isSplitSizingRefused: sizingViolation !== null,
+    isSplitParamsUnavailable: isParamsUnavailable,
     isLoading,
   };
 }

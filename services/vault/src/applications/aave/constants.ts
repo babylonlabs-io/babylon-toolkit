@@ -37,14 +37,6 @@ export const CONFIG_STALE_TIME_MS = 5 * 60 * 1000;
 export const CONFIG_RETRY_COUNT = 3;
 
 /**
- * Expected health factor at liquidation (worst-case assumption).
- * Used in vault split calculations to determine how much collateral
- * would be seized. 0.95 means we assume HF drops to 0.95 before
- * liquidation triggers.
- */
-export const EXPECTED_HEALTH_FACTOR_AT_LIQUIDATION = 0.95;
-
-/**
  * Block threshold for vault withdrawal: if the projected health factor
  * after withdrawing the selected vaults would be below this value, the
  * FE disables the Confirm button to avoid a guaranteed on-chain revert
@@ -62,14 +54,6 @@ export const WITHDRAW_HF_BLOCK_THRESHOLD = 1.0;
  * surface per product decision.
  */
 export const WITHDRAW_HF_WARNING_THRESHOLD = 1.1;
-
-/**
- * Safety margin multiplier for sacrificial vault sizing.
- * 1.05 means the sacrificial vault is sized 5% larger than the
- * computed target seizure to account for price movements between
- * split computation and actual liquidation.
- */
-export const VAULT_SPLIT_SAFETY_MARGIN = 1.05;
 
 /**
  * Refetch interval for position data (30 seconds)

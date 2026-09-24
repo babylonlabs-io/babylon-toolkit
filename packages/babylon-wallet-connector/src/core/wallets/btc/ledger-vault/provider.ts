@@ -42,10 +42,12 @@ import {
   isSessionAlive,
   prepareSignPsbt,
   psbtPaysChangeScript,
+  refreshSessionApp,
   signPreparedVaultPsbt,
   SW_BAD_STATE,
   SW_CAP_EXCEEDED,
   SW_CLA_NOT_SUPPORTED,
+  SW_INS_NOT_SUPPORTED,
   type ApduSender,
   type DefaultTaprootWalletPolicy,
   type DepositTerms,
@@ -60,6 +62,7 @@ import {
 
 import type { IBTCProvider, InscriptionIdentifier, SigningProgress, SignPsbtOptions } from "@/core/types";
 import { Network } from "@/core/types";
+import { checkMinVersion } from "@/core/utils/checkMinVersion";
 import { getTaprootAddress, toNetwork } from "@/core/utils/wallet";
 import { ERROR_CODES, WalletError } from "@/error";
 
@@ -78,6 +81,18 @@ const COIN_TYPE_BY_NETWORK: Record<Network, number> = {
   [Network.TESTNET]: 1,
   [Network.SIGNET]: 1,
 };
+
+// Firmware Makefile APPNAME: COIN=babylon_vault → "Babylon Vault"; COIN=babylon_vault_testnet
+// (which targets signet) → "Babylon Vault Testnet". The dashboard reports "BOLOS".
+const APP_NAME_BY_NETWORK: Record<Network, string> = {
+  [Network.MAINNET]: "Babylon Vault",
+  [Network.TESTNET]: "Babylon Vault Testnet",
+  [Network.SIGNET]: "Babylon Vault Testnet",
+};
+
+// Floor = app-babylon-vault develop @ b0c0ac4d (APPVERSION 0.10.1), the build the host's
+// envelope caps and refund checks are mirrored from.
+const MIN_APP_VERSION = "0.10.1";
 const ACCOUNT_INDEX = 0;
 const CHANGE_INDEX = 0;
 const ADDRESS_INDEX = 0;
@@ -206,7 +221,8 @@ export class LedgerVaultProvider implements IBTCProvider {
   /** Request-identity keys ({@link signingRequestKey}) signed under the CURRENT loaded intent. */
   private signedFingerprints = new Set<string>();
   /**
-   * ONE in-flight device ceremony (derive/approve/sign) at a time — a
+   * ONE in-flight device ceremony (derive/approve/sign, plus the connect
+   * re-gate's app read) at a time — a
    * concurrent APDU would be eaten with 0x6A80 and desync the interrupt loop.
    * Token-scoped: teardown clears it SYNCHRONOUSLY so a new connection can
    * operate while a stale call is still settling; that call's finally
@@ -221,8 +237,14 @@ export class LedgerVaultProvider implements IBTCProvider {
   constructor(private readonly network: Network = Network.MAINNET) {}
 
   /**
-   * See {@link activeOperation}. The busy throw costs zero device I/O; it
-   * fires only on a caller bug (two overlapping ceremonies).
+   * See {@link activeOperation}. The busy throw costs zero device I/O. Two
+   * overlapping ceremonies are a caller bug; {@link gateUngatedSession} also
+   * holds the lock for one GET_APP_AND_VERSION on a tab return, so a ceremony
+   * started in that window hits this legitimately. The window is one instant
+   * exchange: the SDK answers a locked device with 0x5515 before the app's
+   * dispatcher sees it (`sdk:io_legacy/src/os_io_legacy.c:414-423` @ v26.6.1),
+   * and DMK 1.7.1
+   * never holds the read for an unlock (IntentQueueService has no lock gating).
    */
   private async withDeviceOperation<T>(operation: string, fn: () => Promise<T>): Promise<T> {
     if (this.activeOperation) {
@@ -303,7 +325,13 @@ export class LedgerVaultProvider implements IBTCProvider {
     // Idempotent while the session lives: visibility checks re-call this
     // outside a user gesture, where WebHID's requestDevice rejects — tearing
     // down a healthy session would turn an alt-tab into a forced disconnect.
-    if (this.session && (await this.probeSessionAlive(this.session))) return;
+    // Pin the handle before the await: a disconnect mid-probe clears
+    // this.session synchronously, and the gate would deref undefined.
+    const live = this.session;
+    if (live && (await this.probeSessionAlive(live))) {
+      await this.gateUngatedSession(live, token);
+      return;
+    }
     // A disconnect during the probe means the caller no longer wants a
     // session — skip opening one at all.
     if (token !== this.disconnectToken) return;
@@ -312,19 +340,9 @@ export class LedgerVaultProvider implements IBTCProvider {
     // This bumps connectionGeneration (not the token — it is our own cleanup).
     if (this.session) await this.teardownSession();
 
+    let session: DmkSessionHandle;
     try {
-      const session = await connectDmkSession();
-      // A disconnect racing any await up to here (the probe, teardown, or this
-      // connect) bumped the token — tear the fresh session down rather than
-      // installing it behind a disconnected wallet.
-      if (token !== this.disconnectToken) {
-        await disconnectDmkSession(session);
-        return;
-      }
-      this.session = session;
-      this.send = withWalletErrorMapping(createDmkApduSender(session));
-      this.rawSend = createDmkRawApduSender(session);
-      this.connectionGeneration += 1;
+      session = await connectDmkSession();
     } catch (error) {
       // DMK errors don't extend Error — classify on `_tag`/`originalError`.
       // A dismissed WebHID picker becomes NoAccessibleDeviceError("No selected
@@ -339,7 +357,87 @@ export class LedgerVaultProvider implements IBTCProvider {
         wallet: WALLET_PROVIDER_NAME,
       });
     }
+
+    // A disconnect racing any await up to here (the probe, teardown, or the
+    // connect) bumped the token — tear the fresh session down rather than
+    // installing it behind a disconnected wallet.
+    if (token !== this.disconnectToken) {
+      await disconnectDmkSession(session);
+      return;
+    }
+    const refusal = this.refuseUnexpectedApp(session);
+    if (refusal) {
+      await disconnectDmkSession(session);
+      throw refusal;
+    }
+    this.session = session;
+    this.send = withWalletErrorMapping(createDmkApduSender(session));
+    this.rawSend = createDmkRawApduSender(session);
+    this.connectionGeneration += 1;
   };
+
+  /**
+   * A session installed after a failed preflight was never gated, and a
+   * retry (unlock, open an app, connect again) reuses it while it lives. Read
+   * the app now and gate it. The phase alone is not "no ceremony in flight"
+   * (derive, approve, PoP and refund all send at idle), so the read skips a
+   * running ceremony and holds the ceremony lock itself.
+   */
+  private async gateUngatedSession(session: DmkSessionHandle, token: number): Promise<void> {
+    // A disconnect that landed during the probe already owns the session.
+    if (token !== this.disconnectToken || this.session !== session) return;
+    if (session.appName !== undefined || this.activeOperation || this.deviceState.phase !== "idle") return;
+    const refreshed = await this.withDeviceOperation("connectWallet", () => refreshSessionApp(session));
+    // A disconnect or teardown during the read owns the session now.
+    if (token !== this.disconnectToken || this.session !== session) return;
+    const refusal = this.refuseUnexpectedApp(refreshed);
+    if (refusal) {
+      await this.teardownSession();
+      throw refusal;
+    }
+    // Nothing learned: the copy is equal, so leave the senders alone.
+    if (refreshed.appName === undefined) return;
+    // Same session: keep the generation, rebuild the senders so the app hint names the app.
+    this.session = refreshed;
+    this.send = withWalletErrorMapping(createDmkApduSender(refreshed));
+    this.rawSend = createDmkRawApduSender(refreshed);
+  }
+
+  /**
+   * Refuse, before the first vault APDU, an app the connect preflight shows is
+   * wrong or too old. A failed preflight (no name) is let through: the first
+   * APDU then reports its own typed error.
+   */
+  private refuseUnexpectedApp(session: DmkSessionHandle): WalletError | undefined {
+    const expected = APP_NAME_BY_NETWORK[this.network];
+    if (session.appName !== undefined && session.appName !== expected) {
+      return new WalletError({
+        code: ERROR_CODES.DEVICE_WRONG_APP,
+        message: `Open the ${expected} app on your Ledger and try again.`,
+        wallet: WALLET_PROVIDER_NAME,
+      });
+    }
+    if (session.appVersion === undefined) return undefined;
+    const version = checkMinVersion(session.appVersion, MIN_APP_VERSION);
+    if (version === "below") {
+      return new WalletError({
+        code: ERROR_CODES.INCOMPATIBLE_WALLET_VERSION,
+        message: `Your ${expected} app is out of date (${session.appVersion}). Update it to ${MIN_APP_VERSION} or later and try again.`,
+        wallet: WALLET_PROVIDER_NAME,
+        version: session.appVersion,
+      });
+    }
+    // Non-canonical version (fork or canary build): fail closed without claiming
+    // it is old, and do not echo the device's own string back to the user.
+    if (version === "unparseable") {
+      return new WalletError({
+        code: ERROR_CODES.INCOMPATIBLE_WALLET_VERSION,
+        message: `Unable to verify your ${expected} app version. Install the official app ${MIN_APP_VERSION} or later and try again.`,
+        wallet: WALLET_PROVIDER_NAME,
+      });
+    }
+    return undefined;
+  }
 
   /**
    * Release the device session; the DMK singleton stays up. `closeDmk()` here
@@ -1349,7 +1447,12 @@ function toSignerWalletError(error: unknown): WalletError | undefined {
       { cause: error },
     );
   }
-  if (isLedgerDeviceError(error) && error.statusWord === SW_CLA_NOT_SUPPORTED) {
+  // Both mean the running app is not the vault app: an unknown class, or a known
+  // class (the shared Bitcoin base) without the vault instructions.
+  if (
+    isLedgerDeviceError(error) &&
+    (error.statusWord === SW_CLA_NOT_SUPPORTED || error.statusWord === SW_INS_NOT_SUPPORTED)
+  ) {
     return new WalletError(
       { code: ERROR_CODES.DEVICE_WRONG_APP, message: error.message, wallet: WALLET_PROVIDER_NAME },
       { cause: error },

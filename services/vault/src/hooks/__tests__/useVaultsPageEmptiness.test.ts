@@ -10,6 +10,7 @@ import {
   PeginAction,
   type PeginState,
 } from "@/models/peginStateMachine";
+import { PendingPeginStorageReadError } from "@/storage/peginStorage";
 import type { VaultActivity } from "@/types/activity";
 import type { DepositPollingResult } from "@/types/peginPolling";
 
@@ -115,6 +116,7 @@ const depositsState = {
   reclaimableCandidates: [] as VaultActivity[],
   isLoading: false,
   error: null as Error | null,
+  storageReadError: null as PendingPeginStorageReadError | null,
 };
 
 const stubActivity = (id: string) => ({ id }) as VaultActivity;
@@ -157,7 +159,26 @@ describe("useVaultsPageEmptiness", () => {
     pollingResults.clear();
     reclaimChainData.clear();
     reclaimStatuses.clear();
+    depositsState.storageReadError = null;
     useDashboardStateMock.mockClear();
+  });
+
+  it("reports unreadable storage instead of claiming an empty account", () => {
+    depositsState.storageReadError = new PendingPeginStorageReadError(
+      "0xdepositor",
+      '[{"id":',
+      new SyntaxError("Unexpected end of JSON input"),
+    );
+
+    const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
+
+    expect(result.current).toEqual({
+      isLoading: false,
+      isEmpty: false,
+      hasError: true,
+      hasPartialError: false,
+      storageOnlyError: true,
+    });
   });
 
   it("is empty and not loading while disconnected", () => {
@@ -170,6 +191,7 @@ describe("useVaultsPageEmptiness", () => {
       isEmpty: true,
       hasError: false,
       hasPartialError: false,
+      storageOnlyError: false,
     });
   });
 
@@ -218,6 +240,7 @@ describe("useVaultsPageEmptiness", () => {
       isEmpty: false,
       hasError: false,
       hasPartialError: false,
+      storageOnlyError: false,
     });
     expect(useDashboardStateMock).toHaveBeenCalledWith("0xdepositor");
   });
@@ -232,6 +255,7 @@ describe("useVaultsPageEmptiness", () => {
       isEmpty: false,
       hasError: false,
       hasPartialError: false,
+      storageOnlyError: false,
     });
   });
 
@@ -348,6 +372,7 @@ describe("useVaultsPageEmptiness", () => {
       isEmpty: true,
       hasError: false,
       hasPartialError: false,
+      storageOnlyError: false,
     });
   });
 
@@ -361,6 +386,7 @@ describe("useVaultsPageEmptiness", () => {
       isEmpty: false,
       hasError: true,
       hasPartialError: false,
+      storageOnlyError: false,
     });
   });
 
@@ -384,6 +410,7 @@ describe("useVaultsPageEmptiness", () => {
       isEmpty: false,
       hasError: false,
       hasPartialError: true,
+      storageOnlyError: false,
     });
   });
 
@@ -416,14 +443,34 @@ describe("useVaultsPageEmptiness", () => {
   });
 
   it("does not flag a partial error alongside the full-page error state", () => {
-    // Nothing showable + a failed read is the full-page hasError case; the
-    // partial flag must not also fire or the page would try to render both.
+    // Nothing showable + a failed remote read is the full-page hasError case;
+    // the partial flag must not also fire on that alone. Unreadable browser
+    // records are the exception — see the test below.
     dashboardState.positionError = new Error("rpc down");
 
     const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
 
     expect(result.current.hasError).toBe(true);
     expect(result.current.hasPartialError).toBe(false);
+  });
+
+  it("flags a partial error alongside the full-page error when storage is also unreadable", () => {
+    dashboardState.positionError = new Error("rpc down");
+    depositsState.storageReadError = new PendingPeginStorageReadError(
+      "0xdepositor",
+      '[{"id":',
+      new SyntaxError("Unexpected end of JSON input"),
+    );
+
+    const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
+
+    expect(result.current).toEqual({
+      isLoading: false,
+      isEmpty: false,
+      hasError: true,
+      hasPartialError: true,
+      storageOnlyError: false,
+    });
   });
 
   it("ignores query errors while disconnected", () => {
@@ -437,6 +484,7 @@ describe("useVaultsPageEmptiness", () => {
       isEmpty: true,
       hasError: false,
       hasPartialError: false,
+      storageOnlyError: false,
     });
   });
 });

@@ -59,13 +59,23 @@ jobs:
             exit 1
           fi
 
-      # Note: a dedicated `nx typecheck` step is intentionally omitted.
-      # The auto-generated `typecheck` target is disabled by @nx/js for
-      # projects with `noEmit: true` in their tsconfig graph (vault, core-ui,
-      # wallet-connector). Each service's `build` script runs
-      # `tsc --noEmit -p tsconfig.lib.json` before bundling, so types are
-      # still validated below. A separate ticket should untangle the
-      # `noEmit` references so a fast typecheck step is possible.
+      # Note: a dedicated `nx typecheck` step is not run here, and adding one
+      # before this point would not work. Every project with a `build`
+      # declares an explicit `typecheck` script — that build's type-checking
+      # pass, with `--noEmit` added where the build itself emits — which
+      # overrides the stub @nx/js generates for `noEmit: true` projects and
+      # keeps them off the inferred target whose sync generator aborts the
+      # run. But workspace types resolve through `node_modules` to each
+      # dependency's built `dist`, which is gitignored and not built on
+      # install, and `typecheck` carries no `dependsOn: ["^build"]` (that was
+      # tried and reverted: it drags a proto `git clone` and every dependency
+      # build into the foreground). So in a fresh clone, before `Build all`,
+      # tsc fails with module-not-found rather than reporting type errors.
+      # After the build, a blanket `nx affected -t typecheck` would mostly
+      # repeat each project's own build-time check — but not for every
+      # project, which is why `@internal/release`, whose only type-checking
+      # is its `typecheck` script, gets its own step below.
+      # `/pre-review` runs this locally, where `dist` is usually populated.
 
       - name: Build all
         run: pnpm build

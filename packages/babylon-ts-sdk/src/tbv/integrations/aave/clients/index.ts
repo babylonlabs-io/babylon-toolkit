@@ -7,15 +7,17 @@ export {
 // Spoke operations
 export {
   getDynamicReserveConfig,
+  getLiquidationBonusConfig,
+  getMaxUserReservesLimit,
   getReserve,
   getReserves,
-  getTargetHealthFactor,
   getUserAccountData,
   getUserPosition,
   getUserPositionAndAccountData,
   getUserPositions,
   getUserTotalDebt,
   getUserTotalDebts,
+  type LiquidationBonusConfig,
 } from "./spoke.js";
 
 // Position-proxy operations

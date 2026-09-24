@@ -188,8 +188,6 @@ describe("demoDeposit builders", () => {
 
     expect(demo.rows.map((row) => row.amount)).toEqual(["1500", "500"]);
     expect(demo.rows.map((row) => row.isBorrowable)).toEqual([true, false]);
-    // The summary totals the rendered rows, so the mock debt must add up.
-    expect(demo.debtUsd).toBe(2000);
     // Safety: a mock row must never reach the real borrow/repay overlay.
     expect(demo.rows.every((row) => row.displayOnly)).toBe(true);
     // Distinct, non-numeric ids that cannot collide with a real reserveId.

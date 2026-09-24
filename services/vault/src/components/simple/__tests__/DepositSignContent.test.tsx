@@ -132,6 +132,7 @@ function contentElement(
   return (
     <DepositSignContent
       vaultAmounts={[100000n]}
+      depositAmountSats={100000n}
       mempoolFeeRate={1}
       btcWalletProvider={{} as unknown as BitcoinWallet}
       depositorEthAddress={

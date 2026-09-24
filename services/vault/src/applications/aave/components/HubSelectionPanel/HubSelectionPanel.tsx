@@ -6,6 +6,9 @@
  * is where they are compared: hub, Borrow APR, what is available to borrow in
  * USD (the hub's liquidity, capped by our borrow limit on it), and a link to
  * that market's page. Selecting a row opens that reserve's form.
+ *
+ * Each hub is its own reserve, so the spoke's borrow-reserve cap applies per
+ * row: at the cap only the market the position already owes stays pickable.
  */
 
 import { Avatar } from "@babylonlabs-io/core-ui";
@@ -29,9 +32,14 @@ import {
   useAaveReserveLiquidity,
   useAaveReservesPrices,
 } from "../../hooks";
+import {
+  isReserveSelectable,
+  type BorrowReserveGate,
+} from "../../utils/borrowReserveLimit";
 import { compactUsdLabel } from "../../utils/marketLabels";
 import { groupReservesByUnderlying } from "../../utils/reserveGroups";
 import { getReserveTokenLabel } from "../../utils/reserveTokenLabel";
+import { BorrowLimitNotice } from "../BorrowLimitNotice";
 import { HubLabel } from "../HubLabel";
 import { LoanPickerFrame } from "../LoanPickerFrame";
 
@@ -39,10 +47,12 @@ interface HubSelectionPanelProps {
   /** Token chosen in Select asset; only its borrowable reserves are listed. */
   underlying: Address;
   onSelectReserve: (reserveId: bigint) => void;
+  /** The position's standing against the spoke's borrow-reserve cap. */
+  borrowGate: BorrowReserveGate;
 }
 
 /** Width of the leading Asset column; the stats share the remaining row. */
-const ASSET_COL_CLASS = "flex w-[220px] shrink-0 items-center gap-4";
+const ASSET_COL_CLASS = "flex w-[200px] shrink-0 items-center gap-4";
 
 /** Gap between the select control and the Market Info button, in px. */
 const MARKET_INFO_GAP_PX = 16;
@@ -56,6 +66,7 @@ const MARKET_INFO_COL_STYLE = {
 export function HubSelectionPanel({
   underlying,
   onSelectReserve,
+  borrowGate,
 }: HubSelectionPanelProps) {
   const navigate = useNavigate();
   const { config, borrowableReserves } = useAaveConfig();
@@ -92,6 +103,7 @@ export function HubSelectionPanel({
         return {
           key,
           reserveId: reserve.reserveId,
+          selectable: isReserveSelectable(borrowGate, reserve.reserveId),
           token: getReserveTokenLabel(reserve),
           hub: getHubIdentity(reserve.reserve.hub),
           aprLabel:
@@ -112,6 +124,7 @@ export function HubSelectionPanel({
       }),
     [
       reserves,
+      borrowGate,
       aprPercentByReserveId,
       liquidityByReserveId,
       headroomByReserveId,
@@ -120,7 +133,14 @@ export function HubSelectionPanel({
   );
 
   return (
-    <LoanPickerFrame title={COPY.loans.hub.selectTitle}>
+    <LoanPickerFrame
+      title={COPY.loans.hub.selectTitle}
+      notice={
+        borrowGate.limit !== null && (
+          <BorrowLimitNotice mode="hub" limit={borrowGate.limit} />
+        )
+      }
+    >
       {rows.length === 0 ? (
         <p className="py-4 text-center text-accent-secondary">
           {COPY.loans.hub.empty}
@@ -144,12 +164,15 @@ export function HubSelectionPanel({
               // button, so the card's padding and hover move here.
               <div
                 key={row.key}
-                className="flex w-full items-center gap-4 rounded-xl bg-secondary-highlight p-4 transition-colors hover:bg-secondary-strokeLight dark:bg-primary-main dark:hover:bg-secondary-strokeDark"
+                className={`flex w-full items-center gap-4 rounded-xl bg-background-secondary p-4 transition-colors ${
+                  row.selectable ? "hover:brightness-125" : "opacity-40"
+                }`}
               >
                 <button
                   type="button"
+                  disabled={!row.selectable}
                   onClick={() => onSelectReserve(row.reserveId)}
-                  className="flex min-w-0 flex-1 cursor-pointer items-center text-left"
+                  className="flex min-w-0 flex-1 items-center text-left enabled:cursor-pointer"
                   // E2E: e2e/real/actions/borrow.ts (selectHub) clicks the row
                   // by reserve id. Every row shares the token symbol, so the
                   // id is the only thing that tells them apart.
@@ -166,9 +189,9 @@ export function HubSelectionPanel({
                     <div className="flex min-w-0 flex-col items-start">
                       <HubLabel
                         hub={row.hub}
-                        className="text-base text-accent-primary"
+                        className="text-base leading-[1.5] tracking-[0.15px] text-accent-primary"
                       />
-                      <span className="text-xs text-accent-secondary">
+                      <span className="text-xs leading-[1.66] tracking-[0.4px] text-accent-secondary">
                         {row.token.symbol}
                       </span>
                     </div>

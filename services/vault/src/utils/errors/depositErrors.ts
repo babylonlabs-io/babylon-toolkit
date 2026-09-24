@@ -78,6 +78,7 @@ import {
   isBuildLimitsDriftError,
   isBuildPreconditionError,
 } from "@/services/vault/pinnedBuildLimits";
+import { PendingPeginStorageReadError } from "@/storage/peginStorage";
 
 import {
   isDepositorBtcKeyMismatchError,
@@ -209,6 +210,10 @@ export function mapDepositError(err: unknown): DepositErrorContent {
   // wording check is step 6, deliberately below the typed buckets.
   if (isTypedUserRejectionFrame(err)) {
     return ERRORS.signingRejected;
+  }
+
+  if (err instanceof PendingPeginStorageReadError) {
+    return ERRORS.storageUnreadable;
   }
 
   // 3. Protocol-parameter version mismatch (registered vault drifted).

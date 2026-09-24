@@ -10,7 +10,7 @@
  *
  * Under `--eth-only` the two Bitcoin steps are skipped and the rest is unchanged, so the app reaches
  * the connected state on a confirmed Ethereum wallet alone — what `useConnection` allows once
- * Ethereum-only access is on. The Bitcoin row is labelled "(Optional)" exactly when that access is on,
+ * Ethereum-only access is on. The Bitcoin row is marked `data-optional="true"` exactly when that access is on,
  * which is read here to fail an `--eth-only` run against a flag-off build by name, rather than letting
  * it time out later on a control that was never going to appear.
  *
@@ -44,12 +44,12 @@ const ETH_APPKIT_NAME: Record<EthWalletId, RegExp> = { metamask: /metamask/i };
 const SELECT_BTC_TESTID = '[data-testid="select-bitcoin-wallet-button"]';
 
 /**
- * The suffix the connect screen appends to a chain that is not required, from
- * `OPTIONAL_CHAIN_TITLE_SUFFIX` in packages/babylon-wallet-connector/src/components/Chains/index.tsx.
- * Its presence on the Bitcoin row is the build's own statement that Ethereum-only access is on, so it
- * is the cheapest proof that the served bundle matches the run being asked for.
+ * The attribute the connect screen sets to "true" on a chain that is not required, from `ChainButton`
+ * in packages/babylon-wallet-connector/src/components/ChainButton/index.tsx. Its presence on the
+ * Bitcoin row is the build's own statement that Ethereum-only access is on, so it is the cheapest
+ * proof that the served bundle matches the run being asked for.
  */
-const OPTIONAL_CHAIN_SUFFIX = "(Optional)";
+const OPTIONAL_CHAIN_ATTRIBUTE = "data-optional";
 
 /**
  * Read the Bitcoin row and check the served build against the run.
@@ -77,14 +77,15 @@ async function checkBitcoinRowAgainstRun(
       { cause: error },
     );
   }
-  const isOptional = (await row.innerText()).includes(OPTIONAL_CHAIN_SUFFIX);
+  const isOptional =
+    (await row.getAttribute(OPTIONAL_CHAIN_ATTRIBUTE)) === "true";
   if (ethOnly && !isOptional)
     throw new Error(
-      `connect: --eth-only, but the connect screen's Bitcoin row is not marked "${OPTIONAL_CHAIN_SUFFIX}", so the served build still requires Bitcoin. Possible causes: the build has NEXT_PUBLIC_FF_ENABLE_ETH_FIRST off (a dev server left running on this port is reused as-is, so stop it and re-run); the wallet-connector dist predates optional chains (rebuild it); or the connector changed the "${OPTIONAL_CHAIN_SUFFIX}" wording (update OPTIONAL_CHAIN_SUFFIX).`,
+      `connect: --eth-only, but the connect screen's Bitcoin row is not marked ${OPTIONAL_CHAIN_ATTRIBUTE}="true", so the served build still requires Bitcoin. Possible causes: the build has NEXT_PUBLIC_FF_ENABLE_ETH_FIRST off (a dev server left running on this port is reused as-is, so stop it and re-run); the wallet-connector dist predates the ${OPTIONAL_CHAIN_ATTRIBUTE} marker (rebuild it); or the connector renamed the ${OPTIONAL_CHAIN_ATTRIBUTE} attribute (update OPTIONAL_CHAIN_ATTRIBUTE).`,
     );
   if (!ethOnly && isOptional)
     log(
-      `Note: this build marks Bitcoin "${OPTIONAL_CHAIN_SUFFIX}" (Ethereum-only access is on), so the app can count the session connected without the Bitcoin approval. Connecting Bitcoin still works; a missed approval would just fail later than here.`,
+      `Note: this build marks Bitcoin optional (Ethereum-only access is on), so the app can count the session connected without the Bitcoin approval. Connecting Bitcoin still works; a missed approval would just fail later than here.`,
     );
 }
 

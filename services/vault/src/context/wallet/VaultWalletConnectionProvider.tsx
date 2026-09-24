@@ -21,6 +21,7 @@ import {
 import { getNetworkConfigBTC } from "@/config";
 import featureFlags from "@/config/featureFlags";
 import { getNetworkConfigETH } from "@/config/network";
+import { COPY } from "@/copy";
 import { isSpeculosTransportArmed } from "@/e2e/speculosTransportBootstrap";
 import { logger } from "@/infrastructure";
 import { isUserCancellation } from "@/utils/errors/userCancellation";
@@ -264,6 +265,7 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
       dialogActions={<StandardSettingsMenu theme={theme} setTheme={setTheme} />}
       dialogCloseButtonClassName={WALLET_DIALOG_LEFT_INSET_CLASS}
       dialogActionsClassName={WALLET_DIALOG_RIGHT_INSET_CLASS}
+      chainDescriptions={COPY.wallet.chainDescriptions}
     >
       <WalletProviders>{children}</WalletProviders>
     </WalletProvider>

@@ -2,6 +2,10 @@
  * UTXO-overlap advisory: predicts the SDK's coin selection and reports
  * how many of the depositor's pending vaults share an outpoint with it.
  * Informational only — the modal banner does not block.
+ *
+ * Returns `"unreadable"` when this browser's stored deposit records could not
+ * be read, so the advisory says the check did not run rather than passing an
+ * unchecked selection off as clean.
  */
 import {
   DUST_THRESHOLD,
@@ -14,7 +18,11 @@ import type { Address } from "viem";
 
 import { useVaults } from "@/hooks/useVaults";
 import { capFundingUtxos } from "@/services/deposit/fundingInputCap";
-import { getPendingPegins } from "@/storage/peginStorage";
+import {
+  getPendingPegins,
+  type PendingPeginRequest,
+  PendingPeginStorageReadError,
+} from "@/storage/peginStorage";
 
 interface UsePendingVaultOverlapCheckParams {
   ethAddress: Address | undefined;
@@ -37,7 +45,7 @@ export function usePendingVaultOverlapCheck({
   const depositorVaults = vaultsResult?.vaults;
 
   return useCallback(
-    (vaultAmounts: readonly bigint[]): number | null => {
+    (vaultAmounts: readonly bigint[]): number | null | "unreadable" => {
       const sumPeginAmounts = vaultAmounts.reduce((s, a) => s + a, 0n);
       const perVaultExtras = (depositorClaimValue ?? 0n) + (minPeginFee ?? 0n);
       // Mirrors `prePegin.totalOutputValue`: HTLC values + CPFP anchor.
@@ -60,6 +68,13 @@ export function usePendingVaultOverlapCheck({
         // Let the real signing path surface insufficient-funds errors.
         return null;
       }
+      let pendingPegins: PendingPeginRequest[];
+      try {
+        pendingPegins = getPendingPegins(ethAddress ?? "");
+      } catch (error) {
+        if (error instanceof PendingPeginStorageReadError) return "unreadable";
+        throw error;
+      }
       // `useVaults` is not polled — stale state is acceptable for an advisory.
       const overlapping = findOverlappingPendingVaults({
         selectedOutpoints: selection.selectedUTXOs.map((u) => ({
@@ -67,7 +82,7 @@ export function usePendingVaultOverlapCheck({
           vout: u.vout,
         })),
         vaults: depositorVaults ?? [],
-        pendingPegins: getPendingPegins(ethAddress ?? ""),
+        pendingPegins,
       });
 
       return overlapping.length > 0 ? overlapping.length : null;

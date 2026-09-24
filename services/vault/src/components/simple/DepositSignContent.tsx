@@ -25,6 +25,8 @@ import { PostDepositContinuationContent } from "./PostDepositContinuationContent
 
 interface DepositSignContentProps {
   vaultAmounts: bigint[];
+  /** Deposit amount the depositor approved; the vault amounts must sum to it. */
+  depositAmountSats: bigint;
   mempoolFeeRate: number;
   btcWalletProvider: BitcoinWallet;
   depositorEthAddress: Address | undefined;
@@ -36,7 +38,7 @@ interface DepositSignContentProps {
   vaultKeeperBtcPubkeys: string[];
   universalChallengerBtcPubkeys: string[];
   /** Pending-vault overlap count for the predicted selection; null = none. */
-  overlappingPendingVaultCount?: number | null;
+  overlappingPendingVaultCount?: number | null | "unreadable";
   onClose: () => void;
   onRefetchActivities?: () => Promise<void>;
   /** Persists a user-chosen pre-sign fee rate (sat/vB) into DepositState. */
@@ -166,9 +168,11 @@ export function DepositSignContent({
         className="relative mb-3 rounded-lg bg-amber-100 px-4 py-3 pr-8 text-sm text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
         role="alert"
       >
-        {COPY.deposit.warnings.reusesReservedUtxos(
-          overlappingPendingVaultCount,
-        )}
+        {overlappingPendingVaultCount === "unreadable"
+          ? COPY.deposit.warnings.overlapCheckUnavailable
+          : COPY.deposit.warnings.reusesReservedUtxos(
+              overlappingPendingVaultCount,
+            )}
         <button
           type="button"
           aria-label={COPY.deposit.warnings.dismissReusesReservedUtxos}

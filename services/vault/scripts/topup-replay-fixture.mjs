@@ -49,7 +49,7 @@ import {
  * this constant has to follow it.
  */
 const CANDLE_INTERVAL = "day_1";
-const CANDLE_LIMIT = 180;
+const CANDLE_LIMIT = 730;
 
 /** `GetAavePriceFeedSource` as `src/applications/aave/services/fetchPriceCandles.ts` sends it. */
 const GET_PRICE_FEED_SOURCE = `

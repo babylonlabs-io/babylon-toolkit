@@ -7,6 +7,7 @@ import {
   MIN_BORROWABLE_USD,
   MIN_HEALTH_FACTOR_FOR_BORROW,
 } from "@/applications/aave/constants";
+import type { VaultSplitParams } from "@/applications/aave/hooks";
 
 import { useDashboardState } from "../useDashboardState";
 
@@ -29,7 +30,7 @@ let mockCollateralBtc = 0;
 let mockChainVaultIds: string[] = [];
 let mockCollateralValueUsd = 0;
 let mockDebtValueUsd = 0;
-let mockSplitParams: { THF: number; CF: number; LB: number } | null = null;
+let mockSplitParams: VaultSplitParams | null = null;
 let mockSplitLoading = false;
 let mockSplitError: Error | null = null;
 let mockReorderedOrder: readonly `0x${string}`[] | null = null;
@@ -433,7 +434,14 @@ describe("useDashboardState", () => {
     mockCollateralBtc = 1;
     mockCollateralValueUsd = 10000;
     mockDebtValueUsd = 2000;
-    mockSplitParams = { THF: 1.1, CF: 0.8, LB: 1.05 };
+    mockSplitParams = {
+      THF: 1.1,
+      expectedHF: 0.95,
+      CF: 0.8,
+      LB: 1.05,
+      lbUnavailableReason: null,
+      maxLB: 1.05,
+    };
 
     const { result } = renderHook(() => useDashboardState("0xabc"));
 
@@ -483,7 +491,14 @@ describe("useDashboardState", () => {
   it("disables borrow when remaining capacity is sub-cent dust (fully borrowed)", () => {
     mockCollateralBtc = 1;
     mockCollateralValueUsd = 10000;
-    mockSplitParams = { THF: 1.1, CF: 0.8, LB: 1.05 };
+    mockSplitParams = {
+      THF: 1.1,
+      expectedHF: 0.95,
+      CF: 0.8,
+      LB: 1.05,
+      lbUnavailableReason: null,
+      maxLB: 1.05,
+    };
     // Borrowed to within a fraction of a cent of the max — the float/HF-buffer
     // residual a fully-borrowed position leaves behind.
     mockDebtValueUsd = fixtureMaxTotalDebtUsd - 0.003;
@@ -499,7 +514,14 @@ describe("useDashboardState", () => {
   it("enables borrow when there is at least a cent of capacity", () => {
     mockCollateralBtc = 1;
     mockCollateralValueUsd = 10000;
-    mockSplitParams = { THF: 1.1, CF: 0.8, LB: 1.05 };
+    mockSplitParams = {
+      THF: 1.1,
+      expectedHF: 0.95,
+      CF: 0.8,
+      LB: 1.05,
+      lbUnavailableReason: null,
+      maxLB: 1.05,
+    };
     mockDebtValueUsd = fixtureMaxTotalDebtUsd - 50;
 
     const { result } = renderHook(() => useDashboardState("0xabc"));

@@ -3,6 +3,7 @@
  */
 
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { COPY } from "@/copy";
@@ -58,7 +59,8 @@ vi.mock("@/applications/aave/hooks", () => ({
   useActiveLoans: () => [],
 }));
 
-vi.mock("@/overrides/loans", () => ({
+vi.mock("@/overrides/loans", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/overrides/loans")>()),
   useLoanOverride: () => useLoanOverrideMock(),
 }));
 
@@ -76,17 +78,33 @@ vi.mock("@/components/shared", () => ({
   EmptyState: ({
     isConnected,
     title,
+    description,
   }: {
     isConnected?: boolean;
     title?: string;
+    description?: ReactNode;
   }) => (
     <div
       data-testid="loans-empty-state"
       data-connected={String(Boolean(isConnected))}
     >
       {title}
+      {/* The description states what the borrow cap means for this position.
+          Dropping it here would leave that copy untestable from this page. */}
+      <div data-testid="loans-empty-state-description">{description}</div>
     </div>
   ),
+}));
+
+// One cap for the mock and every assertion derived from it: a change here
+// must move the asserted copy branch with it, not silently compare the wrong one.
+// Not 1: a cap hard-coded to 1 in the page would pass at a mocked cap of 1.
+const MOCK_CAP = 2;
+
+vi.mock("@/applications/aave/context", () => ({
+  useAaveConfig: () => ({
+    maxBorrowReserves: { status: "loaded", limit: MOCK_CAP },
+  }),
 }));
 
 vi.mock("../../simple/LoansSummary", () => ({
@@ -95,7 +113,8 @@ vi.mock("../../simple/LoansSummary", () => ({
     borrowCapacityError,
     healthFactor,
     healthFactorStatus,
-    totalBorrowed,
+    borrowedAssets,
+    borrowCount,
     canRepay,
     onRepay,
   }: {
@@ -103,7 +122,8 @@ vi.mock("../../simple/LoansSummary", () => ({
     borrowCapacityError: Error | null;
     healthFactor: number | null;
     healthFactorStatus: string;
-    totalBorrowed: string;
+    borrowedAssets: { symbol: string }[];
+    borrowCount: bigint | null;
     canRepay: boolean;
     onRepay: () => void;
   }) => (
@@ -113,7 +133,8 @@ vi.mock("../../simple/LoansSummary", () => ({
       data-capacity-error={String(Boolean(borrowCapacityError))}
       data-health-factor={String(healthFactor)}
       data-health-factor-status={healthFactorStatus}
-      data-total-borrowed={totalBorrowed}
+      data-borrowed-assets={borrowedAssets.map((a) => a.symbol).join(",")}
+      data-borrow-count={String(borrowCount)}
     >
       <button disabled={!canRepay} onClick={onRepay}>
         Repay
@@ -129,7 +150,14 @@ vi.mock("../../simple/ActiveLoansList", () => ({
 import Loans from "../Loans";
 
 const CONNECTED_LOADED = {
-  position: { collaterals: [], vaultIds: [] },
+  // `accountData` is required on AavePositionWithLiveData, and the Borrowed
+  // Asset card reads its `borrowCount` — the Spoke's own borrow-reserve
+  // counter — without an optional chain.
+  position: {
+    collaterals: [],
+    vaultIds: [],
+    accountData: { borrowCount: 0n },
+  },
   positionError: null,
   indexerError: null,
   refetchPosition: vi.fn().mockResolvedValue(null),
@@ -258,6 +286,14 @@ describe("Loans page — loading gate", () => {
     expect(
       screen.getByText(COPY.loans.noActiveLoans.title),
     ).toBeInTheDocument();
+    // The body, not just the title: it states what the cap means for this
+    // position, and the mocked cap is what selects the wording. Read as
+    // one string because the design emphasises the middle clause in its own
+    // element, so the sentence spans several nodes.
+    const body = COPY.loans.noActiveLoans.body(MOCK_CAP);
+    expect(
+      screen.getByTestId("loans-empty-state-description"),
+    ).toHaveTextContent(`${body.lead}${body.emphasis}${body.rest}`);
     expect(screen.getByRole("button", { name: "Repay" })).toBeDisabled();
   });
 
@@ -267,12 +303,18 @@ describe("Loans page — loading gate", () => {
       hasCollateral: false,
       hasLoans: true,
       debtValueUsd: 1500,
+      borrowedAssets: [DEMO_LOAN_ROW],
+      position: {
+        collaterals: [],
+        vaultIds: [],
+        accountData: { borrowCount: 1n },
+      },
       indexerError: new Error("Indexer unavailable"),
     });
     render(<Loans />);
     expect(screen.getByTestId("loans-summary")).toHaveAttribute(
-      "data-total-borrowed",
-      "$1,500.00 USD",
+      "data-borrowed-assets",
+      "USDC",
     );
     expect(
       screen.getByText(COPY.loans.detail.ancillaryLoadWarning),
@@ -330,12 +372,18 @@ describe("Loans page — loading gate", () => {
       ...CONNECTED_LOADED,
       hasLoans: true,
       debtValueUsd: 1500,
+      borrowedAssets: [DEMO_LOAN_ROW],
+      position: {
+        collaterals: [],
+        vaultIds: [],
+        accountData: { borrowCount: 1n },
+      },
       positionError: new Error("RPC unavailable"),
     });
     render(<Loans />);
     expect(screen.getByTestId("loans-summary")).toHaveAttribute(
-      "data-total-borrowed",
-      "$1,500.00 USD",
+      "data-borrowed-assets",
+      "USDC",
     );
     expect(
       screen.queryByText(COPY.loans.detail.positionLoadError),
@@ -350,21 +398,91 @@ describe("Loans page — loading gate", () => {
   it("renders injected god-mode loans while disconnected, instead of the empty state", () => {
     walletMock.ethConnected = false;
     walletMock.address = undefined;
+    // Production-shaped: the position query is disabled while disconnected,
+    // so it reads null, not a loaded position.
     useDashboardStateMock.mockReturnValue({
       ...CONNECTED_LOADED,
+      position: null,
       hasCollateral: false,
     });
     useLoanOverrideMock.mockReturnValue({
       rows: [DEMO_LOAN_ROW],
-      debtUsd: 1500,
       hideReal: false,
     });
 
     render(<Loans />);
 
     expect(screen.getByTestId("active-loans-list")).toBeInTheDocument();
-    expect(screen.getByTestId("loans-summary")).toBeInTheDocument();
+    // The mock row's reserve on top of a real count of 0: a disconnected
+    // visitor owes nothing, which is a count, not an unknown one.
+    expect(screen.getByTestId("loans-summary")).toHaveAttribute(
+      "data-borrow-count",
+      "1",
+    );
     expect(screen.queryByTestId("loans-empty-state")).not.toBeInTheDocument();
+  });
+
+  it("adds the demo's reserves to the real borrow count, not in place of it", () => {
+    useDashboardStateMock.mockReturnValue({
+      ...CONNECTED_LOADED,
+      hasLoans: true,
+      debtValueUsd: 1500,
+      position: {
+        collaterals: [],
+        vaultIds: [],
+        accountData: { borrowCount: 1n },
+      },
+    });
+    useLoanOverrideMock.mockReturnValue({
+      rows: [DEMO_LOAN_ROW],
+      hideReal: false,
+    });
+
+    render(<Loans />);
+
+    // One real reserve plus one mock reserve. Replacing the real count with
+    // the demo's would read 1 and understate how close the account is to the
+    // cap.
+    expect(screen.getByTestId("loans-summary")).toHaveAttribute(
+      "data-borrow-count",
+      "2",
+    );
+  });
+
+  it("shows the demo's borrow count as unknown while the real position is still loading", () => {
+    useDashboardStateMock.mockReturnValue({
+      ...CONNECTED_LOADED,
+      position: null,
+      hasCollateral: false,
+      isLoading: true,
+    });
+    useLoanOverrideMock.mockReturnValue({
+      rows: [DEMO_LOAN_ROW],
+      hideReal: false,
+    });
+
+    render(<Loans />);
+
+    // The demo adds to the real count, and the real count has not arrived:
+    // showing the demo's 1 alone would understate it.
+    expect(screen.getByTestId("loans-summary")).toHaveAttribute(
+      "data-borrow-count",
+      "null",
+    );
+  });
+
+  it("counts zero borrows for a connected position that loaded as null", () => {
+    useDashboardStateMock.mockReturnValue({
+      ...CONNECTED_LOADED,
+      position: null,
+    });
+
+    render(<Loans />);
+
+    expect(screen.getByTestId("loans-summary")).toHaveAttribute(
+      "data-borrow-count",
+      "0",
+    );
   });
 
   it("keeps the empty state when the demo is on but has no loan mocks", () => {
@@ -376,7 +494,6 @@ describe("Loans page — loading gate", () => {
     });
     useLoanOverrideMock.mockReturnValue({
       rows: [],
-      debtUsd: 0,
       hideReal: false,
     });
 
