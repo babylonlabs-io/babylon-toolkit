@@ -84,7 +84,8 @@ export default function RootLayout() {
   const walletsPresent =
     ethConnected && (FeatureFlags.isEthFirstEnabled || btcConnected);
   const { isGeoBlocked, isLoading: isGeoLoading } = useGeoFencing();
-  const { isBlocked: isAddressBlocked } = useAddressScreening();
+  const { isBlocked: isAddressBlocked, isUnavailable: isScreeningUnavailable } =
+    useAddressScreening();
   const { isSupportedAddress } = useAddressType();
   const isMobileView = useIsMobile();
   const pageTitle = usePageTitle();
@@ -187,6 +188,7 @@ export default function RootLayout() {
       />
       <AddressScreeningBanner
         visible={!isGeoBlocked && walletsPresent && isAddressBlocked}
+        isUnavailable={isScreeningUnavailable}
       />
       <AddressTypeBanner visible={!isGeoBlocked && showAddressTypeBanner} />
     </>

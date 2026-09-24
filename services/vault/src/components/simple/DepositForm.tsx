@@ -154,6 +154,8 @@ export interface DepositGatingState {
   isDepositDisabled: boolean;
   isGeoBlocked: boolean;
   isAddressBlocked: boolean;
+  /** True if the address block comes only from a failed screening request. */
+  isAddressScreeningUnavailable: boolean;
   /**
    * True while the inscription (ordinals) check is still in flight. Blocks
    * submission so the user cannot deposit before the spendable set has been
@@ -256,6 +258,7 @@ export function DepositForm({
     isDepositDisabled,
     isGeoBlocked,
     isAddressBlocked,
+    isAddressScreeningUnavailable,
     ordinalsCheckPending = false,
     isVaultCapReached = false,
     vaultCountCapUnavailable = false,
@@ -374,6 +377,7 @@ export function DepositForm({
     isDepositDisabled,
     isGeoBlocked,
     isAddressBlocked,
+    isAddressScreeningUnavailable,
     isWalletConnected,
     canConnectBtcWallet,
     hasProvider: !!selectedProvider,

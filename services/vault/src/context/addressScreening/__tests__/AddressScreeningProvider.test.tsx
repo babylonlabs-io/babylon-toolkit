@@ -41,14 +41,22 @@ vi.mock("../../wallet", () => ({
 function Observer({
   onState,
 }: {
-  onState: (state: { isBlocked: boolean; isLoading: boolean }) => void;
+  onState: (state: {
+    isBlocked: boolean;
+    isUnavailable: boolean;
+    isLoading: boolean;
+  }) => void;
 }) {
   const state = useAddressScreening();
   onState(state);
   return null;
 }
 
-type ScreeningState = { isBlocked: boolean; isLoading: boolean };
+type ScreeningState = {
+  isBlocked: boolean;
+  isUnavailable: boolean;
+  isLoading: boolean;
+};
 
 function renderProvider(onState: (s: ScreeningState) => void) {
   return render(
@@ -77,6 +85,7 @@ describe("AddressScreeningProvider", () => {
     await waitFor(() => {
       expect(onState).toHaveBeenLastCalledWith({
         isBlocked: false,
+        isUnavailable: false,
         isLoading: false,
       });
     });
@@ -95,6 +104,7 @@ describe("AddressScreeningProvider", () => {
     await waitFor(() => {
       expect(onState).toHaveBeenLastCalledWith({
         isBlocked: false,
+        isUnavailable: false,
         isLoading: false,
       });
     });
@@ -117,6 +127,7 @@ describe("AddressScreeningProvider", () => {
     await waitFor(() => {
       expect(onState).toHaveBeenLastCalledWith({
         isBlocked: true,
+        isUnavailable: false,
         isLoading: false,
       });
     });
@@ -135,12 +146,13 @@ describe("AddressScreeningProvider", () => {
     await waitFor(() => {
       expect(onState).toHaveBeenLastCalledWith({
         isBlocked: true,
+        isUnavailable: false,
         isLoading: false,
       });
     });
   });
 
-  it("hard-blocks on network error and does not cache the result", async () => {
+  it("hard-blocks as unavailable on network error and does not cache the result", async () => {
     mockBtcAddress = "btc1";
     mockEthAddress = "0xeth";
     mockVerifyAddress.mockRejectedValue(new Error("boom"));
@@ -151,10 +163,31 @@ describe("AddressScreeningProvider", () => {
     await waitFor(() => {
       expect(onState).toHaveBeenLastCalledWith({
         isBlocked: true,
+        isUnavailable: true,
         isLoading: false,
       });
     });
     expect(mockSetAddressScreeningResult).not.toHaveBeenCalled();
+  });
+
+  it("reports ineligible over unavailable when one address fails screening and the other request fails", async () => {
+    mockBtcAddress = "btc1";
+    mockEthAddress = "0xeth";
+    mockVerifyAddress.mockImplementation(async (address: string) => {
+      if (address === "btc1") return false;
+      throw new Error("boom");
+    });
+
+    const onState = vi.fn();
+    renderProvider(onState);
+
+    await waitFor(() => {
+      expect(onState).toHaveBeenLastCalledWith({
+        isBlocked: true,
+        isUnavailable: false,
+        isLoading: false,
+      });
+    });
   });
 
   it("reuses cached screening result and does not re-call the API", async () => {
@@ -170,6 +203,7 @@ describe("AddressScreeningProvider", () => {
     await waitFor(() => {
       expect(onState).toHaveBeenLastCalledWith({
         isBlocked: true,
+        isUnavailable: false,
         isLoading: false,
       });
     });
@@ -187,6 +221,7 @@ describe("AddressScreeningProvider", () => {
     await waitFor(() => {
       expect(onState).toHaveBeenLastCalledWith({
         isBlocked: false,
+        isUnavailable: false,
         isLoading: false,
       });
     });
@@ -215,6 +250,7 @@ describe("AddressScreeningProvider", () => {
     await waitFor(() => {
       expect(onState).toHaveBeenLastCalledWith({
         isBlocked: false,
+        isUnavailable: false,
         isLoading: false,
       });
     });

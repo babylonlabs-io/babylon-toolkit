@@ -326,6 +326,7 @@ describe("Deposit Validations", () => {
       p2aAnchorValueSats: 0n,
       isGeoBlocked: false,
       isAddressBlocked: false,
+      isAddressScreeningUnavailable: false,
       isWalletConnected: true,
       canConnectBtcWallet: false,
       hasProvider: true,
@@ -412,6 +413,18 @@ describe("Deposit Validations", () => {
       expect(result).toEqual({
         disabled: true,
         label: "Wallet not eligible",
+      });
+    });
+
+    it("returns 'Wallet screening unavailable' when the block comes from a failed screening request", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        isAddressBlocked: true,
+        isAddressScreeningUnavailable: true,
+      });
+      expect(result).toEqual({
+        disabled: true,
+        label: "Wallet screening unavailable",
       });
     });
 
