@@ -11,7 +11,8 @@ several other skills edit files.
 
 Wait for `/code-review` to return its findings before you report. If it runs
 in the background, do not return until its result arrives. In the light tier
-you are the only reviewer, so a premature return reads as "no findings".
+on a light **first** run you are the only reviewer, so a premature return
+reads as "no findings".
 
 This is the fast generalist of the review set; the other reviewers go deep.
 Stay lean: do not research external sources, and do not trace the whole
@@ -19,7 +20,8 @@ system end to end. If a claim would need a spec, reference client, firmware
 or external doc to confirm, state it and mark it UNVERIFIED. Flagging it for
 someone else to check is the job here.
 
-Lean does not mean diff-only. On a light-tier run you are the sole reviewer,
+Lean does not mean diff-only. On a light **first** run you are the sole
+reviewer,
 so the files the change breaks without touching are yours too. The pack's
 `CALLERS OF CHANGED EXPORTS` lists, for each exported symbol the change
 modifies, the files that reference it — read those that matter rather than
@@ -51,10 +53,18 @@ know about:
 
 - READ-ONLY. Do not modify repo files and do not write outside the scratchpad.
 - Do not touch the index or the working tree: no `git stash`, `git add`,
-  `git checkout`, `git restore`, `git reset`. The change is uncommitted and
-  exists in one place only.
-- No builds, installs, test runs, or `gh` commands. The orchestrator runs
-  lint, typecheck and tests once.
+  `git checkout`, `git restore`, `git reset`. The change may be uncommitted
+  and exist in one place only.
+- No builds, installs, test runs, or `gh` commands, for two reasons. The
+  orchestrator already ran lint and the typecheck once and handed you the
+  results in the pack, so building again repeats that work per reviewer.
+  (Tests run in the background and their result is **not** in the pack; the
+  pack says so.) And a build can rewrite tracked files: `babylon-proto-ts`
+  builds by cloning a repository and regenerating its tracked `src/generated`
+  tree, so a reviewer build would alter the change under review (the clone
+  lives in that package's separate `build-proto` target, which its `build`
+  depends on). If you need a result the pack does not carry, say so as a
+  finding rather than producing it.
 - One command per Bash call. No `&&` or `;` chains, no leading `VAR=value`
   assignments, and no `git -C <repo>` when the working directory is already
   the repo. Slice files with Read (offset/limit), Grep and Glob, not `cat`,

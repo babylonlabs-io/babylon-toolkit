@@ -81,7 +81,16 @@ authoritative source yourself. Two lanes agreeing is not evidence.
   lane.
 - Do not touch the index or the working tree: no `git stash`, `git add`,
   `git checkout`, `git restore`, `git reset`.
-- No builds, installs, test runs, or `gh` commands.
+- No builds, installs, test runs, or `gh` commands, for two reasons. The
+  orchestrator already ran lint and the typecheck once and handed you the
+  results in the pack, so building again repeats that work per reviewer.
+  (Tests run in the background and their result is **not** in the pack; the
+  pack says so.) And a build can rewrite tracked files: `babylon-proto-ts`
+  builds by cloning a repository and regenerating its tracked `src/generated`
+  tree, so a reviewer build would alter the change under review (the clone
+  lives in that package's separate `build-proto` target, which its `build`
+  depends on). If you need a result the pack does not carry, say so as a
+  finding rather than producing it.
 - One command per Bash call. No `&&` or `;` chains, no leading `VAR=value`
   assignments, and no `git -C <repo>` when the working directory is already
   the repo. Slice files with Read (offset/limit), Grep and Glob, not `cat`,
