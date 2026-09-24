@@ -1,204 +1,43 @@
-import { Button, SidebarBrandLockup } from "@babylonlabs-io/core-ui";
-import { useCallback, useId, useLayoutEffect, useRef, useState } from "react";
+import { Button, CloseIcon, SidebarBrandLockup } from "@babylonlabs-io/core-ui";
+import { useId } from "react";
 import { createPortal } from "react-dom";
+import { twJoin } from "tailwind-merge";
 
 import { COPY } from "@/copy";
 
-const STORAGE_KEY = "tbv-liquidation-tour-seen";
-const TARGETS = [
-  "liquidation-tour-position",
-  "liquidation-tour-health",
-  "liquidation-tour-simulation",
-  "liquidation-tour-events",
-  "liquidation-tour-outcomes",
-] as const;
-const PADDING = 8;
-const GAP = 24;
-const TOP = 88;
+import {
+  ARROW_INSET,
+  CARD_MIN_TOP,
+  TOUR_BAR_HEIGHT,
+  VIEWPORT_MARGIN,
+} from "./liquidationTourPlacement";
+import { LIQUIDATION_TOUR_STEPS } from "./liquidationTourSteps";
+import { useLiquidationTour } from "./useLiquidationTour";
 
-function hasSeenTour() {
-  try {
-    return localStorage.getItem(STORAGE_KEY) === "true";
-  } catch {
-    return false;
-  }
-}
-
-function markSeen() {
-  try {
-    localStorage.setItem(STORAGE_KEY, "true");
-  } catch {
-    // Storage can be disabled. The current visit can still end the tour.
-  }
-}
-
-interface Placement {
-  step: number;
-  target: DOMRect;
-  left: number;
-  top: number;
-  above: boolean;
-  overlapsTarget: boolean;
-  arrow: number;
-}
+// Above core-ui's Hint tooltips (z-index 99999) and every dialog, so nothing
+// on the page draws over the tour.
+const TOUR_Z_CLASS = "z-[100000]";
+// The brand and Exit columns share one width so the step label stays centered.
+const TOP_BAR_SIDE_COLUMN_CLASS = "sm:w-[200px]";
+const DIM_OPACITY = 0.6;
+const WELCOME_WIDTH = 540;
+const CARD_WIDTH = 360;
+const CARD_MAX_WIDTH = `calc(100% - ${VIEWPORT_MARGIN * 2}px)`;
+// The card body scrolls so the card never runs under the top bar or off the
+// bottom of the viewport.
+const CARD_MAX_HEIGHT = `calc(100dvh - ${CARD_MIN_TOP + VIEWPORT_MARGIN}px)`;
+const ARROW_WIDTH = 21;
+const ARROW_HEIGHT = 18;
+// Figma's close mark is a 14px glyph in a 24px frame, as in NotificationCard.
+const CLOSE_ICON_SIZE = 14;
 
 export function LiquidationTour({ ready }: { ready: boolean }) {
-  const [step, setStep] = useState<number | null>(() =>
-    hasSeenTour() ? null : -1,
-  );
-  const [placement, setPlacement] = useState<Placement | null>(null);
-  const overlayRef = useRef<HTMLDivElement>(null);
-  const cardRef = useRef<HTMLDivElement>(null);
-  const titleRef = useRef<HTMLHeadingElement>(null);
+  const { view, overlayRef, cardRef, titleRef, dismiss, start, next } =
+    useLiquidationTour(ready);
   const id = useId();
   const copy = COPY.liquidations.tour;
-  const open = ready && step !== null;
-  const welcome = step === -1;
-  const current = step !== null && step >= 0 ? copy.steps[step] : null;
 
-  const close = useCallback(() => {
-    markSeen();
-    setStep(null);
-  }, []);
-
-  useLayoutEffect(() => {
-    if (!open || !overlayRef.current) return;
-    const overlay = overlayRef.current;
-    const previousFocus = document.activeElement;
-    const siblings = Array.from(document.body.children).filter(
-      (element): element is HTMLElement =>
-        element instanceof HTMLElement && element !== overlay,
-    );
-    const previousInert = siblings.map((element) => element.inert);
-    siblings.forEach((element) => {
-      element.inert = true;
-    });
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        event.stopPropagation();
-        close();
-      }
-      if (event.key !== "Tab") return;
-      const buttons = Array.from(
-        overlay.querySelectorAll<HTMLButtonElement>("button:not(:disabled)"),
-      );
-      const first = buttons[0];
-      const last = buttons[buttons.length - 1];
-      if (
-        event.shiftKey &&
-        (document.activeElement === first ||
-          !buttons.includes(document.activeElement as HTMLButtonElement))
-      ) {
-        event.preventDefault();
-        last?.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first?.focus();
-      }
-    };
-    document.addEventListener("keydown", onKeyDown, true);
-    return () => {
-      document.removeEventListener("keydown", onKeyDown, true);
-      siblings.forEach((element, index) => {
-        element.inert = previousInert[index];
-      });
-      if (previousFocus instanceof HTMLElement && previousFocus.isConnected) {
-        previousFocus.focus({ preventScroll: true });
-      }
-    };
-  }, [open, close]);
-
-  useLayoutEffect(() => {
-    if (!open) return;
-    if (step === null || step < 0) return;
-    const target = document.getElementById(TARGETS[step]);
-    const card = cardRef.current;
-    if (!target || !card) {
-      close();
-      return;
-    }
-
-    // Leave room for the card before drawing the target and its cutout.
-    const cardHeight = card.getBoundingClientRect().height;
-    const rect = target.getBoundingClientRect();
-    const desiredTop = step >= 2 ? TOP + cardHeight + GAP : TOP + PADDING;
-    if (
-      step >= 2 ||
-      rect.top < TOP ||
-      rect.bottom + cardHeight + GAP > innerHeight
-    ) {
-      window.scrollBy({ top: rect.top - desiredTop, behavior: "instant" });
-    }
-
-    const measure = () => {
-      if (!target.isConnected) {
-        close();
-        return;
-      }
-      const targetRect = target.getBoundingClientRect();
-      const cardRect = card.getBoundingClientRect();
-      const width = document.documentElement.clientWidth;
-      const height = window.innerHeight;
-      const above =
-        Math.round(targetRect.top - GAP - cardRect.height) >= TOP &&
-        (step >= 2 || targetRect.bottom + GAP + cardRect.height > height - 16);
-      const left = Math.max(
-        16,
-        Math.min(
-          targetRect.left + targetRect.width / 2 - cardRect.width / 2,
-          width - cardRect.width - 16,
-        ),
-      );
-      const top = Math.max(
-        TOP,
-        Math.min(
-          above
-            ? targetRect.top - GAP - cardRect.height
-            : targetRect.bottom + GAP,
-          height - cardRect.height - 16,
-        ),
-      );
-      setPlacement({
-        step,
-        target: targetRect,
-        left,
-        top,
-        above,
-        overlapsTarget:
-          top < targetRect.bottom + PADDING &&
-          top + cardRect.height > targetRect.top - PADDING,
-        arrow: Math.max(
-          24,
-          Math.min(
-            targetRect.left + targetRect.width / 2 - left,
-            cardRect.width - 24,
-          ),
-        ),
-      });
-    };
-
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(target);
-    observer.observe(card);
-    observer.observe(document.body);
-    window.addEventListener("scroll", measure, true);
-    window.addEventListener("resize", measure);
-    return () => {
-      observer.disconnect();
-      window.removeEventListener("scroll", measure, true);
-      window.removeEventListener("resize", measure);
-    };
-  }, [open, step, close]);
-
-  useLayoutEffect(() => {
-    if (open) titleRef.current?.focus({ preventScroll: true });
-  }, [open, step, placement?.step]);
-
-  if (!open) return null;
-  const positioned = placement?.step === step ? placement : null;
+  if (view.kind === "hidden") return null;
 
   return createPortal(
     <div
@@ -208,23 +47,16 @@ export function LiquidationTour({ ready }: { ready: boolean }) {
       aria-labelledby={`${id}-title`}
       aria-describedby={`${id}-body`}
       data-testid="liquidation-tour-overlay"
-      className="fixed inset-0 z-[100000] [&_*]:!animate-none [&_*]:!transition-none"
+      className={twJoin("fixed inset-0", TOUR_Z_CLASS)}
     >
-      <svg
-        className="absolute inset-0 h-full w-full"
-        aria-hidden="true"
-        onClick={welcome ? close : undefined}
-      >
+      <svg className="absolute inset-0 h-full w-full" aria-hidden="true">
         <defs>
           <mask id={`${id}-mask`}>
             <rect width="100%" height="100%" fill="white" />
-            {positioned && !welcome && (
+            {view.kind === "step" && view.layout && (
               <rect
                 data-testid="liquidation-tour-spotlight"
-                x={positioned.target.left - PADDING}
-                y={positioned.target.top - PADDING}
-                width={positioned.target.width + PADDING * 2}
-                height={positioned.target.height + PADDING * 2}
+                {...view.layout.spotlight}
                 fill="black"
               />
             )}
@@ -234,25 +66,24 @@ export function LiquidationTour({ ready }: { ready: boolean }) {
           width="100%"
           height="100%"
           fill="black"
-          fillOpacity={0.6}
+          fillOpacity={DIM_OPACITY}
           mask={`url(#${id}-mask)`}
         />
       </svg>
 
-      {welcome ? (
+      {view.kind === "welcome" ? (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center overflow-y-auto p-4">
-          <div className="pointer-events-auto flex max-h-full w-[540px] max-w-full flex-col overflow-y-auto rounded-2xl border border-secondary-strokeLight bg-background-contrast p-6">
+          <div
+            className="pointer-events-auto flex max-h-full max-w-full flex-col overflow-y-auto rounded-2xl border border-secondary-strokeLight bg-background-contrast p-6"
+            style={{ width: WELCOME_WIDTH }}
+          >
             <button
               type="button"
               aria-label={copy.close}
-              onClick={close}
-              className="self-end rounded focus-visible:outline focus-visible:outline-2"
+              onClick={dismiss}
+              className="flex size-6 items-center justify-center self-end rounded focus-visible:outline focus-visible:outline-2"
             >
-              <img
-                src="/images/liquidation-tour/close.svg"
-                alt=""
-                className="size-6 dark:brightness-150"
-              />
+              <CloseIcon size={CLOSE_ICON_SIZE} variant="secondary" />
             </button>
             <div className="flex flex-col items-center gap-10">
               <img
@@ -281,7 +112,7 @@ export function LiquidationTour({ ready }: { ready: boolean }) {
                   variant="outlined"
                   size="medium"
                   className="h-10 flex-1"
-                  onClick={close}
+                  onClick={dismiss}
                 >
                   {copy.notNow}
                 </Button>
@@ -289,10 +120,7 @@ export function LiquidationTour({ ready }: { ready: boolean }) {
                   color="secondary"
                   size="medium"
                   className="h-10 flex-1"
-                  onClick={() => {
-                    markSeen();
-                    setStep(0);
-                  }}
+                  onClick={start}
                 >
                   {copy.start}
                 </Button>
@@ -301,96 +129,104 @@ export function LiquidationTour({ ready }: { ready: boolean }) {
           </div>
         </div>
       ) : (
-        current && (
-          <>
-            <div className="absolute inset-x-0 top-0 flex h-[72px] items-center justify-between gap-3 px-4 sm:px-6">
-              <div
-                aria-hidden="true"
-                className="hidden w-[200px] items-center gap-3 text-black dark:text-white sm:flex"
+        <>
+          <div
+            className="absolute inset-x-0 top-0 flex items-center justify-between gap-3 px-4 sm:px-6"
+            style={{ height: TOUR_BAR_HEIGHT }}
+          >
+            <div
+              aria-hidden="true"
+              className={twJoin(
+                "hidden items-center gap-3 text-black dark:text-white sm:flex",
+                TOP_BAR_SIDE_COLUMN_CLASS,
+              )}
+            >
+              <SidebarBrandLockup />
+            </div>
+            <span className="rounded-full bg-background-secondary px-5 py-[11px] text-base text-accent-primary">
+              {copy.stepLabel(view.index + 1, LIQUIDATION_TOUR_STEPS.length)}
+            </span>
+            <div
+              className={twJoin("flex justify-end", TOP_BAR_SIDE_COLUMN_CLASS)}
+            >
+              <Button
+                size="medium"
+                className="h-10 w-[120px] !bg-background-secondary !text-accent-primary"
+                onClick={dismiss}
               >
-                <SidebarBrandLockup />
-              </div>
-              <span className="rounded-full bg-background-secondary px-5 py-[11px] text-base text-accent-primary">
-                {copy.stepLabel(step! + 1, copy.steps.length)}
-              </span>
-              <div className="flex justify-end sm:w-[200px]">
+                {copy.exit}
+              </Button>
+            </div>
+          </div>
+          <div
+            ref={cardRef}
+            data-testid="liquidation-tour-card"
+            className="absolute rounded-lg bg-[#202020] text-white shadow-lg dark:bg-[#f9f9f9] dark:text-black"
+            style={{
+              width: CARD_WIDTH,
+              maxWidth: CARD_MAX_WIDTH,
+              left: view.layout?.left ?? VIEWPORT_MARGIN,
+              top: view.layout?.top ?? CARD_MIN_TOP,
+              visibility: view.layout ? "visible" : "hidden",
+            }}
+          >
+            <div
+              data-testid="liquidation-tour-arrow"
+              aria-hidden="true"
+              hidden={view.layout?.overlapsTarget}
+              className="absolute bg-inherit"
+              style={{
+                width: ARROW_WIDTH,
+                height: ARROW_HEIGHT,
+                maskImage: "url(/images/liquidation-tour/arrow.svg)",
+                maskRepeat: "no-repeat",
+                left:
+                  (view.layout?.arrowCenter ?? ARROW_INSET) - ARROW_WIDTH / 2,
+                top: view.layout?.above ? "100%" : -ARROW_HEIGHT,
+                transform: view.layout?.above ? "rotate(180deg)" : undefined,
+              }}
+            />
+            <div
+              key={view.step.key}
+              className="overflow-y-auto p-6"
+              style={{ maxHeight: CARD_MAX_HEIGHT }}
+            >
+              <h2
+                ref={titleRef}
+                id={`${id}-title`}
+                tabIndex={-1}
+                className="text-xl font-normal leading-[1.6] tracking-[0.15px] outline-none"
+              >
+                <span aria-hidden="true">{view.index + 1}. </span>
+                {view.step.copy.title}
+              </h2>
+              <p
+                id={`${id}-body`}
+                className="text-sm leading-[1.43] tracking-[0.17px]"
+              >
+                {view.step.copy.body}
+              </p>
+              <div className="mt-6 flex gap-4">
                 <Button
+                  variant="outlined"
                   size="medium"
-                  className="h-10 w-[120px] !bg-background-secondary !text-accent-primary"
-                  onClick={close}
+                  className="flex-1 !border-[#2f2f2f] !text-white dark:!border-[#ddd] dark:!text-black"
+                  onClick={dismiss}
                 >
                   {copy.exit}
                 </Button>
+                <Button
+                  color="secondary"
+                  size="medium"
+                  className="flex-1"
+                  onClick={next}
+                >
+                  {copy.next}
+                </Button>
               </div>
             </div>
-            <div
-              ref={cardRef}
-              data-testid="liquidation-tour-card"
-              className="absolute w-[360px] max-w-[calc(100%-32px)] rounded-lg bg-[#202020] text-white shadow-lg dark:bg-[#f9f9f9] dark:text-black"
-              style={{
-                left: positioned?.left ?? 16,
-                top: positioned?.top ?? TOP,
-                visibility: positioned ? "visible" : "hidden",
-              }}
-            >
-              <div
-                data-testid="liquidation-tour-arrow"
-                aria-hidden="true"
-                hidden={positioned?.overlapsTarget}
-                className="absolute h-[18px] w-[21px] bg-inherit"
-                style={{
-                  maskImage: "url(/images/liquidation-tour/arrow.svg)",
-                  maskRepeat: "no-repeat",
-                  left: (positioned?.arrow ?? 24) - 10.5,
-                  top: positioned?.above ? "100%" : -18,
-                  transform: positioned?.above ? "rotate(180deg)" : undefined,
-                }}
-              />
-              <div
-                key={step}
-                className="max-h-[calc(100dvh-104px)] overflow-y-auto p-6"
-              >
-                <h2
-                  ref={titleRef}
-                  id={`${id}-title`}
-                  tabIndex={-1}
-                  className="text-xl font-normal leading-[1.6] tracking-[0.15px] outline-none"
-                >
-                  <span aria-hidden="true">{step! + 1}. </span>
-                  {current.title}
-                </h2>
-                <p
-                  id={`${id}-body`}
-                  className="text-sm leading-[1.43] tracking-[0.17px]"
-                >
-                  {current.body}
-                </p>
-                <div className="mt-6 flex gap-4">
-                  <Button
-                    variant="outlined"
-                    size="medium"
-                    className="flex-1 !border-[#2f2f2f] !text-white dark:!border-[#ddd] dark:!text-black"
-                    onClick={close}
-                  >
-                    {copy.exit}
-                  </Button>
-                  <Button
-                    color="secondary"
-                    size="medium"
-                    className="flex-1"
-                    onClick={() =>
-                      step === copy.steps.length - 1
-                        ? close()
-                        : setStep(step! + 1)
-                    }
-                  >
-                    {copy.next}
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </>
-        )
+          </div>
+        </>
       )}
     </div>,
     document.body,

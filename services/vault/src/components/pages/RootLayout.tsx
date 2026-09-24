@@ -57,6 +57,8 @@ import { Connect } from "../Wallet";
 
 export interface RootLayoutContext {
   openDeposit: (initialAmountBtc?: string) => void;
+  /** The deposit dialog is open, so a page holds back its own overlays. */
+  isDepositOpen: boolean;
 }
 
 // Stacking order of the two full-bleed top banners.
@@ -284,6 +286,7 @@ export default function RootLayout() {
                   context={
                     {
                       openDeposit,
+                      isDepositOpen,
                     } satisfies RootLayoutContext
                   }
                 />

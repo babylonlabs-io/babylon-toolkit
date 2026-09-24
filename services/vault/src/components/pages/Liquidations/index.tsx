@@ -31,6 +31,7 @@ import {
 } from "./liquidationChartData";
 import { LiquidationEventCard } from "./LiquidationEventCard";
 import { LiquidationTour } from "./LiquidationTour";
+import { LIQUIDATION_TOUR_TARGET_IDS } from "./liquidationTourSteps";
 import { PositionOverview } from "./PositionOverview";
 import { SimulationToolbar } from "./SimulationToolbar";
 import { useLiquidationsPageState } from "./useLiquidationsPageState";
@@ -77,7 +78,7 @@ function SummaryStat({ label, value }: { label: string; value: string }) {
 }
 
 export default function Liquidations() {
-  const { openDeposit } = useOutletContext<RootLayoutContext>();
+  const { openDeposit, isDepositOpen } = useOutletContext<RootLayoutContext>();
   const { address } = useETHWallet();
   const { isConnected } = useConnection();
   const account = isConnected ? address : undefined;
@@ -90,7 +91,9 @@ export default function Liquidations() {
     borrowedAssets,
   } = useDashboardState(account);
 
-  const { openBorrowPicker, openRepay } = useLoanActions({ borrowedAssets });
+  const { openBorrowPicker, openRepay, isLoanFlowOpen } = useLoanActions({
+    borrowedAssets,
+  });
 
   const {
     position,
@@ -296,15 +299,25 @@ export default function Liquidations() {
       as="main"
       className={`${PAGE_CONTENT_CLASS} flex flex-1 flex-col gap-10 pb-6`}
     >
-      <LiquidationTour ready={!isLoadingCandles} />
-      <section id="liquidation-tour-position" className="flex flex-col gap-4">
+      {/* The welcome waits for the chart and for the deposit and loan
+          dialogs, so it does not cover either one. */}
+      <LiquidationTour
+        ready={!isLoadingCandles && !isDepositOpen && !isLoanFlowOpen}
+      />
+      <section
+        id={LIQUIDATION_TOUR_TARGET_IDS.position}
+        className="flex flex-col gap-4"
+      >
         <h2 className="text-xl leading-[1.6] tracking-[0.15px] text-accent-primary">
           {COPY.liquidations.position.heading}
         </h2>
         {positionOverview}
       </section>
 
-      <section id="liquidation-tour-simulation" className="flex flex-col gap-6">
+      <section
+        id={LIQUIDATION_TOUR_TARGET_IDS.simulation}
+        className="flex flex-col gap-6"
+      >
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <h2 className="text-xl leading-[1.6] tracking-[0.15px] text-accent-primary">
@@ -365,7 +378,10 @@ export default function Liquidations() {
         </div>
       </section>
 
-      <section id="liquidation-tour-events" className="flex flex-col gap-4">
+      <section
+        id={LIQUIDATION_TOUR_TARGET_IDS.events}
+        className="flex flex-col gap-4"
+      >
         <div className="flex flex-col">
           <h2 className="text-xl leading-[1.6] tracking-[0.15px] text-accent-primary">
             {COPY.liquidations.events.heading}
@@ -380,7 +396,7 @@ export default function Liquidations() {
               <LiquidationEventCard
                 card={card}
                 outcomesId={
-                  index === 0 ? "liquidation-tour-outcomes" : undefined
+                  index === 0 ? LIQUIDATION_TOUR_TARGET_IDS.outcomes : undefined
                 }
               />
             </div>

@@ -12,6 +12,7 @@ import {
   getHubPickerSearch,
   getMarketDataRoute,
   getReserveDetailSearch,
+  opensLoanFlow,
   parseAssetParam,
   parseReserveId,
 } from "../routes";
@@ -45,6 +46,34 @@ describe("getHubPickerSearch", () => {
     expect(getHubPickerSearch(DEVNET_USDC)).toBe(
       `?picker=borrow&asset=${DEVNET_USDC}`,
     );
+  });
+});
+
+describe("opensLoanFlow", () => {
+  it("opens the loan flow at the borrow picker", () => {
+    expect(opensLoanFlow(new URLSearchParams("?picker=borrow"))).toBe(true);
+  });
+
+  it("opens the loan flow at the repay picker", () => {
+    expect(opensLoanFlow(new URLSearchParams("?picker=repay"))).toBe(true);
+  });
+
+  it("opens the loan flow at a reserve form", () => {
+    expect(opensLoanFlow(new URLSearchParams("?reserve=5&tab=repay"))).toBe(
+      true,
+    );
+  });
+
+  it("keeps the loan flow closed for an unknown picker", () => {
+    expect(opensLoanFlow(new URLSearchParams("?picker=foo"))).toBe(false);
+  });
+
+  it("keeps the loan flow closed for an empty reserve", () => {
+    expect(opensLoanFlow(new URLSearchParams("?reserve="))).toBe(false);
+  });
+
+  it("keeps the loan flow closed without a picker or a reserve", () => {
+    expect(opensLoanFlow(new URLSearchParams(""))).toBe(false);
   });
 });
 

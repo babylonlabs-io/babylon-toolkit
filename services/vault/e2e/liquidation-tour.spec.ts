@@ -5,6 +5,11 @@ import { assertRecordingCovered, blockOffsiteRequests } from "./visual/capture";
 
 const SEEN_KEY = "tbv-liquidation-tour-seen";
 const WELCOME_TITLE = "Welcome to Liquidation Analysis";
+/**
+ * The global reduced-motion reset in core-ui shortens every animation and
+ * transition to this length instead of removing it.
+ */
+const REDUCED_MOTION_RESET_DURATION_MS = 0.01;
 const STEPS = [
   ["position", "Position Overview"],
   ["health", "Monitor Your Health Factor"],
@@ -75,7 +80,6 @@ test.beforeEach(async ({ page }) => {
 test("completes five steps and keeps the spotlight aligned on scroll and resize", async ({
   page,
 }) => {
-  await page.screenshot({ path: test.info().outputPath("welcome.png") });
   await page.getByRole("button", { name: "Take a tour", exact: true }).click();
   for (const [index, [target, title]] of STEPS.entries()) {
     const dialog = page.getByRole("dialog", { name: title, exact: true });
@@ -87,11 +91,6 @@ test("completes five steps and keeps the spotlight aligned on scroll and resize"
       page.getByRole("button", { name: "Exit", exact: true }),
     ).toHaveCount(2);
     await expectSpotlight(page, target);
-    if (index === 0 || index === 4) {
-      await page.screenshot({
-        path: test.info().outputPath(`desktop-step-${index + 1}.png`),
-      });
-    }
     if (index === 2) {
       const targetLocator = page.locator(`#liquidation-tour-${target}`);
       const before = await targetLocator.boundingBox();
@@ -159,6 +158,9 @@ test("keeps keyboard focus in the tour and exits with Escape", async ({
     )
     .toBe(true);
   const buttons = dialog.getByRole("button");
+  await expect(
+    dialog.getByRole("button", { name: "Next", exact: true }),
+  ).toBeVisible();
   await buttons.last().focus();
   await page.keyboard.press("Tab");
   await expect(buttons.first()).toBeFocused();
@@ -169,7 +171,6 @@ test("keeps keyboard focus in the tour and exits with Escape", async ({
 test("fits every step on a phone with reduced motion", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.screenshot({ path: test.info().outputPath("phone-welcome.png") });
   await page.getByRole("button", { name: "Take a tour", exact: true }).click();
   for (const [target, title] of STEPS) {
     await expect(
@@ -178,26 +179,27 @@ test("fits every step on a phone with reduced motion", async ({ page }) => {
     await expectSpotlight(page, target);
     const card = page.getByTestId("liquidation-tour-card");
     await expectCardFitsViewport(page);
-    if (target === "position" || target === "outcomes") {
-      await page.screenshot({
-        path: test.info().outputPath(`phone-${target}.png`),
-      });
-    }
     expect(
-      await page.getByTestId("liquidation-tour-overlay").evaluate((element) =>
-        element
-          .getAnimations({ subtree: true })
-          .filter((animation) => animation.playState === "running")
-          .map((animation) => ({
-            duration: animation.effect?.getComputedTiming().endTime,
-            target: (
-              animation.effect as KeyframeEffect | null
-            )?.target?.getAttribute("data-testid"),
-            property:
-              "transitionProperty" in animation
-                ? animation.transitionProperty
-                : animation.id,
-          })),
+      await page.getByTestId("liquidation-tour-overlay").evaluate(
+        (element, resetDurationMs) =>
+          element
+            .getAnimations({ subtree: true })
+            .filter((animation) => animation.playState === "running")
+            .map((animation) => ({
+              duration: animation.effect?.getComputedTiming().endTime,
+              target: (
+                animation.effect as KeyframeEffect | null
+              )?.target?.getAttribute("data-testid"),
+              property:
+                "transitionProperty" in animation
+                  ? animation.transitionProperty
+                  : animation.id,
+            }))
+            .filter(
+              ({ duration }) =>
+                typeof duration !== "number" || duration > resetDurationMs,
+            ),
+        REDUCED_MOTION_RESET_DURATION_MS,
       ),
     ).toEqual([]);
     if (target === "outcomes") {
@@ -205,15 +207,6 @@ test("fits every step on a phone with reduced motion", async ({ page }) => {
       await expectSpotlight(page, target);
       await expectCardFitsViewport(page);
       await expect(page.getByTestId("liquidation-tour-arrow")).toBeHidden();
-      await page.evaluate(
-        () =>
-          new Promise<void>((resolve) =>
-            requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
-          ),
-      );
-      await page.screenshot({
-        path: test.info().outputPath("phone-landscape.png"),
-      });
     }
     await card.getByRole("button", { name: "Next", exact: true }).click();
   }
@@ -235,8 +228,6 @@ test("shows the welcome and first step in dark theme", async ({ page }) => {
   await popup.getByRole("button", { name: "Global", exact: true }).click();
   await popup.getByRole("button", { name: "dark", exact: true }).click();
   await expect(page.locator("html")).toHaveClass(/dark/);
-  await page.screenshot({ path: test.info().outputPath("dark-welcome.png") });
   await page.getByRole("button", { name: "Take a tour", exact: true }).click();
   await expectSpotlight(page, "position");
-  await page.screenshot({ path: test.info().outputPath("dark-step-1.png") });
 });
