@@ -57,8 +57,11 @@ export const Connect: React.FC<ConnectProps> = ({ loading = false, text }) => {
   const { includeOrdinals, excludeOrdinals, ordinalsExcluded } = useAppState();
 
   const { isGeoBlocked, isLoading: isGeoLoading } = useGeoFencing();
-  const { isBlocked: isAddressBlocked, isLoading: isScreeningLoading } =
-    useAddressScreening();
+  const {
+    isBlocked: isAddressBlocked,
+    isUnavailable: isScreeningUnavailable,
+    isLoading: isScreeningLoading,
+  } = useAddressScreening();
 
   // The page and menu use the same confirmed-session gate.
   const canShowWalletMenu = isConnected && !isGeoBlocked && !isGeoLoading;
@@ -196,7 +199,14 @@ export const Connect: React.FC<ConnectProps> = ({ loading = false, text }) => {
 
   if (isAddressBlocked) {
     return (
-      <Hint tooltip={COPY.wallet.walletNotEligibleTooltip} attachToChildren>
+      <Hint
+        tooltip={
+          isScreeningUnavailable
+            ? COPY.wallet.addressScreeningBanner.unavailableTitle
+            : COPY.wallet.walletNotEligibleTooltip
+        }
+        attachToChildren
+      >
         <span>{connectButton}</span>
       </Hint>
     );

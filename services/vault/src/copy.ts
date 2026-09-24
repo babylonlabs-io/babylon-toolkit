@@ -1425,17 +1425,14 @@ export const COPY = {
     },
     geoBlockedTooltip: "Not available in your region",
     walletNotEligibleTooltip: "Wallet not eligible",
-    // The ineligible body renders `termsOfUse` and `contactSupport` as links.
+    // The ineligible body renders `COPY.nav.termsOfUse` as a link.
     addressScreeningBanner: {
       ineligibleBefore:
         "This wallet is not eligible to use the BTCVault. Please review the ",
-      termsOfUse: "Terms of Use",
-      ineligibleMiddle: " or ",
-      contactSupport: "contact support",
-      ineligibleAfter: " if you believe this is an error.",
+      ineligibleAfter: " or contact support if you believe this is an error.",
       unavailableTitle: "Wallet screening unavailable",
       unavailableBody:
-        "We could not check this wallet because of a backend error. Please try again later.",
+        "We could not check this wallet. Please try again later.",
     },
     liveness: {
       errorTitle: "Wallet not responding",

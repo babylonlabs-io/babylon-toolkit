@@ -333,6 +333,23 @@ describe("RootLayout — operator message banner", () => {
     },
   );
 
+  it("shows the screening-unavailable banner when the screening request failed", () => {
+    Object.assign(walletMock, {
+      btcConnected: true,
+      ethConnected: true,
+      isAddressBlocked: true,
+      isScreeningUnavailable: true,
+    });
+    renderRootLayout();
+
+    expect(
+      screen.getByText(COPY.wallet.addressScreeningBanner.unavailableTitle),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(COPY.wallet.walletNotEligibleTooltip),
+    ).not.toBeInTheDocument();
+  });
+
   it.each([false, true])(
     "keeps screening and deposit warnings for Ethereum alone with confirmed=%s",
     (confirmed) => {

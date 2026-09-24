@@ -91,8 +91,11 @@ function SimpleDepositContent({
   const gate = useProtocolGateState();
   const { requireBtcWallet } = useBtcAction();
   const { isGeoBlocked, isLoading: isGeoLoading } = useGeoFencing();
-  const { isBlocked: isAddressBlocked, isLoading: isScreeningLoading } =
-    useAddressScreening();
+  const {
+    isBlocked: isAddressBlocked,
+    isUnavailable: isScreeningUnavailable,
+    isLoading: isScreeningLoading,
+  } = useAddressScreening();
   const { address: connectedEthAddress } = useETHWallet();
   const {
     address: connectedBtcAddress,
@@ -550,6 +553,7 @@ function SimpleDepositContent({
                   isDepositDisabled: isDepositBlocked(gate),
                   isGeoBlocked: isGeoBlocked || isGeoLoading,
                   isAddressBlocked: isAddressBlocked || isScreeningLoading,
+                  isAddressScreeningUnavailable: isScreeningUnavailable,
                   ordinalsCheckPending,
                   isVaultCapReached,
                   vaultCountCapUnavailable,

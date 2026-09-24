@@ -106,6 +106,7 @@ function renderForm(gatingOverrides: Partial<DepositGatingState>) {
     isDepositDisabled: false,
     isGeoBlocked: false,
     isAddressBlocked: false,
+    isAddressScreeningUnavailable: false,
     ...gatingOverrides,
   };
   render(

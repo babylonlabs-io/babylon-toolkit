@@ -1,14 +1,12 @@
 import { Text } from "@babylonlabs-io/core-ui";
 import { PiWarningOctagonFill } from "react-icons/pi";
 
-import { LEGAL_LINK_URLS, TELEGRAM_URL } from "@/config/socialLinks";
+import { LEGAL_LINK_URLS } from "@/config/socialLinks";
 import { COPY } from "@/copy";
-
-const LINK_CLASS = "underline hover:opacity-80";
 
 interface AddressScreeningBannerProps {
   visible: boolean;
-  /** Shows the backend-error message instead of the ineligible message. */
+  /** Shows the screening-unavailable message instead of the ineligible message. */
   isUnavailable: boolean;
 }
 
@@ -41,18 +39,9 @@ export function AddressScreeningBanner({
               href={LEGAL_LINK_URLS.termsOfUse}
               target="_blank"
               rel="noopener noreferrer"
-              className={LINK_CLASS}
+              className="underline hover:opacity-80"
             >
-              {copy.termsOfUse}
-            </a>
-            {copy.ineligibleMiddle}
-            <a
-              href={TELEGRAM_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={LINK_CLASS}
-            >
-              {copy.contactSupport}
+              {COPY.nav.termsOfUse}
             </a>
             {copy.ineligibleAfter}
           </Text>

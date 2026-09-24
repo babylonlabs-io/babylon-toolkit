@@ -102,6 +102,7 @@ const gatingState: DepositGatingState = {
   isDepositDisabled: false,
   isGeoBlocked: false,
   isAddressBlocked: false,
+  isAddressScreeningUnavailable: false,
 };
 
 function renderForm(fundingInputCapExceeded?: boolean) {

@@ -135,6 +135,8 @@ export interface DepositCtaParams extends DepositFormValidityParams {
   p2aAnchorValueSats: bigint | null;
   isGeoBlocked: boolean;
   isAddressBlocked: boolean;
+  /** True if the address block comes only from a failed screening request. */
+  isAddressScreeningUnavailable: boolean;
   isWalletConnected: boolean;
   /**
    * True when the session is confirmed, Bitcoin is absent, and Bitcoin is
@@ -347,7 +349,12 @@ export function getDepositCtaState(params: DepositCtaParams): DepositCtaState {
   }
 
   if (params.isAddressBlocked) {
-    return { disabled: true, label: "Wallet not eligible" };
+    return {
+      disabled: true,
+      label: params.isAddressScreeningUnavailable
+        ? COPY.wallet.addressScreeningBanner.unavailableTitle
+        : COPY.wallet.walletNotEligibleTooltip,
+    };
   }
 
   if (!params.isWalletConnected) {
