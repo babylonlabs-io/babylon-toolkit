@@ -55,11 +55,15 @@ export function estimateActivationDeadlineLikelyPassed(params: {
  * they were unlikely to land; sending it and losing the race costs them the
  * secret. The asymmetry is the whole reason this margin exists.
  *
- * Six blocks is roughly 72 seconds at a 12-second slot. That covers ordinary
- * inclusion latency with room for a few missed slots, and it is negligible
- * against an activation window measured in hundreds of blocks.
+ * The margin is checked right before the write, but the wallet's signing
+ * prompt comes after that check and has no time limit: `writeContract` signs
+ * and sends in one step. So the margin must cover the time a depositor spends
+ * in that prompt as well as inclusion latency. 25 blocks is about 5 minutes
+ * at a 12-second slot — room for a hardware-wallet confirmation and a few
+ * missed slots, and still small against an activation window measured in
+ * hundreds of blocks.
  *
  * This is a policy value, not a protocol constant — the contract enforces the
  * deadline itself and knows nothing about this margin.
  */
-export const ACTIVATION_INCLUSION_MARGIN_BLOCKS = 6;
+export const ACTIVATION_INCLUSION_MARGIN_BLOCKS = 25;

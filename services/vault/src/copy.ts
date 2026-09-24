@@ -211,10 +211,12 @@ export const COPY = {
       // action: `claimExpiredVault` is the way out and the app has no path to
       // it yet, so the copy states the position and stops. Update this text in
       // the same change that adds the CTA.
+      // The PegIn may have swept the HTLC before or after the deadline, so the
+      // copy names the state, not the order of events.
       peginSweptWhileExpired:
-        "The peg-in completed on Bitcoin after this BTCVault expired, so your BTC is held in the vault rather than refunded. A refund is no longer possible from here.",
+        "The peg-in completed on Bitcoin, but this BTCVault expired before it was activated. Your BTC is held in the BTCVault, not refunded. A refund is no longer possible from here.",
       peginSweptWhileExpiredSubtext:
-        "Peg-in completed after expiry — refund unavailable.",
+        "Peg-in completed, BTCVault expired — refund unavailable.",
       // Activation floor. Blocks lead because they are the fact the contract
       // checks; the minutes figure is an estimate derived from slot time, so it
       // is bracketed as approximate. Mirrors the refundMaturing shape.

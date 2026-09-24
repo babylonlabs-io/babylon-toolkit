@@ -143,6 +143,27 @@ export interface DepositPollingInputs {
   now?: number;
 }
 
+/**
+ * Whether the PegIn, not a refund, spent a vault's HTLC.
+ *
+ * A spend is only a refund if somebody other than the PegIn made it; when the
+ * PegIn is the spender the BTC moved INTO the BTCVault. Positive proof only: a
+ * missing `spendingTxid` or PegIn txid reads as false. The display, the
+ * stuck-state probe and the refunded-HTLC cache all attribute through this, so
+ * none of them can record a PegIn sweep as a refund.
+ */
+export function isHtlcSpentByPegin(
+  spend: HtlcSpend | undefined,
+  peginTxHash: string | undefined,
+): boolean {
+  const peginTxCanonical = canonicalizeTxid(peginTxHash);
+  return (
+    spend?.spent === true &&
+    peginTxCanonical !== undefined &&
+    canonicalizeTxid(spend.spendingTxid) === peginTxCanonical
+  );
+}
+
 export function computeDepositPollingResult(
   inputs: DepositPollingInputs,
 ): DepositPollingResult {
@@ -275,15 +296,10 @@ export function computeDepositPollingResult(
   // a spent-but-unconfirmed one is a pending refund. Either way the refund is
   // no longer available — re-broadcasting would hit Bitcoin's -27/-25.
   const liveRefund = htlcRefundByDepositId.get(depositIdKey);
-  const peginTxCanonical = canonicalizeTxid(activity.peginTxHash);
-  // Who spent the HTLC. A spend is only a refund if somebody other than the
-  // PegIn made it; when the PegIn is the spender the BTC moved INTO the vault.
-  // Positive proof only — a missing `spendingTxid` leaves this false and the
-  // settlement below reads exactly as it did before.
-  const htlcSpendIsPeginTx =
-    liveRefund?.spent === true &&
-    peginTxCanonical !== undefined &&
-    canonicalizeTxid(liveRefund.spendingTxid) === peginTxCanonical;
+  const htlcSpendIsPeginTx = isHtlcSpentByPegin(
+    liveRefund,
+    activity.peginTxHash,
+  );
   // An expired vault whose HTLC the PegIn swept. Reachable when a late
   // activation leaked the secret: the call reverted, the vault expired with
   // `ActivationTimeout`, and the secret in that calldata let the PegIn be

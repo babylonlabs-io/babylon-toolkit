@@ -180,6 +180,14 @@ export interface UseVaultActionsReturn {
  */
 const FLOOR_UNAVAILABLE_ERROR_NAME = "ActivationFloorUnavailableError";
 
+/**
+ * The chain head, bypassing viem's ~4s `getBlockNumber` cache. A stale head
+ * overstates the room left before the activation deadline.
+ */
+function readHeadBlock(): Promise<bigint> {
+  return ethClient.getPublicClient().getBlockNumber({ cacheTime: 0 });
+}
+
 export function useVaultActions(): UseVaultActionsReturn {
   const gate = useProtocolGateState();
 
@@ -650,16 +658,18 @@ export function useVaultActions(): UseVaultActionsReturn {
       // calldata if the protocol paused in that window. A failed pause read
       // falls back to the cached gate (activation is time-critical — an RPC
       // blip must not trap a depositor whose activation deadline is near).
-      // The delay read is deliberately NOT `.catch`-ed like the pause read
-      // below: an unreadable delay must reject rather than fall through,
-      // because proceeding would put the secret into `simulateContract`
-      // calldata for a call the contract will refuse. The block-number read
-      // is the exception — delay 0 disables the floor, so a `getBlockNumber`
-      // blip must not abort that path; a missing block with delay > 0 still
-      // aborts below. Skipped entirely when the feature is off — the getter
-      // does not exist on every deployment yet.
-      // Redeem path is exempt from the floor (see the check below), so it does
-      // not need these reads either.
+      // The window reads (head block, activation delay, activation timeout)
+      // are deliberately NOT `.catch`-ed like the pause read: an unreadable
+      // input must reject rather than fall through, because proceeding would
+      // put the secret into `simulateContract` calldata for a call the
+      // contract may refuse. The delay read is skipped when the feature is
+      // off — the getter does not exist on every deployment yet.
+      //
+      // The redeem path needs none of them. It is exempt from the floor on
+      // chain, and it runs only after the PegIn swept the HTLC, whose witness
+      // already published the secret on Bitcoin — so the deadline margin
+      // protects nothing there and would only block the one recovery left.
+      const deadlineGateEnabled = !redeemImmediately;
       const floorEnabled =
         FeatureFlags.isActivationDelayEnabled && !redeemImmediately;
       // Re-throws (so the gate still fails closed) but re-labels first: an
@@ -691,31 +701,21 @@ export function useVaultActions(): UseVaultActionsReturn {
         reader.getVaultData(vaultId),
         getOnChainPauseState().catch(() => null),
         // `cacheTime: 0` because viem caches getBlockNumber for ~4s by
-        // default; a stale-behind head inflates the remaining count and can
-        // gate a window that is actually open.
-        //
-        // Read unconditionally, and fail closed when it cannot be read. The
-        // floor could tolerate a blip (delay 0 disables it), but the deadline
-        // gate below cannot: without the head we cannot tell whether this
-        // activation still has room to be mined, and guessing puts the secret
-        // in calldata for a transaction that may revert.
-        ethClient
-          .getPublicClient()
-          .getBlockNumber({ cacheTime: 0 })
-          .catch(onFloorReadFailure),
+        // default; a stale head misstates the margin on both ends.
+        deadlineGateEnabled
+          ? readHeadBlock().catch(onFloorReadFailure)
+          : Promise.resolve(undefined),
         floorEnabled
           ? getProtocolParamsReader()
               .then((r) => r.getPeginActivationDelay())
               .catch(onFloorReadFailure)
           : Promise.resolve(undefined),
-        // The deadline applies to BOTH reveal paths. Unlike the activation
-        // floor, `activateVaultWithSecretAndRedeem` is not exempt from it —
-        // past the deadline the escape hatch reverts too, and reverts with the
-        // secret already public.
-        getProtocolParamsReader()
-          .then((r) => r.getTBVProtocolParams())
-          .then((params) => params.pegInActivationTimeout)
-          .catch(onFloorReadFailure),
+        deadlineGateEnabled
+          ? getProtocolParamsReader()
+              .then((r) => r.getTBVProtocolParams())
+              .then((params) => params.pegInActivationTimeout)
+              .catch(onFloorReadFailure)
+          : Promise.resolve(undefined),
       ]);
 
       const effectiveGate = freshPauseState
@@ -763,11 +763,10 @@ export function useVaultActions(): UseVaultActionsReturn {
         throw new Error(message);
       }
 
-      // Activation ceiling, re-checked on the same fresh reads. The dashboard
-      // gate (`useActivationDeadlineGate`) is explicitly UX-only and polls on a
-      // 60s cadence, so a vault can cross the deadline between the last poll
-      // and this click. Everything below this point puts the secret into
-      // calldata, so the margin is checked here rather than trusting that gate.
+      // Activation ceiling. The dashboard gate (`useActivationDeadlineGate`)
+      // is explicitly UX-only and polls on a 60s cadence, so a vault can cross
+      // the deadline between the last poll and this click. Checked here on the
+      // fresh reads, and again on a fresh head right before the write below.
       //
       // Refusing is the safe direction. A late activation reverts
       // `ActivationDeadlineExpired`, but `s` is public in the calldata either
@@ -775,20 +774,30 @@ export function useVaultActions(): UseVaultActionsReturn {
       // broadcast the PegIn using that secret.
       //
       // Terminal, not retryable — the margin only shrinks.
-      if (pegInActivationTimeout === undefined) {
-        throw onFloorReadFailure(
-          new Error("activation deadline inputs missing after a settled read"),
-        );
-      }
-      const deadlineBlocksRemaining = activationDeadlineBlocksRemaining({
-        currentBlock,
-        createdAtBlock: basicInfo.createdAt,
-        pegInActivationTimeout,
-      });
-      if (deadlineBlocksRemaining <= ACTIVATION_INCLUSION_MARGIN_BLOCKS) {
-        throw new ActivationNotPossibleError(
-          COPY.pegin.messages.activationWindowClosing,
-        );
+      const assertDeadlineMargin = (head: bigint, timeout: bigint): void => {
+        const remaining = activationDeadlineBlocksRemaining({
+          currentBlock: head,
+          createdAtBlock: basicInfo.createdAt,
+          pegInActivationTimeout: timeout,
+        });
+        if (remaining <= ACTIVATION_INCLUSION_MARGIN_BLOCKS) {
+          throw new ActivationNotPossibleError(
+            COPY.pegin.messages.activationWindowClosing,
+          );
+        }
+      };
+      if (deadlineGateEnabled) {
+        if (
+          currentBlock === undefined ||
+          pegInActivationTimeout === undefined
+        ) {
+          throw onFloorReadFailure(
+            new Error(
+              "activation deadline inputs missing after a settled read",
+            ),
+          );
+        }
+        assertDeadlineMargin(currentBlock, pegInActivationTimeout);
       }
 
       // Activation floor, re-checked on fresh reads immediately before the
@@ -815,11 +824,9 @@ export function useVaultActions(): UseVaultActionsReturn {
             new Error("activation floor inputs missing after a settled read"),
           );
         }
-        // Delay of 0 disables the floor: do not require `verifiedAt`.
-        // `currentBlock` is no longer optional here — the deadline gate above
-        // already aborted if it could not be read.
+        // Delay of 0 disables the floor: do not require block/`verifiedAt`.
         if (peginActivationDelay !== 0n) {
-          if (protocolInfo.verifiedAt === 0n) {
+          if (currentBlock === undefined || protocolInfo.verifiedAt === 0n) {
             throw onFloorReadFailure(
               new Error("activation floor inputs missing after a settled read"),
             );
@@ -858,6 +865,18 @@ export function useVaultActions(): UseVaultActionsReturn {
       const walletClient = await getWalletClient(wagmiConfig, {
         account: depositorEthAddress as Hex,
       });
+
+      // The chain switch can prompt and wait on the user, so the margin is
+      // checked again on a fresh head as the last step before the secret is
+      // used. One gap remains and cannot be closed from here: `writeContract`
+      // asks the wallet to sign and sends in one step, so the time the user
+      // spends in that prompt is covered only by the margin's size.
+      if (deadlineGateEnabled && pegInActivationTimeout !== undefined) {
+        assertDeadlineMargin(
+          await readHeadBlock().catch(onFloorReadFailure),
+          pegInActivationTimeout,
+        );
+      }
 
       // Reveal the secret on the contract — the normal activation or, in
       // escape-hatch mode, activate-and-redeem. Hashlock is forwarded so the

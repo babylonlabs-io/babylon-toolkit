@@ -224,26 +224,35 @@ describe("activationDeadlineBlocksRemaining", () => {
   const createdAtBlock = 1000n;
   const pegInActivationTimeout = 100n;
 
-  it("counts the boundary block as usable, matching the contract's strict >", () => {
-    // The contract reverts on `block.number > createdAt + timeout`, so a
-    // transaction mined at exactly 1100 still succeeds: one block remains.
+  it("leaves one block when the head is one before the last usable block", () => {
+    // The contract accepts `block.number <= createdAt + timeout` = 1100. The
+    // head (1099) is already mined, so the next transaction lands at 1100.
     expect(
       activationDeadlineBlocksRemaining({
-        currentBlock: 1100n,
+        currentBlock: 1099n,
         createdAtBlock,
         pegInActivationTimeout,
       }),
     ).toBe(1);
   });
 
-  it("returns 0 once the window has closed", () => {
+  it("returns 0 when the head is the last usable block, because it is already mined", () => {
+    // `isActivationDeadlinePassedOnChain` still reads false here: the head is
+    // inside the window. A transaction sent now lands at 1101 and reverts.
     expect(
       activationDeadlineBlocksRemaining({
-        currentBlock: 1101n,
+        currentBlock: 1100n,
         createdAtBlock,
         pegInActivationTimeout,
       }),
     ).toBe(0);
+    expect(
+      isActivationDeadlinePassedOnChain({
+        currentBlock: 1100n,
+        createdAtBlock,
+        pegInActivationTimeout,
+      }),
+    ).toBe(false);
   });
 
   it("never reports a negative margin for a long-expired vault", () => {
@@ -263,22 +272,6 @@ describe("activationDeadlineBlocksRemaining", () => {
         createdAtBlock,
         pegInActivationTimeout,
       }),
-    ).toBe(101);
-  });
-
-  it("agrees with isActivationDeadlinePassedOnChain at the boundary", () => {
-    for (const currentBlock of [1099n, 1100n, 1101n]) {
-      const remaining = activationDeadlineBlocksRemaining({
-        currentBlock,
-        createdAtBlock,
-        pegInActivationTimeout,
-      });
-      const passed = isActivationDeadlinePassedOnChain({
-        currentBlock,
-        createdAtBlock,
-        pegInActivationTimeout,
-      });
-      expect(remaining === 0).toBe(passed);
-    }
+    ).toBe(100);
   });
 });

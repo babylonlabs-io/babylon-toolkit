@@ -263,8 +263,10 @@ export function isActivationDeadlinePassedOnChain(params: {
  * broadcast the PegIn with that secret. The caller therefore needs the
  * remaining margin, not a boolean.
  *
- * Counts the boundary block as usable, matching the contract's strict `>`:
- * at `currentBlock === createdAt + timeout` one block remains.
+ * The contract accepts a transaction mined at `block.number <= createdAt +
+ * timeout`. `currentBlock` is the chain head, which is already mined, so a new
+ * transaction lands at `currentBlock + 1` at the earliest: at
+ * `currentBlock === createdAt + timeout` no usable block remains.
  */
 export function activationDeadlineBlocksRemaining(params: {
   currentBlock: bigint;
@@ -273,6 +275,6 @@ export function activationDeadlineBlocksRemaining(params: {
 }): number {
   const { currentBlock, createdAtBlock, pegInActivationTimeout } = params;
   const lastUsableBlock = createdAtBlock + pegInActivationTimeout;
-  if (currentBlock > lastUsableBlock) return 0;
-  return Number(lastUsableBlock - currentBlock) + 1;
+  if (currentBlock >= lastUsableBlock) return 0;
+  return Number(lastUsableBlock - currentBlock);
 }

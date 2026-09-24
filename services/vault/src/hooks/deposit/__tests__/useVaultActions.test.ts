@@ -2382,8 +2382,10 @@ describe("useVaultActions — activation deadline margin", () => {
   const ON_CHAIN_HASHLOCK =
     "0xec4916dd28fc4c10d78e287ca5d9cc51ee1ae73cbfde08c6b37324cbfaac8bc5";
 
-  // createdAt 1000 + timeout 100 => the last block that can still be mined is
-  // 1100, so the margin runs out at 1094.
+  // createdAt 1000 + timeout 100 => the contract accepts a transaction mined
+  // at block 1100 or earlier. The head is already mined, so from head H the
+  // room left is 1100 - H. The margin is 25 blocks, so head 1074 (26 left) is
+  // the last that reveals and head 1075 (25 left) the first that refuses.
   const CREATED_AT = 1_000n;
   const TIMEOUT = 100n;
 
@@ -2427,9 +2429,8 @@ describe("useVaultActions — activation deadline margin", () => {
     expect(mockActivateVaultWithSecret).toHaveBeenCalledTimes(1);
   });
 
-  it("reveals on the last block that still clears the margin", async () => {
-    // 1093 leaves 8 blocks (1093..1100 inclusive), one more than the margin.
-    mockGetBlockNumber.mockResolvedValue(1_093n);
+  it("reveals on the last head that still clears the margin", async () => {
+    mockGetBlockNumber.mockResolvedValue(1_074n);
 
     const { result } = renderHook(() => useVaultActions());
     await act(async () => {
@@ -2439,9 +2440,8 @@ describe("useVaultActions — activation deadline margin", () => {
     expect(mockActivateVaultWithSecret).toHaveBeenCalledTimes(1);
   });
 
-  it("refuses once the remaining margin is used up", async () => {
-    // 1094 leaves exactly 7 blocks; the margin needs more than 6 to pass.
-    mockGetBlockNumber.mockResolvedValue(1_095n);
+  it("refuses at the first head that leaves only the margin", async () => {
+    mockGetBlockNumber.mockResolvedValue(1_075n);
 
     const { result } = renderHook(() => useVaultActions());
     await act(async () => {
@@ -2465,11 +2465,31 @@ describe("useVaultActions — activation deadline margin", () => {
     expect(mockActivateVaultWithSecret).not.toHaveBeenCalled();
   });
 
-  it("applies the margin to the activate-and-redeem path too", async () => {
-    // The floor exempts the escape hatch because the contract does. The
-    // deadline does not: past it that call reverts as well, with the secret
-    // already in the calldata.
-    mockGetBlockNumber.mockResolvedValue(1_200n);
+  it("refuses when the margin runs out while the chain switch is pending", async () => {
+    // The first read clears the margin; the head read right before the write
+    // does not. Time spent in the chain-switch prompt must not carry the
+    // secret past the deadline.
+    mockGetBlockNumber
+      .mockResolvedValueOnce(1_000n)
+      .mockResolvedValueOnce(1_075n);
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(async () => {
+      await result.current.handleActivation(params);
+    });
+
+    expect(mockActivateVaultWithSecret).not.toHaveBeenCalled();
+    expect(result.current.activationError).toBe(
+      COPY.pegin.messages.activationWindowClosing,
+    );
+  });
+
+  it("does not apply the margin to the activate-and-redeem path", async () => {
+    // That path runs only after the PegIn swept the HTLC, so its witness has
+    // already published the secret on Bitcoin. The margin would protect
+    // nothing and block the one recovery left; the contract still refuses a
+    // call past the deadline.
+    mockGetBlockNumber.mockResolvedValue(1_090n);
 
     const { result } = renderHook(() => useVaultActions());
     await act(async () => {
@@ -2479,7 +2499,8 @@ describe("useVaultActions — activation deadline margin", () => {
       });
     });
 
-    expect(mockActivateVaultWithSecretAndRedeem).not.toHaveBeenCalled();
+    expect(mockActivateVaultWithSecretAndRedeem).toHaveBeenCalledTimes(1);
+    expect(mockGetBlockNumber).not.toHaveBeenCalled();
   });
 
   it("aborts rather than revealing when the timeout cannot be read", async () => {

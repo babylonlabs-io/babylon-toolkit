@@ -4854,8 +4854,10 @@ calldata: the vault expires with `ActivationTimeout` and anyone can
 broadcast the PegIn with that secret. The caller therefore needs the
 remaining margin, not a boolean.
 
-Counts the boundary block as usable, matching the contract's strict `>`:
-at `currentBlock === createdAt + timeout` one block remains.
+The contract accepts a transaction mined at `block.number <= createdAt +
+timeout`. `currentBlock` is the chain head, which is already mined, so a new
+transaction lands at `currentBlock + 1` at the earliest: at
+`currentBlock === createdAt + timeout` no usable block remains.
 
 #### Parameters
 

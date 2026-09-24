@@ -415,7 +415,6 @@ export function getPeginState(
     canRefund: options.canRefund,
     hasProviderTerminalFailure: !!options.vpTerminalError,
     htlcSpentByPeginTx: options.htlcSpentByPeginTx,
-    peginSweptWhileExpired: options.peginSweptWhileExpired,
   });
 
   const sdkActions = applyTrackingOverrides(
@@ -779,6 +778,18 @@ function getDisplay(
   }
 
   if (contractStatus === ContractStatus.EXPIRED) {
+    // The PegIn, not a refund, spent the HTLC, so the BTC is in the BTCVault.
+    // Checked before every refund branch, the local refund-broadcast marker
+    // included: each of them describes returning BTC that is not coming back,
+    // and the maturity countdown would tick toward an action Bitcoin rejects.
+    if (options.peginSweptWhileExpired) {
+      return {
+        displayLabel: PEGIN_DISPLAY_LABELS.ACTIVATION_INCOMPLETE,
+        displayVariant: "warning",
+        message: COPY.pegin.messages.peginSweptWhileExpired,
+        inlineSubtext: COPY.pegin.messages.peginSweptWhileExpiredSubtext,
+      };
+    }
     // Chain ground truth: the HTLC output is already spent. Overrides the
     // localStorage optimistic state and (with `canRefund=false`) stops the
     // dashboard re-offering a refund that Bitcoin would reject.
@@ -804,18 +815,6 @@ function getDisplay(
         displayLabel: PEGIN_DISPLAY_LABELS.REFUNDING,
         displayVariant: "pending",
         message: COPY.pegin.messages.refundBroadcast,
-      };
-    }
-    // The PegIn swept the HTLC after expiry, so the deposit is funded, not
-    // refunded. Checked before every refund branch below: each of those
-    // describes returning BTC that is not coming back, and the maturity
-    // countdown would tick toward an action Bitcoin rejects.
-    if (options.peginSweptWhileExpired) {
-      return {
-        displayLabel: PEGIN_DISPLAY_LABELS.ACTIVATION_INCOMPLETE,
-        displayVariant: "warning",
-        message: COPY.pegin.messages.peginSweptWhileExpired,
-        inlineSubtext: COPY.pegin.messages.peginSweptWhileExpiredSubtext,
       };
     }
     const expiredMessage = buildExpiredMessage(expirationReason, expiredAt);

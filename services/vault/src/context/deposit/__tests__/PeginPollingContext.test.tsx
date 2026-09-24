@@ -10,6 +10,7 @@ import {
   PEGIN_DISPLAY_LABELS,
   PeginAction,
 } from "../../../models/peginStateMachine";
+import { loadRefundedHtlcVaultIds } from "../../../storage/refundedHtlcCache";
 import type { VaultActivity } from "../../../types/activity";
 import type { PeginPollingContextValue } from "../../../types/peginPolling";
 import {
@@ -929,6 +930,40 @@ describe("PeginPollingContext", () => {
 
     expect(status?.peginState.availableActions).toEqual([PeginAction.NONE]);
     expect(status?.peginState.displayLabel).toBe(PEGIN_DISPLAY_LABELS.REFUNDED);
+  });
+
+  it("EXPIRED: never caches a PegIn sweep as a refund, so the sweep label survives later polls", async () => {
+    mockVersionedParams.set(3, { tRefund: 144 });
+    mockUseBtcMempoolConfirmations.mockReturnValue({
+      confirmationsByTxid: new Map([[PRE_PEGIN_TXID_HEX, 144]]),
+    });
+    // The PegIn itself spent the HTLC: a sweep INTO the BTCVault. If this were
+    // cached as a refund, the vault would leave the probe and read as
+    // "Refund complete" on every later render and reload.
+    mockUseBtcHtlcRefundStatus.mockReturnValue({
+      refundByDepositId: new Map([
+        [
+          ACTIVITY_ID.toLowerCase(),
+          {
+            spent: true,
+            confirmed: true,
+            spendingTxid: EXPIRED_ACTIVITY.peginTxHash,
+          },
+        ],
+      ]),
+    });
+
+    const { result } = renderExpired();
+    await act(async () => {});
+
+    expect(loadRefundedHtlcVaultIds().has(ACTIVITY_ID.toLowerCase())).toBe(
+      false,
+    );
+    const status = result.current.getPollingResult(ACTIVITY_ID);
+    expect(status?.peginState.displayLabel).toBe(
+      PEGIN_DISPLAY_LABELS.ACTIVATION_INCOMPLETE,
+    );
+    expect(status?.peginState.availableActions).toEqual([PeginAction.NONE]);
   });
 
   it("EXPIRED: never marks mature when the per-deposit tRefund is unknown (no fallback to latest)", () => {
