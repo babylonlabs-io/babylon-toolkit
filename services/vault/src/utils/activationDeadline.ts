@@ -88,3 +88,22 @@ export function isHeadBlockStale(
   const nowSeconds = BigInt(Math.floor(nowMs / MILLISECONDS_PER_SECOND));
   return nowSeconds - headTimestampSeconds > MAX_HEAD_BLOCK_AGE_SECONDS;
 }
+
+/**
+ * Blocks a head block may lag behind the chain, from its age.
+ *
+ * Rounded up and counted at one block per `ETH_SLOT_SECONDS`, so it is an
+ * upper bound: the deadline gate adds it to the head and so assumes the
+ * latest block the chain may have reached. A head stamped ahead of this
+ * device's clock counts as no lag.
+ */
+export function headBlockLagBlocks(
+  headTimestampSeconds: bigint,
+  nowMs: number,
+): bigint {
+  const nowSeconds = BigInt(Math.floor(nowMs / MILLISECONDS_PER_SECOND));
+  const ageSeconds = nowSeconds - headTimestampSeconds;
+  if (ageSeconds <= 0n) return 0n;
+  const slot = BigInt(ETH_SLOT_SECONDS);
+  return (ageSeconds + slot - 1n) / slot;
+}

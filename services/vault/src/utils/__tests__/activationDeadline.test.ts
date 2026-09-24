@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   estimateActivationDeadlineLikelyPassed,
+  headBlockLagBlocks,
   isHeadBlockStale,
 } from "../activationDeadline";
 
@@ -119,5 +120,28 @@ describe("isHeadBlockStale", () => {
 
   it("accepts a head stamped slightly ahead of this device's clock", () => {
     expect(isHeadBlockStale(NOW_SECONDS + 5n, NOW_MS)).toBe(false);
+  });
+});
+
+describe("headBlockLagBlocks", () => {
+  const NOW_MS = 1_700_000_000_000;
+  const NOW_SECONDS = 1_700_000_000n;
+
+  it("counts no lag for a head from this second", () => {
+    expect(headBlockLagBlocks(NOW_SECONDS, NOW_MS)).toBe(0n);
+  });
+
+  it("rounds a partial slot up, so the lag is an upper bound", () => {
+    expect(headBlockLagBlocks(NOW_SECONDS - 1n, NOW_MS)).toBe(1n);
+    expect(headBlockLagBlocks(NOW_SECONDS - 12n, NOW_MS)).toBe(1n);
+    expect(headBlockLagBlocks(NOW_SECONDS - 13n, NOW_MS)).toBe(2n);
+  });
+
+  it("counts ten blocks at the oldest accepted age", () => {
+    expect(headBlockLagBlocks(NOW_SECONDS - 120n, NOW_MS)).toBe(10n);
+  });
+
+  it("counts no lag for a head stamped ahead of this device's clock", () => {
+    expect(headBlockLagBlocks(NOW_SECONDS + 5n, NOW_MS)).toBe(0n);
   });
 });

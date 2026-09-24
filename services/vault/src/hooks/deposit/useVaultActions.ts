@@ -53,6 +53,7 @@ import {
 } from "@/services/vault/ethConfirmationGate";
 import {
   ACTIVATION_INCLUSION_MARGIN_BLOCKS,
+  headBlockLagBlocks,
   isHeadBlockStale,
 } from "@/utils/activationDeadline";
 import {
@@ -184,24 +185,37 @@ export interface UseVaultActionsReturn {
 const FLOOR_UNAVAILABLE_ERROR_NAME = "ActivationFloorUnavailableError";
 
 /**
- * The chain head, read fresh, as a block number.
+ * The chain head, read fresh.
  *
- * A stale head overstates the room left before the activation deadline, so a
- * lagging head fails the activation gate open. `getBlock` bypasses viem's ~4s
- * `getBlockNumber` cache, but a load-balanced node can still be behind: a
- * stale head (`isHeadBlockStale`) is rejected as unreadable rather than
- * trusted.
+ * `getBlock` bypasses viem's ~4s `getBlockNumber` cache, but a load-balanced
+ * node can still be behind. A head too old to use (`isHeadBlockStale`) is
+ * rejected as unreadable. A younger one is accepted, with the blocks it may
+ * lag by (`headBlockLagBlocks`), so each gate can correct in its safe
+ * direction: the deadline adds the lag, the floor does not.
  */
-async function readHeadBlock(): Promise<bigint> {
+async function readHeadBlock(): Promise<{ number: bigint; lagBlocks: bigint }> {
   const head = await ethClient
     .getPublicClient()
     .getBlock({ blockTag: "latest" });
-  if (isHeadBlockStale(head.timestamp, Date.now())) {
+  const nowMs = Date.now();
+  if (isHeadBlockStale(head.timestamp, nowMs)) {
     throw new Error(
       `RPC head block ${head.number} (timestamp ${head.timestamp}) is stale; the node is behind`,
     );
   }
-  return head.number;
+  return {
+    number: head.number,
+    lagBlocks: headBlockLagBlocks(head.timestamp, nowMs),
+  };
+}
+
+/**
+ * The head the deadline gate counts from: the reported head plus the blocks
+ * it may lag by. A lagging head understates how much of the window is gone,
+ * so the deadline must assume the latest block the chain may have reached.
+ */
+function deadlineHead(head: { number: bigint; lagBlocks: bigint }): bigint {
+  return head.number + head.lagBlocks;
 }
 
 export function useVaultActions(): UseVaultActionsReturn {
@@ -720,7 +734,7 @@ export function useVaultActions(): UseVaultActionsReturn {
       const [
         { basic: basicInfo, protocol: protocolInfo },
         freshPauseState,
-        currentBlock,
+        headRead,
         peginActivationDelay,
         pegInActivationTimeout,
       ] = await Promise.all([
@@ -811,8 +825,16 @@ export function useVaultActions(): UseVaultActionsReturn {
           );
         }
       };
+      // The floor keeps the head as reported: adding lag there would open the
+      // floor early, and a reveal before the floor reverts with the secret
+      // public just as a late one does.
+      const currentBlock = headRead?.number;
+      // Raised to the latest head seen, so the re-check before the write can
+      // never count from a node that is further behind than this read.
+      let highestDeadlineHead: bigint | undefined;
       if (deadlineGateEnabled) {
         if (
+          headRead === undefined ||
           currentBlock === undefined ||
           pegInActivationTimeout === undefined
         ) {
@@ -831,7 +853,8 @@ export function useVaultActions(): UseVaultActionsReturn {
             ),
           );
         }
-        assertDeadlineMargin(currentBlock, pegInActivationTimeout);
+        highestDeadlineHead = deadlineHead(headRead);
+        assertDeadlineMargin(highestDeadlineHead, pegInActivationTimeout);
       }
 
       // Activation floor, re-checked on fresh reads immediately before the
@@ -905,11 +928,16 @@ export function useVaultActions(): UseVaultActionsReturn {
       // used. One gap remains and cannot be closed from here: `writeContract`
       // asks the wallet to sign and sends in one step, so the time the user
       // spends in that prompt is covered only by the margin's size.
-      if (deadlineGateEnabled && pegInActivationTimeout !== undefined) {
-        assertDeadlineMargin(
+      if (
+        deadlineGateEnabled &&
+        pegInActivationTimeout !== undefined &&
+        highestDeadlineHead !== undefined
+      ) {
+        const freshHead = deadlineHead(
           await readHeadBlock().catch(onDeadlineReadFailure),
-          pegInActivationTimeout,
         );
+        if (freshHead > highestDeadlineHead) highestDeadlineHead = freshHead;
+        assertDeadlineMargin(highestDeadlineHead, pegInActivationTimeout);
       }
 
       // Reveal the secret on the contract — the normal activation or, in

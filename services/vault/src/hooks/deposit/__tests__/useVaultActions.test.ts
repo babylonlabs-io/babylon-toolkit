@@ -2502,6 +2502,26 @@ describe("useVaultActions — activation deadline margin", () => {
     expect(result.current.activationError).toBe(
       COPY.pegin.messages.activationWindowClosing,
     );
+    // The margin only shrinks, so the refusal must not offer Retry.
+    expect(result.current.activationErrorTerminal).toBe(true);
+  });
+
+  it("counts the head's possible lag against the margin", async () => {
+    // 1065 alone leaves 35 blocks. A head 120 s old may lag by 10, so the
+    // chain may already be at 1075, where only the margin is left.
+    mockGetBlockNumber.mockResolvedValue(1_065n);
+    mockHeadAgeSeconds.value = 120n;
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(async () => {
+      await result.current.handleActivation(params);
+    });
+
+    expect(mockActivateVaultWithSecret).not.toHaveBeenCalled();
+    expect(result.current.activationError).toBe(
+      COPY.pegin.messages.activationWindowClosing,
+    );
+    expect(result.current.activationErrorTerminal).toBe(true);
   });
 
   it("refuses after the window has closed outright", async () => {
@@ -2513,6 +2533,7 @@ describe("useVaultActions — activation deadline margin", () => {
     });
 
     expect(mockActivateVaultWithSecret).not.toHaveBeenCalled();
+    expect(result.current.activationErrorTerminal).toBe(true);
   });
 
   it("refuses when the margin runs out while the chain switch is pending", async () => {
@@ -2532,6 +2553,7 @@ describe("useVaultActions — activation deadline margin", () => {
     expect(result.current.activationError).toBe(
       COPY.pegin.messages.activationWindowClosing,
     );
+    expect(result.current.activationErrorTerminal).toBe(true);
   });
 
   it("does not apply the margin to the activate-and-redeem path", async () => {
