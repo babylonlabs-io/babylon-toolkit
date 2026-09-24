@@ -22,6 +22,33 @@ const PROVIDER_NAMES = {
 
 export const WALLET_PROVIDER_NAME = "OKX";
 
+interface OkxSignPsbtOptions {
+  autoFinalized: boolean;
+  toSignInputs: ReturnType<typeof mapSignInputsToToSignInputs> | undefined;
+}
+
+// Seam options → OKX `{ autoFinalized, toSignInputs }`: explicit inputs default to non-finalized
+// (script-path signing needs tapScriptSig), a bare `autoFinalized: false` is kept, else wallet defaults.
+function toOkxSignOptions(options?: SignPsbtOptions): OkxSignPsbtOptions | undefined {
+  if (options?.signInputs && options.signInputs.length > 0) {
+    return {
+      autoFinalized: options.autoFinalized ?? false,
+      toSignInputs: mapSignInputsToToSignInputs(options.signInputs),
+    };
+  }
+  if (options?.autoFinalized === false) {
+    return { autoFinalized: false, toSignInputs: undefined };
+  }
+  return undefined;
+}
+
+// What `signPsbts` returned, for the malformed-response error: shape only, never the payload.
+function describeSignPsbtsResponse(signed: unknown): string {
+  if (!Array.isArray(signed)) return typeof signed;
+  if (signed.length !== 1) return `an array of ${signed.length}`;
+  return typeof signed[0] === "string" ? "an array holding an empty string" : `an array holding ${typeof signed[0]}`;
+}
+
 // Bound the version read so a locked/asleep extension fails recoverably, not hangs.
 const OKX_RPC_TIMEOUT_MS = 10_000;
 
@@ -204,12 +231,23 @@ export class OKXProvider implements IBTCProvider {
         wallet: WALLET_PROVIDER_NAME,
       });
 
-    // OKX supports options with toSignInputs similar to UniSat
-    if (options?.signInputs && options.signInputs.length > 0) {
-      const okxOptions = {
-        autoFinalized: options.autoFinalized ?? false,
-        toSignInputs: mapSignInputsToToSignInputs(options.signInputs),
-      };
+    const okxOptions = toOkxSignOptions(options);
+
+    // OKX extension 4.17.11 drops `autoFinalized: false` on `signPsbt` (its handler copies the flag
+    // only when truthy) but forwards it on `signPsbts`, so a lone PSBT takes the batch endpoint.
+    if (okxOptions?.autoFinalized === false) {
+      const signed: unknown = await this.provider.signPsbts([psbtHex], [okxOptions]);
+      if (!Array.isArray(signed) || signed.length !== 1 || typeof signed[0] !== "string" || signed[0].length === 0) {
+        throw new WalletError({
+          code: ERROR_CODES.SIGNATURE_EXTRACT_ERROR,
+          message: `OKX Wallet returned a malformed response to a single-PSBT batch signing request: expected an array holding exactly one non-empty signed PSBT hex, got ${describeSignPsbtsResponse(signed)}`,
+          wallet: WALLET_PROVIDER_NAME,
+        });
+      }
+      return signed[0];
+    }
+
+    if (okxOptions) {
       return await this.provider.signPsbt(psbtHex, okxOptions);
     }
 
@@ -224,18 +262,12 @@ export class OKXProvider implements IBTCProvider {
         wallet: WALLET_PROVIDER_NAME,
       });
 
-    // If options provided, map them to OKX format
+    // Same seam → OKX conversion as `signPsbt`, so one PSBT and a batch never disagree about an option.
     if (options && options.length > 0) {
-      const okxOptions = options.map((opt) => {
-        if (opt?.signInputs && opt.signInputs.length > 0) {
-          return {
-            autoFinalized: opt.autoFinalized ?? false,
-            toSignInputs: mapSignInputsToToSignInputs(opt.signInputs),
-          };
-        }
-        return undefined;
-      });
-      return await this.provider.signPsbts(psbtsHexes, okxOptions);
+      return await this.provider.signPsbts(
+        psbtsHexes,
+        options.map((opt) => toOkxSignOptions(opt)),
+      );
     }
 
     return await this.provider.signPsbts(psbtsHexes);

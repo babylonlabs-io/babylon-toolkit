@@ -257,9 +257,10 @@ export function extractPeginInputSignature(
 export function finalizePeginInputPsbt(signedPsbtHex: string): string {
   const psbt = Psbt.fromHex(signedPsbtHex);
 
-  // Some wallets (UniSat, OKX) ignore autoFinalized: false and return
-  // already-finalized PSBTs. finalizeAllInputs() throws in that case,
-  // so fall back to verifying the wallet already finalized all inputs.
+  // A wallet that ignores `autoFinalized: false` returns already-finalized
+  // inputs (OKX's single-PSBT endpoint does; the wallet-connector routes OKX
+  // around it). finalizeAllInputs() throws in that case, so fall back to
+  // verifying the wallet already finalized all inputs.
   try {
     psbt.finalizeAllInputs();
   } catch (e) {
