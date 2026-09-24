@@ -6,11 +6,22 @@ interface ChainButtonProps extends PropsWithChildren {
   className?: string;
   logo?: string | JSX.Element;
   title?: string | JSX.Element;
+  description?: string;
+  optional?: boolean;
   alt?: string;
   onClick?: () => void;
 }
 
-export function ChainButton({ className, alt, logo, title, children, onClick }: ChainButtonProps) {
+export function ChainButton({
+  className,
+  alt,
+  logo,
+  title,
+  description,
+  optional,
+  children,
+  onClick,
+}: ChainButtonProps) {
   const avatar = typeof logo === "string" ? <Avatar url={logo} alt={alt} /> : <Avatar>{logo}</Avatar>;
 
   const getTestId = () => {
@@ -31,10 +42,18 @@ export function ChainButton({ className, alt, logo, title, children, onClick }: 
       )}
       onClick={onClick}
       data-testid={getTestId()}
+      data-optional={optional}
     >
       <div className="flex w-full items-center gap-2.5">
         <div className="flex items-center">{avatar}</div>
-        {title}
+        <div className="flex flex-col text-left">
+          {title}
+          {description && (
+            <Text as="span" variant="body2" className="text-accent-secondary">
+              {description}
+            </Text>
+          )}
+        </div>
 
         <svg
           xmlns="http://www.w3.org/2000/svg"
@@ -42,7 +61,7 @@ export function ChainButton({ className, alt, logo, title, children, onClick }: 
           height="24"
           viewBox="0 0 24 24"
           fill="none"
-          className="ml-auto block text-accent-secondary"
+          className="ml-auto block shrink-0 text-accent-secondary"
         >
           <path
             d="M8.58984 16.59L13.1698 12L8.58984 7.41L9.99984 6L15.9998 12L9.99984 18L8.58984 16.59Z"

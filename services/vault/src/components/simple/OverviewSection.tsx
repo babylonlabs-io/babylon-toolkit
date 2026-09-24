@@ -8,6 +8,8 @@
 import { Heading, useIsMobile } from "@babylonlabs-io/core-ui";
 import { useMemo } from "react";
 
+import type { BorrowedAsset } from "@/applications/aave/hooks/useAaveBorrowedAssets";
+import type { BorrowReserveLimit } from "@/applications/aave/utils";
 import { COPY } from "@/copy";
 
 import {
@@ -18,7 +20,9 @@ import {
 
 interface OverviewSectionProps {
   totalCollateralValue: string;
-  totalBorrowed: string;
+  borrowedAssets: BorrowedAsset[];
+  maxBorrowReserves: BorrowReserveLimit;
+  borrowCount: bigint | null;
   availableToBorrow: string;
   collateralBtc: string;
   borrowCapacityLoading: boolean;
@@ -34,7 +38,9 @@ interface OverviewSectionProps {
 
 export function OverviewSection({
   totalCollateralValue,
-  totalBorrowed,
+  borrowedAssets,
+  maxBorrowReserves,
+  borrowCount,
   availableToBorrow,
   collateralBtc,
   borrowCapacityLoading,
@@ -71,7 +77,9 @@ export function OverviewSection({
       },
       ...buildBorrowCapacityCards({
         availableToBorrow,
-        totalBorrowed,
+        borrowedAssets,
+        maxBorrowReserves,
+        borrowCount,
         borrowCapacityLoading,
         borrowCapacityError,
         onBorrow,
@@ -90,7 +98,9 @@ export function OverviewSection({
       borrowCapacityError,
       onBorrow,
       canBorrow,
-      totalBorrowed,
+      borrowedAssets,
+      maxBorrowReserves,
+      borrowCount,
       onRepay,
       canRepay,
     ],

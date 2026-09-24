@@ -53,6 +53,9 @@ function mockConfig(reserves: AaveReserveConfig[]) {
     borrowableReserves: reserves,
     allBorrowReserves: reserves,
     hubSpokeConfigs: {},
+    maxBorrowReserves: { status: "loaded", limit: null },
+    chainMaxBorrowReserves: { status: "loaded", limit: null },
+    refetchConfig: vi.fn(),
   });
 }
 

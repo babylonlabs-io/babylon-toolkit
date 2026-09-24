@@ -186,6 +186,7 @@ function makeDeposits(
     hasExpiredDeposits: false,
     isLoading: false,
     error: null,
+    storageReadError: null,
     refetchActivities: vi.fn(),
     broadcastModal: {
       broadcastingActivity: null,

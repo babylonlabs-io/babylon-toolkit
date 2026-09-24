@@ -10,6 +10,21 @@ vi.mock("@/config", () => ({
   getBTCNetwork: () => "signet",
 }));
 
+const BORROWED_ASSETS = [
+  {
+    reserveId: "2",
+    symbol: "USDC",
+    name: "USD Coin",
+    hub: {
+      source: "registry" as const,
+      address: "0x0000000000000000000000000000000000000001" as const,
+      label: "Babylon Hub",
+    },
+    amount: "2,000",
+    icon: "/images/usdc.svg",
+  },
+];
+
 const onDeposit = vi.fn();
 const onBorrow = vi.fn();
 const onRepay = vi.fn();
@@ -18,7 +33,9 @@ function renderSection(overrides: Record<string, unknown> = {}) {
   return render(
     <OverviewSection
       totalCollateralValue="$10,000"
-      totalBorrowed="$2,000"
+      borrowedAssets={BORROWED_ASSETS}
+      maxBorrowReserves={1}
+      borrowCount={1n}
       availableToBorrow="$5,000"
       collateralBtc="0.5 BTC"
       borrowCapacityLoading={false}
@@ -60,7 +77,7 @@ describe("OverviewSection", () => {
 
     expect(screen.getByText("$10,000")).toBeInTheDocument();
     expect(screen.getByText("$5,000")).toBeInTheDocument();
-    expect(screen.getByText("$2,000")).toBeInTheDocument();
+    expect(screen.getByText("USDC")).toBeInTheDocument();
     expect(screen.getByText(COPY.overview.positionTitle)).toBeInTheDocument();
     // Collateral USD and its BTC amount share one line: the BTC amount is a
     // nested secondary span inside the value, not a separate caption row.
@@ -122,13 +139,13 @@ describe("OverviewSection", () => {
     renderSection({ borrowCapacityLoading: true });
 
     expect(screen.getByText(COPY.common.loading)).toBeInTheDocument();
-    expect(screen.getByText("$2,000")).toBeInTheDocument();
+    expect(screen.getByText("USDC")).toBeInTheDocument();
   });
 
   it("shows an empty placeholder for available when borrow capacity errors", () => {
     renderSection({ borrowCapacityError: new Error("split params failed") });
 
     expect(screen.getByText(COPY.common.emptyValue)).toBeInTheDocument();
-    expect(screen.getByText("$2,000")).toBeInTheDocument();
+    expect(screen.getByText("USDC")).toBeInTheDocument();
   });
 });

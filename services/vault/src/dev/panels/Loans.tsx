@@ -15,19 +15,26 @@ import {
   setBorrowCapacityOverride,
   setHealthFactorOverride,
 } from "@/overrides/borrowCapacity";
+import { setBorrowReserveLimitOverride } from "@/overrides/borrowReserveLimit";
 
 import {
   DEBUG_HEALTH_FACTORS,
   type DebugBorrowCapacityState,
   setDebugBorrowCapacityStateOverride,
+  setDebugBorrowReserveLimitOverride,
   setDebugHealthFactorOverride,
   useDebugBorrowCapacity,
   useDebugBorrowCapacityStateOverride,
+  useDebugBorrowReserveLimitOverride,
   useDebugHealthFactorOverride,
 } from "../debugPositionStore";
 import { PANEL_SECTION_TITLE_CLASS } from "../panelChrome";
 
 import { SegmentButton } from "./segmentButton";
+
+/** Caps the panel offers: the launch value, and one above it to prove the
+ *  surfaces read the number rather than assuming 1. */
+const DEBUG_BORROW_RESERVE_LIMITS = [1, 2] as const;
 
 const BORROW_CAPACITY_LABELS: Record<DebugBorrowCapacityState, string> = {
   loading: "Loading",
@@ -40,6 +47,7 @@ export function LoansSummaryOverrideControls() {
   // Resolved {loading, error} | null snapshot — see debugPositionStore's
   // DEBUG_BORROW_CAPACITY_SNAPSHOTS for why the Error stays dev-only there.
   const resolvedBorrowCapacity = useDebugBorrowCapacity();
+  const borrowReserveLimitOverride = useDebugBorrowReserveLimitOverride();
 
   useEffect(() => {
     setHealthFactorOverride(healthFactorOverride);
@@ -48,6 +56,10 @@ export function LoansSummaryOverrideControls() {
   useEffect(() => {
     setBorrowCapacityOverride(resolvedBorrowCapacity);
   }, [resolvedBorrowCapacity]);
+
+  useEffect(() => {
+    setBorrowReserveLimitOverride(borrowReserveLimitOverride);
+  }, [borrowReserveLimitOverride]);
 
   return (
     <div className="space-y-2">
@@ -88,6 +100,25 @@ export function LoansSummaryOverrideControls() {
               label={BORROW_CAPACITY_LABELS[state]}
               active={borrowCapacityOverride === state}
               onClick={() => setDebugBorrowCapacityStateOverride(state)}
+            />
+          ))}
+        </div>
+      </div>
+
+      <div className="space-y-1">
+        <div className="text-xs text-zinc-400">Borrow assets per position</div>
+        <div className="flex gap-2">
+          <SegmentButton
+            label="Live"
+            active={borrowReserveLimitOverride === null}
+            onClick={() => setDebugBorrowReserveLimitOverride(null)}
+          />
+          {DEBUG_BORROW_RESERVE_LIMITS.map((limit) => (
+            <SegmentButton
+              key={limit}
+              label={String(limit)}
+              active={borrowReserveLimitOverride === limit}
+              onClick={() => setDebugBorrowReserveLimitOverride(limit)}
             />
           ))}
         </div>

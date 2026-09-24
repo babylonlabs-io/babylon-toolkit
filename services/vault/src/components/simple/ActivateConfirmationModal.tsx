@@ -4,8 +4,12 @@ import {
   DialogBody,
   DialogFooter,
   ResponsiveDialog,
+  WINDOW_BREAKPOINT,
+  useIsMobile,
 } from "@babylonlabs-io/core-ui";
 import { useEffect, useRef, useState } from "react";
+import { IoClose } from "react-icons/io5";
+import { twJoin } from "tailwind-merge";
 import type { Hex } from "viem";
 
 import { ArtifactModalIcon } from "@/components/deposit/ArtifactModalIcon";
@@ -33,12 +37,6 @@ interface ActivateConfirmationModalProps {
   unsignedPrePeginTxHex?: string;
   onClose: () => void;
   onConfirm: () => void;
-  /**
-   * When present, renders the muted advanced link routing to the
-   * activate-and-redeem withdraw flow (escape hatch for a Verified vault
-   * whose activation is unavailable). See ActivationGate.
-   */
-  onAdvancedWithdraw?: () => void;
 }
 
 export function ActivateConfirmationModal({
@@ -50,7 +48,6 @@ export function ActivateConfirmationModal({
   unsignedPrePeginTxHex,
   onClose,
   onConfirm,
-  onAdvancedWithdraw,
 }: ActivateConfirmationModalProps) {
   // Bound to the pegin, so a receipt stored for a different one does not
   // satisfy the gate. When `peginTxid` is absent we cannot prove the stored
@@ -91,6 +88,11 @@ export function ActivateConfirmationModal({
     cardRef.current?.cancel();
   };
 
+  // The mobile sheet draws its own close button, so the design's header
+  // control is desktop-only. Same breakpoint ResponsiveDialog switches on, so
+  // exactly one of the two renders at every width.
+  const isMobile = useIsMobile(WINDOW_BREAKPOINT);
+
   const canRenderCard = Boolean(providerAddress && peginTxid && depositorPk);
   const gate = useProtocolGateState();
   // Blocked while a download streams: confirming unmounts this modal and
@@ -104,15 +106,35 @@ export function ActivateConfirmationModal({
     <ResponsiveDialog
       open={open}
       onClose={handleClose}
-      className="w-[564px] max-w-full"
-      dialogClassName="!rounded-2xl"
+      className="w-[600px] max-w-full"
+      dialogClassName="!rounded-2xl !bg-background-contrast"
     >
-      {/* No header: this inner-flow dialog offers no X — dismissal goes
-          through the footer actions (Escape/backdrop still route through
-          handleClose via ResponsiveDialog). The top padding stands in for
-          the removed header row. */}
-      <DialogBody className="flex flex-col items-stretch gap-10 px-6 pb-2 pt-10 text-accent-primary">
-        <div className="flex flex-col items-center gap-10">
+      {/* The design's close control. Hand-rolled so it carries an accessible
+          name and no empty heading; core-ui's DialogHeader renders both.
+          Desktop only: the mobile sheet draws its own close button. */}
+      {!isMobile && (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={handleClose}
+            aria-label={COPY.common.close}
+            className="flex size-10 items-center justify-center text-accent-primary"
+            data-testid="activate-modal-close"
+          >
+            <IoClose size={24} />
+          </button>
+        </div>
+      )}
+      {/* The mobile sheet's own inset is 16px; the desktop card's is 24px from
+          `.bbn-dialog`. Below the breakpoint the previous padding is kept so
+          the sheet keeps its 40px sides. */}
+      <DialogBody
+        className={twJoin(
+          "flex flex-col items-stretch gap-8 text-accent-primary",
+          isMobile && "px-6 pb-2 pt-10",
+        )}
+      >
+        <div className="flex flex-col items-center gap-6">
           {downloaded ? (
             <ArtifactModalIcon variant="downloaded" />
           ) : (
@@ -133,7 +155,7 @@ export function ActivateConfirmationModal({
               />
             </svg>
           )}
-          <div className="flex w-full flex-col items-center gap-4">
+          <div className="flex w-full flex-col items-center gap-6">
             <h2 className="text-center text-[34px] font-normal leading-[1.235] tracking-[0.25px] text-accent-primary">
               {downloaded
                 ? COPY.deposit.activateConfirmation.titleDownloaded
@@ -184,26 +206,17 @@ export function ActivateConfirmationModal({
             </span>
           </label>
         )}
-
-        {onAdvancedWithdraw && (
-          <button
-            type="button"
-            onClick={onAdvancedWithdraw}
-            className="self-center text-sm text-accent-secondary underline underline-offset-2 hover:text-accent-primary"
-            data-testid="advanced-withdraw-link"
-          >
-            {COPY.deposit.activateConfirmation.advancedWithdrawLink}
-          </button>
-        )}
       </DialogBody>
 
       {/* size="medium" gives the design's 14px label and 16px side padding;
           h-10 restores the design's 40px height over medium's default. */}
-      <DialogFooter className="flex flex-row gap-4 px-6 pb-6 pt-4">
+      <DialogFooter
+        className={twJoin("flex flex-row gap-4 pt-4", isMobile && "px-6 pb-6")}
+      >
         <Button
           variant="outlined"
           size="medium"
-          className="h-10 flex-1"
+          className="h-10 flex-1 rounded-lg"
           onClick={isDownloading ? handleCancelDownload : handleClose}
         >
           {isDownloading
@@ -214,7 +227,7 @@ export function ActivateConfirmationModal({
           variant="contained"
           color="secondary"
           size="medium"
-          className="h-10 flex-1"
+          className="h-10 flex-1 rounded-lg"
           onClick={onConfirm}
           disabled={!canActivate}
           data-testid="activate-vault-button"

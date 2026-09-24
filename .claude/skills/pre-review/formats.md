@@ -10,7 +10,7 @@ example below is valid as written.
 
 ```json
 {
-  "version": 1,
+  "version": 2,
   "branch": "feat/x",
   "base": "<merge-base sha>",
   "intent": "<one paragraph: what the change is for, what is out of scope>",
@@ -24,6 +24,8 @@ example below is valid as written.
       "kind": "first",
       "tier": "full",
       "escalated": false,
+      "breadth": "whole change",
+      "reviewed": ["<path>"],
       "checks": "nothing affected",
       "rewritten_by_checks": [],
       "reviewers": [
@@ -68,7 +70,8 @@ The enumerated fields take these values:
 | ------------------------ | ------------------------------------------------- |
 | `runs[].kind`            | `first`, `later`                                  |
 | `runs[].tier`            | `light`, `full`                                   |
-| `runs[].checks`          | `passed`, `failed`, `nothing affected`, `not run` |
+| `runs[].breadth`         | `whole change`, `narrowed`, `none`                |
+| `runs[].checks`          | `passed`, `failed`, `stubbed`, `nothing affected`, `not run` |
 | `findings[].severity`    | `merge-blocker`, `normal`                         |
 | `findings[].confidence`  | `high`, `medium`, `low`                           |
 | `findings[].verified_by` | `code`, `test`, `external source`, `unverified`   |
@@ -82,6 +85,39 @@ The enumerated fields take these values:
   `light` (one reviewer, or the verdict lane alone).
 - **`runs[].rewritten_by_checks`** lists files the background checks changed
   (for example `eslint --fix`); empty when none.
+- **`runs[].uncovered`** lists what nothing checked, in two forms: a bare
+  reviewer dimension, when a lane never reported and nobody covered it
+  (Phase 2), and `typecheck-stub: <project>` or `typecheck-unbuilt: <project>`
+  from step 9, naming a project whose typecheck was a stub or could not resolve
+  its dependencies. Prefix decides which: a bare string is a dimension.
+- **`runs[].breadth`** is the review set the reviewers actually received, and
+  **`runs[].reviewed`** lists those paths. A `whole change` run records the
+  whole changed-file list; a `narrowed` run records only the moved and entered
+  files; `none` is a run that spawned no reviewers (nothing moved, or files
+  only left) and carries `reviewed: []`.
+
+  **`breadth` is what both escalation triggers read**; `reviewed` feeds
+  neither. A `none` run is skipped by the refresh rule rather than counted,
+  so `WHOLE_CHANGE_REFRESH_RUNS` decision-only runs cannot force a
+  whole-change pass on their own, and skipped runs do not fill the window —
+  a state made entirely of them never reaches the rule's floor and never
+  fires. A run with no `breadth` at all is skipped the same way, whatever it
+  reviewed.
+
+  `reviewed` is the audit trail: what the reviewers were **handed**, an upper
+  bound on what any of them opened, so a whole-change run lists every file
+  even if a reviewer read a third of them. It is what makes a `breadth` claim
+  checkable after the fact rather than self-asserted, and what to read when a
+  defect survived several runs and the question is who was given the file.
+
+- **`version`** is `2` from the run that introduced `breadth`/`reviewed`. A
+  stored run without `breadth` did not record what it reviewed, so the refresh
+  rule skips it exactly like a `none` run, and the whole-change-total trigger
+  reads its `kind` and `tier` rather than assuming either. Do not rewrite old
+  entries
+  to backfill it: the information is not recoverable, and guessing it either
+  forces an expensive whole-change run on every in-flight branch or silently
+  disables the rule.
 - **`anchors`** lists every file the finding depends on, refreshed to current
   line numbers on each verdict.
 - **`raised_in_run`** is the 1-based index of the run that first raised the
@@ -123,18 +159,29 @@ When the file does not exist yet, write:
 3. **Why**: the problem or need.
 4. **Approaches**: the options considered and why this one won. Rejected
    approaches stop reviewers, human and AI, from re-proposing them.
-5. **Not in this PR**: deliberate omissions. Every finding whose outcome is
-   `follow-up: …` is listed here as `- <follow-up> (pre-review #<id>)`,
-   regenerated every run, so one that is later fixed drops out.
+5. **Not in this PR**: deliberate omissions. Every finding whose **decision**
+   is `follow-up` and whose **status** is neither `fixed` nor `moot` is listed
+   here as `- <follow-up> (pre-review N<id>)`, regenerated every run, so one
+   that is later fixed drops out. Keyed on the decision rather than the
+   outcome so a deferred merge-blocker stays listed — its outcome is
+   `open — merge-blocker` — and guarded on the status so a fixed follow-up
+   does not keep advertising itself as a deliberate omission.
+
+   **Never write a finding id as `#<id>`,** here or anywhere else in the
+   description. This file becomes the PR body, where GitHub turns `#97` into
+   a link to issue or PR 97 — a real, unrelated one, in every description the
+   loop produces. Use `N<id>` in prose and a bare number in the record
+   table's `N` column. `#` stays for genuine issue and PR references, which
+   is what a reader of a PR body will take it to mean.
 6. **Pre-review**: the collapsed record, regenerated every run:
 
    ```
    <details>
-   <summary>Pre-review: 12 findings · 7 fixed · 1 moot · 2 follow-up · 1 declined · 1 open (0 merge-blockers) · 0 undecided · lint/test nothing affected</summary>
+   <summary>Pre-review: 12 findings · 7 fixed · 1 moot · 2 follow-up · 1 declined · 1 open (0 merge-blockers) · 0 undecided · checks nothing affected</summary>
 
    <!-- pre-review-snapshot v1 base=… branch=… reviewed-at=… tier=… files=… files-sha256=… -->
 
-   | # | Finding | Severity | Outcome |
+   | N | Finding | Severity | Outcome |
    |---|---|---|---|
    | 3 | <one-line claim> | merge-blocker | fixed |
    | 7 | <one-line claim> | normal | follow-up: <what> |
@@ -150,13 +197,28 @@ Each finding's outcome is the first row that applies:
 | ------------------------ | ----------------------------------------------- |
 | `fixed`                  | status `fixed`                                  |
 | `moot`                   | status `moot`                                   |
+| **open — merge-blocker** | severity `merge-blocker`, not yet fixed         |
 | `follow-up: …`           | decision `follow-up`                            |
 | `declined: …`            | decision `decline`                              |
-| **open — merge-blocker** | severity `merge-blocker`                        |
 | `open`                   | anything else: fix-now not yet fixed, undecided |
 
-The summary counts every outcome, plus how many open findings are undecided,
-and must match the state exactly.
+Severity outranks the decision deliberately. A deferred or declined
+merge-blocker still renders as `open — merge-blocker`, with the decision and
+its reason appended (`open — merge-blocker (deferred: …)`), and still counts
+in the summary's merge-blocker total. A PR that ships with a known blocker
+says so on its own description; it is not reported as resolved because
+someone chose to defer it.
+
+The summary must match the state exactly. It is counted in five terms —
+`fixed`, `moot`, `follow-up`, `declined`, `open` — which partition the
+findings and sum to the total. `open — merge-blocker` is a sixth *row* of the
+cascade above but not a sixth term: it counts under `open`. `(N
+merge-blockers)` and `N undecided` are sub-counts of `open` too, not extra
+terms, so none of the three is part of that sum. A merge-blocker that is not
+fixed counts under `open` and inside the parenthetical, **whatever its
+decision** — a deferred or declined one is not also counted under `follow-up`
+or `declined`, or the same blocker is reported twice under two different
+stories. Its decision shows in its own row, not in the header.
 
 The description follows these rules:
 

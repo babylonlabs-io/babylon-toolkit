@@ -24,6 +24,7 @@
   "scripts": {
     "dev": "npm run storybook",
     "build": "tsc -b --noEmit tsconfig.lib.json tsconfig.node.json && vite build",
+    "typecheck": "tsc -b --noEmit tsconfig.lib.json tsconfig.node.json",
     "format": "prettier . --write",
     "preview": "vite preview",
     "storybook": "storybook dev -p 6006",

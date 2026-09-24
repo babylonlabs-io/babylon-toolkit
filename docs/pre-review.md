@@ -15,7 +15,9 @@ before any PR exists.
 - Claude Code, started in this repository, ideally the same session that
   implemented the change: it already knows what the change is for.
 - Node 24 and a working `pnpm install`. The review runs
-  `pnpm nx affected -t lint,test` on the changed files.
+  `pnpm nx affected` for `lint`, `typecheck` and `test` on the projects the
+  changed files belong to, as three separate invocations: lint first, because
+  it can rewrite files, then typecheck, then tests in the background.
 
 ## Workflow
 
@@ -58,9 +60,25 @@ data. Changed lines exclude `pnpm-lock.yaml` and the generated
 `packages/babylon-ts-sdk/docs/api/`.
 
 Later runs judge the earlier findings with one reviewer. They escalate to the
-full set when the new changes touch a critical path or exceed the threshold,
-when the whole change has grown past the threshold without a full review, or
-when `--full` is passed.
+full set when the new changes touch a critical path, when they exceed the
+threshold, under the **refresh rule**, when the whole change has grown past
+the threshold without a whole-change full review, or when `--full` is passed.
+The last three widen the review back to the whole change, so a file that
+stopped moving early is still judged against how the change behaves now.
+
+The refresh rule counts backwards over the runs that actually reviewed
+something — skipping those that spawned no reviewers, and runs recorded
+before the state carried the field — and widens when none of the last
+`WHOLE_CHANGE_REFRESH_RUNS` of them covered the whole change. **If there are
+fewer qualifying runs than that, it does not fire at all**, which is what
+keeps it quiet on a branch with little history. It is a cadence, not a rare
+event: expect roughly one wide pass every `WHOLE_CHANGE_REFRESH_RUNS + 1`
+runs on a branch that keeps being narrowed.
+
+`WHOLE_CHANGE_REFRESH_RUNS` is currently 3. It and the other four tunable
+constants — `LIGHT_REVIEW_MAX_CHANGED_LINES`, `CALLER_LIST_MAX_FILES`,
+`CALLER_LIST_MIN_NAME_LENGTH` and `DOCUMENT_CHANGE_SHARE` — are declared in
+`.claude/skills/pre-review/SKILL.md`.
 
 | Reviewer            | Method                                                        |
 | ------------------- | ------------------------------------------------------------- |
@@ -99,12 +117,12 @@ The end of `PR.md`, and so of the PR body, carries a collapsed section:
 
 | Outcome                  | Meaning for the reviewer                                      |
 | ------------------------ | ------------------------------------------------------------- |
-| **open — merge-blocker** | Found, not fixed, no decision to defer or decline. Raise it.  |
+| **open — merge-blocker** | Found and not fixed, whatever the decision. A deferred or declined blocker still appears here with its reason, and still counts in the header. Raise it. |
 | open                     | Found, not fixed yet: either to be fixed, or not yet decided. |
-| fixed                    | Re-checked against the code on a later run.                   |
-| follow-up: …             | Deferred to a later PR; also listed under "Not in this PR".   |
-| declined: …              | The author judged it not worth fixing; the reason is theirs.  |
-| moot                     | None of the finding's files is part of the change any more.   |
+| fixed                    | Re-checked on a later run, across every file and symbol the finding named — not only where it pointed. |
+| follow-up: …             | Deferred to a later PR; also listed under "Not in this PR". A deferred merge-blocker is listed there too, but shows above as a blocker. |
+| declined: …              | The author judged it not worth fixing; the reason is theirs. A declined merge-blocker does not render here — it shows above as a blocker with its reason, so the header's `declined` count can read 0 while a declined finding is visible in the table. |
+| moot                     | None of the finding's files is part of the change any more. Not used for a finding whose anchors are outside the change (those are held at their stored status), nor for one whose cause the author removed — that is `fixed`. |
 
 > **Note**: The findings and decisions are self-reported: they show what the
 > author's review found and decided. CI checks only that a record for the

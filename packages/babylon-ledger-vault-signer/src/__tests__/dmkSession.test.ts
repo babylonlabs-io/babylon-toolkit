@@ -65,6 +65,7 @@ import {
   connectDmkSession,
   disconnectDmkSession,
   isSessionAlive,
+  refreshSessionApp,
   setDmkTransportOverride,
 } from "../dmkSession";
 
@@ -163,14 +164,14 @@ describe("connectDmkSession", () => {
   });
 
   it("reports the running app's name and version from the connect preflight", async () => {
-    // The 0x6E00 wrong-app hint depends on this — "BOLOS" means the dashboard.
+    // The 0x6E00/0x6D00 wrong-app hint depends on this — "BOLOS" means the dashboard.
     const handle = await connectDmkSession();
 
     expect(handle.appName).toBe("Babylon Vault Testnet");
     expect(handle.appVersion).toBe("0.9.4");
   });
 
-  it("still connects when the preflight fails — app info is diagnostics, not a gate", async () => {
+  it("still connects when the preflight fails — with no identity there is nothing to gate on", async () => {
     dmkStub.sendCommand.mockRejectedValue(new Error("transport hiccup"));
 
     const handle = await connectDmkSession();
@@ -186,6 +187,56 @@ describe("connectDmkSession", () => {
     const handle = await connectDmkSession();
 
     expect(handle.appName).toBeUndefined();
+  });
+});
+
+describe("refreshSessionApp", () => {
+  it("fills the app name and version from a successful re-read on the same session", async () => {
+    const handle = { dmk: dmkStub as never, sessionId: "session-1" as never };
+
+    const refreshed = await refreshSessionApp(handle);
+
+    expect(refreshed).toMatchObject({ sessionId: "session-1", appName: "Babylon Vault Testnet", appVersion: "0.9.4" });
+    expect(dmkStub.sendCommand).toHaveBeenCalledWith(expect.objectContaining({ sessionId: "session-1" }));
+  });
+
+  it("keeps the handle's fields when the re-read throws", async () => {
+    // Seeded so a spread that cleared the fields is visible; the unseeded case below pins production's input.
+    dmkStub.sendCommand.mockRejectedValue(new Error("device locked"));
+    const handle = {
+      dmk: dmkStub as never,
+      sessionId: "session-1" as never,
+      appName: "Babylon Vault Testnet",
+      appVersion: "0.9.4",
+    };
+
+    const refreshed = await refreshSessionApp(handle);
+
+    expect(refreshed).toStrictEqual(handle);
+  });
+
+  it("adds no app fields to a bare handle when the re-read fails", async () => {
+    // Production's input: appName is undefined, and an undefined-valued key must not appear either.
+    dmkStub.sendCommand.mockRejectedValue(new Error("device locked"));
+    const handle = { dmk: dmkStub as never, sessionId: "session-1" as never };
+
+    const refreshed = await refreshSessionApp(handle);
+
+    expect(refreshed).toStrictEqual({ dmk: dmkStub, sessionId: "session-1" });
+  });
+
+  it("keeps the handle's fields when the re-read returns a command-level error", async () => {
+    dmkStub.sendCommand.mockResolvedValue({ status: "ERROR", error: { _tag: "SomeCommandError" } });
+    const handle = {
+      dmk: dmkStub as never,
+      sessionId: "session-1" as never,
+      appName: "Babylon Vault Testnet",
+      appVersion: "0.9.4",
+    };
+
+    const refreshed = await refreshSessionApp(handle);
+
+    expect(refreshed).toStrictEqual(handle);
   });
 });
 

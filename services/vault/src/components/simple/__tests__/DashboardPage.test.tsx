@@ -97,6 +97,9 @@ vi.mock("@/dev/demoDeposit", () => ({
 
 vi.mock("@/applications/aave/context", () => ({
   useSyncPendingVaults: () => undefined,
+  useAaveConfig: () => ({
+    maxBorrowReserves: { status: "loaded", limit: 1 },
+  }),
 }));
 
 vi.mock("@/applications/aave/hooks", () => ({
@@ -334,7 +337,9 @@ const LIVE_PARAMS: CalculatorParams = {
   ],
   CF: 0.75,
   THF: 1.1,
-  maxLB: 1.05,
+  LB: 1.05,
+  expectedHF: 0.95,
+  minPeginBtc: 0.0005,
 };
 const LIVE_RESULT = calculate(LIVE_PARAMS);
 
@@ -344,7 +349,9 @@ const OVERRIDE_PARAMS: CalculatorParams = {
   vaults: [{ id: "gm-1", name: "Vault 1", btc: 0.6 }],
   CF: 0.5,
   THF: 1.1,
-  maxLB: 1.05,
+  LB: 1.05,
+  expectedHF: 0.95,
+  minPeginBtc: 0.0005,
 };
 const OVERRIDE_RESULT = calculate(OVERRIDE_PARAMS);
 

@@ -3,8 +3,7 @@
  * self-contained modal (RefundModal pattern): confirmation with an explicit
  * risk acknowledgment, in-place progress on the confirm button, then a
  * terminal success screen. Opened directly from a deposit row's Withdraw CTA
- * (stuck state) or the activation dialog's advanced link — never through the
- * deposit multistepper.
+ * (stuck state) — never through the deposit multistepper.
  *
  * The reveal path is identical to normal activation: the secret is derived
  * from the BTC wallet (`deriveHtlcSecretHex`, on-chain inputs only, buffers
@@ -41,8 +40,6 @@ import { EmergencyWithdrawSuccessContent } from "./EmergencyWithdrawSuccessConte
 interface EmergencyWithdrawModalProps {
   open: boolean;
   activity: VaultActivity;
-  /** True when the stuck state was detected on-chain — drives the body copy. */
-  stuckStateDetected: boolean;
   onClose: () => void;
   onSuccess: () => void;
 }
@@ -50,7 +47,6 @@ interface EmergencyWithdrawModalProps {
 export function EmergencyWithdrawModal({
   open,
   activity,
-  stuckStateDetected,
   onClose,
   onSuccess,
 }: EmergencyWithdrawModalProps) {
@@ -190,7 +186,6 @@ export function EmergencyWithdrawModal({
   return (
     <V3ModalShell open={open} onClose={withdrawing ? undefined : onClose}>
       <EmergencyWithdrawConfirmContent
-        stuckStateDetected={stuckStateDetected}
         vaultId={activity.id}
         withdrawing={withdrawing}
         error={error}

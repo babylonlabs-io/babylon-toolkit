@@ -41,6 +41,12 @@ function reserve(
   } as unknown as AaveReserveConfig;
 }
 
+const NO_CAP = {
+  limit: null,
+  borrowCount: 0n,
+  borrowedReserveIds: new Set<bigint>(),
+};
+
 describe("AssetSelectionPanel", () => {
   beforeEach(() => {
     config.borrowableReserves = [];
@@ -53,7 +59,7 @@ describe("AssetSelectionPanel", () => {
       reserve(4n, USDC, CORE_HUB, "USDC"),
     ];
 
-    render(<AssetSelectionPanel onSelectAsset={vi.fn()} />);
+    render(<AssetSelectionPanel onSelectAsset={vi.fn()} borrowGate={NO_CAP} />);
 
     expect(screen.getByText("Select asset")).toBeInTheDocument();
     expect(screen.getAllByRole("button")).toHaveLength(2);
@@ -68,7 +74,7 @@ describe("AssetSelectionPanel", () => {
   it("labels a card from the token registry rather than the indexer symbol", () => {
     config.borrowableReserves = [reserve(0n, USDC, BABYLON_HUB, "FAKE")];
 
-    render(<AssetSelectionPanel onSelectAsset={vi.fn()} />);
+    render(<AssetSelectionPanel onSelectAsset={vi.fn()} borrowGate={NO_CAP} />);
 
     expect(screen.getByText("USD Coin")).toBeInTheDocument();
     expect(screen.getByText("USDC")).toBeInTheDocument();
@@ -82,7 +88,9 @@ describe("AssetSelectionPanel", () => {
     ];
     const onSelectAsset = vi.fn();
 
-    render(<AssetSelectionPanel onSelectAsset={onSelectAsset} />);
+    render(
+      <AssetSelectionPanel onSelectAsset={onSelectAsset} borrowGate={NO_CAP} />,
+    );
     fireEvent.click(
       screen.getByTestId(`asset-select-row-${USDC.toLowerCase()}`),
     );
@@ -91,7 +99,7 @@ describe("AssetSelectionPanel", () => {
   });
 
   it("shows the empty copy when nothing is borrowable", () => {
-    render(<AssetSelectionPanel onSelectAsset={vi.fn()} />);
+    render(<AssetSelectionPanel onSelectAsset={vi.fn()} borrowGate={NO_CAP} />);
 
     expect(
       screen.getByText("No borrowable assets available"),

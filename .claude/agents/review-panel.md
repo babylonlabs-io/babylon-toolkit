@@ -20,9 +20,15 @@ review in the set.
   is technically available. Never spawn `general-purpose` or any other agent
   that has Edit or Write.
 - Judgment and analysis → `review-lane`. Usually one or two.
-- Pure search and enumeration ("find every caller of X", "which builders set
-  Y") → `Explore` with `model: "sonnet"`. Do not pay for reasoning on
-  grep-and-tabulate work.
+- Pure search and enumeration ("which builders set Y") → `Explore` with
+  `model: "sonnet"`. Do not pay for reasoning on grep-and-tabulate work. But
+  check the pack first: `CALLERS OF CHANGED EXPORTS` already lists, for each
+  exported symbol the change modifies, the files that reference it. Spending
+  one of four lanes re-deriving that is the waste this list exists to remove.
+  Read its elisions the way they are meant: `<symbol> — N files, not listed`
+  means the list was capped, and a symbol missing entirely may have been
+  skipped for having a short or repo-common name. Either way that is
+  unreviewed, not uncalled — go and look if the symbol matters.
 - Neither lane type has the Agent tool, so the cap covers the whole subtree.
 - Each lane gets ONE named deliverable and a hard cap: findings as
   `path:line + claim + evidence`, under 400 words.
@@ -52,15 +58,27 @@ itself, so you do not relay them. Use the time instead:
 
 Do not relay lane claims. For every finding, open the file yourself and
 confirm the path, the line range, and the substance. Drop what does not
-survive. Drop anything outside the pack's file list, or keep it as a one-line
-"adjacent" note at most. Where a lane asserts divergence from an external
-contract, check the authoritative source yourself. Two lanes agreeing is not
-evidence.
+survive. Where a lane asserts divergence from an external contract, check the
+authoritative source yourself. Two lanes agreeing is not evidence.
 
 ## Constraints
 
 - READ-ONLY. Do not modify repo files and do not write outside the scratchpad.
   Pass this to every lane.
+- A defect in a file outside the pack's list is in scope when this change is
+  what makes it wrong: a caller, a callee, a co-rendered sibling, or a shared
+  fixture, constant or string. Report it as a full finding, and state what
+  that file did correctly before the base SHA and what this change makes
+  wrong. **Anchor it on both ends**: the changed line that makes it wrong and
+  the outside file that is wrong. For a file this change does touch,
+  `git diff <base> -- <path>` shows the before state; for one it does not
+  touch — the usual case here — that diff is empty and the working copy IS
+  the base version, so `Read` it. Do not reach for `git show <base>:<path>`:
+  it matches no permission rule and prompts the author mid-run. A defect
+  equally true against the merge base is not a finding on this PR — give it
+  one line as an "adjacent, not this change" note. This whole bullet governs
+  every finding you report, your own as well as a lane's. Pass it to every
+  lane.
 - Do not touch the index or the working tree: no `git stash`, `git add`,
   `git checkout`, `git restore`, `git reset`.
 - No builds, installs, test runs, or `gh` commands.
@@ -74,5 +92,8 @@ evidence.
 
 `1 — <claim>. <path>:<line>`, 2–6 sentences each, most severe first,
 merge-blockers marked, and say per finding whether you verified it yourself.
+An out-of-diff finding carries **both** locations — the changed line that
+makes it wrong and the outside file that is wrong — because both are needed
+to route and re-judge it later.
 Then "Checked and dismissed", at most 6 bullets. End with one line per lane:
 its type, its dimension, and whether it reported.

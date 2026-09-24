@@ -5,7 +5,7 @@
  * own status rather than always green.
  */
 
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { HEALTH_FACTOR_COLORS } from "@/applications/aave/utils";
@@ -34,6 +34,8 @@ const baseProps = {
   isProcessing: false,
   error: null,
   hubBlockMessage: null,
+  acknowledged: true,
+  onAcknowledgedChange: vi.fn(),
   onConfirm: () => {},
 };
 
@@ -106,6 +108,45 @@ describe("WithdrawReviewContent", () => {
     expect(screen.getByTestId("withdraw-hf-at-risk-warning")).toHaveTextContent(
       "health factor below 1.1",
     );
+    expect(screen.getByTestId("withdraw-confirm-button")).toBeEnabled();
+  });
+
+  it("disables Confirm while at risk and unacknowledged", () => {
+    render(
+      <WithdrawReviewContent
+        {...baseProps}
+        projectedHealthFactor={1.05}
+        acknowledged={false}
+      />,
+    );
+
+    expect(screen.getByTestId("withdraw-review-acknowledge")).not.toBeChecked();
+    expect(screen.getByTestId("withdraw-confirm-button")).toBeDisabled();
+  });
+
+  it("enables Confirm once acknowledged", () => {
+    const onAcknowledgedChange = vi.fn();
+    const { rerender } = render(
+      <WithdrawReviewContent
+        {...baseProps}
+        projectedHealthFactor={1.05}
+        acknowledged={false}
+        onAcknowledgedChange={onAcknowledgedChange}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("withdraw-review-acknowledge"));
+    expect(onAcknowledgedChange).toHaveBeenCalledWith(true);
+
+    rerender(
+      <WithdrawReviewContent
+        {...baseProps}
+        projectedHealthFactor={1.05}
+        acknowledged
+        onAcknowledgedChange={onAcknowledgedChange}
+      />,
+    );
+
     expect(screen.getByTestId("withdraw-confirm-button")).toBeEnabled();
   });
 

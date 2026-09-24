@@ -340,8 +340,9 @@ Treat any such change as a hard fork requiring: updated golden vectors in `btc-v
 `vault-secrets/__tests__/context.golden.test.ts`;
 for the wallet-side derivation, updated conformance vectors in
 `vault-secrets/__tests__/deriveContextHash.vectors.test.ts` and a coordinated release with every
-external implementation that pins them (Ledger vault app, Keystone firmware, OneKey, UniSat); and a
-migration plan for in-flight deposits.
+external implementation that pins them (Ledger vault app, Keystone firmware, OneKey, UniSat); a
+matching revision of `docs/specs/derive-context-hash.md` / `docs/specs/derive-vault-secrets.md`, the
+readable form those implementers build from; and a migration plan for in-flight deposits.
 
 ### The `VAULT_WASM_COMMIT` pin
 

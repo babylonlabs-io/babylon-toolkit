@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { resolveVaultCapState } from "../vaultCap";
+import {
+  resolveDepositSplitUnavailableReason,
+  resolveVaultCapState,
+} from "../vaultCap";
 
 /**
  * A cap high enough that the HTLC-output axis never fires, so the cases below
@@ -148,5 +151,93 @@ describe("resolveVaultCapState", () => {
         maxHtlcOutputCount: 1,
       }),
     ).toEqual({ isAtCap: true, splitUnavailableReason: null });
+  });
+});
+
+describe("resolveDepositSplitUnavailableReason", () => {
+  it("explains a split refused by the sizing rules on a fresh deposit", () => {
+    expect(
+      resolveDepositSplitUnavailableReason({
+        capReason: null,
+        isSplitOffered: true,
+        isVaultCapReached: false,
+        isSplitParamsUnavailable: false,
+        isSplitSizingRefused: true,
+      }),
+    ).toBe("split-sizing");
+  });
+
+  it("stays silent when no split would be offered (top-up, or active vaults without the flag)", () => {
+    expect(
+      resolveDepositSplitUnavailableReason({
+        capReason: null,
+        isSplitOffered: false,
+        isVaultCapReached: false,
+        isSplitParamsUnavailable: false,
+        isSplitSizingRefused: true,
+      }),
+    ).toBeNull();
+  });
+
+  it("stays silent at the vault cap, where the deposit is blocked outright", () => {
+    expect(
+      resolveDepositSplitUnavailableReason({
+        capReason: null,
+        isSplitOffered: true,
+        isVaultCapReached: true,
+        isSplitParamsUnavailable: false,
+        isSplitSizingRefused: true,
+      }),
+    ).toBeNull();
+  });
+
+  it("reports a cap reason ahead of the sizing reason", () => {
+    expect(
+      resolveDepositSplitUnavailableReason({
+        capReason: "per-position",
+        isSplitOffered: true,
+        isVaultCapReached: false,
+        isSplitParamsUnavailable: false,
+        isSplitSizingRefused: true,
+      }),
+    ).toBe("per-position");
+  });
+
+  it("explains an unreadable parameter read ahead of the sizing rules", () => {
+    // Without the parameters the sizing rules cannot have a verdict, so the
+    // form must name the read, not the sizing.
+    expect(
+      resolveDepositSplitUnavailableReason({
+        capReason: null,
+        isSplitOffered: true,
+        isVaultCapReached: false,
+        isSplitParamsUnavailable: true,
+        isSplitSizingRefused: true,
+      }),
+    ).toBe("split-params-unavailable");
+  });
+
+  it("stays silent about an unreadable parameter read when no split would be offered", () => {
+    expect(
+      resolveDepositSplitUnavailableReason({
+        capReason: null,
+        isSplitOffered: false,
+        isVaultCapReached: false,
+        isSplitParamsUnavailable: true,
+        isSplitSizingRefused: false,
+      }),
+    ).toBeNull();
+  });
+
+  it("returns null when the sizing rules allow the split", () => {
+    expect(
+      resolveDepositSplitUnavailableReason({
+        capReason: null,
+        isSplitOffered: true,
+        isVaultCapReached: false,
+        isSplitParamsUnavailable: false,
+        isSplitSizingRefused: false,
+      }),
+    ).toBeNull();
   });
 });

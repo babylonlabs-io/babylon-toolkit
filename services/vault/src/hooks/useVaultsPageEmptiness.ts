@@ -31,7 +31,10 @@
  * has, and this flag drives a warning so the failure is never silent — a
  * failed position read would otherwise present fallback (zero) collateral
  * totals as real, and a failed deposits read would silently drop pending or
- * refundable rows.
+ * refundable rows. An unreadable browser record counts as a failed source:
+ * with nothing else to show the page reports it instead of claiming an empty
+ * account, and with rows to show, or alongside a failed remote read, it drives
+ * the warning.
  *
  * A withdrawal-only position (every vault redeemed, peg-out still in flight)
  * is not empty: the indexer has already zeroed the collateral figure, but the
@@ -52,6 +55,7 @@ import {
   useActionableReclaims,
 } from "@/hooks/deposit/useActionableReclaims";
 import { useDashboardState } from "@/hooks/useDashboardState";
+import type { PendingPeginStorageReadError } from "@/storage/peginStorage";
 import type { VaultActivity } from "@/types/activity";
 
 interface VaultsPageDeposits {
@@ -60,6 +64,7 @@ interface VaultsPageDeposits {
   reclaimableCandidates: VaultActivity[];
   isLoading: boolean;
   error: Error | null;
+  storageReadError: PendingPeginStorageReadError | null;
 }
 
 export function useVaultsPageEmptiness(deposits: VaultsPageDeposits): {
@@ -67,6 +72,7 @@ export function useVaultsPageEmptiness(deposits: VaultsPageDeposits): {
   isEmpty: boolean;
   hasError: boolean;
   hasPartialError: boolean;
+  storageOnlyError: boolean;
 } {
   const { address } = useETHWallet();
   const { isConnected } = useConnection();
@@ -82,6 +88,7 @@ export function useVaultsPageEmptiness(deposits: VaultsPageDeposits): {
     reclaimableCandidates,
     isLoading: isDepositsLoading,
     error: depositsError,
+    storageReadError,
   } = deposits;
 
   const actionableExpiredActivities =
@@ -99,15 +106,23 @@ export function useVaultsPageEmptiness(deposits: VaultsPageDeposits): {
     (isPositionLoading ||
       isDepositsLoading ||
       (isReclaimResolving && !hasAnythingToShow));
-  const anySourceFailed = Boolean(
-    positionError || indexerError || depositsError,
-  );
+  const remoteFailed = Boolean(positionError || indexerError || depositsError);
+  const anySourceFailed = remoteFailed || Boolean(storageReadError);
   const hasError =
     isConnected && !isLoading && !hasAnythingToShow && anySourceFailed;
   const hasPartialError =
-    isConnected && !isLoading && hasAnythingToShow && anySourceFailed;
+    isConnected &&
+    !isLoading &&
+    ((hasAnythingToShow && anySourceFailed) ||
+      (Boolean(storageReadError) && remoteFailed));
   const isEmpty =
     !isLoading && !hasError && (!isConnected || !hasAnythingToShow);
 
-  return { isLoading, isEmpty, hasError, hasPartialError };
+  return {
+    isLoading,
+    isEmpty,
+    hasError,
+    hasPartialError,
+    storageOnlyError: hasError && Boolean(storageReadError) && !remoteFailed,
+  };
 }

@@ -114,6 +114,8 @@ export const CONTRACT_ERROR_MESSAGES: Record<string, string> = {
     "This market is on hold, so it can't be used right now. Try again later.",
   ReserveFrozen: "This market isn't accepting new borrows right now.",
   ReserveNotBorrowable: "This asset can't be borrowed from this market.",
+  MaximumUserReservesExceeded:
+    "This position already borrows as many assets as it can. Fully repay a loan to borrow a different asset.",
   HealthFactorBelowThreshold:
     "This would drop your health factor below the liquidation threshold. Reduce the amount and try again.",
 

@@ -11,6 +11,7 @@ import { useAccount, useWalletClient } from "wagmi";
 import { ERC20 } from "@/clients/eth-contract";
 import { isBorrowBlocked } from "@/components/shared/protocolStatus";
 import { getETHChain } from "@/config/network";
+import { COPY } from "@/copy";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import { logger } from "@/infrastructure";
 import {
@@ -31,6 +32,7 @@ import {
   borrow,
 } from "../services";
 import type { AaveReserveConfig } from "../services/fetchConfig";
+import { BorrowReserveCapUnavailableError } from "../utils/borrowReserveLimit";
 import { describeAaveRevert } from "../utils/describeAaveRevert";
 
 export interface UseBorrowTransactionResult {
@@ -143,6 +145,14 @@ export function useBorrowTransaction(): UseBorrowTransactionResult {
 
       return true;
     } catch (error) {
+      // A pre-sign refusal for an unreadable cap shows its own sentence as
+      // is: mapping it would prefix "Borrow failed:", and decoding would walk
+      // its cause chain, where an RPC revert could replace the sentence.
+      if (error instanceof BorrowReserveCapUnavailableError) {
+        logger.warn(error.message, { error });
+        setError(COPY.loans.borrowLimit.capUnavailableError);
+        return false;
+      }
       logger.error(error instanceof Error ? error : new Error(String(error)), {
         data: { context: "Borrow failed" },
       });
@@ -152,9 +162,7 @@ export function useBorrowTransaction(): UseBorrowTransactionResult {
       // indexer.
       const isReserveMismatch = error instanceof ReserveMismatchError;
       const mappedError = isReserveMismatch
-        ? new Error(
-            "Asset integrity check failed: the borrowable asset returned by the indexer does not match what's registered on-chain. Refresh and try again. If this persists, do not proceed.",
-          )
+        ? new Error(COPY.loans.borrowIntegrityError)
         : error instanceof Error
           ? mapViemErrorToContractError(error, "Borrow")
           : new Error("An unexpected error occurred while borrowing");

@@ -28,8 +28,9 @@ export interface DmkSessionHandle {
   readonly dmk: DeviceManagementKit;
   readonly sessionId: DeviceSessionId;
   /**
-   * App name/version at connect time ("BOLOS" = dashboard). Diagnostic only;
-   * absent when the preflight failed. Never re-read between intent phases.
+   * App name/version at connect time ("BOLOS" = dashboard); absent when the
+   * preflight failed. The host gates connect on it, and re-reads it only while
+   * idle via `refreshSessionApp` — never between intent phases.
    */
   readonly appName?: string;
   readonly appVersion?: string;
@@ -197,10 +198,12 @@ export async function connectDmkSession(): Promise<DmkSessionHandle> {
 }
 
 /**
- * `GET_APP_AND_VERSION` preflight, run only at connect — the most useful fact
- * when the first vault APDU fails ("Babylon Vault" vs "Babylon Vault Testnet"
- * vs "BOLOS"). Sent explicitly rather than read from DMK's internal session
- * state. Diagnostic only: a failed read degrades to `undefined`.
+ * `GET_APP_AND_VERSION` preflight — the most useful fact when the first vault
+ * APDU fails ("Babylon Vault" vs "Babylon Vault Testnet" vs "BOLOS"). Run at
+ * connect, and again by {@link refreshSessionApp} when the host re-gates a
+ * session whose first read failed. Sent explicitly rather than read from DMK's
+ * internal session state. A failed read degrades to `undefined`; the host lets
+ * that through.
  */
 async function readAppAndVersion(
   dmk: DeviceManagementKit,
@@ -212,7 +215,7 @@ async function readAppAndVersion(
     if (!isSuccessCommandResult(result)) return {};
     return { appName: result.data.name, appVersion: result.data.version };
   } catch {
-    // Preflight is diagnostics; the ceremony APDUs carry their own errors.
+    // No identity to gate on; the first vault APDU carries its own error.
     return {};
   }
 }
@@ -233,6 +236,19 @@ export async function isSessionAlive(handle: DmkSessionHandle): Promise<boolean>
     if ((error as { _tag?: string } | undefined)?._tag === "DeviceSessionNotFound") return false;
     throw error;
   }
+}
+
+/**
+ * Re-run the connect preflight on a live session whose first read failed, so
+ * a retry cannot ride in on an ungated session. Returns a copy of the handle
+ * with the app fields filled when the read succeeds, or with the same fields
+ * when it fails. The preflight is a BOLOS command, so it must not interleave
+ * with a device ceremony; the signer holds no ceremony state, so the caller
+ * enforces that.
+ */
+export async function refreshSessionApp(handle: DmkSessionHandle): Promise<DmkSessionHandle> {
+  const app = await readAppAndVersion(handle.dmk, handle.sessionId);
+  return { ...handle, ...app };
 }
 
 /** Disconnect the session; safe to call when already disconnected. */

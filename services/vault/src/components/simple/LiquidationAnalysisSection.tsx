@@ -22,6 +22,13 @@ import { COPY } from "@/copy";
 import { ROUTES } from "@/routes";
 import { formatPriceUsd } from "@/utils/formatting";
 
+/**
+ * Candles the Overview preview shows. The card never pans or zooms, so this is
+ * everything it will ever draw: a year of candles in the card's width renders
+ * as sub-pixel hairlines. Explore opens the full page with its own window.
+ */
+const PREVIEW_VISIBLE_CANDLES = 60;
+
 /** The cascade the chart renders. Absent = nothing to chart yet.
  *
  *  Carries the params `result` was computed from, not values derived from
@@ -45,9 +52,6 @@ interface LiquidationAnalysisSectionProps {
    */
   cascade?: LiquidationCascade | null;
 }
-
-/** Daily candles in view. The preview does not pan; Explore opens the page. */
-const TIMELINE_VISIBLE_CANDLES = 60;
 
 /**
  * Overview-page preview of the Liquidation Dashboard: no collateral,
@@ -147,7 +151,7 @@ function LiquidationChartPanel({
           currentPriceLabel={formatPriceUsd(cascade.params.btcPrice)}
           priceAxis={chart.priceAxis}
           safeZone={chart.safeZone}
-          visibleCandles={TIMELINE_VISIBLE_CANDLES}
+          visibleCandles={PREVIEW_VISIBLE_CANDLES}
           formatPrice={formatPriceUsd}
           formatTime={formatCandleDate}
           liquidatedLabel={COPY.liquidations.liquidatedBandLabel}

@@ -28,8 +28,8 @@ import {
 const PORTAL_ROOT = ".portal-root";
 /** Entry page hero heading, shown before any wallet connects. */
 const ENTRY_HEADING = "Borrow against native Bitcoin, trustlessly.";
-/** wallet-connector chain list suffix for a chain the app does not require. */
-const OPTIONAL_SUFFIX = "(Optional)";
+/** wallet-connector chain row attribute, "true" on a chain the app does not require. */
+const OPTIONAL_ATTRIBUTE = "data-optional";
 /** wallet-connector wallet list heading for the Bitcoin chain. */
 const BTC_WALLET_LIST_HEADING = "Select Bitcoin Wallet";
 /** wallet-connector wallet list hint: the on-screen "Bitcoin is needed". */
@@ -174,7 +174,7 @@ test.describe("Ethereum-only access", () => {
       await page.getByTestId("connect-wallet-button").first().click();
       await expect(
         dialog.getByTestId("select-bitcoin-wallet-button"),
-      ).toContainText(OPTIONAL_SUFFIX);
+      ).toHaveAttribute(OPTIONAL_ATTRIBUTE, "true");
       const commit = dialog.getByTestId("chains-connect-button");
       await expect(commit).toBeEnabled({ timeout: APP_BOOT_TIMEOUT_MS });
       await holdForAudience(page, headless);
@@ -220,7 +220,7 @@ test.describe("Ethereum-only access", () => {
         .click();
       await expect(
         dialog.getByTestId("select-bitcoin-wallet-button"),
-      ).toContainText(OPTIONAL_SUFFIX);
+      ).toHaveAttribute(OPTIONAL_ATTRIBUTE, "true");
       await dialog
         .getByRole("button", { name: CLOSE_LABEL, exact: true })
         .click();

@@ -18,6 +18,7 @@
   },
   "scripts": {
     "build": "tsc -b tsconfig.lib.json && node scripts/check-lazy-entries.js",
+    "typecheck": "tsc -b --noEmit tsconfig.lib.json",
     "build-wasm": "node scripts/build-wasm.js",
     "lint": "eslint ."
   },

@@ -6,7 +6,7 @@
  */
 
 import { gql } from "graphql-request";
-import type { Address } from "viem";
+import { BaseError, ContractFunctionRevertedError, type Address } from "viem";
 
 import { graphqlClient } from "../../../clients/graphql";
 import { getHubSpokeConfigsSafe } from "../clients/aaveHub";
@@ -16,9 +16,11 @@ import {
   getVaultBtcReserveId,
 } from "../clients/transaction";
 import { getAaveAdapterAddress } from "../config";
+import type { BorrowReserveCap } from "../utils/borrowReserveLimit";
 import { getReserveHubBlock, type HubSpokeConfigs } from "../utils/hubState";
 
 import { ReserveMismatchError } from "./assertReserveMatchesOnChain";
+import { readBorrowReserveCap } from "./readBorrowReserveCap";
 
 /**
  * Aave configuration from GraphQL indexer
@@ -93,6 +95,12 @@ export interface AaveAppConfig {
    * and stands in only until the forms' live read (`useHubSpokeConfigs`) lands.
    */
   hubSpokeConfigs: HubSpokeConfigs;
+  /**
+   * How many reserves this spoke lets one account borrow at once (`null` limit
+   * when it sets no cap), or why it could not be read. Read once with the
+   * config: it is a Spoke immutable.
+   */
+  maxBorrowReserves: BorrowReserveCap;
 }
 
 /**
@@ -175,6 +183,33 @@ const GET_AAVE_APP_CONFIG = gql`
   }
 `;
 
+const DECIMAL_INTEGER_PATTERN = /^\d+$/;
+
+/**
+ * Parses a reserve id the indexer returned. Anything but a non-negative
+ * decimal integer is an indexer fault, not an id to look up.
+ */
+function parseIndexedReserveId(value: string, field: string): bigint {
+  if (!DECIMAL_INTEGER_PATTERN.test(value)) {
+    throw new ReserveMismatchError(
+      `Aave indexer returned ${field} "${value}", expected a non-negative decimal integer`,
+    );
+  }
+  return BigInt(value);
+}
+
+/** Whether a Spoke read reverted because a reserve id was never listed. */
+function isReserveNotListedRevert(error: unknown): boolean {
+  return (
+    error instanceof BaseError &&
+    error.walk(
+      (cause) =>
+        cause instanceof ContractFunctionRevertedError &&
+        cause.data?.errorName === "ReserveNotListed",
+    ) !== null
+  );
+}
+
 /**
  * Maps GraphQL reserve to AaveReserveConfig
  */
@@ -184,7 +219,7 @@ function mapReserveConfig(raw: GraphQLReserveItem): AaveReserveConfig | null {
   }
 
   return {
-    reserveId: BigInt(raw.id),
+    reserveId: parseIndexedReserveId(raw.id, "reserve id"),
     reserve: {
       underlying: raw.underlying as Address,
       hub: raw.hub as Address,
@@ -279,6 +314,12 @@ async function assertReservesMatchOnChain(
       reserves.map((r) => r.reserveId),
     );
   } catch (error) {
+    if (isReserveNotListedRevert(error)) {
+      throw new ReserveMismatchError(
+        `Aave indexer listed a reserve the Core Spoke ${coreSpokeAddress} never listed. Check the indexer's reserves against the Core Spoke.`,
+        { cause: error },
+      );
+    }
     throw new Error(
       `Failed to read reserves from Core Spoke ${coreSpokeAddress}`,
       { cause: error },
@@ -288,7 +329,7 @@ async function assertReservesMatchOnChain(
   reserves.forEach((indexed, index) => {
     const onChain = onChainReserves[index];
     if (onChain === undefined) {
-      throw new Error(
+      throw new ReserveMismatchError(
         `Core Spoke ${coreSpokeAddress} returned no reserve for indexed reserve ${indexed.reserveId}`,
       );
     }
@@ -353,7 +394,7 @@ export async function fetchAaveAppConfig(): Promise<AaveAppConfig | null> {
   const adapterAddress = getAaveAdapterAddress();
   const indexedAdapterAddress = response.aaveConfig.adapterAddress as Address;
   if (indexedAdapterAddress.toLowerCase() !== adapterAddress.toLowerCase()) {
-    throw new Error(
+    throw new ReserveMismatchError(
       `Aave adapter mismatch: indexer returned ${indexedAdapterAddress}, expected ${adapterAddress}`,
     );
   }
@@ -384,7 +425,13 @@ export async function fetchAaveAppConfig(): Promise<AaveAppConfig | null> {
       { cause: error },
     );
   }
-  if (onChainReserveId !== BigInt(response.aaveConfig.vaultBtcReserveId)) {
+  if (
+    onChainReserveId !==
+    parseIndexedReserveId(
+      response.aaveConfig.vaultBtcReserveId,
+      "vBTC reserve id",
+    )
+  ) {
     throw new ReserveMismatchError(
       `Aave vBTC reserve ID mismatch: indexer returned ${response.aaveConfig.vaultBtcReserveId}, expected ${onChainReserveId}`,
     );
@@ -406,15 +453,21 @@ export async function fetchAaveAppConfig(): Promise<AaveAppConfig | null> {
 
   await assertReservesMatchOnChain(coreSpokeAddress, allReserves);
 
-  // Read from the hubs just proven above, keyed by the spoke the adapter
-  // borrows through.
-  const spokeConfigs = await getHubSpokeConfigsSafe(
-    coreSpokeAddress,
-    allReserves.map((r) => ({
-      hub: r.reserve.hub,
-      assetId: r.reserve.assetId,
-    })),
-  );
+  // Both read the hubs and spoke just proven above, independently of each
+  // other. The cap is immutable on the Spoke, so it rides the config read; a
+  // failed cap read is carried as `unavailable` rather than failing the whole
+  // config — only borrowing needs the cap, and it fails closed on that state.
+  const [maxBorrowReserves, spokeConfigs] = await Promise.all([
+    readBorrowReserveCap(coreSpokeAddress),
+    // Keyed by the spoke the adapter borrows through.
+    getHubSpokeConfigsSafe(
+      coreSpokeAddress,
+      allReserves.map((r) => ({
+        hub: r.reserve.hub,
+        assetId: r.reserve.assetId,
+      })),
+    ),
+  ]);
   const hubSpokeConfigs: HubSpokeConfigs = Object.fromEntries(
     allReserves.map((r, i) => [r.reserveId.toString(), spokeConfigs[i]]),
   );
@@ -448,5 +501,6 @@ export async function fetchAaveAppConfig(): Promise<AaveAppConfig | null> {
     borrowableReserves,
     allBorrowReserves,
     hubSpokeConfigs,
+    maxBorrowReserves,
   };
 }

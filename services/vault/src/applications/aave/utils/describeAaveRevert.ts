@@ -34,6 +34,7 @@ const AAVE_REVERT_REASONS = new Set([
   "ReservePaused",
   "ReserveFrozen",
   "ReserveNotBorrowable",
+  "MaximumUserReservesExceeded",
   "HealthFactorBelowThreshold",
 ]);
 
