@@ -32,6 +32,7 @@
 import { sha256 } from "@noble/hashes/sha2.js";
 import { bytesToHex, concatBytes, hexToBytes } from "@noble/hashes/utils.js";
 import { Transaction } from "bitcoinjs-lib";
+import { Buffer } from "buffer";
 
 import { PEGIN_DEPOSITOR_CLAIM_VOUT } from "../../primitives/psbt/depositorClaim";
 import {
