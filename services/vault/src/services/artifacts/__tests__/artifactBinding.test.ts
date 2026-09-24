@@ -172,6 +172,7 @@ describe("assertGraphMatchesPresign", () => {
         output_label_hashes: ["c2".repeat(32)],
       },
     },
+    challenger_pubkeys: { local: [LOCAL_CHALLENGER], universal: [] },
   });
 
   function tx(marker: string) {
@@ -234,6 +235,33 @@ describe("assertGraphMatchesPresign", () => {
     const withoutAssert: Record<string, unknown> = { ...graph };
     delete withoutAssert.assert_tx;
     expect(() => assertGraphMatchesPresign(withoutAssert, expected)).toThrow(
+      PresignGraphMismatchError,
+    );
+  });
+
+  it("rejects a declared roster that adds a challenger the fingerprint does not cover", () => {
+    const graph = realGraph();
+    const expected = binding(fingerprintReturnedGraph(graph));
+    const widened = {
+      ...graph,
+      challenger_pubkeys: {
+        local: [LOCAL_CHALLENGER],
+        universal: [UNIVERSAL_CHALLENGER],
+      },
+    };
+    expect(() => assertGraphMatchesPresign(widened, expected)).toThrow(
+      PresignGraphMismatchError,
+    );
+  });
+
+  it("rejects a declared roster that drops a fingerprinted challenger", () => {
+    const graph = realGraph();
+    const expected = binding(fingerprintReturnedGraph(graph));
+    const narrowed = {
+      ...graph,
+      challenger_pubkeys: { local: [], universal: [] },
+    };
+    expect(() => assertGraphMatchesPresign(narrowed, expected)).toThrow(
       PresignGraphMismatchError,
     );
   });

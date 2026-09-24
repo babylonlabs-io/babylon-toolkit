@@ -499,6 +499,7 @@ export async function runDepositorPresignFlow(
   // VP does not get to pick both sides of the activation comparison.
   await recordGraphFingerprint(
     fingerprintPresignTxSet({
+      peginTxid,
       peginTxHex: signingContext.peginTxHex,
       claimTxHex: response.depositor_graph.claim_tx.tx_hex,
       assertTxHex: response.depositor_graph.assert_tx.tx_hex,

@@ -23,7 +23,7 @@
  * internally inconsistent graph — not a targeted forgery.
  *
  * `assertGraphMatchesPresign` below closes part of that gap. It is check (a)
- * of the activation gate in `btc-vault/docs/pegin.md` §5.9, and unlike the
+ * of the activation gate in `btc-vault/docs/specifications/pegin.md` §5.9, and unlike the
  * checks above it compares the bundle against a value the VP does not
  * control: the fingerprint the depositor recorded when it signed.
  *
@@ -249,6 +249,24 @@ export function assertGraphMatchesPresign(
   if (actual !== expected.signedGraphFingerprint) {
     throw new PresignGraphMismatchError(
       `fingerprint ${actual}, expected ${expected.signedGraphFingerprint}`,
+    );
+  }
+
+  // The fingerprint covers the challengers in `challenger_subgraphs`, but the
+  // session check in `assertBundleBoundToVault` reads `challenger_pubkeys`.
+  // Tie the two, or a bundle could match the fingerprint while its declared
+  // roster, and the sessions checked against it, add or drop a challenger.
+  const fingerprinted = new Set(
+    Object.keys(asRecord(txGraph.challenger_subgraphs, "challenger_subgraphs")),
+  );
+  const declared = challengerSetFromGraph(txGraph);
+  if (
+    fingerprinted.size !== declared.size ||
+    [...declared].some((key) => !fingerprinted.has(key))
+  ) {
+    throw new PresignGraphMismatchError(
+      `challenger_subgraphs keys ${[...fingerprinted].join(", ")} do not match ` +
+        `challenger_pubkeys ${[...declared].join(", ")}`,
     );
   }
 }

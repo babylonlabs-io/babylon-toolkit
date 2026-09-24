@@ -2,7 +2,7 @@
  * Deterministic fingerprint over the canonical transaction set of a
  * depositor-as-claimer graph.
  *
- * `btc-vault/docs/pegin.md` §5.9 (TRV-013) makes this the depositor's binding
+ * `btc-vault/docs/specifications/pegin.md` §5.9 makes this the depositor's binding
  * between the two moments where it gives up leverage:
  *
  * - **Presign** — before signing the VP's PSBTs, fingerprint the transaction
@@ -33,6 +33,7 @@ import { sha256 } from "@noble/hashes/sha2.js";
 import { bytesToHex, concatBytes, hexToBytes } from "@noble/hashes/utils.js";
 import { Transaction } from "bitcoinjs-lib";
 
+import { PEGIN_DEPOSITOR_CLAIM_VOUT } from "../../primitives/psbt/depositorClaim";
 import {
   canonicalizeBtcPubkey,
   stripHexPrefix,
@@ -48,6 +49,11 @@ const OUTPOINT_RE = /^([0-9a-f]{64}):(0|[1-9][0-9]*)$/;
 const INT32_MIN = -0x8000_0000;
 const INT32_MAX = 0x7fff_ffff;
 const UINT32_MAX = 0xffff_ffff;
+
+/** A depositor Claim is always version 2 (`check_depositor_claim_shape`). */
+const DEPOSITOR_CLAIM_TX_VERSION = 2;
+/** A depositor Claim pays the assert connector and a CPFP anchor, nothing else. */
+const DEPOSITOR_CLAIM_OUTPUT_COUNT = 2;
 
 /** One challenger's contribution to the fingerprint. */
 export interface ChallengerFingerprintPart {
@@ -195,7 +201,7 @@ export function serializeGraphTx(txNode: unknown, path: string): Uint8Array {
  * Rejects trailing bytes and any encoding that does not round-trip, so the
  * part hashed below is exactly one transaction.
  */
-function decodePresignTx(txHex: string, path: string): Uint8Array {
+function decodePresignTx(txHex: string, path: string): Transaction {
   const hex = stripHexPrefix(txHex).toLowerCase();
   let tx: Transaction;
   try {
@@ -210,7 +216,48 @@ function decodePresignTx(txHex: string, path: string): Uint8Array {
       `Presign ${path} is not a canonical transaction encoding`,
     );
   }
-  return new Uint8Array(tx.toBuffer());
+  return tx;
+}
+
+/**
+ * Mirror `check_depositor_claim_shape` in `btc-vault`
+ * (`crates/vault/src/transactions/claim.rs`): one input spending the
+ * depositor-claim output of the depositor's own PegIn, an empty witness,
+ * version 2, and exactly two outputs.
+ *
+ * The reference also rebuilds the Claim outputs from canonical params
+ * (`ClaimTx::from_transaction`). That needs a WASM binding the SDK does not
+ * have yet, so output contents are not checked here.
+ */
+function assertDepositorClaimShape(claim: Transaction, peginTxid: string): void {
+  const [input, ...extra] = claim.ins;
+  if (!input || extra.length > 0) {
+    throw new GraphFingerprintError(
+      `Presign claim_tx must have exactly one input, got ${claim.ins.length}`,
+    );
+  }
+  const spentTxid = Buffer.from(input.hash).reverse().toString("hex");
+  if (spentTxid !== peginTxid || input.index !== PEGIN_DEPOSITOR_CLAIM_VOUT) {
+    throw new GraphFingerprintError(
+      `Presign claim_tx must spend ${peginTxid}:${PEGIN_DEPOSITOR_CLAIM_VOUT}, ` +
+        `got ${spentTxid}:${input.index}`,
+    );
+  }
+  if (claim.version !== DEPOSITOR_CLAIM_TX_VERSION) {
+    throw new GraphFingerprintError(
+      `Presign claim_tx version must be ${DEPOSITOR_CLAIM_TX_VERSION}, got ${claim.version}`,
+    );
+  }
+  if (input.witness.length > 0) {
+    throw new GraphFingerprintError(
+      `Presign claim_tx input must have an empty witness, got ${input.witness.length} item(s)`,
+    );
+  }
+  if (claim.outs.length !== DEPOSITOR_CLAIM_OUTPUT_COUNT) {
+    throw new GraphFingerprintError(
+      `Presign claim_tx must have exactly ${DEPOSITOR_CLAIM_OUTPUT_COUNT} outputs, got ${claim.outs.length}`,
+    );
+  }
 }
 
 /**
@@ -241,13 +288,16 @@ export function canonicalTxSetFingerprint(set: CanonicalTxSet): string {
 }
 
 /**
- * Fingerprint the transaction set a VP supplied at presign.
+ * Validate the transaction set a VP supplied at presign and fingerprint it.
  *
  * `peginTxHex` comes from the depositor's own signing context, not the
  * response — the presign payload carries no PegIn transaction, and taking it
- * from the VP would let the VP choose both sides of the comparison.
+ * from the VP would let the VP choose both sides of the comparison. It must
+ * hash to `peginTxid`, and the Claim must have the depositor-claim shape,
+ * as in `validate_presign_response` in `btc-vault`.
  */
 export function fingerprintPresignTxSet(args: {
+  peginTxid: string;
   peginTxHex: string;
   claimTxHex: string;
   assertTxHex: string;
@@ -258,14 +308,25 @@ export function fingerprintPresignTxSet(args: {
     output_label_hashes: string[];
   }[];
 }): string {
+  const peginTxid = stripHexPrefix(args.peginTxid).toLowerCase();
+  const peginTx = decodePresignTx(args.peginTxHex, "pegin_tx");
+  if (peginTx.getId() !== peginTxid) {
+    throw new GraphFingerprintError(
+      `Presign pegin_tx hashes to ${peginTx.getId()}, expected ${peginTxid}`,
+    );
+  }
+  const claimTx = decodePresignTx(args.claimTxHex, "claim_tx");
+  assertDepositorClaimShape(claimTx, peginTxid);
+
+  const bytes = (tx: Transaction) => new Uint8Array(tx.toBuffer());
   return canonicalTxSetFingerprint({
-    peginTx: decodePresignTx(args.peginTxHex, "pegin_tx"),
-    claimTx: decodePresignTx(args.claimTxHex, "claim_tx"),
-    assertTx: decodePresignTx(args.assertTxHex, "assert_tx"),
-    payoutTx: decodePresignTx(args.payoutTxHex, "payout_tx"),
+    peginTx: bytes(peginTx),
+    claimTx: bytes(claimTx),
+    assertTx: bytes(decodePresignTx(args.assertTxHex, "assert_tx")),
+    payoutTx: bytes(decodePresignTx(args.payoutTxHex, "payout_tx")),
     challengers: args.challengers.map((c) => ({
       pubkey: canonicalizeBtcPubkey(c.challenger_pubkey),
-      nopayoutTx: decodePresignTx(c.nopayout_tx.tx_hex, "nopayout_tx"),
+      nopayoutTx: bytes(decodePresignTx(c.nopayout_tx.tx_hex, "nopayout_tx")),
       outputLabelHashes: c.output_label_hashes.map((hash) =>
         stripHexPrefix(hash).toLowerCase(),
       ),

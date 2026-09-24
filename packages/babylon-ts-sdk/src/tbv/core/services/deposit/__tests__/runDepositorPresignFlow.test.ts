@@ -343,6 +343,7 @@ describe("runDepositorPresignFlow", () => {
     // The PegIn is the depositor's own, not a value from the VP response.
     expect(fingerprintCalls).toEqual([
       expect.objectContaining({
+        peginTxid: VALID_TXID,
         peginTxHex: signingContext.peginTxHex,
         claimTxHex: "deadbeef",
       }),

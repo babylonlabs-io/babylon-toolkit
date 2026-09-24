@@ -41,7 +41,7 @@ export interface PendingPeginRequest {
   payoutSignedAt?: number;
   /**
    * Fingerprint of the canonical transaction set the depositor signed at
-   * presign, hex, no prefix. `btc-vault/docs/pegin.md` §5.9 makes this the
+   * presign, hex, no prefix. `btc-vault/docs/specifications/pegin.md` §5.9 makes this the
    * depositor's binding between signing and activation: the artifact bundle
    * fetched before the HTLC secret is revealed must reproduce this exact
    * value, or the VP has swapped the graph underneath. Written by
