@@ -44,8 +44,8 @@ export interface PendingPeginRequest {
    * presign, hex, no prefix. `btc-vault/docs/pegin.md` §5.9 makes this the
    * depositor's binding between signing and activation: the artifact bundle
    * fetched before the HTLC secret is revealed must reproduce this exact
-   * value, or the VP has swapped the graph underneath. Written once, when the
-   * presign run reports `status: "signed"`.
+   * value, or the VP has swapped the graph underneath. Written by
+   * `recordSignedGraphFingerprint` before the presign signatures are sent.
    *
    * Absent on entries written before this field existed, and on deposits
    * presigned on another device. The activation gate treats absence as
@@ -123,6 +123,9 @@ const VALID_LOCAL_STORAGE_STATUSES: ReadonlySet<string> = new Set([
 // `peginTxHash` is a Bitcoin tx hash — also 32 bytes. Accept the legacy form
 // without `0x` prefix (normalizeTransactionId canonicalizes downstream).
 const BYTES32_HEX_RE = /^(0x)?[0-9a-fA-F]{64}$/;
+// Presign graph fingerprint: a SHA-256 digest the SDK writes as 64 lowercase
+// hex chars with no prefix. Nothing else writes it, so accept only that form.
+const SHA256_HEX_RE = /^[0-9a-f]{64}$/;
 
 function isValidSelectedUTXOs(
   value: unknown,
@@ -211,6 +214,16 @@ function hasValidSecurityFields(entry: unknown): entry is PendingPeginRequest {
     ) {
       return false;
     }
+  }
+
+  // The activation gate compares this against the returned graph, so a
+  // tampered value must fail here, not as an untyped throw later.
+  if (
+    pegin.signedGraphFingerprint !== undefined &&
+    (typeof pegin.signedGraphFingerprint !== "string" ||
+      !SHA256_HEX_RE.test(pegin.signedGraphFingerprint))
+  ) {
+    return false;
   }
 
   if (typeof pegin.unsignedTxHex !== "string") return false;
@@ -642,7 +655,6 @@ export function updatePendingPeginStatus(
   ethAddress: string,
   vaultId: string,
   status: LocalStorageStatus,
-  signedGraphFingerprint?: string,
 ): void {
   if (!ethAddress) return;
 
@@ -659,10 +671,6 @@ export function updatePendingPeginStatus(
             status === LocalStorageStatus.PAYOUT_SIGNED
               ? Date.now()
               : undefined,
-          // Keep any fingerprint already recorded: a later status change must
-          // not erase the depositor's only record of what it signed.
-          signedGraphFingerprint:
-            signedGraphFingerprint ?? pegin.signedGraphFingerprint,
         }
       : entry,
   );
@@ -674,6 +682,69 @@ export function updatePendingPeginStatus(
   }
 
   dispatchStorageUpdateEvent(ethAddress);
+}
+
+/**
+ * Record the presign graph fingerprint on this device's entry for a vault.
+ *
+ * Unlike the status mutators, this does not fail quietly: the caller runs it
+ * before any presign signature leaves the device, so a failure must stop the
+ * flow rather than let the VP hold signatures the depositor has no
+ * fingerprint for.
+ *
+ * @returns false when this device holds no entry for the vault (a
+ * cross-device resume). Nothing is stored, and the activation gate later
+ * reports the fingerprint as unavailable.
+ * @throws when the fingerprint is malformed, the stored entries cannot be
+ * read, or the write fails.
+ */
+export function recordSignedGraphFingerprint(
+  ethAddress: string,
+  vaultId: string,
+  fingerprint: string,
+): boolean {
+  if (!SHA256_HEX_RE.test(fingerprint)) {
+    throw new Error(
+      `Presign graph fingerprint for vault ${vaultId} is not 64 lowercase hex chars`,
+    );
+  }
+
+  const read = readStoredEntries(ethAddress);
+  if (read.status === "empty") return false;
+  if (read.status !== "ok") {
+    throw new Error(
+      `Cannot read pending deposits to record the presign graph fingerprint for vault ${vaultId}`,
+    );
+  }
+
+  const target = normalizeTransactionId(vaultId).toLowerCase();
+  let found = false;
+  const updated = read.entries.map((entry) => {
+    if (readStoredEntryId(entry) !== target) return entry;
+    found = true;
+    return { ...(entry as object), signedGraphFingerprint: fingerprint };
+  });
+  if (!found) return false;
+
+  persistStoredEntries(ethAddress, updated);
+  dispatchStorageUpdateEvent(ethAddress);
+  return true;
+}
+
+/**
+ * The presign graph fingerprint this device recorded for a vault, or
+ * undefined when it holds none.
+ *
+ * @throws `PendingPeginStorageReadError` when the stored entries cannot be read.
+ */
+export function getSignedGraphFingerprint(
+  ethAddress: string,
+  vaultId: string,
+): string | undefined {
+  const target = normalizeTransactionId(vaultId).toLowerCase();
+  return getPendingPegins(ethAddress).find(
+    (pegin) => normalizeTransactionId(pegin.id).toLowerCase() === target,
+  )?.signedGraphFingerprint;
 }
 
 /**

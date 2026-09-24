@@ -728,6 +728,15 @@ export const COPY = {
       // The fallback path may well have worked; this offers a retry without
       // implying the first attempt failed.
       downloadAgainButton: "Download Again",
+      // pegin.md §5.9 check (a). The artifacts are compared with a record of
+      // the transactions this browser signed. No record means no comparison,
+      // so the download is refused and only the risk acknowledgement remains.
+      signedGraphUnavailable:
+        "This browser has no record of the transactions you signed for this deposit, so these artifacts cannot be checked. This happens when the deposit was signed on another device or browser data was cleared. Download them on the device you signed with, or continue only if you accept the risk.",
+      // The vault provider served a graph other than the one signed. Nothing
+      // is saved; retrying cannot help, so this points at support.
+      signedGraphMismatch:
+        "These artifacts do not match the transactions you signed, so they were not saved. Do not activate this BTCVault. Contact support.",
     },
     form: {
       computingAllocation: "Computing allocation...",

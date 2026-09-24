@@ -314,7 +314,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/vault
 
 ### GraphFingerprintError
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/deposit/graphFingerprint.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/graphFingerprint.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/graphFingerprint.ts)
 
 #### Extends
 
@@ -328,7 +328,7 @@ Defined in: packages/babylon-ts-sdk/src/tbv/core/services/deposit/graphFingerpri
 new GraphFingerprintError(message): GraphFingerprintError;
 ```
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/deposit/graphFingerprint.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/graphFingerprint.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/graphFingerprint.ts)
 
 ###### Parameters
 
@@ -1675,96 +1675,6 @@ Vault id the graph or file claims to be for.
 
 ***
 
-### ChallengerFingerprintPart
-
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/deposit/graphFingerprint.ts
-
-One challenger's contribution to the fingerprint.
-
-#### Properties
-
-##### pubkey
-
-```ts
-pubkey: string;
-```
-
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/deposit/graphFingerprint.ts
-
-Challenger x-only pubkey, hex, no prefix.
-
-##### nopayoutTx
-
-```ts
-nopayoutTx: Uint8Array;
-```
-
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/deposit/graphFingerprint.ts
-
-The challenger's NoPayout transaction, consensus-serialized.
-
-##### outputLabelHashes
-
-```ts
-outputLabelHashes: string[];
-```
-
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/deposit/graphFingerprint.ts
-
-Per-GC output label hashes, hex, in the order the graph lists them.
-
-***
-
-### CanonicalTxSet
-
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/deposit/graphFingerprint.ts
-
-The four transactions every depositor-as-claimer graph carries.
-
-#### Properties
-
-##### peginTx
-
-```ts
-peginTx: Uint8Array;
-```
-
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/deposit/graphFingerprint.ts
-
-##### claimTx
-
-```ts
-claimTx: Uint8Array;
-```
-
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/deposit/graphFingerprint.ts
-
-##### assertTx
-
-```ts
-assertTx: Uint8Array;
-```
-
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/deposit/graphFingerprint.ts
-
-##### payoutTx
-
-```ts
-payoutTx: Uint8Array;
-```
-
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/deposit/graphFingerprint.ts
-
-##### challengers
-
-```ts
-challengers: ChallengerFingerprintPart[];
-```
-
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/deposit/graphFingerprint.ts
-
-***
-
 ### PeginStatusReader
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/interfaces.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/interfaces.ts)
@@ -2516,6 +2426,32 @@ Optional progress callback (completed claimers, total claimers)
 ###### Returns
 
 `void`
+
+##### recordGraphFingerprint()
+
+```ts
+recordGraphFingerprint: (fingerprint) => void | Promise<void>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts)
+
+Persist the fingerprint of the transaction set about to be signed.
+
+`pegin.md` §5.9 requires activation to refuse a bundle whose graph does
+not reproduce this value. It is called after the presign transactions are
+fetched and before any signing prompt, and awaited: when it throws, the
+flow stops and no signature reaches the VP. A resume past payout signing
+does not call it, so an earlier record stays in place.
+
+###### Parameters
+
+###### fingerprint
+
+`string`
+
+###### Returns
+
+`void` \| `Promise`\<`void`\>
 
 ***
 
@@ -4327,31 +4263,6 @@ Reason why a vault expired
 
 ***
 
-### DepositorPresignResult
-
-```ts
-type DepositorPresignResult = 
-  | {
-  status: "signed";
-  signedGraphFingerprint: string;
-}
-  | {
-  status: "skipped";
-};
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts)
-
-The outcome of a presign run.
-
-`signed` carries the fingerprint of the transaction set the depositor just
-signed. `pegin.md` §5.9 requires the caller to persist it and refuse to
-activate later against a graph that does not reproduce it. `skipped` means
-the VP had already moved past payout signing, so this run signed nothing and
-has no fingerprint to offer — a resume of an already-presigned deposit.
-
-***
-
 ### KeyResolutionMode
 
 ```ts
@@ -4808,114 +4719,13 @@ version if you build on it.
 
 ***
 
-### serializeGraphTx()
-
-```ts
-function serializeGraphTx(txNode, path): Uint8Array;
-```
-
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/deposit/graphFingerprint.ts
-
-Re-encode one serde-serialized `bitcoin::Transaction` from a `tx_graph_json`
-node into consensus bytes.
-
-Mirrors `bitcoin::consensus::serialize`: version, the segwit marker/flag when
-any input carries a witness, inputs, outputs, each input's witness stack, then
-lock time. `previous_output` arrives as `"<txid>:<vout>"` in display byte
-order, so the txid is reversed back to internal order on the wire.
-
-#### Parameters
-
-##### txNode
-
-`unknown`
-
-##### path
-
-`string`
-
-#### Returns
-
-`Uint8Array`
-
-***
-
-### canonicalTxSetFingerprint()
-
-```ts
-function canonicalTxSetFingerprint(set): string;
-```
-
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/deposit/graphFingerprint.ts
-
-Hash the canonical transaction set.
-
-Challengers are sorted by pubkey so the digest does not depend on map or
-response ordering, which neither side controls consistently.
-
-#### Parameters
-
-##### set
-
-[`CanonicalTxSet`](#canonicaltxset)
-
-#### Returns
-
-`string`
-
-***
-
-### fingerprintPresignTxSet()
-
-```ts
-function fingerprintPresignTxSet(args): string;
-```
-
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/deposit/graphFingerprint.ts
-
-Fingerprint the transaction set a VP supplied at presign.
-
-`peginTxHex` comes from the depositor's own signing context, not the
-response — the presign payload carries no PegIn transaction, and taking it
-from the VP would let the VP choose both sides of the comparison.
-
-#### Parameters
-
-##### args
-
-###### peginTxHex
-
-`string`
-
-###### claimTxHex
-
-`string`
-
-###### assertTxHex
-
-`string`
-
-###### payoutTxHex
-
-`string`
-
-###### challengers
-
-`object`[]
-
-#### Returns
-
-`string`
-
-***
-
 ### fingerprintReturnedGraph()
 
 ```ts
 function fingerprintReturnedGraph(graph): string;
 ```
 
-Defined in: packages/babylon-ts-sdk/src/tbv/core/services/deposit/graphFingerprint.ts
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/graphFingerprint.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/graphFingerprint.ts)
 
 Fingerprint the graph a VP returned at activation, parsed from
 `tx_graph_json`.
@@ -5113,7 +4923,7 @@ boundary-equal block is NOT expired. All values are Ethereum block numbers.
 ### runDepositorPresignFlow()
 
 ```ts
-function runDepositorPresignFlow(params): Promise<DepositorPresignResult>;
+function runDepositorPresignFlow(params): Promise<void>;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts)
@@ -5131,7 +4941,7 @@ This is the main deposit protocol step between registration and activation.
 
 #### Returns
 
-`Promise`\<[`DepositorPresignResult`](#depositorpresignresult)\>
+`Promise`\<`void`\>
 
 #### Throws
 

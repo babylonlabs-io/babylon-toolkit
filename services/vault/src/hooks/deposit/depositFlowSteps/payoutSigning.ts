@@ -11,13 +11,17 @@ import {
 import { runDepositorPresignFlow } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 import type { Address, Hex } from "viem";
 
+import { logger } from "@/infrastructure";
 import { LocalStorageStatus } from "@/models/peginStateMachine";
 import {
   prepareSigningContext,
   type PayoutSigningPhase,
   type PayoutSigningProgress,
 } from "@/services/vault/vaultPayoutSignatureService";
-import { updatePendingPeginStatus } from "@/storage/peginStorage";
+import {
+  recordSignedGraphFingerprint,
+  updatePendingPeginStatus,
+} from "@/storage/peginStorage";
 import { DepositorBtcKeyMismatchError } from "@/utils/errors/depositorWalletMismatch";
 import { assertVaultCoreVersionSupported } from "@/utils/vaultCoreVersionSupport";
 
@@ -121,7 +125,7 @@ export async function signAndSubmitPayouts(
     requireFreshDeviceCeremony: true,
   });
 
-  const presignResult = await runDepositorPresignFlow({
+  await runDepositorPresignFlow({
     statusReader: rpcClient,
     presignClient: rpcClient,
     btcWallet,
@@ -134,19 +138,28 @@ export async function signAndSubmitPayouts(
       ? (completed, total) =>
           onProgress({ phase: "claimers", completed, total })
       : undefined,
+    // pegin.md §5.9: the artifact download refuses a bundle whose graph does
+    // not reproduce this. A failed write throws and stops the flow before any
+    // signature is sent.
+    recordGraphFingerprint: (fingerprint) => {
+      if (
+        !recordSignedGraphFingerprint(depositorEthAddress, vaultId, fingerprint)
+      ) {
+        // A cross-device resume has no local entry to hold it. Signing goes
+        // on, and the artifact download for this vault then fails closed.
+        logger.warn("No local deposit entry to hold the presign fingerprint", {
+          category: "activation",
+          vaultId,
+        });
+      }
+    },
   });
 
   onProgress?.(null);
 
-  // Record what was signed. pegin.md §5.9 requires activation to refuse a
-  // bundle whose graph does not reproduce this. A resume that signed nothing
-  // has no fingerprint to offer and must not overwrite an earlier one.
   updatePendingPeginStatus(
     depositorEthAddress,
     vaultId,
     LocalStorageStatus.PAYOUT_SIGNED,
-    presignResult.status === "signed"
-      ? presignResult.signedGraphFingerprint
-      : undefined,
   );
 }

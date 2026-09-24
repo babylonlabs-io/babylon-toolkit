@@ -16,11 +16,13 @@
  *
  * The two moments carry the same transactions in different encodings — presign
  * hands back raw consensus `tx_hex`, activation a serde-serialized
- * `bitcoin::Transaction`. `serializeGraphTx` re-encodes the latter so both
- * paths hash identical bytes. The layout matches
+ * `bitcoin::Transaction`. Both sides decode strictly and re-serialize through
+ * `bitcoinjs-lib`, so each hashed part is exactly one canonical transaction.
+ * That matters because the layout below has no length prefixes: it matches
  * `canonical_tx_set_fingerprint` in `btc-vault`
- * (`crates/depositor-cli/src/recovery_graph.rs`), so a fingerprint taken here
- * equals the one the reference CLI computes for the same graph.
+ * (`crates/depositor-cli/src/recovery_graph.rs`), which relies on the same
+ * strict decode. Hashing undecoded bytes would let a VP shift bytes between
+ * parts and reach the same digest with a different graph.
  *
  * Note this commits to the transaction set only. `gc_wots_keys`, the verifying
  * key, and the typed connector metadata are deliberately outside it — the spec
@@ -28,17 +30,32 @@
  */
 
 import { sha256 } from "@noble/hashes/sha2.js";
-import { bytesToHex, hexToBytes } from "@noble/hashes/utils.js";
+import { bytesToHex, concatBytes, hexToBytes } from "@noble/hashes/utils.js";
+import { Transaction } from "bitcoinjs-lib";
 
-import { stripHexPrefix } from "../../primitives/utils/bitcoin";
+import {
+  canonicalizeBtcPubkey,
+  stripHexPrefix,
+} from "../../primitives/utils/bitcoin";
+
+/** Lowercase hex, whole bytes, no prefix: the only form serde emits. */
+const SERDE_HEX_RE = /^(?:[0-9a-f]{2})*$/;
+/** An x-only pubkey or a SHA-256 digest in serde hex. */
+const BYTES32_SERDE_HEX_RE = /^[0-9a-f]{64}$/;
+/** `bitcoin::OutPoint` in serde: display-order txid, `:`, decimal vout. */
+const OUTPOINT_RE = /^([0-9a-f]{64}):(0|[1-9][0-9]*)$/;
+
+const INT32_MIN = -0x8000_0000;
+const INT32_MAX = 0x7fff_ffff;
+const UINT32_MAX = 0xffff_ffff;
 
 /** One challenger's contribution to the fingerprint. */
 export interface ChallengerFingerprintPart {
-  /** Challenger x-only pubkey, hex, no prefix. */
+  /** Challenger x-only pubkey, lowercase hex, no prefix. */
   pubkey: string;
   /** The challenger's NoPayout transaction, consensus-serialized. */
   nopayoutTx: Uint8Array;
-  /** Per-GC output label hashes, hex, in the order the graph lists them. */
+  /** Per-GC output label hashes, lowercase hex, in the order the graph lists them. */
   outputLabelHashes: string[];
 }
 
@@ -49,74 +66,6 @@ export interface CanonicalTxSet {
   assertTx: Uint8Array;
   payoutTx: Uint8Array;
   challengers: ChallengerFingerprintPart[];
-}
-
-class ByteWriter {
-  private readonly parts: Uint8Array[] = [];
-
-  push(bytes: Uint8Array): void {
-    this.parts.push(bytes);
-  }
-
-  u32(value: number): void {
-    const buf = new Uint8Array(4);
-    new DataView(buf.buffer).setUint32(0, value, true);
-    this.parts.push(buf);
-  }
-
-  i32(value: number): void {
-    const buf = new Uint8Array(4);
-    new DataView(buf.buffer).setInt32(0, value, true);
-    this.parts.push(buf);
-  }
-
-  /**
-   * Bitcoin amounts are u64. They stay well inside `Number.MAX_SAFE_INTEGER`
-   * (21e6 BTC is ~2.1e15 sats), so a JSON number is lossless here, but the
-   * encoding still has to fill all eight bytes.
-   */
-  u64(value: number): void {
-    const buf = new Uint8Array(8);
-    new DataView(buf.buffer).setBigUint64(0, BigInt(value), true);
-    this.parts.push(buf);
-  }
-
-  varint(value: number): void {
-    if (value < 0xfd) {
-      this.parts.push(Uint8Array.of(value));
-    } else if (value <= 0xffff) {
-      const buf = new Uint8Array(3);
-      buf[0] = 0xfd;
-      new DataView(buf.buffer).setUint16(1, value, true);
-      this.parts.push(buf);
-    } else if (value <= 0xffffffff) {
-      const buf = new Uint8Array(5);
-      buf[0] = 0xfe;
-      new DataView(buf.buffer).setUint32(1, value, true);
-      this.parts.push(buf);
-    } else {
-      const buf = new Uint8Array(9);
-      buf[0] = 0xff;
-      new DataView(buf.buffer).setBigUint64(1, BigInt(value), true);
-      this.parts.push(buf);
-    }
-  }
-
-  varBytes(bytes: Uint8Array): void {
-    this.varint(bytes.length);
-    this.parts.push(bytes);
-  }
-
-  concat(): Uint8Array {
-    const total = this.parts.reduce((n, p) => n + p.length, 0);
-    const out = new Uint8Array(total);
-    let offset = 0;
-    for (const part of this.parts) {
-      out.set(part, offset);
-      offset += part.length;
-    }
-    return out;
-  }
 }
 
 export class GraphFingerprintError extends Error {
@@ -148,139 +97,147 @@ function asRecord(value: unknown, path: string): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
-function asInt(value: unknown, path: string): number {
-  if (typeof value !== "number" || !Number.isInteger(value)) {
-    throw new GraphFingerprintError(`Graph tx ${path} is not an integer`);
+function asInt(value: unknown, path: string, min: number, max: number): number {
+  if (
+    typeof value !== "number" ||
+    !Number.isSafeInteger(value) ||
+    value < min ||
+    value > max
+  ) {
+    throw new GraphFingerprintError(
+      `Graph tx ${path} is not an integer in [${min}, ${max}]`,
+    );
   }
   return value;
 }
 
-function asHexBytes(value: unknown, path: string): Uint8Array {
-  if (typeof value !== "string") {
-    throw new GraphFingerprintError(`Graph tx ${path} is not a hex string`);
+function asSerdeHex(value: unknown, path: string): Buffer {
+  if (typeof value !== "string" || !SERDE_HEX_RE.test(value)) {
+    throw new GraphFingerprintError(
+      `Graph tx ${path} is not lowercase hex without a prefix`,
+    );
   }
-  const hex = stripHexPrefix(value);
-  if (hex.length % 2 !== 0 || (hex.length > 0 && !/^[0-9a-fA-F]+$/.test(hex))) {
-    throw new GraphFingerprintError(`Graph tx ${path} is not valid hex`);
+  return Buffer.from(value, "hex");
+}
+
+function asSerdeBytes32(value: unknown, path: string): string {
+  if (typeof value !== "string" || !BYTES32_SERDE_HEX_RE.test(value)) {
+    throw new GraphFingerprintError(
+      `Graph ${path} is not 32 bytes of lowercase hex`,
+    );
   }
-  return hex.length === 0 ? new Uint8Array() : hexToBytes(hex.toLowerCase());
+  return value;
 }
 
 /**
  * Re-encode one serde-serialized `bitcoin::Transaction` from a `tx_graph_json`
  * node into consensus bytes.
  *
- * Mirrors `bitcoin::consensus::serialize`: version, the segwit marker/flag when
- * any input carries a witness, inputs, outputs, each input's witness stack, then
- * lock time. `previous_output` arrives as `"<txid>:<vout>"` in display byte
- * order, so the txid is reversed back to internal order on the wire.
+ * Every field is required and range-checked: a value that serde would reject
+ * or read differently must not reach the digest, or the depositor could match
+ * a graph that the recovery tooling cannot load. `previous_output` arrives in
+ * display byte order, so the txid is reversed back to wire order.
  */
 export function serializeGraphTx(txNode: unknown, path: string): Uint8Array {
-  const tx = asRecord(txNode, path);
-  const inputs = asArray(field(tx, "input", path), `${path}.input`);
-  const outputs = asArray(field(tx, "output", path), `${path}.output`);
-
-  const witnesses = inputs.map((input, i) =>
-    asArray(
-      asRecord(input, `${path}.input[${i}]`).witness ?? [],
-      `${path}.input[${i}].witness`,
-    ).map((item, j) =>
-      asHexBytes(item, `${path}.input[${i}].witness[${j}]`),
-    ),
+  const node = asRecord(txNode, path);
+  const tx = new Transaction();
+  tx.version = asInt(
+    field(node, "version", path),
+    `${path}.version`,
+    INT32_MIN,
+    INT32_MAX,
   );
-  const segwit = witnesses.some((stack) => stack.length > 0);
+  tx.locktime = asInt(
+    field(node, "lock_time", path),
+    `${path}.lock_time`,
+    0,
+    UINT32_MAX,
+  );
 
-  const w = new ByteWriter();
-  w.i32(asInt(field(tx, "version", path), `${path}.version`));
-  if (segwit) {
-    w.push(Uint8Array.of(0x00, 0x01));
-  }
-
-  w.varint(inputs.length);
-  inputs.forEach((input, i) => {
+  asArray(field(node, "input", path), `${path}.input`).forEach((input, i) => {
     const at = `${path}.input[${i}]`;
-    const node = asRecord(input, at);
-    const outpoint = field(node, "previous_output", at);
-    if (typeof outpoint !== "string") {
-      throw new GraphFingerprintError(`Graph tx ${at}.previous_output is not a string`);
+    const inputNode = asRecord(input, at);
+    const outpoint = field(inputNode, "previous_output", at);
+    const match = typeof outpoint === "string" && OUTPOINT_RE.exec(outpoint);
+    if (!match) {
+      throw new GraphFingerprintError(
+        `Graph tx ${at}.previous_output is not "<txid>:<vout>"`,
+      );
     }
-    const [txid, voutText] = outpoint.split(":");
-    const txidBytes = asHexBytes(txid ?? "", `${at}.previous_output.txid`);
-    if (txidBytes.length !== 32) {
-      throw new GraphFingerprintError(`Graph tx ${at}.previous_output txid is not 32 bytes`);
-    }
-    // Display order is the reverse of the wire order.
-    w.push(txidBytes.slice().reverse());
-    const vout = Number(voutText);
-    if (!Number.isInteger(vout) || vout < 0) {
-      throw new GraphFingerprintError(`Graph tx ${at}.previous_output has no vout`);
-    }
-    w.u32(vout);
-    w.varBytes(asHexBytes(node.script_sig ?? "", `${at}.script_sig`));
-    w.u32(asInt(field(node, "sequence", at), `${at}.sequence`));
+    const vout = asInt(Number(match[2]), `${at}.previous_output vout`, 0, UINT32_MAX);
+    tx.addInput(
+      Buffer.from(match[1], "hex").reverse(),
+      vout,
+      asInt(field(inputNode, "sequence", at), `${at}.sequence`, 0, UINT32_MAX),
+      asSerdeHex(field(inputNode, "script_sig", at), `${at}.script_sig`),
+    );
+    tx.ins[i].witness = asArray(
+      field(inputNode, "witness", at),
+      `${at}.witness`,
+    ).map((item, j) => asSerdeHex(item, `${at}.witness[${j}]`));
   });
 
-  w.varint(outputs.length);
-  outputs.forEach((output, i) => {
+  asArray(field(node, "output", path), `${path}.output`).forEach((output, i) => {
     const at = `${path}.output[${i}]`;
-    const node = asRecord(output, at);
-    w.u64(asInt(field(node, "value", at), `${at}.value`));
-    w.varBytes(asHexBytes(field(node, "script_pubkey", at), `${at}.script_pubkey`));
+    const outputNode = asRecord(output, at);
+    tx.addOutput(
+      asSerdeHex(field(outputNode, "script_pubkey", at), `${at}.script_pubkey`),
+      asInt(field(outputNode, "value", at), `${at}.value`, 0, Number.MAX_SAFE_INTEGER),
+    );
   });
 
-  if (segwit) {
-    for (const stack of witnesses) {
-      w.varint(stack.length);
-      for (const item of stack) {
-        w.varBytes(item);
-      }
-    }
-  }
+  return new Uint8Array(tx.toBuffer());
+}
 
-  w.u32(asInt(field(tx, "lock_time", path), `${path}.lock_time`));
-  return w.concat();
+/**
+ * Decode one presign `tx_hex` strictly and return its canonical bytes.
+ *
+ * Rejects trailing bytes and any encoding that does not round-trip, so the
+ * part hashed below is exactly one transaction.
+ */
+function decodePresignTx(txHex: string, path: string): Uint8Array {
+  const hex = stripHexPrefix(txHex).toLowerCase();
+  let tx: Transaction;
+  try {
+    tx = Transaction.fromHex(hex);
+  } catch (err) {
+    throw new GraphFingerprintError(
+      `Presign ${path} is not one transaction: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+  if (tx.toHex() !== hex) {
+    throw new GraphFingerprintError(
+      `Presign ${path} is not a canonical transaction encoding`,
+    );
+  }
+  return new Uint8Array(tx.toBuffer());
 }
 
 /**
  * Hash the canonical transaction set.
  *
  * Challengers are sorted by pubkey so the digest does not depend on map or
- * response ordering, which neither side controls consistently.
+ * response ordering, which neither side controls consistently. Two entries
+ * for one key are rejected: with the order between them undefined, the digest
+ * would follow whichever order the VP chose.
  */
 export function canonicalTxSetFingerprint(set: CanonicalTxSet): string {
-  const w = new ByteWriter();
-  for (const tx of [set.peginTx, set.claimTx, set.assertTx, set.payoutTx]) {
-    w.push(tx);
-  }
-
   const sorted = [...set.challengers].sort((a, b) =>
-    normalizePubkey(a.pubkey) < normalizePubkey(b.pubkey) ? -1 : 1,
+    a.pubkey < b.pubkey ? -1 : a.pubkey > b.pubkey ? 1 : 0,
   );
-  for (const challenger of sorted) {
-    const pubkey = hexToBytes(normalizePubkey(challenger.pubkey));
-    if (pubkey.length !== 32) {
-      throw new GraphFingerprintError(
-        `Challenger pubkey ${challenger.pubkey} is not 32 bytes`,
-      );
+  const parts = [set.peginTx, set.claimTx, set.assertTx, set.payoutTx];
+  sorted.forEach((challenger, i) => {
+    const pubkey = asSerdeBytes32(challenger.pubkey, "challenger pubkey");
+    if (i > 0 && sorted[i - 1].pubkey === pubkey) {
+      throw new GraphFingerprintError(`Graph lists challenger ${pubkey} twice`);
     }
-    w.push(pubkey);
-    w.push(challenger.nopayoutTx);
+    parts.push(hexToBytes(pubkey), challenger.nopayoutTx);
     for (const hash of challenger.outputLabelHashes) {
-      const bytes = asHexBytes(hash, "output_label_hashes");
-      if (bytes.length !== 32) {
-        throw new GraphFingerprintError(
-          "Graph output_label_hashes entry is not 32 bytes",
-        );
-      }
-      w.push(bytes);
+      parts.push(hexToBytes(asSerdeBytes32(hash, "output_label_hashes entry")));
     }
-  }
+  });
 
-  return bytesToHex(sha256(w.concat()));
-}
-
-function normalizePubkey(pubkey: string): string {
-  return stripHexPrefix(pubkey).toLowerCase();
+  return bytesToHex(sha256(concatBytes(...parts)));
 }
 
 /**
@@ -302,14 +259,16 @@ export function fingerprintPresignTxSet(args: {
   }[];
 }): string {
   return canonicalTxSetFingerprint({
-    peginTx: asHexBytes(args.peginTxHex, "pegin_tx"),
-    claimTx: asHexBytes(args.claimTxHex, "claim_tx"),
-    assertTx: asHexBytes(args.assertTxHex, "assert_tx"),
-    payoutTx: asHexBytes(args.payoutTxHex, "payout_tx"),
+    peginTx: decodePresignTx(args.peginTxHex, "pegin_tx"),
+    claimTx: decodePresignTx(args.claimTxHex, "claim_tx"),
+    assertTx: decodePresignTx(args.assertTxHex, "assert_tx"),
+    payoutTx: decodePresignTx(args.payoutTxHex, "payout_tx"),
     challengers: args.challengers.map((c) => ({
-      pubkey: c.challenger_pubkey,
-      nopayoutTx: asHexBytes(c.nopayout_tx?.tx_hex, "nopayout_tx"),
-      outputLabelHashes: c.output_label_hashes ?? [],
+      pubkey: canonicalizeBtcPubkey(c.challenger_pubkey),
+      nopayoutTx: decodePresignTx(c.nopayout_tx.tx_hex, "nopayout_tx"),
+      outputLabelHashes: c.output_label_hashes.map((hash) =>
+        stripHexPrefix(hash).toLowerCase(),
+      ),
     })),
   });
 }
@@ -346,14 +305,9 @@ export function fingerprintReturnedGraph(
         outputLabelHashes: asArray(
           field(sub, "output_label_hashes", at),
           `${at}.output_label_hashes`,
-        ).map((h, i) => {
-          if (typeof h !== "string") {
-            throw new GraphFingerprintError(
-              `Graph tx ${at}.output_label_hashes[${i}] is not a hex string`,
-            );
-          }
-          return h;
-        }),
+        ).map((h, i) =>
+          asSerdeBytes32(h, `${at}.output_label_hashes[${i}]`),
+        ),
       };
     }),
   });

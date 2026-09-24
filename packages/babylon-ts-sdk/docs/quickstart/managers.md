@@ -276,6 +276,9 @@ await runDepositorPresignFlow({
   depositorPk: stripHexPrefix(depositorBtcPubkey),
   signingContext,
   onProgress: (completed, total) => console.log(`Signed ${completed}/${total}`),
+  // Store it durably before signing starts. Compare it with
+  // fingerprintReturnedGraph() on the artifact bundle before you activate.
+  recordGraphFingerprint: (fingerprint) => saveFingerprint(peginTxHash, fingerprint),
 });
 // Contract status: VERIFIED
 
@@ -312,7 +315,7 @@ await activateVault({
 | 2 | `peginManager.signProofOfPossession()` | `{ btcPopSignature, depositorEthAddress, depositorBtcPubkey }` — reusable across every `registerPeginOnChain` call in the session |
 | 3 | `peginManager.registerPeginOnChain()` | `{ ethTxHash, vaultId, peginTxHash }` |
 | 4 | `peginManager.signAndBroadcast()` | `btcTxid` (string) |
-| 5 | `runDepositorPresignFlow()` | `void` — side effect: signatures posted, contract moves to `VERIFIED` |
+| 5 | `runDepositorPresignFlow()` | `void` — side effects: `recordGraphFingerprint` gets the fingerprint of the signed transaction set, signatures posted, contract moves to `VERIFIED` |
 | 6 | `activateVault()` | Whatever `writeContract` returns (typically `{ transactionHash }`) |
 
 ---

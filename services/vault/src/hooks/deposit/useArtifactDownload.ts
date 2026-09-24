@@ -7,6 +7,7 @@ import {
 import { useCallback, useRef, useState } from "react";
 import type { Hex } from "viem";
 
+import { useETHWallet } from "@/context/wallet";
 import { COPY } from "@/copy";
 import { ensureAuthenticatedVpClient } from "@/hooks/deposit/depositFlowSteps/ensureAuthenticatedVpClient";
 import { useBtcAction } from "@/hooks/useBtcAction";
@@ -28,7 +29,13 @@ import {
   fetchAndDownloadArtifacts,
   type FetchArtifactsOptions,
   openArtifactSaveTarget,
+  PresignFingerprintUnavailableError,
+  PresignGraphMismatchError,
 } from "@/services/artifacts";
+import {
+  getSignedGraphFingerprint,
+  PendingPeginStorageReadError,
+} from "@/storage/peginStorage";
 import {
   ARTIFACT_RECEIPT_VERSION,
   hasArtifactsDownloaded,
@@ -93,6 +100,7 @@ export function useArtifactDownload(options?: {
   primeContext?: PrimeContext | null;
 }) {
   const { requireBtcWallet } = useBtcAction();
+  const { address: ethAddress } = useETHWallet();
   const vaultId = options?.vaultId;
   const primeContext = options?.primeContext ?? null;
 
@@ -110,6 +118,20 @@ export function useArtifactDownload(options?: {
    * gate reads. Only ever called with an outcome from a validated, saved
    * bundle — never from a fetch that merely resolved.
    */
+  /**
+   * The presign fingerprint this device recorded for the vault. Undefined
+   * when there is none to read; the download then fails closed on it.
+   */
+  const readSignedGraphFingerprint = useCallback((): string | undefined => {
+    if (!vaultId || !ethAddress) return undefined;
+    try {
+      return getSignedGraphFingerprint(ethAddress, vaultId);
+    } catch (err) {
+      if (err instanceof PendingPeginStorageReadError) return undefined;
+      throw err;
+    }
+  }, [vaultId, ethAddress]);
+
   const persistReceipt = useCallback(
     (peginTxid: string, outcome: ArtifactDownloadOutcome) => {
       if (!vaultId) return;
@@ -228,6 +250,8 @@ export function useArtifactDownload(options?: {
         progress: COPY.deposit.recoveryArtifacts.fetchingArtifacts,
       }));
 
+      const signedGraphFingerprint = readSignedGraphFingerprint();
+
       // The demo yields no outcome, which is what keeps a simulated download
       // from ever writing the receipt that satisfies the activation gate.
       const runDownload = (
@@ -236,13 +260,18 @@ export function useArtifactDownload(options?: {
         demoDownload
           ? demoDownload(
               saveTarget,
-              { peginTxid: normalizedPeginTxid, depositorPk },
+              {
+                peginTxid: normalizedPeginTxid,
+                depositorPk,
+                signedGraphFingerprint,
+              },
               fetchOptions,
             ).then(() => null)
           : fetchAndDownloadArtifacts(
               providerAddress,
               peginTxid,
               depositorPk,
+              signedGraphFingerprint,
               saveTarget,
               fetchOptions,
             );
@@ -416,6 +445,28 @@ export function useArtifactDownload(options?: {
             setError(COPY.deposit.recoveryArtifacts.tooLargeForBrowser);
             return;
           }
+          // Terminal too: the stored record will not change on a retry, and
+          // a mismatch is the VP serving a graph other than the one signed.
+          if (err instanceof PresignFingerprintUnavailableError) {
+            captureFunnelFailure(
+              TELEMETRY_STAGE.ACTIVATION_ARTIFACTS,
+              err,
+              telemetryVaultId,
+              { tags: { site: "presign_fingerprint_unavailable" } },
+            );
+            setError(COPY.deposit.recoveryArtifacts.signedGraphUnavailable);
+            return;
+          }
+          if (err instanceof PresignGraphMismatchError) {
+            captureFunnelFailure(
+              TELEMETRY_STAGE.ACTIVATION_ARTIFACTS,
+              err,
+              telemetryVaultId,
+              { tags: { site: "presign_fingerprint_mismatch" } },
+            );
+            setError(COPY.deposit.recoveryArtifacts.signedGraphMismatch);
+            return;
+          }
           if (err instanceof ArtifactFileAccessError) {
             captureFunnelFailure(
               TELEMETRY_STAGE.ACTIVATION_ARTIFACTS,
@@ -512,7 +563,13 @@ export function useArtifactDownload(options?: {
         }
       }
     },
-    [vaultId, primeContext, persistReceipt, requireBtcWallet],
+    [
+      vaultId,
+      primeContext,
+      persistReceipt,
+      readSignedGraphFingerprint,
+      requireBtcWallet,
+    ],
   );
 
   const cancel = useCallback(() => {

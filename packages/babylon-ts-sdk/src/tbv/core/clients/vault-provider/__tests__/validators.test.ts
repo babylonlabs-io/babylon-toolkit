@@ -218,7 +218,7 @@ describe("VP Response Validators", () => {
         { wots_pks_json: "{}", gc_wots_keys_json: "{}" },
         { wots_pks_json: "{}", gc_wots_keys_json: "{}" },
       ],
-      output_label_hashes: ["aabb"],
+      output_label_hashes: ["aa".repeat(32)],
     };
 
     const validDepositorGraph = {
@@ -468,6 +468,27 @@ describe("VP Response Validators", () => {
           },
         }),
       ).toThrow(VpResponseValidationError);
+    });
+
+    it("rejects an output_label_hashes entry that is not 32 bytes", () => {
+      expect(() =>
+        validateRequestDepositorPresignTransactionsResponse({
+          txs: [],
+          depositor_graph: {
+            ...validDepositorGraph,
+            challenger_presign_data: [
+              {
+                ...validChallengerPresignData,
+                output_label_hashes: ["aa".repeat(33)],
+              },
+            ],
+          },
+        }),
+      ).toThrow(
+        expect.objectContaining({
+          detail: expect.stringMatching(/must be a 64-char hex string/),
+        }),
+      );
     });
   });
 

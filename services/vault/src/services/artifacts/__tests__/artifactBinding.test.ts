@@ -5,8 +5,8 @@ import { describe, expect, it } from "vitest";
 import {
   assertBundleBoundToVault,
   assertGraphMatchesPresign,
-  assertVerifyingKeyPinned,
   PresignFingerprintUnavailableError,
+  PresignGraphMismatchError,
 } from "../artifactBinding";
 
 const PEGIN_TXID =
@@ -17,7 +17,11 @@ const LOCAL_CHALLENGER = "a0".repeat(32);
 const UNIVERSAL_CHALLENGER = "47".repeat(32);
 const FOREIGN_TXID = "ff".repeat(32);
 
-const BINDING = { peginTxid: PEGIN_TXID, depositorPk: DEPOSITOR_PK };
+const BINDING = {
+  peginTxid: PEGIN_TXID,
+  depositorPk: DEPOSITOR_PK,
+  signedGraphFingerprint: undefined,
+};
 const SESSION_KEYS = [LOCAL_CHALLENGER, UNIVERSAL_CHALLENGER];
 
 /**
@@ -53,6 +57,7 @@ describe("assertBundleBoundToVault", () => {
       assertBundleBoundToVault(txGraph(), SESSION_KEYS, {
         peginTxid: `0x${PEGIN_TXID.toUpperCase()}`,
         depositorPk: `0x${DEPOSITOR_PK.toUpperCase()}`,
+        signedGraphFingerprint: undefined,
       }),
     ).not.toThrow();
   });
@@ -185,72 +190,57 @@ describe("assertGraphMatchesPresign", () => {
     };
   }
 
+  const binding = (signedGraphFingerprint: string | undefined) => ({
+    ...BINDING,
+    signedGraphFingerprint,
+  });
+
   it("accepts a graph that reproduces the persisted fingerprint", () => {
     const graph = realGraph();
-    const expected = fingerprintReturnedGraph(graph);
     expect(() =>
-      assertGraphMatchesPresign(graph, expected, PEGIN_TXID),
+      assertGraphMatchesPresign(
+        graph,
+        binding(fingerprintReturnedGraph(graph)),
+      ),
     ).not.toThrow();
   });
 
   it("rejects a graph whose transactions were swapped after presign", () => {
     const graph = realGraph();
-    const expected = fingerprintReturnedGraph(graph);
+    const expected = binding(fingerprintReturnedGraph(graph));
     const swapped = { ...graph, payout_tx: { tx: tx("ff") } };
-    expect(() =>
-      assertGraphMatchesPresign(swapped, expected, PEGIN_TXID),
-    ).toThrow(VpResponseValidationError);
+    expect(() => assertGraphMatchesPresign(swapped, expected)).toThrow(
+      PresignGraphMismatchError,
+    );
   });
 
   it("rejects a graph whose challenger roster was swapped after presign", () => {
     const graph = realGraph();
-    const expected = fingerprintReturnedGraph(graph);
+    const expected = binding(fingerprintReturnedGraph(graph));
     const swapped = {
       ...graph,
       challenger_subgraphs: {
         [UNIVERSAL_CHALLENGER]: graph.challenger_subgraphs[LOCAL_CHALLENGER],
       },
     };
-    expect(() =>
-      assertGraphMatchesPresign(swapped, expected, PEGIN_TXID),
-    ).toThrow(VpResponseValidationError);
+    expect(() => assertGraphMatchesPresign(swapped, expected)).toThrow(
+      PresignGraphMismatchError,
+    );
+  });
+
+  it("reports a graph too malformed to fingerprint as a mismatch", () => {
+    const graph = realGraph();
+    const expected = binding(fingerprintReturnedGraph(graph));
+    const withoutAssert: Record<string, unknown> = { ...graph };
+    delete withoutAssert.assert_tx;
+    expect(() => assertGraphMatchesPresign(withoutAssert, expected)).toThrow(
+      PresignGraphMismatchError,
+    );
   });
 
   it("reports absence separately from a mismatch", () => {
     expect(() =>
-      assertGraphMatchesPresign(realGraph(), undefined, PEGIN_TXID),
+      assertGraphMatchesPresign(realGraph(), binding(undefined)),
     ).toThrow(PresignFingerprintUnavailableError);
-  });
-
-  it("ignores prefix and case on the persisted value", () => {
-    const graph = realGraph();
-    const expected = fingerprintReturnedGraph(graph);
-    expect(() =>
-      assertGraphMatchesPresign(
-        graph,
-        `0x${expected.toUpperCase()}`,
-        PEGIN_TXID,
-      ),
-    ).not.toThrow();
-  });
-});
-
-describe("assertVerifyingKeyPinned", () => {
-  const PINNED = "9f".repeat(32);
-
-  it("accepts the pinned key", () => {
-    expect(() => assertVerifyingKeyPinned(PINNED, PINNED)).not.toThrow();
-  });
-
-  it("accepts a differently cased or prefixed encoding of the same key", () => {
-    expect(() =>
-      assertVerifyingKeyPinned(`0x${PINNED.toUpperCase()}`, PINNED),
-    ).not.toThrow();
-  });
-
-  it("rejects any other key", () => {
-    expect(() => assertVerifyingKeyPinned("ab".repeat(32), PINNED)).toThrow(
-      VpResponseValidationError,
-    );
   });
 });

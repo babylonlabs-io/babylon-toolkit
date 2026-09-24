@@ -30,6 +30,19 @@ vi.mock("@babylonlabs-io/wallet-connector", () => ({
 
 vi.mock("@/context/wallet", () => ({
   useBTCWallet: () => ({ connected: btcActionWallet.connected }),
+  useETHWallet: () => ({ address: DEPOSITOR_ETH_ADDRESS }),
+}));
+
+const DEPOSITOR_ETH_ADDRESS = vi.hoisted(
+  () => "0x1234567890abcdef1234567890abcdef12345678",
+);
+const SIGNED_GRAPH_FINGERPRINT = vi.hoisted(() => "3f".repeat(32));
+const mockGetSignedGraphFingerprint = vi.hoisted(() =>
+  vi.fn((): string | undefined => SIGNED_GRAPH_FINGERPRINT),
+);
+vi.mock("@/storage/peginStorage", () => ({
+  getSignedGraphFingerprint: mockGetSignedGraphFingerprint,
+  PendingPeginStorageReadError: class PendingPeginStorageReadError extends Error {},
 }));
 
 const featureFlagsMock = vi.hoisted(() => ({
@@ -75,6 +88,7 @@ vi.mock("@/hooks/deposit/depositFlowSteps/ensureAuthenticatedVpClient", () => ({
   ensureAuthenticatedVpClient: vi.fn(),
 }));
 
+import { COPY } from "@/copy";
 import { setArtifactDownloadOverride } from "@/overrides/artifactDownload";
 import {
   ArtifactDownloadCancelledError,
@@ -84,6 +98,8 @@ import {
   type ArtifactSaveTarget,
   fetchAndDownloadArtifacts,
   openArtifactSaveTarget,
+  PresignFingerprintUnavailableError,
+  PresignGraphMismatchError,
 } from "@/services/artifacts";
 import {
   hasArtifactsDownloaded,
@@ -358,6 +374,79 @@ describe("useArtifactDownload — prime then fetch", () => {
     expect(saveReceiptMock).not.toHaveBeenCalled();
   });
 
+  it("hands the download this vault's stored presign fingerprint", async () => {
+    seedHotCache();
+    fetchMock.mockResolvedValueOnce(OUTCOME);
+
+    const { result } = renderHook(() =>
+      useArtifactDownload({ vaultId: VAULT_ID, primeContext }),
+    );
+
+    await act(async () => {
+      await result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK);
+    });
+
+    expect(mockGetSignedGraphFingerprint).toHaveBeenCalledWith(
+      DEPOSITOR_ETH_ADDRESS,
+      VAULT_ID,
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      PROVIDER_ADDRESS,
+      PEGIN_TXID,
+      DEPOSITOR_PK,
+      SIGNED_GRAPH_FINGERPRINT,
+      SAVE_TARGET,
+      expect.anything(),
+    );
+  });
+
+  it("shows the no-record copy and writes no receipt when no presign fingerprint is stored", async () => {
+    seedHotCache();
+    mockGetSignedGraphFingerprint.mockReturnValueOnce(undefined);
+    fetchMock.mockRejectedValueOnce(
+      new PresignFingerprintUnavailableError(PEGIN_TXID),
+    );
+
+    const { result } = renderHook(() =>
+      useArtifactDownload({ vaultId: VAULT_ID, primeContext }),
+    );
+
+    await act(async () => {
+      await result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK);
+    });
+
+    await waitFor(() =>
+      expect(result.current.error).toBe(
+        COPY.deposit.recoveryArtifacts.signedGraphUnavailable,
+      ),
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(saveReceiptMock).not.toHaveBeenCalled();
+  });
+
+  it("shows the mismatch copy and writes no receipt when the graph differs from the one signed", async () => {
+    seedHotCache();
+    fetchMock.mockRejectedValueOnce(
+      new PresignGraphMismatchError("fingerprint aa, expected bb"),
+    );
+
+    const { result } = renderHook(() =>
+      useArtifactDownload({ vaultId: VAULT_ID, primeContext }),
+    );
+
+    await act(async () => {
+      await result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK);
+    });
+
+    await waitFor(() =>
+      expect(result.current.error).toBe(
+        COPY.deposit.recoveryArtifacts.signedGraphMismatch,
+      ),
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(saveReceiptMock).not.toHaveBeenCalled();
+  });
+
   it("reports the anchor-download fallback as delivered, never downloaded", async () => {
     // That path only proves a link was clicked — the browser reports nothing
     // about whether the file reached disk, and it may have been blocked or
@@ -403,7 +492,11 @@ describe("useArtifactDownload — prime then fetch", () => {
     expect(overrideFn).toHaveBeenCalledTimes(1);
     expect(overrideFn).toHaveBeenCalledWith(
       SAVE_TARGET,
-      { peginTxid: PEGIN_TXID, depositorPk: DEPOSITOR_PK },
+      {
+        peginTxid: PEGIN_TXID,
+        depositorPk: DEPOSITOR_PK,
+        signedGraphFingerprint: SIGNED_GRAPH_FINGERPRINT,
+      },
       expect.anything(),
     );
     expect(openTargetMock).toHaveBeenCalledTimes(1);
@@ -720,7 +813,7 @@ describe("useArtifactDownload — prime then fetch", () => {
     // caller aborts the signal. This exercises both the abort wiring and the
     // hook's `instanceof ArtifactDownloadCancelledError` swallow path.
     fetchMock.mockImplementationOnce(
-      (_provider, _txid, _pk, _target, options) =>
+      (_provider, _txid, _pk, _fingerprint, _target, options) =>
         new Promise<ArtifactDownloadOutcome>((_resolve, reject) => {
           options?.signal?.addEventListener("abort", () =>
             reject(new ArtifactDownloadCancelledError()),
@@ -759,7 +852,7 @@ describe("useArtifactDownload — prime then fetch", () => {
     seedHotCache();
     let resolveFetch: () => void = () => {};
     fetchMock.mockImplementationOnce(
-      (_provider, _txid, _pk, _target, options) => {
+      (_provider, _txid, _pk, _fingerprint, _target, options) => {
         options?.onProgress?.(500, 1000);
         return new Promise<ArtifactDownloadOutcome>((resolve) => {
           resolveFetch = () => resolve(OUTCOME);

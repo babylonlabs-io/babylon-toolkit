@@ -129,6 +129,16 @@ export interface RunDepositorPresignFlowParams {
   signal?: AbortSignal;
   /** Optional progress callback (completed claimers, total claimers) */
   onProgress?: (completed: number, total: number) => void;
+  /**
+   * Persist the fingerprint of the transaction set about to be signed.
+   *
+   * `pegin.md` §5.9 requires activation to refuse a bundle whose graph does
+   * not reproduce this value. It is called after the presign transactions are
+   * fetched and before any signing prompt, and awaited: when it throws, the
+   * flow stops and no signature reaches the VP. A resume past payout signing
+   * does not call it, so an earlier record stays in place.
+   */
+  recordGraphFingerprint: (fingerprint: string) => void | Promise<void>;
 }
 
 // ============================================================================
@@ -406,19 +416,6 @@ async function signPayoutTransactions(
 // ============================================================================
 
 /**
- * The outcome of a presign run.
- *
- * `signed` carries the fingerprint of the transaction set the depositor just
- * signed. `pegin.md` §5.9 requires the caller to persist it and refuse to
- * activate later against a graph that does not reproduce it. `skipped` means
- * the VP had already moved past payout signing, so this run signed nothing and
- * has no fingerprint to offer — a resume of an already-presigned deposit.
- */
-export type DepositorPresignResult =
-  | { status: "signed"; signedGraphFingerprint: string }
-  | { status: "skipped" };
-
-/**
  * Poll for payout transactions, sign them, sign the depositor graph,
  * and submit all signatures to the vault provider.
  *
@@ -428,7 +425,7 @@ export type DepositorPresignResult =
  */
 export async function runDepositorPresignFlow(
   params: RunDepositorPresignFlowParams,
-): Promise<DepositorPresignResult> {
+): Promise<void> {
   const {
     statusReader,
     presignClient,
@@ -440,6 +437,7 @@ export async function runDepositorPresignFlow(
     timeoutMs = MAX_POLLING_TIMEOUT_MS,
     signal,
     onProgress,
+    recordGraphFingerprint,
   } = params;
 
   // Phase 1: Poll until VP is ready for depositor signatures (or already past)
@@ -453,7 +451,7 @@ export async function runDepositorPresignFlow(
 
   // Resume-safe: if VP already moved past payout signing, nothing to do
   if (POST_PAYOUT_STATUSES.has(status)) {
-    return { status: "skipped" };
+    return;
   }
 
   signal?.throwIfAborted();
@@ -490,6 +488,23 @@ export async function runDepositorPresignFlow(
       depositor_pk: depositorPk,
     },
     signal,
+  );
+
+  signal?.throwIfAborted();
+
+  // Record the set the depositor is about to commit to, before any signature
+  // exists. A malformed set fails here, and a failed write stops the flow, so
+  // the VP never holds signatures the depositor has no fingerprint for. The
+  // PegIn comes from our own signing context rather than the response, so the
+  // VP does not get to pick both sides of the activation comparison.
+  await recordGraphFingerprint(
+    fingerprintPresignTxSet({
+      peginTxHex: signingContext.peginTxHex,
+      claimTxHex: response.depositor_graph.claim_tx.tx_hex,
+      assertTxHex: response.depositor_graph.assert_tx.tx_hex,
+      payoutTxHex: response.depositor_graph.payout_tx.tx_hex,
+      challengers: response.depositor_graph.challenger_presign_data,
+    }),
   );
 
   signal?.throwIfAborted();
@@ -568,18 +583,4 @@ export async function runDepositorPresignFlow(
     },
     signal,
   );
-
-  // Fingerprint the set the depositor just committed to. The PegIn comes from
-  // our own signing context rather than the response, so the VP does not get
-  // to pick both sides of the activation comparison.
-  return {
-    status: "signed",
-    signedGraphFingerprint: fingerprintPresignTxSet({
-      peginTxHex: signingContext.peginTxHex,
-      claimTxHex: response.depositor_graph.claim_tx.tx_hex,
-      assertTxHex: response.depositor_graph.assert_tx.tx_hex,
-      payoutTxHex: response.depositor_graph.payout_tx.tx_hex,
-      challengers: response.depositor_graph.challenger_presign_data,
-    }),
-  };
 }

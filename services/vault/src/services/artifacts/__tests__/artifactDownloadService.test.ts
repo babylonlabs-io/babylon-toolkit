@@ -2,6 +2,7 @@ import {
   JsonRpcError,
   VpResponseValidationError,
 } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+import { fingerprintReturnedGraph } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 import { sha256 } from "@noble/hashes/sha2.js";
 import { bytesToHex } from "@noble/hashes/utils.js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -10,6 +11,10 @@ vi.mock("@/utils/rpc", () => ({
   getVpProxyUrl: (address: string) => `https://proxy.example.com/vp/${address}`,
 }));
 
+import {
+  PresignFingerprintUnavailableError,
+  PresignGraphMismatchError,
+} from "../artifactBinding";
 import { fetchAndDownloadArtifacts } from "../artifactDownloadService";
 import type { ArtifactSaveTarget } from "../artifactSaveTarget";
 import { openArtifactSaveTarget } from "../artifactSaveTarget";
@@ -34,21 +39,55 @@ const CHALLENGER_PUBKEY =
  * Without this the bundle is schema-valid but unbound, which the service
  * now rejects.
  */
+function txGraph(
+  overrides: Record<string, unknown> = {},
+  peginTxid = PEGIN_TXID,
+): Record<string, unknown> {
+  const tx = (previousOutput: string) => ({
+    tx: {
+      version: 2,
+      lock_time: 0,
+      input: [
+        {
+          previous_output: previousOutput,
+          script_sig: "",
+          sequence: 0xffffffff,
+          witness: [],
+        },
+      ],
+      output: [{ value: 1000, script_pubkey: "51" }],
+    },
+  });
+  return {
+    pegin_tx: tx(`${"d".repeat(64)}:0`),
+    claim_tx: tx(`${peginTxid}:1`),
+    assert_tx: tx(`${"e".repeat(64)}:0`),
+    payout_tx: tx(`${peginTxid}:0`),
+    challenger_subgraphs: {
+      [CHALLENGER_PUBKEY]: {
+        nopayout_tx: tx(`${"f".repeat(64)}:0`),
+        output_label_hashes: ["c2".repeat(32)],
+      },
+    },
+    depositor_pubkey: DEPOSITOR_PK,
+    challenger_pubkeys: { local: [CHALLENGER_PUBKEY], universal: [] },
+    ...overrides,
+  };
+}
+
 function txGraphJson(
   overrides: Record<string, unknown> = {},
   peginTxid = PEGIN_TXID,
 ): string {
-  const spend = (vout: number) => ({
-    tx: { input: [{ previous_output: `${peginTxid}:${vout}` }] },
-  });
-  return JSON.stringify({
-    claim_tx: spend(1),
-    payout_tx: spend(0),
-    depositor_pubkey: DEPOSITOR_PK,
-    challenger_pubkeys: { local: [CHALLENGER_PUBKEY], universal: [] },
-    ...overrides,
-  });
+  return JSON.stringify(txGraph(overrides, peginTxid));
 }
+
+/**
+ * What this device would have recorded at presign for the default graph.
+ * Parity between the presign and activation encodings is the SDK's own test;
+ * here it only has to be the value the default graph reproduces.
+ */
+const SIGNED_GRAPH_FINGERPRINT = fingerprintReturnedGraph(txGraph());
 
 /** Clears the artifact floor so fixtures exercise the path under test. */
 const VALID_HEX = "cd".repeat(MIN_DECRYPTOR_HEX_CHARS / 2);
@@ -152,6 +191,58 @@ describe("fetchAndDownloadArtifacts", () => {
     vi.restoreAllMocks();
   });
 
+  describe("the presign fingerprint check", () => {
+    it("saves nothing when the graph differs from the one signed at presign", async () => {
+      const swapped = txGraph({
+        assert_tx: txGraph({}, PEGIN_TXID).claim_tx,
+      });
+      vi.mocked(fetch).mockResolvedValueOnce(
+        streamingResponse(
+          JSON.stringify({
+            jsonrpc: "2.0",
+            result: {
+              ...VALID_ARTIFACT_RESULT,
+              tx_graph_json: JSON.stringify(swapped),
+            },
+            id: 1,
+          }),
+        ),
+      );
+      const { target, commit, discard } = fakeSaveTarget();
+
+      await expect(
+        fetchAndDownloadArtifacts(
+          PROVIDER_ADDRESS,
+          PEGIN_TXID,
+          DEPOSITOR_PK,
+          SIGNED_GRAPH_FINGERPRINT,
+          target,
+        ),
+      ).rejects.toBeInstanceOf(PresignGraphMismatchError);
+      expect(commit).not.toHaveBeenCalled();
+      expect(discard).toHaveBeenCalledTimes(1);
+    });
+
+    it("saves nothing when this device holds no presign fingerprint", async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(
+        streamingResponse(validEnvelope()),
+      );
+      const { target, commit, discard } = fakeSaveTarget();
+
+      await expect(
+        fetchAndDownloadArtifacts(
+          PROVIDER_ADDRESS,
+          PEGIN_TXID,
+          DEPOSITOR_PK,
+          undefined,
+          target,
+        ),
+      ).rejects.toBeInstanceOf(PresignFingerprintUnavailableError);
+      expect(commit).not.toHaveBeenCalled();
+      expect(discard).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe("a valid response", () => {
     it("writes the unwrapped payload and commits it", async () => {
       vi.mocked(fetch).mockResolvedValueOnce(
@@ -163,6 +254,7 @@ describe("fetchAndDownloadArtifacts", () => {
         PROVIDER_ADDRESS,
         PEGIN_TXID,
         DEPOSITOR_PK,
+        SIGNED_GRAPH_FINGERPRINT,
         target,
       );
 
@@ -183,6 +275,7 @@ describe("fetchAndDownloadArtifacts", () => {
         PROVIDER_ADDRESS,
         PEGIN_TXID,
         DEPOSITOR_PK,
+        SIGNED_GRAPH_FINGERPRINT,
         target,
       );
 
@@ -219,6 +312,7 @@ describe("fetchAndDownloadArtifacts", () => {
         PROVIDER_ADDRESS,
         PEGIN_TXID,
         DEPOSITOR_PK,
+        SIGNED_GRAPH_FINGERPRINT,
         target,
       );
 
@@ -246,6 +340,7 @@ describe("fetchAndDownloadArtifacts", () => {
         PROVIDER_ADDRESS,
         PEGIN_TXID,
         DEPOSITOR_PK,
+        SIGNED_GRAPH_FINGERPRINT,
         target,
       );
 
@@ -267,6 +362,7 @@ describe("fetchAndDownloadArtifacts", () => {
         PROVIDER_ADDRESS,
         PEGIN_TXID,
         DEPOSITOR_PK,
+        SIGNED_GRAPH_FINGERPRINT,
         target,
       );
       return new TextDecoder().decode(savedBytes());
@@ -404,6 +500,7 @@ describe("fetchAndDownloadArtifacts", () => {
             PROVIDER_ADDRESS,
             PEGIN_TXID,
             DEPOSITOR_PK,
+            SIGNED_GRAPH_FINGERPRINT,
             target,
           ),
         ).rejects.toBeInstanceOf(VpResponseValidationError);
@@ -427,6 +524,7 @@ describe("fetchAndDownloadArtifacts", () => {
           PROVIDER_ADDRESS,
           PEGIN_TXID,
           DEPOSITOR_PK,
+          SIGNED_GRAPH_FINGERPRINT,
           target,
         ),
       ).rejects.toBeInstanceOf(VpResponseValidationError);
@@ -457,6 +555,7 @@ describe("fetchAndDownloadArtifacts", () => {
           PROVIDER_ADDRESS,
           PEGIN_TXID,
           DEPOSITOR_PK,
+          SIGNED_GRAPH_FINGERPRINT,
           target,
         ),
       ).rejects.toBeInstanceOf(VpResponseValidationError);
@@ -491,6 +590,7 @@ describe("fetchAndDownloadArtifacts", () => {
           PROVIDER_ADDRESS,
           PEGIN_TXID,
           DEPOSITOR_PK,
+          SIGNED_GRAPH_FINGERPRINT,
           target,
         ),
       ).rejects.toBeInstanceOf(VpResponseValidationError);
@@ -514,6 +614,7 @@ describe("fetchAndDownloadArtifacts", () => {
           PROVIDER_ADDRESS,
           PEGIN_TXID,
           DEPOSITOR_PK,
+          SIGNED_GRAPH_FINGERPRINT,
           target,
         ),
       ).rejects.toBeInstanceOf(VpResponseValidationError);
@@ -540,6 +641,7 @@ describe("fetchAndDownloadArtifacts", () => {
           PROVIDER_ADDRESS,
           PEGIN_TXID,
           DEPOSITOR_PK,
+          SIGNED_GRAPH_FINGERPRINT,
           target,
         ),
       ).rejects.toBeInstanceOf(JsonRpcError);
@@ -567,6 +669,7 @@ describe("fetchAndDownloadArtifacts", () => {
         PROVIDER_ADDRESS,
         PEGIN_TXID,
         DEPOSITOR_PK,
+        SIGNED_GRAPH_FINGERPRINT,
         target,
       ).catch((e: unknown) => e);
 
@@ -606,6 +709,7 @@ describe("fetchAndDownloadArtifacts", () => {
           PROVIDER_ADDRESS,
           PEGIN_TXID,
           DEPOSITOR_PK,
+          SIGNED_GRAPH_FINGERPRINT,
           target,
         ),
       ).rejects.toBeInstanceOf(JsonRpcError);
@@ -631,6 +735,7 @@ describe("fetchAndDownloadArtifacts", () => {
           PROVIDER_ADDRESS,
           PEGIN_TXID,
           DEPOSITOR_PK,
+          SIGNED_GRAPH_FINGERPRINT,
           target,
         ),
       ).rejects.toBeInstanceOf(VpResponseValidationError);
@@ -652,6 +757,7 @@ describe("fetchAndDownloadArtifacts", () => {
         PROVIDER_ADDRESS,
         PEGIN_TXID,
         DEPOSITOR_PK,
+        SIGNED_GRAPH_FINGERPRINT,
         target,
         { onProgress },
       );
@@ -670,6 +776,7 @@ describe("fetchAndDownloadArtifacts", () => {
         PROVIDER_ADDRESS,
         PEGIN_TXID,
         DEPOSITOR_PK,
+        SIGNED_GRAPH_FINGERPRINT,
         target,
         { onProgress },
       );
@@ -692,6 +799,7 @@ describe("fetchAndDownloadArtifacts", () => {
           PROVIDER_ADDRESS,
           PEGIN_TXID,
           DEPOSITOR_PK,
+          SIGNED_GRAPH_FINGERPRINT,
           target,
           { isCancelled: () => true },
         ),
@@ -713,6 +821,7 @@ describe("fetchAndDownloadArtifacts", () => {
           PROVIDER_ADDRESS,
           PEGIN_TXID,
           DEPOSITOR_PK,
+          SIGNED_GRAPH_FINGERPRINT,
           target,
           { signal: controller.signal },
         ),
@@ -733,6 +842,7 @@ describe("fetchAndDownloadArtifacts", () => {
           PROVIDER_ADDRESS,
           PEGIN_TXID,
           DEPOSITOR_PK,
+          SIGNED_GRAPH_FINGERPRINT,
           target,
         ),
       ).rejects.toBeInstanceOf(ArtifactDownloadTooLargeError);
@@ -758,6 +868,7 @@ describe("fetchAndDownloadArtifacts", () => {
           PROVIDER_ADDRESS,
           PEGIN_TXID,
           DEPOSITOR_PK,
+          SIGNED_GRAPH_FINGERPRINT,
           target,
         ),
       ).rejects.toBeInstanceOf(ArtifactFileAccessError);
@@ -780,6 +891,7 @@ describe("fetchAndDownloadArtifacts", () => {
           PROVIDER_ADDRESS,
           PEGIN_TXID,
           DEPOSITOR_PK,
+          SIGNED_GRAPH_FINGERPRINT,
           target,
         ),
       ).rejects.toBeInstanceOf(ArtifactFileAccessError);

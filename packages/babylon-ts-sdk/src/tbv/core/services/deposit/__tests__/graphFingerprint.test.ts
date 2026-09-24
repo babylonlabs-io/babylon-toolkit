@@ -160,14 +160,115 @@ describe("serializeGraphTx", () => {
     );
   });
 
-  it("rejects an outpoint whose txid is not 32 bytes", () => {
+  it.each(["script_sig", "witness"])(
+    "rejects an input missing %s instead of hashing it as empty",
+    (name) => {
+      const input: Record<string, unknown> = { ...REAL_CLAIM_TX.input[0] };
+      delete input[name];
+      expect(() =>
+        serializeGraphTx({ ...REAL_CLAIM_TX, input: [input] }, "claim_tx"),
+      ).toThrow(`is missing "${name}"`);
+    },
+  );
+
+  it.each([
+    ["a txid that is not 32 bytes", "dead:0"],
+    ["an empty vout", `${"ab".repeat(32)}:`],
+    ["an exponent vout", `${"ab".repeat(32)}:1e0`],
+    ["a hex vout", `${"ab".repeat(32)}:0x1`],
+    ["an extra segment", `${"ab".repeat(32)}:1:2`],
+    ["an uppercase txid", `${"AB".repeat(32)}:1`],
+  ])("rejects an outpoint with %s", (_name, previousOutput) => {
     const tx = {
       ...REAL_CLAIM_TX,
-      input: [{ ...REAL_CLAIM_TX.input[0], previous_output: "dead:0" }],
+      input: [{ ...REAL_CLAIM_TX.input[0], previous_output: previousOutput }],
     };
     expect(() => serializeGraphTx(tx, "claim_tx")).toThrow(
-      /not 32 bytes/,
+      /is not "<txid>:<vout>"/,
     );
+  });
+
+  it.each([
+    ["a sequence above u32", { sequence: 2 ** 32 }],
+    ["a negative sequence", { sequence: -1 }],
+  ])("rejects an input with %s", (_name, override) => {
+    const tx = {
+      ...REAL_CLAIM_TX,
+      input: [{ ...REAL_CLAIM_TX.input[0], ...override }],
+    };
+    expect(() => serializeGraphTx(tx, "claim_tx")).toThrow(/not an integer in/);
+  });
+
+  it.each([
+    ["a lock_time above u32", { lock_time: 2 ** 32 }],
+    ["a version above i32", { version: 2 ** 31 }],
+    ["an unsafe output value", {
+      output: [{ ...REAL_CLAIM_TX.output[0], value: 2 ** 53 }],
+    }],
+  ])("rejects a transaction with %s", (_name, override) => {
+    expect(() =>
+      serializeGraphTx({ ...REAL_CLAIM_TX, ...override }, "claim_tx"),
+    ).toThrow(/not an integer in/);
+  });
+
+  it("rejects hex that is not lowercase without a prefix", () => {
+    const tx = {
+      ...REAL_CLAIM_TX,
+      output: [
+        {
+          ...REAL_CLAIM_TX.output[0],
+          script_pubkey: `0x${REAL_CLAIM_TX.output[0].script_pubkey}`,
+        },
+      ],
+    };
+    expect(() => serializeGraphTx(tx, "claim_tx")).toThrow(
+      /not lowercase hex without a prefix/,
+    );
+  });
+});
+
+describe("fingerprintPresignTxSet", () => {
+  it("rejects a transaction followed by trailing bytes", () => {
+    expect(() =>
+      fingerprintPresignTxSet(presignSet({ claimTxHex: `${REAL_CLAIM_TX_HEX}00` })),
+    ).toThrow(GraphFingerprintError);
+  });
+
+  it("rejects a claim_tx that packs further transactions after the first", () => {
+    // Without a strict decode the layout has no framing, so bytes moved from
+    // one part into another would hash the same. One part must be one tx.
+    expect(() =>
+      fingerprintPresignTxSet(
+        presignSet({
+          claimTxHex: REAL_CLAIM_TX_HEX + REAL_CLAIM_TX_HEX,
+          assertTxHex: REAL_CLAIM_TX_HEX,
+        }),
+      ),
+    ).toThrow(GraphFingerprintError);
+  });
+
+  it("accepts uppercase hex and a compressed challenger key as the same set", () => {
+    const upper = presignSet({
+      claimTxHex: REAL_CLAIM_TX_HEX.toUpperCase(),
+      challengers: presignSet().challengers.map((c) => ({
+        ...c,
+        challenger_pubkey: `02${c.challenger_pubkey}`,
+      })),
+    });
+    expect(fingerprintPresignTxSet(upper)).toBe(
+      fingerprintPresignTxSet(presignSet()),
+    );
+  });
+
+  it("rejects a challenger listed twice", () => {
+    const [first] = presignSet().challengers;
+    expect(() =>
+      fingerprintPresignTxSet(
+        presignSet({
+          challengers: [first, { ...first, challenger_pubkey: `02${first.challenger_pubkey}` }],
+        }),
+      ),
+    ).toThrow(/twice/);
   });
 });
 

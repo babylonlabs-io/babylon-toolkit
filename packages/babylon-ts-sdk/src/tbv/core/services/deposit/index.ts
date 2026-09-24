@@ -27,17 +27,11 @@ export {
   type PeginProtocolState,
 } from "./peginState";
 export {
-  canonicalTxSetFingerprint,
-  fingerprintPresignTxSet,
   fingerprintReturnedGraph,
   GraphFingerprintError,
-  serializeGraphTx,
-  type CanonicalTxSet,
-  type ChallengerFingerprintPart,
 } from "./graphFingerprint";
 export {
   runDepositorPresignFlow,
-  type DepositorPresignResult,
   type PayoutSigningContext,
   type RunDepositorPresignFlowParams,
 } from "./runDepositorPresignFlow";

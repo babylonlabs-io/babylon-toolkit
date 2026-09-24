@@ -22,13 +22,14 @@
  * serving the wrong deposit's bundle, a stale or mis-keyed cache, and an
  * internally inconsistent graph — not a targeted forgery.
  *
- * `assertGraphMatchesPresign` and `assertVerifyingKeyPinned` below close part
- * of that gap. They are checks (a) and (b) of the activation gate in
- * `btc-vault/docs/pegin.md` §5.9, and unlike the checks above they compare the
- * bundle against values the VP does not control: a fingerprint the depositor
- * recorded when it signed, and a verifying key taken from the prover release.
+ * `assertGraphMatchesPresign` below closes part of that gap. It is check (a)
+ * of the activation gate in `btc-vault/docs/pegin.md` §5.9, and unlike the
+ * checks above it compares the bundle against a value the VP does not
+ * control: the fingerprint the depositor recorded when it signed.
  *
- * Checks (c) and (d) of that gate — reconstructing each challenger's GC
+ * Check (b) of that gate — the verifying key against a release-pinned key —
+ * needs a source for the pinned key, which the app does not have yet.
+ * Checks (c) and (d) — reconstructing each challenger's GC
  * commitments from its BaBe `DecryptorArtifacts`, and rebuilding the graph
  * from canonical inputs — remain unimplemented. Both need Rust that has no
  * WASM binding yet (`decryptor_artifacts_to_challenger_gc_data` and
@@ -40,10 +41,18 @@ import { stripHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { VpResponseValidationError } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { fingerprintReturnedGraph } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 
-/** The deposit a bundle must belong to, taken from the request parameters. */
+/** The deposit a bundle must belong to. */
 export interface VaultBindingContext {
+  /** From the request parameters. */
   peginTxid: string;
+  /** From the request parameters. */
   depositorPk: string;
+  /**
+   * Fingerprint of the transaction set this device signed at presign, from
+   * local storage. Undefined when this device holds none; the download then
+   * fails closed.
+   */
+  signedGraphFingerprint: string | undefined;
 }
 
 /**
@@ -181,7 +190,7 @@ export function assertBundleBoundToVault(
  * Distinct from a mismatch on purpose. A mismatch is evidence of a swapped
  * graph; this is absence of evidence — the deposit was presigned before the
  * fingerprint was recorded, on another device, or with since-cleared storage.
- * The caller decides, and must not read it as "verified".
+ * The download still fails closed: an unchecked bundle is never saved.
  */
 export class PresignFingerprintUnavailableError extends Error {
   constructor(readonly peginTxid: string) {
@@ -194,6 +203,20 @@ export class PresignFingerprintUnavailableError extends Error {
 }
 
 /**
+ * Raised when the returned graph does not reproduce the presign fingerprint,
+ * including a graph too malformed to fingerprint at all. Evidence that the VP
+ * served a graph other than the one the depositor signed.
+ */
+export class PresignGraphMismatchError extends Error {
+  constructor(readonly detail: string) {
+    super(
+      `Artifact bundle graph does not match the one signed at presign: ${detail}`,
+    );
+    this.name = "PresignGraphMismatchError";
+  }
+}
+
+/**
  * Check (a) of `pegin.md` §5.9: the returned graph is the one signed at
  * presign.
  *
@@ -202,46 +225,30 @@ export class PresignFingerprintUnavailableError extends Error {
  * holds, which is why a VP can satisfy them with a fabricated graph.
  *
  * @param txGraph  Parsed `tx_graph_json` from the response.
- * @param expected Fingerprint persisted when the depositor signed, hex.
+ * @param expected The deposit, with the fingerprint persisted at presign.
  * @throws PresignFingerprintUnavailableError when nothing was persisted.
- * @throws VpResponseValidationError when the graph does not reproduce it.
+ * @throws PresignGraphMismatchError when the graph does not reproduce it.
  */
 export function assertGraphMatchesPresign(
   txGraph: Record<string, unknown>,
-  expected: string | undefined,
-  peginTxid: string,
+  expected: VaultBindingContext,
 ): void {
-  if (!expected) {
-    throw new PresignFingerprintUnavailableError(normalizeHex(peginTxid));
-  }
-  const actual = fingerprintReturnedGraph(txGraph);
-  if (actual !== normalizeHex(expected)) {
-    throw new VpResponseValidationError(
-      `Artifact bundle graph does not match the one signed at presign: ` +
-        `fingerprint ${actual}, expected ${normalizeHex(expected)}`,
+  if (expected.signedGraphFingerprint === undefined) {
+    throw new PresignFingerprintUnavailableError(
+      normalizeHex(expected.peginTxid),
     );
   }
-}
-
-/**
- * Check (b) of `pegin.md` §5.9: the verifying key is the depositor's trusted
- * expected key.
- *
- * The expected value must come from the `vault-provers` release that matches
- * the vault's circuit version, fetched over TLS. Never from the VP, from a
- * proxy, or from any artifact the VP serves — accepting it from the response
- * would compare the VP's value against itself.
- */
-export function assertVerifyingKeyPinned(
-  actualVerifyingKeyHex: string,
-  expectedVerifyingKeyHex: string,
-): void {
-  const actual = normalizeHex(actualVerifyingKeyHex);
-  const expected = normalizeHex(expectedVerifyingKeyHex);
-  if (actual !== expected) {
-    throw new VpResponseValidationError(
-      `Artifact bundle verifying key does not match the pinned release key: ` +
-        `got ${actual}, expected ${expected}`,
+  let actual: string;
+  try {
+    actual = fingerprintReturnedGraph(txGraph);
+  } catch (err) {
+    throw new PresignGraphMismatchError(
+      err instanceof Error ? err.message : String(err),
+    );
+  }
+  if (actual !== expected.signedGraphFingerprint) {
+    throw new PresignGraphMismatchError(
+      `fingerprint ${actual}, expected ${expected.signedGraphFingerprint}`,
     );
   }
 }

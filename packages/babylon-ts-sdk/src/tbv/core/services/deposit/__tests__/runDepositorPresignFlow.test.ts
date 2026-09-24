@@ -17,6 +17,7 @@ import {
   runDepositorPresignFlow,
   type PayoutSigningContext,
 } from "../runDepositorPresignFlow";
+import { signDepositorGraph } from "../signDepositorGraph";
 
 // ---------------------------------------------------------------------------
 // Mocks — we test the orchestration, not PSBT internals or PayoutManager
@@ -56,6 +57,17 @@ vi.mock("../../../primitives/utils/bitcoin", () => ({
     pk.startsWith("0x") ? pk.slice(2) : pk.length === 66 ? pk.slice(2) : pk,
   stripHexPrefix: (s: string) => (s.startsWith("0x") ? s.slice(2) : s),
   deriveBip86ScriptPubKeyHex: (xOnlyPubkey: string) => `0x5120${xOnlyPubkey}`,
+}));
+
+// The fingerprint's own encoding is covered in graphFingerprint.test.ts; here
+// only when it is taken and what it is given matter.
+const fingerprintCalls = vi.hoisted(() => [] as unknown[]);
+const PRESIGN_FINGERPRINT = vi.hoisted(() => "f1".repeat(32));
+vi.mock("../graphFingerprint", () => ({
+  fingerprintPresignTxSet: (args: unknown) => {
+    fingerprintCalls.push(args);
+    return PRESIGN_FINGERPRINT;
+  },
 }));
 
 vi.mock("bitcoinjs-lib", () => ({
@@ -232,6 +244,7 @@ describe("runDepositorPresignFlow", () => {
       btcWallet: createMockWallet(),
       peginTxid: VALID_TXID,
       depositorPk: DEPOSITOR_PK,
+      recordGraphFingerprint: vi.fn(),
       signingContext: createSigningContext(),
     });
 
@@ -251,6 +264,7 @@ describe("runDepositorPresignFlow", () => {
       btcWallet: createMockWallet(),
       peginTxid: VALID_TXID,
       depositorPk: DEPOSITOR_PK,
+      recordGraphFingerprint: vi.fn(),
       signingContext: createSigningContext(),
     });
 
@@ -271,12 +285,97 @@ describe("runDepositorPresignFlow", () => {
       btcWallet: createMockWallet(),
       peginTxid: VALID_TXID,
       depositorPk: DEPOSITOR_PK,
+      recordGraphFingerprint: vi.fn(),
       signingContext: createSigningContext(),
     });
 
     expect(
       presignClient.requestDepositorPresignTransactions,
     ).not.toHaveBeenCalled();
+    expect(presignClient.submitDepositorPresignatures).not.toHaveBeenCalled();
+  });
+
+  it("does not record a fingerprint when the VP is already past payout signing", async () => {
+    const recordGraphFingerprint = vi.fn();
+
+    await runDepositorPresignFlow({
+      statusReader: createMockStatusReader([DaemonStatus.ACTIVATED]),
+      presignClient: createMockPresignClient(),
+      btcWallet: createMockWallet(),
+      peginTxid: VALID_TXID,
+      depositorPk: DEPOSITOR_PK,
+      recordGraphFingerprint,
+      signingContext: createSigningContext(),
+    });
+
+    expect(recordGraphFingerprint).not.toHaveBeenCalled();
+  });
+
+  it("records the fingerprint of the fetched set before any signing prompt", async () => {
+    fingerprintCalls.length = 0;
+    const presignClient = createMockPresignClient();
+    const wallet = createMockWallet();
+    const signingContext = createSigningContext();
+    const graphSignsBefore = vi.mocked(signDepositorGraph).mock.calls.length;
+    const payoutSignsBefore = capturedPayoutInputs.length;
+    const recordGraphFingerprint = vi.fn(() => {
+      expect(capturedPayoutInputs).toHaveLength(payoutSignsBefore);
+      expect(vi.mocked(signDepositorGraph).mock.calls).toHaveLength(
+        graphSignsBefore,
+      );
+    });
+
+    await runDepositorPresignFlow({
+      statusReader: createMockStatusReader([
+        DaemonStatus.PENDING_DEPOSITOR_SIGNATURES,
+      ]),
+      presignClient,
+      btcWallet: wallet,
+      peginTxid: VALID_TXID,
+      depositorPk: DEPOSITOR_PK,
+      recordGraphFingerprint,
+      signingContext,
+    });
+
+    expect(recordGraphFingerprint).toHaveBeenCalledExactlyOnceWith(
+      PRESIGN_FINGERPRINT,
+    );
+    // The PegIn is the depositor's own, not a value from the VP response.
+    expect(fingerprintCalls).toEqual([
+      expect.objectContaining({
+        peginTxHex: signingContext.peginTxHex,
+        claimTxHex: "deadbeef",
+      }),
+    ]);
+    expect(presignClient.submitDepositorPresignatures).toHaveBeenCalledOnce();
+  });
+
+  it("signs and submits nothing when the fingerprint cannot be recorded", async () => {
+    const presignClient = createMockPresignClient();
+    const wallet = createMockWallet();
+    const graphSignsBefore = vi.mocked(signDepositorGraph).mock.calls.length;
+    const payoutSignsBefore = capturedPayoutInputs.length;
+
+    await expect(
+      runDepositorPresignFlow({
+        statusReader: createMockStatusReader([
+          DaemonStatus.PENDING_DEPOSITOR_SIGNATURES,
+        ]),
+        presignClient,
+        btcWallet: wallet,
+        peginTxid: VALID_TXID,
+        depositorPk: DEPOSITOR_PK,
+        recordGraphFingerprint: vi.fn(async () => {
+          throw new Error("storage full");
+        }),
+        signingContext: createSigningContext(),
+      }),
+    ).rejects.toThrow("storage full");
+
+    expect(capturedPayoutInputs).toHaveLength(payoutSignsBefore);
+    expect(vi.mocked(signDepositorGraph).mock.calls).toHaveLength(
+      graphSignsBefore,
+    );
     expect(presignClient.submitDepositorPresignatures).not.toHaveBeenCalled();
   });
 
@@ -293,6 +392,7 @@ describe("runDepositorPresignFlow", () => {
       btcWallet: wallet,
       peginTxid: VALID_TXID,
       depositorPk: DEPOSITOR_PK,
+      recordGraphFingerprint: vi.fn(),
       signingContext: createSigningContext(),
     });
 
@@ -331,6 +431,7 @@ describe("runDepositorPresignFlow", () => {
       btcWallet: createMockWallet(),
       peginTxid: VALID_TXID,
       depositorPk: DEPOSITOR_PK,
+      recordGraphFingerprint: vi.fn(),
       signingContext: createSigningContext(),
     });
 
@@ -354,6 +455,7 @@ describe("runDepositorPresignFlow", () => {
       btcWallet: createMockWallet(),
       peginTxid: VALID_TXID,
       depositorPk: DEPOSITOR_PK,
+      recordGraphFingerprint: vi.fn(),
       signingContext: createSigningContext(),
       onProgress,
     });
@@ -413,6 +515,7 @@ describe("runDepositorPresignFlow", () => {
       btcWallet: createMockWallet(),
       peginTxid: VALID_TXID,
       depositorPk: DEPOSITOR_PK,
+      recordGraphFingerprint: vi.fn(),
       signingContext: createSigningContext(),
     });
 
@@ -437,6 +540,7 @@ describe("runDepositorPresignFlow", () => {
         btcWallet: createMockWallet(),
         peginTxid: VALID_TXID,
         depositorPk: DEPOSITOR_PK,
+        recordGraphFingerprint: vi.fn(),
         signingContext: createSigningContext(),
         signal: controller.signal,
       }),
@@ -485,6 +589,7 @@ describe("runDepositorPresignFlow", () => {
         btcWallet: wallet,
         peginTxid: VALID_TXID,
         depositorPk: DEPOSITOR_PK,
+        recordGraphFingerprint: vi.fn(),
         signingContext: createSigningContext(),
       });
       return { promise, presignClient, wallet };
@@ -597,6 +702,7 @@ describe("runDepositorPresignFlow", () => {
       btcWallet: createMockWallet(),
       peginTxid: VALID_TXID,
       depositorPk: DEPOSITOR_PK,
+      recordGraphFingerprint: vi.fn(),
       signingContext: context,
     });
 
@@ -641,6 +747,7 @@ describe("runDepositorPresignFlow", () => {
         btcWallet: wallet,
         peginTxid: VALID_TXID,
         depositorPk: DEPOSITOR_PK,
+        recordGraphFingerprint: vi.fn(),
         signingContext: createSigningContext(),
         depositTerms: DEPOSIT_TERMS,
       });
@@ -670,6 +777,7 @@ describe("runDepositorPresignFlow", () => {
         btcWallet: wallet,
         peginTxid: VALID_TXID,
         depositorPk: DEPOSITOR_PK,
+        recordGraphFingerprint: vi.fn(),
         signingContext: createSigningContext(),
         depositTerms: DEPOSIT_TERMS,
       });
@@ -696,6 +804,7 @@ describe("runDepositorPresignFlow", () => {
           btcWallet: wallet,
           peginTxid: VALID_TXID,
           depositorPk: DEPOSITOR_PK,
+          recordGraphFingerprint: vi.fn(),
           signingContext: createSigningContext(),
           depositTerms: DEPOSIT_TERMS,
         }),
@@ -721,6 +830,7 @@ describe("runDepositorPresignFlow", () => {
           btcWallet: wallet,
           peginTxid: VALID_TXID,
           depositorPk: DEPOSITOR_PK,
+          recordGraphFingerprint: vi.fn(),
           signingContext: createSigningContext(),
         }),
       ).rejects.toThrow(/deposit terms/i);
@@ -751,6 +861,7 @@ describe("runDepositorPresignFlow", () => {
             btcWallet: wallet,
             peginTxid: VALID_TXID,
             depositorPk: DEPOSITOR_PK,
+            recordGraphFingerprint: vi.fn(),
             signingContext: { ...createSigningContext(), ...override },
             depositTerms: DEPOSIT_TERMS,
           }),
@@ -778,6 +889,7 @@ describe("runDepositorPresignFlow", () => {
           btcWallet: wallet,
           peginTxid: VALID_TXID,
           depositorPk: DEPOSITOR_PK,
+          recordGraphFingerprint: vi.fn(),
           signingContext: {
             ...createSigningContext(),
             vaultKeeperBtcPubkeys: ["ab".repeat(32)],
@@ -803,6 +915,7 @@ describe("runDepositorPresignFlow", () => {
           btcWallet: wallet,
           peginTxid: VALID_TXID,
           depositorPk: DEPOSITOR_PK,
+          recordGraphFingerprint: vi.fn(),
           signingContext: {
             ...createSigningContext(),
             vaultProviderBtcPubkey: "cd".repeat(32),
@@ -830,6 +943,7 @@ describe("runDepositorPresignFlow", () => {
           btcWallet: wallet,
           peginTxid: VALID_TXID,
           depositorPk: DEPOSITOR_PK,
+          recordGraphFingerprint: vi.fn(),
           signingContext: { ...createSigningContext(), protocolFeeRate: 3n },
           depositTerms: DEPOSIT_TERMS, // protocolFeeRate: 2n
         }),
@@ -853,6 +967,7 @@ describe("runDepositorPresignFlow", () => {
         btcWallet: wallet,
         peginTxid: VALID_TXID,
         depositorPk: DEPOSITOR_PK,
+        recordGraphFingerprint: vi.fn(),
         signingContext: createSigningContext(),
       });
 
@@ -875,6 +990,7 @@ describe("runDepositorPresignFlow", () => {
         btcWallet: wallet,
         peginTxid: VALID_TXID,
         depositorPk: DEPOSITOR_PK,
+        recordGraphFingerprint: vi.fn(),
         signingContext: createSigningContext(),
         depositTerms: DEPOSIT_TERMS,
       });

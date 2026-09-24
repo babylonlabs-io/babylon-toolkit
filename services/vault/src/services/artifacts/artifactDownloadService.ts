@@ -27,7 +27,9 @@
  * The bundle is also bound to the deposit it was requested for: the envelope
  * names no vault, but the transaction graph inside it does, so its claim and
  * payout transactions are checked against the requested pegin txid and its
- * depositor key against the requested one. See `artifactBinding.ts`.
+ * depositor key against the requested one. Its transaction set must also
+ * reproduce the fingerprint this device recorded at presign. See
+ * `artifactBinding.ts`.
  *
  * What this does NOT establish: that the artifact bytes decrypt correctly. No
  * client-side BaBe verifier exists, so the payload is proven well-formed and
@@ -48,6 +50,7 @@ import { getVpProxyUrl } from "@/utils/rpc";
 
 import {
   assertBundleBoundToVault,
+  assertGraphMatchesPresign,
   type VaultBindingContext,
 } from "./artifactBinding";
 import type {
@@ -123,12 +126,15 @@ export interface ArtifactDownloadOutcome {
  * @param providerAddress - Vault provider's Ethereum address.
  * @param peginTxid       - Bitcoin pegin transaction ID (hex, with or without 0x prefix).
  * @param depositorPk     - Depositor's Bitcoin public key.
+ * @param signedGraphFingerprint - Presign fingerprint this device recorded,
+ *                          or undefined when it holds none.
  * @param target          - Where to write; obtained from `openArtifactSaveTarget`.
  */
 export async function fetchAndDownloadArtifacts(
   providerAddress: string,
   peginTxid: string,
   depositorPk: string,
+  signedGraphFingerprint: string | undefined,
   target: ArtifactSaveTarget,
   options?: FetchArtifactsOptions,
 ): Promise<ArtifactDownloadOutcome> {
@@ -168,6 +174,7 @@ export async function fetchAndDownloadArtifacts(
   return downloadArtifactsFromResponse(response, target, options, {
     peginTxid: normalizedPeginTxid,
     depositorPk,
+    signedGraphFingerprint,
   });
 }
 
@@ -258,6 +265,10 @@ export async function downloadArtifactsFromResponse(
       Object.keys(validated.result.babe_sessions),
       binding,
     );
+    // Bound to the deposit is not the same as the graph that was signed: the
+    // checks above use public values only. This one uses the depositor's own
+    // presign record, and runs before commit so a swapped bundle never lands.
+    assertGraphMatchesPresign(validated.txGraph, binding);
   } catch (err) {
     await discardQuietly(stream);
     throw err;
