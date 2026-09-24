@@ -206,9 +206,19 @@ vi.mock("@/clients/eth-contract/sdk-readers", () => ({
 }));
 
 const mockGetBlockNumber = vi.hoisted(() => vi.fn().mockResolvedValue(1_000n));
+const mockHeadAgeSeconds = vi.hoisted(() => ({ value: 0n }));
 vi.mock("@/clients/eth-contract/client", () => ({
   ethClient: {
-    getPublicClient: () => ({ getBlockNumber: mockGetBlockNumber }),
+    // The head is read as a block with a timestamp. Tests set the number
+    // through `mockGetBlockNumber`; the timestamp is "now" unless a test
+    // sets `mockHeadAgeSeconds` to simulate a node that is behind.
+    getPublicClient: () => ({
+      getBlock: async () => ({
+        number: await mockGetBlockNumber(),
+        timestamp:
+          BigInt(Math.floor(Date.now() / 1000)) - mockHeadAgeSeconds.value,
+      }),
+    }),
   },
 }));
 
@@ -2223,12 +2233,19 @@ describe("useVaultActions — activation floor (peginActivationDelay)", () => {
   const VERIFIED_AT = 1_000n;
   const DELAY = 150n;
 
+  // Registered before it was verified, as on chain, so a head that lags
+  // verifiedAt is still at or above the registration block.
+  const CREATED_AT = 900n;
+
   function readerAtFloor() {
-    return readerReturning({
-      depositorSignedPeginTx: "0xdeadbeef",
-      hashlock: ON_CHAIN_HASHLOCK,
-      verifiedAt: VERIFIED_AT,
-    });
+    return readerReturning(
+      {
+        depositorSignedPeginTx: "0xdeadbeef",
+        hashlock: ON_CHAIN_HASHLOCK,
+        verifiedAt: VERIFIED_AT,
+      },
+      { status: OnChainBtcVaultStatus.VERIFIED, createdAt: CREATED_AT },
+    );
   }
 
   const params = {
@@ -2372,9 +2389,10 @@ describe("useVaultActions — activation floor (peginActivationDelay)", () => {
 // ============================================================================
 // Activation ceiling. Activation puts the HTLC secret in calldata, so a reveal
 // that lands after `createdAt + pegInActivationTimeout` reverts AND publishes
-// the secret: the vault expires with ActivationTimeout and anyone can
-// broadcast the PegIn with it. The dashboard gate is UX-only and up to a poll
-// interval stale, so the margin is re-checked here on fresh reads.
+// the secret: the vault expires with ActivationTimeout, and the vault
+// provider, which holds the rest of the HTLC signature set, can broadcast the
+// PegIn with it. The dashboard gate is UX-only and up to a poll interval
+// stale, so the margin is re-checked here on fresh reads.
 // ============================================================================
 describe("useVaultActions — activation deadline margin", () => {
   const SECRET =
@@ -2416,6 +2434,38 @@ describe("useVaultActions — activation deadline margin", () => {
       pegInActivationTimeout: TIMEOUT,
     });
     mockGetVaultRegistryReader.mockReturnValue(readerWithDeadline());
+    mockHeadAgeSeconds.value = 0n;
+  });
+
+  it("refuses when the RPC head is too old to size the margin from", async () => {
+    // A node that is behind returns an old head, and each block of lag adds a
+    // block to the room left. 1000 alone would clear the margin easily.
+    mockGetBlockNumber.mockResolvedValue(1_000n);
+    mockHeadAgeSeconds.value = 121n;
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(async () => {
+      await result.current.handleActivation(params);
+    });
+
+    expect(mockActivateVaultWithSecret).not.toHaveBeenCalled();
+    expect(result.current.activationError).toBe(
+      COPY.pegin.messages.activationWindowUnavailable,
+    );
+  });
+
+  it("refuses when the RPC head is below the vault's registration block", async () => {
+    mockGetBlockNumber.mockResolvedValue(999n);
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(async () => {
+      await result.current.handleActivation(params);
+    });
+
+    expect(mockActivateVaultWithSecret).not.toHaveBeenCalled();
+    expect(result.current.activationError).toBe(
+      COPY.pegin.messages.activationWindowUnavailable,
+    );
   });
 
   it("reveals the secret while a comfortable margin remains", async () => {
@@ -2516,5 +2566,22 @@ describe("useVaultActions — activation deadline margin", () => {
     expect(result.current.activationError).toBe(
       COPY.pegin.messages.activationWindowUnavailable,
     );
+  });
+
+  it("captures a failed deadline read in telemetry", async () => {
+    // Unlike the floor read, a failed deadline read blocks every activation:
+    // a lagging node, or a TBV parameter that fails validation. It must be
+    // visible, not filed as a routine interruption.
+    mockGetBlockNumber.mockResolvedValue(1_000n);
+    mockGetTBVProtocolParams.mockRejectedValue(
+      new Error("maxPegInAmount below minimumPegInAmount"),
+    );
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(async () => {
+      await result.current.handleActivation(params);
+    });
+
+    expect(mockLoggerError).toHaveBeenCalled();
   });
 });

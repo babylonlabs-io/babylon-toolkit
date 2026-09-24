@@ -50,8 +50,8 @@ export function estimateActivationDeadlineLikelyPassed(params: {
  * Activation reveals the HTLC secret in calldata. If the transaction is mined
  * after `createdAt + pegInActivationTimeout` the contract reverts
  * `ActivationDeadlineExpired`, but `s` is public by then: the vault expires
- * with `ActivationTimeout` and anyone can broadcast the PegIn with that
- * secret. Refusing close to the deadline costs the depositor an activation
+ * with `ActivationTimeout`, and the vault provider, which holds the rest of
+ * the HTLC signature set, can broadcast the PegIn with that secret. Refusing close to the deadline costs the depositor an activation
  * they were unlikely to land; sending it and losing the race costs them the
  * secret. The asymmetry is the whole reason this margin exists.
  *
@@ -67,3 +67,24 @@ export function estimateActivationDeadlineLikelyPassed(params: {
  * deadline itself and knows nothing about this margin.
  */
 export const ACTIVATION_INCLUSION_MARGIN_BLOCKS = 25;
+
+/**
+ * Oldest head block, in seconds, the activation gate accepts.
+ *
+ * A node that is behind returns an old head, and an old head overstates the
+ * room left before the deadline: a lag of k blocks adds k blocks to the
+ * count. 120 s is ten 12-second slots, which covers normal propagation and a
+ * few missed slots while still catching a node that has stopped following
+ * the chain. The age is measured against this device's clock, so a clock
+ * that runs far ahead makes the gate refuse, which is the safe direction.
+ */
+const MAX_HEAD_BLOCK_AGE_SECONDS = 120n;
+
+/** Whether a head block's timestamp is too old to size the margin from. */
+export function isHeadBlockStale(
+  headTimestampSeconds: bigint,
+  nowMs: number,
+): boolean {
+  const nowSeconds = BigInt(Math.floor(nowMs / MILLISECONDS_PER_SECOND));
+  return nowSeconds - headTimestampSeconds > MAX_HEAD_BLOCK_AGE_SECONDS;
+}

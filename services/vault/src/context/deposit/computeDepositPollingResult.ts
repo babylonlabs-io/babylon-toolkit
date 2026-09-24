@@ -300,10 +300,10 @@ export function computeDepositPollingResult(
     liveRefund,
     activity.peginTxHash,
   );
-  // An expired vault whose HTLC the PegIn swept. Reachable when a late
-  // activation leaked the secret: the call reverted, the vault expired with
-  // `ActivationTimeout`, and the secret in that calldata let the PegIn be
-  // broadcast. The BTC is in the vault, so no refund is possible from here.
+  // An expired vault whose HTLC the PegIn spent, confirmed or not. Reachable
+  // when the PegIn was broadcast with the secret after a late activation, or
+  // when the vault was swept while VERIFIED and then expired. Either way the
+  // outpoint is contested by the PegIn, so no refund is possible from here.
   const peginSweptWhileExpired =
     contractStatus === ContractStatus.EXPIRED && htlcSpendIsPeginTx;
   const refundConfirmed =

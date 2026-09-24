@@ -51,7 +51,10 @@ import {
   waitForEthRegistrationDepth,
   type RegistrationDepthProgress,
 } from "@/services/vault/ethConfirmationGate";
-import { ACTIVATION_INCLUSION_MARGIN_BLOCKS } from "@/utils/activationDeadline";
+import {
+  ACTIVATION_INCLUSION_MARGIN_BLOCKS,
+  isHeadBlockStale,
+} from "@/utils/activationDeadline";
 import {
   activationFloorBlocksRemaining,
   activationFloorMinutesRemaining,
@@ -181,11 +184,24 @@ export interface UseVaultActionsReturn {
 const FLOOR_UNAVAILABLE_ERROR_NAME = "ActivationFloorUnavailableError";
 
 /**
- * The chain head, bypassing viem's ~4s `getBlockNumber` cache. A stale head
- * overstates the room left before the activation deadline.
+ * The chain head, read fresh, as a block number.
+ *
+ * A stale head overstates the room left before the activation deadline, so a
+ * lagging head fails the activation gate open. `getBlock` bypasses viem's ~4s
+ * `getBlockNumber` cache, but a load-balanced node can still be behind: a
+ * stale head (`isHeadBlockStale`) is rejected as unreadable rather than
+ * trusted.
  */
-function readHeadBlock(): Promise<bigint> {
-  return ethClient.getPublicClient().getBlockNumber({ cacheTime: 0 });
+async function readHeadBlock(): Promise<bigint> {
+  const head = await ethClient
+    .getPublicClient()
+    .getBlock({ blockTag: "latest" });
+  if (isHeadBlockStale(head.timestamp, Date.now())) {
+    throw new Error(
+      `RPC head block ${head.number} (timestamp ${head.timestamp}) is stale; the node is behind`,
+    );
+  }
+  return head.number;
 }
 
 export function useVaultActions(): UseVaultActionsReturn {
@@ -691,6 +707,16 @@ export function useVaultActions(): UseVaultActionsReturn {
         err.name = FLOOR_UNAVAILABLE_ERROR_NAME;
         throw err;
       };
+      // Same message, but captured. A deadline read that fails is not the
+      // routine floor case: it is a stale or lagging node, or a protocol
+      // parameter that fails validation (`getTBVProtocolParams` checks every
+      // field, not only the timeout). Either one blocks every activation, so
+      // it must reach the activation.reveal telemetry.
+      const onDeadlineReadFailure = (cause: unknown): never => {
+        throw new Error(COPY.pegin.messages.activationWindowUnavailable, {
+          cause,
+        });
+      };
       const [
         { basic: basicInfo, protocol: protocolInfo },
         freshPauseState,
@@ -700,10 +726,8 @@ export function useVaultActions(): UseVaultActionsReturn {
       ] = await Promise.all([
         reader.getVaultData(vaultId),
         getOnChainPauseState().catch(() => null),
-        // `cacheTime: 0` because viem caches getBlockNumber for ~4s by
-        // default; a stale head misstates the margin on both ends.
         deadlineGateEnabled
-          ? readHeadBlock().catch(onFloorReadFailure)
+          ? readHeadBlock().catch(onDeadlineReadFailure)
           : Promise.resolve(undefined),
         floorEnabled
           ? getProtocolParamsReader()
@@ -714,7 +738,7 @@ export function useVaultActions(): UseVaultActionsReturn {
           ? getProtocolParamsReader()
               .then((r) => r.getTBVProtocolParams())
               .then((params) => params.pegInActivationTimeout)
-              .catch(onFloorReadFailure)
+              .catch(onDeadlineReadFailure)
           : Promise.resolve(undefined),
       ]);
 
@@ -770,8 +794,9 @@ export function useVaultActions(): UseVaultActionsReturn {
       //
       // Refusing is the safe direction. A late activation reverts
       // `ActivationDeadlineExpired`, but `s` is public in the calldata either
-      // way: the vault then expires with `ActivationTimeout` and anyone can
-      // broadcast the PegIn using that secret.
+      // way: the vault then expires with `ActivationTimeout`, and the vault
+      // provider, which holds the rest of the HTLC signature set, can
+      // broadcast the PegIn with that secret.
       //
       // Terminal, not retryable — the margin only shrinks.
       const assertDeadlineMargin = (head: bigint, timeout: bigint): void => {
@@ -791,9 +816,18 @@ export function useVaultActions(): UseVaultActionsReturn {
           currentBlock === undefined ||
           pegInActivationTimeout === undefined
         ) {
-          throw onFloorReadFailure(
+          throw onDeadlineReadFailure(
             new Error(
               "activation deadline inputs missing after a settled read",
+            ),
+          );
+        }
+        // A head below the registration block is provably stale, and it
+        // would read as the whole window still ahead.
+        if (currentBlock < basicInfo.createdAt) {
+          throw onDeadlineReadFailure(
+            new Error(
+              `RPC head ${currentBlock} is below the vault's createdAt ${basicInfo.createdAt}`,
             ),
           );
         }
@@ -873,7 +907,7 @@ export function useVaultActions(): UseVaultActionsReturn {
       // spends in that prompt is covered only by the margin's size.
       if (deadlineGateEnabled && pegInActivationTimeout !== undefined) {
         assertDeadlineMargin(
-          await readHeadBlock().catch(onFloorReadFailure),
+          await readHeadBlock().catch(onDeadlineReadFailure),
           pegInActivationTimeout,
         );
       }

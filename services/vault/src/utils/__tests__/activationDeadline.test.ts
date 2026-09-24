@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { estimateActivationDeadlineLikelyPassed } from "../activationDeadline";
+import {
+  estimateActivationDeadlineLikelyPassed,
+  isHeadBlockStale,
+} from "../activationDeadline";
 
 describe("estimateActivationDeadlineLikelyPassed", () => {
   it("returns false when well within the window", () => {
@@ -99,5 +102,22 @@ describe("estimateActivationDeadlineLikelyPassed", () => {
         slotSeconds: 15,
       }),
     ).toBe(false);
+  });
+});
+
+describe("isHeadBlockStale", () => {
+  const NOW_MS = 1_700_000_000_000;
+  const NOW_SECONDS = 1_700_000_000n;
+
+  it("accepts a head exactly 120 seconds old", () => {
+    expect(isHeadBlockStale(NOW_SECONDS - 120n, NOW_MS)).toBe(false);
+  });
+
+  it("rejects a head 121 seconds old", () => {
+    expect(isHeadBlockStale(NOW_SECONDS - 121n, NOW_MS)).toBe(true);
+  });
+
+  it("accepts a head stamped slightly ahead of this device's clock", () => {
+    expect(isHeadBlockStale(NOW_SECONDS + 5n, NOW_MS)).toBe(false);
   });
 });

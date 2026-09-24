@@ -259,9 +259,10 @@ export function isActivationDeadlinePassedOnChain(params: {
  * shut, which is the right question for a badge but the wrong one for a
  * secret-bearing call. An activation submitted in the last block before the
  * deadline reverts if it lands one block late, and by then `s` is public
- * calldata: the vault expires with `ActivationTimeout` and anyone can
- * broadcast the PegIn with that secret. The caller therefore needs the
- * remaining margin, not a boolean.
+ * calldata: the vault expires with `ActivationTimeout`, and the vault
+ * provider, which holds the rest of the HTLC signature set, can broadcast the
+ * PegIn with that secret. The caller therefore needs the remaining margin,
+ * not a boolean.
  *
  * The contract accepts a transaction mined at `block.number <= createdAt +
  * timeout`. `currentBlock` is the chain head, which is already mined, so a new

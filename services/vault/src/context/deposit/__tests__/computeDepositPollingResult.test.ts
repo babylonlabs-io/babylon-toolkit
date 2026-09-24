@@ -548,8 +548,23 @@ describe("computeDepositPollingResult — PegIn sweep after expiry", () => {
     );
   });
 
-  it("offers no refund action for a vault the PegIn already swept", () => {
-    const result = computeDepositPollingResult(makeSweptInputs());
+  it("shows the sweep, not a pending refund, while the PegIn spend is unconfirmed", () => {
+    // Before attribution an unconfirmed spend read as a refund in flight
+    // ("Refunding"). With the PegIn as spender it is the sweep, and the refund
+    // action stays hidden because the outpoint is already contested.
+    const result = computeDepositPollingResult(
+      makeSweptInputs({
+        htlcRefundByDepositId: new Map([
+          [
+            VAULT_ID.toLowerCase(),
+            { spent: true, confirmed: false, spendingTxid: PEGIN_TX },
+          ],
+        ]),
+      }),
+    );
+    expect(result.peginState.displayLabel).toBe(
+      PEGIN_DISPLAY_LABELS.ACTIVATION_INCOMPLETE,
+    );
     expect(result.peginState.availableActions).not.toContain(
       PeginAction.REFUND_HTLC,
     );
