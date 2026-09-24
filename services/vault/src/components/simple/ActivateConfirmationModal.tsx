@@ -58,6 +58,10 @@ export function ActivateConfirmationModal({
     hasArtifactsDownloaded(vaultId, peginTxid ?? ""),
   );
   const [acknowledged, setAcknowledged] = useState(false);
+  // A download found that the provider served a graph other than the one
+  // signed at presign. Unlike missing artifacts, this is evidence against
+  // activating, so the risk opt-out is withdrawn for the rest of this session.
+  const [graphMismatch, setGraphMismatch] = useState(false);
   // Mirrors RecoveryArtifactsCard's internal `loading` flag via
   // onLoadingChange so the footer Cancel button can switch to an in-place
   // "Cancel download" action while a download is in flight.
@@ -67,6 +71,7 @@ export function ActivateConfirmationModal({
     if (!open) return;
     setDownloaded(hasArtifactsDownloaded(vaultId, peginTxid ?? ""));
     setAcknowledged(false);
+    setGraphMismatch(false);
     setIsDownloading(false);
   }, [open, vaultId, peginTxid]);
 
@@ -99,6 +104,7 @@ export function ActivateConfirmationModal({
   // would abandon the in-flight transfer uncancelled.
   const canActivate =
     (downloaded || acknowledged) &&
+    !graphMismatch &&
     !isDownloading &&
     !isActivationBlocked(gate);
 
@@ -190,10 +196,11 @@ export function ActivateConfirmationModal({
             unsignedPrePeginTxHex={unsignedPrePeginTxHex}
             onDownloaded={() => setDownloaded(true)}
             onLoadingChange={setIsDownloading}
+            onGraphMismatch={() => setGraphMismatch(true)}
           />
         )}
 
-        {!downloaded && (
+        {!downloaded && !graphMismatch && (
           <label className="flex w-full cursor-pointer items-start gap-4">
             <Checkbox
               checked={acknowledged}

@@ -69,6 +69,12 @@ interface ArtifactDownloadState {
    * confirm this" state and nothing else — it must never satisfy the gate.
    */
   delivered: boolean;
+  /**
+   * The provider served a graph other than the one the depositor signed at
+   * presign. Positive evidence, not missing evidence: the activation modal
+   * must not offer the risk opt-out after it.
+   */
+  graphMismatch: boolean;
   /** Bytes received so far from the in-flight artifact stream. */
   receivedBytes: number;
   /**
@@ -85,6 +91,7 @@ const INITIAL_STATE: ArtifactDownloadState = {
   error: null,
   downloaded: false,
   delivered: false,
+  graphMismatch: false,
   receivedBytes: 0,
   totalBytes: 0,
 };
@@ -501,7 +508,11 @@ export function useArtifactDownload(options?: {
               telemetryVaultId,
               { tags: { site: "presign_fingerprint_mismatch" } },
             );
-            setError(COPY.deposit.recoveryArtifacts.signedGraphMismatch);
+            setState({
+              ...INITIAL_STATE,
+              error: COPY.deposit.recoveryArtifacts.signedGraphMismatch,
+              graphMismatch: true,
+            });
             return;
           }
           if (err instanceof ArtifactFileAccessError) {

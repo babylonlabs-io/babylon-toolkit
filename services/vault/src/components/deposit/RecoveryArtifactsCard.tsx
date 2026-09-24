@@ -109,6 +109,12 @@ interface RecoveryArtifactsCardProps {
    * whole dialog reads as a single "downloading" state.
    */
   onLoadingChange?: (loading: boolean) => void;
+  /**
+   * Fired the first time a download finds that the provider served a graph
+   * other than the one signed at presign. The activation gate must then stop
+   * offering the risk opt-out for this vault.
+   */
+  onGraphMismatch?: () => void;
 }
 
 /**
@@ -133,6 +139,7 @@ export const RecoveryArtifactsCard = forwardRef<
     onDownloaded,
     onDelivered,
     onLoadingChange,
+    onGraphMismatch,
   },
   ref,
 ) {
@@ -152,6 +159,7 @@ export const RecoveryArtifactsCard = forwardRef<
     error,
     downloaded,
     delivered,
+    graphMismatch,
     receivedBytes,
     totalBytes,
     download,
@@ -194,6 +202,14 @@ export const RecoveryArtifactsCard = forwardRef<
   useEffect(() => {
     onLoadingChange?.(loading);
   }, [loading, onLoadingChange]);
+
+  const mismatchNotifiedRef = useRef(false);
+  useEffect(() => {
+    if (graphMismatch && !mismatchNotifiedRef.current) {
+      mismatchNotifiedRef.current = true;
+      onGraphMismatch?.();
+    }
+  }, [graphMismatch, onGraphMismatch]);
 
   const handleDownload = () => {
     download(providerAddress, peginTxid, depositorPk);

@@ -857,6 +857,16 @@ describe("recordSignedGraphFingerprint", () => {
     expect(localStorage.getItem(storageKey)).toBe(JSON.stringify([validPegin]));
   });
 
+  it("returns false for an entry the read filter hides, so the fingerprint is never written where it cannot be read", () => {
+    const hidden = { ...validPegin, unsignedTxHex: "not-hex" };
+    localStorage.setItem(storageKey, JSON.stringify([hidden]));
+
+    expect(
+      recordSignedGraphFingerprint(ETH_ADDRESS, VALID_VAULT_ID, FINGERPRINT),
+    ).toBe(false);
+    expect(localStorage.getItem(storageKey)).toBe(JSON.stringify([hidden]));
+  });
+
   it("throws on an unreadable record instead of dropping the fingerprint", () => {
     localStorage.setItem(storageKey, '[{"id":');
 

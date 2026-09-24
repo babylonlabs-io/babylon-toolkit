@@ -57,6 +57,7 @@ vi.mock("@/components/deposit/RecoveryArtifactsCard", () => ({
       onDownloaded?: () => void;
       onDelivered?: () => void;
       onLoadingChange?: (loading: boolean) => void;
+      onGraphMismatch?: () => void;
     }
   >((props, ref) => {
     useImperativeHandle(ref, () => ({ cancel: cardCancelSpy }));
@@ -82,6 +83,13 @@ vi.mock("@/components/deposit/RecoveryArtifactsCard", () => ({
           onClick={() => props.onLoadingChange?.(true)}
         >
           start
+        </button>
+        <button
+          type="button"
+          data-testid="card-graph-mismatch"
+          onClick={() => props.onGraphMismatch?.()}
+        >
+          mismatch
         </button>
       </div>
     );
@@ -148,6 +156,42 @@ describe("ActivateConfirmationModal", () => {
     expect(screen.getByText("Activate BTCVault")).not.toBeDisabled();
 
     fireEvent.click(screen.getByTestId("card-download-start"));
+    expect(screen.getByText("Activate BTCVault")).toBeDisabled();
+  });
+
+  it("withdraws the risk opt-out and keeps Activate disabled after a graph mismatch", () => {
+    // A mismatch is evidence the provider served a graph other than the one
+    // signed, not missing evidence: the checkbox must not unlock activation.
+    render(
+      <ActivateConfirmationModal
+        open
+        {...COMMON_PROPS}
+        onClose={vi.fn()}
+        onConfirm={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("risk-checkbox"));
+    expect(screen.getByText("Activate BTCVault")).not.toBeDisabled();
+
+    fireEvent.click(screen.getByTestId("card-graph-mismatch"));
+    expect(screen.getByText("Activate BTCVault")).toBeDisabled();
+    expect(screen.queryByTestId("risk-checkbox")).not.toBeInTheDocument();
+  });
+
+  it("keeps Activate disabled after a mismatch even with an earlier download receipt", () => {
+    seedReceipt();
+    render(
+      <ActivateConfirmationModal
+        open
+        {...COMMON_PROPS}
+        onClose={vi.fn()}
+        onConfirm={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("Activate BTCVault")).not.toBeDisabled();
+
+    fireEvent.click(screen.getByTestId("card-graph-mismatch"));
     expect(screen.getByText("Activate BTCVault")).toBeDisabled();
   });
 

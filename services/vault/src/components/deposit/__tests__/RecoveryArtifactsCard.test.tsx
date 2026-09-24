@@ -9,6 +9,7 @@ const IDLE_HOOK_STATE = {
   error: null as string | null,
   downloaded: false,
   delivered: false,
+  graphMismatch: false,
   receivedBytes: 0,
   totalBytes: 0,
   download: vi.fn(),
@@ -147,6 +148,30 @@ describe("RecoveryArtifactsCard — unverifiable save", () => {
 
     expect(onDownloaded).not.toHaveBeenCalled();
     expect(onDelivered).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports a graph mismatch upward once, so the gate can withdraw the opt-out", () => {
+    const onGraphMismatch = vi.fn();
+    const onDownloaded = vi.fn();
+    hookState.current = { ...IDLE_HOOK_STATE, graphMismatch: true };
+
+    const { rerender } = render(
+      <RecoveryArtifactsCard
+        {...COMMON_PROPS}
+        onGraphMismatch={onGraphMismatch}
+        onDownloaded={onDownloaded}
+      />,
+    );
+    rerender(
+      <RecoveryArtifactsCard
+        {...COMMON_PROPS}
+        onGraphMismatch={onGraphMismatch}
+        onDownloaded={onDownloaded}
+      />,
+    );
+
+    expect(onGraphMismatch).toHaveBeenCalledTimes(1);
+    expect(onDownloaded).not.toHaveBeenCalled();
   });
 
   it("keeps the download available and warns that the save is unconfirmed", () => {

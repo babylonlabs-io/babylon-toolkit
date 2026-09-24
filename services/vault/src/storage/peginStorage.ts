@@ -692,9 +692,10 @@ export function updatePendingPeginStatus(
  * flow rather than let the VP hold signatures the depositor has no
  * fingerprint for.
  *
- * @returns false when this device holds no entry for the vault (a
- * cross-device resume). Nothing is stored, and the activation gate later
- * reports the fingerprint as unavailable.
+ * @returns false when this device holds no readable entry for the vault: none
+ * at all (a cross-device resume), or one the read filter hides because it
+ * fails `hasValidSecurityFields`. Nothing is stored, and the activation gate
+ * later reports the fingerprint as unavailable.
  * @throws when the fingerprint is malformed, the stored entries cannot be
  * read, or the write fails.
  */
@@ -721,6 +722,12 @@ export function recordSignedGraphFingerprint(
   let found = false;
   const updated = read.entries.map((entry) => {
     if (readStoredEntryId(entry) !== target) return entry;
+    // Write only where `getSignedGraphFingerprint` will look. An entry that
+    // fails the read filter is hidden from it, so a fingerprint written there
+    // could never be read back; report it as no entry instead.
+    if (!hasValidSecurityFields(backfillBuildVaultCoreVersion(entry))) {
+      return entry;
+    }
     found = true;
     return { ...(entry as object), signedGraphFingerprint: fingerprint };
   });

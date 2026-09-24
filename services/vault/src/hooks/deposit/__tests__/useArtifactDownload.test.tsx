@@ -539,6 +539,7 @@ describe("useArtifactDownload — prime then fetch", () => {
         COPY.deposit.recoveryArtifacts.signedGraphMismatch,
       ),
     );
+    expect(result.current.graphMismatch).toBe(true);
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(saveReceiptMock).not.toHaveBeenCalled();
   });

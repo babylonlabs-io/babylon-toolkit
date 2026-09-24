@@ -147,10 +147,13 @@ export async function signAndSubmitPayouts(
       ) {
         // A cross-device resume has no local entry to hold it. The submit
         // goes on, and the artifact download for this vault then fails closed.
-        logger.warn("No local deposit entry to hold the presign fingerprint", {
-          category: "activation",
-          vaultId,
-        });
+        logger.warn(
+          "No readable local deposit entry to hold the presign fingerprint",
+          {
+            category: "activation",
+            vaultId,
+          },
+        );
       }
     },
   });
