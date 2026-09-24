@@ -133,10 +133,11 @@ export interface RunDepositorPresignFlowParams {
    * Persist the fingerprint of the transaction set about to be signed.
    *
    * `pegin.md` §5.9 requires activation to refuse a bundle whose graph does
-   * not reproduce this value. It is called after the presign transactions are
-   * fetched and before any signing prompt, and awaited: when it throws, the
-   * flow stops and no signature reaches the VP. A resume past payout signing
-   * does not call it, so an earlier record stays in place.
+   * not reproduce this value. It is called after every check and signature
+   * has passed and before the signatures are submitted, and awaited: when it
+   * throws, the flow stops and no signature reaches the VP. A run that fails a
+   * check, is declined, or resumes past payout signing does not call it, so an
+   * earlier record stays in place.
    */
   recordGraphFingerprint: (fingerprint: string) => void | Promise<void>;
 }
@@ -492,23 +493,19 @@ export async function runDepositorPresignFlow(
 
   signal?.throwIfAborted();
 
-  // Record the set the depositor is about to commit to, before any signature
-  // exists. A malformed set fails here, and a failed write stops the flow, so
-  // the VP never holds signatures the depositor has no fingerprint for. The
-  // PegIn comes from our own signing context rather than the response, so the
-  // VP does not get to pick both sides of the activation comparison.
-  await recordGraphFingerprint(
-    fingerprintPresignTxSet({
-      peginTxid,
-      peginTxHex: signingContext.peginTxHex,
-      claimTxHex: response.depositor_graph.claim_tx.tx_hex,
-      assertTxHex: response.depositor_graph.assert_tx.tx_hex,
-      payoutTxHex: response.depositor_graph.payout_tx.tx_hex,
-      challengers: response.depositor_graph.challenger_presign_data,
-    }),
-  );
-
-  signal?.throwIfAborted();
+  // Fingerprint the set now, so a malformed one fails before any wallet
+  // prompt. It is stored only after every check and signature below has
+  // passed (see Phase 5). The PegIn comes from our own signing context rather
+  // than the response, so the VP does not get to pick both sides of the
+  // activation comparison.
+  const graphFingerprint = fingerprintPresignTxSet({
+    peginTxid,
+    peginTxHex: signingContext.peginTxHex,
+    claimTxHex: response.depositor_graph.claim_tx.tx_hex,
+    assertTxHex: response.depositor_graph.assert_tx.tx_hex,
+    payoutTxHex: response.depositor_graph.payout_tx.tx_hex,
+    challengers: response.depositor_graph.challenger_presign_data,
+  });
 
   // Phase 3: Sign VP/VK claimer payout transactions
   // Fail-fast: assert the supplied non-depositor claimer set exactly equals
@@ -566,6 +563,15 @@ export async function runDepositorPresignFlow(
       vpCommissionScriptPubKey: signingContext.vpCommissionScriptPubKey,
     },
   });
+
+  signal?.throwIfAborted();
+
+  // Record what was just signed, before the signatures leave the device.
+  // Not earlier: a set that fails a check or a declined prompt must not
+  // replace the record of a set this depositor already signed and submitted.
+  // Not later: a failed write stops the flow here, so the VP never holds
+  // signatures the depositor has no fingerprint for.
+  await recordGraphFingerprint(graphFingerprint);
 
   signal?.throwIfAborted();
 

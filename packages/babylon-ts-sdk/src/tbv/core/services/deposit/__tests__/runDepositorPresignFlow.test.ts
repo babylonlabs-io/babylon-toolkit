@@ -311,18 +311,16 @@ describe("runDepositorPresignFlow", () => {
     expect(recordGraphFingerprint).not.toHaveBeenCalled();
   });
 
-  it("records the fingerprint of the fetched set before any signing prompt", async () => {
+  it("records the fingerprint after signing and before submitting", async () => {
     fingerprintCalls.length = 0;
     const presignClient = createMockPresignClient();
-    const wallet = createMockWallet();
     const signingContext = createSigningContext();
     const graphSignsBefore = vi.mocked(signDepositorGraph).mock.calls.length;
-    const payoutSignsBefore = capturedPayoutInputs.length;
     const recordGraphFingerprint = vi.fn(() => {
-      expect(capturedPayoutInputs).toHaveLength(payoutSignsBefore);
       expect(vi.mocked(signDepositorGraph).mock.calls).toHaveLength(
-        graphSignsBefore,
+        graphSignsBefore + 1,
       );
+      expect(presignClient.submitDepositorPresignatures).not.toHaveBeenCalled();
     });
 
     await runDepositorPresignFlow({
@@ -330,7 +328,7 @@ describe("runDepositorPresignFlow", () => {
         DaemonStatus.PENDING_DEPOSITOR_SIGNATURES,
       ]),
       presignClient,
-      btcWallet: wallet,
+      btcWallet: createMockWallet(),
       peginTxid: VALID_TXID,
       depositorPk: DEPOSITOR_PK,
       recordGraphFingerprint,
@@ -351,11 +349,8 @@ describe("runDepositorPresignFlow", () => {
     expect(presignClient.submitDepositorPresignatures).toHaveBeenCalledOnce();
   });
 
-  it("signs and submits nothing when the fingerprint cannot be recorded", async () => {
+  it("submits nothing when the fingerprint cannot be recorded", async () => {
     const presignClient = createMockPresignClient();
-    const wallet = createMockWallet();
-    const graphSignsBefore = vi.mocked(signDepositorGraph).mock.calls.length;
-    const payoutSignsBefore = capturedPayoutInputs.length;
 
     await expect(
       runDepositorPresignFlow({
@@ -363,7 +358,7 @@ describe("runDepositorPresignFlow", () => {
           DaemonStatus.PENDING_DEPOSITOR_SIGNATURES,
         ]),
         presignClient,
-        btcWallet: wallet,
+        btcWallet: createMockWallet(),
         peginTxid: VALID_TXID,
         depositorPk: DEPOSITOR_PK,
         recordGraphFingerprint: vi.fn(async () => {
@@ -373,11 +368,53 @@ describe("runDepositorPresignFlow", () => {
       }),
     ).rejects.toThrow("storage full");
 
-    expect(capturedPayoutInputs).toHaveLength(payoutSignsBefore);
-    expect(vi.mocked(signDepositorGraph).mock.calls).toHaveLength(
-      graphSignsBefore,
-    );
     expect(presignClient.submitDepositorPresignatures).not.toHaveBeenCalled();
+  });
+
+  it("keeps an earlier record when the served set fails a check", async () => {
+    // A re-run that the VP serves a bad set for must not replace the record
+    // of a set this depositor already signed and submitted.
+    const recordGraphFingerprint = vi.fn();
+
+    await expect(
+      runDepositorPresignFlow({
+        statusReader: createMockStatusReader([
+          DaemonStatus.PENDING_DEPOSITOR_SIGNATURES,
+        ]),
+        // No claimer entries: the on-chain VP/VK set cannot match.
+        presignClient: createMockPresignClient({ txs: [] }),
+        btcWallet: createMockWallet(),
+        peginTxid: VALID_TXID,
+        depositorPk: DEPOSITOR_PK,
+        recordGraphFingerprint,
+        signingContext: createSigningContext(),
+      }),
+    ).rejects.toThrow();
+
+    expect(recordGraphFingerprint).not.toHaveBeenCalled();
+  });
+
+  it("keeps an earlier record when the depositor declines to sign", async () => {
+    vi.mocked(signDepositorGraph).mockRejectedValueOnce(
+      new Error("User rejected"),
+    );
+    const recordGraphFingerprint = vi.fn();
+
+    await expect(
+      runDepositorPresignFlow({
+        statusReader: createMockStatusReader([
+          DaemonStatus.PENDING_DEPOSITOR_SIGNATURES,
+        ]),
+        presignClient: createMockPresignClient(),
+        btcWallet: createMockWallet(),
+        peginTxid: VALID_TXID,
+        depositorPk: DEPOSITOR_PK,
+        recordGraphFingerprint,
+        signingContext: createSigningContext(),
+      }),
+    ).rejects.toThrow("User rejected");
+
+    expect(recordGraphFingerprint).not.toHaveBeenCalled();
   });
 
   it("fetches presign txs, signs, and submits when VP is ready", async () => {

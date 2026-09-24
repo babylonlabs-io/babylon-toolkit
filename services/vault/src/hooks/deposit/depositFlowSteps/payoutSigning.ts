@@ -139,14 +139,14 @@ export async function signAndSubmitPayouts(
           onProgress({ phase: "claimers", completed, total })
       : undefined,
     // pegin.md §5.9: the artifact download refuses a bundle whose graph does
-    // not reproduce this. A failed write throws and stops the flow before any
-    // signature is sent.
+    // not reproduce this. Called once the set is signed; a failed write throws
+    // and stops the flow before the signatures are submitted.
     recordGraphFingerprint: (fingerprint) => {
       if (
         !recordSignedGraphFingerprint(depositorEthAddress, vaultId, fingerprint)
       ) {
-        // A cross-device resume has no local entry to hold it. Signing goes
-        // on, and the artifact download for this vault then fails closed.
+        // A cross-device resume has no local entry to hold it. The submit
+        // goes on, and the artifact download for this vault then fails closed.
         logger.warn("No local deposit entry to hold the presign fingerprint", {
           category: "activation",
           vaultId,

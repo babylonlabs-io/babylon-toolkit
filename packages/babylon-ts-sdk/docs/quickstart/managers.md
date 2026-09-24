@@ -276,7 +276,7 @@ await runDepositorPresignFlow({
   depositorPk: stripHexPrefix(depositorBtcPubkey),
   signingContext,
   onProgress: (completed, total) => console.log(`Signed ${completed}/${total}`),
-  // Store it durably before signing starts. Compare it with
+  // Called after signing, before submit; store it durably. Compare it with
   // fingerprintReturnedGraph() on the artifact bundle before you activate.
   recordGraphFingerprint: (fingerprint) => saveFingerprint(peginTxHash, fingerprint),
 });

@@ -815,9 +815,10 @@ describe("recordSignedGraphFingerprint", () => {
       recordSignedGraphFingerprint(ETH_ADDRESS, VALID_VAULT_ID, FINGERPRINT),
     ).toBe(true);
 
-    expect(getSignedGraphFingerprint(ETH_ADDRESS, VALID_VAULT_ID)).toBe(
-      FINGERPRINT,
-    );
+    expect(getSignedGraphFingerprint(ETH_ADDRESS, VALID_VAULT_ID)).toEqual({
+      status: "found",
+      fingerprint: FINGERPRINT,
+    });
   });
 
   it("keeps the fingerprint through a later status change", () => {
@@ -830,9 +831,21 @@ describe("recordSignedGraphFingerprint", () => {
       LocalStorageStatus.CONFIRMING,
     );
 
-    expect(getSignedGraphFingerprint(ETH_ADDRESS, VALID_VAULT_ID)).toBe(
-      FINGERPRINT,
-    );
+    expect(getSignedGraphFingerprint(ETH_ADDRESS, VALID_VAULT_ID)).toEqual({
+      status: "found",
+      fingerprint: FINGERPRINT,
+    });
+  });
+
+  it("reads an entry written before the fingerprint as not-recorded, not as missing", () => {
+    localStorage.setItem(storageKey, JSON.stringify([validPegin]));
+
+    expect(getSignedGraphFingerprint(ETH_ADDRESS, VALID_VAULT_ID)).toEqual({
+      status: "not-recorded",
+    });
+    expect(getSignedGraphFingerprint(ETH_ADDRESS, VALID_VAULT_ID_2)).toEqual({
+      status: "no-entry",
+    });
   });
 
   it("returns false and stores nothing when this device has no entry for the vault", () => {

@@ -30,15 +30,31 @@ vi.mock("@babylonlabs-io/wallet-connector", () => ({
 
 vi.mock("@/context/wallet", () => ({
   useBTCWallet: () => ({ connected: btcActionWallet.connected }),
-  useETHWallet: () => ({ address: DEPOSITOR_ETH_ADDRESS }),
+  useETHWallet: () => ({ address: ethWallet.address }),
 }));
 
 const DEPOSITOR_ETH_ADDRESS = vi.hoisted(
   () => "0x1234567890abcdef1234567890abcdef12345678",
 );
+// Holder, not vi.fn, so `vi.clearAllMocks()` cannot reset it; tests that
+// disconnect the wallet restore it in beforeEach.
+const ethWallet = vi.hoisted(() => ({
+  address: DEPOSITOR_ETH_ADDRESS as string | undefined,
+}));
+beforeEach(() => {
+  ethWallet.address = DEPOSITOR_ETH_ADDRESS;
+});
 const SIGNED_GRAPH_FINGERPRINT = vi.hoisted(() => "3f".repeat(32));
 const mockGetSignedGraphFingerprint = vi.hoisted(() =>
-  vi.fn((): string | undefined => SIGNED_GRAPH_FINGERPRINT),
+  vi.fn(
+    ():
+      | { status: "found"; fingerprint: string }
+      | { status: "no-entry" }
+      | { status: "not-recorded" } => ({
+      status: "found",
+      fingerprint: SIGNED_GRAPH_FINGERPRINT,
+    }),
+  ),
 );
 vi.mock("@/storage/peginStorage", () => ({
   getSignedGraphFingerprint: mockGetSignedGraphFingerprint,
@@ -101,6 +117,7 @@ import {
   PresignFingerprintUnavailableError,
   PresignGraphMismatchError,
 } from "@/services/artifacts";
+import { PendingPeginStorageReadError } from "@/storage/peginStorage";
 import {
   hasArtifactsDownloaded,
   saveArtifactDownloadReceipt,
@@ -402,7 +419,7 @@ describe("useArtifactDownload — prime then fetch", () => {
 
   it("shows the no-record copy and writes no receipt when no presign fingerprint is stored", async () => {
     seedHotCache();
-    mockGetSignedGraphFingerprint.mockReturnValueOnce(undefined);
+    mockGetSignedGraphFingerprint.mockReturnValueOnce({ status: "no-entry" });
     fetchMock.mockRejectedValueOnce(
       new PresignFingerprintUnavailableError(PEGIN_TXID),
     );
@@ -422,6 +439,85 @@ describe("useArtifactDownload — prime then fetch", () => {
     );
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(saveReceiptMock).not.toHaveBeenCalled();
+  });
+
+  it("tells a deposit signed before the record existed apart from one signed elsewhere", async () => {
+    // The local entry exists but carries no fingerprint: the deposit predates
+    // this check, so "download on the device you signed with" would not help.
+    seedHotCache();
+    mockGetSignedGraphFingerprint.mockReturnValueOnce({
+      status: "not-recorded",
+    });
+    fetchMock.mockRejectedValueOnce(
+      new PresignFingerprintUnavailableError(PEGIN_TXID),
+    );
+
+    const { result } = renderHook(() =>
+      useArtifactDownload({ vaultId: VAULT_ID, primeContext }),
+    );
+    await act(async () => {
+      await result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK);
+    });
+
+    await waitFor(() =>
+      expect(result.current.error).toBe(
+        COPY.deposit.recoveryArtifacts.signedGraphNotRecorded,
+      ),
+    );
+  });
+
+  it("logs an unreadable storage record and says so instead of blaming another device", async () => {
+    seedHotCache();
+    mockGetSignedGraphFingerprint.mockImplementationOnce(() => {
+      throw new PendingPeginStorageReadError(
+        DEPOSITOR_ETH_ADDRESS,
+        null,
+        new Error("storage blocked"),
+      );
+    });
+    fetchMock.mockRejectedValueOnce(
+      new PresignFingerprintUnavailableError(PEGIN_TXID),
+    );
+
+    const { result } = renderHook(() =>
+      useArtifactDownload({ vaultId: VAULT_ID, primeContext }),
+    );
+    await act(async () => {
+      await result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK);
+    });
+
+    await waitFor(() =>
+      expect(result.current.error).toBe(
+        COPY.deposit.recoveryArtifacts.signedGraphStorageUnreadable,
+      ),
+    );
+    expect(mockLoggerError).toHaveBeenCalledWith(
+      expect.any(PendingPeginStorageReadError),
+      expect.anything(),
+    );
+  });
+
+  it("asks for the Ethereum wallet when none is connected", async () => {
+    seedHotCache();
+    ethWallet.address = undefined;
+    mockGetSignedGraphFingerprint.mockClear();
+    fetchMock.mockRejectedValueOnce(
+      new PresignFingerprintUnavailableError(PEGIN_TXID),
+    );
+
+    const { result } = renderHook(() =>
+      useArtifactDownload({ vaultId: VAULT_ID, primeContext }),
+    );
+    await act(async () => {
+      await result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK);
+    });
+
+    await waitFor(() =>
+      expect(result.current.error).toBe(
+        COPY.deposit.recoveryArtifacts.signedGraphWalletNotConnected,
+      ),
+    );
+    expect(mockGetSignedGraphFingerprint).not.toHaveBeenCalled();
   });
 
   it("shows the mismatch copy and writes no receipt when the graph differs from the one signed", async () => {

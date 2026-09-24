@@ -2438,10 +2438,11 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorP
 Persist the fingerprint of the transaction set about to be signed.
 
 `pegin.md` §5.9 requires activation to refuse a bundle whose graph does
-not reproduce this value. It is called after the presign transactions are
-fetched and before any signing prompt, and awaited: when it throws, the
-flow stops and no signature reaches the VP. A resume past payout signing
-does not call it, so an earlier record stays in place.
+not reproduce this value. It is called after every check and signature
+has passed and before the signatures are submitted, and awaited: when it
+throws, the flow stops and no signature reaches the VP. A run that fails a
+check, is declined, or resumes past payout signing does not call it, so an
+earlier record stays in place.
 
 ###### Parameters
 

@@ -114,24 +114,56 @@ export function useArtifactDownload(options?: {
   const abortControllerRef = useRef<AbortController | null>(null);
 
   /**
+   * The presign fingerprint this device recorded for the vault, or, when it
+   * holds none, the message that says why. The download fails closed without
+   * one; the message sends the depositor to the fix that matches the cause.
+   */
+  const readSignedGraphFingerprint = useCallback(():
+    | { fingerprint: string }
+    | { fingerprint: undefined; unavailableMessage: string } => {
+    const unavailable = (unavailableMessage: string) => ({
+      fingerprint: undefined,
+      unavailableMessage,
+    });
+    if (!ethAddress) {
+      return unavailable(
+        COPY.deposit.recoveryArtifacts.signedGraphWalletNotConnected,
+      );
+    }
+    if (!vaultId) {
+      return unavailable(COPY.deposit.recoveryArtifacts.signedGraphUnavailable);
+    }
+    let lookup: ReturnType<typeof getSignedGraphFingerprint>;
+    try {
+      lookup = getSignedGraphFingerprint(ethAddress, vaultId);
+    } catch (err) {
+      if (!(err instanceof PendingPeginStorageReadError)) throw err;
+      logger.error(err, {
+        data: { context: "[useArtifactDownload] presign fingerprint read" },
+      });
+      return unavailable(
+        COPY.deposit.recoveryArtifacts.signedGraphStorageUnreadable,
+      );
+    }
+    switch (lookup.status) {
+      case "found":
+        return { fingerprint: lookup.fingerprint };
+      case "not-recorded":
+        return unavailable(
+          COPY.deposit.recoveryArtifacts.signedGraphNotRecorded,
+        );
+      case "no-entry":
+        return unavailable(
+          COPY.deposit.recoveryArtifacts.signedGraphUnavailable,
+        );
+    }
+  }, [vaultId, ethAddress]);
+
+  /**
    * Turn a completed download into the stored receipt that the activation
    * gate reads. Only ever called with an outcome from a validated, saved
    * bundle — never from a fetch that merely resolved.
    */
-  /**
-   * The presign fingerprint this device recorded for the vault. Undefined
-   * when there is none to read; the download then fails closed on it.
-   */
-  const readSignedGraphFingerprint = useCallback((): string | undefined => {
-    if (!vaultId || !ethAddress) return undefined;
-    try {
-      return getSignedGraphFingerprint(ethAddress, vaultId);
-    } catch (err) {
-      if (err instanceof PendingPeginStorageReadError) return undefined;
-      throw err;
-    }
-  }, [vaultId, ethAddress]);
-
   const persistReceipt = useCallback(
     (peginTxid: string, outcome: ArtifactDownloadOutcome) => {
       if (!vaultId) return;
@@ -250,7 +282,8 @@ export function useArtifactDownload(options?: {
         progress: COPY.deposit.recoveryArtifacts.fetchingArtifacts,
       }));
 
-      const signedGraphFingerprint = readSignedGraphFingerprint();
+      const signedGraph = readSignedGraphFingerprint();
+      const signedGraphFingerprint = signedGraph.fingerprint;
 
       // The demo yields no outcome, which is what keeps a simulated download
       // from ever writing the receipt that satisfies the activation gate.
@@ -454,7 +487,11 @@ export function useArtifactDownload(options?: {
               telemetryVaultId,
               { tags: { site: "presign_fingerprint_unavailable" } },
             );
-            setError(COPY.deposit.recoveryArtifacts.signedGraphUnavailable);
+            setError(
+              "unavailableMessage" in signedGraph
+                ? signedGraph.unavailableMessage
+                : COPY.deposit.recoveryArtifacts.signedGraphUnavailable,
+            );
             return;
           }
           if (err instanceof PresignGraphMismatchError) {

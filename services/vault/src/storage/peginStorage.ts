@@ -732,19 +732,36 @@ export function recordSignedGraphFingerprint(
 }
 
 /**
- * The presign graph fingerprint this device recorded for a vault, or
- * undefined when it holds none.
+ * What this device holds for a vault's presign graph fingerprint.
+ *
+ * The two "missing" cases are kept apart because they send the depositor to
+ * different fixes: `no-entry` means the deposit was signed on another device
+ * or the data was cleared; `not-recorded` means the entry exists but was
+ * written before the fingerprint was, so the deposit predates this check.
+ */
+export type SignedGraphFingerprintLookup =
+  | { status: "found"; fingerprint: string }
+  | { status: "no-entry" }
+  | { status: "not-recorded" };
+
+/**
+ * Look up the presign graph fingerprint this device recorded for a vault.
  *
  * @throws `PendingPeginStorageReadError` when the stored entries cannot be read.
  */
 export function getSignedGraphFingerprint(
   ethAddress: string,
   vaultId: string,
-): string | undefined {
+): SignedGraphFingerprintLookup {
   const target = normalizeTransactionId(vaultId).toLowerCase();
-  return getPendingPegins(ethAddress).find(
+  const entry = getPendingPegins(ethAddress).find(
     (pegin) => normalizeTransactionId(pegin.id).toLowerCase() === target,
-  )?.signedGraphFingerprint;
+  );
+  if (!entry) return { status: "no-entry" };
+  if (entry.signedGraphFingerprint === undefined) {
+    return { status: "not-recorded" };
+  }
+  return { status: "found", fingerprint: entry.signedGraphFingerprint };
 }
 
 /**
