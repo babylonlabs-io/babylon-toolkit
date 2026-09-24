@@ -15,6 +15,8 @@ import {
 import { COPY } from "@/copy";
 import { formatBtcAmount, formatUsd } from "@/utils/formatting";
 
+import { LIQUIDATION_TOUR_TARGET_IDS } from "./liquidationTourSteps";
+
 interface PositionOverviewProps {
   collateralBtc: number;
   /** `null` when no BTC price is available to price the override — an absent
@@ -62,6 +64,7 @@ export function PositionOverview({
         onAction: onRepay,
       },
       {
+        id: LIQUIDATION_TOUR_TARGET_IDS.health,
         label: COPY.liquidations.position.healthFactor,
         tooltip: COPY.tooltips.healthFactor,
         value: healthFactorText,

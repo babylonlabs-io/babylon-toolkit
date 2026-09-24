@@ -122,8 +122,11 @@ interface FrameSignature {
   readonly durationMs: number;
 }
 
-/** Compare overlapping captures. Restore the scroll position after each poll. */
-async function readFrameSignature(page: Page): Promise<FrameSignature> {
+/** Compare viewport pixels or overlapping captures of the full page. */
+async function readFrameSignature(
+  page: Page,
+  fullPage: boolean,
+): Promise<FrameSignature> {
   const startedAt = performance.now();
   // Measuring the document first settles layout and prevents unstable deposit card images.
   const { documentWidth, documentHeight, viewportWidth, viewportHeight, x, y } =
@@ -138,7 +141,7 @@ async function readFrameSignature(page: Page): Promise<FrameSignature> {
   const frames: Buffer[] = [];
   const maxX = Math.max(0, documentWidth - viewportWidth);
   const maxY = Math.max(0, documentHeight - viewportHeight);
-  if (maxX === 0 && maxY === 0) {
+  if (!fullPage || (maxX === 0 && maxY === 0)) {
     return {
       pixels: await page.screenshot(),
       documentWidth,
@@ -207,7 +210,10 @@ function isSameFrame(a: FrameSignature, b: FrameSignature): boolean {
  * the harness: it converts "the app is still settling" from a
  * false-positive diff into a wait.
  */
-export async function waitForVisualStability(page: Page): Promise<void> {
+export async function waitForVisualStability(
+  page: Page,
+  fullPage = true,
+): Promise<void> {
   // MUST come before the stability poll below. An empty page is
   // trivially "stable" - two blank frames in a row match, the loop
   // returns in ~600ms, and every screen silently becomes a blank white
@@ -232,12 +238,12 @@ export async function waitForVisualStability(page: Page): Promise<void> {
   });
 
   const deadline = Date.now() + STABILITY_TIMEOUT_MS;
-  let previous = await readFrameSignature(page);
+  let previous = await readFrameSignature(page, fullPage);
   let matches = 0;
 
   while (Date.now() < deadline) {
     await page.waitForTimeout(STABILITY_QUIET_MS);
-    const current = await readFrameSignature(page);
+    const current = await readFrameSignature(page, fullPage);
 
     if (isSameFrame(current, previous)) {
       matches += 1;

@@ -60,6 +60,25 @@ export function getHubPickerSearch(underlying: Address) {
   })}`;
 }
 
+/** The asset picker step the search selects (`?picker=`), or null for none. */
+export function parseLoanPicker(searchParams: URLSearchParams): LoanTab | null {
+  const picker = searchParams.get(RESERVE_QUERY_KEYS.PICKER);
+  return picker === LOAN_TAB.BORROW || picker === LOAN_TAB.REPAY
+    ? picker
+    : null;
+}
+
+/**
+ * Whether the search opens the loan overlay, at a reserve form or an asset
+ * picker. `AaveOverlayLayout` renders the overlay on exactly this condition.
+ */
+export function opensLoanFlow(searchParams: URLSearchParams): boolean {
+  return (
+    Boolean(searchParams.get(RESERVE_QUERY_KEYS.RESERVE_ID)) ||
+    parseLoanPicker(searchParams) !== null
+  );
+}
+
 /**
  * Parse the `?asset=` underlying address.
  *

@@ -2051,6 +2051,39 @@ export const COPY = {
   },
   // v3 Liquidation Dashboard (components/pages/Liquidations).
   liquidations: {
+    tour: {
+      welcomeTitle: "Welcome to Liquidation Analysis",
+      welcomeBody:
+        "Let's take a quick look at the tools available to help you monitor and manage your BTC collateral.",
+      notNow: "Not now",
+      start: "Take a tour",
+      close: "Close",
+      exit: "Exit",
+      next: "Next",
+      stepLabel: (step: number, total: number) => `Step ${step} of ${total}`,
+      steps: {
+        position: {
+          title: "Position Overview",
+          body: "Track your BTC collateral, borrowed assets, and current Health Factor in one place.",
+        },
+        health: {
+          title: "Monitor Your Health Factor",
+          body: "Health Factor indicates the safety level of your position. A lower value means your position is closer to liquidation. Maintain a healthy level to reduce risk.",
+        },
+        simulation: {
+          title: "Simulate BTC Price Changes",
+          body: "Adjust the BTC price to see how market movements affect your position. The simulation shows potential liquidation levels of your collateral.",
+        },
+        events: {
+          title: "Understand Liquidation Events",
+          body: "Each liquidation event represents a possible liquidation scenario for BTCVaults in your collateral. Events are triggered based on your BTCVault order and BTC price.",
+        },
+        outcomes: {
+          title: "Explore Liquidation Outcomes",
+          body: "Review estimated debt repayment, remaining collateral, and your position after liquidation. Use this information to better manage your risk.",
+        },
+      },
+    },
     heading: "Liquidation Analysis",
     vaultsLiquidated: (liquidated: number, total: number) =>
       `${liquidated}/${total} vaults liquidated`,

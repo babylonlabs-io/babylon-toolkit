@@ -19,6 +19,8 @@
  * claim nothing changed.
  */
 
+import { existsSync } from "node:fs";
+
 import type { RecordedBackend } from "../fixtures/replay/recording";
 
 export interface VisualViewport {
@@ -158,6 +160,23 @@ export const DEPOSIT_PROGRESS_STOPS = {
  * `liquidationChart.visual.spec.ts`.
  */
 export const LIQUIDATION_CHART_STOP = "liquidations-chart";
+
+// CI uses this harness with older app source that has no tour.
+export const HAS_LIQUIDATION_TOUR = existsSync(
+  new URL(
+    "../../src/components/pages/Liquidations/LiquidationTour.tsx",
+    import.meta.url,
+  ),
+);
+
+export const LIQUIDATION_TOUR_STOPS = {
+  welcome: "liquidation-tour-welcome",
+  position: "liquidation-tour-position",
+  health: "liquidation-tour-health",
+  simulation: "liquidation-tour-simulation",
+  events: "liquidation-tour-events",
+  outcomes: "liquidation-tour-outcomes",
+} as const;
 
 /**
  * How many steps the deposit flow has, in the stepper's own 1-based visual

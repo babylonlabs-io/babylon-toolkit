@@ -120,7 +120,13 @@ function SeizureRow({
   );
 }
 
-export function LiquidationEventCard({ card }: { card: EventCardData }) {
+export function LiquidationEventCard({
+  card,
+  outcomesId,
+}: {
+  card: EventCardData;
+  outcomesId?: string;
+}) {
   const { triggered } = card;
 
   return (
@@ -189,55 +195,57 @@ export function LiquidationEventCard({ card }: { card: EventCardData }) {
 
       <div className={DIVIDER_CLASS} />
 
-      <div className="flex flex-col gap-2">
-        <p className={SECTION_TITLE_CLASS}>
-          {COPY.liquidations.events.estimatedLiquidationSection}
-        </p>
+      <div id={outcomesId} className="flex flex-col gap-4">
         <div className="flex flex-col gap-2">
-          <DetailRow
-            label={COPY.liquidations.events.collateralLiquidated}
-            value={card.collateralLiquidatedLabel}
-          />
-          <DetailRow
-            label={COPY.liquidations.events.debtRepaid}
-            value={card.debtRepaidLabel}
-            labelClassName="text-warning-main"
-          />
-          <DetailRow
-            label={COPY.liquidations.events.liquidatorProfit}
-            value={card.liquidatorProfitLabel}
-          />
-          <DetailRow
-            label={card.fairness.label}
-            value={card.fairness.value}
-            tooltip={card.fairness.tooltip}
-            labelClassName="text-info-light"
-          />
+          <p className={SECTION_TITLE_CLASS}>
+            {COPY.liquidations.events.estimatedLiquidationSection}
+          </p>
+          <div className="flex flex-col gap-2">
+            <DetailRow
+              label={COPY.liquidations.events.collateralLiquidated}
+              value={card.collateralLiquidatedLabel}
+            />
+            <DetailRow
+              label={COPY.liquidations.events.debtRepaid}
+              value={card.debtRepaidLabel}
+              labelClassName="text-warning-main"
+            />
+            <DetailRow
+              label={COPY.liquidations.events.liquidatorProfit}
+              value={card.liquidatorProfitLabel}
+            />
+            <DetailRow
+              label={card.fairness.label}
+              value={card.fairness.value}
+              tooltip={card.fairness.tooltip}
+              labelClassName="text-info-light"
+            />
+          </div>
         </div>
-      </div>
 
-      <div className={DIVIDER_CLASS} />
+        <div className={DIVIDER_CLASS} />
 
-      <div className="flex flex-col gap-2">
-        <p className={SECTION_TITLE_CLASS}>
-          {COPY.liquidations.events.positionAfterSection}
-        </p>
-        <div className="flex flex-wrap gap-4 sm:gap-8 2xl:gap-16">
-          <Stat
-            label={COPY.liquidations.events.btcRemaining}
-            value={card.btcRemainingLabel}
-            className="text-base text-accent-primary"
-          />
-          <Stat
-            label={COPY.liquidations.events.debtRemaining}
-            value={card.debtRemainingLabel}
-            className="text-base text-accent-primary"
-          />
-          <Stat
-            label={COPY.liquidations.events.hfAfterLiquidation}
-            value={card.hfAfterLabel}
-            className="text-base text-risk-amber"
-          />
+        <div className="flex flex-col gap-2">
+          <p className={SECTION_TITLE_CLASS}>
+            {COPY.liquidations.events.positionAfterSection}
+          </p>
+          <div className="flex flex-wrap gap-4 sm:gap-8 2xl:gap-16">
+            <Stat
+              label={COPY.liquidations.events.btcRemaining}
+              value={card.btcRemainingLabel}
+              className="text-base text-accent-primary"
+            />
+            <Stat
+              label={COPY.liquidations.events.debtRemaining}
+              value={card.debtRemainingLabel}
+              className="text-base text-accent-primary"
+            />
+            <Stat
+              label={COPY.liquidations.events.hfAfterLiquidation}
+              value={card.hfAfterLabel}
+              className="text-base text-risk-amber"
+            />
+          </div>
         </div>
       </div>
     </article>

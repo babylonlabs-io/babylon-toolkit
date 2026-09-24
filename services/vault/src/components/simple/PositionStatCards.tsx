@@ -9,6 +9,7 @@ import {
 import { COPY } from "@/copy";
 
 export interface PositionStatCard {
+  id?: string;
   label: string;
   /** Rendered before the label/value column (e.g. the borrowed asset's icon). */
   leading?: ReactNode;
@@ -32,7 +33,10 @@ function StatSection({ card }: { card: PositionStatCard }) {
   return (
     // Both min-w-0 are load-bearing: they lift the min-width:auto content floor
     // on the section and the column so a long value can truncate (#2428).
-    <div className="flex min-w-0 flex-1 items-center justify-between gap-4 xl:max-[1439px]:gap-2">
+    <div
+      id={card.id}
+      className="flex min-w-0 flex-1 items-center justify-between gap-4 xl:max-[1439px]:gap-2"
+    >
       <div className="flex min-w-0 items-center gap-3">
         {card.leading}
         <div className="flex min-w-0 flex-col gap-3">

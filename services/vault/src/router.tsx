@@ -28,7 +28,9 @@ import RootLayout, {
 } from "./components/pages/RootLayout";
 import {
   MARKET_RESERVE_PARAM,
+  opensLoanFlow,
   parseAssetParam,
+  parseLoanPicker,
   RESERVE_QUERY_KEYS,
   ROUTES,
 } from "./routes";
@@ -94,13 +96,7 @@ const AaveOverlayLayout = () => {
     searchParams.get(RESERVE_QUERY_KEYS.TAB) === LOAN_TAB.REPAY
       ? LOAN_TAB.REPAY
       : LOAN_TAB.BORROW;
-  const pickerParam = searchParams.get(RESERVE_QUERY_KEYS.PICKER);
-  const picker =
-    pickerParam === LOAN_TAB.REPAY
-      ? LOAN_TAB.REPAY
-      : pickerParam === LOAN_TAB.BORROW
-        ? LOAN_TAB.BORROW
-        : null;
+  const picker = parseLoanPicker(searchParams);
   const asset = parseAssetParam(searchParams.get(RESERVE_QUERY_KEYS.ASSET));
 
   useEffect(() => {
@@ -129,7 +125,7 @@ const AaveOverlayLayout = () => {
               fixed route and paint it behind the dialog first. This element
               only exists inside the Aave layout, so the params cannot open it
               from an unrelated route. */}
-          {(reserveId || picker) && (
+          {opensLoanFlow(searchParams) && (
             <Suspense fallback={null}>
               <LoanFlowOverlay
                 picker={picker}

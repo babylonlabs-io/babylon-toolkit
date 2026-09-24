@@ -71,16 +71,23 @@ vi.mock("@/applications/aave/hooks/useBtcPriceCandles", () => ({
   TIMELINE_VISIBLE_CANDLES: 365,
 }));
 
+/** Whether the deposit dialog or the loan overlay is open over the page. */
+const openDialogs = vi.hoisted(() => ({ deposit: false, loan: false }));
+
 vi.mock("@/hooks/useLoanActions", () => ({
   useLoanActions: () => ({
     openBorrowPicker: vi.fn(),
     openRepay: vi.fn(),
     goToReserve: vi.fn(),
+    isLoanFlowOpen: openDialogs.loan,
   }),
 }));
 
 vi.mock("react-router", () => ({
-  useOutletContext: () => ({ openDeposit: vi.fn() }),
+  useOutletContext: () => ({
+    openDeposit: vi.fn(),
+    isDepositOpen: openDialogs.deposit,
+  }),
 }));
 
 vi.mock("@/components/shared", () => ({
@@ -259,10 +266,230 @@ function enablePositionOverride() {
 // environment carries; unstub it, or the value reaches every later file.
 beforeEach(() => {
   vi.stubEnv("NEXT_PUBLIC_FF_ENABLE_ETH_FIRST", undefined);
+  localStorage.setItem("tbv-liquidation-tour-seen", "true");
 });
 
 afterEach(() => {
   vi.unstubAllEnvs();
+  localStorage.removeItem("tbv-liquidation-tour-seen");
+});
+
+describe("Liquidation Dashboard tour", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.removeItem("tbv-liquidation-tour-seen");
+    openDialogs.deposit = false;
+    openDialogs.loan = false;
+    connectWallet();
+    disableGodMode();
+    disablePositionOverride();
+    useDashboardStateMock.mockReturnValue(CONNECTED_WITH_CASCADE);
+    usePositionNotificationsMock.mockReturnValue(READY_NOTIFICATIONS);
+    useBtcPriceCandlesMock.mockReturnValue({
+      candles: CANDLES,
+      isLoading: false,
+      error: null,
+    });
+  });
+
+  it("welcomes the first visitor when the analysis is ready", async () => {
+    render(<Liquidations />);
+
+    expect(
+      await screen.findByRole("dialog", {
+        name: COPY.liquidations.tour.welcomeTitle,
+      }),
+    ).toBeVisible();
+    expect(
+      screen.getByText(COPY.liquidations.tour.welcomeBody),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: COPY.liquidations.tour.start }),
+    ).toBeVisible();
+    expect(localStorage.getItem("tbv-liquidation-tour-seen")).toBeNull();
+  });
+
+  it("keeps the welcome open after a click outside its card", async () => {
+    render(<Liquidations />);
+    const welcome = await screen.findByRole("dialog", {
+      name: COPY.liquidations.tour.welcomeTitle,
+    });
+    const backdrop = welcome.querySelector(":scope > svg");
+    if (!backdrop) throw new Error("The tour renders no dimmed backdrop.");
+
+    fireEvent.click(backdrop);
+
+    expect(welcome).toBeVisible();
+    expect(localStorage.getItem("tbv-liquidation-tour-seen")).toBeNull();
+  });
+
+  it.each(["deposit", "loan"] as const)(
+    "waits while the %s dialog is open and welcomes once it closes",
+    async (dialog) => {
+      openDialogs[dialog] = true;
+      const { rerender } = render(<Liquidations />);
+
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(localStorage.getItem("tbv-liquidation-tour-seen")).toBeNull();
+
+      openDialogs[dialog] = false;
+      rerender(<Liquidations />);
+
+      expect(
+        await screen.findByRole("dialog", {
+          name: COPY.liquidations.tour.welcomeTitle,
+        }),
+      ).toBeVisible();
+    },
+  );
+
+  it.each(["notNow", "close", "escape"] as const)(
+    "keeps the welcome dismissed after %s and a remount",
+    async (action) => {
+      const { unmount } = render(<Liquidations />);
+      const welcome = await screen.findByRole("dialog", {
+        name: COPY.liquidations.tour.welcomeTitle,
+      });
+
+      if (action === "escape") {
+        fireEvent.keyDown(welcome, { key: "Escape" });
+      } else {
+        fireEvent.click(
+          screen.getByRole("button", { name: COPY.liquidations.tour[action] }),
+        );
+      }
+
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(localStorage.getItem("tbv-liquidation-tour-seen")).toBe("true");
+      unmount();
+      render(<Liquidations />);
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    },
+  );
+
+  it("waits while disconnected and welcomes once the wallet connects", async () => {
+    disconnectWallet();
+    const { rerender } = render(<Liquidations />);
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(localStorage.getItem("tbv-liquidation-tour-seen")).toBeNull();
+
+    connectWallet();
+    rerender(<Liquidations />);
+
+    expect(
+      await screen.findByRole("dialog", {
+        name: COPY.liquidations.tour.welcomeTitle,
+      }),
+    ).toBeVisible();
+  });
+
+  it("waits while there is no collateral and welcomes once it exists", async () => {
+    useDashboardStateMock.mockReturnValue({
+      ...CONNECTED_WITH_CASCADE,
+      hasCollateral: false,
+    });
+    const { rerender } = render(<Liquidations />);
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(localStorage.getItem("tbv-liquidation-tour-seen")).toBeNull();
+
+    useDashboardStateMock.mockReturnValue(CONNECTED_WITH_CASCADE);
+    rerender(<Liquidations />);
+
+    expect(
+      await screen.findByRole("dialog", {
+        name: COPY.liquidations.tour.welcomeTitle,
+      }),
+    ).toBeVisible();
+  });
+
+  it("waits while there is no loan and welcomes once one exists", async () => {
+    useDashboardStateMock.mockReturnValue({
+      ...CONNECTED_WITH_CASCADE,
+      hasLoans: false,
+    });
+    const { rerender } = render(<Liquidations />);
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(localStorage.getItem("tbv-liquidation-tour-seen")).toBeNull();
+
+    useDashboardStateMock.mockReturnValue(CONNECTED_WITH_CASCADE);
+    rerender(<Liquidations />);
+
+    expect(
+      await screen.findByRole("dialog", {
+        name: COPY.liquidations.tour.welcomeTitle,
+      }),
+    ).toBeVisible();
+  });
+
+  it("waits while the analysis is unavailable and welcomes once it is ready", async () => {
+    usePositionNotificationsMock.mockReturnValue({
+      ...READY_NOTIFICATIONS,
+      result: null,
+      params: null,
+      status: "stale-price",
+    });
+    const { rerender } = render(<Liquidations />);
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(localStorage.getItem("tbv-liquidation-tour-seen")).toBeNull();
+
+    usePositionNotificationsMock.mockReturnValue(READY_NOTIFICATIONS);
+    rerender(<Liquidations />);
+
+    expect(
+      await screen.findByRole("dialog", {
+        name: COPY.liquidations.tour.welcomeTitle,
+      }),
+    ).toBeVisible();
+  });
+
+  it("waits while the position loads and welcomes once it has loaded", async () => {
+    useDashboardStateMock.mockReturnValue({
+      ...CONNECTED_WITH_CASCADE,
+      isLoading: true,
+    });
+    const { rerender } = render(<Liquidations />);
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(localStorage.getItem("tbv-liquidation-tour-seen")).toBeNull();
+
+    useDashboardStateMock.mockReturnValue(CONNECTED_WITH_CASCADE);
+    rerender(<Liquidations />);
+
+    expect(
+      await screen.findByRole("dialog", {
+        name: COPY.liquidations.tour.welcomeTitle,
+      }),
+    ).toBeVisible();
+  });
+
+  it("waits while the candles load and welcomes once they have loaded", async () => {
+    useBtcPriceCandlesMock.mockReturnValue({
+      candles: null,
+      isLoading: true,
+      error: null,
+    });
+    const { rerender } = render(<Liquidations />);
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(localStorage.getItem("tbv-liquidation-tour-seen")).toBeNull();
+
+    useBtcPriceCandlesMock.mockReturnValue({
+      candles: CANDLES,
+      isLoading: false,
+      error: null,
+    });
+    rerender(<Liquidations />);
+
+    expect(
+      await screen.findByRole("dialog", {
+        name: COPY.liquidations.tour.welcomeTitle,
+      }),
+    ).toBeVisible();
+  });
 });
 
 describe("Liquidation Dashboard — connection and position gates", () => {
