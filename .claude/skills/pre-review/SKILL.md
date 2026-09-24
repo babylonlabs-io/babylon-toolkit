@@ -382,6 +382,20 @@ separately, at full price each. Do it yourself.
      that touches no nx project, such as one confined to `.claude/` or
      `docs/`.
    - **Exit 0, with tasks actually run** → `typecheck: passed`.
+   - **Anything else** — a task ran and exited non-zero with no compiler
+     diagnostic — → `typecheck: failed`, with the tail of nx's output in the
+     pack and the failure named as a **tool** failure, not a type error. A
+     `typecheck` script can die without ever reaching a diagnostic: `tsc` runs
+     out of heap (which is why three projects set
+     `NODE_OPTIONS=--max-old-space-size`), nx kills the task, the script fails
+     for its own reasons.
+
+   The five branches are exhaustive over the two facts you have — did any task
+   run, and did the command exit zero — so every run gets a word, which the
+   mandatory `CHECKS` section requires. This last branch is the catch-all the
+   lint and test settlements below keep as "any other error → `failed`"; the
+   typecheck list lost it when it was rewritten into ordered branches, leaving
+   an executed-but-failed run with no verdict at all.
 
    **A `noEmit`-disabled project is a qualifier on the verdict, not a verdict
    of its own.** nx substitutes a stub that exits 0 by construction, so the
@@ -460,9 +474,20 @@ separately, at full price each. Do it yourself.
     `src/generated` tree. Expect it whenever the change affects a dependent of
     that package, and expect the run to fail offline or when the pinned
     upstream is unreachable, for a reason that has nothing to do with the
-    change. That regeneration is deterministic and expected: name it as such
-    rather than reporting it under `rewritten_by_checks`, which means a check
-    rewrote the author's work.
+    change.
+
+    **Expecting the regeneration to run is not expecting it to change
+    nothing.** If it leaves `src/generated` byte-identical, `git status
+    --porcelain` shows nothing and there is nothing to record — say the
+    rebuild ran and changed nothing. If it *does* change tracked content, that
+    happened after the snapshot and while the reviewers are reading, so the
+    record now describes a tree the PR will not ship: report it in
+    `rewritten_by_checks` like any other check-driven rewrite, name
+    `babylon-proto-ts` as the cause so the engineer is not hunting a mystery,
+    and tell them the generated files on the branch were stale or upstream has
+    moved — which is a real thing to know, not noise to suppress. Never let
+    "expected" mean "unrecorded": the field exists precisely so the reviewed
+    content and the shipped content cannot silently differ.
 
     The typecheck and the lint were already settled in step 9. This step
     settles the tests in the same vocabulary — `No tasks were run` →
@@ -1010,6 +1035,24 @@ to read, so a lane handed only paths cannot see the largest absence in the
 change — and absence is what this lane exists to find. Where the change
 deletes a file, hand it that file's diff hunks specifically, under a name
 carrying no run number.
+
+**And withhold any changed file that is itself a review artifact.** Step 3
+excludes `PR.md` and `.pre-review/` structurally, because `snapshot.mjs`
+does — but nothing excludes a review report some other tool left in the tree
+and the engineer committed. Such a file is in the changed-file list, this lane
+is told to read every changed file end to end, and it holds stored findings
+and run history. That is the ledger reaching the one reviewer defined by not
+having it, for the third time and through a third route: first the per-file
+diffs, then the intent, now the review set itself.
+
+So before spawning it, read the changed-file list and drop from *its* set any
+file carrying findings, severities or run history — whatever it is called.
+Tell the engineer which file you dropped and why, because a file that has to
+be withheld from a reviewer is usually a file that should not be in the
+commit. Withhold it from this lane only: the other reviewers hold the ledger
+anyway, and narrowing the shared review set would put `reviewed` and the
+snapshot's `files=` out of step, which is the defect that map separation
+exists to prevent.
 
 **Strip the run number from everything else you hand it.** Every scratchpad
 path is mandated to carry `run<N>__`, so the whole-change diff arrives as
