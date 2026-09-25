@@ -158,15 +158,23 @@ The enumerated fields take these values:
   finding; **`verified_by`** says how Phase 3 confirmed it.
 - **`files`** is always the step-9 snapshot of the latest run, never a
   re-hash taken after fixes. Paths are repo-relative.
-- **`outside_anchors_since`** is the 1-based index of the run that first wrote
-  `outside_anchors`, and it is **written once and never recomputed**. Phase 4's
-  walk admits a finding only when its `raised_in_run` is at or after this
-  value, which is how a finding raised before the map existed is kept out
-  without backfilling. Carry it forward verbatim on every state write: the
-  state is rewritten whole each run, so omitting it makes the next run believe
-  it is the first, moving the boundary forward and silently dropping every
-  earlier finding's outside anchors. Absent on states written before the map
-  existed; on those, the first run that populates the map sets it.
+- **`outside_anchors_since`** is the 1-based index of the first run whose state
+  write found this field absent, and it is **written once and never
+  recomputed**. Phase 4's walk admits a finding only when its `raised_in_run`
+  is at or after this value, which is how a finding raised before the map
+  existed is kept out without backfilling. Carry it forward verbatim on every
+  state write: the state is rewritten whole each run, so omitting it makes the
+  next run believe it is the first, moving the boundary forward and silently
+  dropping every earlier finding's outside anchors.
+
+  **It is set whether or not `outside_anchors` ends up empty**, and that is the
+  whole of the rule. The map is `{}` on any run where no finding anchors a file
+  outside the change, which is most runs, so tying the field to the run that
+  first *populates* the map would leave it unset indefinitely and slide the
+  boundary past every finding raised in between. That reading is also circular:
+  whether a run populates the map depends on eligibility, which depends on this
+  field. Absent on states written before the map existed; the next run to write
+  one sets it.
 - **`outside_anchors`** holds the finding anchors that are **not** in the
   change, hashed with `git hash-object -w` by the orchestrator in Phase 4 and
   compared at the start of Phase 0b. It is deliberately a second map: `files`,

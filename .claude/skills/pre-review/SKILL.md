@@ -550,9 +550,13 @@ finishes before the reviewers are spawned, so its results are available and
 they are exactly what a reviewer cannot rediscover under the no-builds rule.
 Give, for lint and typecheck, the verdict step 9 settled — `passed`, `failed`,
 `aborted` or `nothing affected`, each optionally qualified as "with
-`<project>` stubbed" — and the project count nx reported. An `aborted` check
-carries the error nx printed, because it means nothing was checked at all and
-a reviewer cannot rediscover that. **Never a bare `stubbed`**: it
+`<project>` stubbed" — and the project count nx reported. **A `failed` check
+says which kind**, `failed (compile)` or `failed (tool)`, because the two
+carry opposite information and the bare word cannot distinguish them: the
+first means a compiler rejected the code, the second means no compiler ever
+ran. An `aborted` check carries the error nx printed, because it means nothing
+was checked at all and a reviewer cannot rediscover that. **Never a bare
+`stubbed`**: it
 is a qualifier, not a verdict, and lint cannot take it at all. A bare
 `stubbed` would let a run where one project stubs and another does not
 compile reach reviewers without the word `failed`, which is what the rule
@@ -563,11 +567,22 @@ Tests are still running at this point, so say so rather than implying they
 passed.
 
 If the typecheck **failed**, put that in the pack's opening lines, above the
-file list, with the first ~40 lines of the real compiler output. A change that
-does not compile is the single most useful thing a reviewer can be told, and
-burying it in a table at the bottom wastes the check. Spawn the reviewers
-anyway — a type error is usually local and the rest of the review still has
-value — but never let the pack read as though the change builds.
+file list — but say **which kind of failure**, because step 9 produces two and
+they tell a reviewer opposite things:
+
+- **a compile failure**, where a compiler diagnostic was produced: give the
+  first ~40 lines of the real compiler output and say the change does not
+  compile. That is the single most useful thing a reviewer can be told, and
+  burying it in a table at the bottom wastes the check.
+- **a tool failure**, the catch-all branch where a task ran and died without
+  ever reaching a diagnostic: give the tail of nx's output and say so in those
+  words. There is no compiler output to give, and nothing is known about
+  whether the change compiles. Claiming it does not would be inventing a
+  result — the same mistake as claiming it does.
+
+Spawn the reviewers either way — a type error is usually local and the rest of
+the review still has value — but never let the pack read as though the change
+builds, and never let it read as though a compiler spoke when none did.
 
 **Say what CI has checked and this run has not.** The local typecheck reads
 each project against its dependencies' **last built** `dist`, so a signature
@@ -1068,8 +1083,17 @@ files instead, as below.
 deleted, as `git diff --name-status` gives it. A deleted file has no content
 to read, so a lane handed only paths cannot see the largest absence in the
 change — and absence is what this lane exists to find. Where the change
-deletes a file, hand it that file's diff hunks specifically, under a name
-carrying no run number.
+deletes a file, **paste that file's diff hunks into the prompt itself**, not a
+path to them.
+
+**Hand this lane no scratchpad path at all.** WORK is the only place this
+skill writes, and the read ban below covers it; a path into WORK would leave
+the lane choosing between breaking the ban and never seeing a deletion. A
+run-agnostic copy is not a way out either — every WORK file is mandated to
+carry `run<N>__` precisely so one run cannot read another's leftovers, so an
+unnumbered copy trades one leak for a staleness bug. Inline is the only form
+that is both readable and consistent: it goes in the prompt, which is already
+the allowlisted channel.
 
 **And withhold any changed file that is itself a review artifact.** Step 3
 excludes `PR.md` and `.pre-review/` structurally, because `snapshot.mjs`
@@ -1103,12 +1127,12 @@ and narrowing the shared review set would put `reviewed` and the snapshot's
 prevent.
 
 **Strip the run number from everything else you hand it.** Every scratchpad
-path is mandated to carry `run<N>__`, so the whole-change diff arrives as
-`run<N>__local.diff` and a pack header saying which run this is arrives with
-it. Either is the same disclosure the per-file diffs were withheld for, in
-one token. Copy the diff to a run-agnostic name for this lane, or leave the
-diff out and let it read the files; either way, no `run<N>` and no run count
-reaches it.
+path is mandated to carry `run<N>__`, so the whole-change diff is
+`run<N>__local.diff` and the pack header says which run this is. Either is the
+same disclosure the per-file diffs were withheld for, in one token. **Give it
+no diff file**: this lane reads the files whole, which is its whole method, and
+the only case that needed a diff — a deleted file — is pasted inline above.
+No `run<N>`, no run count, no scratchpad path.
 
 Everything else in that list is required by its own agent contract: it is told
 the pack is authoritative, that the check results are in it, and to judge a
@@ -1117,8 +1141,12 @@ to satisfy the file it is spawned as, and would leave the one reviewer added
 to catch structural defects as the only one not told whether the change
 compiles.
 
-**Build this lane's prompt from an allowlist, not a denylist.** Give it the
-items enumerated above and **nothing else** — anything not on that list is
+**Build this lane's prompt from an allowlist, not a denylist.** The list, in
+full: the mandatory opening line; the base SHA; the changed-file list with
+each file's status, minus review artifacts; the diff hunks of any deleted
+file, inline; the binding rules; the authoritative source;
+`CALLERS OF CHANGED EXPORTS`; `CHECKS`; the CI-gap statement; the intent you
+wrote for it; and its brief. **Nothing else** — anything not on that list is
 withheld by default, including things no one has thought of yet. Do not
 reason "this is not on the withheld list, so it may go in"; reason "this is
 not on the given list, so it stays out".
@@ -1154,12 +1182,22 @@ strongest control available here, since the agent definition grants the tools
 and this skill cannot revoke them per-spawn, and it is worth stating plainly
 rather than leaving the allowlist to imply a guarantee it cannot make.
 
-**Write this lane's intent yourself; do not paste the engineer's.** For every
-other reviewer the intent is sections 1–5 verbatim, with the sentences that
-state a known open defect cut and marked. For this lane, state in your own
-words only what the change is for and what is deliberately out of scope, and
-carry across nothing that refers to earlier runs, earlier reviews, findings,
-or this branch's history.
+**Write this lane's intent yourself — but write it from the filtered text, not
+the raw description.** Apply step 6's open-defect filter first, exactly as for
+every other reviewer, and only then restate what remains in your own words:
+what the change is for, what is deliberately out of scope, and nothing that
+refers to earlier runs, earlier reviews, findings, or this branch's history.
+
+**The order matters, and getting it backwards recreates a failure this file
+already records.** Step 6 warns that summarising the intent reintroduced a
+deferred blocker as "out of scope, settled" one step after the filter had
+removed it, because *the filter cannot see a paraphrase*. Rewriting from the
+raw description walks into that again, and "what is deliberately out of scope"
+is precisely where a deferred, still-open finding lives. Filter, then
+paraphrase — never the reverse. And whatever the filter did or did not catch,
+**no open finding's subject may appear in this lane's intent as settled or as
+out of scope**: a hand-written description carries no `(pre-review N<id>)`
+markers, so the filter is matching on meaning and can miss one.
 
 Cutting is not enough here, and that is the point. A cut removes the
 sentences you thought to look for; sections 1–5 are the engineer's prose and
@@ -1359,8 +1397,16 @@ engineer defers the choice.
 set to `2`, the step-9 snapshot as `files`, the intent from step 6, this run's
 entry, every finding's status, anchors, `verified_by`, decision and
 `raised_in_run`, and **`outside_anchors_since` carried forward unchanged** —
-or written for the first time if this is the run that first populates
-`outside_anchors`.
+or, when the loaded state has no such field, set to this run's index.
+
+**Set it on the first state write that lacks it, whether or not the map ends
+up with anything in it.** The map is rebuilt every run and is `{}` whenever no
+finding anchors a file outside the change, which is most runs. Tying the field
+to the run that first *populates* the map would leave the boundary unset
+through every empty run, sliding it forward so that findings raised in the
+meantime are permanently ineligible — and it is circular besides, since
+whether a run populates the map depends on eligibility, which depends on the
+boundary.
 
 That last one is the easiest field in the state to lose, and losing it is
 silent. The state is rewritten whole every run, so a run that omits it makes
@@ -1403,9 +1449,11 @@ retired finding's stale anchor would spawn a reviewer pass over nothing the
 next time anyone edits that file.
 
 Then apply the boundary, which the state **records explicitly**: the first
-run that writes `outside_anchors` also writes
-**`outside_anchors_since: <the index of that run>`** at the top level, and no
-later run changes it. A finding is eligible when its `raised_in_run` is at or
+state write that finds no `outside_anchors_since` sets
+**`outside_anchors_since: <that run's index>`** at the top level — whether or
+not the map it writes alongside is empty — and no later run changes it.
+
+A finding is eligible when its `raised_in_run` is at or
 after that value. `raised_in_run` is an existing field written for every
 finding; `outside_anchors_since` is **new with this map**, is defined in
 [formats.md](formats.md), and is on the "Record before fixing" list above as a
@@ -1542,8 +1590,12 @@ End with the verdict line and the next step:
   prevent.
 - **Nothing open, or only follow-up and declined**: "`PR.md` is ready: commit,
   push, and open the PR with it as the body."
-- **Uncovered dimensions, files the checks rewrote, checks that failed, a
-  `stubbed` typecheck**: say which, plainly, and name the projects a stub
+- **Uncovered dimensions, files the checks rewrote, checks that failed, an
+  `aborted` check, a `stubbed` typecheck**: say which, plainly. An `aborted`
+  typecheck belongs here above all: it compiled nothing across the whole
+  affected set, so a run carrying one must never close on "`PR.md` is ready"
+  alone — name the error and say that every project went unchecked. Name the
+  projects a stub
   left unchecked, or the workspace packages a module-not-found suggests are
   unbuilt in this clone.
 - **What this run cost**: one line per reviewer — name, tokens, tool calls,
