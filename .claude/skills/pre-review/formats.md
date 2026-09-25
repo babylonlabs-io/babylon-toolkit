@@ -18,14 +18,18 @@ example below is valid as written.
     "<path>": "<blob sha>",
     "<deleted path>": "deleted"
   },
+  "outside_anchors": {
+    "<path a finding anchors but the change does not touch>": "<blob sha>"
+  },
+  "outside_anchors_since": 4,
   "runs": [
     {
       "at": "<iso8601>",
       "kind": "first",
       "tier": "full",
-      "escalated": false,
       "breadth": "whole change",
       "reviewed": ["<path>"],
+      "cold": false,
       "checks": "nothing affected",
       "rewritten_by_checks": [],
       "reviewers": [
@@ -71,7 +75,7 @@ The enumerated fields take these values:
 | `runs[].kind`            | `first`, `later`                                  |
 | `runs[].tier`            | `light`, `full`                                   |
 | `runs[].breadth`         | `whole change`, `narrowed`, `none`                |
-| `runs[].checks`          | `passed`, `failed`, `stubbed`, `nothing affected`, `not run` |
+| `runs[].checks`          | `passed`, `failed`, `aborted`, `stubbed`, `nothing affected` |
 | `findings[].severity`    | `merge-blocker`, `normal`                         |
 | `findings[].confidence`  | `high`, `medium`, `low`                           |
 | `findings[].verified_by` | `code`, `test`, `external source`, `unverified`   |
@@ -82,33 +86,63 @@ The enumerated fields take these values:
   highest id. A regression reopens its old id.
 - **`runs[].tier`** is the reviewer set that actually ran: `full` only when
   `review-generalist`, `review-tracer` and `review-panel` all ran, otherwise
-  `light` (one reviewer, or the verdict lane alone).
+  `light` (anything less: one reviewer, or the verdict lane with or without
+  the cold lane). The cold lane does not count toward the tier. It is spawned
+  as a `review-lane`, so it can never be one of the three the `full` test
+  names; counting it could only blur `light`, turning "the verdict lane alone"
+  and "the verdict lane plus a cold lane" into the same recorded value when
+  they are different reviews. `cold` records it instead.
+- **`runs[].cold`** is `true` when the cold lane ran, `false` otherwise. Like
+  `reviewed` it feeds no trigger; it is the audit trail answering "did an
+  unledgered reviewer see this run", which is otherwise unanswerable from the
+  record. Absent on runs written before it existed; read that as `false`.
 - **`runs[].rewritten_by_checks`** lists files the background checks changed
   (for example `eslint --fix`); empty when none.
 - **`runs[].uncovered`** lists what nothing checked, in two forms: a bare
   reviewer dimension, when a lane never reported and nobody covered it
-  (Phase 2), and `typecheck-stub: <project>` or `typecheck-unbuilt: <project>`
-  from step 9, naming a project whose typecheck was a stub or could not resolve
-  its dependencies. Prefix decides which: a bare string is a dimension.
+  (Phase 2), and `typecheck-stub: <project>` from step 9, naming a project
+  whose typecheck target was a stub and so compiled nothing. Prefix decides
+  which: a bare string is a dimension.
+
+  **Reading values this skill has since removed.** A stored `checks: "not
+  run"` means `nothing affected`, the value that replaced it. A stored
+  `uncovered` entry `typecheck-unbuilt: <project>` is neither a live prefix
+  nor a dimension — read it as a note that the project's typecheck reported a
+  module-not-found, and ignore it. Neither is rewritten: old run entries are
+  history, and the rule to read them belongs here rather than in a migration.
+
+  **`aborted` is not that value returning.** It means an nx invocation exited
+  non-zero having executed no task — the sync abort — so nothing was checked
+  and the two checks that did run cannot speak for the one that did not. The
+  retired `not run` meant every typecheck target had been discounted, under a
+  discount rule that no longer exists. Same shape of English, different fact.
 - **`runs[].breadth`** is the review set the reviewers actually received, and
   **`runs[].reviewed`** lists those paths. A `whole change` run records the
   whole changed-file list; a `narrowed` run records only the moved and entered
-  files; `none` is a run that spawned no reviewers (nothing moved, or files
-  only left) and carries `reviewed: []`.
+  files, and also an outside-anchor-only run, which carries `reviewed: []`
+  with `cold: true`; `none` is a run that spawned no reviewers at all and
+  carries `reviewed: []`. For when that is, read Phase 0b's two gates in
+  full — every qualifier of each — rather than a short form of them.
 
-  **`breadth` is what both escalation triggers read**; `reviewed` feeds
-  neither. A `none` run is skipped by the refresh rule rather than counted,
+  **`breadth` is what both triggers read** — the whole-change-total trigger
+  in the Escalate list and the refresh rule in the Widen list, which
+  `SKILL.md` deliberately keeps apart, so do not call either an escalation;
+  `reviewed` feeds neither. A `none` run is skipped by the refresh rule rather than counted,
   so `WHOLE_CHANGE_REFRESH_RUNS` decision-only runs cannot force a
   whole-change pass on their own, and skipped runs do not fill the window —
   a state made entirely of them never reaches the rule's floor and never
   fires. A run with no `breadth` at all is skipped the same way, whatever it
   reviewed.
 
-  `reviewed` is the audit trail: what the reviewers were **handed**, an upper
-  bound on what any of them opened, so a whole-change run lists every file
-  even if a reviewer read a third of them. It is what makes a `breadth` claim
-  checkable after the fact rather than self-asserted, and what to read when a
-  defect survived several runs and the question is who was given the file.
+  `reviewed` is the audit trail: what the **non-cold** reviewers were handed,
+  an upper bound on what any of *them* opened, so a whole-change run lists
+  every file even if a reviewer read a third of them. It is not an upper bound
+  on the run: the cold lane is handed the whole change whatever the breadth,
+  and `cold: true` is what says so. Read the two fields together, or a
+  narrowed run reads as though nobody opened a file the cold lane went through
+  end to end. It is what makes a `breadth` claim checkable after the fact
+  rather than self-asserted, and what to read when a defect survived several
+  runs and the question is who was given the file.
 
 - **`version`** is `2` from the run that introduced `breadth`/`reviewed`. A
   stored run without `breadth` did not record what it reviewed, so the refresh
@@ -124,6 +158,35 @@ The enumerated fields take these values:
   finding; **`verified_by`** says how Phase 3 confirmed it.
 - **`files`** is always the step-9 snapshot of the latest run, never a
   re-hash taken after fixes. Paths are repo-relative.
+- **`outside_anchors_since`** is the 1-based index of the first run whose state
+  write found this field absent, and it is **written once and never
+  recomputed**. Phase 4's walk admits a finding only when its `raised_in_run`
+  is at or after this value, which is how a finding raised before the map
+  existed is kept out without backfilling. Carry it forward verbatim on every
+  state write: the state is rewritten whole each run, so omitting it makes the
+  next run believe it is the first, moving the boundary forward and silently
+  dropping every earlier finding's outside anchors.
+
+  **It is set whether or not `outside_anchors` ends up empty**, and that is the
+  whole of the rule. The map is `{}` on any run where no finding anchors a file
+  outside the change, which is most runs, so tying the field to the run that
+  first *populates* the map would leave it unset indefinitely and slide the
+  boundary past every finding raised in between. That reading is also circular:
+  whether a run populates the map depends on eligibility, which depends on this
+  field. Absent on states written before the map existed; the next run to write
+  one sets it.
+- **`outside_anchors`** holds the finding anchors that are **not** in the
+  change, hashed with `git hash-object -w` by the orchestrator in Phase 4 and
+  compared at the start of Phase 0b. It is deliberately a second map: `files`,
+  the snapshot line's `files=` and its `files-sha256=` are three views of the
+  one map `snapshot.mjs record` builds from changed paths, so a path added to
+  `files` is erased by the next `record` and a path folded into the digest
+  makes the record unmatchable by the stricter CI check planned against
+  `git ls-tree`. Nothing here feeds the digest, the counts or the escalation
+  triggers. `PR.md` and `.pre-review/**` are never eligible. Absent on states
+  written before it existed, and not backfillable — an anchor missing from
+  `files` is equally an outside anchor and a file that left the change, and
+  the stored state cannot tell them apart.
 - **Reviewer figures** come only from completion notifications; write `null`
   when a notification did not carry one.
 

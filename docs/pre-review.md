@@ -15,9 +15,16 @@ before any PR exists.
 - Claude Code, started in this repository, ideally the same session that
   implemented the change: it already knows what the change is for.
 - Node 24 and a working `pnpm install`. The review runs
-  `pnpm nx affected` for `lint`, `typecheck` and `test` on the projects the
-  changed files belong to, as three separate invocations: lint first, because
-  it can rewrite files, then typecheck, then tests in the background.
+  `pnpm nx affected` for `lint`, `typecheck` and `test`, as three separate
+  invocations: lint first, because it can rewrite files, then typecheck, then
+  tests in the background. `nx affected` covers the projects the changed files
+  belong to **and every project that depends on them**, so a one-line edit in
+  `babylon-tbv-rust-wasm` pulls in `ts-sdk` and `ledger-vault-signer`, and
+  through the latter `wallet-connector` and `simple-staking`, and `vault`.
+  That is six projects for lint and typecheck — the five dependents plus the
+  wasm package itself, which carries both scripts — and five for test, since
+  the wasm package has no `test` script. Read a reported count against which
+  invocation it came from, not against one number.
 
 ## Workflow
 
@@ -33,6 +40,15 @@ before any PR exists.
    introduced. Repeat steps 3–5 until nothing is left to fix.
 6. Commit, push, and open the PR with `PR.md` as the body; see
    [Enforcement](#enforcement).
+
+Four arguments, all optional:
+
+| Argument | What it does |
+| --- | --- |
+| `--full` | Force the full reviewer set over the whole change, even when the change qualifies for the light tier or nothing has changed since the last run. |
+| `--pr <n>` | The branch's PR number. Only used after a push, to read the posted body back and confirm it uploaded intact. Without it that check is skipped — the session will not ask, because a typed answer mid-run makes every command after it prompt. |
+| `--ci "<summary>"` | CI results you have read yourself. Passed to the reviewers attributed to you; the session cannot see CI and says nothing about it otherwise. |
+| anything else | A scope hint, passed to the reviewers unchanged. The session adds no steer of its own. |
 
 `PR.md` is written on the first run and updated on every run after it. The
 session asks up to two questions on the first run when it cannot tell what
@@ -59,16 +75,30 @@ The threshold is `LIGHT_REVIEW_MAX_CHANGED_LINES` in
 data. Changed lines exclude `pnpm-lock.yaml` and the generated
 `packages/babylon-ts-sdk/docs/api/`.
 
-Later runs judge the earlier findings with one reviewer. They escalate to the
+Later runs judge the earlier findings with one reviewer, plus a **cold
+reviewer** on every later run that reviews anything at all — so such a run is
+at least two. A re-run spawns nobody in two cases, and only two: nothing has
+moved at all — no changed file, and no file outside the change that a finding
+points at — or the only change is that files left the branch, again with no
+outside file touched. In both, `--full` still forces a full run, and fixing a
+finding on a file the branch never touched still counts as a change, so
+neither is a free no-op. The cold one is given the change, the rules and the intent but
+no findings from previous runs and no hint about where to look, because a
+reviewer holding a long ledger reads the text it covers as already settled.
+They escalate to the
 full set when the new changes touch a critical path, when they exceed the
-threshold, under the **refresh rule**, when the whole change has grown past
-the threshold without a whole-change full review, or when `--full` is passed.
-The last three widen the review back to the whole change, so a file that
+threshold, when the whole change has grown past the threshold without a
+whole-change full review, or when `--full` is passed. The **refresh rule**
+widens the review without escalating the tier: it re-reads the whole change
+with whatever reviewer set the change's size already warranted, because on a
+small branch three reviewers would buy nothing. That rule, the
+whole-change-total trigger and `--full` all widen back to the whole change,
+so a file that
 stopped moving early is still judged against how the change behaves now.
 
-The refresh rule counts backwards over the runs that actually reviewed
-something — skipping those that spawned no reviewers, and runs recorded
-before the state carried the field — and widens when none of the last
+The refresh rule counts backwards over the runs with a recorded breadth other
+than "none" — skipping those that spawned no reviewers, and any run with no
+breadth recorded at all — and widens when none of the last
 `WHOLE_CHANGE_REFRESH_RUNS` of them covered the whole change. **If there are
 fewer qualifying runs than that, it does not fire at all**, which is what
 keeps it quiet on a branch with little history. It is a cadence, not a rare
@@ -122,7 +152,7 @@ The end of `PR.md`, and so of the PR body, carries a collapsed section:
 | fixed                    | Re-checked on a later run, across every file and symbol the finding named — not only where it pointed. |
 | follow-up: …             | Deferred to a later PR; also listed under "Not in this PR". A deferred merge-blocker is listed there too, but shows above as a blocker. |
 | declined: …              | The author judged it not worth fixing; the reason is theirs. A declined merge-blocker does not render here — it shows above as a blocker with its reason, so the header's `declined` count can read 0 while a declined finding is visible in the table. |
-| moot                     | None of the finding's files is part of the change any more. Not used for a finding whose anchors are outside the change (those are held at their stored status), nor for one whose cause the author removed — that is `fixed`. |
+| moot                     | None of the finding's files is part of the change any more. Not used for a finding anchored on a file outside the change: those are tracked separately and re-judged when that file changes, so they can come back `fixed`, `open` or regressed. Not used either for one whose cause the author removed — that is `fixed`. |
 
 > **Note**: The findings and decisions are self-reported: they show what the
 > author's review found and decided. CI checks only that a record for the
@@ -131,8 +161,12 @@ The end of `PR.md`, and so of the PR body, carries a collapsed section:
 ## Cost
 
 A light review is one reviewer; a full review is three reviewers and up to
-four lanes. A later run is usually one reviewer. The state file records
-tokens, tool calls and duration for every reviewer on every run.
+four lanes. A later run that reviews anything adds the cold reviewer, so it is
+at least two — the verdict lane and the cold lane — and an escalated one is
+five: verdict lane, the full tier's three, and the cold lane, before the
+panel's own lanes. The state file records
+tokens, tool calls and duration for every reviewer on every run, and whether
+the cold one ran; the session reports the same figures at the end of each run.
 
 ## Changing the tooling
 
