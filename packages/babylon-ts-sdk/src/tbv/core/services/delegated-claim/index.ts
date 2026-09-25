@@ -3,7 +3,8 @@
  * execution.
  *
  * EXPERIMENTAL. This surface is still under test. It has been exercised end
- * to end on signet, not on mainnet, and no caller ships in this repo yet.
+ * to end on signet, not on mainnet, and no product caller ships in this repo
+ * yet — only the harness in `examples/delegated-claim`.
  * Treat the shape of every export here as provisional: names, parameters and
  * return types can change in a minor release. Pin the SDK version if you
  * build on it. The on-chain and file formats are not provisional — those are
@@ -67,10 +68,10 @@ export type {
  * Claim-time execution, artifacts in and artifacts out.
  *
  * The least settled part of an already experimental module: these four are
- * re-exports of the WASM surface and have no caller in this repo. They were
- * run end to end on signet from a browser page that is not part of this
- * package. Expect them to be reshaped, renamed, or wrapped before they are
- * stable.
+ * re-exports of the WASM surface and have no product caller in this repo.
+ * They were run end to end on signet from the harness page in
+ * `examples/delegated-claim`. Expect them to be reshaped, renamed, or wrapped
+ * before they are stable.
  *
  * `pinPegoutProof` verifies the prover's Groth16 proof and writes it into the
  * artifacts; `attachFinalizedAssert` then finalizes the Assert from that
