@@ -2,6 +2,7 @@ import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import {
   forwardRef,
+  useCallback,
   useEffect,
   useImperativeHandle,
   useMemo,
@@ -102,15 +103,18 @@ interface RecoveryArtifactsCardProps {
    * offering the risk opt-out for this vault.
    */
   onGraphMismatch?: () => void;
+  hideDownloadButton?: boolean;
 }
 
 /**
  * Imperative handle exposed via ref. Lets the parent modal cancel any
  * in-flight artifact download from its own close paths (X button, footer
  * Cancel) so dismissing the modal doesn't leave the oversized RPC running.
+ * `download` lets the parent start the download from its own primary button.
  */
 export interface RecoveryArtifactsCardHandle {
   cancel: () => void;
+  download: () => void;
 }
 
 export const RecoveryArtifactsCard = forwardRef<
@@ -127,6 +131,7 @@ export const RecoveryArtifactsCard = forwardRef<
     onDelivered,
     onStateChange,
     onGraphMismatch,
+    hideDownloadButton = false,
   },
   ref,
 ) {
@@ -152,8 +157,6 @@ export const RecoveryArtifactsCard = forwardRef<
     download,
     cancel,
   } = useArtifactDownload({ vaultId, primeContext });
-
-  useImperativeHandle(ref, () => ({ cancel }), [cancel]);
 
   // Bound to this pegin: a receipt stored for a different pegin (a stale
   // record, or another vault's) must not read as downloaded here.
@@ -206,9 +209,14 @@ export const RecoveryArtifactsCard = forwardRef<
     }
   }, [graphMismatch, onGraphMismatch]);
 
-  const handleDownload = () => {
+  const handleDownload = useCallback(() => {
     download(providerAddress, peginTxid, depositorPk);
-  };
+  }, [download, providerAddress, peginTxid, depositorPk]);
+
+  useImperativeHandle(ref, () => ({ cancel, download: handleDownload }), [
+    cancel,
+    handleDownload,
+  ]);
 
   // The parent modal owns the downloading presentation end to end (see
   // ArtifactDownloadContent), so the card renders nothing while bytes
@@ -261,21 +269,23 @@ export const RecoveryArtifactsCard = forwardRef<
 
       {!isDownloaded && (
         <div className="flex flex-col items-stretch">
-          <button
-            type="button"
-            onClick={handleDownload}
-            className="flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-secondary-strokeLight bg-neutral-200 px-4 text-accent-primary transition-colors hover:bg-secondary-highlight"
-          >
-            <IoDownloadOutline size={20} />
-            <span className="text-sm leading-[1.43] tracking-[0.17px]">
-              {error
-                ? COPY.deposit.recoveryArtifacts.retryButton
-                : isUnverified
-                  ? COPY.deposit.recoveryArtifacts.downloadAgainButton
-                  : COPY.deposit.recoveryArtifacts.downloadButton}
-            </span>
-          </button>
-          {!error && (
+          {!hideDownloadButton && (
+            <button
+              type="button"
+              onClick={handleDownload}
+              className="flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-secondary-strokeLight bg-neutral-200 px-4 text-accent-primary transition-colors hover:bg-secondary-highlight"
+            >
+              <IoDownloadOutline size={20} />
+              <span className="text-sm leading-[1.43] tracking-[0.17px]">
+                {error
+                  ? COPY.deposit.recoveryArtifacts.retryButton
+                  : isUnverified
+                    ? COPY.deposit.recoveryArtifacts.downloadAgainButton
+                    : COPY.deposit.recoveryArtifacts.downloadButton}
+              </span>
+            </button>
+          )}
+          {!hideDownloadButton && !error && (
             <span className="mt-2.5 text-center text-xs text-accent-secondary">
               {COPY.deposit.recoveryArtifacts.walletSignatureHint}
             </span>

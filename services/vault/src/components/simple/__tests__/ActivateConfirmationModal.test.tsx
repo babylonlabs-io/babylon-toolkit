@@ -224,11 +224,11 @@ describe("ActivateConfirmationModal", () => {
       />,
     );
 
-    fireEvent.click(screen.getByTestId("risk-checkbox"));
-    expect(screen.getByText("Activate BTCVault")).not.toBeDisabled();
+    expect(screen.getByText("Continue without")).toBeTruthy();
 
     fireEvent.click(screen.getByTestId("card-graph-mismatch"));
-    expect(screen.getByText("Activate BTCVault")).toBeDisabled();
+    expect(screen.queryByText("Activate BTCVault")).toBeNull();
+    expect(screen.queryByText("Continue without")).toBeNull();
     expect(screen.queryByTestId("risk-checkbox")).not.toBeInTheDocument();
   });
 
@@ -246,7 +246,8 @@ describe("ActivateConfirmationModal", () => {
     );
 
     expect(screen.queryByTestId("risk-checkbox")).not.toBeInTheDocument();
-    expect(screen.getByText("Activate BTCVault")).toBeDisabled();
+    expect(screen.queryByText("Activate BTCVault")).toBeNull();
+    expect(screen.queryByText("Continue without")).toBeNull();
   });
 
   it("keeps Activate disabled after a mismatch even with an earlier download receipt", () => {
@@ -275,6 +276,8 @@ describe("ActivateConfirmationModal", () => {
       />,
     );
 
+    fireEvent.click(screen.getByText("Continue without"));
+
     const activateBtn = screen.getByText("Activate BTCVault");
     expect(activateBtn).toBeDisabled();
 
@@ -293,12 +296,14 @@ describe("ActivateConfirmationModal", () => {
       />,
     );
 
+    fireEvent.click(screen.getByText("Continue without"));
     fireEvent.click(screen.getByTestId("risk-checkbox"));
     fireEvent.click(screen.getByText("Activate BTCVault"));
     expect(onConfirm).toHaveBeenCalledTimes(1);
   });
 
   it("calls onClose when Cancel is clicked", () => {
+    seedReceipt();
     const onClose = vi.fn();
     render(
       <ActivateConfirmationModal
@@ -416,6 +421,8 @@ describe("ActivateConfirmationModal", () => {
       />,
     );
 
+    fireEvent.click(screen.getByText("Continue without"));
+
     expect(screen.getByText("Activate BTCVault")).toBeDisabled();
     expect(screen.getByTestId("risk-checkbox")).toBeInTheDocument();
   });
@@ -430,8 +437,8 @@ describe("ActivateConfirmationModal", () => {
       />,
     );
 
-    expect(screen.getByText("Activate BTCVault")).toBeDisabled();
-    expect(screen.getByTestId("risk-checkbox")).toBeInTheDocument();
+    expect(screen.queryByText("Activate BTCVault")).toBeNull();
+    expect(screen.queryByTestId("risk-checkbox")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("card-download-complete"));
 
@@ -455,6 +462,10 @@ describe("ActivateConfirmationModal", () => {
 
     fireEvent.click(screen.getByTestId("card-download-delivered"));
 
+    expect(screen.queryByText("Activate BTCVault")).toBeNull();
+
+    fireEvent.click(screen.getByText("Continue without"));
+
     expect(screen.getByText("Activate BTCVault")).toBeDisabled();
     expect(screen.getByTestId("risk-checkbox")).toBeInTheDocument();
   });
@@ -470,6 +481,7 @@ describe("ActivateConfirmationModal", () => {
     );
 
     fireEvent.click(screen.getByTestId("card-download-delivered"));
+    fireEvent.click(screen.getByText("Continue without"));
     fireEvent.click(screen.getByTestId("risk-checkbox"));
 
     expect(screen.getByText("Activate BTCVault")).not.toBeDisabled();

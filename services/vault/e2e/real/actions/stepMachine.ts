@@ -50,6 +50,7 @@ function activateButton(page: Page): Locator {
 }
 const RISK_ACK_LABEL =
   "I understand the risks of continuing without the artifacts."; // riskAcknowledgement
+const CONTINUE_WITHOUT_LABEL = "Continue without";
 const SKIP_LABEL = "Skip"; // COPY.deposit.inStepArtifact.skip
 // The DepositProgressView's recoverable-error CTA: the fluid submit relabels to "Retry" (and calls
 // `onRetry`) whenever a step tx fails with a retryable error (COPY.deposit.progress.buttons.retry). It's
@@ -81,14 +82,21 @@ function activatedViewReached(page: Page): Promise<boolean> {
 }
 
 /**
- * Handle the `ActivateConfirmationModal` if it's showing: acknowledge the risk (we skip the artifact
- * download) then click "Activate Vault". The checkbox toggles on each click, so acknowledgement is
+ * Handle the `ActivateConfirmationModal` if it's showing: click "Continue without" (we skip the
+ * artifact download), acknowledge the risk, then click "Activate Vault". The checkbox toggles on each click, so acknowledgement is
  * idempotent — only ticked when currently unchecked. Returns true once Activate Vault was clicked.
  */
 async function handleActivateConfirmation(
   page: Page,
   log: (m: string) => void,
 ): Promise<boolean> {
+  const continueWithout = page
+    .getByRole("button", { name: CONTINUE_WITHOUT_LABEL, exact: true })
+    .first();
+  if (await continueWithout.isVisible().catch(() => false)) {
+    await continueWithout.click().catch(() => {});
+  }
+
   const activate = activateButton(page);
   if (!(await activate.isVisible().catch(() => false))) return false;
 
