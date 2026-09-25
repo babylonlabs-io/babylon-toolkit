@@ -20,7 +20,10 @@ import {
 import { isActivationBlocked } from "@/components/shared/protocolStatus";
 import { COPY } from "@/copy";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
-import { hasArtifactsDownloaded } from "@/utils/artifactDownloadStorage";
+import {
+  hasArtifactsDownloaded,
+  hasGraphMismatch,
+} from "@/utils/artifactDownloadStorage";
 
 interface ActivateConfirmationModalProps {
   open: boolean;
@@ -58,6 +61,13 @@ export function ActivateConfirmationModal({
     hasArtifactsDownloaded(vaultId, peginTxid ?? ""),
   );
   const [acknowledged, setAcknowledged] = useState(false);
+  // A download found that the provider served a graph other than the one
+  // signed at presign. Unlike missing artifacts, this is evidence against
+  // activating, so the risk opt-out is withdrawn. Read from storage, so a
+  // reopened modal keeps it; only a later matching download clears it.
+  const [graphMismatch, setGraphMismatch] = useState(() =>
+    hasGraphMismatch(vaultId, peginTxid ?? ""),
+  );
   // Mirrors RecoveryArtifactsCard's internal `loading` flag via
   // onLoadingChange so the footer Cancel button can switch to an in-place
   // "Cancel download" action while a download is in flight.
@@ -67,6 +77,7 @@ export function ActivateConfirmationModal({
     if (!open) return;
     setDownloaded(hasArtifactsDownloaded(vaultId, peginTxid ?? ""));
     setAcknowledged(false);
+    setGraphMismatch(hasGraphMismatch(vaultId, peginTxid ?? ""));
     setIsDownloading(false);
   }, [open, vaultId, peginTxid]);
 
@@ -99,6 +110,7 @@ export function ActivateConfirmationModal({
   // would abandon the in-flight transfer uncancelled.
   const canActivate =
     (downloaded || acknowledged) &&
+    !graphMismatch &&
     !isDownloading &&
     !isActivationBlocked(gate);
 
@@ -188,12 +200,17 @@ export function ActivateConfirmationModal({
             depositorPk={depositorPk as string}
             vaultId={vaultId}
             unsignedPrePeginTxHex={unsignedPrePeginTxHex}
-            onDownloaded={() => setDownloaded(true)}
+            onDownloaded={() => {
+              // The receipt this download wrote cleared the stored mismatch.
+              setDownloaded(true);
+              setGraphMismatch(false);
+            }}
             onLoadingChange={setIsDownloading}
+            onGraphMismatch={() => setGraphMismatch(true)}
           />
         )}
 
-        {!downloaded && (
+        {!downloaded && !graphMismatch && (
           <label className="flex w-full cursor-pointer items-start gap-4">
             <Checkbox
               checked={acknowledged}

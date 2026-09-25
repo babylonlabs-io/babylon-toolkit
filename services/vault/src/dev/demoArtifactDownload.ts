@@ -22,6 +22,7 @@
  * service — zero behavioural change.
  */
 
+import { fingerprintReturnedGraph } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 import { useSyncExternalStore } from "react";
 
 import featureFlags from "@/config/featureFlags";
@@ -77,6 +78,9 @@ const DEMO_CHALLENGER_PUBKEY = "ab".repeat(32);
 
 /** Stands in for a bundle built against somebody else's deposit. */
 const DEMO_FOREIGN_TXID = "ff".repeat(32);
+
+/** Funding outpoints for the synthetic graph's transactions that do not spend the pegin. */
+const DEMO_FUNDING_TXID = "cd".repeat(32);
 
 export const DEMO_ARTIFACT_SCENARIOS = [
   "valid",
@@ -182,13 +186,35 @@ function demoTxGraph(
   // depositor's bundle.
   const peginTxid =
     scenario === "wrong-vault" ? DEMO_FOREIGN_TXID : binding.peginTxid;
-  const spend = (vout: number) => ({
-    tx: { input: [{ previous_output: `${peginTxid}:${vout}` }] },
+  // Complete serde transactions, so the presign fingerprint check can hash
+  // them like a real graph.
+  const spend = (previousOutput: string) => ({
+    tx: {
+      version: 2,
+      lock_time: 0,
+      input: [
+        {
+          previous_output: previousOutput,
+          script_sig: "",
+          sequence: 0xffffffff,
+          witness: [],
+        },
+      ],
+      output: [{ value: 1000, script_pubkey: "51" }],
+    },
   });
   return {
     demo: true,
-    claim_tx: spend(1),
-    payout_tx: spend(0),
+    pegin_tx: spend(`${DEMO_FUNDING_TXID}:0`),
+    claim_tx: spend(`${peginTxid}:1`),
+    assert_tx: spend(`${DEMO_FUNDING_TXID}:1`),
+    payout_tx: spend(`${peginTxid}:0`),
+    challenger_subgraphs: {
+      [DEMO_CHALLENGER_PUBKEY]: {
+        nopayout_tx: spend(`${DEMO_FUNDING_TXID}:2`),
+        output_label_hashes: [],
+      },
+    },
     depositor_pubkey: binding.depositorPk,
     challenger_pubkeys: { local: [DEMO_CHALLENGER_PUBKEY], universal: [] },
   };
@@ -302,11 +328,20 @@ export async function demoFetchAndDownloadArtifacts(
     throw new ArtifactDownloadCancelledError();
   }
 
+  // No presign ran for a synthetic bundle, so the demo stands in the
+  // fingerprint of its own valid graph for the one this device recorded.
+  const demoBinding: VaultBindingContext = {
+    ...binding,
+    signedGraphFingerprint: fingerprintReturnedGraph(
+      demoTxGraph(binding, "valid"),
+    ),
+  };
+
   // The outcome is deliberately discarded rather than returned.
   await downloadArtifactsFromResponse(
-    demoResponse(storeScenario, binding),
+    demoResponse(storeScenario, demoBinding),
     target,
     options,
-    binding,
+    demoBinding,
   );
 }

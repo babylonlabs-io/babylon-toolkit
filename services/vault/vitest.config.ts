@@ -166,6 +166,12 @@ export default defineConfig({
   },
   resolve: {
     alias: {
+      // One Buffer class, as in the app build. There the polyfill plugin backs
+      // both the global `Buffer` and the bare `buffer` import. Under Node,
+      // bitcoinjs checks against the global (Node) `Buffer`, while a bare
+      // `buffer` import in SDK code would load the npm package, a second class
+      // that bitcoinjs rejects ("Expected Buffer, got Buffer").
+      buffer: "node:buffer",
       "@": path.resolve(__dirname, "./src"),
       "@/components": path.resolve(__dirname, "./src/components"),
       "@/hooks": path.resolve(__dirname, "./src/hooks"),

@@ -10,9 +10,11 @@ import { LocalStorageStatus } from "../../models/peginStateMachine";
 import {
   addPendingPegin,
   getPendingPegins,
+  getSignedGraphFingerprint,
   markRefundBroadcast,
   type PendingPeginRequest,
   PendingPeginStorageReadError,
+  recordSignedGraphFingerprint,
   removePendingPegin,
   removePendingPegins,
   updatePendingPeginStatus,
@@ -795,6 +797,119 @@ describe("updatePendingPeginStatus", () => {
     expect(stored).toHaveLength(2);
     expect(stored[0].status).toBe(LocalStorageStatus.PAYOUT_SIGNED);
     expect(stored[1]).toEqual(legacySibling);
+  });
+});
+
+describe("recordSignedGraphFingerprint", () => {
+  const FINGERPRINT = "3f".repeat(32);
+
+  beforeEach(() => {
+    localStorage.clear();
+    vi.clearAllMocks();
+  });
+
+  it("stores the fingerprint on the vault's entry", () => {
+    localStorage.setItem(storageKey, JSON.stringify([validPegin]));
+
+    expect(
+      recordSignedGraphFingerprint(ETH_ADDRESS, VALID_VAULT_ID, FINGERPRINT),
+    ).toBe(true);
+
+    expect(getSignedGraphFingerprint(ETH_ADDRESS, VALID_VAULT_ID)).toEqual({
+      status: "found",
+      fingerprint: FINGERPRINT,
+    });
+  });
+
+  it("keeps the fingerprint through a later status change", () => {
+    localStorage.setItem(storageKey, JSON.stringify([validPegin]));
+    recordSignedGraphFingerprint(ETH_ADDRESS, VALID_VAULT_ID, FINGERPRINT);
+
+    updatePendingPeginStatus(
+      ETH_ADDRESS,
+      VALID_VAULT_ID,
+      LocalStorageStatus.CONFIRMING,
+    );
+
+    expect(getSignedGraphFingerprint(ETH_ADDRESS, VALID_VAULT_ID)).toEqual({
+      status: "found",
+      fingerprint: FINGERPRINT,
+    });
+  });
+
+  it("reads an entry written before the fingerprint as not-recorded, not as missing", () => {
+    localStorage.setItem(storageKey, JSON.stringify([validPegin]));
+
+    expect(getSignedGraphFingerprint(ETH_ADDRESS, VALID_VAULT_ID)).toEqual({
+      status: "not-recorded",
+    });
+    expect(getSignedGraphFingerprint(ETH_ADDRESS, VALID_VAULT_ID_2)).toEqual({
+      status: "no-entry",
+    });
+  });
+
+  it("returns false and stores nothing when this device has no entry for the vault", () => {
+    localStorage.setItem(storageKey, JSON.stringify([validPegin]));
+
+    expect(
+      recordSignedGraphFingerprint(ETH_ADDRESS, VALID_VAULT_ID_2, FINGERPRINT),
+    ).toBe(false);
+    expect(localStorage.getItem(storageKey)).toBe(JSON.stringify([validPegin]));
+  });
+
+  it("returns false for an entry the read filter hides, so the fingerprint is never written where it cannot be read", () => {
+    const hidden = { ...validPegin, unsignedTxHex: "not-hex" };
+    localStorage.setItem(storageKey, JSON.stringify([hidden]));
+
+    expect(
+      recordSignedGraphFingerprint(ETH_ADDRESS, VALID_VAULT_ID, FINGERPRINT),
+    ).toBe(false);
+    expect(localStorage.getItem(storageKey)).toBe(JSON.stringify([hidden]));
+  });
+
+  it("throws on an unreadable record instead of dropping the fingerprint", () => {
+    localStorage.setItem(storageKey, '[{"id":');
+
+    expect(() =>
+      recordSignedGraphFingerprint(ETH_ADDRESS, VALID_VAULT_ID, FINGERPRINT),
+    ).toThrow(/Cannot read pending deposits/);
+  });
+
+  it("throws when the write fails", () => {
+    localStorage.setItem(storageKey, JSON.stringify([validPegin]));
+    const setItem = vi
+      .spyOn(Storage.prototype, "setItem")
+      .mockImplementation(() => {
+        throw new DOMException("quota", "QuotaExceededError");
+      });
+    try {
+      expect(() =>
+        recordSignedGraphFingerprint(ETH_ADDRESS, VALID_VAULT_ID, FINGERPRINT),
+      ).toThrow(/Unable to save the deposit record locally/);
+    } finally {
+      setItem.mockRestore();
+    }
+  });
+
+  it("rejects a fingerprint that is not 64 lowercase hex chars", () => {
+    localStorage.setItem(storageKey, JSON.stringify([validPegin]));
+
+    expect(() =>
+      recordSignedGraphFingerprint(
+        ETH_ADDRESS,
+        VALID_VAULT_ID,
+        FINGERPRINT.toUpperCase(),
+      ),
+    ).toThrow(/not 64 lowercase hex chars/);
+  });
+
+  it("drops a stored entry whose fingerprint was tampered into a non-hex value", () => {
+    localStorage.setItem(
+      storageKey,
+      JSON.stringify([{ ...validPegin, signedGraphFingerprint: 42 }]),
+    );
+
+    expect(getPendingPegins(ETH_ADDRESS)).toEqual([]);
   });
 });
 

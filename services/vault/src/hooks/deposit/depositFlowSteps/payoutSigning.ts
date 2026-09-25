@@ -11,13 +11,17 @@ import {
 import { runDepositorPresignFlow } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 import type { Address, Hex } from "viem";
 
+import { logger } from "@/infrastructure";
 import { LocalStorageStatus } from "@/models/peginStateMachine";
 import {
   prepareSigningContext,
   type PayoutSigningPhase,
   type PayoutSigningProgress,
 } from "@/services/vault/vaultPayoutSignatureService";
-import { updatePendingPeginStatus } from "@/storage/peginStorage";
+import {
+  recordSignedGraphFingerprint,
+  updatePendingPeginStatus,
+} from "@/storage/peginStorage";
 import { DepositorBtcKeyMismatchError } from "@/utils/errors/depositorWalletMismatch";
 import { assertVaultCoreVersionSupported } from "@/utils/vaultCoreVersionSupport";
 
@@ -134,6 +138,24 @@ export async function signAndSubmitPayouts(
       ? (completed, total) =>
           onProgress({ phase: "claimers", completed, total })
       : undefined,
+    // pegin.md §5.9: the artifact download refuses a bundle whose graph does
+    // not reproduce this. Called once the set is signed; a failed write throws
+    // and stops the flow before the signatures are submitted.
+    recordGraphFingerprint: (fingerprint) => {
+      if (
+        !recordSignedGraphFingerprint(depositorEthAddress, vaultId, fingerprint)
+      ) {
+        // A cross-device resume has no local entry to hold it. The submit
+        // goes on, and the artifact download for this vault then fails closed.
+        logger.warn(
+          "No readable local deposit entry to hold the presign fingerprint",
+          {
+            category: "activation",
+            vaultId,
+          },
+        );
+      }
+    },
   });
 
   onProgress?.(null);

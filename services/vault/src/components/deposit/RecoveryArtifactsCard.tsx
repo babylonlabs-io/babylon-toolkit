@@ -15,7 +15,10 @@ import { ProgressBar } from "@/components/simple/DepositProgressView/ProgressBar
 import { COPY } from "@/copy";
 import { useArtifactDownload } from "@/hooks/deposit/useArtifactDownload";
 import { isFileSystemAccessSupported } from "@/services/artifacts";
-import { hasArtifactsDownloaded } from "@/utils/artifactDownloadStorage";
+import {
+  hasArtifactsDownloaded,
+  hasGraphMismatch,
+} from "@/utils/artifactDownloadStorage";
 
 // Decimal (SI) units, matching the design's "742 MB / 1.00 GB" presentation
 // and the "~1 GB" card copy.
@@ -109,6 +112,12 @@ interface RecoveryArtifactsCardProps {
    * whole dialog reads as a single "downloading" state.
    */
   onLoadingChange?: (loading: boolean) => void;
+  /**
+   * Fired the first time a download finds that the provider served a graph
+   * other than the one signed at presign. The activation gate must then stop
+   * offering the risk opt-out for this vault.
+   */
+  onGraphMismatch?: () => void;
 }
 
 /**
@@ -133,6 +142,7 @@ export const RecoveryArtifactsCard = forwardRef<
     onDownloaded,
     onDelivered,
     onLoadingChange,
+    onGraphMismatch,
   },
   ref,
 ) {
@@ -149,9 +159,10 @@ export const RecoveryArtifactsCard = forwardRef<
   const {
     loading,
     progress,
-    error,
+    error: downloadError,
     downloaded,
     delivered,
+    graphMismatch,
     receivedBytes,
     totalBytes,
     download,
@@ -164,6 +175,14 @@ export const RecoveryArtifactsCard = forwardRef<
   // record, or another vault's) must not read as downloaded here.
   const persisted = hasArtifactsDownloaded(vaultId, peginTxid);
   const isDownloaded = downloaded || persisted;
+
+  // A mismatch found before this card mounted still explains why activation
+  // is blocked, so it is shown until a new download replaces it.
+  const error =
+    downloadError ??
+    (hasGraphMismatch(vaultId, peginTxid)
+      ? COPY.deposit.recoveryArtifacts.signedGraphMismatch
+      : null);
 
   // A finished-but-unprovable save (the anchor fallback). Deliberately not
   // folded into `isDownloaded`: that flag drives the success presentation and,
@@ -194,6 +213,14 @@ export const RecoveryArtifactsCard = forwardRef<
   useEffect(() => {
     onLoadingChange?.(loading);
   }, [loading, onLoadingChange]);
+
+  const mismatchNotifiedRef = useRef(false);
+  useEffect(() => {
+    if (graphMismatch && !mismatchNotifiedRef.current) {
+      mismatchNotifiedRef.current = true;
+      onGraphMismatch?.();
+    }
+  }, [graphMismatch, onGraphMismatch]);
 
   const handleDownload = () => {
     download(providerAddress, peginTxid, depositorPk);

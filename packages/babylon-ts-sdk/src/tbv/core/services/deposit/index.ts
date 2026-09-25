@@ -27,6 +27,11 @@ export {
   type PeginProtocolState,
 } from "./peginState";
 export {
+  assertReturnedGraphMatchesFingerprint,
+  fingerprintReturnedGraph,
+  GraphFingerprintError,
+} from "./graphFingerprint";
+export {
   runDepositorPresignFlow,
   type PayoutSigningContext,
   type RunDepositorPresignFlowParams,

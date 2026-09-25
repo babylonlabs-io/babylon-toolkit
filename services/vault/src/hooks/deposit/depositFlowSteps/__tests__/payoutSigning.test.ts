@@ -11,11 +11,15 @@ const {
   mockEnsureAuthenticatedVpClient,
   mockRunDepositorPresignFlow,
   mockUpdatePendingPeginStatus,
+  mockRecordSignedGraphFingerprint,
+  mockLoggerWarn,
 } = vi.hoisted(() => ({
   mockPrepareSigningContext: vi.fn(),
   mockEnsureAuthenticatedVpClient: vi.fn(),
   mockRunDepositorPresignFlow: vi.fn(),
   mockUpdatePendingPeginStatus: vi.fn(),
+  mockRecordSignedGraphFingerprint: vi.fn(),
+  mockLoggerWarn: vi.fn(),
 }));
 
 vi.mock("@babylonlabs-io/ts-sdk/tbv/core", async (importOriginal) => {
@@ -51,6 +55,12 @@ vi.mock("@/utils/vaultCoreVersionSupport", () => ({
 vi.mock("@/storage/peginStorage", () => ({
   updatePendingPeginStatus: (...args: unknown[]) =>
     mockUpdatePendingPeginStatus(...args),
+  recordSignedGraphFingerprint: (...args: unknown[]) =>
+    mockRecordSignedGraphFingerprint(...args),
+}));
+
+vi.mock("@/infrastructure", () => ({
+  logger: { warn: (...args: unknown[]) => mockLoggerWarn(...args) },
 }));
 
 vi.mock("@/models/peginStateMachine", () => ({
@@ -81,6 +91,7 @@ describe("signAndSubmitPayouts", () => {
   const vaultProviderAddress = "0xVaultProvider";
   const rpcClient = { marker: "rpc-client" };
   const DEPOSITOR_BTC_PUBKEY = "c".repeat(64);
+  const SIGNED_GRAPH_FINGERPRINT = "3f".repeat(32);
 
   const baseParams = {
     vaultId: "0xVaultId",
@@ -107,7 +118,16 @@ describe("signAndSubmitPayouts", () => {
     });
     mockEnsureAuthenticatedVpClient.mockResolvedValue(rpcClient);
     mockRunDepositorPresignFlow.mockResolvedValue(undefined);
+    mockRecordSignedGraphFingerprint.mockReturnValue(true);
   });
+
+  /** The fingerprint callback signAndSubmitPayouts handed to the presign flow. */
+  const recordCallback = () =>
+    (
+      mockRunDepositorPresignFlow.mock.calls[0]?.[0] as {
+        recordGraphFingerprint: (fingerprint: string) => void;
+      }
+    ).recordGraphFingerprint;
 
   it("aborts before any wallet popup when the stamped vaultCoreVersion is unsupported", async () => {
     mockPrepareSigningContext.mockResolvedValue({
@@ -207,6 +227,43 @@ describe("signAndSubmitPayouts", () => {
     expect(
       mockUpdatePendingPeginStatus.mock.invocationCallOrder[0],
     ).toBeGreaterThan(mockRunDepositorPresignFlow.mock.invocationCallOrder[0]);
+  });
+
+  it("stores the presign fingerprint on this depositor's entry for the vault", async () => {
+    await callSignAndSubmit();
+
+    recordCallback()(SIGNED_GRAPH_FINGERPRINT);
+
+    expect(mockRecordSignedGraphFingerprint).toHaveBeenCalledWith(
+      baseParams.depositorEthAddress,
+      baseParams.vaultId,
+      SIGNED_GRAPH_FINGERPRINT,
+    );
+    expect(mockLoggerWarn).not.toHaveBeenCalled();
+  });
+
+  it("lets a failed fingerprint write stop the presign flow", async () => {
+    // The SDK awaits the callback before any signature is sent, so a throw
+    // here is what keeps the VP from holding signatures with no record.
+    mockRecordSignedGraphFingerprint.mockImplementation(() => {
+      throw new Error("storage full");
+    });
+    await callSignAndSubmit();
+
+    expect(() => recordCallback()(SIGNED_GRAPH_FINGERPRINT)).toThrow(
+      "storage full",
+    );
+  });
+
+  it("warns and lets signing go on when this device holds no entry for the vault", async () => {
+    mockRecordSignedGraphFingerprint.mockReturnValue(false);
+    await callSignAndSubmit();
+
+    expect(() => recordCallback()(SIGNED_GRAPH_FINGERPRINT)).not.toThrow();
+    expect(mockLoggerWarn).toHaveBeenCalledWith(
+      expect.stringContaining("presign fingerprint"),
+      expect.objectContaining({ vaultId: baseParams.vaultId }),
+    );
   });
 
   it("does not persist PAYOUT_SIGNED when the presign flow rejects", async () => {

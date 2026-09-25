@@ -20,17 +20,39 @@
  * expected values here are all public, so a determined provider can satisfy
  * every check while returning garbage payloads. This catches a provider
  * serving the wrong deposit's bundle, a stale or mis-keyed cache, and an
- * internally inconsistent graph — not a targeted forgery. Proving the payload
- * itself needs a BaBe verifier, which does not exist client-side.
+ * internally inconsistent graph — not a targeted forgery.
+ *
+ * `assertGraphMatchesPresign` below closes part of that gap. It is check (a)
+ * of the activation gate in `btc-vault/docs/specifications/pegin.md` §5.9, and unlike the
+ * checks above it compares the bundle against a value the VP does not
+ * control: the fingerprint the depositor recorded when it signed.
+ *
+ * Check (b) of that gate — the verifying key against a release-pinned key —
+ * needs a source for the pinned key, which the app does not have yet.
+ * Checks (c) and (d) — reconstructing each challenger's GC
+ * commitments from its BaBe `DecryptorArtifacts`, and rebuilding the graph
+ * from canonical inputs — remain unimplemented. Both need Rust that has no
+ * WASM binding yet (`decryptor_artifacts_to_challenger_gc_data` and
+ * `reconstruct_depositor_claimer_graph` in
+ * `btc-vault/crates/depositor-cli/src/recovery_graph.rs`).
  */
 
 import { stripHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { VpResponseValidationError } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+import { assertReturnedGraphMatchesFingerprint } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 
-/** The deposit a bundle must belong to, taken from the request parameters. */
+/** The deposit a bundle must belong to. */
 export interface VaultBindingContext {
+  /** From the request parameters. */
   peginTxid: string;
+  /** From the request parameters. */
   depositorPk: string;
+  /**
+   * Fingerprint of the transaction set this device signed at presign, from
+   * local storage. Undefined when this device holds none; the download then
+   * fails closed.
+   */
+  signedGraphFingerprint: string | undefined;
 }
 
 /**
@@ -157,6 +179,75 @@ export function assertBundleBoundToVault(
         (unexpected.length > 0
           ? ` (unexpected: ${unexpected.join(", ")})`
           : ""),
+    );
+  }
+}
+
+/**
+ * Raised when the depositor holds no presign fingerprint for this vault, so
+ * check (a) cannot be evaluated either way.
+ *
+ * Distinct from a mismatch on purpose. A mismatch is evidence of a swapped
+ * graph; this is absence of evidence — the deposit was presigned before the
+ * fingerprint was recorded, on another device, or with since-cleared storage.
+ * The download still fails closed: an unchecked bundle is never saved.
+ */
+export class PresignFingerprintUnavailableError extends Error {
+  constructor(readonly peginTxid: string) {
+    super(
+      `No presign fingerprint recorded for pegin ${peginTxid}: this deposit's ` +
+        `recovery bundle cannot be checked against what was signed`,
+    );
+    this.name = "PresignFingerprintUnavailableError";
+  }
+}
+
+/**
+ * Raised when the returned graph does not reproduce the presign fingerprint,
+ * including a graph too malformed to fingerprint at all. Evidence that the VP
+ * served a graph other than the one the depositor signed.
+ */
+export class PresignGraphMismatchError extends Error {
+  constructor(readonly detail: string) {
+    super(
+      `Artifact bundle graph does not match the one signed at presign: ${detail}`,
+    );
+    this.name = "PresignGraphMismatchError";
+  }
+}
+
+/**
+ * Check (a) of `pegin.md` §5.9: the returned graph is the one signed at
+ * presign.
+ *
+ * This is the only check in this module that compares the bundle against a
+ * value the VP never saw. Everything else compares public inputs the VP also
+ * holds, which is why a VP can satisfy them with a fabricated graph.
+ *
+ * @param txGraph  Parsed `tx_graph_json` from the response.
+ * @param expected The deposit, with the fingerprint persisted at presign.
+ * @throws PresignFingerprintUnavailableError when nothing was persisted.
+ * @throws PresignGraphMismatchError when the graph does not reproduce it.
+ */
+export function assertGraphMatchesPresign(
+  txGraph: Record<string, unknown>,
+  expected: VaultBindingContext,
+): void {
+  if (expected.signedGraphFingerprint === undefined) {
+    throw new PresignFingerprintUnavailableError(
+      normalizeHex(expected.peginTxid),
+    );
+  }
+  // The SDK check also ties the declared roster in `challenger_pubkeys`, which
+  // `assertBundleBoundToVault` reads, to the fingerprinted challengers.
+  try {
+    assertReturnedGraphMatchesFingerprint(
+      txGraph,
+      expected.signedGraphFingerprint,
+    );
+  } catch (err) {
+    throw new PresignGraphMismatchError(
+      err instanceof Error ? err.message : String(err),
     );
   }
 }

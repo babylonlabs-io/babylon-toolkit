@@ -312,6 +312,42 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/vault
 
 ***
 
+### GraphFingerprintError
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/graphFingerprint.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/graphFingerprint.ts)
+
+#### Extends
+
+- `Error`
+
+#### Constructors
+
+##### Constructor
+
+```ts
+new GraphFingerprintError(message): GraphFingerprintError;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/graphFingerprint.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/graphFingerprint.ts)
+
+###### Parameters
+
+###### message
+
+`string`
+
+###### Returns
+
+[`GraphFingerprintError`](#graphfingerprinterror)
+
+###### Overrides
+
+```ts
+Error.constructor
+```
+
+***
+
 ### PeginRegistrationMissingError
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginRegistrationDepth.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginRegistrationDepth.ts)
@@ -2390,6 +2426,33 @@ Optional progress callback (completed claimers, total claimers)
 ###### Returns
 
 `void`
+
+##### recordGraphFingerprint()
+
+```ts
+recordGraphFingerprint: (fingerprint) => void | Promise<void>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts)
+
+Persist the fingerprint of the transaction set about to be signed.
+
+`pegin.md` §5.9 requires activation to refuse a bundle whose graph does
+not reproduce this value. It is called after every check and signature
+has passed and before the signatures are submitted, and awaited: when it
+throws, the flow stops and no signature reaches the VP. A run that fails a
+check, is declined, or resumes past payout signing does not call it, so an
+earlier record stays in place.
+
+###### Parameters
+
+###### fingerprint
+
+`string`
+
+###### Returns
+
+`void` \| `Promise`\<`void`\>
 
 ***
 
@@ -4654,6 +4717,72 @@ version if you build on it.
 #### Throws
 
 [VaultIdBindingError](#vaultidbindingerror) when the graph belongs to another vault.
+
+***
+
+### fingerprintReturnedGraph()
+
+```ts
+function fingerprintReturnedGraph(graph): string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/graphFingerprint.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/graphFingerprint.ts)
+
+Fingerprint the graph a VP returned at activation, parsed from
+`tx_graph_json`.
+
+#### Parameters
+
+##### graph
+
+`Record`\<`string`, `unknown`\>
+
+#### Returns
+
+`string`
+
+***
+
+### assertReturnedGraphMatchesFingerprint()
+
+```ts
+function assertReturnedGraphMatchesFingerprint(graph, expectedFingerprint): void;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/graphFingerprint.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/graphFingerprint.ts)
+
+Check (a) of `pegin.md` §5.9: throw unless the graph a VP returned at
+activation is the one the depositor fingerprinted at presign.
+
+Call this before revealing the HTLC secret, with the value that
+`runDepositorPresignFlow` passed to `recordGraphFingerprint`. The
+fingerprint covers the challengers in `challenger_subgraphs`, but the graph
+also declares its roster in `challenger_pubkeys`. This also requires the
+two to name the same keys, or a graph could match the fingerprint while its
+declared roster adds or drops a challenger.
+
+#### Parameters
+
+##### graph
+
+`Record`\<`string`, `unknown`\>
+
+Parsed `tx_graph_json` from the artifact bundle.
+
+##### expectedFingerprint
+
+`string`
+
+The fingerprint recorded at presign.
+
+#### Returns
+
+`void`
+
+#### Throws
+
+GraphFingerprintError when the graph is malformed, does not
+  reproduce the fingerprint, or declares a different roster.
 
 ***
 

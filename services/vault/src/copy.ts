@@ -728,6 +728,27 @@ export const COPY = {
       // The fallback path may well have worked; this offers a retry without
       // implying the first attempt failed.
       downloadAgainButton: "Download Again",
+      // pegin.md §5.9 check (a). The artifacts are compared with a record of
+      // the transactions this browser signed. No record means no comparison,
+      // so the download is refused and only the risk acknowledgement remains.
+      signedGraphUnavailable:
+        "This browser has no record of the transactions you signed for this deposit, so these artifacts cannot be checked. This happens when the deposit was signed on another device or browser data was cleared. Download them on the device you signed with, or continue only if you accept the risk.",
+      // The entry exists but predates the fingerprint: the deposit was signed
+      // before this check shipped. No device holds a record, so there is no
+      // better place to download from.
+      signedGraphNotRecorded:
+        "This deposit was signed before this app kept a record of the transactions you signed, so these artifacts cannot be checked against it. Continue only if you accept the risk.",
+      // Local storage exists but cannot be read (blocked, corrupt). The record
+      // may still be there, so the fix is on this browser's side.
+      signedGraphStorageUnreadable:
+        "This browser's saved deposit records could not be read, so these artifacts cannot be checked. Check that this site can use browser storage (private browsing and some privacy settings block it), then try again.",
+      // Without the Ethereum account there is no record to look up.
+      signedGraphWalletNotConnected:
+        "Connect the Ethereum wallet you deposited with, so the artifacts can be checked against what you signed, then try again.",
+      // The vault provider served a graph other than the one signed. Nothing
+      // is saved; retrying cannot help, so this points at support.
+      signedGraphMismatch:
+        "These artifacts do not match the transactions you signed, so they were not saved. Do not activate this BTCVault. Contact support.",
     },
     form: {
       computingAllocation: "Computing allocation...",

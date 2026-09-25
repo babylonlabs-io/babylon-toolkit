@@ -7,6 +7,7 @@ import {
 import { useCallback, useRef, useState } from "react";
 import type { Hex } from "viem";
 
+import { useETHWallet } from "@/context/wallet";
 import { COPY } from "@/copy";
 import { ensureAuthenticatedVpClient } from "@/hooks/deposit/depositFlowSteps/ensureAuthenticatedVpClient";
 import { useBtcAction } from "@/hooks/useBtcAction";
@@ -28,12 +29,19 @@ import {
   fetchAndDownloadArtifacts,
   type FetchArtifactsOptions,
   openArtifactSaveTarget,
+  PresignFingerprintUnavailableError,
+  PresignGraphMismatchError,
 } from "@/services/artifacts";
+import {
+  getSignedGraphFingerprint,
+  PendingPeginStorageReadError,
+} from "@/storage/peginStorage";
 import {
   ARTIFACT_RECEIPT_VERSION,
   hasArtifactsDownloaded,
   normalizePeginTxid,
   saveArtifactDownloadReceipt,
+  saveGraphMismatch,
 } from "@/utils/artifactDownloadStorage";
 
 const ARTIFACT_RETRY_INTERVAL_MS = 10_000;
@@ -62,6 +70,12 @@ interface ArtifactDownloadState {
    * confirm this" state and nothing else — it must never satisfy the gate.
    */
   delivered: boolean;
+  /**
+   * The provider served a graph other than the one the depositor signed at
+   * presign. Positive evidence, not missing evidence: the activation modal
+   * must not offer the risk opt-out after it.
+   */
+  graphMismatch: boolean;
   /** Bytes received so far from the in-flight artifact stream. */
   receivedBytes: number;
   /**
@@ -78,6 +92,7 @@ const INITIAL_STATE: ArtifactDownloadState = {
   error: null,
   downloaded: false,
   delivered: false,
+  graphMismatch: false,
   receivedBytes: 0,
   totalBytes: 0,
 };
@@ -93,6 +108,7 @@ export function useArtifactDownload(options?: {
   primeContext?: PrimeContext | null;
 }) {
   const { requireBtcWallet } = useBtcAction();
+  const { address: ethAddress } = useETHWallet();
   const vaultId = options?.vaultId;
   const primeContext = options?.primeContext ?? null;
 
@@ -104,6 +120,52 @@ export function useArtifactDownload(options?: {
   // chunks via `isCancelled`), so cancel actually releases the connection
   // instead of letting it run to completion in the background.
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  /**
+   * The presign fingerprint this device recorded for the vault, or, when it
+   * holds none, the message that says why. The download fails closed without
+   * one; the message sends the depositor to the fix that matches the cause.
+   */
+  const readSignedGraphFingerprint = useCallback(():
+    | { fingerprint: string }
+    | { fingerprint: undefined; unavailableMessage: string } => {
+    const unavailable = (unavailableMessage: string) => ({
+      fingerprint: undefined,
+      unavailableMessage,
+    });
+    if (!ethAddress) {
+      return unavailable(
+        COPY.deposit.recoveryArtifacts.signedGraphWalletNotConnected,
+      );
+    }
+    if (!vaultId) {
+      return unavailable(COPY.deposit.recoveryArtifacts.signedGraphUnavailable);
+    }
+    let lookup: ReturnType<typeof getSignedGraphFingerprint>;
+    try {
+      lookup = getSignedGraphFingerprint(ethAddress, vaultId);
+    } catch (err) {
+      if (!(err instanceof PendingPeginStorageReadError)) throw err;
+      logger.error(err, {
+        data: { context: "[useArtifactDownload] presign fingerprint read" },
+      });
+      return unavailable(
+        COPY.deposit.recoveryArtifacts.signedGraphStorageUnreadable,
+      );
+    }
+    switch (lookup.status) {
+      case "found":
+        return { fingerprint: lookup.fingerprint };
+      case "not-recorded":
+        return unavailable(
+          COPY.deposit.recoveryArtifacts.signedGraphNotRecorded,
+        );
+      case "no-entry":
+        return unavailable(
+          COPY.deposit.recoveryArtifacts.signedGraphUnavailable,
+        );
+    }
+  }, [vaultId, ethAddress]);
 
   /**
    * Turn a completed download into the stored receipt that the activation
@@ -144,6 +206,28 @@ export function useArtifactDownload(options?: {
       // builds, where the god-mode gate is compile-time false.
       const demoDownload = getArtifactDownloadOverride();
       const normalizedPeginTxid = stripHexPrefix(peginTxid);
+      // Per-vault join key for telemetry. The pegin txid identifies the same
+      // deposit when no vaultId is mounted, and is public on-chain data
+      // (shortened before emission anyway).
+      const telemetryVaultId = vaultId ?? normalizedPeginTxid;
+
+      // Without a stored fingerprint the bundle can never pass check (a), so
+      // stop before the save dialog, the wallet prompt and the stream. The
+      // demo checks against its own synthetic graph, so it does not need one.
+      const signedGraph = readSignedGraphFingerprint();
+      if (!demoDownload && "unavailableMessage" in signedGraph) {
+        abortControllerRef.current?.abort();
+        captureFunnelFailure(
+          TELEMETRY_STAGE.ACTIVATION_ARTIFACTS,
+          new PresignFingerprintUnavailableError(normalizedPeginTxid),
+          telemetryVaultId,
+          { tags: { site: "presign_fingerprint_unavailable" } },
+        );
+        setState({ ...INITIAL_STATE, error: signedGraph.unavailableMessage });
+        return;
+      }
+      const signedGraphFingerprint = signedGraph.fingerprint;
+
       if (
         !demoDownload &&
         !vpTokenRegistry.peek(normalizedPeginTxid) &&
@@ -183,11 +267,6 @@ export function useArtifactDownload(options?: {
         // the user sees names it rather than the fetch behind it.
         progress: COPY.deposit.recoveryArtifacts.choosingSaveLocation,
       });
-
-      // Per-vault join key for telemetry. The collateral re-download path
-      // mounts the hook without a vaultId; the pegin txid identifies the same
-      // deposit and is public on-chain data (shortened before emission anyway).
-      const telemetryVaultId = vaultId ?? normalizedPeginTxid;
 
       // Stop the flow with an error message. Used by every fail path
       // below so the rendered modal state stays consistent.
@@ -236,13 +315,18 @@ export function useArtifactDownload(options?: {
         demoDownload
           ? demoDownload(
               saveTarget,
-              { peginTxid: normalizedPeginTxid, depositorPk },
+              {
+                peginTxid: normalizedPeginTxid,
+                depositorPk,
+                signedGraphFingerprint,
+              },
               fetchOptions,
             ).then(() => null)
           : fetchAndDownloadArtifacts(
               providerAddress,
               peginTxid,
               depositorPk,
+              signedGraphFingerprint,
               saveTarget,
               fetchOptions,
             );
@@ -416,6 +500,23 @@ export function useArtifactDownload(options?: {
             setError(COPY.deposit.recoveryArtifacts.tooLargeForBrowser);
             return;
           }
+          // Terminal too: a mismatch is the VP serving a graph other than the
+          // one signed, and a retry fetches the same graph.
+          if (err instanceof PresignGraphMismatchError) {
+            captureFunnelFailure(
+              TELEMETRY_STAGE.ACTIVATION_ARTIFACTS,
+              err,
+              telemetryVaultId,
+              { tags: { site: "presign_fingerprint_mismatch" } },
+            );
+            if (vaultId) saveGraphMismatch(vaultId, peginTxid);
+            setState({
+              ...INITIAL_STATE,
+              error: COPY.deposit.recoveryArtifacts.signedGraphMismatch,
+              graphMismatch: true,
+            });
+            return;
+          }
           if (err instanceof ArtifactFileAccessError) {
             captureFunnelFailure(
               TELEMETRY_STAGE.ACTIVATION_ARTIFACTS,
@@ -512,7 +613,13 @@ export function useArtifactDownload(options?: {
         }
       }
     },
-    [vaultId, primeContext, persistReceipt, requireBtcWallet],
+    [
+      vaultId,
+      primeContext,
+      persistReceipt,
+      readSignedGraphFingerprint,
+      requireBtcWallet,
+    ],
   );
 
   const cancel = useCallback(() => {

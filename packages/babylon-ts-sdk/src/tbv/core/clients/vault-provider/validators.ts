@@ -58,6 +58,9 @@ export class VpResponseValidationError extends Error {
 /** Expected length (in hex chars) of a Bitcoin transaction ID (32 bytes). */
 const TXID_HEX_LEN = 64;
 
+/** Expected length (in hex chars) of a GC output label hash (SHA-256). */
+const LABEL_HASH_HEX_LEN = 64;
+
 function isNonEmptyHex(value: unknown): value is string {
   return typeof value === "string" && value.length > 0 && HEX_RE.test(value);
 }
@@ -326,11 +329,15 @@ function validatePresignDataPerChallenger(value: unknown, field: string): void {
     );
   }
 
+  // Each entry is a SHA-256 digest. The presign fingerprint hashes these
+  // unframed, so a wrong length must fail here, before any signing prompt.
   for (let i = 0; i < d.output_label_hashes.length; i++) {
-    assertNonEmptyHex(
-      d.output_label_hashes[i],
-      `${field}.output_label_hashes[${i}]`,
-    );
+    const hash: unknown = d.output_label_hashes[i];
+    if (!isNonEmptyHex(hash) || hash.length !== LABEL_HASH_HEX_LEN) {
+      throw new VpResponseValidationError(
+        `VP response validation failed: "${field}.output_label_hashes[${i}]" must be a ${LABEL_HASH_HEX_LEN}-char hex string, got ${preview(hash)}`,
+      );
+    }
   }
 }
 
