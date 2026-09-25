@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   estimateActivationDeadlineLikelyPassed,
   headBlockLagBlocks,
+  isHeadBlockAheadOfClock,
   isHeadBlockStale,
 } from "../activationDeadline";
 
@@ -120,6 +121,23 @@ describe("isHeadBlockStale", () => {
 
   it("accepts a head stamped slightly ahead of this device's clock", () => {
     expect(isHeadBlockStale(NOW_SECONDS + 5n, NOW_MS)).toBe(false);
+  });
+});
+
+describe("isHeadBlockAheadOfClock", () => {
+  const NOW_MS = 1_700_000_000_000;
+  const NOW_SECONDS = 1_700_000_000n;
+
+  it("accepts a head stamped one slot ahead, as ordinary clock drift", () => {
+    expect(isHeadBlockAheadOfClock(NOW_SECONDS + 12n, NOW_MS)).toBe(false);
+  });
+
+  it("rejects a head stamped more than one slot ahead, since the clock is slow", () => {
+    expect(isHeadBlockAheadOfClock(NOW_SECONDS + 13n, NOW_MS)).toBe(true);
+  });
+
+  it("accepts a head stamped in the past", () => {
+    expect(isHeadBlockAheadOfClock(NOW_SECONDS - 120n, NOW_MS)).toBe(false);
   });
 });
 

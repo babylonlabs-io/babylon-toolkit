@@ -80,6 +80,18 @@ export const ACTIVATION_INCLUSION_MARGIN_BLOCKS = 25;
  */
 const MAX_HEAD_BLOCK_AGE_SECONDS = 120n;
 
+/**
+ * Furthest, in seconds, a head block may be stamped ahead of this device's
+ * clock.
+ *
+ * A block carries the start time of its slot and arrives after it, so on a
+ * correct clock the head is never in the future. A head stamped ahead proves
+ * the clock is slow, and a slow clock shrinks every measured age: a head that
+ * is really old looks fresh and its lag goes uncounted. One slot absorbs
+ * ordinary clock drift.
+ */
+const MAX_HEAD_BLOCK_LEAD_SECONDS = BigInt(ETH_SLOT_SECONDS);
+
 /** Whether a head block's timestamp is too old to size the margin from. */
 export function isHeadBlockStale(
   headTimestampSeconds: bigint,
@@ -90,12 +102,26 @@ export function isHeadBlockStale(
 }
 
 /**
+ * Whether a head block is stamped so far ahead of this device's clock that
+ * the clock must be slow. Ages measured on that clock are too small, so the
+ * head cannot size the margin.
+ */
+export function isHeadBlockAheadOfClock(
+  headTimestampSeconds: bigint,
+  nowMs: number,
+): boolean {
+  const nowSeconds = BigInt(Math.floor(nowMs / MILLISECONDS_PER_SECOND));
+  return headTimestampSeconds - nowSeconds > MAX_HEAD_BLOCK_LEAD_SECONDS;
+}
+
+/**
  * Blocks a head block may lag behind the chain, from its age.
  *
  * Rounded up and counted at one block per `ETH_SLOT_SECONDS`, so it is an
  * upper bound: the deadline gate adds it to the head and so assumes the
  * latest block the chain may have reached. A head stamped ahead of this
- * device's clock counts as no lag.
+ * device's clock counts as no lag; `isHeadBlockAheadOfClock` refuses one
+ * stamped further ahead than ordinary drift explains.
  */
 export function headBlockLagBlocks(
   headTimestampSeconds: bigint,

@@ -14,7 +14,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getAccount } from "wagmi/actions";
 
 import { getVaultFromChainWithGrace } from "@/clients/eth-contract/btc-vault-registry/query";
-import { getVaultRegistryReader } from "@/clients/eth-contract/sdk-readers";
+import {
+  getProtocolParamsReader,
+  getVaultRegistryReader,
+} from "@/clients/eth-contract/sdk-readers";
 import { COPY } from "@/copy";
 import { ContractStatus } from "@/models/peginStateMachine";
 import {
@@ -2322,6 +2325,29 @@ describe("useVaultActions — activation floor (peginActivationDelay)", () => {
     expect(mockActivateVaultWithSecret).not.toHaveBeenCalled();
   });
 
+  it("captures a params reader that cannot resolve as a deadline failure, not a floor interruption", async () => {
+    // The floor and deadline reads share the reader. Its failure blocks every
+    // activation, so it must reach the activation.reveal telemetry even
+    // though the floor read would otherwise settle first.
+    mockGetBlockNumber.mockResolvedValue(9_999n);
+    vi.mocked(getProtocolParamsReader).mockRejectedValueOnce(
+      new Error("address resolution failed"),
+    );
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(async () => {
+      await result.current.handleActivation(params);
+    });
+
+    expect(mockActivateVaultWithSecret).not.toHaveBeenCalled();
+    expect(result.current.activationError).toBe(
+      COPY.pegin.messages.activationWindowUnavailable,
+    );
+    expect(mockLoggerError).toHaveBeenCalledTimes(1);
+    const [, ctx] = mockLoggerError.mock.calls[0];
+    expect(ctx.tags.funnelStage).toBe("activation.reveal");
+  });
+
   it("reads nothing and changes nothing when the feature flag is off", async () => {
     floorFlagMock.enabled = false;
     mockGetBlockNumber.mockResolvedValue(1_100n); // would be gated if enabled
@@ -2435,6 +2461,15 @@ describe("useVaultActions — activation deadline margin", () => {
     });
     mockGetVaultRegistryReader.mockReturnValue(readerWithDeadline());
     mockHeadAgeSeconds.value = 0n;
+    // The mocked head and readHeadBlock each read the clock. Freeze it, so a
+    // second that ticks over between the two reads cannot add a block of lag
+    // and move these tests off the edge they pin.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("refuses when the RPC head is too old to size the margin from", async () => {
@@ -2442,6 +2477,23 @@ describe("useVaultActions — activation deadline margin", () => {
     // block to the room left. 1000 alone would clear the margin easily.
     mockGetBlockNumber.mockResolvedValue(1_000n);
     mockHeadAgeSeconds.value = 121n;
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(async () => {
+      await result.current.handleActivation(params);
+    });
+
+    expect(mockActivateVaultWithSecret).not.toHaveBeenCalled();
+    expect(result.current.activationError).toBe(
+      COPY.pegin.messages.activationWindowUnavailable,
+    );
+  });
+
+  it("refuses when the RPC head shows this device's clock is slow", async () => {
+    // A slow clock makes an old head look fresh, so its lag goes uncounted.
+    // A head stamped more than one slot ahead proves the clock is slow.
+    mockGetBlockNumber.mockResolvedValue(1_000n);
+    mockHeadAgeSeconds.value = -13n;
 
     const { result } = renderHook(() => useVaultActions());
     await act(async () => {

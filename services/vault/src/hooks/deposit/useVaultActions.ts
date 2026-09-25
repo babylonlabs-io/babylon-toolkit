@@ -54,6 +54,7 @@ import {
 import {
   ACTIVATION_INCLUSION_MARGIN_BLOCKS,
   headBlockLagBlocks,
+  isHeadBlockAheadOfClock,
   isHeadBlockStale,
 } from "@/utils/activationDeadline";
 import {
@@ -188,7 +189,8 @@ const FLOOR_UNAVAILABLE_ERROR_NAME = "ActivationFloorUnavailableError";
  * The chain head, read fresh.
  *
  * `getBlock` bypasses viem's ~4s `getBlockNumber` cache, but a load-balanced
- * node can still be behind. A head too old to use (`isHeadBlockStale`) is
+ * node can still be behind. A head too old to use (`isHeadBlockStale`), or
+ * one that shows this device's clock is slow (`isHeadBlockAheadOfClock`), is
  * rejected as unreadable. A younger one is accepted, with the blocks it may
  * lag by (`headBlockLagBlocks`), so each gate can correct in its safe
  * direction: the deadline adds the lag, the floor does not.
@@ -201,6 +203,11 @@ async function readHeadBlock(): Promise<{ number: bigint; lagBlocks: bigint }> {
   if (isHeadBlockStale(head.timestamp, nowMs)) {
     throw new Error(
       `RPC head block ${head.number} (timestamp ${head.timestamp}) is stale; the node is behind`,
+    );
+  }
+  if (isHeadBlockAheadOfClock(head.timestamp, nowMs)) {
+    throw new Error(
+      `RPC head block ${head.number} (timestamp ${head.timestamp}) is ahead of this device's clock (${nowMs} ms); the clock is slow`,
     );
   }
   return {
@@ -731,6 +738,14 @@ export function useVaultActions(): UseVaultActionsReturn {
           cause,
         });
       };
+      // One reader for both reads. A reader that cannot resolve fails the
+      // deadline read, so it is captured. The floor's catch wraps only its
+      // own getter: if it wrapped the reader too, the floor chain would settle
+      // first and file that failure as a routine floor interruption. The floor
+      // runs only when the deadline gate does, so the reader is there for it.
+      const paramsReader = deadlineGateEnabled
+        ? getProtocolParamsReader().catch(onDeadlineReadFailure)
+        : undefined;
       const [
         { basic: basicInfo, protocol: protocolInfo },
         freshPauseState,
@@ -743,16 +758,18 @@ export function useVaultActions(): UseVaultActionsReturn {
         deadlineGateEnabled
           ? readHeadBlock().catch(onDeadlineReadFailure)
           : Promise.resolve(undefined),
-        floorEnabled
-          ? getProtocolParamsReader()
-              .then((r) => r.getPeginActivationDelay())
-              .catch(onFloorReadFailure)
+        floorEnabled && paramsReader
+          ? paramsReader.then((r) =>
+              r.getPeginActivationDelay().catch(onFloorReadFailure),
+            )
           : Promise.resolve(undefined),
-        deadlineGateEnabled
-          ? getProtocolParamsReader()
-              .then((r) => r.getTBVProtocolParams())
-              .then((params) => params.pegInActivationTimeout)
-              .catch(onDeadlineReadFailure)
+        paramsReader
+          ? paramsReader.then((r) =>
+              r
+                .getTBVProtocolParams()
+                .then((params) => params.pegInActivationTimeout)
+                .catch(onDeadlineReadFailure),
+            )
           : Promise.resolve(undefined),
       ]);
 
