@@ -63,9 +63,16 @@ vi.mock("../../../primitives/utils/bitcoin", () => ({
 // only when it is taken and what it is given matter.
 const fingerprintCalls = vi.hoisted(() => [] as unknown[]);
 const PRESIGN_FINGERPRINT = vi.hoisted(() => "f1".repeat(32));
+// Set to make the next fingerprint call reject the served set.
+const fingerprintFailure = vi.hoisted(() => ({ next: null as Error | null }));
 vi.mock("../graphFingerprint", () => ({
   fingerprintPresignTxSet: (args: unknown) => {
     fingerprintCalls.push(args);
+    const failure = fingerprintFailure.next;
+    if (failure) {
+      fingerprintFailure.next = null;
+      throw failure;
+    }
     return PRESIGN_FINGERPRINT;
   },
 }));
@@ -392,6 +399,38 @@ describe("runDepositorPresignFlow", () => {
     ).rejects.toThrow();
 
     expect(recordGraphFingerprint).not.toHaveBeenCalled();
+  });
+
+  it("rejects a set that fails fingerprint validation before any signing prompt", async () => {
+    // The fingerprint also checks the PegIn txid and the Claim shape. Those
+    // checks must run before the wallet signs anything.
+    fingerprintFailure.next = new Error("claim_tx must have exactly one input");
+    const presignClient = createMockPresignClient();
+    const btcWallet = createMockWallet();
+    const graphSignsBefore = vi.mocked(signDepositorGraph).mock.calls.length;
+    const payoutSignsBefore = capturedPayoutInputs.length;
+    const recordGraphFingerprint = vi.fn();
+
+    await expect(
+      runDepositorPresignFlow({
+        statusReader: createMockStatusReader([
+          DaemonStatus.PENDING_DEPOSITOR_SIGNATURES,
+        ]),
+        presignClient,
+        btcWallet,
+        peginTxid: VALID_TXID,
+        depositorPk: DEPOSITOR_PK,
+        recordGraphFingerprint,
+        signingContext: createSigningContext(),
+      }),
+    ).rejects.toThrow("claim_tx must have exactly one input");
+
+    expect(capturedPayoutInputs).toHaveLength(payoutSignsBefore);
+    expect(vi.mocked(signDepositorGraph).mock.calls).toHaveLength(
+      graphSignsBefore,
+    );
+    expect(recordGraphFingerprint).not.toHaveBeenCalled();
+    expect(presignClient.submitDepositorPresignatures).not.toHaveBeenCalled();
   });
 
   it("keeps an earlier record when the depositor declines to sign", async () => {

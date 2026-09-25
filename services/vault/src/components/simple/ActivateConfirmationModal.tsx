@@ -20,7 +20,10 @@ import {
 import { isActivationBlocked } from "@/components/shared/protocolStatus";
 import { COPY } from "@/copy";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
-import { hasArtifactsDownloaded } from "@/utils/artifactDownloadStorage";
+import {
+  hasArtifactsDownloaded,
+  hasGraphMismatch,
+} from "@/utils/artifactDownloadStorage";
 
 interface ActivateConfirmationModalProps {
   open: boolean;
@@ -60,8 +63,11 @@ export function ActivateConfirmationModal({
   const [acknowledged, setAcknowledged] = useState(false);
   // A download found that the provider served a graph other than the one
   // signed at presign. Unlike missing artifacts, this is evidence against
-  // activating, so the risk opt-out is withdrawn for the rest of this session.
-  const [graphMismatch, setGraphMismatch] = useState(false);
+  // activating, so the risk opt-out is withdrawn. Read from storage, so a
+  // reopened modal keeps it; only a later matching download clears it.
+  const [graphMismatch, setGraphMismatch] = useState(() =>
+    hasGraphMismatch(vaultId, peginTxid ?? ""),
+  );
   // Mirrors RecoveryArtifactsCard's internal `loading` flag via
   // onLoadingChange so the footer Cancel button can switch to an in-place
   // "Cancel download" action while a download is in flight.
@@ -71,7 +77,7 @@ export function ActivateConfirmationModal({
     if (!open) return;
     setDownloaded(hasArtifactsDownloaded(vaultId, peginTxid ?? ""));
     setAcknowledged(false);
-    setGraphMismatch(false);
+    setGraphMismatch(hasGraphMismatch(vaultId, peginTxid ?? ""));
     setIsDownloading(false);
   }, [open, vaultId, peginTxid]);
 
@@ -194,7 +200,11 @@ export function ActivateConfirmationModal({
             depositorPk={depositorPk as string}
             vaultId={vaultId}
             unsignedPrePeginTxHex={unsignedPrePeginTxHex}
-            onDownloaded={() => setDownloaded(true)}
+            onDownloaded={() => {
+              // The receipt this download wrote cleared the stored mismatch.
+              setDownloaded(true);
+              setGraphMismatch(false);
+            }}
             onLoadingChange={setIsDownloading}
             onGraphMismatch={() => setGraphMismatch(true)}
           />

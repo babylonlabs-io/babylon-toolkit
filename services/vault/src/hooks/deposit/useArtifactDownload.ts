@@ -41,6 +41,7 @@ import {
   hasArtifactsDownloaded,
   normalizePeginTxid,
   saveArtifactDownloadReceipt,
+  saveGraphMismatch,
 } from "@/utils/artifactDownloadStorage";
 
 const ARTIFACT_RETRY_INTERVAL_MS = 10_000;
@@ -205,6 +206,28 @@ export function useArtifactDownload(options?: {
       // builds, where the god-mode gate is compile-time false.
       const demoDownload = getArtifactDownloadOverride();
       const normalizedPeginTxid = stripHexPrefix(peginTxid);
+      // Per-vault join key for telemetry. The pegin txid identifies the same
+      // deposit when no vaultId is mounted, and is public on-chain data
+      // (shortened before emission anyway).
+      const telemetryVaultId = vaultId ?? normalizedPeginTxid;
+
+      // Without a stored fingerprint the bundle can never pass check (a), so
+      // stop before the save dialog, the wallet prompt and the stream. The
+      // demo checks against its own synthetic graph, so it does not need one.
+      const signedGraph = readSignedGraphFingerprint();
+      if (!demoDownload && "unavailableMessage" in signedGraph) {
+        abortControllerRef.current?.abort();
+        captureFunnelFailure(
+          TELEMETRY_STAGE.ACTIVATION_ARTIFACTS,
+          new PresignFingerprintUnavailableError(normalizedPeginTxid),
+          telemetryVaultId,
+          { tags: { site: "presign_fingerprint_unavailable" } },
+        );
+        setState({ ...INITIAL_STATE, error: signedGraph.unavailableMessage });
+        return;
+      }
+      const signedGraphFingerprint = signedGraph.fingerprint;
+
       if (
         !demoDownload &&
         !vpTokenRegistry.peek(normalizedPeginTxid) &&
@@ -245,11 +268,6 @@ export function useArtifactDownload(options?: {
         progress: COPY.deposit.recoveryArtifacts.choosingSaveLocation,
       });
 
-      // Per-vault join key for telemetry. The collateral re-download path
-      // mounts the hook without a vaultId; the pegin txid identifies the same
-      // deposit and is public on-chain data (shortened before emission anyway).
-      const telemetryVaultId = vaultId ?? normalizedPeginTxid;
-
       // Stop the flow with an error message. Used by every fail path
       // below so the rendered modal state stays consistent.
       const setError = (message: string) =>
@@ -288,9 +306,6 @@ export function useArtifactDownload(options?: {
         ...prev,
         progress: COPY.deposit.recoveryArtifacts.fetchingArtifacts,
       }));
-
-      const signedGraph = readSignedGraphFingerprint();
-      const signedGraphFingerprint = signedGraph.fingerprint;
 
       // The demo yields no outcome, which is what keeps a simulated download
       // from ever writing the receipt that satisfies the activation gate.
@@ -485,22 +500,8 @@ export function useArtifactDownload(options?: {
             setError(COPY.deposit.recoveryArtifacts.tooLargeForBrowser);
             return;
           }
-          // Terminal too: the stored record will not change on a retry, and
-          // a mismatch is the VP serving a graph other than the one signed.
-          if (err instanceof PresignFingerprintUnavailableError) {
-            captureFunnelFailure(
-              TELEMETRY_STAGE.ACTIVATION_ARTIFACTS,
-              err,
-              telemetryVaultId,
-              { tags: { site: "presign_fingerprint_unavailable" } },
-            );
-            setError(
-              "unavailableMessage" in signedGraph
-                ? signedGraph.unavailableMessage
-                : COPY.deposit.recoveryArtifacts.signedGraphUnavailable,
-            );
-            return;
-          }
+          // Terminal too: a mismatch is the VP serving a graph other than the
+          // one signed, and a retry fetches the same graph.
           if (err instanceof PresignGraphMismatchError) {
             captureFunnelFailure(
               TELEMETRY_STAGE.ACTIVATION_ARTIFACTS,
@@ -508,6 +509,7 @@ export function useArtifactDownload(options?: {
               telemetryVaultId,
               { tags: { site: "presign_fingerprint_mismatch" } },
             );
+            if (vaultId) saveGraphMismatch(vaultId, peginTxid);
             setState({
               ...INITIAL_STATE,
               error: COPY.deposit.recoveryArtifacts.signedGraphMismatch,

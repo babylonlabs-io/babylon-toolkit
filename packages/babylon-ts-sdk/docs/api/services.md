@@ -4743,6 +4743,49 @@ Fingerprint the graph a VP returned at activation, parsed from
 
 ***
 
+### assertReturnedGraphMatchesFingerprint()
+
+```ts
+function assertReturnedGraphMatchesFingerprint(graph, expectedFingerprint): void;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/graphFingerprint.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/graphFingerprint.ts)
+
+Check (a) of `pegin.md` §5.9: throw unless the graph a VP returned at
+activation is the one the depositor fingerprinted at presign.
+
+Call this before revealing the HTLC secret, with the value that
+`runDepositorPresignFlow` passed to `recordGraphFingerprint`. The
+fingerprint covers the challengers in `challenger_subgraphs`, but the graph
+also declares its roster in `challenger_pubkeys`. This also requires the
+two to name the same keys, or a graph could match the fingerprint while its
+declared roster adds or drops a challenger.
+
+#### Parameters
+
+##### graph
+
+`Record`\<`string`, `unknown`\>
+
+Parsed `tx_graph_json` from the artifact bundle.
+
+##### expectedFingerprint
+
+`string`
+
+The fingerprint recorded at presign.
+
+#### Returns
+
+`void`
+
+#### Throws
+
+GraphFingerprintError when the graph is malformed, does not
+  reproduce the fingerprint, or declares a different roster.
+
+***
+
 ### isPeginRegistrationMissingError()
 
 ```ts

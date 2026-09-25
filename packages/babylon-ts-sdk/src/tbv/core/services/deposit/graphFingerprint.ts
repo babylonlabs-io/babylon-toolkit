@@ -374,3 +374,73 @@ export function fingerprintReturnedGraph(
     }),
   });
 }
+
+/**
+ * The challenger roster a returned graph declares in `challenger_pubkeys`,
+ * as `local ∪ universal`. A key in both sets is rejected: the roles are
+ * disjoint, and a repeat would hide a missing key from a size comparison.
+ */
+function declaredChallengers(graph: Record<string, unknown>): Set<string> {
+  const pubkeys = asRecord(
+    field(graph, "challenger_pubkeys", "graph"),
+    "challenger_pubkeys",
+  );
+  const declared = new Set<string>();
+  for (const role of ["local", "universal"] as const) {
+    asArray(
+      field(pubkeys, role, "challenger_pubkeys"),
+      `challenger_pubkeys.${role}`,
+    ).forEach((key, i) => {
+      const pubkey = asSerdeBytes32(key, `challenger_pubkeys.${role}[${i}]`);
+      if (declared.has(pubkey)) {
+        throw new GraphFingerprintError(
+          `Graph declares challenger ${pubkey} more than once`,
+        );
+      }
+      declared.add(pubkey);
+    });
+  }
+  return declared;
+}
+
+/**
+ * Check (a) of `pegin.md` §5.9: throw unless the graph a VP returned at
+ * activation is the one the depositor fingerprinted at presign.
+ *
+ * Call this before revealing the HTLC secret, with the value that
+ * `runDepositorPresignFlow` passed to `recordGraphFingerprint`. The
+ * fingerprint covers the challengers in `challenger_subgraphs`, but the graph
+ * also declares its roster in `challenger_pubkeys`. This also requires the
+ * two to name the same keys, or a graph could match the fingerprint while its
+ * declared roster adds or drops a challenger.
+ *
+ * @param graph               Parsed `tx_graph_json` from the artifact bundle.
+ * @param expectedFingerprint The fingerprint recorded at presign.
+ * @throws GraphFingerprintError when the graph is malformed, does not
+ *   reproduce the fingerprint, or declares a different roster.
+ */
+export function assertReturnedGraphMatchesFingerprint(
+  graph: Record<string, unknown>,
+  expectedFingerprint: string,
+): void {
+  const actual = fingerprintReturnedGraph(graph);
+  if (actual !== expectedFingerprint) {
+    throw new GraphFingerprintError(
+      `Graph fingerprint ${actual} does not match the presign fingerprint ${expectedFingerprint}`,
+    );
+  }
+
+  const fingerprinted = Object.keys(
+    asRecord(graph.challenger_subgraphs, "challenger_subgraphs"),
+  );
+  const declared = declaredChallengers(graph);
+  if (
+    fingerprinted.length !== declared.size ||
+    fingerprinted.some((key) => !declared.has(key))
+  ) {
+    throw new GraphFingerprintError(
+      `Graph challenger_subgraphs keys ${fingerprinted.join(", ")} do not match ` +
+        `challenger_pubkeys ${[...declared].join(", ")}`,
+    );
+  }
+}

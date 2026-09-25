@@ -1,6 +1,9 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { COPY } from "@/copy";
+import { saveGraphMismatch } from "@/utils/artifactDownloadStorage";
+
 import { RecoveryArtifactsCard } from "../RecoveryArtifactsCard";
 
 const IDLE_HOOK_STATE = {
@@ -172,6 +175,16 @@ describe("RecoveryArtifactsCard — unverifiable save", () => {
 
     expect(onGraphMismatch).toHaveBeenCalledTimes(1);
     expect(onDownloaded).not.toHaveBeenCalled();
+  });
+
+  it("shows a mismatch stored by an earlier download, so a reopened modal explains the block", () => {
+    saveGraphMismatch(COMMON_PROPS.vaultId, COMMON_PROPS.peginTxid);
+
+    render(<RecoveryArtifactsCard {...COMMON_PROPS} />);
+
+    expect(
+      screen.getByText(COPY.deposit.recoveryArtifacts.signedGraphMismatch),
+    ).toBeTruthy();
   });
 
   it("keeps the download available and warns that the save is unconfirmed", () => {

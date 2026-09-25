@@ -39,7 +39,7 @@
 
 import { stripHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { VpResponseValidationError } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
-import { fingerprintReturnedGraph } from "@babylonlabs-io/ts-sdk/tbv/core/services";
+import { assertReturnedGraphMatchesFingerprint } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 
 /** The deposit a bundle must belong to. */
 export interface VaultBindingContext {
@@ -238,35 +238,16 @@ export function assertGraphMatchesPresign(
       normalizeHex(expected.peginTxid),
     );
   }
-  let actual: string;
+  // The SDK check also ties the declared roster in `challenger_pubkeys`, which
+  // `assertBundleBoundToVault` reads, to the fingerprinted challengers.
   try {
-    actual = fingerprintReturnedGraph(txGraph);
+    assertReturnedGraphMatchesFingerprint(
+      txGraph,
+      expected.signedGraphFingerprint,
+    );
   } catch (err) {
     throw new PresignGraphMismatchError(
       err instanceof Error ? err.message : String(err),
-    );
-  }
-  if (actual !== expected.signedGraphFingerprint) {
-    throw new PresignGraphMismatchError(
-      `fingerprint ${actual}, expected ${expected.signedGraphFingerprint}`,
-    );
-  }
-
-  // The fingerprint covers the challengers in `challenger_subgraphs`, but the
-  // session check in `assertBundleBoundToVault` reads `challenger_pubkeys`.
-  // Tie the two, or a bundle could match the fingerprint while its declared
-  // roster, and the sessions checked against it, add or drop a challenger.
-  const fingerprinted = new Set(
-    Object.keys(asRecord(txGraph.challenger_subgraphs, "challenger_subgraphs")),
-  );
-  const declared = challengerSetFromGraph(txGraph);
-  if (
-    fingerprinted.size !== declared.size ||
-    [...declared].some((key) => !fingerprinted.has(key))
-  ) {
-    throw new PresignGraphMismatchError(
-      `challenger_subgraphs keys ${[...fingerprinted].join(", ")} do not match ` +
-        `challenger_pubkeys ${[...declared].join(", ")}`,
     );
   }
 }

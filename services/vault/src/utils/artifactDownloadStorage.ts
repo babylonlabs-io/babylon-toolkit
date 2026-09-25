@@ -21,6 +21,12 @@ import type { ArtifactSaveMethod } from "@/services/artifacts";
 const ARTIFACTS_DOWNLOADED_KEY_PREFIX = "tbv:artifacts-downloaded:";
 
 /**
+ * Marks a vault whose provider served a graph other than the one signed at
+ * presign. The value is the pegin txid the mismatch was found for.
+ */
+const GRAPH_MISMATCH_KEY_PREFIX = "tbv:artifacts-graph-mismatch:";
+
+/**
  * Bumped whenever the receipt shape changes. A receipt from a different
  * version is discarded rather than migrated — re-downloading is safe, and
  * guessing at an old record's meaning is not.
@@ -52,6 +58,10 @@ function isBrowserStorageAvailable(): boolean {
 
 function storageKey(vaultId: string): string {
   return `${ARTIFACTS_DOWNLOADED_KEY_PREFIX}${vaultId.toLowerCase()}`;
+}
+
+function graphMismatchKey(vaultId: string): string {
+  return `${GRAPH_MISMATCH_KEY_PREFIX}${vaultId.toLowerCase()}`;
 }
 
 export function normalizePeginTxid(peginTxid: string): string {
@@ -168,6 +178,9 @@ export function saveArtifactDownloadReceipt(
   if (!isBrowserStorageAvailable() || !vaultId) return;
   try {
     window.localStorage.setItem(storageKey(vaultId), JSON.stringify(receipt));
+    // A receipt is written only for a bundle that matched the presign
+    // fingerprint, so it supersedes an earlier mismatch.
+    window.localStorage.removeItem(graphMismatchKey(vaultId));
   } catch (err) {
     // Quota exceeded or private browsing. The gate will simply continue to
     // warn the user, which is the safe default, but it is worth knowing about.
@@ -175,5 +188,41 @@ export function saveArtifactDownloadReceipt(
       category: "activation",
       reason: String(err),
     });
+  }
+}
+
+/**
+ * Record that a download for this pegin returned a graph other than the one
+ * signed at presign. Unlike a missing receipt, this is evidence against
+ * activating, so it must outlive the modal that found it. Only a later
+ * receipt clears it.
+ */
+export function saveGraphMismatch(vaultId: string, peginTxid: string): void {
+  if (!isBrowserStorageAvailable() || !vaultId) return;
+  try {
+    window.localStorage.setItem(
+      graphMismatchKey(vaultId),
+      normalizePeginTxid(peginTxid),
+    );
+  } catch (err) {
+    // The in-session state still blocks activation; only a reopen loses it.
+    logger.warn("Failed to persist the artifact graph mismatch", {
+      category: "activation",
+      reason: String(err),
+    });
+  }
+}
+
+/** True when a download for this pegin found a graph mismatch. */
+export function hasGraphMismatch(vaultId: string, peginTxid: string): boolean {
+  if (!isBrowserStorageAvailable() || !vaultId || !peginTxid) return false;
+  try {
+    return (
+      window.localStorage.getItem(graphMismatchKey(vaultId)) ===
+      normalizePeginTxid(peginTxid)
+    );
+  } catch {
+    // Unreadable storage also rejected the write, so nothing was recorded.
+    return false;
   }
 }

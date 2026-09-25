@@ -27,6 +27,7 @@ export {
   type PeginProtocolState,
 } from "./peginState";
 export {
+  assertReturnedGraphMatchesFingerprint,
   fingerprintReturnedGraph,
   GraphFingerprintError,
 } from "./graphFingerprint";

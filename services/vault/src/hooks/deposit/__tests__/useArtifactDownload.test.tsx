@@ -85,6 +85,7 @@ vi.mock("@/services/artifacts", async () => {
 vi.mock("@/utils/artifactDownloadStorage", () => ({
   ARTIFACT_RECEIPT_VERSION: 1,
   saveArtifactDownloadReceipt: vi.fn(),
+  saveGraphMismatch: vi.fn(),
   hasArtifactsDownloaded: vi.fn(() => false),
   normalizePeginTxid: (txid: string) => txid.toLowerCase(),
 }));
@@ -114,13 +115,13 @@ import {
   type ArtifactSaveTarget,
   fetchAndDownloadArtifacts,
   openArtifactSaveTarget,
-  PresignFingerprintUnavailableError,
   PresignGraphMismatchError,
 } from "@/services/artifacts";
 import { PendingPeginStorageReadError } from "@/storage/peginStorage";
 import {
   hasArtifactsDownloaded,
   saveArtifactDownloadReceipt,
+  saveGraphMismatch,
 } from "@/utils/artifactDownloadStorage";
 
 import { ensureAuthenticatedVpClient } from "../depositFlowSteps/ensureAuthenticatedVpClient";
@@ -203,7 +204,7 @@ describe("useArtifactDownload — prime then fetch", () => {
   it("waits for an explicit download retry after Bitcoin connects", async () => {
     btcActionWallet.connected = false;
     const { result, rerender } = renderHook(() =>
-      useArtifactDownload({ primeContext }),
+      useArtifactDownload({ vaultId: VAULT_ID, primeContext }),
     );
     await act(() =>
       result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK),
@@ -230,7 +231,7 @@ describe("useArtifactDownload — prime then fetch", () => {
     seedHotCache();
     fetchMock.mockResolvedValueOnce(OUTCOME);
     const { result } = renderHook(() =>
-      useArtifactDownload({ primeContext: null }),
+      useArtifactDownload({ vaultId: VAULT_ID, primeContext: null }),
     );
     await act(() =>
       result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK),
@@ -247,7 +248,7 @@ describe("useArtifactDownload — prime then fetch", () => {
       new JsonRpcError(-32001, "missing or malformed Bearer token", "wire"),
     );
     const { result, rerender } = renderHook(() =>
-      useArtifactDownload({ primeContext }),
+      useArtifactDownload({ vaultId: VAULT_ID, primeContext }),
     );
     await act(() =>
       result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK),
@@ -270,7 +271,9 @@ describe("useArtifactDownload — prime then fetch", () => {
     );
     fetchMock.mockResolvedValueOnce(OUTCOME);
 
-    const { result } = renderHook(() => useArtifactDownload({ primeContext }));
+    const { result } = renderHook(() =>
+      useArtifactDownload({ vaultId: VAULT_ID, primeContext }),
+    );
 
     await act(async () => {
       await result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK);
@@ -301,7 +304,9 @@ describe("useArtifactDownload — prime then fetch", () => {
     );
     fetchMock.mockResolvedValueOnce(OUTCOME);
 
-    const { result } = renderHook(() => useArtifactDownload({ primeContext }));
+    const { result } = renderHook(() =>
+      useArtifactDownload({ vaultId: VAULT_ID, primeContext }),
+    );
 
     await act(async () => {
       await result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK);
@@ -417,12 +422,9 @@ describe("useArtifactDownload — prime then fetch", () => {
     );
   });
 
-  it("shows the no-record copy and writes no receipt when no presign fingerprint is stored", async () => {
-    seedHotCache();
+  it("fails before the save dialog, the wallet prompt and the fetch when no presign fingerprint is stored", async () => {
+    // Cold cache: without the early exit this would prompt the BTC wallet.
     mockGetSignedGraphFingerprint.mockReturnValueOnce({ status: "no-entry" });
-    fetchMock.mockRejectedValueOnce(
-      new PresignFingerprintUnavailableError(PEGIN_TXID),
-    );
 
     const { result } = renderHook(() =>
       useArtifactDownload({ vaultId: VAULT_ID, primeContext }),
@@ -437,7 +439,9 @@ describe("useArtifactDownload — prime then fetch", () => {
         COPY.deposit.recoveryArtifacts.signedGraphUnavailable,
       ),
     );
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(openTargetMock).not.toHaveBeenCalled();
+    expect(ensureAuthMock).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
     expect(saveReceiptMock).not.toHaveBeenCalled();
   });
 
@@ -448,9 +452,6 @@ describe("useArtifactDownload — prime then fetch", () => {
     mockGetSignedGraphFingerprint.mockReturnValueOnce({
       status: "not-recorded",
     });
-    fetchMock.mockRejectedValueOnce(
-      new PresignFingerprintUnavailableError(PEGIN_TXID),
-    );
 
     const { result } = renderHook(() =>
       useArtifactDownload({ vaultId: VAULT_ID, primeContext }),
@@ -475,9 +476,6 @@ describe("useArtifactDownload — prime then fetch", () => {
         new Error("storage blocked"),
       );
     });
-    fetchMock.mockRejectedValueOnce(
-      new PresignFingerprintUnavailableError(PEGIN_TXID),
-    );
 
     const { result } = renderHook(() =>
       useArtifactDownload({ vaultId: VAULT_ID, primeContext }),
@@ -501,9 +499,6 @@ describe("useArtifactDownload — prime then fetch", () => {
     seedHotCache();
     ethWallet.address = undefined;
     mockGetSignedGraphFingerprint.mockClear();
-    fetchMock.mockRejectedValueOnce(
-      new PresignFingerprintUnavailableError(PEGIN_TXID),
-    );
 
     const { result } = renderHook(() =>
       useArtifactDownload({ vaultId: VAULT_ID, primeContext }),
@@ -540,6 +535,10 @@ describe("useArtifactDownload — prime then fetch", () => {
       ),
     );
     expect(result.current.graphMismatch).toBe(true);
+    expect(vi.mocked(saveGraphMismatch)).toHaveBeenCalledWith(
+      VAULT_ID,
+      PEGIN_TXID,
+    );
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(saveReceiptMock).not.toHaveBeenCalled();
   });
@@ -605,7 +604,9 @@ describe("useArtifactDownload — prime then fetch", () => {
     seedHotCache();
     fetchMock.mockResolvedValueOnce(OUTCOME);
 
-    const { result } = renderHook(() => useArtifactDownload({ primeContext }));
+    const { result } = renderHook(() =>
+      useArtifactDownload({ vaultId: VAULT_ID, primeContext }),
+    );
 
     await act(async () => {
       await result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK);
@@ -618,7 +619,7 @@ describe("useArtifactDownload — prime then fetch", () => {
 
   it("surfaces an error and never fetches when cold and no prime context is provided", async () => {
     const { result } = renderHook(() =>
-      useArtifactDownload({ primeContext: null }),
+      useArtifactDownload({ vaultId: VAULT_ID, primeContext: null }),
     );
 
     await act(async () => {
@@ -637,7 +638,9 @@ describe("useArtifactDownload — prime then fetch", () => {
       new Error("Pre-PegIn transaction hash mismatch"),
     );
 
-    const { result } = renderHook(() => useArtifactDownload({ primeContext }));
+    const { result } = renderHook(() =>
+      useArtifactDownload({ vaultId: VAULT_ID, primeContext }),
+    );
 
     await act(async () => {
       await result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK);
@@ -664,7 +667,9 @@ describe("useArtifactDownload — prime then fetch", () => {
         >,
     );
 
-    const { result } = renderHook(() => useArtifactDownload({ primeContext }));
+    const { result } = renderHook(() =>
+      useArtifactDownload({ vaultId: VAULT_ID, primeContext }),
+    );
 
     let downloadPromise: Promise<void> | undefined;
     act(() => {
@@ -701,7 +706,9 @@ describe("useArtifactDownload — prime then fetch", () => {
     );
     fetchMock.mockResolvedValueOnce(OUTCOME);
 
-    const { result } = renderHook(() => useArtifactDownload({ primeContext }));
+    const { result } = renderHook(() =>
+      useArtifactDownload({ vaultId: VAULT_ID, primeContext }),
+    );
 
     let downloadPromise: Promise<void> | undefined;
     act(() => {
@@ -736,7 +743,7 @@ describe("useArtifactDownload — prime then fetch", () => {
       fetchMock.mockResolvedValueOnce(OUTCOME);
 
       const { result } = renderHook(() =>
-        useArtifactDownload({ primeContext }),
+        useArtifactDownload({ vaultId: VAULT_ID, primeContext }),
       );
 
       let firstDownload: Promise<void> | undefined;
@@ -805,7 +812,9 @@ describe("useArtifactDownload — prime then fetch", () => {
       >,
     );
 
-    const { result } = renderHook(() => useArtifactDownload({ primeContext }));
+    const { result } = renderHook(() =>
+      useArtifactDownload({ vaultId: VAULT_ID, primeContext }),
+    );
 
     await act(async () => {
       await result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK);
@@ -834,7 +843,9 @@ describe("useArtifactDownload — prime then fetch", () => {
       >,
     );
 
-    const { result } = renderHook(() => useArtifactDownload({ primeContext }));
+    const { result } = renderHook(() =>
+      useArtifactDownload({ vaultId: VAULT_ID, primeContext }),
+    );
 
     await act(async () => {
       await result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK);
@@ -856,7 +867,9 @@ describe("useArtifactDownload — prime then fetch", () => {
       new JsonRpcError(-32603, "internal error", "wire"),
     );
 
-    const { result } = renderHook(() => useArtifactDownload({ primeContext }));
+    const { result } = renderHook(() =>
+      useArtifactDownload({ vaultId: VAULT_ID, primeContext }),
+    );
 
     await act(async () => {
       await result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK);
@@ -874,7 +887,9 @@ describe("useArtifactDownload — prime then fetch", () => {
       new JsonRpcError(-32000, "request timed out", "local"),
     );
 
-    const { result } = renderHook(() => useArtifactDownload({ primeContext }));
+    const { result } = renderHook(() =>
+      useArtifactDownload({ vaultId: VAULT_ID, primeContext }),
+    );
 
     await act(async () => {
       await result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK);
@@ -892,7 +907,9 @@ describe("useArtifactDownload — prime then fetch", () => {
       new VpResponseValidationError("shape mismatch"),
     );
 
-    const { result } = renderHook(() => useArtifactDownload({ primeContext }));
+    const { result } = renderHook(() =>
+      useArtifactDownload({ vaultId: VAULT_ID, primeContext }),
+    );
 
     await act(async () => {
       await result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK);
@@ -918,7 +935,9 @@ describe("useArtifactDownload — prime then fetch", () => {
         }),
     );
 
-    const { result } = renderHook(() => useArtifactDownload({ primeContext }));
+    const { result } = renderHook(() =>
+      useArtifactDownload({ vaultId: VAULT_ID, primeContext }),
+    );
 
     let downloadPromise: Promise<void> | undefined;
     act(() => {
@@ -957,7 +976,9 @@ describe("useArtifactDownload — prime then fetch", () => {
       },
     );
 
-    const { result } = renderHook(() => useArtifactDownload({ primeContext }));
+    const { result } = renderHook(() =>
+      useArtifactDownload({ vaultId: VAULT_ID, primeContext }),
+    );
 
     let downloadPromise: Promise<void> | undefined;
     act(() => {

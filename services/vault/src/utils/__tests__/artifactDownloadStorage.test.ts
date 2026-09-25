@@ -5,7 +5,9 @@ import {
   type ArtifactDownloadReceipt,
   clearArtifactDownloadReceipts,
   hasArtifactsDownloaded,
+  hasGraphMismatch,
   saveArtifactDownloadReceipt,
+  saveGraphMismatch,
 } from "../artifactDownloadStorage";
 
 const VAULT_ID = "0xABC123";
@@ -137,6 +139,19 @@ describe("artifactDownloadStorage", () => {
     expect(hasArtifactsDownloaded(VAULT_ID, PEGIN_TXID)).toBe(false);
     expect(hasArtifactsDownloaded("0xotherVault", PEGIN_TXID)).toBe(false);
     expect(window.localStorage.getItem("unrelated:key")).toBe("keep me");
+  });
+
+  it("keeps a graph mismatch for the pegin it was found for only", () => {
+    saveGraphMismatch(VAULT_ID, `0x${PEGIN_TXID.toUpperCase()}`);
+    expect(hasGraphMismatch(VAULT_ID, PEGIN_TXID)).toBe(true);
+    expect(hasGraphMismatch(VAULT_ID, OTHER_PEGIN_TXID)).toBe(false);
+    expect(hasGraphMismatch("0xother", PEGIN_TXID)).toBe(false);
+  });
+
+  it("clears a graph mismatch when a later download writes a receipt", () => {
+    saveGraphMismatch(VAULT_ID, PEGIN_TXID);
+    saveArtifactDownloadReceipt(VAULT_ID, receipt());
+    expect(hasGraphMismatch(VAULT_ID, PEGIN_TXID)).toBe(false);
   });
 
   it("does not throw when localStorage.setItem fails (quota / private mode)", () => {

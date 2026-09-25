@@ -4,6 +4,7 @@ import { Transaction } from "bitcoinjs-lib";
 import { describe, expect, it } from "vitest";
 
 import {
+  assertReturnedGraphMatchesFingerprint,
   canonicalTxSetFingerprint,
   fingerprintPresignTxSet,
   fingerprintReturnedGraph,
@@ -465,6 +466,69 @@ describe("fingerprint rejects independently corrupted material", () => {
         }),
       ),
     ).toThrow(/not 32 bytes/);
+  });
+});
+
+describe("assertReturnedGraphMatchesFingerprint", () => {
+  const signed = fingerprintPresignTxSet(presignSet());
+  const declaring = (challengerPubkeys: unknown) =>
+    graph({ challenger_pubkeys: challengerPubkeys });
+
+  it("accepts the signed graph when its declared roster names the fingerprinted challengers", () => {
+    expect(() =>
+      assertReturnedGraphMatchesFingerprint(
+        declaring({ local: [CHALLENGER_A], universal: [CHALLENGER_B] }),
+        signed,
+      ),
+    ).not.toThrow();
+  });
+
+  it("rejects a graph that does not reproduce the presign fingerprint", () => {
+    expect(() =>
+      assertReturnedGraphMatchesFingerprint(
+        declaring({ local: [CHALLENGER_A], universal: [CHALLENGER_B] }),
+        "00".repeat(32),
+      ),
+    ).toThrow(/does not match the presign fingerprint/);
+  });
+
+  it("rejects a declared roster that adds a challenger the fingerprint does not cover", () => {
+    expect(() =>
+      assertReturnedGraphMatchesFingerprint(
+        declaring({
+          local: [CHALLENGER_A],
+          universal: [CHALLENGER_B, "11".repeat(32)],
+        }),
+        signed,
+      ),
+    ).toThrow(/do not match challenger_pubkeys/);
+  });
+
+  it("rejects a declared roster that drops a fingerprinted challenger", () => {
+    expect(() =>
+      assertReturnedGraphMatchesFingerprint(
+        declaring({ local: [CHALLENGER_A], universal: [] }),
+        signed,
+      ),
+    ).toThrow(/do not match challenger_pubkeys/);
+  });
+
+  it("rejects a challenger declared in both the local and universal sets", () => {
+    expect(() =>
+      assertReturnedGraphMatchesFingerprint(
+        declaring({
+          local: [CHALLENGER_A, CHALLENGER_B],
+          universal: [CHALLENGER_B],
+        }),
+        signed,
+      ),
+    ).toThrow(/more than once/);
+  });
+
+  it("rejects a graph with no declared roster", () => {
+    expect(() => assertReturnedGraphMatchesFingerprint(graph(), signed)).toThrow(
+      GraphFingerprintError,
+    );
   });
 });
 

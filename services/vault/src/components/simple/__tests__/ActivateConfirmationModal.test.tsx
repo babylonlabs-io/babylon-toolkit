@@ -6,6 +6,7 @@ import {
   ARTIFACT_RECEIPT_VERSION,
   normalizePeginTxid,
   saveArtifactDownloadReceipt,
+  saveGraphMismatch,
 } from "@/utils/artifactDownloadStorage";
 
 import { ActivateConfirmationModal } from "../ActivateConfirmationModal";
@@ -177,6 +178,23 @@ describe("ActivateConfirmationModal", () => {
     fireEvent.click(screen.getByTestId("card-graph-mismatch"));
     expect(screen.getByText("Activate BTCVault")).toBeDisabled();
     expect(screen.queryByTestId("risk-checkbox")).not.toBeInTheDocument();
+  });
+
+  it("keeps the risk opt-out withdrawn when the modal reopens after a stored mismatch", () => {
+    // ActivationGate unmounts the modal on close, so a reopen is a fresh
+    // mount: the mismatch must come back from storage, not component state.
+    saveGraphMismatch(VAULT_ID, COMMON_PROPS.peginTxid);
+    render(
+      <ActivateConfirmationModal
+        open
+        {...COMMON_PROPS}
+        onClose={vi.fn()}
+        onConfirm={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByTestId("risk-checkbox")).not.toBeInTheDocument();
+    expect(screen.getByText("Activate BTCVault")).toBeDisabled();
   });
 
   it("keeps Activate disabled after a mismatch even with an earlier download receipt", () => {

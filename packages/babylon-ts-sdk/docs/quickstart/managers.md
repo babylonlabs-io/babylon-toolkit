@@ -110,6 +110,7 @@ const peginManager = new PeginManager({
 import { PeginManager } from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
   activateVault,
+  assertReturnedGraphMatchesFingerprint,
   computeHashlock,
   runDepositorPresignFlow,
   type PayoutSigningContext,
@@ -153,6 +154,12 @@ declare const availableUTXOs: UTXO[];
 declare const changeAddress: string;
 declare const vpEthAddress: Address;
 declare const ethChainId: number;
+
+// Your durable store for the presign graph fingerprint, and the parsed
+// `tx_graph_json` of the artifact bundle you download before activation.
+declare function saveFingerprint(peginTxid: string, fingerprint: string): void;
+declare function loadFingerprint(peginTxid: string): string;
+declare const artifactTxGraph: Record<string, unknown>;
 
 // The two block-pinned protocol reads the fingerprint is computed from. Resolve
 // ONE block number and pass it to both, so they describe the same chain state
@@ -276,13 +283,18 @@ await runDepositorPresignFlow({
   depositorPk: stripHexPrefix(depositorBtcPubkey),
   signingContext,
   onProgress: (completed, total) => console.log(`Signed ${completed}/${total}`),
-  // Called after signing, before submit; store it durably. Compare it with
-  // fingerprintReturnedGraph() on the artifact bundle before you activate.
+  // Called after signing, before submit; store it durably. Step 6 checks the
+  // artifact bundle against it.
   recordGraphFingerprint: (fingerprint) => saveFingerprint(peginTxHash, fingerprint),
 });
 // Contract status: VERIFIED
 
-// 6. Activate — reveal the HTLC secret. `writeContract` is the adapter
+// 6. Check that the artifact bundle carries the graph you signed at step 5,
+//    including its declared challenger roster. This throws
+//    GraphFingerprintError on a mismatch: do not activate then.
+assertReturnedGraphMatchesFingerprint(artifactTxGraph, loadFingerprint(peginTxHash));
+
+//    Activate — reveal the HTLC secret. `writeContract` is the adapter
 //    that hands the SDK's prepared call to your ETH transport.
 await activateVault({
   btcVaultRegistryAddress: BTC_VAULT_REGISTRY,
