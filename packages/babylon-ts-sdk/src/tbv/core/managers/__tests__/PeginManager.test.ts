@@ -630,6 +630,47 @@ describe("PeginManager", () => {
       expect(tx.changeAmount).toBeGreaterThanOrEqual(0n);
     });
 
+    it("returns the caller's UTXO objects as selectedUTXOs, not copies", async () => {
+      // A caller annotates each UTXO with the key that owns it — a field the
+      // SDK's UTXO type does not name — and reads that annotation back off
+      // `selectedUTXOs` to sign each input under its own key. Any
+      // normalisation of the selected set to the UTXO shape would drop it
+      // with the type checker silent, and the loss would surface only at the
+      // signing device, after Ethereum registration.
+      const btcWallet = new MockBitcoinWallet({
+        publicKeyHex: TEST_KEYS.DEPOSITOR,
+      });
+      const ethWallet = new MockEthereumWallet();
+      const manager = new PeginManager({
+        btcNetwork: "signet",
+        btcWallet,
+        ethWallet: ethWallet as any,
+        ethChain: TEST_CHAIN,
+        publicClient: TEST_PUBLIC_CLIENT,
+        vaultContracts: { btcVaultRegistry: TEST_CONTRACT_ADDRESS },
+        mempoolApiUrl: MEMPOOL_API_URLS.signet,
+      });
+      const annotated = TEST_UTXOS.map((utxo) => ({
+        ...utxo,
+        internalPubkeyHex: "bb".repeat(32),
+      }));
+
+      const result = await manager.preparePegin({
+        amounts: [TEST_AMOUNTS.PEGIN_SMALL],
+        ...BASE_PREPARE_PEGIN_PARAMS,
+        availableUTXOs: annotated,
+      });
+
+      const { selectedUTXOs } = result.transaction;
+      expect(selectedUTXOs.length).toBeGreaterThanOrEqual(1);
+      for (const selected of selectedUTXOs) {
+        const original = annotated.find(
+          (utxo) => utxo.txid === selected.txid && utxo.vout === selected.vout,
+        );
+        expect(selected).toBe(original);
+      }
+    });
+
     it("accepts unsorted vault keepers and universal challengers from real WASM", async () => {
       const btcWallet = new MockBitcoinWallet({
         publicKeyHex: TEST_KEYS.DEPOSITOR,

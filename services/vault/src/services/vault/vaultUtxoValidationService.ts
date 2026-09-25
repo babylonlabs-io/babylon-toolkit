@@ -1,34 +1,30 @@
 /**
  * UTXO Validation Service
  *
- * Validates that UTXOs referenced in a pre-pegin transaction are still unspent
- * BEFORE asking the user to sign. Types and helpers come from SDK; the async
- * functions live here because they perform I/O (fetching UTXOs from mempool).
+ * Checks a Pre-PegIn's inputs are still unspent before the deposit is
+ * committed to (Ethereum registration, or the signer). Each input is asked
+ * about by outpoint, so any address is covered. The rule lives in the SDK;
+ * this wrapper supplies the app's mempool URL.
  */
 
-import { getAddressUtxos } from "@babylonlabs-io/ts-sdk";
-import type { UtxoValidationResult } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
-import {
-  assertUtxosAvailable as sdkAssertUtxosAvailable,
-  validateUtxosAvailable as sdkValidateUtxosAvailable,
-} from "@babylonlabs-io/ts-sdk/tbv/core/utils";
+import { assertOutpointsAvailable } from "@babylonlabs-io/ts-sdk/tbv/core/services";
+import type { Prevout } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
 
 import { getMempoolApiUrl } from "../../clients/btc/config";
 
-export async function validateUtxosAvailable(
+/**
+ * Assert every input is unspent and, with `expectedPrevouts`, has the script
+ * and value it was built with. Pass the selected UTXOs on the fresh path
+ * (registration precedes signing); omit on resume, where per-outpoint
+ * resolution follows.
+ */
+export function assertUtxosAvailable(
   unsignedTxHex: string,
-  depositorAddress: string,
-): Promise<UtxoValidationResult> {
-  const mempoolUrl = getMempoolApiUrl();
-  const availableUtxos = await getAddressUtxos(depositorAddress, mempoolUrl);
-  return sdkValidateUtxosAvailable(unsignedTxHex, availableUtxos);
-}
-
-export async function assertUtxosAvailable(
-  unsignedTxHex: string,
-  depositorAddress: string,
+  expectedPrevouts?: Readonly<Record<string, Prevout>>,
 ): Promise<void> {
-  const mempoolUrl = getMempoolApiUrl();
-  const availableUtxos = await getAddressUtxos(depositorAddress, mempoolUrl);
-  sdkAssertUtxosAvailable(unsignedTxHex, availableUtxos);
+  return assertOutpointsAvailable({
+    unsignedTxHex,
+    mempoolApiUrl: getMempoolApiUrl(),
+    expectedPrevouts,
+  });
 }

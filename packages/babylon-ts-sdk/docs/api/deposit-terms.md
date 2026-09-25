@@ -399,6 +399,63 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts]
 
 ***
 
+### FundingAddress
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
+
+One address a Pre-PegIn may be funded from, with the key that owns it. Both
+MUST come from the wallet's policy account xpub: the key is the only link
+between an outpoint and what the device will sign with.
+
+#### Properties
+
+##### address
+
+```ts
+address: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
+
+Address to list UTXOs for.
+
+##### internalPubkeyHex
+
+```ts
+internalPubkeyHex: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
+
+x-only internal key that owns the address's script (64-char hex, no `0x`).
+
+***
+
+### PrePeginFundingSource
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
+
+Which of the wallet's addresses may fund a Pre-PegIn. Only a policy wallet
+(with an account xpub) can answer; a wallet without it funds from its
+connected address alone. The set MUST include the connected receive address
+and MUST be a function of it (consumers read it once per connected address).
+
+#### Methods
+
+##### getFundingAddresses()
+
+```ts
+getFundingAddresses(): Promise<FundingAddress[]>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
+
+###### Returns
+
+`Promise`\<[`FundingAddress`](#fundingaddress)[]\>
+
+***
+
 ### BuildDepositTermsInputs
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
@@ -913,6 +970,28 @@ and register time so device-accept stays coextensive with contract-accept.
 
 ***
 
+### supportsMultiAddressFunding()
+
+```ts
+function supportsMultiAddressFunding(wallet): wallet is BitcoinWallet & PrePeginFundingSource;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
+
+Probes [PrePeginFundingSource.getFundingAddresses](#getfundingaddresses).
+
+#### Parameters
+
+##### wallet
+
+[`BitcoinWallet`](managers.md#bitcoinwallet)
+
+#### Returns
+
+`wallet is BitcoinWallet & PrePeginFundingSource`
+
+***
+
 ### supportsDepositApproval()
 
 ```ts
@@ -974,9 +1053,9 @@ function forwardDepositApproval(wallet): Partial<DepositTermsApprover & PrePegin
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
 
-Spreadable forward of the approval capability for wallet-wrapper objects.
+Spreadable forward of the wallet capabilities the Pre-PegIn build probes for.
 Object spread drops prototype methods, so every `{...wallet}` wrapper site
-must re-attach the capability explicitly: `...forwardDepositApproval(wallet)`.
+must re-attach them explicitly: `...forwardDepositApproval(wallet)`.
 
 #### Parameters
 

@@ -151,6 +151,38 @@ export interface PrePeginChangeSource {
   getChangeAddress(): Promise<string>;
 }
 
+/**
+ * One address a Pre-PegIn may be funded from, with the key that owns it. Both
+ * MUST come from the wallet's policy account xpub: the key is the only link
+ * between an outpoint and what the device will sign with.
+ */
+export interface FundingAddress {
+  /** Address to list UTXOs for. */
+  address: string;
+  /** x-only internal key that owns the address's script (64-char hex, no `0x`). */
+  internalPubkeyHex: string;
+}
+
+/**
+ * Which of the wallet's addresses may fund a Pre-PegIn. Only a policy wallet
+ * (with an account xpub) can answer; a wallet without it funds from its
+ * connected address alone. The set MUST include the connected receive address
+ * and MUST be a function of it (consumers read it once per connected address).
+ */
+export interface PrePeginFundingSource {
+  getFundingAddresses(): Promise<FundingAddress[]>;
+}
+
+/** Probes {@link PrePeginFundingSource.getFundingAddresses}. */
+export function supportsMultiAddressFunding(
+  wallet: BitcoinWallet,
+): wallet is BitcoinWallet & PrePeginFundingSource {
+  return (
+    typeof (wallet as Partial<PrePeginFundingSource>).getFundingAddresses ===
+    "function"
+  );
+}
+
 /** Probes {@link DepositTermsApprover.approveDepositTerms}. */
 export function supportsDepositApproval(
   wallet: BitcoinWallet,
@@ -185,9 +217,9 @@ export async function requireChangeAddress(
 }
 
 /**
- * Spreadable forward of the approval capability for wallet-wrapper objects.
+ * Spreadable forward of the wallet capabilities the Pre-PegIn build probes for.
  * Object spread drops prototype methods, so every `{...wallet}` wrapper site
- * must re-attach the capability explicitly: `...forwardDepositApproval(wallet)`.
+ * must re-attach them explicitly: `...forwardDepositApproval(wallet)`.
  */
 export function forwardDepositApproval(
   wallet: BitcoinWallet,

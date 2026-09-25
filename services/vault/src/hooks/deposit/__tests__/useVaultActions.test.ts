@@ -6,6 +6,7 @@
 
 import { PeginRegistrationNotFinalError } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { OnChainBtcVaultStatus } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+import { bindPrevoutsToFundingAddresses } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 import { UtxoNotAvailableError } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
 import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { act, renderHook } from "@testing-library/react";
@@ -73,6 +74,9 @@ vi.mock("@/config/network", () => ({
   // Reached transitively: the resume broadcast's RFC-006 key resolution pulls
   // in the shared ETHClient, which reads the RPC config at construction.
   getNetworkConfigETH: vi.fn(() => ({ rpcUrl: "http://localhost:8545" })),
+  // Reached through `@/config/pegin` when the resume binds prevouts to the
+  // wallet's funding addresses on the configured network.
+  getBTCNetwork: vi.fn(() => "signet"),
 }));
 
 const mockVerifyResumeParticipantKeys = vi.hoisted(() =>
@@ -101,6 +105,16 @@ vi.mock("@babylonlabs-io/ts-sdk/tbv/core", async (importOriginal) => ({
   processPublicKeyToXOnly: vi.fn((v: string) => v.replace(/^0x/, "")),
 }));
 
+// The binder's own rules are unit-tested in the SDK; here only its wiring is
+// pinned — what the hook hands it, and that its result (or its refusal) is
+// what reaches the broadcast.
+vi.mock("@babylonlabs-io/ts-sdk/tbv/core/services", async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import("@babylonlabs-io/ts-sdk/tbv/core/services")
+  >()),
+  bindPrevoutsToFundingAddresses: vi.fn(),
+}));
+
 vi.mock("@babylonlabs-io/ts-sdk/tbv/core/utils", () => ({
   calculateBtcTxHash: mockCalculateBtcTxHash,
   UtxoNotAvailableError: class UtxoNotAvailableError extends Error {
@@ -109,6 +123,8 @@ vi.mock("@babylonlabs-io/ts-sdk/tbv/core/utils", () => ({
       this.name = "UtxoNotAvailableError";
     }
   },
+  // The deposit error mapper matches it by instanceof; never thrown here.
+  InputPrevoutMismatchError: class InputPrevoutMismatchError extends Error {},
 }));
 
 vi.mock("@/clients/eth-contract/btc-vault-registry/query", () => ({
@@ -1661,6 +1677,149 @@ describe("useVaultActions — handleBroadcast intent (Ledger) resume branch", ()
     vi.mocked(resolveFundedTxFeeAndUtxos).mockResolvedValue(RESOLVED as never);
     vi.mocked(rebuildDepositTerms).mockResolvedValue(REBUILT_TERMS as never);
     mockFetchVaultById.mockResolvedValue(baseVault as never);
+  });
+
+  it("binds the resolved prevouts to the wallet's funding addresses before rebuilding terms, and signs over the bound set", async () => {
+    // The chain-resolved prevouts carry no owner. For a wallet that funds from
+    // more than one of its addresses, each input must be signed under the key
+    // that owns it — recovered from the device, never from the stored record.
+    const connector = connectIntentWallet();
+    const fundingAddresses = [
+      {
+        address: "tb1pledgerreceive",
+        internalPubkeyHex: "aa".repeat(32),
+        branch: 0,
+        addressIndex: 0,
+      },
+      {
+        address: "tb1pledgerchange",
+        internalPubkeyHex: "bb".repeat(32),
+        branch: 1,
+        addressIndex: 0,
+      },
+    ];
+    const getFundingAddresses = vi.fn().mockResolvedValue(fundingAddresses);
+    Object.assign(connector.connectedWallet.provider, { getFundingAddresses });
+    const BOUND = {
+      [Object.keys(RESOLVED.expectedUtxos)[0]]: {
+        ...Object.values(RESOLVED.expectedUtxos)[0],
+        internalPubkeyHex: "bb".repeat(32),
+      },
+    };
+    vi.mocked(bindPrevoutsToFundingAddresses).mockReturnValue(BOUND as never);
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(() => result.current.handleBroadcast(baseBroadcastParams));
+
+    // Read once per resume, for the binding.
+    expect(getFundingAddresses).toHaveBeenCalledTimes(1);
+    // Availability is asked per outpoint, so it needs no address set: an
+    // input on the change branch is judged on its own spend status. The check
+    // runs on the transaction as stored (`0x`-prefixed), before the
+    // registered-hash binding strips it for the resolver and the broadcast.
+    expect(mockAssertUtxosAvailable).toHaveBeenCalledWith(
+      `0x${TRUSTED_TX_HEX}`,
+    );
+    expect(bindPrevoutsToFundingAddresses).toHaveBeenCalledWith({
+      prevouts: RESOLVED.expectedUtxos,
+      addresses: fundingAddresses,
+      // `@/config/pegin` maps the app's "signet" to the WASM/SDK network name.
+      network: "testnet",
+    });
+    expect(mockBroadcastPrePeginTransaction).toHaveBeenCalledWith(
+      expect.objectContaining({ expectedUtxos: BOUND }),
+    );
+  });
+
+  it("does not rebuild terms or touch the device when an input belongs to none of the wallet's addresses", async () => {
+    // An input the wallet's address set cannot own: refused before the
+    // rebuild's chain reads and before any approval screen. (Another seed or
+    // account is refused earlier, by the depositor-key check.) The availability
+    // check is mocked here; the binder is what this pins.
+    const connector = connectIntentWallet();
+    Object.assign(connector.connectedWallet.provider, {
+      getFundingAddresses: vi.fn().mockResolvedValue([
+        {
+          address: "tb1pledgerreceive",
+          internalPubkeyHex: "aa".repeat(32),
+          branch: 0,
+          addressIndex: 0,
+        },
+        {
+          address: "tb1pledgerchange",
+          internalPubkeyHex: "bb".repeat(32),
+          branch: 1,
+          addressIndex: 0,
+        },
+      ]),
+    });
+    // Once: `vi.clearAllMocks()` keeps implementations, so a persistent throw
+    // would leak into any later test that attaches a funding source.
+    vi.mocked(bindPrevoutsToFundingAddresses).mockImplementationOnce(() => {
+      throw new Error(
+        "Input ab…:0 spends a script that belongs to none of the connected wallet's funding addresses",
+      );
+    });
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(() => result.current.handleBroadcast(baseBroadcastParams));
+
+    expect(result.current.broadcastError).toBeTruthy();
+    expect(rebuildDepositTerms).not.toHaveBeenCalled();
+    expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
+    expect(mockSignPsbt).not.toHaveBeenCalled();
+  });
+
+  it("leaves the resolved prevouts unbound for an approval wallet that enumerates no addresses", async () => {
+    // Nothing to bind against: the depositor-only rule applies, as before.
+    connectIntentWallet();
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(() => result.current.handleBroadcast(baseBroadcastParams));
+
+    expect(bindPrevoutsToFundingAddresses).not.toHaveBeenCalled();
+    // Availability needs no address set on any path.
+    expect(mockAssertUtxosAvailable).toHaveBeenCalledWith(
+      `0x${TRUSTED_TX_HEX}`,
+    );
+    expect(mockBroadcastPrePeginTransaction).toHaveBeenCalledWith(
+      expect.objectContaining({ expectedUtxos: RESOLVED.expectedUtxos }),
+    );
+  });
+
+  it("does not read the device's addresses when the modal is dismissed while inputs are still resolving", async () => {
+    // The address read takes the device lock; a resume the depositor has
+    // already abandoned must not go on to touch the device once the network
+    // read that preceded it finally completes.
+    const connector = connectIntentWallet();
+    const getFundingAddresses = vi.fn().mockResolvedValue([]);
+    Object.assign(connector.connectedWallet.provider, { getFundingAddresses });
+    let releaseResolve: (() => void) | undefined;
+    vi.mocked(resolveFundedTxFeeAndUtxos).mockImplementationOnce(async () => {
+      await new Promise<void>((resolve) => {
+        releaseResolve = resolve;
+      });
+      return RESOLVED as never;
+    });
+
+    const { result, unmount } = renderHook(() => useVaultActions());
+    let broadcastPromise: Promise<void> | undefined;
+    await act(async () => {
+      broadcastPromise = result.current.handleBroadcast(baseBroadcastParams);
+      await Promise.resolve();
+    });
+    await act(async () => {
+      unmount();
+      await new Promise((resolve) => queueMicrotask(() => resolve(null)));
+    });
+    await act(async () => {
+      releaseResolve?.();
+      await broadcastPromise;
+    });
+
+    expect(getFundingAddresses).not.toHaveBeenCalled();
+    expect(rebuildDepositTerms).not.toHaveBeenCalled();
+    expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
   });
 
   it("refuses before resolving inputs or rebuilding terms when the ETH account is not the on-chain depositor", async () => {

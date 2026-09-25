@@ -11,6 +11,10 @@
  * @module ledger-vault-signer
  */
 
+// The BIP-86 branch numbers are re-exported, not redefined: the adapter that
+// enumerates fundable addresses must label a branch with the same number this
+// package encodes into the path the device matches against the policy.
+export { BIP86_CHANGE_BRANCH, BIP86_RECEIVE_BRANCH } from "./bip86Path";
 export { getExtendedPublicKey, getMasterFingerprintHex, getXOnlyPublicKeyHex } from "./derivation";
 export { createDmkApduSender, createDmkRawApduSender } from "./dmkApduSender";
 export {
@@ -47,7 +51,7 @@ export {
   type CollectedYieldRef,
   type LedgerYieldMismatchKind,
 } from "./errors";
-export type { ExpectedSignatureTable, InputSigExpectation } from "./expectedSignatures";
+export type { AuthorizedKeyPathLeaf, ExpectedSignatureTable, InputSigExpectation } from "./expectedSignatures";
 export {
   encodeIntentGroup,
   encodeIntentScalars,
@@ -55,6 +59,11 @@ export {
   type IntentScalars,
   type IntentVaultGroup,
 } from "./intentTlv";
+export {
+  deriveAuthorizedKeyPathLeaves,
+  type DeriveAuthorizedKeyPathLeavesParams,
+  type KeyPathLeaf,
+} from "./keyPathLeaves";
 export {
   augmentPsbtForWalletPolicy,
   deriveChangeXOnlyHex,

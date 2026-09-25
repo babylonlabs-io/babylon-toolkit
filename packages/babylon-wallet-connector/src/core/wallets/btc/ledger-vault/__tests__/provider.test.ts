@@ -725,6 +725,103 @@ describe("LedgerVaultProvider", () => {
       expect(signMock.signPreparedVaultPsbt).not.toHaveBeenCalled();
     });
 
+    /** Input 0 on the depositor's leaf, input 1 on the first change leaf, labelled with `input1Key`. */
+    function bothBranchesPsbtHex(changeXOnly: string, input1Key: string): string {
+      const psbt = new Psbt();
+      psbt.addInput({
+        hash: Buffer.alloc(32, 1),
+        index: 0,
+        witnessUtxo: { script: bip86Script(DEVICE_XONLY), value: 100_000 },
+        tapInternalKey: Buffer.from(DEVICE_XONLY, "hex"),
+      });
+      psbt.addInput({
+        hash: Buffer.alloc(32, 2),
+        index: 0,
+        witnessUtxo: { script: bip86Script(changeXOnly), value: 50_000 },
+        tapInternalKey: Buffer.from(input1Key, "hex"),
+      });
+      psbt.addOutput({ script: HTLC_SCRIPT, value: 140_000 });
+      return psbt.toHex();
+    }
+
+    it("signs a Pre-PegIn funded from both branches, declaring the change-branch input at its own leaf", async () => {
+      const { prepareSignPsbt: realPrepare } = await actualSigner();
+      signMock.prepareSignPsbt.mockImplementation(realPrepare);
+      signMock.signPreparedVaultPsbt.mockImplementation(async () => ({ signedPsbtHex: "signed-keypath", yields: [] }));
+      const p = await approved();
+      const changeXOnly = await changeXOnlyHex();
+
+      await expect(p.signPsbt(bothBranchesPsbtHex(changeXOnly, changeXOnly), { autoFinalized: false })).resolves.toBe(
+        "signed-keypath",
+      );
+
+      const [prepareArgs] = signMock.prepareSignPsbt.mock.calls.at(-1)!;
+      // The set the signer authorized: the same one getFundingAddresses reports.
+      expect(prepareArgs.authorizedKeyPathLeaves?.map((leaf: { xOnlyHex: string }) => leaf.xOnlyHex)).toEqual([
+        DEVICE_XONLY,
+        changeXOnly,
+      ]);
+      const augmented = Psbt.fromHex(prepareArgs.psbtHex);
+      expect(augmented.data.inputs[0].tapBip32Derivation?.[0].path).toBe("m/86'/1'/0'/0/0");
+      // The device signs input 1 with the key at THIS path; declared at the
+      // depositor's path it would refuse the input as not internal.
+      expect(augmented.data.inputs[1].tapBip32Derivation?.[0].path).toBe("m/86'/1'/0'/1/0");
+      expect(Buffer.from(augmented.data.inputs[1].tapBip32Derivation![0].pubkey).toString("hex")).toBe(changeXOnly);
+    });
+
+    it("rejects a change-branch outpoint labelled with the depositor key before any device I/O", async () => {
+      // Key and script disagree, so the pair belongs to no leaf. Caught on the
+      // classification pass, which now knows both leaves.
+      const { prepareSignPsbt: realPrepare } = await actualSigner();
+      signMock.prepareSignPsbt.mockImplementation(realPrepare);
+      const p = await approved();
+      const changeXOnly = await changeXOnlyHex();
+
+      await expect(
+        p.signPsbt(bothBranchesPsbtHex(changeXOnly, DEVICE_XONLY), { autoFinalized: false }),
+      ).rejects.toMatchObject({
+        code: ERROR_CODES.INVALID_PARAMS,
+        message: expect.stringMatching(/witnessUtxo is not the BIP-86 P2TR of its internal key/),
+      });
+      expect(signMock.signPreparedVaultPsbt).not.toHaveBeenCalled();
+    });
+
+    it("derives the authorized key-path set only for a key-path candidate — a tapscript flow reads no policy", async () => {
+      // The set costs the policy context to derive; a tapscript flow never
+      // needs it and must not pay for it — nor be widened by it. A real leaf
+      // input, not placeholder hex: it carries TAP_INTERNAL_KEY too (the NUMS
+      // key, by spec), so the scan must look past the internal key to the leaf.
+      const p = await approved();
+      const leaf = { output: Buffer.from([0x51]), version: 0xc0 };
+      const tapscriptInput = payments.p2tr({
+        internalPubkey: Buffer.from(DEVICE_XONLY, "hex"),
+        scriptTree: leaf,
+        redeem: leaf,
+      });
+      const psbt = new Psbt();
+      psbt.addInput({
+        hash: Buffer.alloc(32, 1),
+        index: 0,
+        witnessUtxo: { script: tapscriptInput.output!, value: 100_000 },
+        tapInternalKey: Buffer.from(DEVICE_XONLY, "hex"),
+        tapLeafScript: [
+          {
+            leafVersion: 0xc0,
+            script: leaf.output,
+            controlBlock: tapscriptInput.witness![tapscriptInput.witness!.length - 1],
+          },
+        ],
+      });
+      psbt.addOutput({ script: HTLC_SCRIPT, value: 90_000 });
+      const xpubReadsBefore = derivationMock.getExtendedPublicKey.mock.calls.length;
+
+      await p.signPsbt(psbt.toHex(), { autoFinalized: false });
+
+      const [prepareArgs] = signMock.prepareSignPsbt.mock.calls.at(-1)!;
+      expect(prepareArgs.authorizedKeyPathLeaves).toBeUndefined();
+      expect(derivationMock.getExtendedPublicKey.mock.calls.length).toBe(xpubReadsBefore);
+    });
+
     it("keeps tapscript PSBTs on the no-policy path (walletPolicy undefined)", async () => {
       const p = await approved();
 
@@ -1616,6 +1713,97 @@ describe("LedgerVaultProvider", () => {
       const pending = p.getChangeAddress();
       await p.disconnect();
       releaseXpub(ACCOUNT_XPUB);
+
+      await expect(pending).rejects.toMatchObject({ code: ERROR_CODES.WALLET_NOT_CONNECTED });
+    });
+  });
+
+  describe("getFundingAddresses", () => {
+    it("reports the receive and change addresses with the keys that own them", async () => {
+      const p = await connected();
+
+      await expect(p.getFundingAddresses()).resolves.toEqual([
+        { address: getTaprootAddress(DEVICE_XONLY, Network.SIGNET), internalPubkeyHex: DEVICE_XONLY },
+        {
+          address: getTaprootAddress(await changeXOnlyHex(), Network.SIGNET),
+          internalPubkeyHex: await changeXOnlyHex(),
+        },
+      ]);
+    });
+
+    it("refuses before connecting", async () => {
+      const p = new LedgerVaultProvider(Network.SIGNET);
+
+      await expect(p.getFundingAddresses()).rejects.toMatchObject({ code: ERROR_CODES.WALLET_NOT_CONNECTED });
+    });
+
+    it("refuses a device whose account xpub does not derive the depositor key", async () => {
+      // The change key is only trustworthy because the same xpub is gated
+      // against the device-read depositor key; without that the set would
+      // pair an address with a key the device will not sign under.
+      const p = await connected();
+      derivationMock.getXOnlyPublicKeyHex.mockResolvedValue(VECTOR_XONLY);
+      try {
+        await expect(p.getFundingAddresses()).rejects.toMatchObject({
+          code: ERROR_CODES.CONNECTION_FAILED,
+        });
+      } finally {
+        derivationMock.getXOnlyPublicKeyHex.mockResolvedValue(DEVICE_XONLY);
+      }
+    });
+
+    it("refuses an xpub read that resolved after a disconnect", async () => {
+      // Half the set from the previous device would fund a deposit the
+      // reconnected wallet cannot sign.
+      const p = await connected();
+      let releaseXpub: (xpub: string) => void = () => {};
+      derivationMock.getExtendedPublicKey.mockImplementationOnce(
+        () =>
+          new Promise<string>((resolve) => {
+            releaseXpub = resolve;
+          }),
+      );
+
+      const pending = p.getFundingAddresses();
+      await p.disconnect();
+      releaseXpub(ACCOUNT_XPUB);
+
+      await expect(pending).rejects.toMatchObject({ code: ERROR_CODES.WALLET_NOT_CONNECTED });
+    });
+
+    it("holds the single-ceremony lock while its reads are in flight", async () => {
+      // It shares the device lock and, cold, costs three APDUs. So a caller
+      // that polls it on an interval makes a real ceremony fail with the busy
+      // error — surfaced at the ceremony, where the depositor is waiting on a
+      // device screen. The address set must be read once per connection.
+      const p = await connected();
+      let releaseXpub: (xpub: string) => void = () => {};
+      derivationMock.getExtendedPublicKey.mockImplementationOnce(
+        () =>
+          new Promise<string>((resolve) => {
+            releaseXpub = resolve;
+          }),
+      );
+
+      const pending = p.getFundingAddresses();
+
+      await expect(p.deriveContextHash("app", "aa".repeat(32))).rejects.toThrow(/already running/);
+      // Not reentrant either: two overlapping reads are the same collision.
+      await expect(p.getFundingAddresses()).rejects.toThrow(/already running/);
+
+      releaseXpub(ACCOUNT_XPUB);
+      await pending;
+    });
+
+    it("refuses a disconnect that lands while both cached reads are already resolved", async () => {
+      // With both caches warm neither read re-enters its own connection gate,
+      // so this is the only check that catches it — and it would hand back the
+      // previous device's addresses.
+      const p = await connected();
+      await p.getFundingAddresses(); // warm the pubkey and policy caches
+
+      const pending = p.getFundingAddresses();
+      await p.disconnect(); // bumps the generation synchronously
 
       await expect(pending).rejects.toMatchObject({ code: ERROR_CODES.WALLET_NOT_CONNECTED });
     });

@@ -1,124 +1,62 @@
-/** Tests for UTXO validation service (I/O wrapper layer). */
+/** Tests for the UTXO validation service (the app's URL over the SDK's outpoint check). */
 
-import { getAddressUtxos } from "@babylonlabs-io/ts-sdk";
+import { assertOutpointsAvailable } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 import { UtxoNotAvailableError } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import {
-  assertUtxosAvailable,
-  validateUtxosAvailable,
-} from "../vaultUtxoValidationService";
+import { assertUtxosAvailable } from "../vaultUtxoValidationService";
 
-vi.mock("@babylonlabs-io/ts-sdk", () => ({
-  getAddressUtxos: vi.fn(),
+vi.mock("@babylonlabs-io/ts-sdk/tbv/core/services", async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import("@babylonlabs-io/ts-sdk/tbv/core/services")
+  >()),
+  assertOutpointsAvailable: vi.fn(),
 }));
 
 vi.mock("../../../clients/btc/config", () => ({
   getMempoolApiUrl: vi.fn(() => "https://mempool.space/api"),
 }));
 
-const mockedGetAddressUtxos = vi.mocked(getAddressUtxos);
+const mockedAssertOutpointsAvailable = vi.mocked(assertOutpointsAvailable);
 
-// Valid transaction hex with single input (txid: aaa..., vout: 3)
-const VALID_TX_SINGLE_INPUT =
-  "0100000001" +
-  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" +
-  "03000000" +
-  "6b" +
-  "483045022100884d142d86652a3f47ba4746ec719bbfbd040a570b1deccbb6498c75c4ae24cb02204b9f039ff08df09cbe9f6addac960298cad530a863ea8f53982c09db8f6e381301210484ecc0d46f1918b30928fa0e4ed99f16a0fb4fde0735e7ade8416ab9fe423cc5" +
-  "ffffffff" +
-  "01" +
-  "605af40500000000" +
-  "19" +
-  "76a914887c6824d03eb8997b1e28c1d81b4e5c8c96d41688ac" +
-  "00000000";
+const TX_HEX = "02000000000100000000";
+const SELECTED = {
+  [`${"a".repeat(64)}:3`]: {
+    scriptPubKey: "5120" + "aa".repeat(32),
+    value: 100_000,
+  },
+};
 
 describe("vaultUtxoValidationService", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockedAssertOutpointsAvailable.mockResolvedValue(undefined);
   });
 
-  describe("validateUtxosAvailable", () => {
-    const TEST_ADDRESS = "bc1qtest...";
+  it("runs the SDK's outpoint check against the app's mempool API", async () => {
+    await expect(assertUtxosAvailable(TX_HEX)).resolves.toBeUndefined();
 
-    it("should fetch UTXOs and delegate to SDK validation", async () => {
-      mockedGetAddressUtxos.mockResolvedValue([
-        {
-          txid: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-          vout: 3,
-          value: 100000,
-          scriptPubKey: "script",
-          confirmed: true,
-        },
-      ]);
-
-      const result = await validateUtxosAvailable(
-        VALID_TX_SINGLE_INPUT,
-        TEST_ADDRESS,
-      );
-
-      expect(mockedGetAddressUtxos).toHaveBeenCalledWith(
-        TEST_ADDRESS,
-        "https://mempool.space/api",
-      );
-      expect(result.allAvailable).toBe(true);
-      expect(result.totalInputs).toBe(1);
-    });
-
-    it("should return missing UTXOs when mempool has none", async () => {
-      mockedGetAddressUtxos.mockResolvedValue([]);
-
-      const result = await validateUtxosAvailable(
-        VALID_TX_SINGLE_INPUT,
-        TEST_ADDRESS,
-      );
-
-      expect(result.allAvailable).toBe(false);
-      expect(result.missingUtxos).toHaveLength(1);
-    });
-
-    it("should propagate mempool API errors on validate", async () => {
-      mockedGetAddressUtxos.mockRejectedValue(new Error("API unavailable"));
-
-      await expect(
-        validateUtxosAvailable(VALID_TX_SINGLE_INPUT, TEST_ADDRESS),
-      ).rejects.toThrow("API unavailable");
+    expect(mockedAssertOutpointsAvailable).toHaveBeenCalledWith({
+      unsignedTxHex: TX_HEX,
+      mempoolApiUrl: "https://mempool.space/api",
+      expectedPrevouts: undefined,
     });
   });
 
-  describe("assertUtxosAvailable", () => {
-    const TEST_ADDRESS = "bc1qtest...";
+  it("hands the selected UTXOs through for the pre-registration binding", async () => {
+    await assertUtxosAvailable(TX_HEX, SELECTED);
 
-    it("should not throw when all UTXOs are available", async () => {
-      mockedGetAddressUtxos.mockResolvedValue([
-        {
-          txid: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-          vout: 3,
-          value: 100000,
-          scriptPubKey: "script",
-          confirmed: true,
-        },
-      ]);
+    expect(mockedAssertOutpointsAvailable).toHaveBeenCalledWith(
+      expect.objectContaining({ expectedPrevouts: SELECTED }),
+    );
+  });
 
-      await expect(
-        assertUtxosAvailable(VALID_TX_SINGLE_INPUT, TEST_ADDRESS),
-      ).resolves.not.toThrow();
-    });
+  it("passes the SDK's typed refusals through untouched", async () => {
+    const spent = new UtxoNotAvailableError([
+      { txid: "a".repeat(64), vout: 3 },
+    ]);
+    mockedAssertOutpointsAvailable.mockRejectedValue(spent);
 
-    it("should throw UtxoNotAvailableError when UTXO is missing", async () => {
-      mockedGetAddressUtxos.mockResolvedValue([]);
-
-      await expect(
-        assertUtxosAvailable(VALID_TX_SINGLE_INPUT, TEST_ADDRESS),
-      ).rejects.toThrow(UtxoNotAvailableError);
-    });
-
-    it("should propagate mempool API errors on assert", async () => {
-      mockedGetAddressUtxos.mockRejectedValue(new Error("Network timeout"));
-
-      await expect(
-        assertUtxosAvailable(VALID_TX_SINGLE_INPUT, TEST_ADDRESS),
-      ).rejects.toThrow("Network timeout");
-    });
+    await expect(assertUtxosAvailable(TX_HEX)).rejects.toBe(spent);
   });
 });

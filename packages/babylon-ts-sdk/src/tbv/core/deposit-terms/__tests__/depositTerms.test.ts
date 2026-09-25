@@ -5,6 +5,7 @@ import {
   forwardDepositApproval,
   requireChangeAddress,
   supportsDepositApproval,
+  supportsMultiAddressFunding,
 } from "../depositTerms";
 
 const base = {} as BitcoinWallet;
@@ -91,5 +92,32 @@ describe("forwardDepositApproval", () => {
     const fwd = forwardDepositApproval(withValidate);
     await fwd.validateDepositTerms!({} as never);
     expect(withValidate.validateDepositTerms).toHaveBeenCalledOnce();
+  });
+});
+
+describe("supportsMultiAddressFunding", () => {
+  it("is false for a wallet that cannot enumerate its addresses", () => {
+    // Software wallets expose no account xpub, so their addresses cannot be
+    // enumerated — and their change returns to the connected address anyway.
+    expect(supportsMultiAddressFunding(base)).toBe(false);
+  });
+
+  it("is true for a wallet that reports its funding addresses", () => {
+    const policyWallet = Object.assign(Object.create({}), base, {
+      getFundingAddresses: vi.fn(async () => []),
+    });
+
+    expect(supportsMultiAddressFunding(policyWallet)).toBe(true);
+  });
+
+  it("does not require the wallet to also be an approver", () => {
+    // The two capabilities are probed independently: nothing about signing
+    // terms implies the wallet can list its addresses, or the reverse.
+    const approverOnly = Object.assign(Object.create({}), base, {
+      approveDepositTerms: vi.fn(async () => {}),
+    });
+
+    expect(supportsDepositApproval(approverOnly)).toBe(true);
+    expect(supportsMultiAddressFunding(approverOnly)).toBe(false);
   });
 });

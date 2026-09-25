@@ -21,7 +21,14 @@ import {
   assertPsbtUnsignedTxMatches,
   assertReturnedKeyPathSignatures,
 } from "@babylonlabs-io/ts-sdk/tbv/core/primitives";
-import { getPsbtInputFields } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
+import {
+  createFundingInputResolver,
+  fundingInputInternalKey,
+  getPsbtInputFields,
+  isXOnlyPubkeyHex,
+  outpointKey,
+  type FundingPrevout,
+} from "@babylonlabs-io/ts-sdk/tbv/core/utils";
 import { Psbt, Transaction } from "bitcoinjs-lib";
 import { Buffer } from "buffer";
 
@@ -39,6 +46,7 @@ import { fetchUTXOFromMempool } from "./vaultUtxoDerivationService";
  * Convert a UTXO array into the expectedUtxos Record format
  * used by broadcastPrePeginTransaction for trusted UTXO resolution.
  * Validates each entry and throws on malformed data (e.g. corrupted localStorage).
+ * `internalPubkeyHex` is carried through: it is the key the input is signed under.
  */
 export function utxosToExpectedRecord(
   utxos: ReadonlyArray<{
@@ -46,9 +54,10 @@ export function utxosToExpectedRecord(
     vout: number;
     value: number | string;
     scriptPubKey: string;
+    internalPubkeyHex?: string;
   }>,
-): Record<string, { scriptPubKey: string; value: number }> {
-  const record: Record<string, { scriptPubKey: string; value: number }> = {};
+): Record<string, FundingPrevout> {
+  const record: Record<string, FundingPrevout> = {};
   for (const u of utxos) {
     const numValue = Number(u.value);
     if (!Number.isSafeInteger(numValue) || numValue < 0) {
@@ -60,11 +69,22 @@ export function utxosToExpectedRecord(
     if (!u.scriptPubKey || !HEX_RE.test(u.scriptPubKey)) {
       throw new Error(`Invalid UTXO scriptPubKey for ${u.txid}:${u.vout}`);
     }
+    if (
+      u.internalPubkeyHex !== undefined &&
+      (typeof u.internalPubkeyHex !== "string" ||
+        !isXOnlyPubkeyHex(u.internalPubkeyHex))
+    ) {
+      throw new Error(
+        `Invalid UTXO internalPubkeyHex for ${u.txid}:${u.vout}: expected an ` +
+          `x-only public key (64 hex characters, no 0x prefix)`,
+      );
+    }
     // Normalize txid to lowercase — Buffer.toString("hex") returns lowercase,
     // but stored/external txids may use uppercase hex characters
-    record[`${u.txid.toLowerCase()}:${u.vout}`] = {
+    record[outpointKey(u.txid.toLowerCase(), u.vout)] = {
       scriptPubKey: u.scriptPubKey,
       value: numValue,
+      internalPubkeyHex: u.internalPubkeyHex,
     };
   }
   return record;
@@ -106,8 +126,10 @@ export interface BroadcastPrePeginParams {
    * eliminating the trust boundary violation where a compromised mempool API
    * could return manipulated UTXO values.
    * Key format: "txid:vout" (e.g. "abc123...def:0").
+   * With `internalPubkeyHex` set (multi-address funding), every input is
+   * verified against its own key and the chain before signing.
    */
-  expectedUtxos?: Record<string, { scriptPubKey: string; value: number }>;
+  expectedUtxos?: Record<string, FundingPrevout>;
 }
 
 /**
@@ -119,15 +141,13 @@ export interface BroadcastPrePeginParams {
 async function resolveInputUtxo(
   txid: string,
   vout: number,
-  expectedUtxos:
-    | Record<string, { scriptPubKey: string; value: number }>
-    | undefined,
+  expectedUtxos: Record<string, FundingPrevout> | undefined,
 ): Promise<{ scriptPubKey: string; value: number }> {
   if (!expectedUtxos) {
     return fetchUTXOFromMempool(txid, vout);
   }
 
-  const expected = expectedUtxos[`${txid}:${vout}`];
+  const expected = expectedUtxos[outpointKey(txid, vout)];
   if (!expected) {
     throw new Error(
       `expectedUtxos provided but missing entry for ${txid}:${vout}. ` +
@@ -174,17 +194,23 @@ async function addInputsToPsbt(
   psbt: Psbt,
   tx: Transaction,
   publicKeyNoCoord: Buffer,
-  expectedUtxos?: Record<string, { scriptPubKey: string; value: number }>,
+  expectedUtxos?: Record<string, FundingPrevout>,
 ): Promise<void> {
   let totalInputValue = 0n;
+  // Trusted data when available, mempool fallback otherwise; per-input key
+  // verification for multi-address funding.
+  const resolveInput = createFundingInputResolver({
+    prevouts: expectedUtxos,
+    readChain: fetchUTXOFromMempool,
+    resolveSingle: (txid, vout) => resolveInputUtxo(txid, vout, expectedUtxos),
+  });
 
   for (const input of tx.ins) {
     // Extract txid and vout (Bitcoin stores txid in reverse byte order)
     const txid = Buffer.from(input.hash).reverse().toString("hex");
     const vout = input.index;
 
-    // Use trusted data when available, fall back to mempool API
-    const utxoData = await resolveInputUtxo(txid, vout, expectedUtxos);
+    const { utxoData, internalPubkeyHex } = await resolveInput(txid, vout);
     totalInputValue += BigInt(utxoData.value);
 
     // Get proper PSBT input fields based on script type
@@ -196,7 +222,7 @@ async function addInputsToPsbt(
         value: utxoData.value,
         scriptPubKey: utxoData.scriptPubKey,
       },
-      publicKeyNoCoord,
+      fundingInputInternalKey(internalPubkeyHex, publicKeyNoCoord),
     );
 
     // Add input with proper fields for the script type
@@ -245,7 +271,7 @@ function formatError(error: unknown, includeErrorName = false): string {
 async function createPsbtFromTransaction(
   tx: Transaction,
   publicKeyNoCoord: Buffer,
-  expectedUtxos?: Record<string, { scriptPubKey: string; value: number }>,
+  expectedUtxos?: Record<string, FundingPrevout>,
 ): Promise<Psbt> {
   const psbt = new Psbt();
   psbt.setVersion(tx.version);

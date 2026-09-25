@@ -1,3 +1,16 @@
+export {
+  assertOutpointsAvailable,
+  type AssertOutpointsAvailableParams,
+} from "./assertOutpointsAvailable";
+export {
+  bindPrevoutsToFundingAddresses,
+  type BindPrevoutsToFundingAddressesParams,
+} from "./bindPrevoutsToFundingAddresses";
+export {
+  collectFundingUtxos,
+  type CollectFundingUtxosParams,
+  type FundingUtxo,
+} from "./collectFundingUtxos";
 export type {
   ClaimerArtifactsReader,
   PeginStatusReader,

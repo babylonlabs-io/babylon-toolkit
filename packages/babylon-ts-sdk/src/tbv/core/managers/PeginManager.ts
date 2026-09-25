@@ -88,6 +88,11 @@ import {
   type UTXO,
 } from "../utils";
 import { createTaprootScriptPathSignOptions } from "../utils/signing";
+import { outpointKey, type FundingPrevout } from "../utils/utxo/prevoutBinding";
+import {
+  createFundingInputResolver,
+  fundingInputInternalKey,
+} from "../utils/utxo/resolveFundingInput";
 import { X_ONLY_PUBKEY_HEX_LEN } from "../utils/validation";
 import {
   deriveVaultRoot,
@@ -395,10 +400,13 @@ export interface SignAndBroadcastParams {
   /**
    * Optional pre-fetched prevout data for inputs not yet in the mempool.
    * Key format: "txid:vout" (e.g. "abc123...def:0").
-   * When provided, matching inputs skip the mempool API fetch.
-   * Useful for split transactions where outputs are unconfirmed.
+   * Single-address funding: matching inputs skip the mempool API fetch
+   * (useful for split transactions where outputs are unconfirmed).
+   * Multi-address funding (`internalPubkeyHex` set): every input is read
+   * from the chain by outpoint and verified against its own key and the
+   * declared script before the PSBT is built.
    */
-  localPrevouts?: Record<string, { scriptPubKey: string; value: number }>;
+  localPrevouts?: Record<string, FundingPrevout>;
 
   /**
    * Approved deposit terms. REQUIRED when `config.btcWallet` supports deposit
@@ -593,12 +601,10 @@ function isP2wpkhAddressForNetwork(address: string, network: Network): boolean {
 function resolveUtxoInfo(
   txid: string,
   vout: number,
-  localPrevouts:
-    | Record<string, { scriptPubKey: string; value: number }>
-    | undefined,
+  localPrevouts: Record<string, FundingPrevout> | undefined,
   apiUrl: string,
 ): Promise<UtxoInfo> {
-  const local = localPrevouts?.[`${txid}:${vout}`];
+  const local = localPrevouts?.[outpointKey(txid, vout)];
   if (local) {
     return Promise.resolve({
       txid,
@@ -1184,16 +1190,22 @@ export class PeginManager {
     );
     const apiUrl = this.config.mempoolApiUrl;
 
-    // Resolve prevout data for each input (local cache or mempool API)
-    const utxoDataPromises = tx.ins.map((input) => {
-      const txid = Buffer.from(input.hash).reverse().toString("hex");
-      const vout = input.index;
-      return resolveUtxoInfo(txid, vout, params.localPrevouts, apiUrl).then(
-        (utxoData) => ({ input, utxoData, txid, vout }),
-      );
+    // Resolve prevout data for each input (local cache or mempool API;
+    // per-input key verification for multi-address funding).
+    const resolveInput = createFundingInputResolver({
+      prevouts: params.localPrevouts,
+      readChain: (txid, vout) => getUtxoInfo(txid, vout, apiUrl),
+      resolveSingle: (txid, vout) =>
+        resolveUtxoInfo(txid, vout, params.localPrevouts, apiUrl),
     });
-
-    const inputsWithUtxoData = await Promise.all(utxoDataPromises);
+    const inputsWithUtxoData = await Promise.all(
+      tx.ins.map(async (input) => {
+        const txid = Buffer.from(input.hash).reverse().toString("hex");
+        const vout = input.index;
+        const { utxoData, internalPubkeyHex } = await resolveInput(txid, vout);
+        return { input, utxoData, txid, vout, internalPubkeyHex };
+      }),
+    );
 
     // Cross-validate: total input value must cover total output value.
     // A mismatch indicates the mempool API returned manipulated UTXO data,
@@ -1222,8 +1234,15 @@ export class PeginManager {
       );
     }
 
-    // Add inputs with proper PSBT fields based on script type
-    for (const { input, utxoData, txid, vout } of inputsWithUtxoData) {
+    // Add inputs with proper PSBT fields based on script type, each signed
+    // under the key that owns it.
+    for (const {
+      input,
+      utxoData,
+      txid,
+      vout,
+      internalPubkeyHex,
+    } of inputsWithUtxoData) {
       const psbtInputFields = getPsbtInputFields(
         {
           txid,
@@ -1231,7 +1250,7 @@ export class PeginManager {
           value: utxoData.value,
           scriptPubKey: utxoData.scriptPubKey,
         },
-        publicKeyNoCoord,
+        fundingInputInternalKey(internalPubkeyHex, publicKeyNoCoord),
       );
 
       psbt.addInput({

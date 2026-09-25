@@ -259,6 +259,15 @@ export async function getTipHeight(apiUrl: string): Promise<number> {
  * `{ spent: false }` for an unspent output, or
  * `{ spent: true, txid, vin, status }` when the output has been spent.
  *
+ * electrs semantics only: an unknown parent also answers `{ spent: false }`
+ * (mempool/electrs@cd6a967 `src/rest.rs:1489-1497`, `lookup_spend` mapped to
+ * the default value), so existence needs a separate output read; and a
+ * bitcoind-backed mempool instance (mempool/mempool@a0e74fc
+ * `backend/src/api/bitcoin/bitcoin.routes.ts:81-93` registers only the plural
+ * route for `BACKEND !== 'esplora'`, `bitcoin-api.ts:225-233` answers from
+ * `gettxout` with `include_mempool=false`) reads a mempool spend as unspent.
+ * Point this client only at an electrs-served API.
+ *
  * @param txid - The transaction id whose output is being checked (no 0x prefix)
  * @param vout - The output index
  * @param apiUrl - Mempool API base URL
@@ -273,7 +282,12 @@ export async function getOutspend(
   if (!isValidVout(vout)) {
     throw new Error(`Invalid vout ${vout} for transaction ${txid}`);
   }
-  return fetchApi<OutspendStatus>(`${apiUrl}/tx/${txid}/outspend/${vout}`);
+  const outspend = await fetchApi<OutspendStatus>(`${apiUrl}/tx/${txid}/outspend/${vout}`);
+  // An unreadable body must never read as "unspent".
+  if (typeof outspend.spent !== "boolean") {
+    throw new Error(`Invalid outspend response for ${txid}:${vout}: spent is not a boolean`);
+  }
+  return outspend;
 }
 
 /**

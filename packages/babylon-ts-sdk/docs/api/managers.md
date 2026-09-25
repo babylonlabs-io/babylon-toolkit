@@ -1792,18 +1792,18 @@ Required for Taproot signing.
 ##### localPrevouts?
 
 ```ts
-optional localPrevouts: Record<string, {
-  scriptPubKey: string;
-  value: number;
-}>;
+optional localPrevouts: Record<string, FundingPrevout>;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/managers/PeginManager.ts)
 
 Optional pre-fetched prevout data for inputs not yet in the mempool.
 Key format: "txid:vout" (e.g. "abc123...def:0").
-When provided, matching inputs skip the mempool API fetch.
-Useful for split transactions where outputs are unconfirmed.
+Single-address funding: matching inputs skip the mempool API fetch
+(useful for split transactions where outputs are unconfirmed).
+Multi-address funding (`internalPubkeyHex` set): every input is read
+from the chain by outpoint and verified against its own key and the
+declared script before the PSBT is built.
 
 ##### depositTerms?
 

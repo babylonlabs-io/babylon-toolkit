@@ -21,6 +21,7 @@ import { LedgerSignPsbtProtocolError } from "./errors";
 import {
   buildExpectedSignatureTable,
   createYieldCollector,
+  type AuthorizedKeyPathLeaf,
   type ExpectedSignatureTable,
   type YieldCollector,
 } from "./expectedSignatures";
@@ -213,6 +214,12 @@ export interface PrepareSignPsbtParams {
    * requirement before any device I/O.
    */
   readonly walletPolicy?: DefaultTaprootWalletPolicy;
+  /**
+   * Leaves whose keys may sign key-path, from `deriveAuthorizedKeyPathLeaves`.
+   * Needed by the classification pass even without `walletPolicy`, or a
+   * change-branch input is rejected as foreign. Omit for every other flow.
+   */
+  readonly authorizedKeyPathLeaves?: readonly AuthorizedKeyPathLeaf[];
 }
 
 declare const preparedSignPsbtBrand: unique symbol;
@@ -270,10 +277,11 @@ export function getPreparedSignPsbtState(prepared: PreparedSignPsbt): PreparedSi
  * device I/O.
  */
 export function prepareSignPsbt(params: PrepareSignPsbtParams): PreparedSignPsbt {
-  const { psbtHex, depositorXOnlyHex, signInputIndexes, walletPolicy } = params;
+  const { psbtHex, depositorXOnlyHex, signInputIndexes, walletPolicy, authorizedKeyPathLeaves } = params;
   if (!DEPOSITOR_X_ONLY_HEX_RE.test(depositorXOnlyHex)) {
     throw new LedgerSignPsbtProtocolError("depositorXOnlyHex must be 64 lowercase hex characters");
   }
+  const keyPathLeaves = authorizedKeyPathLeaves;
   // Value import only — the vendored type never appears in an exported signature.
   let vendorPolicy: DefaultWalletPolicy | undefined;
   if (walletPolicy !== undefined) {
@@ -320,7 +328,12 @@ export function prepareSignPsbt(params: PrepareSignPsbtParams): PreparedSignPsbt
   try {
     merkelized = new MerkelizedPsbt(psbt);
     // Table from the SAME instance that was committed — no re-parse gap.
-    table = buildExpectedSignatureTable({ psbt: merkelized, depositorXOnlyHex, signInputIndexes });
+    table = buildExpectedSignatureTable({
+      psbt: merkelized,
+      depositorXOnlyHex,
+      signInputIndexes,
+      authorizedKeyPathLeaves: keyPathLeaves,
+    });
   } catch (error) {
     // Totalize the typed contract: already-typed rejections pass through;
     // anything else (vendored reader throws, bitcoinjs point math) is wrapped.
