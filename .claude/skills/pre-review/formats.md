@@ -21,6 +21,7 @@ example below is valid as written.
   "outside_anchors": {
     "<path a finding anchors but the change does not touch>": "<blob sha>"
   },
+  "outside_anchors_since": 4,
   "runs": [
     {
       "at": "<iso8601>",
@@ -74,7 +75,7 @@ The enumerated fields take these values:
 | `runs[].kind`            | `first`, `later`                                  |
 | `runs[].tier`            | `light`, `full`                                   |
 | `runs[].breadth`         | `whole change`, `narrowed`, `none`                |
-| `runs[].checks`          | `passed`, `failed`, `stubbed`, `nothing affected`  |
+| `runs[].checks`          | `passed`, `failed`, `aborted`, `stubbed`, `nothing affected` |
 | `findings[].severity`    | `merge-blocker`, `normal`                         |
 | `findings[].confidence`  | `high`, `medium`, `low`                           |
 | `findings[].verified_by` | `code`, `test`, `external source`, `unverified`   |
@@ -109,6 +110,12 @@ The enumerated fields take these values:
   nor a dimension — read it as a note that the project's typecheck reported a
   module-not-found, and ignore it. Neither is rewritten: old run entries are
   history, and the rule to read them belongs here rather than in a migration.
+
+  **`aborted` is not that value returning.** It means an nx invocation exited
+  non-zero having executed no task — the sync abort — so nothing was checked
+  and the two checks that did run cannot speak for the one that did not. The
+  retired `not run` meant every typecheck target had been discounted, under a
+  discount rule that no longer exists. Same shape of English, different fact.
 - **`runs[].breadth`** is the review set the reviewers actually received, and
   **`runs[].reviewed`** lists those paths. A `whole change` run records the
   whole changed-file list; a `narrowed` run records only the moved and entered
@@ -151,6 +158,15 @@ The enumerated fields take these values:
   finding; **`verified_by`** says how Phase 3 confirmed it.
 - **`files`** is always the step-9 snapshot of the latest run, never a
   re-hash taken after fixes. Paths are repo-relative.
+- **`outside_anchors_since`** is the 1-based index of the run that first wrote
+  `outside_anchors`, and it is **written once and never recomputed**. Phase 4's
+  walk admits a finding only when its `raised_in_run` is at or after this
+  value, which is how a finding raised before the map existed is kept out
+  without backfilling. Carry it forward verbatim on every state write: the
+  state is rewritten whole each run, so omitting it makes the next run believe
+  it is the first, moving the boundary forward and silently dropping every
+  earlier finding's outside anchors. Absent on states written before the map
+  existed; on those, the first run that populates the map sets it.
 - **`outside_anchors`** holds the finding anchors that are **not** in the
   change, hashed with `git hash-object -w` by the orchestrator in Phase 4 and
   compared at the start of Phase 0b. It is deliberately a second map: `files`,

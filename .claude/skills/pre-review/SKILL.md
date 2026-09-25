@@ -15,7 +15,6 @@ allowed-tools:
   - Bash(node scripts/pre-review/snapshot.mjs record *)
   - Bash(pnpm nx affected *)
   - Bash(pnpm --filter @babylonlabs-io/ts-sdk run test)
-  - Bash(gh pr view * --json body --jq .body)
 ---
 
 Arguments: `$ARGUMENTS`
@@ -371,11 +370,21 @@ separately, at full price each. Do it yourself.
      real compiler output in the pack. This is first deliberately: a run where
      one project stubs and another emits real errors is `failed`, and no other
      branch may claim it.
-   - **An nx error with zero tasks executed** → `typecheck: nothing affected`,
-     and say which error. Nothing was compiled, so this is not `failed`
-     either: the sync abort documented above exits non-zero with no compiler
-     output at all, and routing it to `failed` would put "does not compile"
-     in the pack's opening lines for a change that compiles.
+   - **An nx error with zero tasks executed** → `typecheck: aborted`, with the
+     error quoted. This is **its own verdict, not `nothing affected`**.
+     (`aborted` is a distinct word from the `not run` this skill retired,
+     which meant something else and now has a legacy read rule; do not merge
+     the two.)
+     Nothing was compiled, so it is not `passed`; no compiler spoke, so
+     "does not compile" would be a claim about something never attempted; and
+     it is emphatically not the docs-only case, because the sync abort
+     documented above is exactly how a newly added package with no
+     `typecheck` script fails, and it stops the typecheck for **the whole
+     affected set**. Folding that into the same word a `.claude/`-only change
+     gets would let a run where nothing was type-checked aggregate to
+     `passed` on a clean lint and a clean suite — the false green this step
+     exists to prevent. Say which projects went unchecked, which is all of
+     them.
    - **`No tasks were run`** → `typecheck: nothing affected`. Never
      `passed`: nothing was compiled. This is the ordinary case for a change
      that touches no nx project, such as one confined to `.claude/` or
@@ -410,11 +419,11 @@ separately, at full price each. Do it yourself.
    **Settle the lint the same way, in the same vocabulary**, because the pack
    is required to report it: `No tasks were run` → `nothing affected`;
    exit 0 with tasks run → `passed`; an nx error with zero tasks executed →
-   `nothing affected` with the error named; any other error → `failed`.
-   `stubbed` has no lint meaning — it is defined by a `noEmit`-disabled
-   typecheck target — so lint never takes it. Without this, a clean lint and a
-   lint that ran nothing are indistinguishable in the pack, and no reviewer
-   may rebuild to tell them apart.
+   `aborted` with the error quoted; any other error → `failed`. `stubbed` has
+   no lint meaning — it is defined by a `noEmit`-disabled typecheck target —
+   so lint never takes it. Without this, a clean lint and a lint that ran
+   nothing are indistinguishable in the pack, and no reviewer may rebuild to
+   tell them apart.
 
    **There is no discount.** A module-not-found (`TS2307`) on a workspace
    package may mean the dependency was never built in this clone rather than
@@ -491,13 +500,20 @@ separately, at full price each. Do it yourself.
     The typecheck and the lint were already settled in step 9. This step
     settles the tests in the same vocabulary — `No tasks were run` →
     `nothing affected`, exit 0 with tasks run → `passed`, an nx error with
-    zero tasks executed → `nothing affected` with the error named, any other
-    error → `failed` — and then aggregates the three.
+    zero tasks executed → `aborted` with the error quoted, any other error →
+    `failed` — and then aggregates the three.
 
-    The run's `checks` is `failed` if any of the three is `failed`; `stubbed`
-    if none failed but a project reported its typecheck target disabled for
-    `noEmit` (those projects are in `uncovered`, recorded at step 9);
-    `nothing affected` if none of the three is `passed`; otherwise `passed`.
+    The run's `checks`, first match wins: `failed` if any of the three is
+    `failed`; **`aborted` if any is `aborted`**, because a check that never
+    ran cannot be summarised by the outcome of the two that did; `stubbed` if
+    a project reported its typecheck target disabled for `noEmit` (those
+    projects are in `uncovered`, recorded at step 9); `nothing affected` if
+    none of the three is `passed`; otherwise `passed`.
+
+    `aborted` outranks everything below it deliberately. An nx sync abort
+    type-checks nothing across the whole affected set, so letting a clean lint
+    and a clean suite carry the run to `passed` would report a change nobody
+    compiled as checked.
 
     **`passed` here never means the change compiled.** Once the `failed` and
     `stubbed` clauses have been applied every verdict is either `passed` or
@@ -532,9 +548,11 @@ actually bind, and they hold either way.
 **The pack must carry a `CHECKS` section, and it is not optional.** Step 9
 finishes before the reviewers are spawned, so its results are available and
 they are exactly what a reviewer cannot rediscover under the no-builds rule.
-Give, for lint and typecheck, the verdict step 9 settled — `passed`, `failed`
-or `nothing affected`, each optionally qualified as "with `<project>`
-stubbed" — and the project count nx reported. **Never a bare `stubbed`**: it
+Give, for lint and typecheck, the verdict step 9 settled — `passed`, `failed`,
+`aborted` or `nothing affected`, each optionally qualified as "with
+`<project>` stubbed" — and the project count nx reported. An `aborted` check
+carries the error nx printed, because it means nothing was checked at all and
+a reviewer cannot rediscover that. **Never a bare `stubbed`**: it
 is a qualifier, not a verdict, and lint cannot take it at all. A bare
 `stubbed` would let a run where one project stubs and another does not
 compile reach reviewers without the word `failed`, which is what the rule
@@ -1062,14 +1080,27 @@ and run history. That is the ledger reaching the one reviewer defined by not
 having it, for the third time and through a third route: first the per-file
 diffs, then the intent, now the review set itself.
 
-So before spawning it, read the changed-file list and drop from *its* set any
-file carrying findings, severities or run history — whatever it is called.
-Tell the engineer which file you dropped and why, because a file that has to
-be withheld from a reviewer is usually a file that should not be in the
-commit. Withhold it from this lane only: the other reviewers hold the ledger
-anyway, and narrowing the shared review set would put `reviewed` and the
-snapshot's `files=` out of step, which is the defect that map separation
-exists to prevent.
+So before spawning it, drop from *its* set any changed file that is a **review
+artifact: a file whose only purpose is to carry the output of a review.**
+`PR.md`, anything under `.pre-review/`, and any similarly-shaped report
+another tool left in the tree qualify. Tell the engineer which file you
+dropped and why, because a file that has to be withheld from a reviewer is
+usually a file that should not be in the commit.
+
+**Purpose, not content — and this distinction is load bearing.** A test on
+content ("any file carrying findings, severities or run history") matches this
+skill's own `SKILL.md` and `docs/pre-review.md`, which narrate past runs and
+use severity words throughout. On any branch that edits the review tooling
+such a rule would drop the main file under review, and the cold lane would
+review nothing that mattered. **A source or document file under review is
+never dropped for mentioning review history**; it is handed over and read like
+any other changed file. Only a file that exists to hold review output is
+withheld.
+
+Withhold it from this lane only: the other reviewers hold the ledger anyway,
+and narrowing the shared review set would put `reviewed` and the snapshot's
+`files=` out of step, which is the defect that map separation exists to
+prevent.
 
 **Strip the run number from everything else you hand it.** Every scratchpad
 path is mandated to carry `run<N>__`, so the whole-change diff arrives as
@@ -1105,6 +1136,23 @@ fifth route before anyone finds it.
 So: no stored findings, no `refuted` list, no "what changed this round", no
 scope hint, no run numbers — and no anything-else. Do not tell it the change
 has been reviewed before.
+
+**And tell it not to read the ledger off the disk.** The allowlist governs the
+prompt; it does not govern the tool calls, and this lane has `Read`, `Grep`,
+`Glob` and `Bash` over the working tree. `PR.md` sits at the repo root holding
+the collapsed findings record, `.pre-review/<key>.json` holds every stored
+finding with its status, `.pre-review/<key>.md` is the description, and the
+work directory holds this run's diffs under run-numbered names. The root
+`CLAUDE.md` tells any session that `PR.md` carries a record of the review's
+findings, so a lane orienting itself has a documented reason to open exactly
+the wrong file. Its brief must say, in terms: **do not read `PR.md`, anything
+under `.pre-review/`, or anything in the work directory; if you find yourself
+reading a file that lists findings, stop.**
+
+Be honest about what that is: an instruction, not a sandbox. It is the
+strongest control available here, since the agent definition grants the tools
+and this skill cannot revoke them per-spawn, and it is worth stating plainly
+rather than leaving the allowlist to imply a guarantee it cannot make.
 
 **Write this lane's intent yourself; do not paste the engineer's.** For every
 other reviewer the intent is sections 1–5 verbatim, with the sentences that
@@ -1287,7 +1335,8 @@ description rather than in a decision nobody reads.
 
 **Show it in chat**, compact, most severe first. Put the verdict line first:
 findings, open merge-blockers, and the checks result in the header's words
-(`passed`, `failed`, `nothing affected`, …). Never say "passed" when nothing
+(`passed`, `failed`, `aborted`, `stubbed`, `nothing affected`). Never say
+"passed" when nothing
 executed.
 
 - **First run**: each finding as `<id> — <claim>. <path>:<line>`, then one or
@@ -1308,17 +1357,39 @@ engineer defers the choice.
 
 **Record before fixing.** Write the state ([formats.md](formats.md)): `version`
 set to `2`, the step-9 snapshot as `files`, the intent from step 6, this run's
-entry, and every finding's status, anchors, `verified_by`, decision and
-`raised_in_run`.
+entry, every finding's status, anchors, `verified_by`, decision and
+`raised_in_run`, and **`outside_anchors_since` carried forward unchanged** —
+or written for the first time if this is the run that first populates
+`outside_anchors`.
+
+That last one is the easiest field in the state to lose, and losing it is
+silent. The state is rewritten whole every run, so a run that omits it makes
+the next run believe it is the first: the boundary moves forward, and every
+finding raised before that point quietly stops having outside anchors
+tracked. Never recompute it and never move it.
 
 Then write `outside_anchors`. It is **rebuilt each run, not updated in
 place**, so there is one rule and no drift between what is added and what is
 dropped: walk every stored finding's `anchors`, take each path that is not in
-the changed-file list and is not `PR.md` or under `.pre-review/`,
+the changed-file list, **was not in the state's `files` as loaded at the start
+of this run**, and is not `PR.md` or under `.pre-review/`,
 `git hash-object -w -- <path>` it, and store the blob under that path
-(`deleted` if the file is gone). What the walk does not produce is not in the
-map. That retires a path no finding anchors any more, and equally a path that
-has since entered the change — which an incremental update would leave behind
+(`deleted` if the file is gone).
+
+**The second condition is what keeps `left` out of the map,** and without it
+the principle stated below is violated by this very step. A path that left the
+change *in this run* is not in the changed-file list, so a walk testing only
+that would hash it as an outside anchor — and then it is in the map forever,
+where `left` never reaches it and the moot sweep may not retire it. Concretely:
+a finding anchored on A and C, A leaves while C stays, A becomes an outside
+anchor; when C leaves too, the sweep sees A outside the change and the finding
+is pinned to a verdict pass for the life of the branch. The loaded state's
+`files` is the one record of what was in the change a moment ago, so it is the
+only thing that can tell a genuine outside anchor from a path that just left.
+
+What the walk does not produce is not in the map. That retires a path no
+finding anchors any more, and equally a path that has since entered the
+change — which an incremental update would leave behind
 with a stale blob, so the same finding would be routed to the verdict pass
 twice, once as a bucket and once as an outside anchor. This is the one place
 the map is written, because it is the first point at which both the findings
@@ -1335,8 +1406,11 @@ Then apply the boundary, which the state **records explicitly**: the first
 run that writes `outside_anchors` also writes
 **`outside_anchors_since: <the index of that run>`** at the top level, and no
 later run changes it. A finding is eligible when its `raised_in_run` is at or
-after that value. Both fields already exist and are already written every
-run, so the test is evaluable from the state alone.
+after that value. `raised_in_run` is an existing field written for every
+finding; `outside_anchors_since` is **new with this map**, is defined in
+[formats.md](formats.md), and is on the "Record before fixing" list above as a
+field to carry forward unchanged. Both are read straight from the state, so
+the test needs no history the state does not keep — which is the whole point.
 
 Record the boundary rather than deriving it. Two earlier attempts could not
 be evaluated at all. Keying on whether a run entry *records* `cold` fails
@@ -1420,8 +1494,17 @@ Two checks, and the difference matters:
   the raw stored Markdown, and autolinking happens at render time and leaves
   the body byte-identical, so **this confirms the upload, never the
   rendering**. The scan above is the only check that catches an autolink, and
-  it needs no PR. This needs the PR number, which only the engineer has, so
-  it comes
+  it needs no PR.
+
+  **This command is not in `allowed-tools` and will prompt, deliberately** —
+  the same call made for the vitest form in Phase 3. A pattern wide enough to
+  cover any PR number puts the wildcard mid-command, where it pre-approves
+  arbitrary extra flags in a session that reads untrusted diffs and reviewer
+  output; `gh pr view` only reads, so the harm is bounded, but "bounded" is
+  not a reason to widen. The check runs once, at the very end, after the
+  reviewers are done, so a prompt there costs almost nothing.
+
+  It needs the PR number, which only the engineer has, so it comes
   from `--pr <n>` and nowhere else: do not go looking, and **skip the check
   rather than ask**. Asking mid-run costs more than the check is worth — a
   typed reply ends the turn holding the pre-approved commands, so every
