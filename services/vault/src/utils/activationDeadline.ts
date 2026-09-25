@@ -42,3 +42,94 @@ export function estimateActivationDeadlineLikelyPassed(params: {
   );
   return estimatedElapsedBlocks >= pegInActivationTimeout;
 }
+
+/**
+ * Blocks that must remain before the activation deadline for a
+ * secret-bearing activation to be worth sending.
+ *
+ * Activation reveals the HTLC secret in calldata. If the transaction is mined
+ * after `createdAt + pegInActivationTimeout` the contract reverts
+ * `ActivationDeadlineExpired`, but `s` is public by then: the vault expires
+ * with `ActivationTimeout`, and the vault provider, which holds the rest of
+ * the HTLC signature set, can broadcast the PegIn with that secret. Refusing close to the deadline costs the depositor an activation
+ * they were unlikely to land; sending it and losing the race costs them the
+ * secret. The asymmetry is the whole reason this margin exists.
+ *
+ * The margin is checked right before the write, but the wallet's signing
+ * prompt comes after that check and has no time limit: `writeContract` signs
+ * and sends in one step. So the margin must cover the time a depositor spends
+ * in that prompt as well as inclusion latency. 25 blocks is about 5 minutes
+ * at a 12-second slot — room for a hardware-wallet confirmation and a few
+ * missed slots, and still small against an activation window measured in
+ * hundreds of blocks.
+ *
+ * This is a policy value, not a protocol constant — the contract enforces the
+ * deadline itself and knows nothing about this margin.
+ */
+export const ACTIVATION_INCLUSION_MARGIN_BLOCKS = 25;
+
+/**
+ * Oldest head block, in seconds, the activation gate accepts.
+ *
+ * A node that is behind returns an old head, and an old head overstates the
+ * room left before the deadline: a lag of k blocks adds k blocks to the
+ * count. 120 s is ten 12-second slots, which covers normal propagation and a
+ * few missed slots while still catching a node that has stopped following
+ * the chain. The age is measured against this device's clock, so a clock
+ * that runs far ahead makes the gate refuse, which is the safe direction.
+ */
+const MAX_HEAD_BLOCK_AGE_SECONDS = 120n;
+
+/**
+ * Furthest, in seconds, a head block may be stamped ahead of this device's
+ * clock.
+ *
+ * A block carries the start time of its slot and arrives after it, so on a
+ * correct clock the head is never in the future. A head stamped ahead proves
+ * the clock is slow, and a slow clock shrinks every measured age: a head that
+ * is really old looks fresh and its lag goes uncounted. One slot absorbs
+ * ordinary clock drift.
+ */
+const MAX_HEAD_BLOCK_LEAD_SECONDS = BigInt(ETH_SLOT_SECONDS);
+
+/** Whether a head block's timestamp is too old to size the margin from. */
+export function isHeadBlockStale(
+  headTimestampSeconds: bigint,
+  nowMs: number,
+): boolean {
+  const nowSeconds = BigInt(Math.floor(nowMs / MILLISECONDS_PER_SECOND));
+  return nowSeconds - headTimestampSeconds > MAX_HEAD_BLOCK_AGE_SECONDS;
+}
+
+/**
+ * Whether a head block is stamped so far ahead of this device's clock that
+ * the clock must be slow. Ages measured on that clock are too small, so the
+ * head cannot size the margin.
+ */
+export function isHeadBlockAheadOfClock(
+  headTimestampSeconds: bigint,
+  nowMs: number,
+): boolean {
+  const nowSeconds = BigInt(Math.floor(nowMs / MILLISECONDS_PER_SECOND));
+  return headTimestampSeconds - nowSeconds > MAX_HEAD_BLOCK_LEAD_SECONDS;
+}
+
+/**
+ * Blocks a head block may lag behind the chain, from its age.
+ *
+ * Rounded up and counted at one block per `ETH_SLOT_SECONDS`, so it is an
+ * upper bound: the deadline gate adds it to the head and so assumes the
+ * latest block the chain may have reached. A head stamped ahead of this
+ * device's clock counts as no lag; `isHeadBlockAheadOfClock` refuses one
+ * stamped further ahead than ordinary drift explains.
+ */
+export function headBlockLagBlocks(
+  headTimestampSeconds: bigint,
+  nowMs: number,
+): bigint {
+  const nowSeconds = BigInt(Math.floor(nowMs / MILLISECONDS_PER_SECOND));
+  const ageSeconds = nowSeconds - headTimestampSeconds;
+  if (ageSeconds <= 0n) return 0n;
+  const slot = BigInt(ETH_SLOT_SECONDS);
+  return (ageSeconds + slot - 1n) / slot;
+}

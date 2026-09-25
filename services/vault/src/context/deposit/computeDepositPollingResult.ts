@@ -143,6 +143,27 @@ export interface DepositPollingInputs {
   now?: number;
 }
 
+/**
+ * Whether the PegIn, not a refund, spent a vault's HTLC.
+ *
+ * A spend is only a refund if somebody other than the PegIn made it; when the
+ * PegIn is the spender the BTC moved INTO the BTCVault. Positive proof only: a
+ * missing `spendingTxid` or PegIn txid reads as false. The display, the
+ * stuck-state probe and the refunded-HTLC cache all attribute through this, so
+ * none of them can record a PegIn sweep as a refund.
+ */
+export function isHtlcSpentByPegin(
+  spend: HtlcSpend | undefined,
+  peginTxHash: string | undefined,
+): boolean {
+  const peginTxCanonical = canonicalizeTxid(peginTxHash);
+  return (
+    spend?.spent === true &&
+    peginTxCanonical !== undefined &&
+    canonicalizeTxid(spend.spendingTxid) === peginTxCanonical
+  );
+}
+
 export function computeDepositPollingResult(
   inputs: DepositPollingInputs,
 ): DepositPollingResult {
@@ -275,22 +296,42 @@ export function computeDepositPollingResult(
   // a spent-but-unconfirmed one is a pending refund. Either way the refund is
   // no longer available — re-broadcasting would hit Bitcoin's -27/-25.
   const liveRefund = htlcRefundByDepositId.get(depositIdKey);
+  const htlcSpendIsPeginTx = isHtlcSpentByPegin(
+    liveRefund,
+    activity.peginTxHash,
+  );
+  // An expired vault whose HTLC the PegIn spent, confirmed or not. Reachable
+  // when the PegIn was broadcast with the secret after a late activation, or
+  // when the vault was swept while VERIFIED and then expired. Either way the
+  // outpoint is contested by the PegIn, so no refund is possible from here.
+  const peginSweptWhileExpired =
+    contractStatus === ContractStatus.EXPIRED && htlcSpendIsPeginTx;
   const refundConfirmed =
     refundedHtlcVaultIds.has(depositIdKey) || liveRefund?.confirmed === true;
   const refundPending = !refundConfirmed && liveRefund?.spent === true;
-  const refundSettlement: "confirmed" | "pending" | undefined = refundConfirmed
-    ? "confirmed"
-    : refundPending
-      ? "pending"
-      : undefined;
+  // Attribute before settling. Without this the EXPIRED branch reports
+  // "Refund complete" for ANY spend, including the PegIn's own sweep — telling
+  // a depositor their BTC came back when it did not.
+  const refundSettlement: "confirmed" | "pending" | undefined =
+    peginSweptWhileExpired
+      ? undefined
+      : refundConfirmed
+        ? "confirmed"
+        : refundPending
+          ? "pending"
+          : undefined;
 
   // FE-composite: SDK only checks "have unsigned hex?"; we also gate on
   // CSV maturity so the button never shows for a deposit Bitcoin would reject,
   // and on the HTLC not already being spent (settled refund).
+  // `refundSettlement` is undefined for a PegIn sweep as well as for an
+  // untouched HTLC, so it cannot carry this on its own: the outpoint is gone
+  // either way and a broadcast would hit Bitcoin's -27/-25.
   const canRefund =
     !!activity.unsignedPrePeginTx &&
     refundMaturityState === "mature" &&
-    refundSettlement === undefined;
+    refundSettlement === undefined &&
+    !peginSweptWhileExpired;
 
   // Stuck-state signal (VERIFIED only): the HTLC outpoint was spent BY THE
   // PEGIN TX — the VP swept the deposit while the vault has not activated,
@@ -311,13 +352,10 @@ export function computeDepositPollingResult(
   // activation looks like on the BTC side. Trusting the indexer alone raised a
   // false "Activation incomplete" (and a signing prompt) on any device that had
   // not written the local reveal marker.
-  const peginTxCanonical = canonicalizeTxid(activity.peginTxHash);
   const htlcSpentByPeginTx =
     contractStatus === ContractStatus.VERIFIED &&
     stuckStateConfirmedOnChain &&
-    liveRefund?.spent === true &&
-    peginTxCanonical !== undefined &&
-    canonicalizeTxid(liveRefund.spendingTxid) === peginTxCanonical;
+    htlcSpendIsPeginTx;
 
   const peginState = getPeginState(contractStatus, {
     localStatus,
@@ -333,6 +371,7 @@ export function computeDepositPollingResult(
     htlcSpentByPeginTx,
     activationFloorBlocksRemaining,
     canRefund,
+    peginSweptWhileExpired,
     refundMaturityState,
     refundMaturesInBlocks,
     refundSettlement,

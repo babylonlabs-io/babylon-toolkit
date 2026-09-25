@@ -207,6 +207,17 @@ export const COPY = {
       // longer renders that tooltip.
       activationIncompleteSubtext:
         "Your BTC is not lost — withdraw to receive it back.",
+      // The expired counterpart. Deliberately makes no promise of a recovery
+      // action: `claimExpiredVault` is the way out and the app has no path to
+      // it yet, so the copy states the position and stops. Update this text in
+      // the same change that adds the CTA.
+      // The PegIn may have swept the HTLC before or after the deadline, so the
+      // copy names the state, not the order of events. It also shows while
+      // that spend is still unconfirmed, so it claims no confirmation.
+      peginSweptWhileExpired:
+        "The peg-in transaction spent this deposit on Bitcoin, but this BTCVault expired before it was activated. Your BTC goes to the BTCVault, not back to you, so a refund is no longer possible from here.",
+      peginSweptWhileExpiredSubtext:
+        "Peg-in spent the deposit, BTCVault expired — refund unavailable.",
       // Activation floor. Blocks lead because they are the fact the contract
       // checks; the minutes figure is an estimate derived from slot time, so it
       // is bracketed as approximate. Mirrors the refundMaturing shape.
@@ -230,6 +241,14 @@ export const COPY = {
         `Activation is not open yet — ${blocks} Ethereum ${
           blocks === 1 ? "block" : "blocks"
         } to go (~${minutes} min). You can try again once the window opens.`,
+      // The closing end of the window. Activation puts the HTLC secret in
+      // calldata, so too little time to be mined is a reason to send nothing
+      // at all: a late transaction reverts and publishes the secret anyway.
+      // Terminal — waiting only makes it worse, so the copy does not invite a
+      // retry. It names the exit instead: the secret stays private, so the
+      // BTCVault expires and the refund path opens once its timelock passes.
+      activationWindowClosing:
+        "Too little time remains to activate this BTCVault safely. Nothing was submitted — activating now would reveal your secret without completing the deposit. Your secret stays private: once this BTCVault expires, you can refund your BTC.",
       // The window state could not be read at all. Distinct from the countdown
       // above: we cannot say how long, only that we will not reveal the secret
       // against an unverifiable gate.

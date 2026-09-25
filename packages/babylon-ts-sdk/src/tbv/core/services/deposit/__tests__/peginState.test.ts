@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  activationDeadlineBlocksRemaining,
   canPerformAction,
   ContractStatus,
   getPeginProtocolState,
@@ -216,5 +217,61 @@ describe("peginProtocolState", () => {
         }),
       ).toBe(false);
     });
+  });
+});
+
+describe("activationDeadlineBlocksRemaining", () => {
+  const createdAtBlock = 1000n;
+  const pegInActivationTimeout = 100n;
+
+  it("leaves one block when the head is one before the last usable block", () => {
+    // The contract accepts `block.number <= createdAt + timeout` = 1100. The
+    // head (1099) is already mined, so the next transaction lands at 1100.
+    expect(
+      activationDeadlineBlocksRemaining({
+        currentBlock: 1099n,
+        createdAtBlock,
+        pegInActivationTimeout,
+      }),
+    ).toBe(1);
+  });
+
+  it("returns 0 when the head is the last usable block, because it is already mined", () => {
+    // `isActivationDeadlinePassedOnChain` still reads false here: the head is
+    // inside the window. A transaction sent now lands at 1101 and reverts.
+    expect(
+      activationDeadlineBlocksRemaining({
+        currentBlock: 1100n,
+        createdAtBlock,
+        pegInActivationTimeout,
+      }),
+    ).toBe(0);
+    expect(
+      isActivationDeadlinePassedOnChain({
+        currentBlock: 1100n,
+        createdAtBlock,
+        pegInActivationTimeout,
+      }),
+    ).toBe(false);
+  });
+
+  it("never reports a negative margin for a long-expired vault", () => {
+    expect(
+      activationDeadlineBlocksRemaining({
+        currentBlock: 9999n,
+        createdAtBlock,
+        pegInActivationTimeout,
+      }),
+    ).toBe(0);
+  });
+
+  it("reports the full window at the creation block", () => {
+    expect(
+      activationDeadlineBlocksRemaining({
+        currentBlock: createdAtBlock,
+        createdAtBlock,
+        pegInActivationTimeout,
+      }),
+    ).toBe(100);
   });
 });

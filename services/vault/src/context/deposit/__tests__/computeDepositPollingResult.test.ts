@@ -517,3 +517,102 @@ describe("computeDepositPollingResult — refund suppression clock", () => {
     );
   });
 });
+
+describe("computeDepositPollingResult — PegIn sweep after expiry", () => {
+  // An expired vault whose HTLC the PegIn spent. Reachable when a late
+  // activation leaked the secret: the call reverted, the vault expired with
+  // ActivationTimeout, and that secret let the PegIn be broadcast.
+  function makeSweptInputs(overrides: Partial<DepositPollingInputs> = {}) {
+    return makeInputs({
+      activity: { ...makeExpiredActivity(), peginTxHash: PEGIN_TX },
+      htlcRefundByDepositId: new Map([
+        [
+          VAULT_ID.toLowerCase(),
+          { spent: true, confirmed: true, spendingTxid: PEGIN_TX },
+        ],
+      ]),
+      ...overrides,
+    });
+  }
+
+  it("does not report a refund when the PegIn is the spender", () => {
+    const result = computeDepositPollingResult(makeSweptInputs());
+    expect(result.peginState.displayLabel).not.toBe(
+      PEGIN_DISPLAY_LABELS.REFUNDED,
+    );
+    expect(result.peginState.displayLabel).toBe(
+      PEGIN_DISPLAY_LABELS.ACTIVATION_INCOMPLETE,
+    );
+    expect(result.peginState.message).toBe(
+      COPY.pegin.messages.peginSweptWhileExpired,
+    );
+  });
+
+  it("shows the sweep, not a pending refund, while the PegIn spend is unconfirmed", () => {
+    // Before attribution an unconfirmed spend read as a refund in flight
+    // ("Refunding"). With the PegIn as spender it is the sweep, and the refund
+    // action stays hidden because the outpoint is already contested.
+    const result = computeDepositPollingResult(
+      makeSweptInputs({
+        htlcRefundByDepositId: new Map([
+          [
+            VAULT_ID.toLowerCase(),
+            { spent: true, confirmed: false, spendingTxid: PEGIN_TX },
+          ],
+        ]),
+      }),
+    );
+    expect(result.peginState.displayLabel).toBe(
+      PEGIN_DISPLAY_LABELS.ACTIVATION_INCOMPLETE,
+    );
+    expect(result.peginState.availableActions).not.toContain(
+      PeginAction.REFUND_HTLC,
+    );
+  });
+
+  it("still reports a refund when someone other than the PegIn spent the HTLC", () => {
+    const result = computeDepositPollingResult(
+      makeSweptInputs({
+        htlcRefundByDepositId: new Map([
+          [
+            VAULT_ID.toLowerCase(),
+            { spent: true, confirmed: true, spendingTxid: REFUND_TX },
+          ],
+        ]),
+      }),
+    );
+    expect(result.peginState.displayLabel).toBe(PEGIN_DISPLAY_LABELS.REFUNDED);
+  });
+
+  it("keeps the previous behaviour when the spender cannot be identified", () => {
+    // No `spendingTxid` is ambiguous, not proof of a sweep. Suppressing the
+    // refund label here would strip the action from every depositor whose
+    // probe happens to omit the field.
+    const result = computeDepositPollingResult(
+      makeSweptInputs({
+        htlcRefundByDepositId: new Map([
+          [VAULT_ID.toLowerCase(), { spent: true, confirmed: true }],
+        ]),
+      }),
+    );
+    expect(result.peginState.displayLabel).toBe(PEGIN_DISPLAY_LABELS.REFUNDED);
+  });
+
+  it("leaves an unexpired vault's sweep handling untouched", () => {
+    // The VERIFIED path has its own stuck-state branch gated on a chain
+    // confirmation; the expiry attribution must not reach into it.
+    const result = computeDepositPollingResult(
+      makeSweptInputs({
+        activity: {
+          ...makeExpiredActivity(),
+          contractStatus: ContractStatus.VERIFIED,
+          peginTxHash: PEGIN_TX,
+        },
+        stuckStateConfirmedOnChain: false,
+      }),
+    );
+    expect(result.peginState.displayLabel).not.toBe(
+      PEGIN_DISPLAY_LABELS.ACTIVATION_INCOMPLETE,
+    );
+  });
+});

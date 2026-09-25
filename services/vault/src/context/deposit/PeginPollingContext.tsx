@@ -59,7 +59,10 @@ import type {
 import { canonicalizeTxid } from "../../utils/txid";
 import { isVaultOwnedByWallet } from "../../utils/vaultWarnings";
 
-import { computeDepositPollingResult } from "./computeDepositPollingResult";
+import {
+  computeDepositPollingResult,
+  isHtlcSpentByPegin,
+} from "./computeDepositPollingResult";
 import {
   collectDaemonTerminalEvents,
   getSharedDaemonTerminalTracking,
@@ -391,14 +394,7 @@ export function PeginPollingProvider({
       // indexer unnormalized. A raw lookup that misses reads as "not swept", so
       // the suspect never forms and the stuck card silently never appears.
       const spend = htlcRefundByDepositId.get(a.id.toLowerCase());
-      if (spend?.spent !== true) continue;
-      const peginTxCanonical = canonicalizeTxid(a.peginTxHash);
-      if (
-        peginTxCanonical === undefined ||
-        canonicalizeTxid(spend.spendingTxid) !== peginTxCanonical
-      ) {
-        continue;
-      }
+      if (!isHtlcSpentByPegin(spend, a.peginTxHash)) continue;
       ids.push(a.id);
     }
     return ids;
@@ -467,18 +463,24 @@ export function PeginPollingProvider({
   // later flips to EXPIRED, so those stay in the live poll.
   useEffect(() => {
     if (htlcRefundByDepositId.size === 0) return;
-    const expiredIds = new Set(
+    // Keyed by id, with the PegIn txid: a spend by the PegIn is a sweep INTO
+    // the BTCVault, not a refund, and must never be cached as one. Once cached
+    // the vault leaves the probe, so a wrong entry would stick.
+    const expiredPeginTxById = new Map(
       activities
         .filter(
           (a) =>
             ((a.contractStatus ?? 0) as ContractStatus) ===
             ContractStatus.EXPIRED,
         )
-        .map((a) => a.id.toLowerCase()),
+        .map((a) => [a.id.toLowerCase(), a.peginTxHash] as const),
     );
     const newlyRefunded: string[] = [];
     for (const [depositId, spend] of htlcRefundByDepositId) {
-      if (!expiredIds.has(depositId)) continue;
+      if (!expiredPeginTxById.has(depositId)) continue;
+      if (isHtlcSpentByPegin(spend, expiredPeginTxById.get(depositId))) {
+        continue;
+      }
       if (spend.confirmed && !refundedHtlcVaultIds.has(depositId)) {
         newlyRefunded.push(depositId);
       }
