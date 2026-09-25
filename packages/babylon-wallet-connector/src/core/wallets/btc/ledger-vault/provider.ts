@@ -13,10 +13,12 @@ import {
   approveVaultIntent,
   assertDepositTermsDeviceCompatible,
   assertRefundPsbtSignable,
+  augmentPsbtForDelegatedClaim,
   augmentPsbtForRefund,
   augmentPsbtForWalletPolicy,
   buildDefaultTaprootPolicy,
   buildPopPsbtHex,
+  classifyDelegatedClaimPsbt,
   classifyRefundPsbt,
   connectDmkSession,
   createDmkApduSender,
@@ -144,12 +146,13 @@ interface StagedPsbt {
   readonly fingerprintKey: string;
   readonly label: string;
   /**
-   * True for ANY classified refund, intent loaded or not: the device's
-   * standalone path consumes no dedup mask or cap in any vault state, and no
-   * failure on it invalidates the vault context — so the refund skips the
-   * replay guard and the pessimistic mirror reset.
+   * True for a sign the device runs through its standalone section — the
+   * refund (#2371) and the delegated-claim kinds (#2111), intent loaded or
+   * not: that section consumes no dedup mask or cap in any vault state, and no
+   * failure on it invalidates the vault context — so these skip the replay
+   * guard and the pessimistic mirror reset.
    */
-  readonly standaloneRefund: boolean;
+  readonly standalone: boolean;
 }
 
 /**
@@ -860,6 +863,109 @@ export class LedgerVaultProvider implements IBTCProvider {
     );
 
   /**
+   * SIGN_PSBT for the depositor-as-claimer ceremony (#2111), kept OUT of
+   * {@link signPsbt} so the deposit flow's path stays byte-identical. The kind
+   * comes from the provider's OWN parse plus the single requested input
+   * (`classifyDelegatedClaimPsbt`), never a caller flag; anything else is
+   * refused before any device I/O — this method signs claim PSBTs only.
+   *
+   * Per kind: the depositor Payout is the deposit-time shape and goes down
+   * {@link signPsbt} unchanged (the intent-bound Payout signer takes its path
+   * from the intent, `sign_custom_inputs.c:403-412`). The other four need
+   * the derivation entry {@link augmentPsbtForDelegatedClaim} writes. The
+   * Assert is intent-bound — its signer prefix is pinned to the loaded intent
+   * (`sign_psbt_validate.c:3710-3716`) — so it keeps the intent requirement;
+   * Claim, WronglyChallenged and the claimer Payout (PayoutFinalize) are
+   * standalone, accepted with no intent (`:3654`, `:3677`, `:3681`), so for
+   * them only that requirement is waived. The claimer Payout is additionally
+   * refused WHILE an intent is loaded: the dispatcher routes any 2-in/2-out
+   * PSBT whose input 0 spends a loaded vault's PegIn to the intent-bound
+   * Payout validator (`:3600-3634`), whose per-slot dedup — the depositor
+   * Payout was already signed under that intent, in ceremony order — WIPES
+   * the intent with SW_CAP_EXCEEDED (`:1765-1775`; otherwise SW_INCORRECT_DATA
+   * at the input-0 leaf check, `:1863`). Refusing here costs no device I/O
+   * and keeps the intent.
+   *
+   * Nothing else is validated here: every term of these transactions is the
+   * device's to check, and a rejection on these paths costs no loaded intent.
+   * Never finalizes. Every rejection before the device loop leaves the mirror
+   * and the loaded intent untouched.
+   */
+  signDelegatedClaimPsbt = async (psbtHex: string, options?: SignPsbtOptions): Promise<string> => {
+    const requestedIndex = singleRequestedInputIndex(options);
+    // Separate from the refusal below: a missing or plural request says nothing
+    // about the PSBT, and reporting it as the wrong shape hides the caller's bug.
+    if (requestedIndex === undefined) {
+      throw new WalletError({
+        code: ERROR_CODES.INVALID_PARAMS,
+        message:
+          `${WALLET_PROVIDER_NAME}: signDelegatedClaimPsbt needs exactly one entry in options.signInputs — ` +
+          `the input the claim ceremony signs.`,
+        wallet: WALLET_PROVIDER_NAME,
+      });
+    }
+    const claim = classifyDelegatedClaimPsbt(psbtHex, requestedIndex);
+    if (claim === undefined) {
+      throw new WalletError({
+        code: ERROR_CODES.INVALID_PARAMS,
+        message:
+          `${WALLET_PROVIDER_NAME}: not a delegated-claim PSBT for the requested input — ` +
+          `signDelegatedClaimPsbt signs the claim ceremony's shapes only; anything else goes through signPsbt.`,
+        wallet: WALLET_PROVIDER_NAME,
+      });
+    }
+    // The deposit-time shape takes the ordinary intent path. Delegated outside
+    // this method's lock: withDeviceOperation is non-reentrant.
+    if (claim.kind === "payoutDepositor") return this.signPsbt(psbtHex, options);
+    // Kind and input in the label: with no host validation, this plus the
+    // device's status word is how a failing ceremony step gets located.
+    const label = `signDelegatedClaimPsbt[${claim.kind}@${claim.signInputIndex}]`;
+    return this.withDeviceOperation("signDelegatedClaimPsbt", () =>
+      this.withSignAbort(async (controller) => {
+        if (claim.kind === "payoutFinalize" && this.deviceState.phase === "intent-loaded") {
+          throw new WalletError({
+            code: ERROR_CODES.DEVICE_CEREMONY_INVALID,
+            message:
+              `${WALLET_PROVIDER_NAME} holds an approved intent — under it the device refuses the claimer Payout ` +
+              `and wipes the intent. Release the intent with deriveContextHash first.`,
+            wallet: WALLET_PROVIDER_NAME,
+          });
+        }
+        const ctx = await this.gateSignContext(claim.kind === "assert");
+        if (claim.leafKeyHex !== ctx.depositorXOnlyHex) {
+          throw new WalletError({
+            code: ERROR_CODES.INVALID_PARAMS,
+            message: `${WALLET_PROVIDER_NAME}: the ${claim.kind} leaf key is not this device's depositor key — this device cannot sign it.`,
+            wallet: WALLET_PROVIDER_NAME,
+          });
+        }
+        const { masterFingerprintHex } = await this.getPolicyContext();
+        this.assertSameConnection(ctx.generation);
+        let stagingHex: string;
+        try {
+          stagingHex = augmentPsbtForDelegatedClaim({
+            kind: claim.kind,
+            psbtHex,
+            depositorXOnlyHex: ctx.depositorXOnlyHex,
+            masterFingerprintHex,
+            depositorPath: this.depositorPath,
+          });
+        } catch (error) {
+          throw toStagingWalletError(error, `${label} rejected before the signing ceremony`);
+        }
+        // Standalone for the Assert too: it is intent-bound at DISPATCH (the
+        // signer prefix is pinned to the loaded intent) but signs through the
+        // standalone section like the other three, which consumes no dedup
+        // mask or cap and holds no invalidate site — so no replay fingerprint,
+        // and a failure keeps the mirror.
+        const staged = await this.stagePsbt(stagingHex, options, label, new Set(), ctx.depositorXOnlyHex, true);
+        this.assertSameConnection(ctx.generation);
+        return this.signStaged(staged, ctx, controller);
+      }),
+    );
+  };
+
+  /**
    * Zero-I/O refund gates (#2371). The key check pre-empts the device's own
    * derive-and-compare (`sign_psbt_validate.c:920-965`); the vault check
    * pre-empts the INTENT_LOADED pins on the leaf CSV (`:906-910`) and input 0's
@@ -1018,8 +1124,9 @@ export class LedgerVaultProvider implements IBTCProvider {
    * reconnect's fresh state).
    *
    * `requireIntent: false` is for the signs the device itself accepts without
-   * an intent — the state-independent PoP and the standalone refund (#2371);
-   * every other caller keeps the default.
+   * an intent — the state-independent PoP, the standalone refund (#2371), and
+   * the three standalone delegated-claim kinds: Claim, WronglyChallenged and
+   * the claimer Payout (#2111); every other caller keeps the default.
    */
   private async gateSignContext(requireIntent = true): Promise<SignContext> {
     const { session, rawSend } = this.requireSignContext();
@@ -1060,7 +1167,7 @@ export class LedgerVaultProvider implements IBTCProvider {
     label: string,
     stagedKeys: ReadonlySet<string>,
     depositorXOnlyHex: string,
-    standaloneRefund = false,
+    standalone = false,
   ): Promise<StagedPsbt> {
     // Never finalize, and never silently ignore a request to — the SDK
     // extracts signatures and finalizes itself.
@@ -1146,7 +1253,7 @@ export class LedgerVaultProvider implements IBTCProvider {
         wallet: WALLET_PROVIDER_NAME,
       });
     }
-    if (!standaloneRefund && this.signedFingerprints.has(fingerprintKey)) {
+    if (!standalone && this.signedFingerprints.has(fingerprintKey)) {
       throw new WalletError({
         code: ERROR_CODES.INVALID_PARAMS,
         message:
@@ -1156,7 +1263,7 @@ export class LedgerVaultProvider implements IBTCProvider {
         wallet: WALLET_PROVIDER_NAME,
       });
     }
-    return { prepared, fingerprintKey, label, standaloneRefund };
+    return { prepared, fingerprintKey, label, standalone };
   }
 
   /**
@@ -1175,7 +1282,7 @@ export class LedgerVaultProvider implements IBTCProvider {
    * committed — and takes the pessimistic reset below.
    */
   private async signStaged(staged: StagedPsbt, ctx: SignContext, controller: AbortController): Promise<string> {
-    const { prepared, fingerprintKey, label, standaloneRefund } = staged;
+    const { prepared, fingerprintKey, label, standalone } = staged;
     const { session, rawSend, generation } = ctx;
     try {
       const result = await signPreparedVaultPsbt(rawSend, prepared, {
@@ -1185,10 +1292,11 @@ export class LedgerVaultProvider implements IBTCProvider {
       });
       this.assertSameConnection(generation);
       // Success never consumes the intent: further (different) PSBTs sign
-      // under the same approval; this one never again. Any standalone refund
-      // is exempt — the device's standalone path consumes no dedup mask or
-      // cap in any vault state (`sign_custom_inputs.c`, standalone section).
-      if (!standaloneRefund) this.signedFingerprints.add(fingerprintKey);
+      // under the same approval; this one never again. Any standalone sign
+      // (refund, delegated claim) is exempt — the device's standalone path
+      // consumes no dedup mask or cap in any vault state
+      // (`sign_custom_inputs.c`, standalone section).
+      if (!standalone) this.signedFingerprints.add(fingerprintKey);
       return result.signedPsbtHex;
     } catch (error) {
       const walletError = this.classifySignFailure(error, generation, label);
@@ -1201,15 +1309,17 @@ export class LedgerVaultProvider implements IBTCProvider {
         generation === this.connectionGeneration &&
         !isLedgerSignPsbtAbortedError(error) &&
         !lockedBeforeDispatch &&
-        // Refunds keep the mirror: NOTHING on the device's refund path
-        // invalidates the vault context — not the validator's rejects
-        // (`sign_psbt_validate.c:811-1120` holds none of the file's six
-        // invalidate sites), not the standalone sign section, not the review
-        // screen's SW_DENY, and not the base app's PSBT-phase failures
-        // (zero vault references in `base:sign_psbt.c` and its phases).
+        // Standalone signs keep the mirror: NOTHING on the device's refund
+        // or delegated-claim paths invalidates the vault context — not the
+        // validators' rejects (`sign_psbt_validate.c:811-1120` and
+        // `:2369-2887`, `:3189-3494` hold none of the file's six invalidate
+        // sites, all of which sit at `:742-2162` on the PegIn/Payout/NoPayout
+        // paths), not the standalone sign section, not the review screen's
+        // SW_DENY, and not the base app's PSBT-phase failures (zero vault
+        // references in `base:sign_psbt.c` and its phases).
         // INTENT_LOADED is terminal until an explicit invalidate
         // (`vault_context.c:44-47`). The abort branch above stays uniform.
-        !standaloneRefund
+        !standalone
       ) {
         // Pessimistically assume the device dropped the intent (error-path
         // invalidation is mixed in firmware — never assume survival).
@@ -1360,6 +1470,12 @@ export class LedgerVaultProvider implements IBTCProvider {
   getWalletProviderName = async (): Promise<string> => WALLET_PROVIDER_NAME;
 
   getWalletProviderIcon = async (): Promise<string> => logo;
+}
+
+/** The one input the caller asked to sign, or undefined when the request is absent, empty or plural. */
+function singleRequestedInputIndex(options: SignPsbtOptions | undefined): number | undefined {
+  const inputs = options?.signInputs;
+  return inputs !== undefined && inputs.length === 1 ? inputs[0].index : undefined;
 }
 
 /** A staging rejection (prepare, augmentation): typed, cause preserved, no ceremony run. */

@@ -67,20 +67,12 @@ function deriveBranchXOnlyHex(
 }
 
 /** x-only key at `account/1/addressIndex` from the device's verbatim account xpub. */
-export function deriveChangeXOnlyHex(
-  accountXpub: string,
-  bip32Versions: Bip32Versions,
-  addressIndex: number,
-): string {
+export function deriveChangeXOnlyHex(accountXpub: string, bip32Versions: Bip32Versions, addressIndex: number): string {
   return deriveBranchXOnlyHex(accountXpub, bip32Versions, BIP86_CHANGE_BRANCH, addressIndex);
 }
 
 /** x-only key at `account/0/addressIndex` — the depositor branch. */
-export function deriveReceiveXOnlyHex(
-  accountXpub: string,
-  bip32Versions: Bip32Versions,
-  addressIndex: number,
-): string {
+export function deriveReceiveXOnlyHex(accountXpub: string, bip32Versions: Bip32Versions, addressIndex: number): string {
   return deriveBranchXOnlyHex(accountXpub, bip32Versions, BIP86_RECEIVE_BRANCH, addressIndex);
 }
 

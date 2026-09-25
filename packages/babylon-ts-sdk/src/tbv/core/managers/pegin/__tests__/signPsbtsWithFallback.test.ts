@@ -124,6 +124,64 @@ describe("signPsbtsWithFallback", () => {
     ).rejects.toThrow("user rejected");
   });
 
+  it("stops the sequential fallback before the next prompt once the signal is aborted", async () => {
+    const controller = new AbortController();
+    const cancelled = new Error("user cancelled");
+    const signPsbt = vi
+      .fn<BitcoinWallet["signPsbt"]>()
+      .mockImplementation(async () => {
+        controller.abort(cancelled);
+        return "signed-a";
+      });
+    const wallet = makeWallet({ signPsbts: undefined, signPsbt });
+
+    await expect(
+      signPsbtsWithFallback(
+        wallet,
+        ["a", "b"],
+        [{ autoFinalized: false }, { autoFinalized: false }],
+        controller.signal,
+      ),
+    ).rejects.toBe(cancelled);
+    expect(signPsbt).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses a single PSBT when the signal is already aborted", async () => {
+    const controller = new AbortController();
+    const cancelled = new Error("user cancelled");
+    controller.abort(cancelled);
+    const signPsbt = vi.fn<BitcoinWallet["signPsbt"]>();
+    const wallet = makeWallet({ signPsbts: undefined, signPsbt });
+
+    await expect(
+      signPsbtsWithFallback(
+        wallet,
+        ["a"],
+        [{ autoFinalized: false }],
+        controller.signal,
+      ),
+    ).rejects.toBe(cancelled);
+    expect(signPsbt).not.toHaveBeenCalled();
+  });
+
+  it("refuses a native batch when the signal is already aborted", async () => {
+    const controller = new AbortController();
+    const cancelled = new Error("user cancelled");
+    controller.abort(cancelled);
+    const signPsbts = vi.fn<NonNullable<BitcoinWallet["signPsbts"]>>();
+    const wallet = makeWallet({ signPsbts });
+
+    await expect(
+      signPsbtsWithFallback(
+        wallet,
+        ["a", "b"],
+        [{ autoFinalized: false }, { autoFinalized: false }],
+        controller.signal,
+      ),
+    ).rejects.toBe(cancelled);
+    expect(signPsbts).not.toHaveBeenCalled();
+  });
+
   it("propagates errors from the sequential fallback path", async () => {
     const signPsbt = vi
       .fn<BitcoinWallet["signPsbt"]>()

@@ -9,6 +9,114 @@ at registration — signing-critical values must not come from the indexer mirro
 
 ## Classes
 
+### VaultClaimableByNotFoundError
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/claimable-event-error.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/claimable-event-error.ts)
+
+**`Experimental`**
+
+#### Extends
+
+- `Error`
+
+#### Constructors
+
+##### Constructor
+
+```ts
+new VaultClaimableByNotFoundError(
+   vaultId, 
+   claimerPk, 
+   fromBlock, 
+   toBlock, 
+   detail, 
+   options?): VaultClaimableByNotFoundError;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/claimable-event-error.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/claimable-event-error.ts)
+
+**`Experimental`**
+
+###### Parameters
+
+###### vaultId
+
+`` `0x${string}` ``
+
+###### claimerPk
+
+`` `0x${string}` ``
+
+###### fromBlock
+
+`bigint`
+
+###### toBlock
+
+`bigint`
+
+###### detail
+
+`string` = `"the vault has not been redeemed for this key, or the node did not serve the block. Redeem first, or try again."`
+
+###### options?
+
+`ErrorOptions`
+
+###### Returns
+
+[`VaultClaimableByNotFoundError`](#vaultclaimablebynotfounderror)
+
+###### Overrides
+
+```ts
+Error.constructor
+```
+
+#### Properties
+
+##### vaultId
+
+```ts
+readonly vaultId: `0x${string}`;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/claimable-event-error.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/claimable-event-error.ts)
+
+**`Experimental`**
+
+##### claimerPk
+
+```ts
+readonly claimerPk: `0x${string}`;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/claimable-event-error.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/claimable-event-error.ts)
+
+**`Experimental`**
+
+##### fromBlock
+
+```ts
+readonly fromBlock: bigint;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/claimable-event-error.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/claimable-event-error.ts)
+
+**`Experimental`**
+
+##### toBlock
+
+```ts
+readonly toBlock: bigint;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/claimable-event-error.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/claimable-event-error.ts)
+
+**`Experimental`**
+
+***
+
 ### ViemOperationKeyReader
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/operation-key-reader.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/operation-key-reader.ts)
@@ -457,16 +565,23 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/registration-logs-
 ##### Constructor
 
 ```ts
-new RegistrationLogsUnavailableError(blockNumber): RegistrationLogsUnavailableError;
+new RegistrationLogsUnavailableError(blockNumber, message?): RegistrationLogsUnavailableError;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/registration-logs-error.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/registration-logs-error.ts)
+
+`message` replaces the empty-answer wording for the partial-answer shapes
+that are not "no logs at all"; the caller names which logs it did get.
 
 ###### Parameters
 
 ###### blockNumber
 
 `bigint`
+
+###### message?
+
+`string`
 
 ###### Returns
 
@@ -1140,6 +1255,47 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/vault-registry-rea
 
 [`VaultRegistryReader`](#vaultregistryreader).[`getVaultData`](#getvaultdata)
 
+##### getRegistrationRecordsAtBlock()
+
+```ts
+getRegistrationRecordsAtBlock(createdAt): Promise<PeginRegistrationRecord[]>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/vault-registry-reader.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/vault-registry-reader.ts)
+
+Decode every `PegInSubmittedV2` registration in block `createdAt`, the
+`block.number` stamped on the vault at registration. One query at exactly
+that block, so no range scan is needed and public-RPC range caps do not
+apply. Records are keyed by lowercase vault id; use
+`findRegistrationRecord` to pick one.
+
+###### Parameters
+
+###### createdAt
+
+`bigint`
+
+###### Returns
+
+`Promise`\<[`PeginRegistrationRecord`](#peginregistrationrecord)[]\>
+
+###### Throws
+
+(transient, retry) when the
+node answers with no registration logs for the block at all, or with V1
+registrations only — the registry emits both shapes together, so either
+can be a partial answer.
+
+###### Throws
+
+when a vault has more than one V2 log. Records are decoded
+leniently: no transaction is parsed and no script is bound-checked here
+(see `registration-records.ts`).
+
+###### Implementation of
+
+[`VaultRegistryReader`](#vaultregistryreader).[`getRegistrationRecordsAtBlock`](#getregistrationrecordsatblock)
+
 ##### getMaxAcceptableCommissionBpsBatch()
 
 ```ts
@@ -1154,9 +1310,7 @@ logs. Returned in `vaultIds` order.
 
 The contract bound-checks the ceiling and discards it (PeginLogic.sol,
 `VaultProviderCommissionExceeded`), so the registration log is its only
-on-chain source. One query at exactly `createdAt` — the `block.number`
-stamped at registration — so no block-range scan is needed and public-RPC
-range caps do not apply. Vault ids are matched case-insensitively.
+on-chain source. Vault ids are matched case-insensitively.
 
 ###### Parameters
 
@@ -1174,19 +1328,80 @@ readonly `` `0x${string}` ``[]
 
 ###### Throws
 
-(transient, retry) when the
-node answers with no registration logs for the block at all.
-
-###### Throws
-
-when a vault has only its `PegInSubmitted` log — registrations
-that predate the V2 event (vault-contracts-aave-v4 #548) never emitted
-the ceiling — no registration log in its own `createdAt` block, or more
-than one V2 log.
+As [getRegistrationRecordsAtBlock](#getregistrationrecordsatblock-2), plus the same typed
+transient error when a vault has no registration log in its own
+`createdAt` block.
 
 ###### Implementation of
 
 [`VaultRegistryReader`](#vaultregistryreader).[`getMaxAcceptableCommissionBpsBatch`](#getmaxacceptablecommissionbpsbatch)
+
+##### getVaultClaimableBy()
+
+```ts
+getVaultClaimableBy(
+   vaultId, 
+   claimerPk, 
+createdAt): Promise<VaultClaimableByEvent>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/vault-registry-reader.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/vault-registry-reader.ts)
+
+The vault's finalized `VaultClaimableBy` log for `claimerPk` — the
+redemption that authorized that key to claim, and the block the prover
+proves against.
+
+The event's block is not stored in contract state, so it is found by
+scanning `eth_getLogs` newest-first from the finalized block
+(`eth_getBlockByNumber("finalized")`) down to the vault's `createdAt`, in
+chunks of `VAULT_CLAIMABLE_BY_QUERY_CHUNK_BLOCKS`, filtered on the indexed
+`vaultId` and `claimerPK` topics. A redeem in the last chunk costs one
+request; an older one costs one request per chunk. The bound is
+finalized, not latest, because the block returned is what the prover
+proves against (`claimable_event_block_number`) and an unfinalized redeem
+can reorg away — the same bound btc-vault's reader uses
+(`eth-client/src/client.rs:5989-6040`, `FinalityLevel::Finalized` default
+`config.rs:11-21`).
+
+A REDEEMED vault can legitimately have no log for the depositor:
+`redeemForAVK` (RedeemLogic.sol) authorizes the vault keeper alone.
+
+###### Parameters
+
+###### vaultId
+
+`` `0x${string}` ``
+
+###### claimerPk
+
+`` `0x${string}` ``
+
+###### createdAt
+
+`bigint`
+
+###### Returns
+
+`Promise`\<[`VaultClaimableByEvent`](#vaultclaimablebyevent)\>
+
+###### Throws
+
+(typed) when no log exists in
+`createdAt..finalized` — the vault is not redeemed for that key, the
+redeem is not finalized yet, or the node did not serve the block. The
+last case is indistinguishable here, so a caller that knows the vault is
+redeemed for this key owns the retry (as
+`getMaxAcceptableCommissionBpsFromChainWithGrace` does in the vault app);
+point the read at a node that serves whole blocks, not a load balancer.
+
+###### Throws
+
+when matching logs span more than one transaction (a vault is
+redeemed once), or `claimerPk` is not an x-only key on the curve.
+
+###### Implementation of
+
+[`VaultRegistryReader`](#vaultregistryreader).[`getVaultClaimableBy`](#getvaultclaimableby)
 
 ***
 
@@ -2514,6 +2729,283 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://
 
 ***
 
+### PeginRegistrationRecord
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts)
+
+**`Experimental`**
+
+One vault's `PegInSubmittedV2` registration log, decoded.
+
+The registry discards several of these values after using them
+(`maxAcceptableCommissionBps` is bound-checked and dropped), so the log is
+their only on-chain source. Decoded leniently — no transaction is parsed and
+no script is bound-checked here, so one malformed registration elsewhere in
+the block cannot fail an unrelated caller's read; the strict per-record
+checks live in `registration-records.ts` and run on selected records only.
+That leniency stops at duplicates: a vault registers once, so two logs for
+any vault id are an inconsistent node and fail the whole block's read
+closed.
+
+#### Properties
+
+##### vaultId
+
+```ts
+vaultId: `0x${string}`;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts)
+
+**`Experimental`**
+
+Lowercase, `0x`-prefixed.
+
+##### depositor
+
+```ts
+depositor: `0x${string}`;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts)
+
+**`Experimental`**
+
+##### vaultProvider
+
+```ts
+vaultProvider: `0x${string}`;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts)
+
+**`Experimental`**
+
+##### amount
+
+```ts
+amount: bigint;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts)
+
+**`Experimental`**
+
+btc-vault `pegin_amount`, satoshis.
+
+##### vaultCoreVersion
+
+```ts
+vaultCoreVersion: number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts)
+
+**`Experimental`**
+
+##### universalChallengersVersion
+
+```ts
+universalChallengersVersion: number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts)
+
+**`Experimental`**
+
+##### appVaultKeepersVersion
+
+```ts
+appVaultKeepersVersion: number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts)
+
+**`Experimental`**
+
+##### proverCircuitVersion
+
+```ts
+proverCircuitVersion: number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts)
+
+**`Experimental`**
+
+##### offchainParamsVersion
+
+```ts
+offchainParamsVersion: number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts)
+
+**`Experimental`**
+
+##### peginTxHash
+
+```ts
+peginTxHash: `0x${string}`;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts)
+
+**`Experimental`**
+
+The event's own `peginTxHash`: the txid of this vault's depositor-signed
+PegIn, which with `depositor` re-derives the vault id. Per-vault, unlike
+[PeginRegistrationRecord.unsignedPrePeginTx](#unsignedprepegintx-2), which siblings share.
+
+##### depositorPayoutScriptPubKey
+
+```ts
+depositorPayoutScriptPubKey: `0x${string}`;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts)
+
+**`Experimental`**
+
+The event's `depositorPayoutBtcAddress` bytes: the depositor's payout
+scriptPubKey as `submitPeginRequest` received it (BTCVaultRegistry.sol
+documents the parameter as "BTC payout address (scriptPubKey)"; the SDK
+registers the validated scriptPubKey there). Lowercase, `0x`-prefixed.
+
+##### unsignedPrePeginTx
+
+```ts
+unsignedPrePeginTx: `0x${string}`;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts)
+
+**`Experimental`**
+
+The log's `unsignedPrePeginTx`, verbatim. Its txid
+(`registrationPrePeginTxHash`) equals
+[VaultProtocolInfo.prePeginTxHash](#prepegintxhash); siblings of one batch share it,
+while the event's own `peginTxHash` is the per-vault PegIn id.
+
+##### maxAcceptableCommissionBps
+
+```ts
+maxAcceptableCommissionBps: number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts)
+
+**`Experimental`**
+
+##### blockNumber
+
+```ts
+blockNumber: bigint;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts)
+
+**`Experimental`**
+
+***
+
+### VaultClaimableByEvent
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts)
+
+**`Experimental`**
+
+A vault's finalized `VaultClaimableBy` log for one claimer key.
+
+`blockNumber` is what the artifacts file records as
+`claimable_event_block_number`, the block the prover proves against.
+
+#### Properties
+
+##### blockNumber
+
+```ts
+blockNumber: bigint;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts)
+
+**`Experimental`**
+
+##### claimerPk
+
+```ts
+claimerPk: OnChainBtcPubkey;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts)
+
+**`Experimental`**
+
+The `claimerPK` topic, validated as an x-only key.
+
+##### peginTxHash
+
+```ts
+peginTxHash: `0x${string}`;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts)
+
+**`Experimental`**
+
+##### vaultCoreVersion
+
+```ts
+vaultCoreVersion: number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts)
+
+**`Experimental`**
+
+##### proverCircuitVersion
+
+```ts
+proverCircuitVersion: number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts)
+
+**`Experimental`**
+
+##### offchainParamsVersion
+
+```ts
+offchainParamsVersion: number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts)
+
+**`Experimental`**
+
+##### universalChallengersVersion
+
+```ts
+universalChallengersVersion: number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts)
+
+**`Experimental`**
+
+##### appVaultKeepersVersion
+
+```ts
+appVaultKeepersVersion: number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts)
+
+**`Experimental`**
+
+***
+
 ### KeyEpochs
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts)
@@ -2816,12 +3308,113 @@ readonly `` `0x${string}` ``[]
 ###### Throws
 
 (transient, retry) when the
-node answers with no registration logs for the block at all.
+node answers with no registration logs for the block at all, with none
+for a vault asked for, or with V1 logs only — the registry emits both
+shapes together, so every one of those can be a partial answer.
 
 ###### Throws
 
-when a vault has only its `PegInSubmitted` log (a registration
-that predates the V2 event), none, or more than one V2 log.
+when a vault has more than one V2 log.
+
+##### getRegistrationRecordsAtBlock()
+
+```ts
+getRegistrationRecordsAtBlock(createdAt): Promise<PeginRegistrationRecord[]>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts)
+
+Decode every `PegInSubmittedV2` registration in block `createdAt`, the
+`block.number` stamped on the vault at registration. One query at exactly
+that block, so no range scan is needed and public-RPC range caps do not
+apply. Records are keyed by lowercase vault id; use
+`findRegistrationRecord` to pick one.
+
+###### Parameters
+
+###### createdAt
+
+`bigint`
+
+###### Returns
+
+`Promise`\<[`PeginRegistrationRecord`](#peginregistrationrecord)[]\>
+
+###### Throws
+
+(transient, retry) when the
+node answers with no registration logs for the block at all, or with V1
+registrations only — the registry emits both shapes together, so either
+can be a partial answer.
+
+###### Throws
+
+when a vault has more than one V2 log. Records are decoded
+leniently: no transaction is parsed and no script is bound-checked here
+(see `registration-records.ts`).
+
+##### getVaultClaimableBy()
+
+```ts
+getVaultClaimableBy(
+   vaultId, 
+   claimerPk, 
+createdAt): Promise<VaultClaimableByEvent>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts)
+
+The vault's finalized `VaultClaimableBy` log for `claimerPk` — the
+redemption that authorized that key to claim, and the block the prover
+proves against.
+
+The event's block is not stored in contract state, so it is found by
+scanning `eth_getLogs` newest-first from the finalized block
+(`eth_getBlockByNumber("finalized")`) down to the vault's `createdAt`, in
+chunks of `VAULT_CLAIMABLE_BY_QUERY_CHUNK_BLOCKS`, filtered on the indexed
+`vaultId` and `claimerPK` topics. A redeem in the last chunk costs one
+request; an older one costs one request per chunk. The bound is
+finalized, not latest, because the block returned is what the prover
+proves against (`claimable_event_block_number`) and an unfinalized redeem
+can reorg away — the same bound btc-vault's reader uses
+(`eth-client/src/client.rs:5989-6040`, `FinalityLevel::Finalized` default
+`config.rs:11-21`).
+
+A REDEEMED vault can legitimately have no log for the depositor:
+`redeemForAVK` (RedeemLogic.sol) authorizes the vault keeper alone.
+
+###### Parameters
+
+###### vaultId
+
+`` `0x${string}` ``
+
+###### claimerPk
+
+`` `0x${string}` ``
+
+###### createdAt
+
+`bigint`
+
+###### Returns
+
+`Promise`\<[`VaultClaimableByEvent`](#vaultclaimablebyevent)\>
+
+###### Throws
+
+(typed) when no log exists in
+`createdAt..finalized` — the vault is not redeemed for that key, the
+redeem is not finalized yet, or the node did not serve the block. The
+last case is indistinguishable here, so a caller that knows the vault is
+redeemed for this key owns the retry (as
+`getMaxAcceptableCommissionBpsFromChainWithGrace` does in the vault app);
+point the read at a node that serves whole blocks, not a load balancer.
+
+###### Throws
+
+when matching logs span more than one transaction (a vault is
+redeemed once), or `claimerPk` is not an x-only key on the curve.
 
 ##### getVaultProviderApplication()
 
@@ -6396,6 +6989,30 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.t
 
 ## Functions
 
+### isVaultClaimableByNotFoundError()
+
+```ts
+function isVaultClaimableByNotFoundError(err): err is VaultClaimableByNotFoundError;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/claimable-event-error.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/claimable-event-error.ts)
+
+**`Experimental`**
+
+Matches `instanceof` OR the documented `name` (dual module instances).
+
+#### Parameters
+
+##### err
+
+`unknown`
+
+#### Returns
+
+`err is VaultClaimableByNotFoundError`
+
+***
+
 ### resolveProtocolAddresses()
 
 ```ts
@@ -6614,6 +7231,103 @@ Matches `instanceof` OR the documented `name` (dual module instances).
 #### Returns
 
 `err is RegistrationLogsUnavailableError`
+
+***
+
+### findRegistrationRecord()
+
+```ts
+function findRegistrationRecord(
+   records, 
+   vaultId, 
+   createdAt): PeginRegistrationRecord;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/registration-records.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/registration-records.ts)
+
+**`Experimental`**
+
+The record of `vaultId` among a block's registrations.
+
+#### Parameters
+
+##### records
+
+readonly [`PeginRegistrationRecord`](#peginregistrationrecord)[]
+
+##### vaultId
+
+`` `0x${string}` ``
+
+##### createdAt
+
+`bigint`
+
+#### Returns
+
+[`PeginRegistrationRecord`](#peginregistrationrecord)
+
+#### Throws
+
+(transient, retry) when the
+block's registration logs do not include the vault: the registry emits a
+`PegInSubmittedV2` on every submission, so an answer without the target's
+is as readily a node's partial answer as a vault registered elsewhere.
+
+***
+
+### registrationPrePeginTxHash()
+
+```ts
+function registrationPrePeginTxHash(record): `0x${string}`;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/registration-records.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/registration-records.ts)
+
+**`Experimental`**
+
+Txid of the record's `unsignedPrePeginTx`, `0x`-prefixed display order —
+what the vault record stores as `prePeginTxHash`.
+
+#### Parameters
+
+##### record
+
+[`PeginRegistrationRecord`](#peginregistrationrecord)
+
+#### Returns
+
+`` `0x${string}` ``
+
+#### Throws
+
+When the log's transaction does not parse.
+
+***
+
+### assertRegisteredPayoutScriptBounds()
+
+```ts
+function assertRegisteredPayoutScriptBounds(record): void;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/registration-records.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/registration-records.ts)
+
+**`Experimental`**
+
+The bound `assertPayoutScriptMatchesPopKey` enforces before a registration
+is submitted (payout-script.ts); a log outside it is not a script the SDK
+ever registered.
+
+#### Parameters
+
+##### record
+
+[`PeginRegistrationRecord`](#peginregistrationrecord)
+
+#### Returns
+
+`void`
 
 ***
 

@@ -10,13 +10,17 @@ import { getAbiItem } from "viem";
 
 import { BTCVaultRegistryABI } from "../../contracts/abis/BTCVaultRegistry.abi";
 import { BTCVaultRegistryKeyEpochsABI } from "../../contracts/abis/BTCVaultRegistryKeyEpochs.abi";
+import { VaultClaimableByNotFoundError } from "./claimable-event-error";
 import { assertOnChainBtcPubkey } from "./onChainBtcPubkey";
 import { assertValidOffchainParamsVersion } from "./protocol-params-validation";
 import { RegistrationLogsUnavailableError } from "./registration-logs-error";
+import { findRegistrationRecord } from "./registration-records";
 import type {
   KeyEpochs,
   OnChainBtcPubkey,
+  PeginRegistrationRecord,
   VaultBasicInfo,
+  VaultClaimableByEvent,
   VaultData,
   VaultProtocolInfo,
   VaultRegistryReader,
@@ -139,6 +143,80 @@ const PEGIN_SUBMITTED_EVENTS = [
   getAbiItem({ abi: BTCVaultRegistryABI, name: "PegInSubmitted" }),
   getAbiItem({ abi: BTCVaultRegistryABI, name: "PegInSubmittedV2" }),
 ] as const;
+
+const VAULT_CLAIMABLE_BY_EVENT = getAbiItem({
+  abi: BTCVaultRegistryABI,
+  name: "VaultClaimableBy",
+});
+
+/**
+ * Block span of one `VaultClaimableBy` query: btc-vault's own scan chunk
+ * (`EVENT_QUERY_CHUNK_BLOCKS = 7200`, `crates/eth-client/src/client.rs:793`
+ * @ ac4954e7), about a day of Ethereum blocks, so a recent redeem costs one
+ * request. Not every provider serves a range this wide — an Alchemy free key
+ * caps `eth_getLogs` at 10 blocks
+ * (https://www.alchemy.com/docs/reference/eth-getlogs) — and a provider that
+ * answered a wide range short instead of erroring would make this scan report
+ * not-found, so confirming the RPC honours 7,200-block ranges is a
+ * prerequisite of a claim run.
+ */
+const VAULT_CLAIMABLE_BY_QUERY_CHUNK_BLOCKS = 7_200n;
+
+function maxBigint(a: bigint, b: bigint): bigint {
+  return a > b ? a : b;
+}
+
+/**
+ * A `PegInSubmittedV2` log's decoded args, as viem's strict `getLogs` hands
+ * them back after the `eventName` narrowing.
+ */
+interface PegInSubmittedV2Args {
+  vaultId: Hex;
+  peginTxHash: Hex;
+  depositor: Address;
+  vaultProvider: Address;
+  amount: bigint;
+  vaultCoreVersion: number;
+  universalChallengersVersion: number;
+  appVaultKeepersVersion: number;
+  proverCircuitVersion: number;
+  offchainParamsVersion: number;
+  depositorPayoutBtcAddress: Hex;
+  depositorWotsPkHash: Hex;
+  hashlock: Hex;
+  htlcVout: number;
+  unsignedPrePeginTx: Hex;
+  maxAcceptableCommissionBps: number;
+}
+
+function mapRegistrationRecord(
+  args: PegInSubmittedV2Args,
+  blockNumber: bigint,
+): PeginRegistrationRecord {
+  // A plain decode of every V2 log in the block, strangers' included: nothing
+  // here parses a transaction or bound-checks a script, so one malformed
+  // registration elsewhere in the block cannot fail the caller's read. The
+  // strict per-record checks live in registration-records.ts. A duplicate
+  // vault id is not covered: a vault registers once, so two logs for one id
+  // are an inconsistent node and fail the read closed (see the caller).
+  return {
+    vaultId: args.vaultId.toLowerCase() as Hex,
+    depositor: args.depositor,
+    vaultProvider: args.vaultProvider,
+    amount: args.amount,
+    vaultCoreVersion: args.vaultCoreVersion,
+    universalChallengersVersion: args.universalChallengersVersion,
+    appVaultKeepersVersion: args.appVaultKeepersVersion,
+    proverCircuitVersion: args.proverCircuitVersion,
+    offchainParamsVersion: args.offchainParamsVersion,
+    peginTxHash: args.peginTxHash.toLowerCase() as Hex,
+    depositorPayoutScriptPubKey:
+      args.depositorPayoutBtcAddress.toLowerCase() as Hex,
+    unsignedPrePeginTx: args.unsignedPrePeginTx,
+    maxAcceptableCommissionBps: args.maxAcceptableCommissionBps,
+    blockNumber,
+  };
+}
 
 function assertEpochInRange(
   value: bigint,
@@ -449,30 +527,10 @@ export class ViemVaultRegistryReader implements VaultRegistryReader {
     return { basic, protocol };
   }
 
-  /**
-   * Read the depositor's commission ceiling (`maxAcceptableCommissionBps`)
-   * for vaults registered in the same block, from their `PegInSubmittedV2`
-   * logs. Returned in `vaultIds` order.
-   *
-   * The contract bound-checks the ceiling and discards it (PeginLogic.sol,
-   * `VaultProviderCommissionExceeded`), so the registration log is its only
-   * on-chain source. One query at exactly `createdAt` — the `block.number`
-   * stamped at registration — so no block-range scan is needed and public-RPC
-   * range caps do not apply. Vault ids are matched case-insensitively.
-   *
-   * @throws {RegistrationLogsUnavailableError} (transient, retry) when the
-   * node answers with no registration logs for the block at all.
-   * @throws when a vault has only its `PegInSubmitted` log — registrations
-   * that predate the V2 event (vault-contracts-aave-v4 #548) never emitted
-   * the ceiling — no registration log in its own `createdAt` block, or more
-   * than one V2 log.
-   */
-  async getMaxAcceptableCommissionBpsBatch(
-    vaultIds: readonly Hex[],
+  /** @inheritdoc */
+  async getRegistrationRecordsAtBlock(
     createdAt: bigint,
-  ): Promise<number[]> {
-    if (vaultIds.length === 0) return [];
-
+  ): Promise<PeginRegistrationRecord[]> {
     // Deliberately no `vaultId` topic filter: both events must come back in
     // ONE answer for the empty-vs-missing discriminator below to hold, and
     // viem's multi-event form takes no `args` — so the block's registration
@@ -490,35 +548,149 @@ export class ViemVaultRegistryReader implements VaultRegistryReader {
       throw new RegistrationLogsUnavailableError(createdAt);
     }
 
-    return vaultIds.map((vaultId) => {
-      const vaultIdLower = vaultId.toLowerCase();
-      let registered = false;
-      const ceilings: number[] = [];
-      for (const log of logs) {
-        if (log.args.vaultId.toLowerCase() !== vaultIdLower) continue;
-        registered = true;
-        if (log.eventName === "PegInSubmittedV2") {
-          ceilings.push(log.args.maxAcceptableCommissionBps);
+    const records = new Map<string, PeginRegistrationRecord>();
+    for (const log of logs) {
+      if (log.eventName !== "PegInSubmittedV2") continue;
+      const record = mapRegistrationRecord(log.args, log.blockNumber);
+      // Lenient decoding covers a malformed log, not a duplicate: a vault
+      // registers once, so two logs for any id mean the node is inconsistent
+      // and every record from this block is suspect — fail closed by design.
+      if (records.has(record.vaultId)) {
+        throw new Error(
+          `Expected one PegInSubmittedV2 log for vault ${record.vaultId} at block ${createdAt}, ` +
+            `found more than one`,
+        );
+      }
+      records.set(record.vaultId, record);
+    }
+    // The registry emits V1 and V2 together on every submission
+    // (vault-contracts-aave-v4 `PeginLogic.sol:144-147` @ c559f5c2), so this
+    // is as readily a node that served only part of the block as a pre-#548
+    // registry — retryable either way.
+    if (records.size === 0) {
+      throw new RegistrationLogsUnavailableError(
+        createdAt,
+        `Block ${createdAt} holds ${logs.length} PegInSubmitted registration log(s) but no ` +
+          `PegInSubmittedV2 log: either the node served a partial answer for block ${createdAt} ` +
+          `(retry, preferably another node) or the registry predates the depositor's commission ` +
+          `ceiling (vault-contracts-aave-v4 #548) and the ceiling cannot be recovered on-chain`,
+      );
+    }
+    return [...records.values()];
+  }
+
+  /**
+   * Read the depositor's commission ceiling (`maxAcceptableCommissionBps`)
+   * for vaults registered in the same block, from their `PegInSubmittedV2`
+   * logs. Returned in `vaultIds` order.
+   *
+   * The contract bound-checks the ceiling and discards it (PeginLogic.sol,
+   * `VaultProviderCommissionExceeded`), so the registration log is its only
+   * on-chain source. Vault ids are matched case-insensitively.
+   *
+   * @throws As {@link getRegistrationRecordsAtBlock}, plus the same typed
+   * transient error when a vault has no registration log in its own
+   * `createdAt` block.
+   */
+  async getMaxAcceptableCommissionBpsBatch(
+    vaultIds: readonly Hex[],
+    createdAt: bigint,
+  ): Promise<number[]> {
+    if (vaultIds.length === 0) return [];
+
+    const records = await this.getRegistrationRecordsAtBlock(createdAt);
+    return vaultIds.map(
+      (vaultId) =>
+        findRegistrationRecord(records, vaultId, createdAt)
+          .maxAcceptableCommissionBps,
+    );
+  }
+
+  /** @inheritdoc */
+  async getVaultClaimableBy(
+    vaultId: Hex,
+    claimerPk: Hex,
+    createdAt: bigint,
+  ): Promise<VaultClaimableByEvent> {
+    const claimer = assertOnChainBtcPubkey(
+      claimerPk,
+      `getVaultClaimableBy claimer (vault=${vaultId})`,
+    );
+    const claimerTopic = `0x${claimer}` as Hex;
+    // viem re-filters the decoded logs client-side against `args`, comparing a
+    // bytes32 with `===` against lower-case hex (parseEventLogs.ts:140,172-188).
+    const vaultIdTopic = vaultId.toLowerCase() as Hex;
+    // Finalized, not latest: the block found here is what the prover proves
+    // against, and an unfinalized redeem can reorg away (btc-vault binds the
+    // same scan to its finality level, eth-client client.rs:5989-6040).
+    const { number: finalized } = await this.publicClient.getBlock({
+      blockTag: "finalized",
+    });
+    if (finalized < createdAt) {
+      throw new Error(
+        `Finalized block ${finalized} is below vault ${vaultId}'s registration block ${createdAt}; ` +
+          `the registration is not finalized yet, or the node is behind it`,
+      );
+    }
+
+    // Newest first: the redeem usually trails the tip by far less than it
+    // trails the registration. The contract emits every VaultClaimableBy of a
+    // vault in one transaction, so the first non-empty chunk is the answer.
+    let toBlock = finalized;
+    for (;;) {
+      const fromBlock = maxBigint(
+        createdAt,
+        toBlock - VAULT_CLAIMABLE_BY_QUERY_CHUNK_BLOCKS + 1n,
+      );
+      const logs = await this.publicClient.getLogs({
+        address: this.contractAddress,
+        event: VAULT_CLAIMABLE_BY_EVENT,
+        args: { vaultId: vaultIdTopic, claimerPK: claimerTopic },
+        fromBlock,
+        toBlock,
+        strict: true,
+      });
+      // A redeem emits every VaultClaimableBy of a vault in ONE transaction
+      // (RedeemLogic.sol), and `redeemForDepositor` emits the VP's key and
+      // then the depositor's — so when those two keys are equal this filter
+      // legitimately matches twice. Identical authorizations from one
+      // transaction are the same fact; logs spanning transactions are not.
+      if (logs.length > 1) {
+        const transactions = new Set(logs.map((log) => log.transactionHash));
+        if (transactions.size > 1) {
+          throw new Error(
+            `Found ${logs.length} VaultClaimableBy logs for vault ${vaultId} and claimer ` +
+              `${claimerTopic} across ${transactions.size} transactions in blocks ` +
+              `${fromBlock}..${toBlock}; a vault is redeemed once, so the node's answer ` +
+              `is inconsistent`,
+          );
         }
       }
-
-      if (ceilings.length === 1) return ceilings[0];
-      if (ceilings.length > 1) {
-        throw new Error(
-          `Expected one PegInSubmittedV2 log for vault ${vaultId} at block ${createdAt}, ` +
-            `found ${ceilings.length} PegInSubmittedV2 logs`,
+      if (logs.length >= 1) {
+        const log = logs[0];
+        return {
+          blockNumber: log.blockNumber,
+          claimerPk: assertOnChainBtcPubkey(
+            log.args.claimerPK,
+            `VaultClaimableBy.claimerPK (vault=${vaultId})`,
+          ),
+          peginTxHash: log.args.peginTxHash,
+          vaultCoreVersion: log.args.vaultCoreVersion,
+          proverCircuitVersion: log.args.proverCircuitVersion,
+          offchainParamsVersion: log.args.offchainParamsVersion,
+          universalChallengersVersion: log.args.universalChallengersVersion,
+          appVaultKeepersVersion: log.args.appVaultKeepersVersion,
+        };
+      }
+      if (fromBlock === createdAt) {
+        throw new VaultClaimableByNotFoundError(
+          vaultId,
+          claimerTopic,
+          createdAt,
+          finalized,
         );
       }
-      if (registered) {
-        throw new Error(
-          `Vault ${vaultId} was registered before the registry emitted the depositor's ` +
-            `commission ceiling (no PegInSubmittedV2 log at block ${createdAt}), so the ` +
-            `ceiling cannot be recovered on-chain`,
-        );
-      }
-      throw new Error(
-        `Vault ${vaultId} has no registration log at its on-chain registration block ${createdAt}`,
-      );
-    });
+      toBlock = fromBlock - 1n;
+    }
   }
 }

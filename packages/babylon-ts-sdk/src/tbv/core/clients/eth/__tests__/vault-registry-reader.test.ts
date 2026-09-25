@@ -4,6 +4,10 @@ import { describe, expect, it, vi } from "vitest";
 
 import { BTCVaultRegistryABI } from "../../../contracts/abis/BTCVaultRegistry.abi";
 import {
+  isVaultClaimableByNotFoundError,
+  VaultClaimableByNotFoundError,
+} from "../claimable-event-error";
+import {
   isRegistrationLogsUnavailableError,
   RegistrationLogsUnavailableError,
 } from "../registration-logs-error";
@@ -413,7 +417,7 @@ describe("ViemVaultRegistryReader", () => {
     });
   });
 
-  describe("getMaxAcceptableCommissionBpsBatch", () => {
+  describe("registration records at the registration block", () => {
     const CREATED_AT = 11_561_176n;
     const VAULT_A =
       "0xaaaa00000000000000000000000000000000000000000000000000000000000a" as Hex;
@@ -421,16 +425,63 @@ describe("ViemVaultRegistryReader", () => {
       "0xbbbb00000000000000000000000000000000000000000000000000000000000b" as Hex;
     const OTHER_VAULT =
       "0xcccc00000000000000000000000000000000000000000000000000000000000c" as Hex;
+    const DEPOSITOR = "0x0000000000000000000000000000000000000001" as Address;
+    const OTHER_DEPOSITOR =
+      "0x0000000000000000000000000000000000000009" as Address;
+    const VAULT_PROVIDER =
+      "0x0000000000000000000000000000000000000002" as Address;
+    // Minimal consensus-encoded tx (v2, one input, one P2TR output, no
+    // witness): the shape submitPeginRequest registers as unsignedPrePeginTx.
+    const UNSIGNED_PREPEGIN_TX =
+      `0x02000000` +
+      `01${"11".repeat(32)}0000000000ffffffff` +
+      `01e803000000000000225120${"00".repeat(32)}` +
+      `00000000`;
+    const PAYOUT_SCRIPT = `0x5120${"79".repeat(32)}` as Hex;
 
-    // Decoded logs as viem's strict getLogs hands them back: topics lowercase.
+    // Decoded logs as viem's strict getLogs hands them back: args keyed by the
+    // ABI input names, topics lowercase.
     const v1Log = (vaultId: Hex) => ({
       eventName: "PegInSubmitted",
       args: { vaultId },
       blockNumber: CREATED_AT,
     });
-    const v2Log = (vaultId: Hex, maxAcceptableCommissionBps: number) => ({
+    const v2Log = (
+      vaultId: Hex,
+      maxAcceptableCommissionBps: number,
+      over: Partial<{
+        htlcVout: number;
+        depositorPayoutBtcAddress: Hex;
+        depositor: Address;
+        unsignedPrePeginTx: Hex;
+      }> = {},
+    ) => ({
       eventName: "PegInSubmittedV2",
-      args: { vaultId, maxAcceptableCommissionBps },
+      args: {
+        vaultId,
+        peginTxHash: `0x${"ee".repeat(32)}` as Hex,
+        depositor: DEPOSITOR,
+        vaultProvider: VAULT_PROVIDER,
+        amount: 1_000_000n,
+        vaultCoreVersion: 3,
+        universalChallengersVersion: 5,
+        appVaultKeepersVersion: 4,
+        proverCircuitVersion: 7,
+        offchainParamsVersion: 3,
+        referralCode: 0,
+        depositorPayoutBtcAddress: PAYOUT_SCRIPT,
+        depositorWotsPkHash: `0x${"cc".repeat(32)}` as Hex,
+        hashlock: `0x${"dd".repeat(32)}` as Hex,
+        btcPopSignature: "0x" as Hex,
+        htlcVout: 0,
+        unsignedPrePeginTx: UNSIGNED_PREPEGIN_TX as Hex,
+        depositorSignedPeginTx: "0x0200" as Hex,
+        vpKeyEpoch: 1n,
+        appKeeperKeyEpoch: 1n,
+        ucKeyEpoch: 1n,
+        maxAcceptableCommissionBps,
+        ...over,
+      },
       blockNumber: CREATED_AT,
     });
 
@@ -443,118 +494,172 @@ describe("ViemVaultRegistryReader", () => {
       return { publicClient, reader };
     }
 
-    it("returns each vault's ceiling from one query of both registration events at the block, aligned to the input order", async () => {
-      const { publicClient, reader } = readerWithLogs([
-        v1Log(VAULT_A),
-        v2Log(VAULT_A, 35),
-        v1Log(VAULT_B),
-        v2Log(VAULT_B, 125),
-      ]);
+    describe("getRegistrationRecordsAtBlock", () => {
+      it("decodes every V2 registration in the block: payout script, circuit version, ceiling, and the logged unsigned Pre-PegIn", async () => {
+        const { publicClient, reader } = readerWithLogs([
+          v1Log(VAULT_A),
+          v2Log(VAULT_A, 35),
+          v1Log(VAULT_B),
+          v2Log(VAULT_B, 125, { htlcVout: 1 }),
+        ]);
 
-      await expect(
-        reader.getMaxAcceptableCommissionBpsBatch(
-          [VAULT_B, VAULT_A],
-          CREATED_AT,
-        ),
-      ).resolves.toEqual([125, 35]);
+        const records = await reader.getRegistrationRecordsAtBlock(CREATED_AT);
 
-      // One answer must carry BOTH events so "no V2" can be told apart from
-      // "the node served nothing": exactly the registration block, strict so
-      // a log that does not decode against the ABI cannot pass as args: {}.
-      expect(publicClient.getLogs).toHaveBeenCalledTimes(1);
-      expect(publicClient.getLogs).toHaveBeenCalledWith({
-        address: MOCK_ADDRESS,
-        events: [
-          getAbiItem({ abi: BTCVaultRegistryABI, name: "PegInSubmitted" }),
-          getAbiItem({ abi: BTCVaultRegistryABI, name: "PegInSubmittedV2" }),
-        ],
-        fromBlock: CREATED_AT,
-        toBlock: CREATED_AT,
-        strict: true,
+        expect(records.map((r) => r.vaultId)).toEqual([VAULT_A, VAULT_B]);
+        expect(records[0]).toMatchObject({
+          depositor: DEPOSITOR,
+          vaultProvider: VAULT_PROVIDER,
+          amount: 1_000_000n,
+          vaultCoreVersion: 3,
+          proverCircuitVersion: 7,
+          peginTxHash: `0x${"ee".repeat(32)}`,
+          depositorPayoutScriptPubKey: PAYOUT_SCRIPT,
+          maxAcceptableCommissionBps: 35,
+          unsignedPrePeginTx: UNSIGNED_PREPEGIN_TX,
+          blockNumber: CREATED_AT,
+        });
+        expect(records).toHaveLength(2);
+        // One answer must carry BOTH events so "no V2" can be told apart from
+        // "the node served nothing": exactly the registration block, strict so
+        // a log that does not decode against the ABI cannot pass as args: {}.
+        expect(publicClient.getLogs).toHaveBeenCalledTimes(1);
+        expect(publicClient.getLogs).toHaveBeenCalledWith({
+          address: MOCK_ADDRESS,
+          events: [
+            getAbiItem({ abi: BTCVaultRegistryABI, name: "PegInSubmitted" }),
+            getAbiItem({ abi: BTCVaultRegistryABI, name: "PegInSubmittedV2" }),
+          ],
+          fromBlock: CREATED_AT,
+          toBlock: CREATED_AT,
+          strict: true,
+        });
+      });
+
+      // Every registered vault has its PegInSubmitted log in its createdAt
+      // block, so an empty answer means the node did not serve the block's
+      // logs (load-balanced public RPCs answer [] for a block a backend lacks).
+      it("throws the typed transient error when the node returns no registration logs for the block", async () => {
+        const { reader } = readerWithLogs([]);
+
+        const caught = await reader
+          .getRegistrationRecordsAtBlock(CREATED_AT)
+          .then(
+            () => null,
+            (err: unknown) => err,
+          );
+
+        expect(caught).toBeInstanceOf(RegistrationLogsUnavailableError);
+        expect(isRegistrationLogsUnavailableError(caught)).toBe(true);
+      });
+
+      // The registry emits V1 and V2 together on every submission
+      // (vault-contracts-aave-v4 PeginLogic.sol:144-147 @ c559f5c2), so a
+      // V1-only answer is as readily a partial one as a pre-#548 registry.
+      it("throws the typed transient error when the block carries V1 registrations only", async () => {
+        const { reader } = readerWithLogs([v1Log(VAULT_A)]);
+
+        const caught = await reader
+          .getRegistrationRecordsAtBlock(CREATED_AT)
+          .then(
+            () => null,
+            (err: unknown) => err,
+          );
+
+        expect(caught).toBeInstanceOf(RegistrationLogsUnavailableError);
+        expect((caught as Error).message).toContain(
+          `either the node served a partial answer for block ${CREATED_AT} (retry, preferably another node) or the registry predates the depositor's commission ceiling`,
+        );
+      });
+
+      it("throws when a vault has more than one V2 log at the block", async () => {
+        const { reader } = readerWithLogs([
+          v1Log(VAULT_A),
+          v2Log(VAULT_A, 35),
+          v2Log(VAULT_A, 35),
+        ]);
+
+        await expect(
+          reader.getRegistrationRecordsAtBlock(CREATED_AT),
+        ).rejects.toThrow(
+          `Expected one PegInSubmittedV2 log for vault ${VAULT_A} at block ${CREATED_AT}, found more than one`,
+        );
+      });
+
+      it("decodes a stranger's odd registration in the same block without failing the read", async () => {
+        const { reader } = readerWithLogs([
+          v1Log(VAULT_A),
+          v2Log(VAULT_A, 35),
+          v1Log(VAULT_B),
+          v2Log(VAULT_B, 40, {
+            depositor: OTHER_DEPOSITOR,
+            depositorPayoutBtcAddress: "0x" as Hex,
+            unsignedPrePeginTx: "0x00" as Hex,
+          }),
+        ]);
+
+        const records = await reader.getRegistrationRecordsAtBlock(CREATED_AT);
+
+        expect(records.map((r) => r.vaultId)).toEqual([VAULT_A, VAULT_B]);
       });
     });
 
-    // The node returns lowercase topics; a checksummed or uppercase caller id
-    // must still match rather than read as "no log".
-    it("matches vault ids case-insensitively", async () => {
-      const { reader } = readerWithLogs([v1Log(VAULT_A), v2Log(VAULT_A, 35)]);
+    describe("getMaxAcceptableCommissionBpsBatch", () => {
+      it("returns each vault's ceiling aligned to the input order", async () => {
+        const { reader } = readerWithLogs([
+          v1Log(VAULT_A),
+          v2Log(VAULT_A, 35),
+          v1Log(VAULT_B),
+          v2Log(VAULT_B, 125),
+        ]);
 
-      await expect(
-        reader.getMaxAcceptableCommissionBpsBatch(
-          [VAULT_A.toUpperCase().replace("0X", "0x") as Hex],
-          CREATED_AT,
-        ),
-      ).resolves.toEqual([35]);
-    });
+        await expect(
+          reader.getMaxAcceptableCommissionBpsBatch(
+            [VAULT_B, VAULT_A],
+            CREATED_AT,
+          ),
+        ).resolves.toEqual([125, 35]);
+      });
 
-    // Every registered vault has its PegInSubmitted log in its createdAt
-    // block, so an empty answer means the node did not serve the block's logs
-    // (load-balanced public RPCs answer [] for a block a backend lacks).
-    it("throws the typed transient error when the node returns no registration logs for the block", async () => {
-      const { reader } = readerWithLogs([]);
+      // The node returns lowercase topics; a checksummed or uppercase caller id
+      // must still match rather than read as "no log".
+      it("matches vault ids case-insensitively", async () => {
+        const { reader } = readerWithLogs([v1Log(VAULT_A), v2Log(VAULT_A, 35)]);
 
-      const caught = await reader
-        .getMaxAcceptableCommissionBpsBatch([VAULT_A], CREATED_AT)
-        .then(
-          () => null,
-          (err: unknown) => err,
+        await expect(
+          reader.getMaxAcceptableCommissionBpsBatch(
+            [VAULT_A.toUpperCase().replace("0X", "0x") as Hex],
+            CREATED_AT,
+          ),
+        ).resolves.toEqual([35]);
+      });
+
+      it("throws the typed transient error when the block's registration logs do not include the vault at all", async () => {
+        const { reader } = readerWithLogs([
+          v1Log(OTHER_VAULT),
+          v2Log(OTHER_VAULT, 5),
+        ]);
+
+        const caught = await reader
+          .getMaxAcceptableCommissionBpsBatch([VAULT_A], CREATED_AT)
+          .then(
+            () => null,
+            (err: unknown) => err,
+          );
+
+        expect(caught).toBeInstanceOf(RegistrationLogsUnavailableError);
+        expect((caught as Error).message).toContain(
+          `Vault ${VAULT_A} has no PegInSubmittedV2 registration log at its on-chain registration block ${CREATED_AT}`,
         );
+      });
 
-      expect(caught).toBeInstanceOf(RegistrationLogsUnavailableError);
-      expect(isRegistrationLogsUnavailableError(caught)).toBe(true);
-      expect((caught as Error).message).toContain(`block ${CREATED_AT}`);
-    });
+      it("returns nothing for an empty id list without touching the node", async () => {
+        const { publicClient, reader } = readerWithLogs([]);
 
-    it("throws naming the vault when only its V1 log is present (registered before PegInSubmittedV2)", async () => {
-      const { reader } = readerWithLogs([v1Log(VAULT_A)]);
-
-      const caught = await reader
-        .getMaxAcceptableCommissionBpsBatch([VAULT_A], CREATED_AT)
-        .then(
-          () => null,
-          (err: unknown) => err,
-        );
-
-      expect(isRegistrationLogsUnavailableError(caught)).toBe(false);
-      expect((caught as Error).message).toMatch(
-        new RegExp(
-          `Vault ${VAULT_A} was registered before the registry emitted the depositor's commission ceiling`,
-        ),
-      );
-    });
-
-    it("throws when the block's registration logs do not include the vault at all", async () => {
-      const { reader } = readerWithLogs([
-        v1Log(OTHER_VAULT),
-        v2Log(OTHER_VAULT, 5),
-      ]);
-
-      await expect(
-        reader.getMaxAcceptableCommissionBpsBatch([VAULT_A], CREATED_AT),
-      ).rejects.toThrow(
-        `Vault ${VAULT_A} has no registration log at its on-chain registration block ${CREATED_AT}`,
-      );
-    });
-
-    it("throws when a vault has more than one V2 log at the block", async () => {
-      const { reader } = readerWithLogs([
-        v1Log(VAULT_A),
-        v2Log(VAULT_A, 35),
-        v2Log(VAULT_A, 35),
-      ]);
-
-      await expect(
-        reader.getMaxAcceptableCommissionBpsBatch([VAULT_A], CREATED_AT),
-      ).rejects.toThrow(/found 2 PegInSubmittedV2 logs/);
-    });
-
-    it("returns an empty array without calling the chain for no vault ids", async () => {
-      const { publicClient, reader } = readerWithLogs([]);
-
-      await expect(
-        reader.getMaxAcceptableCommissionBpsBatch([], CREATED_AT),
-      ).resolves.toEqual([]);
-      expect(publicClient.getLogs).not.toHaveBeenCalled();
+        await expect(
+          reader.getMaxAcceptableCommissionBpsBatch([], CREATED_AT),
+        ).resolves.toEqual([]);
+        expect(publicClient.getLogs).not.toHaveBeenCalled();
+      });
     });
   });
 
@@ -569,6 +674,14 @@ describe("ViemVaultRegistryReader", () => {
     [
       "PegInSubmittedV2",
       "0x4507e4ff3dfdfa42e9b1daf5469138047f35e6a7bf13840ce822d4ddeb5e79ea",
+    ],
+    // keccak256 of the signature read off vault-contracts-aave-v4
+    // Events.sol: VaultClaimableBy(bytes32,bytes32,bytes32,uint16,uint16,
+    // uint16,uint16,uint16). Pins our ABI entry to the contract's shape
+    // independently of the entry itself.
+    [
+      "VaultClaimableBy",
+      "0x4998d7834aaca3515bed86999902bf801ba9d37616b2bfa224d72c6ab9ca3801",
     ],
   ] as const)(
     "declares %s with the deployed contract's event selector",
@@ -594,5 +707,257 @@ describe("ViemVaultRegistryReader", () => {
         args: [MOCK_VAULT_ID],
       }),
     );
+  });
+
+  describe("getVaultClaimableBy", () => {
+    const CREATED_AT = 11_000_000n;
+    const CHUNK = 7_200n;
+    const VAULT = MOCK_VAULT_ID;
+    // secp256k1 G.x — on the curve, so assertOnChainBtcPubkey accepts it.
+    const CLAIMER =
+      "0x79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798" as Hex;
+    const EVENT = getAbiItem({
+      abi: BTCVaultRegistryABI,
+      name: "VaultClaimableBy",
+    });
+
+    const claimableLog = (blockNumber: bigint, transactionHash?: Hex) => ({
+      eventName: "VaultClaimableBy",
+      transactionHash:
+        transactionHash ??
+        (`0x${blockNumber.toString(16).padStart(64, "0")}` as Hex),
+      args: {
+        vaultId: VAULT,
+        peginTxHash: `0x${"ee".repeat(32)}` as Hex,
+        claimerPK: CLAIMER,
+        vaultCoreVersion: 3,
+        proverCircuitVersion: 7,
+        offchainParamsVersion: 3,
+        universalChallengersVersion: 5,
+        appVaultKeepersVersion: 4,
+      },
+      blockNumber,
+    });
+
+    /** A node whose logs sit at `logsAt`; answers only the chunk that holds them. */
+    function readerWithClaimable(
+      finalized: bigint,
+      logsAt: bigint[],
+      { sameTransaction = false }: { sameTransaction?: boolean } = {},
+    ) {
+      const publicClient = {
+        getBlock: vi.fn().mockResolvedValue({ number: finalized }),
+        getLogs: vi.fn(
+          async ({
+            fromBlock,
+            toBlock,
+          }: {
+            fromBlock: bigint;
+            toBlock: bigint;
+          }) =>
+            logsAt
+              .filter((b) => b >= fromBlock && b <= toBlock)
+              .map((b) =>
+                claimableLog(
+                  b,
+                  sameTransaction ? (`0x${"7a".repeat(32)}` as Hex) : undefined,
+                ),
+              ),
+        ),
+      };
+      const reader = new ViemVaultRegistryReader(
+        publicClient as never,
+        MOCK_ADDRESS,
+      );
+      return { publicClient, reader };
+    }
+
+    it("exposes the event in the registry ABI with its eight inputs in contract order", () => {
+      expect(
+        EVENT.inputs.map((i) => `${i.name}:${i.type}:${i.indexed ? "i" : "d"}`),
+      ).toEqual([
+        "vaultId:bytes32:i",
+        "peginTxHash:bytes32:i",
+        "claimerPK:bytes32:i",
+        "vaultCoreVersion:uint16:d",
+        "proverCircuitVersion:uint16:d",
+        "offchainParamsVersion:uint16:d",
+        "universalChallengersVersion:uint16:d",
+        "appVaultKeepersVersion:uint16:d",
+      ]);
+    });
+
+    it("finds a recent redemption in the newest chunk with one filtered query", async () => {
+      const finalized = CREATED_AT + 20_000n;
+      const { publicClient, reader } = readerWithClaimable(finalized, [
+        finalized - 10n,
+      ]);
+
+      await expect(
+        reader.getVaultClaimableBy(VAULT, CLAIMER, CREATED_AT),
+      ).resolves.toEqual({
+        blockNumber: finalized - 10n,
+        claimerPk: CLAIMER.slice(2),
+        peginTxHash: `0x${"ee".repeat(32)}`,
+        vaultCoreVersion: 3,
+        proverCircuitVersion: 7,
+        offchainParamsVersion: 3,
+        universalChallengersVersion: 5,
+        appVaultKeepersVersion: 4,
+      });
+      expect(publicClient.getLogs).toHaveBeenCalledTimes(1);
+      expect(publicClient.getLogs).toHaveBeenCalledWith({
+        address: MOCK_ADDRESS,
+        event: EVENT,
+        args: { vaultId: VAULT, claimerPK: CLAIMER },
+        fromBlock: finalized - CHUNK + 1n,
+        toBlock: finalized,
+        strict: true,
+      });
+    });
+
+    it("walks older chunks newest-first, never past createdAt, and stops at the first hit", async () => {
+      const finalized = CREATED_AT + 2n * CHUNK + 100n;
+      const { publicClient, reader } = readerWithClaimable(finalized, [
+        CREATED_AT + 5n,
+      ]);
+
+      const event = await reader.getVaultClaimableBy(
+        VAULT,
+        CLAIMER,
+        CREATED_AT,
+      );
+
+      expect(event.blockNumber).toBe(CREATED_AT + 5n);
+      const ranges = publicClient.getLogs.mock.calls.map(
+        ([p]: [{ fromBlock: bigint; toBlock: bigint }]) => [
+          p.fromBlock,
+          p.toBlock,
+        ],
+      );
+      expect(ranges).toEqual([
+        [finalized - CHUNK + 1n, finalized],
+        [finalized - 2n * CHUNK + 1n, finalized - CHUNK],
+        [CREATED_AT, finalized - 2n * CHUNK],
+      ]);
+    });
+
+    it("throws the typed not-found error after scanning down to createdAt when no log exists", async () => {
+      const finalized = CREATED_AT + CHUNK + 1n;
+      const { publicClient, reader } = readerWithClaimable(finalized, []);
+
+      const caught = await reader
+        .getVaultClaimableBy(VAULT, CLAIMER, CREATED_AT)
+        .then(
+          () => null,
+          (err: unknown) => err,
+        );
+
+      expect(caught).toBeInstanceOf(VaultClaimableByNotFoundError);
+      expect(isVaultClaimableByNotFoundError(caught)).toBe(true);
+      expect(caught).toMatchObject({
+        vaultId: VAULT,
+        fromBlock: CREATED_AT,
+        toBlock: finalized,
+      });
+      expect(publicClient.getLogs).toHaveBeenCalledTimes(2);
+    });
+
+    it("scans up to the finalized block only, so a log above it is not found yet", async () => {
+      const finalized = CREATED_AT + 100n;
+      const { publicClient, reader } = readerWithClaimable(finalized, [
+        finalized + 5n,
+      ]);
+
+      const caught = await reader
+        .getVaultClaimableBy(VAULT, CLAIMER, CREATED_AT)
+        .then(
+          () => null,
+          (err: unknown) => err,
+        );
+
+      expect(caught).toBeInstanceOf(VaultClaimableByNotFoundError);
+      expect(caught).toMatchObject({
+        fromBlock: CREATED_AT,
+        toBlock: finalized,
+      });
+      expect(publicClient.getBlock).toHaveBeenCalledWith({
+        blockTag: "finalized",
+      });
+      expect(publicClient.getLogs).toHaveBeenCalledWith(
+        expect.objectContaining({ toBlock: finalized }),
+      );
+    });
+
+    it("refuses redemption logs that span transactions, since a vault is redeemed once", async () => {
+      const finalized = CREATED_AT + 50n;
+      const { reader } = readerWithClaimable(finalized, [
+        CREATED_AT + 1n,
+        CREATED_AT + 2n,
+      ]);
+
+      await expect(
+        reader.getVaultClaimableBy(VAULT, CLAIMER, CREATED_AT),
+      ).rejects.toThrow(/across 2 transactions/);
+    });
+
+    // redeemForDepositor emits the VP's key then the depositor's in ONE
+    // transaction; when those keys are equal the claimerPK filter matches
+    // both, and they are the same authorization, not an inconsistent node.
+    it("accepts the duplicate emission of one transaction, as when the vault provider key is the depositor key", async () => {
+      const finalized = CREATED_AT + 50n;
+      const { reader } = readerWithClaimable(
+        finalized,
+        [CREATED_AT + 1n, CREATED_AT + 1n],
+        { sameTransaction: true },
+      );
+
+      await expect(
+        reader.getVaultClaimableBy(VAULT, CLAIMER, CREATED_AT),
+      ).resolves.toMatchObject({ blockNumber: CREATED_AT + 1n });
+    });
+
+    it("refuses to scan when the finalized block is below the vault's registration block", async () => {
+      const { publicClient, reader } = readerWithClaimable(CREATED_AT - 1n, []);
+
+      await expect(
+        reader.getVaultClaimableBy(VAULT, CLAIMER, CREATED_AT),
+      ).rejects.toThrow(
+        /Finalized block .* is below vault .* registration block/,
+      );
+      expect(publicClient.getLogs).not.toHaveBeenCalled();
+    });
+
+    it("queries the claimable log with the vault id lower-cased, whatever case the caller used", async () => {
+      // viem re-filters decoded logs against `args` with `===` on lower-case
+      // hex (parseEventLogs.ts:172-188), so the query must carry that form.
+      const finalized = CREATED_AT + 20n;
+      const { publicClient, reader } = readerWithClaimable(finalized, [
+        finalized - 1n,
+      ]);
+      const upperCaseVaultId = `0x${VAULT.slice(2).toUpperCase()}` as Hex;
+
+      await expect(
+        reader.getVaultClaimableBy(upperCaseVaultId, CLAIMER, CREATED_AT),
+      ).resolves.toMatchObject({ blockNumber: finalized - 1n });
+      expect(publicClient.getLogs).toHaveBeenCalledWith(
+        expect.objectContaining({
+          args: { vaultId: VAULT, claimerPK: CLAIMER },
+        }),
+      );
+    });
+
+    it("refuses a claimer key that is not on the curve before touching the node", async () => {
+      const { publicClient, reader } = readerWithClaimable(CREATED_AT + 1n, []);
+
+      await expect(
+        reader.getVaultClaimableBy(
+          VAULT,
+          `0x${"00".repeat(32)}` as Hex,
+          CREATED_AT,
+        ),
+      ).rejects.toThrow(/not a valid secp256k1|curve/i);
+      expect(publicClient.getLogs).not.toHaveBeenCalled();
+    });
   });
 });

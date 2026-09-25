@@ -21,19 +21,26 @@ import type {
  * For a real batch (>1), wallets exposing native `signPsbts` (e.g. UniSat) sign
  * in one interaction; others loop `signPsbt`.
  *
+ * When `signal` is given it is checked before every wallet call, so a cancel
+ * between sequential prompts stops before the next one.
+ *
  * @throws If native `signPsbts` returns a different number of signed PSBTs
- *         than were submitted.
+ *         than were submitted, or if `signal` is aborted before a wallet call
+ *         (with the signal's reason).
  */
 export async function signPsbtsWithFallback(
   wallet: BitcoinWallet,
   psbtsHexes: string[],
   options?: SignPsbtOptions[],
+  signal?: AbortSignal,
 ): Promise<string[]> {
   if (psbtsHexes.length === 1) {
+    signal?.throwIfAborted();
     return [await wallet.signPsbt(psbtsHexes[0], options?.[0])];
   }
 
   if (typeof wallet.signPsbts === "function") {
+    signal?.throwIfAborted();
     const signedPsbts = await wallet.signPsbts(psbtsHexes, options);
     if (signedPsbts.length !== psbtsHexes.length) {
       throw new Error(
@@ -45,6 +52,7 @@ export async function signPsbtsWithFallback(
 
   const signedPsbts: string[] = [];
   for (let i = 0; i < psbtsHexes.length; i++) {
+    signal?.throwIfAborted();
     signedPsbts.push(await wallet.signPsbt(psbtsHexes[i], options?.[i]));
   }
   return signedPsbts;

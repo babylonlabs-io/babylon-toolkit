@@ -288,7 +288,8 @@ export function buildExpectedSignatureTable(params: BuildExpectedSignatureTableP
     const leafEntries = psbt.getInputEntriesOfType(inputIndex, psbtIn.TAP_LEAF_SCRIPT);
     if (leafEntries.length > 0) {
       // Exactly one leaf per input for now — >1 is an ambiguous leaf set,
-      // mirroring `fw:sign_psbt_validate.c:2981,3004` and the ts-sdk rule.
+      // mirroring `fw:sign_psbt_validate.c:340-343` (a second TAP_LEAF_SCRIPT
+      // sets `ambiguous`), enforced at `:3514` and `:3539`, and the ts-sdk rule.
       if (leafEntries.length > 1) {
         throw new LedgerSignPsbtProtocolError(
           `input ${inputIndex} carries an ambiguous leaf set (${leafEntries.length} TAP_LEAF_SCRIPT entries)`,

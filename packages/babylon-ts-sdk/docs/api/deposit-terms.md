@@ -62,6 +62,38 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTermsErro
 
 ## Interfaces
 
+### ClaimBatchMember
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/claimSiblings.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/claimSiblings.ts)
+
+**`Experimental`**
+
+One batch member: the chain record plus its registration-log ceiling.
+
+#### Properties
+
+##### vault
+
+```ts
+vault: VaultData;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/claimSiblings.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/claimSiblings.ts)
+
+**`Experimental`**
+
+##### maxAcceptableCommissionBps
+
+```ts
+maxAcceptableCommissionBps: number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/claimSiblings.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/claimSiblings.ts)
+
+**`Experimental`**
+
+***
+
 ### DepositTermsVaultGroup
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/depositTerms.ts)
@@ -850,6 +882,90 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTe
 
 WASM network descriptor for scriptPubKey derivation.
 
+***
+
+### RebuildDepositTermsForClaimParams
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTermsForClaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTermsForClaim.ts)
+
+**`Experimental`**
+
+#### Properties
+
+##### read
+
+```ts
+read: DelegatedClaimVaultRead;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTermsForClaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTermsForClaim.ts)
+
+**`Experimental`**
+
+The vault read this rebuild reuses instead of re-reading the chain.
+
+##### depositorBtcPubkey
+
+```ts
+depositorBtcPubkey: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTermsForClaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTermsForClaim.ts)
+
+**`Experimental`**
+
+The connected wallet's own key (compressed or x-only): refused unless it
+is the vault's depositor. Passing the on-chain key here makes that check
+vacuous.
+
+##### fundedPrePeginTxHex
+
+```ts
+fundedPrePeginTxHex: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTermsForClaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTermsForClaim.ts)
+
+**`Experimental`**
+
+Funded Pre-PegIn hex, e.g. `getTxHex(prepeginTxid, mempoolApiUrl)`.
+Hash-checked against the vault's `prePeginTxHash` here before any mempool
+lookup, and again by the core (Gate 0).
+
+##### siblingReader
+
+```ts
+siblingReader: Pick<VaultRegistryReader, "getVaultData">;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTermsForClaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTermsForClaim.ts)
+
+**`Experimental`**
+
+Reads the sibling vaults of the batch; the target is already in `read`.
+
+##### mempoolApiUrl
+
+```ts
+mempoolApiUrl: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTermsForClaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTermsForClaim.ts)
+
+**`Experimental`**
+
+Mempool API base URL, for the prevouts the fee is computed from.
+
+##### network
+
+```ts
+network: Network;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTermsForClaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTermsForClaim.ts)
+
+**`Experimental`**
+
 ## Type Aliases
 
 ### DepositTermsRejectionReason
@@ -885,6 +1001,83 @@ validation, and non-negative sizing is already asserted by WASM output checks.
 #### Returns
 
 [`DepositTerms`](#depositterms)
+
+***
+
+### selectSiblingRegistrations()
+
+```ts
+function selectSiblingRegistrations(records, target): PeginRegistrationRecord[];
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/claimSiblings.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/claimSiblings.ts)
+
+**`Experimental`**
+
+#### Parameters
+
+##### records
+
+readonly [`PeginRegistrationRecord`](clients.md#peginregistrationrecord)[]
+
+##### target
+
+[`PeginRegistrationRecord`](clients.md#peginregistrationrecord)
+
+#### Returns
+
+[`PeginRegistrationRecord`](clients.md#peginregistrationrecord)[]
+
+***
+
+### assertClaimBatchHomogeneous()
+
+```ts
+function assertClaimBatchHomogeneous(target, siblings): void;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/claimSiblings.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/claimSiblings.ts)
+
+**`Experimental`**
+
+#### Parameters
+
+##### target
+
+[`ClaimBatchMember`](#claimbatchmember)
+
+##### siblings
+
+readonly [`ClaimBatchMember`](#claimbatchmember)[]
+
+#### Returns
+
+`void`
+
+***
+
+### orderClaimBatchByHtlcVout()
+
+```ts
+function orderClaimBatchByHtlcVout(members): RebuildSibling[];
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/claimSiblings.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/claimSiblings.ts)
+
+**`Experimental`**
+
+Sort by `htlcVout` and project into the core's sibling shape. htlcVout is
+derived from array position downstream, so the vector must cover [0, N-1].
+
+#### Parameters
+
+##### members
+
+readonly [`ClaimBatchMember`](#claimbatchmember)[]
+
+#### Returns
+
+[`RebuildSibling`](#rebuildsibling)[]
 
 ***
 
@@ -1014,6 +1207,37 @@ errors that `instanceof` cannot see.
 
 ***
 
+### computeFundedPrePeginFee()
+
+```ts
+function computeFundedPrePeginFee(fundedPrePeginTxHex, mempoolApiUrl): Promise<bigint>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/fundedPrePeginFee.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/fundedPrePeginFee.ts)
+
+**`Experimental`**
+
+#### Parameters
+
+##### fundedPrePeginTxHex
+
+`string`
+
+##### mempoolApiUrl
+
+`string`
+
+#### Returns
+
+`Promise`\<`bigint`\>
+
+#### Throws
+
+When the inputs do not cover the outputs, or the fee exceeds
+        `MAX_REASONABLE_FEE_SATS` (a manipulated prevout answer).
+
+***
+
 ### ensurePrePeginTermsApproval()
 
 ```ts
@@ -1071,6 +1295,40 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTe
 #### Returns
 
 `Promise`\<[`DepositTerms`](#depositterms)\>
+
+***
+
+### rebuildDepositTermsForClaim()
+
+```ts
+function rebuildDepositTermsForClaim(params): Promise<DepositTerms>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTermsForClaim.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/deposit-terms/rebuildDepositTermsForClaim.ts)
+
+**`Experimental`**
+
+#### Parameters
+
+##### params
+
+[`RebuildDepositTermsForClaimParams`](#rebuilddeposittermsforclaimparams)
+
+#### Returns
+
+`Promise`\<[`DepositTerms`](#depositterms)\>
+
+#### Throws
+
+When the wallet key is not the depositor's, the hex is not the
+        vault's Pre-PegIn, a sibling is registered against a different
+        Pre-PegIn than its log records, the siblings disagree on a stamped
+        field or are non-contiguous, the fee is out of bounds, or the core
+        refuses (see `rebuildDepositTermsCore`).
+        A sibling registered in another block is missing from this read and
+        surfaces as the core's auth-anchor refusal, whose message suggests a
+        lagging index and a retry: on this path there is no index, and a
+        retry cannot help — that sibling must be registered in the same block.
 
 ## Variables
 
