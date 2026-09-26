@@ -9,6 +9,9 @@ const featureFlagsMock = vi.hoisted(() => ({
 }));
 
 vi.mock("@/config/featureFlags", () => ({ default: featureFlagsMock }));
+vi.mock("@/hooks/usePendingDeposits", () => ({
+  usePendingDeposits: () => ({ pendingActivities: [] }),
+}));
 
 describe("AppSidebar", () => {
   beforeEach(() => {
