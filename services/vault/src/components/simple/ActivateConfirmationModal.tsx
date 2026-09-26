@@ -12,9 +12,11 @@ import { IoClose } from "react-icons/io5";
 import { twJoin } from "tailwind-merge";
 import type { Hex } from "viem";
 
+import { ArtifactDownloadContent } from "@/components/deposit/ArtifactDownloadContent";
 import { ArtifactModalIcon } from "@/components/deposit/ArtifactModalIcon";
 import {
   RecoveryArtifactsCard,
+  type ArtifactDownloadProgress,
   type RecoveryArtifactsCardHandle,
 } from "@/components/deposit/RecoveryArtifactsCard";
 import { isActivationBlocked } from "@/components/shared/protocolStatus";
@@ -24,6 +26,13 @@ import {
   hasArtifactsDownloaded,
   hasGraphMismatch,
 } from "@/utils/artifactDownloadStorage";
+
+const IDLE_DOWNLOAD_STATE: ArtifactDownloadProgress = {
+  loading: false,
+  receivedBytes: 0,
+  totalBytes: 0,
+  status: "",
+};
 
 interface ActivateConfirmationModalProps {
   open: boolean;
@@ -68,17 +77,21 @@ export function ActivateConfirmationModal({
   const [graphMismatch, setGraphMismatch] = useState(() =>
     hasGraphMismatch(vaultId, peginTxid ?? ""),
   );
-  // Mirrors RecoveryArtifactsCard's internal `loading` flag via
-  // onLoadingChange so the footer Cancel button can switch to an in-place
-  // "Cancel download" action while a download is in flight.
-  const [isDownloading, setIsDownloading] = useState(false);
+  const [step, setStep] = useState<"download" | "confirmSkip">("download");
+  // Mirrors RecoveryArtifactsCard's download state via onStateChange: the
+  // card renders nothing while bytes stream, and this dialog presents the
+  // download in its place.
+  const [downloadState, setDownloadState] =
+    useState<ArtifactDownloadProgress>(IDLE_DOWNLOAD_STATE);
+  const isDownloading = downloadState.loading;
 
   useEffect(() => {
     if (!open) return;
     setDownloaded(hasArtifactsDownloaded(vaultId, peginTxid ?? ""));
     setAcknowledged(false);
     setGraphMismatch(hasGraphMismatch(vaultId, peginTxid ?? ""));
-    setIsDownloading(false);
+    setStep("download");
+    setDownloadState(IDLE_DOWNLOAD_STATE);
   }, [open, vaultId, peginTxid]);
 
   const cardRef = useRef<RecoveryArtifactsCardHandle>(null);
@@ -93,7 +106,7 @@ export function ActivateConfirmationModal({
   // While a download is in flight the footer button only cancels the
   // download and keeps the modal open (in-place cancel-and-retry): the
   // hook's cancel() resets its state, which flips `isDownloading` back via
-  // onLoadingChange and restores the card's Download button. Dismissal
+  // onStateChange and restores the download step. Dismissal
   // paths (Escape / backdrop) still go through handleClose.
   const handleCancelDownload = () => {
     cardRef.current?.cancel();
@@ -106,13 +119,13 @@ export function ActivateConfirmationModal({
 
   const canRenderCard = Boolean(providerAddress && peginTxid && depositorPk);
   const gate = useProtocolGateState();
-  // Blocked while a download streams: confirming unmounts this modal and
-  // would abandon the in-flight transfer uncancelled.
-  const canActivate =
-    (downloaded || acknowledged) &&
-    !graphMismatch &&
-    !isDownloading &&
-    !isActivationBlocked(gate);
+  const activationBlocked = isActivationBlocked(gate);
+  const isConfirmSkip = !downloaded && step === "confirmSkip" && !graphMismatch;
+
+  const handleBackToDownload = () => {
+    setAcknowledged(false);
+    setStep("download");
+  };
 
   return (
     <ResponsiveDialog
@@ -146,53 +159,69 @@ export function ActivateConfirmationModal({
           isMobile && "px-6 pb-2 pt-10",
         )}
       >
-        <div className="flex flex-col items-center gap-6">
-          {downloaded ? (
-            <ArtifactModalIcon variant="downloaded" />
-          ) : (
-            <svg
-              width="90"
-              height="90"
-              viewBox="0 0 90 90"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-              className="text-accent-primary"
-              aria-hidden="true"
-            >
-              <path
-                d="M11.25 15.4793L45.0161 5.625L78.75 15.4793V35.6882C78.75 56.9291 65.1566 75.7864 45.0049 82.5009C24.8477 75.7866 11.25 56.925 11.25 35.6788V15.4793Z"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinejoin="round"
-              />
-            </svg>
-          )}
-          <div className="flex w-full flex-col items-center gap-6">
-            <h2 className="text-center text-[34px] font-normal leading-[1.235] tracking-[0.25px] text-accent-primary">
-              {downloaded
-                ? COPY.deposit.activateConfirmation.titleDownloaded
-                : COPY.deposit.activateConfirmation.title}
-            </h2>
-            <p className="text-center text-xl font-normal leading-[1.6] tracking-[0.15px] text-accent-secondary">
-              {downloaded
-                ? COPY.deposit.activateConfirmation.bodyDownloaded
-                : COPY.deposit.activateConfirmation.body.map(
-                    (segment, index) => (
-                      <span
-                        key={index}
-                        className={
-                          segment.emphasis ? "text-accent-primary" : undefined
-                        }
-                      >
-                        {segment.text}
-                      </span>
-                    ),
-                  )}
-            </p>
+        {isDownloading ? (
+          <ArtifactDownloadContent
+            receivedBytes={downloadState.receivedBytes}
+            totalBytes={downloadState.totalBytes}
+            status={downloadState.status}
+          />
+        ) : (
+          <div className="flex flex-col items-center gap-6">
+            {downloaded ? (
+              <ArtifactModalIcon variant="downloaded" />
+            ) : (
+              !isConfirmSkip && (
+                <svg
+                  width="90"
+                  height="90"
+                  viewBox="0 0 90 90"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="text-accent-primary"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M11.25 15.4793L45.0161 5.625L78.75 15.4793V35.6882C78.75 56.9291 65.1566 75.7864 45.0049 82.5009C24.8477 75.7866 11.25 56.925 11.25 35.6788V15.4793Z"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              )
+            )}
+            <div className="flex w-full flex-col items-center gap-6">
+              <h2 className="text-center text-[34px] font-normal leading-[1.235] tracking-[0.25px] text-accent-primary">
+                {downloaded
+                  ? COPY.deposit.activateConfirmation.titleDownloaded
+                  : isConfirmSkip
+                    ? COPY.deposit.activateConfirmation.confirmSkipTitle
+                    : COPY.deposit.activateConfirmation.title}
+              </h2>
+              <p className="text-center text-xl font-normal leading-[1.6] tracking-[0.15px] text-accent-secondary">
+                {downloaded
+                  ? COPY.deposit.activateConfirmation.bodyDownloaded
+                  : isConfirmSkip
+                    ? COPY.deposit.activateConfirmation.confirmSkipBody
+                    : COPY.deposit.activateConfirmation.body.map(
+                        (segment, index) => (
+                          <span
+                            key={index}
+                            className={
+                              segment.emphasis
+                                ? "text-accent-primary"
+                                : undefined
+                            }
+                          >
+                            {segment.text}
+                          </span>
+                        ),
+                      )}
+              </p>
+            </div>
           </div>
-        </div>
+        )}
 
-        {canRenderCard && (
+        {canRenderCard && !isConfirmSkip && (
           <RecoveryArtifactsCard
             ref={cardRef}
             providerAddress={providerAddress as string}
@@ -205,12 +234,13 @@ export function ActivateConfirmationModal({
               setDownloaded(true);
               setGraphMismatch(false);
             }}
-            onLoadingChange={setIsDownloading}
+            onStateChange={setDownloadState}
             onGraphMismatch={() => setGraphMismatch(true)}
+            hideDownloadButton
           />
         )}
 
-        {!downloaded && !graphMismatch && (
+        {isConfirmSkip && (
           <label className="flex w-full cursor-pointer items-start gap-4">
             <Checkbox
               checked={acknowledged}
@@ -226,31 +256,94 @@ export function ActivateConfirmationModal({
       </DialogBody>
 
       {/* size="medium" gives the design's 14px label and 16px side padding;
-          h-10 restores the design's 40px height over medium's default. */}
+          h-10 restores the design's 40px height over medium's default. The
+          downloading body spaces its blocks 40px apart, the activation body
+          16px, and the footer belongs to whichever is showing. */}
       <DialogFooter
-        className={twJoin("flex flex-row gap-4 pt-4", isMobile && "px-6 pb-6")}
+        className={twJoin(
+          "flex flex-row gap-4",
+          isDownloading ? "pt-10" : "pt-4",
+          isMobile && "px-6 pb-6",
+        )}
       >
-        <Button
-          variant="outlined"
-          size="medium"
-          className="h-10 flex-1 rounded-lg"
-          onClick={isDownloading ? handleCancelDownload : handleClose}
-        >
-          {isDownloading
-            ? COPY.deposit.activateConfirmation.cancelDownloadButton
-            : COPY.deposit.activateConfirmation.cancelButton}
-        </Button>
-        <Button
-          variant="contained"
-          color="secondary"
-          size="medium"
-          className="h-10 flex-1 rounded-lg"
-          onClick={onConfirm}
-          disabled={!canActivate}
-          data-testid="activate-vault-button"
-        >
-          {COPY.deposit.activateConfirmation.activateButton}
-        </Button>
+        {isDownloading ? (
+          <Button
+            variant="outlined"
+            size="medium"
+            className="h-10 flex-1 rounded-lg"
+            onClick={handleCancelDownload}
+          >
+            {COPY.deposit.activateConfirmation.cancelDownloadButton}
+          </Button>
+        ) : downloaded ? (
+          <>
+            <Button
+              variant="outlined"
+              size="medium"
+              className="h-10 flex-1 rounded-lg"
+              onClick={handleClose}
+            >
+              {COPY.deposit.activateConfirmation.cancelButton}
+            </Button>
+            <Button
+              variant="contained"
+              color="secondary"
+              size="medium"
+              className="h-10 flex-1 rounded-lg"
+              onClick={onConfirm}
+              disabled={graphMismatch || activationBlocked}
+              data-testid="activate-vault-button"
+            >
+              {COPY.deposit.activateConfirmation.activateButton}
+            </Button>
+          </>
+        ) : isConfirmSkip ? (
+          <>
+            <Button
+              variant="outlined"
+              size="medium"
+              className="h-10 flex-1 rounded-lg"
+              onClick={handleBackToDownload}
+            >
+              {COPY.deposit.activateConfirmation.cancelButton}
+            </Button>
+            <Button
+              variant="contained"
+              color="secondary"
+              size="medium"
+              className="h-10 flex-1 rounded-lg"
+              onClick={onConfirm}
+              disabled={!acknowledged || graphMismatch || activationBlocked}
+              data-testid="activate-vault-button"
+            >
+              {COPY.deposit.activateConfirmation.activateButton}
+            </Button>
+          </>
+        ) : (
+          <>
+            {!graphMismatch && (
+              <Button
+                variant="outlined"
+                size="medium"
+                className="h-10 flex-1 rounded-lg"
+                onClick={() => setStep("confirmSkip")}
+              >
+                {COPY.deposit.activateConfirmation.continueWithoutButton}
+              </Button>
+            )}
+            <Button
+              variant="contained"
+              color="secondary"
+              size="medium"
+              className="h-10 flex-1 rounded-lg"
+              onClick={() => cardRef.current?.download()}
+              disabled={!canRenderCard}
+              data-testid="download-artifacts-button"
+            >
+              {COPY.deposit.activateConfirmation.downloadButton}
+            </Button>
+          </>
+        )}
       </DialogFooter>
     </ResponsiveDialog>
   );

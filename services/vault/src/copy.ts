@@ -606,7 +606,7 @@ export const COPY = {
       lowFeeWarning: "Fees are low; inclusion is not guaranteed",
     },
     activateConfirmation: {
-      title: "Activate your BTCVault",
+      title: "Download BTCVault artifacts",
       // The download instruction is emphasized (primary text color) per the
       // design; the surrounding prose stays secondary.
       body: [
@@ -622,11 +622,20 @@ export const COPY = {
       // pairs with the green-card layout.
       titleDownloaded: ARTIFACTS_DOWNLOADED_TITLE,
       bodyDownloaded: ARTIFACTS_DOWNLOADED_BODY,
+      // Shown in place of the activation copy while the artifacts stream.
+      downloadingTitle: "Downloading BTCVault artifacts",
+      downloadingBody:
+        "This may take a few minutes depending on your connection.",
       riskAcknowledgement:
         "I understand the risks of continuing without the artifacts.",
       activateButton: "Activate BTCVault",
       cancelButton: "Cancel",
       cancelDownloadButton: CANCEL_DOWNLOAD_LABEL,
+      downloadButton: "Download Artifacts",
+      continueWithoutButton: "Continue without",
+      confirmSkipTitle: "Are you sure?",
+      confirmSkipBody:
+        "Continuing without downloading the recovery artifacts may put your funds at risk if your BTCVault provider becomes unavailable.",
     },
     // Activate-and-redeem escape hatch: reveals the HTLC secret and redeems
     // the BTCVault in one transaction, skipping application activation.
