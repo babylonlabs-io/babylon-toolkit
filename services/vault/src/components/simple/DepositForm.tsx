@@ -314,6 +314,7 @@ export function DepositForm({
     Number(maxDepositSats ?? 0n),
   );
   const sliderValueSats = Number(amountSats);
+  const minDepositForSplit = twoVaultSplit?.minDepositForSplit ?? 0n;
 
   const usdValue = useMemo(() => {
     if (hasPriceFetchError || !btcPrice || !amount || amount === "0") return "";
@@ -415,13 +416,33 @@ export function DepositForm({
           sliderMin={sliderMinSats}
           sliderMax={sliderMaxSats}
           sliderStep={1}
-          sliderSteps={[]}
-          sliderDisabled={sliderDisabled}
-          onSliderChange={(sats) =>
-            onAmountChange(
-              depositService.formatSatoshisToBtc(BigInt(Math.round(sats))),
-            )
+          sliderSteps={
+            minDepositForSplit > 0n
+              ? [
+                  {
+                    value: Number(minDepositForSplit),
+                    label: COPY.deposit.form.splitSliderStepLabel,
+                  },
+                ]
+              : []
           }
+          sliderSnapToSteps={false}
+          sliderDisabled={sliderDisabled}
+          onSliderChange={(sats) => {
+            const snap = Number(minDepositForSplit);
+            const value =
+              snap > sliderMinSats &&
+              snap < sliderMaxSats &&
+              sats > sliderMinSats &&
+              sats < sliderMaxSats &&
+              Math.abs(sats - snap) <= (sliderMaxSats - sliderMinSats) * 0.02 &&
+              Math.abs(sats - sliderValueSats) > 1
+                ? snap
+                : sats;
+            onAmountChange(
+              depositService.formatSatoshisToBtc(BigInt(Math.round(value))),
+            );
+          }}
           sliderVariant="primary"
           // Figma row: USD value on the left, balance + Max pill on the right.
           leftField={{

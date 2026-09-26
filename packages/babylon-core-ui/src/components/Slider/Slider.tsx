@@ -14,6 +14,7 @@ export interface SliderProps {
   step?: number;
   steps?: SliderStep[] | number;
   maxStepCount?: number;
+  snapToSteps?: boolean;
   onChange: (value: number) => void;
   onStepsChange?: (selectedSteps: number[]) => void;
   variant?: "primary" | "success" | "warning" | "error" | "rainbow";
@@ -31,6 +32,7 @@ export function Slider({
   step = 1,
   steps,
   maxStepCount = 10,
+  snapToSteps = true,
   onChange,
   onStepsChange,
   variant = "primary",
@@ -44,7 +46,7 @@ export function Slider({
     return ((value - min) / (max - min)) * 100;
   }, [value, min, max]);
 
-  const computedSteps = useMemo(() => {
+  const computedSteps = useMemo<SliderStep[]>(() => {
     if (typeof steps === 'number') {
       // Generate evenly distributed steps (including max, but we'll filter it out later)
       const count = Math.min(steps, maxStepCount);
@@ -75,7 +77,7 @@ export function Slider({
 
   // Calculate the actual step size to use for the input element
   const inputStep = useMemo(() => {
-    if (Array.isArray(steps) && computedSteps && computedSteps.length > 1) {
+    if (snapToSteps && Array.isArray(steps) && computedSteps && computedSteps.length > 1) {
       // Find the minimum difference between consecutive steps
       const stepValues = computedSteps.map(s => s.value).sort((a, b) => a - b);
       let minDiff = Infinity;
@@ -89,10 +91,10 @@ export function Slider({
       return minDiff !== Infinity ? minDiff : step;
     }
     return step;
-  }, [steps, computedSteps, step]);
+  }, [snapToSteps, steps, computedSteps, step]);
 
   const handleChange = (newValue: number) => {
-    if (Array.isArray(steps) && computedSteps && computedSteps.length > 0) {
+    if (snapToSteps && Array.isArray(steps) && computedSteps && computedSteps.length > 0) {
       // Array mode: snap to nearest step and call onStepsChange
       const nearest = computedSteps.reduce((prev, curr) => {
         return Math.abs(curr.value - newValue) < Math.abs(prev.value - newValue)
@@ -159,7 +161,13 @@ export function Slider({
                   height: '4px',
                   left: `calc(${position}% - 1px)`,
                 }}
-              />
+              >
+                {stepItem.label && (
+                  <span className="absolute bottom-full left-1/2 mb-2.5 -translate-x-1/2 whitespace-nowrap rounded bg-primary-contrast px-2 py-1 text-xs text-accent-primary after:absolute after:left-1/2 after:top-full after:-translate-x-1/2 after:border-4 after:border-transparent after:border-t-primary-contrast after:content-['']">
+                    {stepItem.label}
+                  </span>
+                )}
+              </div>
             );
           })}
         </div>
