@@ -6,6 +6,7 @@ import type { UniversalChallenger } from "../../types/vaultProvider";
 import {
   IncompleteRosterError,
   MAX_ROSTER_PAGES,
+  parseRosterPage,
   ROSTER_PAGE_SIZE,
 } from "./rosterPagination";
 
@@ -20,6 +21,24 @@ interface GraphQLUniversalChallengerItem {
     id: string;
     btcPubKey: string;
   };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isUniversalChallengerItem(
+  value: unknown,
+): value is GraphQLUniversalChallengerItem {
+  if (!isRecord(value) || !isRecord(value.challengerInfo)) return false;
+
+  return (
+    typeof value.version === "number" &&
+    Number.isSafeInteger(value.version) &&
+    value.version >= 0 &&
+    typeof value.challengerInfo.id === "string" &&
+    typeof value.challengerInfo.btcPubKey === "string"
+  );
 }
 
 /** GraphQL response for universal challengers query */
@@ -94,8 +113,14 @@ export async function fetchAllUniversalChallengers(): Promise<UniversalChallenge
       { limit: ROSTER_PAGE_SIZE },
     );
 
-  const items = [...firstPage.universalChallengerVersions.items];
-  let pageInfo = firstPage.universalChallengerVersions.pageInfo;
+  const parsedFirstPage = parseRosterPage<GraphQLUniversalChallengerItem>(
+    firstPage,
+    "universalChallengerVersions",
+    "[fetchAllUniversalChallengers] First challenger page",
+    isUniversalChallengerItem,
+  );
+  const items = [...parsedFirstPage.items];
+  let pageInfo = parsedFirstPage.pageInfo;
   let pagesFetched = 1;
 
   while (pageInfo.hasNextPage) {
@@ -119,8 +144,14 @@ export async function fetchAllUniversalChallengers(): Promise<UniversalChallenge
         GET_UNIVERSAL_CHALLENGERS_NEXT_PAGE,
         { limit: ROSTER_PAGE_SIZE, after: pageInfo.endCursor },
       );
-    items.push(...nextPage.universalChallengerVersions.items);
-    pageInfo = nextPage.universalChallengerVersions.pageInfo;
+    const parsedNextPage = parseRosterPage<GraphQLUniversalChallengerItem>(
+      nextPage,
+      "universalChallengerVersions",
+      `[fetchAllUniversalChallengers] Challenger page ${pagesFetched + 1}`,
+      isUniversalChallengerItem,
+    );
+    items.push(...parsedNextPage.items);
+    pageInfo = parsedNextPage.pageInfo;
     pagesFetched += 1;
   }
 

@@ -1,7 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { graphqlClient } from "../../../clients/graphql";
-import { fetchAppProviders, getLatestVersionKeepers } from "../fetchProviders";
+import {
+  fetchAppProviderMetadata,
+  fetchAppProviders,
+  getLatestVersionKeepers,
+} from "../fetchProviders";
+import { MAX_ROSTER_PAGES } from "../rosterPagination";
 
 vi.mock("../../../clients/graphql", () => ({
   graphqlClient: {
@@ -266,6 +271,82 @@ describe("fetchProviders", () => {
       );
     });
 
+    it.each([
+      ["missing hasNextPage", { endCursor: null }],
+      ["null pageInfo", null],
+      ["wrong-typed hasNextPage", { hasNextPage: "false", endCursor: null }],
+    ])("rejects malformed keeper pagination: %s", async (_name, pageInfo) => {
+      mockRequest.mockResolvedValueOnce({
+        vaultProviders: { items: [] },
+        vaultKeeperApplications: { items: [], pageInfo },
+      });
+
+      const error = await fetchAppProviders("0xABCDEF").catch(
+        (caught: unknown) => caught,
+      );
+
+      expect(error).toMatchObject({
+        name: "IncompleteRosterError",
+        retryable: false,
+      });
+      expect(String(error)).toMatch(/malformed roster pagination metadata/);
+    });
+
+    it("rejects instead of returning a prefix after the keeper page limit", async () => {
+      const continuingPage = {
+        items: [],
+        pageInfo: { hasNextPage: true, endCursor: "stuck-cursor" },
+      };
+      mockRequest.mockResolvedValue({
+        vaultKeeperApplications: continuingPage,
+      });
+      mockRequest.mockResolvedValueOnce({
+        vaultProviders: { items: [] },
+        vaultKeeperApplications: continuingPage,
+      });
+
+      const error = await fetchAppProviders("0xABCDEF").catch(
+        (caught: unknown) => caught,
+      );
+
+      expect(mockRequest).toHaveBeenCalledTimes(MAX_ROSTER_PAGES);
+      expect(error).toMatchObject({
+        name: "IncompleteRosterError",
+        retryable: false,
+      });
+      expect(String(error)).toMatch(/roster exceeds/);
+    });
+
+    it("fetches provider metadata without selecting the keeper roster", async () => {
+      mockRequest.mockResolvedValueOnce({
+        vaultProviders: {
+          items: [
+            {
+              id: VALID_ETH_ADDR_1,
+              btcPubKey: VALID_BTC_PUBKEY_1,
+              name: "provider-1",
+              rpcUrl: "https://rpc.example.com",
+              metadataStatus: "ok",
+              metadataRejectionReason: null,
+            },
+          ],
+        },
+      });
+
+      const result = await fetchAppProviderMetadata("0xABCDEF");
+
+      expect(mockRequest).toHaveBeenCalledTimes(1);
+      const [document, variables] = mockRequest.mock.calls[0] as unknown as [
+        unknown,
+        unknown,
+      ];
+      expect(String(document)).toContain("query GetAppProviderMetadata");
+      expect(String(document)).not.toContain("vaultKeeperApplications");
+      expect(variables).toEqual({ appController: "0xabcdef" });
+      expect(result.vaultProviders).toHaveLength(1);
+      expect(result.vaultKeepers).toEqual([]);
+    });
+
     it("should return empty keeper items when no keeper items exist", async () => {
       mockRequest.mockResolvedValueOnce({
         vaultProviders: { items: [] },
@@ -488,7 +569,7 @@ describe("fetchProviders", () => {
       ]);
     });
 
-    it("should filter out keeper items with invalid vaultKeeper id", async () => {
+    it("rejects keeper items with an invalid vaultKeeper id", async () => {
       mockRequest.mockResolvedValueOnce({
         vaultProviders: { items: [] },
         vaultKeeperApplications: {
@@ -508,14 +589,13 @@ describe("fetchProviders", () => {
         },
       });
 
-      const result = await fetchAppProviders("0xAppController");
-
-      expect(result.vaultKeeperItems).toEqual([
-        { id: VALID_ETH_ADDR_1, btcPubKey: VALID_BTC_PUBKEY_1, version: 1 },
-      ]);
+      await expect(fetchAppProviders("0xAppController")).rejects.toMatchObject({
+        name: "IncompleteRosterError",
+        retryable: false,
+      });
     });
 
-    it("should filter out keeper items with invalid btcPubKey", async () => {
+    it("rejects keeper items with an invalid btcPubKey", async () => {
       mockRequest.mockResolvedValueOnce({
         vaultProviders: { items: [] },
         vaultKeeperApplications: {
@@ -535,11 +615,39 @@ describe("fetchProviders", () => {
         },
       });
 
-      const result = await fetchAppProviders("0xAppController");
+      await expect(fetchAppProviders("0xAppController")).rejects.toMatchObject({
+        name: "IncompleteRosterError",
+        retryable: false,
+      });
+    });
 
-      expect(result.vaultKeeperItems).toEqual([
-        { id: VALID_ETH_ADDR_2, btcPubKey: VALID_BTC_PUBKEY_2, version: 1 },
-      ]);
+    it("rejects a malformed keeper on a continuation page", async () => {
+      mockRequest.mockResolvedValueOnce({
+        vaultProviders: { items: [] },
+        vaultKeeperApplications: {
+          items: [],
+          pageInfo: { hasNextPage: true, endCursor: "next" },
+        },
+      });
+      mockRequest.mockResolvedValueOnce({
+        vaultKeeperApplications: keeperPage([
+          {
+            vaultKeeper: VALID_ETH_ADDR_1,
+            version: 2,
+            vaultKeeperInfo: null,
+          },
+        ]),
+      });
+
+      const error = await fetchAppProviders("0xAppController").catch(
+        (caught: unknown) => caught,
+      );
+
+      expect(error).toMatchObject({
+        name: "IncompleteRosterError",
+        retryable: false,
+      });
+      expect(String(error)).toMatch(/malformed roster item at index 0/);
     });
   });
 

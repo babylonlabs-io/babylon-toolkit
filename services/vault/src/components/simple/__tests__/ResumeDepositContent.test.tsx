@@ -173,6 +173,7 @@ vi.mock("@/components/deposit/PayoutSignModal/usePayoutSigningState", () => ({
     error: null,
     errorTerminal: false,
     isComplete: false,
+    providerLookupReady: true,
     handleSign: vi.fn(),
     canCancel: false,
     cancelRequested: false,
@@ -730,6 +731,7 @@ describe("ResumeSignContent — reactive verification terminal", () => {
       error: null,
       errorTerminal: false,
       isComplete: true,
+      providerLookupReady: true,
       handleSign: vi.fn(),
       canCancel: false,
       cancelRequested: false,
@@ -748,6 +750,42 @@ describe("ResumeSignContent — reactive verification terminal", () => {
       />,
     );
   }
+
+  it("waits for provider metadata before auto-starting payout signing", async () => {
+    const handleSign = vi.fn();
+    const payoutState = {
+      signing: false,
+      progress: { phase: "auth" as const, completed: 0, total: 0 },
+      error: null,
+      errorTerminal: false,
+      isComplete: false,
+      providerLookupReady: false,
+      handleSign,
+      canCancel: false,
+      cancelRequested: false,
+      handleCancel: vi.fn(),
+    };
+    vi.mocked(usePayoutSigningState).mockReturnValue(payoutState);
+
+    const view = renderSign();
+    expect(handleSign).not.toHaveBeenCalled();
+
+    vi.mocked(usePayoutSigningState).mockReturnValue({
+      ...payoutState,
+      providerLookupReady: true,
+    });
+    view.rerender(
+      <ResumeSignContent
+        activity={baseActivity}
+        btcPublicKey="0xbtcpub"
+        depositorEthAddress={"0xdepositor" as never}
+        onClose={vi.fn()}
+        onSuccess={vi.fn()}
+      />,
+    );
+
+    await waitFor(() => expect(handleSign).toHaveBeenCalledTimes(1));
+  });
 
   it("stays on the verification wait while the contract is still PENDING", () => {
     mockUseDepositPollingResult.mockReturnValue({
@@ -794,6 +832,7 @@ describe("ResumeSignContent — reactive verification terminal", () => {
       error: COPY.deposit.payoutSignatureErrors.ackWindowElapsed,
       errorTerminal: true,
       isComplete: false,
+      providerLookupReady: true,
       handleSign: vi.fn(),
       canCancel: false,
       cancelRequested: false,
@@ -815,6 +854,7 @@ describe("ResumeSignContent — reactive verification terminal", () => {
       error: COPY.deposit.payoutSignatureErrors.unexpected,
       errorTerminal: false,
       isComplete: false,
+      providerLookupReady: true,
       handleSign: vi.fn(),
       canCancel: false,
       cancelRequested: false,
@@ -834,6 +874,7 @@ describe("ResumeSignContent — reactive verification terminal", () => {
       error: null,
       errorTerminal: false,
       isComplete: false,
+      providerLookupReady: true,
       handleSign: vi.fn(),
       canCancel: true,
       cancelRequested: true,
@@ -859,6 +900,7 @@ describe("ResumeSignContent — reactive verification terminal", () => {
       error: null,
       errorTerminal: false,
       isComplete: false,
+      providerLookupReady: true,
       handleSign,
       canCancel: true,
       cancelRequested: true,
@@ -912,6 +954,7 @@ describe("Action admission through the continuation", () => {
       error: null,
       errorTerminal: false,
       isComplete: false,
+      providerLookupReady: true,
       handleSign,
       canCancel: false,
       cancelRequested: false,

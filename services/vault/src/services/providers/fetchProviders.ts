@@ -19,6 +19,7 @@ import {
 import {
   IncompleteRosterError,
   MAX_ROSTER_PAGES,
+  parseRosterPage,
   ROSTER_PAGE_SIZE,
 } from "./rosterPagination";
 
@@ -35,21 +36,29 @@ interface GraphQLVaultKeeperItem {
   };
 }
 
+interface GraphQLVaultProviderItem {
+  id: string;
+  btcPubKey: string;
+  name: string | null;
+  rpcUrl: string | null;
+  metadataStatus: string | null;
+  metadataRejectionReason: string | null;
+}
+
 /** GraphQL response for app-specific providers and keepers */
 interface GraphQLAppProvidersResponse {
   vaultProviders: {
-    items: Array<{
-      id: string;
-      btcPubKey: string;
-      name: string | null;
-      rpcUrl: string | null;
-      metadataStatus: string | null;
-      metadataRejectionReason: string | null;
-    }>;
+    items: GraphQLVaultProviderItem[];
   };
   vaultKeeperApplications: {
     items: GraphQLVaultKeeperItem[];
     pageInfo: GraphQLPageInfo;
+  };
+}
+
+interface GraphQLAppProviderMetadataResponse {
+  vaultProviders: {
+    items: GraphQLVaultProviderItem[];
   };
 }
 
@@ -86,6 +95,21 @@ const GET_APP_PROVIDERS = gql`
       pageInfo {
         hasNextPage
         endCursor
+      }
+    }
+  }
+`;
+
+const GET_APP_PROVIDER_METADATA = gql`
+  query GetAppProviderMetadata($appController: String!) {
+    vaultProviders(where: { applicationEntryPoint: $appController }) {
+      items {
+        id
+        btcPubKey
+        name
+        rpcUrl
+        metadataStatus
+        metadataRejectionReason
       }
     }
   }
@@ -149,7 +173,7 @@ function normalizeMetadataStatus(
  * Returns null (with a warning) if validation fails.
  */
 function validateAppProvider(
-  item: GraphQLAppProvidersResponse["vaultProviders"]["items"][number],
+  item: GraphQLVaultProviderItem,
 ): typeof item | null {
   if (!ETH_ADDRESS_PATTERN.test(item.id)) {
     logger.warn(
@@ -170,22 +194,22 @@ function validateAppProvider(
  * Validate critical fields on a vault keeper item from GraphQL.
  * Returns null (with a warning) if validation fails.
  */
-function validateVaultKeeperItem(
-  item: GraphQLAppProvidersResponse["vaultKeeperApplications"]["items"][number],
-): typeof item | null {
-  if (!ETH_ADDRESS_PATTERN.test(item.vaultKeeper)) {
-    logger.warn(
-      `[fetchAppProviders] Skipping keeper with invalid id: "${String(item.vaultKeeper).slice(0, 20)}"`,
-    );
-    return null;
-  }
-  if (!BTC_PUBKEY_HEX_PATTERN.test(item.vaultKeeperInfo.btcPubKey)) {
-    logger.warn(
-      `[fetchAppProviders] Skipping keeper ${item.vaultKeeper}: invalid btcPubKey format`,
-    );
-    return null;
-  }
-  return item;
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isVaultKeeperItem(value: unknown): value is GraphQLVaultKeeperItem {
+  if (!isRecord(value) || !isRecord(value.vaultKeeperInfo)) return false;
+
+  return (
+    typeof value.vaultKeeper === "string" &&
+    ETH_ADDRESS_PATTERN.test(value.vaultKeeper) &&
+    typeof value.version === "number" &&
+    Number.isSafeInteger(value.version) &&
+    value.version >= 0 &&
+    typeof value.vaultKeeperInfo.btcPubKey === "string" &&
+    BTC_PUBKEY_HEX_PATTERN.test(value.vaultKeeperInfo.btcPubKey)
+  );
 }
 
 /**
@@ -219,6 +243,68 @@ export function getLatestVersionKeepers(
  */
 const emittedAllInvalidFor = new Set<string>();
 
+function toVaultProviders(
+  rawProviders: GraphQLVaultProviderItem[],
+  appKey: string,
+): VaultProvider[] {
+  const withRpcUrl = rawProviders.filter(
+    (provider): provider is GraphQLVaultProviderItem & { rpcUrl: string } =>
+      provider.rpcUrl !== null,
+  );
+  if (withRpcUrl.length < rawProviders.length) {
+    logger.warn("Dropped vault providers with null rpcUrl from indexer", {
+      dropped: rawProviders.length - withRpcUrl.length,
+      total: rawProviders.length,
+    });
+  }
+
+  const vaultProviders: VaultProvider[] = withRpcUrl
+    .filter((provider) => validateAppProvider(provider) !== null)
+    .map((provider) => ({
+      id: provider.id,
+      btcPubKey: provider.btcPubKey,
+      name: provider.name ?? undefined,
+      url: provider.rpcUrl,
+      metadataStatus: normalizeMetadataStatus(provider.metadataStatus),
+      metadataRejectionReason: provider.metadataRejectionReason ?? undefined,
+    }));
+
+  if (
+    rawProviders.length > 0 &&
+    vaultProviders.length === 0 &&
+    !emittedAllInvalidFor.has(appKey)
+  ) {
+    emittedAllInvalidFor.add(appKey);
+    logger.event(TELEMETRY_EVENT.ONBOARDING_PROVIDERS_EMPTY, {
+      level: "warning",
+      category: "onboarding",
+      tags: { reason: "all_rows_invalid" },
+      total: rawProviders.length,
+      applicationId: shortId(appKey),
+    });
+  }
+
+  return vaultProviders;
+}
+
+/** Fetch provider metadata without coupling it to keeper-roster completeness. */
+export async function fetchAppProviderMetadata(
+  applicationEntryPoint: string,
+): Promise<AppProvidersResponse> {
+  const appKey = applicationEntryPoint.toLowerCase();
+  const response =
+    await graphqlClient.request<GraphQLAppProviderMetadataResponse>(
+      GET_APP_PROVIDER_METADATA,
+      { appController: appKey },
+    );
+
+  return {
+    vaultProviders: toVaultProviders(response.vaultProviders.items, appKey),
+    vaultKeepers: [],
+    vaultKeeperItems: [],
+  };
+}
+
 /**
  * Fetches vault providers and vault keepers for a specific application.
  *
@@ -240,8 +326,14 @@ export async function fetchAppProviders(
     { appController: appKey, limit: ROSTER_PAGE_SIZE },
   );
 
-  const rawVaultKeeperItems = [...response.vaultKeeperApplications.items];
-  let keeperPageInfo = response.vaultKeeperApplications.pageInfo;
+  const firstKeeperPage = parseRosterPage<GraphQLVaultKeeperItem>(
+    response,
+    "vaultKeeperApplications",
+    "[fetchAppProviders] First vault keeper page",
+    isVaultKeeperItem,
+  );
+  const rawVaultKeeperItems = [...firstKeeperPage.items];
+  let keeperPageInfo = firstKeeperPage.pageInfo;
   let keeperPagesFetched = 1;
 
   while (keeperPageInfo.hasNextPage) {
@@ -269,63 +361,29 @@ export async function fetchAppProviders(
           after: keeperPageInfo.endCursor,
         },
       );
-    rawVaultKeeperItems.push(...nextPage.vaultKeeperApplications.items);
-    keeperPageInfo = nextPage.vaultKeeperApplications.pageInfo;
+    const parsedNextPage = parseRosterPage<GraphQLVaultKeeperItem>(
+      nextPage,
+      "vaultKeeperApplications",
+      `[fetchAppProviders] Vault keeper page ${keeperPagesFetched + 1}`,
+      isVaultKeeperItem,
+    );
+    rawVaultKeeperItems.push(...parsedNextPage.items);
+    keeperPageInfo = parsedNextPage.pageInfo;
     keeperPagesFetched += 1;
   }
 
-  const rawProviders = response.vaultProviders.items;
-  const withRpcUrl = rawProviders.filter(
-    (
-      provider,
-    ): provider is (typeof rawProviders)[number] & { rpcUrl: string } =>
-      provider.rpcUrl !== null,
+  const vaultProviders = toVaultProviders(
+    response.vaultProviders.items,
+    appKey,
   );
-  if (withRpcUrl.length < rawProviders.length) {
-    logger.warn("Dropped vault providers with null rpcUrl from indexer", {
-      dropped: rawProviders.length - withRpcUrl.length,
-      total: rawProviders.length,
-    });
-  }
 
-  const vaultProviders: VaultProvider[] = withRpcUrl
-    .filter((provider) => validateAppProvider(provider) !== null)
-    .map((provider) => ({
-      id: provider.id,
-      btcPubKey: provider.btcPubKey,
-      name: provider.name ?? undefined,
-      url: provider.rpcUrl,
-      metadataStatus: normalizeMetadataStatus(provider.metadataStatus),
-      metadataRejectionReason: provider.metadataRejectionReason ?? undefined,
-    }));
-
-  // The indexer knows providers but every row was dropped (null rpcUrl or
-  // failed validation): a systemic schema/data regression that blocks every
-  // deposit at the picker. Distinct from a legitimately empty application.
-  // Once per application per session — React Query refetches call this on
-  // every poll, and a persistent regression must not re-count itself.
-  if (
-    rawProviders.length > 0 &&
-    vaultProviders.length === 0 &&
-    !emittedAllInvalidFor.has(appKey)
-  ) {
-    emittedAllInvalidFor.add(appKey);
-    logger.event(TELEMETRY_EVENT.ONBOARDING_PROVIDERS_EMPTY, {
-      level: "warning",
-      category: "onboarding",
-      tags: { reason: "all_rows_invalid" },
-      total: rawProviders.length,
-      applicationId: shortId(appKey),
-    });
-  }
-
-  const vaultKeeperItems: VaultKeeperItem[] = rawVaultKeeperItems
-    .filter((item) => validateVaultKeeperItem(item) !== null)
-    .map((item) => ({
+  const vaultKeeperItems: VaultKeeperItem[] = rawVaultKeeperItems.map(
+    (item) => ({
       id: item.vaultKeeper,
       btcPubKey: item.vaultKeeperInfo.btcPubKey,
       version: item.version,
-    }));
+    }),
+  );
 
   return {
     vaultProviders,

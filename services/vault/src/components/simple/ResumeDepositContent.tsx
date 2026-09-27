@@ -136,6 +136,7 @@ function ResumeSignContentConnected({
     error: signingError,
     errorTerminal,
     isComplete,
+    providerLookupReady = true,
     handleSign,
     canCancel,
     cancelRequested,
@@ -152,7 +153,7 @@ function ResumeSignContentConnected({
   // Read once. A recorded cancel requires a new click before signing.
   const [wasCanceled] = useState(() => hasPayoutSignCancelRecord(activity.id));
 
-  useRunOnce(handleSign, !wasCanceled && walletKeyReady);
+  useRunOnce(handleSign, !wasCanceled && walletKeyReady && providerLookupReady);
 
   // A settled cancel has no error. Show Sign again so the user can retry.
   const [reofferAfterCancel, setReofferAfterCancel] = useState(wasCanceled);

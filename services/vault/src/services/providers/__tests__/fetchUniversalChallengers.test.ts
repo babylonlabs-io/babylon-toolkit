@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { graphqlClient } from "../../../clients/graphql";
 import { fetchAllUniversalChallengers } from "../fetchUniversalChallengers";
+import { MAX_ROSTER_PAGES } from "../rosterPagination";
 
 vi.mock("../../../clients/graphql", () => ({
   graphqlClient: { request: vi.fn() },
@@ -80,5 +81,66 @@ describe("fetchAllUniversalChallengers", () => {
       retryable: false,
     });
     expect(String(error)).toMatch(/another challenger page without a cursor/);
+  });
+
+  it.each([
+    ["missing hasNextPage", { endCursor: null }],
+    ["null pageInfo", null],
+    ["wrong-typed endCursor", { hasNextPage: false, endCursor: 7 }],
+  ])("rejects malformed challenger pagination: %s", async (_name, pageInfo) => {
+    mockRequest.mockResolvedValueOnce({
+      universalChallengerVersions: { items: [], pageInfo },
+    });
+
+    const error = await fetchAllUniversalChallengers().catch(
+      (caught: unknown) => caught,
+    );
+
+    expect(error).toMatchObject({
+      name: "IncompleteRosterError",
+      retryable: false,
+    });
+    expect(String(error)).toMatch(/malformed roster pagination metadata/);
+  });
+
+  it("rejects instead of returning a prefix after the challenger page limit", async () => {
+    const continuingPage = page([], {
+      hasNextPage: true,
+      endCursor: "stuck-cursor",
+    });
+    mockRequest.mockResolvedValue(continuingPage);
+
+    const error = await fetchAllUniversalChallengers().catch(
+      (caught: unknown) => caught,
+    );
+
+    expect(mockRequest).toHaveBeenCalledTimes(MAX_ROSTER_PAGES);
+    expect(error).toMatchObject({
+      name: "IncompleteRosterError",
+      retryable: false,
+    });
+    expect(String(error)).toMatch(/roster exceeds/);
+  });
+
+  it("rejects a malformed challenger on a continuation page", async () => {
+    mockRequest.mockResolvedValueOnce(
+      page([], { hasNextPage: true, endCursor: "next" }),
+    );
+    mockRequest.mockResolvedValueOnce({
+      universalChallengerVersions: {
+        items: [{ version: 2, challengerInfo: null }],
+        pageInfo: { hasNextPage: false, endCursor: null },
+      },
+    });
+
+    const error = await fetchAllUniversalChallengers().catch(
+      (caught: unknown) => caught,
+    );
+
+    expect(error).toMatchObject({
+      name: "IncompleteRosterError",
+      retryable: false,
+    });
+    expect(String(error)).toMatch(/malformed roster item at index 0/);
   });
 });
