@@ -1524,6 +1524,35 @@ describe("useVaultActions — handleActivation hashlock source", () => {
     });
   });
 
+  it("checks the activate-and-redeem receipt for CollateralAdded in escape-hatch mode", async () => {
+    // No explicit escape-hatch guard remains: the optimistic row is skipped
+    // only because this receipt carries no adapter CollateralAdded log.
+    const reader = readerReturning({
+      depositorSignedPeginTx: "0xdeadbeef",
+      hashlock: ON_CHAIN_HASHLOCK,
+    });
+    mockGetVaultRegistryReader.mockReturnValue(reader);
+    const redeemResult = { transactionHash: "0xtx", receipt: { logs: [] } };
+    mockActivateVaultWithSecretAndRedeem.mockResolvedValue(
+      redeemResult as never,
+    );
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleActivation({
+        ...baseActivationParams,
+        redeemImmediately: true,
+      });
+    });
+
+    expect(mockActivateVaultWithSecret).not.toHaveBeenCalled();
+    expect(activationAddedCollateral).toHaveBeenCalledWith(
+      redeemResult,
+      "0xvaultId",
+    );
+  });
+
   // handleActivation catches its own failures and never rethrows, so this catch
   // is the only place a reveal failure is observable. A capture in a caller's
   // catch (useActivationState) would never run.

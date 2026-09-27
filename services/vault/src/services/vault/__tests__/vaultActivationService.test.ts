@@ -138,7 +138,7 @@ describe("activationAddedCollateral", () => {
         args: { positionAccount, vaultId: loggedVaultId },
       }) as Log["topics"],
       data: "0x",
-    } as Log;
+    } as unknown as Log;
   }
 
   // Stands in for the registry's PeginActivated and VaultClaimableBy logs:
