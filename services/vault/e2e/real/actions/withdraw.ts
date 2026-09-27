@@ -26,7 +26,8 @@
  *
  * The row's Withdraw button IS the eligibility gate: the app disables it for a paused protocol, a vault
  * that is not in use, a demo (`displayOnly`) row and an optimistic (`lifecycle === "activating"`) one — see
- * VaultsActiveSection. Health-factor gating surfaces one step later, on the selection screen, and again
+ * VaultsActiveSection — and on every row while the indexed vault list does not match the chain position
+ * (VaultsPage `indexerError`, e.g. while the indexer lags a just-mined withdraw). Health-factor gating surfaces one step later, on the selection screen, and again
  * on Review.
  *
  * Default withdraws ONE vault (the first withdrawable), keeping the position alive for reuse.
@@ -226,7 +227,7 @@ async function openWithdrawForRow(
         "No active vault rows on /vaults — this position has nothing to withdraw.",
       );
     throw new Error(
-      `No withdrawable vault on /vaults after ${Math.round(WITHDRAW_CTA_ENABLE_TIMEOUT_MS / MS_PER_SECOND)}s (${found.rowCount} row(s) shown — every Withdraw button is disabled: the vault is not in use, still activating, already withdrawing, or withdrawals are paused by the protocol). Repay outstanding debt first so collateral can be released.`,
+      `No withdrawable vault on /vaults after ${Math.round(WITHDRAW_CTA_ENABLE_TIMEOUT_MS / MS_PER_SECOND)}s (${found.rowCount} row(s) shown — every Withdraw button is disabled: the vault is not in use, still activating, already withdrawing, withdrawals are paused by the protocol, or the indexed vault list does not match the chain position yet). Repay outstanding debt first so collateral can be released.`,
     );
   }
 
