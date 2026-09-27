@@ -20,6 +20,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo } from "react";
 
+import { shouldRetry } from "@/config/queryClient";
 import { logger } from "@/infrastructure";
 import { shortId, TELEMETRY_EVENT } from "@/infrastructure/telemetryEvents";
 
@@ -106,8 +107,9 @@ export function useVaultProviders(
     staleTime: 5 * 60 * 1000,
     // Keep in cache for 10 minutes
     gcTime: 10 * 60 * 1000,
-    // Retry once on failure
-    retry: 1,
+    // Retry transient failures once; incomplete roster errors are deterministic.
+    retry: (failureCount, queryError) =>
+      failureCount < 1 && shouldRetry(failureCount, queryError),
   });
 
   const unhealthyVps = useUnhealthyVps();

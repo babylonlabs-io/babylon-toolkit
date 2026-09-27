@@ -24,6 +24,7 @@ import {
 } from "react";
 
 import { getProtocolParamsReader } from "@/clients/eth-contract/sdk-readers";
+import { shouldRetry } from "@/config/queryClient";
 import { offchainParamsQueryOptions } from "@/hooks/useOffchainParams";
 import { fetchAllUniversalChallengers } from "@/services/providers";
 import type { UniversalChallenger } from "@/types";
@@ -104,7 +105,8 @@ export function ProtocolParamsProvider({
     queryFn: fetchAllUniversalChallengers,
     staleTime: STALE_TIME_MS,
     refetchOnWindowFocus: false,
-    retry: RETRY_COUNT,
+    retry: (failureCount, queryError) =>
+      failureCount < RETRY_COUNT && shouldRetry(failureCount, queryError),
   });
 
   // Shares the query (and cache) with the non-blocking useOffchainParams hook.

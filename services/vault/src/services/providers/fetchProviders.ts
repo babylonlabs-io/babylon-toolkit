@@ -16,6 +16,25 @@ import {
   ETH_ADDRESS_PATTERN,
 } from "../../utils/validation";
 
+import {
+  IncompleteRosterError,
+  MAX_ROSTER_PAGES,
+  ROSTER_PAGE_SIZE,
+} from "./rosterPagination";
+
+interface GraphQLPageInfo {
+  hasNextPage: boolean;
+  endCursor: string | null;
+}
+
+interface GraphQLVaultKeeperItem {
+  vaultKeeper: string;
+  version: number;
+  vaultKeeperInfo: {
+    btcPubKey: string;
+  };
+}
+
 /** GraphQL response for app-specific providers and keepers */
 interface GraphQLAppProvidersResponse {
   vaultProviders: {
@@ -29,18 +48,20 @@ interface GraphQLAppProvidersResponse {
     }>;
   };
   vaultKeeperApplications: {
-    items: Array<{
-      vaultKeeper: string;
-      version: number;
-      vaultKeeperInfo: {
-        btcPubKey: string;
-      };
-    }>;
+    items: GraphQLVaultKeeperItem[];
+    pageInfo: GraphQLPageInfo;
+  };
+}
+
+interface GraphQLVaultKeepersPageResponse {
+  vaultKeeperApplications: {
+    items: GraphQLVaultKeeperItem[];
+    pageInfo: GraphQLPageInfo;
   };
 }
 
 const GET_APP_PROVIDERS = gql`
-  query GetAppProviders($appController: String!) {
+  query GetAppProviders($appController: String!, $limit: Int!) {
     vaultProviders(where: { applicationEntryPoint: $appController }) {
       items {
         id
@@ -51,13 +72,46 @@ const GET_APP_PROVIDERS = gql`
         metadataRejectionReason
       }
     }
-    vaultKeeperApplications(where: { applicationEntryPoint: $appController }) {
+    vaultKeeperApplications(
+      where: { applicationEntryPoint: $appController }
+      limit: $limit
+    ) {
       items {
         vaultKeeper
         version
         vaultKeeperInfo {
           btcPubKey
         }
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+    }
+  }
+`;
+
+const GET_APP_VAULT_KEEPERS_NEXT_PAGE = gql`
+  query GetAppVaultKeepersNextPage(
+    $appController: String!
+    $limit: Int!
+    $after: String!
+  ) {
+    vaultKeeperApplications(
+      where: { applicationEntryPoint: $appController }
+      limit: $limit
+      after: $after
+    ) {
+      items {
+        vaultKeeper
+        version
+        vaultKeeperInfo {
+          btcPubKey
+        }
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
       }
     }
   }
@@ -183,8 +237,42 @@ export async function fetchAppProviders(
   const appKey = applicationEntryPoint.toLowerCase();
   const response = await graphqlClient.request<GraphQLAppProvidersResponse>(
     GET_APP_PROVIDERS,
-    { appController: appKey },
+    { appController: appKey, limit: ROSTER_PAGE_SIZE },
   );
+
+  const rawVaultKeeperItems = [...response.vaultKeeperApplications.items];
+  let keeperPageInfo = response.vaultKeeperApplications.pageInfo;
+  let keeperPagesFetched = 1;
+
+  while (keeperPageInfo.hasNextPage) {
+    if (!keeperPageInfo.endCursor) {
+      throw new IncompleteRosterError(
+        `[fetchAppProviders] Indexer reported another vault keeper page ` +
+          `without a cursor after page ${keeperPagesFetched}; refusing to ` +
+          `return an incomplete roster`,
+      );
+    }
+    if (keeperPagesFetched >= MAX_ROSTER_PAGES) {
+      throw new IncompleteRosterError(
+        `[fetchAppProviders] Vault keeper roster exceeds ` +
+          `${MAX_ROSTER_PAGES * ROSTER_PAGE_SIZE} rows; refusing to return ` +
+          `an incomplete roster`,
+      );
+    }
+
+    const nextPage =
+      await graphqlClient.request<GraphQLVaultKeepersPageResponse>(
+        GET_APP_VAULT_KEEPERS_NEXT_PAGE,
+        {
+          appController: appKey,
+          limit: ROSTER_PAGE_SIZE,
+          after: keeperPageInfo.endCursor,
+        },
+      );
+    rawVaultKeeperItems.push(...nextPage.vaultKeeperApplications.items);
+    keeperPageInfo = nextPage.vaultKeeperApplications.pageInfo;
+    keeperPagesFetched += 1;
+  }
 
   const rawProviders = response.vaultProviders.items;
   const withRpcUrl = rawProviders.filter(
@@ -231,14 +319,13 @@ export async function fetchAppProviders(
     });
   }
 
-  const vaultKeeperItems: VaultKeeperItem[] =
-    response.vaultKeeperApplications.items
-      .filter((item) => validateVaultKeeperItem(item) !== null)
-      .map((item) => ({
-        id: item.vaultKeeper,
-        btcPubKey: item.vaultKeeperInfo.btcPubKey,
-        version: item.version,
-      }));
+  const vaultKeeperItems: VaultKeeperItem[] = rawVaultKeeperItems
+    .filter((item) => validateVaultKeeperItem(item) !== null)
+    .map((item) => ({
+      id: item.vaultKeeper,
+      btcPubKey: item.vaultKeeperInfo.btcPubKey,
+      version: item.version,
+    }));
 
   return {
     vaultProviders,

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { graphqlClient } from "../../../clients/graphql";
 import { fetchAppProviders, getLatestVersionKeepers } from "../fetchProviders";
@@ -23,8 +23,17 @@ const VALID_ETH_ADDR_3 = "0x" + "c".repeat(40);
 const VALID_BTC_PUBKEY_1 = "0x" + "d".repeat(66);
 const VALID_BTC_PUBKEY_2 = "0x" + "e".repeat(66);
 const VALID_BTC_PUBKEY_3 = "0x" + "f".repeat(66);
+const COMPLETE_PAGE_INFO = { hasNextPage: false, endCursor: null };
+
+function keeperPage<T>(items: T[]) {
+  return { items, pageInfo: COMPLETE_PAGE_INFO };
+}
 
 describe("fetchProviders", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   describe("fetchAppProviders", () => {
     it("emits onboarding.providers.empty when the indexer knows providers but every row is dropped", async () => {
       mockLoggerEvent.mockClear();
@@ -51,7 +60,7 @@ describe("fetchProviders", () => {
             },
           ],
         },
-        vaultKeeperApplications: { items: [] },
+        vaultKeeperApplications: keeperPage([]),
       });
 
       const result = await fetchAppProviders(VALID_ETH_ADDR_3);
@@ -83,7 +92,7 @@ describe("fetchProviders", () => {
             },
           ],
         },
-        vaultKeeperApplications: { items: [] },
+        vaultKeeperApplications: keeperPage([]),
       };
       mockRequest.mockResolvedValueOnce(allInvalidResponse);
       mockRequest.mockResolvedValueOnce(allInvalidResponse);
@@ -110,7 +119,7 @@ describe("fetchProviders", () => {
             },
           ],
         },
-        vaultKeeperApplications: { items: [] },
+        vaultKeeperApplications: keeperPage([]),
       };
       mockRequest.mockResolvedValueOnce(allInvalidResponse);
       mockRequest.mockResolvedValueOnce(allInvalidResponse);
@@ -144,7 +153,7 @@ describe("fetchProviders", () => {
             },
           ],
         },
-        vaultKeeperApplications: { items: [] },
+        vaultKeeperApplications: keeperPage([]),
       });
 
       const result = await fetchAppProviders(VALID_ETH_ADDR_3);
@@ -174,6 +183,7 @@ describe("fetchProviders", () => {
               vaultKeeperInfo: { btcPubKey: VALID_BTC_PUBKEY_2 },
             },
           ],
+          pageInfo: COMPLETE_PAGE_INFO,
         },
       });
 
@@ -191,10 +201,75 @@ describe("fetchProviders", () => {
       ]);
     });
 
+    it("walks keeper pages and derives the latest version from the complete roster", async () => {
+      const fullFirstPage = Array.from({ length: 1000 }, () => ({
+        vaultKeeper: VALID_ETH_ADDR_1,
+        version: 1,
+        vaultKeeperInfo: { btcPubKey: VALID_BTC_PUBKEY_1 },
+      }));
+      mockRequest.mockResolvedValueOnce({
+        vaultProviders: { items: [] },
+        vaultKeeperApplications: {
+          items: fullFirstPage,
+          pageInfo: { hasNextPage: true, endCursor: "keeper-cursor-1" },
+        },
+      });
+      mockRequest.mockResolvedValueOnce({
+        vaultKeeperApplications: keeperPage([
+          {
+            vaultKeeper: VALID_ETH_ADDR_2,
+            version: 2,
+            vaultKeeperInfo: { btcPubKey: VALID_BTC_PUBKEY_2 },
+          },
+          {
+            vaultKeeper: VALID_ETH_ADDR_3,
+            version: 2,
+            vaultKeeperInfo: { btcPubKey: VALID_BTC_PUBKEY_3 },
+          },
+        ]),
+      });
+
+      const result = await fetchAppProviders("0xABCDEF");
+
+      expect(mockRequest).toHaveBeenCalledTimes(2);
+      expect(mockRequest).toHaveBeenLastCalledWith(expect.anything(), {
+        appController: "0xabcdef",
+        limit: 1000,
+        after: "keeper-cursor-1",
+      });
+      expect(result.vaultKeeperItems).toHaveLength(1002);
+      expect(result.vaultKeepers).toEqual([
+        { id: VALID_ETH_ADDR_2, btcPubKey: VALID_BTC_PUBKEY_2 },
+        { id: VALID_ETH_ADDR_3, btcPubKey: VALID_BTC_PUBKEY_3 },
+      ]);
+    });
+
+    it("rejects an incomplete keeper roster when another page has no cursor", async () => {
+      mockRequest.mockResolvedValueOnce({
+        vaultProviders: { items: [] },
+        vaultKeeperApplications: {
+          items: [],
+          pageInfo: { hasNextPage: true, endCursor: null },
+        },
+      });
+
+      const error = await fetchAppProviders("0xABCDEF").catch(
+        (caught: unknown) => caught,
+      );
+
+      expect(error).toMatchObject({
+        name: "IncompleteRosterError",
+        retryable: false,
+      });
+      expect(String(error)).toMatch(
+        /another vault keeper page without a cursor/,
+      );
+    });
+
     it("should return empty keeper items when no keeper items exist", async () => {
       mockRequest.mockResolvedValueOnce({
         vaultProviders: { items: [] },
-        vaultKeeperApplications: { items: [] },
+        vaultKeeperApplications: keeperPage([]),
       });
 
       const result = await fetchAppProviders("0xAppController");
@@ -227,7 +302,7 @@ describe("fetchProviders", () => {
             },
           ],
         },
-        vaultKeeperApplications: { items: [] },
+        vaultKeeperApplications: keeperPage([]),
       });
 
       const result = await fetchAppProviders("0xAppController");
@@ -253,13 +328,14 @@ describe("fetchProviders", () => {
     it("should lowercase the application controller address", async () => {
       mockRequest.mockResolvedValueOnce({
         vaultProviders: { items: [] },
-        vaultKeeperApplications: { items: [] },
+        vaultKeeperApplications: keeperPage([]),
       });
 
       await fetchAppProviders("0xABCDEF");
 
       expect(mockRequest).toHaveBeenCalledWith(expect.anything(), {
         appController: "0xabcdef",
+        limit: 1000,
       });
     });
 
@@ -281,7 +357,7 @@ describe("fetchProviders", () => {
             },
           ],
         },
-        vaultKeeperApplications: { items: [] },
+        vaultKeeperApplications: keeperPage([]),
       });
 
       const result = await fetchAppProviders("0xAppController");
@@ -315,7 +391,7 @@ describe("fetchProviders", () => {
             },
           ],
         },
-        vaultKeeperApplications: { items: [] },
+        vaultKeeperApplications: keeperPage([]),
       });
 
       const result = await fetchAppProviders("0xAppController");
@@ -354,7 +430,7 @@ describe("fetchProviders", () => {
             },
           ],
         },
-        vaultKeeperApplications: { items: [] },
+        vaultKeeperApplications: keeperPage([]),
       });
 
       const result = await fetchAppProviders("0xAppController");
@@ -401,7 +477,7 @@ describe("fetchProviders", () => {
             },
           ],
         },
-        vaultKeeperApplications: { items: [] },
+        vaultKeeperApplications: keeperPage([]),
       });
 
       const result = await fetchAppProviders("0xAppController");
@@ -428,6 +504,7 @@ describe("fetchProviders", () => {
               vaultKeeperInfo: { btcPubKey: VALID_BTC_PUBKEY_1 },
             },
           ],
+          pageInfo: COMPLETE_PAGE_INFO,
         },
       });
 
@@ -454,6 +531,7 @@ describe("fetchProviders", () => {
               vaultKeeperInfo: { btcPubKey: VALID_BTC_PUBKEY_2 },
             },
           ],
+          pageInfo: COMPLETE_PAGE_INFO,
         },
       });
 

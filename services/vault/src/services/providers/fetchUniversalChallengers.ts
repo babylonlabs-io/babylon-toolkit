@@ -3,28 +3,64 @@ import { gql } from "graphql-request";
 import { graphqlClient } from "../../clients/graphql";
 import type { UniversalChallenger } from "../../types/vaultProvider";
 
-/** GraphQL response for universal challengers query */
-interface GraphQLUniversalChallengersResponse {
-  universalChallengerVersions: {
-    items: Array<{
-      version: number;
-      challengerInfo: {
-        id: string;
-        btcPubKey: string;
-      };
-    }>;
+import {
+  IncompleteRosterError,
+  MAX_ROSTER_PAGES,
+  ROSTER_PAGE_SIZE,
+} from "./rosterPagination";
+
+interface GraphQLPageInfo {
+  hasNextPage: boolean;
+  endCursor: string | null;
+}
+
+interface GraphQLUniversalChallengerItem {
+  version: number;
+  challengerInfo: {
+    id: string;
+    btcPubKey: string;
   };
 }
 
-const GET_UNIVERSAL_CHALLENGERS = gql`
-  query GetUniversalChallengers {
-    universalChallengerVersions {
+/** GraphQL response for universal challengers query */
+interface GraphQLUniversalChallengersResponse {
+  universalChallengerVersions: {
+    items: GraphQLUniversalChallengerItem[];
+    pageInfo: GraphQLPageInfo;
+  };
+}
+
+const GET_UNIVERSAL_CHALLENGERS_FIRST_PAGE = gql`
+  query GetUniversalChallengersFirstPage($limit: Int!) {
+    universalChallengerVersions(limit: $limit) {
       items {
         version
         challengerInfo {
           id
           btcPubKey
         }
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+    }
+  }
+`;
+
+const GET_UNIVERSAL_CHALLENGERS_NEXT_PAGE = gql`
+  query GetUniversalChallengersNextPage($limit: Int!, $after: String!) {
+    universalChallengerVersions(limit: $limit, after: $after) {
+      items {
+        version
+        challengerInfo {
+          id
+          btcPubKey
+        }
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
       }
     }
   }
@@ -52,12 +88,41 @@ export interface UniversalChallengersData {
  * @returns Object with challengers grouped by version and the latest version number
  */
 export async function fetchAllUniversalChallengers(): Promise<UniversalChallengersData> {
-  const response =
+  const firstPage =
     await graphqlClient.request<GraphQLUniversalChallengersResponse>(
-      GET_UNIVERSAL_CHALLENGERS,
+      GET_UNIVERSAL_CHALLENGERS_FIRST_PAGE,
+      { limit: ROSTER_PAGE_SIZE },
     );
 
-  const items = response.universalChallengerVersions.items;
+  const items = [...firstPage.universalChallengerVersions.items];
+  let pageInfo = firstPage.universalChallengerVersions.pageInfo;
+  let pagesFetched = 1;
+
+  while (pageInfo.hasNextPage) {
+    if (!pageInfo.endCursor) {
+      throw new IncompleteRosterError(
+        `[fetchAllUniversalChallengers] Indexer reported another challenger ` +
+          `page without a cursor after page ${pagesFetched}; refusing to ` +
+          `return an incomplete roster`,
+      );
+    }
+    if (pagesFetched >= MAX_ROSTER_PAGES) {
+      throw new IncompleteRosterError(
+        `[fetchAllUniversalChallengers] Challenger roster exceeds ` +
+          `${MAX_ROSTER_PAGES * ROSTER_PAGE_SIZE} rows; refusing to return ` +
+          `an incomplete roster`,
+      );
+    }
+
+    const nextPage =
+      await graphqlClient.request<GraphQLUniversalChallengersResponse>(
+        GET_UNIVERSAL_CHALLENGERS_NEXT_PAGE,
+        { limit: ROSTER_PAGE_SIZE, after: pageInfo.endCursor },
+      );
+    items.push(...nextPage.universalChallengerVersions.items);
+    pageInfo = nextPage.universalChallengerVersions.pageInfo;
+    pagesFetched += 1;
+  }
 
   if (items.length === 0) {
     return { byVersion: new Map(), latestVersion: 0 };
