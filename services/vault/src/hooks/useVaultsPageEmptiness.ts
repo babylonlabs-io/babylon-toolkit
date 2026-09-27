@@ -34,7 +34,9 @@
  * refundable rows. An unreadable browser record counts as a failed source:
  * with nothing else to show the page reports it instead of claiming an empty
  * account, and with rows to show, or alongside a failed remote read, it drives
- * the warning.
+ * the warning. `hasNonIndexerError` says whether a source other than the
+ * indexed collateral list failed, so the warning does not claim totals or
+ * deposits are incomplete when only that list is.
  *
  * A withdrawal-only position (every vault redeemed, peg-out still in flight)
  * is not empty: the indexer has already zeroed the collateral figure, but the
@@ -72,6 +74,7 @@ export function useVaultsPageEmptiness(deposits: VaultsPageDeposits): {
   isEmpty: boolean;
   hasError: boolean;
   hasPartialError: boolean;
+  hasNonIndexerError: boolean;
   storageOnlyError: boolean;
 } {
   const { address } = useETHWallet();
@@ -123,6 +126,9 @@ export function useVaultsPageEmptiness(deposits: VaultsPageDeposits): {
     isEmpty,
     hasError,
     hasPartialError,
+    hasNonIndexerError:
+      isConnected &&
+      Boolean(positionError || depositsError || storageReadError),
     storageOnlyError: hasError && Boolean(storageReadError) && !remoteFailed,
   };
 }

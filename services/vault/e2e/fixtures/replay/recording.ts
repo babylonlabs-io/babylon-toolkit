@@ -89,6 +89,13 @@ export const DEFAULT_REPLAY_STEP = "deposit-form";
  * made by the CLI still would not hold them - it never visits that page - so
  * re-run the top-up after every regeneration.
  *
+ * The `GetAavePositions` and `GetAavePositionCollaterals` lines that follow the
+ * recorded `GetAaveActivePositionsWithCollaterals` line were written by hand
+ * when the position read was split into those two queries. They copy that
+ * line's metadata and answer with the same empty position (no items, no next
+ * page). A regeneration made before the CLI records these queries drops them:
+ * add them back the same way.
+ *
  * The last three RPC lines are archive reads from rpc.sentio.xyz/sepolia at
  * block 11313642 (2026-07-20T15:38:36Z), before the final deposit-form
  * response. The block hash is

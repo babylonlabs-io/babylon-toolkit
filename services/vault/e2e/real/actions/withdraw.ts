@@ -227,7 +227,7 @@ async function openWithdrawForRow(
         "No active vault rows on /vaults — this position has nothing to withdraw.",
       );
     throw new Error(
-      `No withdrawable vault on /vaults after ${Math.round(WITHDRAW_CTA_ENABLE_TIMEOUT_MS / MS_PER_SECOND)}s (${found.rowCount} row(s) shown — every Withdraw button is disabled: the vault is not in use, still activating, already withdrawing, withdrawals are paused by the protocol, or the indexed vault list does not match the chain position yet). Repay outstanding debt first so collateral can be released.`,
+      `No withdrawable vault on /vaults after ${Math.round(WITHDRAW_CTA_ENABLE_TIMEOUT_MS / MS_PER_SECOND)}s (${found.rowCount} row(s) shown — every Withdraw button is disabled: the vault is not in use, still activating, already withdrawing, withdrawals are paused by the protocol, or the indexed vault list does not match the chain position yet). Repay outstanding debt first so collateral can be released, or wait for the indexer to catch up and re-run.`,
     );
   }
 
@@ -483,7 +483,7 @@ export async function runWithdrawFlow(
         `--withdraw-all released ${released.size} of ${before.vaultCount} vault(s) but ${remaining} remain, and the position carries no debt to health-factor-gate them — the loop stopped before draining the position.`,
       );
     log(
-      `⚠️ --withdraw-all released ${released.size} of ${before.vaultCount} vault(s); ${remaining} remain, held back by the $${before.currentDebtUsd.toFixed(2)} debt's health-factor gate. Repay first (--repay-first) to release them.`,
+      `⚠️ --withdraw-all released ${released.size} of ${before.vaultCount} vault(s); ${remaining} remain, held back by the $${before.currentDebtUsd.toFixed(2)} debt's health-factor gate or by the indexer still catching up after the last release. Repay first (--repay-first), or re-run once the indexer catches up.`,
     );
   }
 

@@ -177,6 +177,7 @@ describe("useVaultsPageEmptiness", () => {
       isEmpty: false,
       hasError: true,
       hasPartialError: false,
+      hasNonIndexerError: true,
       storageOnlyError: true,
     });
   });
@@ -191,6 +192,7 @@ describe("useVaultsPageEmptiness", () => {
       isEmpty: true,
       hasError: false,
       hasPartialError: false,
+      hasNonIndexerError: false,
       storageOnlyError: false,
     });
   });
@@ -240,6 +242,7 @@ describe("useVaultsPageEmptiness", () => {
       isEmpty: false,
       hasError: false,
       hasPartialError: false,
+      hasNonIndexerError: false,
       storageOnlyError: false,
     });
     expect(useDashboardStateMock).toHaveBeenCalledWith("0xdepositor");
@@ -255,6 +258,7 @@ describe("useVaultsPageEmptiness", () => {
       isEmpty: false,
       hasError: false,
       hasPartialError: false,
+      hasNonIndexerError: false,
       storageOnlyError: false,
     });
   });
@@ -372,6 +376,7 @@ describe("useVaultsPageEmptiness", () => {
       isEmpty: true,
       hasError: false,
       hasPartialError: false,
+      hasNonIndexerError: false,
       storageOnlyError: false,
     });
   });
@@ -386,6 +391,7 @@ describe("useVaultsPageEmptiness", () => {
       isEmpty: false,
       hasError: true,
       hasPartialError: false,
+      hasNonIndexerError: true,
       storageOnlyError: false,
     });
   });
@@ -410,6 +416,7 @@ describe("useVaultsPageEmptiness", () => {
       isEmpty: false,
       hasError: false,
       hasPartialError: true,
+      hasNonIndexerError: true,
       storageOnlyError: false,
     });
   });
@@ -430,6 +437,7 @@ describe("useVaultsPageEmptiness", () => {
     dashboardState.indexerError = new Error("Indexed collateral is incomplete");
     const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
     expect(result.current.hasPartialError).toBe(true);
+    expect(result.current.hasNonIndexerError).toBe(false);
     expect(result.current.isEmpty).toBe(false);
     expect(result.current.hasError).toBe(false);
   });
@@ -469,6 +477,7 @@ describe("useVaultsPageEmptiness", () => {
       isEmpty: false,
       hasError: true,
       hasPartialError: true,
+      hasNonIndexerError: true,
       storageOnlyError: false,
     });
   });
@@ -484,6 +493,7 @@ describe("useVaultsPageEmptiness", () => {
       isEmpty: true,
       hasError: false,
       hasPartialError: false,
+      hasNonIndexerError: false,
       storageOnlyError: false,
     });
   });

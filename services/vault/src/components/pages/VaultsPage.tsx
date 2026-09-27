@@ -51,8 +51,14 @@ export default function VaultsPage() {
   // hook and the lifecycle sections so the broadcast/refund modal state pair
   // is instantiated once.
   const deposits = usePendingDeposits();
-  const { isLoading, isEmpty, hasError, hasPartialError, storageOnlyError } =
-    useVaultsPageEmptiness(deposits);
+  const {
+    isLoading,
+    isEmpty,
+    hasError,
+    hasPartialError,
+    hasNonIndexerError,
+    storageOnlyError,
+  } = useVaultsPageEmptiness(deposits);
   const { vaults: aaveVaults } = useAaveVaults(
     isConnected ? address : undefined,
   );
@@ -186,11 +192,13 @@ export default function VaultsPage() {
             title={COPY.vaults.partialLoadError.title}
             data-testid="vaults-partial-load-error"
           >
-            <p>
-              {deposits.storageReadError
-                ? COPY.vaults.storageReadError
-                : COPY.vaults.partialLoadError.body}
-            </p>
+            {hasNonIndexerError && (
+              <p>
+                {deposits.storageReadError
+                  ? COPY.vaults.storageReadError
+                  : COPY.vaults.partialLoadError.body}
+              </p>
+            )}
             {/* Its own line, so another failure's text cannot hide why
                 Withdraw and Reorder are disabled. */}
             {indexerError && <p>{COPY.vaults.collateralListIncomplete}</p>}
