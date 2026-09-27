@@ -90,6 +90,7 @@ import {
   broadcastPrePeginTransaction,
   fetchVaultById,
 } from "../../services/vault";
+import { assertActivationFollowsConstructionOrder } from "../../services/vault/activationOrder";
 import { rebuildDepositTerms } from "../../services/vault/rebuildDepositTerms";
 import { resolveFundedTxFeeAndUtxos } from "../../services/vault/resolveFundedTxFee";
 import {
@@ -142,6 +143,12 @@ export interface ActivateVaultParams {
    * only the protocol scope — an aave-scope pause is what this mode escapes.
    */
   redeemImmediately?: boolean;
+  /**
+   * Vault IDs believed to share this Pre-PegIn. Discovery is untrusted: the
+   * activation guard re-reads every candidate from chain and fails closed when
+   * a lower HTLC index is absent.
+   */
+  siblingVaultIds?: readonly Hex[];
   pendingPegin?: PendingPeginRequest;
   updatePendingPeginStatus?: (
     vaultId: string,
@@ -639,6 +646,7 @@ export function useVaultActions(): UseVaultActionsReturn {
       secretHex,
       depositorEthAddress,
       redeemImmediately,
+      siblingVaultIds = [vaultId],
       pendingPegin,
       updatePendingPeginStatus,
       onRefetchActivities,
@@ -816,6 +824,24 @@ export function useVaultActions(): UseVaultActionsReturn {
         // dead-end, not a transient.
         expectedInterruption = true;
         throw new Error(message);
+      }
+
+      // A normal activation appends this vault to the application's
+      // liquidation queue. For a split deposit, enforce the Pre-PegIn HTLC
+      // construction order before the secret can reach a wallet/RPC call.
+      // Activate-and-redeem never adds collateral, so queue order is irrelevant
+      // on that escape-hatch path.
+      if (!redeemImmediately) {
+        await assertActivationFollowsConstructionOrder(
+          vaultId,
+          {
+            depositor: basicInfo.depositor,
+            applicationEntryPoint: basicInfo.applicationEntryPoint,
+            htlcVout: Number(protocolInfo.htlcVout),
+            prePeginTxHash: protocolInfo.prePeginTxHash,
+          },
+          siblingVaultIds,
+        );
       }
 
       // Activation ceiling. The dashboard gate (`useActivationDeadlineGate`)

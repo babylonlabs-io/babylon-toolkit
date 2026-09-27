@@ -25,6 +25,23 @@ function batchKey(activity: VaultActivity): string {
   return normalized.length > 0 ? normalized : `standalone:${activity.id}`;
 }
 
+/** Stable construction ordering; unknown legacy entries retain input order. */
+function orderBatch(activities: VaultActivity[]): VaultActivity[] {
+  return activities
+    .map((activity, inputIndex) => ({ activity, inputIndex }))
+    .sort((a, b) => {
+      const aIndex = a.activity.constructionIndex;
+      const bIndex = b.activity.constructionIndex;
+      if (aIndex === undefined && bIndex === undefined) {
+        return a.inputIndex - b.inputIndex;
+      }
+      if (aIndex === undefined) return 1;
+      if (bIndex === undefined) return -1;
+      return aIndex - bIndex || a.inputIndex - b.inputIndex;
+    })
+    .map(({ activity }) => activity);
+}
+
 /**
  * Group deposit activities into batches. Activities sharing one Pre-PegIn
  * transaction land in the same group; a standalone deposit is a group of
@@ -43,7 +60,7 @@ export function groupActivitiesByBatch(
       groups.set(key, [activity]);
     }
   }
-  return [...groups.values()];
+  return [...groups.values()].map(orderBatch);
 }
 
 /**
@@ -57,5 +74,5 @@ export function getBatchSiblings(
 ): VaultActivity[] {
   const key = batchKey(activity);
   if (key.startsWith("standalone:")) return [activity];
-  return activities.filter((a) => batchKey(a) === key);
+  return orderBatch(activities.filter((a) => batchKey(a) === key));
 }

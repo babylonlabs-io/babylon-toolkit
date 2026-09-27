@@ -25,6 +25,8 @@ const EMPTY_CONFIRMED: VaultActivity[] = [];
 export interface UseActivationStateProps {
   activity: VaultActivity;
   depositorEthAddress: string;
+  /** Construction-ordered IDs sharing this Pre-PegIn. */
+  siblingVaultIds?: readonly string[];
   /**
    * Escape hatch mode: reveal the secret via
    * `activateVaultWithSecretAndRedeem` (no application activation). The vault
@@ -51,6 +53,7 @@ export interface UseActivationStateResult {
 export function useActivationState({
   activity,
   depositorEthAddress,
+  siblingVaultIds = [activity.id],
   redeemImmediately,
 }: UseActivationStateProps): UseActivationStateResult {
   const {
@@ -93,6 +96,7 @@ export function useActivationState({
           secretHex,
           depositorEthAddress,
           redeemImmediately,
+          siblingVaultIds: siblingVaultIds as readonly `0x${string}`[],
           pendingPegin,
           updatePendingPeginStatus,
           onRefetchActivities: () => {
@@ -141,6 +145,7 @@ export function useActivationState({
       activity,
       depositorEthAddress,
       redeemImmediately,
+      siblingVaultIds,
       pendingPegins,
       updatePendingPeginStatus,
       vaultHandleActivation,

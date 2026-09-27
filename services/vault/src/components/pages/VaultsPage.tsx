@@ -27,6 +27,7 @@ import {
   ReorderVaultsModal,
 } from "@/components/simple/ReorderVaults";
 import WithdrawFlow from "@/components/simple/WithdrawFlow";
+import { SplitVaultOrderWarning } from "@/components/vaults/SplitVaultOrderWarning";
 import { VaultsActiveSection } from "@/components/vaults/VaultsActiveSection";
 import { VaultsEmptyState } from "@/components/vaults/VaultsEmptyState";
 import { VaultsLifecycleSections } from "@/components/vaults/VaultsLifecycleSections";
@@ -58,6 +59,7 @@ export default function VaultsPage() {
   );
   useSyncPendingVaults(aaveVaults);
   const {
+    position,
     summary,
     displayVaults,
     rawCollateralVaults,
@@ -114,6 +116,12 @@ export default function VaultsPage() {
 
   const populatedBody = (
     <div className="flex flex-col gap-8">
+      {position && position.vaultIds.length >= 2 && (
+        <SplitVaultOrderWarning
+          currentVaultIds={position.vaultIds}
+          onSuccess={() => setIsReorderSuccess(true)}
+        />
+      )}
       <VaultsSummaryCard
         totalCollateralBtc={summary.totalCollateralBtc}
         totalCollateralUsd={summary.totalCollateralUsd}

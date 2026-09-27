@@ -254,6 +254,10 @@ export const COPY = {
       // against an unverifiable gate.
       activationWindowUnavailable:
         "Could not confirm the BTCVault activation window. Nothing was submitted — please try again in a moment.",
+      activationOrderBlocked:
+        "Activate the earlier BTCVault in this split deposit first. Nothing was submitted — the split's liquidation order must match its construction order.",
+      activationOrderUnavailable:
+        "Could not confirm this split deposit's activation order. Nothing was submitted — please try again in a moment.",
       inUseCannotRedeem:
         "BTCVault is currently being used as collateral. Repay all debt before redeeming.",
       redemptionInProgress:
@@ -2328,6 +2332,11 @@ export const COPY = {
     partialLoadError: {
       title: "Some of your BTCVault data couldn't be loaded",
       body: "Totals or deposits shown may be incomplete. Refresh the page to try again.",
+    },
+    splitOrderWarning: {
+      title: "BTCVault liquidation order needs attention",
+      body: "This split deposit is not ordered as it was constructed. Until the order is restored, a liquidation could seize the protected BTCVault before the sacrificial BTCVault.",
+      action: "Restore Split Order",
     },
     summary: {
       totalCollateralLabel: "Total Collateral Value",

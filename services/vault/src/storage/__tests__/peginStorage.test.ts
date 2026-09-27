@@ -435,6 +435,27 @@ describe("getPendingPegins integrity validation", () => {
     expect(result[0].buildVaultCoreVersion).toBe(1);
   });
 
+  it("migrates the legacy one-based batch index to a construction index", () => {
+    const legacy = { ...validPegin, batchIndex: 2 };
+    localStorage.setItem(storageKey, JSON.stringify([legacy]));
+
+    const [result] = getPendingPegins(ETH_ADDRESS);
+
+    expect(result.constructionIndex).toBe(1);
+    expect(result).not.toHaveProperty("batchIndex");
+  });
+
+  it("filters a construction index outside its declared batch", () => {
+    const tampered = {
+      ...validPegin,
+      constructionIndex: 2,
+      batchTotal: 2,
+    };
+    localStorage.setItem(storageKey, JSON.stringify([tampered]));
+
+    expect(getPendingPegins(ETH_ADDRESS)).toHaveLength(0);
+  });
+
   it("does not backfill buildVaultCoreVersion when the other build fields are also missing", () => {
     const legacy = { ...validPegin };
     delete (legacy as Partial<PendingPeginRequest>).buildVaultCoreVersion;

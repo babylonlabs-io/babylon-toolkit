@@ -144,7 +144,22 @@ export function PostDepositContinuationView({
   // Use the on-chain key so a disconnected wallet can see the payout prompt.
   const isActionable = (id: string): boolean => {
     const result = getPollingResult(id);
+    const constructionIndex = vaultIds.findIndex(
+      (vaultId) => vaultId.toLowerCase() === id.toLowerCase(),
+    );
+    const activationBlockedByEarlierSibling =
+      result?.peginState.availableActions.includes(
+        PeginAction.ACTIVATE_VAULT,
+      ) &&
+      constructionIndex > 0 &&
+      vaultIds
+        .slice(0, constructionIndex)
+        .some(
+          (earlierId) =>
+            !isVaultActivated(getPollingResult(earlierId)?.peginState),
+        );
     return (
+      !activationBlockedByEarlierSibling &&
       isCandidateVault(result?.peginState) &&
       hasActionableStep(result?.peginState, result?.depositorBtcPubkey)
     );

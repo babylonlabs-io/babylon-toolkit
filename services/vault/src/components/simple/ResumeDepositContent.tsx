@@ -724,6 +724,7 @@ function ResumeActivationContentConnected({
   } = useActivationState({
     activity,
     depositorEthAddress,
+    siblingVaultIds,
   });
 
   const handleSubmit = useCallback(async () => {

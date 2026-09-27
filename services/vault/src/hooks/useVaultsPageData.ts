@@ -27,6 +27,7 @@ const btcConfig = getNetworkConfigBTC();
 
 export function useVaultsPageData(connectedAddress: string | undefined) {
   const {
+    position,
     displayCollateralBtc,
     collateralBtc,
     collateralValueUsd,
@@ -76,6 +77,7 @@ export function useVaultsPageData(connectedAddress: string | undefined) {
   }, [displayVaults]);
 
   return {
+    position,
     summary: {
       totalCollateralBtc: formatBtcAmount(shownCollateralBtc),
       totalCollateralUsd: formatUsdValue(collateralValueUsd),

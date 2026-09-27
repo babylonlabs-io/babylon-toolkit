@@ -794,7 +794,7 @@ describe("useDepositFlow", () => {
   });
 
   describe("Storage", () => {
-    it("should save each vault with batchId and correct batchIndex", async () => {
+    it("saves each vault with its zero-based construction index", async () => {
       const { addPendingPegin } = vi.mocked(
         await import("@/storage/peginStorage"),
       );
@@ -812,7 +812,7 @@ describe("useDepositFlow", () => {
         "0xEthAddress123",
         expect.objectContaining({
           batchId: "mock-batch-id-uuid",
-          batchIndex: 1,
+          constructionIndex: 0,
           batchTotal: 2,
         }),
       );
@@ -822,7 +822,7 @@ describe("useDepositFlow", () => {
         "0xEthAddress123",
         expect.objectContaining({
           batchId: "mock-batch-id-uuid",
-          batchIndex: 2,
+          constructionIndex: 1,
           batchTotal: 2,
         }),
       );
