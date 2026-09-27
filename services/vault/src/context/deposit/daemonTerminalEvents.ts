@@ -8,6 +8,8 @@
  *  - A vault is SEEDED on the first poll observation that includes it: if it is
  *    already terminal then (a prior-session drop rediscovered on reload), it is
  *    marked emitted WITHOUT emitting, so a dashboard load never emits a burst.
+ *    An unrecognized status is the exception and emits on its first
+ *    observation: it reports SDK drift, and a reload is the usual way to see it.
  *  - Thereafter, each distinct terminal daemonStatus emits once per vault —
  *    keyed per status, so a real Expired → ExpiredCleanedUp progression yields
  *    both signals.
@@ -27,6 +29,7 @@
 import {
   type PollingDaemonStatus,
   TerminalPeginPollingError,
+  UNRECOGNIZED_DAEMON_STATUS,
 } from "../../utils/peginPolling";
 
 export interface DaemonTerminalTracking {
@@ -96,11 +99,14 @@ export function collectDaemonTerminalEvents(
 
     if (!tracking.seen.has(vaultId)) {
       tracking.seen.add(vaultId);
-      // First observation: seed a pre-existing terminal without emitting.
-      if (daemonStatus !== null) {
-        tracking.emitted.add(`${vaultId}:${daemonStatus}`);
+      // First observation: seed a pre-existing terminal without emitting,
+      // except an unrecognized status, which falls through and emits.
+      if (daemonStatus !== UNRECOGNIZED_DAEMON_STATUS) {
+        if (daemonStatus !== null) {
+          tracking.emitted.add(`${vaultId}:${daemonStatus}`);
+        }
+        continue;
       }
-      continue;
     }
 
     if (daemonStatus === null) continue;

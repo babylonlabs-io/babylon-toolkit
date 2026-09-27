@@ -199,14 +199,9 @@ export function applyPerDepositError(
   depositId: string,
   sets: DepositSets,
 ): void {
-  // "PegIn not found" — VP hasn't ingested yet, treat as still-pending.
-  if (errorMessage.includes("PegIn not found")) {
-    sets.errors.delete(depositId);
-    sets.needsWotsKey.delete(depositId);
-    sets.pendingIngestion.add(depositId);
-    return;
-  }
   // A status the SDK does not know: stop polling this deposit and report it.
+  // Checked first, as in batchReadiness: the error quotes the VP's status
+  // text, which can contain "PegIn not found".
   if (isUnrecognizedDaemonStatusError(errorMessage)) {
     sets.errors.set(
       depositId,
@@ -216,6 +211,13 @@ export function applyPerDepositError(
       ),
     );
     sets.needsWotsKey.delete(depositId);
+    return;
+  }
+  // "PegIn not found" — VP hasn't ingested yet, treat as still-pending.
+  if (errorMessage.includes("PegIn not found")) {
+    sets.errors.delete(depositId);
+    sets.needsWotsKey.delete(depositId);
+    sets.pendingIngestion.add(depositId);
     return;
   }
   sets.errors.set(depositId, new Error(errorMessage));

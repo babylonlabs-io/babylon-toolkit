@@ -1,4 +1,7 @@
-import { DaemonStatus } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+import {
+  DaemonStatus,
+  VP_TERMINAL_FAILURE_STATUSES,
+} from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { describe, expect, it } from "vitest";
 
 import { COPY } from "@/copy";
@@ -44,6 +47,30 @@ describe("applyPerDepositStatus", () => {
     expect(error?.message).toBe(COPY.pegin.statusErrors.ingestionRejected);
     expect(needsWotsKey.has(depositId)).toBe(false);
   });
+
+  it.each([DaemonStatus.EXPIRED, ...VP_TERMINAL_FAILURE_STATUSES])(
+    "sets a terminal error with a message for %s",
+    (status) => {
+      const depositId = "vault-1";
+      const errors = new Map<string, Error>();
+
+      applyPerDepositStatus(
+        { pegin_txid: "txid", status, progress: {}, health_info: "ok" },
+        depositId,
+        {
+          errors,
+          needsWotsKey: new Set<string>(),
+          pendingIngestion: new Set<string>(),
+          pendingDepositorSignatures: new Set<string>(),
+        },
+      );
+
+      const error = errors.get(depositId);
+      expect(error).toBeInstanceOf(TerminalPeginPollingError);
+      expect((error as TerminalPeginPollingError).daemonStatus).toBe(status);
+      expect(error?.message).not.toBe("");
+    },
+  );
 
   it("treats BabeSetupFailed as terminal with its own message", () => {
     const depositId = "vault-1";
@@ -94,6 +121,23 @@ describe("applyPerDepositError", () => {
     );
     expect(error?.message).toBe(COPY.pegin.statusErrors.unrecognizedStatus);
     expect(needsWotsKey.has(depositId)).toBe(false);
+  });
+
+  it("treats an unrecognized status as terminal even when its text contains 'PegIn not found'", () => {
+    const depositId = "vault-4";
+    const errors = new Map<string, Error>();
+    const pendingIngestion = new Set<string>();
+
+    applyPerDepositError(
+      'VP response validation failed: unrecognized status "PegIn not found". Expected one of: Activated',
+      depositId,
+      { errors, needsWotsKey: new Set<string>(), pendingIngestion },
+    );
+
+    expect(
+      (errors.get(depositId) as TerminalPeginPollingError).daemonStatus,
+    ).toBe(UNRECOGNIZED_DAEMON_STATUS);
+    expect(pendingIngestion.has(depositId)).toBe(false);
   });
 
   it("keeps any other item error as a non-terminal error", () => {
