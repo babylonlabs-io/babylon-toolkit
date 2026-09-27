@@ -42,7 +42,10 @@ export interface DaemonTerminalTracking {
 export interface DaemonTerminalEvent {
   /** Raw vaultId; the caller shortens it before it enters event context. */
   vaultId: string;
-  /** VP daemon status name (e.g. "Expired", "AmlRejected") — safe to emit. */
+  /**
+   * VP daemon status name (e.g. "Expired", "AmlRejected"), or the app's own
+   * "Unrecognized" stand-in for a status the SDK does not know — safe to emit.
+   */
   daemonStatus: PollingDaemonStatus;
 }
 
