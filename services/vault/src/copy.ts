@@ -1642,6 +1642,9 @@ export const COPY = {
       vpCommissionLabel: "VP Commission",
       // Shown when the vault providers charge no commission at all.
       noCommission: "None",
+      vpCommissionUnavailable: "Unavailable",
+      vpCommissionError:
+        "Could not read the vault provider commission for the selected vaults. Try again later.",
       confirmButton: "Confirm",
       processing: "Processing",
       hfBlockTitle: "Withdraw unavailable",

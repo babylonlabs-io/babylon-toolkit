@@ -10,16 +10,15 @@ import {
 import { useMemo, type ReactNode } from "react";
 
 import {
-  BPS_SCALE,
   WITHDRAW_HF_BLOCK_THRESHOLD,
   WITHDRAW_HF_WARNING_THRESHOLD,
 } from "@/applications/aave/constants";
 import { getWithdrawHfWarningState } from "@/applications/aave/utils";
 import { ReviewDetailRow } from "@/components/shared/DetailRow";
 import { BTC_BLOCK_TIME_MINS } from "@/constants";
-import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
 import { COPY } from "@/copy";
 import { useNetworkFees } from "@/hooks/useNetworkFees";
+import { satoshiToBtcNumber } from "@/utils/btcConversion";
 import {
   formatBtcAmount,
   formatDuration,
@@ -28,6 +27,7 @@ import {
 
 import { HealthFactorDelta } from "./HealthFactorDelta";
 import { NominatedAddressValue } from "./NominatedAddressValue";
+import type { WithdrawCommission } from "./useWithdrawCommission";
 
 const REVIEW_COPY = COPY.withdraw.review;
 const SELECT_COPY = COPY.withdraw.select;
@@ -56,6 +56,8 @@ interface WithdrawReviewContentProps {
   payoutAddresses: string[];
   /** Max `timelockAssert` (BTC blocks) across the selected vaults; drives the ETA. */
   assertTimelockBlocks: number;
+  /** VP commission at each selected vault's own frozen rate. */
+  vpCommission: WithdrawCommission;
   isProcessing: boolean;
   /** Last failed-withdraw message, shown inline under the action (null when none). */
   error: string | null;
@@ -77,6 +79,7 @@ export function WithdrawReviewContent({
   projectedHealthFactor,
   payoutAddresses,
   assertTimelockBlocks,
+  vpCommission,
   isProcessing,
   error,
   hubBlockMessage,
@@ -85,16 +88,12 @@ export function WithdrawReviewContent({
   onConfirm,
 }: WithdrawReviewContentProps) {
   const { defaultFeeRate } = useNetworkFees();
-  const { minVpCommissionBps } = useProtocolParamsContext();
 
   const { wouldBreachHF, isAtRisk } = getWithdrawHfWarningState(
     projectedHealthFactor,
   );
 
   const rows: DetailRow[] = useMemo(() => {
-    const vpCommissionBtc = totalAmountBtc * (minVpCommissionBps / BPS_SCALE);
-    const vpCommissionUsd = totalAmountUsd * (minVpCommissionBps / BPS_SCALE);
-
     const hfRow: DetailRow | null =
       currentHealthFactor === null
         ? null
@@ -121,16 +120,7 @@ export function WithdrawReviewContent({
             ? `${defaultFeeRate} sats/vB`
             : COPY.common.loading,
       },
-      minVpCommissionBps > 0
-        ? {
-            label: REVIEW_COPY.vpCommissionLabel,
-            value: formatBtcAmount(vpCommissionBtc),
-            secondaryValue: formatUsdValue(vpCommissionUsd),
-          }
-        : {
-            label: REVIEW_COPY.vpCommissionLabel,
-            value: REVIEW_COPY.noCommission,
-          },
+      vpCommissionRow(vpCommission, totalAmountBtc, totalAmountUsd),
     ];
 
     const withHf = hfRow
@@ -163,7 +153,7 @@ export function WithdrawReviewContent({
     currentHealthFactor,
     projectedHealthFactor,
     defaultFeeRate,
-    minVpCommissionBps,
+    vpCommission,
     assertTimelockBlocks,
     payoutAddresses,
   ]);
@@ -201,6 +191,15 @@ export function WithdrawReviewContent({
                 WITHDRAW_HF_BLOCK_THRESHOLD.toFixed(1),
               )}
             </Callout>
+          )}
+          {vpCommission.status === "error" && (
+            <Text
+              variant="body2"
+              className="text-error-main"
+              data-testid="withdraw-commission-error"
+            >
+              {REVIEW_COPY.vpCommissionError}
+            </Text>
           )}
           {hubBlockMessage && (
             <Text
@@ -247,6 +246,7 @@ export function WithdrawReviewContent({
             className="w-full"
             disabled={
               isProcessing ||
+              vpCommission.status !== "ready" ||
               wouldBreachHF ||
               hubBlockMessage !== null ||
               (isAtRisk && !acknowledged)
@@ -279,4 +279,29 @@ export function WithdrawReviewContent({
       </div>
     </div>
   );
+}
+
+function vpCommissionRow(
+  vpCommission: WithdrawCommission,
+  totalAmountBtc: number,
+  totalAmountUsd: number,
+): DetailRow {
+  const label = REVIEW_COPY.vpCommissionLabel;
+  if (vpCommission.status === "loading") {
+    return { label, value: COPY.common.loading };
+  }
+  if (vpCommission.status === "error") {
+    return { label, value: REVIEW_COPY.vpCommissionUnavailable };
+  }
+  if (vpCommission.commissionSats === 0n) {
+    return { label, value: REVIEW_COPY.noCommission };
+  }
+  const commissionBtc = satoshiToBtcNumber(vpCommission.commissionSats);
+  const commissionUsd =
+    totalAmountBtc > 0 ? totalAmountUsd * (commissionBtc / totalAmountBtc) : 0;
+  return {
+    label,
+    value: formatBtcAmount(commissionBtc),
+    secondaryValue: formatUsdValue(commissionUsd),
+  };
 }
