@@ -24,9 +24,10 @@
  * as healthy and its prior-session terminal would emit as a fresh warning.
  */
 
-import type { DaemonStatus } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
-
-import { TerminalPeginPollingError } from "../../utils/peginPolling";
+import {
+  type PollingDaemonStatus,
+  TerminalPeginPollingError,
+} from "../../utils/peginPolling";
 
 export interface DaemonTerminalTracking {
   /** Vaults observed in at least one poll result (drives seeding). */
@@ -39,7 +40,7 @@ export interface DaemonTerminalEvent {
   /** Raw vaultId; the caller shortens it before it enters event context. */
   vaultId: string;
   /** VP daemon status name (e.g. "Expired", "AmlRejected") — safe to emit. */
-  daemonStatus: DaemonStatus;
+  daemonStatus: PollingDaemonStatus;
 }
 
 export function createDaemonTerminalTracking(): DaemonTerminalTracking {

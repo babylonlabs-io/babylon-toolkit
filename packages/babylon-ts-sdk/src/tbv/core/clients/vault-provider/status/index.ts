@@ -18,4 +18,7 @@ export {
 } from "../batchPoll";
 export { JSON_RPC_ERROR_CODES, JsonRpcError } from "../json-rpc-client";
 export * from "../types";
-export { VpResponseValidationError } from "../validators";
+export {
+  VpResponseValidationError,
+  isUnrecognizedDaemonStatusError,
+} from "../validators";

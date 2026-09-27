@@ -286,6 +286,10 @@ export const COPY = {
       amlRejected: "This deposit was rejected by AML screening.",
       ingestionRejected:
         "The vault provider could not ingest this deposit; it cannot proceed.",
+      babeSetupFailed:
+        "The vault provider could not complete setup for this deposit; it cannot proceed.",
+      unrecognizedStatus:
+        "The vault provider reported a status this app does not recognize. Please contact support.",
     },
     primaryAction: {
       SUBMIT_WOTS_KEY: "Submit WOTS Key",

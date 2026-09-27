@@ -34,6 +34,9 @@
  *   artifacts deleted.
  * - ExpiredInClaim: terminal at the pegin-state-machine level; pegout-side
  *   work continues on the pegout_tracking row.
+ * - BabeSetupFailed: terminal — a challenger's BaBe decryptor session
+ *   failed verification, so BaBe setup cannot complete; reachable from
+ *   PendingBabeSetup.
  */
 export enum DaemonStatus {
   PENDING_INGESTION = "PendingIngestion",
@@ -53,6 +56,7 @@ export enum DaemonStatus {
   AML_REJECTED = "AmlRejected",
   EXPIRED_CLEANED_UP = "ExpiredCleanedUp",
   EXPIRED_IN_CLAIM = "ExpiredInClaim",
+  BABE_SETUP_FAILED = "BabeSetupFailed",
 }
 
 // ============================================================================
@@ -96,8 +100,8 @@ export const VP_TRANSIENT_STATUSES: ReadonlySet<DaemonStatus> = new Set([
  * stop immediately with an error rather than wait for timeout.
  *
  * Mirrors the failure subset of the server-side terminals
- * (`allowed_transitions()` empty, see
- * `btc-vault/crates/vaultd/src/workers/claimer/mod.rs:230-242`).
+ * (`allowed_transitions()` empty, see `PegInStatus` in
+ * `btc-vault/crates/vaultd/src/workers/claimer/mod.rs`).
  * `Activated` IS terminal on-chain but is the success outcome, so it is
  * intentionally excluded — a caller polling for an earlier state that
  * races straight to `Activated` should treat that as success-via-overshoot,
@@ -113,6 +117,7 @@ export const VP_TERMINAL_FAILURE_STATUSES: ReadonlySet<DaemonStatus> = new Set([
   DaemonStatus.AML_REJECTED,
   DaemonStatus.EXPIRED_CLEANED_UP,
   DaemonStatus.EXPIRED_IN_CLAIM,
+  DaemonStatus.BABE_SETUP_FAILED,
 ]);
 
 /**

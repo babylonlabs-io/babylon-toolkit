@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { DaemonStatus } from "../types";
 import {
   VpResponseValidationError,
+  isUnrecognizedDaemonStatusError,
   validateBatchGetPeginStatusResponse,
   validateBatchGetPegoutStatusResponse,
   validateGetPeginStatusResponse,
@@ -871,23 +872,83 @@ describe("VP Response Validators", () => {
       ).toThrow(VpResponseValidationError);
     });
 
-    it("propagates inner result validation failures", () => {
-      expect(() =>
-        validateBatchGetPeginStatusResponse({
-          results: [
-            {
-              pegin_txid: VALID_TXID,
-              result: {
-                pegin_txid: VALID_TXID,
-                status: "BogusStatus",
-                progress: {},
-                health_info: "ok",
-              },
-              error: null,
+    it("keeps sibling statuses and flags only the entry with an unknown status", () => {
+      const txid1 = "1".repeat(64);
+      const txid2 = "2".repeat(64);
+      const txid3 = "3".repeat(64);
+      const response = {
+        results: [
+          {
+            pegin_txid: txid1,
+            result: { ...validInner, pegin_txid: txid1 },
+            error: null,
+          },
+          {
+            pegin_txid: txid2,
+            result: { ...validInner, pegin_txid: txid2, status: "BogusStatus" },
+            error: null,
+          },
+          {
+            pegin_txid: txid3,
+            result: {
+              ...validInner,
+              pegin_txid: txid3,
+              status: DaemonStatus.PENDING_ACKS,
             },
-          ],
-        }),
-      ).toThrow(VpResponseValidationError);
+            error: null,
+          },
+        ],
+      };
+
+      validateBatchGetPeginStatusResponse(response);
+
+      const [first, second, third] = response.results;
+      expect(first.result?.status).toBe(DaemonStatus.ACTIVATED);
+      expect(third.result?.status).toBe(DaemonStatus.PENDING_ACKS);
+      expect(second.pegin_txid).toBe(txid2);
+      expect(second.result).toBeNull();
+      expect(isUnrecognizedDaemonStatusError(second.error!)).toBe(true);
+      expect(second.error).toContain('"BogusStatus"');
+    });
+
+    it("moves a malformed inner result to the entry error slot", () => {
+      const response = {
+        results: [
+          {
+            pegin_txid: VALID_TXID,
+            result: { ...validInner, progress: "not an object" },
+            error: null,
+          },
+        ],
+      };
+
+      validateBatchGetPeginStatusResponse(response);
+
+      expect(response.results[0].result).toBeNull();
+      expect(response.results[0].error).toContain(
+        '"progress" must be an object',
+      );
+      expect(isUnrecognizedDaemonStatusError(response.results[0].error!)).toBe(
+        false,
+      );
+    });
+
+    it("accepts a BabeSetupFailed status", () => {
+      const response = {
+        results: [
+          {
+            pegin_txid: VALID_TXID,
+            result: { ...validInner, status: "BabeSetupFailed" },
+            error: null,
+          },
+        ],
+      };
+
+      validateBatchGetPeginStatusResponse(response);
+
+      expect(response.results[0].result?.status).toBe(
+        DaemonStatus.BABE_SETUP_FAILED,
+      );
     });
   });
 
@@ -917,18 +978,33 @@ describe("VP Response Validators", () => {
       ).toThrow(VpResponseValidationError);
     });
 
-    it("propagates inner result validation failures (missing challengers array)", () => {
-      expect(() =>
-        validateBatchGetPegoutStatusResponse({
-          results: [
-            {
-              pegin_txid: VALID_TXID,
-              result: { ...validInner, challengers: undefined },
-              error: null,
-            },
-          ],
-        }),
-      ).toThrow(VpResponseValidationError);
+    it("moves a malformed inner result (missing challengers array) to the entry error slot", () => {
+      const siblingTxid = "1".repeat(64);
+      const response = {
+        results: [
+          {
+            pegin_txid: VALID_TXID,
+            result: { ...validInner, challengers: undefined },
+            error: null,
+          },
+          {
+            pegin_txid: siblingTxid,
+            result: { ...validInner, pegin_txid: siblingTxid },
+            error: null,
+          },
+        ],
+      };
+
+      validateBatchGetPegoutStatusResponse(response);
+
+      expect(response.results[0].result).toBeNull();
+      expect(response.results[0].error).toContain(
+        '"challengers" must be an array',
+      );
+      expect(response.results[1].result).toEqual({
+        ...validInner,
+        pegin_txid: siblingTxid,
+      });
     });
   });
 });
