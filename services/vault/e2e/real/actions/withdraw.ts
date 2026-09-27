@@ -68,6 +68,10 @@ import { connectWallets } from "./walletConnect";
 const VAULT_ROW_TESTID_PREFIX = "vault-row-";
 const VAULT_ROW_SELECTOR = `[data-testid^="${VAULT_ROW_TESTID_PREFIX}"]`;
 const ROW_WITHDRAW_TESTID = '[data-testid="vault-withdraw-button"]';
+// The warning line VaultsPage shows while the indexed vault list does not match the chain position
+// (`indexerError`). While it is shown, every row's Withdraw is disabled.
+const COLLATERAL_LIST_INCOMPLETE_TESTID =
+  '[data-testid="vaults-collateral-list-incomplete"]';
 // The selection screen: one checkbox per selectable vault (keyed by on-chain vaultId) and the submit
 // that carries the selection to Review.
 const SELECT_ROW_TESTID_PREFIX = "withdraw-select-row-";
@@ -467,6 +471,13 @@ export async function runWithdrawFlow(
     if (!("vaultId" in next)) break;
   }
 
+  // Read while /vaults is still on screen: a loop that stopped because the indexer lags the last
+  // release is neither drained nor health-factor-gated, so it must not exit green.
+  const indexerLagging = await page
+    .locator(COLLATERAL_LIST_INCOMPLETE_TESTID)
+    .isVisible()
+    .catch(() => false);
+
   onStep("withdraw-verify");
   const remaining = await assertVaultsReleased(
     ctx,
@@ -478,12 +489,16 @@ export async function runWithdrawFlow(
   // health-factor-gating them; with no debt every vault was releasable, so anything left means the loop
   // stopped early and the run must not report success.
   if (all && remaining > 0) {
+    if (indexerLagging)
+      throw new Error(
+        `--withdraw-all released ${released.size} of ${before.vaultCount} vault(s) but ${remaining} remain: every Withdraw stayed disabled because the indexed vault list did not match the chain position yet (indexer lag). Re-run once the indexer catches up.`,
+      );
     if (!before.hasDebt)
       throw new Error(
         `--withdraw-all released ${released.size} of ${before.vaultCount} vault(s) but ${remaining} remain, and the position carries no debt to health-factor-gate them — the loop stopped before draining the position.`,
       );
     log(
-      `⚠️ --withdraw-all released ${released.size} of ${before.vaultCount} vault(s); ${remaining} remain, held back by the $${before.currentDebtUsd.toFixed(2)} debt's health-factor gate or by the indexer still catching up after the last release. Repay first (--repay-first), or re-run once the indexer catches up.`,
+      `⚠️ --withdraw-all released ${released.size} of ${before.vaultCount} vault(s); ${remaining} remain, held back by the $${before.currentDebtUsd.toFixed(2)} debt's health-factor gate. Repay first (--repay-first) to release them.`,
     );
   }
 

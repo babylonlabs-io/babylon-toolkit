@@ -277,9 +277,9 @@ async function fetchAllCollaterals(
   }
 
   throw new Error(
-    `More than ${MAX_COLLATERAL_PAGES * COLLATERALS_PAGE_SIZE} collateral ` +
-      `rows for ${depositorAddress}; raise MAX_COLLATERAL_PAGES rather than ` +
-      `returning an incomplete collateral list`,
+    `Indexer reported no last collateral page for ${depositorAddress} after ` +
+      `${MAX_COLLATERAL_PAGES} pages; refusing to return an incomplete ` +
+      `collateral list`,
   );
 }
 

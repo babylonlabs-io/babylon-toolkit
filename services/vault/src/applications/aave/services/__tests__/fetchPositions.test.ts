@@ -172,6 +172,6 @@ describe("fetchAaveActivePositionsWithCollaterals", () => {
 
     await expect(
       fetchAaveActivePositionsWithCollaterals(DEPOSITOR),
-    ).rejects.toThrow(/More than 50000 collateral rows/);
+    ).rejects.toThrow(/no last collateral page .* after 50 pages/);
   });
 });
