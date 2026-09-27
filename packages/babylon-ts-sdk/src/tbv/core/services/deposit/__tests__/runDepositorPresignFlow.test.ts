@@ -65,7 +65,18 @@ const fingerprintCalls = vi.hoisted(() => [] as unknown[]);
 const PRESIGN_FINGERPRINT = vi.hoisted(() => "f1".repeat(32));
 // Set to make the next fingerprint call reject the served set.
 const fingerprintFailure = vi.hoisted(() => ({ next: null as Error | null }));
+const linkageCalls = vi.hoisted(() => [] as unknown[]);
+// Set to make the next Claim/Assert linkage check reject the served chain.
+const linkageFailure = vi.hoisted(() => ({ next: null as Error | null }));
 vi.mock("../graphFingerprint", () => ({
+  assertPresignClaimAssertLinkage: (args: unknown) => {
+    linkageCalls.push(args);
+    const failure = linkageFailure.next;
+    if (failure) {
+      linkageFailure.next = null;
+      throw failure;
+    }
+  },
   fingerprintPresignTxSet: (args: unknown) => {
     fingerprintCalls.push(args);
     const failure = fingerprintFailure.next;
@@ -430,6 +441,67 @@ describe("runDepositorPresignFlow", () => {
       graphSignsBefore,
     );
     expect(recordGraphFingerprint).not.toHaveBeenCalled();
+    expect(presignClient.submitDepositorPresignatures).not.toHaveBeenCalled();
+  });
+
+  it("checks every claimer Claim/Assert chain against the authoritative PegIn", async () => {
+    linkageCalls.length = 0;
+    const signingContext = createSigningContext();
+
+    await runDepositorPresignFlow({
+      statusReader: createMockStatusReader([
+        DaemonStatus.PENDING_DEPOSITOR_SIGNATURES,
+      ]),
+      presignClient: createMockPresignClient(),
+      btcWallet: createMockWallet(),
+      peginTxid: VALID_TXID,
+      depositorPk: DEPOSITOR_PK,
+      recordGraphFingerprint: vi.fn(),
+      signingContext,
+    });
+
+    expect(linkageCalls).toEqual([
+      {
+        peginTxHex: signingContext.peginTxHex,
+        claimTxHex: "deadbeef",
+        assertTxHex: "deadbeef",
+        path: "txs[0]",
+      },
+      {
+        peginTxHex: signingContext.peginTxHex,
+        claimTxHex: "deadbeef",
+        assertTxHex: "deadbeef",
+        path: "txs[1]",
+      },
+    ]);
+  });
+
+  it("rejects a malformed claimer chain before any payout or depositor signing prompt", async () => {
+    linkageFailure.next = new Error(
+      "txs[0].assert_tx input 0 must spend its Claim output 0",
+    );
+    const presignClient = createMockPresignClient();
+    const graphSignsBefore = vi.mocked(signDepositorGraph).mock.calls.length;
+    const payoutSignsBefore = capturedPayoutInputs.length;
+
+    await expect(
+      runDepositorPresignFlow({
+        statusReader: createMockStatusReader([
+          DaemonStatus.PENDING_DEPOSITOR_SIGNATURES,
+        ]),
+        presignClient,
+        btcWallet: createMockWallet(),
+        peginTxid: VALID_TXID,
+        depositorPk: DEPOSITOR_PK,
+        recordGraphFingerprint: vi.fn(),
+        signingContext: createSigningContext(),
+      }),
+    ).rejects.toThrow("txs[0].assert_tx input 0");
+
+    expect(capturedPayoutInputs).toHaveLength(payoutSignsBefore);
+    expect(vi.mocked(signDepositorGraph).mock.calls).toHaveLength(
+      graphSignsBefore,
+    );
     expect(presignClient.submitDepositorPresignatures).not.toHaveBeenCalled();
   });
 

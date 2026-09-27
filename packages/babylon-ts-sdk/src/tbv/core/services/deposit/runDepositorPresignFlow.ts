@@ -25,8 +25,11 @@ import {
   processPublicKeyToXOnly,
   stripHexPrefix,
 } from "../../primitives/utils/bitcoin";
+import {
+  assertPresignClaimAssertLinkage,
+  fingerprintPresignTxSet,
+} from "./graphFingerprint";
 import type { PeginStatusReader, PresignClient } from "./interfaces";
-import { fingerprintPresignTxSet } from "./graphFingerprint";
 import { signDepositorGraph } from "./signDepositorGraph";
 import { waitForPeginStatus } from "./waitForPeginStatus";
 
@@ -492,6 +495,19 @@ export async function runDepositorPresignFlow(
   );
 
   signal?.throwIfAborted();
+
+  // Every claimer gets its own Claim/Assert chain. Pin each one to the
+  // depositor's PegIn before any payout signing prompt: buildPayoutPsbt uses
+  // Assert:0 as a prevout but cannot prove that Assert is funded by this
+  // vault's Claim without the Claim transaction itself.
+  response.txs.forEach((tx, index) => {
+    assertPresignClaimAssertLinkage({
+      peginTxHex: signingContext.peginTxHex,
+      claimTxHex: tx.claim_tx.tx_hex,
+      assertTxHex: tx.assert_tx.tx_hex,
+      path: `txs[${index}]`,
+    });
+  });
 
   // Fingerprint the set now, so a malformed one fails before any wallet
   // prompt. It is stored only after every check and signature below has

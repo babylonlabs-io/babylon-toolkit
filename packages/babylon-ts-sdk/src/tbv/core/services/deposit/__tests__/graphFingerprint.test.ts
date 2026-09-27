@@ -88,6 +88,7 @@ const CLAIM_TX_HEX =
   "0100000000ffffffff025a82000000000000225120110cc0816c4cca46e4bbb5edc1cb31c1" +
   "de88df17d72a7ac169d5adff1b9795e52202000000000000225120dadb7fb51fee87ef375f" +
   "a8830a57778058425d13b2de609172a547bf1bacf13000000000";
+const CLAIM_TXID = Transaction.fromHex(CLAIM_TX_HEX).getId();
 
 /**
  * REAL_CLAIM_TX with a distinct lock_time per slot, so every slot of the
@@ -107,6 +108,21 @@ const PAYOUT_LOCK_TIME = 2;
 const NOPAYOUT_A_LOCK_TIME = 4;
 const NOPAYOUT_B_LOCK_TIME = 5;
 
+/** The Assert transaction is funded by output 0 of this exact Claim. */
+const ASSERT_TX = {
+  ...relocked(ASSERT_LOCK_TIME),
+  input: [
+    {
+      ...REAL_CLAIM_TX.input[0],
+      previous_output: `${CLAIM_TXID}:0`,
+    },
+  ],
+};
+const assertTx = Transaction.fromHex(relockedHex(ASSERT_LOCK_TIME));
+assertTx.ins[0].hash = Buffer.from(CLAIM_TXID, "hex").reverse();
+assertTx.ins[0].index = 0;
+const ASSERT_TX_HEX = assertTx.toHex();
+
 const CHALLENGER_A = "a0".repeat(32);
 const CHALLENGER_B = "47".repeat(32);
 const LABEL_HASH_1 = "c2".repeat(32);
@@ -121,7 +137,7 @@ function graph(overrides: Record<string, unknown> = {}) {
   return {
     pegin_tx: { tx: SEGWIT_TX },
     claim_tx: { tx: CLAIM_TX },
-    assert_tx: { tx: relocked(ASSERT_LOCK_TIME) },
+    assert_tx: { tx: ASSERT_TX },
     payout_tx: { tx: relocked(PAYOUT_LOCK_TIME) },
     challenger_subgraphs: {
       [CHALLENGER_A]: {
@@ -143,7 +159,7 @@ function presignSet(overrides: Record<string, unknown> = {}) {
     peginTxid: PEGIN_TXID,
     peginTxHex: SEGWIT_TX_HEX,
     claimTxHex: CLAIM_TX_HEX,
-    assertTxHex: relockedHex(ASSERT_LOCK_TIME),
+    assertTxHex: ASSERT_TX_HEX,
     payoutTxHex: relockedHex(PAYOUT_LOCK_TIME),
     challengers: [
       {
@@ -315,6 +331,22 @@ describe("fingerprintPresignTxSet", () => {
     expect(() =>
       fingerprintPresignTxSet(presignSet({ claimTxHex: claim.toHex() })),
     ).toThrow(/exactly one input/);
+  });
+
+  it("rejects an Assert whose input 0 references a different Claim", () => {
+    const assert = Transaction.fromHex(ASSERT_TX_HEX);
+    assert.ins[0].hash = Buffer.alloc(32, 0x99);
+    expect(() =>
+      fingerprintPresignTxSet(presignSet({ assertTxHex: assert.toHex() })),
+    ).toThrow(/assert_tx input 0 must spend/);
+  });
+
+  it("rejects an Assert whose input 0 spends a non-zero Claim output", () => {
+    const assert = Transaction.fromHex(ASSERT_TX_HEX);
+    assert.ins[0].index = 1;
+    expect(() =>
+      fingerprintPresignTxSet(presignSet({ assertTxHex: assert.toHex() })),
+    ).toThrow(/assert_tx input 0 must spend/);
   });
 
   it("rejects a transaction followed by trailing bytes", () => {

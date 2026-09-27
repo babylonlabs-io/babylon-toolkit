@@ -53,6 +53,7 @@ import {
   validateWalletPubkey,
 } from "../../primitives/utils/bitcoin";
 import { createTaprootScriptPathSignOptions } from "../../utils/signing";
+import { assertPresignClaimAssertLinkage } from "./graphFingerprint";
 
 /**
  * commissionBps placeholder for the depositor-as-claimer path — `buildPayoutPsbt`
@@ -537,6 +538,16 @@ export async function signDepositorGraph(
   params: SignDepositorGraphParams,
 ): Promise<DepositorAsClaimerPresignatures> {
   const { depositorGraph, btcWallet, signingContext } = params;
+
+  // Validate the complete funding chain before even reading the wallet key.
+  // The orchestrating flow performs the same check while fingerprinting, but
+  // this service is also a public entry point and must be safe on its own.
+  assertPresignClaimAssertLinkage({
+    peginTxHex: signingContext.peginTxHex,
+    claimTxHex: depositorGraph.claim_tx.tx_hex,
+    assertTxHex: depositorGraph.assert_tx.tx_hex,
+    path: "depositor_graph",
+  });
 
   const walletPublicKey = await btcWallet.getPublicKeyHex();
   // Fail fast if the connected wallet doesn't match the on-chain registered
