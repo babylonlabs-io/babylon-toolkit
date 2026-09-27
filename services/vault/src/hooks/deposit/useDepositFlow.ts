@@ -1057,6 +1057,9 @@ export function useDepositFlow(
             expectedUniversalChallengersVersion:
               validatedKeys.expectedUniversalChallengersVersion,
             expectedVaultCoreVersion: buildConfig.activeVaultCoreVersion,
+            expectedPrePeginTxHash: ensureHexPrefix(
+              batchResult.depositTerms.prepeginTxid,
+            ),
           });
         } catch (err) {
           // Only a confirmed mismatch removes pending entries — transient RPC
@@ -1136,6 +1139,7 @@ export function useDepositFlow(
         // No re-wrap: a wrapper here would replace the service's stage label.
         const prePeginBroadcastTxid = await broadcastPrePeginTransaction({
           unsignedTxHex: batchResult.fundedPrePeginTxHex,
+          registeredPrePeginTxHash: batchResult.depositTerms.prepeginTxid,
           btcWalletProvider: {
             signPsbt: async (psbtHex: string) => {
               const signedPsbtHex = await runCancellableSign(

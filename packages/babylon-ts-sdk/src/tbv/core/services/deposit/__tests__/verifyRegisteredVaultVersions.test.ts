@@ -19,6 +19,7 @@ const OFFCHAIN = 7;
 const KEEPERS = 3;
 const CHALLENGERS = 5;
 const CORE = 1;
+const PRE_PEGIN_TX_HASH = `0x${"11".repeat(32)}` as Hex;
 
 function info(overrides: Partial<VaultProtocolInfo> = {}): VaultProtocolInfo {
   return {
@@ -31,7 +32,7 @@ function info(overrides: Partial<VaultProtocolInfo> = {}): VaultProtocolInfo {
     hashlock: "0x00" as Hex,
     htlcVout: 0,
     depositorPopSignature: "0x00" as Hex,
-    prePeginTxHash: "0x00" as Hex,
+    prePeginTxHash: PRE_PEGIN_TX_HASH,
     vaultProviderCommissionBps: 0,
     vaultCoreVersion: 1,
     ...overrides,
@@ -150,6 +151,24 @@ describe("verifyRegisteredVaultVersions", () => {
     ).rejects.toThrow(
       /vaultCoreVersion expected v1 \(build-time active\), got v2/,
     );
+  });
+
+  it("throws when a registered vault commits to a different Pre-PegIn txid", async () => {
+    const reader = buildRegistryReader([
+      info({ prePeginTxHash: `0x${"22".repeat(32)}` as Hex }),
+    ]);
+
+    await expect(
+      verifyRegisteredVaultVersions({
+        vaultRegistryReader: reader,
+        vaultIds: [VAULT_ID_A],
+        expectedOffchainParamsVersion: OFFCHAIN,
+        expectedAppVaultKeepersVersion: KEEPERS,
+        expectedUniversalChallengersVersion: CHALLENGERS,
+        expectedVaultCoreVersion: CORE,
+        expectedPrePeginTxHash: PRE_PEGIN_TX_HASH,
+      }),
+    ).rejects.toThrow(/prePeginTxHash expected/);
   });
 
   it("resolves without RPC for empty vaultIds", async () => {

@@ -532,12 +532,10 @@ function applyTrackingOverrides(
       return [];
     }
     if (localStatus === LocalStorageStatus.CONFIRMING) {
-      // If VP explicitly reports no pending ingestion (broadcast not
-      // detected), the local status is stale — ignore the override.
-      if (vpState?.pendingIngestion === false) return sdkActions;
-      return sdkActions.filter(
-        (a) => a !== SdkPeginAction.SIGN_AND_BROADCAST_TO_BITCOIN,
-      );
+      // A local marker is not evidence that Bitcoin accepted the transaction.
+      // The independent mempool/chain observation below owns suppression;
+      // until it sees the registered txid, keep the safe rebroadcast action.
+      return sdkActions;
     }
   }
 

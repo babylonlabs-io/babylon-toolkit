@@ -513,6 +513,7 @@ export function useVaultActions(): UseVaultActionsReturn {
             expectedUniversalChallengersVersion:
               buildUniversalChallengersVersion,
             expectedVaultCoreVersion: buildVaultCoreVersion,
+            expectedPrePeginTxHash: computedHash,
           });
         } catch (err) {
           // Only a confirmed mismatch drops the entry — transient RPC
@@ -574,6 +575,7 @@ export function useVaultActions(): UseVaultActionsReturn {
       await assertDepositorWallet();
       await broadcastPrePeginTransaction({
         unsignedTxHex,
+        registeredPrePeginTxHash: onChainVault.prePeginTxHash,
         btcWalletProvider: {
           ...forwardDeriveContextHash(btcWalletProvider),
           ...forwardDepositApproval(btcWalletProvider),

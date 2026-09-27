@@ -17,6 +17,7 @@ import {
   type DepositTerms,
   type PrePeginApprovalWallet,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
+import { getTxHex } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import {
   assertPsbtUnsignedTxMatches,
   assertReturnedKeyPathSignatures,
@@ -75,6 +76,14 @@ export interface BroadcastPrePeginParams {
    * Unsigned transaction hex (from contract or WASM)
    */
   unsignedTxHex: string;
+
+  /**
+   * Pre-PegIn tx hash committed by the registered Ethereum vault(s). The
+   * finalized Bitcoin transaction, broadcast acknowledgement, and independent
+   * Bitcoin observation must all resolve to this txid before the broadcast is
+   * considered successful.
+   */
+  registeredPrePeginTxHash: string;
 
   /**
    * BTC wallet provider with signing capability. May also implement the
@@ -320,6 +329,16 @@ function stageError(label: string, error: unknown): Error {
   return new Error(`${label}: ${message}`, { cause: error });
 }
 
+const CANONICAL_TXID_RE = /^[0-9a-f]{64}$/;
+
+function normalizeRegisteredTxid(hash: string): string {
+  const txid = hash.startsWith("0x") ? hash.slice(2) : hash;
+  if (!/^[0-9a-fA-F]{64}$/.test(txid)) {
+    throw new Error("Registered Pre-PegIn hash is not a 32-byte hex txid");
+  }
+  return txid.toLowerCase();
+}
+
 /**
  * Sign and broadcast the funded Pre-PegIn transaction to the Bitcoin network
  *
@@ -333,6 +352,7 @@ export async function broadcastPrePeginTransaction(
 ): Promise<string> {
   const {
     unsignedTxHex,
+    registeredPrePeginTxHash,
     btcWalletProvider,
     depositorBtcPubkey,
     expectedUtxos,
@@ -341,6 +361,7 @@ export async function broadcastPrePeginTransaction(
 
   // Stage 1: prepare.
   let psbt: Psbt;
+  let registeredTxid: string;
   try {
     const cleanHex = unsignedTxHex.startsWith("0x")
       ? unsignedTxHex.slice(2)
@@ -349,6 +370,14 @@ export async function broadcastPrePeginTransaction(
 
     if (tx.ins.length === 0) {
       throw new Error("Transaction has no inputs");
+    }
+
+    registeredTxid = normalizeRegisteredTxid(registeredPrePeginTxHash);
+    const unsignedTxid = tx.getId();
+    if (unsignedTxid !== registeredTxid) {
+      throw new Error(
+        `Pre-PegIn txid ${unsignedTxid} does not match registered hash ${registeredTxid}`,
+      );
     }
 
     // Convert to PSBT with proper input fields
@@ -362,6 +391,8 @@ export async function broadcastPrePeginTransaction(
 
   // Stage 2: sign. Includes the ceremony so device failures read as signing.
   let signedTxHex: string;
+  let signedTxid: string;
+  let canonicalSignedTxHex: string;
   try {
     // Intent-wallet ceremony (derive → approve) immediately before signing.
     // No-op for wallets that do not support deposit approval.
@@ -377,6 +408,14 @@ export async function broadcastPrePeginTransaction(
       btcWalletProvider,
       typeof btcWalletProvider.approveDepositTerms === "function",
     );
+    const signedTransaction = Transaction.fromHex(signedTxHex);
+    signedTxid = signedTransaction.getId();
+    canonicalSignedTxHex = signedTransaction.toHex();
+    if (signedTxid !== registeredTxid) {
+      throw new Error(
+        `Finalized Pre-PegIn txid ${signedTxid} does not match registered hash ${registeredTxid}`,
+      );
+    }
   } catch (error) {
     // The device-envelope rejection and the caller's `signPsbt` depositor
     // re-checks are typed, user-actionable refusals: pass them unwrapped.
@@ -392,7 +431,37 @@ export async function broadcastPrePeginTransaction(
 
   // Stage 3: broadcast. Only the network POST may carry the broadcast label.
   try {
-    return await pushTx(signedTxHex, getMempoolApiUrl());
+    const apiUrl = getMempoolApiUrl();
+    const acknowledgement = await pushTx(signedTxHex, apiUrl);
+    if (!CANONICAL_TXID_RE.test(acknowledgement)) {
+      throw new Error(
+        "Broadcast service returned a non-canonical transaction acknowledgement",
+      );
+    }
+    if (acknowledgement !== signedTxid || acknowledgement !== registeredTxid) {
+      throw new Error(
+        `Broadcast acknowledgement ${acknowledgement} does not match expected txid ${signedTxid}`,
+      );
+    }
+
+    // A 2xx POST only proves the service accepted the request. Read the raw
+    // transaction back through the Bitcoin API and derive its txid locally
+    // before allowing CONFIRMING to suppress a safe rebroadcast.
+    const observedTxHex = await getTxHex(signedTxid, apiUrl);
+    const observedTransaction = Transaction.fromHex(observedTxHex);
+    const observedTxid = observedTransaction.getId();
+    if (observedTxid !== signedTxid) {
+      throw new Error(
+        `Bitcoin observation returned txid ${observedTxid}, expected ${signedTxid}`,
+      );
+    }
+    if (observedTransaction.toHex() !== canonicalSignedTxHex) {
+      throw new Error(
+        "Bitcoin observation did not return the finalized transaction that was broadcast",
+      );
+    }
+
+    return signedTxid;
   } catch (error) {
     throw stageError(STAGE_FAILED.broadcast, error);
   }

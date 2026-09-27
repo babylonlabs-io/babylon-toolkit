@@ -16,6 +16,8 @@ export interface VerifyRegisteredVaultVersionsParams {
    * lock BTC into a graph no resume path can rebuild.
    */
   expectedVaultCoreVersion: number;
+  /** Pre-PegIn tx hash the local funded transaction resolves to. */
+  expectedPrePeginTxHash?: Hex;
 }
 
 // Distinct from a transient RPC failure: the orchestrator removes pending
@@ -48,6 +50,7 @@ export async function verifyRegisteredVaultVersions(
     expectedAppVaultKeepersVersion,
     expectedUniversalChallengersVersion,
     expectedVaultCoreVersion,
+    expectedPrePeginTxHash,
   } = params;
 
   const infos = await vaultRegistryReader.getProtocolInfoBatch(vaultIds);
@@ -75,11 +78,21 @@ export async function verifyRegisteredVaultVersions(
         `vault ${id}: vaultCoreVersion expected v${expectedVaultCoreVersion} (build-time active), got v${v.vaultCoreVersion}`,
       );
     }
+    if (
+      expectedPrePeginTxHash !== undefined &&
+      (typeof v.prePeginTxHash !== "string" ||
+        v.prePeginTxHash.toLowerCase() !==
+          expectedPrePeginTxHash.toLowerCase())
+    ) {
+      mismatches.push(
+        `vault ${id}: prePeginTxHash expected ${expectedPrePeginTxHash}, got ${v.prePeginTxHash}`,
+      );
+    }
   });
 
   if (mismatches.length > 0) {
     throw new RegisteredVaultVersionMismatchError(
-      `Aborting BTC broadcast: signer-set or offchain-params versions changed during registration (${mismatches.join("; ")}). The Pre-PegIn was not broadcast; the registered ETH vault will time out per protocol rules.`,
+      `Aborting BTC broadcast: registered vault data does not match the local Pre-PegIn build (${mismatches.join("; ")}). The Pre-PegIn was not broadcast; the registered ETH vault will time out per protocol rules.`,
     );
   }
 }

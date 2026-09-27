@@ -1434,6 +1434,27 @@ describe("useDepositFlow", () => {
         );
       });
     });
+
+    it("keeps every vault in a batch retryable when a correct 2xx acknowledgement is not observed on Bitcoin", async () => {
+      const { broadcastPrePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultPeginBroadcastService"),
+      );
+      const { updatePendingPeginStatus } = vi.mocked(
+        await import("@/storage/peginStorage"),
+      );
+      vi.mocked(broadcastPrePeginTransaction).mockRejectedValueOnce(
+        new Error(
+          "Failed to broadcast Pre-Pegin transaction: Mempool API error (404): transaction not found",
+        ),
+      );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      const resolved = await executeDepositFlow(result);
+
+      expect(resolved).toBeNull();
+      expect(broadcastPrePeginTransaction).toHaveBeenCalledOnce();
+      expect(updatePendingPeginStatus).not.toHaveBeenCalled();
+    });
   });
 
   describe("Payout Signing", () => {

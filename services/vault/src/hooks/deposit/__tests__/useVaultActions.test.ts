@@ -350,6 +350,7 @@ function makeMatchingProtocolInfoBatch() {
       universalChallengersVersion:
         basePendingPegin.buildUniversalChallengersVersion,
       vaultCoreVersion: basePendingPegin.buildVaultCoreVersion,
+      prePeginTxHash: "0xmatching_pre_pegin_hash",
     },
   ]);
 }
@@ -649,6 +650,8 @@ describe("useVaultActions — handleBroadcast version drift guard", () => {
           appVaultKeepersVersion: basePendingPegin.buildAppVaultKeepersVersion,
           universalChallengersVersion:
             basePendingPegin.buildUniversalChallengersVersion,
+          vaultCoreVersion: basePendingPegin.buildVaultCoreVersion,
+          prePeginTxHash: "0xmatching_pre_pegin_hash",
         },
       ]),
     } as unknown as ReturnType<typeof getVaultRegistryReader>);
@@ -678,6 +681,8 @@ describe("useVaultActions — handleBroadcast version drift guard", () => {
             basePendingPegin.buildAppVaultKeepersVersion + 1,
           universalChallengersVersion:
             basePendingPegin.buildUniversalChallengersVersion,
+          vaultCoreVersion: basePendingPegin.buildVaultCoreVersion,
+          prePeginTxHash: "0xmatching_pre_pegin_hash",
         },
       ]),
     } as unknown as ReturnType<typeof getVaultRegistryReader>);
@@ -706,6 +711,8 @@ describe("useVaultActions — handleBroadcast version drift guard", () => {
           appVaultKeepersVersion: basePendingPegin.buildAppVaultKeepersVersion,
           universalChallengersVersion:
             basePendingPegin.buildUniversalChallengersVersion + 1,
+          vaultCoreVersion: basePendingPegin.buildVaultCoreVersion,
+          prePeginTxHash: "0xmatching_pre_pegin_hash",
         },
       ]),
     } as unknown as ReturnType<typeof getVaultRegistryReader>);
@@ -935,6 +942,8 @@ describe("useVaultActions — handleBroadcast version drift guard", () => {
           appVaultKeepersVersion: basePendingPegin.buildAppVaultKeepersVersion,
           universalChallengersVersion:
             basePendingPegin.buildUniversalChallengersVersion,
+          vaultCoreVersion: basePendingPegin.buildVaultCoreVersion,
+          prePeginTxHash: "0xmatching_pre_pegin_hash",
         },
       ]),
     } as unknown as ReturnType<typeof getVaultRegistryReader>);
