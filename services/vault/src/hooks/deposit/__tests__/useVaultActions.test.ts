@@ -31,6 +31,7 @@ import { resolveFundedTxFeeAndUtxos } from "@/services/vault/resolveFundedTxFee"
 import {
   activateVaultWithSecret,
   activateVaultWithSecretAndRedeem,
+  activationAddedCollateral,
 } from "@/services/vault/vaultActivationService";
 import { utxosToExpectedRecord } from "@/services/vault/vaultPeginBroadcastService";
 import {
@@ -245,6 +246,7 @@ vi.mock("@/config/featureFlags", async (importOriginal) => {
 vi.mock("@/services/vault/vaultActivationService", () => ({
   activateVaultWithSecret: vi.fn(),
   activateVaultWithSecretAndRedeem: vi.fn(),
+  activationAddedCollateral: vi.fn(() => true),
 }));
 
 vi.mock("@/services/vault/rebuildDepositTerms", () => ({
@@ -1495,6 +1497,31 @@ describe("useVaultActions — handleActivation hashlock source", () => {
     expect(mockActivateVaultWithSecret).toHaveBeenCalledWith(
       expect.objectContaining({ hashlock: ON_CHAIN_HASHLOCK }),
     );
+  });
+
+  it("reports to onShowSuccessModal whether the activation receipt added collateral", async () => {
+    const reader = readerReturning({
+      depositorSignedPeginTx: "0xdeadbeef",
+      hashlock: ON_CHAIN_HASHLOCK,
+    });
+    mockGetVaultRegistryReader.mockReturnValue(reader);
+    const revealResult = { transactionHash: "0xtx", receipt: { logs: [] } };
+    mockActivateVaultWithSecret.mockResolvedValue(revealResult as never);
+    vi.mocked(activationAddedCollateral).mockReturnValueOnce(false);
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleActivation(baseActivationParams);
+    });
+
+    expect(activationAddedCollateral).toHaveBeenCalledWith(
+      revealResult,
+      "0xvaultId",
+    );
+    expect(baseActivationParams.onShowSuccessModal).toHaveBeenCalledWith({
+      collateralAdded: false,
+    });
   });
 
   // handleActivation catches its own failures and never rethrows, so this catch

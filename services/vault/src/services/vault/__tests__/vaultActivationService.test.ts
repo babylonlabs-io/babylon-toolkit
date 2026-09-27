@@ -1,10 +1,19 @@
 import { AaveIntegrationAdapterABI } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
-import type { Address, Hex, WalletClient } from "viem";
+import {
+  encodeEventTopics,
+  type Address,
+  type Hex,
+  type Log,
+  type WalletClient,
+} from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { HUB_ERROR_ABI } from "@/applications/aave/clients/hubErrors";
 
-import { activateVaultWithSecret } from "../vaultActivationService";
+import {
+  activateVaultWithSecret,
+  activationAddedCollateral,
+} from "../vaultActivationService";
 
 // Inline literal because vi.mock factories are hoisted before outer consts.
 const REGISTRY_ADDRESS =
@@ -22,6 +31,7 @@ vi.mock("@/config/network", () => ({
 vi.mock("@/config/contracts", () => ({
   CONTRACTS: {
     BTC_VAULT_REGISTRY: "0xAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAbAb",
+    AAVE_ADAPTER: "0xCdCdCdCdCdCdCdCdCdCdCdCdCdCdCdCdCdCdCdCd",
   },
 }));
 
@@ -109,5 +119,79 @@ describe("activateVaultWithSecret (vault adapter)", () => {
     ).rejects.toThrow(/SHA256\(secret\) does not match/);
 
     expect(mockExecuteWrite).not.toHaveBeenCalled();
+  });
+});
+
+describe("activationAddedCollateral", () => {
+  const ADAPTER_ADDRESS =
+    "0xCdCdCdCdCdCdCdCdCdCdCdCdCdCdCdCdCdCdCdCd" as Address;
+  const vaultId = ("0x" + "aa".repeat(32)) as Hex;
+  const otherVaultId = ("0x" + "bb".repeat(32)) as Hex;
+  const positionAccount = "0x1111111111111111111111111111111111111111";
+
+  function collateralAddedLog(address: Address, loggedVaultId: Hex): Log {
+    return {
+      address,
+      topics: encodeEventTopics({
+        abi: AaveIntegrationAdapterABI,
+        eventName: "CollateralAdded",
+        args: { positionAccount, vaultId: loggedVaultId },
+      }) as Log["topics"],
+      data: "0x",
+    } as Log;
+  }
+
+  // Stands in for the registry's PeginActivated and VaultClaimableBy logs:
+  // they come from the registry, not the adapter, and are not CollateralAdded.
+  const registryLog = {
+    address: REGISTRY_ADDRESS,
+    topics: [("0x" + "01".repeat(32)) as Hex, vaultId],
+    data: "0x",
+  } as unknown as Log;
+
+  function resultWithLogs(logs: Log[]) {
+    return {
+      transactionHash: ("0x" + "cd".repeat(32)) as Hex,
+      receipt: { status: "success", logs },
+    } as unknown as Parameters<typeof activationAddedCollateral>[0];
+  }
+
+  it("is false when the receipt has registry activation logs but no CollateralAdded (auto-redeem)", () => {
+    expect(
+      activationAddedCollateral(
+        resultWithLogs([registryLog, registryLog]),
+        vaultId,
+      ),
+    ).toBe(false);
+  });
+
+  it("is true when the adapter logs CollateralAdded for this vault", () => {
+    expect(
+      activationAddedCollateral(
+        resultWithLogs([
+          registryLog,
+          collateralAddedLog(ADAPTER_ADDRESS, vaultId),
+        ]),
+        vaultId,
+      ),
+    ).toBe(true);
+  });
+
+  it("is false when CollateralAdded is for a different vault", () => {
+    expect(
+      activationAddedCollateral(
+        resultWithLogs([collateralAddedLog(ADAPTER_ADDRESS, otherVaultId)]),
+        vaultId,
+      ),
+    ).toBe(false);
+  });
+
+  it("is false when CollateralAdded comes from a contract other than the adapter", () => {
+    expect(
+      activationAddedCollateral(
+        resultWithLogs([collateralAddedLog(REGISTRY_ADDRESS, vaultId)]),
+        vaultId,
+      ),
+    ).toBe(false);
   });
 });

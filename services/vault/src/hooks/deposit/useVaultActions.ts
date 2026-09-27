@@ -95,6 +95,7 @@ import { resolveFundedTxFeeAndUtxos } from "../../services/vault/resolveFundedTx
 import {
   activateVaultWithSecret,
   activateVaultWithSecretAndRedeem,
+  activationAddedCollateral,
 } from "../../services/vault/vaultActivationService";
 import { utxosToExpectedRecord } from "../../services/vault/vaultPeginBroadcastService";
 import { verifyResumeParticipantKeys } from "../../services/vault/verifyResumeParticipantKeys";
@@ -148,7 +149,11 @@ export interface ActivateVaultParams {
     status: LocalStorageStatus,
   ) => void;
   onRefetchActivities: () => void;
-  onShowSuccessModal: () => void;
+  /**
+   * `collateralAdded` is true only when the receipt carries the adapter's
+   * `CollateralAdded` log for this vault.
+   */
+  onShowSuccessModal: (outcome: { collateralAdded: boolean }) => void;
 }
 
 export interface UseVaultActionsReturn {
@@ -964,7 +969,7 @@ export function useVaultActions(): UseVaultActionsReturn {
       const revealSecretOnChain = redeemImmediately
         ? activateVaultWithSecretAndRedeem
         : activateVaultWithSecret;
-      await revealSecretOnChain({
+      const revealResult = await revealSecretOnChain({
         vaultId: ensureHexPrefix(vaultId),
         secret: ensureHexPrefix(secretHex),
         hashlock: ensureHexPrefix(protocolInfo.hashlock) as Hex,
@@ -1003,7 +1008,12 @@ export function useVaultActions(): UseVaultActionsReturn {
       });
 
       // Show success and refetch
-      onShowSuccessModal();
+      onShowSuccessModal({
+        collateralAdded: activationAddedCollateral(
+          revealResult,
+          ensureHexPrefix(vaultId),
+        ),
+      });
       onRefetchActivities();
 
       if (mountedRef.current) setActivating(false);
