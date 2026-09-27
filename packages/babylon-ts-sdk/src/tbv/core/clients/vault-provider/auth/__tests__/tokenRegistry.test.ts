@@ -158,6 +158,11 @@ describe("VpTokenRegistry", () => {
     expect(registry.peek(PEGIN_TXID_A, VP_URL)).toBe(provider);
   });
 
+  it("peek hits when the caller's VP URL differs only by a trailing slash", () => {
+    const provider = registry.getOrCreate(buildInput());
+    expect(registry.peek(PEGIN_TXID_A, `${VP_URL}/`)).toBe(provider);
+  });
+
   it("peek misses for a VP URL the entry is not bound to", () => {
     // The key names the deposit, not the VP. A hit here would hand a
     // bearer minted by one VP to another without the pinned-pubkey check.

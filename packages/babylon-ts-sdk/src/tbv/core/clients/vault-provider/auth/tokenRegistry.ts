@@ -7,7 +7,7 @@
  */
 
 import type { OnChainBtcPubkey } from "../../eth/types";
-import type { JsonRpcClient } from "../json-rpc-client";
+import { type JsonRpcClient, normalizeBaseUrl } from "../json-rpc-client";
 
 import { AUTH_GATED_METHODS, GRPC_AUTH_GATED_METHODS } from "./gatedMethods";
 import { VpTokenProvider } from "./tokenProvider";
@@ -67,8 +67,9 @@ export class VpTokenRegistry {
       }
       // Refresh the inner transport on every reuse so a VP URL
       // change between calls doesn't leave the cached provider
-      // pinned to a dead URL for token refresh. The pinned pubkey
-      // matched above, so the new URL serves the same VP.
+      // pinned to a dead URL for token refresh. peek() then binds to
+      // the new URL. That is safe only if the caller resolved the
+      // pinned pubkey for the VP behind the new URL, as it matched above.
       existing.provider.setClient(input.client);
       existing.baseUrl = input.client.getBaseUrl();
       return existing.provider;
@@ -100,11 +101,12 @@ export class VpTokenRegistry {
    * through {@link getOrCreate}, which checks the pinned pubkey.
    *
    * @param baseUrl - VP base URL the caller will attach the bearer to.
-   *                  Compared exactly with the inner token client's URL.
+   *                  Compared with the inner token client's URL after the
+   *                  same trailing-slash normalization.
    */
   peek(peginTxid: string, baseUrl: string): VpTokenProvider | undefined {
     const entry = this.entries.get(peginTxid);
-    if (!entry || entry.baseUrl !== baseUrl) return undefined;
+    if (!entry || entry.baseUrl !== normalizeBaseUrl(baseUrl)) return undefined;
     return entry.provider;
   }
 

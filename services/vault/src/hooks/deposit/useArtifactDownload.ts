@@ -207,7 +207,6 @@ export function useArtifactDownload(options?: {
       // builds, where the god-mode gate is compile-time false.
       const demoDownload = getArtifactDownloadOverride();
       const normalizedPeginTxid = stripHexPrefix(peginTxid);
-      const vpBaseUrl = getVpProxyUrl(providerAddress);
       // Per-vault join key for telemetry. The pegin txid identifies the same
       // deposit when no vaultId is mounted, and is public on-chain data
       // (shortened before emission anyway).
@@ -230,11 +229,34 @@ export function useArtifactDownload(options?: {
       }
       const signedGraphFingerprint = signedGraph.fingerprint;
 
-      if (
-        !demoDownload &&
-        !vpTokenRegistry.peek(normalizedPeginTxid, vpBaseUrl) &&
-        !requireBtcWallet()
-      ) {
+      // The demo never reaches a VP, so it has no URL. A real download stops
+      // here, with an error the card shows, when the address is unusable.
+      let vpBaseUrl: string | null = null;
+      if (!demoDownload) {
+        try {
+          vpBaseUrl = getVpProxyUrl(providerAddress);
+        } catch (err) {
+          abortControllerRef.current?.abort();
+          captureFunnelFailure(
+            TELEMETRY_STAGE.ACTIVATION_ARTIFACTS,
+            err,
+            telemetryVaultId,
+            { tags: { site: "vp_proxy_url" } },
+          );
+          setState({
+            ...INITIAL_STATE,
+            error: COPY.deposit.recoveryArtifacts.vaultProviderUnreachable,
+          });
+          return;
+        }
+      }
+      // A token cached for another VP URL is a miss, never a hit.
+      const peekCachedToken = () =>
+        vpBaseUrl === null
+          ? undefined
+          : vpTokenRegistry.peek(normalizedPeginTxid, vpBaseUrl);
+
+      if (!demoDownload && !peekCachedToken() && !requireBtcWallet()) {
         // Mark any in-flight download stale, as `cancel` does, so it settles
         // silently instead of overwriting this error.
         abortControllerRef.current?.abort();
@@ -344,7 +366,7 @@ export function useArtifactDownload(options?: {
         // The simulated fetch never talks to a vault provider, so it needs
         // no bearer (and must not prompt the wallet for one).
         if (demoDownload) return true;
-        if (vpTokenRegistry.peek(normalizedPeginTxid, vpBaseUrl)) return true;
+        if (peekCachedToken()) return true;
         if (!primeContext) {
           // A surface mounted the card without the prime inputs and the token
           // cache is cold: every attempt is dead on arrival. A flow-wiring
@@ -565,7 +587,7 @@ export function useArtifactDownload(options?: {
             primeAttempted = true;
             // Drop any cached token so the next acquire goes back to the server.
             // Covers the hot-but-stale case (auth_expired); harmless on cold cache.
-            vpTokenRegistry.peek(normalizedPeginTxid, vpBaseUrl)?.invalidate();
+            peekCachedToken()?.invalidate();
             if (!requireBtcWallet()) {
               setError(COPY.wallet.btcAction.error);
               return;

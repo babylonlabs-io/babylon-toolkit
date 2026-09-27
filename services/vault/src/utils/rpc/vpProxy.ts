@@ -8,10 +8,10 @@ import { ETH_ADDRESS_PATTERN } from "../validation";
  * The proxy resolves the VP's actual RPC endpoint from the on-chain
  * BTCVaultsMetadataRegistry, so callers only need the VP's Ethereum address.
  *
- * @param vpAddress - Vault provider Ethereum address (e.g. "0x1234...")
  * The address is lowercased so one VP always maps to one URL: the VP token
  * cache hands out a bearer only for the exact URL it was bound to.
  *
+ * @param vpAddress - Vault provider Ethereum address (e.g. "0x1234...")
  * @returns Proxy URL: `${VP_PROXY_URL}/rpc/${lowercased vpAddress}`
  */
 export function getVpProxyUrl(vpAddress: string): string {

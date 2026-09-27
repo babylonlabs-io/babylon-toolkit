@@ -1573,7 +1573,8 @@ through [getOrCreate](#getorcreate), which checks the pinned pubkey.
 `string`
 
 VP base URL the caller will attach the bearer to.
-                 Compared exactly with the inner token client's URL.
+                 Compared with the inner token client's URL after the
+                 same trailing-slash normalization.
 
 ###### Returns
 
