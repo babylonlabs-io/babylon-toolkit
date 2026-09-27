@@ -23,6 +23,13 @@ export interface VpTokenRegistryInput {
 
 interface RegistryEntry {
   provider: VpTokenProvider;
+  /**
+   * Base URL of the VP whose pinned pubkey the entry was last checked
+   * against. {@link VpTokenRegistry.peek} hands out the provider only for
+   * this URL, so a cached bearer never reaches a VP the pin was not
+   * checked for.
+   */
+  baseUrl: string;
   authAnchorHex: string;
   pinnedServerPubkey: OnChainBtcPubkey;
   expectedAudienceXOnlyPubkey: string;
@@ -60,8 +67,10 @@ export class VpTokenRegistry {
       }
       // Refresh the inner transport on every reuse so a VP URL
       // change between calls doesn't leave the cached provider
-      // pinned to a dead URL for token refresh.
+      // pinned to a dead URL for token refresh. The pinned pubkey
+      // matched above, so the new URL serves the same VP.
       existing.provider.setClient(input.client);
+      existing.baseUrl = input.client.getBaseUrl();
       return existing.provider;
     }
 
@@ -76,6 +85,7 @@ export class VpTokenRegistry {
     });
     this.entries.set(input.peginTxid, {
       provider,
+      baseUrl: input.client.getBaseUrl(),
       authAnchorHex: input.authAnchorHex,
       pinnedServerPubkey: input.pinnedServerPubkey,
       expectedAudienceXOnlyPubkey: input.expectedAudienceXOnlyPubkey,
@@ -83,9 +93,19 @@ export class VpTokenRegistry {
     return provider;
   }
 
-  /** Return the cached provider, or `undefined` if none. */
-  peek(peginTxid: string): VpTokenProvider | undefined {
-    return this.entries.get(peginTxid)?.provider;
+  /**
+   * Return the cached provider for `peginTxid` if its entry is bound to
+   * `baseUrl`, otherwise `undefined`. The cache key names the deposit, not
+   * the VP, so a caller whose VP URL differs gets a miss and must go
+   * through {@link getOrCreate}, which checks the pinned pubkey.
+   *
+   * @param baseUrl - VP base URL the caller will attach the bearer to.
+   *                  Compared exactly with the inner token client's URL.
+   */
+  peek(peginTxid: string, baseUrl: string): VpTokenProvider | undefined {
+    const entry = this.entries.get(peginTxid);
+    if (!entry || entry.baseUrl !== baseUrl) return undefined;
+    return entry.provider;
   }
 
   /**
@@ -118,7 +138,7 @@ export class VpTokenRegistry {
  */
 export interface VpTokenRegistryPublic {
   getOrCreate(input: VpTokenRegistryInput): VpTokenProvider;
-  peek(peginTxid: string): VpTokenProvider | undefined;
+  peek(peginTxid: string, baseUrl: string): VpTokenProvider | undefined;
   release(peginTxid: string): void;
   readonly size: number;
 }

@@ -2,9 +2,9 @@
  * Vault-side glue: derive `authAnchorHex` from the wallet (popup) and
  * `pinnedServerPubkey` from chain, then build an authenticated VP RPC
  * client. Reuses the registry cache if an entry for this `peginTxid`
- * already exists — preventing a second wallet popup for sites that
- * run after `primeVpTokenRegistry` (e.g. WOTS submit + payout signing
- * within the same deposit flow).
+ * already exists for the same VP URL — preventing a second wallet popup
+ * for sites that run after `primeVpTokenRegistry` (e.g. WOTS submit +
+ * payout signing within the same deposit flow).
  *
  * The SDK's auth API is value-only and has no notion of "wallet";
  * this helper is the wallet-coupled glue that lives in the FE.
@@ -26,7 +26,7 @@ import {
   vpTokenRegistry,
 } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { calculateBtcTxHash } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
-import type { Address, Hex } from "viem";
+import { type Address, type Hex, isAddressEqual } from "viem";
 
 import { getVaultRegistryReader } from "@/clients/eth-contract/sdk-readers";
 import { COPY } from "@/copy";
@@ -68,7 +68,7 @@ export async function ensureAuthenticatedVpClient(
   ) {
     vpTokenRegistry.release(peginTxid);
   } else {
-    const cached = vpTokenRegistry.peek(peginTxid);
+    const cached = vpTokenRegistry.peek(peginTxid, baseUrl);
     if (cached) {
       return new VaultProviderRpcClient(baseUrl, { tokenProvider: cached });
     }
@@ -83,7 +83,19 @@ export async function ensureAuthenticatedVpClient(
   // callers — fails closed by default. The cache-hit short-circuit
   // above keeps the same-device hot path free of any extra read.
   const reader = getVaultRegistryReader();
-  const protocol = await reader.getVaultProtocolInfo(params.vaultId);
+  const { basic, protocol } = await reader.getVaultData(params.vaultId);
+  // The auth anchor goes to the VP at `baseUrl` when a token is minted,
+  // and its holder can mint tokens for this deposit at the real VP. Send
+  // it only to the vault's on-chain provider, never to an
+  // indexer-supplied one.
+  if (!isAddressEqual(params.providerAddress as Address, basic.vaultProvider)) {
+    throw new Error(
+      COPY.deposit.errors.vaultProviderMismatch(
+        params.providerAddress,
+        basic.vaultProvider,
+      ),
+    );
+  }
   const computedTxHash = calculateBtcTxHash(params.unsignedPrePeginTxHex);
   if (computedTxHash.toLowerCase() !== protocol.prePeginTxHash.toLowerCase()) {
     throw new Error(

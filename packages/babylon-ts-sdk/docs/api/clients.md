@@ -1552,18 +1552,28 @@ silent overwrite would mask derivation drift or VP pubkey rotation.
 ##### peek()
 
 ```ts
-peek(peginTxid): VpTokenProvider | undefined;
+peek(peginTxid, baseUrl): VpTokenProvider | undefined;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenRegistry.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenRegistry.ts)
 
-Return the cached provider, or `undefined` if none.
+Return the cached provider for `peginTxid` if its entry is bound to
+`baseUrl`, otherwise `undefined`. The cache key names the deposit, not
+the VP, so a caller whose VP URL differs gets a miss and must go
+through [getOrCreate](#getorcreate), which checks the pinned pubkey.
 
 ###### Parameters
 
 ###### peginTxid
 
 `string`
+
+###### baseUrl
+
+`string`
+
+VP base URL the caller will attach the bearer to.
+                 Compared exactly with the inner token client's URL.
 
 ###### Returns
 

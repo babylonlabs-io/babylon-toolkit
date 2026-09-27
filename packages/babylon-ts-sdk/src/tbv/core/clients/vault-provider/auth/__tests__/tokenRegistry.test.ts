@@ -41,9 +41,12 @@ const ALT_PINNED_PUBKEY = "e".repeat(
   64,
 ) as unknown as import("../../../eth").OnChainBtcPubkey;
 
-function buildClient(): JsonRpcClient {
+const VP_URL = "https://vp.example.com/rpc";
+const OTHER_VP_URL = "https://other-vp.example.com/rpc";
+
+function buildClient(baseUrl: string = VP_URL): JsonRpcClient {
   return new JsonRpcClient({
-    baseUrl: "https://vp.example.com/rpc",
+    baseUrl,
     timeout: 5000,
     retries: 0,
   });
@@ -148,6 +151,26 @@ describe("VpTokenRegistry", () => {
 
     expect(reused).toBe(provider);
     expect(setClientSpy).toHaveBeenCalledExactlyOnceWith(secondClient);
+  });
+
+  it("peek returns the cached provider for the VP URL it is bound to", () => {
+    const provider = registry.getOrCreate(buildInput());
+    expect(registry.peek(PEGIN_TXID_A, VP_URL)).toBe(provider);
+  });
+
+  it("peek misses for a VP URL the entry is not bound to", () => {
+    // The key names the deposit, not the VP. A hit here would hand a
+    // bearer minted by one VP to another without the pinned-pubkey check.
+    registry.getOrCreate(buildInput());
+    expect(registry.peek(PEGIN_TXID_A, OTHER_VP_URL)).toBeUndefined();
+  });
+
+  it("peek follows the VP URL of the latest getOrCreate reuse", () => {
+    const provider = registry.getOrCreate(buildInput());
+    registry.getOrCreate(buildInput({ client: buildClient(OTHER_VP_URL) }));
+
+    expect(registry.peek(PEGIN_TXID_A, OTHER_VP_URL)).toBe(provider);
+    expect(registry.peek(PEGIN_TXID_A, VP_URL)).toBeUndefined();
   });
 
   it("scopes entries by peginTxid — distinct pegins get distinct providers", () => {

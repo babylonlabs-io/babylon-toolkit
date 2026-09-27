@@ -43,6 +43,7 @@ import {
   saveArtifactDownloadReceipt,
   saveGraphMismatch,
 } from "@/utils/artifactDownloadStorage";
+import { getVpProxyUrl } from "@/utils/rpc";
 
 const ARTIFACT_RETRY_INTERVAL_MS = 10_000;
 
@@ -206,6 +207,7 @@ export function useArtifactDownload(options?: {
       // builds, where the god-mode gate is compile-time false.
       const demoDownload = getArtifactDownloadOverride();
       const normalizedPeginTxid = stripHexPrefix(peginTxid);
+      const vpBaseUrl = getVpProxyUrl(providerAddress);
       // Per-vault join key for telemetry. The pegin txid identifies the same
       // deposit when no vaultId is mounted, and is public on-chain data
       // (shortened before emission anyway).
@@ -230,7 +232,7 @@ export function useArtifactDownload(options?: {
 
       if (
         !demoDownload &&
-        !vpTokenRegistry.peek(normalizedPeginTxid) &&
+        !vpTokenRegistry.peek(normalizedPeginTxid, vpBaseUrl) &&
         !requireBtcWallet()
       ) {
         // Mark any in-flight download stale, as `cancel` does, so it settles
@@ -342,7 +344,7 @@ export function useArtifactDownload(options?: {
         // The simulated fetch never talks to a vault provider, so it needs
         // no bearer (and must not prompt the wallet for one).
         if (demoDownload) return true;
-        if (vpTokenRegistry.peek(normalizedPeginTxid)) return true;
+        if (vpTokenRegistry.peek(normalizedPeginTxid, vpBaseUrl)) return true;
         if (!primeContext) {
           // A surface mounted the card without the prime inputs and the token
           // cache is cold: every attempt is dead on arrival. A flow-wiring
@@ -563,7 +565,7 @@ export function useArtifactDownload(options?: {
             primeAttempted = true;
             // Drop any cached token so the next acquire goes back to the server.
             // Covers the hot-but-stale case (auth_expired); harmless on cold cache.
-            vpTokenRegistry.peek(normalizedPeginTxid)?.invalidate();
+            vpTokenRegistry.peek(normalizedPeginTxid, vpBaseUrl)?.invalidate();
             if (!requireBtcWallet()) {
               setError(COPY.wallet.btcAction.error);
               return;

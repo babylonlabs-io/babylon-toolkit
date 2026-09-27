@@ -101,6 +101,10 @@ vi.mock("@/infrastructure", () => ({
   },
 }));
 
+vi.mock("@/utils/rpc", () => ({
+  getVpProxyUrl: (address: string) => `https://vp.test/rpc/${address}`,
+}));
+
 vi.mock("@/hooks/deposit/depositFlowSteps/ensureAuthenticatedVpClient", () => ({
   ensureAuthenticatedVpClient: vi.fn(),
 }));
@@ -154,6 +158,7 @@ const SAVE_TARGET = {
 } as unknown as ArtifactSaveTarget;
 
 const PROVIDER_ADDRESS = "0x1234";
+const VP_BASE_URL = `https://vp.test/rpc/${PROVIDER_ADDRESS}`;
 const PEGIN_TXID =
   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const DEPOSITOR_PK =
@@ -170,9 +175,9 @@ const primeContext = {
 };
 
 /** Seed the singleton registry so `peek()` returns a provider (hot cache). */
-function seedHotCache(): void {
+function seedHotCache(baseUrl: string = VP_BASE_URL): void {
   createAuthenticatedVpClient({
-    baseUrl: "https://vp.test/rpc",
+    baseUrl,
     peginTxid: PEGIN_TXID,
     authAnchorHex: "c".repeat(64),
     pinnedServerPubkey: "ab".repeat(32) as unknown as Parameters<
@@ -291,6 +296,27 @@ describe("useArtifactDownload — prime then fetch", () => {
     });
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(result.current.error).toBeNull();
+  });
+
+  it("primes through the cold path when the cached token belongs to another vault provider", async () => {
+    seedHotCache(`https://vp.test/rpc/0xother`);
+    ensureAuthMock.mockResolvedValueOnce(
+      undefined as unknown as Awaited<
+        ReturnType<typeof ensureAuthenticatedVpClient>
+      >,
+    );
+    fetchMock.mockResolvedValueOnce(OUTCOME);
+
+    const { result } = renderHook(() =>
+      useArtifactDownload({ vaultId: VAULT_ID, primeContext }),
+    );
+
+    await act(async () => {
+      await result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK);
+    });
+
+    await waitFor(() => expect(result.current.downloaded).toBe(true));
+    expect(ensureAuthMock).toHaveBeenCalledTimes(1);
   });
 
   it("opens the save picker before prompting the wallet", async () => {
@@ -790,7 +816,7 @@ describe("useArtifactDownload — prime then fetch", () => {
 
   it("retries once when the bearer expires mid-flight (hot-but-stale)", async () => {
     seedHotCache();
-    const seededProvider = vpTokenRegistry.peek(PEGIN_TXID);
+    const seededProvider = vpTokenRegistry.peek(PEGIN_TXID, VP_BASE_URL);
     expect(seededProvider).toBeDefined();
     const invalidateSpy = vi.spyOn(
       seededProvider as { invalidate: () => void },
