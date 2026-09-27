@@ -8,9 +8,8 @@
  * refund or reclaim is already done renders no row, so it counts for nothing
  * here either: both sides read `useActionableExpiredDeposits` and
  * `useActionableReclaims`. `useConnection` counts a session as connected only
- * with confirmed Ethereum, plus Bitcoin while Ethereum-only access is off. Any
- * other session is always "empty" regardless of what the ETH-keyed queries
- * returned, so the page shows the connect prompt.
+ * with confirmed Ethereum. Any other session is always "empty" regardless of
+ * what the ETH-keyed queries returned, so the page shows the connect prompt.
  *
  * `isLoading` guards against flashing the empty state before the position and
  * deposit queries resolve. An unresolved reclaim read holds it too, but only

@@ -1,16 +1,15 @@
 /**
  * Activity page wallet-gating tests.
  *
- * The page reads the canonical signal, `useConnection`: confirmed Ethereum,
- * plus Bitcoin while Ethereum-only access is off (see RootLayout.tsx). These
- * tests drive the real gate, so they lock in both halves - a stale ETH address
- * alone never triggers an indexer query or the "connected" empty state, and an
- * Ethereum-only session does once the control is on.
+ * The page reads the canonical signal, `useConnection`: a confirmed Ethereum
+ * session. These tests drive the real gate, so they lock in both halves - a
+ * stale ETH address alone never triggers an indexer query or the "connected"
+ * empty state, and an Ethereum-only session does.
  */
 
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter, Outlet, Route, Routes } from "react-router";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ActivityLog } from "@/types/activityLog";
 
@@ -31,8 +30,8 @@ vi.mock("@babylonlabs-io/wallet-connector", () => ({
   }),
 }));
 
-// The real gate, so the Ethereum-only control decides what this page counts as
-// connected. A hand-supplied `isConnected` would pass with the control removed.
+// The real gate, so `useConnection` decides what this page counts as
+// connected. A hand-supplied `isConnected` would pass whatever the gate's rule.
 vi.mock("../../../context/wallet", async () => ({
   useConnection: (await import("@/context/wallet/useConnection")).useConnection,
   useETHWallet: (await import("@babylonlabs-io/wallet-connector")).useETHWallet,
@@ -105,9 +104,6 @@ function renderActivity() {
 describe("Activity page — wallet gating", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // The real gate reads this through a live getter, so an unpinned run would
-    // take whatever the developer's environment carries.
-    vi.stubEnv("NEXT_PUBLIC_FF_ENABLE_ETH_FIRST", undefined);
     walletMock.btcConnected = true;
     walletMock.ethConnected = true;
     walletMock.confirmed = true;
@@ -126,14 +122,8 @@ describe("Activity page — wallet gating", () => {
     });
   });
 
-  // The Ethereum-only control is read from the environment by the real
-  // `featureFlags` getter, so leaving it set would reach every later file.
-  afterEach(() => {
-    vi.unstubAllEnvs();
-  });
-
-  it("treats BTC-disconnected + ETH-stale-address as disconnected, skipping the indexer query", () => {
-    walletMock.btcConnected = false;
+  it("treats an unconfirmed session as disconnected even with an ETH address, skipping the indexer query", () => {
+    walletMock.confirmed = false;
 
     renderActivity();
 
@@ -175,8 +165,7 @@ describe("Activity page — wallet gating", () => {
     );
   });
 
-  it("queries the activity feed for Ethereum alone under Ethereum-only access", () => {
-    vi.stubEnv("NEXT_PUBLIC_FF_ENABLE_ETH_FIRST", "true");
+  it("queries the activity feed for Ethereum alone", () => {
     walletMock.btcConnected = false;
 
     renderActivity();

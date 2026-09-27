@@ -16,7 +16,6 @@ const featureFlagsMock = vi.hoisted(() => ({
   isDepositDisabled: false,
   isProtocolPaused: false,
   isProtocolFrozen: false,
-  isEthFirstEnabled: false,
 }));
 
 vi.mock("@/config", () => ({
@@ -71,8 +70,8 @@ vi.mock("@babylonlabs-io/wallet-connector", () => ({
   }),
 }));
 
-// The real gate, so the Ethereum-only control decides what this page treats as
-// connected. A hand-supplied `isConnected` would pass with the control removed.
+// The real gate decides what this page treats as connected. A hand-supplied
+// `isConnected` would not catch a change to the gate.
 vi.mock("@/context/wallet", async () => ({
   useConnection: (await import("@/context/wallet/useConnection")).useConnection,
   useETHWallet: (await import("@babylonlabs-io/wallet-connector")).useETHWallet,
@@ -177,7 +176,6 @@ describe("VaultsPage", () => {
     gateState.protocol = null;
     gateState.aave = null;
     featureFlagsMock.isDepositDisabled = false;
-    featureFlagsMock.isEthFirstEnabled = false;
     addressTypeState.isSupportedAddress = true;
   });
 
@@ -211,18 +209,7 @@ describe("VaultsPage", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("shows the connect prompt for Ethereum alone while Ethereum-only access is off", () => {
-    walletState.btcConnected = false;
-
-    renderVaultsPage();
-
-    expect(screen.getByTestId("connect-button")).toBeInTheDocument();
-    expect(useVaultsPageData).toHaveBeenCalledWith(undefined);
-    expect(screen.queryByTestId("deposit-button")).not.toBeInTheDocument();
-  });
-
-  it("opens the page for Ethereum alone under Ethereum-only access", () => {
-    featureFlagsMock.isEthFirstEnabled = true;
+  it("opens the page for a confirmed Ethereum wallet with no Bitcoin wallet", () => {
     walletState.btcConnected = false;
 
     const { openDeposit } = renderVaultsPage();

@@ -4,7 +4,7 @@
  * The connection gate decides whether the summary card's Reorder button is
  * reachable at all. These tests keep the real `useConnection` and the real
  * `useVaultsPageEmptiness`, and answer both data hooks from the address they
- * are handed, so removing the Ethereum-only term from the gate fails them.
+ * are handed, so a gate that also asks for Bitcoin fails them.
  */
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -15,18 +15,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import VaultsPage from "@/components/pages/VaultsPage";
 import { COPY } from "@/copy";
 import type { CollateralVaultEntry } from "@/types/collateral";
-
-// The Ethereum-only switch reaches this page through one module path only:
-// useConnection reads the default export of @/config/featureFlags. The other
-// FeatureFlags reader here, VaultsPage itself, takes only the deposits
-// kill-switch, which the repo-wide setup mock already leaves falsy.
-const featureFlagsMock = vi.hoisted(() => ({
-  isEthFirstEnabled: false,
-}));
-
-vi.mock("@/config/featureFlags", () => ({
-  default: featureFlagsMock,
-}));
 
 const walletState = vi.hoisted(() => ({
   btcConnected: false,
@@ -63,8 +51,8 @@ vi.mock("@/context/deposit/PeginPollingContext", () => ({
   usePeginPolling: () => ({ getPollingResult: () => undefined }),
 }));
 
-// The real gate, so the Ethereum-only control decides what this page treats as
-// connected. A hand-supplied `isConnected` would pass with the control removed.
+// The real gate decides what this page treats as connected. A hand-supplied
+// `isConnected` would not catch a change to the gate.
 vi.mock("@/context/wallet", async () => ({
   useConnection: (await import("@/context/wallet/useConnection")).useConnection,
   useETHWallet: (await import("@babylonlabs-io/wallet-connector")).useETHWallet,
@@ -223,12 +211,11 @@ function renderVaultsPage() {
   );
 }
 
-describe("VaultsPage Reorder under Ethereum-only access", () => {
+describe("VaultsPage Reorder without a Bitcoin wallet", () => {
   beforeEach(() => {
     walletState.btcConnected = false;
     walletState.ethConnected = true;
     walletState.confirmed = true;
-    featureFlagsMock.isEthFirstEnabled = false;
     reorderModalVaultIds.current = [];
 
     dataMocks.useVaultsPageData.mockReset();
@@ -267,8 +254,6 @@ describe("VaultsPage Reorder under Ethereum-only access", () => {
   });
 
   it("offers an enabled Reorder button to a confirmed Ethereum wallet with no Bitcoin wallet", () => {
-    featureFlagsMock.isEthFirstEnabled = true;
-
     renderVaultsPage();
 
     expect(dataMocks.useVaultsPageData).toHaveBeenCalledWith(
@@ -280,8 +265,6 @@ describe("VaultsPage Reorder under Ethereum-only access", () => {
   });
 
   it("opens the reorder modal when that Ethereum-only session clicks Reorder", () => {
-    featureFlagsMock.isEthFirstEnabled = true;
-
     renderVaultsPage();
 
     expect(
@@ -299,7 +282,9 @@ describe("VaultsPage Reorder under Ethereum-only access", () => {
     ]);
   });
 
-  it("shows the connect prompt instead of Reorder for the same session while Ethereum-only access is off", () => {
+  it("shows the connect prompt instead of Reorder for the same session before it is confirmed", () => {
+    walletState.confirmed = false;
+
     renderVaultsPage();
 
     expect(dataMocks.useVaultsPageData).toHaveBeenCalledWith(undefined);

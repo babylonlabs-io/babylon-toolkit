@@ -7,7 +7,7 @@
 
 import { OnChainBtcVaultStatus } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { renderHook } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ProtocolGateState } from "@/components/shared/protocolStatus";
 import { COPY } from "@/copy";
@@ -61,14 +61,10 @@ function renderReclaimRowAction(depositorBtcPubkey = "ab".repeat(32)) {
 
 describe("useReclaimRowAction needsWallet", () => {
   beforeEach(() => {
-    vi.stubEnv("NEXT_PUBLIC_FF_ENABLE_ETH_FIRST", "true");
     wallet.connected = false;
     wallet.locked = false;
     wallet.publicKeyNoCoord = undefined;
     gate.value = { protocol: null, aave: null };
-  });
-  afterEach(() => {
-    vi.unstubAllEnvs();
   });
 
   it("asks for the wallet when the owner could reclaim now", () => {
@@ -107,15 +103,6 @@ describe("useReclaimRowAction needsWallet", () => {
 
     expect(action.needsWallet).toBe(false);
     expect(action.available).toBe(false);
-  });
-
-  it("does not ask for the wallet while Ethereum-only access is disabled", () => {
-    vi.stubEnv("NEXT_PUBLIC_FF_ENABLE_ETH_FIRST", "false");
-
-    const action = renderReclaimRowAction();
-
-    expect(action.needsWallet).toBe(false);
-    expect(action.reclaimableSats).toBeNull();
   });
 
   it("does not ask for the wallet when the depositor key is unknown", () => {

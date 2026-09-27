@@ -37,8 +37,8 @@ vi.mock("@babylonlabs-io/wallet-connector", () => ({
   }),
 }));
 
-// The real gate, so the Ethereum-only control decides what this page counts as
-// connected. A hand-supplied `isConnected` would pass with the control removed.
+// The real gate, so `useConnection` decides what this page counts as
+// connected. A hand-supplied `isConnected` would pass whatever the gate's rule.
 vi.mock("@/context/wallet", async () => ({
   useConnection: (await import("@/context/wallet/useConnection")).useConnection,
   useETHWallet: (await import("@babylonlabs-io/wallet-connector")).useETHWallet,
@@ -217,12 +217,6 @@ function connectWallet() {
   walletMock.address = "0xabc";
 }
 
-/** Confirmed Ethereum with no Bitcoin wallet, the Ethereum-only session. */
-function connectEthereumOnly() {
-  connectWallet();
-  walletMock.btcConnected = false;
-}
-
 function disconnectWallet() {
   walletMock.btcConnected = false;
   walletMock.ethConnected = false;
@@ -261,16 +255,11 @@ function enablePositionOverride() {
   useLiquidationPositionOverrideMock.mockReturnValue(POSITION_OVERRIDE);
 }
 
-// The Ethereum-only control is read from the environment by the real
-// `featureFlags` getter. Pin it, or a run takes whatever the developer's
-// environment carries; unstub it, or the value reaches every later file.
 beforeEach(() => {
-  vi.stubEnv("NEXT_PUBLIC_FF_ENABLE_ETH_FIRST", undefined);
   localStorage.setItem("tbv-liquidation-tour-seen", "true");
 });
 
 afterEach(() => {
-  vi.unstubAllEnvs();
   localStorage.removeItem("tbv-liquidation-tour-seen");
 });
 
@@ -573,20 +562,6 @@ describe("Liquidation Dashboard — connection and position gates", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("shows the connect empty state for Ethereum alone while Ethereum-only access is off", () => {
-    connectEthereumOnly();
-    useDashboardStateMock.mockReturnValue(CONNECTED_WITH_CASCADE);
-    usePositionNotificationsMock.mockReturnValue(READY_NOTIFICATIONS);
-
-    render(<Liquidations />);
-
-    expect(useDashboardStateMock).toHaveBeenCalledWith(undefined);
-    expect(screen.getByTestId("liquidations-empty-state")).toBeInTheDocument();
-    expect(
-      screen.queryByTestId("liq-current-price-line"),
-    ).not.toBeInTheDocument();
-  });
-
   it("shows a loader instead of the chart while candles load", () => {
     connectWallet();
     useDashboardStateMock.mockReturnValue(CONNECTED_WITH_CASCADE);
@@ -605,9 +580,9 @@ describe("Liquidation Dashboard — connection and position gates", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("charts the live position for Ethereum alone under Ethereum-only access", () => {
-    vi.stubEnv("NEXT_PUBLIC_FF_ENABLE_ETH_FIRST", "true");
-    connectEthereumOnly();
+  it("charts the live position for Ethereum alone", () => {
+    connectWallet();
+    walletMock.btcConnected = false;
     useDashboardStateMock.mockReturnValue(CONNECTED_WITH_CASCADE);
     usePositionNotificationsMock.mockReturnValue(READY_NOTIFICATIONS);
 

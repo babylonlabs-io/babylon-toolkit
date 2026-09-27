@@ -13,7 +13,6 @@ import {
 } from "@babylonlabs-io/wallet-connector";
 import { useMemo } from "react";
 
-import featureFlags from "@/config/featureFlags";
 import { useAddressScreening } from "@/context/addressScreening";
 import { useGeoFencing } from "@/context/geofencing";
 import { COPY } from "@/copy";
@@ -46,8 +45,7 @@ export const Connect: React.FC<ConnectProps> = ({ loading = false, text }) => {
   } = useBTCWallet();
   const { address: ethAddress } = useETHWallet();
   // Re-runs the wallet's connect flow, surfacing the extension's unlock prompt.
-  // On success the provider clears `locked` and this button reverts to the
-  // connected wallet menu.
+  // On success the provider clears `locked` and the menu drops its unlock entry.
   const { unlock: handleUnlock, isUnlocking } = useBtcWalletUnlock(
     "Wallet unlock from navbar",
   );
@@ -99,41 +97,22 @@ export const Connect: React.FC<ConnectProps> = ({ loading = false, text }) => {
     [selectedWallets, btcConnected, ethConnected, btcConnector, ethConnector],
   );
 
-  // A silently locked BTC wallet keeps `connected` true (cached session), so it
-  // would otherwise render the connected wallet menu. Surface an unlock button
-  // in the navbar instead so the user can re-authorize in one click.
-  if (
-    btcLocked &&
-    !featureFlags.isEthFirstEnabled &&
-    !isGeoBlocked &&
-    !isGeoLoading
-  ) {
-    return (
-      <ConnectButton
-        connected={false}
-        loading={isUnlocking}
-        onClick={handleUnlock}
-        text={COPY.wallet.locked.unlockButton}
-      />
-    );
-  }
-
-  // Show BtcEthWalletMenu when wallets are connected and not geo-blocked.
+  // Show the wallet menu (BtcEthWalletMenu once Bitcoin is connected too) when
+  // the session is connected and not geo-blocked.
   // Address-blocked users still need the menu to disconnect and try a different wallet.
   if (canShowWalletMenu) {
     const ConnectedWalletMenu = btcConnected ? BtcEthWalletMenu : WalletMenu;
-    // Under the flag a locked BTC wallet keeps the menu (the Ethereum session
-    // stays usable), so the unlock entry lives inside the menu instead.
-    const unlockAction =
-      btcLocked && featureFlags.isEthFirstEnabled
-        ? {
-            label: isUnlocking
-              ? COPY.wallet.locked.unlocking
-              : COPY.wallet.locked.unlockButton,
-            onClick: handleUnlock,
-            "data-testid": "wallet-menu-unlock",
-          }
-        : undefined;
+    // A locked BTC wallet keeps the menu (the Ethereum session stays usable),
+    // so the unlock entry lives inside the menu.
+    const unlockAction = btcLocked
+      ? {
+          label: isUnlocking
+            ? COPY.wallet.locked.unlocking
+            : COPY.wallet.locked.unlockButton,
+          onClick: handleUnlock,
+          "data-testid": "wallet-menu-unlock",
+        }
+      : undefined;
     return (
       <div className="flex flex-row items-center gap-4">
         <ConnectedWalletMenu
@@ -142,7 +121,9 @@ export const Connect: React.FC<ConnectProps> = ({ loading = false, text }) => {
             // (e2e/real/actions/walletConnect.ts, e2e/real/actions/resume.ts) —
             // carry it over if you move or rename the element. It renders only
             // once the required session is confirmed, on every route, so the harness
-            // uses it as its route-independent "connected" signal.
+            // uses it as its route-independent "connected" signal. resume.ts also
+            // counts its wallet icons (one per connected chain) to tell whether
+            // Bitcoin is back, so keep one icon per chain.
             <div className="cursor-pointer" data-testid="wallet-menu-trigger">
               <AvatarGroup max={3} className="!-space-x-2">
                 {displayWallets["BTC"] && (

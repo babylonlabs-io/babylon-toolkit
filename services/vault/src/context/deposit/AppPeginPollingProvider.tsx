@@ -20,7 +20,6 @@
 import type { PropsWithChildren } from "react";
 import type { Address } from "viem";
 
-import featureFlags from "@/config/featureFlags";
 import { useBTCWallet, useETHWallet } from "@/context/wallet";
 import { useBtcPublicKey } from "@/hooks/useBtcPublicKey";
 import { useVaultDeposits } from "@/hooks/useVaultDeposits";
@@ -34,7 +33,7 @@ export function AppPeginPollingProvider({ children }: PropsWithChildren) {
   // Vault provider status: only a session with no Bitcoin wallet polls without
   // a key, and a connected wallet whose key is still loading waits for it. The
   // Bitcoin network polls keep running without a key.
-  const btcWalletAbsent = featureFlags.isEthFirstEnabled && !btcConnected;
+  const btcWalletAbsent = !btcConnected;
   // Shares the address-keyed React Query entry with every other
   // `useVaultDeposits` caller, so mounting app-wide adds no extra fetch.
   const { activities, pendingPegins } = useVaultDeposits(

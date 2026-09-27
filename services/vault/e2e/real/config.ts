@@ -157,9 +157,7 @@ export interface RunConfig {
   delayMs: number;
   /**
    * Connect the Ethereum wallet ALONE (`--eth-only`), leaving Bitcoin unconnected, to exercise the
-   * Ethereum-only actions the way a depositor with no Bitcoin wallet reaches them (#2228). The served
-   * build must have NEXT_PUBLIC_FF_ENABLE_ETH_FIRST=true, or its connect screen still demands Bitcoin;
-   * the CLI refuses the combination rather than letting the run time out.
+   * Ethereum-only actions the way a depositor with no Bitcoin wallet reaches them (#2228).
    */
   ethOnly?: boolean;
   /** Pegin only: BTC amount to deposit (`--amount`); the action defaults it when absent. */
