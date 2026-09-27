@@ -1,9 +1,10 @@
 /**
  * Collateral ordering helpers for the post-reorder display override.
  *
- * The dashboard normally orders collateral by the indexer's `liquidationIndex`.
+ * The dashboard normally orders collateral by `liquidationIndex`, which
+ * `getUserPositionsWithLiveData` ranks by the adapter's on-chain vault order.
  * Right after a reorder, an in-memory override (the submitted order) takes over
- * so the new order shows immediately, until the indexer catches up. These pure
+ * so the new order shows immediately, until the position read catches up. These pure
  * helpers apply that override and decide when it can be dropped.
  */
 
@@ -11,7 +12,7 @@ import type { Hex } from "viem";
 
 import type { CollateralVaultEntry } from "@/types/collateral";
 
-/** Entries ordered ascending by the indexer's liquidationIndex (default order). */
+/** Entries ordered ascending by liquidationIndex (default order). */
 function byLiquidationIndex(
   entries: CollateralVaultEntry[],
 ): CollateralVaultEntry[] {
@@ -35,7 +36,7 @@ function orderMatchesEntrySet(
  * immediately. Also rewrites each entry's `liquidationIndex` to its rank in the
  * override, so the per-row "Liquidation Order" ordinal matches the displayed
  * position (otherwise rows would show stale indexer ordinals during the
- * reconciliation window). Falls back to the indexer's liquidationIndex when
+ * reconciliation window). Falls back to the entries' liquidationIndex when
  * there is no override or it no longer describes the same vault set (e.g. a
  * vault was withdrawn since).
  */
@@ -58,7 +59,7 @@ export function sortByReorderedOverride(
 
 /**
  * Whether the override should be dropped — true when there is no override, when
- * it no longer matches the vault set, or when the indexer's liquidationIndex
+ * it no longer matches the vault set, or when the entries' liquidationIndex
  * order already equals the override.
  */
 export function isReorderOverrideReconciled(

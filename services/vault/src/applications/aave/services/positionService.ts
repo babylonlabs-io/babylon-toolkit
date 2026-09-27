@@ -121,6 +121,18 @@ export async function getUserPositionsWithLiveData(
           )
         : undefined;
   if (indexerError) logger.warn(indexerError.message, { error: indexerError });
+  // The adapter's `vaultIds` order is the seizure order. It replaces the
+  // indexer's `liquidationIndex`, so a wrong indexed order cannot reach the
+  // display or the reorder advisory.
+  const chainRank = new Map(
+    position.vaultIds.map((id, index) => [id.toLowerCase(), index]),
+  );
+  const orderedCollaterals = indexerError
+    ? collaterals
+    : collaterals.map((row) => {
+        const rank = chainRank.get(row.vaultId.toLowerCase());
+        return rank === undefined ? row : { ...row, liquidationIndex: rank };
+      });
 
   // Read the collateral position and account data in one multicall.
   const { position: spokePosition, accountData } =
@@ -156,7 +168,7 @@ export async function getUserPositionsWithLiveData(
       proxyContract: proxyAddress,
       totalCollateral: position.totalCollateralBTC,
       vaultIds: position.vaultIds,
-      collaterals,
+      collaterals: orderedCollaterals,
       indexerError,
       liveData: {
         drawnShares: spokePosition.drawnShares,

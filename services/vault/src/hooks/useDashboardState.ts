@@ -84,7 +84,7 @@ export function useDashboardState(connectedAddress: string | undefined) {
     return ids;
   }, [pendingVaults]);
 
-  // Indexer entries (liquidationIndex straight from the indexer), re-tagged
+  // Indexer entries (liquidationIndex ranked by the chain order), re-tagged
   // with the withdrawals whose transaction is mined but not yet indexed. These
   // drive reconciliation — they reflect what the indexer currently believes,
   // independent of any active override.
