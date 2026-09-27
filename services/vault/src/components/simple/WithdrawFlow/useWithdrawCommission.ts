@@ -55,7 +55,7 @@ export function useWithdrawCommission(
   vaultIds: readonly string[],
 ): WithdrawCommission {
   // Joined so an unchanged selection keeps a stable query key across renders.
-  // Not sorted: Confirm submits these IDs in the selection order.
+  // Not sorted: Confirm submits these IDs in the caller's order.
   const selectionKey = vaultIds.join(",");
   const selectedIds = useMemo(
     () => (selectionKey ? (selectionKey.split(",") as Hex[]) : []),

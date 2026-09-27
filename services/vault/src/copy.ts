@@ -1640,11 +1640,10 @@ export const COPY = {
       healthFactorLabel: "Health Factor",
       networkFeeRateLabel: "Network Fee Rate",
       vpCommissionLabel: "VP Commission",
-      // Shown when the vault providers charge no commission at all.
-      noCommission: "None",
       vpCommissionUnavailable: "Unavailable",
+      // Reopening the dialog reads the commission again.
       vpCommissionError:
-        "Could not read the vault provider commission for the selected vaults. Try again later.",
+        "Could not read the vault provider commission for the selected BTCVaults. Close this window and try again.",
       confirmButton: "Confirm",
       processing: "Processing",
       hfBlockTitle: "Withdraw unavailable",

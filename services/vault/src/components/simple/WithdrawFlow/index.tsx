@@ -122,11 +122,15 @@ function WithdrawFlowContent({
     ? confirmed.currentHealthFactor
     : currentHealthFactor;
 
-  // Read for the pinned vaults, so a confirm does not reload it under the
-  // spinner.
+  // Not read on Select, so a toggle costs no RPC call. Read for the pinned
+  // vaults, so a confirm does not reload it under the spinner or the fade out.
+  // Confirm submits these IDs in collateral-list order.
   const reviewedVaultIds = useMemo(
-    () => effectiveSelectedVaults.map((v) => v.vaultId),
-    [effectiveSelectedVaults],
+    () =>
+      step === WithdrawStep.SELECT
+        ? []
+        : effectiveSelectedVaults.map((v) => v.vaultId),
+    [step, effectiveSelectedVaults],
   );
   const vpCommission = useWithdrawCommission(reviewedVaultIds);
 

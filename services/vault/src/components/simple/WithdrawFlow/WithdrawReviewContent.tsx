@@ -192,6 +192,7 @@ export function WithdrawReviewContent({
               )}
             </Callout>
           )}
+          {/* This message's data-testid is a real-wallet E2E hook (e2e/real/actions/withdraw.ts) — carry it over if you move or rename the element. */}
           {vpCommission.status === "error" && (
             <Text
               variant="body2"
@@ -292,9 +293,6 @@ function vpCommissionRow(
   }
   if (vpCommission.status === "error") {
     return { label, value: REVIEW_COPY.vpCommissionUnavailable };
-  }
-  if (vpCommission.commissionSats === 0n) {
-    return { label, value: REVIEW_COPY.noCommission };
   }
   const commissionBtc = satoshiToBtcNumber(vpCommission.commissionSats);
   const commissionUsd =

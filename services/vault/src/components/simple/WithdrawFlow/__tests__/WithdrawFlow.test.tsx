@@ -39,7 +39,6 @@ vi.mock("@/components/shared/V3ModalShell", () => ({
 vi.mock("@/context/ProtocolParamsContext", () => ({
   ProtocolParamsProvider: ({ children }: { children: ReactNode }) => children,
   useProtocolParamsContext: () => ({
-    minVpCommissionBps: 250,
     getOffchainParamsByVersion: () => undefined,
     config: { offchainParams: { timelockAssert: 144 } },
   }),
@@ -264,6 +263,9 @@ describe("WithdrawFlow selection step", () => {
     const { rerenderWith } = renderFlow({ currentHealthFactor: 4.2 });
     fireEvent.click(acknowledgeCheckbox());
     fireEvent.click(continueButton());
+    // Wait for the commission (7% of 0.6 BTC), so only the acknowledgement
+    // can hold Confirm below.
+    await screen.findByText("0.042 sBTC");
 
     rerenderWith({ currentHealthFactor: 4.3 });
 
@@ -273,9 +275,7 @@ describe("WithdrawFlow selection step", () => {
 
     fireEvent.click(reviewAcknowledge);
 
-    await vi.waitFor(() =>
-      expect(screen.getByTestId("withdraw-confirm-button")).toBeEnabled(),
-    );
+    expect(screen.getByTestId("withdraw-confirm-button")).toBeEnabled();
   });
 
   it("returns to Select from Review with the selection intact", () => {
