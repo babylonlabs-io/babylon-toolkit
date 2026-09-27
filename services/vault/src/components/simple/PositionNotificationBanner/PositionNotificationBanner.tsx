@@ -151,7 +151,7 @@ export function PositionNotificationBanner({
       optimalOrderContext: reorderVerificationContext,
     });
     if (success) {
-      // Show the just-submitted order immediately; the indexer catches up later.
+      // Show the submitted order now; the position read catches up later.
       applyReorderedOrder(vaultIds);
       setIsReorderSuccess(true);
     }

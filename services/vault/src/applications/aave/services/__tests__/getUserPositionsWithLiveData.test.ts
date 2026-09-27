@@ -263,13 +263,15 @@ describe("getUserPositionsWithLiveData", () => {
         vaultId: ADAPTER.toUpperCase(),
         amount: 100n,
         removedAt: null,
-        liquidationIndex: 0,
+        liquidationIndex: 5,
       },
     ];
     mockFetchActive.mockResolvedValue([{ ...INDEXED_POSITION, collaterals }]);
     const [result] = await load();
     expect(result.indexerError).toBeUndefined();
-    expect(result.collaterals).toEqual(collaterals);
+    expect(result.collaterals).toEqual([
+      { ...collaterals[0], liquidationIndex: 0 },
+    ]);
   });
 
   it("excludes removed collateral history from the active chain comparison", async () => {
@@ -358,7 +360,7 @@ describe("getUserPositionsWithLiveData", () => {
     ]);
   });
 
-  it("keeps the indexed liquidationIndex when the collateral details do not match", async () => {
+  it("ranks collateral by the chain vault order when the collateral details do not match", async () => {
     mockGetPosition.mockResolvedValue({
       proxyContract: PROXY,
       vaultIds: [ADAPTER],
@@ -370,7 +372,9 @@ describe("getUserPositionsWithLiveData", () => {
     mockFetchActive.mockResolvedValue([{ ...INDEXED_POSITION, collaterals }]);
     const [result] = await load();
     expect(result.indexerError?.message).toContain("do not match");
-    expect(result.collaterals).toEqual(collaterals);
+    expect(result.collaterals).toEqual([
+      { ...collaterals[0], liquidationIndex: 0 },
+    ]);
   });
 
   it("reports stale collateral amounts even when every vault ID matches", async () => {

@@ -4,8 +4,8 @@
  * The dashboard normally orders collateral by `liquidationIndex`, which
  * `getUserPositionsWithLiveData` ranks by the adapter's on-chain vault order.
  * Right after a reorder, an in-memory override (the submitted order) takes over
- * so the new order shows immediately, until the position read catches up. These pure
- * helpers apply that override and decide when it can be dropped.
+ * so the new order shows immediately, until the position read catches up. These
+ * pure helpers apply that override and decide when it can be dropped.
  */
 
 import type { Hex } from "viem";
@@ -35,7 +35,7 @@ function orderMatchesEntrySet(
  * Sort entries by the post-reorder submitted order so the new order shows
  * immediately. Also rewrites each entry's `liquidationIndex` to its rank in the
  * override, so the per-row "Liquidation Order" ordinal matches the displayed
- * position (otherwise rows would show stale indexer ordinals during the
+ * position (otherwise rows would show stale ordinals during the
  * reconciliation window). Falls back to the entries' liquidationIndex when
  * there is no override or it no longer describes the same vault set (e.g. a
  * vault was withdrawn since).
