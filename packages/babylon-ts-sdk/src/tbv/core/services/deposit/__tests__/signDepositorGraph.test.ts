@@ -331,6 +331,34 @@ function createSigningContext(
 // ---------------------------------------------------------------------------
 
 describe("signDepositorGraph", () => {
+  it("rejects a Claim without output 0 before reading or prompting the wallet", async () => {
+    registerStandardMocks([CHALLENGER_A, CHALLENGER_B]);
+    registerMockTx(CLAIM_TX_HEX, {
+      ins: [
+        {
+          hash: makeReversedHash(PEGIN_TXID),
+          index: 1,
+          sequence: 0xffffffff,
+        },
+      ],
+      outs: [],
+      getId: () => CLAIM_TXID,
+    });
+    const wallet = createMockWallet({ supportsBatch: true });
+
+    await expect(
+      signDepositorGraph({
+        depositorGraph: createDepositorGraph([CHALLENGER_A, CHALLENGER_B]),
+        btcWallet: wallet,
+        signingContext: createSigningContext(),
+      }),
+    ).rejects.toThrow(/claim_tx must have output 0/);
+
+    expect(wallet.getPublicKeyHex).not.toHaveBeenCalled();
+    expect(wallet.signPsbts).not.toHaveBeenCalled();
+    expect(wallet.signPsbt).not.toHaveBeenCalled();
+  });
+
   it("rejects a Claim that spends PegIn output 0 before reading or prompting the wallet", async () => {
     registerStandardMocks([CHALLENGER_A, CHALLENGER_B]);
     registerMockTx(CLAIM_TX_HEX, {

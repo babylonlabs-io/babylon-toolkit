@@ -55,6 +55,8 @@ const UINT32_MAX = 0xffff_ffff;
 const DEPOSITOR_CLAIM_TX_VERSION = 2;
 /** A depositor Claim pays the assert connector and a CPFP anchor, nothing else. */
 const DEPOSITOR_CLAIM_OUTPUT_COUNT = 2;
+/** Every Assert spends the Claim's connector output. */
+const CLAIM_ASSERT_VOUT = 0;
 
 /** One challenger's contribution to the fingerprint. */
 export interface ChallengerFingerprintPart {
@@ -262,6 +264,12 @@ function assertClaimSpendsPegin(
     );
   }
 
+  if (!claimTx.outs[CLAIM_ASSERT_VOUT]) {
+    throw new GraphFingerprintError(
+      `Presign ${path}.claim_tx must have output ${CLAIM_ASSERT_VOUT}`,
+    );
+  }
+
   const spent = readInputOutpoint(claimTx, 0);
   if (spent?.txid !== peginTxid || spent.vout !== PEGIN_DEPOSITOR_CLAIM_VOUT) {
     const actual = spent ? `${spent.txid}:${spent.vout}` : "no input";
@@ -277,10 +285,10 @@ function assertAssertSpendsClaim(
   path: string,
 ): void {
   const spent = readInputOutpoint(assertTx, 0);
-  if (spent?.txid !== claimTxid || spent.vout !== 0) {
+  if (spent?.txid !== claimTxid || spent.vout !== CLAIM_ASSERT_VOUT) {
     const actual = spent ? `${spent.txid}:${spent.vout}` : "no input";
     throw new GraphFingerprintError(
-      `Presign ${path}.assert_tx input 0 must spend ${claimTxid}:0, got ${actual}`,
+      `Presign ${path}.assert_tx input 0 must spend ${claimTxid}:${CLAIM_ASSERT_VOUT}, got ${actual}`,
     );
   }
 }

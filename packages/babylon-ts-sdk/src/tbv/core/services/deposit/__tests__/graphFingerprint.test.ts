@@ -4,6 +4,7 @@ import { Transaction } from "bitcoinjs-lib";
 import { describe, expect, it } from "vitest";
 
 import {
+  assertPresignClaimAssertLinkage,
   assertReturnedGraphMatchesFingerprint,
   canonicalTxSetFingerprint,
   fingerprintPresignTxSet,
@@ -176,6 +177,25 @@ function presignSet(overrides: Record<string, unknown> = {}) {
     ...overrides,
   };
 }
+
+describe("assertPresignClaimAssertLinkage", () => {
+  it("rejects an Assert link to a nonexistent Claim output 0", () => {
+    const claimTx = Transaction.fromHex(CLAIM_TX_HEX);
+    claimTx.outs = [];
+    const assertTx = Transaction.fromHex(ASSERT_TX_HEX);
+    assertTx.ins[0].hash = claimTx.getHash();
+    assertTx.ins[0].index = 0;
+
+    expect(() =>
+      assertPresignClaimAssertLinkage({
+        peginTxHex: SEGWIT_TX_HEX,
+        claimTxHex: claimTx.toHex(),
+        assertTxHex: assertTx.toHex(),
+        path: "txs[0]",
+      }),
+    ).toThrow(/txs\[0\]\.claim_tx must have output 0/);
+  });
+});
 
 describe("serializeGraphTx", () => {
   it("re-derives a real graph transaction's txid", () => {

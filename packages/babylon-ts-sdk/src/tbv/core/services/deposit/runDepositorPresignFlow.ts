@@ -460,14 +460,18 @@ export async function runDepositorPresignFlow(
 
   signal?.throwIfAborted();
 
-  // Approval-capable wallets must approve before any signing call they
-  // authorize, and the terms must match what we sign. Conditional because
-  // non-approval wallets pass no terms.
+  // Approval-capable wallets must have terms available before the request,
+  // but the approval ceremony itself waits until the VP response has passed
+  // every fail-closed validation below.
   if (depositTerms !== undefined) {
     assertDepositTermsMatchSigningContext(depositTerms, signingContext);
   }
 
-  if (supportsDepositApproval(btcWallet)) {
+  const depositApprovalWallet = supportsDepositApproval(btcWallet)
+    ? btcWallet
+    : undefined;
+  let approvedDepositTerms: DepositTerms | undefined;
+  if (depositApprovalWallet) {
     if (!depositTerms) {
       throw new Error(
         "runDepositorPresignFlow: this wallet requires approved deposit terms but none were " +
@@ -475,14 +479,7 @@ export async function runDepositorPresignFlow(
           "must rebuild them from on-chain state (the vault app's rebuildDepositTerms).",
       );
     }
-    // #2110 T4: providers exposing the validate-only pre-check fail an
-    // envelope violation here, before the approval ceremony starts.
-    if (typeof btcWallet.validateDepositTerms === "function") {
-      await btcWallet.validateDepositTerms(depositTerms);
-    }
-    // The provider validates its own device envelope inside
-    // approveDepositTerms (DepositTermsApprover contract, #2109).
-    await btcWallet.approveDepositTerms(depositTerms);
+    approvedDepositTerms = depositTerms;
   }
 
   // Phase 2: Fetch presign transactions
@@ -523,7 +520,7 @@ export async function runDepositorPresignFlow(
     challengers: response.depositor_graph.challenger_presign_data,
   });
 
-  // Phase 3: Sign VP/VK claimer payout transactions
+  // Phase 3: Validate and prepare VP/VK claimer payout transactions.
   // Fail-fast: assert the supplied non-depositor claimer set exactly equals
   // the on-chain-derived {VP} ∪ {VKs} before any wallet prompts run. The
   // depositor's own entry is permitted but not required (its payout is
@@ -545,6 +542,20 @@ export async function runDepositorPresignFlow(
     (tx) => normalizeClaimerPubkey(tx.claimer_pubkey) !== depositorPkNormalized,
   );
   const preparedTransactions = prepareTransactionsForSigning(nonDepositorTxs);
+
+  // Approval-capable wallets approve only after the full VP response is
+  // validated, and still before any transaction-signing call they authorize.
+  if (depositApprovalWallet && approvedDepositTerms) {
+    // #2110 T4: providers exposing the validate-only pre-check fail an
+    // envelope violation here, before the approval ceremony starts.
+    if (typeof depositApprovalWallet.validateDepositTerms === "function") {
+      await depositApprovalWallet.validateDepositTerms(approvedDepositTerms);
+    }
+    // The provider validates its own device envelope inside
+    // approveDepositTerms (DepositTermsApprover contract, #2109).
+    await depositApprovalWallet.approveDepositTerms(approvedDepositTerms);
+  }
+
   const claimerSignatures = await signPayoutTransactions(
     btcWallet,
     signingContext,
