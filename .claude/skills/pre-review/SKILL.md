@@ -1,7 +1,7 @@
 ---
 name: pre-review
 description: AI review of the current branch's change (commits, staged, unstaged and untracked files) before a PR exists. Presents findings with a recommendation for each, records the author's decisions, re-checks only the diff on later runs, and keeps PR.md up to date.
-argument-hint: '[--full] [--pr <n>] [--ci "<summary>"] [scope hint]'
+argument-hint: '[--final] [--full] [--pr <n>] [--ci "<summary>"] [scope hint]'
 disable-model-invocation: true
 allowed-tools:
   - Bash(git fetch *)
@@ -13,6 +13,7 @@ allowed-tools:
   - Bash(git branch --show-current)
   - Bash(git status *)
   - Bash(node scripts/pre-review/snapshot.mjs record *)
+  - Bash(node scripts/pre-review/snapshot.mjs final *)
   - Bash(pnpm nx affected *)
   - Bash(pnpm --filter @babylonlabs-io/ts-sdk run test)
 ---
@@ -21,6 +22,10 @@ Arguments: `$ARGUMENTS`
 
 - `--full` → force the full reviewer set over the whole change, even when the
   change qualifies for the light tier or nothing changed since the last run.
+- `--final` - verify pending fixes, then run the independent final review.
+  Reuse a completed final review only while its inputs still match. A first
+  invocation still performs the initial review. `--full --final` forces both
+  the full review and a new final review.
 - `--pr <n>` → the branch's PR number, for Phase 5's rendered-body check.
 - `--ci "<summary>"` → CI results the engineer has read, passed to reviewers
   attributed to them.
@@ -44,8 +49,10 @@ change, usually in the same session that implemented it:
 3. **Fix.** On request, this session implements the fix-now items.
 4. **Run again.** Only what changed since the last run is re-checked. Chat
    reports what is fixed, what remains, and anything new.
-5. **Ship.** Every run leaves `PR.md` current: the PR description plus a
-   collapsed record of what the review found and what happened to it.
+5. **Finalize.** Run `/pre-review --final` when the fixes are complete. One
+   independent reviewer reads the whole change without the previous findings.
+6. **Hand off.** Every run updates `PR.md`. A completed final review makes it
+   ready for CI and human review. It does not approve a merge.
 
 Nothing is posted, committed or staged. Source files change only in step 3,
 when the engineer says so.
@@ -56,6 +63,7 @@ when the engineer says so.
 - `.pre-review/<key>.json`: the state (reviewed file contents as git blob ids,
   findings with status and decision). `<key>` is the branch name with `/`
   replaced by `__`.
+- `.pre-review/<key>.context.txt`: stable review inputs for the final check.
 - `.pre-review/<key>.md`: this branch's PR description, the source of truth.
 - `PR.md`: a working copy of the current branch's description, for opening
   the PR. Every branch shares it, so it is reconciled before use (step 6).
@@ -267,10 +275,13 @@ separately, at full price each. Do it yourself.
    `git diff --numstat <base>`, plus the line count of each untracked file,
    excluding `pnpm-lock.yaml` and `packages/babylon-ts-sdk/docs/api/`.
    - **light**: no critical-path file, changed lines ≤
-     `LIGHT_REVIEW_MAX_CHANGED_LINES`, no `--full`. One reviewer:
+     `LIGHT_REVIEW_MAX_CHANGED_LINES`, bounded impact on callers, no `--full`.
+     One reviewer:
      `review-generalist`.
-   - **full**: everything else. `review-generalist`, `review-tracer`,
-     `review-panel`.
+   - **full**: everything else, including broad or unclear impact on shared
+     behavior or contracts. `review-generalist`, `review-tracer`, `review-panel`.
+   State the reason for the tier. Use the caller map and the source; do not
+   infer low risk from line count alone.
 
 9. **Lint and typecheck, then snapshot the content.** Some packages' `lint`
    runs `eslint --fix`, which rewrites files. So lint runs first, in the
@@ -463,6 +474,27 @@ separately, at full price each. Do it yourself.
    the state records. Never re-run it after fixes: that would make the fixes
    look already reviewed.
 
+   **Bind this run to its inputs before reviewers or background tests start.**
+   Write `.pre-review/<key>.context.txt` with these stable inputs:
+
+   - the exact filtered intent from step 6 and the engineer's scope hint;
+   - the content hashes of `CLAUDE.md`, this skill, `formats.md`, the reviewer
+     definitions, `snapshot.mjs`, and any other binding instruction source;
+   - the authoritative source paths and pinned revisions, plus content hashes
+     for local sources the review depends on;
+   - the engineer's CI summary, when one was supplied.
+
+   Use `git hash-object -w -- <path>` for local source hashes and list each
+   path with its hash. Preserve context text byte-for-byte when its inputs
+   have not changed. Exclude timestamps, run numbers, check output and stored
+   findings. Keep this file outside the final reviewer's inputs.
+
+   Run `node scripts/pre-review/snapshot.mjs final --base <base> --state-file .pre-review/<key>.json --context-file .pre-review/<key>.context.txt`.
+   Save its `input_key` for this run even when the status is blocked or pending.
+   The helper can emit a key before a first-run state exists. Store that key
+   on the run after it finishes. Never replace it with a newer key to make
+   changed content look checked. Clear `final_review` when `--full` is set.
+
 10. **Tests**, in the background, after the snapshot:
 
     ```
@@ -609,9 +641,22 @@ On a later run, the pack also carries every stored finding as one line (id,
 status, claim) and the `refuted` list. Reviewers report a known defect by its
 id (a regression of a fixed finding as "regressed N<id>"), never as new, and
 drop a refuted claim unless they have new evidence. The cold reviewer of
-Phase 1 gets none of that paragraph — see there for what it does get.
+Phase 6 gets none of that paragraph — see there for what it does get.
 
 ## Phase 0b: later runs, checking only what changed
+
+Before either skip gate, check reviewer coverage across the stored runs.
+A qualifying initial run has a whole-change review, a full report from every reviewer
+required by its tier, and no uncovered reviewer dimension. A later
+whole-change full review with all three required reports can repair missing
+coverage. Missing completion fields do not prove coverage. If neither
+record exists, run the whole-change full tier before any final review.
+Also repair any later incomplete review. A clean initial review does not
+cover a lost reviewer on new code. Keep that missing coverage open until a
+later whole-change full review completes. A no-review run or final reviewer
+cannot clear it. This repair overrides both skip gates and the breadth picker.
+Failed checks can be repaired by later checks; they do not require a repeat
+of completed reviewer work.
 
 Compare the step-9 snapshot with the state's `files` map:
 
@@ -739,8 +784,8 @@ the common case rather than the corner. They are tracked separately:
   map. It is therefore never mooted by the sweep below, whether every anchor
   of the finding is outside or only some are.
 - **It escalates nothing.** Its diff lines are not counted toward the
-  size trigger, and it is not part of "the whole change" for the refresh
-  rule. It decides which findings get re-judged, nothing else.
+  size trigger. It decides which findings get re-judged. Its current content
+  also binds the final-review result.
 
 **Both gates above carry its condition**, so a run where no changed file moved
 but an outside anchor's value did — the engineer fixed the untouched caller
@@ -801,162 +846,42 @@ the reasons given there. An earlier version of this sentence excluded
 "unchanged and left" and so cancelled the `left` rule four lines above it on
 exactly the case that rule was written for.
 
-The new-defect pass depends on escalation, and two different things can
-happen: the reviewer set can grow (**escalate**) or the review set can grow
-(**widen**). Keep them apart — the refresh rule widens without escalating, so
-listing it with the others would describe a run as escalated while it records
-`tier: light`, and the breadth picker would then read the wrong list.
+**Escalate to the full reviewer set** when any of these holds:
 
-**Escalate** — run the full tier's reviewers — when any of these holds:
-
-- a moved or entered file is on a critical path (step 7);
-- the numstat lines of the moved files plus the entered files exceed
-  `LIGHT_REVIEW_MAX_CHANGED_LINES`;
-- the step-8 total exceeds `LIGHT_REVIEW_MAX_CHANGED_LINES` and no earlier run
-  reviewed the whole change with the full tier (see the legacy default below);
+- a moved or entered file is on a critical path;
+- the moved and entered lines exceed `LIGHT_REVIEW_MAX_CHANGED_LINES`;
+- the total change exceeds that threshold and has no whole-change full review;
+- changed contracts or shared behavior have broad or unclear impact;
 - `--full` was passed.
 
-**Widen** — review the whole change, at the full tier if any Escalate trigger
-above also holds and otherwise at the tier step 8 picked — when this holds:
+Use the callers and authoritative sources from the context pack to assess
+impact. A short change can affect many callers. State the escalation reason.
+Do not widen a review only because several runs have passed. Phase 6 supplies
+the independent whole-change check once the fixes are complete.
 
-- none of the last `WHOLE_CHANGE_REFRESH_RUNS` runs with a recorded `breadth`
-  other than `none` covered the whole change, and there are at least that many
-  such runs (the refresh rule, below, which defines that set exactly — a
-  legacy run with no `breadth` does not count, however much it reviewed).
+A legacy run without `breadth` counts as a whole-change full review only when
+it has `kind: first` and `tier: full`. A final reviewer alone never counts as
+a full-tier review.
 
-`--full` and the whole-change-total trigger do both at once; their branch in
-the picker says so.
+Pick the review set, first match wins:
 
-`WHOLE_CHANGE_REFRESH_RUNS = 3`, a starting value to be tuned from pilot
-data, like the other four tunable constants this skill declares:
-`LIGHT_REVIEW_MAX_CHANGED_LINES` (step 8), `CALLER_LIST_MAX_FILES` and
-`CALLER_LIST_MIN_NAME_LENGTH` (step 7), and `DOCUMENT_CHANGE_SHARE`
-(Phase 3).
+- **`--full`, broad or unclear impact, or total size without an earlier
+  whole-change full review:** use the full tier over the whole change.
+  Record `breadth: whole change` and every changed path in `reviewed`.
+- **Critical path or size since the last run:** use the full tier over moved
+  and entered files, plus the affected callers. Record `breadth: narrowed`
+  and the paths supplied to those reviewers.
+- **Outside-anchor changes only:** use the verdict pass over affected
+  findings. Record `breadth: narrowed` and `reviewed: []`.
+- **Other fix checks:** use the verdict pass to verify affected findings and
+  inspect the per-file diffs, entered files and affected callers for new
+  defects. Send those defects through Phase 3. Record `breadth: narrowed`
+  and the moved and entered paths.
 
-**The refresh rule, and what it actually costs.** A file that stops moving
-drops out of the narrowed set, while the change keeps evolving around it — so
-it is judged against behaviour that has since changed, by none of the
-reviewers holding the ledger. The cold lane does re-read it, on every later
-run that spawns anyone, and that is a genuine partial answer rather than a
-full one: one reviewer, without the findings, is not the tier. The only way to
-put the file back in front of the ledgered reviewers is to re-read everything
-periodically, and this rule says so plainly rather than pretending to be
-cleverer:
-
-> Walk `runs[]` backwards collecting **qualifying** runs — those with a
-> `breadth`, skipping `breadth: none`, which spawned no reviewers, and legacy
-> runs with no `breadth` recorded — until you have
-> `WHOLE_CHANGE_REFRESH_RUNS` of them. Widen when none of those reviewed the
-> whole change. **If fewer than `WHOLE_CHANGE_REFRESH_RUNS` qualifying runs
-> exist, the rule does not fire at all.**
->
-> A legacy run is skipped whatever it reviewed: the field that would say is
-> not there. Never substitute "runs that reviewed something" for this set —
-> that counts legacy runs, meets the floor on a state that has none of the
-> data, and fires on every branch with history.
-
-The window slides past non-qualifying runs rather than shrinking, and the
-floor in the last sentence is what keeps it safe. Without it an empty
-qualifying set satisfies "none of them reviewed the whole change" vacuously,
-and every state whose runs are all skipped widens on its next invocation: a
-version-1 state, where no entry records `breadth`, and equally a version-2
-branch whose last `WHOLE_CHANGE_REFRESH_RUNS` runs were `breadth: none`
-because the engineer re-ran only to record decisions. Both are the misfire the
-legacy defaults below and formats.md exist to prevent, arriving through the
-other trigger.
-
-**It is a cadence, and that is the honest description.** A narrowed run
-records only the moved and entered files in `reviewed`, so it can never
-refresh a file that did not move — the two sets are disjoint by construction.
-Any rule keyed on per-file read-recency therefore fires on a fixed schedule,
-whatever it is called. Stating it as "no whole-change run in the last N" makes
-the cost visible and computable: roughly one wide pass every
-`WHOLE_CHANGE_REFRESH_RUNS + 1` runs on a branch that keeps being narrowed.
-If that is too expensive for a given branch, raise the constant or pass the
-wide run deliberately; do not expect it to disappear on its own.
-
-**Reading a run entry written before the state reached version 2.** Neither
-`breadth` nor `reviewed` exists on those. Both triggers read `breadth`, so
-each needs a default or they misfire on every branch with history. (Neither
-reads `reviewed`; see the note under Phase 4 for what that field is for.)
-
-- For the **refresh rule**, a run without `breadth` did not record what it
-  reviewed, so it cannot count as a whole-change run. It is skipped, exactly
-  like a `none` run — and skipped runs do not fill the window, so a state made
-  entirely of them never reaches the floor and never fires.
-- For the **whole-change-total** trigger, a run without `breadth` whose `kind`
-  is `first` **and** whose `tier` is `full` counts as a whole-change full run.
-  A first run has no Phase 0b and always reviews everything, so the breadth is
-  true by construction — but the tier is not: a first run under the line
-  threshold records `tier: light` and one reviewer. Both halves must be read
-  from the entry. Getting this wrong is a live hazard in both directions:
-  asserting the breadth from nothing makes the trigger vacuously true on every
-  legacy state and escalates all of them at once, while asserting the tier
-  from `kind` alone silently disables the trigger forever on a branch whose
-  first run was light — which is the case this trigger exists to catch.
-
-The whole-change-total trigger is the one the old `no earlier run's tier was
-full` bullet was meant to be. Keyed on tier alone it could never fire after
-run 1, since
-every escalated later run records `full`; keyed on whether a **whole-change
-full** run has happened, it still catches the change that crosses the
-threshold in small steps — where no per-run delta is ever large enough.
-
-Then pick the breadth, **first match wins**:
-
-- **`--full`, or a total past the threshold with no whole-change full run
-  yet**: record `breadth: whole change` and run Phases 1–3 over the whole
-  change **with the full tier's reviewers**, whatever tier step 8 picked — a
-  whole-change pass by one reviewer would record `tier: light`, which does not
-  satisfy the whole-change-total trigger's disable condition and so leaves it
-  firing forever.
-- **The refresh rule**: record `breadth: whole change` and run Phases 1–3 over
-  the whole change **with the full tier if any Escalate trigger also holds,
-  otherwise the tier step 8 picked**. This branch deliberately does not force
-  the full set on its own, but it must not *downgrade* a run either: because
-  the picker is first-match-wins and this branch sits above the escalated one,
-  a run whose inter-run churn exceeds `LIGHT_REVIEW_MAX_CHANGED_LINES` while
-  its base-to-head total does not — the ordinary "author rewrites the new
-  lines to fix findings" case — would otherwise land here and get one
-  reviewer, recording `escalated: true` beside `tier: light`. Check the
-  Escalate list before choosing the tier, not only step 8.
-
-  The whole-change-total trigger cannot be stranded by a light refresh run:
-  it needs the step-8 total to exceed `LIGHT_REVIEW_MAX_CHANGED_LINES`, so
-  below the threshold it cannot fire and there is nothing to disable, and
-  above it step 8 has already picked `full`. That argument covers only that
-  trigger; the size-since-last-run trigger is why the sentence above exists.
-  Forcing three reviewers unconditionally here would charge a small branch the
-  full tier roughly every `WHOLE_CHANGE_REFRESH_RUNS + 1` runs.
-- **Escalated on size since the last run, or on a critical path**: record
-  `breadth: narrowed` and run Phases 1–3 with the full tier's reviewers, the
-  review set narrowed to the moved and entered files, the per-file diffs plus
-  the entered files as the diff.
-- **Nothing moved or entered, but an outside anchor's value changed**: record
-  `breadth: narrowed` with `reviewed: []`, and run the verdict pass over the
-  findings whose outside anchors changed. There is no moved-or-entered set,
-  so the non-cold reviewers receive nothing and `reviewed` must say so.
-  **Phase 1 is still entered, for the cold lane** — which does receive the
-  whole change, and `cold: true` is what records that. Do not write
-  `breadth: whole change` here: that would tell the refresh rule a wide pass
-  happened when the only reviewer who read the change was the unledgered one,
-  suppressing the next genuine refresh for `WHOLE_CHANGE_REFRESH_RUNS` runs.
-- **Not escalated**: record `breadth: narrowed`. The verdict lane also reviews
-  the per-file diffs and the entered files for new defects, giving each a
-  severity (merge-blocker or normal) and a confidence. Those defects then go
-  through Phase 3 like any other. **Phase 1 is still entered, for the cold
-  lane only** — it runs on every later run, and this branch is the one it was
-  added for.
-
-Every branch records a `breadth`, and no branch is reachable without one:
-that is what "first match wins" over an exhaustive list buys. A run that
-reaches the picker at all has spawned at least the cold lane, so no branch
-here records `none`; `none` belongs to the two gates above.
-
-Breadth is not the main defence and should not be treated as one. A narrowed
-run can and does find cross-file defects; what loses them is grading a fix at
-its anchor. The refresh rule exists for the file no run has opened in a long
-time, not as a substitute for verifying a claim across what it names.
+Ordinary runs record `cold: false`. The two no-review gates record
+`breadth: none` and `reviewed: []`. Both still reach Phase 6: neither may
+skip a requested final review. Retain the outside-anchor and regression
+checks above, including findings that were previously marked fixed.
 
 Verify every `fixed` and every regression yourself against the current code
 before recording it: a wrong `fixed` retires a live finding. "The line
@@ -1001,32 +926,16 @@ other wrong and still verifies clean.
 
 ## Phase 1: independent reviews, in parallel
 
-**Which reviewers this phase spawns is the breadth branch's decision, not
-this phase's.** Read the branch you took before spawning anything, or the
-most common later-run path pays for the full tier it was routed away from —
-and a refresh run buys nothing at all. The branches, in the picker's order:
+The first run uses the tier selected in Phase 0. Later runs use the review
+set selected in Phase 0b. A normal fix check uses only the verdict pass;
+it does not add a whole-change reviewer. The independent reviewer runs in
+Phase 6, after the fixes and checks are complete.
 
-- a **first run**, a **`--full` or whole-change-total** run, and a run
-  **escalated on size or a critical path** spawn the tier's reviewers;
-- a **refresh (widen)** run spawns the reviewers of whatever tier it recorded
-  — the full three when an escalate trigger also held, otherwise
-  `review-generalist`. It must not be routed to the cold lane alone: the
-  rule's whole purpose is to put a long-unread file back in front of the
-  **ledgered** reviewers, and the cold lane already reads every changed file
-  on every later run, so a cold-only refresh costs a run and buys nothing;
-- a **non-escalated** later run and an **outside-anchor-only** run enter
-  Phase 1 for the cold lane alone, beside the verdict pass Phase 0b already
-  described.
-
-Spawn whichever reviewers that branch calls for with the `Agent` tool,
-`subagent_type` set to the agent name, all in **one message** — the cold lane
-included, so nothing waits on anything else. Each prompt carries the context
-pack and, **except for the cold lane**, the scope hint — see below for the
-five things that lane is not given. The agent definitions carry the method
-and the
-constraints: do not restate them, and do not split the reviewers into
-non-overlapping lenses. Overlapping judgment is where divergent findings
-come from.
+Spawn the selected reviewers together with the `Agent` tool. Each receives
+the context pack and the engineer's scope hint. Keep overlapping judgment
+in a full review. Include the Phase 3 finding filter in every reviewer brief
+so reviewers do not spend time generating cosmetic findings. Do not repeat
+the agent definitions in the prompts.
 
 **Never tell reviewers where you expect the defect to be.** State facts — what
 changed, which files moved, what the checks did, what the intent is — and stop
@@ -1037,228 +946,6 @@ them to skim the rest. The engineer's `$ARGUMENTS` hint is theirs to give and
 passes through unchanged; the orchestrator adds no theory of its own. If you
 believe an area is risky, review it yourself in Phase 3 rather than steering
 four reviewers into it.
-
-**From run 2 onward, one reviewer is cold** — on every later run that spawns
-any reviewer at all, including a non-escalated one. That branch is the
-ordinary fix-and-re-run and the sequence this lane exists to break, so it is
-the last place to skip it: on a non-escalated run the cold lane is spawned
-alongside the verdict lane, and Phase 1 is entered for it alone.
-
-**The exception is the run that reviews nothing**: a run that took **either
-of Phase 0b's two gates, as written there**. Those spawn no reviewers by
-design and record `breadth: none`; spawning a cold lane there would review a
-change nobody has touched since the last run. Record `cold: false`.
-
-**No copy of the gates is kept here, deliberately.** Twice now a shortened
-restatement has dropped qualifiers the gate actually carries — first `--full`
-and the outside-anchor condition, then `--full` and the `left`-anchor
-condition — each time producing a run that spawns the full tier while
-recording `breadth: none` and `cold: false`. A rule with four qualifiers
-cannot be safely paraphrased in a sentence, and the second attempt at
-paraphrasing it sat directly under a paragraph warning against the first. Go
-and read the gates.
-
-Spawn an extra `review-lane` whose dimension is the whole changed-file list —
-**the whole change, not the narrowed set**, whatever breadth the run records.
-That is the point of the lane, and it is why `reviewed` is scoped the way it
-is: record `reviewed` as what the *other* reviewers were handed, and let
-`cold` say that one reviewer saw everything. `reviewed` is therefore an upper
-bound on what the non-cold reviewers opened, not on what every reviewer
-opened — `formats.md` says the same.
-
-**Give it the context pack minus the ledger** — the mandatory opening line,
-the file list, the base SHA, the binding rules, the authoritative source,
-`CALLERS OF CHANGED EXPORTS`, `CHECKS`, the CI-gap statement and the intent.
-The opener and the CI-gap statement are required of *every* reviewer prompt,
-and the lane told to read whole files and follow them through is the most
-likely to reach for `git diff main...HEAD` to orient itself if nothing forbids
-it.
-
-**Not the per-file diffs.** They are named `run<N>__d<k>.diff` and captioned
-"since run N", which announces both that earlier runs happened and exactly
-which lines moved — the ledger and the scope hint, in one table. Give it the
-files instead, as below.
-
-**But the file list must carry each file's status**, added / modified /
-deleted, as `git diff --name-status` gives it. A deleted file has no content
-to read, so a lane handed only paths cannot see the largest absence in the
-change — and absence is what this lane exists to find. Where the change
-deletes a file, **paste that file's diff hunks into the prompt itself**, not a
-path to them.
-
-**Hand this lane no scratchpad path at all.** WORK is the only place this
-skill writes, and the read ban below covers it; a path into WORK would leave
-the lane choosing between breaking the ban and never seeing a deletion. A
-run-agnostic copy is not a way out either — every WORK file is mandated to
-carry `run<N>__` precisely so one run cannot read another's leftovers, so an
-unnumbered copy trades one leak for a staleness bug. Inline is the only form
-that is both readable and consistent: it goes in the prompt, which is already
-the allowlisted channel.
-
-**And withhold any changed file that is itself a review artifact.** Step 3
-excludes `PR.md` and `.pre-review/` structurally, because `snapshot.mjs`
-does — but nothing excludes a review report some other tool left in the tree
-and the engineer committed. Such a file is in the changed-file list, this lane
-is told to read every changed file end to end, and it holds stored findings
-and run history. That is the ledger reaching the one reviewer defined by not
-having it, for the third time and through a third route: first the per-file
-diffs, then the intent, now the review set itself.
-
-So before spawning it, drop from *its* set any changed file that is a **review
-artifact: a file whose only purpose is to carry the output of a review.**
-`PR.md`, anything under `.pre-review/`, and any similarly-shaped report
-another tool left in the tree qualify. Tell the engineer which file you
-dropped and why, because a file that has to be withheld from a reviewer is
-usually a file that should not be in the commit.
-
-**Purpose, not content — and this distinction is load bearing.** A test on
-content ("any file carrying findings, severities or run history") matches this
-skill's own `SKILL.md` and `docs/pre-review.md`, which narrate past runs and
-use severity words throughout. On any branch that edits the review tooling
-such a rule would drop the main file under review, and the cold lane would
-review nothing that mattered. **A source or document file under review is
-never dropped for mentioning review history**; it is handed over and read like
-any other changed file. Only a file that exists to hold review output is
-withheld.
-
-Withhold it from this lane only: the other reviewers hold the ledger anyway,
-and narrowing the shared review set would put `reviewed` and the snapshot's
-`files=` out of step, which is the defect that map separation exists to
-prevent.
-
-**Strip the run number from everything else you hand it.** Every scratchpad
-path is mandated to carry `run<N>__`, so the whole-change diff is
-`run<N>__local.diff` and the pack header says which run this is. Either is the
-same disclosure the per-file diffs were withheld for, in one token. **Give it
-no diff file**: this lane reads the files whole, which is its whole method, and
-the only case that needed a diff — a deleted file — is pasted inline above.
-No `run<N>`, no run count, no scratchpad path.
-
-Everything else in that list is required by its own agent contract: it is told
-the pack is authoritative, that the check results are in it, and to judge a
-defect against the base SHA. A bespoke three-item prompt would leave it unable
-to satisfy the file it is spawned as, and would leave the one reviewer added
-to catch structural defects as the only one not told whether the change
-compiles.
-
-**Build this lane's prompt from an allowlist, not a denylist.** The list, in
-full: the mandatory opening line; the base SHA; the changed-file list with
-each file's status, minus review artifacts; the diff hunks of any deleted
-file, inline; the binding rules; the authoritative source;
-`CALLERS OF CHANGED EXPORTS`; `CHECKS`; the CI-gap statement; the intent you
-wrote for it; and its brief. **Nothing else** — anything not on that list is
-withheld by default, including things no one has thought of yet. Do not
-reason "this is not on the withheld list, so it may go in"; reason "this is
-not on the given list, so it stays out".
-
-That is a deliberate inversion, and four separate leaks bought it. A
-denylist of things to withhold was tried and failed four times, each time
-because the ledger arrived through a route the list did not name: the
-per-file diffs, captioned with the run number; the description's collapsed
-findings record, pasted as "the intent"; a committed review report sitting in
-the changed-file list; and finally ordinary prose in the description's own
-sections narrating earlier runs. Each fix added one more item. A closed list
-of permitted inputs fails shut instead, and is the only form that covers the
-fifth route before anyone finds it.
-
-So: no stored findings, no `refuted` list, no "what changed this round", no
-scope hint, no run numbers — and no anything-else. Do not tell it the change
-has been reviewed before.
-
-**And tell it not to read the ledger off the disk.** The allowlist governs the
-prompt; it does not govern the tool calls, and this lane has `Read`, `Grep`,
-`Glob` and `Bash` over the working tree. `PR.md` sits at the repo root holding
-the collapsed findings record, `.pre-review/<key>.json` holds every stored
-finding with its status, `.pre-review/<key>.md` is the description, and the
-work directory holds this run's diffs under run-numbered names. The root
-`CLAUDE.md` tells any session that `PR.md` carries a record of the review's
-findings, so a lane orienting itself has a documented reason to open exactly
-the wrong file. Its brief must say, in terms: **do not read `PR.md`, anything
-under `.pre-review/`, or anything in the work directory; if you find yourself
-reading a file that lists findings, stop.**
-
-Be honest about what that is: an instruction, not a sandbox. It is the
-strongest control available here, since the agent definition grants the tools
-and this skill cannot revoke them per-spawn, and it is worth stating plainly
-rather than leaving the allowlist to imply a guarantee it cannot make.
-
-**Write this lane's intent yourself — but write it from the filtered text, not
-the raw description.** Apply step 6's open-defect filter first, exactly as for
-every other reviewer, and only then restate what remains in your own words:
-what the change is for, what is deliberately out of scope, and nothing that
-refers to earlier runs, earlier reviews, findings, or this branch's history.
-
-**The order matters, and getting it backwards recreates a failure this file
-already records.** Step 6 warns that summarising the intent reintroduced a
-deferred blocker as "out of scope, settled" one step after the filter had
-removed it, because *the filter cannot see a paraphrase*. Rewriting from the
-raw description walks into that again, and "what is deliberately out of scope"
-is precisely where a deferred, still-open finding lives. Filter, then
-paraphrase — never the reverse. And whatever the filter did or did not catch,
-**no open finding's subject may appear in this lane's intent as settled or as
-out of scope**: a hand-written description carries no `(pre-review N<id>)`
-markers, so the filter is matching on meaning and can miss one.
-
-Cutting is not enough here, and that is the point. A cut removes the
-sentences you thought to look for; sections 1–5 are the engineer's prose and
-may narrate the review in passing anywhere. This very description's "Why"
-section says the cold lane earned its cost on a particular numbered run of
-this branch — a sentence tied to no stored finding, which every cut rule
-above leaves standing and which would be handed to the cold lane on this
-branch. Rewriting is the only form that cannot leak a sentence nobody
-anticipated.
-
-Say nothing about the omission either: everyone else gets `[withheld: N<id>]`
-markers and a `withheld:` header so a reviewer holding the ledger can
-reconcile the gap, and for this lane those markers announce that a ledger
-exists and point at the exact sentences it covers. It has no ledger to
-reconcile against, and a finding it raises on withheld ground is deduplicated
-in Phase 3 like any other.
-
-Record `cold: true` on the run entry when it ran, `false` when it did not.
-
-Run 1 needs none: with no ledger, every reviewer is already cold.
-
-**Give it the files whole, not the diff, and ask it to execute them.** This is
-what makes the lane worth its cost, and it is not the same instruction the
-others get. Its brief is:
-
-- **Read each changed file end to end**, as the thing it will be, not as a set
-  of changed lines. A defect can be the *absence* of a connection — a value
-  produced in one step that never reaches the step needing it — and absence
-  appears in no diff hunk.
-- **Follow the whole thing through once, in order**, as if executing it. Where
-  is each output consumed? Which step reads something an earlier step never
-  wrote? Which state can be produced that a later step cannot represent?
-- **Check every stated reason.** Where the text says "we do X because Y", ask
-  whether Y is true and whether it can even occur. A justification whose
-  precondition cannot hold is a defect even when the rule it defends looks
-  sensible.
-- **Ask of any load-bearing claim: is this sentence true?** Not "was it
-  changed", not "does the fix match the finding" — true, now, about this
-  repository.
-
-Give it an explicit output instruction, or it inherits `review-lane`'s
-400-word default — the tightest cap in the set, on the one reviewer asked to
-read every file end to end. One line per finding, no word limit, same as the
-verdict pass.
-
-The ledger is handed to the others so they report a known defect by its id
-instead of as new. That convenience costs something, and the cost is the
-reason this lane exists: a reviewer holding a hundred findings reads the text
-they cover as already accounted for, and asks whether each fix landed rather
-than whether the rule was ever right. A sentence can carry several closed
-findings and still be false. Deduplicating a cold reviewer's repeats is cheap
-and already specified — Phase 3 step 2 merges a defect matching an open
-finding into it — so the only thing lost is a little volume, and the thing
-gained is the one reviewer who can still see the obvious.
-
-The three defects that prompted this lane were all of the kinds above, and all
-were found from outside after a loop reported clean: a rule whose stated cause
-was simply untrue, a check whose result reached no reviewer because the step
-that computed it ran after the pack was built, and a cost justified by a
-trigger that could not fire in the case it was justifying. None is visible
-from a diff; each is obvious to someone reading the whole thing once.
 
 ## Phase 2: wait
 
@@ -1312,42 +999,21 @@ Also wait for the checks (Phase 0 step 10) before Phase 4.
    and not a convenience. Accept the prompt, or add one trailing-wildcard
    entry per package you actually need.
 5. Add disproved claims to `refuted`.
-6. **Rank, then cut.** Only a small fraction of findings are ever
-   merge-blockers, and a real defect that arrives as one line inside a list of
-   sixteen is as good as missed. Order by severity and keep the list short
-   enough to act on. Two cuts, because volume is what buries severity:
+6. **Rank, then filter from the first run.** Keep verified defects and
+   required-rule violations. Omit preferences about names, prose and optional
+   refactors when they have no concrete failure or required-rule violation.
+   Do not give cosmetic suggestions an id or a decision. They must not start
+   another fix cycle.
 
-   - **From run 3 onwards** (that is, once two runs are stored), a finding
-     about prose that merely *describes* code or process — a comment, a
-     JSDoc block, a README paragraph, a line in a document — does not take an
-     id, unless it falls under the carve-out below. Collapse those into one
-     unnumbered "docs nits" line with no decision and no verdict-pass slot.
-     Every id enters the ledger permanently and is re-judged on every later
-     run whose anchor moves, so a prose nit is not a one-off cost.
+   Preserve incorrect user-facing text, specifications, critical-path JSDoc
+   and documents that are the deliverable. A wrong instruction or contract
+   is a defect even when it is written in Markdown. Merge-blockers are never
+   filtered. For old cosmetic entries, retain their history, record the
+   decision to decline, and stop asking for it again.
 
-     The carve-out turns on what the prose *is*, not on where it lives, so a
-     sentence in a `.md` file is not automatically exempt and a comment is
-     not automatically cut. Prose that is itself the deliverable takes an id
-     like any other finding: a
-     user-facing string in `copy.ts` or `errorMessages.ts`, JSDoc on a
-     critical-path or `@stability frozen` symbol, a specification, and any
-     change where documents account for at least `DOCUMENT_CHANGE_SHARE = 0.5`
-     of the **changed lines** — the step-8 count, not the file count, because
-     a handful of one-line config edits otherwise outvotes the deliverable.
-     A document here is `.md`, `.mdx`, `.txt`, or an instruction file under
-     `.claude/`. When a document is the product, a wrong sentence in it is a
-     defect, not a nit.
-   - A finding that only restates a stored one is merged into it, never
-     re-raised.
-
-   None of this applies to a merge-blocker: severity is the thing being
-   protected, so it is never cut.
-
-   A third cut — suppressing findings about code the loop's own earlier fixes
-   introduced — was tried and removed: nothing in the state records which
-   lines a fix produced, so it could only be keyed on "everything that moved",
-   which suppresses genuine new defects in fresh work. Re-propose it if the
-   fix step ever records the paths it touched.
+   Merge repeated findings into the stored entry. Reopen a refuted finding
+   only with new evidence. Verify regressions even when the loop introduced
+   the changed code as a fix.
 
 ## Phase 4: present, decide, record
 
@@ -1480,23 +1146,13 @@ ships would populate the map with exactly what that rule refuses to
 reconstruct, and `left` does not reach the map, so a finding whose cause the
 author removed would be pinned open.
 
-For the run entry: `tier` is the reviewer set that actually ran, and `breadth`
-with `reviewed` is the review set they were actually given — `whole change` or
-`narrowed` with the paths, or **`none` with `reviewed: []` when this run
-spawned no reviewers at all** — that is, when one of Phase 0b's two gates was
-taken, each with all four of its qualifiers. Do not paraphrase them as
-"nothing moved, or files only left": that short form is what let a `--full`
-run record `breadth: none`, and this is the step where the value is actually
-written.
-
-`breadth` is what both triggers read, so it is required on every run. Record
-`none` rather than omitting it: the two are equivalent to the triggers, which
-skip either, but only the recorded value says *this run reviewed nothing*
-rather than *this run predates the field*. `reviewed` feeds no trigger. It is
-the audit trail of what was handed out — the thing to read when a defect
-survived several runs and the question is who was given the file — and it is
-what makes a `breadth` claim checkable rather than self-asserted. Keep it
-accurate for that, not for a computation.
+For each run, record the actual `tier`, `breadth`, `reviewed`, `cold`,
+reviewer usage, reviewer completion and `input_key`. Set `completed: true`
+only after the full report arrives and its child reports are resolved. A
+waiting notification does not prove completion. Keep the key captured before
+review. Do not recompute it after a fix. `breadth: none` means no reviewers ran.
+`reviewed` lists the paths supplied to the non-cold reviewers; a separate
+final run lists the whole change. Do not rewrite older run entries.
 
 Then update the description (Phase 5). Both happen before any fix, so an
 interrupted fix loses nothing.
@@ -1562,71 +1218,125 @@ Two checks, and the difference matters:
 No reviewer can do either for you: reviewers read the description as a
 Markdown file, which is the one context where none of this happens.
 
+## Phase 6: final review
+
+Refresh the stable context inputs after Phase 5 on every invocation, then
+run the final-state check. Its command is:
+
+`node scripts/pre-review/snapshot.mjs final --base <base> --state-file .pre-review/<key>.json --context-file .pre-review/<key>.context.txt`
+
+Use its `status` and `reasons` in the closing report. A normal invocation can
+reuse a completed final result but never starts a final reviewer. `--final`
+requests that reviewer only when the result is pending and no eligibility
+reason blocks it. A no-review gate in Phase 0b still reaches this phase.
+`--full` clears `final_review` before review, so it never reuses a result.
+Update the collapsed record in both description files with this current
+status. Keep the reconciled intent unchanged.
+
+Before a final reviewer starts, all fix-now items must be verified, substantive
+decisions recorded, and applicable checks complete. Failed, aborted or stubbed
+checks, uncovered review dimensions and any unresolved merge-blocker block
+completion. Deferring or declining a blocker does not clear it. On a first
+`--final` invocation, perform the initial tier and these steps before the
+final reviewer. Do not turn `--final` into a cheaper initial review.
+
+Capture the helper's `input_key` before the final reviewer starts. After it
+returns, verify and merge its findings using Phase 3, record decisions using
+Phase 4, and refresh the description using Phase 5. Do not apply fixes inside
+this final pass. Preserve the original key even if the inputs change.
+
+Record a separate final run with that key, the check results and reviewer
+usage. Set the review-lane's `completed: true` only after its full report
+arrives. Set `final_review: {input_key, run}` to this run's one-based index
+only after its findings and decisions are recorded. Refresh the stable
+context and run the helper again after the final run is recorded. Update the
+collapsed record in both description files with that result. Only `complete`
+permits the completion statement. A changed input or new blocker leaves the
+final review pending or blocked. Fix the issue, verify it,
+and use `--final` for the new candidate. There is no promise of one final
+pass for the life of a PR.
+
+### Independent final reviewer
+
+Spawn one `review-lane`. Record a separate `kind: final` run with
+`tier: light`, `breadth: whole change`, every changed path in `reviewed`, and
+`cold: true`. This does not count as a full-tier review. An old `cold: true`
+entry does not establish final completion.
+
+Build its prompt from this closed list of inputs:
+
+- the mandatory opening line and base SHA;
+- the whole changed-file list, with added / modified / deleted status;
+- deleted-file diff hunks, pasted inline;
+- the binding rules and authoritative source;
+- `CALLERS OF CHANGED EXPORTS`, `CHECKS` and the CI-gap statement;
+- the filtered intent, rewritten as described below;
+- the method and finding filter below.
+
+Give it no diff-file path or scratchpad path. Those names contain run numbers
+and disclose the review history. Paste deletion hunks inline because deleted
+files cannot be read from the working tree. Normal source files are read
+whole. Include the opening line and check results required by the agent's
+contract; an abbreviated prompt must not hide failed checks.
+
+Withhold previous findings, decisions, the refuted list, scope hints, run
+numbers, prior verdicts, the context file and all other inputs. Do not tell
+it that a previous review exists. Earlier findings can make an independent
+reviewer treat a disputed rule as settled.
+
+Apply step 6's open-defect filter before rewriting intent. Then state what
+the change does and its deliberate scope. Remove references to this branch's
+review history. Never describe an open finding as settled or out of scope.
+Do not include withheld markers or a withheld header: those also disclose
+the findings. Filter first; paraphrasing a known defect before filtering can
+hide it from the filter.
+
+Tell the reviewer not to read `PR.md`, `.pre-review/`, the work directory,
+or a file whose sole purpose is to store review output. Do not omit a source
+or document under review merely because it mentions prior reviews. This
+skill and its documentation remain in scope when they change. If a changed
+file is solely a review artifact, withhold it from this reviewer, tell the
+engineer and record that path as uncovered. Do not claim final completion
+while a changed file was withheld. These are instructions, not a sandbox.
+
+Give the reviewer this method:
+
+- Read each changed source or document end to end. Follow its outputs into
+  affected callers and contracts, including unchanged files.
+- Follow the behavior in order. Check that each input is produced and each
+  output reaches its consumer. A missing connection may have no diff hunk.
+- Check each stated reason against the current implementation. A condition
+  that cannot occur does not justify the rule built around it.
+- Report verified defects and required-rule violations. Apply Phase 3's
+  cosmetic filter. Do not assume a rule is sound because its comment says
+  that earlier reviews accepted it.
+- Return one entry per finding, with evidence and both anchors for an
+  outside-file defect. Override the agent's default word cap so it can
+  report every substantive finding.
+
+Merge this review's findings only after it returns. Its independence is
+preserved during discovery; verification and deduplication still use Phase 3.
+
 ## Close
 
-End with the verdict line and the next step:
+Lead with the final-state helper's result and any open blockers.
 
-- **Open fix-now items**: fix them (offered above), then run `/pre-review`
-  again.
-- **Undecided findings** (open or partially fixed with no decision): list
-  them. They show as `open` in the record until the engineer decides.
-- **A merge-blocker that is deferred, declined, or left undecided**: say so as
-  the first line, with its id, and the decision and its reason where there is
-  one. Deferring is the engineer's call; presenting the PR as ready is not.
-  This outranks the "nothing open" line below. A merge-blocker still decided
-  `fix now` belongs to the first bullet instead — it has no deferral reason to
-  quote, and it is about to be fixed.
+- **Open fix-now items:** offer the fixes, then request `/pre-review` to
+  verify them. Do not call the change complete.
+- **Undecided substantive findings:** list the decisions still needed.
+- **Unresolved merge-blockers:** show their ids and decisions, including
+  deferred and declined blockers. The author can open a draft that declares
+  them; pre-review remains blocked.
+- **Failed, aborted or stubbed checks, or uncovered work:** state what failed
+  and what was not checked. Keep the final result blocked.
+- **Eligible, but final review pending:** say "Fix checks are complete. Run
+  `/pre-review --final` before requesting human review."
+- **Final result complete:** say "Pre-review is complete for this snapshot.
+  Open the PR with `PR.md`. CI and human code review are still required."
 
-  Then give the next step, which this bullet suppresses but does not replace
-  — **but only if nothing else is open.** With no fix-now item and no
-  undecided finding left, the PR **may** be opened, because the record
-  carries the blocker and a human reviewer will see it: say so plainly,
-  "`PR.md` is ready and declares <N> open merge-blocker(s); commit, push, and
-  open the PR with it as the body", so the engineer is not left with a
-  warning and no instruction. If anything else is open, the first two bullets
-  stand and this one adds no instruction: fix those, then run `/pre-review`
-  again. Never print both — "fix these and re-run" together with "ready,
-  commit and push" is the "0 open, ready to ship" report this skill exists to
-  prevent.
-- **Nothing open, or only follow-up and declined**: "`PR.md` is ready: commit,
-  push, and open the PR with it as the body."
-- **Uncovered dimensions, files the checks rewrote, checks that failed, an
-  `aborted` check, a `stubbed` typecheck**: say which, plainly. An `aborted`
-  typecheck belongs here above all: it compiled nothing across the whole
-  affected set, so a run carrying one must never close on "`PR.md` is ready"
-  alone — name the error and say that every project went unchecked. Name the
-  projects a stub
-  left unchecked, or the workspace packages a module-not-found suggests are
-  unbuilt in this clone.
-- **What this run cost**: one line per reviewer — name, tokens, tool calls,
-  duration — from the completion notifications you actually received, then the
-  run total and the count of stored runs. Report only figures a notification
-  carried; write "not reported" rather than estimating, or the footer stops
-  being a measurement. State that it covers subagents only and excludes the
-  orchestrator, which you cannot see.
-
-  This is here because the cost is otherwise invisible until someone adds it
-  up afterwards. A branch that has run many times, with each run finding less
-  than the one before, is paying for reassurance; the numbers are what make
-  that visible while there is still a decision to make.
-
-**Say what a quiet run means, and what it does not.** This qualifies the
-bullets above; it does not replace their wording. When the "nothing open"
-bullet fires, print its instruction **and** this qualification, in that order
-and as one closing statement — not two competing verdicts:
-
-> `PR.md` is ready: commit, push, and open the PR with it as the body. That
-> means this loop found nothing further, not that the change is safe to
-> merge — CI and human review have not run yet.
-
-The distinction is the point. A quiet run means the reviewers you spawned,
-holding the ledger you gave them, stopped finding things; it says nothing
-about the classes they were never pointed at. Name what ran, and name what has
-not.
-
-This is not a hedge. A `/pre-review` loop on this skill's own branch ran seven
-times, found twenty-one merge-blockers, reported clean — and a bot review on
-the opened PR immediately found a merge-blocker in the check this skill had
-just added, because it read a sentence the ledger had taught every other
-reviewer to treat as settled. The cold reviewer above exists for that class;
-this paragraph exists because no reviewer set closes it entirely.
+Report each reviewer's tokens, tool calls and duration from its completion
+notification. Also sum the recorded reviewer tokens across all runs for this
+branch and show the run count. Mark a missing value as `not reported` and the
+sum as partial. Do not count a reused final result as another reviewer call.
+These figures exclude the orchestrator. Do not present them as total model
+usage or invent missing measurements.

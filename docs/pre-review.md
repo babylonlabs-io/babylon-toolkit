@@ -35,20 +35,35 @@ before any PR exists.
 3. Accept the recommendations or change any of them (for example "7
    follow-up, 12 decline: duplicate of the VP check").
 4. Fix the fix-now items: the session offers to do it, or fix them by hand.
-5. Run `/pre-review` again. It re-checks only what changed since the last run
-   and reports what is fixed, what remains, and anything new the fixes
-   introduced. Repeat steps 3–5 until nothing is left to fix.
-6. Commit, push, and open the PR with `PR.md` as the body; see
+5. Run `/pre-review` again. It verifies fixes and checks changed code,
+   affected callers and open findings. Repeat until the fixes are verified
+   and decisions are recorded.
+6. Run `/pre-review --final`. It completes pending fix checks, then runs one
+   independent reviewer over the whole change. If it finds a blocker, fix
+   it, verify the fix and run `--final` on the new candidate.
+7. Commit, push, and open the PR with `PR.md` as the body. Human code review
+   is still required. See
    [Enforcement](#enforcement).
 
-Four arguments, all optional:
+Arguments are optional:
 
 | Argument | What it does |
 | --- | --- |
 | `--full` | Force the full reviewer set over the whole change, even when the change qualifies for the light tier or nothing has changed since the last run. |
+| `--final` | Complete pending review and checks, then run one independent whole-change review. Reuse a completed final result only when its inputs are unchanged. Combine with `--full` to force a new full review and final review. |
 | `--pr <n>` | The branch's PR number. Only used after a push, to read the posted body back and confirm it uploaded intact. Without it that check is skipped — the session will not ask, because a typed answer mid-run makes every command after it prompt. |
 | `--ci "<summary>"` | CI results you have read yourself. Passed to the reviewers attributed to you; the session cannot see CI and says nothing about it otherwise. |
 | anything else | A scope hint, passed to the reviewers unchanged. The session adds no steer of its own. |
+
+`--final` on a new branch still runs the initial review tier. An ordinary run
+cannot report completion without a valid final result. Changed code, base
+or review context invalidates that result. Open blockers, failed or missing
+checks, and missing review coverage prevent completion.
+
+From the first run, reviewers omit cosmetic preferences and optional
+refactors unless they expose a defect or break a required rule. Incorrect
+user-facing text, specification errors and required document changes remain
+in scope. Settled findings reopen only when new evidence changes the result.
 
 `PR.md` is written on the first run and updated on every run after it. The
 session asks up to two questions on the first run when it cannot tell what
@@ -67,7 +82,7 @@ The size and location of the change decide how many reviewers run.
 
 | Tier  | When                                                                             | Reviewers                                            |
 | ----- | -------------------------------------------------------------------------------- | ---------------------------------------------------- |
-| light | No CLAUDE.md critical-path file, changed lines within the threshold, no `--full` | `review-generalist`                                  |
+| light | No CLAUDE.md critical-path file, changed lines within the threshold, contained impact, no `--full` | `review-generalist`                                  |
 | full  | Anything else                                                                    | `review-generalist`, `review-tracer`, `review-panel` |
 
 The threshold is `LIGHT_REVIEW_MAX_CHANGED_LINES` in
@@ -75,39 +90,27 @@ The threshold is `LIGHT_REVIEW_MAX_CHANGED_LINES` in
 data. Changed lines exclude `pnpm-lock.yaml` and the generated
 `packages/babylon-ts-sdk/docs/api/`.
 
-Later runs judge the earlier findings with one reviewer, plus a **cold
-reviewer** on every later run that reviews anything at all — so such a run is
-at least two. A re-run spawns nobody in two cases, and only two: nothing has
-moved at all — no changed file, and no file outside the change that a finding
-points at — or the only change is that files left the branch, again with no
-outside file touched. In both, `--full` still forces a full run, and fixing a
-finding on a file the branch never touched still counts as a change, so
-neither is a free no-op. The cold one is given the change, the rules and the intent but
-no findings from previous runs and no hint about where to look, because a
-reviewer holding a long ledger reads the text it covers as already settled.
-They escalate to the
-full set when the new changes touch a critical path, when they exceed the
-threshold, when the whole change has grown past the threshold without a
-whole-change full review, or when `--full` is passed. The **refresh rule**
-widens the review without escalating the tier: it re-reads the whole change
-with whatever reviewer set the change's size already warranted, because on a
-small branch three reviewers would buy nothing. That rule, the
-whole-change-total trigger and `--full` all widen back to the whole change,
-so a file that
-stopped moving early is still judged against how the change behaves now.
+Later runs use one reviewer to verify earlier findings and inspect the new
+changes with their affected callers. They use the full reviewer set when
+changes touch a critical path, exceed the threshold, or have broad or
+unclear impact. They also escalate when the whole change grows past the
+threshold without a whole-change full review, or when `--full` is passed.
+Run count alone never causes a full review.
 
-The refresh rule counts backwards over the runs with a recorded breadth other
-than "none" — skipping those that spawned no reviewers, and any run with no
-breadth recorded at all — and widens when none of the last
-`WHOLE_CHANGE_REFRESH_RUNS` of them covered the whole change. **If there are
-fewer qualifying runs than that, it does not fire at all**, which is what
-keeps it quiet on a branch with little history. It is a cadence, not a rare
-event: expect roughly one wide pass every `WHOLE_CHANGE_REFRESH_RUNS + 1`
-runs on a branch that keeps being narrowed.
+Only `--final` adds the **cold reviewer**. This reviewer gets the whole
+change, rules and intent. It gets no previous findings or review history.
+This independent check runs once per candidate, after pending fixes and
+checks pass. Unchanged completed final results are reused unless `--full`
+is also passed.
 
-`WHOLE_CHANGE_REFRESH_RUNS` is currently 3. It and the other four tunable
-constants — `LIGHT_REVIEW_MAX_CHANGED_LINES`, `CALLER_LIST_MAX_FILES`,
-`CALLER_LIST_MIN_NAME_LENGTH` and `DOCUMENT_CHANGE_SHARE` — are declared in
+An ordinary rerun needs no reviewer when neither the change nor a file named
+by an outside finding moved. The same applies when files only left the
+change, no outside finding's file moved, and no non-moot finding needs a
+verdict for a file that left. These gates require completed initial reviewer
+coverage and no unresolved coverage from later runs. Missing coverage
+requires a whole-change full review. `--full`
+still forces work.
+The exact gates and tunable constants are in
 `.claude/skills/pre-review/SKILL.md`.
 
 | Reviewer            | Method                                                        |
@@ -125,7 +128,7 @@ example `git stash`) would run without a prompt.
 
 ## Files
 
-Three files hold the review, all git-ignored and local to the author.
+Four files hold the review, all git-ignored and local to the author.
 `<key>` is the branch name with `/` replaced by `__`. The reviewed file
 contents themselves are stored as unreferenced git objects, which git prunes
 after about two weeks; a later run then reviews those files whole again.
@@ -135,6 +138,7 @@ after about two weeks; a later run then reviews those files whole again.
 | `PR.md`                  | Working copy of the current branch's description, for opening the PR     |
 | `.pre-review/<key>.md`   | The branch's description, ending with a collapsed record of the findings |
 | `.pre-review/<key>.json` | State between runs: reviewed file contents and findings with decisions   |
+| `.pre-review/<key>.context.txt` | Stable review context used to detect stale final results |
 
 `PR.md` is shared by every branch, so the session checks which branch it
 belongs to before using or replacing it; each branch's own copy lives in
@@ -160,13 +164,15 @@ The end of `PR.md`, and so of the PR body, carries a collapsed section:
 
 ## Cost
 
-A light review is one reviewer; a full review is three reviewers and up to
-four lanes. A later run that reviews anything adds the cold reviewer, so it is
-at least two — the verdict lane and the cold lane — and an escalated one is
-five: verdict lane, the full tier's three, and the cold lane, before the
-panel's own lanes. The state file records
-tokens, tool calls and duration for every reviewer on every run, and whether
-the cold one ran; the session reports the same figures at the end of each run.
+A light initial review uses one reviewer. A full review uses three reviewers
+and up to four lanes. An ordinary fix check uses one reviewer unless the
+changes require escalation. `--final` adds one cold reviewer when a new
+final review is needed.
+
+The state records reported tokens, tool calls and duration for each reviewer.
+Each run reports its cost and total reported reviewer tokens across all runs
+for the branch. Missing figures remain `null`, and the total is marked
+partial. These figures do not include all session or model costs.
 
 ## Changing the tooling
 
