@@ -84,7 +84,7 @@ const COIN_TYPE_BY_NETWORK: Record<Network, number> = {
 
 // Firmware Makefile APPNAME: COIN=babylon_vault → "Babylon Vault"; COIN=babylon_vault_testnet
 // (which targets signet) → "Babylon Vault Testnet". The dashboard reports "BOLOS".
-const APP_NAME_BY_NETWORK: Record<Network, string> = {
+export const APP_NAME_BY_NETWORK: Record<Network, string> = {
   [Network.MAINNET]: "Babylon Vault",
   [Network.TESTNET]: "Babylon Vault Testnet",
   [Network.SIGNET]: "Babylon Vault Testnet",
