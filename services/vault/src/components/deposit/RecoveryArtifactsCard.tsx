@@ -8,7 +8,6 @@ import {
   useMemo,
   useRef,
 } from "react";
-import { IoDownloadOutline } from "react-icons/io5";
 import type { Hex } from "viem";
 
 import { COPY } from "@/copy";
@@ -103,7 +102,6 @@ interface RecoveryArtifactsCardProps {
    * offering the risk opt-out for this vault.
    */
   onGraphMismatch?: () => void;
-  hideDownloadButton?: boolean;
 }
 
 /**
@@ -131,7 +129,6 @@ export const RecoveryArtifactsCard = forwardRef<
     onDelivered,
     onStateChange,
     onGraphMismatch,
-    hideDownloadButton = false,
   },
   ref,
 ) {
@@ -267,36 +264,11 @@ export const RecoveryArtifactsCard = forwardRef<
         </span>
       )}
 
-      {!isDownloaded && (
-        <div className="flex flex-col items-stretch">
-          {!hideDownloadButton && (
-            <button
-              type="button"
-              onClick={handleDownload}
-              className="flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-secondary-strokeLight bg-neutral-200 px-4 text-accent-primary transition-colors hover:bg-secondary-highlight"
-            >
-              <IoDownloadOutline size={20} />
-              <span className="text-sm leading-[1.43] tracking-[0.17px]">
-                {error
-                  ? COPY.deposit.recoveryArtifacts.retryButton
-                  : isUnverified
-                    ? COPY.deposit.recoveryArtifacts.downloadAgainButton
-                    : COPY.deposit.recoveryArtifacts.downloadButton}
-              </span>
-            </button>
-          )}
-          {!hideDownloadButton && !error && (
-            <span className="mt-2.5 text-center text-xs text-accent-secondary">
-              {COPY.deposit.recoveryArtifacts.walletSignatureHint}
-            </span>
-          )}
-          {/* Already spelled out at length by the unverified notice above. */}
-          {usesFallbackSave && !isUnverified && (
-            <span className="mt-2.5 text-center text-xs text-accent-secondary">
-              {COPY.deposit.recoveryArtifacts.fallbackSaveHint}
-            </span>
-          )}
-        </div>
+      {/* Already spelled out at length by the unverified notice above. */}
+      {!isDownloaded && usesFallbackSave && !isUnverified && (
+        <span className="text-center text-xs text-accent-secondary">
+          {COPY.deposit.recoveryArtifacts.fallbackSaveHint}
+        </span>
       )}
 
       {error && (

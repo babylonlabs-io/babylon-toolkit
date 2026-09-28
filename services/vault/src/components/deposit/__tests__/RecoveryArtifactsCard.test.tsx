@@ -1,10 +1,14 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
+import { createRef } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { COPY } from "@/copy";
 import { saveGraphMismatch } from "@/utils/artifactDownloadStorage";
 
-import { RecoveryArtifactsCard } from "../RecoveryArtifactsCard";
+import {
+  RecoveryArtifactsCard,
+  type RecoveryArtifactsCardHandle,
+} from "../RecoveryArtifactsCard";
 
 const IDLE_HOOK_STATE = {
   loading: false,
@@ -92,12 +96,13 @@ describe("RecoveryArtifactsCard — idle card", () => {
     expect(screen.getByText("Up to ~1 GB")).toBeTruthy();
   });
 
-  it("starts the download for this deposit when the download button is clicked", () => {
+  it("starts the download for this deposit when the parent calls download", () => {
     const download = vi.fn();
     hookState.current = { ...IDLE_HOOK_STATE, download };
+    const ref = createRef<RecoveryArtifactsCardHandle>();
 
-    render(<RecoveryArtifactsCard {...COMMON_PROPS} />);
-    fireEvent.click(screen.getByText("Download Artifacts"));
+    render(<RecoveryArtifactsCard {...COMMON_PROPS} ref={ref} />);
+    act(() => ref.current?.download());
 
     expect(download).toHaveBeenCalledWith("0xprovider", "0xpegin", "0xpk");
   });
@@ -170,7 +175,6 @@ describe("RecoveryArtifactsCard — unverifiable save", () => {
     render(<RecoveryArtifactsCard {...COMMON_PROPS} />);
 
     expect(screen.getByTestId("artifact-unverified-notice")).toBeTruthy();
-    expect(screen.getByText("Download Again")).toBeTruthy();
   });
 
   it("reports a download upward once there is real evidence", () => {

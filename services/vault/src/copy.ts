@@ -703,11 +703,7 @@ export const COPY = {
       // Size variant rendered once the download has completed — the
       // "Up to" hedge no longer applies because the file is on disk.
       cardSizeDownloaded: "~1 GB",
-      downloadButton: "Download Artifacts",
       downloadingButton: "Downloading...",
-      retryButton: "Retry",
-      walletSignatureHint:
-        "You may be asked to approve a signature in your wallet to authenticate.",
       // Caption under the progress bar while bytes are streaming.
       doNotCloseHint: "Do not close this window while downloading.",
       cannotAuthenticate:
@@ -753,9 +749,6 @@ export const COPY = {
       unverifiedSaveTitle: "Download finished, but we cannot confirm it saved",
       unverifiedSaveNotice:
         "Check your downloads folder for the file. Because this browser does not report whether the save completed, your BTCVault will keep showing the artifact warning. To clear it, download again using a Chromium-based browser such as Chrome or Brave.",
-      // The fallback path may well have worked; this offers a retry without
-      // implying the first attempt failed.
-      downloadAgainButton: "Download Again",
       // pegin.md §5.9 check (a). The artifacts are compared with a record of
       // the transactions this browser signed. No record means no comparison,
       // so the download is refused and only the risk acknowledgement remains.

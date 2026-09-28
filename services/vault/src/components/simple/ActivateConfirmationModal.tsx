@@ -236,7 +236,6 @@ export function ActivateConfirmationModal({
             }}
             onStateChange={setDownloadState}
             onGraphMismatch={() => setGraphMismatch(true)}
-            hideDownloadButton
           />
         )}
 
