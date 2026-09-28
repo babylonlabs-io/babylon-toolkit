@@ -77,7 +77,6 @@ const {
     mockObservedTx: {
       ...transactionShape,
       getId: vi.fn(() => "cc".repeat(32)),
-      toHex: vi.fn(() => "observed-hex"),
     },
     mockInput: input,
   };
@@ -601,12 +600,6 @@ describe("isPrePeginTransactionObserved", () => {
     expect(getTxHex).toHaveBeenCalledWith(SIGNED_TXID, "https://observer.test");
   });
 
-  it("accepts a different witness serialization when the committed txid matches", async () => {
-    mockObservedTx.toHex.mockReturnValueOnce("different-witness-hex");
-
-    await expect(isPrePeginTransactionObserved(params)).resolves.toBe(true);
-  });
-
   it("rejects an observer response that resolves to another txid", async () => {
     mockObservedTx.getId.mockReturnValueOnce("dd".repeat(32));
 
@@ -615,11 +608,20 @@ describe("isPrePeginTransactionObserved", () => {
     );
   });
 
-  it("fails closed when the independent observer is unavailable", async () => {
-    vi.mocked(getTxHex).mockRejectedValueOnce(new Error("observer timed out"));
+  it("reports not observed when the observer is unavailable, so the broadcast path stays open", async () => {
+    vi.mocked(getTxHex).mockRejectedValueOnce(
+      new Error("Mempool API error (503): unavailable"),
+    );
 
-    await expect(isPrePeginTransactionObserved(params)).rejects.toThrow(
-      /observer timed out/,
+    await expect(isPrePeginTransactionObserved(params)).resolves.toBe(false);
+  });
+
+  it("asks the broadcaster instead of the observer when told to", async () => {
+    await isPrePeginTransactionObserved({ ...params, source: "broadcaster" });
+
+    expect(getTxHex).toHaveBeenLastCalledWith(
+      expect.any(String),
+      "https://mempool.test",
     );
   });
 });

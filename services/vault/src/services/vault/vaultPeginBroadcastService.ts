@@ -342,30 +342,35 @@ function normalizeRegisteredTxid(hash: string): string {
   return txid.toLowerCase();
 }
 
-function isTransactionNotFound(error: unknown): boolean {
-  return (
-    error instanceof Error &&
-    /(?:\(404\)|\b404\b|transaction not found)/i.test(error.message)
-  );
-}
-
 export interface ObservePrePeginTransactionParams {
   unsignedTxHex: string;
   registeredPrePeginTxHash: string;
+  /**
+   * Who to ask. Defaults to the independent observer. `"broadcaster"` asks
+   * the mempool API that relayed the transaction.
+   */
+  source?: "observer" | "broadcaster";
 }
 
 /**
- * Check whether an independently configured Bitcoin data provider can see the
- * registered Pre-PegIn transaction.
+ * Check whether a Bitcoin data provider can see the registered Pre-PegIn
+ * transaction.
  *
- * A 404 is an ordinary "not observed yet" result. Transport failures and
- * malformed/mismatched responses fail closed because they cannot establish
- * either absence or publication.
+ * This is a reconcile shortcut, not a safety gate: the UTXO check and the
+ * acknowledgement check still fail closed. So any read failure (404, outage,
+ * rate limit) is "not observed", and the caller goes on to the normal
+ * broadcast path. A response that resolves to a different txid still throws.
  */
 export async function isPrePeginTransactionObserved(
   params: ObservePrePeginTransactionParams,
 ): Promise<boolean> {
-  const { unsignedTxHex, registeredPrePeginTxHash } = params;
+  const {
+    unsignedTxHex,
+    registeredPrePeginTxHash,
+    source = "observer",
+  } = params;
+  const apiUrl =
+    source === "broadcaster" ? getMempoolApiUrl() : getBitcoinObserverApiUrl();
   const registeredTxid = normalizeRegisteredTxid(registeredPrePeginTxHash);
   const cleanHex = unsignedTxHex.startsWith("0x")
     ? unsignedTxHex.slice(2)
@@ -377,15 +382,15 @@ export async function isPrePeginTransactionObserved(
     );
   }
 
-  let observedTxHex: string;
+  let observedTxid: string;
   try {
-    observedTxHex = await getTxHex(registeredTxid, getBitcoinObserverApiUrl());
-  } catch (error) {
-    if (isTransactionNotFound(error)) return false;
-    throw error;
+    observedTxid = Transaction.fromHex(
+      await getTxHex(registeredTxid, apiUrl),
+    ).getId();
+  } catch {
+    return false;
   }
 
-  const observedTxid = Transaction.fromHex(observedTxHex).getId();
   if (observedTxid !== registeredTxid) {
     throw new Error(
       `Bitcoin observation returned txid ${observedTxid}, expected ${registeredTxid}`,

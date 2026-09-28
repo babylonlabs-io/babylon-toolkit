@@ -185,6 +185,8 @@ export const COPY = {
         "Vault provider is waiting for your WOTS public key. Click 'Submit WOTS Key' to continue.",
       broadcastMayHaveFailed:
         "Vault provider has not detected your deposit. The Pre-Pegin transaction may not have been broadcast. Click 'Broadcast' to retry.",
+      prePeginAwaitingObservation:
+        "Pre-Pegin transaction has been sent. Waiting for Bitcoin to show it. If this message stays, click 'Broadcast' to retry.",
       payoutsReadyForSigning:
         "Vault provider has prepared payout transactions. Click 'Sign Payouts' to pre-authorize your Bitcoin claim transactions.",
       prePeginBroadcast:

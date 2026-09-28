@@ -493,16 +493,19 @@ describe("useVaultActions — handleBroadcast transaction integrity", () => {
     await act(async () => {
       await result.current.handleBroadcast({
         ...baseBroadcastParams,
-        batchVaultIds: ["0xvaultId", "0xsibling"] as Hex[],
+        batchVaultIds: ["0xvaultId", "0xab"],
         pendingPegin: { ...basePendingPegin },
       });
     });
 
-    expect(getProtocolInfoBatch).toHaveBeenCalledWith([
-      "0xvaultId",
-      "0xsibling",
-    ]);
-    expect(mockWaitForEthRegistrationDepth).not.toHaveBeenCalled();
+    // The single-shot batch read runs after the finality gate, never before.
+    expect(mockWaitForEthRegistrationDepth).toHaveBeenCalledWith(
+      expect.objectContaining({ vaultIds: ["0xvaultId", "0xab"] }),
+    );
+    expect(getProtocolInfoBatch).toHaveBeenCalledWith(["0xvaultId", "0xab"]);
+    expect(
+      mockWaitForEthRegistrationDepth.mock.invocationCallOrder[0],
+    ).toBeLessThan(getProtocolInfoBatch.mock.invocationCallOrder[0]);
     expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
     expect(result.current.broadcastError?.body).toContain(
       COPY.deposit.errors.prePeginIntegrityMismatch,
@@ -1059,10 +1062,21 @@ describe("useVaultActions — handleBroadcast version drift guard", () => {
   // able to retry once the RPC recovers. Only a confirmed mismatch
   // clears it.
   it("keeps the pending entry when the resume version check throws a transient (non-mismatch) error", async () => {
+    // The first read is the batch hash check; the second is the version check.
+    const getProtocolInfoBatch = vi
+      .fn()
+      .mockResolvedValueOnce([
+        {
+          offchainParamsVersion: 7,
+          appVaultKeepersVersion: 3,
+          universalChallengersVersion: 5,
+          vaultCoreVersion: 1,
+          prePeginTxHash: `0x${"cc".repeat(32)}`,
+        },
+      ])
+      .mockRejectedValueOnce(new Error("eth_call failed: connection reset"));
     mockGetVaultRegistryReader.mockReturnValue({
-      getProtocolInfoBatch: vi
-        .fn()
-        .mockRejectedValue(new Error("eth_call failed: connection reset")),
+      getProtocolInfoBatch,
     } as unknown as ReturnType<typeof getVaultRegistryReader>);
 
     const removePendingPegin = vi.fn();
@@ -1076,6 +1090,7 @@ describe("useVaultActions — handleBroadcast version drift guard", () => {
       });
     });
 
+    expect(getProtocolInfoBatch).toHaveBeenCalledTimes(2);
     expect(result.current.broadcastError?.body).toContain("eth_call failed");
     expect(removePendingPegin).not.toHaveBeenCalled();
     expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
@@ -2192,6 +2207,35 @@ describe("useVaultActions — handleBroadcast Ethereum finality gate", () => {
       COPY.deposit.errors.inputSpentAfterRegistration,
     );
     expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
+  });
+
+  it("finishes without a rebroadcast when the inputs are spent by the registered Pre-PegIn", async () => {
+    // The observer has not indexed the relayed tx yet, but the broadcaster
+    // that reports the inputs spent already carries the registered txid.
+    mockAssertUtxosAvailable.mockRejectedValueOnce(
+      new UtxoNotAvailableError([{ txid: "ab".repeat(32), vout: 0 }]),
+    );
+    mockIsPrePeginTransactionObserved
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(true);
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleBroadcast({
+        ...baseBroadcastParams,
+        pendingPegin: { ...basePendingPegin },
+      });
+    });
+
+    expect(mockIsPrePeginTransactionObserved).toHaveBeenLastCalledWith({
+      unsignedTxHex: TRUSTED_TX_HEX,
+      registeredPrePeginTxHash: `0x${"cc".repeat(32)}`,
+      source: "broadcaster",
+    });
+    expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
+    expect(baseBroadcastParams.onShowSuccessModal).toHaveBeenCalledOnce();
+    expect(result.current.broadcastError).toBeNull();
   });
 
   it("does not start signing when the modal unmounts after finality but before the broadcast", async () => {

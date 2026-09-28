@@ -14,7 +14,7 @@ import { canonicalizeTxid } from "@/utils/txid";
 const POLL_INTERVAL_MS = 60 * 1000;
 // Just under the poll interval so refocus/remount doesn't double-fetch.
 const STALE_TIME_MS = 55 * 1000;
-// Cap concurrency — the public mempool.space endpoint rate-limits (429s).
+// Cap concurrency — the public Bitcoin observer endpoint rate-limits (429s).
 const MAX_CONCURRENT_REQUESTS = 4;
 
 // Singleton for the no-data render: same identity-stability reasoning as

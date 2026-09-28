@@ -3346,16 +3346,6 @@ time, so a governance flip between build and registration stamps a
 different graph than the one the depositor signed — broadcasting would
 lock BTC into a graph no resume path can rebuild.
 
-##### expectedPrePeginTxHash?
-
-```ts
-optional expectedPrePeginTxHash: `0x${string}`;
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredVaultVersions.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/verifyRegisteredVaultVersions.ts)
-
-Pre-PegIn tx hash the local funded transaction resolves to.
-
 ***
 
 ### WaitForPeginStatusParams

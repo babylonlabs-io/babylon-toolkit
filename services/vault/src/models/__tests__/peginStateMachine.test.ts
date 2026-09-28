@@ -60,7 +60,9 @@ describe("peginStateMachine", () => {
       expect(state.availableActions).toContain(
         PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN,
       );
-      expect(state.message).toBe(COPY.pegin.messages.broadcastMayHaveFailed);
+      expect(state.message).toBe(
+        COPY.pegin.messages.prePeginAwaitingObservation,
+      );
       expect(getPeginDisplayStep(state)).toBe(
         DepositFlowStep.BROADCAST_PRE_PEGIN,
       );

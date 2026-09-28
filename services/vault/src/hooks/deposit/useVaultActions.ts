@@ -21,13 +21,16 @@ import {
   activationDeadlineBlocksRemaining,
   validateSecretAgainstHashlock,
 } from "@babylonlabs-io/ts-sdk/tbv/core/services";
-import { calculateBtcTxHash } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
+import {
+  calculateBtcTxHash,
+  UtxoNotAvailableError,
+} from "@babylonlabs-io/ts-sdk/tbv/core/utils";
 import {
   getSharedWagmiConfig,
   useChainConnector,
 } from "@babylonlabs-io/wallet-connector";
 import { useEffect, useRef, useState } from "react";
-import type { Hex } from "viem";
+import { isHex, type Hex } from "viem";
 import { getAccount, getWalletClient, switchChain } from "wagmi/actions";
 
 import {
@@ -108,7 +111,7 @@ import {
 export interface BroadcastPrePeginParams {
   vaultId: Hex;
   /** Every registered vault sharing the same Pre-PegIn transaction. */
-  batchVaultIds?: readonly Hex[];
+  batchVaultIds?: readonly string[];
   /**
    * ETH address selected for this action. It must match the live wallet and
    * the depositor registered on chain before signing.
@@ -290,7 +293,15 @@ export function useVaultActions(): UseVaultActionsReturn {
     } = params;
 
     const resolvedBatchVaultIds = Array.from(
-      new Set([vaultId, ...(batchVaultIds ?? [])]),
+      new Set([
+        vaultId,
+        ...(batchVaultIds ?? [])
+          .filter((id) => id !== vaultId)
+          .map((id) => {
+            if (!isHex(id)) throw new Error(`Invalid batch vault id: ${id}`);
+            return id;
+          }),
+      ]),
     );
 
     const finishBroadcast = () => {
@@ -386,26 +397,6 @@ export function useVaultActions(): UseVaultActionsReturn {
         );
       }
 
-      // One Pre-PegIn commits every sibling in a batch. Prove each registered
-      // vault carries the locally derived txid before any of them can be
-      // treated as broadcast by the shared success callback.
-      const registryReader = getVaultRegistryReader();
-      const batchProtocolInfos = await registryReader.getProtocolInfoBatch(
-        resolvedBatchVaultIds,
-      );
-      const hashMismatches = resolvedBatchVaultIds.flatMap((id, index) => {
-        const registeredHash = batchProtocolInfos[index]?.prePeginTxHash;
-        return typeof registeredHash === "string" &&
-          registeredHash.toLowerCase() === computedHash.toLowerCase()
-          ? []
-          : [`vault ${id}: expected ${computedHash}, got ${registeredHash}`];
-      });
-      if (hashMismatches.length > 0) {
-        throw new Error(
-          `${COPY.deposit.errors.prePeginIntegrityMismatch} ${hashMismatches.join("; ")}`,
-        );
-      }
-
       // Ethereum finality gate. Same rule as the inline deposit flow: the
       // Pre-PegIn must not be broadcast while the registration is still
       // reorg-exposed, or a reorg leaves the BTC locked in an HTLC whose vault
@@ -457,6 +448,23 @@ export function useVaultActions(): UseVaultActionsReturn {
         throw new Error(
           COPY.deposit.errors.cannotBroadcastInOnChainState(label),
         );
+      }
+
+      // One Pre-PegIn commits every sibling in a batch. Prove each registered
+      // vault carries the locally derived txid before any of them can be
+      // treated as broadcast by the shared success callback. After the gate:
+      // this read is single-shot and a lagging RPC returns an empty record.
+      const registryReader = getVaultRegistryReader();
+      const batchProtocolInfos = await registryReader.getProtocolInfoBatch(
+        resolvedBatchVaultIds,
+      );
+      const batchHashMatches = resolvedBatchVaultIds.every(
+        (_, index) =>
+          batchProtocolInfos[index]?.prePeginTxHash.toLowerCase() ===
+          computedHash.toLowerCase(),
+      );
+      if (!batchHashMatches) {
+        throw new Error(COPY.deposit.errors.prePeginIntegrityMismatch);
       }
 
       // A previous attempt may have received a valid acknowledgement before
@@ -541,8 +549,25 @@ export function useVaultActions(): UseVaultActionsReturn {
 
       // Validate UTXOs are still available BEFORE asking user to sign.
       // This prevents wasted signing effort if UTXOs have been spent
-      // by unrelated transactions.
-      await assertUtxosAvailable(unsignedTxHex, depositorAddress);
+      // by unrelated transactions. Inputs spent by the registered Pre-PegIn
+      // itself mean an earlier attempt was relayed before the observer indexed
+      // it: the broadcaster that reports them spent can show that txid.
+      try {
+        await assertUtxosAvailable(unsignedTxHex, depositorAddress);
+      } catch (err) {
+        if (
+          err instanceof UtxoNotAvailableError &&
+          (await isPrePeginTransactionObserved({
+            unsignedTxHex,
+            registeredPrePeginTxHash: computedHash,
+            source: "broadcaster",
+          }))
+        ) {
+          finishBroadcast();
+          return;
+        }
+        throw err;
+      }
 
       // The registered hash binds the transaction. The wallet checks bind its
       // depositor. Also check local build versions when they belong to this
@@ -570,7 +595,6 @@ export function useVaultActions(): UseVaultActionsReturn {
             expectedUniversalChallengersVersion:
               buildUniversalChallengersVersion,
             expectedVaultCoreVersion: buildVaultCoreVersion,
-            expectedPrePeginTxHash: computedHash,
           });
         } catch (err) {
           // Only a confirmed mismatch drops the entry — transient RPC

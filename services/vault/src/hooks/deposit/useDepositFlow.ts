@@ -1057,9 +1057,6 @@ export function useDepositFlow(
             expectedUniversalChallengersVersion:
               validatedKeys.expectedUniversalChallengersVersion,
             expectedVaultCoreVersion: buildConfig.activeVaultCoreVersion,
-            expectedPrePeginTxHash: ensureHexPrefix(
-              batchResult.depositTerms.prepeginTxid,
-            ),
           });
         } catch (err) {
           // Only a confirmed mismatch removes pending entries — transient RPC
