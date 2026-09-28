@@ -36,6 +36,18 @@ function preview(value: unknown): string {
   );
 }
 
+const UNRECOGNIZED_STATUS_ERROR_PREFIX =
+  "VP response validation failed: unrecognized status";
+
+/**
+ * Whether a batch status entry's `error` reports a pegin status outside
+ * {@link DaemonStatus}. The batch validator moves such an entry to its
+ * `error` slot, so one unknown status does not fail the whole reply.
+ */
+export function isUnrecognizedDaemonStatusError(error: string): boolean {
+  return error.startsWith(UNRECOGNIZED_STATUS_ERROR_PREFIX);
+}
+
 const VP_VALIDATION_USER_MESSAGE =
   "The vault provider returned an unexpected response. Please try again or contact support.";
 
@@ -175,7 +187,7 @@ export function validateGetPeginStatusResponse(
 
   if (!DAEMON_STATUS_VALUES.has(r.status)) {
     throw new VpResponseValidationError(
-      `VP response validation failed: unrecognized status "${r.status}". Expected one of: ${[...DAEMON_STATUS_VALUES].join(", ")}`,
+      `${UNRECOGNIZED_STATUS_ERROR_PREFIX} ${preview(r.status)}. Expected one of: ${[...DAEMON_STATUS_VALUES].join(", ")}`,
     );
   }
 
@@ -517,6 +529,8 @@ function assertNullableString(value: unknown, field: string): void {
  * Validate a `batchGetPeginStatus` response. Per-result envelope shape:
  * `{ pegin_txid, result: GetPeginStatusResponse | null, error: string | null }`.
  * The inner result (when non-null) is validated via the single-item validator.
+ * An entry whose inner result fails validation is replaced by an error entry;
+ * the other entries are kept.
  */
 export function validateBatchGetPeginStatusResponse(
   response: unknown,
@@ -595,7 +609,18 @@ function validateBatchEnvelope(
         `VP response validation failed: "${rpcName}.results[${i}]" has both "result" and "error" populated`,
       );
     }
-    validateInnerResult(e as unknown as BatchResultEnvelope, i);
+    // Isolate a bad inner result to its own entry, so one malformed or
+    // unknown-status entry does not void the status of its siblings.
+    try {
+      validateInnerResult(e as unknown as BatchResultEnvelope, i);
+    } catch (error) {
+      if (!(error instanceof VpResponseValidationError)) throw error;
+      r.results[i] = {
+        pegin_txid: e.pegin_txid,
+        result: null,
+        error: error.detail,
+      };
+    }
   }
 }
 

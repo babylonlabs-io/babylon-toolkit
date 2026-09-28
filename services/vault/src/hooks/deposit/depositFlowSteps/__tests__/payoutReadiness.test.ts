@@ -15,31 +15,12 @@ const {
   abortAfterFirstPoll: { controller: null as AbortController | null },
 }));
 
-vi.mock("@babylonlabs-io/ts-sdk/tbv/core/clients", () => {
-  const DaemonStatus = {
-    PENDING_INGESTION: "PendingIngestion",
-    PENDING_DEPOSITOR_WOTS_PK: "PendingDepositorWotsPK",
-    PENDING_BABE_SETUP: "PendingBabeSetup",
-    PENDING_CHALLENGER_PRESIGNING: "PendingChallengerPresigning",
-    PENDING_PEGIN_SIGS_AVAILABILITY: "PendingPeginSigsAvailability",
-    PENDING_PRE_PEGIN_CONFIRMATIONS: "PendingPrePegInConfirmations",
-    PENDING_DEPOSITOR_SIGNATURES: "PendingDepositorSignatures",
-    PENDING_ACKS: "PendingACKs",
-    PENDING_ACTIVATION: "PendingActivation",
-    ACTIVATED_PENDING_BROADCAST: "ActivatedPendingBroadcast",
-    ACTIVATED: "Activated",
-    EXPIRED: "Expired",
-    INGESTION_REJECTED: "IngestionRejected",
-  };
-  return {
-    DaemonStatus,
-    VP_TERMINAL_FAILURE_STATUSES: new Set([DaemonStatus.INGESTION_REJECTED]),
-    VpResponseValidationError: class extends Error {
-      detail = "validation error";
-    },
-    batchPollByProvider,
-  };
-});
+vi.mock("@babylonlabs-io/ts-sdk/tbv/core/clients", async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import("@babylonlabs-io/ts-sdk/tbv/core/clients")
+  >()),
+  batchPollByProvider,
+}));
 
 vi.mock("@/utils/rpc", () => ({ createVpClient }));
 vi.mock("@/infrastructure", () => ({
@@ -136,6 +117,25 @@ describe("waitForPayoutReadiness", () => {
 
     expect([...result.readyVaultIds]).toEqual(["0xVault1"]);
     expect([...result.terminalVaultIds]).toEqual(["0xVault0"]);
+  });
+
+  it("treats BabeSetupFailed as terminal", async () => {
+    statusesByCall.push({
+      "0xVault0": "BabeSetupFailed",
+      "0xVault1": "PendingDepositorSignatures",
+    });
+    setupBatchPoll();
+
+    const result = await waitForPayoutReadiness({
+      vaults: VAULTS,
+      providerAddress: "0xProvider",
+      timeoutMs: 1_000,
+      pollIntervalMs: 0,
+    });
+
+    expect([...result.readyVaultIds]).toEqual(["0xVault1"]);
+    expect([...result.terminalVaultIds]).toEqual(["0xVault0"]);
+    expect(batchPollByProvider).toHaveBeenCalledTimes(1);
   });
 
   it("treats PegIn not found and missing statuses as waiting until timeout", async () => {

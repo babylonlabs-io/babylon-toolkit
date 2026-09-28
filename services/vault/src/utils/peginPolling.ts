@@ -19,10 +19,20 @@ import { isVaultOwnedByWallet } from "./vaultWarnings";
 // Terminal Error Detection
 // ============================================================================
 
+/**
+ * Stands in for a VP status the SDK does not recognize. The raw status is
+ * VP-controlled, so it never reaches telemetry tags.
+ */
+export const UNRECOGNIZED_DAEMON_STATUS = "Unrecognized";
+
+export type PollingDaemonStatus =
+  | DaemonStatus
+  | typeof UNRECOGNIZED_DAEMON_STATUS;
+
 /** Polling error tagged with the daemon status that produced it. */
 export class TerminalPeginPollingError extends Error {
-  readonly daemonStatus: DaemonStatus;
-  constructor(daemonStatus: DaemonStatus, message: string) {
+  readonly daemonStatus: PollingDaemonStatus;
+  constructor(daemonStatus: PollingDaemonStatus, message: string) {
     super(message);
     this.name = "TerminalPeginPollingError";
     this.daemonStatus = daemonStatus;
@@ -30,9 +40,12 @@ export class TerminalPeginPollingError extends Error {
 }
 
 // EXPIRED is grace-window interim — refund path remains; polling can stop.
-function isTerminalDaemonStatus(status: DaemonStatus): boolean {
+// An unrecognized status stops polling too: the app has no rule for it.
+function isTerminalDaemonStatus(status: PollingDaemonStatus): boolean {
   return (
-    VP_TERMINAL_FAILURE_STATUSES.has(status) || status === DaemonStatus.EXPIRED
+    status === UNRECOGNIZED_DAEMON_STATUS ||
+    status === DaemonStatus.EXPIRED ||
+    VP_TERMINAL_FAILURE_STATUSES.has(status)
   );
 }
 

@@ -13,29 +13,12 @@ const {
   statusesByCall: [] as Array<Record<string, string>>,
 }));
 
-vi.mock("@babylonlabs-io/ts-sdk/tbv/core/clients", () => {
-  const DaemonStatus = {
-    PENDING_INGESTION: "PendingIngestion",
-    PENDING_DEPOSITOR_WOTS_PK: "PendingDepositorWotsPK",
-    PENDING_BABE_SETUP: "PendingBabeSetup",
-    PENDING_DEPOSITOR_SIGNATURES: "PendingDepositorSignatures",
-    EXPIRED: "Expired",
-    INGESTION_REJECTED: "IngestionRejected",
-    INVALID_SIG_IN_CONTRACT: "InvalidSigInContract",
-  };
-  return {
-    DaemonStatus,
-    VP_TRANSIENT_STATUSES: new Set([DaemonStatus.PENDING_BABE_SETUP]),
-    VP_TERMINAL_FAILURE_STATUSES: new Set([
-      DaemonStatus.INGESTION_REJECTED,
-      DaemonStatus.INVALID_SIG_IN_CONTRACT,
-    ]),
-    VpResponseValidationError: class extends Error {
-      detail = "validation error";
-    },
-    batchPollByProvider,
-  };
-});
+vi.mock("@babylonlabs-io/ts-sdk/tbv/core/clients", async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import("@babylonlabs-io/ts-sdk/tbv/core/clients")
+  >()),
+  batchPollByProvider,
+}));
 
 vi.mock("@/utils/rpc", () => ({ createVpClient }));
 vi.mock("@/infrastructure", () => ({
@@ -121,6 +104,51 @@ describe("waitForWotsReadiness", () => {
       "0xVault1": "PendingDepositorWotsPK",
     });
     setupBatchPoll();
+
+    const result = await waitForWotsReadiness({
+      vaults: VAULTS,
+      providerAddress: "0xProvider",
+      timeoutMs: 1_000,
+      pollIntervalMs: 0,
+    });
+
+    expect([...result.readyVaultIds]).toEqual(["0xVault1"]);
+    expect([...result.terminalVaultIds]).toEqual(["0xVault0"]);
+    expect(batchPollByProvider).toHaveBeenCalledTimes(1);
+  });
+
+  it("treats BabeSetupFailed as terminal", async () => {
+    statusesByCall.push({
+      "0xVault0": "BabeSetupFailed",
+      "0xVault1": "PendingDepositorWotsPK",
+    });
+    setupBatchPoll();
+
+    const result = await waitForWotsReadiness({
+      vaults: VAULTS,
+      providerAddress: "0xProvider",
+      timeoutMs: 1_000,
+      pollIntervalMs: 0,
+    });
+
+    expect([...result.readyVaultIds]).toEqual(["0xVault1"]);
+    expect([...result.terminalVaultIds]).toEqual(["0xVault0"]);
+    expect(batchPollByProvider).toHaveBeenCalledTimes(1);
+  });
+
+  it("treats an unrecognized status as terminal for that vault only", async () => {
+    createVpClient.mockReturnValue({ batchGetPeginStatus });
+    batchPollByProvider.mockImplementation(async ({ items, onItem }) => {
+      onItem(items[0], {
+        result: null,
+        error:
+          'VP response validation failed: unrecognized status "FutureStatus". Expected one of: Activated',
+      });
+      onItem(items[1], {
+        result: { status: "PendingDepositorWotsPK" },
+        error: null,
+      });
+    });
 
     const result = await waitForWotsReadiness({
       vaults: VAULTS,

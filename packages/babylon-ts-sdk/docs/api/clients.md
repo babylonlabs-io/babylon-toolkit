@@ -7125,6 +7125,30 @@ registry check and surfaces the same message.
 
 ***
 
+### isUnrecognizedDaemonStatusError()
+
+```ts
+function isUnrecognizedDaemonStatusError(error): boolean;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/validators.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/validators.ts)
+
+Whether a batch status entry's `error` reports a pegin status outside
+[DaemonStatus](#daemonstatus). The batch validator moves such an entry to its
+`error` slot, so one unknown status does not fail the whole reply.
+
+#### Parameters
+
+##### error
+
+`string`
+
+#### Returns
+
+`boolean`
+
+***
+
 ### validateRequestDepositorClaimerArtifactsResponse()
 
 ```ts
@@ -7230,6 +7254,9 @@ Branching / terminal states:
   artifacts deleted.
 - ExpiredInClaim: terminal at the pegin-state-machine level; pegout-side
   work continues on the pegout_tracking row.
+- BabeSetupFailed: terminal — a challenger's BaBe decryptor session
+  failed verification, so BaBe setup cannot complete; reachable from
+  PendingBabeSetup.
 
 #### Enumeration Members
 
@@ -7365,6 +7392,14 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.t
 
 ```ts
 EXPIRED_IN_CLAIM: "ExpiredInClaim";
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts)
+
+##### BABE\_SETUP\_FAILED
+
+```ts
+BABE_SETUP_FAILED: "BabeSetupFailed";
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts)
@@ -7560,8 +7595,8 @@ Terminal VP statuses that represent failure outcomes — polling should
 stop immediately with an error rather than wait for timeout.
 
 Mirrors the failure subset of the server-side terminals
-(`allowed_transitions()` empty, see
-`btc-vault/crates/vaultd/src/workers/claimer/mod.rs:230-242`).
+(`allowed_transitions()` empty, see `PegInStatus` in
+`btc-vault/crates/vaultd/src/workers/claimer/mod.rs`).
 `Activated` IS terminal on-chain but is the success outcome, so it is
 intentionally excluded — a caller polling for an earlier state that
 races straight to `Activated` should treat that as success-via-overshoot,
