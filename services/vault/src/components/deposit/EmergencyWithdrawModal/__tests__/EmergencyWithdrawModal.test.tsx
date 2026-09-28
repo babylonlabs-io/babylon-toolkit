@@ -176,6 +176,22 @@ describe("EmergencyWithdrawModal — application status before the reveal", () =
     expect(deriveHtlcSecretHex).toHaveBeenCalledOnce();
   });
 
+  it("shows the original-account guidance when secret recovery fails", async () => {
+    vi.mocked(isVaultApplicationActive).mockResolvedValue(true);
+    vi.mocked(deriveHtlcSecretHex).mockRejectedValueOnce(
+      new Error("Secret recovery failed", {
+        cause: { code: "WALLET_ACCOUNT_NOT_SUPPORTED" },
+      }),
+    );
+    renderModal();
+    expect(
+      await screen.findByText(
+        COPY.deposit.payoutSignatureErrors.walletAccountNotSupported.message,
+      ),
+    ).toBeInTheDocument();
+    expect(handleActivation).not.toHaveBeenCalled();
+  });
+
   it("re-reads a stale cached status instead of trusting it", async () => {
     // A paused application must override the saved active status on reopen.
     const client = makeQueryClient();

@@ -105,6 +105,7 @@ import {
 } from "./userCancellation";
 import { isVaultLifecycleStateError } from "./vaultLifecycleStateError";
 import { isVaultRecordEmptyError } from "./vaultRecordEmpty";
+import { isWalletAccountNotSupported } from "./walletAccountNotSupported";
 import { isWalletMethodNotSupported } from "./walletMethodNotSupported";
 
 export interface DepositErrorContent {
@@ -145,7 +146,7 @@ export function isResumableDepositError(content: DepositErrorContent): boolean {
 /**
  * Map an error thrown after the Ethereum registration is mined. A spent
  * Pre-Pegin input is terminal there, so it gets its own callout instead of
- * the SDK's "start a new peg-in" wording; everything else maps as usual.
+ * the SDK's "start a new peg-in" wording. Wallet errors keep the same account.
  */
 export function mapDepositErrorAfterRegistration(
   err: unknown,
@@ -153,7 +154,16 @@ export function mapDepositErrorAfterRegistration(
   if (err instanceof UtxoNotAvailableError) {
     return ERRORS.inputSpentAfterRegistration;
   }
-  return mapDepositError(err);
+  const content = mapDepositError(err);
+  const resumeCopy =
+    content === ERRORS.walletAccountNotSupported
+      ? COPY.deposit.payoutSignatureErrors.walletAccountNotSupported
+      : content === ERRORS.walletMethodNotSupported
+        ? COPY.deposit.payoutSignatureErrors.walletMethodNotSupported
+        : undefined;
+  return resumeCopy
+    ? { title: resumeCopy.title, body: resumeCopy.message }
+    : content;
 }
 
 /** BtcWalletLivenessError bodies, matched (lowercased) by bucket 5b. */
@@ -366,6 +376,9 @@ export function mapDepositError(err: unknown): DepositErrorContent {
   // claimed any typed top-frame rejection).
   if (isWalletMethodNotSupported(err)) {
     return ERRORS.walletMethodNotSupported;
+  }
+  if (isWalletAccountNotSupported(err)) {
+    return ERRORS.walletAccountNotSupported;
   }
 
   // 3h. Device codes nested in a cause chain — must beat the message buckets

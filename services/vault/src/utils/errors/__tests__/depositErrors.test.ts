@@ -502,6 +502,15 @@ describe("mapDepositError", () => {
     expect(result.title).toBe(ERRORS.defaultTitle);
   });
 
+  it.each([
+    { code: "WALLET_ACCOUNT_NOT_SUPPORTED" },
+    new Error("Failed to sign Pre-Pegin transaction", {
+      cause: { code: "WALLET_ACCOUNT_NOT_SUPPORTED" },
+    }),
+  ])("maps an unsupported account to the deposit copy: %j", (error) => {
+    expect(mapDepositError(error)).toEqual(ERRORS.walletAccountNotSupported);
+  });
+
   it("maps a top-level WALLET_METHOD_NOT_SUPPORTED code to the unsupported-wallet callout", () => {
     const err = new FakeWalletError(
       "WALLET_METHOD_NOT_SUPPORTED",
@@ -697,6 +706,26 @@ describe("mapDepositError", () => {
 });
 
 describe("mapDepositErrorAfterRegistration", () => {
+  it.each([
+    ["WALLET_ACCOUNT_NOT_SUPPORTED", "walletAccountNotSupported"],
+    ["WALLET_METHOD_NOT_SUPPORTED", "walletMethodNotSupported"],
+  ] as const)("keeps the original account for %s", (code, key) => {
+    const { title, message } = COPY.deposit.payoutSignatureErrors[key];
+    expect(mapDepositErrorAfterRegistration({ cause: { code } })).toEqual({
+      title,
+      body: message,
+    });
+  });
+
+  it("keeps an outer rejection ahead of an unsupported account", () => {
+    expect(
+      mapDepositErrorAfterRegistration({
+        code: "CONNECTION_REJECTED",
+        cause: { code: "WALLET_ACCOUNT_NOT_SUPPORTED" },
+      }),
+    ).toEqual(ERRORS.signingRejected);
+  });
+
   it("maps a spent input to the terminal post-registration callout", () => {
     const err = new UtxoNotAvailableError([{ txid: "ab".repeat(32), vout: 0 }]);
     expect(mapDepositErrorAfterRegistration(err)).toEqual(

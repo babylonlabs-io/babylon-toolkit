@@ -21,6 +21,7 @@ import { resolveUseTweakedSigner } from "@/core/utils/psbtOptionsMapper";
 import { withTimeout } from "@/core/utils/withTimeout";
 import { ERROR_CODES, WalletError, isUserRejectionMessage } from "@/error";
 
+import { mapUnisatDeriveContextHashError } from "./deriveContextHashError";
 import logo from "./logo.svg";
 import { MIN_UNISAT_VERSION, checkUnisatVersion } from "./version";
 
@@ -697,11 +698,7 @@ export class UnisatProvider implements IBTCProvider {
           wallet: WALLET_PROVIDER_NAME,
         });
       }
-      // Everything else is rethrown unwrapped so the underlying
-      // message and stack are preserved — collapsing wallet errors
-      // would hide spec-validation failures the wallet must surface
-      // (`appName` charset, `context` hex format, length bounds).
-      throw error;
+      throw mapUnisatDeriveContextHashError(error, WALLET_PROVIDER_NAME);
     }
   };
 }

@@ -80,6 +80,7 @@ vi.mock("@babylonlabs-io/ts-sdk/tbv/core/clients", () => ({
 
 vi.mock("@babylonlabs-io/ts-sdk/tbv/core/utils", () => ({
   calculateBtcTxHash: mockCalculateBtcTxHash,
+  UtxoNotAvailableError: class UtxoNotAvailableError extends Error {},
 }));
 
 const btcActionWallet = vi.hoisted(() => ({
@@ -518,6 +519,26 @@ describe("ResumeWotsContent — submission marker", () => {
     expect(getByTestId("error").textContent).toBe(
       COPY.deposit.errors.signingRejected.body,
     );
+  });
+
+  it("shows the original-account guidance when WOTS secret recovery fails", async () => {
+    mockGetVaultRegistryReader.mockReturnValue(readerWith(ON_CHAIN_HASH));
+    mockDeriveVaultRoot.mockRejectedValueOnce({
+      code: "WALLET_ACCOUNT_NOT_SUPPORTED",
+    });
+    const { getByTestId } = render(
+      <ResumeWotsContent
+        activity={baseActivity}
+        onClose={vi.fn()}
+        onSuccess={vi.fn()}
+      />,
+    );
+    await waitFor(() => {
+      expect(getByTestId("error").textContent).toBe(
+        COPY.deposit.payoutSignatureErrors.walletAccountNotSupported.message,
+      );
+    });
+    expect(mockSubmitWotsPublicKey).not.toHaveBeenCalled();
   });
 
   it("waits for a click instead of auto-submitting when the suppression lapsed", async () => {
@@ -1199,6 +1220,21 @@ describe("ResumeActivationContent — activated success terminal", () => {
     expect(getByTestId("error-title").textContent).not.toBe(
       COPY.deposit.errors.activationDeadlinePassed.title,
     );
+  });
+
+  it("shows the original-account guidance when activation secret recovery fails", async () => {
+    mockDeriveVaultRoot.mockRejectedValueOnce(
+      new Error("Secret recovery failed", {
+        cause: { code: "WALLET_ACCOUNT_NOT_SUPPORTED" },
+      }),
+    );
+    const { getByTestId } = renderActivation();
+    await waitFor(() => {
+      expect(getByTestId("error").textContent).toBe(
+        COPY.deposit.payoutSignatureErrors.walletAccountNotSupported.message,
+      );
+    });
+    expect(mockHandleActivation).not.toHaveBeenCalled();
   });
 
   it("maps a coded wallet rejection during secret derivation to the signing-rejected callout", async () => {

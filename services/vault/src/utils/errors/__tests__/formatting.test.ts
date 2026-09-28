@@ -792,25 +792,31 @@ describe("Error Formatting", () => {
     // Same drift guard for the second inlined wallet-connector code (see the
     // CONNECTION_REJECTED note above): a rename upstream must fail here
     // instead of silently degrading the unsupported-wallet branch.
-    it("inlined WALLET_METHOD_NOT_SUPPORTED code matches wallet-connector source", () => {
-      const codesPath = resolve(
-        __dirname,
-        "../../../../../../packages/babylon-wallet-connector/src/error/codes.ts",
-      );
-      const source = readFileSync(codesPath, "utf8");
-      const match = source.match(/WALLET_METHOD_NOT_SUPPORTED:\s*"([^"]+)"/);
+    it.each([
+      ["WALLET_METHOD_NOT_SUPPORTED", "walletMethodNotSupported"],
+      ["WALLET_ACCOUNT_NOT_SUPPORTED", "walletAccountNotSupported"],
+    ] as const)(
+      "inlined %s code matches wallet-connector source",
+      (code, key) => {
+        const codesPath = resolve(
+          __dirname,
+          "../../../../../../packages/babylon-wallet-connector/src/error/codes.ts",
+        );
+        const source = readFileSync(codesPath, "utf8");
+        const match = source.match(new RegExp(`${code}:\\s*"([^"]+)"`));
 
-      expect(match).not.toBeNull();
-      expect(match?.[1]).toBe("WALLET_METHOD_NOT_SUPPORTED");
+        expect(match).not.toBeNull();
+        expect(match?.[1]).toBe(code);
 
-      const unsupported = new FakeWalletError(
-        match![1],
-        "SomeWallet does not support deriveContextHash",
-      );
-      expect(formatPayoutSignatureError(unsupported).title).toBe(
-        COPY.deposit.payoutSignatureErrors.walletMethodNotSupported.title,
-      );
-    });
+        const unsupported = new FakeWalletError(
+          match![1],
+          "SomeWallet does not support deriveContextHash",
+        );
+        expect(formatPayoutSignatureError(unsupported).title).toBe(
+          COPY.deposit.payoutSignatureErrors[key].title,
+        );
+      },
+    );
 
     it("maps a DepositTermsRejectedError instance to the terms-rejected copy", () => {
       const result = formatPayoutSignatureError(
@@ -897,6 +903,17 @@ describe("Error Formatting", () => {
       });
       expect(formatPayoutSignatureError(err)).toMatchObject(
         COPY.deposit.payoutSignatureErrors.unexpected,
+      );
+    });
+
+    it.each([
+      { code: "WALLET_ACCOUNT_NOT_SUPPORTED" },
+      new Error("payout signing failed", {
+        cause: { code: "WALLET_ACCOUNT_NOT_SUPPORTED" },
+      }),
+    ])("maps an unsupported account to the resume copy: %j", (error) => {
+      expect(formatPayoutSignatureError(error)).toEqual(
+        COPY.deposit.payoutSignatureErrors.walletAccountNotSupported,
       );
     });
 
