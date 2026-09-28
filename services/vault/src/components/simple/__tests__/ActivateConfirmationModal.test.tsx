@@ -12,6 +12,7 @@ import {
 import { ActivateConfirmationModal } from "../ActivateConfirmationModal";
 
 const cardCancelSpy = vi.hoisted(() => vi.fn());
+const cardDownloadSpy = vi.hoisted(() => vi.fn());
 const viewport = vi.hoisted(() => ({ isMobile: false }));
 
 vi.mock("@babylonlabs-io/core-ui", () => ({
@@ -54,7 +55,7 @@ vi.mock("@babylonlabs-io/core-ui", () => ({
 
 vi.mock("@/components/deposit/RecoveryArtifactsCard", () => ({
   RecoveryArtifactsCard: forwardRef<
-    { cancel: () => void },
+    { cancel: () => void; download: () => void },
     {
       onDownloaded?: () => void;
       onDelivered?: () => void;
@@ -67,7 +68,10 @@ vi.mock("@/components/deposit/RecoveryArtifactsCard", () => ({
       onGraphMismatch?: () => void;
     }
   >((props, ref) => {
-    useImperativeHandle(ref, () => ({ cancel: cardCancelSpy }));
+    useImperativeHandle(ref, () => ({
+      cancel: cardCancelSpy,
+      download: cardDownloadSpy,
+    }));
     return (
       <div data-testid="recovery-card">
         <button
@@ -149,6 +153,7 @@ describe("ActivateConfirmationModal", () => {
   beforeEach(() => {
     window.localStorage.clear();
     cardCancelSpy.mockClear();
+    cardDownloadSpy.mockClear();
     viewport.isMobile = false;
   });
 
@@ -485,5 +490,45 @@ describe("ActivateConfirmationModal", () => {
     fireEvent.click(screen.getByTestId("risk-checkbox"));
 
     expect(screen.getByText("Activate BTCVault")).not.toBeDisabled();
+  });
+
+  it("returns to the download step with the acknowledgement cleared when Cancel is clicked on the confirm-skip step", () => {
+    const onClose = vi.fn();
+    render(
+      <ActivateConfirmationModal
+        open
+        {...COMMON_PROPS}
+        onClose={onClose}
+        onConfirm={vi.fn()}
+      />,
+    );
+
+    const card = screen.getByTestId("recovery-card");
+    fireEvent.click(screen.getByText("Continue without"));
+    expect(card).not.toBeVisible();
+    fireEvent.click(screen.getByTestId("risk-checkbox"));
+    fireEvent.click(screen.getByText("Cancel"));
+    expect(screen.getByTestId("recovery-card")).toBe(card);
+    expect(card).toBeVisible();
+    fireEvent.click(screen.getByText("Continue without"));
+
+    expect(screen.getByTestId("risk-checkbox")).not.toBeChecked();
+    expect(screen.getByText("Activate BTCVault")).toBeDisabled();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("starts the card download when Download Artifacts is clicked", () => {
+    render(
+      <ActivateConfirmationModal
+        open
+        {...COMMON_PROPS}
+        onClose={vi.fn()}
+        onConfirm={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Download Artifacts"));
+
+    expect(cardDownloadSpy).toHaveBeenCalledTimes(1);
   });
 });

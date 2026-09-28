@@ -221,22 +221,24 @@ export function ActivateConfirmationModal({
           </div>
         )}
 
-        {canRenderCard && !isConfirmSkip && (
-          <RecoveryArtifactsCard
-            ref={cardRef}
-            providerAddress={providerAddress as string}
-            peginTxid={peginTxid as string}
-            depositorPk={depositorPk as string}
-            vaultId={vaultId}
-            unsignedPrePeginTxHex={unsignedPrePeginTxHex}
-            onDownloaded={() => {
-              // The receipt this download wrote cleared the stored mismatch.
-              setDownloaded(true);
-              setGraphMismatch(false);
-            }}
-            onStateChange={setDownloadState}
-            onGraphMismatch={() => setGraphMismatch(true)}
-          />
+        {canRenderCard && (
+          <div hidden={isConfirmSkip}>
+            <RecoveryArtifactsCard
+              ref={cardRef}
+              providerAddress={providerAddress as string}
+              peginTxid={peginTxid as string}
+              depositorPk={depositorPk as string}
+              vaultId={vaultId}
+              unsignedPrePeginTxHex={unsignedPrePeginTxHex}
+              onDownloaded={() => {
+                // The receipt this download wrote cleared the stored mismatch.
+                setDownloaded(true);
+                setGraphMismatch(false);
+              }}
+              onStateChange={setDownloadState}
+              onGraphMismatch={() => setGraphMismatch(true)}
+            />
+          </div>
         )}
 
         {isConfirmSkip && (
