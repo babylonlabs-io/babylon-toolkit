@@ -120,7 +120,12 @@ export function Slider({
   };
 
   return (
-    <div className="relative w-full">
+    <div
+      className={twJoin(
+        "relative w-full",
+        Array.isArray(steps) && steps.some((s) => s.label) && "mt-4",
+      )}
+    >
       <input
         type="range"
         min={min}
