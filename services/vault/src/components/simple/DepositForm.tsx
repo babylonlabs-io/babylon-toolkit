@@ -32,6 +32,9 @@ const btcConfig = getNetworkConfigBTC();
 const V3_CTA_CLASSES =
   "!rounded-lg !bg-secondary-main disabled:!bg-secondary-strokeDark disabled:!opacity-100";
 
+const SPLIT_SNAP_BAND_FRACTION = 0.005;
+const SPLIT_SNAP_MIN_DRAG_SATS = 1;
+
 export interface DepositAmountState {
   amount: string;
   amountSats: bigint;
@@ -315,6 +318,35 @@ export function DepositForm({
   );
   const sliderValueSats = Number(amountSats);
   const minDepositForSplit = twoVaultSplit?.minDepositForSplit ?? 0n;
+  const sliderSteps = useMemo(
+    () =>
+      minDepositForSplit > 0n
+        ? [
+            {
+              value: Number(minDepositForSplit),
+              label: COPY.deposit.form.splitSliderStepLabel,
+            },
+          ]
+        : [],
+    [minDepositForSplit],
+  );
+
+  const handleSliderChange = (sats: number) => {
+    const snap = Number(minDepositForSplit);
+    const value =
+      snap > sliderMinSats &&
+      snap < sliderMaxSats &&
+      sats > sliderMinSats &&
+      sats < sliderMaxSats &&
+      Math.abs(sats - snap) <=
+        (sliderMaxSats - sliderMinSats) * SPLIT_SNAP_BAND_FRACTION &&
+      Math.abs(sats - sliderValueSats) > SPLIT_SNAP_MIN_DRAG_SATS
+        ? snap
+        : sats;
+    onAmountChange(
+      depositService.formatSatoshisToBtc(BigInt(Math.round(value))),
+    );
+  };
 
   const usdValue = useMemo(() => {
     if (hasPriceFetchError || !btcPrice || !amount || amount === "0") return "";
@@ -416,33 +448,10 @@ export function DepositForm({
           sliderMin={sliderMinSats}
           sliderMax={sliderMaxSats}
           sliderStep={1}
-          sliderSteps={
-            minDepositForSplit > 0n
-              ? [
-                  {
-                    value: Number(minDepositForSplit),
-                    label: COPY.deposit.form.splitSliderStepLabel,
-                  },
-                ]
-              : []
-          }
+          sliderSteps={sliderSteps}
           sliderSnapToSteps={false}
           sliderDisabled={sliderDisabled}
-          onSliderChange={(sats) => {
-            const snap = Number(minDepositForSplit);
-            const value =
-              snap > sliderMinSats &&
-              snap < sliderMaxSats &&
-              sats > sliderMinSats &&
-              sats < sliderMaxSats &&
-              Math.abs(sats - snap) <= (sliderMaxSats - sliderMinSats) * 0.02 &&
-              Math.abs(sats - sliderValueSats) > 1
-                ? snap
-                : sats;
-            onAmountChange(
-              depositService.formatSatoshisToBtc(BigInt(Math.round(value))),
-            );
-          }}
+          onSliderChange={handleSliderChange}
           sliderVariant="primary"
           // Figma row: USD value on the left, balance + Max pill on the right.
           leftField={{
