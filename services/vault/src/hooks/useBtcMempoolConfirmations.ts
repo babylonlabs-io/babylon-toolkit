@@ -5,7 +5,7 @@ import { getTipHeight } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 
-import { getMempoolApiUrl } from "@/clients/btc/config";
+import { getBitcoinObserverApiUrl } from "@/clients/btc/config";
 import { fetchConfirmations } from "@/clients/btc/confirmations";
 import { mapWithConcurrency } from "@/utils/concurrency";
 import { canonicalizeTxid } from "@/utils/txid";
@@ -59,7 +59,7 @@ export function useBtcMempoolConfirmations(
     // flicker unchanged txids back to "unknown" until the next fetch lands.
     placeholderData: (prev) => prev,
     queryFn: async () => {
-      const apiUrl = getMempoolApiUrl();
+      const apiUrl = getBitcoinObserverApiUrl();
       const tipHeight = await getTipHeight(apiUrl);
       // Carry prior known counts forward on per-txid error so a transient 429
       // or network blip doesn't flicker a row backward for one cycle.

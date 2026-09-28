@@ -16,51 +16,72 @@ import {
 } from "@/utils/errors/depositorWalletMismatch";
 
 // Use vi.hoisted so mocks can reference these before module initialization
-const { mockFetchUTXO, mockPsbt, mockSignedPsbt, mockTx, mockInput } =
-  vi.hoisted(() => {
-    const input = {
-      hash: Buffer.from(
-        "abc123def456abc123def456abc123def456abc123def456abc123def456abc1",
-        "hex",
-      ),
-      index: 0,
-      sequence: 0xffffffff,
-    };
+const {
+  mockFetchUTXO,
+  mockPsbt,
+  mockSignedPsbt,
+  mockTx,
+  mockFinalizedTx,
+  mockObservedTx,
+  mockInput,
+} = vi.hoisted(() => {
+  const input = {
+    hash: Buffer.from(
+      "abc123def456abc123def456abc123def456abc123def456abc123def456abc1",
+      "hex",
+    ),
+    index: 0,
+    sequence: 0xffffffff,
+  };
 
-    return {
-      mockFetchUTXO: vi
-        .fn()
-        .mockResolvedValue({ scriptPubKey: "0014aabb", value: 100000 }),
-      mockPsbt: {
-        setVersion: vi.fn(),
-        setLocktime: vi.fn(),
-        addInput: vi.fn(),
-        addOutput: vi.fn(),
-        toHex: vi.fn().mockReturnValue("mock-psbt-hex"),
+  const transactionShape = {
+    ins: [input],
+    outs: [{ script: Buffer.from("0014deadbeef", "hex"), value: 90000 }],
+    version: 2,
+    locktime: 0,
+  };
+
+  return {
+    mockFetchUTXO: vi
+      .fn()
+      .mockResolvedValue({ scriptPubKey: "0014aabb", value: 100000 }),
+    mockPsbt: {
+      setVersion: vi.fn(),
+      setLocktime: vi.fn(),
+      addInput: vi.fn(),
+      addOutput: vi.fn(),
+      toHex: vi.fn().mockReturnValue("mock-psbt-hex"),
+    },
+    mockSignedPsbt: {
+      finalizeAllInputs: vi.fn(),
+      extractTransaction: vi.fn(() => ({ toHex: vi.fn(() => "signed-hex") })),
+      data: {
+        inputs: [{ finalScriptWitness: Buffer.from("00", "hex") }] as Array<{
+          finalScriptWitness?: Buffer;
+          finalScriptSig?: Buffer;
+        }>,
       },
-      mockSignedPsbt: {
-        finalizeAllInputs: vi.fn(),
-        extractTransaction: vi.fn(() => ({ toHex: vi.fn(() => "signed-hex") })),
-        data: {
-          inputs: [{ finalScriptWitness: Buffer.from("00", "hex") }] as Array<{
-            finalScriptWitness?: Buffer;
-            finalScriptSig?: Buffer;
-          }>,
-        },
-      },
-      mockTx: {
-        ins: [input],
-        outs: [{ script: Buffer.from("0014deadbeef", "hex"), value: 90000 }],
-        version: 2,
-        locktime: 0,
-        // Only the approval-ceremony path reads this; non-approval tests
-        // short-circuit before it.
-        getId: () => "cc".repeat(32),
-        toHex: () => "signed-hex",
-      },
-      mockInput: input,
-    };
-  });
+    },
+    mockTx: {
+      ...transactionShape,
+      // Only the approval-ceremony path reads this; non-approval tests
+      // short-circuit before it.
+      getId: vi.fn(() => "cc".repeat(32)),
+      toHex: vi.fn(() => "unsigned-hex"),
+    },
+    mockFinalizedTx: {
+      ...transactionShape,
+      getId: vi.fn(() => "cc".repeat(32)),
+      toHex: vi.fn(() => "signed-hex"),
+    },
+    mockObservedTx: {
+      ...transactionShape,
+      getId: vi.fn(() => "cc".repeat(32)),
+      toHex: vi.fn(() => "observed-hex"),
+    },
+    mockInput: input,
+  };
+});
 
 vi.mock("@babylonlabs-io/ts-sdk", () => ({
   pushTx: vi.fn().mockResolvedValue("cc".repeat(32)),
@@ -79,7 +100,13 @@ vi.mock("bitcoinjs-lib", () => {
   PsbtCtor.fromHex = vi.fn(() => mockSignedPsbt);
   return {
     Psbt: PsbtCtor,
-    Transaction: { fromHex: vi.fn(() => mockTx) },
+    Transaction: {
+      fromHex: vi.fn((hex: string) => {
+        if (hex === "signed-hex") return mockFinalizedTx;
+        if (hex === "observed-hex") return mockObservedTx;
+        return mockTx;
+      }),
+    },
   };
 });
 vi.mock("@babylonlabs-io/ts-sdk/tbv/core/utils", async (importOriginal) => {
@@ -109,6 +136,7 @@ vi.mock(
   },
 );
 vi.mock("../../../clients/btc/config", () => ({
+  getBitcoinObserverApiUrl: vi.fn(() => "https://observer.test"),
   getMempoolApiUrl: vi.fn(() => "https://mempool.test"),
 }));
 vi.mock("../vaultUtxoDerivationService", () => ({
@@ -117,6 +145,7 @@ vi.mock("../vaultUtxoDerivationService", () => ({
 
 import {
   broadcastPrePeginTransaction,
+  isPrePeginTransactionObserved,
   utxosToExpectedRecord,
 } from "../vaultPeginBroadcastService";
 
@@ -132,7 +161,10 @@ const REGISTERED_PRE_PEGIN_HASH = `0x${SIGNED_TXID}`;
 
 beforeEach(() => {
   vi.mocked(pushTx).mockReset().mockResolvedValue(SIGNED_TXID);
-  vi.mocked(getTxHex).mockReset().mockResolvedValue("signed-hex");
+  vi.mocked(getTxHex).mockReset().mockResolvedValue("observed-hex");
+  mockTx.getId.mockReset().mockReturnValue(SIGNED_TXID);
+  mockFinalizedTx.getId.mockReset().mockReturnValue(SIGNED_TXID);
+  mockObservedTx.getId.mockReset().mockReturnValue(SIGNED_TXID);
   mockSignedPsbt.finalizeAllInputs.mockReset();
   mockSignedPsbt.extractTransaction.mockReset();
   mockSignedPsbt.extractTransaction.mockReturnValue({
@@ -523,17 +555,12 @@ describe("broadcastPrePeginTransaction — acknowledgement verification", () => 
     expect(getTxHex).not.toHaveBeenCalled();
   });
 
-  it("treats a correct 2xx acknowledgement as failed when Bitcoin cannot observe the transaction", async () => {
-    vi.mocked(getTxHex).mockRejectedValueOnce(
-      new Error("Mempool API error (404): transaction not found"),
+  it("returns the locally derived txid without treating the broadcaster as Bitcoin observation", async () => {
+    await expect(broadcastPrePeginTransaction(makeParams())).resolves.toBe(
+      SIGNED_TXID,
     );
-
-    await expect(broadcastPrePeginTransaction(makeParams())).rejects.toThrow(
-      /Failed to broadcast Pre-Pegin transaction: Mempool API error \(404\)/,
-    );
-
     expect(pushTx).toHaveBeenCalledOnce();
-    expect(getTxHex).toHaveBeenCalledWith(SIGNED_TXID, "https://mempool.test");
+    expect(getTxHex).not.toHaveBeenCalled();
   });
 
   it("rejects before signing when the local transaction does not match the registered hash", async () => {
@@ -546,6 +573,54 @@ describe("broadcastPrePeginTransaction — acknowledgement verification", () => 
 
     expect(params.btcWalletProvider.signPsbt).not.toHaveBeenCalled();
     expect(pushTx).not.toHaveBeenCalled();
+  });
+
+  it("rejects before broadcast when the finalized transaction has a different txid", async () => {
+    mockFinalizedTx.getId.mockReturnValueOnce("dd".repeat(32));
+
+    await expect(broadcastPrePeginTransaction(makeParams())).rejects.toThrow(
+      /Finalized Pre-PegIn txid .* does not match registered hash/,
+    );
+
+    expect(pushTx).not.toHaveBeenCalled();
+  });
+});
+
+describe("isPrePeginTransactionObserved", () => {
+  const params = {
+    unsignedTxHex: "deadbeef",
+    registeredPrePeginTxHash: REGISTERED_PRE_PEGIN_HASH,
+  };
+
+  it("returns false when the independent observer has not seen the txid", async () => {
+    vi.mocked(getTxHex).mockRejectedValueOnce(
+      new Error("Mempool API error (404): transaction not found"),
+    );
+
+    await expect(isPrePeginTransactionObserved(params)).resolves.toBe(false);
+    expect(getTxHex).toHaveBeenCalledWith(SIGNED_TXID, "https://observer.test");
+  });
+
+  it("accepts a different witness serialization when the committed txid matches", async () => {
+    mockObservedTx.toHex.mockReturnValueOnce("different-witness-hex");
+
+    await expect(isPrePeginTransactionObserved(params)).resolves.toBe(true);
+  });
+
+  it("rejects an observer response that resolves to another txid", async () => {
+    mockObservedTx.getId.mockReturnValueOnce("dd".repeat(32));
+
+    await expect(isPrePeginTransactionObserved(params)).rejects.toThrow(
+      /Bitcoin observation returned txid .* expected/,
+    );
+  });
+
+  it("fails closed when the independent observer is unavailable", async () => {
+    vi.mocked(getTxHex).mockRejectedValueOnce(new Error("observer timed out"));
+
+    await expect(isPrePeginTransactionObserved(params)).rejects.toThrow(
+      /observer timed out/,
+    );
   });
 });
 

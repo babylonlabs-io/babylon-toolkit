@@ -20,6 +20,7 @@ vi.mock("@/config", async () => {
       coinSymbol: "sBTC",
       networkName: "BTC signet",
       mempoolApiUrl: "https://mempool.space/signet",
+      bitcoinObserverApiUrl: "https://blockstream.info/signet",
       // Adapter returns wallet-connector's Network enum (string-valued).
       network: "signet",
       icon: "/images/signet_bitcoin.svg",
@@ -43,6 +44,7 @@ vi.mock("@/config/network", () => ({
     coinSymbol: "sBTC",
     networkName: "BTC signet",
     mempoolApiUrl: "https://mempool.space/signet",
+    bitcoinObserverApiUrl: "https://blockstream.info/signet",
     network: "signet",
   }),
   getBTCNetwork: () => "signet",

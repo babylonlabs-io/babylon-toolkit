@@ -28,7 +28,10 @@ import { Buffer } from "buffer";
 
 import { COPY } from "@/copy";
 
-import { getMempoolApiUrl } from "../../clients/btc/config";
+import {
+  getBitcoinObserverApiUrl,
+  getMempoolApiUrl,
+} from "../../clients/btc/config";
 import {
   isDepositorBtcKeyMismatchError,
   isDepositorWalletMismatchError,
@@ -339,6 +342,58 @@ function normalizeRegisteredTxid(hash: string): string {
   return txid.toLowerCase();
 }
 
+function isTransactionNotFound(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    /(?:\(404\)|\b404\b|transaction not found)/i.test(error.message)
+  );
+}
+
+export interface ObservePrePeginTransactionParams {
+  unsignedTxHex: string;
+  registeredPrePeginTxHash: string;
+}
+
+/**
+ * Check whether an independently configured Bitcoin data provider can see the
+ * registered Pre-PegIn transaction.
+ *
+ * A 404 is an ordinary "not observed yet" result. Transport failures and
+ * malformed/mismatched responses fail closed because they cannot establish
+ * either absence or publication.
+ */
+export async function isPrePeginTransactionObserved(
+  params: ObservePrePeginTransactionParams,
+): Promise<boolean> {
+  const { unsignedTxHex, registeredPrePeginTxHash } = params;
+  const registeredTxid = normalizeRegisteredTxid(registeredPrePeginTxHash);
+  const cleanHex = unsignedTxHex.startsWith("0x")
+    ? unsignedTxHex.slice(2)
+    : unsignedTxHex;
+  const expectedTransaction = Transaction.fromHex(cleanHex);
+  if (expectedTransaction.getId() !== registeredTxid) {
+    throw new Error(
+      `Pre-PegIn txid ${expectedTransaction.getId()} does not match registered hash ${registeredTxid}`,
+    );
+  }
+
+  let observedTxHex: string;
+  try {
+    observedTxHex = await getTxHex(registeredTxid, getBitcoinObserverApiUrl());
+  } catch (error) {
+    if (isTransactionNotFound(error)) return false;
+    throw error;
+  }
+
+  const observedTxid = Transaction.fromHex(observedTxHex).getId();
+  if (observedTxid !== registeredTxid) {
+    throw new Error(
+      `Bitcoin observation returned txid ${observedTxid}, expected ${registeredTxid}`,
+    );
+  }
+  return true;
+}
+
 /**
  * Sign and broadcast the funded Pre-PegIn transaction to the Bitcoin network
  *
@@ -392,7 +447,6 @@ export async function broadcastPrePeginTransaction(
   // Stage 2: sign. Includes the ceremony so device failures read as signing.
   let signedTxHex: string;
   let signedTxid: string;
-  let canonicalSignedTxHex: string;
   try {
     // Intent-wallet ceremony (derive → approve) immediately before signing.
     // No-op for wallets that do not support deposit approval.
@@ -410,7 +464,6 @@ export async function broadcastPrePeginTransaction(
     );
     const signedTransaction = Transaction.fromHex(signedTxHex);
     signedTxid = signedTransaction.getId();
-    canonicalSignedTxHex = signedTransaction.toHex();
     if (signedTxid !== registeredTxid) {
       throw new Error(
         `Finalized Pre-PegIn txid ${signedTxid} does not match registered hash ${registeredTxid}`,
@@ -444,23 +497,8 @@ export async function broadcastPrePeginTransaction(
       );
     }
 
-    // A 2xx POST only proves the service accepted the request. Read the raw
-    // transaction back through the Bitcoin API and derive its txid locally
-    // before allowing CONFIRMING to suppress a safe rebroadcast.
-    const observedTxHex = await getTxHex(signedTxid, apiUrl);
-    const observedTransaction = Transaction.fromHex(observedTxHex);
-    const observedTxid = observedTransaction.getId();
-    if (observedTxid !== signedTxid) {
-      throw new Error(
-        `Bitcoin observation returned txid ${observedTxid}, expected ${signedTxid}`,
-      );
-    }
-    if (observedTransaction.toHex() !== canonicalSignedTxHex) {
-      throw new Error(
-        "Bitcoin observation did not return the finalized transaction that was broadcast",
-      );
-    }
-
+    // This acknowledgement is not Bitcoin observation. The dashboard's
+    // independent observer decides whether CONFIRMING may suppress rebroadcast.
     return signedTxid;
   } catch (error) {
     throw stageError(STAGE_FAILED.broadcast, error);

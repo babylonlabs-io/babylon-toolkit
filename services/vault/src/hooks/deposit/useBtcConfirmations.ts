@@ -9,7 +9,7 @@
 import { getTipHeight } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { useQuery } from "@tanstack/react-query";
 
-import { getMempoolApiUrl } from "@/clients/btc/config";
+import { getBitcoinObserverApiUrl } from "@/clients/btc/config";
 import { fetchConfirmations } from "@/clients/btc/confirmations";
 
 /** Bitcoin blocks arrive ~every 10 min; a 30s poll catches each promptly. */
@@ -37,7 +37,7 @@ export function useBtcConfirmations(
     refetchInterval: CONFIRMATION_POLL_INTERVAL_MS,
     queryFn: async () => {
       if (!txid) throw new Error("useBtcConfirmations: txid is required");
-      const apiUrl = getMempoolApiUrl();
+      const apiUrl = getBitcoinObserverApiUrl();
       const tipHeight = await getTipHeight(apiUrl);
       return fetchConfirmations(txid, apiUrl, tipHeight);
     },
