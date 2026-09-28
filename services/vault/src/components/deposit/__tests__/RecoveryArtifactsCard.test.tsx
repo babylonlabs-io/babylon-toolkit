@@ -169,7 +169,7 @@ describe("RecoveryArtifactsCard — unverifiable save", () => {
     ).toBeTruthy();
   });
 
-  it("keeps the download available and warns that the save is unconfirmed", () => {
+  it("warns that the save is unconfirmed", () => {
     hookState.current = { ...IDLE_HOOK_STATE, delivered: true };
 
     render(<RecoveryArtifactsCard {...COMMON_PROPS} />);

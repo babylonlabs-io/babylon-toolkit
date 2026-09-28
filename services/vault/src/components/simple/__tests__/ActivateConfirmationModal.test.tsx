@@ -193,7 +193,7 @@ describe("ActivateConfirmationModal", () => {
       "742 MB / 1.00 GB",
     );
     expect(screen.getByText("Cancel download")).toBeTruthy();
-    expect(screen.queryByText("Activate your BTCVault")).toBeNull();
+    expect(screen.queryByText("Download BTCVault artifacts")).toBeNull();
     expect(screen.queryByText("Activate BTCVault")).toBeNull();
     expect(screen.queryByTestId("risk-checkbox")).toBeNull();
   });

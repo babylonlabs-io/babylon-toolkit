@@ -222,7 +222,7 @@ export function ActivateConfirmationModal({
         )}
 
         {canRenderCard && (
-          <div hidden={isConfirmSkip}>
+          <div hidden={isConfirmSkip || isDownloading}>
             <RecoveryArtifactsCard
               ref={cardRef}
               providerAddress={providerAddress as string}
