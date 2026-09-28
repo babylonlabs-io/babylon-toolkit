@@ -13,6 +13,7 @@ import { useBtcPublicKey } from "@/hooks/useBtcPublicKey";
 import { fragmentUtxos, useUtxoFragmentCountOverride } from "@/overrides/utxos";
 import { MAX_PRE_PEGIN_FUNDING_INPUTS } from "@/services/deposit/fundingInputCap";
 import type { VaultProviderListItem } from "@/types/vaultProvider";
+import { normalizeError } from "@/utils/errors/normalizeError";
 import { getSupportedVaultCoreVersions } from "@/utils/vaultCoreVersionSupport";
 
 import { useAaveConfig } from "../../applications/aave/context";
@@ -68,7 +69,7 @@ const PRE_PEGIN_SAFETY_BUFFER_SATS = 3_000n;
  */
 function toError(value: unknown): Error | null {
   if (value == null) return null;
-  return value instanceof Error ? value : new Error(String(value));
+  return normalizeError(value);
 }
 
 export interface DepositPageFormData {
@@ -474,7 +475,7 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     } catch (err) {
       return {
         value: undefined,
-        error: err instanceof Error ? err : new Error(String(err)),
+        error: normalizeError(err),
       };
     }
   }, [selectedVpBtcPubkey, vaultKeeperBtcPubkeys, depositorBtcPubkey]);

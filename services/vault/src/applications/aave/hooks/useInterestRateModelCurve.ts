@@ -74,6 +74,7 @@ import {
   type IrmCurvePoint,
 } from "@/clients/indexer/aaveIrmClient";
 import { logger } from "@/infrastructure";
+import { normalizeError } from "@/utils/errors/normalizeError";
 
 import type { AaveReserveConfig } from "../services/fetchConfig";
 
@@ -148,7 +149,7 @@ export function useInterestRateModelCurve({
               if (signal.aborted) {
                 throw err;
               }
-              const error = err instanceof Error ? err : new Error(String(err));
+              const error = normalizeError(err);
 
               // Reported here, not through `QueryCache.onError`: the queryFn
               // resolves, so the global handler never sees this. Only on the

@@ -75,6 +75,34 @@ describe("logger", () => {
   });
 
   describe("error", () => {
+    it("logs the message of a plain-object rejection without its payload", () => {
+      const message = "Current keyring does not support deriveContextHash";
+      logger.error({
+        code: -32603,
+        message,
+        data: { originalError: { message, stack: LONG_HEX } },
+      });
+
+      const error = vi.mocked(captureException).mock.lastCall?.[0];
+      expect(error).toBeInstanceOf(Error);
+      expect(error).toHaveProperty("message", message);
+      expect(error).not.toHaveProperty("data");
+      expect(error).not.toHaveProperty("cause");
+      expect(error).not.toHaveProperty("stack", LONG_HEX);
+    });
+
+    it("scrubs addresses and hex in a plain-object rejection in the console", () => {
+      const consoleError = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
+      logger.error({ message: `Failed for ${ETH_ADDR}: ${LONG_HEX}` });
+
+      expect(consoleError).toHaveBeenCalledWith(
+        expect.stringContaining("Failed for [ETH_ADDR]: [HEX_REDACTED]"),
+      );
+      consoleError.mockRestore();
+    });
+
     it("redacts extra data", () => {
       const error = new Error("something failed");
       logger.error(error, {

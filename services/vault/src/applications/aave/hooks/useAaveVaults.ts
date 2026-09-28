@@ -157,16 +157,12 @@ export function useAaveVaults(
           const decodeKey = `${vault.id}:${vault.depositorPayoutBtcAddress}`;
           if (!loggedKeys.has(decodeKey)) {
             loggedKeys.add(decodeKey);
-            logger.error(
-              error instanceof Error ? error : new Error(String(error)),
-              {
-                data: {
-                  context:
-                    "Decode payout scriptPubKey for pending withdraw card",
-                  vaultId: vault.id,
-                },
+            logger.error(error, {
+              data: {
+                context: "Decode payout scriptPubKey for pending withdraw card",
+                vaultId: vault.id,
               },
-            );
+            });
           }
         }
         return {

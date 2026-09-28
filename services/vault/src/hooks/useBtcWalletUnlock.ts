@@ -3,6 +3,7 @@ import { useCallback, useState } from "react";
 
 import { useBTCWallet } from "@/context/wallet";
 import { logger } from "@/infrastructure";
+import { normalizeError } from "@/utils/errors/normalizeError";
 
 interface UseBtcWalletUnlockResult {
   /**
@@ -34,7 +35,7 @@ export function useBtcWalletUnlock(
     try {
       await reconnect();
     } catch (error) {
-      const err = error instanceof Error ? error : new Error(String(error));
+      const err = normalizeError(error);
       if (!isUserRejectionMessage(err.message)) {
         logger.error(err, { data: { context: logContext } });
       }

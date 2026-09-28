@@ -241,7 +241,7 @@ export function useRepayTransaction({
 
       return true;
     } catch (error) {
-      logger.error(error instanceof Error ? error : new Error(String(error)), {
+      logger.error(error, {
         data: { context: "Repay failed" },
       });
       // Surface the on-chain integrity checks (reserve + proxy) as their own

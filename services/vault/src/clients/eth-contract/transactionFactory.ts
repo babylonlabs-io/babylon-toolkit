@@ -19,6 +19,7 @@ import {
 
 import { getETHChain } from "@/config/network";
 import { logger } from "@/infrastructure";
+import { normalizeError } from "@/utils/errors/normalizeError";
 
 import {
   isSimulationPhaseError,
@@ -236,9 +237,7 @@ export async function throwRevertError(
     });
   } catch (replayError) {
     // The replay reverted — this error should contain the revert data
-    throw replayError instanceof Error
-      ? replayError
-      : new Error(String(replayError));
+    throw normalizeError(replayError);
   }
 
   // Replay succeeded (state changed between block and now, or archive node unavailable)

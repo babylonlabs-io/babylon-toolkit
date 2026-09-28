@@ -515,7 +515,7 @@ function persistStoredEntries(
       localStorage.setItem(key, JSON.stringify(entries));
     }
   } catch (error) {
-    logger.error(error instanceof Error ? error : new Error(String(error)), {
+    logger.error(error, {
       data: { context: "[peginStorage] Failed to persist pending pegins" },
     });
     throw new Error(
@@ -552,7 +552,7 @@ function readStoredEntries(ethAddress: string): StoredEntriesRead {
     }
     return { status: "ok", entries: parsed };
   } catch (error) {
-    logger.error(error instanceof Error ? error : new Error(String(error)), {
+    logger.error(error, {
       data: { context: "[peginStorage] Failed to parse stored pending pegins" },
     });
     return { status: "unreadable" };

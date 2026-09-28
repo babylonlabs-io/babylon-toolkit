@@ -5,6 +5,7 @@ import {
   captureMessage,
 } from "@sentry/react";
 
+import { normalizeError } from "@/utils/errors/normalizeError";
 import { redactData, scrubString } from "@/utils/telemetry";
 
 type Value = string | number | boolean | object;
@@ -35,9 +36,10 @@ export default {
       data: redactData(data),
     }),
   error: (
-    error: Error,
+    value: unknown,
     { level = "error", tags, data: extra }: ErrorContext = {},
   ) => {
+    const error = normalizeError(value);
     // Always mirror to the browser console, scrubbed like the Sentry path
     // (addresses / tx hex / secrets) with stack frames kept — visible with
     // Sentry off, alongside Sentry when on.

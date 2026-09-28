@@ -92,7 +92,7 @@ export function captureFunnelFailure(
   } = {},
 ): void {
   if (classifyError(err) === "user-rejection") return;
-  logger.error(err instanceof Error ? err : new Error(String(err)), {
+  logger.error(err, {
     tags: { ...tags, funnelStage: stage, vaultId: shortId(vaultId) },
     data: extra,
   });
