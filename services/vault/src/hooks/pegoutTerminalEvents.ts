@@ -95,7 +95,7 @@ function classifyTerminal(
     };
   }
   const claimerStatus = result.response?.claimer?.status;
-  if (claimerStatus === ClaimerPegoutStatusValue.PAYOUT_BROADCAST) {
+  if (claimerStatus === ClaimerPegoutStatusValue.PAYOUT_CONFIRMED) {
     return {
       kind: "payout_broadcast",
       event: TELEMETRY_EVENT.EXIT_REDEEM_PAYOUT_BROADCAST,
