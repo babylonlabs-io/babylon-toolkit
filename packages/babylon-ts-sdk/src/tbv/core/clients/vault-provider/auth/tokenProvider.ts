@@ -79,11 +79,10 @@ export interface VpTokenProviderConfig {
   /** Live JSON-RPC-subject VP pubkey from chain; branded so mirrors can't substitute it. */
   pinnedServerPubkey: OnChainBtcPubkey;
   /**
-   * Pin for the gRPC-subject bootstrap. Defaults to `pinnedServerPubkey` for
-   * backwards compatibility. Vault clients should pass the operation key at
-   * the vault's frozen VP epoch: vaultd signs this subject with that key.
+   * Pin for the gRPC-subject bootstrap. This must be the operation key at the
+   * vault's frozen VP epoch: vaultd signs this subject with that key.
    */
-  grpcPinnedServerPubkey?: OnChainBtcPubkey;
+  grpcPinnedServerPubkey: OnChainBtcPubkey;
   /**
    * Re-read the authoritative current operation key after a JSON-RPC-subject
    * identity mismatch. The provider retries at most once, and only when the
@@ -157,8 +156,7 @@ export class VpTokenProvider implements BearerTokenProvider {
     this.peginTxid = config.peginTxid;
     this.authAnchorHex = config.authAnchorHex;
     this.jsonRpcPinnedServerPubkey = config.pinnedServerPubkey;
-    this.grpcPinnedServerPubkey =
-      config.grpcPinnedServerPubkey ?? config.pinnedServerPubkey;
+    this.grpcPinnedServerPubkey = config.grpcPinnedServerPubkey;
     this.refreshJsonRpcPinnedServerPubkey =
       config.refreshJsonRpcPinnedServerPubkey;
     this.expectedAudienceXOnlyPubkey = config.expectedAudienceXOnlyPubkey;

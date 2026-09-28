@@ -875,8 +875,8 @@ the brand. Returns 64-char lowercase hex without the `0x` prefix.
 
 ```ts
 getVaultProviderOperationBtcKeyAtEpoch(
-   vpAddress, 
-   epoch, 
+   vpAddress,
+   epoch,
 blockNumber?): Promise<OnChainBtcPubkey>;
 ```
 
@@ -1595,18 +1595,21 @@ cache reuse. A legitimate live JSON-RPC key rotation is handled inside
 ##### peek()
 
 ```ts
-peek(peginTxid): VpTokenProvider | undefined;
+peek(input): VpTokenProvider | undefined;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenRegistry.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenRegistry.ts)
 
-Return the cached provider, or `undefined` if none.
+Return the cached provider only when its request-facing identity matches.
+A missing entry is a normal cold-cache result; a binding mismatch throws
+so callers cannot attach one provider's bearer to another provider or
+depositor request.
 
 ###### Parameters
 
-###### peginTxid
+###### input
 
-`string`
+[`VpTokenRegistryLookup`](#vptokenregistrylookup)
 
 ###### Returns
 
@@ -2720,8 +2723,8 @@ RFC-006 registry — as does every caller.
 
 ```ts
 getVaultProviderOperationBtcKeyAtEpoch(
-   vpAddress, 
-   epoch, 
+   vpAddress,
+   epoch,
 blockNumber?): Promise<OnChainBtcPubkey>;
 ```
 
@@ -4536,10 +4539,10 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/cr
 
 Already-derived 32-byte auth-anchor preimage (64-char hex, no `0x`).
 
-##### providerAddress?
+##### providerAddress
 
 ```ts
-optional providerAddress: string;
+providerAddress: string;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/createAuthenticatedVpClient.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/createAuthenticatedVpClient.ts)
@@ -4556,20 +4559,20 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/cr
 
 On-chain VP pubkey, branded so it can only come from the registry reader.
 
-##### grpcPinnedServerPubkey?
+##### grpcPinnedServerPubkey
 
 ```ts
-optional grpcPinnedServerPubkey: OnChainBtcPubkey;
+grpcPinnedServerPubkey: OnChainBtcPubkey;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/createAuthenticatedVpClient.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/createAuthenticatedVpClient.ts)
 
 Frozen-epoch VP pubkey used by the gRPC-subject bootstrap.
 
-##### grpcKeyEpoch?
+##### grpcKeyEpoch
 
 ```ts
-optional grpcKeyEpoch: bigint;
+grpcKeyEpoch: bigint;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/createAuthenticatedVpClient.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/createAuthenticatedVpClient.ts)
@@ -4643,10 +4646,10 @@ authAnchorHex: string;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/primeVpAuth.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/primeVpAuth.ts)
 
-##### providerAddress?
+##### providerAddress
 
 ```ts
-optional providerAddress: string;
+providerAddress: string;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/primeVpAuth.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/primeVpAuth.ts)
@@ -4661,20 +4664,20 @@ pinnedServerPubkey: OnChainBtcPubkey;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/primeVpAuth.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/primeVpAuth.ts)
 
-##### grpcPinnedServerPubkey?
+##### grpcPinnedServerPubkey
 
 ```ts
-optional grpcPinnedServerPubkey: OnChainBtcPubkey;
+grpcPinnedServerPubkey: OnChainBtcPubkey;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/primeVpAuth.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/primeVpAuth.ts)
 
 Frozen-epoch VP pubkey used by the gRPC-subject bootstrap.
 
-##### grpcKeyEpoch?
+##### grpcKeyEpoch
 
 ```ts
-optional grpcKeyEpoch: bigint;
+grpcKeyEpoch: bigint;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/primeVpAuth.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/primeVpAuth.ts)
@@ -4848,10 +4851,10 @@ authAnchorHex: string;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenRegistry.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenRegistry.ts)
 
-##### providerAddress?
+##### providerAddress
 
 ```ts
-optional providerAddress: string;
+providerAddress: string;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenRegistry.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenRegistry.ts)
@@ -4866,20 +4869,20 @@ pinnedServerPubkey: OnChainBtcPubkey;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenRegistry.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenRegistry.ts)
 
-##### grpcPinnedServerPubkey?
+##### grpcPinnedServerPubkey
 
 ```ts
-optional grpcPinnedServerPubkey: OnChainBtcPubkey;
+grpcPinnedServerPubkey: OnChainBtcPubkey;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenRegistry.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenRegistry.ts)
 
 Frozen-epoch issuer used only by the gRPC token subject.
 
-##### grpcKeyEpoch?
+##### grpcKeyEpoch
 
 ```ts
-optional grpcKeyEpoch: bigint;
+grpcKeyEpoch: bigint;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenRegistry.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenRegistry.ts)
@@ -4909,6 +4912,38 @@ expectedAudienceXOnlyPubkey: string;
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenRegistry.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenRegistry.ts)
 
 Depositor x-only pubkey (32-byte hex), asserted against each token's CWT `aud`.
+
+***
+
+### VpTokenRegistryLookup
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenRegistry.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenRegistry.ts)
+
+#### Properties
+
+##### peginTxid
+
+```ts
+peginTxid: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenRegistry.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenRegistry.ts)
+
+##### providerAddress
+
+```ts
+providerAddress: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenRegistry.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenRegistry.ts)
+
+##### expectedAudienceXOnlyPubkey
+
+```ts
+expectedAudienceXOnlyPubkey: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenRegistry.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/tokenRegistry.ts)
 
 ***
 

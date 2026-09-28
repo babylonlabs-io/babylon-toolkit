@@ -175,9 +175,14 @@ function seedHotCache(): void {
     baseUrl: "https://vp.test/rpc",
     peginTxid: PEGIN_TXID,
     authAnchorHex: "c".repeat(64),
+    providerAddress: PROVIDER_ADDRESS,
     pinnedServerPubkey: "ab".repeat(32) as unknown as Parameters<
       typeof createAuthenticatedVpClient
     >[0]["pinnedServerPubkey"],
+    grpcPinnedServerPubkey: "ab".repeat(32) as unknown as Parameters<
+      typeof createAuthenticatedVpClient
+    >[0]["grpcPinnedServerPubkey"],
+    grpcKeyEpoch: 1n,
     depositorBtcPubkey: DEPOSITOR_PK,
   });
 }
@@ -790,7 +795,11 @@ describe("useArtifactDownload — prime then fetch", () => {
 
   it("retries once when the bearer expires mid-flight (hot-but-stale)", async () => {
     seedHotCache();
-    const seededProvider = vpTokenRegistry.peek(PEGIN_TXID);
+    const seededProvider = vpTokenRegistry.peek({
+      peginTxid: PEGIN_TXID,
+      providerAddress: PROVIDER_ADDRESS,
+      expectedAudienceXOnlyPubkey: DEPOSITOR_PK,
+    });
     expect(seededProvider).toBeDefined();
     const invalidateSpy = vi.spyOn(
       seededProvider as { invalidate: () => void },

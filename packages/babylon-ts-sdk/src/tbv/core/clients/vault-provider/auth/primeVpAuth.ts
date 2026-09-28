@@ -18,12 +18,12 @@ export interface PrimeVpAuthInput {
   peginTxid: string;
   authAnchorHex: string;
   /** Stable vault-provider address used to scope the registry entry. */
-  providerAddress?: string;
+  providerAddress: string;
   pinnedServerPubkey: OnChainBtcPubkey;
   /** Frozen-epoch VP pubkey used by the gRPC-subject bootstrap. */
-  grpcPinnedServerPubkey?: OnChainBtcPubkey;
+  grpcPinnedServerPubkey: OnChainBtcPubkey;
   /** Vault's frozen VP epoch, paired with `grpcPinnedServerPubkey`. */
-  grpcKeyEpoch?: bigint;
+  grpcKeyEpoch: bigint;
   /** Re-read the current operation key after a JSON-RPC identity mismatch. */
   refreshJsonRpcPinnedServerPubkey?: () => Promise<OnChainBtcPubkey>;
   /**

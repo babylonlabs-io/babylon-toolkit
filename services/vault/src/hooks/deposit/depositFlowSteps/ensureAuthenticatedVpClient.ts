@@ -16,6 +16,7 @@ import {
   expandAuthAnchor,
   hexToUint8Array,
   parseFundingOutpointsFromTx,
+  processPublicKeyToXOnly,
   stripHexPrefix,
   supportsDepositApproval,
   uint8ArrayToHex,
@@ -71,7 +72,13 @@ export async function ensureAuthenticatedVpClient(
   ) {
     vpTokenRegistry.release(peginTxid);
   } else {
-    const cached = vpTokenRegistry.peek(peginTxid);
+    const cached = vpTokenRegistry.peek({
+      peginTxid,
+      providerAddress: params.providerAddress,
+      expectedAudienceXOnlyPubkey: processPublicKeyToXOnly(
+        params.depositorBtcPubkey,
+      ),
+    });
     if (cached) {
       return new VaultProviderRpcClient(baseUrl, { tokenProvider: cached });
     }

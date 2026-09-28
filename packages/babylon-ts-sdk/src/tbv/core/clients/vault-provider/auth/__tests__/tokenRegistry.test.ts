@@ -63,7 +63,10 @@ function buildInput(
     client: buildClient(),
     peginTxid: PEGIN_TXID_A,
     authAnchorHex: AUTH_ANCHOR_HEX,
+    providerAddress: PROVIDER_ADDRESS,
     pinnedServerPubkey: PINNED_PUBKEY,
+    grpcPinnedServerPubkey: PINNED_PUBKEY,
+    grpcKeyEpoch: 1n,
     expectedAudienceXOnlyPubkey: GOLDEN_CWT_AUDIENCE_XONLY,
     ...overrides,
   };
@@ -175,6 +178,42 @@ describe("VpTokenRegistry", () => {
       registry.getOrCreate(
         buildInput({ expectedAudienceXOnlyPubkey: "f".repeat(64) }),
       ),
+    ).toThrow(/already bound to expectedAudienceXOnlyPubkey/);
+  });
+
+  it("returns a cached provider only for matching request-facing bindings", () => {
+    const provider = registry.getOrCreate(buildInput());
+
+    expect(
+      registry.peek({
+        peginTxid: PEGIN_TXID_A,
+        providerAddress: PROVIDER_ADDRESS,
+        expectedAudienceXOnlyPubkey: GOLDEN_CWT_AUDIENCE_XONLY,
+      }),
+    ).toBe(provider);
+  });
+
+  it("rejects a cached provider lookup for a different provider", () => {
+    registry.getOrCreate(buildInput());
+
+    expect(() =>
+      registry.peek({
+        peginTxid: PEGIN_TXID_A,
+        providerAddress: ALT_PROVIDER_ADDRESS,
+        expectedAudienceXOnlyPubkey: GOLDEN_CWT_AUDIENCE_XONLY,
+      }),
+    ).toThrow(/already bound to providerAddress/);
+  });
+
+  it("rejects a cached provider lookup for a different audience", () => {
+    registry.getOrCreate(buildInput());
+
+    expect(() =>
+      registry.peek({
+        peginTxid: PEGIN_TXID_A,
+        providerAddress: PROVIDER_ADDRESS,
+        expectedAudienceXOnlyPubkey: "f".repeat(64),
+      }),
     ).toThrow(/already bound to expectedAudienceXOnlyPubkey/);
   });
 

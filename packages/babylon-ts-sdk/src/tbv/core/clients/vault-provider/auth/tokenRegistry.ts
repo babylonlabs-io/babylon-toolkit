@@ -17,23 +17,29 @@ export interface VpTokenRegistryInput {
   peginTxid: string;
   authAnchorHex: string;
   /** Stable provider identity used to prevent cross-provider cache reuse. */
-  providerAddress?: string;
+  providerAddress: string;
   pinnedServerPubkey: OnChainBtcPubkey;
   /** Frozen-epoch issuer used only by the gRPC token subject. */
-  grpcPinnedServerPubkey?: OnChainBtcPubkey;
+  grpcPinnedServerPubkey: OnChainBtcPubkey;
   /** Frozen VP epoch that selected `grpcPinnedServerPubkey`. */
-  grpcKeyEpoch?: bigint;
+  grpcKeyEpoch: bigint;
   /** Authoritative live-key resolver for bounded JSON-RPC pin recovery. */
   refreshJsonRpcPinnedServerPubkey?: () => Promise<OnChainBtcPubkey>;
   /** Depositor x-only pubkey (32-byte hex), asserted against each token's CWT `aud`. */
   expectedAudienceXOnlyPubkey: string;
 }
 
+export interface VpTokenRegistryLookup {
+  peginTxid: string;
+  providerAddress: string;
+  expectedAudienceXOnlyPubkey: string;
+}
+
 interface RegistryEntry {
   provider: VpTokenProvider;
   authAnchorHex: string;
-  providerAddress?: string;
-  grpcKeyEpoch?: bigint;
+  providerAddress: string;
+  grpcKeyEpoch: bigint;
   expectedAudienceXOnlyPubkey: string;
 }
 
@@ -69,19 +75,17 @@ export class VpTokenRegistry {
           `VpTokenRegistry: peginTxid ${input.peginTxid} already bound to JSON-RPC pinnedServerPubkey ${existing.provider.getPinnedServerPubkey("jsonrpc").slice(0, 8)}…; got ${input.pinnedServerPubkey.slice(0, 8)}…`,
         );
       }
-      const grpcPinnedServerPubkey =
-        input.grpcPinnedServerPubkey ?? input.pinnedServerPubkey;
       if (
         existing.provider.getPinnedServerPubkey("grpc") !==
-        grpcPinnedServerPubkey
+        input.grpcPinnedServerPubkey
       ) {
         throw new Error(
-          `VpTokenRegistry: peginTxid ${input.peginTxid} already bound to gRPC pinnedServerPubkey ${existing.provider.getPinnedServerPubkey("grpc").slice(0, 8)}…; got ${grpcPinnedServerPubkey.slice(0, 8)}…`,
+          `VpTokenRegistry: peginTxid ${input.peginTxid} already bound to gRPC pinnedServerPubkey ${existing.provider.getPinnedServerPubkey("grpc").slice(0, 8)}…; got ${input.grpcPinnedServerPubkey.slice(0, 8)}…`,
         );
       }
       if (existing.grpcKeyEpoch !== input.grpcKeyEpoch) {
         throw new Error(
-          `VpTokenRegistry: peginTxid ${input.peginTxid} already bound to gRPC key epoch ${existing.grpcKeyEpoch?.toString() ?? "<unset>"}; got ${input.grpcKeyEpoch?.toString() ?? "<unset>"}`,
+          `VpTokenRegistry: peginTxid ${input.peginTxid} already bound to gRPC key epoch ${existing.grpcKeyEpoch.toString()}; got ${input.grpcKeyEpoch.toString()}`,
         );
       }
       if (
@@ -120,9 +124,34 @@ export class VpTokenRegistry {
     return provider;
   }
 
-  /** Return the cached provider, or `undefined` if none. */
-  peek(peginTxid: string): VpTokenProvider | undefined {
-    return this.entries.get(peginTxid)?.provider;
+  /**
+   * Return the cached provider only when its request-facing identity matches.
+   * A missing entry is a normal cold-cache result; a binding mismatch throws
+   * so callers cannot attach one provider's bearer to another provider or
+   * depositor request.
+   */
+  peek(input: VpTokenRegistryLookup): VpTokenProvider | undefined {
+    const existing = this.entries.get(input.peginTxid);
+    if (!existing) return undefined;
+
+    if (
+      existing.providerAddress.toLowerCase() !==
+      input.providerAddress.toLowerCase()
+    ) {
+      throw new Error(
+        `VpTokenRegistry: peginTxid ${input.peginTxid} already bound to providerAddress ${existing.providerAddress}; got ${input.providerAddress}`,
+      );
+    }
+    if (
+      existing.expectedAudienceXOnlyPubkey.toLowerCase() !==
+      input.expectedAudienceXOnlyPubkey.toLowerCase()
+    ) {
+      throw new Error(
+        `VpTokenRegistry: peginTxid ${input.peginTxid} already bound to expectedAudienceXOnlyPubkey ${existing.expectedAudienceXOnlyPubkey.slice(0, 8)}…; got ${input.expectedAudienceXOnlyPubkey.slice(0, 8)}…`,
+      );
+    }
+
+    return existing.provider;
   }
 
   /**
@@ -155,7 +184,7 @@ export class VpTokenRegistry {
  */
 export interface VpTokenRegistryPublic {
   getOrCreate(input: VpTokenRegistryInput): VpTokenProvider;
-  peek(peginTxid: string): VpTokenProvider | undefined;
+  peek(input: VpTokenRegistryLookup): VpTokenProvider | undefined;
   release(peginTxid: string): void;
   readonly size: number;
 }

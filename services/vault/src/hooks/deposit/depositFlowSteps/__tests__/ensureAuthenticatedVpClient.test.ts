@@ -58,6 +58,12 @@ const VALID_XONLY =
 const FROZEN_XONLY =
   "c6047f9441ed7d6d3045406e95c07cd85aef7ee329c928b9a1445d933cb46cbd";
 const FROZEN_EPOCH = 7n;
+const DEPOSITOR_PUBKEY = "ab".repeat(32);
+const registryLookup = {
+  peginTxid: PEGIN_TXID,
+  providerAddress: PROVIDER_ADDRESS,
+  expectedAudienceXOnlyPubkey: DEPOSITOR_PUBKEY,
+};
 
 const fakeWallet = {
   deriveContextHash: vi.fn(),
@@ -97,7 +103,7 @@ describe("ensureAuthenticatedVpClient", () => {
       unsignedPrePeginTxHex: "deadbeef",
       peginTxHash: PEGIN_TX_HASH,
       providerAddress: PROVIDER_ADDRESS,
-      depositorBtcPubkey: "ab".repeat(32),
+      depositorBtcPubkey: DEPOSITOR_PUBKEY,
     });
 
     expect(mockGetVaultProtocolInfo).toHaveBeenCalledOnce();
@@ -109,7 +115,7 @@ describe("ensureAuthenticatedVpClient", () => {
       PROVIDER_ADDRESS,
       FROZEN_EPOCH,
     );
-    expect(vpTokenRegistry.peek(PEGIN_TXID)).toBeDefined();
+    expect(vpTokenRegistry.peek(registryLookup)).toBeDefined();
   });
 
   it("cold-start mismatch: throws before deriveVaultRoot when indexer tx hash does not match on-chain", async () => {
@@ -122,7 +128,7 @@ describe("ensureAuthenticatedVpClient", () => {
         unsignedPrePeginTxHex: "attackerhex",
         peginTxHash: PEGIN_TX_HASH,
         providerAddress: PROVIDER_ADDRESS,
-        depositorBtcPubkey: "ab".repeat(32),
+        depositorBtcPubkey: DEPOSITOR_PUBKEY,
       }),
     ).rejects.toThrow(/Pre-Pegin transaction hash mismatch/);
 
@@ -130,7 +136,7 @@ describe("ensureAuthenticatedVpClient", () => {
     expect(deriveVaultRoot).not.toHaveBeenCalled();
     expect(mockGetCurrentVaultProviderOperationBtcKey).not.toHaveBeenCalled();
     expect(mockGetVaultKeyEpochs).not.toHaveBeenCalled();
-    expect(vpTokenRegistry.peek(PEGIN_TXID)).toBeUndefined();
+    expect(vpTokenRegistry.peek(registryLookup)).toBeUndefined();
   });
 
   it("cache hit: skips wallet derivation, on-chain prePeginTxHash read, and pubkey fetch", async () => {
