@@ -53,7 +53,7 @@ export interface UseActivationStateResult {
 export function useActivationState({
   activity,
   depositorEthAddress,
-  siblingVaultIds = [activity.id],
+  siblingVaultIds,
   redeemImmediately,
 }: UseActivationStateProps): UseActivationStateResult {
   const {
@@ -96,7 +96,9 @@ export function useActivationState({
           secretHex,
           depositorEthAddress,
           redeemImmediately,
-          siblingVaultIds: siblingVaultIds as readonly `0x${string}`[],
+          siblingVaultIds: siblingVaultIds as
+            | readonly `0x${string}`[]
+            | undefined,
           pendingPegin,
           updatePendingPeginStatus,
           onRefetchActivities: () => {

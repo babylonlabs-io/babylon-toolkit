@@ -3,7 +3,6 @@ import type { Hex } from "viem";
 
 import { SPLIT_VAULT_ORDER_QUERY_KEY } from "@/utils/queryKeys";
 
-import { POSITION_REFETCH_INTERVAL_MS } from "../constants";
 import {
   isSameVaultOrder,
   readConstructionOrderedVaultIds,
@@ -12,10 +11,12 @@ import {
 export function useSplitVaultOrder(currentVaultIds: readonly string[]) {
   const vaultIds = currentVaultIds as readonly Hex[];
   const query = useQuery({
+    // The key carries the queue order, so a reorder starts a new read. The
+    // registry fields it reads (`htlcVout`, `prePeginTxHash`) never change.
     queryKey: [SPLIT_VAULT_ORDER_QUERY_KEY, ...vaultIds],
     queryFn: () => readConstructionOrderedVaultIds(vaultIds),
     enabled: vaultIds.length >= 2,
-    refetchInterval: POSITION_REFETCH_INTERVAL_MS,
+    staleTime: Infinity,
     networkMode: "always",
   });
 

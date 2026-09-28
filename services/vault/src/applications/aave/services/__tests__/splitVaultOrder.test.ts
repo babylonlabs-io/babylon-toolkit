@@ -54,4 +54,24 @@ describe("deriveConstructionOrderedVaultIds", () => {
 
     expect(isSameVaultOrder(current, result)).toBe(true);
   });
+
+  it("rejects a registry read with a different record count", () => {
+    expect(() =>
+      deriveConstructionOrderedVaultIds(
+        [SACRIFICIAL, PROTECTED],
+        [info(`0x${"a".repeat(64)}`, 0)],
+      ),
+    ).toThrow("different number of registry records");
+  });
+
+  it("rejects two siblings claiming the same HTLC index", () => {
+    const splitHash = `0x${"a".repeat(64)}` as Hex;
+
+    expect(() =>
+      deriveConstructionOrderedVaultIds(
+        [SACRIFICIAL, PROTECTED],
+        [info(splitHash, 0), info(splitHash, 0)],
+      ),
+    ).toThrow("invalid split construction indices");
+  });
 });

@@ -11,9 +11,11 @@ import { OnChainBtcVaultStatus } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import type { Hex } from "viem";
 
 import { COPY } from "@/copy";
+import { ActivationNotPossibleError } from "@/utils/errors";
+import { sameHex } from "@/utils/hex";
 
 import {
-  getVaultFromChain,
+  getVaultFromChainWithGrace,
   type OnChainVaultData,
 } from "../../clients/eth-contract/btc-vault-registry/query";
 
@@ -22,17 +24,37 @@ type ActivationOrderVault = Pick<
   "applicationEntryPoint" | "depositor" | "htlcVout" | "prePeginTxHash"
 >;
 
-function sameHex(a: string, b: string): boolean {
-  return a.toLowerCase() === b.toLowerCase();
+/**
+ * On-chain statuses from which a lower sibling can still join the queue. An
+ * ACTIVE sibling is already queued ahead; a REDEEMED or EXPIRED one can never
+ * be queued, so it cannot be seized after this vault and does not block.
+ */
+const CAN_STILL_ACTIVATE: ReadonlySet<number> = new Set([
+  OnChainBtcVaultStatus.PENDING,
+  OnChainBtcVaultStatus.VERIFIED,
+]);
+
+async function readSiblings(vaultIds: Hex[]): Promise<OnChainVaultData[]> {
+  try {
+    return await Promise.all(
+      vaultIds.map((vaultId) => getVaultFromChainWithGrace(vaultId)),
+    );
+  } catch (cause) {
+    throw new Error(COPY.pegin.messages.activationOrderUnavailable, {
+      cause,
+    });
+  }
 }
 
 /**
- * Refuse activation unless every lower-index sibling is already ACTIVE.
+ * Refuse activation while any lower-index sibling can still activate.
  *
  * `siblingVaultIds` is discovery input only. Each record is read from chain
  * and must match the target's Pre-PegIn, depositor and application before it
  * can satisfy a lower-index slot. A missing slot fails closed: an incomplete
  * indexer/local-storage list must never authorize an out-of-order activation.
+ * Inconsistent registry data is terminal ({@link ActivationNotPossibleError}):
+ * a retry reads the same records.
  */
 export async function assertActivationFollowsConstructionOrder(
   targetVaultId: Hex,
@@ -40,7 +62,9 @@ export async function assertActivationFollowsConstructionOrder(
   siblingVaultIds: readonly Hex[],
 ): Promise<void> {
   if (!Number.isInteger(target.htlcVout) || target.htlcVout < 0) {
-    throw new Error(COPY.pegin.messages.activationOrderUnavailable);
+    throw new ActivationNotPossibleError(
+      COPY.pegin.messages.activationOrderInconsistent,
+    );
   }
   if (target.htlcVout === 0) return;
 
@@ -51,9 +75,7 @@ export async function assertActivationFollowsConstructionOrder(
     .filter((id) => id !== targetId)
     .map((id) => id as Hex);
 
-  const candidates = await Promise.all(
-    candidateIds.map((vaultId) => getVaultFromChain(vaultId)),
-  );
+  const candidates = await readSiblings(candidateIds);
 
   const lowerSiblings = new Map<number, OnChainVaultData>();
   for (const vault of candidates) {
@@ -62,11 +84,15 @@ export async function assertActivationFollowsConstructionOrder(
       !sameHex(vault.depositor, target.depositor) ||
       !sameHex(vault.applicationEntryPoint, target.applicationEntryPoint)
     ) {
-      throw new Error(COPY.pegin.messages.activationOrderUnavailable);
+      throw new ActivationNotPossibleError(
+        COPY.pegin.messages.activationOrderInconsistent,
+      );
     }
     if (vault.htlcVout >= target.htlcVout) continue;
     if (lowerSiblings.has(vault.htlcVout)) {
-      throw new Error(COPY.pegin.messages.activationOrderUnavailable);
+      throw new ActivationNotPossibleError(
+        COPY.pegin.messages.activationOrderInconsistent,
+      );
     }
     lowerSiblings.set(vault.htlcVout, vault);
   }
@@ -76,7 +102,7 @@ export async function assertActivationFollowsConstructionOrder(
     if (!lowerSibling) {
       throw new Error(COPY.pegin.messages.activationOrderUnavailable);
     }
-    if (lowerSibling.status !== OnChainBtcVaultStatus.ACTIVE) {
+    if (CAN_STILL_ACTIVATE.has(lowerSibling.status)) {
       throw new Error(COPY.pegin.messages.activationOrderBlocked);
     }
   }

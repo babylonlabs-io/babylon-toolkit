@@ -148,6 +148,7 @@ export const COPY = {
       PROCESSING: "Processing",
       READY_TO_ACTIVATE: "Ready to activate",
       AWAITING_ACTIVATION_WINDOW: "Awaiting activation window",
+      AWAITING_EARLIER_VAULT: "Awaiting earlier BTCVault",
       ACTIVATION_INCOMPLETE: "Activation incomplete",
       AVAILABLE: "Available",
       IN_USE: "In use",
@@ -254,10 +255,19 @@ export const COPY = {
       // against an unverifiable gate.
       activationWindowUnavailable:
         "Could not confirm the BTCVault activation window. Nothing was submitted — please try again in a moment.",
+      // Split-deposit activation order. The earlier (sacrificial) BTCVault must
+      // join the liquidation queue before the later one.
+      activationOrderWaiting:
+        "This split deposit activates in order. Activate the earlier BTCVault first, so it is liquidated before this one.",
+      activationOrderSubtext: "Activate the earlier BTCVault first",
       activationOrderBlocked:
         "Activate the earlier BTCVault in this split deposit first. Nothing was submitted — the split's liquidation order must match its construction order.",
       activationOrderUnavailable:
-        "Could not confirm this split deposit's activation order. Nothing was submitted — please try again in a moment.",
+        "Could not confirm this split deposit's activation order. Nothing was submitted — reload the page and try again.",
+      // Terminal: the registry data itself is inconsistent, so a retry reads
+      // the same records and fails the same way.
+      activationOrderInconsistent:
+        "This split deposit's on-chain records are inconsistent, so its activation order cannot be confirmed. Nothing was submitted — contact support.",
       inUseCannotRedeem:
         "BTCVault is currently being used as collateral. Repay all debt before redeeming.",
       redemptionInProgress:
@@ -2337,6 +2347,9 @@ export const COPY = {
       title: "BTCVault liquidation order needs attention",
       body: "This split deposit is not ordered as it was constructed. Until the order is restored, a liquidation could seize the protected BTCVault before the sacrificial BTCVault.",
       action: "Restore Split Order",
+      unverifiedTitle: "Could not check BTCVault liquidation order",
+      unverifiedBody:
+        "The split deposit order could not be read from the chain, so a wrong order cannot be ruled out. Refresh the page to try again.",
     },
     summary: {
       totalCollateralLabel: "Total Collateral Value",

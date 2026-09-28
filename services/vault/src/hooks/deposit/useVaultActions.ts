@@ -830,18 +830,27 @@ export function useVaultActions(): UseVaultActionsReturn {
       // liquidation queue. For a split deposit, enforce the Pre-PegIn HTLC
       // construction order before the secret can reach a wallet/RPC call.
       // Activate-and-redeem never adds collateral, so queue order is irrelevant
-      // on that escape-hatch path.
+      // on that escape-hatch path. A retryable refusal is pre-reveal and
+      // routine (the earlier sibling is not active yet), so telemetry stays
+      // quiet; inconsistent registry data is terminal and stays captured.
       if (!redeemImmediately) {
-        await assertActivationFollowsConstructionOrder(
-          vaultId,
-          {
-            depositor: basicInfo.depositor,
-            applicationEntryPoint: basicInfo.applicationEntryPoint,
-            htlcVout: Number(protocolInfo.htlcVout),
-            prePeginTxHash: protocolInfo.prePeginTxHash,
-          },
-          siblingVaultIds,
-        );
+        try {
+          await assertActivationFollowsConstructionOrder(
+            vaultId,
+            {
+              depositor: basicInfo.depositor,
+              applicationEntryPoint: basicInfo.applicationEntryPoint,
+              htlcVout: Number(protocolInfo.htlcVout),
+              prePeginTxHash: protocolInfo.prePeginTxHash,
+            },
+            siblingVaultIds,
+          );
+        } catch (orderError) {
+          if (!(orderError instanceof ActivationNotPossibleError)) {
+            expectedInterruption = true;
+          }
+          throw orderError;
+        }
       }
 
       // Activation ceiling. The dashboard gate (`useActivationDeadlineGate`)

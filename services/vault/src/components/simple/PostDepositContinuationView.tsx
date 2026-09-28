@@ -3,6 +3,7 @@ import {
   Suspense,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -144,22 +145,7 @@ export function PostDepositContinuationView({
   // Use the on-chain key so a disconnected wallet can see the payout prompt.
   const isActionable = (id: string): boolean => {
     const result = getPollingResult(id);
-    const constructionIndex = vaultIds.findIndex(
-      (vaultId) => vaultId.toLowerCase() === id.toLowerCase(),
-    );
-    const activationBlockedByEarlierSibling =
-      result?.peginState.availableActions.includes(
-        PeginAction.ACTIVATE_VAULT,
-      ) &&
-      constructionIndex > 0 &&
-      vaultIds
-        .slice(0, constructionIndex)
-        .some(
-          (earlierId) =>
-            !isVaultActivated(getPollingResult(earlierId)?.peginState),
-        );
     return (
-      !activationBlockedByEarlierSibling &&
       isCandidateVault(result?.peginState) &&
       hasActionableStep(result?.peginState, result?.depositorBtcPubkey)
     );
@@ -218,7 +204,8 @@ export function PostDepositContinuationView({
   // with the current vault highlighted. A single-vault deposit yields
   // vaultCount=1 and the progress view falls back to its single-vault layout.
   // Cheap copy (not a readonly-laundering cast) so callers can't mutate the prop.
-  const siblingVaultIds: string[] = [...vaultIds];
+  // Memoized so it is a stable dependency of the activation callback below.
+  const siblingVaultIds: string[] = useMemo(() => [...vaultIds], [vaultIds]);
   const vaultCount = siblingVaultIds.length || 1;
 
   if (!currentVaultId) {

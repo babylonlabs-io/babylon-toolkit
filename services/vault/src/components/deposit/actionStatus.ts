@@ -113,6 +113,17 @@ export function getActionStatus(
         tooltip: COPY.pegin.messages.activationWindowTooltip,
       };
     }
+    // Same shape for a split sibling that must wait for the earlier vault.
+    if (!error && peginState.activationBlockedBySibling) {
+      return {
+        type: "disabled",
+        action: {
+          label: COPY.pegin.primaryAction.ACTIVATE_VAULT,
+          action: PeginAction.ACTIVATE_VAULT,
+        },
+        tooltip: COPY.pegin.messages.activationOrderWaiting,
+      };
+    }
     return { type: "noAction" };
   }
 

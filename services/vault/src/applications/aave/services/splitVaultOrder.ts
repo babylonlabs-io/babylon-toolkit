@@ -4,10 +4,7 @@ import type { VaultProtocolInfo } from "@babylonlabs-io/ts-sdk/tbv/core/clients"
 import type { Hex } from "viem";
 
 import { getVaultRegistryReader } from "@/clients/eth-contract/sdk-readers";
-
-function sameHex(a: string, b: string): boolean {
-  return a.toLowerCase() === b.toLowerCase();
-}
+import { sameHex } from "@/utils/hex";
 
 /**
  * Sort siblings sharing a Pre-PegIn by their on-chain HTLC output index while

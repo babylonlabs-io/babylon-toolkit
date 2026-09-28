@@ -3,10 +3,11 @@ import type { Hex } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
-  getVaultFromChain,
+  getVaultFromChainWithGrace,
   type OnChainVaultData,
 } from "@/clients/eth-contract/btc-vault-registry/query";
 import { COPY } from "@/copy";
+import { ActivationNotPossibleError } from "@/utils/errors";
 
 import { assertActivationFollowsConstructionOrder } from "../activationOrder";
 
@@ -14,7 +15,7 @@ vi.mock("@/clients/eth-contract/btc-vault-registry/query", async () => {
   const actual = await vi.importActual<
     typeof import("@/clients/eth-contract/btc-vault-registry/query")
   >("@/clients/eth-contract/btc-vault-registry/query");
-  return { ...actual, getVaultFromChain: vi.fn() };
+  return { ...actual, getVaultFromChainWithGrace: vi.fn() };
 });
 
 const SACRIFICIAL_ID = `0x${"1".repeat(64)}` as Hex;
@@ -45,10 +46,12 @@ function vault(
 }
 
 describe("assertActivationFollowsConstructionOrder", () => {
-  beforeEach(() => vi.mocked(getVaultFromChain).mockReset());
+  beforeEach(() => {
+    vi.mocked(getVaultFromChainWithGrace).mockReset();
+  });
 
   it("refuses index 1 while index 0 is not activated", async () => {
-    vi.mocked(getVaultFromChain).mockResolvedValue(
+    vi.mocked(getVaultFromChainWithGrace).mockResolvedValue(
       vault(0, OnChainBtcVaultStatus.VERIFIED),
     );
 
@@ -62,8 +65,22 @@ describe("assertActivationFollowsConstructionOrder", () => {
   });
 
   it("allows index 1 after index 0 is active", async () => {
-    vi.mocked(getVaultFromChain).mockResolvedValue(
+    vi.mocked(getVaultFromChainWithGrace).mockResolvedValue(
       vault(0, OnChainBtcVaultStatus.ACTIVE),
+    );
+
+    await expect(
+      assertActivationFollowsConstructionOrder(
+        PROTECTED_ID,
+        vault(1, OnChainBtcVaultStatus.VERIFIED),
+        [PROTECTED_ID, SACRIFICIAL_ID],
+      ),
+    ).resolves.toBeUndefined();
+  });
+
+  it("allows index 1 when index 0 expired and can never be queued", async () => {
+    vi.mocked(getVaultFromChainWithGrace).mockResolvedValue(
+      vault(0, OnChainBtcVaultStatus.EXPIRED),
     );
 
     await expect(
@@ -85,6 +102,35 @@ describe("assertActivationFollowsConstructionOrder", () => {
     ).rejects.toThrow(COPY.pegin.messages.activationOrderUnavailable);
   });
 
+  it("reports a failed sibling read as unavailable, not as its raw error", async () => {
+    vi.mocked(getVaultFromChainWithGrace).mockRejectedValue(
+      new Error("execution reverted: 0xdeadbeef"),
+    );
+
+    await expect(
+      assertActivationFollowsConstructionOrder(
+        PROTECTED_ID,
+        vault(1, OnChainBtcVaultStatus.VERIFIED),
+        [PROTECTED_ID, SACRIFICIAL_ID],
+      ),
+    ).rejects.toThrow(COPY.pegin.messages.activationOrderUnavailable);
+  });
+
+  it("treats a sibling with another depositor as terminal", async () => {
+    vi.mocked(getVaultFromChainWithGrace).mockResolvedValue({
+      ...vault(0, OnChainBtcVaultStatus.ACTIVE),
+      depositor: `0x${"9".repeat(40)}`,
+    });
+
+    await expect(
+      assertActivationFollowsConstructionOrder(
+        PROTECTED_ID,
+        vault(1, OnChainBtcVaultStatus.VERIFIED),
+        [PROTECTED_ID, SACRIFICIAL_ID],
+      ),
+    ).rejects.toBeInstanceOf(ActivationNotPossibleError);
+  });
+
   it("fails closed when the target construction index is malformed", async () => {
     await expect(
       assertActivationFollowsConstructionOrder(
@@ -92,8 +138,8 @@ describe("assertActivationFollowsConstructionOrder", () => {
         vault(Number.NaN, OnChainBtcVaultStatus.VERIFIED),
         [PROTECTED_ID, SACRIFICIAL_ID],
       ),
-    ).rejects.toThrow(COPY.pegin.messages.activationOrderUnavailable);
+    ).rejects.toThrow(COPY.pegin.messages.activationOrderInconsistent);
 
-    expect(getVaultFromChain).not.toHaveBeenCalled();
+    expect(getVaultFromChainWithGrace).not.toHaveBeenCalled();
   });
 });

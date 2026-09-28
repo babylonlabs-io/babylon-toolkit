@@ -118,6 +118,7 @@ export default function VaultsPage() {
     <div className="flex flex-col gap-8">
       {position && position.vaultIds.length >= 2 && (
         <SplitVaultOrderWarning
+          connectedAddress={isConnected ? address : undefined}
           currentVaultIds={position.vaultIds}
           onSuccess={() => setIsReorderSuccess(true)}
         />

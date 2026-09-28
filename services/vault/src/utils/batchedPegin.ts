@@ -7,6 +7,8 @@
  * commits all of them at once.
  */
 
+import { ContractStatus } from "@babylonlabs-io/ts-sdk/tbv/core/services";
+
 import type { VaultActivity } from "@/types/activity";
 
 /** Normalize a Pre-PegIn tx hex for batch-grouping comparison. */
@@ -75,4 +77,30 @@ export function getBatchSiblings(
   const key = batchKey(activity);
   if (key.startsWith("standalone:")) return [activity];
   return orderBatch(activities.filter((a) => batchKey(a) === key));
+}
+
+/** Statuses from which a vault can still join the liquidation queue. */
+const CAN_STILL_ACTIVATE: ReadonlySet<number> = new Set([
+  ContractStatus.PENDING,
+  ContractStatus.VERIFIED,
+]);
+
+/**
+ * True while a lower construction-index sibling can still activate. A sibling
+ * that is ACTIVE is already queued ahead, and a terminal one (redeemed,
+ * expired, …) can never be queued, so neither blocks. UX only: the chain
+ * guard in `assertActivationFollowsConstructionOrder` is authoritative.
+ */
+export function isActivationBlockedByEarlierSibling(
+  activities: VaultActivity[],
+  activity: VaultActivity,
+): boolean {
+  const index = activity.constructionIndex;
+  if (index === undefined || index === 0) return false;
+  return getBatchSiblings(activities, activity).some(
+    (sibling) =>
+      sibling.constructionIndex !== undefined &&
+      sibling.constructionIndex < index &&
+      CAN_STILL_ACTIVATE.has(sibling.contractStatus ?? ContractStatus.PENDING),
+  );
 }

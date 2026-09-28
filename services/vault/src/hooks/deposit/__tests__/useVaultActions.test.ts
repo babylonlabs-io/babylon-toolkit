@@ -13,10 +13,7 @@ import type { Hex } from "viem";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getAccount } from "wagmi/actions";
 
-import {
-  getVaultFromChain,
-  getVaultFromChainWithGrace,
-} from "@/clients/eth-contract/btc-vault-registry/query";
+import { getVaultFromChainWithGrace } from "@/clients/eth-contract/btc-vault-registry/query";
 import {
   getProtocolParamsReader,
   getVaultRegistryReader,
@@ -118,7 +115,6 @@ vi.mock("@babylonlabs-io/ts-sdk/tbv/core/utils", () => ({
 }));
 
 vi.mock("@/clients/eth-contract/btc-vault-registry/query", () => ({
-  getVaultFromChain: vi.fn(),
   getVaultFromChainWithGrace: vi.fn(() =>
     Promise.resolve({
       prePeginTxHash: "0xmatching_pre_pegin_hash",
@@ -286,7 +282,6 @@ const mockBroadcastPrePeginTransaction = vi.mocked(
   broadcastPrePeginTransaction,
 );
 const mockGetVaultFromChain = vi.mocked(getVaultFromChainWithGrace);
-const mockGetVaultFromChainStrict = vi.mocked(getVaultFromChain);
 const mockGetVaultRegistryReader = vi.mocked(getVaultRegistryReader);
 const mockActivateVaultWithSecret = vi.mocked(activateVaultWithSecret);
 const mockWaitForEthRegistrationDepth = vi.mocked(waitForEthRegistrationDepth);
@@ -1524,7 +1519,7 @@ describe("useVaultActions — handleActivation hashlock source", () => {
       },
     );
     mockGetVaultRegistryReader.mockReturnValue(reader);
-    mockGetVaultFromChainStrict.mockResolvedValue({
+    mockGetVaultFromChain.mockResolvedValueOnce({
       htlcVout: 0,
       status: OnChainBtcVaultStatus.VERIFIED,
       depositor,
@@ -1542,7 +1537,7 @@ describe("useVaultActions — handleActivation hashlock source", () => {
       });
     });
 
-    expect(mockGetVaultFromChainStrict).toHaveBeenCalledWith(sacrificialId);
+    expect(mockGetVaultFromChain).toHaveBeenCalledWith(sacrificialId);
     expect(mockActivateVaultWithSecret).not.toHaveBeenCalled();
     expect(result.current.activationError).toBe(
       COPY.pegin.messages.activationOrderBlocked,
