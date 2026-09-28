@@ -17,6 +17,7 @@ export {
   getTxInfo,
   getUtxoInfo,
   MEMPOOL_API_URLS,
+  MempoolNotFoundError,
   pushTx,
 } from "./mempoolApi";
 

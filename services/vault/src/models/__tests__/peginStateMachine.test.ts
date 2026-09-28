@@ -597,22 +597,26 @@ describe("peginStateMachine", () => {
       );
     });
 
-    it("shows the generic pending message when refund maturity is unknown", () => {
-      const state = getPeginState(ContractStatus.EXPIRED, {
-        expirationReason: "proof_timeout",
-        canRefund: false,
-        refundMaturityState: "unknown",
-      });
-      expect(state.availableActions).toEqual([PeginAction.NONE]);
-      expect(state.refundMaturityState).toBe("unknown");
-      expect(state.refundMaturesInBlocks).toBeUndefined();
-      // Maturing copy lives only in `inlineSubtext`; tooltip stays focused
-      // on the expired reason.
-      expect(state.inlineSubtext).toBe(
-        "Checking when your refund will be claimable...",
-      );
-      expect(state.message).not.toContain("Checking when your refund");
-    });
+    it.each([
+      ["unknown", "Checking when your refund will be claimable..."],
+      ["notFound", "Pre-Pegin transaction not found on this Bitcoin network."],
+    ] as const)(
+      "shows the %s maturity message without an action",
+      (maturity, message) => {
+        const state = getPeginState(ContractStatus.EXPIRED, {
+          expirationReason: "proof_timeout",
+          canRefund: false,
+          refundMaturityState: maturity,
+        });
+        expect(state.availableActions).toEqual([PeginAction.NONE]);
+        expect(state.refundMaturityState).toBe(maturity);
+        expect(state.refundMaturesInBlocks).toBeUndefined();
+        // Maturity copy lives only in `inlineSubtext`; tooltip stays focused
+        // on the expired reason.
+        expect(state.inlineSubtext).toBe(message);
+        expect(state.message).not.toContain(message);
+      },
+    );
 
     it("marks state as 'mature' when canRefund is true and no maturity flag was passed", () => {
       // The default-to-mature fallback preserves the pre-feature behavior for

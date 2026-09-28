@@ -1190,6 +1190,58 @@ than one V2 log.
 
 ***
 
+### MempoolNotFoundError
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/mempool/mempoolApi.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/mempool/mempoolApi.ts)
+
+Thrown by `getTxInfo`, `getUtxoInfo`, `getTipHeight`, `getOutspend` and
+`getAddressTxs` when the mempool API answers HTTP 404, for example for a
+transaction it does not know. Their other failures throw a plain `Error`.
+
+#### Extends
+
+- `Error`
+
+#### Constructors
+
+##### Constructor
+
+```ts
+new MempoolNotFoundError(message): MempoolNotFoundError;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/mempool/mempoolApi.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/mempool/mempoolApi.ts)
+
+###### Parameters
+
+###### message
+
+`string`
+
+###### Returns
+
+[`MempoolNotFoundError`](#mempoolnotfounderror)
+
+###### Overrides
+
+```ts
+Error.constructor
+```
+
+#### Properties
+
+##### status
+
+```ts
+readonly status: 404 = HTTP_NOT_FOUND;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/mempool/mempoolApi.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/mempool/mempoolApi.ts)
+
+HTTP status of the failed response.
+
+***
+
 ### VaultProviderRpcClient
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/api.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/api.ts)

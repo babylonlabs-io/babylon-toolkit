@@ -270,6 +270,8 @@ export const COPY = {
       refundMaturing: (blocks: number, hours: number) =>
         `Your refund will be claimable in ~${blocks} Bitcoin ${blocks === 1 ? "block" : "blocks"} (~${hours}h).`,
       refundMaturingUnknown: "Checking when your refund will be claimable...",
+      prePeginNotFound:
+        "Pre-Pegin transaction not found on this Bitcoin network.",
       invalid:
         "This BTCVault is invalid. The BTC UTXOs were spent in a different transaction.",
       redemptionComplete:

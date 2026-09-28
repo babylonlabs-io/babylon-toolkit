@@ -46,7 +46,7 @@ vi.mock("../../../hooks/deposit/usePeginPollingQuery", () => ({
 const { mockUseBtcMempoolConfirmations } = vi.hoisted(() => ({
   mockUseBtcMempoolConfirmations: vi.fn<
     (txids: ReadonlyArray<string | undefined>) => {
-      confirmationsByTxid: Map<string, number>;
+      confirmationsByTxid: Map<string, number | null>;
     }
   >(() => ({ confirmationsByTxid: new Map<string, number>() })),
 }));
@@ -980,7 +980,7 @@ describe("PeginPollingContext", () => {
     expect(status?.peginState.refundMaturesInBlocks).toBeUndefined();
   });
 
-  it("EXPIRED: reports unknown when confirmations are not yet available", () => {
+  it("EXPIRED: reports unknown maturity and keeps polling when no count is known", () => {
     mockVersionedParams.set(3, { tRefund: 144 });
     mockUseBtcMempoolConfirmations.mockReturnValue({
       confirmationsByTxid: new Map(),
@@ -991,6 +991,25 @@ describe("PeginPollingContext", () => {
 
     expect(status?.peginState.availableActions).toEqual([PeginAction.NONE]);
     expect(status?.peginState.refundMaturityState).toBe("unknown");
+    expect(mockUseBtcMempoolConfirmations.mock.calls.at(-1)?.[0]).toContain(
+      EXPIRED_ACTIVITY.prePeginTxHash,
+    );
+  });
+
+  it("EXPIRED: reports notFound maturity and keeps polling when the Pre-PegIn is not found", () => {
+    mockVersionedParams.set(3, { tRefund: 144 });
+    mockUseBtcMempoolConfirmations.mockReturnValue({
+      confirmationsByTxid: new Map([[PRE_PEGIN_TXID_HEX, null]]),
+    });
+
+    const { result } = renderExpired();
+    const status = result.current.getPollingResult(ACTIVITY_ID);
+
+    expect(status?.peginState.availableActions).toEqual([PeginAction.NONE]);
+    expect(status?.peginState.refundMaturityState).toBe("notFound");
+    expect(mockUseBtcMempoolConfirmations.mock.calls.at(-1)?.[0]).toContain(
+      EXPIRED_ACTIVITY.prePeginTxHash,
+    );
   });
 
   it("EXPIRED: stops polling once observed at tRefund and reads the cache as mature on next render", async () => {

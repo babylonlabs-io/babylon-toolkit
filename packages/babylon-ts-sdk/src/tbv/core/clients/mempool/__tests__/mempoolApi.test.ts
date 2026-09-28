@@ -18,6 +18,7 @@ import {
   getTxHex,
   getTxInfo,
   getUtxoInfo,
+  MempoolNotFoundError,
   pushTx,
 } from "../mempoolApi";
 
@@ -67,6 +68,38 @@ function textResponse(body: string): Response {
     text: () => Promise.resolve(body),
   } as Response;
 }
+
+describe("transaction lookup errors", () => {
+  it("throws MempoolNotFoundError for an HTTP 404", async () => {
+    mockFetch.mockResolvedValueOnce(
+      new Response("Transaction not found", { status: 404 }),
+    );
+    const lookup = getTxInfo(VALID_TXID, API_URL);
+    await expect(lookup).rejects.toBeInstanceOf(MempoolNotFoundError);
+    await expect(lookup).rejects.toMatchObject({
+      name: "MempoolNotFoundError",
+      status: 404,
+      message:
+        "Failed to fetch from mempool API: Mempool API error (404): Transaction not found",
+    });
+  });
+
+  it.each([429, 500])("throws a plain Error for an HTTP %s", async (status) => {
+    mockFetch.mockResolvedValueOnce(new Response("Lookup failed", { status }));
+    await expect(getTxInfo(VALID_TXID, API_URL)).rejects.toStrictEqual(
+      new Error(
+        `Failed to fetch from mempool API: Mempool API error (${status}): Lookup failed`,
+      ),
+    );
+  });
+
+  it("keeps network failures distinct from missing transactions", async () => {
+    mockFetch.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    await expect(getTxInfo(VALID_TXID, API_URL)).rejects.toStrictEqual(
+      new Error("Failed to fetch from mempool API: Failed to fetch"),
+    );
+  });
+});
 
 describe("txid format validation", () => {
   it("getTxInfo rejects non-hex txid", async () => {
