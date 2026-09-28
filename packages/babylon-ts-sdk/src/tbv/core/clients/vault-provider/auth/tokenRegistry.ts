@@ -16,7 +16,15 @@ export interface VpTokenRegistryInput {
   client: JsonRpcClient;
   peginTxid: string;
   authAnchorHex: string;
+  /** Stable provider identity used to prevent cross-provider cache reuse. */
+  providerAddress?: string;
   pinnedServerPubkey: OnChainBtcPubkey;
+  /** Frozen-epoch issuer used only by the gRPC token subject. */
+  grpcPinnedServerPubkey?: OnChainBtcPubkey;
+  /** Frozen VP epoch that selected `grpcPinnedServerPubkey`. */
+  grpcKeyEpoch?: bigint;
+  /** Authoritative live-key resolver for bounded JSON-RPC pin recovery. */
+  refreshJsonRpcPinnedServerPubkey?: () => Promise<OnChainBtcPubkey>;
   /** Depositor x-only pubkey (32-byte hex), asserted against each token's CWT `aud`. */
   expectedAudienceXOnlyPubkey: string;
 }
@@ -24,7 +32,8 @@ export interface VpTokenRegistryInput {
 interface RegistryEntry {
   provider: VpTokenProvider;
   authAnchorHex: string;
-  pinnedServerPubkey: OnChainBtcPubkey;
+  providerAddress?: string;
+  grpcKeyEpoch?: bigint;
   expectedAudienceXOnlyPubkey: string;
 }
 
@@ -33,9 +42,11 @@ export class VpTokenRegistry {
 
   /**
    * Return the cached `VpTokenProvider` for `peginTxid` if one exists
-   * with matching `authAnchorHex` and `pinnedServerPubkey`, otherwise
-   * construct and cache a fresh provider. A mismatch on either throws —
-   * silent overwrite would mask derivation drift or VP pubkey rotation.
+   * with matching anchor, provider, audience, and subject-specific issuer
+   * bindings, otherwise construct and cache a fresh provider. A mismatch
+   * throws — silent overwrite would mask derivation drift or cross-provider
+   * cache reuse. A legitimate live JSON-RPC key rotation is handled inside
+   * `VpTokenProvider` through its chain-backed refresh callback.
    */
   getOrCreate(input: VpTokenRegistryInput): VpTokenProvider {
     const existing = this.entries.get(input.peginTxid);
@@ -45,9 +56,32 @@ export class VpTokenRegistry {
           `VpTokenRegistry: peginTxid ${input.peginTxid} already bound to authAnchorHex ${existing.authAnchorHex.slice(0, 8)}…; got ${input.authAnchorHex.slice(0, 8)}…`,
         );
       }
-      if (existing.pinnedServerPubkey !== input.pinnedServerPubkey) {
+      if (existing.providerAddress !== input.providerAddress) {
         throw new Error(
-          `VpTokenRegistry: peginTxid ${input.peginTxid} already bound to pinnedServerPubkey ${existing.pinnedServerPubkey.slice(0, 8)}…; got ${input.pinnedServerPubkey.slice(0, 8)}…`,
+          `VpTokenRegistry: peginTxid ${input.peginTxid} already bound to providerAddress ${existing.providerAddress ?? "<unset>"}; got ${input.providerAddress ?? "<unset>"}`,
+        );
+      }
+      if (
+        existing.provider.getPinnedServerPubkey("jsonrpc") !==
+        input.pinnedServerPubkey
+      ) {
+        throw new Error(
+          `VpTokenRegistry: peginTxid ${input.peginTxid} already bound to JSON-RPC pinnedServerPubkey ${existing.provider.getPinnedServerPubkey("jsonrpc").slice(0, 8)}…; got ${input.pinnedServerPubkey.slice(0, 8)}…`,
+        );
+      }
+      const grpcPinnedServerPubkey =
+        input.grpcPinnedServerPubkey ?? input.pinnedServerPubkey;
+      if (
+        existing.provider.getPinnedServerPubkey("grpc") !==
+        grpcPinnedServerPubkey
+      ) {
+        throw new Error(
+          `VpTokenRegistry: peginTxid ${input.peginTxid} already bound to gRPC pinnedServerPubkey ${existing.provider.getPinnedServerPubkey("grpc").slice(0, 8)}…; got ${grpcPinnedServerPubkey.slice(0, 8)}…`,
+        );
+      }
+      if (existing.grpcKeyEpoch !== input.grpcKeyEpoch) {
+        throw new Error(
+          `VpTokenRegistry: peginTxid ${input.peginTxid} already bound to gRPC key epoch ${existing.grpcKeyEpoch?.toString() ?? "<unset>"}; got ${input.grpcKeyEpoch?.toString() ?? "<unset>"}`,
         );
       }
       if (
@@ -70,6 +104,8 @@ export class VpTokenRegistry {
       peginTxid: input.peginTxid,
       authAnchorHex: input.authAnchorHex,
       pinnedServerPubkey: input.pinnedServerPubkey,
+      grpcPinnedServerPubkey: input.grpcPinnedServerPubkey,
+      refreshJsonRpcPinnedServerPubkey: input.refreshJsonRpcPinnedServerPubkey,
       expectedAudienceXOnlyPubkey: input.expectedAudienceXOnlyPubkey,
       authGatedMethods: AUTH_GATED_METHODS,
       grpcGatedMethods: GRPC_AUTH_GATED_METHODS,
@@ -77,7 +113,8 @@ export class VpTokenRegistry {
     this.entries.set(input.peginTxid, {
       provider,
       authAnchorHex: input.authAnchorHex,
-      pinnedServerPubkey: input.pinnedServerPubkey,
+      providerAddress: input.providerAddress,
+      grpcKeyEpoch: input.grpcKeyEpoch,
       expectedAudienceXOnlyPubkey: input.expectedAudienceXOnlyPubkey,
     });
     return provider;

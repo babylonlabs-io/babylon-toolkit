@@ -1,36 +1,51 @@
-/**
- * The BTC key a vault provider's server identity is pinned to for RPC auth.
- *
- * The VP issues BIP-322-signed tokens from its **operation** key, so once
- * RFC-006 rotation is live the pin has to follow that key rather than the
- * fixed registration key. This is deliberately the *current* key, not any
- * vault's frozen epoch: it is a per-operator server identity, not a per-vault
- * binding (RFC-006 open question 5).
- *
- * Consequence worth knowing: `VpTokenRegistry` binds a `peginTxid` to one
- * pinned pubkey and refuses to rebind. A VP that rotates mid-session
- * invalidates its outstanding tokens, which surfaces as an auth failure the
- * user resolves by retrying — the flow re-reads the key on the next cold path.
- * That is the intended behaviour: accepting either key would hollow out the
- * pin, which exists precisely so a substituted server key cannot be used.
- *
- * Centralised here because all three auth-priming call sites must agree; a
- * site left on the registration key would break auth for every vault of a
- * rotated provider, including already-active ones.
- */
+/** Subject-specific VP authentication pins. */
 
 import type { OnChainBtcPubkey } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
-import type { Address } from "viem";
+import type { Address, Hex } from "viem";
 
 import { getVaultRegistryReader } from "@/clients/eth-contract/sdk-readers";
 
+export interface ResolvedVpAuthPins {
+  /** JSON-RPC bootstrap issuer: the provider's live operation key. */
+  pinnedServerPubkey: OnChainBtcPubkey;
+  /** gRPC bootstrap issuer: the operation key frozen into this vault. */
+  grpcPinnedServerPubkey: OnChainBtcPubkey;
+  /** Epoch that selected `grpcPinnedServerPubkey`. */
+  grpcKeyEpoch: bigint;
+}
+
 /**
- * Resolve the pubkey to pin a VP's auth session to.
+ * Resolve both token-subject pins for an existing vault.
  *
- * Before the first rotation on a network the two reads return the same bytes,
- * so this is a no-op until an operator rotates.
+ * `auth_createDepositorToken` proves the provider's current server identity,
+ * while `auth_createDepositorTokenGrpc` is issued under the vault's frozen VP
+ * epoch. They are equal before the first rotation and intentionally diverge
+ * for a pre-rotation vault afterwards.
  */
-export async function resolveVpAuthPinnedPubkey(
+export async function resolveVpAuthPins(
+  vpAddress: Address,
+  vaultId: Hex,
+): Promise<ResolvedVpAuthPins> {
+  const reader = getVaultRegistryReader();
+  const [pinnedServerPubkey, epochs] = await Promise.all([
+    reader.getCurrentVaultProviderOperationBtcKey(vpAddress),
+    reader.getVaultKeyEpochs(vaultId),
+  ]);
+  const grpcPinnedServerPubkey =
+    await reader.getVaultProviderOperationBtcKeyAtEpoch(
+      vpAddress,
+      epochs.vpKeyEpoch,
+    );
+
+  return {
+    pinnedServerPubkey,
+    grpcPinnedServerPubkey,
+    grpcKeyEpoch: epochs.vpKeyEpoch,
+  };
+}
+
+/** Re-read the live JSON-RPC issuer after a bounded identity-mismatch retry. */
+export function refreshVpJsonRpcPinnedPubkey(
   vpAddress: Address,
 ): Promise<OnChainBtcPubkey> {
   return getVaultRegistryReader().getCurrentVaultProviderOperationBtcKey(

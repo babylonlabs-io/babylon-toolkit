@@ -208,16 +208,36 @@ export class ViemVaultRegistryReader implements VaultRegistryReader {
     vpAddress: Address,
     blockNumber?: bigint,
   ): Promise<OnChainBtcPubkey> {
+    return this.getVaultProviderOperationBtcKeyAtEpoch(
+      vpAddress,
+      VP_GENESIS_KEY_EPOCH,
+      blockNumber,
+    );
+  }
+
+  /**
+   * Read the VP operation key selected by `epoch`.
+   *
+   * This is public rather than hidden inside `OperationKeyReader` because
+   * subject-specific VP authentication needs exactly one participant: the
+   * gRPC bootstrap is signed by the key frozen into the vault, while the
+   * JSON-RPC bootstrap is signed by the provider's live key.
+   */
+  async getVaultProviderOperationBtcKeyAtEpoch(
+    vpAddress: Address,
+    epoch: bigint,
+    blockNumber?: bigint,
+  ): Promise<OnChainBtcPubkey> {
     const result = (await this.publicClient.readContract({
       address: this.contractAddress,
       abi: BTCVaultRegistryABI,
       functionName: "getOperationBtcKeyAtEpoch",
-      args: [vpAddress, VP_GENESIS_KEY_EPOCH],
+      args: [vpAddress, epoch],
       blockNumber,
     })) as Hex;
     return assertOnChainBtcPubkey(
       result,
-      `getOperationBtcKeyAtEpoch (vp=${vpAddress}, epoch=${VP_GENESIS_KEY_EPOCH})`,
+      `getOperationBtcKeyAtEpoch (vp=${vpAddress}, epoch=${epoch})`,
     );
   }
 
@@ -252,9 +272,9 @@ export class ViemVaultRegistryReader implements VaultRegistryReader {
    * rotated, so this returns the same value as
    * `getVaultProviderGenesisBtcPubKey` until the first rotation.
    *
-   * This is the key the VP's server signs its BIP-322 auth tokens with — a
-   * live per-operator identity, not a per-vault binding, so the auth pin uses
-   * the current key rather than any vault's frozen epoch.
+   * This is the key the VP's server uses for JSON-RPC-subject authentication.
+   * The gRPC-subject bootstrap is instead bound to the existing vault's frozen
+   * epoch and resolves through `getVaultProviderOperationBtcKeyAtEpoch`.
    */
   async getCurrentVaultProviderOperationBtcKey(
     vpAddress: Address,

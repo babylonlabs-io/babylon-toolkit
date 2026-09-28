@@ -15,16 +15,17 @@ import { ensureAuthenticatedVpClient } from "../ensureAuthenticatedVpClient";
 const ON_CHAIN_PRE_PEGIN_HASH = "0xmatching_pre_pegin_hash";
 const ATTACKER_HASH = "0xattacker_chosen_hash";
 
-// The auth pin resolves the VP's *current operation* key, deliberately — not
-// its genesis key, and not either-of-the-two. Accepting either would hollow out
-// the pin, which exists so a substituted server key cannot be used. See
-// `vpAuthPinnedPubkey.ts` for the reasoning before "correcting" this.
 const mockGetCurrentVaultProviderOperationBtcKey = vi.fn();
+const mockGetVaultProviderOperationBtcKeyAtEpoch = vi.fn();
+const mockGetVaultKeyEpochs = vi.fn();
 const mockGetVaultProtocolInfo = vi.fn();
 vi.mock("@/clients/eth-contract/sdk-readers", () => ({
   getVaultRegistryReader: () => ({
     getCurrentVaultProviderOperationBtcKey:
       mockGetCurrentVaultProviderOperationBtcKey,
+    getVaultProviderOperationBtcKeyAtEpoch:
+      mockGetVaultProviderOperationBtcKeyAtEpoch,
+    getVaultKeyEpochs: mockGetVaultKeyEpochs,
     getVaultProtocolInfo: mockGetVaultProtocolInfo,
   }),
 }));
@@ -54,6 +55,9 @@ const VAULT_ID = `0x${"f".repeat(64)}` as Hex;
 const PROVIDER_ADDRESS = `0x${"1".repeat(40)}`;
 const VALID_XONLY =
   "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798";
+const FROZEN_XONLY =
+  "c6047f9441ed7d6d3045406e95c07cd85aef7ee329c928b9a1445d933cb46cbd";
+const FROZEN_EPOCH = 7n;
 
 const fakeWallet = {
   deriveContextHash: vi.fn(),
@@ -63,6 +67,12 @@ describe("ensureAuthenticatedVpClient", () => {
   beforeEach(() => {
     (vpTokenRegistry as VpTokenRegistry).clear();
     mockGetCurrentVaultProviderOperationBtcKey.mockResolvedValue(VALID_XONLY);
+    mockGetVaultProviderOperationBtcKeyAtEpoch.mockResolvedValue(FROZEN_XONLY);
+    mockGetVaultKeyEpochs.mockResolvedValue({
+      vpKeyEpoch: FROZEN_EPOCH,
+      appKeeperKeyEpoch: 8n,
+      ucKeyEpoch: 9n,
+    });
     mockGetVaultProtocolInfo.mockResolvedValue({
       prePeginTxHash: ON_CHAIN_PRE_PEGIN_HASH,
     });
@@ -94,6 +104,11 @@ describe("ensureAuthenticatedVpClient", () => {
     expect(mockGetVaultProtocolInfo).toHaveBeenCalledWith(VAULT_ID);
     expect(deriveVaultRoot).toHaveBeenCalledOnce();
     expect(mockGetCurrentVaultProviderOperationBtcKey).toHaveBeenCalledOnce();
+    expect(mockGetVaultKeyEpochs).toHaveBeenCalledWith(VAULT_ID);
+    expect(mockGetVaultProviderOperationBtcKeyAtEpoch).toHaveBeenCalledWith(
+      PROVIDER_ADDRESS,
+      FROZEN_EPOCH,
+    );
     expect(vpTokenRegistry.peek(PEGIN_TXID)).toBeDefined();
   });
 
@@ -114,6 +129,7 @@ describe("ensureAuthenticatedVpClient", () => {
     expect(mockGetVaultProtocolInfo).toHaveBeenCalledOnce();
     expect(deriveVaultRoot).not.toHaveBeenCalled();
     expect(mockGetCurrentVaultProviderOperationBtcKey).not.toHaveBeenCalled();
+    expect(mockGetVaultKeyEpochs).not.toHaveBeenCalled();
     expect(vpTokenRegistry.peek(PEGIN_TXID)).toBeUndefined();
   });
 
@@ -140,6 +156,7 @@ describe("ensureAuthenticatedVpClient", () => {
     expect(deriveVaultRoot).not.toHaveBeenCalled();
     expect(mockGetVaultProtocolInfo).not.toHaveBeenCalled();
     expect(mockGetCurrentVaultProviderOperationBtcKey).not.toHaveBeenCalled();
+    expect(mockGetVaultKeyEpochs).not.toHaveBeenCalled();
   });
 
   it("approval wallet without the flag keeps the cache hit — WOTS/resume stay popup-free", async () => {
