@@ -32,6 +32,7 @@ const emptinessState = vi.hoisted(() => ({
   isEmpty: true,
   hasError: false,
   hasPartialError: false,
+  hasNonIndexerError: false,
   storageOnlyError: false,
 }));
 
@@ -80,6 +81,10 @@ vi.mock("@/context/wallet", async () => ({
 
 // Page-level data is exercised in the hook's own tests; the page test only
 // checks which body branch renders, so the sections are stubbed.
+const pageDataState = vi.hoisted(() => ({
+  indexerError: null as Error | null,
+}));
+
 vi.mock("@/hooks/useVaultsPageData", () => ({
   useVaultsPageData: vi.fn(() => ({
     summary: {
@@ -92,6 +97,7 @@ vi.mock("@/hooks/useVaultsPageData", () => ({
     },
     displayVaults: [],
     rawCollateralVaults: [],
+    indexerError: pageDataState.indexerError,
     collateralBtc: 0,
     collateralValueUsd: 0,
   })),
@@ -170,7 +176,9 @@ describe("VaultsPage", () => {
     emptinessState.isEmpty = true;
     emptinessState.hasError = false;
     emptinessState.hasPartialError = false;
+    emptinessState.hasNonIndexerError = false;
     emptinessState.storageOnlyError = false;
+    pageDataState.indexerError = null;
     walletState.btcConnected = true;
     walletState.ethConnected = true;
     walletState.confirmed = true;
@@ -318,6 +326,7 @@ describe("VaultsPage", () => {
     emptinessState.isEmpty = false;
     emptinessState.hasError = true;
     emptinessState.hasPartialError = true;
+    emptinessState.hasNonIndexerError = true;
     storageState.storageReadError = new PendingPeginStorageReadError(
       "0xdepositor",
       '[{"id":',
@@ -332,6 +341,40 @@ describe("VaultsPage", () => {
     // this the warning could carry the generic copy as well and still pass.
     expect(warning).not.toHaveTextContent(COPY.vaults.partialLoadError.body);
     expect(screen.getByText(COPY.vaults.loadError)).toBeInTheDocument();
+  });
+
+  it("says why Withdraw and Reorder are disabled next to the storage warning", () => {
+    emptinessState.isEmpty = false;
+    emptinessState.hasPartialError = true;
+    emptinessState.hasNonIndexerError = true;
+    storageState.storageReadError = new PendingPeginStorageReadError(
+      "0xdepositor",
+      '[{"id":',
+      new SyntaxError("Unexpected end of JSON input"),
+    );
+    pageDataState.indexerError = new Error(
+      "Indexed collateral details do not match the chain position",
+    );
+
+    renderVaultsPage();
+
+    const warning = screen.getByTestId("vaults-partial-load-error");
+    expect(warning).toHaveTextContent(COPY.vaults.storageReadError);
+    expect(warning).toHaveTextContent(COPY.vaults.collateralListIncomplete);
+  });
+
+  it("does not claim totals or deposits are incomplete when only the indexed vault list failed", () => {
+    emptinessState.isEmpty = false;
+    emptinessState.hasPartialError = true;
+    pageDataState.indexerError = new Error(
+      "Indexed collateral details do not match the chain position",
+    );
+
+    renderVaultsPage();
+
+    const warning = screen.getByTestId("vaults-partial-load-error");
+    expect(warning).toHaveTextContent(COPY.vaults.collateralListIncomplete);
+    expect(warning).not.toHaveTextContent(COPY.vaults.partialLoadError.body);
   });
 
   it("does not show the partial-load warning when both sources loaded", () => {

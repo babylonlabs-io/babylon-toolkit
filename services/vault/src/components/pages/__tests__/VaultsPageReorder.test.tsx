@@ -9,6 +9,7 @@
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { MemoryRouter, Outlet, Route, Routes } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -128,13 +129,28 @@ vi.mock("@/applications/aave/context", () => ({
 }));
 
 // The lifecycle lists are exercised in their own tests; this file only needs
-// the summary card, which is left real because it renders the Reorder button.
+// the summary card, which is left real because it renders the Reorder button,
+// and the active section the page passes in as a child.
 vi.mock("@/components/vaults/VaultsLifecycleSections", () => ({
-  VaultsLifecycleSections: () => <div />,
+  VaultsLifecycleSections: ({ children }: { children?: ReactNode }) => (
+    <div>{children}</div>
+  ),
+}));
+
+// Stubbed, but records the Withdraw gate it receives from the page.
+const activeSectionProps = vi.hoisted(() => ({
+  isWithdrawDisabled: null as boolean | null,
 }));
 
 vi.mock("@/components/vaults/VaultsActiveSection", () => ({
-  VaultsActiveSection: () => <div />,
+  VaultsActiveSection: ({
+    isWithdrawDisabled,
+  }: {
+    isWithdrawDisabled: boolean;
+  }) => {
+    activeSectionProps.isWithdrawDisabled = isWithdrawDisabled;
+    return <div />;
+  },
 }));
 
 vi.mock("@/components/simple/WithdrawFlow", () => ({
@@ -230,6 +246,7 @@ describe("VaultsPage Reorder under Ethereum-only access", () => {
     walletState.confirmed = true;
     featureFlagsMock.isEthFirstEnabled = false;
     reorderModalVaultIds.current = [];
+    activeSectionProps.isWithdrawDisabled = null;
 
     dataMocks.useVaultsPageData.mockReset();
     dataMocks.useVaultsPageData.mockImplementation(
@@ -249,6 +266,7 @@ describe("VaultsPage Reorder under Ethereum-only access", () => {
           },
           displayVaults: vaults,
           rawCollateralVaults: vaults,
+          indexerError: null,
           collateralBtc: address === undefined ? 0 : 0.9,
           collateralValueUsd: address === undefined ? 0 : 90_000,
         };
@@ -277,6 +295,7 @@ describe("VaultsPage Reorder under Ethereum-only access", () => {
     expect(
       screen.getByRole("button", { name: COPY.vaults.actions.reorder }),
     ).toBeEnabled();
+    expect(activeSectionProps.isWithdrawDisabled).toBe(false);
   });
 
   it("opens the reorder modal when that Ethereum-only session clicks Reorder", () => {
@@ -310,5 +329,33 @@ describe("VaultsPage Reorder under Ethereum-only access", () => {
     expect(
       screen.queryByRole("button", { name: COPY.vaults.actions.reorder }),
     ).not.toBeInTheDocument();
+  });
+
+  it("disables Reorder and Withdraw and says why when the indexed vault list may be incomplete", () => {
+    featureFlagsMock.isEthFirstEnabled = true;
+    const indexerError = new Error(
+      "Indexed collateral details do not match the chain position",
+    );
+    const pageData = dataMocks.useVaultsPageData.getMockImplementation()!;
+    dataMocks.useVaultsPageData.mockImplementation(
+      (address: string | undefined) => ({ ...pageData(address), indexerError }),
+    );
+    const dashboardState = dataMocks.useDashboardState.getMockImplementation()!;
+    dataMocks.useDashboardState.mockImplementation(
+      (address: string | undefined) => ({
+        ...dashboardState(address),
+        indexerError,
+      }),
+    );
+
+    renderVaultsPage();
+
+    expect(
+      screen.getByRole("button", { name: COPY.vaults.actions.reorder }),
+    ).toBeDisabled();
+    expect(activeSectionProps.isWithdrawDisabled).toBe(true);
+    expect(screen.getByTestId("vaults-partial-load-error")).toHaveTextContent(
+      COPY.vaults.collateralListIncomplete,
+    );
   });
 });

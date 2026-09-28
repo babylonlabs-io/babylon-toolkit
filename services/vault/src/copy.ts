@@ -2333,6 +2333,10 @@ export const COPY = {
       title: "Some of your BTCVault data couldn't be loaded",
       body: "Totals or deposits shown may be incomplete. Refresh the page to try again.",
     },
+    // The indexed vault list failed to load or does not match the chain
+    // position yet. Withdraw and Reorder stay disabled until it matches.
+    collateralListIncomplete:
+      "Your BTCVault list may be incomplete or out of date. Withdraw and Reorder are unavailable until it matches your on-chain position.",
     summary: {
       totalCollateralLabel: "Total Collateral Value",
       activeVaultsLabel: "Active Vaults",

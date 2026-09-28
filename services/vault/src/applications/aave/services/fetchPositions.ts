@@ -108,22 +108,35 @@ interface GraphQLCollateralItem {
   };
 }
 
-/** GraphQL position item with nested collaterals */
-interface GraphQLPositionItemWithCollaterals extends GraphQLPositionItem {
-  collaterals: {
-    items: GraphQLCollateralItem[];
-  };
-}
-
-/** GraphQL response for user positions with collaterals */
-interface GraphQLUserPositionsWithCollateralsResponse {
+/** GraphQL response for user positions */
+interface GraphQLUserPositionsResponse {
   aavePositions: {
-    items: GraphQLPositionItemWithCollaterals[];
+    items: GraphQLPositionItem[];
   };
 }
 
-const GET_AAVE_ACTIVE_POSITIONS_WITH_COLLATERALS = gql`
-  query GetAaveActivePositionsWithCollaterals($depositorAddress: String!) {
+/** GraphQL response for one page of position collaterals */
+interface GraphQLPositionCollateralsResponse {
+  aavePositionCollaterals: {
+    items: GraphQLCollateralItem[];
+    pageInfo: {
+      hasNextPage: boolean;
+      endCursor: string | null;
+    };
+  };
+}
+
+/**
+ * Page size for the collateral query. Ponder caps an un-paginated query at 50
+ * rows, and 1000 is its maximum per-page limit.
+ */
+const COLLATERALS_PAGE_SIZE = 1000;
+
+/** Backstop against a runaway cursor loop (50 pages × 1000 rows). */
+const MAX_COLLATERAL_PAGES = 50;
+
+const GET_AAVE_POSITIONS = gql`
+  query GetAavePositions($depositorAddress: String!) {
     aavePositions(where: { depositorAddress: $depositorAddress }) {
       items {
         depositorAddress
@@ -131,28 +144,50 @@ const GET_AAVE_ACTIVE_POSITIONS_WITH_COLLATERALS = gql`
         totalCollateral
         createdAt
         updatedAt
-        collaterals {
-          items {
-            depositorAddress
-            vaultId
-            amount
-            addedAt
-            removedAt
-            liquidationIndex
-            vault {
-              id
-              peginTxHash
-              amount
-              status
-              vaultProvider
-              inUse
-              depositorBtcPubKey
-              depositorPayoutBtcAddress
-              unsignedPrePeginTx
-              offchainParamsVersion
-            }
-          }
+      }
+    }
+  }
+`;
+
+/**
+ * The indexer never deletes collateral rows: withdrawn and liquidated vaults
+ * stay. The query must walk every page, or live rows drop out once the
+ * depositor has more rows than one page holds.
+ */
+const GET_AAVE_POSITION_COLLATERALS = gql`
+  query GetAavePositionCollaterals(
+    $depositorAddress: String!
+    $limit: Int!
+    $after: String
+  ) {
+    aavePositionCollaterals(
+      where: { depositorAddress: $depositorAddress }
+      limit: $limit
+      after: $after
+    ) {
+      items {
+        depositorAddress
+        vaultId
+        amount
+        addedAt
+        removedAt
+        liquidationIndex
+        vault {
+          id
+          peginTxHash
+          amount
+          status
+          vaultProvider
+          inUse
+          depositorBtcPubKey
+          depositorPayoutBtcAddress
+          unsignedPrePeginTx
+          offchainParamsVersion
         }
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
       }
     }
   }
@@ -207,25 +242,68 @@ function mapGraphQLCollateralToAavePositionCollateral(
 }
 
 /**
- * Fetches active Aave positions with their collaterals in a single GraphQL call.
- * More efficient than fetching positions and collaterals separately (avoids N+1 queries).
+ * Fetches every collateral row of a depositor. Throws instead of returning a
+ * partial list.
+ */
+async function fetchAllCollaterals(
+  depositorAddress: string,
+): Promise<GraphQLCollateralItem[]> {
+  const collaterals: GraphQLCollateralItem[] = [];
+  let after: string | null = null;
+
+  for (let page = 0; page < MAX_COLLATERAL_PAGES; page++) {
+    // Annotated because `after` is assigned from `pageInfo` below and also
+    // feeds this call's variables; without it TS reports the cycle as TS7022.
+    const {
+      items,
+      pageInfo,
+    }: GraphQLPositionCollateralsResponse["aavePositionCollaterals"] = (
+      await graphqlClient.request<GraphQLPositionCollateralsResponse>(
+        GET_AAVE_POSITION_COLLATERALS,
+        { depositorAddress, limit: COLLATERALS_PAGE_SIZE, after },
+      )
+    ).aavePositionCollaterals;
+    collaterals.push(...items);
+
+    if (!pageInfo.hasNextPage) return collaterals;
+    if (!pageInfo.endCursor) {
+      throw new Error(
+        `Indexer reported another collateral page but no cursor after page ` +
+          `${page + 1} for ${depositorAddress}; the collateral list would be ` +
+          `incomplete`,
+      );
+    }
+    after = pageInfo.endCursor;
+  }
+
+  throw new Error(
+    `Indexer reported no last collateral page for ${depositorAddress} after ` +
+      `${MAX_COLLATERAL_PAGES} pages; refusing to return an incomplete ` +
+      `collateral list`,
+  );
+}
+
+/**
+ * Fetches active Aave positions with all their collaterals.
  *
- * @param depositor - User's Ethereum address (lowercase)
+ * @param depositor - User's Ethereum address
  * @returns Array of active Aave positions with collaterals
  */
 export async function fetchAaveActivePositionsWithCollaterals(
   depositor: string,
 ): Promise<AavePositionWithCollaterals[]> {
-  const response =
-    await graphqlClient.request<GraphQLUserPositionsWithCollateralsResponse>(
-      GET_AAVE_ACTIVE_POSITIONS_WITH_COLLATERALS,
-      { depositorAddress: depositor.toLowerCase() },
-    );
+  const depositorAddress = depositor.toLowerCase();
+  const [response, collaterals] = await Promise.all([
+    graphqlClient.request<GraphQLUserPositionsResponse>(GET_AAVE_POSITIONS, {
+      depositorAddress,
+    }),
+    fetchAllCollaterals(depositorAddress),
+  ]);
 
+  // Positions are keyed by depositor, so every collateral row belongs to the
+  // one position the query can return.
   return response.aavePositions.items.map((item) => ({
     ...mapGraphQLPositionToAavePosition(item),
-    collaterals: item.collaterals.items.map(
-      mapGraphQLCollateralToAavePositionCollateral,
-    ),
+    collaterals: collaterals.map(mapGraphQLCollateralToAavePositionCollateral),
   }));
 }
