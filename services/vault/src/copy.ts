@@ -635,7 +635,7 @@ export const COPY = {
       continueWithoutButton: "Continue without",
       confirmSkipTitle: "Are you sure?",
       confirmSkipBody:
-        "Continuing without downloading the recovery artifacts may put your funds at risk if your BTCVault provider becomes unavailable.",
+        "Continuing without downloading the recovery artifacts may put your funds at risk if your vault provider becomes unavailable.",
     },
     // Activate-and-redeem escape hatch: reveals the HTLC secret and redeems
     // the BTCVault in one transaction, skipping application activation.

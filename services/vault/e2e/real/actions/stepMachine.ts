@@ -290,9 +290,15 @@ export async function walkStepMachine(
     await sweepApprovals(context, page, log);
 
     // Two dapp-page interactions the wallet pop-up approver can't perform, each re-armed per appearance.
-    const activateVisible = await activateButton(page)
-      .isVisible()
-      .catch(() => false);
+    const activateVisible =
+      (await activateButton(page)
+        .isVisible()
+        .catch(() => false)) ||
+      (await page
+        .getByRole("button", { name: CONTINUE_WITHOUT_LABEL, exact: true })
+        .first()
+        .isVisible()
+        .catch(() => false));
     if (activateVisible) {
       if (!activateClickedThisModal) {
         activateClickedThisModal = await handleActivateConfirmation(page, log);
