@@ -111,8 +111,8 @@ export interface DepositProviderState {
 export interface DepositWalletState {
   isWalletConnected: boolean;
   /**
-   * True when Bitcoin is absent but optional (confirmed session, ETH-first
-   * flag). Keeps the CTA enabled so the click opens the Bitcoin prompt.
+   * True when the session is confirmed and Bitcoin is absent. Keeps the CTA
+   * enabled so the click opens the Bitcoin prompt.
    */
   canConnectBtcWallet?: boolean;
   /** Ledger vault app connected? Read only by the fee breakdown's reserve

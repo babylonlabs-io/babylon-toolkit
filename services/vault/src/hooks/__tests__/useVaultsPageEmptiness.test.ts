@@ -1,6 +1,6 @@
 import { OnChainBtcVaultStatus } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { renderHook } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ReclaimStatus } from "@/hooks/useReclaimStatus";
 import { useVaultsPageEmptiness } from "@/hooks/useVaultsPageEmptiness";
@@ -39,8 +39,8 @@ vi.mock("@babylonlabs-io/wallet-connector", () => ({
   useChainConnector: () => undefined,
 }));
 
-// The real gate, so the Ethereum-only control decides what this page counts as
-// connected. A hand-supplied `isConnected` would pass with the control removed.
+// The real gate decides what this page counts as connected. A hand-supplied
+// `isConnected` would not catch a change to the gate.
 vi.mock("@/context/wallet", async () => ({
   useConnection: (await import("@/context/wallet/useConnection")).useConnection,
   useETHWallet: (await import("@babylonlabs-io/wallet-connector")).useETHWallet,
@@ -134,14 +134,7 @@ const reclaimStatus = (reserveSpend: ReclaimStatus["reserveSpend"]) => ({
 });
 
 describe("useVaultsPageEmptiness", () => {
-  afterEach(() => {
-    vi.unstubAllEnvs();
-  });
-
   beforeEach(() => {
-    // The real gate reads this through a live getter, so an unpinned run would
-    // take whatever the developer's environment carries.
-    vi.stubEnv("NEXT_PUBLIC_FF_ENABLE_ETH_FIRST", undefined);
     walletState.btcConnected = true;
     walletState.ethConnected = true;
     walletState.confirmed = true;
@@ -220,18 +213,7 @@ describe("useVaultsPageEmptiness", () => {
     expect(useDashboardStateMock).toHaveBeenCalledWith("0xdepositor");
   });
 
-  it("is empty for Ethereum alone while Ethereum-only access is off", () => {
-    walletState.btcConnected = false;
-    dashboardState.hasDisplayCollateral = true;
-
-    const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
-
-    expect(result.current.isEmpty).toBe(true);
-    expect(useDashboardStateMock).toHaveBeenCalledWith(undefined);
-  });
-
-  it("keeps the page populated for Ethereum alone under Ethereum-only access", () => {
-    vi.stubEnv("NEXT_PUBLIC_FF_ENABLE_ETH_FIRST", "true");
+  it("keeps the page populated when only Ethereum is connected", () => {
     walletState.btcConnected = false;
     dashboardState.hasDisplayCollateral = true;
 

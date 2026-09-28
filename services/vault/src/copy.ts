@@ -1504,7 +1504,7 @@ export const COPY = {
       description: "Unlock your Bitcoin wallet in your extension to continue.",
       unlockButton: "Unlock wallet",
       // Deposit-form CTA: names the action the unlock unblocks, unlike the
-      // navbar / progress-modal button which is just "Unlock wallet".
+      // wallet-menu entry and progress-modal button, which are just "Unlock wallet".
       unlockToDepositButton: "Unlock Wallet to Deposit",
       unlocking: "Unlocking wallet...",
     },
