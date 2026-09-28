@@ -59,6 +59,11 @@ const GodModeMount = import.meta.env.DEV
     )
   : null;
 
+// Dev-only Ledger delegated-claim driver (test/2111-ledger-claim-driver, never merged).
+const DelegatedClaimLedgerDriver = import.meta.env.DEV
+  ? lazy(() => import("./dev/DelegatedClaimLedgerDriver"))
+  : null;
+
 const importLoanFlowOverlay = () =>
   import("./applications/aave/components/Detail");
 const LoanFlowOverlay = lazyWithRetry(() =>
@@ -245,6 +250,16 @@ export const Router = () => {
             </Suspense>
           }
         />
+        {DelegatedClaimLedgerDriver ? (
+          <Route
+            path="/dev/claim-ledger"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <DelegatedClaimLedgerDriver />
+              </Suspense>
+            }
+          />
+        ) : null}
       </Route>
       {guardedSubtreePaths.map((path) => (
         <Route
