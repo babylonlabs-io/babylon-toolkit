@@ -1088,6 +1088,12 @@ export const COPY = {
         `Pre-Pegin transaction hash mismatch: computed ${computedHash} from indexer tx, but on-chain contract has ${chainHash}. Aborting to prevent potential attack.`,
       refundHashMismatch: (computedHash: string, chainHash: string) =>
         `Pre-Pegin transaction hash mismatch: computed ${computedHash} from indexer tx, but on-chain contract has ${chainHash}. Aborting refund to prevent potential attack.`,
+      vaultProviderMismatch: (
+        vaultId: string,
+        requested: string,
+        onChain: string,
+      ) =>
+        `Vault provider mismatch for BTCVault ${vaultId}: requested ${requested}, but on-chain contract has ${onChain}. Aborting to prevent potential attack.`,
       vaultNotFound: "BTCVault not found. Please try again.",
       prePeginIndexerTxMismatch:
         "Transaction mismatch: the indexer returned a transaction that differs from the locally stored copy. Aborting to prevent a potential attack.",
