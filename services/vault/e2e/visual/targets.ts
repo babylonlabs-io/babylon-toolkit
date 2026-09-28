@@ -109,8 +109,9 @@ export const VISUAL_TARGETS: readonly VisualTarget[] = [
 export const DEPOSIT_FLOW_STOPS = {
   /**
    * The Connect Wallets dialog with both wallets chosen, just before Connect
-   * commits the session. The only stop that photographs wallet-connector's
-   * own screens: the core-ui Storybook capture does not build its stories.
+   * commits the session. One of two stops that photograph wallet-connector's
+   * own screens (the other is {@link CONNECT_GUIDE_STOP}): the core-ui
+   * Storybook capture does not build its stories.
    */
   connectDialog: "deposit-connect-dialog",
   /** Dashboard with a wallet connected - the empty state a new depositor sees. */
@@ -168,6 +169,22 @@ export const HAS_LIQUIDATION_TOUR = existsSync(
     import.meta.url,
   ),
 );
+
+// CI uses this harness with older wallet-connector source that has no guide.
+export const HAS_CONNECT_GUIDE = existsSync(
+  new URL(
+    "../../../../packages/babylon-wallet-connector/src/components/ConnectGuide/index.tsx",
+    import.meta.url,
+  ),
+);
+
+/**
+ * The wallet dialog's "Before you connect" guide, as picking Ledger Vault
+ * opens it. The deposit walk picks UniSat and photographs the dialog only on
+ * its chain list, so no other stop reaches a screen behind a wallet pick. See
+ * `connectGuide.visual.spec.ts`.
+ */
+export const CONNECT_GUIDE_STOP = "connect-guide-ledger-vault";
 
 export const LIQUIDATION_TOUR_STOPS = {
   welcome: "liquidation-tour-welcome",
