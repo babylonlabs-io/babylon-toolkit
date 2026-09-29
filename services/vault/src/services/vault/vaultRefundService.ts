@@ -135,9 +135,9 @@ async function isPrePeginOnChain(
     PREPEGIN_PROBE_TIMEOUT_MS,
   );
   try {
-    // Raw fetch, not the SDK getTxInfo: getTxInfo collapses every non-2xx
-    // into one opaque error, but here we need the exact status — only a
-    // definitive 404 means "not on chain".
+    // Raw fetch, not the SDK getTxInfo: getTxInfo takes no abort signal, so it
+    // cannot honour this probe's shorter timeout. Only a definitive 404 means
+    // "not on chain".
     const response = await fetch(`${mempoolApiUrl}/tx/${txid}`, {
       signal: controller.signal,
     });

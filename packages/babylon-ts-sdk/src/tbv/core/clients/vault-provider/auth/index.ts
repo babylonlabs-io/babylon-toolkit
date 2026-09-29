@@ -14,6 +14,7 @@ export {
   VpTokenRegistry,
   vpTokenRegistry,
   type VpTokenRegistryInput,
+  type VpTokenRegistryLookup,
 } from "./tokenRegistry";
 
 export { createAuthenticatedVpClient } from "./createAuthenticatedVpClient";

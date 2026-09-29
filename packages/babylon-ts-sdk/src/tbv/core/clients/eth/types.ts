@@ -128,6 +128,16 @@ export interface VaultRegistryReader {
     vpAddress: Address,
     blockNumber?: bigint,
   ): Promise<OnChainBtcPubkey>;
+  /**
+   * Read the vault provider operation key selected by an RFC-006 epoch.
+   * Existing-vault consumers pass the vault's frozen `vpKeyEpoch` here so a
+   * later rotation cannot move the result.
+   */
+  getVaultProviderOperationBtcKeyAtEpoch(
+    vpAddress: Address,
+    epoch: bigint,
+    blockNumber?: bigint,
+  ): Promise<OnChainBtcPubkey>;
   /** Read the protocol pegin fee (in wei) for a given vault provider. */
   getPegInFee(vaultProvider: Address): Promise<bigint>;
   /**
@@ -153,8 +163,8 @@ export interface VaultRegistryReader {
   getVaultKeyEpochsBatch(vaultIds: readonly Hex[]): Promise<KeyEpochs[]>;
   /**
    * Read a vault provider's *current* RFC-006 operation BTC key — the key its
-   * server signs auth tokens with. Falls back to the registration key when the
-   * provider has never rotated.
+   * server uses for the JSON-RPC token subject. Falls back to the registration
+   * key when the provider has never rotated.
    */
   getCurrentVaultProviderOperationBtcKey(
     vpAddress: Address,
@@ -459,9 +469,10 @@ export interface OperationKeyReader {
   /**
    * Resolve every participant's *current* operation key.
    *
-   * Used for new peg-ins and for the VP auth pin. Needs no epoch read at all —
-   * each registry's `getCurrentOperationBtcKey` resolves its own genesis
-   * fallback, so an operator that never rotated yields its registration key.
+   * Used for new peg-ins. The VP-only current getter separately supplies the
+   * JSON-RPC auth pin. Needs no epoch read at all — each registry's
+   * `getCurrentOperationBtcKey` resolves its own genesis fallback, so an
+   * operator that never rotated yields its registration key.
    */
   getCurrentOperationKeys(
     query: OperationKeyQuery,

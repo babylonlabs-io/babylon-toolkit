@@ -223,12 +223,27 @@ export function WalletDialog({
   actionsClassName,
   chainDescriptions,
 }: WalletDialogProps) {
-  const { visible, screen, confirmed, requiredChainIds, close, confirm, unconfirm, displayChains, displayError } =
-    useWidgetState();
+  const {
+    visible,
+    screen,
+    confirmed,
+    requiredChainIds,
+    close,
+    confirm,
+    unconfirm,
+    displayChains,
+    displayWallets,
+    displayError,
+  } = useWidgetState();
   const { acceptTermsOfService, onConfirm } = useLifeCycleHooks();
   const connectors = useChainProviders();
   const walletWidgets = useWalletWidgets(connectors, config, onError);
-  const { connect } = useWalletConnectors({ persistent, accountStorage: storage, onError, btcValidation });
+  const { connect, chooseWallet } = useWalletConnectors({
+    persistent,
+    accountStorage: storage,
+    onError,
+    btcValidation,
+  });
 
   const connectorsRef = useRef(connectors);
   const attemptGenerationRef = useRef(0);
@@ -424,7 +439,12 @@ export function WalletDialog({
     unconfirm,
   ]);
 
-  const onBack = screen.type === "WALLETS" ? displayChains : undefined;
+  const onBack =
+    screen.type === "WALLETS"
+      ? displayChains
+      : screen.type === "CONNECT_GUIDE"
+        ? () => displayWallets?.(screen.params?.chain)
+        : undefined;
 
   return (
     <FullScreenDialog
@@ -441,7 +461,8 @@ export function WalletDialog({
           current={screen}
           widgets={walletWidgets}
           onConfirm={handleConfirm}
-          onSelectWallet={connect}
+          onSelectWallet={chooseWallet}
+          onConnectWallet={connect}
           chainDescriptions={chainDescriptions}
         />
       </div>

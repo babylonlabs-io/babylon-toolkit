@@ -4,29 +4,18 @@
  * The connection gate decides whether the summary card's Reorder button is
  * reachable at all. These tests keep the real `useConnection` and the real
  * `useVaultsPageEmptiness`, and answer both data hooks from the address they
- * are handed, so removing the Ethereum-only term from the gate fails them.
+ * are handed, so a gate that also asks for Bitcoin fails them.
  */
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { MemoryRouter, Outlet, Route, Routes } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import VaultsPage from "@/components/pages/VaultsPage";
 import { COPY } from "@/copy";
 import type { CollateralVaultEntry } from "@/types/collateral";
-
-// The Ethereum-only switch reaches this page through one module path only:
-// useConnection reads the default export of @/config/featureFlags. The other
-// FeatureFlags reader here, VaultsPage itself, takes only the deposits
-// kill-switch, which the repo-wide setup mock already leaves falsy.
-const featureFlagsMock = vi.hoisted(() => ({
-  isEthFirstEnabled: false,
-}));
-
-vi.mock("@/config/featureFlags", () => ({
-  default: featureFlagsMock,
-}));
 
 const walletState = vi.hoisted(() => ({
   btcConnected: false,
@@ -63,8 +52,8 @@ vi.mock("@/context/deposit/PeginPollingContext", () => ({
   usePeginPolling: () => ({ getPollingResult: () => undefined }),
 }));
 
-// The real gate, so the Ethereum-only control decides what this page treats as
-// connected. A hand-supplied `isConnected` would pass with the control removed.
+// The real gate decides what this page treats as connected. A hand-supplied
+// `isConnected` would not catch a change to the gate.
 vi.mock("@/context/wallet", async () => ({
   useConnection: (await import("@/context/wallet/useConnection")).useConnection,
   useETHWallet: (await import("@babylonlabs-io/wallet-connector")).useETHWallet,
@@ -101,12 +90,6 @@ vi.mock("@/hooks/usePendingDeposits", () => ({
   }),
 }));
 
-// The real emptiness hook reads useActionableExpiredDeposits, which filters
-// expired rows by their polled peg-in state. Nothing is polled here.
-vi.mock("@/context/deposit/PeginPollingContext", () => ({
-  usePeginPolling: () => ({ getPollingResult: () => undefined }),
-}));
-
 // The real emptiness hook also asks useActionableReclaims which settled
 // deposits still have a reclaim to perform; that chain reaches wallet and
 // chain reads. No candidates are handed in, so it answers nothing.
@@ -128,13 +111,33 @@ vi.mock("@/applications/aave/context", () => ({
 }));
 
 // The lifecycle lists are exercised in their own tests; this file only needs
-// the summary card, which is left real because it renders the Reorder button.
+// the summary card, which is left real because it renders the Reorder button,
+// and the active section the page passes in as a child.
 vi.mock("@/components/vaults/VaultsLifecycleSections", () => ({
-  VaultsLifecycleSections: () => <div />,
+  VaultsLifecycleSections: ({ children }: { children?: ReactNode }) => (
+    <div>{children}</div>
+  ),
+}));
+
+// Stubbed, but records the Withdraw gate it receives from the page.
+const activeSectionProps = vi.hoisted(() => ({
+  isWithdrawDisabled: null as boolean | null,
 }));
 
 vi.mock("@/components/vaults/VaultsActiveSection", () => ({
-  VaultsActiveSection: () => <div />,
+  VaultsActiveSection: ({
+    isWithdrawDisabled,
+  }: {
+    isWithdrawDisabled: boolean;
+  }) => {
+    activeSectionProps.isWithdrawDisabled = isWithdrawDisabled;
+    return <div />;
+  },
+}));
+
+// Exercised in its own test.
+vi.mock("@/components/vaults/SplitVaultOrderWarning", () => ({
+  SplitVaultOrderWarning: () => null,
 }));
 
 vi.mock("@/components/simple/WithdrawFlow", () => ({
@@ -223,13 +226,13 @@ function renderVaultsPage() {
   );
 }
 
-describe("VaultsPage Reorder under Ethereum-only access", () => {
+describe("VaultsPage Reorder without a Bitcoin wallet", () => {
   beforeEach(() => {
     walletState.btcConnected = false;
     walletState.ethConnected = true;
     walletState.confirmed = true;
-    featureFlagsMock.isEthFirstEnabled = false;
     reorderModalVaultIds.current = [];
+    activeSectionProps.isWithdrawDisabled = null;
 
     dataMocks.useVaultsPageData.mockReset();
     dataMocks.useVaultsPageData.mockImplementation(
@@ -249,6 +252,7 @@ describe("VaultsPage Reorder under Ethereum-only access", () => {
           },
           displayVaults: vaults,
           rawCollateralVaults: vaults,
+          indexerError: null,
           collateralBtc: address === undefined ? 0 : 0.9,
           collateralValueUsd: address === undefined ? 0 : 90_000,
         };
@@ -267,8 +271,6 @@ describe("VaultsPage Reorder under Ethereum-only access", () => {
   });
 
   it("offers an enabled Reorder button to a confirmed Ethereum wallet with no Bitcoin wallet", () => {
-    featureFlagsMock.isEthFirstEnabled = true;
-
     renderVaultsPage();
 
     expect(dataMocks.useVaultsPageData).toHaveBeenCalledWith(
@@ -277,11 +279,10 @@ describe("VaultsPage Reorder under Ethereum-only access", () => {
     expect(
       screen.getByRole("button", { name: COPY.vaults.actions.reorder }),
     ).toBeEnabled();
+    expect(activeSectionProps.isWithdrawDisabled).toBe(false);
   });
 
   it("opens the reorder modal when that Ethereum-only session clicks Reorder", () => {
-    featureFlagsMock.isEthFirstEnabled = true;
-
     renderVaultsPage();
 
     expect(
@@ -299,7 +300,9 @@ describe("VaultsPage Reorder under Ethereum-only access", () => {
     ]);
   });
 
-  it("shows the connect prompt instead of Reorder for the same session while Ethereum-only access is off", () => {
+  it("shows the connect prompt instead of Reorder for the same session before it is confirmed", () => {
+    walletState.confirmed = false;
+
     renderVaultsPage();
 
     expect(dataMocks.useVaultsPageData).toHaveBeenCalledWith(undefined);
@@ -310,5 +313,32 @@ describe("VaultsPage Reorder under Ethereum-only access", () => {
     expect(
       screen.queryByRole("button", { name: COPY.vaults.actions.reorder }),
     ).not.toBeInTheDocument();
+  });
+
+  it("disables Reorder and Withdraw and says why when the indexed vault list may be incomplete", () => {
+    const indexerError = new Error(
+      "Indexed collateral details do not match the chain position",
+    );
+    const pageData = dataMocks.useVaultsPageData.getMockImplementation()!;
+    dataMocks.useVaultsPageData.mockImplementation(
+      (address: string | undefined) => ({ ...pageData(address), indexerError }),
+    );
+    const dashboardState = dataMocks.useDashboardState.getMockImplementation()!;
+    dataMocks.useDashboardState.mockImplementation(
+      (address: string | undefined) => ({
+        ...dashboardState(address),
+        indexerError,
+      }),
+    );
+
+    renderVaultsPage();
+
+    expect(
+      screen.getByRole("button", { name: COPY.vaults.actions.reorder }),
+    ).toBeDisabled();
+    expect(activeSectionProps.isWithdrawDisabled).toBe(true);
+    expect(screen.getByTestId("vaults-partial-load-error")).toHaveTextContent(
+      COPY.vaults.collateralListIncomplete,
+    );
   });
 });

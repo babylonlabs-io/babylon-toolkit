@@ -201,6 +201,15 @@ export interface IProvider {
   isIdentityCurrent?: () => boolean;
 }
 
+/**
+ * What a user must do before a wallet can connect, shown before the connect
+ * starts. `installSteps` tells a user who lacks the wallet's app how to get it.
+ */
+export interface ConnectGuide {
+  steps: string[];
+  installSteps?: string[];
+}
+
 export interface IWallet<P extends IProvider = IProvider> {
   id: string;
   name: string;
@@ -219,6 +228,8 @@ export interface IWallet<P extends IProvider = IProvider> {
   // (injectable, AppKit) carry labels too, so label truthiness is not a
   // hardware signal.
   hardware?: boolean;
+  // Shown on its own screen before the connect starts. See `ConnectGuide`.
+  connectGuide?: ConnectGuide;
 }
 
 /** Every chain the connector can build a wallet connector for. */
@@ -277,6 +288,8 @@ export interface WalletMetadata<P extends IProvider, C> {
   docs: string;
   networks: Network[];
   createProvider: (wallet: any, config: C) => P;
+  // See `IWallet.connectGuide`. Takes the config so the text can name the network's app.
+  connectGuide?: (config: C) => ConnectGuide;
 }
 
 export interface ChainMetadata<N extends string, P extends IProvider, C> {

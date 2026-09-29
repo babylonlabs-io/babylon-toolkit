@@ -12,7 +12,7 @@
 
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CRITICAL_BANNER_SLOT_ID } from "@/components/simple/CriticalLiquidationTopBanner";
 import { COPY } from "@/copy";
@@ -20,7 +20,6 @@ import { COPY } from "@/copy";
 const featureFlagsMock = vi.hoisted(() => ({
   noticeBannerMessage: undefined as string | undefined,
   isDepositDisabled: false,
-  isEthFirstEnabled: false,
 }));
 
 const networkMock = vi.hoisted(() => ({ value: "mainnet" }));
@@ -129,8 +128,6 @@ function renderRootLayout(path = "/") {
 beforeEach(() => {
   featureFlagsMock.noticeBannerMessage = undefined;
   featureFlagsMock.isDepositDisabled = false;
-  featureFlagsMock.isEthFirstEnabled = false;
-  vi.stubEnv("NEXT_PUBLIC_FF_ENABLE_ETH_FIRST", undefined);
   networkMock.value = "mainnet";
   mobileMock.value = false;
   walletMock.btcConnected = false;
@@ -141,8 +138,6 @@ beforeEach(() => {
   walletMock.isSupportedAddress = true;
   debugStatusMock.value = null;
 });
-
-afterEach(() => vi.unstubAllEnvs());
 
 describe("RootLayout — header wiring", () => {
   it("mainnet: shows the page-title h1, no BrandLockup, no NetworkBadge", () => {
@@ -188,44 +183,18 @@ describe("RootLayout — header wiring", () => {
   it.each([
     { btcConnected: false, ethConnected: false, confirmed: false },
     { btcConnected: true, ethConnected: false, confirmed: true },
-    { btcConnected: false, ethConnected: true, confirmed: true },
+    { btcConnected: false, ethConnected: true, confirmed: false },
     { btcConnected: true, ethConnected: true, confirmed: false },
-  ])("keeps the entry layout until both wallets are confirmed: %o", (state) => {
+  ])("requires confirmed Ethereum with optional Bitcoin: %o", (state) => {
     Object.assign(walletMock, state);
     const { container, rerender } = renderRootLayout();
+
     expect(document.querySelector("aside")).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { level: 1 })).not.toBeInTheDocument();
     expect(screen.getByRole("img", { name: "Aave" })).toBeInTheDocument();
     expect(
       container.querySelector(".\\!max-w-\\[1280px\\]"),
     ).toBeInTheDocument();
-
-    Object.assign(walletMock, {
-      btcConnected: true,
-      ethConnected: true,
-      confirmed: true,
-    });
-    rerender(
-      <MemoryRouter>
-        <RootLayout />
-      </MemoryRouter>,
-    );
-    expect(document.querySelector("aside")).toBeInTheDocument();
-  });
-
-  it.each([
-    { btcConnected: false, ethConnected: false, confirmed: false },
-    { btcConnected: true, ethConnected: false, confirmed: true },
-    { btcConnected: false, ethConnected: true, confirmed: false },
-    { btcConnected: true, ethConnected: true, confirmed: false },
-  ])("requires confirmed Ethereum with optional Bitcoin: %o", (state) => {
-    featureFlagsMock.isEthFirstEnabled = true;
-    vi.stubEnv("NEXT_PUBLIC_FF_ENABLE_ETH_FIRST", "true");
-    Object.assign(walletMock, state);
-    const { rerender } = renderRootLayout();
-
-    expect(document.querySelector("aside")).not.toBeInTheDocument();
-    expect(screen.getByRole("img", { name: "Aave" })).toBeInTheDocument();
 
     Object.assign(walletMock, {
       btcConnected: false,
@@ -353,8 +322,6 @@ describe("RootLayout — operator message banner", () => {
   it.each([false, true])(
     "keeps screening and deposit warnings for Ethereum alone with confirmed=%s",
     (confirmed) => {
-      featureFlagsMock.isEthFirstEnabled = true;
-      vi.stubEnv("NEXT_PUBLIC_FF_ENABLE_ETH_FIRST", "true");
       Object.assign(walletMock, {
         ethConnected: true,
         confirmed,

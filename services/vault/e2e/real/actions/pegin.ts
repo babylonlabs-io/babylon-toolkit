@@ -5,7 +5,8 @@
  * The work splits cleanly in two:
  *   - DAPP actions (this file drives them on `ctx.page`): open the deposit form, enter the amount,
  *     select a vault provider, submit, click "Sign Transaction" to start signing, then — mid-flow —
- *     acknowledge + "Activate Vault", "Skip" the artifact download, and finally "Go to Dashboard".
+ *     "Continue without" the artifact download, acknowledge + "Activate Vault", "Skip" the in-step
+ *     artifact download, and finally "Go to Dashboard".
  *   - WALLET actions (the shared pop-up approver handles them on the chrome-extension pop-ups): the
  *     UniSat BTC signing prompts and the MetaMask ETH transactions. The approver is installed for
  *     the WHOLE run (unlike observe, which uninstalls it) so every pop-up auto-approves.

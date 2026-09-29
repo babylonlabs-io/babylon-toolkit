@@ -522,8 +522,7 @@ describe("useDepositPageForm", () => {
       unmount();
     });
 
-    it("offers the Bitcoin connect action when only Ethereum is confirmed under the ETH-first flag", () => {
-      vi.stubEnv("NEXT_PUBLIC_FF_ENABLE_ETH_FIRST", "true");
+    it("offers the Bitcoin connect action when only Ethereum is confirmed", () => {
       const connection = vi.mocked(useConnection);
       const currentConnection = connection();
       connection.mockReturnValue({
@@ -541,7 +540,6 @@ describe("useDepositPageForm", () => {
       expect(result.current.canConnectBtcWallet).toBe(true);
       unmount();
       btcWallet.mockReturnValue(currentBtcWallet);
-      vi.unstubAllEnvs();
     });
 
     it("should initialize with empty form data", () => {
@@ -1191,6 +1189,24 @@ describe("useDepositPageForm", () => {
       const { result } = renderHook(() => useDepositPageForm(), { wrapper });
 
       expect(result.current.minPeginFeeError).toBeNull();
+    });
+
+    it("surfaces a complete-roster fetch failure instead of an empty provider state", () => {
+      const rosterError = Object.assign(
+        new Error("Vault keeper roster response was incomplete"),
+        { name: "IncompleteRosterError", retryable: false },
+      );
+      vi.mocked(useVaultProviders).mockReturnValue({
+        allVaultProviders: [],
+        unhealthyVpIds: new Set<string>(),
+        vaultKeepers: [],
+        loading: false,
+        error: rosterError,
+      } as unknown as ReturnType<typeof useVaultProviders>);
+
+      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+
+      expect(result.current.minPeginFeeError).toBe(rosterError);
     });
 
     it("exposes the wallet public-key read failure", () => {

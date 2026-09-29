@@ -16,15 +16,30 @@ export interface VpTokenRegistryInput {
   client: JsonRpcClient;
   peginTxid: string;
   authAnchorHex: string;
+  /** Stable provider identity used to prevent cross-provider cache reuse. */
+  providerAddress: string;
   pinnedServerPubkey: OnChainBtcPubkey;
+  /** Frozen-epoch issuer used only by the gRPC token subject. */
+  grpcPinnedServerPubkey: OnChainBtcPubkey;
+  /** Frozen VP epoch that selected `grpcPinnedServerPubkey`. */
+  grpcKeyEpoch: bigint;
+  /** Authoritative live-key resolver for bounded JSON-RPC pin recovery. */
+  refreshJsonRpcPinnedServerPubkey?: () => Promise<OnChainBtcPubkey>;
   /** Depositor x-only pubkey (32-byte hex), asserted against each token's CWT `aud`. */
+  expectedAudienceXOnlyPubkey: string;
+}
+
+export interface VpTokenRegistryLookup {
+  peginTxid: string;
+  providerAddress: string;
   expectedAudienceXOnlyPubkey: string;
 }
 
 interface RegistryEntry {
   provider: VpTokenProvider;
   authAnchorHex: string;
-  pinnedServerPubkey: OnChainBtcPubkey;
+  providerAddress: string;
+  grpcKeyEpoch: bigint;
   expectedAudienceXOnlyPubkey: string;
 }
 
@@ -33,9 +48,11 @@ export class VpTokenRegistry {
 
   /**
    * Return the cached `VpTokenProvider` for `peginTxid` if one exists
-   * with matching `authAnchorHex` and `pinnedServerPubkey`, otherwise
-   * construct and cache a fresh provider. A mismatch on either throws —
-   * silent overwrite would mask derivation drift or VP pubkey rotation.
+   * with matching anchor, provider, audience, and subject-specific issuer
+   * bindings, otherwise construct and cache a fresh provider. A mismatch
+   * throws — silent overwrite would mask derivation drift or cross-provider
+   * cache reuse. A legitimate live JSON-RPC key rotation is handled inside
+   * `VpTokenProvider` through its chain-backed refresh callback.
    */
   getOrCreate(input: VpTokenRegistryInput): VpTokenProvider {
     const existing = this.entries.get(input.peginTxid);
@@ -45,14 +62,40 @@ export class VpTokenRegistry {
           `VpTokenRegistry: peginTxid ${input.peginTxid} already bound to authAnchorHex ${existing.authAnchorHex.slice(0, 8)}…; got ${input.authAnchorHex.slice(0, 8)}…`,
         );
       }
-      if (existing.pinnedServerPubkey !== input.pinnedServerPubkey) {
+      // Case-insensitive, as in `peek`: callers prime with the indexer's
+      // lowercase address or the contract's checksummed one.
+      if (
+        existing.providerAddress.toLowerCase() !==
+        input.providerAddress.toLowerCase()
+      ) {
         throw new Error(
-          `VpTokenRegistry: peginTxid ${input.peginTxid} already bound to pinnedServerPubkey ${existing.pinnedServerPubkey.slice(0, 8)}…; got ${input.pinnedServerPubkey.slice(0, 8)}…`,
+          `VpTokenRegistry: peginTxid ${input.peginTxid} already bound to providerAddress ${existing.providerAddress}; got ${input.providerAddress}`,
         );
       }
       if (
-        existing.expectedAudienceXOnlyPubkey !==
-        input.expectedAudienceXOnlyPubkey
+        existing.provider.getPinnedServerPubkey("jsonrpc") !==
+        input.pinnedServerPubkey
+      ) {
+        throw new Error(
+          `VpTokenRegistry: peginTxid ${input.peginTxid} already bound to JSON-RPC pinnedServerPubkey ${existing.provider.getPinnedServerPubkey("jsonrpc").slice(0, 8)}…; got ${input.pinnedServerPubkey.slice(0, 8)}…`,
+        );
+      }
+      if (
+        existing.provider.getPinnedServerPubkey("grpc") !==
+        input.grpcPinnedServerPubkey
+      ) {
+        throw new Error(
+          `VpTokenRegistry: peginTxid ${input.peginTxid} already bound to gRPC pinnedServerPubkey ${existing.provider.getPinnedServerPubkey("grpc").slice(0, 8)}…; got ${input.grpcPinnedServerPubkey.slice(0, 8)}…`,
+        );
+      }
+      if (existing.grpcKeyEpoch !== input.grpcKeyEpoch) {
+        throw new Error(
+          `VpTokenRegistry: peginTxid ${input.peginTxid} already bound to gRPC key epoch ${existing.grpcKeyEpoch.toString()}; got ${input.grpcKeyEpoch.toString()}`,
+        );
+      }
+      if (
+        existing.expectedAudienceXOnlyPubkey.toLowerCase() !==
+        input.expectedAudienceXOnlyPubkey.toLowerCase()
       ) {
         throw new Error(
           `VpTokenRegistry: peginTxid ${input.peginTxid} already bound to expectedAudienceXOnlyPubkey ${existing.expectedAudienceXOnlyPubkey.slice(0, 8)}…; got ${input.expectedAudienceXOnlyPubkey.slice(0, 8)}…`,
@@ -70,6 +113,8 @@ export class VpTokenRegistry {
       peginTxid: input.peginTxid,
       authAnchorHex: input.authAnchorHex,
       pinnedServerPubkey: input.pinnedServerPubkey,
+      grpcPinnedServerPubkey: input.grpcPinnedServerPubkey,
+      refreshJsonRpcPinnedServerPubkey: input.refreshJsonRpcPinnedServerPubkey,
       expectedAudienceXOnlyPubkey: input.expectedAudienceXOnlyPubkey,
       authGatedMethods: AUTH_GATED_METHODS,
       grpcGatedMethods: GRPC_AUTH_GATED_METHODS,
@@ -77,15 +122,41 @@ export class VpTokenRegistry {
     this.entries.set(input.peginTxid, {
       provider,
       authAnchorHex: input.authAnchorHex,
-      pinnedServerPubkey: input.pinnedServerPubkey,
+      providerAddress: input.providerAddress,
+      grpcKeyEpoch: input.grpcKeyEpoch,
       expectedAudienceXOnlyPubkey: input.expectedAudienceXOnlyPubkey,
     });
     return provider;
   }
 
-  /** Return the cached provider, or `undefined` if none. */
-  peek(peginTxid: string): VpTokenProvider | undefined {
-    return this.entries.get(peginTxid)?.provider;
+  /**
+   * Return the cached provider only when its request-facing identity matches.
+   * A missing entry is a normal cold-cache result; a binding mismatch throws
+   * so callers cannot attach one provider's bearer to another provider or
+   * depositor request.
+   */
+  peek(input: VpTokenRegistryLookup): VpTokenProvider | undefined {
+    const existing = this.entries.get(input.peginTxid);
+    if (!existing) return undefined;
+
+    if (
+      existing.providerAddress.toLowerCase() !==
+      input.providerAddress.toLowerCase()
+    ) {
+      throw new Error(
+        `VpTokenRegistry: peginTxid ${input.peginTxid} already bound to providerAddress ${existing.providerAddress}; got ${input.providerAddress}`,
+      );
+    }
+    if (
+      existing.expectedAudienceXOnlyPubkey.toLowerCase() !==
+      input.expectedAudienceXOnlyPubkey.toLowerCase()
+    ) {
+      throw new Error(
+        `VpTokenRegistry: peginTxid ${input.peginTxid} already bound to expectedAudienceXOnlyPubkey ${existing.expectedAudienceXOnlyPubkey.slice(0, 8)}…; got ${input.expectedAudienceXOnlyPubkey.slice(0, 8)}…`,
+      );
+    }
+
+    return existing.provider;
   }
 
   /**
@@ -118,7 +189,7 @@ export class VpTokenRegistry {
  */
 export interface VpTokenRegistryPublic {
   getOrCreate(input: VpTokenRegistryInput): VpTokenProvider;
-  peek(peginTxid: string): VpTokenProvider | undefined;
+  peek(input: VpTokenRegistryLookup): VpTokenProvider | undefined;
   release(peginTxid: string): void;
   readonly size: number;
 }

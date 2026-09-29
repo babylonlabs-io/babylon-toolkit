@@ -27,19 +27,16 @@ export interface DevPanelTab {
 }
 
 /**
- * The old double-flag gate on the standalone position-notifications section
- * (`{isLiquidationNotificationsEnabled && isPositionDebugPanelEnabled}` in
- * GodModeMount), now declared once and reused by both the Position tab's
- * registry gate and the cascade simulator's own internal gate (it also lives
- * on the ungated Liquidations tab — see `panels/CascadeSimulator.tsx`).
+ * The position-notifications debug gate, declared once and reused by both the
+ * Position tab's registry gate and the cascade simulator's own internal gate
+ * (it also lives on the ungated Liquidations tab — see
+ * `panels/CascadeSimulator.tsx`).
  *
  * Gating the whole Position tab on it costs no capability: health factor and
  * borrow capacity — the tab's other content — are dual-homed on the ungated
- * Loans tab (see `panels/Loans.tsx`), and the cascade simulator + its banner
- * preview already required both flags before this refactor.
+ * Loans tab (see `panels/Loans.tsx`).
  */
 export const positionDebugGate = (): boolean =>
-  featureFlags.isLiquidationNotificationsEnabled &&
   featureFlags.isPositionDebugPanelEnabled;
 
 export const DEV_PANEL_TABS: DevPanelTab[] = [

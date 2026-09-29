@@ -3,68 +3,94 @@ import {
   DepositTermsRejectedError,
   type DepositTerms,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
+import { getTxHex } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import {
   assertPsbtUnsignedTxMatches,
   assertReturnedKeyPathSignatures,
 } from "@babylonlabs-io/ts-sdk/tbv/core/primitives";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { logger } from "@/infrastructure";
 import {
   DepositorBtcKeyMismatchError,
   DepositorWalletMismatchError,
 } from "@/utils/errors/depositorWalletMismatch";
 
 // Use vi.hoisted so mocks can reference these before module initialization
-const { mockFetchUTXO, mockPsbt, mockSignedPsbt, mockTx, mockInput } =
-  vi.hoisted(() => {
-    const input = {
-      hash: Buffer.from(
-        "abc123def456abc123def456abc123def456abc123def456abc123def456abc1",
-        "hex",
-      ),
-      index: 0,
-      sequence: 0xffffffff,
-    };
+const {
+  mockFetchUTXO,
+  mockPsbt,
+  mockSignedPsbt,
+  mockTx,
+  mockFinalizedTx,
+  mockObservedTx,
+  mockInput,
+} = vi.hoisted(() => {
+  const input = {
+    hash: Buffer.from(
+      "abc123def456abc123def456abc123def456abc123def456abc123def456abc1",
+      "hex",
+    ),
+    index: 0,
+    sequence: 0xffffffff,
+  };
 
-    return {
-      mockFetchUTXO: vi
-        .fn()
-        .mockResolvedValue({ scriptPubKey: "0014aabb", value: 100000 }),
-      mockPsbt: {
-        setVersion: vi.fn(),
-        setLocktime: vi.fn(),
-        addInput: vi.fn(),
-        addOutput: vi.fn(),
-        toHex: vi.fn().mockReturnValue("mock-psbt-hex"),
+  const transactionShape = {
+    ins: [input],
+    outs: [{ script: Buffer.from("0014deadbeef", "hex"), value: 90000 }],
+    version: 2,
+    locktime: 0,
+  };
+
+  return {
+    mockFetchUTXO: vi
+      .fn()
+      .mockResolvedValue({ scriptPubKey: "0014aabb", value: 100000 }),
+    mockPsbt: {
+      setVersion: vi.fn(),
+      setLocktime: vi.fn(),
+      addInput: vi.fn(),
+      addOutput: vi.fn(),
+      toHex: vi.fn().mockReturnValue("mock-psbt-hex"),
+    },
+    mockSignedPsbt: {
+      finalizeAllInputs: vi.fn(),
+      extractTransaction: vi.fn(() => ({ toHex: vi.fn(() => "signed-hex") })),
+      data: {
+        inputs: [{ finalScriptWitness: Buffer.from("00", "hex") }] as Array<{
+          finalScriptWitness?: Buffer;
+          finalScriptSig?: Buffer;
+        }>,
       },
-      mockSignedPsbt: {
-        finalizeAllInputs: vi.fn(),
-        extractTransaction: vi.fn(() => ({ toHex: vi.fn(() => "signed-hex") })),
-        data: {
-          inputs: [{ finalScriptWitness: Buffer.from("00", "hex") }] as Array<{
-            finalScriptWitness?: Buffer;
-            finalScriptSig?: Buffer;
-          }>,
-        },
-      },
-      mockTx: {
-        ins: [input],
-        outs: [{ script: Buffer.from("0014deadbeef", "hex"), value: 90000 }],
-        version: 2,
-        locktime: 0,
-        // Only the approval-ceremony path reads this; non-approval tests
-        // short-circuit before it.
-        getId: () => "cc".repeat(32),
-      },
-      mockInput: input,
-    };
-  });
+    },
+    mockTx: {
+      ...transactionShape,
+      // Only the approval-ceremony path reads this; non-approval tests
+      // short-circuit before it.
+      getId: vi.fn(() => "cc".repeat(32)),
+      toHex: vi.fn(() => "unsigned-hex"),
+    },
+    mockFinalizedTx: {
+      ...transactionShape,
+      getId: vi.fn(() => "cc".repeat(32)),
+      toHex: vi.fn(() => "signed-hex"),
+    },
+    mockObservedTx: {
+      ...transactionShape,
+      getId: vi.fn(() => "cc".repeat(32)),
+    },
+    mockInput: input,
+  };
+});
 
 vi.mock("@babylonlabs-io/ts-sdk", () => ({
-  pushTx: vi.fn().mockResolvedValue("mock-txid"),
+  pushTx: vi.fn().mockResolvedValue("cc".repeat(32)),
   HEX_RE: /^[0-9a-fA-F]+$/,
   TXID_RE: /^[0-9a-fA-F]{64}$/,
   MAX_REASONABLE_FEE_SATS: 1_000_000n,
+}));
+vi.mock("@babylonlabs-io/ts-sdk/tbv/core/clients", () => ({
+  getTxHex: vi.fn().mockResolvedValue("signed-hex"),
 }));
 vi.mock("bitcoinjs-lib", () => {
   // Psbt must be callable as a constructor (new Psbt())
@@ -74,7 +100,13 @@ vi.mock("bitcoinjs-lib", () => {
   PsbtCtor.fromHex = vi.fn(() => mockSignedPsbt);
   return {
     Psbt: PsbtCtor,
-    Transaction: { fromHex: vi.fn(() => mockTx) },
+    Transaction: {
+      fromHex: vi.fn((hex: string) => {
+        if (hex === "signed-hex") return mockFinalizedTx;
+        if (hex === "observed-hex") return mockObservedTx;
+        return mockTx;
+      }),
+    },
   };
 });
 vi.mock("@babylonlabs-io/ts-sdk/tbv/core/utils", async (importOriginal) => {
@@ -104,6 +136,7 @@ vi.mock(
   },
 );
 vi.mock("../../../clients/btc/config", () => ({
+  getBitcoinObserverApiUrl: vi.fn(() => "https://observer.test"),
   getMempoolApiUrl: vi.fn(() => "https://mempool.test"),
 }));
 vi.mock("../vaultUtxoDerivationService", () => ({
@@ -112,6 +145,7 @@ vi.mock("../vaultUtxoDerivationService", () => ({
 
 import {
   broadcastPrePeginTransaction,
+  isPrePeginTransactionObserved,
   utxosToExpectedRecord,
 } from "../vaultPeginBroadcastService";
 
@@ -122,8 +156,15 @@ const TXID_B =
   "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 const TXID_UPPER =
   "AABB00112233445566778899AABB00112233445566778899AABB001122334455";
+const SIGNED_TXID = "cc".repeat(32);
+const REGISTERED_PRE_PEGIN_HASH = `0x${SIGNED_TXID}`;
 
 beforeEach(() => {
+  vi.mocked(pushTx).mockReset().mockResolvedValue(SIGNED_TXID);
+  vi.mocked(getTxHex).mockReset().mockResolvedValue("observed-hex");
+  mockTx.getId.mockReset().mockReturnValue(SIGNED_TXID);
+  mockFinalizedTx.getId.mockReset().mockReturnValue(SIGNED_TXID);
+  mockObservedTx.getId.mockReset().mockReturnValue(SIGNED_TXID);
   mockSignedPsbt.finalizeAllInputs.mockReset();
   mockSignedPsbt.extractTransaction.mockReset();
   mockSignedPsbt.extractTransaction.mockReturnValue({
@@ -223,6 +264,7 @@ describe("broadcastPrePeginTransaction — resolveInputUtxo behavior", () => {
   const basePubkey = "a".repeat(64);
   const baseParams = {
     unsignedTxHex: "deadbeef",
+    registeredPrePeginTxHash: REGISTERED_PRE_PEGIN_HASH,
     btcWalletProvider: {
       signPsbt: vi.fn().mockResolvedValue("mock-signed-psbt-hex"),
     },
@@ -315,7 +357,7 @@ describe("broadcastPrePeginTransaction — resolveInputUtxo behavior", () => {
         ...baseParams,
         expectedUtxos: undefined,
       }),
-    ).resolves.toBe("mock-txid");
+    ).resolves.toBe(SIGNED_TXID);
 
     expect(mockSignedPsbt.extractTransaction).toHaveBeenCalled();
   });
@@ -479,10 +521,121 @@ describe("broadcastPrePeginTransaction — resolveInputUtxo behavior", () => {
   });
 });
 
+describe("broadcastPrePeginTransaction — acknowledgement verification", () => {
+  const makeParams = () => ({
+    unsignedTxHex: "deadbeef",
+    registeredPrePeginTxHash: REGISTERED_PRE_PEGIN_HASH,
+    btcWalletProvider: {
+      signPsbt: vi.fn().mockResolvedValue("mock-signed-psbt-hex"),
+    },
+    depositorBtcPubkey: "a".repeat(64),
+  });
+
+  it.each([
+    ["empty", ""],
+    ["malformed", "not-a-txid"],
+    ["non-canonical uppercase", SIGNED_TXID.toUpperCase()],
+  ])("rejects a %s 2xx acknowledgement", async (_label, acknowledgement) => {
+    vi.mocked(pushTx).mockResolvedValueOnce(acknowledgement);
+
+    await expect(broadcastPrePeginTransaction(makeParams())).rejects.toThrow(
+      /non-canonical transaction acknowledgement/,
+    );
+
+    expect(getTxHex).not.toHaveBeenCalled();
+  });
+
+  it("rejects a canonical acknowledgement for a different txid", async () => {
+    vi.mocked(pushTx).mockResolvedValueOnce("dd".repeat(32));
+
+    await expect(broadcastPrePeginTransaction(makeParams())).rejects.toThrow(
+      /does not match expected txid/,
+    );
+
+    expect(getTxHex).not.toHaveBeenCalled();
+  });
+
+  it("returns the locally derived txid without treating the broadcaster as Bitcoin observation", async () => {
+    await expect(broadcastPrePeginTransaction(makeParams())).resolves.toBe(
+      SIGNED_TXID,
+    );
+    expect(pushTx).toHaveBeenCalledOnce();
+    expect(getTxHex).not.toHaveBeenCalled();
+  });
+
+  it("rejects before signing when the local transaction does not match the registered hash", async () => {
+    const params = makeParams();
+    params.registeredPrePeginTxHash = `0x${"ee".repeat(32)}`;
+
+    await expect(broadcastPrePeginTransaction(params)).rejects.toThrow(
+      /does not match registered hash/,
+    );
+
+    expect(params.btcWalletProvider.signPsbt).not.toHaveBeenCalled();
+    expect(pushTx).not.toHaveBeenCalled();
+  });
+
+  it("rejects before broadcast when the finalized transaction has a different txid", async () => {
+    mockFinalizedTx.getId.mockReturnValueOnce("dd".repeat(32));
+
+    await expect(broadcastPrePeginTransaction(makeParams())).rejects.toThrow(
+      /Finalized Pre-PegIn txid .* does not match registered hash/,
+    );
+
+    expect(pushTx).not.toHaveBeenCalled();
+  });
+});
+
+describe("isPrePeginTransactionObserved", () => {
+  const params = {
+    unsignedTxHex: "deadbeef",
+    registeredPrePeginTxHash: REGISTERED_PRE_PEGIN_HASH,
+  };
+
+  it("returns false when the independent observer has not seen the txid", async () => {
+    vi.mocked(getTxHex).mockRejectedValueOnce(
+      new Error("Mempool API error (404): transaction not found"),
+    );
+
+    await expect(isPrePeginTransactionObserved(params)).resolves.toBe(false);
+    expect(getTxHex).toHaveBeenCalledWith(SIGNED_TXID, "https://observer.test");
+  });
+
+  it("reports not observed, without blocking the retry, when the observer returns another txid", async () => {
+    mockObservedTx.getId.mockReturnValueOnce("dd".repeat(32));
+
+    await expect(isPrePeginTransactionObserved(params)).resolves.toBe(false);
+  });
+
+  it("reports not observed when the observer is unavailable, so the broadcast path stays open", async () => {
+    const warn = vi.spyOn(logger, "warn").mockImplementation(() => {});
+    vi.mocked(getTxHex).mockRejectedValueOnce(
+      new Error("Mempool API error (503): unavailable"),
+    );
+
+    await expect(isPrePeginTransactionObserved(params)).resolves.toBe(false);
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining(`observer read failed for ${SIGNED_TXID}`),
+      { error: "Mempool API error (503): unavailable" },
+    );
+    warn.mockRestore();
+  });
+
+  it("asks the broadcaster instead of the observer when told to", async () => {
+    await isPrePeginTransactionObserved({ ...params, source: "broadcaster" });
+
+    expect(getTxHex).toHaveBeenLastCalledWith(
+      expect.any(String),
+      "https://mempool.test",
+    );
+  });
+});
+
 describe("broadcastPrePeginTransaction — stage labels and cause preservation", () => {
   const basePubkey = "a".repeat(64);
   const baseParams = {
     unsignedTxHex: "deadbeef",
+    registeredPrePeginTxHash: REGISTERED_PRE_PEGIN_HASH,
     btcWalletProvider: {
       signPsbt: vi.fn().mockResolvedValue("mock-signed-psbt-hex"),
     },
@@ -592,6 +745,7 @@ describe("broadcastPrePeginTransaction — intent-approval ceremony", () => {
 
     const txid = await broadcastPrePeginTransaction({
       unsignedTxHex: "deadbeef",
+      registeredPrePeginTxHash: REGISTERED_PRE_PEGIN_HASH,
       btcWalletProvider: wallet,
       depositorBtcPubkey: pubkey,
       depositTerms: makeTerms(),
@@ -599,7 +753,7 @@ describe("broadcastPrePeginTransaction — intent-approval ceremony", () => {
 
     expect(order).toEqual(["derive", "approve", "sign"]);
     expect(wallet.approveDepositTerms).toHaveBeenCalledTimes(1);
-    expect(txid).toBe("mock-txid");
+    expect(txid).toBe(SIGNED_TXID);
   });
 
   it("rethrows a device-envelope rejection unwrapped, without signing", async () => {
@@ -617,6 +771,7 @@ describe("broadcastPrePeginTransaction — intent-approval ceremony", () => {
     await expect(
       broadcastPrePeginTransaction({
         unsignedTxHex: "deadbeef",
+        registeredPrePeginTxHash: REGISTERED_PRE_PEGIN_HASH,
         btcWalletProvider: wallet,
         depositorBtcPubkey: pubkey,
         depositTerms: makeTerms(),
@@ -640,6 +795,7 @@ describe("broadcastPrePeginTransaction — intent-approval ceremony", () => {
 
     const thrown = await broadcastPrePeginTransaction({
       unsignedTxHex: "deadbeef",
+      registeredPrePeginTxHash: REGISTERED_PRE_PEGIN_HASH,
       btcWalletProvider: wallet,
       depositorBtcPubkey: pubkey,
       depositTerms: makeTerms(),

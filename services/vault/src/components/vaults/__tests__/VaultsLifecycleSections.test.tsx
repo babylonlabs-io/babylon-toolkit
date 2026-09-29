@@ -621,7 +621,6 @@ describe("VaultsLifecycleSections reclaim connection", () => {
   let status: ReclaimStatus;
 
   beforeEach(() => {
-    vi.stubEnv("NEXT_PUBLIC_FF_ENABLE_ETH_FIRST", "true");
     wallet.connected = false;
     wallet.publicKeyNoCoord = undefined;
     wallet.open.mockClear();
@@ -648,7 +647,6 @@ describe("VaultsLifecycleSections reclaim connection", () => {
     );
   });
   afterEach(() => {
-    vi.unstubAllEnvs();
     wallet.connected = true;
     wallet.publicKeyNoCoord = undefined;
     gate.value = UNBLOCKED_GATE;
@@ -857,11 +855,9 @@ describe("VaultsLifecycleSections reclaim connection", () => {
     ).toBeInTheDocument();
   });
 
-  it.each(["disabled", "unsettled", "spent", "missing", "in-flight"])(
+  it.each(["unsettled", "spent", "missing", "in-flight"])(
     "does not offer connection for a %s reclaim",
     (condition) => {
-      if (condition === "disabled")
-        vi.stubEnv("NEXT_PUBLIC_FF_ENABLE_ETH_FIRST", "false");
       if (condition === "unsettled") status.payoutSpend.confirmed = false;
       if (condition === "spent") status.reserveSpend.spent = true;
       if (condition === "missing")

@@ -15,9 +15,10 @@
  *   - 9998  vault-provider proxy (vp-health, rpc/{addr})
  *   - 9997  eth rpc (POST /rpc)
  *   - 9996  mempool api (everything under /mempool)
+ *   - 9995  bitcoin observer api (everything under /observer)
  *   - 9999  graphql (POST /graphql)
  *
- * Ctrl-C tears all four down cleanly.
+ * Ctrl-C tears all five down cleanly.
  */
 
 import http from "node:http";
@@ -26,6 +27,7 @@ const PORTS = {
   vp: 9998,
   ethRpc: 9997,
   mempool: 9996,
+  observer: 9995,
   graphql: 9999,
 };
 
@@ -178,6 +180,18 @@ const mempoolServer = http.createServer((req, res) => {
   jsonResponse(res, { error: "not found" }, 404);
 });
 
+// Independent observer: a fixed tip and no known transactions, so every
+// Pre-PegIn reads as "not observed" and the app offers a broadcast.
+const observerServer = http.createServer((req, res) => {
+  if (handlePreflight(req, res)) return;
+  const url = new URL(req.url ?? "/", `http://localhost:${PORTS.observer}`);
+  if (url.pathname.endsWith("/blocks/tip/height")) {
+    jsonResponse(res, 100);
+    return;
+  }
+  jsonResponse(res, { error: "not found" }, 404);
+});
+
 const graphqlServer = http.createServer(async (req, res) => {
   if (handlePreflight(req, res)) return;
   if (req.method !== "POST") {
@@ -203,6 +217,7 @@ async function main() {
     listen(vpServer, PORTS.vp, "vault-provider-proxy"),
     listen(ethServer, PORTS.ethRpc, "eth-rpc"),
     listen(mempoolServer, PORTS.mempool, "mempool"),
+    listen(observerServer, PORTS.observer, "bitcoin-observer"),
     listen(graphqlServer, PORTS.graphql, "graphql"),
   ]);
   // eslint-disable-next-line no-console
@@ -212,7 +227,13 @@ async function main() {
 function shutdown() {
   // eslint-disable-next-line no-console
   console.log("\n[e2e:env] shutting down...");
-  for (const server of [vpServer, ethServer, mempoolServer, graphqlServer]) {
+  for (const server of [
+    vpServer,
+    ethServer,
+    mempoolServer,
+    observerServer,
+    graphqlServer,
+  ]) {
     server.close();
   }
   process.exit(0);

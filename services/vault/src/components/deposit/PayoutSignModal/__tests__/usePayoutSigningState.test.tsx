@@ -31,8 +31,18 @@ vi.mock("../../../../models/peginStateMachine", () => ({
 }));
 
 const mockFindProvider = vi.fn();
+const providerQueryState = vi.hoisted(() => ({
+  loading: false,
+  error: null as Error | null,
+  refetch: vi.fn<() => Promise<void>>(),
+}));
 vi.mock("../../../../hooks/deposit/useVaultProviders", () => ({
-  useVaultProviders: () => ({ findProvider: mockFindProvider }),
+  useVaultProviders: () => ({
+    findProvider: mockFindProvider,
+    loading: providerQueryState.loading,
+    error: providerQueryState.error,
+    refetch: providerQueryState.refetch,
+  }),
 }));
 
 const mockFetchVaultPayoutScriptPubKey = vi.fn();
@@ -167,6 +177,9 @@ describe("usePayoutSigningState", () => {
     mockBtcConnector = null;
     mockSessionConfirmed = true;
     mockBtcLocked = false;
+    providerQueryState.loading = false;
+    providerQueryState.error = null;
+    providerQueryState.refetch.mockResolvedValue(undefined);
     setupHappyPath();
     mockSignAndSubmitPayouts.mockResolvedValue(undefined);
     mockVerifyBtcWalletLiveness.mockResolvedValue(undefined);
@@ -185,6 +198,54 @@ describe("usePayoutSigningState", () => {
   });
 
   describe("happy path", () => {
+    it("waits for provider metadata instead of reporting provider-not-found", async () => {
+      providerQueryState.loading = true;
+      const { result } = renderHookWithProps();
+
+      expect(result.current.providerLookupReady).toBe(false);
+      await act(async () => {
+        await result.current.handleSign();
+      });
+
+      expect(mockFindProvider).not.toHaveBeenCalled();
+      expect(result.current.error).toBeNull();
+    });
+
+    it("surfaces a provider lookup failure and retries it explicitly", async () => {
+      providerQueryState.error = new Error("indexer unavailable");
+      const { result } = renderHookWithProps();
+
+      await waitFor(() =>
+        expect(result.current.error).toEqual(
+          COPY.deposit.payoutSigningGuards.providerLookupUnavailable,
+        ),
+      );
+      expect(result.current.providerLookupReady).toBe(false);
+
+      await act(async () => {
+        await result.current.handleSign();
+      });
+
+      expect(providerQueryState.refetch).toHaveBeenCalledOnce();
+      expect(mockFindProvider).not.toHaveBeenCalled();
+    });
+
+    it("clears the lookup error once the provider lookup recovers", async () => {
+      providerQueryState.error = new Error("indexer unavailable");
+      const { result, rerender } = renderHookWithProps();
+      await waitFor(() =>
+        expect(result.current.error).toEqual(
+          COPY.deposit.payoutSigningGuards.providerLookupUnavailable,
+        ),
+      );
+
+      providerQueryState.error = null;
+      rerender();
+
+      await waitFor(() => expect(result.current.error).toBeNull());
+      expect(result.current.providerLookupReady).toBe(true);
+    });
+
     it("calls signAndSubmitPayouts, marks complete, fires onSuccess and optimistic update", async () => {
       const { result } = renderHookWithProps();
 

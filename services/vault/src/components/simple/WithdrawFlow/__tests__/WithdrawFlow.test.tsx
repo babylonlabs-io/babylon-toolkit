@@ -4,11 +4,14 @@
  * totals, and when it refuses to hand a selection to Review.
  */
 
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { type ReactNode } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useWithdrawCollateralTransaction } from "@/applications/aave/hooks/useWithdrawCollateralTransaction";
+import { getBtcVaultBasicInfoFromChain } from "@/clients/eth-contract/btc-vault-registry/query";
+import { getVaultRegistryReader } from "@/clients/eth-contract/sdk-readers";
 import type { CollateralVaultEntry } from "@/types/collateral";
 
 import WithdrawFlow, { type WithdrawFlowProps } from "../index";
@@ -36,7 +39,6 @@ vi.mock("@/components/shared/V3ModalShell", () => ({
 vi.mock("@/context/ProtocolParamsContext", () => ({
   ProtocolParamsProvider: ({ children }: { children: ReactNode }) => children,
   useProtocolParamsContext: () => ({
-    minVpCommissionBps: 250,
     getOffchainParamsByVersion: () => undefined,
     config: { offchainParams: { timelockAssert: 144 } },
   }),
@@ -54,8 +56,51 @@ vi.mock("@/applications/aave/hooks/useWithdrawCollateralTransaction", () => ({
   useWithdrawCollateralTransaction: vi.fn(),
 }));
 
+vi.mock("@/clients/eth-contract/sdk-readers", () => ({
+  getVaultRegistryReader: vi.fn(),
+}));
+
+vi.mock("@/clients/eth-contract/btc-vault-registry/query", () => ({
+  getBtcVaultBasicInfoFromChain: vi.fn(),
+}));
+
 const FIRST_VAULT = "0xaaa";
 const SECOND_VAULT = "0xbbb";
+
+// Each vault's frozen VP commission and on-chain amount, as the registry
+// returns them. Both rates are above the 250 bps current minimum.
+const REGISTRY: Record<string, { bps: number; amount: bigint }> = {
+  [FIRST_VAULT]: { bps: 700, amount: 60_000_000n },
+  [SECOND_VAULT]: { bps: 300, amount: 20_000_000n },
+};
+
+const getProtocolInfoBatch = vi.fn();
+
+beforeEach(() => {
+  getProtocolInfoBatch.mockImplementation(async (ids: string[]) =>
+    ids.map((id) => ({
+      vaultProviderCommissionBps: REGISTRY[id].bps,
+      // Older than the latest version, whose minimum the context holds.
+      offchainParamsVersion: 1,
+    })),
+  );
+  vi.mocked(getVaultRegistryReader).mockReturnValue({
+    getProtocolInfoBatch,
+  } as unknown as ReturnType<typeof getVaultRegistryReader>);
+  vi.mocked(getBtcVaultBasicInfoFromChain).mockImplementation(
+    async (ids) =>
+      new Map(
+        ids.map((id) => [
+          id,
+          {
+            amount: REGISTRY[id].amount,
+            status: 2,
+            applicationEntryPoint: "0xapp",
+          },
+        ]),
+      ),
+  );
+});
 
 const VAULTS: CollateralVaultEntry[] = [
   {
@@ -100,11 +145,17 @@ function renderFlow(overrides: Partial<WithdrawFlowProps> = {}) {
     preSelectedVaultIds: [FIRST_VAULT],
     ...overrides,
   };
-  const { rerender } = render(<WithdrawFlow {...props} />);
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  const withQueryClient = (ui: ReactNode) => (
+    <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>
+  );
+  const { rerender } = render(withQueryClient(<WithdrawFlow {...props} />));
   return {
     executeWithdraw,
     rerenderWith: (next: Partial<WithdrawFlowProps>) =>
-      rerender(<WithdrawFlow {...props} {...next} />),
+      rerender(withQueryClient(<WithdrawFlow {...props} {...next} />)),
   };
 }
 
@@ -208,10 +259,13 @@ describe("WithdrawFlow selection step", () => {
     expect(continueButton()).toBeEnabled();
   });
 
-  it("blocks Confirm on Review until the moved projection is acknowledged again", () => {
+  it("blocks Confirm on Review until the moved projection is acknowledged again", async () => {
     const { rerenderWith } = renderFlow({ currentHealthFactor: 4.2 });
     fireEvent.click(acknowledgeCheckbox());
     fireEvent.click(continueButton());
+    // Wait for the commission (7% of 0.6 BTC), so only the acknowledgement
+    // can hold Confirm below.
+    await screen.findByText("0.042 sBTC");
 
     rerenderWith({ currentHealthFactor: 4.3 });
 
@@ -258,10 +312,42 @@ describe("WithdrawFlow selection step", () => {
     expect(screen.getByText("Review Withdraw")).toBeInTheDocument();
     expect(screen.getByText("0.8 sBTC")).toBeInTheDocument();
 
+    await vi.waitFor(() =>
+      expect(screen.getByTestId("withdraw-confirm-button")).toBeEnabled(),
+    );
     fireEvent.click(screen.getByTestId("withdraw-confirm-button"));
 
     await vi.waitFor(() =>
       expect(executeWithdraw).toHaveBeenCalledWith([FIRST_VAULT, SECOND_VAULT]),
     );
+  });
+});
+
+describe("WithdrawFlow review commission (issue #2546)", () => {
+  it("shows the commission at each vault's frozen rate, not the current minimum", async () => {
+    renderFlow();
+
+    fireEvent.click(rowCheckbox(SECOND_VAULT));
+    fireEvent.click(continueButton());
+
+    // 7% of 0.6 BTC + 3% of 0.2 BTC = 0.048 BTC. The 250 bps minimum of the
+    // latest params version would show 0.02.
+    expect(await screen.findByText("0.048 sBTC")).toBeInTheDocument();
+    expect(screen.queryByText("0.02 sBTC")).not.toBeInTheDocument();
+  });
+
+  it("keeps Confirm disabled and never submits when the commission read fails", async () => {
+    getProtocolInfoBatch.mockRejectedValue(new Error("multicall reverted"));
+    const { executeWithdraw } = renderFlow();
+
+    fireEvent.click(continueButton());
+
+    expect(
+      await screen.findByTestId("withdraw-commission-error"),
+    ).toBeInTheDocument();
+    const confirm = screen.getByTestId("withdraw-confirm-button");
+    expect(confirm).toBeDisabled();
+    fireEvent.click(confirm);
+    expect(executeWithdraw).not.toHaveBeenCalled();
   });
 });

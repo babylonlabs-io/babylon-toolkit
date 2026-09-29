@@ -1,13 +1,12 @@
 /**
- * "Loans" god-mode tab (dev / QA only): the v3 /loans summary overrides — a
- * health factor in each production band, and the borrow-capacity cards while
- * their read is loading or has failed. The row list itself is driven by
+ * "Loans" god-mode tab (dev / QA only): a health factor in each production
+ * band, and the v3 /loans borrow-capacity cards while their read is loading or
+ * has failed. The row list itself is driven by
  * "Loan" mocks on the Deposit & Vaults tab.
  *
  * `LoansSummaryOverrideControls` also renders on the Position tab: the
- * health-factor override feeds the Overview dashboard's own health-factor
- * display (`DashboardPage.tsx`), not just this page, so both surfaces share
- * one control instead of two independent stores.
+ * health-factor override feeds the Overview dashboard's health-factor display
+ * (`DashboardPage.tsx`).
  */
 import { useEffect } from "react";
 
@@ -66,7 +65,7 @@ export function LoansSummaryOverrideControls() {
       <div className={PANEL_SECTION_TITLE_CLASS}>Loans summary</div>
 
       <div className="space-y-1">
-        <div className="text-xs text-zinc-400">Health factor</div>
+        <div className="text-xs text-zinc-400">Health factor (Overview)</div>
         <div className="flex gap-2">
           <SegmentButton
             label="Live"

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { getActionStatus } from "@/components/deposit/actionStatus";
 import {
   computeDepositPollingResult,
   type DepositPollingInputs,
@@ -45,6 +46,7 @@ function makeInputs(
   return {
     activity: makeExpiredActivity(),
     activationFloorBlocksRemaining: undefined,
+    activationBlockedBySibling: false,
     pendingPegins: [],
     pendingDepositorSignatures: undefined,
     errors: undefined,
@@ -180,6 +182,41 @@ describe("computeDepositPollingResult — refund settlement", () => {
     );
     expect(result.peginState.availableActions).toEqual([PeginAction.NONE]);
     expect(result.peginState.displayLabel).toBe(PEGIN_DISPLAY_LABELS.REFUNDED);
+  });
+});
+
+describe("computeDepositPollingResult — missing Pre-PegIn", () => {
+  it("keeps the refund maturity unknown when a Pre-PegIn cached at depth is not found", () => {
+    const result = computeDepositPollingResult(
+      makeInputs({
+        matureRefundTxids: new Set(),
+        confirmedTxids: new Set([CANONICAL_PREPEGIN]),
+        prePeginConfirmationsByTxid: new Map([[CANONICAL_PREPEGIN, null]]),
+      }),
+    );
+    expect(result.peginState.refundMaturityState).toBe("unknown");
+    expect(result.peginState.inlineSubtext).toBe(
+      COPY.pegin.messages.refundMaturingUnknown,
+    );
+    expect(result.peginState.availableActions).toEqual([PeginAction.NONE]);
+  });
+
+  it("keeps Broadcast available for a PENDING deposit whose Pre-PegIn is not found", () => {
+    const result = computeDepositPollingResult(
+      makeInputs({
+        activity: {
+          ...makeExpiredActivity(),
+          displayLabel: PEGIN_DISPLAY_LABELS.PENDING,
+          contractStatus: ContractStatus.PENDING,
+        },
+        matureRefundTxids: new Set(),
+        pendingIngestion: new Set([VAULT_ID]),
+        prePeginConfirmationsByTxid: new Map([[CANONICAL_PREPEGIN, null]]),
+      }),
+    );
+    expect(result.peginState.availableActions).toContain(
+      PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN,
+    );
   });
 });
 
@@ -335,6 +372,48 @@ describe("computeDepositPollingResult — activation deadline gate", () => {
     expect(result.peginState.displayLabel).toBe(
       PEGIN_DISPLAY_LABELS.READY_TO_ACTIVATE,
     );
+  });
+});
+
+describe("computeDepositPollingResult — split activation order", () => {
+  function makeVerifiedActivity(): VaultActivity {
+    return {
+      ...makeExpiredActivity(),
+      displayLabel: PEGIN_DISPLAY_LABELS.READY_TO_ACTIVATE,
+      contractStatus: ContractStatus.VERIFIED,
+    };
+  }
+
+  it("withholds Activate while an earlier split sibling can still activate", () => {
+    const result = computeDepositPollingResult(
+      makeInputs({
+        activity: makeVerifiedActivity(),
+        activationBlockedBySibling: true,
+      }),
+    );
+
+    expect(result.peginState.availableActions).not.toContain(
+      PeginAction.ACTIVATE_VAULT,
+    );
+    expect(result.peginState.displayLabel).toBe(
+      PEGIN_DISPLAY_LABELS.AWAITING_EARLIER_VAULT,
+    );
+  });
+
+  it("shows the row's Activate disabled with the order explained", () => {
+    const status = getActionStatus(
+      computeDepositPollingResult(
+        makeInputs({
+          activity: makeVerifiedActivity(),
+          activationBlockedBySibling: true,
+        }),
+      ),
+    );
+
+    expect(status.type).toBe("disabled");
+    if (status.type !== "disabled") return;
+    expect(status.action?.action).toBe(PeginAction.ACTIVATE_VAULT);
+    expect(status.tooltip).toBe(COPY.pegin.messages.activationOrderWaiting);
   });
 });
 

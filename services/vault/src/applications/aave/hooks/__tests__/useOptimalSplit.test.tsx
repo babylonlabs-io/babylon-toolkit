@@ -53,12 +53,13 @@ describe("useOptimalSplit", () => {
     expect(result.current.canSplit).toBe(false);
   });
 
-  it("returns zero values when totalBtc is 0", () => {
+  it("returns the split minimum but no split when totalBtc is 0", () => {
     const { result } = renderHook(() => useOptimalSplit(0n));
 
     expect(result.current.sacrificialVault).toBe(0n);
     expect(result.current.protectedVault).toBe(0n);
     expect(result.current.canSplit).toBe(false);
+    expect(result.current.minDepositForSplit).toBe(174_999n);
   });
 
   it("returns canSplit: false when params are loading", () => {
@@ -75,7 +76,7 @@ describe("useOptimalSplit", () => {
     expect(result.current.sacrificialVault).toBe(0n);
   });
 
-  it("returns an empty result without throwing for an oversized amount", () => {
+  it("returns the split minimum but no split without throwing for an oversized amount", () => {
     // Above Bitcoin's max supply (21M BTC) — would trip the SDK's
     // assertSafePrecision guard (RangeError); the hook must bail safely.
     const { result } = renderHook(() =>
@@ -85,6 +86,7 @@ describe("useOptimalSplit", () => {
     expect(result.current.canSplit).toBe(false);
     expect(result.current.sacrificialVault).toBe(0n);
     expect(result.current.protectedVault).toBe(0n);
+    expect(result.current.minDepositForSplit).toBe(174_999n);
   });
 
   it("sets the split minimum to minDeposit divided by the sacrificial share", () => {

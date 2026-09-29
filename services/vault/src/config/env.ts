@@ -213,6 +213,15 @@ function validateEnvVars(): EnvValidationResult {
     errors,
   );
   const mempoolApiUrl = parseOptionalUrl(process.env.NEXT_PUBLIC_MEMPOOL_API);
+  // The observer is a trust boundary: a typo must fail, not silently fall
+  // back to the public default.
+  const rawBitcoinObserverApiUrl = process.env.NEXT_PUBLIC_BTC_OBSERVER_API;
+  const bitcoinObserverApiUrl = parseOptionalUrl(rawBitcoinObserverApiUrl);
+  if (rawBitcoinObserverApiUrl?.trim() && !bitcoinObserverApiUrl) {
+    errors.push(
+      "NEXT_PUBLIC_BTC_OBSERVER_API must be a valid http(s) URL when set",
+    );
+  }
 
   // Initialize the vault network config runtime from validated env
   // values. The runtime MUST end up initialized after this point even
@@ -234,6 +243,7 @@ function validateEnvVars(): EnvValidationResult {
       ethRpcUrl: ethRpcUrl || FALLBACK_RPC_URL,
       btcNetwork,
       mempoolApiUrl,
+      bitcoinObserverApiUrl,
     });
   } catch (e) {
     errors.push(e instanceof Error ? e.message : String(e));
@@ -242,7 +252,10 @@ function validateEnvVars(): EnvValidationResult {
         ethChainId: FALLBACK_ETH_CHAIN_ID,
         ethRpcUrl: FALLBACK_RPC_URL,
         btcNetwork: FALLBACK_BTC_NETWORK,
-        mempoolApiUrl,
+        mempoolApiUrl: undefined,
+        // A bad observer configuration must not prevent the fail-fast UI from
+        // rendering. The fallback uses the independent default origin.
+        bitcoinObserverApiUrl: undefined,
       });
     } catch {
       // Already initialized by a partial earlier call (e.g. the

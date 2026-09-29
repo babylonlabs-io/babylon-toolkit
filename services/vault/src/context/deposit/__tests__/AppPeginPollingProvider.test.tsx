@@ -37,6 +37,7 @@ vi.mock("../PeginPollingContext", () => ({
 vi.mock("@/context/wallet", () => ({
   useBTCWallet: () => ({ connected: btcConnected }),
   useETHWallet: () => ({ address: "0xdepositor" }),
+  useConnection: () => ({ isConnected: true }),
 }));
 
 vi.mock("@/hooks/useBtcPublicKey", () => ({
@@ -61,7 +62,6 @@ vi.mock("@/overrides/deposits", () => ({
 describe("AppPeginPollingProvider", () => {
   afterEach(() => {
     btcConnected = true;
-    vi.unstubAllEnvs();
   });
 
   it("feeds the polling provider the wallet's real deposits", () => {
@@ -100,8 +100,7 @@ describe("AppPeginPollingProvider", () => {
     expect(screen.getByText("deposit flow")).toBeInTheDocument();
   });
 
-  it("marks the Bitcoin wallet absent when the flag is on and Bitcoin is disconnected", () => {
-    vi.stubEnv("NEXT_PUBLIC_FF_ENABLE_ETH_FIRST", "true");
+  it("marks the Bitcoin wallet absent while Bitcoin is disconnected", () => {
     btcConnected = false;
 
     render(
@@ -116,21 +115,7 @@ describe("AppPeginPollingProvider", () => {
   it("does not mark the Bitcoin wallet absent while Bitcoin is connected", () => {
     // A connected wallet whose key has not loaded yet must poll nothing, not
     // everything, so the provider is told the wallet is present.
-    vi.stubEnv("NEXT_PUBLIC_FF_ENABLE_ETH_FIRST", "true");
     btcConnected = true;
-
-    render(
-      <AppPeginPollingProvider>
-        <div>child</div>
-      </AppPeginPollingProvider>,
-    );
-
-    expect(providerBtcWalletAbsent).toBe(false);
-  });
-
-  it("does not mark the Bitcoin wallet absent when the flag is off", () => {
-    vi.stubEnv("NEXT_PUBLIC_FF_ENABLE_ETH_FIRST", "false");
-    btcConnected = false;
 
     render(
       <AppPeginPollingProvider>

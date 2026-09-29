@@ -24,6 +24,7 @@ import {
   assertUtxosAvailable,
   broadcastPrePeginTransaction,
   fetchVaultById,
+  isPrePeginTransactionObserved,
 } from "@/services/vault";
 import { waitForEthRegistrationDepth } from "@/services/vault/ethConfirmationGate";
 import { rebuildDepositTerms } from "@/services/vault/rebuildDepositTerms";
@@ -31,6 +32,7 @@ import { resolveFundedTxFeeAndUtxos } from "@/services/vault/resolveFundedTxFee"
 import {
   activateVaultWithSecret,
   activateVaultWithSecretAndRedeem,
+  activationAddedCollateral,
 } from "@/services/vault/vaultActivationService";
 import { utxosToExpectedRecord } from "@/services/vault/vaultPeginBroadcastService";
 import {
@@ -59,7 +61,7 @@ const makeDefaultChainConnector = vi.hoisted(() => () => ({
   },
 }));
 const mockCalculateBtcTxHash = vi.hoisted(() =>
-  vi.fn(() => "0xmatching_pre_pegin_hash"),
+  vi.fn(() => `0x${"cc".repeat(32)}`),
 );
 
 // Local override of the global gate mock so we can drive a paused scope. Plain
@@ -117,7 +119,7 @@ vi.mock("@babylonlabs-io/ts-sdk/tbv/core/utils", () => ({
 vi.mock("@/clients/eth-contract/btc-vault-registry/query", () => ({
   getVaultFromChainWithGrace: vi.fn(() =>
     Promise.resolve({
-      prePeginTxHash: "0xmatching_pre_pegin_hash",
+      prePeginTxHash: `0x${"cc".repeat(32)}`,
       hashlock: "0xonchain_hashlock",
       // ETH block the registration mined at. Feeds the finality gate; the
       // default pairs with a far-ahead tip so the common case (a deposit
@@ -183,6 +185,7 @@ vi.mock("@/services/vault", () => ({
   assertUtxosAvailable: vi.fn().mockResolvedValue(undefined),
   broadcastPrePeginTransaction: vi.fn().mockResolvedValue("btcTxHash123"),
   fetchVaultById: vi.fn(),
+  isPrePeginTransactionObserved: vi.fn().mockResolvedValue(false),
   UtxoNotAvailableError: class UtxoNotAvailableError extends Error {
     constructor(message: string) {
       super(message);
@@ -225,26 +228,10 @@ vi.mock("@/clients/eth-contract/client", () => ({
   },
 }));
 
-// Flag holder so the floor tests can turn the feature on; plain object (not
-// vi.fn) so `vi.clearAllMocks()` cannot reset it mid-suite.
-const floorFlagMock = vi.hoisted(() => ({ enabled: false }));
-// Spread the real module: replacing it wholesale would blank every OTHER flag
-// for all tests in this file, silently changing behaviour they do not control.
-vi.mock("@/config/featureFlags", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/config/featureFlags")>();
-  return {
-    default: {
-      ...actual.default,
-      get isActivationDelayEnabled() {
-        return floorFlagMock.enabled;
-      },
-    },
-  };
-});
-
 vi.mock("@/services/vault/vaultActivationService", () => ({
   activateVaultWithSecret: vi.fn(),
   activateVaultWithSecretAndRedeem: vi.fn(),
+  activationAddedCollateral: vi.fn(() => true),
 }));
 
 vi.mock("@/services/vault/rebuildDepositTerms", () => ({
@@ -281,6 +268,9 @@ const mockFetchVaultById = vi.mocked(fetchVaultById);
 const mockBroadcastPrePeginTransaction = vi.mocked(
   broadcastPrePeginTransaction,
 );
+const mockIsPrePeginTransactionObserved = vi.mocked(
+  isPrePeginTransactionObserved,
+);
 const mockGetVaultFromChain = vi.mocked(getVaultFromChainWithGrace);
 const mockGetVaultRegistryReader = vi.mocked(getVaultRegistryReader);
 const mockActivateVaultWithSecret = vi.mocked(activateVaultWithSecret);
@@ -305,11 +295,12 @@ function readerReturning(
     createdAt: 1_000n,
   },
 ): ReturnType<typeof getVaultRegistryReader> {
+  const completeProtocolInfo = { htlcVout: 0, ...protocolInfo };
   return {
     getVaultData: vi
       .fn()
-      .mockResolvedValue({ basic: basicInfo, protocol: protocolInfo }),
-    getVaultProtocolInfo: vi.fn().mockResolvedValue(protocolInfo),
+      .mockResolvedValue({ basic: basicInfo, protocol: completeProtocolInfo }),
+    getVaultProtocolInfo: vi.fn().mockResolvedValue(completeProtocolInfo),
     getVaultBasicInfo: vi.fn().mockResolvedValue(basicInfo),
   } as unknown as ReturnType<typeof getVaultRegistryReader>;
 }
@@ -350,6 +341,7 @@ function makeMatchingProtocolInfoBatch() {
       universalChallengersVersion:
         basePendingPegin.buildUniversalChallengersVersion,
       vaultCoreVersion: basePendingPegin.buildVaultCoreVersion,
+      prePeginTxHash: `0x${"cc".repeat(32)}`,
     },
   ]);
 }
@@ -373,6 +365,7 @@ const MATCHING_BASIC_INFO = {
 // never reached must not leak that mock.
 beforeEach(() => {
   mockBroadcastPrePeginTransaction.mockResolvedValue("btcTxHash123");
+  mockIsPrePeginTransactionObserved.mockResolvedValue(false);
   vi.mocked(getAccount).mockReturnValue({
     address: baseBroadcastParams.depositorEthAddress,
   } as never);
@@ -389,9 +382,9 @@ beforeEach(() => {
 describe("useVaultActions — handleBroadcast transaction integrity", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockCalculateBtcTxHash.mockReturnValue("0xmatching_pre_pegin_hash");
+    mockCalculateBtcTxHash.mockReturnValue(`0x${"cc".repeat(32)}`);
     mockGetVaultFromChain.mockResolvedValue({
-      prePeginTxHash: "0xmatching_pre_pegin_hash",
+      prePeginTxHash: `0x${"cc".repeat(32)}`,
       hashlock: "0xonchain_hashlock",
       status: OnChainBtcVaultStatus.PENDING,
     } as never);
@@ -423,6 +416,104 @@ describe("useVaultActions — handleBroadcast transaction integrity", () => {
     expect(mockBroadcastPrePeginTransaction).toHaveBeenCalledWith(
       expect.objectContaining({ unsignedTxHex: TRUSTED_TX_HEX }),
     );
+  });
+
+  it("reconciles a second attempt before repeating the UTXO or broadcast path", async () => {
+    mockFetchVaultById.mockResolvedValue(baseVault as never);
+    mockIsPrePeginTransactionObserved
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(true);
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleBroadcast({
+        ...baseBroadcastParams,
+        pendingPegin: { ...basePendingPegin },
+      });
+    });
+
+    await act(async () => {
+      await result.current.handleBroadcast({
+        ...baseBroadcastParams,
+        pendingPegin: { ...basePendingPegin },
+      });
+    });
+
+    expect(mockIsPrePeginTransactionObserved).toHaveBeenCalledTimes(2);
+    expect(mockIsPrePeginTransactionObserved).toHaveBeenLastCalledWith({
+      unsignedTxHex: TRUSTED_TX_HEX,
+      registeredPrePeginTxHash: `0x${"cc".repeat(32)}`,
+    });
+    expect(mockAssertUtxosAvailable).toHaveBeenCalledOnce();
+    expect(mockBroadcastPrePeginTransaction).toHaveBeenCalledOnce();
+    expect(baseBroadcastParams.onShowSuccessModal).toHaveBeenCalledTimes(2);
+    expect(baseBroadcastParams.onRefetchActivities).toHaveBeenCalledTimes(2);
+    expect(result.current.broadcastError).toBeNull();
+  });
+
+  it("rejects a resumed batch when any sibling has another registered Pre-PegIn hash", async () => {
+    const getProtocolInfoBatch = vi.fn().mockResolvedValue([
+      {
+        offchainParamsVersion: 7,
+        appVaultKeepersVersion: 3,
+        universalChallengersVersion: 5,
+        vaultCoreVersion: 1,
+        prePeginTxHash: `0x${"cc".repeat(32)}`,
+      },
+      {
+        offchainParamsVersion: 7,
+        appVaultKeepersVersion: 3,
+        universalChallengersVersion: 5,
+        vaultCoreVersion: 1,
+        prePeginTxHash: `0x${"dd".repeat(32)}`,
+      },
+    ]);
+    mockGetVaultRegistryReader.mockReturnValue({
+      getProtocolInfoBatch,
+    } as unknown as ReturnType<typeof getVaultRegistryReader>);
+    mockFetchVaultById.mockResolvedValue(baseVault as never);
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleBroadcast({
+        ...baseBroadcastParams,
+        batchVaultIds: ["0xvaultId", "0xab"],
+        pendingPegin: { ...basePendingPegin },
+      });
+    });
+
+    // The single-shot batch read runs after the finality gate, never before.
+    expect(mockWaitForEthRegistrationDepth).toHaveBeenCalledWith(
+      expect.objectContaining({ vaultIds: ["0xvaultId", "0xab"] }),
+    );
+    expect(getProtocolInfoBatch).toHaveBeenCalledWith(["0xvaultId", "0xab"]);
+    expect(
+      mockWaitForEthRegistrationDepth.mock.invocationCallOrder[0],
+    ).toBeLessThan(getProtocolInfoBatch.mock.invocationCallOrder[0]);
+    expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
+    expect(result.current.broadcastError?.body).toContain(
+      COPY.deposit.errors.prePeginIntegrityMismatch,
+    );
+  });
+
+  it("shows an error, not a silent no-op, for an invalid batch vault id", async () => {
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleBroadcast({
+        ...baseBroadcastParams,
+        batchVaultIds: ["0xvaultId", "not-a-vault-id"],
+      });
+    });
+
+    expect(result.current.broadcastError?.body).toContain(
+      COPY.deposit.errors.invalidBatchVaultId("not-a-vault-id"),
+    );
+    expect(result.current.broadcasting).toBe(false);
+    expect(mockFetchVaultById).not.toHaveBeenCalled();
+    expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
   });
 
   it("requires an explicit broadcast retry after BTC reconnects", async () => {
@@ -553,7 +644,7 @@ describe("useVaultActions — handleBroadcast transaction integrity", () => {
   it("refuses to broadcast when GraphQL says PENDING but on-chain status is EXPIRED", async () => {
     mockFetchVaultById.mockResolvedValue(baseVault as never);
     mockGetVaultFromChain.mockResolvedValue({
-      prePeginTxHash: "0xmatching_pre_pegin_hash",
+      prePeginTxHash: `0x${"cc".repeat(32)}`,
       hashlock: "0xonchain_hashlock",
       status: OnChainBtcVaultStatus.EXPIRED,
     } as never);
@@ -580,7 +671,7 @@ describe("useVaultActions — handleBroadcast transaction integrity", () => {
   it("labels on-chain status 4 as EXPIRED (not LIQUIDATED) in the broadcast error", async () => {
     mockFetchVaultById.mockResolvedValue(baseVault as never);
     mockGetVaultFromChain.mockResolvedValue({
-      prePeginTxHash: "0xmatching_pre_pegin_hash",
+      prePeginTxHash: `0x${"cc".repeat(32)}`,
       hashlock: "0xonchain_hashlock",
       // 4 = on-chain BTCVaultStatus.Expired
       status: 4,
@@ -610,13 +701,17 @@ describe("useVaultActions — handleBroadcast transaction integrity", () => {
 describe("useVaultActions — handleBroadcast version drift guard", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockCalculateBtcTxHash.mockReturnValue("0xmatching_pre_pegin_hash");
+    mockCalculateBtcTxHash.mockReturnValue(`0x${"cc".repeat(32)}`);
     mockFetchVaultById.mockResolvedValue(baseVault as never);
+    mockGetVaultRegistryReader.mockReturnValue({
+      getProtocolInfoBatch: makeMatchingProtocolInfoBatch(),
+    } as unknown as ReturnType<typeof getVaultRegistryReader>);
+    mockVerifyResumeParticipantKeys.mockResolvedValue(undefined);
     // status: PENDING so the broadcast-status precondition (which runs before
     // the version check this describe block exercises) lets execution reach
     // the version drift logic.
     mockGetVaultFromChain.mockResolvedValue({
-      prePeginTxHash: "0xmatching_pre_pegin_hash",
+      prePeginTxHash: `0x${"cc".repeat(32)}`,
       hashlock: "0xonchain_hashlock",
       status: OnChainBtcVaultStatus.PENDING,
     } as never);
@@ -649,6 +744,8 @@ describe("useVaultActions — handleBroadcast version drift guard", () => {
           appVaultKeepersVersion: basePendingPegin.buildAppVaultKeepersVersion,
           universalChallengersVersion:
             basePendingPegin.buildUniversalChallengersVersion,
+          vaultCoreVersion: basePendingPegin.buildVaultCoreVersion,
+          prePeginTxHash: `0x${"cc".repeat(32)}`,
         },
       ]),
     } as unknown as ReturnType<typeof getVaultRegistryReader>);
@@ -678,6 +775,8 @@ describe("useVaultActions — handleBroadcast version drift guard", () => {
             basePendingPegin.buildAppVaultKeepersVersion + 1,
           universalChallengersVersion:
             basePendingPegin.buildUniversalChallengersVersion,
+          vaultCoreVersion: basePendingPegin.buildVaultCoreVersion,
+          prePeginTxHash: `0x${"cc".repeat(32)}`,
         },
       ]),
     } as unknown as ReturnType<typeof getVaultRegistryReader>);
@@ -706,6 +805,8 @@ describe("useVaultActions — handleBroadcast version drift guard", () => {
           appVaultKeepersVersion: basePendingPegin.buildAppVaultKeepersVersion,
           universalChallengersVersion:
             basePendingPegin.buildUniversalChallengersVersion + 1,
+          vaultCoreVersion: basePendingPegin.buildVaultCoreVersion,
+          prePeginTxHash: `0x${"cc".repeat(32)}`,
         },
       ]),
     } as unknown as ReturnType<typeof getVaultRegistryReader>);
@@ -766,7 +867,9 @@ describe("useVaultActions — handleBroadcast version drift guard", () => {
 
     expect(result.current.broadcastError).toBeNull();
     expect(mockBroadcastPrePeginTransaction).toHaveBeenCalledTimes(1);
-    expect(getProtocolInfoBatch).not.toHaveBeenCalled();
+    // Hash binding is always checked; only the build-version comparison is
+    // skipped when no local build metadata exists.
+    expect(getProtocolInfoBatch).toHaveBeenCalledOnce();
   });
 
   // The indexer's depositor key is untrusted. Resume signs with the key the
@@ -807,8 +910,8 @@ describe("useVaultActions — handleBroadcast version drift guard", () => {
     mockGetVaultRegistryReader.mockReturnValue({
       getProtocolInfoBatch: makeMatchingProtocolInfoBatch(),
     } as unknown as ReturnType<typeof getVaultRegistryReader>);
-    // Indexer-served tx hashes to the beforeEach default
-    // ("0xmatching_pre_pegin_hash"); make the on-chain commitment differ.
+    // Indexer-served tx hashes to the beforeEach default; make the on-chain
+    // commitment differ.
     mockGetVaultFromChain.mockResolvedValue({
       prePeginTxHash: "0xonchain_hash_that_differs",
       hashlock: "0xonchain_hashlock",
@@ -852,7 +955,7 @@ describe("useVaultActions — handleBroadcast version drift guard", () => {
 
     expect(result.current.broadcastError).toBeNull();
     expect(mockBroadcastPrePeginTransaction).toHaveBeenCalledTimes(1);
-    expect(getProtocolInfoBatch).not.toHaveBeenCalled();
+    expect(getProtocolInfoBatch).toHaveBeenCalledOnce();
   });
 
   // When we fall back to the indexer tx (empty local unsignedTxHex), the
@@ -919,7 +1022,7 @@ describe("useVaultActions — handleBroadcast version drift guard", () => {
 
     expect(result.current.broadcastError).toBeNull();
     expect(mockBroadcastPrePeginTransaction).toHaveBeenCalledTimes(1);
-    expect(getProtocolInfoBatch).not.toHaveBeenCalled();
+    expect(getProtocolInfoBatch).toHaveBeenCalledOnce();
   });
 
   // Mirrors the inline deposit path's cleanup: a confirmed mismatch
@@ -935,6 +1038,8 @@ describe("useVaultActions — handleBroadcast version drift guard", () => {
           appVaultKeepersVersion: basePendingPegin.buildAppVaultKeepersVersion,
           universalChallengersVersion:
             basePendingPegin.buildUniversalChallengersVersion,
+          vaultCoreVersion: basePendingPegin.buildVaultCoreVersion,
+          prePeginTxHash: `0x${"cc".repeat(32)}`,
         },
       ]),
     } as unknown as ReturnType<typeof getVaultRegistryReader>);
@@ -961,10 +1066,21 @@ describe("useVaultActions — handleBroadcast version drift guard", () => {
   // able to retry once the RPC recovers. Only a confirmed mismatch
   // clears it.
   it("keeps the pending entry when the resume version check throws a transient (non-mismatch) error", async () => {
+    // The first read is the batch hash check; the second is the version check.
+    const getProtocolInfoBatch = vi
+      .fn()
+      .mockResolvedValueOnce([
+        {
+          offchainParamsVersion: 7,
+          appVaultKeepersVersion: 3,
+          universalChallengersVersion: 5,
+          vaultCoreVersion: 1,
+          prePeginTxHash: `0x${"cc".repeat(32)}`,
+        },
+      ])
+      .mockRejectedValueOnce(new Error("eth_call failed: connection reset"));
     mockGetVaultRegistryReader.mockReturnValue({
-      getProtocolInfoBatch: vi
-        .fn()
-        .mockRejectedValue(new Error("eth_call failed: connection reset")),
+      getProtocolInfoBatch,
     } as unknown as ReturnType<typeof getVaultRegistryReader>);
 
     const removePendingPegin = vi.fn();
@@ -978,6 +1094,7 @@ describe("useVaultActions — handleBroadcast version drift guard", () => {
       });
     });
 
+    expect(getProtocolInfoBatch).toHaveBeenCalledTimes(2);
     expect(result.current.broadcastError?.body).toContain("eth_call failed");
     expect(removePendingPegin).not.toHaveBeenCalled();
     expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
@@ -1052,9 +1169,9 @@ describe("useVaultActions — handleBroadcast version drift guard", () => {
 describe("useVaultActions — handleBroadcast depositor wallet binding", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockCalculateBtcTxHash.mockReturnValue("0xmatching_pre_pegin_hash");
+    mockCalculateBtcTxHash.mockReturnValue(`0x${"cc".repeat(32)}`);
     mockGetVaultFromChain.mockResolvedValue({
-      prePeginTxHash: "0xmatching_pre_pegin_hash",
+      prePeginTxHash: `0x${"cc".repeat(32)}`,
       hashlock: "0xonchain_hashlock",
       status: OnChainBtcVaultStatus.PENDING,
     } as never);
@@ -1497,6 +1614,142 @@ describe("useVaultActions — handleActivation hashlock source", () => {
     );
   });
 
+  it("reports to onShowSuccessModal whether the activation receipt added collateral", async () => {
+    const reader = readerReturning({
+      depositorSignedPeginTx: "0xdeadbeef",
+      hashlock: ON_CHAIN_HASHLOCK,
+    });
+    mockGetVaultRegistryReader.mockReturnValue(reader);
+    const revealResult = { transactionHash: "0xtx", receipt: { logs: [] } };
+    mockActivateVaultWithSecret.mockResolvedValue(revealResult as never);
+    vi.mocked(activationAddedCollateral).mockReturnValueOnce(false);
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleActivation(baseActivationParams);
+    });
+
+    expect(activationAddedCollateral).toHaveBeenCalledWith(
+      revealResult,
+      "0xvaultId",
+    );
+    expect(baseActivationParams.onShowSuccessModal).toHaveBeenCalledWith({
+      collateralAdded: false,
+    });
+  });
+
+  it("checks the activate-and-redeem receipt for CollateralAdded in escape-hatch mode", async () => {
+    // No explicit escape-hatch guard remains: the optimistic row is skipped
+    // only because this receipt carries no adapter CollateralAdded log.
+    const reader = readerReturning({
+      depositorSignedPeginTx: "0xdeadbeef",
+      hashlock: ON_CHAIN_HASHLOCK,
+    });
+    mockGetVaultRegistryReader.mockReturnValue(reader);
+    const redeemResult = { transactionHash: "0xtx", receipt: { logs: [] } };
+    mockActivateVaultWithSecretAndRedeem.mockResolvedValue(
+      redeemResult as never,
+    );
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleActivation({
+        ...baseActivationParams,
+        redeemImmediately: true,
+      });
+    });
+
+    expect(mockActivateVaultWithSecret).not.toHaveBeenCalled();
+    expect(activationAddedCollateral).toHaveBeenCalledWith(
+      redeemResult,
+      "0xvaultId",
+    );
+  });
+
+  it("refuses index 1 before index 0 is active without revealing the secret", async () => {
+    const sacrificialId = `0x${"1".repeat(64)}` as Hex;
+    const protectedId = `0x${"2".repeat(64)}` as Hex;
+    const depositor = `0x${"a".repeat(40)}`;
+    const applicationEntryPoint = `0x${"b".repeat(40)}`;
+    const prePeginTxHash = `0x${"c".repeat(64)}`;
+    const reader = readerReturning(
+      {
+        depositorSignedPeginTx: "0xdeadbeef",
+        hashlock: ON_CHAIN_HASHLOCK,
+        htlcVout: 1,
+        prePeginTxHash,
+      },
+      {
+        status: OnChainBtcVaultStatus.VERIFIED,
+        createdAt: 1_000n,
+        depositor,
+        applicationEntryPoint,
+      },
+    );
+    mockGetVaultRegistryReader.mockReturnValue(reader);
+    mockGetVaultFromChain.mockResolvedValueOnce({
+      htlcVout: 0,
+      status: OnChainBtcVaultStatus.VERIFIED,
+      depositor,
+      applicationEntryPoint,
+      prePeginTxHash,
+    } as never);
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleActivation({
+        ...baseActivationParams,
+        vaultId: protectedId,
+        siblingVaultIds: [protectedId, sacrificialId],
+      });
+    });
+
+    expect(mockGetVaultFromChain).toHaveBeenCalledWith(sacrificialId);
+    expect(mockActivateVaultWithSecret).not.toHaveBeenCalled();
+    expect(result.current.activationError).toBe(
+      COPY.pegin.messages.activationOrderBlocked,
+    );
+    expect(mockLoggerError).not.toHaveBeenCalled();
+  });
+
+  it("captures a missing lower sibling slot instead of treating it as routine", async () => {
+    const protectedId = `0x${"2".repeat(64)}` as Hex;
+    const reader = readerReturning(
+      {
+        depositorSignedPeginTx: "0xdeadbeef",
+        hashlock: ON_CHAIN_HASHLOCK,
+        htlcVout: 1,
+        prePeginTxHash: `0x${"c".repeat(64)}`,
+      },
+      {
+        status: OnChainBtcVaultStatus.VERIFIED,
+        createdAt: 1_000n,
+        depositor: `0x${"a".repeat(40)}`,
+        applicationEntryPoint: `0x${"b".repeat(40)}`,
+      },
+    );
+    mockGetVaultRegistryReader.mockReturnValue(reader);
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleActivation({
+        ...baseActivationParams,
+        vaultId: protectedId,
+        siblingVaultIds: [protectedId],
+      });
+    });
+
+    expect(mockActivateVaultWithSecret).not.toHaveBeenCalled();
+    expect(result.current.activationError).toBe(
+      COPY.pegin.messages.activationOrderUnavailable,
+    );
+    expect(mockLoggerError).toHaveBeenCalledTimes(1);
+  });
+
   // handleActivation catches its own failures and never rethrows, so this catch
   // is the only place a reveal failure is observable. A capture in a caller's
   // catch (useActivationState) would never run.
@@ -1657,7 +1910,7 @@ describe("useVaultActions — handleBroadcast intent (Ledger) resume branch", ()
   // Single fixture for the chain read AND the `target` the hook must forward
   // to the rebuild — the same object, not a re-read.
   const ONCHAIN_VAULT = {
-    prePeginTxHash: "0xmatching_pre_pegin_hash",
+    prePeginTxHash: `0x${"cc".repeat(32)}`,
     hashlock: "0xonchain_hashlock",
     status: OnChainBtcVaultStatus.PENDING,
   };
@@ -1675,7 +1928,7 @@ describe("useVaultActions — handleBroadcast intent (Ledger) resume branch", ()
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockCalculateBtcTxHash.mockReturnValue("0xmatching_pre_pegin_hash");
+    mockCalculateBtcTxHash.mockReturnValue(`0x${"cc".repeat(32)}`);
     mockGetVaultFromChain.mockResolvedValue(ONCHAIN_VAULT as never);
     mockGetVaultRegistryReader.mockReturnValue({
       getProtocolInfoBatch: makeMatchingProtocolInfoBatch(),
@@ -1888,9 +2141,9 @@ describe("useVaultActions — handleBroadcast intent (Ledger) resume branch", ()
 describe("useVaultActions — handleBroadcast Ethereum finality gate", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockCalculateBtcTxHash.mockReturnValue("0xmatching_pre_pegin_hash");
+    mockCalculateBtcTxHash.mockReturnValue(`0x${"cc".repeat(32)}`);
     mockGetVaultFromChain.mockResolvedValue({
-      prePeginTxHash: "0xmatching_pre_pegin_hash",
+      prePeginTxHash: `0x${"cc".repeat(32)}`,
       hashlock: "0xonchain_hashlock",
       status: OnChainBtcVaultStatus.PENDING,
       createdAt: 1_000n,
@@ -2096,6 +2349,35 @@ describe("useVaultActions — handleBroadcast Ethereum finality gate", () => {
     expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
   });
 
+  it("finishes without a rebroadcast when the inputs are spent by the registered Pre-PegIn", async () => {
+    // The observer has not indexed the relayed tx yet, but the broadcaster
+    // that reports the inputs spent already carries the registered txid.
+    mockAssertUtxosAvailable.mockRejectedValueOnce(
+      new UtxoNotAvailableError([{ txid: "ab".repeat(32), vout: 0 }]),
+    );
+    mockIsPrePeginTransactionObserved
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(true);
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleBroadcast({
+        ...baseBroadcastParams,
+        pendingPegin: { ...basePendingPegin },
+      });
+    });
+
+    expect(mockIsPrePeginTransactionObserved).toHaveBeenLastCalledWith({
+      unsignedTxHex: TRUSTED_TX_HEX,
+      registeredPrePeginTxHash: `0x${"cc".repeat(32)}`,
+      source: "broadcaster",
+    });
+    expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
+    expect(baseBroadcastParams.onShowSuccessModal).toHaveBeenCalledOnce();
+    expect(result.current.broadcastError).toBeNull();
+  });
+
   it("does not start signing when the modal unmounts after finality but before the broadcast", async () => {
     // Several network round-trips sit between the finality gate and the
     // signature (UTXO availability, version and key re-checks). Unmounting
@@ -2263,13 +2545,14 @@ describe("useVaultActions — activation floor (peginActivationDelay)", () => {
     vi.clearAllMocks();
     gateMock.value = { protocol: null, aave: null };
     onChainPauseMock.value = { protocol: null, aave: null };
-    floorFlagMock.enabled = true;
     mockGetPeginActivationDelay.mockResolvedValue(DELAY);
     mockGetVaultRegistryReader.mockReturnValue(readerAtFloor());
   });
 
+  // `vi.clearAllMocks()` keeps implementations, so restore the file-wide
+  // delay of 0 or this suite's window would gate every later activation test.
   afterEach(() => {
-    floorFlagMock.enabled = false;
+    mockGetPeginActivationDelay.mockResolvedValue(0n);
   });
 
   it("does not reveal the secret while the activation floor has not elapsed", async () => {
@@ -2346,19 +2629,6 @@ describe("useVaultActions — activation floor (peginActivationDelay)", () => {
     expect(mockLoggerError).toHaveBeenCalledTimes(1);
     const [, ctx] = mockLoggerError.mock.calls[0];
     expect(ctx.tags.funnelStage).toBe("activation.reveal");
-  });
-
-  it("reads nothing and changes nothing when the feature flag is off", async () => {
-    floorFlagMock.enabled = false;
-    mockGetBlockNumber.mockResolvedValue(1_100n); // would be gated if enabled
-
-    const { result } = renderHook(() => useVaultActions());
-    await act(async () => {
-      await result.current.handleActivation(params);
-    });
-
-    expect(mockGetPeginActivationDelay).not.toHaveBeenCalled();
-    expect(mockActivateVaultWithSecret).toHaveBeenCalled();
   });
 
   it("reveals immediately when the protocol delay is 0, even if currentBlock lags verifiedAt", async () => {

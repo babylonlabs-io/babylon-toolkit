@@ -9,7 +9,6 @@ import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import type { PriceMetadata } from "@/clients/eth-contract/chainlink";
-import featureFlags from "@/config/featureFlags";
 import { useBtcPublicKey } from "@/hooks/useBtcPublicKey";
 import { fragmentUtxos, useUtxoFragmentCountOverride } from "@/overrides/utxos";
 import { MAX_PRE_PEGIN_FUNDING_INPUTS } from "@/services/deposit/fundingInputCap";
@@ -96,9 +95,9 @@ export interface UseDepositPageFormResult {
   };
   isWalletConnected: boolean;
   /**
-   * True when the session is confirmed but Bitcoin is absent and optional
-   * (ETH-first flag). The CTA stays clickable so the click opens the Bitcoin
-   * wallet prompt; fee/UTXO work still waits on `isWalletConnected`.
+   * True when the session is confirmed but Bitcoin is absent. The CTA stays
+   * clickable so the click opens the Bitcoin wallet prompt; fee/UTXO work
+   * still waits on `isWalletConnected`.
    */
   canConnectBtcWallet: boolean;
 
@@ -231,8 +230,7 @@ export function useDepositPageForm(): UseDepositPageFormResult {
   const { address: btcAddress, connected: btcConnected } = useBTCWallet();
   const { isConnected: sessionConnected } = useConnection();
   const isWalletConnected = sessionConnected && btcConnected;
-  const canConnectBtcWallet =
-    featureFlags.isEthFirstEnabled && sessionConnected && !btcConnected;
+  const canConnectBtcWallet = sessionConnected && !btcConnected;
   const {
     publicKey: depositorBtcPubkey,
     error: btcPublicKeyError,
@@ -276,6 +274,7 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     unhealthyVpIds,
     vaultKeepers,
     loading: isLoadingRegistry,
+    error: registryError,
   } = useVaultProviders(effectiveSelectedApplication || undefined);
 
   // Stable VP id list driving the per-VP stats / commission lookups.
@@ -801,6 +800,7 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     // same terminal fee-error CTA state. (An UNSUPPORTED version is not an
     // error here — it has its own CTA state via appVersionUnsupported.)
     minPeginFeeError:
+      registryError ??
       toError(minPeginFeeError) ??
       toError(p2aAnchorError) ??
       toError(supportedVersionsError) ??

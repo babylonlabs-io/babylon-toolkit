@@ -9,10 +9,10 @@
  *   appears.
  *
  * Under `--eth-only` the two Bitcoin steps are skipped and the rest is unchanged, so the app reaches
- * the connected state on a confirmed Ethereum wallet alone — what `useConnection` allows once
- * Ethereum-only access is on. The Bitcoin row is marked `data-optional="true"` exactly when that access is on,
- * which is read here to fail an `--eth-only` run against a flag-off build by name, rather than letting
- * it time out later on a control that was never going to appear.
+ * the connected state on a confirmed Ethereum wallet alone — what `useConnection` allows. The Bitcoin
+ * row is marked `data-optional="true"` by every build with Ethereum-only access, which is read here to
+ * fail an `--eth-only` run against an older build by name, rather than letting it time out later on a
+ * control that was never going to appear.
  *
  * The connected-state signal is the header's wallet-menu trigger, NOT a page CTA: v3 splits the old
  * dashboard across routes, so the deposit CTA now lives on /vaults only. The menu trigger renders on
@@ -46,10 +46,18 @@ const SELECT_BTC_TESTID = '[data-testid="select-bitcoin-wallet-button"]';
 /**
  * The attribute the connect screen sets to "true" on a chain that is not required, from `ChainButton`
  * in packages/babylon-wallet-connector/src/components/ChainButton/index.tsx. Its presence on the
- * Bitcoin row is the build's own statement that Ethereum-only access is on, so it is the cheapest
+ * Bitcoin row is the build's own statement that it has Ethereum-only access, so it is the cheapest
  * proof that the served bundle matches the run being asked for.
  */
 const OPTIONAL_CHAIN_ATTRIBUTE = "data-optional";
+
+/**
+ * The connected wallet inside the Bitcoin row. `ConnectedWallet` in
+ * packages/babylon-wallet-connector/src/components/ConnectedWallet/index.tsx is the only element in the
+ * row that carries a `title` (the full address), and the row renders it only once a Bitcoin wallet is
+ * connected.
+ */
+const CONNECTED_BTC_WALLET = `${SELECT_BTC_TESTID} [title]`;
 
 /**
  * Read the Bitcoin row and check the served build against the run.
@@ -57,16 +65,10 @@ const OPTIONAL_CHAIN_ATTRIBUTE = "data-optional";
  * `--eth-only` REQUIRES the row to be marked optional: without Ethereum-only access the connect screen
  * still demands Bitcoin, so the run could never reach the connected state and refusing here names the
  * cause instead of timing out later.
- *
- * The default Bitcoin run only WARNS when the row is optional. It is not an error — connecting Bitcoin
- * stays valid with the access flag on, and once that flag ships enabled every deployed build will be
- * flag-on — but it does weaken this step's gate: the app would count the session connected even if the
- * Bitcoin approval were missed, so a later Bitcoin failure would surface further from its cause.
  */
 async function checkBitcoinRowAgainstRun(
   page: Page,
   ethOnly: boolean,
-  log: (m: string) => void,
 ): Promise<void> {
   const row = page.locator(SELECT_BTC_TESTID);
   try {
@@ -81,11 +83,7 @@ async function checkBitcoinRowAgainstRun(
     (await row.getAttribute(OPTIONAL_CHAIN_ATTRIBUTE)) === "true";
   if (ethOnly && !isOptional)
     throw new Error(
-      `connect: --eth-only, but the connect screen's Bitcoin row is not marked ${OPTIONAL_CHAIN_ATTRIBUTE}="true", so the served build still requires Bitcoin. Possible causes: the build has NEXT_PUBLIC_FF_ENABLE_ETH_FIRST off (a dev server left running on this port is reused as-is, so stop it and re-run); the wallet-connector dist predates the ${OPTIONAL_CHAIN_ATTRIBUTE} marker (rebuild it); or the connector renamed the ${OPTIONAL_CHAIN_ATTRIBUTE} attribute (update OPTIONAL_CHAIN_ATTRIBUTE).`,
-    );
-  if (!ethOnly && isOptional)
-    log(
-      `Note: this build marks Bitcoin optional (Ethereum-only access is on), so the app can count the session connected without the Bitcoin approval. Connecting Bitcoin still works; a missed approval would just fail later than here.`,
+      `connect: --eth-only, but the connect screen's Bitcoin row is not marked ${OPTIONAL_CHAIN_ATTRIBUTE}="true", so the served build still requires Bitcoin. Possible causes: the served build predates Ethereum-only access (a deployed site not yet released with it, or a dev server left running on this port, which is reused as-is, so stop it and re-run); the wallet-connector dist predates the ${OPTIONAL_CHAIN_ATTRIBUTE} marker (rebuild it); or the connector renamed the ${OPTIONAL_CHAIN_ATTRIBUTE} attribute (update OPTIONAL_CHAIN_ATTRIBUTE).`,
     );
 }
 
@@ -124,7 +122,7 @@ export async function connectWallets(ctx: ActionContext): Promise<void> {
     .click({ timeout: STEP_TIMEOUT_MS });
 
   const ethOnly = Boolean(ctx.config.ethOnly);
-  await checkBitcoinRowAgainstRun(page, ethOnly, log);
+  await checkBitcoinRowAgainstRun(page, ethOnly);
 
   if (ethOnly) {
     // Deliberately no Bitcoin click: the app must reach the connected state on Ethereum alone. The
@@ -172,21 +170,45 @@ export async function connectWallets(ctx: ActionContext): Promise<void> {
   // so the menu alone is not proof of success — this only returns once the modal is actually GONE.
   // Leaving it open is what covered the app in a portal-root overlay and broke the first click after
   // connect.
+  //
+  // Ethereum is the only required wallet, so Connect enables without Bitcoin, and a rejected or failed
+  // Bitcoin connect returns the modal to this screen as if nothing happened. A default run therefore
+  // clicks Connect only once the Bitcoin row shows a connected wallet, so that case fails here, by name,
+  // not at the first Bitcoin signature. A failure the dialog shows as an error screen (an outdated
+  // wallet, a failed address check) stops the run earlier, at the Ethereum row.
   const finalize = page.locator('[data-testid="chains-connect-button"]');
   const walletMenu = page.locator(WALLET_MENU_TRIGGER_TESTID).first();
+  const bitcoinWallet = page.locator(CONNECTED_BTC_WALLET).first();
+  let bitcoinReady = ethOnly;
+  // The chain screen is hidden behind the connector's loader while an Ethereum approval is pending, so
+  // only a chain screen seen without Bitcoin puts the blame on Bitcoin.
+  let chainScreenSeen = false;
   const deadline = Date.now() + CONNECT_STATE_TIMEOUT_MS;
   while (Date.now() < deadline) {
     const modalOpen = await finalize.isVisible().catch(() => false);
-    if (!modalOpen && (await walletMenu.isVisible().catch(() => false))) return;
+    if (
+      !modalOpen &&
+      bitcoinReady &&
+      (await walletMenu.isVisible().catch(() => false))
+    )
+      return;
+    chainScreenSeen ||= modalOpen;
+    if (modalOpen && !bitcoinReady)
+      bitcoinReady = await bitcoinWallet.isVisible().catch(() => false);
     // Short timeout on purpose: the button is visible-but-disabled until every required wallet reports
     // in, and a full STEP_TIMEOUT_MS wait here would block the tick and starve the approval sweep below.
-    if (modalOpen)
+    if (modalOpen && bitcoinReady)
       await finalize.click({ timeout: CONNECT_STATE_POLL_MS }).catch(() => {});
     await sweepApprovals(context, page, log);
     await page.waitForTimeout(CONNECT_STATE_POLL_MS);
   }
+  const waitedS = Math.round(CONNECT_STATE_TIMEOUT_MS / MS_PER_SECOND);
+  if (chainScreenSeen && !bitcoinReady)
+    throw new Error(
+      `connect: the Connect Wallets modal never showed a connected Bitcoin wallet within ${waitedS}s — the ${ctx.btc.id} connect failed or was rejected. The app accepts Ethereum alone, so the run stops here instead of at the first Bitcoin signature.`,
+    );
   throw new Error(
-    `connect: the Connect Wallets modal did not close into the connected state (header wallet menu) within ${Math.round(CONNECT_STATE_TIMEOUT_MS / MS_PER_SECOND)}s — a wallet approval (e.g. MetaMask "Review permissions") may be unconfirmed.`,
+    `connect: the Connect Wallets modal did not close into the connected state (header wallet menu) within ${waitedS}s — a wallet approval (e.g. MetaMask "Review permissions") may be unconfirmed.`,
   );
 }
 
