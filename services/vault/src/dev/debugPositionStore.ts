@@ -128,7 +128,7 @@ export const DEBUG_PRESETS: DebugPreset[] = [
   },
   {
     label: "Dust",
-    expectedSeverity: "soft",
+    expectedSeverity: "hidden",
     params: {
       btcPrice: 61722.5,
       totalDebtUsd: 500,
