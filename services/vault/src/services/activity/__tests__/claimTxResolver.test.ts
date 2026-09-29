@@ -43,7 +43,7 @@ const TXID_B3 = "b3".repeat(32);
 const TXID_LIVE = "cd".repeat(32);
 const TXID_PRE = "ef".repeat(32);
 
-function claimer(claim_txid: string, status: string = "PayoutBroadcast") {
+function claimer(claim_txid: string, status: string = "PayoutConfirmed") {
   return {
     status,
     failed: false,

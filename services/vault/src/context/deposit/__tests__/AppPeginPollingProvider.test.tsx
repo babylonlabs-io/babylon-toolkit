@@ -37,6 +37,7 @@ vi.mock("../PeginPollingContext", () => ({
 vi.mock("@/context/wallet", () => ({
   useBTCWallet: () => ({ connected: btcConnected }),
   useETHWallet: () => ({ address: "0xdepositor" }),
+  useConnection: () => ({ isConnected: true }),
 }));
 
 vi.mock("@/hooks/useBtcPublicKey", () => ({

@@ -90,12 +90,6 @@ vi.mock("@/hooks/usePendingDeposits", () => ({
   }),
 }));
 
-// The real emptiness hook reads useActionableExpiredDeposits, which filters
-// expired rows by their polled peg-in state. Nothing is polled here.
-vi.mock("@/context/deposit/PeginPollingContext", () => ({
-  usePeginPolling: () => ({ getPollingResult: () => undefined }),
-}));
-
 // The real emptiness hook also asks useActionableReclaims which settled
 // deposits still have a reclaim to perform; that chain reaches wallet and
 // chain reads. No candidates are handed in, so it answers nothing.
@@ -317,7 +311,6 @@ describe("VaultsPage Reorder without a Bitcoin wallet", () => {
   });
 
   it("disables Reorder and Withdraw and says why when the indexed vault list may be incomplete", () => {
-    featureFlagsMock.isEthFirstEnabled = true;
     const indexerError = new Error(
       "Indexed collateral details do not match the chain position",
     );

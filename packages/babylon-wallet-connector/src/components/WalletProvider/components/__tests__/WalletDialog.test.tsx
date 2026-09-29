@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { TermsOfServiceParams } from "@/context/LifecycleHooks.context";
 import { WALLET_CONFIRMATION_RECEIPT_KEY } from "@/core/confirmationReceipt";
-import type { Account, HashMap, IWallet } from "@/core/types";
+import type { Account, HashMap, IChain, IWallet } from "@/core/types";
 import { Wallet } from "@/core/Wallet";
 
 import { WalletDialog } from "../WalletDialog";
@@ -13,6 +13,10 @@ const harness = vi.hoisted(() => ({
   widgetState: {} as Record<string, unknown>,
   connectors: {} as Record<string, unknown>,
   lifecycleHooks: {} as Record<string, unknown>,
+  connect: vi.fn(),
+  chooseWallet: vi.fn(),
+  onSelectWallet: undefined as ((chain: IChain, wallet: IWallet) => void) | undefined,
+  onConnectWallet: undefined as ((chain: IChain, wallet: IWallet) => void) | undefined,
 }));
 
 vi.mock("@/hooks/useWidgetState", () => ({
@@ -25,23 +29,45 @@ vi.mock("@/context/LifecycleHooks.context", () => ({
   useLifeCycleHooks: () => harness.lifecycleHooks,
 }));
 vi.mock("@/hooks/useWalletConnectors", () => ({
-  useWalletConnectors: () => ({ connect: vi.fn() }),
+  useWalletConnectors: () => ({ connect: harness.connect, chooseWallet: harness.chooseWallet }),
 }));
 vi.mock("@/hooks/useWalletWidgets", () => ({
   useWalletWidgets: () => ({}),
 }));
 
-// Stand-ins that expose the dialog's two exits as buttons.
+// Stand-ins that expose the dialog's exits as buttons and capture the wallet
+// handlers the dialog hands to its screens.
 vi.mock("@babylonlabs-io/core-ui", () => ({
-  FullScreenDialog: ({ children, onClose }: { children: React.ReactNode; onClose: () => void }) => (
+  FullScreenDialog: ({
+    children,
+    onClose,
+    onBack,
+  }: {
+    children: React.ReactNode;
+    onClose: () => void;
+    onBack?: () => void;
+  }) => (
     <div>
       <button onClick={onClose}>close</button>
+      {onBack && <button onClick={onBack}>back</button>}
       {children}
     </div>
   ),
 }));
 vi.mock("../Screen", () => ({
-  Screen: ({ onConfirm }: { onConfirm: () => void }) => <button onClick={onConfirm}>confirm</button>,
+  Screen: ({
+    onConfirm,
+    onSelectWallet,
+    onConnectWallet,
+  }: {
+    onConfirm: () => void;
+    onSelectWallet?: (chain: IChain, wallet: IWallet) => void;
+    onConnectWallet?: (chain: IChain, wallet: IWallet) => void;
+  }) => {
+    harness.onSelectWallet = onSelectWallet;
+    harness.onConnectWallet = onConnectWallet;
+    return <button onClick={onConfirm}>confirm</button>;
+  },
 }));
 
 const ETH_ACCOUNT = { address: "0xdepositor", publicKeyHex: `04${"b".repeat(64)}` };
@@ -138,6 +164,7 @@ let disconnectEth: ReturnType<typeof vi.fn>;
 let acceptTermsOfService: ReturnType<typeof vi.fn>;
 let onConfirm: ReturnType<typeof vi.fn>;
 let displayError: ReturnType<typeof vi.fn>;
+let displayWallets: ReturnType<typeof vi.fn>;
 let onError: (error: Error) => void;
 
 function deferred<T = void>() {
@@ -158,15 +185,21 @@ function providerMocks(connectedWallet: IWallet) {
   };
 }
 
-function setup({ confirmed = false, requiredChainIds = ["ETH"], persistent = true } = {}) {
+function setup({
+  confirmed = false,
+  requiredChainIds = ["ETH"],
+  persistent = true,
+  current = { type: "CHAINS" } as { type: string; params?: Record<string, string> },
+} = {}) {
   harness.widgetState = {
     visible: true,
-    screen: { type: "CHAINS" },
+    screen: current,
     confirmed,
     requiredChainIds,
     close,
     confirm,
     displayChains: vi.fn(),
+    displayWallets,
     displayError,
   };
 
@@ -195,7 +228,10 @@ beforeEach(() => {
   acceptTermsOfService = vi.fn().mockResolvedValue(undefined);
   onConfirm = vi.fn().mockResolvedValue(undefined);
   displayError = vi.fn();
+  displayWallets = vi.fn();
   onError = vi.fn();
+  harness.connect.mockReset();
+  harness.chooseWallet.mockReset();
   harness.lifecycleHooks = { acceptTermsOfService, onConfirm };
   harness.connectors = {
     ETH: {
@@ -228,6 +264,38 @@ describe("closing the dialog", () => {
     });
 
     expect(store.has(WALLET_CONFIRMATION_RECEIPT_KEY)).toBe(false);
+  });
+});
+
+describe("the connect guide", () => {
+  const BTC_CHAIN = { id: "BTC" } as IChain;
+
+  it("hands chooseWallet, not connect, to the wallet list", () => {
+    setup();
+    const ledgerVault = wallet("ledger_btc_vault", null);
+
+    act(() => harness.onSelectWallet?.(BTC_CHAIN, ledgerVault));
+
+    expect(harness.chooseWallet).toHaveBeenCalledWith(BTC_CHAIN, ledgerVault);
+    expect(harness.connect).not.toHaveBeenCalled();
+  });
+
+  it("hands connect, not chooseWallet, to the guide's Connect button", () => {
+    setup();
+    const ledgerVault = wallet("ledger_btc_vault", null);
+
+    act(() => harness.onConnectWallet?.(BTC_CHAIN, ledgerVault));
+
+    expect(harness.connect).toHaveBeenCalledWith(BTC_CHAIN, ledgerVault);
+    expect(harness.chooseWallet).not.toHaveBeenCalled();
+  });
+
+  it("goes Back from the guide to the wallet list of the same chain", () => {
+    setup({ current: { type: "CONNECT_GUIDE", params: { chain: "BTC", wallet: "ledger_btc_vault" } } });
+
+    act(() => screen.getByText("back").click());
+
+    expect(displayWallets).toHaveBeenCalledWith("BTC");
   });
 });
 
