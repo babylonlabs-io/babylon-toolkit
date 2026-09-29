@@ -2551,9 +2551,9 @@ export const COPY = {
       `Critical — liquidation in ${distancePct}`,
     liquidatable: "Critical — liquidation can trigger now",
   },
-  // Liquidation-notification warnings shown in the position banner. Mirrors the
-  // warning types produced by the calculator: urgent / cliff / reorder / dust /
-  // weird-params / too-many-vaults. Wording is ported from the reference
+  // Liquidation-notification warnings. Mirrors the warning types produced by the
+  // calculator: urgent / cliff / reorder / dust / weird-params / too-many-vaults.
+  // All but dust are shown in the position banner. Wording is ported from the reference
   // liquidation calculator (the source of truth for this copy).
   liquidationWarnings: {
     incompletePosition: "Indexed collateral data is incomplete",

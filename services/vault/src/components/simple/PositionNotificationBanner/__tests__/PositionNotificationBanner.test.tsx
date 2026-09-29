@@ -553,62 +553,7 @@ describe("PositionNotificationBanner", () => {
     vi.useRealTimers();
   });
 
-  it("keeps a later weird-params advisory visible after the dust notice was dismissed", () => {
-    // Dismissal is per warning type: dismissing dust must not suppress a
-    // different advisory the position later transitions into while mounted.
-    const queryClient = makeQueryClient();
-    const dust = makeBaseResult({
-      warnings: [
-        {
-          type: "dust",
-          title: "Position too small for BTCVault analysis",
-          detail:
-            "Below $1,000 the cascade simplifies — all vaults are shown as one liquidation event.",
-        },
-      ],
-    });
-    const weirdParams = makeBaseResult({
-      warnings: [
-        {
-          type: "weird-params",
-          title: "Protocol parameters don't compute",
-          detail: "THF must be greater than expected HF.",
-          tone: "soft",
-        },
-      ],
-    });
-
-    const { rerender } = render(
-      <QueryClientProvider client={queryClient}>
-        <PositionNotificationBanner
-          result={dust}
-          onDeposit={onDeposit}
-          onRepay={onRepay}
-        />
-      </QueryClientProvider>,
-    );
-
-    fireEvent.click(
-      screen.getByRole("button", { name: "Dismiss notification" }),
-    );
-    expect(screen.queryByTestId("position-notification-banner")).toBeNull();
-
-    // Same mounted banner, position now reads as a weird-params advisory.
-    rerender(
-      <QueryClientProvider client={queryClient}>
-        <PositionNotificationBanner
-          result={weirdParams}
-          onDeposit={onDeposit}
-          onRepay={onRepay}
-        />
-      </QueryClientProvider>,
-    );
-
-    expect(screen.getByTestId("position-notification-banner")).toBeTruthy();
-    expect(screen.getByText("Protocol parameters don't compute")).toBeTruthy();
-  });
-
-  it("hides the dust notice after its dismiss control is clicked", () => {
+  it("renders nothing for a dust position", () => {
     const result = makeBaseResult({
       warnings: [
         {
@@ -620,12 +565,6 @@ describe("PositionNotificationBanner", () => {
       ],
     });
     renderBanner(result, onDeposit, onRepay);
-
-    expect(screen.getByTestId("position-notification-banner")).toBeTruthy();
-
-    fireEvent.click(
-      screen.getByRole("button", { name: "Dismiss notification" }),
-    );
 
     expect(screen.queryByTestId("position-notification-banner")).toBeNull();
   });
@@ -785,28 +724,6 @@ describe("PositionNotificationBanner v3", () => {
     expect(
       screen.getByTestId("position-notification-banner").dataset.severity,
     ).toBe("yellow");
-  });
-
-  it("renders the dust advisory as a dismissible v3 card that stays dismissed", () => {
-    const result = makeBaseResult({
-      warnings: [
-        {
-          type: "dust",
-          title: "Position too small for BTCVault analysis",
-          detail: "Below $1,000 the cascade simplifies.",
-          tone: "soft",
-        },
-      ],
-    });
-    renderBanner(result, onDeposit, onRepay);
-
-    const banner = screen.getByTestId("position-notification-banner");
-    expect(banner.dataset.tone).toBe("dust");
-
-    fireEvent.click(
-      screen.getByRole("button", { name: "Dismiss notification" }),
-    );
-    expect(screen.queryByTestId("position-notification-banner")).toBeNull();
   });
 
   it("renders the cliff v3 card as dismissible and hides it once dismissed", () => {

@@ -59,21 +59,20 @@ const SEVERITY_VARIANT: Record<
 
 // Primary-warning → v3 card tone. Exhaustive over WarningType (like
 // SEVERITY_VARIANT above): `null` documents the intentional v2 fallback
-// (weird-params has no v3 frame), and a new WarningType fails the typecheck
-// until it is classified here. Standalone reorder is resolved ahead of this
+// (weird-params has no v3 frame; dust is never primary), and a new WarningType
+// fails the typecheck until it is classified here. Standalone reorder is resolved ahead of this
 // lookup, since it is a composite condition rather than a plain type match.
 const WARNING_TONE: Record<WarningType, NotificationCardTone | null> = {
   urgent: "urgent",
   cliff: "cliff",
   reorder: "reorder",
-  dust: "dust",
+  dust: null,
   "too-many-vaults": "too-many",
   "weird-params": null,
 };
 
 // Advisories the user may close: informational notices with no action to take.
 const DISMISSIBLE_WARNINGS: ReadonlySet<WarningType> = new Set<WarningType>([
-  "dust",
   "weird-params",
 ]);
 
@@ -256,7 +255,7 @@ export function PositionNotificationBanner({
   // same advisory to the user, and sharing the key means the warning-driven and
   // standalone forms of "reorder your vaults" dismiss as one thing. Dismissal
   // persists for the life of the mounted banner: transitioning away and back
-  // does not resurrect it, matching the existing dust/weird-params behaviour.
+  // does not resurrect it, matching the existing weird-params behaviour.
   // Reorder is the one advisory whose key carries content as well as type: the
   // suggested vault-id sequence. Re-suggesting the SAME order stays dismissed,
   // but a genuinely different optimal order is a new recommendation and

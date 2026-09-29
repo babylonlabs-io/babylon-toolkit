@@ -31,7 +31,7 @@ describe("NotificationCard", () => {
     rerender(<NotificationCard tone="fully-paused" title="x" />);
     expect(screen.getByRole("alert")).toBeInTheDocument();
 
-    rerender(<NotificationCard tone="dust" title="x" />);
+    rerender(<NotificationCard tone="reorder" title="x" />);
     expect(screen.getByRole("status")).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
@@ -136,17 +136,6 @@ describe("NotificationCard", () => {
     );
   });
 
-  it("draws the dust tone in the deep navy accent, not near-black primary", () => {
-    const { container } = render(<NotificationCard tone="dust" title="x" />);
-
-    const root = container.firstElementChild as HTMLElement;
-    expect(root.className).toContain("border-accent-navy");
-    expect(root.className).not.toContain("border-primary-main");
-    expect(root.querySelector('[aria-hidden="true"]')?.className).toContain(
-      "bg-accent-navy",
-    );
-  });
-
   it("puts every card on background/secondary except the urgent one", () => {
     const { container, rerender } = render(
       <NotificationCard tone="too-many" title="x" />,
@@ -212,7 +201,7 @@ describe("NotificationCard", () => {
 
   it("renders a dismiss control wired to onClose with the shared copy label", () => {
     const onClose = vi.fn();
-    render(<NotificationCard tone="dust" title="x" onClose={onClose} />);
+    render(<NotificationCard tone="reorder" title="x" onClose={onClose} />);
 
     const dismiss = screen.getByRole("button", {
       name: COPY.common.dismissNotification,
