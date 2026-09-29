@@ -465,14 +465,14 @@ describe("prepareSignPsbt — wallet-policy mode", () => {
     expect(ask(keyLeaf).subarray(-keyLeaf.length).equals(keyLeaf)).toBe(true);
   });
 
-  it("rejects a policy whose wallet id is not 64 hex chars before any device I/O", () => {
+  it("rejects the policy's own wallet id written in uppercase", () => {
     expect(() =>
       prepareSignPsbt({
         psbtHex: KEYPATH_FIXTURE_HEX,
         depositorXOnlyHex: KEYPATH_DEPOSITOR_XONLY,
-        walletPolicy: { ...POLICY, walletIdHex: "abc" },
+        walletPolicy: { ...POLICY, walletIdHex: POLICY.walletIdHex.toUpperCase() },
       }),
-    ).toThrow(/walletIdHex/);
+    ).toThrow(/walletIdHex does not match/);
   });
 
   it("rejects a well-formed wallet id that is not the hash of the policy it ships with", () => {

@@ -20,7 +20,7 @@
 import type { PropsWithChildren } from "react";
 import type { Address } from "viem";
 
-import { useBTCWallet, useETHWallet } from "@/context/wallet";
+import { useBTCWallet, useConnection, useETHWallet } from "@/context/wallet";
 import { useBtcPublicKey } from "@/hooks/useBtcPublicKey";
 import { useVaultDeposits } from "@/hooks/useVaultDeposits";
 
@@ -29,6 +29,7 @@ import { PeginPollingProvider } from "./PeginPollingContext";
 export function AppPeginPollingProvider({ children }: PropsWithChildren) {
   const { connected: btcConnected } = useBTCWallet();
   const { address: ethAddress } = useETHWallet();
+  const { isConnected } = useConnection();
   const { publicKey: btcPublicKey } = useBtcPublicKey(btcConnected);
   // Vault provider status: only a session with no Bitcoin wallet polls without
   // a key, and a connected wallet whose key is still loading waits for it. The
@@ -46,6 +47,7 @@ export function AppPeginPollingProvider({ children }: PropsWithChildren) {
       pendingPegins={pendingPegins}
       btcPublicKey={btcPublicKey}
       btcWalletAbsent={btcWalletAbsent}
+      isConnected={isConnected}
     >
       {children}
     </PeginPollingProvider>

@@ -98,7 +98,7 @@ describe("non-cascade notification overrides", () => {
   });
 });
 
-describe("loans summary overrides", () => {
+describe("Overview health-factor and Loans borrow-capacity overrides", () => {
   afterEach(() => {
     act(() => setDebugHealthFactorOverride(null));
     act(() => setDebugBorrowCapacityStateOverride(null));
@@ -154,10 +154,10 @@ describe("DEBUG_PRESETS", () => {
   );
 
   it("covers every banner severity a calculation can produce", () => {
-    // "hidden" is the no-position case (nothing to show) and "yellow" also backs
-    // the stale-price status, which the panel's checkbox drives instead.
+    // "yellow" also backs the stale-price status, which the panel's checkbox
+    // drives instead.
     expect(new Set(DEBUG_PRESETS.map((p) => p.expectedSeverity))).toEqual(
-      new Set(["red", "yellow", "soft", "green"]),
+      new Set(["red", "yellow", "soft", "green", "hidden"]),
     );
   });
 

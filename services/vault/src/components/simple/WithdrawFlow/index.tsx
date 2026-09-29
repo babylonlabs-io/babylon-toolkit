@@ -19,6 +19,7 @@ import { maxAssertTimelockBlocks } from "@/utils/pegoutTiming";
 
 import { FadeTransition } from "../FadeTransition";
 
+import { useWithdrawCommission } from "./useWithdrawCommission";
 import { useWithdrawFlow, WithdrawStep } from "./useWithdrawFlow";
 import { WithdrawProgressView } from "./WithdrawProgressView";
 import { WithdrawReviewContent } from "./WithdrawReviewContent";
@@ -121,6 +122,18 @@ function WithdrawFlowContent({
     ? confirmed.currentHealthFactor
     : currentHealthFactor;
 
+  // Not read on Select, so a toggle costs no RPC call. Read for the pinned
+  // vaults, so a confirm does not reload it under the spinner or the fade out.
+  // Confirm submits these IDs in collateral-list order.
+  const reviewedVaultIds = useMemo(
+    () =>
+      step === WithdrawStep.SELECT
+        ? []
+        : effectiveSelectedVaults.map((v) => v.vaultId),
+    [step, effectiveSelectedVaults],
+  );
+  const vpCommission = useWithdrawCommission(reviewedVaultIds);
+
   const selectedPayoutAddresses = useMemo(
     () => getUniquePayoutAddresses(effectiveSelectedVaults),
     [effectiveSelectedVaults],
@@ -174,13 +187,15 @@ function WithdrawFlowContent({
   );
 
   const handleConfirm = useCallback(async () => {
+    // Submit exactly the vaults whose commission the user reviewed.
+    if (vpCommission.status !== "ready") return;
     setConfirmed({
       vaults: liveSelectedVaults,
       collateralBtc,
       collateralValueUsd,
       currentHealthFactor,
     });
-    const success = await executeWithdraw(effectiveSelectedVaultIds);
+    const success = await executeWithdraw(vpCommission.vaultIds);
     if (!success) {
       setConfirmed(null);
       return;
@@ -188,7 +203,7 @@ function WithdrawFlowContent({
     goToProgress();
   }, [
     executeWithdraw,
-    effectiveSelectedVaultIds,
+    vpCommission,
     liveSelectedVaults,
     collateralBtc,
     collateralValueUsd,
@@ -231,6 +246,7 @@ function WithdrawFlowContent({
               projectedHealthFactor={projectedHealthFactor}
               payoutAddresses={selectedPayoutAddresses}
               assertTimelockBlocks={selectedAssertTimelockBlocks}
+              vpCommission={vpCommission}
               isProcessing={isProcessing}
               error={error}
               hubBlockMessage={hubBlockMessage}

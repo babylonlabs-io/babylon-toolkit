@@ -5,6 +5,7 @@ import type { PropsWithChildren } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { RedeemedVaultInfo } from "@/applications/aave/hooks/useAaveVaults";
+import { POLLING_INTERVAL_MS } from "@/config/polling";
 import {
   ClaimerPegoutStatusValue,
   PEGOUT_MAX_CONSECUTIVE_FAILURES,
@@ -22,8 +23,9 @@ type PollScript =
   | { error: string | null; result: GetPegoutStatusResponse | null }
   | "batch_error";
 
-const { pollScript, mockEvent } = vi.hoisted(() => ({
+const { pollScript, pollCount, mockEvent } = vi.hoisted(() => ({
   pollScript: { current: undefined as PollScript | undefined },
+  pollCount: { current: 0 },
   mockEvent: vi.fn(),
 }));
 
@@ -51,6 +53,7 @@ vi.mock("@babylonlabs-io/ts-sdk/tbv/core/clients", async (importOriginal) => {
         error: unknown,
       ) => void;
     }) => {
+      pollCount.current += 1;
       const script = pollScript.current;
       if (script === undefined) {
         throw new Error("pollScript.current not set before a poll cycle");
@@ -103,6 +106,9 @@ function statusEnvelope(claimerStatus: string): PollScript {
     error: null,
     result: {
       found: true,
+      // Must match VAULT.peginTxHash — the hook rejects a status whose
+      // server-attested pegin txid names another vault.
+      pegin_txid: "cd".repeat(32),
       claimer: { status: claimerStatus },
     } as GetPegoutStatusResponse,
   };
@@ -133,6 +139,7 @@ describe("pegout terminal emission through usePegoutPolling", () => {
   beforeEach(() => {
     mockEvent.mockClear();
     pollScript.current = undefined;
+    pollCount.current = 0;
     // The tracking store is module-scoped and outlives the hook, so it also
     // outlives a test case. Without this reset a later case starts with the
     // vault already seen and silently observes nothing.
@@ -148,7 +155,7 @@ describe("pegout terminal emission through usePegoutPolling", () => {
     expect(mockEvent).not.toHaveBeenCalled();
 
     pollScript.current = statusEnvelope(
-      ClaimerPegoutStatusValue.PAYOUT_BROADCAST,
+      ClaimerPegoutStatusValue.PAYOUT_CONFIRMED,
     );
     await pollAgain();
 
@@ -171,13 +178,99 @@ describe("pegout terminal emission through usePegoutPolling", () => {
 
   it("seeds a vault already terminal on its first poll without emitting", async () => {
     pollScript.current = statusEnvelope(
-      ClaimerPegoutStatusValue.PAYOUT_BROADCAST,
+      ClaimerPegoutStatusValue.PAYOUT_CONFIRMED,
     );
     const { result, pollAgain } = renderPolling();
     await waitFor(() => expect(result.current.pegoutStatuses.size).toBe(1));
 
     await pollAgain();
     expect(mockEvent).not.toHaveBeenCalled();
+  });
+
+  it("shows Payout sent and stops polling when the first poll returns PayoutConfirmed", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      pollScript.current = statusEnvelope("PayoutConfirmed");
+      const { result } = renderPolling();
+      await waitFor(() => expect(result.current.pegoutStatuses.size).toBe(1));
+
+      const displayState =
+        result.current.pegoutStatuses.get(VAULT_ID)?.displayState;
+      expect(displayState?.label).toBe("Payout sent");
+      expect(displayState?.variant).toBe("active");
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(POLLING_INTERVAL_MS * 2);
+      });
+      expect(pollCount.current).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("counts a status for another peg-in as a failed poll", async () => {
+    pollScript.current = statusEnvelope(
+      ClaimerPegoutStatusValue.CLAIM_BROADCAST,
+    );
+    const { result, pollAgain } = renderPolling();
+    await waitFor(() => expect(result.current.pegoutStatuses.size).toBe(1));
+
+    pollScript.current = {
+      error: null,
+      result: {
+        found: true,
+        pegin_txid: "ab".repeat(32),
+        claimer: { status: ClaimerPegoutStatusValue.PAYOUT_CONFIRMED },
+      } as GetPegoutStatusResponse,
+    };
+    for (let i = 0; i < PEGOUT_MAX_CONSECUTIVE_FAILURES; i++) {
+      await pollAgain();
+    }
+
+    expect(mockEvent).toHaveBeenCalledTimes(1);
+    expect(mockEvent.mock.calls[0][1].tags.timeoutReason).toBe(
+      "consecutive_failures",
+    );
+  });
+
+  it("does not count a PegIn not found item error as a failed poll", async () => {
+    pollScript.current = statusEnvelope(
+      ClaimerPegoutStatusValue.CLAIM_BROADCAST,
+    );
+    const { result, pollAgain } = renderPolling();
+    await waitFor(() => expect(result.current.pegoutStatuses.size).toBe(1));
+
+    pollScript.current = {
+      error: `PegIn not found: PegIn not found: ${VAULT_ID}`,
+      result: null,
+    };
+    for (let i = 0; i < PEGOUT_MAX_CONSECUTIVE_FAILURES; i++) {
+      await pollAgain();
+    }
+
+    expect(mockEvent).not.toHaveBeenCalled();
+  });
+
+  it("counts a validator error that quotes PegIn not found as a failed poll", async () => {
+    pollScript.current = statusEnvelope(
+      ClaimerPegoutStatusValue.CLAIM_BROADCAST,
+    );
+    const { result, pollAgain } = renderPolling();
+    await waitFor(() => expect(result.current.pegoutStatuses.size).toBe(1));
+
+    pollScript.current = {
+      error:
+        'VP response validation failed: "found" must be a boolean, got "PegIn not found"',
+      result: null,
+    };
+    for (let i = 0; i < PEGOUT_MAX_CONSECUTIVE_FAILURES; i++) {
+      await pollAgain();
+    }
+
+    expect(mockEvent).toHaveBeenCalledTimes(1);
+    expect(mockEvent.mock.calls[0][1].tags.timeoutReason).toBe(
+      "consecutive_failures",
+    );
   });
 
   it("emits pegout_timeout with the consecutive_failures facet after polling gives up", async () => {

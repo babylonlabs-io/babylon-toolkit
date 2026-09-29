@@ -142,20 +142,6 @@ export function usePositionNotifications(
         reorderVerificationContext: null,
         params: null,
       };
-    if (btcMetadata?.isStale || btcMetadata?.fetchFailed)
-      return {
-        result: null,
-        status: "stale-price",
-        reorderVerificationContext: null,
-        params: null,
-      };
-    if (!btcMetadata || btcPrice <= 0)
-      return {
-        result: null,
-        status: "no-price",
-        reorderVerificationContext: null,
-        params: null,
-      };
     // Optimistic activating rows carry collateral the contract has not seen
     // yet, and a sentinel `liquidationIndex`. Including them would inflate
     // `totalBtc`, pushing every liquidation price DOWN — understating the
@@ -169,6 +155,23 @@ export function usePositionNotifications(
       return {
         result: null,
         status: "no-vaults",
+        reorderVerificationContext: null,
+        params: null,
+      };
+    // Price problems are reported only once there is a position to price, so a
+    // depositor without active vaults is not warned about notifications they
+    // have nothing to receive.
+    if (btcMetadata?.isStale || btcMetadata?.fetchFailed)
+      return {
+        result: null,
+        status: "stale-price",
+        reorderVerificationContext: null,
+        params: null,
+      };
+    if (!btcMetadata || btcPrice <= 0)
+      return {
+        result: null,
+        status: "no-price",
         reorderVerificationContext: null,
         params: null,
       };

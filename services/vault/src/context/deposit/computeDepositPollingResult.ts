@@ -60,7 +60,7 @@ export interface DepositPollingInputs {
   errors: Map<string, Error> | undefined;
   needsWotsKey: Set<string> | undefined;
   pendingIngestion: Set<string> | undefined;
-  prePeginConfirmationsByTxid: Map<string, number>;
+  prePeginConfirmationsByTxid: Map<string, number | null>;
   confirmedTxids: Set<string>;
   matureRefundTxids: Set<string>;
   /**
@@ -96,7 +96,10 @@ export interface DepositPollingInputs {
    * error panel, which gates on a superset of these same query keys.
    */
   protocolParamsError: Error | null;
-  /** Per-vault `tRefund`; `undefined` collapses maturity to `unknown`. */
+  /**
+   * Per-vault `tRefund`. The EXPIRED maturity branch below says how a missing
+   * value resolves.
+   */
   refundTimelock: number | undefined;
   /**
    * VERIFIED only: confirmed (Tier-2 chain read) past the on-chain activation
@@ -119,6 +122,12 @@ export interface DepositPollingInputs {
    * `activationDeadlinePassed`. See `useActivationFloorGate`.
    */
   activationFloorBlocksRemaining: number | null | undefined;
+  /**
+   * A lower construction-index sibling of this split deposit can still
+   * activate. Resolved by the caller from the full activity list. See
+   * `isActivationBlockedByEarlierSibling`.
+   */
+  activationBlockedBySibling: boolean;
   isLoading: boolean;
   optimisticStatuses: ReadonlyMap<string, LocalStorageStatus>;
   optimisticRefundBroadcastAt: ReadonlyMap<string, number>;
@@ -185,6 +194,7 @@ export function computeDepositPollingResult(
     activationDeadlinePassed,
     stuckStateConfirmedOnChain,
     activationFloorBlocksRemaining,
+    activationBlockedBySibling,
     isLoading,
     optimisticStatuses,
     optimisticRefundBroadcastAt,
@@ -231,8 +241,9 @@ export function computeDepositPollingResult(
     ? false
     : needsWotsKey?.has(depositId);
 
-  // Cache is OR'd with live count: on refresh, cached txids are
-  // filtered out of polling, so the live map is empty for them.
+  // Cache is OR'd with live count: on refresh, cached PENDING txids are
+  // filtered out of polling, so the live map is empty for them. EXPIRED
+  // txids stay polled until mature, so their live entry can be `null`.
   const prePeginCanonical = canonicalizeTxid(activity.prePeginTxHash);
   const cachedAtDepth = prePeginCanonical
     ? confirmedTxids.has(prePeginCanonical)
@@ -252,25 +263,27 @@ export function computeDepositPollingResult(
   // threshold we are missing. Deliberate asymmetry, not an oversight.
   const prePeginBroadcastConfirmed =
     cachedAtDepth ||
-    (confirmations !== undefined &&
+    (typeof confirmations === "number" &&
       requiredDepth !== undefined &&
       confirmations >= requiredDepth);
-  // Chain ground truth that the Pre-PegIn was broadcast at all: a present
-  // confirmation entry — or a cached at-depth observation — means the tx is on
+  // Chain ground truth that the Pre-PegIn was broadcast at all: a numeric
+  // confirmation count — or a cached at-depth observation — means the tx is on
   // the network. Independent of localStorage, so every tab converges on the
   // same status instead of re-offering "Broadcast" in a tab that lacks the
-  // local CONFIRMING marker. Self-heals: an evicted/dropped tx drops the entry.
-  const prePeginBroadcastSeen = cachedAtDepth || confirmations !== undefined;
+  // local CONFIRMING marker. A `null` (not found) or absent entry is not seen.
+  const prePeginBroadcastSeen =
+    cachedAtDepth || typeof confirmations === "number";
 
   const isOwnedByCurrentWallet = isVaultOwnedByWallet(
     activity.depositorBtcPubkey,
     btcPublicKey,
   );
 
-  // EXPIRED maturity. Strict: `mature` only when CSV satisfied; missing
-  // inputs → `unknown` (never false-positive). Bypass for unowned (so
-  // action surfaces → ownership-mismatch tooltip takes over) and for
-  // cache-hit (polling drops mature txids, live map is empty on refresh).
+  // EXPIRED maturity. Strict: `mature` only when CSV satisfied; a tx not
+  // found and not cached at depth → `notFound`, other missing inputs →
+  // `unknown` (never false-positive). Bypass for unowned (so action surfaces →
+  // ownership-mismatch tooltip takes over) and for cache-hit (polling drops
+  // mature txids, live map is empty on refresh).
   const cachedMature = prePeginCanonical
     ? matureRefundTxids.has(prePeginCanonical)
     : false;
@@ -279,7 +292,10 @@ export function computeDepositPollingResult(
   if (contractStatus === ContractStatus.EXPIRED) {
     if (!isOwnedByCurrentWallet || cachedMature) {
       refundMaturityState = "mature";
-    } else if (confirmations !== undefined && refundTimelock !== undefined) {
+    } else if (
+      typeof confirmations === "number" &&
+      refundTimelock !== undefined
+    ) {
       if (confirmations >= refundTimelock) {
         refundMaturityState = "mature";
       } else {
@@ -287,7 +303,8 @@ export function computeDepositPollingResult(
         refundMaturesInBlocks = refundTimelock - confirmations;
       }
     } else {
-      refundMaturityState = "unknown";
+      refundMaturityState =
+        confirmations === null && !cachedAtDepth ? "notFound" : "unknown";
     }
   }
 
@@ -370,6 +387,7 @@ export function computeDepositPollingResult(
     activationDeadlinePassed,
     htlcSpentByPeginTx,
     activationFloorBlocksRemaining,
+    activationBlockedBySibling,
     canRefund,
     peginSweptWhileExpired,
     refundMaturityState,
@@ -381,11 +399,12 @@ export function computeDepositPollingResult(
     now,
   });
 
-  // Coalesce cached at-depth observations into the live count: once a tx
-  // crossed `requiredDepth`, polling drops it from the live map (depth never
-  // rewinds), so on refresh `confirmations` is undefined even though the tx
-  // is past depth. Treat that as "at least requiredDepth" so consumers don't
-  // see a regression.
+  // Coalesce cached at-depth observations into the live count: once a PENDING
+  // tx crossed `requiredDepth`, polling drops it from the live map (depth
+  // never rewinds), so on refresh `confirmations` is undefined even though the
+  // tx is past depth. An EXPIRED tx stays polled and can read `null` after a
+  // 404. Treat either as "at least requiredDepth" so consumers don't see a
+  // regression.
   const reportedConfirmations =
     confirmations ??
     (cachedAtDepth && requiredDepth !== undefined ? requiredDepth : null);

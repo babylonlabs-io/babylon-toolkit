@@ -15,8 +15,7 @@ interface MaxVaultsNotificationProps {
  * per-position vault cap is a value-protection capacity fact that holds
  * regardless of BTC price, debt, or position size — and must still show when
  * the cascade can't compute (stale price) or the position has no active
- * collateral yet (all-pending). Always-on: not behind the
- * liquidation-notifications flag.
+ * collateral yet (all-pending).
  */
 export function MaxVaultsNotification({
   connectedAddress,

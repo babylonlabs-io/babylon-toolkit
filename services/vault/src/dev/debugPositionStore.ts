@@ -128,7 +128,7 @@ export const DEBUG_PRESETS: DebugPreset[] = [
   },
   {
     label: "Dust",
-    expectedSeverity: "soft",
+    expectedSeverity: "hidden",
     params: {
       btcPrice: 61722.5,
       totalDebtUsd: 500,
@@ -261,10 +261,9 @@ let manualParams: CalculatorParams = makeDefaultDebugParams();
 // override, i.e. the component uses live chain state.
 let maxVaultsOverride: number | null = null;
 let protocolStatusOverride: ProtocolStatus | null = null;
-// v3 Loans summary overrides. The health factor is stored as the VALUE, not a
-// status: the page derives the status with the real
-// `getHealthFactorStatusFromValue`, so the forced card can't drift from the
-// production banding. null = live.
+// Overview health-factor override. Stored as the VALUE, not a status: the page
+// derives the status with the real `getHealthFactorStatusFromValue`, so the
+// forced display can't drift from the production banding. null = live.
 let healthFactorOverride: number | null = null;
 let borrowCapacityStateOverride: DebugBorrowCapacityState | null = null;
 // Spoke borrow-reserve cap. It is a contract immutable, so there is no way to
@@ -317,7 +316,7 @@ export function setDebugProtocolStatusOverride(status: ProtocolStatus | null) {
   emit();
 }
 
-/** Force (a value) or release (null) the Loans summary health factor. */
+/** Force (a value) or release (null) the Overview health factor. */
 export function setDebugHealthFactorOverride(healthFactor: number | null) {
   healthFactorOverride = healthFactor;
   emit();

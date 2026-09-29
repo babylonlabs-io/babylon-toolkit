@@ -13,9 +13,6 @@
  * guarantee comes from the `activeFlow` flag, which stands the pending-deposit
  * observer down so only the in-flow observer notifies. The provider also owns
  * the single `documentHidden` source.
- *
- * Gated by the `ENABLE_SIGNING_NOTIFICATIONS` feature flag: when off, every
- * method is a no-op and no OS permission is requested.
  */
 
 import {
@@ -28,7 +25,6 @@ import {
   useState,
 } from "react";
 
-import { FeatureFlags } from "@/config";
 import { useDocumentHidden } from "@/hooks/useDocumentHidden";
 import {
   dismissNotificationPrompt,
@@ -54,8 +50,8 @@ interface SigningNotificationContextValue {
    */
   notifySigningRequired: (key: string, copy: BrowserNotificationCopy) => void;
   /**
-   * Whether to surface the "enable notifications" prompt: the feature is on,
-   * the browser supports notifications, the user hasn't decided yet (neither
+   * Whether to show the "enable notifications" prompt: the browser supports
+   * notifications, the user hasn't decided yet (neither
    * granted nor blocked), and they haven't dismissed the prompt.
    */
   shouldPromptForPermission: boolean;
@@ -71,11 +67,6 @@ interface SigningNotificationContextValue {
   isActiveFlow: boolean;
   /** Mark the active deposit flow as running / stopped. */
   setActiveFlow: (active: boolean) => void;
-  /**
-   * Whether the signing-notifications feature flag is on. Observers read this
-   * to skip work entirely when the feature is off.
-   */
-  enabled: boolean;
 }
 
 const SigningNotificationContext =
@@ -84,21 +75,19 @@ const SigningNotificationContext =
 export function SigningNotificationProvider({
   children,
 }: React.PropsWithChildren) {
-  const enabled = FeatureFlags.isSigningNotificationsEnabled;
   // Keys we've already shown. Lives for the session so one signing requirement
   // notifies at most once, no matter how many observers report it.
   const shownKeysRef = useRef<Set<string>>(new Set());
   const [permission, setPermission] = useState<NotificationPermission | null>(
-    () => (enabled ? getBrowserNotificationPermission() : null),
+    getBrowserNotificationPermission,
   );
-  const [promptDismissed, setPromptDismissed] = useState<boolean>(() =>
-    enabled ? loadNotificationPromptDismissed() : false,
+  const [promptDismissed, setPromptDismissed] = useState<boolean>(
+    loadNotificationPromptDismissed,
   );
   const [activeFlow, setActiveFlow] = useState(false);
-  const documentHidden = useDocumentHidden(enabled);
+  const documentHidden = useDocumentHidden();
 
   const requestPermission = useCallback(() => {
-    if (!enabled) return;
     void requestBrowserNotificationPermission()
       .then((result) => {
         if (result) setPermission(result);
@@ -106,7 +95,7 @@ export function SigningNotificationProvider({
       .catch(() => {
         // A rejected/denied request just means we never show a notification.
       });
-  }, [enabled]);
+  }, []);
 
   const dismissPrompt = useCallback(() => {
     dismissNotificationPrompt();
@@ -115,7 +104,6 @@ export function SigningNotificationProvider({
 
   const notifySigningRequired = useCallback(
     (key: string, copy: BrowserNotificationCopy) => {
-      if (!enabled) return;
       if (shownKeysRef.current.has(key)) return;
       // Only the usable + hidden case marks the key handled. A requirement that
       // arises while focused or before permission is granted is left unmarked
@@ -135,19 +123,19 @@ export function SigningNotificationProvider({
         shownKeysRef.current.delete(key);
       }
     },
-    [enabled],
+    [],
   );
 
   // When the tab regains focus (documentHidden → false), re-read permission so
   // an out-of-band decision (Brave's address-bar prompt, browser settings)
   // clears the enable-prompt without a reload.
   useEffect(() => {
-    if (!enabled || documentHidden) return;
+    if (documentHidden) return;
     setPermission(getBrowserNotificationPermission());
-  }, [enabled, documentHidden]);
+  }, [documentHidden]);
 
   const shouldPromptForPermission =
-    enabled && permission === "default" && !promptDismissed;
+    permission === "default" && !promptDismissed;
 
   const value = useMemo(
     () => ({
@@ -158,7 +146,6 @@ export function SigningNotificationProvider({
       documentHidden,
       isActiveFlow: activeFlow,
       setActiveFlow,
-      enabled,
     }),
     [
       requestPermission,
@@ -168,7 +155,6 @@ export function SigningNotificationProvider({
       documentHidden,
       activeFlow,
       setActiveFlow,
-      enabled,
     ],
   );
 

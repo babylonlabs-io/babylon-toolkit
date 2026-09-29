@@ -285,6 +285,28 @@ describe("ViemVaultRegistryReader", () => {
     );
   });
 
+  it("getVaultProviderOperationBtcKeyAtEpoch preserves the frozen bigint epoch", async () => {
+    const publicClient = createMockPublicClient({
+      vpBtcKeyResult: `0x${VALID_XONLY_HEX}` as Hex,
+    });
+    const reader = new ViemVaultRegistryReader(
+      publicClient as never,
+      MOCK_ADDRESS,
+    );
+    const frozenEpoch = 9_007_199_254_740_993n;
+
+    await expect(
+      reader.getVaultProviderOperationBtcKeyAtEpoch(MOCK_ADDRESS, frozenEpoch),
+    ).resolves.toBe(VALID_XONLY_HEX);
+
+    expect(publicClient.readContract).toHaveBeenCalledWith(
+      expect.objectContaining({
+        functionName: "getOperationBtcKeyAtEpoch",
+        args: [MOCK_ADDRESS, frozenEpoch],
+      }),
+    );
+  });
+
   // A registry that predates RFC-006 has no `getOperationBtcKeyAtEpoch`, so the
   // read reverts rather than returning a plausible-looking key. That is the
   // intended failure: every caller of this method also resolves keys through

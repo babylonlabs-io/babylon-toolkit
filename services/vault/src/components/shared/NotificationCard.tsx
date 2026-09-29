@@ -24,7 +24,7 @@ import { COPY } from "@/copy";
  * the per-state accents here (error-dark, secondary-main, info-dark, the split
  * gold reorder accent) are NOT expressible through core-ui's locked variant
  * palette, and the tone names are vault-notification domain concepts
- * ("cliff" / "dust" / "too-many" / "soft-paused") that do not belong in the
+ * ("cliff" / "too-many" / "soft-paused") that do not belong in the
  * design system's `NotificationVariant` union. When v3 becomes the default,
  * revisit consolidating the shared shell + the per-entry `assertive` flag (an
  * improvement over core-ui's hardcoded `variant === "error" || "halted"`)
@@ -35,7 +35,6 @@ export type NotificationCardTone =
   | "urgent"
   | "cliff"
   | "reorder"
-  | "dust"
   | "too-many"
   | "soft-paused"
   | "fully-paused";
@@ -132,20 +131,6 @@ const TONE_ACCENT: Record<NotificationCardTone, ToneAccent> = {
     actionBg: "bg-warning-light",
     onAction: ON_LIGHT_ACCENT,
     actionSize: ACTION_SIZE_WIDE,
-    tint: "",
-    icon: InfoIcon,
-    assertive: false,
-  },
-  // Figma's dust accent is the deep navy `accent/secondary` (#042F40), which is
-  // `accent-navy` — not `primary-main`, whose dark value is near-black #111111.
-  dust: {
-    border: "border-accent-navy",
-    surface: SURFACE,
-    chipBg: "bg-accent-navy",
-    onChip: ON_DARK_ACCENT,
-    actionBg: "bg-accent-navy",
-    onAction: ON_DARK_ACCENT,
-    actionSize: ACTION_SIZE_DEFAULT,
     tint: "",
     icon: InfoIcon,
     assertive: false,
