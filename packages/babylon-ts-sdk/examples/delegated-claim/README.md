@@ -5,9 +5,9 @@ provider is offline, so the depositor assembles the watchtower files and runs
 the claim from the browser instead of from `vaultd vp wt`.
 
 This is the page the module JSDoc refers to. It is a harness, not a product
-surface: it holds no state, it speaks to `window.unisat` directly instead of
-through `babylon-wallet-connector`, and it has been run end to end on **signet
-only**. Every SDK export it calls is `@experimental` and can change shape in a
+surface: nothing persists beyond the tab and the files it downloads, it speaks
+to `window.unisat` directly instead of through `babylon-wallet-connector`, and
+it has been run end to end on **signet only**. Every SDK export it calls is `@experimental` and can change shape in a
 minor release.
 
 ## Run it
@@ -19,7 +19,8 @@ pnpm --filter @babylonlabs-io/ts-sdk exec vite --config examples/delegated-claim
 ```
 
 Open the URL Vite prints, in a browser with the UniSat extension on signet.
-`vite build` with the same config writes a static bundle to `dist/`.
+`vite build` with the same config writes a static bundle to
+`examples/delegated-claim/dist/`.
 
 ## The eight steps
 
@@ -27,7 +28,7 @@ Open the URL Vite prints, in a browser with the UniSat extension on signet.
 |---|---|
 | 1 Connect | — UniSat, wrapped as a `BitcoinWallet` |
 | 2 Load artifacts | — the vault provider's `requestDepositorClaimerArtifacts` response |
-| 3 Vault context | — read from the vault's on-chain registration |
+| 3 Vault context | — read from the vault's on-chain registration, including the registered depositor BTC key and every Pre-PegIn funding outpoint |
 | 4 WOTS keypair | `deriveClaimerWotsKeypair` |
 | 5 Assemble | `assembleWatchtowerArtifacts` |
 | 6 Claim | `assertArtifactsUsableForVault`, then broadcast `claim_tx` |
@@ -35,12 +36,16 @@ Open the URL Vite prints, in a browser with the UniSat extension on signet.
 | 8 Payout | `finalizePayout` |
 
 Steps 4 and 5 produce `wots_keypair.json` and `artifacts.json` — the same two
-files `vaultd vp wt` consumes, so the CLI can take over at any point after
-step 5.
+files `vaultd vp wt` consumes. The CLI can take over after step 5 only once the
+BaBe sessions are joined into `artifacts.json` (see Known limits).
 
-Save the `artifacts.json` step 7 returns. A one-time WOTS keypair signs exactly
-one proof, so `pinPegoutProof` refuses a second, different one once a proof is
-pinned.
+Steps 7 and 8 run only on a file that step 6 verified in this session. Step 7
+saves `artifacts-pinned.json` right after the proof is pinned, then
+`artifacts-asserted.json`; keep the latest. A one-time WOTS keypair signs
+exactly one proof, so `pinPegoutProof` refuses a second, different one once a
+proof is pinned, and the page refuses to pin a file that already carries a
+finalized Assert. `wots_keypair.json` is secret: delete it once the Payout
+confirms.
 
 ## Known limits
 
@@ -56,11 +61,20 @@ pinned.
 - **The raw provider response is too large for a browser.** Almost all of it is
   `babe_sessions`; the graph itself is under 2 MB. V8 caps strings near 512 MB,
   so `JSON.parse` on the raw file fails with "Unexpected end of JSON input".
-  Slim it to `tx_graph_json` and `verifying_key_hex` before step 2, and join
-  the sessions in downstream.
+  Slim it to `tx_graph_json` and `verifying_key_hex` before step 2.
+- **A slimmed file cannot answer a ChallengeAssert.** A WronglyChallenged
+  answer needs the challenger's BaBe session in `artifacts.json`, and a
+  challenger without one wins its challenge: the vault pays NoPayout. Join the
+  sessions into the file before the Claim is broadcast. Step 6 compares the
+  sessions with the vault's challenger set and keeps Claim disabled until you
+  explicitly accept the risk, which is only for a signet test.
+- **An imported `artifacts.json` skips two checks.** Step 5 checks that the
+  Payout pays the registered script and that the graph's challenger set is the
+  vault's. A file loaded in step 6 was not assembled here, so neither check runs
+  on it; step 6 says so. Assemble in step 5 to have them.
 - **`Buffer` is not defined in browsers.** The SDK touches it at import time,
-  so the page sets `globalThis.Buffer` before the dynamic import. A real app
-  does this in its bundler config.
+  so the page sets `globalThis.Buffer`, `global` and `process` before the
+  dynamic import. A real app does this in its bundler config.
 
 ## See also
 
