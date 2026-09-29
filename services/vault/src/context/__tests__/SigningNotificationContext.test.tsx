@@ -6,16 +6,6 @@ import {
   useSigningNotificationOptional,
 } from "../SigningNotificationContext";
 
-// Control the feature flag per test.
-const flag = vi.hoisted(() => ({ enabled: true }));
-vi.mock("@/config", () => ({
-  FeatureFlags: {
-    get isSigningNotificationsEnabled() {
-      return flag.enabled;
-    },
-  },
-}));
-
 // Minimal stand-in for the Web Notifications API (jsdom has none).
 class FakeNotification {
   static permission: NotificationPermission = "granted";
@@ -57,7 +47,6 @@ function renderNotifier() {
 
 describe("SigningNotificationContext", () => {
   beforeEach(() => {
-    flag.enabled = true;
     FakeNotification.instances = [];
     FakeNotification.permission = "granted";
     FakeNotification.throwOnce = false;
@@ -132,17 +121,6 @@ describe("SigningNotificationContext", () => {
     expect(FakeNotification.instances).toHaveLength(1);
   });
 
-  it("does not notify or request permission when the feature flag is off", () => {
-    flag.enabled = false;
-    const notifier = renderNotifier();
-
-    notifier.current!.requestPermission();
-    notifier.current!.notifySigningRequired("k1", SIGNING_COPY);
-
-    expect(FakeNotification.requestPermission).not.toHaveBeenCalled();
-    expect(FakeNotification.instances).toHaveLength(0);
-  });
-
   it("prompts to enable only while supported and still undecided", () => {
     FakeNotification.permission = "default";
     expect(renderNotifier().current!.shouldPromptForPermission).toBe(true);
@@ -155,12 +133,6 @@ describe("SigningNotificationContext", () => {
 
   it("does not prompt once permission is denied", () => {
     FakeNotification.permission = "denied";
-    expect(renderNotifier().current!.shouldPromptForPermission).toBe(false);
-  });
-
-  it("does not prompt when the feature flag is off", () => {
-    flag.enabled = false;
-    FakeNotification.permission = "default";
     expect(renderNotifier().current!.shouldPromptForPermission).toBe(false);
   });
 

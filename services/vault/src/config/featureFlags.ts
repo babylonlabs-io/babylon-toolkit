@@ -134,21 +134,6 @@ export default {
   },
 
   /**
-   * ENABLE_SIGNING_NOTIFICATIONS feature flag
-   *
-   * Purpose: Controls whether the dApp shows a browser (desktop) notification
-   * when a deposit needs the depositor to sign/act - both during an active
-   * deposit flow and for pending deposits that reach a signing-required state
-   * while the user is on another tab.
-   * Why needed: Browser notifications request OS-level permission; gating lets
-   * DevOps enable it per environment without a code change.
-   * Default: false (no browser notifications unless explicitly set to "true")
-   */
-  get isSigningNotificationsEnabled() {
-    return process.env.NEXT_PUBLIC_FF_ENABLE_SIGNING_NOTIFICATIONS === "true";
-  },
-
-  /**
    * ENABLE_EXPLORE feature flag
    *
    * Purpose: Gates the Explore section — the /explore route and its sidebar
