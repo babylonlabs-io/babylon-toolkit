@@ -62,8 +62,8 @@ export interface VaultProvider {
   btcPubKey: string;
   /** Provider's display name (from registry, optional) */
   name?: string;
-  /** Provider's RPC URL (from registry) */
-  url: string;
+  /** Provider's RPC URL (from registry, optional; routing uses the VP proxy) */
+  url?: string;
   /** Provider's icon URL (from icon service, optional) */
   iconUrl?: string;
   /** Whether the provider is verified (from registry, optional) */
