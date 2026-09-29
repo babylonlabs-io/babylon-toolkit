@@ -1768,7 +1768,7 @@ describe("useDepositFlow", () => {
 
       vi.mocked(signAndSubmitPayouts).mockRejectedValue(
         new Error(
-          "Polling timeout after 1200000ms for pegin abcdef12… (target: PendingDepositorSignatures, PendingACKs, PendingActivation, ActivatedPendingBroadcast, Activated)",
+          "Polling timeout after 1200000ms for vault 0xabcdef12… (target: PendingDepositorSignatures, PendingACKs, PendingActivation, ActivatedPendingBroadcast, Activated)",
         ),
       );
 
