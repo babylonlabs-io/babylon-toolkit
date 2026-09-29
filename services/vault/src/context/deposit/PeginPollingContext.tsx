@@ -73,6 +73,10 @@ import {
   subscribeToOptimisticDepositState,
 } from "./optimisticDepositState";
 import {
+  publishPendingDepositCount,
+  selectPendingActivities,
+} from "./pendingDepositCount";
+import {
   collectTerminalMilestones,
   getSharedTerminalMilestoneTracking,
 } from "./terminalMilestones";
@@ -192,6 +196,7 @@ export function PeginPollingProvider({
   pendingPegins,
   btcPublicKey,
   btcWalletAbsent = false,
+  isConnected = false,
 }: PeginPollingProviderProps) {
   useSingleProviderInvariant();
 
@@ -199,6 +204,18 @@ export function PeginPollingProvider({
   // is on and the panel toggle is enabled). When present, its ids resolve to
   // controlled results below instead of the live polling decision tree.
   const demo = useDepositOverride();
+
+  const pendingDepositCount = useMemo(
+    () =>
+      isConnected || demo
+        ? selectPendingActivities(activities, demo).length
+        : 0,
+    [isConnected, activities, demo],
+  );
+  useEffect(() => {
+    publishPendingDepositCount(pendingDepositCount);
+  }, [pendingDepositCount]);
+  useEffect(() => () => publishPendingDepositCount(0), []);
 
   // Optimistic step completions (for immediate UI feedback after an action).
   // App-scoped, not provider-scoped: the writers run outside the context

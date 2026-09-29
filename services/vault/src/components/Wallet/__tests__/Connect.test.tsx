@@ -81,11 +81,9 @@ describe("Connect current wallet requirements", () => {
     wallet.btcAddress = RECORDED_DEPOSITOR.BTC_ADDRESS;
     wallet.ethAddress = RECORDED_DEPOSITOR.ETH_ADDRESS;
     wallet.isGeoBlocked = false;
-    vi.stubEnv("NEXT_PUBLIC_FF_ENABLE_ETH_FIRST", undefined);
   });
 
   afterEach(() => {
-    vi.unstubAllEnvs();
     localStorage.clear();
   });
 
@@ -93,24 +91,6 @@ describe("Connect current wallet requirements", () => {
     wallet.btcConnected = false;
     wallet.ethConnected = false;
     wallet.confirmed = false;
-
-    render(<Connect />);
-
-    expect(screen.queryByTestId("wallet-menu-trigger")).not.toBeInTheDocument();
-    expect(wallet.useUTXOs).toHaveBeenLastCalledWith(undefined, {
-      enabled: false,
-    });
-    expect(wallet.open).not.toHaveBeenCalled();
-
-    fireEvent.click(screen.getByRole("button", { name: "Connect" }));
-
-    expect(wallet.open).toHaveBeenCalledTimes(1);
-  });
-
-  it("keeps the connect prompt when Bitcoin is missing", () => {
-    wallet.btcConnected = false;
-    wallet.ethConnected = true;
-    wallet.confirmed = true;
 
     render(<Connect />);
 
@@ -161,7 +141,7 @@ describe("Connect current wallet requirements", () => {
     expect(wallet.open).toHaveBeenCalledTimes(1);
   });
 
-  it("shows the wallet menu only after both wallets are confirmed", () => {
+  it("shows the wallet menu with Bitcoin queries when both wallets are confirmed", () => {
     render(<Connect />);
 
     expect(screen.getByTestId("wallet-menu-trigger")).toBeInTheDocument();
@@ -205,8 +185,7 @@ describe("Connect current wallet requirements", () => {
     expect(wallet.disconnect).not.toHaveBeenCalled();
   });
 
-  it("shows only Ethereum without Bitcoin queries when the flag is on", () => {
-    vi.stubEnv("NEXT_PUBLIC_FF_ENABLE_ETH_FIRST", "true");
+  it("shows only Ethereum without Bitcoin queries when Bitcoin is missing", () => {
     wallet.btcConnected = false;
 
     const { result } = renderHook(useConnection);
@@ -225,8 +204,7 @@ describe("Connect current wallet requirements", () => {
     expect(wallet.disconnect).toHaveBeenCalledExactlyOnceWith();
   });
 
-  it("still requires consent for Ethereum when the flag is on", () => {
-    vi.stubEnv("NEXT_PUBLIC_FF_ENABLE_ETH_FIRST", "true");
+  it("still requires consent for an Ethereum-only session", () => {
     wallet.btcConnected = false;
     wallet.confirmed = false;
 
@@ -242,7 +220,6 @@ describe("Connect current wallet requirements", () => {
   });
 
   it("offers unlock inside the Ethereum menu when optional Bitcoin locks", () => {
-    vi.stubEnv("NEXT_PUBLIC_FF_ENABLE_ETH_FIRST", "true");
     wallet.btcLocked = true;
 
     render(<Connect />);
@@ -262,9 +239,7 @@ describe("Connect current wallet requirements", () => {
     expect(wallet.disconnect).not.toHaveBeenCalled();
   });
 
-  it("hides the unlock entry when Bitcoin is not locked under the flag", () => {
-    vi.stubEnv("NEXT_PUBLIC_FF_ENABLE_ETH_FIRST", "true");
-
+  it("hides the unlock entry when Bitcoin is not locked", () => {
     render(<Connect />);
     fireEvent.click(screen.getByTestId("wallet-menu-trigger"));
 
@@ -272,20 +247,7 @@ describe("Connect current wallet requirements", () => {
     expect(screen.queryByTestId("wallet-menu-unlock")).not.toBeInTheDocument();
   });
 
-  it("keeps the unlock prompt when the flag is off", () => {
-    vi.stubEnv("NEXT_PUBLIC_FF_ENABLE_ETH_FIRST", "false");
-    wallet.btcLocked = true;
-
-    render(<Connect />);
-
-    expect(
-      screen.getByRole("button", { name: COPY.wallet.locked.unlockButton }),
-    ).toBeInTheDocument();
-    expect(screen.queryByTestId("wallet-menu-trigger")).not.toBeInTheDocument();
-  });
-
   it("keeps the location restriction for Ethereum-only sessions", () => {
-    vi.stubEnv("NEXT_PUBLIC_FF_ENABLE_ETH_FIRST", "true");
     wallet.btcConnected = false;
     wallet.isGeoBlocked = true;
 
@@ -299,7 +261,6 @@ describe("Connect current wallet requirements", () => {
   });
 
   it("keeps address screening and lets blocked sessions disconnect", async () => {
-    vi.stubEnv("NEXT_PUBLIC_FF_ENABLE_ETH_FIRST", "true");
     wallet.btcConnected = false;
     wallet.btcAddress = "";
     wallet.confirmed = false;

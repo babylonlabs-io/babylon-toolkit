@@ -32,6 +32,7 @@ import { fetchActiveVaultCount } from "../borrowParams";
 import {
   CONNECT_STATE_POLL_MS,
   CONNECT_STATE_TIMEOUT_MS,
+  MS_PER_SECOND,
   RESUME_ACTIONABLE_TIMEOUT_MS,
   RESUME_POLL_INTERVAL_MS,
   RESUME_ROW_APPEAR_TIMEOUT_MS,
@@ -52,6 +53,10 @@ import { type Action, type ActionContext } from "./types";
 import { connectWallets, WALLET_MENU_TRIGGER_TESTID } from "./walletConnect";
 
 const CONNECT_BUTTON_TESTID = '[data-testid="connect-wallet-button"]'; // shown when disconnected
+// The header's wallet-menu trigger shows one wallet icon per connected chain, and the Bitcoin one only
+// while Bitcoin is connected (src/components/Wallet/Connect.tsx), so this many icons means Bitcoin is
+// back as well as Ethereum.
+const WALLET_ICONS_WITH_BITCOIN = 2;
 // VaultsLifecycleSections' PendingRow: the row carries the deposit's Pre-PegIn txid (its hash cell
 // links it), and it is rendered only while a deposit is pending — so its presence doubles as "there is
 // something to resume". The resume CTA inside renders ONLY once the deposit is actionable, so waiting
@@ -69,15 +74,24 @@ function normalizeTxid(txid: string | undefined): string | undefined {
  * After the interrupt reload, make sure the app is connected before we look for the pending row (the
  * pending list reads the connected ETH address). wagmi/AppKit usually auto-reconnects on reload (the
  * header wallet menu reappears with no pop-up); if instead the Connect button is shown, re-run the
- * connect flow. Neither appearing is left to the pending-row wait to surface a clearer error.
+ * connect flow. The menu needs only Ethereum, so a run that goes on to resume (and sign with Bitcoin)
+ * also waits for the menu's Bitcoin icon, and throws if only Ethereum came back. Neither appearing is
+ * left to the pending-row wait to surface a clearer error.
  */
 async function ensureConnected(ctx: ActionContext): Promise<void> {
   const { page, context, log } = ctx;
   const walletMenu = page.locator(WALLET_MENU_TRIGGER_TESTID).first();
   const connect = page.locator(CONNECT_BUTTON_TESTID).first();
+  const walletIcons = walletMenu.locator("img");
+  // --interrupt-only stops after the reload and signs nothing with Bitcoin after it, so Ethereum alone
+  // is enough.
+  const needsBitcoin = !ctx.config.interruptOnly;
+  const hasRequiredWallets = async () =>
+    (await walletMenu.isVisible().catch(() => false)) &&
+    (!needsBitcoin || (await walletIcons.count()) >= WALLET_ICONS_WITH_BITCOIN);
   const deadline = Date.now() + CONNECT_STATE_TIMEOUT_MS;
   while (Date.now() < deadline) {
-    if (await walletMenu.isVisible().catch(() => false)) return; // auto-reconnected
+    if (await hasRequiredWallets()) return; // auto-reconnected
     // Only click Connect once it's actually ENABLED. Right after the reload the app re-hydrates and the
     // Connect button renders visible-but-DISABLED for a beat while wagmi/AppKit auto-reconnects; clicking
     // that transient disabled button just times out (it detaches the instant the connected state swaps
@@ -93,6 +107,11 @@ async function ensureConnected(ctx: ActionContext): Promise<void> {
     await sweepApprovals(context, page, log);
     await page.waitForTimeout(CONNECT_STATE_POLL_MS);
   }
+  if (await hasRequiredWallets()) return;
+  if (await walletMenu.isVisible().catch(() => false))
+    throw new Error(
+      `resume: after the reload the Ethereum wallet reconnected but the ${ctx.btc.id} Bitcoin wallet did not within ${Math.round(CONNECT_STATE_TIMEOUT_MS / MS_PER_SECOND)}s, and resuming signs with Bitcoin.`,
+    );
   log(
     "⚠️ After reload neither the connected state nor a Connect button appeared within the wait — proceeding; the pending-deposit wait will surface any connection issue.",
   );

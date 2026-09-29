@@ -610,7 +610,7 @@ export const COPY = {
       lowFeeWarning: "Fees are low; inclusion is not guaranteed",
     },
     activateConfirmation: {
-      title: "Activate your BTCVault",
+      title: "Download BTCVault artifacts",
       // The download instruction is emphasized (primary text color) per the
       // design; the surrounding prose stays secondary.
       body: [
@@ -626,11 +626,20 @@ export const COPY = {
       // pairs with the green-card layout.
       titleDownloaded: ARTIFACTS_DOWNLOADED_TITLE,
       bodyDownloaded: ARTIFACTS_DOWNLOADED_BODY,
+      // Shown in place of the activation copy while the artifacts stream.
+      downloadingTitle: "Downloading BTCVault artifacts",
+      downloadingBody:
+        "This may take a few minutes depending on your connection.",
       riskAcknowledgement:
         "I understand the risks of continuing without the artifacts.",
       activateButton: "Activate BTCVault",
       cancelButton: "Cancel",
       cancelDownloadButton: CANCEL_DOWNLOAD_LABEL,
+      downloadButton: "Download Artifacts",
+      continueWithoutButton: "Continue without",
+      confirmSkipTitle: "Are you sure?",
+      confirmSkipBody:
+        "Continuing without downloading the recovery artifacts may put your funds at risk if your vault provider becomes unavailable.",
     },
     // Activate-and-redeem escape hatch: reveals the HTLC secret and redeems
     // the BTCVault in one transaction, skipping application activation.
@@ -698,11 +707,7 @@ export const COPY = {
       // Size variant rendered once the download has completed — the
       // "Up to" hedge no longer applies because the file is on disk.
       cardSizeDownloaded: "~1 GB",
-      downloadButton: "Download Artifacts",
       downloadingButton: "Downloading...",
-      retryButton: "Retry",
-      walletSignatureHint:
-        "You may be asked to approve a signature in your wallet to authenticate.",
       // Caption under the progress bar while bytes are streaming.
       doNotCloseHint: "Do not close this window while downloading.",
       cannotAuthenticate:
@@ -748,9 +753,6 @@ export const COPY = {
       unverifiedSaveTitle: "Download finished, but we cannot confirm it saved",
       unverifiedSaveNotice:
         "Check your downloads folder for the file. Because this browser does not report whether the save completed, your BTCVault will keep showing the artifact warning. To clear it, download again using a Chromium-based browser such as Chrome or Brave.",
-      // The fallback path may well have worked; this offers a retry without
-      // implying the first attempt failed.
-      downloadAgainButton: "Download Again",
       // pegin.md §5.9 check (a). The artifacts are compared with a record of
       // the transactions this browser signed. No record means no comparison,
       // so the download is refused and only the risk acknowledgement remains.
@@ -847,6 +849,7 @@ export const COPY = {
           ? `${TWO_VAULT_SPLIT_NAME} - ${splitRatioLabel}`
           : TWO_VAULT_SPLIT_NAME,
       splitOptionRecommended: "(Recommended)",
+      splitSliderStepLabel: "2 UTXO Split",
       // Shown inside the expanded split selector, under the two-vault option,
       // when the deposit is below the minimum needed to split across two
       // vaults; that option stays visible but disabled. `minBtc` already
@@ -1504,7 +1507,7 @@ export const COPY = {
       description: "Unlock your Bitcoin wallet in your extension to continue.",
       unlockButton: "Unlock wallet",
       // Deposit-form CTA: names the action the unlock unblocks, unlike the
-      // navbar / progress-modal button which is just "Unlock wallet".
+      // wallet-menu entry and progress-modal button, which are just "Unlock wallet".
       unlockToDepositButton: "Unlock Wallet to Deposit",
       unlocking: "Unlocking wallet...",
     },
@@ -2072,6 +2075,9 @@ export const COPY = {
     activity: "Activity",
     liquidations: "Liquidations",
     explore: "Explore",
+    pendingDeposits: (count: number) =>
+      `${count} pending ${count === 1 ? "deposit" : "deposits"}`,
+    pendingDepositsOverflow: (max: number) => `${max}+`,
     termsOfUse: "Terms of Use",
     privacyPolicy: "Privacy Policy",
   },

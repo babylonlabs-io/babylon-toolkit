@@ -87,6 +87,12 @@ const VISUAL_ENV_VARS = {
   // surface, which stays empty for a depositor with no position.
   NEXT_PUBLIC_FF_ENABLE_LIQUIDATION_NOTIFICATIONS: "true",
   NEXT_PUBLIC_FF_POSITION_DEBUG_PANEL: "true",
+  // ON so the Bitcoin wallet list offers Ledger Vault, whose pick opens the
+  // "Before you connect" guide (`e2e/visual/connectGuide.visual.spec.ts`). The
+  // row also needs WebHID, which headless Chromium exposes. Nothing reaches a
+  // device: the walk stops on the guide and never presses its Connect. The flag
+  // changes only that wallet list, which no other stop photographs.
+  NEXT_PUBLIC_FF_ENABLE_LEDGER_VAULT_WALLET: "true",
 };
 
 export default defineConfig({

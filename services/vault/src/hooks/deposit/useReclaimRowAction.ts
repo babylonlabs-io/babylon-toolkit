@@ -29,7 +29,6 @@ import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { useCallback } from "react";
 
 import { isWithdrawBlocked } from "@/components/shared/protocolStatus";
-import FeatureFlags from "@/config/featureFlags";
 import { useBTCWallet } from "@/context/wallet";
 import { isLedgerVaultConnector } from "@/context/wallet/VaultWalletConnectionProvider";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
@@ -105,8 +104,7 @@ export function useReclaimRowAction() {
       // exposes its key, so it takes the real ownership check. Evaluate the model as the owner would see it, so
       // the row shows the same outcome (blocked, reclaiming, absent) and only an
       // available reclaim asks for the wallet — the model stays the single gate.
-      const assumeOwnership =
-        FeatureFlags.isEthFirstEnabled && !btcConnected && !!depositorBtcPubkey;
+      const assumeOwnership = !btcConnected && !!depositorBtcPubkey;
       const eligibility: ReclaimEligibility = getReclaimEligibility({
         onChainStatus,
         payoutSpend: status?.payoutSpend,
