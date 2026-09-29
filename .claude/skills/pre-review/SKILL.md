@@ -671,7 +671,8 @@ Before either skip gate, check reviewer coverage across the stored runs.
 A qualifying initial run has a whole-change review, a full report from every reviewer
 required by its tier, and no uncovered reviewer dimension. A later
 whole-change full review with all three required reports can repair missing
-coverage. Missing completion fields do not prove coverage. If neither
+coverage. Every current changed path must be in the `reviewed` list of that
+run or of a later run. Missing completion fields do not prove coverage. If neither
 record exists, run the whole-change full tier before any final review.
 Also repair any later incomplete review. A clean initial review does not
 cover a lost reviewer on new code. Keep that missing coverage open until a

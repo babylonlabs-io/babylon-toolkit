@@ -351,6 +351,7 @@ function finalCandidate() {
     kind: "first",
     tier: "light",
     breadth: "whole change",
+    reviewed: ["changed.ts"],
     checks: "passed",
     uncovered: [],
     reviewers: [{ name: "review-generalist", completed: true }],
@@ -522,6 +523,7 @@ test("the final CLI detects code edits after checks and does not restamp the sav
         kind: "first",
         tier: "light",
         breadth: "whole change",
+        reviewed: ["kept.ts"],
         checks: "passed",
         uncovered: [],
         reviewers: [{ name: "review-generalist", completed: true }],
@@ -599,6 +601,7 @@ test("a final reviewer cannot replace incomplete initial review coverage", () =>
   const repair = candidate.state.runs[1];
   repair.tier = "full";
   repair.breadth = "whole change";
+  repair.reviewed = ["changed.ts"];
   repair.reviewers = ["review-generalist", "review-tracer", "review-panel"].map((name) => ({
     name,
     completed: true,
@@ -606,6 +609,39 @@ test("a final reviewer cannot replace incomplete initial review coverage", () =>
   assert.equal(finalReviewStatus(candidate).status, "complete");
   repair.reviewers.pop();
   assert.equal(finalReviewStatus(candidate).status, "blocked");
+});
+
+test("an initial whole-change run that left out a changed file blocks final review", () => {
+  const candidate = finalCandidate();
+  candidate.state.runs[0].reviewed = [];
+  const result = finalReviewStatus(candidate);
+  assert.equal(result.status, "blocked");
+  assert.match(result.reasons.join(" "), /Run \/pre-review --full/);
+});
+
+test("a file that entered after the initial run is covered by the later run that lists it", () => {
+  const candidate = finalCandidate();
+  candidate.files.set("entered.ts", "4".repeat(40));
+  candidate.state.files = Object.fromEntries(candidate.files);
+  candidate.inputKey = finalReviewInputKey(candidate);
+  for (const run of candidate.state.runs) run.input_key = candidate.inputKey;
+  candidate.state.final_review.input_key = candidate.inputKey;
+  candidate.state.runs[1].reviewed = ["changed.ts", "entered.ts"];
+  const later = {
+    kind: "later",
+    tier: "light",
+    breadth: "narrowed",
+    reviewed: [],
+    reviewers: [{ name: "review-lane", completed: true }],
+    input_key: candidate.inputKey,
+    checks: "passed",
+    uncovered: [],
+  };
+  candidate.state.runs.splice(1, 0, later);
+  candidate.state.final_review.run = 3;
+  assert.equal(finalReviewStatus(candidate).status, "blocked");
+  later.reviewed = ["entered.ts"];
+  assert.equal(finalReviewStatus(candidate).status, "complete");
 });
 
 test("initial mechanical check failures can be repaired without repeating completed reviewers", () => {
@@ -687,6 +723,7 @@ test("later missing review coverage survives no-review runs until a whole-change
     repair.breadth = "narrowed";
     assert.equal(finalReviewStatus(candidate).status, "blocked");
     repair.breadth = "whole change";
+    repair.reviewed = ["changed.ts"];
     assert.equal(finalReviewStatus(candidate).status, "complete");
   }
 });

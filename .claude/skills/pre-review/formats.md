@@ -192,6 +192,8 @@ must have `kind: "final"`, the matching `input_key`, `cold: true`,
 `review-lane` reviewer with `completed: true`. Completed initial reviewer
 coverage must precede it. That means a whole-change `first` run with every
 required reviewer complete, or a later whole-change full-tier repair. Every
+changed path must be in the `reviewed` list of that run or of a later run
+before the final run. Every
 recorded reviewer on that run must be complete. No uncovered reviewer
 dimension may remain. Later checks can repair mechanical check failures.
 Legacy runs without completion fields need a full repair before final

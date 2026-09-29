@@ -168,6 +168,7 @@ export function finalReviewStatus({ state, inputKey, base, branch, files, outsid
   const hasRequiredCoverage = (reviewRuns) => {
     let initialComplete = false;
     let incomplete = false;
+    let covered = new Set();
     // A no-review run must not erase a missing reviewer from an earlier run.
     for (const run of reviewRuns) {
       if (run.kind === "final") continue;
@@ -185,14 +186,21 @@ export function finalReviewStatus({ state, inputKey, base, branch, files, outsid
         run.reviewers.every((reviewer) => reviewer.completed === true) &&
         (noReview ? run.reviewers.length === 0 :
           required.every((name) => run.reviewers.some((reviewer) => reviewer.name === name)));
+      const listed = Array.isArray(run.reviewed) ? run.reviewed : [];
       if (!complete) incomplete = true;
-      else if (run.kind === "first") initialComplete = true;
-      else if (run.tier === "full" && run.breadth === "whole change") {
+      else if (run.kind === "first") {
+        initialComplete = true;
+        covered = new Set(listed);
+      } else if (run.tier === "full" && run.breadth === "whole change") {
         initialComplete = true;
         incomplete = false;
+        covered = new Set(listed);
+      } else {
+        for (const reviewedPath of listed) covered.add(reviewedPath);
       }
     }
-    return initialComplete && !incomplete;
+    // Paths that entered after the whole-change run are listed by later runs.
+    return initialComplete && !incomplete && [...files.keys()].every((p) => covered.has(p));
   };
   if (!hasRequiredCoverage(runs)) {
     reasons.push("Required review coverage is incomplete. Run /pre-review --full before final review.");
