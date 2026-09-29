@@ -467,9 +467,9 @@ function ManualInputPanel({
 /**
  * Publishes `debugPositionStore`'s cascade inputs to `@/overrides/position`
  * so the real banner/chart can pick them up, and clears the override on
- * unmount. Mounted exactly once by the shell (`GodModePanel`), gated the
- * same double flag as the old standalone position-notifications section —
- * `CascadeSimulator` itself never does this (see this file's header).
+ * unmount. Mounted exactly once by the shell (`GodModePanel`), gated by
+ * `positionDebugGate` — `CascadeSimulator` itself never does this (see this
+ * file's header).
  */
 function CascadeOverridePublisherEffect() {
   const manualMode = useDebugManualMode();
@@ -546,8 +546,7 @@ export function CascadeSimulator() {
   if (!positionDebugGate()) {
     return (
       <p className={PANEL_HINT_CLASS}>
-        Cascade simulator needs ENABLE_LIQUIDATION_NOTIFICATIONS and
-        POSITION_DEBUG_PANEL both on.
+        Cascade simulator needs POSITION_DEBUG_PANEL on.
       </p>
     );
   }

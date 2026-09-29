@@ -80,13 +80,16 @@ const VISUAL_ENV_VARS = {
   // it. Nothing else changes with the flag: the demo is inert until the
   // panel's own "Inject demo" toggle opts in.
   NEXT_PUBLIC_FF_GOD_MODE_PANEL: "true",
-  // Both ON for the panel's cascade simulator, which is how the liquidations
-  // chart is reached (`e2e/visual/liquidationChart.visual.spec.ts`): the
-  // recorded depositor holds no position, so no wallet can chart anything.
-  // The notifications flag also unhides the dashboard's liquidation banner
-  // surface, which stays empty for a depositor with no position.
-  NEXT_PUBLIC_FF_ENABLE_LIQUIDATION_NOTIFICATIONS: "true",
+  // ON for the panel's cascade simulator, which is how the liquidations chart
+  // is reached (`e2e/visual/liquidationChart.visual.spec.ts`): the recorded
+  // depositor holds no position, so no wallet can chart anything.
   NEXT_PUBLIC_FF_POSITION_DEBUG_PANEL: "true",
+  // ON so the Bitcoin wallet list offers Ledger Vault, whose pick opens the
+  // "Before you connect" guide (`e2e/visual/connectGuide.visual.spec.ts`). The
+  // row also needs WebHID, which headless Chromium exposes. Nothing reaches a
+  // device: the walk stops on the guide and never presses its Connect. The flag
+  // changes only that wallet list, which no other stop photographs.
+  NEXT_PUBLIC_FF_ENABLE_LEDGER_VAULT_WALLET: "true",
 };
 
 export default defineConfig({

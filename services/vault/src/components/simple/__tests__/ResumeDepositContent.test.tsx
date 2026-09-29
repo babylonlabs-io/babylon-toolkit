@@ -331,6 +331,17 @@ function readerWith(prePeginTxHash: string) {
       },
     }),
     getVaultProviderGenesisBtcPubKey: vi.fn().mockResolvedValue(null),
+    getCurrentVaultProviderOperationBtcKey: vi
+      .fn()
+      .mockResolvedValue("ab".repeat(32)),
+    getVaultKeyEpochs: vi.fn().mockResolvedValue({
+      vpKeyEpoch: 0n,
+      appKeeperKeyEpoch: 0n,
+      ucKeyEpoch: 0n,
+    }),
+    getVaultProviderOperationBtcKeyAtEpoch: vi
+      .fn()
+      .mockResolvedValue("ab".repeat(32)),
     getVaultBasicInfo: vi.fn(),
     getVaultProtocolInfo: vi.fn(),
   } as unknown as ReturnType<typeof getVaultRegistryReader>;

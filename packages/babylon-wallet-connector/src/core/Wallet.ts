@@ -1,4 +1,4 @@
-import type { Account, IProvider, IWallet, Network, ProgressReporter } from "@/core/types";
+import type { Account, ConnectGuide, IProvider, IWallet, Network, ProgressReporter } from "@/core/types";
 
 export interface WalletOptions<P extends IProvider> {
   id: string;
@@ -11,6 +11,7 @@ export interface WalletOptions<P extends IProvider> {
   provider: P | null;
   label?: string;
   hardware?: boolean;
+  connectGuide?: ConnectGuide;
 }
 
 export class Wallet<P extends IProvider> implements IWallet {
@@ -23,10 +24,23 @@ export class Wallet<P extends IProvider> implements IWallet {
   readonly networks: Network[];
   readonly provider: P | null = null;
   readonly hardware: boolean;
+  readonly connectGuide?: ConnectGuide;
   private readonly _label?: string;
   account: Account | null = null;
 
-  constructor({ id, origin, name, icon, iconBackground, docs, networks, provider, label, hardware }: WalletOptions<P>) {
+  constructor({
+    id,
+    origin,
+    name,
+    icon,
+    iconBackground,
+    docs,
+    networks,
+    provider,
+    label,
+    hardware,
+    connectGuide,
+  }: WalletOptions<P>) {
     this.id = id;
     this.origin = origin;
     this.name = name;
@@ -37,6 +51,7 @@ export class Wallet<P extends IProvider> implements IWallet {
     this.provider = provider;
     this._label = label;
     this.hardware = hardware ?? false;
+    this.connectGuide = connectGuide;
   }
 
   get installed() {

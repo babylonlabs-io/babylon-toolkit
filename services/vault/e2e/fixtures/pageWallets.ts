@@ -302,10 +302,16 @@ export async function connectInjectedWallets(
 
   // The dialog returns to its summary once BTC is chosen; this button is what
   // commits the session. Waiting for it to be enabled is what makes this
-  // robust - it stays disabled until both required chains are satisfied, so
+  // robust - it stays disabled until the required ETH chain is satisfied, so
   // this is also the assertion that ETH really did connect silently.
   const commit = dialog.getByTestId("chains-connect-button");
   await expect(commit).toBeEnabled();
+  // Ethereum alone enables the button, so this is the assertion that Bitcoin
+  // connected too: the row shows the connected wallet, whose address is the
+  // only `title` in it (`ConnectedWallet` in the wallet connector).
+  await expect(
+    dialog.getByTestId("select-bitcoin-wallet-button").locator("[title]"),
+  ).toBeVisible();
   await beforeCommit?.();
   await commit.click();
 

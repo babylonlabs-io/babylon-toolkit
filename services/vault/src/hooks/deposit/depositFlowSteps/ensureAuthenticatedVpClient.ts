@@ -1,6 +1,7 @@
 /**
  * Vault-side glue: derive `authAnchorHex` from the wallet (popup) and
- * `pinnedServerPubkey` from chain, then build an authenticated VP RPC
+ * `pinnedServerPubkey` from chain (after the provider address matches the
+ * vault's on-chain provider), then build an authenticated VP RPC
  * client. Reuses the registry cache if an entry for this `peginTxid`
  * already exists — preventing a second wallet popup for sites that
  * run after `primeVpTokenRegistry` (e.g. WOTS submit + payout signing
@@ -16,6 +17,7 @@ import {
   expandAuthAnchor,
   hexToUint8Array,
   parseFundingOutpointsFromTx,
+  processPublicKeyToXOnly,
   stripHexPrefix,
   supportsDepositApproval,
   uint8ArrayToHex,
@@ -30,7 +32,10 @@ import type { Address, Hex } from "viem";
 
 import { getVaultRegistryReader } from "@/clients/eth-contract/sdk-readers";
 import { COPY } from "@/copy";
-import { resolveVpAuthPinnedPubkey } from "@/services/vault/vpAuthPinnedPubkey";
+import {
+  refreshVpJsonRpcPinnedPubkey,
+  resolveVpAuthPins,
+} from "@/services/vault/vpAuthPinnedPubkey";
 import { getVpProxyUrl } from "@/utils/rpc";
 
 export interface EnsureAuthenticatedVpClientParams {
@@ -38,7 +43,8 @@ export interface EnsureAuthenticatedVpClientParams {
   /**
    * On-chain vault id. Used on the cold path to fetch `prePeginTxHash`
    * and validate `unsignedPrePeginTxHex` before the wallet's
-   * `deriveContextHash` is invoked over its funding outpoints.
+   * `deriveContextHash` is invoked over its funding outpoints, and to
+   * check `providerAddress` against the vault's on-chain provider.
    */
   vaultId: Hex;
   unsignedPrePeginTxHex: string;
@@ -68,7 +74,13 @@ export async function ensureAuthenticatedVpClient(
   ) {
     vpTokenRegistry.release(peginTxid);
   } else {
-    const cached = vpTokenRegistry.peek(peginTxid);
+    const cached = vpTokenRegistry.peek({
+      peginTxid,
+      providerAddress: params.providerAddress,
+      expectedAudienceXOnlyPubkey: processPublicKeyToXOnly(
+        params.depositorBtcPubkey,
+      ),
+    });
     if (cached) {
       return new VaultProviderRpcClient(baseUrl, { tokenProvider: cached });
     }
@@ -91,8 +103,13 @@ export async function ensureAuthenticatedVpClient(
     );
   }
 
-  // Cold-start: derive auth anchor from the wallet (popup) and fetch
-  // the pinned VP pubkey from chain.
+  // Also cold path only: the caller's provider address names the endpoint
+  // that receives the auth anchor, so it must match the vault's on-chain
+  // provider before the wallet popup.
+  const vpAddress = params.providerAddress as Address;
+  const authPins = await resolveVpAuthPins(vpAddress, params.vaultId);
+
+  // Cold-start: derive auth anchor from the wallet (popup).
   let root: Uint8Array | null = null;
   try {
     root = await deriveVaultRoot(params.btcWallet, {
@@ -107,15 +124,14 @@ export async function ensureAuthenticatedVpClient(
     root.fill(0);
     root = null;
 
-    const pinnedServerPubkey = await resolveVpAuthPinnedPubkey(
-      params.providerAddress as Address,
-    );
-
     return createAuthenticatedVpClient({
       baseUrl,
       peginTxid,
       authAnchorHex,
-      pinnedServerPubkey,
+      providerAddress: vpAddress,
+      ...authPins,
+      refreshJsonRpcPinnedServerPubkey: () =>
+        refreshVpJsonRpcPinnedPubkey(vpAddress),
       depositorBtcPubkey: params.depositorBtcPubkey,
     });
   } finally {

@@ -561,14 +561,6 @@ describe("LedgerVaultProvider", () => {
       expect(signMock.signPreparedVaultPsbt).not.toHaveBeenCalled();
     });
 
-    it("rejects malformed hex before hashing or device I/O", async () => {
-      const provider = await approved();
-
-      await expect(provider.signPsbt("zz")).rejects.toMatchObject({ code: ERROR_CODES.INVALID_PARAMS });
-      expect(signMock.prepareSignPsbt).not.toHaveBeenCalled();
-      expect(signMock.signPreparedVaultPsbt).not.toHaveBeenCalled();
-    });
-
     /** BIP-86 P2TR script of an x-only key. */
     function bip86Script(xOnlyHex: string): Buffer {
       initEccLib(ecc);
@@ -779,6 +771,18 @@ describe("LedgerVaultProvider", () => {
 
       await expect(provider.signPsbt(PSBT_A)).rejects.toMatchObject({ code: ERROR_CODES.INVALID_PARAMS });
       await expect(provider.signPsbt(PSBT_A)).resolves.toBe(`signed:${PSBT_A}`);
+    });
+
+    it("rejects malformed hex as INVALID_PARAMS through the real prepare, without signing", async () => {
+      const { prepareSignPsbt: realPrepare } = await actualSigner();
+      signMock.prepareSignPsbt.mockImplementation(realPrepare);
+      const provider = await approved();
+
+      await expect(provider.signPsbt("zz")).rejects.toMatchObject({
+        code: ERROR_CODES.INVALID_PARAMS,
+        message: expect.stringMatching(/not even-length hexadecimal/),
+      });
+      expect(signMock.signPreparedVaultPsbt).not.toHaveBeenCalled();
     });
 
     it("an intent-gone status word drops the mirror; a re-ceremony makes the same PSBT signable", async () => {
@@ -1190,14 +1194,6 @@ describe("LedgerVaultProvider", () => {
 
       await expect(provider.signPsbt(PSBT_A, { autoFinalized: false })).rejects.toThrow(/already signed/);
       expect(signMock.signPreparedVaultPsbt).toHaveBeenCalledTimes(1);
-    });
-
-    it("hex validation speaks before prepare and the replay guard", async () => {
-      const provider = await approved();
-      await provider.signPsbt("aabb");
-
-      await expect(provider.signPsbt("aabbzz")).rejects.toThrow(/needs even-length hex/);
-      expect(signMock.prepareSignPsbt).toHaveBeenCalledTimes(1);
     });
 
     it("maps a throwing liveness probe onto a WalletError", async () => {

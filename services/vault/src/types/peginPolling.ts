@@ -89,6 +89,7 @@ export interface PeginPollingProviderProps extends PropsWithChildren {
   btcPublicKey?: string;
   /** True when the session runs without a Bitcoin wallet (Ethereum-only). */
   btcWalletAbsent?: boolean;
+  isConnected?: boolean;
 }
 
 /** Deposit prepared for polling */

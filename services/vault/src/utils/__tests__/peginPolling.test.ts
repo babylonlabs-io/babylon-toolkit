@@ -14,7 +14,9 @@ import type { VaultActivity } from "../../types/activity";
 import {
   getDepositsNeedingPolling,
   isTerminalPollingError,
+  type PollingDaemonStatus,
   TerminalPeginPollingError,
+  UNRECOGNIZED_DAEMON_STATUS,
 } from "../peginPolling";
 
 const BTC_PUBKEY = "ab".repeat(32);
@@ -54,13 +56,15 @@ describe("isTerminalPollingError", () => {
     expect(isTerminalPollingError(undefined)).toBe(false);
   });
 
-  it.each([
+  it.each<PollingDaemonStatus>([
     DaemonStatus.EXPIRED_IN_CLAIM,
     DaemonStatus.INVALID_SIG_IN_CONTRACT,
     DaemonStatus.AML_REJECTED,
     DaemonStatus.EXPIRED,
     DaemonStatus.EXPIRED_CLEANED_UP,
     DaemonStatus.INGESTION_REJECTED,
+    DaemonStatus.BABE_SETUP_FAILED,
+    UNRECOGNIZED_DAEMON_STATUS,
   ])("returns true for TerminalPeginPollingError(%s)", (status) => {
     expect(
       isTerminalPollingError(new TerminalPeginPollingError(status, "anything")),

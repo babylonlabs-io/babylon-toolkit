@@ -119,6 +119,13 @@ vi.mock("@/clients/eth-contract/pinnedReadBlock", () => ({
 vi.mock("@/clients/eth-contract/sdk-readers", () => ({
   getVaultRegistryReader: vi.fn(() => ({
     getVaultProviderGenesisBtcPubKey: vi.fn(async () => "ab".repeat(32)),
+    getCurrentVaultProviderOperationBtcKey: vi.fn(async () => "ab".repeat(32)),
+    getVaultKeyEpochs: vi.fn(async () => ({
+      vpKeyEpoch: 0n,
+      appKeeperKeyEpoch: 0n,
+      ucKeyEpoch: 0n,
+    })),
+    getVaultProviderOperationBtcKeyAtEpoch: vi.fn(async () => "ab".repeat(32)),
   })),
   getVaultKeeperReader: vi.fn(async () => ({})),
   getUniversalChallengerReader: vi.fn(async () => ({})),
@@ -1768,7 +1775,7 @@ describe("useDepositFlow", () => {
 
       vi.mocked(signAndSubmitPayouts).mockRejectedValue(
         new Error(
-          "Polling timeout after 1200000ms for pegin abcdef12… (target: PendingDepositorSignatures, PendingACKs, PendingActivation, ActivatedPendingBroadcast, Activated)",
+          "Polling timeout after 1200000ms for vault 0xabcdef12… (target: PendingDepositorSignatures, PendingACKs, PendingActivation, ActivatedPendingBroadcast, Activated)",
         ),
       );
 

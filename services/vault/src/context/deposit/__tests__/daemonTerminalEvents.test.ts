@@ -1,7 +1,10 @@
 import { DaemonStatus } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { describe, expect, it } from "vitest";
 
-import { TerminalPeginPollingError } from "../../../utils/peginPolling";
+import {
+  TerminalPeginPollingError,
+  UNRECOGNIZED_DAEMON_STATUS,
+} from "../../../utils/peginPolling";
 import {
   collectDaemonTerminalEvents,
   createDaemonTerminalTracking,
@@ -37,6 +40,23 @@ describe("collectDaemonTerminalEvents", () => {
       [],
     );
     expect(collectDaemonTerminalEvents(["0xold"], errors, tracking)).toEqual(
+      [],
+    );
+  });
+
+  it("emits an unrecognized status on first observation, once", () => {
+    const tracking = createDaemonTerminalTracking();
+    const errors = new Map([
+      [
+        "0xdrift",
+        new TerminalPeginPollingError(UNRECOGNIZED_DAEMON_STATUS, "unknown"),
+      ],
+    ]);
+
+    expect(collectDaemonTerminalEvents(["0xdrift"], errors, tracking)).toEqual([
+      { vaultId: "0xdrift", daemonStatus: UNRECOGNIZED_DAEMON_STATUS },
+    ]);
+    expect(collectDaemonTerminalEvents(["0xdrift"], errors, tracking)).toEqual(
       [],
     );
   });

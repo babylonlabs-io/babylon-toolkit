@@ -4,13 +4,13 @@
  * Holds, in memory only, the vault ordering the user just submitted in a reorder
  * (captured after the tx confirms — at which point the submitted order is the
  * on-chain order). The dashboard sorts the collateral list by this order so the
- * user sees the new order immediately, instead of waiting for the indexer to
- * ingest the `VaultsReordered` event and rewrite `liquidationIndex`.
+ * user sees the new order immediately, instead of waiting for the next position
+ * read to return the new on-chain order.
  *
  * Deliberately NOT persisted (no localStorage): it is best-effort immediate
  * feedback. A page refresh mid-window drops it and the dashboard falls back to
- * indexer ordering. The override is cleared once the indexer reconciles (see
- * useDashboardState) or, as a backstop, after REORDER_OVERRIDE_TIMEOUT_MS.
+ * the on-chain order. The override is cleared once the position read reconciles
+ * (see useDashboardState) or, as a backstop, after REORDER_OVERRIDE_TIMEOUT_MS.
  */
 
 import {
@@ -27,22 +27,23 @@ import type { Hex } from "viem";
 
 /**
  * How long the in-memory post-reorder order override is held before it is
- * auto-cleared, as a backstop in case the indexer never reflects the submitted
- * order (e.g. a concurrent position change). Until then the dashboard shows the
- * submitted order; reconciliation normally clears it sooner, once the indexer
- * catches up. 90s ≈ 3 × the 30s position poll.
+ * auto-cleared, as a backstop in case the position read never reflects the
+ * submitted order (e.g. a concurrent position change). Until then the dashboard
+ * shows the submitted order; reconciliation normally clears it sooner, once the
+ * position read catches up. 90s ≈ 3 × the 30s position poll.
  */
 const REORDER_OVERRIDE_TIMEOUT_MS = 90 * 1000;
 
 interface ReorderOverrideContextValue {
   /**
    * The submitted (post-confirmation) vault ordering to display while the
-   * indexer catches up, or `null` when there is no pending reorder to reflect.
+   * position read catches up, or `null` when there is no pending reorder to
+   * reflect.
    */
   reorderedOrder: readonly Hex[] | null;
   /** Set the override to the submitted order and (re)arm the auto-clear timer. */
   applyReorderedOrder: (order: readonly Hex[]) => void;
-  /** Clear the override (called when the indexer reconciles, or on unmount). */
+  /** Clear the override (on position-read reconciliation, or on unmount). */
   clearReorderedOrder: () => void;
 }
 

@@ -1,6 +1,9 @@
 import {
+  JsonRpcClient,
   JsonRpcError,
   VpResponseValidationError,
+  VpTokenRegistry,
+  vpTokenRegistry,
 } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { fingerprintReturnedGraph } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 import { sha256 } from "@noble/hashes/sha2.js";
@@ -30,6 +33,7 @@ const PEGIN_TXID =
   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const DEPOSITOR_PK =
   "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+const OTHER_PROVIDER_ADDRESS = "0x1111111111111111111111111111111111111111";
 const CHALLENGER_PUBKEY =
   "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc";
 
@@ -117,6 +121,26 @@ function expectedSavedPayload(): string {
   return JSON.stringify(VALID_ARTIFACT_RESULT);
 }
 
+function seedArtifactToken(providerAddress: string): void {
+  const pinnedServerPubkey = "ab".repeat(32) as unknown as Parameters<
+    typeof vpTokenRegistry.getOrCreate
+  >[0]["pinnedServerPubkey"];
+  vpTokenRegistry.getOrCreate({
+    client: new JsonRpcClient({
+      baseUrl: "https://vp.test/rpc",
+      timeout: 5000,
+      retries: 0,
+    }),
+    peginTxid: PEGIN_TXID,
+    authAnchorHex: "c".repeat(64),
+    providerAddress,
+    pinnedServerPubkey,
+    grpcPinnedServerPubkey: pinnedServerPubkey,
+    grpcKeyEpoch: 1n,
+    expectedAudienceXOnlyPubkey: DEPOSITOR_PK,
+  });
+}
+
 /**
  * Build a Response backed by a real ReadableStream, with Content-Length only
  * when asked. A stream body never auto-populates the header, which is what
@@ -184,11 +208,30 @@ function fakeSaveTarget(
 describe("fetchAndDownloadArtifacts", () => {
   beforeEach(() => {
     vi.stubGlobal("fetch", vi.fn());
+    (vpTokenRegistry as VpTokenRegistry).clear();
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
+    (vpTokenRegistry as VpTokenRegistry).clear();
+  });
+
+  it("rejects a bearer bound to another provider before sending the request", async () => {
+    seedArtifactToken(OTHER_PROVIDER_ADDRESS);
+    const { target } = fakeSaveTarget();
+
+    await expect(
+      fetchAndDownloadArtifacts(
+        PROVIDER_ADDRESS,
+        PEGIN_TXID,
+        DEPOSITOR_PK,
+        SIGNED_GRAPH_FINGERPRINT,
+        target,
+      ),
+    ).rejects.toThrow(/already bound to providerAddress/);
+
+    expect(fetch).not.toHaveBeenCalled();
   });
 
   describe("the presign fingerprint check", () => {

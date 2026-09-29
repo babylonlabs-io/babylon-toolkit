@@ -1,6 +1,7 @@
 import { type JSX } from "react";
 
 import { ChainsContainer as Chains } from "@/components/Chains/container";
+import { ConnectGuideContainer as ConnectGuide } from "@/components/ConnectGuide/container";
 import { ErrorContainer as Error } from "@/components/Error/container";
 import { LoaderScreen } from "@/components/Loader";
 import { WalletsContainer as Wallets } from "@/components/Wallets/container";
@@ -11,6 +12,7 @@ interface ScreenProps {
   current: Screen;
   widgets?: Record<string, JSX.Element | undefined>;
   onSelectWallet?: (chain: IChain, wallet: IWallet) => void;
+  onConnectWallet?: (chain: IChain, wallet: IWallet) => void;
   onConfirm?: () => void;
   chainDescriptions?: Partial<Record<ChainId, string>>;
 }
@@ -20,6 +22,7 @@ const SCREENS = {
     <Chains onConfirm={onConfirm} chainDescriptions={chainDescriptions} />
   ),
   WALLETS: ({ widgets, onSelectWallet }: ScreenProps) => <Wallets widgets={widgets} onSelectWallet={onSelectWallet} />,
+  CONNECT_GUIDE: ({ onConnectWallet }: ScreenProps) => <ConnectGuide onConnect={onConnectWallet} />,
   LOADER: ({ current }: ScreenProps) => (
     <LoaderScreen title={current?.params?.message as string} description={current?.params?.description as string} />
   ),

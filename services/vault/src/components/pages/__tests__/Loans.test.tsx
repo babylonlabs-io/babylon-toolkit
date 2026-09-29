@@ -4,7 +4,7 @@
 
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { COPY } from "@/copy";
 
@@ -16,7 +16,6 @@ const walletMock = vi.hoisted(() => ({
 }));
 const useDashboardStateMock = vi.fn();
 const useLoanOverrideMock = vi.fn();
-const useHealthFactorOverrideMock = vi.fn();
 const useBorrowCapacityOverrideMock = vi.fn();
 const openRepayMock = vi.fn();
 
@@ -29,8 +28,8 @@ vi.mock("@babylonlabs-io/wallet-connector", () => ({
   }),
 }));
 
-// The real gate, so the Ethereum-only control decides what this page counts as
-// connected. A hand-supplied `isConnected` would pass with the control removed.
+// The real gate, so `useConnection` decides what this page counts as
+// connected. A hand-supplied `isConnected` would pass whatever the gate's rule.
 vi.mock("@/context/wallet", async () => ({
   useConnection: (await import("@/context/wallet/useConnection")).useConnection,
   useETHWallet: (await import("@babylonlabs-io/wallet-connector")).useETHWallet,
@@ -66,7 +65,6 @@ vi.mock("@/overrides/loans", async (importOriginal) => ({
 
 vi.mock("@/overrides/borrowCapacity", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/overrides/borrowCapacity")>()),
-  useHealthFactorOverride: () => useHealthFactorOverrideMock(),
   useBorrowCapacityOverride: () => useBorrowCapacityOverrideMock(),
 }));
 
@@ -111,8 +109,6 @@ vi.mock("../../simple/LoansSummary", () => ({
   LoansSummary: ({
     borrowCapacityLoading,
     borrowCapacityError,
-    healthFactor,
-    healthFactorStatus,
     borrowedAssets,
     borrowCount,
     canRepay,
@@ -120,8 +116,6 @@ vi.mock("../../simple/LoansSummary", () => ({
   }: {
     borrowCapacityLoading: boolean;
     borrowCapacityError: Error | null;
-    healthFactor: number | null;
-    healthFactorStatus: string;
     borrowedAssets: { symbol: string }[];
     borrowCount: bigint | null;
     canRepay: boolean;
@@ -131,8 +125,6 @@ vi.mock("../../simple/LoansSummary", () => ({
       data-testid="loans-summary"
       data-capacity-loading={String(borrowCapacityLoading)}
       data-capacity-error={String(Boolean(borrowCapacityError))}
-      data-health-factor={String(healthFactor)}
-      data-health-factor-status={healthFactorStatus}
       data-borrowed-assets={borrowedAssets.map((a) => a.symbol).join(",")}
       data-borrow-count={String(borrowCount)}
     >
@@ -192,17 +184,6 @@ const DEMO_LOAN_ROW = {
   displayOnly: true,
 };
 
-// The Ethereum-only control is read from the environment by the real
-// `featureFlags` getter. Pin it, or a run takes whatever the developer's
-// environment carries; unstub it, or the value reaches every later file.
-beforeEach(() => {
-  vi.stubEnv("NEXT_PUBLIC_FF_ENABLE_ETH_FIRST", undefined);
-});
-
-afterEach(() => {
-  vi.unstubAllEnvs();
-});
-
 describe("Loans page — loading gate", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -211,7 +192,6 @@ describe("Loans page — loading gate", () => {
     walletMock.confirmed = true;
     walletMock.address = "0xabc";
     useLoanOverrideMock.mockReturnValue(null);
-    useHealthFactorOverrideMock.mockReturnValue(null);
     useBorrowCapacityOverrideMock.mockReturnValue(null);
   });
 
@@ -233,23 +213,7 @@ describe("Loans page — loading gate", () => {
     expect(screen.queryByTestId("loans-summary")).not.toBeInTheDocument();
   });
 
-  it("shows the connect prompt for Ethereum alone while Ethereum-only access is off", () => {
-    walletMock.btcConnected = false;
-    useDashboardStateMock.mockReturnValue({
-      ...CONNECTED_LOADED,
-      hasLoans: true,
-      debtValueUsd: 1500,
-    });
-
-    render(<Loans />);
-
-    expect(screen.getByText(COPY.loans.emptyDisconnected)).toBeInTheDocument();
-    expect(useDashboardStateMock).toHaveBeenCalledWith(undefined);
-    expect(screen.queryByTestId("loans-summary")).not.toBeInTheDocument();
-  });
-
-  it("opens the loans summary for Ethereum alone under Ethereum-only access", () => {
-    vi.stubEnv("NEXT_PUBLIC_FF_ENABLE_ETH_FIRST", "true");
+  it("opens the loans summary for Ethereum alone", () => {
     walletMock.btcConnected = false;
     useDashboardStateMock.mockReturnValue({
       ...CONNECTED_LOADED,
@@ -511,7 +475,6 @@ describe("Loans page — god-mode summary overrides", () => {
     walletMock.confirmed = true;
     walletMock.address = "0xabc";
     useLoanOverrideMock.mockReturnValue(null);
-    useHealthFactorOverrideMock.mockReturnValue(null);
     useBorrowCapacityOverrideMock.mockReturnValue(null);
   });
 
@@ -551,21 +514,6 @@ describe("Loans page — god-mode summary overrides", () => {
     expect(summary).toHaveAttribute("data-capacity-error", "false");
   });
 
-  it("bands the forced health factor with the production rule", () => {
-    useDashboardStateMock.mockReturnValue({
-      ...CONNECTED_LOADED,
-      healthFactor: 5,
-      healthFactorStatus: "safe",
-    });
-    useHealthFactorOverrideMock.mockReturnValue(0.95);
-
-    render(<Loans />);
-
-    const summary = screen.getByTestId("loans-summary");
-    expect(summary).toHaveAttribute("data-health-factor", "0.95");
-    expect(summary).toHaveAttribute("data-health-factor-status", "danger");
-  });
-
   it("renders the summary from an override alone, with no position and no mocks", () => {
     walletMock.ethConnected = false;
     walletMock.address = undefined;
@@ -573,7 +521,10 @@ describe("Loans page — god-mode summary overrides", () => {
       ...CONNECTED_LOADED,
       hasCollateral: false,
     });
-    useHealthFactorOverrideMock.mockReturnValue(1.25);
+    useBorrowCapacityOverrideMock.mockReturnValue({
+      loading: true,
+      error: null,
+    });
 
     render(<Loans />);
 

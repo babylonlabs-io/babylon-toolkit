@@ -81,6 +81,9 @@ export function computeDisabledWallets(): string[] {
 
 const context = typeof window !== "undefined" ? window : {};
 
+// Only Ethereum gates the session; Bitcoin is asked for when an action needs it.
+const REQUIRED_CHAINS = ["ETH"] as const;
+
 // The wallet dialog is a full-viewport overlay, so its close/settings buttons
 // position with `fixed left`/`right`, not inside the page's 1080px content
 // box. These match that box's edge (per Figma: both inset 236px on the 1512px
@@ -230,9 +233,7 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
   const config = useMemo(
     () =>
       createWalletConfig({
-        chains: featureFlags.isEthFirstEnabled
-          ? ["ETH", "BTC"]
-          : ["BTC", "ETH"],
+        chains: ["ETH", "BTC"],
         networkConfigs: {
           BTC: getNetworkConfigBTC(),
           ETH: getNetworkConfigETH(),
@@ -260,7 +261,7 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
       context={context}
       onError={onError}
       disabledWallets={disabledWallets}
-      requiredChains={featureFlags.isEthFirstEnabled ? ["ETH"] : ["BTC", "ETH"]}
+      requiredChains={REQUIRED_CHAINS}
       disableTomo
       dialogActions={<StandardSettingsMenu theme={theme} setTheme={setTheme} />}
       dialogCloseButtonClassName={WALLET_DIALOG_LEFT_INSET_CLASS}
