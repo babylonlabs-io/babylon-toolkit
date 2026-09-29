@@ -18,7 +18,12 @@ import {
   type EthContractWriter,
 } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 import { AaveIntegrationAdapterABI } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
-import type { Hex, WalletClient } from "viem";
+import {
+  isAddressEqual,
+  parseEventLogs,
+  type Hex,
+  type WalletClient,
+} from "viem";
 
 import { HUB_ERROR_ABI } from "@/applications/aave/clients/hubErrors";
 import {
@@ -27,6 +32,18 @@ import {
 } from "@/clients/eth-contract/transactionFactory";
 import { CONTRACTS } from "@/config/contracts";
 import { getETHChain } from "@/config/network";
+
+/** The Aave adapter event that records a vault as collateral. */
+const COLLATERAL_ADDED_EVENT_ABI = [
+  {
+    type: "event",
+    name: "CollateralAdded",
+    inputs: [
+      { indexed: true, name: "positionAccount", type: "address" },
+      { indexed: true, name: "vaultId", type: "bytes32" },
+    ],
+  },
+] as const;
 
 export interface ActivateVaultParams {
   /** Vault ID (bytes32, 0x-prefixed) */
@@ -130,4 +147,25 @@ export async function activateVaultWithSecretAndRedeem(
     hashlock,
     writeContract: writer,
   });
+}
+
+/**
+ * True when the activation receipt carries the Aave adapter's
+ * `CollateralAdded` log for this vault. The registry can confirm an
+ * activation and still add no collateral (for example, it redeems the vault
+ * when a cap is exceeded), so a confirmed receipt alone does not prove it.
+ */
+export function activationAddedCollateral(
+  { receipt }: TransactionResult,
+  vaultId: Hex,
+): boolean {
+  return parseEventLogs({
+    abi: COLLATERAL_ADDED_EVENT_ABI,
+    logs: receipt.logs,
+    eventName: "CollateralAdded",
+  }).some(
+    (log) =>
+      isAddressEqual(log.address, CONTRACTS.AAVE_ADAPTER) &&
+      log.args.vaultId.toLowerCase() === vaultId.toLowerCase(),
+  );
 }

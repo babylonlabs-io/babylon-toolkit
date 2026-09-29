@@ -16,7 +16,6 @@ const featureFlagsMock = vi.hoisted(() => ({
   isDepositDisabled: false,
   isProtocolPaused: false,
   isProtocolFrozen: false,
-  isEthFirstEnabled: false,
 }));
 
 vi.mock("@/config", () => ({
@@ -32,6 +31,7 @@ const emptinessState = vi.hoisted(() => ({
   isEmpty: true,
   hasError: false,
   hasPartialError: false,
+  hasNonIndexerError: false,
   storageOnlyError: false,
 }));
 
@@ -71,8 +71,8 @@ vi.mock("@babylonlabs-io/wallet-connector", () => ({
   }),
 }));
 
-// The real gate, so the Ethereum-only control decides what this page treats as
-// connected. A hand-supplied `isConnected` would pass with the control removed.
+// The real gate decides what this page treats as connected. A hand-supplied
+// `isConnected` would not catch a change to the gate.
 vi.mock("@/context/wallet", async () => ({
   useConnection: (await import("@/context/wallet/useConnection")).useConnection,
   useETHWallet: (await import("@babylonlabs-io/wallet-connector")).useETHWallet,
@@ -80,8 +80,16 @@ vi.mock("@/context/wallet", async () => ({
 
 // Page-level data is exercised in the hook's own tests; the page test only
 // checks which body branch renders, so the sections are stubbed.
+const vaultsPageState = vi.hoisted(() => ({
+  position: null as { vaultIds: readonly string[] } | null,
+}));
+const pageDataState = vi.hoisted(() => ({
+  indexerError: null as Error | null,
+}));
+
 vi.mock("@/hooks/useVaultsPageData", () => ({
   useVaultsPageData: vi.fn(() => ({
+    position: vaultsPageState.position,
     summary: {
       totalCollateralBtc: "0 sBTC",
       totalCollateralUsd: "$0 USD",
@@ -92,6 +100,7 @@ vi.mock("@/hooks/useVaultsPageData", () => ({
     },
     displayVaults: [],
     rawCollateralVaults: [],
+    indexerError: pageDataState.indexerError,
     collateralBtc: 0,
     collateralValueUsd: 0,
   })),
@@ -117,6 +126,10 @@ vi.mock("@/components/vaults/VaultsLifecycleSections", () => ({
 
 vi.mock("@/components/vaults/VaultsActiveSection", () => ({
   VaultsActiveSection: () => <div data-testid="vaults-active-section" />,
+}));
+
+vi.mock("@/components/vaults/SplitVaultOrderWarning", () => ({
+  SplitVaultOrderWarning: () => <div data-testid="split-vault-order-warning" />,
 }));
 
 vi.mock("@/components/simple/WithdrawFlow", () => ({
@@ -170,15 +183,17 @@ describe("VaultsPage", () => {
     emptinessState.isEmpty = true;
     emptinessState.hasError = false;
     emptinessState.hasPartialError = false;
+    emptinessState.hasNonIndexerError = false;
     emptinessState.storageOnlyError = false;
+    pageDataState.indexerError = null;
     walletState.btcConnected = true;
     walletState.ethConnected = true;
     walletState.confirmed = true;
     gateState.protocol = null;
     gateState.aave = null;
     featureFlagsMock.isDepositDisabled = false;
-    featureFlagsMock.isEthFirstEnabled = false;
     addressTypeState.isSupportedAddress = true;
+    vaultsPageState.position = null;
   });
 
   it("shows the empty state with an enabled Deposit CTA when connected and empty", () => {
@@ -211,18 +226,7 @@ describe("VaultsPage", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("shows the connect prompt for Ethereum alone while Ethereum-only access is off", () => {
-    walletState.btcConnected = false;
-
-    renderVaultsPage();
-
-    expect(screen.getByTestId("connect-button")).toBeInTheDocument();
-    expect(useVaultsPageData).toHaveBeenCalledWith(undefined);
-    expect(screen.queryByTestId("deposit-button")).not.toBeInTheDocument();
-  });
-
-  it("opens the page for Ethereum alone under Ethereum-only access", () => {
-    featureFlagsMock.isEthFirstEnabled = true;
+  it("opens the page for a confirmed Ethereum wallet with no Bitcoin wallet", () => {
     walletState.btcConnected = false;
 
     const { openDeposit } = renderVaultsPage();
@@ -284,6 +288,17 @@ describe("VaultsPage", () => {
     expect(screen.getByTestId("vaults-active-section")).toBeInTheDocument();
   });
 
+  it("checks split order whenever the contract position has multiple vaults", () => {
+    emptinessState.isEmpty = false;
+    vaultsPageState.position = {
+      vaultIds: ["0xsacrificial", "0xprotected"],
+    };
+
+    renderVaultsPage();
+
+    expect(screen.getByTestId("split-vault-order-warning")).toBeInTheDocument();
+  });
+
   it("shows a partial-load warning over the populated layout when one source failed", () => {
     emptinessState.isEmpty = false;
     emptinessState.hasPartialError = true;
@@ -318,6 +333,7 @@ describe("VaultsPage", () => {
     emptinessState.isEmpty = false;
     emptinessState.hasError = true;
     emptinessState.hasPartialError = true;
+    emptinessState.hasNonIndexerError = true;
     storageState.storageReadError = new PendingPeginStorageReadError(
       "0xdepositor",
       '[{"id":',
@@ -332,6 +348,40 @@ describe("VaultsPage", () => {
     // this the warning could carry the generic copy as well and still pass.
     expect(warning).not.toHaveTextContent(COPY.vaults.partialLoadError.body);
     expect(screen.getByText(COPY.vaults.loadError)).toBeInTheDocument();
+  });
+
+  it("says why Withdraw and Reorder are disabled next to the storage warning", () => {
+    emptinessState.isEmpty = false;
+    emptinessState.hasPartialError = true;
+    emptinessState.hasNonIndexerError = true;
+    storageState.storageReadError = new PendingPeginStorageReadError(
+      "0xdepositor",
+      '[{"id":',
+      new SyntaxError("Unexpected end of JSON input"),
+    );
+    pageDataState.indexerError = new Error(
+      "Indexed collateral details do not match the chain position",
+    );
+
+    renderVaultsPage();
+
+    const warning = screen.getByTestId("vaults-partial-load-error");
+    expect(warning).toHaveTextContent(COPY.vaults.storageReadError);
+    expect(warning).toHaveTextContent(COPY.vaults.collateralListIncomplete);
+  });
+
+  it("does not claim totals or deposits are incomplete when only the indexed vault list failed", () => {
+    emptinessState.isEmpty = false;
+    emptinessState.hasPartialError = true;
+    pageDataState.indexerError = new Error(
+      "Indexed collateral details do not match the chain position",
+    );
+
+    renderVaultsPage();
+
+    const warning = screen.getByTestId("vaults-partial-load-error");
+    expect(warning).toHaveTextContent(COPY.vaults.collateralListIncomplete);
+    expect(warning).not.toHaveTextContent(COPY.vaults.partialLoadError.body);
   });
 
   it("does not show the partial-load warning when both sources loaded", () => {

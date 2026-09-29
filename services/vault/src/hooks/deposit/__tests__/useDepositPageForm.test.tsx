@@ -522,8 +522,7 @@ describe("useDepositPageForm", () => {
       unmount();
     });
 
-    it("offers the Bitcoin connect action when only Ethereum is confirmed under the ETH-first flag", () => {
-      vi.stubEnv("NEXT_PUBLIC_FF_ENABLE_ETH_FIRST", "true");
+    it("offers the Bitcoin connect action when only Ethereum is confirmed", () => {
       const connection = vi.mocked(useConnection);
       const currentConnection = connection();
       connection.mockReturnValue({
@@ -541,7 +540,6 @@ describe("useDepositPageForm", () => {
       expect(result.current.canConnectBtcWallet).toBe(true);
       unmount();
       btcWallet.mockReturnValue(currentBtcWallet);
-      vi.unstubAllEnvs();
     });
 
     it("should initialize with empty form data", () => {

@@ -17,12 +17,10 @@
  *     --action=connect [--data=real] [--delay=0] [--yes]
  *
  * `--eth-only` connects the Ethereum wallet ALONE, the way a depositor with no Bitcoin wallet reaches
- * the app once Ethereum-only access is on (#2228). It covers the Ethereum-side actions — connect,
- * borrow, repay, repay-all, multi-hub, withdraw — and is refused for anything that signs with Bitcoin,
- * including `--pegin-first`. The served build must have the access flag on: set the variable in the
- * invoking shell, as below, or in `.env.local`:
+ * the app (#2228). It covers the Ethereum-side actions — connect, borrow, repay, repay-all, multi-hub,
+ * withdraw — and is refused for anything that signs with Bitcoin, including `--pegin-first`:
  *
- *   NEXT_PUBLIC_FF_ENABLE_ETH_FIRST=true pnpm --filter vault run e2e:cli --yes \
+ *   pnpm --filter vault run e2e:cli --yes \
  *     --target=localhost --network=devnet --btc=unisat --eth=metamask --eth-only --action=borrow
  *
  * It needs collateral the account already holds, since it cannot peg in to create any. The Bitcoin
@@ -102,7 +100,6 @@ import {
 } from "./config";
 import { deriveEthAddress } from "./connector";
 import { describeHub } from "./hubLabels";
-import { resolveAppEnv } from "./networkContracts";
 import {
   fetchMinDepositBtc,
   fetchMinDepositForSplitBtc,
@@ -390,28 +387,13 @@ async function resolveConfig(
       "action",
     );
 
-    // Resolved here, before any further prompt: the guards below must refuse an impossible run rather
+    // Resolved here, before any further prompt: the guard below must refuse an impossible run rather
     // than first walking the user through questions (e.g. "Peg in first?") whose answer cannot be used.
     const ethOnly = flagBool(flags["eth-only"]);
-    if (ethOnly) {
-      if (!ETH_ONLY_ACTIONS.includes(action))
-        throw new Error(
-          `--eth-only cannot run --action=${action}; it needs a Bitcoin wallet. Supported: ${ETH_ONLY_ACTIONS.join(", ")}.`,
-        );
-      if (target === "website")
-        throw new Error(
-          "--eth-only needs a build with NEXT_PUBLIC_FF_ENABLE_ETH_FIRST=true; the deployed sites are built with it off, so use --target=localhost.",
-        );
-      // The dev server this CLI starts inherits THIS process's environment and reads the `.env*` files
-      // for the network's mode, so resolving the flag the same way knows it now — long before the
-      // browser, the wallet imports and the server boot that would otherwise be spent reaching a connect
-      // screen still demanding Bitcoin. A dev server already running is reused as-is; the connect
-      // screen's Bitcoin row check (walletConnect.ts) catches a flag-off one.
-      if (resolveAppEnv(network).NEXT_PUBLIC_FF_ENABLE_ETH_FIRST !== "true")
-        throw new Error(
-          "--eth-only needs NEXT_PUBLIC_FF_ENABLE_ETH_FIRST=true, so the dev server it starts serves a build with Ethereum-only access on. Set it in this shell or in services/vault/.env.local.",
-        );
-    }
+    if (ethOnly && !ETH_ONLY_ACTIONS.includes(action))
+      throw new Error(
+        `--eth-only cannot run --action=${action}; it needs a Bitcoin wallet. Supported: ${ETH_ONLY_ACTIONS.join(", ")}.`,
+      );
 
     // Optional: default to real/0 when not supplied (no error non-interactively).
     const dataMode =

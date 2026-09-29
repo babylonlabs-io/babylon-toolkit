@@ -23,6 +23,14 @@ const AUTH_ANCHOR = "b".repeat(64);
 const PINNED_PUBKEY =
   "ab".repeat(32) as unknown as OnChainBtcPubkey;
 const DEPOSITOR_PUBKEY = "cd".repeat(32);
+const PROVIDER_ADDRESS = `0x${"1".repeat(40)}`;
+const GRPC_KEY_EPOCH = 1n;
+
+const registryLookup = {
+  peginTxid: PEGIN_TXID,
+  providerAddress: PROVIDER_ADDRESS,
+  expectedAudienceXOnlyPubkey: DEPOSITOR_PUBKEY,
+};
 
 describe("createAuthenticatedVpClient", () => {
   beforeEach(() => {
@@ -39,20 +47,26 @@ describe("createAuthenticatedVpClient", () => {
       baseUrl: "https://vp.test/rpc",
       peginTxid: PEGIN_TXID,
       authAnchorHex: AUTH_ANCHOR,
+      providerAddress: PROVIDER_ADDRESS,
       pinnedServerPubkey: PINNED_PUBKEY,
+      grpcPinnedServerPubkey: PINNED_PUBKEY,
+      grpcKeyEpoch: GRPC_KEY_EPOCH,
       depositorBtcPubkey: DEPOSITOR_PUBKEY,
     });
-    const firstProvider = vpTokenRegistry.peek(PEGIN_TXID);
+    const firstProvider = vpTokenRegistry.peek(registryLookup);
     expect(firstProvider).toBeDefined();
 
     createAuthenticatedVpClient({
       baseUrl: "https://vp.test/rpc",
       peginTxid: PEGIN_TXID,
       authAnchorHex: AUTH_ANCHOR,
+      providerAddress: PROVIDER_ADDRESS,
       pinnedServerPubkey: PINNED_PUBKEY,
+      grpcPinnedServerPubkey: PINNED_PUBKEY,
+      grpcKeyEpoch: GRPC_KEY_EPOCH,
       depositorBtcPubkey: DEPOSITOR_PUBKEY,
     });
-    expect(vpTokenRegistry.peek(PEGIN_TXID)).toBe(firstProvider);
+    expect(vpTokenRegistry.peek(registryLookup)).toBe(firstProvider);
   });
 
   it("non-gated methods skip the tokenProvider — no token request is made", async () => {
@@ -69,14 +83,19 @@ describe("createAuthenticatedVpClient", () => {
       baseUrl: "https://vp.test/rpc",
       peginTxid: PEGIN_TXID,
       authAnchorHex: AUTH_ANCHOR,
+      providerAddress: PROVIDER_ADDRESS,
       pinnedServerPubkey: PINNED_PUBKEY,
+      grpcPinnedServerPubkey: PINNED_PUBKEY,
+      grpcKeyEpoch: GRPC_KEY_EPOCH,
       depositorBtcPubkey: DEPOSITOR_PUBKEY,
     });
 
-    await client.getPeginStatus({ pegin_txid: PEGIN_TXID }).catch(() => {
-      // Validation error is fine; we only care that fetch ran exactly
-      // once and no auth-create call was issued.
-    });
+    await client
+      .getPeginStatusByVaultId({ vault_id: "ab".repeat(32) })
+      .catch(() => {
+        // Validation error is fine; we only care that fetch ran exactly
+        // once and no auth-create call was issued.
+      });
 
     expect(fetchSpy).toHaveBeenCalledTimes(1);
   });

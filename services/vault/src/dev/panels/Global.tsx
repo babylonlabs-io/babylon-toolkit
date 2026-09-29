@@ -11,7 +11,7 @@
  * `useProtocolGateState`), so each gets a store override here that the
  * rendering component prefers over its live value. They live on this
  * always-visible tab, not the flag-gated Position tab, because they are
- * independent of the liquidation-notifications flag that gates that tab.
+ * independent of the cascade debug controls that tab holds.
  */
 import { useTheme } from "next-themes";
 import { useEffect } from "react";

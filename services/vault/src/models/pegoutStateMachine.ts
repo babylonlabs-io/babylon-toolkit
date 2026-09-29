@@ -29,7 +29,7 @@ export const PEGOUT_MAX_UNKNOWN_STATUS_POLLS = 20;
 /**
  * Whether a vault's pegout should be treated as terminal for polling purposes.
  *
- * Combines hard terminal statuses (PayoutBroadcast, Failed) with soft
+ * Combines hard terminal statuses (PayoutConfirmed, PayoutBlocked) with soft
  * terminal conditions (too many consecutive failures or unknown-status polls).
  */
 export function isPegoutEffectivelyTerminal(
@@ -71,7 +71,7 @@ const PEGOUT_STATUS_MAP: Record<string, PegoutDisplayState> = {
     variant: "pending",
     message: STATUS_COPY.assertBroadcast.message,
   },
-  [ClaimerPegoutStatusValue.PAYOUT_BROADCAST]: {
+  [ClaimerPegoutStatusValue.PAYOUT_CONFIRMED]: {
     label: STATUS_COPY.payoutBroadcast.label,
     variant: "active",
     message: STATUS_COPY.payoutBroadcast.message,
@@ -100,12 +100,12 @@ export const TIMED_OUT_STATE: PegoutDisplayState = {
 const CLAIM_ON_CHAIN_STATUSES = new Set<string>([
   ClaimerPegoutStatusValue.CLAIM_BROADCAST,
   ClaimerPegoutStatusValue.ASSERT_BROADCAST,
-  ClaimerPegoutStatusValue.PAYOUT_BROADCAST,
+  ClaimerPegoutStatusValue.PAYOUT_CONFIRMED,
   ClaimerPegoutStatusValue.PAYOUT_BLOCKED,
 ]);
 const ASSERT_ON_CHAIN_STATUSES = new Set<string>([
   ClaimerPegoutStatusValue.ASSERT_BROADCAST,
-  ClaimerPegoutStatusValue.PAYOUT_BROADCAST,
+  ClaimerPegoutStatusValue.PAYOUT_CONFIRMED,
   ClaimerPegoutStatusValue.PAYOUT_BLOCKED,
 ]);
 
@@ -130,7 +130,7 @@ export function getPegoutTxLinkFlags(claimerStatus: string | undefined): {
  * Whether a polling result represents a withdrawal that is still actively
  * progressing — drives the "Pending Withdrawals" header spinner.
  *
- * False once the vault is protocol-terminal (`PAYOUT_BROADCAST` /
+ * False once the vault is protocol-terminal (`PAYOUT_CONFIRMED` /
  * `PAYOUT_BLOCKED`) **or** polling has given up at `TIMED_OUT_STATE` (≥failure /
  * unknown-poll thresholds). The timed-out case is detected by reference to the
  * `TIMED_OUT_STATE` singleton because its claimer status is `undefined` or an
@@ -142,7 +142,7 @@ export function isPegoutInProgress(
 ): boolean {
   if (displayState === TIMED_OUT_STATE) return false;
   return (
-    claimerStatus !== ClaimerPegoutStatusValue.PAYOUT_BROADCAST &&
+    claimerStatus !== ClaimerPegoutStatusValue.PAYOUT_CONFIRMED &&
     claimerStatus !== ClaimerPegoutStatusValue.PAYOUT_BLOCKED
   );
 }
@@ -201,7 +201,7 @@ export function getPegoutStageProgress(
           (STAGE_PROGRESS.challengeCeiling - STAGE_PROGRESS.challengeBase)
       );
     }
-    case ClaimerPegoutStatusValue.PAYOUT_BROADCAST:
+    case ClaimerPegoutStatusValue.PAYOUT_CONFIRMED:
     case ClaimerPegoutStatusValue.PAYOUT_BLOCKED:
       return STAGE_PROGRESS.payoutSent;
     default:

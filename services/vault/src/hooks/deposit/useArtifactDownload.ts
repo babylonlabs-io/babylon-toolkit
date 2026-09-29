@@ -1,8 +1,12 @@
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
-import { stripHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
+import {
+  processPublicKeyToXOnly,
+  stripHexPrefix,
+} from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
   isAuthRejectedError,
   vpTokenRegistry,
+  type VpTokenRegistryLookup,
 } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { useCallback, useRef, useState } from "react";
 import type { Hex } from "viem";
@@ -210,6 +214,35 @@ export function useArtifactDownload(options?: {
       // deposit when no vaultId is mounted, and is public on-chain data
       // (shortened before emission anyway).
       const telemetryVaultId = vaultId ?? normalizedPeginTxid;
+      // `peek` throws when the cached token is bound to another provider or
+      // depositor. The caller does not await `download`, so an uncaught throw
+      // here would be a silent unhandled rejection.
+      const failTokenBinding = (err: unknown) => {
+        captureFunnelFailure(
+          TELEMETRY_STAGE.ACTIVATION_ARTIFACTS,
+          err,
+          telemetryVaultId,
+          { tags: { site: "token_binding" } },
+        );
+        setState({
+          ...INITIAL_STATE,
+          error: COPY.deposit.recoveryArtifacts.cannotAuthenticate,
+        });
+      };
+      let tokenBinding: VpTokenRegistryLookup;
+      let hasCachedToken: boolean;
+      try {
+        tokenBinding = {
+          peginTxid: normalizedPeginTxid,
+          providerAddress,
+          expectedAudienceXOnlyPubkey: processPublicKeyToXOnly(depositorPk),
+        };
+        hasCachedToken = !demoDownload && !!vpTokenRegistry.peek(tokenBinding);
+      } catch (err) {
+        abortControllerRef.current?.abort();
+        failTokenBinding(err);
+        return;
+      }
 
       // Without a stored fingerprint the bundle can never pass check (a), so
       // stop before the save dialog, the wallet prompt and the stream. The
@@ -228,11 +261,7 @@ export function useArtifactDownload(options?: {
       }
       const signedGraphFingerprint = signedGraph.fingerprint;
 
-      if (
-        !demoDownload &&
-        !vpTokenRegistry.peek(normalizedPeginTxid) &&
-        !requireBtcWallet()
-      ) {
+      if (!demoDownload && !hasCachedToken && !requireBtcWallet()) {
         // Mark any in-flight download stale, as `cancel` does, so it settles
         // silently instead of overwriting this error.
         abortControllerRef.current?.abort();
@@ -342,7 +371,13 @@ export function useArtifactDownload(options?: {
         // The simulated fetch never talks to a vault provider, so it needs
         // no bearer (and must not prompt the wallet for one).
         if (demoDownload) return true;
-        if (vpTokenRegistry.peek(normalizedPeginTxid)) return true;
+        try {
+          if (vpTokenRegistry.peek(tokenBinding)) return true;
+        } catch (err) {
+          if (isStale()) return false;
+          failTokenBinding(err);
+          return false;
+        }
         if (!primeContext) {
           // A surface mounted the card without the prime inputs and the token
           // cache is cold: every attempt is dead on arrival. A flow-wiring
@@ -563,12 +598,12 @@ export function useArtifactDownload(options?: {
             primeAttempted = true;
             // Drop any cached token so the next acquire goes back to the server.
             // Covers the hot-but-stale case (auth_expired); harmless on cold cache.
-            vpTokenRegistry.peek(normalizedPeginTxid)?.invalidate();
             if (!requireBtcWallet()) {
               setError(COPY.wallet.btcAction.error);
               return;
             }
             try {
+              vpTokenRegistry.peek(tokenBinding)?.invalidate();
               const primed = await tryPrimeAndRetry();
               if (primed && !isStale()) {
                 setState((prev) => ({

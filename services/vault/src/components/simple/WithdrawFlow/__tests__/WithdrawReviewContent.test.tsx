@@ -20,10 +20,6 @@ vi.mock("@/hooks/useNetworkFees", () => ({
   }),
 }));
 
-vi.mock("@/context/ProtocolParamsContext", () => ({
-  useProtocolParamsContext: () => ({ minVpCommissionBps: 250 }),
-}));
-
 const baseProps = {
   totalAmountBtc: 0.6,
   totalAmountUsd: 21_686.17,
@@ -31,6 +27,11 @@ const baseProps = {
   projectedHealthFactor: 1.3,
   payoutAddresses: ["bc1qexampleaddress"],
   assertTimelockBlocks: 144,
+  vpCommission: {
+    status: "ready" as const,
+    vaultIds: ["0xaaa" as const],
+    commissionSats: 1_500_000n,
+  },
   isProcessing: false,
   error: null,
   hubBlockMessage: null,
@@ -50,7 +51,7 @@ describe("WithdrawReviewContent", () => {
     expect(screen.getByText("Network Fee Rate")).toBeInTheDocument();
     expect(screen.getByText("3 sats/vB")).toBeInTheDocument();
 
-    // 2.5% of 0.6 BTC = 0.015 BTC / $542.15 — unchanged by the restyle.
+    // 1_500_000 sats = 0.015 BTC, 2.5% of 0.6 BTC, so $542.15.
     // (The test env is signet, so the coin symbol renders as sBTC.)
     expect(screen.getByText("VP Commission")).toBeInTheDocument();
     expect(screen.getByText("0.015 sBTC")).toBeInTheDocument();
@@ -160,6 +161,33 @@ describe("WithdrawReviewContent", () => {
 
     expect(screen.getByTestId("withdraw-hub-block-warning")).toHaveTextContent(
       "Core Hub, where you have debt, isn't accepting transactions right now.",
+    );
+    expect(screen.getByTestId("withdraw-confirm-button")).toBeDisabled();
+  });
+
+  it("blocks confirmation while the vaults' commission is still loading", () => {
+    render(
+      <WithdrawReviewContent
+        {...baseProps}
+        vpCommission={{ status: "loading" }}
+      />,
+    );
+
+    expect(screen.getByText("Loading...")).toBeInTheDocument();
+    expect(screen.getByTestId("withdraw-confirm-button")).toBeDisabled();
+  });
+
+  it("blocks confirmation and explains why when the commission read fails", () => {
+    render(
+      <WithdrawReviewContent
+        {...baseProps}
+        vpCommission={{ status: "error" }}
+      />,
+    );
+
+    expect(screen.getByText("Unavailable")).toBeInTheDocument();
+    expect(screen.getByTestId("withdraw-commission-error")).toHaveTextContent(
+      "Could not read the vault provider commission",
     );
     expect(screen.getByTestId("withdraw-confirm-button")).toBeDisabled();
   });

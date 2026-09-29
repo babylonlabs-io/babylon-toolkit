@@ -62,8 +62,6 @@ interface ProtocolParamsContextValue {
   timelockPegin: number;
   /** CSV timelock in blocks for the Pre-PegIn HTLC refund path (from offchain params tRefund) */
   timelockRefund: number;
-  /** Minimum vault provider commission in basis points (e.g., 500 = 5%) */
-  minVpCommissionBps: number;
   /** Latest universal challengers - use for new peg-ins */
   latestUniversalChallengers: UniversalChallenger[];
   /** Get offchain params by version - use for depositor graph signing */
@@ -175,7 +173,6 @@ export function ProtocolParamsProvider({
     maxDeposit: configData.maxPegInAmount,
     timelockPegin: configData.timelockPegin,
     timelockRefund: configData.timelockRefund,
-    minVpCommissionBps: configData.minVpCommissionBps,
     latestUniversalChallengers,
     getOffchainParamsByVersion,
   };

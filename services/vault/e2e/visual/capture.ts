@@ -32,11 +32,13 @@ import type { RecordedBackend } from "../fixtures/replay/recording";
 
 import { installVisualDeterminism, waitForVisualStability } from "./stabilize";
 import {
+  CONNECT_GUIDE_STOP,
   DEPOSIT_FLOW_STEPS,
   DEPOSIT_FLOW_STOPS,
   DEPOSIT_PROGRESS_STOPS,
   depositProgressStepStop,
   flowScreenshotFileName,
+  HAS_CONNECT_GUIDE,
   HAS_LIQUIDATION_TOUR,
   LIQUIDATION_CHART_STOP,
   LIQUIDATION_TOUR_STOPS,
@@ -402,6 +404,7 @@ export async function ensureOutputDir(): Promise<void> {
       ...DEPOSIT_FLOW_STEPS.map(depositProgressStepStop),
       LIQUIDATION_CHART_STOP,
       ...(HAS_LIQUIDATION_TOUR ? Object.values(LIQUIDATION_TOUR_STOPS) : []),
+      ...(HAS_CONNECT_GUIDE ? [CONNECT_GUIDE_STOP] : []),
     ].flatMap((stop) =>
       VISUAL_VIEWPORTS.map((viewport) =>
         flowScreenshotFileName(stop, viewport),

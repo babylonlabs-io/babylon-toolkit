@@ -124,6 +124,11 @@ export interface PeginState {
    * which must keep their own presentation and their View-details control.
    */
   activationFloorBlocksRemaining?: number | null;
+  /**
+   * Set ONLY when the split-order branch rendered — an earlier sibling of the
+   * same Pre-PegIn must activate first. Read like the floor field above.
+   */
+  activationBlockedBySibling?: boolean;
   payoutSignedAt?: number;
 }
 
@@ -193,11 +198,18 @@ export interface GetPeginStateOptions {
    * separate field: this vault is healthy and waiting, NOT expired, so it must
    * keep the pending variant and its progress step.
    *
-   * - `undefined` → not gated (window open, or the feature is off)
+   * - `undefined` → not gated (window open)
    * - `number` → gated, that many blocks remain
    * - `null` → gated, remaining unknown (a chain read failed; fail-closed)
    */
   activationFloorBlocksRemaining?: number | null;
+  /**
+   * VERIFIED only: a lower construction-index sibling of the same Pre-PegIn
+   * can still join the liquidation queue, so this vault must wait. UX only —
+   * `assertActivationFollowsConstructionOrder` re-checks on chain before the
+   * secret is revealed.
+   */
+  activationBlockedBySibling?: boolean;
   /**
    * True only when the deposit can be refunded *now*: the Pre-PegIn tx
    * exists AND the HTLC CSV timelock (`tRefund`) has elapsed. The
@@ -467,7 +479,8 @@ export function getPeginState(
   // floor must not let the secret reach simulation calldata.
   const floorAdjustedActions =
     contractStatus === ContractStatus.VERIFIED &&
-    isActivationFloorGating(options.activationFloorBlocksRemaining)
+    (isActivationFloorGating(options.activationFloorBlocksRemaining) ||
+      options.activationBlockedBySibling === true)
       ? deadlineAdjustedActions.filter(
           (a) => a !== SdkPeginAction.ACTIVATE_VAULT,
         )
@@ -565,6 +578,8 @@ interface DisplayInfo {
    * mistaken for one that is waiting out the floor.
    */
   activationFloorBlocksRemaining?: number | null;
+  /** Set only by the split-order branch, like the floor field above. */
+  activationBlockedBySibling?: boolean;
   displayVariant: "pending" | "active" | "inactive" | "warning" | "danger";
   message?: string;
   awaitingPayoutPrep?: boolean;
@@ -738,6 +753,17 @@ function getDisplay(
                 blocks,
                 activationFloorMinutesRemaining(blocks),
               ),
+      };
+    }
+    // An earlier split sibling must join the liquidation queue first. Healthy
+    // and waiting, like the floor branch, so it keeps the pending variant.
+    if (options.activationBlockedBySibling) {
+      return {
+        displayLabel: PEGIN_DISPLAY_LABELS.AWAITING_EARLIER_VAULT,
+        displayVariant: "pending",
+        activationBlockedBySibling: true,
+        inlineSubtext: COPY.pegin.messages.activationOrderSubtext,
+        message: COPY.pegin.messages.activationOrderWaiting,
       };
     }
     return {

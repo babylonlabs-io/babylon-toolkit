@@ -171,6 +171,28 @@ describe("useVaultProviders disabled filtering", () => {
     expect(result.current.findProvider(DISABLED_ID)?.id).toBe(DISABLED_ID);
   });
 
+  it("resolves a provider whose RPC URL is missing", () => {
+    const providerWithoutRpcUrl: VaultProvider = {
+      id: DISABLED_ID,
+      btcPubKey: "0xbeef",
+      metadataStatus: "missing",
+      metadataRejectionReason: "rpcUrl is missing",
+    };
+    mockedUseQuery.mockReturnValue({
+      data: { vaultProviders: [providerWithoutRpcUrl], vaultKeepers: [] },
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    } as never);
+
+    const { result } = renderHook(() => useVaultProviders());
+
+    const resolvedProvider = result.current.findProvider(DISABLED_ID);
+
+    expect(resolvedProvider).toMatchObject(providerWithoutRpcUrl);
+    expect(resolvedProvider?.url).toBeUndefined();
+  });
+
   it("lists every VP when none are disabled", () => {
     const { result } = renderHook(() => useVaultProviders());
 

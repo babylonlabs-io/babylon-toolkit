@@ -247,28 +247,22 @@ function toVaultProviders(
   rawProviders: GraphQLVaultProviderItem[],
   appKey: string,
 ): VaultProvider[] {
-  const withRpcUrl = rawProviders.filter(
-    (provider): provider is GraphQLVaultProviderItem & { rpcUrl: string } =>
-      provider.rpcUrl !== null,
-  );
-  if (withRpcUrl.length < rawProviders.length) {
-    logger.warn("Dropped vault providers with null rpcUrl from indexer", {
-      dropped: rawProviders.length - withRpcUrl.length,
-      total: rawProviders.length,
-    });
-  }
-
-  const vaultProviders: VaultProvider[] = withRpcUrl
+  const vaultProviders: VaultProvider[] = rawProviders
     .filter((provider) => validateAppProvider(provider) !== null)
     .map((provider) => ({
       id: provider.id,
       btcPubKey: provider.btcPubKey,
       name: provider.name ?? undefined,
-      url: provider.rpcUrl,
+      url: provider.rpcUrl ?? undefined,
       metadataStatus: normalizeMetadataStatus(provider.metadataStatus),
       metadataRejectionReason: provider.metadataRejectionReason ?? undefined,
     }));
 
+  // The indexer knows providers but every row failed validation: a systemic
+  // schema/data regression that blocks every deposit at the picker. Distinct
+  // from a legitimately empty application.
+  // Once per application per session — React Query refetches call this on
+  // every poll, and a persistent regression must not re-count itself.
   if (
     rawProviders.length > 0 &&
     vaultProviders.length === 0 &&

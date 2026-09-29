@@ -148,6 +148,7 @@ export const COPY = {
       PROCESSING: "Processing",
       READY_TO_ACTIVATE: "Ready to activate",
       AWAITING_ACTIVATION_WINDOW: "Awaiting activation window",
+      AWAITING_EARLIER_VAULT: "Awaiting earlier BTCVault",
       ACTIVATION_INCOMPLETE: "Activation incomplete",
       AVAILABLE: "Available",
       IN_USE: "In use",
@@ -254,6 +255,19 @@ export const COPY = {
       // against an unverifiable gate.
       activationWindowUnavailable:
         "Could not confirm the BTCVault activation window. Nothing was submitted — please try again in a moment.",
+      // Split-deposit activation order. The earlier (sacrificial) BTCVault must
+      // join the liquidation queue before the later one.
+      activationOrderWaiting:
+        "This split deposit activates in order. Activate the earlier BTCVault first, so it is liquidated before this one.",
+      activationOrderSubtext: "Activate the earlier BTCVault first",
+      activationOrderBlocked:
+        "Activate the earlier BTCVault in this split deposit first. Nothing was submitted — the split's liquidation order must match its construction order.",
+      activationOrderUnavailable:
+        "Could not confirm this split deposit's activation order. Nothing was submitted — reload the page and try again.",
+      // Terminal: the registry data itself is inconsistent, so a retry reads
+      // the same records and fails the same way.
+      activationOrderInconsistent:
+        "This split deposit's on-chain records are inconsistent, so its activation order cannot be confirmed. Nothing was submitted — contact support.",
       inUseCannotRedeem:
         "BTCVault is currently being used as collateral. Repay all debt before redeeming.",
       redemptionInProgress:
@@ -286,6 +300,10 @@ export const COPY = {
       amlRejected: "This deposit was rejected by AML screening.",
       ingestionRejected:
         "The vault provider could not ingest this deposit; it cannot proceed.",
+      babeSetupFailed:
+        "The vault provider could not complete setup for this deposit; it cannot proceed.",
+      unrecognizedStatus:
+        "The vault provider reported a status this app does not recognize. Please contact support.",
     },
     primaryAction: {
       SUBMIT_WOTS_KEY: "Submit WOTS Key",
@@ -606,7 +624,7 @@ export const COPY = {
       lowFeeWarning: "Fees are low; inclusion is not guaranteed",
     },
     activateConfirmation: {
-      title: "Activate your BTCVault",
+      title: "Download BTCVault artifacts",
       // The download instruction is emphasized (primary text color) per the
       // design; the surrounding prose stays secondary.
       body: [
@@ -622,11 +640,20 @@ export const COPY = {
       // pairs with the green-card layout.
       titleDownloaded: ARTIFACTS_DOWNLOADED_TITLE,
       bodyDownloaded: ARTIFACTS_DOWNLOADED_BODY,
+      // Shown in place of the activation copy while the artifacts stream.
+      downloadingTitle: "Downloading BTCVault artifacts",
+      downloadingBody:
+        "This may take a few minutes depending on your connection.",
       riskAcknowledgement:
         "I understand the risks of continuing without the artifacts.",
       activateButton: "Activate BTCVault",
       cancelButton: "Cancel",
       cancelDownloadButton: CANCEL_DOWNLOAD_LABEL,
+      downloadButton: "Download Artifacts",
+      continueWithoutButton: "Continue without",
+      confirmSkipTitle: "Are you sure?",
+      confirmSkipBody:
+        "Continuing without downloading the recovery artifacts may put your funds at risk if your vault provider becomes unavailable.",
     },
     // Activate-and-redeem escape hatch: reveals the HTLC secret and redeems
     // the BTCVault in one transaction, skipping application activation.
@@ -694,11 +721,7 @@ export const COPY = {
       // Size variant rendered once the download has completed — the
       // "Up to" hedge no longer applies because the file is on disk.
       cardSizeDownloaded: "~1 GB",
-      downloadButton: "Download Artifacts",
       downloadingButton: "Downloading...",
-      retryButton: "Retry",
-      walletSignatureHint:
-        "You may be asked to approve a signature in your wallet to authenticate.",
       // Caption under the progress bar while bytes are streaming.
       doNotCloseHint: "Do not close this window while downloading.",
       cannotAuthenticate:
@@ -744,9 +767,6 @@ export const COPY = {
       unverifiedSaveTitle: "Download finished, but we cannot confirm it saved",
       unverifiedSaveNotice:
         "Check your downloads folder for the file. Because this browser does not report whether the save completed, your BTCVault will keep showing the artifact warning. To clear it, download again using a Chromium-based browser such as Chrome or Brave.",
-      // The fallback path may well have worked; this offers a retry without
-      // implying the first attempt failed.
-      downloadAgainButton: "Download Again",
       // pegin.md §5.9 check (a). The artifacts are compared with a record of
       // the transactions this browser signed. No record means no comparison,
       // so the download is refused and only the risk acknowledgement remains.
@@ -843,6 +863,7 @@ export const COPY = {
           ? `${TWO_VAULT_SPLIT_NAME} - ${splitRatioLabel}`
           : TWO_VAULT_SPLIT_NAME,
       splitOptionRecommended: "(Recommended)",
+      splitSliderStepLabel: "2 UTXO Split",
       // Shown inside the expanded split selector, under the two-vault option,
       // when the deposit is below the minimum needed to split across two
       // vaults; that option stays visible but disabled. `minBtc` already
@@ -1084,6 +1105,12 @@ export const COPY = {
         `Pre-Pegin transaction hash mismatch: computed ${computedHash} from indexer tx, but on-chain contract has ${chainHash}. Aborting to prevent potential attack.`,
       refundHashMismatch: (computedHash: string, chainHash: string) =>
         `Pre-Pegin transaction hash mismatch: computed ${computedHash} from indexer tx, but on-chain contract has ${chainHash}. Aborting refund to prevent potential attack.`,
+      vaultProviderMismatch: (
+        vaultId: string,
+        requested: string,
+        onChain: string,
+      ) =>
+        `Vault provider mismatch for BTCVault ${vaultId}: requested ${requested}, but on-chain contract has ${onChain}. Aborting to prevent potential attack.`,
       vaultNotFound: "BTCVault not found. Please try again.",
       prePeginIndexerTxMismatch:
         "Transaction mismatch: the indexer returned a transaction that differs from the locally stored copy. Aborting to prevent a potential attack.",
@@ -1505,7 +1532,7 @@ export const COPY = {
       description: "Unlock your Bitcoin wallet in your extension to continue.",
       unlockButton: "Unlock wallet",
       // Deposit-form CTA: names the action the unlock unblocks, unlike the
-      // navbar / progress-modal button which is just "Unlock wallet".
+      // wallet-menu entry and progress-modal button, which are just "Unlock wallet".
       unlockToDepositButton: "Unlock Wallet to Deposit",
       unlocking: "Unlocking wallet...",
     },
@@ -1645,8 +1672,10 @@ export const COPY = {
       healthFactorLabel: "Health Factor",
       networkFeeRateLabel: "Network Fee Rate",
       vpCommissionLabel: "VP Commission",
-      // Shown when the vault providers charge no commission at all.
-      noCommission: "None",
+      vpCommissionUnavailable: "Unavailable",
+      // Reopening the dialog reads the commission again.
+      vpCommissionError:
+        "Could not read the vault provider commission for the selected BTCVaults. Close this window and try again.",
       confirmButton: "Confirm",
       processing: "Processing",
       hfBlockTitle: "Withdraw unavailable",
@@ -1738,9 +1767,6 @@ export const COPY = {
     // v3 Loans page empty state, disconnected — no position to describe yet,
     // so it's a title-only prompt like the Activity tab's.
     emptyDisconnected: connectToView("loans"),
-    // v3 Loans summary — caption under the health-factor value.
-    healthFactorCaption:
-      "When the ratio falls below 1.0, liquidation may occur.",
     // Live drawn borrow rate for the asset (Aave Hub), no compounding applied —
     // an APR, the same figure the asset picker labels "Borrow APR". One number,
     // one label.
@@ -2073,6 +2099,9 @@ export const COPY = {
     activity: "Activity",
     liquidations: "Liquidations",
     explore: "Explore",
+    pendingDeposits: (count: number) =>
+      `${count} pending ${count === 1 ? "deposit" : "deposits"}`,
+    pendingDepositsOverflow: (max: number) => `${max}+`,
     termsOfUse: "Terms of Use",
     privacyPolicy: "Privacy Policy",
   },
@@ -2334,6 +2363,18 @@ export const COPY = {
       title: "Some of your BTCVault data couldn't be loaded",
       body: "Totals or deposits shown may be incomplete. Refresh the page to try again.",
     },
+    splitOrderWarning: {
+      title: "BTCVault liquidation order needs attention",
+      body: "This split deposit is not ordered as it was constructed. Until the order is restored, a liquidation could seize the protected BTCVault before the sacrificial BTCVault.",
+      action: "Restore Split Order",
+      unverifiedTitle: "Could not check BTCVault liquidation order",
+      unverifiedBody:
+        "Your BTCVault liquidation order could not be read from the chain, so a wrong order cannot be ruled out. Refresh the page to try again.",
+    },
+    // The indexed vault list failed to load or does not match the chain
+    // position yet. Withdraw and Reorder stay disabled until it matches.
+    collateralListIncomplete:
+      "Your BTCVault list may be incomplete or out of date. Withdraw and Reorder are unavailable until it matches your on-chain position.",
     summary: {
       totalCollateralLabel: "Total Collateral Value",
       activeVaultsLabel: "Active Vaults",
@@ -2542,9 +2583,9 @@ export const COPY = {
       `Critical — liquidation in ${distancePct}`,
     liquidatable: "Critical — liquidation can trigger now",
   },
-  // Liquidation-notification warnings shown in the position banner. Mirrors the
-  // warning types produced by the calculator: urgent / cliff / reorder / dust /
-  // weird-params / too-many-vaults. Wording is ported from the reference
+  // Liquidation-notification warnings. Mirrors the warning types produced by the
+  // calculator: urgent / cliff / reorder / dust / weird-params / too-many-vaults.
+  // All but dust are shown in the position banner. Wording is ported from the reference
   // liquidation calculator (the source of truth for this copy).
   liquidationWarnings: {
     incompletePosition: "Indexed collateral data is incomplete",
@@ -2642,6 +2683,18 @@ export const COPY = {
       title: "Small position - simplified view",
       detail:
         "Below $1,000 the cascade simplifies — all BTCVaults are shown as one liquidation event. Small positions don't have meaningful multi-event behavior.",
+    },
+    // The BTC price is stale or unreadable, so no cascade is computed.
+    stalePrice: {
+      title: "Position notifications temporarily unavailable",
+      detail:
+        "BTC price data is stale or unavailable. Notifications will resume when fresh price data is available.",
+    },
+    // Groups exist, nothing warns and the order is already optimal.
+    optimal: {
+      title: "Position optimally structured",
+      detail:
+        "BTC Vault ordering is correct and partial liquidation is enabled.",
     },
     // The Spoke risk-parameter read failed, so no cascade can be computed.
     // The live health-factor card is computed separately and still shows.

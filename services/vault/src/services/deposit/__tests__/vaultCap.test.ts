@@ -12,7 +12,7 @@ import {
 const PERMISSIVE_HTLC_CAP = 10;
 
 describe("resolveVaultCapState", () => {
-  it("blocks neither when the flag is off", () => {
+  it("blocks neither when per-position enforcement is off", () => {
     expect(
       resolveVaultCapState({
         existingVaultCount: 10,
@@ -116,9 +116,9 @@ describe("resolveVaultCapState", () => {
   });
 
   it("applies the HTLC cap even when per-position enforcement is off", () => {
-    // Different contracts, different flags: the liquidation-notifications flag
-    // gates the per-position cap only, and must not switch off a protocol limit
-    // the build will enforce regardless.
+    // Different contracts, different switches: `enabled` gates the
+    // per-position cap only, and must not switch off a protocol limit the
+    // build will enforce regardless.
     expect(
       resolveVaultCapState({
         existingVaultCount: 0,

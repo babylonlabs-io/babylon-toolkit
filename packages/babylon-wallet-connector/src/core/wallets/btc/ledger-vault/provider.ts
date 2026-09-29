@@ -84,7 +84,7 @@ const COIN_TYPE_BY_NETWORK: Record<Network, number> = {
 
 // Firmware Makefile APPNAME: COIN=babylon_vault → "Babylon Vault"; COIN=babylon_vault_testnet
 // (which targets signet) → "Babylon Vault Testnet". The dashboard reports "BOLOS".
-const APP_NAME_BY_NETWORK: Record<Network, string> = {
+export const APP_NAME_BY_NETWORK: Record<Network, string> = {
   [Network.MAINNET]: "Babylon Vault",
   [Network.TESTNET]: "Babylon Vault Testnet",
   [Network.SIGNET]: "Babylon Vault Testnet",
@@ -581,7 +581,7 @@ export class LedgerVaultProvider implements IBTCProvider {
 
   /**
    * Derive the 32-byte context root, always with the approval screen — a
-   * silent derivation produces a root that can never load an intent.
+   * silent derivation returns no root, and the host needs it.
    */
   deriveContextHash = async (appName: string, context: string): Promise<string> =>
     this.withDeviceOperation("deriveContextHash", () => this.doDeriveContextHash(appName, context));
@@ -1073,14 +1073,6 @@ export class LedgerVaultProvider implements IBTCProvider {
         wallet: WALLET_PROVIDER_NAME,
       });
     }
-    // Buffer.from(hex) truncates silently — reject malformed input loudly.
-    if (!/^(?:[0-9a-fA-F]{2})+$/.test(psbtHex)) {
-      throw new WalletError({
-        code: ERROR_CODES.INVALID_PARAMS,
-        message: `${label} needs even-length hexadecimal; got ${psbtHex.length} chars.`,
-        wallet: WALLET_PROVIDER_NAME,
-      });
-    }
     // Carrying a leaf is not the same as being signed: since #2281 Payout input 1
     // carries the Assert payout leaf only so the device can display the terms.
     // Only the indices are honoured: `publicKey` is inert because the table pins
@@ -1375,13 +1367,6 @@ function toStagingWalletError(error: unknown, context: string): WalletError {
 }
 
 /**
- * Map the signer package's typed device outcomes onto the connector's
- * WalletError taxonomy; the messages (with their "User rejected" prefix)
- * pass through unchanged. Returns undefined for anything unrecognised.
- * Shared by the ceremony sender wrapper and the SIGN_PSBT seam — the raw
- * sender's loop errors never pass through {@link withWalletErrorMapping}.
- */
-/**
  * Sign-seam failure mapping: the two "intent gone" status words and the
  * signer's own typed sign errors carry DEVICE_CEREMONY_INVALID — the typed
  * signal #2110's UX routes restart-from-derivation on (the message suffix
@@ -1434,6 +1419,13 @@ function toSignFailureWalletError(error: unknown, label: string): WalletError {
   );
 }
 
+/**
+ * Map the signer package's typed device outcomes onto the connector's
+ * WalletError taxonomy; the messages (with their "User rejected" prefix)
+ * pass through unchanged. Returns undefined for anything unrecognised.
+ * Shared by the ceremony sender wrapper and the SIGN_PSBT seam — the raw
+ * sender's loop errors never pass through {@link withWalletErrorMapping}.
+ */
 function toSignerWalletError(error: unknown): WalletError | undefined {
   if (isLedgerUserRefusedError(error)) {
     return new WalletError(
