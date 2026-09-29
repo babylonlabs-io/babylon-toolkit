@@ -62,9 +62,14 @@ export class VpTokenRegistry {
           `VpTokenRegistry: peginTxid ${input.peginTxid} already bound to authAnchorHex ${existing.authAnchorHex.slice(0, 8)}…; got ${input.authAnchorHex.slice(0, 8)}…`,
         );
       }
-      if (existing.providerAddress !== input.providerAddress) {
+      // Case-insensitive, as in `peek`: callers prime with the indexer's
+      // lowercase address or the contract's checksummed one.
+      if (
+        existing.providerAddress.toLowerCase() !==
+        input.providerAddress.toLowerCase()
+      ) {
         throw new Error(
-          `VpTokenRegistry: peginTxid ${input.peginTxid} already bound to providerAddress ${existing.providerAddress ?? "<unset>"}; got ${input.providerAddress ?? "<unset>"}`,
+          `VpTokenRegistry: peginTxid ${input.peginTxid} already bound to providerAddress ${existing.providerAddress}; got ${input.providerAddress}`,
         );
       }
       if (
@@ -89,8 +94,8 @@ export class VpTokenRegistry {
         );
       }
       if (
-        existing.expectedAudienceXOnlyPubkey !==
-        input.expectedAudienceXOnlyPubkey
+        existing.expectedAudienceXOnlyPubkey.toLowerCase() !==
+        input.expectedAudienceXOnlyPubkey.toLowerCase()
       ) {
         throw new Error(
           `VpTokenRegistry: peginTxid ${input.peginTxid} already bound to expectedAudienceXOnlyPubkey ${existing.expectedAudienceXOnlyPubkey.slice(0, 8)}…; got ${input.expectedAudienceXOnlyPubkey.slice(0, 8)}…`,

@@ -141,6 +141,24 @@ describe("VpTokenRegistry", () => {
     ).toThrow(/already bound to providerAddress/);
   });
 
+  it("reuses the cached provider when the same address and audience differ only in case", () => {
+    const provider = registry.getOrCreate(
+      buildInput({
+        providerAddress: `0x${"ab".repeat(20)}`,
+        expectedAudienceXOnlyPubkey: GOLDEN_CWT_AUDIENCE_XONLY.toLowerCase(),
+      }),
+    );
+
+    expect(
+      registry.getOrCreate(
+        buildInput({
+          providerAddress: `0x${"AB".repeat(20)}`,
+          expectedAudienceXOnlyPubkey: GOLDEN_CWT_AUDIENCE_XONLY.toUpperCase(),
+        }),
+      ),
+    ).toBe(provider);
+  });
+
   it("binds the gRPC subject to its frozen issuer and epoch", () => {
     registry.getOrCreate(
       buildInput({

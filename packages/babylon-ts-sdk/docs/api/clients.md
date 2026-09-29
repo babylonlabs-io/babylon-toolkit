@@ -875,8 +875,8 @@ the brand. Returns 64-char lowercase hex without the `0x` prefix.
 
 ```ts
 getVaultProviderOperationBtcKeyAtEpoch(
-   vpAddress,
-   epoch,
+   vpAddress, 
+   epoch, 
 blockNumber?): Promise<OnChainBtcPubkey>;
 ```
 
@@ -2724,8 +2724,8 @@ RFC-006 registry — as does every caller.
 
 ```ts
 getVaultProviderOperationBtcKeyAtEpoch(
-   vpAddress,
-   epoch,
+   vpAddress, 
+   epoch, 
 blockNumber?): Promise<OnChainBtcPubkey>;
 ```
 

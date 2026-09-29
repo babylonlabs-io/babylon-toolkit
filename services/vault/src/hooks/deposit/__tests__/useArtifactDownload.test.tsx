@@ -1065,6 +1065,27 @@ describe("useArtifactDownload — funnel telemetry", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("surfaces a cached token bound to another provider as an error, before the save dialog", async () => {
+    seedHotCache();
+
+    const { result } = renderHook(() =>
+      useArtifactDownload({ vaultId: VAULT_ID, primeContext }),
+    );
+
+    await act(async () => {
+      await result.current.download("0x5678", PEGIN_TXID, DEPOSITOR_PK);
+    });
+
+    expect(mockLoggerError).toHaveBeenCalledTimes(1);
+    expect(mockLoggerError.mock.calls[0][1].tags.site).toBe("token_binding");
+    expect(result.current.error).toBe(
+      COPY.deposit.recoveryArtifacts.cannotAuthenticate,
+    );
+    expect(result.current.loading).toBe(false);
+    expect(openTargetMock).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("captures the cold-registry-without-prime-context flow bug", async () => {
     const { result } = renderHook(() =>
       useArtifactDownload({ vaultId: VAULT_ID, primeContext: null }),
