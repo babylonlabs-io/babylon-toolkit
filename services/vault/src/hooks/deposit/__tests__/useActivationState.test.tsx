@@ -5,15 +5,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { VaultActivity } from "@/types/activity";
 
+let mockCollateralAdded = true;
 const mockHandleActivation = vi.fn(
   async ({
     onShowSuccessModal,
     onRefetchActivities,
   }: {
-    onShowSuccessModal: () => void;
+    onShowSuccessModal: (outcome: { collateralAdded: boolean }) => void;
     onRefetchActivities: () => void;
   }) => {
-    onShowSuccessModal();
+    onShowSuccessModal({ collateralAdded: mockCollateralAdded });
     onRefetchActivities();
   },
 );
@@ -83,6 +84,7 @@ function setup() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockCollateralAdded = true;
 });
 
 describe("useActivationState", () => {
@@ -120,5 +122,20 @@ describe("useActivationState", () => {
       amountBtc: 1.5,
       providerAddress: "0xprovider",
     });
+  });
+
+  it("skips the optimistic activating row when the receipt shows no CollateralAdded", async () => {
+    // The registry confirmed the activation but redeemed the vault (e.g. a cap
+    // was exceeded). The indexer never lists it as collateral, so a row added
+    // here would overstate collateral until the 90s backstop.
+    mockCollateralAdded = false;
+    const { result } = setup();
+
+    await act(async () => {
+      await result.current.handleActivation("0xsecret");
+    });
+
+    expect(mockAddActivatingVault).not.toHaveBeenCalled();
+    expect(result.current.activated).toBe(true);
   });
 });
