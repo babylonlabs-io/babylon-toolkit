@@ -70,6 +70,7 @@ export async function fetchUserActivities(
     peginTxHashByVaultId.set(v.id, v.peginTxHash);
     vaultLookup.set(v.id, {
       vaultProvider: v.vaultProvider,
+      peginTxHash: v.peginTxHash,
     });
   }
 

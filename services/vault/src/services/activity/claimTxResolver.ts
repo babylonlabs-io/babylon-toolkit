@@ -23,6 +23,7 @@ import { isAddress } from "viem";
 import { logger } from "@/infrastructure";
 import { getPegoutTxLinkFlags } from "@/models/pegoutStateMachine";
 import { createVpClient } from "@/utils/rpc";
+import { canonicalizeTxid } from "@/utils/txid";
 
 /**
  * Per-VP RPC timeout for this best-effort, display-only enrichment. Tighter
@@ -37,6 +38,7 @@ const BTC_TXID_REGEX = /^[0-9a-f]{64}$/i;
 
 export interface RedeemVaultLookup {
   vaultProvider: string;
+  peginTxHash: string;
 }
 
 export interface RedeemActivityRef {
@@ -45,6 +47,7 @@ export interface RedeemActivityRef {
 
 interface PerVaultEntry {
   vaultId: string;
+  peginTxHash: string;
 }
 
 export async function resolveRedeemClaimTxids(
@@ -71,7 +74,7 @@ export async function resolveRedeemClaimTxids(
       continue;
     }
     const bucket = byProvider.get(info.vaultProvider);
-    const entry: PerVaultEntry = { vaultId };
+    const entry: PerVaultEntry = { vaultId, peginTxHash: info.peginTxHash };
     if (bucket) bucket.push(entry);
     else byProvider.set(info.vaultProvider, [entry]);
   }
@@ -95,6 +98,14 @@ export async function resolveRedeemClaimTxids(
             rpcClient.batchGetPegoutStatusByVaultId({ vault_ids }),
           onItem: (entry, envelope) => {
             if (envelope.error !== null) return;
+            // The echoed vault id is our own request string. Only the
+            // server-side `pegin_txid` shows which row answered.
+            if (
+              canonicalizeTxid(envelope.result?.pegin_txid) !==
+              canonicalizeTxid(entry.peginTxHash)
+            ) {
+              return;
+            }
             const claimer = envelope.result?.claimer;
             if (!claimer) return;
             // The claim txid is pre-computed at peg-in, so it exists before the
