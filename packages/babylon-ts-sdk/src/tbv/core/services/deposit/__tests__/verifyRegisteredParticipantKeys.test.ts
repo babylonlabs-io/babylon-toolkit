@@ -25,6 +25,7 @@ function registryReaderReturning(epoch: bigint): VaultRegistryReader {
     getProtocolInfoBatch: vi.fn(),
     getVaultData: vi.fn(),
     getVaultProviderGenesisBtcPubKey: vi.fn(),
+    getVaultProviderOperationBtcKeyAtEpoch: vi.fn(),
     getPegInFee: vi.fn(),
     getVaultProviderCommission: vi.fn(),
     getVaultKeyEpochs: vi.fn(),

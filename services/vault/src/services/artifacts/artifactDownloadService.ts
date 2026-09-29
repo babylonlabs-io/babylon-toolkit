@@ -36,7 +36,10 @@
  * addressed to this deposit, never proven usable.
  */
 
-import { stripHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
+import {
+  processPublicKeyToXOnly,
+  stripHexPrefix,
+} from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
   JsonRpcClient,
   VpResponseValidationError,
@@ -142,12 +145,17 @@ export async function fetchAndDownloadArtifacts(
 
   // The caller (useArtifactDownload) primes the bearer before invoking
   // this service when the registry is cold, so peek() returns the active
-  // provider and the request goes out with a valid Authorization header
+  // provider only when its provider and depositor bindings match this request.
+  // The request then goes out with a valid Authorization header
   // for this auth-gated RPC. `callRaw` does not reactively refresh when the
   // server rejects the bearer, so a token that goes stale mid-download
   // bubbles up as an error and the caller's auth-failure retry path handles
   // re-priming.
-  const tokenProvider = vpTokenRegistry.peek(normalizedPeginTxid);
+  const tokenProvider = vpTokenRegistry.peek({
+    peginTxid: normalizedPeginTxid,
+    providerAddress,
+    expectedAudienceXOnlyPubkey: processPublicKeyToXOnly(depositorPk),
+  });
 
   const client = new JsonRpcClient({
     baseUrl: getVpProxyUrl(providerAddress),

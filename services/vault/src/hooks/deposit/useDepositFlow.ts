@@ -92,7 +92,10 @@ import {
   type PeginSigningProgress,
 } from "@/services/vault/vaultTransactionService";
 import { assertUtxosAvailable } from "@/services/vault/vaultUtxoValidationService";
-import { resolveVpAuthPinnedPubkey } from "@/services/vault/vpAuthPinnedPubkey";
+import {
+  refreshVpJsonRpcPinnedPubkey,
+  resolveVpAuthPins,
+} from "@/services/vault/vpAuthPinnedPubkey";
 import {
   addPendingPegin,
   getPendingPegins,
@@ -1207,27 +1210,30 @@ export function useDepositFlow(
           throw new Error("Vault provider not found");
         }
 
-        // Best-effort: subsequent gated calls re-derive on cache miss
-        // if priming fails. Resolve the pin per vault so each vault's
-        // on-chain provider is checked before its registry entry is seeded.
+        // Best-effort: subsequent gated calls re-derive on cache miss if
+        // priming fails. Resolve each vault's frozen gRPC issuer separately;
+        // siblings share a provider but the epoch is a per-vault contract.
         const vpBaseUrl = getVpProxyUrl(provider.id);
         try {
-          const pinnedServerPubkeys = await Promise.all(
-            broadcastedResults.map((r) =>
-              resolveVpAuthPinnedPubkey(r.vaultId, provider.id as Address),
-            ),
-          );
-          broadcastedResults.forEach((r, i) => {
+          const vpAddress = provider.id as Address;
+          for (const r of broadcastedResults) {
+            const authPins = await resolveVpAuthPins(
+              vpAddress,
+              r.vaultId as Hex,
+            );
             const peginTxid = stripHexPrefix(r.peginTxHash);
             primeVpTokenRegistry({
               baseUrl: vpBaseUrl,
               peginTxid,
               authAnchorHex,
-              pinnedServerPubkey: pinnedServerPubkeys[i],
+              providerAddress: vpAddress,
+              ...authPins,
+              refreshJsonRpcPinnedServerPubkey: () =>
+                refreshVpJsonRpcPinnedPubkey(vpAddress),
               depositorBtcPubkey: batchResult.depositorBtcPubkey,
             });
             primedRegistryTxids.push(peginTxid);
-          });
+          }
         } catch (err) {
           logger.warn("Failed to fetch VP pubkey for registry priming", {
             providerId: provider.id,

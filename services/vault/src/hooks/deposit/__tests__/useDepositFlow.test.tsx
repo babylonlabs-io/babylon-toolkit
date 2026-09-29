@@ -119,6 +119,13 @@ vi.mock("@/clients/eth-contract/pinnedReadBlock", () => ({
 vi.mock("@/clients/eth-contract/sdk-readers", () => ({
   getVaultRegistryReader: vi.fn(() => ({
     getVaultProviderGenesisBtcPubKey: vi.fn(async () => "ab".repeat(32)),
+    getCurrentVaultProviderOperationBtcKey: vi.fn(async () => "ab".repeat(32)),
+    getVaultKeyEpochs: vi.fn(async () => ({
+      vpKeyEpoch: 0n,
+      appKeeperKeyEpoch: 0n,
+      ucKeyEpoch: 0n,
+    })),
+    getVaultProviderOperationBtcKeyAtEpoch: vi.fn(async () => "ab".repeat(32)),
   })),
   getVaultKeeperReader: vi.fn(async () => ({})),
   getUniversalChallengerReader: vi.fn(async () => ({})),
