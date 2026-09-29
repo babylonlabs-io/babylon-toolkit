@@ -44,7 +44,7 @@ export function activationFloorBlocksRemaining(params: {
 /**
  * Whether a remaining-blocks reading should hold Activate closed.
  *
- * - `undefined` — not gated (window open, or the feature is off)
+ * - `undefined` — not gated (window open)
  * - `0` — not gated (inclusive boundary; the window is open)
  * - `null` — gated, duration unknown (fail-closed)
  * - `> 0` — gated, that many blocks remain

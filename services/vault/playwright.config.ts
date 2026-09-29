@@ -169,7 +169,6 @@ export default defineConfig({
         ...MOCK_ENV_VARS,
         ...RECORDED_DEPLOYMENT_ENV,
         NEXT_PUBLIC_FF_GOD_MODE_PANEL: "true",
-        NEXT_PUBLIC_FF_ENABLE_LIQUIDATION_NOTIFICATIONS: "true",
         NEXT_PUBLIC_FF_POSITION_DEBUG_PANEL: "true",
         PLAYWRIGHT_VITE_CACHE_DIR: "node_modules/.vite-e2e-god-mode",
       },

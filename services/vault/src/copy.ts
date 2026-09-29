@@ -2652,6 +2652,18 @@ export const COPY = {
       detail:
         "Below $1,000 the cascade simplifies — all BTCVaults are shown as one liquidation event. Small positions don't have meaningful multi-event behavior.",
     },
+    // The BTC price is stale or unreadable, so no cascade is computed.
+    stalePrice: {
+      title: "Position notifications temporarily unavailable",
+      detail:
+        "BTC price data is stale or unavailable. Notifications will resume when fresh price data is available.",
+    },
+    // Groups exist, nothing warns and the order is already optimal.
+    optimal: {
+      title: "Position optimally structured",
+      detail:
+        "BTC Vault ordering is correct and partial liquidation is enabled.",
+    },
     // The Spoke risk-parameter read failed, so no cascade can be computed.
     // The live health-factor card is computed separately and still shows.
     paramsUnavailable: {

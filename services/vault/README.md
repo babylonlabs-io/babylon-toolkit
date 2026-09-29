@@ -60,6 +60,7 @@ Create a `.env` file with the following variables:
 - `NEXT_PUBLIC_TBV_GRAPHQL_ENDPOINT` - GraphQL API endpoint for vault data (also provides vault provider RPC URLs)
   - Example: `https://babylon-vault-indexer-api.vault-devnet.babylonlabs.io`
 - `NEXT_PUBLIC_TBV_BTC_VAULT_REGISTRY` - TBV BTC Vault Registry contract address
+  - The `ProtocolParams` it points to must expose `peginActivationDelay()`. The activation gate fails closed, so where the getter is absent or reverts, Activate stays disabled for every depositor. Verify with `cast call <protocolParams> "peginActivationDelay()(uint256)"`
 - `NEXT_PUBLIC_TBV_AAVE_ADAPTER` - TBV Aave Integration Adapter contract address
 
 ### Optional
@@ -98,11 +99,6 @@ Create a `.env` file with the following variables:
 - `NEXT_PUBLIC_FF_ENABLE_EXPLORE` - Shows the Explore section: the `/explore` page and its sidebar entry
   - Default: `false` (the route redirects to `/` and the nav item is hidden unless explicitly set to `"true"`)
   - Off until the partner list is backed by the contributor registry rather than a hand-authored seed list
-
-- `NEXT_PUBLIC_FF_ENABLE_ACTIVATION_DELAY` - Holds Activate closed until the on-chain peg-in activation window has elapsed (`verifiedAt + peginActivationDelay`)
-  - Default: `false` (no floor gate, and no contract read is issued at all)
-  - Only the mint path is gated; "Activate and redeem" stays available during the window, matching the contract's own exemption
-  - Enable per environment only once its `ProtocolParams` exposes `peginActivationDelay()` — verify with `cast call <protocolParams> "peginActivationDelay()(uint256)"`. The gate fails closed, so enabling it where the getter is absent disables Activate for everyone
 
 - `NEXT_PUBLIC_NOTICE_BANNER_MESSAGE` - The single operator message shown to depositors, placed by context (non-boolean config)
   - Default: empty (the default per-context copy is shown; standalone notice hidden)

@@ -59,7 +59,6 @@ vi.mock("@/applications/aave/hooks/usePositionNotifications", () => ({
 
 const featureFlagsMock = vi.hoisted(() => ({
   isGodModePanelEnabled: true,
-  isLiquidationNotificationsEnabled: true,
   isPositionDebugPanelEnabled: true,
 }));
 vi.mock("@/config/featureFlags", () => ({ default: featureFlagsMock }));
