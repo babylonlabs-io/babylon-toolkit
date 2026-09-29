@@ -435,6 +435,7 @@ function ResumeWotsContentConnected({
       // Best-effort priming: VP pubkey fetch can fail without blocking the
       // resume flow because submitWotsPublicKey re-derives on cache miss.
       const pinnedServerPubkeyPromise = resolveVpAuthPinnedPubkey(
+        activity.id as Hex,
         providerAddress as Address,
       ).catch((err: unknown) => {
         logger.warn("Failed to fetch VP pubkey for registry priming", {

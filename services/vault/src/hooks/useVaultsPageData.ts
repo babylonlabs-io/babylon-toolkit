@@ -34,6 +34,7 @@ export function useVaultsPageData(connectedAddress: string | undefined) {
     healthFactor,
     healthFactorStatus,
     collateralVaults,
+    indexerError,
   } = useDashboardState(connectedAddress);
 
   const demoCollateral = useCollateralOverride();
@@ -95,6 +96,8 @@ export function useVaultsPageData(connectedAddress: string | undefined) {
      * per-row, reorder filters them out).
      */
     rawCollateralVaults: collateralVaults,
+    /** Set when the indexed vault list can be incomplete. Blocks actions. */
+    indexerError,
     collateralBtc,
     collateralValueUsd,
   };

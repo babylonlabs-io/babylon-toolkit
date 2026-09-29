@@ -52,8 +52,14 @@ export default function VaultsPage() {
   // hook and the lifecycle sections so the broadcast/refund modal state pair
   // is instantiated once.
   const deposits = usePendingDeposits();
-  const { isLoading, isEmpty, hasError, hasPartialError, storageOnlyError } =
-    useVaultsPageEmptiness(deposits);
+  const {
+    isLoading,
+    isEmpty,
+    hasError,
+    hasPartialError,
+    hasNonIndexerError,
+    storageOnlyError,
+  } = useVaultsPageEmptiness(deposits);
   const { vaults: aaveVaults } = useAaveVaults(
     isConnected ? address : undefined,
   );
@@ -63,6 +69,7 @@ export default function VaultsPage() {
     summary,
     displayVaults,
     rawCollateralVaults,
+    indexerError,
     collateralBtc,
     collateralValueUsd,
   } = useVaultsPageData(isConnected ? address : undefined);
@@ -100,7 +107,9 @@ export default function VaultsPage() {
     () => rawCollateralVaults.filter((vault) => vault.lifecycle === "active"),
     [rawCollateralVaults],
   );
-  const canReorder = reorderableVaults.length >= 2;
+  // An incomplete list can omit a live vault: the contract rejects a reorder
+  // that leaves one out, and that vault would have no Withdraw row.
+  const canReorder = reorderableVaults.length >= 2 && !indexerError;
 
   const handleWithdrawRow = useCallback((vaultId: string) => {
     setWithdrawVaultIds([vaultId]);
@@ -141,7 +150,7 @@ export default function VaultsPage() {
         <VaultsActiveSection
           vaults={displayVaults}
           onWithdraw={handleWithdrawRow}
-          isWithdrawDisabled={isWithdrawBlocked(gate)}
+          isWithdrawDisabled={isWithdrawBlocked(gate) || Boolean(indexerError)}
           // Pending deposits keep the page populated while the vault list is
           // still empty — the section shows the empty state until the deposit
           // confirms and activates. Section placement sits on the sibling-card
@@ -192,9 +201,22 @@ export default function VaultsPage() {
             title={COPY.vaults.partialLoadError.title}
             data-testid="vaults-partial-load-error"
           >
-            {deposits.storageReadError
-              ? COPY.vaults.storageReadError
-              : COPY.vaults.partialLoadError.body}
+            {hasNonIndexerError && (
+              <p>
+                {deposits.storageReadError
+                  ? COPY.vaults.storageReadError
+                  : COPY.vaults.partialLoadError.body}
+              </p>
+            )}
+            {/* Its own line, so another failure's text cannot hide why
+                Withdraw and Reorder are disabled. Its data-testid is a
+                real-wallet E2E hook (e2e/real/actions/withdraw.ts) — carry it
+                over if you move or rename the element. */}
+            {indexerError && (
+              <p data-testid="vaults-collateral-list-incomplete">
+                {COPY.vaults.collateralListIncomplete}
+              </p>
+            )}
           </Notification>
         )}
         {renderBody()}

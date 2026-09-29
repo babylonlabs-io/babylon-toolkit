@@ -30,8 +30,9 @@ export interface UseActivationStateProps {
   /**
    * Escape hatch mode: reveal the secret via
    * `activateVaultWithSecretAndRedeem` (no application activation). The vault
-   * is redeemed rather than turned into collateral, so the optimistic
-   * Collateral-section row is skipped — the optimistic CONFIRMED status still
+   * is redeemed rather than turned into collateral, so the receipt carries no
+   * `CollateralAdded` log and the optimistic Collateral-section row is
+   * skipped — the optimistic CONFIRMED status still
    * applies (the reveal was submitted; the indexer flips to REDEEMED next).
    */
   redeemImmediately?: boolean;
@@ -107,20 +108,22 @@ export function useActivationState({
               queryKey: [ACTIVITIES_QUERY_KEY],
             });
           },
-          onShowSuccessModal: () => {
+          onShowSuccessModal: ({ collateralAdded }) => {
             if (!mountedRef.current) return;
             setOptimisticStatus(activity.id, LocalStorageStatus.CONFIRMED);
             // Optimistically surface the just-activated vault in the dashboard
             // Collateral section while the Aave indexer catches up (~15s gap).
             // Skip a bogus row if the amount can't be parsed to a positive BTC
             // value — the indexer-driven row will still appear within seconds.
-            // Never in escape-hatch mode: an activate-and-redeem vault is
-            // redeemed in the same transaction and never becomes collateral.
+            // Only when the receipt shows the adapter added the vault as
+            // collateral: the registry can confirm an activation and redeem the
+            // vault instead (a cap exceeded, or escape-hatch mode), and the
+            // indexer then never lists it to clear the row.
             const amountBtc = parseFloat(
               activity.collateral.amount.replace(/,/g, ""),
             );
             if (
-              !redeemImmediately &&
+              collateralAdded &&
               Number.isFinite(amountBtc) &&
               amountBtc > 0
             ) {

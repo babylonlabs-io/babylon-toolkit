@@ -59,7 +59,6 @@ vi.mock("@/applications/aave/hooks/usePositionNotifications", () => ({
 
 const featureFlagsMock = vi.hoisted(() => ({
   isGodModePanelEnabled: true,
-  isLiquidationNotificationsEnabled: true,
   isPositionDebugPanelEnabled: true,
 }));
 vi.mock("@/config/featureFlags", () => ({ default: featureFlagsMock }));
@@ -668,7 +667,7 @@ describe("GodModePanel", () => {
     ).toBeInTheDocument();
   });
 
-  it("forces and releases the Loans summary health factor and capacity state", () => {
+  it("forces and releases the Overview health factor and the Loans capacity state", () => {
     renderExpanded();
     clickTab("Loans");
 

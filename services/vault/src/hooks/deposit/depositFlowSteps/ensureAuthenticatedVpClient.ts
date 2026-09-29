@@ -1,6 +1,7 @@
 /**
  * Vault-side glue: derive `authAnchorHex` from the wallet (popup) and
- * `pinnedServerPubkey` from chain, then build an authenticated VP RPC
+ * `pinnedServerPubkey` from chain (after the provider address matches the
+ * vault's on-chain provider), then build an authenticated VP RPC
  * client. Reuses the registry cache if an entry for this `peginTxid`
  * already exists — preventing a second wallet popup for sites that
  * run after `primeVpTokenRegistry` (e.g. WOTS submit + payout signing
@@ -38,7 +39,8 @@ export interface EnsureAuthenticatedVpClientParams {
   /**
    * On-chain vault id. Used on the cold path to fetch `prePeginTxHash`
    * and validate `unsignedPrePeginTxHex` before the wallet's
-   * `deriveContextHash` is invoked over its funding outpoints.
+   * `deriveContextHash` is invoked over its funding outpoints, and to
+   * check `providerAddress` against the vault's on-chain provider.
    */
   vaultId: Hex;
   unsignedPrePeginTxHex: string;
@@ -91,8 +93,15 @@ export async function ensureAuthenticatedVpClient(
     );
   }
 
-  // Cold-start: derive auth anchor from the wallet (popup) and fetch
-  // the pinned VP pubkey from chain.
+  // Also cold path only: the caller's provider address names the endpoint
+  // that receives the auth anchor, so it must match the vault's on-chain
+  // provider before the wallet popup.
+  const pinnedServerPubkey = await resolveVpAuthPinnedPubkey(
+    params.vaultId,
+    params.providerAddress as Address,
+  );
+
+  // Cold-start: derive auth anchor from the wallet (popup).
   let root: Uint8Array | null = null;
   try {
     root = await deriveVaultRoot(params.btcWallet, {
@@ -106,10 +115,6 @@ export async function ensureAuthenticatedVpClient(
     authAnchorBytes.fill(0);
     root.fill(0);
     root = null;
-
-    const pinnedServerPubkey = await resolveVpAuthPinnedPubkey(
-      params.providerAddress as Address,
-    );
 
     return createAuthenticatedVpClient({
       baseUrl,

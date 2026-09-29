@@ -139,9 +139,9 @@ export interface DepositCtaParams extends DepositFormValidityParams {
   isAddressScreeningUnavailable: boolean;
   isWalletConnected: boolean;
   /**
-   * True when the session is confirmed, Bitcoin is absent, and Bitcoin is
-   * optional under the ETH-first flag. Keeps the not-connected CTA enabled so
-   * a click opens the Bitcoin wallet prompt instead of a dead button.
+   * True when the session is confirmed and Bitcoin is absent. Keeps the
+   * not-connected CTA enabled so a click opens the Bitcoin wallet prompt
+   * instead of a dead button.
    */
   canConnectBtcWallet: boolean;
   hasProvider: boolean;

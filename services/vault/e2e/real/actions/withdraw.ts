@@ -26,7 +26,8 @@
  *
  * The row's Withdraw button IS the eligibility gate: the app disables it for a paused protocol, a vault
  * that is not in use, a demo (`displayOnly`) row and an optimistic (`lifecycle === "activating"`) one — see
- * VaultsActiveSection. Health-factor gating surfaces one step later, on the selection screen, and again
+ * VaultsActiveSection — and on every row while the indexed vault list does not match the chain position
+ * (VaultsPage `indexerError`, e.g. while the indexer lags a just-mined withdraw). Health-factor gating surfaces one step later, on the selection screen, and again
  * on Review.
  *
  * Default withdraws ONE vault (the first withdrawable), keeping the position alive for reuse.
@@ -67,6 +68,10 @@ import { connectWallets } from "./walletConnect";
 const VAULT_ROW_TESTID_PREFIX = "vault-row-";
 const VAULT_ROW_SELECTOR = `[data-testid^="${VAULT_ROW_TESTID_PREFIX}"]`;
 const ROW_WITHDRAW_TESTID = '[data-testid="vault-withdraw-button"]';
+// The warning line VaultsPage shows while the indexed vault list does not match the chain position
+// (`indexerError`). While it is shown, every row's Withdraw is disabled.
+const COLLATERAL_LIST_INCOMPLETE_TESTID =
+  '[data-testid="vaults-collateral-list-incomplete"]';
 // The selection screen: one checkbox per selectable vault (keyed by on-chain vaultId) and the submit
 // that carries the selection to Review.
 const SELECT_ROW_TESTID_PREFIX = "withdraw-select-row-";
@@ -79,6 +84,8 @@ const SELECT_ACKNOWLEDGE_TESTID = '[data-testid="withdraw-select-acknowledge"]';
 // Review re-asks for when the projection it shows differs from the one accepted on the selection screen.
 const REVIEW_CONFIRM_TESTID = '[data-testid="withdraw-confirm-button"]';
 const HF_BLOCK_TESTID = '[data-testid="withdraw-hf-block-warning"]';
+// The review's VP commission read failed; Confirm stays disabled until the dialog reopens.
+const COMMISSION_ERROR_TESTID = '[data-testid="withdraw-commission-error"]';
 const REVIEW_ACKNOWLEDGE_TESTID = '[data-testid="withdraw-review-acknowledge"]';
 // Success screen: "Withdrawal initiated" (COPY.withdraw.initiated.title) + its Done button. Both are
 // unique to the withdraw progress view (not the shared LoanSuccessModal), so either safely marks success.
@@ -226,7 +233,7 @@ async function openWithdrawForRow(
         "No active vault rows on /vaults — this position has nothing to withdraw.",
       );
     throw new Error(
-      `No withdrawable vault on /vaults after ${Math.round(WITHDRAW_CTA_ENABLE_TIMEOUT_MS / MS_PER_SECOND)}s (${found.rowCount} row(s) shown — every Withdraw button is disabled: the vault is not in use, still activating, already withdrawing, or withdrawals are paused by the protocol). Repay outstanding debt first so collateral can be released.`,
+      `No withdrawable vault on /vaults after ${Math.round(WITHDRAW_CTA_ENABLE_TIMEOUT_MS / MS_PER_SECOND)}s (${found.rowCount} row(s) shown — every Withdraw button is disabled: the vault is not in use, still activating, already withdrawing, withdrawals are paused by the protocol, or the indexed vault list does not match the chain position yet). Repay outstanding debt first so collateral can be released, or wait for the indexer to catch up and re-run.`,
     );
   }
 
@@ -254,8 +261,8 @@ async function openWithdrawForRow(
 
 /**
  * On the Review screen, wait for the "Confirm" submit to enable and click it. Fails fast if the blocking
- * HF warning is present (the withdrawal would drop the health factor below the on-chain minimum) — that
- * won't self-resolve by waiting.
+ * HF warning is present (the withdrawal would drop the health factor below the on-chain minimum) or the
+ * VP commission read failed — neither will self-resolve by waiting.
  */
 async function submitReview(
   page: Page,
@@ -263,12 +270,17 @@ async function submitReview(
 ): Promise<void> {
   const confirm = page.locator(REVIEW_CONFIRM_TESTID).first();
   const hfBlock = page.locator(HF_BLOCK_TESTID).first();
+  const commissionError = page.locator(COMMISSION_ERROR_TESTID).first();
   const acknowledge = page.locator(REVIEW_ACKNOWLEDGE_TESTID).first();
   const deadline = Date.now() + WITHDRAW_CTA_ENABLE_TIMEOUT_MS;
   while (Date.now() < deadline) {
     if (await hfBlock.isVisible().catch(() => false))
       throw new Error(
         "Withdraw blocked on the review screen: this withdrawal would drop the health factor below the on-chain minimum. Repay debt or withdraw fewer vaults.",
+      );
+    if (await commissionError.isVisible().catch(() => false))
+      throw new Error(
+        "Withdraw blocked on the review screen: the app could not read the vault provider commission from the registry.",
       );
     // The acknowledgement is keyed to the displayed projection; a refetch between Select and Review can move it and re-ask here.
     if (
@@ -466,6 +478,13 @@ export async function runWithdrawFlow(
     if (!("vaultId" in next)) break;
   }
 
+  // Read while /vaults is still on screen: a loop that stopped because the indexer lags the last
+  // release is neither drained nor health-factor-gated, so it must not exit green.
+  const indexerLagging = await page
+    .locator(COLLATERAL_LIST_INCOMPLETE_TESTID)
+    .isVisible()
+    .catch(() => false);
+
   onStep("withdraw-verify");
   const remaining = await assertVaultsReleased(
     ctx,
@@ -477,6 +496,10 @@ export async function runWithdrawFlow(
   // health-factor-gating them; with no debt every vault was releasable, so anything left means the loop
   // stopped early and the run must not report success.
   if (all && remaining > 0) {
+    if (indexerLagging)
+      throw new Error(
+        `--withdraw-all released ${released.size} of ${before.vaultCount} vault(s) but ${remaining} remain: every Withdraw stayed disabled because the indexed vault list did not match the chain position yet (indexer lag). Re-run once the indexer catches up.`,
+      );
     if (!before.hasDebt)
       throw new Error(
         `--withdraw-all released ${released.size} of ${before.vaultCount} vault(s) but ${remaining} remain, and the position carries no debt to health-factor-gate them — the loop stopped before draining the position.`,

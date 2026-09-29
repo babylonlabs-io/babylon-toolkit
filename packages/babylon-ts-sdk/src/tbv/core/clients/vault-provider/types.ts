@@ -34,6 +34,9 @@
  *   artifacts deleted.
  * - ExpiredInClaim: terminal at the pegin-state-machine level; pegout-side
  *   work continues on the pegout_tracking row.
+ * - BabeSetupFailed: terminal — a challenger's BaBe decryptor session
+ *   failed verification, so BaBe setup cannot complete; reachable from
+ *   PendingBabeSetup.
  */
 export enum DaemonStatus {
   PENDING_INGESTION = "PendingIngestion",
@@ -53,6 +56,7 @@ export enum DaemonStatus {
   AML_REJECTED = "AmlRejected",
   EXPIRED_CLEANED_UP = "ExpiredCleanedUp",
   EXPIRED_IN_CLAIM = "ExpiredInClaim",
+  BABE_SETUP_FAILED = "BabeSetupFailed",
 }
 
 // ============================================================================
@@ -96,8 +100,8 @@ export const VP_TRANSIENT_STATUSES: ReadonlySet<DaemonStatus> = new Set([
  * stop immediately with an error rather than wait for timeout.
  *
  * Mirrors the failure subset of the server-side terminals
- * (`allowed_transitions()` empty, see
- * `btc-vault/crates/vaultd/src/workers/claimer/mod.rs:230-242`).
+ * (`allowed_transitions()` empty, see `PegInStatus` in
+ * `btc-vault/crates/vaultd/src/workers/claimer/mod.rs`).
  * `Activated` IS terminal on-chain but is the success outcome, so it is
  * intentionally excluded — a caller polling for an earlier state that
  * races straight to `Activated` should treat that as success-via-overshoot,
@@ -113,6 +117,7 @@ export const VP_TERMINAL_FAILURE_STATUSES: ReadonlySet<DaemonStatus> = new Set([
   DaemonStatus.AML_REJECTED,
   DaemonStatus.EXPIRED_CLEANED_UP,
   DaemonStatus.EXPIRED_IN_CLAIM,
+  DaemonStatus.BABE_SETUP_FAILED,
 ]);
 
 /**
@@ -200,10 +205,15 @@ export interface RequestDepositorClaimerArtifactsParams {
   depositor_pk: string;
 }
 
-/** Params for querying pegin status. Either pegin_txid or vault_id must be provided. */
-export type GetPeginStatusParams =
-  | { pegin_txid: string; vault_id?: never }
-  | { vault_id: string; pegin_txid?: never };
+/**
+ * Params for `getPeginStatusByVaultId`. A vault is addressed by its
+ * depositor-bound `vault_id` (`keccak256(abi.encode(peginTxHash, depositor))`),
+ * hex-encoded with or without a `0x` prefix. A `pegin_txid` does not identify
+ * a vault — several vaults can share one txid.
+ */
+export interface GetPeginStatusByVaultIdParams {
+  vault_id: string;
+}
 
 // ============================================================================
 // Response Types
@@ -300,9 +310,16 @@ export interface ClaimerGraphStatus {
   presigned: boolean;
 }
 
-/** Response from `getPeginStatus`. */
+/** Response from `getPeginStatusByVaultId`. */
 export interface GetPeginStatusResponse {
+  /**
+   * The peg-in txid the server stores for this vault. A mismatch with the
+   * caller's txid shows a status for a different peg-in; several vaults can
+   * share one txid, so it does not identify a vault.
+   */
   pegin_txid: string;
+  /** The vault this response describes (`0x`-prefixed hex). */
+  vault_id: string;
   status: string;
   progress: PeginProgressDetails;
   health_info: string;
@@ -347,11 +364,13 @@ export interface ChallengerStatus {
 }
 
 /**
- * Pegout status response. Embedded by `batchGetPegoutStatus` per-result
- * envelopes. Mirrors btc-vault `GetPegoutStatusResponse`.
+ * Pegout status response. Embedded by `batchGetPegoutStatusByVaultId`
+ * per-result envelopes. Mirrors btc-vault `GetPegoutStatusResponse`.
  */
 export interface GetPegoutStatusResponse {
   pegin_txid: string;
+  /** The vault this response describes (`0x`-prefixed hex). */
+  vault_id: string;
   found: boolean;
   claimer: ClaimerPegoutStatus | null;
   challengers: ChallengerStatus[];
@@ -361,37 +380,40 @@ export interface GetPegoutStatusResponse {
 // Batch Status Types (peginStatus + pegoutStatus)
 // ============================================================================
 
-/** Params for `batchGetPeginStatus`. */
-export interface BatchGetPeginStatusParams {
-  /** Up to MAX_BATCH_SIZE (50) txids per call. */
-  pegin_txids: string[];
+/** Params for `batchGetPeginStatusByVaultId`. */
+export interface BatchGetPeginStatusByVaultIdParams {
+  /** Up to MAX_BATCH_SIZE (50) vault ids per call (hex, `0x` prefix optional). */
+  vault_ids: string[];
 }
 
-/** Per-pegin entry in a `batchGetPeginStatus` response. */
+/** Per-vault entry in a `batchGetPeginStatusByVaultId` response. */
 export interface BatchPeginStatusResult {
-  pegin_txid: string;
+  /** Echo of the requested vault id, verbatim. */
+  vault_id: string;
   result: GetPeginStatusResponse | null;
   error: string | null;
 }
 
-/** Response from `batchGetPeginStatus`. Results are returned in request order. */
+/** Response from `batchGetPeginStatusByVaultId`. Results are returned in request order. */
 export interface BatchGetPeginStatusResponse {
   results: BatchPeginStatusResult[];
 }
 
-/** Params for `batchGetPegoutStatus`. */
-export interface BatchGetPegoutStatusParams {
-  pegin_txids: string[];
+/** Params for `batchGetPegoutStatusByVaultId`. */
+export interface BatchGetPegoutStatusByVaultIdParams {
+  /** Vault ids to query (hex, `0x` prefix optional). */
+  vault_ids: string[];
 }
 
-/** Per-vault entry in a `batchGetPegoutStatus` response. */
+/** Per-vault entry in a `batchGetPegoutStatusByVaultId` response. */
 export interface BatchPegoutStatusResult {
-  pegin_txid: string;
+  /** Echo of the requested vault id, verbatim. */
+  vault_id: string;
   result: GetPegoutStatusResponse | null;
   error: string | null;
 }
 
-/** Response from `batchGetPegoutStatus`. Results are returned in request order. */
+/** Response from `batchGetPegoutStatusByVaultId`. Results are returned in request order. */
 export interface BatchGetPegoutStatusResponse {
   results: BatchPegoutStatusResult[];
 }

@@ -21,7 +21,6 @@ import {
   PAGE_CONTENT_CLASS,
 } from "@/components/shared/layoutClasses";
 import { isDepositBlocked } from "@/components/shared/protocolStatus";
-import featureFlags from "@/config/featureFlags";
 import { useConnection, useETHWallet } from "@/context/wallet";
 import { COPY } from "@/copy";
 import { useApplicationCap } from "@/hooks/useApplicationCap";
@@ -125,9 +124,6 @@ export function DashboardPage() {
 
   const { prices, metadata } = usePrices();
 
-  const liquidationNotificationsEnabled =
-    featureFlags.isLiquidationNotificationsEnabled;
-
   // Feed the critical top banner the same debug-aware result the mid-page banner
   // uses: the debug override when set, otherwise the live calculation.
   const criticalBannerResult = cascadeOverride?.result ?? positionNotifications;
@@ -226,7 +222,7 @@ export function DashboardPage() {
   // The cascade banner and the max-vaults notice share the same slot between
   // the Position and Risk sections — same "Notifications" instance in both
   // the default and critical states (Figma 10094-26791, 10204-45310).
-  const cascadeBanner = liquidationNotificationsEnabled ? (
+  const cascadeBanner = (
     <PositionNotificationBanner
       connectedAddress={address}
       onDeposit={openDeposit}
@@ -234,7 +230,7 @@ export function DashboardPage() {
       result={cascadeOverride?.result ?? undefined}
       statusOverride={cascadeOverride?.status ?? undefined}
     />
-  ) : null;
+  );
 
   if (!isConnected) {
     return (
@@ -253,14 +249,10 @@ export function DashboardPage() {
         {/* Full-bleed alert bar above the header/sidebar row, not part of this
             column — it portals into RootLayout's top-banner slot (Figma frame
             10204-45613; see CriticalLiquidationTopBanner). */}
-        {liquidationNotificationsEnabled && (
-          <CriticalLiquidationTopBanner
-            result={criticalBannerResult}
-            liveUrgentWarning={
-              cascadeOverride?.result ? null : liveUrgentWarning
-            }
-          />
-        )}
+        <CriticalLiquidationTopBanner
+          result={criticalBannerResult}
+          liveUrgentWarning={cascadeOverride?.result ? null : liveUrgentWarning}
+        />
 
         <OverviewSection
           totalCollateralValue={totalCollateralValue}
@@ -284,9 +276,9 @@ export function DashboardPage() {
         />
 
         {/* "Maximum vaults reached" is a value-protection capacity fact shown
-            ALWAYS (independent of the liquidation-notifications flag and of BTC
-            price), and decoupled from the cascade banner so a stale-price or
-            all-pending position still surfaces it. */}
+            ALWAYS (independent of BTC price), and decoupled from the cascade
+            banner so a stale-price or all-pending position still surfaces
+            it. */}
         <MaxVaultsNotification connectedAddress={address} />
 
         {cascadeBanner}

@@ -1208,24 +1208,26 @@ export function useDepositFlow(
         }
 
         // Best-effort: subsequent gated calls re-derive on cache miss
-        // if priming fails. All sibling vaults share one VP, so fetch
-        // the pubkey once and seed each per-vault registry entry.
+        // if priming fails. Resolve the pin per vault so each vault's
+        // on-chain provider is checked before its registry entry is seeded.
         const vpBaseUrl = getVpProxyUrl(provider.id);
         try {
-          const pinnedServerPubkey = await resolveVpAuthPinnedPubkey(
-            provider.id as Address,
+          const pinnedServerPubkeys = await Promise.all(
+            broadcastedResults.map((r) =>
+              resolveVpAuthPinnedPubkey(r.vaultId, provider.id as Address),
+            ),
           );
-          for (const r of broadcastedResults) {
+          broadcastedResults.forEach((r, i) => {
             const peginTxid = stripHexPrefix(r.peginTxHash);
             primeVpTokenRegistry({
               baseUrl: vpBaseUrl,
               peginTxid,
               authAnchorHex,
-              pinnedServerPubkey,
+              pinnedServerPubkey: pinnedServerPubkeys[i],
               depositorBtcPubkey: batchResult.depositorBtcPubkey,
             });
             primedRegistryTxids.push(peginTxid);
-          }
+          });
         } catch (err) {
           logger.warn("Failed to fetch VP pubkey for registry priming", {
             providerId: provider.id,
