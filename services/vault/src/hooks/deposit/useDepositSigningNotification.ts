@@ -18,7 +18,7 @@
  * The per-vault WOTS round is the second case; the payout round moves through
  * several step values, so it still re-runs.
  *
- * No-ops when the SigningNotification provider is absent or the flag is off.
+ * No-ops when the SigningNotification provider is absent.
  */
 
 import { useEffect, useId } from "react";
