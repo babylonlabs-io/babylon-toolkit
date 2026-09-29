@@ -31,8 +31,10 @@ export interface DepositPollingResult {
    */
   depositorBtcPubkey: string | undefined;
   /**
-   * Live Pre-PegIn confirmation count from mempool polling. `null` when the
-   * first poll hasn't returned yet (or the deposit isn't in the poll set).
+   * Live Pre-PegIn confirmation count from mempool polling. `null` when no
+   * count is known, for example before the first result, after a failed
+   * lookup, when the deposit isn't in the poll set, or when the mempool API
+   * did not find the tx.
    * Cached observations past `requiredPrePeginDepth` are coalesced into this
    * value via `confirmedTxids`, so callers can compare against
    * `requiredPrePeginDepth` directly.

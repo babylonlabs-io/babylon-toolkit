@@ -9,26 +9,20 @@
  * suppressed) gets a notification the moment the user looks away. The in-flow
  * observer deliberately ignores it - its step outlives the wallet popup, so a
  * second look would ask for a signature the depositor already gave.
- *
- * Pass `enabled: false` to make it a true no-op (no listener attached, always
- * returns `false`) when the consuming feature is flagged off.
  */
 
 import { useEffect, useState } from "react";
 
 import { isDocumentHidden } from "@/utils/notifications/browserNotification";
 
-export function useDocumentHidden(enabled: boolean = true): boolean {
-  const [hidden, setHidden] = useState(() =>
-    enabled ? isDocumentHidden() : false,
-  );
+export function useDocumentHidden(): boolean {
+  const [hidden, setHidden] = useState(isDocumentHidden);
 
   useEffect(() => {
-    if (!enabled) return;
     const onChange = () => setHidden(isDocumentHidden());
     document.addEventListener("visibilitychange", onChange);
     return () => document.removeEventListener("visibilitychange", onChange);
-  }, [enabled]);
+  }, []);
 
   return hidden;
 }
