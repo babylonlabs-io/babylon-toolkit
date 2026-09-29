@@ -262,6 +262,32 @@ separately, at full price each. Do it yourself.
    something there and go looking. Put the list, elisions included, in the
    pack under `CALLERS OF CHANGED EXPORTS`, and say plainly when a symbol was
    skipped for its name rather than its count.
+
+   Then bind [docs/review-checklist.md](../../../docs/review-checklist.md):
+   the passes in full, the Tests section, the whole "Do not re-raise"
+   section, and the rows of every other section whose directories the
+   changed files touch. Toolkit UI: `services/vault`,
+   `services/simple-staking`, `packages/babylon-core-ui` and
+   `packages/babylon-wallet-connector`.
+   ts-sdk, packages and the WASM boundary: `packages/babylon-ts-sdk`,
+   `packages/babylon-tbv-rust-wasm`, `packages/babylon-ledger-vault-signer`
+   and `packages/babylon-proto-ts`. Backend: `services/vault/src/utils/rpc`,
+   `services/vault/src/services/providers`,
+   `services/vault/src/services/artifacts` and `services/vault/src/clients`.
+   Cross-repo seams: `packages/babylon-ts-sdk/src/tbv/core/contracts`,
+   `packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/abis`,
+   `services/vault/src/clients/eth-contract/cap-policy/abis`,
+   `packages/babylon-tbv-rust-wasm`, `.github/workflows` and `scripts/`.
+   The Toolkit UI rows naming `copy.ts` and `featureFlags.ts`, and the
+   risk-band / health-factor row, are vault-only: leave them out for a change
+   with no file under `services/vault`, such as a core-ui, wallet-connector
+   or `services/simple-staking` change. The one exception: bind the
+   risk-band row also for a change under
+   `packages/babylon-ts-sdk/src/tbv/integrations/aave`, where the thresholds
+   live.
+   Paste the bound text into the pack; do not summarise it. It is part of
+   the binding rules, so the cold lane of Phase 1 gets it too.
+
 8. **Pick the tier.** `LIGHT_REVIEW_MAX_CHANGED_LINES = 150`, a starting value
    to be tuned from pilot data. Count changed lines as added + deleted from
    `git diff --numstat <base>`, plus the line count of each untracked file,
@@ -271,6 +297,16 @@ separately, at full price each. Do it yourself.
      `review-generalist`.
    - **full**: everything else. `review-generalist`, `review-tracer`,
      `review-panel`.
+
+   Add a `change` field to the pack next to the tier:
+   `change: <type>, +<added>/-<deleted>`. The type comes from the
+   conventional-commit prefix of the intent's first line: `fix` is bugfix,
+   `refactor` is refactor, `feat` is feature, a `deps` scope or a
+   lockfile-only change is dependency, anything else is mixed. A `deps`
+   scope wins over the type, so `fix(deps)` is dependency. An intent with no
+   prefix, as on a first run with no stored description, takes the type the
+   diff shows. The Change
+   type pass reads this field; it is not written to the description.
 
 9. **Lint and typecheck, then snapshot the content.** Some packages' `lint`
    runs `eslint --fix`, which rewrites files. So lint runs first, in the
@@ -608,8 +644,10 @@ above needs no such premise.
 On a later run, the pack also carries every stored finding as one line (id,
 status, claim) and the `refuted` list. Reviewers report a known defect by its
 id (a regression of a fixed finding as "regressed N<id>"), never as new, and
-drop a refuted claim unless they have new evidence. The cold reviewer of
-Phase 1 gets none of that paragraph — see there for what it does get.
+drop a refuted claim unless they have new evidence. A `refuted` entry with a
+`row` was suppressed by that row, not disproved: re-raise it when the change
+now widens past what the row accepts. The cold reviewer of Phase 1 gets none
+of that paragraph — see there for what it does get.
 
 ## Phase 0b: later runs, checking only what changed
 
@@ -943,10 +981,11 @@ Then pick the breadth, **first match wins**:
   suppressing the next genuine refresh for `WHOLE_CHANGE_REFRESH_RUNS` runs.
 - **Not escalated**: record `breadth: narrowed`. The verdict lane also reviews
   the per-file diffs and the entered files for new defects, giving each a
-  severity (merge-blocker or normal) and a confidence. Those defects then go
-  through Phase 3 like any other. **Phase 1 is still entered, for the cold
-  lane only** — it runs on every later run, and this branch is the one it was
-  added for.
+  severity (merge-blocker or normal) and a confidence. It runs the
+  checklist's first four passes over those diffs and cites the pass or row in
+  each finding. Those defects then go through Phase 3 like any other.
+  **Phase 1 is still entered, for the cold lane only** — it runs on every
+  later run, and this branch is the one it was added for.
 
 Every branch records a `breadth`, and no branch is reachable without one:
 that is what "first match wins" over an exhaustive list buys. A run that
@@ -1068,7 +1107,8 @@ opened — `formats.md` says the same.
 
 **Give it the context pack minus the ledger** — the mandatory opening line,
 the file list, the base SHA, the binding rules, the authoritative source,
-`CALLERS OF CHANGED EXPORTS`, `CHECKS`, the CI-gap statement and the intent.
+`CALLERS OF CHANGED EXPORTS`, `CHECKS`, the CI-gap statement, the `change`
+field and the intent.
 The opener and the CI-gap statement are required of *every* reviewer prompt,
 and the lane told to read whole files and follow them through is the most
 likely to reach for `git diff main...HEAD` to orient itself if nothing forbids
@@ -1145,11 +1185,11 @@ compiles.
 full: the mandatory opening line; the base SHA; the changed-file list with
 each file's status, minus review artifacts; the diff hunks of any deleted
 file, inline; the binding rules; the authoritative source;
-`CALLERS OF CHANGED EXPORTS`; `CHECKS`; the CI-gap statement; the intent you
-wrote for it; and its brief. **Nothing else** — anything not on that list is
-withheld by default, including things no one has thought of yet. Do not
-reason "this is not on the withheld list, so it may go in"; reason "this is
-not on the given list, so it stays out".
+`CALLERS OF CHANGED EXPORTS`; `CHECKS`; the CI-gap statement; the `change`
+field; the intent you wrote for it; and its brief. **Nothing else** —
+anything not on that list is withheld by default, including things no one
+has thought of yet. Do not reason "this is not on the withheld list, so it
+may go in"; reason "this is not on the given list, so it stays out".
 
 That is a deliberate inversion, and four separate leaks bought it. A
 denylist of things to withhold was tried and failed four times, each time
@@ -1237,6 +1277,8 @@ others get. Its brief is:
 - **Ask of any load-bearing claim: is this sentence true?** Not "was it
   changed", not "does the fix match the finding" — true, now, about this
   repository.
+- **Run the checklist's first four passes** over the whole change, and cite
+  the pass or row in each finding.
 
 Give it an explicit output instruction, or it inherits `review-lane`'s
 400-word default — the tightest cap in the set, on the one reviewer asked to
@@ -1290,13 +1332,25 @@ Also wait for the checks (Phase 0 step 10) before Phase 4.
 1. Merge the lists, lanes included. Collapse findings naming the same defect;
    keep the sharpest statement and the best evidence.
 2. Compare with what is stored. A claim in `refuted` is dropped unless it
-   brings new evidence. A defect that matches a `fixed` finding **reopens
-   that finding** (status `open`, note "regressed") instead of taking a new
-   id. A defect that matches an open finding is merged into it.
+   brings new evidence. A claim that matches a row of the checklist's "Do not
+   re-raise" section is a candidate, not a drop: step 4 verifies that the
+   change stays within the behaviour the row accepts. A claim that does is
+   recorded in `refuted` with the matched row in its `row` field and the
+   code it covers in `anchors`, so the author can see and reverse the match; a claim that widens the accepted
+   behaviour is kept. On every later run, step 4 re-checks each `refuted`
+   entry that has a `row` against the current code, whether or not a
+   reviewer raised it again: fixes may have widened the change since. An
+   entry the change now goes beyond leaves `refuted` and becomes a new
+   finding with the next id.
+   A defect that matches a `fixed` finding **reopens that finding** (status
+   `open`, note "regressed") instead of taking a new id. A defect that matches
+   an open finding is merged into it.
 3. **Agreement is not evidence.** Two reviewers agreeing without checking the
    source is a correlated guess.
-4. Verify yourself, against the code, every finding you keep and anything
-   reviewers disagree on, and record how in `verified_by`. A single targeted
+4. Verify yourself, against the code, every finding you keep, every "Do not
+   re-raise" candidate from step 2 (does the change stay within the
+   behaviour the row accepts?), and anything reviewers disagree on, and
+   record how in `verified_by`. A single targeted
    test run may settle one; never a blanket suite run. There is no `vitest`
    at the repo root: `pnpm --filter <package name> exec vitest run <test file>`,
    except `@babylonlabs-io/ts-sdk`, which CLAUDE.md sends through its own
@@ -1387,11 +1441,17 @@ executed.
   - `New: 12 — …`, with a recommendation
   - `Unchanged: 8, with its decision`
 
+Then list each `refuted` entry this run added with a `row`: its claim and the
+row. The engineer can reopen one in the decision step; it then leaves
+`refuted` and becomes a new finding with the next id.
+
 **Ask for decisions** with `AskUserQuestion`: accept the recommendations, or
 change some (the engineer names them, e.g. "7 follow-up, 12 decline:
 duplicate of the VP check"). Accepting never changes a stored decision that
 was not re-recommended in this run. A finding stays `undecided` only if the
-engineer defers the choice.
+engineer defers the choice. When the engineer reopens a claim a checklist
+row set aside, the entry leaves `refuted` and becomes a new finding with the
+next id, status `open`, and severity and confidence judged at that point.
 
 **Record before fixing.** Write the state ([formats.md](formats.md)): `version`
 set to `2`, the step-9 snapshot as `files`, the intent from step 6, this run's
