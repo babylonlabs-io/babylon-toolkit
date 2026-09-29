@@ -84,7 +84,7 @@ export function useAllocationPlanning({
   // The split is unavailable purely because the amount is below the minimum:
   // params have loaded (minDepositForSplit > 0), the user entered a positive
   // amount, and it sits under the threshold. Excludes the zero-amount and
-  // out-of-range cases, where minDepositForSplit is 0.
+  // out-of-range cases.
   const isSplitAmountTooLow =
     !isLoading &&
     minDepositForSplit > 0n &&

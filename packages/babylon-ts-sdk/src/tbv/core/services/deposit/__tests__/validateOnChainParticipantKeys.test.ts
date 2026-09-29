@@ -91,6 +91,7 @@ function buildReaders({
     getVaultProviderGenesisBtcPubKey: vi
       .fn()
       .mockResolvedValue(vpKey.toLowerCase() as OnChainBtcPubkey),
+    getVaultProviderOperationBtcKeyAtEpoch: vi.fn(),
     getPegInFee: vi.fn(),
     getVaultProviderCommission: vi.fn(),
     getVaultKeyEpochs: vi.fn(),
@@ -557,6 +558,7 @@ describe("validateOnChainParticipantKeys with operation-key resolution", () => {
         getVaultProviderGenesisBtcPubKey: vi
           .fn()
           .mockResolvedValue(KEYS.vpGenesis as OnChainBtcPubkey),
+        getVaultProviderOperationBtcKeyAtEpoch: vi.fn(),
         getPegInFee: vi.fn(),
         getVaultProviderCommission: vi.fn(),
         getVaultKeyEpochs: vi.fn(),

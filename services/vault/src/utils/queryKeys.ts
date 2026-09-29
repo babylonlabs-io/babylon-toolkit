@@ -9,6 +9,8 @@ import type { QueryClient } from "@tanstack/react-query";
 import { VAULTS_QUERY_KEY } from "../hooks/useVaults";
 
 export const AAVE_USER_POSITION_QUERY_KEY = "aaveUserPosition";
+/** Registry-derived construction order for the adapter's collateral queue. */
+export const SPLIT_VAULT_ORDER_QUERY_KEY = "splitVaultOrder";
 /** Hub-wide liquidity per reserve (useAaveReserveLiquidity). */
 export const AAVE_RESERVE_LIQUIDITY_QUERY_KEY = "aaveReserveLiquidity";
 /** Our spoke's remaining borrow limit per reserve (useAaveReserveDrawHeadroom). */
@@ -61,4 +63,12 @@ export async function invalidateVaultQueries(
       queryKey: [AAVE_USER_POSITION_QUERY_KEY],
     }),
   ]);
+}
+
+export async function invalidateSplitVaultOrderQuery(
+  queryClient: QueryClient,
+): Promise<void> {
+  await queryClient.invalidateQueries({
+    queryKey: [SPLIT_VAULT_ORDER_QUERY_KEY],
+  });
 }

@@ -7,8 +7,8 @@
  * copy, and the Enable / No thanks wiring - all layout and styling come from
  * the design-system component.
  *
- * Shown only while `shouldPromptForPermission` is true: the feature is enabled,
- * the browser supports notifications, the user hasn't decided yet, and they
+ * Shown only while `shouldPromptForPermission` is true: the browser supports
+ * notifications, the user hasn't decided yet, and they
  * haven't dismissed the prompt.
  */
 

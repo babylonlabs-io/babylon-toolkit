@@ -80,12 +80,16 @@ vi.mock("@/context/wallet", async () => ({
 
 // Page-level data is exercised in the hook's own tests; the page test only
 // checks which body branch renders, so the sections are stubbed.
+const vaultsPageState = vi.hoisted(() => ({
+  position: null as { vaultIds: readonly string[] } | null,
+}));
 const pageDataState = vi.hoisted(() => ({
   indexerError: null as Error | null,
 }));
 
 vi.mock("@/hooks/useVaultsPageData", () => ({
   useVaultsPageData: vi.fn(() => ({
+    position: vaultsPageState.position,
     summary: {
       totalCollateralBtc: "0 sBTC",
       totalCollateralUsd: "$0 USD",
@@ -122,6 +126,10 @@ vi.mock("@/components/vaults/VaultsLifecycleSections", () => ({
 
 vi.mock("@/components/vaults/VaultsActiveSection", () => ({
   VaultsActiveSection: () => <div data-testid="vaults-active-section" />,
+}));
+
+vi.mock("@/components/vaults/SplitVaultOrderWarning", () => ({
+  SplitVaultOrderWarning: () => <div data-testid="split-vault-order-warning" />,
 }));
 
 vi.mock("@/components/simple/WithdrawFlow", () => ({
@@ -185,6 +193,7 @@ describe("VaultsPage", () => {
     gateState.aave = null;
     featureFlagsMock.isDepositDisabled = false;
     addressTypeState.isSupportedAddress = true;
+    vaultsPageState.position = null;
   });
 
   it("shows the empty state with an enabled Deposit CTA when connected and empty", () => {
@@ -277,6 +286,17 @@ describe("VaultsPage", () => {
     expect(screen.getByTestId("vaults-summary-card")).toBeInTheDocument();
     expect(screen.getByTestId("vaults-lifecycle-sections")).toBeInTheDocument();
     expect(screen.getByTestId("vaults-active-section")).toBeInTheDocument();
+  });
+
+  it("checks split order whenever the contract position has multiple vaults", () => {
+    emptinessState.isEmpty = false;
+    vaultsPageState.position = {
+      vaultIds: ["0xsacrificial", "0xprotected"],
+    };
+
+    renderVaultsPage();
+
+    expect(screen.getByTestId("split-vault-order-warning")).toBeInTheDocument();
   });
 
   it("shows a partial-load warning over the populated layout when one source failed", () => {

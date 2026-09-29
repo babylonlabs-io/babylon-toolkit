@@ -49,7 +49,7 @@ const CHECKSUM_MAJOR_DIGIT_INDEX = 1;
 
 /**
  * Message digit counts per assert block.
- * Matches `btc_vault::ASSERT_WOTS_BLOCK_DIGIT_COUNTS`.
+ * Matches btc-vault `BIG_BLOCK_DIGIT_COUNTS` (`crates/crypto/src/wots/mod.rs`).
  */
 const ASSERT_WOTS_BLOCK_DIGIT_COUNTS: readonly number[] = [64, 64];
 

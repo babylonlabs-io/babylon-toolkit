@@ -68,6 +68,16 @@ export function isTerminalPollingError(error: unknown): boolean {
   );
 }
 
+// VP rpc/error.rs `RpcError::PegInNotFound` — the VP has no row for the
+// vault yet. Matched as a prefix: a validator error that quotes VP text
+// starts with its own prefix, so it never reads as not-ingested.
+const PEGIN_NOT_FOUND_ERROR_PREFIX = "PegIn not found";
+
+/** Whether a batch item error means the VP has not ingested the peg-in yet. */
+export function isPeginNotIngestedError(error: string): boolean {
+  return error.startsWith(PEGIN_NOT_FOUND_ERROR_PREFIX);
+}
+
 /**
  * Decide whether the current wallet state polls a deposit's vault provider
  * status.

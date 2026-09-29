@@ -2,8 +2,8 @@ import type { CalculatorResult, Warning, WarningType } from "./types";
 
 /**
  * Calculator warnings map to red (urgent), yellow (cliff / too-many-vaults — the
- * orange warning banner per Figma), soft (everything else advisory, including the
- * dismissible dust notice), green (none), or hidden (no groups). "yellow" also
+ * orange warning banner per Figma), soft (everything else advisory), green
+ * (none), or hidden (no groups, or a non-urgent dust position). "yellow" also
  * backs the stale-price banner, which is driven separately by a status override
  * rather than a calculator warning.
  */
@@ -35,8 +35,9 @@ export interface BannerState {
 
 /**
  * Primary-warning precedence, highest first. `urgent` is the only red severity;
- * the rest render soft. `dust` is handled before this list — it surfaces as a
- * soft advisory that suppresses every other warning. `weird-params` is emitted
+ * the rest render soft. `dust` is handled before this list — it hides the
+ * banner unless `urgent` is present, and suppresses every other warning.
+ * `weird-params` is emitted
  * exclusively, but kept here so it is still selected if present.
  */
 const PRIMARY_ORDER: WarningType[] = [
@@ -55,19 +56,20 @@ const PRIMARY_ORDER: WarningType[] = [
  * Soft:   any other advisory warning (reorder / weird-params), or a
  *         healthy position whose vault order is suboptimal
  * Green:  no warnings and order already optimal
- * Hidden: no groups
+ * Hidden: no groups, or a dust position with no urgent warning
  */
 export function deriveBannerState(result: CalculatorResult): BannerState {
   const { warnings, groups } = result;
   const suggestReorder = result.optimalVaultOrder != null;
 
-  // Dust suppresses all other warnings — a sub-$1k position has no meaningful
-  // multi-event cascade. It still surfaces as a dismissible soft advisory.
-  const dustWarning = warnings.find((w) => w.type === "dust");
-  if (dustWarning) {
+  // Dust hides the banner unless the position is urgent — a sub-$1k position
+  // has no meaningful multi-event cascade, and the green "partial liquidation
+  // is enabled" copy would be false.
+  if (warnings.some((w) => w.type === "dust")) {
+    const urgentWarning = warnings.find((w) => w.type === "urgent");
     return {
-      severity: "soft",
-      primaryWarning: dustWarning,
+      severity: urgentWarning ? "red" : "hidden",
+      primaryWarning: urgentWarning ?? null,
       secondaryWarnings: [],
       suggestReorder: false,
     };

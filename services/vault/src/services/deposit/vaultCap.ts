@@ -29,7 +29,7 @@ export interface VaultCapStateParams {
   existingVaultCount: number;
   /** On-chain cap, or `null` when unknown (loading / unavailable). */
   maxVaultsPerPosition: number | null;
-  /** Whether cap enforcement is active (the liquidation-notifications flag). */
+  /** Whether per-position cap enforcement is active. */
   enabled: boolean;
   /**
    * `ProtocolParams.maxHtlcOutputCount` — HTLC outputs allowed in one
@@ -63,7 +63,7 @@ export function resolveVaultCapState({
   maxHtlcOutputCount,
 }: VaultCapStateParams): VaultCapState {
   // Applies whatever the per-position cap says, and whether or not that cap is
-  // enforced — it is a different contract's limit, gated by a different flag.
+  // enforced — it is a different contract's limit, not switched by `enabled`.
   const htlcReason: SplitUnavailableReason | null =
     maxHtlcOutputCount < HTLC_OUTPUTS_PER_SPLIT_DEPOSIT
       ? "htlc-output-cap"

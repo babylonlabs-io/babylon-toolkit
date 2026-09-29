@@ -2,6 +2,10 @@ import { useQuery } from "@tanstack/react-query";
 import { renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import {
+  fetchAppProviderMetadata,
+  fetchAppProviders,
+} from "../../../services/providers";
 import type { VaultProvider } from "../../../types";
 import { useVaultProviders } from "../useVaultProviders";
 
@@ -16,6 +20,7 @@ vi.mock("../../../applications/aave/context/AaveConfigContext", () => ({
 }));
 
 vi.mock("../../../services/providers", () => ({
+  fetchAppProviderMetadata: vi.fn(),
   fetchAppProviders: vi.fn(),
 }));
 
@@ -46,6 +51,47 @@ vi.mock("../../useLogos", () => {
 });
 
 const mockedUseQuery = vi.mocked(useQuery);
+const mockFetchAppProviderMetadata = vi.mocked(fetchAppProviderMetadata);
+const mockFetchAppProviders = vi.mocked(fetchAppProviders);
+
+describe("useVaultProviders query scope", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    disabledRef.current = new Set<string>();
+    mockedUseQuery.mockReturnValue({
+      data: undefined,
+      isLoading: true,
+      error: null,
+      refetch: vi.fn(),
+    } as never);
+  });
+
+  it("uses the metadata-only fetcher for provider lookup paths", async () => {
+    mockFetchAppProviderMetadata.mockResolvedValue({
+      vaultProviders: [],
+      vaultKeepers: [],
+      vaultKeeperItems: [],
+    });
+
+    renderHook(() =>
+      useVaultProviders("0xApp", { requireCompleteKeeperRoster: false }),
+    );
+    const options = mockedUseQuery.mock.calls[0][0];
+    if (typeof options.queryFn !== "function") {
+      throw new Error("Expected useVaultProviders to configure a queryFn");
+    }
+    await options.queryFn({} as never);
+
+    expect(mockFetchAppProviderMetadata).toHaveBeenCalledWith("0xApp");
+    expect(mockFetchAppProviders).not.toHaveBeenCalled();
+    expect(options.queryKey).toEqual(["providers", "0xApp", "metadata-only"]);
+    expect(options).toMatchObject({
+      refetchOnReconnect: false,
+    });
+    // A remount must be able to retry a transient failure.
+    expect(options.retryOnMount).not.toBe(false);
+  });
+});
 
 describe("useVaultProviders ref stability", () => {
   beforeEach(() => {
@@ -124,6 +170,28 @@ describe("useVaultProviders disabled filtering", () => {
     const { result } = renderHook(() => useVaultProviders());
 
     expect(result.current.findProvider(DISABLED_ID)?.id).toBe(DISABLED_ID);
+  });
+
+  it("resolves a provider whose RPC URL is missing", () => {
+    const providerWithoutRpcUrl: VaultProvider = {
+      id: DISABLED_ID,
+      btcPubKey: "0xbeef",
+      metadataStatus: "missing",
+      metadataRejectionReason: "rpcUrl is missing",
+    };
+    mockedUseQuery.mockReturnValue({
+      data: { vaultProviders: [providerWithoutRpcUrl], vaultKeepers: [] },
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    } as never);
+
+    const { result } = renderHook(() => useVaultProviders());
+
+    const resolvedProvider = result.current.findProvider(DISABLED_ID);
+
+    expect(resolvedProvider).toMatchObject(providerWithoutRpcUrl);
+    expect(resolvedProvider?.url).toBeUndefined();
   });
 
   it("lists every VP when none are disabled", () => {

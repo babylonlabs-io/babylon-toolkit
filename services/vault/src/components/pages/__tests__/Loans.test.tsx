@@ -16,7 +16,6 @@ const walletMock = vi.hoisted(() => ({
 }));
 const useDashboardStateMock = vi.fn();
 const useLoanOverrideMock = vi.fn();
-const useHealthFactorOverrideMock = vi.fn();
 const useBorrowCapacityOverrideMock = vi.fn();
 const openRepayMock = vi.fn();
 
@@ -66,7 +65,6 @@ vi.mock("@/overrides/loans", async (importOriginal) => ({
 
 vi.mock("@/overrides/borrowCapacity", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/overrides/borrowCapacity")>()),
-  useHealthFactorOverride: () => useHealthFactorOverrideMock(),
   useBorrowCapacityOverride: () => useBorrowCapacityOverrideMock(),
 }));
 
@@ -111,8 +109,6 @@ vi.mock("../../simple/LoansSummary", () => ({
   LoansSummary: ({
     borrowCapacityLoading,
     borrowCapacityError,
-    healthFactor,
-    healthFactorStatus,
     borrowedAssets,
     borrowCount,
     canRepay,
@@ -120,8 +116,6 @@ vi.mock("../../simple/LoansSummary", () => ({
   }: {
     borrowCapacityLoading: boolean;
     borrowCapacityError: Error | null;
-    healthFactor: number | null;
-    healthFactorStatus: string;
     borrowedAssets: { symbol: string }[];
     borrowCount: bigint | null;
     canRepay: boolean;
@@ -131,8 +125,6 @@ vi.mock("../../simple/LoansSummary", () => ({
       data-testid="loans-summary"
       data-capacity-loading={String(borrowCapacityLoading)}
       data-capacity-error={String(Boolean(borrowCapacityError))}
-      data-health-factor={String(healthFactor)}
-      data-health-factor-status={healthFactorStatus}
       data-borrowed-assets={borrowedAssets.map((a) => a.symbol).join(",")}
       data-borrow-count={String(borrowCount)}
     >
@@ -200,7 +192,6 @@ describe("Loans page — loading gate", () => {
     walletMock.confirmed = true;
     walletMock.address = "0xabc";
     useLoanOverrideMock.mockReturnValue(null);
-    useHealthFactorOverrideMock.mockReturnValue(null);
     useBorrowCapacityOverrideMock.mockReturnValue(null);
   });
 
@@ -484,7 +475,6 @@ describe("Loans page — god-mode summary overrides", () => {
     walletMock.confirmed = true;
     walletMock.address = "0xabc";
     useLoanOverrideMock.mockReturnValue(null);
-    useHealthFactorOverrideMock.mockReturnValue(null);
     useBorrowCapacityOverrideMock.mockReturnValue(null);
   });
 
@@ -524,21 +514,6 @@ describe("Loans page — god-mode summary overrides", () => {
     expect(summary).toHaveAttribute("data-capacity-error", "false");
   });
 
-  it("bands the forced health factor with the production rule", () => {
-    useDashboardStateMock.mockReturnValue({
-      ...CONNECTED_LOADED,
-      healthFactor: 5,
-      healthFactorStatus: "safe",
-    });
-    useHealthFactorOverrideMock.mockReturnValue(0.95);
-
-    render(<Loans />);
-
-    const summary = screen.getByTestId("loans-summary");
-    expect(summary).toHaveAttribute("data-health-factor", "0.95");
-    expect(summary).toHaveAttribute("data-health-factor-status", "danger");
-  });
-
   it("renders the summary from an override alone, with no position and no mocks", () => {
     walletMock.ethConnected = false;
     walletMock.address = undefined;
@@ -546,7 +521,10 @@ describe("Loans page — god-mode summary overrides", () => {
       ...CONNECTED_LOADED,
       hasCollateral: false,
     });
-    useHealthFactorOverrideMock.mockReturnValue(1.25);
+    useBorrowCapacityOverrideMock.mockReturnValue({
+      loading: true,
+      error: null,
+    });
 
     render(<Loans />);
 

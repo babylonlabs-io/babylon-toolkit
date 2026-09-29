@@ -228,8 +228,9 @@ export function getReclaimEligibility(
   // The Ledger vault app cannot sign this transaction. Its firmware routes any
   // 34-byte `<D> OP_CHECKSIG` tapleaf to the claim validator
   // (app-babylon-vault `src/sign_psbt_validate.c`), which hard-requires the
-  // protocol claim_tx shape of 1 input and 2 outputs; a 1-in/1-out sweep is
-  // rejected on the output count before any device I/O.
+  // protocol claim_tx shape of 1 input and 2 outputs. The dApp's sweep is
+  // 1-in/1-out (one vault per reclaim), so the claim validator rejects it on
+  // the output count with SW_INCORRECT_DATA.
   //
   // Deliberately reclaim-specific: refund *is* reachable on the device
   // (`_validate_display_refund`), so this must not become "no Bitcoin actions

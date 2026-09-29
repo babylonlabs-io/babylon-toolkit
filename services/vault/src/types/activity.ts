@@ -122,6 +122,13 @@ export interface VaultActivity {
    */
   htlcVout?: number;
 
+  /**
+   * Zero-based construction position within a shared Pre-PegIn. Used to keep
+   * sibling UI/resume ordering deterministic; activation re-verifies it on
+   * chain before revealing the secret.
+   */
+  constructionIndex?: number;
+
   /** Depositor-specified BTC payout address (raw scriptPubKey hex from indexer) */
   depositorPayoutBtcAddress?: Hex;
 

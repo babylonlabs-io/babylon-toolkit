@@ -63,6 +63,9 @@ export const MOCK_ENV_VARS = {
   // signet/mainnet default and tests would have to intercept the live
   // hostname.
   NEXT_PUBLIC_MEMPOOL_API: "http://localhost:9996/mempool",
+  // Separate origin preserves the production trust boundary. Playwright
+  // intercepts it in the replay backend, so no live observer is contacted.
+  NEXT_PUBLIC_BTC_OBSERVER_API: "http://localhost:9995/observer",
   NEXT_PUBLIC_REOWN_PROJECT_ID: "test-project-id-12345",
   NEXT_PUBLIC_SENTRY_DSN: "https://test@o12345.ingest.sentry.io/12345",
   // Route events through a tunnel so SentryInterceptor (which intercepts **/sentry-tunnel)
@@ -169,7 +172,6 @@ export default defineConfig({
         ...MOCK_ENV_VARS,
         ...RECORDED_DEPLOYMENT_ENV,
         NEXT_PUBLIC_FF_GOD_MODE_PANEL: "true",
-        NEXT_PUBLIC_FF_ENABLE_LIQUIDATION_NOTIFICATIONS: "true",
         NEXT_PUBLIC_FF_POSITION_DEBUG_PANEL: "true",
         PLAYWRIGHT_VITE_CACHE_DIR: "node_modules/.vite-e2e-god-mode",
       },

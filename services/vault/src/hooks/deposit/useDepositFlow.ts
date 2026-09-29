@@ -92,7 +92,10 @@ import {
   type PeginSigningProgress,
 } from "@/services/vault/vaultTransactionService";
 import { assertUtxosAvailable } from "@/services/vault/vaultUtxoValidationService";
-import { resolveVpAuthPinnedPubkey } from "@/services/vault/vpAuthPinnedPubkey";
+import {
+  refreshVpJsonRpcPinnedPubkey,
+  resolveVpAuthPins,
+} from "@/services/vault/vpAuthPinnedPubkey";
 import {
   addPendingPegin,
   getPendingPegins,
@@ -961,7 +964,7 @@ export function useDepositFlow(
             providerIds: [primaryProvider],
             applicationEntryPoint: selectedApplication,
             batchId,
-            batchIndex: peginResult.vaultIndex + 1,
+            constructionIndex: peginResult.vaultIndex,
             batchTotal: vaultAmounts.length,
             status: LocalStorageStatus.PENDING,
             unsignedTxHex: peginResult.fundedPrePeginTxHex,
@@ -1131,6 +1134,7 @@ export function useDepositFlow(
         // No re-wrap: a wrapper here would replace the service's stage label.
         const prePeginBroadcastTxid = await broadcastPrePeginTransaction({
           unsignedTxHex: batchResult.fundedPrePeginTxHex,
+          registeredPrePeginTxHash: batchResult.depositTerms.prepeginTxid,
           btcWalletProvider: {
             signPsbt: async (psbtHex: string) => {
               const signedPsbtHex = await runCancellableSign(
@@ -1202,21 +1206,26 @@ export function useDepositFlow(
           throw new Error("Vault provider not found");
         }
 
-        // Best-effort: subsequent gated calls re-derive on cache miss
-        // if priming fails. All sibling vaults share one VP, so fetch
-        // the pubkey once and seed each per-vault registry entry.
+        // Best-effort: subsequent gated calls re-derive on cache miss if
+        // priming fails. Resolve each vault's frozen gRPC issuer separately;
+        // siblings share a provider but the epoch is a per-vault contract.
         const vpBaseUrl = getVpProxyUrl(provider.id);
         try {
-          const pinnedServerPubkey = await resolveVpAuthPinnedPubkey(
-            provider.id as Address,
-          );
+          const vpAddress = provider.id as Address;
           for (const r of broadcastedResults) {
+            const authPins = await resolveVpAuthPins(
+              vpAddress,
+              r.vaultId as Hex,
+            );
             const peginTxid = stripHexPrefix(r.peginTxHash);
             primeVpTokenRegistry({
               baseUrl: vpBaseUrl,
               peginTxid,
               authAnchorHex,
-              pinnedServerPubkey,
+              providerAddress: vpAddress,
+              ...authPins,
+              refreshJsonRpcPinnedServerPubkey: () =>
+                refreshVpJsonRpcPinnedPubkey(vpAddress),
               depositorBtcPubkey: batchResult.depositorBtcPubkey,
             });
             primedRegistryTxids.push(peginTxid);

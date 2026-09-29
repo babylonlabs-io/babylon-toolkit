@@ -103,7 +103,9 @@ export function useAaveVaults(
 ): UseAaveVaultsResult {
   const { pendingVaults } = usePendingVaults();
   const hasPendingOperations = pendingVaults.size > 0;
-  const { findProvider } = useVaultProviders();
+  const { findProvider } = useVaultProviders(undefined, {
+    requireCompleteKeeperRoster: false,
+  });
 
   // When redeemed vaults exist, we poll so the indexer's DEPOSITOR_WITHDRAWN
   // update (from btc-monitor detecting the vault UTXO spend) gets picked up

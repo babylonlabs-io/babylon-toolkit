@@ -184,6 +184,31 @@ describe("usePositionNotifications — live-HF urgency guardrail", () => {
     expect(result.current.status).toBe("no-vaults");
   });
 
+  it("reports no-vaults rather than stale-price when a depositor without active vaults has a stale price", () => {
+    setDashboardState({ collateralVaults: [], debtValueUsd: 0 });
+    mockUsePrices.mockReturnValue({
+      prices: { BTC: 60_000 },
+      metadata: { BTC: { isStale: true, fetchFailed: false } },
+    });
+
+    const { result } = renderHook(() => usePositionNotifications(USER));
+
+    expect(result.current.status).toBe("no-vaults");
+  });
+
+  it("reports stale-price for a position with active vaults when the price is stale", () => {
+    setDashboardState();
+    mockUsePrices.mockReturnValue({
+      prices: { BTC: 60_000 },
+      metadata: { BTC: { isStale: true, fetchFailed: false } },
+    });
+
+    const { result } = renderHook(() => usePositionNotifications(USER));
+
+    expect(result.current.status).toBe("stale-price");
+    expect(result.current.result).toBeNull();
+  });
+
   it("stays loading while the split-parameter read is still in flight", () => {
     setDashboardState();
     mockUseVaultSplitParams.mockReturnValue({

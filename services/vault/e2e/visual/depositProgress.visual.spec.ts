@@ -79,11 +79,10 @@ const ACTIVATED_SLIDER_POSITION = DEPOSIT_FLOW_STEP_COUNT;
 const ACTIVATED_READOUT = /^Activated/;
 
 /**
- * The control the activation gate exists to hold back
- * (`src/components/simple/ActivateConfirmationModal.tsx`), the same testid
- * the real-wallet step machine drives.
+ * The activation gate's first-step control
+ * (`src/components/simple/ActivateConfirmationModal.tsx`).
  */
-const ACTIVATE_BUTTON_TESTID = "activate-vault-button";
+const DOWNLOAD_BUTTON_TESTID = "download-artifacts-button";
 
 /**
  * The success view's only control (`COPY.deposit.vaultActivatedSuccess.
@@ -95,7 +94,7 @@ const GO_TO_DASHBOARD = /go to dashboard/i;
 /**
  * What opening a seeded deposit's row shows, and so what proves it rendered:
  * the stepper (its step markers), the activation gate that opens ahead of
- * the stepper at step 13 (its Activate button), or the success view that
+ * the stepper at step 13 (its Download button), or the success view that
  * replaces the stepper once the vault counts as activated (its dashboard
  * button).
  */
@@ -243,7 +242,7 @@ async function openDeposit(
     opens === "stepper"
       ? modal.locator(STEP_MARKER).first()
       : opens === "activation-gate"
-        ? modal.getByTestId(ACTIVATE_BUTTON_TESTID)
+        ? modal.getByTestId(DOWNLOAD_BUTTON_TESTID)
         : modal.getByRole("button", { name: GO_TO_DASHBOARD });
   await shown.waitFor();
   // The click scrolls the row into view and the modal is fixed to the

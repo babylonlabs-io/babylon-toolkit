@@ -275,6 +275,7 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     unhealthyVpIds,
     vaultKeepers,
     loading: isLoadingRegistry,
+    error: registryError,
   } = useVaultProviders(effectiveSelectedApplication || undefined);
 
   // Stable VP id list driving the per-VP stats / commission lookups.
@@ -800,6 +801,7 @@ export function useDepositPageForm(): UseDepositPageFormResult {
     // same terminal fee-error CTA state. (An UNSUPPORTED version is not an
     // error here — it has its own CTA state via appVersionUnsupported.)
     minPeginFeeError:
+      registryError ??
       toError(minPeginFeeError) ??
       toError(p2aAnchorError) ??
       toError(supportedVersionsError) ??
