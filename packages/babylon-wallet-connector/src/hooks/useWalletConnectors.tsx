@@ -77,6 +77,7 @@ export function useWalletConnectors({ persistent, accountStorage, onError, btcVa
     removeWallet,
     displayLoader,
     displayChains,
+    displayConnectGuide,
     displayError,
     confirm,
     unconfirm,
@@ -439,5 +440,18 @@ export function useWalletConnectors({ persistent, accountStorage, onError, btcVa
     [connectors],
   );
 
-  return { connect };
+  // A wallet with a connect guide shows it first. The guide's Connect button
+  // calls `connect`, so the connect still starts from a user gesture.
+  const chooseWallet = useCallback(
+    async (chain: IChain, wallet: IWallet) => {
+      if (wallet.connectGuide && displayConnectGuide) {
+        displayConnectGuide(chain.id, wallet.id);
+        return;
+      }
+      await connect(chain, wallet);
+    },
+    [connect, displayConnectGuide],
+  );
+
+  return { connect, chooseWallet };
 }

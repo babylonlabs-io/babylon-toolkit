@@ -9,10 +9,16 @@ const featureFlagsMock = vi.hoisted(() => ({
 }));
 
 vi.mock("@/config/featureFlags", () => ({ default: featureFlagsMock }));
+const pendingCountMock = vi.hoisted(() => ({ value: 0 }));
+
+vi.mock("@/context/deposit/pendingDepositCount", () => ({
+  usePendingDepositCount: () => pendingCountMock.value,
+}));
 
 describe("AppSidebar", () => {
   beforeEach(() => {
     featureFlagsMock.isExploreEnabled = true;
+    pendingCountMock.value = 0;
   });
 
   it("renders all 6 nav items", () => {
@@ -101,5 +107,45 @@ describe("AppSidebar", () => {
     expect(screen.getByText("Overview").closest("div")).toHaveClass(
       "text-accent-primary",
     );
+  });
+
+  it("shows the pending deposit count on the Vaults row", () => {
+    pendingCountMock.value = 3;
+
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <AppSidebar />
+      </MemoryRouter>,
+    );
+
+    const badge = screen.getByRole("img", { name: "3 pending deposits" });
+    expect(badge).toHaveTextContent("3");
+    expect(screen.getByTestId("nav-vaults")).toContainElement(badge);
+  });
+
+  it("shows no badge when there are no pending deposits", () => {
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <AppSidebar />
+      </MemoryRouter>,
+    );
+
+    expect(
+      screen.queryByRole("img", { name: /pending deposit/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("caps the visible count at 9+ but keeps the full count in the accessible name", () => {
+    pendingCountMock.value = 10;
+
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <AppSidebar />
+      </MemoryRouter>,
+    );
+
+    const badge = screen.getByRole("img", { name: "10 pending deposits" });
+    expect(badge).toHaveTextContent("9+");
+    expect(badge).not.toHaveTextContent("10");
   });
 });

@@ -4,6 +4,7 @@ import {
   ClaimerPegoutStatusValue,
   isPegoutTerminalStatus,
   isRecognizedPegoutStatus,
+  normalizeClaimerPegoutStatus,
 } from "../state";
 
 describe("pegout state", () => {
@@ -14,8 +15,8 @@ describe("pegout state", () => {
       );
       expect(ClaimerPegoutStatusValue.CLAIM_BROADCAST).toBe("ClaimBroadcast");
       expect(ClaimerPegoutStatusValue.ASSERT_BROADCAST).toBe("AssertBroadcast");
-      expect(ClaimerPegoutStatusValue.PAYOUT_BROADCAST).toBe(
-        "PayoutBroadcast",
+      expect(ClaimerPegoutStatusValue.PAYOUT_CONFIRMED).toBe(
+        "PayoutConfirmed",
       );
       expect(ClaimerPegoutStatusValue.PAYOUT_BLOCKED).toBe("PayoutBlocked");
     });
@@ -26,7 +27,7 @@ describe("pegout state", () => {
       expect(isRecognizedPegoutStatus("ClaimEventReceived")).toBe(true);
       expect(isRecognizedPegoutStatus("ClaimBroadcast")).toBe(true);
       expect(isRecognizedPegoutStatus("AssertBroadcast")).toBe(true);
-      expect(isRecognizedPegoutStatus("PayoutBroadcast")).toBe(true);
+      expect(isRecognizedPegoutStatus("PayoutConfirmed")).toBe(true);
       expect(isRecognizedPegoutStatus("PayoutBlocked")).toBe(true);
     });
 
@@ -43,8 +44,8 @@ describe("pegout state", () => {
   });
 
   describe("isPegoutTerminalStatus", () => {
-    it("returns true for PayoutBroadcast", () => {
-      expect(isPegoutTerminalStatus("PayoutBroadcast")).toBe(true);
+    it("returns true for PayoutConfirmed", () => {
+      expect(isPegoutTerminalStatus("PayoutConfirmed")).toBe(true);
     });
 
     it("returns true for PayoutBlocked", () => {
@@ -63,6 +64,26 @@ describe("pegout state", () => {
 
     it("returns false for unrecognized statuses", () => {
       expect(isPegoutTerminalStatus("SomeNewStatus")).toBe(false);
+    });
+  });
+
+  describe("normalizeClaimerPegoutStatus", () => {
+    it("maps the legacy PayoutBroadcast to PayoutConfirmed", () => {
+      expect(normalizeClaimerPegoutStatus("PayoutBroadcast")).toBe(
+        "PayoutConfirmed",
+      );
+    });
+
+    it("returns other statuses unchanged", () => {
+      expect(normalizeClaimerPegoutStatus("PayoutConfirmed")).toBe(
+        "PayoutConfirmed",
+      );
+      expect(normalizeClaimerPegoutStatus("AssertBroadcast")).toBe(
+        "AssertBroadcast",
+      );
+      expect(normalizeClaimerPegoutStatus("SomeNewStatus")).toBe(
+        "SomeNewStatus",
+      );
     });
   });
 });

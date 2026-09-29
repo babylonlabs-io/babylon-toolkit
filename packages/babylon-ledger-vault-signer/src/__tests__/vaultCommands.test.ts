@@ -70,8 +70,7 @@ describe("deriveContextHash", () => {
   });
 
   it("always derives with the screen shown, never silently", async () => {
-    // P2=0x01 leaves root_user_approved false, and such a root can never load
-    // an intent — the failure would only surface at the key phase.
+    // P2=0x01 skips the screen and returns no root; the host needs the root.
     const { send, sent } = recorder([fill(0x42)]);
     await deriveContextHash(send, {
       appName: "babylon-vault",

@@ -13,6 +13,7 @@ export type Screens =
   | Screen<"LOADER">
   | Screen<"CHAINS">
   | Screen<"WALLETS">
+  | Screen<"CONNECT_GUIDE">
   | Screen<"ERROR">;
 
 export interface State {
@@ -37,6 +38,7 @@ export interface Actions {
   displayLoader?: (message?: string, description?: string) => void;
   displayChains?: () => void;
   displayWallets?: (chain: string) => void;
+  displayConnectGuide?: (chain: string, wallet: string) => void;
   displayError?: (params: {
     icon?: JSX.Element;
     title: string;
@@ -155,6 +157,10 @@ export function StateProvider({ children, chains, requiredChainIds, storage }: P
 
       displayWallets: (chain: string) => {
         setState((state) => ({ ...state, screen: { type: "WALLETS", params: { chain } } }));
+      },
+
+      displayConnectGuide: (chain: string, wallet: string) => {
+        setState((state) => ({ ...state, screen: { type: "CONNECT_GUIDE", params: { chain, wallet } } }));
       },
 
       displayError: (params) => {

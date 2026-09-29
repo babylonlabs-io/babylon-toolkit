@@ -13,6 +13,7 @@ import type { VaultProviderListItem } from "@/types/vaultProvider";
 import { CollateralFactorRow } from "./CollateralFactorRow";
 import { DepositFeesBreakdown } from "./DepositFeesBreakdown";
 import { FeesSection, type FeeRow } from "./FeesSection";
+import { snapToSplitMinimum } from "./snapToSplitMinimum";
 import { SuggestedDepositContainer } from "./SuggestedDepositContainer";
 import {
   UtxoSplitSelectorV3,
@@ -314,6 +315,32 @@ export function DepositForm({
     Number(maxDepositSats ?? 0n),
   );
   const sliderValueSats = Number(amountSats);
+  const minDepositForSplit = twoVaultSplit?.minDepositForSplit ?? 0n;
+  const hasTwoVaultSplit = twoVaultSplit != null;
+  const sliderSteps = useMemo(
+    () =>
+      hasTwoVaultSplit
+        ? [
+            {
+              value: Number(minDepositForSplit),
+              label: COPY.deposit.form.splitSliderStepLabel,
+            },
+          ]
+        : [],
+    [hasTwoVaultSplit, minDepositForSplit],
+  );
+
+  const handleSliderChange = (sats: number) => {
+    const value = snapToSplitMinimum(sats, {
+      splitMinSats: Number(minDepositForSplit),
+      sliderMinSats,
+      sliderMaxSats,
+      currentSats: sliderValueSats,
+    });
+    onAmountChange(
+      depositService.formatSatoshisToBtc(BigInt(Math.round(value))),
+    );
+  };
 
   const usdValue = useMemo(() => {
     if (hasPriceFetchError || !btcPrice || !amount || amount === "0") return "";
@@ -415,13 +442,10 @@ export function DepositForm({
           sliderMin={sliderMinSats}
           sliderMax={sliderMaxSats}
           sliderStep={1}
-          sliderSteps={[]}
+          sliderSteps={sliderSteps}
+          sliderSnapToSteps={false}
           sliderDisabled={sliderDisabled}
-          onSliderChange={(sats) =>
-            onAmountChange(
-              depositService.formatSatoshisToBtc(BigInt(Math.round(sats))),
-            )
-          }
+          onSliderChange={handleSliderChange}
           sliderVariant="primary"
           // Figma row: USD value on the left, balance + Max pill on the right.
           leftField={{

@@ -66,7 +66,6 @@ const NO_WALLET_POLICY_HMAC = new Uint8Array(WALLET_FIELD_BYTES);
 
 const DEPOSITOR_X_ONLY_HEX_RE = /^[0-9a-f]{64}$/;
 const PSBT_HEX_RE = /^(?:[0-9a-fA-F]{2})+$/;
-const WALLET_ID_HEX_RE = /^[0-9a-f]{64}$/;
 
 /**
  * The commitment surface of the vendored `MerkelizedPsbt` the header builder
@@ -277,9 +276,6 @@ export function prepareSignPsbt(params: PrepareSignPsbtParams): PreparedSignPsbt
   // Value import only — the vendored type never appears in an exported signature.
   let vendorPolicy: DefaultWalletPolicy | undefined;
   if (walletPolicy !== undefined) {
-    if (!WALLET_ID_HEX_RE.test(walletPolicy.walletIdHex)) {
-      throw new LedgerSignPsbtProtocolError("walletPolicy.walletIdHex must be 64 lowercase hex characters");
-    }
     vendorPolicy = new DefaultWalletPolicy(walletPolicy.descriptorTemplate, walletPolicy.keyInfo);
     // The header ships walletIdHex but the interpreter seeds preimages keyed on
     // template+keyInfo, so a mismatch dies untyped mid-loop, after device I/O.
