@@ -296,18 +296,6 @@ export function useVaultActions(): UseVaultActionsReturn {
       onShowSuccessModal,
     } = params;
 
-    const resolvedBatchVaultIds = Array.from(
-      new Set([
-        vaultId,
-        ...(batchVaultIds ?? [])
-          .filter((id) => id !== vaultId)
-          .map((id) => {
-            if (!isHex(id)) throw new Error(`Invalid batch vault id: ${id}`);
-            return id;
-          }),
-      ]),
-    );
-
     const finishBroadcast = () => {
       const nextStatus = getNextLocalStatus(
         PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN,
@@ -336,6 +324,21 @@ export function useVaultActions(): UseVaultActionsReturn {
     const { signal } = abortController;
 
     try {
+      // Inside the try, so a malformed sibling id reaches the error UI.
+      const resolvedBatchVaultIds = Array.from(
+        new Set([
+          vaultId,
+          ...(batchVaultIds ?? [])
+            .filter((id) => id !== vaultId)
+            .map((id) => {
+              if (!isHex(id)) {
+                throw new Error(COPY.deposit.errors.invalidBatchVaultId(id));
+              }
+              return id;
+            }),
+        ]),
+      );
+
       // Fetch vault data from GraphQL
       const vault = await fetchVaultById(vaultId);
 

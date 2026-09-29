@@ -27,6 +27,7 @@ import { Psbt, Transaction } from "bitcoinjs-lib";
 import { Buffer } from "buffer";
 
 import { COPY } from "@/copy";
+import { logger } from "@/infrastructure";
 
 import {
   getBitcoinObserverApiUrl,
@@ -359,7 +360,9 @@ export interface ObservePrePeginTransactionParams {
  * This is a reconcile shortcut, not a safety gate: the UTXO check and the
  * acknowledgement check still fail closed. So any read failure (404, outage,
  * rate limit) is "not observed", and the caller goes on to the normal
- * broadcast path. A response that resolves to a different txid still throws.
+ * broadcast path. A response that resolves to a different txid is "not
+ * observed" too: throwing would block every retry. Both cases log a warning,
+ * so a misconfigured or unreachable observer does not go unnoticed.
  */
 export async function isPrePeginTransactionObserved(
   params: ObservePrePeginTransactionParams,
@@ -387,14 +390,19 @@ export async function isPrePeginTransactionObserved(
     observedTxid = Transaction.fromHex(
       await getTxHex(registeredTxid, apiUrl),
     ).getId();
-  } catch {
+  } catch (error) {
+    logger.warn(
+      `[isPrePeginTransactionObserved] ${source} read failed for ${registeredTxid}`,
+      { error: error instanceof Error ? error.message : String(error) },
+    );
     return false;
   }
 
   if (observedTxid !== registeredTxid) {
-    throw new Error(
-      `Bitcoin observation returned txid ${observedTxid}, expected ${registeredTxid}`,
+    logger.warn(
+      `[isPrePeginTransactionObserved] ${source} returned txid ${observedTxid}, expected ${registeredTxid}`,
     );
+    return false;
   }
   return true;
 }

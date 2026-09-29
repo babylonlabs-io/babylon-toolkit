@@ -10,6 +10,7 @@ import {
 } from "@babylonlabs-io/ts-sdk/tbv/core/primitives";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { logger } from "@/infrastructure";
 import {
   DepositorBtcKeyMismatchError,
   DepositorWalletMismatchError,
@@ -600,20 +601,24 @@ describe("isPrePeginTransactionObserved", () => {
     expect(getTxHex).toHaveBeenCalledWith(SIGNED_TXID, "https://observer.test");
   });
 
-  it("rejects an observer response that resolves to another txid", async () => {
+  it("reports not observed, without blocking the retry, when the observer returns another txid", async () => {
     mockObservedTx.getId.mockReturnValueOnce("dd".repeat(32));
 
-    await expect(isPrePeginTransactionObserved(params)).rejects.toThrow(
-      /Bitcoin observation returned txid .* expected/,
-    );
+    await expect(isPrePeginTransactionObserved(params)).resolves.toBe(false);
   });
 
   it("reports not observed when the observer is unavailable, so the broadcast path stays open", async () => {
+    const warn = vi.spyOn(logger, "warn").mockImplementation(() => {});
     vi.mocked(getTxHex).mockRejectedValueOnce(
       new Error("Mempool API error (503): unavailable"),
     );
 
     await expect(isPrePeginTransactionObserved(params)).resolves.toBe(false);
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining(`observer read failed for ${SIGNED_TXID}`),
+      { error: "Mempool API error (503): unavailable" },
+    );
+    warn.mockRestore();
   });
 
   it("asks the broadcaster instead of the observer when told to", async () => {

@@ -497,6 +497,24 @@ describe("useVaultActions — handleBroadcast transaction integrity", () => {
     );
   });
 
+  it("shows an error, not a silent no-op, for an invalid batch vault id", async () => {
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleBroadcast({
+        ...baseBroadcastParams,
+        batchVaultIds: ["0xvaultId", "not-a-vault-id"],
+      });
+    });
+
+    expect(result.current.broadcastError?.body).toContain(
+      COPY.deposit.errors.invalidBatchVaultId("not-a-vault-id"),
+    );
+    expect(result.current.broadcasting).toBe(false);
+    expect(mockFetchVaultById).not.toHaveBeenCalled();
+    expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
+  });
+
   it("requires an explicit broadcast retry after BTC reconnects", async () => {
     btcActionWallet.connected = false;
     mockFetchVaultById.mockResolvedValue(baseVault as never);
