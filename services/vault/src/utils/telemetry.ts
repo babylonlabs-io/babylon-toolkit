@@ -211,6 +211,12 @@ export function scrubSentryEvent<T extends SentryEvent>(event: T): T {
     event.tags = redactData(event.tags) as typeof event.tags;
   }
 
+  if (event.fingerprint) {
+    event.fingerprint = event.fingerprint.map((entry) =>
+      scrubString(String(entry)),
+    );
+  }
+
   if (event.extra) {
     event.extra = redactData(event.extra);
   }
@@ -232,6 +238,7 @@ export function scrubSentryEvent<T extends SentryEvent>(event: T): T {
 
     event.exception.values = event.exception.values.map((ex) => ({
       ...ex,
+      type: scrubOptional(ex.type),
       value: ex.value ? scrubString(ex.value) : ex.value,
       stacktrace: ex.stacktrace
         ? {

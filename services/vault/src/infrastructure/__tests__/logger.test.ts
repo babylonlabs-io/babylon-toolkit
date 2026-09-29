@@ -88,7 +88,7 @@ describe("logger", () => {
       expect(error).toHaveProperty("message", message);
       expect(error).not.toHaveProperty("data");
       expect(error).not.toHaveProperty("cause");
-      expect(error).not.toHaveProperty("stack", LONG_HEX);
+      expect((error as Error).stack).not.toContain(LONG_HEX);
     });
 
     it("scrubs addresses and hex in a plain-object rejection in the console", () => {
@@ -120,6 +120,25 @@ describe("logger", () => {
             info: "some context",
           }),
         }),
+      );
+    });
+
+    it("tags a numeric errorCode as a string", () => {
+      logger.error({ message: "fail", errorCode: 7 });
+
+      expect(captureException).toHaveBeenLastCalledWith(
+        expect.any(Error),
+        expect.objectContaining({ tags: { errorCode: "7" } }),
+      );
+    });
+
+    it("adds no errorCode tag when errorCode is not a string or number", () => {
+      const error = Object.assign(new Error("fail"), { errorCode: undefined });
+      logger.error(error);
+
+      expect(captureException).toHaveBeenLastCalledWith(
+        error,
+        expect.objectContaining({ tags: undefined }),
       );
     });
 

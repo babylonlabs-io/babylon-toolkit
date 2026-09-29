@@ -45,11 +45,13 @@ export default {
     // Sentry off, alongside Sentry when on.
     // eslint-disable-next-line no-console -- logger is the one allowed console boundary
     console.error(scrubString(error.stack ?? error.message ?? String(error)));
+    const errorCode: unknown = Reflect.get(error, "errorCode");
     return captureException(error, {
       level,
-      tags: Reflect.has(error, "errorCode")
-        ? { ...tags, errorCode: Reflect.get(error, "errorCode") as string }
-        : tags,
+      tags:
+        typeof errorCode === "string" || typeof errorCode === "number"
+          ? { ...tags, errorCode: String(errorCode) }
+          : tags,
       extra: extra ? redactData(extra) : extra,
     });
   },
