@@ -280,10 +280,11 @@ is constructed from on-chain connector parameters. A VP that could supply that m
 depositor's signature valid for a different spend while the displayed transaction looked correct.
 
 The VP also supplies every Claim/Assert transaction pair. Before any wallet signing prompt, the SDK
-requires each Claim to have exactly one input spending output 1 of the depositor's authoritative
-PegIn transaction, then requires Assert input 0 to spend output 0 of that exact Claim. The check runs
-for the depositor graph and for every VP/VK claimer entry. Without it, a self-consistent payout PSBT
-can still belong to a recovery chain that this vault never funds.
+requires every Assert input 0 to spend output 0 of its own Claim. For the depositor graph it also
+requires the Claim to have exactly one input spending output 1 of the depositor's authoritative
+PegIn transaction. A VP/VK claimer funds its Claim from its own wallet, and only the depositor can
+spend PegIn output 1, so claimer Claims are not pinned to it. Without these checks, a
+self-consistent payout PSBT can still belong to a recovery chain that this vault never funds.
 
 Two further invariants, both asymmetric in their failure mode:
 
@@ -778,9 +779,9 @@ only repository-local safeguards.
 2. **The SDK fee model and the dApp estimate agree**, verified at the broadcast site, not only at
    the estimator.
 3. **Every PSBT the depositor signs is constructed locally** from on-chain-sourced connector data.
-   No PSBT, sighash input, or payout value is accepted from the vault provider verbatim. Every
-   VP-supplied Claim has exactly one input spending the authoritative PegIn output 1, and the
-   corresponding Assert input 0 spends that Claim's output 0, before any signing prompt.
+   No PSBT, sighash input, or payout value is accepted from the vault provider verbatim. Before any
+   signing prompt, every VP-supplied Assert input 0 spends output 0 of its own Claim, and the
+   depositor graph's Claim has exactly one input spending the authoritative PegIn output 1.
 4. **The VP-returned challenger set equals `local ∪ universal` exactly** — no missing entries, no
    extras — with `LocalChallengers` derived from the on-chain VK list.
 5. **Signatures produced with `useTweakedSigner: false` / `autoFinalized: false` are verified against
@@ -816,7 +817,7 @@ only repository-local safeguards.
 | Fee model           | —         | SDK and dApp fee models diverge; the tx is underfunded                            | User fund loss (stuck / failed deposit)                                 | Shared `peginFeeMath`; cross-check at broadcast                                                                 | SDK fee + `selectUtxos` tests                                     |
 | Critical-path guard | G         | A critical path moves but one hand-maintained inventory keeps the stale path      | Integrity (process)                                                     | Five full inventories align; SDK ESLint mirrors its SDK subset; existence does not gate merges                  | SECURITY, CLAUDE, CODEOWNERS, ESLint, two workflows               |
 | Presigning          | A         | VP supplies PSBT metadata making a signature valid for a different spend          | **User fund loss**                                                      | PSBTs built locally from on-chain connector data only                                                           | `signDepositorGraph` tests                                        |
-| Presigning          | A         | VP supplies an unfunded Claim/Assert chain while requesting valid payout signatures | Deposit stalls; recovery chain is unusable                              | Bind Claim to authoritative PegIn:1 and Assert:0 to Claim:0 before every signing prompt                         | graph fingerprint and depositor-presign tests                     |
+| Presigning          | A         | VP supplies an unfunded Claim/Assert chain while requesting valid payout signatures | Deposit stalls; recovery chain is unusable                              | Bind depositor Claim to PegIn:1 and every Assert:0 to its Claim:0 before every signing prompt                   | graph fingerprint and depositor-presign tests                     |
 | Presigning          | A         | VP returns a challenger set with an extra or missing key                          | Recovery material missing / signature to an unrecognised key            | `deriveLocalChallengers` + exact `local ∪ universal` equality assert                                            | `signDepositorGraph` tests                                        |
 | Wallet signing      | E         | Wallet ignores `useTweakedSigner: false`, returns an invalid signature as success | User fund loss (silent)                                                 | Sighash verification of every produced signature                                                                | `verifyScriptPathSchnorrSignature` tests                          |
 | Vault secrets       | F/G       | `VAULT_WASM_COMMIT` bump rotates expander output                                  | **Permanent loss of access for every in-flight deposit**                | Frozen API; JS + Rust golden-vector gates on every bump                                                         | `vault-secrets/__tests__/expand.test.ts`, `golden_vectors_pinned` |

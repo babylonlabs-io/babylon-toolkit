@@ -70,7 +70,7 @@ const linkageCalls = vi.hoisted(() => [] as unknown[]);
 // Set to make the next Claim/Assert linkage check reject the served chain.
 const linkageFailure = vi.hoisted(() => ({ next: null as Error | null }));
 type LinkageValidator =
-  (typeof import("../graphFingerprint"))["assertPresignClaimAssertLinkage"];
+  (typeof import("../graphFingerprint"))["assertPresignAssertSpendsClaim"];
 const linkageImplementation = vi.hoisted(() => ({
   current: null as null | LinkageValidator,
 }));
@@ -78,7 +78,7 @@ vi.mock("../graphFingerprint", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../graphFingerprint")>();
   return {
     ...actual,
-    assertPresignClaimAssertLinkage: (
+    assertPresignAssertSpendsClaim: (
       args: Parameters<LinkageValidator>[0],
     ) => {
       linkageCalls.push(args);
@@ -271,9 +271,10 @@ function createRealLinkageChain(claimOutputCount = 1): {
   peginTx.addOutput(Buffer.from([0x51]), 2_000);
   peginTx.addOutput(Buffer.from([0x51]), 1_000);
 
+  // A VP/VK Claim is funded from the claimer's own wallet, not from PegIn:1.
   const claimTx = new Transaction();
   claimTx.version = 2;
-  claimTx.addInput(peginTx.getHash(), 1);
+  claimTx.addInput(Buffer.alloc(32, 9), 0);
   for (let i = 0; i < claimOutputCount; i += 1) {
     claimTx.addOutput(Buffer.from([0x51]), 900 - i);
   }
@@ -509,7 +510,7 @@ describe("runDepositorPresignFlow", () => {
     expect(presignClient.submitDepositorPresignatures).not.toHaveBeenCalled();
   });
 
-  it("checks every claimer Claim/Assert chain against the authoritative PegIn", async () => {
+  it("checks that every claimer Assert spends its own Claim", async () => {
     linkageCalls.length = 0;
     const signingContext = createSigningContext();
 
@@ -527,13 +528,11 @@ describe("runDepositorPresignFlow", () => {
 
     expect(linkageCalls).toEqual([
       {
-        peginTxHex: signingContext.peginTxHex,
         claimTxHex: "deadbeef",
         assertTxHex: "deadbeef",
         path: "txs[0]",
       },
       {
-        peginTxHex: signingContext.peginTxHex,
         claimTxHex: "deadbeef",
         assertTxHex: "deadbeef",
         path: "txs[1]",
@@ -575,8 +574,9 @@ describe("runDepositorPresignFlow", () => {
       typeof import("../graphFingerprint")
     >("../graphFingerprint");
     linkageImplementation.current =
-      actualGraphFingerprint.assertPresignClaimAssertLinkage;
+      actualGraphFingerprint.assertPresignAssertSpendsClaim;
 
+    // txs[0] is an honest wallet-funded Claim and must pass; txs[1] fails.
     const validChain = createRealLinkageChain();
     const zeroOutputChain = createRealLinkageChain(0);
     const wallet = createCapabilityWallet();
@@ -983,6 +983,35 @@ describe("runDepositorPresignFlow", () => {
   });
 
   describe("deposit terms approval", () => {
+    it("opens no signing prompt when the user cancels during approval", async () => {
+      const controller = new AbortController();
+      const wallet = createCapabilityWallet(() => controller.abort());
+      const payoutSignsBefore = capturedPayoutInputs.length;
+      const graphSignsBefore = vi.mocked(signDepositorGraph).mock.calls.length;
+
+      await expect(
+        runDepositorPresignFlow({
+          statusReader: createMockStatusReader([
+            DaemonStatus.PENDING_DEPOSITOR_SIGNATURES,
+          ]),
+          presignClient: createMockPresignClient(),
+          btcWallet: wallet,
+          peginTxid: VALID_TXID,
+          depositorPk: DEPOSITOR_PK,
+          recordGraphFingerprint: vi.fn(),
+          signingContext: createSigningContext(),
+          depositTerms: DEPOSIT_TERMS,
+          signal: controller.signal,
+        }),
+      ).rejects.toThrow();
+
+      expect(wallet.approveDepositTerms).toHaveBeenCalledOnce();
+      expect(capturedPayoutInputs).toHaveLength(payoutSignsBefore);
+      expect(vi.mocked(signDepositorGraph).mock.calls).toHaveLength(
+        graphSignsBefore,
+      );
+    });
+
     it("validates the VP response before approving the deposit terms", async () => {
       const callLog: string[] = [];
       const wallet = createCapabilityWallet(() => callLog.push("approve"));

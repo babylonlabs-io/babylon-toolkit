@@ -253,6 +253,14 @@ function readInputOutpoint(
   };
 }
 
+function assertClaimHasAssertOutput(claimTx: Transaction, path: string): void {
+  if (!claimTx.outs[CLAIM_ASSERT_VOUT]) {
+    throw new GraphFingerprintError(
+      `Presign ${path}.claim_tx must have output ${CLAIM_ASSERT_VOUT}`,
+    );
+  }
+}
+
 function assertClaimSpendsPegin(
   claimTx: Transaction,
   peginTxid: string,
@@ -264,11 +272,7 @@ function assertClaimSpendsPegin(
     );
   }
 
-  if (!claimTx.outs[CLAIM_ASSERT_VOUT]) {
-    throw new GraphFingerprintError(
-      `Presign ${path}.claim_tx must have output ${CLAIM_ASSERT_VOUT}`,
-    );
-  }
+  assertClaimHasAssertOutput(claimTx, path);
 
   const spent = readInputOutpoint(claimTx, 0);
   if (spent?.txid !== peginTxid || spent.vout !== PEGIN_DEPOSITOR_CLAIM_VOUT) {
@@ -303,12 +307,42 @@ function decodePresignClaimAssertTransactions(
   return { peginTx, claimTx, assertTx };
 }
 
+export interface AssertPresignAssertSpendsClaimParams {
+  /** VP-supplied Claim transaction. */
+  claimTxHex: string;
+  /** VP-supplied Assert transaction. */
+  assertTxHex: string;
+  /** Response path included in actionable validation errors. */
+  path: string;
+}
+
 /**
- * Bind a VP-supplied Claim/Assert pair to the depositor's authoritative PegIn.
+ * Bind a VP/VK claimer's Assert to its own Claim: Assert input 0 must spend
+ * Claim output 0.
+ *
+ * A claimer funds its Claim from its own wallet (`ClaimTx::from_transaction`
+ * in `btc-vault` tolerates that freedom), so the Claim's inputs are not
+ * checked here. Only the depositor-as-claimer Claim spends PegIn output 1;
+ * {@link assertPresignClaimAssertLinkage} checks that one.
+ */
+export function assertPresignAssertSpendsClaim(
+  args: AssertPresignAssertSpendsClaimParams,
+): void {
+  const claimTx = decodePresignTx(args.claimTxHex, `${args.path}.claim_tx`);
+  const assertTx = decodePresignTx(args.assertTxHex, `${args.path}.assert_tx`);
+  assertClaimHasAssertOutput(claimTx, args.path);
+  assertAssertSpendsClaim(assertTx, claimTx.getId(), args.path);
+}
+
+/**
+ * Bind the depositor-as-claimer Claim/Assert pair to the depositor's
+ * authoritative PegIn.
  *
  * The Claim must have exactly one input spending PegIn output 1, and Assert
  * input 0 must spend Claim output 0. Call this before any wallet signing
  * prompt: otherwise the VP can obtain signatures for an unfundable graph.
+ * Do not use it for VP/VK claimer entries: their Claims are wallet-funded
+ * (see {@link assertPresignAssertSpendsClaim}).
  */
 export function assertPresignClaimAssertLinkage(
   args: AssertPresignClaimAssertLinkageParams,

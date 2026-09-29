@@ -4,6 +4,7 @@ import { Transaction } from "bitcoinjs-lib";
 import { describe, expect, it } from "vitest";
 
 import {
+  assertPresignAssertSpendsClaim,
   assertPresignClaimAssertLinkage,
   assertReturnedGraphMatchesFingerprint,
   canonicalTxSetFingerprint,
@@ -194,6 +195,38 @@ describe("assertPresignClaimAssertLinkage", () => {
         path: "txs[0]",
       }),
     ).toThrow(/txs\[0\]\.claim_tx must have output 0/);
+  });
+});
+
+describe("assertPresignAssertSpendsClaim", () => {
+  it("accepts a VP/VK Claim funded from the claimer's wallet, not PegIn:1", () => {
+    const claimTx = Transaction.fromHex(CLAIM_TX_HEX);
+    claimTx.ins[0].hash = Buffer.alloc(32, 0x42);
+    claimTx.ins[0].index = 3;
+    const assertTx = Transaction.fromHex(ASSERT_TX_HEX);
+    assertTx.ins[0].hash = claimTx.getHash();
+    assertTx.ins[0].index = 0;
+
+    expect(() =>
+      assertPresignAssertSpendsClaim({
+        claimTxHex: claimTx.toHex(),
+        assertTxHex: assertTx.toHex(),
+        path: "txs[0]",
+      }),
+    ).not.toThrow();
+  });
+
+  it("rejects an Assert whose input 0 does not spend its Claim output 0", () => {
+    const assertTx = Transaction.fromHex(ASSERT_TX_HEX);
+    assertTx.ins[0].hash = Buffer.alloc(32, 0x99);
+
+    expect(() =>
+      assertPresignAssertSpendsClaim({
+        claimTxHex: CLAIM_TX_HEX,
+        assertTxHex: assertTx.toHex(),
+        path: "txs[0]",
+      }),
+    ).toThrow(/txs\[0\]\.assert_tx input 0 must spend/);
   });
 });
 

@@ -26,7 +26,7 @@ import {
   stripHexPrefix,
 } from "../../primitives/utils/bitcoin";
 import {
-  assertPresignClaimAssertLinkage,
+  assertPresignAssertSpendsClaim,
   fingerprintPresignTxSet,
 } from "./graphFingerprint";
 import type { PeginStatusReader, PresignClient } from "./interfaces";
@@ -493,13 +493,14 @@ export async function runDepositorPresignFlow(
 
   signal?.throwIfAborted();
 
-  // Every claimer gets its own Claim/Assert chain. Pin each one to the
-  // depositor's PegIn before any payout signing prompt: buildPayoutPsbt uses
-  // Assert:0 as a prevout but cannot prove that Assert is funded by this
-  // vault's Claim without the Claim transaction itself.
+  // Every claimer gets its own Claim/Assert chain. Bind each Assert to its
+  // Claim before any payout signing prompt: buildPayoutPsbt uses Assert:0 as
+  // a prevout but cannot prove that Assert spends this Claim without the
+  // Claim transaction itself. A VP/VK Claim is funded from the claimer's own
+  // wallet, so only the depositor graph's Claim is pinned to PegIn:1 (in the
+  // fingerprint below).
   response.txs.forEach((tx, index) => {
-    assertPresignClaimAssertLinkage({
-      peginTxHex: signingContext.peginTxHex,
+    assertPresignAssertSpendsClaim({
       claimTxHex: tx.claim_tx.tx_hex,
       assertTxHex: tx.assert_tx.tx_hex,
       path: `txs[${index}]`,
@@ -555,6 +556,10 @@ export async function runDepositorPresignFlow(
     // approveDepositTerms (DepositTermsApprover contract, #2109).
     await depositApprovalWallet.approveDepositTerms(approvedDepositTerms);
   }
+
+  // The approval prompt can stay open for a long time. A cancel during it
+  // must not lead into the signing prompts below.
+  signal?.throwIfAborted();
 
   const claimerSignatures = await signPayoutTransactions(
     btcWallet,
