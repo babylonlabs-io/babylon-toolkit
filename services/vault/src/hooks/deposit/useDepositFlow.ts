@@ -964,7 +964,7 @@ export function useDepositFlow(
             providerIds: [primaryProvider],
             applicationEntryPoint: selectedApplication,
             batchId,
-            batchIndex: peginResult.vaultIndex + 1,
+            constructionIndex: peginResult.vaultIndex,
             batchTotal: vaultAmounts.length,
             status: LocalStorageStatus.PENDING,
             unsignedTxHex: peginResult.fundedPrePeginTxHex,

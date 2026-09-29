@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { getActionStatus } from "@/components/deposit/actionStatus";
 import {
   computeDepositPollingResult,
   type DepositPollingInputs,
@@ -45,6 +46,7 @@ function makeInputs(
   return {
     activity: makeExpiredActivity(),
     activationFloorBlocksRemaining: undefined,
+    activationBlockedBySibling: false,
     pendingPegins: [],
     pendingDepositorSignatures: undefined,
     errors: undefined,
@@ -335,6 +337,48 @@ describe("computeDepositPollingResult — activation deadline gate", () => {
     expect(result.peginState.displayLabel).toBe(
       PEGIN_DISPLAY_LABELS.READY_TO_ACTIVATE,
     );
+  });
+});
+
+describe("computeDepositPollingResult — split activation order", () => {
+  function makeVerifiedActivity(): VaultActivity {
+    return {
+      ...makeExpiredActivity(),
+      displayLabel: PEGIN_DISPLAY_LABELS.READY_TO_ACTIVATE,
+      contractStatus: ContractStatus.VERIFIED,
+    };
+  }
+
+  it("withholds Activate while an earlier split sibling can still activate", () => {
+    const result = computeDepositPollingResult(
+      makeInputs({
+        activity: makeVerifiedActivity(),
+        activationBlockedBySibling: true,
+      }),
+    );
+
+    expect(result.peginState.availableActions).not.toContain(
+      PeginAction.ACTIVATE_VAULT,
+    );
+    expect(result.peginState.displayLabel).toBe(
+      PEGIN_DISPLAY_LABELS.AWAITING_EARLIER_VAULT,
+    );
+  });
+
+  it("shows the row's Activate disabled with the order explained", () => {
+    const status = getActionStatus(
+      computeDepositPollingResult(
+        makeInputs({
+          activity: makeVerifiedActivity(),
+          activationBlockedBySibling: true,
+        }),
+      ),
+    );
+
+    expect(status.type).toBe("disabled");
+    if (status.type !== "disabled") return;
+    expect(status.action?.action).toBe(PeginAction.ACTIVATE_VAULT);
+    expect(status.tooltip).toBe(COPY.pegin.messages.activationOrderWaiting);
   });
 });
 

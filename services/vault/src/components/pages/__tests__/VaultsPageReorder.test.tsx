@@ -135,6 +135,11 @@ vi.mock("@/components/vaults/VaultsActiveSection", () => ({
   },
 }));
 
+// Exercised in its own test.
+vi.mock("@/components/vaults/SplitVaultOrderWarning", () => ({
+  SplitVaultOrderWarning: () => null,
+}));
+
 vi.mock("@/components/simple/WithdrawFlow", () => ({
   default: () => null,
 }));

@@ -119,6 +119,12 @@ export interface DepositPollingInputs {
    * `activationDeadlinePassed`. See `useActivationFloorGate`.
    */
   activationFloorBlocksRemaining: number | null | undefined;
+  /**
+   * A lower construction-index sibling of this split deposit can still
+   * activate. Resolved by the caller from the full activity list. See
+   * `isActivationBlockedByEarlierSibling`.
+   */
+  activationBlockedBySibling: boolean;
   isLoading: boolean;
   optimisticStatuses: ReadonlyMap<string, LocalStorageStatus>;
   optimisticRefundBroadcastAt: ReadonlyMap<string, number>;
@@ -185,6 +191,7 @@ export function computeDepositPollingResult(
     activationDeadlinePassed,
     stuckStateConfirmedOnChain,
     activationFloorBlocksRemaining,
+    activationBlockedBySibling,
     isLoading,
     optimisticStatuses,
     optimisticRefundBroadcastAt,
@@ -370,6 +377,7 @@ export function computeDepositPollingResult(
     activationDeadlinePassed,
     htlcSpentByPeginTx,
     activationFloorBlocksRemaining,
+    activationBlockedBySibling,
     canRefund,
     peginSweptWhileExpired,
     refundMaturityState,

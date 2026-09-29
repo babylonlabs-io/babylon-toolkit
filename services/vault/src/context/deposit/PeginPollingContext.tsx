@@ -56,6 +56,7 @@ import type {
   PeginPollingContextValue,
   PeginPollingProviderProps,
 } from "../../types/peginPolling";
+import { isActivationBlockedByEarlierSibling } from "../../utils/batchedPegin";
 import { canonicalizeTxid } from "../../utils/txid";
 import { isVaultOwnedByWallet } from "../../utils/vaultWarnings";
 
@@ -629,6 +630,10 @@ export function PeginPollingProvider({
         ),
         activationFloorBlocksRemaining: activationFloorBlocks.get(
           activity.id.toLowerCase(),
+        ),
+        activationBlockedBySibling: isActivationBlockedByEarlierSibling(
+          activities,
+          activity,
         ),
         // Params still resolving is a loading state, not a resolved "depth
         // unknown" — otherwise a cold load reads as a stalled deposit. A params
