@@ -36,10 +36,9 @@ const P1_GROUP = 0x01;
 const P1_KEY_BATCH = 0x02;
 
 /**
- * P2=0x00 shows the approval screen and returns the root; P2=0x01 derives
- * silently. We always use 0x00: a silently-derived root sets
- * `root_user_approved = false` and can never load an intent, so the ceremony
- * would fail later with an opaque status word.
+ * P2=0x00 shows the approval screen and returns the root; P2=0x01 skips the
+ * screen and returns no root. The host needs the root to expand per-vault
+ * secrets, so we always send 0x00.
  */
 const P2_SHOW = 0x00;
 
