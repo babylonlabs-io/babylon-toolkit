@@ -55,6 +55,13 @@ describe("useBtcConfirmations", () => {
     );
 
     await waitFor(() => expect(result.current.confirmations).toBe(6));
+    expect(mockGetTipHeight).toHaveBeenCalledWith(
+      "https://blockstream.info/signet/api",
+    );
+    expect(mockGetTxInfo).toHaveBeenCalledWith(
+      expect.any(String),
+      "https://blockstream.info/signet/api",
+    );
   });
 
   it("reports zero confirmations for a tx still in the mempool", async () => {

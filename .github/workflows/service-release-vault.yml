@@ -168,6 +168,7 @@ jobs:
           # Bitcoin Network Configuration (Vault)
           NEXT_PUBLIC_BTC_NETWORK: ${{ vars.NEXT_PUBLIC_BTC_NETWORK }}
           NEXT_PUBLIC_MEMPOOL_API: ${{ vars.NEXT_PUBLIC_MEMPOOL_API }}
+          NEXT_PUBLIC_BTC_OBSERVER_API: ${{ vars.NEXT_PUBLIC_BTC_OBSERVER_API }}
           # Ethereum Network Configuration (Vault)
           NEXT_PUBLIC_ETH_CHAINID: ${{ vars.NEXT_PUBLIC_ETH_CHAINID }}
           NEXT_PUBLIC_ETH_RPC_URL: ${{ vars.NEXT_PUBLIC_ETH_RPC_URL }}

@@ -15,7 +15,7 @@ vi.mock("@/context/SigningNotificationContext", () => ({
   }),
 }));
 
-import { PeginAction } from "@/models/peginStateMachine";
+import { LocalStorageStatus, PeginAction } from "@/models/peginStateMachine";
 import type { VaultActivity } from "@/types/activity";
 import type { DepositPollingResult } from "@/types/peginPolling";
 
@@ -98,6 +98,30 @@ describe("useSigningRequiredNotifications", () => {
             peginState: {
               availableActions: [PeginAction.ACTIVATE_VAULT],
               displayVariant: "warning",
+            },
+          }) as unknown as DepositPollingResult,
+        "btcpubkey",
+      ),
+    );
+    expect(ctx.notify).not.toHaveBeenCalled();
+  });
+
+  it("notifies for sign-and-broadcast before this user has broadcast", () => {
+    renderObserver([PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN], "btcpubkey");
+    expect(ctx.notify).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not notify for sign-and-broadcast while the local status is CONFIRMING", () => {
+    renderHook(() =>
+      useSigningRequiredNotifications(
+        ACTIVITIES,
+        () =>
+          ({
+            isOwnedByCurrentWallet: true,
+            loading: false,
+            peginState: {
+              availableActions: [PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN],
+              localStatus: LocalStorageStatus.CONFIRMING,
             },
           }) as unknown as DepositPollingResult,
         "btcpubkey",

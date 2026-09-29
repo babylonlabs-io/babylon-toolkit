@@ -549,12 +549,10 @@ function applyTrackingOverrides(
       return [];
     }
     if (localStatus === LocalStorageStatus.CONFIRMING) {
-      // If VP explicitly reports no pending ingestion (broadcast not
-      // detected), the local status is stale — ignore the override.
-      if (vpState?.pendingIngestion === false) return sdkActions;
-      return sdkActions.filter(
-        (a) => a !== SdkPeginAction.SIGN_AND_BROADCAST_TO_BITCOIN,
-      );
+      // A local marker is not evidence that Bitcoin accepted the transaction.
+      // The independent mempool/chain observation below owns suppression;
+      // until it sees the registered txid, keep the safe rebroadcast action.
+      return sdkActions;
     }
   }
 
@@ -632,10 +630,16 @@ function getDisplay(
       };
     }
     if (actions.includes(PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN)) {
+      // CONFIRMING keeps the broadcast action until the observer sees the tx,
+      // but it was sent: say so instead of blaming the broadcast. A retry in
+      // this window reconciles with the broadcaster and does not rebroadcast.
       return {
         displayLabel: PEGIN_DISPLAY_LABELS.PENDING,
         displayVariant: "pending",
-        message: COPY.pegin.messages.broadcastMayHaveFailed,
+        message:
+          localStatus === LocalStorageStatus.CONFIRMING
+            ? COPY.pegin.messages.prePeginAwaitingObservation
+            : COPY.pegin.messages.broadcastMayHaveFailed,
       };
     }
     if (actions.includes(PeginAction.SIGN_PAYOUT_TRANSACTIONS)) {
@@ -659,14 +663,12 @@ function getDisplay(
         message: COPY.pegin.messages.prePeginIngesting,
       };
     }
-    // Broadcast happened (chain says the tx is on the network, or the local
-    // CONFIRMING marker says so) but it is not yet confirmed at depth — a
-    // Bitcoin-confirmation wait. Keyed on `prePeginBroadcastSeen` too so every
-    // tab shows this, not just the one that broadcast.
+    // Broadcast happened (the observer says the tx is on the network) but it
+    // is not yet confirmed at depth — a Bitcoin-confirmation wait. Keyed on
+    // `prePeginBroadcastSeen`, not the local marker, so every tab shows this.
     if (
       options.pendingIngestion === true &&
-      (options.prePeginBroadcastSeen === true ||
-        localStatus === LocalStorageStatus.CONFIRMING)
+      options.prePeginBroadcastSeen === true
     ) {
       return {
         displayLabel: PEGIN_DISPLAY_LABELS.PENDING,
