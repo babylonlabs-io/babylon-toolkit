@@ -1415,7 +1415,8 @@ batchGetPegoutStatus(params, signal?): Promise<BatchGetPegoutStatusResponse>;
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/api.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/api.ts)
 
 Get pegout status for many txids in one round trip. Same per-result
-envelope semantics as `batchGetPeginStatus`.
+envelope semantics as `batchGetPeginStatus`. A legacy claimer status
+from an older daemon is replaced with its current name.
 
 ###### Parameters
 

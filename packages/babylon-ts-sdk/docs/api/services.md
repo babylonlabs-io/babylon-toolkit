@@ -5741,7 +5741,7 @@ function isPegoutTerminalStatus(claimerStatus): boolean;
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/pegout/state.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/pegout/state.ts)
 
 Whether a claimer status is a hard-terminal pegout status
-(PayoutBroadcast or PayoutBlocked). Soft-terminal conditions (polling
+(PayoutConfirmed or PayoutBlocked). Soft-terminal conditions (polling
 thresholds) are a consumer-side concern.
 
 #### Parameters
@@ -6228,10 +6228,10 @@ ASSERT_BROADCAST: "AssertBroadcast";
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/pegout/state.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/pegout/state.ts)
 
-##### PAYOUT\_BROADCAST
+##### PAYOUT\_CONFIRMED
 
 ```ts
-PAYOUT_BROADCAST: "PayoutBroadcast";
+PAYOUT_CONFIRMED: "PayoutConfirmed";
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/pegout/state.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/pegout/state.ts)

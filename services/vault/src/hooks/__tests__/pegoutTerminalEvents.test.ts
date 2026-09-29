@@ -33,7 +33,7 @@ describe("collectPegoutTerminalEvents", () => {
     ).toEqual([]);
 
     const broadcast = new Map([
-      ["0xa", resultWithStatus(ClaimerPegoutStatusValue.PAYOUT_BROADCAST)],
+      ["0xa", resultWithStatus(ClaimerPegoutStatusValue.PAYOUT_CONFIRMED)],
     ]);
     expect(collectPegoutTerminalEvents(broadcast, tracking)).toEqual([
       {
@@ -127,7 +127,7 @@ describe("collectPegoutTerminalEvents", () => {
   it("seeds a vault already terminal at first observation without emitting (no page-load burst)", () => {
     const tracking = createPegoutTerminalTracking();
     const broadcast = new Map([
-      ["0xold", resultWithStatus(ClaimerPegoutStatusValue.PAYOUT_BROADCAST)],
+      ["0xold", resultWithStatus(ClaimerPegoutStatusValue.PAYOUT_CONFIRMED)],
     ]);
 
     expect(collectPegoutTerminalEvents(broadcast, tracking)).toEqual([]);
@@ -147,7 +147,7 @@ describe("collectPegoutTerminalEvents", () => {
     // Next poll succeeds and reports the prior-session terminal: first genuine
     // observation, so it seeds without emitting.
     const broadcast = new Map([
-      ["0xold", resultWithStatus(ClaimerPegoutStatusValue.PAYOUT_BROADCAST)],
+      ["0xold", resultWithStatus(ClaimerPegoutStatusValue.PAYOUT_CONFIRMED)],
     ]);
     expect(collectPegoutTerminalEvents(broadcast, tracking)).toEqual([]);
     expect(collectPegoutTerminalEvents(broadcast, tracking)).toEqual([]);
@@ -166,7 +166,7 @@ describe("collectPegoutTerminalEvents", () => {
 
     // The in-session terminal that follows emits.
     const broadcast = new Map([
-      ["0xa", resultWithStatus(ClaimerPegoutStatusValue.PAYOUT_BROADCAST)],
+      ["0xa", resultWithStatus(ClaimerPegoutStatusValue.PAYOUT_CONFIRMED)],
     ]);
     expect(collectPegoutTerminalEvents(broadcast, tracking)).toEqual([
       {
@@ -190,7 +190,7 @@ describe("collectPegoutTerminalEvents", () => {
     collectPegoutTerminalEvents(timedOut, tracking);
 
     const broadcast = new Map([
-      ["0xa", resultWithStatus(ClaimerPegoutStatusValue.PAYOUT_BROADCAST)],
+      ["0xa", resultWithStatus(ClaimerPegoutStatusValue.PAYOUT_CONFIRMED)],
     ]);
     expect(collectPegoutTerminalEvents(broadcast, tracking)).toEqual([
       {
