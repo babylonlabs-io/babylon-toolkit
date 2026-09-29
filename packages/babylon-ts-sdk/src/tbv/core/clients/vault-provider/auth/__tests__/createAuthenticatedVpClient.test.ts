@@ -42,7 +42,10 @@ describe("createAuthenticatedVpClient", () => {
       pinnedServerPubkey: PINNED_PUBKEY,
       depositorBtcPubkey: DEPOSITOR_PUBKEY,
     });
-    const firstProvider = vpTokenRegistry.peek(PEGIN_TXID);
+    const firstProvider = vpTokenRegistry.peek(
+      PEGIN_TXID,
+      "https://vp.test/rpc",
+    );
     expect(firstProvider).toBeDefined();
 
     createAuthenticatedVpClient({
@@ -52,7 +55,9 @@ describe("createAuthenticatedVpClient", () => {
       pinnedServerPubkey: PINNED_PUBKEY,
       depositorBtcPubkey: DEPOSITOR_PUBKEY,
     });
-    expect(vpTokenRegistry.peek(PEGIN_TXID)).toBe(firstProvider);
+    expect(vpTokenRegistry.peek(PEGIN_TXID, "https://vp.test/rpc")).toBe(
+      firstProvider,
+    );
   });
 
   it("non-gated methods skip the tokenProvider — no token request is made", async () => {

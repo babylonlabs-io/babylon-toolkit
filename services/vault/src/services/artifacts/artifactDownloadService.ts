@@ -143,14 +143,16 @@ export async function fetchAndDownloadArtifacts(
   // The caller (useArtifactDownload) primes the bearer before invoking
   // this service when the registry is cold, so peek() returns the active
   // provider and the request goes out with a valid Authorization header
-  // for this auth-gated RPC. `callRaw` does not reactively refresh when the
-  // server rejects the bearer, so a token that goes stale mid-download
-  // bubbles up as an error and the caller's auth-failure retry path handles
-  // re-priming.
-  const tokenProvider = vpTokenRegistry.peek(normalizedPeginTxid);
+  // for this auth-gated RPC. peek() misses when the entry is bound to a
+  // different VP URL, so a bearer never reaches another provider. `callRaw`
+  // does not reactively refresh when the server rejects the bearer, so a
+  // token that goes stale mid-download bubbles up as an error and the
+  // caller's auth-failure retry path handles re-priming.
+  const baseUrl = getVpProxyUrl(providerAddress);
+  const tokenProvider = vpTokenRegistry.peek(normalizedPeginTxid, baseUrl);
 
   const client = new JsonRpcClient({
-    baseUrl: getVpProxyUrl(providerAddress),
+    baseUrl,
     timeout: RPC_TIMEOUT_MS,
     // Artifact requests are idempotent reads — safe to retry on transient errors
     retryableFor: () => true,
