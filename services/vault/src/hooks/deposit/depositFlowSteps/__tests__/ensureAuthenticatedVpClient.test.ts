@@ -160,7 +160,7 @@ describe("ensureAuthenticatedVpClient", () => {
     expect(mockGetVaultBasicInfo).toHaveBeenCalledWith(VAULT_ID);
     expect(deriveVaultRoot).not.toHaveBeenCalled();
     expect(expandAuthAnchor).not.toHaveBeenCalled();
-    expect(vpTokenRegistry.peek(PEGIN_TXID)).toBeUndefined();
+    expect(vpTokenRegistry.peek(registryLookup)).toBeUndefined();
   });
 
   it("cache hit: skips wallet derivation, on-chain prePeginTxHash read, and pubkey fetch", async () => {
