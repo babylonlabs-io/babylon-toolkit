@@ -159,6 +159,7 @@ Separating the Ethereum-only paths from the Bitcoin stack reimplements some prim
 - Extract all hardcoded numbers and strings to named constants with descriptive names.
 - Constants should be co-located or in a shared config — never inline.
 - If a number appears in code, it must be obvious why that value was chosen.
+- `/pre-review` reports an inline constant only when it causes a concrete failure. Authors and human reviewers still apply this rule.
 
 ### No Silent Fallbacks on Critical Paths
 

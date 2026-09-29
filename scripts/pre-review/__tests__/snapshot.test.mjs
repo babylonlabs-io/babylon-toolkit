@@ -372,19 +372,22 @@ function finalCandidate() {
         reviewers: [{ name: "review-lane", completed: true }],
       },
     ],
-    final_review: { input_key: inputKey, run: 2 },
+    final_review: {
+      input_key: inputKey,
+      outside_anchors_sha256: digestBlobs(inputs.outsideAnchors),
+      run: 2,
+    },
   };
   return { ...inputs, inputKey, state };
 }
 
-test("final completion is reused only for identical code, base, branch, anchors and context", () => {
+test("final completion is reused only for identical code, base, branch and context", () => {
   const candidate = finalCandidate();
   assert.equal(finalReviewStatus(candidate).status, "complete");
   for (const change of [
     { base: "4".repeat(40) },
     { branch: "feat/other" },
     { files: new Map([["changed.ts", "5".repeat(40)]]) },
-    { outsideAnchors: new Map([["caller.ts", "6".repeat(40)]]) },
     { context: "Changed intent or binding rules." },
   ]) {
     const changed = { ...candidate, ...change };
@@ -392,6 +395,37 @@ test("final completion is reused only for identical code, base, branch, anchors 
     assert.notEqual(changed.inputKey, candidate.inputKey);
     assert.equal(finalReviewStatus(changed).status, "blocked");
   }
+});
+
+test("an edited outside anchor blocks final completion without changing the key", () => {
+  const candidate = finalCandidate();
+  const edited = { ...candidate, outsideAnchors: new Map([["caller.ts", "6".repeat(40)]]) };
+  assert.equal(finalReviewInputKey(edited), candidate.inputKey);
+  assert.equal(finalReviewStatus(edited).status, "blocked");
+});
+
+test("a final reviewer's finding that adds an outside anchor keeps the key and the result", () => {
+  const candidate = finalCandidate();
+  candidate.state.outside_anchors["other-caller.ts"] = "7".repeat(40);
+  candidate.outsideAnchors = new Map(Object.entries(candidate.state.outside_anchors));
+  candidate.state.final_review.outside_anchors_sha256 = digestBlobs(candidate.outsideAnchors);
+  assert.equal(finalReviewInputKey(candidate), candidate.inputKey);
+  assert.equal(finalReviewStatus(candidate).status, "complete");
+});
+
+test("an outside anchor edited after final review stays stale after a rerun records it", () => {
+  const candidate = finalCandidate();
+  const edited = new Map([["caller.ts", "6".repeat(40)]]);
+  candidate.state.outside_anchors = Object.fromEntries(edited);
+  candidate.outsideAnchors = edited;
+  candidate.state.runs.push({
+    ...candidate.state.runs[0],
+    kind: "later",
+    breadth: "narrowed",
+    reviewers: [{ name: "review-lane", completed: true }],
+  });
+  assert.equal(finalReviewInputKey(candidate), candidate.inputKey);
+  assert.equal(finalReviewStatus(candidate).status, "pending");
 });
 
 test("legacy cold runs and incomplete final reviewers do not complete final review", () => {
@@ -507,7 +541,11 @@ test("the final CLI detects code edits after checks and does not restamp the sav
     reviewed: ["kept.ts"],
     reviewers: [{ name: "review-lane", completed: true }],
   });
-  state.final_review = { input_key: initial.input_key, run: 2 };
+  state.final_review = {
+    input_key: initial.input_key,
+    outside_anchors_sha256: initial.outside_anchors_sha256,
+    run: 2,
+  };
   repo.write(".pre-review/state.json", JSON.stringify(state));
   repo.write(".pre-review/context.txt", context);
   const args = [

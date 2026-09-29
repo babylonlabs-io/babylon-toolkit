@@ -106,7 +106,11 @@ separately, at full price each. Do it yourself.
 3. The **changed-file list**, the authoritative review set:
    - `git diff --name-status --no-renames <base>`: branch commits, staged and
      unstaged, with a rename shown as a delete plus an add.
-   - `git ls-files --others --exclude-standard`: untracked new files.
+   - `git ls-files --others --exclude-standard`: untracked new files. The
+     snapshot records every one, and final completion requires the final
+     reviewer to cover every recorded path. When an untracked file is not
+     part of the change, ask the engineer to exclude it (for example in
+     `.git/info/exclude`) before step 9.
    - Exclude `PR.md` and anything under `.pre-review/`.
    - Keep `git status --porcelain` as it is now, to compare after the checks.
 4. `git diff <base> > WORK/run<N>__local.diff`. Untracked files produce no
@@ -143,16 +147,17 @@ separately, at full price each. Do it yourself.
    is the collapsed Pre-review record ([formats.md](formats.md)): the snapshot
    line, the run summary and a row for every stored finding. Taking the file
    whole would hand the ledger — with the run count and `reviewed-at` — to
-   every reviewer as "the intent", which for the cold lane means the one
-   component it is required to be given carries the one thing it must not see.
-   That defeats both the withholding in Phase 1 and the run-number strip, in a
-   single step, and it gets worse every run as the table grows. It is not
+   every reviewer as "the intent", which for the Phase 6 final reviewer means
+   the one component it is required to be given carries the one thing it must
+   not see. That defeats Phase 6's withholding of findings and run numbers in
+   a single step, and it gets worse every run as the table grows. It is not
    hypothetical: on the run that first wrote a description for a branch, the
    file did not exist and the intent came from the state's one-paragraph
    `intent` string, so the leak was latent until Phase 5 created the file the
    next run would read.
 
-   Paste sections 1–5 into the pack — **verbatim, not condensed** —
+   Paste sections 1–5, as step 9 settles them, into the pack — **verbatim,
+   not condensed** —
    **excluding every part of it that states or restates a known
    open defect**: an entry in the "Not in this PR" list matching a stored
    finding whose `decision` is `follow-up` and whose status is neither
@@ -475,19 +480,35 @@ separately, at full price each. Do it yourself.
    look already reviewed.
 
    **Bind this run to its inputs before reviewers or background tests start.**
-   Write `.pre-review/<key>.context.txt` with these stable inputs:
+   First settle sections 1–5 of `.pre-review/<key>.md`: create the file
+   from the unfiltered intent step 6 took when it does not exist, never from
+   the filtered pack text, and correct any claim the current change no longer
+   supports. Keep the engineer's wording wherever it is still true, and say
+   in chat what changed. Nothing later in the run changes these sections, so
+   the context below stays valid through Phase 6. Apply step 6's filter to
+   the settled sections, and paste that result into the pack.
 
-   - the exact filtered intent from step 6 and the engineer's scope hint;
+   Then write `.pre-review/<key>.context.txt` in the exact layout in
+   [formats.md](formats.md), with these stable inputs:
+
+   - sections 1–5 of the description as settled above, without the
+     entries Phase 5 generates from findings (those ending in
+     `(pre-review N<id>)`), and without `[withheld: …]` markers or a
+     `withheld:` header. Step 6's filtered text depends on findings, so it
+     must not reach the key;
    - the content hashes of `CLAUDE.md`, this skill, `formats.md`, the reviewer
      definitions, `snapshot.mjs`, and any other binding instruction source;
    - the authoritative source paths and pinned revisions, plus content hashes
-     for local sources the review depends on;
-   - the engineer's CI summary, when one was supplied.
+     for local sources the review depends on.
 
-   Use `git hash-object -w -- <path>` for local source hashes and list each
-   path with its hash. Preserve context text byte-for-byte when its inputs
-   have not changed. Exclude timestamps, run numbers, check output and stored
-   findings. Keep this file outside the final reviewer's inputs.
+   Leave out the scope hint and the CI summary. The final reviewer never
+   receives the hint, and a CI summary describes one run's tree, so it
+   reaches reviewers only on the run that passes `--ci`. Use
+   `git hash-object -w -- <path>` for local source hashes and list each path
+   with its hash. When a context file exists, read it first and rewrite it
+   only when a listed input changed. Exclude timestamps, run numbers, check
+   output and stored findings. Keep this file outside the final reviewer's
+   inputs.
 
    Run `node scripts/pre-review/snapshot.mjs final --base <base> --state-file .pre-review/<key>.json --context-file .pre-review/<key>.context.txt`.
    Save its `input_key` for this run even when the status is blocked or pending.
@@ -628,7 +649,8 @@ the tree got there. Do not go further: nothing in Phases 0–0b establishes
 whether a PR exists, `allowed-tools` carries no command that reports check
 runs, and an unverified claim about CI would be pasted verbatim into every
 reviewer prompt. If the engineer states CI results in `--ci "<summary>"`,
-pass them through attributed; otherwise say nothing about them.
+pass them through attributed; otherwise say nothing about them. A summary
+from an earlier run is never reused: it may describe an older tree.
 
 Do not reach for "because the review covers uncommitted work": nothing forces
 the tree to be dirty. Step 3 keeps `git status --porcelain`, so a run on a
@@ -654,7 +676,9 @@ record exists, run the whole-change full tier before any final review.
 Also repair any later incomplete review. A clean initial review does not
 cover a lost reviewer on new code. Keep that missing coverage open until a
 later whole-change full review completes. A no-review run or final reviewer
-cannot clear it. This repair overrides both skip gates and the breadth picker.
+cannot clear it. The repair runs only on a `--final` or `--full`
+invocation; there it overrides both skip gates and the breadth picker. An
+ordinary run keeps its normal review set and reports the missing coverage.
 Failed checks can be repaired by later checks; they do not require a repeat
 of completed reviewer work.
 
@@ -998,18 +1022,23 @@ Also wait for the checks (Phase 0 step 10) before Phase 4.
    output it does not control, so a mid-pattern wildcard is a real widening
    and not a convenience. Accept the prompt, or add one trailing-wildcard
    entry per package you actually need.
-5. Add disproved claims to `refuted`.
+5. Add disproved claims to `refuted`. A stored finding that new evidence
+   disproves also moves there: remove it from `findings`, and add its `id`,
+   claim and evidence to `refuted`. New ids continue past it
+   ([formats.md](formats.md)). Say so in chat.
 6. **Rank, then filter from the first run.** Keep verified defects and
-   required-rule violations. Omit preferences about names, prose and optional
-   refactors when they have no concrete failure or required-rule violation.
-   Do not give cosmetic suggestions an id or a decision. They must not start
-   another fix cycle.
+   required-rule violations. Omit naming and prose preferences,
+   magic-constant suggestions, file placement, function or file length, and
+   optional extraction or refactors when they have no concrete failure. This
+   filter covers CLAUDE.md's "No Magic Numbers" rule too: an inline constant
+   is a finding only when it causes a concrete failure. Do not give cosmetic
+   suggestions an id or a decision. They must not start another fix cycle.
 
    Preserve incorrect user-facing text, specifications, critical-path JSDoc
    and documents that are the deliverable. A wrong instruction or contract
    is a defect even when it is written in Markdown. Merge-blockers are never
-   filtered. For old cosmetic entries, retain their history, record the
-   decision to decline, and stop asking for it again.
+   filtered. For old cosmetic entries, retain their history and recommend
+   `decline` in Phase 4. The engineer decides; do not record it yourself.
 
    Merge repeated findings into the stored entry. Reopen a refuted finding
    only with new evidence. Verify regressions even when the loop introduced
@@ -1018,8 +1047,8 @@ Also wait for the checks (Phase 0 step 10) before Phase 4.
 ## Phase 4: present, decide, record
 
 **Recommend a decision** for every finding that is open or partially fixed
-after this run and is new, reopened, undecided, or changed status in this
-run:
+after this run and is new, reopened, undecided, changed status in this run,
+or an old cosmetic entry that Phase 3 step 6 recommends declining:
 
 - **fix now**: it belongs in this PR. Say how, in one or two sentences.
 - **follow-up**: real, but outside this PR's intent or too large for it. Say
@@ -1164,9 +1193,10 @@ now. On yes, implement them in this session, then tell the engineer to run
 ## Phase 5: keep the description current
 
 `PR.md` was reconciled in step 6. Write `.pre-review/<key>.md`, then copy it
-to `PR.md`. **Update, do not regenerate**: keep the engineer's wording
-wherever it is still true, fix only claims the change no longer supports, and
-say in chat what changed. Two parts are regenerated from the state on every
+to `PR.md`. Sections 1–5 were settled at step 9, and this phase does not
+change their wording: an edit here would change the context file after its
+key was stored. A claim that this run's fixes make wrong is corrected at the
+next run's step 9. Two parts are regenerated from the state on every
 run: the follow-up entries in "Not in this PR" — findings whose **decision** is
 `follow-up` **and whose status is neither `fixed` nor `moot`** — and the
 collapsed Pre-review record at the end.
@@ -1247,8 +1277,13 @@ this final pass. Preserve the original key even if the inputs change.
 
 Record a separate final run with that key, the check results and reviewer
 usage. Set the review-lane's `completed: true` only after its full report
-arrives. Set `final_review: {input_key, run}` to this run's one-based index
-only after its findings and decisions are recorded. Refresh the stable
+arrives. Set `final_review: {input_key, outside_anchors_sha256, run}` only
+after its findings and decisions are recorded and Phase 4 has written
+`outside_anchors`: `run` is this run's one-based index, and
+`outside_anchors_sha256` comes from the helper's output at that point. The
+helper later requires that digest, so an outside anchor edited after the
+final review keeps the result stale even after a run records the new
+content. Refresh the stable
 context and run the helper again after the final run is recorded. Update the
 collapsed record in both description files with that result. Only `complete`
 permits the completion statement. A changed input or new blocker leaves the

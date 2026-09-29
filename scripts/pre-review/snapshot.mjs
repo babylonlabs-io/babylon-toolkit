@@ -116,15 +116,19 @@ export function digestBlobs(blobs) {
   return createHash("sha256").update(text).digest("hex");
 }
 
-/** Bind completion to the code, its base, and the stable review context. */
-export function finalReviewInputKey({ base, branch, files, outsideAnchors, context }) {
+/**
+ * Bind completion to the code, its base, and the stable review context.
+ * Outside anchors stay out of the key: Phase 4 rebuilds that map from the
+ * run's own findings after the key is captured. `finalReviewStatus` compares
+ * their content with the state, and with the digest the `final_review` marker
+ * recorded when the final review completed.
+ */
+export function finalReviewInputKey({ base, branch, files, context }) {
   if (!GIT_OBJECT_ID_PATTERN.test(base) || !branch || !context.trim()) {
     throw new Error("Final review requires a base commit, branch and nonempty context.");
   }
   return createHash("sha256")
-    .update(
-      JSON.stringify([base, branch, digestBlobs(files), digestBlobs(outsideAnchors), context]),
-    )
+    .update(JSON.stringify([base, branch, digestBlobs(files), context]))
     .digest("hex");
 }
 
@@ -193,13 +197,22 @@ export function finalReviewStatus({ state, inputKey, base, branch, files, outsid
   if (!hasRequiredCoverage(runs)) {
     reasons.push("Required review coverage is incomplete. Run /pre-review --full before final review.");
   }
-  if (reasons.length) return { input_key: inputKey, status: "blocked", reasons };
+  const outsideAnchorsSha256 = digestBlobs(outsideAnchors);
+  if (reasons.length) {
+    return {
+      input_key: inputKey,
+      outside_anchors_sha256: outsideAnchorsSha256,
+      status: "blocked",
+      reasons,
+    };
+  }
 
   const marker = state.final_review;
   const finalRun = Number.isInteger(marker?.run) && marker.run > 0 ? runs[marker.run - 1] : null;
   const reviewed = new Set(finalRun?.reviewed);
   const complete =
     marker?.input_key === inputKey &&
+    marker.outside_anchors_sha256 === outsideAnchorsSha256 &&
     finalRun?.input_key === inputKey &&
     finalRun.kind === "final" &&
     finalRun.cold === true &&
@@ -213,6 +226,7 @@ export function finalReviewStatus({ state, inputKey, base, branch, files, outsid
     );
   return {
     input_key: inputKey,
+    outside_anchors_sha256: outsideAnchorsSha256,
     status: complete ? "complete" : "pending",
     reasons: complete ? [] : ["Final review has not completed for these inputs."],
   };
@@ -223,13 +237,7 @@ export function checkFinalReview({ base, state, context, cwd }) {
   const branch = currentBranch(cwd);
   const files = recordBlobs(changedPathsInWorktree(base, cwd), cwd);
   const outsideAnchors = recordBlobs(Object.keys(state.outside_anchors ?? {}), cwd);
-  const inputKey = finalReviewInputKey({
-    base,
-    branch,
-    files,
-    outsideAnchors,
-    context,
-  });
+  const inputKey = finalReviewInputKey({ base, branch, files, context });
   return finalReviewStatus({
     state,
     inputKey,

@@ -100,15 +100,15 @@ Run count alone never causes a full review.
 Only `--final` adds the **cold reviewer**. This reviewer gets the whole
 change, rules and intent. It gets no previous findings or review history.
 This independent check runs once per candidate, after pending fixes and
-checks pass. Unchanged completed final results are reused unless `--full`
-is also passed.
+checks pass. Unchanged completed final results are reused. Any run with
+`--full`, with or without `--final`, discards a completed final result.
 
 An ordinary rerun needs no reviewer when neither the change nor a file named
 by an outside finding moved. The same applies when files only left the
 change, no outside finding's file moved, and no non-moot finding needs a
-verdict for a file that left. These gates require completed initial reviewer
-coverage and no unresolved coverage from later runs. Missing coverage
-requires a whole-change full review. `--full`
+verdict for a file that left. Missing reviewer coverage, including on runs
+recorded before this flow, is repaired with a whole-change full review on the
+next `--final` or `--full` run. An ordinary run only reports it. `--full`
 still forces work.
 The exact gates and tunable constants are in
 `.claude/skills/pre-review/SKILL.md`.

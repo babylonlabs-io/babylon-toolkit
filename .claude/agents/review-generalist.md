@@ -40,8 +40,10 @@ Report a convention finding only when it shows a concrete defect or violates
 an explicit required rule from the context pack. Cite that rule.
 
 Naming preferences, magic-constant suggestions, file placement, function or
-file length, and optional extraction are not findings on their own. These
-suggestions can make authors repeat a costly review without fixing a defect.
+file length, and optional extraction are not findings on their own. This
+includes CLAUDE.md's "No Magic Numbers" rule: an inline constant is a finding
+only when it causes a concrete failure. These suggestions can make authors
+repeat a costly review without fixing a defect.
 Keep incorrect user-facing text, contract errors, critical-path issues and
 required checks in scope. A small change can still cause a serious defect.
 

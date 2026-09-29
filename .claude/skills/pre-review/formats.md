@@ -65,6 +65,11 @@ example below is valid as written.
     {
       "claim": "<one line>",
       "evidence": "<what killed it>"
+    },
+    {
+      "id": 5,
+      "claim": "<a stored finding that new evidence disproved>",
+      "evidence": "<what killed it>"
     }
   ]
 }
@@ -85,7 +90,9 @@ The enumerated fields take these values:
 | `findings[].decision`    | `fix now`, `follow-up`, `decline`, `undecided`    |
 
 - **Ids** are plain integers that never repeat: a later run continues from the
-  highest id. A regression reopens its old id.
+  highest id in `findings` and `refuted` together. A regression reopens its
+  old id. A stored finding moved to `refuted` keeps its `id` there, so the
+  id is never given to another finding.
 - **`runs[].tier`** records the reviewer set that ran. It is `full` only when
   `review-generalist`, `review-tracer` and `review-panel` all ran. Otherwise
   it is `light`. A final run uses one `review-lane`, so its tier is `light`.
@@ -175,8 +182,11 @@ The enumerated fields take these values:
 
 ## Final completion
 
-The state may have **`final_review`**, with `input_key` and a 1-based `run`
-index. Write it only after a completed independent final review. Its run
+The state may have **`final_review`**, with `input_key`,
+`outside_anchors_sha256` and a 1-based `run` index. Write it only after a
+completed independent final review, once Phase 4 has written
+`outside_anchors`, and copy `outside_anchors_sha256` from the helper's output
+at that point. Its run
 must have `kind: "final"`, the matching `input_key`, `cold: true`,
 `breadth: "whole change"`, every changed path in `reviewed`, and a
 `review-lane` reviewer with `completed: true`. Completed initial reviewer
@@ -190,10 +200,26 @@ subsequent whole-change full repair. Neither an unchanged run nor the final
 reviewer clears that missing coverage. `--final` cannot replace the initial
 review tier.
 
-`.pre-review/<key>.context.txt` holds the exact final-review context. Keep
-its format stable. Include filtered intent, binding rule and review-tooling
-hashes, authoritative source revisions, scope hint and supplied CI summary.
-Exclude previous findings, run numbers, status, timestamps and usage figures.
+`.pre-review/<key>.context.txt` holds the exact final-review context. It
+contains no finding-derived text: no follow-up entries generated from
+findings, no `[withheld: …]` markers and no `withheld:` header. It also
+excludes the scope hint, the CI summary, previous findings, run numbers,
+status, timestamps and usage figures. Write it in this layout, with LF line endings, one blank
+line between sections, and every section present:
+
+```
+INTENT
+<sections 1–5 of the description as settled at step 9, without finding-generated entries>
+
+BINDING SOURCES
+<path> <blob sha>
+
+AUTHORITATIVE SOURCES
+<one line per source: a path with its blob sha, or a repository with its pin; or the line "No external contract.">
+```
+
+List paths in each section in byte order. When the file exists, read it
+first and rewrite it only when one of these inputs changed.
 
 Use this command to check freshness and completion:
 
@@ -201,9 +227,13 @@ Use this command to check freshness and completion:
 node scripts/pre-review/snapshot.mjs final --base <sha> --state-file .pre-review/<key>.json --context-file .pre-review/<key>.context.txt
 ```
 
-It returns `input_key`, `status` (`pending`, `blocked` or `complete`) and
-`reasons`. The key binds the resolved base, current branch, changed file
-contents, outside finding anchors and exact context bytes. Record this key
+It returns `input_key`, `outside_anchors_sha256`, `status` (`pending`,
+`blocked` or `complete`) and `reasons`. The key binds the resolved base,
+current branch, changed file contents and exact context bytes. Outside
+finding anchors are not in the key, because Phase 4 rebuilds that map from
+the run's own findings. The helper compares their current content with
+`outside_anchors`, and completion also requires the current digest to equal
+the one on `final_review`. Record this key
 with the step-9 snapshot, before reviewers and background tests. A different
 key at the end requires new work.
 The latest run must match it, with checks `passed` or `nothing affected` and
