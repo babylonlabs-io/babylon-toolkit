@@ -10,6 +10,10 @@ vi.mock("../../../clients/graphql", () => ({
 
 const mockRequest = vi.mocked(graphqlClient.request);
 
+/** A valid 0x address and x-only BTC key, unique per `n`. */
+const address = (n: number) => `0x${n.toString(16).padStart(40, "0")}`;
+const btcKey = (n: number) => `0x${n.toString(16).padStart(64, "0")}`;
+
 function challenger(id: string, btcPubKey: string, version: number) {
   return { version, challengerInfo: { id, btcPubKey } };
 }
@@ -40,9 +44,9 @@ describe("fetchAllUniversalChallengers", () => {
 
   it("walks challenger pages and returns the complete latest-version set", async () => {
     const fullFirstPage = Array.from({ length: 999 }, (_, index) =>
-      challenger(`old-${index}`, `old-key-${index}`, 1),
+      challenger(address(index), btcKey(index), 1),
     );
-    fullFirstPage.push(challenger("latest-a", "latest-key-a", 2));
+    fullFirstPage.push(challenger(address(5001), btcKey(5001), 2));
     mockRequest.mockResolvedValueOnce(
       page(fullFirstPage, {
         hasNextPage: true,
@@ -50,7 +54,7 @@ describe("fetchAllUniversalChallengers", () => {
       }),
     );
     mockRequest.mockResolvedValueOnce(
-      page([challenger("latest-b", "latest-key-b", 2)]),
+      page([challenger(address(5002), btcKey(5002), 2)]),
     );
 
     const result = await fetchAllUniversalChallengers();
@@ -62,8 +66,8 @@ describe("fetchAllUniversalChallengers", () => {
     });
     expect(result.latestVersion).toBe(2);
     expect(result.byVersion.get(2)).toEqual([
-      { id: "latest-a", btcPubKey: "latest-key-a" },
-      { id: "latest-b", btcPubKey: "latest-key-b" },
+      { id: address(5001), btcPubKey: btcKey(5001) },
+      { id: address(5002), btcPubKey: btcKey(5002) },
     ]);
   });
 
@@ -121,6 +125,24 @@ describe("fetchAllUniversalChallengers", () => {
     });
     expect(String(error)).toMatch(/roster exceeds/);
   });
+
+  it.each([
+    ["a non-address id", challenger("not-an-address", btcKey(1), 1)],
+    ["a non-hex BTC key", challenger(address(1), "not-a-key", 1)],
+    ["an empty BTC key", challenger(address(1), "", 1)],
+  ])(
+    "rejects a challenger row with %s, as keeper rows are",
+    async (_name, row) => {
+      mockRequest.mockResolvedValueOnce(page([row]));
+
+      const error = await fetchAllUniversalChallengers().catch(
+        (caught: unknown) => caught,
+      );
+
+      expect(error).toMatchObject({ name: "IncompleteRosterError" });
+      expect(String(error)).toMatch(/malformed roster item at index 0/);
+    },
+  );
 
   it("rejects a malformed challenger on a continuation page", async () => {
     mockRequest.mockResolvedValueOnce(

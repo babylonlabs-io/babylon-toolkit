@@ -2,6 +2,10 @@ import { gql } from "graphql-request";
 
 import { graphqlClient } from "../../clients/graphql";
 import type { UniversalChallenger } from "../../types/vaultProvider";
+import {
+  BTC_PUBKEY_HEX_PATTERN,
+  ETH_ADDRESS_PATTERN,
+} from "../../utils/validation";
 
 import {
   IncompleteRosterError,
@@ -37,7 +41,9 @@ function isUniversalChallengerItem(
     Number.isSafeInteger(value.version) &&
     value.version >= 0 &&
     typeof value.challengerInfo.id === "string" &&
-    typeof value.challengerInfo.btcPubKey === "string"
+    ETH_ADDRESS_PATTERN.test(value.challengerInfo.id) &&
+    typeof value.challengerInfo.btcPubKey === "string" &&
+    BTC_PUBKEY_HEX_PATTERN.test(value.challengerInfo.btcPubKey)
   );
 }
 

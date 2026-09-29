@@ -119,8 +119,6 @@ export function useVaultProviders(
     enabled: Boolean(entryPoint),
     // Fetch once on mount
     refetchOnMount: false,
-    // A deterministic incomplete-roster error must not be retried on remount.
-    retryOnMount: false,
     // Don't refetch on window focus
     refetchOnWindowFocus: false,
     // Don't refetch on reconnect

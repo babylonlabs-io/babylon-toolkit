@@ -230,6 +230,22 @@ describe("usePayoutSigningState", () => {
       expect(mockFindProvider).not.toHaveBeenCalled();
     });
 
+    it("clears the lookup error once the provider lookup recovers", async () => {
+      providerQueryState.error = new Error("indexer unavailable");
+      const { result, rerender } = renderHookWithProps();
+      await waitFor(() =>
+        expect(result.current.error).toEqual(
+          COPY.deposit.payoutSigningGuards.providerLookupUnavailable,
+        ),
+      );
+
+      providerQueryState.error = null;
+      rerender();
+
+      await waitFor(() => expect(result.current.error).toBeNull());
+      expect(result.current.providerLookupReady).toBe(true);
+    });
+
     it("calls signAndSubmitPayouts, marks complete, fires onSuccess and optimistic update", async () => {
       const { result } = renderHookWithProps();
 

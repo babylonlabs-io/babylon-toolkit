@@ -111,7 +111,6 @@ export function ProtocolParamsProvider({
     staleTime: STALE_TIME_MS,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
-    retryOnMount: false,
     enabled: requireUniversalChallengers,
     retry: (failureCount, queryError) =>
       failureCount < RETRY_COUNT && shouldRetry(failureCount, queryError),

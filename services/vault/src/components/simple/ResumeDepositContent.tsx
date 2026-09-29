@@ -139,7 +139,7 @@ function ResumeSignContentConnected({
     error: signingError,
     errorTerminal,
     isComplete,
-    providerLookupReady = true,
+    providerLookupReady,
     handleSign,
     canCancel,
     cancelRequested,
@@ -173,10 +173,12 @@ function ResumeSignContentConnected({
   }, [cancelRequested, signing, error, isComplete]);
 
   const handleResign = useCallback(() => {
-    if (!walletKeyReady) return;
+    // Sign stays unavailable until provider metadata loads, so a click can
+    // never mark the view started while handleSign silently waits.
+    if (!walletKeyReady || !providerLookupReady) return;
     setReofferAfterCancel(false);
     void handleSign();
-  }, [handleSign, walletKeyReady]);
+  }, [handleSign, walletKeyReady, providerLookupReady]);
 
   // Polling distinguishes a verified vault from an already active vault.
   const pollingResult = useDepositPollingResult(activity.id);
@@ -239,7 +241,7 @@ function ResumeSignContentConnected({
         error && !errorTerminal && walletKeyReady ? handleSign : undefined
       }
       started={!reofferAfterCancel}
-      onSign={walletKeyReady ? handleResign : undefined}
+      onSign={walletKeyReady && providerLookupReady ? handleResign : undefined}
       canCancelSigning={canCancel}
       cancelSigningRequested={cancelRequested}
       onCancelSigning={handleCancel}

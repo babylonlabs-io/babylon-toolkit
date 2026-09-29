@@ -87,8 +87,9 @@ describe("useVaultProviders query scope", () => {
     expect(options.queryKey).toEqual(["providers", "0xApp", "metadata-only"]);
     expect(options).toMatchObject({
       refetchOnReconnect: false,
-      retryOnMount: false,
     });
+    // A remount must be able to retry a transient failure.
+    expect(options.retryOnMount).not.toBe(false);
   });
 });
 

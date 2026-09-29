@@ -82,7 +82,8 @@ describe("ProtocolParamsProvider challenger readiness", () => {
     expect(mockUseQuery.mock.calls[1][0]).toMatchObject({
       enabled: true,
       refetchOnReconnect: false,
-      retryOnMount: false,
     });
+    // A remount must be able to retry a transient failure.
+    expect(mockUseQuery.mock.calls[1][0].retryOnMount).not.toBe(false);
   });
 });

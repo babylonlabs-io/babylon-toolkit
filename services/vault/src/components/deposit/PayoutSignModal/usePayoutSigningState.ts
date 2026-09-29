@@ -470,9 +470,17 @@ export function usePayoutSigningState({
   }, []);
 
   useEffect(() => {
-    if (providerLookupError && !signing) {
+    if (signing) return;
+    if (providerLookupError) {
       setError(COPY.deposit.payoutSigningGuards.providerLookupUnavailable);
+      return;
     }
+    // The lookup recovered (e.g. after Retry): drop its error, keep others.
+    setError((current) =>
+      current === COPY.deposit.payoutSigningGuards.providerLookupUnavailable
+        ? null
+        : current,
+    );
   }, [providerLookupError, signing]);
 
   useEffect(() => {
