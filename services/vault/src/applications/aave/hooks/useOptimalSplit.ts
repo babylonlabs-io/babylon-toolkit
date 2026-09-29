@@ -8,6 +8,7 @@
 import {
   computeMinDepositForSplit,
   computeOptimalSplit,
+  computeSeizedFraction,
   findSplitSizingViolation,
   type SplitParamsViolation,
 } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
@@ -89,16 +90,16 @@ export function useOptimalSplit(
       return { ...EMPTY_RESULT, sizingViolation };
     }
 
+    const minDepositForSplit = computeMinDepositForSplit({
+      minPegin: minDeposit,
+      seizedFraction: computeSeizedFraction(CF, LB, THF, expectedHF),
+    });
+
     if (totalBtc <= 0n || totalBtc > MAX_PLAUSIBLE_DEPOSIT_SATS) {
-      return EMPTY_RESULT;
+      return { ...EMPTY_RESULT, minDepositForSplit };
     }
 
     const split = computeOptimalSplit({ totalBtc, CF, LB, THF, expectedHF });
-
-    const minDepositForSplit = computeMinDepositForSplit({
-      minPegin: minDeposit,
-      seizedFraction: split.seizedFraction,
-    });
 
     // The parameters passed above, so a refusal here is amount-driven — dust,
     // or rounding that ties the two vaults — and the amount is below the split
