@@ -29,7 +29,14 @@ vi.mock("@/infrastructure", () => ({
 
 import { waitForPayoutReadiness } from "../payoutReadiness";
 
-const VAULTS = [{ vaultId: "0xVault0" as Hex }, { vaultId: "0xVault1" as Hex }];
+const VAULT_0: Hex = `0x${"a0".repeat(32)}`;
+const VAULT_1: Hex = `0x${"a1".repeat(32)}`;
+const PEGIN_0: Hex = `0x${"b0".repeat(32)}`;
+const PEGIN_1: Hex = `0x${"b1".repeat(32)}`;
+const VAULTS = [
+  { vaultId: VAULT_0, peginTxHash: PEGIN_0 },
+  { vaultId: VAULT_1, peginTxHash: PEGIN_1 },
+];
 
 function setupBatchPoll() {
   createVpClient.mockReturnValue({ batchGetPeginStatusByVaultId });
@@ -42,7 +49,10 @@ function setupBatchPoll() {
         onItem(item, { result: null, error: "PegIn not found" });
         continue;
       }
-      onItem(item, { result: { status }, error: null });
+      onItem(item, {
+        result: { status, pegin_txid: item.peginTxHash.slice(2) },
+        error: null,
+      });
     }
     abortAfterFirstPoll.controller?.abort();
   });
@@ -58,12 +68,12 @@ describe("waitForPayoutReadiness", () => {
   it("waits through pre-signature states until depositor signatures are ready", async () => {
     statusesByCall.push(
       {
-        "0xVault0": "PendingPrePegInConfirmations",
-        "0xVault1": "PendingPrePegInConfirmations",
+        [VAULT_0]: "PendingPrePegInConfirmations",
+        [VAULT_1]: "PendingPrePegInConfirmations",
       },
       {
-        "0xVault0": "PendingDepositorSignatures",
-        "0xVault1": "PendingDepositorSignatures",
+        [VAULT_0]: "PendingDepositorSignatures",
+        [VAULT_1]: "PendingDepositorSignatures",
       },
     );
     setupBatchPoll();
@@ -75,15 +85,15 @@ describe("waitForPayoutReadiness", () => {
       pollIntervalMs: 0,
     });
 
-    expect([...result.readyVaultIds]).toEqual(["0xVault0", "0xVault1"]);
+    expect([...result.readyVaultIds]).toEqual([VAULT_0, VAULT_1]);
     expect([...result.terminalVaultIds]).toEqual([]);
     expect(batchPollByProvider).toHaveBeenCalledTimes(2);
   });
 
   it("returns only ready siblings when readiness times out", async () => {
     statusesByCall.push({
-      "0xVault0": "PendingPrePegInConfirmations",
-      "0xVault1": "PendingACKs",
+      [VAULT_0]: "PendingPrePegInConfirmations",
+      [VAULT_1]: "PendingACKs",
     });
     setupBatchPoll();
 
@@ -94,14 +104,14 @@ describe("waitForPayoutReadiness", () => {
       pollIntervalMs: 0,
     });
 
-    expect([...result.readyVaultIds]).toEqual(["0xVault1"]);
+    expect([...result.readyVaultIds]).toEqual([VAULT_1]);
     expect([...result.terminalVaultIds]).toEqual([]);
   });
 
   it("returns terminal siblings separately", async () => {
     statusesByCall.push({
-      "0xVault0": "IngestionRejected",
-      "0xVault1": "PendingDepositorSignatures",
+      [VAULT_0]: "IngestionRejected",
+      [VAULT_1]: "PendingDepositorSignatures",
     });
     setupBatchPoll();
 
@@ -112,14 +122,14 @@ describe("waitForPayoutReadiness", () => {
       pollIntervalMs: 0,
     });
 
-    expect([...result.readyVaultIds]).toEqual(["0xVault1"]);
-    expect([...result.terminalVaultIds]).toEqual(["0xVault0"]);
+    expect([...result.readyVaultIds]).toEqual([VAULT_1]);
+    expect([...result.terminalVaultIds]).toEqual([VAULT_0]);
   });
 
   it("treats BabeSetupFailed as terminal", async () => {
     statusesByCall.push({
-      "0xVault0": "BabeSetupFailed",
-      "0xVault1": "PendingDepositorSignatures",
+      [VAULT_0]: "BabeSetupFailed",
+      [VAULT_1]: "PendingDepositorSignatures",
     });
     setupBatchPoll();
 
@@ -130,14 +140,14 @@ describe("waitForPayoutReadiness", () => {
       pollIntervalMs: 0,
     });
 
-    expect([...result.readyVaultIds]).toEqual(["0xVault1"]);
-    expect([...result.terminalVaultIds]).toEqual(["0xVault0"]);
+    expect([...result.readyVaultIds]).toEqual([VAULT_1]);
+    expect([...result.terminalVaultIds]).toEqual([VAULT_0]);
     expect(batchPollByProvider).toHaveBeenCalledTimes(1);
   });
 
   it("treats PegIn not found and missing statuses as waiting until timeout", async () => {
     statusesByCall.push({
-      "0xVault1": "PendingDepositorSignatures",
+      [VAULT_1]: "PendingDepositorSignatures",
     });
     setupBatchPoll();
 
@@ -148,7 +158,34 @@ describe("waitForPayoutReadiness", () => {
       pollIntervalMs: 0,
     });
 
-    expect([...result.readyVaultIds]).toEqual(["0xVault1"]);
+    expect([...result.readyVaultIds]).toEqual([VAULT_1]);
+    expect([...result.terminalVaultIds]).toEqual([]);
+  });
+
+  it("keeps a vault waiting when the status names another peg-in", async () => {
+    createVpClient.mockReturnValue({ batchGetPeginStatusByVaultId });
+    batchPollByProvider.mockImplementation(async ({ items, onItem }) => {
+      onItem(items[0], {
+        result: { status: "IngestionRejected", pegin_txid: "cd".repeat(32) },
+        error: null,
+      });
+      onItem(items[1], {
+        result: {
+          status: "PendingDepositorSignatures",
+          pegin_txid: PEGIN_1.slice(2).toUpperCase(),
+        },
+        error: null,
+      });
+    });
+
+    const result = await waitForPayoutReadiness({
+      vaults: VAULTS,
+      providerAddress: "0xProvider",
+      timeoutMs: 0,
+      pollIntervalMs: 0,
+    });
+
+    expect([...result.readyVaultIds]).toEqual([VAULT_1]);
     expect([...result.terminalVaultIds]).toEqual([]);
   });
 
@@ -156,8 +193,8 @@ describe("waitForPayoutReadiness", () => {
     const controller = new AbortController();
     abortAfterFirstPoll.controller = controller;
     statusesByCall.push({
-      "0xVault0": "PendingPrePegInConfirmations",
-      "0xVault1": "PendingPrePegInConfirmations",
+      [VAULT_0]: "PendingPrePegInConfirmations",
+      [VAULT_1]: "PendingPrePegInConfirmations",
     });
     setupBatchPoll();
 

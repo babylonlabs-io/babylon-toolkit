@@ -312,7 +312,11 @@ export interface ClaimerGraphStatus {
 
 /** Response from `getPeginStatusByVaultId`. */
 export interface GetPeginStatusResponse {
-  /** Echoed for correlation only — a txid does not identify a vault. */
+  /**
+   * The peg-in txid the server stores for this vault. A mismatch with the
+   * caller's txid shows a status for a different peg-in; several vaults can
+   * share one txid, so it does not identify a vault.
+   */
   pegin_txid: string;
   /** The vault this response describes (`0x`-prefixed hex). */
   vault_id: string;

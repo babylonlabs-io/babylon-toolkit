@@ -31,7 +31,7 @@ export interface BatchAttributionResult<T> {
 }
 
 /** Normalize a vault id for map keys: strip an optional `0x`, lowercase. */
-export function normalizeVaultId(vaultId: string): string {
+export function vaultIdKey(vaultId: string): string {
   const unprefixed = vaultId.startsWith("0x") ? vaultId.slice(2) : vaultId;
   return unprefixed.toLowerCase();
 }
@@ -53,7 +53,7 @@ export function attributeBatchResults<T>(
 ): BatchAttributionResult<T> {
   const requestedSet = new Set<string>();
   for (const vaultId of requestedVaultIds) {
-    requestedSet.add(normalizeVaultId(vaultId));
+    requestedSet.add(vaultIdKey(vaultId));
   }
 
   const byVaultId = new Map<
@@ -65,7 +65,7 @@ export function attributeBatchResults<T>(
   const unexpected: string[] = [];
 
   for (const entry of results) {
-    const normalized = normalizeVaultId(entry.vault_id);
+    const normalized = vaultIdKey(entry.vault_id);
     if (!requestedSet.has(normalized)) {
       unexpected.push(normalized);
       continue;

@@ -3403,10 +3403,11 @@ peginTxid: string;
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/waitForPeginStatus.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/waitForPeginStatus.ts)
 
 BTC pegin transaction ID (unprefixed hex, 64 chars) of the same vault.
-The VP echoes `vault_id` verbatim from the request, so that field alone
-cannot show the response describes the row we asked about. `pegin_txid`
-is a DB lookup on the server, so it is the attested identifier — and it
-is the identifier the presign and WOTS writes are addressed by.
+The VP builds the response `vault_id` from the request, so that field
+alone cannot show which row answered. `pegin_txid` is a DB lookup on the
+server, so a mismatch shows a status for a different peg-in. It cannot
+tell apart vaults that share one peg-in txid. It is also the identifier
+the presign and WOTS writes are addressed by.
 
 ##### targetStatuses
 

@@ -5,6 +5,7 @@ import {
 import { describe, expect, it } from "vitest";
 
 import { COPY } from "@/copy";
+import type { DepositToPoll } from "@/types/peginPolling";
 import {
   TerminalPeginPollingError,
   UNRECOGNIZED_DAEMON_STATUS,
@@ -12,6 +13,7 @@ import {
 
 import {
   applyPerDepositError,
+  applyPerDepositResult,
   applyPerDepositStatus,
 } from "../usePeginPollingQuery";
 
@@ -161,5 +163,74 @@ describe("applyPerDepositError", () => {
     const error = errors.get(depositId);
     expect(error).not.toBeInstanceOf(TerminalPeginPollingError);
     expect(error?.message).toBe("database unavailable");
+  });
+});
+
+describe("applyPerDepositResult", () => {
+  const PEGIN_TXID = "ab".repeat(32);
+
+  function deposit(peginTxHash: string | undefined): DepositToPoll {
+    // Only the activity id and peg-in txid are read by the function.
+    return {
+      activity: { id: "vault-1", peginTxHash },
+    } as unknown as DepositToPoll;
+  }
+
+  function sets() {
+    return {
+      errors: new Map<string, Error>(),
+      needsWotsKey: new Set<string>(),
+      pendingIngestion: new Set<string>(),
+      pendingDepositorSignatures: new Set<string>(),
+    };
+  }
+
+  function statusFor(peginTxid: string) {
+    return {
+      pegin_txid: peginTxid,
+      vault_id: `0x${"cd".repeat(32)}`,
+      status: DaemonStatus.PENDING_DEPOSITOR_SIGNATURES,
+      progress: {},
+      health_info: "ok",
+    };
+  }
+
+  it("applies a status whose pegin txid matches across 0x prefix and case", () => {
+    const target = sets();
+
+    applyPerDepositResult(
+      statusFor(PEGIN_TXID.toUpperCase()),
+      deposit(`0x${PEGIN_TXID}`),
+      target,
+    );
+
+    expect(target.errors.has("vault-1")).toBe(false);
+    expect(target.pendingDepositorSignatures.has("vault-1")).toBe(true);
+  });
+
+  it("rejects a status that names another peg-in", () => {
+    const target = sets();
+
+    applyPerDepositResult(
+      statusFor("ef".repeat(32)),
+      deposit(`0x${PEGIN_TXID}`),
+      target,
+    );
+
+    expect(target.errors.get("vault-1")?.message).toBe(
+      "Provider returned another peg-in's status entry",
+    );
+    expect(target.pendingDepositorSignatures.has("vault-1")).toBe(false);
+  });
+
+  it("rejects a status when the deposit has no peg-in txid", () => {
+    const target = sets();
+
+    applyPerDepositResult(statusFor(PEGIN_TXID), deposit(undefined), target);
+
+    expect(target.errors.get("vault-1")?.message).toBe(
+      "Deposit vault-1 has no peg-in txid to check",
+    );
+    expect(target.pendingDepositorSignatures.has("vault-1")).toBe(false);
   });
 });

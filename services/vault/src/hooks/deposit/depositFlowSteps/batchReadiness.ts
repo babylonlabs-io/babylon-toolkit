@@ -10,12 +10,15 @@ import type { Hex } from "viem";
 import { POLLING_INTERVAL_MS } from "@/config/polling";
 import { logger } from "@/infrastructure";
 import { abortableSleep } from "@/utils/async";
+import { isPeginNotIngestedError } from "@/utils/peginPolling";
 import { createVpClient } from "@/utils/rpc";
+import { canonicalizeTxid } from "@/utils/txid";
 
 export type BatchReadinessStatus = "ready" | "waiting" | "terminal";
 
 export interface BatchReadinessVault {
   vaultId: Hex;
+  peginTxHash: Hex;
 }
 
 export interface BatchReadinessResult {
@@ -87,12 +90,25 @@ export async function waitForBatchReadiness({
           if (isUnrecognizedDaemonStatusError(envelope.error)) {
             terminalVaultIds.add(vault.vaultId);
           }
-          if (!envelope.error.includes("PegIn not found")) {
+          if (!isPeginNotIngestedError(envelope.error)) {
             logger.warn(`${logLabel} poll returned an item error`, {
               vaultId: vault.vaultId,
               error: envelope.error,
             });
           }
+          return;
+        }
+
+        // The envelope's vault id is our own request string echoed back.
+        // A status for a different peg-in keeps the vault waiting: it must
+        // not mark the vault ready or terminal.
+        if (
+          canonicalizeTxid(envelope.result!.pegin_txid) !==
+          canonicalizeTxid(vault.peginTxHash)
+        ) {
+          logger.warn(`${logLabel} poll returned a status for another peg-in`, {
+            vaultId: vault.vaultId,
+          });
           return;
         }
 

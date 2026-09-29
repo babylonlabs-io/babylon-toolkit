@@ -13,7 +13,7 @@
 
 import {
   attributeBatchResults,
-  normalizeVaultId,
+  vaultIdKey,
   type BatchResultEntry,
 } from "./batchAttribution";
 import { VP_BATCH_MAX_SIZE } from "./types";
@@ -117,7 +117,7 @@ export async function batchPollByProvider<TItem, TResult>(
         });
         continue;
       }
-      const normalized = normalizeVaultId(rawVaultId);
+      const normalized = vaultIdKey(rawVaultId);
       vaultIdToItem.set(normalized, item);
       vaultIds.push(normalized);
       polled.push(item);

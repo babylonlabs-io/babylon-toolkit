@@ -27,7 +27,14 @@ vi.mock("@/infrastructure", () => ({
 
 import { waitForWotsReadiness } from "../wotsSubmission";
 
-const VAULTS = [{ vaultId: "0xVault0" as Hex }, { vaultId: "0xVault1" as Hex }];
+const VAULT_0: Hex = `0x${"a0".repeat(32)}`;
+const VAULT_1: Hex = `0x${"a1".repeat(32)}`;
+const PEGIN_0: Hex = `0x${"b0".repeat(32)}`;
+const PEGIN_1: Hex = `0x${"b1".repeat(32)}`;
+const VAULTS = [
+  { vaultId: VAULT_0, peginTxHash: PEGIN_0 },
+  { vaultId: VAULT_1, peginTxHash: PEGIN_1 },
+];
 
 function setupBatchPoll() {
   createVpClient.mockReturnValue({ batchGetPeginStatusByVaultId });
@@ -40,7 +47,10 @@ function setupBatchPoll() {
         onItem(item, { result: null, error: "PegIn not found" });
         continue;
       }
-      onItem(item, { result: { status }, error: null });
+      onItem(item, {
+        result: { status, pegin_txid: item.peginTxHash.slice(2) },
+        error: null,
+      });
     }
   });
 }
@@ -54,12 +64,12 @@ describe("waitForWotsReadiness", () => {
   it("waits through ingestion and returns all vaults once WOTS-ready", async () => {
     statusesByCall.push(
       {
-        "0xVault0": "PendingIngestion",
-        "0xVault1": "PendingIngestion",
+        [VAULT_0]: "PendingIngestion",
+        [VAULT_1]: "PendingIngestion",
       },
       {
-        "0xVault0": "PendingDepositorWotsPK",
-        "0xVault1": "PendingDepositorWotsPK",
+        [VAULT_0]: "PendingDepositorWotsPK",
+        [VAULT_1]: "PendingDepositorWotsPK",
       },
     );
     setupBatchPoll();
@@ -71,15 +81,15 @@ describe("waitForWotsReadiness", () => {
       pollIntervalMs: 0,
     });
 
-    expect([...result.readyVaultIds]).toEqual(["0xVault0", "0xVault1"]);
+    expect([...result.readyVaultIds]).toEqual([VAULT_0, VAULT_1]);
     expect([...result.terminalVaultIds]).toEqual([]);
     expect(batchPollByProvider).toHaveBeenCalledTimes(2);
   });
 
   it("returns only ready or post-WOTS vaults when readiness times out", async () => {
     statusesByCall.push({
-      "0xVault0": "PendingIngestion",
-      "0xVault1": "PendingBabeSetup",
+      [VAULT_0]: "PendingIngestion",
+      [VAULT_1]: "PendingBabeSetup",
     });
     setupBatchPoll();
 
@@ -90,15 +100,15 @@ describe("waitForWotsReadiness", () => {
       pollIntervalMs: 0,
     });
 
-    expect([...result.readyVaultIds]).toEqual(["0xVault1"]);
+    expect([...result.readyVaultIds]).toEqual([VAULT_1]);
     expect([...result.terminalVaultIds]).toEqual([]);
     expect(batchPollByProvider).toHaveBeenCalledTimes(1);
   });
 
   it("returns terminal vaults separately from ready vaults", async () => {
     statusesByCall.push({
-      "0xVault0": "IngestionRejected",
-      "0xVault1": "PendingDepositorWotsPK",
+      [VAULT_0]: "IngestionRejected",
+      [VAULT_1]: "PendingDepositorWotsPK",
     });
     setupBatchPoll();
 
@@ -109,15 +119,15 @@ describe("waitForWotsReadiness", () => {
       pollIntervalMs: 0,
     });
 
-    expect([...result.readyVaultIds]).toEqual(["0xVault1"]);
-    expect([...result.terminalVaultIds]).toEqual(["0xVault0"]);
+    expect([...result.readyVaultIds]).toEqual([VAULT_1]);
+    expect([...result.terminalVaultIds]).toEqual([VAULT_0]);
     expect(batchPollByProvider).toHaveBeenCalledTimes(1);
   });
 
   it("treats BabeSetupFailed as terminal", async () => {
     statusesByCall.push({
-      "0xVault0": "BabeSetupFailed",
-      "0xVault1": "PendingDepositorWotsPK",
+      [VAULT_0]: "BabeSetupFailed",
+      [VAULT_1]: "PendingDepositorWotsPK",
     });
     setupBatchPoll();
 
@@ -128,8 +138,8 @@ describe("waitForWotsReadiness", () => {
       pollIntervalMs: 0,
     });
 
-    expect([...result.readyVaultIds]).toEqual(["0xVault1"]);
-    expect([...result.terminalVaultIds]).toEqual(["0xVault0"]);
+    expect([...result.readyVaultIds]).toEqual([VAULT_1]);
+    expect([...result.terminalVaultIds]).toEqual([VAULT_0]);
     expect(batchPollByProvider).toHaveBeenCalledTimes(1);
   });
 
@@ -142,7 +152,10 @@ describe("waitForWotsReadiness", () => {
           'VP response validation failed: unrecognized status "FutureStatus". Expected one of: Activated',
       });
       onItem(items[1], {
-        result: { status: "PendingDepositorWotsPK" },
+        result: {
+          status: "PendingDepositorWotsPK",
+          pegin_txid: PEGIN_1.slice(2),
+        },
         error: null,
       });
     });
@@ -154,8 +167,8 @@ describe("waitForWotsReadiness", () => {
       pollIntervalMs: 0,
     });
 
-    expect([...result.readyVaultIds]).toEqual(["0xVault1"]);
-    expect([...result.terminalVaultIds]).toEqual(["0xVault0"]);
+    expect([...result.readyVaultIds]).toEqual([VAULT_1]);
+    expect([...result.terminalVaultIds]).toEqual([VAULT_0]);
     expect(batchPollByProvider).toHaveBeenCalledTimes(1);
   });
 });

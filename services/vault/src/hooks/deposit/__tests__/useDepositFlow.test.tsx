@@ -1618,7 +1618,16 @@ describe("useDepositFlow", () => {
       expect(waitForWotsReadiness).toHaveBeenCalledWith(
         expect.objectContaining({
           providerAddress: "0xProvider123",
-          vaults: [{ vaultId: "0xVault0Id" }, { vaultId: "0xVault1Id" }],
+          vaults: [
+            {
+              vaultId: "0xVault0Id",
+              peginTxHash: "0xVault0BtcTxHash",
+            },
+            {
+              vaultId: "0xVault1Id",
+              peginTxHash: "0xVault1BtcTxHash",
+            },
+          ],
         }),
       );
       expect(waitForWotsReadiness.mock.invocationCallOrder[0]).toBeLessThan(
@@ -1759,7 +1768,7 @@ describe("useDepositFlow", () => {
 
       vi.mocked(signAndSubmitPayouts).mockRejectedValue(
         new Error(
-          "Polling timeout after 1200000ms for pegin abcdef12… (target: PendingDepositorSignatures, PendingACKs, PendingActivation, ActivatedPendingBroadcast, Activated)",
+          "Polling timeout after 1200000ms for vault 0xabcdef12… (target: PendingDepositorSignatures, PendingACKs, PendingActivation, ActivatedPendingBroadcast, Activated)",
         ),
       );
 

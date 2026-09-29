@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { attributeBatchResults, normalizeVaultId } from "../batchAttribution";
+import { attributeBatchResults, vaultIdKey } from "../batchAttribution";
 
 const VAULT_A = "a".repeat(64);
 const VAULT_B = "b".repeat(64);
@@ -80,12 +80,12 @@ describe("attributeBatchResults", () => {
   });
 });
 
-describe("normalizeVaultId", () => {
+describe("vaultIdKey", () => {
   it("strips a 0x prefix and lowercases", () => {
-    expect(normalizeVaultId(`0x${VAULT_A.toUpperCase()}`)).toBe(VAULT_A);
+    expect(vaultIdKey(`0x${VAULT_A.toUpperCase()}`)).toBe(VAULT_A);
   });
 
   it("leaves an unprefixed lowercase id unchanged", () => {
-    expect(normalizeVaultId(VAULT_A)).toBe(VAULT_A);
+    expect(vaultIdKey(VAULT_A)).toBe(VAULT_A);
   });
 });

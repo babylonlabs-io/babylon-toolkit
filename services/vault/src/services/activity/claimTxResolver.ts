@@ -37,8 +37,8 @@ export const CLAIM_TX_RPC_TIMEOUT_MS = 10_000;
 const BTC_TXID_REGEX = /^[0-9a-f]{64}$/i;
 
 export interface RedeemVaultLookup {
-  vaultProvider: string;
   peginTxHash: string;
+  vaultProvider: string;
 }
 
 export interface RedeemActivityRef {
@@ -98,8 +98,9 @@ export async function resolveRedeemClaimTxids(
             rpcClient.batchGetPegoutStatusByVaultId({ vault_ids }),
           onItem: (entry, envelope) => {
             if (envelope.error !== null) return;
-            // The echoed vault id is our own request string. Only the
-            // server-side `pegin_txid` shows which row answered.
+            // The echoed vault id is our own request string. The server-side
+            // `pegin_txid` catches a status for a different peg-in; it cannot
+            // tell apart vaults that share one peg-in txid.
             if (
               canonicalizeTxid(envelope.result?.pegin_txid) !==
               canonicalizeTxid(entry.peginTxHash)

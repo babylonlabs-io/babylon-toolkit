@@ -37,6 +37,7 @@ import type {
 import {
   getDepositsNeedingPolling,
   groupDepositsByProvider,
+  isPeginNotIngestedError,
   isTerminalPollingError,
   TerminalPeginPollingError,
   UNRECOGNIZED_DAEMON_STATUS,
@@ -116,8 +117,8 @@ async function fetchFromProvider(
     onItem: (deposit, envelope) => {
       const depositId = deposit.activity.id;
       if (envelope.error !== null) {
-        // "PegIn not found" is a routine pre-ingest signal, not a fault.
-        if (!envelope.error.includes("PegIn not found")) {
+        // Not ingested yet is a routine pre-ingest signal, not a fault.
+        if (!isPeginNotIngestedError(envelope.error)) {
           logger.warn(`Failed to poll deposit ${depositId}`, {
             error: envelope.error,
           });
@@ -129,27 +130,8 @@ async function fetchFromProvider(
         });
         return;
       }
-      // The envelope's vault id is our own request string echoed back, so it
-      // cannot show which row answered. `pegin_txid` is a server-side DB
-      // lookup — comparing it to the txid we already hold is what actually
-      // catches a status paired to the wrong vault.
-      const expectedTxid = deposit.activity.peginTxHash;
-      if (
-        expectedTxid !== undefined &&
-        canonicalizeTxid(envelope.result!.pegin_txid) !==
-          canonicalizeTxid(expectedTxid)
-      ) {
-        logger.warn(`Deposit ${depositId} got a status for another peg-in`, {
-          error: `returned pegin_txid ${envelope.result!.pegin_txid}`,
-        });
-        errors.set(
-          depositId,
-          new Error("Provider returned another peg-in's status entry"),
-        );
-        return;
-      }
       // envelope.result is non-null here by the validator's XOR invariant.
-      applyPerDepositStatus(envelope.result!, depositId, {
+      applyPerDepositResult(envelope.result!, deposit, {
         errors,
         needsWotsKey,
         pendingIngestion,
@@ -214,6 +196,41 @@ interface DepositSets {
   pendingIngestion: Set<string>;
 }
 
+/**
+ * Apply a status result after checking it names the deposit's peg-in.
+ *
+ * The envelope's vault id is our own request string echoed back.
+ * `pegin_txid` is a server-side DB lookup, so comparing it to the txid we
+ * hold catches a status for a different peg-in. It cannot tell apart vaults
+ * that share one peg-in txid.
+ */
+export function applyPerDepositResult(
+  statusResponse: GetPeginStatusResponse,
+  deposit: DepositToPoll,
+  sets: DepositSets & { pendingDepositorSignatures: Set<string> },
+): void {
+  const depositId = deposit.activity.id;
+  const expectedTxid = canonicalizeTxid(deposit.activity.peginTxHash);
+  if (expectedTxid === undefined) {
+    sets.errors.set(
+      depositId,
+      new Error(`Deposit ${depositId} has no peg-in txid to check`),
+    );
+    return;
+  }
+  if (canonicalizeTxid(statusResponse.pegin_txid) !== expectedTxid) {
+    logger.warn(`Deposit ${depositId} got a status for another peg-in`, {
+      error: `returned pegin_txid ${statusResponse.pegin_txid}`,
+    });
+    sets.errors.set(
+      depositId,
+      new Error("Provider returned another peg-in's status entry"),
+    );
+    return;
+  }
+  applyPerDepositStatus(statusResponse, depositId, sets);
+}
+
 export function applyPerDepositError(
   errorMessage: string,
   depositId: string,
@@ -233,8 +250,8 @@ export function applyPerDepositError(
     sets.needsWotsKey.delete(depositId);
     return;
   }
-  // "PegIn not found" — VP hasn't ingested yet, treat as still-pending.
-  if (errorMessage.includes("PegIn not found")) {
+  // VP hasn't ingested yet, treat as still-pending.
+  if (isPeginNotIngestedError(errorMessage)) {
     sets.errors.delete(depositId);
     sets.needsWotsKey.delete(depositId);
     sets.pendingIngestion.add(depositId);
@@ -323,7 +340,7 @@ export function usePeginPollingQuery({
     depositsRef.current = depositsToPoll;
   }, [depositsToPoll]);
 
-  // Status reads use transaction IDs. Signing keeps its wallet checks.
+  // Status reads use vault ids. Signing keeps its wallet checks.
   const isEnabled = depositsToPoll.length > 0;
 
   const { data, isLoading, refetch } = useQuery({

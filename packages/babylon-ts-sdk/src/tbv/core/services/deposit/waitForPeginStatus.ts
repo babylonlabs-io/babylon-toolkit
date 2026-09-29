@@ -5,7 +5,7 @@
  * Handles "PegIn not found" as transient (VP hasn't ingested yet).
  */
 
-import { normalizeVaultId } from "../../clients/vault-provider/batchAttribution";
+import { vaultIdKey } from "../../clients/vault-provider/batchAttribution";
 import { JsonRpcError } from "../../clients/vault-provider/json-rpc-client";
 import {
   DaemonStatus,
@@ -17,6 +17,9 @@ import type { PeginStatusReader } from "./interfaces";
 /** Default polling interval (10 seconds). */
 const DEFAULT_POLL_INTERVAL_MS = 10_000;
 
+/** Characters of a vault id shown in error text: `0x` plus 8 hex chars. */
+const VAULT_ID_LOG_PREFIX_LEN = 10;
+
 export interface WaitForPeginStatusParams {
   /** VP client implementing the status reader interface */
   statusReader: PeginStatusReader;
@@ -24,10 +27,11 @@ export interface WaitForPeginStatusParams {
   vaultId: string;
   /**
    * BTC pegin transaction ID (unprefixed hex, 64 chars) of the same vault.
-   * The VP echoes `vault_id` verbatim from the request, so that field alone
-   * cannot show the response describes the row we asked about. `pegin_txid`
-   * is a DB lookup on the server, so it is the attested identifier — and it
-   * is the identifier the presign and WOTS writes are addressed by.
+   * The VP builds the response `vault_id` from the request, so that field
+   * alone cannot show which row answered. `pegin_txid` is a DB lookup on the
+   * server, so a mismatch shows a status for a different peg-in. It cannot
+   * tell apart vaults that share one peg-in txid. It is also the identifier
+   * the presign and WOTS writes are addressed by.
    */
   peginTxid: string;
   /** Set of acceptable statuses — polling stops when the VP reports one of these */
@@ -66,13 +70,13 @@ export async function waitForPeginStatus(
   while (true) {
     if (signal?.aborted) {
       throw new Error(
-        `Polling aborted for vault ${vaultId.slice(0, 10)}… (target: ${[...targetStatuses].join(", ")})`,
+        `Polling aborted for vault ${vaultId.slice(0, VAULT_ID_LOG_PREFIX_LEN)}… (target: ${[...targetStatuses].join(", ")})`,
       );
     }
 
     if (Date.now() - startTime >= timeoutMs) {
       throw new Error(
-        `Polling timeout after ${timeoutMs}ms for vault ${vaultId.slice(0, 10)}… (target: ${[...targetStatuses].join(", ")})`,
+        `Polling timeout after ${timeoutMs}ms for vault ${vaultId.slice(0, VAULT_ID_LOG_PREFIX_LEN)}… (target: ${[...targetStatuses].join(", ")})`,
       );
     }
 
@@ -83,15 +87,15 @@ export async function waitForPeginStatus(
       );
 
       // Reject responses echoing a different vault id.
-      if (normalizeVaultId(response.vault_id) !== normalizeVaultId(vaultId)) {
+      if (vaultIdKey(response.vault_id) !== vaultIdKey(vaultId)) {
         throw new Error(
-          `getPeginStatusByVaultId returned status for vault ${response.vault_id.slice(0, 10)}…, requested ${vaultId.slice(0, 10)}…`,
+          `getPeginStatusByVaultId returned status for vault ${response.vault_id.slice(0, VAULT_ID_LOG_PREFIX_LEN)}…, requested ${vaultId.slice(0, VAULT_ID_LOG_PREFIX_LEN)}…`,
         );
       }
 
-      // Reject a response whose attested pegin txid names another vault. The
-      // echo check above catches a mangled response; this catches a mispaired
-      // one, where the row that answered is not the row we asked about.
+      // Reject a response whose server-side pegin txid names another peg-in.
+      // The vault id check above catches a mangled response; this catches a
+      // status for a different peg-in.
       if (response.pegin_txid.toLowerCase() !== peginTxid.toLowerCase()) {
         throw new Error(
           `getPeginStatusByVaultId returned status for pegin ${response.pegin_txid.slice(0, 8)}…, requested ${peginTxid.slice(0, 8)}…`,
@@ -114,7 +118,7 @@ export async function waitForPeginStatus(
         VP_TERMINAL_FAILURE_STATUSES.has(status)
       ) {
         throw new Error(
-          `Vault ${vaultId.slice(0, 10)}… reached terminal status "${status}" while waiting for ${[...targetStatuses].join(", ")}`,
+          `Vault ${vaultId.slice(0, VAULT_ID_LOG_PREFIX_LEN)}… reached terminal status "${status}" while waiting for ${[...targetStatuses].join(", ")}`,
         );
       }
     } catch (error) {
@@ -133,7 +137,7 @@ export async function waitForPeginStatus(
         clearTimeout(timeoutId);
         reject(
           new Error(
-            `Polling aborted for vault ${vaultId.slice(0, 10)}… (target: ${[...targetStatuses].join(", ")})`,
+            `Polling aborted for vault ${vaultId.slice(0, VAULT_ID_LOG_PREFIX_LEN)}… (target: ${[...targetStatuses].join(", ")})`,
           ),
         );
       };

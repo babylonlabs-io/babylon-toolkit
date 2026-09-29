@@ -343,11 +343,11 @@ describe("fetchUserActivities type mapping", () => {
     );
     const vaultLookupArg = resolverMock.mock.calls[0]![1] as ReadonlyMap<
       string,
-      { vaultProvider: string; peginTxHash: string }
+      { peginTxHash: string; vaultProvider: string }
     >;
     expect(vaultLookupArg.get(VAULT_A)).toEqual({
-      vaultProvider: `0xvp-${VAULT_A.slice(2, 10)}`,
       peginTxHash: `0xpegin-${VAULT_A.slice(2, 10)}`,
+      vaultProvider: `0xvp-${VAULT_A.slice(2, 10)}`,
     });
   });
 

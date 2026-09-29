@@ -5944,7 +5944,9 @@ pegin_txid: string;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/types.ts)
 
-Echoed for correlation only — a txid does not identify a vault.
+The peg-in txid the server stores for this vault. A mismatch with the
+caller's txid shows a status for a different peg-in; several vaults can
+share one txid, so it does not identify a vault.
 
 ##### vault\_id
 
