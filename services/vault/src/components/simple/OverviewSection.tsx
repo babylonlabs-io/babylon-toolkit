@@ -64,8 +64,8 @@ export function OverviewSection({
         label: COPY.overview.totalCollateralValueLabel,
         value: `${totalCollateralValue} ${collateralBtc}`,
         valueNode: (
-          <span>
-            {totalCollateralValue}{" "}
+          <span className="flex min-w-0 flex-wrap items-baseline gap-x-1 xl:flex-nowrap">
+            <span className="min-w-0 xl:truncate">{totalCollateralValue}</span>{" "}
             <span className="text-sm leading-[1.43] tracking-[0.17px] text-accent-secondary">
               {collateralBtc}
             </span>
