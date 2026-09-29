@@ -184,10 +184,10 @@ pin the exact bytes):
 - `context` must be lowercase hex, even-length, non-empty, no `0x` prefix, max 1024 bytes.
 - Wallet MUST require user approval and display `appName` ("babylon-btc-vault"). It MUST also display the requesting origin when the transport carries one (browser extensions, injected providers). Hardware wallets reached over raw APDU, USB, BLE or QR have no authenticated origin and MUST NOT present a dApp-supplied string as a verified one.
 
-The connector reports these `deriveContextHash` error codes:
+The connector's `deriveContextHash` error codes include:
 
-- `WALLET_METHOD_NOT_SUPPORTED`: The wallet does not implement the method.
-- `WALLET_ACCOUNT_NOT_SUPPORTED`: The selected account cannot create the deposit secret. For a new deposit, select an account created from a recovery phrase or a private key. To continue a deposit, select the account that created it.
+- `WALLET_METHOD_NOT_SUPPORTED`: The wallet does not implement the method. OneKey also reports an account that cannot derive the context hash with this code.
+- `WALLET_ACCOUNT_NOT_SUPPORTED`: The selected account cannot derive the context hash. Only the UniSat provider reports this code.
 
 ### PoP Message Format
 

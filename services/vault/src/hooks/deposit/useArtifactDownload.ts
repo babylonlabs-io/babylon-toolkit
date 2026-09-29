@@ -43,7 +43,7 @@ import {
   saveArtifactDownloadReceipt,
   saveGraphMismatch,
 } from "@/utils/artifactDownloadStorage";
-import { isWalletAccountNotSupported } from "@/utils/errors/walletAccountNotSupported";
+import { postRegistrationWalletErrorMessage } from "@/utils/errors";
 
 const ARTIFACT_RETRY_INTERVAL_MS = 10_000;
 
@@ -386,12 +386,10 @@ export function useArtifactDownload(options?: {
             { tags: { site: "prime" } },
           );
           setError(
-            isWalletAccountNotSupported(primeErr)
-              ? COPY.deposit.payoutSignatureErrors.walletAccountNotSupported
-                  .message
-              : primeErr instanceof Error
-                ? primeErr.message
-                : COPY.deposit.recoveryArtifacts.authenticationFailed,
+            postRegistrationWalletErrorMessage(
+              primeErr,
+              COPY.deposit.recoveryArtifacts.authenticationFailed,
+            ),
           );
           return false;
         }
@@ -590,12 +588,10 @@ export function useArtifactDownload(options?: {
                 { tags: { site: "reprime" } },
               );
               setError(
-                isWalletAccountNotSupported(primeErr)
-                  ? COPY.deposit.payoutSignatureErrors.walletAccountNotSupported
-                      .message
-                  : primeErr instanceof Error
-                    ? primeErr.message
-                    : COPY.deposit.recoveryArtifacts.reauthenticationFailed,
+                postRegistrationWalletErrorMessage(
+                  primeErr,
+                  COPY.deposit.recoveryArtifacts.reauthenticationFailed,
+                ),
               );
               return;
             }

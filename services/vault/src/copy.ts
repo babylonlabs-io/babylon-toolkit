@@ -1368,7 +1368,7 @@ export const COPY = {
       walletAccountNotSupported: {
         title: "Account can't be used",
         message:
-          "The account selected in your wallet can't create the deposit secret. Select the account that created this deposit, then try again.",
+          "The account selected in your wallet can't create the deposit secret. Select the account that created this deposit, in the wallet you used to create it, then try again.",
       },
       // Typed device-state codes from the hardware-wallet provider; wording
       // shared with deposit.errors via the DEVICE_* constants above.

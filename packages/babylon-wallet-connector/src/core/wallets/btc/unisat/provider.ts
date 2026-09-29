@@ -21,7 +21,6 @@ import { resolveUseTweakedSigner } from "@/core/utils/psbtOptionsMapper";
 import { withTimeout } from "@/core/utils/withTimeout";
 import { ERROR_CODES, WalletError, isUserRejectionMessage } from "@/error";
 
-import { mapUnisatDeriveContextHashError } from "./deriveContextHashError";
 import logo from "./logo.svg";
 import { MIN_UNISAT_VERSION, checkUnisatVersion } from "./version";
 
@@ -35,6 +34,11 @@ const UNISAT_RPC_TIMEOUT_MS = 10_000;
 // `switchChain`). Generous enough that a human approving in the extension is
 // never cut off, but still bounds an extension that never surfaces its popup.
 const UNISAT_PROMPT_TIMEOUT_MS = 60_000;
+
+// UniSat rejects deriveContextHash with this exact message when the selected
+// account's keyring does not support deriveContextHash.
+// https://github.com/unisat-wallet/wallet/blob/extension/v1.7.19/packages/wallet-background/src/controllers/wallet.ts#L1134-L1145
+const UNISAT_UNSUPPORTED_ACCOUNT_MESSAGE = "Current keyring does not support deriveContextHash";
 
 enum UnisatChainEnum {
   BITCOIN_SIGNET = "BITCOIN_SIGNET",
@@ -698,7 +702,18 @@ export class UnisatProvider implements IBTCProvider {
           wallet: WALLET_PROVIDER_NAME,
         });
       }
-      throw mapUnisatDeriveContextHashError(error, WALLET_PROVIDER_NAME);
+      if ((error as Error | undefined)?.message === UNISAT_UNSUPPORTED_ACCOUNT_MESSAGE) {
+        throw new WalletError({
+          code: ERROR_CODES.WALLET_ACCOUNT_NOT_SUPPORTED,
+          message: "The selected Unisat account cannot derive the context hash",
+          wallet: WALLET_PROVIDER_NAME,
+        });
+      }
+      // Everything else is rethrown unwrapped so the underlying
+      // message and stack are preserved — collapsing wallet errors
+      // would hide spec-validation failures the wallet must surface
+      // (`appName` charset, `context` hex format, length bounds).
+      throw error;
     }
   };
 }

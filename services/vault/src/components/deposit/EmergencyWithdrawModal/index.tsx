@@ -33,7 +33,7 @@ import {
 } from "@/infrastructure/telemetryEvents";
 import { deriveHtlcSecretHex } from "@/services/vault/htlcSecretDerivation";
 import type { VaultActivity } from "@/types/activity";
-import { isWalletAccountNotSupported } from "@/utils/errors/walletAccountNotSupported";
+import { postRegistrationWalletErrorMessage } from "@/utils/errors";
 
 import { EmergencyWithdrawConfirmContent } from "./EmergencyWithdrawConfirmContent";
 import { EmergencyWithdrawSuccessContent } from "./EmergencyWithdrawSuccessContent";
@@ -142,12 +142,12 @@ export function EmergencyWithdrawModal({
       // never secret bytes. Only the UI update below is mount-gated.
       captureFunnelFailure(TELEMETRY_STAGE.ACTIVATION_SECRET, err, activity.id);
       if (mountedRef.current) {
-        const msg = isWalletAccountNotSupported(err)
-          ? COPY.deposit.payoutSignatureErrors.walletAccountNotSupported.message
-          : err instanceof Error
-            ? err.message
-            : COPY.deposit.emergencyWithdraw.errors.withdrawFailed;
-        setLocalError(msg);
+        setLocalError(
+          postRegistrationWalletErrorMessage(
+            err,
+            COPY.deposit.emergencyWithdraw.errors.withdrawFailed,
+          ),
+        );
       }
     } finally {
       if (mountedRef.current) setDeriving(false);

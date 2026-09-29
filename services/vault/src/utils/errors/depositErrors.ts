@@ -166,6 +166,21 @@ export function mapDepositErrorAfterRegistration(
     : content;
 }
 
+/**
+ * Message for a wallet failure after registration. An account refusal gets
+ * the original-account guidance; anything else keeps its own message. For
+ * callers with no typed top-frame bucket, so the cause-chain check runs first.
+ */
+export function postRegistrationWalletErrorMessage(
+  error: unknown,
+  fallback: string,
+): string {
+  if (isWalletAccountNotSupported(error)) {
+    return COPY.deposit.payoutSignatureErrors.walletAccountNotSupported.message;
+  }
+  return error instanceof Error ? error.message : fallback;
+}
+
 /** BtcWalletLivenessError bodies, matched (lowercased) by bucket 5b. */
 const LIVENESS_BODIES = [
   COPY.wallet.liveness.unresponsive,

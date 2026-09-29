@@ -113,13 +113,13 @@ import {
   isResumableDepositError,
   mapDepositError,
   mapDepositErrorAfterRegistration,
+  postRegistrationWalletErrorMessage,
   type DepositErrorContent,
 } from "@/utils/errors";
 import {
   isUserCancellation,
   WALLET_CONNECTION_REJECTED_CODE,
 } from "@/utils/errors/userCancellation";
-import { isWalletAccountNotSupported } from "@/utils/errors/walletAccountNotSupported";
 import { formatBtcValue } from "@/utils/formatting";
 import { getVpProxyUrl } from "@/utils/rpc";
 import { observeSigningProgress } from "@/utils/signingProgress";
@@ -1444,12 +1444,10 @@ export function useDepositFlow(
                 continue;
               }
 
-              const errorMsg = isWalletAccountNotSupported(error)
-                ? COPY.deposit.payoutSignatureErrors.walletAccountNotSupported
-                    .message
-                : error instanceof Error
-                  ? error.message
-                  : String(error);
+              const errorMsg = postRegistrationWalletErrorMessage(
+                error,
+                String(error),
+              );
               recordWarning({
                 vaultId: result.vaultId,
                 stage: "wots",
@@ -1634,12 +1632,10 @@ export function useDepositFlow(
               continue;
             }
 
-            const errorMsg = isWalletAccountNotSupported(error)
-              ? COPY.deposit.payoutSignatureErrors.walletAccountNotSupported
-                  .message
-              : error instanceof Error
-                ? error.message
-                : String(error);
+            const errorMsg = postRegistrationWalletErrorMessage(
+              error,
+              String(error),
+            );
             recordWarning({
               vaultId: result.vaultId,
               stage: "payout",

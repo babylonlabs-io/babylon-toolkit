@@ -1573,27 +1573,35 @@ describe("useDepositFlow", () => {
       ]);
     });
 
-    it.each(["wots", "payout"])(
-      "shows the original-account guidance in a %s warning",
-      async (stage) => {
-        const { submitWotsPublicKey, signAndSubmitPayouts } = await import(
-          "../depositFlowSteps"
-        );
-        vi.mocked(
-          stage === "wots" ? submitWotsPublicKey : signAndSubmitPayouts,
-        ).mockRejectedValue(
-          new Error("Authentication failed", {
-            cause: { code: "WALLET_ACCOUNT_NOT_SUPPORTED" },
-          }),
-        );
-        const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
-        const depositResult = await executeDepositFlow(result);
-        expect(depositResult?.warnings).toHaveLength(2);
-        expect(depositResult?.warnings?.[0]?.message).toContain(
-          COPY.deposit.payoutSignatureErrors.walletAccountNotSupported.message,
-        );
-      },
-    );
+    it("shows the original-account guidance in a WOTS warning", async () => {
+      const { submitWotsPublicKey } = await import("../depositFlowSteps");
+      vi.mocked(submitWotsPublicKey).mockRejectedValue(
+        new Error("Authentication failed", {
+          cause: { code: "WALLET_ACCOUNT_NOT_SUPPORTED" },
+        }),
+      );
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      const depositResult = await executeDepositFlow(result);
+      expect(depositResult?.warnings).toHaveLength(2);
+      expect(depositResult?.warnings?.[0]?.message).toContain(
+        COPY.deposit.payoutSignatureErrors.walletAccountNotSupported.message,
+      );
+    });
+
+    it("shows the original-account guidance in a payout warning", async () => {
+      const { signAndSubmitPayouts } = await import("../depositFlowSteps");
+      vi.mocked(signAndSubmitPayouts).mockRejectedValue(
+        new Error("Authentication failed", {
+          cause: { code: "WALLET_ACCOUNT_NOT_SUPPORTED" },
+        }),
+      );
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      const depositResult = await executeDepositFlow(result);
+      expect(depositResult?.warnings).toHaveLength(2);
+      expect(depositResult?.warnings?.[0]?.message).toContain(
+        COPY.deposit.payoutSignatureErrors.walletAccountNotSupported.message,
+      );
+    });
 
     it("records a WOTS completion marker for every vault whose submission resolved", async () => {
       // The dashboard row suppresses "Submit WOTS Key" off these markers. The
