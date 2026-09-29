@@ -2075,6 +2075,9 @@ export const COPY = {
     activity: "Activity",
     liquidations: "Liquidations",
     explore: "Explore",
+    pendingDeposits: (count: number) =>
+      `${count} pending ${count === 1 ? "deposit" : "deposits"}`,
+    pendingDepositsOverflow: (max: number) => `${max}+`,
     termsOfUse: "Terms of Use",
     privacyPolicy: "Privacy Policy",
   },
