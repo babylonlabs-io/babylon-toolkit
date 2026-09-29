@@ -62,7 +62,9 @@ example below is valid as written.
   "refuted": [
     {
       "claim": "<one line>",
-      "evidence": "<what killed it>"
+      "evidence": "<what killed it>",
+      "row": "<the Do not re-raise row that suppressed it; omit for a disproved claim>",
+      "anchors": ["<path>:<line-range>"]
     }
   ]
 }
@@ -187,6 +189,10 @@ The enumerated fields take these values:
   written before it existed, and not backfillable — an anchor missing from
   `files` is equally an outside anchor and a file that left the change, and
   the stored state cannot tell them apart.
+- **`refuted[].row`** marks a claim suppressed by a "Do not re-raise" row, not
+  disproved. Such an entry carries `anchors`, the code the row covers. Phase 3
+  re-checks those entries on every later run. Once the change goes beyond its
+  row, the entry leaves `refuted` and becomes a new finding with the next id.
 - **Reviewer figures** come only from completion notifications; write `null`
   when a notification did not carry one.
 
