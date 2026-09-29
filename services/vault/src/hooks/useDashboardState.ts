@@ -71,7 +71,9 @@ export function useDashboardState(connectedAddress: string | undefined) {
   // the safe default.
   const canBorrow = availableToBorrowUsd >= MIN_BORROWABLE_USD;
 
-  const { findProvider } = useVaultProviders();
+  const { findProvider } = useVaultProviders(undefined, {
+    requireCompleteKeeperRoster: false,
+  });
   const { reorderedOrder, clearReorderedOrder } = useReorderOverride();
   const { activatingVaults, clearActivatingVault } = useActivatingVaults();
 
@@ -84,10 +86,10 @@ export function useDashboardState(connectedAddress: string | undefined) {
     return ids;
   }, [pendingVaults]);
 
-  // Indexer entries (liquidationIndex straight from the indexer), re-tagged
+  // Indexer entries (liquidationIndex ranked by the chain order), re-tagged
   // with the withdrawals whose transaction is mined but not yet indexed. These
-  // drive reconciliation — they reflect what the indexer currently believes,
-  // independent of any active override.
+  // drive reconciliation — they reflect the latest position read, independent
+  // of any active override.
   const rawCollateralVaults = useMemo(
     (): CollateralVaultEntry[] =>
       applyPendingWithdrawals(
@@ -144,9 +146,9 @@ export function useDashboardState(connectedAddress: string | undefined) {
       });
   }, [activatingVaults, rawCollateralVaults, findProvider, connectedAddress]);
 
-  // Displayed entries. Normally indexer-ordered; right after a reorder,
+  // Displayed entries. Normally in chain order; right after a reorder,
   // `reorderedOrder` holds the submitted order so the new order (and each row's
-  // ordinal) shows immediately. Falls back to indexer ordering once the
+  // ordinal) shows immediately. Falls back to the chain order once the
   // override no longer matches the vault set, which covers the active rows
   // alone. Withdrawing rows, then optimistic activating rows, are appended
   // after, until the indexer reflects them.
@@ -164,9 +166,9 @@ export function useDashboardState(connectedAddress: string | undefined) {
     ],
   );
 
-  // Drop the override once the indexer reflects the reordered sequence (or the
-  // vault set changed), handing display back to the indexer ordering. Compares
-  // against the raw indexer entries, not the override-rewritten ones.
+  // Drop the override once the position read reflects the reordered sequence
+  // (or the vault set changed), handing display back to the chain order.
+  // Compares against the raw entries, not the override-rewritten ones.
   useEffect(() => {
     if (!reorderedOrder) return;
     if (isReorderOverrideReconciled(activeCollateralVaults, reorderedOrder)) {

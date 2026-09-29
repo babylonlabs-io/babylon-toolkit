@@ -42,8 +42,8 @@ vi.mock("../../../hooks/useStuckVaultChainConfirm", () => ({
   useStuckVaultChainConfirm: () => new Set<string>(),
 }));
 
-// Floor gate is feature-flagged off by default; stub it so the provider renders
-// without a QueryClient, exactly as the deadline gate above is stubbed.
+// Floor gate issues chain reads for VERIFIED vaults; stub it so the provider
+// renders without a QueryClient, exactly as the deadline gate above is stubbed.
 vi.mock("../../../hooks/useActivationFloorGate", () => ({
   useActivationFloorGate: () => new Map<string, number | null>(),
 }));

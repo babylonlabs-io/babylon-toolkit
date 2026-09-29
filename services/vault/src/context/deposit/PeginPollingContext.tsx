@@ -56,6 +56,7 @@ import type {
   PeginPollingContextValue,
   PeginPollingProviderProps,
 } from "../../types/peginPolling";
+import { isActivationBlockedByEarlierSibling } from "../../utils/batchedPegin";
 import { canonicalizeTxid } from "../../utils/txid";
 import { isVaultOwnedByWallet } from "../../utils/vaultWarnings";
 
@@ -72,6 +73,10 @@ import {
   setOptimisticDepositStatus,
   subscribeToOptimisticDepositState,
 } from "./optimisticDepositState";
+import {
+  publishPendingDepositCount,
+  selectPendingActivities,
+} from "./pendingDepositCount";
 import {
   collectTerminalMilestones,
   getSharedTerminalMilestoneTracking,
@@ -104,7 +109,7 @@ function isPrePeginPollEligibleStatus(
  */
 function getTxidsCrossingThreshold(
   activities: VaultActivity[],
-  confirmations: Map<string, number>,
+  confirmations: Map<string, number | null>,
   cached: Set<string>,
   filter: (a: VaultActivity) => boolean,
   threshold: (a: VaultActivity) => number | undefined,
@@ -115,7 +120,7 @@ function getTxidsCrossingThreshold(
     const txid = canonicalizeTxid(activity.prePeginTxHash);
     if (!txid || cached.has(txid)) continue;
     const observed = confirmations.get(txid);
-    if (observed === undefined) continue;
+    if (typeof observed !== "number") continue;
     const t = threshold(activity);
     if (t === undefined || observed < t) continue;
     out.push(txid);
@@ -192,6 +197,7 @@ export function PeginPollingProvider({
   pendingPegins,
   btcPublicKey,
   btcWalletAbsent = false,
+  isConnected = false,
 }: PeginPollingProviderProps) {
   useSingleProviderInvariant();
 
@@ -199,6 +205,18 @@ export function PeginPollingProvider({
   // is on and the panel toggle is enabled). When present, its ids resolve to
   // controlled results below instead of the live polling decision tree.
   const demo = useDepositOverride();
+
+  const pendingDepositCount = useMemo(
+    () =>
+      isConnected || demo
+        ? selectPendingActivities(activities, demo).length
+        : 0,
+    [isConnected, activities, demo],
+  );
+  useEffect(() => {
+    publishPendingDepositCount(pendingDepositCount);
+  }, [pendingDepositCount]);
+  useEffect(() => () => publishPendingDepositCount(0), []);
 
   // Optimistic step completions (for immediate UI feedback after an action).
   // App-scoped, not provider-scoped: the writers run outside the context
@@ -250,8 +268,8 @@ export function PeginPollingProvider({
     activities,
     params.pegInActivationTimeout,
   );
-  // Lower bound on activation, the mirror of the deadline gate above. Feature
-  // -flagged and fails closed — see `useActivationFloorGate`.
+  // Lower bound on activation, the mirror of the deadline gate above. Fails
+  // closed — see `useActivationFloorGate`.
   const activationFloorBlocks = useActivationFloorGate(activities);
   const [confirmedTxids, setConfirmedTxids] = useState<Set<string>>(
     loadConfirmedPrePeginTxids,
@@ -612,6 +630,10 @@ export function PeginPollingProvider({
         ),
         activationFloorBlocksRemaining: activationFloorBlocks.get(
           activity.id.toLowerCase(),
+        ),
+        activationBlockedBySibling: isActivationBlockedByEarlierSibling(
+          activities,
+          activity,
         ),
         // Params still resolving is a loading state, not a resolved "depth
         // unknown" — otherwise a cold load reads as a stalled deposit. A params

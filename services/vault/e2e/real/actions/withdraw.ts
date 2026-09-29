@@ -84,6 +84,8 @@ const SELECT_ACKNOWLEDGE_TESTID = '[data-testid="withdraw-select-acknowledge"]';
 // Review re-asks for when the projection it shows differs from the one accepted on the selection screen.
 const REVIEW_CONFIRM_TESTID = '[data-testid="withdraw-confirm-button"]';
 const HF_BLOCK_TESTID = '[data-testid="withdraw-hf-block-warning"]';
+// The review's VP commission read failed; Confirm stays disabled until the dialog reopens.
+const COMMISSION_ERROR_TESTID = '[data-testid="withdraw-commission-error"]';
 const REVIEW_ACKNOWLEDGE_TESTID = '[data-testid="withdraw-review-acknowledge"]';
 // Success screen: "Withdrawal initiated" (COPY.withdraw.initiated.title) + its Done button. Both are
 // unique to the withdraw progress view (not the shared LoanSuccessModal), so either safely marks success.
@@ -259,8 +261,8 @@ async function openWithdrawForRow(
 
 /**
  * On the Review screen, wait for the "Confirm" submit to enable and click it. Fails fast if the blocking
- * HF warning is present (the withdrawal would drop the health factor below the on-chain minimum) — that
- * won't self-resolve by waiting.
+ * HF warning is present (the withdrawal would drop the health factor below the on-chain minimum) or the
+ * VP commission read failed — neither will self-resolve by waiting.
  */
 async function submitReview(
   page: Page,
@@ -268,12 +270,17 @@ async function submitReview(
 ): Promise<void> {
   const confirm = page.locator(REVIEW_CONFIRM_TESTID).first();
   const hfBlock = page.locator(HF_BLOCK_TESTID).first();
+  const commissionError = page.locator(COMMISSION_ERROR_TESTID).first();
   const acknowledge = page.locator(REVIEW_ACKNOWLEDGE_TESTID).first();
   const deadline = Date.now() + WITHDRAW_CTA_ENABLE_TIMEOUT_MS;
   while (Date.now() < deadline) {
     if (await hfBlock.isVisible().catch(() => false))
       throw new Error(
         "Withdraw blocked on the review screen: this withdrawal would drop the health factor below the on-chain minimum. Repay debt or withdraw fewer vaults.",
+      );
+    if (await commissionError.isVisible().catch(() => false))
+      throw new Error(
+        "Withdraw blocked on the review screen: the app could not read the vault provider commission from the registry.",
       );
     // The acknowledgement is keyed to the displayed projection; a refetch between Select and Review can move it and re-ask here.
     if (

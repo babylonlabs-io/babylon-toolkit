@@ -1,4 +1,4 @@
-export { fetchAppProviders } from "./fetchProviders";
+export { fetchAppProviderMetadata, fetchAppProviders } from "./fetchProviders";
 export {
   fetchAllUniversalChallengers,
   type UniversalChallengersData,

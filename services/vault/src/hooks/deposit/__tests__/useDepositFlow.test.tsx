@@ -119,6 +119,13 @@ vi.mock("@/clients/eth-contract/pinnedReadBlock", () => ({
 vi.mock("@/clients/eth-contract/sdk-readers", () => ({
   getVaultRegistryReader: vi.fn(() => ({
     getVaultProviderGenesisBtcPubKey: vi.fn(async () => "ab".repeat(32)),
+    getCurrentVaultProviderOperationBtcKey: vi.fn(async () => "ab".repeat(32)),
+    getVaultKeyEpochs: vi.fn(async () => ({
+      vpKeyEpoch: 0n,
+      appKeeperKeyEpoch: 0n,
+      ucKeyEpoch: 0n,
+    })),
+    getVaultProviderOperationBtcKeyAtEpoch: vi.fn(async () => "ab".repeat(32)),
   })),
   getVaultKeeperReader: vi.fn(async () => ({})),
   getUniversalChallengerReader: vi.fn(async () => ({})),
@@ -794,7 +801,7 @@ describe("useDepositFlow", () => {
   });
 
   describe("Storage", () => {
-    it("should save each vault with batchId and correct batchIndex", async () => {
+    it("saves each vault with its zero-based construction index", async () => {
       const { addPendingPegin } = vi.mocked(
         await import("@/storage/peginStorage"),
       );
@@ -812,7 +819,7 @@ describe("useDepositFlow", () => {
         "0xEthAddress123",
         expect.objectContaining({
           batchId: "mock-batch-id-uuid",
-          batchIndex: 1,
+          constructionIndex: 0,
           batchTotal: 2,
         }),
       );
@@ -822,7 +829,7 @@ describe("useDepositFlow", () => {
         "0xEthAddress123",
         expect.objectContaining({
           batchId: "mock-batch-id-uuid",
-          batchIndex: 2,
+          constructionIndex: 1,
           batchTotal: 2,
         }),
       );
@@ -1768,7 +1775,7 @@ describe("useDepositFlow", () => {
 
       vi.mocked(signAndSubmitPayouts).mockRejectedValue(
         new Error(
-          "Polling timeout after 1200000ms for pegin abcdef12… (target: PendingDepositorSignatures, PendingACKs, PendingActivation, ActivatedPendingBroadcast, Activated)",
+          "Polling timeout after 1200000ms for vault 0xabcdef12… (target: PendingDepositorSignatures, PendingACKs, PendingActivation, ActivatedPendingBroadcast, Activated)",
         ),
       );
 

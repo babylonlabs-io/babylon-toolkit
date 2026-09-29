@@ -87,16 +87,20 @@ export type PeginDisplayLabel =
  *
  * The HTLC refund leaf is gated by `OP_CSV` over the deposit's pinned
  * `tRefund` (blocks since Pre-PegIn confirmation). Bitcoin rejects an
- * early broadcast with `non-BIP68-final`, so the UI surfaces three
- * distinct states instead of unconditionally offering the action.
+ * early broadcast with `non-BIP68-final`. Only `mature` permits a refund.
  *
  * - `mature`   — CSV satisfied; refund broadcast will be accepted.
  * - `maturing` — CSV not yet satisfied; the countdown is known.
  * - `unknown`  — confirmation count or per-deposit `tRefund` not
  *                resolvable; the UI shows a generic pending message and
  *                does NOT mark mature (never false-positive).
+ * - `notFound` - The transaction was not found on the selected network.
  */
-export type RefundMaturityState = "mature" | "maturing" | "unknown";
+export type RefundMaturityState =
+  | "mature"
+  | "maturing"
+  | "unknown"
+  | "notFound";
 
 export interface PeginState {
   contractStatus: ContractStatus;
@@ -112,7 +116,7 @@ export interface PeginState {
   /**
    * Short message intended for the inline subtext slot under the amount
    * (e.g. "Your refund will be claimable in ~18 blocks (~3h)"). The full sentence stays
-   * in `message` for the tooltip. Set for maturing / unknown EXPIRED, and for
+   * in `message` for the tooltip. Set for maturing / unknown / notFound EXPIRED, and for
    * a VERIFIED vault waiting out the activation floor — that second producer
    * is why the row prefers this over the step counter.
    */
@@ -124,6 +128,11 @@ export interface PeginState {
    * which must keep their own presentation and their View-details control.
    */
   activationFloorBlocksRemaining?: number | null;
+  /**
+   * Set ONLY when the split-order branch rendered — an earlier sibling of the
+   * same Pre-PegIn must activate first. Read like the floor field above.
+   */
+  activationBlockedBySibling?: boolean;
   payoutSignedAt?: number;
 }
 
@@ -193,11 +202,18 @@ export interface GetPeginStateOptions {
    * separate field: this vault is healthy and waiting, NOT expired, so it must
    * keep the pending variant and its progress step.
    *
-   * - `undefined` → not gated (window open, or the feature is off)
+   * - `undefined` → not gated (window open)
    * - `number` → gated, that many blocks remain
    * - `null` → gated, remaining unknown (a chain read failed; fail-closed)
    */
   activationFloorBlocksRemaining?: number | null;
+  /**
+   * VERIFIED only: a lower construction-index sibling of the same Pre-PegIn
+   * can still join the liquidation queue, so this vault must wait. UX only —
+   * `assertActivationFollowsConstructionOrder` re-checks on chain before the
+   * secret is revealed.
+   */
+  activationBlockedBySibling?: boolean;
   /**
    * True only when the deposit can be refunded *now*: the Pre-PegIn tx
    * exists AND the HTLC CSV timelock (`tRefund`) has elapsed. The
@@ -207,7 +223,7 @@ export interface GetPeginStateOptions {
   canRefund?: boolean;
   /**
    * Per-deposit refund maturity (see {@link RefundMaturityState}). Drives
-   * the EXPIRED-branch message (countdown / pending / mature) without
+   * the EXPIRED-branch message (countdown / pending / not found / mature) without
    * changing the action gating, which is owned by `canRefund`.
    */
   refundMaturityState?: RefundMaturityState;
@@ -467,7 +483,8 @@ export function getPeginState(
   // floor must not let the secret reach simulation calldata.
   const floorAdjustedActions =
     contractStatus === ContractStatus.VERIFIED &&
-    isActivationFloorGating(options.activationFloorBlocksRemaining)
+    (isActivationFloorGating(options.activationFloorBlocksRemaining) ||
+      options.activationBlockedBySibling === true)
       ? deadlineAdjustedActions.filter(
           (a) => a !== SdkPeginAction.ACTIVATE_VAULT,
         )
@@ -532,12 +549,10 @@ function applyTrackingOverrides(
       return [];
     }
     if (localStatus === LocalStorageStatus.CONFIRMING) {
-      // If VP explicitly reports no pending ingestion (broadcast not
-      // detected), the local status is stale — ignore the override.
-      if (vpState?.pendingIngestion === false) return sdkActions;
-      return sdkActions.filter(
-        (a) => a !== SdkPeginAction.SIGN_AND_BROADCAST_TO_BITCOIN,
-      );
+      // A local marker is not evidence that Bitcoin accepted the transaction.
+      // The independent mempool/chain observation below owns suppression;
+      // until it sees the registered txid, keep the safe rebroadcast action.
+      return sdkActions;
     }
   }
 
@@ -565,6 +580,8 @@ interface DisplayInfo {
    * mistaken for one that is waiting out the floor.
    */
   activationFloorBlocksRemaining?: number | null;
+  /** Set only by the split-order branch, like the floor field above. */
+  activationBlockedBySibling?: boolean;
   displayVariant: "pending" | "active" | "inactive" | "warning" | "danger";
   message?: string;
   awaitingPayoutPrep?: boolean;
@@ -613,10 +630,16 @@ function getDisplay(
       };
     }
     if (actions.includes(PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN)) {
+      // CONFIRMING keeps the broadcast action until the observer sees the tx,
+      // but it was sent: say so instead of blaming the broadcast. A retry in
+      // this window reconciles with the broadcaster and does not rebroadcast.
       return {
         displayLabel: PEGIN_DISPLAY_LABELS.PENDING,
         displayVariant: "pending",
-        message: COPY.pegin.messages.broadcastMayHaveFailed,
+        message:
+          localStatus === LocalStorageStatus.CONFIRMING
+            ? COPY.pegin.messages.prePeginAwaitingObservation
+            : COPY.pegin.messages.broadcastMayHaveFailed,
       };
     }
     if (actions.includes(PeginAction.SIGN_PAYOUT_TRANSACTIONS)) {
@@ -640,14 +663,12 @@ function getDisplay(
         message: COPY.pegin.messages.prePeginIngesting,
       };
     }
-    // Broadcast happened (chain says the tx is on the network, or the local
-    // CONFIRMING marker says so) but it is not yet confirmed at depth — a
-    // Bitcoin-confirmation wait. Keyed on `prePeginBroadcastSeen` too so every
-    // tab shows this, not just the one that broadcast.
+    // Broadcast happened (the observer says the tx is on the network) but it
+    // is not yet confirmed at depth — a Bitcoin-confirmation wait. Keyed on
+    // `prePeginBroadcastSeen`, not the local marker, so every tab shows this.
     if (
       options.pendingIngestion === true &&
-      (options.prePeginBroadcastSeen === true ||
-        localStatus === LocalStorageStatus.CONFIRMING)
+      options.prePeginBroadcastSeen === true
     ) {
       return {
         displayLabel: PEGIN_DISPLAY_LABELS.PENDING,
@@ -740,6 +761,17 @@ function getDisplay(
               ),
       };
     }
+    // An earlier split sibling must join the liquidation queue first. Healthy
+    // and waiting, like the floor branch, so it keeps the pending variant.
+    if (options.activationBlockedBySibling) {
+      return {
+        displayLabel: PEGIN_DISPLAY_LABELS.AWAITING_EARLIER_VAULT,
+        displayVariant: "pending",
+        activationBlockedBySibling: true,
+        inlineSubtext: COPY.pegin.messages.activationOrderSubtext,
+        message: COPY.pegin.messages.activationOrderWaiting,
+      };
+    }
     return {
       displayLabel: PEGIN_DISPLAY_LABELS.READY_TO_ACTIVATE,
       displayVariant: "pending",
@@ -820,6 +852,7 @@ function getDisplay(
     const expiredMessage = buildExpiredMessage(expirationReason, expiredAt);
     const refundMaturityState = options.refundMaturityState;
     const refundMaturesInBlocks = options.refundMaturesInBlocks;
+    let inlineSubtext: string | undefined;
     if (
       refundMaturityState === "maturing" &&
       refundMaturesInBlocks !== undefined
@@ -836,32 +869,23 @@ function getDisplay(
       // Tooltip stays focused on the expiry itself (the reason, where we
       // have one to give, and when); the countdown lives in `inlineSubtext`
       // so the user doesn't need to hover to see the actionable info.
-      return {
-        displayLabel: PEGIN_DISPLAY_LABELS.EXPIRED,
-        displayVariant: "warning",
-        message: expiredMessage,
-        inlineSubtext: COPY.pegin.messages.refundMaturing(
-          refundMaturesInBlocks,
-          hours,
-        ),
-        refundMaturityState,
+      inlineSubtext = COPY.pegin.messages.refundMaturing(
         refundMaturesInBlocks,
-      };
-    }
-    if (refundMaturityState === "unknown") {
-      return {
-        displayLabel: PEGIN_DISPLAY_LABELS.EXPIRED,
-        displayVariant: "warning",
-        message: expiredMessage,
-        inlineSubtext: COPY.pegin.messages.refundMaturingUnknown,
-        refundMaturityState,
-      };
+        hours,
+      );
+    } else if (refundMaturityState === "unknown") {
+      inlineSubtext = COPY.pegin.messages.refundMaturingUnknown;
+    } else if (refundMaturityState === "notFound") {
+      inlineSubtext = COPY.pegin.messages.prePeginNotFound;
     }
     return {
       displayLabel: PEGIN_DISPLAY_LABELS.EXPIRED,
       displayVariant: "warning",
       message: expiredMessage,
+      inlineSubtext,
       refundMaturityState: refundMaturityState ?? "mature",
+      refundMaturesInBlocks:
+        refundMaturityState === "maturing" ? refundMaturesInBlocks : undefined,
     };
   }
 

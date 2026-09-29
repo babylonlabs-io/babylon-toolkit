@@ -88,27 +88,11 @@ export default {
    * inside the god-mode panel, allowing manual parameter overrides and
    * simulation of notification states.
    * Why needed: Dev/QA tool for testing position notification scenarios.
-   * Only surfaces when GOD_MODE_PANEL (dev builds only) and
-   * ENABLE_LIQUIDATION_NOTIFICATIONS are also enabled.
+   * Only surfaces when GOD_MODE_PANEL (dev builds only) is also enabled.
    * Default: false (disabled unless explicitly set to "true")
    */
   get isPositionDebugPanelEnabled() {
     return process.env.NEXT_PUBLIC_FF_POSITION_DEBUG_PANEL === "true";
-  },
-
-  /**
-   * ENABLE_LIQUIDATION_NOTIFICATIONS feature flag
-   *
-   * Purpose: Controls whether the dashboard liquidation-notification surface
-   * (the PositionNotificationBanner and its debug panel) is shown.
-   * Why needed: Lets DevOps enable/disable the notification feature per
-   * environment without a code change while the calculator/copy is validated.
-   * Default: false (notifications are hidden unless explicitly set to "true")
-   */
-  get isLiquidationNotificationsEnabled() {
-    return (
-      process.env.NEXT_PUBLIC_FF_ENABLE_LIQUIDATION_NOTIFICATIONS === "true"
-    );
   },
 
   /**
@@ -150,21 +134,6 @@ export default {
   },
 
   /**
-   * ENABLE_SIGNING_NOTIFICATIONS feature flag
-   *
-   * Purpose: Controls whether the dApp shows a browser (desktop) notification
-   * when a deposit needs the depositor to sign/act - both during an active
-   * deposit flow and for pending deposits that reach a signing-required state
-   * while the user is on another tab.
-   * Why needed: Browser notifications request OS-level permission; gating lets
-   * DevOps enable it per environment without a code change.
-   * Default: false (no browser notifications unless explicitly set to "true")
-   */
-  get isSigningNotificationsEnabled() {
-    return process.env.NEXT_PUBLIC_FF_ENABLE_SIGNING_NOTIFICATIONS === "true";
-  },
-
-  /**
    * ENABLE_EXPLORE feature flag
    *
    * Purpose: Gates the Explore section — the /explore route and its sidebar
@@ -178,26 +147,6 @@ export default {
    */
   get isExploreEnabled() {
     return process.env.NEXT_PUBLIC_FF_ENABLE_EXPLORE === "true";
-  },
-
-  /**
-   * ENABLE_ACTIVATION_DELAY feature flag
-   *
-   * Purpose: Gates the peg-in activation floor — reading
-   * `ProtocolParams.peginActivationDelay()` and holding Activate closed until
-   * `verifiedAt + delay` blocks have passed, as `activateVaultWithSecret`
-   * enforces on-chain.
-   * Why needed: the parameter does not exist on every deployment yet (devnet
-   * has it, testnet and staging do not). The gate fails CLOSED — an unreadable
-   * delay must not let the HTLC secret reach `simulateContract` calldata — so
-   * enabling it where the getter is absent would disable Activate for
-   * everyone. DevOps flips it per environment once the contract exposes the
-   * getter; verify with
-   * `cast call <protocolParams> "peginActivationDelay()(uint256)"`.
-   * Default: false (no floor gate, and no contract read is issued at all)
-   */
-  get isActivationDelayEnabled() {
-    return process.env.NEXT_PUBLIC_FF_ENABLE_ACTIVATION_DELAY === "true";
   },
 
   /**

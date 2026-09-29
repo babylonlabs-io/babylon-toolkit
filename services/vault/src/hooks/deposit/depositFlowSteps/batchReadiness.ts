@@ -1,4 +1,3 @@
-import { stripHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
   batchPollByProvider,
   type DaemonStatus,
@@ -11,7 +10,9 @@ import type { Hex } from "viem";
 import { POLLING_INTERVAL_MS } from "@/config/polling";
 import { logger } from "@/infrastructure";
 import { abortableSleep } from "@/utils/async";
+import { isPeginNotIngestedError } from "@/utils/peginPolling";
 import { createVpClient } from "@/utils/rpc";
+import { canonicalizeTxid } from "@/utils/txid";
 
 export type BatchReadinessStatus = "ready" | "waiting" | "terminal";
 
@@ -80,21 +81,34 @@ export async function waitForBatchReadiness({
 
     await batchPollByProvider<BatchReadinessVault, GetPeginStatusResponse>({
       items: pendingVaults,
-      getTxid: (vault) => stripHexPrefix(vault.peginTxHash),
-      batchCall: (pegin_txids) =>
-        rpcClient.batchGetPeginStatus({ pegin_txids }),
+      getVaultId: (vault) => vault.vaultId,
+      batchCall: (vault_ids) =>
+        rpcClient.batchGetPeginStatusByVaultId({ vault_ids }),
       onItem: (vault, envelope) => {
         if (envelope.error !== null) {
           // A status the SDK does not know ends the wait for this vault only.
           if (isUnrecognizedDaemonStatusError(envelope.error)) {
             terminalVaultIds.add(vault.vaultId);
           }
-          if (!envelope.error.includes("PegIn not found")) {
+          if (!isPeginNotIngestedError(envelope.error)) {
             logger.warn(`${logLabel} poll returned an item error`, {
               vaultId: vault.vaultId,
               error: envelope.error,
             });
           }
+          return;
+        }
+
+        // The envelope's vault id is our own request string echoed back.
+        // A status for a different peg-in keeps the vault waiting: it must
+        // not mark the vault ready or terminal.
+        if (
+          canonicalizeTxid(envelope.result!.pegin_txid) !==
+          canonicalizeTxid(vault.peginTxHash)
+        ) {
+          logger.warn(`${logLabel} poll returned a status for another peg-in`, {
+            vaultId: vault.vaultId,
+          });
           return;
         }
 
@@ -112,7 +126,7 @@ export async function waitForBatchReadiness({
           vaultId: vault.vaultId,
         }),
       onDuplicateBatch: (count) =>
-        logger.warn(`${logLabel} poll returned duplicate txids`, { count }),
+        logger.warn(`${logLabel} poll returned duplicate vault ids`, { count }),
       onWholeBatchError: (_chunk, error) => {
         const detail =
           error instanceof VpResponseValidationError
@@ -123,7 +137,7 @@ export async function waitForBatchReadiness({
         logger.warn(`${logLabel} poll failed for batch`, { error: detail });
       },
       onUnexpected: (echoed) =>
-        logger.warn(`${logLabel} poll returned unexpected txids`, {
+        logger.warn(`${logLabel} poll returned unexpected vault ids`, {
           count: echoed.length,
         }),
     });

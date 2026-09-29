@@ -54,8 +54,8 @@ describe("pegoutStateMachine", () => {
       expect(state.message.toLowerCase()).not.toContain("few hours");
     });
 
-    it("returns Payout sent for PayoutBroadcast", () => {
-      const state = getPegoutDisplayState("PayoutBroadcast", true);
+    it("returns Payout sent for PayoutConfirmed", () => {
+      const state = getPegoutDisplayState("PayoutConfirmed", true);
       expect(state.label).toBe("Payout sent");
       expect(state.variant).toBe("active");
     });
@@ -118,7 +118,7 @@ describe("pegoutStateMachine", () => {
     });
 
     it("uses the late-stage fraction for Payout sent and Blocked", () => {
-      expect(getPegoutStageProgress("PayoutBroadcast", true)).toBe(0.95);
+      expect(getPegoutStageProgress("PayoutConfirmed", true)).toBe(0.95);
       expect(getPegoutStageProgress("PayoutBlocked", true)).toBe(0.95);
     });
   });
@@ -133,8 +133,8 @@ describe("pegoutStateMachine", () => {
       expect(isPegoutInProgress(undefined, undefined)).toBe(true);
     });
 
-    it("is false once payout is broadcast or blocked", () => {
-      expect(isPegoutInProgress("PayoutBroadcast", undefined)).toBe(false);
+    it("is false once payout is confirmed or blocked", () => {
+      expect(isPegoutInProgress("PayoutConfirmed", undefined)).toBe(false);
       expect(isPegoutInProgress("PayoutBlocked", undefined)).toBe(false);
     });
 
@@ -172,7 +172,7 @@ describe("pegoutStateMachine", () => {
         linkClaim: true,
         linkAssert: true,
       });
-      expect(getPegoutTxLinkFlags("PayoutBroadcast")).toEqual({
+      expect(getPegoutTxLinkFlags("PayoutConfirmed")).toEqual({
         linkClaim: true,
         linkAssert: true,
       });
@@ -188,7 +188,7 @@ describe("pegoutStateMachine", () => {
       expect(isRecognizedPegoutStatus("ClaimEventReceived")).toBe(true);
       expect(isRecognizedPegoutStatus("ClaimBroadcast")).toBe(true);
       expect(isRecognizedPegoutStatus("AssertBroadcast")).toBe(true);
-      expect(isRecognizedPegoutStatus("PayoutBroadcast")).toBe(true);
+      expect(isRecognizedPegoutStatus("PayoutConfirmed")).toBe(true);
       expect(isRecognizedPegoutStatus("PayoutBlocked")).toBe(true);
     });
 
@@ -205,8 +205,8 @@ describe("pegoutStateMachine", () => {
   });
 
   describe("isPegoutEffectivelyTerminal", () => {
-    it("returns true for PayoutBroadcast", () => {
-      expect(isPegoutEffectivelyTerminal("PayoutBroadcast", 0, 0)).toBe(true);
+    it("returns true for PayoutConfirmed", () => {
+      expect(isPegoutEffectivelyTerminal("PayoutConfirmed", 0, 0)).toBe(true);
     });
 
     it("returns true for PayoutBlocked", () => {

@@ -642,7 +642,7 @@ export default function SimpleDeposit(props: SimpleDepositProps) {
 
   // New deposit flow
   return (
-    <ProtocolParamsProvider>
+    <ProtocolParamsProvider requireUniversalChallengers>
       <DepositState>
         <SimpleDepositContent
           open={open}

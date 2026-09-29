@@ -60,7 +60,10 @@ import {
   getPeginDisplayStep,
 } from "@/models/peginStateMachine";
 import { deriveHtlcSecretHex } from "@/services/vault/htlcSecretDerivation";
-import { resolveVpAuthPinnedPubkey } from "@/services/vault/vpAuthPinnedPubkey";
+import {
+  refreshVpJsonRpcPinnedPubkey,
+  resolveVpAuthPins,
+} from "@/services/vault/vpAuthPinnedPubkey";
 import type { VaultActivity } from "@/types/activity";
 import {
   shouldProbeWalletLiveness,
@@ -136,6 +139,7 @@ function ResumeSignContentConnected({
     error: signingError,
     errorTerminal,
     isComplete,
+    providerLookupReady,
     handleSign,
     canCancel,
     cancelRequested,
@@ -152,7 +156,7 @@ function ResumeSignContentConnected({
   // Read once. A recorded cancel requires a new click before signing.
   const [wasCanceled] = useState(() => hasPayoutSignCancelRecord(activity.id));
 
-  useRunOnce(handleSign, !wasCanceled && walletKeyReady);
+  useRunOnce(handleSign, !wasCanceled && walletKeyReady && providerLookupReady);
 
   // A settled cancel has no error. Show Sign again so the user can retry.
   const [reofferAfterCancel, setReofferAfterCancel] = useState(wasCanceled);
@@ -169,10 +173,12 @@ function ResumeSignContentConnected({
   }, [cancelRequested, signing, error, isComplete]);
 
   const handleResign = useCallback(() => {
-    if (!walletKeyReady) return;
+    // Sign stays unavailable until provider metadata loads, so a click can
+    // never mark the view started while handleSign silently waits.
+    if (!walletKeyReady || !providerLookupReady) return;
     setReofferAfterCancel(false);
     void handleSign();
-  }, [handleSign, walletKeyReady]);
+  }, [handleSign, walletKeyReady, providerLookupReady]);
 
   // Polling distinguishes a verified vault from an already active vault.
   const pollingResult = useDepositPollingResult(activity.id);
@@ -235,7 +241,7 @@ function ResumeSignContentConnected({
         error && !errorTerminal && walletKeyReady ? handleSign : undefined
       }
       started={!reofferAfterCancel}
-      onSign={walletKeyReady ? handleResign : undefined}
+      onSign={walletKeyReady && providerLookupReady ? handleResign : undefined}
       canCancelSigning={canCancel}
       cancelSigningRequested={cancelRequested}
       onCancelSigning={handleCancel}
@@ -434,10 +440,12 @@ function ResumeWotsContentConnected({
 
       // Best-effort priming: VP pubkey fetch can fail without blocking the
       // resume flow because submitWotsPublicKey re-derives on cache miss.
-      const pinnedServerPubkeyPromise = resolveVpAuthPinnedPubkey(
-        providerAddress as Address,
+      const vpAddress = providerAddress as Address;
+      const authPinsPromise = resolveVpAuthPins(
+        vpAddress,
+        activity.id as Hex,
       ).catch((err: unknown) => {
-        logger.warn("Failed to fetch VP pubkey for registry priming", {
+        logger.warn("Failed to fetch VP auth pins for registry priming", {
           peginTxHash,
           error: err instanceof Error ? err.message : String(err),
         });
@@ -502,14 +510,17 @@ function ResumeWotsContentConnected({
 
       // Best-effort: if the parallel pubkey fetch failed, skip
       // priming — submitWotsPublicKey re-derives on cache miss.
-      const pinnedServerPubkey = await pinnedServerPubkeyPromise;
-      if (pinnedServerPubkey) {
+      const authPins = await authPinsPromise;
+      if (authPins) {
         const primedTxid = stripHexPrefix(peginTxHash);
         primeVpTokenRegistry({
           baseUrl: getVpProxyUrl(providerAddress),
           peginTxid: primedTxid,
           authAnchorHex,
-          pinnedServerPubkey,
+          providerAddress: vpAddress,
+          ...authPins,
+          refreshJsonRpcPinnedServerPubkey: () =>
+            refreshVpJsonRpcPinnedPubkey(vpAddress),
           depositorBtcPubkey,
         });
         trackPrimedTxid(primedTxid);
@@ -724,6 +735,7 @@ function ResumeActivationContentConnected({
   } = useActivationState({
     activity,
     depositorEthAddress,
+    siblingVaultIds,
   });
 
   const handleSubmit = useCallback(async () => {
@@ -820,7 +832,11 @@ function ResumeActivationContentConnected({
       currentStep={renderStep}
       error={
         error
-          ? isTerminal
+          ? // Inconsistent split-order data is terminal too, but the vault is
+            // still inside its window: show its own message, not the refund
+            // advice.
+            isTerminal &&
+            activationError !== COPY.pegin.messages.activationOrderInconsistent
             ? COPY.deposit.errors.activationDeadlinePassed
             : mapDepositError(error.raw)
           : null

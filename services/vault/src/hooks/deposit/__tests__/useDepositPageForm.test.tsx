@@ -1191,6 +1191,24 @@ describe("useDepositPageForm", () => {
       expect(result.current.minPeginFeeError).toBeNull();
     });
 
+    it("surfaces a complete-roster fetch failure instead of an empty provider state", () => {
+      const rosterError = Object.assign(
+        new Error("Vault keeper roster response was incomplete"),
+        { name: "IncompleteRosterError", retryable: false },
+      );
+      vi.mocked(useVaultProviders).mockReturnValue({
+        allVaultProviders: [],
+        unhealthyVpIds: new Set<string>(),
+        vaultKeepers: [],
+        loading: false,
+        error: rosterError,
+      } as unknown as ReturnType<typeof useVaultProviders>);
+
+      const { result } = renderHook(() => useDepositPageForm(), { wrapper });
+
+      expect(result.current.minPeginFeeError).toBe(rosterError);
+    });
+
     it("exposes the wallet public-key read failure", () => {
       const walletError = new Error("wallet unresponsive");
       vi.mocked(useBtcPublicKey).mockReturnValue({

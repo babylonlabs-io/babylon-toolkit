@@ -5,16 +5,15 @@
  * indexer only sees the EVM `VaultMarkedRedeemed` event — the BTC claim
  * is broadcast off-chain by the vault provider's claimer. This module
  * groups redeem vaults by `vaultProvider`, calls the SDK's
- * `vaultProvider_batchGetPegoutStatus` RPC per provider, and returns a
- * `vaultId -> claim_txid` map.
+ * `vaultProvider_batchGetPegoutStatusByVaultId` RPC per provider, and
+ * returns a `vaultId -> claim_txid` map.
  *
  * Failure handling: any VP-level error, missing claimer, or unknown
- * pegin_txid is dropped from the result. The activity row will then
+ * vault id is dropped from the result. The activity row will then
  * render the existing "Pending…" affordance — strictly better than
  * surfacing the unrelated EVM hash, which is the bug this module fixes.
  */
 
-import { stripHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
   batchPollByProvider,
   type GetPegoutStatusResponse,
@@ -24,6 +23,7 @@ import { isAddress } from "viem";
 import { logger } from "@/infrastructure";
 import { getPegoutTxLinkFlags } from "@/models/pegoutStateMachine";
 import { createVpClient } from "@/utils/rpc";
+import { canonicalizeTxid } from "@/utils/txid";
 
 /**
  * Per-VP RPC timeout for this best-effort, display-only enrichment. Tighter
@@ -93,11 +93,20 @@ export async function resolveRedeemClaimTxids(
         });
         await batchPollByProvider<PerVaultEntry, GetPegoutStatusResponse>({
           items: entries,
-          getTxid: (e) => stripHexPrefix(e.peginTxHash),
-          batchCall: (pegin_txids) =>
-            rpcClient.batchGetPegoutStatus({ pegin_txids }),
+          getVaultId: (e) => e.vaultId,
+          batchCall: (vault_ids) =>
+            rpcClient.batchGetPegoutStatusByVaultId({ vault_ids }),
           onItem: (entry, envelope) => {
             if (envelope.error !== null) return;
+            // The echoed vault id is our own request string. The server-side
+            // `pegin_txid` catches a status for a different peg-in; it cannot
+            // tell apart vaults that share one peg-in txid.
+            if (
+              canonicalizeTxid(envelope.result?.pegin_txid) !==
+              canonicalizeTxid(entry.peginTxHash)
+            ) {
+              return;
+            }
             const claimer = envelope.result?.claimer;
             if (!claimer) return;
             // The claim txid is pre-computed at peg-in, so it exists before the
