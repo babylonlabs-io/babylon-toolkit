@@ -2364,7 +2364,7 @@ export const COPY = {
       action: "Restore Split Order",
       unverifiedTitle: "Could not check BTCVault liquidation order",
       unverifiedBody:
-        "The split deposit order could not be read from the chain, so a wrong order cannot be ruled out. Refresh the page to try again.",
+        "Your BTCVault liquidation order could not be read from the chain, so a wrong order cannot be ruled out. Refresh the page to try again.",
     },
     // The indexed vault list failed to load or does not match the chain
     // position yet. Withdraw and Reorder stay disabled until it matches.

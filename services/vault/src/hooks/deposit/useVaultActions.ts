@@ -832,9 +832,9 @@ export function useVaultActions(): UseVaultActionsReturn {
       // liquidation queue. For a split deposit, enforce the Pre-PegIn HTLC
       // construction order before the secret can reach a wallet/RPC call.
       // Activate-and-redeem never adds collateral, so queue order is irrelevant
-      // on that escape-hatch path. A retryable refusal is pre-reveal and
-      // routine (the earlier sibling is not active yet), so telemetry stays
-      // quiet; inconsistent registry data is terminal and stays captured.
+      // on that escape-hatch path. Only the routine refusal (the earlier
+      // sibling is not active yet) keeps telemetry quiet. A missing or
+      // unreadable lower slot and inconsistent registry data stay captured.
       if (!redeemImmediately) {
         try {
           await assertActivationFollowsConstructionOrder(
@@ -848,7 +848,10 @@ export function useVaultActions(): UseVaultActionsReturn {
             siblingVaultIds,
           );
         } catch (orderError) {
-          if (!(orderError instanceof ActivationNotPossibleError)) {
+          if (
+            orderError instanceof Error &&
+            orderError.message === COPY.pegin.messages.activationOrderBlocked
+          ) {
             expectedInterruption = true;
           }
           throw orderError;

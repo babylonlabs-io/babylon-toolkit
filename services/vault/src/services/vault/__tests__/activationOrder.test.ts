@@ -116,6 +116,22 @@ describe("assertActivationFollowsConstructionOrder", () => {
     ).rejects.toThrow(COPY.pegin.messages.activationOrderUnavailable);
   });
 
+  it("allows index 1 when only an unrelated sibling read fails", async () => {
+    const unrelatedId = `0x${"3".repeat(64)}` as Hex;
+    vi.mocked(getVaultFromChainWithGrace).mockImplementation(async (id) => {
+      if (id === unrelatedId) throw new Error("execution reverted");
+      return vault(0, OnChainBtcVaultStatus.ACTIVE);
+    });
+
+    await expect(
+      assertActivationFollowsConstructionOrder(
+        PROTECTED_ID,
+        vault(1, OnChainBtcVaultStatus.VERIFIED),
+        [PROTECTED_ID, SACRIFICIAL_ID, unrelatedId],
+      ),
+    ).resolves.toBeUndefined();
+  });
+
   it("treats a sibling with another depositor as terminal", async () => {
     vi.mocked(getVaultFromChainWithGrace).mockResolvedValue({
       ...vault(0, OnChainBtcVaultStatus.ACTIVE),

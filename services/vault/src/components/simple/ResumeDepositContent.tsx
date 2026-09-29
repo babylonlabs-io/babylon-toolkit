@@ -822,7 +822,11 @@ function ResumeActivationContentConnected({
       currentStep={renderStep}
       error={
         error
-          ? isTerminal
+          ? // Inconsistent split-order data is terminal too, but the vault is
+            // still inside its window: show its own message, not the refund
+            // advice.
+            isTerminal &&
+            activationError !== COPY.pegin.messages.activationOrderInconsistent
             ? COPY.deposit.errors.activationDeadlinePassed
             : mapDepositError(error.raw)
           : null

@@ -1581,6 +1581,42 @@ describe("useVaultActions — handleActivation hashlock source", () => {
     expect(result.current.activationError).toBe(
       COPY.pegin.messages.activationOrderBlocked,
     );
+    expect(mockLoggerError).not.toHaveBeenCalled();
+  });
+
+  it("captures a missing lower sibling slot instead of treating it as routine", async () => {
+    const protectedId = `0x${"2".repeat(64)}` as Hex;
+    const reader = readerReturning(
+      {
+        depositorSignedPeginTx: "0xdeadbeef",
+        hashlock: ON_CHAIN_HASHLOCK,
+        htlcVout: 1,
+        prePeginTxHash: `0x${"c".repeat(64)}`,
+      },
+      {
+        status: OnChainBtcVaultStatus.VERIFIED,
+        createdAt: 1_000n,
+        depositor: `0x${"a".repeat(40)}`,
+        applicationEntryPoint: `0x${"b".repeat(40)}`,
+      },
+    );
+    mockGetVaultRegistryReader.mockReturnValue(reader);
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleActivation({
+        ...baseActivationParams,
+        vaultId: protectedId,
+        siblingVaultIds: [protectedId],
+      });
+    });
+
+    expect(mockActivateVaultWithSecret).not.toHaveBeenCalled();
+    expect(result.current.activationError).toBe(
+      COPY.pegin.messages.activationOrderUnavailable,
+    );
+    expect(mockLoggerError).toHaveBeenCalledTimes(1);
   });
 
   // handleActivation catches its own failures and never rethrows, so this catch

@@ -68,7 +68,14 @@ describe("SplitVaultOrderWarning", () => {
       hasMismatch: false,
       isError: false,
     };
-    mocks.params = null;
+    // Position params the optimizer can judge, and it accepts the order.
+    mocks.params = {
+      vaults: [
+        { id: "0xsacrificial", btc: 0.1, name: "sacrificial" },
+        { id: "0xprotected", btc: 0.9, name: "protected" },
+      ],
+    };
+    mocks.calculate.mockReturnValue({ optimalVaultOrder: null });
   });
 
   it("stays hidden while the contract order matches construction order", () => {
@@ -144,6 +151,30 @@ describe("SplitVaultOrderWarning", () => {
     fireEvent.click(button);
 
     await waitFor(() => expect(button).toBeDisabled());
+  });
+
+  it("disables the restore action while the optimizer cannot judge the order", () => {
+    mocks.splitOrder = {
+      expectedVaultIds: ["0xsacrificial", "0xprotected"],
+      hasMismatch: true,
+      isError: false,
+    };
+    mocks.params = null;
+
+    render(
+      <SplitVaultOrderWarning
+        connectedAddress="0xuser"
+        currentVaultIds={["0xprotected", "0xsacrificial"]}
+        onSuccess={vi.fn()}
+      />,
+      { wrapper: Wrapper },
+    );
+
+    expect(
+      screen.getByRole("button", {
+        name: COPY.vaults.splitOrderWarning.action,
+      }),
+    ).toBeDisabled();
   });
 
   it("warns that the order is unverified when the registry read fails", () => {

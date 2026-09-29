@@ -1182,6 +1182,28 @@ describe("ResumeActivationContent — activated success terminal", () => {
     expect(getByTestId("has-retry").textContent).toBe("false");
   });
 
+  it("shows the split-order message, not the deadline copy, when the order data is inconsistent", async () => {
+    vi.mocked(useActivationState).mockReturnValue({
+      activating: false,
+      activated: false,
+      error: COPY.pegin.messages.activationOrderInconsistent,
+      errorTerminal: true,
+      handleActivation: mockHandleActivation,
+    });
+
+    const { getByTestId } = renderActivation();
+
+    await waitFor(() =>
+      expect(getByTestId("error").textContent).toBe(
+        COPY.pegin.messages.activationOrderInconsistent,
+      ),
+    );
+    expect(getByTestId("error-title").textContent).not.toBe(
+      COPY.deposit.errors.activationDeadlinePassed.title,
+    );
+    expect(getByTestId("has-retry").textContent).toBe("false");
+  });
+
   it("keeps Retry and the generic mapping for a non-terminal failure", async () => {
     vi.mocked(useActivationState).mockReturnValue({
       activating: false,

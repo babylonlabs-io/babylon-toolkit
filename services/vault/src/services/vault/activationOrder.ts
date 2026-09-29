@@ -34,16 +34,19 @@ const CAN_STILL_ACTIVATE: ReadonlySet<number> = new Set([
   OnChainBtcVaultStatus.VERIFIED,
 ]);
 
+/**
+ * Read every candidate and drop the reads that fail. A failed read cannot
+ * satisfy a lower slot, so the slot check below still fails closed when the
+ * failed candidate was a required sibling; an unrelated candidate no longer
+ * blocks the activation.
+ */
 async function readSiblings(vaultIds: Hex[]): Promise<OnChainVaultData[]> {
-  try {
-    return await Promise.all(
-      vaultIds.map((vaultId) => getVaultFromChainWithGrace(vaultId)),
-    );
-  } catch (cause) {
-    throw new Error(COPY.pegin.messages.activationOrderUnavailable, {
-      cause,
-    });
-  }
+  const results = await Promise.allSettled(
+    vaultIds.map((vaultId) => getVaultFromChainWithGrace(vaultId)),
+  );
+  return results.flatMap((result) =>
+    result.status === "fulfilled" ? [result.value] : [],
+  );
 }
 
 /**

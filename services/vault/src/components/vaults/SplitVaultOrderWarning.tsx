@@ -25,19 +25,21 @@ import {
  * True when the "Apply Optimal Order" optimizer would move the position away
  * from `orderedIds` at once. Restoring such an order would only make the two
  * prompts recommend opposite orders, so the split warning defers to it.
+ * Null when the optimizer cannot judge the order yet (no position params, or
+ * a different vault set), so Restore must wait.
  */
 function optimizerRejectsOrder(
-  params: CalculatorParams,
+  params: CalculatorParams | null,
   orderedIds: readonly Hex[],
-): boolean {
+): boolean | null {
+  if (params === null) return null;
   const vaultsById = new Map(
     params.vaults.map((vault) => [vault.id.toLowerCase(), vault]),
   );
   const orderedVaults: Vault[] = [];
   for (const id of orderedIds) {
     const vault = vaultsById.get(id.toLowerCase());
-    // The calculator saw a different vault set; it cannot judge this order.
-    if (!vault) return false;
+    if (!vault) return null;
     orderedVaults.push(vault);
   }
   return (
@@ -66,11 +68,11 @@ export function SplitVaultOrderWarning({
   const currentOrderKey = currentVaultIds.join(",");
   const [repairedOrderKey, setRepairedOrderKey] = useState<string | null>(null);
 
-  const deferToOptimizer = useMemo(
+  const optimizerVerdict = useMemo(
     () =>
-      params !== null &&
-      expectedVaultIds !== null &&
-      optimizerRejectsOrder(params, expectedVaultIds),
+      expectedVaultIds === null
+        ? null
+        : optimizerRejectsOrder(params, expectedVaultIds),
     [params, expectedVaultIds],
   );
 
@@ -86,7 +88,7 @@ export function SplitVaultOrderWarning({
     );
   }
 
-  if (!hasMismatch || expectedVaultIds === null || deferToOptimizer) {
+  if (!hasMismatch || expectedVaultIds === null || optimizerVerdict === true) {
     return null;
   }
 
@@ -116,6 +118,7 @@ export function SplitVaultOrderWarning({
           emphasis: "primary",
           disabled:
             isProcessing ||
+            optimizerVerdict === null ||
             repairedOrderKey === currentOrderKey ||
             isReorderBlocked(gate),
         },
