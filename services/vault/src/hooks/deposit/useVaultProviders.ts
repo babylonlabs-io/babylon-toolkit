@@ -20,11 +20,15 @@
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo } from "react";
 
+import { shouldRetry } from "@/config/queryClient";
 import { logger } from "@/infrastructure";
 import { shortId, TELEMETRY_EVENT } from "@/infrastructure/telemetryEvents";
 
 import { useAaveConfig } from "../../applications/aave/context/AaveConfigContext";
-import { fetchAppProviders } from "../../services/providers";
+import {
+  fetchAppProviderMetadata,
+  fetchAppProviders,
+} from "../../services/providers";
 import type {
   AppProvidersResponse,
   VaultKeeper,
@@ -73,6 +77,15 @@ export interface UseVaultProvidersResult {
   findProvider: (address: string) => VaultProvider | undefined;
 }
 
+interface UseVaultProvidersOptions {
+  /**
+   * Require a complete keeper history. Provider-only recovery and management
+   * paths disable this so a keeper pagination outage cannot hide a provider
+   * that an existing vault is already bound to.
+   */
+  requireCompleteKeeperRoster?: boolean;
+}
+
 /**
  * Hook to fetch vault providers and vault keepers from the GraphQL indexer
  *
@@ -87,13 +100,21 @@ export interface UseVaultProvidersResult {
  */
 export function useVaultProviders(
   applicationEntryPoint?: string,
+  { requireCompleteKeeperRoster = true }: UseVaultProvidersOptions = {},
 ): UseVaultProvidersResult {
   const { config } = useAaveConfig();
   const entryPoint = applicationEntryPoint ?? config?.adapterAddress;
 
   const { data, isLoading, error, refetch } = useQuery<AppProvidersResponse>({
-    queryKey: ["providers", entryPoint],
-    queryFn: () => fetchAppProviders(entryPoint!),
+    queryKey: [
+      "providers",
+      entryPoint,
+      requireCompleteKeeperRoster ? "complete-roster" : "metadata-only",
+    ],
+    queryFn: () =>
+      requireCompleteKeeperRoster
+        ? fetchAppProviders(entryPoint!)
+        : fetchAppProviderMetadata(entryPoint!),
     // Only fetch when entryPoint is provided
     enabled: Boolean(entryPoint),
     // Fetch once on mount
@@ -106,8 +127,9 @@ export function useVaultProviders(
     staleTime: 5 * 60 * 1000,
     // Keep in cache for 10 minutes
     gcTime: 10 * 60 * 1000,
-    // Retry once on failure
-    retry: 1,
+    // Retry transient failures once; incomplete roster errors are deterministic.
+    retry: (failureCount, queryError) =>
+      failureCount < 1 && shouldRetry(failureCount, queryError),
   });
 
   const unhealthyVps = useUnhealthyVps();

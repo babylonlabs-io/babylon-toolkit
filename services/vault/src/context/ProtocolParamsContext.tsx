@@ -24,6 +24,7 @@ import {
 } from "react";
 
 import { getProtocolParamsReader } from "@/clients/eth-contract/sdk-readers";
+import { shouldRetry } from "@/config/queryClient";
 import { offchainParamsQueryOptions } from "@/hooks/useOffchainParams";
 import { fetchAllUniversalChallengers } from "@/services/providers";
 import type { UniversalChallenger } from "@/types";
@@ -75,6 +76,12 @@ const ProtocolParamsContext = createContext<ProtocolParamsContextValue | null>(
 
 interface ProtocolParamsProviderProps {
   children: ReactNode;
+  /**
+   * Load and gate on the complete universal-challenger history. Only fresh
+   * deposit paths need the latest roster; recovery paths must remain usable
+   * when that independent indexer query is unavailable.
+   */
+  requireUniversalChallengers?: boolean;
 }
 
 /**
@@ -86,6 +93,7 @@ interface ProtocolParamsProviderProps {
  */
 export function ProtocolParamsProvider({
   children,
+  requireUniversalChallengers = false,
 }: ProtocolParamsProviderProps) {
   const {
     data: configData,
@@ -102,7 +110,10 @@ export function ProtocolParamsProvider({
     queryFn: fetchAllUniversalChallengers,
     staleTime: STALE_TIME_MS,
     refetchOnWindowFocus: false,
-    retry: RETRY_COUNT,
+    refetchOnReconnect: false,
+    enabled: requireUniversalChallengers,
+    retry: (failureCount, queryError) =>
+      failureCount < RETRY_COUNT && shouldRetry(failureCount, queryError),
   });
 
   // Shares the query (and cache) with the non-blocking useOffchainParams hook.
@@ -125,8 +136,14 @@ export function ProtocolParamsProvider({
     [offchainParamsData],
   );
 
-  const allLoading = configLoading || ucLoading || offchainLoading;
-  const allError = configError || ucError || offchainError;
+  const allLoading =
+    configLoading ||
+    offchainLoading ||
+    (requireUniversalChallengers && ucLoading);
+  const allError =
+    configError ||
+    offchainError ||
+    (requireUniversalChallengers ? ucError : null);
 
   if (allLoading) {
     return (

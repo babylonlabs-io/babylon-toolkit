@@ -1318,6 +1318,11 @@ export const COPY = {
         title: "Vault provider not found",
         message: "Vault provider not found.",
       },
+      providerLookupUnavailable: {
+        title: "Vault provider lookup unavailable",
+        message:
+          "Could not load the vault provider. Check your connection and try again.",
+      },
       walletNotConnected: {
         title: "Wallet not connected",
         message: "BTC wallet not connected.",

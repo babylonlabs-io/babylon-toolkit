@@ -173,6 +173,7 @@ vi.mock("@/components/deposit/PayoutSignModal/usePayoutSigningState", () => ({
     error: null,
     errorTerminal: false,
     isComplete: false,
+    providerLookupReady: true,
     handleSign: vi.fn(),
     canCancel: false,
     cancelRequested: false,
@@ -741,6 +742,7 @@ describe("ResumeSignContent — reactive verification terminal", () => {
       error: null,
       errorTerminal: false,
       isComplete: true,
+      providerLookupReady: true,
       handleSign: vi.fn(),
       canCancel: false,
       cancelRequested: false,
@@ -759,6 +761,42 @@ describe("ResumeSignContent — reactive verification terminal", () => {
       />,
     );
   }
+
+  it("waits for provider metadata before auto-starting payout signing", async () => {
+    const handleSign = vi.fn();
+    const payoutState = {
+      signing: false,
+      progress: { phase: "auth" as const, completed: 0, total: 0 },
+      error: null,
+      errorTerminal: false,
+      isComplete: false,
+      providerLookupReady: false,
+      handleSign,
+      canCancel: false,
+      cancelRequested: false,
+      handleCancel: vi.fn(),
+    };
+    vi.mocked(usePayoutSigningState).mockReturnValue(payoutState);
+
+    const view = renderSign();
+    expect(handleSign).not.toHaveBeenCalled();
+
+    vi.mocked(usePayoutSigningState).mockReturnValue({
+      ...payoutState,
+      providerLookupReady: true,
+    });
+    view.rerender(
+      <ResumeSignContent
+        activity={baseActivity}
+        btcPublicKey="0xbtcpub"
+        depositorEthAddress={"0xdepositor" as never}
+        onClose={vi.fn()}
+        onSuccess={vi.fn()}
+      />,
+    );
+
+    await waitFor(() => expect(handleSign).toHaveBeenCalledTimes(1));
+  });
 
   it("stays on the verification wait while the contract is still PENDING", () => {
     mockUseDepositPollingResult.mockReturnValue({
@@ -805,6 +843,7 @@ describe("ResumeSignContent — reactive verification terminal", () => {
       error: COPY.deposit.payoutSignatureErrors.ackWindowElapsed,
       errorTerminal: true,
       isComplete: false,
+      providerLookupReady: true,
       handleSign: vi.fn(),
       canCancel: false,
       cancelRequested: false,
@@ -826,6 +865,7 @@ describe("ResumeSignContent — reactive verification terminal", () => {
       error: COPY.deposit.payoutSignatureErrors.unexpected,
       errorTerminal: false,
       isComplete: false,
+      providerLookupReady: true,
       handleSign: vi.fn(),
       canCancel: false,
       cancelRequested: false,
@@ -845,6 +885,7 @@ describe("ResumeSignContent — reactive verification terminal", () => {
       error: null,
       errorTerminal: false,
       isComplete: false,
+      providerLookupReady: true,
       handleSign: vi.fn(),
       canCancel: true,
       cancelRequested: true,
@@ -870,6 +911,7 @@ describe("ResumeSignContent — reactive verification terminal", () => {
       error: null,
       errorTerminal: false,
       isComplete: false,
+      providerLookupReady: true,
       handleSign,
       canCancel: true,
       cancelRequested: true,
@@ -903,6 +945,48 @@ describe("ResumeSignContent — reactive verification terminal", () => {
     fireEvent.click(getByTestId("sign"));
     expect(handleSign.mock.calls.length).toBe(callsBeforeClick + 1);
   });
+
+  it("keeps Sign unavailable after a cancel while provider metadata is loading", () => {
+    const handleSign = vi.fn();
+    const midCancel = {
+      signing: true,
+      progress: { phase: "graph", completed: 0, total: 1 },
+      error: null,
+      errorTerminal: false,
+      isComplete: false,
+      providerLookupReady: true,
+      handleSign,
+      canCancel: true,
+      cancelRequested: true,
+      handleCancel: vi.fn(),
+    } as const;
+    vi.mocked(usePayoutSigningState).mockReturnValue({ ...midCancel });
+    const { getByTestId, rerender } = renderSign();
+
+    // The cancel settles while the provider lookup is loading again.
+    vi.mocked(usePayoutSigningState).mockReturnValue({
+      ...midCancel,
+      signing: false,
+      canCancel: false,
+      cancelRequested: false,
+      providerLookupReady: false,
+    });
+    rerender(
+      <ResumeSignContent
+        activity={baseActivity}
+        btcPublicKey="0xbtcpub"
+        depositorEthAddress={"0xdepositor" as never}
+        onClose={vi.fn()}
+        onSuccess={vi.fn()}
+      />,
+    );
+
+    const callsBeforeClick = handleSign.mock.calls.length;
+    fireEvent.click(getByTestId("sign"));
+    // No silent no-op: nothing runs and the view is not marked started.
+    expect(handleSign.mock.calls.length).toBe(callsBeforeClick);
+    expect(getByTestId("started").textContent).toBe("false");
+  });
 });
 
 describe("Action admission through the continuation", () => {
@@ -923,6 +1007,7 @@ describe("Action admission through the continuation", () => {
       error: null,
       errorTerminal: false,
       isComplete: false,
+      providerLookupReady: true,
       handleSign,
       canCancel: false,
       cancelRequested: false,

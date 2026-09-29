@@ -16,31 +16,61 @@ import {
   ETH_ADDRESS_PATTERN,
 } from "../../utils/validation";
 
+import {
+  IncompleteRosterError,
+  MAX_ROSTER_PAGES,
+  parseRosterPage,
+  ROSTER_PAGE_SIZE,
+} from "./rosterPagination";
+
+interface GraphQLPageInfo {
+  hasNextPage: boolean;
+  endCursor: string | null;
+}
+
+interface GraphQLVaultKeeperItem {
+  vaultKeeper: string;
+  version: number;
+  vaultKeeperInfo: {
+    btcPubKey: string;
+  };
+}
+
+interface GraphQLVaultProviderItem {
+  id: string;
+  btcPubKey: string;
+  name: string | null;
+  rpcUrl: string | null;
+  metadataStatus: string | null;
+  metadataRejectionReason: string | null;
+}
+
 /** GraphQL response for app-specific providers and keepers */
 interface GraphQLAppProvidersResponse {
   vaultProviders: {
-    items: Array<{
-      id: string;
-      btcPubKey: string;
-      name: string | null;
-      rpcUrl: string | null;
-      metadataStatus: string | null;
-      metadataRejectionReason: string | null;
-    }>;
+    items: GraphQLVaultProviderItem[];
   };
   vaultKeeperApplications: {
-    items: Array<{
-      vaultKeeper: string;
-      version: number;
-      vaultKeeperInfo: {
-        btcPubKey: string;
-      };
-    }>;
+    items: GraphQLVaultKeeperItem[];
+    pageInfo: GraphQLPageInfo;
+  };
+}
+
+interface GraphQLAppProviderMetadataResponse {
+  vaultProviders: {
+    items: GraphQLVaultProviderItem[];
+  };
+}
+
+interface GraphQLVaultKeepersPageResponse {
+  vaultKeeperApplications: {
+    items: GraphQLVaultKeeperItem[];
+    pageInfo: GraphQLPageInfo;
   };
 }
 
 const GET_APP_PROVIDERS = gql`
-  query GetAppProviders($appController: String!) {
+  query GetAppProviders($appController: String!, $limit: Int!) {
     vaultProviders(where: { applicationEntryPoint: $appController }) {
       items {
         id
@@ -51,13 +81,61 @@ const GET_APP_PROVIDERS = gql`
         metadataRejectionReason
       }
     }
-    vaultKeeperApplications(where: { applicationEntryPoint: $appController }) {
+    vaultKeeperApplications(
+      where: { applicationEntryPoint: $appController }
+      limit: $limit
+    ) {
       items {
         vaultKeeper
         version
         vaultKeeperInfo {
           btcPubKey
         }
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+    }
+  }
+`;
+
+const GET_APP_PROVIDER_METADATA = gql`
+  query GetAppProviderMetadata($appController: String!) {
+    vaultProviders(where: { applicationEntryPoint: $appController }) {
+      items {
+        id
+        btcPubKey
+        name
+        rpcUrl
+        metadataStatus
+        metadataRejectionReason
+      }
+    }
+  }
+`;
+
+const GET_APP_VAULT_KEEPERS_NEXT_PAGE = gql`
+  query GetAppVaultKeepersNextPage(
+    $appController: String!
+    $limit: Int!
+    $after: String!
+  ) {
+    vaultKeeperApplications(
+      where: { applicationEntryPoint: $appController }
+      limit: $limit
+      after: $after
+    ) {
+      items {
+        vaultKeeper
+        version
+        vaultKeeperInfo {
+          btcPubKey
+        }
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
       }
     }
   }
@@ -95,7 +173,7 @@ function normalizeMetadataStatus(
  * Returns null (with a warning) if validation fails.
  */
 function validateAppProvider(
-  item: GraphQLAppProvidersResponse["vaultProviders"]["items"][number],
+  item: GraphQLVaultProviderItem,
 ): typeof item | null {
   if (!ETH_ADDRESS_PATTERN.test(item.id)) {
     logger.warn(
@@ -116,22 +194,22 @@ function validateAppProvider(
  * Validate critical fields on a vault keeper item from GraphQL.
  * Returns null (with a warning) if validation fails.
  */
-function validateVaultKeeperItem(
-  item: GraphQLAppProvidersResponse["vaultKeeperApplications"]["items"][number],
-): typeof item | null {
-  if (!ETH_ADDRESS_PATTERN.test(item.vaultKeeper)) {
-    logger.warn(
-      `[fetchAppProviders] Skipping keeper with invalid id: "${String(item.vaultKeeper).slice(0, 20)}"`,
-    );
-    return null;
-  }
-  if (!BTC_PUBKEY_HEX_PATTERN.test(item.vaultKeeperInfo.btcPubKey)) {
-    logger.warn(
-      `[fetchAppProviders] Skipping keeper ${item.vaultKeeper}: invalid btcPubKey format`,
-    );
-    return null;
-  }
-  return item;
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isVaultKeeperItem(value: unknown): value is GraphQLVaultKeeperItem {
+  if (!isRecord(value) || !isRecord(value.vaultKeeperInfo)) return false;
+
+  return (
+    typeof value.vaultKeeper === "string" &&
+    ETH_ADDRESS_PATTERN.test(value.vaultKeeper) &&
+    typeof value.version === "number" &&
+    Number.isSafeInteger(value.version) &&
+    value.version >= 0 &&
+    typeof value.vaultKeeperInfo.btcPubKey === "string" &&
+    BTC_PUBKEY_HEX_PATTERN.test(value.vaultKeeperInfo.btcPubKey)
+  );
 }
 
 /**
@@ -165,28 +243,10 @@ export function getLatestVersionKeepers(
  */
 const emittedAllInvalidFor = new Set<string>();
 
-/**
- * Fetches vault providers and vault keepers for a specific application.
- *
- * Note: Universal challengers are system-wide and should be fetched from
- * ProtocolParamsContext instead of per-application.
- *
- * Note: Logos are fetched separately via useLogos hook to avoid blocking
- * provider data on the logo API.
- *
- * @param applicationEntryPoint - The application controller address to filter by.
- * @returns Object containing vaultProviders and vaultKeepers arrays
- */
-export async function fetchAppProviders(
-  applicationEntryPoint: string,
-): Promise<AppProvidersResponse> {
-  const appKey = applicationEntryPoint.toLowerCase();
-  const response = await graphqlClient.request<GraphQLAppProvidersResponse>(
-    GET_APP_PROVIDERS,
-    { appController: appKey },
-  );
-
-  const rawProviders = response.vaultProviders.items;
+function toVaultProviders(
+  rawProviders: GraphQLVaultProviderItem[],
+  appKey: string,
+): VaultProvider[] {
   const vaultProviders: VaultProvider[] = rawProviders
     .filter((provider) => validateAppProvider(provider) !== null)
     .map((provider) => ({
@@ -218,14 +278,106 @@ export async function fetchAppProviders(
     });
   }
 
-  const vaultKeeperItems: VaultKeeperItem[] =
-    response.vaultKeeperApplications.items
-      .filter((item) => validateVaultKeeperItem(item) !== null)
-      .map((item) => ({
-        id: item.vaultKeeper,
-        btcPubKey: item.vaultKeeperInfo.btcPubKey,
-        version: item.version,
-      }));
+  return vaultProviders;
+}
+
+/** Fetch provider metadata without coupling it to keeper-roster completeness. */
+export async function fetchAppProviderMetadata(
+  applicationEntryPoint: string,
+): Promise<AppProvidersResponse> {
+  const appKey = applicationEntryPoint.toLowerCase();
+  const response =
+    await graphqlClient.request<GraphQLAppProviderMetadataResponse>(
+      GET_APP_PROVIDER_METADATA,
+      { appController: appKey },
+    );
+
+  return {
+    vaultProviders: toVaultProviders(response.vaultProviders.items, appKey),
+    vaultKeepers: [],
+    vaultKeeperItems: [],
+  };
+}
+
+/**
+ * Fetches vault providers and vault keepers for a specific application.
+ *
+ * Note: Universal challengers are system-wide and should be fetched from
+ * ProtocolParamsContext instead of per-application.
+ *
+ * Note: Logos are fetched separately via useLogos hook to avoid blocking
+ * provider data on the logo API.
+ *
+ * @param applicationEntryPoint - The application controller address to filter by.
+ * @returns Object containing vaultProviders and vaultKeepers arrays
+ */
+export async function fetchAppProviders(
+  applicationEntryPoint: string,
+): Promise<AppProvidersResponse> {
+  const appKey = applicationEntryPoint.toLowerCase();
+  const response = await graphqlClient.request<GraphQLAppProvidersResponse>(
+    GET_APP_PROVIDERS,
+    { appController: appKey, limit: ROSTER_PAGE_SIZE },
+  );
+
+  const firstKeeperPage = parseRosterPage<GraphQLVaultKeeperItem>(
+    response,
+    "vaultKeeperApplications",
+    "[fetchAppProviders] First vault keeper page",
+    isVaultKeeperItem,
+  );
+  const rawVaultKeeperItems = [...firstKeeperPage.items];
+  let keeperPageInfo = firstKeeperPage.pageInfo;
+  let keeperPagesFetched = 1;
+
+  while (keeperPageInfo.hasNextPage) {
+    if (!keeperPageInfo.endCursor) {
+      throw new IncompleteRosterError(
+        `[fetchAppProviders] Indexer reported another vault keeper page ` +
+          `without a cursor after page ${keeperPagesFetched}; refusing to ` +
+          `return an incomplete roster`,
+      );
+    }
+    if (keeperPagesFetched >= MAX_ROSTER_PAGES) {
+      throw new IncompleteRosterError(
+        `[fetchAppProviders] Vault keeper roster exceeds ` +
+          `${MAX_ROSTER_PAGES * ROSTER_PAGE_SIZE} rows; refusing to return ` +
+          `an incomplete roster`,
+      );
+    }
+
+    const nextPage =
+      await graphqlClient.request<GraphQLVaultKeepersPageResponse>(
+        GET_APP_VAULT_KEEPERS_NEXT_PAGE,
+        {
+          appController: appKey,
+          limit: ROSTER_PAGE_SIZE,
+          after: keeperPageInfo.endCursor,
+        },
+      );
+    const parsedNextPage = parseRosterPage<GraphQLVaultKeeperItem>(
+      nextPage,
+      "vaultKeeperApplications",
+      `[fetchAppProviders] Vault keeper page ${keeperPagesFetched + 1}`,
+      isVaultKeeperItem,
+    );
+    rawVaultKeeperItems.push(...parsedNextPage.items);
+    keeperPageInfo = parsedNextPage.pageInfo;
+    keeperPagesFetched += 1;
+  }
+
+  const vaultProviders = toVaultProviders(
+    response.vaultProviders.items,
+    appKey,
+  );
+
+  const vaultKeeperItems: VaultKeeperItem[] = rawVaultKeeperItems.map(
+    (item) => ({
+      id: item.vaultKeeper,
+      btcPubKey: item.vaultKeeperInfo.btcPubKey,
+      version: item.version,
+    }),
+  );
 
   return {
     vaultProviders,
