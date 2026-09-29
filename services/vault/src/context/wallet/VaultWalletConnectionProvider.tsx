@@ -26,6 +26,8 @@ import { isSpeculosTransportArmed } from "@/e2e/speculosTransportBootstrap";
 import { logger } from "@/infrastructure";
 import { isUserCancellation } from "@/utils/errors/userCancellation";
 
+import { LEDGER_VAULT_WALLET_ID } from "./ledgerVaultConnector";
+
 // Vault deposits need the BTC wallet's `deriveContextHash`.
 // ALWAYS_DISABLED_WALLETS keeps non-conforming adapters (appkit/injectable/ledger) permanently out
 // of the connect UI. Every other wallet is on by default; which ones are hidden per environment —
@@ -39,20 +41,6 @@ const ALWAYS_DISABLED_WALLETS: string[] = [
   "ledger_btc",
   "ledger_btc_v2",
 ];
-
-/** Wallet id of the Ledger BTC Vault app. */
-const LEDGER_VAULT_WALLET_ID = "ledger_btc_vault";
-
-/**
- * Whether the connected BTC wallet is the Ledger BTC Vault app — the one
- * predicate the reclaim row (`hooks/deposit/useReclaimRowAction`) and the
- * deposit reserve tooltip (`components/simple/SimpleDeposit`) must share.
- */
-export function isLedgerVaultConnector(
-  connector: { connectedWallet?: { id: string } | null } | null | undefined,
-): boolean {
-  return connector?.connectedWallet?.id === LEDGER_VAULT_WALLET_ID;
-}
 
 // `ledger_btc_vault` (DMK-based vault provider, #2109) is opt-in via the feature
 // flag while Ledger's firmware is still in review — the env disable list defaults

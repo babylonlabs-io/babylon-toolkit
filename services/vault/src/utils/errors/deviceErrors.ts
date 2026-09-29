@@ -12,11 +12,14 @@ export const DEVICE_CEREMONY_INVALID_CODE = "DEVICE_CEREMONY_INVALID";
 export const DEVICE_LOCKED_CODE = "DEVICE_LOCKED";
 /** Wrong app open on the hardware device. */
 export const DEVICE_WRONG_APP_CODE = "DEVICE_WRONG_APP";
+/** Hardware device session lost — only a reconnect from a user gesture recovers. */
+export const DEVICE_DISCONNECTED_CODE = "DEVICE_DISCONNECTED";
 
 const DEVICE_CODES = [
   DEVICE_CEREMONY_INVALID_CODE,
   DEVICE_LOCKED_CODE,
   DEVICE_WRONG_APP_CODE,
+  DEVICE_DISCONNECTED_CODE,
 ] as const;
 
 export type DeviceErrorCode = (typeof DEVICE_CODES)[number];
@@ -43,4 +46,8 @@ export function isDeviceLockedError(error: unknown): boolean {
 
 export function isDeviceWrongAppError(error: unknown): boolean {
   return chainCarriesCode(error, DEVICE_WRONG_APP_CODE);
+}
+
+export function isDeviceDisconnectedError(error: unknown): boolean {
+  return chainCarriesCode(error, DEVICE_DISCONNECTED_CODE);
 }

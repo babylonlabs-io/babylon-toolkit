@@ -810,4 +810,136 @@ describe("broadcastPrePeginTransaction — intent-approval ceremony", () => {
     expect(thrown?.cause).toBe(inner);
     expect(wallet.signPsbt).not.toHaveBeenCalled();
   });
+
+  /** A wallet error carrying the connector's typed code, as the Ledger provider throws it. */
+  function deviceError(code: string, message: string): Error {
+    return Object.assign(new Error(message), { code });
+  }
+
+  it("re-runs the ceremony once when the device lost the approved intent before the sign", async () => {
+    // The Ledger left the vault app for the Ethereum app (registration), which
+    // wiped the intent; the provider reports that as DEVICE_CEREMONY_INVALID.
+    const order: string[] = [];
+    const wallet = {
+      signPsbt: vi
+        .fn(async (psbtHex: string) => {
+          order.push("sign");
+          return psbtHex;
+        })
+        .mockImplementationOnce(async () => {
+          order.push("sign");
+          throw deviceError(
+            "DEVICE_CEREMONY_INVALID",
+            "Ledger Vault left the vault app, which cleared the approved deposit",
+          );
+        }),
+      deriveContextHash: vi.fn(async () => {
+        order.push("derive");
+        return "ab".repeat(32);
+      }),
+      approveDepositTerms: vi.fn(async () => {
+        order.push("approve");
+      }),
+    };
+
+    const txid = await broadcastPrePeginTransaction({
+      unsignedTxHex: "deadbeef",
+      registeredPrePeginTxHash: REGISTERED_PRE_PEGIN_HASH,
+      btcWalletProvider: wallet,
+      depositorBtcPubkey: pubkey,
+      depositTerms: makeTerms(),
+    });
+
+    expect(order).toEqual([
+      "derive",
+      "approve",
+      "sign",
+      "derive",
+      "approve",
+      "sign",
+    ]);
+    expect(txid).toBe(SIGNED_TXID);
+  });
+
+  it("does not re-run the ceremony once the owning flow was abandoned", async () => {
+    // The retry is a device prompt; a depositor who left must not get one.
+    const controller = new AbortController();
+    const lost = deviceError("DEVICE_CEREMONY_INVALID", "intent lost");
+    const wallet = {
+      signPsbt: vi.fn(async () => {
+        controller.abort();
+        throw lost;
+      }),
+      deriveContextHash: vi.fn(async () => "ab".repeat(32)),
+      approveDepositTerms: vi.fn(async () => {}),
+    };
+
+    const thrown = await broadcastPrePeginTransaction({
+      unsignedTxHex: "deadbeef",
+      registeredPrePeginTxHash: REGISTERED_PRE_PEGIN_HASH,
+      btcWalletProvider: wallet,
+      depositorBtcPubkey: pubkey,
+      depositTerms: makeTerms(),
+      signal: controller.signal,
+    }).then(
+      () => null,
+      (e: unknown) => e as Error,
+    );
+
+    expect(thrown?.cause).toBe(lost);
+    expect(wallet.approveDepositTerms).toHaveBeenCalledTimes(1);
+    expect(wallet.signPsbt).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not re-run the ceremony a second time", async () => {
+    const lost = deviceError("DEVICE_CEREMONY_INVALID", "intent lost again");
+    const wallet = {
+      signPsbt: vi.fn(async () => {
+        throw lost;
+      }),
+      deriveContextHash: vi.fn(async () => "ab".repeat(32)),
+      approveDepositTerms: vi.fn(async () => {}),
+    };
+    vi.mocked(pushTx).mockClear();
+
+    const thrown = await broadcastPrePeginTransaction({
+      unsignedTxHex: "deadbeef",
+      registeredPrePeginTxHash: REGISTERED_PRE_PEGIN_HASH,
+      btcWalletProvider: wallet,
+      depositorBtcPubkey: pubkey,
+      depositTerms: makeTerms(),
+    }).then(
+      () => null,
+      (e: unknown) => e as Error,
+    );
+
+    expect(thrown?.cause).toBe(lost);
+    expect(wallet.approveDepositTerms).toHaveBeenCalledTimes(2);
+    expect(wallet.signPsbt).toHaveBeenCalledTimes(2);
+    expect(pushTx).not.toHaveBeenCalled();
+  });
+
+  it("does not re-run the ceremony after the user rejects the sign", async () => {
+    const rejected = deviceError("CONNECTION_REJECTED", "User rejected");
+    const wallet = {
+      signPsbt: vi.fn(async () => {
+        throw rejected;
+      }),
+      deriveContextHash: vi.fn(async () => "ab".repeat(32)),
+      approveDepositTerms: vi.fn(async () => {}),
+    };
+
+    await expect(
+      broadcastPrePeginTransaction({
+        unsignedTxHex: "deadbeef",
+        registeredPrePeginTxHash: REGISTERED_PRE_PEGIN_HASH,
+        btcWalletProvider: wallet,
+        depositorBtcPubkey: pubkey,
+        depositTerms: makeTerms(),
+      }),
+    ).rejects.toMatchObject({ cause: rejected });
+
+    expect(wallet.approveDepositTerms).toHaveBeenCalledTimes(1);
+    expect(wallet.signPsbt).toHaveBeenCalledTimes(1);
+  });
 });

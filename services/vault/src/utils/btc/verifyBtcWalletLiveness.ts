@@ -1,6 +1,7 @@
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 
 import { COPY } from "@/copy";
+import { isDeviceDisconnectedError } from "@/utils/errors/deviceErrors";
 
 export class BtcWalletLivenessError extends Error {
   constructor(message: string) {
@@ -82,16 +83,16 @@ export async function verifyBtcWalletLiveness(
   if (options.probeConnection && typeof wallet.connectWallet === "function") {
     try {
       await wallet.connectWallet();
-    } catch {
-      throw new BtcWalletLivenessError(COPY.wallet.liveness.unresponsive);
+    } catch (error) {
+      throw toLivenessError(error);
     }
   }
 
   let observedAddress: string;
   try {
     observedAddress = await wallet.getAddress();
-  } catch {
-    throw new BtcWalletLivenessError(COPY.wallet.liveness.unresponsive);
+  } catch (error) {
+    throw toLivenessError(error);
   }
 
   if (!observedAddress) {
@@ -101,4 +102,14 @@ export async function verifyBtcWalletLiveness(
   if (observedAddress !== expectedAddress) {
     throw new BtcWalletLivenessError(COPY.wallet.liveness.addressMismatch);
   }
+}
+
+/**
+ * A lost hardware-device session passes through with its typed code: its
+ * recovery is a reconnect from a click, which the caller can only offer if it
+ * can still see the code. Every other failure reads as an unresponsive wallet.
+ */
+function toLivenessError(error: unknown): Error {
+  if (isDeviceDisconnectedError(error) && error instanceof Error) return error;
+  return new BtcWalletLivenessError(COPY.wallet.liveness.unresponsive);
 }

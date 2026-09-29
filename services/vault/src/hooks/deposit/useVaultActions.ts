@@ -671,6 +671,7 @@ export function useVaultActions(): UseVaultActionsReturn {
       await broadcastPrePeginTransaction({
         unsignedTxHex,
         registeredPrePeginTxHash: onChainVault.prePeginTxHash,
+        signal,
         btcWalletProvider: {
           ...forwardDeriveContextHash(btcWalletProvider),
           ...forwardDepositApproval(btcWalletProvider),

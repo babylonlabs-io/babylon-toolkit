@@ -86,10 +86,12 @@ import {
 } from "./depositorWalletMismatch";
 import {
   DEVICE_CEREMONY_INVALID_CODE,
+  DEVICE_DISCONNECTED_CODE,
   DEVICE_LOCKED_CODE,
   DEVICE_WRONG_APP_CODE,
   deviceErrorCodeOfFrame,
   isDeviceCeremonyInvalidError,
+  isDeviceDisconnectedError,
   isDeviceLockedError,
   isDeviceWrongAppError,
 } from "./deviceErrors";
@@ -132,6 +134,8 @@ const RESUMABLE_AFTER_REGISTRATION: ReadonlySet<DepositErrorContent> = new Set([
   ERRORS.deviceLocked,
   ERRORS.deviceWrongApp,
   ERRORS.deviceCeremonyInvalid,
+  // Resumes through a reconnect first (the modal's Reconnect action).
+  ERRORS.deviceDisconnected,
   ERRORS.signingRejected,
   // Nothing was broadcast; the software-wallet twin of deviceLocked.
   ERRORS.signingFailed,
@@ -141,6 +145,17 @@ const STAGE_FAILED = ERRORS.prePeginStageFailed;
 
 export function isResumableDepositError(content: DepositErrorContent): boolean {
   return RESUMABLE_AFTER_REGISTRATION.has(content);
+}
+
+/**
+ * True for the lost-device-session bucket, whose retry must reconnect first.
+ * Keyed on the title, which deposit and payout copy share, because the payout
+ * path rebuilds its content object and an identity check would never match.
+ */
+export function isDeviceDisconnectedContent(
+  content: DepositErrorContent,
+): boolean {
+  return content.title === ERRORS.deviceDisconnected.title;
 }
 
 /**
@@ -383,6 +398,8 @@ export function mapDepositError(err: unknown): DepositErrorContent {
       return ERRORS.deviceLocked;
     case DEVICE_WRONG_APP_CODE:
       return ERRORS.deviceWrongApp;
+    case DEVICE_DISCONNECTED_CODE:
+      return ERRORS.deviceDisconnected;
   }
 
   // 3g. Wallet lacks a required method. Cause-walking, so it must run AFTER
@@ -406,6 +423,9 @@ export function mapDepositError(err: unknown): DepositErrorContent {
   }
   if (isDeviceWrongAppError(err)) {
     return ERRORS.deviceWrongApp;
+  }
+  if (isDeviceDisconnectedError(err)) {
+    return ERRORS.deviceDisconnected;
   }
 
   const msg = lowerMessage(err);

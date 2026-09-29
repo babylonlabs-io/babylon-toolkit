@@ -400,6 +400,15 @@ export interface SigningProgress {
   readonly total: number;
 }
 
+/**
+ * Whether a device operation is held waiting for the user to open the wallet's
+ * app on the hardware device. `expectedAppName` is the device app's display
+ * name (network-specific, e.g. "Babylon Vault Testnet").
+ */
+export type DeviceAppState =
+  | { readonly status: "ready" }
+  | { readonly status: "awaiting-app"; readonly expectedAppName: string };
+
 export interface IBTCProvider extends IProvider {
   /**
    * Signs the given PSBT in hex format.
@@ -442,9 +451,14 @@ export interface IBTCProvider extends IProvider {
 
   /**
    * Requests cancellation of the in-flight signing ceremony
-   * (signPsbt/signPsbts/signMessage). A REQUEST, not a settle: the provider
-   * aborts at its next device exchange boundary, and the sign promise rejects
-   * with `CONNECTION_REJECTED` only then. No-op when nothing is in flight.
+   * (signPsbt/signPsbts/signMessage), or of any device operation held waiting
+   * for the device app (see `subscribeDeviceAppState`). A REQUEST, not a
+   * settle: the provider aborts at its next device exchange boundary, and a
+   * cancelled ceremony rejects with `CONNECTION_REJECTED` only then. A wait
+   * aborts at its next app read or poll; an operation cancelled after
+   * `awaiting-app` was announced rejects with `DEVICE_WRONG_APP` instead (the
+   * user still needs to open the app), one cancelled before any wait was
+   * announced with `CONNECTION_REJECTED`. No-op when nothing is in flight.
    *
    * Implemented only by hardware providers whose ceremonies block on a
    * physical device (currently the Ledger vault provider). Optional — callers
@@ -475,7 +489,8 @@ export interface IBTCProvider extends IProvider {
    * or before the first ceremony. A ceremony that fails emits no tick, while
    * ticks for ceremonies that committed before a later rejection stand — the
    * promise settle is the terminal signal. Listeners run synchronously inside
-   * the signing loop: a throw is swallowed, a returned promise is neither
+   * the signing loop: a throw is logged and does not reach the batch, a
+   * returned promise is neither
    * awaited nor observed. Ticks carry no batch identity, so implementers MUST
    * reject an overlapping `signPsbts` rather than queue it. Returns the
    * unsubscribe. The subscription outlives a batch but not the session —
@@ -488,6 +503,23 @@ export interface IBTCProvider extends IProvider {
    * and fall back to the batch settle when the method is missing.
    */
   subscribeSigningProgress?(listener: (progress: SigningProgress) => void): () => void;
+
+  /**
+   * Subscribes to the device-app wait: `awaiting-app` fires when a device
+   * operation finds a different app (or a locked device) and holds until the
+   * expected app is open; `ready` fires when that wait ends, however it ends.
+   * The operation continues by itself shortly after the app opens (it lets a
+   * just-launched app settle first) — the wait is not an error. Listeners run
+   * synchronously; a throw is logged and does not reach the operation. Unlike
+   * `subscribeSigningProgress`, the subscription survives teardown and
+   * reconnect, so a view subscribes once. Returns the unsubscribe.
+   *
+   * Implemented only by hardware providers that can read the open device app
+   * (currently the Ledger vault provider). Optional — callers MUST
+   * feature-detect (`typeof provider.subscribeDeviceAppState === "function"`)
+   * and treat a missing method as "never waits".
+   */
+  subscribeDeviceAppState?(listener: (state: DeviceAppState) => void): () => void;
 
   /**
    * Signs a message using either BIP322-Simple or ECDSA signing method.

@@ -2534,6 +2534,44 @@ describe("useDepositFlow", () => {
       expect(result.current.error).toEqual(DEPOSIT_ERRORS.signingCanceled);
     });
 
+    it("surfaces a canceled device-app wait as the signing-cancelled copy, not the wrong-app copy", async () => {
+      const { preparePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultTransactionService"),
+      );
+      const { wallet, settle } = pendingSignWallet(true);
+      vi.mocked(preparePeginTransaction).mockImplementation(async (w) => {
+        await w.signPsbt("psbt0", {});
+        return MOCK_BATCH_RESULT as any;
+      });
+      const { result } = renderHook(() =>
+        useDepositFlow({ ...MOCK_PARAMS, btcWalletProvider: wallet as any }),
+      );
+      let flowPromise!: Promise<unknown>;
+      act(() => {
+        flowPromise = result.current.executeDeposit();
+      });
+      await waitFor(() =>
+        expect(result.current.canCancelDeviceSign).toBe(true),
+      );
+
+      // The wait panel's Cancel: the provider ends the announced wait and the
+      // held sign rejects with DEVICE_WRONG_APP.
+      act(() => {
+        result.current.markDeviceWaitCanceled();
+      });
+      await act(async () => {
+        settle.reject(
+          Object.assign(
+            new Error("Canceled while waiting for Babylon Vault Testnet"),
+            { code: "DEVICE_WRONG_APP" },
+          ),
+        );
+        await flowPromise;
+      });
+
+      expect(result.current.error).toEqual(DEPOSIT_ERRORS.signingCanceled);
+    });
+
     it("sets deviceCancelRequested on request and clears it when the cancelled sign settles", async () => {
       const { result, settleAsCancelRejection } =
         await startSignAndRequestCancel();

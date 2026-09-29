@@ -6,6 +6,7 @@
  * indexer can ask the wallet to derive over attacker-chosen funding outpoints.
  */
 
+import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { fireEvent, render, waitFor } from "@testing-library/react";
 import { cloneElement, type ReactNode } from "react";
 import { MemoryRouter } from "react-router";
@@ -254,6 +255,7 @@ vi.mock("../DepositProgressView", () => ({
     canCancelSigning,
     cancelSigningRequested,
     onCancelSigning,
+    continuePrompt,
   }: {
     currentStep?: string;
     error?: { title: string; body: string } | null;
@@ -268,6 +270,7 @@ vi.mock("../DepositProgressView", () => ({
     canCancelSigning?: boolean;
     cancelSigningRequested?: boolean;
     onCancelSigning?: () => void;
+    continuePrompt?: { hint: string; onContinue: () => void } | null;
   }) => (
     <div data-testid="progress-view">
       {/* Mirrors the real prop default so views that never pass it read as
@@ -298,6 +301,14 @@ vi.mock("../DepositProgressView", () => ({
         onClick={onCancelSigning}
       >
         cancel
+      </button>
+      <span data-testid="continue-hint">{continuePrompt?.hint ?? ""}</span>
+      <button
+        type="button"
+        data-testid="continue"
+        onClick={continuePrompt?.onContinue}
+      >
+        continue
       </button>
     </div>
   ),
@@ -750,6 +761,101 @@ describe("ResumeActivationContent — Pre-PegIn tx hash trust boundary", () => {
     });
     expect(mockParseFundingOutpointsFromTx).toHaveBeenCalledWith("0xindexertx");
     expect(mockHandleActivation).toHaveBeenCalledTimes(1);
+  });
+
+  it("on a Ledger, a freshly retrieved secret clears the previous activation failure so Continue shows", async () => {
+    // The previous Continue was rejected on the Ethereum side; the activation
+    // state keeps that error until the next hand-off.
+    vi.mocked(useActivationState).mockReturnValue({
+      activating: false,
+      activated: false,
+      error: "User rejected the request.",
+      errorTerminal: false,
+      handleActivation: mockHandleActivation,
+    });
+    const connector = vi.mocked(useChainConnector)("BTC");
+    vi.mocked(useChainConnector).mockReturnValue({
+      ...connector,
+      connectedWallet: {
+        ...connector!.connectedWallet!,
+        id: "ledger_btc_vault",
+      },
+    } as ReturnType<typeof useChainConnector>);
+    mockCalculateBtcTxHash.mockReturnValue(ON_CHAIN_HASH);
+    mockGetVaultRegistryReader.mockReturnValue(readerWith(ON_CHAIN_HASH));
+    mockDeriveVaultRoot.mockResolvedValue(new Uint8Array(32));
+    // Restored in finally: clearAllMocks keeps a return value across tests.
+    try {
+      const { getByTestId } = render(
+        <ResumeActivationContent
+          activity={baseActivity}
+          depositorEthAddress="0xdepositor"
+          onClose={vi.fn()}
+          onGoToDashboard={vi.fn()}
+        />,
+      );
+
+      await waitFor(() => {
+        expect(getByTestId("continue-hint").textContent).toBe(
+          COPY.deposit.ledger.activationPause.hint,
+        );
+      });
+      expect(getByTestId("error").textContent).toBe("");
+    } finally {
+      vi.mocked(useChainConnector).mockReturnValue(connector);
+      vi.mocked(useActivationState).mockReturnValue({
+        activating: false,
+        activated: false,
+        error: null,
+        errorTerminal: false,
+        handleActivation: mockHandleActivation,
+      });
+    }
+  });
+
+  it("on a Ledger, retrieves the secret, then activates only after Continue", async () => {
+    // The pause lets a depositor whose Ethereum account is on the same Ledger
+    // switch from the Babylon Vault app to the Ethereum app.
+    const connector = vi.mocked(useChainConnector)("BTC");
+    vi.mocked(useChainConnector).mockReturnValue({
+      ...connector,
+      connectedWallet: {
+        ...connector!.connectedWallet!,
+        id: "ledger_btc_vault",
+      },
+    } as ReturnType<typeof useChainConnector>);
+    // Restored in finally: clearAllMocks keeps a return value across tests.
+    try {
+      mockCalculateBtcTxHash.mockReturnValue(ON_CHAIN_HASH);
+      mockGetVaultRegistryReader.mockReturnValue(readerWith(ON_CHAIN_HASH));
+      mockDeriveVaultRoot.mockResolvedValue(new Uint8Array(32));
+
+      const { getByTestId } = render(
+        <ResumeActivationContent
+          activity={baseActivity}
+          depositorEthAddress="0xdepositor"
+          onClose={vi.fn()}
+          onGoToDashboard={vi.fn()}
+        />,
+      );
+
+      await waitFor(() => {
+        expect(getByTestId("continue-hint").textContent).toBe(
+          COPY.deposit.ledger.activationPause.hint,
+        );
+      });
+      expect(mockDeriveVaultRoot).toHaveBeenCalledTimes(1);
+      expect(mockHandleActivation).not.toHaveBeenCalled();
+
+      fireEvent.click(getByTestId("continue"));
+
+      await waitFor(() => {
+        expect(mockHandleActivation).toHaveBeenCalledTimes(1);
+      });
+      expect(mockHandleActivation).toHaveBeenCalledWith(expect.any(String));
+    } finally {
+      vi.mocked(useChainConnector).mockReturnValue(connector);
+    }
   });
 });
 

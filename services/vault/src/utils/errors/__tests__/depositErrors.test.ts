@@ -22,6 +22,7 @@ import { COPY } from "@/copy";
 
 import {
   COMMISSION_UNAVAILABLE_ERROR,
+  isDeviceDisconnectedContent,
   isResumableDepositError,
   mapDepositError,
   mapDepositErrorAfterRegistration,
@@ -567,6 +568,24 @@ describe("mapDepositError", () => {
     ).toEqual(ERRORS.deviceWrongApp);
   });
 
+  it("maps DEVICE_DISCONNECTED to its dedicated copy", () => {
+    expect(
+      mapDepositError(
+        new FakeWalletError(
+          "DEVICE_DISCONNECTED",
+          "Ledger Vault was disconnected; reconnect the device and retry.",
+        ),
+      ),
+    ).toEqual(ERRORS.deviceDisconnected);
+  });
+
+  it("finds DEVICE_DISCONNECTED through a sign-stage wrapper's cause chain", () => {
+    const wrapped = new Error("Failed to sign Pre-Pegin transaction", {
+      cause: new FakeWalletError("DEVICE_DISCONNECTED", "device unplugged"),
+    });
+    expect(mapDepositError(wrapped)).toEqual(ERRORS.deviceDisconnected);
+  });
+
   it("lets a top-frame device code win over an inner unsupported-method cause", () => {
     // The provider's typed device error can wrap lower-level causes; the
     // outer, more specific frame must not be shadowed by the walking
@@ -782,6 +801,24 @@ describe("isResumableDepositError", () => {
     // Nothing was broadcast, so the registered vaults can still take the
     // Pre-PegIn — the same situation as a locked device.
     expect(isResumableDepositError(ERRORS.signingFailed)).toBe(true);
+  });
+
+  it("treats a lost device session as resumable, and flags it for a reconnect first", () => {
+    expect(isResumableDepositError(ERRORS.deviceDisconnected)).toBe(true);
+    expect(isDeviceDisconnectedContent(ERRORS.deviceDisconnected)).toBe(true);
+    expect(isDeviceDisconnectedContent(ERRORS.deviceWrongApp)).toBe(false);
+  });
+
+  it("recognises the payout path's rebuilt lost-session content", () => {
+    // The payout resume copies the mapped copy into a new object.
+    const payout = COPY.deposit.payoutSignatureErrors.deviceDisconnected;
+    expect(
+      isDeviceDisconnectedContent({
+        title: payout.title,
+        body: payout.message,
+        diagnostics: "DEVICE_DISCONNECTED",
+      }),
+    ).toBe(true);
   });
 
   it("does not treat a preparation or broadcast failure as resumable", () => {

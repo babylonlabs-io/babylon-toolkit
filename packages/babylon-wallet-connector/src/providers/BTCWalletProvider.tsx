@@ -408,8 +408,16 @@ export const BTCWalletProvider = ({ children, callbacks }: BTCWalletProviderProp
     }
   }, [btcWalletProvider, address, callbacks, disconnect]);
 
+  // Never for hardware wallets: their `connectWallet()` is interactive (a
+  // device session, a QR scan), and where it cannot complete outside a user
+  // gesture — a Ledger whose session died needs the WebHID picker, and a tab
+  // return is not a gesture — the catch below would turn the tab return into
+  // a disconnect. For the Ledger vault connector a lost device session
+  // surfaces as DEVICE_DISCONNECTED at the next device operation instead,
+  // where the vault app offers a reconnect; other hardware wallets surface it
+  // as their own next-operation failure.
   useVisibilityCheck(checkBTCConnection, {
-    enabled: Boolean(btcWalletProvider && address),
+    enabled: Boolean(btcWalletProvider && address) && !btcConnector?.connectedWallet?.hardware,
   });
 
   // Detect a *silent* wallet auto-lock. Injected extensions (notably UniSat)

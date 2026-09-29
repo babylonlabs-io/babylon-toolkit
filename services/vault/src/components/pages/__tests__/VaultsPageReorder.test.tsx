@@ -38,13 +38,6 @@ vi.mock("@babylonlabs-io/wallet-connector", () => ({
   useChainConnector: () => undefined,
 }));
 
-// The other half of that same reclaim action. Mocked as a module so the real
-// one never loads, because it reads APPKIT_BTC_CONNECTOR_ID from the
-// wallet-connector module at module scope, which the mock above does not carry.
-vi.mock("@/context/wallet/VaultWalletConnectionProvider", () => ({
-  isLedgerVaultConnector: () => false,
-}));
-
 // The real useVaultsPageEmptiness reads useActionableExpiredDeposits, which
 // needs the polling context. No case here has an expired deposit, so an empty
 // result keeps every expired activity actionable.

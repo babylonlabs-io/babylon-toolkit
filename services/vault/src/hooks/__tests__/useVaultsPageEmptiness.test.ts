@@ -47,7 +47,7 @@ vi.mock("@/context/wallet", async () => ({
   useBTCWallet: (await import("@babylonlabs-io/wallet-connector")).useBTCWallet,
 }));
 
-vi.mock("@/context/wallet/VaultWalletConnectionProvider", () => ({
+vi.mock("@/context/wallet/ledgerVaultConnector", () => ({
   isLedgerVaultConnector: () => false,
 }));
 

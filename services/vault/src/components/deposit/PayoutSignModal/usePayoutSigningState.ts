@@ -41,6 +41,7 @@ import {
   verifyBtcWalletLiveness,
 } from "../../../utils/btc";
 import { supportsCancelSigning } from "../../../utils/cancelSigning";
+import { isDeviceDisconnectedError } from "../../../utils/errors/deviceErrors";
 import { formatPayoutSignatureError } from "../../../utils/errors/formatting";
 import { isVaultLifecycleStateError } from "../../../utils/errors/vaultLifecycleStateError";
 import { observeSigningProgress } from "../../../utils/signingProgress";
@@ -244,6 +245,12 @@ export function usePayoutSigningState({
         });
       } catch (err) {
         if (controller.signal.aborted) return;
+        // A lost hardware-device session keeps its own copy, which the
+        // progress view recognises to offer a reconnect from the click.
+        if (isDeviceDisconnectedError(err)) {
+          setError(formatPayoutSignatureError(err));
+          return;
+        }
         setError({
           title: COPY.wallet.liveness.errorTitle,
           message:

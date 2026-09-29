@@ -21,9 +21,9 @@ import {
 } from "@babylonlabs-io/ledger-vault-signer";
 import * as ecc from "@bitcoin-js/tiny-secp256k1-asmjs";
 import { initEccLib, payments, Psbt } from "bitcoinjs-lib";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { SigningProgress } from "@/core/types";
+import type { DeviceAppState, SigningProgress } from "@/core/types";
 import { Network } from "@/core/types";
 import { getTaprootAddress, toNetwork } from "@/core/utils/wallet";
 import { ERROR_CODES, WalletError } from "@/error";
@@ -51,8 +51,16 @@ const dmkSessionMock = vi.hoisted(() => ({
   connectDmkSession: vi.fn(),
   disconnectDmkSession: vi.fn(async () => {}),
   isSessionAlive: vi.fn(async () => true),
-  refreshSessionApp: vi.fn(async (session: unknown) => session),
+  refreshSessionApp: vi.fn(async (session: object) => session),
 }));
+
+/**
+ * The device's answer to GET_APP_AND_VERSION: the vault app, open. Like the
+ * real `refreshSessionApp`, a failed read echoes the handle it was given.
+ */
+async function vaultAppOpen(session: object) {
+  return { ...session, appName: "Babylon Vault Testnet", appVersion: "0.10.1" };
+}
 
 const derivationMock = vi.hoisted(() => ({
   getXOnlyPublicKeyHex: vi.fn(async () => DEVICE_XONLY),
@@ -184,7 +192,7 @@ beforeEach(() => {
   dmkSessionMock.isSessionAlive.mockReset();
   dmkSessionMock.isSessionAlive.mockResolvedValue(true);
   dmkSessionMock.refreshSessionApp.mockReset();
-  dmkSessionMock.refreshSessionApp.mockImplementation(async (session: unknown) => session);
+  dmkSessionMock.refreshSessionApp.mockImplementation(vaultAppOpen);
   signMock.prepareSignPsbt.mockReset();
   signMock.prepareSignPsbt.mockImplementation(({ psbtHex }: { psbtHex: string }) => fakePrepared(psbtHex));
   signMock.signPreparedVaultPsbt.mockReset();
@@ -484,7 +492,7 @@ describe("LedgerVaultProvider", () => {
       const p = new LedgerVaultProvider(Network.SIGNET);
 
       await expect(p.signMessage(POP_MESSAGE, "bip322-simple")).rejects.toMatchObject({
-        code: ERROR_CODES.WALLET_NOT_CONNECTED,
+        code: ERROR_CODES.DEVICE_DISCONNECTED,
       });
     });
   });
@@ -712,7 +720,7 @@ describe("LedgerVaultProvider", () => {
       });
 
       await expect(p.signPsbt(psbtHex, { autoFinalized: false })).rejects.toMatchObject({
-        code: ERROR_CODES.WALLET_NOT_CONNECTED,
+        code: ERROR_CODES.DEVICE_DISCONNECTED,
       });
       expect(signMock.signPreparedVaultPsbt).not.toHaveBeenCalled();
     });
@@ -1111,6 +1119,22 @@ describe("LedgerVaultProvider", () => {
 
         await expect(provider.signPsbts([PSBT_A, PSBT_B])).resolves.toEqual([`signed:${PSBT_A}`, `signed:${PSBT_B}`]);
         expect(signMock.signPreparedVaultPsbt).toHaveBeenCalledTimes(2);
+      });
+
+      it("reports a listener's throw instead of dropping it silently", async () => {
+        const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+        const provider = await approved();
+        provider.subscribeSigningProgress(() => {
+          throw new Error("display bug");
+        });
+
+        await provider.signPsbts([PSBT_A]);
+
+        expect(consoleError).toHaveBeenCalledWith(
+          "[LedgerVaultProvider] signing progress listener threw:",
+          "display bug",
+        );
+        consoleError.mockRestore();
       });
 
       it("every registered listener receives every tick, even when one between them throws", async () => {
@@ -2035,7 +2059,7 @@ describe("LedgerVaultProvider", () => {
     it("refuses before connecting", async () => {
       const p = new LedgerVaultProvider(Network.SIGNET);
 
-      await expect(p.getChangeAddress()).rejects.toMatchObject({ code: ERROR_CODES.WALLET_NOT_CONNECTED });
+      await expect(p.getChangeAddress()).rejects.toMatchObject({ code: ERROR_CODES.DEVICE_DISCONNECTED });
     });
 
     it("refuses a device whose account xpub does not derive the depositor key", async () => {
@@ -2068,6 +2092,8 @@ describe("LedgerVaultProvider", () => {
       );
 
       const pending = p.getChangeAddress();
+      // After the app read: the disconnect must land on the xpub read itself.
+      await vi.waitFor(() => expect(derivationMock.getExtendedPublicKey).toHaveBeenCalled());
       await p.disconnect();
       releaseXpub(ACCOUNT_XPUB);
 
@@ -2456,37 +2482,22 @@ describe("LedgerVaultProvider", () => {
     await expect(provider.getAddress()).rejects.toThrow(/not connected/);
   });
 
-  it("does not send the preflight while a device ceremony is in flight", async () => {
-    // A tab return re-calls connectWallet; mid-ceremony the BOLOS read would
-    // land between the ceremony's APDUs. PoP signs at phase idle, so only the
-    // ceremony lock can tell.
+  it("does not send the connect preflight while a device operation holds the lock", async () => {
+    // A connect retry while a derive waits for the app (ungated session, locked
+    // device) must not add its own read: only the wait's own ticks read.
     dmkSessionMock.connectDmkSession.mockResolvedValue({ dmk: {}, sessionId: "s1" });
+    // Every read fails (locked device): the handle comes back without an app.
+    dmkSessionMock.refreshSessionApp.mockImplementation(async (session: object) => session);
     const provider = new LedgerVaultProvider(Network.SIGNET);
     await provider.connectWallet();
-    let releaseSign: () => void = () => {};
-    signMock.signPreparedVaultPsbt.mockImplementationOnce(
-      () =>
-        new Promise((resolve) => {
-          releaseSign = () =>
-            resolve({
-              signedPsbtHex: "unused",
-              yields: [
-                { kind: "taproot-keypath", inputIndex: 0, outputKeyHex: "00".repeat(32), signature: Buffer.alloc(64) },
-              ],
-            });
-        }),
-    );
-    const signing = provider.signMessage(
-      "0xabcdef1234567890abcdef1234567890abcdef12:11155111:pegin:0x1234567890abcdef1234567890abcdef12345678",
-      "bip322-simple",
-    );
-    await vi.waitFor(() => expect(signMock.signPreparedVaultPsbt).toHaveBeenCalled());
+    const deriving = provider.deriveContextHash("app", "aa".repeat(32));
+    await vi.waitFor(() => expect(dmkSessionMock.refreshSessionApp).toHaveBeenCalledTimes(1));
 
     await provider.connectWallet();
 
-    expect(dmkSessionMock.refreshSessionApp).not.toHaveBeenCalled();
-    releaseSign();
-    await signing;
+    expect(dmkSessionMock.refreshSessionApp).toHaveBeenCalledTimes(1);
+    provider.cancelSigning();
+    await expect(deriving).rejects.toMatchObject({ code: ERROR_CODES.DEVICE_WRONG_APP });
   });
 
   it("survives a disconnect that lands during the liveness probe", async () => {
@@ -2512,16 +2523,23 @@ describe("LedgerVaultProvider", () => {
     expect(dmkSessionMock.refreshSessionApp).not.toHaveBeenCalled();
   });
 
-  it("skips the re-gate on an ungated session that sits between intent phases", async () => {
+  it("gates an ungated session at the derive, so a connect between intent phases sends no preflight", async () => {
     // The preflight is a BOLOS command; between derive and approve it would
-    // land mid-ceremony with the lock free, so the phase must hold it off.
-    dmkSessionMock.connectDmkSession.mockResolvedValue({ dmk: {}, sessionId: "s1" });
+    // land mid-ceremony with the lock free. The derive's own app read (at
+    // idle) already installed the identity, so the retry has nothing to read.
+    const bare = { dmk: {}, sessionId: "s1" };
+    dmkSessionMock.connectDmkSession.mockResolvedValue(bare);
+    dmkSessionMock.refreshSessionApp.mockResolvedValueOnce({
+      ...bare,
+      appName: "Babylon Vault Testnet",
+      appVersion: "0.10.1",
+    });
     const provider = new LedgerVaultProvider(Network.SIGNET);
     await provider.connectWallet();
     await provider.deriveContextHash("app", "aa".repeat(32));
 
     await expect(provider.connectWallet()).resolves.toBeUndefined();
-    expect(dmkSessionMock.refreshSessionApp).not.toHaveBeenCalled();
+    expect(dmkSessionMock.refreshSessionApp).toHaveBeenCalledTimes(1);
   });
 
   it("keeps an ungated session once the retry preflight confirms the app", async () => {
@@ -2723,13 +2741,29 @@ describe("LedgerVaultProvider", () => {
     // DMK errors are plain {_tag, originalError} objects; unmapped they reach
     // the app as "[object Object]".
     const provider = await connected();
-    h.failNext = { _tag: "DeviceSessionNotFound", originalError: { message: "device unplugged" } } as unknown as Error;
+    h.failNext = { _tag: "WebHidSendReportError", originalError: { message: "report failed" } } as unknown as Error;
 
     await expect(provider.deriveContextHash("app", "aa".repeat(32))).rejects.toMatchObject({
       code: ERROR_CODES.CONNECTION_FAILED,
       wallet: "Ledger Vault",
+      message: "report failed",
+    });
+  });
+
+  it("maps a DMK lost-session failure onto DEVICE_DISCONNECTED and tears the session down", async () => {
+    // A retry after Reconnect must open a new session, not reuse one DMK may
+    // still briefly report as alive.
+    const provider = await connected();
+    h.failNext = { _tag: "DeviceSessionNotFound", originalError: { message: "device unplugged" } } as unknown as Error;
+
+    await expect(provider.deriveContextHash("app", "aa".repeat(32))).rejects.toMatchObject({
+      code: ERROR_CODES.DEVICE_DISCONNECTED,
       message: "device unplugged",
     });
+    expect(dmkSessionMock.disconnectDmkSession).toHaveBeenCalledWith(h.session);
+    h.failNext = undefined;
+    await provider.connectWallet();
+    expect(dmkSessionMock.connectDmkSession).toHaveBeenCalledTimes(2);
   });
 
   it.each([
@@ -2769,5 +2803,363 @@ describe("LedgerVaultProvider", () => {
     await expect(provider.getInscriptions()).resolves.toEqual([]);
     expect(() => provider.on()).not.toThrow();
     expect(() => provider.off()).not.toThrow();
+  });
+
+  describe("device app wait", () => {
+    const ETHEREUM_APP = { ...h.session, appName: "Ethereum", appVersion: "1.13.0" };
+    const PSBT = "aa".repeat(40);
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    function recordStates(provider: LedgerVaultProvider): DeviceAppState[] {
+      const states: DeviceAppState[] = [];
+      provider.subscribeDeviceAppState((state) => states.push(state));
+      return states;
+    }
+
+    it("holds a derive while another app is open, then derives once the vault app opens", async () => {
+      const provider = await connected();
+      const states = recordStates(provider);
+      dmkSessionMock.refreshSessionApp.mockResolvedValueOnce(ETHEREUM_APP);
+
+      const deriving = provider.deriveContextHash("app", "aa".repeat(32));
+      // One poll, then the settle after the app opens.
+      await vi.advanceTimersByTimeAsync(3_000);
+
+      await expect(deriving).resolves.toMatch(/^[0-9a-f]{64}$/);
+      expect(states).toEqual([
+        { status: "awaiting-app", expectedAppName: "Babylon Vault Testnet" },
+        { status: "ready" },
+      ]);
+    });
+
+    it("sends nothing to a just-opened vault app until it has had time to finish launching", async () => {
+      // On a Stax a review pushed right after the launch was never drawn.
+      const provider = await connected();
+      dmkSessionMock.refreshSessionApp.mockResolvedValueOnce(ETHEREUM_APP);
+
+      const deriving = provider.deriveContextHash("app", "aa".repeat(32));
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(h.sent).toHaveLength(0);
+      await vi.advanceTimersByTimeAsync(1_999);
+      expect(h.sent).toHaveLength(0);
+      await vi.advanceTimersByTimeAsync(1);
+
+      await expect(deriving).resolves.toMatch(/^[0-9a-f]{64}$/);
+      expect(h.sent.length).toBeGreaterThan(0);
+    });
+
+    it("ends the wait without prompting the device when canceled while the app settles", async () => {
+      const provider = await connected();
+      const states = recordStates(provider);
+      dmkSessionMock.refreshSessionApp.mockResolvedValueOnce(ETHEREUM_APP);
+      const deriving = provider.deriveContextHash("app", "aa".repeat(32));
+      deriving.catch(() => {});
+      await vi.advanceTimersByTimeAsync(1_000);
+
+      provider.cancelSigning();
+
+      await expect(deriving).rejects.toMatchObject({ code: ERROR_CODES.DEVICE_WRONG_APP });
+      expect(h.sent).toHaveLength(0);
+      expect(states.at(-1)).toEqual({ status: "ready" });
+    });
+
+    it("waits again when the vault app is closed while it settles", async () => {
+      const provider = await connected();
+      dmkSessionMock.refreshSessionApp
+        .mockResolvedValueOnce(ETHEREUM_APP)
+        .mockImplementationOnce(async (session: object) => vaultAppOpen(session))
+        .mockResolvedValueOnce(ETHEREUM_APP);
+
+      const deriving = provider.deriveContextHash("app", "aa".repeat(32));
+      // Ethereum, vault (settle), Ethereum (poll), vault (settle again), vault.
+      await vi.advanceTimersByTimeAsync(5_999);
+      expect(h.sent).toHaveLength(0);
+      await vi.advanceTimersByTimeAsync(1);
+
+      await expect(deriving).resolves.toMatch(/^[0-9a-f]{64}$/);
+    });
+
+    it("still derives when a device-app listener throws, and reports the throw", async () => {
+      const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+      const provider = await connected();
+      provider.subscribeDeviceAppState(() => {
+        throw new Error("display bug");
+      });
+      const states = recordStates(provider);
+      dmkSessionMock.refreshSessionApp.mockResolvedValueOnce(ETHEREUM_APP);
+
+      const deriving = provider.deriveContextHash("app", "aa".repeat(32));
+      // One poll, then the settle after the app opens.
+      await vi.advanceTimersByTimeAsync(3_000);
+
+      await expect(deriving).resolves.toMatch(/^[0-9a-f]{64}$/);
+      expect(states).toEqual([
+        { status: "awaiting-app", expectedAppName: "Babylon Vault Testnet" },
+        { status: "ready" },
+      ]);
+      expect(consoleError).toHaveBeenCalledWith(
+        "[LedgerVaultProvider] device-app state listener threw:",
+        "display bug",
+      );
+      consoleError.mockRestore();
+    });
+
+    it("announces nothing when the vault app is already open", async () => {
+      const provider = await connected();
+      const states = recordStates(provider);
+
+      await provider.deriveContextHash("app", "aa".repeat(32));
+
+      expect(states).toEqual([]);
+      expect(dmkSessionMock.refreshSessionApp).toHaveBeenCalledTimes(1);
+    });
+
+    it("re-reads the open app once per poll interval, not faster", async () => {
+      const provider = await connected();
+      dmkSessionMock.refreshSessionApp.mockResolvedValue(ETHEREUM_APP);
+
+      const deriving = provider.deriveContextHash("app", "aa".repeat(32));
+      deriving.catch(() => {});
+      await vi.advanceTimersByTimeAsync(999);
+      expect(dmkSessionMock.refreshSessionApp).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(dmkSessionMock.refreshSessionApp).toHaveBeenCalledTimes(2);
+
+      provider.cancelSigning();
+      await expect(deriving).rejects.toThrow();
+    });
+
+    it("waits on a locked device even though the connect-time read saw the vault app", async () => {
+      // A failed read echoes its handle; the gate hands it one with no app
+      // identity, so the connect-time name cannot pass for an open app.
+      const provider = await connected();
+      const states = recordStates(provider);
+      dmkSessionMock.refreshSessionApp.mockImplementationOnce(async (session: object) => session);
+
+      const deriving = provider.deriveContextHash("app", "aa".repeat(32));
+      // One poll, then the settle after the app opens.
+      await vi.advanceTimersByTimeAsync(3_000);
+
+      await expect(deriving).resolves.toMatch(/^[0-9a-f]{64}$/);
+      expect(states[0]).toEqual({ status: "awaiting-app", expectedAppName: "Babylon Vault Testnet" });
+    });
+
+    it("cancelSigning ends the wait as a wrong-app outcome and sends no vault APDU", async () => {
+      const provider = await connected();
+      const states = recordStates(provider);
+      dmkSessionMock.refreshSessionApp.mockResolvedValue(ETHEREUM_APP);
+      const deriving = provider.deriveContextHash("app", "aa".repeat(32));
+      deriving.catch(() => {});
+      await vi.advanceTimersByTimeAsync(0);
+
+      provider.cancelSigning();
+
+      await expect(deriving).rejects.toMatchObject({
+        code: ERROR_CODES.DEVICE_WRONG_APP,
+        message: "Canceled while waiting for the Babylon Vault Testnet app on your Ledger. Open it and try again.",
+      });
+      expect(h.sent).toHaveLength(0);
+      expect(states.at(-1)).toEqual({ status: "ready" });
+    });
+
+    it("waits through an idle sign on a browser without AbortSignal.any", async () => {
+      // Chromium has WebHID from 89 but AbortSignal.any only from 116.
+      const original = AbortSignal.any;
+      Object.defineProperty(AbortSignal, "any", { value: undefined, configurable: true });
+      try {
+        const provider = await connected();
+        dmkSessionMock.refreshSessionApp.mockResolvedValueOnce(ETHEREUM_APP);
+        signMock.signPreparedVaultPsbt.mockImplementationOnce(async () => ({
+          signedPsbtHex: "unused",
+          yields: [
+            {
+              kind: "taproot-keypath",
+              inputIndex: 0,
+              outputKeyHex: "00".repeat(32),
+              signature: Buffer.from("ab".repeat(64), "hex"),
+            },
+          ],
+        }));
+
+        const signing = provider.signMessage(
+          "0xabcdef1234567890abcdef1234567890abcdef12:11155111:pegin:0x1234567890abcdef1234567890abcdef12345678",
+          "bip322-simple",
+        );
+        // One poll, then the settle after the app opens.
+        await vi.advanceTimersByTimeAsync(3_000);
+
+        await expect(signing).resolves.toMatch(/^0x0140/);
+      } finally {
+        Object.defineProperty(AbortSignal, "any", { value: original, configurable: true });
+      }
+    });
+
+    it("honours a cancel that lands before the wait starts", async () => {
+      // The PoP signs at idle: its gate probes liveness before the wait
+      // exists, and a cancel in that window must not be dropped.
+      const provider = await connected();
+      let releaseProbe: () => void = () => {};
+      dmkSessionMock.isSessionAlive.mockImplementationOnce(
+        () =>
+          new Promise<boolean>((resolve) => {
+            releaseProbe = () => resolve(true);
+          }),
+      );
+      dmkSessionMock.refreshSessionApp.mockClear();
+      const signing = provider.signMessage("pop", "bip322-simple");
+      signing.catch(() => {});
+      await vi.advanceTimersByTimeAsync(0);
+
+      provider.cancelSigning();
+      releaseProbe();
+
+      // No wait was shown, so it settles like any cancelled signature.
+      await expect(signing).rejects.toMatchObject({ code: ERROR_CODES.CONNECTION_REJECTED });
+      expect(dmkSessionMock.refreshSessionApp).not.toHaveBeenCalled();
+      expect(signMock.signPreparedVaultPsbt).not.toHaveBeenCalled();
+    });
+
+    it("drops a derive cancelled while the app read that finds the vault app is in flight", async () => {
+      // The read resolves with the vault app open, but the cancel came first:
+      // the device must not be asked to approve anything.
+      const provider = await connected();
+      let releaseRead: () => void = () => {};
+      dmkSessionMock.refreshSessionApp.mockImplementationOnce(
+        (session: object) =>
+          new Promise((resolve) => {
+            releaseRead = () => resolve(vaultAppOpen(session));
+          }),
+      );
+      const deriving = provider.deriveContextHash("app", "aa".repeat(32));
+      deriving.catch(() => {});
+      await vi.advanceTimersByTimeAsync(0);
+      // The cancel must land while the read is in flight, not before it.
+      expect(dmkSessionMock.refreshSessionApp).toHaveBeenCalledTimes(1);
+
+      provider.cancelSigning();
+      releaseRead();
+
+      await expect(deriving).rejects.toMatchObject({ code: ERROR_CODES.CONNECTION_REJECTED });
+      expect(h.sent).toHaveLength(0);
+    });
+
+    it("tears down and rejects with DEVICE_DISCONNECTED when the session dies during the wait", async () => {
+      const provider = await connected();
+      dmkSessionMock.refreshSessionApp.mockResolvedValue(ETHEREUM_APP);
+      const deriving = provider.deriveContextHash("app", "aa".repeat(32));
+      deriving.catch(() => {});
+      await vi.advanceTimersByTimeAsync(0);
+      dmkSessionMock.isSessionAlive.mockResolvedValue(false);
+
+      await vi.advanceTimersByTimeAsync(1_000);
+
+      await expect(deriving).rejects.toMatchObject({ code: ERROR_CODES.DEVICE_DISCONNECTED });
+      await expect(provider.getAddress()).rejects.toMatchObject({ code: ERROR_CODES.DEVICE_DISCONNECTED });
+    });
+
+    it("rejects an outdated vault app opened during the wait instead of waiting on it", async () => {
+      const provider = await connected();
+      dmkSessionMock.refreshSessionApp
+        .mockResolvedValueOnce(ETHEREUM_APP)
+        .mockResolvedValueOnce({ ...h.session, appVersion: "0.10.0" });
+
+      const deriving = provider.deriveContextHash("app", "aa".repeat(32));
+      deriving.catch(() => {});
+      await vi.advanceTimersByTimeAsync(1_000);
+
+      await expect(deriving).rejects.toMatchObject({ code: ERROR_CODES.INCOMPATIBLE_WALLET_VERSION });
+      expect(h.sent).toHaveLength(0);
+    });
+
+    it("sends no app read before SIGN_PSBT under a loaded intent", async () => {
+      const provider = await connected();
+      await provider.deriveContextHash("app", "aa".repeat(32));
+      await provider.approveDepositTerms(TERMS);
+      dmkSessionMock.refreshSessionApp.mockClear();
+
+      await provider.signPsbt(PSBT);
+
+      expect(dmkSessionMock.refreshSessionApp).not.toHaveBeenCalled();
+    });
+
+    it("turns a sign refused by another app into DEVICE_CEREMONY_INVALID once the vault app is back", async () => {
+      // The app switch wiped the approved intent; the typed outcome routes the
+      // caller to re-run derive -> approve rather than retry the bare sign.
+      const provider = await connected();
+      await provider.deriveContextHash("app", "aa".repeat(32));
+      await provider.approveDepositTerms(TERMS);
+      const states = recordStates(provider);
+      signMock.signPreparedVaultPsbt.mockRejectedValueOnce(new LedgerDeviceError(0x6e00, "CLA not supported"));
+      dmkSessionMock.refreshSessionApp.mockResolvedValueOnce(ETHEREUM_APP).mockResolvedValueOnce(ETHEREUM_APP);
+
+      const signing = provider.signPsbt(PSBT);
+      signing.catch(() => {});
+      // One poll, then the settle after the app opens.
+      await vi.advanceTimersByTimeAsync(3_000);
+
+      await expect(signing).rejects.toMatchObject({ code: ERROR_CODES.DEVICE_CEREMONY_INVALID });
+      expect(states).toEqual([
+        { status: "awaiting-app", expectedAppName: "Babylon Vault Testnet" },
+        { status: "ready" },
+      ]);
+      await expect(provider.holdsApprovedDepositTerms(TERMS)).resolves.toBe(false);
+    });
+
+    it("reports a session found dead after a wrong-app sign failure as DEVICE_DISCONNECTED and tears it down", async () => {
+      const provider = await connected();
+      await provider.deriveContextHash("app", "aa".repeat(32));
+      await provider.approveDepositTerms(TERMS);
+      signMock.signPreparedVaultPsbt.mockRejectedValueOnce(new LedgerDeviceError(0x6e00, "CLA not supported"));
+      dmkSessionMock.isSessionAlive.mockResolvedValue(false);
+
+      await expect(provider.signPsbt(PSBT)).rejects.toMatchObject({ code: ERROR_CODES.DEVICE_DISCONNECTED });
+      expect(dmkSessionMock.disconnectDmkSession).toHaveBeenCalled();
+    });
+
+    it("keeps a sign failure's own error when the vault app is still open", async () => {
+      const provider = await connected();
+      await provider.deriveContextHash("app", "aa".repeat(32));
+      await provider.approveDepositTerms(TERMS);
+      const states = recordStates(provider);
+      signMock.signPreparedVaultPsbt.mockRejectedValueOnce(new LedgerDeviceError(0x6a80, "incorrect data"));
+
+      await expect(provider.signPsbt(PSBT)).rejects.toMatchObject({ code: ERROR_CODES.UNKNOWN_ERROR });
+      expect(states).toEqual([]);
+    });
+
+    it("keeps app-state listeners across a disconnect and reconnect", async () => {
+      const provider = await connected();
+      const states = recordStates(provider);
+      await provider.disconnect();
+      await provider.connectWallet();
+      dmkSessionMock.refreshSessionApp.mockResolvedValueOnce(ETHEREUM_APP);
+
+      const deriving = provider.deriveContextHash("app", "aa".repeat(32));
+      // One poll, then the settle after the app opens.
+      await vi.advanceTimersByTimeAsync(3_000);
+      await deriving;
+
+      expect(states[0]).toEqual({ status: "awaiting-app", expectedAppName: "Babylon Vault Testnet" });
+    });
+
+    it("announces ready when a disconnect ends the wait", async () => {
+      const provider = await connected();
+      const states = recordStates(provider);
+      dmkSessionMock.refreshSessionApp.mockResolvedValue(ETHEREUM_APP);
+      const deriving = provider.deriveContextHash("app", "aa".repeat(32));
+      deriving.catch(() => {});
+      await vi.advanceTimersByTimeAsync(0);
+
+      await provider.disconnect();
+
+      await expect(deriving).rejects.toMatchObject({ code: ERROR_CODES.WALLET_NOT_CONNECTED });
+      expect(states.at(-1)).toEqual({ status: "ready" });
+    });
   });
 });

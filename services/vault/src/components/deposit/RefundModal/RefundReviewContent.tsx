@@ -14,10 +14,12 @@ import {
 import { useEffect, useState } from "react";
 
 import { ReviewDetailRow } from "@/components/shared/DetailRow";
+import { DeviceAppWaitDetail } from "@/components/simple/DepositProgressView/DeviceAppWaitDetail";
 import { FALLBACK_FEE_RATE_SATS_VB } from "@/constants";
 import { useBTCWallet } from "@/context/wallet";
 import { COPY } from "@/copy";
 import { usePrice } from "@/hooks/usePrices";
+import type { LedgerDeviceStep } from "@/types/ledgerDeviceStep";
 import { satoshiToBtcNumber } from "@/utils/btcConversion";
 import { formatBtcValue, formatUsd, getBtcSymbol } from "@/utils/formatting";
 
@@ -41,6 +43,13 @@ interface RefundReviewContentProps {
   refunding: boolean;
   error: string | null;
   onConfirm: (feeRate: number) => void;
+  /**
+   * The Ledger device step the refund is in, or `null` for every other wallet
+   * and state. `awaiting-app` shows the wait panel for the refund's signature;
+   * `reconnect-required` labels the button Reconnect Ledger. A refund has no
+   * `awaiting-continue` step.
+   */
+  ledgerStep?: Exclude<LedgerDeviceStep, { kind: "awaiting-continue" }> | null;
 }
 
 export function RefundReviewContent({
@@ -51,6 +60,7 @@ export function RefundReviewContent({
   refunding,
   error,
   onConfirm,
+  ledgerStep = null,
 }: RefundReviewContentProps) {
   const btcPriceUSD = usePrice("BTC");
   const symbol = getBtcSymbol();
@@ -239,6 +249,9 @@ export function RefundReviewContent({
             <Callout variant="error">{feeCapMessage}</Callout>
           )}
           {error && <Callout variant="error">{error}</Callout>}
+          {ledgerStep?.kind === "awaiting-app" && (
+            <DeviceAppWaitDetail appName={ledgerStep.appName} />
+          )}
 
           <Button
             variant="contained"
@@ -252,6 +265,8 @@ export function RefundReviewContent({
                 <Loader size={16} className="text-accent-contrast" />
                 <span>{COPY.common.confirming}</span>
               </span>
+            ) : ledgerStep?.kind === "reconnect-required" ? (
+              COPY.deposit.ledger.reconnectButton
             ) : error ? (
               COPY.deposit.refundReview.retryButton
             ) : (

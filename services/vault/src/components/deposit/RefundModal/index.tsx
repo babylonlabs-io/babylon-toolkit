@@ -1,10 +1,15 @@
 import { Loader } from "@babylonlabs-io/core-ui";
 import { useQuery } from "@tanstack/react-query";
+import { useCallback, useMemo, useState } from "react";
 
 import { V3ModalShell } from "@/components/shared/V3ModalShell";
+import { COPY } from "@/copy";
 import { useRefundState } from "@/hooks/deposit/useRefundState";
+import { useLedgerVaultDevice } from "@/hooks/useLedgerVaultDevice";
+import { logger } from "@/infrastructure";
 import { getRefundPreview } from "@/services/vault/vaultRefundService";
 import type { VaultActivity } from "@/types/activity";
+import type { LedgerDeviceStep } from "@/types/ledgerDeviceStep";
 
 import { RefundNotBroadcastContent } from "./RefundNotBroadcastContent";
 import { RefundReviewContent } from "./RefundReviewContent";
@@ -25,9 +30,68 @@ export function RefundModal({
   onClose,
   onSuccess,
 }: RefundModalProps) {
-  const { refunding, refundTxId, error, handleRefund } = useRefundState({
-    activity,
-  });
+  const { refunding, refundTxId, error, deviceDisconnected, handleRefund } =
+    useRefundState({
+      activity,
+    });
+  const ledgerDevice = useLedgerVaultDevice();
+  const { cancelAppWait, reconnect } = ledgerDevice;
+  const [reconnecting, setReconnecting] = useState(false);
+  const [reconnectFailed, setReconnectFailed] = useState(false);
+
+  // The refund signs with no intent loaded, so on a Ledger it can be held
+  // until the Babylon Vault app is open. Closing the modal then ends the wait
+  // rather than leaving it holding the device.
+  const awaitingAppName =
+    refunding && ledgerDevice.appWait.status === "awaiting-app"
+      ? ledgerDevice.appWait.expectedAppName
+      : null;
+  const ledgerStep = useMemo<Exclude<
+    LedgerDeviceStep,
+    { kind: "awaiting-continue" }
+  > | null>(
+    () =>
+      awaitingAppName !== null
+        ? { kind: "awaiting-app", appName: awaitingAppName }
+        : deviceDisconnected
+          ? { kind: "reconnect-required" }
+          : null,
+    [awaitingAppName, deviceDisconnected],
+  );
+  const handleCloseDuringWait = useCallback(() => {
+    cancelAppWait();
+    onClose();
+  }, [cancelAppWait, onClose]);
+
+  // A lost device session recovers only through a new one, opened from this
+  // click (the WebHID picker needs the gesture); the refund then runs again.
+  const handleConfirm = useCallback(
+    async (feeRate: number) => {
+      if (deviceDisconnected) {
+        setReconnecting(true);
+        setReconnectFailed(false);
+        try {
+          await reconnect();
+        } catch (reconnectError) {
+          // The button stays available, so the depositor can fix the device
+          // and try again; the notice says what to fix.
+          logger.warn("Ledger reconnect before the refund failed", {
+            reason:
+              reconnectError instanceof Error
+                ? reconnectError.message
+                : String(reconnectError),
+          });
+          setReconnectFailed(true);
+          return;
+        } finally {
+          setReconnecting(false);
+        }
+      }
+      setReconnectFailed(false);
+      await handleRefund(feeRate);
+    },
+    [deviceDisconnected, reconnect, handleRefund],
+  );
 
   const previewQuery = useQuery({
     queryKey: [REFUND_PREVIEW_QUERY_KEY, activity.id],
@@ -92,15 +156,28 @@ export function RefundModal({
   // Block close while a broadcast is in flight to avoid dismissing the dialog
   // mid-signing.
   return (
-    <V3ModalShell open={open} onClose={refunding ? undefined : onClose}>
+    <V3ModalShell
+      open={open}
+      onClose={
+        // A reconnect in flight continues into the refund on success, so the
+        // modal stays open until it settles: closed, the refund would prompt
+        // the device with nothing on screen.
+        !refunding && !reconnecting
+          ? onClose
+          : awaitingAppName !== null
+            ? handleCloseDuringWait
+            : undefined
+      }
+    >
       <RefundReviewContent
         amountSats={previewQuery.data?.amountSats ?? null}
         feeCapBasisSats={previewQuery.data?.feeCapBasisSats ?? null}
         defaultFeeRateSatsVb={previewQuery.data?.halfHourFeeSatsVb ?? null}
         previewError={previewError}
-        refunding={refunding}
-        error={error}
-        onConfirm={handleRefund}
+        refunding={refunding || reconnecting}
+        error={reconnectFailed ? COPY.deposit.ledger.reconnectFailed : error}
+        onConfirm={handleConfirm}
+        ledgerStep={ledgerStep}
       />
     </V3ModalShell>
   );

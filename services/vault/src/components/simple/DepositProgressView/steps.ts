@@ -8,6 +8,7 @@ import type { PeginSigningProgress } from "@/services/vault/vaultTransactionServ
 export function buildStepItems(
   progress: PayoutSigningProgress | null,
   peginProgress: PeginSigningProgress | null = null,
+  options: { isLedgerVault: boolean } = { isLedgerVault: false },
 ): StepperItem[] {
   const payoutCounter =
     progress?.phase === "claimers" && progress.total > 0
@@ -18,11 +19,12 @@ export function buildStepItems(
       ? COPY.deposit.steps.signingCounter(progress.completed, progress.total)
       : undefined;
 
-  // Only surface the (x of n) counter for split (multi-vault) deposits;
-  // a single-vault deposit signs one peg-in tx and needs no sub-counter.
+  // Every deposit shows the (x of n) counter once signing starts — a
+  // single-vault deposit reads "(0 of 1)" while its one signature waits on
+  // the device.
   const peginTotal = peginProgress?.total ?? 0;
   const peginCounter =
-    peginTotal > 1
+    peginTotal > 0
       ? COPY.deposit.steps.signingCounter(
           peginProgress?.completed ?? 0,
           peginTotal,
@@ -56,7 +58,10 @@ export function buildStepItems(
       label: COPY.deposit.steps.awaitPayoutTransactions,
     },
     {
-      label: COPY.deposit.steps.authenticateSession,
+      // On a Ledger this step is a device ceremony, not a network call.
+      label: options.isLedgerVault
+        ? COPY.deposit.ledger.authenticateSession
+        : COPY.deposit.steps.authenticateSession,
     },
     {
       label: COPY.deposit.steps.signPayouts,
