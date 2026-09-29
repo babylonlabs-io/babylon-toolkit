@@ -36,7 +36,10 @@
  * addressed to this deposit, never proven usable.
  */
 
-import { stripHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
+import {
+  processPublicKeyToXOnly,
+  stripHexPrefix,
+} from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
   JsonRpcClient,
   VpResponseValidationError,
@@ -142,17 +145,20 @@ export async function fetchAndDownloadArtifacts(
 
   // The caller (useArtifactDownload) primes the bearer before invoking
   // this service when the registry is cold, so peek() returns the active
-  // provider and the request goes out with a valid Authorization header
-  // for this auth-gated RPC. peek() misses when the entry is bound to a
-  // different VP URL, so a bearer never reaches another provider. `callRaw`
-  // does not reactively refresh when the server rejects the bearer, so a
-  // token that goes stale mid-download bubbles up as an error and the
-  // caller's auth-failure retry path handles re-priming.
-  const baseUrl = getVpProxyUrl(providerAddress);
-  const tokenProvider = vpTokenRegistry.peek(normalizedPeginTxid, baseUrl);
+  // provider only when its provider and depositor bindings match this request.
+  // The request then goes out with a valid Authorization header
+  // for this auth-gated RPC. `callRaw` does not reactively refresh when the
+  // server rejects the bearer, so a token that goes stale mid-download
+  // bubbles up as an error and the caller's auth-failure retry path handles
+  // re-priming.
+  const tokenProvider = vpTokenRegistry.peek({
+    peginTxid: normalizedPeginTxid,
+    providerAddress,
+    expectedAudienceXOnlyPubkey: processPublicKeyToXOnly(depositorPk),
+  });
 
   const client = new JsonRpcClient({
-    baseUrl,
+    baseUrl: getVpProxyUrl(providerAddress),
     timeout: RPC_TIMEOUT_MS,
     // Artifact requests are idempotent reads — safe to retry on transient errors
     retryableFor: () => true,

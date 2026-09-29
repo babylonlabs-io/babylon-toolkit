@@ -275,6 +275,7 @@ export function usePeginStorage({
         timestamp: pending.timestamp,
         depositorBtcPubkey: pending.depositorBtcPubkey,
         unsignedPrePeginTx: pending.unsignedTxHex,
+        constructionIndex: pending.constructionIndex,
         depositorWotsPkHash: "",
         // The version the vault was actually registered with. It is persisted
         // at registration and re-asserted on chain, so it is known here - it
@@ -302,6 +303,8 @@ export function usePeginStorage({
           );
           return {
             ...activity,
+            constructionIndex:
+              activity.constructionIndex ?? pendingPegin.constructionIndex,
             displayLabel: state.displayLabel,
           };
         }

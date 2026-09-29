@@ -3,6 +3,7 @@ import {
   Suspense,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -203,7 +204,8 @@ export function PostDepositContinuationView({
   // with the current vault highlighted. A single-vault deposit yields
   // vaultCount=1 and the progress view falls back to its single-vault layout.
   // Cheap copy (not a readonly-laundering cast) so callers can't mutate the prop.
-  const siblingVaultIds: string[] = [...vaultIds];
+  // Memoized so it is a stable dependency of the activation callback below.
+  const siblingVaultIds: string[] = useMemo(() => [...vaultIds], [vaultIds]);
   const vaultCount = siblingVaultIds.length || 1;
 
   if (!currentVaultId) {

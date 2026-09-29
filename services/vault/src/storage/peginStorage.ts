@@ -63,7 +63,8 @@ export interface PendingPeginRequest {
   }>;
   // Multi-vault tracking fields
   batchId?: string; // UUID linking vaults created together
-  batchIndex?: number; // Position in batch (1-based: 1 or 2)
+  /** HTLC/construction position in the shared Pre-PegIn (zero-based). */
+  constructionIndex?: number;
   batchTotal?: number; // Total vaults in batch (1 or 2)
   // Versions used to construct the BTC scripts in `unsignedTxHex`.
   // Asserted against the on-chain vault registration before any resume
@@ -243,6 +244,32 @@ function hasValidSecurityFields(entry: unknown): entry is PendingPeginRequest {
     return false;
   }
 
+  if (
+    pegin.constructionIndex !== undefined &&
+    (typeof pegin.constructionIndex !== "number" ||
+      !Number.isInteger(pegin.constructionIndex) ||
+      pegin.constructionIndex < 0)
+  ) {
+    return false;
+  }
+
+  if (
+    pegin.batchTotal !== undefined &&
+    (typeof pegin.batchTotal !== "number" ||
+      !Number.isInteger(pegin.batchTotal) ||
+      pegin.batchTotal < 1)
+  ) {
+    return false;
+  }
+
+  if (
+    pegin.constructionIndex !== undefined &&
+    pegin.batchTotal !== undefined &&
+    pegin.constructionIndex >= pegin.batchTotal
+  ) {
+    return false;
+  }
+
   // Build-time versions: required for any status that could drive a
   // resume Pre-PegIn broadcast (so the guard in
   // `useVaultActions.handleBroadcast` is never fed a missing/forged
@@ -372,6 +399,26 @@ function backfillBuildVaultCoreVersion(entry: unknown): unknown {
   return entry;
 }
 
+/**
+ * Records written before constructionIndex used a one-based batchIndex. That
+ * value was always written as `vaultIndex + 1`, so the migration is exact.
+ */
+function backfillConstructionIndex(entry: unknown): unknown {
+  if (!entry || typeof entry !== "object") return entry;
+  const e = entry as Record<string, unknown>;
+  if (
+    e.constructionIndex === undefined &&
+    typeof e.batchIndex === "number" &&
+    Number.isInteger(e.batchIndex) &&
+    e.batchIndex >= 1
+  ) {
+    const rest = { ...e };
+    delete rest.batchIndex;
+    return { ...rest, constructionIndex: e.batchIndex - 1 };
+  }
+  return entry;
+}
+
 /** localStorage refused the read: blocked storage or private browsing. */
 export const PENDING_PEGIN_STORAGE_BLOCKED = "PENDING_PEGIN_STORAGE_BLOCKED";
 /** The stored value was read but is not a parseable array of records. */
@@ -440,7 +487,9 @@ export function getPendingPegins(ethAddress: string): PendingPeginRequest[] {
     throw new PendingPeginStorageReadError(ethAddress, stored, error);
   }
 
-  const migrated = parsed.map(backfillBuildVaultCoreVersion);
+  const migrated = parsed.map((entry) =>
+    backfillConstructionIndex(backfillBuildVaultCoreVersion(entry)),
+  );
 
   // Filter out entries whose security-critical fields (unsignedTxHex,
   // selectedUTXOs) fail a strict format check. A tampered entry would

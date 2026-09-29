@@ -290,11 +290,12 @@ function readerReturning(
     createdAt: 1_000n,
   },
 ): ReturnType<typeof getVaultRegistryReader> {
+  const completeProtocolInfo = { htlcVout: 0, ...protocolInfo };
   return {
     getVaultData: vi
       .fn()
-      .mockResolvedValue({ basic: basicInfo, protocol: protocolInfo }),
-    getVaultProtocolInfo: vi.fn().mockResolvedValue(protocolInfo),
+      .mockResolvedValue({ basic: basicInfo, protocol: completeProtocolInfo }),
+    getVaultProtocolInfo: vi.fn().mockResolvedValue(completeProtocolInfo),
     getVaultBasicInfo: vi.fn().mockResolvedValue(basicInfo),
   } as unknown as ReturnType<typeof getVaultRegistryReader>;
 }
@@ -1534,6 +1535,88 @@ describe("useVaultActions — handleActivation hashlock source", () => {
       redeemResult,
       "0xvaultId",
     );
+  });
+
+  it("refuses index 1 before index 0 is active without revealing the secret", async () => {
+    const sacrificialId = `0x${"1".repeat(64)}` as Hex;
+    const protectedId = `0x${"2".repeat(64)}` as Hex;
+    const depositor = `0x${"a".repeat(40)}`;
+    const applicationEntryPoint = `0x${"b".repeat(40)}`;
+    const prePeginTxHash = `0x${"c".repeat(64)}`;
+    const reader = readerReturning(
+      {
+        depositorSignedPeginTx: "0xdeadbeef",
+        hashlock: ON_CHAIN_HASHLOCK,
+        htlcVout: 1,
+        prePeginTxHash,
+      },
+      {
+        status: OnChainBtcVaultStatus.VERIFIED,
+        createdAt: 1_000n,
+        depositor,
+        applicationEntryPoint,
+      },
+    );
+    mockGetVaultRegistryReader.mockReturnValue(reader);
+    mockGetVaultFromChain.mockResolvedValueOnce({
+      htlcVout: 0,
+      status: OnChainBtcVaultStatus.VERIFIED,
+      depositor,
+      applicationEntryPoint,
+      prePeginTxHash,
+    } as never);
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleActivation({
+        ...baseActivationParams,
+        vaultId: protectedId,
+        siblingVaultIds: [protectedId, sacrificialId],
+      });
+    });
+
+    expect(mockGetVaultFromChain).toHaveBeenCalledWith(sacrificialId);
+    expect(mockActivateVaultWithSecret).not.toHaveBeenCalled();
+    expect(result.current.activationError).toBe(
+      COPY.pegin.messages.activationOrderBlocked,
+    );
+    expect(mockLoggerError).not.toHaveBeenCalled();
+  });
+
+  it("captures a missing lower sibling slot instead of treating it as routine", async () => {
+    const protectedId = `0x${"2".repeat(64)}` as Hex;
+    const reader = readerReturning(
+      {
+        depositorSignedPeginTx: "0xdeadbeef",
+        hashlock: ON_CHAIN_HASHLOCK,
+        htlcVout: 1,
+        prePeginTxHash: `0x${"c".repeat(64)}`,
+      },
+      {
+        status: OnChainBtcVaultStatus.VERIFIED,
+        createdAt: 1_000n,
+        depositor: `0x${"a".repeat(40)}`,
+        applicationEntryPoint: `0x${"b".repeat(40)}`,
+      },
+    );
+    mockGetVaultRegistryReader.mockReturnValue(reader);
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleActivation({
+        ...baseActivationParams,
+        vaultId: protectedId,
+        siblingVaultIds: [protectedId],
+      });
+    });
+
+    expect(mockActivateVaultWithSecret).not.toHaveBeenCalled();
+    expect(result.current.activationError).toBe(
+      COPY.pegin.messages.activationOrderUnavailable,
+    );
+    expect(mockLoggerError).toHaveBeenCalledTimes(1);
   });
 
   // handleActivation catches its own failures and never rethrows, so this catch

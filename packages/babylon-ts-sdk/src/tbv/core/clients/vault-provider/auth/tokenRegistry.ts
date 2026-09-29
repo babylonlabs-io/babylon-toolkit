@@ -7,7 +7,7 @@
  */
 
 import type { OnChainBtcPubkey } from "../../eth/types";
-import { type JsonRpcClient, normalizeBaseUrl } from "../json-rpc-client";
+import type { JsonRpcClient } from "../json-rpc-client";
 
 import { AUTH_GATED_METHODS, GRPC_AUTH_GATED_METHODS } from "./gatedMethods";
 import { VpTokenProvider } from "./tokenProvider";
@@ -16,22 +16,30 @@ export interface VpTokenRegistryInput {
   client: JsonRpcClient;
   peginTxid: string;
   authAnchorHex: string;
+  /** Stable provider identity used to prevent cross-provider cache reuse. */
+  providerAddress: string;
   pinnedServerPubkey: OnChainBtcPubkey;
+  /** Frozen-epoch issuer used only by the gRPC token subject. */
+  grpcPinnedServerPubkey: OnChainBtcPubkey;
+  /** Frozen VP epoch that selected `grpcPinnedServerPubkey`. */
+  grpcKeyEpoch: bigint;
+  /** Authoritative live-key resolver for bounded JSON-RPC pin recovery. */
+  refreshJsonRpcPinnedServerPubkey?: () => Promise<OnChainBtcPubkey>;
   /** Depositor x-only pubkey (32-byte hex), asserted against each token's CWT `aud`. */
+  expectedAudienceXOnlyPubkey: string;
+}
+
+export interface VpTokenRegistryLookup {
+  peginTxid: string;
+  providerAddress: string;
   expectedAudienceXOnlyPubkey: string;
 }
 
 interface RegistryEntry {
   provider: VpTokenProvider;
-  /**
-   * Base URL of the VP whose pinned pubkey the entry was last checked
-   * against. {@link VpTokenRegistry.peek} hands out the provider only for
-   * this URL, so a cached bearer never reaches a VP the pin was not
-   * checked for.
-   */
-  baseUrl: string;
   authAnchorHex: string;
-  pinnedServerPubkey: OnChainBtcPubkey;
+  providerAddress: string;
+  grpcKeyEpoch: bigint;
   expectedAudienceXOnlyPubkey: string;
 }
 
@@ -40,9 +48,11 @@ export class VpTokenRegistry {
 
   /**
    * Return the cached `VpTokenProvider` for `peginTxid` if one exists
-   * with matching `authAnchorHex` and `pinnedServerPubkey`, otherwise
-   * construct and cache a fresh provider. A mismatch on either throws —
-   * silent overwrite would mask derivation drift or VP pubkey rotation.
+   * with matching anchor, provider, audience, and subject-specific issuer
+   * bindings, otherwise construct and cache a fresh provider. A mismatch
+   * throws — silent overwrite would mask derivation drift or cross-provider
+   * cache reuse. A legitimate live JSON-RPC key rotation is handled inside
+   * `VpTokenProvider` through its chain-backed refresh callback.
    */
   getOrCreate(input: VpTokenRegistryInput): VpTokenProvider {
     const existing = this.entries.get(input.peginTxid);
@@ -52,14 +62,40 @@ export class VpTokenRegistry {
           `VpTokenRegistry: peginTxid ${input.peginTxid} already bound to authAnchorHex ${existing.authAnchorHex.slice(0, 8)}…; got ${input.authAnchorHex.slice(0, 8)}…`,
         );
       }
-      if (existing.pinnedServerPubkey !== input.pinnedServerPubkey) {
+      // Case-insensitive, as in `peek`: callers prime with the indexer's
+      // lowercase address or the contract's checksummed one.
+      if (
+        existing.providerAddress.toLowerCase() !==
+        input.providerAddress.toLowerCase()
+      ) {
         throw new Error(
-          `VpTokenRegistry: peginTxid ${input.peginTxid} already bound to pinnedServerPubkey ${existing.pinnedServerPubkey.slice(0, 8)}…; got ${input.pinnedServerPubkey.slice(0, 8)}…`,
+          `VpTokenRegistry: peginTxid ${input.peginTxid} already bound to providerAddress ${existing.providerAddress}; got ${input.providerAddress}`,
         );
       }
       if (
-        existing.expectedAudienceXOnlyPubkey !==
-        input.expectedAudienceXOnlyPubkey
+        existing.provider.getPinnedServerPubkey("jsonrpc") !==
+        input.pinnedServerPubkey
+      ) {
+        throw new Error(
+          `VpTokenRegistry: peginTxid ${input.peginTxid} already bound to JSON-RPC pinnedServerPubkey ${existing.provider.getPinnedServerPubkey("jsonrpc").slice(0, 8)}…; got ${input.pinnedServerPubkey.slice(0, 8)}…`,
+        );
+      }
+      if (
+        existing.provider.getPinnedServerPubkey("grpc") !==
+        input.grpcPinnedServerPubkey
+      ) {
+        throw new Error(
+          `VpTokenRegistry: peginTxid ${input.peginTxid} already bound to gRPC pinnedServerPubkey ${existing.provider.getPinnedServerPubkey("grpc").slice(0, 8)}…; got ${input.grpcPinnedServerPubkey.slice(0, 8)}…`,
+        );
+      }
+      if (existing.grpcKeyEpoch !== input.grpcKeyEpoch) {
+        throw new Error(
+          `VpTokenRegistry: peginTxid ${input.peginTxid} already bound to gRPC key epoch ${existing.grpcKeyEpoch.toString()}; got ${input.grpcKeyEpoch.toString()}`,
+        );
+      }
+      if (
+        existing.expectedAudienceXOnlyPubkey.toLowerCase() !==
+        input.expectedAudienceXOnlyPubkey.toLowerCase()
       ) {
         throw new Error(
           `VpTokenRegistry: peginTxid ${input.peginTxid} already bound to expectedAudienceXOnlyPubkey ${existing.expectedAudienceXOnlyPubkey.slice(0, 8)}…; got ${input.expectedAudienceXOnlyPubkey.slice(0, 8)}…`,
@@ -67,11 +103,8 @@ export class VpTokenRegistry {
       }
       // Refresh the inner transport on every reuse so a VP URL
       // change between calls doesn't leave the cached provider
-      // pinned to a dead URL for token refresh. peek() then binds to
-      // the new URL. That is safe only if the caller resolved the
-      // pinned pubkey for the VP behind the new URL, as it matched above.
+      // pinned to a dead URL for token refresh.
       existing.provider.setClient(input.client);
-      existing.baseUrl = input.client.getBaseUrl();
       return existing.provider;
     }
 
@@ -80,34 +113,50 @@ export class VpTokenRegistry {
       peginTxid: input.peginTxid,
       authAnchorHex: input.authAnchorHex,
       pinnedServerPubkey: input.pinnedServerPubkey,
+      grpcPinnedServerPubkey: input.grpcPinnedServerPubkey,
+      refreshJsonRpcPinnedServerPubkey: input.refreshJsonRpcPinnedServerPubkey,
       expectedAudienceXOnlyPubkey: input.expectedAudienceXOnlyPubkey,
       authGatedMethods: AUTH_GATED_METHODS,
       grpcGatedMethods: GRPC_AUTH_GATED_METHODS,
     });
     this.entries.set(input.peginTxid, {
       provider,
-      baseUrl: input.client.getBaseUrl(),
       authAnchorHex: input.authAnchorHex,
-      pinnedServerPubkey: input.pinnedServerPubkey,
+      providerAddress: input.providerAddress,
+      grpcKeyEpoch: input.grpcKeyEpoch,
       expectedAudienceXOnlyPubkey: input.expectedAudienceXOnlyPubkey,
     });
     return provider;
   }
 
   /**
-   * Return the cached provider for `peginTxid` if its entry is bound to
-   * `baseUrl`, otherwise `undefined`. The cache key names the deposit, not
-   * the VP, so a caller whose VP URL differs gets a miss and must go
-   * through {@link getOrCreate}, which checks the pinned pubkey.
-   *
-   * @param baseUrl - VP base URL the caller will attach the bearer to.
-   *                  Compared with the inner token client's URL after the
-   *                  same trailing-slash normalization.
+   * Return the cached provider only when its request-facing identity matches.
+   * A missing entry is a normal cold-cache result; a binding mismatch throws
+   * so callers cannot attach one provider's bearer to another provider or
+   * depositor request.
    */
-  peek(peginTxid: string, baseUrl: string): VpTokenProvider | undefined {
-    const entry = this.entries.get(peginTxid);
-    if (!entry || entry.baseUrl !== normalizeBaseUrl(baseUrl)) return undefined;
-    return entry.provider;
+  peek(input: VpTokenRegistryLookup): VpTokenProvider | undefined {
+    const existing = this.entries.get(input.peginTxid);
+    if (!existing) return undefined;
+
+    if (
+      existing.providerAddress.toLowerCase() !==
+      input.providerAddress.toLowerCase()
+    ) {
+      throw new Error(
+        `VpTokenRegistry: peginTxid ${input.peginTxid} already bound to providerAddress ${existing.providerAddress}; got ${input.providerAddress}`,
+      );
+    }
+    if (
+      existing.expectedAudienceXOnlyPubkey.toLowerCase() !==
+      input.expectedAudienceXOnlyPubkey.toLowerCase()
+    ) {
+      throw new Error(
+        `VpTokenRegistry: peginTxid ${input.peginTxid} already bound to expectedAudienceXOnlyPubkey ${existing.expectedAudienceXOnlyPubkey.slice(0, 8)}…; got ${input.expectedAudienceXOnlyPubkey.slice(0, 8)}…`,
+      );
+    }
+
+    return existing.provider;
   }
 
   /**
@@ -140,7 +189,7 @@ export class VpTokenRegistry {
  */
 export interface VpTokenRegistryPublic {
   getOrCreate(input: VpTokenRegistryInput): VpTokenProvider;
-  peek(peginTxid: string, baseUrl: string): VpTokenProvider | undefined;
+  peek(input: VpTokenRegistryLookup): VpTokenProvider | undefined;
   release(peginTxid: string): void;
   readonly size: number;
 }

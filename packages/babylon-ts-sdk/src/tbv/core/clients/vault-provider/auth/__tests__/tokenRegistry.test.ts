@@ -1,12 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { JsonRpcClient } from "../../json-rpc-client";
+import { ServerIdentityError, verifyServerIdentity } from "../serverIdentity";
 import { VpTokenProvider } from "../tokenProvider";
 import {
   VpTokenRegistry,
   vpTokenRegistry,
   type VpTokenRegistryInput,
 } from "../tokenRegistry";
+import { verifyDepositorCwt } from "../verifyDepositorCwt";
 
 import {
   GOLDEN_CWT_AUDIENCE_XONLY,
@@ -40,13 +42,15 @@ const PINNED_PUBKEY =
 const ALT_PINNED_PUBKEY = "e".repeat(
   64,
 ) as unknown as import("../../../eth").OnChainBtcPubkey;
+const FROZEN_PINNED_PUBKEY = "f".repeat(
+  64,
+) as unknown as import("../../../eth").OnChainBtcPubkey;
+const PROVIDER_ADDRESS = `0x${"1".repeat(40)}`;
+const ALT_PROVIDER_ADDRESS = `0x${"2".repeat(40)}`;
 
-const VP_URL = "https://vp.example.com/rpc";
-const OTHER_VP_URL = "https://other-vp.example.com/rpc";
-
-function buildClient(baseUrl: string = VP_URL): JsonRpcClient {
+function buildClient(): JsonRpcClient {
   return new JsonRpcClient({
-    baseUrl,
+    baseUrl: "https://vp.example.com/rpc",
     timeout: 5000,
     retries: 0,
   });
@@ -59,7 +63,10 @@ function buildInput(
     client: buildClient(),
     peginTxid: PEGIN_TXID_A,
     authAnchorHex: AUTH_ANCHOR_HEX,
+    providerAddress: PROVIDER_ADDRESS,
     pinnedServerPubkey: PINNED_PUBKEY,
+    grpcPinnedServerPubkey: PINNED_PUBKEY,
+    grpcKeyEpoch: 1n,
     expectedAudienceXOnlyPubkey: GOLDEN_CWT_AUDIENCE_XONLY,
     ...overrides,
   };
@@ -70,6 +77,12 @@ describe("VpTokenRegistry", () => {
 
   beforeEach(() => {
     registry = new VpTokenRegistry();
+    vi.mocked(verifyServerIdentity).mockReset();
+    vi.mocked(verifyDepositorCwt).mockReset();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   it("returns a fresh provider on the first getOrCreate", () => {
@@ -92,12 +105,8 @@ describe("VpTokenRegistry", () => {
     // The `client` argument is a transport detail; the registry binds
     // by pegin/anchor/pubkey only. First caller's client wins for the
     // cached provider.
-    const first = registry.getOrCreate(
-      buildInput({ client: buildClient() }),
-    );
-    const second = registry.getOrCreate(
-      buildInput({ client: buildClient() }),
-    );
+    const first = registry.getOrCreate(buildInput({ client: buildClient() }));
+    const second = registry.getOrCreate(buildInput({ client: buildClient() }));
     expect(second).toBe(first);
   });
 
@@ -114,14 +123,66 @@ describe("VpTokenRegistry", () => {
   it("throws on getOrCreate with the same peginTxid but a different pinnedServerPubkey", () => {
     // VP pubkey rotation mid-flow, or one caller sourcing the pubkey
     // from an untrusted mirror — both must fail loud, not silently.
-    registry.getOrCreate(
-      buildInput({ pinnedServerPubkey: PINNED_PUBKEY }),
-    );
+    registry.getOrCreate(buildInput({ pinnedServerPubkey: PINNED_PUBKEY }));
     expect(() =>
       registry.getOrCreate(
         buildInput({ pinnedServerPubkey: ALT_PINNED_PUBKEY }),
       ),
-    ).toThrow(/already bound to pinnedServerPubkey/);
+    ).toThrow(/already bound to JSON-RPC pinnedServerPubkey/);
+  });
+
+  it("binds the cache entry to the provider address", () => {
+    registry.getOrCreate(buildInput({ providerAddress: PROVIDER_ADDRESS }));
+
+    expect(() =>
+      registry.getOrCreate(
+        buildInput({ providerAddress: ALT_PROVIDER_ADDRESS }),
+      ),
+    ).toThrow(/already bound to providerAddress/);
+  });
+
+  it("reuses the cached provider when the same address and audience differ only in case", () => {
+    const provider = registry.getOrCreate(
+      buildInput({
+        providerAddress: `0x${"ab".repeat(20)}`,
+        expectedAudienceXOnlyPubkey: GOLDEN_CWT_AUDIENCE_XONLY.toLowerCase(),
+      }),
+    );
+
+    expect(
+      registry.getOrCreate(
+        buildInput({
+          providerAddress: `0x${"AB".repeat(20)}`,
+          expectedAudienceXOnlyPubkey: GOLDEN_CWT_AUDIENCE_XONLY.toUpperCase(),
+        }),
+      ),
+    ).toBe(provider);
+  });
+
+  it("binds the gRPC subject to its frozen issuer and epoch", () => {
+    registry.getOrCreate(
+      buildInput({
+        grpcPinnedServerPubkey: FROZEN_PINNED_PUBKEY,
+        grpcKeyEpoch: 7n,
+      }),
+    );
+
+    expect(() =>
+      registry.getOrCreate(
+        buildInput({
+          grpcPinnedServerPubkey: FROZEN_PINNED_PUBKEY,
+          grpcKeyEpoch: 8n,
+        }),
+      ),
+    ).toThrow(/already bound to gRPC key epoch/);
+    expect(() =>
+      registry.getOrCreate(
+        buildInput({
+          grpcPinnedServerPubkey: ALT_PINNED_PUBKEY,
+          grpcKeyEpoch: 7n,
+        }),
+      ),
+    ).toThrow(/already bound to gRPC pinnedServerPubkey/);
   });
 
   it("throws on getOrCreate with the same peginTxid but a different expectedAudienceXOnlyPubkey", () => {
@@ -135,6 +196,42 @@ describe("VpTokenRegistry", () => {
       registry.getOrCreate(
         buildInput({ expectedAudienceXOnlyPubkey: "f".repeat(64) }),
       ),
+    ).toThrow(/already bound to expectedAudienceXOnlyPubkey/);
+  });
+
+  it("returns a cached provider only for matching request-facing bindings", () => {
+    const provider = registry.getOrCreate(buildInput());
+
+    expect(
+      registry.peek({
+        peginTxid: PEGIN_TXID_A,
+        providerAddress: PROVIDER_ADDRESS,
+        expectedAudienceXOnlyPubkey: GOLDEN_CWT_AUDIENCE_XONLY,
+      }),
+    ).toBe(provider);
+  });
+
+  it("rejects a cached provider lookup for a different provider", () => {
+    registry.getOrCreate(buildInput());
+
+    expect(() =>
+      registry.peek({
+        peginTxid: PEGIN_TXID_A,
+        providerAddress: ALT_PROVIDER_ADDRESS,
+        expectedAudienceXOnlyPubkey: GOLDEN_CWT_AUDIENCE_XONLY,
+      }),
+    ).toThrow(/already bound to providerAddress/);
+  });
+
+  it("rejects a cached provider lookup for a different audience", () => {
+    registry.getOrCreate(buildInput());
+
+    expect(() =>
+      registry.peek({
+        peginTxid: PEGIN_TXID_A,
+        providerAddress: PROVIDER_ADDRESS,
+        expectedAudienceXOnlyPubkey: "f".repeat(64),
+      }),
     ).toThrow(/already bound to expectedAudienceXOnlyPubkey/);
   });
 
@@ -153,29 +250,163 @@ describe("VpTokenRegistry", () => {
     expect(setClientSpy).toHaveBeenCalledExactlyOnceWith(secondClient);
   });
 
-  it("peek returns the cached provider for the VP URL it is bound to", () => {
-    const provider = registry.getOrCreate(buildInput());
-    expect(registry.peek(PEGIN_TXID_A, VP_URL)).toBe(provider);
+  it("refreshes a stale live issuer once and preserves the frozen gRPC binding", async () => {
+    const expiresAt = Math.floor(Date.now() / 1000) + 600;
+    const response = new Response(
+      JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        result: {
+          token: "token",
+          expires_at: expiresAt,
+          server_identity: {
+            server_pubkey: ALT_PINNED_PUBKEY,
+            ephemeral_pubkey: "02" + "1".repeat(64),
+            expires_at: expiresAt,
+            signature: "2".repeat(128),
+          },
+        },
+      }),
+      { status: 200, headers: { "content-type": "application/json" } },
+    );
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(response)
+      .mockResolvedValueOnce(response.clone());
+    vi.stubGlobal("fetch", fetchMock);
+    vi.mocked(verifyServerIdentity).mockImplementation(
+      ({ pinnedServerPubkey }) => {
+        if (pinnedServerPubkey === PINNED_PUBKEY) {
+          throw new ServerIdentityError("rotated", "pinned_pubkey_mismatch");
+        }
+      },
+    );
+    const refresh = vi.fn().mockResolvedValue(ALT_PINNED_PUBKEY);
+    const input = buildInput({
+      providerAddress: PROVIDER_ADDRESS,
+      grpcPinnedServerPubkey: FROZEN_PINNED_PUBKEY,
+      grpcKeyEpoch: 7n,
+      refreshJsonRpcPinnedServerPubkey: refresh,
+    });
+    const provider = registry.getOrCreate(input);
+
+    await expect(
+      provider.getToken("vaultProvider_submitDepositorWotsKey"),
+    ).resolves.toBe("token");
+
+    expect(refresh).toHaveBeenCalledOnce();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(provider.getPinnedServerPubkey("jsonrpc")).toBe(ALT_PINNED_PUBKEY);
+    expect(provider.getPinnedServerPubkey("grpc")).toBe(FROZEN_PINNED_PUBKEY);
+
+    const rebound = registry.getOrCreate({
+      ...input,
+      pinnedServerPubkey: ALT_PINNED_PUBKEY,
+    });
+    expect(rebound).toBe(provider);
   });
 
-  it("peek hits when the caller's VP URL differs only by a trailing slash", () => {
-    const provider = registry.getOrCreate(buildInput());
-    expect(registry.peek(PEGIN_TXID_A, `${VP_URL}/`)).toBe(provider);
+  it("verifies the two token subjects against their distinct post-rotation issuers", async () => {
+    const expiresAt = Math.floor(Date.now() / 1000) + 600;
+    const tokenResponse = (id: number, token: string) =>
+      new Response(
+        JSON.stringify({
+          jsonrpc: "2.0",
+          id,
+          result: {
+            token,
+            expires_at: expiresAt,
+            server_identity: {
+              server_pubkey: "unused-by-mock",
+              ephemeral_pubkey: "unused-by-mock",
+              expires_at: expiresAt,
+              signature: "unused-by-mock",
+            },
+          },
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce(tokenResponse(1, "json-token"))
+        .mockResolvedValueOnce(tokenResponse(2, "grpc-token")),
+    );
+    const provider = registry.getOrCreate(
+      buildInput({
+        providerAddress: PROVIDER_ADDRESS,
+        pinnedServerPubkey: ALT_PINNED_PUBKEY,
+        grpcPinnedServerPubkey: FROZEN_PINNED_PUBKEY,
+        grpcKeyEpoch: 7n,
+      }),
+    );
+
+    await expect(
+      provider.getToken("vaultProvider_submitDepositorWotsKey"),
+    ).resolves.toBe("json-token");
+    await expect(
+      provider.getToken("vaultProvider_requestDepositorClaimerArtifacts"),
+    ).resolves.toBe("grpc-token");
+
+    expect(vi.mocked(verifyServerIdentity).mock.calls).toEqual([
+      [expect.objectContaining({ pinnedServerPubkey: ALT_PINNED_PUBKEY })],
+      [expect.objectContaining({ pinnedServerPubkey: FROZEN_PINNED_PUBKEY })],
+    ]);
+    expect(vi.mocked(verifyDepositorCwt).mock.calls).toEqual([
+      [
+        expect.objectContaining({
+          expectedIssuerXOnlyPubkey: ALT_PINNED_PUBKEY,
+          expectedSubject: "vaultd-jsonrpc",
+        }),
+      ],
+      [
+        expect.objectContaining({
+          expectedIssuerXOnlyPubkey: FROZEN_PINNED_PUBKEY,
+          expectedSubject: "vaultd-grpc",
+        }),
+      ],
+    ]);
   });
 
-  it("peek misses for a VP URL the entry is not bound to", () => {
-    // The key names the deposit, not the VP. A hit here would hand a
-    // bearer minted by one VP to another without the pinned-pubkey check.
-    registry.getOrCreate(buildInput());
-    expect(registry.peek(PEGIN_TXID_A, OTHER_VP_URL)).toBeUndefined();
-  });
+  it("bounds live-key recovery to one refresh and one retry", async () => {
+    const expiresAt = Math.floor(Date.now() / 1000) + 600;
+    const responseBody = JSON.stringify({
+      jsonrpc: "2.0",
+      id: 1,
+      result: {
+        token: "token",
+        expires_at: expiresAt,
+        server_identity: {
+          server_pubkey: ALT_PINNED_PUBKEY,
+          ephemeral_pubkey: "unused-by-mock",
+          expires_at: expiresAt,
+          signature: "unused-by-mock",
+        },
+      },
+    });
+    const fetchMock = vi.fn().mockImplementation(
+      async () =>
+        new Response(responseBody, {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    vi.mocked(verifyServerIdentity).mockImplementation(() => {
+      throw new ServerIdentityError("mismatch", "pinned_pubkey_mismatch");
+    });
+    const refresh = vi.fn().mockResolvedValue(ALT_PINNED_PUBKEY);
+    const provider = registry.getOrCreate(
+      buildInput({ refreshJsonRpcPinnedServerPubkey: refresh }),
+    );
 
-  it("peek follows the VP URL of the latest getOrCreate reuse", () => {
-    const provider = registry.getOrCreate(buildInput());
-    registry.getOrCreate(buildInput({ client: buildClient(OTHER_VP_URL) }));
+    await expect(
+      provider.getToken("vaultProvider_submitDepositorWotsKey"),
+    ).rejects.toThrow("mismatch");
 
-    expect(registry.peek(PEGIN_TXID_A, OTHER_VP_URL)).toBe(provider);
-    expect(registry.peek(PEGIN_TXID_A, VP_URL)).toBeUndefined();
+    expect(refresh).toHaveBeenCalledOnce();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it("scopes entries by peginTxid — distinct pegins get distinct providers", () => {

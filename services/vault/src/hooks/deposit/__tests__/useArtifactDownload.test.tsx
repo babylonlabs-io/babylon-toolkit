@@ -101,10 +101,6 @@ vi.mock("@/infrastructure", () => ({
   },
 }));
 
-vi.mock("@/utils/rpc", () => ({
-  getVpProxyUrl: vi.fn((address: string) => `https://vp.test/rpc/${address}`),
-}));
-
 vi.mock("@/hooks/deposit/depositFlowSteps/ensureAuthenticatedVpClient", () => ({
   ensureAuthenticatedVpClient: vi.fn(),
 }));
@@ -127,7 +123,6 @@ import {
   saveArtifactDownloadReceipt,
   saveGraphMismatch,
 } from "@/utils/artifactDownloadStorage";
-import { getVpProxyUrl } from "@/utils/rpc";
 
 import { ensureAuthenticatedVpClient } from "../depositFlowSteps/ensureAuthenticatedVpClient";
 import { useArtifactDownload } from "../useArtifactDownload";
@@ -159,7 +154,6 @@ const SAVE_TARGET = {
 } as unknown as ArtifactSaveTarget;
 
 const PROVIDER_ADDRESS = "0x1234";
-const VP_BASE_URL = `https://vp.test/rpc/${PROVIDER_ADDRESS}`;
 const PEGIN_TXID =
   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const DEPOSITOR_PK =
@@ -176,14 +170,19 @@ const primeContext = {
 };
 
 /** Seed the singleton registry so `peek()` returns a provider (hot cache). */
-function seedHotCache(baseUrl: string = VP_BASE_URL): void {
+function seedHotCache(): void {
   createAuthenticatedVpClient({
-    baseUrl,
+    baseUrl: "https://vp.test/rpc",
     peginTxid: PEGIN_TXID,
     authAnchorHex: "c".repeat(64),
+    providerAddress: PROVIDER_ADDRESS,
     pinnedServerPubkey: "ab".repeat(32) as unknown as Parameters<
       typeof createAuthenticatedVpClient
     >[0]["pinnedServerPubkey"],
+    grpcPinnedServerPubkey: "ab".repeat(32) as unknown as Parameters<
+      typeof createAuthenticatedVpClient
+    >[0]["grpcPinnedServerPubkey"],
+    grpcKeyEpoch: 1n,
     depositorBtcPubkey: DEPOSITOR_PK,
   });
 }
@@ -297,47 +296,6 @@ describe("useArtifactDownload — prime then fetch", () => {
     });
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(result.current.error).toBeNull();
-  });
-
-  it("primes through the cold path when the cached token belongs to another vault provider", async () => {
-    seedHotCache(`https://vp.test/rpc/0xother`);
-    ensureAuthMock.mockResolvedValueOnce(
-      undefined as unknown as Awaited<
-        ReturnType<typeof ensureAuthenticatedVpClient>
-      >,
-    );
-    fetchMock.mockResolvedValueOnce(OUTCOME);
-
-    const { result } = renderHook(() =>
-      useArtifactDownload({ vaultId: VAULT_ID, primeContext }),
-    );
-
-    await act(async () => {
-      await result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK);
-    });
-
-    await waitFor(() => expect(result.current.downloaded).toBe(true));
-    expect(ensureAuthMock).toHaveBeenCalledTimes(1);
-  });
-
-  it("shows an error, and opens no save picker, when the provider address has no proxy URL", async () => {
-    vi.mocked(getVpProxyUrl).mockImplementationOnce(() => {
-      throw new Error('Invalid vault provider address: "0x1234".');
-    });
-
-    const { result } = renderHook(() =>
-      useArtifactDownload({ vaultId: VAULT_ID, primeContext }),
-    );
-
-    await act(async () => {
-      await result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK);
-    });
-
-    expect(result.current.error).toBe(
-      COPY.deposit.recoveryArtifacts.vaultProviderUnreachable,
-    );
-    expect(openTargetMock).not.toHaveBeenCalled();
-    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("opens the save picker before prompting the wallet", async () => {
@@ -837,7 +795,11 @@ describe("useArtifactDownload — prime then fetch", () => {
 
   it("retries once when the bearer expires mid-flight (hot-but-stale)", async () => {
     seedHotCache();
-    const seededProvider = vpTokenRegistry.peek(PEGIN_TXID, VP_BASE_URL);
+    const seededProvider = vpTokenRegistry.peek({
+      peginTxid: PEGIN_TXID,
+      providerAddress: PROVIDER_ADDRESS,
+      expectedAudienceXOnlyPubkey: DEPOSITOR_PK,
+    });
     expect(seededProvider).toBeDefined();
     const invalidateSpy = vi.spyOn(
       seededProvider as { invalidate: () => void },
@@ -1100,6 +1062,27 @@ describe("useArtifactDownload — funnel telemetry", () => {
 
     expect(mockLoggerError).toHaveBeenCalledTimes(1);
     expect(mockLoggerError.mock.calls[0][1].tags.site).toBe("prime");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("surfaces a cached token bound to another provider as an error, before the save dialog", async () => {
+    seedHotCache();
+
+    const { result } = renderHook(() =>
+      useArtifactDownload({ vaultId: VAULT_ID, primeContext }),
+    );
+
+    await act(async () => {
+      await result.current.download("0x5678", PEGIN_TXID, DEPOSITOR_PK);
+    });
+
+    expect(mockLoggerError).toHaveBeenCalledTimes(1);
+    expect(mockLoggerError.mock.calls[0][1].tags.site).toBe("token_binding");
+    expect(result.current.error).toBe(
+      COPY.deposit.recoveryArtifacts.cannotAuthenticate,
+    );
+    expect(result.current.loading).toBe(false);
+    expect(openTargetMock).not.toHaveBeenCalled();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 

@@ -3,9 +3,9 @@
  * `pinnedServerPubkey` from chain (after the provider address matches the
  * vault's on-chain provider), then build an authenticated VP RPC
  * client. Reuses the registry cache if an entry for this `peginTxid`
- * already exists for the same VP URL — preventing a second wallet popup
- * for sites that run after `primeVpTokenRegistry` (e.g. WOTS submit +
- * payout signing within the same deposit flow).
+ * already exists — preventing a second wallet popup for sites that
+ * run after `primeVpTokenRegistry` (e.g. WOTS submit + payout signing
+ * within the same deposit flow).
  *
  * The SDK's auth API is value-only and has no notion of "wallet";
  * this helper is the wallet-coupled glue that lives in the FE.
@@ -17,6 +17,7 @@ import {
   expandAuthAnchor,
   hexToUint8Array,
   parseFundingOutpointsFromTx,
+  processPublicKeyToXOnly,
   stripHexPrefix,
   supportsDepositApproval,
   uint8ArrayToHex,
@@ -31,7 +32,10 @@ import type { Address, Hex } from "viem";
 
 import { getVaultRegistryReader } from "@/clients/eth-contract/sdk-readers";
 import { COPY } from "@/copy";
-import { resolveVpAuthPinnedPubkey } from "@/services/vault/vpAuthPinnedPubkey";
+import {
+  refreshVpJsonRpcPinnedPubkey,
+  resolveVpAuthPins,
+} from "@/services/vault/vpAuthPinnedPubkey";
 import { getVpProxyUrl } from "@/utils/rpc";
 
 export interface EnsureAuthenticatedVpClientParams {
@@ -70,7 +74,13 @@ export async function ensureAuthenticatedVpClient(
   ) {
     vpTokenRegistry.release(peginTxid);
   } else {
-    const cached = vpTokenRegistry.peek(peginTxid, baseUrl);
+    const cached = vpTokenRegistry.peek({
+      peginTxid,
+      providerAddress: params.providerAddress,
+      expectedAudienceXOnlyPubkey: processPublicKeyToXOnly(
+        params.depositorBtcPubkey,
+      ),
+    });
     if (cached) {
       return new VaultProviderRpcClient(baseUrl, { tokenProvider: cached });
     }
@@ -96,10 +106,8 @@ export async function ensureAuthenticatedVpClient(
   // Also cold path only: the caller's provider address names the endpoint
   // that receives the auth anchor, so it must match the vault's on-chain
   // provider before the wallet popup.
-  const pinnedServerPubkey = await resolveVpAuthPinnedPubkey(
-    params.vaultId,
-    params.providerAddress as Address,
-  );
+  const vpAddress = params.providerAddress as Address;
+  const authPins = await resolveVpAuthPins(vpAddress, params.vaultId);
 
   // Cold-start: derive auth anchor from the wallet (popup).
   let root: Uint8Array | null = null;
@@ -120,7 +128,10 @@ export async function ensureAuthenticatedVpClient(
       baseUrl,
       peginTxid,
       authAnchorHex,
-      pinnedServerPubkey,
+      providerAddress: vpAddress,
+      ...authPins,
+      refreshJsonRpcPinnedServerPubkey: () =>
+        refreshVpJsonRpcPinnedPubkey(vpAddress),
       depositorBtcPubkey: params.depositorBtcPubkey,
     });
   } finally {

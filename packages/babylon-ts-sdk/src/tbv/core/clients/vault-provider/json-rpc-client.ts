@@ -210,11 +210,6 @@ interface AttemptAuthState {
   bearerAttached: boolean;
 }
 
-/** Strip one trailing slash, the form {@link JsonRpcClient} stores its URL in. */
-export function normalizeBaseUrl(baseUrl: string): string {
-  return baseUrl.replace(/\/$/, "");
-}
-
 /**
  * Generic JSON-RPC 2.0 HTTP client with safe retry policy.
  */
@@ -230,7 +225,7 @@ export class JsonRpcClient {
   private tokenProvider?: BearerTokenProvider;
 
   constructor(config: JsonRpcClientConfig) {
-    this.baseUrl = normalizeBaseUrl(config.baseUrl);
+    this.baseUrl = config.baseUrl.replace(/\/$/, "");
     this.timeout = config.timeout;
     this.headers = {
       "Content-Type": "application/json",

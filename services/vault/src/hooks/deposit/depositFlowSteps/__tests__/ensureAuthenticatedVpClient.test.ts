@@ -15,17 +15,18 @@ import { ensureAuthenticatedVpClient } from "../ensureAuthenticatedVpClient";
 const ON_CHAIN_PRE_PEGIN_HASH = "0xmatching_pre_pegin_hash";
 const ATTACKER_HASH = "0xattacker_chosen_hash";
 
-// The auth pin resolves the VP's *current operation* key, deliberately — not
-// its genesis key, and not either-of-the-two. Accepting either would hollow out
-// the pin, which exists so a substituted server key cannot be used. See
-// `vpAuthPinnedPubkey.ts` for the reasoning before "correcting" this.
 const mockGetCurrentVaultProviderOperationBtcKey = vi.fn();
+const mockGetVaultProviderOperationBtcKeyAtEpoch = vi.fn();
+const mockGetVaultKeyEpochs = vi.fn();
 const mockGetVaultProtocolInfo = vi.fn();
 const mockGetVaultBasicInfo = vi.fn();
 vi.mock("@/clients/eth-contract/sdk-readers", () => ({
   getVaultRegistryReader: () => ({
     getCurrentVaultProviderOperationBtcKey:
       mockGetCurrentVaultProviderOperationBtcKey,
+    getVaultProviderOperationBtcKeyAtEpoch:
+      mockGetVaultProviderOperationBtcKeyAtEpoch,
+    getVaultKeyEpochs: mockGetVaultKeyEpochs,
     getVaultProtocolInfo: mockGetVaultProtocolInfo,
     getVaultBasicInfo: mockGetVaultBasicInfo,
   }),
@@ -54,10 +55,18 @@ const PEGIN_TXID = "a".repeat(64);
 const PEGIN_TX_HASH = `0x${PEGIN_TXID}`;
 const VAULT_ID = `0x${"f".repeat(64)}` as Hex;
 const PROVIDER_ADDRESS = `0x${"1".repeat(40)}`;
-const OTHER_PROVIDER_ADDRESS = `0x${"2".repeat(40)}`;
-const PROVIDER_BASE_URL = `https://proxy.test/rpc/${PROVIDER_ADDRESS}`;
+const INDEXER_NAMED_ADDRESS = `0x${"2".repeat(40)}`;
 const VALID_XONLY =
   "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798";
+const FROZEN_XONLY =
+  "c6047f9441ed7d6d3045406e95c07cd85aef7ee329c928b9a1445d933cb46cbd";
+const FROZEN_EPOCH = 7n;
+const DEPOSITOR_PUBKEY = "ab".repeat(32);
+const registryLookup = {
+  peginTxid: PEGIN_TXID,
+  providerAddress: PROVIDER_ADDRESS,
+  expectedAudienceXOnlyPubkey: DEPOSITOR_PUBKEY,
+};
 
 const fakeWallet = {
   deriveContextHash: vi.fn(),
@@ -67,6 +76,12 @@ describe("ensureAuthenticatedVpClient", () => {
   beforeEach(() => {
     (vpTokenRegistry as VpTokenRegistry).clear();
     mockGetCurrentVaultProviderOperationBtcKey.mockResolvedValue(VALID_XONLY);
+    mockGetVaultProviderOperationBtcKeyAtEpoch.mockResolvedValue(FROZEN_XONLY);
+    mockGetVaultKeyEpochs.mockResolvedValue({
+      vpKeyEpoch: FROZEN_EPOCH,
+      appKeeperKeyEpoch: 8n,
+      ucKeyEpoch: 9n,
+    });
     mockGetVaultProtocolInfo.mockResolvedValue({
       prePeginTxHash: ON_CHAIN_PRE_PEGIN_HASH,
     });
@@ -94,14 +109,19 @@ describe("ensureAuthenticatedVpClient", () => {
       unsignedPrePeginTxHex: "deadbeef",
       peginTxHash: PEGIN_TX_HASH,
       providerAddress: PROVIDER_ADDRESS,
-      depositorBtcPubkey: "ab".repeat(32),
+      depositorBtcPubkey: DEPOSITOR_PUBKEY,
     });
 
     expect(mockGetVaultProtocolInfo).toHaveBeenCalledOnce();
     expect(mockGetVaultProtocolInfo).toHaveBeenCalledWith(VAULT_ID);
     expect(deriveVaultRoot).toHaveBeenCalledOnce();
     expect(mockGetCurrentVaultProviderOperationBtcKey).toHaveBeenCalledOnce();
-    expect(vpTokenRegistry.peek(PEGIN_TXID, PROVIDER_BASE_URL)).toBeDefined();
+    expect(mockGetVaultKeyEpochs).toHaveBeenCalledWith(VAULT_ID);
+    expect(mockGetVaultProviderOperationBtcKeyAtEpoch).toHaveBeenCalledWith(
+      PROVIDER_ADDRESS,
+      FROZEN_EPOCH,
+    );
+    expect(vpTokenRegistry.peek(registryLookup)).toBeDefined();
   });
 
   it("cold-start mismatch: throws before deriveVaultRoot when indexer tx hash does not match on-chain", async () => {
@@ -114,24 +134,25 @@ describe("ensureAuthenticatedVpClient", () => {
         unsignedPrePeginTxHex: "attackerhex",
         peginTxHash: PEGIN_TX_HASH,
         providerAddress: PROVIDER_ADDRESS,
-        depositorBtcPubkey: "ab".repeat(32),
+        depositorBtcPubkey: DEPOSITOR_PUBKEY,
       }),
     ).rejects.toThrow(/Pre-Pegin transaction hash mismatch/);
 
     expect(mockGetVaultProtocolInfo).toHaveBeenCalledOnce();
     expect(deriveVaultRoot).not.toHaveBeenCalled();
     expect(mockGetCurrentVaultProviderOperationBtcKey).not.toHaveBeenCalled();
-    expect(vpTokenRegistry.peek(PEGIN_TXID, PROVIDER_BASE_URL)).toBeUndefined();
+    expect(mockGetVaultKeyEpochs).not.toHaveBeenCalled();
+    expect(vpTokenRegistry.peek(registryLookup)).toBeUndefined();
   });
 
-  it("cold-start: throws before deriveVaultRoot when the provider is not the vault's on-chain provider", async () => {
+  it("cold-start provider mismatch: throws before the auth anchor exists when the address is not the vault's on-chain provider", async () => {
     await expect(
       ensureAuthenticatedVpClient({
         btcWallet: fakeWallet,
         vaultId: VAULT_ID,
         unsignedPrePeginTxHex: "deadbeef",
         peginTxHash: PEGIN_TX_HASH,
-        providerAddress: OTHER_PROVIDER_ADDRESS,
+        providerAddress: INDEXER_NAMED_ADDRESS,
         depositorBtcPubkey: "ab".repeat(32),
       }),
     ).rejects.toThrow(/Vault provider mismatch/);
@@ -139,38 +160,7 @@ describe("ensureAuthenticatedVpClient", () => {
     expect(mockGetVaultBasicInfo).toHaveBeenCalledWith(VAULT_ID);
     expect(deriveVaultRoot).not.toHaveBeenCalled();
     expect(expandAuthAnchor).not.toHaveBeenCalled();
-    expect(mockGetCurrentVaultProviderOperationBtcKey).not.toHaveBeenCalled();
-    expect(
-      vpTokenRegistry.peek(
-        PEGIN_TXID,
-        `https://proxy.test/rpc/${OTHER_PROVIDER_ADDRESS}`,
-      ),
-    ).toBeUndefined();
-  });
-
-  it("cached token for another provider: takes the cold path and refuses the provider", async () => {
-    await ensureAuthenticatedVpClient({
-      btcWallet: fakeWallet,
-      vaultId: VAULT_ID,
-      unsignedPrePeginTxHex: "deadbeef",
-      peginTxHash: PEGIN_TX_HASH,
-      providerAddress: PROVIDER_ADDRESS,
-      depositorBtcPubkey: "ab".repeat(32),
-    });
-
-    await expect(
-      ensureAuthenticatedVpClient({
-        btcWallet: fakeWallet,
-        vaultId: VAULT_ID,
-        unsignedPrePeginTxHex: "deadbeef",
-        peginTxHash: PEGIN_TX_HASH,
-        providerAddress: OTHER_PROVIDER_ADDRESS,
-        depositorBtcPubkey: "ab".repeat(32),
-      }),
-    ).rejects.toThrow(/Vault provider mismatch/);
-
-    expect(mockGetVaultProtocolInfo).toHaveBeenCalledTimes(2);
-    expect(mockGetVaultBasicInfo).toHaveBeenCalledTimes(2);
+    expect(vpTokenRegistry.peek(registryLookup)).toBeUndefined();
   });
 
   it("cache hit: skips wallet derivation, on-chain prePeginTxHash read, and pubkey fetch", async () => {
@@ -197,6 +187,7 @@ describe("ensureAuthenticatedVpClient", () => {
     expect(mockGetVaultProtocolInfo).not.toHaveBeenCalled();
     expect(mockGetVaultBasicInfo).not.toHaveBeenCalled();
     expect(mockGetCurrentVaultProviderOperationBtcKey).not.toHaveBeenCalled();
+    expect(mockGetVaultKeyEpochs).not.toHaveBeenCalled();
   });
 
   it("approval wallet without the flag keeps the cache hit — WOTS/resume stay popup-free", async () => {

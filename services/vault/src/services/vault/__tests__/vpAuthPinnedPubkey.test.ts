@@ -1,16 +1,10 @@
-/**
- * The VP auth pin follows the *current operation* key, deliberately — auth is a
- * per-operator server identity, not a per-vault binding (RFC-006 open question
- * 5). Documented on the module but untested, so nothing stopped a future reader
- * "correcting" it toward the genesis key and breaking auth for every vault of a
- * rotated provider.
- */
+/** Subject-specific auth pins across an RFC-006 operation-key rotation. */
 
 import type { Address, Hex } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockGetCurrentVaultProviderOperationBtcKey = vi.hoisted(() => vi.fn());
-const mockGetVaultProviderGenesisBtcPubKey = vi.hoisted(() => vi.fn());
+const mockGetVaultProviderOperationBtcKeyAtEpoch = vi.hoisted(() => vi.fn());
 const mockGetVaultKeyEpochs = vi.hoisted(() => vi.fn());
 const mockGetVaultBasicInfo = vi.hoisted(() => vi.fn());
 
@@ -18,57 +12,82 @@ vi.mock("@/clients/eth-contract/sdk-readers", () => ({
   getVaultRegistryReader: () => ({
     getCurrentVaultProviderOperationBtcKey:
       mockGetCurrentVaultProviderOperationBtcKey,
-    getVaultProviderGenesisBtcPubKey: mockGetVaultProviderGenesisBtcPubKey,
+    getVaultProviderOperationBtcKeyAtEpoch:
+      mockGetVaultProviderOperationBtcKeyAtEpoch,
     getVaultKeyEpochs: mockGetVaultKeyEpochs,
     getVaultBasicInfo: mockGetVaultBasicInfo,
   }),
 }));
 
-import { resolveVpAuthPinnedPubkey } from "../vpAuthPinnedPubkey";
+import {
+  refreshVpJsonRpcPinnedPubkey,
+  resolveVpAuthPins,
+} from "../vpAuthPinnedPubkey";
 
 const VAULT_ID = `0x${"f".repeat(64)}` as Hex;
 const VP_ADDRESS = `0x${"1".repeat(40)}` as Address;
 const OTHER_VP_ADDRESS = `0x${"2".repeat(40)}` as Address;
 const CURRENT_OPERATION_KEY = "a".repeat(64);
-const GENESIS_KEY = "b".repeat(64);
+const FROZEN_OPERATION_KEY = "b".repeat(64);
+const FROZEN_EPOCH = 17n;
 
 beforeEach(() => {
   vi.clearAllMocks();
   mockGetCurrentVaultProviderOperationBtcKey.mockResolvedValue(
     CURRENT_OPERATION_KEY,
   );
-  mockGetVaultProviderGenesisBtcPubKey.mockResolvedValue(GENESIS_KEY);
+  mockGetVaultProviderOperationBtcKeyAtEpoch.mockResolvedValue(
+    FROZEN_OPERATION_KEY,
+  );
+  mockGetVaultKeyEpochs.mockResolvedValue({
+    vpKeyEpoch: FROZEN_EPOCH,
+    appKeeperKeyEpoch: 18n,
+    ucKeyEpoch: 19n,
+  });
   mockGetVaultBasicInfo.mockResolvedValue({ vaultProvider: VP_ADDRESS });
 });
 
-describe("resolveVpAuthPinnedPubkey", () => {
-  it("returns the provider's current operation key", async () => {
-    await expect(resolveVpAuthPinnedPubkey(VAULT_ID, VP_ADDRESS)).resolves.toBe(
+describe("resolveVpAuthPins", () => {
+  it("uses the live key for JSON-RPC and the vault's frozen key for gRPC", async () => {
+    await expect(resolveVpAuthPins(VP_ADDRESS, VAULT_ID)).resolves.toEqual({
+      pinnedServerPubkey: CURRENT_OPERATION_KEY,
+      grpcPinnedServerPubkey: FROZEN_OPERATION_KEY,
+      grpcKeyEpoch: FROZEN_EPOCH,
+    });
+
+    expect(mockGetCurrentVaultProviderOperationBtcKey).toHaveBeenCalledWith(
+      VP_ADDRESS,
+    );
+    expect(mockGetVaultKeyEpochs).toHaveBeenCalledWith(VAULT_ID);
+    expect(mockGetVaultProviderOperationBtcKeyAtEpoch).toHaveBeenCalledWith(
+      VP_ADDRESS,
+      FROZEN_EPOCH,
+    );
+  });
+
+  it("throws before any key read when the address is not the vault's on-chain provider", async () => {
+    mockGetVaultBasicInfo.mockResolvedValue({
+      vaultProvider: OTHER_VP_ADDRESS,
+    });
+
+    await expect(resolveVpAuthPins(VP_ADDRESS, VAULT_ID)).rejects.toThrow(
+      /Vault provider mismatch/,
+    );
+
+    expect(mockGetVaultBasicInfo).toHaveBeenCalledWith(VAULT_ID);
+    expect(mockGetCurrentVaultProviderOperationBtcKey).not.toHaveBeenCalled();
+    expect(mockGetVaultProviderOperationBtcKeyAtEpoch).not.toHaveBeenCalled();
+  });
+
+  it("refreshes only the live JSON-RPC key", async () => {
+    await expect(refreshVpJsonRpcPinnedPubkey(VP_ADDRESS)).resolves.toBe(
       CURRENT_OPERATION_KEY,
     );
 
     expect(mockGetCurrentVaultProviderOperationBtcKey).toHaveBeenCalledWith(
       VP_ADDRESS,
     );
-  });
-
-  it("does not read the registration key or any frozen epoch", async () => {
-    await resolveVpAuthPinnedPubkey(VAULT_ID, VP_ADDRESS);
-
-    expect(mockGetVaultProviderGenesisBtcPubKey).not.toHaveBeenCalled();
     expect(mockGetVaultKeyEpochs).not.toHaveBeenCalled();
-  });
-
-  it("throws when the address is not the vault's on-chain provider", async () => {
-    mockGetVaultBasicInfo.mockResolvedValue({
-      vaultProvider: OTHER_VP_ADDRESS,
-    });
-
-    await expect(
-      resolveVpAuthPinnedPubkey(VAULT_ID, VP_ADDRESS),
-    ).rejects.toThrow(/Vault provider mismatch/);
-
-    expect(mockGetVaultBasicInfo).toHaveBeenCalledWith(VAULT_ID);
-    expect(mockGetCurrentVaultProviderOperationBtcKey).not.toHaveBeenCalled();
+    expect(mockGetVaultProviderOperationBtcKeyAtEpoch).not.toHaveBeenCalled();
   });
 });

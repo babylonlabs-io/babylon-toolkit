@@ -1,9 +1,8 @@
 import {
+  JsonRpcClient,
   JsonRpcError,
-  type OnChainBtcPubkey,
-  primeVpTokenRegistry,
   VpResponseValidationError,
-  type VpTokenRegistry,
+  VpTokenRegistry,
   vpTokenRegistry,
 } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { fingerprintReturnedGraph } from "@babylonlabs-io/ts-sdk/tbv/core/services";
@@ -34,6 +33,7 @@ const PEGIN_TXID =
   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const DEPOSITOR_PK =
   "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+const OTHER_PROVIDER_ADDRESS = "0x1111111111111111111111111111111111111111";
 const CHALLENGER_PUBKEY =
   "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc";
 
@@ -121,6 +121,26 @@ function expectedSavedPayload(): string {
   return JSON.stringify(VALID_ARTIFACT_RESULT);
 }
 
+function seedArtifactToken(providerAddress: string): void {
+  const pinnedServerPubkey = "ab".repeat(32) as unknown as Parameters<
+    typeof vpTokenRegistry.getOrCreate
+  >[0]["pinnedServerPubkey"];
+  vpTokenRegistry.getOrCreate({
+    client: new JsonRpcClient({
+      baseUrl: "https://vp.test/rpc",
+      timeout: 5000,
+      retries: 0,
+    }),
+    peginTxid: PEGIN_TXID,
+    authAnchorHex: "c".repeat(64),
+    providerAddress,
+    pinnedServerPubkey,
+    grpcPinnedServerPubkey: pinnedServerPubkey,
+    grpcKeyEpoch: 1n,
+    expectedAudienceXOnlyPubkey: DEPOSITOR_PK,
+  });
+}
+
 /**
  * Build a Response backed by a real ReadableStream, with Content-Length only
  * when asked. A stream body never auto-populates the header, which is what
@@ -188,11 +208,30 @@ function fakeSaveTarget(
 describe("fetchAndDownloadArtifacts", () => {
   beforeEach(() => {
     vi.stubGlobal("fetch", vi.fn());
+    (vpTokenRegistry as VpTokenRegistry).clear();
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
+    (vpTokenRegistry as VpTokenRegistry).clear();
+  });
+
+  it("rejects a bearer bound to another provider before sending the request", async () => {
+    seedArtifactToken(OTHER_PROVIDER_ADDRESS);
+    const { target } = fakeSaveTarget();
+
+    await expect(
+      fetchAndDownloadArtifacts(
+        PROVIDER_ADDRESS,
+        PEGIN_TXID,
+        DEPOSITOR_PK,
+        SIGNED_GRAPH_FINGERPRINT,
+        target,
+      ),
+    ).rejects.toThrow(/already bound to providerAddress/);
+
+    expect(fetch).not.toHaveBeenCalled();
   });
 
   describe("the presign fingerprint check", () => {
@@ -244,71 +283,6 @@ describe("fetchAndDownloadArtifacts", () => {
       ).rejects.toBeInstanceOf(PresignFingerprintUnavailableError);
       expect(commit).not.toHaveBeenCalled();
       expect(discard).toHaveBeenCalledTimes(1);
-    });
-  });
-
-  describe("the cached bearer", () => {
-    const PRIMED_PROVIDER = `0x${"a".repeat(40)}`;
-    const OTHER_PROVIDER = `0x${"b".repeat(40)}`;
-    const CACHED_BEARER = "cached-bearer";
-
-    /** Prime the token cache for PRIMED_PROVIDER and fix its bearer. */
-    function primeCacheForPrimedProvider(): void {
-      const baseUrl = `https://proxy.example.com/vp/${PRIMED_PROVIDER}`;
-      primeVpTokenRegistry({
-        baseUrl,
-        peginTxid: PEGIN_TXID,
-        authAnchorHex: "c".repeat(64),
-        pinnedServerPubkey: "d".repeat(64) as OnChainBtcPubkey,
-        depositorBtcPubkey: DEPOSITOR_PK,
-      });
-      vi.spyOn(
-        vpTokenRegistry.peek(PEGIN_TXID, baseUrl)!,
-        "getToken",
-      ).mockResolvedValue(CACHED_BEARER);
-    }
-
-    afterEach(() => {
-      (vpTokenRegistry as VpTokenRegistry).clear();
-    });
-
-    it("attaches the bearer for the vault provider it was cached for", async () => {
-      primeCacheForPrimedProvider();
-      vi.mocked(fetch).mockResolvedValueOnce(
-        streamingResponse(validEnvelope()),
-      );
-
-      await fetchAndDownloadArtifacts(
-        PRIMED_PROVIDER,
-        PEGIN_TXID,
-        DEPOSITOR_PK,
-        SIGNED_GRAPH_FINGERPRINT,
-        fakeSaveTarget().target,
-      );
-
-      const [, init] = vi.mocked(fetch).mock.calls[0];
-      expect(init?.headers).toMatchObject({
-        Authorization: `Bearer ${CACHED_BEARER}`,
-      });
-    });
-
-    it("sends no bearer to a vault provider the token was not cached for", async () => {
-      primeCacheForPrimedProvider();
-      vi.mocked(fetch).mockResolvedValueOnce(
-        streamingResponse(validEnvelope()),
-      );
-
-      await fetchAndDownloadArtifacts(
-        OTHER_PROVIDER,
-        PEGIN_TXID,
-        DEPOSITOR_PK,
-        SIGNED_GRAPH_FINGERPRINT,
-        fakeSaveTarget().target,
-      );
-
-      const [url, init] = vi.mocked(fetch).mock.calls[0];
-      expect(url).toBe(`https://proxy.example.com/vp/${OTHER_PROVIDER}`);
-      expect(init?.headers).not.toHaveProperty("Authorization");
     });
   });
 
