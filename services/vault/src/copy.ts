@@ -1091,6 +1091,12 @@ export const COPY = {
         `Pre-Pegin transaction hash mismatch: computed ${computedHash} from indexer tx, but on-chain contract has ${chainHash}. Aborting to prevent potential attack.`,
       refundHashMismatch: (computedHash: string, chainHash: string) =>
         `Pre-Pegin transaction hash mismatch: computed ${computedHash} from indexer tx, but on-chain contract has ${chainHash}. Aborting refund to prevent potential attack.`,
+      vaultProviderMismatch: (
+        vaultId: string,
+        requested: string,
+        onChain: string,
+      ) =>
+        `Vault provider mismatch for BTCVault ${vaultId}: requested ${requested}, but on-chain contract has ${onChain}. Aborting to prevent potential attack.`,
       vaultNotFound: "BTCVault not found. Please try again.",
       prePeginIndexerTxMismatch:
         "Transaction mismatch: the indexer returned a transaction that differs from the locally stored copy. Aborting to prevent a potential attack.",
@@ -1647,8 +1653,10 @@ export const COPY = {
       healthFactorLabel: "Health Factor",
       networkFeeRateLabel: "Network Fee Rate",
       vpCommissionLabel: "VP Commission",
-      // Shown when the vault providers charge no commission at all.
-      noCommission: "None",
+      vpCommissionUnavailable: "Unavailable",
+      // Reopening the dialog reads the commission again.
+      vpCommissionError:
+        "Could not read the vault provider commission for the selected BTCVaults. Close this window and try again.",
       confirmButton: "Confirm",
       processing: "Processing",
       hfBlockTitle: "Withdraw unavailable",
@@ -1740,9 +1748,6 @@ export const COPY = {
     // v3 Loans page empty state, disconnected — no position to describe yet,
     // so it's a title-only prompt like the Activity tab's.
     emptyDisconnected: connectToView("loans"),
-    // v3 Loans summary — caption under the health-factor value.
-    healthFactorCaption:
-      "When the ratio falls below 1.0, liquidation may occur.",
     // Live drawn borrow rate for the asset (Aave Hub), no compounding applied —
     // an APR, the same figure the asset picker labels "Borrow APR". One number,
     // one label.
@@ -2551,9 +2556,9 @@ export const COPY = {
       `Critical — liquidation in ${distancePct}`,
     liquidatable: "Critical — liquidation can trigger now",
   },
-  // Liquidation-notification warnings shown in the position banner. Mirrors the
-  // warning types produced by the calculator: urgent / cliff / reorder / dust /
-  // weird-params / too-many-vaults. Wording is ported from the reference
+  // Liquidation-notification warnings. Mirrors the warning types produced by the
+  // calculator: urgent / cliff / reorder / dust / weird-params / too-many-vaults.
+  // All but dust are shown in the position banner. Wording is ported from the reference
   // liquidation calculator (the source of truth for this copy).
   liquidationWarnings: {
     incompletePosition: "Indexed collateral data is incomplete",
@@ -2651,6 +2656,18 @@ export const COPY = {
       title: "Small position - simplified view",
       detail:
         "Below $1,000 the cascade simplifies — all BTCVaults are shown as one liquidation event. Small positions don't have meaningful multi-event behavior.",
+    },
+    // The BTC price is stale or unreadable, so no cascade is computed.
+    stalePrice: {
+      title: "Position notifications temporarily unavailable",
+      detail:
+        "BTC price data is stale or unavailable. Notifications will resume when fresh price data is available.",
+    },
+    // Groups exist, nothing warns and the order is already optimal.
+    optimal: {
+      title: "Position optimally structured",
+      detail:
+        "BTC Vault ordering is correct and partial liquidation is enabled.",
     },
     // The Spoke risk-parameter read failed, so no cascade can be computed.
     // The live health-factor card is computed separately and still shows.

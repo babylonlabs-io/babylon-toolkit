@@ -31,6 +31,7 @@ import { resolveFundedTxFeeAndUtxos } from "@/services/vault/resolveFundedTxFee"
 import {
   activateVaultWithSecret,
   activateVaultWithSecretAndRedeem,
+  activationAddedCollateral,
 } from "@/services/vault/vaultActivationService";
 import { utxosToExpectedRecord } from "@/services/vault/vaultPeginBroadcastService";
 import {
@@ -225,26 +226,10 @@ vi.mock("@/clients/eth-contract/client", () => ({
   },
 }));
 
-// Flag holder so the floor tests can turn the feature on; plain object (not
-// vi.fn) so `vi.clearAllMocks()` cannot reset it mid-suite.
-const floorFlagMock = vi.hoisted(() => ({ enabled: false }));
-// Spread the real module: replacing it wholesale would blank every OTHER flag
-// for all tests in this file, silently changing behaviour they do not control.
-vi.mock("@/config/featureFlags", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/config/featureFlags")>();
-  return {
-    default: {
-      ...actual.default,
-      get isActivationDelayEnabled() {
-        return floorFlagMock.enabled;
-      },
-    },
-  };
-});
-
 vi.mock("@/services/vault/vaultActivationService", () => ({
   activateVaultWithSecret: vi.fn(),
   activateVaultWithSecretAndRedeem: vi.fn(),
+  activationAddedCollateral: vi.fn(() => true),
 }));
 
 vi.mock("@/services/vault/rebuildDepositTerms", () => ({
@@ -1497,6 +1482,60 @@ describe("useVaultActions — handleActivation hashlock source", () => {
     );
   });
 
+  it("reports to onShowSuccessModal whether the activation receipt added collateral", async () => {
+    const reader = readerReturning({
+      depositorSignedPeginTx: "0xdeadbeef",
+      hashlock: ON_CHAIN_HASHLOCK,
+    });
+    mockGetVaultRegistryReader.mockReturnValue(reader);
+    const revealResult = { transactionHash: "0xtx", receipt: { logs: [] } };
+    mockActivateVaultWithSecret.mockResolvedValue(revealResult as never);
+    vi.mocked(activationAddedCollateral).mockReturnValueOnce(false);
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleActivation(baseActivationParams);
+    });
+
+    expect(activationAddedCollateral).toHaveBeenCalledWith(
+      revealResult,
+      "0xvaultId",
+    );
+    expect(baseActivationParams.onShowSuccessModal).toHaveBeenCalledWith({
+      collateralAdded: false,
+    });
+  });
+
+  it("checks the activate-and-redeem receipt for CollateralAdded in escape-hatch mode", async () => {
+    // No explicit escape-hatch guard remains: the optimistic row is skipped
+    // only because this receipt carries no adapter CollateralAdded log.
+    const reader = readerReturning({
+      depositorSignedPeginTx: "0xdeadbeef",
+      hashlock: ON_CHAIN_HASHLOCK,
+    });
+    mockGetVaultRegistryReader.mockReturnValue(reader);
+    const redeemResult = { transactionHash: "0xtx", receipt: { logs: [] } };
+    mockActivateVaultWithSecretAndRedeem.mockResolvedValue(
+      redeemResult as never,
+    );
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleActivation({
+        ...baseActivationParams,
+        redeemImmediately: true,
+      });
+    });
+
+    expect(mockActivateVaultWithSecret).not.toHaveBeenCalled();
+    expect(activationAddedCollateral).toHaveBeenCalledWith(
+      redeemResult,
+      "0xvaultId",
+    );
+  });
+
   // handleActivation catches its own failures and never rethrows, so this catch
   // is the only place a reveal failure is observable. A capture in a caller's
   // catch (useActivationState) would never run.
@@ -2263,13 +2302,14 @@ describe("useVaultActions — activation floor (peginActivationDelay)", () => {
     vi.clearAllMocks();
     gateMock.value = { protocol: null, aave: null };
     onChainPauseMock.value = { protocol: null, aave: null };
-    floorFlagMock.enabled = true;
     mockGetPeginActivationDelay.mockResolvedValue(DELAY);
     mockGetVaultRegistryReader.mockReturnValue(readerAtFloor());
   });
 
+  // `vi.clearAllMocks()` keeps implementations, so restore the file-wide
+  // delay of 0 or this suite's window would gate every later activation test.
   afterEach(() => {
-    floorFlagMock.enabled = false;
+    mockGetPeginActivationDelay.mockResolvedValue(0n);
   });
 
   it("does not reveal the secret while the activation floor has not elapsed", async () => {
@@ -2346,19 +2386,6 @@ describe("useVaultActions — activation floor (peginActivationDelay)", () => {
     expect(mockLoggerError).toHaveBeenCalledTimes(1);
     const [, ctx] = mockLoggerError.mock.calls[0];
     expect(ctx.tags.funnelStage).toBe("activation.reveal");
-  });
-
-  it("reads nothing and changes nothing when the feature flag is off", async () => {
-    floorFlagMock.enabled = false;
-    mockGetBlockNumber.mockResolvedValue(1_100n); // would be gated if enabled
-
-    const { result } = renderHook(() => useVaultActions());
-    await act(async () => {
-      await result.current.handleActivation(params);
-    });
-
-    expect(mockGetPeginActivationDelay).not.toHaveBeenCalled();
-    expect(mockActivateVaultWithSecret).toHaveBeenCalled();
   });
 
   it("reveals immediately when the protocol delay is 0, even if currentBlock lags verifiedAt", async () => {

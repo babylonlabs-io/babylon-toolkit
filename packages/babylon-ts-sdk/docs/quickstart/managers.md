@@ -279,6 +279,7 @@ await runDepositorPresignFlow({
   presignClient: vpClient,
   btcWallet,
   depositTerms: result.depositTerms,       // required for approval-capable wallets
+  vaultId,                                 // addresses status polling
   peginTxid: stripHexPrefix(peginTxHash),
   depositorPk: stripHexPrefix(depositorBtcPubkey),
   signingContext,

@@ -31,13 +31,13 @@ describe("fetchProviders", () => {
       mockRequest.mockResolvedValueOnce({
         vaultProviders: {
           items: [
-            // Dropped by the null-rpcUrl filter.
+            // Dropped by validation (malformed BTC public key).
             {
               id: VALID_ETH_ADDR_1,
-              btcPubKey: VALID_BTC_PUBKEY_1,
+              btcPubKey: "not-a-public-key",
               name: "a",
               rpcUrl: null,
-              metadataStatus: null,
+              metadataStatus: "missing",
               metadataRejectionReason: null,
             },
             // Dropped by validation (malformed id).
@@ -75,10 +75,10 @@ describe("fetchProviders", () => {
           items: [
             {
               id: VALID_ETH_ADDR_1,
-              btcPubKey: VALID_BTC_PUBKEY_1,
+              btcPubKey: "not-a-public-key",
               name: "a",
               rpcUrl: null,
-              metadataStatus: null,
+              metadataStatus: "missing",
               metadataRejectionReason: null,
             },
           ],
@@ -102,10 +102,10 @@ describe("fetchProviders", () => {
           items: [
             {
               id: VALID_ETH_ADDR_1,
-              btcPubKey: VALID_BTC_PUBKEY_1,
+              btcPubKey: "not-a-public-key",
               name: "a",
               rpcUrl: null,
-              metadataStatus: null,
+              metadataStatus: "missing",
               metadataRejectionReason: null,
             },
           ],
@@ -139,7 +139,7 @@ describe("fetchProviders", () => {
               btcPubKey: VALID_BTC_PUBKEY_2,
               name: "b",
               rpcUrl: null,
-              metadataStatus: null,
+              metadataStatus: "missing",
               metadataRejectionReason: null,
             },
           ],
@@ -149,7 +149,7 @@ describe("fetchProviders", () => {
 
       const result = await fetchAppProviders(VALID_ETH_ADDR_3);
 
-      expect(result.vaultProviders).toHaveLength(1);
+      expect(result.vaultProviders).toHaveLength(2);
       expect(mockLoggerEvent).not.toHaveBeenCalled();
     });
 
@@ -203,7 +203,7 @@ describe("fetchProviders", () => {
       expect(result.vaultKeepers).toEqual([]);
     });
 
-    it("should only return providers with rpcUrl", async () => {
+    it("keeps providers with a null rpcUrl and preserves missing metadata status", async () => {
       mockRequest.mockResolvedValueOnce({
         vaultProviders: {
           items: [
@@ -218,6 +218,8 @@ describe("fetchProviders", () => {
               btcPubKey: VALID_BTC_PUBKEY_2,
               name: "provider-2",
               rpcUrl: null,
+              metadataStatus: "missing",
+              metadataRejectionReason: "rpcUrl is missing",
             },
             {
               id: VALID_ETH_ADDR_3,
@@ -239,6 +241,14 @@ describe("fetchProviders", () => {
           name: "provider-1",
           url: "https://rpc.example.com",
           metadataStatus: "ok",
+        },
+        {
+          id: VALID_ETH_ADDR_2,
+          btcPubKey: VALID_BTC_PUBKEY_2,
+          name: "provider-2",
+          url: undefined,
+          metadataStatus: "missing",
+          metadataRejectionReason: "rpcUrl is missing",
         },
         {
           id: VALID_ETH_ADDR_3,

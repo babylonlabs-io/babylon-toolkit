@@ -106,6 +106,9 @@ function statusEnvelope(claimerStatus: string): PollScript {
     error: null,
     result: {
       found: true,
+      // Must match VAULT.peginTxHash — the hook rejects a status whose
+      // server-attested pegin txid names another vault.
+      pegin_txid: "cd".repeat(32),
       claimer: { status: claimerStatus },
     } as GetPegoutStatusResponse,
   };
@@ -203,6 +206,71 @@ describe("pegout terminal emission through usePegoutPolling", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it("counts a status for another peg-in as a failed poll", async () => {
+    pollScript.current = statusEnvelope(
+      ClaimerPegoutStatusValue.CLAIM_BROADCAST,
+    );
+    const { result, pollAgain } = renderPolling();
+    await waitFor(() => expect(result.current.pegoutStatuses.size).toBe(1));
+
+    pollScript.current = {
+      error: null,
+      result: {
+        found: true,
+        pegin_txid: "ab".repeat(32),
+        claimer: { status: ClaimerPegoutStatusValue.PAYOUT_CONFIRMED },
+      } as GetPegoutStatusResponse,
+    };
+    for (let i = 0; i < PEGOUT_MAX_CONSECUTIVE_FAILURES; i++) {
+      await pollAgain();
+    }
+
+    expect(mockEvent).toHaveBeenCalledTimes(1);
+    expect(mockEvent.mock.calls[0][1].tags.timeoutReason).toBe(
+      "consecutive_failures",
+    );
+  });
+
+  it("does not count a PegIn not found item error as a failed poll", async () => {
+    pollScript.current = statusEnvelope(
+      ClaimerPegoutStatusValue.CLAIM_BROADCAST,
+    );
+    const { result, pollAgain } = renderPolling();
+    await waitFor(() => expect(result.current.pegoutStatuses.size).toBe(1));
+
+    pollScript.current = {
+      error: `PegIn not found: PegIn not found: ${VAULT_ID}`,
+      result: null,
+    };
+    for (let i = 0; i < PEGOUT_MAX_CONSECUTIVE_FAILURES; i++) {
+      await pollAgain();
+    }
+
+    expect(mockEvent).not.toHaveBeenCalled();
+  });
+
+  it("counts a validator error that quotes PegIn not found as a failed poll", async () => {
+    pollScript.current = statusEnvelope(
+      ClaimerPegoutStatusValue.CLAIM_BROADCAST,
+    );
+    const { result, pollAgain } = renderPolling();
+    await waitFor(() => expect(result.current.pegoutStatuses.size).toBe(1));
+
+    pollScript.current = {
+      error:
+        'VP response validation failed: "found" must be a boolean, got "PegIn not found"',
+      result: null,
+    };
+    for (let i = 0; i < PEGOUT_MAX_CONSECUTIVE_FAILURES; i++) {
+      await pollAgain();
+    }
+
+    expect(mockEvent).toHaveBeenCalledTimes(1);
+    expect(mockEvent.mock.calls[0][1].tags.timeoutReason).toBe(
+      "consecutive_failures",
+    );
   });
 
   it("emits pegout_timeout with the consecutive_failures facet after polling gives up", async () => {

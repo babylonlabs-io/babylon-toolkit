@@ -70,6 +70,32 @@ export class VpResponseValidationError extends Error {
 /** Expected length (in hex chars) of a Bitcoin transaction ID (32 bytes). */
 const TXID_HEX_LEN = 64;
 
+/** Expected length (in hex chars) of a vault id (keccak256, 32 bytes). */
+const VAULT_ID_HEX_LEN = 64;
+
+/**
+ * A vault id: 64 hex chars, `0x` prefix optional. The server emits
+ * `0x`-prefixed ids in status payloads and echoes request ids verbatim in
+ * batch envelopes, so both encodings are accepted. Exported so the request
+ * side (`batchPollByProvider`) can reject a malformed id before it goes on
+ * the wire, rather than waiting for it to come back unattributable.
+ */
+export function isVaultIdHex(value: unknown): value is string {
+  const unprefixed =
+    typeof value === "string" && value.startsWith("0x")
+      ? value.slice(2)
+      : value;
+  return isNonEmptyHex(unprefixed) && unprefixed.length === VAULT_ID_HEX_LEN;
+}
+
+function assertVaultId(value: unknown, field: string): void {
+  if (!isVaultIdHex(value)) {
+    throw new VpResponseValidationError(
+      `VP response validation failed: "${field}" must be a ${VAULT_ID_HEX_LEN}-char hex string (vault id, "0x" prefix optional), got ${preview(value)}`,
+    );
+  }
+}
+
 /** Expected length (in hex chars) of a GC output label hash (SHA-256). */
 const LABEL_HASH_HEX_LEN = 64;
 
@@ -158,7 +184,7 @@ function validatePresigningProgressFields(
 }
 
 /**
- * Validate a getPeginStatus response.
+ * Validate a getPeginStatusByVaultId response.
  *
  * Throws if the status field is not a recognized DaemonStatus value.
  */
@@ -167,7 +193,7 @@ export function validateGetPeginStatusResponse(
 ): asserts response is GetPeginStatusResponse {
   if (response === null || typeof response !== "object") {
     throw new VpResponseValidationError(
-      `VP response validation failed: getPeginStatus response is not an object`,
+      `VP response validation failed: getPeginStatusByVaultId response is not an object`,
     );
   }
 
@@ -178,6 +204,8 @@ export function validateGetPeginStatusResponse(
       `VP response validation failed: "pegin_txid" must be a ${TXID_HEX_LEN}-char hex string (txid), got ${preview(r.pegin_txid)}`,
     );
   }
+
+  assertVaultId(r.vault_id, "vault_id");
 
   if (typeof r.status !== "string") {
     throw new VpResponseValidationError(
@@ -436,6 +464,8 @@ export function validateGetPegoutStatusResponse(
     );
   }
 
+  assertVaultId(r.vault_id, "vault_id");
+
   if (typeof r.found !== "boolean") {
     throw new VpResponseValidationError(
       `VP response validation failed: "found" must be a boolean, got ${preview(r.found)}`,
@@ -526,8 +556,8 @@ function assertNullableString(value: unknown, field: string): void {
 }
 
 /**
- * Validate a `batchGetPeginStatus` response. Per-result envelope shape:
- * `{ pegin_txid, result: GetPeginStatusResponse | null, error: string | null }`.
+ * Validate a `batchGetPeginStatusByVaultId` response. Per-result envelope:
+ * `{ vault_id, result: GetPeginStatusResponse | null, error: string | null }`.
  * The inner result (when non-null) is validated via the single-item validator.
  * An entry whose inner result fails validation is replaced by an error entry;
  * the other entries are kept.
@@ -535,18 +565,18 @@ function assertNullableString(value: unknown, field: string): void {
 export function validateBatchGetPeginStatusResponse(
   response: unknown,
 ): asserts response is BatchGetPeginStatusResponse {
-  validateBatchEnvelope(response, "batchGetPeginStatus", (entry) => {
+  validateBatchEnvelope(response, "batchGetPeginStatusByVaultId", (entry) => {
     if (entry.result !== null) {
       validateGetPeginStatusResponse(entry.result);
     }
   });
 }
 
-/** Validate a `batchGetPegoutStatus` response. Same envelope as peginStatus. */
+/** Validate a `batchGetPegoutStatusByVaultId` response. Same envelope as peginStatus. */
 export function validateBatchGetPegoutStatusResponse(
   response: unknown,
 ): asserts response is BatchGetPegoutStatusResponse {
-  validateBatchEnvelope(response, "batchGetPegoutStatus", (entry) => {
+  validateBatchEnvelope(response, "batchGetPegoutStatusByVaultId", (entry) => {
     if (entry.result !== null) {
       validateGetPegoutStatusResponse(entry.result);
     }
@@ -554,7 +584,7 @@ export function validateBatchGetPegoutStatusResponse(
 }
 
 interface BatchResultEnvelope {
-  pegin_txid: string;
+  vault_id: string;
   result: unknown;
   error: string | null;
 }
@@ -583,14 +613,15 @@ function validateBatchEnvelope(
       );
     }
     const e = entry as Record<string, unknown>;
-    if (
-      !isNonEmptyHex(e.pegin_txid) ||
-      e.pegin_txid.length !== TXID_HEX_LEN
-    ) {
-      throw new VpResponseValidationError(
-        `VP response validation failed: "${rpcName}.results[${i}].pegin_txid" must be a ${TXID_HEX_LEN}-char hex string, got ${preview(e.pegin_txid)}`,
-      );
-    }
+    // Shape only, not a vault-id format check. This field is our own request
+    // string echoed back, and the server answers a malformed id with a
+    // populated per-item `error` — the whole point of the per-result
+    // envelope. Asserting the format here would turn one bad id into a
+    // whole-chunk throw, erroring every vault in the batch. A non-matching
+    // echo is classified as `unexpected` by `attributeBatchResults`, which
+    // degrades the one affected item. The nested `result.vault_id` is still
+    // format-checked by the inner validator.
+    assertNonEmptyString(e.vault_id, `${rpcName}.results[${i}].vault_id`);
     if (e.error !== null && typeof e.error !== "string") {
       throw new VpResponseValidationError(
         `VP response validation failed: "${rpcName}.results[${i}].error" must be a string or null, got ${preview(e.error)}`,
@@ -616,7 +647,7 @@ function validateBatchEnvelope(
     } catch (error) {
       if (!(error instanceof VpResponseValidationError)) throw error;
       r.results[i] = {
-        pegin_txid: e.pegin_txid,
+        vault_id: e.vault_id,
         result: null,
         error: error.detail,
       };

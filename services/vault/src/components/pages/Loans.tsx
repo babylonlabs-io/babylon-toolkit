@@ -1,7 +1,7 @@
 /**
  * Loans page (v3)
- * Dedicated `/loans` route: borrow-capacity + health-factor summary and the
- * list of active loans, reusing the existing Aave data hooks and the
+ * Dedicated `/loans` route: borrow-capacity summary and the list of active
+ * loans, reusing the existing Aave data hooks and the
  * reserve-detail borrow/repay overlay (route-driven via `?reserve=<id>&tab=`).
  */
 
@@ -24,11 +24,7 @@ import { useConnection, useETHWallet } from "@/context/wallet";
 import { COPY } from "@/copy";
 import { useDashboardState } from "@/hooks/useDashboardState";
 import { useLoanActions } from "@/hooks/useLoanActions";
-import {
-  resolveShownHealthFactor,
-  useBorrowCapacityOverride,
-  useHealthFactorOverride,
-} from "@/overrides/borrowCapacity";
+import { useBorrowCapacityOverride } from "@/overrides/borrowCapacity";
 import {
   cardBorrowCount,
   cardBorrowedAssets,
@@ -66,8 +62,6 @@ export default function Loans() {
     indexerError,
     availableToBorrowUsd,
     canBorrow,
-    healthFactor,
-    healthFactorStatus,
     borrowedAssets,
     hasLoans,
     hasCollateral,
@@ -111,16 +105,7 @@ export default function Loans() {
 
   // God-mode summary overrides (dev only; null unless the panel forces them,
   // compile-time null in production builds).
-  const healthFactorOverride = useHealthFactorOverride();
   const borrowCapacityOverride = useBorrowCapacityOverride();
-  const {
-    healthFactor: shownHealthFactor,
-    healthFactorStatus: shownHealthFactorStatus,
-  } = resolveShownHealthFactor(
-    healthFactorOverride,
-    healthFactor,
-    healthFactorStatus,
-  );
   // A forced state REPLACES the live one wholesale — combining them field by
   // field would leave "Error" showing the live loader (or "Loading" showing a
   // live error), i.e. never actually render the state that was forced.
@@ -133,9 +118,7 @@ export default function Loans() {
   // A forced summary state is as much a reason to render the page as a mock
   // row is — otherwise setting one on an empty position shows nothing.
   const godModeAffectsPage =
-    demoAffectsLoans ||
-    healthFactorOverride !== null ||
-    borrowCapacityOverride !== null;
+    demoAffectsLoans || borrowCapacityOverride !== null;
 
   // A borrow position exists once there is collateral to borrow against (or an
   // active loan). With collateral but no debt yet, the summary still renders so
@@ -212,8 +195,6 @@ export default function Loans() {
             })}
             borrowCapacityLoading={shownCapacityLoading}
             borrowCapacityError={shownCapacityError}
-            healthFactor={shownHealthFactor}
-            healthFactorStatus={shownHealthFactorStatus}
             onBorrow={openBorrowPicker}
             onRepay={openRepay}
             canBorrow={canBorrow}
