@@ -185,6 +185,41 @@ describe("computeDepositPollingResult — refund settlement", () => {
   });
 });
 
+describe("computeDepositPollingResult — missing Pre-PegIn", () => {
+  it("keeps the refund maturity unknown when a Pre-PegIn cached at depth is not found", () => {
+    const result = computeDepositPollingResult(
+      makeInputs({
+        matureRefundTxids: new Set(),
+        confirmedTxids: new Set([CANONICAL_PREPEGIN]),
+        prePeginConfirmationsByTxid: new Map([[CANONICAL_PREPEGIN, null]]),
+      }),
+    );
+    expect(result.peginState.refundMaturityState).toBe("unknown");
+    expect(result.peginState.inlineSubtext).toBe(
+      COPY.pegin.messages.refundMaturingUnknown,
+    );
+    expect(result.peginState.availableActions).toEqual([PeginAction.NONE]);
+  });
+
+  it("keeps Broadcast available for a PENDING deposit whose Pre-PegIn is not found", () => {
+    const result = computeDepositPollingResult(
+      makeInputs({
+        activity: {
+          ...makeExpiredActivity(),
+          displayLabel: PEGIN_DISPLAY_LABELS.PENDING,
+          contractStatus: ContractStatus.PENDING,
+        },
+        matureRefundTxids: new Set(),
+        pendingIngestion: new Set([VAULT_ID]),
+        prePeginConfirmationsByTxid: new Map([[CANONICAL_PREPEGIN, null]]),
+      }),
+    );
+    expect(result.peginState.availableActions).toContain(
+      PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN,
+    );
+  });
+});
+
 describe("computeDepositPollingResult — activation deadline gate", () => {
   function makeVerifiedActivity(): VaultActivity {
     return {

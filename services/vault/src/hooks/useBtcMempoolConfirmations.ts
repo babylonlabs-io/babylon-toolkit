@@ -1,7 +1,11 @@
 // Generic mempool confirmation poller for a set of BTC txids. Returns raw
-// counts keyed by canonical txid; the consumer applies its own threshold.
+// counts keyed by canonical txid (`null` when the mempool API does not find a
+// tx with no known count); the consumer applies its own threshold.
 
-import { getTipHeight } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+import {
+  getTipHeight,
+  MempoolNotFoundError,
+} from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 
@@ -21,11 +25,11 @@ const MAX_CONCURRENT_REQUESTS = 4;
 // `EMPTY_REFUNDS` in useBtcHtlcRefundStatus — a per-render `new Map()` makes
 // every consumer memo recompute on every render while the query is disabled
 // or unloaded, and React Query's structural sharing cannot share Maps.
-const EMPTY_CONFIRMATIONS = new Map<string, number>();
+const EMPTY_CONFIRMATIONS = new Map<string, number | null>();
 
 export interface BtcMempoolConfirmationsResult {
-  /** Canonical (lowercased, no 0x) txid → confirmation count. Missing = unknown. */
-  confirmationsByTxid: Map<string, number>;
+  /** Canonical txid to count. Null means not found; absent means unknown. */
+  confirmationsByTxid: Map<string, number | null>;
 }
 
 export function useBtcMempoolConfirmations(
@@ -61,25 +65,30 @@ export function useBtcMempoolConfirmations(
     queryFn: async () => {
       const apiUrl = getMempoolApiUrl();
       const tipHeight = await getTipHeight(apiUrl);
-      // Carry prior known counts forward on per-txid error so a transient 429
-      // or network blip doesn't flicker a row backward for one cycle.
+      // Carry this query key's prior counts forward on per-txid error so a
+      // transient 429 or network blip doesn't flicker a row backward for one
+      // cycle. A prior count also wins over a 404; a prior `null` is kept only
+      // on a 404.
       const prior =
-        queryClient.getQueryData<Map<string, number>>(queryKey) ?? new Map();
+        queryClient.getQueryData<Map<string, number | null>>(queryKey) ??
+        EMPTY_CONFIRMATIONS;
       const entries = await mapWithConcurrency(
         uniqueTxids,
         MAX_CONCURRENT_REQUESTS,
-        async (txid): Promise<[string, number] | null> => {
+        async (txid): Promise<[string, number | null] | null> => {
           try {
             const confs = await fetchConfirmations(txid, apiUrl, tipHeight);
             return [txid, confs];
-          } catch {
-            const priorConfs = prior.get(txid);
-            return priorConfs !== undefined ? [txid, priorConfs] : null;
+          } catch (error) {
+            const confs =
+              prior.get(txid) ??
+              (error instanceof MempoolNotFoundError ? null : undefined);
+            return confs !== undefined ? [txid, confs] : null;
           }
         },
       );
-      return new Map<string, number>(
-        entries.filter((e): e is [string, number] => e !== null),
+      return new Map(
+        entries.filter((e): e is [string, number | null] => e !== null),
       );
     },
   });

@@ -109,7 +109,7 @@ function isPrePeginPollEligibleStatus(
  */
 function getTxidsCrossingThreshold(
   activities: VaultActivity[],
-  confirmations: Map<string, number>,
+  confirmations: Map<string, number | null>,
   cached: Set<string>,
   filter: (a: VaultActivity) => boolean,
   threshold: (a: VaultActivity) => number | undefined,
@@ -120,7 +120,7 @@ function getTxidsCrossingThreshold(
     const txid = canonicalizeTxid(activity.prePeginTxHash);
     if (!txid || cached.has(txid)) continue;
     const observed = confirmations.get(txid);
-    if (observed === undefined) continue;
+    if (typeof observed !== "number") continue;
     const t = threshold(activity);
     if (t === undefined || observed < t) continue;
     out.push(txid);

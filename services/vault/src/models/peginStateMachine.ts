@@ -87,16 +87,20 @@ export type PeginDisplayLabel =
  *
  * The HTLC refund leaf is gated by `OP_CSV` over the deposit's pinned
  * `tRefund` (blocks since Pre-PegIn confirmation). Bitcoin rejects an
- * early broadcast with `non-BIP68-final`, so the UI surfaces three
- * distinct states instead of unconditionally offering the action.
+ * early broadcast with `non-BIP68-final`. Only `mature` permits a refund.
  *
  * - `mature`   — CSV satisfied; refund broadcast will be accepted.
  * - `maturing` — CSV not yet satisfied; the countdown is known.
  * - `unknown`  — confirmation count or per-deposit `tRefund` not
  *                resolvable; the UI shows a generic pending message and
  *                does NOT mark mature (never false-positive).
+ * - `notFound` - The transaction was not found on the selected network.
  */
-export type RefundMaturityState = "mature" | "maturing" | "unknown";
+export type RefundMaturityState =
+  | "mature"
+  | "maturing"
+  | "unknown"
+  | "notFound";
 
 export interface PeginState {
   contractStatus: ContractStatus;
@@ -112,7 +116,7 @@ export interface PeginState {
   /**
    * Short message intended for the inline subtext slot under the amount
    * (e.g. "Your refund will be claimable in ~18 blocks (~3h)"). The full sentence stays
-   * in `message` for the tooltip. Set for maturing / unknown EXPIRED, and for
+   * in `message` for the tooltip. Set for maturing / unknown / notFound EXPIRED, and for
    * a VERIFIED vault waiting out the activation floor — that second producer
    * is why the row prefers this over the step counter.
    */
@@ -219,7 +223,7 @@ export interface GetPeginStateOptions {
   canRefund?: boolean;
   /**
    * Per-deposit refund maturity (see {@link RefundMaturityState}). Drives
-   * the EXPIRED-branch message (countdown / pending / mature) without
+   * the EXPIRED-branch message (countdown / pending / not found / mature) without
    * changing the action gating, which is owned by `canRefund`.
    */
   refundMaturityState?: RefundMaturityState;
@@ -846,6 +850,7 @@ function getDisplay(
     const expiredMessage = buildExpiredMessage(expirationReason, expiredAt);
     const refundMaturityState = options.refundMaturityState;
     const refundMaturesInBlocks = options.refundMaturesInBlocks;
+    let inlineSubtext: string | undefined;
     if (
       refundMaturityState === "maturing" &&
       refundMaturesInBlocks !== undefined
@@ -862,32 +867,23 @@ function getDisplay(
       // Tooltip stays focused on the expiry itself (the reason, where we
       // have one to give, and when); the countdown lives in `inlineSubtext`
       // so the user doesn't need to hover to see the actionable info.
-      return {
-        displayLabel: PEGIN_DISPLAY_LABELS.EXPIRED,
-        displayVariant: "warning",
-        message: expiredMessage,
-        inlineSubtext: COPY.pegin.messages.refundMaturing(
-          refundMaturesInBlocks,
-          hours,
-        ),
-        refundMaturityState,
+      inlineSubtext = COPY.pegin.messages.refundMaturing(
         refundMaturesInBlocks,
-      };
-    }
-    if (refundMaturityState === "unknown") {
-      return {
-        displayLabel: PEGIN_DISPLAY_LABELS.EXPIRED,
-        displayVariant: "warning",
-        message: expiredMessage,
-        inlineSubtext: COPY.pegin.messages.refundMaturingUnknown,
-        refundMaturityState,
-      };
+        hours,
+      );
+    } else if (refundMaturityState === "unknown") {
+      inlineSubtext = COPY.pegin.messages.refundMaturingUnknown;
+    } else if (refundMaturityState === "notFound") {
+      inlineSubtext = COPY.pegin.messages.prePeginNotFound;
     }
     return {
       displayLabel: PEGIN_DISPLAY_LABELS.EXPIRED,
       displayVariant: "warning",
       message: expiredMessage,
+      inlineSubtext,
       refundMaturityState: refundMaturityState ?? "mature",
+      refundMaturesInBlocks:
+        refundMaturityState === "maturing" ? refundMaturesInBlocks : undefined,
     };
   }
 
