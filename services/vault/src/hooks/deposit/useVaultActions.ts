@@ -35,7 +35,6 @@ import {
   isActivateAndRedeemBlocked,
   isActivationBlocked,
 } from "@/components/shared/protocolStatus";
-import FeatureFlags from "@/config/featureFlags";
 import { getETHChain } from "@/config/network";
 import { COPY } from "@/copy";
 import { useBtcAction } from "@/hooks/useBtcAction";
@@ -699,16 +698,14 @@ export function useVaultActions(): UseVaultActionsReturn {
       // are deliberately NOT `.catch`-ed like the pause read: an unreadable
       // input must reject rather than fall through, because proceeding would
       // put the secret into `simulateContract` calldata for a call the
-      // contract may refuse. The delay read is skipped when the feature is
-      // off — the getter does not exist on every deployment yet.
+      // contract may refuse.
       //
       // The redeem path needs none of them. It is exempt from the floor on
       // chain, and it runs only after the PegIn swept the HTLC, whose witness
       // already published the secret on Bitcoin — so the deadline margin
       // protects nothing there and would only block the one recovery left.
       const deadlineGateEnabled = !redeemImmediately;
-      const floorEnabled =
-        FeatureFlags.isActivationDelayEnabled && !redeemImmediately;
+      const floorEnabled = deadlineGateEnabled;
       // Re-throws (so the gate still fails closed) but re-labels first: an
       // unreadable window is an expected interruption, not a reveal failure.
       // Without this the `activation.reveal` funnel counts every click on a

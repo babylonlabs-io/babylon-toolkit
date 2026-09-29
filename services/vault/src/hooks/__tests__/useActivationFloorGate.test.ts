@@ -6,7 +6,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ethClient } from "@/clients/eth-contract/client";
 import {
@@ -27,15 +27,6 @@ vi.mock("@/clients/eth-contract/client", () => ({
 vi.mock("@/clients/eth-contract/sdk-readers", () => ({
   getVaultRegistryReader: vi.fn(),
   getProtocolParamsReader: vi.fn(),
-}));
-
-const flagMock = vi.hoisted(() => ({ enabled: true }));
-vi.mock("@/config/featureFlags", () => ({
-  default: {
-    get isActivationDelayEnabled() {
-      return flagMock.enabled;
-    },
-  },
 }));
 
 const mockGetBlockNumber = vi.fn();
@@ -82,7 +73,6 @@ function renderGate(activities: VaultActivity[]) {
 describe("useActivationFloorGate", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    flagMock.enabled = true;
     vi.mocked(ethClient.getPublicClient).mockReturnValue({
       getBlockNumber: mockGetBlockNumber,
     } as never);
@@ -97,31 +87,17 @@ describe("useActivationFloorGate", () => {
     mockGetProtocolInfoBatch.mockResolvedValue([{ verifiedAt: VERIFIED_AT }]);
   });
 
-  afterEach(() => {
-    flagMock.enabled = false;
-  });
-
-  it("issues no contract read and gates nothing when the flag is off", async () => {
-    flagMock.enabled = false;
-
-    const { result } = renderGate([makeActivity()]);
-
-    // Asserting `not.toHaveBeenCalled()` synchronously would pass even if the
-    // reads DID fire, because they are async. Give the query every chance to
-    // run first, then assert it never did.
-    await new Promise((r) => setTimeout(r, 0));
-    expect(mockGetPeginActivationDelay).not.toHaveBeenCalled();
-    expect(mockGetBlockNumber).not.toHaveBeenCalled();
-    expect(mockGetProtocolInfoBatch).not.toHaveBeenCalled();
-    expect(result.current.size).toBe(0);
-  });
-
   it("ignores vaults that are not VERIFIED", async () => {
     const { result } = renderGate([
       makeActivity({ contractStatus: ContractStatus.ACTIVE }),
     ]);
 
+    // The reads are async, so a synchronous not-called assertion would pass
+    // even if they fired. Let the query run first.
+    await new Promise((r) => setTimeout(r, 0));
     expect(result.current.size).toBe(0);
+    expect(mockGetPeginActivationDelay).not.toHaveBeenCalled();
+    expect(mockGetBlockNumber).not.toHaveBeenCalled();
     expect(mockGetProtocolInfoBatch).not.toHaveBeenCalled();
   });
 

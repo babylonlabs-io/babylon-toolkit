@@ -250,8 +250,8 @@ export function PeginPollingProvider({
     activities,
     params.pegInActivationTimeout,
   );
-  // Lower bound on activation, the mirror of the deadline gate above. Feature
-  // -flagged and fails closed — see `useActivationFloorGate`.
+  // Lower bound on activation, the mirror of the deadline gate above. Fails
+  // closed — see `useActivationFloorGate`.
   const activationFloorBlocks = useActivationFloorGate(activities);
   const [confirmedTxids, setConfirmedTxids] = useState<Set<string>>(
     loadConfirmedPrePeginTxids,

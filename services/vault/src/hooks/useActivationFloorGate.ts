@@ -28,7 +28,6 @@ import {
   getProtocolParamsReader,
   getVaultRegistryReader,
 } from "@/clients/eth-contract/sdk-readers";
-import FeatureFlags from "@/config/featureFlags";
 import { ContractStatus } from "@/models/peginStateMachine";
 import type { VaultActivity } from "@/types/activity";
 import { activationFloorBlocksRemaining } from "@/utils/activationFloor";
@@ -42,7 +41,7 @@ const STALE_TIME_MS = 55 * 1000;
 /**
  * Blocks still to wait, keyed by lowercased vault id.
  *
- * - absent → not gated (window open, or the flag is off)
+ * - absent → not gated (window open, or no VERIFIED vault)
  * - `number` → gated, that many blocks remain
  * - `null` → gated, duration unknown (a read failed; fail-closed)
  */
@@ -82,13 +81,11 @@ async function readProtocolInfos(
 export function useActivationFloorGate(
   activities: VaultActivity[],
 ): ActivationFloorGate {
-  const enabled = FeatureFlags.isActivationDelayEnabled;
-
   // Joined so an unchanged candidate set keeps a stable query key across
   // renders (no refetch storm from a new array identity each poll).
   const candidateKey = useMemo(
-    () => (enabled ? getVerifiedVaultIds(activities).sort().join(",") : ""),
-    [activities, enabled],
+    () => getVerifiedVaultIds(activities).sort().join(","),
+    [activities],
   );
 
   const candidateIds = useMemo(
@@ -98,10 +95,8 @@ export function useActivationFloorGate(
 
   const query = useQuery({
     queryKey: [ACTIVATION_FLOOR_QUERY_KEY, candidateKey] as const,
-    // Flag off (or nothing VERIFIED) issues no contract read at all — the
-    // getter is absent on deployments that predate it, so this is what keeps
-    // the app quiet there.
-    enabled: enabled && candidateIds.length > 0,
+    // Nothing VERIFIED issues no contract read at all.
+    enabled: candidateIds.length > 0,
     refetchInterval: POLL_INTERVAL_MS,
     staleTime: STALE_TIME_MS,
     // The key covers the whole candidate set, so verifying one more vault
@@ -114,9 +109,9 @@ export function useActivationFloorGate(
     placeholderData: (previous) => previous,
     // NEVER REJECTS. Returning the fail-closed map instead of throwing is
     // deliberate: this query is mounted app-wide, and a rejection reaches the
-    // global QueryCache.onError -> logger.error -> captureException. Turning
-    // the flag on where the getter is absent would then emit a Sentry event
-    // every poll, for every session, forever. `useActivationDeadlineGate`
+    // global QueryCache.onError -> logger.error -> captureException, so an
+    // unreadable getter would emit a Sentry event every poll, for every
+    // session. `useActivationDeadlineGate`
     // wraps its body for the same reason. Safety is unaffected — the map is
     // seeded gated and only a proven read can relax an entry.
     queryFn: async (): Promise<Map<string, number | null>> => {
@@ -181,7 +176,7 @@ export function useActivationFloorGate(
   });
 
   return useMemo(() => {
-    if (!enabled || candidateIds.length === 0) return EMPTY_GATE;
+    if (candidateIds.length === 0) return EMPTY_GATE;
     const resolved = query.data;
     const gate = new Map<string, number | null>();
     for (const id of candidateIds) {
@@ -198,5 +193,5 @@ export function useActivationFloorGate(
       if (remaining > 0) gate.set(key, remaining);
     }
     return gate;
-  }, [enabled, candidateIds, query.data]);
+  }, [candidateIds, query.data]);
 }
