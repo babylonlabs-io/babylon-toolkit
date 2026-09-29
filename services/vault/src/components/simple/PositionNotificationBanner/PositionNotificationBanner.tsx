@@ -36,13 +36,7 @@ import { invalidateVaultQueries } from "@/utils/queryKeys";
 import { ReorderSuccessModal } from "../ReorderVaults";
 
 import { buildBannerActions } from "./BannerActions";
-import {
-  GREEN_BANNER_DETAIL,
-  GREEN_BANNER_TITLE,
-  STALE_PRICE_BANNER_DETAIL,
-  STALE_PRICE_BANNER_GRACE_MS,
-  STALE_PRICE_BANNER_TITLE,
-} from "./constants";
+import { STALE_PRICE_BANNER_GRACE_MS } from "./constants";
 import { OptimalOrderChips } from "./OptimalOrderChips";
 import { useSustainedFlag } from "./useSustainedFlag";
 
@@ -220,11 +214,11 @@ export function PositionNotificationBanner({
       return (
         <Notification
           variant="warning"
-          title={STALE_PRICE_BANNER_TITLE}
+          title={COPY.liquidationWarnings.stalePrice.title}
           data-testid={TEST_ID}
           data-severity="yellow"
         >
-          {STALE_PRICE_BANNER_DETAIL}
+          {COPY.liquidationWarnings.stalePrice.detail}
         </Notification>
       );
     }
@@ -311,8 +305,8 @@ export function PositionNotificationBanner({
   let title: string;
   let detail: string;
   if (bannerState.severity === "green") {
-    title = GREEN_BANNER_TITLE;
-    detail = GREEN_BANNER_DETAIL;
+    title = COPY.liquidationWarnings.optimal.title;
+    detail = COPY.liquidationWarnings.optimal.detail;
   } else if (primaryWarning) {
     title = primaryWarning.title;
     detail = primaryWarning.detail;

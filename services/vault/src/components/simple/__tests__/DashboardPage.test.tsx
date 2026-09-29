@@ -17,7 +17,6 @@ import { setPositionCascadeOverride } from "@/overrides/position";
 import { DashboardPage } from "../DashboardPage";
 
 const featureFlagsMock = vi.hoisted(() => ({
-  isLiquidationNotificationsEnabled: false,
   isGodModePanelEnabled: false,
   isPositionDebugPanelEnabled: false,
 }));
@@ -176,7 +175,6 @@ beforeEach(() => {
   walletMock.btcConnected = true;
   walletMock.ethConnected = true;
   walletMock.confirmed = true;
-  featureFlagsMock.isLiquidationNotificationsEnabled = false;
   featureFlagsMock.isGodModePanelEnabled = false;
   positionNotificationsMock.result = null;
   positionNotificationsMock.liveUrgentWarning = null;
@@ -190,7 +188,6 @@ beforeEach(() => {
 
 describe("DashboardPage composition", () => {
   it("passes live risk to the top banner when no cascade is available", () => {
-    featureFlagsMock.isLiquidationNotificationsEnabled = true;
     const title = COPY.liquidationWarnings.liveHealthFactor.title("1.05");
     positionNotificationsMock.liveUrgentWarning = {
       type: "urgent",
@@ -250,8 +247,6 @@ describe("DashboardPage composition", () => {
   });
 
   it("renders the overview summary, the risk card and the safety notifications", () => {
-    featureFlagsMock.isLiquidationNotificationsEnabled = true;
-
     render(<DashboardPage />);
 
     expect(screen.getByTestId("overview-section")).toBeInTheDocument();

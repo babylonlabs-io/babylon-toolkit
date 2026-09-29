@@ -193,7 +193,7 @@ export interface GetPeginStateOptions {
    * separate field: this vault is healthy and waiting, NOT expired, so it must
    * keep the pending variant and its progress step.
    *
-   * - `undefined` → not gated (window open, or the feature is off)
+   * - `undefined` → not gated (window open)
    * - `number` → gated, that many blocks remain
    * - `null` → gated, remaining unknown (a chain read failed; fail-closed)
    */
