@@ -317,7 +317,6 @@ describe("VaultsPage Reorder without a Bitcoin wallet", () => {
   });
 
   it("disables Reorder and Withdraw and says why when the indexed vault list may be incomplete", () => {
-    featureFlagsMock.isEthFirstEnabled = true;
     const indexerError = new Error(
       "Indexed collateral details do not match the chain position",
     );
