@@ -3,8 +3,8 @@
  * secrets (HTLC hashlock preimage, depositor auth anchor, WOTS seed)
  * from a single 32-byte root.
  *
- * Implements `derive-vault-secrets.md` §2.2 and Appendix A. The root is
- * spec-opaque — callers produce it from `wallet.deriveContextHash` via
+ * Implements the root-to-leaf expansion pinned by `__tests__/expand.test.ts`.
+ * The root is opaque to the expanders — callers produce it from `wallet.deriveContextHash` via
  * {@link deriveVaultRoot} (canonical path), or from any other source
  * that yields 32 bytes. The SDK is provenance-agnostic and only
  * consumes the 32 bytes.

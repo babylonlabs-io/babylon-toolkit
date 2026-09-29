@@ -3,7 +3,7 @@
 
 /** 40px-tall neutral action button. */
 export const NEUTRAL_BUTTON_CLASS =
-  "flex h-10 min-w-[120px] shrink-0 items-center justify-center whitespace-nowrap rounded-lg bg-secondary-strokeLight px-6 text-base leading-[1.5] tracking-[0.15px] text-accent-primary transition-[filter] enabled:hover:brightness-110 disabled:cursor-not-allowed disabled:text-accent-disabled";
+  "flex h-10 min-w-[120px] shrink-0 items-center justify-center whitespace-nowrap rounded-lg bg-secondary-strokeLight px-6 text-base leading-[1.5] tracking-[0.15px] text-accent-primary transition-[filter] enabled:hover:brightness-110 disabled:cursor-not-allowed disabled:text-accent-secondary";
 
 /** 40px-tall primary (orange) action button. */
 export const PRIMARY_BUTTON_CLASS =
@@ -17,7 +17,7 @@ export const ROW_BUTTON_MIN_WIDTH_PX = 120;
 /** 36px-tall neutral action button. `ml-auto` keeps it flush right when the
  *  row wraps. */
 export const NEUTRAL_ROW_BUTTON_CLASS =
-  "ml-auto flex h-9 min-w-[120px] shrink-0 items-center justify-center whitespace-nowrap rounded-lg bg-secondary-strokeLight px-4 text-sm leading-[1.43] tracking-[0.17px] text-accent-primary transition-[filter] enabled:hover:brightness-110 disabled:cursor-not-allowed disabled:text-accent-disabled";
+  "ml-auto flex h-9 min-w-[120px] shrink-0 items-center justify-center whitespace-nowrap rounded-lg bg-secondary-strokeLight px-4 text-sm leading-[1.43] tracking-[0.17px] text-accent-primary transition-[filter] enabled:hover:brightness-110 disabled:cursor-not-allowed disabled:text-accent-secondary";
 
 /** 36px-tall destructive (red) action button — the expired deposit's Withdraw
  *  (Figma 10176:27509 puts this one row action on #C62828, unlike the Vaults

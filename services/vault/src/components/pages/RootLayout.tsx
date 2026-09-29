@@ -34,6 +34,7 @@ import { useAddressType } from "@/context/addressType";
 import { AppPeginPollingProvider } from "@/context/deposit/AppPeginPollingProvider";
 import { useGeoFencing } from "@/context/geofencing";
 import { COPY } from "@/copy";
+import { useBtcAction } from "@/hooks/useBtcAction";
 import { usePageTitle } from "@/hooks/usePageTitle";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import { useProtocolStatusOverride } from "@/overrides/protocolStatus";
@@ -42,7 +43,7 @@ import {
   AaveConfigProvider,
   ActivatingVaultsProvider,
 } from "../../applications/aave/context";
-import { useBTCWallet, useETHWallet } from "../../context/wallet";
+import { useConnection } from "../../context/wallet";
 import { AddressScreeningBanner } from "../shared/AddressScreeningBanner";
 import { AddressTypeBanner } from "../shared/AddressTypeBanner";
 import { DepositDisabledBanner } from "../shared/DepositDisabledBanner";
@@ -56,6 +57,8 @@ import { Connect } from "../Wallet";
 
 export interface RootLayoutContext {
   openDeposit: (initialAmountBtc?: string) => void;
+  /** The deposit dialog is open, so a page holds back its own overlays. */
+  isDepositOpen: boolean;
 }
 
 // Stacking order of the two full-bleed top banners.
@@ -77,23 +80,23 @@ const DEPOSIT_DISABLED_BANNER_Z_CLASS = "z-30";
 export default function RootLayout() {
   const gate = useProtocolGateState();
   const { theme, setTheme } = useTheme();
-  const { connected: btcConnected } = useBTCWallet();
-  const { connected: ethConnected } = useETHWallet();
+  const { isConnected, btcConnected, ethConnected } = useConnection();
   const { isGeoBlocked, isLoading: isGeoLoading } = useGeoFencing();
-  const { isBlocked: isAddressBlocked } = useAddressScreening();
+  const { isBlocked: isAddressBlocked, isUnavailable: isScreeningUnavailable } =
+    useAddressScreening();
   const { isSupportedAddress } = useAddressType();
   const isMobileView = useIsMobile();
   const pageTitle = usePageTitle();
   const { pathname } = useLocation();
 
-  const isWalletConnected = btcConnected && ethConnected;
   // One signal for "is this the entry frame", so the sidebar and the chrome
   // that replaces it can never disagree. The other routes render disconnected
   // states on purpose and keep their shell — without it a disconnected desktop
   // visitor to /vaults would have no navigation at all.
-  const isEntryLayout = !isWalletConnected && pathname === "/";
+  const isEntryLayout = !isConnected && pathname === "/";
   const showV3Sidebar = !isMobileView && !isEntryLayout;
-  const showAddressTypeBanner = isWalletConnected && !isSupportedAddress;
+  const showAddressTypeBanner =
+    ethConnected && btcConnected && !isSupportedAddress;
   // Match ProtocolStatusBanner's status derivation: the dev-only god-mode
   // override (compile-time null in production) wins over the live gate, so a
   // forced frozen/paused preview drives banner suppression here too and can't
@@ -105,7 +108,7 @@ export default function RootLayout() {
   // active, since that banner already explains the disabled state.
   const showDepositDisabledBanner =
     !isGeoBlocked &&
-    isWalletConnected &&
+    ethConnected &&
     FeatureFlags.isDepositDisabled &&
     !hasProtocolStatus;
   // The operator message (NEXT_PUBLIC_NOTICE_BANNER_MESSAGE) is context-aware:
@@ -147,14 +150,19 @@ export default function RootLayout() {
     string | undefined
   >();
 
+  const { requireBtcWallet } = useBtcAction();
   // Reject a click event reaching `initialAmountBtc`: TypeScript allows this
   // where an `onClick` handler is expected, and it crashes the deposit dialog.
-  const openDeposit = useCallback((initialAmountBtc?: string) => {
-    setInitialDepositAmountBtc(
-      typeof initialAmountBtc === "string" ? initialAmountBtc : undefined,
-    );
-    setIsDepositOpen(true);
-  }, []);
+  const openDeposit = useCallback(
+    (initialAmountBtc?: string) => {
+      if (!requireBtcWallet()) return;
+      setInitialDepositAmountBtc(
+        typeof initialAmountBtc === "string" ? initialAmountBtc : undefined,
+      );
+      setIsDepositOpen(true);
+    },
+    [requireBtcWallet],
+  );
 
   const closeDeposit = useCallback(() => {
     setIsDepositOpen(false);
@@ -177,7 +185,8 @@ export default function RootLayout() {
         message={FeatureFlags.noticeBannerMessage ?? ""}
       />
       <AddressScreeningBanner
-        visible={!isGeoBlocked && isWalletConnected && isAddressBlocked}
+        visible={!isGeoBlocked && ethConnected && isAddressBlocked}
+        isUnavailable={isScreeningUnavailable}
       />
       <AddressTypeBanner visible={!isGeoBlocked && showAddressTypeBanner} />
     </>
@@ -185,7 +194,7 @@ export default function RootLayout() {
 
   return (
     <div
-      className="relative flex min-h-svh w-full flex-col bg-surface"
+      className="relative flex min-h-svh w-full flex-col bg-background-contrast"
       style={
         { "--tbv-top-banner-height": `${topBannerHeight}px` } as CSSProperties
       }
@@ -277,6 +286,7 @@ export default function RootLayout() {
                   context={
                     {
                       openDeposit,
+                      isDepositOpen,
                     } satisfies RootLayoutContext
                   }
                 />

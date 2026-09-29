@@ -2,7 +2,8 @@
  * useReclaimRowAction — whether a settled vault's row may offer the reclaim of
  * its depositor-claim reserve.
  *
- * Sibling of `useRefundRowAction`, and the same three-state contract:
+ * Sibling of `useRefundRowAction`, with the same contract plus one outcome of
+ * its own:
  *
  *  - `available` — the reclaim can be performed now.
  *  - `blockedTooltip` — the reclaim is the row's action but is not performable;
@@ -11,6 +12,9 @@
  *    than a permanently disabled button.
  *  - `reclaimableSats` — the reserve's value, for the row's figure. Null until
  *    the chain read lands.
+ *  - `needsWallet` — the reclaim would be available to the vault's owner, but
+ *    no Bitcoin wallet is connected to verify ownership (an Ethereum-only
+ *    session); the row offers the wallet connection in place of the action.
  *
  * Refund and reclaim are mutually exclusive by contract status: refund applies
  * to EXPIRED vaults (no PegIn was ever broadcast), reclaim to
@@ -22,11 +26,11 @@
  */
 
 import { useChainConnector } from "@babylonlabs-io/wallet-connector";
-import { useMemo } from "react";
+import { useCallback } from "react";
 
 import { isWithdrawBlocked } from "@/components/shared/protocolStatus";
 import { useBTCWallet } from "@/context/wallet";
-import { LEDGER_VAULT_WALLET_ID } from "@/context/wallet/VaultWalletConnectionProvider";
+import { isLedgerVaultConnector } from "@/context/wallet/VaultWalletConnectionProvider";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import type { ReclaimStatus } from "@/hooks/useReclaimStatus";
 import {
@@ -38,6 +42,8 @@ export interface ReclaimRowAction {
   available: boolean;
   /** A sweep is broadcast and unconfirmed: show the button, disabled. */
   reclaiming: boolean;
+  /** Available to the owner, but no Bitcoin wallet is connected to verify. */
+  needsWallet: boolean;
   blockedTooltip: string | null;
   reclaimableSats: bigint | null;
 }
@@ -73,56 +79,60 @@ function isOwnedByConnectedWallet(
   return normalize(vaultDepositorBtcPubkey) === normalize(connectedBtcPubkey);
 }
 
-export function useReclaimRowAction({
-  status,
-  onChainStatus,
-  depositorBtcPubkey,
-  isReclaimInFlight,
-}: UseReclaimRowActionInput): ReclaimRowAction {
-  const { publicKeyNoCoord } = useBTCWallet();
+export function useReclaimRowAction() {
+  const { publicKeyNoCoord, connected: btcConnected } = useBTCWallet();
   // The wallet id lives on the connector, not the BTC wallet context — same
   // accessor `useRefundState` uses.
   const btcConnector = useChainConnector("BTC");
-  const isLedgerWallet =
-    btcConnector?.connectedWallet?.id === LEDGER_VAULT_WALLET_ID;
-  const isOwnedByWallet = isOwnedByConnectedWallet(
-    depositorBtcPubkey,
-    publicKeyNoCoord,
-  );
+  const isLedgerWallet = isLedgerVaultConnector(btcConnector);
   // Reclaim is an exit, so it follows withdraw's pause semantics.
   const withdrawBlocked = isWithdrawBlocked(useProtocolGateState());
 
-  const eligibility: ReclaimEligibility = useMemo(
-    () =>
-      getReclaimEligibility({
+  return useCallback(
+    ({
+      status,
+      onChainStatus,
+      depositorBtcPubkey,
+      isReclaimInFlight,
+    }: UseReclaimRowActionInput): ReclaimRowAction => {
+      const isOwnedByWallet = isOwnedByConnectedWallet(
+        depositorBtcPubkey,
+        publicKeyNoCoord,
+      );
+      // With no Bitcoin wallet attached, an Ethereum-only session cannot verify
+      // ownership of a vault whose depositor key is known. A locked wallet still
+      // exposes its key, so it takes the real ownership check. Evaluate the model as the owner would see it, so
+      // the row shows the same outcome (blocked, reclaiming, absent) and only an
+      // available reclaim asks for the wallet — the model stays the single gate.
+      const assumeOwnership = !btcConnected && !!depositorBtcPubkey;
+      const eligibility: ReclaimEligibility = getReclaimEligibility({
         onChainStatus,
         payoutSpend: status?.payoutSpend,
         reserveSpend: status?.reserveSpend,
         // The tip these spends were read against, never a fresher one — see
         // `ReclaimStatus.observedTipHeight`.
         tipHeight: status?.observedTipHeight,
-        isOwnedByWallet,
+        isOwnedByWallet: assumeOwnership || isOwnedByWallet,
         isLedgerWallet,
         isWithdrawBlocked: withdrawBlocked,
         isReclaimInFlight,
-      }),
-    [
-      onChainStatus,
-      status,
-      isOwnedByWallet,
-      isLedgerWallet,
-      withdrawBlocked,
-      isReclaimInFlight,
-    ],
-  );
+      });
+      const isAvailable = eligibility.type === "available";
 
-  return {
-    available: eligibility.type === "available",
-    reclaiming: eligibility.type === "reclaiming",
-    blockedTooltip: eligibility.type === "blocked" ? eligibility.tooltip : null,
-    // Only meaningful once the row actually offers something; an absent row
-    // shows no figure.
-    reclaimableSats:
-      eligibility.type === "absent" ? null : (status?.reserveValueSats ?? null),
-  };
+      return {
+        available: isAvailable && !assumeOwnership,
+        reclaiming: eligibility.type === "reclaiming",
+        needsWallet: isAvailable && assumeOwnership,
+        blockedTooltip:
+          eligibility.type === "blocked" ? eligibility.tooltip : null,
+        // Only meaningful once the row actually offers something; an absent row
+        // shows no figure.
+        reclaimableSats:
+          eligibility.type === "absent"
+            ? null
+            : (status?.reserveValueSats ?? null),
+      };
+    },
+    [publicKeyNoCoord, btcConnected, isLedgerWallet, withdrawBlocked],
+  );
 }

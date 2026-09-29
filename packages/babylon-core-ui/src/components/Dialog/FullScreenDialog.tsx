@@ -50,12 +50,12 @@ export const FullScreenDialog = ({
           <button
             onClick={onBack}
             className={twMerge(
-              "fixed top-4 left-4 z-10 flex h-8 w-8 items-center justify-center",
+              "fixed top-4 left-4 z-10 flex size-10 items-center justify-center text-accent-primary transition-colors hover:text-secondary-main",
               closeButtonClassName,
             )}
             aria-label="Back"
           >
-            <ChevronLeftIcon size={20} variant="accent-primary" />
+            <ChevronLeftIcon size={20} color="text-inherit" />
           </button>
         ) : (
           onClose && (

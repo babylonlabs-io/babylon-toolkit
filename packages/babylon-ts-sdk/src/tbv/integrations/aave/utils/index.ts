@@ -20,13 +20,22 @@ export {
 export type { CascadeVault } from "./cascadeSimulation.js";
 export { computeOptimalOrder, MAX_DP_N } from "./optimalOrder.js";
 export {
+  computeLiquidationBonusBps,
   computeMinDepositForSplit,
   computeOptimalSplit,
   computeSeizedFraction,
   computeSeizedFractionDetailed,
+  computeSplitLiquidationBonus,
+  EXPECTED_HEALTH_FACTOR_AT_LIQUIDATION,
+  EXPECTED_HEALTH_FACTOR_AT_LIQUIDATION_WAD,
+  findSplitSizingViolation,
+  SPLIT_TARGET_HEALTH_FACTOR,
 } from "./vaultSplit.js";
 export type {
+  LiquidationBonusCurve,
   MinDepositForSplitParams,
   OptimalSplitParams,
   OptimalSplitResult,
+  SplitParamsViolation,
+  SplitSizingViolation,
 } from "./vaultSplit.js";

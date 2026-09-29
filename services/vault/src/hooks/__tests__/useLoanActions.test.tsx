@@ -86,4 +86,19 @@ describe("useLoanActions", () => {
     expect(harness.location.pathname).toBe("/");
     expect(harness.location.search).toBe("?reserve=7&tab=borrow");
   });
+
+  it("reports the loan flow open once the repay picker opens", () => {
+    const harness = renderAt("/", [{ reserveId: "1" }, { reserveId: "2" }]);
+    expect(harness.actions.isLoanFlowOpen).toBe(false);
+
+    act(() => harness.actions.openRepay());
+
+    expect(harness.actions.isLoanFlowOpen).toBe(true);
+  });
+
+  it("reports the loan flow closed for an unknown picker", () => {
+    const harness = renderAt("/?picker=foo");
+
+    expect(harness.actions.isLoanFlowOpen).toBe(false);
+  });
 });

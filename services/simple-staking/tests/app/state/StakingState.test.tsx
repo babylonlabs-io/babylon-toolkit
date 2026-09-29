@@ -1,50 +1,43 @@
 import { act, renderHook } from "@testing-library/react";
 import { PropsWithChildren } from "react";
 
-// Mock the dependencies, but keep their APIs close to real ones
+jest.mock("nanoevents", () => ({
+  createNanoEvents: jest.fn(() => ({ on: jest.fn(), emit: jest.fn() })),
+}));
+
 const mockUseAppState = jest.fn();
-jest.mock("@/ui/legacy/state", () => ({
+jest.mock("@/ui/common/state", () => ({
   useAppState: () => mockUseAppState(),
 }));
 
-jest.mock("@/ui/legacy/config", () => ({
+jest.mock("@/ui/common/config", () => ({
   IS_FIXED_TERM_FIELD: false,
-  getDisabledWallets: () => [],
 }));
 
 const mockUseHealthCheck = jest.fn();
-jest.mock("@/ui/legacy/hooks/useHealthCheck", () => ({
+jest.mock("@/ui/common/hooks/useHealthCheck", () => ({
   useHealthCheck: () => mockUseHealthCheck(),
 }));
 
 const mockUseNetworkFees = jest.fn();
-jest.mock("@/ui/legacy/hooks/client/api/useNetworkFees", () => ({
+jest.mock("@/ui/common/hooks/client/api/useNetworkFees", () => ({
   useNetworkFees: () => mockUseNetworkFees(),
 }));
 
 const mockUseBalanceState = jest.fn();
-jest.mock("@/ui/legacy/state/BalanceState", () => ({
+jest.mock("@/ui/common/state/BalanceState", () => ({
   useBalanceState: () => mockUseBalanceState(),
 }));
 
 const mockUseBTCWallet = jest.fn();
-jest.mock("@/ui/legacy/context/wallet/BTCWalletProvider", () => ({
+jest.mock("@/ui/common/context/wallet/BTCWalletProvider", () => ({
   useBTCWallet: () => mockUseBTCWallet(),
 }));
 
-const mockUseCosmosWallet = jest.fn();
-jest.mock("@/ui/legacy/context/wallet/CosmosWalletProvider", () => ({
-  useCosmosWallet: () => mockUseCosmosWallet(),
-}));
-
 // Mock useLocalStorage and useDebounceValue
-const mockSetSuccessModalShown = jest.fn();
 const mockSetCancelModalShown = jest.fn();
 jest.mock("usehooks-ts", () => ({
   useLocalStorage: jest.fn().mockImplementation((key: string) => {
-    if (key === "bbn-staking-successFeedbackModalOpened") {
-      return [false, mockSetSuccessModalShown];
-    }
     if (key === "bbn-staking-cancelFeedbackModalOpened ") {
       return [false, mockSetCancelModalShown];
     }
@@ -65,7 +58,7 @@ import {
 } from "@/ui/common/types/delegationsV2";
 
 // Mock getFeeRateFromMempool
-jest.mock("@/ui/legacy/utils/getFeeRateFromMempool", () => ({
+jest.mock("@/ui/common/utils/getFeeRateFromMempool", () => ({
   getFeeRateFromMempool: jest.fn().mockReturnValue({
     minFeeRate: 1,
     defaultFeeRate: 5,
@@ -134,11 +127,6 @@ describe("StakingState", () => {
     mockUseBTCWallet.mockReturnValue({
       publicKeyNoCoord: "mock-public-key",
     });
-
-    mockUseCosmosWallet.mockReturnValue({
-      bech32Address: "mock-cosmos-address",
-      // Potentially add disabled: [] here if needed for tests
-    });
   });
 
   it("should provide staking state values", () => {
@@ -148,7 +136,6 @@ describe("StakingState", () => {
 
     expect(result.current).toHaveProperty("hasError");
     expect(result.current).toHaveProperty("blocked");
-    expect(result.current).toHaveProperty("available");
     expect(result.current).toHaveProperty("disabled");
     expect(result.current).toHaveProperty("loading");
     expect(result.current).toHaveProperty("processing");

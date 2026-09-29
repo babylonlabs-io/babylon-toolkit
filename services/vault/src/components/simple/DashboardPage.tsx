@@ -8,9 +8,13 @@ import { Container } from "@babylonlabs-io/core-ui";
 import { useMemo } from "react";
 import { useOutletContext } from "react-router";
 
-import { useSyncPendingVaults } from "@/applications/aave/context";
+import {
+  useAaveConfig,
+  useSyncPendingVaults,
+} from "@/applications/aave/context";
 import { useAaveVaults } from "@/applications/aave/hooks";
 import { usePositionNotifications } from "@/applications/aave/hooks/usePositionNotifications";
+import { toDisplayedBorrowReserveLimit } from "@/applications/aave/utils";
 import type { RootLayoutContext } from "@/components/pages/RootLayout";
 import {
   ENTRY_CONTENT_CLASS,
@@ -33,6 +37,11 @@ import {
   resolveLiquidationCardState,
   useLiquidationCardOverride,
 } from "@/overrides/liquidations";
+import {
+  cardBorrowCount,
+  cardBorrowedAssets,
+  useLoanOverride,
+} from "@/overrides/loans";
 import { usePositionCascadeOverride } from "@/overrides/position";
 import {
   formatBasisPointsAsPercent,
@@ -62,8 +71,11 @@ export function DashboardPage() {
   // change.
   const cascadeOverride = usePositionCascadeOverride();
   const liquidationCardOverride = useLiquidationCardOverride();
-  const { result: positionNotifications, params: positionParams } =
-    usePositionNotifications(isConnected ? address : undefined);
+  const {
+    result: positionNotifications,
+    params: positionParams,
+    liveUrgentWarning,
+  } = usePositionNotifications(isConnected ? address : undefined);
   // The chart takes the god-mode cascade when the panel publishes one, else the
   // live position cascade. A status-only override (stale price) carries no
   // cascade, so it falls through to live. Null when neither has a result: the
@@ -78,10 +90,9 @@ export function DashboardPage() {
     [cascadeOverride, positionNotifications, positionParams],
   );
   const {
+    position,
     collateralBtc,
     collateralValueUsd,
-    debtValueUsd,
-    maxTotalDebtUsd,
     availableToBorrowUsd,
     canBorrow,
     collateralFactorBps,
@@ -90,10 +101,19 @@ export function DashboardPage() {
     borrowedAssets,
     hasLoans,
     hasCollateral,
-    hasDisplayCollateral,
     isBorrowCapacityLoading,
     borrowCapacityError,
+    isLoading,
+    positionError,
   } = useDashboardState(isConnected ? address : undefined);
+  // God-mode demo loans (dev only; compile-time null in production builds),
+  // counted the way the Loans card counts them so the two cards agree.
+  const demoLoans = useLoanOverride();
+
+  // Display only: an unavailable cap claims nothing, like no cap.
+  const maxBorrowReserves = toDisplayedBorrowReserveLimit(
+    useAaveConfig().maxBorrowReserves,
+  );
 
   const { openBorrowPicker, openRepay } = useLoanActions({
     borrowedAssets,
@@ -121,7 +141,6 @@ export function DashboardPage() {
 
   // Format display values
   const totalCollateralValue = formatUsdValue(collateralValueUsd);
-  const totalBorrowed = formatUsdValue(debtValueUsd);
   const availableToBorrow = formatUsdValue(availableToBorrowUsd);
   const collateralBtcText = formatBtcAmount(collateralBtc);
   // The Overview is purely a financial summary: an empty position renders every
@@ -132,13 +151,8 @@ export function DashboardPage() {
   const hasOverviewData = hasCollateral || hasLoans;
   const liquidationCardState = resolveLiquidationCardState(
     liquidationCardOverride,
-    { hasCollateral: hasDisplayCollateral, hasLoans },
+    { hasCollateral, hasLoans },
   );
-
-  const availableMeterPercent =
-    maxTotalDebtUsd > 0 ? availableToBorrowUsd / maxTotalDebtUsd : 0;
-  const borrowedMeterPercent =
-    maxTotalDebtUsd > 0 ? debtValueUsd / maxTotalDebtUsd : 0;
 
   // Liquidation-risk gauge stats. Liquidation price and distance-to-liquidation
   // come from the first group of the position cascade (the price at which the
@@ -240,18 +254,27 @@ export function DashboardPage() {
             column — it portals into RootLayout's top-banner slot (Figma frame
             10204-45613; see CriticalLiquidationTopBanner). */}
         {liquidationNotificationsEnabled && (
-          <CriticalLiquidationTopBanner result={criticalBannerResult} />
+          <CriticalLiquidationTopBanner
+            result={criticalBannerResult}
+            liveUrgentWarning={
+              cascadeOverride?.result ? null : liveUrgentWarning
+            }
+          />
         )}
 
         <OverviewSection
           totalCollateralValue={totalCollateralValue}
-          totalBorrowed={totalBorrowed}
+          borrowedAssets={cardBorrowedAssets(demoLoans, borrowedAssets)}
+          maxBorrowReserves={maxBorrowReserves}
+          borrowCount={cardBorrowCount(demoLoans, {
+            position,
+            isLoading,
+            positionError,
+          })}
           availableToBorrow={availableToBorrow}
           collateralBtc={collateralBtcText}
-          availableMeterPercent={availableMeterPercent}
           borrowCapacityLoading={isBorrowCapacityLoading}
           borrowCapacityError={borrowCapacityError}
-          borrowedMeterPercent={borrowedMeterPercent}
           onDeposit={openDeposit}
           isDepositDisabled={isDepositBlocked(gate)}
           onBorrow={openBorrowPicker}

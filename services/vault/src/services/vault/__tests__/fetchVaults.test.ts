@@ -90,7 +90,7 @@ describe("fetchVaults", () => {
         makeVaultsPage([makeGraphQLVaultItem({ depositorWotsPkHash: null })]),
       );
 
-      const vaults = await fetchVaultsByDepositor(
+      const { vaults } = await fetchVaultsByDepositor(
         "0xdepositor" as `0x${string}`,
       );
 
@@ -111,7 +111,7 @@ describe("fetchVaults", () => {
         makeVaultsPage([makeGraphQLVaultItem({ depositorWotsPkHash: hash })]),
       );
 
-      const vaults = await fetchVaultsByDepositor(
+      const { vaults } = await fetchVaultsByDepositor(
         "0xdepositor" as `0x${string}`,
       );
 
@@ -131,7 +131,7 @@ describe("fetchVaults", () => {
         ]),
       );
 
-      const vaults = await fetchVaultsByDepositor(
+      const { vaults } = await fetchVaultsByDepositor(
         "0xdepositor" as `0x${string}`,
       );
 
@@ -146,7 +146,7 @@ describe("fetchVaults", () => {
         makeVaultsPage([makeGraphQLVaultItem()]),
       );
 
-      const vaults = await fetchVaultsByDepositor(
+      const { vaults } = await fetchVaultsByDepositor(
         "0xdepositor" as `0x${string}`,
       );
 
@@ -166,7 +166,7 @@ describe("fetchVaults", () => {
         ]),
       );
 
-      const vaults = await fetchVaultsByDepositor(
+      const { vaults } = await fetchVaultsByDepositor(
         "0xdepositor" as `0x${string}`,
       );
 
@@ -180,7 +180,7 @@ describe("fetchVaults", () => {
         makeVaultsPage([makeGraphQLVaultItem({ peginTxHash: null })]),
       );
 
-      const vaults = await fetchVaultsByDepositor(
+      const { vaults } = await fetchVaultsByDepositor(
         "0xdepositor" as `0x${string}`,
       );
 
@@ -207,7 +207,7 @@ describe("fetchVaults", () => {
         ]),
       );
 
-      const vaults = await fetchVaultsByDepositor(
+      const { vaults } = await fetchVaultsByDepositor(
         "0xdepositor" as `0x${string}`,
       );
 
@@ -256,7 +256,7 @@ describe("fetchVaults", () => {
           makeVaultsPage([makeGraphQLVaultItem({ id: secondId })]),
         );
 
-      const vaults = await fetchVaultsByDepositor(
+      const { vaults } = await fetchVaultsByDepositor(
         "0xdepositor" as `0x${string}`,
       );
 
@@ -268,6 +268,42 @@ describe("fetchVaults", () => {
         expect.anything(),
         expect.objectContaining({ after: "cursor-1" }),
       );
+    });
+
+    it("counts the rows it dropped alongside the ones it kept", async () => {
+      const goodId = "0x" + "11".repeat(32);
+      mockedRequest.mockResolvedValueOnce(
+        makeVaultsPage([
+          makeGraphQLVaultItem({ id: goodId }),
+          makeGraphQLVaultItem({
+            id: "0x" + "22".repeat(32),
+            status: "bogus_status",
+          }),
+          makeGraphQLVaultItem({
+            id: "0x" + "33".repeat(32),
+            peginTxHash: null,
+          }),
+        ]),
+      );
+
+      const result = await fetchVaultsByDepositor(
+        "0xdepositor" as `0x${string}`,
+      );
+
+      expect(result.vaults.map((v) => v.id)).toEqual([goodId]);
+      expect(result.droppedCount).toBe(2);
+    });
+
+    it("reports no dropped rows when every row transforms", async () => {
+      mockedRequest.mockResolvedValueOnce(
+        makeVaultsPage([makeGraphQLVaultItem()]),
+      );
+
+      const result = await fetchVaultsByDepositor(
+        "0xdepositor" as `0x${string}`,
+      );
+
+      expect(result.droppedCount).toBe(0);
     });
 
     it("fails closed when the page backstop is hit with more pages remaining", async () => {

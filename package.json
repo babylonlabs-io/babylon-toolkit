@@ -15,6 +15,7 @@
     "nx:sync": "nx sync",
     "visual:diff": "node scripts/visual-diff.mjs",
     "visual:test": "node --test \"scripts/__tests__/*.test.mjs\"",
+    "pre-review:test": "node --test \"scripts/pre-review/__tests__/*.test.mjs\"",
     "prepare": "husky",
     "ci:release": "nx run @internal/release:run"
   },

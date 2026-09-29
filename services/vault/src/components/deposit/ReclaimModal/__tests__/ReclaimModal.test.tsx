@@ -84,6 +84,7 @@ function mockReclaimState(overrides: Record<string, unknown> = {}) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockBtcWalletState.locked = false;
   mockReclaimState();
   vi.mocked(getReclaimPreview).mockResolvedValue({
     reclaimableSats: 33_000n,
@@ -167,5 +168,19 @@ describe("ReclaimModal", () => {
     await waitFor(() => {
       expect(screen.getByText("indexer down")).toBeInTheDocument();
     });
+  });
+
+  it("announces the lock notice as an alert and marks it with the padlock", async () => {
+    mockBtcWalletState.locked = true;
+    renderModal();
+
+    const notice = (
+      await screen.findByText("Bitcoin wallet is locked")
+    ).closest('[role="alert"]');
+
+    expect(notice).toBeInTheDocument();
+    expect(notice?.querySelector("svg path")?.getAttribute("d")).toMatch(
+      /^M18 8H17V6/,
+    );
   });
 });

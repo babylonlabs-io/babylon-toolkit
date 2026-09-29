@@ -1,10 +1,11 @@
 // Node.js entry point for the WASM bindings.
 //
-// Loads the committed web WASM binary synchronously from disk using
-// readFileSync and initializes it via initSync. This avoids fetch()-based
-// loading, which does not work in Node.js environments, and does not require
-// a separate wasm-pack --target nodejs build step.
+// The loader reads the committed web WASM binary asynchronously on first use.
+// It initializes the binary with initSync. No fetch() or separate
+// wasm-pack --target nodejs build is needed.
 
+import { createDelegatedClaimApi } from './delegatedClaim.js';
+import { toError } from './errors.js';
 import {
   getWasmBindings,
   initWasm as initializeWasm,
@@ -27,6 +28,12 @@ import type {
   ChallengeAssertScriptInfo,
 } from './types.js';
 import { assertPositiveBigintArray, assertWasmBigint } from './value-guards.js';
+// tsc keeps this import path in the emitted declaration. It must resolve
+// from both src and dist, which must remain siblings under the package root.
+// scripts/check-lazy-entries.js checks the emitted path.
+import type * as Bindings from '../dist/generated/vault_wasm.js';
+// @ts-expect-error - generated artifacts live in dist/generated
+import * as generated from './generated/vault_wasm.js';
 
 /**
  * HTLC output index for single deposits.
@@ -452,15 +459,6 @@ export async function getChallengeAssertScriptInfo(
   }
 }
 
-// wasm-bindgen rethrows Rust `JsValue::from_str(...)` errors as bare strings,
-// which break `err instanceof Error` and structured error handling. Normalize
-// to `Error` so the JS API surface is consistent with idiomatic JS rejection.
-function toError(err: unknown, fnName: string): Error {
-  if (err instanceof Error) return err;
-  const msg = typeof err === 'string' ? err : String(err);
-  return new Error(`${fnName}: ${msg}`);
-}
-
 /**
  * Derive 32-byte `authAnchor` (OP_RETURN preimage → VP bearer token).
  * @stability frozen — owned by btc-vault Rust via the vault-wasm pin (`VAULT_WASM_COMMIT`); rotation breaks VP auth for existing deposits.
@@ -566,6 +564,10 @@ export type {
   AssertNoPayoutScriptInfo,
   ChallengeAssertConnectorParams,
   ChallengeAssertScriptInfo,
+  WatchtowerArtifactsInputs,
+  WotsKeypairDerivation,
+  WronglyChallengedPsbts,
+  WronglyChallengedSigs,
 } from './types.js';
 
 // Export constants
@@ -573,3 +575,47 @@ export { TAP_INTERNAL_KEY, tapInternalPubkey } from './constants.js';
 
 // Export boundary value guards (input validation for callers)
 export { assertPositiveBigintArray } from './value-guards.js';
+
+// The delegated-claim surface (graph v3 only): assembly of the two files the
+// `vaultd vp wt` watchtower CLI reads, and the claim-time execution that runs
+// from those same files without the CLI.
+//
+// EXPERIMENTAL — under test, signet only. These names and signatures can
+// change in a minor release. See src/delegatedClaim.ts.
+export const {
+  buildAssertClaimerPsbt,
+  buildClaimPsbt,
+  buildPayoutClaimerPsbt,
+  buildPayoutDepositorPsbt,
+  buildWatchtowerArtifacts,
+  buildWronglyChallengedPsbts,
+  attachFinalizedAssert,
+  extractTapScriptSig,
+  finalizeClaimTx,
+  finalizePayout,
+  finalizeWronglyChallenged,
+  pinPegoutProof,
+  validateWotsKeypairAgainstGraph,
+  verifyWatchtowerArtifacts,
+  wotsKeypairFromSeed,
+} = createDelegatedClaimApi(getWasmBindings);
+
+// Export wasm-bindgen classes
+/** wasm-bindgen class with no value guards. See README "WASM Classes". */
+export const WasmPeginTx: typeof Bindings.WasmPeginTx = generated.WasmPeginTx;
+export type WasmPeginTx = Bindings.WasmPeginTx;
+
+/** wasm-bindgen class with no value guards. See README "WASM Classes". */
+export const WasmPeginPayoutConnector: typeof Bindings.WasmPeginPayoutConnector =
+  generated.WasmPeginPayoutConnector;
+export type WasmPeginPayoutConnector = Bindings.WasmPeginPayoutConnector;
+
+/** wasm-bindgen class with no value guards. See README "WASM Classes". */
+export const WasmPrePeginTx: typeof Bindings.WasmPrePeginTx =
+  generated.WasmPrePeginTx;
+export type WasmPrePeginTx = Bindings.WasmPrePeginTx;
+
+/** wasm-bindgen class with no value guards. See README "WASM Classes". */
+export const WasmPrePeginHtlcConnector: typeof Bindings.WasmPrePeginHtlcConnector =
+  generated.WasmPrePeginHtlcConnector;
+export type WasmPrePeginHtlcConnector = Bindings.WasmPrePeginHtlcConnector;

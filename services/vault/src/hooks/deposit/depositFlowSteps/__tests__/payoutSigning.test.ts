@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { LocalStorageStatus } from "@/models/peginStateMachine";
+import { DepositorBtcKeyMismatchError } from "@/utils/errors/depositorWalletMismatch";
 
 import { payoutSigningStep, signAndSubmitPayouts } from "../payoutSigning";
 import { DepositFlowStep } from "../types";
@@ -10,17 +11,25 @@ const {
   mockEnsureAuthenticatedVpClient,
   mockRunDepositorPresignFlow,
   mockUpdatePendingPeginStatus,
+  mockRecordSignedGraphFingerprint,
+  mockLoggerWarn,
 } = vi.hoisted(() => ({
   mockPrepareSigningContext: vi.fn(),
   mockEnsureAuthenticatedVpClient: vi.fn(),
   mockRunDepositorPresignFlow: vi.fn(),
   mockUpdatePendingPeginStatus: vi.fn(),
+  mockRecordSignedGraphFingerprint: vi.fn(),
+  mockLoggerWarn: vi.fn(),
 }));
 
-vi.mock("@babylonlabs-io/ts-sdk/tbv/core", () => ({
-  stripHexPrefix: (value: string) =>
-    value.startsWith("0x") || value.startsWith("0X") ? value.slice(2) : value,
-}));
+vi.mock("@babylonlabs-io/ts-sdk/tbv/core", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@babylonlabs-io/ts-sdk/tbv/core")>();
+  return {
+    canonicalizeBtcPubkey: actual.canonicalizeBtcPubkey,
+    stripHexPrefix: actual.stripHexPrefix,
+  };
+});
 
 vi.mock("@babylonlabs-io/ts-sdk/tbv/core/services", () => ({
   runDepositorPresignFlow: (...args: unknown[]) =>
@@ -46,6 +55,12 @@ vi.mock("@/utils/vaultCoreVersionSupport", () => ({
 vi.mock("@/storage/peginStorage", () => ({
   updatePendingPeginStatus: (...args: unknown[]) =>
     mockUpdatePendingPeginStatus(...args),
+  recordSignedGraphFingerprint: (...args: unknown[]) =>
+    mockRecordSignedGraphFingerprint(...args),
+}));
+
+vi.mock("@/infrastructure", () => ({
+  logger: { warn: (...args: unknown[]) => mockLoggerWarn(...args) },
 }));
 
 vi.mock("@/models/peginStateMachine", () => ({
@@ -75,14 +90,16 @@ describe("signAndSubmitPayouts", () => {
   const preparedContext = { marker: "signing-context" };
   const vaultProviderAddress = "0xVaultProvider";
   const rpcClient = { marker: "rpc-client" };
+  const DEPOSITOR_BTC_PUBKEY = "c".repeat(64);
+  const SIGNED_GRAPH_FINGERPRINT = "3f".repeat(32);
 
   const baseParams = {
     vaultId: "0xVaultId",
     peginTxHash: "0xabc123",
-    depositorBtcPubkey: "0xdeadbeef",
+    depositorBtcPubkey: `0x${DEPOSITOR_BTC_PUBKEY}`,
     providerBtcPubKey: "0xproviderhint",
     registeredPayoutScriptPubKey: "0014payout",
-    btcWallet: { id: "btc-wallet" },
+    btcWallet: { getPublicKeyHex: async () => DEPOSITOR_BTC_PUBKEY },
     depositorEthAddress: "0xDepositor",
     unsignedPrePeginTxHex: "0102prepegin",
   };
@@ -101,7 +118,16 @@ describe("signAndSubmitPayouts", () => {
     });
     mockEnsureAuthenticatedVpClient.mockResolvedValue(rpcClient);
     mockRunDepositorPresignFlow.mockResolvedValue(undefined);
+    mockRecordSignedGraphFingerprint.mockReturnValue(true);
   });
+
+  /** The fingerprint callback signAndSubmitPayouts handed to the presign flow. */
+  const recordCallback = () =>
+    (
+      mockRunDepositorPresignFlow.mock.calls[0]?.[0] as {
+        recordGraphFingerprint: (fingerprint: string) => void;
+      }
+    ).recordGraphFingerprint;
 
   it("aborts before any wallet popup when the stamped vaultCoreVersion is unsupported", async () => {
     mockPrepareSigningContext.mockResolvedValue({
@@ -146,7 +172,7 @@ describe("signAndSubmitPayouts", () => {
     expect(presignArgs.statusReader).toBe(rpcClient);
     expect(presignArgs.presignClient).toBe(rpcClient);
     expect(presignArgs.peginTxid).toBe("abc123");
-    expect(presignArgs.depositorPk).toBe("deadbeef");
+    expect(presignArgs.depositorPk).toBe(DEPOSITOR_BTC_PUBKEY);
   });
 
   it("forwards the depositTerms into the presign flow unchanged", async () => {
@@ -203,6 +229,43 @@ describe("signAndSubmitPayouts", () => {
     ).toBeGreaterThan(mockRunDepositorPresignFlow.mock.invocationCallOrder[0]);
   });
 
+  it("stores the presign fingerprint on this depositor's entry for the vault", async () => {
+    await callSignAndSubmit();
+
+    recordCallback()(SIGNED_GRAPH_FINGERPRINT);
+
+    expect(mockRecordSignedGraphFingerprint).toHaveBeenCalledWith(
+      baseParams.depositorEthAddress,
+      baseParams.vaultId,
+      SIGNED_GRAPH_FINGERPRINT,
+    );
+    expect(mockLoggerWarn).not.toHaveBeenCalled();
+  });
+
+  it("lets a failed fingerprint write stop the presign flow", async () => {
+    // The SDK awaits the callback before any signature is sent, so a throw
+    // here is what keeps the VP from holding signatures with no record.
+    mockRecordSignedGraphFingerprint.mockImplementation(() => {
+      throw new Error("storage full");
+    });
+    await callSignAndSubmit();
+
+    expect(() => recordCallback()(SIGNED_GRAPH_FINGERPRINT)).toThrow(
+      "storage full",
+    );
+  });
+
+  it("warns and lets signing go on when this device holds no entry for the vault", async () => {
+    mockRecordSignedGraphFingerprint.mockReturnValue(false);
+    await callSignAndSubmit();
+
+    expect(() => recordCallback()(SIGNED_GRAPH_FINGERPRINT)).not.toThrow();
+    expect(mockLoggerWarn).toHaveBeenCalledWith(
+      expect.stringContaining("presign fingerprint"),
+      expect.objectContaining({ vaultId: baseParams.vaultId }),
+    );
+  });
+
   it("does not persist PAYOUT_SIGNED when the presign flow rejects", async () => {
     mockRunDepositorPresignFlow.mockRejectedValueOnce(
       new Error("presign aborted"),
@@ -227,5 +290,29 @@ describe("signAndSubmitPayouts", () => {
     expect(mockEnsureAuthenticatedVpClient).not.toHaveBeenCalled();
     expect(mockRunDepositorPresignFlow).not.toHaveBeenCalled();
     expect(mockUpdatePendingPeginStatus).not.toHaveBeenCalled();
+  });
+
+  it("rejects with DepositorBtcKeyMismatchError before any signature when the live wallet key is not the depositor key", async () => {
+    const onProgress = vi.fn();
+
+    await expect(
+      callSignAndSubmit({
+        btcWallet: { getPublicKeyHex: async () => "d".repeat(64) },
+        onProgress,
+      }),
+    ).rejects.toBeInstanceOf(DepositorBtcKeyMismatchError);
+
+    expect(onProgress).not.toHaveBeenCalled();
+    expect(mockEnsureAuthenticatedVpClient).not.toHaveBeenCalled();
+    expect(mockRunDepositorPresignFlow).not.toHaveBeenCalled();
+    expect(mockUpdatePendingPeginStatus).not.toHaveBeenCalled();
+  });
+
+  it("proceeds to the presign flow when the live wallet returns the compressed form of the depositor key", async () => {
+    await callSignAndSubmit({
+      btcWallet: { getPublicKeyHex: async () => `02${DEPOSITOR_BTC_PUBKEY}` },
+    });
+
+    expect(mockRunDepositorPresignFlow).toHaveBeenCalledTimes(1);
   });
 });

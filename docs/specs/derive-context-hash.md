@@ -1,10 +1,40 @@
 # `deriveContextHash` Specification
 
-**Spec revision**: 2.1
-**Algorithm version**: 1 (salt: `"derive-context-hash"`, no suffix)
-**Date**: 2026-05-13
+**Spec revision**: 2.2
+**Salt**: `"derive-context-hash"` (unchanged since revision 1.0)
+**Date**: 2026-09-22
 **Authors**: Jerome Wang (Babylon Labs)
-**Status**: Draft — additive over revision 2.0 (clarifies MPC and other non-HD wallet implementations)
+**Status**: Draft — no output changes over revision 2.1; conformance changes listed below
+
+> **Source of truth.** The conformance vectors in
+> [`deriveContextHash.vectors.test.ts`](../../packages/babylon-ts-sdk/src/tbv/core/vault-secrets/__tests__/deriveContextHash.vectors.test.ts)
+> pin the exact bytes. If this document and the test disagree, the test wins. Any change to the
+> derivation is a hard fork (CLAUDE.md, critical path 4).
+
+---
+
+## Changes from revision 2.1
+
+No output changes: the derivation and the vectors are the same. Implementers pinning revision 2.1
+should re-check the rule changes below.
+
+**Rule changes**
+
+- **§2.1 approval dialog.** Was: the dialog MUST display the requesting origin. Now: it MUST
+  display the origin only when the transport carries one, and a hardware wallet reached over raw
+  APDU, USB, BLE or QR MUST NOT present a dApp-supplied string as a verified origin.
+- **§2.2 `connectedPubkey`.** Now states that the key is bound as the compressed SEC1 encoding of
+  the untweaked key's actual point, even when the wallet returns an x-only key to the dApp. This
+  makes explicit what the §4.2 vector already required.
+
+**Corrections**
+
+- **§3.** The hashlock is SHA-256 of a per-vault secret expanded from the root, not of the
+  `deriveContextHash` output itself. The auth anchor is now listed as a third use of the root.
+- **§4 points to the conformance test** instead of repeating its vectors. The vectors are the same.
+- **§5** adds the UniSat commit that implements revision 2.0.
+- **Header.** The "Algorithm version: 1" label is dropped: revision 2.0 changed every output
+  without changing it, so it identified nothing.
 
 ---
 
@@ -135,8 +165,13 @@ wallet.deriveContextHash(
 
 **User approval required.** The wallet MUST show a confirmation
 dialog before deriving and returning the value. The dialog
-MUST display the `appName` and the requesting origin. The
-dialog SHOULD also display the context bytes.
+MUST display the `appName`. When the transport carries a
+requesting origin (a browser extension or injected provider),
+the dialog MUST also display that origin. A hardware wallet
+reached over raw APDU, USB, BLE or QR has no authenticated
+origin; it MUST NOT present a dApp-supplied string as a
+verified origin. The dialog SHOULD also display the context
+bytes.
 
 ### 2.2 Derivation Algorithm
 
@@ -207,9 +242,11 @@ wallet exposes multiple accounts/addresses in one session, the
 key bound here MUST be the one the wallet considers "currently
 selected" at the moment the dApp invokes `deriveContextHash`,
 and the approval dialog SHOULD make that explicit to the user.
-The compressed form is canonical across Bitcoin wallet APIs
-(UniSat, OKX, Phantom, Leather, Magic Eden, Xverse all expose
-compressed via their `getPublicKey()` equivalents).
+The bound value is the compressed SEC1 encoding of the untweaked
+key's actual point, with its real y-parity prefix (`0x02` or
+`0x03`), even when the wallet returns an x-only key to the dApp for
+Taproot. It is never an even-y lift of the x-only key, and never the
+BIP-341 tweaked output key.
 
 **IKM (Input Key Material):** The raw 32-byte private key scalar
 at BIP-32 derivation path `m/73681862'` (hardened), using
@@ -362,142 +399,60 @@ additionally injects the connected pubkey and network name into
 binding in `context`.
 
 The application calls
-`deriveContextHash("babylon-btc-vault", context)`, computes
-`SHA-256(deriveContextHash("babylon-btc-vault", context))` to get
-the hashlock, and later reconstructs the same context from
-on-chain state to derive and reveal the same preimage on
-Ethereum.
+`deriveContextHash("babylon-btc-vault", context)` to get a 32-byte
+root, then expands the root locally into three kinds of secret
+(see [`derive-vault-secrets.md`][derive-vault-secrets-spec]):
 
-WOTS (Winternitz One-Time Signature) seed derivation also uses
-this primitive — the wallet provides a 32-byte root via
-`deriveContextHash`, and the application expands it into WOTS
-keypairs locally. This eliminates the separate secret that
-users would otherwise have to manage for one-time-signature
-schemes.
+- **Hashlock secret, per vault.** Its SHA-256 is the hashlock in
+  that vault's HTLC script. The secret itself is revealed on
+  Ethereum to activate the vault.
+- **WOTS seed, per vault.** Expanded into Winternitz one-time
+  signature keys, so users have no separate secret to manage.
+- **Auth anchor, shared.** Its SHA-256 goes in the Pre-PegIn's
+  OP_RETURN, and the anchor authenticates the depositor to the
+  vault provider.
+
+Later flows (activation, resume, recovery) rebuild the same
+context from on-chain state and call `deriveContextHash` again to
+get the same root, so nothing has to be stored. The root is bound to
+the wallet seed, the selected account and the network, so those flows
+need the depositor connected on the same account and network they
+deposited with.
 
 ---
 
 ## 4. Test Vectors
 
+The vectors live in [`deriveContextHash.vectors.test.ts`][vectors] and
+are not repeated here. The test file also carries a reference
+implementation of the §2.2 construction. Revision 2.1 of this
+document listed the same vectors inline ([rev 2.1][rev21]).
+
 ### 4.1 HKDF function-level vectors
 
-These vectors pin the pure HKDF composition (the mathematical
-mapping from `(ikm, salt, info, length)` to output). They are
-independent of how a v2.0 wallet builds `info` at runtime —
-the `info` bytes are given as opaque inputs. Wallet integration
-tests SHOULD target the §4.2 vector instead.
-
-`ikm` (hex, fixed test value):
-```
-391cdb922097ec9c96fc13cadb01d5745ccf31f5dbec3a3810344071
-4779ec85
-```
-
-salt: UTF-8 `"derive-context-hash"`.
-
-#### Vector 1
-
-```
-info (hex):     b58b0cb4ecdea3c65311b4ca8833fe47
-                b6ae0a7500f87a8eb31e8379d3fe48f1
-                deadbeef
-output (hex):   3b0e2d90a01122eed8a520648073892f
-                6b2d8f4419216023d63cdbd49500fca3
-```
-
-#### Vector 2
-
-```
-info (hex):     b58b0cb4ecdea3c65311b4ca8833fe47
-                b6ae0a7500f87a8eb31e8379d3fe48f1
-                00
-output (hex):   50775126782c1a5e4d60daa4666b2c75
-                90f0b5a445a4115b0abd411467c92597
-```
-
-#### Vector 3
-
-```
-info (hex):     b58b0cb4ecdea3c65311b4ca8833fe47
-                b6ae0a7500f87a8eb31e8379d3fe48f1
-                00000000000000000000000000000000
-                00000000000000000000000000000000
-                00000000000000000000000000000000
-                00000000000000000000000000000000
-output (hex):   d81e4a91f32eabd34df0e55ca36f26f2
-                11af65dfe575b7201c95baaa6608cdd9
-```
-
-Vectors verified against Node.js `crypto.hkdf('sha256', ...)`
-and a manual HMAC-based implementation.
+Test group `HKDF function-level vectors (info given as opaque bytes)`,
+Vectors 1–3. They pin the HKDF composition alone: a fixed `ikm`, the
+§2.2 salt, and three `info` values given as opaque bytes. They do not
+depend on how a wallet builds `info`.
 
 ### 4.2 Wallet integration vector
 
-This vector pins the full v2.0 `info` construction
-(`SHA-256(UTF8(appName)) || SHA-256(UTF8(canonicalNetworkName)) || connectedPubkey || context`). Any conforming
-wallet on Bitcoin mainnet, restored from the canonical "abandon"
-BIP-39 recovery phrase with an empty passphrase, with the dApp
-connected to the BIP-44 leaf `m/44'/0'/0'/0/0`, MUST reproduce
-this output.
+Test group `wallet integration vector (full info construction)`. It
+pins the full `info` construction and the intermediates. Any
+conforming HD wallet MUST reproduce its output with these inputs:
 
-BIP-39 mnemonic:
-```
-abandon abandon abandon abandon abandon abandon abandon
-abandon abandon abandon abandon about
-```
+- the BIP-39 phrase "abandon abandon abandon abandon abandon abandon
+  abandon abandon abandon abandon abandon about", empty passphrase;
+- the dApp connected to the BIP-44 leaf `m/44'/0'/0'/0/0`;
+- `appName = "test-app"`, `canonicalNetworkName = "bitcoin-mainnet"`,
+  `context = "deadbeef"`.
 
-BIP-39 seed (no passphrase, hex):
-```
-5eb00bbddcf069084889a8ab9155568165f5c453ccb85e70811aaed6
-f6da5fc19a5ac40b389cd370d086206dec8aa6c43daea6690f20ad3d
-8d48b2d2ce9e38e4
-```
-
-`ikm` = BIP-32 private key at `m/73681862'` (hex):
-```
-391cdb922097ec9c96fc13cadb01d5745ccf31f5dbec3a3810344071
-4779ec85
-```
-
-`connectedPubkey` = compressed SEC1 public key of the BIP-44
-receive leaf `m/44'/0'/0'/0/0` (hex):
-```
-03aaeb52dd7494c361049de67cc680e83ebcbbbdbeb13637d92cd845
-f70308af5e
-```
-
-Wallet inputs:
-- `appName = "test-app"`
-- `canonicalNetworkName = "bitcoin-mainnet"`
-- `context (hex) = "deadbeef"`
-
-Intermediates:
-```
-SHA-256(UTF8("test-app")):
-  b58b0cb4ecdea3c65311b4ca8833fe47
-  b6ae0a7500f87a8eb31e8379d3fe48f1
-
-SHA-256(UTF8("bitcoin-mainnet")):
-  6ccb47297786bba7fff572abf0cc32bb
-  50881925bf01d67a50a981d9774b82dd
-```
-
-`info` (hex, 101 bytes = 32 + 32 + 33 + 4, one line per component):
-```
-b58b0cb4ecdea3c65311b4ca8833fe47b6ae0a7500f87a8eb31e8379d3fe48f1   // SHA-256(UTF8("test-app"))         — 32 bytes
-6ccb47297786bba7fff572abf0cc32bb50881925bf01d67a50a981d9774b82dd   // SHA-256(UTF8("bitcoin-mainnet"))  — 32 bytes
-03aaeb52dd7494c361049de67cc680e83ebcbbbdbeb13637d92cd845f70308af5e // connectedPubkey                    — 33 bytes
-deadbeef                                                            // context                            —  4 bytes
-```
-
-`output` (hex):
-```
-f82ced3be0e29591a7863ece03d65f79
-fb494fe0de7203549855f462455df008
-```
-
-Vector verified against Node.js `crypto.hkdfSync('sha256',
-...)` with `@scure/bip32` BIP-32 derivation.
+The test does not run BIP-32 itself. Its `IKM` (the private key at
+`m/73681862'`) and `CONNECTED_PUBKEY` (the key at `m/44'/0'/0'/0/0`)
+are recorded fixtures, derived from that phrase with a standard
+BIP-32 implementation. Revision 2.1 prints the seed, both keys and
+every intermediate value ([rev 2.1][rev21]) for implementers who want
+to check each step.
 
 ---
 
@@ -510,8 +465,10 @@ Vector verified against Node.js `crypto.hkdfSync('sha256',
 | BIP-32 | [HD Wallets][bip32] |
 | BIP-39 | [Recovery phrase / seed][bip39] |
 | BIP-43 | [Purpose Field][bip43] |
-| UniSat wallet PR | [wallet#2][unisat2] |
-| Salt fix PR | [wallet#3][unisat3] |
+| UniSat, revision 1.0 implementation | [wallet#2][unisat2] |
+| UniSat, revision 1.0 salt fix | [wallet#3][unisat3] |
+| UniSat, revision 2.0 network and pubkey binding (extension v1.7.14) | [wallet@51c0939][unisat20] |
+| Conformance vectors | [`deriveContextHash.vectors.test.ts`][vectors] |
 
 [rfc5869]: https://datatracker.ietf.org/doc/html/rfc5869
 [krawczyk]: https://eprint.iacr.org/2010/264
@@ -520,4 +477,7 @@ Vector verified against Node.js `crypto.hkdfSync('sha256',
 [bip43]: https://github.com/bitcoin/bips/blob/master/bip-0043.mediawiki
 [unisat2]: https://github.com/unisat-wallet/wallet/pull/2
 [unisat3]: https://github.com/unisat-wallet/wallet/pull/3
+[unisat20]: https://github.com/unisat-wallet/wallet/commit/51c0939298c621ecce7eba6acd7e7ec889ee1f61
+[vectors]: ../../packages/babylon-ts-sdk/src/tbv/core/vault-secrets/__tests__/deriveContextHash.vectors.test.ts
+[rev21]: https://github.com/babylonlabs-io/babylon-toolkit/blob/ce167fad5dabbb1263f375f31af5594e9dbbab3d/docs/specs/derive-context-hash.md#4-test-vectors
 [derive-vault-secrets-spec]: ./derive-vault-secrets.md

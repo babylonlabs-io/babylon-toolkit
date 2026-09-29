@@ -12,7 +12,13 @@
  * banners (including a silent-lock notice), action button.
  */
 
-import { Button, Callout, Loader, Text } from "@babylonlabs-io/core-ui";
+import {
+  Button,
+  Callout,
+  Loader,
+  LockIcon,
+  Text,
+} from "@babylonlabs-io/core-ui";
 import {
   type ReactNode,
   useCallback,
@@ -84,7 +90,8 @@ export interface DepositProgressViewProps {
   peginSigningProgress: PeginSigningProgress | null;
   /**
    * Number of vaults in this deposit. When > 1, the post-trunk groups render
-   * as one column per vault to reflect the per-vault VP-paced timelines.
+   * as one stacked lane per vault to reflect the per-vault VP-paced
+   * timelines.
    */
   vaultCount?: number;
   /**
@@ -94,7 +101,7 @@ export interface DepositProgressViewProps {
    */
   currentVaultIndex?: number | null;
   /**
-   * Per-vault raw steps for a split deposit, indexed to match the columns.
+   * Per-vault raw steps for a split deposit, indexed to match the lanes.
    * Supplied when the caller has a stronger per-lane source of truth: the
    * initial live flow tracks explicit per-vault outcomes, and resume flows use
    * polling. Omit only for strictly sequential happy-path inference.
@@ -183,11 +190,9 @@ function resolveActiveStepDetail(params: {
   btcConfirmationDetail: BtcConfirmationDetailData | null | undefined;
   ethConfirmationDetail?: RegistrationDepthProgress | null;
   wotsApprovalHint?: string | null;
-  /** Stack the panel's rows — used for the narrow split-deposit columns. */
-  stacked?: boolean;
   /**
-   * In split layouts, whether this column is the vault the flow is currently
-   * driving. The WOTS hint only belongs under that vault — sibling columns
+   * In split layouts, whether this lane is the vault the flow is currently
+   * driving. The WOTS hint only belongs under that vault — sibling lanes
    * parked on the same step are not awaiting this modal's wallet approval.
    */
   isActiveVault?: boolean;
@@ -197,7 +202,6 @@ function resolveActiveStepDetail(params: {
     btcConfirmationDetail,
     ethConfirmationDetail,
     wotsApprovalHint,
-    stacked,
     isActiveVault,
   } = params;
   if (currentStep === DepositFlowStep.SIGN_PEGIN_BTC) {
@@ -210,7 +214,6 @@ function resolveActiveStepDetail(params: {
       <EthConfirmationDetail
         confirmations={ethConfirmationDetail.confirmations}
         required={ethConfirmationDetail.required}
-        stacked={stacked}
       />
     );
   }
@@ -234,7 +237,6 @@ function resolveActiveStepDetail(params: {
         prePeginTxid={btcConfirmationDetail.prePeginTxid}
         requiredDepth={btcConfirmationDetail.requiredDepth}
         depositIds={btcConfirmationDetail.depositIds}
-        stacked={stacked}
       />
     );
   }
@@ -242,9 +244,7 @@ function resolveActiveStepDetail(params: {
     currentStep === DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS ||
     currentStep === DepositFlowStep.AWAIT_VP_VERIFICATION ||
     currentStep === DepositFlowStep.AWAIT_ACTIVATION_CONFIRMATION;
-  return isProviderWait ? (
-    <ProviderWaitDetail step={currentStep} stacked={stacked} />
-  ) : null;
+  return isProviderWait ? <ProviderWaitDetail step={currentStep} /> : null;
 }
 
 export function DepositProgressView(props: DepositProgressViewProps) {
@@ -278,7 +278,7 @@ export function DepositProgressView(props: DepositProgressViewProps) {
   } = props;
 
   // Every flow that renders this view requires the BTC wallet, so surface a
-  // silent lock here (as an error-style Callout) regardless of which flow —
+  // silent lock here (as a Callout) regardless of which flow —
   // deposit, resume/broadcast, payout signing, or continuation — mounted it.
   const { locked: walletLocked } = useBTCWallet();
   const { unlock, isUnlocking } = useBtcWalletUnlock(
@@ -350,21 +350,20 @@ export function DepositProgressView(props: DepositProgressViewProps) {
   // must still read as done — a WOTS re-offer enters here with the whole
   // "Register deposit" group genuinely complete, and pinning 0 would show a
   // confirmed deposit as zero progress. What pre-entry suppresses is how the
-  // CURRENT step reads (see buildStepGroups): no group expands — per-column
+  // CURRENT step reads (see buildStepGroups): no group expands — per-lane
   // on the split path, where sibling lanes keep their polled expansion — and
   // a current group with none of its own work done reads not-started, so
   // nothing spins or announces progress while the flow idles awaiting the
   // click. Flows entering at step 1 have nothing completed, so they render
-  // as no bar, no pill, and collapsed not-started headers — except the group
-  // owning the Pre-PegIn step, which opens to carry the fee selector on its
-  // one relevant row (see GroupBlock).
+  // as no bar and no pill — just the group owning the Pre-PegIn step, opened
+  // to carry the fee selector on its one relevant row (see GroupBlock).
   const visualStep = isComplete
     ? TOTAL_VISUAL_STEPS + 1
     : getVisualStep(currentStep);
   // `currentStep` is the active action, but split deposits can have each vault
   // lane land on a different step after a recoverable per-vault failure. The
   // aggregate progress bar and completed-group pill must therefore use the
-  // slowest lane, while the split columns below keep rendering their own steps.
+  // slowest lane, while the split lanes below keep rendering their own steps.
   const aggregateRawStep =
     vaultCount > 1 && perVaultSteps && perVaultSteps.length > 0
       ? perVaultSteps.reduce((minStep, step) =>
@@ -386,13 +385,8 @@ export function DepositProgressView(props: DepositProgressViewProps) {
   const showCompletedGroupsPill = completedGroups >= 1;
 
   const steps = useMemo(
-    () =>
-      buildStepItems(
-        payoutSigningProgress,
-        peginSigningProgress,
-        ethConfirmationDetail,
-      ),
-    [payoutSigningProgress, peginSigningProgress, ethConfirmationDetail],
+    () => buildStepItems(payoutSigningProgress, peginSigningProgress),
+    [payoutSigningProgress, peginSigningProgress],
   );
 
   const activeStepDetail = resolveActiveStepDetail({
@@ -402,22 +396,18 @@ export function DepositProgressView(props: DepositProgressViewProps) {
     wotsApprovalHint,
   });
 
-  // Split columns resolve the detail from each column's OWN step (so two
-  // columns parked on the same shared wait both show the panel, and diverged
-  // columns each show their own). Rendered stacked because the columns are
-  // narrow. The single-column path keeps the inline `activeStepDetail` above.
+  // Split lanes resolve the detail from each lane's OWN step (so two
+  // lanes parked on the same shared wait both show the panel, and diverged
+  // lanes each show their own). The single-vault path uses the
+  // `activeStepDetail` resolved above.
   const renderStepDetail = useCallback(
-    (
-      step: DepositFlowStep,
-      opts: { stacked: boolean; isActiveVault?: boolean },
-    ): ReactNode =>
+    (step: DepositFlowStep, opts?: { isActiveVault?: boolean }): ReactNode =>
       resolveActiveStepDetail({
         currentStep: step,
         btcConfirmationDetail,
         ethConfirmationDetail,
         wotsApprovalHint,
-        stacked: opts.stacked,
-        isActiveVault: opts.isActiveVault,
+        isActiveVault: opts?.isActiveVault,
       }),
     [btcConfirmationDetail, ethConfirmationDetail, wotsApprovalHint],
   );
@@ -438,7 +428,12 @@ export function DepositProgressView(props: DepositProgressViewProps) {
         // banners stay pinned above the CTA, always visible.
         <div className="flex flex-col gap-4">
           {walletLocked && !isComplete && !isTerminalSuccess && (
-            <Callout variant="error" title={COPY.wallet.locked.title}>
+            <Callout
+              variant="accent"
+              role="alert"
+              icon={<LockIcon size={24} color="text-accent-contrast" />}
+              title={COPY.wallet.locked.title}
+            >
               {COPY.wallet.locked.description}
             </Callout>
           )}
@@ -545,14 +540,6 @@ export function DepositProgressView(props: DepositProgressViewProps) {
             )}
           </Button>
         </div>
-      }
-      footnote={
-        <Text
-          variant="body2"
-          className="text-center text-xs text-accent-secondary"
-        >
-          {COPY.deposit.progress.doNotSpendWarning}
-        </Text>
       }
     >
       <div className="flex flex-col gap-6">

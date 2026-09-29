@@ -1,12 +1,14 @@
 /**
  * ActiveLoansList Component
- * v3 Loans page "Active Loans (N)" section: one row per borrowed asset showing
- * amount, live Borrow APR, available liquidity and utilization, with per-asset
- * Borrow / Repay entry points into the existing reserve-detail overlay.
+ * v3 Loans page "Active Loans (N)" section: one row per borrowed reserve showing
+ * amount, hub, live Borrow APR, available liquidity and utilization, with
+ * per-reserve Borrow / Repay entry points into the reserve-detail overlay. The
+ * same token owed to two hubs is two rows, told apart by the Hub column.
  */
 
 import { Avatar, Heading } from "@babylonlabs-io/core-ui";
 
+import { HubLabel } from "@/applications/aave/components/HubLabel";
 import type { ActiveLoanRow } from "@/applications/aave/hooks";
 import { ListRowCard, ListRowMetric } from "@/components/shared/ListRow";
 import { NEUTRAL_ROW_BUTTON_CLASS } from "@/components/shared/buttonClasses";
@@ -49,7 +51,12 @@ export function ActiveLoansList({
               : COPY.common.emptyValue;
 
           return (
-            <ListRowCard key={row.reserveId}>
+            <ListRowCard
+              key={row.reserveId}
+              // E2E: e2e/real/actions/multiHub.ts finds each loan's row by
+              // reserve id and checks it names its hub.
+              testId={`active-loan-row-${row.reserveId}`}
+            >
               <div className="flex w-[200px] shrink-0 items-center gap-2">
                 <Avatar url={row.icon} alt={row.symbol} size="medium" />
                 <span className="truncate text-base leading-[1.5] tracking-[0.15px] text-accent-primary">
@@ -57,6 +64,10 @@ export function ActiveLoansList({
                 </span>
               </div>
 
+              <ListRowMetric
+                label={COPY.loans.hub.label}
+                value={<HubLabel hub={row.hub} />}
+              />
               <ListRowMetric
                 label={COPY.loans.borrowRateLabel}
                 value={row.borrowRate ?? COPY.common.emptyValue}

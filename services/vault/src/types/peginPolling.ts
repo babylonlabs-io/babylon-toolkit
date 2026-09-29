@@ -87,6 +87,8 @@ export interface PeginPollingProviderProps extends PropsWithChildren {
   pendingPegins: PendingPeginRequest[];
   /** Depositor's BTC public key (x-only, 32 bytes without 0x prefix) */
   btcPublicKey?: string;
+  /** True when the session runs without a Bitcoin wallet (Ethereum-only). */
+  btcWalletAbsent?: boolean;
 }
 
 /** Deposit prepared for polling */

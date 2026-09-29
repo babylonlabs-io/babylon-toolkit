@@ -10,13 +10,14 @@ const DISABLED_CONNECT_BG = "disabled:!bg-[#CCCCCC] dark:disabled:!bg-secondary-
 
 const SELECT_WALLET_TITLE_PREFIX = "Select ";
 const SELECT_WALLET_TITLE_SUFFIX = " Wallet";
-const OPTIONAL_CHAIN_TITLE_SUFFIX = " (Optional)";
 
 interface ChainsProps {
   disabled?: boolean;
   chains: IChain[];
-  /** Chains outside this set are labelled optional. Omit to label none. */
+  /** Chains outside this set are marked optional. Omit to mark none. */
   requiredChainIds?: readonly string[];
+  /** The line under each chain's name, keyed by chain id. */
+  chainDescriptions?: Partial<Record<string, string>>;
   className?: string;
   selectedWallets?: Record<string, IWallet | undefined>;
   onConfirm?: () => void;
@@ -28,6 +29,7 @@ export const Chains = memo(
     disabled = false,
     chains,
     requiredChainIds,
+    chainDescriptions,
     selectedWallets = {},
     className,
     onConfirm,
@@ -54,9 +56,9 @@ export const Chains = memo(
             return (
               <ChainButton
                 key={chain.id}
-                title={`${SELECT_WALLET_TITLE_PREFIX}${chain.name}${SELECT_WALLET_TITLE_SUFFIX}${
-                  optional ? OPTIONAL_CHAIN_TITLE_SUFFIX : ""
-                }`}
+                title={`${SELECT_WALLET_TITLE_PREFIX}${chain.name}${SELECT_WALLET_TITLE_SUFFIX}`}
+                description={chainDescriptions?.[chain.id]}
+                optional={optional}
                 logo={chain.icon}
                 alt={chain.name}
                 onClick={() => void onSelectChain?.(chain)}

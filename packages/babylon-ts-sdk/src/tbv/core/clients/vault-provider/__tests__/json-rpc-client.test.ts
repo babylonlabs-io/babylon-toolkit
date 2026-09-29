@@ -375,6 +375,48 @@ describe("JsonRpcClient", () => {
     });
   });
 
+  it("renames the legacy PayoutBroadcast claimer status to PayoutConfirmed in batchGetPegoutStatusByVaultId", async () => {
+    const peginTxid = "ab".repeat(32);
+    const vaultId = `0x${"ba".repeat(32)}`;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        createSuccessResponse({
+          results: [
+            {
+              vault_id: vaultId,
+              result: {
+                pegin_txid: peginTxid,
+                vault_id: vaultId,
+                found: true,
+                claimer: {
+                  status: "PayoutBroadcast",
+                  failed: false,
+                  claim_txid: "cd".repeat(32),
+                  claimer_pubkey: "ef".repeat(32),
+                  assert_txid: "12".repeat(32),
+                  created_at: 1,
+                  updated_at: 2,
+                },
+                challengers: [],
+              },
+              error: null,
+            },
+          ],
+        }),
+      ),
+    );
+
+    const client = new VaultProviderRpcClient(TEST_BASE_URL);
+    const response = await client.batchGetPegoutStatusByVaultId({
+      vault_ids: [vaultId],
+    });
+
+    expect(response.results[0].result?.claimer?.status).toBe(
+      "PayoutConfirmed",
+    );
+  });
+
   it("temporarily exempts depositor claimer artifact downloads from the typed response cap", async () => {
     const artifactResponse = {
       tx_graph_json: "x".repeat(80),

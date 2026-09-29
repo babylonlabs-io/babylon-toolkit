@@ -2,8 +2,8 @@
  * DMK session lifecycle: discovery → connect → state gate → dispose behind a
  * Promise API, so everything above this file is device-free and testable.
  * Verified against the installed DMK 1.7.1 types, not the published docs.
- * The transport is web-hid, swappable pre-build through the test-only
- * {@link setDmkTransportOverride} seam.
+ * The transport is web-hid, swappable pre-build through the test/E2E-only
+ * {@link setDmkTransportOverride} seam (the `./testing` exports subpath).
  *
  * @module ledger-vault-signer/dmkSession
  */
@@ -28,8 +28,9 @@ export interface DmkSessionHandle {
   readonly dmk: DeviceManagementKit;
   readonly sessionId: DeviceSessionId;
   /**
-   * App name/version at connect time ("BOLOS" = dashboard). Diagnostic only;
-   * absent when the preflight failed. Never re-read between intent phases.
+   * App name/version at connect time ("BOLOS" = dashboard); absent when the
+   * preflight failed. The host gates connect on it, and re-reads it only while
+   * idle via `refreshSessionApp` — never between intent phases.
    */
   readonly appName?: string;
   readonly appVersion?: string;
@@ -83,9 +84,13 @@ let transportOverride: DmkTransportOverride | undefined;
  * The injector passes the factory in; this module never imports that package,
  * so production bundles stay speculos-free.
  *
- * Package-internal for now: deliberately NOT re-exported from `index.ts`, so
- * the only callers are this package's own tests. The env-gated dApp seam that
- * needs it publicly is a separate task and re-exports it with its consumer.
+ * Exposed ONLY via the `./testing` exports subpath (never the main `.`
+ * surface): the vault dApp's DEV-gated Speculos bootstrap is the intended
+ * caller. What the code enforces is TIMING only — a swap after the DMK exists
+ * gets the loud throw below; keeping pre-build production calls out is the
+ * subpath boundary plus the consumer's build-time gate. THIS module still
+ * never imports the speculos package, so it contributes no speculos code to
+ * any bundle of this package.
  *
  * The override persists across {@link closeDmk}; pass `undefined` to restore
  * the web-hid default.
@@ -193,10 +198,12 @@ export async function connectDmkSession(): Promise<DmkSessionHandle> {
 }
 
 /**
- * `GET_APP_AND_VERSION` preflight, run only at connect — the most useful fact
- * when the first vault APDU fails ("Babylon Vault" vs "Babylon Vault Testnet"
- * vs "BOLOS"). Sent explicitly rather than read from DMK's internal session
- * state. Diagnostic only: a failed read degrades to `undefined`.
+ * `GET_APP_AND_VERSION` preflight — the most useful fact when the first vault
+ * APDU fails ("Babylon Vault" vs "Babylon Vault Testnet" vs "BOLOS"). Run at
+ * connect, and again by {@link refreshSessionApp} when the host re-gates a
+ * session whose first read failed. Sent explicitly rather than read from DMK's
+ * internal session state. A failed read degrades to `undefined`; the host lets
+ * that through.
  */
 async function readAppAndVersion(
   dmk: DeviceManagementKit,
@@ -208,7 +215,7 @@ async function readAppAndVersion(
     if (!isSuccessCommandResult(result)) return {};
     return { appName: result.data.name, appVersion: result.data.version };
   } catch {
-    // Preflight is diagnostics; the ceremony APDUs carry their own errors.
+    // No identity to gate on; the first vault APDU carries its own error.
     return {};
   }
 }
@@ -229,6 +236,19 @@ export async function isSessionAlive(handle: DmkSessionHandle): Promise<boolean>
     if ((error as { _tag?: string } | undefined)?._tag === "DeviceSessionNotFound") return false;
     throw error;
   }
+}
+
+/**
+ * Re-run the connect preflight on a live session whose first read failed, so
+ * a retry cannot ride in on an ungated session. Returns a copy of the handle
+ * with the app fields filled when the read succeeds, or with the same fields
+ * when it fails. The preflight is a BOLOS command, so it must not interleave
+ * with a device ceremony; the signer holds no ceremony state, so the caller
+ * enforces that.
+ */
+export async function refreshSessionApp(handle: DmkSessionHandle): Promise<DmkSessionHandle> {
+  const app = await readAppAndVersion(handle.dmk, handle.sessionId);
+  return { ...handle, ...app };
 }
 
 /** Disconnect the session; safe to call when already disconnected. */

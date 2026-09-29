@@ -8,9 +8,11 @@ import { formatSatoshisToBtc } from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
   validateMultiVaultDepositInputs as sdkValidateMultiVaultDepositInputs,
   validateProviderSelection as sdkValidateProviderSelection,
+  validateRemainingCapacity as sdkValidateRemainingCapacity,
   validateVaultAmounts as sdkValidateVaultAmounts,
   type DepositFormValidityParams,
   type MultiVaultDepositFlowInputs,
+  type RemainingCapacityParams,
   type ValidationResult,
 } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 
@@ -20,7 +22,6 @@ import { getBtcSymbol } from "@/utils/formatting";
 export {
   isDepositAmountValid,
   validateDepositAmount,
-  validateRemainingCapacity,
   validateVaultProviderPubkey,
 } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 
@@ -40,6 +41,8 @@ export interface VaultMultiVaultDepositInputs
   btcAddress: string | undefined;
   depositorEthAddress: string | undefined;
   selectedProviders: string[];
+  /** Deposit amount the depositor approved, in satoshis. */
+  depositAmountSats: bigint;
 }
 
 export function validateProviderSelection(
@@ -87,6 +90,23 @@ export function validateMultiVaultDepositInputs(
   if (params.vaultAmounts.length > 2) {
     throw new Error("Maximum 2 BTCVaults supported");
   }
+  // The vault amounts are the peg-in outputs; fees are funded separately, so
+  // they must add up to exactly the amount the depositor approved.
+  const vaultAmountsTotal = params.vaultAmounts.reduce(
+    (sum, amount) => sum + amount,
+    0n,
+  );
+  if (vaultAmountsTotal !== params.depositAmountSats) {
+    throw new Error(COPY.deposit.splitSizing.amountsDoNotMatchDeposit);
+  }
+  // A split's first BTCVault is liquidated first, so it must be the smaller
+  // one. Checked here, before any signing, on the amounts actually submitted.
+  if (
+    params.vaultAmounts.length === 2 &&
+    params.vaultAmounts[0] >= params.vaultAmounts[1]
+  ) {
+    throw new Error(COPY.deposit.splitSizing.sacrificialNotSmaller);
+  }
 
   sdkValidateMultiVaultDepositInputs(params);
 }
@@ -115,7 +135,15 @@ export interface DepositCtaParams extends DepositFormValidityParams {
   p2aAnchorValueSats: bigint | null;
   isGeoBlocked: boolean;
   isAddressBlocked: boolean;
+  /** True if the address block comes only from a failed screening request. */
+  isAddressScreeningUnavailable: boolean;
   isWalletConnected: boolean;
+  /**
+   * True when the session is confirmed and Bitcoin is absent. Keeps the
+   * not-connected CTA enabled so a click opens the Bitcoin wallet prompt
+   * instead of a dead button.
+   */
+  canConnectBtcWallet: boolean;
   hasProvider: boolean;
   /**
    * True when a provider is selected but its on-chain commission hasn't loaded
@@ -182,6 +210,8 @@ export interface DepositCtaParams extends DepositFormValidityParams {
    * with no error or retry signal.
    */
   depositorClaimValueError: Error | null;
+  /** The amount needs more than the 20 largest UTXOs, though the wallet holds enough. */
+  fundingInputCapExceeded: boolean;
 }
 
 export interface DepositCtaState {
@@ -226,7 +256,10 @@ export function capBelowMinimumLabel(
   effectiveRemaining: bigint,
   minDeposit: bigint,
 ): string {
-  return `Remaining capacity (${formatSatoshisToBtc(effectiveRemaining)} BTC) is below the minimum deposit (${formatSatoshisToBtc(minDeposit)} BTC)`;
+  return COPY.deposit.errors.capBelowMinimum(
+    formatSatoshisToBtc(effectiveRemaining),
+    formatSatoshisToBtc(minDeposit),
+  );
 }
 
 /**
@@ -250,6 +283,25 @@ export function maxBelowMinimum(
 
 export function maxBelowMinimumLabel(minDeposit: bigint): string {
   return `Minimum deposit is ${formatSatoshisToBtc(minDeposit)} ${getBtcSymbol()}`;
+}
+
+export function validateRemainingCapacity(
+  params: RemainingCapacityParams,
+): ValidationResult {
+  const result = sdkValidateRemainingCapacity(params);
+  if (
+    result.valid ||
+    params.effectiveRemaining === null ||
+    params.effectiveRemaining === 0n
+  ) {
+    return result;
+  }
+  return {
+    valid: false,
+    error: COPY.deposit.errors.exceedsCap(
+      formatSatoshisToBtc(params.effectiveRemaining),
+    ),
+  };
 }
 
 export function getDepositButtonLabel(
@@ -297,11 +349,18 @@ export function getDepositCtaState(params: DepositCtaParams): DepositCtaState {
   }
 
   if (params.isAddressBlocked) {
-    return { disabled: true, label: "Wallet not eligible" };
+    return {
+      disabled: true,
+      label: params.isAddressScreeningUnavailable
+        ? COPY.wallet.addressScreeningBanner.unavailableTitle
+        : COPY.wallet.walletNotEligibleTooltip,
+    };
   }
 
   if (!params.isWalletConnected) {
-    return { disabled: true, label: "Connect your wallet" };
+    return params.canConnectBtcWallet
+      ? { disabled: false, label: COPY.wallet.btcAction.connect }
+      : { disabled: true, label: "Connect your wallet" };
   }
 
   // Promote wallet-liveness failure to the CTA so the user can recover in one
@@ -326,13 +385,12 @@ export function getDepositCtaState(params: DepositCtaParams): DepositCtaState {
     };
   }
 
-  // Mirror `validateRemainingCapacity` from the SDK. The message strings must
-  // match exactly so users see the same wording whether the block surfaces via
-  // the CTA or via a future inline error. These run before the generic
-  // `amountExceedsMax` check below: `maxDepositSats` is itself clamped to the
-  // supply cap, so a cap-bound amount also trips `amountExceedsMax` — and
-  // "Insufficient balance" would be wrong when the wallet has ample balance but
-  // the supply cap is the real limiter.
+  // Mirrors `validateRemainingCapacity` from the SDK's cap-exhaustion logic.
+  // These run before the generic `amountExceedsMax` check below:
+  // `maxDepositSats` is itself clamped to the supply cap, so a cap-bound
+  // amount also trips `amountExceedsMax` — and "Insufficient balance" would
+  // be wrong when the wallet has ample balance but the supply cap is the
+  // real limiter.
   if (params.effectiveRemaining === 0n) {
     return {
       disabled: true,
@@ -349,6 +407,31 @@ export function getDepositCtaState(params: DepositCtaParams): DepositCtaState {
       label: capBelowMinimumLabel(params.effectiveRemaining, params.minDeposit),
     };
   }
+  if (
+    params.effectiveRemaining !== null &&
+    params.amountSats > params.effectiveRemaining
+  ) {
+    return {
+      disabled: true,
+      label: COPY.deposit.errors.exceedsCap(
+        formatSatoshisToBtc(params.effectiveRemaining),
+      ),
+    };
+  }
+
+  // Below every supply-cap branch: a supply-cap hit must never read as a UTXO
+  // problem, since consolidating cannot raise the remaining cap. Above
+  // `maxBelowMinimum` and `amountExceedsMax`: those read the funding-input-
+  // capped max, so a wallet that holds enough across more than the capped
+  // number of UTXOs would otherwise be told its minimum or its balance is the
+  // problem when consolidating is the one fix that works.
+  if (params.fundingInputCapExceeded) {
+    return {
+      disabled: true,
+      label: COPY.deposit.fundingInputCap.cta,
+    };
+  }
+
   // Symmetric to capBelowMinimum, on the balance/fee dimension: the fee-adjusted
   // max is positive but below the minimum, so no amount clears both bounds.
   // Only surface once the user has entered an amount — at the empty initial
@@ -365,16 +448,6 @@ export function getDepositCtaState(params: DepositCtaParams): DepositCtaState {
       label: maxBelowMinimumLabel(params.minDeposit),
     };
   }
-  if (
-    params.effectiveRemaining !== null &&
-    params.amountSats > params.effectiveRemaining
-  ) {
-    return {
-      disabled: true,
-      label: `BTCVault size exceeds remaining capacity (${formatSatoshisToBtc(params.effectiveRemaining)} BTC)`,
-    };
-  }
-
   // An amount that exceeds the fee-adjusted depositable balance can never be
   // funded — surface it before the provider prompt, since selecting a provider
   // cannot make an unfundable amount fundable.

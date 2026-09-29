@@ -14,10 +14,16 @@
       "types": "./dist/index.d.ts",
       "require": "./dist/index.cjs",
       "import": "./dist/index.js"
+    },
+    "./testing": {
+      "types": "./dist/testing.d.ts",
+      "require": "./dist/testing.cjs",
+      "import": "./dist/testing.js"
     }
   },
   "scripts": {
     "build": "tsc -b --noEmit tsconfig.lib.json && vite build && node scripts/check-dist-types.cjs",
+    "typecheck": "tsc -b --noEmit tsconfig.lib.json",
     "format": "prettier --check \"src/**/*.ts\"",
     "format:fix": "prettier --write \"src/**/*.ts\"",
     "lint": "eslint .",

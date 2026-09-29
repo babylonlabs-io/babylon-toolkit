@@ -15,19 +15,33 @@ import type { Page } from "@playwright/test";
 import fs from "node:fs/promises";
 import path from "node:path";
 
+import { MOCK_ENV_VARS } from "../../playwright.config";
 import { VISUAL_OUTPUT_DIR } from "../../playwright.visual.config";
 import { expect } from "../fixtures";
+import type { PageWalletConfig } from "../fixtures/pageWallets";
 import {
   installRecordedBackend,
   type ReplayBackend,
   type ReplayOptions,
 } from "../fixtures/replay";
+import {
+  RECORDED_DEPLOYMENT,
+  RECORDED_DEPOSITOR,
+} from "../fixtures/replay/contracts";
 import type { RecordedBackend } from "../fixtures/replay/recording";
 
 import { installVisualDeterminism, waitForVisualStability } from "./stabilize";
 import {
+  CONNECT_GUIDE_STOP,
+  DEPOSIT_FLOW_STEPS,
   DEPOSIT_FLOW_STOPS,
+  DEPOSIT_PROGRESS_STOPS,
+  depositProgressStepStop,
   flowScreenshotFileName,
+  HAS_CONNECT_GUIDE,
+  HAS_LIQUIDATION_TOUR,
+  LIQUIDATION_CHART_STOP,
+  LIQUIDATION_TOUR_STOPS,
   screenshotFileName,
   VISUAL_TARGETS,
   VISUAL_VIEWPORTS,
@@ -62,6 +76,24 @@ const DESKTOP_LAYOUT_MIN_WIDTH_PX = 768;
 const MOBILE_MENU_BUTTON = 'button[aria-label="Open menu"]';
 
 /**
+ * The accessible name of the god-mode panel's collapsed launcher
+ * (src/dev/GodModePanel.tsx). The capture config turns the panel on so the
+ * deposit-progress walk can seed demo deposits through it, and
+ * `stabilize.ts` hides this launcher before every photograph.
+ */
+const GOD_MODE_LAUNCHER_NAME = "God mode";
+
+/**
+ * The deposit progress view's step markers, by the accessible label every
+ * row carries (`COPY.deposit.a11y.stepActive` and its siblings) - the same
+ * seam the real-wallet step machine reads (`e2e/real/actions/stepMachine.ts`).
+ * The view's own progress bar carries no role, and every pending row on the
+ * page behind a modal has a bar of its own, so "a progress bar is visible"
+ * never proved the stepper rendered. A marker does: nothing else renders one.
+ */
+export const STEP_MARKER = '[aria-label^="Step "]';
+
+/**
  * Name of the manifest each capture writes beside its PNGs, listing the
  * screens that side INTENDED to produce. Read by `scripts/visual-diff.mjs`
  * (`--expected-baseline` / `--expected-candidate`) and referenced by name in
@@ -74,14 +106,16 @@ export const EXPECTED_SCREENS_MANIFEST = "expected-screens.txt";
 /**
  * Seal the page off the network.
  *
- * Registered before the recorded backend so the backend's handlers win -
- * Playwright gives precedence to the most recently registered match. What
- * this catches is everything the recording does not cover: it fails closed
- * instead of reaching a live host, which would make a capture vary run to run
- * and, on a fork PR, leak the request.
+ * Registered on the CONTEXT, and before the recorded backend: the backend's
+ * page-level handlers win, because Playwright gives a page route precedence
+ * over a context route. What this catches is everything the recording does
+ * not cover: it fails closed instead of reaching a live host, which would
+ * make a capture vary run to run and, on a fork PR, leak the request. The
+ * context scope is what also seals a window the page opens - the god-mode
+ * panel's pop-out - which has no page route of its own.
  */
-async function blockOffsiteRequests(page: Page): Promise<void> {
-  await page.route("**/*", (route) => {
+export async function blockOffsiteRequests(page: Page): Promise<void> {
+  await page.context().route("**/*", (route) => {
     const { hostname } = new URL(route.request().url());
     const isLocal = hostname === "localhost" || hostname === "127.0.0.1";
     return isLocal ? route.continue() : route.abort();
@@ -100,6 +134,27 @@ export async function preparePage(
   const backend = await installRecordedBackend(page, replay);
   await installVisualDeterminism(page);
   return backend;
+}
+
+/**
+ * The injected wallets, presenting the recorded depositor on the recorded
+ * chain.
+ *
+ * One function rather than a literal in each connected walk: the recording
+ * only answers for this address, and only on this chain. A wallet presenting
+ * anything else connects fine and then renders an empty dashboard - or a
+ * "wrong network" banner across every screen - which is a photograph of
+ * nothing, and a second copy of these fields is exactly how that drifts in.
+ * The chain id is the recording's own, as the hex quantity a wallet reports.
+ */
+export function recordedPageWallets(): PageWalletConfig {
+  return {
+    btcAddress: RECORDED_DEPOSITOR.BTC_ADDRESS,
+    btcPublicKeyHex: RECORDED_DEPOSITOR.BTC_PUBLIC_KEY,
+    ethAddress: RECORDED_DEPOSITOR.ETH_ADDRESS,
+    ethChainIdHex: `0x${Number(RECORDED_DEPLOYMENT.ETH_CHAIN_ID).toString(16)}`,
+    ethRpcUrl: MOCK_ENV_VARS.NEXT_PUBLIC_ETH_RPC_URL,
+  };
 }
 
 /**
@@ -146,30 +201,12 @@ export async function assertNoErrorSurface(
 }
 
 /**
- * Refuse to photograph the mobile layout at a desktop width.
- *
- * A category gate, not a fix for one bug. `installVisualDeterminism` freezes
- * `Date.now()` for the life of the page, and that is load-bearing for
- * clock-derived copy - `stabilize.ts` explains why `clock.install()` is not an
- * option instead. The cost is that any throttled or debounced listener in app
- * code is reduced to a single leading-edge call for the whole capture run: it
- * takes whatever the first event carried and never revises it. A resize
- * listener that reads one spurious width therefore keeps it forever.
- *
- * That is exactly what happened. A full-page screenshot of a page taller than
- * the viewport briefly emulates a 1x1 viewport, core-ui's `useIsMobile` took
- * the 1x1 resize on its leading edge, and five 1280px-wide screens were
- * photographed as the mobile tree. `stabilize.ts` no longer fires that event,
- * which closes the instance; this closes the category, because the next
- * listener to arrive will not have that history to warn it.
- *
- * Checked here rather than by the poll for the same reason as
- * {@link assertNoErrorSurface}: the wrong layout is stable, so no amount of
- * waiting can see it. Only a claim about what the frame must CONTAIN can.
- *
- * Below {@link DESKTOP_LAYOUT_MIN_WIDTH_PX} the gate does nothing - the mobile
- * layout is the correct answer there, and the spurious width 1 lands on the
- * same side of the breakpoint as the real one.
+ * Reject the mobile layout at a desktop width, even when its pixels are stable.
+ * Chromium can emit a temporary 1x1 resize during a full-page screenshot.
+ * The fixed clock lets a throttled listener keep that size after restoration.
+ * Check before and after each screenshot. The capture filter handles only
+ * that temporary event; this guard still catches other wrong-layout causes.
+ * Mobile viewports correctly retain their mobile layout.
  */
 async function assertLayoutMatchesViewport(
   page: Page,
@@ -180,15 +217,35 @@ async function assertLayoutMatchesViewport(
 
   await expect(
     page.locator(MOBILE_MENU_BUTTON),
-    `${label} captured the mobile layout at a ${viewport.width}px viewport. ` +
-      `The app decided it is mobile and never revised that decision, which is ` +
-      `what a resize listener does when it takes a spurious width on its ` +
-      `leading edge and the frozen capture clock stops its trailing edge from ` +
-      `ever firing. The result is a desktop-width photograph of the mobile ` +
-      `tree, and it is perfectly static, so it diffs clean against itself ` +
-      `forever. Find what resized the page during the capture rather than ` +
-      `accepting this as a baseline.`,
+    `${label} shows the mobile menu at a ${viewport.width}px viewport. ` +
+      `Check screenshot resize events and the fixed capture clock.`,
   ).toHaveCount(0);
+}
+
+/**
+ * Refuse to photograph dev chrome.
+ *
+ * The god-mode panel is on for the whole capture (see
+ * `playwright.visual.config.ts`), and its launcher is a pill fixed in the
+ * bottom-right corner of every screen. `stabilize.ts` hides it by its own
+ * classes because it carries no testid, and a testid added in `src/` would not
+ * exist on the merge-base side anyway. Those classes can move; when they do,
+ * the pill lands in every picture on BOTH sides and diffs clean against itself
+ * forever. This is what turns that into a red build.
+ *
+ * Passes when the launcher is absent altogether - a merge-base that predates
+ * the panel, or a local run with the flag off - because "not in the
+ * photograph" is the whole claim.
+ */
+async function assertNoDevChrome(page: Page, label: string): Promise<void> {
+  await expect(
+    page.getByRole("button", { name: GOD_MODE_LAUNCHER_NAME, exact: true }),
+    `${label} would photograph the god-mode launcher. The capture turns the ` +
+      `panel on so the deposit-progress walk can seed demo deposits, and ` +
+      `stabilize.ts hides its launcher by its classes - those classes have ` +
+      `changed. Update HIDE_GOD_MODE_LAUNCHER_CSS rather than accepting dev ` +
+      `chrome in the corner of every screen.`,
+  ).toBeHidden();
 }
 
 /**
@@ -254,31 +311,57 @@ export interface StagedShot {
 }
 
 /**
- * Settle the page and photograph it, WITHOUT writing it to disk.
- *
- * Staged rather than written because the CI capture step is
- * `continue-on-error` (`.github/workflows/visual-regression.yml`), and that is
- * only safe while a fired gate leaves no file behind. A missing surface is
- * what makes the diff step report "missing" and the summary refuse to say "no
- * visual changes"; a screenshot already on disk would hand the diff a
- * complete, comparable set on both sides and let a failed gate report success.
- * So nothing reaches disk until the gates have passed - see
- * {@link writeCaptures}.
- *
- * Full-page rather than viewport-sized: a change below the fold is still a
- * change, and cropping would hide it.
+ * Capture after content and layout guards pass.
+ * Stage bytes until the whole walk passes; a failure withholds every image.
+ * Use the full page by default. Fixed overlays use the current viewport.
+ * Filter temporary 1x1 resizes during capture.
+ * Check the restored viewport and layout before staging the image.
  */
 export async function capture(
   page: Page,
   fileName: string,
+  { fullPage = true }: { fullPage?: boolean } = {},
 ): Promise<StagedShot> {
-  await waitForVisualStability(page);
-  // Per photograph, not per walk - see {@link assertNoErrorSurface}. Settled
-  // is not the same as rendered: an error fallback is perfectly stable.
+  await waitForVisualStability(page, fullPage);
+  // Reject stable error screens before each screenshot.
   await assertNoErrorSurface(page, fileName);
   // Nor is settled the same as correct: a latched mobile layout is stable too.
   await assertLayoutMatchesViewport(page, fileName);
-  const buffer = await page.screenshot({ fullPage: true });
+  await assertNoDevChrome(page, fileName);
+  const viewport = page.viewportSize();
+  if (!viewport || viewport.width <= 1 || viewport.height <= 1) {
+    throw new Error(`${fileName} needs a known viewport larger than 1x1.`);
+  }
+  await page.evaluate(() =>
+    document.documentElement.setAttribute("data-visual-capture", ""),
+  );
+  let buffer: Buffer;
+  let captureFailed = false;
+  try {
+    buffer = await page.screenshot({ fullPage });
+    await expect
+      .poll(() =>
+        page.evaluate(() => ({
+          width: innerWidth,
+          height: innerHeight,
+        })),
+      )
+      .toEqual(viewport);
+  } catch (error) {
+    captureFailed = true;
+    throw error;
+  } finally {
+    await page
+      .evaluate(() =>
+        document.documentElement.removeAttribute("data-visual-capture"),
+      )
+      .catch((error) => {
+        if (!captureFailed) throw error;
+        // eslint-disable-next-line no-console -- Keep the secondary browser failure in the test log.
+        console.error("Screenshot cleanup also failed:", error);
+      });
+  }
+  await assertLayoutMatchesViewport(page, fileName);
   expect(
     buffer.byteLength,
     `${fileName} is ${buffer.byteLength} bytes - the screen never painted.`,
@@ -286,11 +369,7 @@ export async function capture(
   return { fileName, buffer };
 }
 
-/**
- * Write staged photographs to disk. Call only after {@link assertAppRendered}
- * has passed - reaching here is the test's statement that what it photographed
- * is worth diffing against.
- */
+/** Write staged images only after the whole walk passes its guards. */
 export async function writeCaptures(
   shots: readonly StagedShot[],
 ): Promise<void> {
@@ -303,23 +382,10 @@ export async function writeCaptures(
 }
 
 /**
- * Create the output directory and declare which screens it should end up
- * holding. Call from `test.beforeAll`.
- *
- * The manifest is what closes the last silent-green path. A fired gate
- * withholds a PNG, which the diff step is meant to read as "missing" - but it
- * only checks that each surface DIRECTORY is non-empty, and `visual-diff.mjs`
- * builds its name set from the union of the two sides, so a screen absent from
- * BOTH never enters the comparison at all. Both sides run the same stashed
- * harness against the same committed fixture, so every fixture- or
- * harness-caused failure is symmetric BY CONSTRUCTION: the eight deposit-flow
- * shots vanish from both sides, the twelve route shots still land, and the run
- * reports "No visual changes" for a comparison that never looked at 8 of 20
- * screens.
- *
- * Written at collection time rather than derived at diff time on purpose: it
- * is a statement of intent made before anything can fail, so a spec that never
- * ran at all still leaves its screens accounted for.
+ * Declare expected screens before tests run, including walks that may fail.
+ * The report uses this manifest to find screens absent from both sides.
+ * A screen present on only one side needs separate capture-failure handling.
+ * Call from `test.beforeAll`; every spec writes the same target list.
  */
 export async function ensureOutputDir(): Promise<void> {
   await fs.mkdir(VISUAL_OUTPUT_DIR, { recursive: true });
@@ -333,10 +399,21 @@ export async function ensureOutputDir(): Promise<void> {
         flowScreenshotFileName(stop, viewport),
       ),
     ),
+    ...[
+      ...Object.values(DEPOSIT_PROGRESS_STOPS),
+      ...DEPOSIT_FLOW_STEPS.map(depositProgressStepStop),
+      LIQUIDATION_CHART_STOP,
+      ...(HAS_LIQUIDATION_TOUR ? Object.values(LIQUIDATION_TOUR_STOPS) : []),
+      ...(HAS_CONNECT_GUIDE ? [CONNECT_GUIDE_STOP] : []),
+    ].flatMap((stop) =>
+      VISUAL_VIEWPORTS.map((viewport) =>
+        flowScreenshotFileName(stop, viewport),
+      ),
+    ),
   ].sort();
 
-  // Both specs call this from `test.beforeAll`, and the config pins
-  // `workers: 1, fullyParallel: false`, so the two writes are sequential and
+  // Every spec calls this from `test.beforeAll`, and the config pins
+  // `workers: 1, fullyParallel: false`, so the writes are sequential and
   // byte-identical. Declaring the flow stops here even when only the routes
   // spec is collected is the correct direction: it fails loud, not silent.
   await fs.writeFile(

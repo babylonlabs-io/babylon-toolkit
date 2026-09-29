@@ -20,6 +20,7 @@ import {
 import { AaveIntegrationAdapterABI } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 import type { Hex, WalletClient } from "viem";
 
+import { HUB_ERROR_ABI } from "@/applications/aave/clients/hubErrors";
 import {
   executeWrite,
   type TransactionResult,
@@ -62,9 +63,11 @@ export async function activateVaultWithSecret(
       errorContext: "vault activation",
       // activateVaultWithSecret delegates into the Aave adapter, which can
       // revert with VaultCountExceedsMaximum / PositionAboveMaximum — errors
-      // absent from the registry ABI. Supply the adapter ABI so the friendly
-      // copy in errorMessages.ts is reachable instead of raw hex.
-      errorAbis: [AaveIntegrationAdapterABI],
+      // absent from the registry ABI. Supplying vaultBTC then runs through the
+      // Hub, which reverts with its own errors (AddCapExceeded, a halted or
+      // inactive spoke). Supply both ABIs so the friendly copy in
+      // errorMessages.ts is reachable instead of raw hex.
+      errorAbis: [AaveIntegrationAdapterABI, HUB_ERROR_ABI],
     });
 
   return activateVault<TransactionResult>({

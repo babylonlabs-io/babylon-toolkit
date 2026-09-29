@@ -14,6 +14,7 @@
         "src/tbv/core/managers/index.ts",
         "src/tbv/core/contracts/index.ts",
         "src/tbv/core/vault-secrets/index.ts",
+        "src/tbv/core/wasm/index.ts",
         "src/tbv/integrations/aave/index.ts",
         "src/shared/index.ts",
         "src/testing/index.ts",

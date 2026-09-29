@@ -13,8 +13,10 @@ import { initEccLib } from "bitcoinjs-lib";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { HashMap, IWallet, Network } from "@/core/types";
+import { validateAddress, validateAddressWithPK } from "@/core/utils/wallet";
+import { ERROR_CODES, WalletError } from "@/error";
 
-import { useWalletConnectors } from "./useWalletConnectors";
+import { useWalletConnectors, type BTCAddressValidation } from "./useWalletConnectors";
 
 /**
  * jsdom installs its own `Uint8Array`, so a Node `Buffer` stops being an
@@ -31,17 +33,19 @@ const TAPROOT_ADDRESS = "bc1p5cyxnuxmeuwuvkwfem96lqzszd02n6xdcjrs20cac6yqjjwudpx
 const COMPRESSED_PUBLIC_KEY = "03cc8a4bc64d897bddc5fbc2f670f7a8ba0b386779106cf1223c6fc5d7cd6fc115";
 
 /** A different valid key, so a mismatch is rejected on the address, not on parsing. */
-const OTHER_COMPRESSED_PUBLIC_KEY =
-  "0379be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798";
+const OTHER_COMPRESSED_PUBLIC_KEY = "0379be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798";
 
 const CONNECT_FAILED_TITLE = "Connection Failed";
 const PUBLIC_KEY_MISMATCH_TITLE = "Public Key Mismatch";
 
 type ConnectHandler = (wallet: IWallet) => void | Promise<void>;
+type ErrorHandler = (error: Error) => void;
 
 const harness = vi.hoisted(() => ({
   connectHandler: null as ConnectHandler | null,
-  disconnect: vi.fn(),
+  errorHandler: null as ErrorHandler | null,
+  visible: true,
+  disconnect: vi.fn().mockResolvedValue(undefined),
   selectWallet: vi.fn(),
   removeWallet: vi.fn(),
   displayChains: vi.fn(),
@@ -58,8 +62,9 @@ vi.mock("@/context/Chain.context", () => ({
       config: { network: Network.MAINNET },
       connectedWallet: null,
       disconnect: harness.disconnect,
-      on: (event: string, handler: ConnectHandler) => {
-        if (event === "connect") harness.connectHandler = handler;
+      on: (event: string, handler: ConnectHandler | ErrorHandler) => {
+        if (event === "connect") harness.connectHandler = handler as ConnectHandler;
+        if (event === "error") harness.errorHandler = handler as ErrorHandler;
         return () => {};
       },
     },
@@ -70,11 +75,10 @@ vi.mock("@/context/LifecycleHooks.context", () => ({
   useLifeCycleHooks: () => ({}),
 }));
 
-// `visible` must be true: the handler returns early when the dialog is closed
-// and never reaches the address validation this file is about.
+// A missing validator must refuse both visible and restored Bitcoin connections.
 vi.mock("@/hooks/useWidgetState", () => ({
   useWidgetState: () => ({
-    visible: true,
+    visible: harness.visible,
     selectWallet: harness.selectWallet,
     removeWallet: harness.removeWallet,
     displayLoader: vi.fn(),
@@ -97,18 +101,12 @@ const accountStorage: HashMap = {
 function connectedWalletWith(publicKeyHex: string): IWallet {
   return {
     id: "unisat",
-    name: "UniSat",
-    icon: "",
-    docs: "",
-    installed: true,
-    provider: null,
-    label: "",
     account: { address: TAPROOT_ADDRESS, publicKeyHex },
   } as IWallet;
 }
 
-async function fireConnect(wallet: IWallet): Promise<void> {
-  renderHook(() => useWalletConnectors({ persistent: false, accountStorage }));
+async function fireConnect(wallet: IWallet, btcValidation: BTCAddressValidation | undefined): Promise<void> {
+  renderHook(() => useWalletConnectors({ persistent: false, accountStorage, btcValidation }));
 
   await waitFor(() => expect(harness.connectHandler).not.toBeNull());
   await harness.connectHandler?.(wallet);
@@ -121,6 +119,7 @@ describe("BTC connect handler without host-side curve setup", () => {
     // the way a host that never registers one at start-up does.
     initEccLib(undefined);
     harness.connectHandler = null;
+    harness.visible = true;
     vi.clearAllMocks();
   });
 
@@ -135,28 +134,100 @@ describe("BTC connect handler without host-side curve setup", () => {
   it("keeps a taproot wallet selected", async () => {
     const wallet = connectedWalletWith(COMPRESSED_PUBLIC_KEY);
 
-    await fireConnect(wallet);
+    await fireConnect(wallet, { validateAddress, validateAddressWithPK });
 
     expect(harness.selectWallet).toHaveBeenCalledWith("BTC", wallet);
     expect(harness.removeWallet).not.toHaveBeenCalled();
     expect(harness.disconnect).not.toHaveBeenCalled();
+    expect(harness.displayError).not.toHaveBeenCalled();
+    expect(harness.displayChains).toHaveBeenCalled();
   });
 
-  it("shows no error screen when a taproot wallet connects", async () => {
-    await fireConnect(connectedWalletWith(COMPRESSED_PUBLIC_KEY));
+  it.each([true, false])("rejects Bitcoin without validation when visible is %s", async (visible) => {
+    harness.visible = visible;
+    const wallet = connectedWalletWith(COMPRESSED_PUBLIC_KEY);
+    await fireConnect(wallet, undefined);
+
+    expect(harness.selectWallet).not.toHaveBeenCalledWith("BTC", wallet);
+    expect(harness.disconnect).toHaveBeenCalled();
+    expect(harness.removeWallet).toHaveBeenCalledWith("BTC");
+    expect(harness.displayError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: CONNECT_FAILED_TITLE,
+        description: "Bitcoin address validation is unavailable",
+      }),
+    );
+  });
+
+  it("reports a mismatched public key as a mismatch rather than a failed connection", async () => {
+    await fireConnect(connectedWalletWith(OTHER_COMPRESSED_PUBLIC_KEY), { validateAddress, validateAddressWithPK });
+
+    expect(harness.displayError).toHaveBeenCalledWith(expect.objectContaining({ title: PUBLIC_KEY_MISMATCH_TITLE }));
+    expect(harness.displayError).not.toHaveBeenCalledWith(expect.objectContaining({ title: CONNECT_FAILED_TITLE }));
+  });
+});
+
+describe("connect-time errors the user must see in the dialog", () => {
+  beforeEach(() => {
+    harness.errorHandler = null;
+    vi.clearAllMocks();
+  });
+
+  async function fireError(error: Error): Promise<void> {
+    renderHook(() =>
+      useWalletConnectors({
+        persistent: false,
+        accountStorage,
+        btcValidation: { validateAddress, validateAddressWithPK },
+      }),
+    );
+
+    await waitFor(() => expect(harness.errorHandler).not.toBeNull());
+    harness.errorHandler?.(error);
+  }
+
+  it("shows the wrong-app message instead of returning to chain selection", async () => {
+    const message = "Open the Babylon Vault Testnet app on your Ledger and try again.";
+    await fireError(new WalletError({ code: ERROR_CODES.DEVICE_WRONG_APP, message, wallet: "Ledger Vault" }));
+
+    expect(harness.displayError).toHaveBeenCalledWith(
+      expect.objectContaining({ title: "Wrong App on Device", description: message }),
+    );
+    expect(harness.displayChains).not.toHaveBeenCalled();
+  });
+
+  it("shows the locked-device message instead of returning to chain selection", async () => {
+    await fireError(
+      new WalletError({ code: ERROR_CODES.DEVICE_LOCKED, message: "Device is locked", wallet: "Ledger Vault" }),
+    );
+
+    expect(harness.displayError).toHaveBeenCalledWith(
+      expect.objectContaining({ title: "Signing Device Locked", description: "Device is locked" }),
+    );
+    expect(harness.displayChains).not.toHaveBeenCalled();
+  });
+
+  it("keeps the update title for an outdated wallet", async () => {
+    await fireError(
+      new WalletError({ code: ERROR_CODES.INCOMPATIBLE_WALLET_VERSION, message: "Too old", wallet: "Unisat" }),
+    );
+
+    expect(harness.displayError).toHaveBeenCalledWith(
+      expect.objectContaining({ title: "Update Unisat", description: "Too old" }),
+    );
+  });
+
+  it("still returns to chain selection for a connect error with no in-dialog copy", async () => {
+    await fireError(new WalletError({ code: ERROR_CODES.CONNECTION_FAILED, message: "boom", wallet: "Ledger Vault" }));
 
     expect(harness.displayError).not.toHaveBeenCalled();
     expect(harness.displayChains).toHaveBeenCalled();
   });
 
-  it("reports a mismatched public key as a mismatch rather than a failed connection", async () => {
-    await fireConnect(connectedWalletWith(OTHER_COMPRESSED_PUBLIC_KEY));
+  it("returns to chain selection for a code that names an inherited object property", async () => {
+    await fireError(new WalletError({ code: "toString", message: "boom", wallet: "Ledger Vault" }));
 
-    expect(harness.displayError).toHaveBeenCalledWith(
-      expect.objectContaining({ title: PUBLIC_KEY_MISMATCH_TITLE }),
-    );
-    expect(harness.displayError).not.toHaveBeenCalledWith(
-      expect.objectContaining({ title: CONNECT_FAILED_TITLE }),
-    );
+    expect(harness.displayError).not.toHaveBeenCalled();
+    expect(harness.displayChains).toHaveBeenCalled();
   });
 });

@@ -14,7 +14,7 @@
  * OP_RETURN commitment.
  *
  * The root is bound to the wallet seed, the derivation account AND the
- * network (`derive-context-hash.md` §2.1 folds the connected pubkey and the
+ * network (the wallet's `deriveContextHash` folds the connected pubkey and the
  * canonical network name into the HKDF `info`), so all three must match the
  * ones that created the deposit.
  */

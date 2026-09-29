@@ -431,8 +431,8 @@ export class KeystoneProvider implements IBTCProvider {
       });
     }
 
-    // Bind to the connected leaf key — the `connectedPubkey` the spec injects
-    // into the HKDF `info` (docs/specs/derive-context-hash.md §2.2). See
+    // Bind to the connected leaf key — the `connectedPubkey` that
+    // deriveContextHash injects into the HKDF `info`. See
     // connectedLeafKeyPath for why this must be the `/0/0` leaf, not the account path.
     const keyPath = connectedLeafKeyPath(this.keystoneWalletInfo.path);
 

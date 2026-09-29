@@ -32,6 +32,7 @@ import { gql } from "graphql-request";
 import { type Address, type PublicClient } from "viem";
 
 import { type NetworkName } from "./config";
+import { describeHub, hubMatches } from "./hubLabels";
 import {
   createEthClient,
   createGraphQLClient,
@@ -55,6 +56,8 @@ export interface BorrowReserve {
   name: string;
   reserveId: bigint;
   tokenAddress: string;
+  /** Hub the reserve belongs to. One token can be listed on several hubs, each a separate reserve. */
+  hub: string;
   /** Token (underlying) decimals — what the borrow amount is parsed against. */
   decimals: number;
 }
@@ -84,6 +87,7 @@ const GET_AAVE_APP_CONFIG = gql`
     aaveReserves {
       items {
         id
+        hub
         paused
         frozen
         borrowable
@@ -103,6 +107,7 @@ interface AaveAppConfigResponse {
   aaveReserves: {
     items: {
       id: string;
+      hub: string;
       paused: boolean;
       frozen: boolean;
       borrowable: boolean;
@@ -147,6 +152,7 @@ async function fetchAaveReserveConfig(graphqlEndpoint: string): Promise<{
     name: r.underlyingToken!.name,
     reserveId: BigInt(r.id),
     tokenAddress: r.underlyingToken!.address,
+    hub: r.hub,
     decimals: r.underlyingToken!.decimals,
   });
 
@@ -183,6 +189,93 @@ export async function fetchAllReserves(
   const { graphqlEndpoint } = resolveNetworkContracts(network);
   const { all } = await fetchAaveReserveConfig(graphqlEndpoint);
   return all;
+}
+
+/** How a token symbol (and optional hub) resolved against a reserve list. */
+export type ReserveMatch<R> =
+  | { kind: "match"; reserve: R }
+  | { kind: "ambiguous"; candidates: R[] }
+  | { kind: "none" };
+
+/**
+ * Resolve a token symbol, plus an optional `--*-hub` value (label or address), to exactly one reserve.
+ * One token can be listed on several hubs, so a symbol alone may match more than one reserve: that is
+ * reported as `ambiguous` for the caller to refuse or put to the user, never resolved to the first.
+ */
+export function matchReserve<R extends { symbol: string; hub: string }>(
+  reserves: R[],
+  token: string,
+  hub?: string,
+): ReserveMatch<R> {
+  const candidates = reserves.filter(
+    (r) =>
+      r.symbol.toLowerCase() === token.toLowerCase() &&
+      (hub === undefined || hubMatches(r.hub, hub)),
+  );
+  if (candidates.length === 1) return { kind: "match", reserve: candidates[0] };
+  return candidates.length === 0
+    ? { kind: "none" }
+    : { kind: "ambiguous", candidates };
+}
+
+/** A reserve as named in menus, logs and errors, e.g. "USDC on Core Hub (reserve 4)". */
+export function describeReserve(reserve: {
+  symbol: string;
+  hub: string;
+  reserveId: bigint;
+}): string {
+  return `${reserve.symbol} on ${describeHub(reserve.hub)} (reserve ${reserve.reserveId})`;
+}
+
+/** A token listed on more than one hub: each reserve is a separate market for the same underlying. */
+export interface MultiHubToken {
+  symbol: string;
+  tokenAddress: string;
+  /** The token's reserves, one per hub, ordered by reserve id. */
+  reserves: BorrowReserve[];
+}
+
+/**
+ * The tokens that more than one reserve lists, grouped by underlying address (not symbol, which two
+ * different tokens could share). Ordered by each token's lowest reserve id.
+ */
+export function findMultiHubTokens(reserves: BorrowReserve[]): MultiHubToken[] {
+  const byToken = new Map<string, BorrowReserve[]>();
+  const ordered = [...reserves].sort((a, b) =>
+    a.reserveId < b.reserveId ? -1 : 1,
+  );
+  for (const reserve of ordered) {
+    const key = reserve.tokenAddress.toLowerCase();
+    byToken.set(key, [...(byToken.get(key) ?? []), reserve]);
+  }
+  return [...byToken.values()]
+    .filter((group) => group.length > 1)
+    .map((group) => ({
+      symbol: group[0].symbol,
+      tokenAddress: group[0].tokenAddress,
+      reserves: group,
+    }));
+}
+
+/**
+ * USD price of each reserve's token from the Aave oracle — the price the borrow form sizes amounts with.
+ * Turns a USD amount (`--borrow-usd`) into a token amount per reserve.
+ */
+export async function fetchReservePricesUsd(
+  network: NetworkName,
+  reserveIds: bigint[],
+): Promise<Map<bigint, number>> {
+  const { appController, ethRpcUrl } = resolveNetworkContracts(network);
+  const client = createEthClient(ethRpcUrl);
+  const spoke = await resolveCoreSpoke(client, appController);
+  const oracle = await getOracleAddress(client, spoke);
+  const prices = await getReservesPrices(client, oracle, reserveIds);
+  return new Map(
+    reserveIds.map((id, index) => [
+      id,
+      Number(prices[index]) / ORACLE_PRICE_SCALE,
+    ]),
+  );
 }
 
 /**
@@ -315,7 +408,7 @@ function computeMaxBorrowTokens(
 }
 
 /**
- * Best-effort max-borrow estimate for one token on `network`, mirroring the app's borrow-form chain:
+ * Best-effort max-borrow estimate for one reserve on `network`, mirroring the app's borrow-form chain:
  * collateral/debt from the position, the vBTC reserve's liquidation threshold (the depositor's stored
  * `dynamicConfigKey` when a position exists, else the reserve's current key — matches the app), and the
  * token's oracle price. Returns `maxTokens: 0` when there's no collateral yet. Estimate only — the
@@ -324,17 +417,15 @@ function computeMaxBorrowTokens(
 export async function fetchMaxBorrow(
   network: NetworkName,
   ethAddress: string,
-  symbol: string,
+  reserveId: bigint,
 ): Promise<MaxBorrow> {
   const { graphqlEndpoint } = resolveNetworkContracts(network);
   const { vaultBtcReserveId, borrowable } =
     await fetchAaveReserveConfig(graphqlEndpoint);
-  const reserve = borrowable.find(
-    (r) => r.symbol.toLowerCase() === symbol.toLowerCase(),
-  );
+  const reserve = borrowable.find((r) => r.reserveId === reserveId);
   if (!reserve)
     throw new Error(
-      `Token "${symbol}" is not a borrowable reserve on ${network} (available: ${borrowable.map((r) => r.symbol).join(", ")}).`,
+      `Reserve ${reserveId} is not borrowable on ${network} (available: ${borrowable.map(describeReserve).join("; ")}).`,
     );
 
   const { client, appController, position } = await openPosition(

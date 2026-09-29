@@ -10,12 +10,17 @@ import {
   stripHexPrefix,
   supportsDepositApproval,
   verifyRegisteredVaultVersions,
+  type DepositTerms,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
   OnChainBtcVaultStatus,
   vpTokenRegistry,
 } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
-import { validateSecretAgainstHashlock } from "@babylonlabs-io/ts-sdk/tbv/core/services";
+import { canonicalizeBtcPubkey } from "@babylonlabs-io/ts-sdk/tbv/core/primitives";
+import {
+  activationDeadlineBlocksRemaining,
+  validateSecretAgainstHashlock,
+} from "@babylonlabs-io/ts-sdk/tbv/core/services";
 import { calculateBtcTxHash } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
 import {
   getSharedWagmiConfig,
@@ -23,7 +28,7 @@ import {
 } from "@babylonlabs-io/wallet-connector";
 import { useEffect, useRef, useState } from "react";
 import type { Hex } from "viem";
-import { getWalletClient, switchChain } from "wagmi/actions";
+import { getAccount, getWalletClient, switchChain } from "wagmi/actions";
 
 import {
   composeGateState,
@@ -33,6 +38,7 @@ import {
 import FeatureFlags from "@/config/featureFlags";
 import { getETHChain } from "@/config/network";
 import { COPY } from "@/copy";
+import { useBtcAction } from "@/hooks/useBtcAction";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import { logger } from "@/infrastructure";
 import {
@@ -46,14 +52,22 @@ import {
   type RegistrationDepthProgress,
 } from "@/services/vault/ethConfirmationGate";
 import {
+  ACTIVATION_INCLUSION_MARGIN_BLOCKS,
+  headBlockLagBlocks,
+  isHeadBlockAheadOfClock,
+  isHeadBlockStale,
+} from "@/utils/activationDeadline";
+import {
   activationFloorBlocksRemaining,
   activationFloorMinutesRemaining,
 } from "@/utils/activationFloor";
 import {
   ActivationNotPossibleError,
+  DepositorBtcKeyMismatchError,
+  DepositorWalletMismatchError,
   isTerminalActivationError,
   isVaultRecordEmptyError,
-  mapDepositError,
+  mapDepositErrorAfterRegistration,
   type DepositErrorContent,
 } from "@/utils/errors";
 import { assertVaultCoreVersionSupported } from "@/utils/vaultCoreVersionSupport";
@@ -93,9 +107,8 @@ import {
 export interface BroadcastPrePeginParams {
   vaultId: Hex;
   /**
-   * Connected wallet's ETH address. On the intent (Ledger) path the rebuild
-   * asserts it equals the on-chain depositor before any device interaction —
-   * a stale modal after a wallet switch must fail closed, not re-approve.
+   * ETH address selected for this action. It must match the live wallet and
+   * the depositor registered on chain before signing.
    */
   depositorEthAddress: string;
   pendingPegin?: PendingPeginRequest;
@@ -172,6 +185,46 @@ export interface UseVaultActionsReturn {
  */
 const FLOOR_UNAVAILABLE_ERROR_NAME = "ActivationFloorUnavailableError";
 
+/**
+ * The chain head, read fresh.
+ *
+ * `getBlock` bypasses viem's ~4s `getBlockNumber` cache, but a load-balanced
+ * node can still be behind. A head too old to use (`isHeadBlockStale`), or
+ * one that shows this device's clock is slow (`isHeadBlockAheadOfClock`), is
+ * rejected as unreadable. A younger one is accepted, with the blocks it may
+ * lag by (`headBlockLagBlocks`), so each gate can correct in its safe
+ * direction: the deadline adds the lag, the floor does not.
+ */
+async function readHeadBlock(): Promise<{ number: bigint; lagBlocks: bigint }> {
+  const head = await ethClient
+    .getPublicClient()
+    .getBlock({ blockTag: "latest" });
+  const nowMs = Date.now();
+  if (isHeadBlockStale(head.timestamp, nowMs)) {
+    throw new Error(
+      `RPC head block ${head.number} (timestamp ${head.timestamp}) is stale; the node is behind`,
+    );
+  }
+  if (isHeadBlockAheadOfClock(head.timestamp, nowMs)) {
+    throw new Error(
+      `RPC head block ${head.number} (timestamp ${head.timestamp}) is ahead of this device's clock (${nowMs} ms); the clock is slow`,
+    );
+  }
+  return {
+    number: head.number,
+    lagBlocks: headBlockLagBlocks(head.timestamp, nowMs),
+  };
+}
+
+/**
+ * The head the deadline gate counts from: the reported head plus the blocks
+ * it may lag by. A lagging head understates how much of the window is gone,
+ * so the deadline must assume the latest block the chain may have reached.
+ */
+function deadlineHead(head: { number: bigint; lagBlocks: bigint }): bigint {
+  return head.number + head.lagBlocks;
+}
+
 export function useVaultActions(): UseVaultActionsReturn {
   const gate = useProtocolGateState();
 
@@ -215,6 +268,7 @@ export function useVaultActions(): UseVaultActionsReturn {
   }, []);
 
   // Connectors
+  const { requireBtcWallet } = useBtcAction();
   const btcConnector = useChainConnector("BTC");
 
   /**
@@ -231,6 +285,11 @@ export function useVaultActions(): UseVaultActionsReturn {
       onShowSuccessModal,
     } = params;
 
+    if (!requireBtcWallet()) {
+      setBroadcastError(COPY.deposit.errors.walletNotConnected);
+      return;
+    }
+
     setBroadcasting(true);
     setBroadcastError(null);
 
@@ -243,7 +302,7 @@ export function useVaultActions(): UseVaultActionsReturn {
       const vault = await fetchVaultById(vaultId);
 
       if (!vault) {
-        throw new Error("BTCVault not found. Please try again.");
+        throw new Error(COPY.deposit.errors.vaultNotFound);
       }
 
       if (vault.status !== ContractStatus.PENDING) {
@@ -264,9 +323,7 @@ export function useVaultActions(): UseVaultActionsReturn {
         stripHexPrefix(localUnsignedTxHex).toLowerCase() !==
           stripHexPrefix(graphqlUnsignedTxHex).toLowerCase()
       ) {
-        throw new Error(
-          "Transaction mismatch: the indexer returned a transaction that differs from the locally stored copy. Aborting to prevent a potential attack.",
-        );
+        throw new Error(COPY.deposit.errors.prePeginIndexerTxMismatch);
       }
 
       const unsignedTxHex = localUnsignedTxHex || graphqlUnsignedTxHex;
@@ -287,10 +344,7 @@ export function useVaultActions(): UseVaultActionsReturn {
       if (
         computedHash.toLowerCase() !== onChainVault.prePeginTxHash.toLowerCase()
       ) {
-        throw new Error(
-          "Transaction integrity check failed: the Pre-PegIn transaction " +
-            "does not match the hash stored on-chain. Aborting to prevent a potential attack.",
-        );
+        throw new Error(COPY.deposit.errors.prePeginIntegrityMismatch);
       }
 
       // Gate on a fresh on-chain status read. The GraphQL pre-check above is
@@ -372,6 +426,45 @@ export function useVaultActions(): UseVaultActionsReturn {
         );
       }
 
+      // Bind both wallets to the contract record. Indexer identity is untrusted.
+      // The PSBT uses the on-chain key. An empty key is a malformed record.
+      const depositorBtcPubkey = stripHexPrefix(
+        finalBasicInfo.depositorBtcPubKey,
+      );
+      if (!depositorBtcPubkey) {
+        throw new Error(COPY.deposit.errors.depositorBtcKeyMissing);
+      }
+      const expectedDepositorBtcPubkey =
+        canonicalizeBtcPubkey(depositorBtcPubkey);
+      const assertDepositorWallet = async () => {
+        signal.throwIfAborted();
+        const walletPubkey = await btcWalletProvider.getPublicKeyHex();
+        signal.throwIfAborted();
+        const connectedDepositor = getAccount(getSharedWagmiConfig()).address;
+        if (!connectedDepositor) {
+          throw new Error(COPY.deposit.errors.ethWalletNotConnected);
+        }
+        if (
+          connectedDepositor.toLowerCase() !==
+            finalBasicInfo.depositor.toLowerCase() ||
+          connectedDepositor.toLowerCase() !== depositorEthAddress.toLowerCase()
+        ) {
+          throw new DepositorWalletMismatchError({
+            vaultId,
+            expectedDepositor: finalBasicInfo.depositor,
+            connectedDepositor,
+          });
+        }
+        const connectedBtcPubkey = canonicalizeBtcPubkey(walletPubkey);
+        if (connectedBtcPubkey !== expectedDepositorBtcPubkey) {
+          throw new DepositorBtcKeyMismatchError({
+            vaultId,
+            expectedDepositorBtcPubkey,
+            connectedBtcPubkey,
+          });
+        }
+      };
+
       // The wallet may have locked since the action started. Probe it with a
       // round-trip before any signing (a cached `getAddress()` would not reveal
       // a lock) so a locked/changed wallet fails fast with an actionable error
@@ -382,14 +475,9 @@ export function useVaultActions(): UseVaultActionsReturn {
         ),
       });
 
-      // Get depositor's BTC public key (needed for Taproot signing)
-      // Strip "0x" prefix since it comes from GraphQL (Ethereum-style hex)
-      const depositorBtcPubkey = stripHexPrefix(vault.depositorBtcPubkey);
-      if (!depositorBtcPubkey) {
-        throw new Error(
-          "Depositor BTC public key not found. Please try creating the peg-in request again.",
-        );
-      }
+      // Check the depositor wallets after the probe. A locked wallet then gets
+      // the liveness error, not a failed public-key read.
+      await assertDepositorWallet();
 
       // Get depositor's BTC address for UTXO validation
       const depositorAddress = await btcWalletProvider.getAddress();
@@ -399,24 +487,9 @@ export function useVaultActions(): UseVaultActionsReturn {
       // by unrelated transactions.
       await assertUtxosAvailable(unsignedTxHex, depositorAddress);
 
-      // The integrity guarantee for this broadcast is the on-chain
-      // `prePeginTxHash` match asserted above: it commits to every input,
-      // output, and script of the registered Pre-PegIn, so a match proves
-      // `unsignedTxHex` is exactly the tx the contract registered — safe to
-      // broadcast regardless of which offchain-params / signer-set versions
-      // it was built against.
-      //
-      // When the local record supplies BOTH the tx we're broadcasting and its
-      // build versions (the normal same-session path), additionally re-verify
-      // those versions on-chain as defense-in-depth and drop the entry on a
-      // confirmed mismatch. The versions are only meaningful when tied to the
-      // local tx — if we fell back to the indexer's tx (`!localUnsignedTxHex`)
-      // any stored versions are floating, so we don't trust them. When there
-      // is no local anchor — cross-device resume, cleared storage, or a Safe
-      // whose asynchronous ETH execution outlived the dApp tab so
-      // `addPendingPegin` never ran — skip that redundant check and broadcast
-      // on the strength of the hash match. Refusing here would strand a vault
-      // that is provably safe to broadcast.
+      // The registered hash binds the transaction. The wallet checks bind its
+      // depositor. Also check local build versions when they belong to this
+      // transaction. Resume without a local record uses the contract checks.
       const buildOffchainParamsVersion =
         pendingPegin?.buildOffchainParamsVersion;
       const buildAppVaultKeepersVersion =
@@ -472,14 +545,14 @@ export function useVaultActions(): UseVaultActionsReturn {
         });
       }
 
-      // Intent (Ledger) resume: rebuild the DepositTerms from chain + WASM and
-      // run the derive→approve ceremony before signing. Prevouts are resolved
-      // once, mempool-only (never the local cache), so the fee the device
-      // approves is the fee the broadcast signs. Software wallets unchanged.
+      let expectedUtxos;
+      let depositTerms: DepositTerms | undefined;
+      // Approval wallets need fresh terms and prevouts for the device fee check.
       if (supportsDepositApproval(btcWalletProvider)) {
         const { expectedUtxos: resolvedUtxos, fundedTxFee } =
           await resolveFundedTxFeeAndUtxos(unsignedTxHex);
-        const depositTerms = await rebuildDepositTerms({
+        expectedUtxos = resolvedUtxos;
+        depositTerms = await rebuildDepositTerms({
           vaultId,
           target: onChainVault,
           fundedPrePeginTxHex: unsignedTxHex,
@@ -487,56 +560,33 @@ export function useVaultActions(): UseVaultActionsReturn {
           depositorBtcPubkey,
           fundedTxFee,
           lifecycle: "broadcast",
-        });
-        // Last cancellation point before the wallet signs. Several network
-        // round-trips (UTXO availability, version/key re-checks, and on the
-        // intent path the terms rebuild) sit between the finality gate and
-        // here, and the modal can be dismissed during any of them. Past this
-        // line the flow is committed: aborting mid-signature would leave the
-        // device ceremony half-run for no benefit.
-        if (signal.aborted) return;
-
-        await broadcastPrePeginTransaction({
-          unsignedTxHex,
-          btcWalletProvider: {
-            signPsbt: (psbtHex: string) => btcWalletProvider.signPsbt(psbtHex),
-            ...forwardDeriveContextHash(btcWalletProvider),
-            ...forwardDepositApproval(btcWalletProvider),
-          },
-          depositorBtcPubkey,
-          expectedUtxos: resolvedUtxos,
-          depositTerms,
+          signal,
         });
       } else {
-        // Use the locally stored UTXO set as trusted construction-time data
-        // ONLY when we're broadcasting the local tx. The stored UTXOs are the
-        // inputs of the local tx, not necessarily of the indexer's tx, so when
-        // we fell back to the indexer copy (`!localUnsignedTxHex`) we must pass
-        // `undefined` and let `broadcastPrePeginTransaction` resolve inputs from
-        // the mempool. `createPsbtFromTransaction` throws if `expectedUtxos` is
-        // supplied but doesn't cover every input, so a stale/partial local set
-        // paired with the indexer tx would dead-end the broadcast.
-        const expectedUtxos =
+        // Local UTXOs apply only to the local transaction. Otherwise, the service
+        // resolves every input from the mempool.
+        expectedUtxos =
           localUnsignedTxHex && pendingPegin?.selectedUTXOs?.length
             ? utxosToExpectedRecord(pendingPegin.selectedUTXOs)
             : undefined;
-        // Last cancellation point before the wallet signs. Several network
-        // round-trips (UTXO availability, version/key re-checks, and on the
-        // intent path the terms rebuild) sit between the finality gate and
-        // here, and the modal can be dismissed during any of them. Past this
-        // line the flow is committed: aborting mid-signature would leave the
-        // device ceremony half-run for no benefit.
-        if (signal.aborted) return;
-
-        await broadcastPrePeginTransaction({
-          unsignedTxHex,
-          btcWalletProvider: {
-            signPsbt: (psbtHex: string) => btcWalletProvider.signPsbt(psbtHex),
-          },
-          depositorBtcPubkey,
-          expectedUtxos,
-        });
       }
+      if (signal.aborted) return;
+      await assertDepositorWallet();
+      await broadcastPrePeginTransaction({
+        unsignedTxHex,
+        btcWalletProvider: {
+          ...forwardDeriveContextHash(btcWalletProvider),
+          ...forwardDepositApproval(btcWalletProvider),
+          signPsbt: async (psbtHex: string) => {
+            // Input resolution can wait on the network. Check again at signing.
+            await assertDepositorWallet();
+            return btcWalletProvider.signPsbt(psbtHex);
+          },
+        },
+        depositorBtcPubkey,
+        expectedUtxos,
+        ...(depositTerms && { depositTerms }),
+      });
 
       const nextStatus = getNextLocalStatus(
         PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN,
@@ -562,10 +612,11 @@ export function useVaultActions(): UseVaultActionsReturn {
         // useDepositFlow uses. Flattening to `err.message` first would strip
         // the prototype and name that every `instanceof` branch in the mapper
         // narrows on, silently downgrading precise errors to message matching:
-        // a finality-gate timeout would land in the "broadcast failed" bucket
-        // and tell the user their Bitcoin broadcast failed when nothing was
-        // ever sent.
-        setBroadcastError(mapDepositError(err));
+        // a finality-gate timeout would fall through to the generic callout
+        // instead of the Ethereum-confirmation one.
+        // Every resume is post-registration, so a spent input gets the
+        // terminal callout here too, not the SDK's new-deposit wording.
+        setBroadcastError(mapDepositErrorAfterRegistration(err));
         // Mapping replaces the raw message with friendly copy, and only the
         // fallback branch carries `diagnostics`. Log the original so a mapped
         // failure is still diagnosable — `useBroadcastState`'s catch cannot do
@@ -644,16 +695,18 @@ export function useVaultActions(): UseVaultActionsReturn {
       // calldata if the protocol paused in that window. A failed pause read
       // falls back to the cached gate (activation is time-critical — an RPC
       // blip must not trap a depositor whose activation deadline is near).
-      // The delay read is deliberately NOT `.catch`-ed like the pause read
-      // below: an unreadable delay must reject rather than fall through,
-      // because proceeding would put the secret into `simulateContract`
-      // calldata for a call the contract will refuse. The block-number read
-      // is the exception — delay 0 disables the floor, so a `getBlockNumber`
-      // blip must not abort that path; a missing block with delay > 0 still
-      // aborts below. Skipped entirely when the feature is off — the getter
-      // does not exist on every deployment yet.
-      // Redeem path is exempt from the floor (see the check below), so it does
-      // not need these reads either.
+      // The window reads (head block, activation delay, activation timeout)
+      // are deliberately NOT `.catch`-ed like the pause read: an unreadable
+      // input must reject rather than fall through, because proceeding would
+      // put the secret into `simulateContract` calldata for a call the
+      // contract may refuse. The delay read is skipped when the feature is
+      // off — the getter does not exist on every deployment yet.
+      //
+      // The redeem path needs none of them. It is exempt from the floor on
+      // chain, and it runs only after the PegIn swept the HTLC, whose witness
+      // already published the secret on Bitcoin — so the deadline margin
+      // protects nothing there and would only block the one recovery left.
+      const deadlineGateEnabled = !redeemImmediately;
       const floorEnabled =
         FeatureFlags.isActivationDelayEnabled && !redeemImmediately;
       // Re-throws (so the gate still fails closed) but re-labels first: an
@@ -675,31 +728,48 @@ export function useVaultActions(): UseVaultActionsReturn {
         err.name = FLOOR_UNAVAILABLE_ERROR_NAME;
         throw err;
       };
+      // Same message, but captured. A deadline read that fails is not the
+      // routine floor case: it is a stale or lagging node, or a protocol
+      // parameter that fails validation (`getTBVProtocolParams` checks every
+      // field, not only the timeout). Either one blocks every activation, so
+      // it must reach the activation.reveal telemetry.
+      const onDeadlineReadFailure = (cause: unknown): never => {
+        throw new Error(COPY.pegin.messages.activationWindowUnavailable, {
+          cause,
+        });
+      };
+      // One reader for both reads. A reader that cannot resolve fails the
+      // deadline read, so it is captured. The floor's catch wraps only its
+      // own getter: if it wrapped the reader too, the floor chain would settle
+      // first and file that failure as a routine floor interruption. The floor
+      // runs only when the deadline gate does, so the reader is there for it.
+      const paramsReader = deadlineGateEnabled
+        ? getProtocolParamsReader().catch(onDeadlineReadFailure)
+        : undefined;
       const [
         { basic: basicInfo, protocol: protocolInfo },
         freshPauseState,
-        currentBlock,
+        headRead,
         peginActivationDelay,
+        pegInActivationTimeout,
       ] = await Promise.all([
         reader.getVaultData(vaultId),
         getOnChainPauseState().catch(() => null),
-        // `cacheTime: 0` because viem caches getBlockNumber for ~4s by
-        // default; a stale-behind head inflates the remaining count and can
-        // gate a window that is actually open.
-        // Block number is only required when the delay is non-zero. Catching
-        // to `undefined` (instead of aborting the whole `Promise.all`) lets a
-        // delay of 0 proceed even if `getBlockNumber` blips — delay 0 must
-        // never gate. A missing block with delay > 0 still aborts below.
-        floorEnabled
-          ? ethClient
-              .getPublicClient()
-              .getBlockNumber({ cacheTime: 0 })
-              .catch(() => undefined)
+        deadlineGateEnabled
+          ? readHeadBlock().catch(onDeadlineReadFailure)
           : Promise.resolve(undefined),
-        floorEnabled
-          ? getProtocolParamsReader()
-              .then((r) => r.getPeginActivationDelay())
-              .catch(onFloorReadFailure)
+        floorEnabled && paramsReader
+          ? paramsReader.then((r) =>
+              r.getPeginActivationDelay().catch(onFloorReadFailure),
+            )
+          : Promise.resolve(undefined),
+        paramsReader
+          ? paramsReader.then((r) =>
+              r
+                .getTBVProtocolParams()
+                .then((params) => params.pegInActivationTimeout)
+                .catch(onDeadlineReadFailure),
+            )
           : Promise.resolve(undefined),
       ]);
 
@@ -746,6 +816,62 @@ export function useVaultActions(): UseVaultActionsReturn {
         // dead-end, not a transient.
         expectedInterruption = true;
         throw new Error(message);
+      }
+
+      // Activation ceiling. The dashboard gate (`useActivationDeadlineGate`)
+      // is explicitly UX-only and polls on a 60s cadence, so a vault can cross
+      // the deadline between the last poll and this click. Checked here on the
+      // fresh reads, and again on a fresh head right before the write below.
+      //
+      // Refusing is the safe direction. A late activation reverts
+      // `ActivationDeadlineExpired`, but `s` is public in the calldata either
+      // way: the vault then expires with `ActivationTimeout`, and the vault
+      // provider, which holds the rest of the HTLC signature set, can
+      // broadcast the PegIn with that secret.
+      //
+      // Terminal, not retryable — the margin only shrinks.
+      const assertDeadlineMargin = (head: bigint, timeout: bigint): void => {
+        const remaining = activationDeadlineBlocksRemaining({
+          currentBlock: head,
+          createdAtBlock: basicInfo.createdAt,
+          pegInActivationTimeout: timeout,
+        });
+        if (remaining <= ACTIVATION_INCLUSION_MARGIN_BLOCKS) {
+          throw new ActivationNotPossibleError(
+            COPY.pegin.messages.activationWindowClosing,
+          );
+        }
+      };
+      // The floor keeps the head as reported: adding lag there would open the
+      // floor early, and a reveal before the floor reverts with the secret
+      // public just as a late one does.
+      const currentBlock = headRead?.number;
+      // Raised to the latest head seen, so the re-check before the write can
+      // never count from a node that is further behind than this read.
+      let highestDeadlineHead: bigint | undefined;
+      if (deadlineGateEnabled) {
+        if (
+          headRead === undefined ||
+          currentBlock === undefined ||
+          pegInActivationTimeout === undefined
+        ) {
+          throw onDeadlineReadFailure(
+            new Error(
+              "activation deadline inputs missing after a settled read",
+            ),
+          );
+        }
+        // A head below the registration block is provably stale, and it
+        // would read as the whole window still ahead.
+        if (currentBlock < basicInfo.createdAt) {
+          throw onDeadlineReadFailure(
+            new Error(
+              `RPC head ${currentBlock} is below the vault's createdAt ${basicInfo.createdAt}`,
+            ),
+          );
+        }
+        highestDeadlineHead = deadlineHead(headRead);
+        assertDeadlineMargin(highestDeadlineHead, pegInActivationTimeout);
       }
 
       // Activation floor, re-checked on fresh reads immediately before the
@@ -813,6 +939,23 @@ export function useVaultActions(): UseVaultActionsReturn {
       const walletClient = await getWalletClient(wagmiConfig, {
         account: depositorEthAddress as Hex,
       });
+
+      // The chain switch can prompt and wait on the user, so the margin is
+      // checked again on a fresh head as the last step before the secret is
+      // used. One gap remains and cannot be closed from here: `writeContract`
+      // asks the wallet to sign and sends in one step, so the time the user
+      // spends in that prompt is covered only by the margin's size.
+      if (
+        deadlineGateEnabled &&
+        pegInActivationTimeout !== undefined &&
+        highestDeadlineHead !== undefined
+      ) {
+        const freshHead = deadlineHead(
+          await readHeadBlock().catch(onDeadlineReadFailure),
+        );
+        if (freshHead > highestDeadlineHead) highestDeadlineHead = freshHead;
+        assertDeadlineMargin(highestDeadlineHead, pegInActivationTimeout);
+      }
 
       // Reveal the secret on the contract — the normal activation or, in
       // escape-hatch mode, activate-and-redeem. Hashlock is forwarded so the

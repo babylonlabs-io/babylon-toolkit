@@ -9,6 +9,15 @@
       "outputs": ["{projectRoot}/dist"],
       "cache": true
     },
+    "test-browser": {
+      "dependsOn": ["build"],
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "pnpm test-browser",
+        "cwd": "{projectRoot}"
+      },
+      "cache": true
+    },
     "test": {
       "dependsOn": ["build"],
       "executor": "nx:run-commands",

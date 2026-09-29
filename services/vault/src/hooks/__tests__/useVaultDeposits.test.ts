@@ -1,4 +1,5 @@
 import { renderHook } from "@testing-library/react";
+import type { Hex } from "viem";
 import {
   afterEach,
   beforeEach,
@@ -11,6 +12,8 @@ import {
 
 import { FAST_POLL_INTERVAL, NORMAL_POLL_INTERVAL } from "@/constants";
 
+import { LocalStorageStatus } from "../../models/peginStateMachine";
+import type { RemovePendingPeginsResult } from "../../storage/peginStorage";
 import { useVaultDeposits } from "../useVaultDeposits";
 
 vi.mock("../useVaults", () => ({
@@ -21,11 +24,18 @@ vi.mock("../../storage/usePeginStorage", () => ({
     allActivities: [],
     pendingPegins: [],
     addPendingPegin: vi.fn(),
+    removePendingPegins: vi.fn(),
   })),
 }));
-vi.mock("../../storage/peginStorage", () => ({
-  getPendingPegins: vi.fn(() => []),
-}));
+vi.mock("../../storage/peginStorage", async () => {
+  const actual = await vi.importActual<
+    typeof import("../../storage/peginStorage")
+  >("../../storage/peginStorage");
+  return {
+    PendingPeginStorageReadError: actual.PendingPeginStorageReadError,
+    getPendingPegins: vi.fn(() => []),
+  };
+});
 
 const ADDRESS = "0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" as const;
 
@@ -78,6 +88,99 @@ describe("useVaultDeposits", () => {
     expect(setIntervalSpy).not.toHaveBeenCalled();
   });
 
+  it("exposes the indexed vault ids when the indexer returned every row", () => {
+    useVaultsMock.mockReturnValue({
+      data: { vaults: [], droppedCount: 0 },
+      status: "success",
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+
+    const { result } = renderHook(() => useVaultDeposits(ADDRESS));
+
+    expect(result.current.indexedVaultIds).toEqual(new Set());
+  });
+
+  it("lowercases the indexed vault ids so a mixed-case row still matches", () => {
+    useVaultsMock.mockReturnValue({
+      data: {
+        vaults: [{ id: "0xAbCdEf", amount: 0n, status: 0, isInUse: false }],
+        droppedCount: 0,
+      },
+      status: "success",
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+
+    const { result } = renderHook(() => useVaultDeposits(ADDRESS));
+
+    expect(result.current.indexedVaultIds).toEqual(new Set(["0xabcdef"]));
+  });
+
+  it("withholds the indexed vault ids when the fetch dropped a row", () => {
+    useVaultsMock.mockReturnValue({
+      data: { vaults: [], droppedCount: 1 },
+      status: "success",
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+
+    const { result } = renderHook(() => useVaultDeposits(ADDRESS));
+
+    expect(result.current.indexedVaultIds).toBeNull();
+  });
+
+  it("keeps fast polling off when the stored records cannot be read", async () => {
+    const { getPendingPegins, PendingPeginStorageReadError } = await import(
+      "../../storage/peginStorage"
+    );
+    vi.mocked(getPendingPegins).mockImplementationOnce(() => {
+      throw new PendingPeginStorageReadError(
+        ADDRESS,
+        '[{"id":',
+        new SyntaxError("Unexpected end of JSON input"),
+      );
+    });
+    useVaultsMock.mockReturnValue({
+      data: {
+        vaults: [{ id: "0xabcdef", amount: 0n, status: 0, isInUse: false }],
+        droppedCount: 0,
+      },
+      status: "success",
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+
+    expect(() => renderHook(() => useVaultDeposits(ADDRESS))).not.toThrow();
+    expect(useVaultsMock).toHaveBeenLastCalledWith(ADDRESS, {
+      poll: true,
+      interval: NORMAL_POLL_INTERVAL,
+    });
+  });
+
+  it("propagates a storage failure that is not the typed read error", async () => {
+    const { getPendingPegins } = await import("../../storage/peginStorage");
+    vi.mocked(getPendingPegins).mockImplementationOnce(() => {
+      throw new Error("boom");
+    });
+    useVaultsMock.mockReturnValue({
+      data: {
+        vaults: [{ id: "0xabcdef", amount: 0n, status: 0, isInUse: false }],
+        droppedCount: 0,
+      },
+      status: "success",
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+
+    expect(() => renderHook(() => useVaultDeposits(ADDRESS))).toThrow("boom");
+  });
+
   it("exports the FAST/NORMAL interval constants used as polling cadences", () => {
     // Sanity check that the constants the hook depends on are wired
     // through. If FAST_POLL_INTERVAL ever drops below 1s or
@@ -85,5 +188,33 @@ describe("useVaultDeposits", () => {
     // materially — surface either as a test signal.
     expect(FAST_POLL_INTERVAL).toBeGreaterThanOrEqual(1_000);
     expect(NORMAL_POLL_INTERVAL).toBeLessThanOrEqual(5 * 60_000);
+  });
+
+  it("lowercases the stored record ids so a mixed-case record still matches", async () => {
+    const mod = await import("../../storage/usePeginStorage");
+    vi.mocked(mod.usePeginStorage).mockReturnValue({
+      allActivities: [],
+      storageReadError: null,
+      pendingPegins: [
+        {
+          id: "0xAbCdEf" as Hex,
+          timestamp: 0,
+          status: LocalStorageStatus.PENDING,
+          peginTxHash: "0xprepegin" as Hex,
+          unsignedTxHex: "0xdeadbeef",
+        },
+      ],
+      addPendingPegin: vi.fn(),
+      updatePendingPeginStatus: vi.fn(),
+      removePendingPegin: vi.fn(() => true),
+      removePendingPegins: vi.fn((): RemovePendingPeginsResult => "removed"),
+      markRefundBroadcast: vi.fn(),
+    });
+
+    const { result } = renderHook(() => useVaultDeposits(ADDRESS));
+
+    expect(result.current.localRecordStatuses.get("0xabcdef")).toBe(
+      LocalStorageStatus.PENDING,
+    );
   });
 });

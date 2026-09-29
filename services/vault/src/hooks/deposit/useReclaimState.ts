@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Hex } from "viem";
 
 import { COPY } from "@/copy";
+import { useBtcAction } from "@/hooks/useBtcAction";
 import { logger } from "@/infrastructure";
 import {
   ReclaimAlreadySettledError,
@@ -37,6 +38,7 @@ export interface UseReclaimStateResult {
 export function useReclaimState({
   activity,
 }: UseReclaimStateProps): UseReclaimStateResult {
+  const { requireBtcWallet } = useBtcAction();
   const btcConnector = useChainConnector("BTC");
   const btcWalletProvider = btcConnector?.connectedWallet?.provider;
   const connectedBtcAddress = btcConnector?.connectedWallet?.account?.address;
@@ -72,6 +74,10 @@ export function useReclaimState({
   const handleReclaim = useCallback(
     async (feeRate: number) => {
       if (inFlightRef.current || reclaiming) return;
+      if (!requireBtcWallet()) {
+        setError(COPY.wallet.btcAction.error);
+        return;
+      }
       inFlightRef.current = true;
 
       try {
@@ -155,6 +161,7 @@ export function useReclaimState({
       }
     },
     [
+      requireBtcWallet,
       reclaiming,
       vaultId,
       btcWalletProvider,

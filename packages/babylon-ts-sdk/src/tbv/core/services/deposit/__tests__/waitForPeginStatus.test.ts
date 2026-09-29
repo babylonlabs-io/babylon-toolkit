@@ -219,6 +219,31 @@ describe("waitForPeginStatus", () => {
     expect((error as Error).message).toContain("IngestionRejected");
   });
 
+  it("throws terminal when VP reports BabeSetupFailed", async () => {
+    const reader = createMockStatusReader([
+      { status: DaemonStatus.PENDING_BABE_SETUP },
+      ...Array.from({ length: MOCK_RESPONSES_COUNT }, () => ({
+        status: DaemonStatus.BABE_SETUP_FAILED,
+      })),
+    ]);
+
+    const resultPromise = waitForPeginStatus({
+      statusReader: reader,
+      vaultId: VALID_VAULT_ID,
+      peginTxid: VALID_TXID,
+      targetStatuses: new Set([DaemonStatus.PENDING_DEPOSITOR_SIGNATURES]),
+      timeoutMs: TEST_TIMEOUT_MS,
+      pollIntervalMs: TEST_POLL_INTERVAL_MS,
+    }).catch((e: unknown) => e);
+
+    await vi.advanceTimersByTimeAsync(TEST_TIMEOUT_MS);
+
+    const error = await resultPromise;
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).toContain("terminal status");
+    expect((error as Error).message).toContain("BabeSetupFailed");
+  });
+
   it("does not treat terminal status as error when it is in the target set", async () => {
     const reader = createMockStatusReader([
       { status: DaemonStatus.EXPIRED_CLEANED_UP },

@@ -1,7 +1,9 @@
 import { parseEther } from "viem";
 import {
+  connect,
   getAccount,
   getTransactionCount,
+  disconnect as wagmiDisconnect,
   estimateGas as wagmiEstimateGas,
   getBalance as wagmiGetBalance,
   sendTransaction as wagmiSendTransaction,
@@ -10,23 +12,30 @@ import {
   switchChain as wagmiSwitchChain,
   watchAccount,
   watchChainId,
-  connect,
-  disconnect as wagmiDisconnect,
 } from "wagmi/actions";
 import { walletConnect } from "wagmi/connectors";
 
-import type { ETHConfig, ETHTransactionRequest, ETHTypedData, IETHProvider, NetworkInfo } from "@/core/types";
+import type {
+  DisconnectScope,
+  ETHConfig,
+  ETHTransactionRequest,
+  ETHTypedData,
+  IETHProvider,
+  NetworkInfo,
+} from "@/core/types";
 import { APPKIT_OPEN_EVENT } from "@/core/wallets/appkit/constants";
 // Read the modal from the shared singleton rather than from `appKitModal`,
 // which pulls the Bitcoin adapter in with it.
 import { getAppKitModal } from "@/core/wallets/appkit/state";
+import { ERROR_CODES, WalletError } from "@/error";
 
-import { getSharedWagmiConfig, hasSharedWagmiConfig } from "./sharedConfig";
+import { ethDisconnectWouldDropBitcoin, getSharedWagmiConfig, hasSharedWagmiConfig } from "./sharedConfig";
 
 // Grace period after modal close before rejecting as cancelled, to allow
 // async handoffs (WalletConnect deep-link, mobile wallet return) to publish
 // the connected account via watchAccount before we treat the close as a cancel.
 const MODAL_CLOSE_CANCEL_GRACE_MS = 1500;
+const WALLET_NOT_CONNECTED_ERROR_MESSAGE = "Wallet not connected";
 
 // Generic Ethereum logo, used only when the active wagmi connector does not
 // expose its own name/icon (e.g. some WalletConnect sessions).
@@ -82,7 +91,7 @@ export class AppKitProvider implements IETHProvider {
     if (!hasSharedWagmiConfig()) {
       throw new Error(
         "AppKit ETH not initialized. Ensure AppKit modal is initialized at application startup " +
-        "by calling initializeAppKitModal() with eth config in your app's entry point."
+          "by calling initializeAppKitModal() with eth config in your app's entry point.",
       );
     }
     return getSharedWagmiConfig();
@@ -93,7 +102,7 @@ export class AppKitProvider implements IETHProvider {
 
     // Check for existing connection on initialization (for auto-reconnection)
     const initialAccount = getAccount(config);
-    if (initialAccount.address && initialAccount.status === 'connected') {
+    if (initialAccount.address && initialAccount.status === "connected") {
       this.address = initialAccount.address;
       this.chainId = initialAccount.chainId;
       // Emit connect event after a short delay to ensure provider is fully initialized
@@ -245,14 +254,19 @@ export class AppKitProvider implements IETHProvider {
     }
   }
 
-  async disconnect(): Promise<void> {
-    const config = this.getWagmiConfig();
-    try {
-      await wagmiDisconnect(config);
-    } finally {
-      this.address = undefined;
-      this.chainId = undefined;
+  async disconnect(scope: DisconnectScope): Promise<void> {
+    if (scope === "chain" && ethDisconnectWouldDropBitcoin()) {
+      throw new WalletError({
+        code: ERROR_CODES.SHARED_SESSION_DISCONNECT_REFUSED,
+        message:
+          "Ethereum and Bitcoin share one wallet session. Disconnecting Ethereum alone would also disconnect Bitcoin. Disconnect all wallets instead.",
+        wallet: "AppKit",
+        chainId: "ETH",
+      });
     }
+    if (scope !== "local") await wagmiDisconnect(this.getWagmiConfig());
+    this.address = undefined;
+    this.chainId = undefined;
   }
 
   async getAddress(): Promise<string> {
@@ -268,7 +282,7 @@ export class AppKitProvider implements IETHProvider {
       return this.address;
     }
 
-    throw new Error("Wallet not connected");
+    throw new Error(WALLET_NOT_CONNECTED_ERROR_MESSAGE);
   }
 
   async getPublicKeyHex(): Promise<string> {
@@ -360,7 +374,7 @@ export class AppKitProvider implements IETHProvider {
       return this.chainId;
     }
 
-    return this.config.chainId;
+    throw new Error(WALLET_NOT_CONNECTED_ERROR_MESSAGE);
   }
 
   async switchChain(chainId: number): Promise<void> {

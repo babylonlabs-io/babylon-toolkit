@@ -1,14 +1,18 @@
 import { Avatar } from "@babylonlabs-io/core-ui";
 
+import { COPY } from "@/copy";
+import type { HubIdentity } from "@/services/aave/hubRegistry";
 import { getCurrencyIconWithFallback } from "@/services/token/tokenService";
-import { formatPriceUsd } from "@/utils/formatting";
+
+import { HubLabel } from "../HubLabel";
 
 interface AssetListItemProps {
   symbol: string;
   name: string;
   /** Icon URL (optional - will use fallback if not provided) */
   icon?: string;
-  priceUsd?: number;
+  /** Hub the reserve belongs to; two entries for one token differ only here. */
+  hub: HubIdentity;
   /** Whether this item is the currently-selected asset */
   selected?: boolean;
   onClick: () => void;
@@ -18,7 +22,7 @@ export function AssetListItem({
   symbol,
   name,
   icon,
-  priceUsd,
+  hub,
   selected = false,
   onClick,
 }: AssetListItemProps) {
@@ -43,13 +47,10 @@ export function AssetListItem({
         <span className="text-base font-medium text-accent-primary">
           {name}
         </span>
-        <span className="text-sm text-accent-secondary">{symbol}</span>
+        <HubLabel hub={hub} className="text-sm text-accent-secondary">
+          {COPY.loans.hub.tokenOnHub(symbol, hub.label)}
+        </HubLabel>
       </div>
-      {priceUsd !== undefined && (
-        <span className="text-base font-medium text-accent-primary">
-          {formatPriceUsd(priceUsd)}
-        </span>
-      )}
     </button>
   );
 }

@@ -26,6 +26,22 @@ function mapKeyPairs(
 }
 
 /**
+ * Both key-epoch getters return `uint64` and feed the peg-in config
+ * fingerprint, where the contract encodes them as `uint64`. A `Number`
+ * narrowing would silently truncate above 2^53 and produce a fingerprint the
+ * registry cannot reproduce, so the payload is asserted to be a `bigint` and
+ * carried as one — never coerced, never defaulted.
+ */
+function assertKeyEpoch(raw: unknown, label: string): bigint {
+  if (typeof raw !== "bigint") {
+    throw new Error(
+      `Invalid ${label} from contract: must be a bigint, got ${typeof raw}`,
+    );
+  }
+  return raw;
+}
+
+/**
  * Reads vault keepers from the ApplicationRegistry contract.
  *
  * Usage:
@@ -43,12 +59,14 @@ export class ViemVaultKeeperReader implements VaultKeeperReader {
   async getVaultKeepersByVersion(
     appEntryPoint: Address,
     version: number,
+    blockNumber?: bigint,
   ): Promise<AddressBTCKeyPair[]> {
     const result = (await this.publicClient.readContract({
       address: this.contractAddress,
       abi: ApplicationRegistryABI,
       functionName: "getVaultKeepersByVersion",
       args: [appEntryPoint, version],
+      blockNumber,
     })) as readonly { ethAddress: Address; btcPubKey: Hex }[];
 
     return mapKeyPairs(result);
@@ -69,15 +87,32 @@ export class ViemVaultKeeperReader implements VaultKeeperReader {
 
   async getCurrentVaultKeepersVersion(
     appEntryPoint: Address,
+    blockNumber?: bigint,
   ): Promise<number> {
     const result = (await this.publicClient.readContract({
       address: this.contractAddress,
       abi: ApplicationRegistryABI,
       functionName: "getCurrentVaultKeepersVersion",
       args: [appEntryPoint],
+      blockNumber,
     })) as number;
 
     return result;
+  }
+
+  async getCurrentAppKeeperKeyEpoch(
+    appEntryPoint: Address,
+    blockNumber?: bigint,
+  ): Promise<bigint> {
+    const raw: unknown = await this.publicClient.readContract({
+      address: this.contractAddress,
+      abi: ApplicationRegistryABI,
+      functionName: "appKeeperKeyEpochCurrent",
+      args: [appEntryPoint],
+      blockNumber,
+    });
+
+    return assertKeyEpoch(raw, "appKeeperKeyEpochCurrent");
   }
 }
 
@@ -98,12 +133,14 @@ export class ViemUniversalChallengerReader implements UniversalChallengerReader 
 
   async getUniversalChallengersByVersion(
     version: number,
+    blockNumber?: bigint,
   ): Promise<AddressBTCKeyPair[]> {
     const result = (await this.publicClient.readContract({
       address: this.contractAddress,
       abi: ProtocolParamsABI,
       functionName: "getUniversalChallengersByVersion",
       args: [version],
+      blockNumber,
     })) as readonly { ethAddress: Address; btcPubKey: Hex }[];
 
     return mapKeyPairs(result);
@@ -119,13 +156,27 @@ export class ViemUniversalChallengerReader implements UniversalChallengerReader 
     return mapKeyPairs(result);
   }
 
-  async getLatestUniversalChallengersVersion(): Promise<number> {
+  async getLatestUniversalChallengersVersion(
+    blockNumber?: bigint,
+  ): Promise<number> {
     const result = (await this.publicClient.readContract({
       address: this.contractAddress,
       abi: ProtocolParamsABI,
       functionName: "latestUniversalChallengersVersion",
+      blockNumber,
     })) as number;
 
     return result;
+  }
+
+  async getCurrentUcKeyEpoch(blockNumber?: bigint): Promise<bigint> {
+    const raw: unknown = await this.publicClient.readContract({
+      address: this.contractAddress,
+      abi: ProtocolParamsABI,
+      functionName: "ucKeyEpochCurrent",
+      blockNumber,
+    });
+
+    return assertKeyEpoch(raw, "ucKeyEpochCurrent");
   }
 }

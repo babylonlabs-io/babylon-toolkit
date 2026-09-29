@@ -20,6 +20,8 @@ function optimalSplit(overrides: {
   minDepositForSplit?: bigint;
   canSplit?: boolean;
   isLoading?: boolean;
+  sizingViolation?: "sacrificial-not-smaller" | null;
+  isParamsUnavailable?: boolean;
 }) {
   return {
     sacrificialVault: 0n,
@@ -27,8 +29,9 @@ function optimalSplit(overrides: {
     seizedFraction: 0.4,
     canSplit: overrides.canSplit ?? false,
     minDepositForSplit: overrides.minDepositForSplit ?? MIN_DEPOSIT_FOR_SPLIT,
+    sizingViolation: overrides.sizingViolation ?? null,
     isLoading: overrides.isLoading ?? false,
-    error: null,
+    isParamsUnavailable: overrides.isParamsUnavailable ?? false,
   };
 }
 
@@ -109,5 +112,83 @@ describe("useAllocationPlanning — isSplitAmountTooLow", () => {
     );
 
     expect(result.current.isSplitAmountTooLow).toBe(false);
+  });
+});
+
+describe("useAllocationPlanning — isSplitSizingRefused", () => {
+  beforeEach(() => {
+    mockUseOptimalSplit.mockReset();
+  });
+
+  it("is true and offers no vault amounts when the split sizing rules refuse the split", () => {
+    mockUseOptimalSplit.mockReturnValue(
+      optimalSplit({
+        canSplit: false,
+        minDepositForSplit: 0n,
+        sizingViolation: "sacrificial-not-smaller",
+      }),
+    );
+
+    const { result } = renderHook(() =>
+      useAllocationPlanning({
+        amountSats: 100_000_000n,
+        isTwoVaultSplit: true,
+      }),
+    );
+
+    expect(result.current.isSplitSizingRefused).toBe(true);
+    expect(result.current.vaultAmounts).toBeNull();
+  });
+
+  it("is false when the split sizing rules allow the split", () => {
+    mockUseOptimalSplit.mockReturnValue(optimalSplit({ canSplit: true }));
+
+    const { result } = renderHook(() =>
+      useAllocationPlanning({
+        amountSats: 100_000_000n,
+        isTwoVaultSplit: true,
+      }),
+    );
+
+    expect(result.current.isSplitSizingRefused).toBe(false);
+  });
+});
+
+describe("useAllocationPlanning — isSplitParamsUnavailable", () => {
+  beforeEach(() => {
+    mockUseOptimalSplit.mockReset();
+  });
+
+  it("is true when the split parameters could not be read", () => {
+    mockUseOptimalSplit.mockReturnValue(
+      optimalSplit({
+        canSplit: false,
+        minDepositForSplit: 0n,
+        isParamsUnavailable: true,
+      }),
+    );
+
+    const { result } = renderHook(() =>
+      useAllocationPlanning({
+        amountSats: 100_000_000n,
+        isTwoVaultSplit: true,
+      }),
+    );
+
+    expect(result.current.isSplitParamsUnavailable).toBe(true);
+    expect(result.current.vaultAmounts).toBeNull();
+  });
+
+  it("is false once the parameters have loaded", () => {
+    mockUseOptimalSplit.mockReturnValue(optimalSplit({ canSplit: true }));
+
+    const { result } = renderHook(() =>
+      useAllocationPlanning({
+        amountSats: 100_000_000n,
+        isTwoVaultSplit: true,
+      }),
+    );
+
+    expect(result.current.isSplitParamsUnavailable).toBe(false);
   });
 });

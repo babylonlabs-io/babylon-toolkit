@@ -12,9 +12,11 @@ import { Buffer } from "buffer";
 import type { Network } from "@babylonlabs-io/babylon-tbv-rust-wasm";
 import * as ecc from "@bitcoin-js/tiny-secp256k1-asmjs";
 import { Psbt, Transaction, networks } from "bitcoinjs-lib";
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import { fundPeginTransaction } from "../../../utils/transaction/fundPeginTransaction";
+import * as wasmFacade from "../../../wasm";
+import { deriveExpectedPrePeginHtlc } from "../assertWasmPeginSizing";
 import {
   buildPeginTxFromFundedPrePegin,
   buildPrePeginPsbt,
@@ -243,6 +245,55 @@ describe("buildPeginInputPsbt — HTLC taptree merkle root", () => {
     const sigs = psbt.data.inputs[0].tapScriptSig;
     expect(sigs).toBeDefined();
     expect(sigs![0].signature).toHaveLength(64);
+  });
+
+  it("uses canonical signing data when the WASM facade returns forged connector data", async () => {
+    const params = prePeginParams();
+    const expected = deriveExpectedPrePeginHtlc(params, HASHLOCK);
+    const forgedHashlockScript = "51";
+    const forgedHashlockControlBlock = "c0" + "11".repeat(32) + "22".repeat(32);
+    const connectorSpy = vi
+      .spyOn(wasmFacade, "getPrePeginHtlcConnectorInfo")
+      .mockResolvedValue({
+        hashlockScript: forgedHashlockScript,
+        hashlockControlBlock: forgedHashlockControlBlock,
+        refundScript: "52",
+        refundControlBlock: "c0" + "33".repeat(32) + "44".repeat(32),
+        address: "tb1pforged",
+        scriptPubKey: "5120" + "55".repeat(32),
+      });
+
+    try {
+      const { built } = await buildFixture();
+      const psbt = Psbt.fromHex(built.psbtHex);
+      const input = psbt.data.inputs[0];
+      const leaf = input.tapLeafScript?.[0];
+
+      expect(connectorSpy).toHaveBeenCalledOnce();
+      expect(leaf?.script).toEqual(expected.hashlockScript);
+      expect(leaf?.controlBlock).toEqual(expected.hashlockControlBlock);
+      expect(input.tapMerkleRoot).toEqual(expected.tapMerkleRoot);
+      expect(leaf?.script.toString("hex")).not.toBe(forgedHashlockScript);
+      expect(leaf?.controlBlock.toString("hex")).not.toBe(
+        forgedHashlockControlBlock,
+      );
+
+      const signer = {
+        publicKey: Buffer.concat([
+          Buffer.from([0x02]),
+          Buffer.from(DEPOSITOR_XONLY, "hex"),
+        ]),
+        sign: () => {
+          throw new Error("ecdsa sign must not be called for taproot");
+        },
+        signSchnorr: (hash: Buffer) =>
+          Buffer.from(ecc.signSchnorr(hash, DEPOSITOR_PRIVKEY)),
+      };
+      psbt.signTaprootInput(0, signer);
+      expect(psbt.data.inputs[0].tapScriptSig?.[0].signature).toHaveLength(64);
+    } finally {
+      connectorSpy.mockRestore();
+    }
   });
 
   it("refuses to sign when the connector params do not reproduce the funded HTLC scriptPubKey", async () => {

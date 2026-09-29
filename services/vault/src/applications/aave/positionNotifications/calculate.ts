@@ -11,8 +11,7 @@ import {
 
 import { COPY } from "@/copy";
 
-import { EXPECTED_HEALTH_FACTOR_AT_LIQUIDATION } from "../constants";
-
+import { fmtSuggestedVaultBtc, SUGGESTED_VAULT_BTC_DECIMALS } from "./format";
 import type {
   CalculatorParams,
   CalculatorResult,
@@ -34,15 +33,32 @@ const URGENT_DISTANCE_PCT = 5;
  */
 const REORDER_TOL = 0.001;
 
-/**
- * Safety buffer applied to the target seizure when recommending a sacrificial
- * vault size, so the sacrificial group reliably covers the seizure at the
- * liquidation moment. Hard-coded per the protocol/liquidation spec.
- */
-const SAFETY_MARGIN = 1.05;
+const SUGGESTED_VAULT_BTC_SCALE = 10 ** SUGGESTED_VAULT_BTC_DECIMALS;
 
-/** Format a BTC amount to 2 decimals for user-facing copy. */
-const btc2 = (n: number): string => n.toFixed(2);
+/**
+ * Float noise allowed before rounding up, so 0.14 × 10_000 =
+ * 1400.0000000000002 stays 0.14 instead of becoming 0.1401.
+ */
+const CEIL_FLOAT_TOLERANCE = 1e-9;
+
+/** Round a suggested vault size up to {@link SUGGESTED_VAULT_BTC_DECIMALS}. */
+function ceilSuggestedVaultBtc(btc: number): number {
+  return (
+    Math.ceil(btc * SUGGESTED_VAULT_BTC_SCALE - CEIL_FLOAT_TOLERANCE) /
+    SUGGESTED_VAULT_BTC_SCALE
+  );
+}
+
+/**
+ * Size a suggested new vault: rounded up, and never below the smallest
+ * depositable vault.
+ */
+function sizeSuggestedVaultBtc(
+  neededBtc: number,
+  minSuggestedVaultBtc: number,
+): number {
+  return Math.max(ceilSuggestedVaultBtc(neededBtc), minSuggestedVaultBtc);
+}
 
 /**
  * Compute the partial-liquidation cascade and position warnings.
@@ -65,9 +81,15 @@ export function calculate(params: CalculatorParams): CalculatorResult {
     vaults,
     CF,
     THF,
-    maxLB,
-    expectedHF = EXPECTED_HEALTH_FACTOR_AT_LIQUIDATION,
+    LB,
+    expectedHF,
+    minPeginBtc,
   } = params;
+  // A suggested vault is never smaller than a depositable one. A larger first
+  // vault still covers the seizure; it just protects a little less. Without
+  // the peg-in configuration there is no floor: the suggestion is advisory.
+  const minSuggestedVaultBtc =
+    minPeginBtc === null ? 0 : ceilSuggestedVaultBtc(minPeginBtc);
 
   const totalBtc = vaults.reduce((s, v) => s + v.btc, 0);
   const nVaults = vaults.length;
@@ -138,14 +160,12 @@ export function calculate(params: CalculatorParams): CalculatorResult {
 
   const { seizedFraction, seizedFractionRaw } = computeSeizedFractionDetailed(
     CF,
-    maxLB,
+    LB,
     THF,
     expectedHF,
   );
   const targetSeizureBtc = totalBtc * seizedFraction;
-  // Combined seizure-with-safety-margin factor, used for vault-sizing advice.
-  const liqFactor = seizedFraction * SAFETY_MARGIN;
-  const liqPenalty = maxLB * CF;
+  const liqPenalty = LB * CF;
   // Invalid governance params: the seizure formula produced a fraction outside
   // [0, 1]. We surface this as a soft advisory and suppress every other
   // advisory (the liq math is meaningless here).
@@ -201,7 +221,7 @@ export function calculate(params: CalculatorParams): CalculatorResult {
 
     if (isGroupFull) {
       const collateralAtLiqPrice = remainingDebt / CF;
-      const fairCollateralUsd = debtToRepay * maxLB;
+      const fairCollateralUsd = debtToRepay * LB;
       const remainingCollateralAfterFair =
         collateralAtLiqPrice - fairCollateralUsd;
       const remainingDebtAfterFair = remainingDebt - debtToRepay;
@@ -212,12 +232,12 @@ export function calculate(params: CalculatorParams): CalculatorResult {
       debtRepaid = remainingDebt;
       debtRemainingAfter = 0;
     } else {
-      const overSeizureVal = (overSeizureBtc * pLiq) / maxLB;
+      const overSeizureVal = (overSeizureBtc * pLiq) / LB;
       const maxDebtRepayable = Math.max(0, remainingDebt - debtToRepay);
       fairnessDebtRepay = Math.min(overSeizureVal, maxDebtRepayable);
       const leftoverOverSeizure = overSeizureVal - fairnessDebtRepay;
       fairnessPaymentUsd =
-        leftoverOverSeizure > 0 ? leftoverOverSeizure * maxLB : 0;
+        leftoverOverSeizure > 0 ? leftoverOverSeizure * LB : 0;
       debtRepaid = debtToRepay + fairnessDebtRepay;
       debtRemainingAfter = Math.max(0, remainingDebt - debtRepaid);
     }
@@ -232,7 +252,7 @@ export function calculate(params: CalculatorParams): CalculatorResult {
       overSeizureBtc,
       isFullLiquidation: isGroupFull,
       debtToRepay,
-      liquidatorProfitUsd: debtToRepay * (maxLB - 1),
+      liquidatorProfitUsd: debtToRepay * (LB - 1),
       debtRepaid,
       fairnessDebtRepay,
       fairnessPaymentUsd,
@@ -303,7 +323,7 @@ export function calculate(params: CalculatorParams): CalculatorResult {
     SEIZURE_TOL,
     CF,
     THF,
-    maxLB,
+    LB,
     expectedHF,
   );
   const { sumBtcAfterEvents: currentSum, btcAfterG1: currentBtcAfterG1 } =
@@ -314,7 +334,7 @@ export function calculate(params: CalculatorParams): CalculatorResult {
       SEIZURE_TOL,
       CF,
       THF,
-      maxLB,
+      LB,
       expectedHF,
     );
 
@@ -417,57 +437,66 @@ export function calculate(params: CalculatorParams): CalculatorResult {
     detail: reorder.detail,
   };
 
-  // CASE 1: Single vault — always fully seized. Two Figma variants share the
-  // title/body and differ only by which fix is feasible:
-  //  • Affordable add (CLIFF A, #1948): a sacrificial vault smaller than the
-  //    position buffers it. s >= existingBtc × liqFactor / (1 − liqFactor).
-  //  • Oversized (CLIFF B, #1949): that add would exceed the position, so the
-  //    fix is to withdraw and re-deposit the same BTC as two smaller vaults.
+  // CASE 1: Single vault — always fully seized. Figma CLIFF A (#1948):
+  // suggest adding a sacrificial vault sized so the existing vault becomes
+  // protected, s = existingBtc × seizedFraction / (1 − seizedFraction). That
+  // vault is smaller than the existing one exactly when seizedFraction < 0.5,
+  // which the split target health factor keeps true for every CF up to 86%.
+  // Otherwise the add would exceed the position and the only advice is to add
+  // collateral or repay: re-depositing the same BTC as two vaults would need
+  // the first vault to be the larger one, a split the deposit form refuses.
   let suggestedNewVaultBtc: number | null = null;
+  // The add before the minimum peg-in is applied, and the amount a second
+  // BTCVault would actually have to be. Both are kept so the two reasons a
+  // suggestion can be missing stay distinguishable, and so the advice quotes
+  // the real requirement rather than one of its two inputs.
+  let unflooredSuggestionBtc = 0;
+  let requiredNewVaultBtc = 0;
   if (nVaults === 1) {
-    const canSplit = liqFactor < 1;
-    const raw = canSplit
-      ? (vaults[0].btc * liqFactor) / (1 - liqFactor)
-      : Infinity;
-    const rounded = canSplit ? Math.ceil(raw * 100) / 100 : Infinity;
-    // Actionable only if positive AND no larger than the existing position.
-    if (canSplit && rounded > 0 && rounded <= totalBtc) {
-      suggestedNewVaultBtc = rounded;
-    }
-
-    let suggestion: string;
-    if (suggestedNewVaultBtc !== null) {
-      // Variant A — affordable sacrificial add; the CTA carries the action.
-      suggestion = cliff.addSacrificialSuggestion(btc2(suggestedNewVaultBtc));
-    } else {
-      // Variant B — re-split the existing vault. seizedFraction depends only on
-      // CF/maxLB/THF, so re-splitting the same total is valid; size the
-      // sacrificial to cover the seizure first and protect the remainder.
-      // Snap the withdraw to cents first so the three displayed amounts
-      // reconcile exactly: sacrificial (ceil) + protected (remainder) ===
-      // withdraw. Deriving the parts from a full-precision withdraw lets the
-      // cent-rounded parts sum to more than the (also-rounded) withdraw.
-      const withdrawBtc = Math.round(vaults[0].btc * 100) / 100;
-      const sacrificialBtc = Math.ceil(withdrawBtc * liqFactor * 100) / 100;
-      const protectedBtc =
-        Math.round((withdrawBtc - sacrificialBtc) * 100) / 100;
-      if (canSplit && protectedBtc > 0) {
-        suggestion = cliff.withdrawResplitSuggestion(
-          btc2(withdrawBtc),
-          btc2(sacrificialBtc),
-          btc2(protectedBtc),
-        );
-      } else {
-        // Splitting disallowed or the re-split degenerates — fall back.
-        suggestion = cliff.noSplitSuggestion;
+    if (seizedFraction < 1) {
+      unflooredSuggestionBtc =
+        (vaults[0].btc * seizedFraction) / (1 - seizedFraction);
+      requiredNewVaultBtc = sizeSuggestedVaultBtc(
+        unflooredSuggestionBtc,
+        minSuggestedVaultBtc,
+      );
+      // Actionable only if positive AND strictly smaller than the existing
+      // vault, which becomes the protected one.
+      if (requiredNewVaultBtc > 0 && requiredNewVaultBtc < totalBtc) {
+        suggestedNewVaultBtc = requiredNewVaultBtc;
       }
     }
+
+    // Two different reasons produce no suggestion, and they call for
+    // different advice. If the add would have been smaller than the existing
+    // vault before it was rounded up and floored at the minimum peg-in, then
+    // splitting works fine at these parameters and the position is simply too
+    // small. Otherwise the sacrificial vault would have to be the larger of
+    // the two, which no deposit size fixes.
+    //
+    // The amount quoted is the requirement itself, not the minimum peg-in:
+    // either the floor or the round-up can be what lifts it to the vault's
+    // size, and quoting the minimum would claim a figure that is smaller than
+    // the vault — or zero, when the minimum could not be read.
+    const isTooSmallToSplit =
+      requiredNewVaultBtc > 0 &&
+      unflooredSuggestionBtc > 0 &&
+      unflooredSuggestionBtc < totalBtc;
 
     warnings.push({
       type: "cliff",
       title: cliff.title,
       detail: cliff.body,
-      suggestion,
+      suggestion:
+        suggestedNewVaultBtc !== null
+          ? cliff.addSacrificialSuggestion(
+              fmtSuggestedVaultBtc(suggestedNewVaultBtc),
+            )
+          : isTooSmallToSplit
+            ? cliff.tooSmallToSplitSuggestion(
+                fmtSuggestedVaultBtc(requiredNewVaultBtc),
+              )
+            : cliff.noSplitSuggestion,
     });
   }
 
@@ -481,12 +510,13 @@ export function calculate(params: CalculatorParams): CalculatorResult {
       // Informational deficit text (no actionable button for 2 vaults).
       const largest = vaults.reduce((a, b) => (a.btc > b.btc ? a : b));
       let enablePartialStr = "";
-      if (liqFactor < 1 && totalBtc * liqFactor > largest.btc) {
-        const deficit = (totalBtc * liqFactor - largest.btc) / (1 - liqFactor);
-        const rounded = Math.ceil(deficit * 100) / 100;
+      if (seizedFraction < 1 && totalBtc * seizedFraction > largest.btc) {
+        const deficit =
+          (totalBtc * seizedFraction - largest.btc) / (1 - seizedFraction);
+        const rounded = sizeSuggestedVaultBtc(deficit, minSuggestedVaultBtc);
         if (rounded <= totalBtc) {
           enablePartialStr = cliff.twoVault.enablePartial(
-            btc2(rounded),
+            fmtSuggestedVaultBtc(rounded),
             largest.name,
           );
         }
@@ -496,7 +526,7 @@ export function calculate(params: CalculatorParams): CalculatorResult {
         title: cliff.title,
         detail: cliff.body,
         suggestion: cliff.twoVault.suggestion(
-          btc2(targetSeizureBtc),
+          fmtSuggestedVaultBtc(targetSeizureBtc),
           enablePartialStr,
         ),
       });

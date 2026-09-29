@@ -45,7 +45,6 @@ interface ReclaimModalState {
 interface EmergencyWithdrawModalState {
   withdrawing: {
     activity: VaultActivity;
-    stuckStateDetected: boolean;
   } | null;
   handleClose: () => void;
   handleSuccess: () => void;
@@ -107,9 +106,6 @@ export function PendingDepositModals({
         <EmergencyWithdrawModal
           open={!!emergencyWithdrawModal.withdrawing}
           activity={emergencyWithdrawModal.withdrawing.activity}
-          stuckStateDetected={
-            emergencyWithdrawModal.withdrawing.stuckStateDetected
-          }
           onClose={emergencyWithdrawModal.handleClose}
           onSuccess={emergencyWithdrawModal.handleSuccess}
         />

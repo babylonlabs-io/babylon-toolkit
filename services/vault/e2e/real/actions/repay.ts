@@ -10,7 +10,9 @@
  *
  * The repay flow is short but has two shapes the CLI must handle that borrow doesn't:
  *   - A depositor with exactly ONE loan is routed straight to the repay form; only MULTIPLE loans open
- *     the "Select asset" picker. So after clicking Repay we wait for EITHER the picker OR the form.
+ *     the "Select asset" picker. So after clicking Repay we wait for EITHER the picker OR the form. The
+ *     same token can be owed to two hubs, so the picker row is chosen by reserve id, and the form is
+ *     checked to be for that reserve before an amount is entered.
  *   - Repaying can take ONE to THREE MetaMask transactions: an ERC-20 approve of the debt token to
  *     the adapter (only when the current allowance is insufficient; USDT-style tokens add a
  *     reset-to-zero first), then the repay. The stale-RPC retry's forced approve only fires when no
@@ -26,7 +28,12 @@
  */
 import type { BrowserContext, Locator, Page } from "@playwright/test";
 
-import { fetchBorrowContext } from "../borrowParams";
+import {
+  type BorrowReserve,
+  describeReserve,
+  fetchBorrowContext,
+  matchReserve,
+} from "../borrowParams";
 import { type NetworkName } from "../config";
 import {
   CONSERVATIVE_REPAY_FRACTION,
@@ -48,8 +55,10 @@ import { installPopupApprover, sweepApprovals } from "./approver";
 import { runBorrowWithOptionalPegin } from "./borrow";
 import { goToSection } from "./navigation";
 import { startRecording } from "./recording";
+import { legContext } from "./reserveLegs";
 import {
   AMOUNT_INPUT,
+  assertOpenFormReserve,
   ASSET_ROW_TESTID_PREFIX,
   ASSET_SELECT_TITLE,
   DONE_BUTTON_RX,
@@ -57,6 +66,8 @@ import {
   FLUID_CTA_SELECTOR,
   MAX_AMOUNT_KEYWORD,
   MAX_BUTTON_RX,
+  readTxFailedText,
+  REPAY_OPTION_TESTID_PREFIX,
   SUCCESS_DONE_TESTID,
   TX_FAILED_RX,
 } from "./selectors";
@@ -97,42 +108,66 @@ const DEBT_DECREASE_MIN_USD = 0.01;
 type RepayAmount = { mode: "max" } | { mode: "amount"; value: string };
 
 /**
+ * The debt this run repays, read after any borrow leg so a just-created loan is present. The CLI
+ * normally resolved it (`repayReserveId`), and a --borrow-first run pins the reserve it just borrowed
+ * from (`repayBorrowedReserve`); otherwise the token (plus `--repay-hub`) must match exactly
+ * one of the position's debts, and no token is accepted only when the position owes on a single reserve.
+ * The same token can be owed to several hubs, so a symbol alone is refused rather than resolved to
+ * whichever debt is first.
+ */
+async function resolveRepayDebt(ctx: ActionContext): Promise<RepayableDebt> {
+  const { network, repayReserveId } = ctx.config;
+  let debts: RepayableDebt[];
+  try {
+    debts = await fetchRepayableDebts(network, ctx.eth.address);
+  } catch (error) {
+    throw new Error(
+      `repay: could not read the outstanding loans (${error instanceof Error ? error.message : error}) — cannot tell which reserve to repay.`,
+    );
+  }
+  if (debts.length === 0)
+    throw new Error("repay: this position has no outstanding debt to repay.");
+  if (repayReserveId !== undefined) {
+    const debt = debts.find((d) => d.reserveId.toString() === repayReserveId);
+    if (!debt)
+      throw new Error(
+        `repay: this position has no outstanding debt on reserve ${repayReserveId}. Re-run with a loan you owe on.`,
+      );
+    return debt;
+  }
+  const token = ctx.config.repayToken?.trim();
+  if (!token) {
+    if (debts.length === 1) return debts[0];
+    throw new Error(
+      `repay: no --repay-token and more than one outstanding loan (${debts.map(describeReserve).join("; ")}) — re-run with --repay-token (and --repay-hub).`,
+    );
+  }
+  const hub = ctx.config.repayHub;
+  const match = matchReserve(debts, token, hub);
+  if (match.kind === "match") return match.reserve;
+  throw new Error(
+    match.kind === "none"
+      ? `repay: this position has no outstanding ${token} debt${hub ? ` on "${hub}"` : ""} to repay. Re-run with a token you owe on.`
+      : `repay: ${token} is owed to more than one hub (${match.candidates.map(describeReserve).join("; ")}) — re-run with --repay-hub.`,
+  );
+}
+
+/**
  * Resolve the amount to repay. An explicit `--repay-amount` wins (a number, or `max`). Otherwise it
  * computes a conservative fraction of the outstanding debt, capped at the wallet's balance of the debt
- * token so the default is always affordable. If that can't produce a positive amount (read failed, no
- * debt for the token, zero balance, or the fraction rounds to 0 at the token's precision) it THROWS
- * rather than silently clicking Max — a full clear is only ever done when explicitly requested via
- * `--repay-amount=max`.
+ * token so the default is always affordable. If that can't produce a positive amount (zero balance, or
+ * the fraction rounds to 0 at the token's precision) it THROWS rather than silently clicking Max — a
+ * full clear is only ever done when explicitly requested via `--repay-amount=max`.
  */
-async function resolveRepayAmount(
+function resolveRepayAmount(
   ctx: ActionContext,
-  token: string | undefined,
-): Promise<RepayAmount> {
+  debt: RepayableDebt,
+): RepayAmount {
   const raw = ctx.config.repayAmount?.trim();
   if (raw && raw.toLowerCase() === MAX_AMOUNT_KEYWORD) return { mode: "max" };
   if (raw) return { mode: "amount", value: raw };
 
-  if (!token)
-    throw new Error(
-      "repay: no --repay-token resolved and no --repay-amount given — cannot compute a safe default. Re-run with --repay-token and/or --repay-amount.",
-    );
-
-  let debt: RepayableDebt | undefined;
-  try {
-    const debts = await fetchRepayableDebts(
-      ctx.config.network,
-      ctx.eth.address,
-    );
-    debt = debts.find((d) => d.symbol.toLowerCase() === token.toLowerCase());
-  } catch (error) {
-    throw new Error(
-      `repay: could not read the outstanding ${token} debt (${error instanceof Error ? error.message : error}) — refusing to guess an amount. Re-run with an explicit --repay-amount (or --repay-amount=max).`,
-    );
-  }
-  if (!debt)
-    throw new Error(
-      `repay: this position has no outstanding ${token} debt to repay. Re-run with a token you owe on, or --repay-amount.`,
-    );
+  const token = debt.symbol;
   if (debt.balanceTokens <= 0)
     throw new Error(
       `repay: your wallet holds 0 ${token} — you need ${token} to repay this debt (${debt.debtTokens} ${token} outstanding). Acquire some first.`,
@@ -214,45 +249,36 @@ async function openRepay(
 }
 
 /**
- * Pick the debt token in the "Select asset" picker (repay mode). Prefer the per-symbol testid; fall back
- * to the row whose text contains the symbol. With no token specified, take the first row. Waits for the
- * row (the picker's rows are the user's loans, available immediately). Returns the token SYMBOL — read
- * from the chosen row's `data-testid` (`asset-select-row-<symbol>`), NOT its free-text label — so the
- * caller's debt lookup (`resolveRepayAmount`) can match it against `debt.symbol`.
+ * Pick the debt in the repay picker by reserve id: two debts can share a token symbol, one per hub.
+ * Falls back to the per-symbol row that builds predating the hub-aware picker render. Waits for the row
+ * (the picker's rows are the user's loans, available immediately), then for the form it opens.
  */
-async function selectAsset(
+async function selectDebt(
   page: Page,
   log: (m: string) => void,
-  token: string | undefined,
-): Promise<string | undefined> {
-  const row = token
-    ? firstByTestid(
-        page,
-        `[data-testid="${ASSET_ROW_TESTID_PREFIX}${token.toLowerCase()}"]`,
-        page.getByRole("button").filter({ hasText: new RegExp(token, "i") }),
-      )
-    : page.locator(`[data-testid^="${ASSET_ROW_TESTID_PREFIX}"]`).first();
+  debt: RepayableDebt,
+): Promise<void> {
+  const row = firstByTestid(
+    page,
+    `[data-testid="${REPAY_OPTION_TESTID_PREFIX}${debt.reserveId}"]`,
+    page.locator(
+      `[data-testid="${ASSET_ROW_TESTID_PREFIX}${debt.symbol.toLowerCase()}"]`,
+    ),
+  );
   const appeared = await row
     .waitFor({ state: "visible", timeout: STEP_TIMEOUT_MS })
     .then(() => true)
     .catch(() => false);
   if (!appeared)
     throw new Error(
-      token
-        ? `Repay token "${token}" was not found in the asset picker within ${Math.round(STEP_TIMEOUT_MS / MS_PER_SECOND)}s.`
-        : "No repay token specified and no loan rows were found in the picker.",
+      `Repay: ${describeReserve(debt)} was not found in the asset picker within ${Math.round(STEP_TIMEOUT_MS / MS_PER_SECOND)}s.`,
     );
-  // An explicit token wins; otherwise read the symbol from the row's testid (the no-token branch selects
-  // rows BY that prefix, so the attribute is always present on the chosen row).
-  let symbol = token;
-  if (!symbol) {
-    const testid = await row.getAttribute("data-testid").catch(() => null);
-    if (testid?.startsWith(ASSET_ROW_TESTID_PREFIX))
-      symbol = testid.slice(ASSET_ROW_TESTID_PREFIX.length);
-  }
   await row.click();
-  log(`Selected repay token: ${symbol ?? "(unknown)"}`);
-  return symbol;
+  await page
+    .locator(AMOUNT_INPUT)
+    .first()
+    .waitFor({ state: "visible", timeout: STEP_TIMEOUT_MS });
+  log(`Selected debt to repay: ${describeReserve(debt)}`);
 }
 
 /** Enter the repay amount: click the form's Max button, or fill the numeric input. */
@@ -331,13 +357,14 @@ async function waitForRepayCta(
  * After submitting, actively approve the MetaMask pop-up(s) — repay can be ONE tx (repay) or TWO (an
  * ERC-20 approve of the debt token, then the repay) depending on the current allowance; the CTA reads
  * "Processing…" across both and the approver's sweep confirms whichever appear. Wait for the "Repay
- * successful" screen, then click Done. Fails fast if the form surfaces a "Transaction failed" callout.
+ * successful" screen, then click Done. Fails fast, with the callout's text, if the form surfaces a
+ * "Transaction failed" callout.
  */
 async function confirmRepaySuccess(
   page: Page,
   context: BrowserContext,
   log: (m: string) => void,
-  symbol: string | undefined,
+  reserveLabel: string,
 ): Promise<void> {
   // Success is gated ONLY on markers specific to the loan-success screen — the "Repay successful" title
   // or the `loan-success-done-button` testid. NOT the generic "Done" role: borrow/deposit/withdraw
@@ -359,14 +386,14 @@ async function confirmRepaySuccess(
       (await successTitle.isVisible().catch(() => false)) ||
       (await successDone.isVisible().catch(() => false))
     ) {
-      log(`✅ Repay successful${symbol ? ` (${symbol})` : ""} — clicking Done`);
+      log(`✅ Repay successful (${reserveLabel}) — clicking Done`);
       await doneButton.click({ timeout: STEP_TIMEOUT_MS }).catch(() => {});
       return;
     }
     if (await txFailed.isVisible().catch(() => false)) {
-      const detail = await readCalloutText(page);
+      const detail = await readTxFailedText(page);
       throw new Error(
-        `Repay transaction failed${detail ? ` — ${detail}` : ""}. See trace.zip + the failure screenshot.`,
+        `Repay transaction failed${detail ? ` — the form shows "${detail}"` : ""}. See trace.zip + the failure screenshot.`,
       );
     }
     await page.waitForTimeout(FORM_SETTLE_MS);
@@ -425,33 +452,50 @@ async function readDebtUsd(
     .catch(() => null);
 }
 
+/**
+ * A --borrow-first run's repay context, pinned to the reserve the borrow leg used when the repay names
+ * that loan: no `--repay-hub`, and no `--repay-token` or the borrowed token. The CLI pins it only when
+ * there is no `--repay-token` and its reserve read succeeded; this also covers a `--repay-token` naming the
+ * borrowed token and a failed read, where the borrow leg resolved the reserve itself and another hub's
+ * loan of the same token would otherwise make the repay ambiguous.
+ */
+export function repayBorrowedReserve(
+  ctx: ActionContext,
+  borrowed: BorrowReserve,
+): ActionContext {
+  const { repayToken, repayHub } = ctx.config;
+  if (repayHub !== undefined) return ctx;
+  const token = repayToken?.trim();
+  if (token && token.toLowerCase() !== borrowed.symbol.toLowerCase())
+    return ctx;
+  return legContext(ctx, { repayReserveId: borrowed.reserveId.toString() });
+}
+
 /** Drive the repay flow proper (assumes wallets connected + approver/recorder installed by the caller). */
 export async function runRepayFlow(
   ctx: ActionContext,
   onStep: (step: string) => void,
 ): Promise<void> {
   const { page, context, log } = ctx;
-  // Repay the explicit token, else (borrow-first) the token we just borrowed, else let the picker/form
-  // decide (a single loan needs no token).
-  const token =
-    ctx.config.repayToken?.trim() ||
-    ctx.config.borrowToken?.trim() ||
-    undefined;
+  // Resolved before the browser flow (and after any borrow leg), so an unknown or ambiguous loan fails
+  // before anything is clicked.
+  const debt = await resolveRepayDebt(ctx);
+  log(`Repaying ${describeReserve(debt)}`);
 
   onStep("repay-open");
   const { pickerOpened } = await openRepay(page, log);
 
-  let symbol = token;
   if (pickerOpened) {
     onStep("repay-select-asset");
-    symbol = await selectAsset(page, log, token);
+    await selectDebt(page, log, debt);
   }
+  assertOpenFormReserve(page, debt.reserveId, "Repay");
 
   onStep("repay-form");
   // Snapshot the on-chain debt BEFORE submitting so we can assert it fell afterwards (a real-data
   // post-condition on top of the UI success screen).
   const debtBeforeUsd = await readDebtUsd(ctx.config.network, ctx.eth.address);
-  const amount = await resolveRepayAmount(ctx, symbol);
+  const amount = resolveRepayAmount(ctx, debt);
   await fillRepayAmount(page, log, amount);
   const cta = await waitForRepayCta(page, log);
 
@@ -461,7 +505,7 @@ export async function runRepayFlow(
   );
   await cta.click();
 
-  await confirmRepaySuccess(page, context, log, symbol);
+  await confirmRepaySuccess(page, context, log, describeReserve(debt));
 
   onStep("repay-verify");
   await assertRepayDebtDecreased(ctx, debtBeforeUsd);
@@ -484,6 +528,7 @@ export const repayAction: Action = {
     try {
       await connectWallets(ctx);
 
+      let repayCtx = ctx;
       if (ctx.config.borrowFirst) {
         log(
           "Repay --borrow-first: borrowing before repaying" +
@@ -496,9 +541,10 @@ export const repayAction: Action = {
         // repay. runBorrowWithOptionalPegin throws on any pegin/borrow failure; we catch only to log the
         // skip intent, then rethrow so the run aborts (repay is never attempted).
         try {
-          await runBorrowWithOptionalPegin(ctx, (step) => {
+          const borrowed = await runBorrowWithOptionalPegin(ctx, (step) => {
             currentStep = `borrow:${step}`;
           });
+          repayCtx = repayBorrowedReserve(ctx, borrowed.reserve);
         } catch (error) {
           log(
             "❌ Borrow leg failed — stopping the run and SKIPPING repay (no new loan was created to repay).",
@@ -507,7 +553,7 @@ export const repayAction: Action = {
         }
       }
 
-      await runRepayFlow(ctx, (step) => {
+      await runRepayFlow(repayCtx, (step) => {
         currentStep = step;
       });
 

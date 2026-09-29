@@ -1,14 +1,9 @@
 /**
- * ReserveDetailPanel — branch order of the loan overlay's borrow/repay step.
- *
- * The ordering is load-bearing, not cosmetic: nothing derived from the reserve
- * may reach the DOM before its asset is proven on-chain (audit F7). In
- * particular the identity block must win over the loading spinner, since
- * `isLoading` ORs four sources and a still-pending price query would otherwise
- * hide a resolved integrity failure.
+ * Verify the loan form gates. Asset identity must be proven before the form
+ * appears. Identity errors must also appear while other requests load.
  */
 
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import type { Address } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -42,10 +37,22 @@ vi.mock("@/config", () => ({
   getNetworkConfigBTC: () => ({ icon: "btc.png", name: "sBTC" }),
 }));
 
-const mockUseConnection = vi.fn(() => ({ isConnected: true }));
-vi.mock("@/context/wallet", () => ({
-  useConnection: () => mockUseConnection(),
-  useETHWallet: () => ({ address: "0xUser" }),
+const walletMock = vi.hoisted(() => ({
+  btcConnected: true,
+  ethConnected: true,
+  confirmed: true,
+}));
+vi.mock("@babylonlabs-io/wallet-connector", () => ({
+  useWalletConnect: () => ({ connected: walletMock.confirmed }),
+  useBTCWallet: () => ({ connected: walletMock.btcConnected }),
+  useETHWallet: () => ({
+    connected: walletMock.ethConnected,
+    address: walletMock.ethConnected ? "0xUser" : undefined,
+  }),
+}));
+vi.mock("@/context/wallet", async () => ({
+  useConnection: (await import("@/context/wallet/useConnection")).useConnection,
+  useETHWallet: (await import("@babylonlabs-io/wallet-connector")).useETHWallet,
 }));
 
 vi.mock("../../../context", () => ({
@@ -57,10 +64,21 @@ vi.mock("../../../hooks", () => ({
 }));
 
 // The borrow/repay form itself is out of scope here; its presence is the
-// assertion that the overlay reached the proven branch.
-vi.mock("../../LoanCard", () => ({
-  LoanCard: () => <div data-testid="loan-card" />,
-}));
+// assertion that the overlay reached the proven branch. It shows the hub it
+// was given and settles a borrow on click, so the hub hand-off is observable.
+vi.mock("../../LoanCard", async () => {
+  const { useLoanContext } = await import("../../context/LoanContext");
+  return {
+    LoanCard: () => {
+      const { hub, onBorrowSuccess } = useLoanContext();
+      return (
+        <button data-testid="loan-card" onClick={() => onBorrowSuccess(5)}>
+          {hub.label}
+        </button>
+      );
+    },
+  };
+});
 
 const mockUseAaveReserveDetail = vi.fn();
 vi.mock("../hooks", () => ({
@@ -69,7 +87,11 @@ vi.mock("../hooks", () => ({
 
 const RESERVE = {
   reserveId: 2n,
-  reserve: { collateralFactor: 0, underlying: "0xUSDC" as Address },
+  reserve: {
+    collateralFactor: 0,
+    underlying: "0xUSDC" as Address,
+    hub: "0xF5E52D571Ed9b4779399A815815ABeFF7D7ec4ca" as Address,
+  },
   token: {
     symbol: "USDC",
     name: "USD Coin",
@@ -97,8 +119,8 @@ function detailState(overrides: Record<string, unknown> = {}) {
     liquidationThresholdBps: 7500,
     proxyContract: "0xProxy",
     collateralValueUsd: 15000,
-    currentDebtAmount: 0,
-    totalDebtValueUsd: 0,
+    currentDebtAmount: 1,
+    totalDebtValueUsd: 1,
     healthFactor: null,
     tokenPriceUsd: 1,
     isPriceStale: false,
@@ -118,21 +140,48 @@ function detailState(overrides: Record<string, unknown> = {}) {
 describe("ReserveDetailPanel", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockUseConnection.mockReturnValue({ isConnected: true });
+    walletMock.btcConnected = true;
+    walletMock.ethConnected = true;
+    walletMock.confirmed = true;
     mockUseAaveReserveDetail.mockReturnValue(detailState());
   });
 
-  it("renders the loan form once the reserve's identity is proven", () => {
+  it("keeps Repay open after a background position refresh fails", () => {
+    mockUseAaveReserveDetail.mockReturnValue(
+      detailState({ positionError: new Error("RPC failed") }),
+    );
     render(
       <ReserveDetailPanel
         reserveId="2"
-        tab={LOAN_TAB.BORROW}
+        tab={LOAN_TAB.REPAY}
         onProcessingChange={vi.fn()}
         onSuccess={vi.fn()}
       />,
     );
 
     expect(screen.getByTestId("loan-card")).toBeInTheDocument();
+    expect(
+      screen.getByText(COPY.loans.detail.ancillaryLoadWarning),
+    ).toBeVisible();
+  });
+
+  it("names the reserve's hub to the form and to the success step", () => {
+    const onSuccess = vi.fn();
+    render(
+      <ReserveDetailPanel
+        reserveId="2"
+        tab={LOAN_TAB.BORROW}
+        onProcessingChange={vi.fn()}
+        onSuccess={onSuccess}
+      />,
+    );
+
+    expect(screen.getByTestId("loan-card")).toHaveTextContent("Core Hub");
+    fireEvent.click(screen.getByTestId("loan-card"));
+
+    expect(onSuccess).toHaveBeenCalledWith(
+      expect.objectContaining({ amount: 5, hubLabel: "Core Hub" }),
+    );
   });
 
   it("blocks with integrity copy and no retry when the asset can't be verified", () => {
@@ -219,8 +268,9 @@ describe("ReserveDetailPanel", () => {
     expect(screen.queryByText(COPY.common.loading)).not.toBeInTheDocument();
   });
 
-  it("prompts to connect without waiting on the identity round-trip", () => {
-    mockUseConnection.mockReturnValue({ isConnected: false });
+  it("prompts to connect before identity loads when both wallets are missing", () => {
+    walletMock.btcConnected = false;
+    walletMock.ethConnected = false;
     mockUseAaveReserveDetail.mockReturnValue(
       detailState({
         isLoading: true,
@@ -242,6 +292,53 @@ describe("ReserveDetailPanel", () => {
     expect(
       screen.getByText(COPY.loans.connectToManage.title),
     ).toBeInTheDocument();
+    expect(screen.queryByTestId("loan-card")).not.toBeInTheDocument();
+  });
+
+  it("prompts to connect before identity loads when only Bitcoin is connected", () => {
+    walletMock.btcConnected = true;
+    walletMock.ethConnected = false;
+    mockUseAaveReserveDetail.mockReturnValue(
+      detailState({
+        isLoading: true,
+        tokenIdentity: null,
+        assetConfig: null,
+        currentDebtAmount: null,
+      }),
+    );
+
+    render(
+      <ReserveDetailPanel
+        reserveId="2"
+        tab={LOAN_TAB.BORROW}
+        onProcessingChange={vi.fn()}
+        onSuccess={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByText(COPY.loans.connectToManage.title),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("loan-card")).not.toBeInTheDocument();
+  });
+
+  it("shows the loan form for Ethereum alone", () => {
+    walletMock.btcConnected = false;
+    walletMock.ethConnected = true;
+
+    render(
+      <ReserveDetailPanel
+        reserveId="2"
+        tab={LOAN_TAB.BORROW}
+        onProcessingChange={vi.fn()}
+        onSuccess={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByTestId("loan-card")).toBeInTheDocument();
+    expect(
+      screen.queryByText(COPY.loans.connectToManage.title),
+    ).not.toBeInTheDocument();
   });
 
   it("tells the user a legacy symbol link is outdated", () => {
@@ -292,21 +389,21 @@ describe("ReserveDetailPanel", () => {
     expect(screen.getByText(COPY.loans.reserveNotFound)).toBeInTheDocument();
   });
 
-  it("withholds the loan form while the debt figure is still unproven", () => {
+  it("blocks Repay after a refresh error when only another reserve has debt", () => {
     mockUseAaveReserveDetail.mockReturnValue(
-      detailState({ currentDebtAmount: null }),
+      detailState({ currentDebtAmount: 0, positionError: new Error("RPC") }),
     );
 
     render(
       <ReserveDetailPanel
         reserveId="2"
-        tab={LOAN_TAB.BORROW}
+        tab={LOAN_TAB.REPAY}
         onProcessingChange={vi.fn()}
         onSuccess={vi.fn()}
       />,
     );
 
     expect(screen.queryByTestId("loan-card")).not.toBeInTheDocument();
-    expect(screen.getByText(COPY.loans.reserveNotFound)).toBeInTheDocument();
+    expect(screen.getByText(COPY.loans.detail.positionLoadError)).toBeVisible();
   });
 });

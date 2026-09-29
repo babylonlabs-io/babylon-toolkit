@@ -33,6 +33,26 @@ describe("ActivityRowV3", () => {
     expect(screen.getByText("BTC")).toBeInTheDocument();
   });
 
+  it("captions a borrow row with its token on its hub", () => {
+    render(
+      <ActivityRowV3
+        row={{
+          ...baseRow,
+          type: "Borrow",
+          amount: {
+            value: "5,200",
+            symbol: "USDC",
+            hubLabel: "Core Hub",
+            numeric: 5200,
+          },
+        }}
+      />,
+    );
+
+    expect(screen.getByText("USDC on Core Hub")).toBeInTheDocument();
+    expect(screen.getByText("5,200 USDC")).toBeInTheDocument();
+  });
+
   it("right-aligns the amount", () => {
     render(<ActivityRowV3 row={baseRow} />);
 

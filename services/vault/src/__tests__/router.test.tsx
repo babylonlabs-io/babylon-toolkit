@@ -28,7 +28,6 @@ import { MemoryRouter, Outlet, useOutletContext } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Router } from "../router";
-import { getReserveDetailRoute } from "../routes";
 
 const featureFlagsState = vi.hoisted(() => ({
   isExploreEnabled: true,
@@ -148,16 +147,19 @@ vi.mock("../applications/aave/components/Detail", () => ({
     picker,
     reserveId,
     tab,
+    asset,
   }: {
     picker: string | null;
     reserveId: string | null;
     tab: string;
+    asset: string | null;
   }) => (
     <div
       data-testid={RESERVE_DETAIL_TESTID}
       data-reserve-id={reserveId ?? ""}
       data-picker={picker ?? ""}
       data-tab={tab}
+      data-asset={asset ?? ""}
     />
   ),
 }));
@@ -411,12 +413,6 @@ describe("Router — reserve detail overlays over the routed page", () => {
     vi.clearAllMocks();
   });
 
-  it("generates the reserve-detail URL (/loans base)", () => {
-    expect(getReserveDetailRoute(5n, "borrow")).toBe(
-      "/loans?reserve=5&tab=borrow",
-    );
-  });
-
   it("renders the reserve detail as an overlay over the dashboard", async () => {
     renderAt("/?reserve=5&tab=borrow");
 
@@ -485,6 +481,30 @@ describe("Router — reserve detail overlays over the routed page", () => {
       expect(screen.getByTestId(RESERVE_DETAIL_TESTID)).toBeInTheDocument();
     });
     expect(screen.getByTestId(VAULTS_PAGE_TESTID)).toBeInTheDocument();
+  });
+
+  it("passes a Select hub asset param to the loan overlay, checksummed", async () => {
+    renderAt(
+      "/loans?picker=borrow&asset=0xb588c1bd8a6cd3f114a52a0ad916778b419ecf48",
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId(RESERVE_DETAIL_TESTID)).toHaveAttribute(
+        "data-asset",
+        "0xB588C1bd8A6cd3F114A52a0AD916778B419ECf48",
+      );
+    });
+  });
+
+  it("drops an asset param that isn't an address", async () => {
+    renderAt("/loans?picker=borrow&asset=usdc");
+
+    await waitFor(() => {
+      expect(screen.getByTestId(RESERVE_DETAIL_TESTID)).toHaveAttribute(
+        "data-asset",
+        "",
+      );
+    });
   });
 
   it("rejects the old v2 reserve-detail path (/app/aave/reserve/...)", async () => {

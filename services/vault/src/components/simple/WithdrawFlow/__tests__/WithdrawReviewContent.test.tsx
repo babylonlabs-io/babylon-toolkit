@@ -5,7 +5,7 @@
  * own status rather than always green.
  */
 
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { HEALTH_FACTOR_COLORS } from "@/applications/aave/utils";
@@ -33,6 +33,9 @@ const baseProps = {
   assertTimelockBlocks: 144,
   isProcessing: false,
   error: null,
+  hubBlockMessage: null,
+  acknowledged: true,
+  onAcknowledgedChange: vi.fn(),
   onConfirm: () => {},
 };
 
@@ -69,7 +72,7 @@ describe("WithdrawReviewContent", () => {
     // carries the position colour.
     expect(screen.getByText("1.60")).not.toHaveAttribute("style");
     expect(screen.getByText("0.90")).toHaveStyle({
-      color: HEALTH_FACTOR_COLORS.RED,
+      color: HEALTH_FACTOR_COLORS.DARK_RED,
     });
   });
 
@@ -80,6 +83,83 @@ describe("WithdrawReviewContent", () => {
 
     expect(screen.getByTestId("withdraw-hf-block-warning")).toHaveTextContent(
       "would drop your health factor below 1.0",
+    );
+    expect(screen.getByTestId("withdraw-confirm-button")).toBeDisabled();
+  });
+
+  it("announces the block warning as a titled alert banner", () => {
+    render(
+      <WithdrawReviewContent {...baseProps} projectedHealthFactor={0.9} />,
+    );
+
+    const banner = screen.getByTestId("withdraw-hf-block-warning");
+    expect(banner).toHaveAttribute("role", "alert");
+    expect(banner).toHaveTextContent("Withdraw unavailable");
+    // The warning triangle, not the error variant's default close glyph:
+    // the two icons are only distinguishable in the DOM by their viewBox.
+    expect(banner.querySelector('svg[viewBox="0 0 22 20"]')).not.toBeNull();
+  });
+
+  it("warns without blocking when the projection is above the floor but at risk", () => {
+    render(
+      <WithdrawReviewContent {...baseProps} projectedHealthFactor={1.05} />,
+    );
+
+    expect(screen.getByTestId("withdraw-hf-at-risk-warning")).toHaveTextContent(
+      "health factor below 1.1",
+    );
+    expect(screen.getByTestId("withdraw-confirm-button")).toBeEnabled();
+  });
+
+  it("disables Confirm while at risk and unacknowledged", () => {
+    render(
+      <WithdrawReviewContent
+        {...baseProps}
+        projectedHealthFactor={1.05}
+        acknowledged={false}
+      />,
+    );
+
+    expect(screen.getByTestId("withdraw-review-acknowledge")).not.toBeChecked();
+    expect(screen.getByTestId("withdraw-confirm-button")).toBeDisabled();
+  });
+
+  it("enables Confirm once acknowledged", () => {
+    const onAcknowledgedChange = vi.fn();
+    const { rerender } = render(
+      <WithdrawReviewContent
+        {...baseProps}
+        projectedHealthFactor={1.05}
+        acknowledged={false}
+        onAcknowledgedChange={onAcknowledgedChange}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("withdraw-review-acknowledge"));
+    expect(onAcknowledgedChange).toHaveBeenCalledWith(true);
+
+    rerender(
+      <WithdrawReviewContent
+        {...baseProps}
+        projectedHealthFactor={1.05}
+        acknowledged
+        onAcknowledgedChange={onAcknowledgedChange}
+      />,
+    );
+
+    expect(screen.getByTestId("withdraw-confirm-button")).toBeEnabled();
+  });
+
+  it("blocks confirmation and shows the reason when a hub would reject the withdrawal", () => {
+    render(
+      <WithdrawReviewContent
+        {...baseProps}
+        hubBlockMessage="Core Hub, where you have debt, isn't accepting transactions right now."
+      />,
+    );
+
+    expect(screen.getByTestId("withdraw-hub-block-warning")).toHaveTextContent(
+      "Core Hub, where you have debt, isn't accepting transactions right now.",
     );
     expect(screen.getByTestId("withdraw-confirm-button")).toBeDisabled();
   });

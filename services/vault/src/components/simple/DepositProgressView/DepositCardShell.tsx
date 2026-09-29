@@ -4,14 +4,15 @@
  * Presentational chrome shared by every state of the deposit progress flow.
  * It owns the card border, the heading + time estimate, the explanation, an
  * optional overall progress bar, the full-bleed divider, the step/group body,
- * and a footer region (primary CTA + optional fine print).
+ * and the footer's primary CTA.
  *
  * The body is intentionally a `children` slot so the same card can host either
  * state of the flow:
- *   - pre-sign  → DepositSummaryCard passes the collapsed group rows
+ *   - pre-sign  → the entry state passes the current group alone, opened on
+ *                 the Pre-PegIn step to carry the fee selector
  *   - in-flight → the live stepper passes its expanded GroupedProgress (with
  *                 per-step detail panels), a progress bar, and the
- *                 close-and-continue CTA + do-not-spend footnote
+ *                 close-and-continue CTA
  *
  * Keeping the chrome here means the user sees one consistent card from the
  * summary through completion — only the body and footer change per state.
@@ -29,8 +30,8 @@ import { DEPOSIT_VIEW_MAX_WIDTH_CLASS } from "./layout";
 
 interface DepositCardShellProps {
   /**
-   * Step/group list. Collapsed group rows in the summary state; the expanded
-   * grouped stepper (with active-step detail panels) in the live state.
+   * Step/group list: the group holding the current step — collapsed on the
+   * pre-sign entry, expanded with its detail panels once the flow runs.
    */
   children: ReactNode;
   /**
@@ -44,11 +45,6 @@ interface DepositCardShellProps {
    */
   progressBar?: ReactNode;
   /**
-   * Optional fine print rendered under the footer action — e.g. the
-   * do-not-spend warning shown while the deposit is in flight.
-   */
-  footnote?: ReactNode;
-  /**
    * The deposit's registered offchain-params version, so the header estimate
    * uses the same pinned confirmation depth the flow actually gates on.
    * Omitted pre-sign, where no version is registered yet → latest params.
@@ -60,7 +56,6 @@ export function DepositCardShell({
   children,
   footer,
   progressBar,
-  footnote,
   offchainParamsVersion,
 }: DepositCardShellProps) {
   const requiredDepth = useRequiredPrePeginDepth(offchainParamsVersion);
@@ -98,10 +93,7 @@ export function DepositCardShell({
       {/* Scrollable middle: the step list. Header + footer stay fixed. */}
       <div className="flex-1 overflow-y-auto px-6 py-6">{children}</div>
 
-      <div className="shrink-0 px-6 pb-6 pt-2">
-        {footer}
-        {footnote && <div className="mt-4">{footnote}</div>}
-      </div>
+      <div className="shrink-0 px-6 pb-6 pt-2">{footer}</div>
     </div>
   );
 }

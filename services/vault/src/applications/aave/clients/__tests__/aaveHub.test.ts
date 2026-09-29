@@ -2,8 +2,11 @@ import type { Address } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  __resetReportedHubSpokeReadFailuresForTests,
   getAssetLiquiditiesSafe,
+  getHubSpokeConfigsSafe,
   getProjectedBorrowAprPercentsSafe,
+  getSpokeDrawUsagesSafe,
 } from "../aaveHub";
 
 // vitest hoists vi.mock above imports; the factory closes over `multicall`,
@@ -18,6 +21,13 @@ vi.mock("../../../../clients/eth-contract/client", () => ({
 vi.mock("@babylonlabs-io/ts-sdk/tbv/integrations/aave", () => ({
   getAssetDrawnRatesSafe: vi.fn(),
 }));
+
+const warn = vi.hoisted(() => vi.fn());
+const event = vi.hoisted(() => vi.fn());
+vi.mock("@/infrastructure", () => ({ logger: { warn, event } }));
+
+/** Vault Devnet Core Hub, in the hub registry. */
+const CORE_HUB = "0xF5E52D571Ed9b4779399A815815ABeFF7D7ec4ca" as Address;
 
 const HUB = "0x0000000000000000000000000000000000000003" as Address;
 const IRM = "0x0000000000000000000000000000000000000004" as Address;
@@ -101,6 +111,138 @@ describe("getAssetLiquiditiesSafe", () => {
   it("skips the multicall entirely for an empty request list", async () => {
     expect(await getAssetLiquiditiesSafe([])).toEqual([]);
     expect(multicall).not.toHaveBeenCalled();
+  });
+});
+
+const SPOKE = "0x0000000000000000000000000000000000000005" as Address;
+const SPOKE_CONFIG = {
+  addCap: 0,
+  drawCap: 1_000,
+  riskPremiumThreshold: 0,
+  active: true,
+  halted: false,
+};
+
+describe("getHubSpokeConfigsSafe", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    __resetReportedHubSpokeReadFailuresForTests();
+  });
+
+  it("reads our spoke's config per asset and keeps only the fields the app uses", async () => {
+    multicall.mockResolvedValueOnce([
+      { status: "success", result: SPOKE_CONFIG },
+      { status: "failure", error: new Error("reverted") },
+    ]);
+
+    const out = await getHubSpokeConfigsSafe(SPOKE, [
+      { hub: HUB, assetId: 1 },
+      { hub: HUB, assetId: 2 },
+    ]);
+
+    expect(out).toEqual([
+      { drawCap: 1_000, active: true, halted: false },
+      null,
+    ]);
+    expect(multicall.mock.calls[0][0].contracts[0]).toMatchObject({
+      address: HUB,
+      functionName: "getSpokeConfig",
+      args: [1n, SPOKE],
+    });
+  });
+
+  it("returns null for every asset when the multicall throws, and logs it", async () => {
+    multicall.mockRejectedValueOnce(new Error("RPC down"));
+
+    expect(
+      await getHubSpokeConfigsSafe(SPOKE, [
+        { hub: HUB, assetId: 1 },
+        { hub: HUB, assetId: 2 },
+      ]),
+    ).toEqual([null, null]);
+    expect(warn).toHaveBeenCalledWith(
+      "Hub spoke read failed: getSpokeConfig",
+      expect.objectContaining({
+        data: expect.objectContaining({ error: "RPC down" }),
+      }),
+    );
+  });
+
+  it("logs a reverted config leg with the hub's label, which telemetry does not redact", async () => {
+    multicall.mockResolvedValueOnce([
+      { status: "failure", error: new Error("reverted") },
+    ]);
+
+    await getHubSpokeConfigsSafe(SPOKE, [{ hub: CORE_HUB, assetId: 7 }]);
+
+    expect(warn).toHaveBeenCalledWith("Hub spoke read failed: getSpokeConfig", {
+      data: { hub: "Core Hub", assetId: 7, error: "reverted" },
+    });
+  });
+
+  it("sends the first failure of a cause as an event, and repeats as breadcrumbs only", async () => {
+    multicall
+      .mockRejectedValueOnce(new Error("RPC down"))
+      .mockRejectedValueOnce(new Error("RPC down"));
+
+    await getHubSpokeConfigsSafe(SPOKE, [{ hub: CORE_HUB, assetId: 7 }]);
+    await getHubSpokeConfigsSafe(SPOKE, [{ hub: CORE_HUB, assetId: 7 }]);
+
+    expect(event).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledTimes(2);
+  });
+
+  it("still reports a hub that keeps reverting after a network failure was reported", async () => {
+    multicall
+      .mockRejectedValueOnce(new Error("RPC down"))
+      .mockResolvedValueOnce([
+        { status: "failure", error: new Error("reverted") },
+      ]);
+
+    await getHubSpokeConfigsSafe(SPOKE, [{ hub: CORE_HUB, assetId: 7 }]);
+    await getHubSpokeConfigsSafe(SPOKE, [{ hub: CORE_HUB, assetId: 7 }]);
+
+    expect(event).toHaveBeenCalledTimes(2);
+    expect(event).toHaveBeenLastCalledWith(
+      "Hub spoke read failed: getSpokeConfig",
+      { data: { hub: "Core Hub", assetId: 7, error: "reverted" } },
+    );
+  });
+});
+
+describe("getSpokeDrawUsagesSafe", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    __resetReportedHubSpokeReadFailuresForTests();
+  });
+
+  it("counts owed plus the deficit rounded up against the draw cap", async () => {
+    multicall.mockResolvedValueOnce([
+      { status: "success", result: SPOKE_CONFIG },
+      { status: "success", result: 250n },
+      // 1.5 base units of deficit, RAY-scaled, counts as 2.
+      { status: "success", result: (3n * RAY) / 2n },
+    ]);
+
+    const [result] = await getSpokeDrawUsagesSafe(SPOKE, [
+      { hub: HUB, assetId: 1 },
+    ]);
+
+    expect(result).toEqual({ drawCap: 1_000, usedRaw: 252n });
+  });
+
+  it("nulls an asset whole when any leg reverts", async () => {
+    multicall.mockResolvedValueOnce([
+      { status: "success", result: SPOKE_CONFIG },
+      { status: "failure", error: new Error("owed reverted") },
+      { status: "success", result: 0n },
+    ]);
+
+    const [result] = await getSpokeDrawUsagesSafe(SPOKE, [
+      { hub: HUB, assetId: 1 },
+    ]);
+
+    expect(result).toBeNull();
   });
 });
 

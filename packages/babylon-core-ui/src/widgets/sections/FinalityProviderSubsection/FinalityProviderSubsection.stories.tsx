@@ -7,10 +7,10 @@ const sampleItems: ProviderItem[] = [
   {
     bsnId: "babylon",
     bsnName: "Babylon Genesis",
-    bsnLogoUrl: "https://placehold.co/24x24?text=B",
+    bsnLogoUrl: "/images/chain.png",
     provider: {
       rank: 1,
-      logo_url: "https://placehold.co/40x40",
+      logo_url: "/images/fps/lombard.jpeg",
       description: { moniker: "Provider 1" },
     },
   },
@@ -20,20 +20,20 @@ const multipleItems: ProviderItem[] = [
   {
     bsnId: "babylon",
     bsnName: "Babylon Genesis",
-    bsnLogoUrl: "https://placehold.co/24x24?text=B",
+    bsnLogoUrl: "/images/chain.png",
     provider: {
       rank: 1,
-      logo_url: "https://placehold.co/40x40",
+      logo_url: "/images/fps/lombard.jpeg",
       description: { moniker: "Babylon Provider" },
     },
   },
   {
     bsnId: "ethereum",
     bsnName: "Ethereum Bridge",
-    bsnLogoUrl: "https://placehold.co/24x24?text=E",
+    bsnLogoUrl: "/images/ethereum.svg",
     provider: {
       rank: 2,
-      logo_url: "https://placehold.co/40x40",
+      logo_url: "/images/fps/pumpbtc.jpeg",
       description: { moniker: "Ethereum Provider" },
     },
   },
@@ -43,30 +43,30 @@ const maxCapacityItems: ProviderItem[] = [
   {
     bsnId: "babylon",
     bsnName: "Babylon Genesis",
-    bsnLogoUrl: "https://placehold.co/24x24?text=B",
+    bsnLogoUrl: "/images/chain.png",
     provider: {
       rank: 1,
-      logo_url: "https://placehold.co/40x40",
+      logo_url: "/images/fps/lombard.jpeg",
       description: { moniker: "Babylon Provider" },
     },
   },
   {
     bsnId: "ethereum",
     bsnName: "Ethereum Bridge",
-    bsnLogoUrl: "https://placehold.co/24x24?text=E",
+    bsnLogoUrl: "/images/ethereum.svg",
     provider: {
       rank: 2,
-      logo_url: "https://placehold.co/40x40",
+      logo_url: "/images/fps/pumpbtc.jpeg",
       description: { moniker: "Ethereum Provider" },
     },
   },
   {
     bsnId: "polygon",
     bsnName: "Polygon Network",
-    bsnLogoUrl: "https://placehold.co/24x24?text=P",
+    bsnLogoUrl: "/images/fps/solv.jpeg",
     provider: {
       rank: 3,
-      logo_url: "https://placehold.co/40x40",
+      logo_url: "/images/fps/solv.jpeg",
       description: { moniker: "Polygon Provider" },
     },
   },
@@ -174,7 +174,7 @@ export const ProvidersWithoutLogos: Story = {
       {
         bsnId: "nologo2",
         bsnName: "Another Provider",
-        bsnLogoUrl: "https://placehold.co/24x24?text=A",
+        bsnLogoUrl: "/images/fps/solv.jpeg",
         provider: {
           rank: 2,
           description: { moniker: "Provider with BSN logo only" },
@@ -197,19 +197,19 @@ export const ProvidersWithoutDescriptions: Story = {
       {
         bsnId: "nodesc1",
         bsnName: "Provider Without Description",
-        bsnLogoUrl: "https://placehold.co/24x24?text=N",
+        bsnLogoUrl: "/images/chain.png",
         provider: {
           rank: 1,
-          logo_url: "https://placehold.co/40x40",
+          logo_url: "/images/fps/lombard.jpeg",
         },
       },
       {
         bsnId: "nodesc2",
         bsnName: "Another Provider",
-        bsnLogoUrl: "https://placehold.co/24x24?text=A",
+        bsnLogoUrl: "/images/fps/solv.jpeg",
         provider: {
           rank: 2,
-          logo_url: "https://placehold.co/40x40",
+          logo_url: "/images/fps/pumpbtc.jpeg",
           description: {},
         },
       },
@@ -232,7 +232,7 @@ export const SingleProviderWithoutBsnLogo: Story = {
         bsnName: "Babylon Genesis",
         provider: {
           rank: 1,
-          logo_url: "https://placehold.co/40x40",
+          logo_url: "/images/fps/lombard.jpeg",
           description: { moniker: "Babylon Provider" },
         },
       },

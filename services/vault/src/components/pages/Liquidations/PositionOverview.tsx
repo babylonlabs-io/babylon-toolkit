@@ -15,14 +15,14 @@ import {
 import { COPY } from "@/copy";
 import { formatBtcAmount, formatUsd } from "@/utils/formatting";
 
+import { LIQUIDATION_TOUR_TARGET_IDS } from "./liquidationTourSteps";
+
 interface PositionOverviewProps {
   collateralBtc: number;
   /** `null` when no BTC price is available to price the override — an absent
    *  caption, not a fabricated "$0.00 USD". */
   collateralValueUsd: number | null;
   debtUsd: number;
-  /** Debt as a share of the maximum borrowable, [0,1]. */
-  borrowedRatio: number;
   /** `null` before debt exists — mirrors `useDashboardState`'s live shape. */
   healthFactor: number | null;
   healthFactorStatus: HealthFactorStatus;
@@ -34,7 +34,6 @@ export function PositionOverview({
   collateralBtc,
   collateralValueUsd,
   debtUsd,
-  borrowedRatio,
   healthFactor,
   healthFactorStatus,
   onDeposit,
@@ -61,16 +60,11 @@ export function PositionOverview({
       {
         label: COPY.liquidations.position.totalBorrowed,
         value: `${formatUsd(debtUsd)} USD`,
-        meter: {
-          percent: borrowedRatio,
-          label: COPY.overview.borrowedMeterLabel(
-            Math.round(Math.min(1, Math.max(0, borrowedRatio)) * 100),
-          ),
-        },
         actionLabel: COPY.liquidations.position.repay,
         onAction: onRepay,
       },
       {
+        id: LIQUIDATION_TOUR_TARGET_IDS.health,
         label: COPY.liquidations.position.healthFactor,
         tooltip: COPY.tooltips.healthFactor,
         value: healthFactorText,
@@ -86,7 +80,6 @@ export function PositionOverview({
       collateralBtc,
       collateralValueUsd,
       debtUsd,
-      borrowedRatio,
       healthFactorText,
       healthFactorColor,
       onDeposit,

@@ -31,27 +31,39 @@ vi.mock("@/config", () => ({
   getBTCNetwork: () => networkMock.value,
 }));
 
-// A plain useContext consumer with no Provider mounted always sees the
-// context's default value in RTL — `@/context/addressScreening` and
-// `@/context/addressType` are left unmocked for exactly that reason. But
 // `@/context/geofencing`'s own module (GeoFencingProvider.tsx, which also
 // hosts the `useGeoFencing` export consumed here) imports `@/config/wagmi`
-// at module scope, which imports `@babylonlabs-io/wallet-connector` — and
+// at module scope, which imports `@babylonlabs-io/wallet-connector` - and
 // that package's build cannot be transformed by Vitest in this workspace
-// (see the wallet-connector mock below), so the real module can't even be
-// loaded, not just "unsafe to render". Mocked here to return the exact same
-// default the real context has (`isLoading: true`, so RootLayout stays on
-// its Loader branch and the content-branch providers/components below it —
-// AaveConfigProvider, ActivatingVaultsProvider, SimpleDeposit, GeoBlockState,
-// ProtocolStatusBanner — never mount, matching the real unmocked behavior).
+// (see the wallet-connector mock below), so the real module cannot be loaded.
+// Mocked here to return the exact same default the real context has
+// (`isLoading: true`, so RootLayout stays on its Loader branch and the
+// content-branch providers/components below it never mount).
 vi.mock("@/context/geofencing", () => ({
   useGeoFencing: () => ({ isGeoBlocked: false, isLoading: true }),
 }));
 
-const walletMock = vi.hoisted(() => ({ connected: false }));
-vi.mock("@/context/wallet", () => ({
-  useBTCWallet: () => ({ connected: walletMock.connected }),
-  useETHWallet: () => ({ connected: walletMock.connected }),
+const walletMock = vi.hoisted(() => ({
+  btcConnected: false,
+  ethConnected: false,
+  confirmed: true,
+  isAddressBlocked: false,
+  isScreeningUnavailable: false,
+  isSupportedAddress: true,
+}));
+vi.mock("@/context/addressScreening", () => ({
+  useAddressScreening: () => ({
+    isBlocked: walletMock.isAddressBlocked,
+    isUnavailable: walletMock.isScreeningUnavailable,
+  }),
+}));
+vi.mock("@/context/addressType", () => ({
+  useAddressType: () => ({ isSupportedAddress: walletMock.isSupportedAddress }),
+}));
+vi.mock("@/context/wallet", async () => ({
+  useConnection: (await import("@/context/wallet/useConnection")).useConnection,
+  useBTCWallet: () => ({ connected: walletMock.btcConnected }),
+  useETHWallet: () => ({ connected: walletMock.ethConnected }),
 }));
 
 // The god-mode status override is compile-time null in production (gated on
@@ -73,14 +85,11 @@ vi.mock("@/components/Wallet", () => ({
   Connect: () => <div data-testid="connect-stub" />,
 }));
 
-// `@babylonlabs-io/wallet-connector`'s build also can't be transformed by
-// Vitest in this workspace (every existing test touching it — e.g.
-// NetworkBadge.test.tsx, useDepositFlow.test.tsx — fully mocks the package
-// rather than partially merging with the real one via `importOriginal`).
-// `Network` is the only export RootLayout's real tree needs here because
-// NetworkBadge imports it directly.
 vi.mock("@babylonlabs-io/wallet-connector", () => ({
   Network: { MAINNET: "mainnet", SIGNET: "signet" },
+  useBTCWallet: () => ({ connected: walletMock.btcConnected }),
+  useETHWallet: () => ({ connected: walletMock.ethConnected }),
+  useWalletConnect: () => ({ connected: walletMock.confirmed, open: vi.fn() }),
 }));
 
 // SimpleDeposit never mounts in any case below (RootLayout stays on its
@@ -121,21 +130,27 @@ beforeEach(() => {
   featureFlagsMock.isDepositDisabled = false;
   networkMock.value = "mainnet";
   mobileMock.value = false;
-  walletMock.connected = false;
+  walletMock.btcConnected = false;
+  walletMock.ethConnected = false;
+  walletMock.confirmed = true;
+  walletMock.isAddressBlocked = false;
+  walletMock.isScreeningUnavailable = false;
+  walletMock.isSupportedAddress = true;
   debugStatusMock.value = null;
 });
 
 describe("RootLayout — header wiring", () => {
   it("mainnet: shows the page-title h1, no BrandLockup, no NetworkBadge", () => {
     networkMock.value = "mainnet";
-    walletMock.connected = true;
+    walletMock.btcConnected = true;
+    walletMock.ethConnected = true;
 
     renderRootLayout();
 
     const heading = screen.getByRole("heading", { level: 1 });
     expect(heading).toHaveTextContent(COPY.nav.overview);
     // The logo slot is the page title, not the BrandLockup wordmark.
-    expect(screen.queryByAltText("Aave")).not.toBeInTheDocument();
+    expect(screen.queryByRole("img", { name: "Aave" })).not.toBeInTheDocument();
     // Mainnet: NetworkBadge renders null.
     expect(
       screen.queryByText(COPY.header.networkBadge),
@@ -144,7 +159,8 @@ describe("RootLayout — header wiring", () => {
 
   it("signet: shows the page-title h1 and the NetworkBadge", () => {
     networkMock.value = "signet";
-    walletMock.connected = true;
+    walletMock.btcConnected = true;
+    walletMock.ethConnected = true;
 
     renderRootLayout();
 
@@ -155,25 +171,46 @@ describe("RootLayout — header wiring", () => {
     expect(screen.getByText(COPY.header.networkBadge)).toBeInTheDocument();
   });
 
-  it("disconnected: drops the sidebar and page title for the entry chrome", () => {
-    walletMock.connected = true;
-    const { unmount } = renderRootLayout();
-    expect(document.querySelector("aside")).toBeInTheDocument();
-    unmount();
+  it("shows the sidebar when both wallets are connected", () => {
+    walletMock.btcConnected = true;
+    walletMock.ethConnected = true;
 
-    walletMock.connected = false;
-    const { container } = renderRootLayout();
+    renderRootLayout();
+
+    expect(document.querySelector("aside")).toBeInTheDocument();
+  });
+
+  it.each([
+    { btcConnected: false, ethConnected: false, confirmed: false },
+    { btcConnected: true, ethConnected: false, confirmed: true },
+    { btcConnected: false, ethConnected: true, confirmed: false },
+    { btcConnected: true, ethConnected: true, confirmed: false },
+  ])("requires confirmed Ethereum with optional Bitcoin: %o", (state) => {
+    Object.assign(walletMock, state);
+    const { container, rerender } = renderRootLayout();
 
     expect(document.querySelector("aside")).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { level: 1 })).not.toBeInTheDocument();
-    // Aave rides in as its own image so it keeps its brand colours rather than
-    // inheriting the Babylon wordmark's `currentColor`. It appears nowhere
-    // else on this screen, so it also pins the lockup to the header.
-    expect(screen.getByAltText("Aave")).toBeInTheDocument();
-    // Without a sidebar column to fill, the navbar takes the capped entry box.
+    expect(screen.getByRole("img", { name: "Aave" })).toBeInTheDocument();
     expect(
       container.querySelector(".\\!max-w-\\[1280px\\]"),
     ).toBeInTheDocument();
+
+    Object.assign(walletMock, {
+      btcConnected: false,
+      ethConnected: true,
+      confirmed: true,
+    });
+    rerender(
+      <MemoryRouter>
+        <RootLayout />
+      </MemoryRouter>,
+    );
+
+    expect(document.querySelector("aside")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
+      COPY.nav.overview,
+    );
   });
 
   it("disconnected: keeps the legal links reachable via the entry footer", () => {
@@ -243,8 +280,72 @@ describe("RootLayout — operator message banner", () => {
     expect(screen.queryByText(OPERATOR_MESSAGE)).not.toBeInTheDocument();
   });
 
+  it.each([false, true])(
+    "shows wallet warnings with confirmed=%s",
+    (confirmed) => {
+      Object.assign(walletMock, {
+        btcConnected: true,
+        ethConnected: true,
+        confirmed,
+        isAddressBlocked: true,
+        isSupportedAddress: false,
+      });
+      featureFlagsMock.isDepositDisabled = true;
+      renderRootLayout();
+      expect(
+        screen.getByText(COPY.wallet.walletNotEligibleTooltip),
+      ).toBeInTheDocument();
+      expect(screen.getByText("Taproot Address Required")).toBeInTheDocument();
+      expect(
+        screen.getByText(COPY.deposit.disabled.bannerMessage),
+      ).toBeInTheDocument();
+    },
+  );
+
+  it("shows the screening-unavailable banner when the screening request failed", () => {
+    Object.assign(walletMock, {
+      btcConnected: true,
+      ethConnected: true,
+      isAddressBlocked: true,
+      isScreeningUnavailable: true,
+    });
+    renderRootLayout();
+
+    expect(
+      screen.getByText(COPY.wallet.addressScreeningBanner.unavailableTitle),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(COPY.wallet.walletNotEligibleTooltip),
+    ).not.toBeInTheDocument();
+  });
+
+  it.each([false, true])(
+    "keeps screening and deposit warnings for Ethereum alone with confirmed=%s",
+    (confirmed) => {
+      Object.assign(walletMock, {
+        ethConnected: true,
+        confirmed,
+        isAddressBlocked: true,
+        isSupportedAddress: false,
+      });
+      featureFlagsMock.isDepositDisabled = true;
+      renderRootLayout();
+
+      expect(
+        screen.getByText(COPY.wallet.walletNotEligibleTooltip),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(COPY.deposit.disabled.bannerMessage),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText("Taproot Address Required"),
+      ).not.toBeInTheDocument();
+    },
+  );
+
   it("suppresses the standalone notice while the deposit-disabled banner is active", () => {
-    walletMock.connected = true;
+    walletMock.btcConnected = true;
+    walletMock.ethConnected = true;
     featureFlagsMock.isDepositDisabled = true;
     featureFlagsMock.noticeBannerMessage = OPERATOR_MESSAGE;
 
@@ -266,7 +367,8 @@ describe("RootLayout — operator message banner", () => {
     // healthy — the deposit-disabled default copy must not leak through, and the
     // operator message must not appear as a standalone strip.
     debugStatusMock.value = "frozen";
-    walletMock.connected = true;
+    walletMock.btcConnected = true;
+    walletMock.ethConnected = true;
     featureFlagsMock.isDepositDisabled = true;
     featureFlagsMock.noticeBannerMessage = OPERATOR_MESSAGE;
 

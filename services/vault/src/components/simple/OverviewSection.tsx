@@ -8,6 +8,8 @@
 import { Heading, useIsMobile } from "@babylonlabs-io/core-ui";
 import { useMemo } from "react";
 
+import type { BorrowedAsset } from "@/applications/aave/hooks/useAaveBorrowedAssets";
+import type { BorrowReserveLimit } from "@/applications/aave/utils";
 import { COPY } from "@/copy";
 
 import {
@@ -18,11 +20,11 @@ import {
 
 interface OverviewSectionProps {
   totalCollateralValue: string;
-  totalBorrowed: string;
+  borrowedAssets: BorrowedAsset[];
+  maxBorrowReserves: BorrowReserveLimit;
+  borrowCount: bigint | null;
   availableToBorrow: string;
   collateralBtc: string;
-  availableMeterPercent: number;
-  borrowedMeterPercent: number;
   borrowCapacityLoading: boolean;
   borrowCapacityError: Error | null;
   onDeposit: () => void;
@@ -36,11 +38,11 @@ interface OverviewSectionProps {
 
 export function OverviewSection({
   totalCollateralValue,
-  totalBorrowed,
+  borrowedAssets,
+  maxBorrowReserves,
+  borrowCount,
   availableToBorrow,
   collateralBtc,
-  availableMeterPercent,
-  borrowedMeterPercent,
   borrowCapacityLoading,
   borrowCapacityError,
   onDeposit,
@@ -60,17 +62,24 @@ export function OverviewSection({
     () => [
       {
         label: COPY.overview.totalCollateralValueLabel,
-        value: totalCollateralValue,
-        caption: collateralBtc,
+        value: `${totalCollateralValue} ${collateralBtc}`,
+        valueNode: (
+          <span>
+            {totalCollateralValue}{" "}
+            <span className="text-sm leading-[1.43] tracking-[0.17px] text-accent-secondary">
+              {collateralBtc}
+            </span>
+          </span>
+        ),
         actionLabel: COPY.overview.depositAction,
         onAction: onDeposit,
         actionDisabled: isDepositDisabled,
       },
       ...buildBorrowCapacityCards({
         availableToBorrow,
-        availableMeterPercent,
-        totalBorrowed,
-        borrowedMeterPercent,
+        borrowedAssets,
+        maxBorrowReserves,
+        borrowCount,
         borrowCapacityLoading,
         borrowCapacityError,
         onBorrow,
@@ -85,13 +94,13 @@ export function OverviewSection({
       onDeposit,
       isDepositDisabled,
       availableToBorrow,
-      availableMeterPercent,
       borrowCapacityLoading,
       borrowCapacityError,
       onBorrow,
       canBorrow,
-      totalBorrowed,
-      borrowedMeterPercent,
+      borrowedAssets,
+      maxBorrowReserves,
+      borrowCount,
       onRepay,
       canRepay,
     ],

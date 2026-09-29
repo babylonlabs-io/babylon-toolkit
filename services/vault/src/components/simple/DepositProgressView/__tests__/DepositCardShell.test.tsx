@@ -94,7 +94,7 @@ describe("DepositCardShell", () => {
     expect(screen.getByTestId("footer")).toBeTruthy();
   });
 
-  it("omits the progress bar and footnote when not provided (summary state)", () => {
+  it("omits the progress bar when not provided (summary state)", () => {
     render(
       <DepositCardShell footer={<button type="button">cta</button>}>
         <div>body</div>
@@ -102,21 +102,18 @@ describe("DepositCardShell", () => {
     );
 
     expect(screen.queryByTestId("progress-bar")).toBeNull();
-    expect(screen.queryByTestId("footnote")).toBeNull();
   });
 
-  it("renders the progress bar and footnote when provided (in-flight state)", () => {
+  it("renders the progress bar when provided (in-flight state)", () => {
     render(
       <DepositCardShell
         footer={<button type="button">cta</button>}
         progressBar={<div data-testid="progress-bar" />}
-        footnote={<div data-testid="footnote" />}
       >
         <div>body</div>
       </DepositCardShell>,
     );
 
     expect(screen.getByTestId("progress-bar")).toBeTruthy();
-    expect(screen.getByTestId("footnote")).toBeTruthy();
   });
 });

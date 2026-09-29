@@ -49,10 +49,13 @@ export function FeatureCard({
       onClick={onToggle}
       aria-expanded={expanded}
       className="w-full p-3 text-left"
+      data-testid="feature-row"
     >
       {content}
     </button>
   ) : (
-    <div className="p-3">{content}</div>
+    <div className="p-3" data-testid="feature-row">
+      {content}
+    </div>
   );
 }

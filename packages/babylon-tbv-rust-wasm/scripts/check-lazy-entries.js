@@ -1,9 +1,44 @@
 import { cpSync, readFileSync, rmSync, mkdtempSync } from 'node:fs';
+import { createRequire, syncBuiltinESMExports } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, extname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import ts from 'typescript';
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const packageManifest = JSON.parse(
+  readFileSync(resolve(packageRoot, 'package.json'), 'utf8'),
+);
+function failConfig(diagnostic) {
+  throw new Error(
+    `Cannot read tsconfig.lib.json or its extends chain: ${ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n')}`,
+  );
+}
+const config = ts.getParsedCommandLineOfConfigFile(
+  resolve(packageRoot, 'tsconfig.lib.json'),
+  undefined,
+  { ...ts.sys, onUnRecoverableConfigFileDiagnostic: failConfig },
+);
+const configError =
+  config.options.configFile.parseDiagnostics[0] ?? config.errors[0];
+if (configError) failConfig(configError);
+const outputDirectory = config.options.outDir;
+if (outputDirectory !== resolve(packageRoot, 'dist')) {
+  throw new Error(
+    'tsconfig.lib.json and its extends chain must resolve compilerOptions.outDir to dist to match package exports',
+  );
+}
+if (
+  JSON.stringify(Object.keys(packageManifest.exports).sort()) !==
+  JSON.stringify(['.'])
+) {
+  throw new Error('WASM package exports must contain only .');
+}
+for (const condition of ['node', 'default']) {
+  if (!packageManifest.exports['.']?.[condition]?.types) {
+    throw new Error(`Root export condition ${condition} must include types`);
+  }
+}
 // The third alternative matches a bare side-effect import (`import './x.js'`),
 // which has no `from` clause. Without it the closure walks past an eager edge.
 const staticSpecifier =
@@ -77,7 +112,7 @@ function eagerGeneratedEdges(entry) {
       const specifier = match[1];
       if (!specifier.startsWith('.')) continue;
       if (generatedSpecifier.test(specifier)) {
-        edges.push(`${file} -> ${specifier}`);
+        edges.push({ file, specifier, statement: match[0] });
         continue;
       }
       pending.push(resolveLocal(file, specifier));
@@ -86,15 +121,25 @@ function eagerGeneratedEdges(entry) {
   return edges;
 }
 
+// Each entry imports the glue module directly to re-export the wasm-bindgen
+// classes. That import does not load the binary. No other module may reach the
+// glue statically. The entry may reach it only through a namespace import. An
+// export-from form passes glue exports on with no value checks.
+const classImport =
+  /^import\s+\*\s+as\s+[\w$]+\s+from\s*['"]\.\/generated\/vault_wasm\.js['"]$/;
 for (const entryName of ['index.ts', 'index-node.ts']) {
   const entry = resolve(packageRoot, 'src', entryName);
-  const edges = eagerGeneratedEdges(entry);
+  const edges = eagerGeneratedEdges(entry)
+    .filter(
+      ({ file, statement }) => file !== entry || !classImport.test(statement),
+    )
+    .map(({ file, specifier }) => `${file} -> ${specifier}`);
   if (edges.length > 0) {
     throw new Error(
-      `${entryName} statically reaches generated WASM glue, so importing the ` +
-        `facade loads the engine eagerly. Reach the glue only through ` +
-        `import('./generated/vault_wasm.js') inside a loader, or through the ` +
-        `explicit raw entry:\n${edges.join('\n')}`,
+      `${entryName} statically reaches generated WASM glue other than through ` +
+        `a namespace import in the entry. Do not re-export from the glue. ` +
+        `Reach the glue only through import('./generated/vault_wasm.js') ` +
+        `inside a loader:\n${edges.join('\n')}`,
     );
   }
 }
@@ -108,13 +153,24 @@ for (const loaderName of ['wasm-loader.ts', 'wasm-loader-node.ts']) {
   }
 }
 
-// Each loader's type-only import is copied into its emitted declaration
-// verbatim, so it has to resolve from dist too. Nothing reports it when it
-// stops resolving: tsc is silent here, and every consumer inherits
-// skipLibCheck, which drops the error inside the emitted declaration.
-for (const loaderName of ['wasm-loader.d.ts', 'wasm-loader-node.d.ts']) {
-  const emitted = resolve(packageRoot, 'dist', loaderName);
-  const match = readFileSync(emitted, 'utf8').match(
+// Check generated imports that TypeScript and skipLibCheck consumers can miss.
+for (const loaderName of [
+  'wasm-loader.d.ts',
+  'wasm-loader-node.d.ts',
+  'index.d.ts',
+  'index-node.d.ts',
+]) {
+  const emitted = resolve(outputDirectory, loaderName);
+  let declaration;
+  try {
+    declaration = readFileSync(emitted, 'utf8');
+  } catch (cause) {
+    throw new Error(
+      `Missing dist/${loaderName}. Check compilerOptions.outDir and rebuild the package.`,
+      { cause },
+    );
+  }
+  const match = declaration.match(
     /from ['"]([^'"]*generated\/vault_wasm\.js)['"]/,
   );
   if (!match) {
@@ -122,82 +178,14 @@ for (const loaderName of ['wasm-loader.d.ts', 'wasm-loader-node.d.ts']) {
       `${loaderName} no longer pins its bindings to the generated declarations`,
     );
   }
-  const [, specifier] = match;
   try {
-    readFileSync(
-      resolve(dirname(emitted), specifier.replace(/\.js$/, '.d.ts')),
-    );
-  } catch {
+    readFileSync(resolve(dirname(emitted), match[1].replace(/\.js$/, '.d.ts')));
+  } catch (cause) {
     throw new Error(
-      `${loaderName} emits '${specifier}', which resolves to no declaration ` +
-        `from dist. The emitted specifier reaches the generated surface only ` +
-        `while the emit directory and src stay siblings one level under the ` +
-        `package root.`,
+      `${loaderName} emits '${match[1]}', which resolves to no declaration from dist. The emit directory and src must stay siblings one level under the package root.`,
+      { cause },
     );
   }
-}
-
-for (const [rawName, loaderName] of [
-  ['raw.ts', 'wasm-loader.js'],
-  ['raw-node.ts', 'wasm-loader-node.js'],
-]) {
-  const source = readFileSync(resolve(packageRoot, 'src', rawName), 'utf8');
-  if (!/from ['"]\.\/generated\/vault_wasm\.js['"]/.test(source)) {
-    throw new Error(`${rawName} must remain the explicit eager raw entry`);
-  }
-  if (!source.includes(`export { initWasm } from './${loaderName}'`)) {
-    throw new Error(
-      `${rawName} must re-export initWasm from ./${loaderName}, so the raw ` +
-        `and facade entries share one initializer and cannot initialize the ` +
-        `generated module twice`,
-    );
-  }
-}
-
-// Runtime proof against the compiled artifacts: remove generated glue from an
-// isolated package copy. Lazy browser/Node roots must still import, then fail
-// only when the first facade call attempts the dynamic import. The explicit
-// raw entries must fail during import because their generated import is eager.
-const isolatedPackage = mkdtempSync(join(tmpdir(), 'tbv-wasm-lazy-'));
-try {
-  cpSync(
-    resolve(packageRoot, 'package.json'),
-    join(isolatedPackage, 'package.json'),
-  );
-  cpSync(resolve(packageRoot, 'dist'), join(isolatedPackage, 'dist'), {
-    recursive: true,
-  });
-  rmSync(join(isolatedPackage, 'dist', 'generated'), {
-    recursive: true,
-    force: true,
-  });
-
-  for (const entryName of ['index.js', 'index-node.js']) {
-    const url = pathToFileURL(join(isolatedPackage, 'dist', entryName)).href;
-    const facade = await import(`${url}?lazy-root=${entryName}`);
-    try {
-      await facade.initWasm();
-      throw new Error(`${entryName} first call unexpectedly found WASM glue`);
-    } catch (error) {
-      if (!String(error).includes('generated/vault_wasm.js')) {
-        throw error;
-      }
-    }
-  }
-
-  for (const entryName of ['raw.js', 'raw-node.js']) {
-    const url = pathToFileURL(join(isolatedPackage, 'dist', entryName)).href;
-    try {
-      await import(`${url}?eager-raw=${entryName}`);
-      throw new Error(`${entryName} unexpectedly imported without WASM glue`);
-    } catch (error) {
-      if (!String(error).includes('generated/vault_wasm.js')) {
-        throw error;
-      }
-    }
-  }
-} finally {
-  rmSync(isolatedPackage, { recursive: true, force: true });
 }
 
 const xOnlyKeys = [
@@ -226,9 +214,9 @@ const payoutConnectorParams = {
   timelockPegin: 144,
 };
 
-// Browser raw and facade entry points must share one in-flight initializer.
+// Class construction and facade calls must share one in-flight initializer.
 // A second wasm-bindgen initialization replaces the module-global memory and
-// invalidates raw objects created after the first initialization completes.
+// invalidates class instances created after the first initialization completes.
 const browserRacePackage = mkdtempSync(join(tmpdir(), 'tbv-wasm-race-'));
 const originalFetch = globalThis.fetch;
 let browserRaceConnector;
@@ -238,7 +226,7 @@ try {
     resolve(packageRoot, 'package.json'),
     join(browserRacePackage, 'package.json'),
   );
-  cpSync(resolve(packageRoot, 'dist'), join(browserRacePackage, 'dist'), {
+  cpSync(outputDirectory, join(browserRacePackage, 'dist'), {
     recursive: true,
   });
   const wasmBytes = readFileSync(
@@ -254,21 +242,22 @@ try {
     });
   };
 
-  const rawBrowserUrl = pathToFileURL(
-    join(browserRacePackage, 'dist', 'raw.js'),
-  ).href;
-  const facadeBrowserUrl = pathToFileURL(
+  const browserUrl = pathToFileURL(
     join(browserRacePackage, 'dist', 'index.js'),
   ).href;
-  const rawBrowser = await import(`${rawBrowserUrl}?shared-browser-init=raw`);
-  const facadeBrowser = await import(
-    `${facadeBrowserUrl}?shared-browser-init=facade`
-  );
+  const browserEntry = await import(`${browserUrl}?shared-browser-init`);
+  // A fire-and-forget init at module top level fetches a turn after import.
+  await new Promise((resolveTurn) => setImmediate(resolveTurn));
+  if (fetchCalls !== 0)
+    throw new Error('Importing index.js fetched the WASM binary');
 
-  const rawInit = rawBrowser.initWasm();
-  const facadeInit = facadeBrowser.initWasm();
-  await rawInit;
-  browserRaceConnector = new rawBrowser.WasmPeginPayoutConnector(
+  const classInit = browserEntry.initWasm();
+  const facadeCall = browserEntry.createPayoutConnector(
+    payoutConnectorParams,
+    'signet',
+  );
+  await classInit;
+  browserRaceConnector = new browserEntry.WasmPeginPayoutConnector(
     payoutConnectorParams.txGraphVersion,
     payoutConnectorParams.depositor,
     payoutConnectorParams.vaultProvider,
@@ -277,17 +266,17 @@ try {
     payoutConnectorParams.timelockPegin,
   );
   const payoutScriptBefore = browserRaceConnector.getPayoutScript();
-  await facadeInit;
+  await facadeCall;
   const payoutScriptAfter = browserRaceConnector.getPayoutScript();
 
   if (fetchCalls !== 1) {
     throw new Error(
-      `Browser raw and facade entries initialized WASM ${fetchCalls} times`,
+      `Browser class and facade calls initialized WASM ${fetchCalls} times`,
     );
   }
   if (payoutScriptAfter !== payoutScriptBefore) {
     throw new Error(
-      'Concurrent browser initialization invalidated a raw object',
+      'Concurrent browser initialization invalidated a class instance',
     );
   }
   browserRaceCompleted = true;
@@ -304,7 +293,7 @@ try {
 // their own complete result. That is what per-call connector ownership buys:
 // neither call can free or overwrite the object the other is reading.
 const concurrentWasmBytes = readFileSync(
-  resolve(packageRoot, 'dist', 'generated', 'vault_wasm_bg.wasm'),
+  resolve(outputDirectory, 'generated', 'vault_wasm_bg.wasm'),
 );
 try {
   globalThis.fetch = async () =>
@@ -313,7 +302,7 @@ try {
     });
 
   const browserFacadeUrl = pathToFileURL(
-    resolve(packageRoot, 'dist', 'index.js'),
+    resolve(outputDirectory, 'index.js'),
   ).href;
   const browserFacade = await import(
     `${browserFacadeUrl}?concurrent-connector-facade`
@@ -348,4 +337,60 @@ try {
   globalThis.fetch = originalFetch;
 }
 
-console.log('Lazy WASM facade boundary verified (browser, node, and raw).');
+// The node loader reads the binary with readFile, not fetch. Importing the
+// node entry must not read the binary with readFile or readFileSync. The first
+// initWasm() call must read it exactly once, which also proves that the
+// counter sees the loader's reads.
+const nodeLazyPackage = mkdtempSync(join(tmpdir(), 'tbv-wasm-node-'));
+const requireBuiltin = createRequire(import.meta.url);
+const fsPromises = requireBuiltin('node:fs/promises');
+const fsSync = requireBuiltin('node:fs');
+const originalReadFile = fsPromises.readFile;
+const originalReadFileSync = fsSync.readFileSync;
+try {
+  cpSync(
+    resolve(packageRoot, 'package.json'),
+    join(nodeLazyPackage, 'package.json'),
+  );
+  cpSync(outputDirectory, join(nodeLazyPackage, 'dist'), {
+    recursive: true,
+  });
+  const nodeBinarySuffix = join('generated', 'vault_wasm_bg.wasm');
+  let binaryReads = 0;
+  const countBinaryRead = (path) => {
+    if (String(path).endsWith(nodeBinarySuffix)) binaryReads += 1;
+  };
+  fsPromises.readFile = (path, ...rest) => {
+    countBinaryRead(path);
+    return originalReadFile(path, ...rest);
+  };
+  fsSync.readFileSync = (path, ...rest) => {
+    countBinaryRead(path);
+    return originalReadFileSync(path, ...rest);
+  };
+  syncBuiltinESMExports();
+
+  const nodeEntry = await import(
+    pathToFileURL(join(nodeLazyPackage, 'dist', 'index-node.js')).href
+  );
+  // A fire-and-forget init at module top level reads a turn after import.
+  await new Promise((resolveTurn) => setImmediate(resolveTurn));
+  if (binaryReads !== 0) {
+    throw new Error(
+      'Importing index-node.js read the WASM binary. Read it only inside initWasm() or a facade call, not at module top level.',
+    );
+  }
+  await nodeEntry.initWasm();
+  if (binaryReads !== 1) {
+    throw new Error(
+      `initWasm() read the node WASM binary ${binaryReads} times, expected exactly once`,
+    );
+  }
+} finally {
+  fsPromises.readFile = originalReadFile;
+  fsSync.readFileSync = originalReadFileSync;
+  syncBuiltinESMExports();
+  rmSync(nodeLazyPackage, { recursive: true, force: true });
+}
+
+console.log('Lazy WASM facade boundary verified (browser and node).');

@@ -4,6 +4,8 @@
 
 import { describe, expect, it } from "vitest";
 
+import { COPY } from "@/copy";
+
 import type { UTXO } from "../../vault/vaultTransactionService";
 import {
   type DepositCtaParams,
@@ -13,6 +15,7 @@ import {
   maxBelowMinimumLabel,
   validateMultiVaultDepositInputs,
   validateProviderSelection,
+  validateRemainingCapacity,
 } from "../validations";
 
 describe("Deposit Validations", () => {
@@ -83,7 +86,8 @@ describe("Deposit Validations", () => {
       btcAddress: "bc1qtest",
       depositorEthAddress:
         "0x1234567890abcdef1234567890abcdef12345678" as `0x${string}`,
-      vaultAmounts: [50_000n, 50_000n],
+      vaultAmounts: [40_000n, 60_000n],
+      depositAmountSats: 100_000n,
       selectedProviders: ["0x1234567890abcdef1234567890abcdef12345678"],
       confirmedUTXOs: [
         { txid: "0xabc", vout: 0, value: 200_000, scriptPubKey: "0xdef" },
@@ -104,8 +108,29 @@ describe("Deposit Validations", () => {
         validateMultiVaultDepositInputs({
           ...validInputs,
           vaultAmounts: [5_000n, 50_000n],
+          depositAmountSats: 55_000n,
         }),
       ).toThrow("below minimum deposit");
+    });
+
+    it("throws when the first BTCVault of a split equals the second", () => {
+      expect(() =>
+        validateMultiVaultDepositInputs({
+          ...validInputs,
+          vaultAmounts: [50_000n, 50_000n],
+          depositAmountSats: 100_000n,
+        }),
+      ).toThrow("must be smaller than the second");
+    });
+
+    it("throws when the first BTCVault of a split is larger than the second", () => {
+      expect(() =>
+        validateMultiVaultDepositInputs({
+          ...validInputs,
+          vaultAmounts: [60_000n, 40_000n],
+          depositAmountSats: 100_000n,
+        }),
+      ).toThrow("must be smaller than the second");
     });
 
     it("throws when a vault amount exceeds maxDeposit", () => {
@@ -113,6 +138,7 @@ describe("Deposit Validations", () => {
         validateMultiVaultDepositInputs({
           ...validInputs,
           vaultAmounts: [50_000n, 200_000n],
+          depositAmountSats: 250_000n,
         }),
       ).toThrow("exceeds maximum deposit");
     });
@@ -123,8 +149,19 @@ describe("Deposit Validations", () => {
           ...validInputs,
           maxDeposit: undefined,
           vaultAmounts: [50_000n, 500_000n],
+          depositAmountSats: 550_000n,
         }),
       ).not.toThrow();
+    });
+
+    it("throws when the vault amounts do not add up to the deposit amount", () => {
+      expect(() =>
+        validateMultiVaultDepositInputs({
+          ...validInputs,
+          vaultAmounts: [40_000n, 60_000n],
+          depositAmountSats: 100_001n,
+        }),
+      ).toThrow("don't add up to your deposit amount");
     });
 
     it("throws when more than 2 vaults are requested", () => {
@@ -289,7 +326,9 @@ describe("Deposit Validations", () => {
       p2aAnchorValueSats: 0n,
       isGeoBlocked: false,
       isAddressBlocked: false,
+      isAddressScreeningUnavailable: false,
       isWalletConnected: true,
+      canConnectBtcWallet: false,
       hasProvider: true,
       commissionUnavailable: false,
       isFeeError: false,
@@ -304,6 +343,7 @@ describe("Deposit Validations", () => {
       minPeginFee: 500n,
       minPeginFeeError: null,
       depositorClaimValueError: null,
+      fundingInputCapExceeded: false,
     };
 
     it("returns enabled 'Deposit' when all conditions are met", () => {
@@ -376,6 +416,18 @@ describe("Deposit Validations", () => {
       });
     });
 
+    it("returns 'Wallet screening unavailable' when the block comes from a failed screening request", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        isAddressBlocked: true,
+        isAddressScreeningUnavailable: true,
+      });
+      expect(result).toEqual({
+        disabled: true,
+        label: "Wallet screening unavailable",
+      });
+    });
+
     it("prioritizes geo-blocked over address-blocked", () => {
       const result = getDepositCtaState({
         ...readyParams,
@@ -393,6 +445,18 @@ describe("Deposit Validations", () => {
       expect(result).toEqual({
         disabled: true,
         label: "Connect your wallet",
+      });
+    });
+
+    it("offers an enabled 'Connect Bitcoin wallet' when Bitcoin is optional and absent", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        isWalletConnected: false,
+        canConnectBtcWallet: true,
+      });
+      expect(result).toEqual({
+        disabled: false,
+        label: COPY.wallet.btcAction.connect,
       });
     });
 
@@ -650,6 +714,73 @@ describe("Deposit Validations", () => {
       expect(result).toEqual({ disabled: false, label: "Deposit" });
     });
 
+    it("returns the consolidate-UTXOs label when the funding-input cap is exceeded", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        fundingInputCapExceeded: true,
+      });
+      expect(result).toEqual({
+        disabled: true,
+        label: COPY.deposit.fundingInputCap.cta,
+      });
+    });
+
+    it("shows the consolidate-UTXOs label even with no provider selected", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        fundingInputCapExceeded: true,
+        hasProvider: false,
+      });
+      expect(result.label).toBe(COPY.deposit.fundingInputCap.cta);
+      expect(result.disabled).toBe(true);
+    });
+
+    it("is unaffected by the funding-input cap when the amount is within it", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        fundingInputCapExceeded: false,
+      });
+      expect(result).toEqual({ disabled: false, label: "Deposit" });
+    });
+
+    it("prefers the consolidate-UTXOs label over the balance-below-minimum message, since the capped max can sit below the minimum while the wallet clears it", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        fundingInputCapExceeded: true,
+        minDeposit: 1_000_000n,
+        maxDepositSats: 960_398n,
+        effectiveRemaining: null,
+        amountSats: 1_500_000n,
+      });
+      expect(result).toEqual({
+        disabled: true,
+        label: COPY.deposit.fundingInputCap.cta,
+      });
+    });
+
+    it("keeps the exceeds-cap message ahead of the consolidate-UTXOs label, since consolidating cannot raise the remaining cap", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        fundingInputCapExceeded: true,
+        effectiveRemaining: 300_000n,
+        amountSats: 600_000n,
+      });
+      expect(result.label).toBe(COPY.deposit.errors.exceedsCap("0.003"));
+    });
+
+    it("keeps the supply-cap-below-minimum message ahead of the consolidate-UTXOs label, which consolidating could not fix", () => {
+      const result = getDepositCtaState({
+        ...readyParams,
+        fundingInputCapExceeded: true,
+        minDeposit: 500_000n,
+        effectiveRemaining: 300_000n,
+        amountSats: 600_000n,
+      });
+      expect(result.label).toBe(
+        "Peg-in TVL cap reached — only 0.003 BTC remains, below the minimum deposit of 0.005 BTC",
+      );
+    });
+
     it("shows the cap message, not 'Insufficient balance', when the supply cap is the binding max", () => {
       // The supply cap is the limiter: maxDepositSats is clamped to
       // effectiveRemaining, so an over-cap amount also exceeds maxDepositSats.
@@ -662,7 +793,7 @@ describe("Deposit Validations", () => {
       });
       expect(result).toEqual({
         disabled: true,
-        label: "BTCVault size exceeds remaining capacity (0.005 BTC)",
+        label: "Peg-in TVL cap reached — only 0.005 BTC remains",
       });
     });
 
@@ -712,7 +843,7 @@ describe("Deposit Validations", () => {
       });
     });
 
-    it("returns 'BTCVault size exceeds remaining capacity' when amount > effectiveRemaining", () => {
+    it("returns 'Peg-in TVL cap reached' when amount > effectiveRemaining", () => {
       // Amount + fee + claim (806_000) still fits readyParams.btcBalance
       // (1_000_000), so this test isolates the cap branch from the balance
       // check. effectiveRemaining 500_000 sats = "0.005" via
@@ -724,7 +855,7 @@ describe("Deposit Validations", () => {
       });
       expect(result).toEqual({
         disabled: true,
-        label: "BTCVault size exceeds remaining capacity (0.005 BTC)",
+        label: "Peg-in TVL cap reached — only 0.005 BTC remains",
       });
     });
 
@@ -750,7 +881,7 @@ describe("Deposit Validations", () => {
       expect(result).toEqual({
         disabled: true,
         label:
-          "Remaining capacity (0.003 BTC) is below the minimum deposit (0.005 BTC)",
+          "Peg-in TVL cap reached — only 0.003 BTC remains, below the minimum deposit of 0.005 BTC",
       });
     });
 
@@ -764,7 +895,7 @@ describe("Deposit Validations", () => {
         amountSats: 0n,
       });
       expect(result.label).toBe(
-        "Remaining capacity (0.003 BTC) is below the minimum deposit (0.005 BTC)",
+        "Peg-in TVL cap reached — only 0.003 BTC remains, below the minimum deposit of 0.005 BTC",
       );
     });
 
@@ -809,7 +940,7 @@ describe("Deposit Validations", () => {
         amountSats: 100_000n,
       });
       expect(result.label).toBe(
-        "Remaining capacity (0.003 BTC) is below the minimum deposit (0.01 BTC)",
+        "Peg-in TVL cap reached — only 0.003 BTC remains, below the minimum deposit of 0.01 BTC",
       );
     });
 
@@ -912,6 +1043,30 @@ describe("Deposit Validations", () => {
     it("names the minimum deposit", () => {
       const label = maxBelowMinimumLabel(1_000_000n);
       expect(label).toContain("Minimum deposit is 0.01");
+    });
+  });
+
+  describe("validateRemainingCapacity", () => {
+    it("rejects an amount above a positive remaining cap with the peg-in TVL cap copy", () => {
+      const result = validateRemainingCapacity({
+        amount: 800_000n,
+        effectiveRemaining: 500_000n,
+      });
+      expect(result).toEqual({
+        valid: false,
+        error: COPY.deposit.errors.exceedsCap("0.005"),
+      });
+    });
+
+    it("passes through the SDK's 'Supply cap reached' result when the cap is fully used", () => {
+      const result = validateRemainingCapacity({
+        amount: 100_000n,
+        effectiveRemaining: 0n,
+      });
+      expect(result).toEqual({
+        valid: false,
+        error: "Supply cap reached — deposits temporarily paused",
+      });
     });
   });
 });

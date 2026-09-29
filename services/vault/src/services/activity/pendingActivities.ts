@@ -9,6 +9,7 @@ import { getNetworkConfigBTC } from "../../config";
 import {
   getPendingPegins,
   type PendingPeginRequest,
+  PendingPeginStorageReadError,
 } from "../../storage/peginStorage";
 import {
   type ActivityLog,
@@ -63,7 +64,12 @@ export function getPendingActivities(ethAddress: string): ActivityLog[] {
   if (!ethAddress) return [];
 
   // Get pending deposits, filtering out any with missing data
-  const pendingPegins = getPendingPegins(ethAddress);
+  let pendingPegins: PendingPeginRequest[] = [];
+  try {
+    pendingPegins = getPendingPegins(ethAddress);
+  } catch (error) {
+    if (!(error instanceof PendingPeginStorageReadError)) throw error;
+  }
   const pendingDepositActivities = pendingPegins
     .map(convertPendingPeginToActivity)
     .filter((activity): activity is ActivityLog => activity !== null);

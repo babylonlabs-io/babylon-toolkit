@@ -10,16 +10,20 @@ import type {
   DepositTerms,
   DepositTermsApprover,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
+import { UtxoNotAvailableError } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { Address, Hex } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { CONTRACTS } from "@/config/contracts";
+import { getETHChain } from "@/config/network";
 import {
   getOptimisticDepositState,
   hasPayoutSignCancelRecord,
   resetOptimisticDepositState,
 } from "@/context/deposit/optimisticDepositState";
 import { COPY } from "@/copy";
+import { BtcWalletLivenessError } from "@/utils/btc";
 
 import { DepositFlowStep } from "../depositFlowSteps";
 import { useDepositFlow } from "../useDepositFlow";
@@ -35,6 +39,83 @@ vi.mock("@/utils/rpc", async (importOriginal) => ({
   getVpProxyUrl: (address: string) => `https://proxy.test/rpc/${address}`,
 }));
 
+// Two protocol-parameter snapshots, hoisted so the mocks below and the
+// assertions further down share one source of truth.
+//
+// They hold deliberately DIFFERENT values. `peginConfig` is what the pinned
+// chain read returns and is the only thing the Bitcoin lock may be built from;
+// `cachedConfig` is what the React Query context holds and stands in for a
+// stale cache. Backing both mocks with one object would make every downstream
+// assertion blind to which source a value came from — and that blindness is
+// exactly how a build value sourced from the cache can ship green.
+const chainMocks = vi.hoisted(() => {
+  const peginConfig = {
+    // Non-default on purpose: a literal version in useDepositFlow would
+    // fail the preparePeginTransaction assertion.
+    activeVaultCoreVersion: 3,
+    timelockPegin: 111,
+    timelockRefund: 222,
+    offchainParams: {
+      babeInstancesToFinalize: 2,
+      councilQuorum: 1,
+      securityCouncilKeys: ["0xcouncil1"],
+      feeRate: 10n,
+      timelockAssert: 111n,
+      minPeginFeeRate: 3n,
+      minPrepeginDepth: 6,
+    },
+    offchainParamsVersion: 7,
+    // Unversioned half of the read. These bounds ACCEPT the 100000n-per-vault
+    // fixtures below; the cached copy's deliberately do not (see there).
+    minimumPegInAmount: 10_000n,
+    maxPegInAmount: 10_000_000n,
+    maxHtlcOutputCount: 5,
+  };
+  // Every field the lock commits to differs, so an assertion on any of them
+  // discriminates between the two sources. The two version labels deliberately
+  // match: `assertBuildConfigMatchesForm` compares only those, so making them
+  // differ would abort the flow before the build and these tests would assert
+  // nothing.
+  //
+  // That combination — same version, different values — is a chain state the
+  // protocol cannot actually produce, since a versioned struct means one
+  // version is one parameter set. It is a fixture built to isolate *which
+  // object a value was read from*, not a scenario. Real drift moves the version
+  // too and is caught by the guard; this catches the wiring mistake underneath.
+  const cachedConfig = {
+    ...peginConfig,
+    timelockPegin: 999,
+    timelockRefund: 888,
+    offchainParams: {
+      ...peginConfig.offchainParams,
+      timelockAssert: 999n,
+      feeRate: 77n,
+      minPeginFeeRate: 88n,
+    },
+    // Bounds that would REJECT the fixtures: 100000n is below this minimum and
+    // above this maximum, and the default deposit asks for two vaults against a
+    // cap of one. So the happy-path tests below pass only while
+    // `assertBuildWithinPinnedLimits` reads the pinned config. Point it at the
+    // cached one and they fail — which is the whole point of keeping two
+    // objects, since the bounds carry no version label for the drift guard to
+    // compare.
+    minimumPegInAmount: 500_000n,
+    maxPegInAmount: 900_000n,
+    maxHtlcOutputCount: 1,
+  };
+  return {
+    peginConfig,
+    cachedConfig,
+    /** Block the flow pins its protocol-state reads to. */
+    pinnedBlock: 4_242_042n,
+    getPegInConfiguration: vi.fn(async () => peginConfig),
+  };
+});
+
+vi.mock("@/clients/eth-contract/pinnedReadBlock", () => ({
+  resolvePinnedReadBlock: vi.fn(async () => chainMocks.pinnedBlock),
+}));
+
 vi.mock("@/clients/eth-contract/sdk-readers", () => ({
   getVaultRegistryReader: vi.fn(() => ({
     getVaultProviderGenesisBtcPubKey: vi.fn(async () => "ab".repeat(32)),
@@ -42,6 +123,9 @@ vi.mock("@/clients/eth-contract/sdk-readers", () => ({
   getVaultKeeperReader: vi.fn(async () => ({})),
   getUniversalChallengerReader: vi.fn(async () => ({})),
   getOperationKeyReader: vi.fn(async () => ({})),
+  getProtocolParamsReader: vi.fn(async () => ({
+    getPegInConfiguration: chainMocks.getPegInConfiguration,
+  })),
 }));
 
 vi.mock("@babylonlabs-io/wallet-connector", () => ({
@@ -67,10 +151,16 @@ vi.mock("@/hooks/useProtocolGate", () => ({
 }));
 
 // Avoid threading a real QueryClientProvider through every renderHook —
-// `useDepositFlow` only uses the client to invalidate the UTXO query
-// after broadcast; a stub is sufficient for adapter-wiring tests.
+// `useDepositFlow` uses the client for two things: invalidating the UTXO query
+// after broadcast, and seeding the peg-in config cache when a drift guard
+// aborts. Hoisted rather than inline so the seed can be asserted.
+const queryClientMocks = vi.hoisted(() => ({
+  invalidateQueries: vi.fn(),
+  setQueryData: vi.fn(),
+}));
+
 vi.mock("@tanstack/react-query", () => ({
-  useQueryClient: () => ({ invalidateQueries: vi.fn() }),
+  useQueryClient: () => queryClientMocks,
 }));
 
 vi.mock("../useBtcWalletState", () => ({
@@ -85,14 +175,32 @@ vi.mock("@/config/pegin", () => ({
   getBTCNetworkForWASM: vi.fn(() => "testnet"),
 }));
 
-vi.mock("@/context/ProtocolParamsContext", () => ({
+// Real implementation by default; one test overrides it to throw a non-drift
+// error, to pin that the cache seed is gated on drift rather than on reaching
+// the catch at all.
+vi.mock("@/services/vault/pinnedBuildLimits", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@/services/vault/pinnedBuildLimits")>();
+  return {
+    ...actual,
+    assertBuildWithinPinnedLimits: vi.fn(actual.assertBuildWithinPinnedLimits),
+  };
+});
+
+vi.mock("@/context/ProtocolParamsContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/context/ProtocolParamsContext")>()),
   useProtocolParamsContext: vi.fn(),
+  // `pegInConfigQueryOptions` is deliberately NOT stubbed. The drift path seeds
+  // the cache under its key, and a hand-written copy of that key would keep
+  // passing if the real one were renamed, while production seeded a key nothing
+  // reads. It is a pure factory and pulls in no chain client at call time.
 }));
 
 // Mock btc utils (btcAddressToScriptPubKeyHex needs valid address + bitcoinjs-lib)
 vi.mock("@/utils/btc", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/utils/btc")>()),
   btcAddressToScriptPubKeyHex: vi.fn(() => "0x0014mockedscriptpubkey"),
+  verifyBtcWalletLiveness: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("../useVaultProviders", () => ({
@@ -148,11 +256,18 @@ vi.mock("@/services/vault/vaultUtxoValidationService", () => ({
   assertUtxosAvailable: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock("@/storage/peginStorage", () => ({
-  addPendingPegin: vi.fn(),
-  removePendingPegin: vi.fn(),
-  updatePendingPeginStatus: vi.fn(),
-}));
+vi.mock("@/storage/peginStorage", async () => {
+  const actual = await vi.importActual<typeof import("@/storage/peginStorage")>(
+    "@/storage/peginStorage",
+  );
+  return {
+    PendingPeginStorageReadError: actual.PendingPeginStorageReadError,
+    addPendingPegin: vi.fn(),
+    getPendingPegins: vi.fn(() => []),
+    removePendingPegin: vi.fn(),
+    updatePendingPeginStatus: vi.fn(),
+  };
+});
 
 const { mockLoggerError } = vi.hoisted(() => ({
   mockLoggerError: vi.fn(),
@@ -166,26 +281,61 @@ vi.mock("@/infrastructure", () => ({
   },
 }));
 
-const { MockRegisteredVaultVersionMismatchError } = vi.hoisted(() => ({
-  MockRegisteredVaultVersionMismatchError: class extends Error {
-    constructor(message: string) {
-      super(message);
-      this.name = "RegisteredVaultVersionMismatchError";
-    }
+// The registry address is a fingerprint input, and the encoder rejects the
+// zero address — which is what `ENV` falls back to when
+// NEXT_PUBLIC_TBV_BTC_VAULT_REGISTRY is unset, as it is under vitest. Mock it
+// with a real address, as the other config-reading suites do, so the value the
+// assertions use is visible here rather than depending on ambient env.
+vi.mock("@/config/contracts", () => ({
+  CONTRACTS: {
+    BTC_VAULT_REGISTRY:
+      "0x2222222222222222222222222222222222222222" as `0x${string}`,
+    AAVE_ADAPTER: "0x3333333333333333333333333333333333333333" as `0x${string}`,
+    AAVE_ADAPTER_CONFIG:
+      "0x4444444444444444444444444444444444444444" as `0x${string}`,
   },
 }));
+
+const { MockRegisteredVaultVersionMismatchError, RESOLVED_VP_KEY } = vi.hoisted(
+  () => ({
+    MockRegisteredVaultVersionMismatchError: class extends Error {
+      constructor(message: string) {
+        super(message);
+        this.name = "RegisteredVaultVersionMismatchError";
+      }
+    },
+    /**
+     * The vault provider's RESOLVED operation key — what
+     * `validateOnChainParticipantKeys` returns and what the build must use.
+     *
+     * Deliberately different from the indexer hint in MOCK_PARAMS ("ab" x32).
+     * The two diverge in reality the moment a provider rotates, and keeping
+     * them distinct here is the only thing that lets an assertion say which of
+     * the two a value came from. While they shared one literal, an assertion
+     * naming the hint passed whichever source the code actually read.
+     */
+    RESOLVED_VP_KEY: "cd".repeat(32),
+  }),
+);
 
 vi.mock("@babylonlabs-io/ts-sdk/tbv/core", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@babylonlabs-io/ts-sdk/tbv/core")>()),
   RegisteredVaultVersionMismatchError: MockRegisteredVaultVersionMismatchError,
   validateOnChainParticipantKeys: vi.fn().mockResolvedValue({
-    vaultProviderBtcPubkeyXOnly: "ab".repeat(32),
+    vaultProviderBtcPubkeyXOnly: RESOLVED_VP_KEY,
     vaultKeeperBtcPubkeysSorted: ["keeper1pubkey"],
     universalChallengerBtcPubkeysSorted: ["uc1pubkey"],
-    expectedAppVaultKeepersVersion: 3,
+    // 2 and 5 here, 7 and 3 on the pinned config: all four uint16 slots the
+    // fingerprint encodes hold different values, so swapping any pair of them
+    // changes the hash. Two slots sharing a value would encode identically and
+    // the differential test below would not notice the swap.
+    expectedAppVaultKeepersVersion: 2,
     expectedUniversalChallengersVersion: 5,
+    // Distinct from each other and from those two, on the same reasoning.
+    appKeeperKeyEpoch: 13n,
+    ucKeyEpoch: 17n,
     participantKeys: {
-      vaultProvider: { operationBtcPubkey: "ab".repeat(32) },
+      vaultProvider: { operationBtcPubkey: RESOLVED_VP_KEY },
       vaultKeepers: [{ operationBtcPubkey: "keeper1pubkey" }],
       vaultKeeperOperationKeysSorted: ["keeper1pubkey"],
       universalChallengerOperationKeysSorted: ["uc1pubkey"],
@@ -341,7 +491,10 @@ const MOCK_BATCH_RESULT = {
 };
 
 const MOCK_PARAMS = {
-  vaultAmounts: [100000n, 100000n],
+  // Ordered smaller-first, the only shape the pre-sign validation accepts for
+  // a split: an equal pair is rejected before signing.
+  vaultAmounts: [90000n, 110000n],
+  depositAmountSats: 200000n,
   mempoolFeeRate: 10,
   btcWalletProvider: MOCK_BTC_WALLET as any,
   depositorEthAddress: "0xEthAddress123" as Address,
@@ -407,20 +560,12 @@ async function setupDefaultMocks() {
   } as any);
 
   vi.mocked(useProtocolParamsContext).mockReturnValue({
-    config: {
-      // Non-default on purpose: a literal version in useDepositFlow would
-      // fail the preparePeginTransaction assertion.
-      activeVaultCoreVersion: 3,
-      offchainParams: {
-        babeInstancesToFinalize: 2,
-        councilQuorum: 1,
-        securityCouncilKeys: ["0xcouncil1"],
-        feeRate: 10n,
-      },
-      offchainParamsVersion: 7,
-    },
-    timelockPegin: 100,
-    timelockRefund: 50,
+    // Deliberately the stale snapshot. The flow must build from the pinned
+    // chain read instead, so any build value that matches these numbers came
+    // from the wrong source.
+    config: chainMocks.cachedConfig,
+    timelockPegin: chainMocks.cachedConfig.timelockPegin,
+    timelockRefund: chainMocks.cachedConfig.timelockRefund,
     getOffchainParamsByVersion: vi.fn(() => ({
       timelockAssert: 100n,
       securityCouncilKeys: ["0xcouncil1"],
@@ -546,8 +691,13 @@ describe("useDepositFlow", () => {
             // Active version from ProtocolParams — a re-pinned constant here
             // would keep building v1 graphs after governance flips to v2.
             vaultCoreVersion: 3,
-            pegInAmounts: [100000n, 100000n],
-            vaultProviderBtcPubkey: MOCK_PARAMS.vaultProviderBtcPubkey,
+            pegInAmounts: [90000n, 110000n],
+            // The RESOLVED operation key, not the indexer hint in MOCK_PARAMS.
+            // The lock commits to whatever key the chain currently bonds the
+            // provider to; the hint is only cross-checked. This named the hint
+            // while both were the same literal, so it could not tell the two
+            // apart — see RESOLVED_VP_KEY.
+            vaultProviderBtcPubkey: RESOLVED_VP_KEY,
             vaultKeeperBtcPubkeys: MOCK_PARAMS.vaultKeeperBtcPubkeys,
             universalChallengerBtcPubkeys:
               MOCK_PARAMS.universalChallengerBtcPubkeys,
@@ -745,6 +895,70 @@ describe("useDepositFlow", () => {
       ).toBeLessThan(broadcastPrePeginTransaction.mock.invocationCallOrder[0]);
     });
 
+    it("re-checks UTXO availability after the finality wait, before broadcasting", async () => {
+      const { waitForEthRegistrationDepth } = vi.mocked(
+        await import("@/services/vault/ethConfirmationGate"),
+      );
+      const { broadcastPrePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultPeginBroadcastService"),
+      );
+      const { assertUtxosAvailable } = vi.mocked(
+        await import("@/services/vault/vaultUtxoValidationService"),
+      );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+
+      await executeDepositFlow(result);
+
+      await waitFor(() => {
+        expect(broadcastPrePeginTransaction).toHaveBeenCalledTimes(1);
+      });
+      // The gate stretches the gap after input validation to minutes; the
+      // second check must run post-gate, pre-broadcast.
+      expect(assertUtxosAvailable).toHaveBeenCalledTimes(2);
+      expect(assertUtxosAvailable.mock.invocationCallOrder[1]).toBeGreaterThan(
+        waitForEthRegistrationDepth.mock.invocationCallOrder[0],
+      );
+      expect(assertUtxosAvailable.mock.invocationCallOrder[1]).toBeLessThan(
+        broadcastPrePeginTransaction.mock.invocationCallOrder[0],
+      );
+      // Same arguments as the pre-registration check.
+      expect(assertUtxosAvailable.mock.calls[1]).toEqual(
+        assertUtxosAvailable.mock.calls[0],
+      );
+    });
+
+    it("probes wallet liveness after the finality wait, before the signing popup", async () => {
+      const { waitForEthRegistrationDepth } = vi.mocked(
+        await import("@/services/vault/ethConfirmationGate"),
+      );
+      const { broadcastPrePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultPeginBroadcastService"),
+      );
+      const { verifyBtcWalletLiveness } = vi.mocked(
+        await import("@/utils/btc"),
+      );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+
+      await executeDepositFlow(result);
+
+      await waitFor(() => {
+        expect(broadcastPrePeginTransaction).toHaveBeenCalledTimes(1);
+      });
+      // Probe 2 sits between gate and broadcast so a wallet that locked
+      // during the wait fails with liveness copy, not a dead signing popup.
+      expect(verifyBtcWalletLiveness).toHaveBeenCalledTimes(2);
+      expect(
+        verifyBtcWalletLiveness.mock.invocationCallOrder[1],
+      ).toBeGreaterThan(
+        waitForEthRegistrationDepth.mock.invocationCallOrder[0],
+      );
+      expect(verifyBtcWalletLiveness.mock.invocationCallOrder[1]).toBeLessThan(
+        broadcastPrePeginTransaction.mock.invocationCallOrder[0],
+      );
+    });
+
     it("persists the pending records BEFORE the finality wait so a tab close stays resumable", async () => {
       const { waitForEthRegistrationDepth } = vi.mocked(
         await import("@/services/vault/ethConfirmationGate"),
@@ -867,10 +1081,305 @@ describe("useDepositFlow", () => {
         "0xEthAddress123",
         expect.objectContaining({
           buildOffchainParamsVersion: 7,
-          buildAppVaultKeepersVersion: 3,
+          buildAppVaultKeepersVersion: 2,
           buildUniversalChallengersVersion: 5,
         }),
       );
+    });
+
+    it("reads the peg-in config and the participant keys at the same pinned block", async () => {
+      const { validateOnChainParticipantKeys } = vi.mocked(
+        await import("@babylonlabs-io/ts-sdk/tbv/core"),
+      );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+
+      await executeDepositFlow(result);
+
+      await waitFor(() => {
+        expect(validateOnChainParticipantKeys).toHaveBeenCalled();
+      });
+
+      // Both halves of the build snapshot must name the same block. Pinning
+      // only one of them is no better than pinning neither: the lock would
+      // still commit to params from one chain state and keys from another.
+      expect(chainMocks.getPegInConfiguration).toHaveBeenCalledWith(
+        chainMocks.pinnedBlock,
+      );
+      expect(validateOnChainParticipantKeys).toHaveBeenCalledWith(
+        expect.objectContaining({ blockNumber: chainMocks.pinnedBlock }),
+      );
+
+      // Resolved once for the whole build. Resolving per read would hand each
+      // one a different block and reinstate exactly the skew being closed —
+      // and because the mock returns a constant, nothing else here would
+      // notice.
+      const { resolvePinnedReadBlock } = vi.mocked(
+        await import("@/clients/eth-contract/pinnedReadBlock"),
+      );
+      expect(resolvePinnedReadBlock).toHaveBeenCalledTimes(1);
+    });
+
+    it("builds from the pinned snapshot, not the cached one, for every parameter the lock commits to", async () => {
+      const { preparePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultTransactionService"),
+      );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+
+      await executeDepositFlow(result);
+
+      await waitFor(() => {
+        expect(preparePeginTransaction).toHaveBeenCalled();
+      });
+
+      // The cached snapshot holds a different number for every field asserted
+      // here, so a build value sourced from the context instead of the chain
+      // fails rather than passing silently. `timelockPegin` is `timelockAssert`
+      // narrowed to a number, so the two must agree with each other as well.
+      //
+      // `vaultCoreVersion` is deliberately absent: the two snapshots must share
+      // it or the drift guard aborts before the build, so an assertion on it
+      // would pass whichever source was read and would only look like coverage.
+      expect(preparePeginTransaction).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.anything(),
+        expect.objectContaining({
+          timelockPegin: chainMocks.peginConfig.timelockPegin,
+          timelockRefund: chainMocks.peginConfig.timelockRefund,
+          timelockAssert: Number(
+            chainMocks.peginConfig.offchainParams.timelockAssert,
+          ),
+          protocolFeeRate: chainMocks.peginConfig.offchainParams.feeRate,
+          minPeginFeeRate:
+            chainMocks.peginConfig.offchainParams.minPeginFeeRate,
+        }),
+      );
+    });
+
+    it("aborts before building when the pinned config disagrees with the one the form used", async () => {
+      const { useProtocolParamsContext } = vi.mocked(
+        await import("@/context/ProtocolParamsContext"),
+      );
+      const { preparePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultTransactionService"),
+      );
+      const previous = vi.mocked(useProtocolParamsContext)();
+
+      // The page gated and sized against an older core version than the chain
+      // now reports. The form's own "update the app" check reads the cached
+      // value and cannot see this.
+      vi.mocked(useProtocolParamsContext).mockReturnValue({
+        ...previous,
+        config: { ...chainMocks.cachedConfig, activeVaultCoreVersion: 2 },
+      } as ReturnType<typeof useProtocolParamsContext>);
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+
+      await executeDepositFlow(result);
+
+      await waitFor(() => {
+        // Asserted on the whole callout, not the title: the pre-signing and
+        // post-registration callouts share a title, so a title-only assertion
+        // cannot tell the free failure from the expensive one.
+        expect(result.current.error).toEqual(
+          COPY.deposit.errors.versionMismatchBeforeSigning,
+        );
+      });
+      // Nothing signed, nothing broadcast — restarting costs the depositor
+      // nothing at this point, which is why the guard sits here.
+      expect(preparePeginTransaction).not.toHaveBeenCalled();
+    });
+
+    it("aborts before building when a pinned bound excludes the chosen amount", async () => {
+      const { preparePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultTransactionService"),
+      );
+
+      // A governance change raised the minimum above the 100000n-per-vault the
+      // depositor already approved. No version label moves with it, so the
+      // sibling drift guard passes and only this check can stop the build.
+      chainMocks.getPegInConfiguration.mockResolvedValueOnce({
+        ...chainMocks.peginConfig,
+        minimumPegInAmount: 500_000n,
+      });
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+
+      await executeDepositFlow(result);
+
+      await waitFor(() => {
+        expect(result.current.error).toEqual(
+          COPY.deposit.errors.depositLimitsChanged,
+        );
+      });
+      expect(preparePeginTransaction).not.toHaveBeenCalled();
+    });
+
+    it("seeds the config cache with the pinned read so a restart cannot repeat the same failure", async () => {
+      // Both aborts tell the depositor to start again, and restarting means
+      // closing and reopening the form. That form reads the cached config,
+      // which has a five minute staleTime and which nothing invalidates — so
+      // without this seed the restart re-reads the snapshot that just failed.
+      const pinned = {
+        ...chainMocks.peginConfig,
+        minimumPegInAmount: 500_000n,
+      };
+      chainMocks.getPegInConfiguration.mockResolvedValueOnce(pinned);
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+
+      await executeDepositFlow(result);
+
+      await waitFor(() => {
+        expect(result.current.error).toEqual(
+          COPY.deposit.errors.depositLimitsChanged,
+        );
+      });
+      // Key comes from the real factory, not a literal: a rename must break
+      // this test rather than leave it green while production seeds a dead key.
+      const { pegInConfigQueryOptions } = await vi.importActual<
+        typeof import("@/context/ProtocolParamsContext")
+      >("@/context/ProtocolParamsContext");
+      expect(queryClientMocks.setQueryData).toHaveBeenCalledWith(
+        pegInConfigQueryOptions().queryKey,
+        pinned,
+      );
+    });
+
+    it("does not touch the config cache when the abort is not drift", async () => {
+      // The seed overwrites a key the blocking ProtocolParamsProvider and the
+      // polling hook both read. A TypeError from the guard establishes nothing
+      // about the chain, so it must not rewrite that cache on its way out.
+      const { assertBuildWithinPinnedLimits } = vi.mocked(
+        await import("@/services/vault/pinnedBuildLimits"),
+      );
+      assertBuildWithinPinnedLimits.mockImplementationOnce(() => {
+        throw new TypeError("not a drift error");
+      });
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+
+      await executeDepositFlow(result);
+
+      await waitFor(() => {
+        expect(result.current.error).not.toBeNull();
+      });
+      expect(queryClientMocks.setQueryData).not.toHaveBeenCalled();
+    });
+
+    it("leaves the config cache alone when the build succeeds", async () => {
+      // The seed is a drift-path repair, not something the happy path does —
+      // otherwise this assertion would pass no matter where the call sat.
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+
+      await executeDepositFlow(result);
+
+      await waitFor(() => {
+        expect(chainMocks.getPegInConfiguration).toHaveBeenCalled();
+      });
+      expect(queryClientMocks.setQueryData).not.toHaveBeenCalled();
+    });
+
+    it("aborts before building when the pinned HTLC output cap is below the vault count", async () => {
+      const { preparePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultTransactionService"),
+      );
+
+      // The default deposit asks for two vaults, so two HTLC outputs.
+      chainMocks.getPegInConfiguration.mockResolvedValueOnce({
+        ...chainMocks.peginConfig,
+        maxHtlcOutputCount: 1,
+      });
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+
+      await executeDepositFlow(result);
+
+      await waitFor(() => {
+        // Not the deposit-limits callout: this one has to say "stop splitting",
+        // not "change your amount".
+        expect(result.current.error).toEqual(
+          COPY.deposit.errors.vaultCountLimitChanged,
+        );
+      });
+      expect(preparePeginTransaction).not.toHaveBeenCalled();
+    });
+
+    it("sends a fingerprint built from the pinned snapshot, not the indexer hint", async () => {
+      const { computePeginFingerprint } = await import(
+        "@babylonlabs-io/ts-sdk/tbv/core"
+      );
+      const { registerPeginBatchAndWait } = vi.mocked(
+        await import("../depositFlowSteps"),
+      );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      await executeDepositFlow(result);
+
+      await waitFor(() => {
+        expect(registerPeginBatchAndWait).toHaveBeenCalled();
+      });
+
+      // Recomputed here from the values the mocked pinned reads returned. The
+      // resolved VP key ("cd" x32) differs from the indexer hint in
+      // MOCK_PARAMS ("ab" x32), and the two epochs differ from the two roster
+      // versions, so this hash only matches if every field was taken from the
+      // right source. A constant, a stale value, or a field read off `config`
+      // instead of the pinned `buildConfig` all fail here.
+      expect(registerPeginBatchAndWait).toHaveBeenCalledWith(
+        expect.objectContaining({
+          expectedFingerprint: computePeginFingerprint({
+            chainId: BigInt(getETHChain().id),
+            registryAddress: CONTRACTS.BTC_VAULT_REGISTRY,
+            vaultProviderBtcKey: `0x${RESOLVED_VP_KEY}`,
+            appKeeperKeyEpoch: 13n,
+            ucKeyEpoch: 17n,
+            appVaultKeepersVersion: 2,
+            universalChallengersVersion: 5,
+            offchainParamsVersion: 7,
+            vaultCoreVersion: 3,
+          }),
+        }),
+      );
+    });
+
+    it("moves the fingerprint when the pinned protocol state moves", async () => {
+      const { validateOnChainParticipantKeys } = vi.mocked(
+        await import("@babylonlabs-io/ts-sdk/tbv/core"),
+      );
+      const { registerPeginBatchAndWait } = vi.mocked(
+        await import("../depositFlowSteps"),
+      );
+
+      const { result: first } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      await executeDepositFlow(first);
+      await waitFor(() => {
+        expect(registerPeginBatchAndWait).toHaveBeenCalled();
+      });
+      const before =
+        registerPeginBatchAndWait.mock.calls[0][0].expectedFingerprint;
+
+      // Exactly one field moves — the keeper key epoch, which is what a routine
+      // keeper payout-script rotation bumps. If the fingerprint did not commit
+      // to it, the contract would accept a registration whose HTLC leaf was
+      // built against the old keeper keys.
+      registerPeginBatchAndWait.mockClear();
+      const base = await validateOnChainParticipantKeys.mock.results[0].value;
+      validateOnChainParticipantKeys.mockResolvedValueOnce({
+        ...base,
+        appKeeperKeyEpoch: 14n,
+      });
+
+      const { result: second } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      await executeDepositFlow(second);
+      await waitFor(() => {
+        expect(registerPeginBatchAndWait).toHaveBeenCalled();
+      });
+      const after =
+        registerPeginBatchAndWait.mock.calls[0][0].expectedFingerprint;
+
+      expect(after).not.toBe(before);
     });
 
     it("aborts before any side effects when validateOnChainParticipantKeys rejects", async () => {
@@ -1137,7 +1646,7 @@ describe("useDepositFlow", () => {
         expect.arrayContaining([
           expect.objectContaining({
             message: expect.stringContaining(
-              "Vault 1: WOTS key submission skipped - vault provider was not ready",
+              "BTCVault 1: WOTS key submission skipped - vault provider was not ready",
             ),
           }),
         ]),
@@ -1176,7 +1685,7 @@ describe("useDepositFlow", () => {
         expect.arrayContaining([
           expect.objectContaining({
             message: expect.stringContaining(
-              "Vault 1: WOTS key submission skipped - vault provider reported this BTCVault cannot continue",
+              "BTCVault 1: WOTS key submission skipped - vault provider reported this BTCVault cannot continue",
             ),
           }),
         ]),
@@ -1363,6 +1872,108 @@ describe("useDepositFlow", () => {
       expect(result.current.error).toBeNull();
     });
 
+    it("raises no wallet prompt when the flow is abandoned during the finality wait", async () => {
+      const { waitForEthRegistrationDepth } = vi.mocked(
+        await import("@/services/vault/ethConfirmationGate"),
+      );
+      const { verifyBtcWalletLiveness } = vi.mocked(
+        await import("@/utils/btc"),
+      );
+      const { broadcastPrePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultPeginBroadcastService"),
+      );
+      // The gate holds for minutes in production; the user closes the modal
+      // meanwhile. Neither the unlock probe nor the signing popup may follow.
+      let releaseGate: () => void = () => {};
+      waitForEthRegistrationDepth.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            releaseGate = () =>
+              resolve({ confirmations: 8, basicInfo: { status: 0 } } as never);
+          }),
+      );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      let flowPromise!: Promise<unknown>;
+      act(() => {
+        flowPromise = result.current.executeDeposit();
+      });
+      await waitFor(() =>
+        expect(waitForEthRegistrationDepth).toHaveBeenCalled(),
+      );
+      await act(async () => {
+        result.current.abort();
+        releaseGate();
+        await flowPromise;
+      });
+
+      // The pre-registration probe ran; the post-gate one must not have.
+      expect(verifyBtcWalletLiveness).toHaveBeenCalledTimes(1);
+      expect(broadcastPrePeginTransaction).not.toHaveBeenCalled();
+      expect(result.current.error).toBeNull();
+    });
+
+    it("does not broadcast when the flow is abandoned during the post-gate probes", async () => {
+      const { verifyBtcWalletLiveness } = vi.mocked(
+        await import("@/utils/btc"),
+      );
+      const { broadcastPrePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultPeginBroadcastService"),
+      );
+      // Abort lands while the second probe is in flight: the guard between the
+      // probes and the signature is what stops the popup.
+      let releaseProbe: () => void = () => {};
+      verifyBtcWalletLiveness
+        .mockResolvedValueOnce(undefined)
+        .mockImplementationOnce(
+          () =>
+            new Promise<void>((resolve) => {
+              releaseProbe = resolve;
+            }),
+        );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      let flowPromise!: Promise<unknown>;
+      act(() => {
+        flowPromise = result.current.executeDeposit();
+      });
+      await waitFor(() =>
+        expect(verifyBtcWalletLiveness).toHaveBeenCalledTimes(2),
+      );
+      await act(async () => {
+        result.current.abort();
+        releaseProbe();
+        await flowPromise;
+      });
+
+      expect(broadcastPrePeginTransaction).not.toHaveBeenCalled();
+      expect(result.current.error).toBeNull();
+    });
+
+    it("tags a post-gate probe failure with the broadcast step, not the Ethereum one", async () => {
+      const { verifyBtcWalletLiveness } = vi.mocked(
+        await import("@/utils/btc"),
+      );
+      // The step must advance before the probes run, so a wallet that locked
+      // during the gate is filed under BROADCAST_PRE_PEGIN.
+      verifyBtcWalletLiveness
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(
+          new BtcWalletLivenessError(COPY.wallet.liveness.unresponsive),
+        );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+
+      await executeDepositFlow(result);
+
+      expect(mockLoggerError).toHaveBeenCalledWith(
+        expect.any(Error),
+        expect.objectContaining({
+          tags: { depositStep: "BROADCAST_PRE_PEGIN" },
+        }),
+      );
+    });
+
     it("tags the failure capture with the step the flow was on when it threw", async () => {
       const { registerPeginBatchAndWait } = vi.mocked(
         await import("../depositFlowSteps"),
@@ -1386,11 +1997,90 @@ describe("useDepositFlow", () => {
     });
   });
 
+  describe("Pre-sign input validation", () => {
+    it("passes both split amounts, in order, and the approved deposit total to the validation", async () => {
+      const { validateMultiVaultDepositInputs } = vi.mocked(
+        await import("@/services/deposit/validations"),
+      );
+
+      const { result } = renderHook(() =>
+        useDepositFlow({
+          ...MOCK_PARAMS,
+          vaultAmounts: [90000n, 110000n],
+          depositAmountSats: 200000n,
+        }),
+      );
+
+      await executeDepositFlow(result);
+
+      await waitFor(() => {
+        expect(validateMultiVaultDepositInputs).toHaveBeenCalledWith(
+          expect.objectContaining({
+            vaultAmounts: [90000n, 110000n],
+            depositAmountSats: 200000n,
+          }),
+        );
+      });
+    });
+
+    it("stops before building or signing anything when the validation throws", async () => {
+      const { validateMultiVaultDepositInputs } = vi.mocked(
+        await import("@/services/deposit/validations"),
+      );
+      const { preparePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultTransactionService"),
+      );
+      validateMultiVaultDepositInputs.mockImplementationOnce(() => {
+        throw new Error(COPY.deposit.splitSizing.amountsDoNotMatchDeposit);
+      });
+
+      const { result } = renderHook(() =>
+        useDepositFlow({
+          ...MOCK_PARAMS,
+          vaultAmounts: [90000n, 110000n],
+          depositAmountSats: 200001n,
+        }),
+      );
+
+      await executeDepositFlow(result);
+
+      await waitFor(() => {
+        expect(result.current.error?.body).toContain(
+          COPY.deposit.splitSizing.amountsDoNotMatchDeposit,
+        );
+      });
+      // The error is the validator's own, so the validation ran and stopped the
+      // flow before the peg-in transaction was built.
+      expect(validateMultiVaultDepositInputs).toHaveBeenCalledTimes(1);
+      expect(preparePeginTransaction).not.toHaveBeenCalled();
+    });
+  });
+
   describe("Single Vault", () => {
     const SINGLE_PARAMS = {
       ...MOCK_PARAMS,
       vaultAmounts: [100000n],
+      depositAmountSats: 100000n,
     };
+
+    it("passes the approved deposit amount to the pre-sign input validation", async () => {
+      const { validateMultiVaultDepositInputs } = vi.mocked(
+        await import("@/services/deposit/validations"),
+      );
+
+      const { result } = renderHook(() => useDepositFlow(SINGLE_PARAMS));
+
+      await executeDepositFlow(result);
+
+      await waitFor(() => {
+        expect(validateMultiVaultDepositInputs).toHaveBeenCalledWith(
+          expect.objectContaining({
+            vaultAmounts: [100000n],
+            depositAmountSats: 100000n,
+          }),
+        );
+      });
+    });
 
     it("should create batch with single vault amount", async () => {
       const { preparePeginTransaction } = vi.mocked(
@@ -2296,6 +2986,7 @@ describe("useDepositFlow", () => {
         useDepositFlow({
           ...MOCK_PARAMS,
           vaultAmounts: [100000n],
+          depositAmountSats: 100000n,
           btcWalletProvider: wallet as any,
         }),
       );
@@ -2376,7 +3067,7 @@ describe("useDepositFlow", () => {
       );
       // Mirrors the real service: the sign failure surfaces as the wrapper's cause.
       vi.mocked(broadcastPrePeginTransaction).mockRejectedValueOnce(
-        new Error("Failed to broadcast Pre-PegIn transaction: locked", {
+        new Error("Failed to sign Pre-Pegin transaction: locked", {
           cause: deviceLockedError(),
         }),
       );
@@ -2449,9 +3140,9 @@ describe("useDepositFlow", () => {
         await import("@/services/vault/vaultPeginBroadcastService"),
       );
       // A Reject on the device (no in-app Cancel) surfaces as the wallet's
-      // CONNECTION_REJECTED under the broadcast wrapper.
+      // CONNECTION_REJECTED under the sign-stage wrapper.
       vi.mocked(broadcastPrePeginTransaction).mockRejectedValueOnce(
-        new Error("Failed to broadcast Pre-PegIn transaction: refused", {
+        new Error("Failed to sign Pre-Pegin transaction: refused", {
           cause: Object.assign(new Error("User rejected"), {
             code: "CONNECTION_REJECTED",
           }),
@@ -2489,7 +3180,9 @@ describe("useDepositFlow", () => {
         await import("@/services/vault/vaultPeginBroadcastService"),
       );
       vi.mocked(broadcastPrePeginTransaction).mockRejectedValueOnce(
-        new Error("Bitcoin RPC unreachable"),
+        new Error(
+          "Failed to broadcast Pre-Pegin transaction: Bitcoin RPC unreachable",
+        ),
       );
 
       const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
@@ -2497,6 +3190,104 @@ describe("useDepositFlow", () => {
 
       expect(result.current.error).toEqual(DEPOSIT_ERRORS.broadcastFailed);
       expect(result.current.resumableVaultIds).toBeNull();
+    });
+
+    it("exposes resumableVaultIds when the wallet locks during the finality wait", async () => {
+      const { broadcastPrePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultPeginBroadcastService"),
+      );
+      const { verifyBtcWalletLiveness } = vi.mocked(
+        await import("@/utils/btc"),
+      );
+      // Pre-registration probe passes; the post-gate probe finds the wallet
+      // locked. The records are already persisted, so the modal offers Retry.
+      verifyBtcWalletLiveness
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(
+          new BtcWalletLivenessError(COPY.wallet.liveness.unresponsive),
+        );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      await executeDepositFlow(result);
+
+      expect(result.current.error).toEqual({
+        title: COPY.wallet.liveness.errorTitle,
+        body: COPY.wallet.liveness.unresponsive,
+      });
+      expect(result.current.resumableVaultIds).toEqual([
+        "0xVault0Id",
+        "0xVault1Id",
+      ]);
+      expect(broadcastPrePeginTransaction).not.toHaveBeenCalled();
+    });
+
+    it("exposes resumableVaultIds when the post-gate UTXO re-check cannot reach the mempool", async () => {
+      const { broadcastPrePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultPeginBroadcastService"),
+      );
+      const { assertUtxosAvailable } = vi.mocked(
+        await import("@/services/vault/vaultUtxoValidationService"),
+      );
+      // Pre-registration check passes; the post-gate one hits a mempool 5xx.
+      // Nothing was signed, so the registered vaults can resume.
+      assertUtxosAvailable
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(
+          new Error("Failed to get UTXOs for address tb1qdepositor: HTTP 502"),
+        );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      await executeDepositFlow(result);
+
+      expect(result.current.error).toEqual(DEPOSIT_ERRORS.utxosUnavailable);
+      expect(result.current.resumableVaultIds).toEqual([
+        "0xVault0Id",
+        "0xVault1Id",
+      ]);
+      expect(broadcastPrePeginTransaction).not.toHaveBeenCalled();
+    });
+
+    it("reports a terminal callout, not resumable, when an input was spent during the finality wait", async () => {
+      const { broadcastPrePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultPeginBroadcastService"),
+      );
+      const { assertUtxosAvailable } = vi.mocked(
+        await import("@/services/vault/vaultUtxoValidationService"),
+      );
+      // The registration will expire on its own; a retry could never sign.
+      assertUtxosAvailable
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(
+          new UtxoNotAvailableError([{ txid: "ab".repeat(32), vout: 0 }]),
+        );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      await executeDepositFlow(result);
+
+      expect(result.current.error).toEqual(
+        DEPOSIT_ERRORS.inputSpentAfterRegistration,
+      );
+      expect(result.current.resumableVaultIds).toBeNull();
+      expect(broadcastPrePeginTransaction).not.toHaveBeenCalled();
+    });
+
+    it("exposes resumableVaultIds when a software wallet fails to sign after registration", async () => {
+      const { broadcastPrePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultPeginBroadcastService"),
+      );
+      // The service's sign-stage label: a non-rejection, untyped failure.
+      vi.mocked(broadcastPrePeginTransaction).mockRejectedValueOnce(
+        new Error("Failed to sign Pre-Pegin transaction: wallet is locked"),
+      );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      await executeDepositFlow(result);
+
+      expect(result.current.error).toEqual(DEPOSIT_ERRORS.signingFailed);
+      expect(result.current.resumableVaultIds).toEqual([
+        "0xVault0Id",
+        "0xVault1Id",
+      ]);
     });
 
     it("resets resumableVaultIds when a new run starts", async () => {
@@ -2507,7 +3298,7 @@ describe("useDepositFlow", () => {
         await import("@/services/vault/vaultTransactionService"),
       );
       vi.mocked(broadcastPrePeginTransaction).mockRejectedValueOnce(
-        new Error("Failed to broadcast Pre-PegIn transaction: locked", {
+        new Error("Failed to sign Pre-Pegin transaction: locked", {
           cause: deviceLockedError(),
         }),
       );
@@ -2970,8 +3761,12 @@ describe("useDepositFlow", () => {
         .mockImplementationOnce(() => {
           throw new Error("Unable to save the deposit record locally.");
         });
+      // The service labels its own stages; emulate its real broadcast-stage
+      // contract (the flow no longer re-wraps).
       vi.mocked(broadcastPrePeginTransaction).mockRejectedValueOnce(
-        new Error("Bitcoin RPC unreachable"),
+        new Error(
+          "Failed to broadcast Pre-Pegin transaction: Bitcoin RPC unreachable",
+        ),
       );
 
       const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));

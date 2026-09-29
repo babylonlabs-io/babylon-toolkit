@@ -6,13 +6,18 @@
 
 import { PeginRegistrationNotFinalError } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { OnChainBtcVaultStatus } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+import { UtxoNotAvailableError } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
 import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { act, renderHook } from "@testing-library/react";
 import type { Hex } from "viem";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { getAccount } from "wagmi/actions";
 
 import { getVaultFromChainWithGrace } from "@/clients/eth-contract/btc-vault-registry/query";
-import { getVaultRegistryReader } from "@/clients/eth-contract/sdk-readers";
+import {
+  getProtocolParamsReader,
+  getVaultRegistryReader,
+} from "@/clients/eth-contract/sdk-readers";
 import { COPY } from "@/copy";
 import { ContractStatus } from "@/models/peginStateMachine";
 import {
@@ -28,16 +33,27 @@ import {
   activateVaultWithSecretAndRedeem,
 } from "@/services/vault/vaultActivationService";
 import { utxosToExpectedRecord } from "@/services/vault/vaultPeginBroadcastService";
+import {
+  DepositorBtcKeyMismatchError,
+  DepositorWalletMismatchError,
+} from "@/utils/errors";
 
 import { useVaultActions } from "../useVaultActions";
 
 const mockSignPsbt = vi.hoisted(() => vi.fn().mockResolvedValue("signedPsbt"));
+const DEPOSITOR_BTC_KEY = vi.hoisted(
+  () => "79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+);
+const OTHER_BTC_KEY =
+  "c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5";
+const mockGetPublicKeyHex = vi.hoisted(() => vi.fn());
 const makeDefaultChainConnector = vi.hoisted(() => () => ({
   connectedWallet: {
     account: { address: "bc1qdepositor" },
     provider: {
       connectWallet: vi.fn().mockResolvedValue(undefined),
       getAddress: vi.fn().mockResolvedValue("bc1qdepositor"),
+      getPublicKeyHex: mockGetPublicKeyHex,
       signPsbt: mockSignPsbt,
     },
   },
@@ -117,7 +133,7 @@ vi.mock("@/clients/eth-contract/btc-vault-registry/query", () => ({
 vi.mock("@/services/vault/ethConfirmationGate", () => ({
   waitForEthRegistrationDepth: vi.fn(async () => ({
     confirmations: 8,
-    basicInfo: { status: OnChainBtcVaultStatus.PENDING },
+    basicInfo: MATCHING_BASIC_INFO,
   })),
 }));
 
@@ -140,12 +156,25 @@ vi.mock("@/clients/eth-contract/pause-state/query", () => ({
   getOnChainPauseState: () => Promise.resolve(onChainPauseMock.value),
 }));
 
+const btcActionWallet = vi.hoisted(() => ({ connected: true, open: vi.fn() }));
+beforeEach(() => {
+  btcActionWallet.connected = true;
+  btcActionWallet.open.mockClear();
+});
+
 vi.mock("@babylonlabs-io/wallet-connector", () => ({
+  useBTCWallet: () => ({ connected: btcActionWallet.connected }),
+  useWalletConnect: () => ({ connected: true, open: btcActionWallet.open }),
   getSharedWagmiConfig: vi.fn(() => ({})),
   useChainConnector: vi.fn(makeDefaultChainConnector),
 }));
 
+vi.mock("@/context/wallet", () => ({
+  useBTCWallet: () => ({ connected: btcActionWallet.connected }),
+}));
+
 vi.mock("wagmi/actions", () => ({
+  getAccount: vi.fn(),
   getWalletClient: vi.fn(),
   switchChain: vi.fn(),
 }));
@@ -165,17 +194,34 @@ vi.mock("@/services/vault", () => ({
 const mockGetPeginActivationDelay = vi.hoisted(() =>
   vi.fn().mockResolvedValue(0n),
 );
+// Activation ceiling. Default is a wide window so every pre-existing
+// activation test clears the inclusion margin unchanged; the deadline tests
+// drive it directly.
+const mockGetTBVProtocolParams = vi.hoisted(() =>
+  vi.fn().mockResolvedValue({ pegInActivationTimeout: 10_000n }),
+);
 vi.mock("@/clients/eth-contract/sdk-readers", () => ({
   getVaultRegistryReader: vi.fn(),
   getProtocolParamsReader: vi.fn().mockResolvedValue({
     getPeginActivationDelay: mockGetPeginActivationDelay,
+    getTBVProtocolParams: mockGetTBVProtocolParams,
   }),
 }));
 
 const mockGetBlockNumber = vi.hoisted(() => vi.fn().mockResolvedValue(1_000n));
+const mockHeadAgeSeconds = vi.hoisted(() => ({ value: 0n }));
 vi.mock("@/clients/eth-contract/client", () => ({
   ethClient: {
-    getPublicClient: () => ({ getBlockNumber: mockGetBlockNumber }),
+    // The head is read as a block with a timestamp. Tests set the number
+    // through `mockGetBlockNumber`; the timestamp is "now" unless a test
+    // sets `mockHeadAgeSeconds` to simulate a node that is behind.
+    getPublicClient: () => ({
+      getBlock: async () => ({
+        number: await mockGetBlockNumber(),
+        timestamp:
+          BigInt(Math.floor(Date.now() / 1000)) - mockHeadAgeSeconds.value,
+      }),
+    }),
   },
 }));
 
@@ -254,6 +300,9 @@ function readerReturning(
   protocolInfo: Record<string, unknown>,
   basicInfo: Record<string, unknown> = {
     status: OnChainBtcVaultStatus.VERIFIED,
+    // Registration block. With the default tip and timeout this leaves the
+    // activation window wide open, so the deadline gate is a no-op here.
+    createdAt: 1_000n,
   },
 ): ReturnType<typeof getVaultRegistryReader> {
   return {
@@ -311,11 +360,27 @@ const baseBroadcastParams = {
   onRefetchActivities: vi.fn(),
   onShowSuccessModal: vi.fn(),
 };
+const MATCHING_BASIC_INFO = {
+  status: OnChainBtcVaultStatus.PENDING,
+  depositor: baseBroadcastParams.depositorEthAddress,
+  depositorBtcPubKey: `0x${DEPOSITOR_BTC_KEY}`,
+};
 
 // Re-assert the default connector before EVERY test so a describe that
 // overrides useChainConnector's return value cannot leak a stale wallet into
-// later tests. Idempotent for tests that never override it.
+// later tests. Idempotent for tests that never override it. The broadcast
+// default is re-asserted for the same reason: a test whose broadcast mock is
+// never reached must not leak that mock.
 beforeEach(() => {
+  mockBroadcastPrePeginTransaction.mockResolvedValue("btcTxHash123");
+  vi.mocked(getAccount).mockReturnValue({
+    address: baseBroadcastParams.depositorEthAddress,
+  } as never);
+  mockGetPublicKeyHex.mockResolvedValue(DEPOSITOR_BTC_KEY);
+  mockWaitForEthRegistrationDepth.mockResolvedValue({
+    confirmations: 8,
+    basicInfo: MATCHING_BASIC_INFO,
+  } as never);
   vi.mocked(useChainConnector).mockImplementation(
     makeDefaultChainConnector as never,
   );
@@ -358,6 +423,40 @@ describe("useVaultActions — handleBroadcast transaction integrity", () => {
     expect(mockBroadcastPrePeginTransaction).toHaveBeenCalledWith(
       expect.objectContaining({ unsignedTxHex: TRUSTED_TX_HEX }),
     );
+  });
+
+  it("requires an explicit broadcast retry after BTC reconnects", async () => {
+    btcActionWallet.connected = false;
+    mockFetchVaultById.mockResolvedValue(baseVault as never);
+    vi.mocked(useChainConnector).mockReturnValue(null);
+    const { result, rerender } = renderHook(() => useVaultActions());
+
+    await act(() => result.current.handleBroadcast(baseBroadcastParams));
+
+    expect(result.current.broadcastError).toBe(
+      COPY.deposit.errors.walletNotConnected,
+    );
+    expect(result.current.broadcasting).toBe(false);
+    expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
+    expect(mockSignPsbt).not.toHaveBeenCalled();
+    expect(baseBroadcastParams.onShowSuccessModal).not.toHaveBeenCalled();
+
+    expect(btcActionWallet.open).toHaveBeenCalledWith("BTC");
+    expect(mockFetchVaultById).not.toHaveBeenCalled();
+    btcActionWallet.connected = true;
+    vi.mocked(useChainConnector).mockImplementation(
+      makeDefaultChainConnector as never,
+    );
+    await act(() => rerender());
+
+    expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
+
+    await act(() => result.current.handleBroadcast(baseBroadcastParams));
+
+    expect(result.current.broadcastError).toBeNull();
+    expect(mockBroadcastPrePeginTransaction).toHaveBeenCalledTimes(1);
+    expect(baseBroadcastParams.onShowSuccessModal).toHaveBeenCalledTimes(1);
+    expect(baseBroadcastParams.onRefetchActivities).toHaveBeenCalledTimes(1);
   });
 
   it("throws when local tx hex differs from GraphQL tx hex", async () => {
@@ -670,12 +769,40 @@ describe("useVaultActions — handleBroadcast version drift guard", () => {
     expect(getProtocolInfoBatch).not.toHaveBeenCalled();
   });
 
-  // The no-anchor path leans ENTIRELY on the on-chain prePeginTxHash match to
-  // pin the (indexer-served) tx, since there is no local copy to compare. Pin
-  // that this guard still refuses with no local record: a mismatch must abort
-  // before any signing. Without this, a future refactor that gated the hash
-  // check behind `if (pendingPegin)` would broadcast substituted indexer hex
-  // with every other test still green.
+  // The indexer's depositor key is untrusted. Resume signs with the key the
+  // contract registered.
+  it("broadcasts with the on-chain depositorBtcPubKey, not the indexer key, when no local pendingPegin is available", async () => {
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleBroadcast(baseBroadcastParams);
+    });
+
+    expect(result.current.broadcastError).toBeNull();
+    expect(mockBroadcastPrePeginTransaction).toHaveBeenCalledWith(
+      expect.objectContaining({ depositorBtcPubkey: DEPOSITOR_BTC_KEY }),
+    );
+  });
+
+  it("broadcasts with the on-chain depositorBtcPubKey when the indexer omits the key and no local pendingPegin is available", async () => {
+    mockFetchVaultById.mockResolvedValue({
+      ...baseVault,
+      depositorBtcPubkey: "",
+    } as never);
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleBroadcast(baseBroadcastParams);
+    });
+
+    expect(result.current.broadcastError).toBeNull();
+    expect(mockBroadcastPrePeginTransaction).toHaveBeenCalledWith(
+      expect.objectContaining({ depositorBtcPubkey: DEPOSITOR_BTC_KEY }),
+    );
+  });
+
+  // With no local record, the contract hash must still bind the transaction.
   it("refuses the no-record broadcast when the on-chain prePeginTxHash mismatches", async () => {
     mockGetVaultRegistryReader.mockReturnValue({
       getProtocolInfoBatch: makeMatchingProtocolInfoBatch(),
@@ -917,6 +1044,226 @@ describe("useVaultActions — handleBroadcast version drift guard", () => {
     expect(removePendingPegin).not.toHaveBeenCalled();
     expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
     expect(result.current.broadcastError).toBeTruthy();
+  });
+});
+
+// Resume binds both wallets to the contract record, not to the indexer. The
+// hook checks them before the broadcast and again when the service signs.
+describe("useVaultActions — handleBroadcast depositor wallet binding", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockCalculateBtcTxHash.mockReturnValue("0xmatching_pre_pegin_hash");
+    mockGetVaultFromChain.mockResolvedValue({
+      prePeginTxHash: "0xmatching_pre_pegin_hash",
+      hashlock: "0xonchain_hashlock",
+      status: OnChainBtcVaultStatus.PENDING,
+    } as never);
+    mockGetVaultRegistryReader.mockReturnValue({
+      getProtocolInfoBatch: makeMatchingProtocolInfoBatch(),
+    } as unknown as ReturnType<typeof getVaultRegistryReader>);
+    mockVerifyResumeParticipantKeys.mockResolvedValue(undefined);
+    mockFetchVaultById.mockResolvedValue(baseVault as never);
+  });
+
+  it("refuses when the live ETH account is not the on-chain depositor", async () => {
+    mockWaitForEthRegistrationDepth.mockResolvedValue({
+      confirmations: 8,
+      basicInfo: { ...MATCHING_BASIC_INFO, depositor: "0xother_depositor" },
+    } as never);
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(() => result.current.handleBroadcast(baseBroadcastParams));
+
+    expect(result.current.broadcastError).toEqual(
+      COPY.deposit.errors.wrongDepositorWallet,
+    );
+    expect(mockLoggerError).toHaveBeenCalledWith(
+      expect.any(DepositorWalletMismatchError),
+      expect.anything(),
+    );
+    expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
+    expect(mockSignPsbt).not.toHaveBeenCalled();
+  });
+
+  it("refuses when the action's depositorEthAddress is not the live ETH account", async () => {
+    const { result } = renderHook(() => useVaultActions());
+    await act(() =>
+      result.current.handleBroadcast({
+        ...baseBroadcastParams,
+        depositorEthAddress: "0xother_depositor",
+      }),
+    );
+
+    expect(result.current.broadcastError).toEqual(
+      COPY.deposit.errors.wrongDepositorWallet,
+    );
+    expect(mockLoggerError).toHaveBeenCalledWith(
+      expect.any(DepositorWalletMismatchError),
+      expect.anything(),
+    );
+    expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
+    expect(mockSignPsbt).not.toHaveBeenCalled();
+  });
+
+  it("refuses when the connected BTC key is not the on-chain depositorBtcPubKey", async () => {
+    mockGetPublicKeyHex.mockResolvedValue(OTHER_BTC_KEY);
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(() => result.current.handleBroadcast(baseBroadcastParams));
+
+    expect(result.current.broadcastError).toEqual(
+      COPY.deposit.errors.wrongDepositorBtcWallet,
+    );
+    expect(mockLoggerError).toHaveBeenCalledWith(
+      expect.any(DepositorBtcKeyMismatchError),
+      expect.anything(),
+    );
+    expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
+    expect(mockSignPsbt).not.toHaveBeenCalled();
+  });
+
+  it("refuses a contract record with no depositorBtcPubKey before reading the BTC wallet key", async () => {
+    mockWaitForEthRegistrationDepth.mockResolvedValue({
+      confirmations: 8,
+      basicInfo: { ...MATCHING_BASIC_INFO, depositorBtcPubKey: "0x" },
+    } as never);
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(() => result.current.handleBroadcast(baseBroadcastParams));
+
+    expect(result.current.broadcastError).toMatchObject({
+      title: COPY.deposit.errors.defaultTitle,
+      body: COPY.deposit.errors.depositorBtcKeyMissing,
+    });
+    expect(mockGetPublicKeyHex).not.toHaveBeenCalled();
+    expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
+    expect(mockSignPsbt).not.toHaveBeenCalled();
+  });
+
+  it("probes BTC wallet liveness before reading the BTC wallet key", async () => {
+    const connector = makeDefaultChainConnector();
+    connector.connectedWallet.provider.connectWallet.mockRejectedValue(
+      new Error("Wallet is locked"),
+    );
+    // "unisat" is a probe-safe wallet, so the probe calls connectWallet().
+    vi.mocked(useChainConnector).mockReturnValue({
+      connectedWallet: { ...connector.connectedWallet, id: "unisat" },
+    } as never);
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(() => result.current.handleBroadcast(baseBroadcastParams));
+
+    expect(result.current.broadcastError).toEqual({
+      title: COPY.wallet.liveness.errorTitle,
+      body: COPY.wallet.liveness.unresponsive,
+    });
+    expect(mockGetPublicKeyHex).not.toHaveBeenCalled();
+  });
+
+  it("signs with the connected wallet when both wallets still match at signing", async () => {
+    mockBroadcastPrePeginTransaction.mockImplementationOnce(
+      async ({ btcWalletProvider }) =>
+        btcWalletProvider.signPsbt(TRUSTED_TX_HEX),
+    );
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(() => result.current.handleBroadcast(baseBroadcastParams));
+
+    expect(result.current.broadcastError).toBeNull();
+    expect(mockSignPsbt).toHaveBeenCalledWith(TRUSTED_TX_HEX);
+    expect(baseBroadcastParams.onShowSuccessModal).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses to sign when the ETH account switches after the broadcast starts", async () => {
+    mockBroadcastPrePeginTransaction.mockImplementationOnce(
+      async ({ btcWalletProvider }) => {
+        vi.mocked(getAccount).mockReturnValue({
+          address: "0xother_depositor",
+        } as never);
+        return btcWalletProvider.signPsbt(TRUSTED_TX_HEX);
+      },
+    );
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(() => result.current.handleBroadcast(baseBroadcastParams));
+
+    expect(mockBroadcastPrePeginTransaction).toHaveBeenCalledTimes(1);
+    expect(mockSignPsbt).not.toHaveBeenCalled();
+    expect(baseBroadcastParams.onShowSuccessModal).not.toHaveBeenCalled();
+    expect(result.current.broadcastError).toEqual(
+      COPY.deposit.errors.wrongDepositorWallet,
+    );
+    expect(mockLoggerError).toHaveBeenCalledWith(
+      expect.any(DepositorWalletMismatchError),
+      expect.anything(),
+    );
+  });
+
+  it("refuses to sign when the BTC wallet switches after the broadcast starts", async () => {
+    mockBroadcastPrePeginTransaction.mockImplementationOnce(
+      async ({ btcWalletProvider }) => {
+        mockGetPublicKeyHex.mockResolvedValue(OTHER_BTC_KEY);
+        return btcWalletProvider.signPsbt(TRUSTED_TX_HEX);
+      },
+    );
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(() => result.current.handleBroadcast(baseBroadcastParams));
+
+    expect(mockBroadcastPrePeginTransaction).toHaveBeenCalledTimes(1);
+    expect(mockSignPsbt).not.toHaveBeenCalled();
+    expect(baseBroadcastParams.onShowSuccessModal).not.toHaveBeenCalled();
+    expect(result.current.broadcastError).toEqual(
+      COPY.deposit.errors.wrongDepositorBtcWallet,
+    );
+    expect(mockLoggerError).toHaveBeenCalledWith(
+      expect.any(DepositorBtcKeyMismatchError),
+      expect.anything(),
+    );
+  });
+
+  it("refuses to sign when the ETH wallet disconnects after the broadcast starts", async () => {
+    mockBroadcastPrePeginTransaction.mockImplementationOnce(
+      async ({ btcWalletProvider }) => {
+        vi.mocked(getAccount).mockReturnValue({ address: undefined } as never);
+        return btcWalletProvider.signPsbt(TRUSTED_TX_HEX);
+      },
+    );
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(() => result.current.handleBroadcast(baseBroadcastParams));
+
+    expect(mockBroadcastPrePeginTransaction).toHaveBeenCalledTimes(1);
+    expect(mockSignPsbt).not.toHaveBeenCalled();
+    expect(baseBroadcastParams.onShowSuccessModal).not.toHaveBeenCalled();
+    expect(result.current.broadcastError).toEqual(
+      COPY.deposit.errors.walletNotConnected,
+    );
+    expect(mockLoggerError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: COPY.deposit.errors.ethWalletNotConnected,
+      }),
+      expect.anything(),
+    );
+  });
+
+  // The hook is unmounted, so it sets no broadcast error.
+  it("does not sign when the modal unmounts after the broadcast starts", async () => {
+    const { result, unmount } = renderHook(() => useVaultActions());
+    mockBroadcastPrePeginTransaction.mockImplementationOnce(
+      async ({ btcWalletProvider }) => {
+        unmount();
+        // Let the abort that the unmount queues run.
+        await Promise.resolve();
+        return btcWalletProvider.signPsbt(TRUSTED_TX_HEX);
+      },
+    );
+
+    await act(() => result.current.handleBroadcast(baseBroadcastParams));
+
+    expect(mockBroadcastPrePeginTransaction).toHaveBeenCalledTimes(1);
+    expect(mockSignPsbt).not.toHaveBeenCalled();
+    expect(baseBroadcastParams.onShowSuccessModal).not.toHaveBeenCalled();
   });
 });
 
@@ -1316,19 +1663,14 @@ describe("useVaultActions — handleBroadcast intent (Ledger) resume branch", ()
   };
 
   function connectIntentWallet() {
-    vi.mocked(useChainConnector).mockReturnValue({
-      connectedWallet: {
-        account: { address: "bc1qdepositor" },
-        provider: {
-          connectWallet: vi.fn().mockResolvedValue(undefined),
-          getAddress: vi.fn().mockResolvedValue("bc1qdepositor"),
-          signPsbt: mockSignPsbt,
-          deriveContextHash: vi.fn().mockResolvedValue("ab".repeat(32)),
-          approveDepositTerms: vi.fn().mockResolvedValue(undefined),
-          getChangeAddress: vi.fn().mockResolvedValue("tb1pledgerchange"),
-        },
-      },
-    } as never);
+    const connector = makeDefaultChainConnector();
+    Object.assign(connector.connectedWallet.provider, {
+      deriveContextHash: vi.fn().mockResolvedValue("ab".repeat(32)),
+      approveDepositTerms: vi.fn().mockResolvedValue(undefined),
+      getChangeAddress: vi.fn().mockResolvedValue("tb1pledgerchange"),
+    });
+    vi.mocked(useChainConnector).mockReturnValue(connector as never);
+    return connector;
   }
 
   beforeEach(() => {
@@ -1342,6 +1684,61 @@ describe("useVaultActions — handleBroadcast intent (Ledger) resume branch", ()
     vi.mocked(resolveFundedTxFeeAndUtxos).mockResolvedValue(RESOLVED as never);
     vi.mocked(rebuildDepositTerms).mockResolvedValue(REBUILT_TERMS as never);
     mockFetchVaultById.mockResolvedValue(baseVault as never);
+  });
+
+  it("refuses before resolving inputs or rebuilding terms when the ETH account is not the on-chain depositor", async () => {
+    connectIntentWallet();
+    mockWaitForEthRegistrationDepth.mockResolvedValue({
+      confirmations: 8,
+      basicInfo: { ...MATCHING_BASIC_INFO, depositor: "0xother_depositor" },
+    } as never);
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(() => result.current.handleBroadcast(baseBroadcastParams));
+
+    expect(result.current.broadcastError).toEqual(
+      COPY.deposit.errors.wrongDepositorWallet,
+    );
+    expect(resolveFundedTxFeeAndUtxos).not.toHaveBeenCalled();
+    expect(rebuildDepositTerms).not.toHaveBeenCalled();
+    expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
+    expect(mockSignPsbt).not.toHaveBeenCalled();
+  });
+
+  // The broadcast service asks the device to approve the terms before it
+  // calls signPsbt. The forwarded approveDepositTerms has no wallet check, so
+  // the check after the terms rebuild is the last one before the device.
+  it("does not ask the device to approve terms when the ETH account switches during the terms rebuild", async () => {
+    const connector = connectIntentWallet();
+    const approveDepositTerms = vi.fn().mockResolvedValue(undefined);
+    Object.assign(connector.connectedWallet.provider, { approveDepositTerms });
+    vi.mocked(rebuildDepositTerms).mockImplementationOnce(async () => {
+      vi.mocked(getAccount).mockReturnValue({
+        address: "0xother_depositor",
+      } as never);
+      return REBUILT_TERMS as never;
+    });
+    // Same order as the real service: approve the terms, then sign.
+    mockBroadcastPrePeginTransaction.mockImplementation(
+      async ({ btcWalletProvider, depositTerms }) => {
+        await btcWalletProvider.approveDepositTerms?.(depositTerms as never);
+        return btcWalletProvider.signPsbt(TRUSTED_TX_HEX);
+      },
+    );
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(() => result.current.handleBroadcast(baseBroadcastParams));
+
+    expect(rebuildDepositTerms).toHaveBeenCalledTimes(1);
+    expect(approveDepositTerms).not.toHaveBeenCalled();
+    expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
+    expect(result.current.broadcastError).toEqual(
+      COPY.deposit.errors.wrongDepositorWallet,
+    );
+    expect(mockLoggerError).toHaveBeenCalledWith(
+      expect.any(DepositorWalletMismatchError),
+      expect.anything(),
+    );
   });
 
   it("rebuilds terms from chain and forwards them (with approval capability) to the broadcast", async () => {
@@ -1363,9 +1760,12 @@ describe("useVaultActions — handleBroadcast intent (Ledger) resume branch", ()
       target: ONCHAIN_VAULT,
       fundedPrePeginTxHex: TRUSTED_TX_HEX,
       connectedDepositorAddress: "0xconnected_depositor",
-      depositorBtcPubkey: "depositorBtcPubkey",
+      depositorBtcPubkey: DEPOSITOR_BTC_KEY,
       fundedTxFee: 1234n,
       lifecycle: "broadcast",
+      // The flow's abort signal, so a dismissed modal ends the rebuild's
+      // registration-log retry backoff.
+      signal: expect.any(AbortSignal),
     });
     expect(mockBroadcastPrePeginTransaction).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -1401,17 +1801,6 @@ describe("useVaultActions — handleBroadcast intent (Ledger) resume branch", ()
   });
 
   it("skips the rebuild entirely for a software (signPsbt-only) wallet", async () => {
-    vi.mocked(useChainConnector).mockReturnValue({
-      connectedWallet: {
-        account: { address: "bc1qdepositor" },
-        provider: {
-          connectWallet: vi.fn().mockResolvedValue(undefined),
-          getAddress: vi.fn().mockResolvedValue("bc1qdepositor"),
-          signPsbt: mockSignPsbt,
-        },
-      },
-    } as never);
-
     const { result } = renderHook(() => useVaultActions());
     await act(async () => {
       await result.current.handleBroadcast({
@@ -1431,18 +1820,12 @@ describe("useVaultActions — handleBroadcast intent (Ledger) resume branch", ()
   // absent — an always-present wrapper property would turn its typed error
   // into a mid-ceremony TypeError.
   it("does not forward deriveContextHash when the intent wallet lacks it", async () => {
-    vi.mocked(useChainConnector).mockReturnValue({
-      connectedWallet: {
-        account: { address: "bc1qdepositor" },
-        provider: {
-          connectWallet: vi.fn().mockResolvedValue(undefined),
-          getAddress: vi.fn().mockResolvedValue("bc1qdepositor"),
-          signPsbt: mockSignPsbt,
-          approveDepositTerms: vi.fn().mockResolvedValue(undefined),
-          getChangeAddress: vi.fn().mockResolvedValue("tb1pledgerchange"),
-        },
-      },
-    } as never);
+    const connector = connectIntentWallet();
+    delete (
+      connector.connectedWallet.provider as unknown as {
+        deriveContextHash?: unknown;
+      }
+    ).deriveContextHash;
 
     const { result } = renderHook(() => useVaultActions());
     await act(async () => {
@@ -1523,7 +1906,7 @@ describe("useVaultActions — handleBroadcast Ethereum finality gate", () => {
     mockAssertUtxosAvailable.mockResolvedValue(undefined);
     mockWaitForEthRegistrationDepth.mockResolvedValue({
       confirmations: 8,
-      basicInfo: { status: OnChainBtcVaultStatus.PENDING },
+      basicInfo: MATCHING_BASIC_INFO,
     } as never);
   });
 
@@ -1556,7 +1939,7 @@ describe("useVaultActions — handleBroadcast Ethereum finality gate", () => {
       params.onProgress?.({ confirmations: 50_000, required: 8 });
       return {
         confirmations: 50_000,
-        basicInfo: { status: OnChainBtcVaultStatus.PENDING },
+        basicInfo: MATCHING_BASIC_INFO,
       };
     }) as never);
 
@@ -1624,7 +2007,7 @@ describe("useVaultActions — handleBroadcast Ethereum finality gate", () => {
       }
       return {
         confirmations: 8,
-        basicInfo: { status: OnChainBtcVaultStatus.PENDING },
+        basicInfo: MATCHING_BASIC_INFO,
       };
     }) as never);
 
@@ -1655,7 +2038,7 @@ describe("useVaultActions — handleBroadcast Ethereum finality gate", () => {
       });
       return {
         confirmations: 8,
-        basicInfo: { status: OnChainBtcVaultStatus.PENDING },
+        basicInfo: MATCHING_BASIC_INFO,
       };
     }) as never);
 
@@ -1688,6 +2071,28 @@ describe("useVaultActions — handleBroadcast Ethereum finality gate", () => {
     });
 
     expect(mockSignPsbt).not.toHaveBeenCalled();
+    expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
+  });
+
+  it("shows the terminal spent-input callout on resume, matching the fresh flow", async () => {
+    // Every resume is post-registration, so the same typed error must not
+    // fall through to the SDK's "create a new peg-in request" wording.
+    mockAssertUtxosAvailable.mockRejectedValueOnce(
+      new UtxoNotAvailableError([{ txid: "ab".repeat(32), vout: 0 }]),
+    );
+
+    const { result } = renderHook(() => useVaultActions());
+
+    await act(async () => {
+      await result.current.handleBroadcast({
+        ...baseBroadcastParams,
+        pendingPegin: { ...basePendingPegin },
+      });
+    });
+
+    expect(result.current.broadcastError).toEqual(
+      COPY.deposit.errors.inputSpentAfterRegistration,
+    );
     expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
   });
 
@@ -1831,12 +2236,19 @@ describe("useVaultActions — activation floor (peginActivationDelay)", () => {
   const VERIFIED_AT = 1_000n;
   const DELAY = 150n;
 
+  // Registered before it was verified, as on chain, so a head that lags
+  // verifiedAt is still at or above the registration block.
+  const CREATED_AT = 900n;
+
   function readerAtFloor() {
-    return readerReturning({
-      depositorSignedPeginTx: "0xdeadbeef",
-      hashlock: ON_CHAIN_HASHLOCK,
-      verifiedAt: VERIFIED_AT,
-    });
+    return readerReturning(
+      {
+        depositorSignedPeginTx: "0xdeadbeef",
+        hashlock: ON_CHAIN_HASHLOCK,
+        verifiedAt: VERIFIED_AT,
+      },
+      { status: OnChainBtcVaultStatus.VERIFIED, createdAt: CREATED_AT },
+    );
   }
 
   const params = {
@@ -1913,6 +2325,29 @@ describe("useVaultActions — activation floor (peginActivationDelay)", () => {
     expect(mockActivateVaultWithSecret).not.toHaveBeenCalled();
   });
 
+  it("captures a params reader that cannot resolve as a deadline failure, not a floor interruption", async () => {
+    // The floor and deadline reads share the reader. Its failure blocks every
+    // activation, so it must reach the activation.reveal telemetry even
+    // though the floor read would otherwise settle first.
+    mockGetBlockNumber.mockResolvedValue(9_999n);
+    vi.mocked(getProtocolParamsReader).mockRejectedValueOnce(
+      new Error("address resolution failed"),
+    );
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(async () => {
+      await result.current.handleActivation(params);
+    });
+
+    expect(mockActivateVaultWithSecret).not.toHaveBeenCalled();
+    expect(result.current.activationError).toBe(
+      COPY.pegin.messages.activationWindowUnavailable,
+    );
+    expect(mockLoggerError).toHaveBeenCalledTimes(1);
+    const [, ctx] = mockLoggerError.mock.calls[0];
+    expect(ctx.tags.funnelStage).toBe("activation.reveal");
+  });
+
   it("reads nothing and changes nothing when the feature flag is off", async () => {
     floorFlagMock.enabled = false;
     mockGetBlockNumber.mockResolvedValue(1_100n); // would be gated if enabled
@@ -1938,7 +2373,12 @@ describe("useVaultActions — activation floor (peginActivationDelay)", () => {
     expect(mockActivateVaultWithSecret).toHaveBeenCalled();
   });
 
-  it("reveals at delay 0 even when getBlockNumber fails", async () => {
+  it("aborts at delay 0 when getBlockNumber fails, because the deadline is unverifiable", async () => {
+    // Supersedes "reveals at delay 0 even when getBlockNumber fails". The head
+    // used to be optional: delay 0 disables the floor, so a blip could be
+    // ignored. The activation ceiling needs the same read and cannot be
+    // skipped — without the head we cannot tell whether this reveal still has
+    // room to be mined, and a late one publishes the secret for nothing.
     mockGetPeginActivationDelay.mockResolvedValue(0n);
     mockGetBlockNumber.mockRejectedValue(new Error("RPC down"));
 
@@ -1947,7 +2387,10 @@ describe("useVaultActions — activation floor (peginActivationDelay)", () => {
       await result.current.handleActivation(params);
     });
 
-    expect(mockActivateVaultWithSecret).toHaveBeenCalled();
+    expect(mockActivateVaultWithSecret).not.toHaveBeenCalled();
+    expect(result.current.activationError).toBe(
+      COPY.pegin.messages.activationWindowUnavailable,
+    );
   });
 
   it("aborts rather than revealing when verifiedAt is unreadable (fail closed)", async () => {
@@ -1966,5 +2409,253 @@ describe("useVaultActions — activation floor (peginActivationDelay)", () => {
     });
 
     expect(mockActivateVaultWithSecret).not.toHaveBeenCalled();
+  });
+});
+
+// ============================================================================
+// Activation ceiling. Activation puts the HTLC secret in calldata, so a reveal
+// that lands after `createdAt + pegInActivationTimeout` reverts AND publishes
+// the secret: the vault expires with ActivationTimeout, and the vault
+// provider, which holds the rest of the HTLC signature set, can broadcast the
+// PegIn with it. The dashboard gate is UX-only and up to a poll interval
+// stale, so the margin is re-checked here on fresh reads.
+// ============================================================================
+describe("useVaultActions — activation deadline margin", () => {
+  const SECRET =
+    "0x0000000000000000000000000000000000000000000000000000000000000001";
+  const ON_CHAIN_HASHLOCK =
+    "0xec4916dd28fc4c10d78e287ca5d9cc51ee1ae73cbfde08c6b37324cbfaac8bc5";
+
+  // createdAt 1000 + timeout 100 => the contract accepts a transaction mined
+  // at block 1100 or earlier. The head is already mined, so from head H the
+  // room left is 1100 - H. The margin is 25 blocks, so head 1074 (26 left) is
+  // the last that reveals and head 1075 (25 left) the first that refuses.
+  const CREATED_AT = 1_000n;
+  const TIMEOUT = 100n;
+
+  const params = {
+    vaultId: "0xvaultId" as Hex,
+    secretHex: SECRET,
+    depositorEthAddress: "0xdepositor",
+    onRefetchActivities: vi.fn(),
+    onShowSuccessModal: vi.fn(),
+  };
+
+  function readerWithDeadline() {
+    return readerReturning(
+      {
+        depositorSignedPeginTx: "0xdeadbeef",
+        hashlock: ON_CHAIN_HASHLOCK,
+        verifiedAt: CREATED_AT,
+      },
+      { status: OnChainBtcVaultStatus.VERIFIED, createdAt: CREATED_AT },
+    );
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    gateMock.value = { protocol: null, aave: null };
+    onChainPauseMock.value = { protocol: null, aave: null };
+    mockGetTBVProtocolParams.mockResolvedValue({
+      pegInActivationTimeout: TIMEOUT,
+    });
+    mockGetVaultRegistryReader.mockReturnValue(readerWithDeadline());
+    mockHeadAgeSeconds.value = 0n;
+    // The mocked head and readHeadBlock each read the clock. Freeze it, so a
+    // second that ticks over between the two reads cannot add a block of lag
+    // and move these tests off the edge they pin.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-01-01T00:00:00Z"));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("refuses when the RPC head is too old to size the margin from", async () => {
+    // A node that is behind returns an old head, and each block of lag adds a
+    // block to the room left. 1000 alone would clear the margin easily.
+    mockGetBlockNumber.mockResolvedValue(1_000n);
+    mockHeadAgeSeconds.value = 121n;
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(async () => {
+      await result.current.handleActivation(params);
+    });
+
+    expect(mockActivateVaultWithSecret).not.toHaveBeenCalled();
+    expect(result.current.activationError).toBe(
+      COPY.pegin.messages.activationWindowUnavailable,
+    );
+  });
+
+  it("refuses when the RPC head shows this device's clock is slow", async () => {
+    // A slow clock makes an old head look fresh, so its lag goes uncounted.
+    // A head stamped more than one slot ahead proves the clock is slow.
+    mockGetBlockNumber.mockResolvedValue(1_000n);
+    mockHeadAgeSeconds.value = -13n;
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(async () => {
+      await result.current.handleActivation(params);
+    });
+
+    expect(mockActivateVaultWithSecret).not.toHaveBeenCalled();
+    expect(result.current.activationError).toBe(
+      COPY.pegin.messages.activationWindowUnavailable,
+    );
+  });
+
+  it("refuses when the RPC head is below the vault's registration block", async () => {
+    mockGetBlockNumber.mockResolvedValue(999n);
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(async () => {
+      await result.current.handleActivation(params);
+    });
+
+    expect(mockActivateVaultWithSecret).not.toHaveBeenCalled();
+    expect(result.current.activationError).toBe(
+      COPY.pegin.messages.activationWindowUnavailable,
+    );
+  });
+
+  it("reveals the secret while a comfortable margin remains", async () => {
+    mockGetBlockNumber.mockResolvedValue(1_000n);
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(async () => {
+      await result.current.handleActivation(params);
+    });
+
+    expect(mockActivateVaultWithSecret).toHaveBeenCalledTimes(1);
+  });
+
+  it("reveals on the last head that still clears the margin", async () => {
+    mockGetBlockNumber.mockResolvedValue(1_074n);
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(async () => {
+      await result.current.handleActivation(params);
+    });
+
+    expect(mockActivateVaultWithSecret).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses at the first head that leaves only the margin", async () => {
+    mockGetBlockNumber.mockResolvedValue(1_075n);
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(async () => {
+      await result.current.handleActivation(params);
+    });
+
+    expect(mockActivateVaultWithSecret).not.toHaveBeenCalled();
+    expect(result.current.activationError).toBe(
+      COPY.pegin.messages.activationWindowClosing,
+    );
+    // The margin only shrinks, so the refusal must not offer Retry.
+    expect(result.current.activationErrorTerminal).toBe(true);
+  });
+
+  it("counts the head's possible lag against the margin", async () => {
+    // 1065 alone leaves 35 blocks. A head 120 s old may lag by 10, so the
+    // chain may already be at 1075, where only the margin is left.
+    mockGetBlockNumber.mockResolvedValue(1_065n);
+    mockHeadAgeSeconds.value = 120n;
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(async () => {
+      await result.current.handleActivation(params);
+    });
+
+    expect(mockActivateVaultWithSecret).not.toHaveBeenCalled();
+    expect(result.current.activationError).toBe(
+      COPY.pegin.messages.activationWindowClosing,
+    );
+    expect(result.current.activationErrorTerminal).toBe(true);
+  });
+
+  it("refuses after the window has closed outright", async () => {
+    mockGetBlockNumber.mockResolvedValue(1_200n);
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(async () => {
+      await result.current.handleActivation(params);
+    });
+
+    expect(mockActivateVaultWithSecret).not.toHaveBeenCalled();
+    expect(result.current.activationErrorTerminal).toBe(true);
+  });
+
+  it("refuses when the margin runs out while the chain switch is pending", async () => {
+    // The first read clears the margin; the head read right before the write
+    // does not. Time spent in the chain-switch prompt must not carry the
+    // secret past the deadline.
+    mockGetBlockNumber
+      .mockResolvedValueOnce(1_000n)
+      .mockResolvedValueOnce(1_075n);
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(async () => {
+      await result.current.handleActivation(params);
+    });
+
+    expect(mockActivateVaultWithSecret).not.toHaveBeenCalled();
+    expect(result.current.activationError).toBe(
+      COPY.pegin.messages.activationWindowClosing,
+    );
+    expect(result.current.activationErrorTerminal).toBe(true);
+  });
+
+  it("does not apply the margin to the activate-and-redeem path", async () => {
+    // That path runs only after the PegIn swept the HTLC, so its witness has
+    // already published the secret on Bitcoin. The margin would protect
+    // nothing and block the one recovery left; the contract still refuses a
+    // call past the deadline.
+    mockGetBlockNumber.mockResolvedValue(1_090n);
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(async () => {
+      await result.current.handleActivation({
+        ...params,
+        redeemImmediately: true,
+      });
+    });
+
+    expect(mockActivateVaultWithSecretAndRedeem).toHaveBeenCalledTimes(1);
+    expect(mockGetBlockNumber).not.toHaveBeenCalled();
+  });
+
+  it("aborts rather than revealing when the timeout cannot be read", async () => {
+    mockGetBlockNumber.mockResolvedValue(1_000n);
+    mockGetTBVProtocolParams.mockRejectedValue(new Error("RPC down"));
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(async () => {
+      await result.current.handleActivation(params);
+    });
+
+    expect(mockActivateVaultWithSecret).not.toHaveBeenCalled();
+    expect(result.current.activationError).toBe(
+      COPY.pegin.messages.activationWindowUnavailable,
+    );
+  });
+
+  it("captures a failed deadline read in telemetry", async () => {
+    // Unlike the floor read, a failed deadline read blocks every activation:
+    // a lagging node, or a TBV parameter that fails validation. It must be
+    // visible, not filed as a routine interruption.
+    mockGetBlockNumber.mockResolvedValue(1_000n);
+    mockGetTBVProtocolParams.mockRejectedValue(
+      new Error("maxPegInAmount below minimumPegInAmount"),
+    );
+
+    const { result } = renderHook(() => useVaultActions());
+    await act(async () => {
+      await result.current.handleActivation(params);
+    });
+
+    expect(mockLoggerError).toHaveBeenCalled();
   });
 });

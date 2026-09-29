@@ -1,6 +1,12 @@
 import type { Address, Hex } from "viem";
+import { getAbiItem, toEventSelector } from "viem";
 import { describe, expect, it, vi } from "vitest";
 
+import { BTCVaultRegistryABI } from "../../../contracts/abis/BTCVaultRegistry.abi";
+import {
+  isRegistrationLogsUnavailableError,
+  RegistrationLogsUnavailableError,
+} from "../registration-logs-error";
 import { ViemVaultRegistryReader } from "../vault-registry-reader";
 
 const MOCK_ADDRESS = "0x1234567890abcdef1234567890abcdef12345678" as Address;
@@ -406,6 +412,171 @@ describe("ViemVaultRegistryReader", () => {
       ).rejects.toThrow(/outside the protocol range \[0, 9999\]/);
     });
   });
+
+  describe("getMaxAcceptableCommissionBpsBatch", () => {
+    const CREATED_AT = 11_561_176n;
+    const VAULT_A =
+      "0xaaaa00000000000000000000000000000000000000000000000000000000000a" as Hex;
+    const VAULT_B =
+      "0xbbbb00000000000000000000000000000000000000000000000000000000000b" as Hex;
+    const OTHER_VAULT =
+      "0xcccc00000000000000000000000000000000000000000000000000000000000c" as Hex;
+
+    // Decoded logs as viem's strict getLogs hands them back: topics lowercase.
+    const v1Log = (vaultId: Hex) => ({
+      eventName: "PegInSubmitted",
+      args: { vaultId },
+      blockNumber: CREATED_AT,
+    });
+    const v2Log = (vaultId: Hex, maxAcceptableCommissionBps: number) => ({
+      eventName: "PegInSubmittedV2",
+      args: { vaultId, maxAcceptableCommissionBps },
+      blockNumber: CREATED_AT,
+    });
+
+    function readerWithLogs(logs: unknown[]) {
+      const publicClient = { getLogs: vi.fn().mockResolvedValue(logs) };
+      const reader = new ViemVaultRegistryReader(
+        publicClient as never,
+        MOCK_ADDRESS,
+      );
+      return { publicClient, reader };
+    }
+
+    it("returns each vault's ceiling from one query of both registration events at the block, aligned to the input order", async () => {
+      const { publicClient, reader } = readerWithLogs([
+        v1Log(VAULT_A),
+        v2Log(VAULT_A, 35),
+        v1Log(VAULT_B),
+        v2Log(VAULT_B, 125),
+      ]);
+
+      await expect(
+        reader.getMaxAcceptableCommissionBpsBatch(
+          [VAULT_B, VAULT_A],
+          CREATED_AT,
+        ),
+      ).resolves.toEqual([125, 35]);
+
+      // One answer must carry BOTH events so "no V2" can be told apart from
+      // "the node served nothing": exactly the registration block, strict so
+      // a log that does not decode against the ABI cannot pass as args: {}.
+      expect(publicClient.getLogs).toHaveBeenCalledTimes(1);
+      expect(publicClient.getLogs).toHaveBeenCalledWith({
+        address: MOCK_ADDRESS,
+        events: [
+          getAbiItem({ abi: BTCVaultRegistryABI, name: "PegInSubmitted" }),
+          getAbiItem({ abi: BTCVaultRegistryABI, name: "PegInSubmittedV2" }),
+        ],
+        fromBlock: CREATED_AT,
+        toBlock: CREATED_AT,
+        strict: true,
+      });
+    });
+
+    // The node returns lowercase topics; a checksummed or uppercase caller id
+    // must still match rather than read as "no log".
+    it("matches vault ids case-insensitively", async () => {
+      const { reader } = readerWithLogs([v1Log(VAULT_A), v2Log(VAULT_A, 35)]);
+
+      await expect(
+        reader.getMaxAcceptableCommissionBpsBatch(
+          [VAULT_A.toUpperCase().replace("0X", "0x") as Hex],
+          CREATED_AT,
+        ),
+      ).resolves.toEqual([35]);
+    });
+
+    // Every registered vault has its PegInSubmitted log in its createdAt
+    // block, so an empty answer means the node did not serve the block's logs
+    // (load-balanced public RPCs answer [] for a block a backend lacks).
+    it("throws the typed transient error when the node returns no registration logs for the block", async () => {
+      const { reader } = readerWithLogs([]);
+
+      const caught = await reader
+        .getMaxAcceptableCommissionBpsBatch([VAULT_A], CREATED_AT)
+        .then(
+          () => null,
+          (err: unknown) => err,
+        );
+
+      expect(caught).toBeInstanceOf(RegistrationLogsUnavailableError);
+      expect(isRegistrationLogsUnavailableError(caught)).toBe(true);
+      expect((caught as Error).message).toContain(`block ${CREATED_AT}`);
+    });
+
+    it("throws naming the vault when only its V1 log is present (registered before PegInSubmittedV2)", async () => {
+      const { reader } = readerWithLogs([v1Log(VAULT_A)]);
+
+      const caught = await reader
+        .getMaxAcceptableCommissionBpsBatch([VAULT_A], CREATED_AT)
+        .then(
+          () => null,
+          (err: unknown) => err,
+        );
+
+      expect(isRegistrationLogsUnavailableError(caught)).toBe(false);
+      expect((caught as Error).message).toMatch(
+        new RegExp(
+          `Vault ${VAULT_A} was registered before the registry emitted the depositor's commission ceiling`,
+        ),
+      );
+    });
+
+    it("throws when the block's registration logs do not include the vault at all", async () => {
+      const { reader } = readerWithLogs([
+        v1Log(OTHER_VAULT),
+        v2Log(OTHER_VAULT, 5),
+      ]);
+
+      await expect(
+        reader.getMaxAcceptableCommissionBpsBatch([VAULT_A], CREATED_AT),
+      ).rejects.toThrow(
+        `Vault ${VAULT_A} has no registration log at its on-chain registration block ${CREATED_AT}`,
+      );
+    });
+
+    it("throws when a vault has more than one V2 log at the block", async () => {
+      const { reader } = readerWithLogs([
+        v1Log(VAULT_A),
+        v2Log(VAULT_A, 35),
+        v2Log(VAULT_A, 35),
+      ]);
+
+      await expect(
+        reader.getMaxAcceptableCommissionBpsBatch([VAULT_A], CREATED_AT),
+      ).rejects.toThrow(/found 2 PegInSubmittedV2 logs/);
+    });
+
+    it("returns an empty array without calling the chain for no vault ids", async () => {
+      const { publicClient, reader } = readerWithLogs([]);
+
+      await expect(
+        reader.getMaxAcceptableCommissionBpsBatch([], CREATED_AT),
+      ).resolves.toEqual([]);
+      expect(publicClient.getLogs).not.toHaveBeenCalled();
+    });
+  });
+
+  // Pins both ABI entries to the deployed contract: these are the topic0
+  // values of the V1 and V2 logs observed side by side in one registration
+  // block on the devnet registry (Sepolia, vault-contracts-aave-v4 #548).
+  it.each([
+    [
+      "PegInSubmitted",
+      "0x01a09d956e6fb4dce99bc1a91b2a9b1bc7d3345f3a69e13029cf365d4231a19b",
+    ],
+    [
+      "PegInSubmittedV2",
+      "0x4507e4ff3dfdfa42e9b1daf5469138047f35e6a7bf13840ce822d4ddeb5e79ea",
+    ],
+  ] as const)(
+    "declares %s with the deployed contract's event selector",
+    (name, selector) => {
+      const event = getAbiItem({ abi: BTCVaultRegistryABI, name });
+      expect(toEventSelector(event)).toBe(selector);
+    },
+  );
 
   it("passes correct contract address and vault ID to readContract", async () => {
     const publicClient = createMockPublicClient();

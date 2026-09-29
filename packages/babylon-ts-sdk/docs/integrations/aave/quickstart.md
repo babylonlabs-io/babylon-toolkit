@@ -25,6 +25,7 @@ import {
   getHealthFactorStatus,
   hasDebtFromPosition,
   FULL_REPAY_BUFFER_DIVISOR,
+  HEALTH_FACTOR_WARNING_THRESHOLD,
 } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 import {
   createPublicClient,
@@ -235,7 +236,7 @@ await publicClient.waitForTransactionReceipt({ hash });
 const accountData = await getUserAccountData(publicClient, SPOKE, proxyAddress);
 const hf = Number(accountData.healthFactor) / 1e18;
 
-if (hf < 1.5) {
+if (hf <= HEALTH_FACTOR_WARNING_THRESHOLD) {
   console.warn("Health factor too low for safe borrowing");
 }
 ```

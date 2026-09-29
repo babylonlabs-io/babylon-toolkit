@@ -28,8 +28,6 @@ export interface UseBorrowMetricsResult {
   healthFactorValue: number;
   /** Original health factor shown when borrow amount > 0 to show before → after */
   healthFactorOriginal?: string;
-  /** Original health factor value for UI (Infinity when no debt = healthy) */
-  healthFactorOriginalValue?: number;
 }
 
 export function useBorrowMetrics({
@@ -59,15 +57,11 @@ export function useBorrowMetrics({
     liquidationThresholdBps,
   );
 
-  // Use Infinity for original when no debt - represents "infinitely healthy"
-  const originalHealthValue = currentHealthFactor ?? Infinity;
-
   return {
     healthFactor: formatHealthFactor(
       healthFactorValue > 0 ? healthFactorValue : null,
     ),
     healthFactorValue,
     healthFactorOriginal: formatHealthFactor(currentHealthFactor),
-    healthFactorOriginalValue: originalHealthValue,
   };
 }

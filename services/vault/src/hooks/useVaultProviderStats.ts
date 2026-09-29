@@ -21,7 +21,10 @@ const STALE_TIME_MS = 5 * 60 * 1000;
 const EMPTY_STATS: ReadonlyMap<string, VaultProviderStats> = new Map();
 
 export interface UseVaultProviderStatsResult {
-  /** Stats keyed by lowercased VP address. VPs absent had no resolvable stats. */
+  /**
+   * Stats keyed by lowercased VP address. Empty while loading or after the
+   * batch fetch fails; on success every requested VP is present.
+   */
   statsById: ReadonlyMap<string, VaultProviderStats>;
   /** True while the first fetch is in flight. */
   loading: boolean;
@@ -42,7 +45,7 @@ export function useVaultProviderStats(
 
   const { data, isLoading } = useQuery({
     queryKey: ["vaultProviderStats", normalizedIds],
-    queryFn: () => fetchVaultProviderStats(normalizedIds),
+    queryFn: ({ signal }) => fetchVaultProviderStats(normalizedIds, signal),
     enabled: normalizedIds.length > 0,
     staleTime: STALE_TIME_MS,
     refetchOnWindowFocus: false,

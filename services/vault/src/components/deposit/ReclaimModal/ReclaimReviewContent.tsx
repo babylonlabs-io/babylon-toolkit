@@ -1,4 +1,10 @@
-import { Button, Callout, Heading, Loader } from "@babylonlabs-io/core-ui";
+import {
+  Button,
+  Callout,
+  Heading,
+  Loader,
+  LockIcon,
+} from "@babylonlabs-io/core-ui";
 import { estimateReclaimFeeSats } from "@babylonlabs-io/ts-sdk/tbv/core/primitives";
 import {
   RECLAIM_MAX_FEE_FRACTION_DENOMINATOR,
@@ -245,7 +251,12 @@ export function ReclaimReviewContent({
           />
 
           {walletLocked && (
-            <Callout variant="error" title={COPY.wallet.locked.title}>
+            <Callout
+              variant="accent"
+              role="alert"
+              icon={<LockIcon size={24} color="text-accent-contrast" />}
+              title={COPY.wallet.locked.title}
+            >
               {COPY.wallet.locked.description}
             </Callout>
           )}

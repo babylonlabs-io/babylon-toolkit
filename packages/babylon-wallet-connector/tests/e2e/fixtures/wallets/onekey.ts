@@ -142,7 +142,7 @@ const ONEKEY_EXPECTED_AUTO_LOCK = "Never";
 
 /**
  * Verify OneKey's app auto-lock is "Never" so the wallet doesn't re-lock during a run (a real peg-in
- * takes ~30 min–2 hr and would otherwise stall at "Bitcoin wallet locked"). Path: sidebar menu
+ * takes ~30 min–2 hr and would otherwise stall at "Bitcoin wallet is locked"). Path: sidebar menu
  * (bottom-menu-container) → "Security" → the "Auto-lock" list row shows its current value. Fails loudly
  * if it isn't "Never" (or the row can't be found) — the signal to capture OneKey's auto-lock SETTER and
  * switch this from a verify to a set. The per-wallet spec (test:e2e:onekey) exercises this.

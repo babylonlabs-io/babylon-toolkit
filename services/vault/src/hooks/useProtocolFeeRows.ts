@@ -1,5 +1,6 @@
 import { formatSatoshisToBtc } from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
+  BPS_SCALE,
   computeMinDepositForSplit,
   computeSeizedFraction,
 } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
@@ -8,18 +9,12 @@ import { useMemo } from "react";
 import type { FeeRow } from "@/components/simple/FeesSection";
 import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
 import { COPY } from "@/copy";
-import { getBtcSymbol } from "@/utils/formatting";
+import { formatBasisPointsAsPercent, getBtcSymbol } from "@/utils/formatting";
 
-import {
-  EXPECTED_HEALTH_FACTOR_AT_LIQUIDATION,
-  VAULT_SPLIT_SAFETY_MARGIN,
-} from "../applications/aave/constants";
 import {
   useVaultSplitParams,
   type VaultSplitParams,
 } from "../applications/aave/hooks/useVaultSplitParams";
-
-const PERCENT_SCALE = 100;
 
 function buildFeeRows(
   minDepositSats: bigint,
@@ -36,45 +31,48 @@ function buildFeeRows(
   });
 
   if (splitParams) {
-    const { CF, LB, THF } = splitParams;
+    const { CF, LB, THF, expectedHF, maxLB } = splitParams;
 
-    const seizedFraction = computeSeizedFraction(
-      CF,
-      LB,
-      THF,
-      EXPECTED_HEALTH_FACTOR_AT_LIQUIDATION,
-    );
-    const minForSplit = computeMinDepositForSplit({
-      minPegin: minDepositSats,
-      seizedFraction,
-      safetyMargin: VAULT_SPLIT_SAFETY_MARGIN,
-    });
-
-    if (minForSplit > 0n) {
-      const minForSplitBtc = formatSatoshisToBtc(minForSplit);
-      rows.push({
-        label: COPY.protocolFees.minForSplit.label,
-        value: `${minForSplitBtc} ${btcSymbol}`,
-        tooltip: COPY.protocolFees.minForSplit.tooltip,
+    // Only this row is sized from the bonus at the expected health factor.
+    // When the Spoke's curve is out of range there is no figure to show, so
+    // it is omitted rather than rendered from a substitute — but the rows
+    // below do not read `LB` and must survive, which is the whole reason the
+    // bonus is nullable instead of throwing.
+    if (LB !== null) {
+      const seizedFraction = computeSeizedFraction(CF, LB, THF, expectedHF);
+      const minForSplit = computeMinDepositForSplit({
+        minPegin: minDepositSats,
+        seizedFraction,
       });
+
+      if (minForSplit > 0n) {
+        const minForSplitBtc = formatSatoshisToBtc(minForSplit);
+        rows.push({
+          label: COPY.protocolFees.minForSplit.label,
+          value: `${minForSplitBtc} ${btcSymbol}`,
+          tooltip: COPY.protocolFees.minForSplit.tooltip,
+        });
+      }
     }
 
     rows.push({
       label: COPY.protocolFees.ltv.label,
-      value: `${(CF * PERCENT_SCALE).toFixed(0)}%`,
+      // Both percentages keep their basis-point precision: a collateral
+      // factor of 7825 BPS is 78.25%, and the dashboard renders it that way
+      // from the same contract field.
+      value: formatBasisPointsAsPercent(CF * BPS_SCALE),
       tooltip: COPY.tooltips.collateralFactor,
     });
 
     rows.push({
-      label: COPY.protocolFees.liquidationThreshold.label,
+      label: COPY.protocolFees.splitTargetHealthFactor.label,
       value: THF.toFixed(2),
-      tooltip: COPY.protocolFees.liquidationThreshold.tooltip,
+      tooltip: COPY.protocolFees.splitTargetHealthFactor.tooltip,
     });
 
-    const bonusPercent = (LB - 1) * PERCENT_SCALE;
     rows.push({
       label: COPY.protocolFees.maxLiquidationPenalty.label,
-      value: `${bonusPercent.toFixed(0)}%`,
+      value: formatBasisPointsAsPercent((maxLB - 1) * BPS_SCALE),
       tooltip: COPY.protocolFees.maxLiquidationPenalty.tooltip,
     });
   }

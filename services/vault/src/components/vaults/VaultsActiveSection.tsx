@@ -5,11 +5,12 @@
  * status, provider, transaction hash, and a per-row Withdraw action.
  * Presentational — entries arrive demo-merged from useVaultsPageData. Withdraw
  * passes the on-chain `vaultId` (the withdraw flow's selection key) and is
- * enabled only for in-use, indexer-backed rows — demo (`displayOnly`) and
- * optimistic (`isActivating`) rows never reach an action flow.
+ * enabled only for in-use `active` rows — demo (`displayOnly`), optimistic
+ * (`activating`) and peg-out-in-flight (`withdrawing`) rows never reach an
+ * action flow.
  */
 
-import { Heading, Loader } from "@babylonlabs-io/core-ui";
+import { Avatar, Heading, Loader } from "@babylonlabs-io/core-ui";
 import type { ReactNode } from "react";
 
 import { ApplicationLogo } from "@/components/ApplicationLogo";
@@ -22,6 +23,7 @@ import {
   LIST_ROW_MIN_HEIGHT_CLASS,
   ListRowCard,
 } from "@/components/shared/ListRow";
+import { getNetworkConfigBTC } from "@/config";
 import { COPY } from "@/copy";
 import type { CollateralVaultEntry } from "@/types/collateral";
 import { getBtcExplorerTxUrl } from "@/utils/explorer";
@@ -48,6 +50,7 @@ function ActiveVaultRow({
   // Peg-in first: once a vault is active the peg-in tx is the canonical
   // on-Bitcoin one (pending/inactive rows prefer the opposite).
   const hash = vault.peginTxHash ?? vault.prePeginTxHash;
+  const btcConfig = getNetworkConfigBTC();
 
   return (
     // This row's data-testid is a real-wallet E2E hook
@@ -56,22 +59,23 @@ function ActiveVaultRow({
     // which is what the withdraw flow selects on.
     <ListRowCard
       testId={`vault-row-${vault.vaultId}`}
-      className={LIST_ROW_MIN_HEIGHT_CLASS}
+      className={`${LIST_ROW_MIN_HEIGHT_CLASS} xl:flex-nowrap`}
     >
       {/* Amount + liquidation ordinal */}
       <div
         className={`flex items-center gap-2 ${LIST_ROW_LEADING_COLUMN_CLASS}`}
       >
-        <ApplicationLogo
-          logoUrl={vault.providerIconUrl ?? null}
-          name={vault.providerName}
-          size="small"
+        <Avatar
+          size="medium"
+          url={btcConfig.icon}
+          alt={btcConfig.coinSymbol}
+          className="shrink-0"
         />
         <span className="min-w-0 truncate">
           <span className="text-base leading-6 tracking-[0.15px] text-accent-primary">
             {formatBtcAmount(vault.amountBtc)}
           </span>{" "}
-          {!vault.isActivating && (
+          {vault.lifecycle === "active" && (
             <span className="text-xs leading-[1.66] tracking-[0.4px] text-accent-secondary">
               {COPY.vaults.summary.liquidationOrdinal(
                 formatOrdinal(vault.liquidationIndex + 1),
@@ -83,12 +87,19 @@ function ActiveVaultRow({
 
       {/* Status */}
       <div className={`flex items-center ${LIST_ROW_COLUMN_CLASS}`}>
-        {vault.isActivating ? (
+        {vault.lifecycle === "activating" && (
           <span className="flex items-center gap-2 text-sm text-accent-secondary">
             <Loader size={16} />
             {COPY.collateral.activating}
           </span>
-        ) : (
+        )}
+        {vault.lifecycle === "withdrawing" && (
+          <span className="flex items-center gap-2 text-sm text-accent-secondary">
+            <Loader size={16} />
+            {COPY.pegin.labels.REDEEM_IN_PROGRESS}
+          </span>
+        )}
+        {vault.lifecycle === "active" && (
           <span className="flex items-center gap-1">
             <span
               className={`size-3 rounded-full ${
@@ -141,7 +152,7 @@ function ActiveVaultRow({
             isWithdrawDisabled ||
             !vault.inUse ||
             vault.displayOnly ||
-            vault.isActivating
+            vault.lifecycle !== "active"
           }
           className={NEUTRAL_ROW_BUTTON_CLASS}
         >

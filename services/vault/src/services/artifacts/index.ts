@@ -1,4 +1,6 @@
 export {
+  PresignFingerprintUnavailableError,
+  PresignGraphMismatchError,
   assertBundleBoundToVault,
   type VaultBindingContext,
 } from "./artifactBinding";

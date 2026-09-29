@@ -46,6 +46,7 @@ describe("classifyStatusWord", () => {
     [0x6a80, /rejected the data as invalid/],
     [0xb007, /not in the expected state/],
     [0xb00a, /maximum number of these transactions/],
+    [0x6901, /still busy with the previous request/],
   ])("maps 0x%s to a readable device error naming the instruction", (sw, expected) => {
     const error = classifyStatusWord(sw, context);
     expect(error).toMatchObject({ name: LEDGER_DEVICE_ERROR_NAME, statusWord: sw });
@@ -78,6 +79,14 @@ describe("classifyStatusWord", () => {
     const error = classifyStatusWord(0x6e00, context);
     expect(error?.message).toMatch(/open the Babylon Vault app/);
     expect(error?.message).not.toMatch(/app at connect time/);
+  });
+
+  it("names the connect-time app on 0x6D00, the stock Bitcoin app's unknown-instruction answer", () => {
+    // Shares CLA 0xE1 with the vault app, so the host maps it to a wrong app too.
+    const error = classifyStatusWord(0x6d00, { ...context, appName: "Bitcoin Test", appVersion: "2.4.1" });
+    expect(error).toMatchObject({ name: LEDGER_DEVICE_ERROR_NAME, statusWord: 0x6d00 });
+    expect(error?.message).toMatch(/does not support this instruction/);
+    expect(error?.message).toMatch(/"Bitcoin Test" v2\.4\.1/);
   });
 });
 

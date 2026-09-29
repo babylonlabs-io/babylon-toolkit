@@ -34,7 +34,7 @@ export interface AaveSpokeUserAccountData {
   healthFactor: bigint;
   /** Total collateral value in base currency (1e26 = $1 USD) */
   totalCollateralValue: bigint;
-  /** Total debt value in base currency, scaled by RAY (1e35 = $1 USD) */
+  /** Total debt value in base currency, scaled by RAY (1e53 = $1 USD) */
   totalDebtValueRay: bigint;
   /** Number of active collateral reserves */
   activeCollateralCount: bigint;

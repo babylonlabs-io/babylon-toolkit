@@ -1,14 +1,12 @@
-/**
- * Borrow / repay form step of the loan overlay. Reports progress and completion
- * upwards — `LoanFlowOverlay` owns the shell every step renders into.
- */
+/** Loan form with progress and completion callbacks for LoanFlowOverlay. */
 
 import { EmptyState } from "@/components/shared";
 import { getNetworkConfigBTC } from "@/config";
 import { useConnection, useETHWallet } from "@/context/wallet";
 import { COPY } from "@/copy";
+import { getHubIdentity } from "@/services/aave/hubRegistry";
 
-import type { LoanTab } from "../../constants";
+import { LOAN_TAB, type LoanTab } from "../../constants";
 import { useAaveConfig } from "../../context";
 import { useAaveOracleAddress } from "../../hooks";
 import { LoanProvider } from "../context/LoanContext";
@@ -27,6 +25,8 @@ export interface LoanSuccessState {
   variant: "borrow" | "repay";
   amount: number;
   symbol: string;
+  /** Label of the hub the transaction settled on. */
+  hubLabel: string;
   decimals: number;
   assetIcon: string;
 }
@@ -146,11 +146,14 @@ export function ReserveDetailPanel({
     );
   }
 
+  const hub = getHubIdentity(verified.selectedReserve.reserve.hub);
+
   const settled = (variant: "borrow" | "repay", amount: number) => ({
     reserveId,
     variant,
     amount,
     symbol: verified.assetConfig.symbol,
+    hubLabel: hub.label,
     // Proven decimals, so the success screen can't report a different amount
     // than the one that was signed.
     decimals: verified.tokenIdentity.decimals,
@@ -166,6 +169,7 @@ export function ReserveDetailPanel({
     selectedReserve: verified.selectedReserve,
     tokenIdentity: verified.tokenIdentity,
     assetConfig: verified.assetConfig,
+    hub,
     proxyContract,
     oracleAddress,
     tokenPriceUsd,
@@ -182,8 +186,14 @@ export function ReserveDetailPanel({
   return (
     <LoanProvider value={loanContextValue}>
       <PositionGate
-        positionError={positionError}
-        ancillaryError={ancillaryError}
+        positionError={
+          tab === LOAN_TAB.REPAY &&
+          totalDebtValueUsd > 0 &&
+          verified.currentDebtAmount > 0
+            ? null
+            : positionError
+        }
+        ancillaryError={ancillaryError ?? positionError}
         refetchPosition={refetchPosition}
       >
         <LoanCard defaultTab={tab} />

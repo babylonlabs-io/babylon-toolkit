@@ -1,13 +1,17 @@
 import { Avatar } from "@babylonlabs-io/core-ui";
 
+import { HubLabel } from "@/applications/aave/components/HubLabel";
 import { COPY } from "@/copy";
+import type { HubIdentity } from "@/services/aave/hubRegistry";
 
 export interface BorrowMarketRow {
-  /** reserveId.toString() — React key. */
+  /** reserveId.toString() — React key and row test id. */
   reserveId: string;
   symbol: string;
   name: string;
   icon: string;
+  /** Hub the reserve belongs to; one token on two hubs is two rows. */
+  hub: HubIdentity;
   /** Pre-formatted display strings; the page owns all formatting. */
   aprLabel: string;
   availableLabel: string;
@@ -21,6 +25,7 @@ export interface BorrowMarketRow {
 }
 
 const MARKET_COLUMN_CLASS = "w-[180px] shrink-0";
+const HUB_COLUMN_CLASS = "w-[140px] shrink-0";
 const DATA_COLUMN_CLASS = "min-w-0 flex-1";
 const HEADER_TEXT_CLASS =
   "text-xs leading-[1.66] tracking-[0.4px] text-accent-secondary";
@@ -49,10 +54,13 @@ export function BorrowMarketsTable({ rows }: { rows: BorrowMarketRow[] }) {
       data-testid="borrow-markets-table"
     >
       <div className="w-full overflow-x-auto">
-        <div className="flex min-w-[900px] flex-col gap-4">
+        <div className="flex min-w-[1040px] flex-col gap-4">
           <div className="flex items-center px-4">
             <div className={`${MARKET_COLUMN_CLASS} ${HEADER_TEXT_CLASS}`}>
-              {columns.market}
+              {columns.asset}
+            </div>
+            <div className={`${HUB_COLUMN_CLASS} ${HEADER_TEXT_CLASS}`}>
+              {COPY.loans.hub.label}
             </div>
             <div className={`${DATA_COLUMN_CLASS} ${HEADER_TEXT_CLASS}`}>
               {columns.borrowApr}
@@ -81,7 +89,7 @@ export function BorrowMarketsTable({ rows }: { rows: BorrowMarketRow[] }) {
                 <div
                   key={row.reserveId}
                   className="flex h-20 w-full items-center rounded-xl bg-background-secondary p-4"
-                  data-testid={`borrow-market-row-${row.symbol}`}
+                  data-testid={`borrow-market-row-${row.reserveId}`}
                 >
                   <div
                     className={`${MARKET_COLUMN_CLASS} flex items-center gap-2`}
@@ -99,6 +107,10 @@ export function BorrowMarketsTable({ rows }: { rows: BorrowMarketRow[] }) {
                         {row.symbol}
                       </span>
                     </div>
+                  </div>
+
+                  <div className={HUB_COLUMN_CLASS}>
+                    <HubLabel hub={row.hub} className={PRIMARY_VALUE_CLASS} />
                   </div>
 
                   <div className={DATA_COLUMN_CLASS}>

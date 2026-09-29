@@ -4,7 +4,8 @@ import { describe, expect, it, vi } from "vitest";
 import {
   getDynamicReserveConfig,
   getReserve,
-  getTargetHealthFactor,
+  getLiquidationBonusConfig,
+  getReserves,
   getUserPositionAndAccountData,
   getUserPositions,
   getUserTotalDebts,
@@ -38,18 +39,21 @@ function createMulticallClient(
 }
 
 describe("Core Spoke parameter reads", () => {
-  describe("getTargetHealthFactor", () => {
-    it("reads targetHealthFactor from getLiquidationConfig", async () => {
-      const expectedTHF = 1_100_000_000_000_000_000n;
+  describe("getLiquidationBonusConfig", () => {
+    it("reads the bonus curve fields from getLiquidationConfig", async () => {
+      // viem decodes the uint16 liquidationBonusFactor as a number
       const client = createMockClient({
-        targetHealthFactor: expectedTHF,
+        targetHealthFactor: 1_000_000_000_000_000_000n,
         healthFactorForMaxBonus: 900_000_000_000_000_000n,
-        liquidationBonusFactor: 5000n,
+        liquidationBonusFactor: 9000,
       });
 
-      const thf = await getTargetHealthFactor(client, STUB_ADDRESS);
+      const config = await getLiquidationBonusConfig(client, STUB_ADDRESS);
 
-      expect(thf).toBe(expectedTHF);
+      expect(config).toEqual({
+        healthFactorForMaxBonus: 900_000_000_000_000_000n,
+        liquidationBonusFactor: 9000n,
+      });
       expect(client.readContract).toHaveBeenCalledWith(
         expect.objectContaining({
           address: STUB_ADDRESS,
@@ -61,10 +65,11 @@ describe("Core Spoke parameter reads", () => {
 
   describe("getDynamicReserveConfig", () => {
     it("reads dynamic reserve config with reserveId and dynamicConfigKey", async () => {
+      // viem decodes these uint16/uint32 fields as numbers
       const expectedConfig = {
-        collateralFactor: 7500n,
-        maxLiquidationBonus: 10500n,
-        liquidationFee: 100n,
+        collateralFactor: 7500,
+        maxLiquidationBonus: 10555,
+        liquidationFee: 100,
       };
       const client = createMockClient(expectedConfig);
 
@@ -229,6 +234,74 @@ describe("getUserTotalDebts (batched readout)", () => {
     await expect(
       getUserTotalDebts(createMulticallClient(multicall), STUB_ADDRESS, [1n], USER),
     ).rejects.toThrow("RPC reverted");
+  });
+});
+
+describe("getReserves (batched reserve read)", () => {
+  const USDC_RESERVE = {
+    underlying: "0x3333333333333333333333333333333333333333" as Address,
+    hub: "0x4444444444444444444444444444444444444444" as Address,
+    assetId: 0,
+    decimals: 6,
+    collateralRisk: 0,
+    flags: 4,
+    dynamicConfigKey: 0,
+  };
+  const WBTC_RESERVE = {
+    underlying: "0x5555555555555555555555555555555555555555" as Address,
+    hub: "0x6666666666666666666666666666666666666666" as Address,
+    assetId: 2,
+    decimals: 8,
+    collateralRisk: 0,
+    flags: 4,
+    dynamicConfigKey: 1,
+  };
+
+  it("returns [] and skips the multicall when given no reserve IDs", async () => {
+    const multicall = vi.fn();
+    const result = await getReserves(
+      createMulticallClient(multicall),
+      STUB_ADDRESS,
+      [],
+    );
+    expect(result).toEqual([]);
+    expect(multicall).not.toHaveBeenCalled();
+  });
+
+  it("issues one getReserve call per reserve and hard-fails (allowFailure: false), returning reserves in input order", async () => {
+    const multicall = vi.fn().mockResolvedValue([USDC_RESERVE, WBTC_RESERVE]);
+
+    const result = await getReserves(
+      createMulticallClient(multicall),
+      STUB_ADDRESS,
+      [0n, 6n],
+    );
+
+    expect(result).toEqual([USDC_RESERVE, WBTC_RESERVE]);
+    expect(multicall).toHaveBeenCalledWith(
+      expect.objectContaining({
+        allowFailure: false,
+        contracts: [
+          expect.objectContaining({
+            address: STUB_ADDRESS,
+            functionName: "getReserve",
+            args: [0n],
+          }),
+          expect.objectContaining({
+            address: STUB_ADDRESS,
+            functionName: "getReserve",
+            args: [6n],
+          }),
+        ],
+      }),
+    );
+  });
+
+  it("propagates a multicall rejection (an unlisted reserve is not skipped)", async () => {
+    const multicall = vi.fn().mockRejectedValue(new Error("ReserveNotListed()"));
+    await expect(
+      getReserves(createMulticallClient(multicall), STUB_ADDRESS, [99n]),
+    ).rejects.toThrow("ReserveNotListed()");
   });
 });
 

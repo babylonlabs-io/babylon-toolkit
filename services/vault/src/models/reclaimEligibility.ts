@@ -228,16 +228,19 @@ export function getReclaimEligibility(
   // The Ledger vault app cannot sign this transaction. Its firmware routes any
   // 34-byte `<D> OP_CHECKSIG` tapleaf to the claim validator
   // (app-babylon-vault `src/sign_psbt_validate.c`), which hard-requires the
-  // protocol claim_tx shape of 1 input and 2 outputs; a 1-in/1-out sweep is
-  // rejected on the output count before any device I/O.
+  // protocol claim_tx shape of 1 input and 2 outputs. The dApp's sweep is
+  // 1-in/1-out (one vault per reclaim), so the claim validator rejects it on
+  // the output count with SW_INCORRECT_DATA.
   //
   // Deliberately reclaim-specific: refund *is* reachable on the device
   // (`_validate_display_refund`), so this must not become "no Bitcoin actions
   // on Ledger". Supporting reclaim needs a new firmware validator with its own
   // approval screen, plus host-side work in babylon-ledger-vault-signer.
   //
-  // Shown as blocked rather than hidden so Ledger users still learn the
-  // reserve exists and can sweep it from another wallet.
+  // Shown as blocked rather than hidden so Ledger users still learn the reserve
+  // exists. Decision (#2375): ship the Ledger wallet with reclaim blocked; a
+  // reserve-sweep validator is a post-flip firmware ask. The copy must not point
+  // at "another wallet" (= the seed).
   if (isLedgerWallet) {
     return { type: "blocked", tooltip: COPY.reclaim.blocked.ledgerUnsupported };
   }

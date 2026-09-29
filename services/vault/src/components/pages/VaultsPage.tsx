@@ -12,8 +12,9 @@ import { Container, Loader, Notification } from "@babylonlabs-io/core-ui";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo, useState } from "react";
 import { useOutletContext } from "react-router";
-import type { Address } from "viem";
 
+import { useSyncPendingVaults } from "@/applications/aave/context";
+import { useAaveVaults } from "@/applications/aave/hooks";
 import type { RootLayoutContext } from "@/components/pages/RootLayout";
 import { PAGE_CONTENT_CLASS } from "@/components/shared/layoutClasses";
 import {
@@ -38,7 +39,7 @@ import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import { useVaultsPageData } from "@/hooks/useVaultsPageData";
 import { useVaultsPageEmptiness } from "@/hooks/useVaultsPageEmptiness";
 import { useDepositOverride } from "@/overrides/deposits";
-import { invalidateVaultQueries, vaultOrderQueryKey } from "@/utils/queryKeys";
+import { invalidateVaultQueries } from "@/utils/queryKeys";
 
 export default function VaultsPage() {
   const { openDeposit } = useOutletContext<RootLayoutContext>();
@@ -50,12 +51,23 @@ export default function VaultsPage() {
   // hook and the lifecycle sections so the broadcast/refund modal state pair
   // is instantiated once.
   const deposits = usePendingDeposits();
-  const { isLoading, isEmpty, hasError, hasPartialError } =
-    useVaultsPageEmptiness(deposits);
+  const {
+    isLoading,
+    isEmpty,
+    hasError,
+    hasPartialError,
+    hasNonIndexerError,
+    storageOnlyError,
+  } = useVaultsPageEmptiness(deposits);
+  const { vaults: aaveVaults } = useAaveVaults(
+    isConnected ? address : undefined,
+  );
+  useSyncPendingVaults(aaveVaults);
   const {
     summary,
     displayVaults,
     rawCollateralVaults,
+    indexerError,
     collateralBtc,
     collateralValueUsd,
   } = useVaultsPageData(isConnected ? address : undefined);
@@ -90,10 +102,12 @@ export default function VaultsPage() {
   );
 
   const reorderableVaults = useMemo(
-    () => rawCollateralVaults.filter((vault) => !vault.isActivating),
+    () => rawCollateralVaults.filter((vault) => vault.lifecycle === "active"),
     [rawCollateralVaults],
   );
-  const canReorder = reorderableVaults.length >= 2;
+  // An incomplete list can omit a live vault: the contract rejects a reorder
+  // that leaves one out, and that vault would have no Withdraw row.
+  const canReorder = reorderableVaults.length >= 2 && !indexerError;
 
   const handleWithdrawRow = useCallback((vaultId: string) => {
     setWithdrawVaultIds([vaultId]);
@@ -104,29 +118,11 @@ export default function VaultsPage() {
   // back to the indexer by refetching the order-dependent queries.
   const handleReorderSuccessClose = useCallback(() => {
     setIsReorderSuccess(false);
-    if (address) {
-      queryClient.invalidateQueries({
-        queryKey: vaultOrderQueryKey(address),
-      });
-      invalidateVaultQueries(queryClient, address as Address);
-    }
-  }, [address, queryClient]);
+    invalidateVaultQueries(queryClient);
+  }, [queryClient]);
 
   const populatedBody = (
     <div className="flex flex-col gap-8">
-      {/* One of the two data sources failed while the other still has rows —
-          the page prefers showing what it has, but the gap must never be
-          silent: a failed position read would otherwise present zero totals
-          as real, and a failed deposits read would drop pending rows. */}
-      {hasPartialError && (
-        <Notification
-          variant="warning"
-          title={COPY.vaults.partialLoadError.title}
-          data-testid="vaults-partial-load-error"
-        >
-          {COPY.vaults.partialLoadError.body}
-        </Notification>
-      )}
       <VaultsSummaryCard
         totalCollateralBtc={summary.totalCollateralBtc}
         totalCollateralUsd={summary.totalCollateralUsd}
@@ -145,7 +141,7 @@ export default function VaultsPage() {
         <VaultsActiveSection
           vaults={displayVaults}
           onWithdraw={handleWithdrawRow}
-          isWithdrawDisabled={isWithdrawBlocked(gate)}
+          isWithdrawDisabled={isWithdrawBlocked(gate) || Boolean(indexerError)}
           // Pending deposits keep the page populated while the vault list is
           // still empty — the section shows the empty state until the deposit
           // confirms and activates. Section placement sits on the sibling-card
@@ -171,7 +167,9 @@ export default function VaultsPage() {
       return (
         <div className="flex items-center justify-center py-12">
           <p className="text-base text-accent-secondary">
-            {COPY.vaults.loadError}
+            {storageOnlyError
+              ? COPY.vaults.storageReadError
+              : COPY.vaults.loadError}
           </p>
         </div>
       );
@@ -182,7 +180,38 @@ export default function VaultsPage() {
 
   return (
     <Container as="main" className={`${PAGE_CONTENT_CLASS} pb-6`}>
-      {renderBody()}
+      <div className="flex flex-col gap-8">
+        {/* A data source failed, or the browser's own deposit records could
+            not be read — the page prefers showing what it has, but the gap
+            must never be silent: a failed position read would otherwise
+            present zero totals as real, and a failed deposits read would
+            drop pending rows. */}
+        {hasPartialError && (
+          <Notification
+            variant="warning"
+            title={COPY.vaults.partialLoadError.title}
+            data-testid="vaults-partial-load-error"
+          >
+            {hasNonIndexerError && (
+              <p>
+                {deposits.storageReadError
+                  ? COPY.vaults.storageReadError
+                  : COPY.vaults.partialLoadError.body}
+              </p>
+            )}
+            {/* Its own line, so another failure's text cannot hide why
+                Withdraw and Reorder are disabled. Its data-testid is a
+                real-wallet E2E hook (e2e/real/actions/withdraw.ts) — carry it
+                over if you move or rename the element. */}
+            {indexerError && (
+              <p data-testid="vaults-collateral-list-incomplete">
+                {COPY.vaults.collateralListIncomplete}
+              </p>
+            )}
+          </Notification>
+        )}
+        {renderBody()}
+      </div>
 
       <WithdrawFlow
         open={withdrawVaultIds !== null}

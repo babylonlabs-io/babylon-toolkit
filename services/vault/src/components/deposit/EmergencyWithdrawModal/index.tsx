@@ -3,8 +3,7 @@
  * self-contained modal (RefundModal pattern): confirmation with an explicit
  * risk acknowledgment, in-place progress on the confirm button, then a
  * terminal success screen. Opened directly from a deposit row's Withdraw CTA
- * (stuck state) or the activation dialog's advanced link — never through the
- * deposit multistepper.
+ * (stuck state) — never through the deposit multistepper.
  *
  * The reveal path is identical to normal activation: the secret is derived
  * from the BTC wallet (`deriveHtlcSecretHex`, on-chain inputs only, buffers
@@ -26,6 +25,7 @@ import { V3ModalShell } from "@/components/shared/V3ModalShell";
 import { useETHWallet } from "@/context/wallet";
 import { COPY } from "@/copy";
 import { useActivationState } from "@/hooks/deposit/useActivationState";
+import { useBtcAction } from "@/hooks/useBtcAction";
 import { useEnsureVaultApplicationActive } from "@/hooks/useVaultApplicationActive";
 import {
   captureFunnelFailure,
@@ -40,8 +40,6 @@ import { EmergencyWithdrawSuccessContent } from "./EmergencyWithdrawSuccessConte
 interface EmergencyWithdrawModalProps {
   open: boolean;
   activity: VaultActivity;
-  /** True when the stuck state was detected on-chain — drives the body copy. */
-  stuckStateDetected: boolean;
   onClose: () => void;
   onSuccess: () => void;
 }
@@ -49,10 +47,10 @@ interface EmergencyWithdrawModalProps {
 export function EmergencyWithdrawModal({
   open,
   activity,
-  stuckStateDetected,
   onClose,
   onSuccess,
 }: EmergencyWithdrawModalProps) {
+  const { requireBtcWallet } = useBtcAction();
   const btcConnector = useChainConnector("BTC");
   const btcWalletProvider =
     (btcConnector?.connectedWallet?.provider as BitcoinWallet | undefined) ??
@@ -92,12 +90,6 @@ export function EmergencyWithdrawModal({
 
   const handleConfirm = useCallback(async () => {
     if (withdrawing) return;
-    if (!btcWalletProvider || !connectedBtcAddress) {
-      setLocalError(
-        COPY.deposit.emergencyWithdraw.errors.btcWalletNotConnected,
-      );
-      return;
-    }
     if (!depositorEthAddress) {
       setLocalError(
         COPY.deposit.emergencyWithdraw.errors.ethWalletNotConnected,
@@ -120,6 +112,16 @@ export function EmergencyWithdrawModal({
       // confirm screen reads, so that gate re-renders with the explanation and
       // the button disabled. Setting `localError` would print it twice.
       if ((await ensureApplicationActive(activity.id)) === false) return;
+      if (!requireBtcWallet()) {
+        setLocalError(COPY.wallet.btcAction.error);
+        return;
+      }
+      if (!btcWalletProvider || !connectedBtcAddress) {
+        setLocalError(
+          COPY.deposit.emergencyWithdraw.errors.btcWalletNotConnected,
+        );
+        return;
+      }
 
       const secretHex = await deriveHtlcSecretHex({
         activity,
@@ -149,6 +151,7 @@ export function EmergencyWithdrawModal({
       if (mountedRef.current) setDeriving(false);
     }
   }, [
+    requireBtcWallet,
     withdrawing,
     activity,
     btcWalletProvider,
@@ -183,7 +186,6 @@ export function EmergencyWithdrawModal({
   return (
     <V3ModalShell open={open} onClose={withdrawing ? undefined : onClose}>
       <EmergencyWithdrawConfirmContent
-        stuckStateDetected={stuckStateDetected}
         vaultId={activity.id}
         withdrawing={withdrawing}
         error={error}

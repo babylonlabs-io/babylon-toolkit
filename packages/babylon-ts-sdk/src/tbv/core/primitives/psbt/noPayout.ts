@@ -34,7 +34,7 @@ export interface NoPayoutParams {
   noPayoutTxHex: string;
   /** Challenger's x-only public key (hex encoded) */
   challengerPubkey: string;
-  /** Prevouts for all inputs [{script_pubkey, value}] from VP */
+  /** Prevouts for all inputs [{script_pubkey, value}], used verbatim — derive them from the parent txs */
   prevouts: Array<{ script_pubkey: string; value: number }>;
   /** Parameters for the Assert Payout/NoPayout connector */
   connectorParams: AssertPayoutNoPayoutConnectorParams;

@@ -14,7 +14,10 @@ import {
 import { COPY } from "@/copy";
 
 import { chainMatchesFrame } from "./causeChain";
-import { isDepositorWalletMismatchError } from "./depositorWalletMismatch";
+import {
+  isDepositorBtcKeyMismatchError,
+  isDepositorWalletMismatchError,
+} from "./depositorWalletMismatch";
 import {
   DEVICE_CEREMONY_INVALID_CODE,
   DEVICE_LOCKED_CODE,
@@ -43,11 +46,24 @@ const EIP1193 = {
 /** viem `ExecutionRevertedError.code` — a node revert even without `0x` data. */
 const EXECUTION_REVERTED_RPC_CODE = 3;
 
-// viem `NonceTooLowError.nodeMessage`: the tx is already in the mempool (or
-// mined), so a retry just re-sends and reproduces it. Raw providers surface
-// this unwrapped, so match the message as well as the viem class name.
-const ALREADY_SUBMITTED_PATTERN =
-  /nonce too low|transaction already imported|already known/i;
+// The node already holds a transaction with this nonce (in its mempool or
+// mined), so a retry just re-sends and reproduces it. viem folds these into
+// `NonceTooLowError` together with a real stale nonce, so match the node text.
+const ALREADY_SUBMITTED_PATTERN = /transaction already imported|already known/i;
+
+// A nonce the chain has already used: the node's "nonce too low", or viem's
+// `NonceTooLowError` short message. Usually the wallet picked it because its
+// node had not yet seen the previous, just-mined transaction, so the node
+// rejected it before broadcast. viem uses the same short message for "already
+// known", so a chain that also carries ALREADY_SUBMITTED_PATTERN is not stale.
+const STALE_NONCE_PATTERN = /nonce too low|lower than the current nonce/i;
+
+function frameMessageMatches(frame: unknown, pattern: RegExp): boolean {
+  if (typeof frame === "string") return pattern.test(frame);
+  if (frame === null || typeof frame !== "object") return false;
+  const { message } = frame as { message?: unknown };
+  return typeof message === "string" && pattern.test(message);
+}
 
 // ETH-side insufficient-funds wording. Mirrors viem's own
 // `InsufficientFundsError.nodeMessage` regex; callers must first filter out
@@ -107,7 +123,8 @@ type ErrorKind =
   | "receipt-timeout" // viem WaitForTransactionReceiptTimeoutError
   | "network" // transport failure: HttpRequestError / WebSocketRequestError / SocketClosedError / viem TimeoutError
   | "rpc-error" // node/provider JSON-RPC failure via RpcRequestError — not the user's connection
-  | "already-submitted" // nonce-too-low / "already known" — the tx is already in the mempool
+  | "already-submitted" // "already known" / "already imported" — the tx is already in the mempool
+  | "stale-nonce" // "nonce too low" — the wallet signed with a nonce the chain already used
   | "stale-deploy"; // Vite dynamic-import 404 after redeploy
 
 const FRIENDLY_MESSAGES: Record<ErrorKind, string> = {
@@ -120,6 +137,7 @@ const FRIENDLY_MESSAGES: Record<ErrorKind, string> = {
   network: COPY.common.classifiedErrors.network,
   "rpc-error": COPY.common.classifiedErrors.rpcError,
   "already-submitted": COPY.common.classifiedErrors.alreadySubmitted,
+  "stale-nonce": COPY.common.classifiedErrors.staleNonce,
   "stale-deploy": COPY.common.classifiedErrors.staleDeploy,
 };
 
@@ -217,17 +235,25 @@ function classifyFrame(frame: unknown): ErrorKind | null {
     return "receipt-timeout";
   }
 
-  // Nonce-too-low / "already known" — the tx is already in the mempool (or
-  // mined). "Retry" would re-send and reproduce it, so point the user at
-  // their wallet / an explorer. viem folds these into NonceTooLowError; raw
-  // providers surface the message unwrapped. (NonceTooHigh is a gap, not a
-  // duplicate, so it stays in the generic rpc-error retry bucket.)
+  // "Already known" — the tx is already in the mempool (or mined). "Retry"
+  // would re-send and reproduce it, so point the user at their wallet / an
+  // explorer. A stale nonce usually means the wallet was behind. viem
+  // folds both into NonceTooLowError and raw providers surface the message
+  // unwrapped, so the node text below this frame decides which one it is.
+  // (NonceTooHigh is a gap, not a duplicate, so it stays in the generic
+  // rpc-error retry bucket.)
+  if (frameMessageMatches(obj, ALREADY_SUBMITTED_PATTERN)) {
+    return "already-submitted";
+  }
   if (
     obj.name === "NonceTooLowError" ||
-    (typeof obj.message === "string" &&
-      ALREADY_SUBMITTED_PATTERN.test(obj.message))
+    frameMessageMatches(obj, STALE_NONCE_PATTERN)
   ) {
-    return "already-submitted";
+    return chainMatchesFrame(obj, (frame) =>
+      frameMessageMatches(frame, ALREADY_SUBMITTED_PATTERN),
+    )
+      ? "already-submitted"
+      : "stale-nonce";
   }
 
   // Transport failures — "check your connection" is only honest here.
@@ -501,12 +527,13 @@ export function formatErrorMessage(error: unknown): string {
 /**
  * Format payout signature errors with user-friendly messages. Typed
  * classifications run first (VP RPC, top-frame typed user rejection,
- * deposit-terms rejection, lifecycle refusal, depositor mismatch), then the
- * cause-walking method-not-supported check, then message-level matching.
+ * deposit-terms rejection, lifecycle refusal, depositor wallet and Bitcoin-key
+ * mismatch), then the cause-walking method-not-supported check, then
+ * message-level matching.
  *
  * Same typed-bucket ORDER as `mapDepositError`, not identical behaviour: the
  * deposit mapper additionally walks `cause` for cancellation wording (its
- * broadcast step re-wraps wallet errors); this mapper is deliberately
+ * Pre-PegIn sign stage re-wraps wallet errors); this mapper is deliberately
  * code-only for rejections (#1484) because nothing on the presign path
  * re-wraps, and a wording match would misread other wallet codes.
  */
@@ -552,6 +579,12 @@ export function formatPayoutSignatureError(error: unknown): {
   // user-fixable error the rebuild can throw, so it never hits the fallback.
   if (isDepositorWalletMismatchError(error)) {
     return PSE.wrongDepositorWallet;
+  }
+
+  // Typed depositor Bitcoin-key refusal. The connected Bitcoin wallet is not
+  // the one that registered the deposit.
+  if (isDepositorBtcKeyMismatchError(error)) {
+    return PSE.wrongDepositorBtcWallet;
   }
 
   // Top-frame device code — before both cause walks, so an outer device error

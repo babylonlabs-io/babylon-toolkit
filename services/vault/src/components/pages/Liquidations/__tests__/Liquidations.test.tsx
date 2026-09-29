@@ -1,7 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { MIN_HEALTH_FACTOR_FOR_BORROW } from "@/applications/aave/constants";
 import { calculate } from "@/applications/aave/positionNotifications";
 import type { CalculatorParams } from "@/applications/aave/positionNotifications/types";
 import { formatHealthFactor } from "@/applications/aave/utils";
@@ -18,20 +17,35 @@ import { formatBtcAmount, formatPriceUsd, formatUsd } from "@/utils/formatting";
  * could.
  */
 
-const useConnectionMock = vi.fn();
-const useETHWalletMock = vi.fn();
+const walletMock = vi.hoisted(() => ({
+  btcConnected: false,
+  ethConnected: false,
+  confirmed: false,
+  address: undefined as string | undefined,
+}));
 const useDashboardStateMock = vi.fn();
 const usePositionNotificationsMock = vi.fn();
 const usePositionCascadeOverrideMock = vi.fn();
 const useLiquidationPositionOverrideMock = vi.fn();
 
-vi.mock("@/context/wallet", () => ({
-  useConnection: () => useConnectionMock(),
-  useETHWallet: () => useETHWalletMock(),
+vi.mock("@babylonlabs-io/wallet-connector", () => ({
+  useWalletConnect: () => ({ connected: walletMock.confirmed }),
+  useBTCWallet: () => ({ connected: walletMock.btcConnected }),
+  useETHWallet: () => ({
+    connected: walletMock.ethConnected,
+    address: walletMock.address,
+  }),
+}));
+
+// The real gate, so `useConnection` decides what this page counts as
+// connected. A hand-supplied `isConnected` would pass whatever the gate's rule.
+vi.mock("@/context/wallet", async () => ({
+  useConnection: (await import("@/context/wallet/useConnection")).useConnection,
+  useETHWallet: (await import("@babylonlabs-io/wallet-connector")).useETHWallet,
 }));
 
 vi.mock("@/hooks/useDashboardState", () => ({
-  useDashboardState: () => useDashboardStateMock(),
+  useDashboardState: (address: unknown) => useDashboardStateMock(address),
 }));
 
 vi.mock("@/applications/aave/hooks/usePositionNotifications", () => ({
@@ -54,18 +68,26 @@ const useBtcPriceCandlesMock = vi.fn();
 
 vi.mock("@/applications/aave/hooks/useBtcPriceCandles", () => ({
   useBtcPriceCandles: () => useBtcPriceCandlesMock(),
+  TIMELINE_VISIBLE_CANDLES: 365,
 }));
+
+/** Whether the deposit dialog or the loan overlay is open over the page. */
+const openDialogs = vi.hoisted(() => ({ deposit: false, loan: false }));
 
 vi.mock("@/hooks/useLoanActions", () => ({
   useLoanActions: () => ({
     openBorrowPicker: vi.fn(),
     openRepay: vi.fn(),
     goToReserve: vi.fn(),
+    isLoanFlowOpen: openDialogs.loan,
   }),
 }));
 
 vi.mock("react-router", () => ({
-  useOutletContext: () => ({ openDeposit: vi.fn() }),
+  useOutletContext: () => ({
+    openDeposit: vi.fn(),
+    isDepositOpen: openDialogs.deposit,
+  }),
 }));
 
 vi.mock("@/components/shared", () => ({
@@ -114,8 +136,9 @@ const LIVE_PARAMS: CalculatorParams = {
   ],
   CF: 0.75,
   THF: 1.1,
-  maxLB: 1.05,
+  LB: 1.05,
   expectedHF: 0.95,
+  minPeginBtc: 0.0005,
 };
 const LIVE_RESULT = calculate(LIVE_PARAMS);
 const [firstGroup, secondGroup] = LIVE_RESULT.groups;
@@ -124,7 +147,6 @@ const CONNECTED_WITH_CASCADE = {
   collateralBtc: 1,
   collateralValueUsd: 61_722.5,
   debtValueUsd: 44_287.72,
-  maxTotalDebtUsd: 46_291.88,
   healthFactor: LIVE_RESULT.currentHF,
   healthFactorStatus: "safe" as const,
   hasCollateral: true,
@@ -154,8 +176,9 @@ const GOD_MODE_PARAMS: CalculatorParams = {
   vaults: [{ id: "god-vault-1", name: "God Vault 1", btc: 2 }],
   CF: 0.5,
   THF: 1.1,
-  maxLB: 1.05,
+  LB: 1.05,
   expectedHF: 0.95,
+  minPeginBtc: 0.0005,
 };
 const GOD_MODE_RESULT = calculate(GOD_MODE_PARAMS);
 
@@ -188,8 +211,17 @@ function setPrice(price: number) {
 }
 
 function connectWallet() {
-  useConnectionMock.mockReturnValue({ isConnected: true });
-  useETHWalletMock.mockReturnValue({ address: "0xabc" });
+  walletMock.btcConnected = true;
+  walletMock.ethConnected = true;
+  walletMock.confirmed = true;
+  walletMock.address = "0xabc";
+}
+
+function disconnectWallet() {
+  walletMock.btcConnected = false;
+  walletMock.ethConnected = false;
+  walletMock.confirmed = false;
+  walletMock.address = undefined;
 }
 
 /** Manual mode off, matching the real store's default (untouched in production). */
@@ -223,9 +255,236 @@ function enablePositionOverride() {
   useLiquidationPositionOverrideMock.mockReturnValue(POSITION_OVERRIDE);
 }
 
+beforeEach(() => {
+  localStorage.setItem("tbv-liquidation-tour-seen", "true");
+});
+
+afterEach(() => {
+  localStorage.removeItem("tbv-liquidation-tour-seen");
+});
+
+describe("Liquidation Dashboard tour", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.removeItem("tbv-liquidation-tour-seen");
+    openDialogs.deposit = false;
+    openDialogs.loan = false;
+    connectWallet();
+    disableGodMode();
+    disablePositionOverride();
+    useDashboardStateMock.mockReturnValue(CONNECTED_WITH_CASCADE);
+    usePositionNotificationsMock.mockReturnValue(READY_NOTIFICATIONS);
+    useBtcPriceCandlesMock.mockReturnValue({
+      candles: CANDLES,
+      isLoading: false,
+      error: null,
+    });
+  });
+
+  it("welcomes the first visitor when the analysis is ready", async () => {
+    render(<Liquidations />);
+
+    expect(
+      await screen.findByRole("dialog", {
+        name: COPY.liquidations.tour.welcomeTitle,
+      }),
+    ).toBeVisible();
+    expect(
+      screen.getByText(COPY.liquidations.tour.welcomeBody),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: COPY.liquidations.tour.start }),
+    ).toBeVisible();
+    expect(localStorage.getItem("tbv-liquidation-tour-seen")).toBeNull();
+  });
+
+  it("keeps the welcome open after a click outside its card", async () => {
+    render(<Liquidations />);
+    const welcome = await screen.findByRole("dialog", {
+      name: COPY.liquidations.tour.welcomeTitle,
+    });
+    const backdrop = welcome.querySelector(":scope > svg");
+    if (!backdrop) throw new Error("The tour renders no dimmed backdrop.");
+
+    fireEvent.click(backdrop);
+
+    expect(welcome).toBeVisible();
+    expect(localStorage.getItem("tbv-liquidation-tour-seen")).toBeNull();
+  });
+
+  it.each(["deposit", "loan"] as const)(
+    "waits while the %s dialog is open and welcomes once it closes",
+    async (dialog) => {
+      openDialogs[dialog] = true;
+      const { rerender } = render(<Liquidations />);
+
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(localStorage.getItem("tbv-liquidation-tour-seen")).toBeNull();
+
+      openDialogs[dialog] = false;
+      rerender(<Liquidations />);
+
+      expect(
+        await screen.findByRole("dialog", {
+          name: COPY.liquidations.tour.welcomeTitle,
+        }),
+      ).toBeVisible();
+    },
+  );
+
+  it.each(["notNow", "close", "escape"] as const)(
+    "keeps the welcome dismissed after %s and a remount",
+    async (action) => {
+      const { unmount } = render(<Liquidations />);
+      const welcome = await screen.findByRole("dialog", {
+        name: COPY.liquidations.tour.welcomeTitle,
+      });
+
+      if (action === "escape") {
+        fireEvent.keyDown(welcome, { key: "Escape" });
+      } else {
+        fireEvent.click(
+          screen.getByRole("button", { name: COPY.liquidations.tour[action] }),
+        );
+      }
+
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(localStorage.getItem("tbv-liquidation-tour-seen")).toBe("true");
+      unmount();
+      render(<Liquidations />);
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    },
+  );
+
+  it("waits while disconnected and welcomes once the wallet connects", async () => {
+    disconnectWallet();
+    const { rerender } = render(<Liquidations />);
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(localStorage.getItem("tbv-liquidation-tour-seen")).toBeNull();
+
+    connectWallet();
+    rerender(<Liquidations />);
+
+    expect(
+      await screen.findByRole("dialog", {
+        name: COPY.liquidations.tour.welcomeTitle,
+      }),
+    ).toBeVisible();
+  });
+
+  it("waits while there is no collateral and welcomes once it exists", async () => {
+    useDashboardStateMock.mockReturnValue({
+      ...CONNECTED_WITH_CASCADE,
+      hasCollateral: false,
+    });
+    const { rerender } = render(<Liquidations />);
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(localStorage.getItem("tbv-liquidation-tour-seen")).toBeNull();
+
+    useDashboardStateMock.mockReturnValue(CONNECTED_WITH_CASCADE);
+    rerender(<Liquidations />);
+
+    expect(
+      await screen.findByRole("dialog", {
+        name: COPY.liquidations.tour.welcomeTitle,
+      }),
+    ).toBeVisible();
+  });
+
+  it("waits while there is no loan and welcomes once one exists", async () => {
+    useDashboardStateMock.mockReturnValue({
+      ...CONNECTED_WITH_CASCADE,
+      hasLoans: false,
+    });
+    const { rerender } = render(<Liquidations />);
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(localStorage.getItem("tbv-liquidation-tour-seen")).toBeNull();
+
+    useDashboardStateMock.mockReturnValue(CONNECTED_WITH_CASCADE);
+    rerender(<Liquidations />);
+
+    expect(
+      await screen.findByRole("dialog", {
+        name: COPY.liquidations.tour.welcomeTitle,
+      }),
+    ).toBeVisible();
+  });
+
+  it("waits while the analysis is unavailable and welcomes once it is ready", async () => {
+    usePositionNotificationsMock.mockReturnValue({
+      ...READY_NOTIFICATIONS,
+      result: null,
+      params: null,
+      status: "stale-price",
+    });
+    const { rerender } = render(<Liquidations />);
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(localStorage.getItem("tbv-liquidation-tour-seen")).toBeNull();
+
+    usePositionNotificationsMock.mockReturnValue(READY_NOTIFICATIONS);
+    rerender(<Liquidations />);
+
+    expect(
+      await screen.findByRole("dialog", {
+        name: COPY.liquidations.tour.welcomeTitle,
+      }),
+    ).toBeVisible();
+  });
+
+  it("waits while the position loads and welcomes once it has loaded", async () => {
+    useDashboardStateMock.mockReturnValue({
+      ...CONNECTED_WITH_CASCADE,
+      isLoading: true,
+    });
+    const { rerender } = render(<Liquidations />);
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(localStorage.getItem("tbv-liquidation-tour-seen")).toBeNull();
+
+    useDashboardStateMock.mockReturnValue(CONNECTED_WITH_CASCADE);
+    rerender(<Liquidations />);
+
+    expect(
+      await screen.findByRole("dialog", {
+        name: COPY.liquidations.tour.welcomeTitle,
+      }),
+    ).toBeVisible();
+  });
+
+  it("waits while the candles load and welcomes once they have loaded", async () => {
+    useBtcPriceCandlesMock.mockReturnValue({
+      candles: null,
+      isLoading: true,
+      error: null,
+    });
+    const { rerender } = render(<Liquidations />);
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(localStorage.getItem("tbv-liquidation-tour-seen")).toBeNull();
+
+    useBtcPriceCandlesMock.mockReturnValue({
+      candles: CANDLES,
+      isLoading: false,
+      error: null,
+    });
+    rerender(<Liquidations />);
+
+    expect(
+      await screen.findByRole("dialog", {
+        name: COPY.liquidations.tour.welcomeTitle,
+      }),
+    ).toBeVisible();
+  });
+});
+
 describe("Liquidation Dashboard — connection and position gates", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    disconnectWallet();
     useBtcPriceCandlesMock.mockReturnValue({
       candles: CANDLES,
       isLoading: false,
@@ -236,8 +495,8 @@ describe("Liquidation Dashboard — connection and position gates", () => {
   });
 
   it("renders the connect empty state and no chart while disconnected", () => {
-    useConnectionMock.mockReturnValue({ isConnected: false });
-    useETHWalletMock.mockReturnValue({ address: undefined });
+    disconnectWallet();
+    walletMock.address = "0xabc";
     useDashboardStateMock.mockReturnValue({
       ...CONNECTED_WITH_CASCADE,
       hasCollateral: false,
@@ -254,6 +513,7 @@ describe("Liquidation Dashboard — connection and position gates", () => {
 
     const emptyState = screen.getByTestId("liquidations-empty-state");
     expect(emptyState).toHaveAttribute("data-connected", "false");
+    expect(useDashboardStateMock).toHaveBeenCalledWith(undefined);
     expect(
       screen.getByText(COPY.liquidations.emptyDisconnected),
     ).toBeInTheDocument();
@@ -302,6 +562,39 @@ describe("Liquidation Dashboard — connection and position gates", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("shows a loader instead of the chart while candles load", () => {
+    connectWallet();
+    useDashboardStateMock.mockReturnValue(CONNECTED_WITH_CASCADE);
+    usePositionNotificationsMock.mockReturnValue(READY_NOTIFICATIONS);
+    useBtcPriceCandlesMock.mockReturnValue({
+      candles: null,
+      isLoading: true,
+      error: null,
+    });
+
+    const { container } = render(<Liquidations />);
+
+    expect(container.querySelector(".bbn-loader")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("liq-current-price-line"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("charts the live position for Ethereum alone", () => {
+    connectWallet();
+    walletMock.btcConnected = false;
+    useDashboardStateMock.mockReturnValue(CONNECTED_WITH_CASCADE);
+    usePositionNotificationsMock.mockReturnValue(READY_NOTIFICATIONS);
+
+    render(<Liquidations />);
+
+    expect(useDashboardStateMock).toHaveBeenCalledWith("0xabc");
+    expect(screen.getByTestId("liq-current-price-line")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("liquidations-empty-state"),
+    ).not.toBeInTheDocument();
+  });
+
   it("draws the candle series and the safe zone above the first trigger", () => {
     connectWallet();
     useDashboardStateMock.mockReturnValue(CONNECTED_WITH_CASCADE);
@@ -325,6 +618,19 @@ describe("Liquidation Dashboard — connection and position gates", () => {
       screen.getByText(
         `${COPY.liquidations.eventTitle(1)} (${formatBtcAmount(firstGroup.combinedBtc)})`,
       ),
+    ).toBeInTheDocument();
+  });
+
+  it("exposes the timeline's zoom controls, including Reset view", () => {
+    connectWallet();
+    useDashboardStateMock.mockReturnValue(CONNECTED_WITH_CASCADE);
+    usePositionNotificationsMock.mockReturnValue(READY_NOTIFICATIONS);
+
+    render(<Liquidations />);
+
+    expect(screen.getByRole("button", { name: "Zoom in" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Reset view" }),
     ).toBeInTheDocument();
   });
 
@@ -635,6 +941,7 @@ describe("Liquidation Dashboard — no cascade to chart", () => {
 describe("Liquidation Dashboard god mode", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    disconnectWallet();
     useBtcPriceCandlesMock.mockReturnValue({
       candles: CANDLES,
       isLoading: false,
@@ -645,8 +952,7 @@ describe("Liquidation Dashboard god mode", () => {
   });
 
   it("charts the god-mode cascade without a wallet or a real position, bypassing every empty-state gate", () => {
-    useConnectionMock.mockReturnValue({ isConnected: false });
-    useETHWalletMock.mockReturnValue({ address: undefined });
+    disconnectWallet();
     useDashboardStateMock.mockReturnValue({
       ...CONNECTED_WITH_CASCADE,
       hasCollateral: false,
@@ -769,20 +1075,12 @@ describe("Liquidation Dashboard position override", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("derives the USD caption and the borrowed-meter percentage from the override and the live BTC price", () => {
-    // maxTotalDebtUsd = debtUsd * HF / MIN_HEALTH_FACTOR_FOR_BORROW (mirrors
-    // calculateBorrowCapacityUsd — see the comment on that derivation), so
-    // borrowedRatio = debtUsd / maxTotalDebtUsd = MIN_HEALTH_FACTOR_FOR_BORROW
-    // / HF, computed here from the real constant rather than a hardcoded
-    // percentage so this test tracks it if it ever changes.
+  it("derives the USD caption from the override and the live BTC price", () => {
     const override: LiquidationPositionOverride = {
       collateralBtc: 2,
       debtUsd: 44_287.72,
       healthFactor: 1.1,
     };
-    const expectedBorrowedPercent = Math.round(
-      (MIN_HEALTH_FACTOR_FOR_BORROW / override.healthFactor) * 100,
-    );
     useLiquidationPositionOverrideMock.mockReturnValue(override);
 
     render(<Liquidations />);
@@ -792,16 +1090,10 @@ describe("Liquidation Dashboard position override", () => {
         `${formatUsd(override.collateralBtc * LIVE_PARAMS.btcPrice)} USD`,
       ),
     ).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        COPY.overview.borrowedMeterLabel(expectedBorrowedPercent),
-      ),
-    ).toBeInTheDocument();
   });
 
   it("leaves the USD caption absent (not a fabricated $0.00) when no BTC price is available", () => {
-    useConnectionMock.mockReturnValue({ isConnected: false });
-    useETHWalletMock.mockReturnValue({ address: undefined });
+    disconnectWallet();
     usePositionNotificationsMock.mockReturnValue({
       ...READY_NOTIFICATIONS,
       result: null,

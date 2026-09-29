@@ -5,7 +5,7 @@
  * cycle
  * (chunked at `VP_BATCH_MAX_SIZE`), grouping redeemed vaults by their
  * vault provider. Stops polling when all vaults reach a terminal status
- * (PayoutBroadcast or Failed) or exceed consecutive failure /
+ * (PayoutConfirmed or PayoutBlocked) or exceed consecutive failure /
  * unknown-status thresholds.
  */
 

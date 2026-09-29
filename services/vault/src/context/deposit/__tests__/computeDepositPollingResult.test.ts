@@ -5,11 +5,13 @@ import {
   type DepositPollingInputs,
 } from "@/context/deposit/computeDepositPollingResult";
 import { COPY } from "@/copy";
+import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps/types";
 import {
   ContractStatus,
   LocalStorageStatus,
   PEGIN_DISPLAY_LABELS,
   PeginAction,
+  getPeginProgressStep,
 } from "@/models/peginStateMachine";
 import type { VaultActivity } from "@/types/activity";
 import { canonicalizeTxid } from "@/utils/txid";
@@ -67,6 +69,74 @@ function makeInputs(
     ...overrides,
   };
 }
+
+describe("computeDepositPollingResult — payout-signed anchor", () => {
+  it("carries the stored payoutSignedAt onto the pegin state", () => {
+    const result = computeDepositPollingResult(
+      makeInputs({
+        pendingPegins: [
+          {
+            id: VAULT_ID,
+            peginTxHash: PEGIN_TX,
+            timestamp: 1_700_000_000_000,
+            status: LocalStorageStatus.PAYOUT_SIGNED,
+            payoutSignedAt: 1_700_000_060_000,
+            unsignedTxHex: "0x00",
+          },
+        ],
+      }),
+    );
+    expect(result.peginState.payoutSignedAt).toBe(1_700_000_060_000);
+  });
+
+  const SIGNED_AT = Date.parse("2026-07-27T12:00:00Z");
+
+  function makeReloadedAfterSigningInputs(): DepositPollingInputs {
+    return makeInputs({
+      activity: {
+        ...makeExpiredActivity(),
+        displayLabel: PEGIN_DISPLAY_LABELS.PENDING,
+        contractStatus: ContractStatus.PENDING,
+      },
+      matureRefundTxids: new Set(),
+      confirmedTxids: new Set([CANONICAL_PREPEGIN]),
+      // The reload dropped the session store, so only the persisted stamp is
+      // left to hold the bar while the VP still asks for signatures.
+      pendingDepositorSignatures: new Set([VAULT_ID]),
+      pendingPegins: [
+        {
+          id: VAULT_ID,
+          peginTxHash: PEGIN_TX,
+          timestamp: SIGNED_AT,
+          status: LocalStorageStatus.PAYOUT_SIGNED,
+          payoutSignedAt: SIGNED_AT,
+          unsignedTxHex: "0x00",
+        },
+      ],
+    });
+  }
+
+  it("holds the progress bar at VP verification after a reload inside the window", () => {
+    const result = computeDepositPollingResult(
+      makeReloadedAfterSigningInputs(),
+    );
+    expect(result.peginState.availableActions).toContain(
+      PeginAction.SIGN_PAYOUT_TRANSACTIONS,
+    );
+    expect(
+      getPeginProgressStep(result.peginState, SIGNED_AT + 5 * 60 * 1000),
+    ).toBe(DepositFlowStep.AWAIT_VP_VERIFICATION);
+  });
+
+  it("lets the progress bar fall back to signing once the stamp is past the window", () => {
+    const result = computeDepositPollingResult(
+      makeReloadedAfterSigningInputs(),
+    );
+    expect(
+      getPeginProgressStep(result.peginState, SIGNED_AT + 21 * 60 * 1000),
+    ).toBe(DepositFlowStep.SIGN_AUTH_ANCHOR);
+  });
+});
 
 describe("computeDepositPollingResult — refund settlement", () => {
   it("offers the refund action for a mature EXPIRED vault whose HTLC is unspent", () => {
@@ -364,9 +434,9 @@ describe("computeDepositPollingResult — unresolved protocol params", () => {
  * existing. The equivalent tests at the provider and store levels need
  * `vi.useFakeTimers`, because they exercise the `Date.now()` default; these do
  * not, and that is what makes this module's "pure per-deposit compute" header
- * true in practice rather than only in the type. Same shape as
- * `isRefundBroadcastWithinTtl`'s `now`, which `peginStateMachine.test.ts`
- * exercises the same way.
+ * true in practice rather than only in the type. Same shape as the refund
+ * suppression's `now`, which `peginStateMachine.test.ts` exercises the same
+ * way.
  */
 describe("computeDepositPollingResult — WOTS suppression clock", () => {
   const SUBMITTED_AT = Date.parse("2026-07-27T12:00:00Z");
@@ -444,6 +514,105 @@ describe("computeDepositPollingResult — refund suppression clock", () => {
     );
     expect(result.peginState.availableActions).toContain(
       PeginAction.REFUND_HTLC,
+    );
+  });
+});
+
+describe("computeDepositPollingResult — PegIn sweep after expiry", () => {
+  // An expired vault whose HTLC the PegIn spent. Reachable when a late
+  // activation leaked the secret: the call reverted, the vault expired with
+  // ActivationTimeout, and that secret let the PegIn be broadcast.
+  function makeSweptInputs(overrides: Partial<DepositPollingInputs> = {}) {
+    return makeInputs({
+      activity: { ...makeExpiredActivity(), peginTxHash: PEGIN_TX },
+      htlcRefundByDepositId: new Map([
+        [
+          VAULT_ID.toLowerCase(),
+          { spent: true, confirmed: true, spendingTxid: PEGIN_TX },
+        ],
+      ]),
+      ...overrides,
+    });
+  }
+
+  it("does not report a refund when the PegIn is the spender", () => {
+    const result = computeDepositPollingResult(makeSweptInputs());
+    expect(result.peginState.displayLabel).not.toBe(
+      PEGIN_DISPLAY_LABELS.REFUNDED,
+    );
+    expect(result.peginState.displayLabel).toBe(
+      PEGIN_DISPLAY_LABELS.ACTIVATION_INCOMPLETE,
+    );
+    expect(result.peginState.message).toBe(
+      COPY.pegin.messages.peginSweptWhileExpired,
+    );
+  });
+
+  it("shows the sweep, not a pending refund, while the PegIn spend is unconfirmed", () => {
+    // Before attribution an unconfirmed spend read as a refund in flight
+    // ("Refunding"). With the PegIn as spender it is the sweep, and the refund
+    // action stays hidden because the outpoint is already contested.
+    const result = computeDepositPollingResult(
+      makeSweptInputs({
+        htlcRefundByDepositId: new Map([
+          [
+            VAULT_ID.toLowerCase(),
+            { spent: true, confirmed: false, spendingTxid: PEGIN_TX },
+          ],
+        ]),
+      }),
+    );
+    expect(result.peginState.displayLabel).toBe(
+      PEGIN_DISPLAY_LABELS.ACTIVATION_INCOMPLETE,
+    );
+    expect(result.peginState.availableActions).not.toContain(
+      PeginAction.REFUND_HTLC,
+    );
+  });
+
+  it("still reports a refund when someone other than the PegIn spent the HTLC", () => {
+    const result = computeDepositPollingResult(
+      makeSweptInputs({
+        htlcRefundByDepositId: new Map([
+          [
+            VAULT_ID.toLowerCase(),
+            { spent: true, confirmed: true, spendingTxid: REFUND_TX },
+          ],
+        ]),
+      }),
+    );
+    expect(result.peginState.displayLabel).toBe(PEGIN_DISPLAY_LABELS.REFUNDED);
+  });
+
+  it("keeps the previous behaviour when the spender cannot be identified", () => {
+    // No `spendingTxid` is ambiguous, not proof of a sweep. Suppressing the
+    // refund label here would strip the action from every depositor whose
+    // probe happens to omit the field.
+    const result = computeDepositPollingResult(
+      makeSweptInputs({
+        htlcRefundByDepositId: new Map([
+          [VAULT_ID.toLowerCase(), { spent: true, confirmed: true }],
+        ]),
+      }),
+    );
+    expect(result.peginState.displayLabel).toBe(PEGIN_DISPLAY_LABELS.REFUNDED);
+  });
+
+  it("leaves an unexpired vault's sweep handling untouched", () => {
+    // The VERIFIED path has its own stuck-state branch gated on a chain
+    // confirmation; the expiry attribution must not reach into it.
+    const result = computeDepositPollingResult(
+      makeSweptInputs({
+        activity: {
+          ...makeExpiredActivity(),
+          contractStatus: ContractStatus.VERIFIED,
+          peginTxHash: PEGIN_TX,
+        },
+        stuckStateConfirmedOnChain: false,
+      }),
+    );
+    expect(result.peginState.displayLabel).not.toBe(
+      PEGIN_DISPLAY_LABELS.ACTIVATION_INCOMPLETE,
     );
   });
 });

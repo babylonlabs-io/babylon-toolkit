@@ -3,9 +3,10 @@
  *
  * Citation legend — `base:` = LedgerHQ/app-bitcoin `baseapp` @ `e400d8d8` (the
  * vault app's submodule pin, paths under `src/`); `sdk:` = LedgerHQ/ledger-secure-sdk
- * @ `v26.6.0` — the SDK the app's CI image compiles in (`ledger-app-builder-lite:latest`,
- * `lite/Dockerfile:3-7` @ 786151a7f; run 32839601193 for eacb873b6); unprefixed `.c`
- * paths are LedgerHQ/app-babylon-vault @ `eacb873b6`.
+ * @ tag `v26.6.1` of https://github.com/LedgerHQ/ledger-secure-sdk — the SDK the app
+ * builds against (all five 0.10.1 release tags record `SDK version: v26.6.1`);
+ * unprefixed `.c` paths are
+ * LedgerHQ/app-babylon-vault @ `b0c0ac4d` (app 0.10.1).
  */
 
 import {
@@ -41,10 +42,12 @@ import {
   isSessionAlive,
   prepareSignPsbt,
   psbtPaysChangeScript,
+  refreshSessionApp,
   signPreparedVaultPsbt,
   SW_BAD_STATE,
   SW_CAP_EXCEEDED,
   SW_CLA_NOT_SUPPORTED,
+  SW_INS_NOT_SUPPORTED,
   type ApduSender,
   type DefaultTaprootWalletPolicy,
   type DepositTerms,
@@ -59,6 +62,7 @@ import {
 
 import type { IBTCProvider, InscriptionIdentifier, SigningProgress, SignPsbtOptions } from "@/core/types";
 import { Network } from "@/core/types";
+import { checkMinVersion } from "@/core/utils/checkMinVersion";
 import { getTaprootAddress, toNetwork } from "@/core/utils/wallet";
 import { ERROR_CODES, WalletError } from "@/error";
 
@@ -77,6 +81,18 @@ const COIN_TYPE_BY_NETWORK: Record<Network, number> = {
   [Network.TESTNET]: 1,
   [Network.SIGNET]: 1,
 };
+
+// Firmware Makefile APPNAME: COIN=babylon_vault → "Babylon Vault"; COIN=babylon_vault_testnet
+// (which targets signet) → "Babylon Vault Testnet". The dashboard reports "BOLOS".
+export const APP_NAME_BY_NETWORK: Record<Network, string> = {
+  [Network.MAINNET]: "Babylon Vault",
+  [Network.TESTNET]: "Babylon Vault Testnet",
+  [Network.SIGNET]: "Babylon Vault Testnet",
+};
+
+// Floor = app-babylon-vault develop @ b0c0ac4d (APPVERSION 0.10.1), the build the host's
+// envelope caps and refund checks are mirrored from.
+const MIN_APP_VERSION = "0.10.1";
 const ACCOUNT_INDEX = 0;
 const CHANGE_INDEX = 0;
 const ADDRESS_INDEX = 0;
@@ -100,9 +116,9 @@ type DeviceIntentState =
       phase: "intent-loaded";
       termsKey: string;
       /** Internal-order hex of the intent's Pre-PegIn txid — under INTENT_LOADED the
-       * device pins a refund's input 0 prevout to it (`sign_psbt_validate.c:1076-1081`). */
+       * device pins a refund's input 0 prevout to it (`sign_psbt_validate.c:1092-1097`). */
       prepeginTxidInternalHex: string;
-      /** The approved `htlc_refund_timelock` — the device pins a refund leaf's CSV to it (`:888-903`). */
+      /** The approved `htlc_refund_timelock` — the device pins a refund leaf's CSV to it (`:902-916`). */
       htlcRefundTimelock: number;
     };
 
@@ -205,7 +221,8 @@ export class LedgerVaultProvider implements IBTCProvider {
   /** Request-identity keys ({@link signingRequestKey}) signed under the CURRENT loaded intent. */
   private signedFingerprints = new Set<string>();
   /**
-   * ONE in-flight device ceremony (derive/approve/sign) at a time — a
+   * ONE in-flight device ceremony (derive/approve/sign, plus the connect
+   * re-gate's app read) at a time — a
    * concurrent APDU would be eaten with 0x6A80 and desync the interrupt loop.
    * Token-scoped: teardown clears it SYNCHRONOUSLY so a new connection can
    * operate while a stale call is still settling; that call's finally
@@ -220,8 +237,14 @@ export class LedgerVaultProvider implements IBTCProvider {
   constructor(private readonly network: Network = Network.MAINNET) {}
 
   /**
-   * See {@link activeOperation}. The busy throw costs zero device I/O; it
-   * fires only on a caller bug (two overlapping ceremonies).
+   * See {@link activeOperation}. The busy throw costs zero device I/O. Two
+   * overlapping ceremonies are a caller bug; {@link gateUngatedSession} also
+   * holds the lock for one GET_APP_AND_VERSION on a tab return, so a ceremony
+   * started in that window hits this legitimately. The window is one instant
+   * exchange: the SDK answers a locked device with 0x5515 before the app's
+   * dispatcher sees it (`sdk:io_legacy/src/os_io_legacy.c:414-423` @ v26.6.1),
+   * and DMK 1.7.1
+   * never holds the read for an unlock (IntentQueueService has no lock gating).
    */
   private async withDeviceOperation<T>(operation: string, fn: () => Promise<T>): Promise<T> {
     if (this.activeOperation) {
@@ -302,7 +325,13 @@ export class LedgerVaultProvider implements IBTCProvider {
     // Idempotent while the session lives: visibility checks re-call this
     // outside a user gesture, where WebHID's requestDevice rejects — tearing
     // down a healthy session would turn an alt-tab into a forced disconnect.
-    if (this.session && (await this.probeSessionAlive(this.session))) return;
+    // Pin the handle before the await: a disconnect mid-probe clears
+    // this.session synchronously, and the gate would deref undefined.
+    const live = this.session;
+    if (live && (await this.probeSessionAlive(live))) {
+      await this.gateUngatedSession(live, token);
+      return;
+    }
     // A disconnect during the probe means the caller no longer wants a
     // session — skip opening one at all.
     if (token !== this.disconnectToken) return;
@@ -311,19 +340,9 @@ export class LedgerVaultProvider implements IBTCProvider {
     // This bumps connectionGeneration (not the token — it is our own cleanup).
     if (this.session) await this.teardownSession();
 
+    let session: DmkSessionHandle;
     try {
-      const session = await connectDmkSession();
-      // A disconnect racing any await up to here (the probe, teardown, or this
-      // connect) bumped the token — tear the fresh session down rather than
-      // installing it behind a disconnected wallet.
-      if (token !== this.disconnectToken) {
-        await disconnectDmkSession(session);
-        return;
-      }
-      this.session = session;
-      this.send = withWalletErrorMapping(createDmkApduSender(session));
-      this.rawSend = createDmkRawApduSender(session);
-      this.connectionGeneration += 1;
+      session = await connectDmkSession();
     } catch (error) {
       // DMK errors don't extend Error — classify on `_tag`/`originalError`.
       // A dismissed WebHID picker becomes NoAccessibleDeviceError("No selected
@@ -338,7 +357,87 @@ export class LedgerVaultProvider implements IBTCProvider {
         wallet: WALLET_PROVIDER_NAME,
       });
     }
+
+    // A disconnect racing any await up to here (the probe, teardown, or the
+    // connect) bumped the token — tear the fresh session down rather than
+    // installing it behind a disconnected wallet.
+    if (token !== this.disconnectToken) {
+      await disconnectDmkSession(session);
+      return;
+    }
+    const refusal = this.refuseUnexpectedApp(session);
+    if (refusal) {
+      await disconnectDmkSession(session);
+      throw refusal;
+    }
+    this.session = session;
+    this.send = withWalletErrorMapping(createDmkApduSender(session));
+    this.rawSend = createDmkRawApduSender(session);
+    this.connectionGeneration += 1;
   };
+
+  /**
+   * A session installed after a failed preflight was never gated, and a
+   * retry (unlock, open an app, connect again) reuses it while it lives. Read
+   * the app now and gate it. The phase alone is not "no ceremony in flight"
+   * (derive, approve, PoP and refund all send at idle), so the read skips a
+   * running ceremony and holds the ceremony lock itself.
+   */
+  private async gateUngatedSession(session: DmkSessionHandle, token: number): Promise<void> {
+    // A disconnect that landed during the probe already owns the session.
+    if (token !== this.disconnectToken || this.session !== session) return;
+    if (session.appName !== undefined || this.activeOperation || this.deviceState.phase !== "idle") return;
+    const refreshed = await this.withDeviceOperation("connectWallet", () => refreshSessionApp(session));
+    // A disconnect or teardown during the read owns the session now.
+    if (token !== this.disconnectToken || this.session !== session) return;
+    const refusal = this.refuseUnexpectedApp(refreshed);
+    if (refusal) {
+      await this.teardownSession();
+      throw refusal;
+    }
+    // Nothing learned: the copy is equal, so leave the senders alone.
+    if (refreshed.appName === undefined) return;
+    // Same session: keep the generation, rebuild the senders so the app hint names the app.
+    this.session = refreshed;
+    this.send = withWalletErrorMapping(createDmkApduSender(refreshed));
+    this.rawSend = createDmkRawApduSender(refreshed);
+  }
+
+  /**
+   * Refuse, before the first vault APDU, an app the connect preflight shows is
+   * wrong or too old. A failed preflight (no name) is let through: the first
+   * APDU then reports its own typed error.
+   */
+  private refuseUnexpectedApp(session: DmkSessionHandle): WalletError | undefined {
+    const expected = APP_NAME_BY_NETWORK[this.network];
+    if (session.appName !== undefined && session.appName !== expected) {
+      return new WalletError({
+        code: ERROR_CODES.DEVICE_WRONG_APP,
+        message: `Open the ${expected} app on your Ledger and try again.`,
+        wallet: WALLET_PROVIDER_NAME,
+      });
+    }
+    if (session.appVersion === undefined) return undefined;
+    const version = checkMinVersion(session.appVersion, MIN_APP_VERSION);
+    if (version === "below") {
+      return new WalletError({
+        code: ERROR_CODES.INCOMPATIBLE_WALLET_VERSION,
+        message: `Your ${expected} app is out of date (${session.appVersion}). Update it to ${MIN_APP_VERSION} or later and try again.`,
+        wallet: WALLET_PROVIDER_NAME,
+        version: session.appVersion,
+      });
+    }
+    // Non-canonical version (fork or canary build): fail closed without claiming
+    // it is old, and do not echo the device's own string back to the user.
+    if (version === "unparseable") {
+      return new WalletError({
+        code: ERROR_CODES.INCOMPATIBLE_WALLET_VERSION,
+        message: `Unable to verify your ${expected} app version. Install the official app ${MIN_APP_VERSION} or later and try again.`,
+        wallet: WALLET_PROVIDER_NAME,
+      });
+    }
+    return undefined;
+  }
 
   /**
    * Release the device session; the DMK singleton stays up. `closeDmk()` here
@@ -417,7 +516,7 @@ export class LedgerVaultProvider implements IBTCProvider {
         this.assertSameConnection(generation);
         // Our two read paths must agree on the depositor key. The device does
         // byte-compare the policy xpub against its own derivation
-        // (`base:policy.c:1483-1495` @ e400d8d8, via `init_global_state.c:230-236`),
+        // (`base:policy.c:1483-1495` @ e400d8d8, via `base:init_global_state.c:230-236`),
         // but only at SIGN_PSBT — by then approveDepositTerms has already spent
         // the intent ceremony. This guards a host-side desync (depositorPath vs
         // accountPath, coin type, a refactor of either getter), not a device fault.
@@ -465,7 +564,7 @@ export class LedgerVaultProvider implements IBTCProvider {
 
   /**
    * Pre-PegIn change must sit on the BIP-86 change branch: the base app marks
-   * an output internal only there (`process_in_outs.c:114-117`), and
+   * an output internal only there (`base:process_in_outs.c:114-117`), and
    * `_validate_prepegin` accepts change only when internal. Derived host-side
    * from the device's verbatim account xpub; the device re-derives and
    * byte-compares the script at signing time.
@@ -482,7 +581,7 @@ export class LedgerVaultProvider implements IBTCProvider {
 
   /**
    * Derive the 32-byte context root, always with the approval screen — a
-   * silent derivation produces a root that can never load an intent.
+   * silent derivation returns no root, and the host needs it.
    */
   deriveContextHash = async (appName: string, context: string): Promise<string> =>
     this.withDeviceOperation("deriveContextHash", () => this.doDeriveContextHash(appName, context));
@@ -701,7 +800,7 @@ export class LedgerVaultProvider implements IBTCProvider {
    * wallet policy after {@link augmentPsbtForWalletPolicy} adds the derivation
    * fields. A refund — classified from the provider's OWN parse, never a
    * caller flag (#2371) — is the one standalone sign: the device accepts it
-   * with no loaded intent (`sign_psbt_validate.c:889-903`), so only the intent
+   * with no loaded intent (`sign_psbt_validate.c:902-916`), so only the intent
    * requirement is waived; every other gate still runs, and
    * {@link augmentPsbtForRefund} adds the derivation entries the device
    * requires. Never finalizes — the SDK extracts signatures and finalizes
@@ -747,7 +846,7 @@ export class LedgerVaultProvider implements IBTCProvider {
           new Set(),
           ctx.depositorXOnlyHex,
           // A refund routes to the device's standalone sign path in EVERY vault
-          // state (`sign_psbt_validate.c:3691` dispatch), and that path consumes
+          // state (`sign_psbt_validate.c:3718` dispatch), and that path consumes
           // no dedup mask or cap (`sign_custom_inputs.c`, standalone section —
           // contrast PegIn `:184` and Payout `:401`), so re-signing one is
           // always a fresh user-approved ceremony.
@@ -762,9 +861,9 @@ export class LedgerVaultProvider implements IBTCProvider {
 
   /**
    * Zero-I/O refund gates (#2371). The key check pre-empts the device's own
-   * derive-and-compare (`sign_psbt_validate.c:905-950`); the vault check
-   * pre-empts the INTENT_LOADED pins on the leaf CSV (`:893-897`) and input 0's
-   * prevout (`:1076-1081`) — both fire pre-approval on-device, but as an opaque
+   * derive-and-compare (`sign_psbt_validate.c:920-965`); the vault check
+   * pre-empts the INTENT_LOADED pins on the leaf CSV (`:906-910`) and input 0's
+   * prevout (`:1092-1097`) — both fire pre-approval on-device, but as an opaque
    * SW_INCORRECT_DATA whose failure path would also take {@link signStaged}'s
    * pessimistic mirror reset. Rejecting here keeps the typed error AND the
    * loaded intent. No automatic reset — tearing down a loaded ceremony is
@@ -974,14 +1073,6 @@ export class LedgerVaultProvider implements IBTCProvider {
         wallet: WALLET_PROVIDER_NAME,
       });
     }
-    // Buffer.from(hex) truncates silently — reject malformed input loudly.
-    if (!/^(?:[0-9a-fA-F]{2})+$/.test(psbtHex)) {
-      throw new WalletError({
-        code: ERROR_CODES.INVALID_PARAMS,
-        message: `${label} needs even-length hexadecimal; got ${psbtHex.length} chars.`,
-        wallet: WALLET_PROVIDER_NAME,
-      });
-    }
     // Carrying a leaf is not the same as being signed: since #2281 Payout input 1
     // carries the Assert payout leaf only so the device can display the terms.
     // Only the indices are honoured: `publicKey` is inert because the table pins
@@ -1007,7 +1098,7 @@ export class LedgerVaultProvider implements IBTCProvider {
       }
       // Key-path flows sign under the default wallet policy: derivation fields
       // make the inputs (and the change output) internal on-device, and the
-      // policy id routes the base app into sign_internal_inputs (`sign_psbt.c:142-148`).
+      // policy id routes the base app into sign_internal_inputs (`base:sign_psbt.c:142-148`).
       const { policy } = await this.getPolicyContext();
       // Read outside the try: a disconnect here is a connection error, and
       // re-wrapping it as INVALID_PARAMS would blame the caller's PSBT.
@@ -1065,8 +1156,8 @@ export class LedgerVaultProvider implements IBTCProvider {
    *
    * Locked-device words on the INITIAL SIGN_PSBT keep the intent because the app
    * never ran it: 0x5515 is sent only by the SDK IO layer before dispatch
-   * (`sdk:io_legacy/src/os_io_legacy.c:396-406`, inside the `io_exchange` receive
-   * loop `:243-245` that the base app reads from, `base:src/boilerplate/dispatcher.c:74`);
+   * (`sdk:io_legacy/src/os_io_legacy.c:416`, inside the `io_exchange` receive
+   * loop `:245-247` that the base app reads from, `base:src/boilerplate/dispatcher.c:74`);
    * 0x6982 exists in the SDK only under ENABLE_ADDRESS_BOOK
    * (`sdk:Makefile.standard_app:78-82`, unset in both Makefiles) and 0x5303 is not
    * defined at all; neither the app nor `base:` ever sends any of the three
@@ -1104,7 +1195,7 @@ export class LedgerVaultProvider implements IBTCProvider {
         !lockedBeforeDispatch &&
         // Refunds keep the mirror: NOTHING on the device's refund path
         // invalidates the vault context — not the validator's rejects
-        // (`sign_psbt_validate.c:798-1104` holds none of the file's six
+        // (`sign_psbt_validate.c:811-1120` holds none of the file's six
         // invalidate sites), not the standalone sign section, not the review
         // screen's SW_DENY, and not the base app's PSBT-phase failures
         // (zero vault references in `base:sign_psbt.c` and its phases).
@@ -1183,13 +1274,13 @@ export class LedgerVaultProvider implements IBTCProvider {
 
   /**
    * BIP-322 simple proof of possession via SIGN_PSBT tx_version 0 (#2221).
-   * State-independent on the device (`sign_psbt_validate.c:3205-3213`): no
+   * State-independent on the device (`sign_psbt_validate.c:3573-3578`): no
    * approved intent is required, and signing it never touches the intent
    * mirror or the signed-fingerprint set — with ONE exception: a user cancel
    * resets both via {@link classifySignFailure}'s uniform post-cancel policy,
    * so a cancelled PoP costs a full derive + re-approve like any other cancel.
    * When an intent IS loaded the device requires the PoP key to equal the
-   * intent's depositor key (`:2764-2769`) — both derive from `depositorPath`,
+   * intent's depositor key (`:3071-3076`) — both derive from `depositorPath`,
    * so that holds by construction.
    */
   signMessage = async (message: string, type: "bip322-simple" | "ecdsa"): Promise<string> =>
@@ -1231,7 +1322,7 @@ export class LedgerVaultProvider implements IBTCProvider {
         }
         this.assertSameConnection(ctx.generation);
         // Without a wallet policy the device answers SW_OK with NO yield
-        // (`sign_custom_inputs.c:101-107`); the collector's completion check
+        // (`sign_custom_inputs.c:101-115`); the collector's completion check
         // already throws on that, this narrows the one yield we package.
         const [yielded] = result.yields;
         if (
@@ -1275,13 +1366,6 @@ function toStagingWalletError(error: unknown, context: string): WalletError {
   );
 }
 
-/**
- * Map the signer package's typed device outcomes onto the connector's
- * WalletError taxonomy; the messages (with their "User rejected" prefix)
- * pass through unchanged. Returns undefined for anything unrecognised.
- * Shared by the ceremony sender wrapper and the SIGN_PSBT seam — the raw
- * sender's loop errors never pass through {@link withWalletErrorMapping}.
- */
 /**
  * Sign-seam failure mapping: the two "intent gone" status words and the
  * signer's own typed sign errors carry DEVICE_CEREMONY_INVALID — the typed
@@ -1335,6 +1419,13 @@ function toSignFailureWalletError(error: unknown, label: string): WalletError {
   );
 }
 
+/**
+ * Map the signer package's typed device outcomes onto the connector's
+ * WalletError taxonomy; the messages (with their "User rejected" prefix)
+ * pass through unchanged. Returns undefined for anything unrecognised.
+ * Shared by the ceremony sender wrapper and the SIGN_PSBT seam — the raw
+ * sender's loop errors never pass through {@link withWalletErrorMapping}.
+ */
 function toSignerWalletError(error: unknown): WalletError | undefined {
   if (isLedgerUserRefusedError(error)) {
     return new WalletError(
@@ -1348,7 +1439,12 @@ function toSignerWalletError(error: unknown): WalletError | undefined {
       { cause: error },
     );
   }
-  if (isLedgerDeviceError(error) && error.statusWord === SW_CLA_NOT_SUPPORTED) {
+  // Both mean the running app is not the vault app: an unknown class, or a known
+  // class (the shared Bitcoin base) without the vault instructions.
+  if (
+    isLedgerDeviceError(error) &&
+    (error.statusWord === SW_CLA_NOT_SUPPORTED || error.statusWord === SW_INS_NOT_SUPPORTED)
+  ) {
     return new WalletError(
       { code: ERROR_CODES.DEVICE_WRONG_APP, message: error.message, wallet: WALLET_PROVIDER_NAME },
       { cause: error },
@@ -1410,7 +1506,7 @@ function fingerprintIntent(intent: {
 /**
  * Convert a display-order txid (what an explorer shows) to the internal order
  * the intent carries. The device compares it against the PSBT prevout, which
- * is also internal order (`vault_script.c:711-713`, "LE as stored").
+ * is also internal order (`vault_script.c:766-767`, "LE as stored").
  */
 function displayTxidToInternal(txidHex: string): Uint8Array {
   const clean = txidHex.replace(/^0x/, "");

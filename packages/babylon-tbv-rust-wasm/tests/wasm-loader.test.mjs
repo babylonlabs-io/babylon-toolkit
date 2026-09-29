@@ -5,8 +5,93 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import ts from 'typescript';
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const packageExports = JSON.parse(
+  readFileSync(resolve(packageRoot, 'package.json'), 'utf8'),
+).exports;
+const classNames = [
+  'WasmPeginTx',
+  'WasmPeginPayoutConnector',
+  'WasmPrePeginTx',
+  'WasmPrePeginHtlcConnector',
+];
+
+test('exports only the root entry', () => {
+  assert.deepEqual(Object.keys(packageExports), ['.']);
+});
+
+for (const entry of ['index', 'index-node']) {
+  test(`${entry} re-exports only the four generated classes from the glue`, async () => {
+    const main = await import(`../dist/${entry}.js`);
+    const generated = await import('../dist/generated/vault_wasm.js');
+    for (const name of classNames) {
+      assert.equal(typeof main[name], 'function', name);
+      assert.equal(main[name], generated[name], name);
+    }
+    // The glue exports more classes and functions than these four classes.
+    // Any other glue export that the entry passes on has no value checks.
+    // Pin the full set, not only its members. Match by value, so a renamed
+    // export or the glue namespace itself also counts.
+    const glueValues = new Set(Object.values(generated));
+    assert.deepEqual(
+      Object.keys(main)
+        .filter((key) => main[key] === generated || glueValues.has(main[key]))
+        .sort(),
+      [...classNames].sort(),
+    );
+  });
+
+  test(`${entry} preserves the generated class types`, () => {
+    const consumerFile = join(packageRoot, 'dist', 'class-consumer.ts');
+    const source = [
+      `import { ${classNames.join(', ')} } from './${entry}.js';`,
+      "import * as generated from './generated/vault_wasm.js';",
+      'type Same<A, B> = (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2) ? true : false;',
+      'type Check<T extends true> = T;',
+      ...classNames.flatMap((name) => [
+        `type CheckType${name} = Check<Same<${name}, generated.${name}>>;`,
+        `type CheckConstructor${name} = Check<Same<typeof ${name}, typeof generated.${name}>>;`,
+      ]),
+    ].join('\n');
+    const options = {
+      module: ts.ModuleKind.ESNext,
+      moduleResolution: ts.ModuleResolutionKind.Bundler,
+      target: ts.ScriptTarget.ES2022,
+      strict: true,
+      skipLibCheck: true,
+    };
+    const service = ts.createLanguageService({
+      ...ts.sys,
+      useCaseSensitiveFileNames: () => ts.sys.useCaseSensitiveFileNames,
+      getScriptFileNames: () => [consumerFile],
+      getScriptVersion: () => '0',
+      getScriptSnapshot(file) {
+        const text = file === consumerFile ? source : ts.sys.readFile(file);
+        return text === undefined
+          ? undefined
+          : ts.ScriptSnapshot.fromString(text);
+      },
+      getCurrentDirectory: () => packageRoot,
+      getCompilationSettings: () => options,
+      getDefaultLibFileName: ts.getDefaultLibFilePath,
+    });
+    try {
+      assert.deepEqual(
+        service
+          .getSemanticDiagnostics(consumerFile)
+          .map((diagnostic) =>
+            ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n'),
+          ),
+        [],
+      );
+    } finally {
+      service.dispose();
+    }
+  });
+}
+
 const wasmBytes = readFileSync(
   resolve(packageRoot, 'dist', 'generated', 'vault_wasm_bg.wasm'),
 );
@@ -49,6 +134,14 @@ const connectorParams = {
   timelockAssert: 144,
   councilMembers: xOnlyKeys.slice(3),
   councilQuorum: 2,
+};
+const payoutConnectorParams = {
+  txGraphVersion: 1,
+  depositor: xOnlyKeys[0],
+  vaultProvider: xOnlyKeys[1],
+  vaultKeepers: [xOnlyKeys[2]],
+  universalChallengers: [xOnlyKeys[3]],
+  timelockPegin: 1008,
 };
 
 function wotsPublicKey(messageDigits, fill) {
@@ -263,6 +356,90 @@ test('pins getChallengeAssertScriptInfo through the browser entry', async () => 
           controlBlock:
             '7ece40ba5cd9386d50ae395585c102cb123776238e8d6bd17e6ea1359a294f1a',
         },
+      );
+    },
+  );
+});
+
+test('pins getAssertPayoutScriptInfo through the browser entry', async () => {
+  await withBrowserFacade(
+    async () =>
+      new Response(wasmBytes, {
+        headers: { 'Content-Type': 'application/wasm' },
+      }),
+    async (facade) => {
+      const result = await facade.getAssertPayoutScriptInfo(connectorParams);
+      assert.deepEqual(
+        {
+          script: sha256Text(result.payoutScript),
+          controlBlock: sha256Text(result.payoutControlBlock),
+        },
+        {
+          script:
+            '4b6fa03aad6f737be6e8c960f3c69e369242a54893db38d95457eb73bebcbbec',
+          controlBlock:
+            '33fa9421213d024727a823ea9d0bbd7f52a47668a7e6d782d81f7d5e0705d590',
+        },
+      );
+    },
+  );
+});
+
+test('pins createPayoutConnector through the browser entry', async () => {
+  await withBrowserFacade(
+    async () =>
+      new Response(wasmBytes, {
+        headers: { 'Content-Type': 'application/wasm' },
+      }),
+    async (facade) => {
+      const result = await facade.createPayoutConnector(
+        payoutConnectorParams,
+        'signet',
+      );
+      // The control block is pinned raw: a single leaf makes it one
+      // version/parity byte plus the NUMS internal key, readable in a
+      // failure diff.
+      assert.deepEqual(
+        {
+          script: sha256Text(result.payoutScript),
+          controlBlock: result.payoutControlBlock,
+          taprootScriptHash: result.taprootScriptHash,
+          scriptPubKey: result.scriptPubKey,
+          address: result.address,
+        },
+        {
+          script:
+            'd851c37a211d3e4c55b2bae8a2a3262e2960de9f1015e43986f76ce5c8628991',
+          controlBlock:
+            'c050929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfee9ace803ac0',
+          taprootScriptHash:
+            '82c0e27be3e706b67c07953fa18ed9b9854ea1cebbc1040f535b130f38f72c73',
+          scriptPubKey:
+            '5120f168b9531c9ace8d638245e004e2550756b996300391337e169c7fb5c354d61d',
+          address:
+            'tb1p795tj5cunt8g6cuzghsqfcj4qattn93sqwgnxlskn3lmts656cwsk4p9uy',
+        },
+      );
+    },
+  );
+});
+
+test('createPayoutConnector forwards the network to the address through the browser entry', async () => {
+  await withBrowserFacade(
+    async () =>
+      new Response(wasmBytes, {
+        headers: { 'Content-Type': 'application/wasm' },
+      }),
+    async (facade) => {
+      // Signet and testnet share the `tb` prefix, so the signet pin above
+      // cannot tell them apart. Mainnet can.
+      const result = await facade.createPayoutConnector(
+        payoutConnectorParams,
+        'bitcoin',
+      );
+      assert.equal(
+        result.address,
+        'bc1p795tj5cunt8g6cuzghsqfcj4qattn93sqwgnxlskn3lmts656cwspah2xt',
       );
     },
   );

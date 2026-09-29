@@ -113,12 +113,13 @@ export function useAaveVaults(
   const [hasRedeemedVaults, setHasRedeemedVaults] = useState(false);
 
   const {
-    data: vaults,
+    data: vaultsResult,
     isLoading: vaultsLoading,
     error,
   } = useVaults(depositorAddress as Address | undefined, {
     poll: hasPendingOperations || hasRedeemedVaults,
   });
+  const vaults = vaultsResult?.vaults;
   const btcPriceUSD = usePrice("BTC");
 
   const isLoading = vaultsLoading;

@@ -1,12 +1,16 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { calculate } from "@/applications/aave/positionNotifications";
+import {
+  calculate,
+  type Warning,
+} from "@/applications/aave/positionNotifications";
 import type {
   CalculatorParams,
   CalculatorResult,
 } from "@/applications/aave/positionNotifications/types";
 import { COPY } from "@/copy";
+import { useDashboardState } from "@/hooks/useDashboardState";
 import { setHealthFactorOverride } from "@/overrides/borrowCapacity";
 import { setPositionCascadeOverride } from "@/overrides/position";
 
@@ -28,18 +32,32 @@ vi.mock("react-router", () => ({
   useOutletContext: () => ({ openDeposit: vi.fn() }),
 }));
 
-vi.mock("@/context/wallet", () => ({
-  useConnection: () => ({ isConnected: true }),
-  useETHWallet: () => ({ address: "0xabc" }),
+const walletMock = vi.hoisted(() => ({
+  btcConnected: true,
+  ethConnected: true,
+  confirmed: true,
+}));
+
+vi.mock("@babylonlabs-io/wallet-connector", () => ({
+  useWalletConnect: () => ({ connected: walletMock.confirmed }),
+  useBTCWallet: () => ({ connected: walletMock.btcConnected }),
+  useETHWallet: () => ({
+    connected: walletMock.ethConnected,
+    address: "0xabc",
+  }),
+}));
+
+vi.mock("@/context/wallet", async () => ({
+  useConnection: (await import("@/context/wallet/useConnection")).useConnection,
+  useETHWallet: (await import("@babylonlabs-io/wallet-connector")).useETHWallet,
 }));
 
 vi.mock("@/hooks/useDashboardState", () => ({
-  useDashboardState: () => ({
+  useDashboardState: vi.fn(() => ({
     collateralBtc: 0,
     displayCollateralBtc: 0,
     collateralValueUsd: 0,
     debtValueUsd: 0,
-    maxTotalDebtUsd: 0,
     availableToBorrowUsd: 0,
     collateralFactorBps: 7800,
     isBorrowCapacityLoading: false,
@@ -52,7 +70,7 @@ vi.mock("@/hooks/useDashboardState", () => ({
     hasDisplayCollateral: true,
     collateralVaults: [],
     isLoading: false,
-  }),
+  })),
 }));
 
 vi.mock("@/hooks/useApplicationCap", () => ({
@@ -78,6 +96,9 @@ vi.mock("@/dev/demoDeposit", () => ({
 
 vi.mock("@/applications/aave/context", () => ({
   useSyncPendingVaults: () => undefined,
+  useAaveConfig: () => ({
+    maxBorrowReserves: { status: "loaded", limit: 1 },
+  }),
 }));
 
 vi.mock("@/applications/aave/hooks", () => ({
@@ -86,6 +107,7 @@ vi.mock("@/applications/aave/hooks", () => ({
 
 const positionNotificationsMock = vi.hoisted(() => ({
   result: null as CalculatorResult | null,
+  liveUrgentWarning: null as Warning | null,
   params: null as CalculatorParams | null,
 }));
 
@@ -103,10 +125,14 @@ vi.mock("../PositionNotificationBanner", () => ({
   PositionNotificationBanner: () => <div data-testid="position-banner" />,
 }));
 vi.mock("../CriticalLiquidationTopBanner", () => ({
-  CriticalLiquidationTopBanner: () => <div data-testid="critical-banner" />,
+  CriticalLiquidationTopBanner: ({
+    liveUrgentWarning,
+  }: {
+    liveUrgentWarning?: Warning | null;
+  }) => <div data-testid="critical-banner">{liveUrgentWarning?.title}</div>,
 }));
 vi.mock("../DisconnectedOverview", () => ({
-  DisconnectedOverview: () => null,
+  DisconnectedOverview: () => <div data-testid="disconnected-overview" />,
 }));
 // Captures the raw cascade prop so tests can assert on the *identity* of the
 // CalculatorResult that reached the section, not just values re-derived from
@@ -147,9 +173,13 @@ vi.mock("@/components/shared", () => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
+  walletMock.btcConnected = true;
+  walletMock.ethConnected = true;
+  walletMock.confirmed = true;
   featureFlagsMock.isLiquidationNotificationsEnabled = false;
   featureFlagsMock.isGodModePanelEnabled = false;
   positionNotificationsMock.result = null;
+  positionNotificationsMock.liveUrgentWarning = null;
   positionNotificationsMock.params = null;
   setPositionCascadeOverride(null);
   pricesMock.prices = {};
@@ -159,6 +189,66 @@ beforeEach(() => {
 });
 
 describe("DashboardPage composition", () => {
+  it("passes live risk to the top banner when no cascade is available", () => {
+    featureFlagsMock.isLiquidationNotificationsEnabled = true;
+    const title = COPY.liquidationWarnings.liveHealthFactor.title("1.05");
+    positionNotificationsMock.liveUrgentWarning = {
+      type: "urgent",
+      title,
+      detail: COPY.liquidationWarnings.liveHealthFactor.detail,
+    };
+    render(<DashboardPage />);
+    expect(screen.getByTestId("critical-banner")).toHaveTextContent(title);
+    expect(receivedCascade.current).toBeNull();
+  });
+
+  it("shows the landing page when both wallets are missing", () => {
+    walletMock.btcConnected = false;
+    walletMock.ethConnected = false;
+
+    render(<DashboardPage />);
+
+    expect(screen.getByTestId("disconnected-overview")).toBeInTheDocument();
+    expect(screen.queryByTestId("overview-section")).not.toBeInTheDocument();
+    expect(useDashboardState).toHaveBeenCalledWith(undefined);
+  });
+
+  it("shows the landing page when only Bitcoin is connected", () => {
+    walletMock.btcConnected = true;
+    walletMock.ethConnected = false;
+
+    render(<DashboardPage />);
+
+    expect(screen.getByTestId("disconnected-overview")).toBeInTheDocument();
+    expect(screen.queryByTestId("overview-section")).not.toBeInTheDocument();
+    expect(useDashboardState).toHaveBeenCalledWith(undefined);
+  });
+
+  it("opens the connected overview when only Ethereum is connected", () => {
+    walletMock.btcConnected = false;
+    walletMock.ethConnected = true;
+
+    render(<DashboardPage />);
+
+    expect(screen.getByTestId("overview-section")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("disconnected-overview"),
+    ).not.toBeInTheDocument();
+    expect(useDashboardState).toHaveBeenCalledWith("0xabc");
+  });
+
+  it("waits for consent before it loads the connected dashboard", () => {
+    walletMock.confirmed = false;
+    const { rerender } = render(<DashboardPage />);
+    expect(screen.getByTestId("disconnected-overview")).toBeInTheDocument();
+    expect(useDashboardState).toHaveBeenLastCalledWith(undefined);
+
+    walletMock.confirmed = true;
+    rerender(<DashboardPage />);
+    expect(screen.getByTestId("overview-section")).toBeInTheDocument();
+    expect(useDashboardState).toHaveBeenLastCalledWith("0xabc");
+  });
+
   it("renders the overview summary, the risk card and the safety notifications", () => {
     featureFlagsMock.isLiquidationNotificationsEnabled = true;
 
@@ -169,6 +259,7 @@ describe("DashboardPage composition", () => {
     expect(screen.getByTestId("critical-banner")).toBeInTheDocument();
     expect(screen.getByTestId("position-banner")).toBeInTheDocument();
     expect(screen.getByText(COPY.risk.title)).toBeInTheDocument();
+    expect(useDashboardState).toHaveBeenCalledWith("0xabc");
 
     // Figma (10094-26791, 10204-45310): the max-vaults notice and the cascade
     // banner share the slot below Position, not above it.
@@ -232,7 +323,9 @@ const LIVE_PARAMS: CalculatorParams = {
   ],
   CF: 0.75,
   THF: 1.1,
-  maxLB: 1.05,
+  LB: 1.05,
+  expectedHF: 0.95,
+  minPeginBtc: 0.0005,
 };
 const LIVE_RESULT = calculate(LIVE_PARAMS);
 
@@ -242,7 +335,9 @@ const OVERRIDE_PARAMS: CalculatorParams = {
   vaults: [{ id: "gm-1", name: "Vault 1", btc: 0.6 }],
   CF: 0.5,
   THF: 1.1,
-  maxLB: 1.05,
+  LB: 1.05,
+  expectedHF: 0.95,
+  minPeginBtc: 0.0005,
 };
 const OVERRIDE_RESULT = calculate(OVERRIDE_PARAMS);
 

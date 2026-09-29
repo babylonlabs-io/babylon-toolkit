@@ -8,8 +8,9 @@
  * without polling ahead of the data.
  *
  * `candles: null` means "nothing to draw" (loading, no config, or a failed
- * fetch). The chart renders its frame without marks in that case, so a missing
- * series degrades to an empty price panel rather than an error state.
+ * fetch). Callers show a spinner while `isLoading`; outside that the chart
+ * renders its frame without marks, so a missing series degrades to an empty
+ * price panel rather than an error state.
  */
 
 import type { Candle } from "@babylonlabs-io/core-ui";
@@ -24,11 +25,14 @@ const CANDLE_STALE_TIME_MS = 30 * 60 * 1000;
 /** Daily buckets, matching the date axis in the design. */
 const CANDLE_INTERVAL = "day_1" as const;
 
+/** Daily candles the Timeline shows at rest: one year of history. */
+export const TIMELINE_VISIBLE_CANDLES = 365;
+
 /**
  * Days of history requested. Wider than the visible window so the Timeline's
  * pan has somewhere to go.
  */
-const CANDLE_LIMIT = 180;
+const CANDLE_LIMIT = 2 * TIMELINE_VISIBLE_CANDLES;
 
 export interface UseBtcPriceCandlesResult {
   candles: Candle[] | null;

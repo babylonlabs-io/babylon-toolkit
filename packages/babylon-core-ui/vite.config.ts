@@ -17,7 +17,7 @@ export default defineConfig({
     lib: {
       entry: path.resolve(__dirname, "src/index.tsx"),
       formats: ["es", "cjs"],
-      fileName: (format) => `index.${format}.js`,
+      fileName: (format) => format === "cjs" ? "index.cjs" : `index.${format}.js`,
     },
     rollupOptions: {
       external: ["react", "react-dom", "react/jsx-runtime", "tailwind-merge", "yup"],

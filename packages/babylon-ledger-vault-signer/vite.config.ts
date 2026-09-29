@@ -32,6 +32,9 @@ export default defineConfig({
     lib: {
       entry: {
         index: path.resolve(__dirname, "src/index.ts"),
+        // Test/E2E-only subpath (`./testing` in the exports map) — keeps the
+        // transport seam off the main production surface.
+        testing: path.resolve(__dirname, "src/testing.ts"),
       },
       formats: ["es", "cjs"],
     },

@@ -2,8 +2,8 @@
  * useLoanActions hook
  * Owns the borrow/repay entry-point orchestration shared by the v2 dashboard
  * and the v3 Loans page: opening the borrow/repay asset picker (with the
- * single-borrowed-asset direct-navigation shortcut) and direct navigation to a
- * reserve's borrow/repay form.
+ * single-borrowed-asset direct-navigation shortcut), direct navigation to a
+ * reserve's borrow/repay form, and whether that flow is open now.
  *
  * Every step is route state so the whole flow renders into one dialog — see
  * `applications/aave/components/Detail` (`LoanFlowOverlay`). The step lives in
@@ -20,6 +20,7 @@ import { LOAN_TAB, type LoanTab } from "@/applications/aave/constants";
 import {
   getAssetPickerSearch,
   getReserveDetailSearch,
+  opensLoanFlow,
   parseReserveId,
 } from "@/routes";
 
@@ -34,7 +35,7 @@ interface UseLoanActionsProps {
 
 export function useLoanActions({ borrowedAssets }: UseLoanActionsProps) {
   const navigate = useNavigate();
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
 
   const goToReserve = useCallback(
     (reserveId: bigint, tab: LoanTab) => {
@@ -62,5 +63,7 @@ export function useLoanActions({ borrowedAssets }: UseLoanActionsProps) {
     navigate({ pathname, search: getAssetPickerSearch(LOAN_TAB.REPAY) });
   }, [borrowedAssets, goToReserve, navigate, pathname]);
 
-  return { openBorrowPicker, openRepay, goToReserve };
+  const isLoanFlowOpen = opensLoanFlow(new URLSearchParams(search));
+
+  return { openBorrowPicker, openRepay, goToReserve, isLoanFlowOpen };
 }

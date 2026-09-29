@@ -1,6 +1,6 @@
 /**
- * Canonical `vaultContext` byte encoding per
- * `derive-vault-secrets.md` §2.3.
+ * Canonical `vaultContext` byte encoding, pinned by
+ * `__tests__/context.golden.test.ts`.
  *
  * ```
  * vaultContext :=

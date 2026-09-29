@@ -9,18 +9,26 @@ import { V3ModalShell } from "@/components/shared/V3ModalShell";
 import { FeatureFlags } from "@/config";
 import { useAddressScreening } from "@/context/addressScreening";
 import { useGeoFencing } from "@/context/geofencing";
-import { ProtocolParamsProvider } from "@/context/ProtocolParamsContext";
+import {
+  ProtocolParamsProvider,
+  useProtocolParamsContext,
+} from "@/context/ProtocolParamsContext";
 import { useBTCWallet, useETHWallet } from "@/context/wallet";
+import { isLedgerVaultConnector } from "@/context/wallet/VaultWalletConnectionProvider";
 import { COPY } from "@/copy";
 import { useBtcWalletState } from "@/hooks/deposit/useBtcWalletState";
 import { useDepositPeginFee } from "@/hooks/deposit/useDepositPeginFee";
 import { useDialogStep } from "@/hooks/deposit/useDialogStep";
 import { usePendingVaultOverlapCheck } from "@/hooks/deposit/usePendingVaultOverlapCheck";
+import { useBtcAction } from "@/hooks/useBtcAction";
 import { useProtocolFeeRows } from "@/hooks/useProtocolFeeRows";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import { useVaultCountCap } from "@/hooks/useVaultCountCap";
 import { depositService } from "@/services/deposit";
-import { resolveVaultCapState } from "@/services/deposit/vaultCap";
+import {
+  resolveDepositSplitUnavailableReason,
+  resolveVaultCapState,
+} from "@/services/deposit/vaultCap";
 import type { VaultActivity } from "@/types/activity";
 import {
   shouldProbeWalletLiveness,
@@ -81,9 +89,13 @@ function SimpleDepositContent({
   initialAmountBtc,
 }: SimpleDepositBaseProps) {
   const gate = useProtocolGateState();
+  const { requireBtcWallet } = useBtcAction();
   const { isGeoBlocked, isLoading: isGeoLoading } = useGeoFencing();
-  const { isBlocked: isAddressBlocked, isLoading: isScreeningLoading } =
-    useAddressScreening();
+  const {
+    isBlocked: isAddressBlocked,
+    isUnavailable: isScreeningUnavailable,
+    isLoading: isScreeningLoading,
+  } = useAddressScreening();
   const { address: connectedEthAddress } = useETHWallet();
   const {
     address: connectedBtcAddress,
@@ -105,9 +117,9 @@ function SimpleDepositContent({
     applyMaxAmount,
     effectiveSelectedApplication,
     isWalletConnected,
+    canConnectBtcWallet,
     btcBalance,
     unconfirmedBalance,
-    hasUnconfirmedBalanceOnly,
     btcPrice,
     hasPriceFetchError,
     applications,
@@ -121,6 +133,7 @@ function SimpleDepositContent({
     isLoadingFee,
     feeError,
     maxDepositSats,
+    fundingInputCapExceeded,
     effectiveRemaining,
     capUnavailable,
     minPeginFee,
@@ -135,6 +148,8 @@ function SimpleDepositContent({
     splitRatioLabel,
     minDepositForSplit,
     isSplitAmountTooLow,
+    isSplitSizingRefused,
+    isSplitParamsUnavailable,
     depositorClaimValue,
     depositorClaimValueError,
     btcPublicKeyError,
@@ -177,6 +192,8 @@ function SimpleDepositContent({
     setFeeRate,
   } = useDepositPageFlow();
 
+  const { config } = useProtocolParamsContext();
+
   // Per-position BTC Vault cap (on-chain). Always-on value-protection guard:
   // block the deposit when even a single vault won't fit (`isAtCap`), force a
   // single vault when a split would overflow (`isSplitUnavailable`), and fail
@@ -189,21 +206,33 @@ function SimpleDepositContent({
     currentCount: collateralizableVaultCount,
     capUnavailable: vaultCountCapUnavailable,
   } = useVaultCountCap(connectedEthAddress);
-  const { isAtCap: isVaultCapReached, isSplitUnavailable: isSplitCapReached } =
+  const { isAtCap: isVaultCapReached, splitUnavailableReason } =
     resolveVaultCapState({
       existingVaultCount: collateralizableVaultCount,
       maxVaultsPerPosition: maxVaults,
       enabled: true,
+      maxHtlcOutputCount: config.maxHtlcOutputCount,
     });
 
   const isSupplementalDeposit = !!initialAmountBtc;
   const suggestedAmountSats = initialAmountBtc
     ? depositService.parseBtcToSatoshis(initialAmountBtc)
     : null;
-  const allowSplit =
+  // Whether this deposit would be offered a split at all: not a top-up from
+  // the liquidation banner, and a fresh position unless the flag forces it.
+  const isSplitOffered =
     !isSupplementalDeposit &&
-    !isSplitCapReached &&
     (!hasActiveVaults || FeatureFlags.isForcePartialLiquidationSplit);
+  // The split sizing rules refusing the split is handled like a cap: the
+  // deposit proceeds as a single vault and the form says why.
+  const depositSplitUnavailableReason = resolveDepositSplitUnavailableReason({
+    capReason: splitUnavailableReason,
+    isSplitOffered,
+    isVaultCapReached,
+    isSplitParamsUnavailable,
+    isSplitSizingRefused,
+  });
+  const allowSplit = isSplitOffered && depositSplitUnavailableReason === null;
 
   // Effective split = the same condition handleDeposit uses at submit
   // (`shouldSplit`). Every batch-sized display row (protocol fee, total
@@ -294,7 +323,7 @@ function SimpleDepositContent({
     minPeginFee,
   });
   const [overlappingPendingVaultCount, setOverlappingPendingVaultCount] =
-    useState<number | null>(null);
+    useState<number | null | "unreadable">(null);
 
   const resetAll = useCallback(() => {
     hasAutoChecked.current = false;
@@ -358,10 +387,16 @@ function SimpleDepositContent({
     // (which triggers the wallet's unlock/re-authorization prompt) instead of
     // attempting another deposit. The deposit attempt itself is only retried
     // once the user successfully reconnects and the error/lock state clears.
-    if (walletConnectionError || isBtcWalletLocked || btcPublicKeyError) {
+    // Runs before the Bitcoin prompt while a wallet is attached, so the form
+    // keeps its own unlock state and an absent wallet still gets the prompt.
+    if (
+      isWalletConnected &&
+      (walletConnectionError || isBtcWalletLocked || btcPublicKeyError)
+    ) {
       await handleReconnectWallet();
       return;
     }
+    if (!requireBtcWallet()) return;
 
     if (!validateForm()) return;
     if (isVerifyingWallet) return;
@@ -457,7 +492,6 @@ function SimpleDepositContent({
                   amountSats,
                   btcBalance,
                   unconfirmedBalance,
-                  hasUnconfirmedBalanceOnly,
                   minDeposit,
                   maxDeposit,
                   maxDepositSats,
@@ -493,6 +527,10 @@ function SimpleDepositContent({
                 }}
                 walletState={{
                   isWalletConnected,
+                  canConnectBtcWallet,
+                  // Shared with the reclaim row: the reserve tooltip must not
+                  // promise a reclaim Ledger cannot sign.
+                  isLedgerVaultWallet: isLedgerVaultConnector(btcConnector),
                   // A click-time liveness failure OR the proactive lock poll
                   // promotes the CTA to the reconnect/unlock action. A lock
                   // relabels the CTA to "Unlock Wallet to Deposit" (see
@@ -515,12 +553,17 @@ function SimpleDepositContent({
                   isDepositDisabled: isDepositBlocked(gate),
                   isGeoBlocked: isGeoBlocked || isGeoLoading,
                   isAddressBlocked: isAddressBlocked || isScreeningLoading,
+                  isAddressScreeningUnavailable: isScreeningUnavailable,
                   ordinalsCheckPending,
                   isVaultCapReached,
                   vaultCountCapUnavailable,
-                  vaultCapSplitUnavailable: isSplitCapReached,
+                  splitUnavailableReason: depositSplitUnavailableReason,
+                  // Usage figures only make sense for the per-position cap; the
+                  // protocol cap can bite with an empty position and an unknown
+                  // per-position cap, so its hint quotes no numbers.
                   vaultCapUsage:
-                    isSplitCapReached && maxVaults != null
+                    splitUnavailableReason === "per-position" &&
+                    maxVaults != null
                       ? {
                           used: collateralizableVaultCount,
                           cap: maxVaults,
@@ -529,6 +572,7 @@ function SimpleDepositContent({
                 }}
                 collateralFactor={collateralFactor}
                 twoVaultSplit={twoVaultSplitProps}
+                fundingInputCapExceeded={fundingInputCapExceeded}
                 onAmountChange={(value) => setFormData({ amountBtc: value })}
                 onMaxClick={applyMaxAmount}
                 onDeposit={handleDeposit}
@@ -545,6 +589,7 @@ function SimpleDepositContent({
                   ? splitVaultAmounts
                   : [depositAmount]
               }
+              depositAmountSats={depositAmount}
               mempoolFeeRate={feeRate}
               onFeeRateChange={setFeeRate}
               btcWalletProvider={btcWalletProvider}

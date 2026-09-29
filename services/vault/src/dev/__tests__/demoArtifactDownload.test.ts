@@ -14,6 +14,8 @@ import {
 const BINDING = {
   peginTxid: "aa".repeat(32),
   depositorPk: "bb".repeat(32),
+  // The demo stands in its own graph's fingerprint, so this is never read.
+  signedGraphFingerprint: undefined,
 };
 
 /** Records what the demo writes, the same way the real service's target does. */

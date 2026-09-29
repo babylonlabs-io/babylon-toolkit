@@ -1,23 +1,78 @@
+import { OnChainBtcVaultStatus } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { ReclaimStatus } from "@/hooks/useReclaimStatus";
 import { useVaultsPageEmptiness } from "@/hooks/useVaultsPageEmptiness";
+import {
+  ContractStatus,
+  PEGIN_DISPLAY_LABELS,
+  PeginAction,
+  type PeginState,
+} from "@/models/peginStateMachine";
+import { PendingPeginStorageReadError } from "@/storage/peginStorage";
 import type { VaultActivity } from "@/types/activity";
+import type { DepositPollingResult } from "@/types/peginPolling";
+
+const DEPOSITOR_BTC_PUBKEY = "ab".repeat(32);
 
 const walletState = vi.hoisted(() => ({
-  isConnected: true,
+  btcConnected: true,
+  ethConnected: true,
+  confirmed: true,
   address: "0xdepositor" as string | undefined,
+  publicKeyNoCoord: "ab".repeat(32) as string | undefined,
 }));
 
-vi.mock("@/context/wallet", () => ({
-  useConnection: () => ({ isConnected: walletState.isConnected }),
-  useETHWallet: () => ({ address: walletState.address }),
+vi.mock("@babylonlabs-io/wallet-connector", () => ({
+  useWalletConnect: () => ({ connected: walletState.confirmed }),
+  useBTCWallet: () => ({
+    connected: walletState.btcConnected,
+    publicKeyNoCoord: walletState.publicKeyNoCoord,
+  }),
+  useETHWallet: () => ({
+    connected: walletState.ethConnected,
+    address: walletState.address,
+  }),
+  // The reclaim eligibility model runs for real; only the wallet kind, the
+  // protocol gate and the two batched chain reads are driven.
+  useChainConnector: () => undefined,
+}));
+
+// The real gate decides what this page counts as connected. A hand-supplied
+// `isConnected` would not catch a change to the gate.
+vi.mock("@/context/wallet", async () => ({
+  useConnection: (await import("@/context/wallet/useConnection")).useConnection,
+  useETHWallet: (await import("@babylonlabs-io/wallet-connector")).useETHWallet,
+  useBTCWallet: (await import("@babylonlabs-io/wallet-connector")).useBTCWallet,
+}));
+
+vi.mock("@/context/wallet/VaultWalletConnectionProvider", () => ({
+  isLedgerVaultConnector: () => false,
+}));
+
+vi.mock("@/hooks/useProtocolGate", () => ({
+  useProtocolGateState: () => ({ protocol: null, aave: null }),
+}));
+
+const reclaimChainData = vi.hoisted(
+  () => new Map<string, { peginTxid: string; onChainStatus: number }>(),
+);
+const reclaimStatuses = vi.hoisted(() => new Map<string, ReclaimStatus>());
+
+vi.mock("@/hooks/useReclaimVaultChainData", () => ({
+  useReclaimVaultChainData: () => reclaimChainData,
+}));
+
+vi.mock("@/hooks/useReclaimStatus", () => ({
+  useReclaimStatus: () => ({ statusByDepositId: reclaimStatuses }),
 }));
 
 const dashboardState = vi.hoisted(() => ({
   hasDisplayCollateral: false,
   isLoading: false,
   positionError: null as Error | null,
+  indexerError: null as Error | null,
 }));
 
 const useDashboardStateMock = vi.hoisted(() => vi.fn(() => dashboardState));
@@ -26,33 +81,102 @@ vi.mock("@/hooks/useDashboardState", () => ({
   useDashboardState: useDashboardStateMock,
 }));
 
+const pollingResults = vi.hoisted(
+  () => new Map<string, DepositPollingResult>(),
+);
+
+vi.mock("@/context/deposit/PeginPollingContext", () => ({
+  usePeginPolling: () => ({
+    getPollingResult: (depositId: string) => pollingResults.get(depositId),
+  }),
+}));
+
+const refundedResult = (depositId: string): DepositPollingResult => ({
+  depositId,
+  loading: false,
+  error: null,
+  peginState: {
+    contractStatus: ContractStatus.EXPIRED,
+    displayLabel: PEGIN_DISPLAY_LABELS.REFUNDED,
+    displayVariant: "pending",
+    availableActions: [PeginAction.NONE],
+    message: "",
+  } satisfies PeginState,
+  isOwnedByCurrentWallet: true,
+  depositorBtcPubkey: "ab".repeat(32),
+  prePeginConfirmations: 0,
+  requiredPrePeginDepth: 6,
+});
+
 // Passed straight into the hook — the page hands over its single
 // usePendingDeposits result the same way, so no module mock is needed.
 const depositsState = {
   pendingActivities: [] as VaultActivity[],
   expiredActivities: [] as VaultActivity[],
+  reclaimableCandidates: [] as VaultActivity[],
   isLoading: false,
   error: null as Error | null,
+  storageReadError: null as PendingPeginStorageReadError | null,
 };
 
 const stubActivity = (id: string) => ({ id }) as VaultActivity;
 
+const settledVault = (id: string) =>
+  ({ id, depositorBtcPubkey: DEPOSITOR_BTC_PUBKEY }) as VaultActivity;
+
+// The settled payout heights from reclaimEligibility.test.ts: payout mined and
+// deeply confirmed, so the reserve's own spend decides what is left to do.
+const reclaimStatus = (reserveSpend: ReclaimStatus["reserveSpend"]) => ({
+  payoutSpend: { spent: true, confirmed: true, blockHeight: 899_995 },
+  reserveSpend,
+  reserveValueSats: 33_000n,
+  observedTipHeight: 900_000,
+});
+
 describe("useVaultsPageEmptiness", () => {
   beforeEach(() => {
-    walletState.isConnected = true;
+    walletState.btcConnected = true;
+    walletState.ethConnected = true;
+    walletState.confirmed = true;
     walletState.address = "0xdepositor";
     dashboardState.hasDisplayCollateral = false;
     dashboardState.isLoading = false;
     dashboardState.positionError = null;
+    dashboardState.indexerError = null;
+    walletState.publicKeyNoCoord = DEPOSITOR_BTC_PUBKEY;
     depositsState.pendingActivities = [];
     depositsState.expiredActivities = [];
+    depositsState.reclaimableCandidates = [];
     depositsState.isLoading = false;
     depositsState.error = null;
+    pollingResults.clear();
+    reclaimChainData.clear();
+    reclaimStatuses.clear();
+    depositsState.storageReadError = null;
     useDashboardStateMock.mockClear();
   });
 
+  it("reports unreadable storage instead of claiming an empty account", () => {
+    depositsState.storageReadError = new PendingPeginStorageReadError(
+      "0xdepositor",
+      '[{"id":',
+      new SyntaxError("Unexpected end of JSON input"),
+    );
+
+    const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
+
+    expect(result.current).toEqual({
+      isLoading: false,
+      isEmpty: false,
+      hasError: true,
+      hasPartialError: false,
+      hasNonIndexerError: true,
+      storageOnlyError: true,
+    });
+  });
+
   it("is empty and not loading while disconnected", () => {
-    walletState.isConnected = false;
+    walletState.ethConnected = false;
 
     const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
 
@@ -61,11 +185,13 @@ describe("useVaultsPageEmptiness", () => {
       isEmpty: true,
       hasError: false,
       hasPartialError: false,
+      hasNonIndexerError: false,
+      storageOnlyError: false,
     });
   });
 
   it("is empty while disconnected even when ETH-keyed queries returned deposits", () => {
-    walletState.isConnected = false;
+    walletState.ethConnected = false;
     depositsState.pendingActivities = [stubActivity("pending-1")];
 
     const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
@@ -74,7 +200,7 @@ describe("useVaultsPageEmptiness", () => {
   });
 
   it("passes undefined to useDashboardState while disconnected", () => {
-    walletState.isConnected = false;
+    walletState.ethConnected = false;
 
     renderHook(() => useVaultsPageEmptiness(depositsState));
 
@@ -84,6 +210,23 @@ describe("useVaultsPageEmptiness", () => {
   it("passes the wallet address to useDashboardState while connected", () => {
     renderHook(() => useVaultsPageEmptiness(depositsState));
 
+    expect(useDashboardStateMock).toHaveBeenCalledWith("0xdepositor");
+  });
+
+  it("keeps the page populated when only Ethereum is connected", () => {
+    walletState.btcConnected = false;
+    dashboardState.hasDisplayCollateral = true;
+
+    const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
+
+    expect(result.current).toEqual({
+      isLoading: false,
+      isEmpty: false,
+      hasError: false,
+      hasPartialError: false,
+      hasNonIndexerError: false,
+      storageOnlyError: false,
+    });
     expect(useDashboardStateMock).toHaveBeenCalledWith("0xdepositor");
   });
 
@@ -97,6 +240,8 @@ describe("useVaultsPageEmptiness", () => {
       isEmpty: false,
       hasError: false,
       hasPartialError: false,
+      hasNonIndexerError: false,
+      storageOnlyError: false,
     });
   });
 
@@ -133,6 +278,78 @@ describe("useVaultsPageEmptiness", () => {
     expect(result.current.isEmpty).toBe(false);
   });
 
+  it("is empty when the only expired deposit is already refunded", () => {
+    depositsState.expiredActivities = [stubActivity("expired-1")];
+    pollingResults.set("expired-1", refundedResult("expired-1"));
+
+    const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
+
+    expect(result.current.isEmpty).toBe(true);
+  });
+
+  it("is not empty when one expired deposit is refunded and another still awaits refund", () => {
+    depositsState.expiredActivities = [
+      stubActivity("expired-1"),
+      stubActivity("expired-2"),
+    ];
+    pollingResults.set("expired-1", refundedResult("expired-1"));
+
+    const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
+
+    expect(result.current.isEmpty).toBe(false);
+  });
+
+  it("is not empty when a settled vault still has a reclaimable reserve", () => {
+    depositsState.reclaimableCandidates = [settledVault("settled-1")];
+    reclaimChainData.set("settled-1", {
+      peginTxid: "0xpegin",
+      onChainStatus: OnChainBtcVaultStatus.REDEEMED,
+    });
+    reclaimStatuses.set(
+      "settled-1",
+      reclaimStatus({ spent: false, confirmed: false }),
+    );
+
+    const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
+
+    expect(result.current.isEmpty).toBe(false);
+  });
+
+  it("is loading, not empty, while a settled vault's reclaim reads are unresolved", () => {
+    depositsState.reclaimableCandidates = [settledVault("settled-1")];
+
+    const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
+
+    expect(result.current.isLoading).toBe(true);
+    expect(result.current.isEmpty).toBe(false);
+  });
+
+  it("renders collateral without waiting on an unresolved settled vault", () => {
+    dashboardState.hasDisplayCollateral = true;
+    depositsState.reclaimableCandidates = [settledVault("settled-1")];
+
+    const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
+
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.isEmpty).toBe(false);
+  });
+
+  it("is empty when the only settled vault's reserve was already reclaimed", () => {
+    depositsState.reclaimableCandidates = [settledVault("settled-1")];
+    reclaimChainData.set("settled-1", {
+      peginTxid: "0xpegin",
+      onChainStatus: OnChainBtcVaultStatus.REDEEMED,
+    });
+    reclaimStatuses.set(
+      "settled-1",
+      reclaimStatus({ spent: true, confirmed: true, blockHeight: 899_998 }),
+    );
+
+    const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
+
+    expect(result.current.isEmpty).toBe(true);
+  });
+
   it("is empty when connected with no vaults and no deposits", () => {
     const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
 
@@ -141,6 +358,8 @@ describe("useVaultsPageEmptiness", () => {
       isEmpty: true,
       hasError: false,
       hasPartialError: false,
+      hasNonIndexerError: false,
+      storageOnlyError: false,
     });
   });
 
@@ -154,6 +373,8 @@ describe("useVaultsPageEmptiness", () => {
       isEmpty: false,
       hasError: true,
       hasPartialError: false,
+      hasNonIndexerError: true,
+      storageOnlyError: false,
     });
   });
 
@@ -177,6 +398,8 @@ describe("useVaultsPageEmptiness", () => {
       isEmpty: false,
       hasError: false,
       hasPartialError: true,
+      hasNonIndexerError: true,
+      storageOnlyError: false,
     });
   });
 
@@ -191,6 +414,16 @@ describe("useVaultsPageEmptiness", () => {
     expect(result.current.isEmpty).toBe(false);
   });
 
+  it("warns when the chain has collateral but its indexed rows are incomplete", () => {
+    dashboardState.hasDisplayCollateral = true;
+    dashboardState.indexerError = new Error("Indexed collateral is incomplete");
+    const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
+    expect(result.current.hasPartialError).toBe(true);
+    expect(result.current.hasNonIndexerError).toBe(false);
+    expect(result.current.isEmpty).toBe(false);
+    expect(result.current.hasError).toBe(false);
+  });
+
   it("does not flag a partial error when both sources loaded cleanly", () => {
     dashboardState.hasDisplayCollateral = true;
 
@@ -200,8 +433,9 @@ describe("useVaultsPageEmptiness", () => {
   });
 
   it("does not flag a partial error alongside the full-page error state", () => {
-    // Nothing showable + a failed read is the full-page hasError case; the
-    // partial flag must not also fire or the page would try to render both.
+    // Nothing showable + a failed remote read is the full-page hasError case;
+    // the partial flag must not also fire on that alone. Unreadable browser
+    // records are the exception — see the test below.
     dashboardState.positionError = new Error("rpc down");
 
     const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
@@ -210,8 +444,28 @@ describe("useVaultsPageEmptiness", () => {
     expect(result.current.hasPartialError).toBe(false);
   });
 
+  it("flags a partial error alongside the full-page error when storage is also unreadable", () => {
+    dashboardState.positionError = new Error("rpc down");
+    depositsState.storageReadError = new PendingPeginStorageReadError(
+      "0xdepositor",
+      '[{"id":',
+      new SyntaxError("Unexpected end of JSON input"),
+    );
+
+    const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
+
+    expect(result.current).toEqual({
+      isLoading: false,
+      isEmpty: false,
+      hasError: true,
+      hasPartialError: true,
+      hasNonIndexerError: true,
+      storageOnlyError: false,
+    });
+  });
+
   it("ignores query errors while disconnected", () => {
-    walletState.isConnected = false;
+    walletState.ethConnected = false;
     depositsState.error = new Error("indexer down");
 
     const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
@@ -221,6 +475,8 @@ describe("useVaultsPageEmptiness", () => {
       isEmpty: true,
       hasError: false,
       hasPartialError: false,
+      hasNonIndexerError: false,
+      storageOnlyError: false,
     });
   });
 });

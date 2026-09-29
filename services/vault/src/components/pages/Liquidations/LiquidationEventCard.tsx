@@ -1,5 +1,4 @@
 import { Hint } from "@babylonlabs-io/core-ui";
-import type { ReactNode } from "react";
 import { twJoin } from "tailwind-merge";
 
 import { COPY } from "@/copy";
@@ -58,20 +57,25 @@ function DetailRow({
 
 function Stat({
   label,
-  children,
+  value,
   className,
 }: {
   label: string;
-  children: ReactNode;
+  value: string;
   className?: string;
 }) {
   return (
-    <div className="flex flex-col">
+    <div className="flex min-w-0 grow basis-[110px] flex-col">
       <span className="text-sm leading-[1.43] tracking-[0.17px] text-accent-secondary">
         {label}
       </span>
-      <span className={twJoin("leading-[1.6] tracking-[0.15px]", className)}>
-        {children}
+      <span
+        className={twJoin(
+          "leading-[1.6] tracking-[0.15px] [overflow-wrap:anywhere]",
+          className,
+        )}
+      >
+        {value}
       </span>
     </div>
   );
@@ -116,7 +120,13 @@ function SeizureRow({
   );
 }
 
-export function LiquidationEventCard({ card }: { card: EventCardData }) {
+export function LiquidationEventCard({
+  card,
+  outcomesId,
+}: {
+  card: EventCardData;
+  outcomesId?: string;
+}) {
   const { triggered } = card;
 
   return (
@@ -130,31 +140,28 @@ export function LiquidationEventCard({ card }: { card: EventCardData }) {
         {card.title}
       </h3>
 
-      <div className="flex gap-16">
+      <div className="flex flex-wrap gap-4 sm:gap-8 2xl:gap-16">
         <Stat
           label={COPY.liquidations.events.collateral}
+          value={card.collateralLabel}
           className="text-xl text-accent-primary"
-        >
-          {card.collateralLabel}
-        </Stat>
+        />
         <Stat
           label={COPY.liquidations.events.liqPrice}
+          value={card.liqPriceLabel}
           className={twJoin(
             "text-xl",
             triggered ? "text-error-light" : "text-success-light",
           )}
-        >
-          {card.liqPriceLabel}
-        </Stat>
+        />
         <Stat
           label={COPY.liquidations.events.distance}
+          value={card.distanceLabel}
           className={twJoin(
             "text-xl",
             triggered ? "text-error-light" : "text-success-light",
           )}
-        >
-          {card.distanceLabel}
-        </Stat>
+        />
       </div>
 
       <div className="flex flex-col gap-2">
@@ -188,58 +195,57 @@ export function LiquidationEventCard({ card }: { card: EventCardData }) {
 
       <div className={DIVIDER_CLASS} />
 
-      <div className="flex flex-col gap-2">
-        <p className={SECTION_TITLE_CLASS}>
-          {COPY.liquidations.events.estimatedLiquidationSection}
-        </p>
+      <div id={outcomesId} className="flex flex-col gap-4">
         <div className="flex flex-col gap-2">
-          <DetailRow
-            label={COPY.liquidations.events.collateralLiquidated}
-            value={card.collateralLiquidatedLabel}
-          />
-          <DetailRow
-            label={COPY.liquidations.events.debtRepaid}
-            value={card.debtRepaidLabel}
-            labelClassName="text-warning-main"
-          />
-          <DetailRow
-            label={COPY.liquidations.events.liquidatorProfit}
-            value={card.liquidatorProfitLabel}
-          />
-          <DetailRow
-            label={card.fairness.label}
-            value={card.fairness.value}
-            tooltip={card.fairness.tooltip}
-            labelClassName="text-info-light"
-          />
+          <p className={SECTION_TITLE_CLASS}>
+            {COPY.liquidations.events.estimatedLiquidationSection}
+          </p>
+          <div className="flex flex-col gap-2">
+            <DetailRow
+              label={COPY.liquidations.events.collateralLiquidated}
+              value={card.collateralLiquidatedLabel}
+            />
+            <DetailRow
+              label={COPY.liquidations.events.debtRepaid}
+              value={card.debtRepaidLabel}
+              labelClassName="text-warning-main"
+            />
+            <DetailRow
+              label={COPY.liquidations.events.liquidatorProfit}
+              value={card.liquidatorProfitLabel}
+            />
+            <DetailRow
+              label={card.fairness.label}
+              value={card.fairness.value}
+              tooltip={card.fairness.tooltip}
+              labelClassName="text-info-light"
+            />
+          </div>
         </div>
-      </div>
 
-      <div className={DIVIDER_CLASS} />
+        <div className={DIVIDER_CLASS} />
 
-      <div className="flex flex-col gap-2">
-        <p className={SECTION_TITLE_CLASS}>
-          {COPY.liquidations.events.positionAfterSection}
-        </p>
-        <div className="flex gap-16">
-          <Stat
-            label={COPY.liquidations.events.btcRemaining}
-            className="text-base text-accent-primary"
-          >
-            {card.btcRemainingLabel}
-          </Stat>
-          <Stat
-            label={COPY.liquidations.events.debtRemaining}
-            className="text-base text-accent-primary"
-          >
-            {card.debtRemainingLabel}
-          </Stat>
-          <Stat
-            label={COPY.liquidations.events.hfAfterLiquidation}
-            className="text-base text-risk-amber"
-          >
-            {card.hfAfterLabel}
-          </Stat>
+        <div className="flex flex-col gap-2">
+          <p className={SECTION_TITLE_CLASS}>
+            {COPY.liquidations.events.positionAfterSection}
+          </p>
+          <div className="flex flex-wrap gap-4 sm:gap-8 2xl:gap-16">
+            <Stat
+              label={COPY.liquidations.events.btcRemaining}
+              value={card.btcRemainingLabel}
+              className="text-base text-accent-primary"
+            />
+            <Stat
+              label={COPY.liquidations.events.debtRemaining}
+              value={card.debtRemainingLabel}
+              className="text-base text-accent-primary"
+            />
+            <Stat
+              label={COPY.liquidations.events.hfAfterLiquidation}
+              value={card.hfAfterLabel}
+              className="text-base text-risk-amber"
+            />
+          </div>
         </div>
       </div>
     </article>

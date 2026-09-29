@@ -9,8 +9,14 @@ import { Container, Loader } from "@babylonlabs-io/core-ui";
 import { useMemo } from "react";
 import { useOutletContext } from "react-router";
 
+import { PositionGate } from "@/applications/aave/components/Detail/PositionGate";
 import { LOAN_TAB, type LoanTab } from "@/applications/aave/constants";
+import { useAaveConfig } from "@/applications/aave/context";
 import { useActiveLoans } from "@/applications/aave/hooks";
+import {
+  toDisplayedBorrowReserveLimit,
+  type BorrowReserveLimit,
+} from "@/applications/aave/utils";
 import type { RootLayoutContext } from "@/components/pages/RootLayout";
 import { EmptyState } from "@/components/shared";
 import { PAGE_CONTENT_CLASS } from "@/components/shared/layoutClasses";
@@ -23,12 +29,32 @@ import {
   useBorrowCapacityOverride,
   useHealthFactorOverride,
 } from "@/overrides/borrowCapacity";
-import { useLoanOverride } from "@/overrides/loans";
+import {
+  cardBorrowCount,
+  cardBorrowedAssets,
+  isDemoAffectingLoans,
+  useLoanOverride,
+} from "@/overrides/loans";
 import { parseReserveId } from "@/routes";
 import { formatUsdValue } from "@/utils/formatting";
 
 import { ActiveLoansList } from "../simple/ActiveLoansList";
 import { LoansSummary } from "../simple/LoansSummary";
+
+// Emphasises the clause the design bolds: choosing an asset ties the position
+// to it, which is the whole point of the single-borrow-asset limit. A spoke
+// that caps nothing ties nothing, so it keeps the plain sentence.
+function noActiveLoansBody(maxBorrowReserves: BorrowReserveLimit) {
+  if (maxBorrowReserves === null) return COPY.loans.noActiveLoans.bodyNoCap;
+  const body = COPY.loans.noActiveLoans.body(maxBorrowReserves);
+  return (
+    <>
+      {body.lead}
+      <span className="text-accent-primary">{body.emphasis}</span>
+      {body.rest}
+    </>
+  );
+}
 
 export default function Loans() {
   const { openDeposit } = useOutletContext<RootLayoutContext>();
@@ -36,8 +62,8 @@ export default function Loans() {
   const { isConnected } = useConnection();
 
   const {
-    debtValueUsd,
-    maxTotalDebtUsd,
+    position,
+    indexerError,
     availableToBorrowUsd,
     canBorrow,
     healthFactor,
@@ -48,7 +74,14 @@ export default function Loans() {
     isBorrowCapacityLoading,
     borrowCapacityError,
     isLoading,
+    positionError,
+    refetchPosition,
   } = useDashboardState(isConnected ? address : undefined);
+
+  // Display only: an unavailable cap claims nothing, like no cap.
+  const maxBorrowReserves = toDisplayedBorrowReserveLimit(
+    useAaveConfig().maxBorrowReserves,
+  );
 
   const { openBorrowPicker, openRepay, goToReserve } = useLoanActions({
     borrowedAssets,
@@ -74,8 +107,7 @@ export default function Loans() {
     if (!demoLoans) return activeLoans;
     return [...demoLoans.rows, ...(demoLoans.hideReal ? [] : activeLoans)];
   }, [activeLoans, demoLoans]);
-  const demoAffectsLoans =
-    demoLoans !== null && (demoLoans.rows.length > 0 || demoLoans.hideReal);
+  const demoAffectsLoans = isDemoAffectingLoans(demoLoans);
 
   // God-mode summary overrides (dev only; null unless the panel forces them,
   // compile-time null in production builds).
@@ -111,15 +143,24 @@ export default function Loans() {
   // section, whose Borrow button was enabled whenever collateral was present.
   const hasPosition = hasCollateral || hasLoans || godModeAffectsPage;
 
-  // Position is still loading for a connected wallet: hold on a spinner rather
-  // than flashing the full-page "deposit" empty state before the summary lands
-  // (hasCollateral/hasLoans are false until the position resolves).
-  if (isConnected && isLoading && !godModeAffectsPage) {
+  // Unknown position data must not show the empty state.
+  if (
+    isConnected &&
+    !position &&
+    (positionError || isLoading) &&
+    !godModeAffectsPage
+  ) {
     return (
       <Container className={`${PAGE_CONTENT_CLASS} pb-6`}>
-        <div className="flex items-center justify-center py-12">
-          <Loader />
-        </div>
+        <PositionGate
+          positionError={positionError}
+          ancillaryError={null}
+          refetchPosition={refetchPosition}
+        >
+          <div className="flex items-center justify-center py-12">
+            <Loader />
+          </div>
+        </PositionGate>
       </Container>
     );
   }
@@ -135,7 +176,9 @@ export default function Loans() {
               ? COPY.loans.noActiveLoans.title
               : COPY.loans.emptyDisconnected
           }
-          description={isConnected ? COPY.loans.noActiveLoans.body : undefined}
+          description={
+            isConnected ? noActiveLoansBody(maxBorrowReserves) : undefined
+          }
           isConnected={isConnected}
           actionLabel={COPY.overview.depositAction}
           onAction={() => openDeposit()}
@@ -145,61 +188,63 @@ export default function Loans() {
     );
   }
 
-  // Display-only totals: when the demo changes the rendered rows, the summary
-  // must total what is on screen — otherwise it reads "$0 borrowed" above a mock
-  // row. With no real borrow capacity to scale against (the usual demo case:
-  // no position at all), the mock debt itself becomes the meter's denominator,
-  // so the bar reads fully-borrowed rather than empty. The values passed to the
-  // borrow/repay actions stay demo-unaware.
-  const shownDebtUsd = demoAffectsLoans
-    ? (demoLoans?.debtUsd ?? 0) + (demoLoans?.hideReal ? 0 : debtValueUsd)
-    : debtValueUsd;
-  const meterBaseUsd = maxTotalDebtUsd > 0 ? maxTotalDebtUsd : shownDebtUsd;
-  const availableMeterPercent =
-    meterBaseUsd > 0 ? availableToBorrowUsd / meterBaseUsd : 0;
-  const borrowedMeterPercent =
-    meterBaseUsd > 0 ? shownDebtUsd / meterBaseUsd : 0;
+  // Display-only: when the demo changes the rendered rows, the summary must
+  // name what is on screen — otherwise it reads "Not Selected" above a mock
+  // row. The values passed to the borrow/repay actions stay demo-unaware.
+  const shownBorrowedAssets = cardBorrowedAssets(demoLoans, borrowedAssets);
 
   return (
     <Container className={`${PAGE_CONTENT_CLASS} pb-6`}>
-      <div className="space-y-6">
-        <LoansSummary
-          availableToBorrow={formatUsdValue(availableToBorrowUsd)}
-          availableMeterPercent={availableMeterPercent}
-          totalBorrowed={formatUsdValue(shownDebtUsd)}
-          borrowedMeterPercent={borrowedMeterPercent}
-          borrowCapacityLoading={shownCapacityLoading}
-          borrowCapacityError={shownCapacityError}
-          healthFactor={shownHealthFactor}
-          healthFactorStatus={shownHealthFactorStatus}
-          onBorrow={openBorrowPicker}
-          onRepay={openRepay}
-          canBorrow={canBorrow}
-          canRepay={hasLoans}
-        />
+      <PositionGate
+        positionError={null}
+        ancillaryError={positionError || indexerError}
+        refetchPosition={refetchPosition}
+      >
+        <div className="space-y-6">
+          <LoansSummary
+            availableToBorrow={formatUsdValue(availableToBorrowUsd)}
+            borrowedAssets={shownBorrowedAssets}
+            maxBorrowReserves={maxBorrowReserves}
+            borrowCount={cardBorrowCount(demoLoans, {
+              position,
+              isLoading,
+              positionError,
+            })}
+            borrowCapacityLoading={shownCapacityLoading}
+            borrowCapacityError={shownCapacityError}
+            healthFactor={shownHealthFactor}
+            healthFactorStatus={shownHealthFactorStatus}
+            onBorrow={openBorrowPicker}
+            onRepay={openRepay}
+            canBorrow={canBorrow}
+            canRepay={hasLoans}
+          />
 
-        {/* `hasLoans` (debt in USD), not `displayLoans.length`: the two can
+          {/* `hasLoans` (debt in USD), not `displayLoans.length`: the two can
             disagree — dust debt, or a reserve with a debt position whose USD
             value reads 0 — and the real page's choice here must not shift. The
             demo only ever adds a reason to render the list. */}
-        {hasLoans || demoAffectsLoans ? (
-          <ActiveLoansList
-            rows={displayLoans}
-            canBorrow={canBorrow}
-            onBorrow={(reserveId) => goToRowReserve(reserveId, LOAN_TAB.BORROW)}
-            onRepay={(reserveId) => goToRowReserve(reserveId, LOAN_TAB.REPAY)}
-          />
-        ) : (
-          // Has collateral but no borrows yet: the Borrow action lives in the
-          // summary above; this just labels the empty active-loans area.
-          <EmptyState
-            title={COPY.loans.noActiveLoans.title}
-            description={COPY.loans.noActiveLoans.body}
-            isConnected
-            withCard
-          />
-        )}
-      </div>
+          {hasLoans || demoAffectsLoans ? (
+            <ActiveLoansList
+              rows={displayLoans}
+              canBorrow={canBorrow}
+              onBorrow={(reserveId) =>
+                goToRowReserve(reserveId, LOAN_TAB.BORROW)
+              }
+              onRepay={(reserveId) => goToRowReserve(reserveId, LOAN_TAB.REPAY)}
+            />
+          ) : (
+            // Has collateral but no borrows yet: the Borrow action lives in the
+            // summary above; this just labels the empty active-loans area.
+            <EmptyState
+              title={COPY.loans.noActiveLoans.title}
+              description={noActiveLoansBody(maxBorrowReserves)}
+              isConnected
+              withCard
+            />
+          )}
+        </div>
+      </PositionGate>
     </Container>
   );
 }

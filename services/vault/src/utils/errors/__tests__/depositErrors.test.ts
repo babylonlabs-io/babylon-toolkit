@@ -15,15 +15,21 @@ import {
   OnChainBtcVaultStatus,
   RpcErrorCode,
 } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+import { UtxoNotAvailableError } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
 import { describe, expect, it } from "vitest";
 
 import { COPY } from "@/copy";
 
 import {
   COMMISSION_UNAVAILABLE_ERROR,
+  isResumableDepositError,
   mapDepositError,
+  mapDepositErrorAfterRegistration,
 } from "../depositErrors";
-import { DepositorWalletMismatchError } from "../depositorWalletMismatch";
+import {
+  DepositorBtcKeyMismatchError,
+  DepositorWalletMismatchError,
+} from "../depositorWalletMismatch";
 import { VaultLifecycleStateError } from "../vaultLifecycleStateError";
 
 const ERRORS = COPY.deposit.errors;
@@ -110,6 +116,130 @@ describe("mapDepositError", () => {
     expect(mapDepositError(err)).toEqual(ERRORS.versionMismatch);
   });
 
+  it("maps a pre-signing config drift to the nothing-was-spent callout", () => {
+    const err = new Error("Protocol parameters changed while preparing");
+    err.name = "BuildConfigDriftError";
+    expect(mapDepositError(err)).toEqual(ERRORS.versionMismatchBeforeSigning);
+  });
+
+  it("maps a fingerprint change to its own callout, with both hashes in diagnostics", () => {
+    const expected = `0x${"11".repeat(32)}`;
+    const actual = `0x${"22".repeat(32)}`;
+    const err = Object.assign(
+      new Error("Peg-in configuration fingerprint changed"),
+      { name: "PeginFingerprintChangedError", expected, actual },
+    );
+
+    const content = mapDepositError(err);
+
+    expect(content.title).toBe(ERRORS.peginFingerprintChanged.title);
+    expect(content.body).toBe(ERRORS.peginFingerprintChanged.body);
+    // The hashes belong in a bug report, not in front of a depositor.
+    expect(content.diagnostics).toContain(expected);
+    expect(content.diagnostics).toContain(actual);
+    expect(content.body).not.toContain(expected);
+  });
+
+  it("still maps a fingerprint change whose revert data carried no hashes", () => {
+    const err = new Error("Peg-in configuration fingerprint changed");
+    err.name = "PeginFingerprintChangedError";
+
+    const content = mapDepositError(err);
+
+    expect(content.title).toBe(ERRORS.peginFingerprintChanged.title);
+    expect(content.diagnostics).toMatch(/carried no fingerprints/);
+  });
+
+  it("does not treat a same-worded error with another name as a fingerprint change", () => {
+    // The bucket is typed on purpose. If someone replaces the predicate with a
+    // substring match on the message, this starts returning the fingerprint
+    // copy and fails — which is the point.
+    const lookalike = new Error("Peg-in configuration fingerprint changed");
+
+    expect(mapDepositError(lookalike).title).not.toBe(
+      ERRORS.peginFingerprintChanged.title,
+    );
+  });
+
+  it.each([
+    [
+      "ApplicationEntryPointMismatchError",
+      "is registered to application 0xabc",
+    ],
+    // Real wording from the encoder's `assertUnsignedRange`, so the fixture
+    // does not teach a reader a width the code never checks.
+    [
+      "PeginFingerprintInputError",
+      "appKeeperKeyEpoch must be a bigint (Solidity uint64), got undefined",
+    ],
+  ])("hides a %s message behind the generic callout", (name, message) => {
+    // Both name internals — two addresses and three protocol values, or a
+    // field and the width it overflowed. Without a bucket, the mapper's last
+    // resort renders the message verbatim as the depositor-facing body.
+    const err = new Error(message);
+    err.name = name;
+
+    const mapped = mapDepositError(err);
+
+    expect(mapped.body).toBe(ERRORS.genericBody);
+    expect(mapped.body).not.toContain(message);
+    expect(mapped.diagnostics).toContain(message);
+  });
+
+  it("maps an amount-bounds drift to the deposit-limits callout", () => {
+    const err = Object.assign(new Error("Deposit limits changed"), {
+      name: "BuildLimitsDriftError",
+      reason: "amount-bounds",
+    });
+    expect(mapDepositError(err)).toEqual(ERRORS.depositLimitsChanged);
+  });
+
+  it("maps a vault-count drift to the BTCVault-limit callout", () => {
+    // Different instruction: stop splitting, rather than change the amount.
+    const err = Object.assign(new Error("Deposit limits changed"), {
+      name: "BuildLimitsDriftError",
+      reason: "vault-count",
+    });
+    expect(mapDepositError(err)).toEqual(ERRORS.vaultCountLimitChanged);
+  });
+
+  it("falls back to the amount-bounds callout when the reason did not survive", () => {
+    // A structurally-cloned error matches by name but loses its fields. Both
+    // callouts send the depositor back to the form, so the common case is the
+    // safe default — but it must be a decision, not an accident.
+    const err = new Error("Deposit limits changed while preparing");
+    err.name = "BuildLimitsDriftError";
+    expect(mapDepositError(err)).toEqual(ERRORS.depositLimitsChanged);
+  });
+
+  it("hides an internal precondition message behind the generic callout", () => {
+    // The message names a function; the depositor must not see it, but a bug
+    // report still needs it, so it survives in diagnostics.
+    const err = new Error(
+      "assertBuildWithinPinnedLimits requires at least one vault amount",
+    );
+    err.name = "BuildPreconditionError";
+    const mapped = mapDepositError(err);
+    expect(mapped.body).toBe(ERRORS.genericBody);
+    expect(mapped.body).not.toContain("assertBuildWithinPinnedLimits");
+    expect(mapped.diagnostics).toContain("assertBuildWithinPinnedLimits");
+  });
+
+  it("keeps the two pre-signing aborts distinct from the post-registration one", () => {
+    // The post-registration mismatch has already spent the ETH fee and left a
+    // vault stranded until it times out; the two above have spent nothing.
+    // Sharing one callout across all three would tell the depositor the cheap
+    // failure cost them what the expensive one does.
+    const registered = new Error("on-chain version differs");
+    registered.name = "RegisteredVaultVersionMismatchError";
+    const preSigning = new Error("parameters changed");
+    preSigning.name = "BuildConfigDriftError";
+
+    expect(mapDepositError(registered)).not.toEqual(
+      mapDepositError(preSigning),
+    );
+  });
+
   it("maps a wallet account change to the account-changed callout", () => {
     const err = new Error(
       "BTC wallet account changed during deposit flow. Please restart.",
@@ -175,6 +305,21 @@ describe("mapDepositError", () => {
     );
   });
 
+  it("maps the resume Ethereum-wallet check copy to the wallet callout", () => {
+    expect(mapDepositError(new Error(ERRORS.ethWalletNotConnected))).toEqual(
+      ERRORS.walletNotConnected,
+    );
+  });
+
+  it("keeps the missing on-chain Bitcoin key copy under the generic title", () => {
+    expect(
+      mapDepositError(new Error(ERRORS.depositorBtcKeyMissing)),
+    ).toMatchObject({
+      title: ERRORS.defaultTitle,
+      body: ERRORS.depositorBtcKeyMissing,
+    });
+  });
+
   it("maps a missing vault provider to the provider-not-found callout", () => {
     expect(mapDepositError(new Error("Vault provider not found"))).toEqual(
       ERRORS.providerNotFound,
@@ -193,33 +338,83 @@ describe("mapDepositError", () => {
   it("maps a broadcast failure to the broadcast callout", () => {
     expect(
       mapDepositError(
-        new Error("Failed to broadcast batch Pre-PegIn transaction: timeout"),
+        new Error("Failed to broadcast Pre-Pegin transaction: timeout"),
       ),
     ).toEqual(ERRORS.broadcastFailed);
   });
 
   it("classifies a BTC broadcast wrapper over insufficient funds as broadcast, not ETH gas", () => {
-    // The flow wraps broadcast errors; the inner text can say "insufficient
-    // funds" (BTC-side) — that must not be read as an ETH gas shortfall.
+    // The broadcast stage wraps inner errors; the inner text can say
+    // "insufficient funds" (BTC-side) — that must not be read as an ETH gas
+    // shortfall.
     expect(
       mapDepositError(
         new Error(
-          "Failed to broadcast batch Pre-PegIn transaction: insufficient funds",
+          "Failed to broadcast Pre-Pegin transaction: insufficient funds",
         ),
       ),
     ).toEqual(ERRORS.broadcastFailed);
   });
 
-  it("classifies a wallet rejection wrapped by the broadcast catch as a signing rejection", () => {
-    // The broadcast step re-wraps inner errors in a fresh Error (losing the
-    // wallet code), so a rejection there must still be matched by phrasing.
+  it("maps a prepare-stage failure to the preparation callout", () => {
+    // The common producer: prevout resolution against the mempool API on the
+    // resume path (no trusted expectedUtxos).
     expect(
       mapDepositError(
         new Error(
-          "Failed to broadcast batch Pre-PegIn transaction: User rejected the request",
+          "Failed to prepare Pre-Pegin transaction: Failed to fetch UTXO from mempool: HTTP 502",
+        ),
+      ),
+    ).toEqual(ERRORS.preparationFailed);
+  });
+
+  it("keeps a sign-stage failure out of the broadcast bucket even when its inner text says broadcast", () => {
+    // The ceremony's terms-mismatch text contains "being broadcast"; only the
+    // explicit "failed to broadcast" labels may hit the broadcast bucket.
+    expect(
+      mapDepositError(
+        new Error(
+          "Failed to sign Pre-Pegin transaction: Deposit terms do not match the transaction being broadcast: vault 0 amount differs",
+        ),
+      ),
+    ).toEqual(ERRORS.signingFailed);
+  });
+
+  it("classifies a wallet rejection wrapped by the sign stage as a signing rejection", () => {
+    // Wording backup path: some wallets reject with a bare string, so the
+    // rejection must be matched by phrasing even without a typed cause.
+    expect(
+      mapDepositError(
+        new Error(
+          "Failed to sign Pre-Pegin transaction: User rejected the request",
         ),
       ),
     ).toEqual(ERRORS.signingRejected);
+  });
+
+  it("classifies a typed rejection carried on the wrapper's cause chain as a signing rejection", () => {
+    // The stage wrapper preserves `cause`, so a typed 4001 rejection is
+    // detected even when the text matches no rejection phrasing.
+    const walletError = Object.assign(new Error("request declined"), {
+      code: 4001,
+    });
+    expect(
+      mapDepositError(
+        new Error("Failed to sign Pre-Pegin transaction: request declined", {
+          cause: walletError,
+        }),
+      ),
+    ).toEqual(ERRORS.signingRejected);
+  });
+
+  it("maps a non-rejection signing failure to the signing-failed callout", () => {
+    expect(
+      mapDepositError(
+        new Error(
+          "Failed to sign Pre-Pegin transaction: PSBT finalization failed and wallet did not auto-finalize",
+        ),
+      ),
+    ).toEqual(ERRORS.signingFailed);
   });
 
   it("treats a BTC funding shortfall as funds-unavailable, not an ETH gas shortfall", () => {
@@ -278,10 +473,10 @@ describe("mapDepositError", () => {
     expect(mapDepositError(err)).not.toEqual(ERRORS.depositTermsRejected);
   });
 
-  it("maps a broadcast-stage lifecycle refusal to the broadcast callout, by type not message", () => {
-    // Same user-visible outcome as the generic-message predecessor (whose
-    // message contained "broadcast"); the message here deliberately doesn't,
-    // so only the typed branch can produce this mapping.
+  it("maps a broadcast-stage lifecycle refusal to the terminal batch callout, by type not message", () => {
+    // A sibling that left PENDING is terminal: the copy must not invite a
+    // retry. The message deliberately carries no stage label, so only the
+    // typed branch can produce this mapping.
     const err = new VaultLifecycleStateError("resume refused", {
       reason: "invalid-status",
       stage: "broadcast",
@@ -289,7 +484,7 @@ describe("mapDepositError", () => {
       status: OnChainBtcVaultStatus.EXPIRED,
       vaultId: "0xabc",
     });
-    expect(mapDepositError(err)).toEqual(ERRORS.broadcastFailed);
+    expect(mapDepositError(err)).toEqual(ERRORS.batchNoLongerPending);
   });
 
   it("does NOT map a presign-stage lifecycle refusal to the broadcast callout", () => {
@@ -315,15 +510,15 @@ describe("mapDepositError", () => {
     expect(mapDepositError(err)).toEqual(ERRORS.walletMethodNotSupported);
   });
 
-  it("finds WALLET_METHOD_NOT_SUPPORTED through a broadcast wrapper's cause chain", () => {
-    // The broadcast catch re-wraps with { cause }; the coded inner error must
-    // beat the "broadcast" substring bucket the wrapper message would hit.
+  it("finds WALLET_METHOD_NOT_SUPPORTED through a sign-stage wrapper's cause chain", () => {
+    // The sign stage re-wraps with { cause }; the coded inner error must
+    // beat the sign-stage label bucket the wrapper message would hit.
     const inner = new FakeWalletError(
       "WALLET_METHOD_NOT_SUPPORTED",
       "SomeWallet does not support deriveContextHash",
     );
     const wrapped = new Error(
-      "Failed to broadcast Pre-PegIn transaction: unsupported",
+      "Failed to sign Pre-Pegin transaction: unsupported",
       { cause: inner },
     );
     expect(mapDepositError(wrapped)).toEqual(ERRORS.walletMethodNotSupported);
@@ -389,14 +584,14 @@ describe("mapDepositError", () => {
     expect(mapDepositError(err)).toEqual(ERRORS.walletMethodNotSupported);
   });
 
-  it("finds DEVICE_CEREMONY_INVALID through a broadcast wrapper's cause chain", () => {
-    // Without the typed bucket, the wrapper's "broadcast" wording would claim
-    // this as "Broadcast failed" — misleading for a device-state error.
+  it("finds DEVICE_CEREMONY_INVALID through a sign-stage wrapper's cause chain", () => {
+    // Without the typed bucket, the wrapper's sign-stage label would claim
+    // this as "Signing failed" — misleading for a device-state error.
     const inner = new FakeWalletError(
       "DEVICE_CEREMONY_INVALID",
       "The device no longer holds the approved intent (SW_BAD_STATE) — restart the flow from derivation.",
     );
-    const wrapped = new Error("Failed to broadcast Pre-PegIn transaction", {
+    const wrapped = new Error("Failed to sign Pre-Pegin transaction", {
       cause: inner,
     });
     expect(mapDepositError(wrapped)).toEqual(ERRORS.deviceCeremonyInvalid);
@@ -475,20 +670,82 @@ describe("mapDepositError", () => {
     expect(mapDepositError(err)).toEqual(ERRORS.wrongDepositorWallet);
   });
 
+  it("maps the typed depositor Bitcoin-key mismatch from the resume check to its own callout", () => {
+    const err = new DepositorBtcKeyMismatchError({
+      vaultId: "0xabc",
+      expectedDepositorBtcPubkey: "11".repeat(32),
+      connectedBtcPubkey: "22".repeat(32),
+    });
+    expect(mapDepositError(err)).toEqual(ERRORS.wrongDepositorBtcWallet);
+  });
+
   it("classifies a coded-only rejection preserved as a wrapper's cause as a signing rejection", () => {
-    // Pins the { cause } side effect at the broadcast wrap sites: a coded
+    // Pins the { cause } side effect at the sign-stage wrap: a coded
     // rejection whose message carries no cancellation wording used to flatten
-    // into the wrapper and read as a broadcast failure.
+    // into the wrapper and read as a plain signing failure.
     const rejection = new FakeWalletError("CONNECTION_REJECTED", "nope");
-    const withCause = new Error(
-      "Failed to broadcast batch Pre-PegIn transaction: nope",
-      { cause: rejection },
-    );
+    const withCause = new Error("Failed to sign Pre-Pegin transaction: nope", {
+      cause: rejection,
+    });
     expect(mapDepositError(withCause)).toEqual(ERRORS.signingRejected);
 
     const withoutCause = new Error(
-      "Failed to broadcast batch Pre-PegIn transaction: nope",
+      "Failed to sign Pre-Pegin transaction: nope",
     );
-    expect(mapDepositError(withoutCause)).toEqual(ERRORS.broadcastFailed);
+    expect(mapDepositError(withoutCause)).toEqual(ERRORS.signingFailed);
+  });
+});
+
+describe("mapDepositErrorAfterRegistration", () => {
+  it("maps a spent input to the terminal post-registration callout", () => {
+    const err = new UtxoNotAvailableError([{ txid: "ab".repeat(32), vout: 0 }]);
+    expect(mapDepositErrorAfterRegistration(err)).toEqual(
+      ERRORS.inputSpentAfterRegistration,
+    );
+  });
+
+  it("defers to mapDepositError for anything else", () => {
+    // The post-registration wrapper adds one branch and changes nothing else.
+    const err = new Error("Failed to get UTXOs for address tb1q: HTTP 502");
+    expect(mapDepositErrorAfterRegistration(err)).toEqual(mapDepositError(err));
+  });
+});
+
+describe("mapDepositError — UTXO availability re-check", () => {
+  it("maps a mempool UTXO fetch failure to the funds-unavailable callout", () => {
+    // The post-gate re-check's fetch path (mempoolApi getAddressUtxos).
+    expect(
+      mapDepositError(
+        new Error("Failed to get UTXOs for address tb1qdepositor: HTTP 502"),
+      ),
+    ).toEqual(ERRORS.utxosUnavailable);
+  });
+});
+
+describe("mapDepositError — bare broadcast wording", () => {
+  it("does not read an untyped message that merely mentions broadcast as a broadcast failure", () => {
+    // verifyResumeParticipantKeys' wording: nothing was sent, and the message
+    // carries no stage label. Only the explicit label selects the callout.
+    const err = new Error(
+      "Cannot verify participant keys: the stamped value for vault keeper at index 0 is not a readable BTC public key (zz). The Pre-PegIn was not broadcast.",
+    );
+    const mapped = mapDepositError(err);
+    expect(mapped).not.toEqual(ERRORS.broadcastFailed);
+    expect(mapped.title).toBe(ERRORS.defaultTitle);
+  });
+});
+
+describe("isResumableDepositError", () => {
+  it("treats a non-rejection signing failure as resumable after registration", () => {
+    // Nothing was broadcast, so the registered vaults can still take the
+    // Pre-PegIn — the same situation as a locked device.
+    expect(isResumableDepositError(ERRORS.signingFailed)).toBe(true);
+  });
+
+  it("does not treat a preparation or broadcast failure as resumable", () => {
+    // Fresh-flow preparation failures are deterministic; a broadcast failure
+    // may already have reached the network.
+    expect(isResumableDepositError(ERRORS.preparationFailed)).toBe(false);
+    expect(isResumableDepositError(ERRORS.broadcastFailed)).toBe(false);
   });
 });

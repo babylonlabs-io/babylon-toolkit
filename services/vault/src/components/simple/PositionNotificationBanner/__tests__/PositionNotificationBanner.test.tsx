@@ -4,7 +4,11 @@ import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { PositionNotificationsStatus } from "@/applications/aave/hooks/usePositionNotifications";
-import type { CalculatorResult } from "@/applications/aave/positionNotifications";
+import type {
+  CalculatorResult,
+  Warning,
+} from "@/applications/aave/positionNotifications";
+import { COPY } from "@/copy";
 
 import { STALE_PRICE_BANNER_GRACE_MS } from "../constants";
 import { PositionNotificationBanner } from "../PositionNotificationBanner";
@@ -120,13 +124,16 @@ vi.mock("@/applications/aave/context", () => ({
 const mockReorderVerificationContext = {
   CF: 0.7,
   THF: 1.1,
-  maxLB: 1.05,
+  LB: 1.05,
+  expectedHF: 0.95,
+  minPeginBtc: 0.0005,
   btcPrice: 60_000,
   totalDebtUsd: 10_000,
 };
 
 const mockUsePositionNotifications = vi.fn(() => ({
   result: null,
+  liveUrgentWarning: null as Warning | null,
   status: "ready" as PositionNotificationsStatus,
   isLoading: false,
   reorderVerificationContext: mockReorderVerificationContext as
@@ -239,6 +246,7 @@ describe("PositionNotificationBanner", () => {
     // doesn't leak into other tests.
     mockUsePositionNotifications.mockReturnValue({
       result: null,
+      liveUrgentWarning: null,
       status: "ready",
       isLoading: false,
       reorderVerificationContext: mockReorderVerificationContext,
@@ -250,6 +258,60 @@ describe("PositionNotificationBanner", () => {
     const { container } = renderBanner(null, onDeposit, onRepay);
     expect(container.innerHTML).toBe("");
   });
+
+  it.each([null, "paused"])(
+    "shows live risk without reorder when indexed rows are incomplete (pause: %s)",
+    (pause) => {
+      gateMock.value.aave = pause;
+      gateMock.value.protocol = pause;
+      mockUsePositionNotifications.mockReturnValue({
+        result: null,
+        liveUrgentWarning: {
+          type: "urgent",
+          title: COPY.liquidationWarnings.liveHealthFactor.title("1.05"),
+          detail: COPY.liquidationWarnings.liveHealthFactor.detail,
+        },
+        status: "incomplete-position",
+        isLoading: false,
+        reorderVerificationContext: null,
+      });
+      render(
+        <Wrapper>
+          <PositionNotificationBanner
+            connectedAddress="0xTestAddress"
+            onDeposit={onDeposit}
+            onRepay={onRepay}
+          />
+        </Wrapper>,
+      );
+
+      expect(
+        screen.getByText(
+          COPY.liquidationWarnings.liveHealthFactor.title("1.05"),
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText(COPY.banner.applyOptimalOrder),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Dismiss notification" }),
+      ).not.toBeInTheDocument();
+      const deposit = screen.getByRole("button", {
+        name: COPY.banner.addCollateral,
+      });
+      const repay = screen.getByRole("button", { name: COPY.banner.repayDebt });
+      if (pause) {
+        expect(deposit).toBeDisabled();
+        expect(repay).toBeDisabled();
+      } else {
+        fireEvent.click(deposit);
+        fireEvent.click(repay);
+        expect(onDeposit).toHaveBeenCalledWith();
+        expect(onRepay).toHaveBeenCalledOnce();
+      }
+      expect(mockExecuteReorder).not.toHaveBeenCalled();
+    },
+  );
 
   it("renders green banner when no warnings and order is optimal", () => {
     renderBanner(makeBaseResult(), onDeposit, onRepay);
@@ -389,6 +451,7 @@ describe("PositionNotificationBanner", () => {
   it("disables Apply Optimal Order when the verification context is unavailable", () => {
     mockUsePositionNotifications.mockReturnValue({
       result: null,
+      liveUrgentWarning: null,
       status: "ready" as const,
       isLoading: false,
       reorderVerificationContext: null,
@@ -461,6 +524,7 @@ describe("PositionNotificationBanner", () => {
     // Live feed (no debug override) reports stale price.
     mockUsePositionNotifications.mockReturnValue({
       result: null,
+      liveUrgentWarning: null,
       status: "stale-price",
       isLoading: false,
       reorderVerificationContext: null,
@@ -606,6 +670,7 @@ describe("PositionNotificationBanner v3", () => {
     gateMock.value = { protocol: null, aave: null };
     mockUsePositionNotifications.mockReturnValue({
       result: null,
+      liveUrgentWarning: null,
       status: "ready",
       isLoading: false,
       reorderVerificationContext: mockReorderVerificationContext,
@@ -653,15 +718,14 @@ describe("PositionNotificationBanner v3", () => {
     expect(screen.queryByText("Suggestion")).toBeNull();
   });
 
-  it("selects CLIFF B (no affordable add) when suggestedNewVaultBtc is null", () => {
+  it("shows the suggestion block with no add CTA when suggestedNewVaultBtc is null", () => {
     const result = makeBaseResult({
       warnings: [
         {
           type: "cliff",
           title: "First liquidation takes everything",
           detail: "A single liquidation event seizes all your BTC.",
-          suggestion:
-            "To enable partial liquidation, withdraw your 1 BTC and re-deposit as two smaller vaults.",
+          suggestion: COPY.liquidationWarnings.cliff.noSplitSuggestion,
         },
       ],
       suggestedNewVaultBtc: null,
@@ -671,8 +735,56 @@ describe("PositionNotificationBanner v3", () => {
     const banner = screen.getByTestId("position-notification-banner");
     expect(banner.dataset.tone).toBe("cliff");
     expect(screen.getByText("Suggestion")).toBeTruthy();
-    expect(screen.getByText(/withdraw your 1 BTC/)).toBeTruthy();
+    expect(
+      screen.getByText(COPY.liquidationWarnings.cliff.noSplitSuggestion),
+    ).toBeTruthy();
+    expect(screen.queryByText(/^Add .* BTC$/)).toBeNull();
     expect(screen.queryByText("Add Collateral")).toBeNull();
+  });
+
+  it("labels the add CTA and pre-fills the deposit with the same 0.0001 BTC amount", () => {
+    const result = makeBaseResult({
+      warnings: [
+        {
+          type: "cliff",
+          title: "First liquidation takes everything",
+          detail: "A single liquidation event seizes all your BTC.",
+          suggestion:
+            "Adding a new BTCVault of 0.0344 BTC enables partial-position liquidation.",
+        },
+      ],
+      suggestedNewVaultBtc: 0.0344,
+    });
+    renderBanner(result, onDeposit, onRepay);
+
+    fireEvent.click(screen.getByText("Add 0.0344 BTC"));
+    expect(onDeposit).toHaveBeenCalledWith("0.0344");
+  });
+
+  it("warns that liquidation warnings are unavailable when the parameter read failed", () => {
+    mockUsePositionNotifications.mockReturnValue({
+      result: null,
+      liveUrgentWarning: null,
+      status: "params-unavailable",
+      isLoading: false,
+      reorderVerificationContext: null,
+    });
+    render(
+      <Wrapper>
+        <PositionNotificationBanner
+          connectedAddress="0xTestAddress"
+          onDeposit={onDeposit}
+          onRepay={onRepay}
+        />
+      </Wrapper>,
+    );
+
+    expect(
+      screen.getByText(COPY.liquidationWarnings.paramsUnavailable.title),
+    ).toBeTruthy();
+    expect(
+      screen.getByTestId("position-notification-banner").dataset.severity,
+    ).toBe("yellow");
   });
 
   it("renders the dust advisory as a dismissible v3 card that stays dismissed", () => {

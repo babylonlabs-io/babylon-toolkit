@@ -1,4 +1,10 @@
-import { Button, Callout, Heading, Loader } from "@babylonlabs-io/core-ui";
+import {
+  Button,
+  Callout,
+  Heading,
+  Loader,
+  LockIcon,
+} from "@babylonlabs-io/core-ui";
 import {
   estimateRefundFeeSats,
   REFUND_MAX_FEE_FRACTION_DENOMINATOR,
@@ -209,7 +215,12 @@ export function RefundReviewContent({
           />
 
           {walletLocked && (
-            <Callout variant="error" title={COPY.wallet.locked.title}>
+            <Callout
+              variant="accent"
+              role="alert"
+              icon={<LockIcon size={24} color="text-accent-contrast" />}
+              title={COPY.wallet.locked.title}
+            >
               {COPY.wallet.locked.description}
             </Callout>
           )}

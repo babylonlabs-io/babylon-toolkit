@@ -2,6 +2,7 @@ import {
   batchPollByProvider,
   type DaemonStatus,
   type GetPeginStatusResponse,
+  isUnrecognizedDaemonStatusError,
   VpResponseValidationError,
 } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import type { Hex } from "viem";
@@ -82,6 +83,10 @@ export async function waitForBatchReadiness({
         rpcClient.batchGetPeginStatusByVaultId({ vault_ids }),
       onItem: (vault, envelope) => {
         if (envelope.error !== null) {
+          // A status the SDK does not know ends the wait for this vault only.
+          if (isUnrecognizedDaemonStatusError(envelope.error)) {
+            terminalVaultIds.add(vault.vaultId);
+          }
           if (!envelope.error.includes("PegIn not found")) {
             logger.warn(`${logLabel} poll returned an item error`, {
               vaultId: vault.vaultId,

@@ -17,8 +17,8 @@ export type VaultLifecycleRole = "target" | "sibling";
  *
  * Thrown instead of a bare `Error` so the UI mappers can branch on the
  * machine-readable fields rather than the message: a presign-stage EXPIRED
- * target needs refund-path copy, while the broadcast-stage refusal keeps its
- * existing mapping. `status` always carries the ACTUAL on-chain status — an
+ * target needs refund-path copy, while the broadcast-stage refusal maps to
+ * the terminal batch callout. `status` always carries the ACTUAL on-chain status — an
  * ack-window refusal reports `reason: "ack-window-elapsed"` with the still-
  * PENDING status, never a fabricated EXPIRED.
  */

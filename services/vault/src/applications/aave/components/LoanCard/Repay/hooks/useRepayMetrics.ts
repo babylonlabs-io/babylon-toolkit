@@ -46,8 +46,6 @@ export interface UseRepayMetricsResult {
   healthFactorValue: number;
   /** Original health factor shown when repay amount > 0 to show before → after */
   healthFactorOriginal?: string;
-  /** Original health factor value for UI (Infinity when no debt = healthy) */
-  healthFactorOriginalValue?: number;
 }
 
 export function useRepayMetrics({
@@ -101,8 +99,6 @@ export function useRepayMetrics({
         liquidationThresholdBps,
       );
 
-  const originalHealthValue = currentHealthFactor ?? Infinity;
-
   return {
     debtCurrent,
     debtProjected,
@@ -114,6 +110,5 @@ export function useRepayMetrics({
     healthFactorOriginal: isDebtNearZero
       ? undefined
       : formatHealthFactor(currentHealthFactor),
-    healthFactorOriginalValue: isDebtNearZero ? undefined : originalHealthValue,
   };
 }

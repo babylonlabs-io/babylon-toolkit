@@ -51,7 +51,10 @@ export {
   AAVE_FUNCTION_NAMES,
   BPS_SCALE,
   FULL_REPAY_BUFFER_DIVISOR,
+  HEALTH_FACTOR_LIQUIDATION_THRESHOLD,
+  HEALTH_FACTOR_RISKY_THRESHOLD,
   HEALTH_FACTOR_WARNING_THRESHOLD,
+  MAX_ALLOWED_USER_RESERVES_LIMIT,
   MIN_HEALTH_FACTOR_FOR_BORROW,
 } from "./constants.js";
 
@@ -72,13 +75,15 @@ export {
   buildWithdrawCollateralsTx,
   getAssetDrawnRatesSafe,
   getDynamicReserveConfig,
+  getLiquidationBonusConfig,
+  getMaxUserReservesLimit,
   getOracleAddress,
   getPosition,
   getPositionSizeParams,
   getReserve,
+  getReserves,
   getReservesPrices,
   getReservesPricesSafe,
-  getTargetHealthFactor,
   getUserAccountData,
   getUserPosition,
   getPositionReserveTotalDebt,
@@ -88,6 +93,7 @@ export {
   getUserTotalDebts,
   type AssetDrawnRateRequest,
   type AssetDrawnRateResult,
+  type LiquidationBonusConfig,
   type ReservePriceResult,
 } from "./clients/index.js";
 
@@ -99,26 +105,35 @@ export {
   aaveRayValueToUsd,
   aaveValueToUsd,
   calculateHealthFactor,
+  computeLiquidationBonusBps,
   computeMinDepositForSplit,
   computeOptimalOrder,
   computeOptimalSplit,
   computeSeizedFraction,
   computeSeizedFractionDetailed,
+  computeSplitLiquidationBonus,
+  EXPECTED_HEALTH_FACTOR_AT_LIQUIDATION,
+  EXPECTED_HEALTH_FACTOR_AT_LIQUIDATION_WAD,
+  findSplitSizingViolation,
   getGroup1FromOrder,
   getHealthFactorStatus,
   getHealthFactorStatusFromValue,
   hasDebtFromPosition,
   MAX_DP_N,
   simulateCascade,
+  SPLIT_TARGET_HEALTH_FACTOR,
   wadToNumber,
 } from "./utils/index.js";
 
 export type {
   CascadeVault,
   HealthFactorStatus,
+  LiquidationBonusCurve,
   MinDepositForSplitParams,
   OptimalSplitParams,
   OptimalSplitResult,
+  SplitParamsViolation,
+  SplitSizingViolation,
 } from "./utils/index.js";
 
 // Export ABIs for application registration

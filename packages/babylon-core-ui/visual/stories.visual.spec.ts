@@ -35,9 +35,7 @@ const OUTPUT_DIR =
  */
 const EXPECTED_SCREENS_MANIFEST = "expected-screens.txt";
 
-/** Height the story frame is rendered at before it is measured. Stories
- *  are captured full-page, so this only sets the initial layout width /
- *  minimum height, not the final image height. */
+/** Initial story size. The viewport expands after the story settles. */
 const STORY_VIEWPORT = { width: 900, height: 600 };
 
 /** Upper bound on waiting for a story's root to paint. */
@@ -52,7 +50,8 @@ const FRAME_SETTLE_TIMEOUT_MS = 15_000;
 
 /**
  * Storybook keeps the functional loader spinning under reduced motion
- * (see docs/motion-system.md). Frozen here for the same reason the vault
+ * (the reduced-motion reset in core-ui index.css re-enables it). Frozen
+ * here for the same reason the vault
  * capture freezes it: otherwise every spinner story lands on a random
  * rotation and diffs against itself forever.
  */
@@ -100,34 +99,33 @@ async function readStoryIds(): Promise<string[]> {
 }
 
 /**
- * Block until the rendered frame stops changing.
+ * Return the captured frame after it stops changing.
  *
- * Compares the actual rendered bytes rather than a cheaper proxy. Two
- * cheaper proxies were tried and both let real flake through:
- *
- * - Scroll dimensions alone fixed the visx chart stories (`SeizureMap`
- *   remeasures its parent and re-renders at a new height) but not the
- *   overlays: a modal fading in over a fixed-position backdrop does not
- *   change the page's scroll size at all, so six modal/dialog stories
- *   kept flaking - and a *different* six each run.
- * - `sb-show-main` fires when Storybook has rendered the story, which is
- *   before its enter animation has finished.
- *
- * Polling pixels covers layout, animation, late images and lazy content
- * in one check, and costs one extra screenshot for the ~98% of stories
- * that are already settled on the first comparison.
+ * Full-page screenshots briefly resize Chromium to 1x1. This can remove
+ * charts in the merge-base and produce a stable blank image.
+ * After viewport frames match, expand the viewport to fit the page and
+ * check again. Charts must settle from their initial fallback size first.
  */
-async function waitForFrameSettled(page: Page): Promise<void> {
+async function waitForFrameSettled(page: Page): Promise<Buffer> {
   const deadline = Date.now() + FRAME_SETTLE_TIMEOUT_MS;
-  let previous = await page.screenshot({ fullPage: true });
+  let previous = await page.screenshot();
   let matches = 0;
 
   while (Date.now() < deadline) {
     await page.waitForTimeout(FRAME_SETTLE_QUIET_MS);
-    const current = await page.screenshot({ fullPage: true });
+    const current = await page.screenshot();
     if (current.equals(previous)) {
       matches += 1;
-      if (matches >= FRAME_SETTLE_CONSECUTIVE_MATCHES) return;
+      if (matches >= FRAME_SETTLE_CONSECUTIVE_MATCHES) {
+        const size = await page.evaluate(() => ({
+          width: document.documentElement.scrollWidth,
+          height: document.documentElement.scrollHeight,
+        }));
+        const viewport = page.viewportSize()!;
+        if (size.width <= viewport.width && size.height <= viewport.height) return current;
+        await page.setViewportSize(size);
+        matches = 0;
+      }
     } else {
       matches = 0;
     }
@@ -172,9 +170,9 @@ for (const storyId of storyIds) {
   test(`capture story ${storyId}`, async ({ page }) => {
     await page.setViewportSize(STORY_VIEWPORT);
 
-    // `viewMode=story` renders the bare component without the Storybook
-    // chrome (sidebar, toolbar, addon panel), so the screenshot is the
-    // component and nothing else.
+    // Keep the pointer outside the page so it cannot open hover tooltips.
+    const OUTSIDE_PAGE_COORDINATE = -1;
+    await page.mouse.move(OUTSIDE_PAGE_COORDINATE, OUTSIDE_PAGE_COORDINATE);
     await page.goto(`/iframe.html?id=${encodeURIComponent(storyId)}&viewMode=story`, {
       waitUntil: "domcontentloaded",
     });
@@ -237,9 +235,10 @@ for (const storyId of storyIds) {
         ),
       );
     });
-    await waitForFrameSettled(page);
-
-    const buffer = await page.screenshot({ fullPage: true });
+    const buffer = await waitForFrameSettled(page);
+    if (storyId.startsWith("components-data-display-charts-")) {
+      expect(await page.locator('svg[role="img"]').first().isVisible()).toBe(true);
+    }
     await fs.writeFile(path.join(OUTPUT_DIR, `${storyId}.png`), buffer);
 
     expect(buffer.byteLength).toBeGreaterThan(100);

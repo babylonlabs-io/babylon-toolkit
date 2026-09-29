@@ -16,6 +16,7 @@ export const createWallet = async <P extends IProvider, C>({ metadata, context, 
     createProvider,
     label,
     hardware,
+    connectGuide,
   } = metadata;
 
   const options: WalletOptions<P> = {
@@ -29,6 +30,7 @@ export const createWallet = async <P extends IProvider, C>({ metadata, context, 
     networks,
     label,
     hardware,
+    connectGuide: connectGuide?.(config),
   };
 
   if (walletGetter) {

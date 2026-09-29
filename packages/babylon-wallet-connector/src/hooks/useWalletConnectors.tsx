@@ -1,12 +1,18 @@
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 
 import { useChainProviders } from "@/context/Chain.context";
 import { useLifeCycleHooks } from "@/context/LifecycleHooks.context";
-import { isValidConfirmationReceipt, WALLET_CONFIRMATION_RECEIPT_KEY } from "@/core/confirmationReceipt";
-import { HashMap, IChain, IETHProvider, IWallet } from "@/core/types";
-import { validateAddress, validateAddressWithPK } from "@/core/utils/wallet";
+import {
+  confirmedChains,
+  isConfirmationReceiptCovered,
+  isLiveConfirmationReceiptValid,
+  isValidConfirmationReceipt,
+  subscribeToConfirmationIdentityChanges,
+  WALLET_CONFIRMATION_RECEIPT_KEY,
+} from "@/core/confirmationReceipt";
+import { ChainId, HashMap, IChain, IConnector, IETHProvider, IWallet, Network } from "@/core/types";
 import { resolveFirstPartyIcon } from "@/core/wallets/firstPartyIcons";
-import { ERROR_CODES, WalletError } from "@/error";
+import { ERROR_CODES, isSharedSessionRefusal, WalletError } from "@/error";
 
 import { useWidgetState } from "./useWidgetState";
 
@@ -39,35 +45,76 @@ async function resolveEthDisplayWallet(wallet: IWallet): Promise<IWallet> {
 }
 
 /**
- * Connection-time WalletError codes that the user must see in-dialog —
- * silently bouncing back to chain selection would leave the user with no
- * idea why their wallet didn't connect.
+ * Connection-time WalletError codes the user must see in-dialog, with the
+ * title to show — silently bouncing back to chain selection would leave the
+ * user with no idea why their wallet didn't connect.
  */
-const TERMINAL_CONNECT_ERROR_CODES: ReadonlySet<string> = new Set([
-  ERROR_CODES.INCOMPATIBLE_WALLET_VERSION,
+const TERMINAL_CONNECT_ERROR_TITLES: ReadonlyMap<string, (walletName: string) => string> = new Map([
+  [ERROR_CODES.INCOMPATIBLE_WALLET_VERSION, (walletName: string) => `Update ${walletName}`],
+  [ERROR_CODES.DEVICE_WRONG_APP, () => "Wrong App on Device"],
+  [ERROR_CODES.DEVICE_LOCKED, () => "Signing Device Locked"],
 ]);
+
+export interface BTCAddressValidation {
+  validateAddress(network: Network, address: string): void;
+  validateAddressWithPK(address: string, publicKey: string, network: Network): boolean;
+}
 
 interface Props {
   persistent: boolean;
   accountStorage: HashMap;
   onError?: (e: Error) => void;
+  btcValidation?: BTCAddressValidation;
 }
 
-export function useWalletConnectors({ persistent, accountStorage, onError }: Props) {
+export function useWalletConnectors({ persistent, accountStorage, onError, btcValidation }: Props) {
   const connectors = useChainProviders();
   const {
     confirmed,
+    confirmationReceipt,
     visible,
     selectWallet,
     removeWallet,
     displayLoader,
     displayChains,
+    displayConnectGuide,
     displayError,
     confirm,
     unconfirm,
-    requiredChainIds,
+    requiredChainIds = [],
   } = useWidgetState();
   const { verifyBTCAddress } = useLifeCycleHooks();
+  const validationGenerationRef = useRef(0);
+  const previousRequiredChainIdsRef = useRef(requiredChainIds);
+  const confirmationCandidate =
+    confirmationReceipt ?? (persistent && !visible ? accountStorage.get(WALLET_CONFIRMATION_RECEIPT_KEY) : undefined);
+  const confirmationCandidateRef = useRef<string>();
+  const dirtyOptionalChainsRef = useRef<Set<ChainId>>(new Set());
+  const requiredConnectorsReady = requiredChainIds.every((chainId) => connectors[chainId as ChainId]?.connectedWallet);
+
+  // A wallet that failed post-connect validation is forgotten locally no matter
+  // what the provider does: the chain disconnect is attempted first so an
+  // AppKit wallet is released, and a refusal (shared session) or a failure
+  // falls back to the local teardown so the wallet cannot be selected again.
+  const droppingRef = useRef<Set<string>>(new Set());
+  const dropRejectedWallet = async (connector: Pick<IConnector, "id" | "disconnect">) => {
+    droppingRef.current.add(connector.id);
+    removeWallet?.(connector.id);
+    if (persistent) accountStorage.delete(connector.id);
+    try {
+      await connector.disconnect("chain");
+    } catch (error) {
+      if (!isSharedSessionRefusal(error)) {
+        console.error(
+          "Failed to disconnect rejected wallet:",
+          error instanceof Error ? error.message : "Unknown error",
+        );
+      }
+      await connector.disconnect("local");
+    } finally {
+      droppingRef.current.delete(connector.id);
+    }
+  };
 
   // Connecting event
   useEffect(() => {
@@ -92,6 +139,7 @@ export function useWalletConnectors({ persistent, accountStorage, onError }: Pro
       BTC: (connector) => async (connectedWallet) => {
         try {
           if (!connectedWallet || !connectedWallet.account) return;
+          if (!btcValidation) throw new Error("Bitcoin address validation is unavailable");
 
           selectWallet?.("BTC", connectedWallet);
 
@@ -101,12 +149,12 @@ export function useWalletConnectors({ persistent, accountStorage, onError }: Pro
 
           if (!visible) return;
 
-          validateAddress(connector.config.network, connectedWallet.account.address);
+          btcValidation.validateAddress(connector.config.network, connectedWallet.account.address);
 
           const goToNextScreen = () => void displayChains?.();
 
           if (
-            !validateAddressWithPK(
+            !btcValidation.validateAddressWithPK(
               connectedWallet.account?.address ?? "",
               connectedWallet.account?.publicKeyHex ?? "",
               connector.config.network,
@@ -118,8 +166,7 @@ export function useWalletConnectors({ persistent, accountStorage, onError }: Pro
                 "The Bitcoin address and Public Key for this wallet do not match. Please contact your wallet provider for support.",
               onSubmit: goToNextScreen,
               onCancel: () => {
-                connector.disconnect();
-                removeWallet?.(connector.id);
+                void dropRejectedWallet(connector);
                 displayChains?.();
               },
             });
@@ -135,8 +182,7 @@ export function useWalletConnectors({ persistent, accountStorage, onError }: Pro
               submitButton: "",
               cancelButton: "Done",
               onCancel: async () => {
-                connector.disconnect();
-                removeWallet?.(connector.id);
+                void dropRejectedWallet(connector);
                 displayChains?.();
               },
             });
@@ -146,8 +192,7 @@ export function useWalletConnectors({ persistent, accountStorage, onError }: Pro
 
           goToNextScreen();
         } catch (e: any) {
-          connector.disconnect();
-          removeWallet?.(connector.id);
+          void dropRejectedWallet(connector);
           displayError?.({
             title: "Connection Failed",
             description: e.message,
@@ -188,7 +233,7 @@ export function useWalletConnectors({ persistent, accountStorage, onError }: Pro
     );
 
     connectorArr.forEach((connector) => {
-      const connectedWallet = connector.connectedWallet;
+      const connectedWallet = droppingRef.current.has(connector.id) ? null : connector.connectedWallet;
       if (connector.id === "ETH" && connectedWallet) {
         void resolveEthDisplayWallet(connectedWallet).then((wallet) => selectWallet?.(connector.id, wallet));
         return;
@@ -204,6 +249,7 @@ export function useWalletConnectors({ persistent, accountStorage, onError }: Pro
     displayChains,
     displayError,
     verifyBTCAddress,
+    btcValidation,
     accountStorage,
     connectors,
     persistent,
@@ -211,7 +257,7 @@ export function useWalletConnectors({ persistent, accountStorage, onError }: Pro
   ]);
 
   // Disconnect Event
-  useEffect(() => {
+  useLayoutEffect(() => {
     const connectorArr = Object.values(connectors);
 
     const unsubscribeArr = connectorArr.filter(Boolean).map((connector) =>
@@ -221,6 +267,7 @@ export function useWalletConnectors({ persistent, accountStorage, onError }: Pro
           // of, so the receipt must not survive to auto-confirm a later
           // reconnect. An optional chain leaving is not a consent change.
           if (requiredChainIds.includes(connector.id)) {
+            validationGenerationRef.current += 1;
             accountStorage.delete(WALLET_CONFIRMATION_RECEIPT_KEY);
           }
           removeWallet?.(connector.id);
@@ -243,30 +290,27 @@ export function useWalletConnectors({ persistent, accountStorage, onError }: Pro
       connector.on("error", (error: Error) => {
         onError?.(error);
 
-        // Terminal errors (e.g. the wallet extension is too old) need an
+        // Terminal errors (wallet too old, wrong app or locked device) need an
         // in-dialog message so the user can act on them. Anything else
         // falls through to the existing "bounce back to chains" behaviour
         // — host apps' `onError` callbacks still get the raw error.
         // Guard on `displayError` directly so we still fall through to
         // `displayChains?.()` below if the dialog state isn't wired up;
         // otherwise the user could be stranded on the current screen.
-        if (
-          error instanceof WalletError &&
-          TERMINAL_CONNECT_ERROR_CODES.has(error.code) &&
-          displayError
-        ) {
-          const walletName = error.wallet ?? "your wallet";
-          displayError({
-            title: `Update ${walletName}`,
-            description:
-              error.message || `${walletName} needs to be updated before you can connect.`,
-            submitButton: "",
-            cancelButton: "Done",
-            onCancel: () => {
-              displayChains?.();
-            },
-          });
-          return;
+        if (error instanceof WalletError && displayError) {
+          const title = TERMINAL_CONNECT_ERROR_TITLES.get(error.code);
+          if (title) {
+            displayError({
+              title: title(error.wallet ?? "your wallet"),
+              description: error.message,
+              submitButton: "",
+              cancelButton: "Done",
+              onCancel: () => {
+                displayChains?.();
+              },
+            });
+            return;
+          }
         }
 
         displayChains?.();
@@ -276,67 +320,117 @@ export function useWalletConnectors({ persistent, accountStorage, onError }: Pro
     return () => unsubscribeArr.forEach((unsubscribe) => unsubscribe());
   }, [onError, displayChains, displayError, connectors]);
 
-  // Keeps the confirmation in step with the stored approval.
-  //
-  // One effect rather than a one-way "eligible for restore" latch: a host may
-  // narrow and widen its requirements as the user navigates, and a latch cannot
-  // re-open once it has closed, so the session could never recover. The stored
-  // receipt is the authority in both directions - it grants the confirmation
-  // when it covers the required chains, and withdraws it when it stops doing so.
-  useEffect(() => {
-    if (!persistent || visible) return;
+  const validateConfirmation = useCallback(async () => {
+    const generation = ++validationGenerationRef.current;
+    if (!confirmationCandidate) return;
 
-    const requiredConnectors = requiredChainIds
-      .map((chainId) => connectors[chainId as keyof typeof connectors])
-      .filter((connector): connector is NonNullable<typeof connector> => Boolean(connector));
-    const allRequiredConnectorsAvailable = requiredConnectors.length === requiredChainIds.length;
-    const allConnected = requiredConnectors.every((connector) => connector.connectedWallet !== null);
-    const hasStorage = requiredConnectors.every((connector) => accountStorage.has(connector.id));
+    if (!confirmationReceipt && !requiredConnectorsReady) return;
 
-    const stored = accountStorage.get(WALLET_CONFIRMATION_RECEIPT_KEY);
-    const covered =
-      allRequiredConnectorsAvailable &&
-      allConnected &&
-      hasStorage &&
-      isValidConfirmationReceipt(stored, requiredChainIds, connectors);
+    const covered = await isLiveConfirmationReceiptValid(confirmationCandidate, requiredChainIds, connectors);
+    if (generation !== validationGenerationRef.current) return;
 
-    if (covered && !confirmed) {
-      confirm?.();
+    if (!covered) {
+      accountStorage.delete(WALLET_CONFIRMATION_RECEIPT_KEY);
+      unconfirm?.();
+      return;
+    }
+
+    if (!confirmed && !visible) {
+      confirm?.(confirmationCandidate);
       displayChains?.();
       return;
     }
 
-    // The approval no longer covers what is being asked for - a chain the user
-    // never approved, or an account/wallet/network that has changed underneath
-    // it. Withdraw the confirmation so the host stops treating the session as
-    // signed in, and let the user confirm again explicitly.
-    if (!covered && confirmed && stored !== undefined) {
-      unconfirm?.();
+    // Keep the stored receipt alive with its confirmed session.
+    if (persistent && confirmed) {
+      accountStorage.set(WALLET_CONFIRMATION_RECEIPT_KEY, confirmationCandidate);
     }
   }, [
-    persistent,
-    connectors,
-    requiredChainIds,
-    confirm,
-    unconfirm,
-    displayChains,
     accountStorage,
-    visible,
+    confirmationCandidate,
+    confirmationReceipt,
     confirmed,
+    confirm,
+    connectors,
+    displayChains,
+    persistent,
+    requiredChainIds,
+    requiredConnectorsReady,
+    unconfirm,
+    visible,
   ]);
 
-  // The approval slides with the session it belongs to. Chain entries are
-  // re-stamped on every connect, including auto-reconnect, so without this the
-  // receipt would be the only entry that expires and any reload an hour after
-  // the single confirm would be a hard sign-out.
   useEffect(() => {
-    if (!persistent || !confirmed) return;
+    void validateConfirmation();
+  }, [validateConfirmation]);
 
-    const stored = accountStorage.get(WALLET_CONFIRMATION_RECEIPT_KEY);
-    if (stored && isValidConfirmationReceipt(stored, requiredChainIds, connectors)) {
-      accountStorage.set(WALLET_CONFIRMATION_RECEIPT_KEY, stored);
+  useLayoutEffect(() => {
+    const previousCandidate = confirmationCandidateRef.current;
+    if (!confirmationCandidate || (previousCandidate && previousCandidate !== confirmationCandidate)) {
+      dirtyOptionalChainsRef.current.clear();
     }
-  }, [persistent, confirmed, connectors, requiredChainIds, accountStorage]);
+    confirmationCandidateRef.current = confirmationCandidate;
+  }, [confirmationCandidate]);
+
+  useLayoutEffect(() => {
+    validationGenerationRef.current += 1;
+    const newlyRequiredChainIds = requiredChainIds.filter(
+      (chainId) => !previousRequiredChainIdsRef.current.includes(chainId),
+    );
+    previousRequiredChainIdsRef.current = requiredChainIds;
+    if (!confirmationCandidate) return;
+
+    const stopWatchingIdentity = subscribeToConfirmationIdentityChanges(
+      confirmationCandidate,
+      confirmedChains(confirmationCandidate),
+      connectors,
+      (chain) => {
+        if (!requiredChainIds.includes(chain)) {
+          dirtyOptionalChainsRef.current.add(chain);
+          return;
+        }
+
+        validationGenerationRef.current += 1;
+        accountStorage.delete(WALLET_CONFIRMATION_RECEIPT_KEY);
+        unconfirm?.();
+      },
+    );
+    if (!confirmationReceipt && !requiredConnectorsReady) return stopWatchingIdentity;
+
+    if (
+      !isConfirmationReceiptCovered(confirmationCandidate, requiredChainIds, connectors) ||
+      newlyRequiredChainIds.some((chainId) => dirtyOptionalChainsRef.current.has(chainId as ChainId)) ||
+      (confirmationReceipt &&
+        newlyRequiredChainIds.length > 0 &&
+        !isValidConfirmationReceipt(confirmationCandidate, newlyRequiredChainIds, connectors))
+    ) {
+      stopWatchingIdentity();
+      accountStorage.delete(WALLET_CONFIRMATION_RECEIPT_KEY);
+      unconfirm?.();
+      return;
+    }
+
+    if (confirmationReceipt && newlyRequiredChainIds.length > 0) {
+      unconfirm?.(true);
+    }
+
+    return stopWatchingIdentity;
+  }, [
+    accountStorage,
+    confirmationCandidate,
+    confirmationReceipt,
+    connectors,
+    requiredChainIds,
+    requiredConnectorsReady,
+    unconfirm,
+  ]);
+
+  useEffect(
+    () => () => {
+      validationGenerationRef.current += 1;
+    },
+    [],
+  );
 
   const connect = useCallback(
     async (chain: IChain, wallet: IWallet) => {
@@ -346,5 +440,18 @@ export function useWalletConnectors({ persistent, accountStorage, onError }: Pro
     [connectors],
   );
 
-  return { connect };
+  // A wallet with a connect guide shows it first. The guide's Connect button
+  // calls `connect`, so the connect still starts from a user gesture.
+  const chooseWallet = useCallback(
+    async (chain: IChain, wallet: IWallet) => {
+      if (wallet.connectGuide && displayConnectGuide) {
+        displayConnectGuide(chain.id, wallet.id);
+        return;
+      }
+      await connect(chain, wallet);
+    },
+    [connect, displayConnectGuide],
+  );
+
+  return { connect, chooseWallet };
 }

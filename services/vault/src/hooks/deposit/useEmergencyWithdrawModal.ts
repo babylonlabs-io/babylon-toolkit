@@ -4,13 +4,6 @@ import type { VaultActivity } from "@/types/activity";
 
 interface WithdrawingState {
   activity: VaultActivity;
-  /**
-   * True when the stuck state was detected on-chain (HTLC spent while the
-   * vault is still Verified) — the modal explains what happened. False when
-   * the user opted in via the activation dialog's advanced link — the modal
-   * warns that waiting for expiry + refund is the safe default.
-   */
-  stuckStateDetected: boolean;
 }
 
 export function useEmergencyWithdrawModal(options: {
@@ -22,13 +15,10 @@ export function useEmergencyWithdrawModal(options: {
   const [withdrawing, setWithdrawing] = useState<WithdrawingState | null>(null);
 
   const handleWithdrawClick = useCallback(
-    (depositId: string, source: "detected" | "advanced") => {
+    (depositId: string) => {
       const activity = allActivities.find((a) => a.id === depositId);
       if (activity) {
-        setWithdrawing({
-          activity,
-          stuckStateDetected: source === "detected",
-        });
+        setWithdrawing({ activity });
       }
     },
     [allActivities],

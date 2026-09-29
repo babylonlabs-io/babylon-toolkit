@@ -34,11 +34,11 @@ import { firstByTestid } from "./selectors";
 import { type ActionContext } from "./types";
 
 // The activation modal's confirm button. Selected testid-first (stable + text-independent) with a
-// tolerant-text fallback: the button copy drifts (COPY.deposit.activateConfirmation.activateButton
-// renders "Activate vault", lowercase v — an exact string silently stalled the run here), and the
-// data-testid isn't on the deployed build until it ships, so the fallback carries the current build.
+// tolerant-text fallback: the button copy drifts (an exact string silently stalled the run here),
+// and the data-testid isn't on the deployed build until it ships, so the fallback carries the
+// current build.
 const ACTIVATE_VAULT_TESTID = '[data-testid="activate-vault-button"]';
-const ACTIVATE_VAULT_RX = /activate vault/i; // COPY.deposit.activateConfirmation.activateButton
+const ACTIVATE_VAULT_RX = /activate (btc)?vault/i; // COPY.deposit.activateConfirmation.activateButton
 
 /** The activation modal's confirm button — testid if present (future-proof), else tolerant wording. */
 function activateButton(page: Page): Locator {
@@ -50,6 +50,7 @@ function activateButton(page: Page): Locator {
 }
 const RISK_ACK_LABEL =
   "I understand the risks of continuing without the artifacts."; // riskAcknowledgement
+const CONTINUE_WITHOUT_LABEL = "Continue without";
 const SKIP_LABEL = "Skip"; // COPY.deposit.inStepArtifact.skip
 // The DepositProgressView's recoverable-error CTA: the fluid submit relabels to "Retry" (and calls
 // `onRetry`) whenever a step tx fails with a retryable error (COPY.deposit.progress.buttons.retry). It's
@@ -81,14 +82,21 @@ function activatedViewReached(page: Page): Promise<boolean> {
 }
 
 /**
- * Handle the `ActivateConfirmationModal` if it's showing: acknowledge the risk (we skip the artifact
- * download) then click "Activate Vault". The checkbox toggles on each click, so acknowledgement is
+ * Handle the `ActivateConfirmationModal` if it's showing: click "Continue without" (we skip the
+ * artifact download), acknowledge the risk, then click "Activate Vault". The checkbox toggles on each click, so acknowledgement is
  * idempotent — only ticked when currently unchecked. Returns true once Activate Vault was clicked.
  */
 async function handleActivateConfirmation(
   page: Page,
   log: (m: string) => void,
 ): Promise<boolean> {
+  const continueWithout = page
+    .getByRole("button", { name: CONTINUE_WITHOUT_LABEL, exact: true })
+    .first();
+  if (await continueWithout.isVisible().catch(() => false)) {
+    await continueWithout.click({ timeout: STEP_TIMEOUT_MS });
+  }
+
   const activate = activateButton(page);
   if (!(await activate.isVisible().catch(() => false))) return false;
 
@@ -158,8 +166,8 @@ async function readPrePeginTxid(page: Page): Promise<string | undefined> {
 
 /**
  * Read the active step(s) for the run log: "Step N active (P%)" from the stepper + progress bar. In a
- * two-vault split the progress view shows two per-vault columns, each emitting its own
- * `aria-label="Step N active"` (the columns carry no distinguishing testid), so we collect ALL active
+ * two-vault split the progress view shows two stacked per-vault lanes, each emitting its own
+ * `aria-label="Step N active"` (the lanes carry no distinguishing testid), so we collect ALL active
  * labels — the two lanes advance independently and may sit on different steps. The single progressbar
  * reflects the aggregate (slowest lane).
  */
@@ -184,13 +192,15 @@ async function readActiveStep(page: Page): Promise<string> {
 // for WOTS-key submission before the readiness timeout (COPY.deposit.warnings.wotsReadinessTimeout /
 // wotsReadinessTerminal). A skipped vault is dropped from payout signing + activation and can NEVER
 // reach the activated view — so it's a hard dead-end for that vault, not a transient. Both variants
-// share this "Vault N: WOTS key submission skipped" prefix; the capture group is the vault number.
-const WOTS_SKIP_RX = /Vault\s+(\d+):\s*WOTS key submission skipped/i;
+// share this "BTCVault N: WOTS key submission skipped" prefix; the capture group is the vault number.
+// "BTC" is optional so a deployed build still on the old "Vault N:" wording matches too, and the
+// prefix is spelled out rather than left to substring luck so both wordings survive if this is anchored.
+const WOTS_SKIP_RX = /(?:BTC)?Vault\s+(\d+):\s*WOTS key submission skipped/i;
 
 /**
  * Count DISTINCT per-vault WOTS-key-submission-skip banners on the progress view. Deduped by the vault
  * number so a banner matched via nested elements (or re-rendered) isn't double-counted; a copy drift
- * that breaks the "Vault N:" prefix simply yields 0 (we degrade to the normal budget wait, never a
+ * that breaks the "BTCVault N:" prefix simply yields 0 (we degrade to the normal budget wait, never a
  * false abort). Used by walkStepMachine to fail fast when every expected vault has been skipped.
  */
 async function countWotsSkippedVaults(page: Page): Promise<number> {
@@ -280,9 +290,15 @@ export async function walkStepMachine(
     await sweepApprovals(context, page, log);
 
     // Two dapp-page interactions the wallet pop-up approver can't perform, each re-armed per appearance.
-    const activateVisible = await activateButton(page)
-      .isVisible()
-      .catch(() => false);
+    const activateVisible =
+      (await activateButton(page)
+        .isVisible()
+        .catch(() => false)) ||
+      (await page
+        .getByRole("button", { name: CONTINUE_WITHOUT_LABEL, exact: true })
+        .first()
+        .isVisible()
+        .catch(() => false));
     if (activateVisible) {
       if (!activateClickedThisModal) {
         activateClickedThisModal = await handleActivateConfirmation(page, log);

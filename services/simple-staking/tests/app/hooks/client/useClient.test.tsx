@@ -5,6 +5,10 @@ import { useClientQuery } from "@/ui/common/hooks/client/useClient";
 
 import { testHookStability } from "../../../helper/validationHelper";
 
+jest.mock("@/ui/common/hooks/client/api/useOrdinals", () => ({
+  ORDINAL_KEY: "ORDINALS",
+}));
+
 jest.mock("@/ui/common/context/Error/ErrorProvider", () => ({
   useError: () => ({
     isOpen: false,

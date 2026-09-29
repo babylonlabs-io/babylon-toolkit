@@ -1,57 +1,78 @@
-import { BrowserContext, expect, FrameLocator, Page } from "@playwright/test";
+import { BrowserContext, expect, Locator, Page } from "@playwright/test";
 
 import { test } from "../fixtures/setupExtensions";
 
-test("Connect OKX and Keplr wallets and verify addresses", async ({ setupExtensions }) => {
-  // Setup and initial navigation
-  const { context } = await setupExtensions(["OKX", "KEPLR"]);
-  const page = await context.newPage();
-  const storybook = page.locator('iframe[title="storybook-preview-iframe"]').contentFrame();
-  await page.goto("/?path=/docs/components-chainbutton--docs");
+for (const persistent of [false, true]) {
+  test(`keeps OKX and Keplr on reopen and ${persistent ? "restores" : "clears"} them on reload`, async ({
+    setupExtensions,
+    baseURL,
+  }) => {
+    const { context } = await setupExtensions(["OKX", "KEPLR"]);
+    const storybook = await context.newPage();
+    await storybook.goto(
+      new URL(
+        `/iframe.html?id=components-walletprovider--with-connected-data&viewMode=story&args=requiredChains[0]:BTC;requiredChains[1]:BBN;persistent:${persistent}`,
+        baseURL,
+      ).href,
+    );
 
-  // Accept terms and conditions
-  await setupStorybookEnvironment(page, storybook);
+    const walletButton = storybook.getByRole("button", { name: "Connect Wallet", exact: true });
+    const dialog = storybook.locator(".bbn-dialog-fullscreen");
+    await walletButton.click();
+    await connectBitcoinWallet(storybook, context);
+    await connectBabylonWallet(storybook, context);
+    const btcIdentity = await verifyWalletSection(storybook, "btc");
+    const bbnIdentity = await verifyWalletSection(storybook, "bbn");
 
-  // Connect Bitcoin wallet (OKX)
-  await connectBitcoinWallet(storybook, context);
+    await dialog.getByRole("button", { name: "Close", exact: true }).click();
+    await expect(dialog).toBeHidden();
+    await expect(walletButton).toHaveAttribute("data-confirmed", "false");
+    await walletButton.click();
+    expect(await verifyWalletSection(storybook, "btc")).toEqual(btcIdentity);
+    expect(await verifyWalletSection(storybook, "bbn")).toEqual(bbnIdentity);
+    await expect(storybook.getByTestId("chains-connect-button")).toBeEnabled();
+    await storybook.getByTestId("chains-connect-button").click();
+    await expect(walletButton).toHaveAttribute("data-confirmed", "true");
+    await expect(dialog).toBeHidden();
 
-  // Connect Babylon wallet (Keplr)
-  await connectBabylonWallet(storybook, context);
+    if (!persistent) {
+      expect(
+        await storybook.evaluate(() =>
+          Object.keys(JSON.parse(localStorage.getItem("baby-connected-wallet-accounts") ?? "{}")).filter(
+            (key) => key !== "_timestamps",
+          ),
+        ),
+      ).toEqual([]);
+    }
 
-  // Verify wallet connections
-  const btcWalletInfo = await verifyWalletSection(storybook, "btc");
-  const bbnWalletInfo = await verifyWalletSection(storybook, "bbn");
-
-  // Log wallet information
-  console.log("BTC Wallet:", btcWalletInfo);
-  console.log("BBN Wallet:", bbnWalletInfo);
-});
-
-async function setupStorybookEnvironment(page: Page, storybook: FrameLocator) {
-  await page.getByRole("button", { name: "WalletProvider" }).click();
-  await page.getByRole("link", { name: "With Connected Data" }).click();
-  await page.getByRole("button", { name: "Hide addons [⌥ A]" }).click();
-  await storybook.getByRole("button", { name: "Connect Wallet" }).click();
+    await storybook.reload();
+    await expect(walletButton).toHaveAttribute("data-confirmed", String(persistent));
+    if (persistent) {
+      expect(await verifyWalletSection(storybook, "btc")).toEqual(btcIdentity);
+      expect(await verifyWalletSection(storybook, "bbn")).toEqual(bbnIdentity);
+    } else {
+      await walletButton.click();
+      await expect(storybook.getByRole("button", { name: "Bitcoin" })).toBeVisible();
+      await expect(storybook.getByRole("button", { name: "Babylon" })).toBeVisible();
+      await expect(storybook.getByTestId("chains-connect-button")).toBeDisabled();
+      await expect(storybook.getByTestId("btc-wallet-section")).toBeHidden();
+      await expect(storybook.getByTestId("bbn-wallet-section")).toBeHidden();
+    }
+  });
 }
 
-async function connectBitcoinWallet(storybook: FrameLocator, context: BrowserContext) {
+async function connectBitcoinWallet(storybook: Page, context: BrowserContext) {
   await storybook.getByRole("button", { name: "Bitcoin" }).click();
-  await storybook.getByRole("button", { name: "OKX" }).click();
-
-  await connectWalletViaPopup(context, "Connect");
+  await connectWalletViaPopup(context, storybook.getByTestId("wallet-option-okx"), "Connect");
 }
 
-async function connectBabylonWallet(storybook: FrameLocator, context: BrowserContext) {
+async function connectBabylonWallet(storybook: Page, context: BrowserContext) {
   await storybook.getByRole("button", { name: "Babylon" }).click();
-  await storybook.getByRole("button", { name: "Keplr" }).click();
-
-  await connectWalletViaPopup(context, "Approve");
-
-  await storybook.getByRole("button", { name: "Connect", exact: true }).click();
+  await connectWalletViaPopup(context, storybook.getByTestId("wallet-option-keplr"), "Approve");
 }
 
-async function connectWalletViaPopup(context: BrowserContext, buttonName: string) {
-  const [popup] = await Promise.all([context.waitForEvent("page")]);
+async function connectWalletViaPopup(context: BrowserContext, walletButton: Locator, buttonName: string) {
+  const [popup] = await Promise.all([context.waitForEvent("page"), walletButton.click()]);
   await popup.waitForLoadState("domcontentloaded");
   await popup.bringToFront();
 
@@ -61,7 +82,7 @@ async function connectWalletViaPopup(context: BrowserContext, buttonName: string
   await popup.close();
 }
 
-async function verifyWalletSection(storybook: FrameLocator, walletType: "btc" | "bbn") {
+async function verifyWalletSection(storybook: Page, walletType: "btc" | "bbn") {
   const section = storybook.getByTestId(`${walletType}-wallet-section`);
   await expect(section).toBeVisible();
 
@@ -77,9 +98,5 @@ async function verifyWalletSection(storybook: FrameLocator, walletType: "btc" | 
   if (!address || !publicKey) {
     throw new Error("Address or public key not found");
   }
-
-  return {
-    address: addressText.split("Address: ")[1],
-    publicKey: pubkeyText.split("Public Key: ")[1],
-  };
+  return { address, publicKey };
 }

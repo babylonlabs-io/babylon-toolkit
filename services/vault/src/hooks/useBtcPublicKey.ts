@@ -2,6 +2,7 @@ import { processPublicKeyToXOnly } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { useBTCWallet } from "@/context/wallet";
 import { logger } from "@/infrastructure";
 
 interface BtcPublicKeyState {
@@ -21,13 +22,14 @@ interface BtcPublicKeyState {
 
 export interface UseBtcPublicKeyResult extends BtcPublicKeyState {
   /**
-   * Re-read the public key, resolving once the read settles. Call after the
-   * user reconnects/unlocks the wallet: the reconnect CTA drives
+   * Re-read the public key, resolving once the read settles. Call after a
+   * reconnect that does not flip `locked`: the reconnect CTA drives
    * `BTCWalletProvider.reconnect()`, which re-auths the raw provider WITHOUT
    * emitting a connector event or changing this hook's deps, so recovery from
-   * a stuck `error` needs an explicit nudge. Awaiting it lets the caller hold
-   * its "reconnecting" state until `error` is fresh, avoiding a window where
-   * the CTA looks actionable while still showing the stale failure.
+   * a stuck `error` needs an explicit nudge there. (A `locked` flip re-reads on
+   * its own; see the effect below.) Awaiting it lets the caller hold its
+   * "reconnecting" state until `error` is fresh, avoiding a window where the
+   * CTA looks actionable while still showing the stale failure.
    */
   refetch: () => Promise<void>;
 }
@@ -39,6 +41,7 @@ export interface UseBtcPublicKeyResult extends BtcPublicKeyState {
  */
 export function useBtcPublicKey(btcConnected: boolean): UseBtcPublicKeyResult {
   const btcConnector = useChainConnector("BTC");
+  const { locked } = useBTCWallet();
   const [result, setResult] = useState<BtcPublicKeyState>({
     publicKey: undefined,
     error: null,
@@ -80,9 +83,11 @@ export function useBtcPublicKey(btcConnected: boolean): UseBtcPublicKeyResult {
     if (gen === genRef.current) setResult(next);
   }, [readPublicKey]);
 
+  // An unlock clears `locked` without changing the read's inputs, so re-read
+  // on that flip too; otherwise the failed locked-wallet read sticks forever.
   useEffect(() => {
     refetch();
-  }, [refetch]);
+  }, [refetch, locked]);
 
   return { ...result, refetch };
 }

@@ -12,6 +12,7 @@ concurrency:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
 
     steps:
       - name: Checkout code
@@ -58,16 +59,29 @@ jobs:
             exit 1
           fi
 
-      # Note: a dedicated `nx typecheck` step is intentionally omitted.
-      # The auto-generated `typecheck` target is disabled by @nx/js for
-      # projects with `noEmit: true` in their tsconfig graph (vault, core-ui,
-      # wallet-connector). Each service's `build` script runs
-      # `tsc --noEmit -p tsconfig.lib.json` before bundling, so types are
-      # still validated below. A separate ticket should untangle the
-      # `noEmit` references so a fast typecheck step is possible.
+      # Note: a dedicated `nx typecheck` step is not run here, and adding one
+      # before this point would not work. Every project with a `build`
+      # declares an explicit `typecheck` script — that build's type-checking
+      # pass, with `--noEmit` added where the build itself emits — which
+      # overrides the stub @nx/js generates for `noEmit: true` projects and
+      # keeps them off the inferred target whose sync generator aborts the
+      # run. But workspace types resolve through `node_modules` to each
+      # dependency's built `dist`, which is gitignored and not built on
+      # install, and `typecheck` carries no `dependsOn: ["^build"]` (that was
+      # tried and reverted: it drags a proto `git clone` and every dependency
+      # build into the foreground). So in a fresh clone, before `Build all`,
+      # tsc fails with module-not-found rather than reporting type errors.
+      # After the build, a blanket `nx affected -t typecheck` would mostly
+      # repeat each project's own build-time check — but not for every
+      # project, which is why `@internal/release`, whose only type-checking
+      # is its `typecheck` script, gets its own step below.
+      # `/pre-review` runs this locally, where `dist` is usually populated.
 
       - name: Build all
         run: pnpm build
+
+      - name: Check packed SDK consumer
+        run: pnpm exec nx run @babylonlabs-io/ts-sdk:check:packed-consumer
 
       - name: Typecheck the release driver
         run: pnpm exec nx run @internal/release:typecheck
@@ -86,7 +100,73 @@ jobs:
       - name: Lint all
         run: pnpm run lint
 
+      - name: Install browsers for browser tests
+        id: browsers
+        run: pnpm --filter @babylonlabs-io/ts-sdk exec playwright install --with-deps chromium firefox
+
+      - name: Check packed wallet consumer
+        run: pnpm exec nx run @babylonlabs-io/wallet-connector:check:packed-consumer
+
+      # Check split-deposit lanes at 360px with Vault's own browser version.
+      - name: Install Chromium for Vault layout
+        run: pnpm --filter @services/vault exec playwright install --with-deps chromium
+
+      - name: Test vault layout in Chromium
+        env:
+          PLAYWRIGHT_HTML_OPEN: never
+        run: pnpm exec nx run @services/vault:test-layout
+
+      - name: Upload vault layout results
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2 https://github.com/actions/upload-artifact/releases/tag/v4.6.2
+        with:
+          name: vault-layout-results
+          path: |
+            services/vault/playwright-report
+            services/vault/test-results
+
+      - name: Test SDK in Chromium
+        run: pnpm exec nx run @babylonlabs-io/ts-sdk:test-browser
+
+      - name: Test wallet connections in Chromium
+        if: ${{ !cancelled() && steps.browsers.outcome == 'success' }}
+        env:
+          PLAYWRIGHT_HTML_OPEN: never
+        run: xvfb-run -a pnpm exec nx run @babylonlabs-io/wallet-connector:test:e2e
+
+      - name: Test Vault browsers
+        if: ${{ !cancelled() && steps.browsers.outcome == 'success' }}
+        env:
+          PLAYWRIGHT_HTML_OPEN: never
+        run: pnpm exec nx run @services/vault:test:e2e --retries=0
+
+      - name: Build staking for browser tests
+        id: staking-browser-build
+        if: ${{ !cancelled() && steps.browsers.outcome == 'success' }}
+        env:
+          NEXT_BUILD_E2E: 'true'
+          DISABLE_SENTRY: 'true'
+        run: pnpm exec nx run @services/simple-staking:build:e2e
+
+      - name: Test staking browsers
+        if: ${{ !cancelled() && steps.staking-browser-build.outcome == 'success' }}
+        env:
+          PLAYWRIGHT_HTML_OPEN: never
+        run: pnpm exec nx run @services/simple-staking:test:e2e --retries=0
+
+      - name: Upload app browser results
+        if: ${{ !cancelled() && steps.browsers.outcome == 'success' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2 https://github.com/actions/upload-artifact/releases/tag/v4.6.2
+        with:
+          name: app-browser-results
+          path: |
+            services/vault/playwright-report
+            services/vault/test-results
+            services/simple-staking/playwright-report
+            services/simple-staking/test-results
+
       - name: Test affected
+        if: ${{ !cancelled() }}
         id: tests
         shell: bash
         run: |
@@ -116,6 +196,7 @@ jobs:
       # typedoc-plugin.mjs. MUST stay after "Build all": docs output depends on
       # the gitignored babylon-tbv-rust-wasm/dist.
       - name: Check generated API docs are current
+        if: ${{ !cancelled() }}
         shell: bash
         run: |
           set -o pipefail

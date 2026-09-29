@@ -1,8 +1,10 @@
 import { useCallback, useMemo, useState } from "react";
 
 import { useWithdrawCollateralTransaction } from "@/applications/aave/hooks/useWithdrawCollateralTransaction";
+import { useWithdrawHubBlockMessage } from "@/applications/aave/hooks/useWithdrawHubBlockMessage";
 import {
   computeProjectedHealthFactor,
+  formatHealthFactor,
   getEffectiveVaultSelection,
   getUniquePayoutAddresses,
 } from "@/applications/aave/utils";
@@ -20,6 +22,7 @@ import { FadeTransition } from "../FadeTransition";
 import { useWithdrawFlow, WithdrawStep } from "./useWithdrawFlow";
 import { WithdrawProgressView } from "./WithdrawProgressView";
 import { WithdrawReviewContent } from "./WithdrawReviewContent";
+import { WithdrawSelectContent } from "./WithdrawSelectContent";
 
 export interface WithdrawFlowProps {
   open: boolean;
@@ -43,40 +46,80 @@ function WithdrawFlowContent({
   currentHealthFactor,
   preSelectedVaultIds,
 }: WithdrawFlowProps) {
-  const { step, goToProgress, reset } = useWithdrawFlow();
+  const { step, goToSelect, goToReview, goToProgress, reset } =
+    useWithdrawFlow();
   const { executeWithdraw, isProcessing, error } =
     useWithdrawCollateralTransaction();
+  const hubBlockMessage = useWithdrawHubBlockMessage();
   const { getOffchainParamsByVersion, config } = useProtocolParamsContext();
 
   const renderedStep = useDialogStep(open, step, reset);
-
-  // Snapshots captured at confirm time. Needed by the Progress view because the
-  // underlying vaults are removed from the user's collateral list after
-  // withdraw — without snapshotting, this data would disappear by the time we
-  // navigate to PROGRESS.
-  const [submittedPayoutAddresses, setSubmittedPayoutAddresses] = useState<
-    string[]
-  >([]);
-  const [submittedAssertTimelockBlocks, setSubmittedAssertTimelockBlocks] =
-    useState(0);
 
   // Signing-surface guard: god-mode demo rows are display-only (`displayOnly`,
   // fake vaultId) and must never be selectable for a real withdraw, even if a
   // caller mistakenly passes the demo-merged list. Mirrors CollateralSection's
   // actionableVaults filter. Always a no-op in production (the flag is never
-  // set there).
+  // set there). Only `active`, in-use vaults back the position, so they are
+  // also the only ones the selection step offers.
   const withdrawableVaults = useMemo(
-    () => collateralVaults.filter((v) => !v.displayOnly),
+    () =>
+      collateralVaults.filter(
+        (v) => !v.displayOnly && v.lifecycle === "active" && v.inUse,
+      ),
     [collateralVaults],
   );
 
+  // The row the user clicked arrives pre-checked; the selection step then owns
+  // it. `getEffectiveVaultSelection` still filters every read, so a vault that
+  // leaves the position mid-flow drops out on its own.
+  const [selectedVaultIds, setSelectedVaultIds] = useState(preSelectedVaultIds);
+  // The risk card names one health factor at two decimals, so the
+  // acknowledgement covers that displayed value: it is stored as the value
+  // the user ticked for and derived on every render, so a refetch that moves
+  // the raw float without changing the shown number keeps the tick, and a
+  // change to the shown number drops it in the same render.
+  const [acknowledgedFor, setAcknowledgedFor] = useState<string | null>(null);
+  const toggleVault = useCallback((vaultId: string) => {
+    setSelectedVaultIds((ids) =>
+      ids.includes(vaultId)
+        ? ids.filter((id) => id !== vaultId)
+        : [...ids, vaultId],
+    );
+  }, []);
+
   const {
     selectedVaultIds: effectiveSelectedVaultIds,
-    selectedVaults: effectiveSelectedVaults,
+    selectedVaults: liveSelectedVaults,
   } = useMemo(
-    () => getEffectiveVaultSelection(withdrawableVaults, preSelectedVaultIds),
-    [withdrawableVaults, preSelectedVaultIds],
+    () => getEffectiveVaultSelection(withdrawableVaults, selectedVaultIds),
+    [withdrawableVaults, selectedVaultIds],
   );
+
+  // The withdraw marks its vaults pending AND awaits a position refetch before
+  // `goToProgress()` runs, so both the selection and the position props move
+  // while Review is still on screen. Pin every Review input at confirm time —
+  // otherwise the amounts flash to zero under the spinner, the projected health
+  // factor is computed against an already-reduced position (a false blocking
+  // warning), and the Progress view loses its payout addresses. A failed submit
+  // releases the pin and Review tracks the live values again.
+  const [confirmed, setConfirmed] = useState<{
+    vaults: CollateralVaultEntry[];
+    collateralBtc: number;
+    collateralValueUsd: number;
+    currentHealthFactor: number | null;
+  } | null>(null);
+  const effectiveSelectedVaults = confirmed?.vaults ?? liveSelectedVaults;
+  // Ternaries, not `??`: a pinned `currentHealthFactor` of null (no debt) must
+  // not fall through to the live prop.
+  const reviewCollateralBtc = confirmed
+    ? confirmed.collateralBtc
+    : collateralBtc;
+  const reviewCollateralValueUsd = confirmed
+    ? confirmed.collateralValueUsd
+    : collateralValueUsd;
+  const reviewCurrentHealthFactor = confirmed
+    ? confirmed.currentHealthFactor
+    : currentHealthFactor;
 
   const selectedPayoutAddresses = useMemo(
     () => getUniquePayoutAddresses(effectiveSelectedVaults),
@@ -103,10 +146,12 @@ function WithdrawFlowContent({
       0,
     );
     const usd =
-      collateralBtc > 0 ? collateralValueUsd * (btc / collateralBtc) : 0;
+      reviewCollateralBtc > 0
+        ? reviewCollateralValueUsd * (btc / reviewCollateralBtc)
+        : 0;
     const projectedHF = computeProjectedHealthFactor(
-      currentHealthFactor,
-      collateralBtc,
+      reviewCurrentHealthFactor,
+      reviewCollateralBtc,
       btc,
     );
     return {
@@ -116,40 +161,81 @@ function WithdrawFlowContent({
     };
   }, [
     effectiveSelectedVaults,
-    collateralBtc,
-    collateralValueUsd,
-    currentHealthFactor,
+    reviewCollateralBtc,
+    reviewCollateralValueUsd,
+    reviewCurrentHealthFactor,
   ]);
 
+  const displayedHealthFactor = formatHealthFactor(projectedHealthFactor);
+  const acknowledged = acknowledgedFor === displayedHealthFactor;
+  const setAcknowledged = useCallback(
+    (next: boolean) => setAcknowledgedFor(next ? displayedHealthFactor : null),
+    [displayedHealthFactor],
+  );
+
   const handleConfirm = useCallback(async () => {
+    setConfirmed({
+      vaults: liveSelectedVaults,
+      collateralBtc,
+      collateralValueUsd,
+      currentHealthFactor,
+    });
     const success = await executeWithdraw(effectiveSelectedVaultIds);
-    if (success) {
-      setSubmittedPayoutAddresses(selectedPayoutAddresses);
-      setSubmittedAssertTimelockBlocks(selectedAssertTimelockBlocks);
-      goToProgress();
+    if (!success) {
+      setConfirmed(null);
+      return;
     }
+    goToProgress();
   }, [
     executeWithdraw,
     effectiveSelectedVaultIds,
-    selectedPayoutAddresses,
-    selectedAssertTimelockBlocks,
+    liveSelectedVaults,
+    collateralBtc,
+    collateralValueUsd,
+    currentHealthFactor,
     goToProgress,
   ]);
 
+  // Review reached from Select can return to it; not while a submit is in flight.
   return (
-    <V3ModalShell open={open} onClose={onClose}>
+    <V3ModalShell
+      open={open}
+      onClose={onClose}
+      onBack={
+        renderedStep === WithdrawStep.REVIEW && !isProcessing
+          ? goToSelect
+          : undefined
+      }
+    >
       <FadeTransition stepKey={renderedStep}>
+        {renderedStep === WithdrawStep.SELECT && (
+          <div className="mx-auto w-full max-w-[564px]">
+            <WithdrawSelectContent
+              vaults={withdrawableVaults}
+              selectedVaultIds={effectiveSelectedVaultIds}
+              totalAmountBtc={selectedBtc}
+              projectedHealthFactor={projectedHealthFactor}
+              acknowledged={acknowledged}
+              onToggleVault={toggleVault}
+              onAcknowledgedChange={setAcknowledged}
+              onContinue={goToReview}
+            />
+          </div>
+        )}
         {renderedStep === WithdrawStep.REVIEW && (
           <div className="mx-auto w-full max-w-[612px]">
             <WithdrawReviewContent
               totalAmountBtc={selectedBtc}
               totalAmountUsd={selectedUsd}
-              currentHealthFactor={currentHealthFactor}
+              currentHealthFactor={reviewCurrentHealthFactor}
               projectedHealthFactor={projectedHealthFactor}
               payoutAddresses={selectedPayoutAddresses}
               assertTimelockBlocks={selectedAssertTimelockBlocks}
               isProcessing={isProcessing}
               error={error}
+              hubBlockMessage={hubBlockMessage}
+              acknowledged={acknowledged}
+              onAcknowledgedChange={setAcknowledged}
               onConfirm={handleConfirm}
             />
           </div>
@@ -157,8 +243,8 @@ function WithdrawFlowContent({
         {renderedStep === WithdrawStep.PROGRESS && (
           <div className="mx-auto w-full max-w-[520px]">
             <WithdrawProgressView
-              payoutAddresses={submittedPayoutAddresses}
-              assertTimelockBlocks={submittedAssertTimelockBlocks}
+              payoutAddresses={selectedPayoutAddresses}
+              assertTimelockBlocks={selectedAssertTimelockBlocks}
               onClose={onClose}
             />
           </div>

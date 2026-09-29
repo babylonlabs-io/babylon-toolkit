@@ -23,8 +23,8 @@ const WALLET_METHOD_NOT_SUPPORTED_CODE = "WALLET_METHOD_NOT_SUPPORTED";
 /**
  * True when the error — or anything in its `cause` chain — carries the
  * wallet-connector WALLET_METHOD_NOT_SUPPORTED code. Walks `cause` because
- * the deposit flow's broadcast catches re-wrap wallet errors (attaching the
- * original as `cause`) before the mappers see them.
+ * the Pre-PegIn sign stage re-wraps wallet errors (attaching the original as
+ * `cause`) before the mappers see them.
  */
 export function isWalletMethodNotSupported(error: unknown): boolean {
   return chainCarriesCode(error, WALLET_METHOD_NOT_SUPPORTED_CODE);

@@ -7,6 +7,7 @@ import {
   MIN_BORROWABLE_USD,
   MIN_HEALTH_FACTOR_FOR_BORROW,
 } from "@/applications/aave/constants";
+import type { VaultSplitParams } from "@/applications/aave/hooks";
 
 import { useDashboardState } from "../useDashboardState";
 
@@ -26,13 +27,15 @@ type ActivatingEntry = {
 // Mutable state read by the hoisted mocks below.
 let mockCollaterals: unknown[] | null = null;
 let mockCollateralBtc = 0;
+let mockChainVaultIds: string[] = [];
 let mockCollateralValueUsd = 0;
 let mockDebtValueUsd = 0;
-let mockSplitParams: { THF: number; CF: number; LB: number } | null = null;
+let mockSplitParams: VaultSplitParams | null = null;
 let mockSplitLoading = false;
 let mockSplitError: Error | null = null;
 let mockReorderedOrder: readonly `0x${string}`[] | null = null;
 let mockActivatingVaults = new Map<string, ActivatingEntry>();
+let mockPendingVaults = new Map<string, "add" | "withdraw">();
 const mockClearReorderedOrder = vi.fn();
 const mockClearActivatingVault = vi.fn();
 
@@ -47,11 +50,18 @@ vi.mock("@/applications/aave/context", () => ({
     addActivatingVault: vi.fn(),
     clearActivatingVault: mockClearActivatingVault,
   }),
+  usePendingVaults: () => ({
+    pendingVaults: mockPendingVaults,
+    markVaultsAsPending: vi.fn(),
+    clearPendingVaults: vi.fn(),
+  }),
 }));
 
 vi.mock("@/applications/aave/hooks", () => ({
   useAaveUserPosition: () => ({
-    position: mockCollaterals ? { collaterals: mockCollaterals } : null,
+    position: mockCollaterals
+      ? { collaterals: mockCollaterals, vaultIds: mockChainVaultIds }
+      : null,
     collateralBtc: mockCollateralBtc,
     collateralValueUsd: mockCollateralValueUsd,
     debtValueUsd: mockDebtValueUsd,
@@ -95,6 +105,27 @@ function collateral(vaultId: `0x${string}`, liquidationIndex: number) {
   };
 }
 
+/** Collateral whose peg-out has been recorded on-chain but not yet settled. */
+function withdrawingCollateral(
+  vaultId: `0x${string}`,
+  liquidationIndex: number,
+) {
+  return {
+    ...collateral(vaultId, liquidationIndex),
+    removedAt: 1700001000n,
+    vault: {
+      id: vaultId,
+      peginTxHash: "0xpegin",
+      amount: 100n,
+      status: "redeemed",
+      vaultProvider: "0xprovider",
+      inUse: true,
+      depositorBtcPubKey: "0xpubkey",
+      depositorPayoutBtcAddress: "0xpayout",
+    },
+  };
+}
+
 function vaultIds(entries: { vaultId: string }[]): string[] {
   return entries.map((e) => e.vaultId);
 }
@@ -104,6 +135,7 @@ describe("useDashboardState", () => {
     vi.clearAllMocks();
     mockCollaterals = null;
     mockCollateralBtc = 0;
+    mockChainVaultIds = [];
     mockCollateralValueUsd = 0;
     mockDebtValueUsd = 0;
     mockSplitParams = null;
@@ -111,6 +143,7 @@ describe("useDashboardState", () => {
     mockSplitError = null;
     mockReorderedOrder = null;
     mockActivatingVaults = new Map();
+    mockPendingVaults = new Map();
   });
 
   it("returns a stable collateralVaults reference across re-renders when position?.collaterals is undefined", () => {
@@ -185,6 +218,121 @@ describe("useDashboardState", () => {
     expect(mockClearReorderedOrder).toHaveBeenCalled();
   });
 
+  it("keeps a vault whose withdrawal is in flight in the list", () => {
+    mockCollateralBtc = 1;
+    mockCollaterals = [
+      collateral(VAULT_A, 0),
+      withdrawingCollateral(VAULT_B, 1),
+    ];
+
+    const { result } = renderHook(() => useDashboardState("0xabc"));
+
+    expect(vaultIds(result.current.collateralVaults)).toEqual([
+      VAULT_A,
+      VAULT_B,
+    ]);
+    expect(result.current.collateralVaults[1].lifecycle).toBe("withdrawing");
+  });
+
+  it("keeps the last withdrawing vault displayable after the chain zeroes the collateral", () => {
+    mockCollateralBtc = 0;
+    mockCollaterals = [withdrawingCollateral(VAULT_A, 0)];
+
+    const { result } = renderHook(() => useDashboardState("0xabc"));
+
+    expect(result.current.hasDisplayCollateral).toBe(true);
+    expect(result.current.hasCollateral).toBe(false);
+    // The chain snapshot already dropped the vault, so the row must not be
+    // subtracted a second time.
+    expect(result.current.displayCollateralBtc).toBe(0);
+  });
+
+  it("tags a vault whose withdrawal is mined but not yet indexed as withdrawing", () => {
+    mockCollateralBtc = 2;
+    mockCollaterals = [collateral(VAULT_A, 0), collateral(VAULT_B, 1)];
+    mockPendingVaults = new Map([[VAULT_B, "withdraw"]]);
+
+    const { result } = renderHook(() => useDashboardState("0xabc"));
+
+    expect(
+      result.current.collateralVaults.map((entry) => entry.lifecycle),
+    ).toEqual(["active", "withdrawing"]);
+  });
+
+  it("drops a mined-but-unindexed withdrawal from the display collateral total", () => {
+    // Chain snapshot still counts both vaults; only the local marker knows B is
+    // on its way out.
+    mockCollateralBtc = 0.000002;
+    mockChainVaultIds = [VAULT_A, VAULT_B];
+    mockCollaterals = [collateral(VAULT_A, 0), collateral(VAULT_B, 1)];
+    mockPendingVaults = new Map([[VAULT_B, "withdraw"]]);
+
+    const { result } = renderHook(() => useDashboardState("0xabc"));
+
+    expect(result.current.displayCollateralBtc).toBeCloseTo(0.000001, 12);
+    // Financial values stay chain-pure.
+    expect(result.current.collateralBtc).toBe(0.000002);
+  });
+
+  it("keeps a vault pending an add operation backing the position", () => {
+    mockCollateralBtc = 1;
+    mockCollaterals = [collateral(VAULT_A, 0)];
+    mockPendingVaults = new Map([[VAULT_A, "add"]]);
+
+    const { result } = renderHook(() => useDashboardState("0xabc"));
+
+    expect(result.current.collateralVaults[0].lifecycle).toBe("active");
+    expect(result.current.hasCollateral).toBe(true);
+  });
+
+  it("re-tags the only vault backing the position once its withdrawal is mined", () => {
+    mockCollateralBtc = 1;
+    mockCollaterals = [collateral(VAULT_A, 0)];
+    mockPendingVaults = new Map([[VAULT_A, "withdraw"]]);
+
+    const { result } = renderHook(() => useDashboardState("0xabc"));
+
+    expect(result.current.collateralVaults[0].lifecycle).toBe("withdrawing");
+    // The financial gate reads the chain scalar, never the local pending
+    // marker, so a mined-but-unindexed withdrawal cannot disable an action.
+    expect(result.current.hasCollateral).toBe(true);
+    expect(result.current.hasDisplayCollateral).toBe(true);
+  });
+
+  it("orders withdrawing rows after the vaults still backing the position", () => {
+    mockCollateralBtc = 1;
+    mockCollaterals = [
+      withdrawingCollateral(VAULT_A, 0),
+      collateral(VAULT_B, 1),
+    ];
+
+    const { result } = renderHook(() => useDashboardState("0xabc"));
+
+    expect(vaultIds(result.current.collateralVaults)).toEqual([
+      VAULT_B,
+      VAULT_A,
+    ]);
+  });
+
+  it("keeps the reorder override while a withdrawing row is present", () => {
+    mockCollateralBtc = 2;
+    mockCollaterals = [
+      collateral(VAULT_A, 0),
+      collateral(VAULT_B, 1),
+      withdrawingCollateral(VAULT_C, 2),
+    ];
+    mockReorderedOrder = [VAULT_B, VAULT_A];
+
+    const { result } = renderHook(() => useDashboardState("0xabc"));
+
+    expect(vaultIds(result.current.collateralVaults)).toEqual([
+      VAULT_B,
+      VAULT_A,
+      VAULT_C,
+    ]);
+    expect(mockClearReorderedOrder).not.toHaveBeenCalled();
+  });
+
   it("appends an optimistic activating row when the vault is not yet indexed", () => {
     mockCollaterals = null; // empty position (first deposit)
     mockActivatingVaults = new Map([
@@ -200,7 +348,7 @@ describe("useDashboardState", () => {
     expect(result.current.collateralVaults[0]).toMatchObject({
       vaultId: VAULT_A,
       amountBtc: 1,
-      isActivating: true,
+      lifecycle: "activating",
       inUse: false,
     });
     // Display total + display gate reflect the optimistic vault, while the
@@ -212,6 +360,37 @@ describe("useDashboardState", () => {
     expect(result.current.hasCollateral).toBe(false);
     expect(mockClearActivatingVault).not.toHaveBeenCalled();
   });
+
+  it.each([0, 1])(
+    "counts an unindexed activation once with %s BTC in the chain snapshot",
+    (chainCollateral) => {
+      mockCollaterals = [];
+      mockCollateralBtc = chainCollateral;
+      mockChainVaultIds = chainCollateral > 0 ? [VAULT_A] : [];
+      mockActivatingVaults = new Map([
+        [
+          VAULT_A.toLowerCase(),
+          { vaultId: VAULT_A, depositorEthAddress: "0xabc", amountBtc: 1 },
+        ],
+      ]);
+
+      const { result } = renderHook(() => useDashboardState("0xabc"));
+
+      expect(result.current.collateralVaults).toHaveLength(1);
+      expect(result.current.collateralVaults[0]).toMatchObject({
+        vaultId: VAULT_A,
+        amountBtc: 1,
+        lifecycle: "activating",
+        inUse: false,
+      });
+      // The display counts the vault once. Financial actions use chain data.
+      expect(result.current.displayCollateralBtc).toBe(1);
+      expect(result.current.collateralBtc).toBe(chainCollateral);
+      expect(result.current.hasDisplayCollateral).toBe(true);
+      expect(result.current.hasCollateral).toBe(chainCollateral > 0);
+      expect(mockClearActivatingVault).not.toHaveBeenCalled();
+    },
+  );
 
   it("drops the activating override and does not duplicate once the indexer reflects the vault", () => {
     mockCollateralBtc = 1;
@@ -227,7 +406,7 @@ describe("useDashboardState", () => {
 
     // Only the indexer row remains — no duplicate optimistic row.
     expect(vaultIds(result.current.collateralVaults)).toEqual([VAULT_A]);
-    expect(result.current.collateralVaults[0].isActivating).toBeUndefined();
+    expect(result.current.collateralVaults[0].lifecycle).toBe("active");
     // Reconciliation clears the now-indexed activating entry.
     expect(mockClearActivatingVault).toHaveBeenCalledWith(VAULT_A);
     // Display total is not double-counted.
@@ -255,7 +434,14 @@ describe("useDashboardState", () => {
     mockCollateralBtc = 1;
     mockCollateralValueUsd = 10000;
     mockDebtValueUsd = 2000;
-    mockSplitParams = { THF: 1.1, CF: 0.8, LB: 1.05 };
+    mockSplitParams = {
+      THF: 1.1,
+      expectedHF: 0.95,
+      CF: 0.8,
+      LB: 1.05,
+      lbUnavailableReason: null,
+      maxLB: 1.05,
+    };
 
     const { result } = renderHook(() => useDashboardState("0xabc"));
 
@@ -264,7 +450,6 @@ describe("useDashboardState", () => {
         BPS_SCALE /
         MIN_HEALTH_FACTOR_FOR_BORROW) *
       (1 - BORROW_CAPACITY_HEADROOM);
-    expect(result.current.maxTotalDebtUsd).toBe(expectedMaxTotalDebtUsd);
     expect(result.current.availableToBorrowUsd).toBe(
       expectedMaxTotalDebtUsd - 2000,
     );
@@ -278,7 +463,6 @@ describe("useDashboardState", () => {
 
     const { result } = renderHook(() => useDashboardState("0xabc"));
 
-    expect(result.current.maxTotalDebtUsd).toBe(0);
     expect(result.current.availableToBorrowUsd).toBe(0);
   });
 
@@ -307,7 +491,14 @@ describe("useDashboardState", () => {
   it("disables borrow when remaining capacity is sub-cent dust (fully borrowed)", () => {
     mockCollateralBtc = 1;
     mockCollateralValueUsd = 10000;
-    mockSplitParams = { THF: 1.1, CF: 0.8, LB: 1.05 };
+    mockSplitParams = {
+      THF: 1.1,
+      expectedHF: 0.95,
+      CF: 0.8,
+      LB: 1.05,
+      lbUnavailableReason: null,
+      maxLB: 1.05,
+    };
     // Borrowed to within a fraction of a cent of the max — the float/HF-buffer
     // residual a fully-borrowed position leaves behind.
     mockDebtValueUsd = fixtureMaxTotalDebtUsd - 0.003;
@@ -323,7 +514,14 @@ describe("useDashboardState", () => {
   it("enables borrow when there is at least a cent of capacity", () => {
     mockCollateralBtc = 1;
     mockCollateralValueUsd = 10000;
-    mockSplitParams = { THF: 1.1, CF: 0.8, LB: 1.05 };
+    mockSplitParams = {
+      THF: 1.1,
+      expectedHF: 0.95,
+      CF: 0.8,
+      LB: 1.05,
+      lbUnavailableReason: null,
+      maxLB: 1.05,
+    };
     mockDebtValueUsd = fixtureMaxTotalDebtUsd - 50;
 
     const { result } = renderHook(() => useDashboardState("0xabc"));

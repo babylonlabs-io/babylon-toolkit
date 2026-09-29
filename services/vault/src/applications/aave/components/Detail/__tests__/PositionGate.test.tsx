@@ -4,7 +4,7 @@
  * so we cover the gating behaviour without standing up the full page.
  */
 
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { PositionGate } from "../PositionGate";
@@ -28,8 +28,14 @@ describe("PositionGate", () => {
     expect(screen.getByRole("button", { name: /retry/i })).toBeTruthy();
   });
 
-  it("Retry button calls refetchPosition", () => {
-    const refetch = vi.fn();
+  it("Retry disables the button until the read finishes", async () => {
+    let finish: (value: unknown) => void = () => {};
+    const refetch = vi.fn(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
     render(
       <PositionGate
         positionError={new Error("debt fetch failed")}
@@ -42,6 +48,11 @@ describe("PositionGate", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /retry/i }));
     expect(refetch).toHaveBeenCalledOnce();
+    expect(screen.getByRole("button", { name: /retry/i })).toBeDisabled();
+    finish(null);
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /retry/i })).toBeEnabled(),
+    );
   });
 
   it("renders children with a soft-warn banner when only ancillaryError is set", () => {

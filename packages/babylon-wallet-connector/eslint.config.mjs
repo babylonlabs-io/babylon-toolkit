@@ -4,7 +4,7 @@ import { defineConfig, globalIgnores } from "eslint/config";
 import tseslint from "typescript-eslint";
 
 export default defineConfig([
-  globalIgnores(["tests/e2e/fixtures/"]),
+  globalIgnores(["tests/e2e/fixtures/", "storybook-static/"]),
   ...reactConfig,
   {
     plugins: { import: importOrder, "@typescript-eslint": tseslint.plugin },

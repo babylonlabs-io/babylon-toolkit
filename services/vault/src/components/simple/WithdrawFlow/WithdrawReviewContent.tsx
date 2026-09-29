@@ -1,9 +1,11 @@
 import {
   Button,
   Callout,
+  Checkbox,
   Heading,
   Loader,
   Text,
+  WarningIcon,
 } from "@babylonlabs-io/core-ui";
 import { useMemo, type ReactNode } from "react";
 
@@ -28,6 +30,7 @@ import { HealthFactorDelta } from "./HealthFactorDelta";
 import { NominatedAddressValue } from "./NominatedAddressValue";
 
 const REVIEW_COPY = COPY.withdraw.review;
+const SELECT_COPY = COPY.withdraw.select;
 
 /** A single label/value pair rendered in the review card. */
 interface DetailRow {
@@ -56,6 +59,14 @@ interface WithdrawReviewContentProps {
   isProcessing: boolean;
   /** Last failed-withdraw message, shown inline under the action (null when none). */
   error: string | null;
+  /**
+   * Why a hub would reject the withdrawal (null when none): the collateral's
+   * hub, or an inactive hub where the user has debt. Blocks the confirm button.
+   */
+  hubBlockMessage: string | null;
+  /** The at-risk acknowledgement, keyed to the displayed projection; see WithdrawFlow. */
+  acknowledged: boolean;
+  onAcknowledgedChange: (acknowledged: boolean) => void;
   onConfirm: () => void;
 }
 
@@ -68,6 +79,9 @@ export function WithdrawReviewContent({
   assertTimelockBlocks,
   isProcessing,
   error,
+  hubBlockMessage,
+  acknowledged,
+  onAcknowledgedChange,
   onConfirm,
 }: WithdrawReviewContentProps) {
   const { defaultFeeRate } = useNetworkFees();
@@ -175,27 +189,55 @@ export function WithdrawReviewContent({
             ))}
           </div>
 
+          {/* This banner's data-testid is a real-wallet E2E hook (e2e/real/actions/withdraw.ts) — carry it over if you move or rename the element. */}
           {wouldBreachHF && (
-            <Text
-              variant="body2"
-              className="text-error-main"
+            <Callout
+              variant="error"
+              title={REVIEW_COPY.hfBlockTitle}
+              icon={<WarningIcon size={14} color="text-accent-contrast" />}
               data-testid="withdraw-hf-block-warning"
             >
               {REVIEW_COPY.hfBlockWarning(
                 WITHDRAW_HF_BLOCK_THRESHOLD.toFixed(1),
               )}
+            </Callout>
+          )}
+          {hubBlockMessage && (
+            <Text
+              variant="body2"
+              className="text-error-main"
+              data-testid="withdraw-hub-block-warning"
+            >
+              {hubBlockMessage}
             </Text>
           )}
           {isAtRisk && (
-            <Text
-              variant="body2"
-              className="text-warning-main"
-              data-testid="withdraw-hf-at-risk-warning"
-            >
-              {REVIEW_COPY.hfAtRiskWarning(
-                WITHDRAW_HF_WARNING_THRESHOLD.toFixed(1),
-              )}
-            </Text>
+            <div className="flex flex-col gap-4">
+              <Text
+                variant="body2"
+                className="text-warning-main"
+                data-testid="withdraw-hf-at-risk-warning"
+              >
+                {REVIEW_COPY.hfAtRiskWarning(
+                  WITHDRAW_HF_WARNING_THRESHOLD.toFixed(1),
+                )}
+              </Text>
+              <label className="flex w-full cursor-pointer items-center gap-4">
+                {/* This control's data-testid is a real-wallet E2E hook
+                    (e2e/real/actions/withdraw.ts) — carry it over if you move
+                    or rename the element. */}
+                <Checkbox
+                  checked={acknowledged}
+                  onChange={() => onAcknowledgedChange(!acknowledged)}
+                  variant="default"
+                  showLabel={false}
+                  data-testid="withdraw-review-acknowledge"
+                />
+                <span className="text-base leading-[1.5] tracking-[0.15px] text-accent-primary">
+                  {SELECT_COPY.continueAnyway}
+                </span>
+              </label>
+            </div>
           )}
 
           {/* This control's data-testid is a real-wallet E2E hook (e2e/real/actions/withdraw.ts) — carry it over if you move or rename the element. */}
@@ -203,7 +245,12 @@ export function WithdrawReviewContent({
             variant="contained"
             color="secondary"
             className="w-full"
-            disabled={isProcessing || wouldBreachHF}
+            disabled={
+              isProcessing ||
+              wouldBreachHF ||
+              hubBlockMessage !== null ||
+              (isAtRisk && !acknowledged)
+            }
             onClick={onConfirm}
             data-testid="withdraw-confirm-button"
           >

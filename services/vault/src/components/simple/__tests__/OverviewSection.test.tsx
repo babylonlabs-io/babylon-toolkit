@@ -10,6 +10,21 @@ vi.mock("@/config", () => ({
   getBTCNetwork: () => "signet",
 }));
 
+const BORROWED_ASSETS = [
+  {
+    reserveId: "2",
+    symbol: "USDC",
+    name: "USD Coin",
+    hub: {
+      source: "registry" as const,
+      address: "0x0000000000000000000000000000000000000001" as const,
+      label: "Babylon Hub",
+    },
+    amount: "2,000",
+    icon: "/images/usdc.svg",
+  },
+];
+
 const onDeposit = vi.fn();
 const onBorrow = vi.fn();
 const onRepay = vi.fn();
@@ -18,13 +33,13 @@ function renderSection(overrides: Record<string, unknown> = {}) {
   return render(
     <OverviewSection
       totalCollateralValue="$10,000"
-      totalBorrowed="$2,000"
+      borrowedAssets={BORROWED_ASSETS}
+      maxBorrowReserves={1}
+      borrowCount={1n}
       availableToBorrow="$5,000"
       collateralBtc="0.5 BTC"
-      availableMeterPercent={0.75}
       borrowCapacityLoading={false}
       borrowCapacityError={null}
-      borrowedMeterPercent={0.25}
       onDeposit={onDeposit}
       isDepositDisabled={false}
       onBorrow={onBorrow}
@@ -62,9 +77,12 @@ describe("OverviewSection", () => {
 
     expect(screen.getByText("$10,000")).toBeInTheDocument();
     expect(screen.getByText("$5,000")).toBeInTheDocument();
-    expect(screen.getByText("$2,000")).toBeInTheDocument();
+    expect(screen.getByText("USDC")).toBeInTheDocument();
     expect(screen.getByText(COPY.overview.positionTitle)).toBeInTheDocument();
-    expect(screen.getByText("0.5 BTC")).toBeInTheDocument();
+    // Collateral USD and its BTC amount share one line: the BTC amount is a
+    // nested secondary span inside the value, not a separate caption row.
+    const collateralBtc = screen.getByText("0.5 BTC");
+    expect(collateralBtc.parentElement).toHaveTextContent("$10,000 0.5 BTC");
 
     expect(
       screen.getByRole("button", { name: COPY.overview.depositAction }),
@@ -75,6 +93,13 @@ describe("OverviewSection", () => {
     expect(
       screen.getByRole("button", { name: COPY.overview.repayAction }),
     ).toBeInTheDocument();
+  });
+
+  it("titles the collateral card with both the USD total and the BTC amount", () => {
+    renderSection();
+
+    const collateralValue = screen.getByText("0.5 BTC").closest("[title]");
+    expect(collateralValue).toHaveAttribute("title", "$10,000 0.5 BTC");
   });
 
   it("fires the matching callback when each action is clicked", () => {
@@ -110,85 +135,17 @@ describe("OverviewSection", () => {
     ).toBeDisabled();
   });
 
-  it("exposes the available and borrowed meters as named progressbars, and shows the collateral BTC caption instead of a meter", () => {
-    renderSection();
-
-    expect(
-      screen.getByRole("progressbar", {
-        name: COPY.overview.availableToBorrowLabel,
-      }),
-    ).toHaveAttribute("aria-valuenow", "75");
-    expect(
-      screen.getByRole("progressbar", {
-        name: COPY.overview.totalBorrowedLabel,
-      }),
-    ).toHaveAttribute("aria-valuenow", "25");
-    expect(
-      screen.getByText(COPY.overview.availableMeterLabel(75)),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(COPY.overview.borrowedMeterLabel(25)),
-    ).toBeInTheDocument();
-
-    expect(
-      screen.queryByRole("progressbar", {
-        name: COPY.overview.totalCollateralValueLabel,
-      }),
-    ).not.toBeInTheDocument();
-    expect(screen.getByText("0.5 BTC")).toBeInTheDocument();
-  });
-
-  it("labels sub-percent debt without rounding it to zero", () => {
-    renderSection({
-      availableMeterPercent: 0.9991,
-      borrowedMeterPercent: 0.0009,
-    });
-
-    expect(screen.getByText(">99% remaining")).toBeInTheDocument();
-    expect(screen.getByText("<1% borrowed")).toBeInTheDocument();
-  });
-
-  it("labels remaining sub-percent capacity without rounding it to zero", () => {
-    renderSection({
-      availableMeterPercent: 0.0009,
-      borrowedMeterPercent: 0.9991,
-    });
-
-    expect(screen.getByText("<1% remaining")).toBeInTheDocument();
-    expect(screen.getByText(">99% borrowed")).toBeInTheDocument();
-  });
-
-  it("shows a loading placeholder and hides both meters while borrow capacity loads", () => {
+  it("shows a loading placeholder for available borrow capacity while it loads", () => {
     renderSection({ borrowCapacityLoading: true });
 
     expect(screen.getByText(COPY.common.loading)).toBeInTheDocument();
-    expect(
-      screen.queryByRole("progressbar", {
-        name: COPY.overview.availableToBorrowLabel,
-      }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("progressbar", {
-        name: COPY.overview.totalBorrowedLabel,
-      }),
-    ).not.toBeInTheDocument();
-    expect(screen.getByText("$2,000")).toBeInTheDocument();
+    expect(screen.getByText("USDC")).toBeInTheDocument();
   });
 
-  it("shows an empty placeholder for available and hides both meters when borrow capacity errors", () => {
+  it("shows an empty placeholder for available when borrow capacity errors", () => {
     renderSection({ borrowCapacityError: new Error("split params failed") });
 
     expect(screen.getByText(COPY.common.emptyValue)).toBeInTheDocument();
-    expect(
-      screen.queryByRole("progressbar", {
-        name: COPY.overview.availableToBorrowLabel,
-      }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("progressbar", {
-        name: COPY.overview.totalBorrowedLabel,
-      }),
-    ).not.toBeInTheDocument();
-    expect(screen.getByText("$2,000")).toBeInTheDocument();
+    expect(screen.getByText("USDC")).toBeInTheDocument();
   });
 });

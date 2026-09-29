@@ -21,11 +21,17 @@ export {
   PeginAction,
   canPerformAction,
   getPeginProtocolState,
+  activationDeadlineBlocksRemaining,
   isActivationDeadlinePassedOnChain,
   type ExpirationReason,
   type GetPeginProtocolStateOptions,
   type PeginProtocolState,
 } from "./peginState";
+export {
+  assertReturnedGraphMatchesFingerprint,
+  fingerprintReturnedGraph,
+  GraphFingerprintError,
+} from "./graphFingerprint";
 export {
   runDepositorPresignFlow,
   type PayoutSigningContext,
@@ -41,6 +47,8 @@ export {
   type SubmitWotsPublicKeyParams,
 } from "./submitWotsPublicKey";
 export {
+  ApplicationEntryPointMismatchError,
+  isApplicationEntryPointMismatchError,
   validateOnChainParticipantKeys,
   type ValidateOnChainParticipantKeysParams,
   type ValidatedOnChainParticipantKeys,

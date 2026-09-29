@@ -1,4 +1,17 @@
 /**
+ * Mutually exclusive lifecycle states a collateral row can be displayed in.
+ *
+ * - `active` — indexed collateral backing the position; the only actionable
+ *   state, and the only one whose `liquidationIndex` is current.
+ * - `activating` — optimistic row shown between the activation ETH tx and the
+ *   indexer ingesting the vault; its indexed metadata are placeholders. See
+ *   ActivatingVaultsContext.
+ * - `withdrawing` — peg-out in flight: the vault has left the position on-chain
+ *   but the BTC payout has not settled.
+ */
+export type CollateralVaultLifecycle = "active" | "activating" | "withdrawing";
+
+/**
  * Collateral vault entry for display in the dashboard.
  * Represents a single peg-in vault used as Aave collateral.
  */
@@ -21,14 +34,8 @@ export interface CollateralVaultEntry {
   addedAt: number;
   /** Whether the vault is currently in use as collateral */
   inUse: boolean;
-  /**
-   * True for an optimistic row shown right after the activation ETH tx, while
-   * the Aave indexer has not yet ingested the vault as collateral. Such a row
-   * has no indexed metadata (provider/tx hashes/liquidation order may be
-   * placeholders) and is not selectable/withdrawable. Cleared once the indexer
-   * reflects the vault. See ActivatingVaultsContext.
-   */
-  isActivating?: boolean;
+  /** Which lifecycle state the row is in. Only `active` rows are actionable. */
+  lifecycle: CollateralVaultLifecycle;
   /**
    * True for a render-only row that must never enter an action flow (withdraw,
    * reorder, selection). Set only by the dev-only god-mode demo panel so its

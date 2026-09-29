@@ -5,16 +5,16 @@
  * Pins the byte-level encoding (in particular, the **big-endian** vout
  * encoding inside each serialized outpoint and the `I2OSP(32, 4)` length
  * prefix in `vaultContext`) against an independent Rust implementation
- * derived directly from the spec
- * (`docs/specs/derive-vault-secrets.md` §2.3) — addressing Govard's P1
- * review on PR babylonlabs-io/babylon-toolkit#1458.
+ * written from the encoding rules alone (they now live in the `../context.ts`
+ * header) — addressing Govard's P1 review on PR
+ * babylonlabs-io/babylon-toolkit#1458.
  *
  * ## Reproduction recipe (Rust side)
  *
  * The Rust hex constants below were produced by a temporary
  * `#[cfg(test)] mod golden_vault_context` block added to
  * `~/babylon/btc-vault/crates/crypto/src/hash.rs` that re-implements the
- * spec from scratch (no shared code path with the TS impl) using
+ * encoding from scratch (no shared code path with the TS impl) using
  * `sha2::Sha256` and `u32::to_be_bytes()`. The block was reverted from
  * btc-vault after capture; recreate it (or any equivalent independent
  * implementation) and run:

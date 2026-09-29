@@ -6,6 +6,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import VaultsPage from "@/components/pages/VaultsPage";
 import { COPY } from "@/copy";
+import { useVaultsPageData } from "@/hooks/useVaultsPageData";
+import { PendingPeginStorageReadError } from "@/storage/peginStorage";
 
 // The deposits kill-switch is read through two module paths: VaultsPage
 // swaps copy via `FeatureFlags` (@/config) and isDepositBlocked reads the
@@ -29,10 +31,16 @@ const emptinessState = vi.hoisted(() => ({
   isEmpty: true,
   hasError: false,
   hasPartialError: false,
+  hasNonIndexerError: false,
+  storageOnlyError: false,
 }));
 
 vi.mock("@/hooks/useVaultsPageEmptiness", () => ({
   useVaultsPageEmptiness: () => emptinessState,
+}));
+
+const storageState = vi.hoisted(() => ({
+  storageReadError: null as PendingPeginStorageReadError | null,
 }));
 
 // The page instantiates the single usePendingDeposits shared by the emptiness
@@ -44,22 +52,40 @@ vi.mock("@/hooks/usePendingDeposits", () => ({
     expiredActivities: [],
     isLoading: false,
     error: null,
+    storageReadError: storageState.storageReadError,
   }),
 }));
 
-const walletState = vi.hoisted(() => ({ isConnected: true }));
+const walletState = vi.hoisted(() => ({
+  btcConnected: true,
+  ethConnected: true,
+  confirmed: true,
+}));
 
-vi.mock("@/context/wallet", () => ({
-  useConnection: () => ({ isConnected: walletState.isConnected }),
+vi.mock("@babylonlabs-io/wallet-connector", () => ({
+  useWalletConnect: () => ({ connected: walletState.confirmed }),
+  useBTCWallet: () => ({ connected: walletState.btcConnected }),
   useETHWallet: () => ({
+    connected: walletState.ethConnected,
     address: "0x1111111111111111111111111111111111111111",
   }),
 }));
 
+// The real gate decides what this page treats as connected. A hand-supplied
+// `isConnected` would not catch a change to the gate.
+vi.mock("@/context/wallet", async () => ({
+  useConnection: (await import("@/context/wallet/useConnection")).useConnection,
+  useETHWallet: (await import("@babylonlabs-io/wallet-connector")).useETHWallet,
+}));
+
 // Page-level data is exercised in the hook's own tests; the page test only
 // checks which body branch renders, so the sections are stubbed.
+const pageDataState = vi.hoisted(() => ({
+  indexerError: null as Error | null,
+}));
+
 vi.mock("@/hooks/useVaultsPageData", () => ({
-  useVaultsPageData: () => ({
+  useVaultsPageData: vi.fn(() => ({
     summary: {
       totalCollateralBtc: "0 sBTC",
       totalCollateralUsd: "$0 USD",
@@ -70,9 +96,18 @@ vi.mock("@/hooks/useVaultsPageData", () => ({
     },
     displayVaults: [],
     rawCollateralVaults: [],
+    indexerError: pageDataState.indexerError,
     collateralBtc: 0,
     collateralValueUsd: 0,
-  }),
+  })),
+}));
+
+vi.mock("@/applications/aave/hooks", () => ({
+  useAaveVaults: () => ({ vaults: [] }),
+}));
+
+vi.mock("@/applications/aave/context", () => ({
+  useSyncPendingVaults: () => {},
 }));
 
 vi.mock("@/components/vaults/VaultsSummaryCard", () => ({
@@ -134,11 +169,18 @@ function renderVaultsPage(openDeposit = vi.fn()) {
 
 describe("VaultsPage", () => {
   beforeEach(() => {
+    vi.mocked(useVaultsPageData).mockClear();
+    storageState.storageReadError = null;
     emptinessState.isLoading = false;
     emptinessState.isEmpty = true;
     emptinessState.hasError = false;
     emptinessState.hasPartialError = false;
-    walletState.isConnected = true;
+    emptinessState.hasNonIndexerError = false;
+    emptinessState.storageOnlyError = false;
+    pageDataState.indexerError = null;
+    walletState.btcConnected = true;
+    walletState.ethConnected = true;
+    walletState.confirmed = true;
     gateState.protocol = null;
     gateState.aave = null;
     featureFlagsMock.isDepositDisabled = false;
@@ -158,11 +200,12 @@ describe("VaultsPage", () => {
   });
 
   it("shows the connect prompt instead of the Deposit CTA when disconnected", () => {
-    walletState.isConnected = false;
+    walletState.ethConnected = false;
 
     renderVaultsPage();
 
     expect(screen.getByTestId("connect-button")).toBeInTheDocument();
+    expect(useVaultsPageData).toHaveBeenCalledWith(undefined);
     expect(screen.queryByTestId("deposit-button")).not.toBeInTheDocument();
     // Disconnected prompts for a wallet rather than describing a position we
     // haven't read yet.
@@ -174,10 +217,25 @@ describe("VaultsPage", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("opens the page for a confirmed Ethereum wallet with no Bitcoin wallet", () => {
+    walletState.btcConnected = false;
+
+    const { openDeposit } = renderVaultsPage();
+
+    expect(useVaultsPageData).toHaveBeenCalledWith(
+      "0x1111111111111111111111111111111111111111",
+    );
+    expect(screen.queryByTestId("connect-button")).not.toBeInTheDocument();
+    const deposit = screen.getByTestId("deposit-button");
+    expect(deposit).toBeEnabled();
+    fireEvent.click(deposit);
+    expect(openDeposit).toHaveBeenCalledTimes(1);
+  });
+
   it("keeps the deposits-paused notice visible while disconnected", () => {
     // The pause is protocol-level: a depositor should learn deposits are off
     // without having to connect a wallet first.
-    walletState.isConnected = false;
+    walletState.ethConnected = false;
     featureFlagsMock.isDepositDisabled = true;
 
     renderVaultsPage();
@@ -233,6 +291,77 @@ describe("VaultsPage", () => {
     ).toBeInTheDocument();
     // The data the page does have still renders beneath the warning.
     expect(screen.getByTestId("vaults-summary-card")).toBeInTheDocument();
+  });
+
+  it("explains that unreadable browser deposits were not deleted", () => {
+    emptinessState.isEmpty = false;
+    emptinessState.hasError = true;
+    emptinessState.storageOnlyError = true;
+    storageState.storageReadError = new PendingPeginStorageReadError(
+      "0xdepositor",
+      '[{"id":',
+      new SyntaxError("Unexpected end of JSON input"),
+    );
+
+    renderVaultsPage();
+
+    expect(screen.getByText(COPY.vaults.storageReadError)).toBeInTheDocument();
+    expect(screen.queryByTestId("deposit-button")).not.toBeInTheDocument();
+  });
+
+  it("keeps the storage warning visible when remote reads also fail", () => {
+    emptinessState.isEmpty = false;
+    emptinessState.hasError = true;
+    emptinessState.hasPartialError = true;
+    emptinessState.hasNonIndexerError = true;
+    storageState.storageReadError = new PendingPeginStorageReadError(
+      "0xdepositor",
+      '[{"id":',
+      new SyntaxError("Unexpected end of JSON input"),
+    );
+
+    renderVaultsPage();
+
+    const warning = screen.getByTestId("vaults-partial-load-error");
+    expect(warning).toHaveTextContent(COPY.vaults.storageReadError);
+    // One body, not both: toHaveTextContent is a substring match, so without
+    // this the warning could carry the generic copy as well and still pass.
+    expect(warning).not.toHaveTextContent(COPY.vaults.partialLoadError.body);
+    expect(screen.getByText(COPY.vaults.loadError)).toBeInTheDocument();
+  });
+
+  it("says why Withdraw and Reorder are disabled next to the storage warning", () => {
+    emptinessState.isEmpty = false;
+    emptinessState.hasPartialError = true;
+    emptinessState.hasNonIndexerError = true;
+    storageState.storageReadError = new PendingPeginStorageReadError(
+      "0xdepositor",
+      '[{"id":',
+      new SyntaxError("Unexpected end of JSON input"),
+    );
+    pageDataState.indexerError = new Error(
+      "Indexed collateral details do not match the chain position",
+    );
+
+    renderVaultsPage();
+
+    const warning = screen.getByTestId("vaults-partial-load-error");
+    expect(warning).toHaveTextContent(COPY.vaults.storageReadError);
+    expect(warning).toHaveTextContent(COPY.vaults.collateralListIncomplete);
+  });
+
+  it("does not claim totals or deposits are incomplete when only the indexed vault list failed", () => {
+    emptinessState.isEmpty = false;
+    emptinessState.hasPartialError = true;
+    pageDataState.indexerError = new Error(
+      "Indexed collateral details do not match the chain position",
+    );
+
+    renderVaultsPage();
+
+    const warning = screen.getByTestId("vaults-partial-load-error");
+    expect(warning).toHaveTextContent(COPY.vaults.collateralListIncomplete);
+    expect(warning).not.toHaveTextContent(COPY.vaults.partialLoadError.body);
   });
 
   it("does not show the partial-load warning when both sources loaded", () => {

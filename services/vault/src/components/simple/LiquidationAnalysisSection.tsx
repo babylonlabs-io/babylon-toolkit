@@ -1,4 +1,4 @@
-import { Heading, Timeline } from "@babylonlabs-io/core-ui";
+import { Heading, Loader, Timeline } from "@babylonlabs-io/core-ui";
 import { useMemo } from "react";
 import { useNavigate } from "react-router";
 
@@ -17,9 +17,17 @@ import {
   NEUTRAL_BUTTON_CLASS,
   PRIMARY_BUTTON_CLASS,
 } from "@/components/shared/buttonClasses";
+import { CHART_LOADING_BOX_CLASS } from "@/components/shared/layoutClasses";
 import { COPY } from "@/copy";
 import { ROUTES } from "@/routes";
 import { formatPriceUsd } from "@/utils/formatting";
+
+/**
+ * Candles the Overview preview shows. The card never pans or zooms, so this is
+ * everything it will ever draw: a year of candles in the card's width renders
+ * as sub-pixel hairlines. Explore opens the full page with its own window.
+ */
+const PREVIEW_VISIBLE_CANDLES = 60;
 
 /** The cascade the chart renders. Absent = nothing to chart yet.
  *
@@ -44,9 +52,6 @@ interface LiquidationAnalysisSectionProps {
    */
   cascade?: LiquidationCascade | null;
 }
-
-/** Daily candles in view. The preview does not pan; Explore opens the page. */
-const TIMELINE_VISIBLE_CANDLES = 60;
 
 /**
  * Overview-page preview of the Liquidation Dashboard: no collateral,
@@ -93,7 +98,7 @@ function LiquidationChartPanel({
   cascade: LiquidationCascade;
   onExplore: () => void;
 }) {
-  const { candles } = useBtcPriceCandles();
+  const { candles, isLoading: isLoadingCandles } = useBtcPriceCandles();
 
   const chart = useMemo(() => {
     const { bands } = buildLiquidationChartData(cascade.result, {
@@ -134,18 +139,24 @@ function LiquidationChartPanel({
         </button>
       </div>
 
-      <Timeline
-        bands={chart.bands}
-        candles={candles ?? []}
-        currentPrice={cascade.params.btcPrice}
-        currentPriceLabel={formatPriceUsd(cascade.params.btcPrice)}
-        priceAxis={chart.priceAxis}
-        safeZone={chart.safeZone}
-        visibleCandles={TIMELINE_VISIBLE_CANDLES}
-        formatPrice={formatPriceUsd}
-        formatTime={formatCandleDate}
-        liquidatedLabel={COPY.liquidations.liquidatedBandLabel}
-      />
+      {isLoadingCandles ? (
+        <div className={CHART_LOADING_BOX_CLASS}>
+          <Loader />
+        </div>
+      ) : (
+        <Timeline
+          bands={chart.bands}
+          candles={candles ?? []}
+          currentPrice={cascade.params.btcPrice}
+          currentPriceLabel={formatPriceUsd(cascade.params.btcPrice)}
+          priceAxis={chart.priceAxis}
+          safeZone={chart.safeZone}
+          visibleCandles={PREVIEW_VISIBLE_CANDLES}
+          formatPrice={formatPriceUsd}
+          formatTime={formatCandleDate}
+          liquidatedLabel={COPY.liquidations.liquidatedBandLabel}
+        />
+      )}
     </>
   );
 }

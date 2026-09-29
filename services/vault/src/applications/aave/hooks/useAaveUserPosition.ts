@@ -9,6 +9,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { satoshiToBtcNumber } from "@/utils/btcConversion";
+import { AAVE_USER_POSITION_QUERY_KEY } from "@/utils/queryKeys";
 
 import {
   POSITION_REFETCH_INTERVAL_MS,
@@ -40,7 +41,7 @@ export type { HealthFactorStatus };
 export interface UseAaveUserPositionResult {
   /** User's vBTC collateral position (null if no position) */
   position: AavePositionWithLiveData | null;
-  /** Collateral amount in BTC (from indexer) */
+  /** Collateral amount in BTC (from the on-chain adapter) */
   collateralBtc: number;
   /** Total collateral value in USD (from Aave oracle) */
   collateralValueUsd: number;
@@ -105,7 +106,7 @@ export function useAaveUserPosition(
     refetch,
   } = useQuery({
     queryKey: [
-      "aaveUserPosition",
+      AAVE_USER_POSITION_QUERY_KEY,
       connectedAddress,
       spokeAddress,
       vbtcReserveId?.toString(),
@@ -181,7 +182,7 @@ export function useAaveUserPosition(
         collateralValueUsd: aaveValueToUsd(accountData.totalCollateralValue),
         debtValueUsd: aaveRayValueToUsd(accountData.totalDebtValueRay),
         healthFactor:
-          accountData.borrowCount > 0n
+          accountData.totalDebtValueRay > 0n
             ? wadToNumber(accountData.healthFactor)
             : null,
       };

@@ -61,10 +61,10 @@ function simulateOneGroup(
   seizedFraction: number,
   CF: number,
   THF: number,
-  maxLB: number,
+  LB: number,
   expectedHF: number,
 ): { debtAfter: number; btcAfter: number } {
-  const liqPenalty = maxLB * CF;
+  const liqPenalty = LB * CF;
   const pLiq = debt / (totalBtc * CF);
   const targetSeizure = totalBtc * seizedFraction;
   const overSeizureBtc = Math.max(0, seizedBtc - targetSeizure);
@@ -76,7 +76,7 @@ function simulateOneGroup(
   if (isLastGroup) {
     debtAfter = 0;
   } else {
-    const overSeizureVal = (overSeizureBtc * pLiq) / maxLB;
+    const overSeizureVal = (overSeizureBtc * pLiq) / LB;
     const fairnessDebtRepay = Math.min(overSeizureVal, debt - debtToRepay);
     debtAfter = Math.max(0, debt - debtToRepay - fairnessDebtRepay);
   }
@@ -97,7 +97,7 @@ export function simulateCascade<T extends CascadeVault>(
   seizureTol: number,
   CF: number,
   THF: number,
-  maxLB: number,
+  LB: number,
   expectedHF: number,
 ): { sumBtcAfterEvents: number; btcAfterG1: number } {
   let remaining = [...order];
@@ -129,7 +129,7 @@ export function simulateCascade<T extends CascadeVault>(
       seizedFraction,
       CF,
       THF,
-      maxLB,
+      LB,
       expectedHF,
     );
     remaining = remaining.slice(i);

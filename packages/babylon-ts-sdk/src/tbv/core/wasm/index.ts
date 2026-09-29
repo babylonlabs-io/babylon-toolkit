@@ -24,6 +24,10 @@ import type {
   PeginTxResult,
   PrePeginParams,
   PrePeginResult,
+  WatchtowerArtifactsInputs,
+  WotsKeypairDerivation,
+  WronglyChallengedPsbts,
+  WronglyChallengedSigs,
 } from "@babylonlabs-io/babylon-tbv-rust-wasm";
 
 export { TAP_INTERNAL_KEY, tapInternalPubkey } from "./constants";
@@ -31,14 +35,23 @@ export { TAP_INTERNAL_KEY, tapInternalPubkey } from "./constants";
 type TbvWasmModule = typeof import("@babylonlabs-io/babylon-tbv-rust-wasm");
 
 let wasmModulePromise: Promise<TbvWasmModule> | undefined;
-type RawTbvWasmModule =
-  typeof import("@babylonlabs-io/babylon-tbv-rust-wasm/raw");
-let rawWasmModulePromise: Promise<RawTbvWasmModule> | undefined;
 
-/** Load the WASM engine on first use and share the in-flight import. */
+/**
+ * Load and initialize the WASM engine on first use. Concurrent callers share
+ * one load. The returned module is already initialized, so a caller does not
+ * call `initWasm()`. A load or initialization failure rejects with an error
+ * that names the engine package. The original error is its cause. A failure
+ * clears this cache, so the next call loads again. The engine keeps a failed
+ * binary initialization rejected, so only a failed import or binary read can
+ * succeed on a later call.
+ *
+ * The module also contains the wasm-bindgen classes. The classes have no value
+ * guards. A caller that uses a class must cross-check its output at the call
+ * site.
+ */
 export function loadTbvWasm(): Promise<TbvWasmModule> {
-  wasmModulePromise ??= import("@babylonlabs-io/babylon-tbv-rust-wasm").catch(
-    (error: unknown) => {
+  wasmModulePromise ??= import("@babylonlabs-io/babylon-tbv-rust-wasm")
+    .catch((error: unknown) => {
       wasmModulePromise = undefined;
       throw new Error(
         "The vault-WASM engine @babylonlabs-io/babylon-tbv-rust-wasm failed " +
@@ -47,40 +60,23 @@ export function loadTbvWasm(): Promise<TbvWasmModule> {
           "See the cause for the underlying error.",
         { cause: error },
       );
-    },
-  );
-  return wasmModulePromise;
-}
-
-/**
- * Load the explicit raw-class entry for the one SDK primitive that must
- * reconstruct a stateful WASM transaction object (refund construction).
- */
-export function loadRawTbvWasm(): Promise<RawTbvWasmModule> {
-  rawWasmModulePromise ??= import("@babylonlabs-io/babylon-tbv-rust-wasm/raw")
-    .catch((error: unknown) => {
-      rawWasmModulePromise = undefined;
-      throw new Error(
-        "The raw vault-WASM entry @babylonlabs-io/babylon-tbv-rust-wasm/raw " +
-          "failed to load. The module could not be resolved, or it threw " +
-          "while evaluating. See the cause for the underlying error.",
-        { cause: error },
-      );
     })
     .then(async (wasm) => {
       try {
         await wasm.initWasm();
       } catch (error: unknown) {
-        rawWasmModulePromise = undefined;
+        wasmModulePromise = undefined;
         throw new Error(
-          "The raw vault-WASM entry resolved but its WebAssembly " +
-            "binary failed to initialize.",
+          "The vault-WASM engine @babylonlabs-io/babylon-tbv-rust-wasm " +
+            "resolved, but its WebAssembly binary failed to initialize, " +
+            "commonly a missing or stale generated WASM build. See the " +
+            "cause for the underlying error.",
           { cause: error },
         );
       }
       return wasm;
     });
-  return rawWasmModulePromise;
+  return wasmModulePromise;
 }
 
 /**
@@ -177,7 +173,8 @@ export async function computeMinClaimValue(
  * `minPeginFee = peginTxVsize(numVks, numUcs) × minPeginFeeRate`. Each HTLC
  * the depositor funds in the Pre-PegIn tx must reserve at least this fee
  * inside its value (`htlcValue = peginAmount + depositorClaimValue +
- * minPeginFee`), otherwise the VP cannot afford to broadcast the PegIn at
+ * p2aAnchorValue + minPeginFee`, anchor 0 on vault core 1), otherwise the VP
+ * cannot afford to broadcast the PegIn at
  * activation. The vsize comes from a Taproot script-path-spend weight
  * prediction whose witness shape depends on the VK + UC signer count.
  */
@@ -324,8 +321,8 @@ export async function getAssertNoPayoutScriptInfo(
  * Get the ChallengeAssert script and control block.
  *
  * Used to build ChallengeAssert PSBTs for the depositor-as-claimer path.
- * Each challenger has 3 ChallengeAssert transactions, and this connector
- * generates the spending scripts using WOTS public keys from the VP.
+ * Each challenger has 2 ChallengeAssert transactions (X and Y), and this
+ * connector generates the spending scripts using WOTS public keys from the VP.
  *
  * @param params - ChallengeAssert connector parameters
  * @returns Script and control block (hex encoded)
@@ -338,11 +335,8 @@ export async function getChallengeAssertScriptInfo(
 
 /**
  * Derive 32-byte `authAnchor` (OP_RETURN preimage → VP bearer token).
- * @stability frozen — forwards the frozen expander in `@babylonlabs-io/babylon-tbv-rust-wasm`; see CLAUDE.md §4.
- */
-/**
- * Derive 32-byte `authAnchor` (OP_RETURN preimage → VP bearer token).
- * @stability frozen — owned by btc-vault Rust via the vault-wasm pin (`VAULT_WASM_COMMIT`); rotation breaks VP auth for existing deposits.
+ * @stability frozen - btc-vault Rust owns this API through the vault-wasm pin (`VAULT_WASM_COMMIT`).
+ * Changing the derived bytes breaks VP auth for existing deposits. See CLAUDE.md §4.
  */
 export async function expandAuthAnchor(root: Uint8Array): Promise<Uint8Array> {
   return (await loadTbvWasm()).expandAuthAnchor(root);
@@ -350,11 +344,8 @@ export async function expandAuthAnchor(root: Uint8Array): Promise<Uint8Array> {
 
 /**
  * Derive 32-byte `hashlockSecret` for HTLC `htlcVout` (preimage → `activateVaultWithSecret`).
- * @stability frozen — forwards the frozen expander in `@babylonlabs-io/babylon-tbv-rust-wasm`; see CLAUDE.md §4.
- */
-/**
- * Derive 32-byte `hashlockSecret` for HTLC `htlcVout` (preimage → `activateVaultWithSecret`).
- * @stability frozen — owned by btc-vault Rust; rotation means affected vaults can never activate.
+ * @stability frozen - btc-vault Rust owns this API.
+ * Changing the derived bytes means affected vaults can never activate. See CLAUDE.md §4.
  */
 export async function expandHashlockSecret(
   root: Uint8Array,
@@ -365,11 +356,8 @@ export async function expandHashlockSecret(
 
 /**
  * Derive 64-byte `wotsSeed` for HTLC `htlcVout` (→ WOTS keys, hashed as `depositorWotsPkHash`).
- * @stability frozen — forwards the frozen expander in `@babylonlabs-io/babylon-tbv-rust-wasm`; see CLAUDE.md §4.
- */
-/**
- * Derive 64-byte `wotsSeed` for HTLC `htlcVout` (→ WOTS keys, hashed as `depositorWotsPkHash`).
- * @stability frozen — owned by btc-vault Rust; rotation breaks existing `depositorWotsPkHash` → no claim path.
+ * @stability frozen - btc-vault Rust owns this API.
+ * Changing the derived bytes breaks existing `depositorWotsPkHash` values. No claim path remains. See CLAUDE.md §4.
  */
 export async function expandWotsSeed(
   root: Uint8Array,
@@ -395,6 +383,245 @@ export async function deriveVaultId(
   return (await loadTbvWasm()).deriveVaultId(peginTxHash, depositor);
 }
 
+// ============================================================================
+// Delegated claim (depositor-as-claimer) — assembly and claim-time surface
+// ============================================================================
+//
+// The forwarding hop for the WASM exports that assemble the two files the
+// `vaultd vp wt` watchtower CLI consumes, and for the claim-time exports
+// that run a claim from those files without the CLI.
+//
+// EXPERIMENTAL — under test, signet only. These names and signatures can
+// change in a minor release. See services/delegated-claim.
+
+/**
+ * Depositor's Claim signing PSBT (base64) — spends PegIn:1, script path.
+ *
+ * @experimental
+ */
+export async function buildClaimPsbt(
+  txGraphVersion: number,
+  graphJson: string,
+): Promise<string> {
+  return (await loadTbvWasm()).buildClaimPsbt(txGraphVersion, graphJson);
+}
+
+/**
+ * Claimer's Assert signing PSBT (base64) — the single WOTS input.
+ *
+ * @experimental
+ */
+export async function buildAssertClaimerPsbt(
+  txGraphVersion: number,
+  graphJson: string,
+): Promise<string> {
+  return (await loadTbvWasm()).buildAssertClaimerPsbt(
+    txGraphVersion,
+    graphJson,
+  );
+}
+
+/**
+ * Claimer's Payout signing PSBT (base64) — input 1, Assert connector path.
+ *
+ * @experimental
+ */
+export async function buildPayoutClaimerPsbt(
+  txGraphVersion: number,
+  graphJson: string,
+): Promise<string> {
+  return (await loadTbvWasm()).buildPayoutClaimerPsbt(
+    txGraphVersion,
+    graphJson,
+  );
+}
+
+/**
+ * Depositor's Payout signing PSBT (base64) — input 0, the PegIn UTXO spend.
+ *
+ * @experimental
+ */
+export async function buildPayoutDepositorPsbt(
+  txGraphVersion: number,
+  graphJson: string,
+): Promise<string> {
+  return (await loadTbvWasm()).buildPayoutDepositorPsbt(
+    txGraphVersion,
+    graphJson,
+  );
+}
+
+/**
+ * Claimer's WronglyChallenged signing PSBTs, per challenger and GC index.
+ *
+ * @experimental
+ */
+export async function buildWronglyChallengedPsbts(
+  txGraphVersion: number,
+  graphJson: string,
+): Promise<WronglyChallengedPsbts> {
+  return (await loadTbvWasm()).buildWronglyChallengedPsbts(
+    txGraphVersion,
+    graphJson,
+  );
+}
+
+/**
+ * Verifies the Groth16 pegout proof and pins it into the artifacts, returning
+ * the updated artifacts JSON. Persist that copy: the one-time WOTS keypair
+ * signs exactly one proof, so a second, different one is refused.
+ *
+ * @experimental
+ */
+export async function pinPegoutProof(
+  txGraphVersion: number,
+  artifactsJson: string,
+  proofHex: string,
+): Promise<string> {
+  return (await loadTbvWasm()).pinPegoutProof(
+    txGraphVersion,
+    artifactsJson,
+    proofHex,
+  );
+}
+
+/**
+ * Finalizes the Assert from the pinned proof and the WOTS keypair, writes it
+ * into the artifacts and returns the updated artifacts JSON. The keypair
+ * never leaves the caller.
+ *
+ * @experimental
+ */
+export async function attachFinalizedAssert(
+  txGraphVersion: number,
+  artifactsJson: string,
+  keypairJson: string,
+): Promise<string> {
+  return (await loadTbvWasm()).attachFinalizedAssert(
+    txGraphVersion,
+    artifactsJson,
+    keypairJson,
+  );
+}
+
+/**
+ * Finalizes the Payout tx from the artifacts' signatures, consensus hex.
+ *
+ * @experimental
+ */
+export async function finalizePayout(
+  txGraphVersion: number,
+  artifactsJson: string,
+): Promise<string> {
+  return (await loadTbvWasm()).finalizePayout(txGraphVersion, artifactsJson);
+}
+
+/**
+ * Finalizes one WronglyChallenged tx — the answer to a ChallengeAssert.
+ *
+ * @experimental
+ */
+export async function finalizeWronglyChallenged(
+  txGraphVersion: number,
+  artifactsJson: string,
+  challengerPkHex: string,
+  gcIndex: number,
+  preimageHex: string,
+): Promise<string> {
+  return (await loadTbvWasm()).finalizeWronglyChallenged(
+    txGraphVersion,
+    artifactsJson,
+    challengerPkHex,
+    gcIndex,
+    preimageHex,
+  );
+}
+
+/**
+ * Applies the depositor signature to the Claim tx, returning consensus hex.
+ *
+ * @experimental
+ */
+export async function finalizeClaimTx(
+  txGraphVersion: number,
+  graphJson: string,
+  depositorSigHex: string,
+): Promise<string> {
+  return (await loadTbvWasm()).finalizeClaimTx(
+    txGraphVersion,
+    graphJson,
+    depositorSigHex,
+  );
+}
+
+/**
+ * Extracts a signed PSBT input's taproot script-path signature (hex).
+ *
+ * @experimental
+ */
+export async function extractTapScriptSig(
+  psbtBase64: string,
+  inputIndex: number,
+): Promise<string> {
+  return (await loadTbvWasm()).extractTapScriptSig(psbtBase64, inputIndex);
+}
+
+/**
+ * Derive the depositor's WOTS keypair from the 64-byte `wotsSeed`.
+ * @stability frozen — `HASH160(seed || block index)` binds on-chain through
+ * `depositorWotsPkHash`; see CLAUDE.md §4.
+ *
+ * @experimental
+ */
+export async function wotsKeypairFromSeed(
+  wotsSeed: Uint8Array,
+): Promise<WotsKeypairDerivation> {
+  return (await loadTbvWasm()).wotsKeypairFromSeed(wotsSeed);
+}
+
+/**
+ * Throws unless the keypair matches the WOTS keys the graph's Claim commits to.
+ *
+ * @experimental
+ */
+export async function validateWotsKeypairAgainstGraph(
+  txGraphVersion: number,
+  keypair: unknown,
+  graphJson: string,
+): Promise<void> {
+  return (await loadTbvWasm()).validateWotsKeypairAgainstGraph(
+    txGraphVersion,
+    keypair,
+    graphJson,
+  );
+}
+
+/**
+ * Assembles the watchtower `artifacts.json` content, verifying every signature.
+ *
+ * @experimental
+ */
+export async function buildWatchtowerArtifacts(
+  inputs: WatchtowerArtifactsInputs,
+): Promise<string> {
+  return (await loadTbvWasm()).buildWatchtowerArtifacts(inputs);
+}
+
+/**
+ * Re-verifies every claimer-side signature in an `artifacts.json`.
+ *
+ * @experimental
+ */
+export async function verifyWatchtowerArtifacts(
+  txGraphVersion: number,
+  artifactsJson: string,
+): Promise<void> {
+  return (await loadTbvWasm()).verifyWatchtowerArtifacts(
+    txGraphVersion,
+    artifactsJson,
+  );
+}
+
 export type {
   AssertNoPayoutScriptInfo,
   AssertPayoutNoPayoutConnectorParams,
@@ -410,4 +637,8 @@ export type {
   PeginTxResult,
   PrePeginParams,
   PrePeginResult,
+  WatchtowerArtifactsInputs,
+  WotsKeypairDerivation,
+  WronglyChallengedPsbts,
+  WronglyChallengedSigs,
 };

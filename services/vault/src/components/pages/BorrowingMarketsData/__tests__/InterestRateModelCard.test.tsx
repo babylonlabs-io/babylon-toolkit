@@ -102,6 +102,7 @@ function renderCard({
       reserve={makeReserve(reserveOverrides)}
       utilizationBps={utilizationBps}
       symbol="USDC"
+      hubLabel="Core Hub"
     />,
   );
 }

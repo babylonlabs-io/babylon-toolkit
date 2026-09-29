@@ -11,15 +11,14 @@
 import { useMemo } from "react";
 import { formatUnits } from "viem";
 
-import {
-  getCurrencyIconWithFallback,
-  getTokenByAddress,
-} from "@/services/token/tokenService";
+import { getHubIdentity, type HubIdentity } from "@/services/aave/hubRegistry";
 import { formatAmount, formatAprPercent } from "@/utils/formatting";
 
 import { useAaveConfig } from "../context";
 import type { AavePositionWithLiveData, DebtPosition } from "../services";
 import type { AaveReserveConfig } from "../services/fetchConfig";
+import { groupReservesByUnderlying } from "../utils/reserveGroups";
+import { getReserveTokenLabel } from "../utils/reserveTokenLabel";
 
 import { useAaveBorrowAprs } from "./useAaveBorrowAprs";
 
@@ -34,6 +33,8 @@ export interface BorrowedAsset {
   symbol: string;
   /** Full token name (e.g. "USD Coin"); falls back to the symbol. */
   name: string;
+  /** Hub the debt is owed to. */
+  hub: HubIdentity;
   /** Display amount (formatted native token amount) */
   amount: string;
   /** Token icon URL */
@@ -74,46 +75,6 @@ interface ReserveWithDebt {
 }
 
 /**
- * Resolve token symbol from metadata or indexer data
- * Falls back to "Unknown" if symbol looks like an address
- */
-function resolveTokenSymbol(
-  tokenMetadata: ReturnType<typeof getTokenByAddress>,
-  indexerSymbol: string,
-): string {
-  // Check if registry has valid symbol (not an address)
-  if (tokenMetadata && !tokenMetadata.symbol.startsWith("0x")) {
-    return tokenMetadata.symbol;
-  }
-
-  // Check if indexer symbol looks like an address
-  const isSymbolAnAddress =
-    indexerSymbol.startsWith("0x") && indexerSymbol.length >= 42;
-
-  return isSymbolAnAddress ? "Unknown" : indexerSymbol;
-}
-
-/**
- * Resolve a display name. Prefers the registry's curated name (e.g. "USD Coin")
- * only on a real registry hit — `getTokenByAddress` returns a "Loading..."
- * placeholder for addresses it doesn't know (testnet deployments), so detect
- * that the same way `resolveTokenSymbol` does and fall back to the reserve's
- * on-chain name, then the symbol.
- */
-function resolveTokenName(
-  tokenMetadata: ReturnType<typeof getTokenByAddress>,
-  indexerName: string,
-  symbol: string,
-): string {
-  const isRegistryHit =
-    tokenMetadata != null && !tokenMetadata.symbol.startsWith("0x");
-  if (isRegistryHit) {
-    return tokenMetadata.name;
-  }
-  return indexerName?.trim() || symbol;
-}
-
-/**
  * Transform a reserve with debt into a display-ready BorrowedAsset
  */
 function transformToBorrowedAsset(
@@ -122,10 +83,7 @@ function transformToBorrowedAsset(
 ): BorrowedAsset {
   const { reserve, debtPosition } = reserveWithDebt;
 
-  const tokenMetadata = getTokenByAddress(reserve.token.address);
-  const symbol = resolveTokenSymbol(tokenMetadata, reserve.token.symbol);
-  const name = resolveTokenName(tokenMetadata, reserve.token.name, symbol);
-  const icon = getCurrencyIconWithFallback(tokenMetadata?.icon, symbol);
+  const { symbol, name, icon } = getReserveTokenLabel(reserve);
 
   const tokenAmount = Number(
     formatUnits(debtPosition.totalDebt, reserve.token.decimals),
@@ -138,6 +96,7 @@ function transformToBorrowedAsset(
     reserveId: reserve.reserveId.toString(),
     symbol,
     name,
+    hub: getHubIdentity(reserve.reserve.hub),
     amount,
     icon,
     borrowRate,
@@ -163,12 +122,15 @@ export function useAaveBorrowedAssets({
 
   // Resolve debts against the full reserve set, not just borrowable ones, so
   // existing debt in a frozen/paused/un-borrowable reserve still surfaces.
+  // Grouped by token so one token's debts on different hubs sit together.
   const reservesWithDebt = useMemo((): ReserveWithDebt[] => {
     if (!debtPositions || debtPositions.size === 0) {
       return [];
     }
-    return allBorrowReserves
-      .filter((r) => debtPositions.has(r.reserveId))
+    return groupReservesByUnderlying(
+      allBorrowReserves.filter((r) => debtPositions.has(r.reserveId)),
+    )
+      .flatMap((group) => group.reserves)
       .map((reserve) => ({
         reserve,
         debtPosition: debtPositions.get(reserve.reserveId)!,

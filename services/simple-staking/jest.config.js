@@ -114,19 +114,6 @@ const config = {
 
   // Automatically reset mock state before every test
   // resetMocks: false,
-  projects: [
-    {
-      displayName: "node",
-      testEnvironment: "node",
-      testMatch: ["<rootDir>/tests/**/*.test.ts"],
-    },
-    {
-      displayName: "jsdom",
-      testEnvironment: "jsdom",
-      testMatch: ["<rootDir>/tests/**/*.test.tsx"],
-      setupFiles: ["./jest.jsdom.setup.js"],
-    },
-  ],
 
   // Reset the module registry before running each individual test
   // resetModules: false,
@@ -173,18 +160,18 @@ const config = {
         "\\.svg$": "<rootDir>/tests/__mocks__/svgMock.js",
       },
     },
-    // {
-    //   displayName: "jsdom",
-    //   testEnvironment: "jsdom",
-    //   testMatch: ["<rootDir>/tests/**/*.test.tsx"],
-    //   setupFiles: ["./jest.jsdom.setup.js"],
-    //   moduleNameMapper: {
-    //     "^@/(.*)$": "<rootDir>/src/$1",
-    //     "\\.(png|jpg|jpeg|gif|webp|avif|bmp)$":
-    //       "<rootDir>/tests/__mocks__/svgMock.js",
-    //     "\\.svg$": "<rootDir>/tests/__mocks__/svgMock.js",
-    //   },
-    // },
+    {
+      displayName: "jsdom",
+      testEnvironment: "jsdom",
+      testMatch: ["<rootDir>/tests/**/*.test.tsx"],
+      setupFiles: ["./jest.setup.js"],
+      moduleNameMapper: {
+        "^@/(.*)$": "<rootDir>/src/$1",
+        "\\.(png|jpg|jpeg|gif|webp|avif|bmp)$":
+          "<rootDir>/tests/__mocks__/svgMock.js",
+        "\\.svg$": "<rootDir>/tests/__mocks__/svgMock.js",
+      },
+    },
   ],
 
   // Options that will be passed to the testEnvironment

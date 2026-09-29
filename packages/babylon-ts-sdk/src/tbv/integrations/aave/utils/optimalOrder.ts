@@ -46,7 +46,7 @@ export function computeOptimalOrder<T extends CascadeVault>(
   seizureTol: number,
   CF: number,
   THF: number,
-  maxLB: number,
+  LB: number,
   expectedHF: number,
 ): { order: T[]; sumBtcAfterEvents: number; btcAfterG1: number } {
   const n = vaults.length;
@@ -59,7 +59,7 @@ export function computeOptimalOrder<T extends CascadeVault>(
       seizureTol,
       CF,
       THF,
-      maxLB,
+      LB,
       expectedHF,
     );
     return { order: [...vaults], ...sim };
@@ -79,7 +79,7 @@ export function computeOptimalOrder<T extends CascadeVault>(
       seizureTol,
       CF,
       THF,
-      maxLB,
+      LB,
       expectedHF,
     );
     return { order, ...sim };
@@ -185,7 +185,7 @@ export function computeOptimalOrder<T extends CascadeVault>(
       seizureTol,
       CF,
       THF,
-      maxLB,
+      LB,
       expectedHF,
     );
     return { order: fallback, ...sim };
@@ -200,7 +200,7 @@ export function computeOptimalOrder<T extends CascadeVault>(
     seizureTol,
     CF,
     THF,
-    maxLB,
+    LB,
     expectedHF,
   );
   return {

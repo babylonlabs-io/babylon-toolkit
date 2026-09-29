@@ -3,13 +3,21 @@
  *
  * Emptiness predicate for the v3 /vaults page: `isEmpty` is true when the
  * account has nothing to show in any vault lifecycle section — no collateral
- * vaults (including optimistic activating rows) and no pending or refundable
- * expired deposits. A disconnected or partially connected session (BTC or
- * ETH wallet missing) is always "empty" regardless of what the ETH-keyed
- * queries returned, so the page shows the connect prompt.
+ * vaults (including optimistic activating rows), no pending deposits, no
+ * refundable expired deposits and no reclaimable settled vaults. A deposit whose
+ * refund or reclaim is already done renders no row, so it counts for nothing
+ * here either: both sides read `useActionableExpiredDeposits` and
+ * `useActionableReclaims`. `useConnection` counts a session as connected only
+ * with confirmed Ethereum. Any other session is always "empty" regardless of
+ * what the ETH-keyed queries returned, so the page shows the connect prompt.
  *
- * `isLoading` guards against flashing the empty state before the position
- * and deposit queries resolve; it is false while disconnected.
+ * `isLoading` guards against flashing the empty state before the position and
+ * deposit queries resolve. An unresolved reclaim read holds it too, but only
+ * while nothing else is showable: eligibility fails closed, so a candidate with
+ * no verdict yet reads as nothing left to do and would empty the page, whereas
+ * an account with collateral or pending deposits has a page to render and the
+ * settled row simply arrives when its reads land. It is false while
+ * disconnected.
  *
  * `hasError` is true when a connected session has nothing to show AND either
  * query failed — an empty account must never be claimed on the back of a
@@ -22,26 +30,42 @@
  * has, and this flag drives a warning so the failure is never silent — a
  * failed position read would otherwise present fallback (zero) collateral
  * totals as real, and a failed deposits read would silently drop pending or
- * refundable rows.
+ * refundable rows. An unreadable browser record counts as a failed source:
+ * with nothing else to show the page reports it instead of claiming an empty
+ * account, and with rows to show, or alongside a failed remote read, it drives
+ * the warning. `hasNonIndexerError` says whether a source other than the
+ * indexed collateral list failed, so the warning does not claim totals or
+ * deposits are incomplete when only that list is.
  *
- * Withdrawal-only positions (every vault redeemed, pegout still in flight)
- * are not yet consulted; the withdrawal sections join the page with the
- * relocation step of issue #2041.
+ * A withdrawal-only position (every vault redeemed, peg-out still in flight)
+ * is not empty: the indexer has already zeroed the collateral figure, but the
+ * withdrawing rows are still shown, so `hasDisplayCollateral` keeps the page
+ * populated until the payouts settle.
  *
  * The deposit lists arrive as a parameter — the page's single
  * `usePendingDeposits` result, shared with VaultsLifecycleSections — so this
- * hook never instantiates a second broadcast/refund modal state pair.
+ * hook never instantiates a second broadcast/refund modal state pair. The
+ * reclaim reads it does repeat resolve against the query cache the section
+ * already fills, so they cost no extra requests.
  */
 
 import { useConnection, useETHWallet } from "@/context/wallet";
+import { useActionableExpiredDeposits } from "@/hooks/deposit/useActionableExpiredDeposits";
+import {
+  NO_RECLAIMS_IN_FLIGHT,
+  useActionableReclaims,
+} from "@/hooks/deposit/useActionableReclaims";
 import { useDashboardState } from "@/hooks/useDashboardState";
+import type { PendingPeginStorageReadError } from "@/storage/peginStorage";
 import type { VaultActivity } from "@/types/activity";
 
 interface VaultsPageDeposits {
   pendingActivities: VaultActivity[];
   expiredActivities: VaultActivity[];
+  reclaimableCandidates: VaultActivity[];
   isLoading: boolean;
   error: Error | null;
+  storageReadError: PendingPeginStorageReadError | null;
 }
 
 export function useVaultsPageEmptiness(deposits: VaultsPageDeposits): {
@@ -49,6 +73,8 @@ export function useVaultsPageEmptiness(deposits: VaultsPageDeposits): {
   isEmpty: boolean;
   hasError: boolean;
   hasPartialError: boolean;
+  hasNonIndexerError: boolean;
+  storageOnlyError: boolean;
 } {
   const { address } = useETHWallet();
   const { isConnected } = useConnection();
@@ -56,26 +82,52 @@ export function useVaultsPageEmptiness(deposits: VaultsPageDeposits): {
     hasDisplayCollateral,
     isLoading: isPositionLoading,
     positionError,
+    indexerError,
   } = useDashboardState(isConnected ? address : undefined);
   const {
     pendingActivities,
     expiredActivities,
+    reclaimableCandidates,
     isLoading: isDepositsLoading,
     error: depositsError,
+    storageReadError,
   } = deposits;
 
-  const isLoading = isConnected && (isPositionLoading || isDepositsLoading);
+  const actionableExpiredActivities =
+    useActionableExpiredDeposits(expiredActivities);
+  const { candidates: actionableReclaims, isResolving: isReclaimResolving } =
+    useActionableReclaims(reclaimableCandidates, NO_RECLAIMS_IN_FLIGHT);
+
   const hasAnythingToShow =
     hasDisplayCollateral ||
     pendingActivities.length > 0 ||
-    expiredActivities.length > 0;
-  const anySourceFailed = positionError !== null || depositsError !== null;
+    actionableExpiredActivities.length > 0 ||
+    actionableReclaims.length > 0;
+  const isLoading =
+    isConnected &&
+    (isPositionLoading ||
+      isDepositsLoading ||
+      (isReclaimResolving && !hasAnythingToShow));
+  const remoteFailed = Boolean(positionError || indexerError || depositsError);
+  const anySourceFailed = remoteFailed || Boolean(storageReadError);
   const hasError =
     isConnected && !isLoading && !hasAnythingToShow && anySourceFailed;
   const hasPartialError =
-    isConnected && !isLoading && hasAnythingToShow && anySourceFailed;
+    isConnected &&
+    !isLoading &&
+    ((hasAnythingToShow && anySourceFailed) ||
+      (Boolean(storageReadError) && remoteFailed));
   const isEmpty =
     !isLoading && !hasError && (!isConnected || !hasAnythingToShow);
 
-  return { isLoading, isEmpty, hasError, hasPartialError };
+  return {
+    isLoading,
+    isEmpty,
+    hasError,
+    hasPartialError,
+    hasNonIndexerError:
+      isConnected &&
+      Boolean(positionError || depositsError || storageReadError),
+    storageOnlyError: hasError && Boolean(storageReadError) && !remoteFailed,
+  };
 }

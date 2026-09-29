@@ -14,3 +14,4 @@
  * both here and at each hosting call site.
  */
 export const DEPOSIT_VIEW_MAX_WIDTH_CLASS = "max-w-[612px]";
+export const DEPOSIT_CONTENT_MAX_WIDTH_CLASS = "max-w-[564px]";

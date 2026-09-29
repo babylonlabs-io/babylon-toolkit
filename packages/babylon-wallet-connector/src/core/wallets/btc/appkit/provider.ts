@@ -1,7 +1,8 @@
 import type { BitcoinAdapter } from "@reown/appkit-adapter-bitcoin";
 import { Psbt } from "bitcoinjs-lib";
 
-import type { BTCConfig, IBTCProvider, InscriptionIdentifier, SignPsbtOptions } from "@/core/types";
+import { NETWORK_CHANGE_EVENT } from "@/constants/walletEvents";
+import type { BTCConfig, DisconnectScope, IBTCProvider, InscriptionIdentifier, SignPsbtOptions } from "@/core/types";
 import { Network } from "@/core/types";
 import { resolveUseTweakedSigner } from "@/core/utils/psbtOptionsMapper";
 import { APPKIT_OPEN_EVENT } from "@/core/wallets/appkit/constants";
@@ -10,8 +11,8 @@ import { ERROR_CODES, WalletError, isUserRejectionMessage } from "@/error";
 
 import { APPKIT_BTC_CONNECTED_EVENT } from "./constants";
 import icon from "./icon.svg";
-import { resolveLiveNetwork } from "./network";
-import { getSharedBtcAppKitConfig, hasSharedBtcAppKitConfig } from "./sharedConfig";
+import { getCaipNetworkForNetwork, resolveLiveNetwork } from "./network";
+import { btcDisconnectWouldDropEthereum, getSharedBtcAppKitConfig, hasSharedBtcAppKitConfig } from "./sharedConfig";
 
 const APPKIT_PROVIDER_NAME = "AppKit";
 
@@ -35,11 +36,7 @@ interface AppKitBtcWalletProvider {
     signInputs?: AppKitSignInput[];
     broadcast: boolean;
   }) => Promise<{ psbt: string; txid?: string }>;
-  signMessage?: (params: {
-    message: string;
-    address: string;
-    protocol: string;
-  }) => Promise<string>;
+  signMessage?: (params: { message: string; address: string; protocol: string }) => Promise<string>;
 }
 
 interface AdapterConnection {
@@ -58,6 +55,8 @@ export class AppKitBTCProvider implements IBTCProvider {
   private eventHandlers: Map<string, Set<(...args: unknown[]) => void>> = new Map();
   private listeningForChanges = false;
   private boundHandleAccountChange: ((event: Event) => void) | null = null;
+  private unsubscribeNetwork: (() => void) | null = null;
+  private lastBtcNetworkId?: string;
   /**
    * The {@link EventTarget} we currently have a persistent listener on.
    * Captured at registration time so we always remove the listener from
@@ -104,7 +103,7 @@ export class AppKitBTCProvider implements IBTCProvider {
     if (this.listeningForChanges) return;
     if (!hasSharedBtcAppKitConfig()) return;
 
-    const { connectionEvents } = getSharedBtcAppKitConfig();
+    const { connectionEvents, modal } = getSharedBtcAppKitConfig();
 
     this.boundHandleAccountChange = (event: Event) => {
       const detail = (event as BtcConnectedEvent).detail;
@@ -129,6 +128,17 @@ export class AppKitBTCProvider implements IBTCProvider {
 
     connectionEvents.addEventListener(APPKIT_BTC_CONNECTED_EVENT, this.boundHandleAccountChange);
     this.boundConnectionEventsTarget = connectionEvents;
+    const configuredNetwork = this.config.network === Network.MAINNET ? "mainnet" : "signet";
+    this.lastBtcNetworkId = getCaipNetworkForNetwork(configuredNetwork).caipNetworkId;
+    this.unsubscribeNetwork = modal.subscribeNetwork(({ caipNetwork }) => {
+      if (caipNetwork?.chainNamespace !== "bip122") return;
+
+      const networkId = caipNetwork.caipNetworkId;
+      if (networkId === this.lastBtcNetworkId) return;
+
+      this.lastBtcNetworkId = networkId;
+      this.emit(NETWORK_CHANGE_EVENT, networkId);
+    });
     this.listeningForChanges = true;
   }
 
@@ -137,12 +147,12 @@ export class AppKitBTCProvider implements IBTCProvider {
       return;
     }
 
-    this.boundConnectionEventsTarget.removeEventListener(
-      APPKIT_BTC_CONNECTED_EVENT,
-      this.boundHandleAccountChange,
-    );
+    this.boundConnectionEventsTarget.removeEventListener(APPKIT_BTC_CONNECTED_EVENT, this.boundHandleAccountChange);
     this.boundHandleAccountChange = null;
     this.boundConnectionEventsTarget = null;
+    this.unsubscribeNetwork?.();
+    this.unsubscribeNetwork = null;
+    this.lastBtcNetworkId = undefined;
     this.listeningForChanges = false;
   }
 
@@ -153,7 +163,7 @@ export class AppKitBTCProvider implements IBTCProvider {
     if (!hasSharedBtcAppKitConfig()) {
       throw new Error(
         "AppKit BTC not initialized. Ensure AppKit modal is initialized at application startup " +
-        "by calling initializeAppKitModal() with btc config in your app's entry point."
+          "by calling initializeAppKitModal() with btc config in your app's entry point.",
       );
     }
     return getSharedBtcAppKitConfig();
@@ -207,20 +217,57 @@ export class AppKitBTCProvider implements IBTCProvider {
       await waitForConnection;
       this.startListeningForAccountChanges();
     } catch (error) {
-      console.error("[AppKit Provider] Failed to connect Bitcoin wallet:", error instanceof Error ? error.message : "Unknown error");
+      console.error(
+        "[AppKit Provider] Failed to connect Bitcoin wallet:",
+        error instanceof Error ? error.message : "Unknown error",
+      );
       throw new Error(`Failed to connect Bitcoin wallet: ${error instanceof Error ? error.message : "Unknown error"}`);
     }
   }
 
-  async disconnect(): Promise<void> {
+  /**
+   * `"local"` releases only this provider's cached session: the bridge calls
+   * it once AppKit already reports bip122 disconnected, and the dialog calls
+   * it for a wallet it rejected. `"chain"` disconnects only the bip122
+   * namespace and refuses when AppKit would widen that to eip155 (WalletConnect
+   * and Auth share one connector across namespaces). Local state clears only
+   * after AppKit resolves: when AppKit rejects, its bip122 session is still
+   * up. `"all"` is never refused and always clears local state.
+   */
+  async disconnect(scope: DisconnectScope): Promise<void> {
+    if (scope === "local") {
+      this.clearSession();
+      return;
+    }
+
+    const { modal } = this.getAppKitConfig();
+
+    if (scope === "chain") {
+      if (btcDisconnectWouldDropEthereum()) {
+        throw new WalletError({
+          code: ERROR_CODES.SHARED_SESSION_DISCONNECT_REFUSED,
+          message:
+            "Bitcoin and Ethereum share one wallet session. Disconnecting Bitcoin alone would also disconnect Ethereum. Disconnect all wallets instead.",
+          wallet: APPKIT_PROVIDER_NAME,
+          chainId: "BTC",
+        });
+      }
+      await modal.disconnect("bip122");
+      this.clearSession();
+      return;
+    }
+
     try {
-      const { modal } = this.getAppKitConfig();
       await modal.disconnect();
     } finally {
-      this.stopListeningForAccountChanges();
-      this.address = undefined;
-      this.publicKey = undefined;
+      this.clearSession();
     }
+  }
+
+  private clearSession(): void {
+    this.stopListeningForAccountChanges();
+    this.address = undefined;
+    this.publicKey = undefined;
   }
 
   async getAddress(): Promise<string> {

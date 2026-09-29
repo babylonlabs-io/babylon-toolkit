@@ -88,6 +88,7 @@ export function InterestRateModelCard({
   reserve,
   utilizationBps,
   symbol,
+  hubLabel,
 }: {
   reserve: AaveReserveConfig;
   /**
@@ -98,6 +99,7 @@ export function InterestRateModelCard({
    */
   utilizationBps: number | null;
   symbol: string;
+  hubLabel: string;
 }) {
   const { curve, kinkUtilizationPercent, maxAprPercent, isLoading } =
     useInterestRateModelCurve({ reserve });
@@ -265,7 +267,7 @@ export function InterestRateModelCard({
             <span>{formatAprPercent(hover.y)}</span>
           </div>
         )}
-        ariaLabel={COPY.marketData.charts.irmAriaLabel(symbol)}
+        ariaLabel={COPY.marketData.charts.irmAriaLabel(symbol, hubLabel)}
       />
     </div>
   );

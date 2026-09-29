@@ -8,6 +8,8 @@
  *  - A vault is SEEDED on the first poll observation that includes it: if it is
  *    already terminal then (a prior-session drop rediscovered on reload), it is
  *    marked emitted WITHOUT emitting, so a dashboard load never emits a burst.
+ *    An unrecognized status is the exception and emits on its first
+ *    observation: it reports SDK drift, and a reload is the usual way to see it.
  *  - Thereafter, each distinct terminal daemonStatus emits once per vault —
  *    keyed per status, so a real Expired → ExpiredCleanedUp progression yields
  *    both signals.
@@ -24,9 +26,11 @@
  * as healthy and its prior-session terminal would emit as a fresh warning.
  */
 
-import type { DaemonStatus } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
-
-import { TerminalPeginPollingError } from "../../utils/peginPolling";
+import {
+  type PollingDaemonStatus,
+  TerminalPeginPollingError,
+  UNRECOGNIZED_DAEMON_STATUS,
+} from "../../utils/peginPolling";
 
 export interface DaemonTerminalTracking {
   /** Vaults observed in at least one poll result (drives seeding). */
@@ -38,8 +42,11 @@ export interface DaemonTerminalTracking {
 export interface DaemonTerminalEvent {
   /** Raw vaultId; the caller shortens it before it enters event context. */
   vaultId: string;
-  /** VP daemon status name (e.g. "Expired", "AmlRejected") — safe to emit. */
-  daemonStatus: DaemonStatus;
+  /**
+   * VP daemon status name (e.g. "Expired", "AmlRejected"), or the app's own
+   * "Unrecognized" stand-in for a status the SDK does not know — safe to emit.
+   */
+  daemonStatus: PollingDaemonStatus;
 }
 
 export function createDaemonTerminalTracking(): DaemonTerminalTracking {
@@ -95,11 +102,14 @@ export function collectDaemonTerminalEvents(
 
     if (!tracking.seen.has(vaultId)) {
       tracking.seen.add(vaultId);
-      // First observation: seed a pre-existing terminal without emitting.
-      if (daemonStatus !== null) {
-        tracking.emitted.add(`${vaultId}:${daemonStatus}`);
+      // First observation: seed a pre-existing terminal without emitting,
+      // except an unrecognized status, which falls through and emits.
+      if (daemonStatus !== UNRECOGNIZED_DAEMON_STATUS) {
+        if (daemonStatus !== null) {
+          tracking.emitted.add(`${vaultId}:${daemonStatus}`);
+        }
+        continue;
       }
-      continue;
     }
 
     if (daemonStatus === null) continue;

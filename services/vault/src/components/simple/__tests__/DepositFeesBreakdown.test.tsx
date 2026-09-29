@@ -10,6 +10,8 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
+import { COPY } from "@/copy";
+
 import { DepositFeesBreakdown } from "../DepositFeesBreakdown";
 
 const baseProps = {
@@ -18,6 +20,7 @@ const baseProps = {
   protocolFeeAmount: "0.0001 BTC",
   protocolFeePrice: "",
   protocolFeeIsError: false,
+  isLedgerVaultWallet: false,
 };
 
 describe("DepositFeesBreakdown commission disclosure", () => {
@@ -35,7 +38,9 @@ describe("DepositFeesBreakdown commission disclosure", () => {
       />,
     );
 
-    expect(screen.getByText("VP commission (2.5%)")).toBeInTheDocument();
+    expect(
+      screen.getByText("Vault Provider commission (2.5%)"),
+    ).toBeInTheDocument();
     expect(screen.getByText("Net payout")).toBeInTheDocument();
     expect(screen.getByText(/0\.025/)).toBeInTheDocument();
     expect(screen.getByText(/0\.975/)).toBeInTheDocument();
@@ -53,8 +58,10 @@ describe("DepositFeesBreakdown commission disclosure", () => {
     );
 
     // Label has no percent suffix when the commission hasn't loaded.
-    expect(screen.getByText("VP commission")).toBeInTheDocument();
-    expect(screen.queryByText(/VP commission \(/)).not.toBeInTheDocument();
+    expect(screen.getByText("Vault Provider commission")).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Vault Provider commission \(/),
+    ).not.toBeInTheDocument();
     // Both the commission and net-payout cells render the "--" placeholder.
     expect(screen.getAllByText("--").length).toBeGreaterThanOrEqual(2);
   });
@@ -73,7 +80,9 @@ describe("DepositFeesBreakdown commission disclosure", () => {
     // Percent is still shown (it's just the bps), but the sats can't be
     // sized until the split's per-vault amounts resolve, so commission and
     // net payout stay as "--".
-    expect(screen.getByText("VP commission (2.5%)")).toBeInTheDocument();
+    expect(
+      screen.getByText("Vault Provider commission (2.5%)"),
+    ).toBeInTheDocument();
     expect(screen.getAllByText("--").length).toBeGreaterThanOrEqual(2);
   });
 
@@ -133,5 +142,60 @@ describe("DepositFeesBreakdown commission disclosure", () => {
     // value would produce 5 sats, which is not the per-payout protocol math.
     expect(screen.getByText(/0\.00000004/)).toBeInTheDocument();
     expect(screen.getByText(/0\.00000006/)).toBeInTheDocument();
+  });
+});
+
+describe("DepositFeesBreakdown reserve tooltip", () => {
+  // The reserve row is the smallest ancestor of its label carrying exactly one
+  // tooltip trigger; reading it there pins placement, not just presence.
+  function reserveRowTooltip(): string | null {
+    let node: HTMLElement | null = screen.getByText(
+      COPY.deposit.form.transactionReserveLabel,
+    );
+    while (
+      node !== null &&
+      node.querySelectorAll("[data-tooltip-content]").length !== 1
+    ) {
+      node = node.parentElement;
+    }
+    return (
+      node
+        ?.querySelector("[data-tooltip-content]")
+        ?.getAttribute("data-tooltip-content") ?? null
+    );
+  }
+
+  it("promises the post-settlement reclaim to a non-Ledger wallet", () => {
+    render(
+      <DepositFeesBreakdown
+        {...baseProps}
+        amountSats={100_000_000n}
+        depositorClaimValue={3_000_000n}
+        commissionBaseValues={[100_000_000n]}
+        commissionBps={250}
+        isLedgerVaultWallet={false}
+      />,
+    );
+
+    expect(reserveRowTooltip()).toContain("you can reclaim it");
+    expect(reserveRowTooltip()).not.toContain("not supported yet");
+  });
+
+  // The Ledger vault app cannot sign the reclaim sweep (#2375), so the
+  // deposit-time promise must not offer an action the depositor cannot take.
+  it("does not promise the reclaim to the Ledger vault wallet", () => {
+    render(
+      <DepositFeesBreakdown
+        {...baseProps}
+        amountSats={100_000_000n}
+        depositorClaimValue={3_000_000n}
+        commissionBaseValues={[100_000_000n]}
+        commissionBps={250}
+        isLedgerVaultWallet
+      />,
+    );
+
+    expect(reserveRowTooltip()).toContain("not supported yet");
+    expect(reserveRowTooltip()).not.toContain("you can reclaim it");
   });
 });

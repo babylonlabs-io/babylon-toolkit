@@ -82,6 +82,34 @@ export const DEFAULT_REPLAY_STEP = "deposit-form";
  *
  *   node scripts/build-replay-fixture.mjs e2e/artifacts/<run>/recording/http.jsonl
  *
+ * Two supplemental lines are the indexer's
+ * answers to the price-feed and daily-candle queries the liquidations page
+ * gained after the recording was made, asked of the same indexer by
+ * `scripts/topup-replay-fixture.mjs` and appended verbatim. A fresh recording
+ * made by the CLI still would not hold them - it never visits that page - so
+ * re-run the top-up after every regeneration.
+ *
+ * The `GetAavePositions` and `GetAavePositionCollaterals` lines that follow the
+ * recorded `GetAaveActivePositionsWithCollaterals` line were written by hand
+ * when the position read was split into those two queries. They copy that
+ * line's metadata and answer with the same empty position (no items, no next
+ * page). A regeneration made before the CLI records these queries drops them:
+ * add them back the same way.
+ *
+ * The last three RPC lines are archive reads from rpc.sentio.xyz/sepolia at
+ * block 11313642 (2026-07-20T15:38:36Z), before the final deposit-form
+ * response. The block hash is
+ * 0x6bf92724bbb383ceccbac05cb26c352193ff48c27ea7ec9a948f8401a4977474.
+ * The first is getPosition(recorded depositor): blocks 11313640-11313643
+ * returned the same InvalidProxyContract error, with no adapter events in that
+ * interval. The second is the Hub's getSpokeConfig for every recorded reserve
+ * and the recorded Core Spoke, which the config load gained after the
+ * recording was made. The third is MAX_USER_RESERVES_LIMIT() on the recorded
+ * Core Spoke (0xb2884144a43b40cb3a89042b3e94f0f1e41cd022), which the config
+ * load gained later still; that deployment answers 65535, the contract's
+ * unlimited sentinel, at this block and at head alike. These are supplemental
+ * historical reads, not the original latest responses.
+ *
  * A single named constant rather than a glob: which run is replayed decides
  * what every captured screen contains, so it is a deliberate choice, not
  * whichever file happens to sort first.
@@ -264,6 +292,65 @@ export function loadRecordedRun(
   const run: RecordedRun = { entries, byBackend };
   runCache.set(cacheKey, run);
   return run;
+}
+
+/** JSON with object keys sorted, so key ORDER cannot change a lookup key. */
+function stableStringify(value: unknown): string {
+  if (value === null || typeof value !== "object")
+    return JSON.stringify(value) ?? "undefined";
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(",")}]`;
+  return `{${Object.entries(value as Record<string, unknown>)
+    .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
+    .map(([key, entry]) => `${JSON.stringify(key)}:${stableStringify(entry)}`)
+    .join(",")}}`;
+}
+
+/**
+ * Key a request to the indexer origin.
+ *
+ * A GraphQL POST is named by its operation AND its variables; anything else
+ * on this origin - today only the bodyless `GET /health` the health check
+ * issues - is named by method and path. Both halves are needed.
+ *
+ * Keyed on the body alone, every bodyless or unparseable request collapsed to
+ * the empty string, which is the key `GET /health` indexes under. So the
+ * health check passed by coincidence rather than by design, and anything else
+ * bodyless reaching this origin was answered `200` with `"{}"` - a body
+ * carrying neither `data` nor `errors`, which renders as an empty state with
+ * NO miss recorded.
+ *
+ * A POST is keyed on its operation rather than its path because the two
+ * differ by design: the recorded indexer serves GraphQL at `/`, while
+ * `MOCK_ENV_VARS` pins `/graphql`. Keying a POST on its path would match
+ * nothing and every screen would render empty.
+ *
+ * `variables` are part of the key because an operation name is not one
+ * question. `fetchVaultProviderStats` issues one `GetVaultsByProviders` whose
+ * `vaultProviders` variable lists every provider on the deployment; the
+ * recording holds a single provider, so without `variables` a multi-provider
+ * deployment would be served that one provider's vaults for the whole set -
+ * plausible-looking rows, and no miss to say so.
+ *
+ * When a query changes shape, the recording keeps the superseded exchange
+ * next to the new one. The visual-regression workflow photographs the
+ * merge-base SOURCE with the PR's e2e tree, so the baseline app still asks
+ * the old question; drop the old exchange and the baseline captures nothing
+ * and the diff degrades to "no comparison". The next re-record sheds it.
+ */
+export function graphqlKey(
+  method: string,
+  pathname: string,
+  body: string | undefined,
+): string {
+  const parsed = parseJson<{
+    operationName?: string;
+    query?: string;
+    variables?: unknown;
+  }>(body);
+  const operation =
+    parsed?.operationName ?? (parsed?.query ?? "").replace(/\s+/g, " ").trim();
+  if (operation === "") return `${method} ${pathname}`;
+  return `${operation} ${stableStringify(parsed?.variables)}`;
 }
 
 /** Parse a recorded response body as JSON, or null when it is absent/unparseable. */

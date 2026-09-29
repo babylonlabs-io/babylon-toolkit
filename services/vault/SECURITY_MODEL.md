@@ -18,7 +18,7 @@ Normative references:
 | Concern | Document |
 | --- | --- |
 | TBV protocol, contracts, enforcement | [`babylonlabs-io/vault-contracts`](https://github.com/babylonlabs-io/vault-contracts), [`babylonlabs-io/btc-vault`](https://github.com/babylonlabs-io/btc-vault) |
-| Vault-secret and context-hash derivation | [`docs/specs/derive-vault-secrets.md`](../../docs/specs/derive-vault-secrets.md), [`docs/specs/derive-context-hash.md`](../../docs/specs/derive-context-hash.md) |
+| Vault-secret and context-hash derivation | [`packages/babylon-ts-sdk/src/tbv/core/vault-secrets/`](../../packages/babylon-ts-sdk/src/tbv/core/vault-secrets/) — the golden tests in its `__tests__/` pin the byte-level contract |
 | Repository-wide security model: adversaries A–G, per-file controls and their code pointers, the authoritative gap register, severity rubric, vulnerability disclosure | [`SECURITY.md`](../../SECURITY.md) |
 | Engineering rules on the critical paths | [`CLAUDE.md`](../../CLAUDE.md#critical-paths--human-review-required) |
 | Deployment parameters and feature flags | [`README.md`](README.md) |
@@ -187,8 +187,8 @@ correctly and to introduce no path that bypasses them.
   boundary holds.
 - **The bundle in the user's browser is the one that was built and reviewed.** Whoever can write to
   the serving origin decides what code runs with the user's wallet connected.
-- **The derivation seam matches its Rust reference byte for byte**, as fixed by the specs and the
-  pinned WASM source revision.
+- **The derivation seam matches its Rust reference byte for byte**, as fixed by the golden tests in
+  `packages/babylon-ts-sdk/src/tbv/core/vault-secrets/__tests__/` and the pinned WASM source revision.
 - **The contracts enforce the protocol correctly**, and the vault-provider proxy enforces its SSRF
   policy on provider-supplied URLs.
 

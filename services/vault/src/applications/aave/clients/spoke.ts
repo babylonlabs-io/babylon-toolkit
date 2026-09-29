@@ -7,13 +7,16 @@
 
 import {
   getDynamicReserveConfig as sdkGetDynamicReserveConfig,
+  getLiquidationBonusConfig as sdkGetLiquidationBonusConfig,
+  getMaxUserReservesLimit as sdkGetMaxUserReservesLimit,
   getReserve as sdkGetReserve,
-  getTargetHealthFactor as sdkGetTargetHealthFactor,
+  getReserves as sdkGetReserves,
   getUserPositionAndAccountData as sdkGetUserPositionAndAccountData,
   getUserPositions as sdkGetUserPositions,
   getUserTotalDebts as sdkGetUserTotalDebts,
   type AaveSpokeUserAccountData,
   type AaveSpokeUserPosition,
+  type LiquidationBonusConfig,
 } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 import type { Address } from "viem";
 
@@ -79,16 +82,28 @@ export async function getUserTotalDebtsBatch(
 }
 
 /**
- * Get the target health factor (THF) from the Core Spoke contract.
+ * Read the Core Spoke's cap on how many reserves one account may hold. Thin DI
+ * wrapper over the SDK `getMaxUserReservesLimit`; the raw contract value,
+ * including the unlimited sentinel.
+ */
+export async function getMaxUserReservesLimit(
+  spokeAddress: Address,
+): Promise<number> {
+  const publicClient = ethClient.getPublicClient();
+  return sdkGetMaxUserReservesLimit(publicClient, spokeAddress);
+}
+
+/**
+ * Get the liquidation-bonus curve parameters from the Core Spoke contract.
  *
  * @param spokeAddress - Core Spoke contract address
- * @returns THF in WAD format (1e18 = 1.0)
+ * @returns healthFactorForMaxBonus (WAD) and liquidationBonusFactor (BPS)
  */
-export async function getTargetHealthFactor(
+export async function getLiquidationBonusConfig(
   spokeAddress: Address,
-): Promise<bigint> {
+): Promise<LiquidationBonusConfig> {
   const publicClient = ethClient.getPublicClient();
-  return sdkGetTargetHealthFactor(publicClient, spokeAddress);
+  return sdkGetLiquidationBonusConfig(publicClient, spokeAddress);
 }
 
 /**
@@ -104,6 +119,23 @@ export async function getTargetHealthFactor(
 export async function getReserve(spokeAddress: Address, reserveId: bigint) {
   const publicClient = ethClient.getPublicClient();
   return sdkGetReserve(publicClient, spokeAddress, reserveId);
+}
+
+/** On-chain `ISpoke.Reserve`, as returned by `getReserve`. */
+export type AaveSpokeReserve = Awaited<ReturnType<typeof sdkGetReserve>>;
+
+/**
+ * Read `getReserve` for many reserves in one multicall (hard-fail). Thin DI
+ * wrapper over the SDK `getReserves`. Any revert, including an id the spoke
+ * never listed, rejects the whole batch, so a caller proving reserves against
+ * the chain fails closed.
+ */
+export async function getReservesBatch(
+  spokeAddress: Address,
+  reserveIds: bigint[],
+): Promise<AaveSpokeReserve[]> {
+  const publicClient = ethClient.getPublicClient();
+  return sdkGetReserves(publicClient, spokeAddress, reserveIds);
 }
 
 /**

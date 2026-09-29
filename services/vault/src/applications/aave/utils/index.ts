@@ -15,7 +15,6 @@ export type { HealthFactorStatus } from "@babylonlabs-io/ts-sdk/tbv/integrations
 // Display utilities (frontend-only, not in SDK)
 export {
   HEALTH_FACTOR_COLORS,
-  HEALTH_FACTOR_HEALTHY_THRESHOLD,
   formatHealthFactor,
   getHealthFactorColor,
 } from "./healthFactorDisplay";
@@ -57,3 +56,13 @@ export type {
   BorrowCapacityUsd,
   BorrowCapacityUsdParams,
 } from "./borrowCapacity";
+
+// Borrow-reserve cap read from the Spoke (frontend-only). Only what is used
+// outside `applications/aave` is re-exported; inside it, the module is
+// imported directly like the other utils here.
+export {
+  isAtBorrowReserveLimit,
+  toDisplayedBorrowReserveLimit,
+} from "./borrowReserveLimit";
+
+export type { BorrowReserveLimit } from "./borrowReserveLimit";

@@ -361,41 +361,90 @@ export async function getReserve(
   return result as ReserveResult;
 }
 
-/** Result type from getLiquidationConfig contract call */
-type LiquidationConfigResult = {
-  targetHealthFactor: bigint;
-  healthFactorForMaxBonus: bigint;
-  liquidationBonusFactor: bigint;
-};
-
-/** Result type from getDynamicReserveConfig contract call */
-type DynamicReserveConfigResult = {
-  collateralFactor: bigint;
-  maxLiquidationBonus: bigint;
-  liquidationFee: bigint;
-};
-
 /**
- * Get the target health factor (THF) from the Core Spoke contract.
+ * Read `getReserve` for many reserves in a single multicall.
  *
- * Per-spoke governance parameter. After a liquidation, the protocol targets
- * restoring the position to this health factor.
+ * Returns one entry per `reserveId` in input order. Hard-fails
+ * (`allowFailure: false`): any revert, including `ReserveNotListed` for an id
+ * the spoke never listed, rejects the whole call.
  *
  * @param publicClient - Viem public client for reading contracts
  * @param spokeAddress - Core Spoke contract address
- * @returns Target health factor in WAD (1e18 = 1.0). Example: 1.10 = 1_100_000_000_000_000_000n
+ * @param reserveIds - Reserve IDs to read
+ * @returns Reserve data for each ID, in input order
  */
-export async function getTargetHealthFactor(
+export async function getReserves(
   publicClient: PublicClient,
   spokeAddress: Address,
-): Promise<bigint> {
+  reserveIds: bigint[],
+): Promise<ReserveResult[]> {
+  if (reserveIds.length === 0) return [];
+  const results = await publicClient.multicall({
+    contracts: reserveIds.map((reserveId) => ({
+      address: spokeAddress,
+      abi: AaveSpokeABI as Abi,
+      functionName: "getReserve" as const,
+      args: [reserveId] as const,
+    })),
+    allowFailure: false,
+  });
+  return results as unknown as ReserveResult[];
+}
+
+/**
+ * The fields of the getLiquidationConfig result that this client reads.
+ * `targetHealthFactor` is left out on purpose: the Babylon Spoke never uses
+ * it, and the split target health factor is `SPLIT_TARGET_HEALTH_FACTOR`.
+ * viem decodes the `uint16` factor as a number and the `uint64` as a bigint.
+ */
+type LiquidationConfigResult = {
+  healthFactorForMaxBonus: bigint;
+  liquidationBonusFactor: number | bigint;
+};
+
+/** Liquidation-bonus curve parameters from the Spoke's liquidation config. */
+export interface LiquidationBonusConfig {
+  /** Health factor at or below which the maximum bonus applies, WAD */
+  healthFactorForMaxBonus: bigint;
+  /** Share of the maximum bonus that still applies at HF 1.0, BPS */
+  liquidationBonusFactor: bigint;
+}
+
+/**
+ * Result type from getDynamicReserveConfig contract call. The fields are
+ * uint16/uint32 on-chain, which viem decodes as numbers, not bigints.
+ */
+type DynamicReserveConfigResult = {
+  collateralFactor: number;
+  maxLiquidationBonus: number;
+  liquidationFee: number;
+};
+
+/**
+ * Get the liquidation-bonus curve parameters from the Core Spoke contract.
+ *
+ * Per-spoke governance parameters. Combined with a reserve's
+ * `maxLiquidationBonus` they give the bonus at any health factor; see
+ * `computeLiquidationBonusBps`.
+ *
+ * @param publicClient - Viem public client for reading contracts
+ * @param spokeAddress - Core Spoke contract address
+ * @returns healthFactorForMaxBonus (WAD) and liquidationBonusFactor (BPS)
+ */
+export async function getLiquidationBonusConfig(
+  publicClient: PublicClient,
+  spokeAddress: Address,
+): Promise<LiquidationBonusConfig> {
   const result = await publicClient.readContract({
     address: spokeAddress,
     abi: AaveSpokeABI,
     functionName: "getLiquidationConfig",
   });
   const config = result as LiquidationConfigResult;
-  return config.targetHealthFactor;
+  return {
+    healthFactorForMaxBonus: config.healthFactorForMaxBonus,
+    liquidationBonusFactor: BigInt(config.liquidationBonusFactor),
+  };
 }
 
 /**
@@ -423,4 +472,33 @@ export async function getDynamicReserveConfig(
     args: [reserveId, dynamicConfigKey],
   });
   return result as DynamicReserveConfigResult;
+}
+
+/**
+ * Get the maximum number of reserves one user may hold on this Spoke.
+ *
+ * `uint16` immutable, set in the Spoke constructor. Collateral reserves and
+ * borrow reserves are counted separately against the same number: a borrow
+ * into a new reserve reverts with `MaximumUserReservesExceeded` once the
+ * user's borrow count has reached it. Borrowing more of a reserve the user
+ * already borrows is always allowed.
+ *
+ * `MAX_ALLOWED_USER_RESERVES_LIMIT` (65535) is the contract's "no cap"
+ * sentinel — the check is skipped on that value.
+ *
+ * @param publicClient - Viem public client for reading contracts
+ * @param spokeAddress - Aave Spoke contract address
+ * @returns The limit as stored on the Spoke
+ */
+export async function getMaxUserReservesLimit(
+  publicClient: PublicClient,
+  spokeAddress: Address,
+): Promise<number> {
+  const result = await publicClient.readContract({
+    address: spokeAddress,
+    abi: AaveSpokeABI,
+    functionName: "MAX_USER_RESERVES_LIMIT",
+  });
+
+  return result as number;
 }

@@ -48,15 +48,20 @@ You do **not** generate or persist HTLC secrets. `preparePegin()` derives them d
 {
   transaction: { fundedPrePeginTxHex, prePeginTxid, perVault[], selectedUTXOs, fee, changeAmount },
   depositorBtcPubkey: string,         // x-only pubkey snapshot — safe to persist
+  depositTerms: DepositTerms,         // pass to signAndBroadcast when the wallet
+                                      // supports deposit approval (e.g. Ledger)
   derivedSecrets: {                   // sensitive — do not log / persist
     perVaultWotsKeys: WotsBlockPublicKey[][],
     wotsPkHashes: Hex[],              // for `registerPeginOnChain.depositorWotsPkHash`
     htlcSecretHexes: string[],        // 64-char hex, no 0x; SHA256 → on-chain hashlock
+    authAnchorHex: string,
   },
 }
 ```
 
 The `secret` you pass to `activateVault()` is `0x${derivedSecrets.htlcSecretHexes[i]}`. The `hashlock` you pass to `registerPeginOnChain()` is `computeHashlock(secret)`.
+
+> **Approval-capable wallets** (e.g. Ledger) additionally require `depositTerms` on `signAndBroadcast()` and `runDepositorPresignFlow()`, and `quotedCommissionBps` on `registerPeginOnChain()`. Omitting them throws.
 
 ---
 
@@ -105,16 +110,21 @@ const peginManager = new PeginManager({
 import { PeginManager } from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
   activateVault,
+  assertReturnedGraphMatchesFingerprint,
   computeHashlock,
   runDepositorPresignFlow,
   type PayoutSigningContext,
 } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 import { VaultProviderRpcClient } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
-import { type UTXO } from "@babylonlabs-io/ts-sdk/tbv/core";
+import {
+  computePeginFingerprint,
+  type PegInConfiguration,
+  type UTXO,
+  type ValidatedOnChainParticipantKeys,
+} from "@babylonlabs-io/ts-sdk/tbv/core";
 import { stripHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core/primitives";
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import type { Address, Hex, WalletClient } from "viem";
-import { randomBytes } from "node:crypto";
 
 // The manager and wallets constructed in the Configuration section above.
 declare const peginManager: PeginManager;
@@ -133,9 +143,29 @@ declare const protocolFeeRate: bigint;
 declare const mempoolFeeRate: number;
 declare const councilQuorum: number;
 declare const councilSize: number;
+declare const vaultCoreVersion: number;
+declare const commissionBps: number;
+declare const timelockAssert: number;
+declare const minPeginFeeRate: bigint;
+declare const councilMembers: string[];
+declare const vkClaimerPayoutScriptPubKeys: Record<string, string>;
+declare const vpCommissionScriptPubKey: string;
 declare const availableUTXOs: UTXO[];
 declare const changeAddress: string;
 declare const vpEthAddress: Address;
+declare const ethChainId: number;
+
+// Your durable store for the presign graph fingerprint, and the parsed
+// `tx_graph_json` of the artifact bundle you download before activation.
+declare function saveFingerprint(peginTxid: string, fingerprint: string): void;
+declare function loadFingerprint(peginTxid: string): string;
+declare const artifactTxGraph: Record<string, unknown>;
+
+// The two block-pinned protocol reads the fingerprint is computed from. Resolve
+// ONE block number and pass it to both, so they describe the same chain state
+// as each other and as the Bitcoin scripts built below.
+declare const validatedKeys: ValidatedOnChainParticipantKeys;
+declare const pegInConfig: PegInConfiguration;
 // 1. Prepare Pre-PegIn + PegIn transactions. The SDK orchestrator
 //    snapshots the wallet pubkey, runs a sizing pass, fires ONE
 //    `deriveContextHash` popup, derives per-vault WOTS keys + HTLC
@@ -143,18 +173,22 @@ declare const vpEthAddress: Address;
 //    Returns broadcast-ready txs + the depositor pubkey snapshot +
 //    sensitive derived secrets (treat with care).
 const result = await peginManager.preparePegin({
+  vaultCoreVersion,                  // contract activeVaultCoreVersion()
   amounts: [100_000n],               // satoshis, one per vault
   vaultProviderBtcPubkey,
+  commissionBps,                     // quoted by the vault provider
   vaultKeeperBtcPubkeys,
   universalChallengerBtcPubkeys,
   timelockPegin,
+  timelockAssert,
   timelockRefund,
   protocolFeeRate,
+  minPeginFeeRate,                   // sat/vB floor baked into the HTLC value
   mempoolFeeRate,
   councilQuorum,
   councilSize,
   availableUTXOs,
-  changeAddress,
+  changeAddress,                     // must match the approval wallet's change address
 });
 
 const firstVault = result.transaction.perVault[0];
@@ -169,6 +203,34 @@ const depositorWotsPkHash = result.derivedSecrets.wotsPkHashes[0];
 const popSignature = await peginManager.signProofOfPossession();
 
 // 3. Register on Ethereum (submits the vault + hashlock).
+//
+//    `expectedFingerprint` commits to the protocol configuration this deposit
+//    was built against. The registry resolves the same values when it includes
+//    the transaction and reverts with `PeginFingerprintChanged` if any of them
+//    moved in between, which would otherwise bond the vault to keys the funded
+//    HTLC does not commit to.
+//
+//    Every field must come from the SAME block-pinned reads that shaped the
+//    Bitcoin scripts above — `validateOnChainParticipantKeys` and
+//    `getPegInConfiguration` both take a `blockNumber`, so resolve one block
+//    and pass it to both. A fingerprint taken from fresher state is still
+//    accepted by the contract while your scripts are stale, which is the exact
+//    failure it exists to prevent.
+const expectedFingerprint = computePeginFingerprint({
+  chainId: BigInt(ethChainId),
+  registryAddress: BTC_VAULT_REGISTRY,
+  // 32 bytes, 0x-prefixed. The SDK resolves operation keys as x-only hex
+  // WITHOUT the prefix, so add it here.
+  vaultProviderBtcKey: `0x${validatedKeys.vaultProviderBtcPubkeyXOnly}` as Hex,
+  appKeeperKeyEpoch: validatedKeys.appKeeperKeyEpoch,
+  ucKeyEpoch: validatedKeys.ucKeyEpoch,
+  appVaultKeepersVersion: validatedKeys.expectedAppVaultKeepersVersion,
+  universalChallengersVersion:
+    validatedKeys.expectedUniversalChallengersVersion,
+  offchainParamsVersion: pegInConfig.offchainParamsVersion,
+  vaultCoreVersion: pegInConfig.activeVaultCoreVersion,
+});
+
 const { vaultId, peginTxHash } = await peginManager.registerPeginOnChain({
   unsignedPrePeginTx: result.transaction.fundedPrePeginTxHex,
   depositorSignedPeginTx: firstVault.peginTxHex,
@@ -177,6 +239,8 @@ const { vaultId, peginTxHash } = await peginManager.registerPeginOnChain({
   depositorWotsPkHash,
   htlcVout: firstVault.htlcVout,
   popSignature,
+  expectedFingerprint,
+  quotedCommissionBps: commissionBps,      // required for approval-capable wallets
 });
 // Contract status: PENDING
 
@@ -184,6 +248,7 @@ const { vaultId, peginTxHash } = await peginManager.registerPeginOnChain({
 const btcTxid = await peginManager.signAndBroadcast({
   fundedPrePeginTxHex: result.transaction.fundedPrePeginTxHex,
   depositorBtcPubkey,
+  depositTerms: result.depositTerms,       // required for approval-capable wallets
 });
 
 // 5. Wait for the VP, sign payouts, submit. The service polls the VP,
@@ -191,29 +256,45 @@ const btcTxid = await peginManager.signAndBroadcast({
 const vpClient = new VaultProviderRpcClient(vaultProviderProxyUrl);
 
 const signingContext: PayoutSigningContext = {
+  vaultCoreVersion,
   peginTxHex: firstVault.peginTxHex,
   vaultProviderBtcPubkey,
   vaultKeeperBtcPubkeys,
   universalChallengerBtcPubkeys,
   depositorBtcPubkey: stripHexPrefix(depositorBtcPubkey),
   timelockPegin,
+  timelockAssert,
   network: "signet",
   registeredPayoutScriptPubKey: "0x...",   // from PegInSubmitted event / indexer
   protocolFeeRate,                         // version-locked offchainParams.feeRate
+  commissionBps,
+  councilMembers,
+  councilQuorum,
+  vkClaimerPayoutScriptPubKeys,            // vaultKeeperPubkey -> scriptPubKey hex
+  vpCommissionScriptPubKey,
 };
 
 await runDepositorPresignFlow({
   statusReader: vpClient,
   presignClient: vpClient,
   btcWallet,
+  depositTerms: result.depositTerms,       // required for approval-capable wallets
   peginTxid: stripHexPrefix(peginTxHash),
   depositorPk: stripHexPrefix(depositorBtcPubkey),
   signingContext,
   onProgress: (completed, total) => console.log(`Signed ${completed}/${total}`),
+  // Called after signing, before submit; store it durably. Step 6 checks the
+  // artifact bundle against it.
+  recordGraphFingerprint: (fingerprint) => saveFingerprint(peginTxHash, fingerprint),
 });
 // Contract status: VERIFIED
 
-// 6. Activate — reveal the HTLC secret. `writeContract` is the adapter
+// 6. Check that the artifact bundle carries the graph you signed at step 5,
+//    including its declared challenger roster. This throws
+//    GraphFingerprintError on a mismatch: do not activate then.
+assertReturnedGraphMatchesFingerprint(artifactTxGraph, loadFingerprint(peginTxHash));
+
+//    Activate — reveal the HTLC secret. `writeContract` is the adapter
 //    that hands the SDK's prepared call to your ETH transport.
 await activateVault({
   btcVaultRegistryAddress: BTC_VAULT_REGISTRY,
@@ -242,11 +323,11 @@ await activateVault({
 
 | Phase | Method / Service | Returns |
 |---|---|---|
-| 1 | `peginManager.preparePegin()` | `{ transaction, depositorBtcPubkey, derivedSecrets }`. `transaction` is broadcast-safe: `{ fundedPrePeginTxHex, prePeginTxid, perVault[], selectedUTXOs, fee, changeAmount }`. `depositorBtcPubkey` is the x-only pubkey snapshot used end-to-end. `derivedSecrets` is sensitive: `{ perVaultWotsKeys, wotsPkHashes, htlcSecretHexes }` — do not log or persist. Pass `transaction.fundedPrePeginTxHex` as the `unsignedPrePeginTx` register param. |
+| 1 | `peginManager.preparePegin()` | `{ transaction, depositorBtcPubkey, depositTerms, derivedSecrets }`. `transaction` is broadcast-safe: `{ fundedPrePeginTxHex, prePeginTxid, perVault[], selectedUTXOs, fee, changeAmount }`. `depositorBtcPubkey` is the x-only pubkey snapshot used end-to-end. `derivedSecrets` is sensitive: `{ perVaultWotsKeys, wotsPkHashes, htlcSecretHexes, authAnchorHex }` — do not log or persist. Pass `transaction.fundedPrePeginTxHex` as the `unsignedPrePeginTx` register param. |
 | 2 | `peginManager.signProofOfPossession()` | `{ btcPopSignature, depositorEthAddress, depositorBtcPubkey }` — reusable across every `registerPeginOnChain` call in the session |
 | 3 | `peginManager.registerPeginOnChain()` | `{ ethTxHash, vaultId, peginTxHash }` |
 | 4 | `peginManager.signAndBroadcast()` | `btcTxid` (string) |
-| 5 | `runDepositorPresignFlow()` | `void` — side effect: signatures posted, contract moves to `VERIFIED` |
+| 5 | `runDepositorPresignFlow()` | `void` — side effects: `recordGraphFingerprint` gets the fingerprint of the signed transaction set, signatures posted, contract moves to `VERIFIED` |
 | 6 | `activateVault()` | Whatever `writeContract` returns (typically `{ transactionHash }`) |
 
 ---

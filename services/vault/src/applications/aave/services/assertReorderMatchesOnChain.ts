@@ -49,24 +49,30 @@ export class PositionChangedError extends Error {
 }
 
 /**
- * Trusted calculator inputs for the optimal-order recompute. All values
- * must be on-chain-anchored — the whole point of the guard is to refuse
- * recomputes against indexer-supplied inputs.
+ * Trusted calculator inputs for the optimal-order recompute. Every value is
+ * either on-chain-anchored or a reviewed SDK constant — the whole point of
+ * the guard is to refuse recomputes against indexer-supplied inputs.
  *
- * - CF, THF, maxLB: from `useVaultSplitParams` (Spoke reads)
+ * - CF, LB: from `useVaultSplitParams` (Spoke reads; LB is the Spoke's bonus
+ *   curve at `expectedHF`)
+ * - THF, expectedHF: from `useVaultSplitParams`, which takes them from the
+ *   SDK's `SPLIT_TARGET_HEALTH_FACTOR` and
+ *   `EXPECTED_HEALTH_FACTOR_AT_LIQUIDATION`
+ * - minPeginBtc: the ProtocolParams peg-in configuration's minimum, or null
+ *   when it could not be read. It only floors suggested vault sizes and never
+ *   changes the optimal order this guard compares.
  * - btcPrice: from `usePrices` (Chainlink BTC/USD aggregator)
  * - totalDebtUsd: from `useAaveUserPosition().debtValueUsd`
  *   (`accountData.totalDebtValueRay`, a Spoke read)
- * - expectedHF: optional override; defaults to the calculator's
- *   `EXPECTED_HEALTH_FACTOR_AT_LIQUIDATION`.
  */
 export interface ReorderVerificationContext {
   CF: number;
   THF: number;
-  maxLB: number;
+  LB: number;
+  expectedHF: number;
+  minPeginBtc: number | null;
   btcPrice: number;
   totalDebtUsd: number;
-  expectedHF?: number;
 }
 
 function lower(id: Hex): string {
@@ -215,8 +221,9 @@ export async function assertOptimalOrderMatchesOnChain(
     vaults,
     CF: ctx.CF,
     THF: ctx.THF,
-    maxLB: ctx.maxLB,
-    ...(ctx.expectedHF !== undefined ? { expectedHF: ctx.expectedHF } : {}),
+    LB: ctx.LB,
+    expectedHF: ctx.expectedHF,
+    minPeginBtc: ctx.minPeginBtc,
   });
 
   if (optimalVaultOrder === null) {

@@ -3,11 +3,17 @@ import { useDeferredValue, useMemo, useState } from "react";
 import { useOutletContext } from "react-router";
 
 import { BPS_SCALE } from "@/applications/aave/constants";
-import { useBtcPriceCandles } from "@/applications/aave/hooks/useBtcPriceCandles";
+import {
+  TIMELINE_VISIBLE_CANDLES,
+  useBtcPriceCandles,
+} from "@/applications/aave/hooks/useBtcPriceCandles";
 import { calculate } from "@/applications/aave/positionNotifications";
 import type { RootLayoutContext } from "@/components/pages/RootLayout";
 import { EmptyState } from "@/components/shared";
-import { PAGE_CONTENT_CLASS } from "@/components/shared/layoutClasses";
+import {
+  CHART_LOADING_BOX_CLASS,
+  PAGE_CONTENT_CLASS,
+} from "@/components/shared/layoutClasses";
 import { useConnection, useETHWallet } from "@/context/wallet";
 import { COPY } from "@/copy";
 import { useDashboardState } from "@/hooks/useDashboardState";
@@ -24,6 +30,8 @@ import {
   withAmountInBandLabel,
 } from "./liquidationChartData";
 import { LiquidationEventCard } from "./LiquidationEventCard";
+import { LiquidationTour } from "./LiquidationTour";
+import { LIQUIDATION_TOUR_TARGET_IDS } from "./liquidationTourSteps";
 import { PositionOverview } from "./PositionOverview";
 import { SimulationToolbar } from "./SimulationToolbar";
 import { useLiquidationsPageState } from "./useLiquidationsPageState";
@@ -56,9 +64,6 @@ function clampToLive(simulated: number | null, live: number): number {
   return simulated === null ? live : Math.min(simulated, live);
 }
 
-/** Daily candles in view at rest; the rest of the series is reachable by pan. */
-const TIMELINE_VISIBLE_CANDLES = 60;
-
 function SummaryStat({ label, value }: { label: string; value: string }) {
   return (
     <span className="flex items-baseline gap-2">
@@ -73,7 +78,7 @@ function SummaryStat({ label, value }: { label: string; value: string }) {
 }
 
 export default function Liquidations() {
-  const { openDeposit } = useOutletContext<RootLayoutContext>();
+  const { openDeposit, isDepositOpen } = useOutletContext<RootLayoutContext>();
   const { address } = useETHWallet();
   const { isConnected } = useConnection();
   const account = isConnected ? address : undefined;
@@ -86,7 +91,9 @@ export default function Liquidations() {
     borrowedAssets,
   } = useDashboardState(account);
 
-  const { openBorrowPicker, openRepay } = useLoanActions({ borrowedAssets });
+  const { openBorrowPicker, openRepay, isLoanFlowOpen } = useLoanActions({
+    borrowedAssets,
+  });
 
   const {
     position,
@@ -96,7 +103,7 @@ export default function Liquidations() {
     cascade: cascadeOverride,
   } = useLiquidationsPageState(account);
 
-  const { candles } = useBtcPriceCandles();
+  const { candles, isLoading: isLoadingCandles } = useBtcPriceCandles();
 
   const livePrice = params?.btcPrice ?? null;
   // `null` = "track the live price" — the slider hasn't diverged from it (or
@@ -221,17 +228,11 @@ export default function Liquidations() {
     );
   }
 
-  const borrowedRatio =
-    position.maxTotalDebtUsd > 0
-      ? position.debtValueUsd / position.maxTotalDebtUsd
-      : 0;
-
   const positionOverview = (
     <PositionOverview
       collateralBtc={position.collateralBtc}
       collateralValueUsd={position.collateralValueUsd}
       debtUsd={position.debtValueUsd}
-      borrowedRatio={borrowedRatio}
       healthFactor={position.healthFactor}
       healthFactorStatus={position.healthFactorStatus}
       onDeposit={() => openDeposit()}
@@ -298,14 +299,25 @@ export default function Liquidations() {
       as="main"
       className={`${PAGE_CONTENT_CLASS} flex flex-1 flex-col gap-10 pb-6`}
     >
-      <section className="flex flex-col gap-4">
+      {/* The welcome waits for the chart and for the deposit and loan
+          dialogs, so it does not cover either one. */}
+      <LiquidationTour
+        ready={!isLoadingCandles && !isDepositOpen && !isLoanFlowOpen}
+      />
+      <section
+        id={LIQUIDATION_TOUR_TARGET_IDS.position}
+        className="flex flex-col gap-4"
+      >
         <h2 className="text-xl leading-[1.6] tracking-[0.15px] text-accent-primary">
           {COPY.liquidations.position.heading}
         </h2>
         {positionOverview}
       </section>
 
-      <section className="flex flex-col gap-6">
+      <section
+        id={LIQUIDATION_TOUR_TARGET_IDS.simulation}
+        className="flex flex-col gap-6"
+      >
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <h2 className="text-xl leading-[1.6] tracking-[0.15px] text-accent-primary">
@@ -343,24 +355,33 @@ export default function Liquidations() {
             price={clampToLive(simulatedPrice, chart.livePrice)}
             onPriceChange={setSimulatedPrice}
           />
-          <Timeline
-            bands={chart.bands}
-            candles={candles ?? []}
-            currentPrice={chart.projectedPrice}
-            currentPriceLabel={formatPriceUsd(chart.projectedPrice)}
-            priceAxis={chart.timelinePriceAxis}
-            safeZone={chart.safeZone}
-            visibleCandles={TIMELINE_VISIBLE_CANDLES}
-            interactions={{ crosshair: true, pan: true }}
-            formatPrice={formatPriceUsd}
-            formatTime={formatCandleDate}
-            formatReadoutTime={formatCandleTimestamp}
-            liquidatedLabel={COPY.liquidations.liquidatedBandLabel}
-          />
+          {isLoadingCandles ? (
+            <div className={CHART_LOADING_BOX_CLASS}>
+              <Loader />
+            </div>
+          ) : (
+            <Timeline
+              bands={chart.bands}
+              candles={candles ?? []}
+              currentPrice={chart.projectedPrice}
+              currentPriceLabel={formatPriceUsd(chart.projectedPrice)}
+              priceAxis={chart.timelinePriceAxis}
+              safeZone={chart.safeZone}
+              visibleCandles={TIMELINE_VISIBLE_CANDLES}
+              interactions={{ crosshair: true, pan: true, zoom: true }}
+              formatPrice={formatPriceUsd}
+              formatTime={formatCandleDate}
+              formatReadoutTime={formatCandleTimestamp}
+              liquidatedLabel={COPY.liquidations.liquidatedBandLabel}
+            />
+          )}
         </div>
       </section>
 
-      <section className="flex flex-col gap-4">
+      <section
+        id={LIQUIDATION_TOUR_TARGET_IDS.events}
+        className="flex flex-col gap-4"
+      >
         <div className="flex flex-col">
           <h2 className="text-xl leading-[1.6] tracking-[0.15px] text-accent-primary">
             {COPY.liquidations.events.heading}
@@ -370,9 +391,14 @@ export default function Liquidations() {
           </p>
         </div>
         <div className="grid gap-6 lg:grid-cols-2">
-          {chart.cards.map((card) => (
+          {chart.cards.map((card, index) => (
             <div key={card.key}>
-              <LiquidationEventCard card={card} />
+              <LiquidationEventCard
+                card={card}
+                outcomesId={
+                  index === 0 ? LIQUIDATION_TOUR_TARGET_IDS.outcomes : undefined
+                }
+              />
             </div>
           ))}
         </div>

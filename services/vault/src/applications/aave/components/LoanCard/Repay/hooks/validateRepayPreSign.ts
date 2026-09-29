@@ -2,7 +2,7 @@
  * Repay pre-sign validation
  *
  * Runs immediately before submitting a repay transaction. Refetches the
- * on-chain risk parameters (CF / THF / LB) — the cached
+ * on-chain risk parameters (CF / LB) — the cached
  * `liquidationThresholdBps` powering the displayed post-repay HF projection
  * may be up to `CONFIG_STALE_TIME_MS` old, and React Query's query key does
  * not change when CF is updated for the same `dynamicConfigKey`. Without

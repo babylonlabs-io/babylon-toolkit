@@ -28,8 +28,9 @@ const DEBUG_DEFAULT_BTC_PRICE = 61722.5;
 const DEBUG_DEFAULT_TOTAL_DEBT_USD = 44287.72;
 export const DEBUG_DEFAULT_CF = 0.75;
 export const DEBUG_DEFAULT_THF = 1.1;
-export const DEBUG_DEFAULT_MAX_LB = 1.05;
+export const DEBUG_DEFAULT_LB = 1.05;
 export const DEBUG_DEFAULT_EXPECTED_HF = 0.95;
+const DEBUG_DEFAULT_MIN_PEGIN_BTC = 0.0005;
 
 /** Default manual-mode inputs the panel starts from (and resets to). */
 export function makeDefaultDebugParams(): CalculatorParams {
@@ -43,8 +44,9 @@ export function makeDefaultDebugParams(): CalculatorParams {
     ],
     CF: DEBUG_DEFAULT_CF,
     THF: DEBUG_DEFAULT_THF,
-    maxLB: DEBUG_DEFAULT_MAX_LB,
+    LB: DEBUG_DEFAULT_LB,
     expectedHF: DEBUG_DEFAULT_EXPECTED_HF,
+    minPeginBtc: DEBUG_DEFAULT_MIN_PEGIN_BTC,
   };
 }
 
@@ -76,16 +78,17 @@ function vaults(...btc: number[]): CalculatorParams["vaults"] {
 const PRESET_RATIOS = {
   CF: DEBUG_DEFAULT_CF,
   THF: DEBUG_DEFAULT_THF,
-  maxLB: DEBUG_DEFAULT_MAX_LB,
+  LB: DEBUG_DEFAULT_LB,
   expectedHF: DEBUG_DEFAULT_EXPECTED_HF,
+  minPeginBtc: DEBUG_DEFAULT_MIN_PEGIN_BTC,
 };
 
 /**
  * `vault-contracts-aave-v4` deploy-default liquidation bonus (10%), used only
- * by the cascade preset below — unlike `DEBUG_DEFAULT_MAX_LB` (5%), which is
+ * by the cascade preset below — unlike `DEBUG_DEFAULT_LB` (5%), which is
  * just a representative starting point for manual mode, not a protocol value.
  */
-const CASCADE_PRESET_MAX_LB = 1.1;
+const CASCADE_PRESET_LB = 1.1;
 
 export const DEBUG_PRESETS: DebugPreset[] = [
   {
@@ -156,7 +159,7 @@ export const DEBUG_PRESETS: DebugPreset[] = [
       totalDebtUsd: 44_287,
       vaults: vaults(0.6, 0.4, 0.1),
       ...PRESET_RATIOS,
-      maxLB: CASCADE_PRESET_MAX_LB,
+      LB: CASCADE_PRESET_LB,
     },
   },
   {
@@ -193,7 +196,7 @@ export const DEBUG_PRESETS: DebugPreset[] = [
       totalDebtUsd: 44287.72,
       vaults: vaults(1),
       ...PRESET_RATIOS,
-      maxLB: CASCADE_PRESET_MAX_LB,
+      LB: CASCADE_PRESET_LB,
     },
   },
 ];
@@ -216,12 +219,14 @@ export const DEBUG_FORCED_MAX_VAULTS = 10;
 export type DebugBorrowCapacityState = "loading" | "error";
 
 /** Health-factor values the panel offers, one per production band — safe
- *  (>= HEALTH_FACTOR_WARNING_THRESHOLD), warning (>= 1.0), danger (< 1.0, i.e.
- *  liquidatable). See `getHealthFactorStatus`; a test asserts these three still
- *  land in three distinct bands. */
+ *  (> HEALTH_FACTOR_WARNING_THRESHOLD), warning (> HEALTH_FACTOR_RISKY_THRESHOLD),
+ *  risky (>= 1.0), danger (< 1.0, i.e. liquidatable). See
+ *  `getHealthFactorStatus`; a test asserts these four still land in four
+ *  distinct bands. */
 export const DEBUG_HEALTH_FACTORS = [
   { value: 2.4, label: "Safe" },
   { value: 1.25, label: "Warning" },
+  { value: 1.05, label: "Risky" },
   { value: 0.95, label: "Danger" },
 ] as const;
 
@@ -262,6 +267,10 @@ let protocolStatusOverride: ProtocolStatus | null = null;
 // production banding. null = live.
 let healthFactorOverride: number | null = null;
 let borrowCapacityStateOverride: DebugBorrowCapacityState | null = null;
+// Spoke borrow-reserve cap. It is a contract immutable, so there is no way to
+// exercise the single-borrow-asset surfaces on a spoke deployed unlimited
+// without forcing it here. null = live (the value read from the Spoke).
+let borrowReserveLimitOverride: number | null = null;
 
 const listeners = new Set<() => void>();
 
@@ -322,6 +331,12 @@ export function setDebugBorrowCapacityStateOverride(
   emit();
 }
 
+/** Force (a finite cap) or release (null) the Spoke's borrow-reserve cap. */
+export function setDebugBorrowReserveLimitOverride(limit: number | null) {
+  borrowReserveLimitOverride = limit;
+  emit();
+}
+
 function getManualMode() {
   return manualMode;
 }
@@ -370,6 +385,18 @@ function getBorrowCapacity(): DebugBorrowCapacity | null {
   const state = getBorrowCapacityStateOverride();
   if (!state || !DEBUG_BORROW_CAPACITY_SNAPSHOTS) return null;
   return DEBUG_BORROW_CAPACITY_SNAPSHOTS[state];
+}
+
+function getBorrowReserveLimitOverride(): number | null {
+  return borrowReserveLimitOverride;
+}
+
+export function useDebugBorrowReserveLimitOverride(): number | null {
+  return useSyncExternalStore(
+    subscribe,
+    getBorrowReserveLimitOverride,
+    getBorrowReserveLimitOverride,
+  );
 }
 
 export function useDebugMaxVaultsOverride(): number | null {

@@ -3,8 +3,8 @@
  *
  * Owns two sections sharing one polling tree: "Pending Deposit" (one row per
  * in-flight deposit, with live step progress and the state's primary action)
- * and "Inactive Vaults" (one row per refundable-expired deposit — inactive is
- * the v3 name for expired — whose Withdraw action performs the HTLC refund).
+ * and "Inactive Vaults" (refundable-expired deposits whose Withdraw action
+ * performs the HTLC refund, plus settled vaults with a reserve to reclaim).
  * `children` (the Active Vaults section) renders between them, giving the
  * page's Pending → Active → Inactive order. Polling state comes from the app's
  * single AppPeginPollingProvider (mounted in RootLayout); this component mounts
@@ -15,8 +15,15 @@
  * is instantiated once.
  */
 
-import { Heading, Hint, InfoIcon, Loader } from "@babylonlabs-io/core-ui";
+import {
+  Avatar,
+  Heading,
+  Hint,
+  InfoIcon,
+  Loader,
+} from "@babylonlabs-io/core-ui";
 import { useCallback, useMemo, useState, type ReactNode } from "react";
+import { IoClose } from "react-icons/io5";
 import type { Address, Hex } from "viem";
 
 import { ApplicationLogo } from "@/components/ApplicationLogo";
@@ -36,25 +43,30 @@ import {
   PRIMARY_ROW_BUTTON_CLASS,
 } from "@/components/shared/buttonClasses";
 import { ProgressBar } from "@/components/simple/DepositProgressView/ProgressBar";
+import { pendingActivationEstimateMinutes } from "@/components/simple/DepositProgressView/btcConfirmationProgress";
 import { DEPOSIT_VIEW_MAX_WIDTH_CLASS } from "@/components/simple/DepositProgressView/layout";
-import {
-  getStepFillPercent,
-  getVisualStep,
-  TOTAL_VISUAL_STEPS,
-} from "@/components/simple/DepositProgressView/steps";
+import { getStepFillPercent } from "@/components/simple/DepositProgressView/steps";
 import { PendingDepositModals } from "@/components/simple/PendingDepositModals";
 import { PostDepositContinuationContent } from "@/components/simple/PostDepositContinuationContent";
+import {
+  DismissPendingDepositDialog,
+  type DismissPendingDepositError,
+} from "@/components/vaults/DismissPendingDepositDialog";
+import { getNetworkConfigBTC } from "@/config";
 import { ProtocolParamsProvider } from "@/context/ProtocolParamsContext";
 import { useDepositPollingResult } from "@/context/deposit/PeginPollingContext";
 import { COPY } from "@/copy";
-import { useReclaimRowAction } from "@/hooks/deposit/useReclaimRowAction";
+import { useActionableExpiredDeposits } from "@/hooks/deposit/useActionableExpiredDeposits";
+import { useActionableReclaims } from "@/hooks/deposit/useActionableReclaims";
+import type { ReclaimRowAction } from "@/hooks/deposit/useReclaimRowAction";
 import { useRefundRowAction } from "@/hooks/deposit/useRefundRowAction";
+import { useBtcAction } from "@/hooks/useBtcAction";
 import type { usePendingDeposits } from "@/hooks/usePendingDeposits";
-import { useReclaimStatus, type ReclaimStatus } from "@/hooks/useReclaimStatus";
-import { useReclaimVaultChainData } from "@/hooks/useReclaimVaultChainData";
 import {
   canPerformAction,
-  getPeginDisplayStep,
+  getPeginProgressStep,
+  hasActionableStep,
+  LocalStorageStatus,
   PeginAction,
   type PeginState,
 } from "@/models/peginStateMachine";
@@ -64,7 +76,7 @@ import type { VaultProvider } from "@/types/vaultProvider";
 import { truncateHash } from "@/utils/addressUtils";
 import { getBatchSiblings } from "@/utils/batchedPegin";
 import { getBtcExplorerTxUrl } from "@/utils/explorer";
-import { formatSats } from "@/utils/formatting";
+import { formatDurationShort, formatSats } from "@/utils/formatting";
 
 /** Step-progress bar fill — the pending amber, matching the status dot. */
 const PROGRESS_FILL_COLOR = "rgb(var(--risk-amber))";
@@ -82,6 +94,8 @@ const RECLAIM_BUTTON_TEST_ID = "vault-reclaim-button";
  * is the design's, and fits "999,999 sats" at `text-sm`.
  */
 const RECLAIM_METRIC_COLUMN_CLASS = "w-[82px]";
+
+const DISMISS_ICON_SIZE = 20;
 
 /** Dot color per display variant. Danger keeps the error red explicitly —
  *  there is no "no dot" state in this compact row layout (v2's cards swap in
@@ -130,6 +144,7 @@ function PendingRow({
   onBroadcast,
   onRefund,
   onEmergencyWithdraw,
+  onDismiss,
 }: {
   activity: VaultActivity;
   vaultProviders: VaultProvider[];
@@ -137,6 +152,7 @@ function PendingRow({
   onBroadcast: (depositId: string) => void;
   onRefund: (depositId: string) => void;
   onEmergencyWithdraw: (depositId: string) => void;
+  onDismiss?: (depositId: string) => void;
 }) {
   // Undefined until the polling tree indexes this deposit — the row renders
   // its static cells with a loading status meanwhile.
@@ -148,13 +164,35 @@ function PendingRow({
   const peginState = result?.peginState;
   const step =
     result && !result.loading
-      ? (result.displayStepOverride ?? getPeginDisplayStep(result.peginState))
+      ? (result.displayStepOverride ?? getPeginProgressStep(result.peginState))
       : null;
   const fillPercent = step !== null ? getStepFillPercent(step) : null;
 
   const actionStatus: ReturnType<typeof getActionStatus> = result
     ? getActionStatus(result)
     : { type: "noAction" };
+
+  const estimateMinutes =
+    peginState?.displayVariant === "pending" &&
+    !hasActionableStep(peginState, result?.depositorBtcPubkey) &&
+    result?.requiredPrePeginDepth !== undefined
+      ? pendingActivationEstimateMinutes(
+          result.prePeginConfirmations,
+          result.requiredPrePeginDepth,
+        )
+      : null;
+  const activationEstimate =
+    estimateMinutes === null
+      ? null
+      : COPY.vaults.pendingActivationEstimate(
+          formatDurationShort(estimateMinutes),
+        );
+  const subLine =
+    peginState?.inlineSubtext ||
+    activationEstimate ||
+    (peginState?.displayVariant === "pending" ? peginState.message : "") ||
+    "";
+
   const routeAction = (action: PeginAction) => {
     if (action === PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN) {
       onBroadcast(activity.id);
@@ -181,34 +219,30 @@ function PendingRow({
     // element. The harness scopes a --txid resume to one row through it.
     <div
       data-testid="pending-deposit-row"
-      className={`${LIST_ROW_MIN_HEIGHT_CLASS} flex w-full flex-wrap items-center gap-x-4 gap-y-3 rounded-lg border border-secondary-strokeLight p-4`}
+      className={`${LIST_ROW_MIN_HEIGHT_CLASS} flex w-full flex-wrap items-center gap-x-4 gap-y-3 rounded-lg border border-secondary-strokeLight p-4 xl:flex-nowrap`}
     >
-      {/* Amount + step position */}
+      {/* Amount + activation estimate */}
       <div
         className={`flex items-center gap-2 ${LIST_ROW_LEADING_COLUMN_CLASS}`}
       >
-        <ApplicationLogo
-          logoUrl={provider?.iconUrl ?? null}
-          name={providerName}
-          size="small"
+        <Avatar
+          size="medium"
+          url={getNetworkConfigBTC().icon}
+          alt={activity.collateral.symbol}
+          className="shrink-0"
         />
         <div className="flex min-w-0 flex-col">
           <span className="truncate text-base leading-6 tracking-[0.15px] text-accent-primary">
             {activity.collateral.amount} {activity.collateral.symbol}
           </span>
-          <span className="truncate text-xs leading-[1.66] tracking-[0.4px] text-accent-secondary">
-            {/* Subtext wins when a state sets one: it is state-specific
-                (e.g. an activation-window countdown) and therefore more
-                informative than the generic step position. States that set it
-                and still have a step are exactly the ones that need it. */}
-            {peginState?.inlineSubtext
-              ? peginState.inlineSubtext
-              : step !== null
-                ? COPY.deposit.progress.stepPrefix(
-                    getVisualStep(step),
-                    TOTAL_VISUAL_STEPS,
-                  )
-                : ""}
+          <span
+            title={subLine}
+            className="truncate text-xs leading-[1.66] tracking-[0.4px] text-accent-secondary"
+          >
+            {/* Subtext wins when a state sets one: it is state-specific (e.g.
+                an activation-window countdown) and therefore sharper than the
+                block-depth estimate, which only models the common wait. */}
+            {subLine}
           </span>
         </div>
       </div>
@@ -223,7 +257,7 @@ function PendingRow({
             <span className="text-sm leading-[1.43] tracking-[0.17px] text-accent-primary">
               {peginState.displayLabel}
             </span>
-            {peginState.message && (
+            {peginState.displayVariant !== "pending" && peginState.message && (
               <Hint
                 tooltip={peginState.message}
                 icon={<InfoIcon size={16} className="text-accent-secondary" />}
@@ -303,6 +337,18 @@ function PendingRow({
           </button>
         )}
       </div>
+
+      {onDismiss && (
+        <button
+          type="button"
+          onClick={() => onDismiss(activity.id)}
+          aria-label={COPY.vaults.dismissPending.rowLabel}
+          data-testid="pending-deposit-dismiss-button"
+          className="flex size-9 shrink-0 items-center justify-center rounded-lg text-accent-secondary transition-[filter] hover:brightness-125"
+        >
+          <IoClose size={DISMISS_ICON_SIZE} />
+        </button>
+      )}
     </div>
   );
 }
@@ -312,18 +358,13 @@ function InactiveRow({
   vaultProviders,
   onRefund,
   onReclaim,
-  reclaimStatus,
-  reclaimOnChainStatus,
-  isReclaimInFlight,
+  reclaimAction,
 }: {
   activity: VaultActivity;
   vaultProviders: VaultProvider[];
   onRefund: (depositId: string) => void;
   onReclaim: (depositId: string) => void;
-  /** Reserve state from the section's batched poll; undefined for expired rows. */
-  reclaimStatus: ReclaimStatus | undefined;
-  reclaimOnChainStatus: number | undefined;
-  isReclaimInFlight: boolean;
+  reclaimAction: ReclaimRowAction | undefined;
 }) {
   const result = useDepositPollingResult(activity.id);
   const provider = findProvider(vaultProviders, activity.providers[0]?.id);
@@ -343,19 +384,16 @@ function InactiveRow({
   const {
     available: isReclaimAvailable,
     reclaiming: isReclaiming,
+    needsWallet: isReclaimWalletNeeded,
     blockedTooltip: reclaimBlockedTooltip,
-    reclaimableSats,
-  } = useReclaimRowAction({
-    status: reclaimStatus,
-    onChainStatus: reclaimOnChainStatus,
-    depositorBtcPubkey: activity.depositorBtcPubkey,
-    isReclaimInFlight,
-  });
+    reclaimableSats = null,
+  } = reclaimAction ?? {};
+  const { requireBtcWallet } = useBtcAction();
 
   // While a sweep is in flight the status cell reports the reserve action
   // rather than the vault's own lifecycle state, the same way the refund path
-  // shows "Refunding" over an expired vault's label. It reverts to the vault's
-  // own label ("Redeemed") once the sweep confirms.
+  // shows "Refunding" over an expired vault's label. Once the sweep confirms,
+  // the section removes the row.
   const statusLabel = isReclaiming
     ? COPY.reclaim.rowStatusReclaiming
     : peginState?.displayLabel;
@@ -365,21 +403,25 @@ function InactiveRow({
   const hash = activity.prePeginTxHash ?? activity.peginTxHash;
 
   return (
-    <ListRowCard className={LIST_ROW_MIN_HEIGHT_CLASS}>
+    <ListRowCard className={`${LIST_ROW_MIN_HEIGHT_CLASS} xl:flex-nowrap`}>
       {/* Amount + refund maturity */}
       <div
         className={`flex items-center gap-2 ${LIST_ROW_LEADING_COLUMN_CLASS}`}
       >
-        <ApplicationLogo
-          logoUrl={provider?.iconUrl ?? null}
-          name={providerName}
-          size="small"
+        <Avatar
+          size="medium"
+          url={getNetworkConfigBTC().icon}
+          alt={activity.collateral.symbol}
+          className="shrink-0"
         />
         <div className="flex min-w-0 flex-col">
           <span className="truncate text-base leading-6 tracking-[0.15px] text-accent-primary">
             {activity.collateral.amount} {activity.collateral.symbol}
           </span>
-          <span className="truncate text-xs leading-[1.66] tracking-[0.4px] text-accent-secondary">
+          <span
+            title={peginState?.inlineSubtext}
+            className="truncate text-xs leading-[1.66] tracking-[0.4px] text-accent-secondary"
+          >
             {peginState?.inlineSubtext ?? ""}
           </span>
         </div>
@@ -484,6 +526,15 @@ function InactiveRow({
             {COPY.reclaim.rowButton}
           </button>
         )}
+        {isReclaimWalletNeeded && (
+          <button
+            type="button"
+            onClick={requireBtcWallet}
+            className={NEUTRAL_ROW_BUTTON_CLASS}
+          >
+            {COPY.wallet.btcAction.connect}
+          </button>
+        )}
         {/* Sweep broadcast, awaiting confirmation. The button stays in place
             but disabled — re-opening the modal would only reach the
             "already reclaimed" screen. The status cell carries the "why". */}
@@ -520,6 +571,13 @@ export function VaultsLifecycleSections({
   // Vault IDs whose multistepper view modal is open — the full batch for a
   // split pegin, null when closed (same contract as PendingDepositSection).
   const [viewingBatch, setViewingBatch] = useState<Hex[] | null>(null);
+  // The batch the open confirmation would remove, snapshotted when it opened
+  // so the dialog keeps naming the same records while polling continues.
+  const [dismissBatch, setDismissBatch] = useState<VaultActivity[] | null>(
+    null,
+  );
+  const [dismissError, setDismissError] =
+    useState<DismissPendingDepositError | null>(null);
 
   const {
     pendingActivities,
@@ -532,41 +590,19 @@ export function VaultsLifecycleSections({
     refundModal,
     reclaimModal,
     emergencyWithdrawModal,
+    removePendingPegins,
+    indexedVaultIds,
+    localRecordStatuses,
     demo,
   } = deposits;
 
-  // Contract reads for the settled candidates: the authoritative PegIn txid and
-  // the live on-chain status. Cached long — a settled vault's row is immutable.
-  const candidateVaultIds = useMemo(
-    () => reclaimableCandidates.map((a) => a.id),
-    [reclaimableCandidates],
-  );
-  const reclaimChainData = useReclaimVaultChainData(candidateVaultIds);
-
-  // Bitcoin poll, one batch for the whole section. Only vaults whose contract
-  // read landed are probed — without it the gate fails closed anyway.
-  const reclaimOutpoints = useMemo(
-    () =>
-      reclaimableCandidates
-        .map((activity) => {
-          const chain = reclaimChainData.get(activity.id.toLowerCase());
-          return chain
-            ? { depositId: activity.id as string, peginTxid: chain.peginTxid }
-            : null;
-        })
-        .filter(
-          (o): o is { depositId: string; peginTxid: string } => o !== null,
-        ),
-    [reclaimableCandidates, reclaimChainData],
-  );
-  const { statusByDepositId } = useReclaimStatus(reclaimOutpoints);
-
-  // Settled vaults join the expired ones in the Inactive section rather than
-  // getting a section of their own, so the heading count and action-required
-  // label pick them up unchanged.
+  const { candidates: actionableReclaims, actions: reclaimActions } =
+    useActionableReclaims(reclaimableCandidates, reclaimModal.inFlightVaultIds);
+  const actionableExpiredActivities =
+    useActionableExpiredDeposits(expiredActivities);
   const inactiveActivities: VaultActivity[] = useMemo(
-    () => [...expiredActivities, ...reclaimableCandidates],
-    [expiredActivities, reclaimableCandidates],
+    () => [...actionableExpiredActivities, ...actionableReclaims],
+    [actionableExpiredActivities, actionableReclaims],
   );
 
   const rows = [...pendingActivities, ...inactiveActivities];
@@ -624,24 +660,118 @@ export function VaultsLifecycleSections({
   const handleEmergencyWithdraw = useCallback(
     (depositId: string) => {
       if (allActivities.some((a) => a.id === depositId)) {
-        emergencyWithdrawModal.handleWithdrawClick(depositId, "detected");
+        emergencyWithdrawModal.handleWithdrawClick(depositId);
         return;
       }
       handleOpenDetails(depositId);
     },
     [allActivities, emergencyWithdrawModal, handleOpenDetails],
   );
-  // Advanced entry from the activation dialog inside the multistepper: swap
-  // the multistepper for the dedicated withdraw modal (the two never stack).
-  const handleAdvancedWithdraw = useCallback(
-    (depositId: string) => {
-      setViewingBatch(null);
-      emergencyWithdrawModal.handleWithdrawClick(depositId, "advanced");
-    },
-    [emergencyWithdrawModal],
-  );
 
   const handleViewingClose = useCallback(() => setViewingBatch(null), []);
+
+  const realActivityIds = useMemo(
+    () => new Set(allActivities.map((a) => a.id)),
+    [allActivities],
+  );
+
+  /**
+   * A deposit may be discarded only on positive evidence that it is the
+   * browser's alone: its own stored record still reads PENDING — a CONFIRMING
+   * record has already broadcast its Pre-PegIn and is on its way to the chain
+   * — and the indexer answered completely and did not return this vault. A
+   * failing, still-loading, or row-dropping indexer leaves `indexedVaultIds`
+   * null and offers nothing — an indexed deposit's record carries the
+   * participant-key stamp that blocks an unsafe later broadcast, and must
+   * never be discarded on the mere absence of a row.
+   */
+  const canDismissRecord = useCallback(
+    (activity: VaultActivity) => {
+      if (activity.isPending !== true || indexedVaultIds === null) return false;
+      if (!realActivityIds.has(activity.id)) return false;
+      const id = activity.id.toLowerCase();
+      if (localRecordStatuses.get(id) !== LocalStorageStatus.PENDING)
+        return false;
+      return !indexedVaultIds.has(id);
+    },
+    [indexedVaultIds, localRecordStatuses, realActivityIds],
+  );
+
+  /**
+   * The records of a split deposit share one funded Pre-PegIn transaction, so
+   * discarding one alone would leave a sibling able to broadcast a transaction
+   * that funds a vault whose record — and its Pre-PegIn hex — is gone. The
+   * whole batch is therefore discardable together or not at all.
+   */
+  const canDismiss = useCallback(
+    (activity: VaultActivity) =>
+      canDismissRecord(activity) &&
+      getBatchSiblings(allActivities, activity).every(canDismissRecord),
+    [allActivities, canDismissRecord],
+  );
+
+  const handleDismiss = useCallback(
+    (depositId: string) => {
+      const activity = pendingActivities.find((a) => a.id === depositId);
+      if (!activity || !canDismiss(activity)) return;
+      setDismissError(null);
+      setDismissBatch(getBatchSiblings(allActivities, activity));
+    },
+    [allActivities, canDismiss, pendingActivities],
+  );
+  const handleDismissCancel = useCallback(() => {
+    setDismissError(null);
+    setDismissBatch(null);
+  }, []);
+  const handleDismissConfirm = useCallback(() => {
+    if (dismissBatch === null) return;
+    if (dismissBatch.every((a) => !realActivityIds.has(a.id))) {
+      setDismissError(null);
+      setDismissBatch(null);
+      return;
+    }
+    // Broadcast from another tab, already observed here: no longer this
+    // browser's to discard. A broadcast this tab has not observed yet is
+    // caught by the storage write below, which re-reads the stored status.
+    if (
+      dismissBatch.some(
+        (a) =>
+          localRecordStatuses.get(a.id.toLowerCase()) !==
+          LocalStorageStatus.PENDING,
+      )
+    ) {
+      setDismissError("no-longer-removable");
+      return;
+    }
+    // The snapshot names the records; the gate is still read live, since the
+    // indexer may have answered differently while the dialog was open. Only an
+    // indexer that answered and returned one of these vaults means it was
+    // found — every other way the gate can fail leaves its fate unverified.
+    if (!dismissBatch.every((a) => canDismiss(a))) {
+      const found =
+        indexedVaultIds !== null &&
+        dismissBatch.some((a) => indexedVaultIds.has(a.id.toLowerCase()));
+      setDismissError(found ? "no-longer-removable" : "unavailable");
+      return;
+    }
+    const result = removePendingPegins(
+      dismissBatch.map((a) => a.id),
+      LocalStorageStatus.PENDING,
+    );
+    if (result !== "removed") {
+      setDismissError(result === "changed" ? "no-longer-removable" : result);
+      return;
+    }
+    setDismissError(null);
+    setDismissBatch(null);
+  }, [
+    canDismiss,
+    dismissBatch,
+    indexedVaultIds,
+    localRecordStatuses,
+    realActivityIds,
+    removePendingPegins,
+  ]);
 
   // Keep the section (and its modals) mounted while a modal is open, even if
   // the last row advances to a terminal state mid-flow.
@@ -651,7 +781,8 @@ export function VaultsLifecycleSections({
       refundModal.refundingActivity ||
       reclaimModal.reclaimingActivity ||
       emergencyWithdrawModal.withdrawing ||
-      viewingBatch,
+      viewingBatch ||
+      dismissBatch,
   );
 
   // No lifecycle rows and nothing modal-held: skip the providers entirely but
@@ -685,6 +816,7 @@ export function VaultsLifecycleSections({
                 onBroadcast={handleBroadcast}
                 onRefund={handleRefund}
                 onEmergencyWithdraw={handleEmergencyWithdraw}
+                onDismiss={canDismiss(activity) ? handleDismiss : undefined}
               />
             ))}
           </div>
@@ -713,18 +845,20 @@ export function VaultsLifecycleSections({
                 vaultProviders={vaultProviders}
                 onRefund={handleRefund}
                 onReclaim={handleReclaim}
-                reclaimStatus={statusByDepositId.get(activity.id.toLowerCase())}
-                reclaimOnChainStatus={
-                  reclaimChainData.get(activity.id.toLowerCase())?.onChainStatus
-                }
-                isReclaimInFlight={reclaimModal.inFlightVaultIds.has(
-                  activity.id.toLowerCase(),
-                )}
+                reclaimAction={reclaimActions.get(activity.id.toLowerCase())}
               />
             ))}
           </div>
         </section>
       )}
+
+      <DismissPendingDepositDialog
+        open={dismissBatch !== null}
+        count={dismissBatch?.length ?? 0}
+        error={dismissError}
+        onCancel={handleDismissCancel}
+        onConfirm={handleDismissConfirm}
+      />
 
       <PendingDepositModals
         broadcastModal={broadcastModal}
@@ -741,7 +875,6 @@ export function VaultsLifecycleSections({
               vaultIds={viewingBatch}
               depositorEthAddress={ethAddress as Address}
               onClose={handleViewingClose}
-              onAdvancedWithdraw={handleAdvancedWithdraw}
             />
           </div>
         </V3ModalShell>

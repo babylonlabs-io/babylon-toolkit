@@ -404,7 +404,7 @@ describe("vaultRefundService - adapter wiring", () => {
         depositorBtcPubkey: DEPOSITOR_PUBKEY,
         feeRate: 10,
       }),
-    ).rejects.toThrow("Pre-PegIn transaction hash mismatch");
+    ).rejects.toThrow("Pre-Pegin transaction hash mismatch");
   });
 
   it("throws when vault is not found in indexer", async () => {

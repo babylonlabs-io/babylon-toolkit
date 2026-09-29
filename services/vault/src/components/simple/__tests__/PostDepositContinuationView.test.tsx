@@ -6,13 +6,17 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps";
 import {
-  getPeginDisplayStep,
+  getPeginProgressStep,
   getWarningPeginDisplayStep,
   PeginAction,
 } from "@/models/peginStateMachine";
 import type { VaultActivity } from "@/types/activity";
 
 import { PostDepositContinuationView } from "../PostDepositContinuationView";
+
+vi.mock("@/hooks/useBtcAction", () => ({
+  useBtcAction: () => ({ connected: true }),
+}));
 
 const mockGetPollingResult = vi.hoisted(() => vi.fn());
 const mockRefetch = vi.hoisted(() => vi.fn());
@@ -123,7 +127,7 @@ vi.mock("@/models/peginStateMachine", () => {
       CONFIRMED: "confirmed",
       REFUND_BROADCAST: "refund_broadcast",
     },
-    getPeginDisplayStep: vi.fn(() => "AWAIT_BTC_CONFIRMATION"),
+    getPeginProgressStep: vi.fn(() => "AWAIT_BTC_CONFIRMATION"),
     getWarningPeginDisplayStep: vi.fn(() => "AWAIT_BTC_CONFIRMATION"),
     USER_ACTIONABLE_PEGIN_ACTIONS,
     isVaultPastActivation,
@@ -168,6 +172,12 @@ vi.mock("@/copy", () => ({
         },
         utxosUnavailable: { title: "Funds unavailable", body: "In use." },
         broadcastFailed: { title: "Broadcast failed", body: "Try again." },
+        // depositErrors.ts reads the stage labels while matching.
+        prePeginStageFailed: {
+          prepare: "Failed to prepare Pre-Pegin transaction",
+          sign: "Failed to sign Pre-Pegin transaction",
+          broadcast: "Failed to broadcast Pre-Pegin transaction",
+        },
         providerNotFound: { title: "Provider not found", body: "Refresh." },
         versionMismatch: { title: "Parameters changed", body: "Restart." },
         insufficientEthForGas: {
@@ -297,6 +307,7 @@ function resultWith(opts: {
   localStatus?: string;
   displayVariant?: "pending" | "active" | "inactive" | "warning";
   message?: string;
+  depositorBtcPubkey?: string;
 }) {
   return {
     depositId: "x",
@@ -311,7 +322,10 @@ function resultWith(opts: {
       message: opts.message,
     },
     isOwnedByCurrentWallet: true,
-    depositorBtcPubkey: undefined,
+    // The on-chain depositor key that decides payout actionability. Pass
+    // `undefined` explicitly for a vault whose key is unknown.
+    depositorBtcPubkey:
+      "depositorBtcPubkey" in opts ? opts.depositorBtcPubkey : "0xdepositorpk",
   };
 }
 
@@ -345,7 +359,7 @@ function renderView(
 describe("PostDepositContinuationView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(getPeginDisplayStep).mockReturnValue(
+    vi.mocked(getPeginProgressStep).mockReturnValue(
       DepositFlowStep.AWAIT_BTC_CONFIRMATION,
     );
     vi.mocked(getWarningPeginDisplayStep).mockReturnValue(
@@ -410,13 +424,25 @@ describe("PostDepositContinuationView", () => {
     expect(renderView().getByTestId("payout")).toBeTruthy();
   });
 
-  it("waits (no payout) when the BTC public key is unavailable", () => {
+  it("mounts payout signing without the wallet key so its Bitcoin prompt can render", () => {
     mockGetPollingResult.mockReturnValue(
       resultWith({ availableActions: [PeginAction.SIGN_PAYOUT_TRANSACTIONS] }),
     );
     const { queryByTestId, getByTestId } = renderView({
       btcPublicKey: undefined,
     });
+    expect(getByTestId("payout")).toBeTruthy();
+    expect(queryByTestId("progress-view")).toBeNull();
+  });
+
+  it("waits (no payout) when the vault's depositor BTC public key is unknown", () => {
+    mockGetPollingResult.mockReturnValue(
+      resultWith({
+        availableActions: [PeginAction.SIGN_PAYOUT_TRANSACTIONS],
+        depositorBtcPubkey: undefined,
+      }),
+    );
+    const { queryByTestId, getByTestId } = renderView();
     expect(queryByTestId("payout")).toBeNull();
     expect(getByTestId("progress-view")).toBeTruthy();
   });
@@ -826,15 +852,16 @@ describe("PostDepositContinuationView", () => {
     expect(getByTestId("wots").getAttribute("data-vault")).toBe("0xvault1");
   });
 
-  it("skips a payout-only vault when btcPublicKey is unavailable and picks the next actionable sibling", () => {
+  it("skips a payout-only vault when its on-chain depositor BTC public key is unknown and picks the next actionable sibling", () => {
     const states = new Map<string, ReturnType<typeof resultWith>>([
       [
         "0xvault0",
         resultWith({
-          // Payout signing is available, but the prereq btcPublicKey is missing,
-          // so this vault must not win actionableIndex.
+          // Payout signing is available, but the vault's depositor BTC public
+          // key is unknown, so this vault must not win actionableIndex.
           availableActions: [PeginAction.SIGN_PAYOUT_TRANSACTIONS],
           contractStatus: 0,
+          depositorBtcPubkey: undefined,
         }),
       ],
       [
@@ -940,7 +967,7 @@ describe("PostDepositContinuationView", () => {
   });
 
   it("preserves per-vault split steps when rendering a no-actionable warning", () => {
-    vi.mocked(getPeginDisplayStep).mockImplementation((state) =>
+    vi.mocked(getPeginProgressStep).mockImplementation((state) =>
       state.displayVariant === "warning" || state.contractStatus === 2
         ? null
         : DepositFlowStep.AWAIT_BTC_CONFIRMATION,

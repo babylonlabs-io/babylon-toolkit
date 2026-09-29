@@ -12,6 +12,7 @@
  */
 
 import type { PeginStatusReader, WotsKeySubmitter, PresignClient, ClaimerArtifactsReader } from "../../services/deposit/interfaces";
+import { normalizeClaimerPegoutStatus } from "../../services/pegout/state";
 
 import {
   type BearerTokenProvider,
@@ -193,7 +194,8 @@ export class VaultProviderRpcClient
 
   /**
    * Get pegout status for many vault ids in one round trip. Same per-result
-   * envelope semantics as `batchGetPeginStatusByVaultId`.
+   * envelope semantics as `batchGetPeginStatusByVaultId`. A legacy claimer
+   * status from an older daemon is replaced with its current name.
    */
   async batchGetPegoutStatusByVaultId(
     params: BatchGetPegoutStatusByVaultIdParams,
@@ -204,6 +206,10 @@ export class VaultProviderRpcClient
       unknown
     >("vaultProvider_batchGetPegoutStatusByVaultId", params, signal);
     validateBatchGetPegoutStatusResponse(response);
+    for (const entry of response.results) {
+      const claimer = entry.result?.claimer;
+      if (claimer) claimer.status = normalizeClaimerPegoutStatus(claimer.status);
+    }
     return response;
   }
 }

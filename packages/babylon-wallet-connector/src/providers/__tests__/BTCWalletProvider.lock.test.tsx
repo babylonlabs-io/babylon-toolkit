@@ -13,6 +13,8 @@ interface FakeBtcProvider {
   getPublicKeyHex: () => Promise<string>;
   connectWallet: () => Promise<void>;
   getAccounts?: () => Promise<string[]>;
+  on?: (event: string, callback: () => void) => void;
+  off?: (event: string, callback: () => void) => void;
 }
 
 const harness = vi.hoisted(() => ({
@@ -137,6 +139,37 @@ describe("BTCWalletProvider — silent lock engine", () => {
     // A wallet without getAccounts is feature-detected out: it is never probed.
     expect(getAccounts).not.toHaveBeenCalled();
     expect(result.current.locked).toBe(false);
+  });
+
+  it("keeps supported listeners when other event names are unsupported", async () => {
+    let liveAddress = ADDR;
+    const listeners = new Set<() => void>();
+    const on = vi.fn((event: string, callback: () => void) => {
+      if (event !== "accountsChanged") throw new Error("Unsupported event");
+      listeners.add(callback);
+    });
+    const off = vi.fn((event: string, callback: () => void) => {
+      if (event !== "accountsChanged") throw new Error("Unexpected cleanup");
+      listeners.delete(callback);
+    });
+    connectWith(makeProvider({ getAddress: async () => liveAddress, on, off }));
+
+    const { result, unmount } = renderHook(() => useBTCWallet(), { wrapper });
+
+    await waitFor(() => expect(result.current.connected).toBe(true));
+    expect(on).toHaveBeenCalledWith("accountChanged", expect.any(Function));
+    expect(on).toHaveBeenCalledWith("accountsChanged", expect.any(Function));
+    expect(on).toHaveBeenCalledWith("disconnect", expect.any(Function));
+    expect(listeners.size).toBe(1);
+
+    liveAddress = OTHER_ADDR;
+    act(() => listeners.forEach((listener) => listener()));
+    await waitFor(() => expect(result.current.address).toBe(OTHER_ADDR));
+
+    unmount();
+
+    expect(listeners.size).toBe(0);
+    expect(off.mock.calls.every(([event]) => event === "accountsChanged")).toBe(true);
   });
 
   it("clears the lock after a successful reconnect", async () => {

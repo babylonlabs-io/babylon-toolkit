@@ -8,8 +8,10 @@
  * terminal words are classified by the caller via {@link classifyStatusWord},
  * so raw-seam consumers and the throwing sender raise identical typed errors.
  *
- * `base:` = LedgerHQ/app-bitcoin branch `baseapp` @ `e400d8d8`
- * (`src/boilerplate/sw.h`); the same path on `develop` differs.
+ * Citation legend — `base:` = LedgerHQ/app-bitcoin branch `baseapp` @ `e400d8d8`
+ * (`src/boilerplate/sw.h`); the same path on `develop` differs. `sdk:` =
+ * LedgerHQ/ledger-secure-sdk @ tag `v26.6.1`, the SDK app 0.10.1 builds against.
+ * `fw:` = LedgerHQ/app-babylon-vault @ `b0c0ac4d` (app 0.10.1).
  *
  * @module ledger-vault-signer/rawApdu
  */
@@ -53,16 +55,28 @@ const SW_DEVICE_LOCKED = new Set([0x5515, 0x6982, 0x5303]);
 
 /** CLA not supported — what the dashboard or a wrong app returns. */
 export const SW_CLA_NOT_SUPPORTED = 0x6e00;
+/**
+ * INS not supported. The vault app is built on `bitcoin_app_base`
+ * (`base:src/boilerplate/dispatcher.c:170-171` @ e400d8d8). The stock Bitcoin
+ * app shares CLA 0xE1 and answers this for a vault instruction it does not
+ * implement (LedgerHQ/app-bitcoin, formerly app-bitcoin-new, @ da3c8c9d:
+ * `src/constants.h:10`,
+ * `src/boilerplate/dispatcher.c:160-161`). A known class without the vault
+ * instructions is a wrong app.
+ */
+export const SW_INS_NOT_SUPPORTED = 0x6d00;
 
-/** SW_BAD_STATE — the loaded intent/root is gone (`fw:sw.h` via `base:src/boilerplate/sw.h:80` @ e400d8d8). */
+/** SW_BAD_STATE — the loaded intent/root is gone (`base:src/boilerplate/sw.h:80` @ e400d8d8). */
 export const SW_BAD_STATE = 0xb007;
-/** SW_CAP_EXCEEDED — per-type signature cap or dedup-mask breach; intent nullified (`fw:sign_psbt_validate.c:50` @ 90cf41f1). */
+/** SW_CAP_EXCEEDED — per-type signature cap or dedup-mask breach; intent nullified (`fw:sign_psbt_validate.c:52` @ b0c0ac4d). */
 export const SW_CAP_EXCEEDED = 0xb00a;
 
 /**
- * Vault status words (`app-babylon-vault` `sw.h`, #2110) plus the base-app
- * codes from the signer kit's published `BTC_APP_ERRORS`, mirrored so nothing
- * imports the kit. Unmapped words surface as raw hex rather than guesses.
+ * Vault status words (the app has no `sw.h`; its own words are `SW_BAD_CPFP_ANCHOR`
+ * and `SW_CAP_EXCEEDED` at `fw:sign_psbt_validate.c:50,52` and `SW_BIP32_FAIL` in
+ * the handlers; 0xB000/0xB007/0xB008 come from `base:src/boilerplate/sw.h` @ e400d8d8) plus the base-app codes from the signer
+ * kit's published `BTC_APP_ERRORS`, mirrored so nothing imports the kit.
+ * Unmapped words surface as raw hex rather than guesses.
  */
 const STATUS_WORDS: Record<number, string> = {
   0x6a80: "The device rejected the data as invalid",
@@ -71,7 +85,15 @@ const STATUS_WORDS: Record<number, string> = {
   0x6a82: "The device does not support this request — check that the app build matches the selected network",
   0x6a86: "The device rejected the instruction parameters",
   0x6a87: "The device rejected the payload length",
-  0x6d00: "The running app does not support this instruction",
+  [SW_INS_NOT_SUPPORTED]: "The running app does not support this instruction",
+  // SWO_COMMAND_NOT_ACCEPTED (`sdk:include/status_words.h:56`) — sent by the SDK
+  // IO layer before dispatch, so the app never ran the command: from the UX
+  // heartbeat when an APDU lands mid-approval (`sdk:io_legacy/src/os_io_legacy.c:132`,
+  // already in v26.6.0) and, new in v26.6.1, when a command arrives while a
+  // reply is still pending (`:400-412`).
+  // Retry advice omitted on purpose: a 0x6901 currently takes the provider's
+  // pessimistic reset, so retrying fails until #2530 keeps the intent.
+  0x6901: "The device was still busy with the previous request",
   // Network-agnostic on purpose: the app is "Babylon Vault" on mainnet and
   // "Babylon Vault Testnet" on test networks (dmkSession.readAppAndVersion).
   [SW_CLA_NOT_SUPPORTED]:
@@ -81,7 +103,9 @@ const STATUS_WORDS: Record<number, string> = {
   0xb008: "The device rejected a signature or HMAC as invalid",
   0xb009: "The device rejected the CPFP anchor",
   [SW_CAP_EXCEEDED]: "The device has already signed the maximum number of these transactions",
-  0x6f00: "The device reported an internal error",
+  // SW_BIP32_FAIL: in the vault app only derive_context_hash.c and
+  // approve_vault_intent.c send it.
+  0x6f00: "The device could not derive the key at the requested path",
 };
 
 export function hex2(value: number): string {
@@ -93,8 +117,8 @@ export function hex4(value: number): string {
 }
 
 /**
- * App name/version captured at connect time ("BOLOS" = dashboard). Diagnostics
- * only: it is woven into the 0x6E00 message and never gates control flow.
+ * App name/version captured at connect time ("BOLOS" = dashboard). In this
+ * module it only shapes the wrong-app message; the host gates connect on it.
  * Optional because the raw seam is an opaque function — a caller driving a bare
  * transport (the Speculos e2e client) has nothing to report.
  */
@@ -103,7 +127,7 @@ export interface AppIdentity {
   readonly appVersion?: string;
 }
 
-/** Request context woven into the error message (and the 0x6E00 app hint). */
+/** Request context woven into the error message (and the 0x6E00/0x6D00 app hint). */
 export interface StatusWordContext extends AppIdentity {
   readonly ins: number;
   readonly p1: number;
@@ -137,7 +161,7 @@ export function classifyStatusWord(
   // Name the app seen at connect ("BOLOS" = dashboard); the user may have
   // switched apps since, hence the phrasing.
   const appHint =
-    sw === SW_CLA_NOT_SUPPORTED && context.appName
+    (sw === SW_CLA_NOT_SUPPORTED || sw === SW_INS_NOT_SUPPORTED) && context.appName
       ? ` (app at connect time: "${context.appName}"${context.appVersion ? ` v${context.appVersion}` : ""})`
       : "";
   return new LedgerDeviceError(
@@ -152,7 +176,7 @@ export function classifyStatusWord(
  * 0x9000, the shared typed error otherwise. The single place that pairing is
  * written — `createDmkApduSender` and the Speculos e2e client's sender both
  * re-base on it, so a decline reads identically over either transport. The
- * 0x6E00 app hint appears only when the caller supplies an identity (the
+ * 0x6E00/0x6D00 app hint appears only when the caller supplies an identity (the
  * Speculos client has none). Structural return type is `ApduSender`.
  */
 export function createThrowingApduSender(

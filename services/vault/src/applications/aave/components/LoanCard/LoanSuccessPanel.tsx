@@ -10,6 +10,8 @@ interface LoanSuccessPanelProps {
   variant: LoanSuccessVariant;
   amount: number;
   symbol: string;
+  /** Hub the transaction settled on, named in the confirmation. */
+  hubLabel: string;
   decimals: number;
   assetIcon: string;
 }
@@ -33,6 +35,7 @@ export function LoanSuccessPanel({
   variant,
   amount,
   symbol,
+  hubLabel,
   decimals,
   assetIcon,
 }: LoanSuccessPanelProps) {
@@ -52,14 +55,18 @@ export function LoanSuccessPanel({
           <Heading variant="h4">{copy.title}</Heading>
 
           <Text as="div" className="text-accent-secondary">
-            {copy.body(formattedAmount, symbol).map((segment, index) => (
-              <span
-                key={index}
-                className={segment.emphasis ? "text-accent-primary" : undefined}
-              >
-                {segment.text}
-              </span>
-            ))}
+            {copy
+              .body(formattedAmount, symbol, hubLabel)
+              .map((segment, index) => (
+                <span
+                  key={index}
+                  className={
+                    segment.emphasis ? "text-accent-primary" : undefined
+                  }
+                >
+                  {segment.text}
+                </span>
+              ))}
           </Text>
         </div>
       </div>

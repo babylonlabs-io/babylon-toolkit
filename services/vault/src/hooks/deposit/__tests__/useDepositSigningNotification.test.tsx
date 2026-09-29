@@ -86,15 +86,43 @@ describe("useDepositSigningNotification", () => {
     expect(ctx.notify).not.toHaveBeenCalled();
   });
 
-  it("re-fires when the tab becomes hidden", () => {
+  it("does not notify again for the same step when the tab becomes hidden", () => {
     const { rerender } = renderHook(() =>
-      useDepositSigningNotification(DepositFlowStep.SIGN_POP, true),
+      useDepositSigningNotification(DepositFlowStep.SUBMIT_PEGIN, true),
     );
     ctx.notify.mockClear();
 
     ctx.documentHidden = true;
     rerender();
 
+    expect(ctx.notify).not.toHaveBeenCalled();
+  });
+
+  it("calls the notifier again when the flow re-enters the payout phase", () => {
+    const { rerender } = renderHook(
+      ({ step }) => useDepositSigningNotification(step, true),
+      { initialProps: { step: DepositFlowStep.SIGN_DEPOSITOR_GRAPH } },
+    );
+    ctx.notify.mockClear();
+
+    rerender({ step: DepositFlowStep.AWAIT_VP_VERIFICATION });
+    rerender({ step: DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS });
+    rerender({ step: DepositFlowStep.SIGN_AUTH_ANCHOR });
+
     expect(ctx.notify).toHaveBeenCalledTimes(1);
+    expect(ctx.notify.mock.calls[0][0]).toContain(":payouts");
+  });
+
+  it("notifies for the next signing step the flow reaches", () => {
+    const { rerender } = renderHook(
+      ({ step }) => useDepositSigningNotification(step, true),
+      { initialProps: { step: DepositFlowStep.SUBMIT_PEGIN } },
+    );
+    ctx.notify.mockClear();
+
+    rerender({ step: DepositFlowStep.BROADCAST_PRE_PEGIN });
+
+    expect(ctx.notify).toHaveBeenCalledTimes(1);
+    expect(ctx.notify.mock.calls[0][0]).toContain(":broadcast");
   });
 });

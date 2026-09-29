@@ -10,7 +10,9 @@
 - [Ethereum Wallet](#ethereum-wallet)
 
 [staking]: #for-wallets-already-supporting-btc-staking
+[vectors]: ../../babylon-ts-sdk/src/tbv/core/vault-secrets/__tests__/deriveContextHash.vectors.test.ts
 [spec]: ../../../docs/specs/derive-context-hash.md
+[secrets-spec]: ../../../docs/specs/derive-vault-secrets.md
 
 ## Overview
 
@@ -40,7 +42,7 @@ nice-to-have.
 | 64-byte Schnorr signatures (implicit `SIGHASH_DEFAULT`) | MUST | SDK rejects 65-byte sigs; the appended sighash byte changes the signed message and cannot be stripped ([`peginInput.ts`][peginInput], [`payout.ts`][payout]) |
 | Non-finalized PSBT return for PegIn input PSBTs | MUST | SDK extracts the depositor signature from `tapScriptSig`; finalized PegIn PSBTs throw outright ([`peginInput.ts`][peginInput]) |
 | BIP-322 simple message signing | MUST | Used for proof-of-possession ([`PeginManager.ts`][peginManager]) |
-| `deriveContextHash` (HKDF-SHA-256, BIP-32 hardened path `m/73681862'`) | MUST | Hashlock secret derivation — see [spec][spec] for derivation algorithm and test vectors |
+| `deriveContextHash` (HKDF-SHA-256, BIP-32 hardened path `m/73681862'`) | MUST | Vault secret derivation (hashlock secrets, WOTS seeds, auth anchor) — see [deriveContextHash](#derivecontexthash) for the algorithm and [the conformance vectors][vectors] |
 | `signPsbts` (batch signing) | STRONGLY RECOMMENDED | Without it, depositors approve N PSBTs one-by-one |
 | `getInscriptions` | OPTIONAL | UTXO filtering only |
 
@@ -64,7 +66,7 @@ Babylon BTC staking, here's what's new for TBV:
 | Message signing | `"bip322-simple"` for PoP | Same |
 | Taproot path | `useTweakedSigner: false` (untweaked key) | Same |
 | Schnorr signature size | **Strictly 64 bytes — no sighash byte** | Either accepted |
-| Hashlock derivation | `deriveContextHash` — new requirement | N/A |
+| Vault secret derivation | `deriveContextHash` — new requirement | N/A |
 | Chains | **Dual**: BTC + ETH | BTC + Cosmos |
 
 ## Vault Deposit Flow
@@ -94,7 +96,7 @@ are in [`src/core/types.ts`](../src/core/types.ts).
 | `signPsbt` | `(psbtHex: string, options?: SignPsbtOptions) => Promise<string>` | Sign a single PSBT. See [SignPsbtOptions](#signpsbtoptions). |
 | `signPsbts` | `(psbtsHexes: string[], options?: SignPsbtOptions[]) => Promise<string[]>` | Batch sign PSBTs in one prompt. Falls back to sequential `signPsbt()` if unavailable. |
 | `signMessage` | `(message: string, type: "bip322-simple" \| "ecdsa") => Promise<string>` | Sign a message. TBV uses `"bip322-simple"` for PoP. See [PoP message format](#pop-message-format). |
-| `deriveContextHash` | `(appName: string, context: string) => Promise<string>` | Derive 32-byte value via HKDF-SHA-256. See [deriveContextHash](#derivecontexthash) and [spec][spec]. |
+| `deriveContextHash` | `(appName: string, context: string) => Promise<string>` | Derive 32-byte value via HKDF-SHA-256. See [deriveContextHash](#derivecontexthash) and [the conformance vectors][vectors]. |
 | `getNetwork` | `() => Promise<Network>` | Get BTC network. Wallet must operate on the network the dApp is configured for (signet vs mainnet); mismatch must error. |
 | `on` / `off` | `(eventName: string, cb: () => void) => void` | Register/unregister event listener |
 | `getInscriptions` | `() => Promise<InscriptionIdentifier[]>` | Optional. UTXO filtering. |
@@ -141,19 +143,46 @@ deriveContextHash(
 ```
 
 TBV uses `deriveContextHash("babylon-btc-vault", context)` to
-derive hashlock secrets for HTLC deposits. The derived
-value is committed as a SHA-256 hashlock during vault
-creation and revealed during activation.
+get one 32-byte root per deposit batch (one Pre-PegIn). The SDK expands the root
+into each vault's hashlock secret, WOTS seed and the shared
+auth anchor ([spec][secrets-spec]). The SHA-256 of each
+hashlock secret is committed in its HTLC during vault
+creation, and the secret is revealed during activation.
 
-Implementation requirements (see [spec][spec] for full
-detail and test vectors):
+Implementation requirements (the [spec][spec] has the full
+algorithm and rationale; the [conformance vectors][vectors]
+pin the exact bytes):
 
 - BIP-32 hardened derivation path `m/73681862'`.
-- HKDF-SHA-256 with the spec's fixed salt and `info` constructed from `appName` + `context`.
+- `ikm` is the raw 32-byte big-endian private-key scalar at that path (no
+  chain code, no serialization prefix), the same for every account and
+  network. An invalid BIP-32 child at that index is an error; do not skip
+  to the next index. Never use the path for signing or any other
+  derivation.
+- HKDF-SHA-256 with `salt` = UTF-8 `"derive-context-hash"`, `info` =
+  `SHA-256(UTF8(appName)) || SHA-256(UTF8(canonicalNetworkName)) ||
+  connectedPubkey (33-byte compressed SEC1) || context bytes`, output
+  length 32.
+- `canonicalNetworkName` is one of `bitcoin-mainnet`, `bitcoin-testnet`
+  (testnet3 and testnet4), `bitcoin-signet`, `bitcoin-regtest`. Any other
+  network must fail with a distinct "unsupported network" error, not
+  "method not supported".
+- `connectedPubkey` is the 33-byte compressed SEC1 form of the key the
+  wallet returned to the dApp as the active connected key for this request.
+  A wallet with several accounts binds the key of the account selected when
+  `deriveContextHash` is called.
+  The `m/44'/0'/0'/0/0` leaf in the conformance vector is a fixture only.
+- Imported (non-HD) keys use the raw 32-byte private key as `ikm`. MPC and
+  other non-HD wallets may use their own deterministic derivation: 32-byte
+  output, dependent on the key material and on all four of `appName`,
+  `canonicalNetworkName`, `connectedPubkey` and `context`, stable across
+  share refreshes that keep the same public key. Neither is portable to an
+  HD wallet restored from the same phrase; document this to users and
+  application developers.
 - 32-byte output (64 lowercase hex chars).
 - `appName` must match `[a-z0-9\-]`, 1–64 bytes.
 - `context` must be lowercase hex, even-length, non-empty, no `0x` prefix, max 1024 bytes.
-- Wallet MUST require user approval and display `appName` ("babylon-btc-vault") and the requesting origin.
+- Wallet MUST require user approval and display `appName` ("babylon-btc-vault"). It MUST also display the requesting origin when the transport carries one (browser extensions, injected providers). Hardware wallets reached over raw APDU, USB, BLE or QR have no authenticated origin and MUST NOT present a dApp-supplied string as a verified one.
 
 ### PoP Message Format
 
@@ -193,8 +222,7 @@ silently producing wrong output.
 - **PSBT version mismatch.** The SDK passes BIP-174 PSBTv0; wallets that only accept v2 will fail.
 
 Conformance test vectors for `deriveContextHash` and the
-exact wire format are in the [spec][spec] (§4 — Test
-Vectors).
+exact wire format are pinned in [the conformance test][vectors].
 
 ## Hardware Wallets
 
@@ -205,7 +233,7 @@ support, and have small-screen constraints that make
 batch payout signing impractical. Vendors with HW
 interest should plan for either a dedicated Babylon Vault
 app or a custom HKDF derivation extension to the stock
-Bitcoin app, plus full conformance against the spec test
+Bitcoin app, plus full conformance against the pinned test
 vectors and a mainnet/signet deposit-flow run before
 advertising support.
 

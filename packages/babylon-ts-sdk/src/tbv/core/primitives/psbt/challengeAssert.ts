@@ -1,12 +1,15 @@
 /**
  * ChallengeAssert PSBT Builder
  *
- * Builds an unsigned PSBT for a ChallengeAssert transaction
- * (depositor-as-claimer path, per challenger). ChallengeAssert is split across
- * two single-input transactions — ChallengeAssertX (spends the challenger's
- * ConnectorX Assert output) and ChallengeAssertY (spends ConnectorY). This
- * builder handles one such transaction; the depositor signs every input, each
- * with its own taproot script derived from that input's connector params.
+ * Builds an unsigned PSBT for a ChallengeAssert transaction. ChallengeAssert
+ * is split across two single-input transactions — ChallengeAssertX (spends the
+ * challenger's ConnectorX Assert output) and ChallengeAssertY (spends
+ * ConnectorY). This builder handles one such transaction.
+ *
+ * The protocol collects no claimer signature on ChallengeAssert — the
+ * challenger signs it at broadcast (btc-vault `tx_graph/challenger.rs`). This
+ * builder exists for tooling that reconstructs the graph; it is not on the
+ * depositor presign path (`signDepositorGraph` signs Payout + NoPayout only).
  *
  * @module primitives/psbt/challengeAssert
  * @see btc-vault crates/vault/docs/btc-transactions-spec.md — ChallengeAssertX / ChallengeAssertY
@@ -43,8 +46,8 @@ export interface ChallengeAssertParams {
  * Build unsigned ChallengeAssert PSBT.
  *
  * Each input has its own taproot script derived from its connector params; the
- * number of connector params must match the transaction's input count. The
- * depositor signs all inputs. Every prevout is derived from the authoritative
+ * number of connector params must match the transaction's input count.
+ * Every prevout is derived from the authoritative
  * Assert transaction, never trusted from external input.
  *
  * @param params - ChallengeAssert parameters

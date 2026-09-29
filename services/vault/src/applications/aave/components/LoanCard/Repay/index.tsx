@@ -36,12 +36,13 @@ import {
   SAFE_TOFIXED_PRECISION,
   SLIDER_STEP_COUNT,
 } from "../../../constants";
-import { useAaveConfig } from "../../../context";
 import {
-  useAaveUserPosition,
+  useDebtReserves,
+  useHubSpokeConfigs,
   useRepayTransaction,
   type RepayMode,
 } from "../../../hooks";
+import { describeHubBlock, getReserveHubBlock } from "../../../utils/hubState";
 import { AssetPill } from "../../AssetPill";
 import { useLoanContext } from "../../context/LoanContext";
 
@@ -64,6 +65,7 @@ export function Repay() {
     selectedReserve,
     tokenIdentity,
     assetConfig,
+    hub,
     proxyContract,
     tokenPriceUsd,
     isPriceStale,
@@ -75,17 +77,17 @@ export function Repay() {
 
   const { address } = useETHWallet();
 
-  // Reserves the user can repay = those they currently hold debt in. Read from
-  // the same position query the detail screen uses (React Query dedupes it).
-  const { allBorrowReserves } = useAaveConfig();
-  const { position } = useAaveUserPosition(address);
-  const borrowedReserves = useMemo(
-    () =>
-      allBorrowReserves.filter((r) =>
-        position?.debtPositions?.has(r.reserveId),
-      ),
-    [allBorrowReserves, position],
-  );
+  // Reserves the user can repay = those they currently hold debt in.
+  const borrowedReserves = useDebtReserves(address);
+
+  // A repay touches only its own hub, so only that hub's state can block it.
+  // The debt stays listed; the form explains why it can't be repaid. Read live,
+  // so a hub that lifts its halt unblocks repay without a reload.
+  const selectedReserves = useMemo(() => [selectedReserve], [selectedReserve]);
+  const hubSpokeConfigs = useHubSpokeConfigs(selectedReserves);
+  const hubBlock = getReserveHubBlock(selectedReserve, hubSpokeConfigs);
+  const hubBlockMessage = hubBlock ? describeHubBlock(hubBlock) : null;
+  const isRepayUnavailable = repayBlocked || hubBlock !== null;
 
   // Fetch user's token balance for repayment. Read at the proven underlying,
   // not the indexer's `token.address` — those are separate indexer fields, and
@@ -257,32 +259,37 @@ export function Repay() {
   };
 
   // A single status callout, rendered once below the action button. Highest
-  // priority first: a current input/validation error (only once the balance is
-  // known, so we never surface a misleading verdict computed against a still-
-  // loading 0), then the last failed transaction, the submit-time refetch
-  // failure, a balance-load failure, and finally the standing shortfall warning.
+  // priority first: why repaying is unavailable (so it matches the button),
+  // then a current input/validation error (only once the balance is known, so
+  // we never surface a misleading verdict computed against a still-loading 0),
+  // then the last failed transaction, the submit-time refetch failure, a
+  // balance-load failure, and finally the standing shortfall warning.
   const statusCallout: {
     variant: "error" | "warning";
     title?: string;
     body: string;
-  } | null =
-    balanceKnown && errorMessage
-      ? { variant: "error", title: buttonText, body: errorMessage }
-      : txError
-        ? {
-            variant: "error",
-            title: COPY.common.transactionFailedTitle,
-            body: txError,
-          }
-        : repayBlocked
-          ? { variant: "warning", body: COPY.loans.repayingUnavailable }
+  } | null = repayBlocked
+    ? { variant: "warning", body: COPY.loans.repayingUnavailable }
+    : hubBlockMessage
+      ? { variant: "warning", body: hubBlockMessage }
+      : balanceKnown && errorMessage
+        ? { variant: "error", title: buttonText, body: errorMessage }
+        : txError
+          ? {
+              variant: "error",
+              title: COPY.common.transactionFailedTitle,
+              body: txError,
+            }
           : refetchError
             ? { variant: "warning", body: refetchError }
             : // Only when NO balance ever loaded (first load failed). A
               // background-refetch blip keeps the last good balance, so it must
               // not surface a load error or block repay.
               !hasBalanceData && balanceError != null
-              ? { variant: "warning", body: COPY.loans.repay.balanceLoadError }
+              ? {
+                  variant: "warning",
+                  body: COPY.loans.repay.balanceLoadError,
+                }
               : balanceKnown && warningMessage
                 ? { variant: "warning", body: warningMessage }
                 : null;
@@ -295,7 +302,7 @@ export function Repay() {
         as="h3"
         className="mb-4 font-normal text-accent-primary"
       >
-        Repay
+        {COPY.loans.repay.action}
       </Heading>
       <div className="flex flex-col gap-2">
         <SubSection className="!bg-secondary-highlight">
@@ -369,6 +376,7 @@ export function Repay() {
         </SubSection>
 
         <RepayDetailsCard
+          hub={hub}
           debt={
             debtProjectedLabel ?? `${debtCurrentValue} ${assetConfig.symbol}`
           }
@@ -376,7 +384,6 @@ export function Repay() {
           healthFactor={metrics.healthFactor}
           healthFactorValue={metrics.healthFactorValue}
           healthFactorOriginal={metrics.healthFactorOriginal}
-          healthFactorOriginalValue={metrics.healthFactorOriginalValue}
         />
       </div>
 
@@ -391,13 +398,13 @@ export function Repay() {
           isProcessing ||
           isSubmitting ||
           !balanceKnown ||
-          repayBlocked
+          isRepayUnavailable
         }
         onClick={handleRepay}
         className="mt-6"
         data-testid="repay-submit-button"
       >
-        {repayBlocked
+        {isRepayUnavailable
           ? COPY.loans.repay.unavailable
           : isProcessing || isSubmitting
             ? COPY.loans.repay.processing

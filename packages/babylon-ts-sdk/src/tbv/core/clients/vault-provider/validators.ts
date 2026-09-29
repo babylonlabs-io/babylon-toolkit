@@ -36,6 +36,18 @@ function preview(value: unknown): string {
   );
 }
 
+const UNRECOGNIZED_STATUS_ERROR_PREFIX =
+  "VP response validation failed: unrecognized status";
+
+/**
+ * Whether a batch status entry's `error` reports a pegin status outside
+ * {@link DaemonStatus}. The batch validator moves such an entry to its
+ * `error` slot, so one unknown status does not fail the whole reply.
+ */
+export function isUnrecognizedDaemonStatusError(error: string): boolean {
+  return error.startsWith(UNRECOGNIZED_STATUS_ERROR_PREFIX);
+}
+
 const VP_VALIDATION_USER_MESSAGE =
   "The vault provider returned an unexpected response. Please try again or contact support.";
 
@@ -83,6 +95,9 @@ function assertVaultId(value: unknown, field: string): void {
     );
   }
 }
+
+/** Expected length (in hex chars) of a GC output label hash (SHA-256). */
+const LABEL_HASH_HEX_LEN = 64;
 
 function isNonEmptyHex(value: unknown): value is string {
   return typeof value === "string" && value.length > 0 && HEX_RE.test(value);
@@ -200,7 +215,7 @@ export function validateGetPeginStatusResponse(
 
   if (!DAEMON_STATUS_VALUES.has(r.status)) {
     throw new VpResponseValidationError(
-      `VP response validation failed: unrecognized status "${r.status}". Expected one of: ${[...DAEMON_STATUS_VALUES].join(", ")}`,
+      `${UNRECOGNIZED_STATUS_ERROR_PREFIX} ${preview(r.status)}. Expected one of: ${[...DAEMON_STATUS_VALUES].join(", ")}`,
     );
   }
 
@@ -354,11 +369,15 @@ function validatePresignDataPerChallenger(value: unknown, field: string): void {
     );
   }
 
+  // Each entry is a SHA-256 digest. The presign fingerprint hashes these
+  // unframed, so a wrong length must fail here, before any signing prompt.
   for (let i = 0; i < d.output_label_hashes.length; i++) {
-    assertNonEmptyHex(
-      d.output_label_hashes[i],
-      `${field}.output_label_hashes[${i}]`,
-    );
+    const hash: unknown = d.output_label_hashes[i];
+    if (!isNonEmptyHex(hash) || hash.length !== LABEL_HASH_HEX_LEN) {
+      throw new VpResponseValidationError(
+        `VP response validation failed: "${field}.output_label_hashes[${i}]" must be a ${LABEL_HASH_HEX_LEN}-char hex string, got ${preview(hash)}`,
+      );
+    }
   }
 }
 
@@ -540,6 +559,8 @@ function assertNullableString(value: unknown, field: string): void {
  * Validate a `batchGetPeginStatusByVaultId` response. Per-result envelope:
  * `{ vault_id, result: GetPeginStatusResponse | null, error: string | null }`.
  * The inner result (when non-null) is validated via the single-item validator.
+ * An entry whose inner result fails validation is replaced by an error entry;
+ * the other entries are kept.
  */
 export function validateBatchGetPeginStatusResponse(
   response: unknown,
@@ -619,7 +640,18 @@ function validateBatchEnvelope(
         `VP response validation failed: "${rpcName}.results[${i}]" has both "result" and "error" populated`,
       );
     }
-    validateInnerResult(e as unknown as BatchResultEnvelope, i);
+    // Isolate a bad inner result to its own entry, so one malformed or
+    // unknown-status entry does not void the status of its siblings.
+    try {
+      validateInnerResult(e as unknown as BatchResultEnvelope, i);
+    } catch (error) {
+      if (!(error instanceof VpResponseValidationError)) throw error;
+      r.results[i] = {
+        vault_id: e.vault_id,
+        result: null,
+        error: error.detail,
+      };
+    }
   }
 }
 

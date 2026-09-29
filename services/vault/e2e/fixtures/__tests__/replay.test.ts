@@ -5,13 +5,22 @@
 // the secp256k1 asm.js build validates its inputs with `instanceof
 // Uint8Array`, and under jsdom a Node `Buffer` belongs to a different realm:
 // every point is rejected as "Expected Point" and `initEccLib` fails.
+import { getPosition } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 import * as ecc from "@bitcoin-js/tiny-secp256k1-asmjs";
 import { initEccLib, networks, payments } from "bitcoinjs-lib";
-import { encodeFunctionData, parseAbi } from "viem";
+import {
+  createPublicClient,
+  custom,
+  decodeFunctionResult,
+  encodeFunctionData,
+  parseAbi,
+  type Hex,
+} from "viem";
+import { sepolia } from "viem/chains";
 import { describe, expect, it } from "vitest";
 
 import { buildRecordedChain } from "../replay/chain";
-import { RECORDED_DEPOSITOR } from "../replay/contracts";
+import { RECORDED_DEPLOYMENT, RECORDED_DEPOSITOR } from "../replay/contracts";
 import { isDroppedHost, loadRecordedRun } from "../replay/recording";
 
 const MULTICALL3_ABI = parseAbi([
@@ -102,6 +111,61 @@ describe("loadRecordedRun", () => {
 });
 
 describe("buildRecordedChain", () => {
+  it("replays the recorded no-proxy revert as no position", async () => {
+    const chain = buildRecordedChain(loadRecordedRun());
+    const client = createPublicClient({
+      chain: sepolia,
+      batch: { multicall: true },
+      transport: custom({
+        request: async ({ method, params }) => {
+          expect(method).toBe("eth_call");
+          const [call] = params as [{ data: Hex }];
+          return chain.answerMulticall(call.data);
+        },
+      }),
+    });
+
+    await expect(
+      getPosition(
+        client,
+        RECORDED_DEPLOYMENT.AAVE_ADAPTER,
+        RECORDED_DEPOSITOR.ETH_ADDRESS,
+      ),
+    ).resolves.toBeNull();
+    expect(chain.unanswered).toEqual([]);
+  });
+
+  it("does not reuse the recorded no-proxy revert for another account", () => {
+    const chain = buildRecordedChain(loadRecordedRun());
+    const callData = encodeFunctionData({
+      abi: parseAbi(["function getPosition(address user)"]),
+      args: [RECORDED_DEPLOYMENT.AAVE_ADAPTER],
+    });
+
+    chain.answerMulticall(
+      encodeFunctionData({
+        abi: MULTICALL3_ABI,
+        functionName: "aggregate3",
+        args: [
+          [
+            {
+              target: RECORDED_DEPLOYMENT.AAVE_ADAPTER,
+              allowFailure: true,
+              callData,
+            },
+          ],
+        ],
+      }),
+    );
+
+    expect(chain.unanswered).toEqual([
+      {
+        target: RECORDED_DEPLOYMENT.AAVE_ADAPTER,
+        selector: callData.slice(0, 10),
+      },
+    ]);
+  });
+
   it("answers an inner call that was only ever recorded inside a batch", () => {
     const run = loadRecordedRun();
     const chain = buildRecordedChain(run);
@@ -306,5 +370,39 @@ describe("buildRecordedChain", () => {
     // 3 is the id the recorded GetAaveAppConfig response reports; the app
     // throws unless the on-chain read agrees with it.
     expect(BigInt(answer ?? "0x0")).toBe(3n);
+  });
+
+  it("supplies a reserve the recording never read on-chain, from its recorded row", () => {
+    // The recording holds `getReserve` for reserve 3 only. Reserve 0's answer
+    // is rebuilt from its recorded GetAaveAppConfig row, on the spoke the
+    // recorded adapter reports; the app throws unless the two agree.
+    const run = loadRecordedRun();
+    const chain = buildRecordedChain(run);
+    const abi = parseAbi([
+      "struct Reserve { address underlying; address hub; uint16 assetId; uint8 decimals; uint24 collateralRisk; uint8 flags; uint32 dynamicConfigKey; }",
+      "function getReserve(uint256 reserveId) view returns (Reserve)",
+    ]);
+
+    const answer = chain.answerCall(
+      "0xb2884144a43b40cb3a89042b3e94f0f1e41cd022",
+      encodeFunctionData({ abi, args: [0n] }),
+    );
+
+    expect(answer).not.toBeNull();
+    expect(
+      decodeFunctionResult({
+        abi,
+        functionName: "getReserve",
+        data: answer ?? "0x",
+      }),
+    ).toEqual({
+      underlying: "0xB588C1bd8A6cd3F114A52a0AD916778B419ECf48",
+      hub: "0xb54F1D4a6beA627a0910652ab047b30A32F3EAF0",
+      assetId: 0,
+      decimals: 6,
+      collateralRisk: 0,
+      flags: 4,
+      dynamicConfigKey: 0,
+    });
   });
 });

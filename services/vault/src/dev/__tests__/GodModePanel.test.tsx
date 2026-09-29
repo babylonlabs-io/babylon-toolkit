@@ -188,8 +188,6 @@ describe("demoDeposit builders", () => {
 
     expect(demo.rows.map((row) => row.amount)).toEqual(["1500", "500"]);
     expect(demo.rows.map((row) => row.isBorrowable)).toEqual([true, false]);
-    // The summary totals the rendered rows, so the mock debt must add up.
-    expect(demo.debtUsd).toBe(2000);
     // Safety: a mock row must never reach the real borrow/repay overlay.
     expect(demo.rows.every((row) => row.displayOnly)).toBe(true);
     // Distinct, non-numeric ids that cannot collide with a real reserveId.
@@ -218,6 +216,19 @@ describe("demoDeposit builders", () => {
       TEST_SYMBOL,
     ).rows;
     expect(rateRow.borrowRate).toBeUndefined();
+  });
+
+  it("names a hub on every demo loan row, including an unregistered one", () => {
+    const scenarios = loanScenarios(TEST_SYMBOL);
+    const demo = buildLoansDemo(
+      scenarios.map((_, index) => loanItem(index + 1, index, "100")),
+      false,
+      TEST_SYMBOL,
+    );
+
+    expect(demo.rows.every((row) => row.hub.label.length > 0)).toBe(true);
+    expect(demo.rows.some((row) => row.hub.source === "registry")).toBe(true);
+    expect(demo.rows.some((row) => row.hub.source === "address")).toBe(true);
   });
 
   it("ignores items of other types when building the loan rows", () => {

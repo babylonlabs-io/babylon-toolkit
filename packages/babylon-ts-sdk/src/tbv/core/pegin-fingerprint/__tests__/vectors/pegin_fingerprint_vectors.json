@@ -1,0 +1,67 @@
+{
+  "description": "Golden vectors for the peg-in fingerprint that BTCVaultRegistry.submitPeginRequest recomputes. Off-chain builders (web, depositor-cli) must reproduce `fingerprint` from the listed fields. `encoded` is the abi.encode preimage; compare against it first to locate a field-order or width bug.",
+  "source": "src/protocol/lib/PeginLogic.sol:_peginFingerprint",
+  "domainPreimage": "TBV.PeginFingerprint.v1",
+  "domain": "0x7a76c7af21338f0474e4755a879f9ae8b6351b37d1a2e79e88e1ae95f20ea24b",
+  "encoding": "keccak256(abi.encode(bytes32 domain, uint256 chainId, address registry, bytes32 vaultProviderBtcKey, uint64 appKeeperKeyEpoch, uint64 ucKeyEpoch, uint16 appVaultKeepersVersion, uint16 universalChallengersVersion, uint16 offchainParamsVersion, uint16 vaultCoreVersion))",
+  "regenerate": "cast abi-encode 'f(bytes32,uint256,address,bytes32,uint64,uint64,uint16,uint16,uint16,uint16)' <domain> <chainId> <registry> <vaultProviderBtcKey> <appKeeperKeyEpoch> <ucKeyEpoch> <appVaultKeepersVersion> <universalChallengersVersion> <offchainParamsVersion> <vaultCoreVersion> | cast keccak",
+  "fieldRule": "Every numeric field of every vector holds a different non-zero value. Equal values would let a wrong field order produce the correct fingerprint. test_peginFingerprintVectors_fieldsAreDistinctAndNonZero enforces this.",
+  "vectors": [
+    {
+      "name": "small_distinct_primes",
+      "chainId": 1,
+      "registry": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+      "vaultProviderBtcKey": "0x79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+      "appKeeperKeyEpoch": 3,
+      "ucKeyEpoch": 5,
+      "appVaultKeepersVersion": 7,
+      "universalChallengersVersion": 11,
+      "offchainParamsVersion": 13,
+      "vaultCoreVersion": 17,
+      "encoded": "0x7a76c7af21338f0474e4755a879f9ae8b6351b37d1a2e79e88e1ae95f20ea24b00000000000000000000000000000000000000000000000000000000000000010000000000000000000000005fbdb2315678afecb367f032d93f642f64180aa379be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798000000000000000000000000000000000000000000000000000000000000000300000000000000000000000000000000000000000000000000000000000000050000000000000000000000000000000000000000000000000000000000000007000000000000000000000000000000000000000000000000000000000000000b000000000000000000000000000000000000000000000000000000000000000d0000000000000000000000000000000000000000000000000000000000000011",
+      "fingerprint": "0xe18d2cbf355cd69b44df7797eac6ad8c2dc522d328b63d20faa4f0be432cd73c"
+    },
+    {
+      "name": "rotated_epochs_on_sepolia",
+      "chainId": 11155111,
+      "registry": "0x8464135c8F25Da09e49BC8782676a84730C318bC",
+      "vaultProviderBtcKey": "0xc6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee5",
+      "appKeeperKeyEpoch": 19,
+      "ucKeyEpoch": 23,
+      "appVaultKeepersVersion": 29,
+      "universalChallengersVersion": 31,
+      "offchainParamsVersion": 37,
+      "vaultCoreVersion": 41,
+      "encoded": "0x7a76c7af21338f0474e4755a879f9ae8b6351b37d1a2e79e88e1ae95f20ea24b0000000000000000000000000000000000000000000000000000000000aa36a70000000000000000000000008464135c8f25da09e49bc8782676a84730c318bcc6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee500000000000000000000000000000000000000000000000000000000000000130000000000000000000000000000000000000000000000000000000000000017000000000000000000000000000000000000000000000000000000000000001d000000000000000000000000000000000000000000000000000000000000001f00000000000000000000000000000000000000000000000000000000000000250000000000000000000000000000000000000000000000000000000000000029",
+      "fingerprint": "0x3234b02ce971a79f7994bcd08858a5c8a785f42546bfcbe6eb4f3468d2fe3c07"
+    },
+    {
+      "name": "widths_above_uint8_and_uint32",
+      "chainId": 84532,
+      "registry": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+      "vaultProviderBtcKey": "0x2f8bde4d1a07209355b4a7250a5c5128e88b84bddc619ab7cba8d569b240efe4",
+      "appKeeperKeyEpoch": 4294967297,
+      "ucKeyEpoch": 8589934593,
+      "appVaultKeepersVersion": 257,
+      "universalChallengersVersion": 513,
+      "offchainParamsVersion": 1025,
+      "vaultCoreVersion": 2049,
+      "encoded": "0x7a76c7af21338f0474e4755a879f9ae8b6351b37d1a2e79e88e1ae95f20ea24b0000000000000000000000000000000000000000000000000000000000014a34000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb482f8bde4d1a07209355b4a7250a5c5128e88b84bddc619ab7cba8d569b240efe4000000000000000000000000000000000000000000000000000000010000000100000000000000000000000000000000000000000000000000000002000000010000000000000000000000000000000000000000000000000000000000000101000000000000000000000000000000000000000000000000000000000000020100000000000000000000000000000000000000000000000000000000000004010000000000000000000000000000000000000000000000000000000000000801",
+      "fingerprint": "0xcbd797c43df8acb1d6ff2879bd679333fc53f07fc782389389ff4dfb5561e0e0"
+    },
+    {
+      "name": "maximum_field_values",
+      "chainId": 1337,
+      "registry": "0xfFfFfFffFFfffFFfFFfFFFFFffFFFffffFfFFFfF",
+      "vaultProviderBtcKey": "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "appKeeperKeyEpoch": 18446744073709551615,
+      "ucKeyEpoch": 18446744073709551614,
+      "appVaultKeepersVersion": 65535,
+      "universalChallengersVersion": 65534,
+      "offchainParamsVersion": 65533,
+      "vaultCoreVersion": 65532,
+      "encoded": "0x7a76c7af21338f0474e4755a879f9ae8b6351b37d1a2e79e88e1ae95f20ea24b0000000000000000000000000000000000000000000000000000000000000539000000000000000000000000ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff000000000000000000000000000000000000000000000000ffffffffffffffff000000000000000000000000000000000000000000000000fffffffffffffffe000000000000000000000000000000000000000000000000000000000000ffff000000000000000000000000000000000000000000000000000000000000fffe000000000000000000000000000000000000000000000000000000000000fffd000000000000000000000000000000000000000000000000000000000000fffc",
+      "fingerprint": "0x6d1d1ca224b5b1c19edc950f1376f3982fb0ea0d6f390b934f2a85a250017245"
+    }
+  ]
+}

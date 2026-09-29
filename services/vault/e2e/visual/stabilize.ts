@@ -11,13 +11,11 @@
  *   That reset is a `*` + `!important` rule, so it beats every component
  *   rule regardless of source order - no per-component masking needed.
  * - **The loader spinner** is the one documented exception the reset
- *   deliberately keeps running (`.bbn-loader`, see docs/motion-system.md).
+ *   deliberately keeps running (`.bbn-loader`, re-enabled in core-ui index.css).
  *   A functional spinner is exactly what a screenshot catches mid-frame,
  *   so `FREEZE_SPINNER_CSS` stops it at a fixed angle.
- * - **Clock-derived copy** (relative timestamps, countdowns, expiry) is
- *   pinned with `setFixedTime`. Deliberately NOT `clock.install()`:
- *   full fake timers stall React Query's retry/refetch scheduling and
- *   the app never reaches a settled frame.
+ * - **Clock-derived copy** stays pinned with `setFixedTime`. Timers
+ *   keep React Query's retry and refetch scheduling active.
  * - **Web fonts** are self-hosted woff2 (`src/globals.css`), so there is
  *   no CDN race - but the first paint can still land before Px-Grotesk
  *   swaps in, so we await `document.fonts.ready`.
@@ -25,24 +23,10 @@
  *   covered by `waitForVisualStability`, which polls until the rendered
  *   frame stops changing rather than guessing a fixed delay.
  *
- * The stability poll photographs the VIEWPORT, never the full page. A
- * full-page screenshot of a page taller than the viewport makes Playwright
- * take Chromium's `captureBeyondViewport` path, and Chromium emulates a
- * 1x1 viewport for a moment while it does. The page gets a real `resize`
- * event with `window.innerWidth === 1`, then a restore ~10-250ms later.
- * Any throttled or debounced resize listener in app code takes the 1x1
- * edge and keeps it: `setFixedTime` above freezes `Date.now()` for the
- * life of the page, lodash.throttle derives its window from `Date.now()`,
- * so the trailing edge never fires and the restore is discarded. That is
- * how core-ui's `useIsMobile` latched to `true` and five desktop routes
- * were photographed as the mobile tree. The wrong layout is then perfectly
- * static, so a pixel poll cannot tell it from a correct one.
- *
- * A viewport screenshot fires no resize event, so the poll stops causing
- * the defect it is meant to detect. It also stops seeing below the fold,
- * which two screens genuinely need, so the poll folds the document size
- * into the signal as well - see {@link readFrameSignature}. The capture
- * itself stays full-page; it is taken once, after the page has settled.
+ * The stability poll scrolls through overlapping viewport captures. This
+ * includes pixels below the fold without changing the viewport dimensions.
+ * Full-page polling triggers Chromium's temporary 1x1 viewport. With the
+ * fixed clock, throttled resize listeners can keep that incorrect size.
  */
 
 import type { Page } from "@playwright/test";
@@ -65,6 +49,31 @@ const FREEZE_SPINNER_CSS = `
     animation: none !important;
   }
 `;
+
+/**
+ * Hides the god-mode panel's collapsed launcher.
+ *
+ * The capture config turns the panel on (`NEXT_PUBLIC_FF_GOD_MODE_PANEL`) so
+ * `depositProgress.visual.spec.ts` can seed demo deposits through it, and the
+ * panel then renders a "God mode" pill fixed in the bottom-right corner of
+ * every screen. It is dev chrome that never ships, so it is hidden rather
+ * than photographed. Matched by its own classes (src/dev/GodModePanel.tsx)
+ * because the launcher carries no testid, and a testid added in `src/` would
+ * not exist on the merge-base side anyway; `capture.ts` asserts the launcher
+ * is gone before every shot, so a class change fails loud instead of quietly
+ * putting the pill in every picture.
+ */
+const HIDE_GOD_MODE_LAUNCHER_CSS = `
+  button.fixed.bottom-4.right-4.z-\\[9999\\] {
+    display: none !important;
+  }
+`;
+
+/**
+ * The half-viewport overlap (400px desktop, 422px mobile) must exceed the fixed
+ * header height so each document pixel appears in at least one capture.
+ */
+const STABILITY_SCROLL_STEP_RATIO = 0.5;
 
 /** How long the frame must stay byte-identical before we trust it. */
 const STABILITY_QUIET_MS = 300;
@@ -89,50 +98,101 @@ const MIN_RENDERED_TEXT_LENGTH = 20;
  */
 export async function installVisualDeterminism(page: Page): Promise<void> {
   await page.clock.setFixedTime(VISUAL_FIXED_TIME);
+  await page.addInitScript(() => {
+    window.addEventListener(
+      "resize",
+      (event) => {
+        if (
+          innerWidth === 1 &&
+          innerHeight === 1 &&
+          document.documentElement?.hasAttribute("data-visual-capture")
+        )
+          event.stopImmediatePropagation();
+      },
+      true,
+    );
+  });
 }
 
-/**
- * What one poll iteration compares. Two parts, because neither alone is
- * enough:
- *
- * - `pixels` is the viewport only. It sees everything above the fold and
- *   nothing below it, and it is the half that must not be full-page (see
- *   the header comment).
- * - `documentWidth` / `documentHeight` cover what the crop hides. A list
- *   that grows below the fold, a lazy chunk that lands off-screen and a
- *   collapsing skeleton all move the document box, so growth the pixels
- *   cannot show still reads as "not settled".
- *
- * A change to EITHER part means the screen is still moving.
- */
 interface FrameSignature {
   readonly pixels: Buffer;
   readonly documentWidth: number;
   readonly documentHeight: number;
+  readonly frameCount: number;
+  readonly durationMs: number;
 }
 
-/**
- * Read one {@link FrameSignature} from the live page.
- *
- * The document box is measured BEFORE the pixels, and the order is not a
- * style choice. Reading `scrollWidth` forces a synchronous style and
- * layout flush. Ask for it right after a screenshot and the flush lands
- * between that raster and the next one, which moves the antialiasing of a
- * rounded corner by one grey level: the deposit dialog's amount card came
- * out two different ways across 12 runs of the same commit. Measure
- * first, photograph the layout that measurement settled, and every run
- * agrees again.
- */
-async function readFrameSignature(page: Page): Promise<FrameSignature> {
-  const { documentWidth, documentHeight } = await page.evaluate(() => ({
-    documentWidth: document.documentElement.scrollWidth,
-    documentHeight: document.documentElement.scrollHeight,
-  }));
-  const pixels = await page.screenshot();
-  return { pixels, documentWidth, documentHeight };
+/** Compare viewport pixels or overlapping captures of the full page. */
+async function readFrameSignature(
+  page: Page,
+  fullPage: boolean,
+): Promise<FrameSignature> {
+  const startedAt = performance.now();
+  // Measuring the document first settles layout and prevents unstable deposit card images.
+  const { documentWidth, documentHeight, viewportWidth, viewportHeight, x, y } =
+    await page.evaluate(() => ({
+      documentWidth: document.documentElement.scrollWidth,
+      documentHeight: document.documentElement.scrollHeight,
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight,
+      x: window.scrollX,
+      y: window.scrollY,
+    }));
+  const frames: Buffer[] = [];
+  const maxX = Math.max(0, documentWidth - viewportWidth);
+  const maxY = Math.max(0, documentHeight - viewportHeight);
+  if (!fullPage || (maxX === 0 && maxY === 0)) {
+    return {
+      pixels: await page.screenshot(),
+      documentWidth,
+      documentHeight,
+      frameCount: 1,
+      durationMs: Math.round(performance.now() - startedAt),
+    };
+  }
+  const stepX = viewportWidth * STABILITY_SCROLL_STEP_RATIO;
+  const stepY = viewportHeight * STABILITY_SCROLL_STEP_RATIO;
+  let scanFailed = false;
+  try {
+    for (let top = 0; ; top = Math.min(top + stepY, maxY)) {
+      for (let left = 0; ; left = Math.min(left + stepX, maxX)) {
+        await page.evaluate(
+          ([left, top]) => window.scrollTo({ left, top, behavior: "instant" }),
+          [left, top],
+        );
+        frames.push(await page.screenshot());
+        if (left === maxX) break;
+      }
+      if (top === maxY) break;
+    }
+  } catch (error) {
+    scanFailed = true;
+    throw error;
+  } finally {
+    await page
+      .evaluate(
+        ([left, top]) => window.scrollTo({ left, top, behavior: "instant" }),
+        [x, y],
+      )
+      .catch((error) => {
+        if (!scanFailed) throw error;
+        // eslint-disable-next-line no-console -- Keep the secondary browser failure in the test log.
+        console.error(
+          "Scroll restoration also failed after the visual scan:",
+          error,
+        );
+      });
+  }
+  return {
+    pixels: Buffer.concat(frames),
+    documentWidth,
+    documentHeight,
+    frameCount: frames.length,
+    durationMs: Math.round(performance.now() - startedAt),
+  };
 }
 
-/** True only when both halves of the signal are unchanged. */
+/** Dimensions detect document growth; pixels detect paint changes at the same size. */
 function isSameFrame(a: FrameSignature, b: FrameSignature): boolean {
   return (
     a.documentWidth === b.documentWidth &&
@@ -150,7 +210,10 @@ function isSameFrame(a: FrameSignature, b: FrameSignature): boolean {
  * the harness: it converts "the app is still settling" from a
  * false-positive diff into a wait.
  */
-export async function waitForVisualStability(page: Page): Promise<void> {
+export async function waitForVisualStability(
+  page: Page,
+  fullPage = true,
+): Promise<void> {
   // MUST come before the stability poll below. An empty page is
   // trivially "stable" - two blank frames in a row match, the loop
   // returns in ~600ms, and every screen silently becomes a blank white
@@ -167,18 +230,20 @@ export async function waitForVisualStability(page: Page): Promise<void> {
     { timeout: RENDER_TIMEOUT_MS },
   );
 
-  await page.addStyleTag({ content: FREEZE_SPINNER_CSS });
+  await page.addStyleTag({
+    content: FREEZE_SPINNER_CSS + HIDE_GOD_MODE_LAUNCHER_CSS,
+  });
   await page.evaluate(async () => {
     await document.fonts.ready;
   });
 
   const deadline = Date.now() + STABILITY_TIMEOUT_MS;
-  let previous = await readFrameSignature(page);
+  let previous = await readFrameSignature(page, fullPage);
   let matches = 0;
 
   while (Date.now() < deadline) {
     await page.waitForTimeout(STABILITY_QUIET_MS);
-    const current = await readFrameSignature(page);
+    const current = await readFrameSignature(page, fullPage);
 
     if (isSameFrame(current, previous)) {
       matches += 1;
@@ -191,7 +256,8 @@ export async function waitForVisualStability(page: Page): Promise<void> {
 
   throw new Error(
     `Page did not reach a stable frame within ${STABILITY_TIMEOUT_MS}ms. ` +
-      `Something on this screen animates or refetches indefinitely - freeze it ` +
-      `in stabilize.ts rather than accepting a flaky baseline.`,
+      `Last scan: ${previous.frameCount} captures in ${previous.durationMs}ms ` +
+      `for a ${previous.documentWidth}x${previous.documentHeight}px document. ` +
+      `Check scan cost, animations, and refetches before changing the timeout.`,
   );
 }

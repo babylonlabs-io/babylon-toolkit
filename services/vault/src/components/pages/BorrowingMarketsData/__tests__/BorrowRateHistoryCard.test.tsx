@@ -37,7 +37,13 @@ describe("BorrowRateHistoryCard", () => {
       error: null,
     });
 
-    render(<BorrowRateHistoryCard reserveId={5n} symbol="vBTC" />);
+    render(
+      <BorrowRateHistoryCard
+        reserveId={5n}
+        symbol="vBTC"
+        hubLabel="Core Hub"
+      />,
+    );
 
     expect(mockedUseBorrowRateHistory).toHaveBeenCalledWith({
       reserveId: 5n,
@@ -61,7 +67,11 @@ describe("BorrowRateHistoryCard", () => {
     });
 
     const { container } = render(
-      <BorrowRateHistoryCard reserveId={5n} symbol="vBTC" />,
+      <BorrowRateHistoryCard
+        reserveId={5n}
+        symbol="vBTC"
+        hubLabel="Core Hub"
+      />,
     );
 
     const chartRoot = container.querySelector(".bbn-line-chart");
@@ -92,7 +102,13 @@ describe("BorrowRateHistoryCard", () => {
           },
     );
 
-    render(<BorrowRateHistoryCard reserveId={5n} symbol="vBTC" />);
+    render(
+      <BorrowRateHistoryCard
+        reserveId={5n}
+        symbol="vBTC"
+        hubLabel="Core Hub"
+      />,
+    );
 
     expect(screen.getByTestId("borrow-rate-history-figure")).toHaveTextContent(
       "3.5%",
@@ -118,7 +134,13 @@ describe("BorrowRateHistoryCard", () => {
       error: null,
     });
 
-    render(<BorrowRateHistoryCard reserveId={5n} symbol="vBTC" />);
+    render(
+      <BorrowRateHistoryCard
+        reserveId={5n}
+        symbol="vBTC"
+        hubLabel="Core Hub"
+      />,
+    );
 
     expect(screen.getByText(COPY.common.loading)).toBeInTheDocument();
   });
@@ -130,7 +152,13 @@ describe("BorrowRateHistoryCard", () => {
       error: new Error("indexer down"),
     });
 
-    render(<BorrowRateHistoryCard reserveId={5n} symbol="vBTC" />);
+    render(
+      <BorrowRateHistoryCard
+        reserveId={5n}
+        symbol="vBTC"
+        hubLabel="Core Hub"
+      />,
+    );
 
     expect(
       screen.getByText(COPY.marketData.charts.chartUnavailable),
@@ -144,7 +172,13 @@ describe("BorrowRateHistoryCard", () => {
       error: null,
     });
 
-    render(<BorrowRateHistoryCard reserveId={5n} symbol="vBTC" />);
+    render(
+      <BorrowRateHistoryCard
+        reserveId={5n}
+        symbol="vBTC"
+        hubLabel="Core Hub"
+      />,
+    );
 
     expect(
       screen.getByText(COPY.marketData.charts.historyEmpty),
@@ -162,7 +196,11 @@ describe("BorrowRateHistoryCard", () => {
     });
 
     const { container } = render(
-      <BorrowRateHistoryCard reserveId={5n} symbol="vBTC" />,
+      <BorrowRateHistoryCard
+        reserveId={5n}
+        symbol="vBTC"
+        hubLabel="Core Hub"
+      />,
     );
 
     // jsdom reports an all-zero client rect for the hit area, so `clientX`

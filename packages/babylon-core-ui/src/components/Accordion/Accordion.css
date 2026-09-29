@@ -18,7 +18,7 @@
   }
 
   &-content[data-expanded="true"] {
-    animation: bbn-accordion-content-in var(--motion-duration-dropdown, 0ms) var(--motion-ease-dropdown-in, ease) forwards;
+    animation: bbn-accordion-content-in var(--motion-duration-dropdown, 0ms) var(--motion-ease-dropdown-in, ease);
   }
 
   &-icon {

@@ -13,6 +13,7 @@ import type { GetPeginStatusResponse } from "@babylonlabs-io/ts-sdk/tbv/core/cli
 import {
   batchPollByProvider,
   DaemonStatus,
+  isUnrecognizedDaemonStatusError,
   VP_TRANSIENT_STATUSES,
   VpResponseValidationError,
 } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
@@ -38,6 +39,7 @@ import {
   groupDepositsByProvider,
   isTerminalPollingError,
   TerminalPeginPollingError,
+  UNRECOGNIZED_DAEMON_STATUS,
 } from "../../utils/peginPolling";
 import { createVpClient } from "../../utils/rpc";
 import { canonicalizeTxid } from "../../utils/txid";
@@ -46,6 +48,8 @@ interface UsePeginPollingQueryParams {
   activities: VaultActivity[];
   pendingPegins: PendingPeginRequest[];
   btcPublicKey?: string;
+  /** True when the session runs without a Bitcoin wallet (Ethereum-only). */
+  btcWalletAbsent?: boolean;
 }
 
 /** Result from polling query */
@@ -188,17 +192,47 @@ async function fetchFromProvider(
   });
 }
 
+// Daemon statuses that end polling, with the message each one shows.
+// RFC 003: EXPIRED is a grace-window interim where the depositor can still
+// reclaim the HTLC via the refund preimage, so its copy is a recoverable hint.
+const TERMINAL_STATUS_MESSAGES: ReadonlyMap<DaemonStatus, string> = new Map([
+  [DaemonStatus.EXPIRED, COPY.pegin.statusErrors.expired],
+  [DaemonStatus.EXPIRED_CLEANED_UP, COPY.pegin.statusErrors.expiredCleanedUp],
+  [DaemonStatus.EXPIRED_IN_CLAIM, COPY.pegin.statusErrors.expiredInClaim],
+  [DaemonStatus.INGESTION_REJECTED, COPY.pegin.statusErrors.ingestionRejected],
+  [
+    DaemonStatus.INVALID_SIG_IN_CONTRACT,
+    COPY.pegin.statusErrors.invalidSigInContract,
+  ],
+  [DaemonStatus.AML_REJECTED, COPY.pegin.statusErrors.amlRejected],
+  [DaemonStatus.BABE_SETUP_FAILED, COPY.pegin.statusErrors.babeSetupFailed],
+]);
+
 interface DepositSets {
   errors: Map<string, Error>;
   needsWotsKey: Set<string>;
   pendingIngestion: Set<string>;
 }
 
-function applyPerDepositError(
+export function applyPerDepositError(
   errorMessage: string,
   depositId: string,
   sets: DepositSets,
 ): void {
+  // A status the SDK does not know: stop polling this deposit and report it.
+  // Checked first, as in batchReadiness: the error quotes the VP's status
+  // text, which can contain "PegIn not found".
+  if (isUnrecognizedDaemonStatusError(errorMessage)) {
+    sets.errors.set(
+      depositId,
+      new TerminalPeginPollingError(
+        UNRECOGNIZED_DAEMON_STATUS,
+        COPY.pegin.statusErrors.unrecognizedStatus,
+      ),
+    );
+    sets.needsWotsKey.delete(depositId);
+    return;
+  }
   // "PegIn not found" — VP hasn't ingested yet, treat as still-pending.
   if (errorMessage.includes("PegIn not found")) {
     sets.errors.delete(depositId);
@@ -235,76 +269,11 @@ export function applyPerDepositStatus(
     return;
   }
 
-  if (status === DaemonStatus.EXPIRED) {
-    // RFC 003: EXPIRED is a grace-window interim where the depositor can
-    // still reclaim the HTLC via the refund preimage. Surfaces a
-    // recoverable hint rather than a hard-terminal failure.
+  const terminalMessage = TERMINAL_STATUS_MESSAGES.get(status as DaemonStatus);
+  if (terminalMessage !== undefined) {
     sets.errors.set(
       depositId,
-      new TerminalPeginPollingError(
-        DaemonStatus.EXPIRED,
-        COPY.pegin.statusErrors.expired,
-      ),
-    );
-    sets.needsWotsKey.delete(depositId);
-    return;
-  }
-
-  if (status === DaemonStatus.EXPIRED_CLEANED_UP) {
-    sets.errors.set(
-      depositId,
-      new TerminalPeginPollingError(
-        DaemonStatus.EXPIRED_CLEANED_UP,
-        COPY.pegin.statusErrors.expiredCleanedUp,
-      ),
-    );
-    sets.needsWotsKey.delete(depositId);
-    return;
-  }
-
-  if (status === DaemonStatus.EXPIRED_IN_CLAIM) {
-    sets.errors.set(
-      depositId,
-      new TerminalPeginPollingError(
-        DaemonStatus.EXPIRED_IN_CLAIM,
-        COPY.pegin.statusErrors.expiredInClaim,
-      ),
-    );
-    sets.needsWotsKey.delete(depositId);
-    return;
-  }
-
-  if (status === DaemonStatus.INGESTION_REJECTED) {
-    sets.errors.set(
-      depositId,
-      new TerminalPeginPollingError(
-        DaemonStatus.INGESTION_REJECTED,
-        COPY.pegin.statusErrors.ingestionRejected,
-      ),
-    );
-    sets.needsWotsKey.delete(depositId);
-    return;
-  }
-
-  if (status === DaemonStatus.INVALID_SIG_IN_CONTRACT) {
-    sets.errors.set(
-      depositId,
-      new TerminalPeginPollingError(
-        DaemonStatus.INVALID_SIG_IN_CONTRACT,
-        COPY.pegin.statusErrors.invalidSigInContract,
-      ),
-    );
-    sets.needsWotsKey.delete(depositId);
-    return;
-  }
-
-  if (status === DaemonStatus.AML_REJECTED) {
-    sets.errors.set(
-      depositId,
-      new TerminalPeginPollingError(
-        DaemonStatus.AML_REJECTED,
-        COPY.pegin.statusErrors.amlRejected,
-      ),
+      new TerminalPeginPollingError(status as DaemonStatus, terminalMessage),
     );
     sets.needsWotsKey.delete(depositId);
     return;
@@ -332,39 +301,42 @@ export function usePeginPollingQuery({
   activities,
   pendingPegins,
   btcPublicKey,
+  btcWalletAbsent = false,
 }: UsePeginPollingQueryParams): UsePeginPollingQueryResult {
   // Identify deposits that need polling
   const depositsToPoll = useMemo(
-    () => getDepositsNeedingPolling(activities, pendingPegins, btcPublicKey),
-    [activities, pendingPegins, btcPublicKey],
+    () =>
+      getDepositsNeedingPolling(
+        activities,
+        pendingPegins,
+        btcPublicKey,
+        btcWalletAbsent,
+      ),
+    [activities, pendingPegins, btcPublicKey, btcWalletAbsent],
   );
 
-  // Use refs to access latest values in queryFn without stale closures
+  // Use a ref to access the latest deposits in queryFn without stale closures
   const depositsRef = useRef(depositsToPoll);
-  const btcPubKeyRef = useRef(btcPublicKey);
 
-  // Keep refs updated
+  // Keep the ref updated
   useEffect(() => {
     depositsRef.current = depositsToPoll;
-    btcPubKeyRef.current = btcPublicKey;
-  }, [depositsToPoll, btcPublicKey]);
+  }, [depositsToPoll]);
 
-  // Only enable when all required data is ready:
-  // - btcPublicKey from wallet
-  // - deposits to poll (pending deposits)
-  const isEnabled = !!btcPublicKey && depositsToPoll.length > 0;
+  // Status reads use transaction IDs. Signing keeps its wallet checks.
+  const isEnabled = depositsToPoll.length > 0;
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: [
       "peginPolling",
       btcPublicKey,
+      btcWalletAbsent,
       depositsToPoll.map((d) => d.activity.id).join(","),
     ],
     queryFn: async (): Promise<PollingQueryData> => {
       const currentDeposits = depositsRef.current;
-      const currentBtcPubKey = btcPubKeyRef.current;
 
-      if (!currentBtcPubKey || currentDeposits.length === 0) {
+      if (currentDeposits.length === 0) {
         return {
           polledIds: [],
           errors: new Map<string, Error>(),

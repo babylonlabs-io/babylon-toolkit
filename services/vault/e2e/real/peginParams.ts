@@ -19,11 +19,13 @@ import {
   BPS_SCALE,
   computeMinDepositForSplit,
   computeSeizedFraction,
+  computeSplitLiquidationBonus,
+  EXPECTED_HEALTH_FACTOR_AT_LIQUIDATION,
   getDynamicReserveConfig,
+  getLiquidationBonusConfig,
   getPositionSizeParams,
   getReserve,
-  getTargetHealthFactor,
-  wadToNumber,
+  SPLIT_TARGET_HEALTH_FACTOR,
 } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 import { gql } from "graphql-request";
 import { type Address, type PublicClient } from "viem";
@@ -40,12 +42,6 @@ import {
 const SATS_PER_BTC = 100_000_000n;
 /** BTC has 8 decimal places (1 BTC = 1e8 sats) — the fractional width for the amount string. */
 const BTC_DECIMALS = 8;
-
-// Two-vault split risk constants — mirror `services/vault/src/applications/aave/constants.ts`
-// (EXPECTED_HEALTH_FACTOR_AT_LIQUIDATION, VAULT_SPLIT_SAFETY_MARGIN). They feed the SDK split math
-// exactly as the app's `useOptimalSplit` does, so the fetched split minimum matches the form.
-const EXPECTED_HEALTH_FACTOR_AT_LIQUIDATION = 0.95;
-const VAULT_SPLIT_SAFETY_MARGIN = 1.05;
 
 /** A vault provider as offered in the CLI menu. `available` mirrors the app's metadata gating. */
 export interface ProviderChoice {
@@ -91,7 +87,8 @@ export async function fetchMinDepositBtc(
  * Fetch the minimum deposit required to enable a TWO-VAULT split for `network`, formatted as a BTC
  * string — the same value the deposit form shows in its "increase your deposit to at least X sBTC"
  * hint. This is NOT a plain protocol param: it mirrors the app's `useOptimalSplit` / `useVaultSplitParams`
- * chain — `minPegin` from ProtocolParams, plus the Aave Core Spoke risk params (THF/CF/LB) — fed through
+ * chain — `minPegin` from ProtocolParams, the Aave Core Spoke risk params (CF, and LB from the bonus
+ * curve at the expected HF), and the SDK's split THF and expected-HF constants — fed through
  * the SDK's `computeSeizedFraction` + `computeMinDepositForSplit` (the frozen split math is NOT
  * reimplemented). It uses the reserve's current `dynamicConfigKey` (the no-position baseline), so a
  * depositor with an existing position opened under a since-rotated config may see a slightly different
@@ -121,13 +118,16 @@ export async function fetchMinDepositForSplitBtc(
     spokeAddress,
     reserveId,
   );
-  const [thfWad, dynamicConfig] = await Promise.all([
-    getTargetHealthFactor(client, spokeAddress),
+  const [bonusConfig, dynamicConfig] = await Promise.all([
+    getLiquidationBonusConfig(client, spokeAddress),
     getDynamicReserveConfig(client, spokeAddress, reserveId, dynamicConfigKey),
   ]);
-  const THF = wadToNumber(thfWad);
-  const CF = Number(dynamicConfig.collateralFactor) / BPS_SCALE;
-  const LB = Number(dynamicConfig.maxLiquidationBonus) / BPS_SCALE;
+  const THF = SPLIT_TARGET_HEALTH_FACTOR;
+  const CF = dynamicConfig.collateralFactor / BPS_SCALE;
+  const LB = computeSplitLiquidationBonus(
+    bonusConfig,
+    dynamicConfig.maxLiquidationBonus,
+  );
 
   // SDK split math, identical to useOptimalSplit: seized fraction → minimum deposit for a split.
   const seizedFraction = computeSeizedFraction(
@@ -139,7 +139,6 @@ export async function fetchMinDepositForSplitBtc(
   const minSplitSats = computeMinDepositForSplit({
     minPegin,
     seizedFraction,
-    safetyMargin: VAULT_SPLIT_SAFETY_MARGIN,
   });
   if (minSplitSats <= 0n)
     throw new Error(

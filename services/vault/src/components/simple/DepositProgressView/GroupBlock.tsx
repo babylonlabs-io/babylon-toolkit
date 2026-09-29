@@ -2,10 +2,10 @@
  * GroupBlock
  *
  * Renders one step group with the deposit-progress design: the active group
- * expands into a filled card (header → divider → sub-steps), while a collapsed
- * (upcoming) group renders as a single header row. Shared by the single-vault
- * stepper ({@link GroupedProgress}) and each lane of the split stepper
- * ({@link SplitGroupedProgress}) so both look identical.
+ * expands into a filled card (header → divider → sub-steps), while an
+ * un-started (pre-entry) group renders as a single header row. Shared by the
+ * single-vault stepper ({@link GroupedProgress}) and each lane of the split
+ * stepper ({@link SplitGroupedProgress}) so both look identical.
  */
 
 import type { StepperItem } from "@babylonlabs-io/core-ui";
@@ -15,7 +15,7 @@ import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps/types";
 
 import { GroupHeader } from "./GroupHeader";
 import { StepRow, type StepRowState } from "./StepRow";
-import { getVisualStep, type StepGroupView } from "./steps";
+import { getVisualStep, groupContainsStep, type StepGroupView } from "./steps";
 
 /** The step whose transaction the pre-sign fee rate pays for. */
 const PRE_PEGIN_VISUAL_STEP = getVisualStep(
@@ -27,14 +27,12 @@ interface GroupBlockProps {
   /** 1-based group number shown in the circle (original group position). */
   number: number;
   steps: StepperItem[];
-  /** Current visual step for this lane (shared trunk or per-vault column). */
+  /** Current visual step for this lane (shared trunk or per-vault lane). */
   currentStep: number;
   /** When true, this lane's current step failed — render it as an error. */
   hasError?: boolean;
   /** Detail panel rendered under the active sub-step. */
   activeStepDetail?: ReactNode;
-  /** Narrow per-vault column → stack each row's sub-counter below its label. */
-  compact?: boolean;
   /**
    * Pre-sign entry panel (the fee-rate selector). Passed only while the flow
    * has not started; renders inside this group's card under the Pre-PegIn
@@ -51,7 +49,6 @@ export function GroupBlock({
   currentStep,
   hasError = false,
   activeStepDetail,
-  compact = false,
   preSignDetail,
 }: GroupBlockProps) {
   // Pre-sign entry: this group owns the Pre-PegIn step, so it opens into the
@@ -65,6 +62,8 @@ export function GroupBlock({
     group.startStep <= PRE_PEGIN_VISUAL_STEP &&
     PRE_PEGIN_VISUAL_STEP <= group.endStep;
 
+  const headerHasError = hasError && groupContainsStep(group, currentStep);
+
   if (!group.expanded && !showPreSignDetail) {
     return (
       <GroupHeader
@@ -73,6 +72,7 @@ export function GroupBlock({
         status={group.status}
         completedInGroup={group.completedInGroup}
         totalInGroup={group.totalInGroup}
+        hasError={headerHasError}
       />
     );
   }
@@ -91,18 +91,17 @@ export function GroupBlock({
           status={group.status}
           completedInGroup={group.completedInGroup}
           totalInGroup={group.totalInGroup}
+          hasError={headerHasError}
         />
         <div className="border-t border-secondary-strokeLight" />
         <div className="flex flex-col gap-2 px-2">
           {showPreSignDetail ? (
             <>
               <StepRow
-                state="active"
+                state={headerHasError ? "error" : "active"}
                 number={PRE_PEGIN_VISUAL_STEP - group.startStep + 1}
                 ariaNumber={PRE_PEGIN_VISUAL_STEP}
                 label={steps[PRE_PEGIN_VISUAL_STEP - 1]?.label ?? ""}
-                compact={compact}
-                inCard
               />
               {preSignDetail}
             </>
@@ -129,9 +128,6 @@ export function GroupBlock({
                   label={step.label}
                   description={step.description}
                   detail={activeStepDetail}
-                  hasNext={subIndex < stepNumbers.length - 1}
-                  compact={compact}
-                  inCard
                 />
               );
             })

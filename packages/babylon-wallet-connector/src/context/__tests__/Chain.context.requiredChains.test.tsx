@@ -1,8 +1,9 @@
-import { renderHook, waitFor } from "@testing-library/react";
-import { type PropsWithChildren } from "react";
+import { act, render, renderHook, waitFor } from "@testing-library/react";
+import { type PropsWithChildren, useLayoutEffect } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ChainProvider, type ChainConfigArr, type ChainMetadataMap } from "@/context/Chain.context";
+import { StateProvider } from "@/context/State.context";
 import type { ChainId, HashMap } from "@/core/types";
 import { useWidgetState } from "@/hooks/useWidgetState";
 
@@ -89,5 +90,88 @@ describe("required chains", () => {
     // BBN has no metadata here, so no connector exists for it — but a chain the
     // host requires must not quietly drop out of the requirement set.
     expect(result.current.requiredChainIds).toContain("BBN");
+  });
+
+  it("exposes a widened requirement as unconfirmed on its first render", () => {
+    const snapshots: Array<{ confirmed: boolean; hostRequiredChainIds: readonly string[] }> = [];
+    let confirm: ((receipt: string) => void) | undefined;
+    const Probe = ({ hostRequiredChainIds }: { hostRequiredChainIds: readonly string[] }) => {
+      const state = useWidgetState();
+      confirm = state.confirm;
+      snapshots.push({ confirmed: state.confirmed, hostRequiredChainIds });
+      return null;
+    };
+    const initialRequiredChainIds = ["ETH"];
+    const widenedRequiredChainIds = ["BTC", "ETH"];
+    const view = render(
+      <StateProvider chains={[]} requiredChainIds={initialRequiredChainIds} storage={storage}>
+        <Probe hostRequiredChainIds={initialRequiredChainIds} />
+      </StateProvider>,
+    );
+    act(() => confirm?.("approved receipt"));
+    const firstWidenedRender = snapshots.length;
+
+    view.rerender(
+      <StateProvider chains={[]} requiredChainIds={widenedRequiredChainIds} storage={storage}>
+        <Probe hostRequiredChainIds={widenedRequiredChainIds} />
+      </StateProvider>,
+    );
+
+    expect(
+      snapshots.slice(firstWidenedRender).some(({ confirmed, hostRequiredChainIds }) =>
+        hostRequiredChainIds.includes("BTC") && confirmed,
+      ),
+    ).toBe(false);
+  });
+
+  it("uses committed requirements in an old wallet-removal callback", () => {
+    let state = {} as ReturnType<typeof useWidgetState>;
+    const Probe = () => {
+      state = useWidgetState();
+      return null;
+    };
+    const view = render(
+      <StateProvider chains={[]} requiredChainIds={["BTC", "ETH"]} storage={storage}>
+        <Probe />
+      </StateProvider>,
+    );
+    act(() => state.confirm?.("approved receipt"));
+    const oldRemoveWallet = state.removeWallet;
+
+    view.rerender(
+      <StateProvider chains={[]} requiredChainIds={["ETH"]} storage={storage}>
+        <Probe />
+      </StateProvider>,
+    );
+    act(() => oldRemoveWallet?.("BTC"));
+
+    expect(state.confirmed).toBe(true);
+    expect(state.confirmationReceipt).toBe("approved receipt");
+  });
+
+  it("uses narrowed requirements before child layout effects run", () => {
+    let state = {} as ReturnType<typeof useWidgetState>;
+    const Probe = ({ removeBtc }: { removeBtc: boolean }) => {
+      state = useWidgetState();
+      useLayoutEffect(() => {
+        if (removeBtc) state.removeWallet?.("BTC");
+      }, [removeBtc]);
+      return null;
+    };
+    const view = render(
+      <StateProvider chains={[]} requiredChainIds={["BTC", "ETH"]} storage={storage}>
+        <Probe removeBtc={false} />
+      </StateProvider>,
+    );
+    act(() => state.confirm?.("approved receipt"));
+
+    view.rerender(
+      <StateProvider chains={[]} requiredChainIds={["ETH"]} storage={storage}>
+        <Probe removeBtc />
+      </StateProvider>,
+    );
+
+    expect(state.confirmed).toBe(true);
+    expect(state.confirmationReceipt).toBe("approved receipt");
   });
 });

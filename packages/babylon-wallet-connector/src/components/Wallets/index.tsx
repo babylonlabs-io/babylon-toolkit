@@ -73,7 +73,7 @@ export const Wallets = memo(({ chain, className, append, onSelectWallet }: Walle
             <span className="text-accent-primary">{`${btcHint.prefix} (Taproot)`}</span>
             {" address."}
             {btcHint.showFaucet && (
-              <>
+              <span className="block">
                 {" Don't have testnet BTC yet? Get it from "}
                 <a
                   href={BTC_TESTNET_FAUCET_URL}
@@ -84,13 +84,13 @@ export const Wallets = memo(({ chain, className, append, onSelectWallet }: Walle
                   Faucet
                 </a>
                 {"."}
-              </>
+              </span>
             )}
           </Text>
         )}
       </div>
 
-      <div className="flex flex-col gap-4 p-6">
+      <div className="flex flex-col gap-2 p-6">
         {wallets.map((wallet) => (
           <WalletButton
             installed={wallet.installed}

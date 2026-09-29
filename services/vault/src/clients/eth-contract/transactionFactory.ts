@@ -21,11 +21,16 @@ import { getETHChain } from "@/config/network";
 import { logger } from "@/infrastructure";
 
 import {
+  isSimulationPhaseError,
   mapViemErrorToContractError,
   tagSimulationPhase,
 } from "../../utils/errors";
 
 import { ethClient } from "./client";
+import {
+  sendWithStaleNonceRetry,
+  waitForWalletToCountTransaction,
+} from "./walletNonce";
 
 /**
  * Standard transaction result
@@ -60,8 +65,8 @@ export interface ExecuteWriteOptions {
  *
  * Handles the common pattern:
  * 1. Pre-flight simulation (catches errors before user signs)
- * 2. Call writeContract
- * 3. Wait for transaction receipt
+ * 2. Call writeContract, once more after a stale-nonce rejection
+ * 3. Wait for transaction receipt, then for the wallet to count it
  * 4. Return hash + receipt
  * 5. Map errors to ContractError with ABI decoding
  */
@@ -94,35 +99,47 @@ export async function executeWrite(
     throw new Error("Wallet account not available");
   }
 
-  try {
-    // Pre-flight simulation - catches errors before user signs
-    await publicClient.simulateContract({
-      address,
-      abi,
-      functionName,
-      args,
-      account,
-    });
-  } catch (error) {
-    // Tagged so callers can safely auto-retry: nothing was signed or sent,
-    // and the failure may be a lagging RPC backend, not the chain.
-    throw tagSimulationPhase(
-      mapViemErrorToContractError(error, errorContext, [
-        abi as Abi,
-        ...(errorAbis ?? []),
-      ]),
-    );
-  }
+  // Pre-flight simulation - catches errors before user signs
+  const simulate = async () => {
+    try {
+      await publicClient.simulateContract({
+        address,
+        abi,
+        functionName,
+        args,
+        account,
+      });
+    } catch (error) {
+      // Tagged so callers can safely auto-retry: nothing was signed or sent,
+      // and the failure may be a lagging RPC backend, not the chain.
+      throw tagSimulationPhase(
+        mapViemErrorToContractError(error, errorContext, [
+          abi as Abi,
+          ...(errorAbis ?? []),
+        ]),
+      );
+    }
+  };
+  await simulate();
 
   try {
-    // Simulation passed, now send the actual transaction
-    const hash = await walletClient.writeContract({
-      address,
-      abi,
-      functionName,
-      args,
-      chain,
-      account,
+    // Simulation passed, now send the actual transaction. A send the wallet
+    // signed with a nonce used before it started is simulated and sent once
+    // more.
+    const hash = await sendWithStaleNonceRetry({
+      walletClient,
+      publicClient,
+      account: account.address,
+      send: () =>
+        walletClient.writeContract({
+          address,
+          abi,
+          functionName,
+          args,
+          chain,
+          account,
+        }),
+      prepare: simulate,
     });
 
     // Smart-account-aware: Externally Owned Account (EOA) wallets — controlled
@@ -133,6 +150,15 @@ export async function executeWrite(
       publicClient,
       walletAddress: account.address,
       hash,
+    });
+
+    // Before the flow asks the wallet for its next transaction, let the
+    // wallet's own node count this one, so it does not reuse the nonce.
+    await waitForWalletToCountTransaction({
+      walletClient,
+      publicClient,
+      account: account.address,
+      receipt,
     });
 
     // Check if transaction was reverted
@@ -157,6 +183,8 @@ export async function executeWrite(
       receipt,
     };
   } catch (error) {
+    // The simulation re-run before a stale-nonce retry is already mapped.
+    if (isSimulationPhaseError(error)) throw error;
     // Decode against the call's ABI plus any delegate ABIs (e.g. the Aave
     // adapter, whose errors the registry surfaces on activation).
     throw mapViemErrorToContractError(error, errorContext, [

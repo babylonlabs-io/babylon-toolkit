@@ -1,10 +1,10 @@
 import { createNanoEvents } from "nanoevents";
 
 import { Wallet } from "@/core/Wallet";
-import type { IConnector, IProvider } from "@/core/types";
-import { ERROR_CODES, WalletError } from "@/error";
+import type { DisconnectScope, IConnector, IProvider } from "@/core/types";
+import { ERROR_CODES, WalletError, isSharedSessionRefusal } from "@/error";
 
-type DisconnectableProvider = IProvider & { disconnect?: () => Promise<void> };
+type DisconnectableProvider = IProvider & { disconnect?: (scope: DisconnectScope) => Promise<void> };
 
 export interface ConnectorEvents<P extends IProvider> {
   connecting: (message?: string, description?: string) => void;
@@ -15,6 +15,7 @@ export interface ConnectorEvents<P extends IProvider> {
 
 export class WalletConnector<N extends string, P extends IProvider, C> implements IConnector<N, P, C> {
   private _connectedWallet: Wallet<P> | null = null;
+  private _connectionGeneration = 0;
   private _ee = createNanoEvents<ConnectorEvents<P>>();
 
   constructor(
@@ -45,6 +46,7 @@ export class WalletConnector<N extends string, P extends IProvider, C> implement
         this._ee.emit("connecting", message, description);
       await selectedWallet.connect(reportProgress);
       this._connectedWallet = selectedWallet;
+      this._connectionGeneration += 1;
       this._ee.emit("connect", this._connectedWallet);
 
       return this.connectedWallet;
@@ -54,19 +56,24 @@ export class WalletConnector<N extends string, P extends IProvider, C> implement
     }
   }
 
-  async disconnect() {
-    if (this._connectedWallet) {
-      const provider = this._connectedWallet.provider as DisconnectableProvider | null;
-      if (provider?.disconnect && typeof provider.disconnect === "function") {
-        try {
-          await provider.disconnect();
-        } catch {
-          // ignore provider disconnect errors
-        }
+  async disconnect(scope: DisconnectScope = "chain") {
+    const wallet = this._connectedWallet;
+    const generation = this._connectionGeneration;
+    if (!wallet) return;
+
+    const provider = wallet.provider as DisconnectableProvider | null;
+    if (provider?.disconnect) {
+      try {
+        await provider.disconnect(scope);
+      } catch (error) {
+        if (scope === "chain" && isSharedSessionRefusal(error)) throw error;
+        this._ee.emit("error", error instanceof Error ? error : new Error(String(error)));
+        if (scope === "chain") throw error;
       }
-      this._ee.emit("disconnect", this._connectedWallet);
-      this._connectedWallet = null;
     }
+    if (this._connectedWallet !== wallet || this._connectionGeneration !== generation) return;
+    this._connectedWallet = null;
+    this._ee.emit("disconnect", wallet);
   }
 
   clone() {

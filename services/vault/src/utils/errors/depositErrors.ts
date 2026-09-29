@@ -17,19 +17,37 @@
  *    EIP-1193 4001 / viem UserRejectedRequestError / CONNECTION_REJECTED; or,
  *    later and cause-walking, "user rejected" / "denied" wording).
  *  - Registered-version mismatch — protocol params rotated mid-deposit.
+ *  - Peg-in fingerprint changed — the registry re-derived the protocol
+ *    configuration and it differed from the one the Pre-Pegin was built
+ *    against. Classified only when the revert carries data, which is the
+ *    gas-estimate case; carries both fingerprints as diagnostics. A rotation
+ *    landing between the estimate and inclusion mines as a revert whose data
+ *    the SDK discards, and falls through to the generic bucket — see #2498.
+ *  - Application entry-point mismatch / fingerprint input rejected — a
+ *    deployment or configuration fault and an internal bug respectively. Both
+ *    carry messages naming internals, so both land on the generic callout with
+ *    the detail kept in diagnostics.
  *  - Ethereum registration finality — the registration never reached the
  *    required confirmation depth, or disappeared from chain state entirely.
  *  - Deposit-terms rejection — the signing device's envelope refused the
  *    terms before approval (typed SDK error; can be terminal).
  *  - Lifecycle refusal — the DepositTerms rebuild's typed status gate
- *    (broadcast stage keeps its historical broadcast-bucket copy).
- *  - Depositor wallet mismatch — the DepositTerms rebuild's typed refusal when
- *    the connected Ethereum account is not the vault's depositor.
+ *    (broadcast stage maps to the terminal batch callout).
+ *  - Depositor wallet mismatch — the typed refusal from the DepositTerms
+ *    rebuild and the resume wallet check when the connected Ethereum account
+ *    is not the vault's depositor.
+ *  - Depositor Bitcoin key mismatch - the typed refusal from the resume wallet
+ *    check, payout signing and the DepositTerms rebuild when the connected
+ *    Bitcoin wallet's key is not the vault's registered depositor key.
  *  - Wallet method not supported — the connected wallet lacks a required
  *    method (coded, cause-walking; runs after every typed bucket above).
  *  - Wallet not connected / wallet client missing.
  *  - Wallet account changed mid-flow (the WOTS-vs-PoP key guard).
  *  - Wrong wallet connected on resume (WOTS hash mismatch).
+ *  - Preparation failure — the Pre-PegIn could not be prepared for signing
+ *    (e.g. prevout resolution against the mempool API failed).
+ *  - Signing failure — the wallet could not sign the Pre-PegIn and it was not
+ *    a rejection (locked wallet, stale extension, device transport drop).
  *  - Broadcast failure — Pre-PegIn could not be broadcast to Bitcoin.
  *  - Insufficient ETH — the Ethereum registration tx can't cover gas. Detected
  *    via the shared `classifyError` (viem typed error + node-message regex),
@@ -41,18 +59,31 @@
  */
 
 import {
+  isApplicationEntryPointMismatchError,
   isDepositTermsRejectedError,
   isParticipantKeyDriftError,
+  isPeginFingerprintChangedError,
+  isPeginFingerprintInputError,
   isPeginRegistrationMissingError,
   isPeginRegistrationNotFinalError,
   isRegisteredVaultVersionMismatchError,
 } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { JsonRpcError } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+import { UtxoNotAvailableError } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
 import { type ReactNode } from "react";
 
 import { COPY } from "@/copy";
+import { isBuildConfigDriftError } from "@/services/vault/buildConfigConsistency";
+import {
+  isBuildLimitsDriftError,
+  isBuildPreconditionError,
+} from "@/services/vault/pinnedBuildLimits";
+import { PendingPeginStorageReadError } from "@/storage/peginStorage";
 
-import { isDepositorWalletMismatchError } from "./depositorWalletMismatch";
+import {
+  isDepositorBtcKeyMismatchError,
+  isDepositorWalletMismatchError,
+} from "./depositorWalletMismatch";
 import {
   DEVICE_CEREMONY_INVALID_CODE,
   DEVICE_LOCKED_CODE,
@@ -101,10 +132,28 @@ const RESUMABLE_AFTER_REGISTRATION: ReadonlySet<DepositErrorContent> = new Set([
   ERRORS.deviceWrongApp,
   ERRORS.deviceCeremonyInvalid,
   ERRORS.signingRejected,
+  // Nothing was broadcast; the software-wallet twin of deviceLocked.
+  ERRORS.signingFailed,
 ]);
+
+const STAGE_FAILED = ERRORS.prePeginStageFailed;
 
 export function isResumableDepositError(content: DepositErrorContent): boolean {
   return RESUMABLE_AFTER_REGISTRATION.has(content);
+}
+
+/**
+ * Map an error thrown after the Ethereum registration is mined. A spent
+ * Pre-Pegin input is terminal there, so it gets its own callout instead of
+ * the SDK's "start a new peg-in" wording; everything else maps as usual.
+ */
+export function mapDepositErrorAfterRegistration(
+  err: unknown,
+): DepositErrorContent {
+  if (err instanceof UtxoNotAvailableError) {
+    return ERRORS.inputSpentAfterRegistration;
+  }
+  return mapDepositError(err);
 }
 
 /** BtcWalletLivenessError bodies, matched (lowercased) by bucket 5b. */
@@ -163,9 +212,68 @@ export function mapDepositError(err: unknown): DepositErrorContent {
     return ERRORS.signingRejected;
   }
 
+  if (err instanceof PendingPeginStorageReadError) {
+    return ERRORS.storageUnreadable;
+  }
+
   // 3. Protocol-parameter version mismatch (registered vault drifted).
   if (isRegisteredVaultVersionMismatchError(err)) {
     return ERRORS.versionMismatch;
+  }
+
+  // 3a. The same drift caught earlier: the cached snapshot the form gated and
+  // sized against no longer matches the pinned read the build would use.
+  // Deliberately NOT the copy above. That one fires after registration, where
+  // the ETH fee is spent and the vault is stranded until it times out; this one
+  // fires before anything is signed, broadcast or paid, and the copy says so.
+  // Rendering the free failure as if it were the expensive one costs the
+  // depositor nothing but tells them nothing either.
+  if (isBuildConfigDriftError(err)) {
+    return ERRORS.versionMismatchBeforeSigning;
+  }
+
+  // 3a''. The build guard was handed amounts it cannot judge — a bug in our
+  // own code, not a chain change. Mapped so the internal message stays on the
+  // error for the bug report instead of becoming the callout body, which is
+  // what the final bucket would do with an unrecognised error.
+  if (isBuildPreconditionError(err)) {
+    return {
+      title: ERRORS.defaultTitle,
+      body: ERRORS.genericBody,
+      diagnostics: formatErrorDiagnostics(err),
+    };
+  }
+
+  // 3a'''. Same shape, from the fingerprint half of the build: the vault
+  // provider is registered to a different application than we were configured
+  // for, or the encoder rejected one of its nine inputs. Both are our bug or a
+  // deployment fault, not chain drift — a depositor can do nothing with either,
+  // and both messages name internals (two addresses and three protocol values;
+  // a field name and the width it overflowed). Mapped here for the same reason
+  // as 3a'' above: the final bucket would print those messages as the callout.
+  if (
+    isApplicationEntryPointMismatchError(err) ||
+    isPeginFingerprintInputError(err)
+  ) {
+    return {
+      title: ERRORS.defaultTitle,
+      body: ERRORS.genericBody,
+      diagnostics: formatErrorDiagnostics(err),
+    };
+  }
+
+  // 3a'. Same pre-signing point, but an unversioned limit moved rather than a
+  // version label — so something the depositor chose has to change, and the
+  // copy has to say which. The amount and the BTCVault count need opposite
+  // instructions, hence two callouts rather than one covering both badly.
+  // The reason is read defensively: an error that crossed a realm boundary
+  // matches by `name` but may have lost its fields, and the amount-bounds copy
+  // is both the far likelier case and the safe thing to show when the tag is
+  // unreadable — it sends the depositor back to the form either way.
+  if (isBuildLimitsDriftError(err)) {
+    return err.reason === "vault-count"
+      ? ERRORS.vaultCountLimitChanged
+      : ERRORS.depositLimitsChanged;
   }
 
   // 3b. RFC-006 participant key drift. Distinct from the version mismatch
@@ -174,6 +282,36 @@ export function mapDepositError(err: unknown): DepositErrorContent {
   // inviting a retry.
   if (isParticipantKeyDriftError(err)) {
     return ERRORS.participantKeyDrift;
+  }
+
+  // 3b'. The registry's own fingerprint check. Reachable here only when the
+  // revert carried data, which in practice means the gas estimate that precedes
+  // the registration transaction — nothing has been sent, so nothing reached
+  // either chain.
+  //
+  // It does NOT cover the other way this revert occurs. A rotation landing in
+  // the window between that estimate and inclusion mines as a reverted
+  // transaction, and `sendAndWait` throws a fresh Error built from a template
+  // string, dropping the revert data — so `extractErrorData` finds no selector,
+  // this branch never runs, and the depositor gets the generic callout having
+  // spent gas. Tracked in #2498; until it is fixed, the copy below is worded to
+  // hold on both paths rather than only on this one.
+  //
+  // Deliberately not resumable: there is no registered vault to resume, and the
+  // prepared signatures commit to protocol state that has moved, so the only
+  // way forward is a fresh deposit.
+  //
+  // The two hashes ride along as diagnostics rather than copy. Their whole
+  // value is telling "the chain moved" apart from "our encoder is wrong", and
+  // that is a question for a bug report, not for the depositor.
+  if (isPeginFingerprintChangedError(err)) {
+    return {
+      ...ERRORS.peginFingerprintChanged,
+      diagnostics:
+        err.expected && err.actual
+          ? `PeginFingerprintChanged expected=${err.expected} actual=${err.actual}`
+          : "PeginFingerprintChanged (revert data carried no fingerprints)",
+    };
   }
 
   // 3c. Ethereum registration finality gate. Both cases stop the flow BEFORE
@@ -192,16 +330,23 @@ export function mapDepositError(err: unknown): DepositErrorContent {
     return ERRORS.depositTermsRejected;
   }
 
-  // 3e. Typed lifecycle refusal from the DepositTerms rebuild. The broadcast
-  // stage keeps the copy its generic-message predecessor landed on (the old
-  // message contained "broadcast", so it hit the broadcast bucket below).
+  // 3e. Typed lifecycle refusal from the DepositTerms rebuild: a batch
+  // member left PENDING. The shared Pre-Pegin may already be on Bitcoin, so
+  // the callout neither claims what was sent nor invites a retry.
   if (isVaultLifecycleStateError(err) && err.stage === "broadcast") {
-    return ERRORS.broadcastFailed;
+    return ERRORS.batchNoLongerPending;
   }
 
-  // 3f. Typed depositor-wallet refusal from the DepositTerms rebuild.
+  // 3f. Typed depositor-wallet refusal from the DepositTerms rebuild or the
+  // resume wallet check.
   if (isDepositorWalletMismatchError(err)) {
     return ERRORS.wrongDepositorWallet;
+  }
+
+  // 3f'. Typed depositor Bitcoin-key refusal from the resume wallet check,
+  // payout signing or the DepositTerms rebuild.
+  if (isDepositorBtcKeyMismatchError(err)) {
+    return ERRORS.wrongDepositorBtcWallet;
   }
 
   // 3g'. Top-frame device code — before both cause walks, so an outer device
@@ -224,7 +369,7 @@ export function mapDepositError(err: unknown): DepositErrorContent {
   }
 
   // 3h. Device codes nested in a cause chain — must beat the message buckets
-  // (a broadcast wrapper's wording would otherwise claim them).
+  // (a stage wrapper's wording would otherwise claim them).
   if (isDeviceCeremonyInvalidError(err)) {
     return ERRORS.deviceCeremonyInvalid;
   }
@@ -284,10 +429,8 @@ export function mapDepositError(err: unknown): DepositErrorContent {
     return ERRORS.commissionUnavailable;
   }
 
-  // 5. Wallet not connected / wallet client unavailable. Checked before the
-  // broadcast bucket: the broadcast step wraps inner errors as "Failed to
-  // broadcast ...: <inner>", and a disconnect there should still read as a
-  // wallet problem, not a generic broadcast failure.
+  // 5. Wallet not connected / client unavailable. Before the stage buckets so
+  // a disconnect inside a wrapped stage still reads as a wallet problem.
   if (
     msg.includes("wallet not connected") ||
     msg.includes("wallet is not connected") ||
@@ -307,10 +450,9 @@ export function mapDepositError(err: unknown): DepositErrorContent {
   }
 
   // 6. Wallet signing rejection. The typed path (step 2) checks only the
-  // top-level frame, so it misses rejections the broadcast step re-wrapped;
-  // this cause-walking check catches them by wording or by the coded inner
-  // frame the wrapper now preserves as `cause`. Checked before the broadcast
-  // bucket so "Failed to broadcast ...: user rejected" reads as a rejection.
+  // top-level frame; this cause-walking check catches rejections the sign
+  // stage wrapped, by wording or by the coded inner frame kept as `cause`.
+  // Before 6b on purpose: "Failed to sign ...: user rejected" is a rejection.
   //
   // Shares its vocabulary with the Sentry-side drop rather than keeping a local
   // wording list: a cancellation that telemetry correctly suppressed used to
@@ -319,12 +461,22 @@ export function mapDepositError(err: unknown): DepositErrorContent {
     return ERRORS.signingRejected;
   }
 
-  // 7. Pre-PegIn broadcast failure. Checked before the ETH-gas/UTXO buckets:
-  // the flow wraps broadcast errors as "Failed to broadcast batch Pre-PegIn
-  // transaction: <inner>", and that inner text can contain BTC-side
-  // "insufficient funds" — a broadcast wrapper must win over the ETH-gas
-  // classification.
-  if (msg.includes("broadcast")) {
+  // 6b. Non-rejection signing failure (locked wallet, stale extension,
+  // device transport drop). Matches the sign-stage label.
+  if (msg.includes(STAGE_FAILED.sign.toLowerCase())) {
+    return ERRORS.signingFailed;
+  }
+
+  // 6c. Preparation failure — nothing signed or sent. On resume this is
+  // usually a prevout fetch; in the fresh flow it is an internal bug.
+  if (msg.includes(STAGE_FAILED.prepare.toLowerCase())) {
+    return ERRORS.preparationFailed;
+  }
+
+  // 7. Broadcast failure — only the explicit stage label (bare "broadcast"
+  // also appears in non-broadcast messages), and before the ETH-gas bucket
+  // since the inner text can say "insufficient funds".
+  if (msg.includes(STAGE_FAILED.broadcast.toLowerCase())) {
     return ERRORS.broadcastFailed;
   }
 
@@ -337,13 +489,16 @@ export function mapDepositError(err: unknown): DepositErrorContent {
   // matches (not a bare "utxo") so unrelated UTXO-mentioning errors (e.g. a
   // stale snapshot or indexer outage) don't get absorbed here. Covers the
   // known throws: "No spendable UTXOs available", "Spendable UTXOs unavailable
-  // ...", "Failed to load UTXOs". Checked BEFORE the ETH-gas bucket because
-  // `classifyError` reads "Insufficient funds: no UTXOs available" as a gas
-  // shortfall (no sats/pegin guard hit) — the UTXO phrase must win.
+  // ...", "Failed to load UTXOs", and the mempool client's "Failed to get
+  // UTXOs for address ..." from the availability re-checks. Checked BEFORE
+  // the ETH-gas bucket because `classifyError` reads "Insufficient funds: no
+  // UTXOs available" as a gas shortfall (no sats/pegin guard hit) — the UTXO
+  // phrase must win.
   if (
     msg.includes("spendable utxos") ||
     msg.includes("utxos available") ||
-    msg.includes("failed to load utxos")
+    msg.includes("failed to load utxos") ||
+    msg.includes("failed to get utxos")
   ) {
     return ERRORS.utxosUnavailable;
   }

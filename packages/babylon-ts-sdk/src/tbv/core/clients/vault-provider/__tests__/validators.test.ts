@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { DaemonStatus } from "../types";
 import {
   VpResponseValidationError,
+  isUnrecognizedDaemonStatusError,
   validateBatchGetPeginStatusResponse,
   validateBatchGetPegoutStatusResponse,
   validateGetPeginStatusResponse,
@@ -247,7 +248,7 @@ describe("VP Response Validators", () => {
         { wots_pks_json: "{}", gc_wots_keys_json: "{}" },
         { wots_pks_json: "{}", gc_wots_keys_json: "{}" },
       ],
-      output_label_hashes: ["aabb"],
+      output_label_hashes: ["aa".repeat(32)],
     };
 
     const validDepositorGraph = {
@@ -497,6 +498,27 @@ describe("VP Response Validators", () => {
           },
         }),
       ).toThrow(VpResponseValidationError);
+    });
+
+    it("rejects an output_label_hashes entry that is not 32 bytes", () => {
+      expect(() =>
+        validateRequestDepositorPresignTransactionsResponse({
+          txs: [],
+          depositor_graph: {
+            ...validDepositorGraph,
+            challenger_presign_data: [
+              {
+                ...validChallengerPresignData,
+                output_label_hashes: ["aa".repeat(33)],
+              },
+            ],
+          },
+        }),
+      ).toThrow(
+        expect.objectContaining({
+          detail: expect.stringMatching(/must be a 64-char hex string/),
+        }),
+      );
     });
   });
 
@@ -900,24 +922,83 @@ describe("VP Response Validators", () => {
       ).toThrow(VpResponseValidationError);
     });
 
-    it("propagates inner result validation failures", () => {
-      expect(() =>
-        validateBatchGetPeginStatusResponse({
-          results: [
-            {
-              vault_id: VALID_VAULT_ID,
-              result: {
-                pegin_txid: VALID_TXID,
-                vault_id: VALID_VAULT_ID,
-                status: "BogusStatus",
-                progress: {},
-                health_info: "ok",
-              },
-              error: null,
+    it("keeps sibling statuses and flags only the entry with an unknown status", () => {
+      const vid1 = `0x${"1".repeat(64)}`;
+      const vid2 = `0x${"2".repeat(64)}`;
+      const vid3 = `0x${"3".repeat(64)}`;
+      const response = {
+        results: [
+          {
+            vault_id: vid1,
+            result: { ...validInner, vault_id: vid1 },
+            error: null,
+          },
+          {
+            vault_id: vid2,
+            result: { ...validInner, vault_id: vid2, status: "BogusStatus" },
+            error: null,
+          },
+          {
+            vault_id: vid3,
+            result: {
+              ...validInner,
+              vault_id: vid3,
+              status: DaemonStatus.PENDING_ACKS,
             },
-          ],
-        }),
-      ).toThrow(VpResponseValidationError);
+            error: null,
+          },
+        ],
+      };
+
+      validateBatchGetPeginStatusResponse(response);
+
+      const [first, second, third] = response.results;
+      expect(first.result?.status).toBe(DaemonStatus.ACTIVATED);
+      expect(third.result?.status).toBe(DaemonStatus.PENDING_ACKS);
+      expect(second.vault_id).toBe(vid2);
+      expect(second.result).toBeNull();
+      expect(isUnrecognizedDaemonStatusError(second.error!)).toBe(true);
+      expect(second.error).toContain('"BogusStatus"');
+    });
+
+    it("moves a malformed inner result to the entry error slot", () => {
+      const response = {
+        results: [
+          {
+            vault_id: VALID_VAULT_ID,
+            result: { ...validInner, progress: "not an object" },
+            error: null,
+          },
+        ],
+      };
+
+      validateBatchGetPeginStatusResponse(response);
+
+      expect(response.results[0].result).toBeNull();
+      expect(response.results[0].error).toContain(
+        '"progress" must be an object',
+      );
+      expect(isUnrecognizedDaemonStatusError(response.results[0].error!)).toBe(
+        false,
+      );
+    });
+
+    it("accepts a BabeSetupFailed status", () => {
+      const response = {
+        results: [
+          {
+            vault_id: VALID_VAULT_ID,
+            result: { ...validInner, status: "BabeSetupFailed" },
+            error: null,
+          },
+        ],
+      };
+
+      validateBatchGetPeginStatusResponse(response);
+
+      expect(response.results[0].result?.status).toBe(
+        DaemonStatus.BABE_SETUP_FAILED,
+      );
     });
   });
 
@@ -948,18 +1029,33 @@ describe("VP Response Validators", () => {
       ).toThrow(VpResponseValidationError);
     });
 
-    it("propagates inner result validation failures (missing challengers array)", () => {
-      expect(() =>
-        validateBatchGetPegoutStatusResponse({
-          results: [
-            {
-              vault_id: VALID_VAULT_ID,
-              result: { ...validInner, challengers: undefined },
-              error: null,
-            },
-          ],
-        }),
-      ).toThrow(VpResponseValidationError);
+    it("moves a malformed inner result (missing challengers array) to the entry error slot", () => {
+      const siblingVaultId = `0x${"2".repeat(64)}`;
+      const response = {
+        results: [
+          {
+            vault_id: VALID_VAULT_ID,
+            result: { ...validInner, challengers: undefined },
+            error: null,
+          },
+          {
+            vault_id: siblingVaultId,
+            result: { ...validInner, vault_id: siblingVaultId },
+            error: null,
+          },
+        ],
+      };
+
+      validateBatchGetPegoutStatusResponse(response);
+
+      expect(response.results[0].result).toBeNull();
+      expect(response.results[0].error).toContain(
+        '"challengers" must be an array',
+      );
+      expect(response.results[1].result).toEqual({
+        ...validInner,
+        vault_id: siblingVaultId,
+      });
     });
   });
 });

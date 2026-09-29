@@ -25,7 +25,7 @@ const schema = yup
 export const Default: Story = {
   args: {
     fieldName: "amount",
-    currencyIcon: "https://placehold.co/40x40",
+    currencyIcon: "/images/chain.png",
     currencyName: "BBN",
     placeholder: "Enter Amount",
     prefix: "Stakable",
@@ -50,7 +50,7 @@ export const Default: Story = {
 export const WithoutBalance: Story = {
   args: {
     fieldName: "amount",
-    currencyIcon: "https://placehold.co/40x40",
+    currencyIcon: "/images/chain.png",
     currencyName: "BBN",
     placeholder: "Enter staking amount",
     displayBalance: false,
@@ -67,7 +67,7 @@ export const WithoutBalance: Story = {
 export const BitcoinCurrency: Story = {
   args: {
     fieldName: "amount",
-    currencyIcon: "https://placehold.co/40x40/FF9500/FFFFFF?text=₿",
+    currencyIcon: "/images/btc.png",
     currencyName: "BTC",
     placeholder: "Enter BTC amount",
     prefix: "Available",
@@ -92,7 +92,7 @@ export const BitcoinCurrency: Story = {
 export const LargeBalance: Story = {
   args: {
     fieldName: "amount",
-    currencyIcon: "https://placehold.co/40x40/4CAF50/FFFFFF?text=T",
+    currencyIcon: "/images/usdt.svg",
     currencyName: "USDT",
     placeholder: "Enter USDT amount",
     prefix: "Total",
@@ -166,7 +166,7 @@ export const ZeroBalance: Story = {
 export const SmallBalance: Story = {
   args: {
     fieldName: "amount",
-    currencyIcon: "https://placehold.co/40x40/627EEA/FFFFFF?text=Ξ",
+    currencyIcon: "/images/ethereum.svg",
     currencyName: "ETH",
     placeholder: "Enter ETH amount",
     prefix: "Staked",
@@ -191,7 +191,7 @@ export const SmallBalance: Story = {
 export const NoAutoFocus: Story = {
   args: {
     fieldName: "amount",
-    currencyIcon: "https://placehold.co/40x40",
+    currencyIcon: "/images/chain.png",
     currencyName: "BBN",
     placeholder: "Click to enter amount",
     prefix: "Unbonded",
@@ -217,7 +217,7 @@ export const NoAutoFocus: Story = {
 export const CustomMinStep: Story = {
   args: {
     fieldName: "amount",
-    currencyIcon: "https://placehold.co/40x40/F7931A/FFFFFF?text=₿",
+    currencyIcon: "/images/btc.png",
     currencyName: "BTC",
     placeholder: "Minimum 0.001 BTC",
     prefix: "Withdrawable",
@@ -266,7 +266,7 @@ export const NoPrefix: Story = {
 export const RestrictedDecimals: Story = {
   args: {
     fieldName: "amount",
-    currencyIcon: "https://placehold.co/40x40/FF6B6B/FFFFFF?text=₿",
+    currencyIcon: "/images/btc.png",
     currencyName: "BTC",
     placeholder: "Enter BTC amount (max 2 decimals)",
     prefix: "Available",

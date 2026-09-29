@@ -6,9 +6,15 @@ import type { PendingPeginRequest } from "@/storage/peginStorage";
 
 import { getPendingActivities } from "../pendingActivities";
 
-vi.mock("@/storage/peginStorage", () => ({
-  getPendingPegins: vi.fn(),
-}));
+vi.mock("@/storage/peginStorage", async () => {
+  const actual = await vi.importActual<typeof import("@/storage/peginStorage")>(
+    "@/storage/peginStorage",
+  );
+  return {
+    PendingPeginStorageReadError: actual.PendingPeginStorageReadError,
+    getPendingPegins: vi.fn(),
+  };
+});
 
 const btcConfig = getNetworkConfigBTC();
 
@@ -168,6 +174,32 @@ describe("getPendingActivities", () => {
       const result = getPendingActivities(mockEthAddress);
 
       expect(result).toEqual([]);
+    });
+
+    it("should return empty array when the stored records cannot be read", async () => {
+      const { getPendingPegins, PendingPeginStorageReadError } = await import(
+        "@/storage/peginStorage"
+      );
+
+      vi.mocked(getPendingPegins).mockImplementation(() => {
+        throw new PendingPeginStorageReadError(
+          mockEthAddress,
+          '[{"id":',
+          new SyntaxError("Unexpected end of JSON input"),
+        );
+      });
+
+      expect(getPendingActivities(mockEthAddress)).toEqual([]);
+    });
+
+    it("should propagate a storage failure that is not the typed read error", async () => {
+      const { getPendingPegins } = await import("@/storage/peginStorage");
+
+      vi.mocked(getPendingPegins).mockImplementation(() => {
+        throw new Error("boom");
+      });
+
+      expect(() => getPendingActivities(mockEthAddress)).toThrow("boom");
     });
   });
 });

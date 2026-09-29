@@ -44,7 +44,7 @@
  * - {@link buildPayoutPsbt} - Create payout PSBT for signing
  * - {@link extractPayoutSignature} - Extract Schnorr signature from signed PSBT
  * - {@link buildNoPayoutPsbt} - Create NoPayout PSBT per challenger (depositor-as-claimer path)
- * - {@link buildChallengeAssertPsbt} - Create ChallengeAssert PSBT per challenger (depositor-as-claimer path)
+ * - {@link buildChallengeAssertPsbt} - Create ChallengeAssert PSBT (tooling only; not claimer-signed)
  *
  * ### Script Generators
  * - {@link createPayoutScript} - Generate taproot payout script

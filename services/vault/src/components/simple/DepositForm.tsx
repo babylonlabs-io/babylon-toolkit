@@ -6,11 +6,14 @@ import { DepositButton } from "@/components/shared";
 import { getNetworkConfigBTC } from "@/config";
 import { COPY } from "@/copy";
 import { depositService } from "@/services/deposit";
+import { MAX_PRE_PEGIN_FUNDING_INPUTS } from "@/services/deposit/fundingInputCap";
+import type { DepositSplitUnavailableReason } from "@/services/deposit/vaultCap";
 import type { VaultProviderListItem } from "@/types/vaultProvider";
 
 import { CollateralFactorRow } from "./CollateralFactorRow";
 import { DepositFeesBreakdown } from "./DepositFeesBreakdown";
 import { FeesSection, type FeeRow } from "./FeesSection";
+import { snapToSplitMinimum } from "./snapToSplitMinimum";
 import { SuggestedDepositContainer } from "./SuggestedDepositContainer";
 import {
   UtxoSplitSelectorV3,
@@ -36,12 +39,6 @@ export interface DepositAmountState {
   btcBalance: bigint;
   /** Total value of unconfirmed (in-mempool) UTXOs in satoshis. Display-only. */
   unconfirmedBalance: bigint;
-  /**
-   * True when the confirmed balance is zero but unconfirmed funds exist. Shows
-   * an inline "pending confirmation" notice so the user understands why the
-   * form reads zero while their wallet shows a balance.
-   */
-  hasUnconfirmedBalanceOnly: boolean;
   minDeposit: bigint;
   maxDeposit?: bigint;
   /**
@@ -115,6 +112,14 @@ export interface DepositProviderState {
 export interface DepositWalletState {
   isWalletConnected: boolean;
   /**
+   * True when the session is confirmed and Bitcoin is absent. Keeps the CTA
+   * enabled so the click opens the Bitcoin prompt.
+   */
+  canConnectBtcWallet?: boolean;
+  /** Ledger vault app connected? Read only by the fee breakdown's reserve
+   * tooltip (#2375); never gates the deposit. */
+  isLedgerVaultWallet: boolean;
+  /**
    * True when the click-time wallet-liveness probe (or a prior reconnect
    * attempt) failed. Promotes the CTA from "Deposit" to "Reconnect Wallet";
    * the click handler upstream branches to the reconnect flow.
@@ -150,6 +155,8 @@ export interface DepositGatingState {
   isDepositDisabled: boolean;
   isGeoBlocked: boolean;
   isAddressBlocked: boolean;
+  /** True if the address block comes only from a failed screening request. */
+  isAddressScreeningUnavailable: boolean;
   /**
    * True while the inscription (ordinals) check is still in flight. Blocks
    * submission so the user cannot deposit before the spendable set has been
@@ -167,12 +174,14 @@ export interface DepositGatingState {
    */
   vaultCountCapUnavailable?: boolean;
   /**
-   * True when a single vault still fits but a 2-vault split would exceed the
-   * cap — the deposit proceeds as a single vault and we surface the inline
-   * "vaults used / split unavailable" hint.
+   * Set when a single vault still fits but a 2-vault split is not on offer:
+   * it would exceed a cap, or the split sizing rules refuse it
+   * (`"split-sizing"`). The deposit proceeds as a single vault and we surface
+   * the inline "split unavailable" hint. The reason picks which hint: only
+   * the per-position cap can quote usage figures.
    */
-  vaultCapSplitUnavailable?: boolean;
-  /** Vault usage (used / cap) for the split-unavailable hint copy. */
+  splitUnavailableReason?: DepositSplitUnavailableReason | null;
+  /** Vault usage (used / cap), set only for the per-position reason. */
   vaultCapUsage?: { used: number; cap: number };
 }
 
@@ -184,6 +193,7 @@ interface DepositFormProps {
   gatingState: DepositGatingState;
   collateralFactor?: number | null;
   twoVaultSplit?: TwoVaultSplitProps;
+  fundingInputCapExceeded?: boolean;
   onAmountChange: (value: string) => void;
   onMaxClick: () => void;
   onDeposit: () => void;
@@ -197,6 +207,7 @@ export function DepositForm({
   gatingState,
   collateralFactor = null,
   twoVaultSplit,
+  fundingInputCapExceeded = false,
   onAmountChange,
   onMaxClick,
   onDeposit,
@@ -206,7 +217,6 @@ export function DepositForm({
     amountSats,
     btcBalance,
     unconfirmedBalance,
-    hasUnconfirmedBalanceOnly,
     minDeposit,
     maxDeposit,
     maxDepositSats,
@@ -237,6 +247,8 @@ export function DepositForm({
     providerState;
   const {
     isWalletConnected,
+    canConnectBtcWallet = false,
+    isLedgerVaultWallet,
     hasWalletConnectionError = false,
     walletConnectionErrorMessage = null,
     isWalletLocked = false,
@@ -247,10 +259,11 @@ export function DepositForm({
     isDepositDisabled,
     isGeoBlocked,
     isAddressBlocked,
+    isAddressScreeningUnavailable,
     ordinalsCheckPending = false,
     isVaultCapReached = false,
     vaultCountCapUnavailable = false,
-    vaultCapSplitUnavailable = false,
+    splitUnavailableReason = null,
     vaultCapUsage,
   } = gatingState;
   const [openPanel, setOpenPanel] = useState<"split" | "provider" | null>(null);
@@ -302,6 +315,32 @@ export function DepositForm({
     Number(maxDepositSats ?? 0n),
   );
   const sliderValueSats = Number(amountSats);
+  const minDepositForSplit = twoVaultSplit?.minDepositForSplit ?? 0n;
+  const hasTwoVaultSplit = twoVaultSplit != null;
+  const sliderSteps = useMemo(
+    () =>
+      hasTwoVaultSplit
+        ? [
+            {
+              value: Number(minDepositForSplit),
+              label: COPY.deposit.form.splitSliderStepLabel,
+            },
+          ]
+        : [],
+    [hasTwoVaultSplit, minDepositForSplit],
+  );
+
+  const handleSliderChange = (sats: number) => {
+    const value = snapToSplitMinimum(sats, {
+      splitMinSats: Number(minDepositForSplit),
+      sliderMinSats,
+      sliderMaxSats,
+      currentSats: sliderValueSats,
+    });
+    onAmountChange(
+      depositService.formatSatoshisToBtc(BigInt(Math.round(value))),
+    );
+  };
 
   const usdValue = useMemo(() => {
     if (hasPriceFetchError || !btcPrice || !amount || amount === "0") return "";
@@ -313,30 +352,21 @@ export function DepositForm({
     })} USD`;
   }, [amount, btcPrice, hasPriceFetchError]);
 
-  // When the confirmed balance reads zero but unconfirmed funds exist, show a
-  // "pending confirmation" note in the slider's right slot (where the USD value
-  // would sit — empty at a zero balance). The InfoIcon is wrapped with an
-  // attach-to-children Hint so the markup stays inline-valid inside the slider's
-  // right cell (a bare Hint would nest a div inside a span).
-  const pendingConfirmationField = hasUnconfirmedBalanceOnly ? (
-    <span className="inline-flex items-center gap-1 text-accent-secondary">
-      {COPY.deposit.form.pendingConfirmationNotice(
-        `${Number(depositService.formatSatoshisToBtc(unconfirmedBalance))} ${btcConfig.coinSymbol}`,
-      )}
-      <Hint
-        tooltip={COPY.deposit.form.pendingConfirmationTooltip}
-        attachToChildren
-      >
-        <InfoIcon size={16} className="text-accent-secondary" />
-      </Hint>
-    </span>
-  ) : null;
-
-  const maxTooltip = hasUnconfirmedBalanceOnly
-    ? undefined
-    : COPY.deposit.form.maxTooltip({
-        hasSupplyCap: effectiveRemaining !== null,
-      });
+  const pendingConfirmationNotice =
+    unconfirmedBalance > 0n ? (
+      <span className="inline-flex items-center gap-1 text-accent-secondary">
+        {COPY.deposit.form.pendingConfirmationNotice(
+          `${depositService.formatSatoshisToBtc(unconfirmedBalance)} ${btcConfig.coinSymbol}`,
+        )}
+        {/* A bare Hint renders a div, which is invalid inside the p container. */}
+        <Hint
+          tooltip={COPY.deposit.form.pendingConfirmationTooltip}
+          attachToChildren
+        >
+          <InfoIcon size={16} className="text-accent-secondary" />
+        </Hint>
+      </span>
+    ) : null;
 
   // Commission (bps) shown for the selected provider. Drives the fee breakdown
   // and gates the CTA: a selected provider whose commission hasn't loaded
@@ -374,7 +404,9 @@ export function DepositForm({
     isDepositDisabled,
     isGeoBlocked,
     isAddressBlocked,
+    isAddressScreeningUnavailable,
     isWalletConnected,
+    canConnectBtcWallet,
     hasProvider: !!selectedProvider,
     commissionUnavailable,
     isFeeError,
@@ -383,6 +415,7 @@ export function DepositForm({
     ordinalsCheckPending,
     hasWalletConnectionError,
     isReconnectingWallet,
+    fundingInputCapExceeded,
   });
 
   // A locked wallet reuses the same recovery CTA as a liveness failure (both
@@ -409,35 +442,57 @@ export function DepositForm({
           sliderMin={sliderMinSats}
           sliderMax={sliderMaxSats}
           sliderStep={1}
-          sliderSteps={[]}
+          sliderSteps={sliderSteps}
+          sliderSnapToSteps={false}
           sliderDisabled={sliderDisabled}
-          onSliderChange={(sats) =>
-            onAmountChange(
-              depositService.formatSatoshisToBtc(BigInt(Math.round(sats))),
-            )
-          }
+          onSliderChange={handleSliderChange}
           sliderVariant="primary"
           // Figma row: USD value on the left, balance + Max pill on the right.
           leftField={{
-            value: !hasAmount
-              ? (pendingConfirmationField ?? COPY.common.zeroUsdValue)
-              : usdValue,
+            value: !hasAmount ? COPY.common.zeroUsdValue : usdValue,
           }}
           rightField={{
             label: COPY.deposit.form.balanceLabel,
             value: maxDepositLabel,
-            tooltip: maxTooltip,
           }}
           maxPosition="right"
           onMaxClick={onMaxClick}
           inputClassName="h-10 w-auto rounded-lg bg-primary-contrast px-4 [field-sizing:content]"
         />
+        <p
+          className={pendingConfirmationNotice ? "text-sm" : "sr-only"}
+          role="status"
+          aria-live="polite"
+        >
+          {pendingConfirmationNotice}
+        </p>
         <CollateralFactorRow
           collateralFactor={collateralFactor}
           amountBtc={amount}
           btcPrice={btcPrice}
           hasPriceFetchError={hasPriceFetchError}
         />
+        {fundingInputCapExceeded && (
+          <div
+            role="status"
+            aria-live="polite"
+            className="flex w-full items-center gap-2 rounded-lg border border-secondary-strokeLight px-4 py-2"
+          >
+            <IoInformationCircle
+              size={18}
+              className="shrink-0 text-secondary-contrast"
+            />
+            <span className="min-w-0 text-sm text-accent-secondary">
+              {COPY.deposit.fundingInputCap.noticeBefore}
+              <span className="text-accent-contrast">
+                {COPY.deposit.fundingInputCap.noticeEmphasis(
+                  MAX_PRE_PEGIN_FUNDING_INPUTS,
+                )}
+              </span>
+              {COPY.deposit.fundingInputCap.noticeAfter}
+            </span>
+          </div>
+        )}
         {suggestedAmountSats != null && (
           <SuggestedDepositContainer
             suggestedAmountLabel={`${Number(depositService.formatSatoshisToBtc(suggestedAmountSats))} ${btcConfig.coinSymbol}`}
@@ -449,9 +504,12 @@ export function DepositForm({
             }
           />
         )}
-        {/* Near the per-position vault cap: a split would overflow, so the
-            deposit proceeds as a single vault. Surface usage + why split is off. */}
-        {vaultCapSplitUnavailable && vaultCapUsage && (
+        {/* A split is not on offer, so the deposit proceeds as a single
+            BTCVault. Two unrelated caps, an unreadable split-parameter read,
+            or the split sizing rules can cause this, and they need different
+            explanations — the per-position cap can quote usage, the protocol
+            cap applies even to an empty position. */}
+        {splitUnavailableReason !== null && (
           <div
             role="status"
             aria-live="polite"
@@ -462,10 +520,17 @@ export function DepositForm({
               className="mt-px shrink-0 text-accent-primary"
             />
             <span className="min-w-0 text-sm text-accent-secondary">
-              {COPY.deposit.maxVaultsReached.splitUnavailable(
-                vaultCapUsage.used,
-                vaultCapUsage.cap,
-              )}
+              {splitUnavailableReason === "split-params-unavailable"
+                ? COPY.deposit.splitSizing.paramsUnavailable
+                : splitUnavailableReason === "split-sizing"
+                  ? COPY.deposit.splitSizing.unavailable
+                  : splitUnavailableReason === "per-position" && vaultCapUsage
+                    ? COPY.deposit.maxVaultsReached.splitUnavailable(
+                        vaultCapUsage.used,
+                        vaultCapUsage.cap,
+                      )
+                    : COPY.deposit.maxVaultsReached
+                        .splitUnavailableProtocolLimit}
             </span>
           </div>
         )}
@@ -528,6 +593,7 @@ export function DepositForm({
         commissionBaseValues={commissionBaseValues}
         networkFeeRate={estimatedFeeRate}
         networkFeeSats={estimatedFeeSats}
+        isLedgerVaultWallet={isLedgerVaultWallet}
       />
 
       {/* Protocol & risk parameters */}

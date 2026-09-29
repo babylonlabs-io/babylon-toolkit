@@ -16,7 +16,6 @@ import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import {
   ensureHexPrefix,
   forwardDepositApproval,
-  isDepositTermsRejectedError,
   isRegisteredVaultVersionMismatchError,
   requireChangeAddress,
   stripHexPrefix,
@@ -32,20 +31,28 @@ import {
   vpTokenRegistry,
 } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import { computeHashlock } from "@babylonlabs-io/ts-sdk/tbv/core/services";
+import { UtxoNotAvailableError } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
 import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import type { Address, Hex } from "viem";
 
+import { resolvePinnedReadBlock } from "@/clients/eth-contract/pinnedReadBlock";
 import {
   getOperationKeyReader,
+  getProtocolParamsReader,
   getUniversalChallengerReader,
   getVaultKeeperReader,
   getVaultRegistryReader,
 } from "@/clients/eth-contract/sdk-readers";
 import { isDepositBlocked } from "@/components/shared/protocolStatus";
-import { useProtocolParamsContext } from "@/context/ProtocolParamsContext";
+import { CONTRACTS } from "@/config/contracts";
+import { getETHChain } from "@/config/network";
+import {
+  pegInConfigQueryOptions,
+  useProtocolParamsContext,
+} from "@/context/ProtocolParamsContext";
 import {
   markPayoutSignCanceled,
   markWotsSubmitted,
@@ -60,11 +67,21 @@ import {
   TELEMETRY_EVENT,
 } from "@/infrastructure/telemetryEvents";
 import { LocalStorageStatus } from "@/models/peginStateMachine";
+import { capFundingUtxos } from "@/services/deposit/fundingInputCap";
 import { validateMultiVaultDepositInputs } from "@/services/deposit/validations";
+import {
+  assertBuildConfigMatchesForm,
+  isBuildConfigDriftError,
+} from "@/services/vault/buildConfigConsistency";
 import {
   waitForEthRegistrationDepth,
   type RegistrationDepthProgress,
 } from "@/services/vault/ethConfirmationGate";
+import { computeBuildPeginFingerprint } from "@/services/vault/peginFingerprintInput";
+import {
+  assertBuildWithinPinnedLimits,
+  isBuildLimitsDriftError,
+} from "@/services/vault/pinnedBuildLimits";
 import type { PayoutSigningProgress } from "@/services/vault/vaultPayoutSignatureService";
 import {
   broadcastPrePeginTransaction,
@@ -78,11 +95,14 @@ import { assertUtxosAvailable } from "@/services/vault/vaultUtxoValidationServic
 import { resolveVpAuthPinnedPubkey } from "@/services/vault/vpAuthPinnedPubkey";
 import {
   addPendingPegin,
+  getPendingPegins,
+  PendingPeginStorageReadError,
   removePendingPegin,
   updatePendingPeginStatus,
 } from "@/storage/peginStorage";
 import {
   btcAddressToScriptPubKeyHex,
+  BtcWalletLivenessError,
   shouldProbeWalletLiveness,
   verifyBtcWalletLiveness,
 } from "@/utils/btc";
@@ -92,6 +112,7 @@ import {
   COMMISSION_UNAVAILABLE_ERROR,
   isResumableDepositError,
   mapDepositError,
+  mapDepositErrorAfterRegistration,
   type DepositErrorContent,
 } from "@/utils/errors";
 import {
@@ -126,6 +147,11 @@ import { useVaultProviders } from "./useVaultProviders";
 export interface UseDepositFlowParams {
   /** Vault amounts in satoshis - [amount1] for single vault, [amount1, amount2] for two vaults */
   vaultAmounts: bigint[];
+  /**
+   * Deposit amount the depositor approved, in satoshis. The vault amounts
+   * must add up to it; checked before any signing.
+   */
+  depositAmountSats: bigint;
   /** Mempool fee rate in sat/vB for UTXO selection and funding */
   mempoolFeeRate: number;
   /** Bitcoin wallet provider */
@@ -262,6 +288,7 @@ export function useDepositFlow(
 ): UseDepositFlowReturn {
   const {
     vaultAmounts,
+    depositAmountSats,
     mempoolFeeRate,
     btcWalletProvider,
     depositorEthAddress,
@@ -407,8 +434,18 @@ export function useDepositFlow(
   const queryClient = useQueryClient();
   const gate = useProtocolGateState();
   const { findProvider } = useVaultProviders(selectedApplication);
-  const { config, timelockPegin, timelockRefund, minDeposit, maxDeposit } =
-    useProtocolParamsContext();
+  // Nothing the Pre-PegIn commits to comes from this context. Those values are
+  // re-read inside `executeDeposit`, pinned to one block: the cached copy is
+  // refreshed on nothing and is additionally frozen at the render that started
+  // the flow. In particular the peg-in and refund timelocks live on the same
+  // cached object and go straight into the PegIn output and the HTLC refund
+  // leaf, so they must come from the pinned read like everything else.
+  //
+  // `config` is still taken, for one purpose: it is the snapshot this page
+  // gated and sized against, and the build asserts the pinned read agrees with
+  // it before building. Being frozen at the starting render is correct there —
+  // it is precisely the value the form validated the amount against.
+  const { config, minDeposit, maxDeposit } = useProtocolParamsContext();
 
   // ============================================================================
   // Main Execution Function
@@ -445,6 +482,9 @@ export function useDepositFlow(
       // Set once the ETH batch registration is mined: a later cancel gets the
       // after-registration copy, a later device failure gets the in-modal resume.
       let registeredVaultIds: Hex[] | null = null;
+      // Set when the post-gate UTXO re-check could not reach the mempool API:
+      // nothing was signed, so the registered vaults can resume in the modal.
+      let postGateUtxoFetchFailed = false;
 
       try {
         // Deposit (pegin) is a protocol-scope ENTRY action. The dialog-open is
@@ -496,6 +536,7 @@ export function useDepositFlow(
           btcAddress,
           depositorEthAddress,
           vaultAmounts,
+          depositAmountSats,
           selectedProviders,
           confirmedUTXOs: spendableUTXOs,
           vaultProviderBtcPubkey,
@@ -622,11 +663,73 @@ export function useDepositFlow(
           vaultKeeperReader,
           universalChallengerReader,
           operationKeyReader,
+          protocolParamsReader,
         ] = await Promise.all([
           getVaultKeeperReader(),
           getUniversalChallengerReader(),
           getOperationKeyReader(),
+          getProtocolParamsReader(),
         ]);
+
+        // Everything the Pre-PegIn commits to is read against this one block:
+        // the participant keys below and the peg-in configuration beside them.
+        // Unpinned, these are several successive `latest` observations, and the
+        // params in particular would otherwise come from the React Query cache
+        // that backs the UI — a snapshot taken when the modal opened and never
+        // refreshed, so potentially minutes old and closed over at render.
+        // Building a Bitcoin lock from a mixture of chain states is exactly the
+        // failure the post-registration guards further down exist to catch, and
+        // they can only catch it if the baseline they compare against was
+        // internally consistent to begin with.
+        const pinnedBlock = await resolvePinnedReadBlock();
+        const buildConfig =
+          await protocolParamsReader.getPegInConfiguration(pinnedBlock);
+
+        // The page gated the "update the app" check and sized the amount
+        // against the cached snapshot; the lock is about to be built from this
+        // pinned one. If a governance change landed in between they are
+        // different parameter sets, and the amount the depositor approved was
+        // validated against the wrong one. Stop here, where restarting is free.
+        try {
+          assertBuildConfigMatchesForm(buildConfig, config);
+
+          // The guard above only sees the two version labels, and the deposit
+          // bounds carry none — they come from the `getTBVProtocolParams` half
+          // of the read, which is unversioned. So a tightened minimum or
+          // maximum, or a lowered HTLC output cap, passes it untouched.
+          // Re-check what the depositor actually approved against the pinned
+          // numbers.
+          assertBuildWithinPinnedLimits(vaultAmounts, buildConfig);
+        } catch (driftError) {
+          // Both aborts tell the depositor to start again, and the only way to
+          // do that is to close and reopen the form, which reads the cached
+          // configuration — five minute `staleTime`, nothing invalidates it. So
+          // a restart would hand back the same snapshot that just caused this
+          // and fail identically. Overwrite it with the pinned read.
+          //
+          // The justification is NOT that the pinned read is fresher: it is
+          // `head - 2`, and `resolvePinnedReadBlock` says freshness is
+          // explicitly not its goal, so a cache entry refilled at `latest`
+          // moments ago can legitimately be newer. It is that this particular
+          // value is the one the build just proved the cache disagrees with, on
+          // the axis that failed. Overwriting rather than invalidating avoids a
+          // refetch race where the form renders the stale bounds first.
+          //
+          // Gated on the drift predicates, not on reaching the catch at all: an
+          // unrelated throw from either assert must not rewrite a cache the
+          // blocking ProtocolParamsProvider and the polling hook also read.
+          if (
+            isBuildConfigDriftError(driftError) ||
+            isBuildLimitsDriftError(driftError)
+          ) {
+            queryClient.setQueryData(
+              pegInConfigQueryOptions().queryKey,
+              buildConfig,
+            );
+          }
+          throw driftError;
+        }
+
         const validatedKeys = await validateOnChainParticipantKeys({
           vaultRegistryReader: getVaultRegistryReader(),
           vaultKeeperReader,
@@ -637,6 +740,7 @@ export function useDepositFlow(
           expectedVaultProviderBtcPubkey: vaultProviderBtcPubkey,
           expectedVaultKeeperBtcPubkeys: vaultKeeperBtcPubkeys,
           expectedUniversalChallengerBtcPubkeys: universalChallengerBtcPubkeys,
+          blockNumber: pinnedBlock,
           onIndexerServingOperationKeys: (message) => logger.info(message),
           onIndexerHintsInconsistent: (message) =>
             logger.error(new Error(message), {
@@ -645,6 +749,20 @@ export function useDepositFlow(
                 phase: "validate-participant-keys",
               },
             }),
+        });
+
+        // Computed here, from the two objects the pinned block produced, and
+        // before anything is signed. The registry re-derives this hash when it
+        // includes our registration and rejects the submission unless it
+        // matches, so it has to describe the same chain state the Bitcoin
+        // scripts below are about to commit to — hence the same `buildConfig`
+        // and `validatedKeys` that feed `preparePeginTransaction`, and not the
+        // React Query snapshot the form used.
+        const expectedFingerprint = computeBuildPeginFingerprint({
+          chainId: getETHChain().id,
+          registryAddress: CONTRACTS.BTC_VAULT_REGISTRY,
+          validatedKeys,
+          buildConfig,
         });
 
         // Prime the peg-in signing sub-counter (one tx per vault) before the
@@ -668,10 +786,10 @@ export function useDepositFlow(
             // the post-registration verifyRegisteredVaultVersions call
             // asserts the stamp matches this build-time value before the
             // BTC broadcast.
-            vaultCoreVersion: config.activeVaultCoreVersion,
+            vaultCoreVersion: buildConfig.activeVaultCoreVersion,
             pegInAmounts: vaultAmounts,
-            protocolFeeRate: config.offchainParams.feeRate,
-            minPeginFeeRate: config.offchainParams.minPeginFeeRate,
+            protocolFeeRate: buildConfig.offchainParams.feeRate,
+            minPeginFeeRate: buildConfig.offchainParams.minPeginFeeRate,
             mempoolFeeRate,
             changeAddress: prePeginChangeAddress,
             vaultProviderBtcPubkey: validatedKeys.vaultProviderBtcPubkeyXOnly,
@@ -679,12 +797,14 @@ export function useDepositFlow(
             vaultKeeperBtcPubkeys: validatedKeys.vaultKeeperBtcPubkeysSorted,
             universalChallengerBtcPubkeys:
               validatedKeys.universalChallengerBtcPubkeysSorted,
-            timelockPegin,
-            timelockAssert: Number(config.offchainParams.timelockAssert),
-            timelockRefund,
-            councilQuorum: config.offchainParams.councilQuorum,
-            councilSize: config.offchainParams.securityCouncilKeys.length,
-            availableUTXOs: spendableUTXOs,
+            // `timelockPegin` is `Number(timelockAssert)` — the same contract
+            // field the line below reads. Both must come off the same snapshot.
+            timelockPegin: buildConfig.timelockPegin,
+            timelockAssert: Number(buildConfig.offchainParams.timelockAssert),
+            timelockRefund: buildConfig.timelockRefund,
+            councilQuorum: buildConfig.offchainParams.councilQuorum,
+            councilSize: buildConfig.offchainParams.securityCouncilKeys.length,
+            availableUTXOs: capFundingUtxos(spendableUTXOs),
           },
         );
         const {
@@ -741,6 +861,21 @@ export function useDepositFlow(
           confirmedBtcAddress,
         );
 
+        try {
+          getPendingPegins(confirmedEthAddress);
+        } catch (storageErr) {
+          if (!(storageErr instanceof PendingPeginStorageReadError)) {
+            throw storageErr;
+          }
+          logger.error(storageErr, {
+            tags: {
+              component: "useDepositFlow",
+              phase: "storage-readable",
+            },
+          });
+          throw storageErr;
+        }
+
         // 3e. Single batch ETH transaction for all vaults.
         advanceStep(DepositFlowStep.SUBMIT_PEGIN);
         const batchRegistration = await registerPeginBatchAndWait({
@@ -751,6 +886,7 @@ export function useDepositFlow(
           requests: batchRequests,
           popSignature,
           quotedCommissionBps,
+          expectedFingerprint,
         });
         registeredVaultIds = batchRegistration.vaults.map(
           (vault) => vault.vaultId,
@@ -841,12 +977,12 @@ export function useDepositFlow(
             // compare against, since both could drift to the same new value
             // while the BTC scripts stayed pinned to the construction-time
             // version.
-            buildOffchainParamsVersion: config.offchainParamsVersion,
+            buildOffchainParamsVersion: buildConfig.offchainParamsVersion,
             buildAppVaultKeepersVersion:
               validatedKeys.expectedAppVaultKeepersVersion,
             buildUniversalChallengersVersion:
               validatedKeys.expectedUniversalChallengersVersion,
-            buildVaultCoreVersion: config.activeVaultCoreVersion,
+            buildVaultCoreVersion: buildConfig.activeVaultCoreVersion,
             // RFC-006: pin the keys the scripts were actually built with, so a
             // rotation landing before a later resume can't be broadcast over.
             buildParticipantOperationKeys: {
@@ -915,12 +1051,12 @@ export function useDepositFlow(
           await verifyRegisteredVaultVersions({
             vaultRegistryReader: getVaultRegistryReader(),
             vaultIds: batchRegistration.vaults.map((v) => v.vaultId as Hex),
-            expectedOffchainParamsVersion: config.offchainParamsVersion,
+            expectedOffchainParamsVersion: buildConfig.offchainParamsVersion,
             expectedAppVaultKeepersVersion:
               validatedKeys.expectedAppVaultKeepersVersion,
             expectedUniversalChallengersVersion:
               validatedKeys.expectedUniversalChallengersVersion,
-            expectedVaultCoreVersion: config.activeVaultCoreVersion,
+            expectedVaultCoreVersion: buildConfig.activeVaultCoreVersion,
           });
         } catch (err) {
           // Only a confirmed mismatch removes pending entries — transient RPC
@@ -962,62 +1098,72 @@ export function useDepositFlow(
         // Ethereum event.
         // ========================================================================
 
+        // Advance before the probes: an unlock prompt or a probe failure
+        // belongs to this step, not to the Ethereum registration.
         advanceStep(DepositFlowStep.BROADCAST_PRE_PEGIN);
         setPerVaultSteps(
           vaultAmounts.map(() => DepositFlowStep.BROADCAST_PRE_PEGIN),
         );
 
-        let prePeginBroadcastTxid: string;
+        // A flow abandoned during the minutes-long gate must not raise an
+        // unlock prompt or signing popup (same rule as the resume path).
+        signal.throwIfAborted();
+
+        // The wallet may have locked during the gate wait; probe before the
+        // signing popup so it fails with liveness copy, not a dead popup.
+        await verifyBtcWalletLiveness(confirmedBtcWallet, confirmedBtcAddress, {
+          probeConnection: shouldProbeWalletLiveness(
+            btcConnector?.connectedWallet?.id,
+          ),
+        });
+
+        // The inputs were validated before ETH registration; the gate
+        // stretched that window to minutes, so re-check before signing. A
+        // spent input is terminal for these vaults; a fetch failure is not.
         try {
-          prePeginBroadcastTxid = await broadcastPrePeginTransaction({
-            unsignedTxHex: batchResult.fundedPrePeginTxHex,
-            btcWalletProvider: {
-              signPsbt: async (psbtHex: string) => {
-                const signedPsbtHex = await runCancellableSign(
-                  confirmedBtcWallet,
-                  () => confirmedBtcWallet.signPsbt(psbtHex),
-                );
-                // A late cancel that still signed successfully proceeds
-                // elsewhere — but here the next step is the irreversible
-                // pushTx, so honor the cancel: throw before the tx leaves,
-                // keeping the records PENDING and resumable (Broadcast CTA).
-                if (lastSignSettledWithCancelPendingRef.current) {
-                  deviceCancelSettledRef.current = true;
-                  throw Object.assign(
-                    new Error(
-                      "Signing canceled — the signed Pre-PegIn was not broadcast",
-                    ),
-                    { code: WALLET_CONNECTION_REJECTED_CODE },
-                  );
-                }
-                return signedPsbtHex;
-              },
-              deriveContextHash: (appName: string, context: string) =>
-                confirmedBtcWallet.deriveContextHash(appName, context),
-              // Object spread drops prototype methods — see forwardDepositApproval.
-              ...forwardDepositApproval(confirmedBtcWallet),
-            },
-            depositorBtcPubkey: batchResult.depositorBtcPubkey,
-            expectedUtxos: utxosToExpectedRecord(batchResult.selectedUTXOs),
-            depositTerms: batchResult.depositTerms,
-          });
-        } catch (error) {
-          // Preserve a typed intent rejection so the error mapper can show the
-          // intent-rejection copy instead of a generic broadcast failure — the
-          // broadcast service already keeps it typed at its boundary.
-          if (isDepositTermsRejectedError(error)) {
-            throw error;
-          }
-          const errorMsg =
-            error instanceof Error ? error.message : String(error);
-          // `cause` keeps the typed inner error visible to the cause-walking
-          // classifiers (user cancellation, method-not-supported) in the
-          // mappers.
-          throw new Error(
-            `Failed to broadcast batch Pre-PegIn transaction: ${errorMsg}`,
-            { cause: error },
+          await assertUtxosAvailable(
+            batchResult.fundedPrePeginTxHex,
+            confirmedBtcAddress,
           );
+        } catch (err) {
+          postGateUtxoFetchFailed = !(err instanceof UtxoNotAvailableError);
+          throw err;
         }
+
+        // An abort landing during the probes must not raise the signing popup.
+        signal.throwIfAborted();
+
+        // No re-wrap: a wrapper here would replace the service's stage label.
+        const prePeginBroadcastTxid = await broadcastPrePeginTransaction({
+          unsignedTxHex: batchResult.fundedPrePeginTxHex,
+          btcWalletProvider: {
+            signPsbt: async (psbtHex: string) => {
+              const signedPsbtHex = await runCancellableSign(
+                confirmedBtcWallet,
+                () => confirmedBtcWallet.signPsbt(psbtHex),
+              );
+              // A late cancel that still signed successfully proceeds
+              // elsewhere — but here the next step is the irreversible
+              // pushTx, so honor the cancel: throw before the tx leaves,
+              // keeping the records PENDING and resumable (Broadcast CTA).
+              if (lastSignSettledWithCancelPendingRef.current) {
+                deviceCancelSettledRef.current = true;
+                throw Object.assign(
+                  new Error(COPY.deposit.errors.prePeginSigningCanceled),
+                  { code: WALLET_CONNECTION_REJECTED_CODE },
+                );
+              }
+              return signedPsbtHex;
+            },
+            deriveContextHash: (appName: string, context: string) =>
+              confirmedBtcWallet.deriveContextHash(appName, context),
+            // Object spread drops prototype methods — see forwardDepositApproval.
+            ...forwardDepositApproval(confirmedBtcWallet),
+          },
+          depositorBtcPubkey: batchResult.depositorBtcPubkey,
+          expectedUtxos: utxosToExpectedRecord(batchResult.selectedUTXOs),
+          depositTerms: batchResult.depositTerms,
+        });
 
         // Broadcast succeeded — update pending pegins from PENDING to CONFIRMING
         for (const peginResult of peginResults) {
@@ -1106,7 +1252,7 @@ export function useDepositFlow(
         // values here at broadcast time.
         setBtcConfirmationDetail({
           prePeginTxid: prePeginBroadcastTxid,
-          requiredDepth: config.offchainParams.minPrepeginDepth,
+          requiredDepth: buildConfig.offchainParams.minPrepeginDepth,
           depositIds: broadcastedResults.map((r) => r.vaultId),
         });
         setIsWaiting(true);
@@ -1560,6 +1706,7 @@ export function useDepositFlow(
           // the wallet's CONNECTION_REJECTED as "You rejected the request",
           // which misattributes it. Post-registration copy names the Retry
           // offered below; pre-registration copy names no button (none is).
+          // Post-registration mapping adds the spent-input terminal callout.
           const content: DepositErrorContent = selfCanceled
             ? registeredVaultIds !== null
               ? {
@@ -1572,13 +1719,19 @@ export function useDepositFlow(
                   title: COPY.deposit.errors.signingCanceled.title,
                   body: COPY.deposit.errors.signingCanceled.body,
                 }
-            : mapDepositError(err);
-          // Post-registration the vaults are on-chain, so a self-cancel or a
-          // mapped resumable bucket (device trouble, wallet reject) offers the
-          // in-modal resume.
+            : registeredVaultIds !== null
+              ? mapDepositErrorAfterRegistration(err)
+              : mapDepositError(err);
+          // Post-registration the vaults are on-chain, so a self-cancel, a
+          // mapped resumable bucket (device trouble, wallet reject, sign
+          // failure), a wallet that locked during the gate or a UTXO re-check
+          // that could not reach the mempool offers the in-modal resume.
           if (
             registeredVaultIds !== null &&
-            (selfCanceled || isResumableDepositError(content))
+            (selfCanceled ||
+              isResumableDepositError(content) ||
+              err instanceof BtcWalletLivenessError ||
+              postGateUtxoFetchFailed)
           ) {
             setResumableVaultIds(registeredVaultIds);
           }
@@ -1612,6 +1765,7 @@ export function useDepositFlow(
       runCancellableSign,
       gate,
       vaultAmounts,
+      depositAmountSats,
       mempoolFeeRate,
       btcWalletProvider,
       btcConnector?.connectedWallet?.id,
@@ -1622,8 +1776,6 @@ export function useDepositFlow(
       vaultProviderBtcPubkey,
       vaultKeeperBtcPubkeys,
       universalChallengerBtcPubkeys,
-      timelockPegin,
-      timelockRefund,
       config,
       minDeposit,
       maxDeposit,

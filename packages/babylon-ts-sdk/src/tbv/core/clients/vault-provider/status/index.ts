@@ -6,7 +6,7 @@
  * for unauthenticated status reads and polling that must remain usable in an
  * Ethereum-only application session.
  *
- * @module clients/vault-provider/status
+ * @module tbv/core/clients/vault-provider/status
  */
 
 export { VaultProviderRpcClient } from "../api";
@@ -18,4 +18,7 @@ export {
 } from "../batchPoll";
 export { JSON_RPC_ERROR_CODES, JsonRpcError } from "../json-rpc-client";
 export * from "../types";
-export { VpResponseValidationError } from "../validators";
+export {
+  VpResponseValidationError,
+  isUnrecognizedDaemonStatusError,
+} from "../validators";

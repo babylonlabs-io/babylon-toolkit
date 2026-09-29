@@ -1,13 +1,14 @@
 import { Popover } from "@babylonlabs-io/core-ui";
 import { useEffect, useRef, useState } from "react";
 import { IoChevronDown } from "react-icons/io5";
-import { useNavigate } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 
-import { getReserveDetailRoute } from "@/routes";
-import { getTokenByAddress } from "@/services/token/tokenService";
+import { getReserveDetailSearch } from "@/routes";
+import { getHubIdentity } from "@/services/aave/hubRegistry";
 
 import type { LoanTab } from "../../constants";
 import type { AaveReserveConfig } from "../../services/fetchConfig";
+import { getReserveTokenLabel } from "../../utils/reserveTokenLabel";
 import { AssetListItem } from "../AssetSelectionPanel/AssetListItem";
 
 interface AssetPillProps {
@@ -18,6 +19,7 @@ interface AssetPillProps {
   /**
    * Reserves to offer in the switcher. Borrow passes the borrowable reserves;
    * repay passes the user's borrowed reserves (the assets that can be repaid).
+   * One token on two hubs is two entries, each naming its hub.
    */
   reserves: AaveReserveConfig[];
   /** Current mode, preserved when switching asset (stays on borrow vs repay). */
@@ -35,6 +37,7 @@ export function AssetPill({
   disabled = false,
 }: AssetPillProps) {
   const navigate = useNavigate();
+  const { pathname } = useLocation();
   const anchorRef = useRef<HTMLButtonElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const [isOpen, setIsOpen] = useState(false);
@@ -53,10 +56,15 @@ export function AssetPill({
 
   // Navigate by the reserve's on-chain id, never by its symbol: the symbol is
   // indexer-supplied, so routing on it lets a compromised indexer decide which
-  // reserve the click opens (audit F7).
+  // reserve the click opens (audit F7). Search-only with `replace`, like every
+  // other step of the loan overlay, so the form swaps in place over the same
+  // page. No `asset` is carried, so the switched form shows close, not back.
   const handleSelect = (reserveId: bigint) => {
     setIsOpen(false);
-    navigate(getReserveDetailRoute(reserveId, mode));
+    navigate(
+      { pathname, search: getReserveDetailSearch(reserveId, mode) },
+      { replace: true },
+    );
   };
 
   return (
@@ -88,19 +96,23 @@ export function AssetPill({
         className="max-h-80 w-72 overflow-y-auto rounded-lg border border-secondary-strokeLight bg-surface p-2 shadow-lg"
       >
         <div ref={listRef} className="space-y-2">
-          {reserves.map((reserve) => (
-            <AssetListItem
-              key={reserve.reserveId.toString()}
-              symbol={reserve.token.symbol}
-              name={reserve.token.name}
-              icon={getTokenByAddress(reserve.token.address)?.icon}
-              // By id, not by symbol: `symbol` is the proven label of the open
-              // reserve, while the rows carry indexer labels, so comparing the
-              // two could mark the wrong row (or none).
-              selected={reserve.reserveId === selectedReserveId}
-              onClick={() => handleSelect(reserve.reserveId)}
-            />
-          ))}
+          {reserves.map((reserve) => {
+            const token = getReserveTokenLabel(reserve);
+            return (
+              <AssetListItem
+                key={reserve.reserveId.toString()}
+                symbol={token.symbol}
+                name={token.name}
+                icon={token.icon}
+                hub={getHubIdentity(reserve.reserve.hub)}
+                // By id, not by symbol: `symbol` is the proven label of the
+                // open reserve, while the rows carry list labels, so comparing
+                // the two could mark the wrong row (or none).
+                selected={reserve.reserveId === selectedReserveId}
+                onClick={() => handleSelect(reserve.reserveId)}
+              />
+            );
+          })}
         </div>
       </Popover>
     </>

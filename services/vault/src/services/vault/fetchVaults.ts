@@ -406,6 +406,20 @@ function transformVaultItem(item: GraphQLVaultItem): Vault {
 }
 
 /**
+ * A depositor's indexed vaults, plus how many indexed rows were dropped
+ * because `transformVaultItem` rejected them.
+ *
+ * A non-zero `droppedCount` means `vaults` is NOT the complete set the
+ * indexer holds: a dropped vault is indistinguishable from a vault the
+ * indexer never had. Callers that read absence as evidence — the dismiss
+ * gate is one — must fail closed on it.
+ */
+interface DepositorVaultsResult {
+  vaults: Vault[];
+  droppedCount: number;
+}
+
+/**
  * Fetch vaults by depositor address from GraphQL.
  *
  * Walks Ponder's cursor pagination until the indexer reports no more
@@ -413,11 +427,12 @@ function transformVaultItem(item: GraphQLVaultItem): Vault {
  * silently truncated.
  *
  * @param depositorAddress - Depositor's Ethereum address
- * @returns Array of vaults
+ * @returns The transformed vaults and the count of rows that failed to
+ * transform
  */
 export async function fetchVaultsByDepositor(
   depositorAddress: Address,
-): Promise<Vault[]> {
+): Promise<DepositorVaultsResult> {
   const depositor = depositorAddress.toLowerCase();
 
   let page = await graphqlClient.request<VaultsGraphQLResponse>(
@@ -456,17 +471,19 @@ export async function fetchVaultsByDepositor(
   }
 
   const vaults: Vault[] = [];
+  let droppedCount = 0;
   for (const item of items) {
     try {
       vaults.push(transformVaultItem(item));
     } catch (error) {
+      droppedCount += 1;
       logger.error(error instanceof Error ? error : new Error(String(error)), {
         tags: { vaultId: item.id, component: "fetchVaults" },
         data: { rawStatus: item.status },
       });
     }
   }
-  return vaults;
+  return { vaults, droppedCount };
 }
 
 /**

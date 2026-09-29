@@ -53,7 +53,7 @@ const V1_WIRE = V1.slice(2);
 const V2_WIRE = V2.slice(2);
 const V3_WIRE = V3.slice(2);
 
-function claimer(claim_txid: string, status: string = "PayoutBroadcast") {
+function claimer(claim_txid: string, status: string = "PayoutConfirmed") {
   return {
     status,
     failed: false,

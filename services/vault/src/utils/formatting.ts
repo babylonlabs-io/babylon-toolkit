@@ -135,7 +135,7 @@ export function formatAprPercent(percent: number): string {
   return `${rounded}%`;
 }
 
-/** Decimal places shown for the Overview "% to liquidation" figure. */
+/** Decimal places shown for the Overview "% to Liquidation" figure. */
 const LIQUIDATION_DISTANCE_DECIMALS = 1;
 
 /**
@@ -264,28 +264,6 @@ export function formatDisplayAmount(
   displayDecimals: number,
 ): string {
   return formatAmount(amount, amount >= 1 ? 2 : displayDecimals);
-}
-
-/**
- * Label for a progress meter whose fill is a 0–1 ratio, guarding the two
- * rounding edges so the text can't contradict a partial bar:
- *  - a non-zero ratio that rounds down to 0%   → `belowOne` (e.g. "<1% …")
- *  - a below-full ratio that rounds up to 100%  → `nearFull` (e.g. ">99% …")
- *  - otherwise the exact rounded percentage.
- */
-export function formatMeterLabel(
-  ratio: number,
-  labels: {
-    belowOne: string;
-    nearFull: string;
-    exact: (percent: number) => string;
-  },
-): string {
-  const percent = Math.round(Math.min(1, Math.max(0, ratio)) * 100);
-  const isPartial = ratio > 0 && ratio < 1;
-  if (isPartial && percent === 0) return labels.belowOne;
-  if (isPartial && percent === 100) return labels.nearFull;
-  return labels.exact(percent);
 }
 
 /**

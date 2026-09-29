@@ -29,14 +29,6 @@ interface PostDepositContinuationContentProps {
    */
   warnings?: DepositWarning[];
   onClose: () => void;
-  /**
-   * Advanced escape-hatch entry (activate-and-redeem): the host swaps this
-   * multistepper for the dedicated withdraw modal. Rendered as a muted link
-   * in the activation confirmation when provided; hosts without the withdraw
-   * modal bundle (e.g. the in-flow deposit dialog) omit it — no handler, no
-   * link.
-   */
-  onAdvancedWithdraw?: (vaultId: string) => void;
 }
 
 export function PostDepositContinuationContent({
@@ -44,7 +36,6 @@ export function PostDepositContinuationContent({
   depositorEthAddress,
   warnings = [],
   onClose,
-  onAdvancedWithdraw,
 }: PostDepositContinuationContentProps) {
   const { connected: btcConnected } = useBTCWallet();
   const { publicKey: btcPublicKey } = useBtcPublicKey(btcConnected);
@@ -85,7 +76,6 @@ export function PostDepositContinuationContent({
         btcPublicKey={btcPublicKey}
         demoVaultIds={scoped.demoVaultIds}
         onClose={onClose}
-        onAdvancedWithdraw={onAdvancedWithdraw}
       />
     </>
   );

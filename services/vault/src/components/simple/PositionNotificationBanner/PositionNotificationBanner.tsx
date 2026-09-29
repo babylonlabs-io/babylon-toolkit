@@ -6,8 +6,7 @@ import {
 } from "@babylonlabs-io/core-ui";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useState, type ReactNode } from "react";
-import type { Address, Hex } from "viem";
-import { useAccount } from "wagmi";
+import type { Hex } from "viem";
 
 import { useReorderOverride } from "@/applications/aave/context";
 import {
@@ -32,7 +31,7 @@ import {
 } from "@/components/shared/protocolStatus";
 import { COPY } from "@/copy";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
-import { invalidateVaultQueries, vaultOrderQueryKey } from "@/utils/queryKeys";
+import { invalidateVaultQueries } from "@/utils/queryKeys";
 
 import { ReorderSuccessModal } from "../ReorderVaults";
 
@@ -117,6 +116,7 @@ export function PositionNotificationBanner({
     status,
     isLoading,
     reorderVerificationContext,
+    liveUrgentWarning,
   } = usePositionNotifications(connectedAddress);
 
   const hasOverride = resultOverride !== undefined;
@@ -134,17 +134,11 @@ export function PositionNotificationBanner({
     () => new Set(),
   );
   const queryClient = useQueryClient();
-  const { address } = useAccount();
 
   const handleReorderSuccessClose = useCallback(() => {
     setIsReorderSuccess(false);
-    if (address) {
-      queryClient.invalidateQueries({
-        queryKey: vaultOrderQueryKey(address),
-      });
-      invalidateVaultQueries(queryClient, address as Address);
-    }
-  }, [address, queryClient]);
+    invalidateVaultQueries(queryClient);
+  }, [queryClient]);
 
   const handleDismissAdvisory = useCallback((key: string) => {
     setDismissedAdvisories((prev) => new Set(prev).add(key));
@@ -175,6 +169,51 @@ export function PositionNotificationBanner({
     isLiveStalePrice,
     STALE_PRICE_BANNER_GRACE_MS,
   );
+
+  if (
+    !hasOverride &&
+    statusOverride === undefined &&
+    !result &&
+    liveUrgentWarning
+  ) {
+    return (
+      <NotificationCard
+        tone="urgent"
+        title={liveUrgentWarning.title}
+        data-testid={TEST_ID}
+        data-severity="red"
+        actions={[
+          {
+            label: COPY.banner.addCollateral,
+            onClick: () => onDeposit(),
+            emphasis: "primary",
+            disabled: isDepositBlocked(gate),
+          },
+          {
+            label: COPY.banner.repayDebt,
+            onClick: onRepay,
+            emphasis: "secondary",
+            disabled: isRepayBlocked(gate),
+          },
+        ]}
+      >
+        {liveUrgentWarning.detail}
+      </NotificationCard>
+    );
+  }
+
+  if (effectiveStatus === "params-unavailable") {
+    return (
+      <Notification
+        variant="warning"
+        title={COPY.liquidationWarnings.paramsUnavailable.title}
+        data-testid={TEST_ID}
+        data-severity="yellow"
+      >
+        {COPY.liquidationWarnings.paramsUnavailable.detail}
+      </Notification>
+    );
+  }
 
   if (effectiveStatus === "stale-price") {
     if (statusOverride === "stale-price" || staleBannerReady) {
@@ -262,7 +301,8 @@ export function PositionNotificationBanner({
   // The cliff ("First liquidation takes everything") renders as a vertical card
   // per Figma: no title icon-chip, the CTA stacked below, and its suggestion box
   // styled by feasibility — an info-icon row when an affordable sacrificial add
-  // exists (#1948), otherwise a "SUGGESTION"-labelled block (#1949 / multi-vault).
+  // exists (#1948), otherwise a "SUGGESTION"-labelled block (no affordable add
+  // / multi-vault).
   const isCliffPrimary = primaryWarning?.type === "cliff";
   const cliffHasAffordableAdd =
     isCliffPrimary && result.suggestedNewVaultBtc !== null;
@@ -335,7 +375,7 @@ export function PositionNotificationBanner({
           </div>
         );
       } else if (isCliffPrimary) {
-        // #1949 / multi-vault — no CTA: "SUGGESTION" label, no icon (Figma CLIFF B).
+        // No affordable add / multi-vault — no CTA: "SUGGESTION" label, no icon.
         primarySuggestionNode = (
           <div className="flex flex-col gap-1">
             <div className="tracking-wider text-xs font-medium uppercase text-accent-secondary">

@@ -1,7 +1,11 @@
+import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 
+import { pegInConfigQueryOptions } from "@/context/ProtocolParamsContext";
+import { COPY } from "@/copy";
 import { useDashboardState } from "@/hooks/useDashboardState";
 import { usePrices } from "@/hooks/usePrices";
+import { satoshiToBtcNumber } from "@/utils/btcConversion";
 
 import {
   calculate,
@@ -18,12 +22,16 @@ export type PositionNotificationsStatus =
   | "loading"
   | "no-wallet"
   | "no-vaults"
+  | "incomplete-position"
   | "no-price"
   | "stale-price"
+  /** The Spoke risk-parameter read failed; nothing can be calculated. */
+  | "params-unavailable"
   | "ready";
 
 export interface UsePositionNotificationsResult {
   result: CalculatorResult | null;
+  liveUrgentWarning: Warning | null;
   status: PositionNotificationsStatus;
   isLoading: boolean;
   /**
@@ -56,23 +64,28 @@ const LIVE_HF_URGENT_THRESHOLD = 1.05;
 function buildLiveHfUrgentWarning(healthFactor: number): Warning {
   return {
     type: "urgent",
-    title: `Critical — health factor ${healthFactor.toFixed(2)}`,
-    detail: `On-chain health factor is at or below ${LIVE_HF_URGENT_THRESHOLD.toFixed(2)}. The position can be liquidated at the current price.`,
-    suggestion:
-      "Add collateral or repay part of the debt to restore a safe health factor.",
+    title: COPY.liquidationWarnings.liveHealthFactor.title(
+      healthFactor.toFixed(2),
+    ),
+    detail: COPY.liquidationWarnings.liveHealthFactor.detail,
+    suggestion: COPY.liquidationWarnings.urgent.approachingSuggestion,
   };
 }
 
 export function usePositionNotifications(
   connectedAddress: string | undefined,
 ): UsePositionNotificationsResult {
-  const { params: splitParams, isLoading: paramsLoading } =
-    useVaultSplitParams(connectedAddress);
+  const {
+    params: splitParams,
+    isLoading: paramsLoading,
+    error: splitParamsError,
+  } = useVaultSplitParams(connectedAddress);
 
   const {
     collateralVaults,
     debtValueUsd,
     healthFactor,
+    indexerError,
     isLoading: dashboardLoading,
   } = useDashboardState(connectedAddress);
 
@@ -80,7 +93,27 @@ export function usePositionNotifications(
   const btcPrice = prices["BTC"] ?? 0;
   const btcMetadata = metadata["BTC"];
 
-  const isLoading = paramsLoading || dashboardLoading;
+  // Suggested vault sizes must be depositable, so the calculator needs the
+  // protocol's minimum peg-in. Same cached query the deposit form reads. It
+  // only sizes suggestions: the warnings wait for the read to settle (so the
+  // suggested amount does not change once the minimum arrives), and if it
+  // failed they render with the suggestions not floored.
+  const { data: pegInConfig, isLoading: pegInConfigLoading } = useQuery(
+    pegInConfigQueryOptions(),
+  );
+
+  const isLoading = paramsLoading || dashboardLoading || pegInConfigLoading;
+  const liveUrgentWarning = useMemo(
+    () =>
+      connectedAddress &&
+      !dashboardLoading &&
+      debtValueUsd > 0 &&
+      healthFactor !== null &&
+      healthFactor <= LIVE_HF_URGENT_THRESHOLD
+        ? buildLiveHfUrgentWarning(healthFactor)
+        : null,
+    [connectedAddress, dashboardLoading, debtValueUsd, healthFactor],
+  );
 
   const { result, status, reorderVerificationContext, params } = useMemo((): {
     result: CalculatorResult | null;
@@ -88,7 +121,7 @@ export function usePositionNotifications(
     reorderVerificationContext: ReorderVerificationContext | null;
     params: CalculatorParams | null;
   } => {
-    if (!splitParams || isLoading)
+    if (isLoading)
       return {
         result: null,
         status: "loading",
@@ -99,6 +132,13 @@ export function usePositionNotifications(
       return {
         result: null,
         status: "no-wallet",
+        reorderVerificationContext: null,
+        params: null,
+      };
+    if (indexerError)
+      return {
+        result: null,
+        status: "incomplete-position",
         reorderVerificationContext: null,
         params: null,
       };
@@ -119,15 +159,40 @@ export function usePositionNotifications(
     // Optimistic activating rows carry collateral the contract has not seen
     // yet, and a sentinel `liquidationIndex`. Including them would inflate
     // `totalBtc`, pushing every liquidation price DOWN — understating the
-    // risk — and label a band "Vault 9007199254740992". The cascade models
-    // what the protocol would seize, so it sees indexed vaults only.
+    // risk — and label a band "Vault 9007199254740992". A withdrawing vault
+    // has left the position and would inflate it the same way. The cascade
+    // models what the protocol would seize, so it sees active vaults only.
     const indexedVaults = collateralVaults.filter(
-      (entry) => !entry.isActivating,
+      (entry) => entry.lifecycle === "active",
     );
     if (indexedVaults.length === 0)
       return {
         result: null,
         status: "no-vaults",
+        reorderVerificationContext: null,
+        params: null,
+      };
+    // Reported only once there is a position to warn about, and only for a
+    // settled failure: the query does not refetch on focus, so the warnings
+    // would otherwise be hidden for good with nothing said.
+    // `computeSplitLiquidationBonus` throws on an out-of-range bonus curve,
+    // so this is a reachable state.
+    if (!splitParams)
+      return {
+        result: null,
+        status: splitParamsError ? "params-unavailable" : "loading",
+        reorderVerificationContext: null,
+        params: null,
+      };
+    // A null `LB` is the same situation as a failed read for the warnings:
+    // every seizure figure below is computed from it, so there is nothing to
+    // show. The collateral factor survives in the same query on purpose, for
+    // the borrow and repay pre-sign checks. Keyed on the value itself, not on
+    // the reason string, so an empty reason cannot strand this on "loading".
+    if (splitParams.LB === null)
+      return {
+        result: null,
+        status: "params-unavailable",
         reorderVerificationContext: null,
         params: null,
       };
@@ -144,7 +209,11 @@ export function usePositionNotifications(
       vaults,
       CF: splitParams.CF,
       THF: splitParams.THF,
-      maxLB: splitParams.LB,
+      LB: splitParams.LB,
+      expectedHF: splitParams.expectedHF,
+      minPeginBtc: pegInConfig
+        ? satoshiToBtcNumber(pegInConfig.minimumPegInAmount)
+        : null,
     };
 
     const calculatorResult = calculate(calculatorParams);
@@ -159,15 +228,10 @@ export function usePositionNotifications(
       (w) => w.type === "urgent",
     );
     const resultWithLiveHf: CalculatorResult =
-      !hasUrgent &&
-      healthFactor !== null &&
-      healthFactor <= LIVE_HF_URGENT_THRESHOLD
+      !hasUrgent && liveUrgentWarning
         ? {
             ...calculatorResult,
-            warnings: [
-              buildLiveHfUrgentWarning(healthFactor),
-              ...calculatorResult.warnings,
-            ],
+            warnings: [liveUrgentWarning, ...calculatorResult.warnings],
           }
         : calculatorResult;
 
@@ -177,7 +241,9 @@ export function usePositionNotifications(
       reorderVerificationContext: {
         CF: splitParams.CF,
         THF: splitParams.THF,
-        maxLB: splitParams.LB,
+        LB: splitParams.LB,
+        expectedHF: splitParams.expectedHF,
+        minPeginBtc: calculatorParams.minPeginBtc,
         btcPrice,
         totalDebtUsd: debtValueUsd,
       },
@@ -185,14 +251,24 @@ export function usePositionNotifications(
     };
   }, [
     splitParams,
+    splitParamsError,
+    pegInConfig,
     isLoading,
     connectedAddress,
     btcPrice,
     btcMetadata,
     collateralVaults,
     debtValueUsd,
-    healthFactor,
+    indexerError,
+    liveUrgentWarning,
   ]);
 
-  return { result, status, isLoading, reorderVerificationContext, params };
+  return {
+    result,
+    liveUrgentWarning,
+    status,
+    isLoading,
+    reorderVerificationContext,
+    params,
+  };
 }

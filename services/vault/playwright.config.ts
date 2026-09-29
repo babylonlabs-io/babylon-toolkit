@@ -2,10 +2,36 @@ import { defineConfig, devices } from "@playwright/test";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { RECORDED_DEPLOYMENT } from "./e2e/fixtures/replay/contracts";
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const PORT_MISSING_ENV = 5173;
 const PORT_FULL_ENV = 5175;
+/**
+ * Full mock env plus the dev-only god-mode panel. Its own server because the
+ * panel mounts a fixed launcher on every screen, which the behavioural specs
+ * on `PORT_FULL_ENV` must not have to click around.
+ * The layout and liquidation tour specs use this panel.
+ */
+const PORT_GOD_MODE = 5176;
+const GOD_MODE_SPECS = [
+  "**/deposit-progress-layout.spec.ts",
+  "**/liquidation-tour.spec.ts",
+];
+/**
+ * Demo pacing for the chromium project, off unless set. CI sets neither.
+ * `slowMo` delays input actions and navigation only, not network routing.
+ */
+const DEMO_SLOW_MO_MS =
+  Number.parseInt(process.env.E2E_SLOW_MO_MS ?? "", 10) || 0;
+const DEMO_VIDEO = process.env.E2E_VIDEO === "on" ? "on" : "off";
+/**
+ * A project-level `testIgnore` replaces the top-level one rather than adding
+ * to it, so the visual exclusion documented on `testIgnore` below has to be
+ * repeated wherever a project narrows its own file set.
+ */
+const BEHAVIOURAL_TEST_IGNORE = ["**/visual/**", ...GOD_MODE_SPECS];
 
 /**
  * Mock backend the e2e suite pins so no spec reaches a live host. Exported
@@ -14,11 +40,10 @@ const PORT_FULL_ENV = 5175;
  * different app than the one under test.
  */
 export const MOCK_ENV_VARS = {
-  NEXT_PUBLIC_TBV_BTC_VAULT_REGISTRY:
-    "0x0000000000000000000000000000000000000001",
-  NEXT_PUBLIC_TBV_AAVE_ADAPTER: "0x0000000000000000000000000000000000000002",
-  NEXT_PUBLIC_TBV_AAVE_ADAPTER_CONFIG:
-    "0x0000000000000000000000000000000000000003",
+  NEXT_PUBLIC_TBV_BTC_VAULT_REGISTRY: RECORDED_DEPLOYMENT.BTC_VAULT_REGISTRY,
+  NEXT_PUBLIC_TBV_AAVE_ADAPTER: RECORDED_DEPLOYMENT.AAVE_ADAPTER,
+  NEXT_PUBLIC_TBV_AAVE_ADAPTER_CONFIG: RECORDED_DEPLOYMENT.AAVE_ADAPTER_CONFIG,
+  NEXT_PUBLIC_TBV_BTC_PRICE_FEED: RECORDED_DEPLOYMENT.BTC_PRICE_FEED,
   NEXT_PUBLIC_TBV_GRAPHQL_ENDPOINT: "http://localhost:9999/graphql",
   NEXT_PUBLIC_TBV_VP_PROXY_URL: "http://localhost:9998",
   NEXT_PUBLIC_ETH_RPC_URL: "http://localhost:9997/rpc",
@@ -51,6 +76,18 @@ export const MOCK_ENV_VARS = {
   NEXT_PUBLIC_E2E_MODE: "1",
 };
 
+/**
+ * Keep the recorded deployment available to the god-mode and visual servers.
+ * Visual captures also use these values when testing baseline code.
+ */
+export const RECORDED_DEPLOYMENT_ENV = {
+  NEXT_PUBLIC_TBV_BTC_VAULT_REGISTRY: RECORDED_DEPLOYMENT.BTC_VAULT_REGISTRY,
+  NEXT_PUBLIC_TBV_AAVE_ADAPTER: RECORDED_DEPLOYMENT.AAVE_ADAPTER,
+  NEXT_PUBLIC_TBV_AAVE_ADAPTER_CONFIG: RECORDED_DEPLOYMENT.AAVE_ADAPTER_CONFIG,
+  NEXT_PUBLIC_TBV_BTC_PRICE_FEED: RECORDED_DEPLOYMENT.BTC_PRICE_FEED,
+  NEXT_PUBLIC_ETH_CHAINID: RECORDED_DEPLOYMENT.ETH_CHAIN_ID,
+};
+
 export default defineConfig({
   testDir: path.join(__dirname, "e2e"),
   // Match only Playwright specs. The fixtures themselves have
@@ -67,7 +104,7 @@ export default defineConfig({
   // chases live animations for its full timeout and then retries twice.
   testIgnore: "**/visual/**",
   fullyParallel: false,
-  forbidOnly: false,
+  forbidOnly: !!process.env.CI,
   retries: 2,
   timeout: 90_000,
   workers: 1,
@@ -75,39 +112,66 @@ export default defineConfig({
 
   use: {
     headless: true,
-    trace: "on-first-retry",
+    trace: "retain-on-failure",
   },
 
   projects: [
     {
       name: "chromium",
+      testIgnore: BEHAVIOURAL_TEST_IGNORE,
       use: {
         ...devices["Desktop Chrome"],
         baseURL: `http://localhost:${PORT_FULL_ENV}`,
+        launchOptions: { slowMo: DEMO_SLOW_MO_MS },
+        video: DEMO_VIDEO,
+      },
+    },
+    {
+      name: "chromium-god-mode",
+      testMatch: GOD_MODE_SPECS,
+      use: {
+        ...devices["Desktop Chrome"],
+        baseURL: `http://localhost:${PORT_GOD_MODE}`,
       },
     },
   ],
 
   webServer: [
     {
-      command: `pnpm exec vite --port ${PORT_MISSING_ENV}`,
+      command: `pnpm exec vite --port ${PORT_MISSING_ENV} --strictPort`,
       url: `http://localhost:${PORT_MISSING_ENV}`,
       timeout: 120_000,
-      reuseExistingServer: true,
-      // This "missing configuration" server inherits the parent shell. Force the Sentry DSN
-      // empty so a developer's exported NEXT_PUBLIC_SENTRY_DSN can't enable Sentry here and
-      // transmit to a real project — the enable gate is DSN-only.
+      reuseExistingServer: !process.env.CI,
+      // Disable Sentry on the server with missing configuration.
       env: {
         NEXT_PUBLIC_SENTRY_DSN: "",
+        PLAYWRIGHT_VITE_CACHE_DIR: "node_modules/.vite-e2e-missing",
       },
     },
     {
-      command: `pnpm exec vite --port ${PORT_FULL_ENV}`,
+      command: `pnpm exec vite --port ${PORT_FULL_ENV} --strictPort`,
       url: `http://localhost:${PORT_FULL_ENV}`,
       timeout: 120_000,
-      reuseExistingServer: true,
+      reuseExistingServer: !process.env.CI,
       env: {
         ...MOCK_ENV_VARS,
+        // Explicit, because process env wins over a developer's `.env.local`.
+        NEXT_PUBLIC_FF_GOD_MODE_PANEL: "false",
+        PLAYWRIGHT_VITE_CACHE_DIR: "node_modules/.vite-e2e-full",
+      },
+    },
+    {
+      command: `pnpm exec vite --port ${PORT_GOD_MODE} --strictPort`,
+      url: `http://localhost:${PORT_GOD_MODE}`,
+      timeout: 120_000,
+      reuseExistingServer: !process.env.CI,
+      env: {
+        ...MOCK_ENV_VARS,
+        ...RECORDED_DEPLOYMENT_ENV,
+        NEXT_PUBLIC_FF_GOD_MODE_PANEL: "true",
+        NEXT_PUBLIC_FF_ENABLE_LIQUIDATION_NOTIFICATIONS: "true",
+        NEXT_PUBLIC_FF_POSITION_DEBUG_PANEL: "true",
+        PLAYWRIGHT_VITE_CACHE_DIR: "node_modules/.vite-e2e-god-mode",
       },
     },
   ],

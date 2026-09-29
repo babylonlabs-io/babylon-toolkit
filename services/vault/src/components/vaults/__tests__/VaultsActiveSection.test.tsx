@@ -7,6 +7,7 @@ import type { CollateralVaultEntry } from "@/types/collateral";
 
 const activeVault: CollateralVaultEntry = {
   id: "vault-1",
+  lifecycle: "active",
   vaultId: "0xvault1",
   amountBtc: 1,
   addedAt: 1_700_000_000,
@@ -51,6 +52,53 @@ describe("VaultsActiveSection", () => {
       }),
     ).toBeInTheDocument();
     expect(screen.getByText(COPY.pegin.labels.IN_USE)).toBeInTheDocument();
+  });
+
+  it("shows the peg-out status and no withdraw action while a vault is withdrawing", () => {
+    render(
+      <VaultsActiveSection
+        vaults={[{ ...activeVault, lifecycle: "withdrawing" }]}
+        onWithdraw={vi.fn()}
+        isWithdrawDisabled={false}
+      />,
+    );
+
+    expect(
+      screen.getByText(COPY.pegin.labels.REDEEM_IN_PROGRESS),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(COPY.pegin.labels.IN_USE),
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("vault-withdraw-button")).toBeDisabled();
+  });
+
+  it("reads Total Collateral (1) in the heading for a single active vault", () => {
+    render(
+      <VaultsActiveSection
+        vaults={[activeVault]}
+        onWithdraw={vi.fn()}
+        isWithdrawDisabled={false}
+      />,
+    );
+
+    expect(
+      screen.getByRole("heading", { name: "Total Collateral (1)" }),
+    ).toBeInTheDocument();
+  });
+
+  it("counts every rendered row in the Total Collateral heading, withdrawing included", () => {
+    render(
+      <VaultsActiveSection
+        vaults={[
+          activeVault,
+          { ...activeVault, id: "vault-withdrawing", lifecycle: "withdrawing" },
+        ]}
+        onWithdraw={vi.fn()}
+        isWithdrawDisabled={false}
+      />,
+    );
+
+    expect(screen.getByText(COPY.vaults.sections.count(2))).toBeInTheDocument();
   });
 
   it("renders nothing when there is no vault and no empty state to show", () => {

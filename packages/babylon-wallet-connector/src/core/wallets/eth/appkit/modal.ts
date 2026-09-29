@@ -1,12 +1,19 @@
 import { WagmiAdapter } from "@reown/appkit-adapter-wagmi";
-import { createAppKit } from "@reown/appkit/react";
+import { createAppKit, modal as reownAppKitModal } from "@reown/appkit/react";
 import { http, type Chain } from "viem";
 import { cookieStorage, createStorage } from "wagmi";
 import { baseAccount } from "wagmi/connectors";
 
-import { getAppKitModal, setAppKitModal } from "@/core/wallets/appkit/state";
+import {
+  assertAppKitCapabilities,
+  createAppKitCapabilities,
+  failInitialization,
+  getAppKitState,
+  setAppKitState,
+  validateAppKitInitialization,
+} from "@/core/wallets/appkit/state";
 
-import { getSharedWagmiConfig, hasSharedWagmiConfig, setSharedWagmiConfig } from "./sharedConfig";
+import { getSharedWagmiConfig } from "./sharedConfig";
 
 export interface AppKitMetadata {
   name: string;
@@ -25,7 +32,7 @@ export interface AppKitModalConfig {
 }
 
 /**
- * Builds the Ethereum adapter and publishes its wagmi config.
+ * Builds the Ethereum adapter.
  *
  * The unified (ETH+BTC) initializer calls this too, so the Ethereum half of
  * AppKit is set up in exactly one place regardless of which entry point the
@@ -50,8 +57,6 @@ export function createETHWagmiAdapter(chain: Chain, projectId: string): WagmiAda
     },
   });
 
-  setSharedWagmiConfig(adapter.wagmiConfig);
-
   return adapter;
 }
 
@@ -61,17 +66,24 @@ export function createETHWagmiAdapter(chain: Chain, projectId: string): WagmiAda
  * entry point.
  */
 export function initializeAppKitModal(config: AppKitModalConfig) {
-  const existingModal = getAppKitModal();
-  if (existingModal) {
-    return {
-      modal: existingModal,
-      wagmiConfig: hasSharedWagmiConfig() ? getSharedWagmiConfig() : undefined,
-    };
-  }
-
-  if (!config.projectId) return null;
+  if (!validateAppKitInitialization(config.projectId)) return null;
 
   const { chain } = config.eth;
+  const capabilities = createAppKitCapabilities({
+    projectId: config.projectId,
+    metadata: config.metadata,
+    ethChain: chain,
+  });
+  const existingState = getAppKitState();
+
+  if (existingState) {
+    assertAppKitCapabilities(existingState, capabilities);
+    return { modal: existingState.modal, wagmiConfig: getSharedWagmiConfig() };
+  }
+
+  if (reownAppKitModal)
+    failInitialization("Reown AppKit was initialized outside this package. Use only this package to initialize it.");
+
   const wagmiAdapter = createETHWagmiAdapter(chain, config.projectId);
 
   const modal = createAppKit({
@@ -80,7 +92,7 @@ export function initializeAppKitModal(config: AppKitModalConfig) {
     projectId: config.projectId,
     metadata: config.metadata,
   });
-  setAppKitModal(modal);
+  const initializedState = setAppKitState({ modal, ...capabilities, wagmiConfig: wagmiAdapter.wagmiConfig });
 
-  return { modal, wagmiConfig: wagmiAdapter.wagmiConfig };
+  return { modal: initializedState.modal, wagmiConfig: wagmiAdapter.wagmiConfig };
 }

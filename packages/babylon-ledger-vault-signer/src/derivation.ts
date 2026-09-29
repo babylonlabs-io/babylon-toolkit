@@ -44,7 +44,7 @@ const MASTER_FINGERPRINT_BYTES = 4;
  * Read the device's BIP-32 master key fingerprint. Both the default wallet
  * policy's key origin and the PoP input's TAP_BIP32_DERIVATION must carry it —
  * the device compares against `crypto_get_master_key_fingerprint()`
- * (`sign_psbt_validate.c:2732` @ 4decf822).
+ * (`sign_psbt_validate.c:3039` @ b0c0ac4d).
  */
 export async function getMasterFingerprintHex(send: ApduSender): Promise<string> {
   const response = await send({

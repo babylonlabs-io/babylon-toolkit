@@ -17,10 +17,11 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { formatUnits } from "viem";
 
+import { AAVE_RESERVE_LIQUIDITY_QUERY_KEY as QUERY_KEY } from "@/utils/queryKeys";
+
 import { getAssetLiquiditiesSafe } from "../clients/aaveHub";
 import type { AaveReserveConfig } from "../services/fetchConfig";
 
-const QUERY_KEY = "aaveReserveLiquidity";
 const ONE_MINUTE_MS = 60 * 1000;
 /** 100% expressed in basis points (1 bps = 0.01%). */
 const BPS_SCALE = 10_000n;

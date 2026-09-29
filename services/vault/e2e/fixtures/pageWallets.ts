@@ -26,7 +26,7 @@
  *
  * These providers connect and read. They do not sign: every signing method
  * throws, so a test that walks into a signing step fails there rather than
- * appearing to succeed. Captures stop at the deposit form for exactly that
+ * appearing to succeed. Captures stop at the pre-sign entry for exactly that
  * reason.
  */
 
@@ -75,6 +75,11 @@ export interface PageWalletConfig {
   readonly ethChainIdHex: string;
   /** Where unhandled JSON-RPC is forwarded - the replayed endpoint. */
   readonly ethRpcUrl: string;
+  /**
+   * EIP-6963 icon data URI for the ETH wallet. Blank when omitted, so the
+   * visual captures keep photographing the same header.
+   */
+  readonly ethIcon?: string;
 }
 
 /**
@@ -228,7 +233,7 @@ export async function injectPageWallets(
       const info = {
         uuid: "00000000-0000-4000-8000-000000000000",
         name: "E2E Capture Wallet",
-        icon: blankIcon,
+        icon: walletConfig.ethIcon ?? blankIcon,
         rdns: "io.babylonlabs.e2e.capture",
       };
 
@@ -268,8 +273,15 @@ export async function injectPageWallets(
  * The ETH side needs no interaction - wagmi has already authorised the
  * announced provider by the time the dialog opens, so the dialog shows the
  * account and only Bitcoin is left to choose.
+ *
+ * `beforeCommit` runs once both wallets are chosen and the dialog is still
+ * open - the one moment a capture can photograph the dialog in a state that
+ * does not depend on how fast each wallet reported in.
  */
-export async function connectInjectedWallets(page: Page): Promise<void> {
+export async function connectInjectedWallets(
+  page: Page,
+  beforeCommit?: () => Promise<void>,
+): Promise<void> {
   // By testid, not by its label: the header control is a labelled button on
   // desktop and an icon-only button on mobile, so a text match connects at one
   // width and times out at the other.
@@ -290,10 +302,17 @@ export async function connectInjectedWallets(page: Page): Promise<void> {
 
   // The dialog returns to its summary once BTC is chosen; this button is what
   // commits the session. Waiting for it to be enabled is what makes this
-  // robust - it stays disabled until both required chains are satisfied, so
+  // robust - it stays disabled until the required ETH chain is satisfied, so
   // this is also the assertion that ETH really did connect silently.
   const commit = dialog.getByTestId("chains-connect-button");
   await expect(commit).toBeEnabled();
+  // Ethereum alone enables the button, so this is the assertion that Bitcoin
+  // connected too: the row shows the connected wallet, whose address is the
+  // only `title` in it (`ConnectedWallet` in the wallet connector).
+  await expect(
+    dialog.getByTestId("select-bitcoin-wallet-button").locator("[title]"),
+  ).toBeVisible();
+  await beforeCommit?.();
   await commit.click();
 
   // The dialog is a full-viewport overlay: anything clicked before it is gone

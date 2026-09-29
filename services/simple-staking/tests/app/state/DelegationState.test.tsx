@@ -2,7 +2,10 @@ import { act, renderHook } from "@testing-library/react";
 import { PropsWithChildren } from "react";
 import * as hooks from "usehooks-ts";
 
-// Mock the dependencies, but keep their APIs close to real ones
+jest.mock("nanoevents", () => ({
+  createNanoEvents: jest.fn(() => ({ on: jest.fn(), emit: jest.fn() })),
+}));
+
 const mockUseBTCWallet = jest.fn();
 jest.mock("@/ui/common/context/wallet/BTCWalletProvider", () => ({
   useBTCWallet: () => mockUseBTCWallet(),
@@ -157,10 +160,8 @@ describe("DelegationState", () => {
   });
 
   it("should sync delegations from API to local storage when data changes", async () => {
-    // This is a bit tricky to test since useEffect is involved, but we can check if calculateDelegationsDiff is called
     renderHook(() => useDelegationState(), { wrapper: TestWrapper });
 
-    // Wait for useEffect to run
     await Promise.resolve();
 
     expect(mockCalculateDelegationsDiff).toHaveBeenCalledWith(
@@ -302,7 +303,6 @@ describe("DelegationState", () => {
 
     renderHook(() => useDelegationState(), { wrapper: TestWrapper });
 
-    // Wait for useEffect to run
     await Promise.resolve();
 
     // calculateDelegationsDiff should not be called since data is undefined
