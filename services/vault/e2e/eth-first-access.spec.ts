@@ -5,7 +5,7 @@
  * This spec is also the team demo. Run it headed at a readable pace:
  *
  *   E2E_SLOW_MO_MS=600 E2E_DEMO_BEAT_MS=1500 PLAYWRIGHT_LIST_PRINT_STEPS=1 \
- *     pnpm exec playwright test --project=chromium-eth-first --headed \
+ *     pnpm exec playwright test e2e/eth-first-access.spec.ts --headed \
  *     --retries=0 --timeout=0 --reporter=list
  *
  * Add `E2E_DEMO_PAUSE=1` to stop at every beat until Resume is pressed in the

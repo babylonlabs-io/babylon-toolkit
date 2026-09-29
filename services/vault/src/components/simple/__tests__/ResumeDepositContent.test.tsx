@@ -331,6 +331,17 @@ function readerWith(prePeginTxHash: string) {
       },
     }),
     getVaultProviderGenesisBtcPubKey: vi.fn().mockResolvedValue(null),
+    getCurrentVaultProviderOperationBtcKey: vi
+      .fn()
+      .mockResolvedValue("ab".repeat(32)),
+    getVaultKeyEpochs: vi.fn().mockResolvedValue({
+      vpKeyEpoch: 0n,
+      appKeeperKeyEpoch: 0n,
+      ucKeyEpoch: 0n,
+    }),
+    getVaultProviderOperationBtcKeyAtEpoch: vi
+      .fn()
+      .mockResolvedValue("ab".repeat(32)),
     getVaultBasicInfo: vi.fn(),
     getVaultProtocolInfo: vi.fn(),
   } as unknown as ReturnType<typeof getVaultRegistryReader>;
@@ -1178,6 +1189,28 @@ describe("ResumeActivationContent — activated success terminal", () => {
     );
     expect(getByTestId("error").textContent).toBe(
       COPY.deposit.errors.activationDeadlinePassed.body,
+    );
+    expect(getByTestId("has-retry").textContent).toBe("false");
+  });
+
+  it("shows the split-order message, not the deadline copy, when the order data is inconsistent", async () => {
+    vi.mocked(useActivationState).mockReturnValue({
+      activating: false,
+      activated: false,
+      error: COPY.pegin.messages.activationOrderInconsistent,
+      errorTerminal: true,
+      handleActivation: mockHandleActivation,
+    });
+
+    const { getByTestId } = renderActivation();
+
+    await waitFor(() =>
+      expect(getByTestId("error").textContent).toBe(
+        COPY.pegin.messages.activationOrderInconsistent,
+      ),
+    );
+    expect(getByTestId("error-title").textContent).not.toBe(
+      COPY.deposit.errors.activationDeadlinePassed.title,
     );
     expect(getByTestId("has-retry").textContent).toBe("false");
   });

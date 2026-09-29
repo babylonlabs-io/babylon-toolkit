@@ -20,6 +20,7 @@
 import { useMemo } from "react";
 import type { Address } from "viem";
 
+import { selectPendingActivities } from "@/context/deposit/pendingDepositCount";
 import { useBTCWallet, useETHWallet } from "@/context/wallet";
 import { useAllDepositProviders } from "@/hooks/deposit/useAllDepositProviders";
 import { useBroadcastModal } from "@/hooks/deposit/useBroadcastModal";
@@ -57,15 +58,10 @@ export function usePendingDeposits() {
   // so only the demo shows. Inert in production.
   const demo = useDepositOverride();
 
-  const pendingActivities = useMemo(() => {
-    const real = activities.filter(
-      (a) =>
-        a.contractStatus === ContractStatus.PENDING ||
-        a.contractStatus === ContractStatus.VERIFIED,
-    );
-    if (!demo) return real;
-    return [...demo.pendingActivities, ...(demo.hideReal ? [] : real)];
-  }, [activities, demo]);
+  const pendingActivities = useMemo(
+    () => selectPendingActivities(activities, demo),
+    [activities, demo],
+  );
 
   const expiredActivities = useMemo(() => {
     const real = activities.filter(

@@ -103,7 +103,9 @@ const STATUS_WORDS: Record<number, string> = {
   0xb008: "The device rejected a signature or HMAC as invalid",
   0xb009: "The device rejected the CPFP anchor",
   [SW_CAP_EXCEEDED]: "The device has already signed the maximum number of these transactions",
-  0x6f00: "The device reported an internal error",
+  // SW_BIP32_FAIL: in the vault app only derive_context_hash.c and
+  // approve_vault_intent.c send it.
+  0x6f00: "The device could not derive the key at the requested path",
 };
 
 export function hex2(value: number): string {

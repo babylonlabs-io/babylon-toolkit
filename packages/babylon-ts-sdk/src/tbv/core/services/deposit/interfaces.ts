@@ -19,8 +19,8 @@ import type {
 
 /** Read-only VP operations needed by polling/status functions. */
 export interface PeginStatusReader {
-  getPeginStatus(
-    params: { pegin_txid: string },
+  getPeginStatusByVaultId(
+    params: { vault_id: string },
     signal?: AbortSignal,
   ): Promise<GetPeginStatusResponse>;
 }

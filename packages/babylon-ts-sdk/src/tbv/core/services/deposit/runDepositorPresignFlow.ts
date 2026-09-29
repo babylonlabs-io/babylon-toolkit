@@ -114,7 +114,9 @@ export interface RunDepositorPresignFlowParams {
   presignClient: PresignClient;
   /** Bitcoin wallet for signing */
   btcWallet: BitcoinWallet;
-  /** BTC pegin transaction ID (unprefixed hex, 64 chars) */
+  /** On-chain vault id (hex, `0x` prefix optional) — addresses status polling */
+  vaultId: string;
+  /** BTC pegin transaction ID (unprefixed hex, 64 chars) — used by the presign RPCs */
   peginTxid: string;
   /** Depositor's x-only BTC public key (unprefixed hex, 64 chars) */
   depositorPk: string;
@@ -434,6 +436,7 @@ export async function runDepositorPresignFlow(
     statusReader,
     presignClient,
     btcWallet,
+    vaultId,
     peginTxid,
     depositorPk,
     signingContext,
@@ -447,6 +450,7 @@ export async function runDepositorPresignFlow(
   // Phase 1: Poll until VP is ready for depositor signatures (or already past)
   const status = await waitForPeginStatus({
     statusReader,
+    vaultId,
     peginTxid,
     targetStatuses: TARGET_STATUS,
     timeoutMs,

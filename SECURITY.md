@@ -99,7 +99,8 @@ rubric below.
   - The frozen vault-secret derivation API and the `VAULT_WASM_COMMIT` pin
     (`packages/babylon-ts-sdk/src/tbv/core/vault-secrets/`,
     `packages/babylon-tbv-rust-wasm/scripts/build-wasm.js`)
-  - Pinning the VP's server identity to the on-chain `VaultProvider.btcPubKey`
+  - Pinning each VP token subject to its authoritative on-chain operation key:
+    the live key for JSON-RPC and the vault's frozen epoch key for gRPC
     (`packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts`)
   - Strict shape validation of everything read back from `localStorage`
     (`services/vault/src/storage/peginStorage.ts`)
@@ -436,9 +437,12 @@ fetches a provider-supplied URL directly, and must not start.
 `packages/babylon-ts-sdk/src/tbv/core/clients/vault-provider/auth/serverIdentity.ts` verifies a
 BIP-322 signature by the VP's persistent key over
 `(SERVER_IDENTITY_DOMAIN, ephemeral_pubkey, expires_at)`, and pins `server_pubkey` against the
-on-chain `VaultProvider.btcPubKey` read from the registry contract. A mismatch rejects the token.
-This is what makes the proxy a transport rather than a trusted party: a compromised proxy cannot
-mint an identity it does not hold the key for.
+operation key read from the registry contract. The JSON-RPC subject uses the provider's live key;
+the gRPC subject uses the key selected by the vault's frozen VP epoch. After a rejected bearer
+exposes a stale JSON-RPC pin, the provider re-reads the authoritative live key and retries the
+BIP-322 bootstrap once. The frozen gRPC pin never follows live rotation. A mismatch after that
+bounded recovery rejects the token. This is what makes the proxy a transport rather than a trusted
+party: a compromised proxy cannot mint an identity it does not hold the on-chain key for.
 
 Related bounds worth preserving:
 
@@ -793,8 +797,10 @@ only repository-local safeguards.
    activation calldata is assembled.** The vault app always supplies it; SDK consumers must do the
    same. The secret is sourced from its generator, never from UI or storage state.
 8. **Split outputs sum exactly to `totalDeposit - fees`** and broadcast order is asserted explicitly.
-9. **The VP's `server_pubkey` is pinned to the on-chain `VaultProvider.btcPubKey`**, and every VP RPC
-   response passes runtime validation before any security-relevant field is used.
+9. **Each VP token subject's `server_pubkey` is pinned to its authoritative on-chain operation
+   key** — live for JSON-RPC and frozen at the vault's epoch for gRPC — and live-key recovery is
+   limited to one chain re-read and one BIP-322 retry. Every VP RPC response passes runtime
+   validation before any security-relevant field is used.
 10. **No value read from `localStorage` reaches PSBT construction, vault matching, or ID
     normalisation without passing `hasValidSecurityFields`.**
 11. **`script-src` carries no `'unsafe-inline'` and no `'unsafe-eval'`**, and the SRI build gate
@@ -823,7 +829,7 @@ only repository-local safeguards.
 | Vault secrets       | F/G       | `VAULT_WASM_COMMIT` bump rotates expander output                                  | **Permanent loss of access for every in-flight deposit**                | Frozen API; JS + Rust golden-vector gates on every bump                                                         | `vault-secrets/__tests__/expand.test.ts`, `golden_vectors_pinned` |
 | Activation          | —         | Wrong preimage submitted to `activateVaultWithSecret`                             | Funds permanently locked                                                | SDK pre-check when `hashlock` is supplied; the vault app always supplies it                                     | SDK `activateVault` tests                                         |
 | Artifacts           | A         | VP returns a valid JSON-RPC envelope wrapping a corrupt ~1 GB artifact body       | **Loss of independent claim capability**, discovered only at claim time | **Known gap** — only the envelope prefix is validated for large payloads                                        | close with end-to-end body validation                             |
-| VP auth             | A/D       | Compromised proxy impersonates a vault provider                                   | Integrity of the whole deposit flow                                     | BIP-322 server identity pinned to on-chain `btcPubKey`; 2h ephemeral-key lifetime cap                           | `serverIdentity.test.ts`                                          |
+| VP auth             | A/D       | Compromised proxy impersonates a vault provider                                   | Integrity of the whole deposit flow                                     | BIP-322 identity pinned per subject to the live or frozen-epoch on-chain operation key; bounded live-key refresh; 2h ephemeral-key lifetime cap | `serverIdentity.test.ts`, `tokenRegistry.test.ts`                  |
 | VP responses        | A         | Malformed or hostile VP response is cast without inspection                       | User fund loss / wedged flow                                            | `validators.ts` runtime checks; 2 MiB typed-response cap; no retry on writes                                    | `validators.test.ts`, `json-rpc-client.test.ts`                   |
 | Indexer             | B         | Wrong vault status induces an irreversible user action                            | User fund loss (indirect)                                               | Signature-bound values never sourced from the indexer; `terminalMilestones` refuses storage-only classification | deposit-context tests                                             |
 | Indexer             | B         | Indexer rewrites a reserve's hub, asset ID or decimals but keeps its underlying   | Borrow decided on false rates, liquidity or Max amount                  | Every indexed reserve's underlying, hub, asset ID and decimals proven via Core Spoke `getReserve`               | `fetchConfig.test.ts`                                             |

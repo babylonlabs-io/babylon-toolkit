@@ -60,7 +60,10 @@ import {
   getPeginDisplayStep,
 } from "@/models/peginStateMachine";
 import { deriveHtlcSecretHex } from "@/services/vault/htlcSecretDerivation";
-import { resolveVpAuthPinnedPubkey } from "@/services/vault/vpAuthPinnedPubkey";
+import {
+  refreshVpJsonRpcPinnedPubkey,
+  resolveVpAuthPins,
+} from "@/services/vault/vpAuthPinnedPubkey";
 import type { VaultActivity } from "@/types/activity";
 import {
   shouldProbeWalletLiveness,
@@ -434,10 +437,12 @@ function ResumeWotsContentConnected({
 
       // Best-effort priming: VP pubkey fetch can fail without blocking the
       // resume flow because submitWotsPublicKey re-derives on cache miss.
-      const pinnedServerPubkeyPromise = resolveVpAuthPinnedPubkey(
-        providerAddress as Address,
+      const vpAddress = providerAddress as Address;
+      const authPinsPromise = resolveVpAuthPins(
+        vpAddress,
+        activity.id as Hex,
       ).catch((err: unknown) => {
-        logger.warn("Failed to fetch VP pubkey for registry priming", {
+        logger.warn("Failed to fetch VP auth pins for registry priming", {
           peginTxHash,
           error: err instanceof Error ? err.message : String(err),
         });
@@ -502,14 +507,17 @@ function ResumeWotsContentConnected({
 
       // Best-effort: if the parallel pubkey fetch failed, skip
       // priming — submitWotsPublicKey re-derives on cache miss.
-      const pinnedServerPubkey = await pinnedServerPubkeyPromise;
-      if (pinnedServerPubkey) {
+      const authPins = await authPinsPromise;
+      if (authPins) {
         const primedTxid = stripHexPrefix(peginTxHash);
         primeVpTokenRegistry({
           baseUrl: getVpProxyUrl(providerAddress),
           peginTxid: primedTxid,
           authAnchorHex,
-          pinnedServerPubkey,
+          providerAddress: vpAddress,
+          ...authPins,
+          refreshJsonRpcPinnedServerPubkey: () =>
+            refreshVpJsonRpcPinnedPubkey(vpAddress),
           depositorBtcPubkey,
         });
         trackPrimedTxid(primedTxid);
@@ -724,6 +732,7 @@ function ResumeActivationContentConnected({
   } = useActivationState({
     activity,
     depositorEthAddress,
+    siblingVaultIds,
   });
 
   const handleSubmit = useCallback(async () => {
@@ -820,7 +829,11 @@ function ResumeActivationContentConnected({
       currentStep={renderStep}
       error={
         error
-          ? isTerminal
+          ? // Inconsistent split-order data is terminal too, but the vault is
+            // still inside its window: show its own message, not the refund
+            // advice.
+            isTerminal &&
+            activationError !== COPY.pegin.messages.activationOrderInconsistent
             ? COPY.deposit.errors.activationDeadlinePassed
             : mapDepositError(error.raw)
           : null

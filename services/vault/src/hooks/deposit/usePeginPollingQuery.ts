@@ -2,18 +2,18 @@
  * Hook for polling peg-in transactions from vault providers
  *
  * Manages the React Query polling loop for fetching the per-deposit VP daemon
- * status. The cheap, unauthenticated `getPeginStatus` RPC is the readiness
- * signal — once the daemon reports `PendingDepositorSignatures`, the deposit
+ * status. The cheap, unauthenticated `getPeginStatusByVaultId` RPC is the
+ * readiness signal — once the daemon reports `PendingDepositorSignatures`, the deposit
  * is marked ready and the heavy auth-gated `requestDepositorPresignTransactions`
  * is deferred to the actual signing flow (`runDepositorPresignFlow`), which
  * re-fetches it at click-time.
  */
 
-import { stripHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
 import type { GetPeginStatusResponse } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import {
   batchPollByProvider,
   DaemonStatus,
+  isUnrecognizedDaemonStatusError,
   VP_TRANSIENT_STATUSES,
   VpResponseValidationError,
 } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
@@ -37,10 +37,13 @@ import type {
 import {
   getDepositsNeedingPolling,
   groupDepositsByProvider,
+  isPeginNotIngestedError,
   isTerminalPollingError,
   TerminalPeginPollingError,
+  UNRECOGNIZED_DAEMON_STATUS,
 } from "../../utils/peginPolling";
 import { createVpClient } from "../../utils/rpc";
+import { canonicalizeTxid } from "../../utils/txid";
 
 interface UsePeginPollingQueryParams {
   activities: VaultActivity[];
@@ -89,7 +92,7 @@ interface UsePeginPollingQueryResult {
 }
 
 /**
- * Fetch status from a single vault provider via `batchGetPeginStatus`,
+ * Fetch status from a single vault provider via `batchGetPeginStatusByVaultId`,
  * chunked at `VP_BATCH_MAX_SIZE`. Defensive attribution + duplicate-skip
  * + per-item dispatch live in the SDK's `batchPollByProvider`; this
  * function only declares the per-item handlers.
@@ -108,13 +111,14 @@ async function fetchFromProvider(
   const rpcClient = createVpClient(providerAddress);
   await batchPollByProvider<DepositToPoll, GetPeginStatusResponse>({
     items: deposits,
-    getTxid: (deposit) => stripHexPrefix(deposit.activity.peginTxHash!),
-    batchCall: (pegin_txids) => rpcClient.batchGetPeginStatus({ pegin_txids }),
+    getVaultId: (deposit) => deposit.activity.id,
+    batchCall: (vault_ids) =>
+      rpcClient.batchGetPeginStatusByVaultId({ vault_ids }),
     onItem: (deposit, envelope) => {
       const depositId = deposit.activity.id;
       if (envelope.error !== null) {
-        // "PegIn not found" is a routine pre-ingest signal, not a fault.
-        if (!envelope.error.includes("PegIn not found")) {
+        // Not ingested yet is a routine pre-ingest signal, not a fault.
+        if (!isPeginNotIngestedError(envelope.error)) {
           logger.warn(`Failed to poll deposit ${depositId}`, {
             error: envelope.error,
           });
@@ -127,7 +131,7 @@ async function fetchFromProvider(
         return;
       }
       // envelope.result is non-null here by the validator's XOR invariant.
-      applyPerDepositStatus(envelope.result!, depositId, {
+      applyPerDepositResult(envelope.result!, deposit, {
         errors,
         needsWotsKey,
         pendingIngestion,
@@ -146,7 +150,7 @@ async function fetchFromProvider(
       ),
     onDuplicateBatch: (count) =>
       logger.warn(
-        `VP ${providerAddress} returned ${count} duplicate pegin txid(s); marking those deposits errored`,
+        `VP ${providerAddress} returned ${count} duplicate vault id(s); marking those deposits errored`,
       ),
     onWholeBatchError: (chunk, error) => {
       const errorObj =
@@ -165,10 +169,26 @@ async function fetchFromProvider(
     },
     onUnexpected: (echoed) =>
       logger.warn(
-        `VP ${providerAddress} returned ${echoed.length} unexpected pegin txid(s); ignoring`,
+        `VP ${providerAddress} returned ${echoed.length} unexpected vault id(s); ignoring`,
       ),
   });
 }
+
+// Daemon statuses that end polling, with the message each one shows.
+// RFC 003: EXPIRED is a grace-window interim where the depositor can still
+// reclaim the HTLC via the refund preimage, so its copy is a recoverable hint.
+const TERMINAL_STATUS_MESSAGES: ReadonlyMap<DaemonStatus, string> = new Map([
+  [DaemonStatus.EXPIRED, COPY.pegin.statusErrors.expired],
+  [DaemonStatus.EXPIRED_CLEANED_UP, COPY.pegin.statusErrors.expiredCleanedUp],
+  [DaemonStatus.EXPIRED_IN_CLAIM, COPY.pegin.statusErrors.expiredInClaim],
+  [DaemonStatus.INGESTION_REJECTED, COPY.pegin.statusErrors.ingestionRejected],
+  [
+    DaemonStatus.INVALID_SIG_IN_CONTRACT,
+    COPY.pegin.statusErrors.invalidSigInContract,
+  ],
+  [DaemonStatus.AML_REJECTED, COPY.pegin.statusErrors.amlRejected],
+  [DaemonStatus.BABE_SETUP_FAILED, COPY.pegin.statusErrors.babeSetupFailed],
+]);
 
 interface DepositSets {
   errors: Map<string, Error>;
@@ -176,13 +196,62 @@ interface DepositSets {
   pendingIngestion: Set<string>;
 }
 
-function applyPerDepositError(
+/**
+ * Apply a status result after checking it names the deposit's peg-in.
+ *
+ * The envelope's vault id is our own request string echoed back.
+ * `pegin_txid` is a server-side DB lookup, so comparing it to the txid we
+ * hold catches a status for a different peg-in. It cannot tell apart vaults
+ * that share one peg-in txid.
+ */
+export function applyPerDepositResult(
+  statusResponse: GetPeginStatusResponse,
+  deposit: DepositToPoll,
+  sets: DepositSets & { pendingDepositorSignatures: Set<string> },
+): void {
+  const depositId = deposit.activity.id;
+  const expectedTxid = canonicalizeTxid(deposit.activity.peginTxHash);
+  if (expectedTxid === undefined) {
+    sets.errors.set(
+      depositId,
+      new Error(`Deposit ${depositId} has no peg-in txid to check`),
+    );
+    return;
+  }
+  if (canonicalizeTxid(statusResponse.pegin_txid) !== expectedTxid) {
+    logger.warn(`Deposit ${depositId} got a status for another peg-in`, {
+      error: `returned pegin_txid ${statusResponse.pegin_txid}`,
+    });
+    sets.errors.set(
+      depositId,
+      new Error("Provider returned another peg-in's status entry"),
+    );
+    return;
+  }
+  applyPerDepositStatus(statusResponse, depositId, sets);
+}
+
+export function applyPerDepositError(
   errorMessage: string,
   depositId: string,
   sets: DepositSets,
 ): void {
-  // "PegIn not found" — VP hasn't ingested yet, treat as still-pending.
-  if (errorMessage.includes("PegIn not found")) {
+  // A status the SDK does not know: stop polling this deposit and report it.
+  // Checked first, as in batchReadiness: the error quotes the VP's status
+  // text, which can contain "PegIn not found".
+  if (isUnrecognizedDaemonStatusError(errorMessage)) {
+    sets.errors.set(
+      depositId,
+      new TerminalPeginPollingError(
+        UNRECOGNIZED_DAEMON_STATUS,
+        COPY.pegin.statusErrors.unrecognizedStatus,
+      ),
+    );
+    sets.needsWotsKey.delete(depositId);
+    return;
+  }
+  // VP hasn't ingested yet, treat as still-pending.
+  if (isPeginNotIngestedError(errorMessage)) {
     sets.errors.delete(depositId);
     sets.needsWotsKey.delete(depositId);
     sets.pendingIngestion.add(depositId);
@@ -217,76 +286,11 @@ export function applyPerDepositStatus(
     return;
   }
 
-  if (status === DaemonStatus.EXPIRED) {
-    // RFC 003: EXPIRED is a grace-window interim where the depositor can
-    // still reclaim the HTLC via the refund preimage. Surfaces a
-    // recoverable hint rather than a hard-terminal failure.
+  const terminalMessage = TERMINAL_STATUS_MESSAGES.get(status as DaemonStatus);
+  if (terminalMessage !== undefined) {
     sets.errors.set(
       depositId,
-      new TerminalPeginPollingError(
-        DaemonStatus.EXPIRED,
-        COPY.pegin.statusErrors.expired,
-      ),
-    );
-    sets.needsWotsKey.delete(depositId);
-    return;
-  }
-
-  if (status === DaemonStatus.EXPIRED_CLEANED_UP) {
-    sets.errors.set(
-      depositId,
-      new TerminalPeginPollingError(
-        DaemonStatus.EXPIRED_CLEANED_UP,
-        COPY.pegin.statusErrors.expiredCleanedUp,
-      ),
-    );
-    sets.needsWotsKey.delete(depositId);
-    return;
-  }
-
-  if (status === DaemonStatus.EXPIRED_IN_CLAIM) {
-    sets.errors.set(
-      depositId,
-      new TerminalPeginPollingError(
-        DaemonStatus.EXPIRED_IN_CLAIM,
-        COPY.pegin.statusErrors.expiredInClaim,
-      ),
-    );
-    sets.needsWotsKey.delete(depositId);
-    return;
-  }
-
-  if (status === DaemonStatus.INGESTION_REJECTED) {
-    sets.errors.set(
-      depositId,
-      new TerminalPeginPollingError(
-        DaemonStatus.INGESTION_REJECTED,
-        COPY.pegin.statusErrors.ingestionRejected,
-      ),
-    );
-    sets.needsWotsKey.delete(depositId);
-    return;
-  }
-
-  if (status === DaemonStatus.INVALID_SIG_IN_CONTRACT) {
-    sets.errors.set(
-      depositId,
-      new TerminalPeginPollingError(
-        DaemonStatus.INVALID_SIG_IN_CONTRACT,
-        COPY.pegin.statusErrors.invalidSigInContract,
-      ),
-    );
-    sets.needsWotsKey.delete(depositId);
-    return;
-  }
-
-  if (status === DaemonStatus.AML_REJECTED) {
-    sets.errors.set(
-      depositId,
-      new TerminalPeginPollingError(
-        DaemonStatus.AML_REJECTED,
-        COPY.pegin.statusErrors.amlRejected,
-      ),
+      new TerminalPeginPollingError(status as DaemonStatus, terminalMessage),
     );
     sets.needsWotsKey.delete(depositId);
     return;
@@ -336,7 +340,7 @@ export function usePeginPollingQuery({
     depositsRef.current = depositsToPoll;
   }, [depositsToPoll]);
 
-  // Status reads use transaction IDs. Signing keeps its wallet checks.
+  // Status reads use vault ids. Signing keeps its wallet checks.
   const isEnabled = depositsToPoll.length > 0;
 
   const { data, isLoading, refetch } = useQuery({

@@ -13,7 +13,9 @@ import type { ComponentType } from "react";
 import { NavLink } from "react-router";
 
 import { getVisibleV3NavGroups, type V3NavItemId } from "@/config/v3Navigation";
+import { usePendingDepositCount } from "@/context/deposit/pendingDepositCount";
 
+import { PendingDepositsBadge } from "./PendingDepositsBadge";
 import { SidebarFooter } from "./SidebarFooter";
 
 // Icons are kept out of `config/v3Navigation.ts` (a plain data module) and
@@ -37,6 +39,7 @@ function V3NavLinks() {
   // section is never advertised as a dead end. The sidebar itself only renders
   // under v3 — see RootLayout.
   const groups = getVisibleV3NavGroups();
+  const pendingCount = usePendingDepositCount();
 
   return (
     <>
@@ -59,6 +62,11 @@ function V3NavLinks() {
                     icon={<Icon size={24} />}
                     label={label}
                     isActive={isActive}
+                    trailing={
+                      id === "vaults" && pendingCount > 0 ? (
+                        <PendingDepositsBadge count={pendingCount} />
+                      ) : undefined
+                    }
                   />
                 )}
               </NavLink>

@@ -70,7 +70,7 @@ export function ReorderVaultsModal({
   const handleConfirmClick = async () => {
     const success = await handleConfirm();
     if (success) {
-      // Show the just-submitted order immediately; the indexer catches up later.
+      // Show the submitted order now; the position read catches up later.
       applyReorderedOrder(vaultIds);
       onClose();
       onSuccess();

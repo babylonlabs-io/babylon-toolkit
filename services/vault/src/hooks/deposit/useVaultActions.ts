@@ -35,7 +35,6 @@ import {
   isActivateAndRedeemBlocked,
   isActivationBlocked,
 } from "@/components/shared/protocolStatus";
-import FeatureFlags from "@/config/featureFlags";
 import { getETHChain } from "@/config/network";
 import { COPY } from "@/copy";
 import { useBtcAction } from "@/hooks/useBtcAction";
@@ -90,11 +89,13 @@ import {
   broadcastPrePeginTransaction,
   fetchVaultById,
 } from "../../services/vault";
+import { assertActivationFollowsConstructionOrder } from "../../services/vault/activationOrder";
 import { rebuildDepositTerms } from "../../services/vault/rebuildDepositTerms";
 import { resolveFundedTxFeeAndUtxos } from "../../services/vault/resolveFundedTxFee";
 import {
   activateVaultWithSecret,
   activateVaultWithSecretAndRedeem,
+  activationAddedCollateral,
 } from "../../services/vault/vaultActivationService";
 import { utxosToExpectedRecord } from "../../services/vault/vaultPeginBroadcastService";
 import { verifyResumeParticipantKeys } from "../../services/vault/verifyResumeParticipantKeys";
@@ -142,13 +143,23 @@ export interface ActivateVaultParams {
    * only the protocol scope — an aave-scope pause is what this mode escapes.
    */
   redeemImmediately?: boolean;
+  /**
+   * Vault IDs believed to share this Pre-PegIn. Discovery is untrusted: the
+   * activation guard re-reads every candidate from chain and fails closed when
+   * a lower HTLC index is absent.
+   */
+  siblingVaultIds?: readonly Hex[];
   pendingPegin?: PendingPeginRequest;
   updatePendingPeginStatus?: (
     vaultId: string,
     status: LocalStorageStatus,
   ) => void;
   onRefetchActivities: () => void;
-  onShowSuccessModal: () => void;
+  /**
+   * `collateralAdded` is true only when the receipt carries the adapter's
+   * `CollateralAdded` log for this vault.
+   */
+  onShowSuccessModal: (outcome: { collateralAdded: boolean }) => void;
 }
 
 export interface UseVaultActionsReturn {
@@ -639,6 +650,7 @@ export function useVaultActions(): UseVaultActionsReturn {
       secretHex,
       depositorEthAddress,
       redeemImmediately,
+      siblingVaultIds = [vaultId],
       pendingPegin,
       updatePendingPeginStatus,
       onRefetchActivities,
@@ -699,16 +711,14 @@ export function useVaultActions(): UseVaultActionsReturn {
       // are deliberately NOT `.catch`-ed like the pause read: an unreadable
       // input must reject rather than fall through, because proceeding would
       // put the secret into `simulateContract` calldata for a call the
-      // contract may refuse. The delay read is skipped when the feature is
-      // off — the getter does not exist on every deployment yet.
+      // contract may refuse.
       //
       // The redeem path needs none of them. It is exempt from the floor on
       // chain, and it runs only after the PegIn swept the HTLC, whose witness
       // already published the secret on Bitcoin — so the deadline margin
       // protects nothing there and would only block the one recovery left.
       const deadlineGateEnabled = !redeemImmediately;
-      const floorEnabled =
-        FeatureFlags.isActivationDelayEnabled && !redeemImmediately;
+      const floorEnabled = deadlineGateEnabled;
       // Re-throws (so the gate still fails closed) but re-labels first: an
       // unreadable window is an expected interruption, not a reveal failure.
       // Without this the `activation.reveal` funnel counts every click on a
@@ -816,6 +826,36 @@ export function useVaultActions(): UseVaultActionsReturn {
         // dead-end, not a transient.
         expectedInterruption = true;
         throw new Error(message);
+      }
+
+      // A normal activation appends this vault to the application's
+      // liquidation queue. For a split deposit, enforce the Pre-PegIn HTLC
+      // construction order before the secret can reach a wallet/RPC call.
+      // Activate-and-redeem never adds collateral, so queue order is irrelevant
+      // on that escape-hatch path. Only the routine refusal (the earlier
+      // sibling is not active yet) keeps telemetry quiet. A missing or
+      // unreadable lower slot and inconsistent registry data stay captured.
+      if (!redeemImmediately) {
+        try {
+          await assertActivationFollowsConstructionOrder(
+            vaultId,
+            {
+              depositor: basicInfo.depositor,
+              applicationEntryPoint: basicInfo.applicationEntryPoint,
+              htlcVout: Number(protocolInfo.htlcVout),
+              prePeginTxHash: protocolInfo.prePeginTxHash,
+            },
+            siblingVaultIds,
+          );
+        } catch (orderError) {
+          if (
+            orderError instanceof Error &&
+            orderError.message === COPY.pegin.messages.activationOrderBlocked
+          ) {
+            expectedInterruption = true;
+          }
+          throw orderError;
+        }
       }
 
       // Activation ceiling. The dashboard gate (`useActivationDeadlineGate`)
@@ -964,7 +1004,7 @@ export function useVaultActions(): UseVaultActionsReturn {
       const revealSecretOnChain = redeemImmediately
         ? activateVaultWithSecretAndRedeem
         : activateVaultWithSecret;
-      await revealSecretOnChain({
+      const revealResult = await revealSecretOnChain({
         vaultId: ensureHexPrefix(vaultId),
         secret: ensureHexPrefix(secretHex),
         hashlock: ensureHexPrefix(protocolInfo.hashlock) as Hex,
@@ -1003,7 +1043,12 @@ export function useVaultActions(): UseVaultActionsReturn {
       });
 
       // Show success and refetch
-      onShowSuccessModal();
+      onShowSuccessModal({
+        collateralAdded: activationAddedCollateral(
+          revealResult,
+          ensureHexPrefix(vaultId),
+        ),
+      });
       onRefetchActivities();
 
       if (mountedRef.current) setActivating(false);

@@ -12,9 +12,11 @@ import {
 import { ActivateConfirmationModal } from "../ActivateConfirmationModal";
 
 const cardCancelSpy = vi.hoisted(() => vi.fn());
+const cardDownloadSpy = vi.hoisted(() => vi.fn());
 const viewport = vi.hoisted(() => ({ isMobile: false }));
 
 vi.mock("@babylonlabs-io/core-ui", () => ({
+  Loader: () => <div data-testid="loader" />,
   Text: (props: Record<string, unknown>) => (
     <span>{props.children as ReactNode}</span>
   ),
@@ -53,15 +55,23 @@ vi.mock("@babylonlabs-io/core-ui", () => ({
 
 vi.mock("@/components/deposit/RecoveryArtifactsCard", () => ({
   RecoveryArtifactsCard: forwardRef<
-    { cancel: () => void },
+    { cancel: () => void; download: () => void },
     {
       onDownloaded?: () => void;
       onDelivered?: () => void;
-      onLoadingChange?: (loading: boolean) => void;
+      onStateChange?: (state: {
+        loading: boolean;
+        receivedBytes: number;
+        totalBytes: number;
+        status: string;
+      }) => void;
       onGraphMismatch?: () => void;
     }
   >((props, ref) => {
-    useImperativeHandle(ref, () => ({ cancel: cardCancelSpy }));
+    useImperativeHandle(ref, () => ({
+      cancel: cardCancelSpy,
+      download: cardDownloadSpy,
+    }));
     return (
       <div data-testid="recovery-card">
         <button
@@ -73,6 +83,20 @@ vi.mock("@/components/deposit/RecoveryArtifactsCard", () => ({
         </button>
         <button
           type="button"
+          data-testid="card-download-idle"
+          onClick={() =>
+            props.onStateChange?.({
+              loading: false,
+              receivedBytes: 0,
+              totalBytes: 0,
+              status: "",
+            })
+          }
+        >
+          idle
+        </button>
+        <button
+          type="button"
           data-testid="card-download-delivered"
           onClick={() => props.onDelivered?.()}
         >
@@ -81,7 +105,14 @@ vi.mock("@/components/deposit/RecoveryArtifactsCard", () => ({
         <button
           type="button"
           data-testid="card-download-start"
-          onClick={() => props.onLoadingChange?.(true)}
+          onClick={() =>
+            props.onStateChange?.({
+              loading: true,
+              receivedBytes: 742_000_000,
+              totalBytes: 1_000_000_000,
+              status: "",
+            })
+          }
         >
           start
         </button>
@@ -122,6 +153,7 @@ describe("ActivateConfirmationModal", () => {
   beforeEach(() => {
     window.localStorage.clear();
     cardCancelSpy.mockClear();
+    cardDownloadSpy.mockClear();
     viewport.isMobile = false;
   });
 
@@ -143,7 +175,7 @@ describe("ActivateConfirmationModal", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
-  it("disables Activate BTCVault while a download is in flight even when the risk is acknowledged", () => {
+  it("replaces the activation body with the download progress and drops the Activate button while a download is in flight", () => {
     render(
       <ActivateConfirmationModal
         open
@@ -153,11 +185,36 @@ describe("ActivateConfirmationModal", () => {
       />,
     );
 
-    fireEvent.click(screen.getByTestId("risk-checkbox"));
-    expect(screen.getByText("Activate BTCVault")).not.toBeDisabled();
+    fireEvent.click(screen.getByTestId("card-download-start"));
+
+    expect(screen.getByText("Downloading BTCVault artifacts")).toBeTruthy();
+    expect(screen.getByText("74%")).toBeTruthy();
+    expect(screen.getByText("1.00 GB").parentElement?.textContent).toBe(
+      "742 MB / 1.00 GB",
+    );
+    expect(screen.getByText("Cancel download")).toBeTruthy();
+    expect(screen.queryByText("Download BTCVault artifacts")).toBeNull();
+    expect(screen.queryByText("Activate BTCVault")).toBeNull();
+    expect(screen.queryByTestId("risk-checkbox")).toBeNull();
+  });
+
+  it("returns to the activation body once the download finishes", () => {
+    render(
+      <ActivateConfirmationModal
+        open
+        {...COMMON_PROPS}
+        onClose={vi.fn()}
+        onConfirm={vi.fn()}
+      />,
+    );
 
     fireEvent.click(screen.getByTestId("card-download-start"));
-    expect(screen.getByText("Activate BTCVault")).toBeDisabled();
+    fireEvent.click(screen.getByTestId("card-download-complete"));
+    fireEvent.click(screen.getByTestId("card-download-idle"));
+
+    expect(screen.queryByText("Downloading BTCVault artifacts")).toBeNull();
+    expect(screen.getByText("Artifacts downloaded")).toBeTruthy();
+    expect(screen.getByText("Activate BTCVault")).not.toBeDisabled();
   });
 
   it("withdraws the risk opt-out and keeps Activate disabled after a graph mismatch", () => {
@@ -172,11 +229,11 @@ describe("ActivateConfirmationModal", () => {
       />,
     );
 
-    fireEvent.click(screen.getByTestId("risk-checkbox"));
-    expect(screen.getByText("Activate BTCVault")).not.toBeDisabled();
+    expect(screen.getByText("Continue without")).toBeTruthy();
 
     fireEvent.click(screen.getByTestId("card-graph-mismatch"));
-    expect(screen.getByText("Activate BTCVault")).toBeDisabled();
+    expect(screen.queryByText("Activate BTCVault")).toBeNull();
+    expect(screen.queryByText("Continue without")).toBeNull();
     expect(screen.queryByTestId("risk-checkbox")).not.toBeInTheDocument();
   });
 
@@ -194,7 +251,8 @@ describe("ActivateConfirmationModal", () => {
     );
 
     expect(screen.queryByTestId("risk-checkbox")).not.toBeInTheDocument();
-    expect(screen.getByText("Activate BTCVault")).toBeDisabled();
+    expect(screen.queryByText("Activate BTCVault")).toBeNull();
+    expect(screen.queryByText("Continue without")).toBeNull();
   });
 
   it("keeps Activate disabled after a mismatch even with an earlier download receipt", () => {
@@ -223,6 +281,8 @@ describe("ActivateConfirmationModal", () => {
       />,
     );
 
+    fireEvent.click(screen.getByText("Continue without"));
+
     const activateBtn = screen.getByText("Activate BTCVault");
     expect(activateBtn).toBeDisabled();
 
@@ -241,12 +301,14 @@ describe("ActivateConfirmationModal", () => {
       />,
     );
 
+    fireEvent.click(screen.getByText("Continue without"));
     fireEvent.click(screen.getByTestId("risk-checkbox"));
     fireEvent.click(screen.getByText("Activate BTCVault"));
     expect(onConfirm).toHaveBeenCalledTimes(1);
   });
 
   it("calls onClose when Cancel is clicked", () => {
+    seedReceipt();
     const onClose = vi.fn();
     render(
       <ActivateConfirmationModal
@@ -364,6 +426,8 @@ describe("ActivateConfirmationModal", () => {
       />,
     );
 
+    fireEvent.click(screen.getByText("Continue without"));
+
     expect(screen.getByText("Activate BTCVault")).toBeDisabled();
     expect(screen.getByTestId("risk-checkbox")).toBeInTheDocument();
   });
@@ -378,8 +442,8 @@ describe("ActivateConfirmationModal", () => {
       />,
     );
 
-    expect(screen.getByText("Activate BTCVault")).toBeDisabled();
-    expect(screen.getByTestId("risk-checkbox")).toBeInTheDocument();
+    expect(screen.queryByText("Activate BTCVault")).toBeNull();
+    expect(screen.queryByTestId("risk-checkbox")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("card-download-complete"));
 
@@ -403,6 +467,10 @@ describe("ActivateConfirmationModal", () => {
 
     fireEvent.click(screen.getByTestId("card-download-delivered"));
 
+    expect(screen.queryByText("Activate BTCVault")).toBeNull();
+
+    fireEvent.click(screen.getByText("Continue without"));
+
     expect(screen.getByText("Activate BTCVault")).toBeDisabled();
     expect(screen.getByTestId("risk-checkbox")).toBeInTheDocument();
   });
@@ -418,8 +486,49 @@ describe("ActivateConfirmationModal", () => {
     );
 
     fireEvent.click(screen.getByTestId("card-download-delivered"));
+    fireEvent.click(screen.getByText("Continue without"));
     fireEvent.click(screen.getByTestId("risk-checkbox"));
 
     expect(screen.getByText("Activate BTCVault")).not.toBeDisabled();
+  });
+
+  it("returns to the download step with the acknowledgement cleared when Cancel is clicked on the confirm-skip step", () => {
+    const onClose = vi.fn();
+    render(
+      <ActivateConfirmationModal
+        open
+        {...COMMON_PROPS}
+        onClose={onClose}
+        onConfirm={vi.fn()}
+      />,
+    );
+
+    const card = screen.getByTestId("recovery-card");
+    fireEvent.click(screen.getByText("Continue without"));
+    expect(card).not.toBeVisible();
+    fireEvent.click(screen.getByTestId("risk-checkbox"));
+    fireEvent.click(screen.getByText("Cancel"));
+    expect(screen.getByTestId("recovery-card")).toBe(card);
+    expect(card).toBeVisible();
+    fireEvent.click(screen.getByText("Continue without"));
+
+    expect(screen.getByTestId("risk-checkbox")).not.toBeChecked();
+    expect(screen.getByText("Activate BTCVault")).toBeDisabled();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("starts the card download when Download Artifacts is clicked", () => {
+    render(
+      <ActivateConfirmationModal
+        open
+        {...COMMON_PROPS}
+        onClose={vi.fn()}
+        onConfirm={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Download Artifacts"));
+
+    expect(cardDownloadSpy).toHaveBeenCalledTimes(1);
   });
 });
