@@ -1740,9 +1740,6 @@ export const COPY = {
     // v3 Loans page empty state, disconnected — no position to describe yet,
     // so it's a title-only prompt like the Activity tab's.
     emptyDisconnected: connectToView("loans"),
-    // v3 Loans summary — caption under the health-factor value.
-    healthFactorCaption:
-      "When the ratio falls below 1.0, liquidation may occur.",
     // Live drawn borrow rate for the asset (Aave Hub), no compounding applied —
     // an APR, the same figure the asset picker labels "Borrow APR". One number,
     // one label.

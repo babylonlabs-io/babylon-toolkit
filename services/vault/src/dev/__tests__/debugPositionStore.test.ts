@@ -98,7 +98,7 @@ describe("non-cascade notification overrides", () => {
   });
 });
 
-describe("loans summary overrides", () => {
+describe("Overview health-factor and Loans borrow-capacity overrides", () => {
   afterEach(() => {
     act(() => setDebugHealthFactorOverride(null));
     act(() => setDebugBorrowCapacityStateOverride(null));
