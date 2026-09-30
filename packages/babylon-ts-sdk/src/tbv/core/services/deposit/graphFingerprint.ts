@@ -55,6 +55,8 @@ const UINT32_MAX = 0xffff_ffff;
 const DEPOSITOR_CLAIM_TX_VERSION = 2;
 /** A depositor Claim pays the assert connector and a CPFP anchor, nothing else. */
 const DEPOSITOR_CLAIM_OUTPUT_COUNT = 2;
+/** Every Assert spends the Claim's connector output. */
+const CLAIM_ASSERT_VOUT = 0;
 
 /** One challenger's contribution to the fingerprint. */
 export interface ChallengerFingerprintPart {
@@ -220,6 +222,137 @@ function decodePresignTx(txHex: string, path: string): Transaction {
   return tx;
 }
 
+interface PresignClaimAssertTransactions {
+  peginTx: Transaction;
+  claimTx: Transaction;
+  assertTx: Transaction;
+}
+
+export interface AssertPresignClaimAssertLinkageParams {
+  /** Authoritative PegIn transaction built and signed by the depositor. */
+  peginTxHex: string;
+  /** VP-supplied Claim transaction. */
+  claimTxHex: string;
+  /** VP-supplied Assert transaction. */
+  assertTxHex: string;
+  /** Response path included in actionable validation errors. */
+  path: string;
+}
+
+function readInputOutpoint(
+  tx: Transaction,
+  inputIndex: number,
+): { txid: string; vout: number } | undefined {
+  const input = tx.ins[inputIndex];
+  if (!input) {
+    return undefined;
+  }
+  return {
+    txid: Buffer.from(input.hash).reverse().toString("hex"),
+    vout: input.index,
+  };
+}
+
+function assertClaimHasAssertOutput(claimTx: Transaction, path: string): void {
+  if (!claimTx.outs[CLAIM_ASSERT_VOUT]) {
+    throw new GraphFingerprintError(
+      `Presign ${path}.claim_tx must have output ${CLAIM_ASSERT_VOUT}`,
+    );
+  }
+}
+
+function assertClaimSpendsPegin(
+  claimTx: Transaction,
+  peginTxid: string,
+  path: string,
+): void {
+  if (claimTx.ins.length !== 1) {
+    throw new GraphFingerprintError(
+      `Presign ${path}.claim_tx must have exactly one input, got ${claimTx.ins.length}`,
+    );
+  }
+
+  assertClaimHasAssertOutput(claimTx, path);
+
+  const spent = readInputOutpoint(claimTx, 0);
+  if (spent?.txid !== peginTxid || spent.vout !== PEGIN_DEPOSITOR_CLAIM_VOUT) {
+    const actual = spent ? `${spent.txid}:${spent.vout}` : "no input";
+    throw new GraphFingerprintError(
+      `Presign ${path}.claim_tx must spend ${peginTxid}:${PEGIN_DEPOSITOR_CLAIM_VOUT}, got ${actual}`,
+    );
+  }
+}
+
+function assertAssertSpendsClaim(
+  assertTx: Transaction,
+  claimTxid: string,
+  path: string,
+): void {
+  const spent = readInputOutpoint(assertTx, 0);
+  if (spent?.txid !== claimTxid || spent.vout !== CLAIM_ASSERT_VOUT) {
+    const actual = spent ? `${spent.txid}:${spent.vout}` : "no input";
+    throw new GraphFingerprintError(
+      `Presign ${path}.assert_tx input 0 must spend ${claimTxid}:${CLAIM_ASSERT_VOUT}, got ${actual}`,
+    );
+  }
+}
+
+function decodePresignClaimAssertTransactions(
+  args: AssertPresignClaimAssertLinkageParams,
+): PresignClaimAssertTransactions {
+  const peginTx = decodePresignTx(args.peginTxHex, `${args.path}.pegin_tx`);
+  const claimTx = decodePresignTx(args.claimTxHex, `${args.path}.claim_tx`);
+  const assertTx = decodePresignTx(args.assertTxHex, `${args.path}.assert_tx`);
+
+  return { peginTx, claimTx, assertTx };
+}
+
+export interface AssertPresignAssertSpendsClaimParams {
+  /** VP-supplied Claim transaction. */
+  claimTxHex: string;
+  /** VP-supplied Assert transaction. */
+  assertTxHex: string;
+  /** Response path included in actionable validation errors. */
+  path: string;
+}
+
+/**
+ * Bind a VP/VK claimer's Assert to its own Claim: Assert input 0 must spend
+ * Claim output 0.
+ *
+ * A claimer funds its Claim from its own wallet (`ClaimTx::from_transaction`
+ * in `btc-vault` tolerates that freedom), so the Claim's inputs are not
+ * checked here. Only the depositor-as-claimer Claim spends PegIn output 1;
+ * {@link assertPresignClaimAssertLinkage} checks that one.
+ */
+export function assertPresignAssertSpendsClaim(
+  args: AssertPresignAssertSpendsClaimParams,
+): void {
+  const claimTx = decodePresignTx(args.claimTxHex, `${args.path}.claim_tx`);
+  const assertTx = decodePresignTx(args.assertTxHex, `${args.path}.assert_tx`);
+  assertClaimHasAssertOutput(claimTx, args.path);
+  assertAssertSpendsClaim(assertTx, claimTx.getId(), args.path);
+}
+
+/**
+ * Bind the depositor-as-claimer Claim/Assert pair to the depositor's
+ * authoritative PegIn.
+ *
+ * The Claim must have exactly one input spending PegIn output 1, and Assert
+ * input 0 must spend Claim output 0. Call this before any wallet signing
+ * prompt: otherwise the VP can obtain signatures for an unfundable graph.
+ * Do not use it for VP/VK claimer entries: their Claims are wallet-funded
+ * (see {@link assertPresignAssertSpendsClaim}).
+ */
+export function assertPresignClaimAssertLinkage(
+  args: AssertPresignClaimAssertLinkageParams,
+): void {
+  const { peginTx, claimTx, assertTx } =
+    decodePresignClaimAssertTransactions(args);
+  assertClaimSpendsPegin(claimTx, peginTx.getId(), args.path);
+  assertAssertSpendsClaim(assertTx, claimTx.getId(), args.path);
+}
+
 /**
  * Mirror `check_depositor_claim_shape` in `btc-vault`
  * (`crates/vault/src/transactions/claim.rs`): one input spending the
@@ -310,20 +443,26 @@ export function fingerprintPresignTxSet(args: {
   }[];
 }): string {
   const peginTxid = stripHexPrefix(args.peginTxid).toLowerCase();
-  const peginTx = decodePresignTx(args.peginTxHex, "pegin_tx");
+  const { peginTx, claimTx, assertTx } =
+    decodePresignClaimAssertTransactions({
+      peginTxHex: args.peginTxHex,
+      claimTxHex: args.claimTxHex,
+      assertTxHex: args.assertTxHex,
+      path: "depositor_graph",
+    });
   if (peginTx.getId() !== peginTxid) {
     throw new GraphFingerprintError(
       `Presign pegin_tx hashes to ${peginTx.getId()}, expected ${peginTxid}`,
     );
   }
-  const claimTx = decodePresignTx(args.claimTxHex, "claim_tx");
   assertDepositorClaimShape(claimTx, peginTxid);
+  assertAssertSpendsClaim(assertTx, claimTx.getId(), "depositor_graph");
 
   const bytes = (tx: Transaction) => new Uint8Array(tx.toBuffer());
   return canonicalTxSetFingerprint({
     peginTx: bytes(peginTx),
     claimTx: bytes(claimTx),
-    assertTx: bytes(decodePresignTx(args.assertTxHex, "assert_tx")),
+    assertTx: bytes(assertTx),
     payoutTx: bytes(decodePresignTx(args.payoutTxHex, "payout_tx")),
     challengers: args.challengers.map((c) => ({
       pubkey: canonicalizeBtcPubkey(c.challenger_pubkey),

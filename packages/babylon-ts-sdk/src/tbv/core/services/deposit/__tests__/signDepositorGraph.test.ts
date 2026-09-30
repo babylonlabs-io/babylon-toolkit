@@ -66,7 +66,7 @@ vi.mock("bitcoinjs-lib", () => ({
       if (!tx) {
         throw new Error(`MockTx not registered for hex: ${hex}`);
       }
-      return tx;
+      return { ...tx, toHex: () => hex.toLowerCase() };
     },
   },
 }));
@@ -146,6 +146,9 @@ const CHALLENGER_A = "a".repeat(64);
 const CHALLENGER_B = "b".repeat(64);
 const REGISTERED_PAYOUT_SCRIPT = `0x5120${"e".repeat(64)}`;
 const PEGIN_TX_HEX = "cafebabe";
+const PEGIN_TXID = "44".repeat(32);
+const CLAIM_TX_HEX = "claim_tx_hex";
+const CLAIM_TXID = "55".repeat(32);
 const TIMELOCK_PEGIN = 50;
 const TIMELOCK_ASSERT = 144;
 const COUNCIL_QUORUM = 1;
@@ -179,9 +182,39 @@ function nopayoutTxHex(challengerPk: string): string {
 function registerStandardMocks(challengerPubkeys: string[]): void {
   MOCK_TX_REGISTRY.clear();
 
+  registerMockTx(PEGIN_TX_HEX, {
+    ins: [],
+    outs: [
+      { script: Buffer.from([0xaa]), value: 10_000 },
+      { script: Buffer.from([0xbb]), value: 2_000 },
+    ],
+    getId: () => PEGIN_TXID,
+  });
+
+  registerMockTx(CLAIM_TX_HEX, {
+    ins: [
+      {
+        hash: makeReversedHash(PEGIN_TXID),
+        index: 1,
+        sequence: 0xffffffff,
+      },
+    ],
+    outs: [
+      { script: Buffer.from([0xab]), value: 1_000 },
+      { script: Buffer.from([0xac]), value: 500 },
+    ],
+    getId: () => CLAIM_TXID,
+  });
+
   // Assert tx: at least one output (Assert:0) used as input 0's prevout.
   registerMockTx(ASSERT_TX_HEX, {
-    ins: [],
+    ins: [
+      {
+        hash: makeReversedHash(CLAIM_TXID),
+        index: 0,
+        sequence: 0xffffffff,
+      },
+    ],
     outs: [{ script: Buffer.from([0xab]), value: 1000 }],
     getId: () => ASSERT_TXID,
   });
@@ -245,7 +278,7 @@ function createDepositorGraph(
   challengerPubkeys: string[],
 ): DepositorGraphTransactions {
   return {
-    claim_tx: { tx_hex: "deadbeef" },
+    claim_tx: { tx_hex: CLAIM_TX_HEX },
     assert_tx: { tx_hex: ASSERT_TX_HEX },
     payout_tx: { tx_hex: "payout_tx_hex" },
     payout_psbt: btoa("vp_supplied_payout_psbt_unused"),
@@ -298,6 +331,118 @@ function createSigningContext(
 // ---------------------------------------------------------------------------
 
 describe("signDepositorGraph", () => {
+  it("rejects a Claim without output 0 before reading or prompting the wallet", async () => {
+    registerStandardMocks([CHALLENGER_A, CHALLENGER_B]);
+    registerMockTx(CLAIM_TX_HEX, {
+      ins: [
+        {
+          hash: makeReversedHash(PEGIN_TXID),
+          index: 1,
+          sequence: 0xffffffff,
+        },
+      ],
+      outs: [],
+      getId: () => CLAIM_TXID,
+    });
+    const wallet = createMockWallet({ supportsBatch: true });
+
+    await expect(
+      signDepositorGraph({
+        depositorGraph: createDepositorGraph([CHALLENGER_A, CHALLENGER_B]),
+        btcWallet: wallet,
+        signingContext: createSigningContext(),
+      }),
+    ).rejects.toThrow(/claim_tx must have output 0/);
+
+    expect(wallet.getPublicKeyHex).not.toHaveBeenCalled();
+    expect(wallet.signPsbts).not.toHaveBeenCalled();
+    expect(wallet.signPsbt).not.toHaveBeenCalled();
+  });
+
+  it("rejects a Claim that spends PegIn output 0 before reading or prompting the wallet", async () => {
+    registerStandardMocks([CHALLENGER_A, CHALLENGER_B]);
+    registerMockTx(CLAIM_TX_HEX, {
+      ins: [
+        {
+          hash: makeReversedHash(PEGIN_TXID),
+          index: 0,
+          sequence: 0xffffffff,
+        },
+      ],
+      outs: [{ script: Buffer.from([0xab]), value: 1_000 }],
+      getId: () => CLAIM_TXID,
+    });
+    const wallet = createMockWallet({ supportsBatch: true });
+
+    await expect(
+      signDepositorGraph({
+        depositorGraph: createDepositorGraph([CHALLENGER_A, CHALLENGER_B]),
+        btcWallet: wallet,
+        signingContext: createSigningContext(),
+      }),
+    ).rejects.toThrow(/claim_tx must spend .*:1/);
+
+    expect(wallet.getPublicKeyHex).not.toHaveBeenCalled();
+    expect(wallet.signPsbts).not.toHaveBeenCalled();
+    expect(wallet.signPsbt).not.toHaveBeenCalled();
+  });
+
+  it("rejects a Claim that spends a foreign outpoint before reading or prompting the wallet", async () => {
+    registerStandardMocks([CHALLENGER_A, CHALLENGER_B]);
+    registerMockTx(CLAIM_TX_HEX, {
+      ins: [
+        {
+          hash: makeReversedHash("99".repeat(32)),
+          index: 1,
+          sequence: 0xffffffff,
+        },
+      ],
+      outs: [{ script: Buffer.from([0xab]), value: 1_000 }],
+      getId: () => CLAIM_TXID,
+    });
+    const wallet = createMockWallet({ supportsBatch: true });
+
+    await expect(
+      signDepositorGraph({
+        depositorGraph: createDepositorGraph([CHALLENGER_A, CHALLENGER_B]),
+        btcWallet: wallet,
+        signingContext: createSigningContext(),
+      }),
+    ).rejects.toThrow(/claim_tx must spend/);
+
+    expect(wallet.getPublicKeyHex).not.toHaveBeenCalled();
+    expect(wallet.signPsbts).not.toHaveBeenCalled();
+    expect(wallet.signPsbt).not.toHaveBeenCalled();
+  });
+
+  it("rejects an Assert that does not spend Claim output 0 before prompting the wallet", async () => {
+    registerStandardMocks([CHALLENGER_A, CHALLENGER_B]);
+    registerMockTx(ASSERT_TX_HEX, {
+      ins: [
+        {
+          hash: makeReversedHash("99".repeat(32)),
+          index: 0,
+          sequence: 0xffffffff,
+        },
+      ],
+      outs: [{ script: Buffer.from([0xab]), value: 1_000 }],
+      getId: () => ASSERT_TXID,
+    });
+    const wallet = createMockWallet({ supportsBatch: true });
+
+    await expect(
+      signDepositorGraph({
+        depositorGraph: createDepositorGraph([CHALLENGER_A, CHALLENGER_B]),
+        btcWallet: wallet,
+        signingContext: createSigningContext(),
+      }),
+    ).rejects.toThrow(/assert_tx input 0 must spend/);
+
+    expect(wallet.getPublicKeyHex).not.toHaveBeenCalled();
+    expect(wallet.signPsbts).not.toHaveBeenCalled();
+    expect(wallet.signPsbt).not.toHaveBeenCalled();
+  });
+
   it("rebuilds the payout PSBT locally from authoritative connector params", async () => {
     registerStandardMocks([CHALLENGER_A, CHALLENGER_B]);
     const { buildPayoutPsbt } = await import("../../../primitives/psbt/payout");
