@@ -4,6 +4,7 @@
  *
  *   node scripts/pre-review/snapshot.mjs record <base>
  *   node scripts/pre-review/snapshot.mjs check --body-file <file> --branch <name>
+ *   node scripts/pre-review/snapshot.mjs final --base <sha> --state-file <file> --context-file <file>
  *
  * `record` runs in the author's working tree, right after lint. It stores
  * every changed file's content in git's object database (so a later run can
@@ -113,6 +114,146 @@ export function digestBlobs(blobs) {
     .map((filePath) => `${filePath} ${blobs.get(filePath)}\n`)
     .join("");
   return createHash("sha256").update(text).digest("hex");
+}
+
+/**
+ * Bind completion to the code, its base, and the stable review context.
+ * Outside anchors stay out of the key: Phase 4 rebuilds that map from the
+ * run's own findings after the key is captured. `finalReviewStatus` compares
+ * their content with the state, and with the digest the `final_review` marker
+ * recorded when the final review completed.
+ */
+export function finalReviewInputKey({ base, branch, files, context }) {
+  if (!GIT_OBJECT_ID_PATTERN.test(base) || !branch || !context.trim()) {
+    throw new Error("Final review requires a base commit, branch and nonempty context.");
+  }
+  return createHash("sha256")
+    .update(JSON.stringify([base, branch, digestBlobs(files), context]))
+    .digest("hex");
+}
+
+/** A completion record cannot replace checks or decisions for these inputs. */
+export function finalReviewStatus({ state, inputKey, base, branch, files, outsideAnchors }) {
+  const reasons = [];
+  const runs = state.runs ?? [];
+  const findings = state.findings;
+  if (!Array.isArray(runs)) throw new Error("Final review requires a runs array in the state file.");
+  if (!Array.isArray(findings)) reasons.push("The findings ledger is missing or invalid.");
+  const latest = runs.at(-1);
+  const checksPassed = (run) =>
+    ["passed", "nothing affected"].includes(run?.checks) &&
+    Array.isArray(run.uncovered) &&
+    run.uncovered.length === 0;
+  if (
+    state.base !== base ||
+    state.branch !== branch ||
+    digestBlobs(new Map(Object.entries(state.files ?? {}))) !== digestBlobs(files) ||
+    digestBlobs(new Map(Object.entries(state.outside_anchors ?? {}))) !==
+      digestBlobs(outsideAnchors)
+  ) {
+    reasons.push("The saved review inputs differ from the current inputs.");
+  }
+  if (latest?.input_key !== inputKey)
+    reasons.push("Checks are missing or belong to different inputs.");
+  if (!checksPassed(latest)) reasons.push("Checks must pass with no uncovered work.");
+  for (const finding of Array.isArray(findings) ? findings : []) {
+    if (["fixed", "moot"].includes(finding.status)) continue;
+    if (
+      finding.severity === "merge-blocker" ||
+      !["follow-up", "decline"].includes(finding.decision)
+    ) {
+      reasons.push(`Finding N${finding.id} still requires a fix or a decision.`);
+    }
+  }
+  const hasRequiredCoverage = (reviewRuns) => {
+    let initialComplete = false;
+    let incomplete = false;
+    let covered = new Set();
+    // A no-review run must not erase a missing reviewer from an earlier run.
+    for (const run of reviewRuns) {
+      if (run.kind === "final") continue;
+      const noReview = run.kind === "later" && run.breadth === "none";
+      const required = noReview ? [] : run.tier === "full"
+        ? ["review-generalist", "review-tracer", "review-panel"]
+        : run.tier === "light"
+          ? [run.kind === "first" ? "review-generalist" : "review-lane"] : [];
+      const complete = ["first", "later"].includes(run.kind) &&
+        (noReview || (required.length > 0 &&
+          (run.breadth === "whole change" || (run.kind === "later" && run.breadth === "narrowed")))) &&
+        Array.isArray(run.uncovered) &&
+        run.uncovered.every((item) => /^typecheck-(stub|unbuilt): /.test(item)) &&
+        Array.isArray(run.reviewers) &&
+        run.reviewers.every((reviewer) => reviewer.completed === true) &&
+        (noReview ? run.reviewers.length === 0 :
+          required.every((name) => run.reviewers.some((reviewer) => reviewer.name === name)));
+      const listed = Array.isArray(run.reviewed) ? run.reviewed : [];
+      if (!complete) incomplete = true;
+      else if (run.kind === "first") {
+        initialComplete = true;
+        covered = new Set(listed);
+      } else if (run.tier === "full" && run.breadth === "whole change") {
+        initialComplete = true;
+        incomplete = false;
+        covered = new Set(listed);
+      } else {
+        for (const reviewedPath of listed) covered.add(reviewedPath);
+      }
+    }
+    // Paths that entered after the whole-change run are listed by later runs.
+    return initialComplete && !incomplete && [...files.keys()].every((p) => covered.has(p));
+  };
+  if (!hasRequiredCoverage(runs)) {
+    reasons.push("Required review coverage is incomplete. Run /pre-review --full before final review.");
+  }
+  const outsideAnchorsSha256 = digestBlobs(outsideAnchors);
+  if (reasons.length) {
+    return {
+      input_key: inputKey,
+      outside_anchors_sha256: outsideAnchorsSha256,
+      status: "blocked",
+      reasons,
+    };
+  }
+
+  const marker = state.final_review;
+  const finalRun = Number.isInteger(marker?.run) && marker.run > 0 ? runs[marker.run - 1] : null;
+  const reviewed = new Set(finalRun?.reviewed);
+  const complete =
+    marker?.input_key === inputKey &&
+    marker.outside_anchors_sha256 === outsideAnchorsSha256 &&
+    finalRun?.input_key === inputKey &&
+    finalRun.kind === "final" &&
+    finalRun.cold === true &&
+    finalRun.breadth === "whole change" &&
+    checksPassed(finalRun) &&
+    reviewed.size === files.size &&
+    [...files.keys()].every((p) => reviewed.has(p)) &&
+    hasRequiredCoverage(runs.slice(0, marker.run - 1)) &&
+    finalRun.reviewers?.some(
+      (reviewer) => reviewer.name === "review-lane" && reviewer.completed === true,
+    );
+  return {
+    input_key: inputKey,
+    outside_anchors_sha256: outsideAnchorsSha256,
+    status: complete ? "complete" : "pending",
+    reasons: complete ? [] : ["Final review has not completed for these inputs."],
+  };
+}
+
+/** Read current files again so edits made during checks cannot retain completion. */
+export function checkFinalReview({ base, state, context, cwd }) {
+  const branch = currentBranch(cwd);
+  const files = recordBlobs(changedPathsInWorktree(base, cwd), cwd);
+  const outsideAnchors = recordBlobs(Object.keys(state.outside_anchors ?? {}), cwd);
+  const inputKey = finalReviewInputKey({ base, branch, files, context });
+  return finalReviewStatus({
+    state,
+    inputKey,
+    base,
+    branch,
+    files,
+    outsideAnchors,
+  });
 }
 
 /** A snapshot line that cannot be read as a record. */
@@ -245,7 +386,19 @@ function main(argv) {
     process.stdout.write(`${JSON.stringify(result)}\n`);
     return;
   }
-  throw new Error(`Unknown command "${command}". Expected "record" or "check".`);
+  if (command === "final") {
+    const flags = parseFlags(rest);
+    const statePath = requireFlag(flags, "state-file");
+    const result = checkFinalReview({
+      base: requireFlag(flags, "base"),
+      state: fs.existsSync(statePath) ? JSON.parse(fs.readFileSync(statePath, "utf8")) : {},
+      context: fs.readFileSync(requireFlag(flags, "context-file"), "utf8"),
+      cwd: repositoryRoot(process.cwd()),
+    });
+    process.stdout.write(`${JSON.stringify(result)}\n`);
+    return;
+  }
+  throw new Error(`Unknown command "${command}". Expected "record", "check" or "final".`);
 }
 
 // Only run as a CLI: the hooks and the tests import this module.

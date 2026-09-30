@@ -35,19 +35,17 @@ the branch's upstream, which is not necessarily the pack's base. Whatever
 `/code-review` covers, the pack's file list and its diff are the authority on
 what changed: review every file in it.
 
-Besides correctness, check the repository conventions `/code-review` will not
-know about:
+Check the binding repository rules that `/code-review` does not know about.
+Report a convention finding only when it shows a concrete defect or violates
+an explicit required rule from the context pack. Cite that rule.
 
-- **Magic numbers and strings** with no named constant, and configuration
-  that belongs in config rather than code.
-- **Placement**: a new file in the wrong package or directory, a source file
-  past ~500 lines or a test file past ~1000 that should be split, a helper
-  that belongs in a shared module, near-duplicate logic across files, index
-  files and exports not kept in step with the change.
-- **Cohesion**: a function doing more than one job, or longer than ~50 lines,
-  that should be split or extracted.
-- **CLAUDE.md rules** the pack names as binding: dead code, silent fallbacks
-  on critical paths, `copy.ts` for user-facing strings, test philosophy.
+Naming preferences, magic-constant suggestions, file placement, function or
+file length, and optional extraction are not findings on their own. This
+includes CLAUDE.md's "No Magic Numbers" rule: an inline constant is a finding
+only when it causes a concrete failure. These suggestions can make authors
+repeat a costly review without fixing a defect.
+Keep incorrect user-facing text, contract errors, critical-path issues and
+required checks in scope. A small change can still cause a serious defect.
 
 ## Constraints
 
