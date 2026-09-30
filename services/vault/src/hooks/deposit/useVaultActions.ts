@@ -706,7 +706,7 @@ export function useVaultActions(): UseVaultActionsReturn {
         // fallback branch carries `diagnostics`. Log the original so a mapped
         // failure is still diagnosable — `useBroadcastState`'s catch cannot do
         // it, because this function resolves rather than rethrowing.
-        logger.error(err instanceof Error ? err : new Error(String(err)), {
+        logger.error(err, {
           tags: { vaultId: shortId(vaultId) },
           data: { context: "Resume broadcast failed" },
         });

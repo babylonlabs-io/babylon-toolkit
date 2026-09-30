@@ -37,12 +37,7 @@ export async function getEthWalletClient(
   try {
     await switchChain(wagmiConfig, { chainId: expectedChainId });
   } catch (switchError) {
-    logger.error(
-      switchError instanceof Error
-        ? switchError
-        : new Error(String(switchError)),
-      { data: { context: "Failed to switch chain" } },
-    );
+    logger.error(switchError, { data: { context: "Failed to switch chain" } });
     throw new Error(
       COPY.deposit.errors.chainSwitchRequired(
         expectedChainId === 1

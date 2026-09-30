@@ -136,10 +136,7 @@ export function useReorderVaults(): UseReorderVaultsResult {
 
         return true;
       } catch (error) {
-        logger.error(
-          error instanceof Error ? error : new Error(String(error)),
-          { data: { context: "Reorder vaults failed" } },
-        );
+        logger.error(error, { data: { context: "Reorder vaults failed" } });
         // Surface a stale-baseline mismatch as its own user-facing error so
         // the user understands they need to refresh, not retry. Retry with
         // the same stale baseline cannot help.

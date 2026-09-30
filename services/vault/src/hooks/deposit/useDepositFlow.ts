@@ -1003,18 +1003,13 @@ export function useDepositFlow(
           try {
             addPendingPegin(confirmedEthAddress, pendingRecord);
           } catch (persistErr) {
-            logger.error(
-              persistErr instanceof Error
-                ? persistErr
-                : new Error(String(persistErr)),
-              {
-                tags: {
-                  component: "useDepositFlow",
-                  phase: "persist-pending-pegin",
-                },
-                data: { vaultId: peginResult.vaultId },
+            logger.error(persistErr, {
+              tags: {
+                component: "useDepositFlow",
+                phase: "persist-pending-pegin",
               },
-            );
+              data: { vaultId: peginResult.vaultId },
+            });
             if (!warnings.some((w) => w.stage === "persistence")) {
               recordWarning({
                 stage: "persistence",
@@ -1463,22 +1458,18 @@ export function useDepositFlow(
                   errorMsg,
                 ),
               });
-              logger.error(
-                error instanceof Error ? error : new Error(String(error)),
-                {
-                  // Tagged so the Sentry-side cancellation drop keeps it: the
-                  // loop continues to the next vault, so a rejected prompt here
-                  // leaves THIS vault without its WOTS key while the deposit
-                  // proceeds. That partial state is the reportable event even
-                  // though the cause is a user cancellation.
-                  tags: { partialFailure: "multi-vault" },
-                  data: {
-                    context:
-                      "[Multi-Vault] Failed to submit WOTS key for vault",
-                    vaultId: result.vaultId,
-                  },
+              logger.error(error, {
+                // Tagged so the Sentry-side cancellation drop keeps it: the
+                // loop continues to the next vault, so a rejected prompt here
+                // leaves THIS vault without its WOTS key while the deposit
+                // proceeds. That partial state is the reportable event even
+                // though the cause is a user cancellation.
+                tags: { partialFailure: "multi-vault" },
+                data: {
+                  context: "[Multi-Vault] Failed to submit WOTS key for vault",
+                  vaultId: result.vaultId,
                 },
-              );
+              });
             }
           }
 
@@ -1649,21 +1640,18 @@ export function useDepositFlow(
                 errorMsg,
               ),
             });
-            logger.error(
-              error instanceof Error ? error : new Error(String(error)),
-              {
-                // See the WOTS site above: the loop continues, so a rejected
-                // prompt leaves this vault under-signed while the deposit
-                // proceeds. Exempt from the cancellation drop.
-                tags: { partialFailure: "multi-vault" },
-                data: {
-                  context:
-                    "[Multi-Vault] Failed to sign or submit payouts for vault",
-                  vaultId: result.vaultId,
-                  providerAddress: provider.id,
-                },
+            logger.error(error, {
+              // See the WOTS site above: the loop continues, so a rejected
+              // prompt leaves this vault under-signed while the deposit
+              // proceeds. Exempt from the cancellation drop.
+              tags: { partialFailure: "multi-vault" },
+              data: {
+                context:
+                  "[Multi-Vault] Failed to sign or submit payouts for vault",
+                vaultId: result.vaultId,
+                providerAddress: provider.id,
               },
-            );
+            });
             // Post-loop invariant: unsigned vaults rest at the payout wait,
             // not the mid-signing step onProgress last set.
             setPerVaultSteps((prev) =>
@@ -1747,7 +1735,7 @@ export function useDepositFlow(
             setResumableVaultIds(registeredVaultIds);
           }
           setError(content);
-          logger.error(err instanceof Error ? err : new Error(String(err)), {
+          logger.error(err, {
             tags: { depositStep: DepositFlowStep[currentStepRef.current] },
             data: {
               context: "Multi-vault deposit flow error",

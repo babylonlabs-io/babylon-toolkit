@@ -302,6 +302,40 @@ describe("scrubSentryEvent", () => {
     expect(result.exception?.values?.[0].value).toBe("Failed for [ETH_ADDR]");
   });
 
+  it("scrubs exception types", () => {
+    const event: SentryEvent = {
+      exception: {
+        values: [
+          {
+            type: "Error 0x742d35Cc6634C0532925a3b844Bc9e7595f2bD80",
+            value: "Failed",
+          },
+        ],
+      },
+    };
+    const result = scrubSentryEvent(event);
+    expect(result.exception?.values?.[0].type).toBe("Error [ETH_ADDR]");
+  });
+
+  it("scrubs fingerprint entries", () => {
+    const event: SentryEvent = {
+      fingerprint: [
+        "{{ default }}",
+        "0x742d35Cc6634C0532925a3b844Bc9e7595f2bD80",
+      ],
+    };
+    const result = scrubSentryEvent(event);
+    expect(result.fingerprint).toEqual(["{{ default }}", "[ETH_ADDR]"]);
+  });
+
+  it("keeps a numeric fingerprint entry as a string instead of throwing", () => {
+    const event = {
+      fingerprint: ["{{ default }}", -32603],
+    } as unknown as SentryEvent;
+    const result = scrubSentryEvent(event);
+    expect(result.fingerprint).toEqual(["{{ default }}", "-32603"]);
+  });
+
   it("scrubs event message", () => {
     const event: SentryEvent = {
       message: "Error at bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4",

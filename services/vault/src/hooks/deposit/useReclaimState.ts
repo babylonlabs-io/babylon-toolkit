@@ -139,7 +139,7 @@ export function useReclaimState({
             setReclaiming(false);
             return;
           }
-          logger.error(err instanceof Error ? err : new Error(String(err)), {
+          logger.error(err, {
             data: { context: "Reclaim failed", vaultId },
           });
           if (err instanceof ReclaimNoLongerEligibleError) {

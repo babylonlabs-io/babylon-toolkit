@@ -477,7 +477,7 @@ export async function fetchVaultsByDepositor(
       vaults.push(transformVaultItem(item));
     } catch (error) {
       droppedCount += 1;
-      logger.error(error instanceof Error ? error : new Error(String(error)), {
+      logger.error(error, {
         tags: { vaultId: item.id, component: "fetchVaults" },
         data: { rawStatus: item.status },
       });

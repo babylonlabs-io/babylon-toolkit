@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useBTCWallet } from "@/context/wallet";
 import { logger } from "@/infrastructure";
+import { normalizeError } from "@/utils/errors/normalizeError";
 
 interface BtcPublicKeyState {
   /**
@@ -68,7 +69,7 @@ export function useBtcPublicKey(btcConnected: boolean): UseBtcPublicKeyResult {
         : xOnlyKey;
       return { publicKey: keyWithoutPrefix, error: null };
     } catch (err) {
-      const error = err instanceof Error ? err : new Error(String(err));
+      const error = normalizeError(err);
       logger.error(error, {
         data: { context: "Failed to get BTC public key" },
       });

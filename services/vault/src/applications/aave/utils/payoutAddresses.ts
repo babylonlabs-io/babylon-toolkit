@@ -37,7 +37,7 @@ export function getUniquePayoutAddresses(
         addresses.push(address);
       }
     } catch (error) {
-      logger.error(error instanceof Error ? error : new Error(String(error)), {
+      logger.error(error, {
         data: {
           context: "Decode payout scriptPubKey for withdraw display",
           vaultId: vault.vaultId,

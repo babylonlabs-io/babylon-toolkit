@@ -187,7 +187,7 @@ export function useRefundState({
             persistRefundSuccess(err.spendingTxid, err.confirmed);
             return;
           }
-          logger.error(err instanceof Error ? err : new Error(String(err)), {
+          logger.error(err, {
             data: { context: "Refund failed", vaultId },
           });
           const message =
