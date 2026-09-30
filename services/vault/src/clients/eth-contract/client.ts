@@ -1,6 +1,12 @@
 // Shared ETH client singleton for all contract interactions
 
-import { createPublicClient, http, type PublicClient } from "viem";
+import {
+  createPublicClient,
+  http,
+  type Chain,
+  type PublicClient,
+  type Transport,
+} from "viem";
 
 import { getETHChain, getNetworkConfigETH } from "@/config/network";
 
@@ -10,7 +16,7 @@ import { getETHChain, getNetworkConfigETH } from "@/config/network";
  */
 class ETHClient {
   private static instance: ETHClient;
-  private publicClient: PublicClient;
+  private publicClient: PublicClient<Transport, Chain>;
   private config = getNetworkConfigETH();
 
   private constructor() {
@@ -38,7 +44,7 @@ class ETHClient {
   /**
    * Get the public client for read operations
    */
-  getPublicClient(): PublicClient {
+  getPublicClient(): PublicClient<Transport, Chain> {
     return this.publicClient;
   }
 }

@@ -64,7 +64,7 @@ const capPolicyAddressCache = new Map<number, CachedCapPolicyAddress>();
 
 async function getCapPolicyAddress(): Promise<Address> {
   const publicClient = ethClient.getPublicClient();
-  const chainId = await publicClient.getChainId();
+  const chainId = publicClient.chain.id;
 
   const cached = capPolicyAddressCache.get(chainId);
   if (cached && Date.now() - cached.fetchedAt < CAP_POLICY_ADDRESS_TTL_MS) {
