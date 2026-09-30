@@ -105,7 +105,7 @@ const PEGIN_ERROR_MESSAGES: Record<string, string> = {
     "Vault already exists: This Bitcoin transaction has already been registered. " +
     "Please select different UTXOs or use a different amount to create a unique transaction.",
   "InvalidBTCProofOfPossession()":
-    "Invalid BTC proof of possession: The signature could not be verified. " +
+    "Invalid BTC proof of possession: The signature has an invalid length. " +
     "Please ensure you're signing with the correct Bitcoin wallet.",
   "InvalidBTCPublicKey()":
     "Invalid BTC public key: The Bitcoin public key format is invalid.",
@@ -117,8 +117,6 @@ const PEGIN_ERROR_MESSAGES: Record<string, string> = {
     "Vault provider not registered: The selected vault provider is not registered.",
   "Unauthorized()":
     "Unauthorized: Only the depositor can submit this transaction. Reconnect the wallet you started this deposit with.",
-  "InvalidTransaction()":
-    "Invalid BTC transaction: The signed Bitcoin transaction is missing or malformed.",
   "InvalidPeginFee(uint256,uint256)":
     "Invalid pegin fee: The ETH fee sent does not match the required amount. " +
     "This may indicate a fee rate change during the transaction.",
@@ -152,7 +150,7 @@ const PEGIN_ERROR_MESSAGES: Record<string, string> = {
     "Deposit cap reached: This deposit would exceed the application's total deposit cap " +
     "or your wallet's deposit cap. Try a smaller amount.",
   "LiveVaultCapExceeded()":
-    "Vault limit reached: The protocol has reached its limit of active vaults. Please try again later.",
+    "Vault limit reached: The protocol has no vault capacity left right now. Please try again later.",
   "ApplicationNotActive()":
     "Application unavailable: This application is not accepting deposits right now. Please try again later.",
   "TBV_Paused()":

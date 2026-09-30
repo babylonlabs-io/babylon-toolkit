@@ -44,14 +44,14 @@ export const CONTRACT_ERROR_MESSAGES: Record<string, string> = {
   // BTCVaultRegistry). Hashlocks are deterministic from BTC wallet +
   // selected UTXOs, so reusing the same UTXOs from the same wallet
   // produces the same hashlock and reverts here. Kept in sync with the
-  // SDK selector-keyed copy in `babylon-ts-sdk/src/tbv/core/contracts/errors.ts`.
+  // SDK signature-keyed copy in `babylon-ts-sdk/src/tbv/core/contracts/errors.ts`.
   DuplicateHashlock:
     "Duplicate deposit: a BTCVault with this hashlock is already registered to your wallet. Hashlocks are derived from your BTC wallet and selected UTXOs — use different UTXOs to create a unique deposit.",
   InvalidBTCPublicKey: "Invalid BTC public key format.",
   InvalidBTCProofOfPossession: "Invalid BTC proof of possession signature.",
   PeginTransactionExpired: "The peg-in transaction has expired.",
   PrePeginOutputAlreadyUsed:
-    "This Pre-Pegin output has already been used to activate another BTCVault.",
+    "This Pre-Pegin output has already been used by another BTCVault.",
   PeginTransactionAlreadyUsed:
     "This peg-in transaction has already been used to activate another BTCVault.",
 
@@ -130,7 +130,7 @@ export const CONTRACT_ERROR_MESSAGES: Record<string, string> = {
   InvalidAmount: "The amount specified is invalid.",
   ZeroAddress: "Address cannot be zero.",
   ZeroAmount: "Amount cannot be zero.",
-  TransferFailed: "Token transfer failed.",
+  TransferFailed: "Transfer failed.",
   FailedCall: "Contract call failed.",
   SafeERC20FailedOperation: "ERC20 token operation failed.",
   AddressEmptyCode: "Address has no code (not a contract).",

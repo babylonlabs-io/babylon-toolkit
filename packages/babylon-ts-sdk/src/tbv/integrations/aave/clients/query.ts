@@ -111,13 +111,13 @@ export async function getPosition(
 }
 
 /**
- * Get position size parameters from the adapter contract.
+ * Get position size parameters from the adapter config contract.
  *
  * Returns the maximum BTC position size and maximum vaults per position
  * as configured on-chain.
  *
  * @param publicClient - Viem public client for reading contracts
- * @param contractAddress - AaveIntegrationAdapter contract address
+ * @param contractAddress - AaveAdapterConfig contract address
  * @returns Position size parameters (maxPositionBTC, maxVaultsPerPosition)
  */
 export async function getPositionSizeParams(

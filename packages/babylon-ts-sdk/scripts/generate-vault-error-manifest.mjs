@@ -184,6 +184,7 @@ function main() {
     generatedBy: "packages/babylon-ts-sdk/scripts/generate-vault-error-manifest.mjs",
     contractsRepo: "babylonlabs-io/vault-contracts-aave-v4",
     revisions: REVISIONS,
+    forgeVersion: run("forge", ["--version"]).trim().split("\n")[0],
     aaveExtraSources: AAVE_EXTRA_SOURCES,
     excludedSourceDirs: EXCLUDED_SOURCE_DIRS,
     errors,

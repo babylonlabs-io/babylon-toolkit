@@ -99,10 +99,9 @@ export async function activateVaultWithSecret(
  * while the adapter is paused or its activation reverts; the vault provider
  * then pays the BTC out to the depositor's committed payout address.
  *
- * Registry preconditions the gate cannot pre-read — the application
- * registration being Active (`ApplicationNotActive`), the activation
- * deadline, the Verified status — are checked by `executeWrite`'s mandatory
- * pre-broadcast simulation: on a simulated revert nothing is signed or
+ * Registry preconditions the gate cannot pre-read — a protocol pause, the
+ * activation deadline, the Verified status — are checked by `executeWrite`'s
+ * mandatory pre-broadcast simulation: on a simulated revert nothing is signed or
  * sent, so a precondition already failing at submission time never
  * publishes the secret. The residual is the simulate-to-mine window: a
  * precondition that flips after a passing simulation (or a lagging RPC
