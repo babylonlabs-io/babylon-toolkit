@@ -69,16 +69,15 @@ import {
   shouldProbeWalletLiveness,
   verifyBtcWalletLiveness,
 } from "@/utils/btc";
-import { mapDepositError } from "@/utils/errors";
+import { mapDepositErrorAfterRegistration } from "@/utils/errors";
 import { getVpProxyUrl } from "@/utils/rpc";
 
 import { DepositProgressView } from "./DepositProgressView";
 import { VaultActivatedView } from "./VaultActivatedView";
 
 /**
- * Caught-error state wrapper: keeps the typed error intact for the render-seam
- * `mapDepositError` call (flattening to `.message` loses wallet codes and
- * `cause` chains) while giving `unknown` well-defined truthiness in state.
+ * Keep the error intact for mapping. Its message alone loses wallet codes
+ * and cause chains. The wrapper lets state check an unknown error for null.
  */
 interface CaughtError {
   raw: unknown;
@@ -652,7 +651,7 @@ function ResumeWotsContentConnected({
   return (
     <DepositProgressView
       currentStep={renderStep}
-      error={error ? mapDepositError(error.raw) : null}
+      error={error ? mapDepositErrorAfterRegistration(error.raw) : null}
       isComplete={derived.isComplete}
       isProcessing={derived.isProcessing}
       canClose={derived.canClose}
@@ -838,7 +837,7 @@ function ResumeActivationContentConnected({
             isTerminal &&
             activationError !== COPY.pegin.messages.activationOrderInconsistent
             ? COPY.deposit.errors.activationDeadlinePassed
-            : mapDepositError(error.raw)
+            : mapDepositErrorAfterRegistration(error.raw)
           : null
       }
       isComplete={derived.isComplete}

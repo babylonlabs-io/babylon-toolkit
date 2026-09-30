@@ -19,6 +19,7 @@ export const ERROR_CODES = {
   WALLET_NOT_CONNECTED: "WALLET_NOT_CONNECTED", // Not connected
   INCOMPATIBLE_WALLET_VERSION: "INCOMPATIBLE_WALLET_VERSION", // Version mismatch
   WALLET_METHOD_NOT_SUPPORTED: "WALLET_METHOD_NOT_SUPPORTED", // Wallet does not implement a required method
+  WALLET_ACCOUNT_NOT_SUPPORTED: "WALLET_ACCOUNT_NOT_SUPPORTED", // Selected wallet account cannot do the action
   NETWORK_NOT_ENABLED_IN_WALLET: "NETWORK_NOT_ENABLED_IN_WALLET", // Network not enabled
   WALLET_CONFIG_REQUIRED: "WALLET_CONFIG_REQUIRED", // Wallet configuration required
   SHARED_SESSION_DISCONNECT_REFUSED: "SHARED_SESSION_DISCONNECT_REFUSED", // Disconnecting one chain would also disconnect another

@@ -116,6 +116,7 @@ import {
   isResumableDepositError,
   mapDepositError,
   mapDepositErrorAfterRegistration,
+  postRegistrationWalletErrorMessage,
   type DepositErrorContent,
 } from "@/utils/errors";
 import {
@@ -1447,8 +1448,10 @@ export function useDepositFlow(
                 continue;
               }
 
-              const errorMsg =
-                error instanceof Error ? error.message : String(error);
+              const errorMsg = postRegistrationWalletErrorMessage(
+                error,
+                String(error),
+              );
               recordWarning({
                 vaultId: result.vaultId,
                 stage: "wots",
@@ -1629,8 +1632,10 @@ export function useDepositFlow(
               continue;
             }
 
-            const errorMsg =
-              error instanceof Error ? error.message : String(error);
+            const errorMsg = postRegistrationWalletErrorMessage(
+              error,
+              String(error),
+            );
             recordWarning({
               vaultId: result.vaultId,
               stage: "payout",

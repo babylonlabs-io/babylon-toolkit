@@ -502,6 +502,19 @@ describe("mapDepositError", () => {
     expect(result.title).toBe(ERRORS.defaultTitle);
   });
 
+  it("maps a top-level WALLET_ACCOUNT_NOT_SUPPORTED code to the deposit copy", () => {
+    expect(mapDepositError({ code: "WALLET_ACCOUNT_NOT_SUPPORTED" })).toEqual(
+      ERRORS.walletAccountNotSupported,
+    );
+  });
+
+  it("maps a WALLET_ACCOUNT_NOT_SUPPORTED code nested in a cause to the deposit copy", () => {
+    const err = new Error("Failed to sign Pre-Pegin transaction", {
+      cause: { code: "WALLET_ACCOUNT_NOT_SUPPORTED" },
+    });
+    expect(mapDepositError(err)).toEqual(ERRORS.walletAccountNotSupported);
+  });
+
   it("maps a top-level WALLET_METHOD_NOT_SUPPORTED code to the unsupported-wallet callout", () => {
     const err = new FakeWalletError(
       "WALLET_METHOD_NOT_SUPPORTED",
@@ -697,6 +710,35 @@ describe("mapDepositError", () => {
 });
 
 describe("mapDepositErrorAfterRegistration", () => {
+  it("maps an unsupported account to the original-account copy", () => {
+    const { title, message } =
+      COPY.deposit.payoutSignatureErrors.walletAccountNotSupported;
+    expect(
+      mapDepositErrorAfterRegistration({
+        cause: { code: "WALLET_ACCOUNT_NOT_SUPPORTED" },
+      }),
+    ).toEqual({ title, body: message });
+  });
+
+  it("maps an unsupported method to the original-wallet copy", () => {
+    const { title, message } =
+      COPY.deposit.payoutSignatureErrors.walletMethodNotSupported;
+    expect(
+      mapDepositErrorAfterRegistration({
+        cause: { code: "WALLET_METHOD_NOT_SUPPORTED" },
+      }),
+    ).toEqual({ title, body: message });
+  });
+
+  it("keeps an outer rejection ahead of an unsupported account", () => {
+    expect(
+      mapDepositErrorAfterRegistration({
+        code: "CONNECTION_REJECTED",
+        cause: { code: "WALLET_ACCOUNT_NOT_SUPPORTED" },
+      }),
+    ).toEqual(ERRORS.signingRejected);
+  });
+
   it("maps a spent input to the terminal post-registration callout", () => {
     const err = new UtxoNotAvailableError([{ txid: "ab".repeat(32), vout: 0 }]);
     expect(mapDepositErrorAfterRegistration(err)).toEqual(

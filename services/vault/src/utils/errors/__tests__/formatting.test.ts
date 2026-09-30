@@ -812,6 +812,26 @@ describe("Error Formatting", () => {
       );
     });
 
+    it("inlined WALLET_ACCOUNT_NOT_SUPPORTED code matches wallet-connector source", () => {
+      const codesPath = resolve(
+        __dirname,
+        "../../../../../../packages/babylon-wallet-connector/src/error/codes.ts",
+      );
+      const source = readFileSync(codesPath, "utf8");
+      const match = source.match(/WALLET_ACCOUNT_NOT_SUPPORTED:\s*"([^"]+)"/);
+
+      expect(match).not.toBeNull();
+      expect(match?.[1]).toBe("WALLET_ACCOUNT_NOT_SUPPORTED");
+
+      const unsupported = new FakeWalletError(
+        match![1],
+        "The selected Unisat account cannot derive the context hash",
+      );
+      expect(formatPayoutSignatureError(unsupported).title).toBe(
+        COPY.deposit.payoutSignatureErrors.walletAccountNotSupported.title,
+      );
+    });
+
     it("maps a DepositTermsRejectedError instance to the terms-rejected copy", () => {
       const result = formatPayoutSignatureError(
         new DepositTermsRejectedError("terms outside device envelope"),
@@ -897,6 +917,21 @@ describe("Error Formatting", () => {
       });
       expect(formatPayoutSignatureError(err)).toMatchObject(
         COPY.deposit.payoutSignatureErrors.unexpected,
+      );
+    });
+
+    it("maps a top-level WALLET_ACCOUNT_NOT_SUPPORTED code to the resume copy", () => {
+      expect(
+        formatPayoutSignatureError({ code: "WALLET_ACCOUNT_NOT_SUPPORTED" }),
+      ).toEqual(COPY.deposit.payoutSignatureErrors.walletAccountNotSupported);
+    });
+
+    it("maps a WALLET_ACCOUNT_NOT_SUPPORTED code nested in a cause to the resume copy", () => {
+      const err = new Error("payout signing failed", {
+        cause: { code: "WALLET_ACCOUNT_NOT_SUPPORTED" },
+      });
+      expect(formatPayoutSignatureError(err)).toEqual(
+        COPY.deposit.payoutSignatureErrors.walletAccountNotSupported,
       );
     });
 

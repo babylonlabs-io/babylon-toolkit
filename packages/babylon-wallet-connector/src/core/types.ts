@@ -546,6 +546,10 @@ export interface IBTCProvider extends IProvider {
    * @throws {@link WalletError} with code
    *   {@link ERROR_CODES.WALLET_METHOD_NOT_SUPPORTED} when the wallet
    *   does not implement the method.
+   * @throws {@link WalletError} with code
+   *   {@link ERROR_CODES.WALLET_ACCOUNT_NOT_SUPPORTED} when the selected
+   *   account cannot derive the context hash. Only the UniSat provider
+   *   reports this code.
    */
   deriveContextHash(appName: string, context: string): Promise<string>;
 }

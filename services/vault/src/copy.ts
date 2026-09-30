@@ -1229,6 +1229,10 @@ export const COPY = {
         title: "Wallet action not supported",
         body: "Your connected wallet can't perform an action this deposit requires. Please reconnect with a supported wallet and try again.",
       },
+      walletAccountNotSupported: {
+        title: "Account can't be used",
+        body: "The account selected in your wallet can't create the deposit secret. Switch to an account created from a recovery phrase or a private key, then try again.",
+      },
       // Typed device-state codes from the hardware-wallet provider; wording
       // shared with payoutSignatureErrors via the DEVICE_* constants above.
       deviceCeremonyInvalid: {
@@ -1396,6 +1400,11 @@ export const COPY = {
         title: "Wallet action not supported",
         message:
           "Your connected wallet can't perform an action this deposit requires, and the deposit can only continue with the wallet that created it. Try again after updating the app or that wallet, or contact support.",
+      },
+      walletAccountNotSupported: {
+        title: "Account can't be used",
+        message:
+          "The account selected in your wallet can't create the deposit secret. Select the account that created this deposit, in the wallet you used to create it, then try again.",
       },
       // Typed device-state codes from the hardware-wallet provider; wording
       // shared with deposit.errors via the DEVICE_* constants above.
