@@ -5,7 +5,7 @@ import { sepolia } from "viem/chains";
 import { describe, expect, it, vi } from "vitest";
 
 import { MockEthereumWallet } from "../../../../../testing/MockEthereumWallet";
-import { BTCVaultRegistryABI } from "../../../contracts";
+import { BTCVaultRegistryABI, EMPTY_REVERT_MESSAGE } from "../../../contracts";
 import {
   ViemPeginRegistrationClient,
   type RegisterPeginBatchOnChainParams,
@@ -158,6 +158,42 @@ describe("ViemPeginRegistrationClient", () => {
     });
     expect(decoded.functionName).toBe("submitPeginRequest");
     expect((decoded.args as readonly unknown[])[9]).toBe(PAYOUT_SCRIPT);
+  });
+
+  it("reports an explicitly empty revert at gas estimation with the neutral message, sending nothing", async () => {
+    const { client, ethWallet, publicClient } = setup();
+    const send = vi.spyOn(ethWallet, "sendTransaction");
+    publicClient.estimateGas.mockRejectedValueOnce(
+      Object.assign(new Error("execution reverted"), { data: "0x" }),
+    );
+
+    await expect(
+      client.registerPeginOnChain(singleParams(ethWallet.account.address)),
+    ).rejects.toThrow(EMPTY_REVERT_MESSAGE);
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it("reports an explicitly empty revert at send with the neutral message", async () => {
+    const { client, ethWallet } = setup();
+    vi.spyOn(ethWallet, "sendTransaction").mockRejectedValueOnce(
+      Object.assign(new Error("execution reverted"), { data: "0x" }),
+    );
+
+    await expect(
+      client.registerPeginOnChain(singleParams(ethWallet.account.address)),
+    ).rejects.toThrow(EMPTY_REVERT_MESSAGE);
+  });
+
+  it("passes a wallet rejection at send through unchanged", async () => {
+    const { client, ethWallet } = setup();
+    const rejection = Object.assign(new Error("User rejected the request."), {
+      code: 4001,
+    });
+    vi.spyOn(ethWallet, "sendTransaction").mockRejectedValueOnce(rejection);
+
+    await expect(
+      client.registerPeginOnChain(singleParams(ethWallet.account.address)),
+    ).rejects.toBe(rejection);
   });
 
   it("accepts an uppercase hex prefix on the PoP BTC pubkey", async () => {

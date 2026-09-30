@@ -4,7 +4,7 @@
  *
  * The reorder CTA builds its calldata from indexer-supplied vault IDs,
  * amounts, and liquidation indexes. The on-chain adapter only rejects
- * invalid permutations (`InvalidVaultsPermutation`), so a tampered indexer
+ * invalid permutations (`InvalidVaultsArray`), so a tampered indexer
  * can return the user's real vault IDs but falsified amounts to steer the
  * dApp-side optimizer toward an attacker-chosen-but-valid order.
  *
@@ -251,7 +251,7 @@ export async function assertOptimalOrderMatchesOnChain(
  * — sibling-tab confirm, position-manager action, partial liquidation —
  * the signed `bytes32[]` can still be a valid permutation of the live
  * multiset and silently overwrites the new on-chain order with the
- * stale one. The on-chain `InvalidVaultsPermutation` check is
+ * stale one. The on-chain `InvalidVaultsArray` check is
  * multiset-only and `eth_call` simulates the already-built calldata,
  * so neither catches this.
  *

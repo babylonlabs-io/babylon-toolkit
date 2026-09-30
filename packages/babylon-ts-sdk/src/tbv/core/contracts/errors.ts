@@ -7,7 +7,7 @@
  * @module contracts/errors
  */
 
-import { decodeAbiParameters, type Hex } from "viem";
+import { decodeAbiParameters, type Hex, toFunctionSelector } from "viem";
 
 /**
  * `PeginFingerprintChanged(bytes32 expected, bytes32 actual)`.
@@ -20,6 +20,15 @@ import { decodeAbiParameters, type Hex } from "viem";
  * test asserts the two agree.
  */
 export const PEGIN_FINGERPRINT_CHANGED_SELECTOR = "0x846c25bb";
+
+/**
+ * Shown when the contract reverted with explicitly empty data (`0x`). That can
+ * mean a revert with no reason or a call the contract does not recognise, so
+ * the wording claims neither.
+ */
+export const EMPTY_REVERT_MESSAGE =
+  "The contract rejected this deposit without giving a reason. " +
+  "Refresh the app and try again; if it keeps happening, contact support.";
 
 /** `"0x"` + 4-byte selector + two abi-encoded `bytes32` words. */
 const FINGERPRINT_REVERT_DATA_LENGTH = 2 + 8 + 64 * 2;
@@ -87,72 +96,82 @@ function decodeFingerprints(
 }
 
 /**
- * Known contract error signatures mapped to user-friendly messages.
- *
- * Error selectors are the first 4 bytes of keccak256(error signature).
- * Example: keccak256("VaultAlreadyExists()") = 0x04aabf33...
+ * Peg-in registration reverts, keyed by error signature. Every signature must
+ * exist in `vaultErrors.manifest.json` (a test enforces it); selectors are
+ * derived from the signature, never written by hand.
  */
-export const CONTRACT_ERRORS: Record<string, string> = {
-  // VaultAlreadyExists()
-  "0x04aabf33":
+const PEGIN_ERROR_MESSAGES: Record<string, string> = {
+  "VaultAlreadyExists()":
     "Vault already exists: This Bitcoin transaction has already been registered. " +
     "Please select different UTXOs or use a different amount to create a unique transaction.",
-  // ScriptPubKeyMismatch() - taproot output doesn't match expected script
-  "0x4fec082d":
-    "Script mismatch: The Bitcoin transaction's taproot output does not match the expected vault script. " +
-    "This may be caused by incorrect vault participants or key configuration.",
-  // InvalidBTCProofOfPossession()
-  "0x6cc363a5":
+  "InvalidBTCProofOfPossession()":
     "Invalid BTC proof of possession: The signature could not be verified. " +
     "Please ensure you're signing with the correct Bitcoin wallet.",
-  // InvalidBTCPublicKey()
-  "0x6c3f2bf6":
+  "InvalidBTCPublicKey()":
     "Invalid BTC public key: The Bitcoin public key format is invalid.",
-  // InvalidAmount()
-  "0x2c5211c6":
+  "InvalidAmount()":
     "Invalid amount: The deposit amount is invalid or below the minimum required.",
-  // ApplicationNotRegistered()
-  "0x0405f772":
+  "ApplicationNotRegistered()":
     "Application not registered: The application controller is not registered in the system.",
-  // InvalidProviderStatus()
-  "0x24e165cc":
-    "Invalid provider status: The vault provider is not in a valid state to accept deposits.",
-  // ZeroAddress()
-  "0xd92e233d":
-    "Zero address: One of the required addresses is the zero address.",
-  // BtcKeyMismatch()
-  "0x65aa7007":
-    "BTC key mismatch: The Bitcoin public key does not match the expected key.",
-  // Unauthorized()
-  "0x82b42900":
-    "Unauthorized: You must be the depositor or vault provider to submit this transaction.",
-  // InvalidSignature() - common signature verification error
-  "0x8baa579f":
-    "Invalid signature: The BTC proof of possession signature could not be verified.",
-  // InvalidBtcTransaction()
-  "0x2f9d01e9":
-    "Invalid BTC transaction: The Bitcoin transaction format is invalid.",
-  // VaultProviderNotRegistered()
-  "0x5a3c6b3e":
+  "ZeroAddress()":
     "Vault provider not registered: The selected vault provider is not registered.",
-  // InvalidPeginFee(uint256,uint256)
-  "0x979f4518":
+  "Unauthorized()":
+    "Unauthorized: Only the depositor can submit this transaction. Reconnect the wallet you started this deposit with.",
+  "InvalidTransaction()":
+    "Invalid BTC transaction: The signed Bitcoin transaction is missing or malformed.",
+  "InvalidPeginFee(uint256,uint256)":
     "Invalid pegin fee: The ETH fee sent does not match the required amount. " +
     "This may indicate a fee rate change during the transaction.",
-  // PrePeginOutputAlreadyUsed()
-  "0x5fad9694":
-    "This pre-pegin output has already been used to activate another vault.",
-  // PeginTransactionAlreadyUsed()
-  "0x7ed061c9":
-    "This pegin transaction has already been used to activate another vault.",
-  // DuplicateHashlock() — keccak256(abi.encodePacked(hashlock, msg.sender))
-  // collision in BTCVaultRegistry.hashlockToVaultId. Hashlocks are derived
-  // deterministically from the depositor's BTC wallet + selected UTXOs, so
-  // reusing the same UTXOs from the same wallet (even after a previous
-  // vault expires) produces the same hashlock and reverts here.
-  "0x70f7d5e2":
+  "PrePeginOutputAlreadyUsed()":
+    "This Bitcoin output is already registered for one of your vaults. " +
+    "Select different UTXOs to create a new deposit.",
+  // keccak256(abi.encodePacked(hashlock, msg.sender)) collision in
+  // BTCVaultRegistry.hashlockToVaultId. Hashlocks are derived from the
+  // depositor's BTC wallet and selected UTXOs, so reusing the same UTXOs from
+  // the same wallet (even after a previous vault expires) reverts here.
+  "DuplicateHashlock()":
     "Duplicate deposit: a BTC Vault with this hashlock is already registered to your wallet. Hashlocks are derived from your BTC wallet and selected UTXOs — use different UTXOs to create a unique deposit.",
+  "DepositorWotsPkHashAlreadyUsed()":
+    "Duplicate deposit: these deposit keys are already registered to your wallet. " +
+    "Select different UTXOs to create a new deposit.",
+  "TooManyFundingInputs(uint256,uint256)":
+    "Too many Bitcoin inputs: This deposit spends more UTXOs than the protocol allows. " +
+    "Select fewer, larger UTXOs and try again.",
+  "TooManyHtlcOutputs(uint256,uint256)":
+    "Too many vaults in one deposit: Split this deposit into fewer vaults and try again.",
+  "VaultBelowMinimum(uint256,uint256)":
+    "Deposit too small: Each vault must be at least the protocol minimum. Increase the amount and try again.",
+  "VaultAboveMaximum(uint256,uint256)":
+    "Deposit too large: Each vault must be at most the protocol maximum. Reduce the amount and try again.",
+  "VaultProviderCommissionExceeded(uint16,uint16)":
+    "Vault provider commission changed: The provider's commission is now above the limit you accepted. " +
+    "Review the new commission and try again.",
+  "DepositNotAllowed()":
+    "Deposit not allowed: Your address is not on this application's allow list.",
+  "CapExceeded()":
+    "Deposit cap reached: This deposit would exceed the application's total deposit cap " +
+    "or your wallet's deposit cap. Try a smaller amount.",
+  "LiveVaultCapExceeded()":
+    "Vault limit reached: The protocol has reached its limit of active vaults. Please try again later.",
+  "ApplicationNotActive()":
+    "Application unavailable: This application is not accepting deposits right now. Please try again later.",
+  "TBV_Paused()":
+    "The protocol is paused. Please try again later.",
+  "TBV_Frozen()":
+    "This action isn't available while the system is frozen.",
 };
+
+/**
+ * Known peg-in contract error selectors mapped to user-friendly messages.
+ *
+ * Error selectors are the first 4 bytes of keccak256(error signature).
+ */
+export const CONTRACT_ERRORS: Record<string, string> = Object.fromEntries(
+  Object.entries(PEGIN_ERROR_MESSAGES).map(([signature, message]) => [
+    toFunctionSelector(signature),
+    message,
+  ]),
+);
 
 /**
  * Extract error data from various error formats.
@@ -326,6 +345,11 @@ export function handleContractError(error: unknown): never {
     if (knownError) {
       console.error("[Contract Error] Known error:", knownError);
       throw new Error(knownError);
+    }
+
+    // Revert data present but empty, as opposed to absent (no `errorData`).
+    if (errorData === "0x") {
+      throw new Error(EMPTY_REVERT_MESSAGE);
     }
   }
 

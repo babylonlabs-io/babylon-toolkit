@@ -16,7 +16,7 @@ type RepayResult = { transactionHash: Hash; receipt: TransactionReceipt };
 /** Delay before retrying a repay whose simulation hit a stale backend. */
 const REPAY_STALE_SIM_RETRY_DELAY_MS = 3000;
 
-/** Decoded reason for the OZ allowance revert (always in COMMON_ERROR_ABI). */
+/** Decoded reason for the OZ allowance revert (always in VAULT_ERROR_ABI). */
 const ERC20_INSUFFICIENT_ALLOWANCE_REASON = "ERC20InsufficientAllowance";
 
 /**

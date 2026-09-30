@@ -1,11 +1,7 @@
 /**
- * Hub errors a depositor can hit on borrow, repay, withdraw or activation.
- * Neither the adapter nor the Spoke ABI declares them, and the SDK's
- * `AaveHub.abi.json` is kept to the rate read, so without these fragments the
- * revert selectors decode to nothing.
- *
- * Import-free, so the vault activation path can take it without pulling in the
- * Hub read clients.
+ * Hub errors a depositor can hit on borrow, repay or withdraw. Neither the
+ * adapter nor the Spoke ABI declares them, and the SDK's `AaveHub.abi.json` is
+ * kept to the rate read, so the Aave paths list them with the call's own ABIs.
  */
 export const HUB_ERROR_ABI = [
   {

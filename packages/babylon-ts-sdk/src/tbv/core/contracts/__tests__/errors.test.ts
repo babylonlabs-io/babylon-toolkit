@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 
+import manifest from "../abis/vaultErrors.manifest.json";
 import {
   CONTRACT_ERRORS,
+  EMPTY_REVERT_MESSAGE,
   PEGIN_FINGERPRINT_CHANGED_SELECTOR,
   PeginFingerprintChangedError,
   extractErrorData,
@@ -199,6 +201,26 @@ describe("handleContractError", () => {
     expect(() => handleContractError(err)).toThrow(err);
   });
 
+  it("throws the neutral empty-revert message when the revert data is exactly 0x", () => {
+    expect(() =>
+      handleContractError(
+        Object.assign(new Error("execution reverted"), { data: "0x" }),
+      ),
+    ).toThrow(EMPTY_REVERT_MESSAGE);
+  });
+
+  it("does not use the empty-revert message when revert data is absent", () => {
+    const err = new Error("execution reverted");
+    expect(() => handleContractError(err)).toThrow(err);
+  });
+
+  it("re-throws a wallet rejection unchanged", () => {
+    const err = Object.assign(new Error("User rejected the request."), {
+      code: 4001,
+    });
+    expect(() => handleContractError(err)).toThrow(err);
+  });
+
   it("wraps non-Error values in a generic message", () => {
     expect(() => handleContractError("plain string")).toThrow(
       /Contract call failed: plain string/,
@@ -207,6 +229,20 @@ describe("handleContractError", () => {
 });
 
 describe("CONTRACT_ERRORS table", () => {
+  it("only maps selectors of errors some vault contract revision declares", () => {
+    const known = new Set(manifest.errors.map((entry) => entry.selector));
+    const unknown = Object.keys(CONTRACT_ERRORS).filter((s) => !known.has(s));
+    expect(unknown).toEqual([]);
+  });
+
+  it("reads ZeroAddress on submit as an unregistered vault provider", () => {
+    // keccak256("ZeroAddress()") begins 0xd92e233d. Submit raises it when the
+    // provider has no application entry point, i.e. is not registered.
+    expect(CONTRACT_ERRORS["0xd92e233d"]).toMatch(
+      /Vault provider not registered/,
+    );
+  });
+
   it("has a DuplicateHashlock entry keyed by the canonical selector", () => {
     expect(CONTRACT_ERRORS[DUPLICATE_HASHLOCK_SELECTOR]).toMatch(
       /Duplicate deposit/i,

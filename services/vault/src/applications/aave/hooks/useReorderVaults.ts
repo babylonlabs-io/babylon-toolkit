@@ -42,7 +42,7 @@ export interface ExecuteReorderOptions {
    * the submission (e.g. the modal-open snapshot). When provided, the hook
    * refuses to sign if the live ordering has drifted from this baseline
    * — closes the same-set/different-order race the on-chain
-   * `InvalidVaultsPermutation` check cannot catch.
+   * `InvalidVaultsArray` check cannot catch.
    */
   expectedCurrentVaultIds?: readonly Hex[];
 }

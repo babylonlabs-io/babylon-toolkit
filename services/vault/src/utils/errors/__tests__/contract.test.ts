@@ -2,7 +2,7 @@
  * Tests for contract error mapping utilities
  */
 
-import { AaveIntegrationAdapterABI } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
+import { BTCVaultRegistryABI } from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
   type Abi,
   encodeErrorResult,
@@ -26,12 +26,12 @@ import { ActivationNotPossibleError, ContractError, ErrorCode } from "../types";
 const TEST_ABI: Abi = [
   {
     type: "error",
-    name: "DebtMustBeRepaidFirst",
+    name: "InvalidVaultsArray",
     inputs: [],
   },
   {
     type: "error",
-    name: "PositionNotFound",
+    name: "PositionNotHealthy",
     inputs: [],
   },
   {
@@ -226,22 +226,25 @@ describe("Contract Error Mapping", () => {
   });
 
   describe("Custom error decoding", () => {
-    // DebtMustBeRepaidFirst() selector: 0x5caf93cd
-    const DEBT_MUST_BE_REPAID_ERROR_DATA = "0x5caf93cd";
-
-    // PositionNotFound() selector: 0x6ec9be11
-    const POSITION_NOT_FOUND_ERROR_DATA = "0x6ec9be11";
+    const INVALID_VAULTS_ARRAY_ERROR_DATA = encodeErrorResult({
+      abi: TEST_ABI,
+      errorName: "InvalidVaultsArray",
+    });
+    const POSITION_NOT_HEALTHY_ERROR_DATA = encodeErrorResult({
+      abi: TEST_ABI,
+      errorName: "PositionNotHealthy",
+    });
 
     it("should decode known contract error from data field", () => {
       const error = {
         message: "execution reverted",
-        data: DEBT_MUST_BE_REPAID_ERROR_DATA,
+        data: INVALID_VAULTS_ARRAY_ERROR_DATA,
       };
       const result = mapViemErrorToContractError(error, "withdraw", [TEST_ABI]);
 
       expect(result.code).toBe(ErrorCode.CONTRACT_REVERT);
-      expect(result.reason).toBe("DebtMustBeRepaidFirst");
-      expect(result.message).toContain("repay all debt");
+      expect(result.reason).toBe("InvalidVaultsArray");
+      expect(result.message).toContain("doesn't match your current position");
     });
 
     it("keeps a decoded error's arguments for callers that scale them", () => {
@@ -275,12 +278,12 @@ describe("Contract Error Mapping", () => {
       // "insufficient funds" must not be relabeled as an ETH-gas shortfall.
       const error = {
         message: "insufficient funds",
-        data: DEBT_MUST_BE_REPAID_ERROR_DATA,
+        data: INVALID_VAULTS_ARRAY_ERROR_DATA,
       };
       const result = mapViemErrorToContractError(error, "withdraw", [TEST_ABI]);
 
       expect(result.code).toBe(ErrorCode.CONTRACT_REVERT);
-      expect(result.reason).toBe("DebtMustBeRepaidFirst");
+      expect(result.reason).toBe("InvalidVaultsArray");
       expect(result.message).not.toBe(
         COPY.common.classifiedErrors.insufficientFunds,
       );
@@ -291,14 +294,14 @@ describe("Contract Error Mapping", () => {
         message: "execution reverted",
         cause: {
           message: "Execution reverted",
-          data: POSITION_NOT_FOUND_ERROR_DATA,
+          data: POSITION_NOT_HEALTHY_ERROR_DATA,
         },
       };
       const result = mapViemErrorToContractError(error, "borrow", [TEST_ABI]);
 
       expect(result.code).toBe(ErrorCode.CONTRACT_REVERT);
-      expect(result.reason).toBe("PositionNotFound");
-      expect(result.message).toContain("Position not found");
+      expect(result.reason).toBe("PositionNotHealthy");
+      expect(result.message).toContain("at risk of liquidation");
     });
 
     it("should decode error from deeply nested cause chain", () => {
@@ -308,39 +311,39 @@ describe("Contract Error Mapping", () => {
           message: "ExecutionRevertedError",
           cause: {
             message: "RpcRequestError",
-            data: DEBT_MUST_BE_REPAID_ERROR_DATA,
+            data: INVALID_VAULTS_ARRAY_ERROR_DATA,
           },
         },
       };
       const result = mapViemErrorToContractError(error, "withdraw", [TEST_ABI]);
 
       expect(result.code).toBe(ErrorCode.CONTRACT_REVERT);
-      expect(result.reason).toBe("DebtMustBeRepaidFirst");
+      expect(result.reason).toBe("InvalidVaultsArray");
     });
 
     it("should decode error from revertData field", () => {
       const error = {
         message: "execution reverted",
-        revertData: DEBT_MUST_BE_REPAID_ERROR_DATA,
+        revertData: INVALID_VAULTS_ARRAY_ERROR_DATA,
       };
       const result = mapViemErrorToContractError(error, "test", [TEST_ABI]);
 
-      expect(result.reason).toBe("DebtMustBeRepaidFirst");
+      expect(result.reason).toBe("InvalidVaultsArray");
     });
 
     it("should decode error from RPC error structure", () => {
       const error = {
         message: "RPC Error",
         error: {
-          data: DEBT_MUST_BE_REPAID_ERROR_DATA,
+          data: INVALID_VAULTS_ARRAY_ERROR_DATA,
         },
       };
       const result = mapViemErrorToContractError(error, "test", [TEST_ABI]);
 
-      expect(result.reason).toBe("DebtMustBeRepaidFirst");
+      expect(result.reason).toBe("InvalidVaultsArray");
     });
 
-    it("should decode ERC20InsufficientBalance from common ABI", () => {
+    it("decodes ERC20InsufficientBalance through the vault error fallback", () => {
       // ERC20InsufficientBalance(address,uint256,uint256) selector: 0xe450d38c
       // Properly ABI-encoded error data
       const errorData =
@@ -353,7 +356,7 @@ describe("Contract Error Mapping", () => {
         message: "execution reverted",
         data: errorData as `0x${string}`,
       };
-      // Don't pass any ABI - should use COMMON_ERROR_ABI as fallback
+      // Don't pass any ABI - should use VAULT_ERROR_ABI as fallback
       const result = mapViemErrorToContractError(error, "repay", []);
 
       expect(result.code).toBe(ErrorCode.CONTRACT_REVERT);
@@ -371,7 +374,7 @@ describe("Contract Error Mapping", () => {
       // Should still detect revert from message
       expect(result.code).toBe(ErrorCode.CONTRACT_REVERT);
       // But won't have decoded reason
-      expect(result.reason).not.toBe("DebtMustBeRepaidFirst");
+      expect(result.reason).not.toBe("InvalidVaultsArray");
     });
 
     it("should ignore too-short error data", () => {
@@ -416,24 +419,22 @@ describe("Contract Error Mapping", () => {
     });
 
     it("uses viem's pre-decoded .data.errorName when no ABI is supplied", () => {
-      // Borrow/repay/withdraw/reorder call the mapper with NO ABI, so a custom
-      // error's selector isn't in COMMON_ERROR_ABI and `.raw` can't be
-      // re-decoded. But viem already decoded the name into `.data.errorName`
-      // using the call's own ABI — read that directly.
+      // viem already decoded the name into `.data.errorName` using the call's
+      // own ABI; that is read first, even when `.raw` would not re-decode.
       const error = {
         message: "execution reverted",
         cause: {
           name: "ContractFunctionRevertedError",
-          data: { errorName: "DebtMustBeRepaidFirst", args: [] },
-          raw: "0x5caf93cd",
+          data: { errorName: "InvalidVaultsArray", args: [] },
+          raw: "0xdeadbeef",
         },
       };
       const result = mapViemErrorToContractError(error, "withdraw"); // no ABI
 
       expect(result.code).toBe(ErrorCode.CONTRACT_REVERT);
-      expect(result.reason).toBe("DebtMustBeRepaidFirst");
+      expect(result.reason).toBe("InvalidVaultsArray");
       expect(result.message).toBe(
-        "You must repay all debt before withdrawing collateral.",
+        "The BTCVault list doesn't match your current position. Refresh the page and try again.",
       );
     });
 
@@ -472,78 +473,92 @@ describe("Contract Error Mapping", () => {
       expect(result.code).toBe(ErrorCode.CONTRACT_REVERT);
     });
 
-    it("decodes an Aave adapter VaultCountExceedsMaximum revert (0xb29ce077) to the per-position cap message when the adapter ABI is supplied", () => {
-      // Activation delegates into the Aave adapter, which reverts with this
-      // error — absent from the registry ABI viem decoded against, so
-      // simulateContract throws with the raw hex in `.raw` only. The mapper
-      // re-decodes it against the adapter ABI threaded in via errorAbis.
-      const error = {
-        message:
-          'The contract function "activateVaultWithSecret" reverted with the following signature: 0xb29ce077',
-        cause: {
-          name: "ContractFunctionRevertedError",
-          raw: encodeErrorResult({
-            abi: AaveIntegrationAdapterABI as Abi,
-            errorName: "VaultCountExceedsMaximum",
-            args: [11n, 10n],
-          }),
-        },
-      };
-      const result = mapViemErrorToContractError(error, "vault activation", [
-        AaveIntegrationAdapterABI as Abi,
-      ]);
-
-      expect(result.code).toBe(ErrorCode.CONTRACT_REVERT);
-      expect(result.reason).toBe("VaultCountExceedsMaximum");
-      expect(result.message).toBe(
-        "You have reached the maximum number of BTCVaults per position.",
-      );
-    });
-
-    it("decodes an Aave adapter PositionAboveMaximum revert to the max-position-size message when the adapter ABI is supplied", () => {
+    it("decodes a revert the call's own ABI lacks through the vault error fallback", () => {
+      // TEST_ABI stands in for the registry ABI, which does not declare the
+      // pause error; the fallback covers every live contract revision.
       const error = {
         message: "execution reverted",
         cause: {
           name: "ContractFunctionRevertedError",
           raw: encodeErrorResult({
-            abi: AaveIntegrationAdapterABI as Abi,
-            errorName: "PositionAboveMaximum",
-            args: [101n, 100n],
+            abi: [{ type: "error", name: "TBV_Paused", inputs: [] }],
+            errorName: "TBV_Paused",
           }),
         },
       };
-      const result = mapViemErrorToContractError(error, "vault activation", [
-        AaveIntegrationAdapterABI as Abi,
-      ]);
+      const result = mapViemErrorToContractError(
+        error,
+        "vault activate-and-redeem",
+        [TEST_ABI],
+      );
 
-      expect(result.reason).toBe("PositionAboveMaximum");
+      expect(result.code).toBe(ErrorCode.CONTRACT_REVERT);
+      expect(result.reason).toBe("TBV_Paused");
       expect(result.message).toBe(
-        "Your total BTCVault amount exceeds the maximum position size.",
+        "The system is currently paused. Please try again later.",
       );
     });
 
-    it("does NOT resolve VaultCountExceedsMaximum without the adapter ABI — the registry ABI alone leaves it as raw hex (the bug)", () => {
+    it("decodes an Aave Hub revert on activation with only the registry ABI", () => {
+      // Registries before the on-chain try/catch (testnet, staging) let the
+      // Hub's AddCapExceeded bubble out of activateVaultWithSecret.
       const error = {
-        message:
-          'The contract function "activateVaultWithSecret" reverted with the following signature: 0xb29ce077',
-        cause: {
-          name: "ContractFunctionRevertedError",
-          raw: encodeErrorResult({
-            abi: AaveIntegrationAdapterABI as Abi,
-            errorName: "VaultCountExceedsMaximum",
-            args: [11n, 10n],
-          }),
-        },
+        message: "execution reverted",
+        data: encodeErrorResult({
+          abi: [
+            {
+              type: "error",
+              name: "AddCapExceeded",
+              inputs: [{ name: "addCap", type: "uint256" }],
+            },
+          ],
+          errorName: "AddCapExceeded",
+          args: [1000n],
+        }),
       };
-      // TEST_ABI stands in for the registry ABI — it lacks the adapter errors.
       const result = mapViemErrorToContractError(error, "vault activation", [
-        TEST_ABI,
+        BTCVaultRegistryABI as Abi,
       ]);
 
-      expect(result.reason).not.toBe("VaultCountExceedsMaximum");
-      expect(result.message).not.toBe(
-        "You have reached the maximum number of BTCVaults per position.",
+      expect(result.reason).toBe("AddCapExceeded");
+      expect(result.message).toBe(
+        "The hub's collateral limit has been reached, so this BTCVault can't be added right now. Try again later.",
       );
+    });
+
+    it("gives the devnet reorder guard (0xc4b6185b) the same copy as PositionNotHealthy", () => {
+      const result = mapViemErrorToContractError(
+        { message: "execution reverted", data: "0xc4b6185b" },
+        "Reorder Vaults",
+      );
+
+      expect(result.reason).toBe(
+        "ReorderVaultsOnLiquidatablePositionNotAllowed",
+      );
+      expect(result.message).toBe(
+        "You can't reorder BTCVaults while your position is at risk of liquidation. Repay debt or add collateral first.",
+      );
+    });
+
+    it("returns an already-mapped ContractError unchanged", () => {
+      const mapped = mapViemErrorToContractError(
+        {
+          message: "execution reverted",
+          data: encodeErrorResult({
+            abi: TEST_ABI,
+            errorName: "CustomErrorWithArgs",
+            args: [1n, 2n],
+          }),
+        },
+        "Reorder Vaults",
+        [TEST_ABI],
+      );
+
+      const remapped = mapViemErrorToContractError(mapped, "Reorder Vaults");
+
+      expect(remapped).toBe(mapped);
+      expect(remapped.reason).toBe("CustomErrorWithArgs");
+      expect(getContractErrorArgs(remapped)).toEqual([1n, 2n]);
     });
   });
 
@@ -551,13 +566,16 @@ describe("Contract Error Mapping", () => {
     it("should use friendly message for known errors", () => {
       const error = {
         message: "execution reverted",
-        data: "0x5caf93cd", // DebtMustBeRepaidFirst - known error
+        data: encodeErrorResult({
+          abi: TEST_ABI,
+          errorName: "InvalidVaultsArray",
+        }),
       };
       const result = mapViemErrorToContractError(error, "test", [TEST_ABI]);
 
       // Known error should use friendly message from CONTRACT_ERROR_MESSAGES
       expect(result.message).toBe(
-        "You must repay all debt before withdrawing collateral.",
+        "The BTCVault list doesn't match your current position. Refresh the page and try again.",
       );
     });
 
@@ -591,7 +609,7 @@ describe("Contract Error Mapping", () => {
     it("returns false for a different contract revert", () => {
       const data = encodeErrorResult({
         abi: TEST_ABI,
-        errorName: "PositionNotFound",
+        errorName: "PositionNotHealthy",
       });
       const mapped = mapViemErrorToContractError(
         { message: "execution reverted", data },

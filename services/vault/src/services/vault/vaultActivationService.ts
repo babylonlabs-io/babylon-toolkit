@@ -17,7 +17,6 @@ import {
   activateVaultAndRedeem,
   type EthContractWriter,
 } from "@babylonlabs-io/ts-sdk/tbv/core/services";
-import { AaveIntegrationAdapterABI } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 import {
   isAddressEqual,
   parseEventLogs,
@@ -25,7 +24,6 @@ import {
   type WalletClient,
 } from "viem";
 
-import { HUB_ERROR_ABI } from "@/applications/aave/clients/hubErrors";
 import {
   executeWrite,
   type TransactionResult,
@@ -78,13 +76,6 @@ export async function activateVaultWithSecret(
       functionName: call.functionName,
       args: call.args,
       errorContext: "vault activation",
-      // activateVaultWithSecret delegates into the Aave adapter, which can
-      // revert with VaultCountExceedsMaximum / PositionAboveMaximum — errors
-      // absent from the registry ABI. Supplying vaultBTC then runs through the
-      // Hub, which reverts with its own errors (AddCapExceeded, a halted or
-      // inactive spoke). Supply both ABIs so the friendly copy in
-      // errorMessages.ts is reachable instead of raw hex.
-      errorAbis: [AaveIntegrationAdapterABI, HUB_ERROR_ABI],
     });
 
   return activateVault<TransactionResult>({
@@ -135,9 +126,6 @@ export async function activateVaultWithSecretAndRedeem(
       functionName: call.functionName,
       args: call.args,
       errorContext: "vault activate-and-redeem",
-      // No errorAbis: unlike activateVaultWithSecret, this path never
-      // delegates into the Aave adapter, so every possible revert is
-      // already decodable from the registry ABI on the call itself.
     });
 
   return activateVaultAndRedeem<TransactionResult>({

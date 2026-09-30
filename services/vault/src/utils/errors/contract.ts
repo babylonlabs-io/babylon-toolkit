@@ -5,11 +5,11 @@
  * Supports decoding custom contract errors using ABIs.
  */
 
+import { VAULT_ERROR_ABI } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { type Abi, type Hash, decodeErrorResult } from "viem";
 
 import { COPY } from "@/copy";
 
-import { COMMON_ERROR_ABI } from "./commonErrorAbi";
 import { CONTRACT_ERROR_MESSAGES } from "./errorMessages";
 import {
   classifyError,
@@ -50,8 +50,8 @@ interface DecodedContractError {
  *
  * viem's `ContractFunctionRevertedError` decodes the revert with the call's
  * own ABI and stores the result at `.data` (`errorName`, `args`). Reading it
- * covers call sites that pass no ABI to the mapper (where the selector isn't in
- * `COMMON_ERROR_ABI` and re-decoding `.raw` would fail).
+ * covers call sites that pass no ABI to the mapper and errors missing from
+ * `VAULT_ERROR_ABI`, where re-decoding `.raw` would fail.
  */
 function findViemDecodedError(
   obj: unknown,
@@ -169,8 +169,7 @@ function tryDecodeContractError(
   abis: Abi[],
 ): DecodedContractError | undefined {
   // Prefer viem's own decode (done with the call's ABI). This maps custom
-  // errors even on call sites that pass no ABI, where re-decoding the raw
-  // bytes below would fail because the selector isn't in COMMON_ERROR_ABI.
+  // errors even when the raw bytes below cannot be re-decoded.
   const viemDecoded = findViemDecodedError(error);
   if (viemDecoded) {
     return viemDecoded;
@@ -181,8 +180,9 @@ function tryDecodeContractError(
     return undefined;
   }
 
-  // Try provided ABIs + common errors as fallback
-  const allAbis = [...abis, COMMON_ERROR_ABI];
+  // The call's own ABIs first, then every error any live contract revision
+  // can raise (including Aave, linked libraries and OpenZeppelin).
+  const allAbis = [...abis, VAULT_ERROR_ABI];
 
   for (const abi of allAbis) {
     try {
@@ -273,6 +273,10 @@ export function mapViemErrorToContractError(
   operationName: string,
   abis?: Abi[],
 ): ContractError {
+  // Already mapped (e.g. by the transaction layer, with the right ABIs):
+  // re-mapping here would lose the decoded reason and its arguments.
+  if (error instanceof ContractError) return error;
+
   const errorMessage = error instanceof Error ? error.message : "Unknown error";
   const errorName = error instanceof Error ? error.name : "UnknownError";
   let code: ErrorCode = ErrorCode.CONTRACT_EXECUTION_FAILED;
@@ -281,7 +285,7 @@ export function mapViemErrorToContractError(
   let enhancedMessage: string | undefined;
 
   // Try to decode custom contract error first
-  // Always attempt decoding - COMMON_ERROR_ABI is used as fallback even when no ABIs provided
+  // Always attempt decoding - VAULT_ERROR_ABI is the fallback even when no ABIs are provided
   const decoded = tryDecodeContractError(error, abis ?? []);
   if (decoded) {
     code = ErrorCode.CONTRACT_REVERT;
@@ -308,9 +312,7 @@ export function mapViemErrorToContractError(
         reason = reason || message;
       } else if (!decoded && classifyError(error) === "stale-nonce") {
         // The wallet signed with a nonce the chain already used and the node
-        // rejected it before broadcast. Checked over the cause chain, so a
-        // caller re-mapping an already-mapped error keeps this copy instead
-        // of prefixing it with the raw node text.
+        // rejected it before broadcast. Checked over the cause chain.
         code = ErrorCode.CONTRACT_NONCE_ERROR;
         reason = reason || message;
         enhancedMessage = COPY.common.classifiedErrors.staleNonce;

@@ -42,10 +42,9 @@ import { HUB_ERROR_ABI } from "./hubErrors";
  *
  * The adapter alone is not enough: a withdraw or borrow reverts inside the Aave
  * Core Spoke (health-factor floor, dust rule, frozen/paused reserve) or in the
- * per-position proxy, and a selector outside the supplied ABIs decodes to
- * nothing — which is how ordinary, explainable conditions reached the user as
- * "Execution reverted for an unknown reason." The Spoke in turn calls its Hubs,
- * which revert with their own errors (draw cap, liquidity, halted spoke).
+ * per-position proxy. The Spoke in turn calls its Hubs, which revert with
+ * their own errors (draw cap, liquidity, halted spoke). The mapper's vault
+ * error fallback also covers these; listing them here keeps them first.
  */
 const AAVE_REVERT_DECODING_ABIS = [
   AaveIntegrationAdapterABI,

@@ -401,57 +401,6 @@ export const BTCVaultRegistryABI = [
     stateMutability: "view",
   },
   {
-    type: "error",
-    name: "InvalidPeginFee",
-    inputs: [
-      {
-        name: "provided",
-        type: "uint256",
-        internalType: "uint256",
-      },
-      {
-        name: "required",
-        type: "uint256",
-        internalType: "uint256",
-      },
-    ],
-  },
-  {
-    type: "error",
-    name: "InvalidSecret",
-    inputs: [],
-  },
-  {
-    type: "error",
-    name: "ActivationDeadlineExpired",
-    inputs: [],
-  },
-  {
-    type: "error",
-    name: "InvalidHashlock",
-    inputs: [],
-  },
-  {
-    type: "error",
-    name: "DuplicateHashlock",
-    inputs: [],
-  },
-  {
-    type: "error",
-    name: "CapExceeded",
-    inputs: [],
-  },
-  {
-    type: "error",
-    name: "InvalidOutputIndex",
-    inputs: [],
-  },
-  {
-    type: "error",
-    name: "PeginSignaturesIncomplete",
-    inputs: [],
-  },
-  {
     type: "function",
     name: "getBtcVaultProtocolInfo",
     inputs: [
