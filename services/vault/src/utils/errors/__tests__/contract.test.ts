@@ -2,7 +2,6 @@
  * Tests for contract error mapping utilities
  */
 
-import { BTCVaultRegistryABI } from "@babylonlabs-io/ts-sdk/tbv/core";
 import {
   type Abi,
   encodeErrorResult,
@@ -496,33 +495,6 @@ describe("Contract Error Mapping", () => {
       expect(result.reason).toBe("TBV_Paused");
       expect(result.message).toBe(
         "The system is currently paused. Please try again later.",
-      );
-    });
-
-    it("decodes an Aave Hub revert on activation with only the registry ABI", () => {
-      // Registries before the on-chain try/catch (testnet, staging) let the
-      // Hub's AddCapExceeded bubble out of activateVaultWithSecret.
-      const error = {
-        message: "execution reverted",
-        data: encodeErrorResult({
-          abi: [
-            {
-              type: "error",
-              name: "AddCapExceeded",
-              inputs: [{ name: "addCap", type: "uint256" }],
-            },
-          ],
-          errorName: "AddCapExceeded",
-          args: [1000n],
-        }),
-      };
-      const result = mapViemErrorToContractError(error, "vault activation", [
-        BTCVaultRegistryABI as Abi,
-      ]);
-
-      expect(result.reason).toBe("AddCapExceeded");
-      expect(result.message).toBe(
-        "The hub's collateral limit has been reached, so this BTCVault can't be added right now. Try again later.",
       );
     });
 

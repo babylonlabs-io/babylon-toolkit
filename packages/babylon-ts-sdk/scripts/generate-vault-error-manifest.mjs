@@ -25,14 +25,11 @@ import { fileURLToPath } from "node:url";
 import { toFunctionSelector } from "viem";
 
 /**
- * Contract revisions the dApp must be able to decode. Update when a network is
- * upgraded; keep a revision while any environment still runs it.
+ * Contract revisions the dApp decodes: what devnet runs, and main, which devnet
+ * is upgraded to next. Update when devnet is upgraded.
  */
 const REVISIONS = [
-  { rev: "182e178e", note: "testnet + staging AaveAdapter, ProtocolParams" },
-  { rev: "2e87a85a", note: "testnet + staging BTCVaultRegistry and linked libraries" },
   { rev: "74de8a7a", note: "devnet (release/testnet)" },
-  { rev: "aec174a6", note: "btc-vault's pinned vault-contracts submodule" },
   { rev: "0e4ed2e5", note: "main" },
 ];
 
