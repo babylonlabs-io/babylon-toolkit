@@ -38,6 +38,7 @@ const OTHER_VAULT_ID = `0x${"ef".repeat(32)}`;
 const TRUSTED_VERIFYING_KEY = "beef";
 /** The vault's stamped circuit version; the file below records the same. */
 const PROVER_CIRCUIT_VERSION = 7;
+const CLAIMABLE_EVENT_BLOCK = 10_985_680n;
 
 const CLAIM_TX = new Transaction();
 CLAIM_TX.addInput(Buffer.from(PEGIN_TXID, "hex").reverse(), 1);
@@ -189,6 +190,7 @@ describe("assertArtifactsUsableForVault", () => {
       depositorEthAddress: DEPOSITOR_ETH_ADDRESS,
       trustedVerifyingKeyHex: TRUSTED_VERIFYING_KEY,
       expectedProverCircuitVersion: PROVER_CIRCUIT_VERSION,
+      expectedClaimableEventBlockNumber: CLAIMABLE_EVENT_BLOCK,
     });
 
     expect(summary.vaultId).toBe(VAULT_ID);
@@ -205,6 +207,7 @@ describe("assertArtifactsUsableForVault", () => {
         depositorEthAddress: DEPOSITOR_ETH_ADDRESS,
         trustedVerifyingKeyHex: TRUSTED_VERIFYING_KEY,
         expectedProverCircuitVersion: PROVER_CIRCUIT_VERSION,
+        expectedClaimableEventBlockNumber: CLAIMABLE_EVENT_BLOCK,
       }),
     ).resolves.toBeDefined();
   });
@@ -217,13 +220,14 @@ describe("assertArtifactsUsableForVault", () => {
         depositorEthAddress: DEPOSITOR_ETH_ADDRESS,
         trustedVerifyingKeyHex: TRUSTED_VERIFYING_KEY,
         expectedProverCircuitVersion: PROVER_CIRCUIT_VERSION,
+        expectedClaimableEventBlockNumber: CLAIMABLE_EVENT_BLOCK,
       }),
     ).rejects.toThrow(ArtifactsVaultMismatchError);
   });
 
   it("rejects a file whose graph belongs to another vault than its vault_id", async () => {
     const otherPeginTx = new Transaction();
-    otherPeginTx.addInput(Buffer.from(OTHER_TXID, "hex").reverse(), 0);
+    otherPeginTx.addInput(Buffer.from(OTHER_TXID, "hex").reverse(), 1);
 
     // vault_id says this vault; the graph the signatures cover says another.
     await expect(
@@ -233,6 +237,7 @@ describe("assertArtifactsUsableForVault", () => {
         depositorEthAddress: DEPOSITOR_ETH_ADDRESS,
         trustedVerifyingKeyHex: TRUSTED_VERIFYING_KEY,
         expectedProverCircuitVersion: PROVER_CIRCUIT_VERSION,
+        expectedClaimableEventBlockNumber: CLAIMABLE_EVENT_BLOCK,
       }),
     ).rejects.toThrow(VaultIdBindingError);
   });
@@ -247,6 +252,7 @@ describe("assertArtifactsUsableForVault", () => {
         depositorEthAddress: DEPOSITOR_ETH_ADDRESS,
         trustedVerifyingKeyHex: TRUSTED_VERIFYING_KEY,
         expectedProverCircuitVersion: PROVER_CIRCUIT_VERSION,
+        expectedClaimableEventBlockNumber: CLAIMABLE_EVENT_BLOCK,
       }),
     ).rejects.toThrow(
       `Artifacts carry Groth16 verifying key dead but the trusted key for prover circuit ` +
@@ -263,6 +269,7 @@ describe("assertArtifactsUsableForVault", () => {
         depositorEthAddress: DEPOSITOR_ETH_ADDRESS,
         trustedVerifyingKeyHex: TRUSTED_VERIFYING_KEY,
         expectedProverCircuitVersion: PROVER_CIRCUIT_VERSION,
+        expectedClaimableEventBlockNumber: CLAIMABLE_EVENT_BLOCK,
       }),
     ).resolves.toBeDefined();
   });
@@ -275,6 +282,7 @@ describe("assertArtifactsUsableForVault", () => {
         depositorEthAddress: DEPOSITOR_ETH_ADDRESS,
         trustedVerifyingKeyHex: TRUSTED_VERIFYING_KEY,
         expectedProverCircuitVersion: PROVER_CIRCUIT_VERSION,
+        expectedClaimableEventBlockNumber: CLAIMABLE_EVENT_BLOCK,
       }),
     ).rejects.toThrow(
       /Artifacts record prover circuit version 6 but the vault's stamped params say 7/,
@@ -290,6 +298,7 @@ describe("assertArtifactsUsableForVault", () => {
         depositorEthAddress: DEPOSITOR_ETH_ADDRESS,
         trustedVerifyingKeyHex: TRUSTED_VERIFYING_KEY,
         expectedProverCircuitVersion: PROVER_CIRCUIT_VERSION,
+        expectedClaimableEventBlockNumber: CLAIMABLE_EVENT_BLOCK,
       }),
     ).rejects.toThrow(/must be non-empty, even-length hex/);
     expect(verifyWatchtowerArtifacts).not.toHaveBeenCalled();
@@ -307,12 +316,33 @@ describe("assertArtifactsUsableForVault", () => {
         depositorEthAddress: DEPOSITOR_ETH_ADDRESS,
         trustedVerifyingKeyHex: TRUSTED_VERIFYING_KEY,
         expectedProverCircuitVersion: PROVER_CIRCUIT_VERSION,
+        expectedClaimableEventBlockNumber: CLAIMABLE_EVENT_BLOCK,
       }),
     ).rejects.toThrow(
       `Artifacts carry a placeholder BaBe session for challenger ${"aa".repeat(32)}`,
     );
     // The file verifies; only this check stands between it and an
     // unanswerable challenge.
+    expect(verifyWatchtowerArtifacts).not.toHaveBeenCalled();
+  });
+
+  it("rejects a file whose claimable event block is not the vault's finalized event block", async () => {
+    await expect(
+      assertArtifactsUsableForVault({
+        artifactsJson: artifactsFile({
+          claimable_event_block_number: 10_985_679,
+        }),
+        expectedVaultId: VAULT_ID,
+        depositorEthAddress: DEPOSITOR_ETH_ADDRESS,
+        trustedVerifyingKeyHex: TRUSTED_VERIFYING_KEY,
+        expectedProverCircuitVersion: PROVER_CIRCUIT_VERSION,
+        expectedClaimableEventBlockNumber: CLAIMABLE_EVENT_BLOCK,
+      }),
+    ).rejects.toThrow(
+      "Artifacts record claimable event block 10985679 but the vault's finalized " +
+        "VaultClaimableBy event is at block 10985680; the prover would prove the wrong " +
+        "block, so refusing the file.",
+    );
     expect(verifyWatchtowerArtifacts).not.toHaveBeenCalled();
   });
 
@@ -324,6 +354,7 @@ describe("assertArtifactsUsableForVault", () => {
         depositorEthAddress: DEPOSITOR_ETH_ADDRESS,
         trustedVerifyingKeyHex: TRUSTED_VERIFYING_KEY,
         expectedProverCircuitVersion: PROVER_CIRCUIT_VERSION,
+        expectedClaimableEventBlockNumber: CLAIMABLE_EVENT_BLOCK,
       }),
     ).rejects.toThrow();
 
@@ -342,6 +373,7 @@ describe("assertArtifactsUsableForVault", () => {
         depositorEthAddress: DEPOSITOR_ETH_ADDRESS,
         trustedVerifyingKeyHex: TRUSTED_VERIFYING_KEY,
         expectedProverCircuitVersion: PROVER_CIRCUIT_VERSION,
+        expectedClaimableEventBlockNumber: CLAIMABLE_EVENT_BLOCK,
       }),
     ).rejects.toThrow(/does not verify/);
   });

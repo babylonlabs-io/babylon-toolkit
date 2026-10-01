@@ -154,7 +154,6 @@ const KIND_DEVICE_STATE: Record<DelegatedClaimSigningKind, DeviceSigningState> =
   };
 /** Which device step a stop happened in, as the incomplete-run message names it. */
 type CeremonyPhase =
-  | "checking the deposit terms against the wallet's envelope"
   | "clearing any loaded intent"
   | "releasing the loaded intent"
   | "approving the deposit terms"
@@ -455,15 +454,15 @@ async function signWithApprovalWallet(
     root.fill(0);
   };
 
+  // Envelope violations fail here, before the derive costs a physical
+  // approval. Validate-only per DepositTermsApprover — no device I/O. Outside
+  // the try: a terms refusal is deterministic, so even on a resume it throws
+  // as is rather than as a stop a resume retry would repeat.
+  if (typeof wallet.validateDepositTerms === "function") {
+    await wallet.validateDepositTerms(ceremony.depositTerms);
+  }
+
   try {
-    // Envelope violations fail here, before the derive costs a physical
-    // approval. Validate-only per DepositTermsApprover — no device I/O.
-    if (typeof wallet.validateDepositTerms === "function") {
-      // Its own phase: on a resume the map is already non-empty, so a refusal
-      // here would otherwise be reported as a device step that never ran.
-      stop.phase = "checking the deposit terms against the wallet's envelope";
-      await wallet.validateDepositTerms(ceremony.depositTerms);
-    }
     await releaseIntent("clearing any loaded intent");
     stop.phase = "approving the deposit terms";
     opts.signal?.throwIfAborted();

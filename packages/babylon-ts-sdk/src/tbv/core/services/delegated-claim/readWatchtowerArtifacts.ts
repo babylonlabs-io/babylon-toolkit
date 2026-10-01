@@ -201,6 +201,13 @@ export interface AssertArtifactsUsableParams {
    */
   expectedProverCircuitVersion: number;
   /**
+   * The block of the vault's finalized `VaultClaimableBy` event, from
+   * `DelegatedClaimVaultContext.claimableEventBlockNumber`. Unverified by
+   * btc-vault like the circuit version, and handed to the prover beside it
+   * (`start_claim.rs:270,274` @ ac4954e7), so a wrong block fails there too.
+   */
+  expectedClaimableEventBlockNumber: bigint;
+  /**
    * Graph version to verify under. Defaults to the only version the format
    * exists for. A file that records a different `vault_core_version` is
    * rejected rather than verified under this one.
@@ -218,6 +225,8 @@ export interface AssertArtifactsUsableParams {
  *         vault, {@link VaultIdBindingError} when the graph it carries
  *         belongs to another vault whatever the file says, a plain error when
  *         its `prover_circuit_version` is not `expectedProverCircuitVersion`,
+ *         its `claimable_event_block_number` is not
+ *         `expectedClaimableEventBlockNumber`,
  *         its `verifying_key` is not `trustedVerifyingKeyHex` or any BaBe
  *         session is still the placeholder, or a verification error when any
  *         bundled signature does not hold against that graph.
@@ -266,6 +275,16 @@ export async function assertArtifactsUsableForVault(
     throw new Error(
       "Artifacts carry no claimable event block number. They were assembled " +
         "before the Ethereum withdrawal was initiated; assemble them again.",
+    );
+  }
+  if (
+    summary.claimableEventBlockNumber !==
+    params.expectedClaimableEventBlockNumber
+  ) {
+    throw new Error(
+      `Artifacts record claimable event block ${summary.claimableEventBlockNumber} but the ` +
+        `vault's finalized VaultClaimableBy event is at block ${params.expectedClaimableEventBlockNumber}; ` +
+        `the prover would prove the wrong block, so refusing the file.`,
     );
   }
 
@@ -349,10 +368,7 @@ function requireSafeInteger(value: unknown, field: string): number {
  * A JSON object, not a string or an array — `Object.keys` on either reports
  * index positions, which would pass as challenger public keys.
  */
-function requireRecord(
-  value: unknown,
-  field: string,
-): Record<string, unknown> {
+function requireRecord(value: unknown, field: string): Record<string, unknown> {
   if (value === undefined) return {};
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     throw new Error(`Artifacts file is missing a usable "${field}".`);

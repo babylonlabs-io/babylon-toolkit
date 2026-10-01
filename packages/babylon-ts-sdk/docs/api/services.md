@@ -2089,6 +2089,21 @@ only writes it — while `vaultd`'s
 the file's key and version to the prover together, so a wrong version
 fails there, before Assert.
 
+##### expectedClaimableEventBlockNumber
+
+```ts
+expectedClaimableEventBlockNumber: bigint;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/readWatchtowerArtifacts.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/readWatchtowerArtifacts.ts)
+
+**`Experimental`**
+
+The block of the vault's finalized `VaultClaimableBy` event, from
+`DelegatedClaimVaultContext.claimableEventBlockNumber`. Unverified by
+btc-vault like the circuit version, and handed to the prover beside it
+(`start_claim.rs:270,274` @ ac4954e7), so a wrong block fails there too.
+
 ##### txGraphVersion?
 
 ```ts
@@ -6169,6 +6184,8 @@ version if you build on it.
         vault, [VaultIdBindingError](#vaultidbindingerror) when the graph it carries
         belongs to another vault whatever the file says, a plain error when
         its `prover_circuit_version` is not `expectedProverCircuitVersion`,
+        its `claimable_event_block_number` is not
+        `expectedClaimableEventBlockNumber`,
         its `verifying_key` is not `trustedVerifyingKeyHex` or any BaBe
         session is still the placeholder, or a verification error when any
         bundled signature does not hold against that graph.

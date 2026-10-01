@@ -398,7 +398,8 @@ export interface AugmentPsbtForDelegatedClaimParams {
  * fingerprint and an empty path (`btc-vault crates/vault/src/psbt.rs:65-75`),
  * which the device would read and reject, and which bip174 refuses to add a
  * second entry beside (`bip174@2.1.1 src/lib/converter/shared/bip32Derivation.js:70-75`),
- * so any existing entry for D is REPLACED; entries for other keys stay. No
+ * so the signed input's whole derivation set is REPLACED by D's one entry
+ * (the builder's entries for other signing keys are dropped too). No
  * output entry is written — these validators derive P2TR(D) themselves
  * (`:2481-2485`, `:2813-2817`, `:3331-3335`). `leafHashes: []` is fine: the
  * device's value parser skips the hashes (`fw:sign_psbt_validate_helpers.c:59-60`).

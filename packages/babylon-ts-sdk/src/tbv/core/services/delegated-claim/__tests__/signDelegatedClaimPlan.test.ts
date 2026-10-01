@@ -434,7 +434,7 @@ describe("signDelegatedClaimPlan — approval-capable wallet", () => {
     expect(wallet.approveDepositTerms).not.toHaveBeenCalled();
   });
 
-  it("names the envelope check, not a device step, when a resumed run's terms are refused", async () => {
+  it("throws a resumed run's refused terms as is, not as a resumable stop", async () => {
     const calls: string[] = [];
     const wallet = approvalWallet(calls) as BitcoinWallet &
       DelegatedClaimPsbtSigner &
@@ -442,17 +442,13 @@ describe("signDelegatedClaimPlan — approval-capable wallet", () => {
     const rejected = new Error("device envelope refused the terms");
     wallet.validateDepositTerms = vi.fn(() => Promise.reject(rejected));
 
-    const failure = await signDelegatedClaimPlan(plan(), wallet, {
-      depositTerms: TERMS,
-      vaultContext: CONTEXT,
-      resume: new Map([["payoutClaimer", "sig:pc@1"]]),
-    }).catch((e: unknown) => e);
-
-    expect(failure).toBeInstanceOf(DelegatedClaimSigningIncompleteError);
-    expect((failure as DelegatedClaimSigningIncompleteError).message).toBe(
-      'Delegated-claim signing stopped before "assert" while checking the ' +
-        "deposit terms against the wallet's envelope; 1 of 5 signatures were collected.",
-    );
+    await expect(
+      signDelegatedClaimPlan(plan(), wallet, {
+        depositTerms: TERMS,
+        vaultContext: CONTEXT,
+        resume: new Map([["payoutClaimer", "sig:pc@1"]]),
+      }),
+    ).rejects.toBe(rejected);
     expect(wallet.deriveContextHash).not.toHaveBeenCalled();
   });
 

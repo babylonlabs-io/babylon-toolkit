@@ -35,8 +35,9 @@ export const CLAIM_PSBT =
   "cHNidP8BADMCAAAAAf/u3cy7qpmId2ZVRDMiEQD/7t3Mu6qZiHdmVUQzIhEAAQAAAAD/////AAAAAAAAAAA=";
 export const VAULT_ID =
   "0xf5c2a4e499a96ee2a2e32acf1f16b51d2958e7819a1d5048eccab864163806c3" as Hex;
+// Another vault's Claim: spends output 1 of a different PegIn.
 export const OTHER_VAULT_CLAIM_PSBT =
-  "cHNidP8BADMCAAAAAQARIjNEVWZ3iJmqu8zd7v8AESIzRFVmd4iZqrvM3e7/AAAAAAD/////AAAAAAAAAAA=";
+  "cHNidP8BADMCAAAAAQARIjNEVWZ3iJmqu8zd7v8AESIzRFVmd4iZqrvM3e7/AQAAAAD/////AAAAAAAAAAA=";
 /**
  * The depositor's BIP-86 key-path P2TR: what the registration path accepts as
  * a payout script, and what the Payout's CPFP anchor pays.

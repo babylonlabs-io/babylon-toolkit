@@ -20,6 +20,7 @@ import { Buffer } from "buffer";
 
 import { derivePeginVaultId } from "../../clients/eth/pegin-transaction";
 import { CLAIM_PEGIN_INPUT_INDEX } from "../../primitives/psbt/constants";
+import { PEGIN_DEPOSITOR_CLAIM_VOUT } from "../../primitives/psbt/depositorClaim";
 
 /**
  * Thrown when a graph does not belong to the vault it is presented for.
@@ -42,7 +43,12 @@ export class VaultIdBindingError extends Error {
   }
 }
 
-/** Display-order txid of the PegIn output the Claim PSBT spends. */
+/**
+ * Display-order txid of the PegIn output the Claim PSBT spends.
+ *
+ * @throws Unless the Claim has exactly one input and it spends PegIn output 1
+ *         (CLAUDE.md §3 funding-chain rule).
+ */
 export function peginTxidFromClaimPsbt(claimPsbtBase64: string): string {
   let psbt: Psbt;
   try {
@@ -54,11 +60,18 @@ export function peginTxidFromClaimPsbt(claimPsbtBase64: string): string {
   if (!input) {
     throw new Error("Claim PSBT carries no PegIn input to bind the vault to.");
   }
+  assertSpendsDepositorClaimOutput(
+    "Claim PSBT",
+    psbt.txInputs.length,
+    input.index,
+  );
   return displayTxid(input.hash);
 }
 
 /**
  * Display-order txid of the PegIn output a signed Claim transaction spends.
+ *
+ * @throws Unless the Claim has exactly one input and it spends PegIn output 1.
  */
 export function peginTxidFromClaimTx(claimTx: Transaction): string {
   const input = claimTx.ins[CLAIM_PEGIN_INPUT_INDEX];
@@ -67,7 +80,31 @@ export function peginTxidFromClaimTx(claimTx: Transaction): string {
       "Artifacts file's claim_tx carries no PegIn input to bind the vault to.",
     );
   }
+  assertSpendsDepositorClaimOutput(
+    "Artifacts file's claim_tx",
+    claimTx.ins.length,
+    input.index,
+  );
   return displayTxid(input.hash);
+}
+
+/**
+ * The depositor Claim is funded by PegIn output 1 alone; the pinned engine
+ * checks the same shape (btc-vault `check_depositor_claim_shape`,
+ * `transactions/claim.rs:140-158` @ ac4954e7), re-asserted here per CLAUDE.md §1.
+ */
+function assertSpendsDepositorClaimOutput(
+  label: string,
+  inputCount: number,
+  vout: number,
+): void {
+  if (inputCount !== 1 || vout !== PEGIN_DEPOSITOR_CLAIM_VOUT) {
+    throw new Error(
+      `${label} must have exactly one input spending PegIn output ` +
+        `${PEGIN_DEPOSITOR_CLAIM_VOUT}; it has ${inputCount} input(s) and ` +
+        `the first spends output ${vout}.`,
+    );
+  }
 }
 
 /**
