@@ -5,6 +5,7 @@ import {
   captureMessage,
 } from "@sentry/react";
 
+import { normalizeError } from "@/utils/errors/normalizeError";
 import { redactData, scrubString } from "@/utils/telemetry";
 
 type Value = string | number | boolean | object;
@@ -35,19 +36,22 @@ export default {
       data: redactData(data),
     }),
   error: (
-    error: Error,
+    value: unknown,
     { level = "error", tags, data: extra }: ErrorContext = {},
   ) => {
+    const error = normalizeError(value);
     // Always mirror to the browser console, scrubbed like the Sentry path
     // (addresses / tx hex / secrets) with stack frames kept — visible with
     // Sentry off, alongside Sentry when on.
     // eslint-disable-next-line no-console -- logger is the one allowed console boundary
     console.error(scrubString(error.stack ?? error.message ?? String(error)));
+    const errorCode: unknown = Reflect.get(error, "errorCode");
     return captureException(error, {
       level,
-      tags: Reflect.has(error, "errorCode")
-        ? { ...tags, errorCode: Reflect.get(error, "errorCode") as string }
-        : tags,
+      tags:
+        typeof errorCode === "string" || typeof errorCode === "number"
+          ? { ...tags, errorCode: String(errorCode) }
+          : tags,
       extra: extra ? redactData(extra) : extra,
     });
   },

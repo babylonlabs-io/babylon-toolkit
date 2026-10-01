@@ -98,6 +98,8 @@ function buildReaders({
     getVaultKeyEpochsBatch: vi.fn(),
     getCurrentVaultProviderOperationBtcKey: vi.fn(),
     getMaxAcceptableCommissionBpsBatch: vi.fn(),
+    getRegistrationRecordsAtBlock: vi.fn(),
+    getVaultClaimableBy: vi.fn(),
     getVaultProviderApplication: vi
       .fn()
       .mockResolvedValue(registryApplicationEntryPoint),
@@ -565,6 +567,8 @@ describe("validateOnChainParticipantKeys with operation-key resolution", () => {
         getVaultKeyEpochsBatch: vi.fn(),
         getCurrentVaultProviderOperationBtcKey: vi.fn(),
         getMaxAcceptableCommissionBpsBatch: vi.fn(),
+        getRegistrationRecordsAtBlock: vi.fn(),
+        getVaultClaimableBy: vi.fn(),
         getVaultProviderApplication: vi
           .fn()
           .mockResolvedValue(ADDRESSES.applicationEntryPoint),

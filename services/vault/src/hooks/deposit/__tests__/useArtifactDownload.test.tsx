@@ -685,6 +685,48 @@ describe("useArtifactDownload — prime then fetch", () => {
     expect(result.current.downloaded).toBe(false);
   });
 
+  it("shows the original-account guidance when the upfront prime fails", async () => {
+    ensureAuthMock.mockRejectedValueOnce(
+      new Error("Authentication failed", {
+        cause: { code: "WALLET_ACCOUNT_NOT_SUPPORTED" },
+      }),
+    );
+    const { result } = renderHook(() =>
+      useArtifactDownload({ vaultId: VAULT_ID, primeContext }),
+    );
+    await act(() =>
+      result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK),
+    );
+    expect(result.current.error).toBe(
+      COPY.deposit.payoutSignatureErrors.walletAccountNotSupported.message,
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(result.current.downloaded).toBe(false);
+  });
+
+  it("shows the original-account guidance when the re-prime after an expired token fails", async () => {
+    seedHotCache();
+    fetchMock.mockRejectedValueOnce(
+      new JsonRpcError(-32001, "token expired", "wire"),
+    );
+    ensureAuthMock.mockRejectedValueOnce(
+      new Error("Authentication failed", {
+        cause: { code: "WALLET_ACCOUNT_NOT_SUPPORTED" },
+      }),
+    );
+    const { result } = renderHook(() =>
+      useArtifactDownload({ vaultId: VAULT_ID, primeContext }),
+    );
+    await act(() =>
+      result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK),
+    );
+    expect(result.current.error).toBe(
+      COPY.deposit.payoutSignatureErrors.walletAccountNotSupported.message,
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(result.current.downloaded).toBe(false);
+  });
+
   it("does not fetch if the user cancels during the upfront prime", async () => {
     let resolveEnsure: () => void = () => {};
     const ensureDeferred = new Promise<unknown>((resolve) => {

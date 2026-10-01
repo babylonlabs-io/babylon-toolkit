@@ -1,8 +1,10 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useMemo, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { COPY } from "@/copy";
+import { useRefundState } from "@/hooks/deposit/useRefundState";
 import { getRefundPreview } from "@/services/vault/vaultRefundService";
 import type { VaultActivity } from "@/types/activity";
 
@@ -11,9 +13,40 @@ import { RefundModal } from "../index";
 // The shared v3 modal shell renders the app's top bar (network badge +
 // settings), whose graph reaches wallet-connector and can't be transformed
 // here. This suite is about the refund content inside it.
+// The close control is rendered only when the modal is closable right now.
 vi.mock("@/components/shared/V3ModalShell", () => ({
-  V3ModalShell: ({ open, children }: { open: boolean; children: ReactNode }) =>
-    open ? <div>{children}</div> : null,
+  V3ModalShell: ({
+    open,
+    onClose,
+    children,
+  }: {
+    open: boolean;
+    onClose?: () => void;
+    children: ReactNode;
+  }) =>
+    open ? (
+      <div>
+        {onClose && (
+          <button type="button" onClick={onClose}>
+            close-modal
+          </button>
+        )}
+        {children}
+      </div>
+    ) : null,
+}));
+
+// Ledger device state: default not a Ledger, no wait held.
+const ledgerDevice = vi.hoisted(() => ({
+  isLedgerVault: false,
+  appWait: { status: "ready" } as
+    | { status: "ready" }
+    | { status: "awaiting-app"; expectedAppName: string },
+  cancelAppWait: vi.fn(),
+  reconnect: vi.fn(async () => {}),
+}));
+vi.mock("@/hooks/useLedgerVaultDevice", () => ({
+  useLedgerVaultDevice: () => ledgerDevice,
 }));
 
 vi.mock("@/services/vault/vaultRefundService", async (importOriginal) => {
@@ -37,6 +70,7 @@ vi.mock("@/hooks/deposit/useRefundState", () => ({
     refunding: false,
     refundTxId: null,
     error: null,
+    deviceDisconnected: false,
     handleRefund: vi.fn(),
   })),
 }));
@@ -81,6 +115,101 @@ describe("RefundModal", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockBtcWalletState.locked = false;
+    ledgerDevice.appWait = { status: "ready" };
+    // mockReturnValue outlives clearAllMocks; restore the idle state.
+    vi.mocked(useRefundState).mockReturnValue({
+      refunding: false,
+      refundTxId: null,
+      error: null,
+      deviceDisconnected: false,
+      handleRefund: vi.fn(),
+    });
+  });
+
+  function renderRefundModal(onClose: () => void = () => {}) {
+    render(
+      <Wrapper>
+        <RefundModal
+          open
+          activity={ACTIVITY}
+          onClose={onClose}
+          onSuccess={() => {}}
+        />
+      </Wrapper>,
+    );
+  }
+
+  it("reconnects the device before retrying after a lost session", async () => {
+    const handleRefund = vi.fn(async () => {});
+    vi.mocked(useRefundState).mockReturnValue({
+      refunding: false,
+      refundTxId: null,
+      error: COPY.deposit.errors.deviceDisconnected.body,
+      deviceDisconnected: true,
+      handleRefund,
+    });
+    renderRefundModal();
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: COPY.deposit.ledger.reconnectButton,
+      }),
+    );
+
+    await waitFor(() => expect(handleRefund).toHaveBeenCalledTimes(1));
+    expect(ledgerDevice.reconnect).toHaveBeenCalledTimes(1);
+  });
+
+  it("says the reconnect failed and does not refund when the reconnect fails", async () => {
+    const handleRefund = vi.fn(async () => {});
+    ledgerDevice.reconnect.mockRejectedValueOnce(
+      new Error("No selected device"),
+    );
+    vi.mocked(useRefundState).mockReturnValue({
+      refunding: false,
+      refundTxId: null,
+      error: COPY.deposit.errors.deviceDisconnected.body,
+      deviceDisconnected: true,
+      handleRefund,
+    });
+    renderRefundModal();
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: COPY.deposit.ledger.reconnectButton,
+      }),
+    );
+
+    expect(
+      await screen.findByText(COPY.deposit.ledger.reconnectFailed),
+    ).toBeInTheDocument();
+    expect(handleRefund).not.toHaveBeenCalled();
+  });
+
+  it("shows the app wait during a held refund and lets the modal close by ending the wait", async () => {
+    ledgerDevice.appWait = {
+      status: "awaiting-app",
+      expectedAppName: "Babylon Vault Testnet",
+    };
+    vi.mocked(useRefundState).mockReturnValue({
+      refunding: true,
+      refundTxId: null,
+      error: null,
+      deviceDisconnected: false,
+      handleRefund: vi.fn(),
+    });
+    const onClose = vi.fn();
+    renderRefundModal(onClose);
+
+    expect(
+      await screen.findByText(
+        COPY.deposit.ledger.waitingForApp.title("Babylon Vault Testnet"),
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "close-modal" }));
+
+    expect(ledgerDevice.cancelAppWait).toHaveBeenCalledTimes(1);
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 
   it("renders the review content", async () => {

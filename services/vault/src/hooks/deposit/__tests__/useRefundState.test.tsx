@@ -110,6 +110,28 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
+describe("useRefundState on a lost hardware-device session", () => {
+  it("flags the lost session and shows the device-disconnected copy, not the connector's message", async () => {
+    btcWallet.connected = true;
+    vi.mocked(buildAndBroadcastRefundTransaction).mockRejectedValueOnce(
+      Object.assign(new Error("Ledger Vault is not connected"), {
+        code: "DEVICE_DISCONNECTED",
+      }),
+    );
+    const { result } = renderHook(() => useRefundState({ activity: ACTIVITY }));
+
+    await act(async () => {
+      await result.current.handleRefund(FEE_RATE_SATS_VB);
+    });
+
+    expect(result.current.deviceDisconnected).toBe(true);
+    expect(result.current.error).toBe(
+      COPY.deposit.errors.deviceDisconnected.body,
+    );
+    expect(result.current.refunding).toBe(false);
+  });
+});
+
 describe("useRefundState requires the Bitcoin wallet first", () => {
   it("opens the Bitcoin connection and reports the wallet error with no Bitcoin wallet", async () => {
     const { result } = renderHook(() => useRefundState({ activity: ACTIVITY }));

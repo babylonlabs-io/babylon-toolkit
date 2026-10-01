@@ -9,6 +9,7 @@ import type { Abi, Address } from "viem";
 
 import { logger } from "@/infrastructure";
 import { getHubIdentity } from "@/services/aave/hubRegistry";
+import { normalizeError } from "@/utils/errors/normalizeError";
 
 import { ethClient } from "../../../clients/eth-contract/client";
 
@@ -219,7 +220,7 @@ async function readHubAssetTotalsSafe(
   } catch (err) {
     return {
       totals: null,
-      error: err instanceof Error ? err : new Error(String(err)),
+      error: normalizeError(err),
     };
   }
 
@@ -334,7 +335,7 @@ export async function getAssetLiquiditiesSafe(
       allowFailure: true,
     });
   } catch (err) {
-    const error = err instanceof Error ? err : new Error(String(err));
+    const error = normalizeError(err);
     return requests.map(({ hub, assetId }) => nulled(hub, assetId, error));
   }
 
@@ -347,9 +348,7 @@ export async function getAssetLiquiditiesSafe(
       return nulled(
         hub,
         assetId,
-        failed instanceof Error
-          ? failed
-          : new Error(String(failed ?? "Hub reserve-total read reverted")),
+        normalizeError(failed ?? "Hub reserve-total read reverted"),
       );
     }
     const [drawn, premium] = legs[1].result as readonly [bigint, bigint];
@@ -680,7 +679,7 @@ export async function getProjectedBorrowAprPercentsSafe({
   } catch (err) {
     return {
       ...NULL_PROJECTION,
-      error: err instanceof Error ? err : new Error(String(err)),
+      error: normalizeError(err),
     };
   }
 

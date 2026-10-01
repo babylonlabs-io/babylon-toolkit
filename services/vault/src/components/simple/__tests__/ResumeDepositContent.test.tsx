@@ -6,6 +6,7 @@
  * indexer can ask the wallet to derive over attacker-chosen funding outpoints.
  */
 
+import { useChainConnector } from "@babylonlabs-io/wallet-connector";
 import { fireEvent, render, waitFor } from "@testing-library/react";
 import { cloneElement, type ReactNode } from "react";
 import { MemoryRouter } from "react-router";
@@ -80,6 +81,7 @@ vi.mock("@babylonlabs-io/ts-sdk/tbv/core/clients", () => ({
 
 vi.mock("@babylonlabs-io/ts-sdk/tbv/core/utils", () => ({
   calculateBtcTxHash: mockCalculateBtcTxHash,
+  UtxoNotAvailableError: class UtxoNotAvailableError extends Error {},
 }));
 
 const btcActionWallet = vi.hoisted(() => ({
@@ -173,6 +175,7 @@ vi.mock("@/components/deposit/PayoutSignModal/usePayoutSigningState", () => ({
     error: null,
     errorTerminal: false,
     isComplete: false,
+    providerLookupReady: true,
     handleSign: vi.fn(),
     canCancel: false,
     cancelRequested: false,
@@ -252,6 +255,7 @@ vi.mock("../DepositProgressView", () => ({
     canCancelSigning,
     cancelSigningRequested,
     onCancelSigning,
+    continuePrompt,
   }: {
     currentStep?: string;
     error?: { title: string; body: string } | null;
@@ -266,6 +270,7 @@ vi.mock("../DepositProgressView", () => ({
     canCancelSigning?: boolean;
     cancelSigningRequested?: boolean;
     onCancelSigning?: () => void;
+    continuePrompt?: { hint: string; onContinue: () => void } | null;
   }) => (
     <div data-testid="progress-view">
       {/* Mirrors the real prop default so views that never pass it read as
@@ -296,6 +301,14 @@ vi.mock("../DepositProgressView", () => ({
         onClick={onCancelSigning}
       >
         cancel
+      </button>
+      <span data-testid="continue-hint">{continuePrompt?.hint ?? ""}</span>
+      <button
+        type="button"
+        data-testid="continue"
+        onClick={continuePrompt?.onContinue}
+      >
+        continue
       </button>
     </div>
   ),
@@ -531,6 +544,26 @@ describe("ResumeWotsContent — submission marker", () => {
     );
   });
 
+  it("shows the original-account guidance when WOTS secret recovery fails", async () => {
+    mockGetVaultRegistryReader.mockReturnValue(readerWith(ON_CHAIN_HASH));
+    mockDeriveVaultRoot.mockRejectedValueOnce({
+      code: "WALLET_ACCOUNT_NOT_SUPPORTED",
+    });
+    const { getByTestId } = render(
+      <ResumeWotsContent
+        activity={baseActivity}
+        onClose={vi.fn()}
+        onSuccess={vi.fn()}
+      />,
+    );
+    await waitFor(() => {
+      expect(getByTestId("error").textContent).toBe(
+        COPY.deposit.payoutSignatureErrors.walletAccountNotSupported.message,
+      );
+    });
+    expect(mockSubmitWotsPublicKey).not.toHaveBeenCalled();
+  });
+
   it("waits for a click instead of auto-submitting when the suppression lapsed", async () => {
     // The TTL expiring re-offers SUBMIT_WOTS_KEY, which remounts this
     // component. Auto-firing there would open a wallet prompt at a modal the
@@ -729,6 +762,101 @@ describe("ResumeActivationContent — Pre-PegIn tx hash trust boundary", () => {
     expect(mockParseFundingOutpointsFromTx).toHaveBeenCalledWith("0xindexertx");
     expect(mockHandleActivation).toHaveBeenCalledTimes(1);
   });
+
+  it("on a Ledger, a freshly retrieved secret clears the previous activation failure so Continue shows", async () => {
+    // The previous Continue was rejected on the Ethereum side; the activation
+    // state keeps that error until the next hand-off.
+    vi.mocked(useActivationState).mockReturnValue({
+      activating: false,
+      activated: false,
+      error: "User rejected the request.",
+      errorTerminal: false,
+      handleActivation: mockHandleActivation,
+    });
+    const connector = vi.mocked(useChainConnector)("BTC");
+    vi.mocked(useChainConnector).mockReturnValue({
+      ...connector,
+      connectedWallet: {
+        ...connector!.connectedWallet!,
+        id: "ledger_btc_vault",
+      },
+    } as ReturnType<typeof useChainConnector>);
+    mockCalculateBtcTxHash.mockReturnValue(ON_CHAIN_HASH);
+    mockGetVaultRegistryReader.mockReturnValue(readerWith(ON_CHAIN_HASH));
+    mockDeriveVaultRoot.mockResolvedValue(new Uint8Array(32));
+    // Restored in finally: clearAllMocks keeps a return value across tests.
+    try {
+      const { getByTestId } = render(
+        <ResumeActivationContent
+          activity={baseActivity}
+          depositorEthAddress="0xdepositor"
+          onClose={vi.fn()}
+          onGoToDashboard={vi.fn()}
+        />,
+      );
+
+      await waitFor(() => {
+        expect(getByTestId("continue-hint").textContent).toBe(
+          COPY.deposit.ledger.activationPause.hint,
+        );
+      });
+      expect(getByTestId("error").textContent).toBe("");
+    } finally {
+      vi.mocked(useChainConnector).mockReturnValue(connector);
+      vi.mocked(useActivationState).mockReturnValue({
+        activating: false,
+        activated: false,
+        error: null,
+        errorTerminal: false,
+        handleActivation: mockHandleActivation,
+      });
+    }
+  });
+
+  it("on a Ledger, retrieves the secret, then activates only after Continue", async () => {
+    // The pause lets a depositor whose Ethereum account is on the same Ledger
+    // switch from the Babylon Vault app to the Ethereum app.
+    const connector = vi.mocked(useChainConnector)("BTC");
+    vi.mocked(useChainConnector).mockReturnValue({
+      ...connector,
+      connectedWallet: {
+        ...connector!.connectedWallet!,
+        id: "ledger_btc_vault",
+      },
+    } as ReturnType<typeof useChainConnector>);
+    // Restored in finally: clearAllMocks keeps a return value across tests.
+    try {
+      mockCalculateBtcTxHash.mockReturnValue(ON_CHAIN_HASH);
+      mockGetVaultRegistryReader.mockReturnValue(readerWith(ON_CHAIN_HASH));
+      mockDeriveVaultRoot.mockResolvedValue(new Uint8Array(32));
+
+      const { getByTestId } = render(
+        <ResumeActivationContent
+          activity={baseActivity}
+          depositorEthAddress="0xdepositor"
+          onClose={vi.fn()}
+          onGoToDashboard={vi.fn()}
+        />,
+      );
+
+      await waitFor(() => {
+        expect(getByTestId("continue-hint").textContent).toBe(
+          COPY.deposit.ledger.activationPause.hint,
+        );
+      });
+      expect(mockDeriveVaultRoot).toHaveBeenCalledTimes(1);
+      expect(mockHandleActivation).not.toHaveBeenCalled();
+
+      fireEvent.click(getByTestId("continue"));
+
+      await waitFor(() => {
+        expect(mockHandleActivation).toHaveBeenCalledTimes(1);
+      });
+      expect(mockHandleActivation).toHaveBeenCalledWith(expect.any(String));
+    } finally {
+      vi.mocked(useChainConnector).mockReturnValue(connector);
+    }
+  });
 });
 
 describe("ResumeSignContent — reactive verification terminal", () => {
@@ -741,6 +869,7 @@ describe("ResumeSignContent — reactive verification terminal", () => {
       error: null,
       errorTerminal: false,
       isComplete: true,
+      providerLookupReady: true,
       handleSign: vi.fn(),
       canCancel: false,
       cancelRequested: false,
@@ -759,6 +888,42 @@ describe("ResumeSignContent — reactive verification terminal", () => {
       />,
     );
   }
+
+  it("waits for provider metadata before auto-starting payout signing", async () => {
+    const handleSign = vi.fn();
+    const payoutState = {
+      signing: false,
+      progress: { phase: "auth" as const, completed: 0, total: 0 },
+      error: null,
+      errorTerminal: false,
+      isComplete: false,
+      providerLookupReady: false,
+      handleSign,
+      canCancel: false,
+      cancelRequested: false,
+      handleCancel: vi.fn(),
+    };
+    vi.mocked(usePayoutSigningState).mockReturnValue(payoutState);
+
+    const view = renderSign();
+    expect(handleSign).not.toHaveBeenCalled();
+
+    vi.mocked(usePayoutSigningState).mockReturnValue({
+      ...payoutState,
+      providerLookupReady: true,
+    });
+    view.rerender(
+      <ResumeSignContent
+        activity={baseActivity}
+        btcPublicKey="0xbtcpub"
+        depositorEthAddress={"0xdepositor" as never}
+        onClose={vi.fn()}
+        onSuccess={vi.fn()}
+      />,
+    );
+
+    await waitFor(() => expect(handleSign).toHaveBeenCalledTimes(1));
+  });
 
   it("stays on the verification wait while the contract is still PENDING", () => {
     mockUseDepositPollingResult.mockReturnValue({
@@ -805,6 +970,7 @@ describe("ResumeSignContent — reactive verification terminal", () => {
       error: COPY.deposit.payoutSignatureErrors.ackWindowElapsed,
       errorTerminal: true,
       isComplete: false,
+      providerLookupReady: true,
       handleSign: vi.fn(),
       canCancel: false,
       cancelRequested: false,
@@ -826,6 +992,7 @@ describe("ResumeSignContent — reactive verification terminal", () => {
       error: COPY.deposit.payoutSignatureErrors.unexpected,
       errorTerminal: false,
       isComplete: false,
+      providerLookupReady: true,
       handleSign: vi.fn(),
       canCancel: false,
       cancelRequested: false,
@@ -845,6 +1012,7 @@ describe("ResumeSignContent — reactive verification terminal", () => {
       error: null,
       errorTerminal: false,
       isComplete: false,
+      providerLookupReady: true,
       handleSign: vi.fn(),
       canCancel: true,
       cancelRequested: true,
@@ -870,6 +1038,7 @@ describe("ResumeSignContent — reactive verification terminal", () => {
       error: null,
       errorTerminal: false,
       isComplete: false,
+      providerLookupReady: true,
       handleSign,
       canCancel: true,
       cancelRequested: true,
@@ -903,6 +1072,48 @@ describe("ResumeSignContent — reactive verification terminal", () => {
     fireEvent.click(getByTestId("sign"));
     expect(handleSign.mock.calls.length).toBe(callsBeforeClick + 1);
   });
+
+  it("keeps Sign unavailable after a cancel while provider metadata is loading", () => {
+    const handleSign = vi.fn();
+    const midCancel = {
+      signing: true,
+      progress: { phase: "graph", completed: 0, total: 1 },
+      error: null,
+      errorTerminal: false,
+      isComplete: false,
+      providerLookupReady: true,
+      handleSign,
+      canCancel: true,
+      cancelRequested: true,
+      handleCancel: vi.fn(),
+    } as const;
+    vi.mocked(usePayoutSigningState).mockReturnValue({ ...midCancel });
+    const { getByTestId, rerender } = renderSign();
+
+    // The cancel settles while the provider lookup is loading again.
+    vi.mocked(usePayoutSigningState).mockReturnValue({
+      ...midCancel,
+      signing: false,
+      canCancel: false,
+      cancelRequested: false,
+      providerLookupReady: false,
+    });
+    rerender(
+      <ResumeSignContent
+        activity={baseActivity}
+        btcPublicKey="0xbtcpub"
+        depositorEthAddress={"0xdepositor" as never}
+        onClose={vi.fn()}
+        onSuccess={vi.fn()}
+      />,
+    );
+
+    const callsBeforeClick = handleSign.mock.calls.length;
+    fireEvent.click(getByTestId("sign"));
+    // No silent no-op: nothing runs and the view is not marked started.
+    expect(handleSign.mock.calls.length).toBe(callsBeforeClick);
+    expect(getByTestId("started").textContent).toBe("false");
+  });
 });
 
 describe("Action admission through the continuation", () => {
@@ -923,6 +1134,7 @@ describe("Action admission through the continuation", () => {
       error: null,
       errorTerminal: false,
       isComplete: false,
+      providerLookupReady: true,
       handleSign,
       canCancel: false,
       cancelRequested: false,
@@ -1232,6 +1444,21 @@ describe("ResumeActivationContent — activated success terminal", () => {
     expect(getByTestId("error-title").textContent).not.toBe(
       COPY.deposit.errors.activationDeadlinePassed.title,
     );
+  });
+
+  it("shows the original-account guidance when activation secret recovery fails", async () => {
+    mockDeriveVaultRoot.mockRejectedValueOnce(
+      new Error("Secret recovery failed", {
+        cause: { code: "WALLET_ACCOUNT_NOT_SUPPORTED" },
+      }),
+    );
+    const { getByTestId } = renderActivation();
+    await waitFor(() => {
+      expect(getByTestId("error").textContent).toBe(
+        COPY.deposit.payoutSignatureErrors.walletAccountNotSupported.message,
+      );
+    });
+    expect(mockHandleActivation).not.toHaveBeenCalled();
   });
 
   it("maps a coded wallet rejection during secret derivation to the signing-rejected callout", async () => {

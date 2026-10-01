@@ -12,7 +12,6 @@
  * where an `artifacts.json` format change has to be caught.
  */
 
-import type { Hex } from "viem";
 import type { Mock } from "vitest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -28,6 +27,7 @@ const wasm = vi.hoisted(() => ({
   buildPayoutClaimerPsbt: vi.fn(),
   buildPayoutDepositorPsbt: vi.fn(),
   buildWronglyChallengedPsbts: vi.fn(),
+  computePayoutFeeFloor: vi.fn(),
   extractTapScriptSig: vi.fn(),
   finalizeClaimTx: vi.fn(),
   buildWatchtowerArtifacts: vi.fn(),
@@ -37,79 +37,70 @@ vi.mock("../../../wasm", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../../wasm")>()),
   ...wasm,
 }));
+// The signer verifies each signature against its PSBT; the named stubs above
+// are routing labels, not signatures, so that seam is stubbed like the wasm.
+vi.mock("../../../primitives/psbt/verifyScriptPathSchnorrSignature", () => ({
+  assertScriptPathSchnorrSignature: vi.fn(),
+}));
 
-// The vault's on-chain sets: keeper A is the local challenger for a
-// depositor-as-claimer graph, B is universal.
-const CHALLENGER_A = "aa".repeat(32);
-const CHALLENGER_B = "bb".repeat(32);
-const VAULT_PROVIDER_PUBKEY = "02".concat("77".repeat(32));
+import { copyAssertConnectorLeaf } from "../payoutInputLeaf";
+import {
+  CHALLENGER_A,
+  CHALLENGER_B,
+  DEPOSITOR_ETH_ADDRESS,
+  DEPOSITOR_PUBKEY,
+  DEPOSITOR_XONLY_PUBKEY,
+  OTHER_ADDRESS,
+  OTHER_VAULT_CLAIM_PSBT,
+  REGISTERED_PAYOUT_SCRIPT,
+  SIGNER_ADDRESS,
+  TIMELOCK_ASSERT,
+  TIMELOCK_PEGIN,
+  VAULT_ID,
+  VAULT_PROVIDER_PUBKEY,
+  VAULT_UTXO_SATS,
+  buildDelegatedClaimFixture,
+} from "./fixtures/delegatedClaimPsbts";
 
-// The secp256k1 generator point, so the P2TR address below really derives
-// from this key — the signer check would reject a made-up one.
-const DEPOSITOR_PUBKEY =
-  "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798";
-const SIGNER_ADDRESS =
-  "tb1pmfr3p9j00pfxjh0zmgp99y8zftmd3s5pmedqhyptwy6lm87hf5ssk79hv2";
-const OTHER_ADDRESS =
-  "tb1pet7ep3czdu9k4wvdlz2fp5p8x2yp7t6ttyqg2c6cmh0lgeuu9lasvfnc28";
+const fx = buildDelegatedClaimFixture();
+const MOCKED_FEE_FLOOR = 800n;
+/** The fixture's 1_000 sat implicit fee sits inside [800, 2 x 610] for 1 keeper + 1 challenger. */
+const PROTOCOL_FEE_RATE = 2n;
+// The planner copies the Assert-connector leaf onto the depositor Payout
+// before signing, so the wallet sees the augmented PSBT, not the builder's.
+const PAYOUT_DEPOSITOR_AUGMENTED = copyAssertConnectorLeaf({
+  payoutDepositorPsbtBase64: fx.payoutDepositorPsbt,
+  payoutClaimerPsbtBase64: fx.payoutClaimerPsbt,
+});
 
-const DEPOSITOR_ETH_ADDRESS =
-  "0x70997970C51812dc3A010C7d01b50e0d17dc79C8" as Hex;
-// A Claim PSBT whose only input spends the PegIn below, and the vault id
-// that PegIn txid derives with the depositor address above. The txid is
-// non-palindromic, so the byte-order flip in the binding is load-bearing.
-const CLAIM_PSBT =
-  "cHNidP8BADMCAAAAAf/u3cy7qpmId2ZVRDMiEQD/7t3Mu6qZiHdmVUQzIhEAAQAAAAD/////AAAAAAAAAAA=";
-const VAULT_ID =
-  "0xf5c2a4e499a96ee2a2e32acf1f16b51d2958e7819a1d5048eccab864163806c3" as Hex;
-// The same PSBT shape spending a different PegIn, so it derives another id.
-const OTHER_VAULT_CLAIM_PSBT =
-  "cHNidP8BADMCAAAAAQARIjNEVWZ3iJmqu8zd7v8AESIzRFVmd4iZqrvM3e7/AAAAAAD/////AAAAAAAAAAA=";
-
-// The vault's registered payout script, and Payout PSBTs that pay it. The
-// canonical claimer layout is [payout, CPFP anchor at 546 sats].
-const REGISTERED_PAYOUT_SCRIPT =
-  "512079be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798";
-const PAYOUT_CLAIMER_PSBT =
-  "cHNidP8BALICAAAAAv/u3cy7qpmId2ZVRDMiEQD/7t3Mu6qZiHdmVUQzIhEAAAAAAAD//////+7dzLuqmYh3ZlVEMyIRAP/u3cy7qpmId2ZVRDMiEQABAAAAAP////8CuIIBAAAAAAAiUSB5vmZ++dy7rFWgYpXOhwsHApv82y3OKNlZ8oFbFvgXmCICAAAAAAAAIlEgeb5mfvncu6xVoGKVzocLBwKb/NstzijZWfKBWxb4F5gAAAAAAAAAAAA=";
-// The same canonical layout, distinguishable only by input sequence, so the
-// two Payout signatures can be told apart in the assertions below.
-const PAYOUT_DEPOSITOR_PSBT =
-  "cHNidP8BALICAAAAAv/u3cy7qpmId2ZVRDMiEQD/7t3Mu6qZiHdmVUQzIhEAAAAAAAD9/////+7dzLuqmYh3ZlVEMyIRAP/u3cy7qpmId2ZVRDMiEQABAAAAAP3///8CuIIBAAAAAAAiUSB5vmZ++dy7rFWgYpXOhwsHApv82y3OKNlZ8oFbFvgXmCICAAAAAAAAIlEgeb5mfvncu6xVoGKVzocLBwKb/NstzijZWfKBWxb4F5gAAAAAAAAAAAA=";
-// Same layout, output 0 pays somebody else.
-const PAYOUT_PSBT_WRONG_DESTINATION =
-  "cHNidP8BALICAAAAAv/u3cy7qpmId2ZVRDMiEQD/7t3Mu6qZiHdmVUQzIhEAAAAAAAD//////+7dzLuqmYh3ZlVEMyIRAP/u3cy7qpmId2ZVRDMiEQABAAAAAP////8CuIIBAAAAAAAiUSDGBH+UQe19bTBFQG6VwHzYXHeOS4zvPKerrAm5XHCe5SICAAAAAAAAIlEgeb5mfvncu6xVoGKVzocLBwKb/NstzijZWfKBWxb4F5gAAAAAAAAAAAA=";
-
-/**
- * PSBTs are opaque to this service, so the fixtures encode their own identity:
- * each signature comes back as `sig:<the psbt it was extracted from>`, which
- * is what lets the assertions below prove nothing was reordered. The Claim is
- * the exception — it has to parse, so it is named by lookup instead.
- */
 function stubPsbtPipeline(): void {
-  wasm.buildClaimPsbt.mockResolvedValue(CLAIM_PSBT);
-  wasm.buildAssertClaimerPsbt.mockResolvedValue(toBase64("psbt-assert"));
-  wasm.buildPayoutClaimerPsbt.mockResolvedValue(PAYOUT_CLAIMER_PSBT);
-  wasm.buildPayoutDepositorPsbt.mockResolvedValue(PAYOUT_DEPOSITOR_PSBT);
-  wasm.buildWronglyChallengedPsbts.mockResolvedValue({
-    [CHALLENGER_A]: [toBase64("psbt-wc-a0"), toBase64("psbt-wc-a1")],
-    [CHALLENGER_B]: [toBase64("psbt-wc-b0")],
-  });
-  // Real PSBTs have to parse, so they are named by lookup; the opaque ones
-  // still carry their own identity, which is what proves nothing reordered.
+  wasm.buildClaimPsbt.mockResolvedValue(fx.claimPsbt);
+  wasm.buildAssertClaimerPsbt.mockResolvedValue(fx.assertPsbt);
+  wasm.buildPayoutClaimerPsbt.mockResolvedValue(fx.payoutClaimerPsbt);
+  wasm.buildPayoutDepositorPsbt.mockResolvedValue(fx.payoutDepositorPsbt);
+  wasm.buildWronglyChallengedPsbts.mockResolvedValue(fx.wronglyChallengedPsbts);
+  // The band itself is covered by assertPayoutFeeBand.test.ts and assertPayoutFeeAndTimelocks.test.ts.
+  wasm.computePayoutFeeFloor.mockResolvedValue(MOCKED_FEE_FLOOR);
+  // Each signature names the PSBT it came from, which is what proves nothing
+  // was reordered between the request list and the artifacts.
   const named: Record<string, string> = {
-    [CLAIM_PSBT]: "sig:psbt-claim",
-    [PAYOUT_CLAIMER_PSBT]: "sig:psbt-payout",
-    [PAYOUT_DEPOSITOR_PSBT]: "sig:psbt-payout-depositor",
+    [fx.claimPsbt]: "sig:psbt-claim",
+    [fx.assertPsbt]: "sig:psbt-assert",
+    [fx.payoutClaimerPsbt]: "sig:psbt-payout",
+    [PAYOUT_DEPOSITOR_AUGMENTED]: "sig:psbt-payout-depositor",
+    [fx.wronglyChallengedPsbts[CHALLENGER_A][0]]: "sig:psbt-wc-a0",
+    [fx.wronglyChallengedPsbts[CHALLENGER_A][1]]: "sig:psbt-wc-a1",
+    [fx.wronglyChallengedPsbts[CHALLENGER_B][0]]: "sig:psbt-wc-b0",
   };
-  wasm.extractTapScriptSig.mockImplementation((psbtBase64: string) =>
-    Promise.resolve(named[psbtBase64] ?? `sig:${fromBase64(psbtBase64)}`),
-  );
+  wasm.extractTapScriptSig.mockImplementation((psbtBase64: string) => {
+    const sig = named[psbtBase64];
+    if (!sig) throw new Error("extractTapScriptSig: unknown PSBT in test");
+    return Promise.resolve(sig);
+  });
   wasm.finalizeClaimTx.mockResolvedValue("signed-claim-tx-hex");
   wasm.buildWatchtowerArtifacts.mockResolvedValue("{}");
 }
 
-/** A wallet that signs a batch and returns the PSBTs unchanged, in order. */
 function makeWallet(): BitcoinWallet {
   return {
     getAddress: vi.fn(() => Promise.resolve(SIGNER_ADDRESS)),
@@ -119,23 +110,17 @@ function makeWallet(): BitcoinWallet {
   } as unknown as BitcoinWallet;
 }
 
-function toBase64(value: string): string {
-  return Buffer.from(value, "utf8").toString("base64");
-}
-
-function fromBase64(value: string): string {
-  return Buffer.from(value, "base64").toString("utf8");
-}
-
 async function assemble(wallet: BitcoinWallet): Promise<void> {
   await assembleWatchtowerArtifacts({
     btcWallet: wallet,
     depositorPublicKey: DEPOSITOR_PUBKEY,
     btcNetwork: "testnet",
     source: { txGraphJson: "{graph}", verifyingKeyHex: "beef" },
+    trustedVerifyingKeyHex: "beef",
     vault: {
       vaultId: VAULT_ID,
       depositorEthAddress: DEPOSITOR_ETH_ADDRESS,
+      depositorBtcPubkey: DEPOSITOR_XONLY_PUBKEY,
       registeredPayoutScriptPubKey: REGISTERED_PAYOUT_SCRIPT,
       vaultProviderBtcPubkey: VAULT_PROVIDER_PUBKEY,
       vaultKeeperBtcPubkeys: [CHALLENGER_A],
@@ -144,6 +129,11 @@ async function assemble(wallet: BitcoinWallet): Promise<void> {
       proverCircuitVersion: 7,
       vaultCoreVersion: 3,
       claimableEventBlockNumber: 10_985_680n,
+      peginVaultOutputValueSats: VAULT_UTXO_SATS,
+      protocolFeeRate: PROTOCOL_FEE_RATE,
+      councilSize: 3,
+      timelockPegin: TIMELOCK_PEGIN,
+      timelockAssert: TIMELOCK_ASSERT,
     },
   });
 }
@@ -192,7 +182,7 @@ describe("assembleWatchtowerArtifacts", () => {
     await assemble(makeWallet());
 
     const payoutCall = wasm.extractTapScriptSig.mock.calls.find(
-      ([psbtBase64]) => psbtBase64 === PAYOUT_CLAIMER_PSBT,
+      ([psbtBase64]) => psbtBase64 === fx.payoutClaimerPsbt,
     );
     expect(payoutCall?.[1]).toBe(1);
   });
@@ -204,7 +194,8 @@ describe("assembleWatchtowerArtifacts", () => {
 
     // The builder no longer reads a presigned signature off the graph, so the
     // PSBT must ride in the one batch — not a second prompt months later.
-    expect(wasm.buildPayoutDepositorPsbt).toHaveBeenCalledTimes(1);
+    // Built twice: once to plan, once to prove the plan was not altered.
+    expect(wasm.buildPayoutDepositorPsbt).toHaveBeenCalledTimes(2);
     expect(wallet.signPsbts).toHaveBeenCalledTimes(1);
     expect(
       wasm.buildWatchtowerArtifacts.mock.calls[0][0].depositorPayoutSigHex,
@@ -273,7 +264,7 @@ describe("assembleWatchtowerArtifacts", () => {
 
   it("refuses a Payout that pays anything but the registered script", async () => {
     wasm.buildPayoutDepositorPsbt.mockResolvedValue(
-      PAYOUT_PSBT_WRONG_DESTINATION,
+      fx.payoutWrongDestinationPsbt,
     );
     const wallet = makeWallet();
 
@@ -284,8 +275,9 @@ describe("assembleWatchtowerArtifacts", () => {
   });
 
   it("refuses a graph that omits one of the vault's challengers", async () => {
+    // Only the keys matter to this check, so the PSBTs need no shape.
     wasm.buildWronglyChallengedPsbts.mockResolvedValue({
-      [CHALLENGER_A]: [toBase64("psbt-wc-a0")],
+      [CHALLENGER_A]: [fx.wronglyChallengedPsbts[CHALLENGER_A][0]],
     });
     const wallet = makeWallet();
 
@@ -297,9 +289,9 @@ describe("assembleWatchtowerArtifacts", () => {
 
   it("refuses a graph that adds a challenger the vault does not have", async () => {
     wasm.buildWronglyChallengedPsbts.mockResolvedValue({
-      [CHALLENGER_A]: [toBase64("psbt-wc-a0")],
-      [CHALLENGER_B]: [toBase64("psbt-wc-b0")],
-      ["cc".repeat(32)]: [toBase64("psbt-wc-c0")],
+      [CHALLENGER_A]: [fx.wronglyChallengedPsbts[CHALLENGER_A][0]],
+      [CHALLENGER_B]: [fx.wronglyChallengedPsbts[CHALLENGER_B][0]],
+      ["cc".repeat(32)]: [fx.wronglyChallengedPsbts[CHALLENGER_B][0]],
     });
     const wallet = makeWallet();
 

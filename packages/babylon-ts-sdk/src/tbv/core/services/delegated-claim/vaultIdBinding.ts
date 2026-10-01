@@ -19,12 +19,8 @@ import { Psbt, Transaction } from "bitcoinjs-lib";
 import { Buffer } from "buffer";
 
 import { derivePeginVaultId } from "../../clients/eth/pegin-transaction";
-
-/**
- * Input of the Claim transaction that spends the PegIn vault UTXO. Fixed by
- * the Rust graph in `btc-vault crates/vault`, not free to choose here.
- */
-const CLAIM_PEGIN_INPUT = 0;
+import { CLAIM_PEGIN_INPUT_INDEX } from "../../primitives/psbt/constants";
+import { PEGIN_DEPOSITOR_CLAIM_VOUT } from "../../primitives/psbt/depositorClaim";
 
 /**
  * Thrown when a graph does not belong to the vault it is presented for.
@@ -47,7 +43,12 @@ export class VaultIdBindingError extends Error {
   }
 }
 
-/** Display-order txid of the PegIn output the Claim PSBT spends. */
+/**
+ * Display-order txid of the PegIn output the Claim PSBT spends.
+ *
+ * @throws Unless the Claim has exactly one input and it spends PegIn output 1
+ *         (CLAUDE.md §3 funding-chain rule).
+ */
 export function peginTxidFromClaimPsbt(claimPsbtBase64: string): string {
   let psbt: Psbt;
   try {
@@ -55,24 +56,55 @@ export function peginTxidFromClaimPsbt(claimPsbtBase64: string): string {
   } catch (cause) {
     throw new Error("Claim PSBT cannot be parsed.", { cause });
   }
-  const input = psbt.txInputs[CLAIM_PEGIN_INPUT];
+  const input = psbt.txInputs[CLAIM_PEGIN_INPUT_INDEX];
   if (!input) {
     throw new Error("Claim PSBT carries no PegIn input to bind the vault to.");
   }
+  assertSpendsDepositorClaimOutput(
+    "Claim PSBT",
+    psbt.txInputs.length,
+    input.index,
+  );
   return displayTxid(input.hash);
 }
 
 /**
  * Display-order txid of the PegIn output a signed Claim transaction spends.
+ *
+ * @throws Unless the Claim has exactly one input and it spends PegIn output 1.
  */
 export function peginTxidFromClaimTx(claimTx: Transaction): string {
-  const input = claimTx.ins[CLAIM_PEGIN_INPUT];
+  const input = claimTx.ins[CLAIM_PEGIN_INPUT_INDEX];
   if (!input) {
     throw new Error(
       "Artifacts file's claim_tx carries no PegIn input to bind the vault to.",
     );
   }
+  assertSpendsDepositorClaimOutput(
+    "Artifacts file's claim_tx",
+    claimTx.ins.length,
+    input.index,
+  );
   return displayTxid(input.hash);
+}
+
+/**
+ * The depositor Claim is funded by PegIn output 1 alone; the pinned engine
+ * checks the same shape (btc-vault `check_depositor_claim_shape`,
+ * `transactions/claim.rs:140-158` @ ac4954e7), re-asserted here per CLAUDE.md §1.
+ */
+function assertSpendsDepositorClaimOutput(
+  label: string,
+  inputCount: number,
+  vout: number,
+): void {
+  if (inputCount !== 1 || vout !== PEGIN_DEPOSITOR_CLAIM_VOUT) {
+    throw new Error(
+      `${label} must have exactly one input spending PegIn output ` +
+        `${PEGIN_DEPOSITOR_CLAIM_VOUT}; it has ${inputCount} input(s) and ` +
+        `the first spends output ${vout}.`,
+    );
+  }
 }
 
 /**
@@ -116,9 +148,13 @@ export function normalizeVaultId(vaultId: string): string {
   return `0x${bare.toLowerCase()}`;
 }
 
-// Bitcoin stores a prevout hash in internal byte order; a txid is the same
-// bytes reversed. Copy before reversing — the buffer belongs to the parsed
-// transaction.
-function displayTxid(internalHash: Uint8Array): string {
+/**
+ * Bitcoin stores a prevout hash in internal byte order; a txid is the same
+ * bytes reversed. Copies before reversing — the buffer belongs to the parsed
+ * transaction.
+ *
+ * @internal
+ */
+export function displayTxid(internalHash: Uint8Array): string {
   return Buffer.from(internalHash).reverse().toString("hex");
 }

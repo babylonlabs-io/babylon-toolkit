@@ -41,6 +41,7 @@ import {
   verifyBtcWalletLiveness,
 } from "../../../utils/btc";
 import { supportsCancelSigning } from "../../../utils/cancelSigning";
+import { isDeviceDisconnectedError } from "../../../utils/errors/deviceErrors";
 import { formatPayoutSignatureError } from "../../../utils/errors/formatting";
 import { isVaultLifecycleStateError } from "../../../utils/errors/vaultLifecycleStateError";
 import { observeSigningProgress } from "../../../utils/signingProgress";
@@ -71,6 +72,8 @@ export interface UsePayoutSigningStateResult {
   errorTerminal: boolean;
   /** Whether signing completed successfully */
   isComplete: boolean;
+  /** Whether provider metadata has loaded and payout signing may start. */
+  providerLookupReady: boolean;
   /** Handler to initiate signing */
   handleSign: () => Promise<void>;
   /** True while the original provider can cancel a PSBT signing call. */
@@ -107,7 +110,14 @@ export function usePayoutSigningState({
   // Async settle paths need the current cancellation request.
   const cancelRequestedRef = useRef(false);
 
-  const { findProvider } = useVaultProviders(activity.applicationEntryPoint);
+  const {
+    findProvider,
+    loading: providerLookupLoading,
+    error: providerLookupError,
+    refetch: refetchProviders,
+  } = useVaultProviders(activity.applicationEntryPoint, {
+    requireCompleteKeeperRoster: false,
+  });
   const { btcConnected, sessionConfirmed, requireBtcWallet } = useBtcAction();
   const btcConnector = useChainConnector("BTC");
   const { setOptimisticStatus } = usePeginPolling();
@@ -139,6 +149,11 @@ export function usePayoutSigningState({
     if (inFlightRef.current || signing) return;
     // A new attempt must allow a retry after a recoverable guard error.
     setErrorTerminal(false);
+    if (providerLookupLoading) return;
+    if (providerLookupError) {
+      await refetchProviders();
+      return;
+    }
     if (!requireBtcWallet() || !walletKeyReady || !btcPublicKey) {
       setError(COPY.deposit.payoutSigningGuards.walletNotConnected);
       return;
@@ -230,6 +245,12 @@ export function usePayoutSigningState({
         });
       } catch (err) {
         if (controller.signal.aborted) return;
+        // A lost hardware-device session keeps its own copy, which the
+        // progress view recognises to offer a reconnect from the click.
+        if (isDeviceDisconnectedError(err)) {
+          setError(formatPayoutSignatureError(err));
+          return;
+        }
         setError({
           title: COPY.wallet.liveness.errorTitle,
           message:
@@ -418,6 +439,9 @@ export function usePayoutSigningState({
   }, [
     requireBtcWallet,
     signing,
+    providerLookupLoading,
+    providerLookupError,
+    refetchProviders,
     activity.providers,
     activity.peginTxHash,
     activity.id,
@@ -453,6 +477,20 @@ export function usePayoutSigningState({
   }, []);
 
   useEffect(() => {
+    if (signing) return;
+    if (providerLookupError) {
+      setError(COPY.deposit.payoutSigningGuards.providerLookupUnavailable);
+      return;
+    }
+    // The lookup recovered (e.g. after Retry): drop its error, keep others.
+    setError((current) =>
+      current === COPY.deposit.payoutSigningGuards.providerLookupUnavailable
+        ? null
+        : current,
+    );
+  }, [providerLookupError, signing]);
+
+  useEffect(() => {
     if (pendingAbortRef.current !== null) {
       clearTimeout(pendingAbortRef.current);
       pendingAbortRef.current = null;
@@ -482,6 +520,7 @@ export function usePayoutSigningState({
     error,
     errorTerminal,
     isComplete,
+    providerLookupReady: !providerLookupLoading && !providerLookupError,
     handleSign,
     canCancel,
     cancelRequested,

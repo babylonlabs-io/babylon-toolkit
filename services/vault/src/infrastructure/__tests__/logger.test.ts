@@ -75,6 +75,34 @@ describe("logger", () => {
   });
 
   describe("error", () => {
+    it("logs the message of a plain-object rejection without its payload", () => {
+      const message = "Current keyring does not support deriveContextHash";
+      logger.error({
+        code: -32603,
+        message,
+        data: { originalError: { message, stack: LONG_HEX } },
+      });
+
+      const error = vi.mocked(captureException).mock.lastCall?.[0];
+      expect(error).toBeInstanceOf(Error);
+      expect(error).toHaveProperty("message", message);
+      expect(error).not.toHaveProperty("data");
+      expect(error).not.toHaveProperty("cause");
+      expect((error as Error).stack).not.toContain(LONG_HEX);
+    });
+
+    it("scrubs addresses and hex in a plain-object rejection in the console", () => {
+      const consoleError = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
+      logger.error({ message: `Failed for ${ETH_ADDR}: ${LONG_HEX}` });
+
+      expect(consoleError).toHaveBeenCalledWith(
+        expect.stringContaining("Failed for [ETH_ADDR]: [HEX_REDACTED]"),
+      );
+      consoleError.mockRestore();
+    });
+
     it("redacts extra data", () => {
       const error = new Error("something failed");
       logger.error(error, {
@@ -92,6 +120,25 @@ describe("logger", () => {
             info: "some context",
           }),
         }),
+      );
+    });
+
+    it("tags a numeric errorCode as a string", () => {
+      logger.error({ message: "fail", errorCode: 7 });
+
+      expect(captureException).toHaveBeenLastCalledWith(
+        expect.any(Error),
+        expect.objectContaining({ tags: { errorCode: "7" } }),
+      );
+    });
+
+    it("adds no errorCode tag when errorCode is not a string or number", () => {
+      const error = Object.assign(new Error("fail"), { errorCode: undefined });
+      logger.error(error);
+
+      expect(captureException).toHaveBeenLastCalledWith(
+        error,
+        expect.objectContaining({ tags: undefined }),
       );
     });
 

@@ -26,15 +26,17 @@ example below is valid as written.
     {
       "at": "<iso8601>",
       "kind": "first",
-      "tier": "full",
+      "tier": "light",
       "breadth": "whole change",
       "reviewed": ["<path>"],
       "cold": false,
+      "input_key": "<key captured with the step-9 snapshot>",
       "checks": "nothing affected",
       "rewritten_by_checks": [],
       "reviewers": [
         {
-          "name": "review-tracer",
+          "name": "review-generalist",
+          "completed": true,
           "tokens": 117880,
           "tool_calls": 28,
           "duration_s": 547
@@ -63,6 +65,11 @@ example below is valid as written.
     {
       "claim": "<one line>",
       "evidence": "<what killed it>"
+    },
+    {
+      "id": 5,
+      "claim": "<a stored finding that new evidence disproved>",
+      "evidence": "<what killed it>"
     }
   ]
 }
@@ -72,7 +79,7 @@ The enumerated fields take these values:
 
 | Field                    | Values                                            |
 | ------------------------ | ------------------------------------------------- |
-| `runs[].kind`            | `first`, `later`                                  |
+| `runs[].kind`            | `first`, `later`, `final`                         |
 | `runs[].tier`            | `light`, `full`                                   |
 | `runs[].breadth`         | `whole change`, `narrowed`, `none`                |
 | `runs[].checks`          | `passed`, `failed`, `aborted`, `stubbed`, `nothing affected` |
@@ -83,19 +90,22 @@ The enumerated fields take these values:
 | `findings[].decision`    | `fix now`, `follow-up`, `decline`, `undecided`    |
 
 - **Ids** are plain integers that never repeat: a later run continues from the
-  highest id. A regression reopens its old id.
-- **`runs[].tier`** is the reviewer set that actually ran: `full` only when
-  `review-generalist`, `review-tracer` and `review-panel` all ran, otherwise
-  `light` (anything less: one reviewer, or the verdict lane with or without
-  the cold lane). The cold lane does not count toward the tier. It is spawned
-  as a `review-lane`, so it can never be one of the three the `full` test
-  names; counting it could only blur `light`, turning "the verdict lane alone"
-  and "the verdict lane plus a cold lane" into the same recorded value when
-  they are different reviews. `cold` records it instead.
-- **`runs[].cold`** is `true` when the cold lane ran, `false` otherwise. Like
-  `reviewed` it feeds no trigger; it is the audit trail answering "did an
-  unledgered reviewer see this run", which is otherwise unanswerable from the
-  record. Absent on runs written before it existed; read that as `false`.
+  highest id in `findings` and `refuted` together. A regression reopens its
+  old id. A stored finding moved to `refuted` keeps its `id` there, so the
+  id is never given to another finding.
+- **`runs[].tier`** records the reviewer set that ran. It is `full` only when
+  `review-generalist`, `review-tracer` and `review-panel` all ran. Otherwise
+  it is `light`. A final run uses one `review-lane`, so its tier is `light`.
+- **`runs[].cold`** is `true` when the independent reviewer ran. It is
+  `false` on ordinary new runs. Read an absent value as `false`. Older
+  `cold: true` runs are history, not evidence of final completion.
+- **`runs[].input_key`** binds review and checks to the exact inputs. Capture
+  it with the step-9 snapshot, after foreground lint and typecheck but before
+  reviewers and background tests. Recompute it after work ends. If it
+  changes, do not claim that the result covers the new inputs.
+- **`runs[].reviewers[].completed`** is `true` only after that reviewer's
+  full report arrives and its child reports are resolved. A waiting
+  notification or missing field does not prove completion.
 - **`runs[].rewritten_by_checks`** lists files the background checks changed
   (for example `eslint --fix`); empty when none.
 - **`runs[].uncovered`** lists what nothing checked, in two forms: a bare
@@ -116,42 +126,20 @@ The enumerated fields take these values:
   and the two checks that did run cannot speak for the one that did not. The
   retired `not run` meant every typecheck target had been discounted, under a
   discount rule that no longer exists. Same shape of English, different fact.
-- **`runs[].breadth`** is the review set the reviewers actually received, and
-  **`runs[].reviewed`** lists those paths. A `whole change` run records the
-  whole changed-file list; a `narrowed` run records only the moved and entered
-  files, and also an outside-anchor-only run, which carries `reviewed: []`
-  with `cold: true`; `none` is a run that spawned no reviewers at all and
-  carries `reviewed: []`. For when that is, read Phase 0b's two gates in
-  full — every qualifier of each — rather than a short form of them.
+- **`runs[].breadth`** records the review set. **`runs[].reviewed`** lists
+  those paths. A `whole change` run lists every changed path. A `narrowed`
+  run lists moved and entered paths. An outside-anchor-only run has
+  `breadth: "narrowed"` and `reviewed: []`. A run with no reviewer has
+  `breadth: "none"` and `reviewed: []`. Read Phase 0b for the skip gates.
+  A final run always records `whole change` and every changed path.
 
-  **`breadth` is what both triggers read** — the whole-change-total trigger
-  in the Escalate list and the refresh rule in the Widen list, which
-  `SKILL.md` deliberately keeps apart, so do not call either an escalation;
-  `reviewed` feeds neither. A `none` run is skipped by the refresh rule rather than counted,
-  so `WHOLE_CHANGE_REFRESH_RUNS` decision-only runs cannot force a
-  whole-change pass on their own, and skipped runs do not fill the window —
-  a state made entirely of them never reaches the rule's floor and never
-  fires. A run with no `breadth` at all is skipped the same way, whatever it
-  reviewed.
-
-  `reviewed` is the audit trail: what the **non-cold** reviewers were handed,
-  an upper bound on what any of *them* opened, so a whole-change run lists
-  every file even if a reviewer read a third of them. It is not an upper bound
-  on the run: the cold lane is handed the whole change whatever the breadth,
-  and `cold: true` is what says so. Read the two fields together, or a
-  narrowed run reads as though nobody opened a file the cold lane went through
-  end to end. It is what makes a `breadth` claim checkable after the fact
-  rather than self-asserted, and what to read when a defect survived several
-  runs and the question is who was given the file.
-
-- **`version`** is `2` from the run that introduced `breadth`/`reviewed`. A
-  stored run without `breadth` did not record what it reviewed, so the refresh
-  rule skips it exactly like a `none` run, and the whole-change-total trigger
-  reads its `kind` and `tier` rather than assuming either. Do not rewrite old
-  entries
-  to backfill it: the information is not recoverable, and guessing it either
-  forces an expensive whole-change run on every in-flight branch or silently
-  disables the rule.
+  The whole-change-total trigger reads `breadth`. Final completion also
+  checks `breadth`, `reviewed` and `cold`. Run count does not trigger a
+  refresh. Older later runs may combine a narrowed verdict review with a
+  whole-change cold review; their `reviewed` list covers only the former.
+- **`version`** stays `2`. Do not backfill old runs. For old runs without
+  `breadth`, the whole-change-total trigger reads `kind` and `tier`. Missing
+  final fields mean a final review is still pending.
 - **`anchors`** lists every file the finding depends on, refreshed to current
   line numbers on each verdict.
 - **`raised_in_run`** is the 1-based index of the run that first raised the
@@ -188,7 +176,79 @@ The enumerated fields take these values:
   `files` is equally an outside anchor and a file that left the change, and
   the stored state cannot tell them apart.
 - **Reviewer figures** come only from completion notifications; write `null`
-  when a notification did not carry one.
+  when a notification did not carry one. Sum reported reviewer tokens across
+  every run for the branch. Mark the sum partial if any token figure is
+  missing or `null`. This is reviewer usage, not total session or model cost.
+
+## Final completion
+
+The state may have **`final_review`**, with `input_key`,
+`outside_anchors_sha256` and a 1-based `run` index. Write it only after a
+completed independent final review, once Phase 4 has written
+`outside_anchors`, and copy `outside_anchors_sha256` from the helper's output
+at that point. Its run
+must have `kind: "final"`, the matching `input_key`, `cold: true`,
+`breadth: "whole change"`, every changed path in `reviewed`, and a
+`review-lane` reviewer with `completed: true`. Completed initial reviewer
+coverage must precede it. That means a whole-change `first` run with every
+required reviewer complete, or a later whole-change full-tier repair. Every
+changed path must be in the `reviewed` list of that run or of a later run
+before the final run. Every
+recorded reviewer on that run must be complete. No uncovered reviewer
+dimension may remain. Later checks can repair mechanical check failures.
+Legacy runs without completion fields need a full repair before final
+review. Missing coverage from any later ordinary review also requires a
+subsequent whole-change full repair. Neither an unchanged run nor the final
+reviewer clears that missing coverage. `--final` cannot replace the initial
+review tier.
+
+`.pre-review/<key>.context.txt` holds the exact final-review context. It
+contains no finding-derived text: no follow-up entries generated from
+findings, no `[withheld: …]` markers and no `withheld:` header. It also
+excludes the scope hint, the CI summary, previous findings, run numbers,
+status, timestamps and usage figures. Write it in this layout, with LF line endings, one blank
+line between sections, and every section present:
+
+```
+INTENT
+<sections 1–5 of the description as settled at step 9, without finding-generated entries>
+
+BINDING SOURCES
+<path> <blob sha>
+
+AUTHORITATIVE SOURCES
+<one line per source: a path with its blob sha, or a repository with its pin; or the line "No external contract.">
+```
+
+List paths in each section in byte order. When the file exists, read it
+first and rewrite it only when one of these inputs changed.
+
+Use this command to check freshness and completion:
+
+```
+node scripts/pre-review/snapshot.mjs final --base <sha> --state-file .pre-review/<key>.json --context-file .pre-review/<key>.context.txt
+```
+
+It returns `input_key`, `outside_anchors_sha256`, `status` (`pending`,
+`blocked` or `complete`) and `reasons`. The key binds the resolved base,
+current branch, changed file contents and exact context bytes. Outside
+finding anchors are not in the key, because Phase 4 rebuilds that map from
+the run's own findings. The helper compares their current content with
+`outside_anchors`, and completion also requires the current digest to equal
+the one on `final_review`. Record this key
+with the step-9 snapshot, before reviewers and background tests. A different
+key at the end requires new work.
+The latest run must match it, with checks `passed` or `nothing affected` and
+no uncovered work. State snapshots must also match the current inputs.
+
+Open or partially fixed blockers prevent completion, including deferred and
+declined blockers. Unresolved normal findings marked `fix now` or `undecided`
+also prevent completion. Missing runs or findings block completion. A
+missing final marker means pending when the other requirements pass. A historical
+cold review alone never proves completion. `--full --final` clears the final
+record and forces new work. A repeated `--final` reuses a valid completed
+result. Ordinary runs may report completion only when this check returns
+`complete`.
 
 ## Snapshot line
 
@@ -240,7 +300,7 @@ When the file does not exist yet, write:
 
    ```
    <details>
-   <summary>Pre-review: 12 findings · 7 fixed · 1 moot · 2 follow-up · 1 declined · 1 open (0 merge-blockers) · 0 undecided · checks nothing affected</summary>
+   <summary>Pre-review: 12 findings · 7 fixed · 1 moot · 2 follow-up · 1 declined · 1 open (0 merge-blockers) · 0 undecided · checks nothing affected · final pending</summary>
 
    <!-- pre-review-snapshot v1 base=… branch=… reviewed-at=… tier=… files=… files-sha256=… -->
 
@@ -272,7 +332,11 @@ in the summary's merge-blocker total. A PR that ships with a known blocker
 says so on its own description; it is not reported as resolved because
 someone chose to defer it.
 
-The summary must match the state exactly. It is counted in five terms —
+The summary must match the state exactly. Its `final` status is the current
+result from `snapshot.mjs final`: `pending`, `blocked` or `complete`. Do not
+infer completion from a clean findings list or an old final record.
+
+Findings are counted in five terms -
 `fixed`, `moot`, `follow-up`, `declined`, `open` — which partition the
 findings and sum to the total. `open — merge-blocker` is a sixth *row* of the
 cascade above but not a sixth term: it counts under `open`. `(N

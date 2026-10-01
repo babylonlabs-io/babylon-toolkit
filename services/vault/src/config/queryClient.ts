@@ -37,12 +37,22 @@ const isNonRetryableHttpError = (error: unknown): boolean => {
   return status !== undefined && NON_RETRYABLE_HTTP_STATUSES.has(status);
 };
 
+const isExplicitlyNonRetryable = (error: unknown): boolean =>
+  typeof error === "object" &&
+  error !== null &&
+  "retryable" in error &&
+  error.retryable === false;
+
 /**
  * The app's default retry policy for queries and mutations. Exported so a
  * query that adds its own non-retryable cases can keep these ones too.
  */
 export const shouldRetry = (failureCount: number, error: Error): boolean => {
   if (failureCount >= 3) {
+    return false;
+  }
+
+  if (isExplicitlyNonRetryable(error)) {
     return false;
   }
 

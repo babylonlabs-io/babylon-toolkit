@@ -1,4 +1,8 @@
 export {
+  VaultClaimableByNotFoundError,
+  isVaultClaimableByNotFoundError,
+} from "./claimable-event-error";
+export {
   resolveProtocolAddresses,
   type ProtocolAddresses,
 } from "./contract-address-resolver";
@@ -29,6 +33,11 @@ export {
   RegistrationLogsUnavailableError,
   isRegistrationLogsUnavailableError,
 } from "./registration-logs-error";
+export {
+  assertRegisteredPayoutScriptBounds,
+  findRegistrationRecord,
+  registrationPrePeginTxHash,
+} from "./registration-records";
 // Pure validation used by ETH registry readers; re-exported here so callers
 // do not need the broad core/primitives barrel merely to validate uint16 data.
 export { assertValidVaultCoreVersion } from "../../primitives/vaultCoreVersion";
@@ -46,12 +55,14 @@ export type {
   OperationKeyQuery,
   OperationKeyReader,
   PegInConfiguration,
+  PeginRegistrationRecord,
   ProtocolParamsReader,
   RawOperationKeys,
   RawPayoutScripts,
   TBVProtocolParams,
   UniversalChallengerReader,
   VaultBasicInfo,
+  VaultClaimableByEvent,
   VaultData,
   VaultKeeperReader,
   VaultProtocolInfo,

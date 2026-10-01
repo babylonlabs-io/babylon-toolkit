@@ -57,7 +57,7 @@ async function screenAddress(
         data: { address, error: error.message },
       });
     } else {
-      logger.error(error instanceof Error ? error : new Error(String(error)), {
+      logger.error(error, {
         data: { context: "Address screening unexpected error", address },
       });
     }

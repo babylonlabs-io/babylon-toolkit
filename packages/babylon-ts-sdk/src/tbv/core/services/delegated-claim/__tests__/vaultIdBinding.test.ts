@@ -49,11 +49,36 @@ describe("peginTxidFromClaimPsbt", () => {
       /no PegIn input/,
     );
   });
+
+  it("rejects a Claim spending PegIn output 0 instead of the depositor-claim output 1", () => {
+    const psbt = new Psbt();
+    psbt.addInput({ hash: PEGIN_TXID, index: 0 });
+    expect(() => peginTxidFromClaimPsbt(psbt.toBase64())).toThrow(
+      "Claim PSBT must have exactly one input spending PegIn output 1; it has 1 input(s) and the first spends output 0.",
+    );
+  });
+
+  it("rejects a Claim with a second input beside PegIn output 1", () => {
+    const psbt = new Psbt();
+    psbt.addInput({ hash: PEGIN_TXID, index: 1 });
+    psbt.addInput({ hash: OTHER_TXID, index: 0 });
+    expect(() => peginTxidFromClaimPsbt(psbt.toBase64())).toThrow(
+      "Claim PSBT must have exactly one input spending PegIn output 1; it has 2 input(s) and the first spends output 1.",
+    );
+  });
 });
 
 describe("peginTxidFromClaimTx", () => {
   it("reads the first input's prevout txid in display order", () => {
     expect(peginTxidFromClaimTx(claimTx(PEGIN_TXID))).toBe(PEGIN_TXID);
+  });
+
+  it("rejects a signed Claim spending PegIn output 0", () => {
+    const tx = new Transaction();
+    tx.addInput(Buffer.from(PEGIN_TXID, "hex").reverse(), 0);
+    expect(() => peginTxidFromClaimTx(tx)).toThrow(
+      "Artifacts file's claim_tx must have exactly one input spending PegIn output 1; it has 1 input(s) and the first spends output 0.",
+    );
   });
 });
 

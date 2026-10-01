@@ -81,6 +81,7 @@ export function useBroadcastState({
     try {
       await vaultHandleBroadcast({
         vaultId: activity.id,
+        batchVaultIds,
         depositorEthAddress,
         pendingPegin,
         updatePendingPeginStatus,
@@ -112,7 +113,7 @@ export function useBroadcastState({
         },
       });
     } catch (err) {
-      logger.error(err instanceof Error ? err : new Error(String(err)), {
+      logger.error(err, {
         data: { context: "Broadcast failed" },
       });
       setLocalBroadcasting(false);

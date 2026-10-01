@@ -33,16 +33,23 @@ import { useBTCWallet } from "@/context/wallet";
 import { COPY } from "@/copy";
 import { DepositFlowStep } from "@/hooks/deposit/depositFlowSteps/types";
 import { useBtcWalletUnlock } from "@/hooks/useBtcWalletUnlock";
+import { useLedgerVaultDevice } from "@/hooks/useLedgerVaultDevice";
+import { logger } from "@/infrastructure";
 import type { RegistrationDepthProgress } from "@/services/vault/ethConfirmationGate";
 import type { PayoutSigningProgress } from "@/services/vault/vaultPayoutSignatureService";
 import type { PeginSigningProgress } from "@/services/vault/vaultTransactionService";
-import type { DepositErrorContent } from "@/utils/errors";
+import {
+  type DepositErrorContent,
+  isDeviceDisconnectedContent,
+} from "@/utils/errors";
 
 import { BtcConfirmationDetailContainer } from "./BtcConfirmationDetailContainer";
 import { CompletedStepsPill } from "./CompletedStepsPill";
 import { DepositCardShell } from "./DepositCardShell";
+import { DeviceAppWaitDetail } from "./DeviceAppWaitDetail";
 import { EthConfirmationDetail } from "./EthConfirmationDetail";
 import { GroupedProgress } from "./GroupedProgress";
+import { LedgerHint } from "./LedgerHint";
 import { PeginFeeWarning } from "./PeginFeeWarning";
 import { ProgressBar } from "./ProgressBar";
 import { ProviderWaitDetail } from "./ProviderWaitDetail";
@@ -176,6 +183,35 @@ export interface DepositProgressViewProps {
   preSignFeeSelector?: ReactNode;
   /** Disables the pre-sign entry CTA (e.g. an invalid custom fee rate). */
   signDisabled?: boolean;
+  /**
+   * A pause the depositor ends with a click — the Ledger activation split
+   *: the secret is retrieved on the Babylon Vault app, then the flow
+   * waits here for the depositor to open the Ethereum app. `hint` renders
+   * under the active step and `ctaLabel` becomes the enabled footer action.
+   */
+  continuePrompt?: {
+    hint: string;
+    ctaLabel: string;
+    onContinue: () => void;
+  } | null;
+  /**
+   * Called when the depositor cancels a held device-app wait from this view,
+   * alongside ending the wait on the provider, so the owning flow can treat
+   * the resulting rejection as a stop.
+   */
+  onAppWaitCanceled?: () => void;
+}
+
+/** Wallet-specific inputs to the active-step panel; `null` for non-Ledger wallets. */
+interface LedgerStepContext {
+  /** The app a held device operation waits for, or `null` when none is held. */
+  awaitingAppName: string | null;
+}
+
+/** Identity of an error's content, for state that must follow the error, not its object. */
+function errorContentKey(error: DepositErrorContent): string {
+  const body = typeof error.body === "string" ? error.body : "";
+  return [error.title, body, error.diagnostics ?? ""].join("\u0000");
 }
 
 /**
@@ -196,6 +232,10 @@ function resolveActiveStepDetail(params: {
    * parked on the same step are not awaiting this modal's wallet approval.
    */
   isActiveVault?: boolean;
+  /** Ledger device context; `null` for every other wallet. */
+  ledger: LedgerStepContext | null;
+  /** Hint of an active {@link DepositProgressViewProps.continuePrompt}. */
+  continueHint?: string | null;
 }): ReactNode {
   const {
     currentStep,
@@ -203,7 +243,24 @@ function resolveActiveStepDetail(params: {
     ethConfirmationDetail,
     wotsApprovalHint,
     isActiveVault,
+    ledger,
+    continueHint,
   } = params;
+  // A held device operation belongs to the lane the flow is driving, and
+  // outranks every other panel: nothing else moves until the app is open.
+  if (ledger?.awaitingAppName && isActiveVault !== false) {
+    return (
+      <DeviceAppWaitDetail
+        appName={ledger.awaitingAppName}
+        showReapproveNotice={
+          currentStep === DepositFlowStep.BROADCAST_PRE_PEGIN
+        }
+      />
+    );
+  }
+  if (continueHint && isActiveVault !== false) {
+    return <LedgerHint>{continueHint}</LedgerHint>;
+  }
   if (currentStep === DepositFlowStep.SIGN_PEGIN_BTC) {
     return <PeginFeeWarning />;
   }
@@ -211,11 +268,29 @@ function resolveActiveStepDetail(params: {
   // popup and the receipt wait, which have nothing to count yet.
   if (currentStep === DepositFlowStep.SUBMIT_PEGIN && ethConfirmationDetail) {
     return (
-      <EthConfirmationDetail
-        confirmations={ethConfirmationDetail.confirmations}
-        required={ethConfirmationDetail.required}
-      />
+      <>
+        <EthConfirmationDetail
+          confirmations={ethConfirmationDetail.confirmations}
+          required={ethConfirmationDetail.required}
+        />
+        {ledger && (
+          <LedgerHint>{COPY.deposit.ledger.switchBackHint}</LedgerHint>
+        )}
+      </>
     );
+  }
+  // The registration's wallet popup: on a shared Ledger it needs the
+  // Ethereum app, which the dApp cannot see, so the hint is conditional.
+  if (currentStep === DepositFlowStep.SUBMIT_PEGIN && ledger) {
+    return <LedgerHint>{COPY.deposit.ledger.ethAppHint}</LedgerHint>;
+  }
+  // The Pre-PegIn sign may need the deposit approved again: switching apps
+  // clears it, and the broadcast then re-runs the approval on the device.
+  if (currentStep === DepositFlowStep.BROADCAST_PRE_PEGIN && ledger) {
+    return <LedgerHint>{COPY.deposit.ledger.reapproveNotice}</LedgerHint>;
+  }
+  if (currentStep === DepositFlowStep.AWAIT_BTC_CONFIRMATION && ledger) {
+    return <LedgerHint>{COPY.deposit.ledger.longWait}</LedgerHint>;
   }
   if (
     currentStep === DepositFlowStep.SUBMIT_WOTS_KEYS &&
@@ -233,18 +308,34 @@ function resolveActiveStepDetail(params: {
     btcConfirmationDetail
   ) {
     return (
-      <BtcConfirmationDetailContainer
-        prePeginTxid={btcConfirmationDetail.prePeginTxid}
-        requiredDepth={btcConfirmationDetail.requiredDepth}
-        depositIds={btcConfirmationDetail.depositIds}
-      />
+      <>
+        <BtcConfirmationDetailContainer
+          prePeginTxid={btcConfirmationDetail.prePeginTxid}
+          requiredDepth={btcConfirmationDetail.requiredDepth}
+          depositIds={btcConfirmationDetail.depositIds}
+        />
+        {ledger && <LedgerHint>{COPY.deposit.ledger.longWait}</LedgerHint>}
+      </>
     );
   }
   const isProviderWait =
     currentStep === DepositFlowStep.AWAIT_PAYOUT_TRANSACTIONS ||
     currentStep === DepositFlowStep.AWAIT_VP_VERIFICATION ||
     currentStep === DepositFlowStep.AWAIT_ACTIVATION_CONFIRMATION;
-  return isProviderWait ? <ProviderWaitDetail step={currentStep} /> : null;
+  if (!isProviderWait) return null;
+  // The long provider waits come back to a Bitcoin signature (or, for the
+  // activation confirmation, to nothing) — only those two need the note.
+  const showLongWaitHint =
+    ledger !== null &&
+    currentStep !== DepositFlowStep.AWAIT_ACTIVATION_CONFIRMATION;
+  return (
+    <>
+      <ProviderWaitDetail step={currentStep} />
+      {showLongWaitHint && (
+        <LedgerHint>{COPY.deposit.ledger.longWait}</LedgerHint>
+      )}
+    </>
+  );
 }
 
 export function DepositProgressView(props: DepositProgressViewProps) {
@@ -275,6 +366,8 @@ export function DepositProgressView(props: DepositProgressViewProps) {
     onCancelSigning,
     preSignFeeSelector,
     signDisabled = false,
+    continuePrompt = null,
+    onAppWaitCanceled,
   } = props;
 
   // Every flow that renders this view requires the BTC wallet, so surface a
@@ -284,6 +377,16 @@ export function DepositProgressView(props: DepositProgressViewProps) {
   const { unlock, isUnlocking } = useBtcWalletUnlock(
     "Wallet unlock from deposit progress",
   );
+  const ledgerDevice = useLedgerVaultDevice();
+  const [isReconnecting, setIsReconnecting] = useState(false);
+  // The error a failed reconnect was attempted against, by content: the
+  // notice belongs to that error only, so a later, different error opens
+  // without it. Content, not identity — the payout view rebuilds its error
+  // object on every render.
+  const [reconnectFailedFor, setReconnectFailedFor] = useState<string | null>(
+    null,
+  );
+  const errorKey = error ? errorContentKey(error) : null;
 
   // Copy state is local rather than core-ui's `useCopy`, which flips to
   // "copied" optimistically and swallows a rejected write. This button exists
@@ -333,17 +436,75 @@ export function DepositProgressView(props: DepositProgressViewProps) {
   // form) instead of starting a flow that would only stall at the signing call.
   const showUnlockCta = !started && walletLocked;
 
+  // A device operation held for the user to open the vault app. The provider
+  // reports it for every wallet that implements the affordance, so it needs no
+  // Ledger check of its own.
+  const awaitingAppName =
+    started &&
+    !error &&
+    !isComplete &&
+    !isTerminalSuccess &&
+    ledgerDevice.appWait.status === "awaiting-app"
+      ? ledgerDevice.appWait.expectedAppName
+      : null;
+  const showCancelAppWait = awaitingAppName !== null && !showUnlockCta;
+
   // Cancel affordance only while a device sign is actually in flight; when
   // false (every non-Ledger flow) the button behaves exactly as before.
   const showCancelSigning =
     started &&
     !showUnlockCta &&
+    !showCancelAppWait &&
     isProcessing &&
     canCancelSigning &&
     !error &&
     !isComplete &&
     !isTerminalSuccess &&
     onCancelSigning !== undefined;
+
+  const showContinuePrompt =
+    started &&
+    !showUnlockCta &&
+    !showCancelAppWait &&
+    continuePrompt !== null &&
+    !error &&
+    !isComplete &&
+    !isTerminalSuccess;
+
+  // A lost device session recovers through a reconnect: the WebHID picker
+  // needs this click's user gesture, so the reconnect runs here rather than
+  // inside the retried flow. Offered with or without a retry — before the
+  // registration there is nothing to resume, so the reconnect closes the
+  // modal and the depositor starts again with a live device.
+  const showReconnect =
+    started && error !== null && isDeviceDisconnectedContent(error);
+
+  const handleReconnect = useCallback(async () => {
+    setIsReconnecting(true);
+    setReconnectFailedFor(null);
+    try {
+      await ledgerDevice.reconnect();
+    } catch (reconnectError) {
+      // The button stays available: a dismissed picker or a device showing
+      // the wrong app is an ordinary outcome the depositor can fix and retry.
+      logger.warn("Ledger reconnect from the deposit progress failed", {
+        reason:
+          reconnectError instanceof Error
+            ? reconnectError.message
+            : String(reconnectError),
+      });
+      setReconnectFailedFor(errorKey);
+      return;
+    } finally {
+      setIsReconnecting(false);
+    }
+    (onRetry ?? onClose)();
+  }, [ledgerDevice, errorKey, onRetry, onClose]);
+
+  const handleCancelAppWait = useCallback(() => {
+    onAppWaitCanceled?.();
+    ledgerDevice.cancelAppWait();
+  }, [onAppWaitCanceled, ledgerDevice]);
 
   // On completion, advance past the last row so every circle renders as ✓.
   // The pre-entry state (`!started`) keeps the REAL step: work already done
@@ -384,16 +545,29 @@ export function DepositProgressView(props: DepositProgressViewProps) {
   const totalGroups = STEP_GROUPS.length;
   const showCompletedGroupsPill = completedGroups >= 1;
 
+  const isLedgerVault = ledgerDevice.isLedgerVault;
   const steps = useMemo(
-    () => buildStepItems(payoutSigningProgress, peginSigningProgress),
-    [payoutSigningProgress, peginSigningProgress],
+    () =>
+      buildStepItems(payoutSigningProgress, peginSigningProgress, {
+        isLedgerVault,
+      }),
+    [payoutSigningProgress, peginSigningProgress, isLedgerVault],
   );
+
+  const ledgerStepContext = useMemo<LedgerStepContext | null>(
+    () =>
+      isLedgerVault || awaitingAppName !== null ? { awaitingAppName } : null,
+    [isLedgerVault, awaitingAppName],
+  );
+  const continueHint = showContinuePrompt ? continuePrompt?.hint : null;
 
   const activeStepDetail = resolveActiveStepDetail({
     currentStep,
     btcConfirmationDetail,
     ethConfirmationDetail,
     wotsApprovalHint,
+    ledger: ledgerStepContext,
+    continueHint,
   });
 
   // Split lanes resolve the detail from each lane's OWN step (so two
@@ -408,8 +582,16 @@ export function DepositProgressView(props: DepositProgressViewProps) {
         ethConfirmationDetail,
         wotsApprovalHint,
         isActiveVault: opts?.isActiveVault,
+        ledger: ledgerStepContext,
+        continueHint,
       }),
-    [btcConfirmationDetail, ethConfirmationDetail, wotsApprovalHint],
+    [
+      btcConfirmationDetail,
+      ethConfirmationDetail,
+      wotsApprovalHint,
+      ledgerStepContext,
+      continueHint,
+    ],
   );
 
   return (
@@ -467,6 +649,14 @@ export function DepositProgressView(props: DepositProgressViewProps) {
             </Callout>
           )}
 
+          {showReconnect &&
+            errorKey !== null &&
+            reconnectFailedFor === errorKey && (
+              <Callout variant="warning">
+                {COPY.deposit.ledger.reconnectFailed}
+              </Callout>
+            )}
+
           {isComplete && <Callout variant="success">{successMessage}</Callout>}
 
           {isTerminalSuccess && (
@@ -483,11 +673,15 @@ export function DepositProgressView(props: DepositProgressViewProps) {
             disabled={
               showUnlockCta
                 ? isUnlocking
-                : showCancelSigning
-                  ? cancelSigningRequested
-                  : started
-                    ? !canClose && !isTerminalSuccess
-                    : signDisabled
+                : showCancelAppWait || showContinuePrompt
+                  ? false
+                  : showReconnect
+                    ? isReconnecting
+                    : showCancelSigning
+                      ? cancelSigningRequested
+                      : started
+                        ? !canClose && !isTerminalSuccess
+                        : signDisabled
             }
             variant="contained"
             color="secondary"
@@ -495,13 +689,19 @@ export function DepositProgressView(props: DepositProgressViewProps) {
             onClick={
               showUnlockCta
                 ? unlock
-                : showCancelSigning
-                  ? onCancelSigning
-                  : !started
-                    ? onSign
-                    : error && onRetry
-                      ? onRetry
-                      : onClose
+                : showCancelAppWait
+                  ? handleCancelAppWait
+                  : showContinuePrompt
+                    ? continuePrompt?.onContinue
+                    : showReconnect
+                      ? handleReconnect
+                      : showCancelSigning
+                        ? onCancelSigning
+                        : !started
+                          ? onSign
+                          : error && onRetry
+                            ? onRetry
+                            : onClose
             }
           >
             {showUnlockCta ? (
@@ -512,6 +712,12 @@ export function DepositProgressView(props: DepositProgressViewProps) {
               )
             ) : !started ? (
               COPY.deposit.progress.buttons.signTransaction
+            ) : showCancelAppWait ? (
+              COPY.deposit.ledger.waitingForApp.cancel
+            ) : showContinuePrompt ? (
+              continuePrompt?.ctaLabel
+            ) : showReconnect ? (
+              COPY.deposit.ledger.reconnectButton
             ) : showCancelSigning ? (
               COPY.deposit.progress.buttons.cancelSigning
             ) : canContinueInBackground ? (

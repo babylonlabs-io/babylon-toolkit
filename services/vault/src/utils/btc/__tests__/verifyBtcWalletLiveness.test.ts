@@ -35,6 +35,35 @@ describe("shouldProbeWalletLiveness", () => {
 });
 
 describe("verifyBtcWalletLiveness", () => {
+  it("passes a lost hardware-device session through with its typed code", async () => {
+    // The caller needs the code to offer a reconnect; the generic
+    // "unresponsive wallet" copy would hide it.
+    const lost = Object.assign(new Error("Ledger Vault is not connected"), {
+      code: "DEVICE_DISCONNECTED",
+    });
+    const wallet = makeWallet({
+      getAddress: async () => {
+        throw lost;
+      },
+    });
+
+    await expect(
+      verifyBtcWalletLiveness(wallet, EXPECTED_ADDRESS),
+    ).rejects.toBe(lost);
+  });
+
+  it("still reports any other address-read failure as an unresponsive wallet", async () => {
+    const wallet = makeWallet({
+      getAddress: async () => {
+        throw Object.assign(new Error("locked"), { code: "DEVICE_LOCKED" });
+      },
+    });
+
+    await expect(
+      verifyBtcWalletLiveness(wallet, EXPECTED_ADDRESS),
+    ).rejects.toBeInstanceOf(BtcWalletLivenessError);
+  });
+
   it("does not round-trip via connectWallet unless probeConnection is set", async () => {
     const connectWallet = vi.fn(async () => {});
     const wallet = makeWallet({

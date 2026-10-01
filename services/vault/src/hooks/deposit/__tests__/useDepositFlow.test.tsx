@@ -555,6 +555,7 @@ async function setupDefaultMocks() {
     registerPeginBatchAndWait,
     signAndSubmitPayouts,
     signProofOfPossession,
+    submitWotsPublicKey,
     waitForPayoutReadiness,
     waitForWotsReadiness,
   } = vi.mocked(await import("../depositFlowSteps"));
@@ -620,6 +621,7 @@ async function setupDefaultMocks() {
     terminalVaultIds: new Set<Hex>(),
   });
   vi.mocked(signAndSubmitPayouts).mockResolvedValue(undefined);
+  vi.mocked(submitWotsPublicKey).mockResolvedValue(undefined);
   vi.mocked(broadcastPrePeginTransaction).mockResolvedValue(
     "mockBroadcastTxId",
   );
@@ -1578,6 +1580,36 @@ describe("useDepositFlow", () => {
       ]);
     });
 
+    it("shows the original-account guidance in a WOTS warning", async () => {
+      const { submitWotsPublicKey } = await import("../depositFlowSteps");
+      vi.mocked(submitWotsPublicKey).mockRejectedValue(
+        new Error("Authentication failed", {
+          cause: { code: "WALLET_ACCOUNT_NOT_SUPPORTED" },
+        }),
+      );
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      const depositResult = await executeDepositFlow(result);
+      expect(depositResult?.warnings).toHaveLength(2);
+      expect(depositResult?.warnings?.[0]?.message).toContain(
+        COPY.deposit.payoutSignatureErrors.walletAccountNotSupported.message,
+      );
+    });
+
+    it("shows the original-account guidance in a payout warning", async () => {
+      const { signAndSubmitPayouts } = await import("../depositFlowSteps");
+      vi.mocked(signAndSubmitPayouts).mockRejectedValue(
+        new Error("Authentication failed", {
+          cause: { code: "WALLET_ACCOUNT_NOT_SUPPORTED" },
+        }),
+      );
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      const depositResult = await executeDepositFlow(result);
+      expect(depositResult?.warnings).toHaveLength(2);
+      expect(depositResult?.warnings?.[0]?.message).toContain(
+        COPY.deposit.payoutSignatureErrors.walletAccountNotSupported.message,
+      );
+    });
+
     it("records a WOTS completion marker for every vault whose submission resolved", async () => {
       // The dashboard row suppresses "Submit WOTS Key" off these markers. The
       // resume path is covered separately; this pins the first-run path, whose
@@ -2499,6 +2531,44 @@ describe("useDepositFlow", () => {
       // renders no Retry button at all.
       const resolved = await settleAsCancelRejection();
       expect(resolved).toBeNull();
+      expect(result.current.error).toEqual(DEPOSIT_ERRORS.signingCanceled);
+    });
+
+    it("surfaces a canceled device-app wait as the signing-cancelled copy, not the wrong-app copy", async () => {
+      const { preparePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultTransactionService"),
+      );
+      const { wallet, settle } = pendingSignWallet(true);
+      vi.mocked(preparePeginTransaction).mockImplementation(async (w) => {
+        await w.signPsbt("psbt0", {});
+        return MOCK_BATCH_RESULT as any;
+      });
+      const { result } = renderHook(() =>
+        useDepositFlow({ ...MOCK_PARAMS, btcWalletProvider: wallet as any }),
+      );
+      let flowPromise!: Promise<unknown>;
+      act(() => {
+        flowPromise = result.current.executeDeposit();
+      });
+      await waitFor(() =>
+        expect(result.current.canCancelDeviceSign).toBe(true),
+      );
+
+      // The wait panel's Cancel: the provider ends the announced wait and the
+      // held sign rejects with DEVICE_WRONG_APP.
+      act(() => {
+        result.current.markDeviceWaitCanceled();
+      });
+      await act(async () => {
+        settle.reject(
+          Object.assign(
+            new Error("Canceled while waiting for Babylon Vault Testnet"),
+            { code: "DEVICE_WRONG_APP" },
+          ),
+        );
+        await flowPromise;
+      });
+
       expect(result.current.error).toEqual(DEPOSIT_ERRORS.signingCanceled);
     });
 

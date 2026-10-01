@@ -23,6 +23,7 @@ import type { ReactNode } from "react";
 
 import { COPY } from "@/copy";
 import { useRequiredPrePeginDepth } from "@/hooks/deposit/useRequiredPrePeginDepth";
+import { useLedgerVaultDevice } from "@/hooks/useLedgerVaultDevice";
 import { formatDurationShort } from "@/utils/formatting";
 
 import { computeTotalEstimateMinutes } from "./btcConfirmationProgress";
@@ -60,6 +61,7 @@ export function DepositCardShell({
 }: DepositCardShellProps) {
   const requiredDepth = useRequiredPrePeginDepth(offchainParamsVersion);
   const estimateMinutes = computeTotalEstimateMinutes(requiredDepth);
+  const { isLedgerVault } = useLedgerVaultDevice();
 
   return (
     <div
@@ -83,6 +85,12 @@ export function DepositCardShell({
         <Text variant="body2" className="mt-2 text-accent-secondary">
           {COPY.deposit.progress.summary.description}
         </Text>
+
+        {isLedgerVault && (
+          <Text variant="body2" className="mt-2 text-accent-secondary">
+            {COPY.deposit.ledger.approvalBudget}
+          </Text>
+        )}
 
         {progressBar && <div className="mt-4">{progressBar}</div>}
       </div>

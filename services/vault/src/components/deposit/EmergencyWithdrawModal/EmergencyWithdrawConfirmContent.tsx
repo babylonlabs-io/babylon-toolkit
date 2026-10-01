@@ -10,9 +10,11 @@ import { useState } from "react";
 import type { Hex } from "viem";
 
 import { isActivateAndRedeemBlocked } from "@/components/shared/protocolStatus";
+import { DeviceAppWaitDetail } from "@/components/simple/DepositProgressView/DeviceAppWaitDetail";
 import { COPY } from "@/copy";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import { useVaultApplicationActive } from "@/hooks/useVaultApplicationActive";
+import type { LedgerDeviceStep } from "@/types/ledgerDeviceStep";
 
 interface EmergencyWithdrawConfirmContentProps {
   /** Vault whose application registration gates this exit. */
@@ -24,6 +26,14 @@ interface EmergencyWithdrawConfirmContentProps {
   errorTerminal: boolean;
   onConfirm: () => void;
   onCancel: () => void;
+  /**
+   * The Ledger device step the modal is showing, or `null` for every other
+   * wallet and state. `awaiting-app` shows the wait panel and lets the cancel
+   * button end the wait; `awaiting-continue` shows the switch-app hint and
+   * labels the confirm button Continue; `reconnect-required` labels it
+   * Reconnect Ledger.
+   */
+  ledgerStep?: LedgerDeviceStep | null;
 }
 
 /**
@@ -40,6 +50,7 @@ export function EmergencyWithdrawConfirmContent({
   errorTerminal,
   onConfirm,
   onCancel,
+  ledgerStep = null,
 }: EmergencyWithdrawConfirmContentProps) {
   const [acknowledged, setAcknowledged] = useState(false);
 
@@ -128,13 +139,21 @@ export function EmergencyWithdrawConfirmContent({
           </Callout>
         )}
         {error && <Callout variant="error">{error}</Callout>}
+        {ledgerStep?.kind === "awaiting-app" && (
+          <DeviceAppWaitDetail appName={ledgerStep.appName} />
+        )}
+        {ledgerStep?.kind === "awaiting-continue" && (
+          <Callout variant="info">
+            {COPY.deposit.ledger.activationPause.hint}
+          </Callout>
+        )}
         <div className="flex w-full gap-4">
           <Button
             variant="outlined"
             color="primary"
             className="flex-1 whitespace-nowrap !border-secondary-strokeLight"
             onClick={onCancel}
-            disabled={withdrawing}
+            disabled={withdrawing && ledgerStep?.kind !== "awaiting-app"}
           >
             {COPY.deposit.emergencyWithdraw.cancelButton}
           </Button>
@@ -151,6 +170,10 @@ export function EmergencyWithdrawConfirmContent({
                 <Loader size={16} className="text-accent-contrast" />
                 <span>{COPY.common.confirming}</span>
               </span>
+            ) : ledgerStep?.kind === "awaiting-continue" ? (
+              COPY.deposit.ledger.activationPause.continue
+            ) : ledgerStep?.kind === "reconnect-required" ? (
+              COPY.deposit.ledger.reconnectButton
             ) : error && !errorTerminal ? (
               COPY.deposit.emergencyWithdraw.retryButton
             ) : (

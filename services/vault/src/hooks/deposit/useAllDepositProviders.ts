@@ -16,8 +16,8 @@
 import { useQueries } from "@tanstack/react-query";
 import { useMemo } from "react";
 
-import { fetchAppProviders } from "../../services/providers";
-import type { VaultKeeper, VaultProvider } from "../../types";
+import { fetchAppProviderMetadata } from "../../services/providers";
+import type { VaultProvider } from "../../types";
 import type { VaultActivity } from "../../types/activity";
 
 /** Provider data rarely changes, cache for 5 minutes */
@@ -28,8 +28,6 @@ const PROVIDER_GC_TIME_MS = 10 * 60 * 1000;
 export interface UseAllDepositProvidersResult {
   /** All vault providers across all applications */
   vaultProviders: VaultProvider[];
-  /** All vault keepers across all applications */
-  vaultKeepers: VaultKeeper[];
   /** Loading state */
   loading: boolean;
   /** Error (first error encountered) */
@@ -61,8 +59,8 @@ export function useAllDepositProviders(
   // Step 2: Fetch providers for each application in parallel
   const queries = useQueries({
     queries: applicationEntryPoints.map((appController) => ({
-      queryKey: ["providers", appController],
-      queryFn: () => fetchAppProviders(appController),
+      queryKey: ["providers", appController, "metadata-only"],
+      queryFn: () => fetchAppProviderMetadata(appController),
       staleTime: PROVIDER_STALE_TIME_MS,
       gcTime: PROVIDER_GC_TIME_MS,
       refetchOnMount: false,
@@ -71,9 +69,8 @@ export function useAllDepositProviders(
   });
 
   // Step 3: Merge results
-  const { vaultProviders, vaultKeepers, loading, error } = useMemo(() => {
+  const { vaultProviders, loading, error } = useMemo(() => {
     const allProviders: VaultProvider[] = [];
-    const allVaultKeepers: VaultKeeper[] = [];
     let isLoading = false;
     let firstError: Error | null = null;
 
@@ -91,17 +88,11 @@ export function useAllDepositProviders(
             allProviders.push(provider);
           }
         }
-        for (const vaultKeeper of query.data.vaultKeepers) {
-          if (!allVaultKeepers.some((vk) => vk.id === vaultKeeper.id)) {
-            allVaultKeepers.push(vaultKeeper);
-          }
-        }
       }
     }
 
     return {
       vaultProviders: allProviders,
-      vaultKeepers: allVaultKeepers,
       loading: isLoading,
       error: firstError,
     };
@@ -118,7 +109,6 @@ export function useAllDepositProviders(
 
   return {
     vaultProviders,
-    vaultKeepers,
     loading,
     error,
     findProvider,

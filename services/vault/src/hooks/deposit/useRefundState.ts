@@ -18,6 +18,7 @@ import {
   shouldProbeWalletLiveness,
   verifyBtcWalletLiveness,
 } from "@/utils/btc";
+import { isDeviceDisconnectedError } from "@/utils/errors/deviceErrors";
 
 export interface UseRefundStateProps {
   activity: VaultActivity;
@@ -27,6 +28,8 @@ export interface UseRefundStateResult {
   refunding: boolean;
   refundTxId: string | null;
   error: string | null;
+  /** True when the last attempt failed on a lost hardware-device session. */
+  deviceDisconnected: boolean;
   handleRefund: (feeRate: number) => Promise<void>;
 }
 
@@ -50,6 +53,7 @@ export function useRefundState({
   const [refunding, setRefunding] = useState(false);
   const [refundTxId, setRefundTxId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [deviceDisconnected, setDeviceDisconnected] = useState(false);
 
   // Synchronous reentrancy guard. `refunding` updates async; rapid double-
   // confirms before the next render could both pass the state check and
@@ -116,6 +120,7 @@ export function useRefundState({
 
         setRefunding(true);
         setError(null);
+        setDeviceDisconnected(false);
 
         abortRef.current?.abort();
         abortRef.current = new AbortController();
@@ -187,9 +192,16 @@ export function useRefundState({
             persistRefundSuccess(err.spendingTxid, err.confirmed);
             return;
           }
-          logger.error(err instanceof Error ? err : new Error(String(err)), {
+          logger.error(err, {
             data: { context: "Refund failed", vaultId },
           });
+          const disconnected = isDeviceDisconnectedError(err);
+          setDeviceDisconnected(disconnected);
+          if (disconnected) {
+            setError(COPY.deposit.errors.deviceDisconnected.body);
+            setRefunding(false);
+            return;
+          }
           const message =
             err instanceof Error ? err.message : "Refund transaction failed";
           setError(
@@ -224,5 +236,5 @@ export function useRefundState({
     ],
   );
 
-  return { refunding, refundTxId, error, handleRefund };
+  return { refunding, refundTxId, error, deviceDisconnected, handleRefund };
 }

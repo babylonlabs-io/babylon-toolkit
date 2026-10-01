@@ -71,7 +71,9 @@ export function useDashboardState(connectedAddress: string | undefined) {
   // the safe default.
   const canBorrow = availableToBorrowUsd >= MIN_BORROWABLE_USD;
 
-  const { findProvider } = useVaultProviders();
+  const { findProvider } = useVaultProviders(undefined, {
+    requireCompleteKeeperRoster: false,
+  });
   const { reorderedOrder, clearReorderedOrder } = useReorderOverride();
   const { activatingVaults, clearActivatingVault } = useActivatingVaults();
 

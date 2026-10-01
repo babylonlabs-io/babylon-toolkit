@@ -52,7 +52,7 @@ Use this when you want to point a regular browser at the vault dApp
 with deterministic backend responses (no Playwright).
 
 ```bash
-pnpm --filter vault run e2e:env           # starts the four mock listeners; Ctrl-C tears down cleanly
+pnpm --filter vault run e2e:env           # starts the five mock listeners; Ctrl-C tears down cleanly
 NEXT_PUBLIC_E2E_MODE=1 pnpm --filter vault run dev
 ```
 
@@ -61,6 +61,7 @@ the same ports `playwright.config.ts` uses:
 
 | Port | Purpose                              |
 | ---: | ------------------------------------ |
+| 9995 | Bitcoin observer API (`/observer/...`) |
 | 9996 | mempool API (`/mempool/...`)          |
 | 9997 | eth JSON-RPC (`POST /rpc`)            |
 | 9998 | vault-provider proxy (`/vp-health`, `/rpc/{vp}`) |

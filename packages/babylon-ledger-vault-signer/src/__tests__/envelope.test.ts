@@ -250,7 +250,9 @@ describe("assertDepositTermsDeviceCompatible", () => {
 
   it("accepts the device fee-rate ceiling and rejects one sat/vB above it", () => {
     expect(() => assertDepositTermsDeviceCompatible(makeTerms({ protocolFeeRate: 10_000n }))).not.toThrow();
-    expect(() => assertDepositTermsDeviceCompatible(makeTerms({ protocolFeeRate: 10_001n }))).toThrow(/protocolFeeRate/);
+    expect(() => assertDepositTermsDeviceCompatible(makeTerms({ protocolFeeRate: 10_001n }))).toThrow(
+      /protocolFeeRate/,
+    );
   });
 
   it("accepts the device prepegin max-fee ceiling and rejects one sat above it", () => {

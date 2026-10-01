@@ -20,10 +20,12 @@ import {
 } from "./depositorWalletMismatch";
 import {
   DEVICE_CEREMONY_INVALID_CODE,
+  DEVICE_DISCONNECTED_CODE,
   DEVICE_LOCKED_CODE,
   DEVICE_WRONG_APP_CODE,
   deviceErrorCodeOfFrame,
   isDeviceCeremonyInvalidError,
+  isDeviceDisconnectedError,
   isDeviceLockedError,
   isDeviceWrongAppError,
 } from "./deviceErrors";
@@ -33,6 +35,7 @@ import {
 } from "./userCancellation";
 import { isVaultLifecycleStateError } from "./vaultLifecycleStateError";
 import { isVaultRecordEmptyError } from "./vaultRecordEmpty";
+import { isWalletAccountNotSupported } from "./walletAccountNotSupported";
 import { isWalletMethodNotSupported } from "./walletMethodNotSupported";
 
 /** EIP-1193 provider error codes used by the classifier below. */
@@ -596,6 +599,8 @@ export function formatPayoutSignatureError(error: unknown): {
       return PSE.deviceLocked;
     case DEVICE_WRONG_APP_CODE:
       return PSE.deviceWrongApp;
+    case DEVICE_DISCONNECTED_CODE:
+      return PSE.deviceDisconnected;
   }
 
   // Cause-walking, so it must run AFTER every typed bucket above — an inner
@@ -603,6 +608,9 @@ export function formatPayoutSignatureError(error: unknown): {
   // Resume-specific copy: an in-flight deposit cannot switch wallets.
   if (isWalletMethodNotSupported(error)) {
     return PSE.walletMethodNotSupported;
+  }
+  if (isWalletAccountNotSupported(error)) {
+    return PSE.walletAccountNotSupported;
   }
 
   // Device codes nested in a cause chain — without these they fall to
@@ -615,6 +623,9 @@ export function formatPayoutSignatureError(error: unknown): {
   }
   if (isDeviceWrongAppError(error)) {
     return PSE.deviceWrongApp;
+  }
+  if (isDeviceDisconnectedError(error)) {
+    return PSE.deviceDisconnected;
   }
 
   if (error instanceof Error) {

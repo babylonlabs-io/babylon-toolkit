@@ -102,10 +102,9 @@ export function useWithdrawCollateralTransaction(): UseWithdrawCollateralTransac
 
         return true;
       } catch (error) {
-        logger.error(
-          error instanceof Error ? error : new Error(String(error)),
-          { data: { context: "Withdraw collateral failed" } },
-        );
+        logger.error(error, {
+          data: { context: "Withdraw collateral failed" },
+        });
         // The transaction client already mapped this against the Aave ABIs.
         // Re-mapping here would re-prefix the operation name and discard the
         // decoded revert reason, so pass a ContractError straight through.

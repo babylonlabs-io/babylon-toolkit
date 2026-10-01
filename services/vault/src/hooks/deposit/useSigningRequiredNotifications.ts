@@ -5,7 +5,7 @@
  * that needs the depositor to sign or act, and the user is on another tab.
  * Mounted inside `PeginPollingProvider`, where every deposit's `peginState` is
  * already computed. No-ops when the SigningNotification provider is absent
- * (e.g. in tests) or the feature flag is off.
+ * (e.g. in tests).
  */
 
 import { useEffect, useMemo, useRef } from "react";
@@ -15,6 +15,7 @@ import { COPY } from "@/copy";
 import {
   isActionablePeginAction,
   isCandidateVault,
+  LocalStorageStatus,
   PeginAction,
 } from "@/models/peginStateMachine";
 import type { VaultActivity } from "@/types/activity";
@@ -49,12 +50,8 @@ export function useSigningRequiredNotifications(
   // Stand down while an active deposit flow drives signing in-modal — the
   // in-flow observer owns notifications then, so this avoids double-firing.
   const isActiveFlow = notifier?.isActiveFlow ?? false;
-  // Skip all per-poll-tick work when the feature is off (the provider is still
-  // mounted, so the notifier is non-null) or absent (tests).
-  const enabled = notifier?.enabled ?? false;
-
   const pending = useMemo(() => {
-    if (!enabled || isActiveFlow) return [];
+    if (!notifier || isActiveFlow) return [];
     const out: Array<{ key: string; copy: BrowserNotificationCopy }> = [];
     for (const activity of activities) {
       const result = getPollingResult(activity.id);
@@ -83,13 +80,20 @@ export function useSigningRequiredNotifications(
         if (!isStuckRecovery && !candidate) continue;
         if (!isStuckRecovery && !isActionablePeginAction(action, btcPublicKey))
           continue;
+        // CONFIRMING keeps the broadcast action until the observer sees the
+        // tx, but this user already broadcast it: do not nudge them to again.
+        if (
+          action === PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN &&
+          peginState.localStatus === LocalStorageStatus.CONFIRMING
+        )
+          continue;
         const copy = ACTION_NOTIFICATION_COPY[action];
         if (!copy) continue;
         out.push({ key: `signing:${activity.id}:${action}`, copy });
       }
     }
     return out;
-  }, [enabled, activities, getPollingResult, btcPublicKey, isActiveFlow]);
+  }, [notifier, activities, getPollingResult, btcPublicKey, isActiveFlow]);
 
   // Stable string the effect keys on, so it only runs when the set of
   // signing-required deposits changes - not on every poll tick.

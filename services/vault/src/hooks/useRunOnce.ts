@@ -24,7 +24,7 @@ export function useRunOnce(
     const result = callback();
     if (result instanceof Promise) {
       result.catch((err) =>
-        logger.error(err instanceof Error ? err : new Error(String(err)), {
+        logger.error(err, {
           data: { context: "useRunOnce callback" },
         }),
       );

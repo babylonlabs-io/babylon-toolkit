@@ -103,7 +103,9 @@ export function useAaveVaults(
 ): UseAaveVaultsResult {
   const { pendingVaults } = usePendingVaults();
   const hasPendingOperations = pendingVaults.size > 0;
-  const { findProvider } = useVaultProviders();
+  const { findProvider } = useVaultProviders(undefined, {
+    requireCompleteKeeperRoster: false,
+  });
 
   // When redeemed vaults exist, we poll so the indexer's DEPOSITOR_WITHDRAWN
   // update (from btc-monitor detecting the vault UTXO spend) gets picked up
@@ -157,16 +159,12 @@ export function useAaveVaults(
           const decodeKey = `${vault.id}:${vault.depositorPayoutBtcAddress}`;
           if (!loggedKeys.has(decodeKey)) {
             loggedKeys.add(decodeKey);
-            logger.error(
-              error instanceof Error ? error : new Error(String(error)),
-              {
-                data: {
-                  context:
-                    "Decode payout scriptPubKey for pending withdraw card",
-                  vaultId: vault.id,
-                },
+            logger.error(error, {
+              data: {
+                context: "Decode payout scriptPubKey for pending withdraw card",
+                vaultId: vault.id,
               },
-            );
+            });
           }
         }
         return {

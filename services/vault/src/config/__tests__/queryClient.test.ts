@@ -123,6 +123,14 @@ describe("default query retry policy", () => {
     expect(retryFor(new Error("Failed to fetch"))).toBe(true);
   });
 
+  it("does not retry an error explicitly marked as non-retryable", () => {
+    expect(
+      retryFor(
+        Object.assign(new Error("incomplete roster"), { retryable: false }),
+      ),
+    ).toBe(false);
+  });
+
   it("does not retry a user-cancelled wallet prompt", () => {
     expect(retryFor(new Error("User rejected the request."))).toBe(false);
   });

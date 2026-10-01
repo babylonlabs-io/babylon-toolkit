@@ -37,6 +37,7 @@ import {
   hasWotsSubmissionRecord,
   markWotsSubmitted,
 } from "@/context/deposit/optimisticDepositState";
+import { isLedgerVaultConnector } from "@/context/wallet/ledgerVaultConnector";
 import { COPY } from "@/copy";
 import {
   DepositFlowStep,
@@ -48,6 +49,7 @@ import { useBroadcastState } from "@/hooks/deposit/useBroadcastState";
 import { useReleaseVpTokenOnUnmount } from "@/hooks/deposit/useReleaseVpTokenOnUnmount";
 import { useRequiredPrePeginDepth } from "@/hooks/deposit/useRequiredPrePeginDepth";
 import { useSplitVaultProgress } from "@/hooks/deposit/useSplitVaultProgress";
+import { useStagedHtlcSecret } from "@/hooks/deposit/useStagedHtlcSecret";
 import { useBtcAction } from "@/hooks/useBtcAction";
 import { useRunOnce } from "@/hooks/useRunOnce";
 import { logger } from "@/infrastructure";
@@ -69,16 +71,15 @@ import {
   shouldProbeWalletLiveness,
   verifyBtcWalletLiveness,
 } from "@/utils/btc";
-import { mapDepositError } from "@/utils/errors";
+import { mapDepositErrorAfterRegistration } from "@/utils/errors";
 import { getVpProxyUrl } from "@/utils/rpc";
 
 import { DepositProgressView } from "./DepositProgressView";
 import { VaultActivatedView } from "./VaultActivatedView";
 
 /**
- * Caught-error state wrapper: keeps the typed error intact for the render-seam
- * `mapDepositError` call (flattening to `.message` loses wallet codes and
- * `cause` chains) while giving `unknown` well-defined truthiness in state.
+ * Keep the error intact for mapping. Its message alone loses wallet codes
+ * and cause chains. The wrapper lets state check an unknown error for null.
  */
 interface CaughtError {
   raw: unknown;
@@ -139,6 +140,7 @@ function ResumeSignContentConnected({
     error: signingError,
     errorTerminal,
     isComplete,
+    providerLookupReady,
     handleSign,
     canCancel,
     cancelRequested,
@@ -155,7 +157,7 @@ function ResumeSignContentConnected({
   // Read once. A recorded cancel requires a new click before signing.
   const [wasCanceled] = useState(() => hasPayoutSignCancelRecord(activity.id));
 
-  useRunOnce(handleSign, !wasCanceled && walletKeyReady);
+  useRunOnce(handleSign, !wasCanceled && walletKeyReady && providerLookupReady);
 
   // A settled cancel has no error. Show Sign again so the user can retry.
   const [reofferAfterCancel, setReofferAfterCancel] = useState(wasCanceled);
@@ -172,10 +174,12 @@ function ResumeSignContentConnected({
   }, [cancelRequested, signing, error, isComplete]);
 
   const handleResign = useCallback(() => {
-    if (!walletKeyReady) return;
+    // Sign stays unavailable until provider metadata loads, so a click can
+    // never mark the view started while handleSign silently waits.
+    if (!walletKeyReady || !providerLookupReady) return;
     setReofferAfterCancel(false);
     void handleSign();
-  }, [handleSign, walletKeyReady]);
+  }, [handleSign, walletKeyReady, providerLookupReady]);
 
   // Polling distinguishes a verified vault from an already active vault.
   const pollingResult = useDepositPollingResult(activity.id);
@@ -238,7 +242,7 @@ function ResumeSignContentConnected({
         error && !errorTerminal && walletKeyReady ? handleSign : undefined
       }
       started={!reofferAfterCancel}
-      onSign={walletKeyReady ? handleResign : undefined}
+      onSign={walletKeyReady && providerLookupReady ? handleResign : undefined}
       canCancelSigning={canCancel}
       cancelSigningRequested={cancelRequested}
       onCancelSigning={handleCancel}
@@ -649,7 +653,7 @@ function ResumeWotsContentConnected({
   return (
     <DepositProgressView
       currentStep={renderStep}
-      error={error ? mapDepositError(error.raw) : null}
+      error={error ? mapDepositErrorAfterRegistration(error.raw) : null}
       isComplete={derived.isComplete}
       isProcessing={derived.isProcessing}
       canClose={derived.canClose}
@@ -705,6 +709,19 @@ function ResumeActivationContentConnected({
     (btcConnector?.connectedWallet?.provider as BitcoinWallet | undefined) ??
     null;
   const connectedBtcAddress = btcConnector?.connectedWallet?.account?.address;
+  const btcWalletId = btcConnector?.connectedWallet?.id;
+  // On a Ledger the secret (Babylon Vault app) and the activation (Ethereum
+  // app, when the Ethereum account is on the same device) are two clicks, so
+  // the depositor can switch apps in between.
+  const pauseBeforeActivation = isLedgerVaultConnector(btcConnector);
+  const {
+    isStaged: secretStaged,
+    stage: stageSecret,
+    take: takeStagedSecret,
+    clear: clearStagedSecret,
+  } = useStagedHtlcSecret(
+    `${activity.id}|${connectedBtcAddress ?? ""}|${btcWalletId ?? ""}`,
+  );
 
   // Starts true: useRunOnce auto-fires handleSubmit on mount, so the
   // first render must show processing.
@@ -752,15 +769,20 @@ function ResumeActivationContentConnected({
     }
     setLoading(true);
     setLocalError(null);
+    clearStagedSecret();
 
     try {
       const secretHex = await deriveHtlcSecretHex({
         activity,
         btcWalletProvider,
         connectedBtcAddress,
-        walletId: btcConnector?.connectedWallet?.id,
+        walletId: btcWalletId,
       });
 
+      if (pauseBeforeActivation) {
+        stageSecret(secretHex);
+        return;
+      }
       // Hand off to the existing activation state machine. It fetches
       // the canonical hashlock from the on-chain registry and rejects
       // any mismatch — wrong-wallet derivation surfaces as a structured
@@ -782,15 +804,49 @@ function ResumeActivationContentConnected({
     requireBtcWallet,
     btcWalletProvider,
     connectedBtcAddress,
-    btcConnector?.connectedWallet?.id,
+    btcWalletId,
+    pauseBeforeActivation,
+    stageSecret,
+    clearStagedSecret,
     handleActivation,
   ]);
+
+  // Second click of the Ledger split: the same hand-off as the one-click path.
+  // The ref guards a second click that lands before the re-render hides the
+  // prompt: it would find the secret already taken.
+  const continueInFlightRef = useRef(false);
+  const handleContinueActivation = useCallback(async () => {
+    if (continueInFlightRef.current) return;
+    continueInFlightRef.current = true;
+    setLoading(true);
+    setLocalError(null);
+    try {
+      await handleActivation(takeStagedSecret());
+    } catch (err) {
+      captureFunnelFailure(TELEMETRY_STAGE.ACTIVATION_SECRET, err, activity.id);
+      if (mountedRef.current) {
+        setLocalError({ raw: err });
+      }
+    } finally {
+      continueInFlightRef.current = false;
+      if (mountedRef.current) setLoading(false);
+    }
+  }, [activity.id, handleActivation, takeStagedSecret]);
 
   // Wait for the address, or let the handler report a missing provider.
   useRunOnce(handleSubmit, !btcWalletProvider || Boolean(connectedBtcAddress));
 
+  // A new attempt — the derive in flight, or a freshly staged secret — makes
+  // the previous attempt's error (kept by the activation state until the next
+  // hand-off) stale. Shown, it would hide the wait panel during the derive and
+  // the Continue prompt after it, and Retry would re-derive forever. A terminal
+  // error (deadline passed) still stands.
+  const staleActivationError = (secretStaged || loading) && !errorTerminal;
   const error: CaughtError | null =
-    localError ?? (activationError != null ? { raw: activationError } : null);
+    localError ??
+    (activationError != null && !staleActivationError
+      ? { raw: activationError }
+      : null);
   // Terminal only applies to the activation failure (deadline passed), never a
   // local pre-flight error — which localError would override via `??` above.
   const isTerminal = localError == null && errorTerminal;
@@ -802,9 +858,10 @@ function ResumeActivationContentConnected({
   const active =
     pollingResult?.peginState?.contractStatus === ContractStatus.ACTIVE;
 
-  const renderStep = activating
-    ? DepositFlowStep.ACTIVATE_VAULT
-    : DepositFlowStep.RETRIEVE_SECRET;
+  const renderStep =
+    activating || secretStaged
+      ? DepositFlowStep.ACTIVATE_VAULT
+      : DepositFlowStep.RETRIEVE_SECRET;
   const derived = computeDepositDerivedState(
     renderStep,
     activating || loading,
@@ -835,7 +892,7 @@ function ResumeActivationContentConnected({
             isTerminal &&
             activationError !== COPY.pegin.messages.activationOrderInconsistent
             ? COPY.deposit.errors.activationDeadlinePassed
-            : mapDepositError(error.raw)
+            : mapDepositErrorAfterRegistration(error.raw)
           : null
       }
       isComplete={derived.isComplete}
@@ -850,6 +907,15 @@ function ResumeActivationContentConnected({
       onClose={onClose}
       onRetry={error && !isTerminal ? handleSubmit : undefined}
       offchainParamsVersion={activity.offchainParamsVersion}
+      continuePrompt={
+        secretStaged && !loading && !activating
+          ? {
+              hint: COPY.deposit.ledger.activationPause.hint,
+              ctaLabel: COPY.deposit.ledger.activationPause.continue,
+              onContinue: handleContinueActivation,
+            }
+          : null
+      }
     />
   );
 }

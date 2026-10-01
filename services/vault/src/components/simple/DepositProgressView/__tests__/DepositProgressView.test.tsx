@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { COPY } from "@/copy";
@@ -40,9 +40,27 @@ vi.mock("@/hooks/useBtcWalletUnlock", () => ({
   useBtcWalletUnlock: () => ({ unlock: mockUnlock, isUnlocking: false }),
 }));
 
+// The Ledger device state (wallet id, app wait, reconnect) is its own hook;
+// default to a non-Ledger wallet so every other test renders as before.
+const mockLedgerDevice = vi.hoisted(() => ({
+  isLedgerVault: false,
+  appWait: { status: "ready" } as
+    | { status: "ready" }
+    | { status: "awaiting-app"; expectedAppName: string },
+  cancelAppWait: vi.fn(),
+  reconnect: vi.fn(async () => {}),
+}));
+vi.mock("@/hooks/useLedgerVaultDevice", () => ({
+  useLedgerVaultDevice: () => mockLedgerDevice,
+}));
+
 afterEach(() => {
   mockBtcWalletState.locked = false;
   mockUnlock.mockClear();
+  mockLedgerDevice.isLedgerVault = false;
+  mockLedgerDevice.appWait = { status: "ready" };
+  mockLedgerDevice.cancelAppWait.mockClear();
+  mockLedgerDevice.reconnect.mockClear();
 });
 
 const baseProps = {
@@ -527,7 +545,7 @@ describe("DepositProgressView", () => {
       expect(screen.getByText("(1 of 2)")).toBeInTheDocument();
     });
 
-    it("omits the counter for a single-vault (non-split) deposit", () => {
+    it("shows (0 of 1) for a single-vault deposit while its signature is pending", () => {
       render(
         <DepositProgressView
           {...baseProps}
@@ -539,7 +557,7 @@ describe("DepositProgressView", () => {
       expect(
         screen.getByText(COPY.deposit.steps.signPeginBtc),
       ).toBeInTheDocument();
-      expect(screen.queryByText(/of 1\)/)).not.toBeInTheDocument();
+      expect(screen.getByText("(0 of 1)")).toBeInTheDocument();
     });
 
     it("omits the counter when no peg-in progress is set", () => {
@@ -1286,6 +1304,328 @@ describe("DepositProgressView", () => {
       expect(
         screen.queryByText(COPY.deposit.ethConfirmation.rationale),
       ).not.toBeInTheDocument();
+    });
+  });
+
+  describe("Ledger device", () => {
+    it("asks for the Ethereum app on the registration step for a Ledger wallet", () => {
+      mockLedgerDevice.isLedgerVault = true;
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.SUBMIT_PEGIN}
+          isProcessing
+        />,
+      );
+
+      expect(
+        screen.getByText(COPY.deposit.ledger.ethAppHint),
+      ).toBeInTheDocument();
+    });
+
+    it("shows no Ledger hint on the registration step for another wallet", () => {
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.SUBMIT_PEGIN}
+          isProcessing
+        />,
+      );
+
+      expect(
+        screen.queryByText(COPY.deposit.ledger.ethAppHint),
+      ).not.toBeInTheDocument();
+    });
+
+    it("tells a Ledger user to switch back under the Ethereum confirmation counter", () => {
+      mockLedgerDevice.isLedgerVault = true;
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.SUBMIT_PEGIN}
+          ethConfirmationDetail={{ confirmations: 1, required: 8 }}
+        />,
+      );
+
+      expect(
+        screen.getByText(COPY.deposit.ethConfirmation.rationale),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(COPY.deposit.ledger.switchBackHint),
+      ).toBeInTheDocument();
+    });
+
+    it("says it is safe to leave during the vault provider wait on a Ledger", () => {
+      mockLedgerDevice.isLedgerVault = true;
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.AWAIT_VP_VERIFICATION}
+        />,
+      );
+
+      expect(
+        screen.getByText(COPY.deposit.ledger.longWait),
+      ).toBeInTheDocument();
+    });
+
+    it("names the Ledger ceremony on the session step", () => {
+      mockLedgerDevice.isLedgerVault = true;
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.SIGN_AUTH_ANCHOR}
+        />,
+      );
+
+      expect(
+        screen.getByText(COPY.deposit.ledger.authenticateSession),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText(COPY.deposit.steps.authenticateSession),
+      ).not.toBeInTheDocument();
+    });
+
+    it("states the approval budget up front for a Ledger wallet only", () => {
+      mockLedgerDevice.isLedgerVault = true;
+      const { unmount } = render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.DERIVE_VAULT_SECRET}
+        />,
+      );
+      expect(
+        screen.getByText(COPY.deposit.ledger.approvalBudget),
+      ).toBeInTheDocument();
+      unmount();
+
+      mockLedgerDevice.isLedgerVault = false;
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.DERIVE_VAULT_SECRET}
+        />,
+      );
+      expect(
+        screen.queryByText(COPY.deposit.ledger.approvalBudget),
+      ).not.toBeInTheDocument();
+    });
+
+    it("shows the app wait with the re-approval notice on the Pre-PegIn step, and cancels it", () => {
+      mockLedgerDevice.isLedgerVault = true;
+      mockLedgerDevice.appWait = {
+        status: "awaiting-app",
+        expectedAppName: "Babylon Vault Testnet",
+      };
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.BROADCAST_PRE_PEGIN}
+          isProcessing
+          canClose={false}
+        />,
+      );
+
+      expect(
+        screen.getByText(
+          COPY.deposit.ledger.waitingForApp.title("Babylon Vault Testnet"),
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(COPY.deposit.ledger.reapproveNotice),
+      ).toBeInTheDocument();
+
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: COPY.deposit.ledger.waitingForApp.cancel,
+        }),
+      );
+      expect(mockLedgerDevice.cancelAppWait).toHaveBeenCalledTimes(1);
+    });
+
+    it("reconnects the device before retrying a lost-session error", async () => {
+      mockLedgerDevice.isLedgerVault = true;
+      const onRetry = vi.fn();
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.BROADCAST_PRE_PEGIN}
+          error={COPY.deposit.errors.deviceDisconnected}
+          onRetry={onRetry}
+        />,
+      );
+
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: COPY.deposit.ledger.reconnectButton,
+        }),
+      );
+
+      await waitFor(() => expect(onRetry).toHaveBeenCalledTimes(1));
+      expect(mockLedgerDevice.reconnect).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not retry when the reconnect fails", async () => {
+      mockLedgerDevice.isLedgerVault = true;
+      mockLedgerDevice.reconnect.mockRejectedValueOnce(
+        new Error("No selected device"),
+      );
+      const onRetry = vi.fn();
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.BROADCAST_PRE_PEGIN}
+          error={COPY.deposit.errors.deviceDisconnected}
+          onRetry={onRetry}
+        />,
+      );
+
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: COPY.deposit.ledger.reconnectButton,
+        }),
+      );
+
+      await waitFor(() =>
+        expect(mockLedgerDevice.reconnect).toHaveBeenCalledTimes(1),
+      );
+      expect(onRetry).not.toHaveBeenCalled();
+      expect(
+        screen.getByText(COPY.deposit.errors.deviceDisconnected.title),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(COPY.deposit.ledger.reconnectFailed),
+      ).toBeInTheDocument();
+    });
+
+    it("keeps the reconnect-failed notice when the view receives an equal, rebuilt error object", async () => {
+      // The payout view rebuilds its error object on every render.
+      mockLedgerDevice.isLedgerVault = true;
+      mockLedgerDevice.reconnect.mockRejectedValueOnce(
+        new Error("No selected device"),
+      );
+      const payoutError = () => ({
+        title: COPY.deposit.payoutSignatureErrors.deviceDisconnected.title,
+        body: COPY.deposit.payoutSignatureErrors.deviceDisconnected.message,
+      });
+      const { rerender } = render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.SIGN_PAYOUTS}
+          error={payoutError()}
+          onRetry={vi.fn()}
+        />,
+      );
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: COPY.deposit.ledger.reconnectButton,
+        }),
+      );
+      await screen.findByText(COPY.deposit.ledger.reconnectFailed);
+
+      rerender(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.SIGN_PAYOUTS}
+          error={payoutError()}
+          onRetry={vi.fn()}
+        />,
+      );
+
+      expect(
+        screen.getByText(COPY.deposit.ledger.reconnectFailed),
+      ).toBeInTheDocument();
+    });
+
+    it("tells the owning flow when the depositor cancels the app wait", () => {
+      mockLedgerDevice.isLedgerVault = true;
+      mockLedgerDevice.appWait = {
+        status: "awaiting-app",
+        expectedAppName: "Babylon Vault Testnet",
+      };
+      const onAppWaitCanceled = vi.fn();
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.SIGN_AUTH_ANCHOR}
+          isProcessing
+          canClose={false}
+          onAppWaitCanceled={onAppWaitCanceled}
+        />,
+      );
+
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: COPY.deposit.ledger.waitingForApp.cancel,
+        }),
+      );
+
+      expect(onAppWaitCanceled).toHaveBeenCalledTimes(1);
+      expect(mockLedgerDevice.cancelAppWait).toHaveBeenCalledTimes(1);
+    });
+
+    it("warns a Ledger user on the Pre-PegIn step that the deposit may need approving again", () => {
+      mockLedgerDevice.isLedgerVault = true;
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.BROADCAST_PRE_PEGIN}
+          isProcessing
+        />,
+      );
+
+      expect(
+        screen.getByText(COPY.deposit.ledger.reapproveNotice),
+      ).toBeInTheDocument();
+    });
+
+    it("offers the reconnect with no retry, then closes so the depositor starts again", async () => {
+      // Before the registration there is nothing to resume.
+      mockLedgerDevice.isLedgerVault = true;
+      const onClose = vi.fn();
+      render(
+        <DepositProgressView
+          {...baseProps}
+          onClose={onClose}
+          currentStep={DepositFlowStep.DERIVE_VAULT_SECRET}
+          error={COPY.deposit.errors.deviceDisconnected}
+        />,
+      );
+
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: COPY.deposit.ledger.reconnectButton,
+        }),
+      );
+
+      await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+      expect(mockLedgerDevice.reconnect).toHaveBeenCalledTimes(1);
+    });
+
+    it("renders a continue prompt as the step hint and the enabled footer action", () => {
+      const onContinue = vi.fn();
+      render(
+        <DepositProgressView
+          {...baseProps}
+          currentStep={DepositFlowStep.ACTIVATE_VAULT}
+          canClose={false}
+          continuePrompt={{
+            hint: COPY.deposit.ledger.activationPause.hint,
+            ctaLabel: COPY.deposit.ledger.activationPause.continue,
+            onContinue,
+          }}
+        />,
+      );
+
+      expect(
+        screen.getByText(COPY.deposit.ledger.activationPause.hint),
+      ).toBeInTheDocument();
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: COPY.deposit.ledger.activationPause.continue,
+        }),
+      );
+      expect(onContinue).toHaveBeenCalledTimes(1);
     });
   });
 });

@@ -13,10 +13,12 @@ import {
   approveVaultIntent,
   assertDepositTermsDeviceCompatible,
   assertRefundPsbtSignable,
+  augmentPsbtForDelegatedClaim,
   augmentPsbtForRefund,
   augmentPsbtForWalletPolicy,
   buildDefaultTaprootPolicy,
   buildPopPsbtHex,
+  classifyDelegatedClaimPsbt,
   classifyRefundPsbt,
   connectDmkSession,
   createDmkApduSender,
@@ -60,7 +62,13 @@ import {
   type SignVaultPsbtResult,
 } from "@babylonlabs-io/ledger-vault-signer";
 
-import type { IBTCProvider, InscriptionIdentifier, SigningProgress, SignPsbtOptions } from "@/core/types";
+import type {
+  DeviceAppState,
+  IBTCProvider,
+  InscriptionIdentifier,
+  SigningProgress,
+  SignPsbtOptions,
+} from "@/core/types";
 import { Network } from "@/core/types";
 import { checkMinVersion } from "@/core/utils/checkMinVersion";
 import { getTaprootAddress, toNetwork } from "@/core/utils/wallet";
@@ -93,6 +101,29 @@ export const APP_NAME_BY_NETWORK: Record<Network, string> = {
 // Floor = app-babylon-vault develop @ b0c0ac4d (APPVERSION 0.10.1), the build the host's
 // envelope caps and refund checks are mirrored from.
 const MIN_APP_VERSION = "0.10.1";
+/**
+ * How often a held operation re-reads the open app while waiting for the user
+ * to open the vault app — one instant GET_APP_AND_VERSION exchange per tick
+ * (the liveness probe beside it reads DMK's in-memory session state), so the
+ * operation continues at most this long after the app opens. Matches DMK
+ * 1.7.1's own session refresher, whose default and minimum are both 1000 ms
+ * (`DEVICE_SESSION_REFRESHER_POLLING_INTERVAL`,
+ * `DEVICE_SESSION_REFRESHER_MINIMUM_POLLING_INTERVAL`); unlike that refresher,
+ * this runs only while a wait is announced, never for the whole session.
+ */
+const APP_WAIT_POLL_INTERVAL_MS = 1_000;
+/**
+ * How long a held operation waits after it sees the vault app open, before it
+ * re-reads the app and sends anything. On a Stax, a review pushed within
+ * milliseconds of the user launching the app from the dashboard was never
+ * drawn: the home screen stayed up, touch went to the invisible review, and
+ * the page only appeared after a lock and unlock; the same command sent
+ * seconds after the launch rendered. Neither the app's code nor DMK exposes a
+ * "home screen drawn" signal to wait on, so this is an empirical margin. It
+ * applies only when the wait saw another app first; an app already open on
+ * the first read costs nothing.
+ */
+const APP_OPEN_SETTLE_MS = 2_000;
 const ACCOUNT_INDEX = 0;
 const CHANGE_INDEX = 0;
 const ADDRESS_INDEX = 0;
@@ -144,12 +175,13 @@ interface StagedPsbt {
   readonly fingerprintKey: string;
   readonly label: string;
   /**
-   * True for ANY classified refund, intent loaded or not: the device's
-   * standalone path consumes no dedup mask or cap in any vault state, and no
-   * failure on it invalidates the vault context — so the refund skips the
-   * replay guard and the pessimistic mirror reset.
+   * True for a sign the device runs through its standalone section — the
+   * refund (#2371) and the delegated-claim kinds (#2111), intent loaded or
+   * not: that section consumes no dedup mask or cap in any vault state, and no
+   * failure on it invalidates the vault context — so these skip the replay
+   * guard and the pessimistic mirror reset.
    */
-  readonly standaloneRefund: boolean;
+  readonly standalone: boolean;
 }
 
 /**
@@ -233,18 +265,31 @@ export class LedgerVaultProvider implements IBTCProvider {
   private signAbortController: AbortController | undefined;
   /** Connection-scoped like the fields above: cleared in teardownSession. */
   private readonly signingProgressListeners = new Set<(progress: SigningProgress) => void>();
+  /**
+   * Provider-scoped, NOT cleared in teardownSession: a view subscribes once,
+   * and a wait ended by teardown must still reach it as `ready`.
+   */
+  private readonly deviceAppStateListeners = new Set<(state: DeviceAppState) => void>();
+  /** Abort handle into the in-flight app wait; fired by cancelSigning and teardown. */
+  private appWaitController: AbortController | undefined;
 
   constructor(private readonly network: Network = Network.MAINNET) {}
 
   /**
    * See {@link activeOperation}. The busy throw costs zero device I/O. Two
    * overlapping ceremonies are a caller bug; {@link gateUngatedSession} also
-   * holds the lock for one GET_APP_AND_VERSION on a tab return, so a ceremony
-   * started in that window hits this legitimately. The window is one instant
-   * exchange: the SDK answers a locked device with 0x5515 before the app's
-   * dispatcher sees it (`sdk:io_legacy/src/os_io_legacy.c:414-423` @ v26.6.1),
-   * and DMK 1.7.1
+   * holds the lock for one GET_APP_AND_VERSION when a connect is retried on a
+   * live session, so a ceremony started in that window hits this
+   * legitimately. The window is one instant exchange: the SDK answers a
+   * locked device with 0x5515 before the app's dispatcher sees it
+   * (`sdk:io_legacy/src/os_io_legacy.c:414-423` @ v26.6.1), and DMK 1.7.1
    * never holds the read for an unlock (IntentQueueService has no lock gating).
+   * An operation held in {@link awaitExpectedApp} keeps the lock for the
+   * whole wait; {@link cancelSigning} ends it.
+   *
+   * A DEVICE_DISCONNECTED failure from any exchange tears the session down
+   * here (generation-guarded), so the next `connectWallet()` opens a fresh one
+   * instead of reusing a session DMK may still briefly report as alive.
    */
   private async withDeviceOperation<T>(operation: string, fn: () => Promise<T>): Promise<T> {
     if (this.activeOperation) {
@@ -256,8 +301,19 @@ export class LedgerVaultProvider implements IBTCProvider {
     }
     const token = Symbol(operation);
     this.activeOperation = token;
+    const generation = this.connectionGeneration;
     try {
       return await fn();
+    } catch (error) {
+      if (
+        error instanceof WalletError &&
+        error.code === ERROR_CODES.DEVICE_DISCONNECTED &&
+        this.session &&
+        generation === this.connectionGeneration
+      ) {
+        await this.teardownSession();
+      }
+      throw error;
     } finally {
       if (this.activeOperation === token) this.activeOperation = undefined;
     }
@@ -279,24 +335,12 @@ export class LedgerVaultProvider implements IBTCProvider {
   }
 
   private requireSession(): DmkSessionHandle {
-    if (!this.session) {
-      throw new WalletError({
-        code: ERROR_CODES.WALLET_NOT_CONNECTED,
-        message: `${WALLET_PROVIDER_NAME} is not connected`,
-        wallet: WALLET_PROVIDER_NAME,
-      });
-    }
+    if (!this.session) throw notConnectedError();
     return this.session;
   }
 
   private requireSender(): ApduSender {
-    if (!this.send) {
-      throw new WalletError({
-        code: ERROR_CODES.WALLET_NOT_CONNECTED,
-        message: `${WALLET_PROVIDER_NAME} is not connected`,
-        wallet: WALLET_PROVIDER_NAME,
-      });
-    }
+    if (!this.send) throw notConnectedError();
     return this.send;
   }
 
@@ -322,9 +366,10 @@ export class LedgerVaultProvider implements IBTCProvider {
     // session behind a wallet the caller has disconnected.
     const token = this.disconnectToken;
 
-    // Idempotent while the session lives: visibility checks re-call this
-    // outside a user gesture, where WebHID's requestDevice rejects — tearing
-    // down a healthy session would turn an alt-tab into a forced disconnect.
+    // Idempotent while the session lives: a retry may re-call this outside a
+    // user gesture (the tab-return visibility check no longer does — it skips
+    // hardware wallets), where WebHID's requestDevice rejects — tearing down a
+    // healthy session would turn that call into a forced disconnect.
     // Pin the handle before the await: a disconnect mid-probe clears
     // this.session synchronously, and the gate would deref undefined.
     const live = this.session;
@@ -395,12 +440,154 @@ export class LedgerVaultProvider implements IBTCProvider {
       await this.teardownSession();
       throw refusal;
     }
-    // Nothing learned: the copy is equal, so leave the senders alone.
+    this.installSessionApp(refreshed);
+  }
+
+  /**
+   * Adopt a re-read app identity for the SAME session: keep the generation,
+   * rebuild the senders so the app hint names the app. A read that learned
+   * nothing new leaves the senders alone.
+   */
+  private installSessionApp(refreshed: DmkSessionHandle): void {
+    const current = this.session;
     if (refreshed.appName === undefined) return;
-    // Same session: keep the generation, rebuild the senders so the app hint names the app.
+    if (current?.appName === refreshed.appName && current.appVersion === refreshed.appVersion) return;
     this.session = refreshed;
     this.send = withWalletErrorMapping(createDmkApduSender(refreshed));
     this.rawSend = createDmkRawApduSender(refreshed);
+  }
+
+  /**
+   * Hold a device operation until the vault app is open: read the
+   * open app, and while it is another app, the dashboard, or unreadable (a
+   * locked device answers the read with 0x5515, which leaves no identity),
+   * announce `awaiting-app` and re-read every {@link APP_WAIT_POLL_INTERVAL_MS}.
+   * Each read starts from a handle with the app identity cleared:
+   * `refreshSessionApp` keeps the handle's own fields when the read fails, and
+   * the connect-time name would otherwise pass for the vault app. Returns once the
+   * expected app answers; the version floor still applies to it. Every tick
+   * probes liveness first — a session lost to the app switch's USB
+   * re-enumeration surfaces as DEVICE_DISCONNECTED, not as a wait
+   * that never ends.
+   *
+   * GET_APP_AND_VERSION is a BOLOS command; callers invoke this only while
+   * the mirror is idle (or before a derive, which discards the device context
+   * anyway) — never between intent phases (`dmkSession.ts` DmkSessionHandle).
+   * Runs inside the caller's {@link withDeviceOperation} lock.
+   */
+  private async awaitExpectedApp(generation: number): Promise<void> {
+    const expectedAppName = APP_NAME_BY_NETWORK[this.network];
+    const controller = new AbortController();
+    this.appWaitController = controller;
+    // A cancel of the enclosing sign can land before this controller exists
+    // (during the gate's probe); the sign's own signal still carries it. Both
+    // are checked directly rather than through `AbortSignal.any`, which
+    // Chromium only has from 116 while WebHID dates from 89.
+    const signals = this.signAbortController
+      ? [controller.signal, this.signAbortController.signal]
+      : [controller.signal];
+    const aborted = () => signals.some((signal) => signal.aborted);
+    let announced = false;
+    let settling = false;
+    try {
+      for (;;) {
+        const session = this.requireSession();
+        if (!(await this.probeSessionAlive(session))) {
+          if (generation === this.connectionGeneration) await this.teardownSession();
+          throw disconnectedError();
+        }
+        this.assertSameConnection(generation);
+        if (aborted()) throw this.appWaitCanceled(expectedAppName, generation, announced);
+        const refreshed = await refreshSessionApp(withoutAppIdentity(session));
+        this.assertSameConnection(generation);
+        // A cancel that landed during the read wins over an app that has just
+        // opened: the operation must not go on to prompt on the device.
+        if (aborted()) throw this.appWaitCanceled(expectedAppName, generation, announced);
+        if (refreshed.appName === expectedAppName) {
+          const refusal = this.refuseUnexpectedApp(refreshed);
+          if (refusal) throw refusal;
+          // Already open on the first read, or still open after the settle.
+          if (!announced || settling) {
+            this.installSessionApp(refreshed);
+            return;
+          }
+          // Just opened by the user: give the device time to finish the
+          // launch before a command can push a review onto it.
+          settling = true;
+          await abortableDelay(APP_OPEN_SETTLE_MS, signals);
+          if (aborted()) throw this.appWaitCanceled(expectedAppName, generation, announced);
+          continue;
+        }
+        settling = false;
+        if (!announced) {
+          announced = true;
+          this.emitDeviceAppState({ status: "awaiting-app", expectedAppName });
+        }
+        await abortableDelay(APP_WAIT_POLL_INTERVAL_MS, signals);
+        if (aborted()) throw this.appWaitCanceled(expectedAppName, generation, announced);
+      }
+    } finally {
+      if (this.appWaitController === controller) this.appWaitController = undefined;
+      if (announced) this.emitDeviceAppState({ status: "ready" });
+    }
+  }
+
+  /**
+   * The outcome of a cancel inside {@link awaitExpectedApp}. Teardown aborts
+   * the wait too, and that reports the lost connection instead. Otherwise the
+   * outcome follows what the user saw:
+   * - a wait was announced (another app, the dashboard, or a locked device):
+   *   DEVICE_WRONG_APP — nothing was rejected on the device, and the
+   *   resumable "open the vault app and try again" is what they need next;
+   * - no wait was announced (the cancel landed during the gate's probe or
+   *   first read, e.g. Cancel signing on a PoP): CONNECTION_REJECTED, the same
+   *   outcome as a cancelled signature, so a caller's cancel copy applies.
+   */
+  private appWaitCanceled(expectedAppName: string, generation: number, announced: boolean): WalletError {
+    this.assertSameConnection(generation);
+    if (!announced) {
+      return new WalletError({
+        code: ERROR_CODES.CONNECTION_REJECTED,
+        message: `${WALLET_PROVIDER_NAME}: canceled before anything was sent to the device.`,
+        wallet: WALLET_PROVIDER_NAME,
+      });
+    }
+    return new WalletError({
+      code: ERROR_CODES.DEVICE_WRONG_APP,
+      message: `Canceled while waiting for the ${expectedAppName} app on your Ledger. Open it and try again.`,
+      wallet: WALLET_PROVIDER_NAME,
+    });
+  }
+
+  /**
+   * After a sign failure that dropped the mirror to idle (a read is legal
+   * again), tell a device that left the vault app apart from any other
+   * failure. The app switch wiped the approved intent, so once the user
+   * reopens the app the typed outcome is DEVICE_CEREMONY_INVALID — the
+   * signal to re-run derive → approve. With the vault app open, the original
+   * failure stands.
+   */
+  private async reclassifyAfterAppSwitch(walletError: WalletError, generation: number): Promise<WalletError> {
+    const session = this.session;
+    if (!session || generation !== this.connectionGeneration || this.deviceState.phase !== "idle") return walletError;
+    if (walletError.code !== ERROR_CODES.DEVICE_WRONG_APP && walletError.code !== ERROR_CODES.UNKNOWN_ERROR) {
+      return walletError;
+    }
+    // A dead session is the real outcome: withDeviceOperation tears it down
+    // on DEVICE_DISCONNECTED, and the caller offers a reconnect, not a retry.
+    if (!(await this.probeSessionAlive(session))) return disconnectedError();
+    const refreshed = await refreshSessionApp(withoutAppIdentity(session));
+    this.assertSameConnection(generation);
+    if (refreshed.appName === APP_NAME_BY_NETWORK[this.network]) return walletError;
+    await this.awaitExpectedApp(generation);
+    return new WalletError(
+      {
+        code: ERROR_CODES.DEVICE_CEREMONY_INVALID,
+        message: `${WALLET_PROVIDER_NAME} left the vault app, which cleared the approved deposit — approve it again from derivation.`,
+        wallet: WALLET_PROVIDER_NAME,
+      },
+      { cause: walletError },
+    );
   }
 
   /**
@@ -476,6 +663,7 @@ export class LedgerVaultProvider implements IBTCProvider {
     this.activeOperation = undefined;
     this.signAbortController?.abort();
     this.signAbortController = undefined;
+    this.appWaitController?.abort();
     if (session) await disconnectDmkSession(session);
   };
 
@@ -574,6 +762,7 @@ export class LedgerVaultProvider implements IBTCProvider {
       // A cached xpub read can outlive its connection; without this a
       // reconnect mid-read would hand back the previous device's address.
       const generation = this.connectionGeneration;
+      if (this.deviceState.phase === "idle") await this.awaitExpectedApp(generation);
       const changeXOnlyHex = await this.getChangeXOnlyHex();
       this.assertSameConnection(generation);
       return getTaprootAddress(changeXOnlyHex, this.network);
@@ -603,10 +792,12 @@ export class LedgerVaultProvider implements IBTCProvider {
     // Deriving invalidates whatever the device held; drop to "idle" BEFORE
     // the call so host and device stay in lockstep if it fails partway. The
     // old intent's dedup state dies with it — clear the sign bookkeeping too.
+    // Before the app read, too: the read is legal only at idle.
     this.deviceState = { phase: "idle" };
     this.signedFingerprints = new Set();
 
     const generation = this.connectionGeneration;
+    await this.awaitExpectedApp(generation);
     const root = await deriveContextHash(this.requireSender(), {
       appName,
       derivationPath: this.depositorPath,
@@ -706,11 +897,7 @@ export class LedgerVaultProvider implements IBTCProvider {
     // (generation-guarded: a racing reconnect's fresh session must survive).
     if (!(await this.probeSessionAlive(this.requireSession()))) {
       if (generation === this.connectionGeneration) await this.teardownSession();
-      throw new WalletError({
-        code: ERROR_CODES.WALLET_NOT_CONNECTED,
-        message: `${WALLET_PROVIDER_NAME} was disconnected; reconnect the device and retry.`,
-        wallet: WALLET_PROVIDER_NAME,
-      });
+      throw disconnectedError();
     }
     this.assertSameConnection(generation);
 
@@ -860,6 +1047,109 @@ export class LedgerVaultProvider implements IBTCProvider {
     );
 
   /**
+   * SIGN_PSBT for the depositor-as-claimer ceremony (#2111), kept OUT of
+   * {@link signPsbt} so the deposit flow's path stays byte-identical. The kind
+   * comes from the provider's OWN parse plus the single requested input
+   * (`classifyDelegatedClaimPsbt`), never a caller flag; anything else is
+   * refused before any device I/O — this method signs claim PSBTs only.
+   *
+   * Per kind: the depositor Payout is the deposit-time shape and goes down
+   * {@link signPsbt} unchanged (the intent-bound Payout signer takes its path
+   * from the intent, `sign_custom_inputs.c:403-412`). The other four need
+   * the derivation entry {@link augmentPsbtForDelegatedClaim} writes. The
+   * Assert is intent-bound — its signer prefix is pinned to the loaded intent
+   * (`sign_psbt_validate.c:3710-3716`) — so it keeps the intent requirement;
+   * Claim, WronglyChallenged and the claimer Payout (PayoutFinalize) are
+   * standalone, accepted with no intent (`:3654`, `:3677`, `:3681`), so for
+   * them only that requirement is waived. The claimer Payout is additionally
+   * refused WHILE an intent is loaded: the dispatcher routes any 2-in/2-out
+   * PSBT whose input 0 spends a loaded vault's PegIn to the intent-bound
+   * Payout validator (`:3600-3634`), whose per-slot dedup — the depositor
+   * Payout was already signed under that intent, in ceremony order — WIPES
+   * the intent with SW_CAP_EXCEEDED (`:1765-1775`; otherwise SW_INCORRECT_DATA
+   * at the input-0 leaf check, `:1863`). Refusing here costs no device I/O
+   * and keeps the intent.
+   *
+   * Nothing else is validated here: every term of these transactions is the
+   * device's to check, and a rejection on these paths costs no loaded intent.
+   * Never finalizes. Every rejection before the device loop leaves the mirror
+   * and the loaded intent untouched.
+   */
+  signDelegatedClaimPsbt = async (psbtHex: string, options?: SignPsbtOptions): Promise<string> => {
+    const requestedIndex = singleRequestedInputIndex(options);
+    // Separate from the refusal below: a missing or plural request says nothing
+    // about the PSBT, and reporting it as the wrong shape hides the caller's bug.
+    if (requestedIndex === undefined) {
+      throw new WalletError({
+        code: ERROR_CODES.INVALID_PARAMS,
+        message:
+          `${WALLET_PROVIDER_NAME}: signDelegatedClaimPsbt needs exactly one entry in options.signInputs — ` +
+          `the input the claim ceremony signs.`,
+        wallet: WALLET_PROVIDER_NAME,
+      });
+    }
+    const claim = classifyDelegatedClaimPsbt(psbtHex, requestedIndex);
+    if (claim === undefined) {
+      throw new WalletError({
+        code: ERROR_CODES.INVALID_PARAMS,
+        message:
+          `${WALLET_PROVIDER_NAME}: not a delegated-claim PSBT for the requested input — ` +
+          `signDelegatedClaimPsbt signs the claim ceremony's shapes only; anything else goes through signPsbt.`,
+        wallet: WALLET_PROVIDER_NAME,
+      });
+    }
+    // The deposit-time shape takes the ordinary intent path. Delegated outside
+    // this method's lock: withDeviceOperation is non-reentrant.
+    if (claim.kind === "payoutDepositor") return this.signPsbt(psbtHex, options);
+    // Kind and input in the label: with no host validation, this plus the
+    // device's status word is how a failing ceremony step gets located.
+    const label = `signDelegatedClaimPsbt[${claim.kind}@${claim.signInputIndex}]`;
+    return this.withDeviceOperation("signDelegatedClaimPsbt", () =>
+      this.withSignAbort(async (controller) => {
+        if (claim.kind === "payoutFinalize" && this.deviceState.phase === "intent-loaded") {
+          throw new WalletError({
+            code: ERROR_CODES.DEVICE_CEREMONY_INVALID,
+            message:
+              `${WALLET_PROVIDER_NAME} holds an approved intent — under it the device refuses the claimer Payout ` +
+              `and wipes the intent. Release the intent with deriveContextHash first.`,
+            wallet: WALLET_PROVIDER_NAME,
+          });
+        }
+        const ctx = await this.gateSignContext(claim.kind === "assert");
+        if (claim.leafKeyHex !== ctx.depositorXOnlyHex) {
+          throw new WalletError({
+            code: ERROR_CODES.INVALID_PARAMS,
+            message: `${WALLET_PROVIDER_NAME}: the ${claim.kind} leaf key is not this device's depositor key — this device cannot sign it.`,
+            wallet: WALLET_PROVIDER_NAME,
+          });
+        }
+        const { masterFingerprintHex } = await this.getPolicyContext();
+        this.assertSameConnection(ctx.generation);
+        let stagingHex: string;
+        try {
+          stagingHex = augmentPsbtForDelegatedClaim({
+            kind: claim.kind,
+            psbtHex,
+            depositorXOnlyHex: ctx.depositorXOnlyHex,
+            masterFingerprintHex,
+            depositorPath: this.depositorPath,
+          });
+        } catch (error) {
+          throw toStagingWalletError(error, `${label} rejected before the signing ceremony`);
+        }
+        // Standalone for the Assert too: it is intent-bound at DISPATCH (the
+        // signer prefix is pinned to the loaded intent) but signs through the
+        // standalone section like the other three, which consumes no dedup
+        // mask or cap and holds no invalidate site — so no replay fingerprint,
+        // and a failure keeps the mirror.
+        const staged = await this.stagePsbt(stagingHex, options, label, new Set(), ctx.depositorXOnlyHex, true);
+        this.assertSameConnection(ctx.generation);
+        return this.signStaged(staged, ctx, controller);
+      }),
+    );
+  };
+
+  /**
    * Zero-I/O refund gates (#2371). The key check pre-empts the device's own
    * derive-and-compare (`sign_psbt_validate.c:920-965`); the vault check
    * pre-empts the INTENT_LOADED pins on the leaf CSV (`:906-910`) and input 0's
@@ -970,11 +1260,34 @@ export class LedgerVaultProvider implements IBTCProvider {
    * User cancel of the in-flight ceremony: aborts WITHOUT teardown, settling
    * as CONNECTION_REJECTED at the next exchange boundary — possibly only after
    * the user acts on the device, so callers hold a "cancel requested" state
-   * until the sign promise settles. No-op when idle.
+   * until the sign promise settles. Also ends an app wait at once, with the
+   * outcome {@link appWaitCanceled} describes (DEVICE_WRONG_APP once a wait
+   * was announced). No-op when idle.
    */
   cancelSigning = (): void => {
     this.signAbortController?.abort();
+    this.appWaitController?.abort();
   };
+
+  /** Optional affordance (see `IBTCProvider`): the device-app wait, across reconnects. */
+  subscribeDeviceAppState = (listener: (state: DeviceAppState) => void): (() => void) => {
+    this.deviceAppStateListeners.add(listener);
+    return () => {
+      this.deviceAppStateListeners.delete(listener);
+    };
+  };
+
+  // Display-only, like emitSigningProgress: a listener bug must not break the
+  // operation, so it is reported rather than rethrown.
+  private emitDeviceAppState(state: DeviceAppState): void {
+    for (const listener of [...this.deviceAppStateListeners]) {
+      try {
+        listener(state);
+      } catch (error) {
+        reportListenerError("device-app state", error);
+      }
+    }
+  }
 
   /** Optional affordance (see `IBTCProvider`): per-ceremony ticks out of a `signPsbts` batch. */
   subscribeSigningProgress = (listener: (progress: SigningProgress) => void): (() => void) => {
@@ -991,8 +1304,8 @@ export class LedgerVaultProvider implements IBTCProvider {
     for (const listener of [...this.signingProgressListeners]) {
       try {
         listener(progress);
-      } catch {
-        // Swallowed on purpose — progress is cosmetic.
+      } catch (error) {
+        reportListenerError("signing progress", error);
       }
     }
   }
@@ -1018,19 +1331,16 @@ export class LedgerVaultProvider implements IBTCProvider {
    * reconnect's fresh state).
    *
    * `requireIntent: false` is for the signs the device itself accepts without
-   * an intent — the state-independent PoP and the standalone refund (#2371);
-   * every other caller keeps the default.
+   * an intent — the state-independent PoP, the standalone refund (#2371), and
+   * the three standalone delegated-claim kinds: Claim, WronglyChallenged and
+   * the claimer Payout (#2111); every other caller keeps the default.
    */
   private async gateSignContext(requireIntent = true): Promise<SignContext> {
-    const { session, rawSend } = this.requireSignContext();
+    const probed = this.requireSignContext().session;
     const generation = this.connectionGeneration;
-    if (!(await this.probeSessionAlive(session))) {
+    if (!(await this.probeSessionAlive(probed))) {
       if (generation === this.connectionGeneration) await this.teardownSession();
-      throw new WalletError({
-        code: ERROR_CODES.WALLET_NOT_CONNECTED,
-        message: `${WALLET_PROVIDER_NAME} was disconnected; reconnect the device and restart the flow from derivation.`,
-        wallet: WALLET_PROVIDER_NAME,
-      });
+      throw disconnectedError();
     }
     this.assertSameConnection(generation);
     if (requireIntent && this.deviceState.phase !== "intent-loaded") {
@@ -1043,6 +1353,12 @@ export class LedgerVaultProvider implements IBTCProvider {
         wallet: WALLET_PROVIDER_NAME,
       });
     }
+    // Only the idle signs (the PoP, a standalone refund, a delegated-claim
+    // sign without an intent) may read the app —
+    // under a loaded intent a wrong app surfaces reactively in signStaged.
+    if (this.deviceState.phase === "idle") await this.awaitExpectedApp(generation);
+    // After the wait: an app read may have rebuilt the senders.
+    const { session, rawSend } = this.requireSignContext();
     const depositorXOnlyHex = await this.getDevicePubkeyHex();
     this.assertSameConnection(generation);
     return { session, rawSend, generation, depositorXOnlyHex };
@@ -1060,7 +1376,7 @@ export class LedgerVaultProvider implements IBTCProvider {
     label: string,
     stagedKeys: ReadonlySet<string>,
     depositorXOnlyHex: string,
-    standaloneRefund = false,
+    standalone = false,
   ): Promise<StagedPsbt> {
     // Never finalize, and never silently ignore a request to — the SDK
     // extracts signatures and finalizes itself.
@@ -1138,7 +1454,7 @@ export class LedgerVaultProvider implements IBTCProvider {
         wallet: WALLET_PROVIDER_NAME,
       });
     }
-    if (!standaloneRefund && this.signedFingerprints.has(fingerprintKey)) {
+    if (!standalone && this.signedFingerprints.has(fingerprintKey)) {
       throw new WalletError({
         code: ERROR_CODES.INVALID_PARAMS,
         message:
@@ -1148,7 +1464,7 @@ export class LedgerVaultProvider implements IBTCProvider {
         wallet: WALLET_PROVIDER_NAME,
       });
     }
-    return { prepared, fingerprintKey, label, standaloneRefund };
+    return { prepared, fingerprintKey, label, standalone };
   }
 
   /**
@@ -1167,7 +1483,7 @@ export class LedgerVaultProvider implements IBTCProvider {
    * committed — and takes the pessimistic reset below.
    */
   private async signStaged(staged: StagedPsbt, ctx: SignContext, controller: AbortController): Promise<string> {
-    const { prepared, fingerprintKey, label, standaloneRefund } = staged;
+    const { prepared, fingerprintKey, label, standalone } = staged;
     const { session, rawSend, generation } = ctx;
     try {
       const result = await signPreparedVaultPsbt(rawSend, prepared, {
@@ -1177,10 +1493,11 @@ export class LedgerVaultProvider implements IBTCProvider {
       });
       this.assertSameConnection(generation);
       // Success never consumes the intent: further (different) PSBTs sign
-      // under the same approval; this one never again. Any standalone refund
-      // is exempt — the device's standalone path consumes no dedup mask or
-      // cap in any vault state (`sign_custom_inputs.c`, standalone section).
-      if (!standaloneRefund) this.signedFingerprints.add(fingerprintKey);
+      // under the same approval; this one never again. Any standalone sign
+      // (refund, delegated claim) is exempt — the device's standalone path
+      // consumes no dedup mask or cap in any vault state
+      // (`sign_custom_inputs.c`, standalone section).
+      if (!standalone) this.signedFingerprints.add(fingerprintKey);
       return result.signedPsbtHex;
     } catch (error) {
       const walletError = this.classifySignFailure(error, generation, label);
@@ -1193,20 +1510,23 @@ export class LedgerVaultProvider implements IBTCProvider {
         generation === this.connectionGeneration &&
         !isLedgerSignPsbtAbortedError(error) &&
         !lockedBeforeDispatch &&
-        // Refunds keep the mirror: NOTHING on the device's refund path
-        // invalidates the vault context — not the validator's rejects
-        // (`sign_psbt_validate.c:811-1120` holds none of the file's six
-        // invalidate sites), not the standalone sign section, not the review
-        // screen's SW_DENY, and not the base app's PSBT-phase failures
-        // (zero vault references in `base:sign_psbt.c` and its phases).
+        // Standalone signs keep the mirror: NOTHING on the device's refund
+        // or delegated-claim paths invalidates the vault context — not the
+        // validators' rejects (`sign_psbt_validate.c:811-1120` and
+        // `:2369-2887`, `:3189-3494` hold none of the file's six invalidate
+        // sites, all of which sit at `:742-2162` on the PegIn/Payout/NoPayout
+        // paths), not the standalone sign section, not the review screen's
+        // SW_DENY, and not the base app's PSBT-phase failures (zero vault
+        // references in `base:sign_psbt.c` and its phases).
         // INTENT_LOADED is terminal until an explicit invalidate
         // (`vault_context.c:44-47`). The abort branch above stays uniform.
-        !standaloneRefund
+        !standalone
       ) {
         // Pessimistically assume the device dropped the intent (error-path
         // invalidation is mixed in firmware — never assume survival).
         this.deviceState = { phase: "idle" };
         this.signedFingerprints = new Set();
+        throw await this.reclassifyAfterAppSwitch(walletError, generation);
       }
       throw walletError;
     }
@@ -1214,7 +1534,7 @@ export class LedgerVaultProvider implements IBTCProvider {
 
   /**
    * Classify one device-ceremony failure, for every SIGN_PSBT caller: a
-   * disconnect must surface as WALLET_NOT_CONNECTED, never as a generic
+   * disconnect must surface as a connection error, never as a generic
    * UNKNOWN_ERROR. Mirror resets are the caller's, except the user-cancel
    * branch, which resets here so PoP cancels take the same re-ceremony path.
    */
@@ -1262,13 +1582,7 @@ export class LedgerVaultProvider implements IBTCProvider {
   /** Session + raw sender travel together (assigned/cleared as a unit in connect/teardown). */
   private requireSignContext(): { session: DmkSessionHandle; rawSend: RawApduSender } {
     const { session, rawSend } = this;
-    if (!session || !rawSend) {
-      throw new WalletError({
-        code: ERROR_CODES.WALLET_NOT_CONNECTED,
-        message: `${WALLET_PROVIDER_NAME} is not connected`,
-        wallet: WALLET_PROVIDER_NAME,
-      });
-    }
+    if (!session || !rawSend) throw notConnectedError();
     return { session, rawSend };
   }
 
@@ -1352,6 +1666,74 @@ export class LedgerVaultProvider implements IBTCProvider {
   getWalletProviderName = async (): Promise<string> => WALLET_PROVIDER_NAME;
 
   getWalletProviderIcon = async (): Promise<string> => logo;
+}
+
+/** The one input the caller asked to sign, or undefined when the request is absent, empty or plural. */
+function singleRequestedInputIndex(options: SignPsbtOptions | undefined): number | undefined {
+  const inputs = options?.signInputs;
+  return inputs !== undefined && inputs.length === 1 ? inputs[0].index : undefined;
+}
+
+/** A copy of the handle with no app identity, so a failed re-read cannot inherit one. */
+function withoutAppIdentity(session: DmkSessionHandle): DmkSessionHandle {
+  return { ...session, appName: undefined, appVersion: undefined };
+}
+
+/** No session at all: never connected, or torn down after the device went away. */
+function notConnectedError(): WalletError {
+  return new WalletError({
+    code: ERROR_CODES.DEVICE_DISCONNECTED,
+    message: `${WALLET_PROVIDER_NAME} is not connected; reconnect the device.`,
+    wallet: WALLET_PROVIDER_NAME,
+  });
+}
+
+/** The liveness probe found the session dead; the device state went with it. */
+function disconnectedError(): WalletError {
+  return new WalletError({
+    code: ERROR_CODES.DEVICE_DISCONNECTED,
+    message: `${WALLET_PROVIDER_NAME} was disconnected; reconnect the device and retry.`,
+    wallet: WALLET_PROVIDER_NAME,
+  });
+}
+
+/**
+ * DMK 1.7.1 error tags (`api/transport/model/Errors.d.ts`, and
+ * `internal/device-session/model/Errors.d.ts` for DeviceSessionNotFound) that
+ * mean the session is gone, not
+ * that one exchange failed. Only a new session from a user gesture recovers.
+ */
+const DMK_SESSION_LOST_TAGS: ReadonlySet<string> = new Set([
+  "DeviceSessionNotFound",
+  "DeviceDisconnectedWhileSendingError",
+  "DeviceDisconnectedBeforeSendingApdu",
+  "ReconnectionFailedError",
+]);
+
+// Only the listener's own error message: listeners receive display state,
+// never payload bytes, and the error came from the subscriber's code.
+function reportListenerError(channel: string, error: unknown): void {
+  console.error(
+    `[LedgerVaultProvider] ${channel} listener threw:`,
+    error instanceof Error ? error.message : String(error),
+  );
+}
+
+/** Resolve after `ms`, or at once when any of `signals` aborts. Never rejects. */
+function abortableDelay(ms: number, signals: readonly AbortSignal[]): Promise<void> {
+  return new Promise((resolve) => {
+    if (signals.some((signal) => signal.aborted)) {
+      resolve();
+      return;
+    }
+    const timer = setTimeout(done, ms);
+    for (const signal of signals) signal.addEventListener("abort", done, { once: true });
+    function done() {
+      clearTimeout(timer);
+      for (const signal of signals) signal.removeEventListener("abort", done);
+      resolve();
+    }
+  });
 }
 
 /** A staging rejection (prepare, augmentation): typed, cause preserved, no ceremony run. */
@@ -1463,7 +1845,7 @@ function toSignerWalletError(error: unknown): WalletError | undefined {
   if (dmk?._tag) {
     return new WalletError(
       {
-        code: ERROR_CODES.CONNECTION_FAILED,
+        code: DMK_SESSION_LOST_TAGS.has(dmk._tag) ? ERROR_CODES.DEVICE_DISCONNECTED : ERROR_CODES.CONNECTION_FAILED,
         message: dmk.originalError?.message ?? dmk._tag,
         wallet: WALLET_PROVIDER_NAME,
       },

@@ -86,10 +86,12 @@ import {
 } from "./depositorWalletMismatch";
 import {
   DEVICE_CEREMONY_INVALID_CODE,
+  DEVICE_DISCONNECTED_CODE,
   DEVICE_LOCKED_CODE,
   DEVICE_WRONG_APP_CODE,
   deviceErrorCodeOfFrame,
   isDeviceCeremonyInvalidError,
+  isDeviceDisconnectedError,
   isDeviceLockedError,
   isDeviceWrongAppError,
 } from "./deviceErrors";
@@ -105,6 +107,7 @@ import {
 } from "./userCancellation";
 import { isVaultLifecycleStateError } from "./vaultLifecycleStateError";
 import { isVaultRecordEmptyError } from "./vaultRecordEmpty";
+import { isWalletAccountNotSupported } from "./walletAccountNotSupported";
 import { isWalletMethodNotSupported } from "./walletMethodNotSupported";
 
 export interface DepositErrorContent {
@@ -131,6 +134,8 @@ const RESUMABLE_AFTER_REGISTRATION: ReadonlySet<DepositErrorContent> = new Set([
   ERRORS.deviceLocked,
   ERRORS.deviceWrongApp,
   ERRORS.deviceCeremonyInvalid,
+  // Resumes through a reconnect first (the modal's Reconnect action).
+  ERRORS.deviceDisconnected,
   ERRORS.signingRejected,
   // Nothing was broadcast; the software-wallet twin of deviceLocked.
   ERRORS.signingFailed,
@@ -143,9 +148,20 @@ export function isResumableDepositError(content: DepositErrorContent): boolean {
 }
 
 /**
+ * True for the lost-device-session bucket, whose retry must reconnect first.
+ * Keyed on the title, which deposit and payout copy share, because the payout
+ * path rebuilds its content object and an identity check would never match.
+ */
+export function isDeviceDisconnectedContent(
+  content: DepositErrorContent,
+): boolean {
+  return content.title === ERRORS.deviceDisconnected.title;
+}
+
+/**
  * Map an error thrown after the Ethereum registration is mined. A spent
  * Pre-Pegin input is terminal there, so it gets its own callout instead of
- * the SDK's "start a new peg-in" wording; everything else maps as usual.
+ * the SDK's "start a new peg-in" wording. Wallet errors keep the same account.
  */
 export function mapDepositErrorAfterRegistration(
   err: unknown,
@@ -153,7 +169,31 @@ export function mapDepositErrorAfterRegistration(
   if (err instanceof UtxoNotAvailableError) {
     return ERRORS.inputSpentAfterRegistration;
   }
-  return mapDepositError(err);
+  const content = mapDepositError(err);
+  const resumeCopy =
+    content === ERRORS.walletAccountNotSupported
+      ? COPY.deposit.payoutSignatureErrors.walletAccountNotSupported
+      : content === ERRORS.walletMethodNotSupported
+        ? COPY.deposit.payoutSignatureErrors.walletMethodNotSupported
+        : undefined;
+  return resumeCopy
+    ? { title: resumeCopy.title, body: resumeCopy.message }
+    : content;
+}
+
+/**
+ * Message for a wallet failure after registration. An account refusal gets
+ * the original-account guidance; anything else keeps its own message. For
+ * callers with no typed top-frame bucket, so the cause-chain check runs first.
+ */
+export function postRegistrationWalletErrorMessage(
+  error: unknown,
+  fallback: string,
+): string {
+  if (isWalletAccountNotSupported(error)) {
+    return COPY.deposit.payoutSignatureErrors.walletAccountNotSupported.message;
+  }
+  return error instanceof Error ? error.message : fallback;
 }
 
 /** BtcWalletLivenessError bodies, matched (lowercased) by bucket 5b. */
@@ -358,6 +398,8 @@ export function mapDepositError(err: unknown): DepositErrorContent {
       return ERRORS.deviceLocked;
     case DEVICE_WRONG_APP_CODE:
       return ERRORS.deviceWrongApp;
+    case DEVICE_DISCONNECTED_CODE:
+      return ERRORS.deviceDisconnected;
   }
 
   // 3g. Wallet lacks a required method. Cause-walking, so it must run AFTER
@@ -366,6 +408,9 @@ export function mapDepositError(err: unknown): DepositErrorContent {
   // claimed any typed top-frame rejection).
   if (isWalletMethodNotSupported(err)) {
     return ERRORS.walletMethodNotSupported;
+  }
+  if (isWalletAccountNotSupported(err)) {
+    return ERRORS.walletAccountNotSupported;
   }
 
   // 3h. Device codes nested in a cause chain — must beat the message buckets
@@ -378,6 +423,9 @@ export function mapDepositError(err: unknown): DepositErrorContent {
   }
   if (isDeviceWrongAppError(err)) {
     return ERRORS.deviceWrongApp;
+  }
+  if (isDeviceDisconnectedError(err)) {
+    return ERRORS.deviceDisconnected;
   }
 
   const msg = lowerMessage(err);

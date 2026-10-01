@@ -14,7 +14,7 @@ import {
   useProtocolParamsContext,
 } from "@/context/ProtocolParamsContext";
 import { useBTCWallet, useETHWallet } from "@/context/wallet";
-import { isLedgerVaultConnector } from "@/context/wallet/VaultWalletConnectionProvider";
+import { isLedgerVaultConnector } from "@/context/wallet/ledgerVaultConnector";
 import { COPY } from "@/copy";
 import { useBtcWalletState } from "@/hooks/deposit/useBtcWalletState";
 import { useDepositPeginFee } from "@/hooks/deposit/useDepositPeginFee";
@@ -34,6 +34,7 @@ import {
   shouldProbeWalletLiveness,
   verifyBtcWalletLiveness,
 } from "@/utils/btc";
+import { isDeviceDisconnectedError } from "@/utils/errors/deviceErrors";
 
 import { DepositState, DepositStep } from "../../context/deposit/DepositState";
 import { useDepositPageFlow } from "../../hooks/deposit/useDepositPageFlow";
@@ -411,9 +412,11 @@ function SimpleDepositContent({
         });
       } catch (err) {
         setWalletConnectionError(
-          err instanceof Error
-            ? err.message
-            : "BTC wallet check failed. Please reconnect your wallet and try again.",
+          isDeviceDisconnectedError(err)
+            ? COPY.deposit.errors.deviceDisconnected.body
+            : err instanceof Error
+              ? err.message
+              : COPY.wallet.liveness.checkFailed,
         );
         setIsVerifyingWallet(false);
         return;
@@ -642,7 +645,7 @@ export default function SimpleDeposit(props: SimpleDepositProps) {
 
   // New deposit flow
   return (
-    <ProtocolParamsProvider>
+    <ProtocolParamsProvider requireUniversalChallengers>
       <DepositState>
         <SimpleDepositContent
           open={open}

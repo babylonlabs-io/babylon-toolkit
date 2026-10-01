@@ -100,8 +100,9 @@ are in [`src/core/types.ts`](../src/core/types.ts).
 | `getNetwork` | `() => Promise<Network>` | Get BTC network. Wallet must operate on the network the dApp is configured for (signet vs mainnet); mismatch must error. |
 | `on` / `off` | `(eventName: string, cb: () => void) => void` | Register/unregister event listener |
 | `getInscriptions` | `() => Promise<InscriptionIdentifier[]>` | Optional. UTXO filtering. |
-| `cancelSigning` | `() => void` | Optional. Requests cancellation of the in-flight ceremony; settles at the next device exchange. Feature-detect. |
+| `cancelSigning` | `() => void` | Optional. Requests cancellation of the in-flight ceremony, or of an operation held waiting for the device app; a ceremony settles at the next device exchange, a wait at once. Feature-detect. |
 | `subscribeSigningProgress` | `(listener: (p: SigningProgress) => void) => () => void` | Optional. Per-PSBT ticks inside `signPsbts` for providers that run one device ceremony per PSBT. Fires after each committed ceremony; a failed ceremony emits no tick and earlier ticks stand. Feature-detect; returns the unsubscribe. Outlives the batch; dropped on session teardown. Listener is sync; an overlapping `signPsbts` is rejected, never queued; never fires for `signPsbt`. |
+| `subscribeDeviceAppState` | `(listener: (s: DeviceAppState) => void) => () => void` | Optional. For hardware providers that can read the open device app: `awaiting-app` (with the expected app name) while an operation is held until the user opens that app, `ready` when the wait ends. The operation continues by itself shortly after the app opens. Survives teardown and reconnect. Feature-detect; returns the unsubscribe. |
 
 Reference implementations:
 [Unisat](../src/core/wallets/btc/unisat/provider.ts),
@@ -183,6 +184,11 @@ pin the exact bytes):
 - `appName` must match `[a-z0-9\-]`, 1–64 bytes.
 - `context` must be lowercase hex, even-length, non-empty, no `0x` prefix, max 1024 bytes.
 - Wallet MUST require user approval and display `appName` ("babylon-btc-vault"). It MUST also display the requesting origin when the transport carries one (browser extensions, injected providers). Hardware wallets reached over raw APDU, USB, BLE or QR have no authenticated origin and MUST NOT present a dApp-supplied string as a verified one.
+
+The connector's `deriveContextHash` error codes include:
+
+- `WALLET_METHOD_NOT_SUPPORTED`: The wallet does not implement the method. OneKey also reports an account that cannot derive the context hash with this code.
+- `WALLET_ACCOUNT_NOT_SUPPORTED`: The selected account cannot derive the context hash. Only the UniSat provider reports this code.
 
 ### PoP Message Format
 

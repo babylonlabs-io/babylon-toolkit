@@ -1,8 +1,10 @@
 import { Loader } from "@babylonlabs-io/core-ui";
 
 import { ArtifactModalIcon } from "@/components/deposit/ArtifactModalIcon";
+import { DeviceAppWaitDetail } from "@/components/simple/DepositProgressView/DeviceAppWaitDetail";
 import { ProgressBar } from "@/components/simple/DepositProgressView/ProgressBar";
 import { COPY } from "@/copy";
+import { useLedgerVaultDevice } from "@/hooks/useLedgerVaultDevice";
 
 // Decimal (SI) units, matching the design's "742 MB / 1.00 GB" presentation
 // and the "~1 GB" card copy.
@@ -94,6 +96,9 @@ export function ArtifactDownloadContent({
   // Clamp to total so a gzip'd Content-Length or an underestimated fallback
   // can't render "1.40 GB / 1.30 GB" or overshoot the bar.
   const percent = totalBytes > 0 ? Math.min(1, receivedBytes / totalBytes) : 0;
+  // The download authenticates with the vault provider through a device
+  // derive on a token-cache miss, which a Ledger can hold for its app.
+  const { appWait } = useLedgerVaultDevice();
 
   return (
     <div className="flex flex-col gap-10">
@@ -108,6 +113,10 @@ export function ArtifactDownloadContent({
           </p>
         </div>
       </div>
+
+      {appWait.status === "awaiting-app" && (
+        <DeviceAppWaitDetail appName={appWait.expectedAppName} />
+      )}
 
       {totalBytes > 0 ? (
         <>

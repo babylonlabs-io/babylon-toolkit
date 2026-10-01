@@ -812,6 +812,26 @@ describe("Error Formatting", () => {
       );
     });
 
+    it("inlined WALLET_ACCOUNT_NOT_SUPPORTED code matches wallet-connector source", () => {
+      const codesPath = resolve(
+        __dirname,
+        "../../../../../../packages/babylon-wallet-connector/src/error/codes.ts",
+      );
+      const source = readFileSync(codesPath, "utf8");
+      const match = source.match(/WALLET_ACCOUNT_NOT_SUPPORTED:\s*"([^"]+)"/);
+
+      expect(match).not.toBeNull();
+      expect(match?.[1]).toBe("WALLET_ACCOUNT_NOT_SUPPORTED");
+
+      const unsupported = new FakeWalletError(
+        match![1],
+        "The selected Unisat account cannot derive the context hash",
+      );
+      expect(formatPayoutSignatureError(unsupported).title).toBe(
+        COPY.deposit.payoutSignatureErrors.walletAccountNotSupported.title,
+      );
+    });
+
     it("maps a DepositTermsRejectedError instance to the terms-rejected copy", () => {
       const result = formatPayoutSignatureError(
         new DepositTermsRejectedError("terms outside device envelope"),
@@ -897,6 +917,21 @@ describe("Error Formatting", () => {
       });
       expect(formatPayoutSignatureError(err)).toMatchObject(
         COPY.deposit.payoutSignatureErrors.unexpected,
+      );
+    });
+
+    it("maps a top-level WALLET_ACCOUNT_NOT_SUPPORTED code to the resume copy", () => {
+      expect(
+        formatPayoutSignatureError({ code: "WALLET_ACCOUNT_NOT_SUPPORTED" }),
+      ).toEqual(COPY.deposit.payoutSignatureErrors.walletAccountNotSupported);
+    });
+
+    it("maps a WALLET_ACCOUNT_NOT_SUPPORTED code nested in a cause to the resume copy", () => {
+      const err = new Error("payout signing failed", {
+        cause: { code: "WALLET_ACCOUNT_NOT_SUPPORTED" },
+      });
+      expect(formatPayoutSignatureError(err)).toEqual(
+        COPY.deposit.payoutSignatureErrors.walletAccountNotSupported,
       );
     });
 
@@ -1029,6 +1064,44 @@ describe("Error Formatting", () => {
           new FakeWalletError(match![1], "device error"),
         ),
       ).toEqual(COPY.deposit.payoutSignatureErrors.deviceWrongApp);
+    });
+
+    it("maps DEVICE_DISCONNECTED to its dedicated payout copy", () => {
+      expect(
+        formatPayoutSignatureError(
+          new FakeWalletError(
+            "DEVICE_DISCONNECTED",
+            "Ledger Vault was disconnected; reconnect the device and retry.",
+          ),
+        ),
+      ).toEqual(COPY.deposit.payoutSignatureErrors.deviceDisconnected);
+    });
+
+    it("finds DEVICE_DISCONNECTED nested in a wrapper's cause chain", () => {
+      const wrapped = new Error("payout signing failed", {
+        cause: new FakeWalletError("DEVICE_DISCONNECTED", "device unplugged"),
+      });
+      expect(formatPayoutSignatureError(wrapped)).toEqual(
+        COPY.deposit.payoutSignatureErrors.deviceDisconnected,
+      );
+    });
+
+    it("inlined DEVICE_DISCONNECTED code matches wallet-connector source", () => {
+      const codesPath = resolve(
+        __dirname,
+        "../../../../../../packages/babylon-wallet-connector/src/error/codes.ts",
+      );
+      const source = readFileSync(codesPath, "utf8");
+      const match = source.match(/DEVICE_DISCONNECTED:\s*"([^"]+)"/);
+
+      expect(match).not.toBeNull();
+      expect(match?.[1]).toBe("DEVICE_DISCONNECTED");
+
+      expect(
+        formatPayoutSignatureError(
+          new FakeWalletError(match![1], "device error"),
+        ),
+      ).toEqual(COPY.deposit.payoutSignatureErrors.deviceDisconnected);
     });
 
     it("finds DEVICE_CEREMONY_INVALID nested in a wrapper's cause chain", () => {

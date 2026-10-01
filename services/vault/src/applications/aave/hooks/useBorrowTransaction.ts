@@ -153,7 +153,7 @@ export function useBorrowTransaction(): UseBorrowTransactionResult {
         setError(COPY.loans.borrowLimit.capUnavailableError);
         return false;
       }
-      logger.error(error instanceof Error ? error : new Error(String(error)), {
+      logger.error(error, {
         data: { context: "Borrow failed" },
       });
       // Surface the on-chain reserve-mismatch as its own user-facing error so

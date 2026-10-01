@@ -1,7 +1,7 @@
 /**
  * The single `cause`-chain walk shared by the error classifiers
  * (userCancellation.ts, deviceErrors.ts, walletMethodNotSupported.ts,
- * formatting.ts) so their depth bound and walk semantics cannot drift apart.
+ * walletAccountNotSupported.ts, formatting.ts) so their depth bound and walk semantics cannot drift apart.
  *
  * Deliberately dependency-free: `sentry.client.config.ts` imports
  * userCancellation.ts at telemetry-init time, so nothing here may import

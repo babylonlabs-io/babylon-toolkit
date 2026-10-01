@@ -58,7 +58,7 @@ function renderApp(): void {
 const speculosReady = initSpeculosTransportForE2E();
 if (speculosReady !== undefined) {
   void speculosReady.then(renderApp, (error: unknown) => {
-    logger.error(error instanceof Error ? error : new Error(String(error)), {
+    logger.error(error, {
       data: { context: "Speculos transport bootstrap failed" },
     });
     renderApp();
