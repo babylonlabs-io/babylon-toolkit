@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { calculate } from "@/applications/aave/positionNotifications";
 import type { CalculatorParams } from "@/applications/aave/positionNotifications/types";
 import { COPY } from "@/copy";
-import { formatBtcAmount, formatPriceUsd } from "@/utils/formatting";
+import { formatBtcAmount, formatCompactPrice } from "@/utils/formatting";
 
 import { LiquidationPreview } from "../LiquidationPreview";
 
@@ -29,6 +29,7 @@ vi.mock("@/applications/aave/hooks/usePositionNotifications", () => ({
 }));
 
 vi.mock("@/applications/aave/hooks/useBtcPriceCandles", () => ({
+  TIMELINE_VISIBLE_CANDLES: 365,
   useBtcPriceCandles: () => ({ candles: mockCandles }),
 }));
 
@@ -55,7 +56,9 @@ const PARAMS: CalculatorParams = {
   ],
   CF: 0.5,
   THF: 1.1,
-  maxLB: 1.05,
+  LB: 1.05,
+  expectedHF: 0.95,
+  minPeginBtc: null,
 };
 
 /**
@@ -72,7 +75,9 @@ const SINGLE_VAULT_PARAMS: CalculatorParams = {
   vaults: [{ id: "v-1", name: "Vault 1", btc: 0.7 }],
   CF: 0.5,
   THF: 1.1,
-  maxLB: 1.05,
+  LB: 1.05,
+  expectedHF: 0.95,
+  minPeginBtc: null,
 };
 const AXIS_STEP_CROSSING_BORROW_USD = 1_750;
 
@@ -117,10 +122,10 @@ describe("LiquidationPreview", () => {
     expect(firstTrigger(borrowedUsd)).toBeGreaterThan(firstTrigger(0));
     const chart = within(container);
     expect(
-      chart.getByText(formatPriceUsd(firstTrigger(borrowedUsd))),
+      chart.getByText(formatCompactPrice(firstTrigger(borrowedUsd))),
     ).toBeInTheDocument();
     expect(
-      chart.queryByText(formatPriceUsd(firstTrigger(0))),
+      chart.queryByText(formatCompactPrice(firstTrigger(0))),
     ).not.toBeInTheDocument();
   });
 

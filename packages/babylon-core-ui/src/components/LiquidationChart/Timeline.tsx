@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { twJoin } from "tailwind-merge";
 import { localPoint } from "@visx/event";
 import { GridColumns } from "@visx/grid";
 import { Group } from "@visx/group";
@@ -40,6 +41,8 @@ const READOUT_FLIP_FRAC = 0.6;
 const DEFAULT_EVENT_ROW_PX = 44;
 /** Candle body corner radius, px. */
 const CANDLE_BODY_RADIUS_PX = 2;
+/** Radius of the dot marking the close line's latest price, px. */
+const END_DOT_RADIUS_PX = 4;
 
 const defaultFormatPrice = (n: number) => `$${Math.round(n).toLocaleString("en-US")}`;
 const defaultFormatTime = (t: number) => new Date(t).toLocaleDateString("en-US", { month: "short", day: "numeric" });
@@ -110,6 +113,7 @@ export function Timeline({
   bandPlacement = "gutter",
   eventRowPx = DEFAULT_EVENT_ROW_PX,
   aspectRatio,
+  priceLineColor,
   className,
 }: TimelineProps) {
   const compact = variant === "compact";
@@ -119,7 +123,12 @@ export function Timeline({
   // The time axis exists only when there is something to label: derived ticks
   // from candles, or the caller's static labels.
   const hasXAxis = !compact && (candles.length > 0 || Boolean(timeAxisLabels?.length));
-  const { parentRef, layout, collapsed } = useChartLayout({ axisSide: "right", hasTopLegend: false, hasXAxis, aspectRatio });
+  const { parentRef, layout, collapsed } = useChartLayout({
+    axisSide: "right",
+    hasTopLegend: false,
+    hasXAxis,
+    aspectRatio,
+  });
   // The gutter only reserves candle space in `"gutter"` placement; in
   // `"plot"` the bands span the whole plot and the candles are drawn over
   // them, so the candle region keeps the full width.
@@ -252,11 +261,14 @@ export function Timeline({
   const xAxisTicks = useMemo(() => {
     if (compact || !windowed.length) return undefined;
     const tickCount = Math.min(7, windowed.length);
-    return Array.from({ length: tickCount }, (_, i) => {
+    const ticks = Array.from({ length: tickCount }, (_, i) => {
       // A single candle gets a single tick; the even spread needs ticks >= 2.
       const idx = tickCount < 2 ? 0 : Math.round((i / (tickCount - 1)) * (windowed.length - 1));
       return { fraction: (idx + 0.5) / windowed.length, label: formatTime(windowed[idx].time) };
     });
+    // A coarse formatter (month names over weekly candles) repeats a label
+    // across neighbouring ticks; keep only the first of each run.
+    return ticks.filter((tick, i) => i === 0 || tick.label !== ticks[i - 1].label);
   }, [compact, windowed, formatTime]);
   const xAxisLabels = compact || windowed.length ? undefined : timeAxisLabels;
 
@@ -354,7 +366,8 @@ export function Timeline({
       xAxisLabels={xAxisLabels}
       xAxisTicks={xAxisTicks}
       grid={resolvedGrid}
-      className={className}
+      priceLineColor={priceLineColor}
+      className={twJoin(bandPlacement === "plot" && "bbn-liq-timeline--plot", className)}
       overlay={
         <>
           {hovered ? (
@@ -478,6 +491,14 @@ export function Timeline({
                 data={candleGeom}
                 x={(g) => g.center}
                 y={(g) => priceScale(g.candle.close)}
+              />
+            ) : null}
+            {seriesStyle === "candles+line" ? (
+              <circle
+                className="bbn-liq-series__end-dot"
+                cx={candleGeom[candleGeom.length - 1].center}
+                cy={priceScale(candleGeom[candleGeom.length - 1].candle.close)}
+                r={END_DOT_RADIUS_PX}
               />
             ) : null}
           </>

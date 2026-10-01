@@ -204,6 +204,11 @@ export interface TimelineProps extends LiquidationChartBase {
    * budget crowds the candle region down to its floor.
    */
   eventRowPx?: number;
+  /**
+   * Override the price-line colour (rule, label, close line, end dot).
+   * Default: `--liq-price-line`.
+   */
+  priceLineColor?: string;
   /** With `pan`, how many candles are visible at once. Default: all candles. */
   visibleCandles?: number;
   /** Formats the crosshair readout price. Default: `$` + grouped integer. */

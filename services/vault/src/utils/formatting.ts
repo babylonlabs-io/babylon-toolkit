@@ -216,11 +216,22 @@ export function formatPriceUsd(priceUsd: number): string {
 export function formatCompactUsd(usd: number, uppercaseSuffix = false): string {
   if (usd <= 0) return "$0";
   if (usd < 1000) return formatPriceUsd(usd);
-  const compact = new Intl.NumberFormat("en-US", {
+  const compact = formatCompactPrice(usd);
+  return `$${uppercaseSuffix ? compact.toUpperCase() : compact}`;
+}
+
+/**
+ * Format a price in lowercase compact notation with no currency symbol, one
+ * fractional digit at most (e.g. "60k", "52.8k", "1.5m"). For chart labels
+ * where the axis already names the unit.
+ */
+export function formatCompactPrice(value: number): string {
+  return new Intl.NumberFormat("en-US", {
     notation: "compact",
     maximumFractionDigits: 1,
-  }).format(usd);
-  return `$${uppercaseSuffix ? compact : compact.toLowerCase()}`;
+  })
+    .format(value)
+    .toLowerCase();
 }
 
 /**

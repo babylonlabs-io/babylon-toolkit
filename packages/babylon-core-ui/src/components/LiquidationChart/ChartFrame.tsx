@@ -220,7 +220,9 @@ export function ChartFrame({
   const svgLabel = ariaLabel ?? [priceLineCaption, currentPriceLabel].filter(Boolean).join(" ");
   // The TS constant sizes the pills via measureText; emitting it as a CSS var
   // keeps the painted letter-spacing in lockstep with the measured one.
-  const chartVars = { "--liq-axis-letter-spacing": `${AXIS_LETTER_SPACING_PX}px` } as CSSProperties;
+  // The price-line overrides sit on the root, not the rule's group, so they
+  // also reach the current-price pill and any series drawn in `children`.
+  const chartVars = { "--liq-axis-letter-spacing": `${AXIS_LETTER_SPACING_PX}px`, ...priceLineVars } as CSSProperties;
 
   return (
     <div
@@ -262,7 +264,7 @@ export function ChartFrame({
 
             {children}
 
-            <g style={priceLineVars}>
+            <>
               <Line
                 className="bbn-liq-price-line"
                 from={{ x: plotInsetLeft, y: currentY }}
@@ -295,7 +297,7 @@ export function ChartFrame({
                   </Text>
                 </>
               ) : null}
-            </g>
+            </>
 
             {pills.map((pill) => (
               <g key={pill.key} aria-hidden>
@@ -342,20 +344,28 @@ export function ChartFrame({
             ),
           )}
 
-          {xTicks?.map((tick, index) => (
-            <Text
-              key={`${tick.label}-${tick.fraction}`}
-              className="bbn-liq-axis-text"
-              x={layout.plotLeft + plotInsetLeft + tick.fraction * axisRegionWidth}
-              y={layout.plotTop + layout.plotHeight + X_AXIS_MARGIN_TOP_PX}
-              textAnchor={index === 0 ? "start" : index === xTicks.length - 1 ? "end" : "middle"}
-              verticalAnchor="start"
-              fontSize={layout.fontAxis}
-              aria-hidden
-            >
-              {tick.label}
-            </Text>
-          ))}
+          {xTicks?.map((tick) => {
+            // Centred under its tick unless that would overrun the axis, in
+            // which case it hugs the edge. Positional, not first/last index:
+            // a de-duplicated time axis can end on a mid-plot tick.
+            const x = tick.fraction * axisRegionWidth;
+            const half = measureText(tick.label, chartFont(layout.fontAxis), AXIS_LETTER_SPACING_PX) / 2;
+            const anchor = x - half <= 0 ? "start" : x + half >= axisRegionWidth ? "end" : "middle";
+            return (
+              <Text
+                key={`${tick.label}-${tick.fraction}`}
+                className="bbn-liq-axis-text"
+                x={layout.plotLeft + plotInsetLeft + x}
+                y={layout.plotTop + layout.plotHeight + X_AXIS_MARGIN_TOP_PX}
+                textAnchor={anchor}
+                verticalAnchor="start"
+                fontSize={layout.fontAxis}
+                aria-hidden
+              >
+                {tick.label}
+              </Text>
+            );
+          })}
         </svg>
         {overlay}
       </div>

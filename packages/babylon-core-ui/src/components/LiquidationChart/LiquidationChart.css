@@ -15,6 +15,7 @@
   --liq-band-2: #d1792c;
   --liq-band-3: #cc1818;
   --liq-price-line: #387085;
+  --liq-price-line-accent: #2979ff;
   --liq-band-text: #ffffff;
   --liq-candle-up: #00bc64;
   --liq-candle-down: #ff0020;
@@ -177,7 +178,8 @@
 .bbn-liq-candle__wick,
 .bbn-liq-candle__body,
 .bbn-liq-series__line,
-.bbn-liq-series__area {
+.bbn-liq-series__area,
+.bbn-liq-series__end-dot {
   pointer-events: none;
 }
 
@@ -190,6 +192,9 @@
  * as a bullish mark, so the close line takes the price-line colour. */
 .bbn-liq-series__line--over-candles {
   stroke: var(--liq-price-line);
+}
+.bbn-liq-series__end-dot {
+  fill: var(--liq-price-line);
 }
 .bbn-liq-series__area {
   fill: var(--liq-candle-up);
@@ -263,6 +268,21 @@
 }
 .bbn-liq-readout__row span:first-child {
   color: var(--liq-surface-muted);
+}
+
+/* ---- Plot-width bands (Timeline `bandPlacement="plot"`) ---------- */
+/* The bands sit under the candles here, so they tint rather than fill, and
+ * the level lines and price rule thin out to read over them. `fill-opacity`,
+ * not `opacity`, keeps the band label at full strength. */
+.bbn-liq-timeline--plot .bbn-liq-band__rect {
+  fill-opacity: 0.2;
+}
+.bbn-liq-timeline--plot .bbn-liq-level-line {
+  stroke-width: 1.5;
+  stroke-dasharray: 7 7;
+}
+.bbn-liq-timeline--plot .bbn-liq-price-line {
+  stroke-width: 1;
 }
 
 /* ---- Safe-zone box in the band gutter (Timeline) ------------------- */

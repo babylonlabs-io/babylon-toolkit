@@ -37,7 +37,8 @@ import {
 import { ExpandMenuButton } from "@/components/shared/ExpandMenuButton";
 import { useConnection, useETHWallet } from "@/context/wallet";
 import { COPY } from "@/copy";
-import { formatBtcAmount, formatPriceUsd } from "@/utils/formatting";
+import { usePositionCascadeOverride } from "@/overrides/position";
+import { formatBtcAmount, formatCompactPrice } from "@/utils/formatting";
 
 /** The design's chart frame (Figma 13485:97808), 538 × 240. */
 const CHART_WIDTH_PX = 538;
@@ -108,9 +109,13 @@ export function LiquidationPreview({
   const [expanded, setExpanded] = useState(true);
   const { address } = useETHWallet();
   const { isConnected } = useConnection();
-  const { params, result } = usePositionNotifications(
-    isConnected ? address : undefined,
-  );
+  const live = usePositionNotifications(isConnected ? address : undefined);
+  // God-mode cascade when the panel publishes one, else the live position. A
+  // status-only override carries no cascade and falls through to live.
+  const cascadeOverride = usePositionCascadeOverride();
+  const { params, result } = cascadeOverride?.result
+    ? { params: cascadeOverride.params, result: cascadeOverride.result }
+    : live;
   const { candles } = useBtcPriceCandles();
 
   // `calculate()` is an O(3^n) bitmask DP over the vault set and the borrow
@@ -149,7 +154,7 @@ export function LiquidationPreview({
       (max, candle) => Math.max(max, candle.high),
       params.btcPrice,
     );
-    return buildTimelinePriceAxis(result, topPrice);
+    return buildTimelinePriceAxis(result, topPrice, formatCompactPrice);
   }, [params, result, weeklyCandles]);
 
   const bands = useMemo(() => {
@@ -184,7 +189,7 @@ export function LiquidationPreview({
   );
 
   return (
-    <SubSection className="flex-col !bg-secondary-highlight">
+    <SubSection className="flex-col !bg-secondary-highlight !py-4">
       <Accordion expanded={expanded} fluid>
         <div className="flex w-full items-center justify-between">
           <span className="flex items-center gap-2 text-accent-primary">
@@ -201,7 +206,13 @@ export function LiquidationPreview({
         {/* AccordionDetails carries the shared dropdown motion and owns the
             collapsed visibility (see docs/motion-system.md). */}
         <AccordionDetails className="flex flex-col gap-4">
-          <div className="flex w-full items-center justify-between border-t border-secondary-strokeLight pt-4 text-sm">
+          {/* The gap above the divider lives inside the measured content, so
+              a collapsed card leaves none. */}
+          <div
+            aria-hidden="true"
+            className="mt-4 h-px w-full bg-secondary-strokeLight"
+          />
+          <div className="flex w-full items-center justify-between text-base">
             <span className="text-accent-secondary">
               {COPY.liquidations.preview.totalCollateralLabel}
             </span>
@@ -217,20 +228,23 @@ export function LiquidationPreview({
             bands={bands}
             candles={weeklyCandles}
             currentPrice={params.btcPrice}
-            currentPriceLabel={formatPriceUsd(params.btcPrice)}
+            currentPriceLabel={formatCompactPrice(params.btcPrice)}
             priceAxis={priceAxis}
             bandPlacement="plot"
             seriesStyle="candles+line"
             aspectRatio={CHART_WIDTH_PX / chartHeight}
             eventRowPx={EVENT_ROW_PX}
-            formatPrice={formatPriceUsd}
+            formatPrice={formatCompactPrice}
+            priceLineColor="var(--liq-price-line-accent)"
+            grid={{ lines: "both", style: "solid" }}
+            className="mt-2"
             formatTime={formatCandleMonth}
             liquidatedLabel={COPY.liquidations.liquidatedBandLabel}
           />
 
-          <div className="flex items-center gap-8 text-sm text-accent-secondary">
+          <div className="flex items-center gap-6 text-xs text-accent-primary">
             <LegendItem
-              color="var(--liq-price-line)"
+              color="var(--liq-price-line-accent)"
               dashed={false}
               label={COPY.liquidations.preview.legendPrice}
             />

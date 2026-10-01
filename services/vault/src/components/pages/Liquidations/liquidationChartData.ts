@@ -197,16 +197,19 @@ function niceStep(span: number, target: number): number {
  * The floor tick carries no label: it only anchors the scale's lower domain
  * bound, and the design shows no price at the very bottom of the axis (the
  * lowest trigger already has its own pill).
+ *
+ * `formatLabel` renders the tick labels; full dollar amounts by default.
  */
 export function buildTimelinePriceAxis(
   result: CalculatorResult,
   topPrice: number,
+  formatLabel: (price: number) => string = formatPriceUsd,
 ): PriceAxisTick[] {
   const floorPrice = axisFloorPrice(result);
   const firstTrigger = result.groups[0]?.liquidationPrice ?? floorPrice;
   const toTick = (value: number): PriceAxisTick => ({
     value,
-    label: formatPriceUsd(value),
+    label: formatLabel(value),
   });
   const toFloorTick = (value: number): PriceAxisTick => ({ value, label: "" });
 
