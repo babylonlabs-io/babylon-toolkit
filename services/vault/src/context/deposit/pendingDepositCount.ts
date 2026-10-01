@@ -17,7 +17,7 @@ export function selectPendingActivities(
   return [...demo.pendingActivities, ...(demo.hideReal ? [] : real)];
 }
 
-let pendingDepositCount = 0;
+let pendingDepositSummary = { count: 0, progress: null as number | null };
 const listeners = new Set<() => void>();
 
 function subscribe(listener: () => void): () => void {
@@ -27,16 +27,23 @@ function subscribe(listener: () => void): () => void {
   };
 }
 
-function getSnapshot(): number {
-  return pendingDepositCount;
+function getSnapshot() {
+  return pendingDepositSummary;
 }
 
-export function publishPendingDepositCount(count: number): void {
-  if (count === pendingDepositCount) return;
-  pendingDepositCount = count;
+export function publishPendingDepositSummary(
+  count: number,
+  progress: number | null,
+): void {
+  if (
+    count === pendingDepositSummary.count &&
+    progress === pendingDepositSummary.progress
+  )
+    return;
+  pendingDepositSummary = { count, progress };
   for (const listener of listeners) listener();
 }
 
-export function usePendingDepositCount(): number {
+export function usePendingDepositSummary() {
   return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 }

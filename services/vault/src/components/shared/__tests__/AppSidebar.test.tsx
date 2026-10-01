@@ -1,6 +1,8 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { publishPendingDepositSummary } from "@/context/deposit/pendingDepositCount";
 
 import { AppSidebar } from "../AppSidebar";
 
@@ -9,16 +11,11 @@ const featureFlagsMock = vi.hoisted(() => ({
 }));
 
 vi.mock("@/config/featureFlags", () => ({ default: featureFlagsMock }));
-const pendingCountMock = vi.hoisted(() => ({ value: 0 }));
-
-vi.mock("@/context/deposit/pendingDepositCount", () => ({
-  usePendingDepositCount: () => pendingCountMock.value,
-}));
 
 describe("AppSidebar", () => {
   beforeEach(() => {
     featureFlagsMock.isExploreEnabled = true;
-    pendingCountMock.value = 0;
+    publishPendingDepositSummary(0, null);
   });
 
   it("renders all 6 nav items", () => {
@@ -109,8 +106,8 @@ describe("AppSidebar", () => {
     );
   });
 
-  it("shows the pending deposit count on the Vaults row", () => {
-    pendingCountMock.value = 3;
+  it("updates the progress arc without a count change", () => {
+    publishPendingDepositSummary(3, 5 / 6);
 
     render(
       <MemoryRouter initialEntries={["/"]}>
@@ -121,6 +118,32 @@ describe("AppSidebar", () => {
     const badge = screen.getByRole("img", { name: "3 pending deposits" });
     expect(badge).toHaveTextContent("3");
     expect(screen.getByTestId("nav-vaults")).toContainElement(badge);
+    expect(badge).toHaveAttribute("title", "83% average deposit progress");
+    expect(badge.querySelector("circle[stroke-dasharray]")).toHaveAttribute(
+      "stroke-dashoffset",
+      String(1 - 5 / 6),
+    );
+
+    act(() => publishPendingDepositSummary(3, 13 / 15));
+
+    expect(badge).toHaveTextContent("3");
+    expect(badge).toHaveAttribute("title", "87% average deposit progress");
+    expect(badge.querySelector("circle[stroke-dasharray]")).toHaveAttribute(
+      "stroke-dashoffset",
+      String(1 - 13 / 15),
+    );
+  });
+
+  it.each([null, 0])("shows no progress arc for %s progress", (progress) => {
+    publishPendingDepositSummary(1, progress);
+    render(
+      <MemoryRouter>
+        <AppSidebar />
+      </MemoryRouter>,
+    );
+
+    const badge = screen.getByRole("img", { name: "1 pending deposit" });
+    expect(badge.querySelector("circle[stroke-dasharray]")).toBeNull();
   });
 
   it("shows no badge when there are no pending deposits", () => {
@@ -136,7 +159,7 @@ describe("AppSidebar", () => {
   });
 
   it("caps the visible count at 9+ but keeps the full count in the accessible name", () => {
-    pendingCountMock.value = 10;
+    publishPendingDepositSummary(10, null);
 
     render(
       <MemoryRouter initialEntries={["/"]}>
