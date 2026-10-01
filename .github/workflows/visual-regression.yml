@@ -71,6 +71,7 @@ env:
 jobs:
   visual:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
 
     outputs:
       report_sha: ${{ steps.refs.outputs.report_sha }}
@@ -92,9 +93,11 @@ jobs:
       - name: Resolve merge-base
         id: refs
         shell: bash
+        env:
+          BASE_REF: ${{ github.base_ref }}
         run: |
           set -euo pipefail
-          git fetch --no-tags origin "${{ github.base_ref }}"
+          git fetch --no-tags origin "${BASE_REF}"
           # On `pull_request`, actions/checkout gives us refs/pull/N/merge —
           # the merge commit — so this resolves to the base branch's TIP, not
           # to the PR's true merge-base. That is deliberate and is the
@@ -104,7 +107,7 @@ jobs:
           # sides and cancels out. Do not "fix" this to a true merge-base
           # without re-reasoning about that; it would silently start
           # attributing other people's UI changes to this PR.
-          MERGE_BASE="$(git merge-base "origin/${{ github.base_ref }}" HEAD)"
+          MERGE_BASE="$(git merge-base "origin/${BASE_REF}" HEAD)"
           echo "merge_base=${MERGE_BASE}" >> "$GITHUB_OUTPUT"
           # Checked back out after the baseline capture. This is the merge
           # commit, which is what must be restored to leave the tree as found.
@@ -496,6 +499,7 @@ jobs:
   publish:
     needs: visual
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     permissions:
       contents: write

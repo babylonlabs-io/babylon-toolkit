@@ -9,14 +9,22 @@ on:
       - "simple-staking/*"
   workflow_dispatch:
 
-# For github OIDC authentication to AWS
+# Only pull request runs share a group, so a new push to a PR cancels its
+# superseded run. Every other run gets its own group and is never cancelled
+# or replaced, as without a concurrency block.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# For github OIDC authentication to AWS; granted only to s3_publish, which
+# assumes the role. lint_test runs the dependency tree and needs read only.
 permissions:
-  id-token: write
   contents: read
 
 jobs:
   lint_test:
     runs-on: ubuntu-24.04
+    timeout-minutes: 45
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2 https://github.com/actions/checkout/releases/tag/v6.0.2
@@ -48,6 +56,7 @@ jobs:
       id-token: write # OIDC assume-role for AWS
       contents: write # publish checksum manifest as a release asset (#253)
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:

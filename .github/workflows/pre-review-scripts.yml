@@ -11,6 +11,13 @@ on:
       - 'scripts/pre-review/**'
       - '.github/workflows/pre-review-scripts.yml'
 
+# Only pull request runs share a group, so a new push to a PR cancels its
+# superseded run. Every other run gets its own group and is never cancelled
+# or replaced, as without a concurrency block.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 permissions:
   contents: read
 
