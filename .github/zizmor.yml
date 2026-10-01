@@ -1,0 +1,11 @@
+# Accepted zizmor findings. Each entry names one file:line:col and why.
+# babylonlabs-io/.github reusable_zizmor audits a PR with its base commit's
+# config, so a waiver lands in a PR that changes only this file.
+rules:
+  dangerous-triggers:
+    ignore:
+      # pull_request_target on purpose: GitHub runs main's copy of the check
+      # and its scripts, so a PR cannot edit the check it is judged by. No
+      # step checks out or runs PR code; everything is read from the event
+      # payload (see the header of pre-review-check.yml).
+      - pre-review-check.yml:20:1
