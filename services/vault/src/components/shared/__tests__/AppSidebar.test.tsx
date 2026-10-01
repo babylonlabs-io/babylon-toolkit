@@ -115,10 +115,12 @@ describe("AppSidebar", () => {
       </MemoryRouter>,
     );
 
-    const badge = screen.getByRole("img", { name: "3 pending deposits" });
+    const badge = screen.getByRole("img", { name: /^3 pending deposits/ });
     expect(badge).toHaveTextContent("3");
     expect(screen.getByTestId("nav-vaults")).toContainElement(badge);
-    expect(badge).toHaveAttribute("title", "83% average deposit progress");
+    expect(screen.getByTestId("nav-vaults")).toHaveAccessibleName(
+      "Vaults 3 pending deposits, 83% average deposit progress",
+    );
     expect(badge.querySelector("circle[stroke-dasharray]")).toHaveAttribute(
       "stroke-dashoffset",
       String(1 - 5 / 6),
@@ -127,7 +129,9 @@ describe("AppSidebar", () => {
     act(() => publishPendingDepositSummary(3, 13 / 15));
 
     expect(badge).toHaveTextContent("3");
-    expect(badge).toHaveAttribute("title", "87% average deposit progress");
+    expect(screen.getByTestId("nav-vaults")).toHaveAccessibleName(
+      "Vaults 3 pending deposits, 87% average deposit progress",
+    );
     expect(badge.querySelector("circle[stroke-dasharray]")).toHaveAttribute(
       "stroke-dashoffset",
       String(1 - 13 / 15),
@@ -142,7 +146,7 @@ describe("AppSidebar", () => {
       </MemoryRouter>,
     );
 
-    const badge = screen.getByRole("img", { name: "1 pending deposit" });
+    const badge = screen.getByRole("img", { name: /^1 pending deposit/ });
     expect(badge.querySelector("circle[stroke-dasharray]")).toBeNull();
   });
 

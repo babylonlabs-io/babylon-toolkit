@@ -17,16 +17,16 @@ export function PendingDepositsBadge({
     count > MAX_DISPLAYED_COUNT
       ? COPY.nav.pendingDepositsOverflow(MAX_DISPLAYED_COUNT)
       : count;
+  const label =
+    progress === null
+      ? COPY.nav.pendingDeposits(count)
+      : `${COPY.nav.pendingDeposits(count)}, ${COPY.nav.pendingDepositsProgress(Math.round(progress * 100))}`;
 
   return (
     <span
       role="img"
-      aria-label={COPY.nav.pendingDeposits(count)}
-      title={
-        progress !== null
-          ? COPY.nav.pendingDepositsProgress(Math.round(progress * 100))
-          : undefined
-      }
+      aria-label={label}
+      title={label}
       className="relative flex size-[18px] items-center justify-center"
     >
       <svg
@@ -62,6 +62,14 @@ export function PendingDepositsBadge({
       <span className="relative text-[10px] font-bold leading-[1.2] tracking-[0.4px] text-accent-primary">
         {displayedCount}
       </span>
+      {progress !== null && (
+        <span
+          aria-hidden
+          className="absolute right-6 hidden text-xs text-accent-primary group-focus-visible:block"
+        >
+          {Math.round(progress * 100)}%
+        </span>
+      )}
     </span>
   );
 }

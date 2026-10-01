@@ -54,6 +54,7 @@ function V3NavLinks() {
               <NavLink
                 key={path}
                 to={path}
+                className="group"
                 end={path === "/"}
                 data-testid={`nav-${id}`}
               >

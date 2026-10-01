@@ -3,6 +3,8 @@ import type { PropsWithChildren } from "react";
 import type { Hex } from "viem";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { setDepositOverride } from "@/overrides/deposits";
+
 import featureFlags from "../../../config/featureFlags";
 import { COPY } from "../../../copy";
 import {
@@ -16,7 +18,6 @@ import {
   PEGIN_DISPLAY_LABELS,
   PeginAction,
 } from "../../../models/peginStateMachine";
-import { setDepositOverride } from "../../../overrides/deposits";
 import { loadRefundedHtlcVaultIds } from "../../../storage/refundedHtlcCache";
 import type { VaultActivity } from "../../../types/activity";
 import type { PeginPollingContextValue } from "../../../types/peginPolling";
