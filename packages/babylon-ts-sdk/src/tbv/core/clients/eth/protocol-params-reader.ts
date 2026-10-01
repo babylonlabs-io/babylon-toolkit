@@ -24,11 +24,11 @@ import type {
 } from "./types";
 
 /**
- * Maximum value for a Solidity uint16.
- * PeginLogic.sol casts timelockAssert to uint16, so values above this are invalid.
+ * Maximum value for a Solidity uint16. btc-vault carries the PegIn timelock as
+ * a `NonZeroU16` (`transactions/pegin.rs:33` @ ac4954e7), so a larger
+ * `timelockAssert` has no protocol-side representation.
  */
 const UINT16_MAX = 65535;
-
 
 /**
  * Raw shape viem returns for VersionedOffchainParams struct.
@@ -94,14 +94,16 @@ function mapTBVParams(result: RawTBVParams): TBVProtocolParams {
 /**
  * Derive timelockPegin from timelockAssert.
  *
- * Matches PeginLogic.sol: `uint16(timelockAssert)`.
- * The contract validates `timelockAssert <= type(uint16).max` on write,
- * but we enforce the same bound here to reject invalid values early
- * rather than silently truncating.
+ * btc-vault uses `timelock_assert` as the PegIn timelock (vaultd
+ * `pegin_babe_setup.rs:794` @ ac4954e7) and carries it as a `NonZeroU16`
+ * (`transactions/pegin.rs:33`).
+ * `ProtocolParams.sol:510-512` @ c559f5c2 rejects a zero or above-uint16
+ * `timelockAssert` on write; the upper bound is enforced again here so a bad
+ * read fails early instead of truncating.
  *
  * @throws if timelockAssert exceeds uint16 max (65535)
  */
-function deriveTimelockPegin(timelockAssert: bigint): number {
+export function deriveTimelockPegin(timelockAssert: bigint): number {
   if (timelockAssert > BigInt(UINT16_MAX)) {
     throw new Error(
       `timelockAssert value ${timelockAssert} exceeds uint16 max (${UINT16_MAX})`,

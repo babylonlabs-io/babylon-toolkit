@@ -47,7 +47,13 @@ describe("buildDefaultTaprootPolicy", () => {
 
   it("rejects a fingerprint that is not 8 lowercase hex chars", () => {
     expect(() =>
-      buildDefaultTaprootPolicy({ masterFingerprintHex: "F5ACC2FD", coinType: 1, accountIndex: 0, accountXpub: TPUB, bip32Versions: TESTNET_VERSIONS }),
+      buildDefaultTaprootPolicy({
+        masterFingerprintHex: "F5ACC2FD",
+        coinType: 1,
+        accountIndex: 0,
+        accountXpub: TPUB,
+        bip32Versions: TESTNET_VERSIONS,
+      }),
     ).toThrow(/masterFingerprintHex/);
   });
 
@@ -58,7 +64,7 @@ describe("buildDefaultTaprootPolicy", () => {
         coinType: 1,
         accountIndex: -1,
         accountXpub: TPUB,
-      bip32Versions: TESTNET_VERSIONS,
+        bip32Versions: TESTNET_VERSIONS,
       }),
     ).toThrow(/non-negative integers/);
   });
@@ -81,7 +87,7 @@ describe("buildDefaultTaprootPolicy", () => {
         coinType: 1,
         accountIndex: 0x80000000,
         accountXpub: TPUB,
-      bip32Versions: TESTNET_VERSIONS,
+        bip32Versions: TESTNET_VERSIONS,
       }),
     ).toThrow(/coinType and accountIndex/);
   });
@@ -93,7 +99,7 @@ describe("buildDefaultTaprootPolicy", () => {
         coinType: 0x80000000,
         accountIndex: 0,
         accountXpub: TPUB,
-      bip32Versions: TESTNET_VERSIONS,
+        bip32Versions: TESTNET_VERSIONS,
       }),
     ).toThrow(/coinType and accountIndex/);
   });
