@@ -105,6 +105,10 @@ vi.mock("@/hooks/deposit/depositFlowSteps/ensureAuthenticatedVpClient", () => ({
   ensureAuthenticatedVpClient: vi.fn(),
 }));
 
+vi.mock("@/utils/rpc", () => ({
+  getVpProxyUrl: vi.fn((address: string) => `https://vp.test/rpc/${address}`),
+}));
+
 import { COPY } from "@/copy";
 import { setArtifactDownloadOverride } from "@/overrides/artifactDownload";
 import {
@@ -123,6 +127,7 @@ import {
   saveArtifactDownloadReceipt,
   saveGraphMismatch,
 } from "@/utils/artifactDownloadStorage";
+import { getVpProxyUrl } from "@/utils/rpc";
 
 import { ensureAuthenticatedVpClient } from "../depositFlowSteps/ensureAuthenticatedVpClient";
 import { useArtifactDownload } from "../useArtifactDownload";
@@ -296,6 +301,26 @@ describe("useArtifactDownload — prime then fetch", () => {
     });
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(result.current.error).toBeNull();
+  });
+
+  it("shows an error, and opens no save picker, when the provider address has no proxy URL", async () => {
+    vi.mocked(getVpProxyUrl).mockImplementationOnce(() => {
+      throw new Error('Invalid vault provider address: "0x1234".');
+    });
+
+    const { result } = renderHook(() =>
+      useArtifactDownload({ vaultId: VAULT_ID, primeContext }),
+    );
+
+    await act(async () => {
+      await result.current.download(PROVIDER_ADDRESS, PEGIN_TXID, DEPOSITOR_PK);
+    });
+
+    expect(result.current.error).toBe(
+      COPY.deposit.recoveryArtifacts.vaultProviderUnreachable,
+    );
+    expect(openTargetMock).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("opens the save picker before prompting the wallet", async () => {

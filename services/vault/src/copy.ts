@@ -767,6 +767,10 @@ export const COPY = {
       doNotCloseHint: "Do not close this window while downloading.",
       cannotAuthenticate:
         "Cannot authenticate with the vault provider. Please refresh and try again.",
+      // The deposit's vault provider address could not be turned into a
+      // proxy URL (malformed address or missing proxy configuration).
+      vaultProviderUnreachable:
+        "Cannot reach the vault provider for this deposit. Please refresh and try again.",
       // Progress/status lines surfaced in the card while the download hook
       // works through its fetch / re-auth / wait-for-signatures states.
       // The signature status shows while the cold-cache auth prime waits on
