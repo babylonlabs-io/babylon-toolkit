@@ -19,13 +19,12 @@ export interface BtcNetworkConfig {
   coinSymbol: string;
   networkName: string;
   mempoolApiUrl: string;
-  bitcoinObserverApiUrl: string;
   network: BtcNetworkName;
 }
 
 const STATIC_CONFIG: Record<
   BtcNetworkName,
-  Omit<BtcNetworkConfig, "mempoolApiUrl" | "bitcoinObserverApiUrl">
+  Omit<BtcNetworkConfig, "mempoolApiUrl">
 > = {
   [BTC_MAINNET]: {
     coinName: "BTC",
@@ -46,14 +45,12 @@ const STATIC_CONFIG: Record<
  * have been called first.
  */
 export function getNetworkConfigBTC(): BtcNetworkConfig {
-  const { btcNetwork, mempoolApiUrl, bitcoinObserverApiUrl } =
-    getBabylonConfigState();
+  const { btcNetwork, mempoolApiUrl } = getBabylonConfigState();
   // `mempoolApiUrl` already carries the network path (mempool.space/signet, or
   // a signet-specific host); do NOT append `/signet` here or it double-prefixes.
   return {
     ...STATIC_CONFIG[btcNetwork],
     mempoolApiUrl,
-    bitcoinObserverApiUrl,
   };
 }
 

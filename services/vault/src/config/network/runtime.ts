@@ -46,13 +46,6 @@ export interface BabylonConfigOptions {
    * See {@link resolveMempoolApiUrl}.
    */
   mempoolApiUrl?: string;
-
-  /**
-   * Optional independent Bitcoin observer host base URL. This must be on a
-   * different origin from `mempoolApiUrl`: the broadcaster cannot also be the
-   * authority that proves its own relay succeeded. Defaults to blockstream.info.
-   */
-  bitcoinObserverApiUrl?: string;
 }
 
 export interface BabylonConfigState {
@@ -60,12 +53,10 @@ export interface BabylonConfigState {
   ethRpcUrl: string;
   btcNetwork: BtcNetworkName;
   mempoolApiUrl: string;
-  bitcoinObserverApiUrl: string;
 }
 
 // Default mempool host when NEXT_PUBLIC_MEMPOOL_API is unset.
 const DEFAULT_MEMPOOL_HOST = "https://mempool.space";
-const DEFAULT_BITCOIN_OBSERVER_HOST = "https://blockstream.info";
 
 /**
  * Resolve the mempool API base URL (WITHOUT a trailing `/api`) for the declared
@@ -82,16 +73,6 @@ export function resolveMempoolApiUrl(
   network: BtcNetworkName,
 ): string {
   const trimmed = (base ?? DEFAULT_MEMPOOL_HOST).replace(/\/+$/, "");
-  if (network !== BTC_SIGNET) return trimmed;
-  return trimmed.endsWith("/signet") ? trimmed : `${trimmed}/signet`;
-}
-
-/** Resolve the independent Bitcoin observer base URL without `/api`. */
-export function resolveBitcoinObserverApiUrl(
-  base: string | undefined,
-  network: BtcNetworkName,
-): string {
-  const trimmed = (base ?? DEFAULT_BITCOIN_OBSERVER_HOST).replace(/\/+$/, "");
   if (network !== BTC_SIGNET) return trimmed;
   return trimmed.endsWith("/signet") ? trimmed : `${trimmed}/signet`;
 }
@@ -151,26 +132,11 @@ export function configureBabylonConfig(opts: BabylonConfigOptions): void {
     );
   }
 
-  const mempoolApiUrl = resolveMempoolApiUrl(
-    opts.mempoolApiUrl,
-    opts.btcNetwork,
-  );
-  const bitcoinObserverApiUrl = resolveBitcoinObserverApiUrl(
-    opts.bitcoinObserverApiUrl,
-    opts.btcNetwork,
-  );
-  if (new URL(mempoolApiUrl).origin === new URL(bitcoinObserverApiUrl).origin) {
-    throw new Error(
-      "Bitcoin broadcaster and observer must use different origins",
-    );
-  }
-
   state = {
     ethChainId: opts.ethChainId,
     ethRpcUrl: opts.ethRpcUrl,
     btcNetwork: opts.btcNetwork,
-    mempoolApiUrl,
-    bitcoinObserverApiUrl,
+    mempoolApiUrl: resolveMempoolApiUrl(opts.mempoolApiUrl, opts.btcNetwork),
   };
 }
 

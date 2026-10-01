@@ -189,8 +189,6 @@ export const COPY = {
         "Vault provider is waiting for your WOTS public key. Click 'Submit WOTS Key' to continue.",
       broadcastMayHaveFailed:
         "Vault provider has not detected your deposit. The Pre-Pegin transaction may not have been broadcast. Click 'Broadcast' to retry.",
-      prePeginAwaitingObservation:
-        "Pre-Pegin transaction has been sent. Waiting for Bitcoin to show it. If this message stays, click 'Broadcast' to retry.",
       payoutsReadyForSigning:
         "Vault provider has prepared payout transactions. Click 'Sign Payouts' to pre-authorize your Bitcoin claim transactions.",
       prePeginBroadcast:
@@ -1009,10 +1007,6 @@ export const COPY = {
         `Cannot continue: BTCVault is in ${state} state. This step is only valid while the BTCVault is PENDING.`,
       cannotBroadcastInOnChainState: (state: string) =>
         `Cannot continue: on-chain BTCVault is in ${state} state. This step is only valid while the vault is PENDING.`,
-      // A sibling id in the resumed batch is not a hex vault id. The record
-      // is malformed, so a retry cannot fix it.
-      invalidBatchVaultId: (vaultId: string) =>
-        `Cannot continue: this deposit lists an invalid BTCVault ID (${vaultId}). Refresh the page and try again.`,
       // Resume refuses a vault record with no depositor Bitcoin key. A wallet
       // reconnect cannot fix a malformed record, so this is not a mismatch.
       depositorBtcKeyMissing:

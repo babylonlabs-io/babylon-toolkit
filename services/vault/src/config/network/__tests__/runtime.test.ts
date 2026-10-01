@@ -1,11 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { BTC_MAINNET, BTC_SIGNET, ETH_SEPOLIA_CHAIN_ID } from "../constants";
-import {
-  configureBabylonConfig,
-  resolveBitcoinObserverApiUrl,
-  resolveMempoolApiUrl,
-} from "../runtime";
+import { BTC_MAINNET, BTC_SIGNET } from "../constants";
+import { resolveMempoolApiUrl } from "../runtime";
 
 // The reader appends `/api`, so these assert the base the network config stores.
 describe("resolveMempoolApiUrl", () => {
@@ -46,37 +42,5 @@ describe("resolveMempoolApiUrl", () => {
     expect(
       resolveMempoolApiUrl("https://mempool.example.com/", BTC_SIGNET),
     ).toBe("https://mempool.example.com/signet");
-  });
-});
-
-describe("resolveBitcoinObserverApiUrl", () => {
-  it("defaults to blockstream.info on a separate origin", () => {
-    expect(resolveBitcoinObserverApiUrl(undefined, BTC_SIGNET)).toBe(
-      "https://blockstream.info/signet",
-    );
-    expect(resolveBitcoinObserverApiUrl(undefined, BTC_MAINNET)).toBe(
-      "https://blockstream.info",
-    );
-  });
-
-  it("normalizes a custom observer host for signet", () => {
-    expect(
-      resolveBitcoinObserverApiUrl(
-        "https://bitcoin-observer.example/",
-        BTC_SIGNET,
-      ),
-    ).toBe("https://bitcoin-observer.example/signet");
-  });
-
-  it("rejects an observer on the broadcaster origin", () => {
-    expect(() =>
-      configureBabylonConfig({
-        ethChainId: ETH_SEPOLIA_CHAIN_ID,
-        ethRpcUrl: "https://ethereum.example",
-        btcNetwork: BTC_SIGNET,
-        mempoolApiUrl: "https://bitcoin.example/broadcast",
-        bitcoinObserverApiUrl: "https://bitcoin.example/observe",
-      }),
-    ).toThrow("Bitcoin broadcaster and observer must use different origins");
   });
 });
