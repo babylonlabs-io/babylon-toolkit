@@ -71,6 +71,7 @@ export function DepositSignContent({
     canCancelDeviceSign,
     deviceCancelRequested,
     cancelDeviceSign,
+    markDeviceWaitCanceled,
   } = useDepositFlow({
     vaultAmounts,
     ...flowParams,
@@ -248,6 +249,7 @@ export function DepositSignContent({
         canCancelSigning={canCancelDeviceSign}
         cancelSigningRequested={deviceCancelRequested}
         onCancelSigning={cancelDeviceSign}
+        onAppWaitCanceled={markDeviceWaitCanceled}
         signDisabled={!feeRateValid}
         preSignFeeSelector={
           <FeeRateSelector

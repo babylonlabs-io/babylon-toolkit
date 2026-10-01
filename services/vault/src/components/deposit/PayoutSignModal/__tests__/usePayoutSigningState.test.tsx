@@ -682,6 +682,28 @@ describe("usePayoutSigningState", () => {
     });
   });
 
+  describe("lost device session", () => {
+    it("routes a lost device session from the liveness check to the payout error mapper, not the unresponsive copy", async () => {
+      // The mapper's device-disconnected copy is what offers a reconnect.
+      mockVerifyBtcWalletLiveness.mockRejectedValueOnce(
+        Object.assign(new Error("Ledger Vault is not connected"), {
+          code: "DEVICE_DISCONNECTED",
+        }),
+      );
+      const { result } = renderHookWithProps();
+
+      await act(async () => {
+        await result.current.handleSign();
+      });
+
+      expect(result.current.error).toEqual({
+        title: "Sign Error",
+        message: "Ledger Vault is not connected",
+      });
+      expect(mockSignAndSubmitPayouts).not.toHaveBeenCalled();
+    });
+  });
+
   describe("unmount cleanup", () => {
     it("does not abort the in-flight signal under React StrictMode's simulated unmount", async () => {
       // The StrictMode remount must keep the current attempt.

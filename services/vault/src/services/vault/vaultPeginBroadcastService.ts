@@ -37,6 +37,7 @@ import {
   isDepositorBtcKeyMismatchError,
   isDepositorWalletMismatchError,
 } from "../../utils/errors/depositorWalletMismatch";
+import { isDeviceCeremonyInvalidError } from "../../utils/errors/deviceErrors";
 
 import { fetchUTXOFromMempool } from "./vaultUtxoDerivationService";
 
@@ -106,6 +107,13 @@ export interface BroadcastPrePeginParams {
    * (but still txid-validated) for non-approval wallets.
    */
   depositTerms?: DepositTerms;
+
+  /**
+   * The owning flow's abort signal. Once aborted, a lost-intent failure is not
+   * retried: the retry would open a fresh approval on the device for a flow
+   * the depositor has left.
+   */
+  signal?: AbortSignal;
 
   /**
    * Depositor's BTC public key (x-only format, 32 bytes hex)
@@ -326,6 +334,20 @@ async function signAndFinalizePsbt(
 
 const STAGE_FAILED = COPY.deposit.errors.prePeginStageFailed;
 
+/**
+ * Ceremony + sign attempts for an intent wallet. The second attempt exists
+ * for a device that lost its approved intent between the ceremony and the
+ * sign — a Ledger that left the vault app for the Ethereum app to sign the
+ * registration. The retry is keyed on the typed code, DEVICE_CEREMONY_INVALID,
+ * which the Ledger provider also raises for any other state the device can
+ * no longer continue from (a rejected intent state, an exhausted signature
+ * cap, a SIGN_PSBT protocol or yield mismatch). Each of those is recovered
+ * the same way, by a fresh derive → approve → sign with the user approving on
+ * the device again, and nothing has been broadcast before this point. Any
+ * other failure, or a second one, surfaces.
+ */
+const MAX_PRE_PEGIN_CEREMONY_ATTEMPTS = 2;
+
 // The labels route mapDepositError; `cause` keeps typed wallet rejections
 // visible to isUserCancellation's cause walk.
 function stageError(label: string, error: unknown): Error {
@@ -408,6 +430,56 @@ export async function isPrePeginTransactionObserved(
 }
 
 /**
+ * Intent-wallet ceremony (derive → approve) immediately before signing, with
+ * one fresh ceremony after a lost intent ({@link MAX_PRE_PEGIN_CEREMONY_ATTEMPTS}).
+ * The ceremony is a no-op for wallets that do not support deposit approval,
+ * and those never retry.
+ */
+async function approveAndSignPrePegin(params: {
+  psbtHex: string;
+  unsignedTxHex: string;
+  btcWalletProvider: BroadcastPrePeginParams["btcWalletProvider"];
+  depositorBtcPubkey: string;
+  depositTerms: BroadcastPrePeginParams["depositTerms"];
+  signal: BroadcastPrePeginParams["signal"];
+}): Promise<string> {
+  const {
+    psbtHex,
+    unsignedTxHex,
+    btcWalletProvider,
+    depositorBtcPubkey,
+    depositTerms,
+    signal,
+  } = params;
+  const isIntentWallet =
+    typeof btcWalletProvider.approveDepositTerms === "function";
+  for (let attempt = 1; ; attempt++) {
+    try {
+      await ensurePrePeginTermsApproval({
+        wallet: btcWalletProvider,
+        depositTerms,
+        fundedPrePeginTxHex: unsignedTxHex,
+        depositorBtcPubkey,
+      });
+      return await signAndFinalizePsbt(
+        psbtHex,
+        btcWalletProvider,
+        isIntentWallet,
+      );
+    } catch (error) {
+      // A flow the depositor has left must not open a fresh approval on the
+      // device: the retry is itself a device prompt.
+      const retry =
+        isIntentWallet &&
+        attempt < MAX_PRE_PEGIN_CEREMONY_ATTEMPTS &&
+        signal?.aborted !== true &&
+        isDeviceCeremonyInvalidError(error);
+      if (!retry) throw error;
+    }
+  }
+}
+
+/**
  * Sign and broadcast the funded Pre-PegIn transaction to the Bitcoin network
  *
  * @param params - Transaction and wallet parameters
@@ -425,6 +497,7 @@ export async function broadcastPrePeginTransaction(
     depositorBtcPubkey,
     expectedUtxos,
     depositTerms,
+    signal,
   } = params;
 
   // Stage 1: prepare.
@@ -461,20 +534,14 @@ export async function broadcastPrePeginTransaction(
   let signedTxHex: string;
   let signedTxid: string;
   try {
-    // Intent-wallet ceremony (derive → approve) immediately before signing.
-    // No-op for wallets that do not support deposit approval.
-    await ensurePrePeginTermsApproval({
-      wallet: btcWalletProvider,
-      depositTerms,
-      fundedPrePeginTxHex: unsignedTxHex,
-      depositorBtcPubkey,
-    });
-
-    signedTxHex = await signAndFinalizePsbt(
-      psbt.toHex(),
+    signedTxHex = await approveAndSignPrePegin({
+      psbtHex: psbt.toHex(),
+      unsignedTxHex,
       btcWalletProvider,
-      typeof btcWalletProvider.approveDepositTerms === "function",
-    );
+      depositorBtcPubkey,
+      depositTerms,
+      signal,
+    });
     const signedTransaction = Transaction.fromHex(signedTxHex);
     signedTxid = signedTransaction.getId();
     if (signedTxid !== registeredTxid) {

@@ -1066,6 +1066,44 @@ describe("Error Formatting", () => {
       ).toEqual(COPY.deposit.payoutSignatureErrors.deviceWrongApp);
     });
 
+    it("maps DEVICE_DISCONNECTED to its dedicated payout copy", () => {
+      expect(
+        formatPayoutSignatureError(
+          new FakeWalletError(
+            "DEVICE_DISCONNECTED",
+            "Ledger Vault was disconnected; reconnect the device and retry.",
+          ),
+        ),
+      ).toEqual(COPY.deposit.payoutSignatureErrors.deviceDisconnected);
+    });
+
+    it("finds DEVICE_DISCONNECTED nested in a wrapper's cause chain", () => {
+      const wrapped = new Error("payout signing failed", {
+        cause: new FakeWalletError("DEVICE_DISCONNECTED", "device unplugged"),
+      });
+      expect(formatPayoutSignatureError(wrapped)).toEqual(
+        COPY.deposit.payoutSignatureErrors.deviceDisconnected,
+      );
+    });
+
+    it("inlined DEVICE_DISCONNECTED code matches wallet-connector source", () => {
+      const codesPath = resolve(
+        __dirname,
+        "../../../../../../packages/babylon-wallet-connector/src/error/codes.ts",
+      );
+      const source = readFileSync(codesPath, "utf8");
+      const match = source.match(/DEVICE_DISCONNECTED:\s*"([^"]+)"/);
+
+      expect(match).not.toBeNull();
+      expect(match?.[1]).toBe("DEVICE_DISCONNECTED");
+
+      expect(
+        formatPayoutSignatureError(
+          new FakeWalletError(match![1], "device error"),
+        ),
+      ).toEqual(COPY.deposit.payoutSignatureErrors.deviceDisconnected);
+    });
+
     it("finds DEVICE_CEREMONY_INVALID nested in a wrapper's cause chain", () => {
       const inner = new FakeWalletError(
         "DEVICE_CEREMONY_INVALID",

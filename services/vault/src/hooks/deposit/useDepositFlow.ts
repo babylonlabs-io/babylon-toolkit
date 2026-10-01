@@ -119,6 +119,7 @@ import {
   postRegistrationWalletErrorMessage,
   type DepositErrorContent,
 } from "@/utils/errors";
+import { isDeviceWrongAppError } from "@/utils/errors/deviceErrors";
 import {
   isUserCancellation,
   WALLET_CONNECTION_REJECTED_CODE,
@@ -251,6 +252,11 @@ export interface UseDepositFlowReturn {
    * only after the user finishes or rejects on the physical device.
    */
   cancelDeviceSign: () => void;
+  /**
+   * Records that the depositor cancelled a held device-app wait, so the
+   * multi-vault loops treat the resulting rejection as a stop.
+   */
+  markDeviceWaitCanceled: () => void;
 }
 
 export interface PeginCreationResult {
@@ -1136,6 +1142,7 @@ export function useDepositFlow(
         const prePeginBroadcastTxid = await broadcastPrePeginTransaction({
           unsignedTxHex: batchResult.fundedPrePeginTxHex,
           registeredPrePeginTxHash: batchResult.depositTerms.prepeginTxid,
+          signal,
           btcWalletProvider: {
             signPsbt: async (psbtHex: string) => {
               const signedPsbtHex = await runCancellableSign(
@@ -1437,6 +1444,9 @@ export function useDepositFlow(
             } catch (error) {
               // Re-throw abort errors so they're suppressed by the outer catch
               if (signal.aborted) throw error;
+              // The depositor cancelled a held device wait: stop instead of
+              // retrying (or moving to the next vault) into the same prompt.
+              if (deviceCancelSettledRef.current) throw error;
 
               if (attempt < MAX_WOTS_ATTEMPTS) {
                 // submitWotsPublicKey is idempotent — if the VP already accepted
@@ -1704,8 +1714,12 @@ export function useDepositFlow(
 
         // Don't show error if flow was aborted (user intentionally closed modal)
         if (!signal.aborted) {
+          // A canceled app wait rejects with DEVICE_WRONG_APP once the wait
+          // was announced; after the settle that is our cancel, not a
+          // wrong-app failure.
           const selfCanceled =
-            deviceCancelSettledRef.current && isUserCancellation(err);
+            deviceCancelSettledRef.current &&
+            (isUserCancellation(err) || isDeviceWrongAppError(err));
           // A settled self-cancel gets its own copy — the generic mapper reads
           // the wallet's CONNECTION_REJECTED as "You rejected the request",
           // which misattributes it. Post-registration copy names the Retry
@@ -1806,6 +1820,14 @@ export function useDepositFlow(
     provider.cancelSigning();
   }, []);
 
+  // The wait panel's Cancel ends a held device-app wait on the provider; the
+  // held operation then rejects with DEVICE_WRONG_APP, which is not a user
+  // cancellation. Recording the settle here is what makes the multi-vault
+  // loops stop instead of prompting the next vault for the same app.
+  const markDeviceWaitCanceled = useCallback(() => {
+    deviceCancelSettledRef.current = true;
+  }, []);
+
   // The ref is only ever set/cleared together with the `deviceSignActive`
   // state, so this render read stays in sync.
   const canCancelDeviceSign =
@@ -1830,5 +1852,6 @@ export function useDepositFlow(
     canCancelDeviceSign,
     deviceCancelRequested,
     cancelDeviceSign,
+    markDeviceWaitCanceled,
   };
 }

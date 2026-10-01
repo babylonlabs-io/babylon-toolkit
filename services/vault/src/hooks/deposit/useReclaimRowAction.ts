@@ -30,7 +30,7 @@ import { useCallback } from "react";
 
 import { isWithdrawBlocked } from "@/components/shared/protocolStatus";
 import { useBTCWallet } from "@/context/wallet";
-import { isLedgerVaultConnector } from "@/context/wallet/VaultWalletConnectionProvider";
+import { isLedgerVaultConnector } from "@/context/wallet/ledgerVaultConnector";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import type { ReclaimStatus } from "@/hooks/useReclaimStatus";
 import {

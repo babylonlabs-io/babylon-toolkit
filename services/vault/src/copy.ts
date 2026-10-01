@@ -94,6 +94,9 @@ const DEVICE_WRONG_APP_TITLE = "Wrong app on device";
 // and "Babylon Vault Testnet" on test networks.
 const DEVICE_WRONG_APP_BODY =
   "A different app is open on your signing device. Open the Babylon Vault app for this network and try again.";
+const DEVICE_DISCONNECTED_TITLE = "Signing device disconnected";
+const DEVICE_DISCONNECTED_BODY =
+  "Your signing device disconnected. Plug it in, unlock it, open the Babylon Vault app for this network, then reconnect it to continue.";
 // Action-required labels shared between the in-app badges
 // (`pegin.actionRequiredBadges`) and the browser-notification titles so the two
 // surfaces can't drift.
@@ -547,6 +550,40 @@ export const COPY = {
         "Awaiting Bitcoin confirmations and vault provider setup",
       verifyingDeposit: "Verifying signatures and collecting ACKs",
       confirmingActivation: "Confirming activation",
+    },
+    // Ledger vault wallet only. One Ledger can hold both the
+    // depositor's Bitcoin key (Babylon Vault app) and, through a wallet such as
+    // MetaMask, their Ethereum account (Ethereum app). The device runs one app
+    // at a time, so these tell the depositor when to switch. The dApp cannot
+    // see whether the Ethereum account is on the same Ledger, so every
+    // Ethereum-side hint is conditional. Network-agnostic like
+    // DEVICE_WRONG_APP_BODY, except where the provider supplies the app name.
+    ledger: {
+      waitingForApp: {
+        title: (appName: string) => `Open the ${appName} app on your Ledger`,
+        body: "Unlock your Ledger if it is locked. This continues automatically once the app is open.",
+        cancel: "Cancel",
+      },
+      reapproveNotice:
+        "Switching apps clears the deposit approval on your Ledger, so it will ask you to approve this deposit again before signing.",
+      ethAppHint:
+        "If your Ethereum account is on this Ledger, open the Ethereum app on it to confirm this transaction.",
+      switchBackHint:
+        "A Bitcoin signature comes next. If you switched to the Ethereum app, open the Babylon Vault app on your Ledger again.",
+      authenticateSession: "Approve the vault provider session on your Ledger",
+      approvalBudget:
+        "With a Ledger, you approve several requests in the Babylon Vault app. If your Ethereum account is on the same Ledger, you also confirm the Ethereum transactions in the Ethereum app: the registration, and each BTCVault's activation.",
+      longWait:
+        "You can close this window and continue later. When you come back, plug in and unlock your Ledger and open the Babylon Vault app.",
+      activationPause: {
+        hint: "Secret retrieved. If your Ethereum account is on this Ledger, open the Ethereum app on it now, then select Continue.",
+        continue: "Continue",
+      },
+      reconnectButton: "Reconnect Ledger",
+      reconnectFailed:
+        "Couldn't reconnect your Ledger. Plug it in, unlock it and open the Babylon Vault app — update the app in Ledger Wallet if it is out of date — then choose your Ledger when your browser asks and try again.",
+      secretNotHeld:
+        "The retrieved secret is no longer available. Try again to retrieve it from your Ledger.",
     },
     broadcastSuccess: {
       heading: "Pre-Pegin Broadcast",
@@ -1247,6 +1284,10 @@ export const COPY = {
         title: DEVICE_WRONG_APP_TITLE,
         body: DEVICE_WRONG_APP_BODY,
       },
+      deviceDisconnected: {
+        title: DEVICE_DISCONNECTED_TITLE,
+        body: DEVICE_DISCONNECTED_BODY,
+      },
       // Vault-provider JSON-RPC error copy, consumed by `mapVpRpcError`
       // (utils/errors/formatting.ts). Title + message are both user-facing.
       vp: {
@@ -1420,6 +1461,10 @@ export const COPY = {
         title: DEVICE_WRONG_APP_TITLE,
         message: DEVICE_WRONG_APP_BODY,
       },
+      deviceDisconnected: {
+        title: DEVICE_DISCONNECTED_TITLE,
+        message: DEVICE_DISCONNECTED_BODY,
+      },
       unexpected: {
         title: PAYOUT_SIGNING_ERROR_TITLE,
         message:
@@ -1543,6 +1588,8 @@ export const COPY = {
         "Your BTC wallet did not return an address. Please reconnect your wallet and try again.",
       addressMismatch:
         "Your BTC wallet account has changed. Please reconnect your wallet and try again.",
+      checkFailed:
+        "BTC wallet check failed. Please reconnect your wallet and try again.",
     },
     locked: {
       title: "Bitcoin wallet is locked",
