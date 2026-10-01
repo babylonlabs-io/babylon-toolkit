@@ -73,14 +73,14 @@ export function useWithdrawCollateralTransaction(): UseWithdrawCollateralTransac
         // Validate wallet connection
         if (!walletClient) {
           throw new WalletError(
-            "Please connect your wallet to continue",
+            COPY.wallet.connectToContinue,
             ErrorCode.WALLET_NOT_CONNECTED,
           );
         }
 
         if (!address) {
           throw new WalletError(
-            "Wallet address not available",
+            COPY.wallet.addressUnavailable,
             ErrorCode.WALLET_NOT_CONNECTED,
           );
         }

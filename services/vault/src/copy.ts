@@ -1503,6 +1503,9 @@ export const COPY = {
     },
   },
   wallet: {
+    // Thrown by the Aave transaction hooks when no ETH wallet is connected.
+    connectToContinue: "Please connect your wallet to continue",
+    addressUnavailable: "Wallet address not available",
     // Connect Wallets screen: the line under each wallet row that says why
     // the app needs that wallet.
     chainDescriptions: {

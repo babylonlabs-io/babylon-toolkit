@@ -34,9 +34,9 @@ const REVISIONS = [{ rev: "0e4ed2e5", note: "main" }];
 const AAVE_EXTRA_SOURCES = ["lib/aave-v4/src/spoke/Spoke.sol", "lib/aave-v4/src/hub/Hub.sol"];
 
 /**
- * Mocks are left out: the ones a deployment uses (tokens, price feeds) add only
- * errors a depositor's call cannot hit — a constructor check and admin price
- * updates.
+ * Mocks are left out: the ones a deployment uses add only errors a depositor's
+ * call cannot hit — MockPriceFeed's constructor and admin price checks, and
+ * MockAuthority's caller and zero-address checks, whose signatures the protocol already declares.
  */
 const EXCLUDED_SOURCE_DIRS = ["src/mocks/"];
 
@@ -139,7 +139,8 @@ function collectErrors(outDir) {
     if (sources.some((source) => EXCLUDED_SOURCE_DIRS.some((excluded) => source.startsWith(excluded)))) {
       continue;
     }
-    for (const item of artifact.abi ?? []) {
+    if (!Array.isArray(artifact.abi)) throw new Error(`${file} has no abi; its errors would be missed`);
+    for (const item of artifact.abi) {
       if (item.type !== "error") continue;
       const signature = signatureOf(item);
       if (!errors.has(signature)) {
