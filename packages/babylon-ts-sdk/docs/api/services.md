@@ -5900,7 +5900,8 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/asser
 
 #### Throws
 
-When Assert input 0 is not Claim:0, Payout
+When Assert input 0 is not Claim:0 or does not
+        declare Claim:0's value and script as its witnessUtxo, Payout
         input 1 is not Assert:0, or Payout input 0 is not output 0 of the
         PegIn the Claim spends.
 

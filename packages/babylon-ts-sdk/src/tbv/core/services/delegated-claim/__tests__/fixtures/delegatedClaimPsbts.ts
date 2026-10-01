@@ -113,9 +113,8 @@ export interface PayoutOverrides {
 /**
  * By default each signed input carries a distinct tag key, so tests can tell
  * the leaves apart. With `signedLeafKey` (x-only hex) every signed input
- * carries that one key and the Claim gains the prevout and the two outputs
- * it lacks (a sighash needs both), so the whole set can be signed and
- * verified for real.
+ * carries that one key and the Claim gains the prevout it lacks (a sighash
+ * needs it), so the whole set can be signed and verified for real.
  */
 export function buildDelegatedClaimFixture(
   signedLeafKey?: string,
@@ -135,15 +134,16 @@ export function buildDelegatedClaimFixture(
       witnessUtxo: witnessUtxo(VAULT_UTXO_SATS),
       tapLeafScript: tapLeaf(leafScript(signedLeafKey)),
     });
-    claim.addOutput({
-      script: Buffer.from(REGISTERED_PAYOUT_SCRIPT, "hex"),
-      value: CONNECTOR_SATS,
-    });
-    claim.addOutput({
-      script: Buffer.from(REGISTERED_PAYOUT_SCRIPT, "hex"),
-      value: PAYOUT_ANCHOR_SATS,
-    });
   }
+  // Output 0 is the prevout the Assert's input 0 declares.
+  claim.addOutput({
+    script: Buffer.from(REGISTERED_PAYOUT_SCRIPT, "hex"),
+    value: CONNECTOR_SATS,
+  });
+  claim.addOutput({
+    script: Buffer.from(REGISTERED_PAYOUT_SCRIPT, "hex"),
+    value: PAYOUT_ANCHOR_SATS,
+  });
   const claimHash = Transaction.fromBuffer(
     claim.data.globalMap.unsignedTx.toBuffer(),
   ).getHash();

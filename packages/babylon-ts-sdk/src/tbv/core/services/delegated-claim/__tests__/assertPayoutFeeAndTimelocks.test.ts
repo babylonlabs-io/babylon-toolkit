@@ -218,6 +218,29 @@ describe("assertPayoutFeeAndTimelocks", () => {
     );
   });
 
+  it("refuses a depositor Payout whose input 1 declares a script that is not the Assert's output 0", async () => {
+    const fx = buildDelegatedClaimFixture(undefined, {
+      payoutValueSats: VAULT_UTXO_SATS - floorSats,
+    });
+    const assertOutputSats = Psbt.fromBase64(fx.assertPsbt).txOutputs[0].value;
+    const misstated = Psbt.fromBase64(fx.payoutDepositorPsbt);
+    misstated.data.inputs[1].witnessUtxo = {
+      script: Buffer.from(`5120${"ab".repeat(32)}`, "hex"),
+      value: assertOutputSats,
+    };
+
+    await expect(
+      assertPayoutFeeAndTimelocks({
+        payoutClaimerPsbtBase64: fx.payoutClaimerPsbt,
+        payoutDepositorPsbtBase64: misstated.toBase64(),
+        assertPsbtBase64: fx.assertPsbt,
+        vault,
+      }),
+    ).rejects.toThrow(
+      "Depositor Payout input 1 declares a prevout script that is not the Assert's output 0 script",
+    );
+  });
+
   it("refuses a claimer Payout whose input 1 declares no prevout at all", async () => {
     const fx = buildDelegatedClaimFixture(undefined, {
       payoutValueSats: VAULT_UTXO_SATS - floorSats,

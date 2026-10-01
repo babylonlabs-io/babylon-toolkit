@@ -1,17 +1,18 @@
 /**
  * Binding between the three transactions a delegated claim signs in
- * sequence: Assert must spend Claim:0, the Payout's Assert-connector input
- * must spend Assert:0 — the Assert that is being signed, not another one the
- * graph might carry — and the Payout's Vault-UTXO input must spend output 0
- * of the PegIn the Claim spends (btc-vault `payout.rs:66,107` and
- * `claim.rs:120` @ ac4954e7), so the Payout the depositor signs pays out
- * this vault and no other.
+ * sequence: Assert must spend Claim:0 and declare it as its prevout, the
+ * Payout's Assert-connector input must spend Assert:0 — the Assert that is
+ * being signed, not another one the graph might carry — and the Payout's
+ * Vault-UTXO input must spend output 0 of the PegIn the Claim spends
+ * (btc-vault `payout.rs:66,107` and `claim.rs:120` @ ac4954e7), so the
+ * Payout the depositor signs pays out this vault and no other.
  *
- * btc-vault's `check_assert_spends_claim` covers the first half when the
- * Claim is finalized; nothing covered the second half until here. The
- * signatures are collected once and cannot be re-collected, so a pairing
- * mismatch found later leaves a signed Assert the signed Payout can never
- * spend.
+ * btc-vault's `check_assert_spends_claim` (`sign.rs:1155-1193` @ ac4954e7)
+ * already enforces the Assert half inside `buildClaimPsbt`; it is mirrored
+ * here so this export holds for PSBTs built any other way. Nothing covers the
+ * Payout half but this. The signatures are collected once and cannot be
+ * re-collected, so a pairing mismatch found later leaves a signed Assert the
+ * signed Payout can never spend.
  *
  * @module services/delegated-claim/assertBinding
  */
@@ -87,7 +88,41 @@ function assertInputSpends(
 }
 
 /**
- * @throws {AssertBindingError} When Assert input 0 is not Claim:0, Payout
+ * The Assert's declared prevout must be Claim:0 itself, value and script: the
+ * SIGHASH_DEFAULT signature commits to both. Mirrors the second half of
+ * `check_assert_spends_claim` (`sign.rs:1176-1193` @ ac4954e7).
+ */
+function assertDeclaresClaimOutput(assert: Psbt, claim: Psbt): void {
+  const witnessUtxo = assert.data.inputs[ASSERT_CLAIM_INPUT_INDEX]?.witnessUtxo;
+  if (witnessUtxo === undefined) {
+    throw new AssertBindingError(
+      `Assert input ${ASSERT_CLAIM_INPUT_INDEX} carries no witnessUtxo, so the amount and ` +
+        `script its signature commits to cannot be checked; refusing to sign assert.`,
+    );
+  }
+  const claimOutput = claim.txOutputs[CLAIM_CONNECTOR_OUTPUT_INDEX];
+  if (!claimOutput) {
+    throw new AssertBindingError(
+      `Claim PSBT has no output ${CLAIM_CONNECTOR_OUTPUT_INDEX} for the Assert to spend; refusing to sign assert.`,
+    );
+  }
+  if (witnessUtxo.value !== claimOutput.value) {
+    throw new AssertBindingError(
+      `Assert input ${ASSERT_CLAIM_INPUT_INDEX} declares a prevout of ${witnessUtxo.value} sats ` +
+        `but the Claim's output ${CLAIM_CONNECTOR_OUTPUT_INDEX} is worth ${claimOutput.value}; refusing to sign assert.`,
+    );
+  }
+  if (!witnessUtxo.script.equals(claimOutput.script)) {
+    throw new AssertBindingError(
+      `Assert input ${ASSERT_CLAIM_INPUT_INDEX} declares a prevout script that is not the ` +
+        `Claim's output ${CLAIM_CONNECTOR_OUTPUT_INDEX} script; refusing to sign assert.`,
+    );
+  }
+}
+
+/**
+ * @throws {AssertBindingError} When Assert input 0 is not Claim:0 or does not
+ *         declare Claim:0's value and script as its witnessUtxo, Payout
  *         input 1 is not Assert:0, or Payout input 0 is not output 0 of the
  *         PegIn the Claim spends.
  * @experimental
@@ -107,6 +142,7 @@ export function assertAssertBindsClaimAndPayout(
     CLAIM_CONNECTOR_OUTPUT_INDEX,
     "Claim:0",
   );
+  assertDeclaresClaimOutput(assert, claim);
   assertInputSpends(
     "Payout",
     payout,

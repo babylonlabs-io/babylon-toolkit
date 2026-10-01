@@ -30,6 +30,20 @@ function reindex(psbtBase64: string, index: number, vout: number): string {
   return psbt.toBase64();
 }
 
+/** The same PSBT with input 0's declared prevout replaced, or removed. */
+function redeclare(
+  psbtBase64: string,
+  witnessUtxo: { script: Buffer; value: number } | undefined,
+): string {
+  const psbt = Psbt.fromBase64(psbtBase64);
+  if (witnessUtxo === undefined) delete psbt.data.inputs[0].witnessUtxo;
+  else psbt.data.inputs[0].witnessUtxo = witnessUtxo;
+  return psbt.toBase64();
+}
+
+/** Output 0 of the fixture's Claim, which Assert input 0 spends. */
+const claimOutput0 = Psbt.fromBase64(fx.claimPsbt).txOutputs[0];
+
 /** A Payout PSBT built from `psbtBase64` with only input 0 and both outputs. */
 function payoutWithoutInput1(psbtBase64: string): string {
   const source = Psbt.fromBase64(psbtBase64);
@@ -43,7 +57,7 @@ function payoutWithoutInput1(psbtBase64: string): string {
 }
 
 describe("assertAssertBindsClaimAndPayout", () => {
-  it("accepts an Assert that spends Claim:0 and a Payout whose input 1 spends Assert:0", () => {
+  it("accepts an Assert that spends and declares Claim:0 and a Payout whose input 1 spends Assert:0", () => {
     expect(() =>
       assertAssertBindsClaimAndPayout({
         claimPsbtBase64: fx.claimPsbt,
@@ -61,6 +75,46 @@ describe("assertAssertBindsClaimAndPayout", () => {
         payoutClaimerPsbtBase64: fx.payoutClaimerPsbt,
       }),
     ).toThrow(AssertBindingError);
+  });
+
+  it("rejects an Assert whose declared input 0 amount differs from Claim:0's value", () => {
+    expect(() =>
+      assertAssertBindsClaimAndPayout({
+        claimPsbtBase64: fx.claimPsbt,
+        assertPsbtBase64: redeclare(fx.assertPsbt, {
+          script: claimOutput0.script,
+          value: claimOutput0.value + 1,
+        }),
+        payoutClaimerPsbtBase64: fx.payoutClaimerPsbt,
+      }),
+    ).toThrow(
+      /declares a prevout of 1001 sats but the Claim's output 0 is worth 1000/,
+    );
+  });
+
+  it("rejects an Assert whose declared input 0 script differs from Claim:0's script", () => {
+    expect(() =>
+      assertAssertBindsClaimAndPayout({
+        claimPsbtBase64: fx.claimPsbt,
+        assertPsbtBase64: redeclare(fx.assertPsbt, {
+          script: Buffer.from("5120".concat("ee".repeat(32)), "hex"),
+          value: claimOutput0.value,
+        }),
+        payoutClaimerPsbtBase64: fx.payoutClaimerPsbt,
+      }),
+    ).toThrow(
+      /declares a prevout script that is not the Claim's output 0 script/,
+    );
+  });
+
+  it("rejects an Assert whose input 0 carries no witnessUtxo", () => {
+    expect(() =>
+      assertAssertBindsClaimAndPayout({
+        claimPsbtBase64: fx.claimPsbt,
+        assertPsbtBase64: redeclare(fx.assertPsbt, undefined),
+        payoutClaimerPsbtBase64: fx.payoutClaimerPsbt,
+      }),
+    ).toThrow(/Assert input 0 carries no witnessUtxo/);
   });
 
   it("rejects a Payout whose input 1 spends an Assert other than the one being signed", () => {

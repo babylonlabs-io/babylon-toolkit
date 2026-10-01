@@ -61,7 +61,7 @@ function assertDeclaredPrevouts(
   label: string,
   payout: Psbt,
   peginValueSats: number,
-  assertOutputValueSats: number,
+  assertOutput: { value: number; script: Buffer },
 ): void {
   const pins = [
     {
@@ -71,7 +71,7 @@ function assertDeclaredPrevouts(
     },
     {
       inputIndex: PAYOUT_ASSERT_INPUT_INDEX,
-      expectedSats: assertOutputValueSats,
+      expectedSats: assertOutput.value,
       source: `the Assert's output ${ASSERT_PAYOUT_OUTPUT_INDEX}`,
     },
   ];
@@ -89,6 +89,15 @@ function assertDeclaredPrevouts(
           `but ${source} is worth ${expectedSats}; refusing to sign payout.`,
       );
     }
+  }
+  // `sha_scriptpubkeys` commits to every input's script too; input 1's is in
+  // hand. Input 0's is not pinned (pre-review N46).
+  const assertInput = payout.data.inputs[PAYOUT_ASSERT_INPUT_INDEX].witnessUtxo;
+  if (!assertInput?.script.equals(assertOutput.script)) {
+    throw new Error(
+      `${label} Payout input ${PAYOUT_ASSERT_INPUT_INDEX} declares a prevout script that is not ` +
+        `the Assert's output ${ASSERT_PAYOUT_OUTPUT_INDEX} script; refusing to sign payout.`,
+    );
   }
 }
 
@@ -195,13 +204,13 @@ export async function assertPayoutFeeAndTimelocks(params: {
     "Claimer",
     payoutClaimer,
     vault.peginVaultOutputValueSats,
-    assertOutput.value,
+    assertOutput,
   );
   assertDeclaredPrevouts(
     "Depositor",
     payoutDepositor,
     vault.peginVaultOutputValueSats,
-    assertOutput.value,
+    assertOutput,
   );
 
   const inputValueSats = vault.peginVaultOutputValueSats + assertOutput.value;
