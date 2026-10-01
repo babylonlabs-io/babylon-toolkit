@@ -1988,7 +1988,9 @@ describe("LedgerVaultProvider", () => {
         code: ERROR_CODES.INVALID_PARAMS,
         message: expect.stringMatching(/not this device's depositor key/),
       });
-      expect(dmkSessionMock.isSessionAlive).toHaveBeenCalledTimes(1);
+      // The sign-context probe, then the app check's own probe: an idle claim
+      // sign reads the open app before it can push a review.
+      expect(dmkSessionMock.isSessionAlive).toHaveBeenCalledTimes(2);
       expect(signMock.prepareSignPsbt).not.toHaveBeenCalled();
       expect(signMock.signPreparedVaultPsbt).not.toHaveBeenCalled();
     });
