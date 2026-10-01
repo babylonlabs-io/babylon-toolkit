@@ -8,6 +8,7 @@ import type { HtlcSpend } from "../../clients/btc/outspend";
 import {
   ContractStatus,
   getPeginState,
+  isRefundInFlightOrSettled,
   LocalStorageStatus,
   type RefundMaturityState,
 } from "../../models/peginStateMachine";
@@ -69,11 +70,9 @@ export interface DepositPollingInputs {
    */
   htlcRefundByDepositId: Map<string, HtlcSpend>;
   /**
-   * Lowercased vault ids whose HTLC spend confirmed (cached; dropped from the
-   * live poll). OR'd with the live map so a confirmed refund stays settled
-   * after the txid leaves the poll set.
+   * Confirmed refund hashes by lowercased vault ID. Older entries have no hash.
    */
-  refundedHtlcVaultIds: Set<string>;
+  refundedHtlcs: Map<string, string | undefined>;
   /**
    * Per-vault min depth, pre-resolved from `offchainParamsVersion`.
    * `undefined` while the protocol params are still loading (or failed) — the
@@ -187,7 +186,7 @@ export function computeDepositPollingResult(
     confirmedTxids,
     matureRefundTxids,
     htlcRefundByDepositId,
-    refundedHtlcVaultIds,
+    refundedHtlcs,
     requiredDepth,
     protocolParamsError,
     refundTimelock,
@@ -324,7 +323,7 @@ export function computeDepositPollingResult(
   const peginSweptWhileExpired =
     contractStatus === ContractStatus.EXPIRED && htlcSpendIsPeginTx;
   const refundConfirmed =
-    refundedHtlcVaultIds.has(depositIdKey) || liveRefund?.confirmed === true;
+    refundedHtlcs.has(depositIdKey) || liveRefund?.confirmed === true;
   const refundPending = !refundConfirmed && liveRefund?.spent === true;
   // Attribute before settling. Without this the EXPIRED branch reports
   // "Refund complete" for ANY spend, including the PegIn's own sweep — telling
@@ -409,6 +408,15 @@ export function computeDepositPollingResult(
     confirmations ??
     (cachedAtDepth && requiredDepth !== undefined ? requiredDepth : null);
 
+  const refundTxId =
+    isRefundInFlightOrSettled(peginState) && !htlcSpendIsPeginTx
+      ? ((liveRefund?.spent ? liveRefund.spendingTxid : undefined) ??
+        refundedHtlcs.get(depositIdKey) ??
+        (refundSettlement === undefined
+          ? pendingPegins.find((p) => p.id === depositId)?.refundTxId
+          : undefined))
+      : undefined;
+
   return {
     depositId,
     loading: isLoading,
@@ -417,6 +425,12 @@ export function computeDepositPollingResult(
     // rather than being dropped (see the input doc above).
     error: errors?.get(depositId) ?? protocolParamsError,
     peginState,
+    refundTxId:
+      typeof refundTxId === "string" &&
+      /^[0-9a-f]{64}$/i.test(refundTxId) &&
+      canonicalizeTxid(refundTxId) !== canonicalizeTxid(activity.peginTxHash)
+        ? refundTxId
+        : undefined,
     isOwnedByCurrentWallet,
     depositorBtcPubkey: activity.depositorBtcPubkey,
     prePeginConfirmations: reportedConfirmations,

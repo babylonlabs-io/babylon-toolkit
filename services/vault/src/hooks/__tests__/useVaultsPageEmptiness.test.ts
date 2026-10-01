@@ -4,15 +4,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ReclaimStatus } from "@/hooks/useReclaimStatus";
 import { useVaultsPageEmptiness } from "@/hooks/useVaultsPageEmptiness";
-import {
-  ContractStatus,
-  PEGIN_DISPLAY_LABELS,
-  PeginAction,
-  type PeginState,
-} from "@/models/peginStateMachine";
+import { PEGIN_DISPLAY_LABELS } from "@/models/peginStateMachine";
 import { PendingPeginStorageReadError } from "@/storage/peginStorage";
 import type { VaultActivity } from "@/types/activity";
-import type { DepositPollingResult } from "@/types/peginPolling";
 
 const DEPOSITOR_BTC_PUBKEY = "ab".repeat(32);
 
@@ -81,33 +75,6 @@ vi.mock("@/hooks/useDashboardState", () => ({
   useDashboardState: useDashboardStateMock,
 }));
 
-const pollingResults = vi.hoisted(
-  () => new Map<string, DepositPollingResult>(),
-);
-
-vi.mock("@/context/deposit/PeginPollingContext", () => ({
-  usePeginPolling: () => ({
-    getPollingResult: (depositId: string) => pollingResults.get(depositId),
-  }),
-}));
-
-const refundedResult = (depositId: string): DepositPollingResult => ({
-  depositId,
-  loading: false,
-  error: null,
-  peginState: {
-    contractStatus: ContractStatus.EXPIRED,
-    displayLabel: PEGIN_DISPLAY_LABELS.REFUNDED,
-    displayVariant: "pending",
-    availableActions: [PeginAction.NONE],
-    message: "",
-  } satisfies PeginState,
-  isOwnedByCurrentWallet: true,
-  depositorBtcPubkey: "ab".repeat(32),
-  prePeginConfirmations: 0,
-  requiredPrePeginDepth: 6,
-});
-
 // Passed straight into the hook — the page hands over its single
 // usePendingDeposits result the same way, so no module mock is needed.
 const depositsState = {
@@ -149,7 +116,6 @@ describe("useVaultsPageEmptiness", () => {
     depositsState.reclaimableCandidates = [];
     depositsState.isLoading = false;
     depositsState.error = null;
-    pollingResults.clear();
     reclaimChainData.clear();
     reclaimStatuses.clear();
     depositsState.storageReadError = null;
@@ -278,21 +244,29 @@ describe("useVaultsPageEmptiness", () => {
     expect(result.current.isEmpty).toBe(false);
   });
 
-  it("is empty when the only expired deposit is already refunded", () => {
-    depositsState.expiredActivities = [stubActivity("expired-1")];
-    pollingResults.set("expired-1", refundedResult("expired-1"));
+  it.each([PEGIN_DISPLAY_LABELS.REFUNDING, PEGIN_DISPLAY_LABELS.REFUNDED])(
+    "is not empty when the only expired deposit is %s",
+    (displayLabel) => {
+      depositsState.expiredActivities = [
+        { ...stubActivity("expired-1"), displayLabel },
+      ];
 
-    const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
+      const { result } = renderHook(() =>
+        useVaultsPageEmptiness(depositsState),
+      );
 
-    expect(result.current.isEmpty).toBe(true);
-  });
+      expect(result.current.isEmpty).toBe(false);
+    },
+  );
 
   it("is not empty when one expired deposit is refunded and another still awaits refund", () => {
     depositsState.expiredActivities = [
-      stubActivity("expired-1"),
+      {
+        ...stubActivity("expired-1"),
+        displayLabel: PEGIN_DISPLAY_LABELS.REFUNDED,
+      },
       stubActivity("expired-2"),
     ];
-    pollingResults.set("expired-1", refundedResult("expired-1"));
 
     const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
 

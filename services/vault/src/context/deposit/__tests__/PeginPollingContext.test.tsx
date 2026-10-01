@@ -10,7 +10,7 @@ import {
   PEGIN_DISPLAY_LABELS,
   PeginAction,
 } from "../../../models/peginStateMachine";
-import { loadRefundedHtlcVaultIds } from "../../../storage/refundedHtlcCache";
+import { loadRefundedHtlcs } from "../../../storage/refundedHtlcCache";
 import type { VaultActivity } from "../../../types/activity";
 import type { PeginPollingContextValue } from "../../../types/peginPolling";
 import {
@@ -868,6 +868,7 @@ describe("PeginPollingContext", () => {
     contractStatus: ContractStatus.EXPIRED,
     prePeginTxHash: `0x${PRE_PEGIN_TXID_HEX}` as Hex,
     offchainParamsVersion: 3,
+    htlcVout: 0,
   };
 
   function renderExpired() {
@@ -912,25 +913,53 @@ describe("PeginPollingContext", () => {
     expect(status?.peginState.refundMaturityState).toBe("mature");
   });
 
-  it("EXPIRED: hides the refund action and shows Refunded when the HTLC spend has confirmed", () => {
-    mockVersionedParams.set(3, { tRefund: 144 });
-    mockUseBtcMempoolConfirmations.mockReturnValue({
-      confirmationsByTxid: new Map([[PRE_PEGIN_TXID_HEX, 144]]),
-    });
-    // Chain ground truth: the HTLC output was already spent (refund landed
-    // and confirmed) — the dashboard must not re-offer a doomed refund.
-    mockUseBtcHtlcRefundStatus.mockReturnValue({
-      refundByDepositId: new Map([
-        [ACTIVITY_ID.toLowerCase(), { spent: true, confirmed: true }],
-      ]),
-    });
+  it.each([false, true])(
+    "EXPIRED: stops polling after confirmation and reload (legacy cache: %s)",
+    (legacy) => {
+      mockVersionedParams.set(3, { tRefund: 144 });
+      mockUseBtcMempoolConfirmations.mockReturnValue({
+        confirmationsByTxid: new Map([[PRE_PEGIN_TXID_HEX, 144]]),
+      });
+      // Chain ground truth: the HTLC output was already spent (refund landed
+      // and confirmed) — the dashboard must not re-offer a doomed refund.
+      mockUseBtcHtlcRefundStatus.mockReturnValue({
+        refundByDepositId: new Map([
+          [
+            ACTIVITY_ID.toLowerCase(),
+            { spent: true, confirmed: true, spendingTxid: PRE_PEGIN_TXID_HEX },
+          ],
+        ]),
+      });
 
-    const { result } = renderExpired();
-    const status = result.current.getPollingResult(ACTIVITY_ID);
+      const { result, unmount } = renderExpired();
+      const status = result.current.getPollingResult(ACTIVITY_ID);
 
-    expect(status?.peginState.availableActions).toEqual([PeginAction.NONE]);
-    expect(status?.peginState.displayLabel).toBe(PEGIN_DISPLAY_LABELS.REFUNDED);
-  });
+      expect(status?.peginState.availableActions).toEqual([PeginAction.NONE]);
+      expect(status?.peginState.displayLabel).toBe(
+        PEGIN_DISPLAY_LABELS.REFUNDED,
+      );
+      expect(status?.refundTxId).toBe(PRE_PEGIN_TXID_HEX);
+      expect(mockUseBtcHtlcRefundStatus.mock.calls.at(-1)?.[0]).toEqual([]);
+
+      unmount();
+      if (legacy)
+        localStorage.setItem(
+          "tbv-refunded-htlc-signet",
+          JSON.stringify({ [ACTIVITY_ID.toLowerCase()]: Date.now() }),
+        );
+      mockUseBtcHtlcRefundStatus.mockReturnValue({
+        refundByDepositId: new Map(),
+      });
+      const reloaded = renderExpired();
+      const cached = reloaded.result.current.getPollingResult(ACTIVITY_ID);
+      expect(cached?.peginState.availableActions).toEqual([PeginAction.NONE]);
+      expect(cached?.peginState.displayLabel).toBe(
+        PEGIN_DISPLAY_LABELS.REFUNDED,
+      );
+      expect(cached?.refundTxId).toBe(legacy ? undefined : PRE_PEGIN_TXID_HEX);
+      expect(mockUseBtcHtlcRefundStatus.mock.calls.at(-1)?.[0]).toEqual([]);
+    },
+  );
 
   it("EXPIRED: never caches a PegIn sweep as a refund, so the sweep label survives later polls", async () => {
     mockVersionedParams.set(3, { tRefund: 144 });
@@ -956,9 +985,7 @@ describe("PeginPollingContext", () => {
     const { result } = renderExpired();
     await act(async () => {});
 
-    expect(loadRefundedHtlcVaultIds().has(ACTIVITY_ID.toLowerCase())).toBe(
-      false,
-    );
+    expect(loadRefundedHtlcs().has(ACTIVITY_ID.toLowerCase())).toBe(false);
     const status = result.current.getPollingResult(ACTIVITY_ID);
     expect(status?.peginState.displayLabel).toBe(
       PEGIN_DISPLAY_LABELS.ACTIVATION_INCOMPLETE,

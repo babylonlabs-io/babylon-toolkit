@@ -38,6 +38,7 @@ export interface PendingPeginRequest {
   // can be evicted from the mempool and never confirm, so the suppression must
   // expire to let the user retry instead of permanently hiding the action.
   refundBroadcastAt?: number;
+  refundTxId?: string;
   payoutSignedAt?: number;
   /**
    * Fingerprint of the canonical transaction set the depositor signed at
@@ -930,6 +931,7 @@ export function markRefundBroadcast(
   ethAddress: string,
   vaultId: string,
   refundBroadcastAt: number,
+  refundTxId?: string,
 ): void {
   if (!ethAddress) return;
 
@@ -943,6 +945,7 @@ export function markRefundBroadcast(
           ...(entry as object),
           status: LocalStorageStatus.REFUND_BROADCAST,
           refundBroadcastAt,
+          refundTxId,
         }
       : entry,
   );

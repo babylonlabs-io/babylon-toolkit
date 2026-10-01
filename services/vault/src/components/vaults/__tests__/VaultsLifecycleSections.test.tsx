@@ -69,10 +69,6 @@ vi.mock("@/context/ProtocolParamsContext", () => ({
   ),
 }));
 
-vi.mock("@/hooks/deposit/useRefundRowAction", () => ({
-  useRefundRowAction: () => ({ available: false, blockedTooltip: null }),
-}));
-
 // The reclaim row action runs for real: its wallet-needed decision is the
 // behaviour under test. Only the Ledger check and the protocol gate are driven.
 vi.mock("@/context/wallet/ledgerVaultConnector", () => ({
@@ -881,10 +877,11 @@ describe("VaultsLifecycleSections reclaim connection", () => {
 
 describe("VaultsLifecycleSections expired refunds", () => {
   it.each(["pending", "confirmed", "locally broadcast"] as const)(
-    "hides an expired deposit whose refund is %s",
+    "links the refund transaction while the refund is %s",
     (settlement) => {
       const broadcastAt = 1_800_000_000_000;
-      const { container } = renderPendingRow(
+      const refundTxId = "cd".repeat(32);
+      renderPendingRow(
         pollingResult(
           getPeginState(
             ContractStatus.EXPIRED,
@@ -896,6 +893,7 @@ describe("VaultsLifecycleSections expired refunds", () => {
                 }
               : { refundSettlement: settlement },
           ),
+          { refundTxId },
         ),
         {
           pendingActivities: [],
@@ -906,13 +904,55 @@ describe("VaultsLifecycleSections expired refunds", () => {
       );
 
       expect(
-        screen.queryByRole("heading", { name: /Inactive Vaults/ }),
+        screen.getByRole("heading", { name: "Inactive Vaults (1)" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          settlement === "confirmed"
+            ? PEGIN_DISPLAY_LABELS.REFUNDED
+            : PEGIN_DISPLAY_LABELS.REFUNDING,
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(COPY.vaults.refundTransactionLabel),
+      ).toBeInTheDocument();
+      expect(screen.getByRole("link")).toHaveAttribute(
+        "href",
+        `https://mempool.space/signet/tx/${refundTxId}`,
+      );
+      expect(
+        screen.getByRole("button", { name: /Copy BTC transaction hash/ }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: COPY.vaults.actions.withdraw }),
       ).not.toBeInTheDocument();
-      expect(container.querySelector("section")).toBeNull();
     },
   );
 
-  it("counts an unrefunded expired deposit but excludes a completed refund", () => {
+  it.each(["pending", "confirmed"] as const)(
+    "shows no deposit hash when the %s refund hash is unknown",
+    (refundSettlement) => {
+      renderPendingRow(
+        pollingResult(
+          getPeginState(ContractStatus.EXPIRED, { refundSettlement }),
+        ),
+        { pendingActivities: [], expiredActivities: [ACTIVITY] },
+      );
+
+      expect(
+        screen.getByRole("heading", { name: "Inactive Vaults (1)" }),
+      ).toBeInTheDocument();
+      expect(screen.queryByRole("link")).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: /Copy BTC transaction hash/ }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: COPY.vaults.actions.withdraw }),
+      ).not.toBeInTheDocument();
+    },
+  );
+
+  it("counts both an unrefunded expired deposit and a completed refund", () => {
     const completedId = "0xrefunded";
     const { deposits, rerender } = renderPendingRow(
       pollingResult(getPeginState(ContractStatus.EXPIRED)),
@@ -947,8 +987,12 @@ describe("VaultsLifecycleSections expired refunds", () => {
     );
 
     expect(
-      screen.getByRole("heading", { name: "Inactive Vaults (1)" }),
+      screen.getByRole("heading", { name: "Inactive Vaults (2)" }),
     ).toBeInTheDocument();
-    expect(screen.queryByText("0.2 BTC")).not.toBeInTheDocument();
+    expect(screen.getByText("0.2 BTC")).toBeInTheDocument();
+    expect(screen.getByRole("link")).toHaveAttribute(
+      "href",
+      "https://mempool.space/signet/tx/prepegin",
+    );
   });
 });

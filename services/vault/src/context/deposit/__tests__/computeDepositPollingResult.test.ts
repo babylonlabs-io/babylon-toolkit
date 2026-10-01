@@ -57,7 +57,7 @@ function makeInputs(
     // Cached-mature → refundMaturityState "mature" without needing live confs.
     matureRefundTxids: new Set([CANONICAL_PREPEGIN]),
     htlcRefundByDepositId: new Map(),
-    refundedHtlcVaultIds: new Set(),
+    refundedHtlcs: new Map(),
     requiredDepth: 6,
     protocolParamsError: null,
     refundTimelock: 10,
@@ -149,40 +149,49 @@ describe("computeDepositPollingResult — refund settlement", () => {
     expect(result.peginState.displayLabel).toBe(PEGIN_DISPLAY_LABELS.EXPIRED);
   });
 
-  it("hides the refund action and shows Refunded once the HTLC spend confirms", () => {
-    const result = computeDepositPollingResult(
-      makeInputs({
-        htlcRefundByDepositId: new Map([
-          [VAULT_ID.toLowerCase(), { spent: true, confirmed: true }],
-        ]),
-      }),
-    );
-    expect(result.peginState.availableActions).toEqual([PeginAction.NONE]);
-    expect(result.peginState.displayLabel).toBe(PEGIN_DISPLAY_LABELS.REFUNDED);
-  });
+  it.each([false, true])(
+    "shows the refund hash with confirmed=%s",
+    (confirmed) => {
+      const result = computeDepositPollingResult(
+        makeInputs({
+          htlcRefundByDepositId: new Map([
+            [
+              VAULT_ID.toLowerCase(),
+              {
+                spent: true,
+                confirmed,
+                spendingTxid: REFUND_TX.slice(2),
+              },
+            ],
+          ]),
+        }),
+      );
+      expect(result.peginState.availableActions).toEqual([PeginAction.NONE]);
+      expect(result.peginState.displayLabel).toBe(
+        confirmed
+          ? PEGIN_DISPLAY_LABELS.REFUNDED
+          : PEGIN_DISPLAY_LABELS.REFUNDING,
+      );
+      expect(result.refundTxId).toBe(REFUND_TX.slice(2));
+    },
+  );
 
-  it("shows Refunding while the HTLC spend is seen but unconfirmed", () => {
-    const result = computeDepositPollingResult(
-      makeInputs({
-        htlcRefundByDepositId: new Map([
-          [VAULT_ID.toLowerCase(), { spent: true, confirmed: false }],
-        ]),
-      }),
-    );
-    expect(result.peginState.availableActions).toEqual([PeginAction.NONE]);
-    expect(result.peginState.displayLabel).toBe(PEGIN_DISPLAY_LABELS.REFUNDING);
-  });
-
-  it("treats a cached confirmed-refund as settled even when the live poll is empty", () => {
-    const result = computeDepositPollingResult(
-      makeInputs({
-        htlcRefundByDepositId: new Map(),
-        refundedHtlcVaultIds: new Set([VAULT_ID.toLowerCase()]),
-      }),
-    );
-    expect(result.peginState.availableActions).toEqual([PeginAction.NONE]);
-    expect(result.peginState.displayLabel).toBe(PEGIN_DISPLAY_LABELS.REFUNDED);
-  });
+  it.each([undefined, REFUND_TX.slice(2)])(
+    "keeps a cached refund settled with hash %s",
+    (refundTxId) => {
+      const result = computeDepositPollingResult(
+        makeInputs({
+          htlcRefundByDepositId: new Map(),
+          refundedHtlcs: new Map([[VAULT_ID.toLowerCase(), refundTxId]]),
+        }),
+      );
+      expect(result.peginState.availableActions).toEqual([PeginAction.NONE]);
+      expect(result.peginState.displayLabel).toBe(
+        PEGIN_DISPLAY_LABELS.REFUNDED,
+      );
+      expect(result.refundTxId).toBe(refundTxId);
+    },
+  );
 });
 
 describe("computeDepositPollingResult — missing Pre-PegIn", () => {
@@ -363,7 +372,7 @@ describe("computeDepositPollingResult — activation deadline gate", () => {
       makeInputs({
         activity: makeVerifiedActivity(),
         htlcRefundByDepositId: new Map(),
-        refundedHtlcVaultIds: new Set([VAULT_ID.toLowerCase()]),
+        refundedHtlcs: new Map([[VAULT_ID.toLowerCase(), undefined]]),
       }),
     );
     expect(result.peginState.availableActions).toContain(
@@ -569,6 +578,17 @@ describe("computeDepositPollingResult — refund suppression clock", () => {
 
   function makeBroadcastRefundInputs(now: number): DepositPollingInputs {
     return makeInputs({
+      pendingPegins: [
+        {
+          id: VAULT_ID,
+          peginTxHash: PEGIN_TX,
+          timestamp: BROADCAST_AT,
+          status: LocalStorageStatus.REFUND_BROADCAST,
+          refundBroadcastAt: BROADCAST_AT,
+          refundTxId: REFUND_TX.slice(2),
+          unsignedTxHex: "0x00",
+        },
+      ],
       optimisticStatuses: new Map([
         [VAULT_ID, LocalStorageStatus.REFUND_BROADCAST],
       ]),
@@ -585,6 +605,7 @@ describe("computeDepositPollingResult — refund suppression clock", () => {
       PeginAction.REFUND_HTLC,
     );
     expect(result.peginState.displayLabel).toBe(PEGIN_DISPLAY_LABELS.REFUNDING);
+    expect(result.refundTxId).toBe(REFUND_TX.slice(2));
   });
 
   it("re-offers the refund action once the injected clock is past the window", () => {
@@ -594,6 +615,7 @@ describe("computeDepositPollingResult — refund suppression clock", () => {
     expect(result.peginState.availableActions).toContain(
       PeginAction.REFUND_HTLC,
     );
+    expect(result.refundTxId).toBeUndefined();
   });
 });
 
@@ -625,6 +647,7 @@ describe("computeDepositPollingResult — PegIn sweep after expiry", () => {
     expect(result.peginState.message).toBe(
       COPY.pegin.messages.peginSweptWhileExpired,
     );
+    expect(result.refundTxId).toBeUndefined();
   });
 
   it("shows the sweep, not a pending refund, while the PegIn spend is unconfirmed", () => {
@@ -647,6 +670,7 @@ describe("computeDepositPollingResult — PegIn sweep after expiry", () => {
     expect(result.peginState.availableActions).not.toContain(
       PeginAction.REFUND_HTLC,
     );
+    expect(result.refundTxId).toBeUndefined();
   });
 
   it("still reports a refund when someone other than the PegIn spent the HTLC", () => {
@@ -655,12 +679,13 @@ describe("computeDepositPollingResult — PegIn sweep after expiry", () => {
         htlcRefundByDepositId: new Map([
           [
             VAULT_ID.toLowerCase(),
-            { spent: true, confirmed: true, spendingTxid: REFUND_TX },
+            { spent: true, confirmed: true, spendingTxid: REFUND_TX.slice(2) },
           ],
         ]),
       }),
     );
     expect(result.peginState.displayLabel).toBe(PEGIN_DISPLAY_LABELS.REFUNDED);
+    expect(result.refundTxId).toBe(REFUND_TX.slice(2));
   });
 
   it("keeps the previous behaviour when the spender cannot be identified", () => {
