@@ -11,6 +11,7 @@ import { useAccount, useWalletClient } from "wagmi";
 
 import { isReorderBlocked } from "@/components/shared/protocolStatus";
 import { getETHChain } from "@/config/network";
+import { COPY } from "@/copy";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import { logger } from "@/infrastructure";
 import {
@@ -145,7 +146,7 @@ export function useReorderVaults(): UseReorderVaultsResult {
           ? error
           : error instanceof Error
             ? mapViemErrorToContractError(error, "Reorder Vaults")
-            : new Error("An unexpected error occurred while reordering vaults");
+            : new Error(COPY.reorder.unexpectedError);
 
         setError(mappedError.message);
 

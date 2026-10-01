@@ -35,23 +35,20 @@ import {
   tagSimulationPhase,
 } from "../../../utils/errors";
 
-import { HUB_ERROR_ABI } from "./hubErrors";
-
 /**
  * ABIs consulted when decoding a revert on the Aave paths.
  *
  * The adapter alone is not enough: a withdraw or borrow reverts inside the Aave
  * Core Spoke (health-factor floor, dust rule, frozen/paused reserve) or in the
- * per-position proxy. The Spoke in turn calls its Hubs, which revert with
- * their own errors (draw cap, liquidity, halted spoke). The mapper's vault
- * error fallback also covers these; listing them here keeps them first.
+ * per-position proxy. The Spoke's calls into its Hubs revert with Hub errors
+ * (draw cap, liquidity, halted spoke), which the mapper's vault error fallback
+ * decodes.
  */
 const AAVE_REVERT_DECODING_ABIS = [
   AaveIntegrationAdapterABI,
   AaveSpokeABI,
   AaveAdapterPositionProxyABI,
   BTCVaultRegistryABI,
-  HUB_ERROR_ABI,
 ];
 
 /**

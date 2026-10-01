@@ -2,21 +2,15 @@
  * User-friendly error messages for contract errors.
  *
  * Maps error names to human-readable messages. Names come from ts-sdk's
- * `vaultErrors.manifest.json`; a key no contract revision declares is dead.
+ * `vaultErrors.manifest.json`; a key the manifest does not list is dead.
  */
-// The reorder guard is named PositionNotHealthy on main and
-// ReorderVaultsOnLiquidatablePositionNotAllowed on the devnet revision.
-const REORDER_BLOCKED_WHILE_LIQUIDATABLE =
-  "You can't reorder BTCVaults while your position is at risk of liquidation. Repay debt or add collateral first.";
-
 export const CONTRACT_ERROR_MESSAGES: Record<string, string> = {
   // ============================================================================
   // Aave Integration Adapter / Collateral Logic errors
   // ============================================================================
   InvalidProxyContract: "Invalid proxy contract address.",
-  PositionNotHealthy: REORDER_BLOCKED_WHILE_LIQUIDATABLE,
-  ReorderVaultsOnLiquidatablePositionNotAllowed:
-    REORDER_BLOCKED_WHILE_LIQUIDATABLE,
+  PositionNotHealthy:
+    "You can't reorder BTCVaults while your position is at risk of liquidation. Repay debt or add collateral first.",
   // Reorder list is not a permutation of the position, or a withdraw names a
   // BTCVault the position does not hold.
   InvalidVaultsArray:
@@ -84,7 +78,7 @@ export const CONTRACT_ERROR_MESSAGES: Record<string, string> = {
   MaximumUserReservesExceeded:
     "This position already borrows as many assets as it can. Fully repay a loan to borrow a different asset.",
   HealthFactorBelowThreshold:
-    "This would drop your health factor below the liquidation threshold. Reduce the amount and try again.",
+    "This would drop your health factor below the liquidation threshold. Repay some debt, or borrow or withdraw less, and try again.",
 
   // ============================================================================
   // Aave Hub errors
@@ -93,8 +87,6 @@ export const CONTRACT_ERROR_MESSAGES: Record<string, string> = {
   // forms scale and name the hub (describeAaveRevert).
   DrawCapExceeded:
     "This market has reached its borrow limit on its hub. Enter a lower amount or borrow from another hub.",
-  AddCapExceeded:
-    "The hub's collateral limit has been reached, so this BTCVault can't be added right now. Try again later.",
   InsufficientLiquidity:
     "The hub doesn't hold enough of this asset to cover the amount. Enter a lower amount and try again.",
   SpokeNotActive:

@@ -1,7 +1,7 @@
 /**
- * Every custom error the vault contracts declare, across every contract
- * revision still deployed plus `main`, including errors that bubble up from
- * linked libraries, Aave v4 and OpenZeppelin.
+ * Every custom error the vault contracts declare at the revisions the
+ * generator lists, including errors that bubble up from linked libraries,
+ * Aave v4 and OpenZeppelin.
  *
  * Generated: `node scripts/generate-vault-error-manifest.mjs <vault-contracts-aave-v4>`
  * writes `vaultErrors.abi.json` (this ABI) and `vaultErrors.manifest.json`

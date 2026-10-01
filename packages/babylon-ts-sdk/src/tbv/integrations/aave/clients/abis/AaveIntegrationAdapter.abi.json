@@ -1,56 +1,5 @@
 [
   {
-    "type": "constructor",
-    "inputs": [
-      {
-        "name": "vaultBTC_",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "coreSpoke_",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "btcVaultRegistry_",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "applicationRegistry_",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "proxyManager_",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "coreVaultBtcReserveId_",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "coreWbtcReserveId_",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "protocolParams_",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "llpRegistry_",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "stateMutability": "nonpayable"
-  },
-  {
     "type": "function",
     "name": "APP_REGISTRY",
     "inputs": [],
@@ -381,34 +330,6 @@
   },
   {
     "type": "function",
-    "name": "initialize",
-    "inputs": [
-      {
-        "name": "initialTBVAdmin",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "_applicationRecipient",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "_liquidationRedemptionFeeBps",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "_initialInterestFeeBps",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
     "name": "interestFeeBps",
     "inputs": [],
     "outputs": [
@@ -419,57 +340,6 @@
       }
     ],
     "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "liquidateWithLLP",
-    "inputs": [
-      {
-        "name": "borrower",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "llp",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "amounts",
-        "type": "uint256[]",
-        "internalType": "uint256[]"
-      },
-      {
-        "name": "priorityOrder",
-        "type": "uint256[]",
-        "internalType": "uint256[]"
-      },
-      {
-        "name": "requestedTokens",
-        "type": "tuple[]",
-        "internalType": "struct TokenAmountLib.TokenAmount[]",
-        "components": [
-          {
-            "name": "token",
-            "type": "address",
-            "internalType": "address"
-          },
-          {
-            "name": "amount",
-            "type": "uint256",
-            "internalType": "uint256"
-          }
-        ]
-      }
-    ],
-    "outputs": [
-      {
-        "name": "vaultIds",
-        "type": "bytes32[]",
-        "internalType": "bytes32[]"
-      }
-    ],
-    "stateMutability": "nonpayable"
   },
   {
     "type": "function",
@@ -523,32 +393,6 @@
         "name": "btcRedeemKey",
         "type": "bytes32",
         "internalType": "bytes32"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "registerResolver",
-    "inputs": [
-      {
-        "name": "resolver",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "removeResolver",
-    "inputs": [
-      {
-        "name": "resolver",
-        "type": "address",
-        "internalType": "address"
       }
     ],
     "outputs": [],
@@ -683,31 +527,6 @@
   },
   {
     "type": "function",
-    "name": "setPositionSizeParams",
-    "inputs": [
-      {
-        "name": "params",
-        "type": "tuple",
-        "internalType": "struct IAaveIntegrationAdapter.PositionSizeParams",
-        "components": [
-          {
-            "name": "maxPositionBTC",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "maxVaultsPerPosition",
-            "type": "uint256",
-            "internalType": "uint256"
-          }
-        ]
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
     "name": "supportsInterface",
     "inputs": [
       {
@@ -817,32 +636,6 @@
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "AdapterPositionResolverAdded",
-    "inputs": [
-      {
-        "name": "positionResolver",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "AdapterPositionResolverRemoved",
-    "inputs": [
-      {
-        "name": "positionResolver",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
       }
     ],
     "anonymous": false
@@ -994,31 +787,6 @@
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "PositionSizeParamsUpdated",
-    "inputs": [
-      {
-        "name": "newParams",
-        "type": "tuple",
-        "indexed": false,
-        "internalType": "struct IAaveIntegrationAdapter.PositionSizeParams",
-        "components": [
-          {
-            "name": "maxPositionBTC",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "maxVaultsPerPosition",
-            "type": "uint256",
-            "internalType": "uint256"
-          }
-        ]
       }
     ],
     "anonymous": false
@@ -1363,11 +1131,6 @@
   {
     "type": "error",
     "name": "PositionNotLiquidatable",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "PrefixLengthExceedsArray",
     "inputs": []
   },
   {

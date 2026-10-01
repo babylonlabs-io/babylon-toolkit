@@ -116,7 +116,7 @@ const PEGIN_ERROR_MESSAGES: Record<string, string> = {
   "ZeroAddress()":
     "Vault provider not registered: The selected vault provider is not registered.",
   "Unauthorized()":
-    "Unauthorized: Only the depositor can submit this transaction. Reconnect the wallet you started this deposit with.",
+    "Unauthorized: The vault registry rejected this request. Please try again later or contact support.",
   "InvalidPeginFee(uint256,uint256)":
     "Invalid pegin fee: The ETH fee sent does not match the required amount. " +
     "This may indicate a fee rate change during the transaction.",
@@ -128,7 +128,7 @@ const PEGIN_ERROR_MESSAGES: Record<string, string> = {
   // depositor's BTC wallet and selected UTXOs, so reusing the same UTXOs from
   // the same wallet (even after a previous vault expires) reverts here.
   "DuplicateHashlock()":
-    "Duplicate deposit: a BTC Vault with this hashlock is already registered to your wallet. Hashlocks are derived from your BTC wallet and selected UTXOs — use different UTXOs to create a unique deposit.",
+    "Duplicate deposit: a BTCVault with this hashlock is already registered to your wallet. Hashlocks are derived from your BTC wallet and selected UTXOs — use different UTXOs to create a unique deposit.",
   "DepositorWotsPkHashAlreadyUsed()":
     "Duplicate deposit: these deposit keys are already registered to your wallet. " +
     "Select different UTXOs to create a new deposit.",

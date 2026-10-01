@@ -25,18 +25,19 @@ import { fileURLToPath } from "node:url";
 import { toFunctionSelector } from "viem";
 
 /**
- * Contract revisions the dApp decodes: what devnet runs, and main, which devnet
- * is upgraded to next. Update when devnet is upgraded.
+ * Contract revisions the dApp decodes: aave-v4 main, which devnet is being
+ * upgraded to. Update when the dApp moves to a newer contracts revision.
  */
-const REVISIONS = [
-  { rev: "74de8a7a", note: "devnet (release/testnet)" },
-  { rev: "0e4ed2e5", note: "main" },
-];
+const REVISIONS = [{ rev: "0e4ed2e5", note: "main" }];
 
 /** Aave v4 sources compiled alongside `src/` so their errors are collected. */
 const AAVE_EXTRA_SOURCES = ["lib/aave-v4/src/spoke/Spoke.sol", "lib/aave-v4/src/hub/Hub.sol"];
 
-/** Test-only mocks are compiled but never deployed, so their errors are left out. */
+/**
+ * Mocks are left out: the ones a deployment uses (tokens, price feeds) add only
+ * errors a depositor's call cannot hit — a constructor check and admin price
+ * updates.
+ */
 const EXCLUDED_SOURCE_DIRS = ["src/mocks/"];
 
 const ABIS_DIR = path.resolve(
@@ -48,17 +49,21 @@ const MANIFEST_OUTPUT = path.join(ABIS_DIR, "vaultErrors.manifest.json");
 /** Errors-only ABI the SDK ships at runtime. */
 const ABI_OUTPUT = path.join(ABIS_DIR, "vaultErrors.abi.json");
 
+/** Output limits for child processes: forge's build log, and a whole repo archive. */
+const COMMAND_OUTPUT_MAX_BYTES = 256 * 1024 * 1024;
+const ARCHIVE_MAX_BYTES = 1024 * 1024 * 1024;
+
 /** Code-unit order, so the output does not depend on the machine's locale. */
 const byCodeUnit = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
 
 function run(cmd, args, opts = {}) {
-  return execFileSync(cmd, args, { encoding: "utf8", maxBuffer: 256 * 1024 * 1024, ...opts });
+  return execFileSync(cmd, args, { encoding: "utf8", maxBuffer: COMMAND_OUTPUT_MAX_BYTES, ...opts });
 }
 
 /** `git archive <treeish>` from `gitDir`, unpacked into `target` — no shell. */
 function extractArchive(gitDir, treeish, target) {
   const archive = execFileSync("git", ["-C", gitDir, "archive", treeish], {
-    maxBuffer: 1024 * 1024 * 1024,
+    maxBuffer: ARCHIVE_MAX_BYTES,
   });
   execFileSync("tar", ["-x", "-C", target], { input: archive });
 }
@@ -128,7 +133,9 @@ function collectErrors(outDir) {
   const errors = new Map();
   for (const file of listArtifacts(outDir)) {
     const artifact = JSON.parse(fs.readFileSync(file, "utf8"));
-    const sources = Object.keys(artifact.metadata?.settings?.compilationTarget ?? {});
+    const compilationTarget = artifact.metadata?.settings?.compilationTarget;
+    if (!compilationTarget) throw new Error(`${file} has no compilationTarget; cannot apply the mock filter`);
+    const sources = Object.keys(compilationTarget);
     if (sources.some((source) => EXCLUDED_SOURCE_DIRS.some((excluded) => source.startsWith(excluded)))) {
       continue;
     }

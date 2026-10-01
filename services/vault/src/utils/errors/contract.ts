@@ -180,8 +180,8 @@ function tryDecodeContractError(
     return undefined;
   }
 
-  // The call's own ABIs first, then every error any live contract revision
-  // can raise (including Aave, linked libraries and OpenZeppelin).
+  // The call's own ABIs first, then every error the vault contracts can raise
+  // (including Aave, linked libraries and OpenZeppelin).
   const allAbis = [...abis, VAULT_ERROR_ABI];
 
   for (const abi of allAbis) {

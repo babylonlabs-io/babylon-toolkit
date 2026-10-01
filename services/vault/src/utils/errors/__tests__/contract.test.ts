@@ -474,7 +474,7 @@ describe("Contract Error Mapping", () => {
 
     it("decodes a revert the call's own ABI lacks through the vault error fallback", () => {
       // TEST_ABI stands in for the registry ABI, which does not declare the
-      // pause error; the fallback covers every live contract revision.
+      // pause error; the fallback covers every vault contract error.
       const error = {
         message: "execution reverted",
         cause: {
@@ -495,20 +495,6 @@ describe("Contract Error Mapping", () => {
       expect(result.reason).toBe("TBV_Paused");
       expect(result.message).toBe(
         "The system is currently paused. Please try again later.",
-      );
-    });
-
-    it("gives the devnet reorder guard (0xc4b6185b) the same copy as PositionNotHealthy", () => {
-      const result = mapViemErrorToContractError(
-        { message: "execution reverted", data: "0xc4b6185b" },
-        "Reorder Vaults",
-      );
-
-      expect(result.reason).toBe(
-        "ReorderVaultsOnLiquidatablePositionNotAllowed",
-      );
-      expect(result.message).toBe(
-        "You can't reorder BTCVaults while your position is at risk of liquidation. Repay debt or add collateral first.",
       );
     });
 

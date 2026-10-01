@@ -3,10 +3,6 @@
   "contractsRepo": "babylonlabs-io/vault-contracts-aave-v4",
   "revisions": [
     {
-      "rev": "74de8a7a",
-      "note": "devnet (release/testnet)"
-    },
-    {
       "rev": "0e4ed2e5",
       "note": "main"
     }
@@ -24,7 +20,6 @@
       "signature": "AaveAdapterNotSet()",
       "selector": "0xa82e2bf1",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -37,7 +32,6 @@
       "signature": "AccessControlBadConfirmation()",
       "selector": "0x6697b232",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -50,7 +44,6 @@
       "signature": "AccessControlUnauthorizedAccount(address,bytes32)",
       "selector": "0xe2517d3f",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -72,7 +65,6 @@
       "signature": "AccessManagedInvalidAuthority(address)",
       "selector": "0xc2f31e5e",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -90,7 +82,6 @@
       "signature": "AccessManagedRequiredDelay(address,uint32)",
       "selector": "0xaf77169d",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -112,7 +103,6 @@
       "signature": "AccessManagedUnauthorized(address)",
       "selector": "0x068ca9d8",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -130,7 +120,6 @@
       "signature": "AccessManagerAlreadyScheduled(bytes32)",
       "selector": "0x813e9459",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -148,7 +137,6 @@
       "signature": "AccessManagerBadConfirmation()",
       "selector": "0x5f159e63",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -161,7 +149,6 @@
       "signature": "AccessManagerExpired(bytes32)",
       "selector": "0x78a5d6e4",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -179,7 +166,6 @@
       "signature": "AccessManagerInvalidInitialAdmin(address)",
       "selector": "0x0813ada2",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -197,7 +183,6 @@
       "signature": "AccessManagerLockedRole(uint64)",
       "selector": "0x1871a90c",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -215,7 +200,6 @@
       "signature": "AccessManagerNotReady(bytes32)",
       "selector": "0x18cb6b7a",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -233,7 +217,6 @@
       "signature": "AccessManagerNotScheduled(bytes32)",
       "selector": "0x60a299b0",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -251,7 +234,6 @@
       "signature": "AccessManagerUnauthorizedAccount(address,uint64)",
       "selector": "0xf07e038f",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -273,7 +255,6 @@
       "signature": "AccessManagerUnauthorizedCall(address,address,bytes4)",
       "selector": "0x81c6f24b",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -299,7 +280,6 @@
       "signature": "AccessManagerUnauthorizedCancel(address,address,address,bytes4)",
       "selector": "0x3fe2751c",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -329,7 +309,6 @@
       "signature": "AccessManagerUnauthorizedConsume(address)",
       "selector": "0x320ff748",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -347,7 +326,6 @@
       "signature": "ActivationDeadlineExpired()",
       "selector": "0x4ccce4fc",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -360,7 +338,6 @@
       "signature": "ActivationDelayNotElapsed()",
       "selector": "0x67c1b99b",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -373,7 +350,6 @@
       "signature": "AddCapExceeded(uint256)",
       "selector": "0xde3fc6ae",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -391,7 +367,6 @@
       "signature": "AddressEmptyCode(address)",
       "selector": "0x9996b315",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -409,7 +384,6 @@
       "signature": "AllowListDisabled()",
       "selector": "0x53bcf515",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -422,7 +396,6 @@
       "signature": "AmountBelowMinimumThreshold(uint256,uint256)",
       "selector": "0x984bdc38",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -444,7 +417,6 @@
       "signature": "AmountMismatch(uint256,uint256)",
       "selector": "0xce6b173b",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -466,7 +438,6 @@
       "signature": "ApplicationAlreadyRegistered()",
       "selector": "0xff849305",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -479,7 +450,6 @@
       "signature": "ApplicationNotActive()",
       "selector": "0xb8e0a3b6",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -492,7 +462,6 @@
       "signature": "ApplicationNotRegistered()",
       "selector": "0x0405f772",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -505,7 +474,6 @@
       "signature": "ArrayExceedsMaxSize(uint256,uint256)",
       "selector": "0x5e52750c",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -527,7 +495,6 @@
       "signature": "AssetNotListed()",
       "selector": "0xb77e1e0f",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -540,7 +507,6 @@
       "signature": "BTCVaultNotFound()",
       "selector": "0x525f24f6",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -553,7 +519,6 @@
       "signature": "BlocklistedVaultKeeper()",
       "selector": "0x84995d81",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -566,7 +531,6 @@
       "signature": "BtcKeyAlreadyRegistered()",
       "selector": "0x80ff0489",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -579,7 +543,6 @@
       "signature": "BufferTooShort(uint256,uint256,uint256)",
       "selector": "0x4fa37cb1",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -605,7 +568,6 @@
       "signature": "CannotReceiveShares()",
       "selector": "0x861a96d6",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -618,7 +580,6 @@
       "signature": "CapExceeded()",
       "selector": "0xa4875a49",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -631,7 +592,6 @@
       "signature": "CollateralCannotBeLiquidated()",
       "selector": "0x979b5ce8",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -656,7 +616,6 @@
       "signature": "CommissionAboveMaximum(uint16)",
       "selector": "0xf6ec55d9",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -674,7 +633,6 @@
       "signature": "CommissionBelowMinimum(uint16,uint16)",
       "selector": "0x02a2a76b",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -696,7 +654,6 @@
       "signature": "CommissionUnchanged()",
       "selector": "0xc20bac94",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -709,7 +666,6 @@
       "signature": "ConfigKeyUninitialized()",
       "selector": "0x6669e61b",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -722,7 +678,6 @@
       "signature": "DeficitReportedMismatch()",
       "selector": "0x67122cd4",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -735,7 +690,6 @@
       "signature": "DelegateeNotVerified()",
       "selector": "0xf9a03367",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -748,7 +702,6 @@
       "signature": "DepositNotAllowed()",
       "selector": "0x3d90e2a0",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -761,7 +714,6 @@
       "signature": "DepositorWotsPkHashAlreadyUsed()",
       "selector": "0x6679b8e7",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -774,7 +726,6 @@
       "signature": "DrawCapExceeded(uint256)",
       "selector": "0x3ad30dd0",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -792,7 +743,6 @@
       "signature": "DuplicateHashlock()",
       "selector": "0x70f7d5e2",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -805,7 +755,6 @@
       "signature": "DuplicateParticipant()",
       "selector": "0xfbae8805",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -830,7 +779,6 @@
       "signature": "DynamicConfigKeyUninitialized()",
       "selector": "0x17e5b997",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -843,7 +791,6 @@
       "signature": "ECDSAInvalidSignature()",
       "selector": "0xf645eedf",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -856,7 +803,6 @@
       "signature": "ECDSAInvalidSignatureLength(uint256)",
       "selector": "0xfce698f7",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -874,7 +820,6 @@
       "signature": "ECDSAInvalidSignatureS(bytes32)",
       "selector": "0xd78bce0c",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -892,7 +837,6 @@
       "signature": "ERC1155InsufficientBalance(address,uint256,uint256,uint256)",
       "selector": "0x03dee4c5",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -922,7 +866,6 @@
       "signature": "ERC1155InvalidApprover(address)",
       "selector": "0x3e31884e",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -940,7 +883,6 @@
       "signature": "ERC1155InvalidArrayLength(uint256,uint256)",
       "selector": "0x5b059991",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -962,7 +904,6 @@
       "signature": "ERC1155InvalidOperator(address)",
       "selector": "0xced3e100",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -980,7 +921,6 @@
       "signature": "ERC1155InvalidReceiver(address)",
       "selector": "0x57f447ce",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -998,7 +938,6 @@
       "signature": "ERC1155InvalidSender(address)",
       "selector": "0x01a83514",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -1016,7 +955,6 @@
       "signature": "ERC1155MissingApprovalForAll(address,address)",
       "selector": "0xe237d922",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -1038,7 +976,6 @@
       "signature": "ERC1967InvalidAdmin(address)",
       "selector": "0x62e77ba2",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -1056,7 +993,6 @@
       "signature": "ERC1967InvalidBeacon(address)",
       "selector": "0x64ced0ec",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -1074,7 +1010,6 @@
       "signature": "ERC1967InvalidImplementation(address)",
       "selector": "0x4c9c8ce3",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -1092,7 +1027,6 @@
       "signature": "ERC1967NonPayable()",
       "selector": "0xb398979f",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -1105,7 +1039,6 @@
       "signature": "ERC20InsufficientAllowance(address,uint256,uint256)",
       "selector": "0xfb8f41b2",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -1131,7 +1064,6 @@
       "signature": "ERC20InsufficientBalance(address,uint256,uint256)",
       "selector": "0xe450d38c",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -1157,7 +1089,6 @@
       "signature": "ERC20InvalidApprover(address)",
       "selector": "0xe602df05",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -1175,7 +1106,6 @@
       "signature": "ERC20InvalidReceiver(address)",
       "selector": "0xec442f05",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -1193,7 +1123,6 @@
       "signature": "ERC20InvalidSender(address)",
       "selector": "0x96c6fd1e",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -1211,7 +1140,6 @@
       "signature": "ERC20InvalidSpender(address)",
       "selector": "0x94280d62",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -1229,7 +1157,6 @@
       "signature": "ERC721IncorrectOwner(address,uint256,address)",
       "selector": "0x64283d7b",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -1255,7 +1182,6 @@
       "signature": "ERC721InsufficientApproval(address,uint256)",
       "selector": "0x177e802f",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -1277,7 +1203,6 @@
       "signature": "ERC721InvalidApprover(address)",
       "selector": "0xa9fbf51f",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -1295,7 +1220,6 @@
       "signature": "ERC721InvalidOperator(address)",
       "selector": "0x5b08ba18",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -1313,7 +1237,6 @@
       "signature": "ERC721InvalidOwner(address)",
       "selector": "0x89c62b64",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -1331,7 +1254,6 @@
       "signature": "ERC721InvalidReceiver(address)",
       "selector": "0x64a0ae92",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -1349,7 +1271,6 @@
       "signature": "ERC721InvalidSender(address)",
       "selector": "0x73c6ac6e",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -1367,7 +1288,6 @@
       "signature": "ERC721NonexistentToken(uint256)",
       "selector": "0x7e273289",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -1385,7 +1305,6 @@
       "signature": "EmptyArray()",
       "selector": "0x521299a9",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -1398,7 +1317,6 @@
       "signature": "EmptyPayoutAddress()",
       "selector": "0x318862fd",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -1411,7 +1329,6 @@
       "signature": "EmptyVaultKeepers()",
       "selector": "0xed42a4f4",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -1424,7 +1341,6 @@
       "signature": "EthKeyAlreadyRegistered()",
       "selector": "0x6de416fc",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -1449,7 +1365,6 @@
       "signature": "FailedCall()",
       "selector": "0xd6bda275",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -1462,7 +1377,6 @@
       "signature": "FailedDeployment()",
       "selector": "0xb06ebf3d",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -1475,7 +1389,6 @@
       "signature": "HealthFactorBelowThreshold()",
       "selector": "0x851aedc1",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -1488,7 +1401,6 @@
       "signature": "HealthFactorNotBelowThreshold()",
       "selector": "0x930bb771",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -1501,7 +1413,6 @@
       "signature": "InactivePositionManager()",
       "selector": "0x2ba99b0d",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -1514,7 +1425,6 @@
       "signature": "IncompleteWithdrawal(uint256,uint256)",
       "selector": "0xdc14bc06",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -1536,7 +1446,6 @@
       "signature": "InsufficientBalance(uint256,uint256)",
       "selector": "0xcf479181",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -1558,7 +1467,6 @@
       "signature": "InsufficientBorrowAllowance()",
       "selector": "0x13a385b9",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -1568,22 +1476,9 @@
       }
     },
     {
-      "signature": "InsufficientFairnessDebtRepayment()",
-      "selector": "0xf58e7603",
-      "revisions": [
-        "74de8a7a"
-      ],
-      "abi": {
-        "type": "error",
-        "name": "InsufficientFairnessDebtRepayment",
-        "inputs": []
-      }
-    },
-    {
       "signature": "InsufficientLiquidationOutput()",
       "selector": "0x33f46eb2",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -1596,7 +1491,6 @@
       "signature": "InsufficientLiquidity(uint256)",
       "selector": "0xc730333f",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -1614,7 +1508,6 @@
       "signature": "InsufficientSettlementAmount()",
       "selector": "0x59c4c011",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -1627,7 +1520,6 @@
       "signature": "InsufficientTransferred(uint256)",
       "selector": "0x80561eeb",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -1645,7 +1537,6 @@
       "signature": "InterestRateDataNotSet(uint256)",
       "selector": "0x0d183c0b",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -1663,7 +1554,6 @@
       "signature": "InvalidAccountNonce(address,uint256)",
       "selector": "0x752d88c0",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -1685,7 +1575,6 @@
       "signature": "InvalidAction(bytes32)",
       "selector": "0xa2160dcf",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -1703,7 +1592,6 @@
       "signature": "InvalidActivationMetadataVersion()",
       "selector": "0x050077b6",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -1716,7 +1604,6 @@
       "signature": "InvalidAddress()",
       "selector": "0xe6c4247b",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -1729,7 +1616,6 @@
       "signature": "InvalidAmount()",
       "selector": "0x2c5211c6",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -1742,7 +1628,6 @@
       "signature": "InvalidApplicationStatus()",
       "selector": "0x291a94ee",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -1755,7 +1640,6 @@
       "signature": "InvalidAssetDecimals()",
       "selector": "0xe2364765",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -1768,7 +1652,6 @@
       "signature": "InvalidAssetId()",
       "selector": "0xfafca5a0",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -1781,7 +1664,6 @@
       "signature": "InvalidBIP322Signature(uint256,uint256)",
       "selector": "0x252457e8",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -1803,7 +1685,6 @@
       "signature": "InvalidBTCPopSignatureLength(uint256,uint256,uint256)",
       "selector": "0x48141542",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -1829,7 +1710,6 @@
       "signature": "InvalidBTCProofOfPossession()",
       "selector": "0x6cc363a5",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -1842,7 +1722,6 @@
       "signature": "InvalidBTCPublicKey()",
       "selector": "0x6c3f2bf6",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -1855,7 +1734,6 @@
       "signature": "InvalidBTCVaultStatus()",
       "selector": "0xa0e24351",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -1868,7 +1746,6 @@
       "signature": "InvalidBTCVaultUsageStatus()",
       "selector": "0x5c63c7eb",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -1881,7 +1758,6 @@
       "signature": "InvalidBase(uint256,uint256)",
       "selector": "0xd383fafa",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -1903,7 +1779,6 @@
       "signature": "InvalidCollateralFactor()",
       "selector": "0xbc8b2b40",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -1916,7 +1791,6 @@
       "signature": "InvalidCollateralFactorAndMaxLiquidationBonus()",
       "selector": "0xcf8e83b1",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -1929,7 +1803,6 @@
       "signature": "InvalidCollateralRisk()",
       "selector": "0xc0534e95",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -1942,7 +1815,6 @@
       "signature": "InvalidCompactSize(uint256,uint8,uint64,uint64)",
       "selector": "0xb78341d9",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -1972,7 +1844,6 @@
       "signature": "InvalidControlBlock(uint256,uint256)",
       "selector": "0x2d2693da",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -1994,7 +1865,6 @@
       "signature": "InvalidDebtToCover()",
       "selector": "0x411dcff5",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -2007,7 +1877,6 @@
       "signature": "InvalidDelay()",
       "selector": "0x4fbe5dba",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -2020,7 +1889,6 @@
       "signature": "InvalidDepositorWotsPkHash()",
       "selector": "0x67f93ae2",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -2033,7 +1901,6 @@
       "signature": "InvalidEscrowedVaultStatus()",
       "selector": "0x85c1ef8c",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -2046,7 +1913,6 @@
       "signature": "InvalidEthProofOfPossession()",
       "selector": "0x15971b66",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -2059,7 +1925,6 @@
       "signature": "InvalidFeeConfiguration()",
       "selector": "0x6d24edae",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -2072,7 +1937,6 @@
       "signature": "InvalidHashlock()",
       "selector": "0x2e0755ab",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -2085,7 +1949,6 @@
       "signature": "InvalidImplementation()",
       "selector": "0x68155f9a",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -2098,7 +1961,6 @@
       "signature": "InvalidInitialization()",
       "selector": "0xf92ee8a9",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -2111,7 +1973,6 @@
       "signature": "InvalidInterestRateStrategy()",
       "selector": "0x38ad7932",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -2124,7 +1985,6 @@
       "signature": "InvalidLiquidationAmounts()",
       "selector": "0xd73695c3",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -2149,7 +2009,6 @@
       "signature": "InvalidLiquidationConfig()",
       "selector": "0xa3f02e7f",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -2162,7 +2021,6 @@
       "signature": "InvalidLiquidationFee()",
       "selector": "0x16535458",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -2175,7 +2033,6 @@
       "signature": "InvalidLiquidityFee()",
       "selector": "0xe15e46cb",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -2188,7 +2045,6 @@
       "signature": "InvalidMaxUserReservesLimit()",
       "selector": "0xbdf3f563",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -2213,7 +2069,6 @@
       "signature": "InvalidNullVaultDeclaration()",
       "selector": "0xff066205",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -2223,22 +2078,9 @@
       }
     },
     {
-      "signature": "InvalidNumVaultsToLiquidate()",
-      "selector": "0x7296062d",
-      "revisions": [
-        "74de8a7a"
-      ],
-      "abi": {
-        "type": "error",
-        "name": "InvalidNumVaultsToLiquidate",
-        "inputs": []
-      }
-    },
-    {
       "signature": "InvalidOracleDecimals()",
       "selector": "0x38bebeba",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -2251,7 +2093,6 @@
       "signature": "InvalidOraclePrice()",
       "selector": "0x1f8f95a0",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -2264,7 +2105,6 @@
       "signature": "InvalidOutputIndex(uint256,uint256)",
       "selector": "0xa78099a2",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -2286,7 +2126,6 @@
       "signature": "InvalidParticipantsList()",
       "selector": "0x6083ea38",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -2299,7 +2138,6 @@
       "signature": "InvalidPeginFee(uint256,uint256)",
       "selector": "0x979f4518",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -2321,7 +2159,6 @@
       "signature": "InvalidPoint(uint256,uint256)",
       "selector": "0x414cf375",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -2343,7 +2180,6 @@
       "signature": "InvalidPositionAccount()",
       "selector": "0x13cbb6d8",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -2356,7 +2192,6 @@
       "signature": "InvalidPositionResolver()",
       "selector": "0xf2312ed0",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -2369,7 +2204,6 @@
       "signature": "InvalidPositionSizes()",
       "selector": "0x1164b0ae",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -2394,7 +2228,6 @@
       "signature": "InvalidPremiumChange()",
       "selector": "0xa664e075",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -2407,7 +2240,6 @@
       "signature": "InvalidPrice(uint256)",
       "selector": "0xf9632e86",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -2422,22 +2254,9 @@
       }
     },
     {
-      "signature": "InvalidPriorityOrder()",
-      "selector": "0x5ace9c43",
-      "revisions": [
-        "74de8a7a"
-      ],
-      "abi": {
-        "type": "error",
-        "name": "InvalidPriorityOrder",
-        "inputs": []
-      }
-    },
-    {
       "signature": "InvalidProxyContract()",
       "selector": "0x8247fda0",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -2450,7 +2269,6 @@
       "signature": "InvalidReceiver()",
       "selector": "0x1e4ec46b",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -2463,7 +2281,6 @@
       "signature": "InvalidRegistrationFee()",
       "selector": "0x73dca8cc",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -2476,7 +2293,6 @@
       "signature": "InvalidReinvestmentController()",
       "selector": "0x91eaafa1",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -2501,7 +2317,6 @@
       "signature": "InvalidSValue(bytes32)",
       "selector": "0xa9f81b00",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -2519,7 +2334,6 @@
       "signature": "InvalidSecret()",
       "selector": "0xabab6bd7",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -2532,7 +2346,6 @@
       "signature": "InvalidSecurityCouncilConfig()",
       "selector": "0xa63f6da4",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -2545,7 +2358,6 @@
       "signature": "InvalidShares()",
       "selector": "0x6edcc523",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -2558,7 +2370,6 @@
       "signature": "InvalidShortDelayArrays()",
       "selector": "0xebfc1439",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -2571,7 +2382,6 @@
       "signature": "InvalidSignature()",
       "selector": "0x8baa579f",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -2584,7 +2394,6 @@
       "signature": "InvalidSignatureLength()",
       "selector": "0x4be6321b",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -2597,7 +2406,6 @@
       "signature": "InvalidSource(uint256)",
       "selector": "0x0246b0be",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -2615,7 +2423,6 @@
       "signature": "InvalidSourceDecimals(uint256)",
       "selector": "0xbbff7655",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -2633,7 +2440,6 @@
       "signature": "InvalidTransaction()",
       "selector": "0x500a07ce",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -2646,7 +2452,6 @@
       "signature": "InvalidVault()",
       "selector": "0xd03a6320",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -2659,7 +2464,6 @@
       "signature": "InvalidVaultWriteOff()",
       "selector": "0xa07d3896",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -2672,7 +2476,6 @@
       "signature": "InvalidVaultsArray()",
       "selector": "0x9f1c5b2e",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -2685,7 +2488,6 @@
       "signature": "InvalidWitnessData(uint256,uint256,uint256)",
       "selector": "0xb3cd91dd",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -2711,7 +2513,6 @@
       "signature": "InvalidXOnlyKey(bytes32)",
       "selector": "0x81fe4e06",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -2729,7 +2530,6 @@
       "signature": "LLPAlreadyRegistered(address)",
       "selector": "0xc31c770d",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -2747,7 +2547,6 @@
       "signature": "LLPDisabled()",
       "selector": "0x58f48bdf",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -2760,7 +2559,6 @@
       "signature": "LLPNotRegistered(address)",
       "selector": "0x85e4ecc0",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -2823,7 +2621,6 @@
       "signature": "MaxDataSizeExceeded()",
       "selector": "0x249148e2",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -2836,7 +2633,6 @@
       "signature": "MaxPegInBelowMinPegIn(uint256,uint256)",
       "selector": "0xa7bfc90a",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -2858,7 +2654,6 @@
       "signature": "MaximumDynamicConfigKeyReached()",
       "selector": "0x8affb4f4",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -2871,7 +2666,6 @@
       "signature": "MaximumUserReservesExceeded()",
       "selector": "0x0f04df18",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -2884,7 +2678,6 @@
       "signature": "MissingPrecompile(address)",
       "selector": "0x42b01bce",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -2902,7 +2695,6 @@
       "signature": "MustNotLeaveDust()",
       "selector": "0xb629b0e4",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -2915,7 +2707,6 @@
       "signature": "NoAccruedInterest()",
       "selector": "0x4d5a922f",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -2928,7 +2719,6 @@
       "signature": "NoAppVaultKeepersConfigured()",
       "selector": "0x6a12119f",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -2953,7 +2743,6 @@
       "signature": "NoEscrowedFees()",
       "selector": "0x8c951c7b",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -2966,7 +2755,6 @@
       "signature": "NoUniversalChallengersConfigured()",
       "selector": "0x71db218d",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -2976,22 +2764,9 @@
       }
     },
     {
-      "signature": "NonZeroLiquidationFee()",
-      "selector": "0x7a960a2f",
-      "revisions": [
-        "74de8a7a"
-      ],
-      "abi": {
-        "type": "error",
-        "name": "NonZeroLiquidationFee",
-        "inputs": []
-      }
-    },
-    {
       "signature": "NotAuthorizedToACK()",
       "selector": "0xcb5165fe",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -3004,7 +2779,6 @@
       "signature": "NotContract()",
       "selector": "0x6f7c43f1",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -3017,7 +2791,6 @@
       "signature": "NotInitializing()",
       "selector": "0xd7e6bcf8",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -3030,7 +2803,6 @@
       "signature": "OnlyAdapter()",
       "selector": "0x467122e8",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -3043,7 +2815,6 @@
       "signature": "OnlyApplicationEntryPoint()",
       "selector": "0xcdd26a41",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -3056,7 +2827,6 @@
       "signature": "OnlyDeployer()",
       "selector": "0x618bbdd5",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -3069,7 +2839,6 @@
       "signature": "OnlyReinvestmentController()",
       "selector": "0x3c6b7746",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -3082,7 +2851,6 @@
       "signature": "OnlySpoke()",
       "selector": "0x564cbba0",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -3095,7 +2863,6 @@
       "signature": "OperationKeyVersionOverflow()",
       "selector": "0x4e8ebdb8",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -3108,7 +2875,6 @@
       "signature": "OracleMismatch()",
       "selector": "0x80e24704",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -3121,7 +2887,6 @@
       "signature": "OwnableInvalidOwner(address)",
       "selector": "0x1e4fbdf7",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -3139,7 +2904,6 @@
       "signature": "OwnableUnauthorizedAccount(address)",
       "selector": "0x118cdaa7",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -3157,7 +2921,6 @@
       "signature": "ParticipantRoleOverlap()",
       "selector": "0x58bdb9d9",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -3170,7 +2933,6 @@
       "signature": "PayoutAddressTooLong()",
       "selector": "0x06a3210f",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -3183,7 +2945,6 @@
       "signature": "PeginFingerprintChanged(bytes32,bytes32)",
       "selector": "0x846c25bb",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -3205,7 +2966,6 @@
       "signature": "PeginInputSignatureAlreadySubmitted()",
       "selector": "0x53a828af",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -3218,7 +2978,6 @@
       "signature": "PeginNotExpired()",
       "selector": "0x75a6251d",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -3231,7 +2990,6 @@
       "signature": "PeginSignaturesIncomplete()",
       "selector": "0x933ffde0",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -3244,7 +3002,6 @@
       "signature": "PeginTransactionAlreadyUsed()",
       "selector": "0x7ed061c9",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -3257,7 +3014,6 @@
       "signature": "PeginTransactionExpired()",
       "selector": "0xf453cd25",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -3270,7 +3026,6 @@
       "signature": "PositionAccountAlreadyExists()",
       "selector": "0xc070904e",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -3283,7 +3038,6 @@
       "signature": "PositionAccountCreationFailed()",
       "selector": "0xb4116560",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -3296,7 +3050,6 @@
       "signature": "PositionAccountDoesNotExist()",
       "selector": "0xe718b123",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -3321,7 +3074,6 @@
       "signature": "PositionNotLiquidatable()",
       "selector": "0x6415f959",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -3334,7 +3086,6 @@
       "signature": "PositionSizesRejectedByApplication()",
       "selector": "0x67cf1e3e",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -3347,7 +3098,6 @@
       "signature": "PostExpiryGraceWindowElapsed()",
       "selector": "0x374fa23d",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -3360,7 +3110,6 @@
       "signature": "PrePeginOutputAlreadyUsed()",
       "selector": "0x5fad9694",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -3370,22 +3119,9 @@
       }
     },
     {
-      "signature": "PrefixLengthExceedsArray()",
-      "selector": "0x7f73ba74",
-      "revisions": [
-        "74de8a7a"
-      ],
-      "abi": {
-        "type": "error",
-        "name": "PrefixLengthExceedsArray",
-        "inputs": []
-      }
-    },
-    {
       "signature": "PublicKeyMismatch(bytes32,bytes32)",
       "selector": "0x024e88c7",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -3407,7 +3143,6 @@
       "signature": "ReentrancyGuardReentrantCall()",
       "selector": "0x3ee5aeb5",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -3417,22 +3152,9 @@
       }
     },
     {
-      "signature": "ReorderVaultsOnLiquidatablePositionNotAllowed()",
-      "selector": "0xc4b6185b",
-      "revisions": [
-        "74de8a7a"
-      ],
-      "abi": {
-        "type": "error",
-        "name": "ReorderVaultsOnLiquidatablePositionNotAllowed",
-        "inputs": []
-      }
-    },
-    {
       "signature": "RepaymentWouldRestoreZeroShares()",
       "selector": "0xd3470942",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -3445,7 +3167,6 @@
       "signature": "ReserveExists()",
       "selector": "0xe71301f8",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -3458,7 +3179,6 @@
       "signature": "ReserveFrozen()",
       "selector": "0x6d305815",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -3471,7 +3191,6 @@
       "signature": "ReserveNotBorrowable()",
       "selector": "0xaac43c92",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -3484,7 +3203,6 @@
       "signature": "ReserveNotBorrowed()",
       "selector": "0x7b55ea4a",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -3497,7 +3215,6 @@
       "signature": "ReserveNotEnabledAsCollateral()",
       "selector": "0x95aaa7c8",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -3510,7 +3227,6 @@
       "signature": "ReserveNotListed()",
       "selector": "0x2e5d6bb4",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -3523,7 +3239,6 @@
       "signature": "ReserveNotSupplied()",
       "selector": "0xe2fadb09",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -3536,7 +3251,6 @@
       "signature": "ReservePaused()",
       "selector": "0xd37f5f1c",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -3549,7 +3263,6 @@
       "signature": "SafeCastOverflowedIntDowncast(uint8,int256)",
       "selector": "0x327269a7",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -3571,7 +3284,6 @@
       "signature": "SafeCastOverflowedIntToUint(int256)",
       "selector": "0xa8ce4432",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -3589,7 +3301,6 @@
       "signature": "SafeCastOverflowedUintDowncast(uint8,uint256)",
       "selector": "0x6dfcc650",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -3611,7 +3322,6 @@
       "signature": "SafeCastOverflowedUintToInt(uint256)",
       "selector": "0x24775e06",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -3629,7 +3339,6 @@
       "signature": "SafeERC20FailedDecreaseAllowance(address,uint256,uint256)",
       "selector": "0xe570110f",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -3655,7 +3364,6 @@
       "signature": "SafeERC20FailedOperation(address)",
       "selector": "0x5274afe7",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -3673,7 +3381,6 @@
       "signature": "ScriptPubKeyTooLong()",
       "selector": "0x7893c2f9",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -3686,7 +3393,6 @@
       "signature": "SelfLiquidation()",
       "selector": "0x44511af1",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -3699,7 +3405,6 @@
       "signature": "SlippageExceeded(uint256,uint256)",
       "selector": "0x71c4efed",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -3721,7 +3426,6 @@
       "signature": "SpokeAlreadyListed()",
       "selector": "0x04c94583",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -3734,7 +3438,6 @@
       "signature": "SpokeAlreadySet()",
       "selector": "0x307ef04a",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -3747,7 +3450,6 @@
       "signature": "SpokeHalted()",
       "selector": "0x9db9b355",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -3760,7 +3462,6 @@
       "signature": "SpokeNotActive()",
       "selector": "0xe86fa032",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -3773,7 +3474,6 @@
       "signature": "SpokeNotListed()",
       "selector": "0xaa1b05f0",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -3786,7 +3486,6 @@
       "signature": "StringsInsufficientHexLength(uint256,uint256)",
       "selector": "0xe22e27eb",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -3808,7 +3507,6 @@
       "signature": "StringsInvalidAddressFormat()",
       "selector": "0x1d15ae44",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -3821,7 +3519,6 @@
       "signature": "StringsInvalidChar()",
       "selector": "0x94e2737e",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -3834,7 +3531,6 @@
       "signature": "SurplusDrawnDeficitReported(uint256)",
       "selector": "0x04ddd91f",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -3852,7 +3548,6 @@
       "signature": "SurplusDrawnRestored(uint256)",
       "selector": "0x4bd9e476",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -3870,7 +3565,6 @@
       "signature": "SurplusPremiumRayDeficitReported(uint256)",
       "selector": "0x37f3f9b7",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -3888,7 +3582,6 @@
       "signature": "SurplusPremiumRayRestored(uint256)",
       "selector": "0xdc868246",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -3906,7 +3599,6 @@
       "signature": "TBV_AlreadyFrozen()",
       "selector": "0xf4f78ec8",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -3919,7 +3611,6 @@
       "signature": "TBV_AlreadyPaused()",
       "selector": "0xcb29fe3f",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -3932,7 +3623,6 @@
       "signature": "TBV_CannotUnfreezeWhilePaused()",
       "selector": "0x1429cb83",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -3945,7 +3635,6 @@
       "signature": "TBV_CannotUnpauseWhileFrozen()",
       "selector": "0x30ffa250",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -3958,7 +3647,6 @@
       "signature": "TBV_Frozen()",
       "selector": "0xc9327d7f",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -3971,7 +3659,6 @@
       "signature": "TBV_NotFrozen()",
       "selector": "0x7773dfe4",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -3984,7 +3671,6 @@
       "signature": "TBV_NotPaused()",
       "selector": "0x80d67dea",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -3997,7 +3683,6 @@
       "signature": "TBV_Paused()",
       "selector": "0x43b6fb8b",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -4010,7 +3695,6 @@
       "signature": "TBV_Unauthorized()",
       "selector": "0xf901270b",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -4023,7 +3707,6 @@
       "signature": "TooManyFundingInputs(uint256,uint256)",
       "selector": "0xf14dcc9f",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -4045,7 +3728,6 @@
       "signature": "TooManyHtlcOutputs(uint256,uint256)",
       "selector": "0xa6d61405",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -4067,7 +3749,6 @@
       "signature": "TransferFailed()",
       "selector": "0x90b8ec18",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -4080,7 +3761,6 @@
       "signature": "UUPSUnauthorizedCallContext()",
       "selector": "0xe07c8dba",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -4093,7 +3773,6 @@
       "signature": "UUPSUnsupportedProxiableUUID(bytes32)",
       "selector": "0xaa1d49a4",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -4111,7 +3790,6 @@
       "signature": "Unauthorized()",
       "selector": "0x82b42900",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -4124,7 +3802,6 @@
       "signature": "UnauthorizedTransferDestination()",
       "selector": "0xa4a550a2",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -4137,7 +3814,6 @@
       "signature": "UnauthorizedVaultKeeper()",
       "selector": "0xc2732b47",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -4150,7 +3826,6 @@
       "signature": "UnderlyingAlreadyListed()",
       "selector": "0x603c058b",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -4163,7 +3838,6 @@
       "signature": "UnsafePeginTimingConfiguration(uint32,uint64)",
       "selector": "0x13861cc8",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -4185,7 +3859,6 @@
       "signature": "UnsupportedAddressType(uint8)",
       "selector": "0x7336a596",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -4227,7 +3900,6 @@
       "signature": "UnsupportedSettlementToken()",
       "selector": "0xab81d99e",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -4240,7 +3912,6 @@
       "signature": "VaultAboveMaximum(uint256,uint256)",
       "selector": "0x1f028dd5",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -4262,7 +3933,6 @@
       "signature": "VaultAlreadyExists()",
       "selector": "0x04aabf33",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -4287,7 +3957,6 @@
       "signature": "VaultBelowMinimum(uint256,uint256)",
       "selector": "0x98e766c4",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -4309,7 +3978,6 @@
       "signature": "VaultFeeAlreadyEscrowed()",
       "selector": "0xb8979dde",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -4322,7 +3990,6 @@
       "signature": "VaultNotAcquirable()",
       "selector": "0x5b7db05f",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -4335,7 +4002,6 @@
       "signature": "VaultProviderCommissionExceeded(uint16,uint16)",
       "selector": "0x716d6895",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -4357,7 +4023,6 @@
       "signature": "VaultProviderNotRegistered()",
       "selector": "0xcd408fe8",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -4370,7 +4035,6 @@
       "signature": "VersionAlreadyExists()",
       "selector": "0x13db702b",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -4383,7 +4047,6 @@
       "signature": "ZeroAddress()",
       "selector": "0xd92e233d",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -4396,7 +4059,6 @@
       "signature": "ZeroAmount()",
       "selector": "0x1f2a2005",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {
@@ -4406,22 +4068,9 @@
       }
     },
     {
-      "signature": "ZeroLiquidation()",
-      "selector": "0x76f30af2",
-      "revisions": [
-        "74de8a7a"
-      ],
-      "abi": {
-        "type": "error",
-        "name": "ZeroLiquidation",
-        "inputs": []
-      }
-    },
-    {
       "signature": "ZeroValue()",
       "selector": "0x7c946ed7",
       "revisions": [
-        "74de8a7a",
         "0e4ed2e5"
       ],
       "abi": {

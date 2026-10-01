@@ -106,8 +106,8 @@ export async function activateVaultWithSecret(
  * publishes the secret. The residual is the simulate-to-mine window: a
  * precondition that flips after a passing simulation (or a lagging RPC
  * replica) still mines a reverting transaction with the secret in public
- * calldata. That window is inherent — any pre-check, including a CTA-time
- * application-status read, is point-in-time in exactly the same way.
+ * calldata. That window is inherent — any pre-check is point-in-time in
+ * exactly the same way.
  */
 export async function activateVaultWithSecretAndRedeem(
   params: ActivateVaultParams,

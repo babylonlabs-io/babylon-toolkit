@@ -12,6 +12,7 @@ import { useAccount, useWalletClient } from "wagmi";
 
 import { isWithdrawBlocked } from "@/components/shared/protocolStatus";
 import { getETHChain } from "@/config/network";
+import { COPY } from "@/copy";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import { logger } from "@/infrastructure";
 import {
@@ -107,9 +108,7 @@ export function useWithdrawCollateralTransaction(): UseWithdrawCollateralTransac
         const mappedError =
           error instanceof Error
             ? mapViemErrorToContractError(error, "Withdraw Collateral")
-            : new Error(
-                "An unexpected error occurred while withdrawing collateral",
-              );
+            : new Error(COPY.withdraw.unexpectedError);
 
         setError(mappedError.message);
 
