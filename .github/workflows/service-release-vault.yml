@@ -25,14 +25,22 @@ on:
         required: false
         type: string
 
-# For github OIDC authentication to AWS
+# Only pull request runs share a group, so a new push to a PR cancels its
+# superseded run. Every other run gets its own group and is never cancelled
+# or replaced, as without a concurrency block.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# For github OIDC authentication to AWS; granted only to s3_publish, which
+# assumes the role. lint_test and setup need read only.
 permissions:
-  id-token: write
   contents: read
 
 jobs:
   lint_test:
     runs-on: ubuntu-24.04
+    timeout-minutes: 45
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2 https://github.com/actions/checkout/releases/tag/v6.0.2
@@ -71,6 +79,7 @@ jobs:
   # "all" choice publish every environment, preserving the previous behaviour.
   setup:
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     outputs:
       matrix: ${{ steps.matrix.outputs.matrix }}
       multi: ${{ steps.matrix.outputs.multi }}
@@ -114,6 +123,7 @@ jobs:
       id-token: write # OIDC assume-role for AWS
       contents: write # publish checksum manifest as a release asset (#253)
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.setup.outputs.matrix) }}
@@ -225,21 +235,29 @@ jobs:
           cp index.html app/aave
 
       - name: Generate sha256sum checksum
+        env:
+          # The matrix comes from a step output (fromJSON), so it is bound via
+          # env rather than interpolated into run:.
+          MATRIX_ENVIRONMENT: ${{ matrix.environment }}
         run: |
           cd services/vault/dist
-          FILES_CHECKSUM_PATH="/tmp/vault-${{ matrix.environment }}-${{ github.sha }}-files-checksum.txt"
-          GLOBAL_CHECKSUM_PATH="/tmp/vault-${{ matrix.environment }}-${{ github.sha }}-global-checksum.txt"
+          FILES_CHECKSUM_PATH="/tmp/vault-${MATRIX_ENVIRONMENT}-${GITHUB_SHA}-files-checksum.txt"
+          GLOBAL_CHECKSUM_PATH="/tmp/vault-${MATRIX_ENVIRONMENT}-${GITHUB_SHA}-global-checksum.txt"
           find . -type f -exec sha256sum {} \; | sort > $FILES_CHECKSUM_PATH # sort is for make sure the order on different OS is the same
           sha256sum $FILES_CHECKSUM_PATH | cut -d' ' -f1 > $GLOBAL_CHECKSUM_PATH # cut is for remove the filename from the output
 
       - name: Archive output
-        run: tar -czvf /tmp/vault-${{ matrix.environment }}-${{ github.sha }}.tar.gz -C services/vault/dist .
+        env:
+          MATRIX_ENVIRONMENT: ${{ matrix.environment }}
+        run: tar -czvf "/tmp/vault-${MATRIX_ENVIRONMENT}-${GITHUB_SHA}.tar.gz" -C services/vault/dist .
 
       - name: Upload to S3 with commit sha
+        env:
+          MATRIX_ENVIRONMENT: ${{ matrix.environment }}
         run: |
-          aws s3 cp /tmp/vault-${{ matrix.environment }}-${{ github.sha }}.tar.gz s3://${{ vars.S3_PUBLIC_BUCKET_NEW }}/vault/${{ matrix.environment }}/${{ github.sha }}.tar.gz
-          aws s3 cp /tmp/vault-${{ matrix.environment }}-${{ github.sha }}-files-checksum.txt s3://${{ vars.S3_CHECKSUM_BUCKET_NEW }}/vault/${{ matrix.environment }}/${{ github.sha }}-files-checksum.txt
-          aws s3 cp /tmp/vault-${{ matrix.environment }}-${{ github.sha }}-global-checksum.txt s3://${{ vars.S3_CHECKSUM_BUCKET_NEW }}/vault/${{ matrix.environment }}/${{ github.sha }}-global-checksum.txt
+          aws s3 cp "/tmp/vault-${MATRIX_ENVIRONMENT}-${GITHUB_SHA}.tar.gz" "s3://${{ vars.S3_PUBLIC_BUCKET_NEW }}/vault/${MATRIX_ENVIRONMENT}/${GITHUB_SHA}.tar.gz"
+          aws s3 cp "/tmp/vault-${MATRIX_ENVIRONMENT}-${GITHUB_SHA}-files-checksum.txt" "s3://${{ vars.S3_CHECKSUM_BUCKET_NEW }}/vault/${MATRIX_ENVIRONMENT}/${GITHUB_SHA}-files-checksum.txt"
+          aws s3 cp "/tmp/vault-${MATRIX_ENVIRONMENT}-${GITHUB_SHA}-global-checksum.txt" "s3://${{ vars.S3_CHECKSUM_BUCKET_NEW }}/vault/${MATRIX_ENVIRONMENT}/${GITHUB_SHA}-global-checksum.txt"
 
       - name: Upload to S3 with Git Tag
         if: startsWith(github.ref, 'refs/tags/')
@@ -247,10 +265,11 @@ jobs:
           # Bound via env, not interpolated into run: — git refnames accept
           # shell metacharacters and this job holds AWS OIDC + contents:write.
           GIT_TAG: ${{ github.ref_name }}
+          MATRIX_ENVIRONMENT: ${{ matrix.environment }}
         run: |
-          aws s3 cp /tmp/vault-${{ matrix.environment }}-${{ github.sha }}.tar.gz "s3://${{ vars.S3_PUBLIC_BUCKET_NEW }}/vault/${{ matrix.environment }}/${GIT_TAG}.tar.gz"
-          aws s3 cp /tmp/vault-${{ matrix.environment }}-${{ github.sha }}-files-checksum.txt "s3://${{ vars.S3_CHECKSUM_BUCKET_NEW }}/vault/${{ matrix.environment }}/${GIT_TAG}-files-checksum.txt"
-          aws s3 cp /tmp/vault-${{ matrix.environment }}-${{ github.sha }}-global-checksum.txt "s3://${{ vars.S3_CHECKSUM_BUCKET_NEW }}/vault/${{ matrix.environment }}/${GIT_TAG}-global-checksum.txt"
+          aws s3 cp "/tmp/vault-${MATRIX_ENVIRONMENT}-${GITHUB_SHA}.tar.gz" "s3://${{ vars.S3_PUBLIC_BUCKET_NEW }}/vault/${MATRIX_ENVIRONMENT}/${GIT_TAG}.tar.gz"
+          aws s3 cp "/tmp/vault-${MATRIX_ENVIRONMENT}-${GITHUB_SHA}-files-checksum.txt" "s3://${{ vars.S3_CHECKSUM_BUCKET_NEW }}/vault/${MATRIX_ENVIRONMENT}/${GIT_TAG}-files-checksum.txt"
+          aws s3 cp "/tmp/vault-${MATRIX_ENVIRONMENT}-${GITHUB_SHA}-global-checksum.txt" "s3://${{ vars.S3_CHECKSUM_BUCKET_NEW }}/vault/${MATRIX_ENVIRONMENT}/${GIT_TAG}-global-checksum.txt"
 
       # Last step: publishing the manifest must not block the S3 uploads above.
       - name: Publish checksum manifest as an immutable per-sha release

@@ -26,6 +26,9 @@ concurrency:
 jobs:
   build_and_release:
     runs-on: ubuntu-24.04
+    # Slowest recent successful run: 11 min. Generous so a slow registry never
+    # times out a publish half-way.
+    timeout-minutes: 45
     permissions:
       contents: write
       id-token: write # needed for provenance data generation
