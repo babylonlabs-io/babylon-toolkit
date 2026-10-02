@@ -163,14 +163,15 @@ export const NoBands: Story = {
  * Bands across the full plot width with the candles drawn over them — the
  * in-flow liquidation preview (issue #2318). No safe-zone callout, a shorter
  * event row so five events leave the candles room, and the close line traced
- * over the candles.
+ * over the candles. The plot ratio is Figma 13885:97130's gridline length over
+ * its height.
  */
 export const PlotWidthBands: Story = {
   args: {
     bandPlacement: "plot",
     safeZone: undefined,
-    eventRowPx: 24,
-    aspectRatio: 538 / 240,
+    eventRowPx: 26,
+    aspectRatio: 512 / 240,
     seriesStyle: "candles+line",
   },
 };

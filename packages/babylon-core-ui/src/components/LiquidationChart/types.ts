@@ -199,14 +199,16 @@ export interface TimelineProps extends LiquidationChartBase {
   /** Plot width / plot height. Defaults to the shared chart aspect ratio. */
   aspectRatio?: number;
   /**
-   * Height of every liquidation-event row, px. The default suits a tall
-   * chart; a short one (an in-flow preview) needs a smaller row or the event
-   * budget crowds the candle region down to its floor.
+   * Height of every liquidation-event row, px. When set, every row renders at
+   * least this tall at any chart width: a cascade that would not fit grows the
+   * plot past `aspectRatio` instead of compressing its rows, with the candle
+   * region keeping its minimum share. Unset, rows default to 44px and a long
+   * cascade compresses them to fit the plot.
    */
   eventRowPx?: number;
   /**
-   * Override the price-line colour (rule, label, close line, end dot).
-   * Default: `--liq-price-line`.
+   * Override the price-line colour (rule and label, plus the close line and
+   * end dot with `seriesStyle="candles+line"`). Default: `--liq-price-line`.
    */
   priceLineColor?: string;
   /** With `pan`, how many candles are visible at once. Default: all candles. */

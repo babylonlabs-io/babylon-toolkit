@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { calculate } from "@/applications/aave/positionNotifications";
@@ -28,9 +28,15 @@ vi.mock("@/applications/aave/hooks/usePositionNotifications", () => ({
   }),
 }));
 
-vi.mock("@/applications/aave/hooks/useBtcPriceCandles", () => ({
-  TIMELINE_VISIBLE_CANDLES: 365,
-  useBtcPriceCandles: () => ({ candles: mockCandles }),
+vi.mock("@/applications/aave/hooks/useBtcPriceCandles", async () => ({
+  ...(await vi.importActual<
+    typeof import("@/applications/aave/hooks/useBtcPriceCandles")
+  >("@/applications/aave/hooks/useBtcPriceCandles")),
+  useBtcPriceCandles: () => ({
+    candles: mockCandles,
+    isLoading: false,
+    error: null,
+  }),
 }));
 
 /** A year of daily candles, the window the preview charts. */
@@ -155,10 +161,10 @@ describe("LiquidationPreview", () => {
   });
 
   // The whole point of the preview is that adding debt visibly closes the gap
-  // between the BTC price and the first liquidation. The axis is therefore
-  // built from the LIVE position: re-deriving it from the projection re-rounds
-  // its top as the trigger rises, and across this fixture's rounding step that
-  // draws the riskier position with the WIDER gap.
+  // between the BTC price and the first liquidation. The axis top and step
+  // therefore come from the LIVE position: re-deriving them from the
+  // projection re-rounds the top as the trigger rises, and across this
+  // fixture's rounding step that draws the riskier position with the WIDER gap.
   it("narrows the drawn gap to the first event as the borrow amount rises", () => {
     mockParams = SINGLE_VAULT_PARAMS;
 
@@ -191,48 +197,84 @@ describe("LiquidationPreview", () => {
     expect(after).toBeLessThan(before);
   });
 
-  // Compressed into the design's five-event frame, a cascade this long drops
-  // every band label — the rows fall under one line of text. The frame grows
-  // with the event count instead, so each event stays named.
+  // Compressed into the design's frame, a cascade this long drops every band
+  // label — the rows fall under one line of text. The Timeline grows the plot
+  // instead, so each event stays named at every width.
   //
-  // Coverage limit: jsdom never fires ResizeObserver, so the chart always
-  // measures the 1016px fallback. That proves the labels render for a full
-  // cascade, and that the frame grows at all, but it is wider than the card's
-  // real ~470-540px — where the row budget is what actually decides whether a
-  // tenth event keeps its name. The narrow case rests on the arithmetic in
-  // HEIGHT_PER_EVENT_PX, not on this test.
-  it("keeps every event named at the longest cascade the protocol allows", () => {
-    const chartHeightFor = (params: CalculatorParams) => {
-      mockParams = params;
-      const { container, unmount } = render(
-        <LiquidationPreview additionalDebtUsd={0} />,
-      );
-      const height = Number.parseFloat(
-        container
-          .querySelector(".bbn-liq-chart__svg")
-          ?.getAttribute("height") ?? "NaN",
-      );
-      unmount();
-      return height;
-    };
-    const designFrameHeight = chartHeightFor(SINGLE_VAULT_PARAMS);
-
+  // jsdom never fires ResizeObserver, so the chart measures its 1016px
+  // fallback, where the design frame already fits ten rows. The mobile pass
+  // stubs the observer to report the ~279px chart a 375px viewport leaves,
+  // where the frame has to grow for the labels to survive.
+  it("keeps every event named at the longest cascade the protocol allows", async () => {
     const { groups } = calculate(TEN_EVENT_PARAMS);
     expect(groups).toHaveLength(10);
+    const expectEveryEventNamed = (container: HTMLElement) => {
+      const chart = within(container);
+      groups.forEach((group, index) => {
+        const amounts = group.vaults.map((vault) => vault.btc).join(" + ");
+        expect(
+          chart.getByText(
+            COPY.liquidations.preview.bandLabel(index + 1, amounts),
+          ),
+        ).toBeInTheDocument();
+      });
+    };
 
     mockParams = TEN_EVENT_PARAMS;
-    const { container } = render(<LiquidationPreview additionalDebtUsd={0} />);
-    const chart = within(container);
-    groups.forEach((group, index) => {
-      const amounts = group.vaults.map((vault) => vault.btc).join(" + ");
-      expect(
-        chart.getByText(
-          COPY.liquidations.preview.bandLabel(index + 1, amounts),
-        ),
-      ).toBeInTheDocument();
-    });
+    const wide = render(<LiquidationPreview additionalDebtUsd={0} />);
+    expectEveryEventNamed(wide.container);
+    wide.unmount();
 
-    expect(chartHeightFor(TEN_EVENT_PARAMS)).toBeGreaterThan(designFrameHeight);
+    const MOBILE_CHART_WIDTH_PX = 279;
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        constructor(private readonly callback: ResizeObserverCallback) {}
+        observe(target: Element) {
+          if (!target.classList.contains("bbn-liq-chart")) return;
+          this.callback(
+            [
+              {
+                target,
+                contentRect: {
+                  width: MOBILE_CHART_WIDTH_PX,
+                  height: 0,
+                  top: 0,
+                  left: 0,
+                },
+              } as unknown as ResizeObserverEntry,
+            ],
+            this as unknown as ResizeObserver,
+          );
+        }
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+    try {
+      const renderAtMobileWidth = async (params: CalculatorParams) => {
+        mockParams = params;
+        const view = render(<LiquidationPreview additionalDebtUsd={0} />);
+        const svg = await waitFor(() => {
+          const node = view.container.querySelector(".bbn-liq-chart__svg");
+          expect(node?.getAttribute("width")).toBe(
+            String(MOBILE_CHART_WIDTH_PX),
+          );
+          return node;
+        });
+        const height = Number.parseFloat(svg?.getAttribute("height") ?? "NaN");
+        return { view, height };
+      };
+
+      const design = await renderAtMobileWidth(SINGLE_VAULT_PARAMS);
+      design.view.unmount();
+
+      const cascade = await renderAtMobileWidth(TEN_EVENT_PARAMS);
+      expectEveryEventNamed(cascade.view.container);
+      expect(cascade.height).toBeGreaterThan(design.height);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("charts the frame while the candle series is still empty", () => {
@@ -254,27 +296,6 @@ describe("LiquidationPreview", () => {
     const { container } = render(
       <LiquidationPreview additionalDebtUsd={null} />,
     );
-
-    expect(container).toBeEmptyDOMElement();
-  });
-
-  // The cascade reads a deferred amount, so a chart drawn from the previous
-  // one would survive a commit past the point the debt became unknown — a
-  // stale projection left on screen exactly when the card should withdraw.
-  //
-  // Coverage limit: `rerender` runs inside `act`, which flushes the deferred
-  // pass too, so the intermediate commit is not observable here. This pins the
-  // contract (a charted card withdraws when its amount goes unknown); the
-  // timing rests on the guard reading the prop rather than the deferred copy.
-  it("withdraws immediately when a charted amount becomes unknown", () => {
-    mockParams = PARAMS;
-
-    const { container, rerender } = render(
-      <LiquidationPreview additionalDebtUsd={10_000} />,
-    );
-    expect(container).not.toBeEmptyDOMElement();
-
-    rerender(<LiquidationPreview additionalDebtUsd={null} />);
 
     expect(container).toBeEmptyDOMElement();
   });

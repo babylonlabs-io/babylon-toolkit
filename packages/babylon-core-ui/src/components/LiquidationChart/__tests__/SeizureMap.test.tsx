@@ -212,10 +212,10 @@ describe("SeizureMap", () => {
     expect(chart.queryByText("Event D")).not.toBeInTheDocument();
   });
 
-  it("opens the event tooltip on band hover", () => {
+  it("opens the event tooltip on band hover", async () => {
     renderMap();
     fireEvent.mouseEnter(screen.getByTestId("liq-band-1"));
-    expect(screen.getByText("At price")).toBeInTheDocument();
+    expect(await screen.findByText("At price")).toBeInTheDocument();
     expect(screen.getByText("Cumulative")).toBeInTheDocument();
     expect(screen.getByText("55% seized")).toBeInTheDocument();
   });

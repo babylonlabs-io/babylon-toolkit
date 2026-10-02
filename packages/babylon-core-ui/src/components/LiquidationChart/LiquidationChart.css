@@ -284,6 +284,11 @@
 .bbn-liq-timeline--plot .bbn-liq-price-line {
   stroke-width: 1;
 }
+/* The safe zone spans the candle region over the interaction rect; it has no
+ * hover of its own, so it lets the crosshair/pan/zoom through. */
+.bbn-liq-timeline--plot .bbn-liq-safezone__rect {
+  pointer-events: none;
+}
 
 /* ---- Safe-zone box in the band gutter (Timeline) ------------------- */
 .bbn-liq-safezone__rect {

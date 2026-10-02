@@ -31,6 +31,8 @@ export interface SeizureGutterProps {
   compact: boolean;
   hideBandLabels: boolean;
   liquidatedLabel?: string;
+  /** Passed through to the BandLayer popover. */
+  popoverOffsetPx?: number;
 }
 
 /**
@@ -54,6 +56,7 @@ export function SeizureGutter({
   compact,
   hideBandLabels,
   liquidatedLabel,
+  popoverOffsetPx,
 }: SeizureGutterProps) {
   const clipId = useId();
 
@@ -146,6 +149,7 @@ export function SeizureGutter({
         hideBandLabels={hideBandLabels}
         liquidatedLabel={liquidatedLabel}
         isDimmed={isBlockPassed}
+        popoverOffsetPx={popoverOffsetPx}
       />
     </Group>
   );

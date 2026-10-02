@@ -22,6 +22,7 @@ export const SAFEZONE_PAD_Y_PX = 8; // safezone padding 0.5rem
 export const SAFEZONE_BORDER_PX = 1; // safezone border width
 export const SAFEZONE_LINE_GAP_PX = 2; // safezone gap 0.125rem
 export const OVERLAY_INSET_PX = 8; // readout/zoom offset 0.5rem
+export const BAND_POPOVER_GAP_PX = 8; // band popover distance from its band
 
 /** Band text-dropout thresholds for the lines BELOW the label, which were
  * `@container (max-height: …)` queries. Container size queries evaluate the

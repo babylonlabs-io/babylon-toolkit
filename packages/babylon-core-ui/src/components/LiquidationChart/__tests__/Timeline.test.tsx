@@ -195,25 +195,25 @@ describe("Timeline", () => {
     expect(Number.parseFloat(band.getAttribute("width") ?? "0")).toBeCloseTo(plotWidth, 2);
 
     // Bands paint first so the candles read on top of them.
-    const painted = Array.from(container.querySelectorAll("[data-testid]")).map((el) =>
-      el.getAttribute("data-testid"),
-    );
+    const painted = Array.from(container.querySelectorAll("[data-testid]")).map((el) => el.getAttribute("data-testid"));
     expect(painted.indexOf("liq-band-1")).toBeLessThan(painted.indexOf("liq-candle"));
   });
 
   // Everything painted over a plot-width band would otherwise intercept its
   // hover: SVG marks hit-test by default, and a transparent rect still does.
-  // jsdom does no hit-testing, so this asserts the two structural conditions
-  // the browser behaviour rests on — no bare interaction rect, and the price
-  // series carrying the classes the stylesheet makes `pointer-events: none`.
-  it("leaves nothing over plot-width bands that could intercept their hover", () => {
-    const { container } = renderTimeline({
+  // jsdom does no hit-testing, so this asserts the structural conditions the
+  // browser behaviour rests on — no bare interaction rect, an enabled one
+  // painted under the bands, and the price series carrying the classes the
+  // stylesheet makes `pointer-events: none`.
+  it("leaves nothing over plot-width bands that could intercept their hover", async () => {
+    const plotProps: Partial<React.ComponentProps<typeof Timeline>> = {
       bandPlacement: "plot",
       safeZone: undefined,
       candles: makeCandles(4),
       seriesStyle: "candles+line",
       bands: [{ ...bands[0], popoverMetrics: [{ label: "At price", value: "$77,682" }] }],
-    });
+    };
+    const { container, unmount } = renderTimeline(plotProps);
 
     expect(container.querySelector(".bbn-liq-candles__hit")).toBeNull();
     expect(container.querySelector(".bbn-liq-candle__body")).toBeTruthy();
@@ -221,7 +221,18 @@ describe("Timeline", () => {
     expect(container.querySelector(".bbn-liq-series__line")).toBeTruthy();
 
     fireEvent.mouseEnter(screen.getByTestId("liq-band-1"));
-    expect(screen.getByText("At price")).toBeInTheDocument();
+    expect(await screen.findByText("At price")).toBeInTheDocument();
+    unmount();
+
+    const interactive = renderTimeline({ ...plotProps, interactions: { crosshair: true } });
+    const hit = interactive.container.querySelector(".bbn-liq-candles__hit");
+    const band = screen.getByTestId("liq-band-1");
+    expect(hit).toBeTruthy();
+    expect(hit!.compareDocumentPosition(band) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    expect(screen.queryByText("At price")).toBeNull();
+    fireEvent.mouseEnter(band);
+    expect(await screen.findByText("At price")).toBeInTheDocument();
   });
 
   it("keeps the interaction rect when an interaction is enabled", () => {
@@ -231,11 +242,20 @@ describe("Timeline", () => {
 
   it("reserves a band column when the bands sit in the gutter", () => {
     const plotWidth = 1016 - 68;
-    renderTimeline();
-    expect(Number.parseFloat(screen.getByTestId("liq-band-1").getAttribute("width") ?? "0")).toBeCloseTo(
-      0.22 * plotWidth,
-      2,
+    renderTimeline({ candles: makeCandles(4) });
+
+    const band = screen.getByTestId("liq-band-1");
+    const bandRight =
+      Number.parseFloat(band.getAttribute("x") ?? "NaN") + Number.parseFloat(band.getAttribute("width") ?? "NaN");
+    const bandWidth = Number.parseFloat(band.getAttribute("width") ?? "NaN");
+    expect(bandWidth).toBeGreaterThan(0);
+    expect(bandWidth).toBeLessThan(plotWidth);
+
+    const candleRegion = screen.getAllByTestId("liq-candle")[0].parentElement;
+    const regionLeft = Number.parseFloat(
+      /translate\(([^,]+),/.exec(candleRegion?.getAttribute("transform") ?? "")?.[1] ?? "NaN",
     );
+    expect(regionLeft).toBeGreaterThanOrEqual(bandRight);
   });
 
   it("draws no bands at all when the seizure map is unplugged", () => {

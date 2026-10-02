@@ -199,14 +199,28 @@ function niceStep(span: number, target: number): number {
  * lowest trigger already has its own pill).
  *
  * `formatLabel` renders the tick labels; full dollar amounts by default.
+ *
+ * `projected` is a cascade charted against this axis without driving its
+ * step or top — the borrow preview's would-be position. The floor drops to
+ * clear its lowest trigger, and no labelled tick lands on or below its first
+ * trigger, where its event rows sit.
  */
 export function buildTimelinePriceAxis(
   result: CalculatorResult,
   topPrice: number,
-  formatLabel: (price: number) => string = formatPriceUsd,
+  {
+    formatLabel = formatPriceUsd,
+    projected,
+  }: {
+    formatLabel?: (price: number) => string;
+    projected?: CalculatorResult;
+  } = {},
 ): PriceAxisTick[] {
-  const floorPrice = axisFloorPrice(result);
-  const firstTrigger = result.groups[0]?.liquidationPrice ?? floorPrice;
+  const liveFloor = axisFloorPrice(result);
+  const floorPrice = projected
+    ? Math.min(liveFloor, axisFloorPrice(projected))
+    : liveFloor;
+  const firstTrigger = result.groups[0]?.liquidationPrice ?? liveFloor;
   const toTick = (value: number): PriceAxisTick => ({
     value,
     label: formatLabel(value),
@@ -227,21 +241,28 @@ export function buildTimelinePriceAxis(
 
   // Below the first trigger the scale is compressed per event, so the ticks
   // stop there and the (unlabelled) floor tick closes the axis.
-  const tickFloor = topPrice > firstTrigger ? firstTrigger : floorPrice;
+  const tickFloor = topPrice > firstTrigger ? firstTrigger : liveFloor;
   const span = topPrice - tickFloor;
   if (span <= 0) return [toTick(topPrice), toFloorTick(floorPrice)];
 
   const step = niceStep(span, TIMELINE_AXIS_TICK_TARGET);
+  const tickCutoff = Math.max(
+    tickFloor,
+    projected?.groups[0]?.liquidationPrice ?? tickFloor,
+  );
   const ticks: PriceAxisTick[] = [];
   const top = Math.ceil(topPrice / step) * step;
   for (let i = 0; i < TIMELINE_AXIS_MAX_TICKS; i++) {
     const value = top - i * step;
-    if (value <= tickFloor) break;
+    if (value <= tickCutoff) break;
     ticks.push(toTick(value));
   }
-  // `top` always clears `topPrice`, so the list can only be empty if the loop
-  // never ran; the floor still has to close the domain.
-  return [...ticks, toFloorTick(floorPrice)];
+  // The top tick bounds the domain, so a projection triggering above it keeps
+  // that one tick rather than collapsing the axis onto the floor.
+  return [
+    ...(ticks.length > 0 ? ticks : [toTick(top)]),
+    toFloorTick(floorPrice),
+  ];
 }
 
 /**

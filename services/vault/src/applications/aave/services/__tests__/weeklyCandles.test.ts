@@ -24,10 +24,10 @@ describe("toWeeklyCandles", () => {
     );
 
     expect(week.time).toBe(monday);
-    expect(week.open).toBe(0 + 100 - 100);
+    expect(week.open).toBe(0);
     expect(week.close).toBe(125);
-    expect(week.high).toBe(140 + 500);
-    expect(week.low).toBe(90 - 500);
+    expect(week.high).toBe(640);
+    expect(week.low).toBe(-410);
   });
 
   it("starts a new bar on Monday rather than every seventh candle", () => {
@@ -45,7 +45,7 @@ describe("toWeeklyCandles", () => {
     expect(weeks[1].time).toBe(Date.UTC(2025, 0, 13));
     // The Sunday close (100 + 4) ends the first bar; Monday opens the second.
     expect(weeks[0].close).toBe(104);
-    expect(weeks[1].open).toBe(105 - 100);
+    expect(weeks[1].open).toBe(5);
   });
 
   it("returns no bars for an empty series", () => {

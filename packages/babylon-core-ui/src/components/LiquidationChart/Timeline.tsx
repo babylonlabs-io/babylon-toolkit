@@ -9,10 +9,11 @@ import "./LiquidationChart.css";
 import { ChartFrame, type LevelMarker } from "./ChartFrame";
 import { useChartLayout } from "../charts/chartLayout";
 import { SeizureGutter } from "./SeizureGutter";
-import { OVERLAY_INSET_PX } from "./chartGeometry";
+import { BAND_POPOVER_GAP_PX, OVERLAY_INSET_PX } from "./chartGeometry";
 import {
   createAnchoredPriceScale,
   createLinearPriceScale,
+  timelineMinPlotHeight,
   timelineRegionFractions,
   type PriceAnchor,
 } from "./priceScale";
@@ -34,10 +35,11 @@ const CANDLE_BODY_MIN_HEIGHT_PX = 1;
 /** Past this fraction of the candle region, the readout flips to the left. */
 const READOUT_FLIP_FRAC = 0.6;
 /** Default height for every liquidation-event region, px: room for the event
- * label plus its sublabel or amount at any chart width, matching the design's
- * compact, equal-height event rows. A caller with a short plot overrides it
- * via `eventRowPx` — a row too short for a second line sheds it (BandLayer),
- * and one too short even for the label goes unnamed. */
+ * label alone (BandLayer only adds the amount or sublabel to taller rows),
+ * matching the design's compact, equal-height event rows. On this default a
+ * long cascade compresses the rows to fit the plot, and a row too short for
+ * the label goes unnamed. A caller passing `eventRowPx` gets that row at any
+ * width instead: the plot grows to fit. */
 const DEFAULT_EVENT_ROW_PX = 44;
 /** Candle body corner radius, px. */
 const CANDLE_BODY_RADIUS_PX = 2;
@@ -111,7 +113,7 @@ export function Timeline({
   hideBandLabels,
   liquidatedLabel,
   bandPlacement = "gutter",
-  eventRowPx = DEFAULT_EVENT_ROW_PX,
+  eventRowPx,
   aspectRatio,
   priceLineColor,
   className,
@@ -123,11 +125,19 @@ export function Timeline({
   // The time axis exists only when there is something to label: derived ticks
   // from candles, or the caller's static labels.
   const hasXAxis = !compact && (candles.length > 0 || Boolean(timeAxisLabels?.length));
+  const priceMax = priceAxis[0]?.value ?? currentPrice;
+  const priceMin = priceAxis[priceAxis.length - 1]?.value ?? 0;
+  const triggers = useMemo(
+    () => bands.map((b) => b.priceTop).filter((price) => price < priceMax && price > priceMin),
+    [bands, priceMax, priceMin],
+  );
+  const rowPx = eventRowPx ?? DEFAULT_EVENT_ROW_PX;
   const { parentRef, layout, collapsed } = useChartLayout({
     axisSide: "right",
     hasTopLegend: false,
     hasXAxis,
     aspectRatio,
+    minPlotHeight: eventRowPx === undefined ? undefined : timelineMinPlotHeight(triggers.length, eventRowPx),
   });
   // The gutter only reserves candle space in `"gutter"` placement; in
   // `"plot"` the bands span the whole plot and the candles are drawn over
@@ -135,25 +145,22 @@ export function Timeline({
   const gutterWidth = bandPlacement === "gutter" ? BAND_GUTTER_FRAC * layout.plotWidth : 0;
   const bandWidth = bandPlacement === "plot" ? layout.plotWidth : gutterWidth;
   const regionWidth = Math.max(0, layout.plotWidth - gutterWidth);
-  const priceMax = priceAxis[0]?.value ?? currentPrice;
-  const priceMin = priceAxis[priceAxis.length - 1]?.value ?? 0;
 
   // Deliberately non-uniform Y scale: every trigger is an anchor, and each
   // event region (trigger-to-trigger, then last trigger-to-floor) gets a
-  // fixed, compact row (MIN_REGION_PX) regardless of its real price span —
+  // fixed, compact row (`eventRowPx`) regardless of its real price span —
   // matching the design, which draws every "Liq Event N" band the same
   // size — so the safe zone (and its candles) keeps whatever height remains.
   // Without events (or with every trigger off-domain) it falls back to
   // linear.
   const priceScale = useMemo(() => {
-    const triggers = bands.map((b) => b.priceTop).filter((price) => price < priceMax && price > priceMin);
     if (!triggers.length) {
       return createLinearPriceScale(priceMax, priceMin, layout.plotHeight);
     }
     const stops = [priceMax, ...triggers, priceMin];
     const fractions = timelineRegionFractions(
       stops.slice(1).map((price, i) => stops[i] - price),
-      eventRowPx / layout.plotHeight,
+      rowPx / layout.plotHeight,
     );
     let cumulative = 0;
     const anchors: PriceAnchor[] = [
@@ -164,7 +171,7 @@ export function Timeline({
       }),
     ];
     return createAnchoredPriceScale(anchors, layout.plotHeight);
-  }, [bands, priceMax, priceMin, layout.plotHeight, eventRowPx]);
+  }, [triggers, priceMax, priceMin, layout.plotHeight, rowPx]);
 
   // Visible window. `startIndex === null` means "pinned to the most recent
   // candles" — this survives candles arriving asynchronously and is the
@@ -267,8 +274,15 @@ export function Timeline({
       return { fraction: (idx + 0.5) / windowed.length, label: formatTime(windowed[idx].time) };
     });
     // A coarse formatter (month names over weekly candles) repeats a label
-    // across neighbouring ticks; keep only the first of each run.
-    return ticks.filter((tick, i) => i === 0 || tick.label !== ticks[i - 1].label);
+    // across neighbouring ticks; keep only the first of each run, except that
+    // the newest tick always survives and displaces the one it repeats.
+    const kept: typeof ticks = [];
+    ticks.forEach((tick, i) => {
+      const last = kept.length - 1;
+      if (last < 0 || tick.label !== kept[last].label) kept.push(tick);
+      else if (i === ticks.length - 1) kept[last] = tick;
+    });
+    return kept;
   }, [compact, windowed, formatTime]);
   const xAxisLabels = compact || windowed.length ? undefined : timeAxisLabels;
 
@@ -348,8 +362,33 @@ export function Timeline({
         compact={compact}
         hideBandLabels={Boolean(hideBandLabels)}
         liquidatedLabel={liquidatedLabel}
+        // A plot-width band ends at the axis column, so its popover clears
+        // the tick labels and price pills instead of covering them.
+        popoverOffsetPx={bandPlacement === "plot" ? layout.gutter + BAND_POPOVER_GAP_PX : undefined}
       />
     );
+
+  // Interaction surface over the candle region. Rendered only when an
+  // interaction is enabled: a transparent rect still hit-tests, so a bare one
+  // would swallow the hover of anything painted under it.
+  const interactionRect = interactive ? (
+    <Bar
+      innerRef={hitRef}
+      className="bbn-liq-candles__hit bbn-liq-candles__hit--interactive"
+      x={gutterWidth}
+      y={0}
+      width={regionWidth}
+      height={layout.plotHeight}
+      fill="transparent"
+      onPointerMove={onPointerMove}
+      onPointerLeave={crosshairEnabled ? () => setHoverIndex(null) : undefined}
+      onPointerDown={panEnabled ? onPointerDown : undefined}
+      onPointerUp={panEnabled ? endDrag : undefined}
+      onPointerCancel={panEnabled ? endDrag : undefined}
+      onDoubleClick={zoomEnabled ? resetView : undefined}
+      data-dragging={panEnabled ? dragging : undefined}
+    />
+  ) : null;
 
   return (
     <ChartFrame
@@ -435,6 +474,11 @@ export function Timeline({
         />
       ) : null}
 
+      {/* Plot-width bands cover part of the interaction surface, so it
+          paints under them and they keep their hover; the candle region
+          above the bands still drives the crosshair/pan/zoom. */}
+      {bandPlacement === "plot" ? interactionRect : null}
+
       {/* Full-width bands sit UNDER the candles; the gutter column sits
           beside them and is drawn after, so its labels stay on top. */}
       {bandPlacement === "plot" ? bandLayer : null}
@@ -516,28 +560,7 @@ export function Timeline({
 
       {bandPlacement === "gutter" ? bandLayer : null}
 
-      {/* Interaction surface over the candle region. Rendered only when an
-          interaction is enabled: a transparent rect still hit-tests, so a
-          bare one would swallow the hover of anything under it — with the
-          bands across the plot, every band popover. */}
-      {interactive ? (
-        <Bar
-          innerRef={hitRef}
-          className="bbn-liq-candles__hit bbn-liq-candles__hit--interactive"
-          x={gutterWidth}
-          y={0}
-          width={regionWidth}
-          height={layout.plotHeight}
-          fill="transparent"
-          onPointerMove={onPointerMove}
-          onPointerLeave={crosshairEnabled ? () => setHoverIndex(null) : undefined}
-          onPointerDown={panEnabled ? onPointerDown : undefined}
-          onPointerUp={panEnabled ? endDrag : undefined}
-          onPointerCancel={panEnabled ? endDrag : undefined}
-          onDoubleClick={zoomEnabled ? resetView : undefined}
-          data-dragging={panEnabled ? dragging : undefined}
-        />
-      ) : null}
+      {bandPlacement === "plot" ? null : interactionRect}
     </ChartFrame>
   );
 }
