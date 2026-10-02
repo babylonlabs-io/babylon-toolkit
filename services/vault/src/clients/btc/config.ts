@@ -19,15 +19,3 @@ export function getMempoolApiUrl(): string {
   const btcConfig = getNetworkConfigBTC();
   return `${btcConfig.mempoolApiUrl}/api`;
 }
-
-/**
- * Get the independent Bitcoin observation API URL.
- *
- * Broadcast acknowledgements come from `getMempoolApiUrl()`. Publication is
- * observed through this separately configured origin so the broadcaster
- * cannot prove its own relay succeeded.
- */
-export function getBitcoinObserverApiUrl(): string {
-  const btcConfig = getNetworkConfigBTC();
-  return `${btcConfig.bitcoinObserverApiUrl}/api`;
-}

@@ -9,7 +9,7 @@ import {
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 
-import { getBitcoinObserverApiUrl } from "@/clients/btc/config";
+import { getMempoolApiUrl } from "@/clients/btc/config";
 import { fetchConfirmations } from "@/clients/btc/confirmations";
 import { mapWithConcurrency } from "@/utils/concurrency";
 import { canonicalizeTxid } from "@/utils/txid";
@@ -18,7 +18,7 @@ import { canonicalizeTxid } from "@/utils/txid";
 const POLL_INTERVAL_MS = 60 * 1000;
 // Just under the poll interval so refocus/remount doesn't double-fetch.
 const STALE_TIME_MS = 55 * 1000;
-// Cap concurrency — the public Bitcoin observer endpoint rate-limits (429s).
+// Cap concurrency — the public mempool.space endpoint rate-limits (429s).
 const MAX_CONCURRENT_REQUESTS = 4;
 
 // Singleton for the no-data render: same identity-stability reasoning as
@@ -63,7 +63,7 @@ export function useBtcMempoolConfirmations(
     // flicker unchanged txids back to "unknown" until the next fetch lands.
     placeholderData: (prev) => prev,
     queryFn: async () => {
-      const apiUrl = getBitcoinObserverApiUrl();
+      const apiUrl = getMempoolApiUrl();
       const tipHeight = await getTipHeight(apiUrl);
       // Carry this query key's prior counts forward on per-txid error so a
       // transient 429 or network blip doesn't flicker a row backward for one

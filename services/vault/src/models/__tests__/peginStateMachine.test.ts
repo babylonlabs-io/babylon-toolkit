@@ -37,34 +37,15 @@ describe("peginStateMachine", () => {
       expect(state.message).toContain("not detected your deposit");
     });
 
-    it("shows waiting state after Bitcoin independently observes the broadcast", () => {
+    it("shows waiting state after broadcast even if VP has not ingested yet", () => {
       const state = getPeginState(ContractStatus.PENDING, {
         localStatus: LocalStorageStatus.CONFIRMING,
         pendingIngestion: true,
-        prePeginBroadcastSeen: true,
       });
       expect(state.displayLabel).toBe(PEGIN_DISPLAY_LABELS.PENDING);
       expect(state.availableActions).toEqual([PeginAction.NONE]);
       expect(state.message).toContain(
         "Pre-Pegin transaction has been broadcast",
-      );
-    });
-
-    it("restores broadcast when CONFIRMING has no independent Bitcoin observation", () => {
-      const state = getPeginState(ContractStatus.PENDING, {
-        localStatus: LocalStorageStatus.CONFIRMING,
-        pendingIngestion: true,
-        prePeginBroadcastSeen: false,
-      });
-
-      expect(state.availableActions).toContain(
-        PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN,
-      );
-      expect(state.message).toBe(
-        COPY.pegin.messages.prePeginAwaitingObservation,
-      );
-      expect(getPeginDisplayStep(state)).toBe(
-        DepositFlowStep.BROADCAST_PRE_PEGIN,
       );
     });
 
@@ -921,7 +902,6 @@ describe("peginStateMachine", () => {
       const state = getPeginState(ContractStatus.PENDING, {
         localStatus: LocalStorageStatus.CONFIRMING,
         pendingIngestion: true,
-        prePeginBroadcastSeen: true,
       });
       expect(state.availableActions).toEqual([PeginAction.NONE]);
       expect(getPeginDisplayStep(state)).toBe(

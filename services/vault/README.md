@@ -67,8 +67,6 @@ Create a `.env` file with the following variables:
 
 - `NEXT_PUBLIC_MEMPOOL_API` - Mempool.space host for Bitcoin node queries
   - Default: `https://mempool.space` (mainnet) or `https://mempool.space/signet` (signet)
-- `NEXT_PUBLIC_BTC_OBSERVER_API` - Independent Esplora-compatible Bitcoin observation host; it must use a different origin from `NEXT_PUBLIC_MEMPOOL_API`
-  - Default: `https://blockstream.info` (mainnet) or `https://blockstream.info/signet` (signet)
 - `NEXT_PUBLIC_ETH_RPC_URL` - Custom Ethereum RPC URL
   - Default: `https://cloudflare-eth.com` (mainnet) or `https://rpc.sepolia.org` (sepolia)
 - `NEXT_PUBLIC_COMMIT_HASH` - Git commit hash (usually injected during CI)

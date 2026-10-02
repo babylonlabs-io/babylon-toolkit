@@ -77,10 +77,6 @@ describe("useBroadcastState — batched broadcast", () => {
       await result.current.handleBroadcast();
     });
 
-    expect(mockVaultHandleBroadcast).toHaveBeenCalledWith(
-      expect.objectContaining({ batchVaultIds: ["0xa", "0xb"] }),
-    );
-
     for (const id of ["0xa", "0xb"]) {
       expect(mockUpdatePendingPeginStatus).toHaveBeenCalledWith(
         id,

@@ -21,16 +21,13 @@ import {
   activationDeadlineBlocksRemaining,
   validateSecretAgainstHashlock,
 } from "@babylonlabs-io/ts-sdk/tbv/core/services";
-import {
-  calculateBtcTxHash,
-  UtxoNotAvailableError,
-} from "@babylonlabs-io/ts-sdk/tbv/core/utils";
+import { calculateBtcTxHash } from "@babylonlabs-io/ts-sdk/tbv/core/utils";
 import {
   getSharedWagmiConfig,
   useChainConnector,
 } from "@babylonlabs-io/wallet-connector";
 import { useEffect, useRef, useState } from "react";
-import { isHex, type Hex } from "viem";
+import type { Hex } from "viem";
 import { getAccount, getWalletClient, switchChain } from "wagmi/actions";
 
 import {
@@ -91,7 +88,6 @@ import {
   assertUtxosAvailable,
   broadcastPrePeginTransaction,
   fetchVaultById,
-  isPrePeginTransactionObserved,
 } from "../../services/vault";
 import { assertActivationFollowsConstructionOrder } from "../../services/vault/activationOrder";
 import { rebuildDepositTerms } from "../../services/vault/rebuildDepositTerms";
@@ -111,8 +107,6 @@ import {
 
 export interface BroadcastPrePeginParams {
   vaultId: Hex;
-  /** Every registered vault sharing the same Pre-PegIn transaction. */
-  batchVaultIds?: readonly string[];
   /**
    * ETH address selected for this action. It must match the live wallet and
    * the depositor registered on chain before signing.
@@ -294,7 +288,6 @@ export function useVaultActions(): UseVaultActionsReturn {
   const handleBroadcast = async (params: BroadcastPrePeginParams) => {
     const {
       vaultId,
-      batchVaultIds,
       depositorEthAddress,
       pendingPegin,
       updatePendingPeginStatus,
@@ -302,21 +295,6 @@ export function useVaultActions(): UseVaultActionsReturn {
       onRefetchActivities,
       onShowSuccessModal,
     } = params;
-
-    const finishBroadcast = () => {
-      const nextStatus = getNextLocalStatus(
-        PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN,
-      );
-
-      if (updatePendingPeginStatus && nextStatus) {
-        updatePendingPeginStatus(vaultId, nextStatus);
-      }
-
-      onShowSuccessModal();
-      onRefetchActivities();
-
-      if (mountedRef.current) setBroadcasting(false);
-    };
 
     if (!requireBtcWallet()) {
       setBroadcastError(COPY.deposit.errors.walletNotConnected);
@@ -331,21 +309,6 @@ export function useVaultActions(): UseVaultActionsReturn {
     const { signal } = abortController;
 
     try {
-      // Inside the try, so a malformed sibling id reaches the error UI.
-      const resolvedBatchVaultIds = Array.from(
-        new Set([
-          vaultId,
-          ...(batchVaultIds ?? [])
-            .filter((id) => id !== vaultId)
-            .map((id) => {
-              if (!isHex(id)) {
-                throw new Error(COPY.deposit.errors.invalidBatchVaultId(id));
-              }
-              return id;
-            }),
-        ]),
-      );
-
       // Fetch vault data from GraphQL
       const vault = await fetchVaultById(vaultId);
 
@@ -432,7 +395,7 @@ export function useVaultActions(): UseVaultActionsReturn {
       let finalBasicInfo;
       try {
         ({ basicInfo: finalBasicInfo } = await waitForEthRegistrationDepth({
-          vaultIds: resolvedBatchVaultIds,
+          vaultIds: [vaultId],
           // Publish only while the gate is actually holding. An already-final
           // deposit reports its (large) depth once on the way out, and
           // rendering that would flash a nonsensical "50000 of 8" counter.
@@ -462,37 +425,6 @@ export function useVaultActions(): UseVaultActionsReturn {
         throw new Error(
           COPY.deposit.errors.cannotBroadcastInOnChainState(label),
         );
-      }
-
-      // One Pre-PegIn commits every sibling in a batch. Prove each registered
-      // vault carries the locally derived txid before any of them can be
-      // treated as broadcast by the shared success callback. After the gate:
-      // this read is single-shot and a lagging RPC returns an empty record.
-      const registryReader = getVaultRegistryReader();
-      const batchProtocolInfos = await registryReader.getProtocolInfoBatch(
-        resolvedBatchVaultIds,
-      );
-      const batchHashMatches = resolvedBatchVaultIds.every(
-        (_, index) =>
-          batchProtocolInfos[index]?.prePeginTxHash.toLowerCase() ===
-          computedHash.toLowerCase(),
-      );
-      if (!batchHashMatches) {
-        throw new Error(COPY.deposit.errors.prePeginIntegrityMismatch);
-      }
-
-      // A previous attempt may have received a valid acknowledgement before
-      // this independent observer could see the transaction. Reconcile that
-      // txid before the UTXO gate or a safely relayed transaction looks like
-      // an unrelated spend and becomes impossible to resume.
-      if (
-        await isPrePeginTransactionObserved({
-          unsignedTxHex,
-          registeredPrePeginTxHash: computedHash,
-        })
-      ) {
-        finishBroadcast();
-        return;
       }
 
       // Get BTC wallet provider
@@ -563,25 +495,8 @@ export function useVaultActions(): UseVaultActionsReturn {
 
       // Validate UTXOs are still available BEFORE asking user to sign.
       // This prevents wasted signing effort if UTXOs have been spent
-      // by unrelated transactions. Inputs spent by the registered Pre-PegIn
-      // itself mean an earlier attempt was relayed before the observer indexed
-      // it: the broadcaster that reports them spent can show that txid.
-      try {
-        await assertUtxosAvailable(unsignedTxHex, depositorAddress);
-      } catch (err) {
-        if (
-          err instanceof UtxoNotAvailableError &&
-          (await isPrePeginTransactionObserved({
-            unsignedTxHex,
-            registeredPrePeginTxHash: computedHash,
-            source: "broadcaster",
-          }))
-        ) {
-          finishBroadcast();
-          return;
-        }
-        throw err;
-      }
+      // by unrelated transactions.
+      await assertUtxosAvailable(unsignedTxHex, depositorAddress);
 
       // The registered hash binds the transaction. The wallet checks bind its
       // depositor. Also check local build versions when they belong to this
@@ -602,8 +517,8 @@ export function useVaultActions(): UseVaultActionsReturn {
       ) {
         try {
           await verifyRegisteredVaultVersions({
-            vaultRegistryReader: registryReader,
-            vaultIds: resolvedBatchVaultIds,
+            vaultRegistryReader: getVaultRegistryReader(),
+            vaultIds: [vaultId],
             expectedOffchainParamsVersion: buildOffchainParamsVersion,
             expectedAppVaultKeepersVersion: buildAppVaultKeepersVersion,
             expectedUniversalChallengersVersion:
@@ -670,7 +585,6 @@ export function useVaultActions(): UseVaultActionsReturn {
       await assertDepositorWallet();
       await broadcastPrePeginTransaction({
         unsignedTxHex,
-        registeredPrePeginTxHash: onChainVault.prePeginTxHash,
         signal,
         btcWalletProvider: {
           ...forwardDeriveContextHash(btcWalletProvider),
@@ -686,12 +600,24 @@ export function useVaultActions(): UseVaultActionsReturn {
         ...(depositTerms && { depositTerms }),
       });
 
+      const nextStatus = getNextLocalStatus(
+        PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN,
+      );
+
+      if (updatePendingPeginStatus && nextStatus) {
+        updatePendingPeginStatus(vaultId, nextStatus);
+      }
+
       // The broadcast.succeeded milestone is emitted by the caller
       // (useBroadcastState), which owns the full batchVaultIds set — one
       // Pre-PegIn tx confirms every sibling, and this single-vault primitive
       // cannot see them.
 
-      finishBroadcast();
+      // Show success modal and refetch
+      onShowSuccessModal();
+      onRefetchActivities();
+
+      if (mountedRef.current) setBroadcasting(false);
     } catch (err) {
       if (mountedRef.current) {
         // Classify here, while the typed error is still intact — the same seam

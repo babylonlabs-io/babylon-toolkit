@@ -195,9 +195,6 @@ export async function installRecordedBackend(
     MOCK_ENV_VARS.NEXT_PUBLIC_TBV_GRAPHQL_ENDPOINT,
   );
   const MEMPOOL_ORIGIN = originOf(MOCK_ENV_VARS.NEXT_PUBLIC_MEMPOOL_API);
-  const BITCOIN_OBSERVER_ORIGIN = originOf(
-    MOCK_ENV_VARS.NEXT_PUBLIC_BTC_OBSERVER_API,
-  );
   const on =
     (origin: string, matches: (pathname: string) => boolean) => (url: URL) =>
       url.origin === origin && matches(url.pathname);
@@ -336,22 +333,6 @@ export async function installRecordedBackend(
       const recorded = mempool.get(key);
       if (!recorded) {
         miss(`mempool ${key}`);
-        return jsonResponse(route, { error: `path not recorded: ${key}` }, 404);
-      }
-      return route.fulfill({
-        status: recorded.status,
-        contentType: "application/json",
-        body: recorded.resBody ?? "{}",
-      });
-    }),
-  );
-  await page.route(
-    on(BITCOIN_OBSERVER_ORIGIN, () => true),
-    serve("mempool", (route) => {
-      const key = mempoolKey(new URL(route.request().url()).pathname);
-      const recorded = mempool.get(key);
-      if (!recorded) {
-        miss(`bitcoin observer ${key}`);
         return jsonResponse(route, { error: `path not recorded: ${key}` }, 404);
       }
       return route.fulfill({

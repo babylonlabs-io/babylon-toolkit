@@ -15,7 +15,6 @@ import { COPY } from "@/copy";
 import {
   isActionablePeginAction,
   isCandidateVault,
-  LocalStorageStatus,
   PeginAction,
 } from "@/models/peginStateMachine";
 import type { VaultActivity } from "@/types/activity";
@@ -79,13 +78,6 @@ export function useSigningRequiredNotifications(
         const isStuckRecovery = action === PeginAction.ACTIVATE_AND_REDEEM;
         if (!isStuckRecovery && !candidate) continue;
         if (!isStuckRecovery && !isActionablePeginAction(action, btcPublicKey))
-          continue;
-        // CONFIRMING keeps the broadcast action until the observer sees the
-        // tx, but this user already broadcast it: do not nudge them to again.
-        if (
-          action === PeginAction.SIGN_AND_BROADCAST_TO_BITCOIN &&
-          peginState.localStatus === LocalStorageStatus.CONFIRMING
-        )
           continue;
         const copy = ACTION_NOTIFICATION_COPY[action];
         if (!copy) continue;
