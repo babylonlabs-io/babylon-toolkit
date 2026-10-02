@@ -26,15 +26,19 @@ function openAppKitModal() {
 interface ContainerProps {
   className?: string;
   chainDescriptions?: Partial<Record<ChainId, string>>;
+  isChainHidden?: (chain: IChain) => boolean;
   onConfirm?: () => void;
 }
 
-export function ChainsContainer(props: ContainerProps) {
+export function ChainsContainer({ isChainHidden, ...props }: ContainerProps) {
   const { chains, requiredChainIds, selectedWallets, displayWallets } = useWidgetState();
   const { selected, disconnect } = useWalletConnect();
   const connectors = useChainProviders();
 
-  const chainArr = useMemo(() => Object.values(chains), [chains]);
+  const chainArr = useMemo(
+    () => Object.values(chains).filter((chain) => !isChainHidden?.(chain)),
+    [chains, isChainHidden],
+  );
 
   const handleSelectChain = useCallback(
     async (chain: IChain) => {

@@ -86,6 +86,7 @@ vi.mock("@/components/Wallet", () => ({
 }));
 
 vi.mock("@babylonlabs-io/wallet-connector", () => ({
+  useWidgetState: () => ({ visible: false }),
   Network: { MAINNET: "mainnet", SIGNET: "signet" },
   useBTCWallet: () => ({ connected: walletMock.btcConnected }),
   useETHWallet: () => ({ connected: walletMock.ethConnected }),

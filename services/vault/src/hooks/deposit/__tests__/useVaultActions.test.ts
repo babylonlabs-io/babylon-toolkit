@@ -164,6 +164,7 @@ beforeEach(() => {
 });
 
 vi.mock("@babylonlabs-io/wallet-connector", () => ({
+  useWidgetState: () => ({ visible: false }),
   useBTCWallet: () => ({ connected: btcActionWallet.connected }),
   useWalletConnect: () => ({ connected: true, open: btcActionWallet.open }),
   getSharedWagmiConfig: vi.fn(() => ({})),

@@ -80,6 +80,7 @@ let mockBtcConnector: {
   };
 } | null = null;
 vi.mock("@babylonlabs-io/wallet-connector", () => ({
+  useWidgetState: () => ({ visible: false }),
   useBTCWallet: () => ({
     connected: Boolean(mockBtcConnector?.connectedWallet),
     locked: mockBtcLocked,

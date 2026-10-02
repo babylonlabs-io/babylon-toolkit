@@ -25,6 +25,7 @@ const btcWallet = vi.hoisted(() => ({
 // and useBtcWalletUnlock from the barrel, so each path below carries only the
 // members its own consumer reads.
 vi.mock("@babylonlabs-io/wallet-connector", () => ({
+  useWidgetState: () => ({ visible: false }),
   useBTCWallet: () => ({
     connected: btcWallet.connected,
     loading: false,
