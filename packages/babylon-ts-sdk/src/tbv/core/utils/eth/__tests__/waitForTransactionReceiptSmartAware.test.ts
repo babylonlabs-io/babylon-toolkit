@@ -66,12 +66,13 @@ describe("waitForTransactionReceiptSmartAware", () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
-  it("polls the Safe Transaction Service and resolves with the real tx receipt when the wallet is a smart account", async () => {
+  it("uses the configured chain to resolve a Safe proposal to its transaction receipt", async () => {
     const expectedReceipt = {
       status: "success" as const,
       transactionHash: REAL_TX_HASH,
     };
     const publicClient = makePublicClient({
+      chain: { id: SEPOLIA_CHAIN_ID },
       getCode: vi.fn().mockResolvedValue("0x60806040"),
       waitForTransactionReceipt: vi.fn().mockResolvedValue(expectedReceipt),
     });
@@ -106,6 +107,7 @@ describe("waitForTransactionReceiptSmartAware", () => {
     });
 
     expect(receipt).toBe(expectedReceipt);
+    expect(publicClient.getChainId).not.toHaveBeenCalled();
     expect(fetch).toHaveBeenCalledTimes(2);
     expect(fetch).toHaveBeenNthCalledWith(
       1,
@@ -145,7 +147,7 @@ describe("waitForTransactionReceiptSmartAware", () => {
     expect(publicClient.waitForTransactionReceipt).not.toHaveBeenCalled();
   });
 
-  it("throws a descriptive error when the connected smart account is on an unsupported chain", async () => {
+  it("queries the chain when none is configured and rejects an unsupported chain", async () => {
     const publicClient = makePublicClient({
       getCode: vi.fn().mockResolvedValue("0x60806040"),
       getChainId: vi.fn().mockResolvedValue(UNSUPPORTED_CHAIN_ID),
@@ -161,6 +163,7 @@ describe("waitForTransactionReceiptSmartAware", () => {
       `Safe Transaction Service not configured for chainId ${UNSUPPORTED_CHAIN_ID}`,
     );
 
+    expect(publicClient.getChainId).toHaveBeenCalledTimes(1);
     expect(fetch).not.toHaveBeenCalled();
   });
 

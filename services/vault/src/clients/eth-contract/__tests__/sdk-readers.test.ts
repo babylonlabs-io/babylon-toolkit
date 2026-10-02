@@ -5,10 +5,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const mockGetChainId = vi.fn<() => Promise<number>>();
 const mockPublicClient = {
-  getChainId: mockGetChainId,
-  // chain.id is read by the sync getVaultRegistryReader.
   chain: { id: 0 } as { id: number | undefined },
 };
 
@@ -105,7 +102,6 @@ describe("sdk-readers", () => {
   beforeEach(() => {
     _resetSdkReadersCacheForTests();
     vi.clearAllMocks();
-    mockGetChainId.mockResolvedValue(1);
     mockResolveProtocolAddresses.mockResolvedValue(ADDRESSES_A);
     mockPublicClient.chain = { id: 1 };
     vi.useFakeTimers();
@@ -136,10 +132,9 @@ describe("sdk-readers", () => {
     });
 
     it("keys the cache per chain id (network switch resolves fresh)", async () => {
-      mockGetChainId.mockResolvedValueOnce(1);
       await getProtocolParamsReader();
 
-      mockGetChainId.mockResolvedValueOnce(2);
+      mockPublicClient.chain = { id: 2 };
       mockResolveProtocolAddresses.mockResolvedValueOnce(ADDRESSES_B);
       await getProtocolParamsReader();
 

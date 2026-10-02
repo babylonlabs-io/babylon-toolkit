@@ -2,14 +2,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockReadContract = vi.fn();
 const mockMulticall = vi.fn();
-const mockGetChainId = vi.fn();
 
 vi.mock("@/clients/eth-contract/client", () => ({
   ethClient: {
     getPublicClient: () => ({
       readContract: mockReadContract,
       multicall: mockMulticall,
-      getChainId: mockGetChainId,
+      chain: { id: 11155111 },
     }),
   },
 }));
@@ -32,7 +31,6 @@ let query: QueryModule;
 beforeEach(async () => {
   mockReadContract.mockReset();
   mockMulticall.mockReset();
-  mockGetChainId.mockReset();
   // Reset module registry so the internal CapPolicy address cache starts
   // empty for each test without exposing a test-only reset helper.
   vi.resetModules();
@@ -41,7 +39,6 @@ beforeEach(async () => {
 
 describe("getApplicationCap", () => {
   it("resolves CapPolicy via BTCVaultRegistry.capPolicy()", async () => {
-    mockGetChainId.mockResolvedValue(11155111);
     mockReadContract
       .mockResolvedValueOnce(REGISTRY_CAP_POLICY)
       .mockResolvedValueOnce({ totalCapBTC: 100n, perAddressCapBTC: 10n });
@@ -65,7 +62,6 @@ describe("getApplicationCap", () => {
   });
 
   it("caches the resolved CapPolicy address per chain so repeat calls skip registry reads", async () => {
-    mockGetChainId.mockResolvedValue(11155111);
     mockReadContract
       .mockResolvedValueOnce(REGISTRY_CAP_POLICY)
       .mockResolvedValueOnce({ totalCapBTC: 100n, perAddressCapBTC: 10n })
@@ -83,7 +79,6 @@ describe("getApplicationCap", () => {
   it("refetches the CapPolicy address after the cache TTL expires", async () => {
     vi.useFakeTimers();
     try {
-      mockGetChainId.mockResolvedValue(11155111);
       mockReadContract
         .mockResolvedValueOnce(REGISTRY_CAP_POLICY)
         .mockResolvedValueOnce({ totalCapBTC: 100n, perAddressCapBTC: 10n })
@@ -106,7 +101,6 @@ describe("getApplicationCap", () => {
   });
 
   it("throws a descriptive error when the registry returns the zero address", async () => {
-    mockGetChainId.mockResolvedValue(11155111);
     mockReadContract.mockResolvedValueOnce(ZERO_ADDRESS);
 
     await expect(query.getApplicationCap(APP)).rejects.toThrow(
@@ -115,7 +109,6 @@ describe("getApplicationCap", () => {
   });
 
   it("clears the cached address when the registry read errors so the next call retries", async () => {
-    mockGetChainId.mockResolvedValue(11155111);
     const registryError = new Error("rpc unavailable");
     mockReadContract
       .mockRejectedValueOnce(registryError)
@@ -135,7 +128,6 @@ describe("getApplicationCap", () => {
 
 describe("getApplicationUsage", () => {
   it("returns total BTC only when no user address is supplied", async () => {
-    mockGetChainId.mockResolvedValue(11155111);
     mockReadContract
       .mockResolvedValueOnce(REGISTRY_CAP_POLICY)
       .mockResolvedValueOnce(77n);
@@ -150,7 +142,6 @@ describe("getApplicationUsage", () => {
   });
 
   it("returns total and user BTC via a single multicall when a user address is supplied", async () => {
-    mockGetChainId.mockResolvedValue(11155111);
     mockReadContract.mockResolvedValueOnce(REGISTRY_CAP_POLICY);
     mockMulticall.mockResolvedValueOnce([50n, 3n]);
 
@@ -185,7 +176,6 @@ describe("getApplicationUsage", () => {
   });
 
   it("propagates the multicall error so callers cannot treat a revert as success", async () => {
-    mockGetChainId.mockResolvedValue(11155111);
     mockReadContract.mockResolvedValueOnce(REGISTRY_CAP_POLICY);
     const multicallError = new Error("multicall reverted");
     mockMulticall.mockRejectedValueOnce(multicallError);

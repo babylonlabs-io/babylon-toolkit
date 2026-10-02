@@ -60,7 +60,7 @@ const vaultRegistryReadersByChainId = new Map<
 
 async function getResolvedReaders(): Promise<ResolvedReaders> {
   const publicClient = ethClient.getPublicClient();
-  const chainId = await publicClient.getChainId();
+  const chainId = publicClient.chain.id;
 
   const cached = resolvedReadersCache.get(chainId);
   if (cached && Date.now() - cached.fetchedAt < READER_CACHE_TTL_MS) {

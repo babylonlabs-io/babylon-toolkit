@@ -142,7 +142,10 @@ export async function waitForTransactionReceiptSmartAware(
     });
   }
 
-  const chainId = await publicClient.getChainId();
+  const chainId =
+    publicClient.chain === undefined
+      ? await publicClient.getChainId()
+      : publicClient.chain.id;
   const outcome = await pollSafeTransactionServiceUntilExecuted({
     chainId,
     publicClient,
