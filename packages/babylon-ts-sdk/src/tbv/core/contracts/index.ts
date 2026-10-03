@@ -11,9 +11,11 @@ export { ApplicationRegistryABI } from "./abis/ApplicationRegistry.abi";
 export { BTCVaultRegistryABI } from "./abis/BTCVaultRegistry.abi";
 export { BTCVaultRegistryKeyEpochsABI } from "./abis/BTCVaultRegistryKeyEpochs.abi";
 export { ProtocolParamsABI } from "./abis/ProtocolParams.abi";
+export { VAULT_ERROR_ABI } from "./abis/VaultErrors.abi";
 
 export {
   CONTRACT_ERRORS,
+  EMPTY_REVERT_MESSAGE,
   PEGIN_FINGERPRINT_CHANGED_SELECTOR,
   PeginFingerprintChangedError,
   extractErrorData,

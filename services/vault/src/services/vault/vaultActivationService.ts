@@ -17,7 +17,6 @@ import {
   activateVaultAndRedeem,
   type EthContractWriter,
 } from "@babylonlabs-io/ts-sdk/tbv/core/services";
-import { AaveIntegrationAdapterABI } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 import {
   isAddressEqual,
   parseEventLogs,
@@ -25,7 +24,6 @@ import {
   type WalletClient,
 } from "viem";
 
-import { HUB_ERROR_ABI } from "@/applications/aave/clients/hubErrors";
 import {
   executeWrite,
   type TransactionResult,
@@ -78,13 +76,6 @@ export async function activateVaultWithSecret(
       functionName: call.functionName,
       args: call.args,
       errorContext: "vault activation",
-      // activateVaultWithSecret delegates into the Aave adapter, which can
-      // revert with VaultCountExceedsMaximum / PositionAboveMaximum — errors
-      // absent from the registry ABI. Supplying vaultBTC then runs through the
-      // Hub, which reverts with its own errors (AddCapExceeded, a halted or
-      // inactive spoke). Supply both ABIs so the friendly copy in
-      // errorMessages.ts is reachable instead of raw hex.
-      errorAbis: [AaveIntegrationAdapterABI, HUB_ERROR_ABI],
     });
 
   return activateVault<TransactionResult>({
@@ -108,16 +99,16 @@ export async function activateVaultWithSecret(
  * while the adapter is paused or its activation reverts; the vault provider
  * then pays the BTC out to the depositor's committed payout address.
  *
- * Registry preconditions the gate cannot pre-read — the application
- * registration being Active (`ApplicationNotActive`), the activation
- * deadline, the Verified status — are checked by `executeWrite`'s mandatory
+ * The gate pre-reads the protocol pause (`isActivateAndRedeemBlocked`). The
+ * registry preconditions it cannot pre-read — the activation deadline, the
+ * Verified status — are checked by `executeWrite`'s mandatory
  * pre-broadcast simulation: on a simulated revert nothing is signed or
  * sent, so a precondition already failing at submission time never
  * publishes the secret. The residual is the simulate-to-mine window: a
  * precondition that flips after a passing simulation (or a lagging RPC
  * replica) still mines a reverting transaction with the secret in public
- * calldata. That window is inherent — any pre-check, including a CTA-time
- * application-status read, is point-in-time in exactly the same way.
+ * calldata. That window is inherent — any pre-check is point-in-time in
+ * exactly the same way.
  */
 export async function activateVaultWithSecretAndRedeem(
   params: ActivateVaultParams,
@@ -135,9 +126,6 @@ export async function activateVaultWithSecretAndRedeem(
       functionName: call.functionName,
       args: call.args,
       errorContext: "vault activate-and-redeem",
-      // No errorAbis: unlike activateVaultWithSecret, this path never
-      // delegates into the Aave adapter, so every possible revert is
-      // already decodable from the registry ABI on the call itself.
     });
 
   return activateVaultAndRedeem<TransactionResult>({

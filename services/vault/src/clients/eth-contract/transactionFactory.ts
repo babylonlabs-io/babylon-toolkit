@@ -53,12 +53,6 @@ export interface ExecuteWriteOptions {
   args: readonly unknown[];
   /** Error context for mapViemErrorToContractError */
   errorContext: string;
-  /**
-   * Extra ABIs for decoding reverts from contracts this call delegates into
-   * (e.g. activation reverts surfaced from the Aave adapter). Decoding only —
-   * not used for simulation or the write itself.
-   */
-  errorAbis?: readonly Abi[];
 }
 
 /**
@@ -82,7 +76,6 @@ export async function executeWrite(
     functionName,
     args,
     errorContext,
-    errorAbis,
   } = options;
 
   // Reject if the wallet is connected to the wrong chain
@@ -114,10 +107,7 @@ export async function executeWrite(
       // Tagged so callers can safely auto-retry: nothing was signed or sent,
       // and the failure may be a lagging RPC backend, not the chain.
       throw tagSimulationPhase(
-        mapViemErrorToContractError(error, errorContext, [
-          abi as Abi,
-          ...(errorAbis ?? []),
-        ]),
+        mapViemErrorToContractError(error, errorContext, [abi as Abi]),
       );
     }
   };
@@ -186,12 +176,7 @@ export async function executeWrite(
   } catch (error) {
     // The simulation re-run before a stale-nonce retry is already mapped.
     if (isSimulationPhaseError(error)) throw error;
-    // Decode against the call's ABI plus any delegate ABIs (e.g. the Aave
-    // adapter, whose errors the registry surfaces on activation).
-    throw mapViemErrorToContractError(error, errorContext, [
-      abi as Abi,
-      ...(errorAbis ?? []),
-    ]);
+    throw mapViemErrorToContractError(error, errorContext, [abi as Abi]);
   }
 }
 

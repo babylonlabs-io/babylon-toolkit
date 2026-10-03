@@ -11,6 +11,7 @@ import { useAccount, useWalletClient } from "wagmi";
 
 import { isReorderBlocked } from "@/components/shared/protocolStatus";
 import { getETHChain } from "@/config/network";
+import { COPY } from "@/copy";
 import { useProtocolGateState } from "@/hooks/useProtocolGate";
 import { logger } from "@/infrastructure";
 import {
@@ -42,7 +43,7 @@ export interface ExecuteReorderOptions {
    * the submission (e.g. the modal-open snapshot). When provided, the hook
    * refuses to sign if the live ordering has drifted from this baseline
    * — closes the same-set/different-order race the on-chain
-   * `InvalidVaultsPermutation` check cannot catch.
+   * `InvalidVaultsArray` check cannot catch.
    */
   expectedCurrentVaultIds?: readonly Hex[];
 }
@@ -96,14 +97,14 @@ export function useReorderVaults(): UseReorderVaultsResult {
       try {
         if (!walletClient) {
           throw new WalletError(
-            "Please connect your wallet to continue",
+            COPY.wallet.connectToContinue,
             ErrorCode.WALLET_NOT_CONNECTED,
           );
         }
 
         if (!address) {
           throw new WalletError(
-            "Wallet address not available",
+            COPY.wallet.addressUnavailable,
             ErrorCode.WALLET_NOT_CONNECTED,
           );
         }
@@ -145,7 +146,7 @@ export function useReorderVaults(): UseReorderVaultsResult {
           ? error
           : error instanceof Error
             ? mapViemErrorToContractError(error, "Reorder Vaults")
-            : new Error("An unexpected error occurred while reordering vaults");
+            : new Error(COPY.reorder.unexpectedError);
 
         setError(mappedError.message);
 
