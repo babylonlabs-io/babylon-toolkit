@@ -26,6 +26,8 @@ import {
 
 /** core-ui `Portal` root. Every dialog renders inside one. */
 const PORTAL_ROOT = ".portal-root";
+/** core-ui `MobileDialog`. Every phone dialog, the wallet menu included. */
+const MOBILE_DIALOG = ".bbn-dialog-mobile";
 /** Entry page hero heading, shown before any wallet connects. */
 const ENTRY_HEADING = "Borrow against native Bitcoin, trustlessly.";
 /** wallet-connector chain row attribute, "true" on a chain the app does not require. */
@@ -90,10 +92,25 @@ async function holdForAudience(page: Page, headless: boolean): Promise<void> {
   if (DEMO_BEAT_MS > 0) await page.waitForTimeout(DEMO_BEAT_MS);
 }
 
+/** The phone projects in playwright.config.ts. */
+function isPhoneProject(): boolean {
+  return test.info().project.name.startsWith("chromium-phone");
+}
+
 /** Open or close the navbar wallet menu and wait for the new state. */
 async function toggleWalletMenu(page: Page, expanded: boolean): Promise<void> {
   const trigger = page.getByTestId("wallet-menu-trigger");
-  await trigger.click();
+  // On phone the menu is a sheet whose backdrop covers the trigger. A dialog
+  // that just closed stays mounted while it animates out, so scope to the menu.
+  if (!expanded && isPhoneProject()) {
+    await page
+      .locator(MOBILE_DIALOG)
+      .filter({ hasText: ETH_WALLET_CARD })
+      .getByRole("button", { name: CLOSE_LABEL, exact: true })
+      .click();
+  } else {
+    await trigger.click();
+  }
   await expect(trigger).toHaveAttribute("aria-expanded", String(expanded));
   // The menu body renders through a portal one commit after the trigger flips,
   // so an absence check straight after the toggle could read an empty menu and
@@ -104,6 +121,15 @@ async function toggleWalletMenu(page: Page, expanded: boolean): Promise<void> {
       page.getByText(ETH_WALLET_CARD, { exact: true }),
     ).toBeVisible();
   }
+}
+
+/**
+ * Follow an app nav link. Phone layouts have no sidebar, so the link sits in
+ * the header menu, which closes itself after the click.
+ */
+async function navigateTo(page: Page, navTestId: string): Promise<void> {
+  if (isPhoneProject()) await page.getByTestId("header-menu-button").click();
+  await page.getByTestId(navTestId).click();
 }
 
 /**
@@ -139,6 +165,7 @@ test.describe("Ethereum-only access", () => {
     page,
     headless,
   }) => {
+    const isPhone = isPhoneProject();
     const wallets = recordedPageWallets();
     await blockOffsiteRequests(page);
     const backend = await installRecordedBackend(page);
@@ -167,7 +194,13 @@ test.describe("Ethereum-only access", () => {
     await expect(
       page.getByRole("heading", { name: ENTRY_HEADING }),
     ).toBeVisible({ timeout: APP_BOOT_TIMEOUT_MS });
-    await expect(page.getByTestId("nav-vaults")).toHaveCount(0);
+    // The phone nav lives in a menu that is unmounted until opened, so its
+    // absence says nothing there.
+    if (isPhone) {
+      await expect(page.getByTestId("header-menu-button")).toBeVisible();
+    } else {
+      await expect(page.getByTestId("nav-vaults")).toHaveCount(0);
+    }
     await holdForAudience(page, headless);
 
     await test.step("1. Connect only an Ethereum wallet: the full app opens", async () => {
@@ -182,7 +215,11 @@ test.describe("Ethereum-only access", () => {
       await commit.click();
       await expect(commit).toHaveCount(0);
       await expect(page.getByTestId("wallet-menu-trigger")).toBeVisible();
-      await expect(page.getByTestId("nav-vaults")).toBeVisible();
+      // The entry page shows only while disconnected, on every layout.
+      await expect(
+        page.getByRole("heading", { name: ENTRY_HEADING }),
+      ).toHaveCount(0);
+      if (!isPhone) await expect(page.getByTestId("nav-vaults")).toBeVisible();
       await assertNoErrorSurface(page, "Ethereum-only session");
 
       await toggleWalletMenu(page, true);
@@ -192,7 +229,7 @@ test.describe("Ethereum-only access", () => {
       await holdForAudience(page, headless);
       await toggleWalletMenu(page, false);
 
-      await page.getByTestId("nav-vaults").click();
+      await navigateTo(page, "nav-vaults");
       await expect(page).toHaveURL(/\/vaults$/);
       await expect(page.getByTestId("deposit-button").first()).toBeVisible();
       await holdForAudience(page, headless);
