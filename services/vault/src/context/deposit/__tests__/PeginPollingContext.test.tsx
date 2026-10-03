@@ -3,7 +3,15 @@ import type { PropsWithChildren } from "react";
 import type { Hex } from "viem";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { setDepositOverride } from "@/overrides/deposits";
+
+import featureFlags from "../../../config/featureFlags";
 import { COPY } from "../../../copy";
+import {
+  ACTIVATED_SCENARIO_INDEX,
+  buildDepositsDemo,
+  DEPOSIT_SCENARIOS,
+} from "../../../dev/demoDeposit";
 import {
   ContractStatus,
   LocalStorageStatus,
@@ -22,6 +30,7 @@ import {
   markWotsSubmitted,
   resetOptimisticDepositState,
 } from "../optimisticDepositState";
+import { usePendingDepositSummary } from "../pendingDepositCount";
 
 const mockQueryResult = {
   polledIds: undefined as string[] | undefined,
@@ -150,12 +159,13 @@ const ACTIVITY: VaultActivity = {
   depositorWotsPkHash: "0xwotsh",
 };
 
-function renderProvider() {
+function renderProvider(isConnected = false, activities = [ACTIVITY]) {
   const wrapper = ({ children }: PropsWithChildren) => (
     <PeginPollingProvider
-      activities={[ACTIVITY]}
+      activities={activities}
       pendingPegins={[]}
       btcPublicKey={BTC_PUBKEY}
+      isConnected={isConnected}
     >
       {children}
     </PeginPollingProvider>
@@ -210,12 +220,14 @@ describe("PeginPollingContext", () => {
     // and re-exposes SIGN_PAYOUT_TRANSACTIONS until the next poll.
     mockQueryResult.pendingDepositorSignatures = new Set([ACTIVITY_ID]);
 
-    const { result } = renderProvider();
+    const { result, unmount } = renderProvider(true);
+    const summary = renderHook(usePendingDepositSummary);
 
     const before = result.current.getPollingResult(ACTIVITY_ID);
     expect(before?.peginState.availableActions).toContain(
       PeginAction.SIGN_PAYOUT_TRANSACTIONS,
     );
+    expect(summary.result.current).toEqual({ count: 1, progress: 8 / 15 });
 
     act(() => {
       result.current.setOptimisticStatus(
@@ -232,6 +244,95 @@ describe("PeginPollingContext", () => {
     expect(after?.peginState.displayLabel).toBe(
       PEGIN_DISPLAY_LABELS.PROCESSING,
     );
+    expect(summary.result.current).toEqual({ count: 1, progress: 11 / 15 });
+
+    unmount();
+    expect(summary.result.current).toEqual({ count: 0, progress: null });
+  });
+
+  it("averages pending deposit progress without rounding each deposit", () => {
+    mockQueryResult.pendingDepositorSignatures = new Set([ACTIVITY_ID]);
+    renderProvider(true, [
+      ACTIVITY,
+      {
+        ...ACTIVITY,
+        id: "0xpeginOther",
+        contractStatus: ContractStatus.VERIFIED,
+      },
+    ]);
+    const { result } = renderHook(usePendingDepositSummary);
+
+    expect(result.current.count).toBe(2);
+    expect(result.current.progress).toBeCloseTo(2 / 3, 12);
+  });
+
+  it("excludes completed demo deposits from the pending summary", () => {
+    const flag = vi
+      .spyOn(featureFlags, "isGodModePanelEnabled", "get")
+      .mockReturnValue(true);
+    try {
+      const demo = buildDepositsDemo(
+        [
+          DEPOSIT_SCENARIOS.findIndex((s) => s.key === "pending-step-11"),
+          ACTIVATED_SCENARIO_INDEX,
+        ].map((stateIndex, key) => ({
+          key,
+          type: "deposit",
+          stateIndex,
+          amount: ACTIVITY.collateral.amount,
+          batched: false,
+        })),
+        true,
+      );
+      setDepositOverride(demo);
+      renderProvider();
+      const { result } = renderHook(usePendingDepositSummary);
+
+      expect(result.current).toEqual({ count: 1, progress: 2 / 3 });
+
+      act(() =>
+        setDepositOverride({
+          ...demo,
+          pendingActivities: demo.pendingActivities.filter(
+            (a) => a.contractStatus === ContractStatus.ACTIVE,
+          ),
+        }),
+      );
+
+      expect(result.current).toEqual({ count: 0, progress: null });
+    } finally {
+      act(() => setDepositOverride(null));
+      flag.mockRestore();
+    }
+  });
+
+  it.each(["loading", "unknown"])(
+    "keeps the count without progress when a deposit's progress is %s",
+    (state) => {
+      const { rerender } = renderProvider(true, [
+        ACTIVITY,
+        { ...ACTIVITY, id: "0xpeginOther" },
+      ]);
+      const { result } = renderHook(usePendingDepositSummary);
+      expect(result.current.progress).not.toBeNull();
+
+      if (state === "loading") mockQueryResult.isLoading = true;
+      else {
+        mockQueryResult.errors = new Map([
+          [ACTIVITY_ID, new Error("Unauthorized depositor")],
+        ]);
+      }
+      rerender();
+
+      expect(result.current).toEqual({ count: 2, progress: null });
+    },
+  );
+
+  it("publishes no pending deposits while disconnected", () => {
+    renderProvider();
+    const { result } = renderHook(usePendingDepositSummary);
+
+    expect(result.current).toEqual({ count: 0, progress: null });
   });
 
   it("does not suppress transactionsReady from a localStorage-only PAYOUT_SIGNED — keeps the existing stale-localStorage cross-check intact", () => {

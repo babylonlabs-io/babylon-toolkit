@@ -2164,6 +2164,8 @@ export const COPY = {
     pendingDeposits: (count: number) =>
       `${count} pending ${count === 1 ? "deposit" : "deposits"}`,
     pendingDepositsOverflow: (max: number) => `${max}+`,
+    pendingDepositsProgress: (percent: number) =>
+      `${percent}% average deposit progress`,
     termsOfUse: "Terms of Use",
     privacyPolicy: "Privacy Policy",
   },
