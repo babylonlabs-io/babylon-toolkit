@@ -81,18 +81,31 @@ const GET_PRICE_CANDLES = gql`
  */
 function parsePrice(raw: string, scale: number, field: string): number {
   // `Number("")` and `Number(" ")` are 0, which is finite — a blank field would
-  // otherwise plot a $0 candle instead of failing.
+  // otherwise plot a $0 candle instead of failing. A USD feed never quotes
+  // zero or negative either, so the check is `> 0`, not just finite.
   const value = raw.trim() === "" ? Number.NaN : Number(raw) / scale;
-  if (!Number.isFinite(value)) {
+  if (!Number.isFinite(value) || value <= 0) {
     throw new Error(
-      `Price candle has a non-finite "${field}": ${JSON.stringify(raw)}`,
+      `Price candle has an invalid "${field}": ${JSON.stringify(raw)}`,
     );
   }
   return value;
 }
 
+/**
+ * Upper bound on a feed's decimals. Chainlink-style feeds publish 8 or 18;
+ * past ~308 `10 ** decimals` is `Infinity`, which turns every price into a
+ * finite ZERO that passes a plain is-finite check — a silently blank chart
+ * rather than a loud failure. Anything this far out is malformed.
+ */
+const MAX_FEED_DECIMALS = 36;
+
 function toCandle(item: CandleItem): Candle {
-  if (!Number.isInteger(item.decimals) || item.decimals < 0) {
+  if (
+    !Number.isInteger(item.decimals) ||
+    item.decimals < 0 ||
+    item.decimals > MAX_FEED_DECIMALS
+  ) {
     throw new Error(
       `Price candle has invalid decimals: ${JSON.stringify(item.decimals)}`,
     );
@@ -100,13 +113,17 @@ function toCandle(item: CandleItem): Candle {
   const scale = 10 ** item.decimals;
   const timeSeconds =
     item.bucketStart.trim() === "" ? Number.NaN : Number(item.bucketStart);
-  if (!Number.isFinite(timeSeconds)) {
+  const timeMs = timeSeconds * MS_PER_SECOND;
+  // Checked AFTER the conversion: a finite seconds value can still leave the
+  // exact-integer range once scaled to milliseconds, and a candle plotted at
+  // an imprecise time sits under the wrong axis tick.
+  if (!Number.isSafeInteger(timeMs) || timeMs <= 0) {
     throw new Error(
-      `Price candle has a non-finite bucketStart: ${JSON.stringify(item.bucketStart)}`,
+      `Price candle has an invalid bucketStart: ${JSON.stringify(item.bucketStart)}`,
     );
   }
   return {
-    time: timeSeconds * MS_PER_SECOND,
+    time: timeMs,
     open: parsePrice(item.open, scale, "open"),
     high: parsePrice(item.high, scale, "high"),
     low: parsePrice(item.low, scale, "low"),

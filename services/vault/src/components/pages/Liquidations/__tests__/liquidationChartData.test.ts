@@ -683,6 +683,26 @@ describe("buildTimelinePriceAxis", () => {
     expect(axis[0].value).toBeGreaterThanOrEqual(90_000);
     expect(axis[axis.length - 1].value).toBe(0);
   });
+
+  // A broken feed must degrade the axis, not take the chart down: `Math.max`
+  // propagates NaN, and the price scale rejects a NaN or duplicated tick.
+  it("stays strictly descending when the top price is not a number", () => {
+    const axis = buildTimelinePriceAxis(result, Number.NaN);
+
+    const values = axis.map((tick) => tick.value);
+    expect(values.every(Number.isFinite)).toBe(true);
+    expect(values).toEqual([...values].sort((a, b) => b - a));
+    expect(new Set(values).size).toBe(values.length);
+  });
+
+  it("stays strictly descending when the top price sits under the floor", () => {
+    const axis = buildTimelinePriceAxis(result, 1);
+
+    const values = axis.map((tick) => tick.value);
+    expect(values.every(Number.isFinite)).toBe(true);
+    expect(new Set(values).size).toBe(values.length);
+    expect(values[0]).toBeGreaterThan(values[values.length - 1]);
+  });
 });
 
 describe("buildTimelineSafeZone", () => {

@@ -82,6 +82,12 @@ export function timelineRegionFractions(spans: number[], minFraction: number): n
   return [1 - maxEventsBudget, ...new Array(eventCount).fill(compressedFrac)];
 }
 
+/** The plot height at which `eventCount` rows of `rowPx` just fit the event
+ * budget {@link timelineRegionFractions} allows, so none compresses. */
+export function timelineMinPlotHeight(eventCount: number, rowPx: number): number {
+  return (eventCount * rowPx) / (1 - MIN_SAFE_ZONE_FRACTION);
+}
+
 /**
  * Anchored price → pixel offset from the plot top (Timeline).
  *

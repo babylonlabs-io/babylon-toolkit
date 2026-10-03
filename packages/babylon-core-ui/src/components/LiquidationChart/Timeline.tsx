@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { twJoin } from "tailwind-merge";
 import { localPoint } from "@visx/event";
 import { GridColumns } from "@visx/grid";
 import { Group } from "@visx/group";
@@ -8,10 +9,11 @@ import "./LiquidationChart.css";
 import { ChartFrame, type LevelMarker } from "./ChartFrame";
 import { useChartLayout } from "../charts/chartLayout";
 import { SeizureGutter } from "./SeizureGutter";
-import { OVERLAY_INSET_PX } from "./chartGeometry";
+import { BAND_POPOVER_GAP_PX, OVERLAY_INSET_PX } from "./chartGeometry";
 import {
   createAnchoredPriceScale,
   createLinearPriceScale,
+  timelineMinPlotHeight,
   timelineRegionFractions,
   type PriceAnchor,
 } from "./priceScale";
@@ -32,12 +34,17 @@ const CANDLE_BODY_MIN_HEIGHT = 0.004;
 const CANDLE_BODY_MIN_HEIGHT_PX = 1;
 /** Past this fraction of the candle region, the readout flips to the left. */
 const READOUT_FLIP_FRAC = 0.6;
-/** Fixed height for every liquidation-event region, px: keeps the event
- * label above its dropout threshold (26px content + padding) at any chart
- * width, matching the design's compact, equal-height event rows. */
-const MIN_REGION_PX = 44;
+/** Default height for every liquidation-event region, px: room for the event
+ * label alone (BandLayer only adds the amount or sublabel to taller rows),
+ * matching the design's compact, equal-height event rows. On this default a
+ * long cascade compresses the rows to fit the plot, and a row too short for
+ * the label goes unnamed. A caller passing `eventRowPx` gets that row at any
+ * width instead: the plot grows to fit. */
+const DEFAULT_EVENT_ROW_PX = 44;
 /** Candle body corner radius, px. */
 const CANDLE_BODY_RADIUS_PX = 2;
+/** Radius of the dot marking the close line's latest price, px. */
+const END_DOT_RADIUS_PX = 4;
 
 const defaultFormatPrice = (n: number) => `$${Math.round(n).toLocaleString("en-US")}`;
 const defaultFormatTime = (t: number) => new Date(t).toLocaleDateString("en-US", { month: "short", day: "numeric" });
@@ -105,35 +112,55 @@ export function Timeline({
   grid,
   hideBandLabels,
   liquidatedLabel,
-  bandGutter = true,
+  bandPlacement = "gutter",
+  eventRowPx,
+  aspectRatio,
+  priceLineColor,
   className,
 }: TimelineProps) {
   const compact = variant === "compact";
+  const showCandles = seriesStyle === "candles" || seriesStyle === "candles+line";
+  const showCloseLine = seriesStyle !== "candles";
+  const showArea = seriesStyle === "area";
   // The time axis exists only when there is something to label: derived ticks
   // from candles, or the caller's static labels.
   const hasXAxis = !compact && (candles.length > 0 || Boolean(timeAxisLabels?.length));
-  const { parentRef, layout, collapsed } = useChartLayout({ axisSide: "right", hasTopLegend: false, hasXAxis });
-  const gutterWidth = bandGutter ? BAND_GUTTER_FRAC * layout.plotWidth : 0;
-  const regionWidth = Math.max(0, layout.plotWidth - gutterWidth);
   const priceMax = priceAxis[0]?.value ?? currentPrice;
   const priceMin = priceAxis[priceAxis.length - 1]?.value ?? 0;
+  const triggers = useMemo(
+    () => bands.map((b) => b.priceTop).filter((price) => price < priceMax && price > priceMin),
+    [bands, priceMax, priceMin],
+  );
+  const rowPx = eventRowPx ?? DEFAULT_EVENT_ROW_PX;
+  const { parentRef, layout, collapsed } = useChartLayout({
+    axisSide: "right",
+    hasTopLegend: false,
+    hasXAxis,
+    aspectRatio,
+    minPlotHeight: eventRowPx === undefined ? undefined : timelineMinPlotHeight(triggers.length, eventRowPx),
+  });
+  // The gutter only reserves candle space in `"gutter"` placement; in
+  // `"plot"` the bands span the whole plot and the candles are drawn over
+  // them, so the candle region keeps the full width.
+  const gutterWidth = bandPlacement === "gutter" ? BAND_GUTTER_FRAC * layout.plotWidth : 0;
+  const bandWidth = bandPlacement === "plot" ? layout.plotWidth : gutterWidth;
+  const regionWidth = Math.max(0, layout.plotWidth - gutterWidth);
 
   // Deliberately non-uniform Y scale: every trigger is an anchor, and each
   // event region (trigger-to-trigger, then last trigger-to-floor) gets a
-  // fixed, compact row (MIN_REGION_PX) regardless of its real price span —
+  // fixed, compact row (`eventRowPx`) regardless of its real price span —
   // matching the design, which draws every "Liq Event N" band the same
   // size — so the safe zone (and its candles) keeps whatever height remains.
   // Without events (or with every trigger off-domain) it falls back to
   // linear.
   const priceScale = useMemo(() => {
-    const triggers = bands.map((b) => b.priceTop).filter((price) => price < priceMax && price > priceMin);
     if (!triggers.length) {
       return createLinearPriceScale(priceMax, priceMin, layout.plotHeight);
     }
     const stops = [priceMax, ...triggers, priceMin];
     const fractions = timelineRegionFractions(
       stops.slice(1).map((price, i) => stops[i] - price),
-      MIN_REGION_PX / layout.plotHeight,
+      rowPx / layout.plotHeight,
     );
     let cumulative = 0;
     const anchors: PriceAnchor[] = [
@@ -144,7 +171,7 @@ export function Timeline({
       }),
     ];
     return createAnchoredPriceScale(anchors, layout.plotHeight);
-  }, [bands, priceMax, priceMin, layout.plotHeight]);
+  }, [triggers, priceMax, priceMin, layout.plotHeight, rowPx]);
 
   // Visible window. `startIndex === null` means "pinned to the most recent
   // candles" — this survives candles arriving asynchronously and is the
@@ -241,11 +268,21 @@ export function Timeline({
   const xAxisTicks = useMemo(() => {
     if (compact || !windowed.length) return undefined;
     const tickCount = Math.min(7, windowed.length);
-    return Array.from({ length: tickCount }, (_, i) => {
+    const ticks = Array.from({ length: tickCount }, (_, i) => {
       // A single candle gets a single tick; the even spread needs ticks >= 2.
       const idx = tickCount < 2 ? 0 : Math.round((i / (tickCount - 1)) * (windowed.length - 1));
       return { fraction: (idx + 0.5) / windowed.length, label: formatTime(windowed[idx].time) };
     });
+    // A coarse formatter (month names over weekly candles) repeats a label
+    // across neighbouring ticks; keep only the first of each run, except that
+    // the newest tick always survives and displaces the one it repeats.
+    const kept: typeof ticks = [];
+    ticks.forEach((tick, i) => {
+      const last = kept.length - 1;
+      if (last < 0 || tick.label !== kept[last].label) kept.push(tick);
+      else if (i === ticks.length - 1) kept[last] = tick;
+    });
+    return kept;
   }, [compact, windowed, formatTime]);
   const xAxisLabels = compact || windowed.length ? undefined : timeAxisLabels;
 
@@ -310,6 +347,49 @@ export function Timeline({
 
   if (collapsed) return <div ref={parentRef} style={{ width: "100%" }} />;
 
+  const bandLayer =
+    bandPlacement === "none" ? null : (
+      <SeizureGutter
+        bands={bands}
+        priceScale={priceScale}
+        currentPrice={currentPrice}
+        width={bandWidth}
+        plotHeight={layout.plotHeight}
+        fontAxis={layout.fontAxis}
+        fontLabel={layout.fontLabel}
+        fontAmount={layout.fontAmount}
+        safeZone={safeZone}
+        compact={compact}
+        hideBandLabels={Boolean(hideBandLabels)}
+        liquidatedLabel={liquidatedLabel}
+        // A plot-width band ends at the axis column, so its popover clears
+        // the tick labels and price pills instead of covering them.
+        popoverOffsetPx={bandPlacement === "plot" ? layout.gutter + BAND_POPOVER_GAP_PX : undefined}
+      />
+    );
+
+  // Interaction surface over the candle region. Rendered only when an
+  // interaction is enabled: a transparent rect still hit-tests, so a bare one
+  // would swallow the hover of anything painted under it.
+  const interactionRect = interactive ? (
+    <Bar
+      innerRef={hitRef}
+      className="bbn-liq-candles__hit bbn-liq-candles__hit--interactive"
+      x={gutterWidth}
+      y={0}
+      width={regionWidth}
+      height={layout.plotHeight}
+      fill="transparent"
+      onPointerMove={onPointerMove}
+      onPointerLeave={crosshairEnabled ? () => setHoverIndex(null) : undefined}
+      onPointerDown={panEnabled ? onPointerDown : undefined}
+      onPointerUp={panEnabled ? endDrag : undefined}
+      onPointerCancel={panEnabled ? endDrag : undefined}
+      onDoubleClick={zoomEnabled ? resetView : undefined}
+      data-dragging={panEnabled ? dragging : undefined}
+    />
+  ) : null;
+
   return (
     <ChartFrame
       parentRef={parentRef}
@@ -325,7 +405,8 @@ export function Timeline({
       xAxisLabels={xAxisLabels}
       xAxisTicks={xAxisTicks}
       grid={resolvedGrid}
-      className={className}
+      priceLineColor={priceLineColor}
+      className={twJoin(bandPlacement === "plot" && "bbn-liq-timeline--plot", className)}
       overlay={
         <>
           {hovered ? (
@@ -393,11 +474,20 @@ export function Timeline({
         />
       ) : null}
 
+      {/* Plot-width bands cover part of the interaction surface, so it
+          paints under them and they keep their hover; the candle region
+          above the bands still drives the crosshair/pan/zoom. */}
+      {bandPlacement === "plot" ? interactionRect : null}
+
+      {/* Full-width bands sit UNDER the candles; the gutter column sits
+          beside them and is drawn after, so its labels stay on top. */}
+      {bandPlacement === "plot" ? bandLayer : null}
+
       {/* Candle marks, right of the band gutter. */}
       <Group left={gutterWidth}>
-        {seriesStyle !== "candles" && candleGeom.length > 0 ? (
+        {candleGeom.length > 0 ? (
           <>
-            {seriesStyle === "area" ? (
+            {showArea ? (
               // The fill reaches both region edges via synthetic bottom-corner
               // points, matching the old full-width polygon; the stroked line
               // below spans only the candle centers.
@@ -414,36 +504,49 @@ export function Timeline({
                 yScale={priceScale}
               />
             ) : null}
-            <LinePath<CandleGeom>
-              className="bbn-liq-series__line"
-              data={candleGeom}
-              x={(g) => g.center}
-              y={(g) => priceScale(g.candle.close)}
-            />
+            {showCandles
+              ? candleGeom.map((g) => (
+                  <Group
+                    key={g.key}
+                    className={g.bullish ? "bbn-liq-candle--up" : "bbn-liq-candle--down"}
+                    data-testid="liq-candle"
+                  >
+                    <Line
+                      className="bbn-liq-candle__wick"
+                      from={{ x: g.center, y: g.wickTop }}
+                      to={{ x: g.center, y: g.wickBottom }}
+                    />
+                    <Bar
+                      className="bbn-liq-candle__body"
+                      x={g.bodyLeft}
+                      y={g.bodyTop}
+                      width={g.bodyWidth}
+                      height={g.bodyHeight}
+                      rx={CANDLE_BODY_RADIUS_PX}
+                    />
+                  </Group>
+                ))
+              : null}
+            {showCloseLine ? (
+              <LinePath<CandleGeom>
+                className={
+                  showCandles ? "bbn-liq-series__line bbn-liq-series__line--over-candles" : "bbn-liq-series__line"
+                }
+                data={candleGeom}
+                x={(g) => g.center}
+                y={(g) => priceScale(g.candle.close)}
+              />
+            ) : null}
+            {seriesStyle === "candles+line" ? (
+              <circle
+                className="bbn-liq-series__end-dot"
+                cx={candleGeom[candleGeom.length - 1].center}
+                cy={priceScale(candleGeom[candleGeom.length - 1].candle.close)}
+                r={END_DOT_RADIUS_PX}
+              />
+            ) : null}
           </>
-        ) : (
-          candleGeom.map((g) => (
-            <Group
-              key={g.key}
-              className={g.bullish ? "bbn-liq-candle--up" : "bbn-liq-candle--down"}
-              data-testid="liq-candle"
-            >
-              <Line
-                className="bbn-liq-candle__wick"
-                from={{ x: g.center, y: g.wickTop }}
-                to={{ x: g.center, y: g.wickBottom }}
-              />
-              <Bar
-                className="bbn-liq-candle__body"
-                x={g.bodyLeft}
-                y={g.bodyTop}
-                width={g.bodyWidth}
-                height={g.bodyHeight}
-                rx={CANDLE_BODY_RADIUS_PX}
-              />
-            </Group>
-          ))
-        )}
+        ) : null}
 
         {hovered ? (
           <Line
@@ -455,40 +558,9 @@ export function Timeline({
         ) : null}
       </Group>
 
-      {bandGutter ? (
-        <SeizureGutter
-          bands={bands}
-          priceScale={priceScale}
-          currentPrice={currentPrice}
-          width={gutterWidth}
-          plotHeight={layout.plotHeight}
-          fontAxis={layout.fontAxis}
-          fontLabel={layout.fontLabel}
-          fontAmount={layout.fontAmount}
-          safeZone={safeZone}
-          compact={compact}
-          hideBandLabels={Boolean(hideBandLabels)}
-          liquidatedLabel={liquidatedLabel}
-        />
-      ) : null}
+      {bandPlacement === "gutter" ? bandLayer : null}
 
-      {/* Interaction surface over the candle region. */}
-      <Bar
-        innerRef={hitRef}
-        className={interactive ? "bbn-liq-candles__hit bbn-liq-candles__hit--interactive" : "bbn-liq-candles__hit"}
-        x={gutterWidth}
-        y={0}
-        width={regionWidth}
-        height={layout.plotHeight}
-        fill="transparent"
-        onPointerMove={interactive ? onPointerMove : undefined}
-        onPointerLeave={crosshairEnabled ? () => setHoverIndex(null) : undefined}
-        onPointerDown={panEnabled ? onPointerDown : undefined}
-        onPointerUp={panEnabled ? endDrag : undefined}
-        onPointerCancel={panEnabled ? endDrag : undefined}
-        onDoubleClick={zoomEnabled ? resetView : undefined}
-        data-dragging={panEnabled ? dragging : undefined}
-      />
+      {bandPlacement === "plot" ? null : interactionRect}
     </ChartFrame>
   );
 }

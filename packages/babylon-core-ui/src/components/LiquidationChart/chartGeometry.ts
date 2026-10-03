@@ -22,12 +22,14 @@ export const SAFEZONE_PAD_Y_PX = 8; // safezone padding 0.5rem
 export const SAFEZONE_BORDER_PX = 1; // safezone border width
 export const SAFEZONE_LINE_GAP_PX = 2; // safezone gap 0.125rem
 export const OVERLAY_INSET_PX = 8; // readout/zoom offset 0.5rem
+export const BAND_POPOVER_GAP_PX = 8; // band popover distance from its band
 
-/** Band text-dropout thresholds that were `@container (max-height: …)`
- * queries. Container size queries evaluate the CONTENT box, so callers must
- * compare these against the band height minus its vertical padding.
- * `max-height` matches at exactly the threshold, so the check is `>`, not
- * `>=`. (The safe zone uses a fits-based rule instead — see SeizureGutter.) */
+/** Band text-dropout thresholds for the lines BELOW the label, which were
+ * `@container (max-height: …)` queries. Container size queries evaluate the
+ * CONTENT box, so callers must compare these against the band height minus
+ * its vertical padding. `max-height` matches at exactly the threshold, so the
+ * check is `>`, not `>=`. The label itself has no fixed threshold — it
+ * renders whenever its own line box fits (see BandLayer), the same fits-based
+ * rule the safe zone uses. */
 export const DROP_SUBLABEL_MAX_PX = 76;
 export const DROP_AMOUNT_MAX_PX = 54;
-export const DROP_LABEL_MAX_PX = 26;

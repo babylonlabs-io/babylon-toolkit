@@ -61,6 +61,7 @@ import {
   validateBorrowAction,
 } from "./hooks/validateBorrowAction";
 import { validateBorrowPreSign } from "./hooks/validateBorrowPreSign";
+import { LiquidationPreview } from "./LiquidationPreview";
 
 /**
  * Borrow at most this fraction of a reserve's available liquidity, and of what
@@ -421,6 +422,15 @@ export function Borrow() {
           healthFactor={metrics.healthFactor}
           healthFactorValue={metrics.healthFactorValue}
           healthFactorOriginal={metrics.healthFactorOriginal}
+        />
+
+        {/* Charts the cascade this borrow WOULD produce. `null` while the
+            price is missing or still the previously-selected reserve's — the
+            debt the entered amount adds is unknown then, and the preview
+            withholds itself rather than charting the current position under a
+            heading that claims to show the projected one. */}
+        <LiquidationPreview
+          additionalDebtUsd={isPriceReady ? borrowAmount * tokenPriceUsd : null}
         />
       </div>
 

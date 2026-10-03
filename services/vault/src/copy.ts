@@ -2258,6 +2258,19 @@ export const COPY = {
     },
     reset: "Reset",
     eventTitle: (eventNumber: number) => `Liq Event ${eventNumber}`,
+    // Borrow-flow liquidation preview (applications/aave/components/LoanCard/
+    // Borrow/LiquidationPreview.tsx). Its bands are wider than the dashboard's,
+    // so they name the event in full and list the BTCVaults it seizes.
+    preview: {
+      title: "Liquidation preview",
+      totalCollateralLabel: "Total Collateral",
+      totalCollateralValue: (collateral: string, vaults: number) =>
+        `${collateral} (${vaults} ${vaults === 1 ? "vault" : "vaults"})`,
+      bandLabel: (eventNumber: number, vaultAmounts: string) =>
+        `Liquidation Event ${eventNumber} | ${vaultAmounts} BTCVaults`,
+      legendPrice: "Oracle BTC Price",
+      legendLiquidation: "Liq price",
+    },
     // Screen-reader-only. The band no longer draws this line, but the vault
     // names still belong in the focusable rect's accessible name.
     containVaults: (names: string) => `(contain ${names})`,

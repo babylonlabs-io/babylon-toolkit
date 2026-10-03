@@ -98,8 +98,18 @@ export function computeChartLayout(input: {
   /** Replaces the fluid gutter clamp when provided (see
    * {@link measureYAxisGutter}); absent keeps the fluid clamp. */
   gutterPx?: number;
+  /** Floor on the plot height, px: below it the plot grows past `aspectRatio`. */
+  minPlotHeight?: number;
 }): ChartLayout {
-  const { chartWidth, axisSide, hasTopLegend, hasXAxis, aspectRatio = DEFAULT_PLOT_ASPECT_RATIO, gutterPx } = input;
+  const {
+    chartWidth,
+    axisSide,
+    hasTopLegend,
+    hasXAxis,
+    aspectRatio = DEFAULT_PLOT_ASPECT_RATIO,
+    gutterPx,
+    minPlotHeight = 0,
+  } = input;
   const remPx = rootFontPx();
   const gutter = gutterPx ?? resolveFluid(GUTTER, chartWidth, remPx);
   const fontAxis = resolveAxisFontPx(chartWidth);
@@ -107,7 +117,7 @@ export function computeChartLayout(input: {
   const fontAmount = resolveFluid(FONT_AMOUNT, chartWidth, remPx);
 
   const plotWidth = Math.max(0, chartWidth - gutter);
-  const plotHeight = aspectRatio > 0 ? plotWidth / aspectRatio : 0;
+  const plotHeight = Math.max(aspectRatio > 0 ? plotWidth / aspectRatio : 0, minPlotHeight);
   const plotLeft = axisSide === "left" ? gutter : 0;
 
   const legendHeight = hasTopLegend ? 2 * LEGEND_PAD_Y_PX + Math.round(fontLabel * TEXT_LINE_HEIGHT) : 0;
@@ -144,6 +154,7 @@ export function useChartLayout(input: {
    * `undefined` to keep the fluid gutter (the default for charts that don't
    * render a flush-left label column). */
   yAxisLabels?: readonly string[];
+  minPlotHeight?: number;
 }): {
   parentRef: (node: HTMLDivElement | null) => void;
   layout: ChartLayout;
@@ -167,10 +178,10 @@ export function useChartLayout(input: {
   // chart across the siblings (the SVG overflows visibly), so collapse instead.
   const collapsed = width <= 0;
   const chartWidth = collapsed ? FALLBACK_CHART_WIDTH_PX : width;
-  const { axisSide, hasTopLegend, hasXAxis, aspectRatio, yAxisLabels } = input;
+  const { axisSide, hasTopLegend, hasXAxis, aspectRatio, yAxisLabels, minPlotHeight } = input;
   const layout = useMemo(() => {
     const gutterPx = yAxisLabels === undefined ? undefined : measureYAxisGutter(chartWidth, yAxisLabels);
-    return computeChartLayout({ chartWidth, axisSide, hasTopLegend, hasXAxis, aspectRatio, gutterPx });
-  }, [chartWidth, axisSide, hasTopLegend, hasXAxis, aspectRatio, yAxisLabels, fontEpoch]);
+    return computeChartLayout({ chartWidth, axisSide, hasTopLegend, hasXAxis, aspectRatio, gutterPx, minPlotHeight });
+  }, [chartWidth, axisSide, hasTopLegend, hasXAxis, aspectRatio, yAxisLabels, minPlotHeight, fontEpoch]);
   return { parentRef, layout, collapsed };
 }

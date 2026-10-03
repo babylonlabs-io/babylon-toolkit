@@ -8,8 +8,8 @@ import {
   BAND_LINE_GAP_PX,
   BAND_PAD_X_PX,
   BAND_PAD_Y_PX,
+  BAND_POPOVER_GAP_PX,
   DROP_AMOUNT_MAX_PX,
-  DROP_LABEL_MAX_PX,
   DROP_SUBLABEL_MAX_PX,
 } from "./chartGeometry";
 import { TEXT_LINE_HEIGHT } from "../charts/chartLayout";
@@ -49,6 +49,9 @@ export interface BandLayerProps {
    * past the price domain. The liquidated text swap always follows `state`.
    */
   isDimmed?: (band: LiquidationBand) => boolean;
+  /** Distance from the band's right edge to its popover. A plot-width band
+   *  passes enough to clear the axis column beside it. */
+  popoverOffsetPx?: number;
 }
 
 /** Text lines a band has room for. Replaces the old `@container (max-height)`
@@ -67,7 +70,14 @@ function visibleBandLines(
   if (hideAll) return [];
   const contentHeight = heightPx - 2 * BAND_PAD_Y_PX;
   const lines: BandTextLine[] = [];
-  if (contentHeight > DROP_LABEL_MAX_PX) lines.push({ kind: "label", text: band.label, fontSize: fontLabel });
+  // The label is a band's minimum content, so it renders whenever its own
+  // line box fits — not at a fixed threshold sized for the full label +
+  // sublabel + amount stack, which would leave a compact event row (the
+  // caller sets the row height via `eventRowPx`, and the in-flow borrow
+  // preview draws rows shorter than the default) silently unnamed.
+  if (contentHeight >= Math.round(fontLabel * TEXT_LINE_HEIGHT)) {
+    lines.push({ kind: "label", text: band.label, fontSize: fontLabel });
+  }
   if (band.state === "liquidated" && liquidatedLabel) {
     if (contentHeight > DROP_AMOUNT_MAX_PX) {
       lines.push({ kind: "liquidated", text: liquidatedLabel, fontSize: fontLabel });
@@ -92,6 +102,7 @@ export function BandLayer({
   hideBandLabels,
   liquidatedLabel,
   isDimmed,
+  popoverOffsetPx = BAND_POPOVER_GAP_PX,
 }: BandLayerProps) {
   const clipBaseId = useId();
   const [hovered, setHovered] = useState<{ band: LiquidationBand; anchor: Element } | null>(null);
@@ -200,7 +211,7 @@ export function BandLayer({
         open={Boolean(hovered)}
         anchorEl={hovered?.anchor ?? null}
         placement="right-start"
-        offset={[0, 8]}
+        offset={[0, popoverOffsetPx]}
         className="bbn-liq-popover"
         onClickOutside={() => setHovered(null)}
       >

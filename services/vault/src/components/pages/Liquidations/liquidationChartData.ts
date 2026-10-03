@@ -165,6 +165,10 @@ const TIMELINE_AXIS_TICK_TARGET = 4;
 /** Guards the tick loop against a degenerate step; never reached in practice. */
 const TIMELINE_AXIS_MAX_TICKS = 24;
 
+/** Span of a degenerate two-tick axis, USD. Nothing is plotted between them;
+ *  they only have to differ so the price scale stays strictly descending. */
+const DEGENERATE_AXIS_SPAN_USD = 1;
+
 /**
  * A round step covering `span` in roughly `target` intervals — the 1/2/2.5/5/10
  * ladder, so the ticks land on prices a depositor reads at a glance.
@@ -193,40 +197,72 @@ function niceStep(span: number, target: number): number {
  * The floor tick carries no label: it only anchors the scale's lower domain
  * bound, and the design shows no price at the very bottom of the axis (the
  * lowest trigger already has its own pill).
+ *
+ * `formatLabel` renders the tick labels; full dollar amounts by default.
+ *
+ * `projected` is a cascade charted against this axis without driving its
+ * step or top — the borrow preview's would-be position. The floor drops to
+ * clear its lowest trigger, and no labelled tick lands on or below its first
+ * trigger, where its event rows sit.
  */
 export function buildTimelinePriceAxis(
   result: CalculatorResult,
   topPrice: number,
+  {
+    formatLabel = formatPriceUsd,
+    projected,
+  }: {
+    formatLabel?: (price: number) => string;
+    projected?: CalculatorResult;
+  } = {},
 ): PriceAxisTick[] {
-  const floorPrice = axisFloorPrice(result);
-  const firstTrigger = result.groups[0]?.liquidationPrice ?? floorPrice;
+  const liveFloor = axisFloorPrice(result);
+  const floorPrice = projected
+    ? Math.min(liveFloor, axisFloorPrice(projected))
+    : liveFloor;
+  const firstTrigger = result.groups[0]?.liquidationPrice ?? liveFloor;
   const toTick = (value: number): PriceAxisTick => ({
     value,
-    label: formatPriceUsd(value),
+    label: formatLabel(value),
   });
   const toFloorTick = (value: number): PriceAxisTick => ({ value, label: "" });
 
   if (!Number.isFinite(topPrice) || topPrice <= floorPrice) {
-    return [toTick(Math.max(topPrice, floorPrice)), toFloorTick(floorPrice)];
+    // Degenerate input — a broken price feed, or a floor at or above the live
+    // price. The two ticks still have to be strictly descending: `Math.max`
+    // propagates NaN, and a NaN or duplicated tick trips the chart's axis
+    // assertion, taking the whole card down with it.
+    const top =
+      firstTrigger > floorPrice
+        ? firstTrigger
+        : floorPrice + DEGENERATE_AXIS_SPAN_USD;
+    return [toTick(top), toFloorTick(floorPrice)];
   }
 
   // Below the first trigger the scale is compressed per event, so the ticks
   // stop there and the (unlabelled) floor tick closes the axis.
-  const tickFloor = topPrice > firstTrigger ? firstTrigger : floorPrice;
+  const tickFloor = topPrice > firstTrigger ? firstTrigger : liveFloor;
   const span = topPrice - tickFloor;
   if (span <= 0) return [toTick(topPrice), toFloorTick(floorPrice)];
 
   const step = niceStep(span, TIMELINE_AXIS_TICK_TARGET);
+  const tickCutoff = Math.max(
+    tickFloor,
+    projected?.groups[0]?.liquidationPrice ?? tickFloor,
+  );
   const ticks: PriceAxisTick[] = [];
   const top = Math.ceil(topPrice / step) * step;
   for (let i = 0; i < TIMELINE_AXIS_MAX_TICKS; i++) {
     const value = top - i * step;
-    if (value <= tickFloor) break;
+    if (value <= tickCutoff) break;
     ticks.push(toTick(value));
   }
-  // `top` always clears `topPrice`, so the list can only be empty if the loop
-  // never ran; the floor still has to close the domain.
-  return [...ticks, toFloorTick(floorPrice)];
+  // The top tick bounds the domain, so a projection triggering above it keeps
+  // that one tick rather than collapsing the axis onto the floor.
+  return [
+    ...(ticks.length > 0 ? ticks : [toTick(top)]),
+    toFloorTick(floorPrice),
+  ];
 }
 
 /**
@@ -261,6 +297,19 @@ export function formatCandleDate(timeMs: number): string {
   });
 }
 
+/**
+ * Time-axis label for a weekly candle: the month, and the year at the start of
+ * one. Matches the borrow preview's locked one-year window, whose axis reads
+ * Aug / Oct / 2025 / Feb — `formatCandleDate`'s day numbers say nothing at that
+ * span.
+ */
+export function formatCandleMonth(timeMs: number): string {
+  const date = new Date(timeMs);
+  return date.getUTCMonth() === 0
+    ? String(date.getUTCFullYear())
+    : date.toLocaleDateString("en-US", { month: "short", timeZone: "UTC" });
+}
+
 /** The hovered candle's own date. Spelled out, because the axis label under it
  *  lacks only the year. */
 export function formatCandleTimestamp(timeMs: number): string {
@@ -286,6 +335,34 @@ export function withAmountInBandLabel(
     label: band.amountLabel
       ? `${band.label} (${band.amountLabel})`
       : band.label,
+    amountLabel: undefined,
+  }));
+}
+
+/** Decimals a preview band prints its per-BTCVault amounts to. Enough to keep
+ *  a small vault from reading as "0", short enough for a one-line band. */
+const PREVIEW_VAULT_DECIMALS = 4;
+
+/**
+ * Bands labelled the way the borrow flow's liquidation preview names them: the
+ * full event title and the BTCVaults the event seizes, e.g.
+ * "Liquidation Event 1 | 0.1 + 0.3 BTCVaults". The bands there span the whole
+ * plot width, so the vault sizes fit inline; `sublabel` and `amountLabel` are
+ * dropped so each event stays one line.
+ */
+export function withVaultAmountsInBandLabel(
+  bands: LiquidationBand[],
+  groups: LiquidationGroup[],
+): LiquidationBand[] {
+  return bands.map((band, index) => ({
+    ...band,
+    label: COPY.liquidations.preview.bandLabel(
+      index + 1,
+      (groups[index]?.vaults ?? [])
+        .map((vault) => formatBtcValue(vault.btc, PREVIEW_VAULT_DECIMALS))
+        .join(" + "),
+    ),
+    sublabel: undefined,
     amountLabel: undefined,
   }));
 }
