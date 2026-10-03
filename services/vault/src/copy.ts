@@ -1571,6 +1571,7 @@ export const COPY = {
       title: "Continue on Desktop",
       body: "For security reasons, BTC deposits and withdrawals are available only on desktop. Connect your BTC wallet and manage your vault from your computer.",
       copyLink: "Copy Link",
+      linkCopied: "Link Copied",
       goBack: "Go Back",
     },
     geoBlockedTooltip: "Not available in your region",

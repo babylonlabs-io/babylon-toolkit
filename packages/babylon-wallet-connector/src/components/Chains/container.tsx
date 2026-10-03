@@ -36,8 +36,8 @@ export function ChainsContainer({ isChainHidden, ...props }: ContainerProps) {
   const connectors = useChainProviders();
 
   const chainArr = useMemo(
-    () => Object.values(chains).filter((chain) => !isChainHidden?.(chain)),
-    [chains, isChainHidden],
+    () => Object.values(chains).filter((chain) => selectedWallets[chain.id] || !isChainHidden?.(chain)),
+    [chains, isChainHidden, selectedWallets],
   );
 
   const handleSelectChain = useCallback(

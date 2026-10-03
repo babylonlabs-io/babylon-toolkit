@@ -24,7 +24,7 @@ export function useBtcAction() {
       void unlock();
       return false;
     }
-    if (signerUnavailable) {
+    if (!btcConnected && signerUnavailable) {
       showDesktopOnly();
       return false;
     }

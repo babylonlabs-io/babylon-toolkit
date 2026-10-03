@@ -35,10 +35,12 @@ function useIsTouchFirst(): boolean {
 export function useBtcSignerUnavailable(): boolean {
   const isTouchFirst = useIsTouchFirst();
   const { chains } = useWidgetState();
+  const btcChain = chains?.BTC;
 
   return (
     featureFlags.isMobileEnabled &&
     isTouchFirst &&
-    !hasUsableBtcSigner(chains?.BTC?.wallets ?? [])
+    btcChain !== undefined &&
+    !hasUsableBtcSigner(btcChain.wallets)
   );
 }

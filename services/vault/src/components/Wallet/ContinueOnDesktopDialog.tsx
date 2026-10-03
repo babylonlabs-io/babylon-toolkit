@@ -20,7 +20,7 @@ export function ContinueOnDesktopDialog({
   open,
   onClose,
 }: ContinueOnDesktopDialogProps) {
-  const { copyToClipboard } = useCopy();
+  const { copyToClipboard, isCopied } = useCopy();
   const copy = COPY.wallet.desktopOnly;
 
   return (
@@ -69,7 +69,7 @@ export function ContinueOnDesktopDialog({
             <span className="flex size-4 items-center justify-center">
               <CopyIcon size={14} color="text-inherit" />
             </span>
-            {copy.copyLink}
+            {isCopied("desktop-link") ? copy.linkCopied : copy.copyLink}
           </Button>
           <Button
             variant="outlined"
