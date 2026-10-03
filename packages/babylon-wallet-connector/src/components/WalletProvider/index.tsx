@@ -5,7 +5,7 @@ import { ChainConfigArr, ChainProvider, type ChainMetadataMap } from "@/context/
 import { LifeCycleHooksProvider, type LifeCycleHooksProps } from "@/context/LifecycleHooks.context";
 import { TomoConnectionProvider } from "@/context/TomoProvider";
 import { createAccountStorage } from "@/core/storage";
-import type { BBNConfig, BTCConfig, ChainId, ETHConfig } from "@/core/types";
+import type { BBNConfig, BTCConfig, ChainId, ETHConfig, IChain } from "@/core/types";
 import { validateAddress, validateAddressWithPK } from "@/core/utils/wallet";
 import chainMetadata from "@/core/wallets";
 import { initializeAppKitModal, type AppKitModalConfig } from "@/core/wallets/appkit/appKitModal";
@@ -67,6 +67,7 @@ export interface WalletProviderProps {
   dialogActionsClassName?: string;
   /** A short line under each chain's name on the connect screen that says why the app needs that wallet. */
   chainDescriptions?: Partial<Record<ChainId, string>>;
+  isChainHidden?: (chain: IChain) => boolean;
 }
 
 export function WalletProvider({
@@ -86,6 +87,7 @@ export function WalletProvider({
   dialogCloseButtonClassName,
   dialogActionsClassName,
   chainDescriptions,
+  isChainHidden,
 }: PropsWithChildren<WalletProviderProps>) {
   const networkMap = useMemo(() => deriveNetworkMap(config), [config]);
   const storage = useMemo(() => createAccountStorage(ttl, networkMap), [ttl, networkMap]);
@@ -163,6 +165,7 @@ export function WalletProvider({
           closeButtonClassName={dialogCloseButtonClassName}
           actionsClassName={dialogActionsClassName}
           chainDescriptions={chainDescriptions}
+          isChainHidden={isChainHidden}
         />
       </ChainProvider>
     </LifeCycleHooksProvider>

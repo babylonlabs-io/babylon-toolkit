@@ -109,6 +109,7 @@ vi.mock("@babylonlabs-io/wallet-connector", () => {
     },
   };
   return {
+    useWidgetState: () => ({ visible: false }),
     useBTCWallet: () => ({ connected: btcActionWallet.connected }),
     useWalletConnect: () => ({
       connected: btcActionWallet.confirmed,

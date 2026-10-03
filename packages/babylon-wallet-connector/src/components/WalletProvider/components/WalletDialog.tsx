@@ -10,7 +10,7 @@ import {
   subscribeToConfirmationIdentityChanges,
   WALLET_CONFIRMATION_RECEIPT_KEY,
 } from "@/core/confirmationReceipt";
-import type { ChainId, HashMap, IBTCProvider, IETHProvider, IWallet } from "@/core/types";
+import type { ChainId, HashMap, IBTCProvider, IChain, IETHProvider, IWallet } from "@/core/types";
 import { useWalletConnectors, type BTCAddressValidation } from "@/hooks/useWalletConnectors";
 import { useWalletWidgets } from "@/hooks/useWalletWidgets";
 import { useWidgetState } from "@/hooks/useWidgetState";
@@ -210,6 +210,7 @@ interface WalletDialogProps {
   actionsClassName?: string;
   /** The line under each chain's name on the chain list, keyed by chain id. */
   chainDescriptions?: Partial<Record<ChainId, string>>;
+  isChainHidden?: (chain: IChain) => boolean;
 }
 
 export function WalletDialog({
@@ -222,6 +223,7 @@ export function WalletDialog({
   closeButtonClassName,
   actionsClassName,
   chainDescriptions,
+  isChainHidden,
 }: WalletDialogProps) {
   const {
     visible,
@@ -464,6 +466,7 @@ export function WalletDialog({
           onSelectWallet={chooseWallet}
           onConnectWallet={connect}
           chainDescriptions={chainDescriptions}
+          isChainHidden={isChainHidden}
         />
       </div>
     </FullScreenDialog>

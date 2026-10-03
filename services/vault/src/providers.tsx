@@ -10,6 +10,7 @@ import { createQueryClient } from "@/config/queryClient";
 import { vaultWagmiConfig } from "@/config/wagmi";
 import { AddressScreeningProvider } from "@/context/addressScreening";
 import { AddressTypeProvider } from "@/context/addressType";
+import { DesktopOnlyProvider } from "@/context/desktopOnly";
 import { ErrorProvider } from "@/context/error";
 import { GeoFencingProvider } from "@/context/geofencing";
 import { SigningNotificationProvider } from "@/context/SigningNotificationContext";
@@ -40,15 +41,17 @@ function Providers({ children }: React.PropsWithChildren) {
                   <GeoFencingProvider>
                     <WagmiProvider config={vaultWagmiConfig} reconnectOnMount>
                       <WalletConnectionProvider>
-                        <AddressScreeningProvider>
-                          <AddressTypeProvider>
-                            <AppState>
-                              <SigningNotificationProvider>
-                                {children}
-                              </SigningNotificationProvider>
-                            </AppState>
-                          </AddressTypeProvider>
-                        </AddressScreeningProvider>
+                        <DesktopOnlyProvider>
+                          <AddressScreeningProvider>
+                            <AddressTypeProvider>
+                              <AppState>
+                                <SigningNotificationProvider>
+                                  {children}
+                                </SigningNotificationProvider>
+                              </AppState>
+                            </AddressTypeProvider>
+                          </AddressScreeningProvider>
+                        </DesktopOnlyProvider>
                       </WalletConnectionProvider>
                     </WagmiProvider>
                   </GeoFencingProvider>

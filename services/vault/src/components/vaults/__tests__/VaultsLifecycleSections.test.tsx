@@ -49,6 +49,7 @@ vi.mock("@babylonlabs-io/core-ui", async (importOriginal) => ({
 }));
 
 vi.mock("@babylonlabs-io/wallet-connector", () => ({
+  useWidgetState: () => ({ visible: false }),
   Network: { MAINNET: "mainnet", SIGNET: "signet" },
   useChainConnector: () => undefined,
   useBTCWallet: () => ({

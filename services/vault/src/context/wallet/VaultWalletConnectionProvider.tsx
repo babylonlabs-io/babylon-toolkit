@@ -8,6 +8,7 @@ import {
   useChainConnector,
   useWalletConnect,
   useWidgetState,
+  type IChain,
 } from "@babylonlabs-io/wallet-connector";
 import { useTheme } from "next-themes";
 import {
@@ -23,6 +24,10 @@ import featureFlags from "@/config/featureFlags";
 import { getNetworkConfigETH } from "@/config/network";
 import { COPY } from "@/copy";
 import { isSpeculosTransportArmed } from "@/e2e/speculosTransportBootstrap";
+import {
+  hasUsableBtcSigner,
+  isTouchFirstNow,
+} from "@/hooks/useBtcSignerUnavailable";
 import { logger } from "@/infrastructure";
 import { isUserCancellation } from "@/utils/errors/userCancellation";
 
@@ -71,6 +76,9 @@ const context = typeof window !== "undefined" ? window : {};
 
 // Only Ethereum gates the session; Bitcoin is asked for when an action needs it.
 const REQUIRED_CHAINS = ["ETH"] as const;
+
+const isBtcChainHiddenOnTouch = (chain: IChain) =>
+  chain.id === "BTC" && isTouchFirstNow() && !hasUsableBtcSigner(chain.wallets);
 
 // The wallet dialog is a full-viewport overlay, so its close/settings buttons
 // position with `fixed left`/`right`, not inside the page's 1080px content
@@ -255,6 +263,9 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
       dialogCloseButtonClassName={WALLET_DIALOG_LEFT_INSET_CLASS}
       dialogActionsClassName={WALLET_DIALOG_RIGHT_INSET_CLASS}
       chainDescriptions={COPY.wallet.chainDescriptions}
+      isChainHidden={
+        featureFlags.isMobileEnabled ? isBtcChainHiddenOnTouch : undefined
+      }
     >
       <WalletProviders>{children}</WalletProviders>
     </WalletProvider>

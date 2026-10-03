@@ -150,6 +150,21 @@ export default {
   },
 
   /**
+   * ENABLE_MOBILE feature flag
+   *
+   * Purpose: Gates the phone experience for the mobile epic (#2580). Today
+   * that is the Continue on Desktop screen for Bitcoin actions and the hidden
+   * Bitcoin row in the connect dialog, both on touch-first devices with no
+   * Bitcoin wallet.
+   * Why needed: the phone experience ships incrementally; the flag keeps it
+   * off until the epic is released.
+   * Default: false (off unless explicitly set to "true")
+   */
+  get isMobileEnabled() {
+    return process.env.NEXT_PUBLIC_FF_ENABLE_MOBILE === "true";
+  },
+
+  /**
    * NOTICE_BANNER_MESSAGE config
    *
    * Purpose: The single operator-controlled message shown to depositors. Its
