@@ -1,5 +1,6 @@
 import { Button, Heading, Text } from "@babylonlabs-io/core-ui";
 
+import { CopyableHash } from "@/components/shared/CopyableHash";
 import { getNetworkConfigBTC } from "@/config";
 import { COPY } from "@/copy";
 import { getBtcExplorerTxUrl } from "@/utils/explorer";
@@ -38,26 +39,24 @@ export function RefundSuccessContent({
       </div>
 
       <div className="flex flex-col items-center gap-4">
-        <div className="flex w-full gap-4">
-          <Button
-            variant="outlined"
-            color="primary"
-            className="flex-1 whitespace-nowrap !border-secondary-strokeLight"
-            onClick={() => {
-              window.open(explorerUrl, "_blank", "noopener,noreferrer");
-            }}
-          >
-            {COPY.deposit.refundSuccess.viewExplorerButton}
-          </Button>
-          <Button
-            variant="contained"
-            color="secondary"
-            className="flex-1 whitespace-nowrap"
-            onClick={onDone}
-          >
-            {COPY.deposit.refundSuccess.doneButton}
-          </Button>
+        <div className="flex flex-col items-center gap-1 [&_a]:underline">
+          <Text variant="caption" className="text-accent-secondary">
+            {COPY.vaults.refundTransactionLabel}
+          </Text>
+          <CopyableHash
+            hash={refundTxId}
+            chain="BTC"
+            explorerUrl={explorerUrl}
+          />
         </div>
+        <Button
+          variant="contained"
+          color="secondary"
+          className="w-full whitespace-nowrap"
+          onClick={onDone}
+        >
+          {COPY.deposit.refundSuccess.doneButton}
+        </Button>
         <Text variant="caption" className="text-center text-accent-secondary">
           {COPY.deposit.refundSuccess.doNotSpendWarning(btcSymbol)}
         </Text>

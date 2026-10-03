@@ -1224,12 +1224,18 @@ describe("markRefundBroadcast", () => {
       JSON.stringify([validPegin, legacySibling]),
     );
 
-    markRefundBroadcast(ETH_ADDRESS, VALID_VAULT_ID, 1700000000000);
+    markRefundBroadcast(
+      ETH_ADDRESS,
+      VALID_VAULT_ID,
+      1700000000000,
+      VALID_TXID_B,
+    );
 
     const stored = JSON.parse(localStorage.getItem(storageKey) ?? "[]");
     expect(stored).toHaveLength(2);
     expect(stored[0].status).toBe(LocalStorageStatus.REFUND_BROADCAST);
     expect(stored[0].refundBroadcastAt).toBe(1700000000000);
+    expect(stored[0].refundTxId).toBe(VALID_TXID_B);
     expect(stored[1]).toEqual(legacySibling);
   });
 });

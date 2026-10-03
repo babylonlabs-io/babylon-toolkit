@@ -22,6 +22,8 @@ export interface DepositPollingResult {
   error: Error | null;
   /** Current state from pegin state machine */
   peginState: PeginState;
+  /** Broadcast refund hash, from Bitcoin or the current refund record. */
+  refundTxId?: string;
   /** Whether the vault is owned by the currently connected BTC wallet */
   isOwnedByCurrentWallet: boolean;
   /**
@@ -78,7 +80,7 @@ export interface PeginPollingContextValue {
    * refunded-HTLC cache AND update the in-memory set, so the dashboard shows
    * "Refunded" immediately in-session — not only after a reload/next poll.
    */
-  addConfirmedRefund: (depositId: string) => void;
+  addConfirmedRefund: (depositId: string, txId?: string) => void;
 }
 
 /** Provider props */

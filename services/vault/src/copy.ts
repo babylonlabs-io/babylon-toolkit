@@ -594,7 +594,6 @@ export const COPY = {
     refundSuccess: {
       heading: "Expired BTCVault withdrawal broadcast",
       body: "Your expired BTCVault withdrawal transaction has been broadcast successfully.",
-      viewExplorerButton: "View on blockchain explorer",
       doneButton: "Done",
       doNotSpendWarning: (symbol: string) =>
         `Do not spend the ${symbol} used for this deposit until the transactions are confirmed.`,
@@ -2418,6 +2417,7 @@ export const COPY = {
     },
   },
   vaults: {
+    refundTransactionLabel: "Refund transaction",
     empty: {
       title: "Your BTCVaults will appear here",
       description:
