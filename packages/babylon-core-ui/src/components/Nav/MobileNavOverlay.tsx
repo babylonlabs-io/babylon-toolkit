@@ -3,6 +3,7 @@ import { useEffect, useRef } from "react";
 import { useModalManager } from "@/hooks/useModalManager";
 
 export interface MobileNavOverlayProps {
+  id?: string;
   /** Viewport offset (px) of the header's bottom edge; the panel fills below it. */
   top: number;
   onClose: () => void;
@@ -10,11 +11,12 @@ export interface MobileNavOverlayProps {
 }
 
 export const MobileNavOverlay = ({
+  id,
   top,
   onClose,
   children,
 }: MobileNavOverlayProps) => {
-  const panelRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLElement>(null);
   useModalManager({ open: true, onClose });
 
   useEffect(() => {
@@ -28,18 +30,17 @@ export const MobileNavOverlay = ({
   };
 
   return (
-    <div
+    <nav
       ref={panelRef}
-      role="dialog"
-      aria-modal="true"
+      id={id}
       aria-label="Menu"
       tabIndex={-1}
       className="fixed inset-x-0 bottom-0 z-50 flex flex-col overflow-y-auto bg-surface p-4 focus:outline-none"
       style={{ top }}
     >
-      <nav className="flex flex-1 flex-col gap-9" onClick={handleNavClick}>
+      <div className="flex flex-1 flex-col gap-9" onClick={handleNavClick}>
         {children}
-      </nav>
-    </div>
+      </div>
+    </nav>
   );
 };

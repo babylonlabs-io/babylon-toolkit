@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { MdClose, MdOutlineMenu } from "react-icons/md";
 import { twJoin, twMerge } from "tailwind-merge";
 
@@ -70,13 +70,23 @@ export const Header = ({
   const headerRef = useRef<HTMLElement>(null);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const hasMobileMenu = showMobileMenu && Boolean(mobileNavigation);
+  const mobileMenuId = useId();
   const isMobileMenuOpen = isMobileView && mobileMenuTop !== null;
 
-  // The header is on screen whenever its menu button is tapped, and the open
-  // menu locks page scroll, so its bottom edge stays put until the menu closes.
-  const openMobileMenu = () => {
+  const openMobileMenu = useCallback(() => {
     setMobileMenuTop(headerRef.current?.getBoundingClientRect().bottom ?? 0);
-  };
+  }, []);
+
+  useEffect(() => {
+    if (!isMobileView) setMobileMenuTop(null);
+  }, [isMobileView]);
+
+  // Rotation can move the header's bottom edge while the menu is open.
+  useEffect(() => {
+    if (!isMobileMenuOpen) return;
+    window.addEventListener("resize", openMobileMenu);
+    return () => window.removeEventListener("resize", openMobileMenu);
+  }, [isMobileMenuOpen, openMobileMenu]);
 
   const closeMobileMenu = () => {
     setMobileMenuTop(null);
@@ -89,6 +99,7 @@ export const Header = ({
       type="button"
       aria-label={isMobileMenuOpen ? "Close menu" : "Open menu"}
       aria-expanded={isMobileMenuOpen}
+      aria-controls={mobileMenuId}
       data-testid="header-menu-button"
       className="cursor-pointer text-accent-primary"
       onClick={isMobileMenuOpen ? closeMobileMenu : openMobileMenu}
@@ -145,7 +156,11 @@ export const Header = ({
       </Container>
 
       {isMobileMenuOpen && (
-        <MobileNavOverlay top={mobileMenuTop} onClose={closeMobileMenu}>
+        <MobileNavOverlay
+          id={mobileMenuId}
+          top={mobileMenuTop}
+          onClose={closeMobileMenu}
+        >
           {mobileNavigation}
         </MobileNavOverlay>
       )}
