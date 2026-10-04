@@ -5,7 +5,7 @@
  * disconnected entry screen is handled by DashboardPage.
  */
 
-import { Heading, useIsMobile } from "@babylonlabs-io/core-ui";
+import { Heading } from "@babylonlabs-io/core-ui";
 import { useMemo } from "react";
 
 import type { BorrowedAsset } from "@/applications/aave/hooks/useAaveBorrowedAssets";
@@ -52,12 +52,6 @@ export function OverviewSection({
   canBorrow,
   canRepay,
 }: OverviewSectionProps) {
-  const isMobile = useIsMobile();
-  // Desktop replaces this in-page heading with the persistent header's page
-  // title; mobile has no header title slot (Header only shows it on desktop),
-  // so the heading must stay to avoid a page with no title at all.
-  const hideHeading = !isMobile;
-
   const statCards: PositionStatCard[] = useMemo(
     () => [
       {
@@ -108,18 +102,6 @@ export function OverviewSection({
 
   return (
     <div className="w-full space-y-6">
-      {!hideHeading && (
-        <div className="flex items-center justify-between">
-          <Heading
-            variant="h5"
-            as="h2"
-            className="font-normal text-accent-primary"
-          >
-            {COPY.overview.heading}
-          </Heading>
-        </div>
-      )}
-
       <div className="space-y-2">
         <Heading
           variant="h6"

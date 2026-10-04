@@ -2334,7 +2334,6 @@ export const COPY = {
     emptyDisconnected: connectToView("liquidation analysis"),
   },
   overview: {
-    heading: "Overview",
     positionTitle: "Position",
     totalCollateralValueLabel: "Total Collateral Value",
     availableToBorrowLabel: "Available to Borrow",
@@ -2530,7 +2529,6 @@ export const COPY = {
     },
   },
   activity: {
-    pageTitle: "Activity",
     filterAll: "Show All",
     searchPlaceholder: "Search tx hash or type of transaction",
     searchLabel: "Search activity",

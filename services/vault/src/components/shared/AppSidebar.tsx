@@ -97,11 +97,11 @@ export function AppSidebar() {
 
 export function V3MobileNavigation() {
   return (
-    <div className="flex flex-col gap-6 p-4">
-      <div className="flex flex-col gap-6">
+    <div className="flex flex-1 flex-col justify-between gap-10">
+      <div className="flex flex-col gap-10">
         <V3NavLinks />
       </div>
-      <SidebarFooter />
+      <SidebarFooter variant="menu" />
     </div>
   );
 }

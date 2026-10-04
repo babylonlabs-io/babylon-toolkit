@@ -1,19 +1,25 @@
-import { MdClose } from "react-icons/md";
+import { useEffect, useRef } from "react";
 
-import { MobileLogo } from "../Logo/MobileLogo";
+import { useModalManager } from "@/hooks/useModalManager";
 
 export interface MobileNavOverlayProps {
-  open: boolean;
+  /** Viewport offset (px) of the header's bottom edge; the panel fills below it. */
+  top: number;
   onClose: () => void;
   children?: React.ReactNode;
 }
 
 export const MobileNavOverlay = ({
-  open,
+  top,
   onClose,
   children,
 }: MobileNavOverlayProps) => {
-  if (!open) return null;
+  const panelRef = useRef<HTMLDivElement>(null);
+  useModalManager({ open: true, onClose });
+
+  useEffect(() => {
+    panelRef.current?.focus();
+  }, []);
 
   const handleNavClick = (event: React.MouseEvent<HTMLElement>) => {
     if ((event.target as HTMLElement).closest("a")) {
@@ -22,26 +28,18 @@ export const MobileNavOverlay = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-surface">
-      <div className="container mx-auto flex h-20 items-center gap-4 px-4 sm:px-0">
-        <MobileLogo />
-        <button
-          type="button"
-          aria-label="Close menu"
-          onClick={onClose}
-          className="cursor-pointer text-accent-primary"
-        >
-          <MdClose size={32} />
-        </button>
-      </div>
-
-      <nav
-        className="container m-auto flex flex-col gap-9 px-4 pb-20 sm:px-0"
-        onClick={handleNavClick}
-      >
+    <div
+      ref={panelRef}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Menu"
+      tabIndex={-1}
+      className="fixed inset-x-0 bottom-0 z-50 flex flex-col overflow-y-auto bg-surface p-4 focus:outline-none"
+      style={{ top }}
+    >
+      <nav className="flex flex-1 flex-col gap-9" onClick={handleNavClick}>
         {children}
       </nav>
     </div>
   );
 };
-

@@ -1,6 +1,6 @@
-import { useState } from "react";
-import { MdOutlineMenu } from "react-icons/md";
-import { twMerge } from "tailwind-merge";
+import { useRef, useState } from "react";
+import { MdClose, MdOutlineMenu } from "react-icons/md";
+import { twJoin, twMerge } from "tailwind-merge";
 
 import { useIsMobile } from "../../hooks";
 import { Container } from "../Container/Container";
@@ -22,6 +22,9 @@ export interface HeaderProps {
 
   /** Mobile logo component */
   mobileLogo?: React.ReactNode;
+
+  /** Mobile page title, shown after the menu button in place of the mobile logo */
+  mobileTitle?: React.ReactNode;
 
   /** Right-side actions (e.g., Connect button, settings) */
   rightActions?: React.ReactNode;
@@ -55,6 +58,7 @@ export const Header = ({
   mobileNavigation,
   logo,
   mobileLogo,
+  mobileTitle,
   rightActions,
   className,
   containerClassName,
@@ -62,32 +66,70 @@ export const Header = ({
   size = "md",
 }: HeaderProps) => {
   const isMobileView = useIsMobile();
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [mobileMenuTop, setMobileMenuTop] = useState<number | null>(null);
+  const headerRef = useRef<HTMLElement>(null);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const hasMobileMenu = showMobileMenu && Boolean(mobileNavigation);
+  const isMobileMenuOpen = isMobileView && mobileMenuTop !== null;
+
+  // The header is on screen whenever its menu button is tapped, and the open
+  // menu locks page scroll, so its bottom edge stays put until the menu closes.
+  const openMobileMenu = () => {
+    setMobileMenuTop(headerRef.current?.getBoundingClientRect().bottom ?? 0);
+  };
+
+  const closeMobileMenu = () => {
+    setMobileMenuTop(null);
+    menuButtonRef.current?.focus();
+  };
+
+  const menuButton = hasMobileMenu && (
+    <button
+      ref={menuButtonRef}
+      type="button"
+      aria-label={isMobileMenuOpen ? "Close menu" : "Open menu"}
+      aria-expanded={isMobileMenuOpen}
+      data-testid="header-menu-button"
+      className="cursor-pointer text-accent-primary"
+      onClick={isMobileMenuOpen ? closeMobileMenu : openMobileMenu}
+    >
+      {isMobileMenuOpen ? <MdClose size={32} /> : <MdOutlineMenu size={32} />}
+    </button>
+  );
 
   return (
-    <header className={twMerge(sizeStyles[size], className)}>
+    <header
+      ref={headerRef}
+      className={twMerge(
+        sizeStyles[size],
+        className,
+        isMobileMenuOpen && "bg-surface",
+      )}
+    >
       <Container
         className={twMerge(
           "relative flex h-20 items-center justify-between",
           containerClassName,
         )}
       >
-        <div className="flex items-center gap-4">
+        <div
+          className={twJoin(
+            "flex items-center",
+            isMobileView && mobileTitle ? "gap-2" : "gap-4",
+          )}
+        >
           {isMobileView ? (
-            <>
-              {mobileLogo || <MobileLogo />}
-              {showMobileMenu && mobileNavigation && (
-                <button
-                  type="button"
-                  aria-label="Open menu"
-                  data-testid="header-menu-button"
-                  className="cursor-pointer text-accent-primary"
-                  onClick={() => setIsMobileMenuOpen(true)}
-                >
-                  <MdOutlineMenu size={32} />
-                </button>
-              )}
-            </>
+            mobileTitle ? (
+              <>
+                {menuButton}
+                {mobileTitle}
+              </>
+            ) : (
+              <>
+                {mobileLogo || <MobileLogo />}
+                {menuButton}
+              </>
+            )
           ) : (
             logo || <SmallLogo />
           )}
@@ -102,16 +144,11 @@ export const Header = ({
         <div className="flex items-center gap-4">{rightActions}</div>
       </Container>
 
-      {showMobileMenu && mobileNavigation && (
-        <MobileNavOverlay
-          open={isMobileView && isMobileMenuOpen}
-          onClose={() => setIsMobileMenuOpen(false)}
-        >
+      {isMobileMenuOpen && (
+        <MobileNavOverlay top={mobileMenuTop} onClose={closeMobileMenu}>
           {mobileNavigation}
         </MobileNavOverlay>
       )}
     </header>
   );
 };
-
-
