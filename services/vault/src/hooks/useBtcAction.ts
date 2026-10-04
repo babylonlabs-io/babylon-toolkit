@@ -1,6 +1,7 @@
 import {
   useBTCWallet,
   useWalletConnect,
+  WALLET_MODAL_OPEN_EVENT,
 } from "@babylonlabs-io/wallet-connector";
 import { useCallback } from "react";
 
@@ -25,6 +26,8 @@ export function useBtcAction() {
       return false;
     }
     if (!btcConnected && signerUnavailable) {
+      // Re-detects a wallet that injected late; the screen closes once one appears.
+      window.dispatchEvent(new Event(WALLET_MODAL_OPEN_EVENT));
       showDesktopOnly();
       return false;
     }

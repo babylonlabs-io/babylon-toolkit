@@ -4,8 +4,8 @@ import {
   FullScreenDialog,
   Heading,
   Text,
-  useCopy,
 } from "@babylonlabs-io/core-ui";
+import { useEffect, useState } from "react";
 import { IoChevronBack } from "react-icons/io5";
 
 import { DesktopOnlyIcon } from "@/components/shared/icons";
@@ -20,8 +20,24 @@ export function ContinueOnDesktopDialog({
   open,
   onClose,
 }: ContinueOnDesktopDialogProps) {
-  const { copyToClipboard, isCopied } = useCopy();
+  const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "failed">(
+    "idle",
+  );
   const copy = COPY.wallet.desktopOnly;
+  const link = window.location.origin;
+
+  useEffect(() => {
+    if (!open) setCopyStatus("idle");
+  }, [open]);
+
+  const copyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopyStatus("copied");
+    } catch {
+      setCopyStatus("failed");
+    }
+  };
 
   return (
     <FullScreenDialog
@@ -61,15 +77,13 @@ export function ContinueOnDesktopDialog({
             color="secondary"
             size="medium"
             className="flex h-10 w-full items-center justify-center gap-3 rounded-lg tracking-[0.17px]"
-            onClick={() =>
-              copyToClipboard("desktop-link", window.location.origin)
-            }
+            onClick={copyLink}
             data-testid="continue-on-desktop-copy-link"
           >
             <span className="flex size-4 items-center justify-center">
               <CopyIcon size={14} color="text-inherit" />
             </span>
-            {isCopied("desktop-link") ? copy.linkCopied : copy.copyLink}
+            {copyStatus === "copied" ? copy.linkCopied : copy.copyLink}
           </Button>
           <Button
             variant="outlined"
@@ -80,6 +94,15 @@ export function ContinueOnDesktopDialog({
           >
             {copy.goBack}
           </Button>
+          {copyStatus === "failed" && (
+            <Text
+              variant="body2"
+              className="select-all break-all text-center text-accent-secondary"
+              data-testid="continue-on-desktop-link"
+            >
+              {link}
+            </Text>
+          )}
         </div>
       </div>
     </FullScreenDialog>

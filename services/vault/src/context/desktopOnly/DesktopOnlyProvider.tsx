@@ -1,6 +1,13 @@
-import { useCallback, useMemo, useState, type PropsWithChildren } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type PropsWithChildren,
+} from "react";
 
 import { ContinueOnDesktopDialog } from "@/components/Wallet/ContinueOnDesktopDialog";
+import { useBtcSignerUnavailable } from "@/hooks/useBtcSignerUnavailable";
 import { createStateUtils } from "@/utils/createStateUtils";
 
 interface DesktopOnlyState {
@@ -18,8 +25,14 @@ const { StateProvider, useState: useDesktopOnlyState } =
 
 export function DesktopOnlyProvider({ children }: PropsWithChildren) {
   const [open, setOpen] = useState(false);
+  const signerUnavailable = useBtcSignerUnavailable();
   const show = useCallback(() => setOpen(true), []);
   const hide = useCallback(() => setOpen(false), []);
+
+  useEffect(() => {
+    if (open && !signerUnavailable) setOpen(false);
+  }, [open, signerUnavailable]);
+
   const context = useMemo(() => ({ open, show, hide }), [open, show, hide]);
 
   return (
