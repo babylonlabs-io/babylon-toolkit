@@ -15,11 +15,12 @@ interface ScreenProps {
   onConnectWallet?: (chain: IChain, wallet: IWallet) => void;
   onConfirm?: () => void;
   chainDescriptions?: Partial<Record<ChainId, string>>;
+  isChainHidden?: (chain: IChain) => boolean;
 }
 
 const SCREENS = {
-  CHAINS: ({ onConfirm, chainDescriptions }: ScreenProps) => (
-    <Chains onConfirm={onConfirm} chainDescriptions={chainDescriptions} />
+  CHAINS: ({ onConfirm, chainDescriptions, isChainHidden }: ScreenProps) => (
+    <Chains onConfirm={onConfirm} chainDescriptions={chainDescriptions} isChainHidden={isChainHidden} />
   ),
   WALLETS: ({ widgets, onSelectWallet }: ScreenProps) => <Wallets widgets={widgets} onSelectWallet={onSelectWallet} />,
   CONNECT_GUIDE: ({ onConnectWallet }: ScreenProps) => <ConnectGuide onConnect={onConnectWallet} />,

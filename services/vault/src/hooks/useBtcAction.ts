@@ -1,15 +1,20 @@
 import {
   useBTCWallet,
   useWalletConnect,
+  WALLET_MODAL_OPEN_EVENT,
 } from "@babylonlabs-io/wallet-connector";
 import { useCallback } from "react";
 
+import { useDesktopOnly } from "@/context/desktopOnly";
+import { useBtcSignerUnavailable } from "@/hooks/useBtcSignerUnavailable";
 import { useBtcWalletUnlock } from "@/hooks/useBtcWalletUnlock";
 
 export function useBtcAction() {
   const { connected: btcConnected, loading, locked } = useBTCWallet();
   const { connected: sessionConfirmed, open } = useWalletConnect();
   const { unlock, isUnlocking } = useBtcWalletUnlock("Bitcoin action");
+  const signerUnavailable = useBtcSignerUnavailable();
+  const { show: showDesktopOnly } = useDesktopOnly();
   // A locked extension cannot sign, so it counts as disconnected here.
   const connected = btcConnected && sessionConfirmed && !locked;
 
@@ -20,9 +25,23 @@ export function useBtcAction() {
       void unlock();
       return false;
     }
+    if (!btcConnected && signerUnavailable) {
+      // Re-detects a wallet that injected late; the screen closes once one appears.
+      window.dispatchEvent(new Event(WALLET_MODAL_OPEN_EVENT));
+      showDesktopOnly();
+      return false;
+    }
     open(btcConnected ? undefined : "BTC");
     return false;
-  }, [connected, btcConnected, locked, unlock, open]);
+  }, [
+    connected,
+    btcConnected,
+    locked,
+    unlock,
+    signerUnavailable,
+    showDesktopOnly,
+    open,
+  ]);
 
   return {
     connected,

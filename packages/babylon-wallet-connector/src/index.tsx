@@ -69,7 +69,7 @@ export {
 export { useOrdinals, type UseOrdinalsOptions, type UseOrdinalsResult } from "@/hooks/useOrdinalsHook";
 
 // Export wallet event constants
-export { COSMOS_KEYSTORE_CHANGE_EVENTS } from "@/constants/walletEvents";
+export { COSMOS_KEYSTORE_CHANGE_EVENTS, WALLET_MODAL_OPEN_EVENT } from "@/constants/walletEvents";
 
 // Export error types so consumers can match on typed error codes
 export { ERROR_CODES, WalletError, isSharedSessionRefusal, isUserRejectionMessage } from "@/error";
