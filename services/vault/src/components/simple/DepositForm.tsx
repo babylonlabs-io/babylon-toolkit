@@ -358,13 +358,10 @@ export function DepositForm({
         {COPY.deposit.form.pendingConfirmationNotice(
           `${depositService.formatSatoshisToBtc(unconfirmedBalance)} ${btcConfig.coinSymbol}`,
         )}
-        {/* A bare Hint renders a div, which is invalid inside the p container. */}
         <Hint
           tooltip={COPY.deposit.form.pendingConfirmationTooltip}
-          attachToChildren
-        >
-          <InfoIcon size={16} className="text-accent-secondary" />
-        </Hint>
+          icon={<InfoIcon size={16} className="text-accent-secondary" />}
+        />
       </span>
     ) : null;
 
@@ -459,13 +456,13 @@ export function DepositForm({
           onMaxClick={onMaxClick}
           inputClassName="h-10 w-auto rounded-lg bg-primary-contrast px-4 [field-sizing:content]"
         />
-        <p
+        <div
           className={pendingConfirmationNotice ? "text-sm" : "sr-only"}
           role="status"
           aria-live="polite"
         >
           {pendingConfirmationNotice}
-        </p>
+        </div>
         <CollateralFactorRow
           collateralFactor={collateralFactor}
           amountBtc={amount}

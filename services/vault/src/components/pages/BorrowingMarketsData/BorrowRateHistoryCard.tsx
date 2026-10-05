@@ -87,7 +87,10 @@ function CardShell({
             <span className="text-xs leading-[1.66] tracking-[0.4px] text-accent-secondary">
               {COPY.marketData.charts.borrowAprLabel}
             </span>
-            <Hint tooltip={COPY.loans.borrowAprTooltip} />
+            <Hint
+              tooltip={COPY.loans.borrowAprTooltip}
+              title={COPY.marketData.charts.borrowAprLabel}
+            />
           </div>
           {value}
         </div>

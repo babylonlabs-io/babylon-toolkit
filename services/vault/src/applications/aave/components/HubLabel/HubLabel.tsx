@@ -25,7 +25,11 @@ export function HubLabel({ hub, children, className }: HubLabelProps) {
   return (
     <span className={twJoin("inline-flex items-center gap-1", className)}>
       {text}
-      <Hint tooltip={COPY.loans.hub.unknownHubWarning} status="warning" />
+      <Hint
+        tooltip={COPY.loans.hub.unknownHubWarning}
+        title={text}
+        status="warning"
+      />
     </span>
   );
 }

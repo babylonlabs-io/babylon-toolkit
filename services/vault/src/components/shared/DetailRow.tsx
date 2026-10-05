@@ -40,7 +40,7 @@ export function FeeDetailRow({
   return (
     <div className="flex items-start justify-between gap-6 text-sm leading-[1.43] tracking-[0.17px]">
       {tooltip ? (
-        <Hint tooltip={tooltip}>
+        <Hint tooltip={tooltip} title={label}>
           <span>{label}</span>
         </Hint>
       ) : (

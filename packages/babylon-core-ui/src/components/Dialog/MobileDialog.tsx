@@ -10,6 +10,9 @@ export interface MobileDialogProps extends DetailedHTMLProps<HTMLAttributes<HTML
   open?: boolean;
   onClose?: () => void;
   disableEscapeClose?: boolean;
+  /** Shows a drag-handle bar in place of the close button. */
+  handle?: boolean;
+  backdropClassName?: string;
 }
 
 export const MobileDialog = ({
@@ -18,6 +21,8 @@ export const MobileDialog = ({
   className,
   onClose,
   disableEscapeClose,
+  handle = false,
+  backdropClassName,
   ...restProps
 }: MobileDialogProps) => {
   const { mounted, unmount } = useModalManager({ open, onClose, disableEscapeClose });
@@ -33,8 +38,12 @@ export const MobileDialog = ({
         )}
         onAnimationEnd={unmount}
       >
-        {/* Close button */}
-        {onClose && (
+        {handle ? (
+          <span
+            aria-hidden="true"
+            className="absolute left-1/2 top-1.5 h-[3px] w-6 -translate-x-1/2 rounded-full bg-accent-primary opacity-[0.24]"
+          />
+        ) : onClose && (
           <button
             onClick={onClose}
             className="absolute top-4 left-4 z-10 p-1.5 rounded-full bg-surface-tertiary hover:bg-surface-quaternary transition-colors"
@@ -47,7 +56,7 @@ export const MobileDialog = ({
         {children}
       </div>
 
-      <Backdrop open={open} onClick={onClose} />
+      <Backdrop open={open} onClick={onClose} className={backdropClassName} />
     </Portal>
   );
 };

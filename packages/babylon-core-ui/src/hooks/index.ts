@@ -11,3 +11,4 @@ export { useTableScroll } from './useTableScroll';
 export { useTableSort } from './useTableSort';
 export { useFrozenColumns } from './useFrozenColumns';
 export { useReducedMotion } from './useReducedMotion';
+export { useIsTouchFirst } from './useIsTouchFirst';

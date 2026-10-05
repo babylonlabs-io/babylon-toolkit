@@ -178,7 +178,11 @@ export const Connect: React.FC<ConnectProps> = ({ loading = false, text }) => {
 
   if (isGeoBlocked) {
     return (
-      <Hint tooltip={COPY.wallet.geoBlockedTooltip} attachToChildren>
+      <Hint
+        tooltip={COPY.wallet.geoBlockedTooltip}
+        attachToChildren
+        touchFallback="text"
+      >
         <span>{connectButton}</span>
       </Hint>
     );
@@ -193,6 +197,7 @@ export const Connect: React.FC<ConnectProps> = ({ loading = false, text }) => {
             : COPY.wallet.walletNotEligibleTooltip
         }
         attachToChildren
+        touchFallback="text"
       >
         <span>{connectButton}</span>
       </Hint>

@@ -261,6 +261,7 @@ function PendingRow({
             {peginState.displayVariant !== "pending" && peginState.message && (
               <Hint
                 tooltip={peginState.message}
+                title={peginState.displayLabel}
                 icon={<InfoIcon size={16} className="text-accent-secondary" />}
               />
             )}
@@ -323,7 +324,11 @@ function PendingRow({
             {actionStatus.action.label}
           </button>
         ) : actionStatus.type === "disabled" ? (
-          <Hint tooltip={actionStatus.tooltip} attachToChildren>
+          <Hint
+            tooltip={actionStatus.tooltip}
+            attachToChildren
+            touchFallback="text"
+          >
             <button type="button" disabled className={NEUTRAL_ROW_BUTTON_CLASS}>
               {actionStatus.action?.label ?? COPY.vaults.actions.viewDetails}
             </button>
@@ -448,6 +453,7 @@ function InactiveRow({
             {!isReclaiming && peginState.message && (
               <Hint
                 tooltip={peginState.message}
+                title={statusLabel}
                 icon={<InfoIcon size={16} className="text-accent-secondary" />}
               />
             )}
@@ -513,7 +519,7 @@ function InactiveRow({
           </button>
         )}
         {blockedTooltip && (
-          <Hint tooltip={blockedTooltip} attachToChildren>
+          <Hint tooltip={blockedTooltip} attachToChildren touchFallback="text">
             <button type="button" disabled className={NEUTRAL_ROW_BUTTON_CLASS}>
               {COPY.vaults.actions.withdraw}
             </button>
@@ -564,7 +570,11 @@ function InactiveRow({
           </button>
         )}
         {reclaimBlockedTooltip && (
-          <Hint tooltip={reclaimBlockedTooltip} attachToChildren>
+          <Hint
+            tooltip={reclaimBlockedTooltip}
+            attachToChildren
+            touchFallback="text"
+          >
             <button type="button" disabled className={NEUTRAL_ROW_BUTTON_CLASS}>
               {COPY.reclaim.rowButton}
             </button>

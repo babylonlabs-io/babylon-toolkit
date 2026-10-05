@@ -91,7 +91,10 @@ export function BorrowMetricsCard({
       <div className={ROW_CLASS}>
         <div className="flex items-center gap-1 text-accent-secondary">
           {COPY.loans.borrowRateLabel}
-          <Hint tooltip={COPY.loans.borrowAprTooltip} />
+          <Hint
+            tooltip={COPY.loans.borrowAprTooltip}
+            title={COPY.loans.borrowRateLabel}
+          />
         </div>
         {borrowAprProjected ? (
           <span className="flex items-center gap-2 text-accent-primary">
@@ -109,7 +112,10 @@ export function BorrowMetricsCard({
       <div className={ROW_CLASS}>
         <div className="flex items-center gap-1 text-accent-secondary">
           {COPY.loans.utilizationLabel}
-          <Hint tooltip={COPY.loans.utilizationTooltip} />
+          <Hint
+            tooltip={COPY.loans.utilizationTooltip}
+            title={COPY.loans.utilizationLabel}
+          />
         </div>
         <span className="text-accent-primary">{utilization}</span>
       </div>
@@ -119,7 +125,10 @@ export function BorrowMetricsCard({
       <div className={ROW_CLASS}>
         <div className="flex items-center gap-1 text-accent-secondary">
           {COPY.loans.healthFactorLabel}
-          <Hint tooltip={COPY.tooltips.healthFactor} />
+          <Hint
+            tooltip={COPY.tooltips.healthFactor}
+            title={COPY.loans.healthFactorLabel}
+          />
         </div>
         <span className="flex items-center gap-2 text-accent-primary">
           {healthFactorOriginal ? (

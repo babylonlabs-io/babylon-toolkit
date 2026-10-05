@@ -1,5 +1,5 @@
+import { useIsTouchFirst } from "@babylonlabs-io/core-ui";
 import { useWidgetState, type IWallet } from "@babylonlabs-io/wallet-connector";
-import { useEffect, useState } from "react";
 
 import featureFlags from "@/config/featureFlags";
 
@@ -14,22 +14,6 @@ export function isTouchFirstNow(): boolean {
 
 export function hasUsableBtcSigner(wallets: readonly IWallet[]): boolean {
   return wallets.some((wallet) => wallet.installed && !wallet.hardware);
-}
-
-function useIsTouchFirst(): boolean {
-  const [touchFirst, setTouchFirst] = useState(isTouchFirstNow);
-
-  useEffect(() => {
-    if (!supportsMatchMedia()) return;
-
-    const mql = window.matchMedia(TOUCH_FIRST_QUERY);
-    const onChange = () => setTouchFirst(mql.matches);
-
-    mql.addEventListener("change", onChange);
-    return () => mql.removeEventListener("change", onChange);
-  }, []);
-
-  return touchFirst;
 }
 
 export function useBtcSignerUnavailable(): boolean {

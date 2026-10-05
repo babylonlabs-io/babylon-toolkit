@@ -27,6 +27,7 @@ export function DepositButton({
       <Hint
         tooltip="Taproot address required. Please switch your wallet to use a Taproot address."
         attachToChildren
+        touchFallback="text"
       >
         <span>
           <Button {...props} disabled>

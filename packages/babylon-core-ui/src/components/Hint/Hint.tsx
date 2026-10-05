@@ -1,5 +1,9 @@
-import { useId, type PropsWithChildren, type ReactNode } from "react";
+import { useId, useState, type PropsWithChildren, type ReactNode } from "react";
 import { InfoIcon } from "../Icons";
+import { MobileDialog } from "../Dialog";
+import { Heading } from "../Heading";
+import { Text } from "../Text";
+import { useIsTouchFirst } from "../../hooks/useIsTouchFirst";
 import { Tooltip } from "react-tooltip";
 import { twJoin } from "tailwind-merge";
 
@@ -20,7 +24,13 @@ export interface HintProps {
   tooltipVariant?: "primary" | "secondary";
   /** Custom offset for tooltip positioning [x, y] */
   offset?: [number, number];
+  /** Heading of the bottom sheet the hint opens on touch-first devices */
+  title?: ReactNode;
+  /** On touch-first devices, how an attached hint shows: a tap-to-open sheet, or the text below the children */
+  touchFallback?: "sheet" | "text";
 }
+
+const DEFAULT_INFO_LABEL = "More information";
 
 const STATUS_COLORS = {
   default: "text-accent-primary",
@@ -44,8 +54,12 @@ export function Hint({
   placement = "top",
   tooltipVariant = "primary",
   offset = [8, 8],
+  title,
+  touchFallback = "sheet",
 }: PropsWithChildren<HintProps>) {
   const id = useId();
+  const isTouchFirst = useIsTouchFirst();
+  const [sheetOpen, setSheetOpen] = useState(false);
   const statusColor = STATUS_COLORS[status];
 
   // Create custom middleware for horizontal offset
@@ -90,6 +104,84 @@ export function Hint({
   // Default icon with proper size and color
   const defaultIcon = <InfoIcon size={16} className={ICON_COLOR[status]} />;
   const tooltipIcon = icon || defaultIcon;
+
+  if (isTouchFirst && attachToChildren && touchFallback === "text") {
+    return (
+      <span className={twJoin("inline-flex flex-col gap-1", statusColor, className)}>
+        {children}
+        <Text as="span" variant="caption" role="note" className="w-0 min-w-full text-accent-secondary">
+          {tooltip}
+        </Text>
+      </span>
+    );
+  }
+
+  if (isTouchFirst) {
+    const titleId = `${id}-title`;
+    const openSheet = () => setSheetOpen(true);
+    const triggerLabel = <span className="sr-only">{title ?? DEFAULT_INFO_LABEL}</span>;
+    // Kept outside the trigger wrapper: React bubbles portal clicks to it, so a backdrop tap would reopen the sheet.
+    const sheet = (
+      <MobileDialog
+        open={sheetOpen}
+        onClose={() => setSheetOpen(false)}
+        handle
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={title ? titleId : undefined}
+        aria-label={title ? undefined : DEFAULT_INFO_LABEL}
+        backdropClassName="bg-[#000000]/40"
+        className="min-h-[7.5rem] rounded-t-lg border-b-0 bg-background-contrast pt-6"
+      >
+        <div className="flex flex-col gap-2">
+          {title ? (
+            <Heading variant="h6" as="p" id={titleId} className="text-accent-primary">
+              {title}
+            </Heading>
+          ) : null}
+          <Text as="div" variant="body2" className="tracking-[0.17px] text-accent-secondary">
+            {tooltip}
+          </Text>
+        </div>
+      </MobileDialog>
+    );
+
+    if (attachToChildren) {
+      return (
+        <>
+          <span
+            className={twJoin("group relative inline-flex items-center gap-1", statusColor, className)}
+            onClick={openSheet}
+          >
+            {children}
+            {/* A disabled control swallows taps, so a cover button takes them instead. */}
+            <button type="button" className="absolute inset-0 hidden group-has-[:disabled]:block">
+              {triggerLabel}
+            </button>
+          </span>
+          {sheet}
+        </>
+      );
+    }
+
+    return (
+      <div className={twJoin("inline-flex items-center gap-1", statusColor, className)}>
+        {children}
+        <button
+          type="button"
+          onClick={openSheet}
+          className={twJoin(
+            "relative inline-flex items-center before:absolute before:-inset-y-3 before:-left-6 before:right-0 before:content-['']",
+            statusColor,
+          )}
+        >
+          {tooltipIcon}
+          {triggerLabel}
+        </button>
+        {sheet}
+      </div>
+    );
+  }
 
   return (
     attachToChildren ? (

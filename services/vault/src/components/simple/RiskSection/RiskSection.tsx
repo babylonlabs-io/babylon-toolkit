@@ -67,6 +67,7 @@ function StatCell({
         {tooltip ? (
           <Hint
             tooltip={tooltip}
+            title={label}
             icon={<InfoIcon size={16} className="text-accent-secondary" />}
           >
             <span className="text-accent-secondary">{label}</span>
