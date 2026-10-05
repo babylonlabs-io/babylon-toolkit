@@ -73,28 +73,32 @@ export const Header = ({
   const mobileMenuId = useId();
   const isMobileMenuOpen = isMobileView && mobileMenuTop !== null;
 
-  const openMobileMenu = useCallback(() => {
-    setMobileMenuTop(headerRef.current?.getBoundingClientRect().bottom ?? 0);
-  }, []);
+  const measureHeaderBottom = useCallback(
+    () => headerRef.current?.getBoundingClientRect().bottom ?? 0,
+    [],
+  );
+
+  const openMobileMenu = () => setMobileMenuTop(measureHeaderBottom());
 
   useEffect(() => {
     if (!isMobileView) setMobileMenuTop(null);
   }, [isMobileView]);
 
-  // Rotation, or a banner mounting above the header, can move the header's
-  // bottom edge while the menu is open. A banner does not always resize the
-  // body (a min-height page absorbs it), so DOM changes re-measure too.
+  // Rotation, or a banner above the header that mounts, unmounts or wraps its
+  // text, can move the header's bottom edge while the menu is open. No single
+  // observer sees all of these, so each frame re-measures and updates the
+  // menu position only when the edge moved.
   useEffect(() => {
     if (!isMobileMenuOpen) return;
-    const resizeObserver = new ResizeObserver(openMobileMenu);
-    const mutationObserver = new MutationObserver(openMobileMenu);
-    resizeObserver.observe(document.body);
-    mutationObserver.observe(document.body, { childList: true, subtree: true });
-    return () => {
-      resizeObserver.disconnect();
-      mutationObserver.disconnect();
-    };
-  }, [isMobileMenuOpen, openMobileMenu]);
+    let frame = requestAnimationFrame(function track() {
+      const bottom = measureHeaderBottom();
+      setMobileMenuTop((top) =>
+        top === null || top === bottom ? top : bottom,
+      );
+      frame = requestAnimationFrame(track);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [isMobileMenuOpen, measureHeaderBottom]);
 
   // The header stays interactive under the open menu, so a tap or focus move
   // outside the panel and its button dismisses the menu, like a popover.
