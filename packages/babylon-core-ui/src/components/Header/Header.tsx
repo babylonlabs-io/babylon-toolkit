@@ -81,12 +81,38 @@ export const Header = ({
     if (!isMobileView) setMobileMenuTop(null);
   }, [isMobileView]);
 
-  // Rotation can move the header's bottom edge while the menu is open.
+  // Rotation, or a banner mounting above the header, can move the header's
+  // bottom edge while the menu is open. A banner does not always resize the
+  // body (a min-height page absorbs it), so DOM changes re-measure too.
   useEffect(() => {
     if (!isMobileMenuOpen) return;
-    window.addEventListener("resize", openMobileMenu);
-    return () => window.removeEventListener("resize", openMobileMenu);
+    const resizeObserver = new ResizeObserver(openMobileMenu);
+    const mutationObserver = new MutationObserver(openMobileMenu);
+    resizeObserver.observe(document.body);
+    mutationObserver.observe(document.body, { childList: true, subtree: true });
+    return () => {
+      resizeObserver.disconnect();
+      mutationObserver.disconnect();
+    };
   }, [isMobileMenuOpen, openMobileMenu]);
+
+  // The header stays interactive under the open menu, so a tap or focus move
+  // outside the panel and its button dismisses the menu, like a popover.
+  useEffect(() => {
+    if (!isMobileMenuOpen) return;
+    const dismissOutside = (event: Event) => {
+      const target = event.target as Node;
+      const panel = document.getElementById(mobileMenuId);
+      if (panel?.contains(target) || menuButtonRef.current?.contains(target)) return;
+      setMobileMenuTop(null);
+    };
+    document.addEventListener("pointerdown", dismissOutside);
+    document.addEventListener("focusin", dismissOutside);
+    return () => {
+      document.removeEventListener("pointerdown", dismissOutside);
+      document.removeEventListener("focusin", dismissOutside);
+    };
+  }, [isMobileMenuOpen, mobileMenuId]);
 
   const closeMobileMenu = () => {
     setMobileMenuTop(null);

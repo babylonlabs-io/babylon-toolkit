@@ -236,11 +236,10 @@ export default function RootLayout() {
             // `PAGE_CONTENT_CLASS` overrides the `container` width core-ui's
             // Header applies by default, so the navbar shares the same content
             // box as the page body and footer.
-            containerClassName={
-              isEntryLayout
-                ? ENTRY_CONTENT_CLASS
-                : twJoin(PAGE_CONTENT_CLASS, PHONE_HEADER_HEIGHT_CLASS)
-            }
+            containerClassName={twJoin(
+              isEntryLayout ? ENTRY_CONTENT_CLASS : PAGE_CONTENT_CLASS,
+              PHONE_HEADER_HEIGHT_CLASS,
+            )}
             logo={
               isEntryLayout ? (
                 <BrandLockup />
