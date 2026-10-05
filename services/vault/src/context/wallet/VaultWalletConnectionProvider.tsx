@@ -259,7 +259,13 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
       disabledWallets={disabledWallets}
       requiredChains={REQUIRED_CHAINS}
       disableTomo
-      dialogActions={<StandardSettingsMenu theme={theme} setTheme={setTheme} />}
+      dialogActions={
+        <StandardSettingsMenu
+          theme={theme}
+          setTheme={setTheme}
+          mobileMode="popover"
+        />
+      }
       dialogCloseButtonClassName={WALLET_DIALOG_LEFT_INSET_CLASS}
       dialogActionsClassName={WALLET_DIALOG_RIGHT_INSET_CLASS}
       chainDescriptions={COPY.wallet.chainDescriptions}

@@ -49,6 +49,7 @@ export const MenuItem: React.FC<MenuItemProps> = ({
       value={toggle.value}
       defaultValue={toggle.defaultValue}
       onChange={toggle.onChange}
+      aria-label={toggle["aria-label"] ?? name}
     />
   ) : null;
 

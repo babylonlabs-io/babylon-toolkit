@@ -200,7 +200,7 @@ describe("Connect current wallet requirements", () => {
     expect(wallet.useUTXOs).toHaveBeenLastCalledWith(undefined, {
       enabled: false,
     });
-    fireEvent.click(screen.getByRole("button", { name: "Disconnect Wallets" }));
+    fireEvent.click(screen.getByRole("button", { name: "Disconnect Wallet" }));
     expect(wallet.disconnect).toHaveBeenCalledExactlyOnceWith();
   });
 
@@ -282,7 +282,7 @@ describe("Connect current wallet requirements", () => {
       </AddressScreeningProvider>,
     );
     fireEvent.click(screen.getByTestId("wallet-menu-trigger"));
-    fireEvent.click(screen.getByRole("button", { name: "Disconnect Wallets" }));
+    fireEvent.click(screen.getByRole("button", { name: "Disconnect Wallet" }));
 
     expect(wallet.disconnect).toHaveBeenCalledExactlyOnceWith();
   });

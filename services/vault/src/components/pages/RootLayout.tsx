@@ -271,10 +271,14 @@ export default function RootLayout() {
             }
             mobileNavigation={<V3MobileNavigation />}
             rightActions={
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2 md:gap-4">
                 <NetworkBadge />
                 <Connect />
-                <StandardSettingsMenu theme={theme} setTheme={setTheme} />
+                <StandardSettingsMenu
+                  theme={theme}
+                  setTheme={setTheme}
+                  mobileMode="popover"
+                />
               </div>
             }
           />

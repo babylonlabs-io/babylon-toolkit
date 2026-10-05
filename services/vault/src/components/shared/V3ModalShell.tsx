@@ -88,7 +88,11 @@ export function V3ModalShell({
         )}
         <div className="flex items-center gap-4">
           <NetworkBadge />
-          <StandardSettingsMenu theme={theme} setTheme={setTheme} />
+          <StandardSettingsMenu
+            theme={theme}
+            setTheme={setTheme}
+            mobileMode="popover"
+          />
         </div>
       </div>
 

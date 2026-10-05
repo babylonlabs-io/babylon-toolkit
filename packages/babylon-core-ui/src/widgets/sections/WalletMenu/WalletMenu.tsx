@@ -3,6 +3,7 @@ import { Menu } from "../../../components/Menu";
 import { WalletDisconnectButton } from "../../../components/Button";
 import { WalletMenuCard, WalletBalanceData } from "./components/WalletMenuCard";
 import { useCopy } from "../../../hooks/useCopy";
+import { useIsMobile } from "../../../hooks/useIsMobile";
 import { twJoin } from "tailwind-merge";
 
 export type WalletChain = "BTC" | "BBN" | "ETH";
@@ -53,7 +54,8 @@ export interface WalletMenuProps {
 
   // Optional overrides and configuration
   className?: string;
-  mobileMode?: "drawer" | "dialog";
+  /** Phone presentation; `popover` shows the phone dropdown card instead of a sheet */
+  mobileMode?: "drawer" | "dialog" | "popover";
   copy?: {
     isCopied?: (key: "btc" | "bbn" | "eth" | "publicKey") => boolean;
     copyToClipboard?: (key: "btc" | "bbn" | "eth" | "publicKey", value: string) => void;
@@ -90,6 +92,11 @@ export const WalletMenu: React.FC<WalletMenuProps> = ({
   const isCopied = copy?.isCopied ?? internalIsCopied;
   const copyToClipboard = copy?.copyToClipboard ?? internalCopy;
   const [isOpen, setIsOpen] = useState(forceOpen);
+  const isMobile = useIsMobile();
+  const isPhonePopover = isMobile && mobileMode === "popover";
+  const cardLayout = isPhonePopover ? "row" : "card";
+  const connectedWalletCount = [btcAddress, bbnAddress, ethAddress].filter(Boolean).length;
+  const disconnectLabel = connectedWalletCount === 1 ? "Disconnect Wallet" : "Disconnect Wallets";
 
   const handleOpenChange = useCallback((open: boolean) => {
     setIsOpen(open);
@@ -130,14 +137,17 @@ export const WalletMenu: React.FC<WalletMenuProps> = ({
       onOpenChange={handleOpenChange}
       mobileMode={mobileMode}
       className={twJoin(
-        "shadow-lg border border-[#38708533] bg-surface dark:border-[#404040] rounded-lg",
+        isPhonePopover
+          ? "w-[253px]"
+          : "shadow-lg border border-[#38708533] bg-surface dark:border-[#404040] rounded-lg",
         className,
       )}
     >
-      <div className="p-4 space-y-6 w-full text-primary-main">
-        <div className="flex flex-row gap-2 w-full md:flex-col">
+      <div className={twJoin("w-full text-primary-main", isPhonePopover ? "flex flex-col gap-4" : "p-4 space-y-6")}>
+        <div className={twJoin("flex w-full", isPhonePopover ? "flex-col gap-4" : "flex-row gap-2 md:flex-col")}>
           {btcAddress && (
             <WalletMenuCard
+              layout={cardLayout}
               walletType="Bitcoin"
               walletName={selectedWallets["BTC"]?.name}
               walletIcon={selectedWallets["BTC"]?.icon}
@@ -156,6 +166,7 @@ export const WalletMenu: React.FC<WalletMenuProps> = ({
 
           {bbnAddress && (
             <WalletMenuCard
+              layout={cardLayout}
               walletType="Babylon"
               walletName={selectedWallets["BBN"]?.name}
               walletIcon={selectedWallets["BBN"]?.icon}
@@ -173,6 +184,7 @@ export const WalletMenu: React.FC<WalletMenuProps> = ({
 
           {ethAddress && (
             <WalletMenuCard
+              layout={cardLayout}
               walletType="Ethereum"
               walletName={selectedWallets["ETH"]?.name}
               walletIcon={selectedWallets["ETH"]?.icon}
@@ -204,12 +216,13 @@ export const WalletMenu: React.FC<WalletMenuProps> = ({
         {settingsSection}
 
         {/* Disconnect Button */}
-        <div className="pt-2">
+        <div className={isPhonePopover ? undefined : "pt-2"}>
           <WalletDisconnectButton
             onClick={handleDisconnect}
             fluid
+            className={isPhonePopover ? "rounded-lg !bg-error-dark hover:!bg-error-dark/90 font-normal tracking-[0.17px]" : undefined}
           >
-            Disconnect Wallets
+            {disconnectLabel}
           </WalletDisconnectButton>
         </div>
       </div>
