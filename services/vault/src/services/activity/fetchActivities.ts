@@ -24,7 +24,6 @@ import {
 import { buildLiquidationGroup, classifyLiquidations } from "./classification";
 import {
   isStandardActivity,
-  projectRefundedDeposit,
   projectStandardRow,
   type FetchUserActivitiesDeps,
 } from "./projection";
@@ -74,8 +73,13 @@ export async function fetchUserActivities(
     });
   }
 
+  // Both kinds of redemption link the VP's BTC claim tx.
   const redeemRefs = activities
-    .filter((a) => a.type === "redeem" && a.vaultId != null)
+    .filter(
+      (a) =>
+        (a.type === "redeem" || a.type === "claim_expired") &&
+        a.vaultId != null,
+    )
     .map((a) => ({ vaultId: a.vaultId as string }));
 
   const redeemClaimTxByVaultId = await resolveRedeemClaimTxids(
@@ -153,11 +157,6 @@ export async function fetchUserActivities(
             )
           : [];
       rows.push(buildLiquidationGroup(item, repays, classification, deps));
-      continue;
-    }
-
-    if (item.type === "claim_expired") {
-      rows.push(projectRefundedDeposit(item, peginTxHashByVaultId));
       continue;
     }
 

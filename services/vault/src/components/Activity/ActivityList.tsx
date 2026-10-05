@@ -60,8 +60,6 @@ function groupByDate(
 // `Redeem` rows still render in the list but are not directly filterable.
 // `Pending Deposit` rows aren't a separate option here either — they fall
 // under the `Deposit` filter, matching how they render (see typeLabels).
-// `claim_expired` is remapped to a refunded Deposit upstream, so it falls
-// under the `Deposit` filter automatically.
 const FILTER_OPTIONS = (
   Object.entries(COPY.activity.filterTypes) as Array<[ActivityType, string]>
 ).map(([value, label]) => ({ value, label }));
@@ -77,6 +75,8 @@ interface ActivityListProps {
    *  never its `id` (see ActivityLog). */
   refundableVaultIds?: ReadonlySet<string>;
   onWithdraw?: (vaultId: string) => void;
+  /** Opens the expired-vault redeem for a refundable vault the PegIn spent. */
+  onRedeem?: (vaultId: string) => void;
 }
 
 export function ActivityList({
@@ -85,6 +85,7 @@ export function ActivityList({
   prices,
   refundableVaultIds,
   onWithdraw,
+  onRedeem,
 }: ActivityListProps) {
   const isMobile = useIsMobile();
   // Desktop replaces this in-page heading with the persistent header's page
@@ -184,23 +185,19 @@ export function ActivityList({
                     {r.kind === "liquidationGroup" ? (
                       <LiquidationGroupCardV3 row={r} prices={prices} />
                     ) : (
-                      <ListRowCard
-                        // A refunded deposit loses the card fill, as the
-                        // design draws it; the row itself fades.
-                        className={twJoin(
-                          r.isRefunded && "bg-transparent dark:bg-transparent",
-                        )}
-                      >
+                      <ListRowCard>
                         <ActivityRowV3
                           row={r}
                           prices={prices}
                           action={
                             r.vaultId &&
                             refundableVaultIds?.has(r.vaultId) &&
-                            onWithdraw ? (
+                            onWithdraw &&
+                            onRedeem ? (
                               <ExpiredWithdrawButton
                                 vaultId={r.vaultId}
                                 onWithdraw={onWithdraw}
+                                onRedeem={onRedeem}
                               />
                             ) : undefined
                           }

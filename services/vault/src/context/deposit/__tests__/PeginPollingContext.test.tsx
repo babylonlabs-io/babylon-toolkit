@@ -65,6 +65,7 @@ const { mockUseBtcHtlcRefundStatus } = vi.hoisted(() => ({
         string,
         { spent: boolean; confirmed: boolean; spendingTxid?: string }
       >;
+      refetch?: () => void;
     }
   >(() => ({ refundByDepositId: new Map() })),
 }));
@@ -98,6 +99,12 @@ const { mockUseStuckVaultChainConfirm } = vi.hoisted(() => ({
 vi.mock("../../../hooks/useStuckVaultChainConfirm", () => ({
   useStuckVaultChainConfirm: (suspectIds: readonly string[]) =>
     mockUseStuckVaultChainConfirm(suspectIds),
+}));
+
+// The expired-redeem window gate reads chain for swept EXPIRED vaults. Unknown
+// (empty) is its production fail-open default.
+vi.mock("../../../hooks/useClaimExpiredWindowGate", () => ({
+  useClaimExpiredWindowGate: () => new Map(),
 }));
 
 // Floor gate issues chain reads for VERIFIED vaults; stub it so the provider
@@ -963,7 +970,60 @@ describe("PeginPollingContext", () => {
     expect(status?.peginState.displayLabel).toBe(
       PEGIN_DISPLAY_LABELS.ACTIVATION_INCOMPLETE,
     );
-    expect(status?.peginState.availableActions).toEqual([PeginAction.NONE]);
+    // No refund for a swept HTLC; the redeem replaces it while the window is
+    // not known to be closed (the window gate is stubbed to unknown here).
+    expect(status?.peginState.availableActions).toEqual([
+      PeginAction.CLAIM_EXPIRED_VAULT,
+    ]);
+  });
+
+  it("EXPIRED: never caches a spend reported without its transaction, so a later poll can still name the PegIn", async () => {
+    mockVersionedParams.set(3, { tRefund: 144 });
+    mockUseBtcMempoolConfirmations.mockReturnValue({
+      confirmationsByTxid: new Map([[PRE_PEGIN_TXID_HEX, 144]]),
+    });
+    // Spent and confirmed, but the spending transaction is not named: it may
+    // be the PegIn's sweep, so it must not be cached as a refund.
+    mockUseBtcHtlcRefundStatus.mockReturnValue({
+      refundByDepositId: new Map([
+        [ACTIVITY_ID.toLowerCase(), { spent: true, confirmed: true }],
+      ]),
+    });
+
+    const wrapper = ({ children }: PropsWithChildren) => (
+      <PeginPollingProvider
+        activities={[{ ...EXPIRED_ACTIVITY, htlcVout: 0 }]}
+        pendingPegins={[]}
+        btcPublicKey={BTC_PUBKEY}
+      >
+        {children}
+      </PeginPollingProvider>
+    );
+    renderHook(() => usePeginPolling(), { wrapper });
+    await act(async () => {});
+
+    expect(loadRefundedHtlcVaultIds().has(ACTIVITY_ID.toLowerCase())).toBe(
+      false,
+    );
+    // Still in the probe set, so the next poll can attribute the spend.
+    expect(mockUseBtcHtlcRefundStatus).toHaveBeenLastCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({ depositId: ACTIVITY_ID }),
+      ]),
+    );
+  });
+
+  it("re-probes the HTLC spends through the probe's own refetch on request", () => {
+    const refetch = vi.fn();
+    mockUseBtcHtlcRefundStatus.mockReturnValue({
+      refundByDepositId: new Map(),
+      refetch,
+    });
+    const { result } = renderExpired();
+
+    result.current.refreshHtlcSpends();
+
+    expect(refetch).toHaveBeenCalledOnce();
   });
 
   it("EXPIRED: never marks mature when the per-deposit tRefund is unknown (no fallback to latest)", () => {

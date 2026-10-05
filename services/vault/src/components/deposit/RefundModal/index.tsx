@@ -30,10 +30,16 @@ export function RefundModal({
   onClose,
   onSuccess,
 }: RefundModalProps) {
-  const { refunding, refundTxId, error, deviceDisconnected, handleRefund } =
-    useRefundState({
-      activity,
-    });
+  const {
+    refunding,
+    refundTxId,
+    error,
+    errorTerminal,
+    deviceDisconnected,
+    handleRefund,
+  } = useRefundState({
+    activity,
+  });
   const ledgerDevice = useLedgerVaultDevice();
   const { cancelAppWait, reconnect } = ledgerDevice;
   const [reconnecting, setReconnecting] = useState(false);
@@ -176,6 +182,7 @@ export function RefundModal({
         previewError={previewError}
         refunding={refunding || reconnecting}
         error={reconnectFailed ? COPY.deposit.ledger.reconnectFailed : error}
+        errorTerminal={errorTerminal}
         onConfirm={handleConfirm}
         ledgerStep={ledgerStep}
       />

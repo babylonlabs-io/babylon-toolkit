@@ -57,7 +57,6 @@ const makeRow = (overrides: Partial<ActivityLog>): ActivityLog => ({
   tokenIcon: overrides.tokenIcon ?? "test://btc.svg",
   vaultId: overrides.vaultId,
   isPending: overrides.isPending,
-  isRefunded: overrides.isRefunded,
 });
 
 function renderList(props: {
@@ -67,11 +66,16 @@ function renderList(props: {
   refundableVaultIds?: ReadonlySet<string>;
   onWithdraw?: (vaultId: string) => void;
 }) {
+  // The list hands the expired row both handlers together; these tests drive
+  // the refund, so the redeem handler is a stand-in.
   const element = (next: typeof props) => (
     <MemoryRouter initialEntries={["/activity"]}>
       <Routes>
         <Route element={<Outlet context={{ openDeposit: () => {} }} />}>
-          <Route path="/activity" element={<ActivityList {...next} />} />
+          <Route
+            path="/activity"
+            element={<ActivityList {...next} onRedeem={vi.fn()} />}
+          />
         </Route>
       </Routes>
     </MemoryRouter>
@@ -416,20 +420,6 @@ describe("ActivityList", () => {
     expect(screen.queryAllByRole("listitem")).toHaveLength(0);
     expect(screen.getByText(COPY.activity.emptyFiltered)).toBeInTheDocument();
     vi.useRealTimers();
-  });
-
-  it("v3 UI: drops the card fill on a refunded deposit and keeps it on the others", () => {
-    const { container } = renderList({
-      activities: [
-        makeRow({ id: "refunded", isRefunded: true }),
-        makeRow({ id: "settled" }),
-      ],
-      isConnected: true,
-    });
-
-    const cards = container.querySelectorAll("li > div");
-    expect(cards[0].className).toContain("bg-transparent");
-    expect(cards[1].className).not.toContain("bg-transparent");
   });
 
   it("v3 UI: hides the search box when disconnected", () => {

@@ -1061,8 +1061,13 @@ describe("fetchUserActivities liquidation grouping", () => {
   });
 });
 
-describe("fetchUserActivities refunded deposits", () => {
-  it("remaps a claim_expired event to a refunded Deposit row", async () => {
+describe("fetchUserActivities expired-vault redemptions", () => {
+  it("shows a claim_expired event as a Redeem row linked to the VP's BTC claim tx", async () => {
+    const { resolveRedeemClaimTxids } = await import("../claimTxResolver");
+    const resolverMock = vi.mocked(resolveRedeemClaimTxids);
+    resolverMock.mockReset();
+    resolverMock.mockResolvedValueOnce(new Map([[VAULT_A, "claimBtcTxid456"]]));
+
     const rows: RawActivity[] = [
       activity({
         type: "claim_expired",
@@ -1081,16 +1086,44 @@ describe("fetchUserActivities refunded deposits", () => {
 
     expect(result).toHaveLength(1);
     const row = asStandard(result[0]);
-    expect(row.type).toBe("Deposit");
-    expect(row.isRefunded).toBe(true);
+    expect(row.type).toBe("Redeem");
     expect(row.amount).toEqual({ value: "1", symbol: "sBTC", numeric: 1 });
-    expect(row.tokenIcon).toBe("/images/btc.svg");
-    // Refunded deposit links to the original BTC peg-in tx (via vault.peginTxHash)
-    // for parity with normal Deposit rows.
     expect(row.chain).toBe("BTC");
+    expect(row.transactionHash).toBe("claimBtcTxid456");
+    expect(resolverMock).toHaveBeenCalledWith(
+      [{ vaultId: VAULT_A }],
+      expect.any(Map),
+    );
   });
 
-  it("does not double-count when a vault already has a deposit row", async () => {
+  it("shows the Redeem row as pending until the VP's claim tx is broadcast", async () => {
+    const { resolveRedeemClaimTxids } = await import("../claimTxResolver");
+    vi.mocked(resolveRedeemClaimTxids).mockReset();
+    vi.mocked(resolveRedeemClaimTxids).mockResolvedValueOnce(new Map());
+
+    const rows: RawActivity[] = [
+      activity({
+        type: "claim_expired",
+        logIndex: 0,
+        transactionHash: "0x" + "f".repeat(64),
+        vaultId: VAULT_A,
+      }),
+    ];
+    await setupGraphqlMock(rows);
+
+    const result = await fetchUserActivities(
+      USER as `0x${string}`,
+      buildDeps(),
+    );
+
+    const row = asStandard(result[0]);
+    expect(row.type).toBe("Redeem");
+    expect(row.chain).toBe("BTC");
+    // Never the EVM ExpiredVaultClaimed hash: an empty hash renders "Pending…".
+    expect(row.transactionHash).toBe("");
+  });
+
+  it("keeps a vault's Deposit row alongside its Redeem row", async () => {
     const rows: RawActivity[] = [
       activity({
         type: "deposit",
@@ -1116,11 +1149,9 @@ describe("fetchUserActivities refunded deposits", () => {
       buildDeps(),
     );
 
-    // Both rows present — Deposit and the refunded Deposit. They have distinct ids.
-    expect(result).toHaveLength(2);
-    const expired = result.find(
-      (r) => r.kind === "row" && r.isRefunded === true,
-    );
-    expect(expired).toBeDefined();
+    expect(result.map((r) => asStandard(r).type)).toEqual([
+      "Redeem",
+      "Deposit",
+    ]);
   });
 });

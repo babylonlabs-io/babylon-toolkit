@@ -105,6 +105,7 @@ const SIGNING_REQUIRED_LABEL = "Signing required";
 const BROADCAST_REQUIRED_LABEL = "Broadcast required";
 const ACTIVATION_REQUIRED_LABEL = "Activation required";
 const WITHDRAW_REQUIRED_LABEL = "Withdraw required";
+const REDEEM_REQUIRED_LABEL = "Redeem required";
 // Depositor-facing name for the multi-vault deposit option. Shared between the
 // split-option title and the "deposit too low" hint so the two never drift.
 const TWO_VAULT_SPLIT_NAME = "Two-vault split";
@@ -182,6 +183,11 @@ export const COPY = {
     // by a protocol-scope pause (an application pause never blocks it).
     activateAndRedeemPaused:
       "Withdrawal is paused by a protocol governance action. Your BTCVault stays safe — withdrawal will resume once the pause is lifted.",
+    // Same pause gate as activate-and-redeem, but the expired BTCVault's grace
+    // window keeps running while paused, so the copy cannot promise the action
+    // is still there afterwards — it says so, and asks for prompt action.
+    claimExpiredPaused:
+      "Redeeming is paused by a protocol governance action. The grace window to redeem this BTCVault keeps running while paused, so redeem as soon as the pause is lifted.",
     messages: {
       payoutSignaturesSubmitted:
         "Payout signatures submitted. Vault provider is verifying and collecting acknowledgments...",
@@ -211,17 +217,33 @@ export const COPY = {
       // longer renders that tooltip.
       activationIncompleteSubtext:
         "Your BTC is not lost — withdraw to receive it back.",
-      // The expired counterpart. Deliberately makes no promise of a recovery
-      // action: `claimExpiredVault` is the way out and the app has no path to
-      // it yet, so the copy states the position and stops. Update this text in
-      // the same change that adds the CTA.
+      // The expired counterpart. The refund is gone, but redeeming the
+      // BTCVault (`claimExpiredVault`) recovers the BTC within the grace
+      // window, so the copy leads with that, like the stuck state above.
       // The PegIn may have swept the HTLC before or after the deadline, so the
       // copy names the state, not the order of events. It also shows while
       // that spend is still unconfirmed, so it claims no confirmation.
       peginSweptWhileExpired:
-        "The peg-in transaction spent this deposit on Bitcoin, but this BTCVault expired before it was activated. Your BTC goes to the BTCVault, not back to you, so a refund is no longer possible from here.",
-      peginSweptWhileExpiredSubtext:
-        "Peg-in spent the deposit, BTCVault expired — refund unavailable.",
+        "The peg-in transaction spent this deposit on Bitcoin, but this BTCVault expired before it was activated, so a refund is no longer possible. Your BTC is not lost: redeem this BTCVault before its grace window closes and the vault provider will send your BTC to your payout address.",
+      // Compact form under the amount. The remaining time is an estimate from
+      // Ethereum slot time, rounded down so it never overstates the window.
+      peginSweptWhileExpiredSubtext: (remaining: string) =>
+        `Refund unavailable — redeem within ${remaining}`,
+      // The window could not be read. The action stays offered — the contract
+      // enforces the window and the confirm step re-reads it — so the subtext
+      // still asks for action rather than hiding the only exit.
+      peginSweptWhileExpiredSubtextUnknown:
+        "Refund unavailable — redeem before the grace window closes",
+      peginSweptWindowClosed:
+        "The peg-in transaction spent this deposit on Bitcoin, but this BTCVault expired before it was activated, and the grace window to redeem it has closed. It can no longer be redeemed from here.",
+      peginSweptWindowClosedSubtext: "Grace window to redeem has closed",
+      // Approximate remaining grace window, interpolated into the subtext and
+      // the redeem modal.
+      claimWindowRemaining: {
+        days: (days: number) => `~${days} ${days === 1 ? "day" : "days"}`,
+        hours: (hours: number) => `~${hours}h`,
+        underAnHour: "less than an hour",
+      },
       // Activation floor. Blocks lead because they are the fact the contract
       // checks; the minutes figure is an estimate derived from slot time, so it
       // is bracketed as approximate. Mirrors the refundMaturing shape.
@@ -317,6 +339,7 @@ export const COPY = {
       ACTIVATE_VAULT: "Activate",
       ACTIVATE_AND_REDEEM: "Withdraw",
       REFUND_HTLC: "Refund",
+      CLAIM_EXPIRED_VAULT: "Redeem",
     },
     actionRequiredBadges: {
       SUBMIT_WOTS_KEY: KEY_REQUIRED_LABEL,
@@ -325,6 +348,7 @@ export const COPY = {
       ACTIVATE_VAULT: ACTIVATION_REQUIRED_LABEL,
       ACTIVATE_AND_REDEEM: WITHDRAW_REQUIRED_LABEL,
       REFUND_HTLC: "Refund available",
+      CLAIM_EXPIRED_VAULT: REDEEM_REQUIRED_LABEL,
     },
     expiration: {
       reasons: {
@@ -451,6 +475,10 @@ export const COPY = {
       activateAndRedeem: {
         title: WITHDRAW_REQUIRED_LABEL,
         body: "Your BTCVault could not be activated - withdraw to recover your BTC.",
+      },
+      claimExpiredVault: {
+        title: REDEEM_REQUIRED_LABEL,
+        body: "Your BTCVault expired and the peg-in spent your deposit - redeem it before its grace window closes to recover your BTC.",
       },
       // In-flow prompt nudging the depositor to allow browser notifications so
       // we can ping them when a deposit needs a signature.
@@ -731,6 +759,89 @@ export const COPY = {
       success: {
         heading: "Withdrawal submitted",
         body: "Your BTCVault has been redeemed. The vault provider will send your BTC to your payout address. This typically takes up to 3 days.",
+        doneButton: "Done",
+      },
+    },
+    // Refund modal, when the PegIn — not a refund — already spent the deposit.
+    // Names the way out instead of a retry: the refund can never land. Two
+    // stages, because the spend can be found before the wallet signs or only
+    // when the signed refund is rejected at broadcast. The redeem pointer is
+    // conditional: once the grace window closes, the row offers no Redeem.
+    refundSweptByPegin: {
+      beforeSigning:
+        "The peg-in transaction already spent this deposit on Bitcoin, so it can no longer be refunded. Nothing was signed. If this BTCVault's grace window is still open, redeem it from its row instead.",
+      afterSigning:
+        "The peg-in transaction spent this deposit on Bitcoin before your refund could be broadcast, so it can no longer be refunded. The signed refund was not broadcast. If this BTCVault's grace window is still open, redeem it from its row instead.",
+    },
+    // The deposit is spent but the spending transaction was not reported, so
+    // it can be neither recorded as a refund nor attributed to the peg-in.
+    // Retryable: a later probe can identify it.
+    refundSpenderUnknown: {
+      beforeSigning:
+        "This deposit was already spent on Bitcoin, but the spending transaction could not be identified. Nothing was signed — please try again in a moment.",
+      afterSigning:
+        "This deposit was spent on Bitcoin before your refund could be broadcast, but the spending transaction could not be identified. The signed refund was not broadcast — please try again in a moment.",
+    },
+    // Redeem an expired BTCVault whose deposit the peg-in transaction spent
+    // (`claimExpiredVault`). No risk acknowledgment, unlike the stuck-state
+    // withdraw: the peg-in's Bitcoin witness has already published the secret,
+    // so revealing it on Ethereum gives nothing away. The body states the wait
+    // and the commission before the confirm, for the same reason the withdraw
+    // body does — the BTC returns through the vault provider's claim pipeline.
+    claimExpired: {
+      title: "Redeem expired BTCVault",
+      body: "The peg-in transaction spent this deposit on Bitcoin and the BTCVault expired before it was activated, so it can no longer be refunded. Redeeming reveals your HTLC secret on Ethereum. The vault provider then claims the BTC on Bitcoin and sends it to your payout address, minus its commission. This takes several days.",
+      deadline: (remaining: string) =>
+        `The grace window closes in ${remaining}. After that, this BTCVault can no longer be redeemed.`,
+      deadlineUnknown:
+        "This BTCVault must be redeemed before its grace window closes. The deadline could not be loaded — it is checked again when you confirm.",
+      windowClosedNotice:
+        "The grace window to redeem this BTCVault has closed, so it can no longer be redeemed.",
+      confirmButton: "Redeem",
+      retryButton: "Retry",
+      cancelButton: "Cancel",
+      // Pre-flight failures surfaced in the modal's error callout. Every one
+      // that stops before the transaction says nothing was submitted.
+      errors: {
+        btcWalletNotConnected: "BTC wallet is not connected",
+        ethWalletNotConnected: "ETH wallet is not connected",
+        claimFailed: "Failed to redeem BTCVault",
+        hashlockMissing:
+          "This BTCVault has no hashlock on chain, so it cannot be redeemed. Nothing was submitted.",
+        alreadyRedeemed:
+          "This BTCVault has already been redeemed. The vault provider is processing the BTC payout.",
+        notRedeemable:
+          "This BTCVault cannot be redeemed in its current state. Nothing was submitted.",
+        vaultRecordUnavailable:
+          "This BTCVault's record hasn't appeared on the node we're reading from yet. Nothing was submitted — please try again in a moment.",
+        notVerified:
+          "Only a BTCVault that expired after verification can be redeemed. Nothing was submitted.",
+        windowClosed:
+          "The grace window to redeem this BTCVault has closed. Nothing was submitted.",
+        // The only exit after the peg-in spends the deposit, and the wrong one
+        // before: revealing the secret while the deposit is unspent lets anyone
+        // broadcast the peg-in ahead of the depositor's own refund.
+        notSpentByPegin:
+          "The peg-in transaction has not spent this deposit on Bitcoin, so nothing was submitted. While the deposit is unspent, refund it instead once its timelock passes.",
+        spentByOther:
+          "This deposit was spent on Bitcoin by a transaction other than the peg-in, so there is nothing to redeem. Nothing was submitted.",
+        // Not final: an unconfirmed competing spend can still lose to the
+        // peg-in, and a spend whose transaction is not reported cannot be
+        // attributed at all. Both leave Retry available.
+        spentByOtherUnconfirmed:
+          "A transaction other than the peg-in is spending this deposit on Bitcoin and has not confirmed yet. Nothing was submitted — try again once it settles.",
+        spenderUnknown:
+          "This deposit was spent on Bitcoin, but the spending transaction could not be identified. Nothing was submitted — please try again in a moment.",
+        // The secret is derived from the BTC wallet, never typed, so the
+        // realistic cause of a mismatch is the wrong wallet being connected.
+        secretMismatch:
+          "The secret derived from the connected BTC wallet does not match this BTCVault. Connect the BTC wallet you deposited with and try again. Nothing was submitted.",
+        spendUnavailable:
+          "Could not confirm on Bitcoin that the peg-in transaction spent this deposit. Nothing was submitted — please try again in a moment.",
+      },
+      success: {
+        heading: "Redemption submitted",
+        body: "Your BTCVault has been redeemed. The vault provider will claim the BTC on Bitcoin and send it to your payout address. This takes several days.",
         doneButton: "Done",
       },
     },
@@ -2488,6 +2599,7 @@ export const COPY = {
     actions: {
       reorder: "Reorder",
       withdraw: "Withdraw",
+      redeem: "Redeem",
       viewDetails: "View Details",
     },
     dismissPending: {
@@ -2580,13 +2692,11 @@ export const COPY = {
     emptyDisconnected: connectToView("activity"),
     emptyFiltered: "No activity",
     // The empty state matches the shared EmptyState card. Rows carry no status
-    // column: a pending row spins beside its type label, a refunded deposit
-    // gets the Refund chip and a dimmed row.
+    // column: a pending row spins beside its type label.
     emptyV3Title: "No activity yet",
     emptyV3Body:
       "Your account activity will appear here after your first transaction",
     pendingLabel: "Pending",
-    refundChip: "Refund",
     dateToday: "Today",
     dateYesterday: "Yesterday",
     dateLastWeek: "Last week",

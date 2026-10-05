@@ -5,7 +5,7 @@
 // batched Pre-PegIn share a txid but own distinct HTLC outputs).
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 
 import { getMempoolApiUrl } from "@/clients/btc/config";
 import { fetchHtlcSpend, type HtlcSpend } from "@/clients/btc/outspend";
@@ -41,6 +41,8 @@ export interface HtlcRefundOutpoint {
 export interface BtcHtlcRefundStatusResult {
   /** Vault id (lowercased) → HTLC spend status. Missing = not yet polled. */
   refundByDepositId: Map<string, HtlcSpend>;
+  /** Re-probes the current outpoints now, ahead of the next poll tick. */
+  refetch: () => void;
 }
 
 export function useBtcHtlcRefundStatus(
@@ -110,5 +112,10 @@ export function useBtcHtlcRefundStatus(
     },
   });
 
-  return { refundByDepositId: query.data ?? EMPTY_REFUNDS };
+  const { refetch: refetchQuery } = query;
+  const refetch = useCallback(() => {
+    void refetchQuery();
+  }, [refetchQuery]);
+
+  return { refundByDepositId: query.data ?? EMPTY_REFUNDS, refetch };
 }

@@ -79,6 +79,12 @@ export interface PeginPollingContextValue {
    * "Refunded" immediately in-session — not only after a reload/next poll.
    */
   addConfirmedRefund: (depositId: string) => void;
+  /**
+   * Re-probe the HTLC spends now rather than on the next poll tick — after a
+   * refund attempt learns the PegIn swept the deposit, so the row trades its
+   * Withdraw for the redeem without waiting a minute.
+   */
+  refreshHtlcSpends: () => void;
 }
 
 /** Provider props */

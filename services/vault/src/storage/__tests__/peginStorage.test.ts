@@ -116,6 +116,18 @@ describe("getPendingPegins integrity validation", () => {
     );
   });
 
+  it("filters out an entry carrying the in-memory-only redeem-submitted status", () => {
+    // The status hides the expired-vault redeem until the indexer catches up.
+    // Accepting it from storage would let a tampered entry hide the only exit.
+    const tampered = {
+      ...validPegin,
+      status: LocalStorageStatus.CLAIM_EXPIRED_SUBMITTED,
+    };
+    localStorage.setItem(storageKey, JSON.stringify([tampered]));
+
+    expect(getPendingPegins(ETH_ADDRESS)).toHaveLength(0);
+  });
+
   it("filters out entries whose unsignedTxHex has an odd byte count", () => {
     const tampered = { ...validPegin, unsignedTxHex: "0xabc" }; // 3 hex chars
     localStorage.setItem(storageKey, JSON.stringify([tampered]));

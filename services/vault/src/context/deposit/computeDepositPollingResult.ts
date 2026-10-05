@@ -4,8 +4,9 @@
  * the rules — so the decision tree is testable without a React render.
  */
 
-import type { HtlcSpend } from "../../clients/btc/outspend";
+import { type HtlcSpend, isHtlcSpentByPegin } from "../../clients/btc/outspend";
 import {
+  type ClaimExpiredWindow,
   ContractStatus,
   getPeginState,
   LocalStorageStatus,
@@ -128,6 +129,13 @@ export interface DepositPollingInputs {
    * `isActivationBlockedByEarlierSibling`.
    */
   activationBlockedBySibling: boolean;
+  /**
+   * EXPIRED only: the grace window for redeeming this vault, read on chain by
+   * `useClaimExpiredWindowGate`. `undefined` = unknown (not yet read, read
+   * failed, or not a candidate), which leaves the redeem offered: the contract
+   * enforces the window and the confirm step re-reads it.
+   */
+  claimExpiredWindow: ClaimExpiredWindow | undefined;
   isLoading: boolean;
   optimisticStatuses: ReadonlyMap<string, LocalStorageStatus>;
   optimisticRefundBroadcastAt: ReadonlyMap<string, number>;
@@ -152,27 +160,6 @@ export interface DepositPollingInputs {
   now?: number;
 }
 
-/**
- * Whether the PegIn, not a refund, spent a vault's HTLC.
- *
- * A spend is only a refund if somebody other than the PegIn made it; when the
- * PegIn is the spender the BTC moved INTO the BTCVault. Positive proof only: a
- * missing `spendingTxid` or PegIn txid reads as false. The display, the
- * stuck-state probe and the refunded-HTLC cache all attribute through this, so
- * none of them can record a PegIn sweep as a refund.
- */
-export function isHtlcSpentByPegin(
-  spend: HtlcSpend | undefined,
-  peginTxHash: string | undefined,
-): boolean {
-  const peginTxCanonical = canonicalizeTxid(peginTxHash);
-  return (
-    spend?.spent === true &&
-    peginTxCanonical !== undefined &&
-    canonicalizeTxid(spend.spendingTxid) === peginTxCanonical
-  );
-}
-
 export function computeDepositPollingResult(
   inputs: DepositPollingInputs,
 ): DepositPollingResult {
@@ -195,6 +182,7 @@ export function computeDepositPollingResult(
     stuckStateConfirmedOnChain,
     activationFloorBlocksRemaining,
     activationBlockedBySibling,
+    claimExpiredWindow,
     isLoading,
     optimisticStatuses,
     optimisticRefundBroadcastAt,
@@ -350,6 +338,17 @@ export function computeDepositPollingResult(
     refundSettlement === undefined &&
     !peginSweptWhileExpired;
 
+  // The redeem is the exit once the PegIn has spent the HTLC. The spender
+  // proof fails closed: offering the redeem while the HTLC is unspent reveals
+  // the secret and lets anyone broadcast the PegIn ahead of the depositor's own
+  // refund. The window fails open: only a chain read that says closed (or that
+  // the redeem already landed) withholds it, because hiding the only exit over
+  // a failed read is the worse outcome and the contract enforces the deadline.
+  const canClaimExpired =
+    peginSweptWhileExpired &&
+    claimExpiredWindow?.state !== "closed" &&
+    claimExpiredWindow?.state !== "redeemed";
+
   // Stuck-state signal (VERIFIED only): the HTLC outpoint was spent BY THE
   // PEGIN TX — the VP swept the deposit while the vault has not activated,
   // meaning the secret was revealed and the collateral moved without the
@@ -390,6 +389,8 @@ export function computeDepositPollingResult(
     activationBlockedBySibling,
     canRefund,
     peginSweptWhileExpired,
+    canClaimExpired,
+    claimExpiredWindow,
     refundMaturityState,
     refundMaturesInBlocks,
     refundSettlement,

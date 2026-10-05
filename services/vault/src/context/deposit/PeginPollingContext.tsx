@@ -27,12 +27,14 @@ import { logger } from "@/infrastructure";
 import { shortId, TELEMETRY_EVENT } from "@/infrastructure/telemetryEvents";
 import { useDepositOverride } from "@/overrides/deposits";
 
+import { isHtlcSpentByPegin } from "../../clients/btc/outspend";
 import { usePeginPollingProtocolParams } from "../../hooks/deposit/usePeginPollingProtocolParams";
 import { usePeginPollingQuery } from "../../hooks/deposit/usePeginPollingQuery";
 import { useSigningRequiredNotifications } from "../../hooks/deposit/useSigningRequiredNotifications";
 import { useActivationDeadlineGate } from "../../hooks/useActivationDeadlineGate";
 import { useBtcHtlcRefundStatus } from "../../hooks/useBtcHtlcRefundStatus";
 import { useBtcMempoolConfirmations } from "../../hooks/useBtcMempoolConfirmations";
+import { useClaimExpiredWindowGate } from "../../hooks/useClaimExpiredWindowGate";
 import { useStuckVaultChainConfirm } from "../../hooks/useStuckVaultChainConfirm";
 import {
   ContractStatus,
@@ -60,10 +62,7 @@ import { isActivationBlockedByEarlierSibling } from "../../utils/batchedPegin";
 import { canonicalizeTxid } from "../../utils/txid";
 import { isVaultOwnedByWallet } from "../../utils/vaultWarnings";
 
-import {
-  computeDepositPollingResult,
-  isHtlcSpentByPegin,
-} from "./computeDepositPollingResult";
+import { computeDepositPollingResult } from "./computeDepositPollingResult";
 import {
   collectDaemonTerminalEvents,
   getSharedDaemonTerminalTracking,
@@ -391,10 +390,10 @@ export function PeginPollingProvider({
         })),
     [activities, btcPublicKey, refundedHtlcVaultIds, localStatusById],
   );
-  const { refundByDepositId: htlcRefundByDepositId } = useBtcHtlcRefundStatus(
-    htlcRefundOutpoints,
-    HTLC_REFUND_QUERY_KEY,
-  );
+  const {
+    refundByDepositId: htlcRefundByDepositId,
+    refetch: refreshHtlcSpends,
+  } = useBtcHtlcRefundStatus(htlcRefundOutpoints, HTLC_REFUND_QUERY_KEY);
 
   // Tier-1 stuck suspects: VERIFIED (per the indexer) with the HTLC proven
   // swept by the pegin tx. Cheap — it reuses the probe above and adds no
@@ -419,6 +418,25 @@ export function PeginPollingProvider({
   }, [activities, htlcRefundByDepositId]);
 
   const stuckConfirmedIds = useStuckVaultChainConfirm(stuckSuspectIds);
+
+  // EXPIRED vaults the probe above proves the PegIn swept: the refund is gone
+  // and the redeem is the exit, so read its grace window from chain. Same
+  // reuse of the probe as the stuck suspects — no extra Bitcoin request.
+  const claimExpiredSuspectIds = useMemo(() => {
+    const ids: Hex[] = [];
+    for (const a of activities) {
+      if (
+        ((a.contractStatus ?? 0) as ContractStatus) !== ContractStatus.EXPIRED
+      )
+        continue;
+      // Keyed lowercase by `useBtcHtlcRefundStatus`, like the stuck lookup.
+      const spend = htlcRefundByDepositId.get(a.id.toLowerCase());
+      if (!isHtlcSpentByPegin(spend, a.peginTxHash)) continue;
+      ids.push(a.id);
+    }
+    return ids;
+  }, [activities, htlcRefundByDepositId]);
+  const claimExpiredWindows = useClaimExpiredWindowGate(claimExpiredSuspectIds);
 
   // Persist newly-confirmed observations and drop them from the next
   // poll set. Side effects sit outside the updater so StrictMode's
@@ -496,6 +514,9 @@ export function PeginPollingProvider({
     const newlyRefunded: string[] = [];
     for (const [depositId, spend] of htlcRefundByDepositId) {
       if (!expiredPeginTxById.has(depositId)) continue;
+      // A spend reported without its transaction may be the PegIn's: caching
+      // it would drop the vault from the probe before a later poll names it.
+      if (!spend.spendingTxid) continue;
       if (isHtlcSpentByPegin(spend, expiredPeginTxById.get(depositId))) {
         continue;
       }
@@ -628,6 +649,7 @@ export function PeginPollingProvider({
         stuckStateConfirmedOnChain: stuckConfirmedIds.has(
           activity.id.toLowerCase(),
         ),
+        claimExpiredWindow: claimExpiredWindows.get(activity.id.toLowerCase()),
         activationFloorBlocksRemaining: activationFloorBlocks.get(
           activity.id.toLowerCase(),
         ),
@@ -665,6 +687,7 @@ export function PeginPollingProvider({
       resolveRefundTimelock,
       activationDeadlinePassedIds,
       stuckConfirmedIds,
+      claimExpiredWindows,
       activationFloorBlocks,
       isLoading,
       params.ready,
@@ -687,6 +710,7 @@ export function PeginPollingProvider({
       refetch: () => refetch(),
       setOptimisticStatus,
       addConfirmedRefund,
+      refreshHtlcSpends,
     }),
     [
       getPollingResult,
@@ -694,6 +718,7 @@ export function PeginPollingProvider({
       refetch,
       setOptimisticStatus,
       addConfirmedRefund,
+      refreshHtlcSpends,
     ],
   );
 

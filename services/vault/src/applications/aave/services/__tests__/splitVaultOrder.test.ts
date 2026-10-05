@@ -24,6 +24,7 @@ function info(prePeginTxHash: Hex, htlcVout: number): VaultProtocolInfo {
     depositorPopSignature: "0x01",
     prePeginTxHash,
     vaultProviderCommissionBps: 1,
+    claimExpiredUntil: 0n,
     vaultCoreVersion: 1,
   };
 }

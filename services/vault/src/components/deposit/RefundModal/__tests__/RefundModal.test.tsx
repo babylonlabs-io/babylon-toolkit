@@ -70,6 +70,7 @@ vi.mock("@/hooks/deposit/useRefundState", () => ({
     refunding: false,
     refundTxId: null,
     error: null,
+    errorTerminal: false,
     deviceDisconnected: false,
     handleRefund: vi.fn(),
   })),
@@ -121,6 +122,7 @@ describe("RefundModal", () => {
       refunding: false,
       refundTxId: null,
       error: null,
+      errorTerminal: false,
       deviceDisconnected: false,
       handleRefund: vi.fn(),
     });
@@ -145,6 +147,7 @@ describe("RefundModal", () => {
       refunding: false,
       refundTxId: null,
       error: COPY.deposit.errors.deviceDisconnected.body,
+      errorTerminal: false,
       deviceDisconnected: true,
       handleRefund,
     });
@@ -169,6 +172,7 @@ describe("RefundModal", () => {
       refunding: false,
       refundTxId: null,
       error: COPY.deposit.errors.deviceDisconnected.body,
+      errorTerminal: false,
       deviceDisconnected: true,
       handleRefund,
     });
@@ -195,6 +199,7 @@ describe("RefundModal", () => {
       refunding: true,
       refundTxId: null,
       error: null,
+      errorTerminal: false,
       deviceDisconnected: false,
       handleRefund: vi.fn(),
     });
@@ -210,6 +215,49 @@ describe("RefundModal", () => {
 
     expect(ledgerDevice.cancelAppWait).toHaveBeenCalledTimes(1);
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("offers Retry after an error a retry can cure", async () => {
+    vi.mocked(useRefundState).mockReturnValue({
+      refunding: false,
+      refundTxId: null,
+      error: "Broadcast failed",
+      errorTerminal: false,
+      deviceDisconnected: false,
+      handleRefund: vi.fn(),
+    });
+    renderRefundModal();
+
+    expect(await screen.findByText("0.01 sBTC")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", {
+        name: COPY.deposit.refundReview.retryButton,
+      }),
+    ).toBeEnabled();
+  });
+
+  it("keeps Confirm disabled, with no Retry, once the PegIn has spent the deposit", async () => {
+    vi.mocked(useRefundState).mockReturnValue({
+      refunding: false,
+      refundTxId: null,
+      error: COPY.deposit.refundSweptByPegin.afterSigning,
+      errorTerminal: true,
+      deviceDisconnected: false,
+      handleRefund: vi.fn(),
+    });
+    renderRefundModal();
+
+    expect(await screen.findByText("0.01 sBTC")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", {
+        name: COPY.deposit.refundReview.confirmButton,
+      }),
+    ).toBeDisabled();
+    expect(
+      screen.queryByRole("button", {
+        name: COPY.deposit.refundReview.retryButton,
+      }),
+    ).not.toBeInTheDocument();
   });
 
   it("renders the review content", async () => {

@@ -10,6 +10,7 @@ import { logger } from "@/infrastructure";
 import { LocalStorageStatus } from "@/models/peginStateMachine";
 import {
   buildAndBroadcastRefundTransaction,
+  HtlcSweptByPeginError,
   RefundAlreadySettledError,
 } from "@/services/vault/vaultRefundService";
 import { usePeginStorage } from "@/storage/usePeginStorage";
@@ -28,6 +29,11 @@ export interface UseRefundStateResult {
   refunding: boolean;
   refundTxId: string | null;
   error: string | null;
+  /**
+   * True when the last error cannot be cured by trying again: the PegIn spent
+   * the deposit, so no refund can ever land.
+   */
+  errorTerminal: boolean;
   /** True when the last attempt failed on a lost hardware-device session. */
   deviceDisconnected: boolean;
   handleRefund: (feeRate: number) => Promise<void>;
@@ -43,7 +49,8 @@ export function useRefundState({
   const btcWalletProvider = btcConnector?.connectedWallet?.provider;
   const connectedBtcAddress = btcConnector?.connectedWallet?.account?.address;
   const { address: ethAddress } = useETHWallet();
-  const { setOptimisticStatus, addConfirmedRefund } = usePeginPolling();
+  const { setOptimisticStatus, addConfirmedRefund, refreshHtlcSpends } =
+    usePeginPolling();
   const { pendingPegins, addPendingPegin, markRefundBroadcast } =
     usePeginStorage({
       ethAddress: ethAddress ?? "",
@@ -53,6 +60,7 @@ export function useRefundState({
   const [refunding, setRefunding] = useState(false);
   const [refundTxId, setRefundTxId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [errorTerminal, setErrorTerminal] = useState(false);
   const [deviceDisconnected, setDeviceDisconnected] = useState(false);
 
   // Synchronous reentrancy guard. `refunding` updates async; rapid double-
@@ -120,6 +128,7 @@ export function useRefundState({
 
         setRefunding(true);
         setError(null);
+        setErrorTerminal(false);
         setDeviceDisconnected(false);
 
         abortRef.current?.abort();
@@ -127,11 +136,8 @@ export function useRefundState({
 
         let depositorBtcPubkey: string | undefined;
 
-        const persistRefundSuccess = (
-          txId: string | undefined,
-          confirmed = false,
-        ) => {
-          if (txId) setRefundTxId(txId);
+        const persistRefundSuccess = (txId: string, confirmed = false) => {
+          setRefundTxId(txId);
           setRefunding(false);
           // Mark a confirmed (terminal) refund so the dashboard shows "Refunded"
           // immediately this session (and across reloads), not "Refunding".
@@ -192,6 +198,18 @@ export function useRefundState({
             persistRefundSuccess(err.spendingTxid, err.confirmed);
             return;
           }
+          // The PegIn, not a refund, spent the HTLC. Record nothing: a refunded
+          // marker would drop the vault from the HTLC probe and hide the redeem
+          // that is now the only exit. The message points the depositor there,
+          // so re-probe now for the row to offer it, and refuse a retry that
+          // could only end in a rejected refund.
+          if (err instanceof HtlcSweptByPeginError) {
+            setError(err.message);
+            setErrorTerminal(true);
+            setRefunding(false);
+            refreshHtlcSpends();
+            return;
+          }
           logger.error(err, {
             data: { context: "Refund failed", vaultId },
           });
@@ -231,10 +249,18 @@ export function useRefundState({
       pendingPegins,
       setOptimisticStatus,
       addConfirmedRefund,
+      refreshHtlcSpends,
       addPendingPegin,
       markRefundBroadcast,
     ],
   );
 
-  return { refunding, refundTxId, error, deviceDisconnected, handleRefund };
+  return {
+    refunding,
+    refundTxId,
+    error,
+    errorTerminal,
+    deviceDisconnected,
+    handleRefund,
+  };
 }

@@ -66,6 +66,7 @@ interface VaultsPageDeposits {
   isLoading: boolean;
   error: Error | null;
   storageReadError: PendingPeginStorageReadError | null;
+  claimExpiredModal: { claimingActivity: VaultActivity | null };
 }
 
 export function useVaultsPageEmptiness(deposits: VaultsPageDeposits): {
@@ -91,6 +92,7 @@ export function useVaultsPageEmptiness(deposits: VaultsPageDeposits): {
     isLoading: isDepositsLoading,
     error: depositsError,
     storageReadError,
+    claimExpiredModal,
   } = deposits;
 
   const actionableExpiredActivities =
@@ -98,11 +100,15 @@ export function useVaultsPageEmptiness(deposits: VaultsPageDeposits): {
   const { candidates: actionableReclaims, isResolving: isReclaimResolving } =
     useActionableReclaims(reclaimableCandidates, NO_RECLAIMS_IN_FLIGHT);
 
+  // An open redeem modal counts: a confirmed redeem moves its vault out of the
+  // expired list before the depositor acknowledges the success screen, and an
+  // empty page would unmount that screen with the section that hosts it.
   const hasAnythingToShow =
     hasDisplayCollateral ||
     pendingActivities.length > 0 ||
     actionableExpiredActivities.length > 0 ||
-    actionableReclaims.length > 0;
+    actionableReclaims.length > 0 ||
+    claimExpiredModal.claimingActivity !== null;
   const isLoading =
     isConnected &&
     (isPositionLoading ||

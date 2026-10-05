@@ -9,13 +9,11 @@
  * the same row works standalone (one card per row) and stacked inside a
  * liquidation group's shared card.
  *
- * There is no status column: a pending row spins beside its type label and a
- * refunded deposit gets the Refund chip plus a dimmed row.
+ * There is no status column: a pending row spins beside its type label.
  */
 
 import { Avatar, Loader } from "@babylonlabs-io/core-ui";
 import type { ReactNode } from "react";
-import { twJoin } from "tailwind-merge";
 
 import { LIST_ROW_ACTION_SLOT_CLASS } from "@/components/shared/ListRow";
 import { COPY } from "@/copy";
@@ -49,15 +47,11 @@ interface ActivityRowV3Props {
    * no USD sub-line.
    */
   prices?: Record<string, number>;
-  /** Rendered flush right — the expired deposit's Withdraw, when refundable. */
+  /** Rendered flush right — the expired deposit's Withdraw or Redeem. */
   action?: ReactNode;
 }
 
 export function ActivityRowV3({ row, prices, action }: ActivityRowV3Props) {
-  // A deposit that expired before activation and was reclaimed: the design
-  // marks it with the Refund chip and dims the whole row.
-  const isRefunded = row.isRefunded === true;
-
   return (
     <ActivityRowLayout
       icon={row.tokenIcon}
@@ -70,9 +64,7 @@ export function ActivityRowV3({ row, prices, action }: ActivityRowV3Props) {
       chain={row.chain}
       transactionHash={row.transactionHash}
       time={formatActivityTime(row.date)}
-      isPending={row.isPending === true && !isRefunded}
-      chip={isRefunded ? COPY.activity.refundChip : undefined}
-      dimmed={isRefunded}
+      isPending={row.isPending === true}
       action={action}
     />
   );
@@ -90,10 +82,6 @@ interface ActivityRowLayoutProps {
   transactionHash: string;
   time: string;
   isPending?: boolean;
-  /** Status chip beside the type label (e.g. "Refund"). */
-  chip?: string;
-  /** Fades the row — the caller drops the card fill to match. */
-  dimmed?: boolean;
   action?: ReactNode;
 }
 
@@ -109,17 +97,10 @@ export function ActivityRowLayout({
   transactionHash,
   time,
   isPending,
-  chip,
-  dimmed,
   action,
 }: ActivityRowLayoutProps) {
   return (
-    <div
-      className={twJoin(
-        "flex w-full flex-wrap items-center gap-x-10 gap-y-3",
-        dimmed && "opacity-60",
-      )}
-    >
+    <div className="flex w-full flex-wrap items-center gap-x-10 gap-y-3">
       <div className="flex min-w-[180px] shrink grow-[2] basis-[180px] items-center gap-2">
         {/* `.bbn-avatar` is inline-flex with no shrink-0 of its own, and this
             cell can shrink below its basis — without this a long symbol
@@ -139,13 +120,6 @@ export function ActivityRowLayout({
                 className="flex shrink-0 items-center"
               >
                 <Loader size={SPINNER_SIZE} className="text-accent-secondary" />
-              </span>
-            )}
-            {chip && (
-              <span
-                className={`shrink-0 rounded-full bg-secondary-highlight px-3 py-0.5 ${CAPTION_TEXT_CLASS} text-error-dark`}
-              >
-                {chip}
               </span>
             )}
           </div>
@@ -198,9 +172,9 @@ export function ActivityRowLayout({
         )}
       </div>
 
-      {/* Only a refundable expired deposit carries an action; the slot is
-          dropped otherwise so the amount stays flush with the card edge, as
-          the design draws it. */}
+      {/* Only an expired deposit carries an action (its Withdraw or Redeem);
+          the slot is dropped otherwise so the amount stays flush with the card
+          edge, as the design draws it. */}
       {action && (
         <div className={`${LIST_ROW_ACTION_SLOT_CLASS} items-center`}>
           {action}

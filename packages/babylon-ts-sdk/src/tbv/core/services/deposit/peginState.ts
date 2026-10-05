@@ -63,6 +63,14 @@ export enum PeginAction {
   ACTIVATE_AND_REDEEM = "ACTIVATE_AND_REDEEM",
   /** Sign and broadcast HTLC refund transaction for an expired vault */
   REFUND_HTLC = "REFUND_HTLC",
+  /**
+   * Reveal the HTLC secret for a vault that expired after reaching Verified
+   * (`claimExpiredVault`), so the BTC the PegIn swept into the vault is
+   * claimed out to the keys recorded on chain. The only exit once the PegIn
+   * has spent the HTLC; the contract accepts it until the vault's
+   * `claimExpiredUntil` block.
+   */
+  CLAIM_EXPIRED_VAULT = "CLAIM_EXPIRED_VAULT",
 }
 
 /**
@@ -110,6 +118,17 @@ export interface GetPeginProtocolStateOptions {
    * returned.
    */
   htlcSpentByPeginTx?: boolean;
+  /**
+   * EXPIRED only: the vault expired after reaching Verified, the PegIn
+   * transaction has spent the Pre-PegIn HTLC, and the claim window has not
+   * elapsed. The CSV refund is gone, so the claim is the remaining exit.
+   *
+   * The same spender proof as `htlcSpentByPeginTx` applies: offering the claim
+   * while the HTLC is unspent reveals the secret and lets anyone broadcast the
+   * PegIn ahead of the depositor's refund. When set, it takes precedence over
+   * `canRefund`, which a proven PegIn spend makes impossible.
+   */
+  canClaimExpired?: boolean;
 }
 
 // ============================================================================
@@ -140,6 +159,7 @@ export function getPeginProtocolState(
     canRefund,
     hasProviderTerminalFailure,
     htlcSpentByPeginTx,
+    canClaimExpired,
   } = options;
 
   if (contractStatus === ContractStatus.PENDING) {
@@ -205,6 +225,12 @@ export function getPeginProtocolState(
   }
 
   if (contractStatus === ContractStatus.EXPIRED) {
+    if (canClaimExpired) {
+      return {
+        contractStatus,
+        availableActions: [PeginAction.CLAIM_EXPIRED_VAULT],
+      };
+    }
     return {
       contractStatus,
       availableActions: canRefund ? [PeginAction.REFUND_HTLC] : [],

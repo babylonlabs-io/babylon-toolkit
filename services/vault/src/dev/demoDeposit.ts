@@ -106,6 +106,8 @@ const DEMO_REQUIRED_DEPTH = 6;
 /** Fixed timestamp (2025-10-16 11:48:47 UTC) so date rows are stable. */
 const DEMO_TIMESTAMP = 1760665727000;
 const DEMO_AT_SECONDS = Math.floor(DEMO_TIMESTAMP / 1000);
+/** Blocks left in a demo redeem grace window: about three days at 12 s. */
+const DEMO_CLAIM_WINDOW_BLOCKS_REMAINING = 21_600;
 
 const DEMO_VAULT_PROVIDER: VaultProvider = {
   id: DEMO_PROVIDER_ID,
@@ -301,6 +303,55 @@ const DEPOSIT_EXPIRED_SCENARIOS: DemoScenario[] = [
     expectedCta: "none",
     contractStatus: ContractStatus.EXPIRED,
     options: { refundSettlement: "confirmed" },
+  },
+  // The PegIn swept the deposit, so the refund is gone and the expired-vault
+  // redeem is the exit while its grace window lasts.
+  {
+    key: "expired-redeem-open",
+    label: "Expired — PegIn swept, redeem window open",
+    expectedCta: "primary",
+    contractStatus: ContractStatus.EXPIRED,
+    options: {
+      peginSweptWhileExpired: true,
+      canClaimExpired: true,
+      claimExpiredWindow: {
+        state: "open",
+        blocksRemaining: DEMO_CLAIM_WINDOW_BLOCKS_REMAINING,
+      },
+    },
+  },
+  {
+    key: "expired-redeem-unknown",
+    label: "Expired — PegIn swept, redeem window not loaded",
+    expectedCta: "primary",
+    contractStatus: ContractStatus.EXPIRED,
+    options: { peginSweptWhileExpired: true, canClaimExpired: true },
+  },
+  {
+    key: "expired-redeem-closed",
+    label: "Expired — PegIn swept, redeem window closed",
+    expectedCta: "none",
+    contractStatus: ContractStatus.EXPIRED,
+    options: {
+      peginSweptWhileExpired: true,
+      canClaimExpired: false,
+      claimExpiredWindow: { state: "closed" },
+    },
+  },
+  {
+    key: "expired-redeem-submitted",
+    label: "Expired — redeem submitted",
+    expectedCta: "none",
+    contractStatus: ContractStatus.EXPIRED,
+    options: {
+      peginSweptWhileExpired: true,
+      canClaimExpired: true,
+      localStatus: LocalStorageStatus.CLAIM_EXPIRED_SUBMITTED,
+      claimExpiredWindow: {
+        state: "open",
+        blocksRemaining: DEMO_CLAIM_WINDOW_BLOCKS_REMAINING,
+      },
+    },
   },
 ];
 
@@ -581,7 +632,7 @@ function demoActivityLog(
   id: string,
   date: Date,
   fields: Pick<ActivityRow & { kind: "row" }, "type" | "amount" | "chain"> &
-    Partial<Pick<ActivityRow & { kind: "row" }, "isPending" | "isRefunded">> & {
+    Partial<Pick<ActivityRow & { kind: "row" }, "isPending">> & {
       tokenIcon?: string;
       transactionHash?: string;
     },
@@ -657,20 +708,6 @@ export function activityScenarios(
           chain: "BTC",
           isPending: true,
           transactionHash: "",
-        }),
-    },
-    {
-      key: "act-deposit-expired",
-      label: "Deposit (expired, refunded)",
-      expectedCta: "none",
-      daysAgo: 1,
-      unit: ACTIVITY_BTC_UNIT,
-      build: (id, date, amount) =>
-        demoActivityLog(id, date, {
-          type: "Deposit",
-          amount: demoBtcAmount(amount),
-          chain: "BTC",
-          isRefunded: true,
         }),
     },
     {

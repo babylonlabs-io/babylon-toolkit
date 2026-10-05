@@ -79,11 +79,6 @@ export interface ActivityLog {
   date: Date;
   /** Source URL for the left avatar. BTC icon for native rows, reserve token icon for borrow/repay. */
   tokenIcon: string;
-  /**
-   * Whether the deposit expired before activation and was reclaimed via the
-   * peg-in refund path. Shown as a red dot with the "Deposit expired" tooltip.
-   */
-  isRefunded?: boolean;
   /** Type of activity */
   type: ActivityType;
   /** Amount involved in the activity */

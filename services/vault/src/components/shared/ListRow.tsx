@@ -98,8 +98,8 @@ export function ListRowCard({
     <div
       data-testid={testId}
       // Merged, not concatenated: a caller overriding one of the shell's own
-      // utilities (the activity feed drops the fill on a refunded row) must win
-      // regardless of where the two classes land in the generated stylesheet.
+      // utilities must win regardless of where the two classes land in the
+      // generated stylesheet.
       className={twMerge(
         `${CARD_SHELL_CLASS} flex flex-wrap items-center gap-x-4 gap-y-3 p-4`,
         className,

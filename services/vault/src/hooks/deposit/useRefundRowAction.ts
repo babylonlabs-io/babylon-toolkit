@@ -21,14 +21,17 @@ import {
   isRefundInFlightOrSettled,
   PeginAction,
 } from "@/models/peginStateMachine";
+import type { DepositPollingResult } from "@/types/peginPolling";
 
 export interface RefundRowAction {
   available: boolean;
   blockedTooltip: string | null;
 }
 
-export function useRefundRowAction(vaultId: string): RefundRowAction {
-  const result = useDepositPollingResult(vaultId);
+/** The refund decision for one poll result — the hook's pure core. */
+export function getRefundRowAction(
+  result: DepositPollingResult | undefined,
+): RefundRowAction {
   const actionStatus: ReturnType<typeof getActionStatus> = result
     ? getActionStatus(result)
     : { type: "noAction" };
@@ -51,4 +54,8 @@ export function useRefundRowAction(vaultId: string): RefundRowAction {
     available: false,
     blockedTooltip: isBlocked ? actionStatus.tooltip : null,
   };
+}
+
+export function useRefundRowAction(vaultId: string): RefundRowAction {
+  return getRefundRowAction(useDepositPollingResult(vaultId));
 }

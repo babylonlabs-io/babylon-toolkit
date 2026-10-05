@@ -21,6 +21,7 @@ import {
   activationFloorMinutesRemaining,
   isActivationFloorGating,
 } from "@/utils/activationFloor";
+import { formatClaimWindowRemaining } from "@/utils/claimExpiredWindow";
 import { isWithinTtl } from "@/utils/ttl";
 
 export { ContractStatus } from "@babylonlabs-io/ts-sdk/tbv/core/services";
@@ -40,6 +41,12 @@ export enum OffChainTrackingStatus {
   CONFIRMING = "confirming",
   CONFIRMED = "confirmed",
   REFUND_BROADCAST = "refund_broadcast",
+  /**
+   * The expired-vault redeem (`claimExpiredVault`) confirmed this session and
+   * the indexer still reports EXPIRED. Set only as an in-memory optimistic
+   * status — never persisted — so a reload falls back to the chain.
+   */
+  CLAIM_EXPIRED_SUBMITTED = "claim_expired_submitted",
 }
 
 export const LocalStorageStatus = OffChainTrackingStatus;
@@ -66,6 +73,7 @@ export enum PeginAction {
   ACTIVATE_VAULT = "ACTIVATE_VAULT",
   ACTIVATE_AND_REDEEM = "ACTIVATE_AND_REDEEM",
   REFUND_HTLC = "REFUND_HTLC",
+  CLAIM_EXPIRED_VAULT = "CLAIM_EXPIRED_VAULT",
   NONE = "NONE",
 }
 
@@ -102,6 +110,25 @@ export type RefundMaturityState =
   | "unknown"
   | "notFound";
 
+/**
+ * The post-expiry grace window of an expired BTCVault, as an on-chain read
+ * established it. `undefined` wherever it is consumed means the read has not
+ * resolved or failed — the window is unknown, not closed.
+ *
+ * - `open`     — the chain reports the vault Expired after verification and
+ *                its head is before `claimExpiredUntil`; `blocksRemaining`
+ *                counts the blocks a redeem can still be mined in (at least 1).
+ * - `closed`   — the head has reached `claimExpiredUntil`, so a redeem sent
+ *                now can only be mined after it; or the vault expired without
+ *                ever being verified. The contract rejects the redeem.
+ * - `redeemed` — the chain already reports the vault Redeemed while the indexer
+ *                still says Expired: the redeem landed.
+ */
+export type ClaimExpiredWindow =
+  | { state: "open"; blocksRemaining: number }
+  | { state: "closed" }
+  | { state: "redeemed" };
+
 export interface PeginState {
   contractStatus: ContractStatus;
   localStatus?: LocalStorageStatus;
@@ -133,6 +160,12 @@ export interface PeginState {
    * same Pre-PegIn must activate first. Read like the floor field above.
    */
   activationBlockedBySibling?: boolean;
+  /**
+   * Set ONLY by the PegIn-swept EXPIRED branch: the grace window as last read
+   * on chain, `undefined` when unknown. Read by the redeem modal, which must
+   * see a window that closes (or a redeem that lands) while it is open.
+   */
+  claimExpiredWindow?: ClaimExpiredWindow;
   payoutSignedAt?: number;
 }
 
@@ -195,6 +228,18 @@ export interface GetPeginStateOptions {
    * vault; EXPIRED is terminal, so the attribution alone settles it.
    */
   peginSweptWhileExpired?: boolean;
+  /**
+   * EXPIRED + `peginSweptWhileExpired` only: the redeem (`claimExpiredVault`)
+   * may be offered — the window is not known to be closed. Computed by the
+   * caller next to `canRefund`, which a PegIn sweep makes false.
+   */
+  canClaimExpired?: boolean;
+  /**
+   * EXPIRED + `peginSweptWhileExpired` only: the grace window as last read on
+   * chain (see {@link ClaimExpiredWindow}). Drives the deadline wording;
+   * `undefined` renders the window as unknown, never as closed.
+   */
+  claimExpiredWindow?: ClaimExpiredWindow;
   /**
    * Blocks still to wait before `activateVaultWithSecret` is permitted — the
    * registry's lower bound (`verifiedAt + peginActivationDelay`). The opposite
@@ -339,6 +384,8 @@ export function isRefundInFlightOrSettled(state: PeginState): boolean {
  *  - `REFUND_HTLC` — a terminal escape hatch, not an in-flow next step.
  *  - `ACTIVATE_AND_REDEEM` — like the refund, a recovery escape hatch with
  *    its own dedicated modal (EmergencyWithdrawModal), not an in-flow step.
+ *  - `CLAIM_EXPIRED_VAULT` — the expired-vault exit, with its own modal
+ *    (ClaimExpiredVaultModal); an expired vault has no flow to continue.
  */
 export const USER_ACTIONABLE_PEGIN_ACTIONS: ReadonlySet<PeginAction> = new Set([
   PeginAction.SUBMIT_WOTS_KEY,
@@ -407,6 +454,7 @@ const SDK_TO_VAULT_ACTION: Record<string, PeginAction> = {
   [SdkPeginAction.ACTIVATE_VAULT]: PeginAction.ACTIVATE_VAULT,
   [SdkPeginAction.ACTIVATE_AND_REDEEM]: PeginAction.ACTIVATE_AND_REDEEM,
   [SdkPeginAction.REFUND_HTLC]: PeginAction.REFUND_HTLC,
+  [SdkPeginAction.CLAIM_EXPIRED_VAULT]: PeginAction.CLAIM_EXPIRED_VAULT,
 };
 
 function mapActions(sdkActions: SdkPeginAction[]): PeginAction[] {
@@ -431,6 +479,7 @@ export function getPeginState(
     canRefund: options.canRefund,
     hasProviderTerminalFailure: !!options.vpTerminalError,
     htlcSpentByPeginTx: options.htlcSpentByPeginTx,
+    canClaimExpired: options.canClaimExpired,
   });
 
   const sdkActions = applyTrackingOverrides(
@@ -563,10 +612,17 @@ function applyTrackingOverrides(
   }
 
   if (contractStatus === ContractStatus.EXPIRED) {
+    // Suppresses only the refund it describes. A refund that lost the race to
+    // the PegIn leaves this marker behind while the redeem becomes the exit,
+    // and the redeem has a deadline the marker's TTL could outlast.
     if (localStatus === LocalStorageStatus.REFUND_BROADCAST) {
       if (isWithinTtl(refundBroadcastAt, now, REFUND_BROADCAST_SUPPRESSION_MS))
-        return [];
+        return sdkActions.filter((a) => a !== SdkPeginAction.REFUND_HTLC);
     }
+    // The redeem confirmed this session; the indexer flips the vault to
+    // REDEEMED next. No TTL: the status is in-memory only and set from a
+    // confirmed receipt, so it cannot outlive a reload or describe a revert.
+    if (localStatus === LocalStorageStatus.CLAIM_EXPIRED_SUBMITTED) return [];
   }
 
   return sdkActions;
@@ -590,6 +646,8 @@ interface DisplayInfo {
   refundMaturityState?: RefundMaturityState;
   refundMaturesInBlocks?: number;
   inlineSubtext?: string;
+  /** Set only by the PegIn-swept EXPIRED branch, like the floor field above. */
+  claimExpiredWindow?: ClaimExpiredWindow;
 }
 
 function getDisplay(
@@ -813,12 +871,7 @@ function getDisplay(
     // included: each of them describes returning BTC that is not coming back,
     // and the maturity countdown would tick toward an action Bitcoin rejects.
     if (options.peginSweptWhileExpired) {
-      return {
-        displayLabel: PEGIN_DISPLAY_LABELS.ACTIVATION_INCOMPLETE,
-        displayVariant: "warning",
-        message: COPY.pegin.messages.peginSweptWhileExpired,
-        inlineSubtext: COPY.pegin.messages.peginSweptWhileExpiredSubtext,
-      };
+      return getSweptWhileExpiredDisplay(options);
     }
     // Chain ground truth: the HTLC output is already spent. Overrides the
     // localStorage optimistic state and (with `canRefund=false`) stops the
@@ -909,6 +962,72 @@ function getDisplay(
   };
 }
 
+/**
+ * Display for an EXPIRED vault whose HTLC the PegIn spent: the refund is gone
+ * and the redeem is the way out while the grace window is open.
+ *
+ * An unknown window keeps the redeem's wording — the action stays offered and
+ * the contract enforces the deadline — so only a chain read that says closed
+ * shows the closed state.
+ */
+function getSweptWhileExpiredDisplay(
+  options: GetPeginStateOptions,
+): DisplayInfo {
+  const claimWindow = options.claimExpiredWindow;
+  // The redeem landed — confirmed by this session, or already reported by the
+  // chain while the indexer lags — so the vault provider is paying out.
+  if (
+    options.localStatus === LocalStorageStatus.CLAIM_EXPIRED_SUBMITTED ||
+    claimWindow?.state === "redeemed"
+  ) {
+    return {
+      displayLabel: PEGIN_DISPLAY_LABELS.REDEEM_IN_PROGRESS,
+      displayVariant: "pending",
+      message: COPY.pegin.messages.redemptionInProgress,
+      claimExpiredWindow: claimWindow,
+    };
+  }
+  if (claimWindow?.state === "closed") {
+    return {
+      displayLabel: PEGIN_DISPLAY_LABELS.EXPIRED,
+      displayVariant: "danger",
+      message: COPY.pegin.messages.peginSweptWindowClosed,
+      inlineSubtext: COPY.pegin.messages.peginSweptWindowClosedSubtext,
+      claimExpiredWindow: claimWindow,
+    };
+  }
+  return {
+    displayLabel: PEGIN_DISPLAY_LABELS.ACTIVATION_INCOMPLETE,
+    displayVariant: "warning",
+    message: COPY.pegin.messages.peginSweptWhileExpired,
+    claimExpiredWindow: claimWindow,
+    inlineSubtext:
+      claimWindow?.state === "open"
+        ? COPY.pegin.messages.peginSweptWhileExpiredSubtext(
+            formatClaimWindowRemaining(claimWindow.blocksRemaining),
+          )
+        : COPY.pegin.messages.peginSweptWhileExpiredSubtextUnknown,
+  };
+}
+
+/**
+ * The grace window the redeem modal must honor for a vault's live state.
+ *
+ * `claimExpiredWindow` is set only while the indexer still reports EXPIRED.
+ * Once it reports REDEEMED — a redeem from another device or a third party
+ * landed while the modal was open — that field is gone, and reading it alone
+ * would show the deadline as unknown and re-enable the confirm button. The
+ * indexed status settles it instead: the vault is already redeemed.
+ */
+export function getClaimExpiredModalWindow(
+  state: PeginState | undefined,
+): ClaimExpiredWindow | undefined {
+  if (state?.contractStatus === ContractStatus.REDEEMED) {
+    return { state: "redeemed" };
+  }
+  return state?.claimExpiredWindow;
+}
+
 // ============================================================================
 // getPrimaryActionButton
 // ============================================================================
@@ -953,6 +1072,12 @@ export function getPrimaryActionButton(state: PeginState): {
     return {
       label: COPY.pegin.primaryAction.REFUND_HTLC,
       action: PeginAction.REFUND_HTLC,
+    };
+  }
+  if (state.availableActions.includes(PeginAction.CLAIM_EXPIRED_VAULT)) {
+    return {
+      label: COPY.pegin.primaryAction.CLAIM_EXPIRED_VAULT,
+      action: PeginAction.CLAIM_EXPIRED_VAULT,
     };
   }
   return null;
@@ -1096,6 +1221,8 @@ export function getNextLocalStatus(
     case PeginAction.ACTIVATE_VAULT:
     case PeginAction.ACTIVATE_AND_REDEEM:
       return LocalStorageStatus.CONFIRMED;
+    case PeginAction.CLAIM_EXPIRED_VAULT:
+      return LocalStorageStatus.CLAIM_EXPIRED_SUBMITTED;
     default:
       return null;
   }

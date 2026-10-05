@@ -24,6 +24,7 @@ import { selectPendingActivities } from "@/context/deposit/pendingDepositCount";
 import { useBTCWallet, useETHWallet } from "@/context/wallet";
 import { useAllDepositProviders } from "@/hooks/deposit/useAllDepositProviders";
 import { useBroadcastModal } from "@/hooks/deposit/useBroadcastModal";
+import { useClaimExpiredModal } from "@/hooks/deposit/useClaimExpiredModal";
 import { useEmergencyWithdrawModal } from "@/hooks/deposit/useEmergencyWithdrawModal";
 import { useReclaimModal } from "@/hooks/deposit/useReclaimModal";
 import { useRefundModal } from "@/hooks/deposit/useRefundModal";
@@ -117,6 +118,11 @@ export function usePendingDeposits() {
     onSuccess: refetchActivities,
   });
 
+  const claimExpiredModal = useClaimExpiredModal({
+    allActivities: activities,
+    onSuccess: refetchActivities,
+  });
+
   return {
     pendingActivities,
     expiredActivities,
@@ -152,6 +158,7 @@ export function usePendingDeposits() {
     refundModal,
     reclaimModal,
     emergencyWithdrawModal,
+    claimExpiredModal,
     // God-mode demo aggregate (null in production). Only the activation-walk
     // click routing reads it; every other consumer uses the real lists above.
     demo,

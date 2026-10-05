@@ -71,8 +71,9 @@ vi.mock("@/hooks/useDashboardState", () => ({
 }));
 
 // The page's single usePendingDeposits instance, shared with the emptiness
-// hook. No pending, expired or reclaimable deposits, so of the four terms
-// useVaultsPageEmptiness counts, only collateral decides emptiness.
+// hook. No pending, expired or reclaimable deposits and no open redeem modal,
+// so of the terms useVaultsPageEmptiness counts, only collateral decides
+// emptiness.
 vi.mock("@/hooks/usePendingDeposits", () => ({
   usePendingDeposits: () => ({
     pendingActivities: [],
@@ -80,6 +81,7 @@ vi.mock("@/hooks/usePendingDeposits", () => ({
     reclaimableCandidates: [],
     isLoading: false,
     error: null,
+    claimExpiredModal: { claimingActivity: null },
   }),
 }));
 
