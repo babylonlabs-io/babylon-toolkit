@@ -62,8 +62,8 @@ export function classifyClaimExpiredWindow(params: {
  * unknown window, and an unknown window keeps the redeem offered. Withholding
  * the only exit over a failed RPC read strands the depositor; offering it past
  * the deadline costs at most a confirm step that re-reads the window and
- * refuses before any write (see `useClaimExpiredVault` for the one case it
- * cannot read).
+ * refuses before any write, including when it cannot read the head (see
+ * `useClaimExpiredVault`).
  */
 export function useClaimExpiredWindowGate(
   suspectIds: readonly Hex[],

@@ -323,13 +323,33 @@ describe("useClaimExpiredVault", () => {
     expect(mockClaimExpiredVaultWithSecret).toHaveBeenCalledOnce();
   });
 
-  it("leaves the window to the registry when the head cannot be read", async () => {
+  it("refuses, retryably, when the head cannot be read on the click", async () => {
     mockGetBlockNumber.mockRejectedValue(new Error("rpc down"));
     const { result } = renderClaim();
 
     await claim(result);
 
-    expect(mockClaimExpiredVaultWithSecret).toHaveBeenCalledOnce();
+    expect(result.current.error).toBe(
+      COPY.deposit.claimExpired.errors.windowUnavailable,
+    );
+    expect(result.current.errorTerminal).toBe(false);
+    expect(switchChain).not.toHaveBeenCalled();
+    expect(mockClaimExpiredVaultWithSecret).not.toHaveBeenCalled();
+  });
+
+  it("refuses, retryably, when the head cannot be re-read before the write", async () => {
+    mockGetBlockNumber
+      .mockResolvedValueOnce(CLAIM_EXPIRED_UNTIL - 10n)
+      .mockRejectedValueOnce(new Error("rpc down"));
+    const { result } = renderClaim();
+
+    await claim(result);
+
+    expect(result.current.error).toBe(
+      COPY.deposit.claimExpired.errors.windowUnavailable,
+    );
+    expect(result.current.errorTerminal).toBe(false);
+    expect(mockClaimExpiredVaultWithSecret).not.toHaveBeenCalled();
   });
 
   it("refuses while the HTLC is unspent, so the secret cannot race the refund", async () => {

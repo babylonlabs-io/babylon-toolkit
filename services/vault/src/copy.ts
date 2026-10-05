@@ -818,6 +818,8 @@ export const COPY = {
           "Only a BTCVault that expired after verification can be redeemed. Nothing was submitted.",
         windowClosed:
           "The grace window to redeem this BTCVault has closed. Nothing was submitted.",
+        windowUnavailable:
+          "The grace window could not be checked against the current Ethereum block. Nothing was submitted — please try again.",
         // The only exit after the peg-in spends the deposit, and the wrong one
         // before: revealing the secret while the deposit is unspent lets anyone
         // broadcast the peg-in ahead of the depositor's own refund.

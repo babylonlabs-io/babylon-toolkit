@@ -16,13 +16,14 @@
  * 4. `sha256(secret) === hashlock` against the on-chain hashlock, which the
  *    SDK checks once more before calldata exists.
  *
- * An unreadable head does not block: the registry enforces the window, and
- * `executeWrite`'s simulation refuses a redeem past the cutoff without a
- * transaction. A redeem simulated before the cutoff but mined after it still
- * reverts — one sent on the cutoff block itself, or one signed in the wallet's
- * confirmation prompt across it — a gas cost, accepted over withholding the
- * only exit on a failed read. A readable head at the cutoff is refused here,
- * on the click and again just before the write.
+ * The head is read on the click and again just before the write, and a head
+ * at the cutoff is refused: a redeem is mined after the head, so one simulated
+ * on the cutoff block would pass and then revert at the depositor's gas. An
+ * unreadable head is refused too, retryably, as activation's deadline read is
+ * — an unknown head cannot clear the window. One revert stays out of reach: a
+ * redeem signed in the wallet's confirmation prompt across the cutoff. The
+ * row's window display still fails open (see `useClaimExpiredWindowGate`), so
+ * a failed read never hides the exit; this click-time check decides.
  */
 
 import { ensureHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
@@ -135,19 +136,26 @@ export function useClaimExpiredVault({
       let expectedInterruption = false;
       let submitted = false;
 
+      const errors = COPY.deposit.claimExpired.errors;
+      const readHead = () =>
+        ethClient
+          .getPublicClient()
+          .getBlockNumber({ cacheTime: 0 })
+          .catch((cause: unknown) => {
+            throw new Error(errors.windowUnavailable, { cause });
+          });
+
       try {
         const reader = getVaultRegistryReader();
         const [{ basic, protocol }, freshPauseState, head] = await Promise.all([
           reader.getVaultData(vaultId),
-          // A failed pause read falls back to the cached gate: this is an
-          // exit, and exits fail open on a read failure.
+          // A failed pause read falls back to the cached gate, as activation's
+          // does: this is an exit, and exits fail open on a pause read (see
+          // `getOnChainPauseState`). It cannot cost gas — the registry enforces
+          // the pause and `executeWrite` simulates before any signature, so a
+          // paused redeem is refused before a transaction exists.
           getOnChainPauseState().catch(() => null),
-          // A failed head read leaves the window to the registry (see the
-          // module comment).
-          ethClient
-            .getPublicClient()
-            .getBlockNumber({ cacheTime: 0 })
-            .catch(() => null),
+          readHead(),
         ]);
 
         const effectiveGate = freshPauseState
@@ -158,7 +166,6 @@ export function useClaimExpiredVault({
           throw new Error(COPY.pegin.claimExpiredPaused);
         }
 
-        const errors = COPY.deposit.claimExpired.errors;
         if (!protocol.hashlock || protocol.hashlock === zeroHash) {
           throw new ClaimExpiredNotPossibleError(errors.hashlockMissing);
         }
@@ -179,7 +186,7 @@ export function useClaimExpiredVault({
         // A redeem is mined after the head, so head == claimExpiredUntil is
         // already too late: the simulation (run at the head) would pass and
         // the mined transaction revert. See `classifyClaimExpiredWindow`.
-        if (head !== null && head >= protocol.claimExpiredUntil) {
+        if (head >= protocol.claimExpiredUntil) {
           expectedInterruption = true;
           throw new ClaimExpiredNotPossibleError(errors.windowClosed);
         }
@@ -230,16 +237,9 @@ export function useClaimExpiredVault({
         // prompts, so the window is checked once more on a fresh head as the
         // last step before the write, as activation does. The signing prompt
         // inside `executeWrite` comes after this check: a redeem signed across
-        // the cutoff still reverts. A failed read leaves the window to the
-        // registry.
-        const headBeforeWrite = await ethClient
-          .getPublicClient()
-          .getBlockNumber({ cacheTime: 0 })
-          .catch(() => null);
-        if (
-          headBeforeWrite !== null &&
-          headBeforeWrite >= protocol.claimExpiredUntil
-        ) {
+        // the cutoff still reverts. A failed read refuses, retryably.
+        const headBeforeWrite = await readHead();
+        if (headBeforeWrite >= protocol.claimExpiredUntil) {
           expectedInterruption = true;
           throw new ClaimExpiredNotPossibleError(errors.windowClosed);
         }
