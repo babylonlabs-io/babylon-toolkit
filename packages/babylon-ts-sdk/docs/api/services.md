@@ -5552,10 +5552,13 @@ the sessions in before starting a claim by any route; `vaultd vp wt
 start-claim` enforces this, a browser-driven claim does not.
 
 `joined: true` means a session is present for each listed key, as
-non-empty hex. Once `assertArtifactsUsableForVault` resolves, the keys are
-exactly the graph's challengers (`validate_babe_sessions`,
-`delegated_claim.rs:455-503` @ b534ff9e). Neither check decodes a session:
-only the watchtower does, so a present session is not proven usable.
+non-empty hex. The keys are returned as the file writes them. Once
+`assertArtifactsUsableForVault` resolves, each parses to a graph challenger
+and every challenger is covered (`validate_babe_sessions`,
+`delegated_claim.rs:455-503` @ b534ff9e), but the parse accepts either hex
+case, so a key need not string-equal the graph's lowercase key and one
+challenger can appear twice. Neither check decodes a session: only the
+watchtower does, so a present session is not proven usable.
 
 ***
 
