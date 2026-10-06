@@ -1,0 +1,4 @@
+# Inputs and output of a regeneration run; see ../README.md.
+/btc-vault-src/
+/target/
+/fixture.json

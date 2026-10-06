@@ -342,10 +342,11 @@ export interface WatchtowerArtifactsInputs {
   vaultIdHex: string;
   /**
    * Per-challenger BaBe sessions as `{"<pk>": {"decryptor_artifacts_hex":
-   * "..."}}`. Passed through opaquely, and hundreds of megabytes in practice
-   * — omit it here and join the sessions into the file downstream.
+   * "..."}}`, passed through opaquely. Real sessions run to hundreds of
+   * megabytes, so `{}` builds an unjoined file and the sessions are joined
+   * into it downstream.
    */
-  babeSessionsJson?: string;
+  babeSessionsJson: string;
   /**
    * Vault Core version from the finalized `PegInSubmitted` event. The builder
    * refuses a graph that records a different one, which is what stops a graph

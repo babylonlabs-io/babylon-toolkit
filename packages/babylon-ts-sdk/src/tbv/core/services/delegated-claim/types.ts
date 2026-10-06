@@ -44,33 +44,40 @@ export interface WatchtowerArtifactsSummary {
   claimableEventBlockNumber: bigint;
   /**
    * Groth16 verifying key the file carries (`verifying_key`, btc-vault
-   * `delegated_claim.rs:514` @ ac4954e7). Compared with the caller's trusted
+   * `delegated_claim.rs:523` @ b534ff9e). Compared with the caller's trusted
    * key by `assertArtifactsUsableForVault`.
    */
   verifyingKeyHex: string;
-  /** Hex challenger public keys the file carries BaBe sessions for. */
-  babeSessionChallengerPubkeys: string[];
-  /**
-   * Challengers whose session is still
-   * {@link BABE_SESSION_PLACEHOLDER_DECRYPTOR_HEX}. Such a file verifies but
-   * cannot answer that challenger, so `assertArtifactsUsableForVault` refuses
-   * it.
-   */
-  babeSessionPlaceholderChallengerPubkeys: string[];
+  babeSessions: BabeSessionsState;
 }
 
 /**
- * The `decryptor_artifacts_hex` a browser caller writes per challenger when
- * the real BaBe sessions are too large to hold in a tab.
+ * Whether the file carries BaBe sessions.
  *
- * btc-vault only checks that the value is non-empty hex
- * (`delegated_claim.rs:473-483` @ ac4954e7), so a file built from it verifies
- * yet cannot answer a challenge — join the real sessions in before using it.
- * #2598 tracks making an empty map a first-class "not joined yet" state.
+ * An unjoined file (`babe_sessions` empty or absent) is the normal output of
+ * a browser assembly, and it cannot defend a claim. Claim, Assert and Payout
+ * finalize without the sessions, but answering a `ChallengeAssert` needs
+ * them: the watchtower decrypts the hashlock preimage from the joined
+ * session (`broadcast_wrongly_challenged.rs:152-183` @ b534ff9e), and an
+ * unanswered challenge lets the challenger's NoPayout spend Assert:0, which
+ * blocks the depositor's Payout (`nopayout.rs:1-21` @ b534ff9e). Join
+ * the sessions in before starting a claim by any route; `vaultd vp wt
+ * start-claim` enforces this, a browser-driven claim does not.
+ *
+ * `joined: true` means a session is present for each listed key, as
+ * non-empty hex. Once `assertArtifactsUsableForVault` resolves, the keys are
+ * exactly the graph's challengers (`validate_babe_sessions`,
+ * `delegated_claim.rs:455-503` @ b534ff9e). Neither check decodes a session:
+ * only the watchtower does, so a present session is not proven usable.
  *
  * @experimental
  */
-export const BABE_SESSION_PLACEHOLDER_DECRYPTOR_HEX = "00";
+export type BabeSessionsState =
+  | { joined: false }
+  | { joined: true; challengerPubkeys: string[] };
+
+/** The `babe_sessions` value of an unjoined file. */
+export const UNJOINED_BABE_SESSIONS_JSON = "{}";
 
 /**
  * Inputs the vault provider supplies for artifact assembly.
@@ -206,14 +213,15 @@ export interface DelegatedClaimSigningPlan {
    * The Groth16 verifying key for {@link DelegatedClaimVaultContext.proverCircuitVersion},
    * obtained from the `vault-provers` release or the prover service — never
    * from the vault provider or anything it serves. btc-vault
-   * `delegated_claim.rs:405-414` @ ac4954e7: the builder cannot tell a
+   * `delegated_claim.rs:405-414` @ b534ff9e: the builder cannot tell a
    * substituted key from the real one, and a substituted key would let a
    * proof the depositor never authorized pass the pre-Assert check. This is
    * the value written into the file.
    */
   readonly trustedVerifyingKeyHex: string;
   readonly vault: DelegatedClaimVaultContext;
-  readonly babeSessionsJson?: string;
+  /** Written into the file as `babe_sessions`; `{}` builds an unjoined file. */
+  readonly babeSessionsJson: string;
   readonly requests: readonly DelegatedClaimSigningRequest[];
 }
 

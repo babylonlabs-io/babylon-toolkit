@@ -7,8 +7,8 @@
  * every signature in the file against its own embedded graph, and confirm the
  * file belongs to the vault it is about to be claimed for.
  *
- * Run them before handing the file to `vaultd vp wt`, not after a claim has
- * already spent the PegIn UTXO.
+ * Run them before using the file to claim, not after a claim has already
+ * spent the PegIn UTXO.
  *
  * @module services/delegated-claim/readWatchtowerArtifacts
  */
@@ -17,8 +17,7 @@ import { Transaction } from "bitcoinjs-lib";
 
 import { verifyWatchtowerArtifacts } from "../../wasm";
 
-import type { WatchtowerArtifactsSummary } from "./types";
-import { BABE_SESSION_PLACEHOLDER_DECRYPTOR_HEX } from "./types";
+import type { BabeSessionsState, WatchtowerArtifactsSummary } from "./types";
 import {
   assertClaimSpendsVault,
   normalizeVaultId,
@@ -63,41 +62,38 @@ interface ArtifactsFileFields {
   babe_sessions?: unknown;
 }
 
+/** Non-empty, whole-byte hex in either case, as btc-vault's `hex::decode` takes. */
+const HEX_BYTES = /^(?:[0-9a-fA-F]{2})+$/;
+
 /**
- * The challengers a file carries sessions for, and those whose session is
- * still the placeholder.
+ * Whether the file carries BaBe sessions, checking each entry's shape.
  *
- * btc-vault requires each value to be an object whose
- * `decryptor_artifacts_hex` is a non-empty hex string
- * (`delegated_claim.rs:473-483` @ ac4954e7); anything else would reach the
- * Rust verifier as an opaque failure.
+ * An empty or absent map is an unjoined file. For any other map btc-vault
+ * requires each value to be an object whose `decryptor_artifacts_hex` is a
+ * non-empty hex string (`delegated_claim.rs:482-492` @ b534ff9e); checking
+ * it here names the bad entry instead of surfacing an opaque Rust error.
+ * Coverage of the graph's challengers is left to the WASM verifier.
  */
-function readBabeSessions(value: unknown): {
-  challengerPubkeys: string[];
-  placeholderChallengerPubkeys: string[];
-} {
+function readBabeSessions(value: unknown): BabeSessionsState {
   const sessions = requireRecord(value, "babe_sessions");
-  const placeholderChallengerPubkeys: string[] = [];
+  const challengerPubkeys = Object.keys(sessions);
+  if (challengerPubkeys.length === 0) {
+    return { joined: false };
+  }
   for (const [challengerPubkey, session] of Object.entries(sessions)) {
     const artifactsHex =
       typeof session === "object" && session !== null
         ? (session as { decryptor_artifacts_hex?: unknown })
             .decryptor_artifacts_hex
         : undefined;
-    if (typeof artifactsHex !== "string" || artifactsHex.length === 0) {
+    if (typeof artifactsHex !== "string" || !HEX_BYTES.test(artifactsHex)) {
       throw new Error(
         `Artifacts file is missing a usable "babe_sessions": the entry for ` +
-          `${challengerPubkey} carries no "decryptor_artifacts_hex" string.`,
+          `${challengerPubkey} carries no non-empty hex "decryptor_artifacts_hex".`,
       );
     }
-    if (artifactsHex === BABE_SESSION_PLACEHOLDER_DECRYPTOR_HEX) {
-      placeholderChallengerPubkeys.push(challengerPubkey);
-    }
   }
-  return {
-    challengerPubkeys: Object.keys(sessions),
-    placeholderChallengerPubkeys,
-  };
+  return { joined: true, challengerPubkeys };
 }
 
 /**
@@ -146,8 +142,6 @@ export function summarizeWatchtowerArtifacts(
           ),
         );
 
-  const babeSessions = readBabeSessions(parsed.babe_sessions);
-
   return {
     vaultCoreVersion:
       parsed.vault_core_version === undefined
@@ -159,12 +153,10 @@ export function summarizeWatchtowerArtifacts(
     proverCircuitVersion,
     claimableEventBlockNumber,
     // Required: btc-vault's builder always writes it
-    // (`delegated_claim.rs:514` @ ac4954e7), so an absent one is not a file
+    // (`delegated_claim.rs:874` @ b534ff9e), so an absent one is not a file
     // this SDK or the CLI produced.
     verifyingKeyHex: requireString(parsed.verifying_key, "verifying_key"),
-    babeSessionChallengerPubkeys: babeSessions.challengerPubkeys,
-    babeSessionPlaceholderChallengerPubkeys:
-      babeSessions.placeholderChallengerPubkeys,
+    babeSessions: readBabeSessions(parsed.babe_sessions),
   };
 }
 
@@ -187,15 +179,15 @@ export interface AssertArtifactsUsableParams {
    * The Groth16 verifying key for the vault's `proverCircuitVersion`, from
    * the `vault-provers` release or the prover service — never from the vault
    * provider or anything it serves (btc-vault `delegated_claim.rs:405-414`
-   * @ ac4954e7). A file carrying a different key proves nothing at Assert.
+   * @ b534ff9e). A file carrying a different key proves nothing at Assert.
    */
   trustedVerifyingKeyHex: string;
   /**
    * The vault's stamped `proverCircuitVersion`, from
    * `DelegatedClaimVaultContext`. btc-vault's verifier never reads the
-   * file's own `prover_circuit_version` — `delegated_claim.rs:864` @ ac4954e7
+   * file's own `prover_circuit_version` — `delegated_claim.rs:876` @ b534ff9e
    * only writes it — while `vaultd`'s
-   * `crates/vaultd/src/cli/command/watchtower/start_claim.rs:266-278` hands
+   * `crates/vaultd/src/cli/command/watchtower/start_claim.rs:348-352` hands
    * the file's key and version to the prover together, so a wrong version
    * fails there, before Assert.
    */
@@ -204,7 +196,7 @@ export interface AssertArtifactsUsableParams {
    * The block of the vault's finalized `VaultClaimableBy` event, from
    * `DelegatedClaimVaultContext.claimableEventBlockNumber`. Unverified by
    * btc-vault like the circuit version, and handed to the prover beside it
-   * (`start_claim.rs:270,274` @ ac4954e7), so a wrong block fails there too.
+   * (`start_claim.rs:349,352` @ b534ff9e), so a wrong block fails there too.
    */
   expectedClaimableEventBlockNumber: bigint;
   /**
@@ -218,6 +210,10 @@ export interface AssertArtifactsUsableParams {
 /**
  * Verifies an artifacts file and confirms it is the one for this vault.
  *
+ * An unjoined file passes, with `babeSessions.joined` false. It cannot
+ * answer a challenge, so a caller must not start a claim from it by any
+ * route until the sessions are joined in (see {@link BabeSessionsState}).
+ *
  * Experimental: this API can change in a minor release. Pin the SDK
  * version if you build on it.
  *
@@ -226,10 +222,12 @@ export interface AssertArtifactsUsableParams {
  *         belongs to another vault whatever the file says, a plain error when
  *         its `prover_circuit_version` is not `expectedProverCircuitVersion`,
  *         its `claimable_event_block_number` is not
- *         `expectedClaimableEventBlockNumber`,
- *         its `verifying_key` is not `trustedVerifyingKeyHex` or any BaBe
- *         session is still the placeholder, or a verification error when any
- *         bundled signature does not hold against that graph.
+ *         `expectedClaimableEventBlockNumber`, its `verifying_key` is not
+ *         `trustedVerifyingKeyHex`, or a `babe_sessions` entry is not
+ *         non-empty hex, or a
+ *         verification error when any bundled signature does not hold
+ *         against that graph or a non-empty `babe_sessions` does not cover
+ *         exactly its challengers.
  * @experimental
  */
 export async function assertArtifactsUsableForVault(
@@ -289,8 +287,8 @@ export async function assertArtifactsUsableForVault(
   }
 
   // Nothing verifies this field: btc-vault only writes it
-  // (`delegated_claim.rs:864` @ ac4954e7), and `vaultd` hands it to the prover
-  // beside the file's key (`start_claim.rs:266-278` @ ac4954e7), so a wrong
+  // (`delegated_claim.rs:876` @ b534ff9e), and `vaultd` hands it to the prover
+  // beside the file's key (`start_claim.rs:348-352` @ b534ff9e), so a wrong
   // one fails only at start-claim, before Assert.
   if (summary.proverCircuitVersion !== params.expectedProverCircuitVersion) {
     throw new Error(
@@ -302,7 +300,7 @@ export async function assertArtifactsUsableForVault(
 
   // The Rust verification takes the key opaquely, so a substituted one would
   // let a proof the depositor never authorized pass the pre-Assert check
-  // (btc-vault `delegated_claim.rs:405-414` @ ac4954e7).
+  // (btc-vault `delegated_claim.rs:405-414` @ b534ff9e).
   const fileVerifyingKey = normalizeVerifyingKeyHex(
     summary.verifyingKeyHex,
     'Artifacts file "verifying_key"',
@@ -316,18 +314,6 @@ export async function assertArtifactsUsableForVault(
       `Artifacts carry Groth16 verifying key ${fileVerifyingKey} but the trusted key for ` +
         `prover circuit version ${params.expectedProverCircuitVersion} is ${trustedVerifyingKey}; ` +
         `refusing a file whose proof would verify under a substituted key.`,
-    );
-  }
-
-  // btc-vault checks a session only for shape and non-empty hex
-  // (`delegated_claim.rs:470-493` @ ac4954e7), so a placeholder file verifies
-  // yet cannot answer that challenger.
-  const [placeholderChallenger] =
-    summary.babeSessionPlaceholderChallengerPubkeys;
-  if (placeholderChallenger !== undefined) {
-    throw new Error(
-      `Artifacts carry a placeholder BaBe session for challenger ${placeholderChallenger}; ` +
-        `join the real sessions into the file before using it (#2598).`,
     );
   }
 

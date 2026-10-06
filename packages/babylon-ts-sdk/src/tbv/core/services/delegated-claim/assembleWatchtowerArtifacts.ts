@@ -50,13 +50,11 @@ export interface AssembleWatchtowerArtifactsParams {
    * Per-challenger BaBe sessions as `{"<pk>": {"decryptor_artifacts_hex":
    * "..."}}`, passed through into the file unchanged.
    *
-   * The WASM builder and verifier require an entry for every challenger of
-   * the graph (btc-vault `validate_babe_sessions`); an omitted value becomes
-   * `{}` and is refused on any real graph. Real sessions run to hundreds of
-   * megabytes per challenger, so a browser caller passes a placeholder map
-   * (one {@link BABE_SESSION_PLACEHOLDER_DECRYPTOR_HEX} entry per challenger)
-   * and joins the real sessions into the file downstream —
-   * `assertArtifactsUsableForVault` refuses a file that still carries one.
+   * Omit it to build an unjoined file: real sessions run to hundreds of
+   * megabytes per challenger, too large for a browser tab. An unjoined file
+   * cannot answer a challenge, so join the sessions in before starting a
+   * claim from it (see {@link BabeSessionsState}). A map that is passed must
+   * cover exactly the graph's challengers (btc-vault `validate_babe_sessions`).
    */
   babeSessionsJson?: string;
   /**

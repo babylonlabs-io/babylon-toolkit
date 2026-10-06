@@ -54,7 +54,7 @@ function artifactsFile(overrides: Record<string, unknown> = {}): string {
     claimable_event_block_number: 10_985_680,
     prover_circuit_version: PROVER_CIRCUIT_VERSION,
     vault_id: VAULT_ID,
-    // A joined session, not the "00" placeholder the assembler writes.
+    // A joined file; the unjoined case passes `babe_sessions: {}`.
     babe_sessions: { ["aa".repeat(32)]: { decryptor_artifacts_hex: "0a1b" } },
     ...overrides,
   });
@@ -68,7 +68,10 @@ describe("summarizeWatchtowerArtifacts", () => {
     expect(summary.claimTxid).toBe(CLAIM_TX.getId());
     expect(summary.proverCircuitVersion).toBe(7);
     expect(summary.claimableEventBlockNumber).toBe(10_985_680n);
-    expect(summary.babeSessionChallengerPubkeys).toEqual(["aa".repeat(32)]);
+    expect(summary.babeSessions).toEqual({
+      joined: true,
+      challengerPubkeys: ["aa".repeat(32)],
+    });
   });
 
   it("reports the PegIn txid in display order, not internal order", () => {
@@ -152,6 +155,17 @@ describe("summarizeWatchtowerArtifacts", () => {
     ).toThrow(/babe_sessions/);
   });
 
+  it("rejects a babe_sessions entry whose decryptor_artifacts_hex is not hex", () => {
+    // btc-vault refuses it too; this names the entry before the WASM verifier.
+    expect(() =>
+      summarizeWatchtowerArtifacts(
+        artifactsFile({
+          babe_sessions: { ["aa".repeat(32)]: { decryptor_artifacts_hex: "zz" } },
+        }),
+      ),
+    ).toThrow(`the entry for ${"aa".repeat(32)} carries no non-empty hex`);
+  });
+
   it("reports the verifying key the file carries", () => {
     const summary = summarizeWatchtowerArtifacts(artifactsFile());
 
@@ -164,16 +178,21 @@ describe("summarizeWatchtowerArtifacts", () => {
     ).toThrow(/verifying_key/);
   });
 
-  it("reports the challengers whose session is still the placeholder", () => {
+  it("reports an empty babe_sessions map as unjoined", () => {
     const summary = summarizeWatchtowerArtifacts(
-      artifactsFile({
-        babe_sessions: { ["aa".repeat(32)]: { decryptor_artifacts_hex: "00" } },
-      }),
+      artifactsFile({ babe_sessions: {} }),
     );
 
-    expect(summary.babeSessionPlaceholderChallengerPubkeys).toEqual([
-      "aa".repeat(32),
-    ]);
+    expect(summary.babeSessions).toEqual({ joined: false });
+  });
+
+  it("reports an absent babe_sessions field as unjoined", () => {
+    // btc-vault defaults an absent field to `{}` on read.
+    const summary = summarizeWatchtowerArtifacts(
+      artifactsFile({ babe_sessions: undefined }),
+    );
+
+    expect(summary.babeSessions).toEqual({ joined: false });
   });
 });
 
@@ -304,26 +323,18 @@ describe("assertArtifactsUsableForVault", () => {
     expect(verifyWatchtowerArtifacts).not.toHaveBeenCalled();
   });
 
-  it("rejects a file whose BaBe session is still the placeholder", async () => {
-    await expect(
-      assertArtifactsUsableForVault({
-        artifactsJson: artifactsFile({
-          babe_sessions: {
-            ["aa".repeat(32)]: { decryptor_artifacts_hex: "00" },
-          },
-        }),
-        expectedVaultId: VAULT_ID,
-        depositorEthAddress: DEPOSITOR_ETH_ADDRESS,
-        trustedVerifyingKeyHex: TRUSTED_VERIFYING_KEY,
-        expectedProverCircuitVersion: PROVER_CIRCUIT_VERSION,
-        expectedClaimableEventBlockNumber: CLAIMABLE_EVENT_BLOCK,
-      }),
-    ).rejects.toThrow(
-      `Artifacts carry a placeholder BaBe session for challenger ${"aa".repeat(32)}`,
-    );
-    // The file verifies; only this check stands between it and an
-    // unanswerable challenge.
-    expect(verifyWatchtowerArtifacts).not.toHaveBeenCalled();
+  it("verifies and returns an unjoined file as unjoined", async () => {
+    const summary = await assertArtifactsUsableForVault({
+      artifactsJson: artifactsFile({ babe_sessions: {} }),
+      expectedVaultId: VAULT_ID,
+      depositorEthAddress: DEPOSITOR_ETH_ADDRESS,
+      trustedVerifyingKeyHex: TRUSTED_VERIFYING_KEY,
+      expectedProverCircuitVersion: PROVER_CIRCUIT_VERSION,
+      expectedClaimableEventBlockNumber: CLAIMABLE_EVENT_BLOCK,
+    });
+
+    expect(summary.babeSessions).toEqual({ joined: false });
+    expect(verifyWatchtowerArtifacts).toHaveBeenCalledTimes(1);
   });
 
   it("rejects a file whose claimable event block is not the vault's finalized event block", async () => {

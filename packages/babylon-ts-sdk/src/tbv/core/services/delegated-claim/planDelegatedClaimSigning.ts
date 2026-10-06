@@ -32,10 +32,11 @@ import {
   buildDelegatedClaimSigningRequests,
   type DelegatedClaimPsbtSet,
 } from "./signingRequests";
-import type {
-  ClaimerArtifactsSource,
-  DelegatedClaimSigningPlan,
-  DelegatedClaimVaultContext,
+import {
+  type ClaimerArtifactsSource,
+  type DelegatedClaimSigningPlan,
+  type DelegatedClaimVaultContext,
+  UNJOINED_BABE_SESSIONS_JSON,
 } from "./types";
 import {
   assertClaimSpendsVault,
@@ -228,7 +229,11 @@ export async function planDelegatedClaimSigning(
     trustedVerifyingKeyHex: params.trustedVerifyingKeyHex,
     source: params.source,
     vault: params.vault,
-    babeSessionsJson: params.babeSessionsJson,
+    // Omitted means unjoined: the browser cannot hold the real sessions.
+    babeSessionsJson:
+      params.babeSessionsJson === undefined
+        ? UNJOINED_BABE_SESSIONS_JSON
+        : params.babeSessionsJson,
     requests: buildDelegatedClaimSigningRequests(psbts),
   };
 }

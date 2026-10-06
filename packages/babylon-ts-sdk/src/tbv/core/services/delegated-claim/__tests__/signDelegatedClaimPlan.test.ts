@@ -43,6 +43,7 @@ function plan(): DelegatedClaimSigningPlan {
     btcNetwork: "testnet",
     source: { txGraphJson: "{graph}", verifyingKeyHex: "beef" },
     trustedVerifyingKeyHex: "beef",
+    babeSessionsJson: "{}",
     vault: {
       depositorBtcPubkey: DEPOSITOR_XONLY_PUBKEY,
       vaultProviderBtcPubkey: VAULT_PROVIDER_PUBKEY,
