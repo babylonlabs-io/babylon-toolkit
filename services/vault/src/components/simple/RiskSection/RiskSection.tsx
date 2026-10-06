@@ -62,7 +62,7 @@ function StatCell({
   loading?: boolean;
 }) {
   return (
-    <div className="flex min-w-0 flex-1 flex-col gap-2 p-4">
+    <div className="flex min-w-0 flex-1 flex-col gap-2 p-4 max-md:flex-none max-md:flex-row max-md:items-start max-md:justify-between max-md:gap-4 max-md:px-0 max-md:py-3">
       <span className="flex items-center gap-1 whitespace-nowrap text-sm leading-[1.43] tracking-[0.17px] text-accent-secondary">
         {tooltip ? (
           <Hint
@@ -81,7 +81,7 @@ function StatCell({
           {COPY.common.loading}
         </span>
       ) : (
-        <span className="text-base leading-[1.5] tracking-[0.15px] text-accent-primary">
+        <span className="text-base leading-[1.5] tracking-[0.15px] text-accent-primary max-md:text-right">
           {value}
         </span>
       )}
@@ -119,9 +119,9 @@ export function RiskSection({
         {COPY.risk.title}
       </Heading>
 
-      <div className="rounded-lg border border-secondary-strokeLight bg-secondary-highlight p-6 dark:bg-[#202020]">
-        <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
-          <div className="flex flex-1 flex-col gap-4 xl:max-w-[560px]">
+      <div className="rounded-lg border border-secondary-strokeLight bg-secondary-highlight p-6 dark:bg-[#202020] max-md:p-4">
+        <div className="flex flex-col gap-6 max-md:gap-4 xl:flex-row xl:items-start xl:justify-between">
+          <div className="flex flex-1 flex-col gap-4 max-md:contents xl:max-w-[560px]">
             <div className="flex items-start justify-between gap-4">
               <div className="flex flex-col gap-2">
                 <span className="text-base leading-[1.5] tracking-[0.15px] text-accent-primary">
@@ -153,17 +153,17 @@ export function RiskSection({
               </span>
             </div>
 
-            <div className="flex items-stretch rounded-lg border border-secondary-strokeLight">
+            <div className="flex items-stretch rounded-lg border border-secondary-strokeLight max-md:order-last max-md:flex-col max-md:rounded-none max-md:border-0">
               <StatCell
                 label={COPY.risk.liquidationBtcPriceLabel}
                 value={liquidationPriceText}
               />
-              <div className="h-14 w-px shrink-0 self-center bg-secondary-strokeLight" />
+              <div className="h-14 w-px shrink-0 self-center bg-secondary-strokeLight max-md:h-px max-md:w-full" />
               <StatCell
                 label={COPY.risk.currentBtcPriceLabel}
                 value={btcPriceText}
               />
-              <div className="h-14 w-px shrink-0 self-center bg-secondary-strokeLight" />
+              <div className="h-14 w-px shrink-0 self-center bg-secondary-strokeLight max-md:h-px max-md:w-full" />
               <StatCell
                 label={COPY.risk.collateralFactorLabel}
                 value={collateralFactorText}

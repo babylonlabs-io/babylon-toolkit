@@ -64,7 +64,15 @@ const ACTION_SIZE_WIDE = "h-9 px-6"; // "Apply Optimal Order" (§5)
 
 // Outlined actions take Figma's `stroke/primary` (#5A5A5A in dark), not the
 // fainter `stroke/secondary` core-ui defaults to.
-const SECONDARY_ACTION_BORDER = "border-secondary-strokeDark";
+const SECONDARY_ACTION_BORDER = "md:border-secondary-strokeDark";
+
+const PHONE_CHIP_OFFSET = "max-md:mt-[9px]";
+
+const ACTIONS_PLACEMENT_CLASS: Record<NotificationActionsPlacement, string> = {
+  inline:
+    "justify-end max-md:order-last max-md:basis-full max-md:justify-start",
+  below: "order-last basis-full",
+};
 
 // The suggestion box inset differs per card: 16px on the reorder card (§5) and
 // the tighter 8px/16px on the cliff card (§4). Presentational, so the caller
@@ -220,13 +228,14 @@ export function NotificationCard({
 
   const hasActions = Boolean(actions && actions.length > 0);
   const hasInlineActions = hasActions && actionsPlacement === "inline";
-  const hasBelowActions = hasActions && actionsPlacement === "below";
 
   // Vertically center only in the simple inline case (icon + text + actions on
   // one row); any stacked content — a suggestion box or a top-right close —
   // top-aligns so the icon and close control sit at the top.
   const centerAlign = hasInlineActions && !suggestion && !onClose;
-  const alignClass = centerAlign ? "items-center" : "items-start";
+  const alignClass = centerAlign
+    ? "items-center max-md:items-start"
+    : "items-start";
 
   // core-ui owns the shared button shell (base padding, disabled state); the v3
   // radius, the per-card size and the outlined border ride in as overrides.
@@ -249,7 +258,7 @@ export function NotificationCard({
       role={resolvedRole}
       data-tone={tone}
       className={twMerge(
-        "flex w-full gap-6 rounded-lg border-l-4 p-6",
+        "flex w-full flex-wrap gap-x-6 gap-y-4 rounded-lg border-l-4 p-6 max-md:px-4 max-md:py-3",
         accent.surface,
         accent.tint,
         accent.border,
@@ -264,6 +273,7 @@ export function NotificationCard({
             aria-hidden="true"
             className={twMerge(
               "flex shrink-0 items-center justify-center rounded-lg p-2.5",
+              PHONE_CHIP_OFFSET,
               accent.chipBg,
             )}
           >
@@ -275,7 +285,7 @@ export function NotificationCard({
           {/* Figma stacks the title and body with no gap. */}
           <div className="flex min-w-0 flex-col">
             {isPresent(title) && (
-              <div className="break-words text-xl font-bold tracking-0.15 text-accent-primary">
+              <div className="break-words text-xl font-bold tracking-0.15 text-accent-primary max-md:font-normal">
                 {title}
               </div>
             )}
@@ -300,17 +310,16 @@ export function NotificationCard({
               {suggestion}
             </div>
           )}
-
-          {hasBelowActions && (
-            <div className="flex flex-wrap items-center gap-2">
-              {actionButtons}
-            </div>
-          )}
         </div>
       </div>
 
-      {hasInlineActions && (
-        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+      {hasActions && (
+        <div
+          className={twMerge(
+            "flex shrink-0 flex-wrap items-center gap-2",
+            ACTIONS_PLACEMENT_CLASS[actionsPlacement],
+          )}
+        >
           {actionButtons}
         </div>
       )}

@@ -72,8 +72,7 @@ describe("NotificationCard", () => {
     expect(primary.className).toContain("bg-error-dark");
     expect(primary.className).not.toContain("bg-error-main");
     // Outlined actions take stroke/primary (#5A5A5A), not the fainter stroke.
-    expect(secondary.className).toContain("border-secondary-strokeDark");
-    expect(secondary.className).not.toContain("border-secondary-strokeLight");
+    expect(secondary).toHaveClass("md:border-secondary-strokeDark");
     expect(secondary.className).toContain("text-accent-primary");
     expect(secondary).toBeDisabled();
 
