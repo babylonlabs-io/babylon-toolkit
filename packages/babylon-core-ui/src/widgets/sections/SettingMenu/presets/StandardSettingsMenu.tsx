@@ -70,13 +70,17 @@ export const StandardSettingsMenu = ({
     setTheme(newTheme);
   };
 
-  const handleTermsOfUse = () => {
-    window.open(TERMS_OF_USE_URL, "_blank", "noopener,noreferrer");
+  const openLegalUrl = (url: string) => {
+    if (touchFirst) {
+      window.location.assign(url);
+      return;
+    }
+    window.open(url, "_blank", "noopener,noreferrer");
   };
 
-  const handlePrivacyPolicy = () => {
-    window.open(PRIVACY_POLICY_URL, "_blank", "noopener,noreferrer");
-  };
+  const handleTermsOfUse = () => openLegalUrl(TERMS_OF_USE_URL);
+
+  const handlePrivacyPolicy = () => openLegalUrl(PRIVACY_POLICY_URL);
 
   const getThemeDescription = () => {
     return isLightMode ? "Light mode" : "Dark mode";
