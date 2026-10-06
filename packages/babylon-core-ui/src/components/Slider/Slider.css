@@ -184,7 +184,7 @@
 }
 
 @media (pointer: coarse) {
-  .bbn-slider { @apply h-10 -my-4; }
+  .bbn-slider { @apply block box-content bg-clip-content py-4 -my-4; }
 }
 
 /* Dark mode support - override inactive color for dark themes */

@@ -15,6 +15,7 @@ import {
   useIsTouchFirst,
 } from "@babylonlabs-io/core-ui";
 import { stripHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
+import { twJoin } from "tailwind-merge";
 
 import { truncateHash } from "@/utils/addressUtils";
 
@@ -83,7 +84,11 @@ export function CopyableHash({
         type="button"
         onClick={() => copyToClipboard(hash, displayHash)}
         aria-label={copyLabel}
-        className="flex cursor-pointer items-center text-accent-secondary transition-colors hover:text-accent-primary"
+        className={twJoin(
+          "flex cursor-pointer items-center text-accent-secondary transition-colors hover:text-accent-primary",
+          touchFirst &&
+            "relative before:absolute before:-inset-[13px] before:content-['']",
+        )}
       >
         {isCopied(hash) ? (
           <CheckIcon size={COPY_ICON_SIZE} variant="success" />

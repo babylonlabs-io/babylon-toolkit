@@ -2687,6 +2687,7 @@ export const COPY = {
     // the row actually links to (mempool for BTC, the chain explorer for ETH),
     // never hardcoded.
     explorerLabel: (explorerName: string) => `${explorerName} Explorer :`,
+    copyHashLabel: "Transaction hash :",
     timeLabel: "Time:",
     // Accessible name for the v3 row's hash link, which opens the explorer.
     viewTransaction: (chain: string, hash: string) =>
