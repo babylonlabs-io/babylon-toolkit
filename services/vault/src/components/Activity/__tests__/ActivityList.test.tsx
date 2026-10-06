@@ -243,12 +243,9 @@ describe("ActivityList", () => {
     vi.useRealTimers();
   });
 
-  it("v3 UI + disconnected: renders no in-page heading and no filter row", () => {
+  it("v3 UI + disconnected: renders no filter row", () => {
     renderList({ activities: [], isConnected: false });
 
-    expect(
-      screen.queryByRole("heading", { name: COPY.activity.pageTitle }),
-    ).not.toBeInTheDocument();
     expect(screen.queryByAltText("Aave")).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: /show all/i }),
@@ -260,26 +257,10 @@ describe("ActivityList", () => {
     ).toBeInTheDocument();
   });
 
-  it("v3 UI + mobile: keeps the in-page heading visible", () => {
-    Object.defineProperty(window, "innerWidth", {
-      configurable: true,
-      value: 375,
-    });
-
-    renderList({ activities: [], isConnected: false });
-
-    expect(
-      screen.getByRole("heading", { name: COPY.activity.pageTitle }),
-    ).toBeInTheDocument();
-  });
-
   it("v3 UI + connected: keeps the filter dropdown but drops the Aave logo the v2 header shows", () => {
     const rows = [makeRow({ id: "a", type: "Deposit" })];
     renderList({ activities: rows, isConnected: true });
 
-    expect(
-      screen.queryByRole("heading", { name: COPY.activity.pageTitle }),
-    ).not.toBeInTheDocument();
     expect(screen.queryByAltText("Aave")).not.toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /show all/i }),

@@ -77,6 +77,10 @@ export interface RootLayoutContext {
 const CRITICAL_BANNER_Z_CLASS = "z-[60]";
 const DEPOSIT_DISABLED_BANNER_Z_CLASS = "z-30";
 
+// Figma phone header (node 12031:122515): 40px controls with 12px vertical
+// padding. Desktop keeps core-ui's 80px row.
+const PHONE_HEADER_HEIGHT_CLASS = "h-16 md:h-20";
+
 export default function RootLayout() {
   const gate = useProtocolGateState();
   const { theme, setTheme } = useTheme();
@@ -227,20 +231,32 @@ export default function RootLayout() {
           <Header
             size="md"
             // The Figma top-bar divider (border-b) sits the page content 24px
-            // below it (mb-6).
-            className="mb-6 border-b border-secondary-strokeLight"
+            // below it (mb-6), 16px on phone.
+            className="mb-4 border-b border-secondary-strokeLight md:mb-6"
             // `PAGE_CONTENT_CLASS` overrides the `container` width core-ui's
             // Header applies by default, so the navbar shares the same content
             // box as the page body and footer.
-            containerClassName={
-              isEntryLayout ? ENTRY_CONTENT_CLASS : PAGE_CONTENT_CLASS
-            }
+            containerClassName={twJoin(
+              isEntryLayout ? ENTRY_CONTENT_CLASS : PAGE_CONTENT_CLASS,
+              PHONE_HEADER_HEIGHT_CLASS,
+            )}
             logo={
               isEntryLayout ? (
                 <BrandLockup />
               ) : (
                 <Heading
                   variant="h5"
+                  as="h1"
+                  className="font-normal text-accent-primary"
+                >
+                  {pageTitle}
+                </Heading>
+              )
+            }
+            mobileTitle={
+              isEntryLayout ? undefined : (
+                <Heading
+                  variant="h6"
                   as="h1"
                   className="font-normal text-accent-primary"
                 >

@@ -382,7 +382,7 @@ export default function BorrowingMarketsData() {
                 <div className="flex items-center gap-2">
                   <Heading
                     variant="h5"
-                    as="h1"
+                    as="h2"
                     className="font-normal text-accent-primary"
                   >
                     {name}

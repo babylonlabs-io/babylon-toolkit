@@ -1,4 +1,3 @@
-import { Heading, useIsMobile } from "@babylonlabs-io/core-ui";
 import { useEffect, useMemo, useState } from "react";
 import { twJoin } from "tailwind-merge";
 
@@ -87,11 +86,6 @@ export function ActivityList({
   onWithdraw,
   onRedeem,
 }: ActivityListProps) {
-  const isMobile = useIsMobile();
-  // Desktop replaces this in-page heading with the persistent header's page
-  // title; mobile has no header title slot (Header only shows it on desktop),
-  // so the heading must stay to avoid a page with no title at all.
-  const hideHeading = !isMobile;
   const [filter, setFilter] = useState<ActivityType | null>(null);
   const [searchInput, setSearchInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -129,41 +123,23 @@ export function ActivityList({
 
   return (
     <div className="flex flex-col gap-6">
-      {(!hideHeading || isConnected) && (
-        <div
-          className={twJoin(
-            "flex items-center gap-4",
-            !hideHeading && "justify-between",
-          )}
-        >
-          {!hideHeading && (
-            <Heading
-              variant="h5"
-              as="h2"
-              className="font-normal text-accent-primary"
-            >
-              {COPY.activity.pageTitle}
-            </Heading>
-          )}
-          {isConnected && (
-            // Search at the left of the toolbar, the type filter pinned right.
-            <div className="flex flex-1 items-center justify-between gap-4">
-              <ActivitySearchInput
-                value={searchInput}
-                onChange={(next) => {
-                  setSearchInput(next);
-                  applySearch(next);
-                }}
-              />
-              <FilterDropdown
-                value={filter}
-                placeholder={COPY.activity.filterAll}
-                options={FILTER_OPTIONS}
-                onChange={setFilter}
-                align="end"
-              />
-            </div>
-          )}
+      {isConnected && (
+        // Search at the left of the toolbar, the type filter pinned right.
+        <div className="flex items-center justify-between gap-4">
+          <ActivitySearchInput
+            value={searchInput}
+            onChange={(next) => {
+              setSearchInput(next);
+              applySearch(next);
+            }}
+          />
+          <FilterDropdown
+            value={filter}
+            placeholder={COPY.activity.filterAll}
+            options={FILTER_OPTIONS}
+            onChange={setFilter}
+            align="end"
+          />
         </div>
       )}
 
