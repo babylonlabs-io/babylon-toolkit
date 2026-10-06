@@ -33,7 +33,7 @@
  * and nothing here watches the chain — a ChallengeAssert must be answered
  * inside `timelock_challenge_assert`, and noticing one is the caller's job.
  *
- * @see btc-vault docs/delegated_claim.md
+ * @see btc-vault docs/operations/delegated_claim.md
  * @module services/delegated-claim
  */
 

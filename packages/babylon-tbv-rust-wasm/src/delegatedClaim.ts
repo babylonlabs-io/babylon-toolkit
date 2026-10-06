@@ -21,7 +21,7 @@
  * `unsupported tx graph version for delegated claim: <v> (supported: 3)` —
  * those vaults predate the artifacts format.
  *
- * @see btc-vault docs/delegated_claim.md
+ * @see btc-vault docs/operations/delegated_claim.md
  */
 
 import type * as VaultWasm from '../dist/generated/vault_wasm.js';
