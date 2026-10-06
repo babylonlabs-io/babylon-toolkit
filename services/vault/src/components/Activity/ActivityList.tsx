@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import { twJoin } from "tailwind-merge";
 
 import { ListRowCard } from "@/components/shared/ListRow";
 import { COPY } from "@/copy";
