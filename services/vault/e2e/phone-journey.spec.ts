@@ -52,6 +52,9 @@ test.describe("Phone journey", () => {
     await page.getByTestId("connect-wallet-button").first().tap();
     const commit = dialog.getByTestId("chains-connect-button");
     await expect(commit).toBeEnabled({ timeout: APP_BOOT_TIMEOUT_MS });
+    await expect(
+      dialog.getByTestId("select-bitcoin-wallet-button"),
+    ).toHaveCount(0);
     await commit.tap();
     await expect(commit).toHaveCount(0);
     await expect(page.getByTestId("wallet-menu-trigger")).toBeVisible();
