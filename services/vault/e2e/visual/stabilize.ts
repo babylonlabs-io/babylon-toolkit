@@ -70,8 +70,9 @@ const HIDE_GOD_MODE_LAUNCHER_CSS = `
 `;
 
 /**
- * The half-viewport overlap (400px desktop, 422px mobile) must exceed the fixed
- * header height so each document pixel appears in at least one capture.
+ * The half-viewport overlap (400px desktop, 422px mobile, 390px mobile-360)
+ * must exceed the fixed header height so each document pixel appears in at
+ * least one capture.
  */
 const STABILITY_SCROLL_STEP_RATIO = 0.5;
 
