@@ -1,0 +1,41 @@
+[package]
+name = "claim-fixture"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+# Stand-alone workspace root. The exported btc-vault tree is a nested
+# workspace; excluding it makes cargo resolve its `workspace = true` fields
+# against ./btc-vault-src/Cargo.toml instead of this manifest.
+[workspace]
+exclude = ["btc-vault-src"]
+
+[dependencies]
+# btc-vault @ b534ff9e846d93367fbaabe0f54517db200326fd, exported with
+# `git archive` into ./btc-vault-src (see README.md). A path dep into that
+# tree resolves babe-daemons and the other workspace members locally.
+btc-vault = { path = "btc-vault-src/crates/vault", features = ["test-utils"] }
+btc-vault-crypto = { path = "btc-vault-src/crates/crypto" }
+# Exact versions, as btc-vault's own Cargo.lock at that rev resolves them.
+bitcoin = { version = "=0.32.8", features = ["rand", "std", "serde", "base64"] }
+hex = "=0.4.3"
+rand = "=0.8.6"
+rand_chacha = "=0.3.1"
+serde_json = { version = "=1.0.149", features = ["std"] }
+sha3 = "=0.10.8"
+tokio = { version = "=1.50.0", features = ["rt"] }
+
+[profile.dev.package.ark-ff]
+opt-level = 3
+[profile.dev.package.ark-ec]
+opt-level = 3
+[profile.dev.package.ark-bn254]
+opt-level = 3
+[profile.dev.package.secp256k1]
+opt-level = 3
+[profile.dev.package.secp256k1-sys]
+opt-level = 3
+[profile.dev.package.sha2]
+opt-level = 3
+[profile.dev.package.bitcoin_hashes]
+opt-level = 3

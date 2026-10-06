@@ -1265,13 +1265,11 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/assem
 Per-challenger BaBe sessions as `{"<pk>": {"decryptor_artifacts_hex":
 "..."}}`, passed through into the file unchanged.
 
-The WASM builder and verifier require an entry for every challenger of
-the graph (btc-vault `validate_babe_sessions`); an omitted value becomes
-`{}` and is refused on any real graph. Real sessions run to hundreds of
-megabytes per challenger, so a browser caller passes a placeholder map
-(one [BABE\_SESSION\_PLACEHOLDER\_DECRYPTOR\_HEX](#babe_session_placeholder_decryptor_hex) entry per challenger)
-and joins the real sessions into the file downstream —
-`assertArtifactsUsableForVault` refuses a file that still carries one.
+Omit it to build an unjoined file: real sessions run to hundreds of
+megabytes per challenger, too large for a browser tab. An unjoined file
+cannot answer a challenge, so join the sessions in before starting a
+claim from it (see [BabeSessionsState](#babesessionsstate)). A map that is passed must
+cover exactly the graph's challengers (btc-vault `validate_babe_sessions`).
 
 ##### depositTerms?
 
@@ -2069,7 +2067,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/readW
 The Groth16 verifying key for the vault's `proverCircuitVersion`, from
 the `vault-provers` release or the prover service — never from the vault
 provider or anything it serves (btc-vault `delegated_claim.rs:405-414`
-@ ac4954e7). A file carrying a different key proves nothing at Assert.
+@ b534ff9e). A file carrying a different key proves nothing at Assert.
 
 ##### expectedProverCircuitVersion
 
@@ -2083,9 +2081,9 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/readW
 
 The vault's stamped `proverCircuitVersion`, from
 `DelegatedClaimVaultContext`. btc-vault's verifier never reads the
-file's own `prover_circuit_version` — `delegated_claim.rs:864` @ ac4954e7
+file's own `prover_circuit_version` — `delegated_claim.rs:876` @ b534ff9e
 only writes it — while `vaultd`'s
-`crates/vaultd/src/cli/command/watchtower/start_claim.rs:266-278` hands
+`crates/vaultd/src/cli/command/watchtower/start_claim.rs:348-352` hands
 the file's key and version to the prover together, so a wrong version
 fails there, before Assert.
 
@@ -2102,7 +2100,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/readW
 The block of the vault's finalized `VaultClaimableBy` event, from
 `DelegatedClaimVaultContext.claimableEventBlockNumber`. Unverified by
 btc-vault like the circuit version, and handed to the prover beside it
-(`start_claim.rs:270,274` @ ac4954e7), so a wrong block fails there too.
+(`start_claim.rs:349,352` @ b534ff9e), so a wrong block fails there too.
 
 ##### txGraphVersion?
 
@@ -2338,35 +2336,18 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types
 **`Experimental`**
 
 Groth16 verifying key the file carries (`verifying_key`, btc-vault
-`delegated_claim.rs:514` @ ac4954e7). Compared with the caller's trusted
+`delegated_claim.rs:523` @ b534ff9e). Compared with the caller's trusted
 key by `assertArtifactsUsableForVault`.
 
-##### babeSessionChallengerPubkeys
+##### babeSessions
 
 ```ts
-babeSessionChallengerPubkeys: string[];
+babeSessions: BabeSessionsState;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts)
 
 **`Experimental`**
-
-Hex challenger public keys the file carries BaBe sessions for.
-
-##### babeSessionPlaceholderChallengerPubkeys
-
-```ts
-babeSessionPlaceholderChallengerPubkeys: string[];
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts)
-
-**`Experimental`**
-
-Challengers whose session is still
-[BABE\_SESSION\_PLACEHOLDER\_DECRYPTOR\_HEX](#babe_session_placeholder_decryptor_hex). Such a file verifies but
-cannot answer that challenger, so `assertArtifactsUsableForVault` refuses
-it.
 
 ***
 
@@ -2743,7 +2724,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types
 The Groth16 verifying key for [DelegatedClaimVaultContext.proverCircuitVersion](#provercircuitversion-1),
 obtained from the `vault-provers` release or the prover service — never
 from the vault provider or anything it serves. btc-vault
-`delegated_claim.rs:405-414` @ ac4954e7: the builder cannot tell a
+`delegated_claim.rs:405-414` @ b534ff9e: the builder cannot tell a
 substituted key from the real one, and a substituted key would let a
 proof the depositor never authorized pass the pre-Assert check. This is
 the value written into the file.
@@ -2758,15 +2739,17 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types
 
 **`Experimental`**
 
-##### babeSessionsJson?
+##### babeSessionsJson
 
 ```ts
-readonly optional babeSessionsJson: string;
+readonly babeSessionsJson: string;
 ```
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts)
 
 **`Experimental`**
+
+Written into the file as `babe_sessions`; `{}` builds an unjoined file.
 
 ##### requests
 
@@ -5539,6 +5522,46 @@ the SDK forwards that shape back through `activateVault`.
 
 ***
 
+### BabeSessionsState
+
+```ts
+type BabeSessionsState = 
+  | {
+  joined: false;
+}
+  | {
+  joined: true;
+  challengerPubkeys: string[];
+};
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts)
+
+**`Experimental`**
+
+Whether the file carries BaBe sessions.
+
+An unjoined file (`babe_sessions` empty or absent) is the normal output of
+a browser assembly, and it cannot defend a claim. Claim, Assert and Payout
+finalize without the sessions, but answering a `ChallengeAssert` needs
+them: the watchtower decrypts the hashlock preimage from the joined
+session (`broadcast_wrongly_challenged.rs:152-183` @ b534ff9e), and an
+unanswered challenge lets the challenger's NoPayout spend Assert:0, which
+blocks the depositor's Payout (`nopayout.rs:1-21` @ b534ff9e). Join
+the sessions in before starting a claim by any route; `vaultd vp wt
+start-claim` enforces this, a browser-driven claim does not.
+
+`joined: true` means a session is present for each listed key, as
+non-empty hex. The keys are returned as the file writes them. Once
+`assertArtifactsUsableForVault` resolves, each parses to a graph challenger
+and every challenger is covered (`validate_babe_sessions`,
+`delegated_claim.rs:455-503` @ b534ff9e), but the parse accepts either hex
+case, so a key need not string-equal the graph's lowercase key and one
+challenger can appear twice. Neither check decodes a session: only the
+watchtower does, so a present session is not proven usable.
+
+***
+
 ### DelegatedClaimSigningKind
 
 ```ts
@@ -6166,6 +6189,10 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/readW
 
 Verifies an artifacts file and confirms it is the one for this vault.
 
+An unjoined file passes, with `babeSessions.joined` false. It cannot
+answer a challenge, so a caller must not start a claim from it by any
+route until the sessions are joined in (see [BabeSessionsState](#babesessionsstate)).
+
 Experimental: this API can change in a minor release. Pin the SDK
 version if you build on it.
 
@@ -6186,10 +6213,12 @@ version if you build on it.
         belongs to another vault whatever the file says, a plain error when
         its `prover_circuit_version` is not `expectedProverCircuitVersion`,
         its `claimable_event_block_number` is not
-        `expectedClaimableEventBlockNumber`,
-        its `verifying_key` is not `trustedVerifyingKeyHex` or any BaBe
-        session is still the placeholder, or a verification error when any
-        bundled signature does not hold against that graph.
+        `expectedClaimableEventBlockNumber`, its `verifying_key` is not
+        `trustedVerifyingKeyHex`, or a `babe_sessions` entry is not
+        non-empty hex, or a
+        verification error when any bundled signature does not hold
+        against that graph or a non-empty `babe_sessions` does not cover
+        exactly its challengers.
 
 ***
 
@@ -7864,26 +7893,6 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/readW
 
 Graph version the delegated-claim artifacts format exists for. Vaults on
 graph v1 and v2 predate it and have no artifacts path at all.
-
-***
-
-### BABE\_SESSION\_PLACEHOLDER\_DECRYPTOR\_HEX
-
-```ts
-const BABE_SESSION_PLACEHOLDER_DECRYPTOR_HEX: "00" = "00";
-```
-
-Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types.ts)
-
-**`Experimental`**
-
-The `decryptor_artifacts_hex` a browser caller writes per challenger when
-the real BaBe sessions are too large to hold in a tab.
-
-btc-vault only checks that the value is non-empty hex
-(`delegated_claim.rs:473-483` @ ac4954e7), so a file built from it verifies
-yet cannot answer a challenge — join the real sessions in before using it.
-#2598 tracks making an empty map a first-class "not joined yet" state.
 
 ***
 

@@ -102,6 +102,25 @@ describe("planDelegatedClaimSigning", () => {
     expect(plan.vault).toEqual(params().vault);
   });
 
+  it("plans an unjoined file when no BaBe sessions are given", async () => {
+    const plan = await planDelegatedClaimSigning(params());
+
+    expect(plan.babeSessionsJson).toBe("{}");
+  });
+
+  it("passes given BaBe sessions through unchanged", async () => {
+    const sessions = JSON.stringify({
+      [CHALLENGER_A]: { decryptor_artifacts_hex: "a1a2" },
+    });
+
+    const plan = await planDelegatedClaimSigning({
+      ...params(),
+      babeSessionsJson: sessions,
+    });
+
+    expect(plan.babeSessionsJson).toBe(sessions);
+  });
+
   it("refuses a graph whose Payout input 0 sequence is not the stamped PegIn timelock", async () => {
     const wrongSequence = buildDelegatedClaimFixture(undefined, {
       peginInputSequence: TIMELOCK_PEGIN + 1,

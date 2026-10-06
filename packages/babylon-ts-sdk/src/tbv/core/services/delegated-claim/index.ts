@@ -11,7 +11,7 @@
  *
  * Produces and checks the two files a claim runs from: `artifacts.json` and
  * `wots_keypair.json`. `vaultd vp wt` reads the same pair, so either can drive
- * the claim.
+ * the claim once the BaBe sessions are joined into `artifacts.json`.
  *
  * Signing is split into plan → sign → assemble so a hardware wallet can sign
  * the set as ordered device ceremonies (Assert and the depositor Payout under
@@ -33,7 +33,7 @@
  * and nothing here watches the chain — a ChallengeAssert must be answered
  * inside `timelock_challenge_assert`, and noticing one is the caller's job.
  *
- * @see btc-vault docs/delegated_claim.md
+ * @see btc-vault docs/operations/delegated_claim.md
  * @module services/delegated-claim
  */
 
@@ -95,8 +95,8 @@ export {
   type DelegatedClaimPsbtSigner,
   type SignDelegatedClaimPlanOptions,
 } from "./signDelegatedClaimPlan";
-export { BABE_SESSION_PLACEHOLDER_DECRYPTOR_HEX } from "./types";
 export type {
+  BabeSessionsState,
   ClaimerArtifactsSource,
   DelegatedClaimSignatures,
   DelegatedClaimSigningKind,

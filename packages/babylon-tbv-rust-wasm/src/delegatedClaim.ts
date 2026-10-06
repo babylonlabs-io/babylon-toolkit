@@ -21,7 +21,7 @@
  * `unsupported tx graph version for delegated claim: <v> (supported: 3)` —
  * those vaults predate the artifacts format.
  *
- * @see btc-vault docs/delegated_claim.md
+ * @see btc-vault docs/operations/delegated_claim.md
  */
 
 import type * as VaultWasm from '../dist/generated/vault_wasm.js';
@@ -298,11 +298,10 @@ export function createDelegatedClaimApi(getWasmBindings: GetWasmBindings) {
      * signer is still on the page, instead of months later at claim time.
      *
      * `babeSessionsJson` and `verifyingKeyHex` pass through opaquely. The
-     * BaBe sessions are multi-hundred-megabyte payloads, and the builder
-     * refuses a map that does not cover every challenger
-     * (`validate_babe_sessions` @ ac4954e7), so a caller that cannot route
-     * them through WASM memory passes a placeholder map and joins the real
-     * sessions downstream (#2598).
+     * builder accepts either `{}`, an unjoined file whose sessions are joined
+     * downstream, or a map keyed by exactly the graph's challengers
+     * (`validate_babe_sessions` @ b534ff9e). `vaultd vp wt start-claim`
+     * refuses an unjoined file.
      *
      * `depositorPayoutSigHex` is always signed fresh and required — the
      * upstream binding no longer reads a presigned one off the graph.
@@ -330,9 +329,7 @@ export function createDelegatedClaimApi(getWasmBindings: GetWasmBindings) {
           inputs.claimableEventBlockNumber,
           inputs.proverCircuitVersion,
           inputs.vaultIdHex,
-          // Required upstream; the empty object stands in for fixtures only —
-          // a real graph refuses it (see the doc above).
-          inputs.babeSessionsJson ?? '{}',
+          inputs.babeSessionsJson,
           inputs.expectedVaultCoreVersion,
         );
       } catch (err) {

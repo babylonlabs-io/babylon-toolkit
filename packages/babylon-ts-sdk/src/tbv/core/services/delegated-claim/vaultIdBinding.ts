@@ -91,7 +91,7 @@ export function peginTxidFromClaimTx(claimTx: Transaction): string {
 /**
  * The depositor Claim is funded by PegIn output 1 alone; the pinned engine
  * checks the same shape (btc-vault `check_depositor_claim_shape`,
- * `transactions/claim.rs:140-158` @ ac4954e7), re-asserted here per CLAUDE.md §1.
+ * `transactions/claim.rs:140-158` @ b534ff9e), re-asserted here per CLAUDE.md §1.
  */
 function assertSpendsDepositorClaimOutput(
   label: string,

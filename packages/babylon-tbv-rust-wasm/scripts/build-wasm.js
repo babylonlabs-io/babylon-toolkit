@@ -16,12 +16,15 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // golden-vector gate (src/__tests__ frozen vectors) before shipping.
 const VAULT_WASM_REPO_URL = 'git@github.com:babylonlabs-io/vault-wasm.git';
 const VAULT_WASM_BRANCH = 'main';
-// vault-wasm main at the merge of PR #6 (delegated-claim assembly and
-// claim-time exports, graph v3 only); bundles btc-vault v1 @ 2c1177ec (tag
-// v0.6.1), v2 @ 27c0062b (tag v0.8.0), v3 @ ac4954e7, which is btc-vault
-// #2655's merge commit on main. Every rev here is reachable from a default
-// branch, so the binary this produces stays reproducible.
-const VAULT_WASM_COMMIT = '4cd516e85719ad7be30ed45c81945100bce7ab15';
+// vault-wasm main at the merge of PR #9; bundles btc-vault v1 @ 2c1177ec (tag
+// v0.6.1), v2 @ 27c0062b (tag v0.8.0), v3 @ b534ff9e, which is btc-vault
+// #2861's merge commit on main (watchtower artifacts accept an unjoined,
+// empty BaBe session map). The v3 move from ac4954e7 also carries #2838,
+// which funds the council-only CouncilNoPayout through a P2A anchor; no
+// depositor-signed transaction or vault-secret derivation changes. Every rev
+// here is reachable from a default branch, so the binary this produces stays
+// reproducible.
+const VAULT_WASM_COMMIT = 'fd9872c4e3da5718218e8b4d23a0cd93b915f53b';
 const REQUIRED_RUSTC_VERSION = '1.94';
 
 const REPO_DIR = path.join(__dirname, '..', 'vault-wasm-temp');
