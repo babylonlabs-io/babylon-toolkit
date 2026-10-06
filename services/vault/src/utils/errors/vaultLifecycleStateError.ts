@@ -13,7 +13,8 @@ export type VaultLifecycleStage = "broadcast" | "presign";
 export type VaultLifecycleRole = "target" | "sibling";
 
 /**
- * Typed refusal from the DepositTerms rebuild's lifecycle gate.
+ * Typed refusal from a lifecycle gate: the DepositTerms rebuild's status and
+ * presign ack-window gates, and the Pre-PegIn broadcast ack-window gate.
  *
  * Thrown instead of a bare `Error` so the UI mappers can branch on the
  * machine-readable fields rather than the message: a presign-stage EXPIRED
@@ -50,7 +51,7 @@ export class VaultLifecycleStateError extends Error {
   }
 }
 
-/** True when `err` is the rebuild's typed lifecycle refusal. */
+/** True when `err` is a lifecycle gate's typed refusal. */
 export function isVaultLifecycleStateError(
   err: unknown,
 ): err is VaultLifecycleStateError {

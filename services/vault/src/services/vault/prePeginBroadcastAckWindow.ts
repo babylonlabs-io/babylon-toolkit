@@ -13,8 +13,9 @@
  *
  * Checked before the signing prompt, not again after it: the prompt has no
  * time limit, but the margin is 85 minutes at the daemon's floor depth of 6
- * (btc-vault `docs/specifications/pegin.md`, deployment parameters), so the
- * residual is the same one the activation path accepts for its prompt.
+ * off signet and regtest, and 35 at their floor of 1 (btc-vault
+ * `docs/specifications/pegin.md`, deployment parameters), so the residual is
+ * the same one the activation path accepts for its prompt.
  *
  * Import this by its own path, never through the `@/services/vault` barrel:
  * that barrel is factory-mocked with a fixed export list in the deposit hook

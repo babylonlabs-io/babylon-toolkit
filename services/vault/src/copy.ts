@@ -1157,11 +1157,13 @@ export const COPY = {
       },
       // The same gate could not read the chain (head unreadable, or a
       // parameter read failed), so it refused without a verdict. Nothing was
-      // sent; a later read can succeed, so the modal offers Retry. The
+      // sent; a later read can succeed, so the modal offers Retry. One cause
+      // is persistent — a device clock that is off makes every head read fail
+      // — so the copy names it for the depositor who keeps seeing this. The
       // broadcast twin of `pegin.messages.activationWindowUnavailable`.
       broadcastAckWindowUnavailable: {
         title: "Couldn't check the deposit window",
-        body: "Could not confirm the BTCVault's acknowledgment window. Nothing was broadcast — please try again in a moment.",
+        body: "Could not confirm the BTCVault's acknowledgment window. Nothing was broadcast — please try again in a moment. If this keeps happening, check that this device's date and time are correct.",
       },
       hashMismatch: (computedHash: string, chainHash: string) =>
         `Pre-Pegin transaction hash mismatch: computed ${computedHash} from indexer tx, but on-chain contract has ${chainHash}. Aborting to prevent potential attack.`,
