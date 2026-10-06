@@ -228,7 +228,7 @@ export const WalletMenuCard: React.FC<WalletMenuCardProps> = ({
               )}
               <button
                 onClick={onCopy}
-                aria-label="Copy wallet address"
+                aria-label={`Copy ${walletType} wallet address`}
                 className={twJoin(
                   "relative flex flex-shrink-0 items-center justify-center before:absolute before:left-1/2 before:top-1/2 before:size-10 before:-translate-x-1/2 before:-translate-y-1/2",
                   styles.copyButton,

@@ -29,7 +29,7 @@ const PHONE_POPOVER_CLASS =
 const PHONE_POPOVER_OFFSET: [number, number] = [0, 20];
 const FOCUSABLE_SELECTOR = 'a[href], button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
-const focusCard = (card: HTMLDivElement | null) => card?.focus();
+const focusCard = (card: HTMLDivElement | null) => card?.focus({ preventScroll: true });
 
 export const Menu: React.FC<MenuProps> = ({
   children,
