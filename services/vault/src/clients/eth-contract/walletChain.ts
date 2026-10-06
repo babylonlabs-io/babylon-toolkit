@@ -3,6 +3,7 @@ import type { Address, WalletClient } from "viem";
 import { getWalletClient, switchChain } from "wagmi/actions";
 
 import { getETHChain } from "@/config/network";
+import { ETH_MAINNET_CHAIN_ID } from "@/config/network/constants";
 import { COPY } from "@/copy";
 import { logger } from "@/infrastructure";
 
@@ -21,10 +22,10 @@ export async function getWalletClientOnExpectedChain(
   } catch (switchError) {
     logger.error(switchError, { data: { context: "Failed to switch chain" } });
     throw new Error(
-      COPY.deposit.errors.chainSwitchRequired(
-        expectedChainId === 1
-          ? COPY.deposit.errors.ethereumMainnet
-          : COPY.deposit.errors.sepoliaTestnet,
+      COPY.wallet.chainSwitch.required(
+        expectedChainId === ETH_MAINNET_CHAIN_ID
+          ? COPY.wallet.chainSwitch.ethereumMainnet
+          : COPY.wallet.chainSwitch.sepoliaTestnet,
       ),
     );
   }

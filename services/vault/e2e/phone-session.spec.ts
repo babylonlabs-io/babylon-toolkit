@@ -13,8 +13,8 @@ import { blockOffsiteRequests, recordedPageWallets } from "./visual/capture";
 const PORTAL_ROOT = ".portal-root";
 /** First vite compile of a cold server. */
 const APP_BOOT_TIMEOUT_MS = 30_000;
-/** Longer than the 60 s connect wait, as when the user approves in the wallet app. */
-const TIME_IN_WALLET_APP_MS = 70_000;
+/** Past the connector's 1 h default session TTL. */
+const TIME_AWAY_MS = 2 * 60 * 60 * 1000;
 
 /** Stand in for the phone switching to the wallet app and back. */
 async function setPageVisibility(
@@ -58,9 +58,9 @@ test.describe("Phone Ethereum session", () => {
       await expect(page.getByTestId("wallet-menu-trigger")).toBeVisible();
     });
 
-    await test.step("2. Leave for the wallet app past the connect wait, then return", async () => {
+    await test.step("2. Leave the tab for two hours, then return", async () => {
       await setPageVisibility(page, "hidden");
-      await page.clock.fastForward(TIME_IN_WALLET_APP_MS);
+      await page.clock.fastForward(TIME_AWAY_MS);
       await setPageVisibility(page, "visible");
 
       await expect(page.getByTestId("wallet-menu-trigger")).toBeVisible();

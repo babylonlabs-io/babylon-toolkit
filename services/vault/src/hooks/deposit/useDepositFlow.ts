@@ -46,6 +46,7 @@ import {
   getVaultKeeperReader,
   getVaultRegistryReader,
 } from "@/clients/eth-contract/sdk-readers";
+import { getWalletClientOnExpectedChain } from "@/clients/eth-contract/walletChain";
 import { isDepositBlocked } from "@/components/shared/protocolStatus";
 import { CONTRACTS } from "@/config/contracts";
 import { getETHChain } from "@/config/network";
@@ -130,7 +131,6 @@ import { observeSigningProgress } from "@/utils/signingProgress";
 
 import {
   DepositFlowStep,
-  getEthWalletClient,
   isPayoutReadinessTimeout,
   payoutSigningStep,
   registerPeginBatchAndWait,
@@ -594,7 +594,8 @@ export function useDepositFlow(
         // ========================================================================
 
         // Get ETH wallet client once (chain switch + wallet client are reusable)
-        const walletClient = await getEthWalletClient(confirmedEthAddress);
+        const walletClient =
+          await getWalletClientOnExpectedChain(confirmedEthAddress);
 
         // ========================================================================
         // Step 2: Create Batch Pre-PegIn (all vaults in one BTC tx)

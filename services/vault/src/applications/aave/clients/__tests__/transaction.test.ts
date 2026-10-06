@@ -243,53 +243,35 @@ describe("executeTx network switch", () => {
     );
   };
 
-  it("switches a wallet on the wrong chain to chain 1 before sending a borrow", async () => {
-    await borrowFromCorePosition(
-      wrongChainWallet as unknown as WalletClient,
-      MAINNET,
-      ADAPTER,
-      0n,
-      5n,
-      ACCOUNT,
-    );
+  it.each([
+    {
+      action: "borrow",
+      send: (wallet: WalletClient) =>
+        borrowFromCorePosition(wallet, MAINNET, ADAPTER, 0n, 5n, ACCOUNT),
+    },
+    {
+      action: "repay",
+      send: (wallet: WalletClient) =>
+        repayToCorePosition(wallet, MAINNET, ADAPTER, ACCOUNT, 0n, 3n),
+    },
+    {
+      action: "withdraw",
+      send: (wallet: WalletClient) =>
+        withdrawCollaterals(wallet, MAINNET, ADAPTER, [VAULT_ID]),
+    },
+    {
+      action: "reorder",
+      send: (wallet: WalletClient) =>
+        reorderVaults(wallet, MAINNET, ADAPTER, [VAULT_ID]),
+    },
+  ])(
+    "switches a wallet on the wrong chain to chain 1 before sending a $action",
+    async ({ send }) => {
+      await send(wrongChainWallet as unknown as WalletClient);
 
-    expectSwitchedBeforeSend();
-  });
-
-  it("switches a wallet on the wrong chain to chain 1 before sending a repay", async () => {
-    await repayToCorePosition(
-      wrongChainWallet as unknown as WalletClient,
-      MAINNET,
-      ADAPTER,
-      ACCOUNT,
-      0n,
-      3n,
-    );
-
-    expectSwitchedBeforeSend();
-  });
-
-  it("switches a wallet on the wrong chain to chain 1 before sending a withdraw", async () => {
-    await withdrawCollaterals(
-      wrongChainWallet as unknown as WalletClient,
-      MAINNET,
-      ADAPTER,
-      [VAULT_ID],
-    );
-
-    expectSwitchedBeforeSend();
-  });
-
-  it("switches a wallet on the wrong chain to chain 1 before sending a reorder", async () => {
-    await reorderVaults(
-      wrongChainWallet as unknown as WalletClient,
-      MAINNET,
-      ADAPTER,
-      [VAULT_ID],
-    );
-
-    expectSwitchedBeforeSend();
-  });
+      expectSwitchedBeforeSend();
+    },
+  );
 
   it("sends from the connected wallet without a switch prompt when it is already on chain 1", async () => {
     const rightChainWallet = walletOnChain(1);
@@ -321,9 +303,7 @@ describe("executeTx network switch", () => {
         3n,
       ),
     ).rejects.toThrow(
-      COPY.deposit.errors.chainSwitchRequired(
-        COPY.deposit.errors.ethereumMainnet,
-      ),
+      COPY.wallet.chainSwitch.required(COPY.wallet.chainSwitch.ethereumMainnet),
     );
     expect(mockPublicClient.call).not.toHaveBeenCalled();
     expect(wrongChainWallet.sendTransaction).not.toHaveBeenCalled();
