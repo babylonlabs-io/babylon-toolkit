@@ -82,6 +82,7 @@ import {
   assertBuildWithinPinnedLimits,
   isBuildLimitsDriftError,
 } from "@/services/vault/pinnedBuildLimits";
+import { assertPrePeginBroadcastAckWindowOpen } from "@/services/vault/prePeginBroadcastAckWindow";
 import type { PayoutSigningProgress } from "@/services/vault/vaultPayoutSignatureService";
 import {
   broadcastPrePeginTransaction,
@@ -1041,12 +1042,13 @@ export function useDepositFlow(
         // below now run against state that is itself 8 blocks past the
         // registration instead of racing it.
         // ========================================================================
+        let registrationInfo;
         try {
-          await waitForEthRegistrationDepth({
+          ({ basicInfo: registrationInfo } = await waitForEthRegistrationDepth({
             vaultIds: batchRegistration.vaults.map((v) => v.vaultId as Hex),
             onProgress: setEthConfirmationDetail,
             signal,
-          });
+          }));
         } finally {
           setEthConfirmationDetail(null);
         }
@@ -1109,6 +1111,19 @@ export function useDepositFlow(
         setPerVaultSteps(
           vaultAmounts.map(() => DepositFlowStep.BROADCAST_PRE_PEGIN),
         );
+
+        // Ack window, from the gate's live observation. A tab left open across
+        // the gate can reopen with too little of the window left for the
+        // Pre-PegIn to confirm and be acknowledged; broadcasting then would
+        // lock BTC into an HTLC only the refund path releases. One registration
+        // tx gives every member the same `createdAt`, so one check covers the
+        // batch (same rule as the resume path).
+        await assertPrePeginBroadcastAckWindowOpen({
+          vaultId: batchRegistration.vaults[0].vaultId as Hex,
+          status: registrationInfo.status,
+          createdAt: registrationInfo.createdAt,
+          offchainParamsVersion: buildConfig.offchainParamsVersion,
+        });
 
         // A flow abandoned during the minutes-long gate must not raise an
         // unlock prompt or signing popup (same rule as the resume path).

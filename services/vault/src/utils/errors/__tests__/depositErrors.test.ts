@@ -488,6 +488,20 @@ describe("mapDepositError", () => {
     expect(mapDepositError(err)).toEqual(ERRORS.batchNoLongerPending);
   });
 
+  it("maps a broadcast-stage ack-window refusal to the timed-out callout, not the batch one", () => {
+    // Nothing was signed or sent, so the batch callout's "may already be on
+    // Bitcoin" hedge would be wrong here; the copy must say no BTC moved.
+    const err = new VaultLifecycleStateError("broadcast refused", {
+      reason: "ack-window-elapsed",
+      stage: "broadcast",
+      role: "target",
+      status: OnChainBtcVaultStatus.PENDING,
+      vaultId: "0xabc",
+    });
+    expect(mapDepositError(err)).toEqual(ERRORS.broadcastAckWindowElapsed);
+    expect(mapDepositError(err)).not.toEqual(ERRORS.batchNoLongerPending);
+  });
+
   it("does NOT map a presign-stage lifecycle refusal to the broadcast callout", () => {
     // Presign refusals belong to formatPayoutSignatureError; here they keep
     // the raw-message fallback instead of claiming a broadcast failed.

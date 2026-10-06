@@ -44,6 +44,10 @@ export const SINGLE_BORROW_ASSET_DOCS_URL: string | null = null;
 export const BTC_BLOCK_TIME_MINS = 10;
 export const MINS_PER_HOUR = 60;
 export const MINS_PER_DAY = 1440;
+// Machine-paced pegin overhead beyond BTC confirmations: ACK round, two ETH
+// txs, indexer surfacing, and poll quantization. BTC depth accrues in
+// parallel with the VP pipeline, so it is an additive allowance, not a sum.
+export const DEPOSIT_PIPELINE_OVERHEAD_MINS = 10;
 export const FALLBACK_FEE_RATE_SATS_VB = 1;
 
 // Bitcoin's default minimum relay fee. Anything below this is not forwarded by

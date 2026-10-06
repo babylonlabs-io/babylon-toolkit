@@ -50,12 +50,9 @@ import {
   waitForEthRegistrationDepth,
   type RegistrationDepthProgress,
 } from "@/services/vault/ethConfirmationGate";
-import {
-  ACTIVATION_INCLUSION_MARGIN_BLOCKS,
-  headBlockLagBlocks,
-  isHeadBlockAheadOfClock,
-  isHeadBlockStale,
-} from "@/utils/activationDeadline";
+import { deadlineHead, readHeadBlock } from "@/services/vault/headBlock";
+import { assertPrePeginBroadcastAckWindowOpen } from "@/services/vault/prePeginBroadcastAckWindow";
+import { ACTIVATION_INCLUSION_MARGIN_BLOCKS } from "@/utils/activationDeadline";
 import {
   activationFloorBlocksRemaining,
   activationFloorMinutesRemaining,
@@ -72,7 +69,6 @@ import {
 import { assertVaultCoreVersionSupported } from "@/utils/vaultCoreVersionSupport";
 
 import { getVaultFromChainWithGrace } from "../../clients/eth-contract/btc-vault-registry/query";
-import { ethClient } from "../../clients/eth-contract/client";
 import { getOnChainPauseState } from "../../clients/eth-contract/pause-state/query";
 import {
   getProtocolParamsReader,
@@ -195,46 +191,6 @@ export interface UseVaultActionsReturn {
  * that actually propagated — see `onFloorReadFailure`.
  */
 const FLOOR_UNAVAILABLE_ERROR_NAME = "ActivationFloorUnavailableError";
-
-/**
- * The chain head, read fresh.
- *
- * `getBlock` bypasses viem's ~4s `getBlockNumber` cache, but a load-balanced
- * node can still be behind. A head too old to use (`isHeadBlockStale`), or
- * one that shows this device's clock is slow (`isHeadBlockAheadOfClock`), is
- * rejected as unreadable. A younger one is accepted, with the blocks it may
- * lag by (`headBlockLagBlocks`), so each gate can correct in its safe
- * direction: the deadline adds the lag, the floor does not.
- */
-async function readHeadBlock(): Promise<{ number: bigint; lagBlocks: bigint }> {
-  const head = await ethClient
-    .getPublicClient()
-    .getBlock({ blockTag: "latest" });
-  const nowMs = Date.now();
-  if (isHeadBlockStale(head.timestamp, nowMs)) {
-    throw new Error(
-      `RPC head block ${head.number} (timestamp ${head.timestamp}) is stale; the node is behind`,
-    );
-  }
-  if (isHeadBlockAheadOfClock(head.timestamp, nowMs)) {
-    throw new Error(
-      `RPC head block ${head.number} (timestamp ${head.timestamp}) is ahead of this device's clock (${nowMs} ms); the clock is slow`,
-    );
-  }
-  return {
-    number: head.number,
-    lagBlocks: headBlockLagBlocks(head.timestamp, nowMs),
-  };
-}
-
-/**
- * The head the deadline gate counts from: the reported head plus the blocks
- * it may lag by. A lagging head understates how much of the window is gone,
- * so the deadline must assume the latest block the chain may have reached.
- */
-function deadlineHead(head: { number: bigint; lagBlocks: bigint }): bigint {
-  return head.number + head.lagBlocks;
-}
 
 export function useVaultActions(): UseVaultActionsReturn {
   const gate = useProtocolGateState();
@@ -426,6 +382,18 @@ export function useVaultActions(): UseVaultActionsReturn {
           COPY.deposit.errors.cannotBroadcastInOnChainState(label),
         );
       }
+
+      // Ack window, from the same post-wait observation. A Pre-PegIn that
+      // cannot be confirmed and acknowledged before the deadline would lock
+      // BTC into an HTLC only the refund path releases, so refuse here —
+      // still ahead of every wallet prompt.
+      await assertPrePeginBroadcastAckWindowOpen({
+        vaultId,
+        status: finalBasicInfo.status,
+        createdAt: finalBasicInfo.createdAt,
+        offchainParamsVersion: onChainVault.offchainParamsVersion,
+      });
+      if (signal.aborted) return;
 
       // Get BTC wallet provider
       const btcWalletProvider = btcConnector?.connectedWallet?.provider;

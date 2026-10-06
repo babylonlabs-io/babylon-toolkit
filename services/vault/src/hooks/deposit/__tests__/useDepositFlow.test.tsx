@@ -24,6 +24,7 @@ import {
 } from "@/context/deposit/optimisticDepositState";
 import { COPY } from "@/copy";
 import { BtcWalletLivenessError } from "@/utils/btc";
+import { VaultLifecycleStateError } from "@/utils/errors";
 
 import { DepositFlowStep } from "../depositFlowSteps";
 import { useDepositFlow } from "../useDepositFlow";
@@ -145,8 +146,14 @@ vi.mock("@babylonlabs-io/wallet-connector", () => ({
 vi.mock("@/services/vault/ethConfirmationGate", () => ({
   waitForEthRegistrationDepth: vi.fn(async () => ({
     confirmations: 8,
-    basicInfo: { status: 0 },
+    basicInfo: { status: 0, createdAt: 4_242_050n },
   })),
+}));
+
+// The ack-window gate reads the chain head and the protocol parameters. Stubbed
+// open so the flow reaches the broadcast; the test that cares drives it.
+vi.mock("@/services/vault/prePeginBroadcastAckWindow", () => ({
+  assertPrePeginBroadcastAckWindowOpen: vi.fn().mockResolvedValue(undefined),
 }));
 
 // Local override of the global gate mock so we can drive a frozen/paused scope.
@@ -1019,6 +1026,65 @@ describe("useDepositFlow", () => {
       expect(addPendingPegin).toHaveBeenCalledTimes(2);
       expect(removePendingPegin).not.toHaveBeenCalled();
       expect(result.current.ethConfirmationDetail).toBeNull();
+    });
+
+    it("refuses the broadcast after the finality wait when the ack window has no room, before the wallet probe", async () => {
+      const { assertPrePeginBroadcastAckWindowOpen } = vi.mocked(
+        await import("@/services/vault/prePeginBroadcastAckWindow"),
+      );
+      const { waitForEthRegistrationDepth } = vi.mocked(
+        await import("@/services/vault/ethConfirmationGate"),
+      );
+      const { broadcastPrePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultPeginBroadcastService"),
+      );
+      const { verifyBtcWalletLiveness } = vi.mocked(
+        await import("@/utils/btc"),
+      );
+      const { addPendingPegin, removePendingPegin } = vi.mocked(
+        await import("@/storage/peginStorage"),
+      );
+      // The gate's final observation of the batch's registration.
+      waitForEthRegistrationDepth.mockResolvedValueOnce({
+        confirmations: 8,
+        basicInfo: { status: 0, createdAt: 4_242_060n },
+      } as never);
+      assertPrePeginBroadcastAckWindowOpen.mockRejectedValueOnce(
+        new VaultLifecycleStateError("ack window closing", {
+          reason: "ack-window-elapsed",
+          stage: "broadcast",
+          role: "target",
+          status: 0,
+          vaultId: "0xVault0Id",
+        }),
+      );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+
+      await executeDepositFlow(result);
+
+      await waitFor(() => {
+        expect(result.current.error).toEqual(
+          DEPOSIT_ERRORS.broadcastAckWindowElapsed,
+        );
+      });
+      // Measured from the gate's live observation of the registration — never
+      // a local timestamp — at the version the Bitcoin lock was built against.
+      // One registration tx, one createdAt, so one check covers the batch.
+      expect(assertPrePeginBroadcastAckWindowOpen).toHaveBeenCalledWith({
+        vaultId: "0xVault0Id",
+        status: 0,
+        createdAt: 4_242_060n,
+        offchainParamsVersion: 7,
+      });
+      // Only the pre-registration probe ran: the post-gate probe, the signing
+      // popup and the broadcast all sit behind the refusal.
+      expect(verifyBtcWalletLiveness).toHaveBeenCalledTimes(1);
+      expect(broadcastPrePeginTransaction).not.toHaveBeenCalled();
+      // The registration is on-chain; the records stay so the dashboard can
+      // show the deposit until the expiry is recorded.
+      expect(addPendingPegin).toHaveBeenCalledTimes(2);
+      expect(removePendingPegin).not.toHaveBeenCalled();
     });
 
     it("aborts before broadcast when on-chain offchainParamsVersion drifted from the build version", async () => {
