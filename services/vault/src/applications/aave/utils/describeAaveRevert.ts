@@ -2,9 +2,9 @@
  * The message for a decoded Hub or Spoke revert on a borrow or repay, scaled
  * and named for the reserve the transaction was for.
  *
- * The borrow and repay hooks map a failure a second time with no ABIs, which
- * cannot decode a Hub selector and falls back to substring rewriting ("Borrow
- * failed: …"). A revert this recognizes is answered here instead.
+ * The borrow and repay hooks' generic mapping gives the fixed text for the
+ * error name. A revert this recognizes gets the scaled amount and hub name
+ * instead.
  *
  * Only a hub the revert can be pinned to is named. A borrow also refreshes the
  * user's risk premium on every hub where they have debt, and that refresh

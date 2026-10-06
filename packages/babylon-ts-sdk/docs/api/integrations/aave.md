@@ -919,7 +919,7 @@ function getPositionSizeParams(publicClient, contractAddress): Promise<PositionS
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/query.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/integrations/aave/clients/query.ts)
 
-Get position size parameters from the adapter contract.
+Get position size parameters from the adapter config contract.
 
 Returns the maximum BTC position size and maximum vaults per position
 as configured on-chain.
@@ -934,7 +934,7 @@ Viem public client for reading contracts
 
 `` `0x${string}` ``
 
-AaveIntegrationAdapter contract address
+AaveAdapterConfig contract address
 
 #### Returns
 

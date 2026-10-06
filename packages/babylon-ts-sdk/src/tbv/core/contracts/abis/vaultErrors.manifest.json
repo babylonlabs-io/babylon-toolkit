@@ -1,0 +1,4083 @@
+{
+  "generatedBy": "packages/babylon-ts-sdk/scripts/generate-vault-error-manifest.mjs",
+  "contractsRepo": "babylonlabs-io/vault-contracts-aave-v4",
+  "revisions": [
+    {
+      "rev": "0e4ed2e5",
+      "note": "main"
+    }
+  ],
+  "forgeVersion": "forge Version: 1.3.5-stable",
+  "aaveExtraSources": [
+    "lib/aave-v4/src/spoke/Spoke.sol",
+    "lib/aave-v4/src/hub/Hub.sol"
+  ],
+  "excludedSourceDirs": [
+    "src/mocks/"
+  ],
+  "errors": [
+    {
+      "signature": "AaveAdapterNotSet()",
+      "selector": "0xa82e2bf1",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "AaveAdapterNotSet",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "AccessControlBadConfirmation()",
+      "selector": "0x6697b232",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "AccessControlBadConfirmation",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "AccessControlUnauthorizedAccount(address,bytes32)",
+      "selector": "0xe2517d3f",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "AccessControlUnauthorizedAccount",
+        "inputs": [
+          {
+            "name": "account",
+            "type": "address"
+          },
+          {
+            "name": "neededRole",
+            "type": "bytes32"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "AccessManagedInvalidAuthority(address)",
+      "selector": "0xc2f31e5e",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "AccessManagedInvalidAuthority",
+        "inputs": [
+          {
+            "name": "authority",
+            "type": "address"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "AccessManagedRequiredDelay(address,uint32)",
+      "selector": "0xaf77169d",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "AccessManagedRequiredDelay",
+        "inputs": [
+          {
+            "name": "caller",
+            "type": "address"
+          },
+          {
+            "name": "delay",
+            "type": "uint32"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "AccessManagedUnauthorized(address)",
+      "selector": "0x068ca9d8",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "AccessManagedUnauthorized",
+        "inputs": [
+          {
+            "name": "caller",
+            "type": "address"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "AccessManagerAlreadyScheduled(bytes32)",
+      "selector": "0x813e9459",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "AccessManagerAlreadyScheduled",
+        "inputs": [
+          {
+            "name": "operationId",
+            "type": "bytes32"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "AccessManagerBadConfirmation()",
+      "selector": "0x5f159e63",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "AccessManagerBadConfirmation",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "AccessManagerExpired(bytes32)",
+      "selector": "0x78a5d6e4",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "AccessManagerExpired",
+        "inputs": [
+          {
+            "name": "operationId",
+            "type": "bytes32"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "AccessManagerInvalidInitialAdmin(address)",
+      "selector": "0x0813ada2",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "AccessManagerInvalidInitialAdmin",
+        "inputs": [
+          {
+            "name": "initialAdmin",
+            "type": "address"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "AccessManagerLockedRole(uint64)",
+      "selector": "0x1871a90c",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "AccessManagerLockedRole",
+        "inputs": [
+          {
+            "name": "roleId",
+            "type": "uint64"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "AccessManagerNotReady(bytes32)",
+      "selector": "0x18cb6b7a",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "AccessManagerNotReady",
+        "inputs": [
+          {
+            "name": "operationId",
+            "type": "bytes32"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "AccessManagerNotScheduled(bytes32)",
+      "selector": "0x60a299b0",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "AccessManagerNotScheduled",
+        "inputs": [
+          {
+            "name": "operationId",
+            "type": "bytes32"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "AccessManagerUnauthorizedAccount(address,uint64)",
+      "selector": "0xf07e038f",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "AccessManagerUnauthorizedAccount",
+        "inputs": [
+          {
+            "name": "msgsender",
+            "type": "address"
+          },
+          {
+            "name": "roleId",
+            "type": "uint64"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "AccessManagerUnauthorizedCall(address,address,bytes4)",
+      "selector": "0x81c6f24b",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "AccessManagerUnauthorizedCall",
+        "inputs": [
+          {
+            "name": "caller",
+            "type": "address"
+          },
+          {
+            "name": "target",
+            "type": "address"
+          },
+          {
+            "name": "selector",
+            "type": "bytes4"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "AccessManagerUnauthorizedCancel(address,address,address,bytes4)",
+      "selector": "0x3fe2751c",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "AccessManagerUnauthorizedCancel",
+        "inputs": [
+          {
+            "name": "msgsender",
+            "type": "address"
+          },
+          {
+            "name": "caller",
+            "type": "address"
+          },
+          {
+            "name": "target",
+            "type": "address"
+          },
+          {
+            "name": "selector",
+            "type": "bytes4"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "AccessManagerUnauthorizedConsume(address)",
+      "selector": "0x320ff748",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "AccessManagerUnauthorizedConsume",
+        "inputs": [
+          {
+            "name": "target",
+            "type": "address"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "ActivationDeadlineExpired()",
+      "selector": "0x4ccce4fc",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "ActivationDeadlineExpired",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "ActivationDelayNotElapsed()",
+      "selector": "0x67c1b99b",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "ActivationDelayNotElapsed",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "AddCapExceeded(uint256)",
+      "selector": "0xde3fc6ae",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "AddCapExceeded",
+        "inputs": [
+          {
+            "name": "addCap",
+            "type": "uint256"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "AddressEmptyCode(address)",
+      "selector": "0x9996b315",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "AddressEmptyCode",
+        "inputs": [
+          {
+            "name": "target",
+            "type": "address"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "AllowListDisabled()",
+      "selector": "0x53bcf515",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "AllowListDisabled",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "AmountBelowMinimumThreshold(uint256,uint256)",
+      "selector": "0x984bdc38",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "AmountBelowMinimumThreshold",
+        "inputs": [
+          {
+            "name": "actual",
+            "type": "uint256"
+          },
+          {
+            "name": "minimum",
+            "type": "uint256"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "AmountMismatch(uint256,uint256)",
+      "selector": "0xce6b173b",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "AmountMismatch",
+        "inputs": [
+          {
+            "name": "expected",
+            "type": "uint256"
+          },
+          {
+            "name": "actual",
+            "type": "uint256"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "ApplicationAlreadyRegistered()",
+      "selector": "0xff849305",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "ApplicationAlreadyRegistered",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "ApplicationNotActive()",
+      "selector": "0xb8e0a3b6",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "ApplicationNotActive",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "ApplicationNotRegistered()",
+      "selector": "0x0405f772",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "ApplicationNotRegistered",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "ArrayExceedsMaxSize(uint256,uint256)",
+      "selector": "0x5e52750c",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "ArrayExceedsMaxSize",
+        "inputs": [
+          {
+            "name": "actual",
+            "type": "uint256"
+          },
+          {
+            "name": "maximum",
+            "type": "uint256"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "AssetNotListed()",
+      "selector": "0xb77e1e0f",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "AssetNotListed",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "BTCVaultNotFound()",
+      "selector": "0x525f24f6",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "BTCVaultNotFound",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "BlocklistedVaultKeeper()",
+      "selector": "0x84995d81",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "BlocklistedVaultKeeper",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "BtcKeyAlreadyRegistered()",
+      "selector": "0x80ff0489",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "BtcKeyAlreadyRegistered",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "BufferTooShort(uint256,uint256,uint256)",
+      "selector": "0x4fa37cb1",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "BufferTooShort",
+        "inputs": [
+          {
+            "name": "offset",
+            "type": "uint256"
+          },
+          {
+            "name": "requiredLength",
+            "type": "uint256"
+          },
+          {
+            "name": "availableLength",
+            "type": "uint256"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "CannotReceiveShares()",
+      "selector": "0x861a96d6",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "CannotReceiveShares",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "CapExceeded()",
+      "selector": "0xa4875a49",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "CapExceeded",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "CollateralCannotBeLiquidated()",
+      "selector": "0x979b5ce8",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "CollateralCannotBeLiquidated",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "CollateralLimitExceeded()",
+      "selector": "0x8cb8ecea",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "CollateralLimitExceeded",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "CommissionAboveMaximum(uint16)",
+      "selector": "0xf6ec55d9",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "CommissionAboveMaximum",
+        "inputs": [
+          {
+            "name": "provided",
+            "type": "uint16"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "CommissionBelowMinimum(uint16,uint16)",
+      "selector": "0x02a2a76b",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "CommissionBelowMinimum",
+        "inputs": [
+          {
+            "name": "provided",
+            "type": "uint16"
+          },
+          {
+            "name": "minimum",
+            "type": "uint16"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "CommissionUnchanged()",
+      "selector": "0xc20bac94",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "CommissionUnchanged",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "ConfigKeyUninitialized()",
+      "selector": "0x6669e61b",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "ConfigKeyUninitialized",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "DeficitReportedMismatch()",
+      "selector": "0x67122cd4",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "DeficitReportedMismatch",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "DelegateeNotVerified()",
+      "selector": "0xf9a03367",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "DelegateeNotVerified",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "DepositNotAllowed()",
+      "selector": "0x3d90e2a0",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "DepositNotAllowed",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "DepositorWotsPkHashAlreadyUsed()",
+      "selector": "0x6679b8e7",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "DepositorWotsPkHashAlreadyUsed",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "DrawCapExceeded(uint256)",
+      "selector": "0x3ad30dd0",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "DrawCapExceeded",
+        "inputs": [
+          {
+            "name": "drawCap",
+            "type": "uint256"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "DuplicateHashlock()",
+      "selector": "0x70f7d5e2",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "DuplicateHashlock",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "DuplicateParticipant()",
+      "selector": "0xfbae8805",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "DuplicateParticipant",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "DuplicateReserveId()",
+      "selector": "0xe60e4836",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "DuplicateReserveId",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "DynamicConfigKeyUninitialized()",
+      "selector": "0x17e5b997",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "DynamicConfigKeyUninitialized",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "ECDSAInvalidSignature()",
+      "selector": "0xf645eedf",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "ECDSAInvalidSignature",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "ECDSAInvalidSignatureLength(uint256)",
+      "selector": "0xfce698f7",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "ECDSAInvalidSignatureLength",
+        "inputs": [
+          {
+            "name": "length",
+            "type": "uint256"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "ECDSAInvalidSignatureS(bytes32)",
+      "selector": "0xd78bce0c",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "ECDSAInvalidSignatureS",
+        "inputs": [
+          {
+            "name": "s",
+            "type": "bytes32"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "ERC1155InsufficientBalance(address,uint256,uint256,uint256)",
+      "selector": "0x03dee4c5",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "ERC1155InsufficientBalance",
+        "inputs": [
+          {
+            "name": "sender",
+            "type": "address"
+          },
+          {
+            "name": "balance",
+            "type": "uint256"
+          },
+          {
+            "name": "needed",
+            "type": "uint256"
+          },
+          {
+            "name": "tokenId",
+            "type": "uint256"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "ERC1155InvalidApprover(address)",
+      "selector": "0x3e31884e",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "ERC1155InvalidApprover",
+        "inputs": [
+          {
+            "name": "approver",
+            "type": "address"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "ERC1155InvalidArrayLength(uint256,uint256)",
+      "selector": "0x5b059991",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "ERC1155InvalidArrayLength",
+        "inputs": [
+          {
+            "name": "idsLength",
+            "type": "uint256"
+          },
+          {
+            "name": "valuesLength",
+            "type": "uint256"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "ERC1155InvalidOperator(address)",
+      "selector": "0xced3e100",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "ERC1155InvalidOperator",
+        "inputs": [
+          {
+            "name": "operator",
+            "type": "address"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "ERC1155InvalidReceiver(address)",
+      "selector": "0x57f447ce",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "ERC1155InvalidReceiver",
+        "inputs": [
+          {
+            "name": "receiver",
+            "type": "address"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "ERC1155InvalidSender(address)",
+      "selector": "0x01a83514",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "ERC1155InvalidSender",
+        "inputs": [
+          {
+            "name": "sender",
+            "type": "address"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "ERC1155MissingApprovalForAll(address,address)",
+      "selector": "0xe237d922",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "ERC1155MissingApprovalForAll",
+        "inputs": [
+          {
+            "name": "operator",
+            "type": "address"
+          },
+          {
+            "name": "owner",
+            "type": "address"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "ERC1967InvalidAdmin(address)",
+      "selector": "0x62e77ba2",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "ERC1967InvalidAdmin",
+        "inputs": [
+          {
+            "name": "admin",
+            "type": "address"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "ERC1967InvalidBeacon(address)",
+      "selector": "0x64ced0ec",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "ERC1967InvalidBeacon",
+        "inputs": [
+          {
+            "name": "beacon",
+            "type": "address"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "ERC1967InvalidImplementation(address)",
+      "selector": "0x4c9c8ce3",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "ERC1967InvalidImplementation",
+        "inputs": [
+          {
+            "name": "implementation",
+            "type": "address"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "ERC1967NonPayable()",
+      "selector": "0xb398979f",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "ERC1967NonPayable",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "ERC20InsufficientAllowance(address,uint256,uint256)",
+      "selector": "0xfb8f41b2",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "ERC20InsufficientAllowance",
+        "inputs": [
+          {
+            "name": "spender",
+            "type": "address"
+          },
+          {
+            "name": "allowance",
+            "type": "uint256"
+          },
+          {
+            "name": "needed",
+            "type": "uint256"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "ERC20InsufficientBalance(address,uint256,uint256)",
+      "selector": "0xe450d38c",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "ERC20InsufficientBalance",
+        "inputs": [
+          {
+            "name": "sender",
+            "type": "address"
+          },
+          {
+            "name": "balance",
+            "type": "uint256"
+          },
+          {
+            "name": "needed",
+            "type": "uint256"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "ERC20InvalidApprover(address)",
+      "selector": "0xe602df05",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "ERC20InvalidApprover",
+        "inputs": [
+          {
+            "name": "approver",
+            "type": "address"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "ERC20InvalidReceiver(address)",
+      "selector": "0xec442f05",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "ERC20InvalidReceiver",
+        "inputs": [
+          {
+            "name": "receiver",
+            "type": "address"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "ERC20InvalidSender(address)",
+      "selector": "0x96c6fd1e",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "ERC20InvalidSender",
+        "inputs": [
+          {
+            "name": "sender",
+            "type": "address"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "ERC20InvalidSpender(address)",
+      "selector": "0x94280d62",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "ERC20InvalidSpender",
+        "inputs": [
+          {
+            "name": "spender",
+            "type": "address"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "ERC721IncorrectOwner(address,uint256,address)",
+      "selector": "0x64283d7b",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "ERC721IncorrectOwner",
+        "inputs": [
+          {
+            "name": "sender",
+            "type": "address"
+          },
+          {
+            "name": "tokenId",
+            "type": "uint256"
+          },
+          {
+            "name": "owner",
+            "type": "address"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "ERC721InsufficientApproval(address,uint256)",
+      "selector": "0x177e802f",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "ERC721InsufficientApproval",
+        "inputs": [
+          {
+            "name": "operator",
+            "type": "address"
+          },
+          {
+            "name": "tokenId",
+            "type": "uint256"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "ERC721InvalidApprover(address)",
+      "selector": "0xa9fbf51f",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "ERC721InvalidApprover",
+        "inputs": [
+          {
+            "name": "approver",
+            "type": "address"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "ERC721InvalidOperator(address)",
+      "selector": "0x5b08ba18",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "ERC721InvalidOperator",
+        "inputs": [
+          {
+            "name": "operator",
+            "type": "address"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "ERC721InvalidOwner(address)",
+      "selector": "0x89c62b64",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "ERC721InvalidOwner",
+        "inputs": [
+          {
+            "name": "owner",
+            "type": "address"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "ERC721InvalidReceiver(address)",
+      "selector": "0x64a0ae92",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "ERC721InvalidReceiver",
+        "inputs": [
+          {
+            "name": "receiver",
+            "type": "address"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "ERC721InvalidSender(address)",
+      "selector": "0x73c6ac6e",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "ERC721InvalidSender",
+        "inputs": [
+          {
+            "name": "sender",
+            "type": "address"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "ERC721NonexistentToken(uint256)",
+      "selector": "0x7e273289",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "ERC721NonexistentToken",
+        "inputs": [
+          {
+            "name": "tokenId",
+            "type": "uint256"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "EmptyArray()",
+      "selector": "0x521299a9",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "EmptyArray",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "EmptyPayoutAddress()",
+      "selector": "0x318862fd",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "EmptyPayoutAddress",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "EmptyVaultKeepers()",
+      "selector": "0xed42a4f4",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "EmptyVaultKeepers",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "EthKeyAlreadyRegistered()",
+      "selector": "0x6de416fc",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "EthKeyAlreadyRegistered",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "ExcessiveWbtcPayment()",
+      "selector": "0x29b60d11",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "ExcessiveWbtcPayment",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "FailedCall()",
+      "selector": "0xd6bda275",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "FailedCall",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "FailedDeployment()",
+      "selector": "0xb06ebf3d",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "FailedDeployment",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "HealthFactorBelowThreshold()",
+      "selector": "0x851aedc1",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "HealthFactorBelowThreshold",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "HealthFactorNotBelowThreshold()",
+      "selector": "0x930bb771",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "HealthFactorNotBelowThreshold",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "InactivePositionManager()",
+      "selector": "0x2ba99b0d",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InactivePositionManager",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "IncompleteWithdrawal(uint256,uint256)",
+      "selector": "0xdc14bc06",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "IncompleteWithdrawal",
+        "inputs": [
+          {
+            "name": "expected",
+            "type": "uint256"
+          },
+          {
+            "name": "actual",
+            "type": "uint256"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "InsufficientBalance(uint256,uint256)",
+      "selector": "0xcf479181",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InsufficientBalance",
+        "inputs": [
+          {
+            "name": "balance",
+            "type": "uint256"
+          },
+          {
+            "name": "needed",
+            "type": "uint256"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "InsufficientBorrowAllowance()",
+      "selector": "0x13a385b9",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InsufficientBorrowAllowance",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "InsufficientLiquidationOutput()",
+      "selector": "0x33f46eb2",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InsufficientLiquidationOutput",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "InsufficientLiquidity(uint256)",
+      "selector": "0xc730333f",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InsufficientLiquidity",
+        "inputs": [
+          {
+            "name": "liquidity",
+            "type": "uint256"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "InsufficientSettlementAmount()",
+      "selector": "0x59c4c011",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InsufficientSettlementAmount",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "InsufficientTransferred(uint256)",
+      "selector": "0x80561eeb",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InsufficientTransferred",
+        "inputs": [
+          {
+            "name": "liquidityNeeded",
+            "type": "uint256"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "InterestRateDataNotSet(uint256)",
+      "selector": "0x0d183c0b",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InterestRateDataNotSet",
+        "inputs": [
+          {
+            "name": "assetId",
+            "type": "uint256"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "InvalidAccountNonce(address,uint256)",
+      "selector": "0x752d88c0",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InvalidAccountNonce",
+        "inputs": [
+          {
+            "name": "account",
+            "type": "address"
+          },
+          {
+            "name": "currentNonce",
+            "type": "uint256"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "InvalidAction(bytes32)",
+      "selector": "0xa2160dcf",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InvalidAction",
+        "inputs": [
+          {
+            "name": "action",
+            "type": "bytes32"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "InvalidActivationMetadataVersion()",
+      "selector": "0x050077b6",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InvalidActivationMetadataVersion",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "InvalidAddress()",
+      "selector": "0xe6c4247b",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InvalidAddress",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "InvalidAmount()",
+      "selector": "0x2c5211c6",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InvalidAmount",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "InvalidApplicationStatus()",
+      "selector": "0x291a94ee",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InvalidApplicationStatus",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "InvalidAssetDecimals()",
+      "selector": "0xe2364765",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InvalidAssetDecimals",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "InvalidAssetId()",
+      "selector": "0xfafca5a0",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InvalidAssetId",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "InvalidBIP322Signature(uint256,uint256)",
+      "selector": "0x252457e8",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InvalidBIP322Signature",
+        "inputs": [
+          {
+            "name": "offset",
+            "type": "uint256"
+          },
+          {
+            "name": "length",
+            "type": "uint256"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "InvalidBTCPopSignatureLength(uint256,uint256,uint256)",
+      "selector": "0x48141542",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InvalidBTCPopSignatureLength",
+        "inputs": [
+          {
+            "name": "length",
+            "type": "uint256"
+          },
+          {
+            "name": "minLength",
+            "type": "uint256"
+          },
+          {
+            "name": "maxLength",
+            "type": "uint256"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "InvalidBTCProofOfPossession()",
+      "selector": "0x6cc363a5",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InvalidBTCProofOfPossession",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "InvalidBTCPublicKey()",
+      "selector": "0x6c3f2bf6",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InvalidBTCPublicKey",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "InvalidBTCVaultStatus()",
+      "selector": "0xa0e24351",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InvalidBTCVaultStatus",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "InvalidBTCVaultUsageStatus()",
+      "selector": "0x5c63c7eb",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InvalidBTCVaultUsageStatus",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "InvalidBase(uint256,uint256)",
+      "selector": "0xd383fafa",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InvalidBase",
+        "inputs": [
+          {
+            "name": "base",
+            "type": "uint256"
+          },
+          {
+            "name": "modulus",
+            "type": "uint256"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "InvalidCollateralFactor()",
+      "selector": "0xbc8b2b40",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InvalidCollateralFactor",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "InvalidCollateralFactorAndMaxLiquidationBonus()",
+      "selector": "0xcf8e83b1",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InvalidCollateralFactorAndMaxLiquidationBonus",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "InvalidCollateralRisk()",
+      "selector": "0xc0534e95",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InvalidCollateralRisk",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "InvalidCompactSize(uint256,uint8,uint64,uint64)",
+      "selector": "0xb78341d9",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InvalidCompactSize",
+        "inputs": [
+          {
+            "name": "offset",
+            "type": "uint256"
+          },
+          {
+            "name": "prefix",
+            "type": "uint8"
+          },
+          {
+            "name": "value",
+            "type": "uint64"
+          },
+          {
+            "name": "minValue",
+            "type": "uint64"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "InvalidControlBlock(uint256,uint256)",
+      "selector": "0x2d2693da",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InvalidControlBlock",
+        "inputs": [
+          {
+            "name": "length",
+            "type": "uint256"
+          },
+          {
+            "name": "remainder",
+            "type": "uint256"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "InvalidDebtToCover()",
+      "selector": "0x411dcff5",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InvalidDebtToCover",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "InvalidDelay()",
+      "selector": "0x4fbe5dba",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InvalidDelay",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "InvalidDepositorWotsPkHash()",
+      "selector": "0x67f93ae2",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InvalidDepositorWotsPkHash",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "InvalidEscrowedVaultStatus()",
+      "selector": "0x85c1ef8c",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InvalidEscrowedVaultStatus",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "InvalidEthProofOfPossession()",
+      "selector": "0x15971b66",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InvalidEthProofOfPossession",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "InvalidFeeConfiguration()",
+      "selector": "0x6d24edae",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InvalidFeeConfiguration",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "InvalidHashlock()",
+      "selector": "0x2e0755ab",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InvalidHashlock",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "InvalidImplementation()",
+      "selector": "0x68155f9a",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InvalidImplementation",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "InvalidInitialization()",
+      "selector": "0xf92ee8a9",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InvalidInitialization",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "InvalidInterestRateStrategy()",
+      "selector": "0x38ad7932",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InvalidInterestRateStrategy",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "InvalidLiquidationAmounts()",
+      "selector": "0xd73695c3",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InvalidLiquidationAmounts",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "InvalidLiquidationCallArguments()",
+      "selector": "0x4b64a97e",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InvalidLiquidationCallArguments",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "InvalidLiquidationConfig()",
+      "selector": "0xa3f02e7f",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InvalidLiquidationConfig",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "InvalidLiquidationFee()",
+      "selector": "0x16535458",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InvalidLiquidationFee",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "InvalidLiquidityFee()",
+      "selector": "0xe15e46cb",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InvalidLiquidityFee",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "InvalidMaxUserReservesLimit()",
+      "selector": "0xbdf3f563",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InvalidMaxUserReservesLimit",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "InvalidMinimumProfitThreshold()",
+      "selector": "0x9202f9ce",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InvalidMinimumProfitThreshold",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "InvalidNullVaultDeclaration()",
+      "selector": "0xff066205",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InvalidNullVaultDeclaration",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "InvalidOracleDecimals()",
+      "selector": "0x38bebeba",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InvalidOracleDecimals",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "InvalidOraclePrice()",
+      "selector": "0x1f8f95a0",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InvalidOraclePrice",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "InvalidOutputIndex(uint256,uint256)",
+      "selector": "0xa78099a2",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InvalidOutputIndex",
+        "inputs": [
+          {
+            "name": "provided",
+            "type": "uint256"
+          },
+          {
+            "name": "maxValid",
+            "type": "uint256"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "InvalidParticipantsList()",
+      "selector": "0x6083ea38",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InvalidParticipantsList",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "InvalidPeginFee(uint256,uint256)",
+      "selector": "0x979f4518",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InvalidPeginFee",
+        "inputs": [
+          {
+            "name": "provided",
+            "type": "uint256"
+          },
+          {
+            "name": "required",
+            "type": "uint256"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "InvalidPoint(uint256,uint256)",
+      "selector": "0x414cf375",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InvalidPoint",
+        "inputs": [
+          {
+            "name": "x",
+            "type": "uint256"
+          },
+          {
+            "name": "y",
+            "type": "uint256"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "InvalidPositionAccount()",
+      "selector": "0x13cbb6d8",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InvalidPositionAccount",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "InvalidPositionResolver()",
+      "selector": "0xf2312ed0",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InvalidPositionResolver",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "InvalidPositionSizes()",
+      "selector": "0x1164b0ae",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InvalidPositionSizes",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "InvalidPostLiquidationState()",
+      "selector": "0xb285935a",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InvalidPostLiquidationState",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "InvalidPremiumChange()",
+      "selector": "0xa664e075",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InvalidPremiumChange",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "InvalidPrice(uint256)",
+      "selector": "0xf9632e86",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InvalidPrice",
+        "inputs": [
+          {
+            "name": "reserveId",
+            "type": "uint256"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "InvalidProxyContract()",
+      "selector": "0x8247fda0",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InvalidProxyContract",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "InvalidReceiver()",
+      "selector": "0x1e4ec46b",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InvalidReceiver",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "InvalidRegistrationFee()",
+      "selector": "0x73dca8cc",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InvalidRegistrationFee",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "InvalidReinvestmentController()",
+      "selector": "0x91eaafa1",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InvalidReinvestmentController",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "InvalidReserveId()",
+      "selector": "0xd49bb6cb",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InvalidReserveId",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "InvalidSValue(bytes32)",
+      "selector": "0xa9f81b00",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InvalidSValue",
+        "inputs": [
+          {
+            "name": "s",
+            "type": "bytes32"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "InvalidSecret()",
+      "selector": "0xabab6bd7",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InvalidSecret",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "InvalidSecurityCouncilConfig()",
+      "selector": "0xa63f6da4",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InvalidSecurityCouncilConfig",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "InvalidShares()",
+      "selector": "0x6edcc523",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InvalidShares",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "InvalidShortDelayArrays()",
+      "selector": "0xebfc1439",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InvalidShortDelayArrays",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "InvalidSignature()",
+      "selector": "0x8baa579f",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InvalidSignature",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "InvalidSignatureLength()",
+      "selector": "0x4be6321b",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InvalidSignatureLength",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "InvalidSource(uint256)",
+      "selector": "0x0246b0be",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InvalidSource",
+        "inputs": [
+          {
+            "name": "reserveId",
+            "type": "uint256"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "InvalidSourceDecimals(uint256)",
+      "selector": "0xbbff7655",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InvalidSourceDecimals",
+        "inputs": [
+          {
+            "name": "reserveId",
+            "type": "uint256"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "InvalidTransaction()",
+      "selector": "0x500a07ce",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InvalidTransaction",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "InvalidVault()",
+      "selector": "0xd03a6320",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InvalidVault",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "InvalidVaultWriteOff()",
+      "selector": "0xa07d3896",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InvalidVaultWriteOff",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "InvalidVaultsArray()",
+      "selector": "0x9f1c5b2e",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InvalidVaultsArray",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "InvalidWitnessData(uint256,uint256,uint256)",
+      "selector": "0xb3cd91dd",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InvalidWitnessData",
+        "inputs": [
+          {
+            "name": "offset",
+            "type": "uint256"
+          },
+          {
+            "name": "expected",
+            "type": "uint256"
+          },
+          {
+            "name": "actual",
+            "type": "uint256"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "InvalidXOnlyKey(bytes32)",
+      "selector": "0x81fe4e06",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "InvalidXOnlyKey",
+        "inputs": [
+          {
+            "name": "xOnly",
+            "type": "bytes32"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "LLPAlreadyRegistered(address)",
+      "selector": "0xc31c770d",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "LLPAlreadyRegistered",
+        "inputs": [
+          {
+            "name": "llp",
+            "type": "address"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "LLPDisabled()",
+      "selector": "0x58f48bdf",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "LLPDisabled",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "LLPNotRegistered(address)",
+      "selector": "0x85e4ecc0",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "LLPNotRegistered",
+        "inputs": [
+          {
+            "name": "llp",
+            "type": "address"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "LiveVaultCapExceeded()",
+      "selector": "0x2f43ebcb",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "LiveVaultCapExceeded",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "LiveVaultReleaseDelayDecreaseBlocked()",
+      "selector": "0xab61bc58",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "LiveVaultReleaseDelayDecreaseBlocked",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "LiveVaultReleaseDelayTooLong(uint256,uint256)",
+      "selector": "0xe379fbf2",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "LiveVaultReleaseDelayTooLong",
+        "inputs": [
+          {
+            "name": "requested",
+            "type": "uint256"
+          },
+          {
+            "name": "maximum",
+            "type": "uint256"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "MaxDataSizeExceeded()",
+      "selector": "0x249148e2",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "MaxDataSizeExceeded",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "MaxPegInBelowMinPegIn(uint256,uint256)",
+      "selector": "0xa7bfc90a",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "MaxPegInBelowMinPegIn",
+        "inputs": [
+          {
+            "name": "max",
+            "type": "uint256"
+          },
+          {
+            "name": "min",
+            "type": "uint256"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "MaximumDynamicConfigKeyReached()",
+      "selector": "0x8affb4f4",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "MaximumDynamicConfigKeyReached",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "MaximumUserReservesExceeded()",
+      "selector": "0x0f04df18",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "MaximumUserReservesExceeded",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "MissingPrecompile(address)",
+      "selector": "0x42b01bce",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "MissingPrecompile",
+        "inputs": [
+          {
+            "name": "",
+            "type": "address"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "MustNotLeaveDust()",
+      "selector": "0xb629b0e4",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "MustNotLeaveDust",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "NoAccruedInterest()",
+      "selector": "0x4d5a922f",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "NoAccruedInterest",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "NoAppVaultKeepersConfigured()",
+      "selector": "0x6a12119f",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "NoAppVaultKeepersConfigured",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "NoCollateralizedVaults()",
+      "selector": "0x3bcfe27d",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "NoCollateralizedVaults",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "NoEscrowedFees()",
+      "selector": "0x8c951c7b",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "NoEscrowedFees",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "NoUniversalChallengersConfigured()",
+      "selector": "0x71db218d",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "NoUniversalChallengersConfigured",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "NotAuthorizedToACK()",
+      "selector": "0xcb5165fe",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "NotAuthorizedToACK",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "NotContract()",
+      "selector": "0x6f7c43f1",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "NotContract",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "NotInitializing()",
+      "selector": "0xd7e6bcf8",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "NotInitializing",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "OnlyAdapter()",
+      "selector": "0x467122e8",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "OnlyAdapter",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "OnlyApplicationEntryPoint()",
+      "selector": "0xcdd26a41",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "OnlyApplicationEntryPoint",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "OnlyDeployer()",
+      "selector": "0x618bbdd5",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "OnlyDeployer",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "OnlyReinvestmentController()",
+      "selector": "0x3c6b7746",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "OnlyReinvestmentController",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "OnlySpoke()",
+      "selector": "0x564cbba0",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "OnlySpoke",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "OperationKeyVersionOverflow()",
+      "selector": "0x4e8ebdb8",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "OperationKeyVersionOverflow",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "OracleMismatch()",
+      "selector": "0x80e24704",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "OracleMismatch",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "OwnableInvalidOwner(address)",
+      "selector": "0x1e4fbdf7",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "OwnableInvalidOwner",
+        "inputs": [
+          {
+            "name": "owner",
+            "type": "address"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "OwnableUnauthorizedAccount(address)",
+      "selector": "0x118cdaa7",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "OwnableUnauthorizedAccount",
+        "inputs": [
+          {
+            "name": "account",
+            "type": "address"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "ParticipantRoleOverlap()",
+      "selector": "0x58bdb9d9",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "ParticipantRoleOverlap",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "PayoutAddressTooLong()",
+      "selector": "0x06a3210f",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "PayoutAddressTooLong",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "PeginFingerprintChanged(bytes32,bytes32)",
+      "selector": "0x846c25bb",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "PeginFingerprintChanged",
+        "inputs": [
+          {
+            "name": "expected",
+            "type": "bytes32"
+          },
+          {
+            "name": "actual",
+            "type": "bytes32"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "PeginInputSignatureAlreadySubmitted()",
+      "selector": "0x53a828af",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "PeginInputSignatureAlreadySubmitted",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "PeginNotExpired()",
+      "selector": "0x75a6251d",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "PeginNotExpired",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "PeginSignaturesIncomplete()",
+      "selector": "0x933ffde0",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "PeginSignaturesIncomplete",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "PeginTransactionAlreadyUsed()",
+      "selector": "0x7ed061c9",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "PeginTransactionAlreadyUsed",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "PeginTransactionExpired()",
+      "selector": "0xf453cd25",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "PeginTransactionExpired",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "PositionAccountAlreadyExists()",
+      "selector": "0xc070904e",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "PositionAccountAlreadyExists",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "PositionAccountCreationFailed()",
+      "selector": "0xb4116560",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "PositionAccountCreationFailed",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "PositionAccountDoesNotExist()",
+      "selector": "0xe718b123",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "PositionAccountDoesNotExist",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "PositionNotHealthy()",
+      "selector": "0x58548e84",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "PositionNotHealthy",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "PositionNotLiquidatable()",
+      "selector": "0x6415f959",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "PositionNotLiquidatable",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "PositionSizesRejectedByApplication()",
+      "selector": "0x67cf1e3e",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "PositionSizesRejectedByApplication",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "PostExpiryGraceWindowElapsed()",
+      "selector": "0x374fa23d",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "PostExpiryGraceWindowElapsed",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "PrePeginOutputAlreadyUsed()",
+      "selector": "0x5fad9694",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "PrePeginOutputAlreadyUsed",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "PublicKeyMismatch(bytes32,bytes32)",
+      "selector": "0x024e88c7",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "PublicKeyMismatch",
+        "inputs": [
+          {
+            "name": "expected",
+            "type": "bytes32"
+          },
+          {
+            "name": "actual",
+            "type": "bytes32"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "ReentrancyGuardReentrantCall()",
+      "selector": "0x3ee5aeb5",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "ReentrancyGuardReentrantCall",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "RepaymentWouldRestoreZeroShares()",
+      "selector": "0xd3470942",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "RepaymentWouldRestoreZeroShares",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "ReserveExists()",
+      "selector": "0xe71301f8",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "ReserveExists",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "ReserveFrozen()",
+      "selector": "0x6d305815",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "ReserveFrozen",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "ReserveNotBorrowable()",
+      "selector": "0xaac43c92",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "ReserveNotBorrowable",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "ReserveNotBorrowed()",
+      "selector": "0x7b55ea4a",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "ReserveNotBorrowed",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "ReserveNotEnabledAsCollateral()",
+      "selector": "0x95aaa7c8",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "ReserveNotEnabledAsCollateral",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "ReserveNotListed()",
+      "selector": "0x2e5d6bb4",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "ReserveNotListed",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "ReserveNotSupplied()",
+      "selector": "0xe2fadb09",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "ReserveNotSupplied",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "ReservePaused()",
+      "selector": "0xd37f5f1c",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "ReservePaused",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "SafeCastOverflowedIntDowncast(uint8,int256)",
+      "selector": "0x327269a7",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "SafeCastOverflowedIntDowncast",
+        "inputs": [
+          {
+            "name": "bits",
+            "type": "uint8"
+          },
+          {
+            "name": "value",
+            "type": "int256"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "SafeCastOverflowedIntToUint(int256)",
+      "selector": "0xa8ce4432",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "SafeCastOverflowedIntToUint",
+        "inputs": [
+          {
+            "name": "value",
+            "type": "int256"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "SafeCastOverflowedUintDowncast(uint8,uint256)",
+      "selector": "0x6dfcc650",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "SafeCastOverflowedUintDowncast",
+        "inputs": [
+          {
+            "name": "bits",
+            "type": "uint8"
+          },
+          {
+            "name": "value",
+            "type": "uint256"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "SafeCastOverflowedUintToInt(uint256)",
+      "selector": "0x24775e06",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "SafeCastOverflowedUintToInt",
+        "inputs": [
+          {
+            "name": "value",
+            "type": "uint256"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "SafeERC20FailedDecreaseAllowance(address,uint256,uint256)",
+      "selector": "0xe570110f",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "SafeERC20FailedDecreaseAllowance",
+        "inputs": [
+          {
+            "name": "spender",
+            "type": "address"
+          },
+          {
+            "name": "currentAllowance",
+            "type": "uint256"
+          },
+          {
+            "name": "requestedDecrease",
+            "type": "uint256"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "SafeERC20FailedOperation(address)",
+      "selector": "0x5274afe7",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "SafeERC20FailedOperation",
+        "inputs": [
+          {
+            "name": "token",
+            "type": "address"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "ScriptPubKeyTooLong()",
+      "selector": "0x7893c2f9",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "ScriptPubKeyTooLong",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "SelfLiquidation()",
+      "selector": "0x44511af1",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "SelfLiquidation",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "SlippageExceeded(uint256,uint256)",
+      "selector": "0x71c4efed",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "SlippageExceeded",
+        "inputs": [
+          {
+            "name": "minOut",
+            "type": "uint256"
+          },
+          {
+            "name": "actualOut",
+            "type": "uint256"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "SpokeAlreadyListed()",
+      "selector": "0x04c94583",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "SpokeAlreadyListed",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "SpokeAlreadySet()",
+      "selector": "0x307ef04a",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "SpokeAlreadySet",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "SpokeHalted()",
+      "selector": "0x9db9b355",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "SpokeHalted",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "SpokeNotActive()",
+      "selector": "0xe86fa032",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "SpokeNotActive",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "SpokeNotListed()",
+      "selector": "0xaa1b05f0",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "SpokeNotListed",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "StringsInsufficientHexLength(uint256,uint256)",
+      "selector": "0xe22e27eb",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "StringsInsufficientHexLength",
+        "inputs": [
+          {
+            "name": "value",
+            "type": "uint256"
+          },
+          {
+            "name": "length",
+            "type": "uint256"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "StringsInvalidAddressFormat()",
+      "selector": "0x1d15ae44",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "StringsInvalidAddressFormat",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "StringsInvalidChar()",
+      "selector": "0x94e2737e",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "StringsInvalidChar",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "SurplusDrawnDeficitReported(uint256)",
+      "selector": "0x04ddd91f",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "SurplusDrawnDeficitReported",
+        "inputs": [
+          {
+            "name": "maxAllowedDeficit",
+            "type": "uint256"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "SurplusDrawnRestored(uint256)",
+      "selector": "0x4bd9e476",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "SurplusDrawnRestored",
+        "inputs": [
+          {
+            "name": "maxAllowedRestore",
+            "type": "uint256"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "SurplusPremiumRayDeficitReported(uint256)",
+      "selector": "0x37f3f9b7",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "SurplusPremiumRayDeficitReported",
+        "inputs": [
+          {
+            "name": "maxAllowedDeficitRay",
+            "type": "uint256"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "SurplusPremiumRayRestored(uint256)",
+      "selector": "0xdc868246",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "SurplusPremiumRayRestored",
+        "inputs": [
+          {
+            "name": "maxAllowedRestoreRay",
+            "type": "uint256"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "TBV_AlreadyFrozen()",
+      "selector": "0xf4f78ec8",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "TBV_AlreadyFrozen",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "TBV_AlreadyPaused()",
+      "selector": "0xcb29fe3f",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "TBV_AlreadyPaused",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "TBV_CannotUnfreezeWhilePaused()",
+      "selector": "0x1429cb83",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "TBV_CannotUnfreezeWhilePaused",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "TBV_CannotUnpauseWhileFrozen()",
+      "selector": "0x30ffa250",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "TBV_CannotUnpauseWhileFrozen",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "TBV_Frozen()",
+      "selector": "0xc9327d7f",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "TBV_Frozen",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "TBV_NotFrozen()",
+      "selector": "0x7773dfe4",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "TBV_NotFrozen",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "TBV_NotPaused()",
+      "selector": "0x80d67dea",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "TBV_NotPaused",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "TBV_Paused()",
+      "selector": "0x43b6fb8b",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "TBV_Paused",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "TBV_Unauthorized()",
+      "selector": "0xf901270b",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "TBV_Unauthorized",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "TooManyFundingInputs(uint256,uint256)",
+      "selector": "0xf14dcc9f",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "TooManyFundingInputs",
+        "inputs": [
+          {
+            "name": "inputCount",
+            "type": "uint256"
+          },
+          {
+            "name": "maxAllowed",
+            "type": "uint256"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "TooManyHtlcOutputs(uint256,uint256)",
+      "selector": "0xa6d61405",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "TooManyHtlcOutputs",
+        "inputs": [
+          {
+            "name": "outputCount",
+            "type": "uint256"
+          },
+          {
+            "name": "maxAllowed",
+            "type": "uint256"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "TransferFailed()",
+      "selector": "0x90b8ec18",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "TransferFailed",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "UUPSUnauthorizedCallContext()",
+      "selector": "0xe07c8dba",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "UUPSUnauthorizedCallContext",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "UUPSUnsupportedProxiableUUID(bytes32)",
+      "selector": "0xaa1d49a4",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "UUPSUnsupportedProxiableUUID",
+        "inputs": [
+          {
+            "name": "slot",
+            "type": "bytes32"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "Unauthorized()",
+      "selector": "0x82b42900",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "Unauthorized",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "UnauthorizedTransferDestination()",
+      "selector": "0xa4a550a2",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "UnauthorizedTransferDestination",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "UnauthorizedVaultKeeper()",
+      "selector": "0xc2732b47",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "UnauthorizedVaultKeeper",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "UnderlyingAlreadyListed()",
+      "selector": "0x603c058b",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "UnderlyingAlreadyListed",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "UnsafePeginTimingConfiguration(uint32,uint64)",
+      "selector": "0x13861cc8",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "UnsafePeginTimingConfiguration",
+        "inputs": [
+          {
+            "name": "tRefund",
+            "type": "uint32"
+          },
+          {
+            "name": "pegInActivationTimeout",
+            "type": "uint64"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "UnsupportedAddressType(uint8)",
+      "selector": "0x7336a596",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "UnsupportedAddressType",
+        "inputs": [
+          {
+            "name": "witnessItemCount",
+            "type": "uint8"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "UnsupportedCollateralReserve()",
+      "selector": "0xdd17ab20",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "UnsupportedCollateralReserve",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "UnsupportedLiquidationCall()",
+      "selector": "0xb09b1d5f",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "UnsupportedLiquidationCall",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "UnsupportedSettlementToken()",
+      "selector": "0xab81d99e",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "UnsupportedSettlementToken",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "VaultAboveMaximum(uint256,uint256)",
+      "selector": "0x1f028dd5",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "VaultAboveMaximum",
+        "inputs": [
+          {
+            "name": "actual",
+            "type": "uint256"
+          },
+          {
+            "name": "maximum",
+            "type": "uint256"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "VaultAlreadyExists()",
+      "selector": "0x04aabf33",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "VaultAlreadyExists",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "VaultBTCSharesAssetsMismatch()",
+      "selector": "0xe87d804c",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "VaultBTCSharesAssetsMismatch",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "VaultBelowMinimum(uint256,uint256)",
+      "selector": "0x98e766c4",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "VaultBelowMinimum",
+        "inputs": [
+          {
+            "name": "actual",
+            "type": "uint256"
+          },
+          {
+            "name": "minimum",
+            "type": "uint256"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "VaultFeeAlreadyEscrowed()",
+      "selector": "0xb8979dde",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "VaultFeeAlreadyEscrowed",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "VaultNotAcquirable()",
+      "selector": "0x5b7db05f",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "VaultNotAcquirable",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "VaultProviderCommissionExceeded(uint16,uint16)",
+      "selector": "0x716d6895",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "VaultProviderCommissionExceeded",
+        "inputs": [
+          {
+            "name": "maxAcceptable",
+            "type": "uint16"
+          },
+          {
+            "name": "actual",
+            "type": "uint16"
+          }
+        ]
+      }
+    },
+    {
+      "signature": "VaultProviderNotRegistered()",
+      "selector": "0xcd408fe8",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "VaultProviderNotRegistered",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "VersionAlreadyExists()",
+      "selector": "0x13db702b",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "VersionAlreadyExists",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "ZeroAddress()",
+      "selector": "0xd92e233d",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "ZeroAddress",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "ZeroAmount()",
+      "selector": "0x1f2a2005",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "ZeroAmount",
+        "inputs": []
+      }
+    },
+    {
+      "signature": "ZeroValue()",
+      "selector": "0x7c946ed7",
+      "revisions": [
+        "0e4ed2e5"
+      ],
+      "abi": {
+        "type": "error",
+        "name": "ZeroValue",
+        "inputs": []
+      }
+    }
+  ]
+}

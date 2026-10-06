@@ -1546,6 +1546,9 @@ export const COPY = {
     },
   },
   wallet: {
+    // Thrown by the Aave transaction hooks when no ETH wallet is connected.
+    connectToContinue: "Please connect your wallet to continue",
+    addressUnavailable: "Wallet address not available",
     // Connect Wallets screen: the line under each wallet row that says why
     // the app needs that wallet.
     chainDescriptions: {
@@ -1717,6 +1720,8 @@ export const COPY = {
     },
   },
   withdraw: {
+    unexpectedError:
+      "An unexpected error occurred while withdrawing collateral",
     // Shared labels (review + initiated screens).
     estimatedTimeLabel: "Estimated time until payout",
     nominatedAddressLabel: "Nominated address",
@@ -2609,6 +2614,7 @@ export const COPY = {
     doneButton: "Done",
     successTitle: "BTCVault order updated",
     successText: "The liquidation order of your BTCVaults has been updated.",
+    unexpectedError: "An unexpected error occurred while reordering vaults",
   },
   protocolFees: {
     sectionTitle: "Protocol Parameters",

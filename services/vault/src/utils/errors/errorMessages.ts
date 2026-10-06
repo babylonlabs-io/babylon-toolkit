@@ -1,36 +1,26 @@
 /**
  * User-friendly error messages for contract errors.
  *
- * Maps error names from contract ABIs to human-readable messages.
- * Source: vault-contracts-aave-v4/snapshots/selectors.md
+ * Maps error names to human-readable messages. Names come from ts-sdk's
+ * `vaultErrors.manifest.json`; a key the manifest does not list is dead.
  */
 export const CONTRACT_ERROR_MESSAGES: Record<string, string> = {
   // ============================================================================
   // Aave Integration Adapter / Collateral Logic errors
   // ============================================================================
-  DebtMustBeRepaidFirst:
-    "You must repay all debt before withdrawing collateral.",
-  PositionNotFound: "Position not found. You may not have an active position.",
-  PositionAlreadyExists: "A position already exists for this account.",
-  NoCollateralToLiquidate: "No collateral available for liquidation.",
-  VaultAlreadyInPosition: "This BTCVault is already being used in a position.",
   InvalidProxyContract: "Invalid proxy contract address.",
-  ProxyMismatch: "Proxy contract mismatch.",
-  NoDebtToLiquidate: "No debt available to liquidate.",
-  IncompleteLiquidation: "Liquidation was incomplete.",
-  ZeroBorrowAmount: "Borrow amount cannot be zero.",
-  InvalidFairnessPaymentTokenDecimals:
-    "Invalid fairness payment token decimals.",
+  PositionNotHealthy:
+    "You can't reorder BTCVaults while your position is at risk of liquidation. Repay debt or add collateral first.",
+  // Reorder list is not a permutation of the position, or a withdraw names a
+  // BTCVault the position does not hold.
+  InvalidVaultsArray:
+    "The BTCVault list doesn't match your current position. Refresh the page and try again.",
 
   // ============================================================================
   // BTCVaultRegistry errors
   // ============================================================================
   BTCVaultNotFound: "BTCVault not found. The BTCVault ID may be invalid.",
-  VaultNotActive: "This BTCVault is not active.",
-  VaultAlreadyRedeemed: "This BTCVault has already been redeemed.",
   VaultAlreadyExists: "A BTCVault with this ID already exists.",
-  InvalidVaultStatus:
-    "The BTCVault is in an invalid status for this operation.",
   InvalidBTCVaultStatus:
     "The BTCVault is in an invalid status for this operation.",
   ActivationDeadlineExpired:
@@ -48,35 +38,23 @@ export const CONTRACT_ERROR_MESSAGES: Record<string, string> = {
   // BTCVaultRegistry). Hashlocks are deterministic from BTC wallet +
   // selected UTXOs, so reusing the same UTXOs from the same wallet
   // produces the same hashlock and reverts here. Kept in sync with the
-  // SDK selector-keyed copy in `babylon-ts-sdk/src/tbv/core/contracts/errors.ts`.
+  // SDK signature-keyed copy in `babylon-ts-sdk/src/tbv/core/contracts/errors.ts`.
   DuplicateHashlock:
     "Duplicate deposit: a BTCVault with this hashlock is already registered to your wallet. Hashlocks are derived from your BTC wallet and selected UTXOs — use different UTXOs to create a unique deposit.",
-  VaultNotEscrowed: "The BTCVault is not in escrow.",
-  VaultSwapNotSet: "BTCVault swap is not configured.",
   InvalidBTCPublicKey: "Invalid BTC public key format.",
   InvalidBTCProofOfPossession: "Invalid BTC proof of possession signature.",
-  BtcKeyMismatch: "BTC key mismatch.",
-  InvalidTransactionHashLength: "Invalid transaction hash length.",
   PeginTransactionExpired: "The peg-in transaction has expired.",
-  InclusionProofVerificationFailed:
-    "Bitcoin inclusion proof verification failed.",
-  BitcoinTransactionParsingFailed: "Failed to parse Bitcoin transaction.",
   PrePeginOutputAlreadyUsed:
-    "This Pre-Pegin output has already been used to activate another BTCVault.",
+    "This Pre-Pegin output has already been used by another BTCVault.",
   PeginTransactionAlreadyUsed:
     "This peg-in transaction has already been used to activate another BTCVault.",
 
   // ============================================================================
   // Vault Provider errors
   // ============================================================================
-  ProviderAlreadyRegistered: "Vault provider is already registered.",
-  ProviderRegisteredForDifferentApp:
-    "Provider is registered for a different application.",
-  InvalidProviderStatus: "Invalid vault provider status.",
   NoUniversalChallengersConfigured: "No universal challengers are configured.",
   NoAppVaultKeepersConfigured: "No app vault keepers are configured.",
   EmptyVaultKeepers: "Vault Keepers list cannot be empty.",
-  VaultKeeperNotAuthorized: "Vault keeper is not authorized.",
 
   // ============================================================================
   // Application Registry errors
@@ -86,29 +64,12 @@ export const CONTRACT_ERROR_MESSAGES: Record<string, string> = {
   InvalidApplicationStatus: "Invalid application status.",
   OnlyApplicationEntryPoint:
     "Only the application entry point can perform this action.",
-  IntegrationAdapterNotSet: "Integration adapter is not set.",
   AaveAdapterNotSet: "Aave adapter is not set.",
-
-  // ============================================================================
-  // Aave Adapter position limits
-  // ============================================================================
-  VaultCountExceedsMaximum:
-    "You have reached the maximum number of BTCVaults per position.",
-  PositionAboveMaximum:
-    "Your total BTCVault amount exceeds the maximum position size.",
 
   // ============================================================================
   // Aave Spoke errors
   // ============================================================================
-  AlreadyInitialized: "Contract is already initialized.",
   ReentrancyGuardReentrantCall: "Reentrant call detected.",
-  InsufficientAvailableBalance: "Insufficient available balance.",
-  FlashLoanRepaymentFailed: "Flash loan repayment failed.",
-  InsufficientProfit: "Insufficient profit for this operation.",
-  EscrowNotEmpty: "Escrow is not empty.",
-  FairnessPaymentTokenNotSet: "Fairness payment token is not set.",
-  FeeRecipientNotConfigured: "Fee recipient is not configured.",
-  DuplicateVaultId: "Duplicate BTCVault ID.",
   // Reserve state and risk checks a borrow or repay can hit.
   ReservePaused:
     "This market is on hold, so it can't be used right now. Try again later.",
@@ -117,19 +78,15 @@ export const CONTRACT_ERROR_MESSAGES: Record<string, string> = {
   MaximumUserReservesExceeded:
     "This position already borrows as many assets as it can. Fully repay a loan to borrow a different asset.",
   HealthFactorBelowThreshold:
-    "This would drop your health factor below the liquidation threshold. Reduce the amount and try again.",
+    "This would drop your health factor below the liquidation threshold. Repay some debt, or borrow or withdraw less, and try again.",
 
   // ============================================================================
   // Aave Hub errors
   // ============================================================================
   // Fixed text for callers that have no reserve to name; the borrow and repay
-  // forms scale and name the hub (describeAaveRevert). Worded to avoid the
-  // substrings getEnhancedErrorMessage rewrites ("paused", "frozen",
-  // "not enough", "insufficient liquidity", "cap exceeded").
+  // forms scale and name the hub (describeAaveRevert).
   DrawCapExceeded:
     "This market has reached its borrow limit on its hub. Enter a lower amount or borrow from another hub.",
-  AddCapExceeded:
-    "The hub's collateral limit has been reached, so this BTCVault can't be added right now. Try again later.",
   InsufficientLiquidity:
     "The hub doesn't hold enough of this asset to cover the amount. Enter a lower amount and try again.",
   SpokeNotActive:
@@ -140,25 +97,13 @@ export const CONTRACT_ERROR_MESSAGES: Record<string, string> = {
     "A hub where you have debt rejected the rate update this transaction needs. Try again later.",
 
   // ============================================================================
-  // Bitcoin verification errors
-  // ============================================================================
-  InvalidMerkleProof: "Invalid Merkle proof.",
-  MerkleProofVerificationFailed: "Merkle proof verification failed.",
-  BlockNotInCanonicalChain: "Block is not in the canonical chain.",
-  InsufficientConfirmations: "Insufficient Bitcoin confirmations.",
-  TransactionNotInProof: "Transaction not found in proof.",
-  InvalidCMerkleBlockFormat: "Invalid CMerkle block format.",
-
-  // ============================================================================
   // BTC signature verification errors
   // ============================================================================
   InvalidBIP322Signature: "Invalid BIP-322 signature.",
   InvalidSValue: "Invalid signature S value.",
   InvalidWitnessData: "Invalid witness data.",
-  SignatureRecoveryFailed: "Signature recovery failed.",
   PublicKeyMismatch: "Public key mismatch.",
   InvalidSignatureLength: "Invalid signature length.",
-  InvalidBTCSigType: "Invalid BTC signature type.",
   UnsupportedAddressType: "Unsupported address type.",
 
   // ============================================================================
@@ -167,6 +112,7 @@ export const CONTRACT_ERROR_MESSAGES: Record<string, string> = {
   Unauthorized: "You are not authorized to perform this action.",
   TBV_Unauthorized: "You are not authorized to perform this action.",
   TBV_Paused: "The system is currently paused. Please try again later.",
+  TBV_Frozen: "This action isn't available while the system is frozen.",
   TBV_AlreadyPaused: "The system is already paused.",
   TBV_NotPaused: "The system is not paused.",
 
@@ -174,13 +120,9 @@ export const CONTRACT_ERROR_MESSAGES: Record<string, string> = {
   // Generic / Validation errors
   // ============================================================================
   InvalidAmount: "The amount specified is invalid.",
-  InsufficientBalance: "Insufficient balance for this operation.",
   ZeroAddress: "Address cannot be zero.",
   ZeroAmount: "Amount cannot be zero.",
-  InvalidVault: "Invalid BTCVault.",
-  FailedDeployment: "Contract deployment failed.",
-  ProxyDeploymentFailed: "Proxy deployment failed.",
-  TransferFailed: "Token transfer failed.",
+  TransferFailed: "Transfer failed.",
   FailedCall: "Contract call failed.",
   SafeERC20FailedOperation: "ERC20 token operation failed.",
   AddressEmptyCode: "Address has no code (not a contract).",
@@ -188,7 +130,6 @@ export const CONTRACT_ERROR_MESSAGES: Record<string, string> = {
   InvalidRegistrationFee: "Invalid registration fee.",
   AmountMismatch: "Amount mismatch.",
   AmountBelowMinimumThreshold: "Amount is below the minimum threshold.",
-  AlreadyACKed: "Already acknowledged.",
   InvalidAction: "Invalid action.",
 
   // ============================================================================
@@ -198,36 +139,13 @@ export const CONTRACT_ERROR_MESSAGES: Record<string, string> = {
   InvalidPoint: "Invalid elliptic curve point.",
   InvalidXOnlyKey: "Invalid x-only public key.",
   BufferTooShort: "Buffer too short.",
-  CompactSizeTooLarge: "Compact size too large.",
   InvalidCompactSize: "Invalid compact size.",
-  NotImplemented: "Feature not implemented.",
-  ScriptTooLong: "Script too long.",
-
-  // ============================================================================
-  // Bitcoin header / relay errors
-  // ============================================================================
-  BadParent: "Invalid parent block.",
-  BadParentHeight: "Invalid parent block height.",
-  HashAboveTarget: "Block hash is above target.",
-  InsufficientChainLength: "Insufficient chain length.",
-  InsufficientTotalDifficulty: "Insufficient total difficulty.",
-  InvalidDifficultyTarget: "Invalid difficulty target.",
-  InvalidTimestampOrder: "Invalid timestamp order.",
-  NoBlocksSubmitted: "No blocks submitted.",
-  NoParent: "No parent block found.",
-  TooDeepReorg: "Reorganization is too deep.",
-  WrongDifficultyBits: "Wrong difficulty bits.",
-  WrongHeaderLength: "Wrong header length.",
 
   // ============================================================================
   // Access control errors
   // ============================================================================
   AccessControlBadConfirmation: "Access control confirmation failed.",
   AccessControlUnauthorizedAccount: "Account is not authorized for this role.",
-  NotVigilante: "Caller is not a vigilante.",
-  OldDifficultyPeriod: "Difficulty period is too old.",
-  TargetExceedsPowLimit: "Target exceeds proof of work limit.",
-  MissingPeriodTimestamps: "Missing period timestamps.",
 
   // ============================================================================
   // UUPS Proxy errors
