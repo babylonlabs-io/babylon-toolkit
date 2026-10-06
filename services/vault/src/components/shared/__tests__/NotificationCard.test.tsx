@@ -71,7 +71,7 @@ describe("NotificationCard", () => {
     // Figma's critical card fills with error/dark (#C62828), not error/main.
     expect(primary.className).toContain("bg-error-dark");
     expect(primary.className).not.toContain("bg-error-main");
-    // Outlined actions take stroke/primary (#5A5A5A), not the fainter stroke.
+    // Outlined actions take stroke/primary (#5A5A5A) from md up; phones keep the fainter stroke.
     expect(secondary).toHaveClass("md:border-secondary-strokeDark");
     expect(secondary.className).toContain("text-accent-primary");
     expect(secondary).toBeDisabled();

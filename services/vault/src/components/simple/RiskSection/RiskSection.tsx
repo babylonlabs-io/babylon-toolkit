@@ -120,8 +120,8 @@ export function RiskSection({
       </Heading>
 
       <div className="rounded-lg border border-secondary-strokeLight bg-secondary-highlight p-6 dark:bg-[#202020] max-md:p-4">
-        <div className="flex flex-col gap-6 max-md:gap-4 xl:flex-row xl:items-start xl:justify-between">
-          <div className="flex flex-1 flex-col gap-4 max-md:contents xl:max-w-[560px]">
+        <div className="flex flex-col gap-4 xl:grid xl:grid-cols-[minmax(0,560px)_460px] xl:grid-rows-[auto_1fr] xl:items-start xl:justify-between xl:gap-x-6">
+          <div className="flex flex-col gap-4 xl:col-start-1 xl:row-start-1">
             <div className="flex items-start justify-between gap-4">
               <div className="flex flex-col gap-2">
                 <span className="text-base leading-[1.5] tracking-[0.15px] text-accent-primary">
@@ -152,28 +152,9 @@ export function RiskSection({
                 {COPY.risk.status[state]}
               </span>
             </div>
-
-            <div className="flex items-stretch rounded-lg border border-secondary-strokeLight max-md:order-last max-md:flex-col max-md:rounded-none max-md:border-0">
-              <StatCell
-                label={COPY.risk.liquidationBtcPriceLabel}
-                value={liquidationPriceText}
-              />
-              <div className="h-14 w-px shrink-0 self-center bg-secondary-strokeLight max-md:h-px max-md:w-full" />
-              <StatCell
-                label={COPY.risk.currentBtcPriceLabel}
-                value={btcPriceText}
-              />
-              <div className="h-14 w-px shrink-0 self-center bg-secondary-strokeLight max-md:h-px max-md:w-full" />
-              <StatCell
-                label={COPY.risk.collateralFactorLabel}
-                value={collateralFactorText}
-                tooltip={COPY.tooltips.collateralFactor}
-                loading={collateralFactorLoading}
-              />
-            </div>
           </div>
 
-          <div className="w-full xl:w-[460px]">
+          <div className="w-full md:mt-2 xl:col-start-2 xl:row-span-2 xl:row-start-1 xl:mt-0 xl:w-[460px]">
             <RiskPriceRail
               state={state}
               currentPriceUsd={btcPriceUsd}
@@ -181,6 +162,25 @@ export function RiskSection({
               currentPriceText={btcPriceText}
               liquidationPriceText={liquidationPriceText}
               pctToLiquidationText={pctToLiquidationText}
+            />
+          </div>
+
+          <div className="flex items-stretch rounded-lg border border-secondary-strokeLight max-md:flex-col max-md:rounded-none max-md:border-0 xl:col-start-1 xl:row-start-2">
+            <StatCell
+              label={COPY.risk.liquidationBtcPriceLabel}
+              value={liquidationPriceText}
+            />
+            <div className="h-14 w-px shrink-0 self-center bg-secondary-strokeLight max-md:h-px max-md:w-full" />
+            <StatCell
+              label={COPY.risk.currentBtcPriceLabel}
+              value={btcPriceText}
+            />
+            <div className="h-14 w-px shrink-0 self-center bg-secondary-strokeLight max-md:h-px max-md:w-full" />
+            <StatCell
+              label={COPY.risk.collateralFactorLabel}
+              value={collateralFactorText}
+              tooltip={COPY.tooltips.collateralFactor}
+              loading={collateralFactorLoading}
             />
           </div>
         </div>
