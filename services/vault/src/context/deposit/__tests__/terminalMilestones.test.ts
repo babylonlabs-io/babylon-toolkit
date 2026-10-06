@@ -276,4 +276,71 @@ describe("collectTerminalMilestones", () => {
       { event: "deposit.completed", category: "deposit", vaultId: "0xb" },
     ]);
   });
+
+  it("emits nothing when an expired vault is redeemed without ever activating", () => {
+    const tracking = createTerminalMilestoneTracking();
+
+    expect(
+      collectTerminalMilestones(
+        [activity("0xa", ContractStatus.EXPIRED)],
+        tracking,
+      ),
+    ).toEqual([]);
+    // The redeem moves it to REDEEMED, which otherwise implies activation.
+    expect(
+      collectTerminalMilestones(
+        [activity("0xa", ContractStatus.REDEEMED)],
+        tracking,
+      ),
+    ).toEqual([]);
+  });
+
+  it("emits no completion for a vault that verified, expired, then was redeemed", () => {
+    const tracking = createTerminalMilestoneTracking();
+    collectTerminalMilestones(
+      [activity("0xa", ContractStatus.PENDING)],
+      tracking,
+    );
+    collectTerminalMilestones(
+      [activity("0xa", ContractStatus.VERIFIED)],
+      tracking,
+    );
+    collectTerminalMilestones(
+      [activity("0xa", ContractStatus.EXPIRED)],
+      tracking,
+    );
+
+    expect(
+      collectTerminalMilestones(
+        [activity("0xa", ContractStatus.REDEEMED)],
+        tracking,
+      ),
+    ).toEqual([]);
+  });
+
+  it("emits no completion for a vault seen VERIFIED and next REDEEMED when the indexer marks it expired", () => {
+    // The tab polled VERIFIED, slept through the expiry, and the redeem came
+    // from elsewhere: it never observes EXPIRED, only the indexed expiredAt.
+    const tracking = createTerminalMilestoneTracking();
+    collectTerminalMilestones(
+      [activity("0xa", ContractStatus.PENDING)],
+      tracking,
+    );
+    collectTerminalMilestones(
+      [activity("0xa", ContractStatus.VERIFIED)],
+      tracking,
+    );
+
+    expect(
+      collectTerminalMilestones(
+        [
+          {
+            ...activity("0xa", ContractStatus.REDEEMED),
+            expiredAt: 1_700_000_000_000,
+          },
+        ],
+        tracking,
+      ),
+    ).toEqual([]);
+  });
 });

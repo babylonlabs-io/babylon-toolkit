@@ -15,6 +15,7 @@ vi.mock("@/context/SigningNotificationContext", () => ({
   }),
 }));
 
+import { COPY } from "@/copy";
 import { PeginAction } from "@/models/peginStateMachine";
 import type { VaultActivity } from "@/types/activity";
 import type { DepositPollingResult } from "@/types/peginPolling";
@@ -104,6 +105,28 @@ describe("useSigningRequiredNotifications", () => {
       ),
     );
     expect(ctx.notify).not.toHaveBeenCalled();
+  });
+
+  it("notifies for the expired-vault redeem even though its row is a warning", () => {
+    renderHook(() =>
+      useSigningRequiredNotifications(
+        ACTIVITIES,
+        () =>
+          ({
+            isOwnedByCurrentWallet: true,
+            loading: false,
+            peginState: {
+              availableActions: [PeginAction.CLAIM_EXPIRED_VAULT],
+              displayVariant: "warning",
+            },
+          }) as unknown as DepositPollingResult,
+        undefined,
+      ),
+    );
+    expect(ctx.notify).toHaveBeenCalledWith(
+      "signing:v1:CLAIM_EXPIRED_VAULT",
+      COPY.deposit.notifications.claimExpiredVault,
+    );
   });
 
   it("stands down while an active deposit flow is running", () => {

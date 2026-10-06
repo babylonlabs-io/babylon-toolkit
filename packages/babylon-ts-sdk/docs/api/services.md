@@ -1172,6 +1172,87 @@ cancellation support for that window.
 
 ***
 
+### ClaimExpiredVaultInput
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts)
+
+#### Type Parameters
+
+##### R
+
+`R` *extends* [`EthContractWriteResult`](#ethcontractwriteresult) = [`EthContractWriteResult`](#ethcontractwriteresult)
+
+#### Properties
+
+##### btcVaultRegistryAddress
+
+```ts
+btcVaultRegistryAddress: `0x${string}`;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts)
+
+BTCVaultRegistry contract address (env-specific).
+
+##### vaultId
+
+```ts
+vaultId: `0x${string}`;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts)
+
+Vault ID (bytes32, 0x-prefixed).
+
+##### secret
+
+```ts
+secret: string;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts)
+
+HTLC secret preimage (bytes32). A missing `0x` prefix or an uppercase
+`0X` prefix is normalised before validation.
+
+##### hashlock
+
+```ts
+hashlock: `0x${string}`;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts)
+
+The vault's on-chain hashlock. Required, unlike the activation entry
+points: the claim is offered only after the secret is presumed leaked, and
+the SDK still refuses to place a secret in calldata that does not match
+the commitment it reveals against.
+
+##### writeContract
+
+```ts
+writeContract: EthContractWriter<R>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts)
+
+Caller-provided write callback — see [EthContractWriter](#ethcontractwriter).
+
+##### signal?
+
+```ts
+optional signal: AbortSignal;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts)
+
+Optional abort signal. Checked before validation runs; since validation
+is fully synchronous, cancellation between validation and the write is
+not observable and callers should rely on the transport's own
+cancellation support for that window.
+
+***
+
 ### AssembleWatchtowerArtifactsParams
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/assembleWatchtowerArtifacts.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/assembleWatchtowerArtifacts.ts)
@@ -2426,7 +2507,7 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/types
 **`Experimental`**
 
 Depositor's Ethereum address, the one the vault was registered under.
-With the PegIn txid it re-derives [DelegatedClaimVaultContext.vaultId](#vaultid-4),
+With the PegIn txid it re-derives [DelegatedClaimVaultContext.vaultId](#vaultid-5),
 which is how a vault-provider-served graph is bound to this vault.
 
 ##### depositorBtcPubkey
@@ -3251,6 +3332,23 @@ bare "spent" observation is not sufficient: the spend may be the
 depositor's own CSV refund, and offering the secret-revealing hatch
 against a refund burns the secret for a vault whose funds already
 returned.
+
+##### canClaimExpired?
+
+```ts
+optional canClaimExpired: boolean;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts)
+
+EXPIRED only: the vault expired after reaching Verified, the PegIn
+transaction has spent the Pre-PegIn HTLC, and the claim window has not
+elapsed. The CSV refund is gone, so the claim is the remaining exit.
+
+The same spender proof as `htlcSpentByPeginTx` applies: offering the claim
+while the HTLC is unspent reveals the secret and lets anyone broadcast the
+PegIn ahead of the depositor's refund. When set, it takes precedence over
+`canRefund`, which a proven PegIn spend makes impossible.
 
 ***
 
@@ -5818,6 +5916,64 @@ whatever the injected `writeContract` throws
 
 ***
 
+### claimExpiredVault()
+
+```ts
+function claimExpiredVault<R>(input): Promise<R>;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/activation/activateVault.ts)
+
+Claim an expired vault: reveal the HTLC secret for a vault that reached
+Verified but expired before activation, moving it to Redeemed so the BTC is
+claimed out of the PegIn on Bitcoin to the vault provider and depositor keys
+recorded on chain.
+
+This is the only exit for a vault whose Pre-PegIn HTLC was spent by the
+PegIn after expiry, which removes the depositor's refund path. The contract
+(`claimExpiredVault`) accepts it from any caller, requires status Expired
+with `verifiedAt > 0`, rejects it after the vault's `claimExpiredUntil`
+block, and checks `sha256(s) == hashlock`.
+
+Revealing the secret while the HTLC is still unspent lets anyone broadcast
+the PegIn and race the depositor's own refund. Callers must offer this only
+once the PegIn has spent the HTLC.
+
+#### Type Parameters
+
+##### R
+
+`R` *extends* [`EthContractWriteResult`](#ethcontractwriteresult) = [`EthContractWriteResult`](#ethcontractwriteresult)
+
+#### Parameters
+
+##### input
+
+[`ClaimExpiredVaultInput`](#claimexpiredvaultinput)\<`R`\>
+
+#### Returns
+
+`Promise`\<`R`\>
+
+#### Throws
+
+`Error` if `btcVaultRegistryAddress` is not a valid 20-byte address
+
+#### Throws
+
+`Error` if `vaultId`, `secret` or `hashlock` is not a valid 32-byte
+        hex, or if `sha256(secret) != hashlock`
+
+#### Throws
+
+whatever the injected `writeContract` throws
+
+#### Throws
+
+`AbortError` / caller-provided abort reason if `signal` aborts
+
+***
+
 ### assembleWatchtowerArtifacts()
 
 ```ts
@@ -7828,6 +7984,20 @@ REFUND_HTLC: "REFUND_HTLC";
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts)
 
 Sign and broadcast HTLC refund transaction for an expired vault
+
+##### CLAIM\_EXPIRED\_VAULT
+
+```ts
+CLAIM_EXPIRED_VAULT: "CLAIM_EXPIRED_VAULT";
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/peginState.ts)
+
+Reveal the HTLC secret for a vault that expired after reaching Verified
+(`claimExpiredVault`), so the BTC the PegIn swept into the vault is
+claimed out to the keys recorded on chain. The only exit once the PegIn
+has spent the HTLC; the contract accepts it until the vault's
+`claimExpiredUntil` block.
 
 ***
 

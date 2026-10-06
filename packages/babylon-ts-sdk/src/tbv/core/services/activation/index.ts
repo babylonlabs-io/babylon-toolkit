@@ -9,6 +9,8 @@ export {
   activateVaultAndRedeem,
   type ActivateVaultAndRedeemInput,
   type ActivateVaultInput,
+  claimExpiredVault,
+  type ClaimExpiredVaultInput,
   type EthContractWriteCall,
   type EthContractWriteResult,
   type EthContractWriter,

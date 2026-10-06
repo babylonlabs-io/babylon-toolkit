@@ -40,6 +40,7 @@ const MOCK_PROTOCOL_INFO_RESULT = {
   depositorPopSignature: "0xee" as Hex,
   prePeginTxHash: "0xff" as Hex,
   vaultProviderCommissionBps: 100,
+  claimExpiredUntil: 1700216001n,
 } as const;
 
 function createMockPublicClient(overrides?: {
@@ -141,6 +142,9 @@ describe("ViemVaultRegistryReader", () => {
     );
     expect(info.hashlock).toBe(MOCK_PROTOCOL_INFO_RESULT.hashlock);
     expect(info.vaultProviderCommissionBps).toBe(100);
+    expect(info.claimExpiredUntil).toBe(
+      MOCK_PROTOCOL_INFO_RESULT.claimExpiredUntil,
+    );
   });
 
   it("getVaultData fetches basic and protocol info in a single multicall", async () => {

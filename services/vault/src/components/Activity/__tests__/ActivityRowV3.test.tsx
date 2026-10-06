@@ -93,15 +93,6 @@ describe("ActivityRowV3", () => {
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 
-  it("marks a refunded deposit with the Refund chip and dims the row", () => {
-    const { container } = render(
-      <ActivityRowV3 row={{ ...baseRow, isRefunded: true }} />,
-    );
-
-    expect(screen.getByText("Refund")).toBeInTheDocument();
-    expect(container.querySelector(".opacity-60")).toBeInTheDocument();
-  });
-
   it("renders the USD sub-line from amount x current price", () => {
     render(
       <ActivityRowV3

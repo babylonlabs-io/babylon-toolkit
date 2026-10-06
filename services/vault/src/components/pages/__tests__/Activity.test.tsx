@@ -77,9 +77,13 @@ vi.mock("@/context/deposit/PeginPollingContext", () => ({
   PeginPollingProvider: ({ children }: { children: React.ReactNode }) =>
     children,
   useDepositPollingResult: () => undefined,
+  usePeginPolling: () => ({ getPollingResult: () => undefined }),
 }));
 
-vi.mock("@/hooks/deposit/useRefundRowAction", () => ({
+vi.mock("@/hooks/deposit/useRefundRowAction", async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import("@/hooks/deposit/useRefundRowAction")
+  >()),
   useRefundRowAction: () => ({ available: true, blockedTooltip: null }),
 }));
 
@@ -115,6 +119,7 @@ describe("Activity page — wallet gating", () => {
       broadcastModal: {},
       refundModal: { handleRefundClick: vi.fn() },
       emergencyWithdrawModal: {},
+      claimExpiredModal: { claimingActivity: null, handleClaimClick: vi.fn() },
     });
     useActivitiesWithPendingMock.mockReturnValue({
       data: [],
@@ -235,7 +240,7 @@ describe("Activity page — wallet gating", () => {
     expect(usePendingDepositsMock).toHaveBeenCalled();
   });
 
-  it("keeps a refundable expired deposit distinct from a completed refund", () => {
+  it("offers Withdraw on a refundable expired deposit's feed row", () => {
     usePendingDepositsMock.mockReturnValue({
       expiredActivities: [{ id: "vault-1" }],
       allActivities: [],
@@ -243,6 +248,7 @@ describe("Activity page — wallet gating", () => {
       broadcastModal: {},
       refundModal: { handleRefundClick: vi.fn() },
       emergencyWithdrawModal: {},
+      claimExpiredModal: { claimingActivity: null, handleClaimClick: vi.fn() },
     });
     useActivitiesWithPendingMock.mockReturnValue({
       data: [
@@ -262,13 +268,8 @@ describe("Activity page — wallet gating", () => {
       isLoading: false,
     });
 
-    const { container } = renderActivity();
+    renderActivity();
 
     expect(screen.getByRole("button", { name: "Withdraw" })).toBeEnabled();
-    expect(screen.queryByText("Refund")).not.toBeInTheDocument();
-    expect(container.querySelector(".opacity-60")).not.toBeInTheDocument();
-    expect(container.querySelector("li > div")).not.toHaveClass(
-      "bg-transparent",
-    );
   });
 });

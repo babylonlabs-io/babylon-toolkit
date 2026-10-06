@@ -4,8 +4,8 @@
  * helpers, the BTC-collateral invariant, and the BTC-vs-EVM tx-hash routing.
  *
  * Liquidation grouping lives in `classification.ts`; this file handles the
- * one-row-per-event projections (Deposit, Withdraw, Borrow, Repay, Redeem,
- * refunded Deposit).
+ * one-row-per-event projections (Deposit, Withdraw, Borrow, Repay, Redeem —
+ * including the redemption of an expired vault).
  */
 
 import { formatUnits } from "viem";
@@ -47,11 +47,9 @@ const MAX_DISPLAY_FRACTION_DIGITS = 8;
  * Activity types whose primary user-facing transaction is on Bitcoin and
  * is keyed by the vault's pegin tx hash (indexer-provided).
  *  - `deposit`: peg-in BTC tx
- *  - `claim_expired`: refunded deposit, surfaces the original peg-in BTC tx
  */
 const BTC_PRIMARY_BY_PEGIN: ReadonlySet<GraphQLActivityType> = new Set([
   "deposit",
-  "claim_expired",
 ]);
 
 /**
@@ -62,19 +60,23 @@ const BTC_PRIMARY_BY_PEGIN: ReadonlySet<GraphQLActivityType> = new Set([
  *    The `VaultMarkedRedeemed` EVM event the indexer records is the contract
  *    state flip, not the actual BTC movement — surfacing the EVM hash there
  *    sends users to an explorer page that tells them nothing.
+ *  - `claim_expired`: the same for an expired vault redeemed with
+ *    `claimExpiredVault`. The `ExpiredVaultClaimed` event authorizes the
+ *    claim; the BTC moves later, in the VP's claim and payout.
  */
 const BTC_PRIMARY_BY_CLAIM: ReadonlySet<GraphQLActivityType> = new Set([
   "redeem",
+  "claim_expired",
 ]);
 
 /**
  * GraphQL types that produce a `kind: "row"` ActivityLog via projectStandardRow.
- * `liquidation` is handled by buildLiquidationGroup and `claim_expired` by
- * projectRefundedDeposit, both of which dispatch ahead of this map.
+ * `liquidation` is handled by buildLiquidationGroup, which dispatches ahead of
+ * this map.
  */
 export type StandardGraphQLActivityType = Exclude<
   GraphQLActivityType,
-  "liquidation" | "claim_expired"
+  "liquidation"
 >;
 
 export const STANDARD_TYPE_LABEL: Record<
@@ -86,6 +88,12 @@ export const STANDARD_TYPE_LABEL: Record<
   borrow: "Borrow",
   repay: "Repay",
   redeem: "Redeem",
+  // An expired vault redeemed with `claimExpiredVault` ends Redeemed like any
+  // other, and the BTC goes to the depositor's payout address through the
+  // same VP claim — nothing is refunded. The indexer emits no `redeem` for it
+  // (that comes from the Aave adapter, which this path never calls), so this
+  // row is the vault's only redemption entry.
+  claim_expired: "Redeem",
 };
 
 // Positive whitelist so any future indexer type that isn't enumerated above
@@ -199,46 +207,6 @@ export interface FetchUserActivitiesDeps {
       hubLabel: string;
     }
   >;
-}
-
-/**
- * `claim_expired` represents the depositor reclaiming an expired peg-in — i.e.
- * the deposit was refunded. The UI renders this as a Deposit row with a red
- * dot, not a separate "Claim Expired" row, so the user sees a single Deposit
- * entry marked as refunded.
- *
- * Indexer invariant: a vault either reaches `AVAILABLE` (which emits
- * `deposit`) or expires before activation and is reclaimed (which emits
- * `claim_expired`) — never both. So projecting a refunded Deposit here does
- * NOT duplicate an existing `deposit` row; the two activity types are
- * mutually exclusive per vault by the state machine in
- * `babylon-vault-indexer/src/core/pegin.ts` (`PeginActivated` →
- * `AVAILABLE` → `deposit`; `ExpiredVaultClaimed` → reclaim → `claim_expired`).
- */
-export function projectRefundedDeposit(
-  item: GraphQLVaultActivityItem,
-  peginTxHashByVaultId: ReadonlyMap<string, string>,
-): ActivityLog {
-  const { chain, transactionHash } = resolveDisplayTx(
-    item,
-    peginTxHashByVaultId,
-  );
-  return {
-    kind: "row",
-    id: item.id,
-    vaultId: item.vaultId,
-    date: new Date(parseInt(item.timestamp, 10) * 1000),
-    tokenIcon: VAULT_COLLATERAL_ASSET.icon,
-    type: "Deposit",
-    amount: {
-      value: formatAmount(item.amount, VAULT_COLLATERAL_ASSET.decimals),
-      symbol: VAULT_COLLATERAL_ASSET.symbol,
-      numeric: toNumericAmount(item.amount, VAULT_COLLATERAL_ASSET.decimals),
-    },
-    chain,
-    transactionHash,
-    isRefunded: true,
-  };
 }
 
 export function projectStandardRow(

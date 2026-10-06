@@ -117,6 +117,7 @@ const depositsState = {
   isLoading: false,
   error: null as Error | null,
   storageReadError: null as PendingPeginStorageReadError | null,
+  claimExpiredModal: { claimingActivity: null as VaultActivity | null },
 };
 
 const stubActivity = (id: string) => ({ id }) as VaultActivity;
@@ -153,6 +154,7 @@ describe("useVaultsPageEmptiness", () => {
     reclaimChainData.clear();
     reclaimStatuses.clear();
     depositsState.storageReadError = null;
+    depositsState.claimExpiredModal.claimingActivity = null;
     useDashboardStateMock.mockClear();
   });
 
@@ -361,6 +363,16 @@ describe("useVaultsPageEmptiness", () => {
       hasNonIndexerError: false,
       storageOnlyError: false,
     });
+  });
+
+  it("stays populated while a redeem modal is open after its vault left the expired list", () => {
+    // The redeem confirmed and the indexer reports the vault Redeemed, so no
+    // row is left — but the success screen is still awaiting acknowledgement.
+    depositsState.claimExpiredModal.claimingActivity = stubActivity("redeemed");
+
+    const { result } = renderHook(() => useVaultsPageEmptiness(depositsState));
+
+    expect(result.current.isEmpty).toBe(false);
   });
 
   it("reports an error, never an empty account, when the position read failed", () => {

@@ -2791,6 +2791,20 @@ vaultProviderCommissionBps: number;
 
 Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts)
 
+##### claimExpiredUntil
+
+```ts
+claimExpiredUntil: bigint;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/clients/eth/types.ts)
+
+Last ETH block (inclusive) at which `claimExpiredVault` is accepted for
+this vault. Frozen when the vault is reported expired, as that block plus
+`expiredPegInGraceBlocks`; zero until then. Only meaningful for a vault
+that expired after reaching Verified (`verifiedAt > 0`) — the contract
+rejects the claim for any other.
+
 ##### vaultCoreVersion
 
 ```ts

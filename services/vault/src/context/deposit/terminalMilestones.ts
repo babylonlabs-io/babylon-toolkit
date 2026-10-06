@@ -77,15 +77,24 @@ interface StatusBearingActivity {
   contractStatus?: number;
   /** True on localStorage-only rows the indexer has not returned yet. */
   isPending?: boolean;
+  /**
+   * Set by the indexer when the vault expired, and kept after a redeem moves
+   * it to REDEEMED — so it marks a never-activated vault whatever this tab
+   * happened to observe in between.
+   */
+  expiredAt?: number;
 }
 
 /**
- * Terminal statuses only reachable from ACTIVE: a vault must have activated to
- * be redeemed, liquidated (collateral seized against a debt) or withdrawn. A
+ * Terminal statuses reached through ACTIVE: a vault normally activates before
+ * it is redeemed, liquidated (collateral seized against a debt) or withdrawn. A
  * liquidated vault still converted — it activated first — so it counts. EXPIRED
- * and INVALID are pre-activation aborts and never do. Mirrors the contract
- * statuses of `isVaultPastActivation`, minus its optimistic localStorage branch:
- * an on-chain milestone must be decided from chain truth alone.
+ * and INVALID are pre-activation aborts and never do. One exception reaches
+ * REDEEMED without activating: an expired vault redeemed with
+ * `claimExpiredVault`; `collectTerminalMilestones` excludes it by the EXPIRED
+ * status or the indexed `expiredAt` the redeemed vault keeps. Mirrors the contract statuses of
+ * `isVaultPastActivation`, minus its optimistic localStorage branch: an
+ * on-chain milestone must be decided from chain truth alone.
  */
 function hasReachedActive(status: ContractStatus): boolean {
   return (
@@ -120,6 +129,18 @@ export function collectTerminalMilestones(
     // cast below would otherwise read `undefined` as PENDING (0).
     if (activity.isPending || activity.contractStatus === undefined) continue;
     const status = activity.contractStatus as ContractStatus;
+
+    // An expired vault never activated. Mark both milestones as settled so the
+    // REDEEMED that follows its redeem neither counts as a completed deposit
+    // nor reports a verification that happened before it expired. The indexed
+    // `expiredAt` covers a tab that never polled the EXPIRED status itself —
+    // polling pauses while hidden, and the redeem may come from elsewhere.
+    if (status === ContractStatus.EXPIRED || activity.expiredAt !== undefined) {
+      tracking.seen.add(activity.id);
+      tracking.emittedVerified.add(activity.id);
+      tracking.emittedCompleted.add(activity.id);
+      continue;
+    }
     const reachedCompleted = hasReachedActive(status);
     const reachedVerified =
       status === ContractStatus.VERIFIED || reachedCompleted;

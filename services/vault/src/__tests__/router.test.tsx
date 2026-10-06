@@ -189,6 +189,7 @@ vi.mock("@/hooks/usePendingDeposits", () => ({
     ethAddress: undefined,
     broadcastModal: {},
     refundModal: { handleRefundClick: vi.fn() },
+    claimExpiredModal: { claimingActivity: null, handleClaimClick: vi.fn() },
   }),
 }));
 
@@ -210,6 +211,7 @@ vi.mock("@/context/ProtocolParamsContext", () => ({
 vi.mock("@/context/deposit/PeginPollingContext", () => ({
   PeginPollingProvider: ({ children }: { children: ReactNode }) => children,
   useDepositPollingResult: () => undefined,
+  usePeginPolling: () => ({ getPollingResult: () => undefined }),
 }));
 
 vi.mock("@/components/simple/PendingDepositModals", () => ({

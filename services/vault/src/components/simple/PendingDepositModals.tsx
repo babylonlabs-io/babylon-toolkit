@@ -1,16 +1,18 @@
 /**
  * PendingDepositModals Component
  *
- * Renders the broadcast + refund + reclaim + emergency-withdraw + success
- * modals used by the pending deposit section. The shared Pre-PegIn broadcast
- * keeps a dedicated modal (it's hoisted to a batch-level button); the recovery
- * escape hatches (HTLC refund, depositor-claim reclaim, activate-and-redeem
- * withdraw) each own a dedicated modal; every other per-vault action (WOTS, payout signing, activation,
+ * Renders the broadcast + refund + reclaim + emergency-withdraw + expired
+ * redeem + success modals used by the pending deposit section. The shared
+ * Pre-PegIn broadcast keeps a dedicated modal (it's hoisted to a batch-level
+ * button); the recovery escape hatches (HTLC refund, depositor-claim reclaim,
+ * activate-and-redeem withdraw, expired-vault redeem) each own a dedicated
+ * modal; every other per-vault action (WOTS, payout signing, activation,
  * artifact download) is owned by the deposit multistepper opened from the
  * card body.
  */
 
 import { BroadcastSuccessModal } from "@/components/deposit/BroadcastSuccessModal";
+import { ClaimExpiredVaultModal } from "@/components/deposit/ClaimExpiredVaultModal";
 import { EmergencyWithdrawModal } from "@/components/deposit/EmergencyWithdrawModal";
 import { ReclaimModal } from "@/components/deposit/ReclaimModal";
 import { RefundModal } from "@/components/deposit/RefundModal";
@@ -50,11 +52,18 @@ interface EmergencyWithdrawModalState {
   handleSuccess: () => void;
 }
 
+interface ClaimExpiredModalState {
+  claimingActivity: VaultActivity | null;
+  handleClose: () => void;
+  handleSuccess: () => void;
+}
+
 interface PendingDepositModalsProps {
   broadcastModal: BroadcastModalState;
   refundModal: RefundModalState;
   reclaimModal: ReclaimModalState;
   emergencyWithdrawModal: EmergencyWithdrawModalState;
+  claimExpiredModal: ClaimExpiredModalState;
   ethAddress: string | undefined;
 }
 
@@ -63,6 +72,7 @@ export function PendingDepositModals({
   refundModal,
   reclaimModal,
   emergencyWithdrawModal,
+  claimExpiredModal,
   ethAddress,
 }: PendingDepositModalsProps) {
   return (
@@ -108,6 +118,16 @@ export function PendingDepositModals({
           activity={emergencyWithdrawModal.withdrawing.activity}
           onClose={emergencyWithdrawModal.handleClose}
           onSuccess={emergencyWithdrawModal.handleSuccess}
+        />
+      )}
+
+      {/* Expired-vault redeem Modal (claimExpiredVault) */}
+      {claimExpiredModal.claimingActivity && (
+        <ClaimExpiredVaultModal
+          open={!!claimExpiredModal.claimingActivity}
+          activity={claimExpiredModal.claimingActivity}
+          onClose={claimExpiredModal.handleClose}
+          onSuccess={claimExpiredModal.handleSuccess}
         />
       )}
 

@@ -21,6 +21,8 @@ export const TELEMETRY_EVENT = {
   DEPOSIT_BROADCAST_SUCCEEDED: "deposit.broadcast.succeeded",
   /** HTLC secret revealed on Ethereum; activation tx submitted (optimistic). */
   ACTIVATION_ACTIVATED: "activation.activated",
+  /** An expired BTCVault the PegIn swept was redeemed (`claimExpiredVault` confirmed). */
+  EXPIRED_VAULT_REDEEMED: "activation.expired_redeemed",
   /** VP verified the depositor's presigned payouts on-chain (contractStatus VERIFIED). */
   ACTIVATION_VERIFIED: "activation.verified",
   /** Vault confirmed ACTIVE on-chain — funnel terminal / primary conversion. */
@@ -57,6 +59,7 @@ export const TELEMETRY_STAGE = {
   ACTIVATION_ARTIFACTS: "activation.artifacts",
   ACTIVATION_SECRET: "activation.secret",
   ACTIVATION_REVEAL: "activation.reveal",
+  EXPIRED_VAULT_REDEEM: "activation.expired_redeem",
 } as const;
 
 export type TelemetryStage =

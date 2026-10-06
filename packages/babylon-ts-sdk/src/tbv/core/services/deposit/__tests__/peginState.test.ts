@@ -147,6 +147,28 @@ describe("peginProtocolState", () => {
       const state = getPeginProtocolState(ContractStatus.EXPIRED);
       expect(state.availableActions).toEqual([]);
     });
+
+    it("offers only CLAIM_EXPIRED_VAULT when canClaimExpired is true", () => {
+      const state = getPeginProtocolState(ContractStatus.EXPIRED, {
+        canClaimExpired: true,
+      });
+      expect(state.availableActions).toEqual([PeginAction.CLAIM_EXPIRED_VAULT]);
+    });
+
+    it("never offers the refund alongside the claim", () => {
+      const state = getPeginProtocolState(ContractStatus.EXPIRED, {
+        canClaimExpired: true,
+        canRefund: true,
+      });
+      expect(state.availableActions).toEqual([PeginAction.CLAIM_EXPIRED_VAULT]);
+    });
+
+    it("does not offer the claim on a vault that is not expired", () => {
+      const state = getPeginProtocolState(ContractStatus.VERIFIED, {
+        canClaimExpired: true,
+      });
+      expect(state.availableActions).toEqual([PeginAction.ACTIVATE_VAULT]);
+    });
   });
 
   // ==========================================================================

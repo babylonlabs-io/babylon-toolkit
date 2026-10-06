@@ -15,6 +15,7 @@
 import {
   activateVault,
   activateVaultAndRedeem,
+  claimExpiredVault,
   type EthContractWriter,
 } from "@babylonlabs-io/ts-sdk/tbv/core/services";
 import {
@@ -129,6 +130,48 @@ export async function activateVaultWithSecretAndRedeem(
     });
 
   return activateVaultAndRedeem<TransactionResult>({
+    btcVaultRegistryAddress: CONTRACTS.BTC_VAULT_REGISTRY,
+    vaultId,
+    secret,
+    hashlock,
+    writeContract: writer,
+  });
+}
+
+/**
+ * Expired-vault exit — calls claimExpiredVault on the contract: reveals the
+ * HTLC secret for a vault that expired after verification, moving it to
+ * Redeemed so the vault provider claims the BTC the PegIn swept and pays it
+ * to the depositor's committed payout address.
+ *
+ * The caller must have proven, immediately before, that the PegIn spent the
+ * HTLC: revealing the secret while the HTLC is unspent lets anyone broadcast
+ * the PegIn ahead of the depositor's own refund. The hashlock is required —
+ * the SDK re-checks `sha256(secret) === hashlock` before calldata exists.
+ *
+ * The registry checks the Expired status, `verifiedAt`, the grace window and
+ * the secret; `executeWrite`'s mandatory pre-broadcast simulation refuses to
+ * sign when any of them already fails at submission time.
+ */
+export async function claimExpiredVaultWithSecret(
+  params: ActivateVaultParams,
+): Promise<TransactionResult> {
+  const { vaultId, secret, hashlock, walletClient, signal } = params;
+
+  signal?.throwIfAborted();
+
+  const writer: EthContractWriter<TransactionResult> = (call) =>
+    executeWrite({
+      walletClient,
+      chain: getETHChain(),
+      address: call.address,
+      abi: call.abi,
+      functionName: call.functionName,
+      args: call.args,
+      errorContext: "expired vault redeem",
+    });
+
+  return claimExpiredVault<TransactionResult>({
     btcVaultRegistryAddress: CONTRACTS.BTC_VAULT_REGISTRY,
     vaultId,
     secret,

@@ -46,11 +46,8 @@ type RawVaultBasicInfo = {
 /**
  * Raw `getBtcVaultProtocolInfo` tuple as decoded by viem.
  *
- * Mirrors the ABI's components except `claimExpiredUntil`, which nothing
- * consumes: it is the post-expiry grace deadline for `claimExpired`, scoped to
- * vaults that expired without activating, and it is not a deadline on the
- * depositor's claim right. The ABI still declares it — the decode is
- * positional, so removing it there would shift `vaultCoreVersion`.
+ * Mirrors the ABI's components. The trailing key epochs are read through the
+ * separate key-epochs ABI, so this prefix stops at `vaultCoreVersion`.
  */
 type RawVaultProtocolInfo = {
   depositorSignedPeginTx: Hex;
@@ -64,6 +61,7 @@ type RawVaultProtocolInfo = {
   depositorPopSignature: Hex;
   prePeginTxHash: Hex;
   vaultProviderCommissionBps: number;
+  claimExpiredUntil: bigint;
   vaultCoreVersion: number;
 };
 
@@ -94,6 +92,7 @@ function mapVaultProtocolInfo(result: RawVaultProtocolInfo): VaultProtocolInfo {
     depositorPopSignature: result.depositorPopSignature,
     prePeginTxHash: result.prePeginTxHash,
     vaultProviderCommissionBps: result.vaultProviderCommissionBps,
+    claimExpiredUntil: result.claimExpiredUntil,
     vaultCoreVersion: result.vaultCoreVersion,
   };
 }

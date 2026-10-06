@@ -63,6 +63,7 @@ function makeInputs(
     refundTimelock: 10,
     activationDeadlinePassed: false,
     stuckStateConfirmedOnChain: false,
+    claimExpiredWindow: undefined,
     isLoading: false,
     optimisticStatuses: new Map(),
     optimisticRefundBroadcastAt: new Map(),
@@ -692,6 +693,191 @@ describe("computeDepositPollingResult — PegIn sweep after expiry", () => {
     );
     expect(result.peginState.displayLabel).not.toBe(
       PEGIN_DISPLAY_LABELS.ACTIVATION_INCOMPLETE,
+    );
+  });
+});
+
+describe("computeDepositPollingResult — expired-vault redeem", () => {
+  function makeSweptInputs(overrides: Partial<DepositPollingInputs> = {}) {
+    return makeInputs({
+      activity: { ...makeExpiredActivity(), peginTxHash: PEGIN_TX },
+      htlcRefundByDepositId: new Map([
+        [
+          VAULT_ID.toLowerCase(),
+          { spent: true, confirmed: true, spendingTxid: PEGIN_TX },
+        ],
+      ]),
+      ...overrides,
+    });
+  }
+
+  it("offers only the redeem, with the time left, while the window is open", () => {
+    // 7_200 blocks at 12s each is exactly one day.
+    const result = computeDepositPollingResult(
+      makeSweptInputs({
+        claimExpiredWindow: { state: "open", blocksRemaining: 7_200 },
+      }),
+    );
+
+    expect(result.peginState.availableActions).toEqual([
+      PeginAction.CLAIM_EXPIRED_VAULT,
+    ]);
+    expect(result.peginState.inlineSubtext).toBe(
+      "Refund unavailable — redeem within ~1 day",
+    );
+    expect(getActionStatus(result)).toEqual({
+      type: "available",
+      action: {
+        label: COPY.pegin.primaryAction.CLAIM_EXPIRED_VAULT,
+        action: PeginAction.CLAIM_EXPIRED_VAULT,
+      },
+    });
+  });
+
+  it("keeps the redeem offered when the window could not be read", () => {
+    const result = computeDepositPollingResult(
+      makeSweptInputs({ claimExpiredWindow: undefined }),
+    );
+
+    expect(result.peginState.availableActions).toEqual([
+      PeginAction.CLAIM_EXPIRED_VAULT,
+    ]);
+    expect(result.peginState.inlineSubtext).toBe(
+      COPY.pegin.messages.peginSweptWhileExpiredSubtextUnknown,
+    );
+  });
+
+  it("withdraws the redeem and says the window closed once the chain reports it", () => {
+    const result = computeDepositPollingResult(
+      makeSweptInputs({ claimExpiredWindow: { state: "closed" } }),
+    );
+
+    expect(result.peginState.availableActions).toEqual([PeginAction.NONE]);
+    expect(result.peginState.displayLabel).toBe(PEGIN_DISPLAY_LABELS.EXPIRED);
+    expect(result.peginState.message).toBe(
+      COPY.pegin.messages.peginSweptWindowClosed,
+    );
+  });
+
+  it("shows the redemption in progress once the chain reports the vault redeemed", () => {
+    const result = computeDepositPollingResult(
+      makeSweptInputs({ claimExpiredWindow: { state: "redeemed" } }),
+    );
+
+    expect(result.peginState.availableActions).toEqual([PeginAction.NONE]);
+    expect(result.peginState.displayLabel).toBe(
+      PEGIN_DISPLAY_LABELS.REDEEM_IN_PROGRESS,
+    );
+  });
+
+  it("hides the redeem once this session's redeem confirmed, before the indexer catches up", () => {
+    const result = computeDepositPollingResult(
+      makeSweptInputs({
+        claimExpiredWindow: { state: "open", blocksRemaining: 7_200 },
+        optimisticStatuses: new Map([
+          [VAULT_ID, LocalStorageStatus.CLAIM_EXPIRED_SUBMITTED],
+        ]),
+      }),
+    );
+
+    expect(result.peginState.availableActions).toEqual([PeginAction.NONE]);
+    expect(result.peginState.displayLabel).toBe(
+      PEGIN_DISPLAY_LABELS.REDEEM_IN_PROGRESS,
+    );
+  });
+
+  it("keeps the redeem when the PegIn wins the race against this session's refund broadcast", () => {
+    const broadcastAt = Date.parse("2026-07-27T12:00:00Z");
+    const result = computeDepositPollingResult(
+      makeSweptInputs({
+        claimExpiredWindow: { state: "open", blocksRemaining: 30 },
+        optimisticStatuses: new Map([
+          [VAULT_ID, LocalStorageStatus.REFUND_BROADCAST],
+        ]),
+        optimisticRefundBroadcastAt: new Map([[VAULT_ID, broadcastAt]]),
+        now: broadcastAt + 1_000,
+      }),
+    );
+
+    expect(result.peginState.availableActions).toEqual([
+      PeginAction.CLAIM_EXPIRED_VAULT,
+    ]);
+  });
+
+  it("keeps the redeem when the refund marker comes from a stored record after a reload", () => {
+    const broadcastAt = Date.parse("2026-07-27T12:00:00Z");
+    const result = computeDepositPollingResult(
+      makeSweptInputs({
+        claimExpiredWindow: { state: "open", blocksRemaining: 30 },
+        pendingPegins: [
+          {
+            id: VAULT_ID,
+            peginTxHash: PEGIN_TX,
+            timestamp: 1_700_000_000_000,
+            status: LocalStorageStatus.REFUND_BROADCAST,
+            refundBroadcastAt: broadcastAt,
+            unsignedTxHex: "0x00",
+          },
+        ],
+        now: broadcastAt + 1_000,
+      }),
+    );
+
+    expect(result.peginState.availableActions).toEqual([
+      PeginAction.CLAIM_EXPIRED_VAULT,
+    ]);
+  });
+
+  it("carries a closed window to the state the redeem modal reads", () => {
+    const result = computeDepositPollingResult(
+      makeSweptInputs({ claimExpiredWindow: { state: "closed" } }),
+    );
+
+    expect(result.peginState.claimExpiredWindow).toEqual({ state: "closed" });
+  });
+
+  it("does not offer the redeem when a transaction other than the PegIn spent the HTLC", () => {
+    const result = computeDepositPollingResult(
+      makeSweptInputs({
+        htlcRefundByDepositId: new Map([
+          [
+            VAULT_ID.toLowerCase(),
+            { spent: true, confirmed: true, spendingTxid: REFUND_TX },
+          ],
+        ]),
+      }),
+    );
+
+    expect(result.peginState.availableActions).not.toContain(
+      PeginAction.CLAIM_EXPIRED_VAULT,
+    );
+  });
+
+  it("does not offer the redeem when the spender cannot be identified", () => {
+    const result = computeDepositPollingResult(
+      makeSweptInputs({
+        htlcRefundByDepositId: new Map([
+          [VAULT_ID.toLowerCase(), { spent: true, confirmed: false }],
+        ]),
+      }),
+    );
+
+    expect(result.peginState.availableActions).not.toContain(
+      PeginAction.CLAIM_EXPIRED_VAULT,
+    );
+  });
+
+  it("does not offer the redeem while the HTLC is unspent", () => {
+    const result = computeDepositPollingResult(
+      makeSweptInputs({
+        htlcRefundByDepositId: new Map([
+          [VAULT_ID.toLowerCase(), { spent: false, confirmed: false }],
+        ]),
+      }),
+    );
+
+    expect(result.peginState.availableActions).not.toContain(
+      PeginAction.CLAIM_EXPIRED_VAULT,
     );
   });
 });

@@ -41,6 +41,9 @@ vi.mock("../../../hooks/useActivationDeadlineGate", () => ({
 vi.mock("../../../hooks/useStuckVaultChainConfirm", () => ({
   useStuckVaultChainConfirm: () => new Set<string>(),
 }));
+vi.mock("../../../hooks/useClaimExpiredWindowGate", () => ({
+  useClaimExpiredWindowGate: () => new Map(),
+}));
 
 // Floor gate issues chain reads for VERIFIED vaults; stub it so the provider
 // renders without a QueryClient, exactly as the deadline gate above is stubbed.

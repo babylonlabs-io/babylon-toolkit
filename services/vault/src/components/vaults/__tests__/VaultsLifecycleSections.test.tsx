@@ -224,6 +224,12 @@ function makeDeposits(
       handleClose: vi.fn(),
       handleSuccess: vi.fn(),
     },
+    claimExpiredModal: {
+      claimingActivity: null,
+      handleClaimClick: vi.fn(),
+      handleClose: vi.fn(),
+      handleSuccess: vi.fn(),
+    },
     removePendingPegins,
     indexedVaultIds,
     localRecordStatuses,
@@ -951,5 +957,63 @@ describe("VaultsLifecycleSections expired refunds", () => {
       screen.getByRole("heading", { name: "Inactive Vaults (1)" }),
     ).toBeInTheDocument();
     expect(screen.queryByText("0.2 BTC")).not.toBeInTheDocument();
+  });
+});
+
+describe("VaultsLifecycleSections expired redeem", () => {
+  it("offers Redeem on an expired vault the PegIn swept and opens the redeem modal for it", () => {
+    const { deposits } = renderPendingRow(
+      pollingResult(
+        getPeginState(ContractStatus.EXPIRED, {
+          peginSweptWhileExpired: true,
+          canClaimExpired: true,
+          claimExpiredWindow: { state: "open", blocksRemaining: 7_200 },
+        }),
+      ),
+      {
+        pendingActivities: [],
+        expiredActivities: [
+          { ...ACTIVITY, contractStatus: ContractStatus.EXPIRED },
+        ],
+      },
+    );
+
+    expect(
+      screen.getByRole("heading", { name: "Inactive Vaults (1)" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: COPY.vaults.actions.withdraw }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: COPY.vaults.actions.redeem }),
+    );
+    expect(deposits.claimExpiredModal.handleClaimClick).toHaveBeenCalledWith(
+      ACTIVITY_ID,
+    );
+  });
+
+  it("keeps the row without an action once the chain reports the window closed", () => {
+    renderPendingRow(
+      pollingResult(
+        getPeginState(ContractStatus.EXPIRED, {
+          peginSweptWhileExpired: true,
+          canClaimExpired: false,
+          claimExpiredWindow: { state: "closed" },
+        }),
+      ),
+      {
+        pendingActivities: [],
+        expiredActivities: [
+          { ...ACTIVITY, contractStatus: ContractStatus.EXPIRED },
+        ],
+      },
+    );
+
+    expect(
+      screen.getByText(COPY.pegin.messages.peginSweptWindowClosedSubtext),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: COPY.vaults.actions.redeem }),
+    ).not.toBeInTheDocument();
   });
 });

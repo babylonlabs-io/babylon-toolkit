@@ -35,7 +35,17 @@ const ACTION_NOTIFICATION_COPY: Partial<
   [PeginAction.ACTIVATE_VAULT]: COPY.deposit.notifications.activateVault,
   [PeginAction.ACTIVATE_AND_REDEEM]:
     COPY.deposit.notifications.activateAndRedeem,
+  [PeginAction.CLAIM_EXPIRED_VAULT]:
+    COPY.deposit.notifications.claimExpiredVault,
 };
+
+// Recovery exits that render as warnings — not continuation candidates — and
+// live in their own modals, yet carry a deadline: past the activation
+// deadline the withdraw dies, past the grace window the redeem does.
+const DEADLINE_RECOVERY_ACTIONS: ReadonlySet<PeginAction> = new Set([
+  PeginAction.ACTIVATE_AND_REDEEM,
+  PeginAction.CLAIM_EXPIRED_VAULT,
+]);
 
 export function useSigningRequiredNotifications(
   activities: VaultActivity[],
@@ -68,16 +78,14 @@ export function useSigningRequiredNotifications(
         continue;
       // Skip deposits the continuation UI won't offer an action for, so we
       // never nudge an action the user can't actually take there. Exception:
-      // the stuck-state withdraw (activate-and-redeem) renders as a warning —
-      // not a continuation candidate — and lives in its own modal, yet it is
-      // the most deadline-critical nudge of all (past the activation deadline
-      // both recovery paths die), so it bypasses both gates.
+      // the deadline-bound recovery exits (see `DEADLINE_RECOVERY_ACTIONS`)
+      // are the most time-critical nudges of all, so they bypass both gates.
       const { peginState } = result;
       const candidate = isCandidateVault(peginState);
       for (const action of peginState.availableActions ?? []) {
-        const isStuckRecovery = action === PeginAction.ACTIVATE_AND_REDEEM;
-        if (!isStuckRecovery && !candidate) continue;
-        if (!isStuckRecovery && !isActionablePeginAction(action, btcPublicKey))
+        const isRecovery = DEADLINE_RECOVERY_ACTIONS.has(action);
+        if (!isRecovery && !candidate) continue;
+        if (!isRecovery && !isActionablePeginAction(action, btcPublicKey))
           continue;
         const copy = ACTION_NOTIFICATION_COPY[action];
         if (!copy) continue;

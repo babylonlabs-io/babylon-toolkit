@@ -32,7 +32,11 @@ import type { Address, Hex } from "viem";
 import { assertVaultCoreVersionSupported } from "@/utils/vaultCoreVersionSupport";
 
 import { getMempoolApiUrl } from "../../clients/btc/config";
-import { fetchHtlcSpend } from "../../clients/btc/outspend";
+import {
+  fetchHtlcSpend,
+  type HtlcSpend,
+  isHtlcSpentByPegin,
+} from "../../clients/btc/outspend";
 import {
   getVaultFromChain,
   getVaultKeyEpochsFromChain,
@@ -495,12 +499,12 @@ async function readPrePeginContext(
  * from the indexer.
  */
 export class RefundAlreadySettledError extends Error {
-  /** The transaction that already spent the HTLC output, when known. */
-  public readonly spendingTxid?: string;
+  /** The transaction that already spent the HTLC output. */
+  public readonly spendingTxid: string;
   /** True when that spending tx is confirmed in a block. */
   public readonly confirmed: boolean;
 
-  constructor(spendingTxid: string | undefined, confirmed: boolean) {
+  constructor(spendingTxid: string, confirmed: boolean) {
     super("Refund already settled: the HTLC output has already been spent.");
     this.name = "RefundAlreadySettledError";
     this.spendingTxid = spendingTxid;
@@ -508,10 +512,55 @@ export class RefundAlreadySettledError extends Error {
   }
 }
 
-// bitcoind sendrawtransaction rejection codes that mean "this refund already
-// happened", relayed verbatim by mempool.space as `...RPC error: {"code":-N,...}`.
-// -27 = RPC_VERIFY_ALREADY_IN_UTXO_SET (the tx is already confirmed); -25 =
-// missing/already-spent inputs (the HTLC was already spent). Verified against
+/**
+ * Where in the refund the spent HTLC was found: before the wallet signed, or
+ * only when the signed refund was rejected at broadcast. Picks the copy, so a
+ * depositor who just approved a signature is not told nothing was signed.
+ */
+type RefundStage = "beforeSigning" | "afterSigning";
+
+/**
+ * Thrown when the vault's HTLC output was spent by the vault's own PegIn, not
+ * by a refund: the BTC moved into the BTCVault, so no refund can ever land and
+ * the depositor's exit is the expired-vault redeem. Kept apart from
+ * {@link RefundAlreadySettledError} so a PegIn sweep is never recorded as a
+ * refund — a refunded record drops the vault from the HTLC probe and, with it,
+ * the redeem action.
+ */
+export class HtlcSweptByPeginError extends Error {
+  constructor(stage: RefundStage) {
+    super(COPY.deposit.refundSweptByPegin[stage]);
+    this.name = "HtlcSweptByPeginError";
+  }
+}
+
+/**
+ * Throws for an HTLC output that is already spent, attributing the spender
+ * first. The PegIn txid comes from the on-chain signed PegIn, so an indexer
+ * record cannot turn a sweep into a "refund" here. A spend reported without
+ * its transaction can be neither, so it is refused as retryable rather than
+ * recorded as a settled refund.
+ */
+function throwIfHtlcSpent(
+  spend: HtlcSpend | undefined,
+  peginTxid: string,
+  stage: RefundStage,
+): void {
+  if (!spend?.spent) return;
+  if (!spend.spendingTxid) {
+    throw new Error(COPY.deposit.refundSpenderUnknown[stage]);
+  }
+  if (isHtlcSpentByPegin(spend, peginTxid)) {
+    throw new HtlcSweptByPeginError(stage);
+  }
+  throw new RefundAlreadySettledError(spend.spendingTxid, spend.confirmed);
+}
+
+// bitcoind sendrawtransaction rejection codes after which the HTLC outpoint is
+// re-probed, relayed verbatim by mempool.space as `...RPC error: {"code":-N,...}`.
+// -27 = RPC_VERIFY_ALREADY_IN_UTXO_SET (this signed refund is itself already
+// confirmed); -25 = missing/already-spent inputs (something spent the HTLC — a
+// refund, the PegIn, or a spender the probe does not name). Verified against
 // bitcoin/bitcoin src/rpc/protocol.h + src/node/transaction.cpp.
 const ALREADY_IN_CHAIN_CODE_RE = /"code"\s*:\s*-27\b/;
 const MISSING_OR_SPENT_INPUTS_CODE_RE = /"code"\s*:\s*-25\b/;
@@ -524,7 +573,9 @@ const MISSING_OR_SPENT_INPUTS_CODE_RE = /"code"\s*:\s*-25\b/;
  * in that case the SDK throws {@link BIP68NotMatureError}.
  *
  * @returns The broadcasted refund transaction ID
- * @throws {@link RefundAlreadySettledError} if the HTLC output is already spent
+ * @throws {@link HtlcSweptByPeginError} if the vault's PegIn spent the HTLC output
+ * @throws {@link RefundAlreadySettledError} if anything else already spent it
+ * @throws A retryable error if it is reported spent without the spending tx
  * @throws If vault data is missing or the broadcast fails
  */
 export async function buildAndBroadcastRefundTransaction(
@@ -555,25 +606,24 @@ export async function buildAndBroadcastRefundTransaction(
   if (!stillOnChain) {
     throw new Error(COPY.deposit.refundNotBroadcast.broadcastGuardError);
   }
+  const peginTxid = calculateBtcTxHash(
+    target.onChainVault.depositorSignedPeginTx,
+  );
 
-  // The Pre-PegIn exists, but its HTLC output may already be spent — the refund
-  // already landed (e.g. from another device/session). The refund tx is
-  // deterministic, so re-broadcasting hits bitcoind -27 (already in chain) or
-  // -25 (input already spent); surface the existing refund as success instead
-  // of a doomed retry. On-chain `htlcVout` (never the indexer's) keys the
-  // probe. Fail-open: a flaky probe must not block a legitimate refund — the
-  // broadcast-time classification below is the backstop.
+  // The Pre-PegIn exists, but its HTLC output may already be spent: by a refund
+  // that already landed (e.g. from another device/session) or by the vault's
+  // PegIn. Attribute the spender before the wallet prompt — a landed refund is
+  // surfaced as success instead of a doomed re-broadcast, a PegIn sweep points
+  // to the redeem, and an unnamed spender is refused as retryable. On-chain
+  // `htlcVout` (never the indexer's) keys the probe. Fail-open: a flaky probe
+  // must not block a legitimate refund — the broadcast-time classification
+  // below is the backstop.
   const htlcSpend = await fetchHtlcSpend(
     target.onChainVault.prePeginTxHash,
     target.onChainVault.htlcVout,
     mempoolApiUrl,
   ).catch(() => undefined);
-  if (htlcSpend?.spent) {
-    throw new RefundAlreadySettledError(
-      htlcSpend.spendingTxid,
-      htlcSpend.confirmed,
-    );
-  }
+  throwIfHtlcSpent(htlcSpend, peginTxid, "beforeSigning");
 
   // Override indexer-provided depositor pubkey with the caller's wallet key —
   // the wallet is the authoritative source for the depositor's signing key.
@@ -592,24 +642,26 @@ export async function buildAndBroadcastRefundTransaction(
         return { txId: await pushTx(signedTxHex, mempoolApiUrl) };
       } catch (err) {
         // Race: the HTLC was spent between the guard above and this broadcast.
-        // On bitcoind -27/-25, re-probe the outpoint; if spent, the refund is
-        // already done — report success rather than a retryable failure.
+        // On bitcoind -27/-25, re-probe the outpoint and attribute the spender
+        // as the guard does.
         const message = err instanceof Error ? err.message : String(err);
-        if (
-          ALREADY_IN_CHAIN_CODE_RE.test(message) ||
-          MISSING_OR_SPENT_INPUTS_CODE_RE.test(message)
-        ) {
-          const spend = await fetchHtlcSpend(
+        const alreadyInChain = ALREADY_IN_CHAIN_CODE_RE.test(message);
+        if (alreadyInChain || MISSING_OR_SPENT_INPUTS_CODE_RE.test(message)) {
+          const probed = await fetchHtlcSpend(
             target.onChainVault.prePeginTxHash,
             target.onChainVault.htlcVout,
             mempoolApiUrl,
           ).catch(() => undefined);
-          if (spend?.spent) {
-            throw new RefundAlreadySettledError(
-              spend.spendingTxid,
-              spend.confirmed,
-            );
-          }
+          // -27 says this signed refund is itself confirmed, so a spend the
+          // probe reports without its transaction is this refund.
+          const spend =
+            alreadyInChain && probed?.spent && !probed.spendingTxid
+              ? {
+                  ...probed,
+                  spendingTxid: stripHexPrefix(calculateBtcTxHash(signedTxHex)),
+                }
+              : probed;
+          throwIfHtlcSpent(spend, peginTxid, "afterSigning");
         }
         throw err;
       }

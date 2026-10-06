@@ -107,6 +107,7 @@ function vault(fx: ChainFixture, htlcVout: number): VaultData {
       depositorPopSignature: "0x" as Hex,
       prePeginTxHash: fx.prePeginTxHash,
       vaultProviderCommissionBps: 100,
+      claimExpiredUntil: 0n,
       vaultCoreVersion: VERSION,
     },
   };

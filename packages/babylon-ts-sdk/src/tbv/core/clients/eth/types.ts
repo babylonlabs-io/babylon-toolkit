@@ -75,6 +75,14 @@ export interface VaultProtocolInfo {
   depositorPopSignature: Hex;
   prePeginTxHash: Hex;
   vaultProviderCommissionBps: number;
+  /**
+   * Last ETH block (inclusive) at which `claimExpiredVault` is accepted for
+   * this vault. Frozen when the vault is reported expired, as that block plus
+   * `expiredPegInGraceBlocks`; zero until then. Only meaningful for a vault
+   * that expired after reaching Verified (`verifiedAt > 0`) — the contract
+   * rejects the claim for any other.
+   */
+  claimExpiredUntil: bigint;
   /** Vault core version (uint16) stamped at registration. VP-side gating only — see #1690. */
   vaultCoreVersion: number;
 }

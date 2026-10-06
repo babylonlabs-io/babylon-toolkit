@@ -1,9 +1,10 @@
 /**
- * Resolves the BTC `claim_txid` for each `redeem` activity row.
+ * Resolves the BTC `claim_txid` for each redemption activity row — `redeem`,
+ * and `claim_expired` for an expired vault redeemed with `claimExpiredVault`.
  *
- * The Activity tab needs a BTC explorer link for redeem rows, but the
- * indexer only sees the EVM `VaultMarkedRedeemed` event — the BTC claim
- * is broadcast off-chain by the vault provider's claimer. This module
+ * The Activity tab needs a BTC explorer link for these rows, but the indexer
+ * only sees the EVM event (`VaultMarkedRedeemed` / `ExpiredVaultClaimed`) —
+ * the BTC claim is broadcast off-chain by the vault provider's claimer. This module
  * groups redeem vaults by `vaultProvider`, calls the SDK's
  * `vaultProvider_batchGetPegoutStatusByVaultId` RPC per provider, and
  * returns a `vaultId -> claim_txid` map.

@@ -111,8 +111,10 @@ const TXID_HEX_RE = /^[0-9a-fA-F]{64}$/;
 // Intentionally distinct from NON_EMPTY_HEX_RE: raw Bitcoin script is never
 // 0x-prefixed, so the prefix option is disallowed here. Do not "dedupe" these.
 const SCRIPT_PUBKEY_HEX_RE = /^([0-9a-fA-F]{2})+$/;
-// Valid LocalStorageStatus string values. Kept in lock-step with
-// OffChainTrackingStatus in models/peginStateMachine.ts.
+// Valid persisted LocalStorageStatus values: every OffChainTrackingStatus member
+// in models/peginStateMachine.ts except CLAIM_EXPIRED_SUBMITTED, which is set
+// in memory only. Do not add it: a stored entry carrying it would hide the
+// expired-vault redeem, the only exit for that vault.
 const VALID_LOCAL_STORAGE_STATUSES: ReadonlySet<string> = new Set([
   "pending",
   "payout_signed",

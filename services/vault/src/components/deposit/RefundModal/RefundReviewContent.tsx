@@ -42,6 +42,11 @@ interface RefundReviewContentProps {
   previewError: string | null;
   refunding: boolean;
   error: string | null;
+  /**
+   * The error cannot be cured by trying again (the PegIn spent the deposit),
+   * so confirmation stays disabled instead of offering a retry.
+   */
+  errorTerminal?: boolean;
   onConfirm: (feeRate: number) => void;
   /**
    * The Ledger device step the refund is in, or `null` for every other wallet
@@ -59,6 +64,7 @@ export function RefundReviewContent({
   previewError,
   refunding,
   error,
+  errorTerminal = false,
   onConfirm,
   ledgerStep = null,
 }: RefundReviewContentProps) {
@@ -130,6 +136,7 @@ export function RefundReviewContent({
 
   const canConfirm =
     !refunding &&
+    !errorTerminal &&
     !walletLocked &&
     feeRate !== null &&
     feeRate > 0 &&
@@ -267,7 +274,7 @@ export function RefundReviewContent({
               </span>
             ) : ledgerStep?.kind === "reconnect-required" ? (
               COPY.deposit.ledger.reconnectButton
-            ) : error ? (
+            ) : error && !errorTerminal ? (
               COPY.deposit.refundReview.retryButton
             ) : (
               COPY.deposit.refundReview.confirmButton

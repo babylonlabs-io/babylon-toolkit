@@ -116,9 +116,12 @@ export interface ActivateVaultInput<
 }
 
 /**
- * Shared pre-write validation for both activation entry points: address and
- * bytes32 shapes, plus the optional `sha256(secret) == hashlock` pre-check —
- * the last gate before the secret would enter calldata.
+ * Shared pre-write validation for the two activation entry points and
+ * `claimExpiredVault`: address and bytes32 shapes, plus the
+ * `sha256(secret) == hashlock` pre-check whenever a hashlock is passed — the
+ * last gate before the secret would enter calldata. The hashlock is optional
+ * for activation; `claimExpiredVault` rejects a missing one before calling
+ * this, so for it the check always runs.
  *
  * @returns the 0x-normalised secret to place in calldata
  */
@@ -261,6 +264,85 @@ export async function activateVaultAndRedeem<
     address: btcVaultRegistryAddress,
     abi: BTCVaultRegistryABI,
     functionName: "activateVaultWithSecretAndRedeem",
+    args: [vaultId, normalizedSecret],
+  });
+}
+
+export interface ClaimExpiredVaultInput<
+  R extends EthContractWriteResult = EthContractWriteResult,
+> {
+  /** BTCVaultRegistry contract address (env-specific). */
+  btcVaultRegistryAddress: Address;
+  /** Vault ID (bytes32, 0x-prefixed). */
+  vaultId: Hex;
+  /**
+   * HTLC secret preimage (bytes32). A missing `0x` prefix or an uppercase
+   * `0X` prefix is normalised before validation.
+   */
+  secret: string;
+  /**
+   * The vault's on-chain hashlock. Required, unlike the activation entry
+   * points: the claim is offered only after the secret is presumed leaked, and
+   * the SDK still refuses to place a secret in calldata that does not match
+   * the commitment it reveals against.
+   */
+  hashlock: Hex;
+  /** Caller-provided write callback — see {@link EthContractWriter}. */
+  writeContract: EthContractWriter<R>;
+  /**
+   * Optional abort signal. Checked before validation runs; since validation
+   * is fully synchronous, cancellation between validation and the write is
+   * not observable and callers should rely on the transport's own
+   * cancellation support for that window.
+   */
+  signal?: AbortSignal;
+}
+
+/**
+ * Claim an expired vault: reveal the HTLC secret for a vault that reached
+ * Verified but expired before activation, moving it to Redeemed so the BTC is
+ * claimed out of the PegIn on Bitcoin to the vault provider and depositor keys
+ * recorded on chain.
+ *
+ * This is the only exit for a vault whose Pre-PegIn HTLC was spent by the
+ * PegIn after expiry, which removes the depositor's refund path. The contract
+ * (`claimExpiredVault`) accepts it from any caller, requires status Expired
+ * with `verifiedAt > 0`, rejects it after the vault's `claimExpiredUntil`
+ * block, and checks `sha256(s) == hashlock`.
+ *
+ * Revealing the secret while the HTLC is still unspent lets anyone broadcast
+ * the PegIn and race the depositor's own refund. Callers must offer this only
+ * once the PegIn has spent the HTLC.
+ *
+ * @throws `Error` if `btcVaultRegistryAddress` is not a valid 20-byte address
+ * @throws `Error` if `vaultId`, `secret` or `hashlock` is not a valid 32-byte
+ *         hex, or if `sha256(secret) != hashlock`
+ * @throws whatever the injected `writeContract` throws
+ * @throws `AbortError` / caller-provided abort reason if `signal` aborts
+ */
+export async function claimExpiredVault<
+  R extends EthContractWriteResult = EthContractWriteResult,
+>(input: ClaimExpiredVaultInput<R>): Promise<R> {
+  const { btcVaultRegistryAddress, vaultId, hashlock, writeContract, signal } =
+    input;
+
+  signal?.throwIfAborted();
+
+  if (typeof hashlock !== "string") {
+    throw new Error("hashlock is required to claim an expired vault");
+  }
+
+  const normalizedSecret = validateActivationInputs({
+    btcVaultRegistryAddress,
+    vaultId,
+    secret: input.secret,
+    hashlock,
+  });
+
+  return writeContract({
+    address: btcVaultRegistryAddress,
+    abi: BTCVaultRegistryABI,
+    functionName: "claimExpiredVault",
     args: [vaultId, normalizedSecret],
   });
 }

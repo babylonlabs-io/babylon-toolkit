@@ -61,7 +61,9 @@ vi.mock("../../../clients/btc/config", () => ({
   getMempoolApiUrl: vi.fn().mockReturnValue("https://mempool.space/api"),
 }));
 
-vi.mock("../../../clients/btc/outspend", () => ({
+// Keep the real spender attribution: a PegIn sweep must not read as a refund.
+vi.mock("../../../clients/btc/outspend", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../../clients/btc/outspend")>()),
   fetchHtlcSpend: vi.fn(),
 }));
 
@@ -150,11 +152,13 @@ import {
 
 import { fetchHtlcSpend } from "../../../clients/btc/outspend";
 import { getVaultFromChain } from "../../../clients/eth-contract/btc-vault-registry/query";
+import { COPY } from "../../../copy";
 import { fetchVaultProviderById } from "../fetchVaultProviders";
 import { fetchVaultIdsByDepositor, fetchVaultRefundData } from "../fetchVaults";
 import {
   buildAndBroadcastRefundTransaction,
   getRefundPreview,
+  HtlcSweptByPeginError,
   RefundAlreadySettledError,
 } from "../vaultRefundService";
 
@@ -661,6 +665,158 @@ describe("vaultRefundService - adapter wiring", () => {
       confirmed: true,
     });
     // Guard fires before the wallet popup — never builds/signs/broadcasts.
+    expect(mockBuildAndBroadcastRefund).not.toHaveBeenCalled();
+  });
+
+  it("throws HtlcSweptByPeginError (before signing), not a settled refund, when the vault's own PegIn spent the HTLC", async () => {
+    const signedPegin = "0xsigned_pegin_tx";
+    const peginTxid = "cd".repeat(32);
+    (getVaultFromChain as Mock).mockResolvedValue({
+      ...ON_CHAIN_VAULT,
+      depositorSignedPeginTx: signedPegin,
+    });
+    // The PegIn txid is derived from the on-chain signed PegIn; every other
+    // hash in this flow is the Pre-PegIn's.
+    (calculateBtcTxHash as Mock).mockImplementation((tx: string) =>
+      tx === signedPegin ? `0x${peginTxid}` : ON_CHAIN_VAULT.prePeginTxHash,
+    );
+    (fetchHtlcSpend as Mock).mockResolvedValue({
+      spent: true,
+      confirmed: true,
+      spendingTxid: peginTxid,
+    });
+
+    const promise = buildAndBroadcastRefundTransaction({
+      vaultId: VAULT_ID,
+      depositorAddress: DEPOSITOR_ADDRESS,
+      btcWalletProvider: BTC_WALLET_PROVIDER,
+      depositorBtcPubkey: DEPOSITOR_PUBKEY,
+      feeRate: 10,
+    });
+
+    await expect(promise).rejects.toBeInstanceOf(HtlcSweptByPeginError);
+    await expect(promise).rejects.not.toBeInstanceOf(RefundAlreadySettledError);
+    await expect(promise).rejects.toThrow(
+      COPY.deposit.refundSweptByPegin.beforeSigning,
+    );
+    expect(mockBuildAndBroadcastRefund).not.toHaveBeenCalled();
+  });
+
+  it("attributes a -25 broadcast race to the PegIn when the re-probe finds the PegIn as spender", async () => {
+    const signedPegin = "0xsigned_pegin_tx";
+    const peginTxid = "cd".repeat(32);
+    (getVaultFromChain as Mock).mockResolvedValue({
+      ...ON_CHAIN_VAULT,
+      depositorSignedPeginTx: signedPegin,
+    });
+    (calculateBtcTxHash as Mock).mockImplementation((tx: string) =>
+      tx === signedPegin ? `0x${peginTxid}` : ON_CHAIN_VAULT.prePeginTxHash,
+    );
+    (fetchHtlcSpend as Mock)
+      .mockResolvedValueOnce({ spent: false, confirmed: false })
+      .mockResolvedValueOnce({
+        spent: true,
+        confirmed: false,
+        spendingTxid: peginTxid,
+      });
+    (pushTx as Mock).mockRejectedValue(
+      new Error(
+        'Failed to broadcast BTC transaction: sendrawtransaction RPC error: {"code":-25,"message":"bad-txns-inputs-missingorspent"}',
+      ),
+    );
+    mockBuildAndBroadcastRefund.mockImplementation(
+      async (input: { broadcastTx: (hex: string) => Promise<unknown> }) =>
+        input.broadcastTx("signed_tx"),
+    );
+
+    const promise = buildAndBroadcastRefundTransaction({
+      vaultId: VAULT_ID,
+      depositorAddress: DEPOSITOR_ADDRESS,
+      btcWalletProvider: BTC_WALLET_PROVIDER,
+      depositorBtcPubkey: DEPOSITOR_PUBKEY,
+      feeRate: 10,
+    });
+
+    await expect(promise).rejects.toBeInstanceOf(HtlcSweptByPeginError);
+    await expect(promise).rejects.toThrow(
+      COPY.deposit.refundSweptByPegin.afterSigning,
+    );
+  });
+
+  it("refuses, retryably, a -25 broadcast race whose re-probe names no spender", async () => {
+    (fetchHtlcSpend as Mock)
+      .mockResolvedValueOnce({ spent: false, confirmed: false })
+      .mockResolvedValueOnce({ spent: true, confirmed: true });
+    (pushTx as Mock).mockRejectedValue(
+      new Error(
+        'Failed to broadcast BTC transaction: sendrawtransaction RPC error: {"code":-25,"message":"bad-txns-inputs-missingorspent"}',
+      ),
+    );
+
+    const promise = buildAndBroadcastRefundTransaction({
+      vaultId: VAULT_ID,
+      depositorAddress: DEPOSITOR_ADDRESS,
+      btcWalletProvider: BTC_WALLET_PROVIDER,
+      depositorBtcPubkey: DEPOSITOR_PUBKEY,
+      feeRate: 10,
+    });
+
+    await expect(promise).rejects.toThrow(
+      COPY.deposit.refundSpenderUnknown.afterSigning,
+    );
+    await expect(promise).rejects.not.toBeInstanceOf(RefundAlreadySettledError);
+    await expect(promise).rejects.not.toBeInstanceOf(HtlcSweptByPeginError);
+  });
+
+  it("settles a -27 broadcast race whose re-probe names no spender as the signed refund itself", async () => {
+    // -27 says the signed refund is already confirmed, so the unnamed spender
+    // is that refund.
+    const ownRefundTxid = "aa".repeat(32);
+    (calculateBtcTxHash as Mock).mockImplementation((tx: string) =>
+      tx === "signed_tx" ? `0x${ownRefundTxid}` : ON_CHAIN_VAULT.prePeginTxHash,
+    );
+    (fetchHtlcSpend as Mock)
+      .mockResolvedValueOnce({ spent: false, confirmed: false })
+      .mockResolvedValueOnce({ spent: true, confirmed: true });
+    (pushTx as Mock).mockRejectedValue(
+      new Error(
+        'Failed to broadcast BTC transaction: sendrawtransaction RPC error: {"code":-27,"message":"Transaction already in block chain"}',
+      ),
+    );
+
+    const promise = buildAndBroadcastRefundTransaction({
+      vaultId: VAULT_ID,
+      depositorAddress: DEPOSITOR_ADDRESS,
+      btcWalletProvider: BTC_WALLET_PROVIDER,
+      depositorBtcPubkey: DEPOSITOR_PUBKEY,
+      feeRate: 10,
+    });
+
+    await expect(promise).rejects.toBeInstanceOf(RefundAlreadySettledError);
+    await expect(promise).rejects.toMatchObject({
+      spendingTxid: ownRefundTxid,
+      confirmed: true,
+    });
+  });
+
+  it("refuses, retryably and without recording a refund, a spend reported with no spending txid", async () => {
+    (fetchHtlcSpend as Mock).mockResolvedValue({
+      spent: true,
+      confirmed: true,
+    });
+
+    const promise = buildAndBroadcastRefundTransaction({
+      vaultId: VAULT_ID,
+      depositorAddress: DEPOSITOR_ADDRESS,
+      btcWalletProvider: BTC_WALLET_PROVIDER,
+      depositorBtcPubkey: DEPOSITOR_PUBKEY,
+      feeRate: 10,
+    });
+
+    await expect(promise).rejects.toThrow(
+      COPY.deposit.refundSpenderUnknown.beforeSigning,
+    );
+    await expect(promise).rejects.not.toBeInstanceOf(RefundAlreadySettledError);
     expect(mockBuildAndBroadcastRefund).not.toHaveBeenCalled();
   });
 

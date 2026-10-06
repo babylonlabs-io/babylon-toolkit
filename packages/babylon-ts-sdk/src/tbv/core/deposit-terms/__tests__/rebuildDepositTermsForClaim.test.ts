@@ -75,6 +75,7 @@ function vault(
       depositorPopSignature: "0x" as Hex,
       prePeginTxHash: PREPEGIN_TX_HASH,
       vaultProviderCommissionBps: 100,
+      claimExpiredUntil: 0n,
       vaultCoreVersion: 3,
       ...over,
     },

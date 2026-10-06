@@ -11,6 +11,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   activateVaultWithSecret,
   activationAddedCollateral,
+  claimExpiredVaultWithSecret,
 } from "../vaultActivationService";
 
 // Inline literal because vi.mock factories are hoisted before outer consts.
@@ -97,6 +98,56 @@ describe("activateVaultWithSecret (vault adapter)", () => {
         vaultId,
         secret,
         hashlock: wrongHashlock,
+        walletClient,
+      }),
+    ).rejects.toThrow(/SHA256\(secret\) does not match/);
+
+    expect(mockExecuteWrite).not.toHaveBeenCalled();
+  });
+});
+
+describe("claimExpiredVaultWithSecret (vault adapter)", () => {
+  // Same secret / sha256 pair as the activation tests above.
+  const secret =
+    "0x0000000000000000000000000000000000000000000000000000000000000001" as Hex;
+  const hashlock =
+    "0xec4916dd28fc4c10d78e287ca5d9cc51ee1ae73cbfde08c6b37324cbfaac8bc5" as Hex;
+  const vaultId = ("0x" + "aa".repeat(32)) as Hex;
+  const txHash = ("0x" + "cd".repeat(32)) as Hex;
+  const walletClient = {} as WalletClient;
+
+  beforeEach(() => {
+    mockExecuteWrite.mockReset();
+  });
+
+  it("writes claimExpiredVault to the registry with exactly the vault id and secret", async () => {
+    mockExecuteWrite.mockResolvedValueOnce({
+      transactionHash: txHash,
+      receipt: { status: "success" },
+    });
+
+    await claimExpiredVaultWithSecret({
+      vaultId,
+      secret,
+      hashlock,
+      walletClient,
+    });
+
+    expect(mockExecuteWrite).toHaveBeenCalledOnce();
+    const callArgs = mockExecuteWrite.mock.calls[0][0];
+    expect(callArgs.functionName).toBe("claimExpiredVault");
+    expect(callArgs.args).toEqual([vaultId, secret]);
+    expect(callArgs.address).toBe(REGISTRY_ADDRESS);
+    expect(callArgs.errorContext).toBe("expired vault redeem");
+    expect(callArgs.errorAbis).toBeUndefined();
+  });
+
+  it("rejects (without calling executeWrite) when hashlock does not match the secret", async () => {
+    await expect(
+      claimExpiredVaultWithSecret({
+        vaultId,
+        secret,
+        hashlock: ("0x" + "11".repeat(32)) as Hex,
         walletClient,
       }),
     ).rejects.toThrow(/SHA256\(secret\) does not match/);

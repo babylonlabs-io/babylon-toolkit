@@ -58,6 +58,7 @@ import { useDepositPollingResult } from "@/context/deposit/PeginPollingContext";
 import { COPY } from "@/copy";
 import { useActionableExpiredDeposits } from "@/hooks/deposit/useActionableExpiredDeposits";
 import { useActionableReclaims } from "@/hooks/deposit/useActionableReclaims";
+import { useClaimExpiredRowAction } from "@/hooks/deposit/useClaimExpiredRowAction";
 import type { ReclaimRowAction } from "@/hooks/deposit/useReclaimRowAction";
 import { useRefundRowAction } from "@/hooks/deposit/useRefundRowAction";
 import { useBtcAction } from "@/hooks/useBtcAction";
@@ -357,12 +358,14 @@ function InactiveRow({
   activity,
   vaultProviders,
   onRefund,
+  onClaimExpired,
   onReclaim,
   reclaimAction,
 }: {
   activity: VaultActivity;
   vaultProviders: VaultProvider[];
   onRefund: (depositId: string) => void;
+  onClaimExpired: (depositId: string) => void;
   onReclaim: (depositId: string) => void;
   reclaimAction: ReclaimRowAction | undefined;
 }) {
@@ -377,6 +380,9 @@ function InactiveRow({
   const { available: isRefundAvailable, blockedTooltip } = useRefundRowAction(
     activity.id,
   );
+  // An expired vault the PegIn swept has no refund; the redeem replaces it.
+  // The state machine never offers both.
+  const isClaimExpiredAvailable = useClaimExpiredRowAction(activity.id);
   // Refund and reclaim are mutually exclusive by contract status — refund
   // applies to EXPIRED vaults (no PegIn was ever broadcast), reclaim to
   // DEPOSITOR_WITHDRAWN ones (the PegIn confirmed and the peg-out settled). A
@@ -513,6 +519,15 @@ function InactiveRow({
             </button>
           </Hint>
         )}
+        {isClaimExpiredAvailable && (
+          <button
+            type="button"
+            onClick={() => onClaimExpired(activity.id)}
+            className={PRIMARY_ROW_BUTTON_CLASS}
+          >
+            {COPY.vaults.actions.redeem}
+          </button>
+        )}
         {isReclaimAvailable && (
           // This control's data-testid is a real-wallet E2E hook
           // (e2e/real/actions/reclaim.ts) — carry it over if you move or
@@ -590,6 +605,7 @@ export function VaultsLifecycleSections({
     refundModal,
     reclaimModal,
     emergencyWithdrawModal,
+    claimExpiredModal,
     removePendingPegins,
     indexedVaultIds,
     localRecordStatuses,
@@ -656,6 +672,16 @@ export function VaultsLifecycleSections({
       handleOpenDetails(depositId);
     },
     [allActivities, reclaimModal, handleOpenDetails],
+  );
+  const handleClaimExpired = useCallback(
+    (depositId: string) => {
+      if (allActivities.some((a) => a.id === depositId)) {
+        claimExpiredModal.handleClaimClick(depositId);
+        return;
+      }
+      handleOpenDetails(depositId);
+    },
+    [allActivities, claimExpiredModal, handleOpenDetails],
   );
   const handleEmergencyWithdraw = useCallback(
     (depositId: string) => {
@@ -781,6 +807,7 @@ export function VaultsLifecycleSections({
       refundModal.refundingActivity ||
       reclaimModal.reclaimingActivity ||
       emergencyWithdrawModal.withdrawing ||
+      claimExpiredModal.claimingActivity ||
       viewingBatch ||
       dismissBatch,
   );
@@ -844,6 +871,7 @@ export function VaultsLifecycleSections({
                 activity={activity}
                 vaultProviders={vaultProviders}
                 onRefund={handleRefund}
+                onClaimExpired={handleClaimExpired}
                 onReclaim={handleReclaim}
                 reclaimAction={reclaimActions.get(activity.id.toLowerCase())}
               />
@@ -865,6 +893,7 @@ export function VaultsLifecycleSections({
         refundModal={refundModal}
         reclaimModal={reclaimModal}
         emergencyWithdrawModal={emergencyWithdrawModal}
+        claimExpiredModal={claimExpiredModal}
         ethAddress={ethAddress}
       />
 

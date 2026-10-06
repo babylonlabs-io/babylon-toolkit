@@ -9,7 +9,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { COPY } from "@/copy";
 import { useRefundState } from "@/hooks/deposit/useRefundState";
-import { buildAndBroadcastRefundTransaction } from "@/services/vault/vaultRefundService";
+import {
+  buildAndBroadcastRefundTransaction,
+  HtlcSweptByPeginError,
+} from "@/services/vault/vaultRefundService";
 import type { VaultActivity } from "@/types/activity";
 
 const BTC_ADDRESS = "bc1qtest";
@@ -56,11 +59,19 @@ vi.mock("@/context/wallet", () => ({
   }),
 }));
 
+const loggerMocks = vi.hoisted(() => ({ error: vi.fn() }));
+vi.mock("@/infrastructure", () => ({
+  logger: { error: loggerMocks.error, warn: vi.fn(), info: vi.fn() },
+}));
+
+const pollingMocks = vi.hoisted(() => ({
+  setOptimisticStatus: vi.fn(),
+  addConfirmedRefund: vi.fn(),
+  refreshHtlcSpends: vi.fn(),
+}));
+
 vi.mock("@/context/deposit/PeginPollingContext", () => ({
-  usePeginPolling: () => ({
-    setOptimisticStatus: vi.fn(),
-    addConfirmedRefund: vi.fn(),
-  }),
+  usePeginPolling: () => pollingMocks,
 }));
 
 vi.mock("@/storage/usePeginStorage", () => ({
@@ -130,6 +141,48 @@ describe("useRefundState on a lost hardware-device session", () => {
       COPY.deposit.errors.deviceDisconnected.body,
     );
     expect(result.current.refunding).toBe(false);
+  });
+});
+
+describe("useRefundState when the PegIn already spent the deposit", () => {
+  it("reports the redeem as the way out and records nothing as refunded", async () => {
+    btcWallet.connected = true;
+    vi.mocked(buildAndBroadcastRefundTransaction).mockRejectedValueOnce(
+      new HtlcSweptByPeginError("beforeSigning"),
+    );
+    const { result } = renderHook(() => useRefundState({ activity: ACTIVITY }));
+
+    await act(async () => {
+      await result.current.handleRefund(FEE_RATE_SATS_VB);
+    });
+
+    expect(result.current.error).toBe(
+      COPY.deposit.refundSweptByPegin.beforeSigning,
+    );
+    expect(result.current.refunding).toBe(false);
+    expect(result.current.refundTxId).toBeNull();
+    // A refunded record would drop the vault from the HTLC probe and hide the
+    // redeem — neither the cache nor the broadcast marker may be written.
+    expect(pollingMocks.addConfirmedRefund).not.toHaveBeenCalled();
+    expect(pollingMocks.setOptimisticStatus).not.toHaveBeenCalled();
+    // Handled as the expected outcome it is, not reported as a refund failure.
+    expect(loggerMocks.error).not.toHaveBeenCalled();
+  });
+
+  it("marks the error terminal and re-probes the HTLC so the row can offer the redeem", async () => {
+    btcWallet.connected = true;
+    vi.mocked(buildAndBroadcastRefundTransaction).mockRejectedValueOnce(
+      new HtlcSweptByPeginError("afterSigning"),
+    );
+    const { result } = renderHook(() => useRefundState({ activity: ACTIVITY }));
+    expect(result.current.errorTerminal).toBe(false);
+
+    await act(async () => {
+      await result.current.handleRefund(FEE_RATE_SATS_VB);
+    });
+
+    expect(result.current.errorTerminal).toBe(true);
+    expect(pollingMocks.refreshHtlcSpends).toHaveBeenCalledOnce();
   });
 });
 
