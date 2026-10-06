@@ -820,6 +820,10 @@ export const COPY = {
           "The grace window to redeem this BTCVault has closed. Nothing was submitted.",
         windowUnavailable:
           "The grace window could not be checked against the current Ethereum block. Nothing was submitted — please try again.",
+        peginProofUnavailable:
+          "The peg-in transaction could not be read from Bitcoin to confirm it already revealed your HTLC secret. Nothing was submitted — please try again.",
+        peginProofFailed:
+          "Bitcoin data did not confirm that the peg-in transaction already revealed your HTLC secret, so it was not revealed here. Nothing was submitted — please try again later.",
         // The only exit after the peg-in spends the deposit, and the wrong one
         // before: revealing the secret while the deposit is unspent lets anyone
         // broadcast the peg-in ahead of the depositor's own refund.

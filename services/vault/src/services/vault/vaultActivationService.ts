@@ -169,8 +169,6 @@ export async function claimExpiredVaultWithSecret(
       functionName: call.functionName,
       args: call.args,
       errorContext: "expired vault redeem",
-      // No errorAbis: the registry never delegates into the application
-      // adapter on this path, so every revert decodes from the registry ABI.
     });
 
   return claimExpiredVault<TransactionResult>({

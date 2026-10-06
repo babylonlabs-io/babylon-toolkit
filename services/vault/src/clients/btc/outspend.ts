@@ -5,11 +5,18 @@
  * them apart with `isHtlcSpentByPegin` below. A pure BTC refund emits no
  * Ethereum event, so neither the indexer nor the BTC monitor sees it today —
  * the frontend reads the spend status directly from the esplora-compatible
- * `outspend` endpoint.
+ * `outspend` endpoint. Before a secret is revealed, `peginWitnessRevealsSecret`
+ * proves the PegIn's spend from the transaction itself instead.
  */
 
-import { stripHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
+import {
+  ensureHexPrefix,
+  stripHexPrefix,
+} from "@babylonlabs-io/ts-sdk/tbv/core";
 import { getOutspend } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
+import { validateSecretAgainstHashlock } from "@babylonlabs-io/ts-sdk/tbv/core/services";
+import { Transaction } from "bitcoinjs-lib";
+import type { Hex } from "viem";
 
 import { normalizeChainHeight } from "@/models/reclaimEligibility";
 import { canonicalizeTxid } from "@/utils/txid";
@@ -74,5 +81,64 @@ export function isHtlcSpentByPegin(
     spend?.spent === true &&
     peginTxCanonical !== undefined &&
     canonicalizeTxid(spend.spendingTxid) === peginTxCanonical
+  );
+}
+
+/** Byte length of the HTLC secret: the hashlock leaf enforces `OP_SIZE <32>`. */
+const HTLC_PREIMAGE_BYTES = 32;
+
+/** The on-chain facts a PegIn transaction is checked against. */
+export interface PeginSpendExpectation {
+  /** Txid of the on-chain signed PegIn (no `0x` required). */
+  peginTxid: string;
+  /** The vault's HTLC outpoint, as registered on chain. */
+  prePeginTxHash: string;
+  htlcVout: number;
+  /** The vault's on-chain hashlock, `sha256(secret)`. */
+  hashlock: string;
+}
+
+/**
+ * Whether `txHex` is the vault's PegIn spending its HTLC through the hashlock
+ * leaf: its txid is the on-chain PegIn's, an input spends the HTLC outpoint,
+ * and that input's witness carries the 32-byte preimage of the hashlock.
+ *
+ * This is proof from the transaction itself, not from the mempool API's word.
+ * A txid does not commit to the witness, so the preimage is what carries the
+ * weight: only someone who already knows the secret can produce one, so a
+ * match shows the secret is public before the redeem reveals it on Ethereum —
+ * whatever the API reports about where the transaction is. The hashlock leaf
+ * witness is `[UC…, VK…, VP, depositor, preimage, script, control block]`; any
+ * 32-byte item is checked rather than a fixed position, since every other item
+ * is longer and any item that hashes to the hashlock is the secret.
+ */
+export function peginWitnessRevealsSecret(
+  txHex: string,
+  expected: PeginSpendExpectation,
+): boolean {
+  let tx: Transaction;
+  try {
+    tx = Transaction.fromHex(stripHexPrefix(txHex));
+  } catch {
+    return false;
+  }
+  if (canonicalizeTxid(tx.getId()) !== canonicalizeTxid(expected.peginTxid)) {
+    return false;
+  }
+  const htlcTxid = canonicalizeTxid(expected.prePeginTxHash);
+  const htlcInput = tx.ins.find(
+    (input) =>
+      input.index === expected.htlcVout &&
+      Buffer.from(input.hash).reverse().toString("hex") === htlcTxid,
+  );
+  if (!htlcInput) return false;
+  const hashlock = ensureHexPrefix(expected.hashlock) as Hex;
+  return htlcInput.witness.some(
+    (item) =>
+      item.length === HTLC_PREIMAGE_BYTES &&
+      validateSecretAgainstHashlock(
+        ensureHexPrefix(item.toString("hex")) as Hex,
+        hashlock,
+      ),
   );
 }

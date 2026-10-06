@@ -61,10 +61,22 @@ vi.mock("@/clients/eth-contract/client", () => ({
 }));
 
 const mockFetchHtlcSpend = vi.hoisted(() => vi.fn());
-// Keep the real spender attribution: it is the check under test.
+const mockPeginWitnessRevealsSecret = vi.hoisted(() => vi.fn());
+// Keep the real spender attribution: it is the check under test. The witness
+// proof is unit-tested on real transactions in clients/btc; here it is a seam.
 vi.mock("@/clients/btc/outspend", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/clients/btc/outspend")>()),
   fetchHtlcSpend: mockFetchHtlcSpend,
+  peginWitnessRevealsSecret: mockPeginWitnessRevealsSecret,
+}));
+
+const PEGIN_TX_HEX = "02000000deadbeef";
+const mockGetTxHex = vi.hoisted(() => vi.fn());
+vi.mock("@babylonlabs-io/ts-sdk/tbv/core/clients", async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import("@babylonlabs-io/ts-sdk/tbv/core/clients")
+  >()),
+  getTxHex: mockGetTxHex,
 }));
 vi.mock("@/clients/btc/config", () => ({
   getMempoolApiUrl: () => "https://mempool.test/api",
@@ -156,6 +168,8 @@ beforeEach(() => {
     confirmed: true,
     spendingTxid: PEGIN_TX.slice(2),
   });
+  mockGetTxHex.mockResolvedValue(PEGIN_TX_HEX);
+  mockPeginWitnessRevealsSecret.mockReturnValue(true);
   mockClaimExpiredVaultWithSecret.mockResolvedValue({
     transactionHash: `0x${"99".repeat(32)}`,
     receipt: { status: "success" },
@@ -179,12 +193,51 @@ describe("useClaimExpiredVault", () => {
       0,
       "https://mempool.test/api",
     );
+    // The PegIn is fetched by the on-chain txid and proven against the
+    // on-chain HTLC outpoint and hashlock.
+    expect(mockGetTxHex).toHaveBeenCalledWith(
+      PEGIN_TX.slice(2),
+      "https://mempool.test/api",
+    );
+    expect(mockPeginWitnessRevealsSecret).toHaveBeenCalledWith(PEGIN_TX_HEX, {
+      peginTxid: PEGIN_TX,
+      prePeginTxHash: PRE_PEGIN_TX,
+      htlcVout: 0,
+      hashlock: HASHLOCK,
+    });
     expect(result.current.claimed).toBe(true);
     expect(result.current.error).toBeNull();
     expect(mockSetOptimisticStatus).toHaveBeenCalledWith(
       VAULT_ID,
       LocalStorageStatus.CLAIM_EXPIRED_SUBMITTED,
     );
+  });
+
+  it("refuses, retryably, when the PegIn's witness does not prove the secret is already public", async () => {
+    mockPeginWitnessRevealsSecret.mockReturnValue(false);
+    const { result } = renderClaim();
+
+    await claim(result);
+
+    expect(result.current.error).toBe(
+      COPY.deposit.claimExpired.errors.peginProofFailed,
+    );
+    expect(result.current.errorTerminal).toBe(false);
+    expect(mockClaimExpiredVaultWithSecret).not.toHaveBeenCalled();
+  });
+
+  it("refuses, retryably, when the PegIn cannot be read from Bitcoin", async () => {
+    mockGetTxHex.mockRejectedValue(new Error("Mempool API error (404)"));
+    const { result } = renderClaim();
+
+    await claim(result);
+
+    expect(result.current.error).toBe(
+      COPY.deposit.claimExpired.errors.peginProofUnavailable,
+    );
+    expect(result.current.errorTerminal).toBe(false);
+    expect(mockPeginWitnessRevealsSecret).not.toHaveBeenCalled();
+    expect(mockClaimExpiredVaultWithSecret).not.toHaveBeenCalled();
   });
 
   it("refuses while the cached gate shows the protocol paused, before any read", async () => {
