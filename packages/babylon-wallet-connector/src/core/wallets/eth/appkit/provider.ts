@@ -1,4 +1,4 @@
-import { parseEther } from "viem";
+import { type Address, isAddress, parseEther } from "viem";
 import {
   connect,
   getAccount,
@@ -48,6 +48,11 @@ const WALLET_NOT_CONNECTED_ERROR_MESSAGE = "Wallet not connected";
 const ETH_FALLBACK_PROVIDER_NAME = "Ethereum Wallet";
 const ETH_FALLBACK_PROVIDER_ICON =
   "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KICA8Y2lyY2xlIGN4PSIxNiIgY3k9IjE2IiByPSIxNiIgZmlsbD0iIzYyN0VFQSIvPgogIDxwYXRoIGQ9Ik0xNiA0TDcuNSAxNi4yNUwxNiAyMkwyNC41IDE2LjI1TDE2IDR6IiBmaWxsPSJ3aGl0ZSIvPgogIDxwYXRoIGQ9Ik0xNiAyMi43NUw3LjUgMTdMMTYgMjhMMjQuNSAxN0wxNiAyMi43NXoiIGZpbGw9IndoaXRlIiBmaWxsLW9wYWNpdHk9IjAuNiIvPgo8L3N2Zz4=";
+
+// A wallet-reported address that is not a 20-byte hex address counts as no account.
+function walletAddress(address: string | undefined): Address | undefined {
+  return address && isAddress(address, { strict: false }) ? address : undefined;
+}
 
 /**
  * AppKitProvider - ETH wallet provider using AppKit/Wagmi
@@ -109,12 +114,13 @@ export class AppKitProvider implements IETHProvider {
 
     // Check for existing connection on initialization (for auto-reconnection)
     const initialAccount = getAccount(config);
-    if (initialAccount.address && initialAccount.status === "connected") {
-      this.address = initialAccount.address;
+    const initialAddress = walletAddress(initialAccount.address);
+    if (initialAddress && initialAccount.status === "connected") {
+      this.address = initialAddress;
       this.chainId = initialAccount.chainId;
       // Emit connect event after a short delay to ensure provider is fully initialized
       setTimeout(() => {
-        this.emit("accountsChanged", [initialAccount.address!]);
+        this.emit("accountsChanged", [initialAddress]);
       }, 100);
     }
 
@@ -122,8 +128,9 @@ export class AppKitProvider implements IETHProvider {
     const unwatchAccount = watchAccount(config, {
       onChange: (account) => {
         const previousAddress = this.address;
+        const address = walletAddress(account.address);
 
-        if (!account.address) {
+        if (!address) {
           if (!previousAddress) {
             this.chainId = account.chainId;
             return;
@@ -139,10 +146,10 @@ export class AppKitProvider implements IETHProvider {
         }
 
         this.clearEmptyAccountTimer();
-        this.address = account.address;
+        this.address = address;
         this.chainId = account.chainId;
-        if (previousAddress?.toLowerCase() !== account.address.toLowerCase()) {
-          this.emit("accountsChanged", [account.address]);
+        if (previousAddress?.toLowerCase() !== address.toLowerCase()) {
+          this.emit("accountsChanged", [address]);
         }
       },
     });
@@ -181,8 +188,9 @@ export class AppKitProvider implements IETHProvider {
 
       // First check if already connected (from previous session)
       const currentAccount = getAccount(config);
-      if (currentAccount.address) {
-        this.address = currentAccount.address;
+      const currentAddress = walletAddress(currentAccount.address);
+      if (currentAddress) {
+        this.address = currentAddress;
         this.chainId = currentAccount.chainId;
         return;
       }
@@ -191,11 +199,11 @@ export class AppKitProvider implements IETHProvider {
       if (typeof window !== "undefined") {
         const waitForConnection = new Promise<void>((resolve, reject) => {
           let modalHasOpened = false;
-          let pendingCancellation: ReturnType<typeof setTimeout> | undefined;
+          let cancelPendingCancellation: (() => void) | undefined;
 
           const cleanup = () => {
             cancelTimeout();
-            if (pendingCancellation) clearTimeout(pendingCancellation);
+            cancelPendingCancellation?.();
             unwatch();
             unsubscribeModal?.();
           };
@@ -207,8 +215,9 @@ export class AppKitProvider implements IETHProvider {
 
           const unwatch = watchAccount(config, {
             onChange: (account) => {
-              if (account.address) {
-                this.address = account.address;
+              const address = walletAddress(account.address);
+              if (address) {
+                this.address = address;
                 this.chainId = account.chainId;
                 cleanup();
                 resolve();
@@ -220,25 +229,28 @@ export class AppKitProvider implements IETHProvider {
           const unsubscribeModal = modal?.subscribeState((state) => {
             if (state.open) {
               modalHasOpened = true;
-              if (pendingCancellation) {
-                clearTimeout(pendingCancellation);
-                pendingCancellation = undefined;
-              }
+              cancelPendingCancellation?.();
+              cancelPendingCancellation = undefined;
             } else if (modalHasOpened) {
               const currentAccount = getAccount(config);
-              if (currentAccount.address) {
-                this.address = currentAccount.address;
+              const currentAddress = walletAddress(currentAccount.address);
+              if (currentAddress) {
+                this.address = currentAddress;
                 this.chainId = currentAccount.chainId;
                 cleanup();
                 resolve();
                 return;
               }
+              if (cancelPendingCancellation) return;
               // Defer rejection so async handoffs (WalletConnect deep-link) can
               // still publish the connected account before we treat the close as a cancel.
-              pendingCancellation = setTimeout(() => {
+              // Hidden time does not count, so a close while the user is in the wallet app
+              // cannot cancel an approval still in progress.
+              cancelPendingCancellation = setVisibleTimeout(() => {
                 const latestAccount = getAccount(config);
-                if (latestAccount.address) {
-                  this.address = latestAccount.address;
+                const latestAddress = walletAddress(latestAccount.address);
+                if (latestAddress) {
+                  this.address = latestAddress;
                   this.chainId = latestAccount.chainId;
                   cleanup();
                   resolve();
@@ -274,7 +286,7 @@ export class AppKitProvider implements IETHProvider {
       });
 
       const result = await connect(config, { connector: wcConnector });
-      this.address = result.accounts[0];
+      this.address = walletAddress(result.accounts[0]);
       this.chainId = result.chainId;
     } catch (error) {
       console.error("Failed to connect wallet:", error instanceof Error ? error.message : "Unknown error");
@@ -301,10 +313,11 @@ export class AppKitProvider implements IETHProvider {
   async getAddress(): Promise<string> {
     const config = this.getWagmiConfig();
     const account = getAccount(config);
-    if (account.address) {
-      this.address = account.address;
+    const address = walletAddress(account.address);
+    if (address) {
+      this.address = address;
       this.chainId = account.chainId;
-      return this.address;
+      return address;
     }
 
     if (this.address) {
