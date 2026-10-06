@@ -1145,14 +1145,23 @@ export const COPY = {
         body: "A BTCVault in this deposit is no longer awaiting its Bitcoin transaction, so the deposit can't be broadcast from here. Check the dashboard for its current status.",
       },
       // Broadcast refused because the BTCVault's acknowledgment deadline is
-      // too close for the Pre-Pegin to confirm and be acknowledged in time.
-      // A policy estimate, not a proven timeout: the on-chain window is still
-      // open, and a broadcast made from another device may yet be
-      // acknowledged (confirmation polling covers that case), so the copy
-      // claims only what this attempt did and does not predict expiry.
+      // too close for the Pre-Pegin to confirm and be acknowledged in time —
+      // or already past. A policy estimate, not a proven timeout: the
+      // on-chain window may still be open, and a broadcast made from another
+      // device may yet be acknowledged (confirmation polling covers that
+      // case), so the copy claims only what this attempt did and does not
+      // predict expiry. The title holds whether blocks remain or none do.
       broadcastAckWindowElapsed: {
-        title: "Deposit window closing",
+        title: "Deposit can't be completed in time",
         body: "Too little of the acknowledgment window remains for the Pre-Pegin to confirm and be acknowledged in time, so this attempt did not broadcast it. No BTC was sent or locked by this attempt. If the BTCVault is not acknowledged in time, it will show as expired once the timeout is recorded on Ethereum.",
+      },
+      // The same gate could not read the chain (head unreadable, or a
+      // parameter read failed), so it refused without a verdict. Nothing was
+      // sent; a later read can succeed, so the modal offers Retry. The
+      // broadcast twin of `pegin.messages.activationWindowUnavailable`.
+      broadcastAckWindowUnavailable: {
+        title: "Couldn't check the deposit window",
+        body: "Could not confirm the BTCVault's acknowledgment window. Nothing was broadcast — please try again in a moment.",
       },
       hashMismatch: (computedHash: string, chainHash: string) =>
         `Pre-Pegin transaction hash mismatch: computed ${computedHash} from indexer tx, but on-chain contract has ${chainHash}. Aborting to prevent potential attack.`,

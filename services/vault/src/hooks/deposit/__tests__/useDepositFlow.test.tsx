@@ -3373,6 +3373,34 @@ describe("useDepositFlow", () => {
       expect(broadcastPrePeginTransaction).not.toHaveBeenCalled();
     });
 
+    it("exposes resumableVaultIds when the ack window cannot be measured after registration", async () => {
+      const { assertPrePeginBroadcastAckWindowOpen } = vi.mocked(
+        await import("@/services/vault/prePeginBroadcastAckWindow"),
+      );
+      const { broadcastPrePeginTransaction } = vi.mocked(
+        await import("@/services/vault/vaultPeginBroadcastService"),
+      );
+      // The gate failed closed on a chain read, before any wallet prompt. The
+      // records are already persisted, so the modal offers Retry.
+      assertPrePeginBroadcastAckWindowOpen.mockRejectedValueOnce(
+        new Error(DEPOSIT_ERRORS.broadcastAckWindowUnavailable.body, {
+          cause: new Error("RPC head block 4242060 (timestamp 1) is stale"),
+        }),
+      );
+
+      const { result } = renderHook(() => useDepositFlow(MOCK_PARAMS));
+      await executeDepositFlow(result);
+
+      expect(result.current.error).toEqual(
+        DEPOSIT_ERRORS.broadcastAckWindowUnavailable,
+      );
+      expect(result.current.resumableVaultIds).toEqual([
+        "0xVault0Id",
+        "0xVault1Id",
+      ]);
+      expect(broadcastPrePeginTransaction).not.toHaveBeenCalled();
+    });
+
     it("exposes resumableVaultIds when the post-gate UTXO re-check cannot reach the mempool", async () => {
       const { broadcastPrePeginTransaction } = vi.mocked(
         await import("@/services/vault/vaultPeginBroadcastService"),

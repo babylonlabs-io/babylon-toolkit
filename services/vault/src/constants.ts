@@ -47,6 +47,8 @@ export const MINS_PER_DAY = 1440;
 // Machine-paced pegin overhead beyond BTC confirmations: ACK round, two ETH
 // txs, indexer surfacing, and poll quantization. BTC depth accrues in
 // parallel with the VP pipeline, so it is an additive allowance, not a sum.
+// Sizes both the progress card's estimate and the Pre-PegIn broadcast
+// refusal margin (`utils/ackDeadline.ts`), so retuning it moves the gate.
 export const DEPOSIT_PIPELINE_OVERHEAD_MINS = 10;
 export const FALLBACK_FEE_RATE_SATS_VB = 1;
 

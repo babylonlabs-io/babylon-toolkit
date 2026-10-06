@@ -263,6 +263,16 @@ describe("mapDepositError", () => {
     );
   });
 
+  it("maps the ack-window gate's read failure to its own callout, not the raw node text", () => {
+    // The gate rethrows a stale head or a failed parameter read with the copy
+    // body as its message and the node's text as the cause; only the copy
+    // may reach the depositor.
+    const err = new Error(ERRORS.broadcastAckWindowUnavailable.body, {
+      cause: new Error("RPC head block 1200 (timestamp 1) is stale"),
+    });
+    expect(mapDepositError(err)).toEqual(ERRORS.broadcastAckWindowUnavailable);
+  });
+
   it("maps the SDK commission-drift error to the commission-changed callout", () => {
     const err = new Error(
       "Vault provider commission changed since quote: quoted 250 bps, " +
@@ -815,6 +825,14 @@ describe("isResumableDepositError", () => {
     // Nothing was broadcast, so the registered vaults can still take the
     // Pre-PegIn — the same situation as a locked device.
     expect(isResumableDepositError(ERRORS.signingFailed)).toBe(true);
+  });
+
+  it("treats an ack-window read failure as resumable after registration", () => {
+    // The gate failed closed before any wallet prompt, so nothing was sent;
+    // a later read can succeed.
+    expect(isResumableDepositError(ERRORS.broadcastAckWindowUnavailable)).toBe(
+      true,
+    );
   });
 
   it("treats a lost device session as resumable, and flags it for a reconnect first", () => {

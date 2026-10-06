@@ -161,6 +161,12 @@ vi.mock("@/copy", () => ({
           title: "App update required",
           body: "This deposit requires a newer version of the app.",
         },
+        // Read by the mapper's body-keyed bucket on every call, like the
+        // entry above.
+        broadcastAckWindowUnavailable: {
+          title: "Couldn't check the deposit window",
+          body: "Could not confirm the BTCVault's acknowledgment window.",
+        },
         signingRejected: { title: "Signing rejected", body: "You rejected." },
         walletNotConnected: {
           title: "Wallet not connected",

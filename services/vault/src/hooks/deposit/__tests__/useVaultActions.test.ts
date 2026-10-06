@@ -2941,15 +2941,18 @@ describe("useVaultActions — handleBroadcast ack window", () => {
     expect(removePendingPegin).not.toHaveBeenCalled();
   });
 
-  it("does not broadcast when the window cannot be measured", async () => {
-    // A head too old to use is unreadable, not "plenty of room".
+  it("refuses with the window-unavailable callout when the window cannot be measured", async () => {
+    // A head too old to use is unreadable, not "plenty of room" — and the
+    // depositor is told that in copy, not in the node's words.
     mockGetBlockNumber.mockResolvedValue(CREATED_AT);
     mockHeadAgeSeconds.value = 121n;
 
     const { result } = renderHook(() => useVaultActions());
     await act(() => result.current.handleBroadcast(broadcastParams()));
 
-    expect(result.current.broadcastError).not.toBeNull();
+    expect(result.current.broadcastError).toEqual(
+      COPY.deposit.errors.broadcastAckWindowUnavailable,
+    );
     expect(mockBroadcastPrePeginTransaction).not.toHaveBeenCalled();
   });
 });

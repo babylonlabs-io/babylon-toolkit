@@ -8,10 +8,12 @@
  * that only the refund timelock releases, so a broadcast with less room than
  * the estimated pipeline needs is refused. Every input is a live chain read:
  * the vault's post-finality record from the caller, the head and the
- * parameters here. Any read failure propagates (fail closed, no defaults).
+ * parameters here. A read that fails or cannot be trusted fails closed with
+ * no verdict (`broadcastAckWindowUnavailable`), never a default.
  *
  * Checked before the signing prompt, not again after it: the prompt has no
- * time limit, but the margin is over an hour at any deployed depth, so the
+ * time limit, but the margin is 85 minutes at the daemon's floor depth of 6
+ * (btc-vault `docs/specifications/pegin.md`, deployment parameters), so the
  * residual is the same one the activation path accepts for its prompt.
  *
  * Import this by its own path, never through the `@/services/vault` barrel:
@@ -23,6 +25,7 @@ import type { OnChainBtcVaultStatus } from "@babylonlabs-io/ts-sdk/tbv/core/clie
 import type { Hex } from "viem";
 
 import { getProtocolParamsReader } from "@/clients/eth-contract/sdk-readers";
+import { COPY } from "@/copy";
 import {
   ackDeadlineBlocksRemaining,
   prePeginBroadcastAckMarginBlocks,
@@ -42,28 +45,42 @@ export interface PrePeginBroadcastAckWindowTarget {
 }
 
 /**
+ * A chain read failed or cannot be trusted, so the window has no verdict.
+ * The depositor sees the copy; the node's own words stay on `cause` for the
+ * log. Same shape as the activation gate's `onDeadlineReadFailure`.
+ */
+function windowUnavailable(cause: unknown): never {
+  throw new Error(COPY.deposit.errors.broadcastAckWindowUnavailable.body, {
+    cause,
+  });
+}
+
+/**
  * Refuse unless more than the confirmation-and-pipeline margin remains before
  * the vault's acknowledgment deadline.
  *
  * @throws {VaultLifecycleStateError} `reason: "ack-window-elapsed"`, stage
  *   `"broadcast"`, with the vault's ACTUAL on-chain status.
- * @throws when the head is unreadable, stale, or behind the registration.
+ * @throws {Error} `broadcastAckWindowUnavailable` when the head is
+ *   unreadable, stale, behind the registration, or a parameter read fails.
  */
 export async function assertPrePeginBroadcastAckWindowOpen(
   target: PrePeginBroadcastAckWindowTarget,
 ): Promise<void> {
   const { vaultId, status, createdAt, offchainParamsVersion } = target;
-  const paramsReader = await getProtocolParamsReader();
+  const paramsReader = await getProtocolParamsReader().catch(windowUnavailable);
   const [head, tbvParams, offchainParams] = await Promise.all([
     readHeadBlock(),
     paramsReader.getTBVProtocolParams(),
     paramsReader.getOffchainParamsByVersion(offchainParamsVersion),
-  ]);
+  ]).catch(windowUnavailable);
 
   // A head behind the registration cannot measure the window at all.
   if (head.number < createdAt) {
-    throw new Error(
-      `RPC head block ${head.number} is below vault ${vaultId}'s registration block ${createdAt}; the node is behind`,
+    windowUnavailable(
+      new Error(
+        `RPC head block ${head.number} is below vault ${vaultId}'s registration block ${createdAt}; the node is behind`,
+      ),
     );
   }
 

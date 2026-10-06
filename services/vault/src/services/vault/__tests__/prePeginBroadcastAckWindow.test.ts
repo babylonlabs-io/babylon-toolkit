@@ -2,6 +2,7 @@ import { OnChainBtcVaultStatus } from "@babylonlabs-io/ts-sdk/tbv/core/clients";
 import type { Hex } from "viem";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { COPY } from "@/copy";
 import { VaultLifecycleStateError } from "@/utils/errors";
 
 import { assertPrePeginBroadcastAckWindowOpen } from "../prePeginBroadcastAckWindow";
@@ -145,12 +146,27 @@ describe("assertPrePeginBroadcastAckWindowOpen", () => {
     ).rejects.toMatchObject({ reason: "ack-window-elapsed" });
   });
 
+  // Every read failure fails closed with the copy body as the message — the
+  // only text that may reach the depositor — and the node's own words kept as
+  // the cause for the log.
+  const WINDOW_UNAVAILABLE = COPY.deposit.errors.broadcastAckWindowUnavailable;
+
+  async function rejection(): Promise<unknown> {
+    return assertPrePeginBroadcastAckWindowOpen(target).then(
+      () => null,
+      (err: unknown) => err,
+    );
+  }
+
   it("fails closed when the head read rejects", async () => {
     mockGetHeadBlockNumber.mockRejectedValue(new Error("rpc unavailable"));
 
-    await expect(assertPrePeginBroadcastAckWindowOpen(target)).rejects.toThrow(
-      /rpc unavailable/,
-    );
+    const caught = await rejection();
+
+    expect(caught).toMatchObject({
+      message: WINDOW_UNAVAILABLE.body,
+      cause: { message: "rpc unavailable" },
+    });
   });
 
   it("fails closed when the head is too old to measure the window from", async () => {
@@ -158,25 +174,34 @@ describe("assertPrePeginBroadcastAckWindowOpen", () => {
     // a block to the room left.
     mockHeadAgeSeconds.value = 121n;
 
-    await expect(assertPrePeginBroadcastAckWindowOpen(target)).rejects.toThrow(
-      /stale/,
-    );
+    const caught = await rejection();
+
+    expect(caught).toMatchObject({
+      message: WINDOW_UNAVAILABLE.body,
+      cause: { message: expect.stringMatching(/stale/) },
+    });
   });
 
   it("fails closed when the head is below the vault's registration block", async () => {
     mockGetHeadBlockNumber.mockResolvedValue(CREATED_AT - 1n);
 
-    await expect(assertPrePeginBroadcastAckWindowOpen(target)).rejects.toThrow(
-      /below/,
-    );
+    const caught = await rejection();
+
+    expect(caught).toMatchObject({
+      message: WINDOW_UNAVAILABLE.body,
+      cause: { message: expect.stringMatching(/below/) },
+    });
   });
 
   it("fails closed when the protocol-params read rejects", async () => {
     mockGetTBVProtocolParams.mockRejectedValue(new Error("params unavailable"));
 
-    await expect(assertPrePeginBroadcastAckWindowOpen(target)).rejects.toThrow(
-      /params unavailable/,
-    );
+    const caught = await rejection();
+
+    expect(caught).toMatchObject({
+      message: WINDOW_UNAVAILABLE.body,
+      cause: { message: "params unavailable" },
+    });
   });
 
   it("fails closed when the stamped offchain-params read rejects", async () => {
@@ -184,8 +209,21 @@ describe("assertPrePeginBroadcastAckWindowOpen", () => {
       new Error("offchain params unavailable"),
     );
 
-    await expect(assertPrePeginBroadcastAckWindowOpen(target)).rejects.toThrow(
-      /offchain params unavailable/,
-    );
+    const caught = await rejection();
+
+    expect(caught).toMatchObject({
+      message: WINDOW_UNAVAILABLE.body,
+      cause: { message: "offchain params unavailable" },
+    });
+  });
+
+  it("does not wrap the ack-window refusal itself", async () => {
+    // The typed refusal must keep its fields so the mapper can route it.
+    mockGetHeadBlockNumber.mockResolvedValue(FIRST_REFUSING_HEAD);
+
+    const caught = await rejection();
+
+    expect(caught).toBeInstanceOf(VaultLifecycleStateError);
+    expect((caught as Error).message).not.toBe(WINDOW_UNAVAILABLE.body);
   });
 });
