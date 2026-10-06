@@ -80,6 +80,7 @@ export const Header = ({
                 <button
                   type="button"
                   aria-label="Open menu"
+                  data-testid="header-menu-button"
                   className="cursor-pointer text-accent-primary"
                   onClick={() => setIsMobileMenuOpen(true)}
                 >

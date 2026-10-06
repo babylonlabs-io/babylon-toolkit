@@ -20,6 +20,12 @@ const GOD_MODE_SPECS = [
   "**/liquidation-tour.spec.ts",
 ];
 /**
+ * Specs that also run on the phone profiles, on top of the desktop project.
+ * Pixel 7 is a Chromium descriptor; an iPhone one would switch to WebKit,
+ * which CI does not install.
+ */
+const PHONE_SPECS = ["**/eth-first-access.spec.ts"];
+/**
  * Demo pacing for the chromium project, off unless set. CI sets neither.
  * `slowMo` delays input actions and navigation only, not network routing.
  */
@@ -132,6 +138,24 @@ export default defineConfig({
       use: {
         ...devices["Desktop Chrome"],
         baseURL: `http://localhost:${PORT_GOD_MODE}`,
+      },
+    },
+    {
+      name: "chromium-phone-360",
+      testMatch: PHONE_SPECS,
+      use: {
+        ...devices["Pixel 7"],
+        viewport: { width: 360, height: 780 },
+        baseURL: `http://localhost:${PORT_FULL_ENV}`,
+      },
+    },
+    {
+      name: "chromium-phone-390",
+      testMatch: PHONE_SPECS,
+      use: {
+        ...devices["Pixel 7"],
+        viewport: { width: 390, height: 844 },
+        baseURL: `http://localhost:${PORT_FULL_ENV}`,
       },
     },
   ],
