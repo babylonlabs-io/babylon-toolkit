@@ -98,6 +98,23 @@ describe("shared AppKit initialization", () => {
     },
   );
 
+  it.each(["combined", "Ethereum-only"] as const)(
+    "turns off email and social login in the %s wallet modal",
+    async (initializer) => {
+      const initialize =
+        initializer === "combined"
+          ? (await import("../appKitModal")).initializeAppKitModal
+          : (await import("../../eth/appkit/modal")).initializeAppKitModal;
+
+      initialize(initializer === "combined" ? combinedConfig() : ethConfig());
+
+      expect(mocks.createAppKit).toHaveBeenCalledTimes(1);
+      expect(mocks.createAppKit).toHaveBeenCalledWith(
+        expect.objectContaining({ features: { email: false, socials: false } }),
+      );
+    },
+  );
+
   it("rejects adding Bitcoin after Ethereum-only initialization", async () => {
     const eth = await import("../../eth/appkit/modal");
     const combined = await import("../appKitModal");

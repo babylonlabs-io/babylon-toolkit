@@ -24,7 +24,10 @@ const GOD_MODE_SPECS = [
  * Pixel 7 is a Chromium descriptor; an iPhone one would switch to WebKit,
  * which CI does not install.
  */
-const PHONE_SPECS = ["**/eth-first-access.spec.ts"];
+const PHONE_SPECS = [
+  "**/eth-first-access.spec.ts",
+  "**/phone-session.spec.ts",
+];
 /** Specs that run only on the phone projects. */
 const PHONE_ONLY_SPECS = ["**/phone-journey.spec.ts"];
 /**

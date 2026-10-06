@@ -23,6 +23,7 @@ import type {
   IETHProvider,
   NetworkInfo,
 } from "@/core/types";
+import { setVisibleTimeout } from "@/core/utils/visibleTimeout";
 import { APPKIT_OPEN_EVENT } from "@/core/wallets/appkit/constants";
 // Read the modal from the shared singleton rather than from `appKitModal`,
 // which pulls the Bitcoin adapter in with it.
@@ -35,6 +36,11 @@ import { ethDisconnectWouldDropBitcoin, getSharedWagmiConfig, hasSharedWagmiConf
 // async handoffs (WalletConnect deep-link, mobile wallet return) to publish
 // the connected account via watchAccount before we treat the close as a cancel.
 const MODAL_CLOSE_CANCEL_GRACE_MS = 1500;
+// Time the page must be visible before a pending connection is rejected.
+const CONNECT_TIMEOUT_VISIBLE_MS = 60_000;
+// WalletConnect can report no account for a moment when a phone tab resumes.
+// Hold the cached address this long before treating the session as lost.
+const ETH_EMPTY_ACCOUNT_GRACE_MS = 3000;
 const WALLET_NOT_CONNECTED_ERROR_MESSAGE = "Wallet not connected";
 
 // Generic Ethereum logo, used only when the active wagmi connector does not
@@ -62,6 +68,7 @@ export class AppKitProvider implements IETHProvider {
   private chainId?: number;
   private eventHandlers: Map<string, Set<(...args: any[]) => void>> = new Map();
   private unwatchFunctions: (() => void)[] = [];
+  private emptyAccountTimer?: ReturnType<typeof setTimeout>;
 
   constructor(config: ETHConfig) {
     this.config = config;
@@ -115,11 +122,27 @@ export class AppKitProvider implements IETHProvider {
     const unwatchAccount = watchAccount(config, {
       onChange: (account) => {
         const previousAddress = this.address;
+
+        if (!account.address) {
+          if (!previousAddress) {
+            this.chainId = account.chainId;
+            return;
+          }
+          if (this.emptyAccountTimer !== undefined) return;
+          this.emptyAccountTimer = setTimeout(() => {
+            this.emptyAccountTimer = undefined;
+            this.address = undefined;
+            this.chainId = undefined;
+            this.emit("accountsChanged", []);
+          }, ETH_EMPTY_ACCOUNT_GRACE_MS);
+          return;
+        }
+
+        this.clearEmptyAccountTimer();
         this.address = account.address;
         this.chainId = account.chainId;
-
-        if (previousAddress !== account.address) {
-          this.emit("accountsChanged", account.address ? [account.address] : []);
+        if (previousAddress?.toLowerCase() !== account.address.toLowerCase()) {
+          this.emit("accountsChanged", [account.address]);
         }
       },
     });
@@ -135,7 +158,12 @@ export class AppKitProvider implements IETHProvider {
       },
     });
 
-    this.unwatchFunctions.push(unwatchAccount, unwatchChain);
+    this.unwatchFunctions.push(unwatchAccount, unwatchChain, () => this.clearEmptyAccountTimer());
+  }
+
+  private clearEmptyAccountTimer(): void {
+    clearTimeout(this.emptyAccountTimer);
+    this.emptyAccountTimer = undefined;
   }
 
   private emit(eventName: string, data?: any): void {
@@ -166,16 +194,16 @@ export class AppKitProvider implements IETHProvider {
           let pendingCancellation: ReturnType<typeof setTimeout> | undefined;
 
           const cleanup = () => {
-            clearTimeout(timeout);
+            cancelTimeout();
             if (pendingCancellation) clearTimeout(pendingCancellation);
             unwatch();
             unsubscribeModal?.();
           };
 
-          const timeout = setTimeout(() => {
+          const cancelTimeout = setVisibleTimeout(() => {
             cleanup();
             reject(new Error("Connection timeout"));
-          }, 60000);
+          }, CONNECT_TIMEOUT_VISIBLE_MS);
 
           const unwatch = watchAccount(config, {
             onChange: (account) => {
@@ -265,6 +293,7 @@ export class AppKitProvider implements IETHProvider {
       });
     }
     if (scope !== "local") await wagmiDisconnect(this.getWagmiConfig());
+    this.clearEmptyAccountTimer();
     this.address = undefined;
     this.chainId = undefined;
   }

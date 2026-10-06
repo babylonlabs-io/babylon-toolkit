@@ -4,13 +4,9 @@
 
 import type { BitcoinWallet } from "@babylonlabs-io/ts-sdk/shared";
 import type { PopSignature } from "@babylonlabs-io/ts-sdk/tbv/core";
-import { getSharedWagmiConfig } from "@babylonlabs-io/wallet-connector";
 import type { Address, WalletClient } from "viem";
-import { getWalletClient, switchChain } from "wagmi/actions";
 
-import { getETHChain } from "@/config/network";
-import { COPY } from "@/copy";
-import { logger } from "@/infrastructure";
+import { getWalletClientOnExpectedChain } from "@/clients/eth-contract/walletChain";
 import {
   registerPeginBatchOnChain,
   signProofOfPossession as sdkSignProofOfPossession,
@@ -31,32 +27,7 @@ import type {
 export async function getEthWalletClient(
   depositorEthAddress: Address,
 ): Promise<WalletClient> {
-  const wagmiConfig = getSharedWagmiConfig();
-  const expectedChainId = getETHChain().id;
-
-  try {
-    await switchChain(wagmiConfig, { chainId: expectedChainId });
-  } catch (switchError) {
-    logger.error(switchError, { data: { context: "Failed to switch chain" } });
-    throw new Error(
-      COPY.deposit.errors.chainSwitchRequired(
-        expectedChainId === 1
-          ? COPY.deposit.errors.ethereumMainnet
-          : COPY.deposit.errors.sepoliaTestnet,
-      ),
-    );
-  }
-
-  const walletClient = await getWalletClient(wagmiConfig, {
-    chainId: expectedChainId,
-    account: depositorEthAddress,
-  });
-
-  if (!walletClient) {
-    throw new Error("Failed to get wallet client");
-  }
-
-  return walletClient;
+  return getWalletClientOnExpectedChain(depositorEthAddress);
 }
 
 // ============================================================================

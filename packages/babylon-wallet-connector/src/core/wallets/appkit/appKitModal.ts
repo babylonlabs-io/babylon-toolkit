@@ -134,6 +134,7 @@ export function initializeAppKitModal(config: AppKitModalConfig) {
     networks: allNetworks as [AppKitNetwork, ...AppKitNetwork[]],
     projectId,
     metadata,
+    features: { email: false, socials: false },
   });
 
   const initializedState = setAppKitState({

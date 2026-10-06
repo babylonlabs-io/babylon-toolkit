@@ -20,6 +20,7 @@ const h = vi.hoisted(() => ({
     chains: [] as string[],
     requiredChains: [] as string[],
     persistent: false,
+    ttl: undefined as number | undefined,
     lifecycleHooks: undefined as unknown,
   },
 }));
@@ -30,15 +31,18 @@ vi.mock("@babylonlabs-io/wallet-connector", () => ({
     children,
     requiredChains,
     persistent,
+    ttl,
     lifecycleHooks,
   }: {
     children: React.ReactNode;
     requiredChains: string[];
     persistent: boolean;
+    ttl?: number;
     lifecycleHooks?: unknown;
   }) => {
     h.captured.requiredChains = requiredChains;
     h.captured.persistent = persistent;
+    h.captured.ttl = ttl;
     h.captured.lifecycleHooks = lifecycleHooks;
     return children;
   },
@@ -107,6 +111,12 @@ describe("WalletConnectionProvider wallet resets", () => {
     expect(h.captured.chains).toEqual(["ETH", "BTC"]);
     expect(h.captured.persistent).toBe(true);
     expect(h.captured.lifecycleHooks).toBeUndefined();
+  });
+
+  it("keeps the saved wallet session for 7 days instead of the 1 h default", () => {
+    renderProvider();
+
+    expect(h.captured.ttl).toBe(604_800_000);
   });
 
   it("resets both wallets immediately when ETH disconnects outside the dialog", () => {

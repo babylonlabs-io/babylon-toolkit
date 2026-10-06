@@ -25,6 +25,7 @@ import {
   throwRevertError,
   type TransactionResult,
 } from "../../../clients/eth-contract/transactionFactory";
+import { getWalletClientOnExpectedChain } from "../../../clients/eth-contract/walletChain";
 import {
   sendWithStaleNonceRetry,
   waitForWalletToCountTransaction,
@@ -127,28 +128,27 @@ async function simulateTx(
  * Performs pre-flight simulation first to catch errors before user signs.
  */
 async function executeTx(
-  walletClient: WalletClient,
+  connectedWalletClient: WalletClient,
   chain: Chain,
   to: Address,
   data: Hex,
   errorContext: string,
 ): Promise<TransactionResult> {
-  // Reject if the wallet is connected to the wrong chain.
-  // Callers pass getETHChain() as `chain`, but the wallet itself may still be
-  // on a different network. Check the wallet's actual chain to catch this early.
-  const expectedChainId = getETHChain().id;
-  if (walletClient.chain?.id !== expectedChainId) {
-    throw new Error(
-      `Chain mismatch: expected chain ${expectedChainId}, got ${walletClient.chain?.id}. Please switch to the correct network.`,
-    );
-  }
-
-  const publicClient = ethClient.getPublicClient();
-  const account = walletClient.account?.address;
+  const account = connectedWalletClient.account?.address;
 
   if (!account) {
     throw new Error("Wallet account not available");
   }
+
+  // Callers pass getETHChain() as `chain`, but the wallet itself may still be
+  // on a different network, so ask it to switch before signing.
+  const expectedChainId = getETHChain().id;
+  const walletClient =
+    connectedWalletClient.chain?.id === expectedChainId
+      ? connectedWalletClient
+      : await getWalletClientOnExpectedChain(account);
+
+  const publicClient = ethClient.getPublicClient();
 
   // Pre-flight simulation - catches errors before user signs
   const simulate = async () => {

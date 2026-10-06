@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Config } from "wagmi";
 
 import type { ETHConfig } from "@/core/types";
@@ -13,7 +13,9 @@ const wagmiActions = vi.hoisted(() => ({
     chainId: undefined,
     status: "disconnected",
   })),
-  watchAccount: vi.fn(() => () => {}),
+  watchAccount: vi.fn<
+    (config: Config, options: { onChange: (account: { address?: `0x${string}`; chainId?: number }) => void }) => () => void
+  >(() => () => {}),
   watchChainId: vi.fn(() => () => {}),
   disconnect: vi.fn(),
 }));
@@ -215,6 +217,75 @@ describe("AppKitProvider — constructed after AppKit init (shared wagmi config 
     await provider.disconnect("chain");
     await expect(provider.getAddress()).rejects.toThrow("Wallet not connected");
 
+    provider.destroy();
+  });
+});
+
+describe("AppKitProvider — a momentarily empty account reading", () => {
+  const ADDRESS = "0xAbC0000000000000000000000000000000000001";
+  const OTHER_ADDRESS = "0xDef0000000000000000000000000000000000002";
+
+  const connectedProvider = async () => {
+    vi.resetModules();
+    const { setSharedWagmiConfig } = await import("../sharedConfig");
+    const { AppKitProvider } = await import("../provider");
+    setSharedWagmiConfig({} as Config);
+    const provider = new AppKitProvider(ethConfig);
+    const { onChange } = wagmiActions.watchAccount.mock.calls[0][1];
+    onChange({ address: ADDRESS, chainId: 1 });
+    const accountsChanged = vi.fn();
+    provider.on("accountsChanged", accountsChanged);
+    return { provider, onChange, accountsChanged };
+  };
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+    vi.useRealTimers();
+  });
+
+  it("keeps the session when the same address returns within 3 s", async () => {
+    const { provider, onChange, accountsChanged } = await connectedProvider();
+
+    onChange({ address: undefined, chainId: undefined });
+    vi.advanceTimersByTime(2_000);
+    await expect(provider.getAddress()).resolves.toBe(ADDRESS);
+    onChange({ address: ADDRESS.toLowerCase() as `0x${string}`, chainId: 1 });
+    vi.advanceTimersByTime(5_000);
+
+    expect(accountsChanged).not.toHaveBeenCalled();
+    await expect(provider.getAddress()).resolves.toBe(ADDRESS.toLowerCase());
+    provider.destroy();
+  });
+
+  it("reports the account as gone once, after it stays empty past 3 s", async () => {
+    const { provider, onChange, accountsChanged } = await connectedProvider();
+
+    onChange({ address: undefined, chainId: undefined });
+    onChange({ address: undefined, chainId: undefined });
+    vi.advanceTimersByTime(2_999);
+    expect(accountsChanged).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(1);
+    expect(accountsChanged).toHaveBeenCalledTimes(1);
+    expect(accountsChanged).toHaveBeenCalledWith([]);
+    await expect(provider.getAddress()).rejects.toThrow("Wallet not connected");
+    provider.destroy();
+  });
+
+  it("reports a different address at once, without waiting for the window", async () => {
+    const { provider, onChange, accountsChanged } = await connectedProvider();
+
+    onChange({ address: undefined, chainId: undefined });
+    onChange({ address: OTHER_ADDRESS, chainId: 1 });
+
+    expect(accountsChanged).toHaveBeenCalledTimes(1);
+    expect(accountsChanged).toHaveBeenCalledWith([OTHER_ADDRESS]);
+    vi.advanceTimersByTime(5_000);
+    expect(accountsChanged).toHaveBeenCalledTimes(1);
     provider.destroy();
   });
 });

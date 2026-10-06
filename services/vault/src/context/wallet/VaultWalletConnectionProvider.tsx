@@ -94,6 +94,9 @@ const WALLET_DIALOG_RIGHT_INSET_CLASS =
 // A 1500 ms delay was shorter than the UniSat restore handshake.
 const BTC_DISCONNECT_DEBOUNCE_MS = 3000;
 
+// A phone user who reopens the tab within this window skips the confirm step.
+const WALLET_SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
 /**
  * Component that provides wallet-specific providers with cross-disconnect logic
  */
@@ -200,8 +203,9 @@ function WalletProviders({ children }: PropsWithChildren) {
     void runWalletReset();
   }, [runWalletReset]);
 
-  // ETH has no late-injection blip; react immediately. Keeping the cancel
-  // per-chain also avoids a BTC reconnect wrongly cancelling an ETH disconnect.
+  // The connector already waits out a brief empty-account reading, so react
+  // immediately. Keeping the cancel per-chain also avoids a BTC reconnect
+  // wrongly cancelling an ETH disconnect.
   const ethCallbacks = useMemo(
     () => ({
       onDisconnect: handleEthDisconnect,
@@ -252,6 +256,7 @@ export const WalletConnectionProvider = ({ children }: PropsWithChildren) => {
   return (
     <WalletProvider
       persistent
+      ttl={WALLET_SESSION_TTL_MS}
       theme={theme}
       config={config}
       context={context}

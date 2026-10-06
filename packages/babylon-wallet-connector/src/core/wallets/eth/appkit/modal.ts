@@ -91,6 +91,7 @@ export function initializeAppKitModal(config: AppKitModalConfig) {
     networks: [chain],
     projectId: config.projectId,
     metadata: config.metadata,
+    features: { email: false, socials: false },
   });
   const initializedState = setAppKitState({ modal, ...capabilities, wagmiConfig: wagmiAdapter.wagmiConfig });
 
