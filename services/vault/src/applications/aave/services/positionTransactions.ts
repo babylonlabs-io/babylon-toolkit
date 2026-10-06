@@ -18,6 +18,7 @@ import { maxUint256 } from "viem";
 import { COPY } from "@/copy";
 
 import { ERC20 } from "../../../clients/eth-contract";
+import { ensureWalletClientOnExpectedChain } from "../../../clients/eth-contract/walletChain";
 import { AaveAdapterTx, AaveProxy } from "../clients";
 import { getAaveAdapterAddress } from "../config";
 import { FULL_REPAY_BUFFER_DIVISOR } from "../constants";
@@ -112,7 +113,8 @@ export async function repay(
  * Handles approval if needed, then executes repay.
  * Uses the pinned adapter address from trusted environment config.
  *
- * @param walletClient - Connected wallet client
+ * @param connectedWalletClient - Connected wallet client; asked to switch to
+ *   the app's Ethereum chain before the approve when it is on another one
  * @param chain - Chain configuration
  * @param debtReserveId - Reserve ID for the debt token
  * @param tokenAddress - Token address for the debt
@@ -120,14 +122,14 @@ export async function repay(
  * @returns Transaction result
  */
 export async function repayPartial(
-  walletClient: WalletClient,
+  connectedWalletClient: WalletClient,
   chain: Chain,
   debtReserveId: bigint,
   tokenAddress: Address,
   amount: bigint,
   token: TokenDisplay,
 ): Promise<{ transactionHash: Hash; receipt: TransactionReceipt }> {
-  const userAddress = walletClient.account?.address;
+  const userAddress = connectedWalletClient.account?.address;
   if (!userAddress) {
     throw new Error("Wallet address not available");
   }
@@ -143,6 +145,11 @@ export async function repayPartial(
       ),
     );
   }
+
+  const walletClient = await ensureWalletClientOnExpectedChain(
+    connectedWalletClient,
+    userAddress,
+  );
 
   const { approveSent } = await ensureAllowance(
     walletClient,
@@ -197,7 +204,7 @@ export async function repayPartial(
  * @param balanceRaw - User's exact raw token balance (caps the approval)
  */
 export async function repayAll(
-  walletClient: WalletClient,
+  connectedWalletClient: WalletClient,
   chain: Chain,
   debtReserveId: bigint,
   tokenAddress: Address,
@@ -205,7 +212,7 @@ export async function repayAll(
   balanceRaw: bigint,
   token: TokenDisplay,
 ): Promise<{ transactionHash: Hash; receipt: TransactionReceipt }> {
-  const userAddress = walletClient.account?.address;
+  const userAddress = connectedWalletClient.account?.address;
   if (!userAddress) {
     throw new Error("Wallet address not available");
   }
@@ -248,6 +255,11 @@ export async function repayAll(
     (quote + FULL_REPAY_BUFFER_DIVISOR - 1n) / FULL_REPAY_BUFFER_DIVISOR;
   const buffered = quote + bufferDelta;
   const cap = buffered < balanceRaw ? buffered : balanceRaw;
+
+  const walletClient = await ensureWalletClientOnExpectedChain(
+    connectedWalletClient,
+    userAddress,
+  );
 
   const { approveSent } = await ensureAllowance(
     walletClient,

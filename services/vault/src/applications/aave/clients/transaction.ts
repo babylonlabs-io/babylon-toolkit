@@ -18,14 +18,12 @@ import {
 } from "@babylonlabs-io/ts-sdk/tbv/integrations/aave";
 import { type Address, type Chain, type Hex, type WalletClient } from "viem";
 
-import { getETHChain } from "@/config/network";
-
 import { ethClient } from "../../../clients/eth-contract/client";
 import {
   throwRevertError,
   type TransactionResult,
 } from "../../../clients/eth-contract/transactionFactory";
-import { getWalletClientOnExpectedChain } from "../../../clients/eth-contract/walletChain";
+import { ensureWalletClientOnExpectedChain } from "../../../clients/eth-contract/walletChain";
 import {
   sendWithStaleNonceRetry,
   waitForWalletToCountTransaction,
@@ -142,11 +140,10 @@ async function executeTx(
 
   // Callers pass getETHChain() as `chain`, but the wallet itself may still be
   // on a different network, so ask it to switch before signing.
-  const expectedChainId = getETHChain().id;
-  const walletClient =
-    connectedWalletClient.chain?.id === expectedChainId
-      ? connectedWalletClient
-      : await getWalletClientOnExpectedChain(account);
+  const walletClient = await ensureWalletClientOnExpectedChain(
+    connectedWalletClient,
+    account,
+  );
 
   const publicClient = ethClient.getPublicClient();
 

@@ -41,3 +41,16 @@ export async function getWalletClientOnExpectedChain(
 
   return walletClient;
 }
+
+/**
+ * Return the connected wallet client when it is already on the app's Ethereum
+ * chain; otherwise ask the wallet to switch first.
+ */
+export async function ensureWalletClientOnExpectedChain(
+  walletClient: WalletClient,
+  account: Address,
+): Promise<WalletClient> {
+  return walletClient.chain?.id === getETHChain().id
+    ? walletClient
+    : getWalletClientOnExpectedChain(account);
+}
