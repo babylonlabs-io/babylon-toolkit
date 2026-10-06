@@ -330,7 +330,7 @@ export function NotificationCard({
           type="button"
           onClick={onClose}
           aria-label={COPY.common.dismissNotification}
-          className="flex size-6 shrink-0 items-center justify-center rounded text-accent-secondary transition-colors hover:text-accent-primary"
+          className="relative flex size-6 shrink-0 items-center justify-center rounded text-accent-secondary transition-colors before:absolute before:-inset-2 before:content-[''] hover:text-accent-primary"
         >
           <CloseIcon size={CLOSE_ICON_SIZE} />
         </button>

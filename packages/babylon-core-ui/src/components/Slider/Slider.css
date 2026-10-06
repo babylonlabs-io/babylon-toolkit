@@ -183,6 +183,10 @@
   &-disabled { @apply opacity-50 cursor-not-allowed; }
 }
 
+@media (pointer: coarse) {
+  .bbn-slider { @apply h-10 -my-4; }
+}
+
 /* Dark mode support - override inactive color for dark themes */
 .dark .bbn-slider,
 [data-mode="dark"] .bbn-slider {

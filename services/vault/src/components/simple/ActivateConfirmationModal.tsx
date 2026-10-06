@@ -4,7 +4,6 @@ import {
   DialogBody,
   DialogFooter,
   ResponsiveDialog,
-  WINDOW_BREAKPOINT,
   useIsMobile,
 } from "@babylonlabs-io/core-ui";
 import { useEffect, useRef, useState } from "react";
@@ -115,7 +114,7 @@ export function ActivateConfirmationModal({
   // The mobile sheet draws its own close button, so the design's header
   // control is desktop-only. Same breakpoint ResponsiveDialog switches on, so
   // exactly one of the two renders at every width.
-  const isMobile = useIsMobile(WINDOW_BREAKPOINT);
+  const isMobile = useIsMobile();
 
   const canRenderCard = Boolean(providerAddress && peginTxid && depositorPk);
   const gate = useProtocolGateState();

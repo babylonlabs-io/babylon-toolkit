@@ -1,8 +1,14 @@
-import { Button, Heading, Text } from "@babylonlabs-io/core-ui";
+import {
+  Button,
+  Heading,
+  Text,
+  useIsTouchFirst,
+} from "@babylonlabs-io/core-ui";
 
 import { getNetworkConfigBTC } from "@/config";
 import { COPY } from "@/copy";
 import { getBtcExplorerTxUrl } from "@/utils/explorer";
+import { openExternalUrl } from "@/utils/externalLink";
 import { formatSats } from "@/utils/formatting";
 
 const btcConfig = getNetworkConfigBTC();
@@ -20,6 +26,7 @@ export function ReclaimSuccessContent({
   onDone,
 }: ReclaimSuccessContentProps) {
   const explorerUrl = getBtcExplorerTxUrl(reclaimTxId);
+  const touchFirst = useIsTouchFirst();
 
   return (
     <div className="mx-auto flex w-full max-w-[564px] flex-col gap-10 rounded-3xl border border-secondary-strokeLight bg-surface px-6 pb-6 pt-10 dark:border-secondary-strokeDark">
@@ -49,7 +56,7 @@ export function ReclaimSuccessContent({
           color="primary"
           className="flex-1 whitespace-nowrap !border-secondary-strokeLight"
           onClick={() => {
-            window.open(explorerUrl, "_blank", "noopener,noreferrer");
+            openExternalUrl(explorerUrl, touchFirst);
           }}
         >
           {COPY.reclaim.success.explorerButton}

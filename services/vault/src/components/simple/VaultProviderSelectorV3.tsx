@@ -3,6 +3,7 @@ import {
   AccordionDetails,
   Card,
   Loader,
+  useIsTouchFirst,
 } from "@babylonlabs-io/core-ui";
 import { IoCheckmarkCircle, IoChevronUp, IoWarning } from "react-icons/io5";
 
@@ -83,6 +84,7 @@ export function VaultProviderSelectorV3({
   expanded,
   onExpandedChange,
 }: VaultProviderSelectorProps) {
+  const touchFirst = useIsTouchFirst();
   const selectedProviderData = providers.find((p) => p.id === selectedProvider);
   const headerLabel =
     selectedProviderData?.name ?? FORM_COPY.selectVaultProvider;
@@ -128,7 +130,7 @@ export function VaultProviderSelectorV3({
                     {FORM_COPY.providerSelectDescriptionDocs}
                     <a
                       href={VAULT_PROVIDER_DOCS_URL}
-                      target="_blank"
+                      target={touchFirst ? undefined : "_blank"}
                       rel="noopener noreferrer"
                       className="text-secondary-main underline"
                     >

@@ -3,10 +3,17 @@
  *
  * BTC hashes are displayed without the 0x prefix (Bitcoin convention).
  * EVM hashes keep the 0x prefix (Ethereum convention).
- * If explorerUrl is provided, the hash text opens the explorer in a new tab.
+ * If explorerUrl is provided, the hash text opens the explorer in a new tab;
+ * on touch-first devices the hash stays plain text and the copy button is the
+ * affordance.
  */
 
-import { CheckIcon, CopyIcon, useCopy } from "@babylonlabs-io/core-ui";
+import {
+  CheckIcon,
+  CopyIcon,
+  useCopy,
+  useIsTouchFirst,
+} from "@babylonlabs-io/core-ui";
 import { stripHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
 
 import { truncateHash } from "@/utils/addressUtils";
@@ -41,6 +48,7 @@ export function CopyableHash({
   kind = "tx",
 }: CopyableHashProps) {
   const { isCopied, copyToClipboard } = useCopy();
+  const touchFirst = useIsTouchFirst();
   const displayHash = formatForChain(hash, chain);
   const truncated = truncateHash(displayHash);
   const copyLabel = `Copy ${chain} ${kind === "address" ? "address" : "transaction hash"} ${truncated}`;
@@ -55,7 +63,7 @@ export function CopyableHash({
           {chain}
         </span>
       )}
-      {explorerUrl ? (
+      {explorerUrl && !touchFirst ? (
         <a
           href={explorerUrl}
           target="_blank"

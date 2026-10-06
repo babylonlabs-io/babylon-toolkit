@@ -248,7 +248,7 @@ export function Notification({
           type="button"
           onClick={onClose}
           aria-label="Dismiss notification"
-          className="-mr-1 -mt-1 flex shrink-0 items-center justify-center rounded p-1 text-accent-secondary transition-colors hover:text-accent-primary"
+          className="relative -mr-1 -mt-1 flex shrink-0 items-center justify-center rounded p-1 text-accent-secondary transition-colors hover:text-accent-primary before:absolute before:-inset-[9px] before:content-['']"
         >
           <CloseIcon size={CLOSE_ICON_SIZE} />
         </button>

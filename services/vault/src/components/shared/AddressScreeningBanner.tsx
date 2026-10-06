@@ -1,4 +1,4 @@
-import { Text } from "@babylonlabs-io/core-ui";
+import { Text, useIsTouchFirst } from "@babylonlabs-io/core-ui";
 import { PiWarningOctagonFill } from "react-icons/pi";
 
 import { LEGAL_LINK_URLS } from "@/config/socialLinks";
@@ -14,6 +14,7 @@ export function AddressScreeningBanner({
   visible,
   isUnavailable,
 }: AddressScreeningBannerProps) {
+  const touchFirst = useIsTouchFirst();
   if (!visible) {
     return null;
   }
@@ -37,7 +38,7 @@ export function AddressScreeningBanner({
             {copy.ineligibleBefore}
             <a
               href={LEGAL_LINK_URLS.termsOfUse}
-              target="_blank"
+              target={touchFirst ? undefined : "_blank"}
               rel="noopener noreferrer"
               className="underline hover:opacity-80"
             >

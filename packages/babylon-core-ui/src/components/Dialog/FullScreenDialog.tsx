@@ -62,7 +62,7 @@ export const FullScreenDialog = ({
             <button
               onClick={onClose}
               className={twMerge(
-                "fixed top-4 left-4 z-10 flex h-8 w-8 items-center justify-center",
+                "fixed top-4 left-4 z-10 flex h-8 w-8 items-center justify-center before:absolute before:-inset-1 before:content-['']",
                 closeButtonClassName,
               )}
               aria-label="Close"

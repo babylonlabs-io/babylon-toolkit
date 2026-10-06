@@ -4,6 +4,7 @@ import { SettingMenu, type SettingMenuProps } from "../SettingMenu";
 import { ThemeIcon } from "@/components/Icons";
 import { Toggle } from "@/components/Toggle/Toggle";
 import { useIsMobile } from "@/hooks/useIsMobile";
+import { useIsTouchFirst } from "@/hooks/useIsTouchFirst";
 
 type Theme = "light" | "dark" | "system";
 
@@ -53,6 +54,7 @@ export const StandardSettingsMenu = ({
   );
   const isMobile = useIsMobile();
   const isPhonePopover = isMobile && mobileMode === "popover";
+  const touchFirst = useIsTouchFirst();
 
   useEffect(() => {
     if (theme) {
@@ -105,7 +107,7 @@ export const StandardSettingsMenu = ({
             <a
               key={url}
               href={url}
-              target="_blank"
+              target={touchFirst ? undefined : "_blank"}
               rel="noopener noreferrer"
               className="relative flex w-[220px] items-center justify-between text-sm leading-[1.43] tracking-[0.17px] text-accent-primary before:absolute before:-inset-y-2 before:inset-x-0"
             >

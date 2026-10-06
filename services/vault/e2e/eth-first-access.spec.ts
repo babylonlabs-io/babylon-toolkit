@@ -49,6 +49,8 @@ const BACK_LABEL = "Back";
 const CLOSE_LABEL = "Close";
 /** `COPY.wallet.locked.unlockButton`. */
 const UNLOCK_LABEL = "Unlock wallet";
+/** core-ui `useIsTouchFirst` query: the phone projects must emulate a touch-first device. */
+const TOUCH_FIRST_QUERY = "(pointer: coarse) and (hover: none)";
 /** The deposit form's amount field (core-ui `AmountSlider`). */
 const AMOUNT_INPUT = 'input[inputmode="decimal"]';
 /**
@@ -129,6 +131,15 @@ async function navigateTo(page: Page, navTestId: string): Promise<void> {
   await page.getByTestId(navTestId).click();
 }
 
+/** The page never scrolls sideways at phone width. */
+async function expectNoHorizontalScroll(page: Page): Promise<void> {
+  const { scrollWidth, clientWidth } = await page.evaluate(() => ({
+    scrollWidth: document.documentElement.scrollWidth,
+    clientWidth: document.documentElement.clientWidth,
+  }));
+  expect(scrollWidth).toBeLessThanOrEqual(clientWidth);
+}
+
 /**
  * Lock the injected UniSat wallet the way an idle extension locks: its
  * non-interactive accounts read returns nothing. The next accounts request
@@ -195,6 +206,13 @@ test.describe("Ethereum-only access", () => {
     // absence says nothing there.
     if (isPhone) {
       await expect(page.getByTestId("header-menu-button")).toBeVisible();
+      expect(
+        await page.evaluate(
+          (query) => window.matchMedia(query).matches,
+          TOUCH_FIRST_QUERY,
+        ),
+      ).toBe(true);
+      await expectNoHorizontalScroll(page);
     } else {
       await expect(page.getByTestId("nav-vaults")).toHaveCount(0);
     }
@@ -229,6 +247,7 @@ test.describe("Ethereum-only access", () => {
       await navigateTo(page, "nav-vaults");
       await expect(page).toHaveURL(/\/vaults$/);
       await expect(page.getByTestId("deposit-button").first()).toBeVisible();
+      if (isPhone) await expectNoHorizontalScroll(page);
       await holdForAudience(page, headless);
     });
 
@@ -306,6 +325,11 @@ test.describe("Ethereum-only access", () => {
       await expect(dialog.locator(AMOUNT_INPUT).first()).toBeVisible();
       // A form that mounts and then fails still shows its heading.
       await assertNoErrorSurface(page, "deposit form");
+      if (isPhone) {
+        await expectNoHorizontalScroll(page);
+        // Wallet in-app browsers have no tabs, so a new-tab link strands the flow.
+        await expect(dialog.locator('a[target="_blank"]')).toHaveCount(0);
+      }
       await holdForAudience(page, headless);
 
       // Stop at the open form: the injected wallets never sign.

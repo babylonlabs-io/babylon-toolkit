@@ -49,7 +49,6 @@ vi.mock("@babylonlabs-io/core-ui", () => ({
       {props.children as ReactNode}
     </div>
   ),
-  WINDOW_BREAKPOINT: 640,
   useIsMobile: () => viewport.isMobile,
 }));
 

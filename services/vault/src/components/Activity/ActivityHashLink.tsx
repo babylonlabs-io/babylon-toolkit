@@ -4,16 +4,18 @@
  * The v3 design drops copy-to-clipboard in favour of a single open-in-explorer
  * affordance: the truncated hash, underlined, followed by an external-link
  * arrow (Figma 10233:50689). The whole thing is one link. Rows outside the v3
- * activity list keep using CopyableHash.
+ * activity list keep using CopyableHash, as does this cell on touch-first
+ * devices, where hashes copy instead of opening a new tab.
  *
  * BTC hashes are displayed without the 0x prefix (Bitcoin convention); EVM
  * hashes keep it.
  */
 
+import { useIsTouchFirst } from "@babylonlabs-io/core-ui";
 import { stripHexPrefix } from "@babylonlabs-io/ts-sdk/tbv/core";
 import { RiArrowRightUpLine } from "react-icons/ri";
 
-import type { HashChain } from "@/components/shared/CopyableHash";
+import { CopyableHash, type HashChain } from "@/components/shared/CopyableHash";
 import { COPY } from "@/copy";
 import { truncateHash } from "@/utils/addressUtils";
 
@@ -33,6 +35,9 @@ export function ActivityHashLink({
   chain,
   explorerUrl,
 }: ActivityHashLinkProps) {
+  const touchFirst = useIsTouchFirst();
+  if (touchFirst) return <CopyableHash hash={hash} chain={chain} />;
+
   const truncated = truncateHash(chain === "BTC" ? stripHexPrefix(hash) : hash);
 
   return (

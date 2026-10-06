@@ -8,6 +8,7 @@ export default {
     "./dist/**/*.{js,ts,jsx,tsx}"
   ],
   darkMode: ["class", '[data-mode="dark"]'],
+  future: { hoverOnlyWhenSupported: true },
   safelist: [
     // Include theme color classes with proper pattern syntax
     {
