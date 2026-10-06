@@ -25,6 +25,8 @@ const GOD_MODE_SPECS = [
  * which CI does not install.
  */
 const PHONE_SPECS = ["**/eth-first-access.spec.ts"];
+/** Specs that run only on the phone projects. */
+const PHONE_ONLY_SPECS = ["**/phone-journey.spec.ts"];
 /**
  * Demo pacing for the chromium project, off unless set. CI sets neither.
  * `slowMo` delays input actions and navigation only, not network routing.
@@ -124,7 +126,7 @@ export default defineConfig({
   projects: [
     {
       name: "chromium",
-      testIgnore: BEHAVIOURAL_TEST_IGNORE,
+      testIgnore: [...BEHAVIOURAL_TEST_IGNORE, ...PHONE_ONLY_SPECS],
       use: {
         ...devices["Desktop Chrome"],
         baseURL: `http://localhost:${PORT_FULL_ENV}`,
@@ -142,7 +144,7 @@ export default defineConfig({
     },
     {
       name: "chromium-phone-360",
-      testMatch: PHONE_SPECS,
+      testMatch: [...PHONE_SPECS, ...PHONE_ONLY_SPECS],
       use: {
         ...devices["Pixel 7"],
         viewport: { width: 360, height: 780 },
@@ -151,7 +153,7 @@ export default defineConfig({
     },
     {
       name: "chromium-phone-390",
-      testMatch: PHONE_SPECS,
+      testMatch: [...PHONE_SPECS, ...PHONE_ONLY_SPECS],
       use: {
         ...devices["Pixel 7"],
         viewport: { width: 390, height: 844 },
@@ -181,6 +183,7 @@ export default defineConfig({
         ...MOCK_ENV_VARS,
         // Explicit, because process env wins over a developer's `.env.local`.
         NEXT_PUBLIC_FF_GOD_MODE_PANEL: "false",
+        NEXT_PUBLIC_FF_ENABLE_MOBILE: "true",
         PLAYWRIGHT_VITE_CACHE_DIR: "node_modules/.vite-e2e-full",
       },
     },
