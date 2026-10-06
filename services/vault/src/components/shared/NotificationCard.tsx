@@ -62,8 +62,8 @@ const ACTION_SIZE_DEFAULT = "";
 const ACTION_SIZE_TALL = "h-10 text-base"; // Cliff's "Add Collateral" (§3)
 const ACTION_SIZE_WIDE = "h-9 px-6"; // "Apply Optimal Order" (§5)
 
-// Outlined actions take Figma's `stroke/primary` (#5A5A5A in dark), not the
-// fainter `stroke/secondary` core-ui defaults to.
+// From md up, outlined actions take Figma's `stroke/primary` (#5A5A5A in dark);
+// on phone they keep the fainter `stroke/secondary` core-ui defaults to.
 const SECONDARY_ACTION_BORDER = "md:border-secondary-strokeDark";
 
 const PHONE_CHIP_OFFSET = "max-md:mt-[9px]";
@@ -230,8 +230,9 @@ export function NotificationCard({
   const hasInlineActions = hasActions && actionsPlacement === "inline";
 
   // Vertically center only in the simple inline case (icon + text + actions on
-  // one row); any stacked content — a suggestion box or a top-right close —
-  // top-aligns so the icon and close control sit at the top.
+  // one row, md and up); any stacked content — a suggestion box, a top-right
+  // close, or the phone actions row — top-aligns so the icon and close control
+  // sit at the top.
   const centerAlign = hasInlineActions && !suggestion && !onClose;
   const alignClass = centerAlign
     ? "items-center max-md:items-start"
