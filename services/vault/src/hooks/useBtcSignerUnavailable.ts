@@ -3,15 +3,6 @@ import { useWidgetState, type IWallet } from "@babylonlabs-io/wallet-connector";
 
 import featureFlags from "@/config/featureFlags";
 
-const TOUCH_FIRST_QUERY = "(pointer: coarse) and (hover: none)";
-
-const supportsMatchMedia = () =>
-  typeof window !== "undefined" && typeof window.matchMedia === "function";
-
-export function isTouchFirstNow(): boolean {
-  return supportsMatchMedia() && window.matchMedia(TOUCH_FIRST_QUERY).matches;
-}
-
 export function hasUsableBtcSigner(wallets: readonly IWallet[]): boolean {
   return wallets.some((wallet) => wallet.installed && !wallet.hardware);
 }

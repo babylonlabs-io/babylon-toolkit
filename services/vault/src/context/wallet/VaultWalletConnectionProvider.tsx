@@ -1,4 +1,4 @@
-import { StandardSettingsMenu } from "@babylonlabs-io/core-ui";
+import { StandardSettingsMenu, isTouchFirstNow } from "@babylonlabs-io/core-ui";
 import {
   APPKIT_BTC_CONNECTOR_ID,
   BTCWalletProvider,
@@ -24,10 +24,7 @@ import featureFlags from "@/config/featureFlags";
 import { getNetworkConfigETH } from "@/config/network";
 import { COPY } from "@/copy";
 import { isSpeculosTransportArmed } from "@/e2e/speculosTransportBootstrap";
-import {
-  hasUsableBtcSigner,
-  isTouchFirstNow,
-} from "@/hooks/useBtcSignerUnavailable";
+import { hasUsableBtcSigner } from "@/hooks/useBtcSignerUnavailable";
 import { logger } from "@/infrastructure";
 import { isUserCancellation } from "@/utils/errors/userCancellation";
 

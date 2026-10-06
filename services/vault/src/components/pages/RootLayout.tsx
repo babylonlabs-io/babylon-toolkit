@@ -273,7 +273,7 @@ export default function RootLayout() {
             rightActions={
               <div className="flex items-center gap-2 md:gap-4">
                 <NetworkBadge />
-                <Connect />
+                <Connect touchFallback="sheet" />
                 <StandardSettingsMenu
                   theme={theme}
                   setTheme={setTheme}

@@ -4,7 +4,7 @@ const TOUCH_FIRST_QUERY = "(pointer: coarse) and (hover: none)";
 
 const supportsMatchMedia = () => typeof window !== "undefined" && typeof window.matchMedia === "function";
 
-const isTouchFirstNow = () => supportsMatchMedia() && window.matchMedia(TOUCH_FIRST_QUERY).matches;
+export const isTouchFirstNow = () => supportsMatchMedia() && window.matchMedia(TOUCH_FIRST_QUERY).matches;
 
 /** Tracks whether the primary input is touch without hover (a phone or tablet). */
 export function useIsTouchFirst(): boolean {

@@ -1,4 +1,4 @@
-import { useId, useState, type PropsWithChildren, type ReactNode } from "react";
+import { useId, useState, type PropsWithChildren, type ReactNode, type SyntheticEvent } from "react";
 import { InfoIcon } from "../Icons";
 import { MobileDialog } from "../Dialog";
 import { Heading } from "../Heading";
@@ -31,6 +31,8 @@ export interface HintProps {
 }
 
 const DEFAULT_INFO_LABEL = "More information";
+
+const stopPropagation = (event: SyntheticEvent) => event.stopPropagation();
 
 const STATUS_COLORS = {
   default: "text-accent-primary",
@@ -118,32 +120,38 @@ export function Hint({
 
   if (isTouchFirst) {
     const titleId = `${id}-title`;
-    const openSheet = () => setSheetOpen(true);
+    const openSheet = (event: SyntheticEvent) => {
+      event.stopPropagation();
+      setSheetOpen(true);
+    };
     const triggerLabel = <span className="sr-only">{title ?? DEFAULT_INFO_LABEL}</span>;
-    // Kept outside the trigger wrapper: React bubbles portal clicks to it, so a backdrop tap would reopen the sheet.
+    // React bubbles portal events to the Hint's ancestors, so the sheet stops them: a tap in it must not reopen
+    // it, select an enclosing row, or count as outside an enclosing popover.
     const sheet = (
-      <MobileDialog
-        open={sheetOpen}
-        onClose={() => setSheetOpen(false)}
-        handle
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={title ? titleId : undefined}
-        aria-label={title ? undefined : DEFAULT_INFO_LABEL}
-        backdropClassName="bg-[#000000]/40"
-        className="min-h-[7.5rem] rounded-t-lg border-b-0 bg-background-contrast pt-6"
-      >
-        <div className="flex flex-col gap-2">
-          {title ? (
-            <Heading variant="h6" as="p" id={titleId} className="text-accent-primary">
-              {title}
-            </Heading>
-          ) : null}
-          <Text as="div" variant="body2" className="tracking-[0.17px] text-accent-secondary">
-            {tooltip}
-          </Text>
-        </div>
-      </MobileDialog>
+      <span className="contents" onClick={stopPropagation} onMouseDown={stopPropagation}>
+        <MobileDialog
+          open={sheetOpen}
+          onClose={() => setSheetOpen(false)}
+          handle
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={title ? titleId : undefined}
+          aria-label={title ? undefined : DEFAULT_INFO_LABEL}
+          backdropClassName="bg-[#000000]/40"
+          className="min-h-[7.5rem] rounded-t-lg border-b-0 bg-background-contrast pt-6"
+        >
+          <div className="flex flex-col gap-2">
+            {title ? (
+              <Heading variant="h6" as="p" id={titleId} className="text-accent-primary">
+                {title}
+              </Heading>
+            ) : null}
+            <Text as="div" variant="body2" className="tracking-[0.17px] text-accent-secondary">
+              {tooltip}
+            </Text>
+          </div>
+        </MobileDialog>
+      </span>
     );
 
     if (attachToChildren) {
