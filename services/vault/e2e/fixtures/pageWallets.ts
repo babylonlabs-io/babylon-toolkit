@@ -80,6 +80,12 @@ export interface PageWalletConfig {
    * visual captures keep photographing the same header.
    */
   readonly ethIcon?: string;
+  /**
+   * Define no Bitcoin provider at all, so the session has no installed
+   * Bitcoin wallet. `window.unisat` is the only Bitcoin global this fixture
+   * ever defines.
+   */
+  readonly omitBitcoin?: boolean;
 }
 
 /**
@@ -152,11 +158,13 @@ export async function injectPageWallets(
         on: () => {},
         removeListener: () => {},
       };
-      Object.defineProperty(window, "unisat", {
-        value: unisat,
-        configurable: true,
-        writable: true,
-      });
+      if (!walletConfig.omitBitcoin) {
+        Object.defineProperty(window, "unisat", {
+          value: unisat,
+          configurable: true,
+          writable: true,
+        });
+      }
 
       // ---- ETH: EIP-1193 provider, announced over EIP-6963 ----------------
       type Listener = (payload: unknown) => void;
