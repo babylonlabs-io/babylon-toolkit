@@ -47,7 +47,11 @@ export function AssetListItem({
         <span className="text-base font-medium text-accent-primary">
           {name}
         </span>
-        <HubLabel hub={hub} className="text-sm text-accent-secondary">
+        <HubLabel
+          hub={hub}
+          insideButton
+          className="text-sm text-accent-secondary"
+        >
           {COPY.loans.hub.tokenOnHub(symbol, hub.label)}
         </HubLabel>
       </div>

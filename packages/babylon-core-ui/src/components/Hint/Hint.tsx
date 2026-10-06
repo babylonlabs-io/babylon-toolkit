@@ -1,4 +1,12 @@
-import { useId, useState, type PropsWithChildren, type ReactNode, type SyntheticEvent } from "react";
+import {
+  useId,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type PropsWithChildren,
+  type ReactNode,
+  type SyntheticEvent,
+} from "react";
 import { InfoIcon } from "../Icons";
 import { MobileDialog } from "../Dialog";
 import { Heading } from "../Heading";
@@ -32,7 +40,25 @@ export interface HintProps {
 
 const DEFAULT_INFO_LABEL = "More information";
 
+const FOCUSABLE_SELECTOR = 'a[href], button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
 const stopPropagation = (event: SyntheticEvent) => event.stopPropagation();
+
+const focusSheetContent = (content: HTMLDivElement | null) => content?.focus({ preventScroll: true });
+
+const keepFocusInSheet = (event: KeyboardEvent<HTMLDivElement>) => {
+  if (event.key !== "Tab") return;
+  const focusables = event.currentTarget.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR);
+  const first = focusables[0];
+  const last = focusables[focusables.length - 1];
+  const active = document.activeElement;
+  if (!first || !last || !active) return;
+  const atEnd = active === last || Boolean(last.compareDocumentPosition(active) & Node.DOCUMENT_POSITION_FOLLOWING);
+  if (event.shiftKey ? active === first : atEnd) {
+    event.preventDefault();
+    (event.shiftKey ? last : first).focus();
+  }
+};
 
 const STATUS_COLORS = {
   default: "text-accent-primary",
@@ -62,6 +88,7 @@ export function Hint({
   const id = useId();
   const isTouchFirst = useIsTouchFirst();
   const [sheetOpen, setSheetOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const statusColor = STATUS_COLORS[status];
 
   // Create custom middleware for horizontal offset
@@ -124,6 +151,10 @@ export function Hint({
       event.stopPropagation();
       setSheetOpen(true);
     };
+    const closeSheet = () => {
+      setSheetOpen(false);
+      triggerRef.current?.focus();
+    };
     const triggerLabel = <span className="sr-only">{title ?? DEFAULT_INFO_LABEL}</span>;
     // React bubbles portal events to the Hint's ancestors, so the sheet stops them: a tap in it must not reopen
     // it, select an enclosing row, or count as outside an enclosing popover.
@@ -131,7 +162,8 @@ export function Hint({
       <span className="contents" onClick={stopPropagation} onMouseDown={stopPropagation}>
         <MobileDialog
           open={sheetOpen}
-          onClose={() => setSheetOpen(false)}
+          onClose={closeSheet}
+          onKeyDown={keepFocusInSheet}
           handle
           role="dialog"
           aria-modal="true"
@@ -140,7 +172,7 @@ export function Hint({
           backdropClassName="bg-[#000000]/40"
           className="min-h-[7.5rem] rounded-t-lg border-b-0 bg-background-contrast pt-6"
         >
-          <div className="flex flex-col gap-2">
+          <div ref={focusSheetContent} tabIndex={-1} className="flex flex-col gap-2 focus:outline-none">
             {title ? (
               <Heading variant="h6" as="p" id={titleId} className="text-accent-primary">
                 {title}
@@ -157,13 +189,10 @@ export function Hint({
     if (attachToChildren) {
       return (
         <>
-          <span
-            className={twJoin("group relative inline-flex items-center gap-1", statusColor, className)}
-            onClick={openSheet}
-          >
+          <span className={twJoin("relative inline-flex items-center gap-1", statusColor, className)}>
             {children}
-            {/* A disabled control swallows taps, so a cover button takes them instead. */}
-            <button type="button" className="absolute inset-0 hidden group-has-[:disabled]:block">
+            {/* A disabled control swallows taps and an icon takes no focus, so a cover button takes both instead. */}
+            <button ref={triggerRef} type="button" onClick={openSheet} className="absolute inset-0">
               {triggerLabel}
             </button>
           </span>
@@ -173,9 +202,10 @@ export function Hint({
     }
 
     return (
-      <div className={twJoin("inline-flex items-center gap-1", statusColor, className)}>
+      <span className={twJoin("inline-flex items-center gap-1", statusColor, className)}>
         {children}
         <button
+          ref={triggerRef}
           type="button"
           onClick={openSheet}
           className={twJoin(
@@ -187,7 +217,7 @@ export function Hint({
           {triggerLabel}
         </button>
         {sheet}
-      </div>
+      </span>
     );
   }
 
@@ -225,7 +255,7 @@ export function Hint({
         </Tooltip>
       </span>
     ) : (
-      <div className={twJoin("inline-flex items-center gap-1", statusColor, className)}>
+      <span className={twJoin("inline-flex items-center gap-1", statusColor, className)}>
         {children}
         <span
           className={twJoin("cursor-default inline-flex items-center", statusColor)}
@@ -256,7 +286,7 @@ export function Hint({
         >
           {typeof tooltip !== "string" && tooltip}
         </Tooltip>
-      </div>
+      </span>
     )
   );
 }
