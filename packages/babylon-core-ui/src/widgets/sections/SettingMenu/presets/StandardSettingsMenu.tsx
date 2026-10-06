@@ -107,7 +107,7 @@ export const StandardSettingsMenu = ({
               href={url}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex w-[220px] items-center justify-between text-sm leading-[1.43] tracking-[0.17px] text-accent-primary"
+              className="relative flex w-[220px] items-center justify-between text-sm leading-[1.43] tracking-[0.17px] text-accent-primary before:absolute before:-inset-y-2 before:inset-x-0"
             >
               {label}
               <MdChevronRight size={24} />

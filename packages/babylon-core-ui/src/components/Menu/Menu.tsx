@@ -29,7 +29,29 @@ const PHONE_POPOVER_CLASS =
 const PHONE_POPOVER_OFFSET: [number, number] = [0, 20];
 const FOCUSABLE_SELECTOR = 'a[href], button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
+const TAB_KEY = "Tab";
+
 const focusCard = (card: HTMLDivElement | null) => card?.focus({ preventScroll: true });
+
+const keepTabInCard = (event: React.KeyboardEvent<HTMLDivElement>) => {
+  if (event.key !== TAB_KEY) return;
+  const card = event.currentTarget;
+  const focusables = card.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR);
+  const first = focusables[0];
+  const last = focusables[focusables.length - 1];
+  const active = document.activeElement;
+  if (!first) {
+    event.preventDefault();
+    return;
+  }
+  if (event.shiftKey && (active === first || active === card)) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && active === last) {
+    event.preventDefault();
+    first.focus();
+  }
+};
 
 export const Menu: React.FC<MenuProps> = ({
   children,
@@ -135,7 +157,8 @@ export const Menu: React.FC<MenuProps> = ({
               role="dialog"
               aria-labelledby={triggerId}
               tabIndex={-1}
-              className="relative w-full overflow-hidden focus:outline-none"
+              onKeyDown={keepTabInCard}
+              className="relative w-full focus:outline-none"
             >
               {children}
             </div>
