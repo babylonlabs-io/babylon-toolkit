@@ -14,6 +14,7 @@ import type {
   AssertPayoutNoPayoutConnectorParams,
   AssertPayoutScriptInfo,
   ChallengeAssertConnectorParams,
+  ChallengeAssertOutputConnectorParams,
   ChallengeAssertScriptInfo,
   HtlcConnectorInfo,
   HtlcConnectorParams,
@@ -334,6 +335,23 @@ export async function getChallengeAssertScriptInfo(
 }
 
 /**
+ * Get the scriptPubKey that output 0 of every ChallengeAssertX/Y transaction
+ * pays to for one challenger: the WronglyChallenged leaves plus the NoPayout
+ * leaf carrying the ChallengeAssert timelock.
+ *
+ * Used to bind the VP-supplied ChallengeAssert parents of a NoPayout before
+ * the depositor signs it. The engine rejects a non-P2TR return.
+ *
+ * @param params - ChallengeAssert output connector parameters
+ * @returns P2TR scriptPubKey (hex encoded)
+ */
+export async function getChallengeAssertOutputScriptPubKey(
+  params: ChallengeAssertOutputConnectorParams,
+): Promise<string> {
+  return (await loadTbvWasm()).getChallengeAssertOutputScriptPubKey(params);
+}
+
+/**
  * Derive 32-byte `authAnchor` (OP_RETURN preimage → VP bearer token).
  * @stability frozen - btc-vault Rust owns this API through the vault-wasm pin (`VAULT_WASM_COMMIT`).
  * Changing the derived bytes breaks VP auth for existing deposits. See CLAUDE.md §4.
@@ -627,6 +645,7 @@ export type {
   AssertPayoutNoPayoutConnectorParams,
   AssertPayoutScriptInfo,
   ChallengeAssertConnectorParams,
+  ChallengeAssertOutputConnectorParams,
   ChallengeAssertScriptInfo,
   HtlcConnectorInfo,
   HtlcConnectorParams,

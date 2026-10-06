@@ -146,6 +146,7 @@ declare const councilSize: number;
 declare const vaultCoreVersion: number;
 declare const commissionBps: number;
 declare const timelockAssert: number;
+declare const timelockChallengeAssert: number;
 declare const minPeginFeeRate: bigint;
 declare const councilMembers: string[];
 declare const vkClaimerPayoutScriptPubKeys: Record<string, string>;
@@ -264,6 +265,7 @@ const signingContext: PayoutSigningContext = {
   depositorBtcPubkey: stripHexPrefix(depositorBtcPubkey),
   timelockPegin,
   timelockAssert,
+  timelockChallengeAssert,                 // version-locked offchainParams.timelockChallengeAssert
   network: "signet",
   registeredPayoutScriptPubKey: "0x...",   // from PegInSubmitted event / indexer
   protocolFeeRate,                         // version-locked offchainParams.feeRate

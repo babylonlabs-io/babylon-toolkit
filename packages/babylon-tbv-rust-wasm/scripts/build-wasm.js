@@ -16,15 +16,14 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // golden-vector gate (src/__tests__ frozen vectors) before shipping.
 const VAULT_WASM_REPO_URL = 'git@github.com:babylonlabs-io/vault-wasm.git';
 const VAULT_WASM_BRANCH = 'main';
-// vault-wasm main at the merge of PR #9; bundles btc-vault v1 @ 2c1177ec (tag
-// v0.6.1), v2 @ 27c0062b (tag v0.8.0), v3 @ b534ff9e, which is btc-vault
-// #2861's merge commit on main (watchtower artifacts accept an unjoined,
-// empty BaBe session map). The v3 move from ac4954e7 also carries #2838,
-// which funds the council-only CouncilNoPayout through a P2A anchor; no
-// depositor-signed transaction or vault-secret derivation changes. Every rev
-// here is reachable from a default branch, so the binary this produces stays
-// reproducible.
-const VAULT_WASM_COMMIT = 'fd9872c4e3da5718218e8b4d23a0cd93b915f53b';
+// vault-wasm feat/challenge-assert-output-connector, which adds
+// WasmChallengeAssertOutputConnector (the ChallengeAssert output 0 connector
+// the depositor binds NoPayout's parents to) on top of main. It is not yet on
+// a default branch: re-pin to its merge commit before this ships, so the
+// binary stays reproducible. Bundles btc-vault v1 @ 2c1177ec (tag v0.6.1),
+// v2 @ 27c0062b (tag v0.8.0) and v3 @ b534ff9e, unchanged from the previous
+// pin; no depositor-signed transaction or vault-secret derivation changes.
+const VAULT_WASM_COMMIT = 'cf2d7ec7e9eab60b8b0a6c61e83e25f28b5df3e2';
 const REQUIRED_RUSTC_VERSION = '1.94';
 
 const REPO_DIR = path.join(__dirname, '..', 'vault-wasm-temp');

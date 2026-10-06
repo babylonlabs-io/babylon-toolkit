@@ -278,6 +278,31 @@ export interface ChallengeAssertScriptInfo {
   controlBlock: string;
 }
 
+/**
+ * Parameters for the connector that output 0 of every ChallengeAssertX/Y
+ * transaction pays to: one WronglyChallenged leaf per finalized GC instance
+ * plus the NoPayout leaf, which carries the ChallengeAssert CSV timelock.
+ */
+export interface ChallengeAssertOutputConnectorParams {
+  /**
+   * Tx graph (vault-core) version selecting the builder inside the vault-wasm
+   * facade. Fresh deposits use the contract's `activeVaultCoreVersion()`;
+   * resumed vaults use their stamped `vaultCoreVersion`. The facade fails
+   * closed on versions the shipped binary does not support.
+   */
+  txGraphVersion: number;
+  /** X-only public key of the claimer (hex encoded) */
+  claimer: string;
+  /** X-only public key of the challenger (hex encoded) */
+  challenger: string;
+  /** ChallengeAssert CSV timelock in blocks (offchain param `timelockChallengeAssert`) */
+  timelockChallengeAssert: number;
+  /** The challenger's GC output label hashes, one per finalized GC instance (64-char lowercase hex) */
+  outputLabelHashes: string[];
+  /** Bitcoin network */
+  network: Network;
+}
+
 // ============================================================================
 // Delegated claim (depositor-as-claimer) — assembly surface
 // ============================================================================

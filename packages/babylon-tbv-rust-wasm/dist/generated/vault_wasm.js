@@ -391,6 +391,159 @@ export class WasmAssertPayoutNoPayoutConnector {
 if (Symbol.dispose) WasmAssertPayoutNoPayoutConnector.prototype[Symbol.dispose] = WasmAssertPayoutNoPayoutConnector.prototype.free;
 
 /**
+ * WASM wrapper for the ChallengeAssert output connector, built for the
+ * requested tx graph version.
+ *
+ * NoPayout spends output 0 of ChallengeAssertX and ChallengeAssertY, so a
+ * claimer pre-signing NoPayout commits to both transactions' txids. This
+ * connector is what output 0 must pay: its NoPayout leaf holds the
+ * ChallengeAssert CSV timelock, and its WronglyChallenged leaves are the
+ * claimer's answer to a challenge. The scriptPubKey is not the check on its
+ * own: before signing, a client rebuilds each ChallengeAssert from the Assert
+ * around it and compares txids (README, "ChallengeAssert output connector").
+ */
+export class WasmChallengeAssertOutputConnector {
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        WasmChallengeAssertOutputConnectorFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_wasmchallengeassertoutputconnector_free(ptr, 0);
+    }
+    /**
+     * Returns the taproot address for this connector.
+     * @param {string} network
+     * @returns {string}
+     */
+    getAddress(network) {
+        let deferred3_0;
+        let deferred3_1;
+        try {
+            const ptr0 = passStringToWasm0(network, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            const len0 = WASM_VECTOR_LEN;
+            const ret = wasm.wasmchallengeassertoutputconnector_getAddress(this.__wbg_ptr, ptr0, len0);
+            var ptr2 = ret[0];
+            var len2 = ret[1];
+            if (ret[3]) {
+                ptr2 = 0; len2 = 0;
+                throw takeFromExternrefTable0(ret[2]);
+            }
+            deferred3_0 = ptr2;
+            deferred3_1 = len2;
+            return getStringFromWasm0(ptr2, len2);
+        } finally {
+            wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
+        }
+    }
+    /**
+     * Returns the NoPayout control block as hex.
+     * @returns {string}
+     */
+    getNoPayoutControlBlock() {
+        let deferred2_0;
+        let deferred2_1;
+        try {
+            const ret = wasm.wasmchallengeassertoutputconnector_getNoPayoutControlBlock(this.__wbg_ptr);
+            var ptr1 = ret[0];
+            var len1 = ret[1];
+            if (ret[3]) {
+                ptr1 = 0; len1 = 0;
+                throw takeFromExternrefTable0(ret[2]);
+            }
+            deferred2_0 = ptr1;
+            deferred2_1 = len1;
+            return getStringFromWasm0(ptr1, len1);
+        } finally {
+            wasm.__wbindgen_free(deferred2_0, deferred2_1, 1);
+        }
+    }
+    /**
+     * Returns the NoPayout leaf script as hex.
+     * @returns {string}
+     */
+    getNoPayoutScript() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.wasmchallengeassertoutputconnector_getNoPayoutScript(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * Returns the taproot scriptPubKey as hex.
+     * @param {string} network
+     * @returns {string}
+     */
+    getScriptPubKey(network) {
+        let deferred3_0;
+        let deferred3_1;
+        try {
+            const ptr0 = passStringToWasm0(network, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+            const len0 = WASM_VECTOR_LEN;
+            const ret = wasm.wasmchallengeassertoutputconnector_getScriptPubKey(this.__wbg_ptr, ptr0, len0);
+            var ptr2 = ret[0];
+            var len2 = ret[1];
+            if (ret[3]) {
+                ptr2 = 0; len2 = 0;
+                throw takeFromExternrefTable0(ret[2]);
+            }
+            deferred3_0 = ptr2;
+            deferred3_1 = len2;
+            return getStringFromWasm0(ptr2, len2);
+        } finally {
+            wasm.__wbindgen_free(deferred3_0, deferred3_1, 1);
+        }
+    }
+    /**
+     * The tx graph version this connector was built for.
+     * @returns {number}
+     */
+    getTxGraphVersion() {
+        const ret = wasm.wasmchallengeassertoutputconnector_getTxGraphVersion(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * Creates a new ChallengeAssertOutputConnector for `tx_graph_version`.
+     *
+     * # Arguments
+     *
+     * * `tx_graph_version` - Tx graph version (fresh: `activeVaultCoreVersion()`; resume: the vault's stamped version)
+     * * `claimer` - Hex-encoded claimer public key (64 chars)
+     * * `challenger` - Hex-encoded challenger public key (64 chars)
+     * * `timelock_challenge_assert` - ChallengeAssert timelock in blocks: an integer in 1..=65535
+     * * `output_label_hashes` - The challenger's GC output label hashes, one 64-char hex value per finalized GC instance
+     * @param {number} tx_graph_version
+     * @param {string} claimer
+     * @param {string} challenger
+     * @param {number} timelock_challenge_assert
+     * @param {string[]} output_label_hashes
+     */
+    constructor(tx_graph_version, claimer, challenger, timelock_challenge_assert, output_label_hashes) {
+        const ptr0 = passStringToWasm0(claimer, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(challenger, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        const ptr2 = passArrayJsValueToWasm0(output_label_hashes, wasm.__wbindgen_malloc);
+        const len2 = WASM_VECTOR_LEN;
+        const ret = wasm.wasmchallengeassertoutputconnector_new(tx_graph_version, ptr0, len0, ptr1, len1, timelock_challenge_assert, ptr2, len2);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        this.__wbg_ptr = ret[0];
+        WasmChallengeAssertOutputConnectorFinalization.register(this, this.__wbg_ptr, this);
+        return this;
+    }
+}
+if (Symbol.dispose) WasmChallengeAssertOutputConnector.prototype[Symbol.dispose] = WasmChallengeAssertOutputConnector.prototype.free;
+
+/**
  * A Payout transaction, built for the requested tx graph version.
  */
 export class WasmPayoutTx {
@@ -2501,6 +2654,9 @@ const WasmAssertChallengeAssertConnectorFinalization = (typeof FinalizationRegis
 const WasmAssertPayoutNoPayoutConnectorFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_wasmassertpayoutnopayoutconnector_free(ptr, 1));
+const WasmChallengeAssertOutputConnectorFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_wasmchallengeassertoutputconnector_free(ptr, 1));
 const WasmPayoutTxFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_wasmpayouttx_free(ptr, 1));

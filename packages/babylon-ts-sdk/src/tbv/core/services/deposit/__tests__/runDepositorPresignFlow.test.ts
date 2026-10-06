@@ -18,13 +18,20 @@ import {
   runDepositorPresignFlow,
   type PayoutSigningContext,
 } from "../runDepositorPresignFlow";
-import { signDepositorGraph } from "../signDepositorGraph";
+import {
+  assertDepositorGraphNoPayoutsCanonical,
+  signDepositorGraph,
+} from "../signDepositorGraph";
 
 // ---------------------------------------------------------------------------
 // Mocks — we test the orchestration, not PSBT internals or PayoutManager
 // ---------------------------------------------------------------------------
 
 vi.mock("../signDepositorGraph", () => ({
+  assertDepositorGraphNoPayoutsCanonical: vi.fn(async () => ({
+    localChallengers: [],
+    noPayouts: [],
+  })),
   signDepositorGraph: vi.fn(async () => ({
     payout_signatures: { payout_signature: "depositor_payout_sig" },
     per_challenger: {
@@ -252,6 +259,7 @@ function createSigningContext(
     // Number(timelockAssert)), matching btc-vault's P == t2.
     timelockPegin: 144,
     timelockAssert: 144,
+    timelockChallengeAssert: 108,
     councilMembers: ["c".repeat(64)],
     councilQuorum: 1,
     network: "Testnet4" as never,
@@ -1001,6 +1009,102 @@ describe("runDepositorPresignFlow", () => {
         councilQuorum: context.councilQuorum,
       });
     }
+  });
+
+  it("threads the ChallengeAssert timelock into the depositor-graph signing context", async () => {
+    vi.mocked(assertDepositorGraphNoPayoutsCanonical).mockClear();
+    vi.mocked(signDepositorGraph).mockClear();
+    const reader = createMockStatusReader([
+      DaemonStatus.PENDING_DEPOSITOR_SIGNATURES,
+    ]);
+
+    await runDepositorPresignFlow({
+      statusReader: reader,
+      presignClient: createMockPresignClient(),
+      btcWallet: createMockWallet(),
+      vaultId: VALID_VAULT_ID,
+      peginTxid: VALID_TXID,
+      depositorPk: DEPOSITOR_PK,
+      recordGraphFingerprint: vi.fn(),
+      signingContext: createSigningContext({ timelockChallengeAssert: 77 }),
+    });
+
+    expect(
+      vi.mocked(assertDepositorGraphNoPayoutsCanonical),
+    ).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ timelockChallengeAssert: 77 }),
+    );
+    expect(vi.mocked(signDepositorGraph)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        signingContext: expect.objectContaining({
+          timelockChallengeAssert: 77,
+        }),
+      }),
+    );
+  });
+
+  it("checks the ChallengeAssert parents of the same graph and context that signDepositorGraph signs", async () => {
+    vi.mocked(assertDepositorGraphNoPayoutsCanonical).mockClear();
+    vi.mocked(signDepositorGraph).mockClear();
+
+    await runDepositorPresignFlow({
+      statusReader: createMockStatusReader([
+        DaemonStatus.PENDING_DEPOSITOR_SIGNATURES,
+      ]),
+      presignClient: createMockPresignClient(),
+      btcWallet: createMockWallet(),
+      vaultId: VALID_VAULT_ID,
+      peginTxid: VALID_TXID,
+      depositorPk: DEPOSITOR_PK,
+      recordGraphFingerprint: vi.fn(),
+      signingContext: createSigningContext(),
+    });
+
+    const [checkedGraph, checkedContext] = vi.mocked(
+      assertDepositorGraphNoPayoutsCanonical,
+    ).mock.calls[0];
+    const [{ depositorGraph, signingContext }] =
+      vi.mocked(signDepositorGraph).mock.calls[0];
+    expect(checkedGraph).toBe(depositorGraph);
+    expect(checkedContext).toBe(signingContext);
+  });
+
+  it("rejects non-canonical ChallengeAssert parents before the deposit-terms approval and any payout prompt", async () => {
+    vi.mocked(assertDepositorGraphNoPayoutsCanonical).mockRejectedValueOnce(
+      new Error("ChallengeAssertX is not the canonical transaction"),
+    );
+    const wallet = createCapabilityWallet();
+    const presignClient = createMockPresignClient();
+    const recordGraphFingerprint = vi.fn();
+    const payoutSignsBefore = capturedPayoutInputs.length;
+    const graphSignsBefore = vi.mocked(signDepositorGraph).mock.calls.length;
+
+    await expect(
+      runDepositorPresignFlow({
+        statusReader: createMockStatusReader([
+          DaemonStatus.PENDING_DEPOSITOR_SIGNATURES,
+        ]),
+        presignClient,
+        btcWallet: wallet,
+        vaultId: VALID_VAULT_ID,
+        peginTxid: VALID_TXID,
+        depositorPk: DEPOSITOR_PK,
+        recordGraphFingerprint,
+        signingContext: createSigningContext(),
+        depositTerms: DEPOSIT_TERMS,
+      }),
+    ).rejects.toThrow("ChallengeAssertX is not the canonical transaction");
+
+    expect(wallet.approveDepositTerms).not.toHaveBeenCalled();
+    expect(capturedPayoutInputs).toHaveLength(payoutSignsBefore);
+    expect(wallet.signPsbts).not.toHaveBeenCalled();
+    expect(wallet.signPsbt).not.toHaveBeenCalled();
+    expect(vi.mocked(signDepositorGraph).mock.calls).toHaveLength(
+      graphSignsBefore,
+    );
+    expect(recordGraphFingerprint).not.toHaveBeenCalled();
+    expect(presignClient.submitDepositorPresignatures).not.toHaveBeenCalled();
   });
 
   describe("deposit terms approval", () => {

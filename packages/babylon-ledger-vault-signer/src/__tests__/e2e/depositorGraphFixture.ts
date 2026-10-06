@@ -1,9 +1,15 @@
 /**
  * Depositor-graph (Payout + NoPayout) fixtures for the Speculos e2e suite,
  * built with the PRODUCTION SDK builders (`buildPayoutPsbt`,
- * `buildNoPayoutPsbt` — the constructors `signDepositorGraph` drives) over
- * VP-shaped parent transactions, so the device sees exactly the PSBTs the
- * dApp would hand it.
+ * `buildNoPayoutPsbt` — the constructors `signDepositorGraph` drives), so the
+ * device sees the PSBT layout the dApp hands it. The parent transactions are
+ * minimal and synthetic: the Assert carries only output 0, and the
+ * ChallengeAssert parents spend dummy prevouts into a placeholder output 0.
+ * `signDepositorGraph` itself refuses such a graph before it builds any PSBT.
+ * The device sees the parents only as the PSBTs' prevouts, and reads NoPayout
+ * inputs 1 and 2 untrusted, only for the fee (fw
+ * `sign_psbt_validate.c:2248-2274`), so the synthetic parents do not change
+ * what it checks here.
  *
  * Roster, amounts and timelocks equal the intent `peginFixture.ts` approves.
  * The WASM connector scripts were pre-verified byte-identical to the firmware

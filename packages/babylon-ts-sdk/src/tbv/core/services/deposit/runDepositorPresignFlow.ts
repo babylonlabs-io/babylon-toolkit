@@ -30,7 +30,11 @@ import {
   fingerprintPresignTxSet,
 } from "./graphFingerprint";
 import type { PeginStatusReader, PresignClient } from "./interfaces";
-import { signDepositorGraph } from "./signDepositorGraph";
+import {
+  assertDepositorGraphNoPayoutsCanonical,
+  signDepositorGraph,
+  type DepositorGraphSigningContext,
+} from "./signDepositorGraph";
 import { waitForPeginStatus } from "./waitForPeginStatus";
 
 // ============================================================================
@@ -68,6 +72,13 @@ export interface PayoutSigningContext {
    * Required for the depositor-graph NoPayout local rebuild.
    */
   timelockAssert: number;
+  /**
+   * ChallengeAssert CSV timelock from the locked offchain params version
+   * (blocks). Source: ProtocolParams contract via
+   * `ViemProtocolParamsReader.getOffchainParamsByVersion(...).timelockChallengeAssert`.
+   * Required to bind each NoPayout's ChallengeAssert parents before signing.
+   */
+  timelockChallengeAssert: number;
   /**
    * Security council member x-only public keys (hex, no prefix).
    * Source: ProtocolParams contract via
@@ -525,6 +536,36 @@ export async function runDepositorPresignFlow(
     challengers: response.depositor_graph.challenger_presign_data,
   });
 
+  // Bind every NoPayout to its canonical ChallengeAssert parents now, before
+  // the deposit-terms approval and every payout prompt below. The depositor's
+  // NoPayout signature is the only thing that binds those parents, so a
+  // forged one must fail before the depositor approves anything.
+  // signDepositorGraph repeats the check because it is also a public entry.
+  const depositorGraphSigningContext: DepositorGraphSigningContext = {
+    vaultCoreVersion: signingContext.vaultCoreVersion,
+    peginTxHex: signingContext.peginTxHex,
+    depositorBtcPubkey: depositorPk,
+    vaultProviderBtcPubkey: signingContext.vaultProviderBtcPubkey,
+    vaultKeeperBtcPubkeys: signingContext.vaultKeeperBtcPubkeys,
+    universalChallengerBtcPubkeys: signingContext.universalChallengerBtcPubkeys,
+    timelockPegin: signingContext.timelockPegin,
+    timelockAssert: signingContext.timelockAssert,
+    timelockChallengeAssert: signingContext.timelockChallengeAssert,
+    councilMembers: signingContext.councilMembers,
+    councilQuorum: signingContext.councilQuorum,
+    network: signingContext.network,
+    registeredPayoutScriptPubKey: signingContext.registeredPayoutScriptPubKey,
+    protocolFeeRate: signingContext.protocolFeeRate,
+    vkClaimerPayoutScriptPubKeys: signingContext.vkClaimerPayoutScriptPubKeys,
+    vpCommissionScriptPubKey: signingContext.vpCommissionScriptPubKey,
+  };
+  await assertDepositorGraphNoPayoutsCanonical(
+    response.depositor_graph,
+    depositorGraphSigningContext,
+  );
+
+  signal?.throwIfAborted();
+
   // Phase 3: Validate and prepare VP/VK claimer payout transactions.
   // Fail-fast: assert the supplied non-depositor claimer set exactly equals
   // the on-chain-derived {VP} ∪ {VKs} before any wallet prompts run. The
@@ -580,24 +621,7 @@ export async function runDepositorPresignFlow(
   const depositorClaimerPresignatures = await signDepositorGraph({
     depositorGraph: response.depositor_graph,
     btcWallet,
-    signingContext: {
-      vaultCoreVersion: signingContext.vaultCoreVersion,
-      peginTxHex: signingContext.peginTxHex,
-      depositorBtcPubkey: depositorPk,
-      vaultProviderBtcPubkey: signingContext.vaultProviderBtcPubkey,
-      vaultKeeperBtcPubkeys: signingContext.vaultKeeperBtcPubkeys,
-      universalChallengerBtcPubkeys:
-        signingContext.universalChallengerBtcPubkeys,
-      timelockPegin: signingContext.timelockPegin,
-      timelockAssert: signingContext.timelockAssert,
-      councilMembers: signingContext.councilMembers,
-      councilQuorum: signingContext.councilQuorum,
-      network: signingContext.network,
-      registeredPayoutScriptPubKey: signingContext.registeredPayoutScriptPubKey,
-      protocolFeeRate: signingContext.protocolFeeRate,
-      vkClaimerPayoutScriptPubKeys: signingContext.vkClaimerPayoutScriptPubKeys,
-      vpCommissionScriptPubKey: signingContext.vpCommissionScriptPubKey,
-    },
+    signingContext: depositorGraphSigningContext,
   });
 
   signal?.throwIfAborted();

@@ -1,4 +1,5 @@
 import { getWasmBindings, initWasm as initializeWasm } from './wasm-loader.js';
+import { createChallengeAssertOutputConnectorApi } from './challengeAssertOutputConnector.js';
 import { createDelegatedClaimApi } from './delegatedClaim.js';
 import { toError } from './errors.js';
 import type {
@@ -470,6 +471,7 @@ export type {
   AssertNoPayoutScriptInfo,
   ChallengeAssertConnectorParams,
   ChallengeAssertScriptInfo,
+  ChallengeAssertOutputConnectorParams,
   WatchtowerArtifactsInputs,
   WotsKeypairDerivation,
   WronglyChallengedPsbts,
@@ -496,6 +498,11 @@ export {
 
 // Export challenge assert connector utilities (depositor-as-claimer)
 export { getChallengeAssertScriptInfo } from './challengeAssertConnector.js';
+
+// ChallengeAssert output connector: what output 0 of every ChallengeAssertX/Y
+// must pay to before the depositor signs a NoPayout that spends it.
+export const { getChallengeAssertOutputScriptPubKey } =
+  createChallengeAssertOutputConnectorApi(getWasmBindings);
 
 // The delegated-claim surface (graph v3 only): assembly of the two files the
 // `vaultd vp wt` watchtower CLI reads, and the claim-time execution that runs

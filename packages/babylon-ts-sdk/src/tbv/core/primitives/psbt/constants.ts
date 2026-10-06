@@ -31,8 +31,9 @@ export const DEPOSITOR_SIGNED_INPUT_COUNT = 1;
 export const PEGIN_VAULT_OUTPUT_INDEX = 0;
 
 /**
- * Assert output index spent by the Payout's input 1
- * ({@link PAYOUT_ASSERT_INPUT_INDEX} carries the signing regimes).
+ * Assert output index of the Payout/NoPayout connector, spent by the Payout's
+ * input 1 ({@link PAYOUT_ASSERT_INPUT_INDEX} carries the signing regimes) and
+ * by every NoPayout's input 0.
  */
 export const ASSERT_PAYOUT_OUTPUT_INDEX = 0;
 
@@ -166,6 +167,60 @@ export const NON_VP_CLAIMER_PAYOUT_OUTPUT_COUNT = 2;
  * @see btc-vault crates/vault/docs/btc-transactions-spec.md (ChallengeAssertX / ChallengeAssertY)
  */
 export const CHALLENGE_ASSERT_CONNECTORS_PER_CHALLENGER = 2;
+
+/**
+ * First Assert output holding a per-challenger ChallengeAssert connector.
+ * ConnectorX for sorted challenger `i` is at `1 + i`, ConnectorY at
+ * `1 + K + i` (K = local + universal challengers), per btc-vault
+ * `crates/vault/src/transactions/challenge_assert.rs:165,180` @ b534ff9e.
+ */
+export const ASSERT_FIRST_CHALLENGER_CONNECTOR_VOUT = 1;
+
+/**
+ * Assert outputs besides the challenger connectors: output 0 (Payout /
+ * NoPayout / CouncilNoPayout connector) and the claimer's CPFP anchor, last
+ * (btc-vault `crates/vault/src/transactions/assert.rs:7-13` @ b534ff9e).
+ */
+export const ASSERT_NON_CHALLENGER_OUTPUT_COUNT = 2;
+
+/**
+ * First `vaultCoreVersion` whose Assert carries the RFC-008 marker
+ * `OP_RETURN` before the anchor. Matches `FIRST_MARKER_CORE_VERSION` in
+ * btc-vault `crates/vault/src/assert_marker.rs:48` @ b534ff9e; the graph-v1
+ * pin (2c1177ec) predates the marker.
+ */
+export const ASSERT_MARKER_FIRST_VAULT_CORE_VERSION = 2;
+
+/**
+ * ChallengeAssertX/Y literals btc-vault builds deterministically
+ * (`build_challenge_assert_tx`, `crates/vault/src/transactions/challenge_assert.rs:49-96`
+ * @ b534ff9e, identical at the 2c1177ec and 27c0062b pins): nVersion 3 with
+ * zero fee, `LockTime::ZERO`, one input at `Sequence::MAX`, and a
+ * `DUST_AMOUNT` CPFP anchor to the challenger's BIP-86 key as output 1.
+ * Output 0 is the ChallengeAssert output connector, worth the spent Assert
+ * output minus the anchor.
+ */
+export const CHALLENGE_ASSERT_TX_VERSION = 3;
+export const CHALLENGE_ASSERT_TX_LOCKTIME = 0;
+export const CHALLENGE_ASSERT_INPUT_SEQUENCE = 0xffffffff;
+export const CHALLENGE_ASSERT_ANCHOR_VALUE_SATS = 546;
+
+/**
+ * NoPayout literals from `NoPayoutTx::new`
+ * (`crates/vault/src/transactions/nopayout.rs:148-209` @ b534ff9e):
+ * `Version::TWO`, `LockTime::ZERO`, Assert:0 at `Sequence::MAX` as input 0,
+ * then ChallengeAssertX:0 and ChallengeAssertY:0, each with the
+ * `timelockChallengeAssert` CSV as its sequence.
+ */
+export const NOPAYOUT_TX_VERSION = 2;
+export const NOPAYOUT_TX_LOCKTIME = 0;
+export const NOPAYOUT_ASSERT_INPUT_SEQUENCE = 0xffffffff;
+
+/** NoPayout input count: Assert:0, ChallengeAssertX:0, ChallengeAssertY:0. */
+export const NOPAYOUT_INPUT_COUNT = 3;
+
+/** ChallengeAssert output NoPayout spends (`CHALLENGE_ASSERT_OUTPUT_CONNECTOR_INDEX`). */
+export const CHALLENGE_ASSERT_OUTPUT_CONNECTOR_INDEX = 0;
 
 /**
  * Exclusive upper bound on VP commission (bps). Matches

@@ -54,6 +54,7 @@ These paths handle irreversible value movement. An AI-generated mistake here is 
   - `packages/babylon-tbv-rust-wasm/src/index.ts`
   - `packages/babylon-tbv-rust-wasm/src/index-node.ts`
   - `packages/babylon-tbv-rust-wasm/src/delegatedClaim.ts` — the delegated-claim crossing, spread verbatim into both entries above. It owns the width guards for every integer that reaches WASM on this path, and carries a `@stability frozen` derivation (`wotsKeypairFromSeed`), so section 4 reaches it too.
+  - `packages/babylon-tbv-rust-wasm/src/challengeAssertOutputConnector.ts` — the ChallengeAssert output connector crossing, spread into both entries above. Its scriptPubKey is what each NoPayout's ChallengeAssert parents are bound to (section 3).
   - `packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/assertWasmPeginSizing.ts`
   - `packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/constants.ts` - protocol transaction layout constants
   - `packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/pegin.ts`
@@ -78,12 +79,16 @@ These paths handle irreversible value movement. An AI-generated mistake here is 
 
 - Files:
   - `packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/payout.ts`
+  - `packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/noPayout.ts` — NoPayout PSBT builder and the canonical NoPayout shape check (inputs, order, sequences, value)
+  - `packages/babylon-ts-sdk/src/tbv/core/primitives/psbt/challengeAssert.ts` — rebuilds each challenger's ChallengeAssertX/Y from the Assert and requires the VP's to match by txid
   - `packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts` — orchestrator that derives `LocalChallengers`, asserts the VP-returned `challenger_presign_data` set equals `local ∪ universal`, and decides which per-challenger NoPayout PSBTs get pre-signed
+  - `packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts` — presign orchestrator; runs the Funding-chain and ChallengeAssert-parent checks on the VP response before the deposit-terms approval and every signing prompt
   - `services/vault/src/hooks/deposit/depositFlowSteps/payoutSigning.ts`
   - `packages/babylon-ts-sdk/src/tbv/core/services/delegated-claim/` — the claim-time counterpart. The same depositor signs the same kinds of transaction from the same VP-served graph, months later and with no VP to re-ask, so the same rule binds: `payoutBinding.ts` pins the Payout destination against the on-chain registered script, `challengerBinding.ts` asserts the graph's challenger set equals `local ∪ universal`, and `vaultIdBinding.ts` ties the graph to the vault before anything is signed.
 - The depositor pre-signs payout (and per-challenger NoPayout) transactions built by the Vault Provider — values and challenger sets come from an external party with no independent verification. Asymmetric failure: undersigning leaves recovery material missing for an active challenger; oversigning hands signatures to a key the protocol doesn't recognize.
 - **Rule:** Before the signature call, re-derive the expected payout amount from on-chain or WASM-computed sources and assert equality. For the challenger set, derive `LocalChallengers` from on-chain VK list (matching the Rust reference in `btc-vault crates/vault/src/tx_graph/graph.rs`) and assert the VP-returned set equals `local ∪ universal` exactly — no missing entries, no extras. Never sign a value or accept a challenger key handed to us verbatim.
 - **Funding-chain rule:** Before any wallet signing prompt, require the depositor graph's Claim to have exactly one input spending the depositor's authoritative PegIn output 1, and require every Assert (depositor graph and each VP/VK claimer entry) to spend output 0 of its own Claim at input 0. Do not pin VP/VK claimer Claims to PegIn output 1: a claimer funds its Claim from its own wallet, and only the depositor can spend PegIn output 1.
+- **ChallengeAssert-parent rule:** Before any wallet signing prompt, require each challenger's ChallengeAssertX/Y to be the canonical transaction for the depositor graph's Assert, compared by txid: one input at Assert output `1 + i` / `1 + K + i` (`i` = position in the hex-sorted `local ∪ universal` set, never the VP's array order), output 0 paying the WASM-derived ChallengeAssert output connector, output 1 the 546-sat anchor to the challenger's BIP-86 key. Require each NoPayout to spend exactly Assert:0, ChallengeAssertX:0 and ChallengeAssertY:0 with sequences `0xffffffff`, `timelockChallengeAssert`, `timelockChallengeAssert`. The protocol takes no claimer signature on ChallengeAssert, so the NoPayout signature is the only thing binding those parents; checking only that they spend the Assert leaves output 0 free.
 
 ### 4. Vault-secret derivation (frozen on-chain-binding API)
 

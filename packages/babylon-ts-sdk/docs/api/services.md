@@ -3447,6 +3447,19 @@ Source: ProtocolParams contract via
 `ViemProtocolParamsReader.getOffchainParamsByVersion(...).timelockAssert`.
 Required for the depositor-graph NoPayout local rebuild.
 
+##### timelockChallengeAssert
+
+```ts
+timelockChallengeAssert: number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/runDepositorPresignFlow.ts)
+
+ChallengeAssert CSV timelock from the locked offchain params version
+(blocks). Source: ProtocolParams contract via
+`ViemProtocolParamsReader.getOffchainParamsByVersion(...).timelockChallengeAssert`.
+Required to bind each NoPayout's ChallengeAssert parents before signing.
+
 ##### councilMembers
 
 ```ts
@@ -3805,6 +3818,20 @@ Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositor
 Assert CSV timelock from the locked offchain params version (blocks).
 Sourced from the on-chain ProtocolParams contract via
 `ViemProtocolParamsReader.getOffchainParamsByVersion(...).timelockAssert`.
+
+##### timelockChallengeAssert
+
+```ts
+timelockChallengeAssert: number;
+```
+
+Defined in: [packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts](https://github.com/babylonlabs-io/babylon-toolkit/blob/main/packages/babylon-ts-sdk/src/tbv/core/services/deposit/signDepositorGraph.ts)
+
+ChallengeAssert CSV timelock from the locked offchain params version
+(blocks). Sourced from the on-chain ProtocolParams contract via
+`ViemProtocolParamsReader.getOffchainParamsByVersion(...).timelockChallengeAssert`.
+Each NoPayout's ChallengeAssert inputs must carry it as their sequence,
+and it is part of the connector their ChallengeAssert parents pay to.
 
 ##### councilMembers
 
