@@ -1,7 +1,8 @@
 import { type HTMLAttributes, type ReactNode } from "react";
 import { twMerge } from "tailwind-merge";
+import { MdErrorOutline } from "react-icons/md";
 
-import { CheckIcon, CloseIcon, InfoIcon, WarningIcon } from "../Icons";
+import { CheckIcon, CloseIcon, InfoIcon } from "../Icons";
 import { Text } from "../Text";
 
 export type CalloutVariant =
@@ -44,9 +45,13 @@ const VARIANT_BG: Record<CalloutVariant, string> = {
   accent: "bg-secondary-main",
 };
 
+const WARNING_ICON_SIZE = 24;
+
 const DEFAULT_ICONS: Record<CalloutVariant, ReactNode> = {
   error: <CloseIcon size={14} color="text-accent-contrast" />,
-  warning: <WarningIcon size={14} color="text-accent-contrast" />,
+  warning: (
+    <MdErrorOutline size={WARNING_ICON_SIZE} className="text-accent-contrast" />
+  ),
   success: <CheckIcon size={14} color="text-accent-contrast" />,
   info: <InfoIcon size={14} color="text-accent-contrast" />,
   infoStrong: <InfoIcon size={14} color="text-accent-contrast" />,

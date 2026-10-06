@@ -184,7 +184,7 @@ export function WithdrawReviewContent({
             <Callout
               variant="error"
               title={REVIEW_COPY.hfBlockTitle}
-              icon={<WarningIcon size={14} color="text-accent-contrast" />}
+              icon={<WarningIcon color="text-accent-contrast" />}
               data-testid="withdraw-hf-block-warning"
             >
               {REVIEW_COPY.hfBlockWarning(
