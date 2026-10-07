@@ -39,7 +39,10 @@ export function CollateralInfoCard({
           <span className="text-base leading-[1.5] tracking-[0.15px] text-accent-secondary">
             {COPY.marketData.collateral.factorLabel}
           </span>
-          <Hint tooltip={COPY.tooltips.collateralFactor} />
+          <Hint
+            tooltip={COPY.tooltips.collateralFactor}
+            title={COPY.marketData.collateral.factorLabel}
+          />
         </div>
         <span className="text-base leading-[1.5] tracking-[0.15px] text-accent-primary">
           {collateralFactor}

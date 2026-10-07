@@ -3,6 +3,7 @@ import {
   BtcEthWalletMenu,
   ConnectButton,
   Hint,
+  type HintProps,
   WalletIcon,
   WalletMenu,
 } from "@babylonlabs-io/core-ui";
@@ -33,9 +34,15 @@ interface ConnectProps {
   loading?: boolean;
   /** Override the default `ConnectButton` label (e.g. "Connect Wallet" for in-page CTAs). */
   text?: string;
+  /** How a blocked reason shows on touch: text under the button, or a tap-to-open sheet where there is no room. */
+  touchFallback?: HintProps["touchFallback"];
 }
 
-export const Connect: React.FC<ConnectProps> = ({ loading = false, text }) => {
+export const Connect: React.FC<ConnectProps> = ({
+  loading = false,
+  text,
+  touchFallback = "text",
+}) => {
   const { open, disconnect } = useWalletConnect();
   const { isConnected, btcConnected, ethConnected } = useConnection();
   const {
@@ -178,7 +185,11 @@ export const Connect: React.FC<ConnectProps> = ({ loading = false, text }) => {
 
   if (isGeoBlocked) {
     return (
-      <Hint tooltip={COPY.wallet.geoBlockedTooltip} attachToChildren>
+      <Hint
+        tooltip={COPY.wallet.geoBlockedTooltip}
+        attachToChildren
+        touchFallback={touchFallback}
+      >
         <span>{connectButton}</span>
       </Hint>
     );
@@ -193,6 +204,7 @@ export const Connect: React.FC<ConnectProps> = ({ loading = false, text }) => {
             : COPY.wallet.walletNotEligibleTooltip
         }
         attachToChildren
+        touchFallback={touchFallback}
       >
         <span>{connectButton}</span>
       </Hint>

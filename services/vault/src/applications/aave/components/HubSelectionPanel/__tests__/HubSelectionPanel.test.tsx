@@ -16,7 +16,19 @@ import { HubSelectionPanel } from "../HubSelectionPanel";
 
 vi.mock("@babylonlabs-io/core-ui", () => ({
   Avatar: ({ alt }: { alt: string }) => <img alt={alt} />,
-  Hint: ({ tooltip }: { tooltip: ReactNode }) => <span>{tooltip}</span>,
+  Hint: ({
+    tooltip,
+    children,
+  }: {
+    tooltip: ReactNode;
+    children?: ReactNode;
+  }) => (
+    <span>
+      {children}
+      {tooltip}
+    </span>
+  ),
+  InfoIcon: () => null,
 }));
 
 const config = vi.hoisted(() => ({

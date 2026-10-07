@@ -99,7 +99,7 @@ export function EmptyState({
   );
 
   const actionSlot = (!isConnected || connectedAction) && (
-    <div className={isV3 ? undefined : "mt-8"}>
+    <div className={isV3 ? "text-center" : "mt-8 text-center"}>
       {isConnected ? connectedAction : <Connect />}
     </div>
   );

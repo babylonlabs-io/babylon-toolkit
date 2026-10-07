@@ -48,7 +48,7 @@ function DetailRow({
         )}
       >
         {label}
-        {tooltip ? <Hint tooltip={tooltip} /> : null}
+        {tooltip ? <Hint tooltip={tooltip} title={label} /> : null}
       </div>
       <span className="text-accent-primary">{value}</span>
     </div>
@@ -111,7 +111,7 @@ function SeizureRow({
         )}
       >
         {label}
-        {tooltip ? <Hint tooltip={tooltip} /> : null}
+        {tooltip ? <Hint tooltip={tooltip} title={label} /> : null}
       </div>
       <span className="text-base leading-[1.5] tracking-[0.15px] text-accent-primary">
         {amount} <span className="text-accent-secondary">{unit}</span>

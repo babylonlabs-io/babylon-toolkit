@@ -205,7 +205,10 @@ export function InterestRateModelCard({
           <span className={CAPTION_CLASS}>
             {COPY.marketData.charts.utilizationRateLabel}
           </span>
-          <Hint tooltip={COPY.marketData.charts.utilizationRateTooltip} />
+          <Hint
+            tooltip={COPY.marketData.charts.utilizationRateTooltip}
+            title={COPY.marketData.charts.utilizationRateLabel}
+          />
         </div>
         <span className="text-2xl leading-[1.334] text-accent-primary">
           {utilizationValue}

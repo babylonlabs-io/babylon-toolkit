@@ -19,7 +19,9 @@ export function MarketStatsBar({ stats }: { stats: MarketStat[] }) {
             <span className="text-xs leading-[1.66] tracking-[0.4px] text-accent-secondary">
               {stat.label}
             </span>
-            {stat.tooltip ? <Hint tooltip={stat.tooltip} /> : null}
+            {stat.tooltip ? (
+              <Hint tooltip={stat.tooltip} title={stat.label} />
+            ) : null}
           </div>
           <span className="text-2xl leading-[1.334] text-accent-primary">
             {stat.value}

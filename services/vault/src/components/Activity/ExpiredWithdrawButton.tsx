@@ -61,7 +61,7 @@ export function ExpiredWithdrawButton({
   if (!blockedTooltip) return null;
 
   return (
-    <Hint tooltip={blockedTooltip} attachToChildren>
+    <Hint tooltip={blockedTooltip} attachToChildren touchFallback="text">
       <button type="button" disabled className={NEUTRAL_ROW_BUTTON_CLASS}>
         {COPY.vaults.actions.withdraw}
       </button>

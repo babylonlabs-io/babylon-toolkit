@@ -189,6 +189,7 @@ export function HubSelectionPanel({
                     <div className="flex min-w-0 flex-col items-start">
                       <HubLabel
                         hub={row.hub}
+                        insideButton
                         className="text-base leading-[1.5] tracking-[0.15px] text-accent-primary"
                       />
                       <span className="text-xs leading-[1.66] tracking-[0.4px] text-accent-secondary">

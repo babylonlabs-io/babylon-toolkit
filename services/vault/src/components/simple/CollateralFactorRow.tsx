@@ -46,9 +46,10 @@ export function CollateralFactorRow({
         <span className="text-accent-secondary">
           {FORM_COPY.cfParenthetical(percent)}
         </span>
-        <Hint tooltip={COPY.tooltips.collateralFactor} attachToChildren>
-          <InfoIcon size={16} className="text-accent-secondary" />
-        </Hint>
+        <Hint
+          tooltip={COPY.tooltips.collateralFactor}
+          icon={<InfoIcon size={16} className="text-accent-secondary" />}
+        />
       </span>
     </div>
   );

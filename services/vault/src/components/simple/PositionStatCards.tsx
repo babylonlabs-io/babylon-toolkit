@@ -44,6 +44,7 @@ function StatSection({ card }: { card: PositionStatCard }) {
             {card.tooltip ? (
               <Hint
                 tooltip={card.tooltip}
+                title={card.label}
                 icon={<InfoIcon size={16} className="text-accent-secondary" />}
               >
                 <span className="text-accent-secondary">{card.label}</span>
