@@ -193,9 +193,7 @@ describe("NotificationCard", () => {
         suggestion={<span>more</span>}
       />,
     );
-    expect(
-      (stacked.container.firstElementChild as HTMLElement).className,
-    ).toContain("items-start");
+    expect(stacked.container.firstElementChild).toHaveClass("items-start");
   });
 
   it("renders a dismiss control wired to onClose with the shared copy label", () => {
