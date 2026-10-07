@@ -3,7 +3,6 @@ import {
   DialogBody,
   DialogFooter,
   ResponsiveDialog,
-  WINDOW_BREAKPOINT,
   useIsMobile,
 } from "@babylonlabs-io/core-ui";
 import { useRef, useState } from "react";
@@ -26,6 +25,7 @@ const IDLE_DOWNLOAD_STATE: ArtifactDownloadProgress = {
   receivedBytes: 0,
   totalBytes: 0,
   status: "",
+  error: null,
 };
 
 interface ArtifactDownloadModalProps extends ArtifactDownloadParams {
@@ -67,7 +67,7 @@ export function ArtifactDownloadModal({
     cardRef.current?.cancel();
   };
 
-  const isMobile = useIsMobile(WINDOW_BREAKPOINT);
+  const isMobile = useIsMobile();
 
   return (
     <ResponsiveDialog
