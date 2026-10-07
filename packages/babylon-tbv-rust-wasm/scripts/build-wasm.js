@@ -21,8 +21,9 @@ const VAULT_WASM_BRANCH = 'main';
 // parents to). Bundles btc-vault v1 @ 2c1177ec (tag v0.6.1), v2 @ 27c0062b
 // (tag v0.8.0) and v3 @ b534ff9e, unchanged from the previous pin; no
 // depositor-signed transaction or vault-secret derivation changes. Every rev
-// here is reachable from a default branch, so the binary this produces stays
-// reproducible.
+// here is reachable from a default branch except btc-vault v1, which is
+// reachable from the release/0.6.x branch and tag v0.6.1, so the binary this
+// produces stays reproducible.
 const VAULT_WASM_COMMIT = '301fb3da221cee30a23a887b81e39aff525b0dbe';
 const REQUIRED_RUSTC_VERSION = '1.94';
 

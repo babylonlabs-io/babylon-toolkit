@@ -314,13 +314,15 @@ The rebuild takes two inputs that the VP relays at presign and that it cannot au
 challenger's GC output label hashes, which the connector commits to, and the Assert, whose outputs
 `1..2K` commit to each challenger's GC WOTS keys. The rebuilt ChallengeAssert is canonical only for
 those values. Nothing in this repository authenticates either today. The presign fingerprint only
-proves the VP serves the same hashes and Assert at activation. The activation-gate check that would
-rebuild both from the challenger's BaBe artifacts is not implemented
-(`services/vault/src/services/artifacts/artifactBinding.ts`, check (c)), and the vault-wasm facade
-does not export it yet (https://github.com/babylonlabs-io/vault-wasm/issues/12). A VP and one
-colluding challenger can still relay hashes with no known preimage, or an Assert that commits to WOTS
-keys other than the challenger's. Either leaves the claimer no WronglyChallenged answer once
-`timelockChallengeAssert` has passed.
+proves the VP serves the same hashes and Assert at activation. Closing the gap takes two
+activation-gate checks, neither implemented
+(`services/vault/src/services/artifacts/artifactBinding.ts`): check (c) compares the graph's label
+hashes and GC WOTS keys with the values rebuilt from each challenger's BaBe artifacts, and check (d)
+rebuilds the graph from canonical inputs, which is what ties the Assert's outputs to those keys. The
+vault-wasm facade exports neither yet; https://github.com/babylonlabs-io/vault-wasm/issues/12 tracks
+check (c). A VP and one colluding challenger can still relay hashes with no known preimage, or an
+Assert that commits to WOTS keys other than the challenger's. Either leaves the claimer no
+WronglyChallenged answer once `timelockChallengeAssert` has passed.
 
 Two further invariants, both asymmetric in their failure mode:
 

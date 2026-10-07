@@ -204,10 +204,11 @@ export interface AssertCanonicalNoPayoutShapeParams {
  * NoPayout leaf (`<challenger> CHECKSIGVERIFY <t> CSV`), which the txid binding
  * of both parents pins: a NoPayout with a shorter or disabled sequence, or
  * below version 2, fails that CSV and is invalid rather than early. Pinning the
- * layout keeps the signature on the one transaction btc-vault builds, which is
- * the one that can be mined. The output may not exceed the inputs, for the same
- * reason. The output script is checked by
- * {@link assertNoPayoutOutputMatchesChallenger}.
+ * inputs, sequences, version and locktime to btc-vault's layout keeps the
+ * signature on a NoPayout that satisfies that CSV. The output value is not
+ * pinned to btc-vault's (the inputs minus its fee); it is only required not to
+ * exceed the inputs, since a larger output could never be valid. The output
+ * script is checked by {@link assertNoPayoutOutputMatchesChallenger}.
  *
  * @param params - The supplied NoPayout and the authoritative parents
  * @throws If any input, sequence, version or locktime differs from the
